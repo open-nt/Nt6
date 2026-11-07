@@ -31,8 +31,10 @@ add_library(NtCore
     src/qdatetime.cpp
     src/qdebug.cpp
     src/qdir.cpp
+    src/qdiriterator.cpp
     src/qeventloop.cpp
     src/qfile.cpp
+    src/qfilesystemwatcher.cpp
     src/qfileinfo.cpp
     src/qiodevice.cpp
     src/qjsonarray.cpp
@@ -43,7 +45,9 @@ add_library(NtCore
     src/qjsonvalue.cpp
     src/qjsonwriter.cpp
     src/qlibraryinfo.cpp
+    src/qlockfile.cpp
     src/qobject.cpp
+    src/qprocess.cpp
     src/qrandom.cpp
     src/qrunnable.cpp
     src/qsavefile.cpp
@@ -239,6 +243,27 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_serialport_tests PRIVATE Nt::SerialPort)
     add_test(NAME nt_serialport_tests COMMAND nt_serialport_tests)
     nt_set_compile_options(nt_serialport_tests)
+
+    # The QProcess tests start a helper program built next to them.
+    add_executable(nt_process_helper tests/process_helper.cpp)
+    nt_set_compile_options(nt_process_helper)
+    add_executable(nt_process_tests tests/test_process.cpp)
+    target_include_directories(nt_process_tests PRIVATE src)
+    target_link_libraries(nt_process_tests PRIVATE Nt::Core)
+    target_compile_definitions(nt_process_tests PRIVATE NT_PROCESS_HELPER="$<TARGET_FILE:nt_process_helper>")
+    add_dependencies(nt_process_tests nt_process_helper)
+    add_test(NAME nt_process_tests COMMAND nt_process_tests)
+    nt_set_compile_options(nt_process_tests)
+
+    add_executable(nt_dirlock_tests tests/test_dirlock.cpp)
+    target_link_libraries(nt_dirlock_tests PRIVATE Nt::Core)
+    add_test(NAME nt_dirlock_tests COMMAND nt_dirlock_tests)
+    nt_set_compile_options(nt_dirlock_tests)
+
+    add_executable(nt_filesystemwatcher_tests tests/test_filesystemwatcher.cpp)
+    target_link_libraries(nt_filesystemwatcher_tests PRIVATE Nt::Core)
+    add_test(NAME nt_filesystemwatcher_tests COMMAND nt_filesystemwatcher_tests)
+    nt_set_compile_options(nt_filesystemwatcher_tests)
 
     add_test(NAME ndoc_tests
              COMMAND ${CMAKE_COMMAND}

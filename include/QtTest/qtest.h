@@ -51,21 +51,19 @@ bool fuzzyEqual(float a, float b);
 
 // Both return false if the test function must stop.
 bool reportPass(const char *file, int line);
-bool reportFailure(const char *summary, const char *actualValue, const char *expectedValue,
-                   const char *actual, const char *expected, const char *actualLabel,
-                   const char *expectedLabel, const char *file, int line);
+bool reportFailure(const char *summary, const char *actualValue, const char *expectedValue, const char *actual,
+                   const char *expected, const char *actualLabel, const char *expectedLabel, const char *file,
+                   int line);
 
 template <typename T>
 inline constexpr bool isCString =
     std::is_same_v<std::decay_t<T>, const char *> || std::is_same_v<std::decay_t<T>, char *>;
-template <typename T>
-inline constexpr bool isInteger = std::is_integral_v<T> && !std::is_same_v<T, bool>;
+template <typename T> inline constexpr bool isInteger = std::is_integral_v<T> && !std::is_same_v<T, bool>;
 
 enum class ComparisonOp { Equal, NotEqual, Less, LessEqual, Greater, GreaterEqual };
 
 // Compares integers by value, whatever their signedness.
-template <typename A, typename B>
-constexpr bool integerLess(A a, B b) noexcept {
+template <typename A, typename B> constexpr bool integerLess(A a, B b) noexcept {
     if constexpr (std::is_signed_v<A> == std::is_signed_v<B>)
         return a < b;
     else if constexpr (std::is_signed_v<A>)
@@ -74,8 +72,7 @@ constexpr bool integerLess(A a, B b) noexcept {
         return b >= 0 && a < static_cast<std::make_unsigned_t<B>>(b);
 }
 
-template <typename A, typename B>
-bool valuesEqual(const A &a, const B &b) {
+template <typename A, typename B> bool valuesEqual(const A &a, const B &b) {
     if constexpr (isCString<A> && isCString<B>) {
         const char *x = a;
         const char *y = b;
@@ -93,16 +90,14 @@ bool valuesEqual(const A &a, const B &b) {
     }
 }
 
-template <typename A, typename B>
-bool valuesLess(const A &a, const B &b) {
+template <typename A, typename B> bool valuesLess(const A &a, const B &b) {
     if constexpr (isInteger<A> && isInteger<B>)
         return integerLess(a, b);
     else
         return a < b;
 }
 
-template <ComparisonOp Op, typename A, typename B>
-bool holds(const A &a, const B &b) {
+template <ComparisonOp Op, typename A, typename B> bool holds(const A &a, const B &b) {
     if constexpr (Op == ComparisonOp::Equal)
         return valuesEqual(a, b);
     else if constexpr (Op == ComparisonOp::NotEqual)
@@ -131,8 +126,7 @@ public:
         to the row. \c T must be exactly the type given to
         QTest::addColumn() for that column.
     */
-    template <typename T>
-    QTestData &operator<<(const T &value) {
+    template <typename T> QTestData &operator<<(const T &value) {
         append(typeid(T), std::make_shared<const T>(value));
         return *this;
     }
@@ -188,10 +182,7 @@ int qExec(QObject *testObject, const QStringList &arguments);
 
     \sa newRow(), addRow()
 */
-template <typename T>
-void addColumn(const char *name) {
-    QTestPrivate::addColumn(typeid(T), name);
-}
+template <typename T> void addColumn(const char *name) { QTestPrivate::addColumn(typeid(T), name); }
 
 /*!
     Adds a row called \a dataTag to the test data table and returns it, to
@@ -280,14 +271,13 @@ void qWait(std::chrono::milliseconds time);
 
     \sa qWait()
 */
-template <typename Functor>
-bool qWaitFor(Functor predicate, int timeout = 5000) {
+template <typename Functor> bool qWaitFor(Functor predicate, int timeout = 5000) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout);
     while (true) {
         if (predicate())
             return true;
-        const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(
-            deadline - std::chrono::steady_clock::now());
+        const auto left =
+            std::chrono::duration_cast<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
         if (left.count() <= 0)
             return predicate();
         qWait(left.count() < 10 ? static_cast<int>(left.count()) : 10);
@@ -299,8 +289,7 @@ bool qWaitFor(Functor predicate, int timeout = 5000) {
 
     Waits for \a predicate for at most \a timeout.
 */
-template <typename Functor>
-bool qWaitFor(Functor predicate, std::chrono::milliseconds timeout) {
+template <typename Functor> bool qWaitFor(Functor predicate, std::chrono::milliseconds timeout) {
     return qWaitFor(std::move(predicate), static_cast<int>(timeout.count()));
 }
 
@@ -427,8 +416,7 @@ char *toString(const QVersionNumber &value);
     }
     \endcode
 */
-template <typename T>
-char *toString(const T &value) {
+template <typename T> char *toString(const T &value) {
     if constexpr (std::is_enum_v<T>)
         return QTestPrivate::integerToString(static_cast<long long>(value));
     else if constexpr (std::is_same_v<T, signed char> || std::is_same_v<T, unsigned char>)
@@ -449,8 +437,7 @@ char *toString(const T &value) {
 
 namespace QTestPrivate {
 
-template <typename T>
-std::string itemToString(const T &value) {
+template <typename T> std::string itemToString(const T &value) {
     using QTest::toString;
     std::unique_ptr<char[]> text(toString(value));
     return text ? std::string(text.get()) : std::string("?");
@@ -468,8 +455,7 @@ namespace QTest {
 /*!
     Returns a text form of \a value, with each item converted by toString().
 */
-template <typename T>
-char *toString(const QList<T> &value) {
+template <typename T> char *toString(const QList<T> &value) {
     std::vector<std::string> items;
     for (const T &item : value)
         items.push_back(QTestPrivate::itemToString(item));
@@ -479,8 +465,7 @@ char *toString(const QList<T> &value) {
 /*!
     Returns a text form of \a value, with both members converted by toString().
 */
-template <typename T1, typename T2>
-char *toString(const std::pair<T1, T2> &value) {
+template <typename T1, typename T2> char *toString(const std::pair<T1, T2> &value) {
     return QTestPrivate::sequenceToString(
         "std::pair(", {QTestPrivate::itemToString(value.first), QTestPrivate::itemToString(value.second)}, ")");
 }
@@ -488,10 +473,9 @@ char *toString(const std::pair<T1, T2> &value) {
 /*!
     Returns a text form of \a value, with each member converted by toString().
 */
-template <typename... Types>
-char *toString(const std::tuple<Types...> &value) {
-    return QTestPrivate::sequenceToString(
-        "std::tuple(", QTestPrivate::tupleItems(value, std::index_sequence_for<Types...>{}), ")");
+template <typename... Types> char *toString(const std::tuple<Types...> &value) {
+    return QTestPrivate::sequenceToString("std::tuple(",
+                                          QTestPrivate::tupleItems(value, std::index_sequence_for<Types...>{}), ")");
 }
 
 /*!
@@ -530,15 +514,13 @@ bool qExpectFail(const char *dataTag, const char *comment, TestFailMode mode, co
     NaNs as equal. Everything else uses \c{operator==}.
 */
 template <typename T1, typename T2>
-bool qCompare(const T1 &t1, const T2 &t2, const char *actual, const char *expected, const char *file,
-              int line) {
+bool qCompare(const T1 &t1, const T2 &t2, const char *actual, const char *expected, const char *file, int line) {
     if (QTestPrivate::valuesEqual(t1, t2))
         return QTestPrivate::reportPass(file, line);
     std::unique_ptr<char[]> actualValue(toString(t1));
     std::unique_ptr<char[]> expectedValue(toString(t2));
-    return QTestPrivate::reportFailure("Compared values are not the same", actualValue.get(),
-                                       expectedValue.get(), actual, expected, "Actual", "Expected",
-                                       file, line);
+    return QTestPrivate::reportFailure("Compared values are not the same", actualValue.get(), expectedValue.get(),
+                                       actual, expected, "Actual", "Expected", file, line);
 }
 
 /*!
@@ -549,15 +531,15 @@ bool qCompare(const T1 &t1, const T2 &t2, const char *actual, const char *expect
     \a file and \a line are as for the general function.
 */
 template <typename T>
-bool qCompare(const QList<T> &t1, const QList<T> &t2, const char *actual, const char *expected,
-              const char *file, int line) {
+bool qCompare(const QList<T> &t1, const QList<T> &t2, const char *actual, const char *expected, const char *file,
+              int line) {
     if (t1.size() != t2.size()) {
-        const std::string summary = "Compared lists have different sizes: " +
-                                    std::to_string(t1.size()) + " and " + std::to_string(t2.size());
+        const std::string summary =
+            "Compared lists have different sizes: " + std::to_string(t1.size()) + " and " + std::to_string(t2.size());
         std::unique_ptr<char[]> actualValue(toString(t1));
         std::unique_ptr<char[]> expectedValue(toString(t2));
-        return QTestPrivate::reportFailure(summary.c_str(), actualValue.get(), expectedValue.get(), actual,
-                                           expected, "Actual", "Expected", file, line);
+        return QTestPrivate::reportFailure(summary.c_str(), actualValue.get(), expectedValue.get(), actual, expected,
+                                           "Actual", "Expected", file, line);
     }
     for (qsizetype i = 0; i < t1.size(); ++i) {
         if (QTestPrivate::valuesEqual(t1.at(i), t2.at(i)))
@@ -565,8 +547,8 @@ bool qCompare(const QList<T> &t1, const QList<T> &t2, const char *actual, const 
         const std::string summary = "Compared lists differ at index " + std::to_string(i);
         std::unique_ptr<char[]> actualValue(toString(t1.at(i)));
         std::unique_ptr<char[]> expectedValue(toString(t2.at(i)));
-        return QTestPrivate::reportFailure(summary.c_str(), actualValue.get(), expectedValue.get(), actual,
-                                           expected, "Actual", "Expected", file, line);
+        return QTestPrivate::reportFailure(summary.c_str(), actualValue.get(), expectedValue.get(), actual, expected,
+                                           "Actual", "Expected", file, line);
     }
     return QTestPrivate::reportPass(file, line);
 }
@@ -579,8 +561,8 @@ bool qCompare(const QList<T> &t1, const QList<T> &t2, const char *actual, const 
     function must stop. QTEST() calls it.
 */
 template <typename T>
-bool qTest(const T &actual, const char *elementName, const char *actualText, const char *expected,
-           const char *file, int line) {
+bool qTest(const T &actual, const char *elementName, const char *actualText, const char *expected, const char *file,
+           int line) {
     const void *cell = QTestPrivate::fetchData(elementName, typeid(T), false);
     return qCompare(actual, *static_cast<const T *>(cell), actualText, expected, file, line);
 }
@@ -590,43 +572,40 @@ bool qTest(const T &actual, const char *elementName, const char *actualText, con
 namespace QTestPrivate {
 
 template <ComparisonOp Op, typename T1, typename T2>
-bool compareOp(const T1 &lhs, const T2 &rhs, const char *lhsText, const char *rhsText, const char *file,
-               int line) {
+bool compareOp(const T1 &lhs, const T2 &rhs, const char *lhsText, const char *rhsText, const char *file, int line) {
     if (holds<Op>(lhs, rhs))
         return reportPass(file, line);
     using QTest::toString;
     std::unique_ptr<char[]> left(toString(lhs));
     std::unique_ptr<char[]> right(toString(rhs));
-    return reportFailure(comparisonFailure(Op), left.get(), right.get(), lhsText, rhsText, "Computed",
-                         "Baseline", file, line);
+    return reportFailure(comparisonFailure(Op), left.get(), right.get(), lhsText, rhsText, "Computed", "Baseline", file,
+                         line);
 }
 
 } // namespace QTestPrivate
 
-#define QVERIFY(statement)                                                                         \
-    do {                                                                                           \
-        if (!QTest::qVerify(static_cast<bool>(statement), #statement, "", __FILE__, __LINE__))     \
-            return;                                                                                \
+#define QVERIFY(statement)                                                                                             \
+    do {                                                                                                               \
+        if (!QTest::qVerify(static_cast<bool>(statement), #statement, "", __FILE__, __LINE__))                         \
+            return;                                                                                                    \
     } while (false)
 
-#define QVERIFY2(statement, description)                                                           \
-    do {                                                                                           \
-        if (!QTest::qVerify(static_cast<bool>(statement), #statement, (description), __FILE__,     \
-                            __LINE__))                                                             \
-            return;                                                                                \
+#define QVERIFY2(statement, description)                                                                               \
+    do {                                                                                                               \
+        if (!QTest::qVerify(static_cast<bool>(statement), #statement, (description), __FILE__, __LINE__))              \
+            return;                                                                                                    \
     } while (false)
 
-#define QCOMPARE(actual, expected)                                                                 \
-    do {                                                                                           \
-        if (!QTest::qCompare(actual, expected, #actual, #expected, __FILE__, __LINE__))            \
-            return;                                                                                \
+#define QCOMPARE(actual, expected)                                                                                     \
+    do {                                                                                                               \
+        if (!QTest::qCompare(actual, expected, #actual, #expected, __FILE__, __LINE__))                                \
+            return;                                                                                                    \
     } while (false)
 
-#define QTEST_COMPARE_OP_IMPL(lhs, rhs, op)                                                        \
-    do {                                                                                           \
-        if (!QTestPrivate::compareOp<QTestPrivate::ComparisonOp::op>(lhs, rhs, #lhs, #rhs,         \
-                                                                     __FILE__, __LINE__))          \
-            return;                                                                                \
+#define QTEST_COMPARE_OP_IMPL(lhs, rhs, op)                                                                            \
+    do {                                                                                                               \
+        if (!QTestPrivate::compareOp<QTestPrivate::ComparisonOp::op>(lhs, rhs, #lhs, #rhs, __FILE__, __LINE__))        \
+            return;                                                                                                    \
     } while (false)
 
 #define QCOMPARE_EQ(computed, baseline) QTEST_COMPARE_OP_IMPL(computed, baseline, Equal)
@@ -636,102 +615,97 @@ bool compareOp(const T1 &lhs, const T2 &rhs, const char *lhsText, const char *rh
 #define QCOMPARE_GT(computed, baseline) QTEST_COMPARE_OP_IMPL(computed, baseline, Greater)
 #define QCOMPARE_GE(computed, baseline) QTEST_COMPARE_OP_IMPL(computed, baseline, GreaterEqual)
 
-#define QFAIL(message)                                                                             \
-    do {                                                                                           \
-        QTest::qFail(message, __FILE__, __LINE__);                                                 \
-        return;                                                                                    \
+#define QFAIL(message)                                                                                                 \
+    do {                                                                                                               \
+        QTest::qFail(message, __FILE__, __LINE__);                                                                     \
+        return;                                                                                                        \
     } while (false)
 
-#define QSKIP(message)                                                                             \
-    do {                                                                                           \
-        QTest::qSkip(message, __FILE__, __LINE__);                                                 \
-        return;                                                                                    \
+#define QSKIP(message)                                                                                                 \
+    do {                                                                                                               \
+        QTest::qSkip(message, __FILE__, __LINE__);                                                                     \
+        return;                                                                                                        \
     } while (false)
 
-#define QEXPECT_FAIL(dataTag, comment, mode)                                                       \
-    do {                                                                                           \
-        if (!QTest::qExpectFail(dataTag, comment, QTest::mode, __FILE__, __LINE__))                \
-            return;                                                                                \
+#define QEXPECT_FAIL(dataTag, comment, mode)                                                                           \
+    do {                                                                                                               \
+        if (!QTest::qExpectFail(dataTag, comment, QTest::mode, __FILE__, __LINE__))                                    \
+            return;                                                                                                    \
     } while (false)
 
-#define QFETCH(Type, name)                                                                         \
-    Type name = *static_cast<const std::remove_cv_t<Type> *>(                                      \
-        QTestPrivate::fetchData(#name, typeid(Type), false))
+#define QFETCH(Type, name)                                                                                             \
+    Type name = *static_cast<const std::remove_cv_t<Type> *>(QTestPrivate::fetchData(#name, typeid(Type), false))
 
-#define QFETCH_GLOBAL(Type, name)                                                                  \
-    Type name = *static_cast<const std::remove_cv_t<Type> *>(                                      \
-        QTestPrivate::fetchData(#name, typeid(Type), true))
+#define QFETCH_GLOBAL(Type, name)                                                                                      \
+    Type name = *static_cast<const std::remove_cv_t<Type> *>(QTestPrivate::fetchData(#name, typeid(Type), true))
 
-#define QTEST(actual, testElement)                                                                 \
-    do {                                                                                           \
-        if (!QTest::qTest(actual, testElement, #actual, testElement, __FILE__, __LINE__))          \
-            return;                                                                                \
+#define QTEST(actual, testElement)                                                                                     \
+    do {                                                                                                               \
+        if (!QTest::qTest(actual, testElement, #actual, testElement, __FILE__, __LINE__))                              \
+            return;                                                                                                    \
     } while (false)
 
-#define QTRY_VERIFY2_WITH_TIMEOUT(expression, description, timeout)                                \
-    do {                                                                                           \
-        (void)QTest::qWaitFor([&] { return static_cast<bool>(expression); }, timeout);             \
-        QVERIFY2(expression, description);                                                         \
+#define QTRY_VERIFY2_WITH_TIMEOUT(expression, description, timeout)                                                    \
+    do {                                                                                                               \
+        (void)QTest::qWaitFor([&] { return static_cast<bool>(expression); }, timeout);                                 \
+        QVERIFY2(expression, description);                                                                             \
     } while (false)
-#define QTRY_VERIFY_WITH_TIMEOUT(expression, timeout)                                              \
-    QTRY_VERIFY2_WITH_TIMEOUT(expression, "", timeout)
-#define QTRY_VERIFY2(expression, description)                                                      \
-    QTRY_VERIFY2_WITH_TIMEOUT(expression, description, 5000)
+#define QTRY_VERIFY_WITH_TIMEOUT(expression, timeout) QTRY_VERIFY2_WITH_TIMEOUT(expression, "", timeout)
+#define QTRY_VERIFY2(expression, description) QTRY_VERIFY2_WITH_TIMEOUT(expression, description, 5000)
 #define QTRY_VERIFY(expression) QTRY_VERIFY2_WITH_TIMEOUT(expression, "", 5000)
 
-#define QTRY_COMPARE_WITH_TIMEOUT(actual, expected, timeout)                                       \
-    do {                                                                                           \
-        (void)QTest::qWaitFor([&] { return QTestPrivate::valuesEqual(actual, expected); },         \
-                              timeout);                                                            \
-        QCOMPARE(actual, expected);                                                                \
+#define QTRY_COMPARE_WITH_TIMEOUT(actual, expected, timeout)                                                           \
+    do {                                                                                                               \
+        (void)QTest::qWaitFor([&] { return QTestPrivate::valuesEqual(actual, expected); }, timeout);                   \
+        QCOMPARE(actual, expected);                                                                                    \
     } while (false)
 #define QTRY_COMPARE(actual, expected) QTRY_COMPARE_WITH_TIMEOUT(actual, expected, 5000)
 
-#define QVERIFY_THROWS_EXCEPTION(exceptionType, ...)                                               \
-    do {                                                                                           \
-        const int qtestThrown = [&]() -> int {                                                     \
-            try {                                                                                  \
-                __VA_ARGS__;                                                                       \
-            } catch (const exceptionType &) {                                                      \
-                return 1;                                                                          \
-            } catch (...) {                                                                        \
-                return 2;                                                                          \
-            }                                                                                      \
-            return 0;                                                                              \
-        }();                                                                                       \
-        if (qtestThrown == 0)                                                                      \
-            QFAIL("Expected exception of type " #exceptionType " to be thrown, but none was");     \
-        if (qtestThrown == 2)                                                                      \
-            QFAIL("Expected exception of type " #exceptionType ", but caught another type");       \
+#define QVERIFY_THROWS_EXCEPTION(exceptionType, ...)                                                                   \
+    do {                                                                                                               \
+        const int qtestThrown = [&]() -> int {                                                                         \
+            try {                                                                                                      \
+                __VA_ARGS__;                                                                                           \
+            } catch (const exceptionType &) {                                                                          \
+                return 1;                                                                                              \
+            } catch (...) {                                                                                            \
+                return 2;                                                                                              \
+            }                                                                                                          \
+            return 0;                                                                                                  \
+        }();                                                                                                           \
+        if (qtestThrown == 0)                                                                                          \
+            QFAIL("Expected exception of type " #exceptionType " to be thrown, but none was");                         \
+        if (qtestThrown == 2)                                                                                          \
+            QFAIL("Expected exception of type " #exceptionType ", but caught another type");                           \
     } while (false)
 
-#define QVERIFY_THROWS_NO_EXCEPTION(...)                                                           \
-    do {                                                                                           \
-        const bool qtestThrown = [&]() -> bool {                                                   \
-            try {                                                                                  \
-                __VA_ARGS__;                                                                       \
-            } catch (...) {                                                                        \
-                return true;                                                                       \
-            }                                                                                      \
-            return false;                                                                          \
-        }();                                                                                       \
-        if (qtestThrown)                                                                           \
-            QFAIL("Expected no exception to be thrown, but caught one");                           \
+#define QVERIFY_THROWS_NO_EXCEPTION(...)                                                                               \
+    do {                                                                                                               \
+        const bool qtestThrown = [&]() -> bool {                                                                       \
+            try {                                                                                                      \
+                __VA_ARGS__;                                                                                           \
+            } catch (...) {                                                                                            \
+                return true;                                                                                           \
+            }                                                                                                          \
+            return false;                                                                                              \
+        }();                                                                                                           \
+        if (qtestThrown)                                                                                               \
+            QFAIL("Expected no exception to be thrown, but caught one");                                               \
     } while (false)
 
 #define QFINDTESTDATA(basepath) QTest::qFindTestData(basepath, __FILE__, __LINE__)
 
-#define QTEST_APPLESS_MAIN(TestObject)                                                             \
-    int main(int argc, char *argv[]) {                                                             \
-        TestObject testObject;                                                                     \
-        return QTest::qExec(&testObject, argc, argv);                                              \
+#define QTEST_APPLESS_MAIN(TestObject)                                                                                 \
+    int main(int argc, char *argv[]) {                                                                                 \
+        TestObject testObject;                                                                                         \
+        return QTest::qExec(&testObject, argc, argv);                                                                  \
     }
 
-#define QTEST_GUILESS_MAIN(TestObject)                                                             \
-    int main(int argc, char *argv[]) {                                                             \
-        QCoreApplication app(argc, argv);                                                          \
-        TestObject testObject;                                                                     \
-        return QTest::qExec(&testObject, argc, argv);                                              \
+#define QTEST_GUILESS_MAIN(TestObject)                                                                                 \
+    int main(int argc, char *argv[]) {                                                                                 \
+        QCoreApplication app(argc, argv);                                                                              \
+        TestObject testObject;                                                                                         \
+        return QTest::qExec(&testObject, argc, argv);                                                                  \
     }
 
 // Nt has no GUI module yet, so this is the same as QTEST_GUILESS_MAIN.

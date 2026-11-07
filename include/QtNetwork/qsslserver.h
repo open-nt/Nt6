@@ -20,12 +20,16 @@ signals:
     /*!
         This signal is emitted when \a socket reports verification \a errors.
     */
-    void sslErrors(QSslSocket *socket, const QList<QSslError> &errors) { emitSignal(&QSslServer::sslErrors, socket, errors); }
+    void sslErrors(QSslSocket *socket, const QList<QSslError> &errors) {
+        emitSignal(&QSslServer::sslErrors, socket, errors);
+    }
     /*!
         This signal is emitted when \a socket fails with \a error before its
         handshake finishes. The socket is then deleted.
     */
-    void errorOccurred(QSslSocket *socket, QAbstractSocket::SocketError error) { emitSignal(&QSslServer::errorOccurred, socket, error); }
+    void errorOccurred(QSslSocket *socket, QAbstractSocket::SocketError error) {
+        emitSignal(&QSslServer::errorOccurred, socket, error);
+    }
     /*!
         This signal is emitted when a handshake begins on \a socket.
     */

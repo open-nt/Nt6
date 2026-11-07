@@ -71,12 +71,18 @@ bool isWireless(const QString &name) {
 
 QNetworkInterface::InterfaceFlags toFlags(unsigned f) {
     QNetworkInterface::InterfaceFlags r;
-    if (f & IFF_UP) r |= QNetworkInterface::IsUp;
-    if (f & IFF_RUNNING) r |= QNetworkInterface::IsRunning;
-    if (f & IFF_BROADCAST) r |= QNetworkInterface::CanBroadcast;
-    if (f & IFF_LOOPBACK) r |= QNetworkInterface::IsLoopBack;
-    if (f & IFF_POINTOPOINT) r |= QNetworkInterface::IsPointToPoint;
-    if (f & IFF_MULTICAST) r |= QNetworkInterface::CanMulticast;
+    if (f & IFF_UP)
+        r |= QNetworkInterface::IsUp;
+    if (f & IFF_RUNNING)
+        r |= QNetworkInterface::IsRunning;
+    if (f & IFF_BROADCAST)
+        r |= QNetworkInterface::CanBroadcast;
+    if (f & IFF_LOOPBACK)
+        r |= QNetworkInterface::IsLoopBack;
+    if (f & IFF_POINTOPOINT)
+        r |= QNetworkInterface::IsPointToPoint;
+    if (f & IFF_MULTICAST)
+        r |= QNetworkInterface::CanMulticast;
     return r;
 }
 

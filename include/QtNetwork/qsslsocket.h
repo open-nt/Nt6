@@ -22,8 +22,10 @@ public:
     explicit QSslSocket(QObject *parent = nullptr);
     ~QSslSocket() override;
 
-    void connectToHostEncrypted(const QString &hostName, quint16 port, OpenMode mode = ReadWrite, NetworkLayerProtocol protocol = AnyIPProtocol);
-    void connectToHostEncrypted(const QString &hostName, quint16 port, const QString &sslPeerName, OpenMode mode = ReadWrite, NetworkLayerProtocol protocol = AnyIPProtocol);
+    void connectToHostEncrypted(const QString &hostName, quint16 port, OpenMode mode = ReadWrite,
+                                NetworkLayerProtocol protocol = AnyIPProtocol);
+    void connectToHostEncrypted(const QString &hostName, quint16 port, const QString &sslPeerName,
+                                OpenMode mode = ReadWrite, NetworkLayerProtocol protocol = AnyIPProtocol);
 
     SslMode mode() const;
     bool isEncrypted() const;

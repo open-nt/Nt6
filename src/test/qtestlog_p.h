@@ -25,8 +25,8 @@ class Logger {
 public:
     virtual ~Logger() = default;
     virtual void begin(const std::string &className) = 0;
-    virtual void event(Event event, const std::string &label, const std::string &message,
-                       const char *file, int line) = 0;
+    virtual void event(Event event, const std::string &label, const std::string &message, const char *file,
+                       int line) = 0;
     virtual void rowFinished(Outcome outcome, const std::string &label, qint64 elapsedMs) = 0;
     virtual void end(const std::string &className, const Totals &totals) = 0;
 };

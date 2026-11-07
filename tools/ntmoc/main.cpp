@@ -263,11 +263,10 @@ bool parseSignal(const std::string &src, const std::vector<Token> &t, std::size_
 
 // Parses `[virtual|inline|static] void name()` from tokens [from, to); false if it is anything else.
 bool parseTestSlot(const std::vector<Token> &t, std::size_t from, std::size_t to, std::string &name) {
-    while (from < to && (t[from].text == "Q_SLOT" || t[from].text == "virtual" ||
-                         t[from].text == "inline" || t[from].text == "static"))
+    while (from < to && (t[from].text == "Q_SLOT" || t[from].text == "virtual" || t[from].text == "inline" ||
+                         t[from].text == "static"))
         ++from;
-    if (to - from < 4 || t[from].text != "void" || !isIdentStart(t[from + 1].text[0]) ||
-        t[from + 2].text != "(")
+    if (to - from < 4 || t[from].text != "void" || !isIdentStart(t[from + 1].text[0]) || t[from + 2].text != "(")
         return false;
     const std::size_t close = t[from + 3].text == "void" ? from + 4 : from + 3;
     if (close >= to || t[close].text != ")")
@@ -277,12 +276,12 @@ bool parseTestSlot(const std::vector<Token> &t, std::size_t from, std::size_t to
 }
 
 // The types in `public A, private virtual B<int, 2>`, without access or virtual.
-std::vector<std::string> parseBases(const std::string &src, const std::vector<Token> &t,
-                                    std::size_t from, std::size_t to) {
+std::vector<std::string> parseBases(const std::string &src, const std::vector<Token> &t, std::size_t from,
+                                    std::size_t to) {
     std::vector<std::string> bases;
     for (auto [b, e] : splitParams(t, from, to)) {
-        while (b < e && (t[b].text == "public" || t[b].text == "protected" ||
-                         t[b].text == "private" || t[b].text == "virtual"))
+        while (b < e &&
+               (t[b].text == "public" || t[b].text == "protected" || t[b].text == "private" || t[b].text == "virtual"))
             ++b;
         if (b < e)
             bases.push_back(collapse(src.substr(t[b].pos, t[e - 1].end - t[b].pos)));
@@ -389,11 +388,10 @@ std::vector<ClassInfo> scan(const std::string &raw) {
                 if (s.kind == Scope::Class && s.qobject) {
                     if (s.isTemplate) {
                         if (!s.sigs.empty() || !s.privateSlots.empty())
-                            std::cerr << "ntmoc: warning: signals and slots of template class "
-                                      << s.name << " are not supported\n";
+                            std::cerr << "ntmoc: warning: signals and slots of template class " << s.name
+                                      << " are not supported\n";
                     } else if (const std::string q = qualify(stack, s.name); !q.empty()) {
-                        classes.push_back({q, std::move(s.sigs), std::move(s.bases),
-                                           std::move(s.privateSlots)});
+                        classes.push_back({q, std::move(s.sigs), std::move(s.bases), std::move(s.privateSlots)});
                     }
                 }
             }
@@ -416,8 +414,8 @@ std::vector<ClassInfo> scan(const std::string &raw) {
             if (x == "public" || x == "private" || x == "protected") {
                 // `public:` or `public slots:` / `public Q_SLOTS:`
                 cur->inSignals = (at(i + 1) == "signals" || at(i + 1) == "Q_SIGNALS") && at(i + 2) == ":";
-                cur->inPrivateSlots = x == "private" && (at(i + 1) == "slots" || at(i + 1) == "Q_SLOTS") &&
-                                      at(i + 2) == ":";
+                cur->inPrivateSlots =
+                    x == "private" && (at(i + 1) == "slots" || at(i + 1) == "Q_SLOTS") && at(i + 2) == ":";
                 i += cur->inSignals ? 3 : (cur->inPrivateSlots ? 3 : 1);
                 continue;
             }
@@ -434,8 +432,7 @@ std::vector<ClassInfo> scan(const std::string &raw) {
                         break;
                     ++j;
                 }
-                if (std::string name; cur->inPrivateSlots && j < n && t[j].text != "}" &&
-                                      parseTestSlot(t, i, j, name))
+                if (std::string name; cur->inPrivateSlots && j < n && t[j].text != "}" && parseTestSlot(t, i, j, name))
                     cur->privateSlots.push_back(std::move(name));
                 if (at(j) == ";") {
                     Signal sig;
@@ -461,8 +458,8 @@ void generateMetaClass(std::ostringstream &o, const ClassInfo &c) {
     const std::string access = c.qualName + "::NtMetaAccess";
     o << "\nstruct " << access << " {\n";
     for (std::size_t i = 0; i < c.privateSlots.size(); ++i)
-        o << "    static void invoke" << i << "(QObject *o) { static_cast<" << c.qualName
-          << " *>(o)->" << c.privateSlots[i] << "(); }\n";
+        o << "    static void invoke" << i << "(QObject *o) { static_cast<" << c.qualName << " *>(o)->"
+          << c.privateSlots[i] << "(); }\n";
     o << "    static const bool registered;\n};\n"
       << "const bool " << access << "::registered = [] {\n";
     if (!c.privateSlots.empty()) {
@@ -477,10 +474,9 @@ void generateMetaClass(std::ostringstream &o, const ClassInfo &c) {
             o << "        &typeid(" << base << "),\n";
         o << "    };\n";
     }
-    o << "    return QtPrivate::registerMetaClass(typeid(" << c.qualName << "), {\"" << c.qualName
-      << "\", " << (c.privateSlots.empty() ? "nullptr" : "privateSlots") << ", "
-      << c.privateSlots.size() << ", " << (c.baseTypes.empty() ? "nullptr" : "bases") << ", "
-      << c.baseTypes.size() << "});\n}();\n";
+    o << "    return QtPrivate::registerMetaClass(typeid(" << c.qualName << "), {\"" << c.qualName << "\", "
+      << (c.privateSlots.empty() ? "nullptr" : "privateSlots") << ", " << c.privateSlots.size() << ", "
+      << (c.baseTypes.empty() ? "nullptr" : "bases") << ", " << c.baseTypes.size() << "});\n}();\n";
 }
 
 std::string generate(const std::vector<ClassInfo> &classes, const std::string &includePath) {

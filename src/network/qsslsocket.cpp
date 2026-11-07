@@ -19,30 +19,53 @@ namespace {
 
 QSslError::SslError fromVerifyError(int code) {
     switch (code) {
-    case X509_V_OK: return QSslError::NoError;
-    case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT: return QSslError::UnableToGetIssuerCertificate;
-    case X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE: return QSslError::UnableToDecryptCertificateSignature;
-    case X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY: return QSslError::UnableToDecodeIssuerPublicKey;
-    case X509_V_ERR_CERT_SIGNATURE_FAILURE: return QSslError::CertificateSignatureFailed;
-    case X509_V_ERR_CERT_NOT_YET_VALID: return QSslError::CertificateNotYetValid;
-    case X509_V_ERR_CERT_HAS_EXPIRED: return QSslError::CertificateExpired;
-    case X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD: return QSslError::InvalidNotBeforeField;
-    case X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD: return QSslError::InvalidNotAfterField;
-    case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT: return QSslError::SelfSignedCertificate;
-    case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN: return QSslError::SelfSignedCertificateInChain;
-    case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY: return QSslError::UnableToGetLocalIssuerCertificate;
-    case X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE: return QSslError::UnableToVerifyFirstCertificate;
-    case X509_V_ERR_CERT_REVOKED: return QSslError::CertificateRevoked;
-    case X509_V_ERR_INVALID_CA: return QSslError::InvalidCaCertificate;
-    case X509_V_ERR_PATH_LENGTH_EXCEEDED: return QSslError::PathLengthExceeded;
-    case X509_V_ERR_INVALID_PURPOSE: return QSslError::InvalidPurpose;
-    case X509_V_ERR_CERT_UNTRUSTED: return QSslError::CertificateUntrusted;
-    case X509_V_ERR_CERT_REJECTED: return QSslError::CertificateRejected;
-    case X509_V_ERR_SUBJECT_ISSUER_MISMATCH: return QSslError::SubjectIssuerMismatch;
-    case X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH: return QSslError::AuthorityIssuerSerialNumberMismatch;
+    case X509_V_OK:
+        return QSslError::NoError;
+    case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
+        return QSslError::UnableToGetIssuerCertificate;
+    case X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE:
+        return QSslError::UnableToDecryptCertificateSignature;
+    case X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY:
+        return QSslError::UnableToDecodeIssuerPublicKey;
+    case X509_V_ERR_CERT_SIGNATURE_FAILURE:
+        return QSslError::CertificateSignatureFailed;
+    case X509_V_ERR_CERT_NOT_YET_VALID:
+        return QSslError::CertificateNotYetValid;
+    case X509_V_ERR_CERT_HAS_EXPIRED:
+        return QSslError::CertificateExpired;
+    case X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD:
+        return QSslError::InvalidNotBeforeField;
+    case X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD:
+        return QSslError::InvalidNotAfterField;
+    case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
+        return QSslError::SelfSignedCertificate;
+    case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
+        return QSslError::SelfSignedCertificateInChain;
+    case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
+        return QSslError::UnableToGetLocalIssuerCertificate;
+    case X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE:
+        return QSslError::UnableToVerifyFirstCertificate;
+    case X509_V_ERR_CERT_REVOKED:
+        return QSslError::CertificateRevoked;
+    case X509_V_ERR_INVALID_CA:
+        return QSslError::InvalidCaCertificate;
+    case X509_V_ERR_PATH_LENGTH_EXCEEDED:
+        return QSslError::PathLengthExceeded;
+    case X509_V_ERR_INVALID_PURPOSE:
+        return QSslError::InvalidPurpose;
+    case X509_V_ERR_CERT_UNTRUSTED:
+        return QSslError::CertificateUntrusted;
+    case X509_V_ERR_CERT_REJECTED:
+        return QSslError::CertificateRejected;
+    case X509_V_ERR_SUBJECT_ISSUER_MISMATCH:
+        return QSslError::SubjectIssuerMismatch;
+    case X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH:
+        return QSslError::AuthorityIssuerSerialNumberMismatch;
     case X509_V_ERR_HOSTNAME_MISMATCH:
-    case X509_V_ERR_IP_ADDRESS_MISMATCH: return QSslError::HostNameMismatch;
-    default: return QSslError::UnspecifiedError;
+    case X509_V_ERR_IP_ADDRESS_MISMATCH:
+        return QSslError::HostNameMismatch;
+    default:
+        return QSslError::UnspecifiedError;
     }
 }
 
@@ -109,14 +132,14 @@ struct QSslSocket::Private {
     bool closeSent = false;
     QString peerVerifyName;
     QList<QSslError> ignoreList;
-    QList<QSslError> found;      // reported by the verify callback
+    QList<QSslError> found; // reported by the verify callback
     QList<QSslError> handshakeErrors;
-    QByteArray pendingPlain;     // written before the handshake finished
+    QByteArray pendingPlain; // written before the handshake finished
     struct Record {
         qint64 cipher;
         qint64 plain;
     };
-    std::deque<Record> records;  // maps encrypted bytes back to bytesWritten()
+    std::deque<Record> records; // maps encrypted bytes back to bytesWritten()
     qint64 encryptedToWrite = 0;
 
     void release() {
@@ -145,7 +168,8 @@ int verifyCallback(int ok, X509_STORE_CTX *store) {
         auto *ssl = static_cast<SSL *>(X509_STORE_CTX_get_ex_data(store, SSL_get_ex_data_X509_STORE_CTX_idx()));
         auto *found = static_cast<QList<QSslError> *>(SSL_get_ex_data(ssl, exDataIndex()));
         if (found) {
-            const QSslError error(fromVerifyError(X509_STORE_CTX_get_error(store)), wrapCertificate(X509_STORE_CTX_get_current_cert(store)));
+            const QSslError error(fromVerifyError(X509_STORE_CTX_get_error(store)),
+                                  wrapCertificate(X509_STORE_CTX_get_current_cert(store)));
             if (!found->contains(error))
                 found->append(error);
         }
@@ -153,11 +177,13 @@ int verifyCallback(int ok, X509_STORE_CTX *store) {
     return 1;
 }
 
-int alpnSelect(SSL *, const unsigned char **selected, unsigned char *selectedLength, const unsigned char *offered, unsigned int offeredLength, void *arg) {
+int alpnSelect(SSL *, const unsigned char **selected, unsigned char *selectedLength, const unsigned char *offered,
+               unsigned int offeredLength, void *arg) {
     const auto *ours = static_cast<const QByteArray *>(arg);
     unsigned char *result = nullptr;
-    const int rc = SSL_select_next_proto(&result, selectedLength, reinterpret_cast<const unsigned char *>(ours->constData()),
-                                         static_cast<unsigned int>(ours->size()), offered, offeredLength);
+    const int rc =
+        SSL_select_next_proto(&result, selectedLength, reinterpret_cast<const unsigned char *>(ours->constData()),
+                              static_cast<unsigned int>(ours->size()), offered, offeredLength);
     if (rc != OPENSSL_NPN_NEGOTIATED)
         return SSL_TLSEXT_ERR_NOACK;
     *selected = result;
@@ -274,7 +300,8 @@ void QSslSocket::resetState() {
 
     \sa encrypted(), setPeerVerifyName()
 */
-void QSslSocket::connectToHostEncrypted(const QString &hostName, quint16 port, OpenMode mode, NetworkLayerProtocol protocol) {
+void QSslSocket::connectToHostEncrypted(const QString &hostName, quint16 port, OpenMode mode,
+                                        NetworkLayerProtocol protocol) {
     connectToHostEncrypted(hostName, port, hostName, mode, protocol);
 }
 
@@ -285,7 +312,8 @@ void QSslSocket::connectToHostEncrypted(const QString &hostName, quint16 port, O
     against \a sslPeerName, using the open mode \a mode and network protocol
     \a protocol.
 */
-void QSslSocket::connectToHostEncrypted(const QString &hostName, quint16 port, const QString &sslPeerName, OpenMode mode, NetworkLayerProtocol protocol) {
+void QSslSocket::connectToHostEncrypted(const QString &hostName, quint16 port, const QString &sslPeerName,
+                                        OpenMode mode, NetworkLayerProtocol protocol) {
     if (state() != UnconnectedState)
         return;
     d->peerVerifyName = sslPeerName;
@@ -329,13 +357,20 @@ void QSslSocket::beginHandshake(SslMode mode) {
 
     int minimum = TLS1_2_VERSION, maximum = 0;
     switch (config.protocol()) {
-    case QSsl::TlsV1_2: maximum = TLS1_2_VERSION; break;
-    case QSsl::TlsV1_3: minimum = maximum = TLS1_3_VERSION; break;
-    case QSsl::TlsV1_3OrLater: minimum = TLS1_3_VERSION; break;
+    case QSsl::TlsV1_2:
+        maximum = TLS1_2_VERSION;
+        break;
+    case QSsl::TlsV1_3:
+        minimum = maximum = TLS1_3_VERSION;
+        break;
+    case QSsl::TlsV1_3OrLater:
+        minimum = TLS1_3_VERSION;
+        break;
     case QSsl::UnknownProtocol:
         failHandshake(SslInvalidUserDataError, QString("Unsupported protocol"));
         return;
-    default: break;
+    default:
+        break;
     }
     SSL_CTX_set_min_proto_version(d->ctx, minimum);
     SSL_CTX_set_max_proto_version(d->ctx, maximum);
@@ -373,9 +408,10 @@ void QSslSocket::beginHandshake(SslMode mode) {
         X509 *leaf = unwrapCertificate(chain.first());
         const QByteArray keyDer = config.privateKey().toDer();
         const auto *keyBytes = reinterpret_cast<const unsigned char *>(keyDer.constData());
-        EVP_PKEY *key = keyDer.isEmpty() ? nullptr : d2i_AutoPrivateKey(nullptr, &keyBytes, static_cast<long>(keyDer.size()));
-        const bool ok = leaf && key && SSL_CTX_use_certificate(d->ctx, leaf) == 1 && SSL_CTX_use_PrivateKey(d->ctx, key) == 1 &&
-                        SSL_CTX_check_private_key(d->ctx) == 1;
+        EVP_PKEY *key =
+            keyDer.isEmpty() ? nullptr : d2i_AutoPrivateKey(nullptr, &keyBytes, static_cast<long>(keyDer.size()));
+        const bool ok = leaf && key && SSL_CTX_use_certificate(d->ctx, leaf) == 1 &&
+                        SSL_CTX_use_PrivateKey(d->ctx, key) == 1 && SSL_CTX_check_private_key(d->ctx) == 1;
         X509_free(leaf);
         EVP_PKEY_free(key);
         if (!ok) {
@@ -408,7 +444,8 @@ void QSslSocket::beginHandshake(SslMode mode) {
     if (mode == SslClientMode) {
         SSL_set_connect_state(d->ssl);
         if (!d->alpnWire.isEmpty())
-            SSL_set_alpn_protos(d->ssl, reinterpret_cast<const unsigned char *>(d->alpnWire.constData()), static_cast<unsigned int>(d->alpnWire.size()));
+            SSL_set_alpn_protos(d->ssl, reinterpret_cast<const unsigned char *>(d->alpnWire.constData()),
+                                static_cast<unsigned int>(d->alpnWire.size()));
 
         QString name = d->peerVerifyName.isEmpty() ? peerName() : d->peerVerifyName;
         const QHostAddress literal(name);
@@ -423,7 +460,8 @@ void QSslSocket::beginHandshake(SslMode mode) {
             }
         }
         if (literal.isNull() && !name.isEmpty()) // server name indication takes host names only
-            SSL_ctrl(d->ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, const_cast<char *>(utf8.constData()));
+            SSL_ctrl(d->ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name,
+                     const_cast<char *>(utf8.constData()));
     } else {
         SSL_set_accept_state(d->ssl);
     }
@@ -684,7 +722,8 @@ void QSslSocket::socketBytesWritten(qint64 size) {
 void QSslSocket::remoteClosed() {
     if (d->mode != UnencryptedMode && !d->encrypted && d->ssl) {
         QPointer<QSslSocket> self(this);
-        setSocketError(SslHandshakeFailedError, QString("The remote host closed the connection during the TLS handshake"));
+        setSocketError(SslHandshakeFailedError,
+                       QString("The remote host closed the connection during the TLS handshake"));
         if (self)
             finishDisconnect();
         return;
@@ -820,7 +859,9 @@ QSslCertificate QSslSocket::localCertificate() const { return d->configuration.l
 
     \sa localCertificate(), setPrivateKey()
 */
-void QSslSocket::setLocalCertificate(const QSslCertificate &certificate) { d->configuration.setLocalCertificate(certificate); }
+void QSslSocket::setLocalCertificate(const QSslCertificate &certificate) {
+    d->configuration.setLocalCertificate(certificate);
+}
 
 /*!
     Returns the private key.

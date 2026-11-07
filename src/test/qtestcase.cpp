@@ -179,22 +179,19 @@ qint64 millisecondsSince(Clock::time_point start) {
     return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - start).count();
 }
 
-const char *testFunctionHelp =
-    "Usage: %s [options] [testfunction[:datatag]]...\n"
-    "\n"
-    "  -o file,format  Write the log to file, or to the standard output for '-'.\n"
-    "                  Formats: txt, junitxml, tap\n"
-    "  -txt, -junitxml, -tap\n"
-    "                  Format of the standard output, or of a following -o file\n"
-    "  -silent         Show only failures, fatal messages and the totals\n"
-    "  -v1             Show each result (the default)\n"
-    "  -v2             Also show when each test function starts\n"
-    "  -functions      List the test functions and exit\n"
-    "  -help           Show this help and exit\n";
+const char *testFunctionHelp = "Usage: %s [options] [testfunction[:datatag]]...\n"
+                               "\n"
+                               "  -o file,format  Write the log to file, or to the standard output for '-'.\n"
+                               "                  Formats: txt, junitxml, tap\n"
+                               "  -txt, -junitxml, -tap\n"
+                               "                  Format of the standard output, or of a following -o file\n"
+                               "  -silent         Show only failures, fatal messages and the totals\n"
+                               "  -v1             Show each result (the default)\n"
+                               "  -v2             Also show when each test function starts\n"
+                               "  -functions      List the test functions and exit\n"
+                               "  -help           Show this help and exit\n";
 
-bool isKnownFormat(const std::string &format) {
-    return format == "txt" || format == "junitxml" || format == "tap";
-}
+bool isKnownFormat(const std::string &format) { return format == "txt" || format == "junitxml" || format == "tap"; }
 
 // Collects the private slots of `type`, those of its bases first. A slot that a derived class
 // declares again takes the place of the one in the base class.
@@ -207,9 +204,7 @@ void collectSlots(const std::type_info &type, std::set<std::type_index> &visited
         collectSlots(*meta->bases[i], visited, found);
     for (std::size_t i = 0; i < meta->privateSlotCount; ++i) {
         const QtPrivate::MetaSlot &slot = meta->privateSlots[i];
-        const auto same = [&](const QtPrivate::MetaSlot &other) {
-            return std::string(other.name) == slot.name;
-        };
+        const auto same = [&](const QtPrivate::MetaSlot &other) { return std::string(other.name) == slot.name; };
         const auto existing = std::find_if(found.begin(), found.end(), same);
         if (existing == found.end())
             found.push_back(slot);
@@ -219,13 +214,12 @@ void collectSlots(const std::type_info &type, std::set<std::type_index> &visited
 }
 
 bool endsWith(const std::string &text, const std::string &suffix) {
-    return text.size() >= suffix.size() &&
-           text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
+    return text.size() >= suffix.size() && text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
 }
 
 bool isSpecialSlot(const std::string &name) {
-    return name == "initTestCase" || name == "cleanupTestCase" || name == "init" ||
-           name == "cleanup" || endsWith(name, "_data");
+    return name == "initTestCase" || name == "cleanupTestCase" || name == "init" || name == "cleanup" ||
+           endsWith(name, "_data");
 }
 
 std::string g_appName;
@@ -291,16 +285,14 @@ struct Output {
 
 class Run {
 public:
-    Run(QObject *object, std::vector<std::string> arguments)
-        : m_object(object), m_arguments(std::move(arguments)) {}
+    Run(QObject *object, std::vector<std::string> arguments) : m_object(object), m_arguments(std::move(arguments)) {}
 
     int exec();
 
     bool reportPass();
     bool reportFailure(const std::string &message, const char *file, int line);
     void skip(const std::string &message, const char *file, int line);
-    bool expectFail(const char *tag, const char *comment, QTest::TestFailMode mode, const char *file,
-                    int line);
+    bool expectFail(const char *tag, const char *comment, QTest::TestFailMode mode, const char *file, int line);
     void ignoreMessage(QtMsgType type, const char *text);
     void handleMessage(QtMsgType type, const std::string &text);
 
@@ -695,8 +687,7 @@ void Run::skip(const std::string &message, const char *file, int line) {
     event(Event::Skip, message, file, line);
 }
 
-bool Run::expectFail(const char *tag, const char *comment, QTest::TestFailMode mode, const char *file,
-                     int line) {
+bool Run::expectFail(const char *tag, const char *comment, QTest::TestFailMode mode, const char *file, int line) {
     if (tag && *tag && !matchesTag(tag))
         return true;
     if (m_expected.active) {
@@ -719,20 +710,29 @@ void Run::ignoreMessage(QtMsgType type, const char *text) {
 void Run::handleMessage(QtMsgType type, const std::string &text) {
     {
         const std::lock_guard<std::recursive_mutex> lock(m_logMutex);
-        const auto ignored = std::find_if(m_ignored.begin(), m_ignored.end(), [&](const IgnoredMessage &m) {
-            return m.type == type && m.text == text;
-        });
+        const auto ignored = std::find_if(m_ignored.begin(), m_ignored.end(),
+                                          [&](const IgnoredMessage &m) { return m.type == type && m.text == text; });
         if (ignored != m_ignored.end()) {
             m_ignored.erase(ignored);
             return;
         }
     }
     switch (type) {
-    case QtDebugMsg: event(Event::Debug, text, nullptr, 0); break;
-    case QtInfoMsg: event(Event::Info, text, nullptr, 0); break;
-    case QtWarningMsg: event(Event::Warning, text, nullptr, 0); break;
-    case QtCriticalMsg: event(Event::Critical, text, nullptr, 0); break;
-    case QtFatalMsg: event(Event::Fatal, text, nullptr, 0); break;
+    case QtDebugMsg:
+        event(Event::Debug, text, nullptr, 0);
+        break;
+    case QtInfoMsg:
+        event(Event::Info, text, nullptr, 0);
+        break;
+    case QtWarningMsg:
+        event(Event::Warning, text, nullptr, 0);
+        break;
+    case QtCriticalMsg:
+        event(Event::Critical, text, nullptr, 0);
+        break;
+    case QtFatalMsg:
+        event(Event::Fatal, text, nullptr, 0);
+        break;
     }
 }
 
@@ -801,9 +801,9 @@ const void *fetchData(const char *name, const std::type_info &type, bool global)
 
 bool reportPass(const char *, int) { return g_run ? g_run->reportPass() : true; }
 
-bool reportFailure(const char *summary, const char *actualValue, const char *expectedValue,
-                   const char *actual, const char *expected, const char *actualLabel,
-                   const char *expectedLabel, const char *file, int line) {
+bool reportFailure(const char *summary, const char *actualValue, const char *expectedValue, const char *actual,
+                   const char *expected, const char *actualLabel, const char *expectedLabel, const char *file,
+                   int line) {
     const char *noText = "(no string representation)";
     // Pad the shorter label so that the expressions and the colons line up.
     const std::size_t labelWidth = std::max(std::strlen(actualLabel), std::strlen(expectedLabel));
@@ -818,12 +818,18 @@ bool reportFailure(const char *summary, const char *actualValue, const char *exp
 
 const char *comparisonFailure(ComparisonOp op) {
     switch (op) {
-    case ComparisonOp::Equal: return "The computed value is expected to be equal to the baseline, but is not";
-    case ComparisonOp::NotEqual: return "The computed value is expected to be different from the baseline, but is not";
-    case ComparisonOp::Less: return "The computed value is expected to be less than the baseline, but is not";
-    case ComparisonOp::LessEqual: return "The computed value is expected to be less than or equal to the baseline, but is not";
-    case ComparisonOp::Greater: return "The computed value is expected to be greater than the baseline, but is not";
-    case ComparisonOp::GreaterEqual: return "The computed value is expected to be greater than or equal to the baseline, but is not";
+    case ComparisonOp::Equal:
+        return "The computed value is expected to be equal to the baseline, but is not";
+    case ComparisonOp::NotEqual:
+        return "The computed value is expected to be different from the baseline, but is not";
+    case ComparisonOp::Less:
+        return "The computed value is expected to be less than the baseline, but is not";
+    case ComparisonOp::LessEqual:
+        return "The computed value is expected to be less than or equal to the baseline, but is not";
+    case ComparisonOp::Greater:
+        return "The computed value is expected to be greater than the baseline, but is not";
+    case ComparisonOp::GreaterEqual:
+        return "The computed value is expected to be greater than or equal to the baseline, but is not";
     }
     return "";
 }

@@ -378,7 +378,10 @@ static void testLocalSockets() {
         if (reply.size() >= 5)
             client.disconnectFromServer();
     });
-    QObject::connect(&client, &QLocalSocket::disconnected, [&] { ++disconnects; loop.quit(); });
+    QObject::connect(&client, &QLocalSocket::disconnected, [&] {
+        ++disconnects;
+        loop.quit();
+    });
     client.connectToServer(name);
     CHECK(client.state() == QLocalSocket::ConnectedState && client.waitForConnected());
     CHECK(client.write("hello") == 5);
@@ -434,7 +437,9 @@ public:
         CHECK(server.listen(QHostAddress::LocalHost));
         QObject::connect(&server, &QTcpServer::newConnection, this, [this] { accept(); });
     }
-    QString url(const QString &path) const { return QString("http://127.0.0.1:") + QString::number(server.serverPort()) + path; }
+    QString url(const QString &path) const {
+        return QString("http://127.0.0.1:") + QString::number(server.serverPort()) + path;
+    }
 
     QTcpServer server;
     QHash<QByteArray, QList<QByteArray>> script;
@@ -499,7 +504,10 @@ static void testHttp() {
     R *r = manager.get(QNetworkRequest(QUrl(http.url("/plain"))));
     CHECK(r->isRunning() && !r->isFinished());
     qint64 lastProgress = 0, totalProgress = 0;
-    QObject::connect(r, &R::downloadProgress, [&](qint64 got, qint64 total) { lastProgress = got; totalProgress = total; });
+    QObject::connect(r, &R::downloadProgress, [&](qint64 got, qint64 total) {
+        lastProgress = got;
+        totalProgress = total;
+    });
     int metaData = 0;
     QObject::connect(r, &R::metaDataChanged, [&] { ++metaData; });
     CHECK(fetch(r, &e) == "hello");
@@ -511,7 +519,8 @@ static void testHttp() {
     r->deleteLater();
 
     // Chunked, split across writes inside sizes and terminators; extensions and trailers.
-    sc["/chunked"] = {"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5;ext=1\r", "\nhel", "lo\r\n", "6\r\n world\r\n0\r\nX-Trailer: y\r\n\r\n"};
+    sc["/chunked"] = {"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5;ext=1\r", "\nhel", "lo\r\n",
+                      "6\r\n world\r\n0\r\nX-Trailer: y\r\n\r\n"};
     r = manager.get(QNetworkRequest(QUrl(http.url("/chunked"))));
     CHECK(fetch(r, &e) == "hello world" && e == R::NoError);
     r->deleteLater();
@@ -531,9 +540,12 @@ static void testHttp() {
     int errorSignals = 0;
     CHECK(fetch(r, &e, &errorSignals) == "nope" && e == R::ContentNotFoundError && errorSignals == 1);
     r->deleteLater();
-    const struct { const char *status; R::NetworkError expected; } statuses[] = {
-        {"401 A", R::AuthenticationRequiredError}, {"403 A", R::ContentAccessDenied}, {"500 A", R::InternalServerError},
-        {"503 A", R::ServiceUnavailableError}, {"418 A", R::UnknownContentError}, {"599 A", R::UnknownServerError}};
+    const struct {
+        const char *status;
+        R::NetworkError expected;
+    } statuses[] = {{"401 A", R::AuthenticationRequiredError}, {"403 A", R::ContentAccessDenied},
+                    {"500 A", R::InternalServerError},         {"503 A", R::ServiceUnavailableError},
+                    {"418 A", R::UnknownContentError},         {"599 A", R::UnknownServerError}};
     for (const auto &st : statuses) {
         sc["/status"] = {QByteArray("HTTP/1.1 ") + st.status + "\r\nContent-Length: 0\r\n\r\n"};
         r = manager.get(QNetworkRequest(QUrl(http.url("/status"))));
@@ -620,7 +632,8 @@ static void testHttp() {
     // Credentials stay on their origin.
     TestHttpServer other;
     other.script["/x"] = {"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok"};
-    sc["/cross"] = {QByteArray("HTTP/1.1 302 Found\r\nLocation: ") + other.url("/x").toUtf8() + "\r\nContent-Length: 0\r\n\r\n"};
+    sc["/cross"] = {QByteArray("HTTP/1.1 302 Found\r\nLocation: ") + other.url("/x").toUtf8() +
+                    "\r\nContent-Length: 0\r\n\r\n"};
     QNetworkRequest secret(QUrl(http.url("/cross")));
     secret.setRawHeader("Authorization", "Bearer secret");
     secret.setRawHeader("Cookie", "session=1");
@@ -649,10 +662,15 @@ static void testHttp() {
     r->deleteLater();
 
     // Truncated and malformed responses must not look like success.
-    const struct { const char *path; QByteArray raw; R::NetworkError expected; } bad[] = {
+    const struct {
+        const char *path;
+        QByteArray raw;
+        R::NetworkError expected;
+    } bad[] = {
         {"/short", "HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nabc", R::RemoteHostClosedError},
         {"/short-chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nab", R::RemoteHostClosedError},
-        {"/no-last-chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nab\r\n", R::RemoteHostClosedError},
+        {"/no-last-chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nab\r\n",
+         R::RemoteHostClosedError},
         {"/empty", "", R::RemoteHostClosedError},
         {"/partial-head", "HTTP/1.1 200 OK\r\nConte", R::RemoteHostClosedError},
         {"/garbage", "not http at all\r\n\r\n", R::ProtocolFailure},
@@ -663,9 +681,12 @@ static void testHttp() {
         {"/two-lengths", "HTTP/1.1 200 OK\r\nContent-Length: 1\r\nContent-Length: 2\r\n\r\nab", R::ProtocolFailure},
         {"/big-length", "HTTP/1.1 200 OK\r\nContent-Length: 99999999999999999999999\r\n\r\n", R::ProtocolFailure},
         {"/bad-chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nzz\r\n", R::ProtocolFailure},
-        {"/huge-chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nFFFFFFFFFFFFFFFFFF\r\n", R::ProtocolFailure},
-        {"/no-crlf-after-chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\nabc\r\n", R::ProtocolFailure},
-        {"/bad-location", "HTTP/1.1 302 Found\r\nLocation: http://[bad/\r\nContent-Length: 0\r\n\r\n", R::ProtocolFailure},
+        {"/huge-chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\nFFFFFFFFFFFFFFFFFF\r\n",
+         R::ProtocolFailure},
+        {"/no-crlf-after-chunk", "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n1\r\nabc\r\n",
+         R::ProtocolFailure},
+        {"/bad-location", "HTTP/1.1 302 Found\r\nLocation: http://[bad/\r\nContent-Length: 0\r\n\r\n",
+         R::ProtocolFailure},
     };
     for (const auto &b : bad) {
         sc[b.path] = {b.raw};
@@ -728,7 +749,8 @@ static void testHttp() {
     fetch(r, &e);
     CHECK(e == R::ConnectionRefusedError);
     r->deleteLater();
-    r = manager.get(QNetworkRequest(QUrl(QString("http://localhost:") + QString::number(http.server.serverPort()) + QString("/final"))));
+    r = manager.get(QNetworkRequest(
+        QUrl(QString("http://localhost:") + QString::number(http.server.serverPort()) + QString("/final"))));
     CHECK(fetch(r, &e) == "done" && e == R::NoError);
     r->deleteLater();
 
@@ -759,7 +781,11 @@ static void testHttp() {
     delete manager.get(QNetworkRequest(QUrl(http.url("/hang"))));
     QEventLoop loop;
     R *self = manager.get(QNetworkRequest(QUrl(http.url("/plain"))));
-    QObject::connect(self, &QIODevice::readyRead, [&] { delete self; self = nullptr; QTimer::singleShot(20, [&] { loop.quit(); }); });
+    QObject::connect(self, &QIODevice::readyRead, [&] {
+        delete self;
+        self = nullptr;
+        QTimer::singleShot(20, [&] { loop.quit(); });
+    });
     CHECK(runLoop(loop));
     CHECK(self == nullptr);
 }

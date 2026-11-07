@@ -71,15 +71,24 @@ QString asn1Text(const ASN1_STRING *value) {
 
 int infoNid(QSslCertificate::SubjectInfo info) {
     switch (info) {
-    case QSslCertificate::Organization: return NID_organizationName;
-    case QSslCertificate::CommonName: return NID_commonName;
-    case QSslCertificate::LocalityName: return NID_localityName;
-    case QSslCertificate::OrganizationalUnitName: return NID_organizationalUnitName;
-    case QSslCertificate::CountryName: return NID_countryName;
-    case QSslCertificate::StateOrProvinceName: return NID_stateOrProvinceName;
-    case QSslCertificate::DistinguishedNameQualifier: return NID_dnQualifier;
-    case QSslCertificate::SerialNumber: return NID_serialNumber;
-    case QSslCertificate::EmailAddress: return NID_pkcs9_emailAddress;
+    case QSslCertificate::Organization:
+        return NID_organizationName;
+    case QSslCertificate::CommonName:
+        return NID_commonName;
+    case QSslCertificate::LocalityName:
+        return NID_localityName;
+    case QSslCertificate::OrganizationalUnitName:
+        return NID_organizationalUnitName;
+    case QSslCertificate::CountryName:
+        return NID_countryName;
+    case QSslCertificate::StateOrProvinceName:
+        return NID_stateOrProvinceName;
+    case QSslCertificate::DistinguishedNameQualifier:
+        return NID_dnQualifier;
+    case QSslCertificate::SerialNumber:
+        return NID_serialNumber;
+    case QSslCertificate::EmailAddress:
+        return NID_pkcs9_emailAddress;
     }
     return NID_undef;
 }
@@ -93,7 +102,8 @@ QStringList nameEntries(X509_NAME *name, QSslCertificate::SubjectInfo info) {
 }
 
 QString displayName(X509_NAME *name) {
-    for (auto info : {QSslCertificate::CommonName, QSslCertificate::Organization, QSslCertificate::OrganizationalUnitName}) {
+    for (auto info :
+         {QSslCertificate::CommonName, QSslCertificate::Organization, QSslCertificate::OrganizationalUnitName}) {
         const QStringList values = nameEntries(name, info);
         if (!values.isEmpty())
             return values.first();
@@ -238,7 +248,8 @@ QSslCertificate::QSslCertificate(const QByteArray &data, QSsl::EncodingFormat fo
     Constructs a certificate from the contents of \a device, in the given
     \a format.
 */
-QSslCertificate::QSslCertificate(QIODevice *device, QSsl::EncodingFormat format) : QSslCertificate(readDevice(device), format) {}
+QSslCertificate::QSslCertificate(QIODevice *device, QSsl::EncodingFormat format)
+    : QSslCertificate(readDevice(device), format) {}
 
 /*!
     Returns \c true if no certificate is held.
@@ -281,7 +292,9 @@ QByteArray QSslCertificate::serialNumber() const {
 /*!
     Returns the hash of the certificate, computed with \a algorithm.
 */
-QByteArray QSslCertificate::digest(QCryptographicHash::Algorithm algorithm) const { return QCryptographicHash::hash(m_der, algorithm); }
+QByteArray QSslCertificate::digest(QCryptographicHash::Algorithm algorithm) const {
+    return QCryptographicHash::hash(m_der, algorithm);
+}
 
 /*!
     Returns the values of the issuer's \a info field.
@@ -342,7 +355,9 @@ QMultiMap<QSsl::AlternativeNameEntryType, QString> QSslCertificate::subjectAlter
             const int size = ASN1_STRING_length(n->d.iPAddress);
             const unsigned char *data = ASN1_STRING_get0_data(n->d.iPAddress);
             if (size == 4)
-                out.insert(QSsl::IpAddressEntry, QHostAddress(quint32(data[0]) << 24 | quint32(data[1]) << 16 | quint32(data[2]) << 8 | data[3]).toString());
+                out.insert(QSsl::IpAddressEntry, QHostAddress(quint32(data[0]) << 24 | quint32(data[1]) << 16 |
+                                                              quint32(data[2]) << 8 | data[3])
+                                                     .toString());
             else if (size == 16)
                 out.insert(QSsl::IpAddressEntry, QHostAddress(data).toString());
         }
@@ -434,10 +449,14 @@ QList<QSslCertificate> QSslCertificate::fromData(const QByteArray &data, QSsl::E
 /*!
     Returns the certificates read from \a device, in the given \a format.
 */
-QList<QSslCertificate> QSslCertificate::fromDevice(QIODevice *device, QSsl::EncodingFormat format) { return fromData(readDevice(device), format); }
+QList<QSslCertificate> QSslCertificate::fromDevice(QIODevice *device, QSsl::EncodingFormat format) {
+    return fromData(readDevice(device), format);
+}
 
 // Hashes the DER form, so equal certificates hash equally.
-std::size_t qHash(const QSslCertificate &certificate, std::size_t seed) noexcept { return qHash(certificate.toDer(), seed); }
+std::size_t qHash(const QSslCertificate &certificate, std::size_t seed) noexcept {
+    return qHash(certificate.toDer(), seed);
+}
 
 /*!
     \class QSslKey
@@ -470,7 +489,8 @@ std::size_t qHash(const QSslCertificate &certificate, std::size_t seed) noexcept
 
     \sa isNull()
 */
-QSslKey::QSslKey(const QByteArray &encoded, QSsl::KeyAlgorithm algorithm, QSsl::EncodingFormat format, QSsl::KeyType type, const QByteArray &passPhrase) {
+QSslKey::QSslKey(const QByteArray &encoded, QSsl::KeyAlgorithm algorithm, QSsl::EncodingFormat format,
+                 QSsl::KeyType type, const QByteArray &passPhrase) {
     const BioPtr bio = memoryBio(encoded);
     if (!bio || encoded.isEmpty())
         return;
@@ -480,7 +500,8 @@ QSslKey::QSslKey(const QByteArray &encoded, QSsl::KeyAlgorithm algorithm, QSsl::
         key.reset(type == QSsl::PrivateKey ? PEM_read_bio_PrivateKey(bio.get(), nullptr, passwordCallback, &pass)
                                            : PEM_read_bio_PUBKEY(bio.get(), nullptr, nullptr, nullptr));
     } else {
-        key.reset(type == QSsl::PrivateKey ? d2i_PrivateKey_bio(bio.get(), nullptr) : d2i_PUBKEY_bio(bio.get(), nullptr));
+        key.reset(type == QSsl::PrivateKey ? d2i_PrivateKey_bio(bio.get(), nullptr)
+                                           : d2i_PUBKEY_bio(bio.get(), nullptr));
     }
     ERR_clear_error();
     if (!key)
@@ -488,17 +509,27 @@ QSslKey::QSslKey(const QByteArray &encoded, QSsl::KeyAlgorithm algorithm, QSsl::
 
     QSsl::KeyAlgorithm actual = QSsl::Opaque;
     switch (EVP_PKEY_base_id(key.get())) {
-    case EVP_PKEY_RSA: actual = QSsl::Rsa; break;
-    case EVP_PKEY_DSA: actual = QSsl::Dsa; break;
-    case EVP_PKEY_EC: actual = QSsl::Ec; break;
-    case EVP_PKEY_DH: actual = QSsl::Dh; break;
-    default: break;
+    case EVP_PKEY_RSA:
+        actual = QSsl::Rsa;
+        break;
+    case EVP_PKEY_DSA:
+        actual = QSsl::Dsa;
+        break;
+    case EVP_PKEY_EC:
+        actual = QSsl::Ec;
+        break;
+    case EVP_PKEY_DH:
+        actual = QSsl::Dh;
+        break;
+    default:
+        break;
     }
     if (algorithm != QSsl::Opaque && algorithm != actual)
         return;
 
     const BioPtr out(BIO_new(BIO_s_mem()));
-    const int ok = type == QSsl::PrivateKey ? i2d_PKCS8PrivateKeyInfo_bio(out.get(), key.get()) : i2d_PUBKEY_bio(out.get(), key.get());
+    const int ok = type == QSsl::PrivateKey ? i2d_PKCS8PrivateKeyInfo_bio(out.get(), key.get())
+                                            : i2d_PUBKEY_bio(out.get(), key.get());
     if (ok != 1)
         return;
     m_der = bioContents(out.get());
@@ -513,7 +544,8 @@ QSslKey::QSslKey(const QByteArray &encoded, QSsl::KeyAlgorithm algorithm, QSsl::
     Constructs a key from the contents of \a device, using \a algorithm,
     \a format, \a type and \a passPhrase as above.
 */
-QSslKey::QSslKey(QIODevice *device, QSsl::KeyAlgorithm algorithm, QSsl::EncodingFormat format, QSsl::KeyType type, const QByteArray &passPhrase)
+QSslKey::QSslKey(QIODevice *device, QSsl::KeyAlgorithm algorithm, QSsl::EncodingFormat format, QSsl::KeyType type,
+                 const QByteArray &passPhrase)
     : QSslKey(readDevice(device), algorithm, format, type, passPhrase) {}
 
 /*!
@@ -551,7 +583,8 @@ QByteArray QSslKey::toPem() const {
         return QByteArray();
     const char *label = m_type == QSsl::PrivateKey ? "PRIVATE KEY" : "PUBLIC KEY";
     const BioPtr out(BIO_new(BIO_s_mem()));
-    PEM_write_bio(out.get(), label, "", reinterpret_cast<const unsigned char *>(m_der.constData()), static_cast<long>(m_der.size()));
+    PEM_write_bio(out.get(), label, "", reinterpret_cast<const unsigned char *>(m_der.constData()),
+                  static_cast<long>(m_der.size()));
     return bioContents(out.get());
 }
 
@@ -628,32 +661,58 @@ QSslError::SslError QSslError::error() const { return m_error; }
 */
 QString QSslError::errorString() const {
     switch (m_error) {
-    case NoError: return QString("No error");
-    case UnableToGetIssuerCertificate: return QString("The issuer certificate could not be found");
-    case UnableToDecryptCertificateSignature: return QString("The certificate signature could not be decrypted");
-    case UnableToDecodeIssuerPublicKey: return QString("The public key in the certificate could not be read");
-    case CertificateSignatureFailed: return QString("The signature of the certificate is invalid");
-    case CertificateNotYetValid: return QString("The certificate is not yet valid");
-    case CertificateExpired: return QString("The certificate has expired");
-    case InvalidNotBeforeField: return QString("The certificate's notBefore field contains an invalid time");
-    case InvalidNotAfterField: return QString("The certificate's notAfter field contains an invalid time");
-    case SelfSignedCertificate: return QString("The certificate is self-signed, and untrusted");
-    case SelfSignedCertificateInChain: return QString("The root certificate of the certificate chain is self-signed, and untrusted");
-    case UnableToGetLocalIssuerCertificate: return QString("The issuer certificate of a locally looked up certificate could not be found");
-    case UnableToVerifyFirstCertificate: return QString("No certificates could be verified");
-    case CertificateRevoked: return QString("The certificate has been revoked");
-    case InvalidCaCertificate: return QString("One of the CA certificates is invalid");
-    case PathLengthExceeded: return QString("The basicConstraints path length parameter has been exceeded");
-    case InvalidPurpose: return QString("The supplied certificate is unsuitable for this purpose");
-    case CertificateUntrusted: return QString("The root CA certificate is not trusted for this purpose");
-    case CertificateRejected: return QString("The root CA certificate is marked to reject the specified purpose");
-    case SubjectIssuerMismatch: return QString("The current candidate issuer certificate was rejected because its subject name did not match");
-    case AuthorityIssuerSerialNumberMismatch: return QString("The candidate issuer certificate was rejected because its serial number did not match");
-    case NoPeerCertificate: return QString("The peer did not present any certificate");
-    case HostNameMismatch: return QString("The host name did not match any of the valid hosts for this certificate");
-    case NoSslSupport: return QString("TLS is not supported");
-    case CertificateBlacklisted: return QString("The peer certificate is blacklisted");
-    case UnspecifiedError: break;
+    case NoError:
+        return QString("No error");
+    case UnableToGetIssuerCertificate:
+        return QString("The issuer certificate could not be found");
+    case UnableToDecryptCertificateSignature:
+        return QString("The certificate signature could not be decrypted");
+    case UnableToDecodeIssuerPublicKey:
+        return QString("The public key in the certificate could not be read");
+    case CertificateSignatureFailed:
+        return QString("The signature of the certificate is invalid");
+    case CertificateNotYetValid:
+        return QString("The certificate is not yet valid");
+    case CertificateExpired:
+        return QString("The certificate has expired");
+    case InvalidNotBeforeField:
+        return QString("The certificate's notBefore field contains an invalid time");
+    case InvalidNotAfterField:
+        return QString("The certificate's notAfter field contains an invalid time");
+    case SelfSignedCertificate:
+        return QString("The certificate is self-signed, and untrusted");
+    case SelfSignedCertificateInChain:
+        return QString("The root certificate of the certificate chain is self-signed, and untrusted");
+    case UnableToGetLocalIssuerCertificate:
+        return QString("The issuer certificate of a locally looked up certificate could not be found");
+    case UnableToVerifyFirstCertificate:
+        return QString("No certificates could be verified");
+    case CertificateRevoked:
+        return QString("The certificate has been revoked");
+    case InvalidCaCertificate:
+        return QString("One of the CA certificates is invalid");
+    case PathLengthExceeded:
+        return QString("The basicConstraints path length parameter has been exceeded");
+    case InvalidPurpose:
+        return QString("The supplied certificate is unsuitable for this purpose");
+    case CertificateUntrusted:
+        return QString("The root CA certificate is not trusted for this purpose");
+    case CertificateRejected:
+        return QString("The root CA certificate is marked to reject the specified purpose");
+    case SubjectIssuerMismatch:
+        return QString("The current candidate issuer certificate was rejected because its subject name did not match");
+    case AuthorityIssuerSerialNumberMismatch:
+        return QString("The candidate issuer certificate was rejected because its serial number did not match");
+    case NoPeerCertificate:
+        return QString("The peer did not present any certificate");
+    case HostNameMismatch:
+        return QString("The host name did not match any of the valid hosts for this certificate");
+    case NoSslSupport:
+        return QString("TLS is not supported");
+    case CertificateBlacklisted:
+        return QString("The peer certificate is blacklisted");
+    case UnspecifiedError:
+        break;
     }
     return QString("Unknown error");
 }
@@ -685,8 +744,10 @@ QSslCertificate QSslError::certificate() const { return m_certificate; }
     Constructs a cipher called \a name, using \a usedBits of \a supportedBits
     key bits, for the protocol \a protocol described by \a protocolString.
 */
-QSslCipher::QSslCipher(const QString &name, int usedBits, int supportedBits, const QString &protocolString, QSsl::SslProtocol protocol)
-    : m_name(name), m_usedBits(usedBits), m_supportedBits(supportedBits), m_protocolString(protocolString), m_protocol(protocol) {}
+QSslCipher::QSslCipher(const QString &name, int usedBits, int supportedBits, const QString &protocolString,
+                       QSsl::SslProtocol protocol)
+    : m_name(name), m_usedBits(usedBits), m_supportedBits(supportedBits), m_protocolString(protocolString),
+      m_protocol(protocol) {}
 
 /*!
     Returns \c true if this object describes no cipher.
@@ -802,7 +863,9 @@ void QSslConfiguration::setPeerVerifyDepth(int depth) { m_verifyDepth = depth; }
 
     \sa setLocalCertificate()
 */
-QSslCertificate QSslConfiguration::localCertificate() const { return m_localChain.isEmpty() ? QSslCertificate() : m_localChain.first(); }
+QSslCertificate QSslConfiguration::localCertificate() const {
+    return m_localChain.isEmpty() ? QSslCertificate() : m_localChain.first();
+}
 
 /*!
     Sets the certificate this side presents to \a certificate.
@@ -827,7 +890,9 @@ QList<QSslCertificate> QSslConfiguration::localCertificateChain() const { return
 
     \sa localCertificateChain()
 */
-void QSslConfiguration::setLocalCertificateChain(const QList<QSslCertificate> &localChain) { m_localChain = localChain; }
+void QSslConfiguration::setLocalCertificateChain(const QList<QSslCertificate> &localChain) {
+    m_localChain = localChain;
+}
 
 /*!
     Returns the private key of the local certificate.
@@ -873,7 +938,9 @@ void QSslConfiguration::addCaCertificate(const QSslCertificate &certificate) { m
 
     \sa setCaCertificates()
 */
-void QSslConfiguration::addCaCertificates(const QList<QSslCertificate> &certificates) { m_caCertificates.append(certificates); }
+void QSslConfiguration::addCaCertificates(const QList<QSslCertificate> &certificates) {
+    m_caCertificates.append(certificates);
+}
 
 /*!
     Returns \c true if the system's trusted certificates are used.
@@ -905,7 +972,9 @@ QByteArray QSslConfiguration::nextNegotiatedProtocol() const { return m_negotiat
     Returns the peer's certificate. This is set on the configuration returned
     by QSslSocket::sslConfiguration().
 */
-QSslCertificate QSslConfiguration::peerCertificate() const { return m_peerChain.isEmpty() ? QSslCertificate() : m_peerChain.first(); }
+QSslCertificate QSslConfiguration::peerCertificate() const {
+    return m_peerChain.isEmpty() ? QSslCertificate() : m_peerChain.first();
+}
 
 /*!
     Returns the peer's certificate chain, leaf first. This is set on the

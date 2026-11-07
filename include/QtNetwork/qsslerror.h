@@ -44,7 +44,9 @@ public:
     QString errorString() const;
     QSslCertificate certificate() const;
 
-    friend bool operator==(const QSslError &a, const QSslError &b) { return a.m_error == b.m_error && a.m_certificate == b.m_certificate; }
+    friend bool operator==(const QSslError &a, const QSslError &b) {
+        return a.m_error == b.m_error && a.m_certificate == b.m_certificate;
+    }
     friend bool operator!=(const QSslError &a, const QSslError &b) { return !(a == b); }
 
 private:

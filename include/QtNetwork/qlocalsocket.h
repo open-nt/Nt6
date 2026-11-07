@@ -45,7 +45,8 @@ public:
     LocalSocketState state() const;
     qint64 readBufferSize() const;
     void setReadBufferSize(qint64 size);
-    bool setSocketDescriptor(qintptr socketDescriptor, LocalSocketState socketState = ConnectedState, OpenMode openMode = ReadWrite);
+    bool setSocketDescriptor(qintptr socketDescriptor, LocalSocketState socketState = ConnectedState,
+                             OpenMode openMode = ReadWrite);
     qintptr socketDescriptor() const;
 
     bool waitForConnected(int msecs = 30000);
@@ -65,11 +66,15 @@ signals:
     /*!
         This signal is emitted when the error \a socketError occurs.
     */
-    void errorOccurred(QLocalSocket::LocalSocketError socketError) { emitSignal(&QLocalSocket::errorOccurred, socketError); }
+    void errorOccurred(QLocalSocket::LocalSocketError socketError) {
+        emitSignal(&QLocalSocket::errorOccurred, socketError);
+    }
     /*!
         This signal is emitted when the state changes to \a socketState.
     */
-    void stateChanged(QLocalSocket::LocalSocketState socketState) { emitSignal(&QLocalSocket::stateChanged, socketState); }
+    void stateChanged(QLocalSocket::LocalSocketState socketState) {
+        emitSignal(&QLocalSocket::stateChanged, socketState);
+    }
 
 protected:
     qint64 readData(char *data, qint64 maxSize) override;

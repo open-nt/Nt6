@@ -20,12 +20,12 @@
 #include <memory>
 
 static int g_failures = 0;
-#define CHECK(cond)                                                              \
-    do {                                                                         \
-        if (!(cond)) {                                                           \
-            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);          \
-            ++g_failures;                                                        \
-        }                                                                        \
+#define CHECK(cond)                                                                                                    \
+    do {                                                                                                               \
+        if (!(cond)) {                                                                                                 \
+            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);                                                \
+            ++g_failures;                                                                                              \
+        }                                                                                                              \
     } while (0)
 
 // Runs the loop until quit() or the timeout; returns false on timeout.
@@ -33,7 +33,10 @@ static bool runLoop(QEventLoop &loop, int timeoutMs = 5000) {
     bool timedOut = false;
     QTimer t;
     t.setSingleShot(true);
-    QObject::connect(&t, &QTimer::timeout, [&] { timedOut = true; loop.quit(); });
+    QObject::connect(&t, &QTimer::timeout, [&] {
+        timedOut = true;
+        loop.quit();
+    });
     t.start(timeoutMs);
     loop.exec();
     return !timedOut;
@@ -315,8 +318,8 @@ static void testSettingsReachTheDevice() {
 }
 
 static void testTermiosFlags() {
-    using QtPrivate::SerialSettings;
     using QtPrivate::fillSerialTermios;
+    using QtPrivate::SerialSettings;
 
     const auto fill = [](const SerialSettings &settings, bool readable = true) {
         termios tio = {};
@@ -340,7 +343,8 @@ static void testTermiosFlags() {
     const struct {
         QSerialPort::DataBits bits;
         tcflag_t flag;
-    } sizes[] = {{QSerialPort::Data5, CS5}, {QSerialPort::Data6, CS6}, {QSerialPort::Data7, CS7}, {QSerialPort::Data8, CS8}};
+    } sizes[] = {
+        {QSerialPort::Data5, CS5}, {QSerialPort::Data6, CS6}, {QSerialPort::Data7, CS7}, {QSerialPort::Data8, CS8}};
     for (const auto &size : sizes) {
         s.dataBits = size.bits;
         CHECK((fill(s).c_cflag & CSIZE) == size.flag);

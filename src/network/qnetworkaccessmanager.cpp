@@ -17,19 +17,32 @@ constexpr qint64 kMaxHeaderBytes = 1024 * 1024;
 
 QByteArray headerName(QNetworkRequest::KnownHeaders h) {
     switch (h) {
-    case QNetworkRequest::ContentTypeHeader: return "Content-Type";
-    case QNetworkRequest::ContentLengthHeader: return "Content-Length";
-    case QNetworkRequest::LocationHeader: return "Location";
-    case QNetworkRequest::LastModifiedHeader: return "Last-Modified";
-    case QNetworkRequest::CookieHeader: return "Cookie";
-    case QNetworkRequest::SetCookieHeader: return "Set-Cookie";
-    case QNetworkRequest::ContentDispositionHeader: return "Content-Disposition";
-    case QNetworkRequest::UserAgentHeader: return "User-Agent";
-    case QNetworkRequest::ServerHeader: return "Server";
-    case QNetworkRequest::IfModifiedSinceHeader: return "If-Modified-Since";
-    case QNetworkRequest::ETagHeader: return "ETag";
-    case QNetworkRequest::IfMatchHeader: return "If-Match";
-    case QNetworkRequest::IfNoneMatchHeader: return "If-None-Match";
+    case QNetworkRequest::ContentTypeHeader:
+        return "Content-Type";
+    case QNetworkRequest::ContentLengthHeader:
+        return "Content-Length";
+    case QNetworkRequest::LocationHeader:
+        return "Location";
+    case QNetworkRequest::LastModifiedHeader:
+        return "Last-Modified";
+    case QNetworkRequest::CookieHeader:
+        return "Cookie";
+    case QNetworkRequest::SetCookieHeader:
+        return "Set-Cookie";
+    case QNetworkRequest::ContentDispositionHeader:
+        return "Content-Disposition";
+    case QNetworkRequest::UserAgentHeader:
+        return "User-Agent";
+    case QNetworkRequest::ServerHeader:
+        return "Server";
+    case QNetworkRequest::IfModifiedSinceHeader:
+        return "If-Modified-Since";
+    case QNetworkRequest::ETagHeader:
+        return "ETag";
+    case QNetworkRequest::IfMatchHeader:
+        return "If-Match";
+    case QNetworkRequest::IfNoneMatchHeader:
+        return "If-None-Match";
     }
     return QByteArray();
 }
@@ -78,10 +91,14 @@ bool parseChunkSize(const QByteArray &line, qint64 *out) {
     qint64 v = 0;
     for (char c : t) {
         int d;
-        if (c >= '0' && c <= '9') d = c - '0';
-        else if (c >= 'a' && c <= 'f') d = c - 'a' + 10;
-        else if (c >= 'A' && c <= 'F') d = c - 'A' + 10;
-        else return false;
+        if (c >= '0' && c <= '9')
+            d = c - '0';
+        else if (c >= 'a' && c <= 'f')
+            d = c - 'a' + 10;
+        else if (c >= 'A' && c <= 'F')
+            d = c - 'A' + 10;
+        else
+            return false;
         if (v > (std::numeric_limits<qint64>::max() >> 4))
             return false;
         v = v << 4 | d;
@@ -106,16 +123,26 @@ bool supportedScheme(const QUrl &u) {
 
 QNetworkReply::NetworkError errorForStatus(int status) {
     switch (status) {
-    case 401: return QNetworkReply::AuthenticationRequiredError;
-    case 403: return QNetworkReply::ContentAccessDenied;
-    case 404: return QNetworkReply::ContentNotFoundError;
-    case 405: return QNetworkReply::ContentOperationNotPermittedError;
-    case 409: return QNetworkReply::ContentConflictError;
-    case 410: return QNetworkReply::ContentGoneError;
-    case 500: return QNetworkReply::InternalServerError;
-    case 501: return QNetworkReply::OperationNotImplementedError;
-    case 503: return QNetworkReply::ServiceUnavailableError;
-    default: break;
+    case 401:
+        return QNetworkReply::AuthenticationRequiredError;
+    case 403:
+        return QNetworkReply::ContentAccessDenied;
+    case 404:
+        return QNetworkReply::ContentNotFoundError;
+    case 405:
+        return QNetworkReply::ContentOperationNotPermittedError;
+    case 409:
+        return QNetworkReply::ContentConflictError;
+    case 410:
+        return QNetworkReply::ContentGoneError;
+    case 500:
+        return QNetworkReply::InternalServerError;
+    case 501:
+        return QNetworkReply::OperationNotImplementedError;
+    case 503:
+        return QNetworkReply::ServiceUnavailableError;
+    default:
+        break;
     }
     if (status >= 400 && status < 500)
         return QNetworkReply::UnknownContentError;
@@ -131,7 +158,8 @@ namespace QtPrivate {
 // One HTTP/1.1 exchange per connection, plus any redirects it follows.
 class HttpReply : public QNetworkReply {
 public:
-    HttpReply(QNetworkAccessManager *manager, const QNetworkRequest &request, const QByteArray &verb, const QByteArray &body, int defaultTimeout)
+    HttpReply(QNetworkAccessManager *manager, const QNetworkRequest &request, const QByteArray &verb,
+              const QByteArray &body, int defaultTimeout)
         : QNetworkReply(manager), m_verb(verb), m_upload(body) {
         m_manager = manager;
         m_request = request;
@@ -218,7 +246,8 @@ private:
             secure->setPeerVerifyName(m_url.host());
             secure->ignoreSslErrors(m_ignoreList);
             QObject::connect(secure, &QAbstractSocket::connected, this, [secure] { secure->startClientEncryption(); });
-            QObject::connect(secure, &QSslSocket::sslErrors, this, [this, secure](const QList<QSslError> &errors) { onSslErrors(secure, errors); });
+            QObject::connect(secure, &QSslSocket::sslErrors, this,
+                             [this, secure](const QList<QSslError> &errors) { onSslErrors(secure, errors); });
             QObject::connect(secure, &QSslSocket::encrypted, this, [this, secure] { onEncrypted(secure); });
             m_socket = secure;
         } else
@@ -230,7 +259,8 @@ private:
         QObject::connect(m_socket, &QIODevice::readyRead, this, [this] { onData(); });
         QObject::connect(m_socket, &QIODevice::bytesWritten, this, [this](qint64 n) { onWritten(n); });
         QObject::connect(m_socket, &QAbstractSocket::disconnected, this, [this] { onClosed(); });
-        QObject::connect(m_socket, &QAbstractSocket::errorOccurred, this, [this](QAbstractSocket::SocketError e) { onSocketError(e); });
+        QObject::connect(m_socket, &QAbstractSocket::errorOccurred, this,
+                         [this](QAbstractSocket::SocketError e) { onSocketError(e); });
         m_socket->connectToHost(address, static_cast<quint16>(m_url.port(defaultPort(m_url))));
     }
 
@@ -315,12 +345,14 @@ private:
             return;
         if (e == QAbstractSocket::RemoteHostClosedError)
             return; // onClosed() decides whether this was premature
-        if (m_socket && m_socket->state() != QAbstractSocket::ConnectedState && !m_receivedAny && !m_addresses.isEmpty()) {
+        if (m_socket && m_socket->state() != QAbstractSocket::ConnectedState && !m_receivedAny &&
+            !m_addresses.isEmpty()) {
             QTimer::singleShot(0, this, [this] { connectNext(); });
             return;
         }
         const QString text = m_socket ? m_socket->errorString() : QString();
-        if (e == QAbstractSocket::SslHandshakeFailedError || e == QAbstractSocket::SslInvalidUserDataError || e == QAbstractSocket::SslInternalError) {
+        if (e == QAbstractSocket::SslHandshakeFailedError || e == QAbstractSocket::SslInvalidUserDataError ||
+            e == QAbstractSocket::SslInternalError) {
             finish(SslHandshakeFailedError, text);
         } else if (e == QAbstractSocket::ConnectionRefusedError) {
             m_lastConnectError = ConnectionRefusedError;
@@ -564,8 +596,10 @@ private:
     }
 
     bool followsRedirect() const {
-        const bool redirectStatus = m_status == 301 || m_status == 302 || m_status == 303 || m_status == 307 || m_status == 308;
-        return redirectStatus && m_request.redirectPolicy() != QNetworkRequest::ManualRedirectPolicy && hasRawHeader("Location");
+        const bool redirectStatus =
+            m_status == 301 || m_status == 302 || m_status == 303 || m_status == 307 || m_status == 308;
+        return redirectStatus && m_request.redirectPolicy() != QNetworkRequest::ManualRedirectPolicy &&
+               hasRawHeader("Location");
     }
 
     bool redirect() {
@@ -587,7 +621,8 @@ private:
             finish(InsecureRedirectError, QString("Redirect to an unsupported scheme"));
             return false;
         }
-        if (m_request.redirectPolicy() == QNetworkRequest::NoLessSafeRedirectPolicy && m_url.scheme() == QString("https") && target.scheme() != QString("https")) {
+        if (m_request.redirectPolicy() == QNetworkRequest::NoLessSafeRedirectPolicy &&
+            m_url.scheme() == QString("https") && target.scheme() != QString("https")) {
             finish(InsecureRedirectError, QString("Redirect from https to http"));
             return false;
         }
@@ -664,7 +699,8 @@ private:
             return;
         if (m_timer.interval() != m_timeoutMs) {
             m_timer.setSingleShot(true);
-            QObject::connect(&m_timer, &QTimer::timeout, this, [this] { finish(TimeoutError, QString("Operation timed out")); });
+            QObject::connect(&m_timer, &QTimer::timeout, this,
+                             [this] { finish(TimeoutError, QString("Operation timed out")); });
         }
         m_timer.start(m_timeoutMs);
     }
@@ -780,7 +816,9 @@ QByteArray QNetworkRequest::header(KnownHeaders header) const { return rawHeader
 
     \sa header()
 */
-void QNetworkRequest::setHeader(KnownHeaders header, const QByteArray &value) { setRawHeader(headerName(header), value); }
+void QNetworkRequest::setHeader(KnownHeaders header, const QByteArray &value) {
+    setRawHeader(headerName(header), value);
+}
 
 /*!
     Returns \c true if the header \a headerName is set. Names are not case
@@ -863,7 +901,9 @@ int QNetworkRequest::maximumRedirectsAllowed() const { return m_maxRedirects; }
 
     \sa maximumRedirectsAllowed()
 */
-void QNetworkRequest::setMaximumRedirectsAllowed(int maximumRedirectsAllowed) { m_maxRedirects = maximumRedirectsAllowed; }
+void QNetworkRequest::setMaximumRedirectsAllowed(int maximumRedirectsAllowed) {
+    m_maxRedirects = maximumRedirectsAllowed;
+}
 
 /*!
     Returns the inactivity timeout in milliseconds; \c 0 uses the manager's.
@@ -894,7 +934,9 @@ QSslConfiguration QNetworkRequest::sslConfiguration() const { return m_sslConfig
 
     \sa sslConfiguration()
 */
-void QNetworkRequest::setSslConfiguration(const QSslConfiguration &configuration) { m_sslConfiguration = configuration; }
+void QNetworkRequest::setSslConfiguration(const QSslConfiguration &configuration) {
+    m_sslConfiguration = configuration;
+}
 #endif
 
 /*!
@@ -1212,25 +1254,32 @@ QNetworkAccessManager::QNetworkAccessManager(QObject *parent) : QObject(parent) 
 */
 QNetworkAccessManager::~QNetworkAccessManager() = default;
 
-QNetworkReply *QNetworkAccessManager::start(const QNetworkRequest &request, const QByteArray &verb, const QByteArray &body) {
+QNetworkReply *QNetworkAccessManager::start(const QNetworkRequest &request, const QByteArray &verb,
+                                            const QByteArray &body) {
     return new QtPrivate::HttpReply(this, request, verb, body, m_timeout);
 }
 
 /*!
     Sends a \c HEAD request for \a request and returns the reply.
 */
-QNetworkReply *QNetworkAccessManager::head(const QNetworkRequest &request) { return start(request, "HEAD", QByteArray()); }
+QNetworkReply *QNetworkAccessManager::head(const QNetworkRequest &request) {
+    return start(request, "HEAD", QByteArray());
+}
 
 /*!
     Sends a \c GET request for \a request and returns the reply.
 */
-QNetworkReply *QNetworkAccessManager::get(const QNetworkRequest &request) { return start(request, "GET", QByteArray()); }
+QNetworkReply *QNetworkAccessManager::get(const QNetworkRequest &request) {
+    return start(request, "GET", QByteArray());
+}
 
 /*!
     Sends a \c POST request for \a request with the body \a data and returns the
     reply.
 */
-QNetworkReply *QNetworkAccessManager::post(const QNetworkRequest &request, const QByteArray &data) { return start(request, "POST", data); }
+QNetworkReply *QNetworkAccessManager::post(const QNetworkRequest &request, const QByteArray &data) {
+    return start(request, "POST", data);
+}
 
 /*!
     \overload
@@ -1246,7 +1295,9 @@ QNetworkReply *QNetworkAccessManager::post(const QNetworkRequest &request, QIODe
     Sends a \c PUT request for \a request with the body \a data and returns the
     reply.
 */
-QNetworkReply *QNetworkAccessManager::put(const QNetworkRequest &request, const QByteArray &data) { return start(request, "PUT", data); }
+QNetworkReply *QNetworkAccessManager::put(const QNetworkRequest &request, const QByteArray &data) {
+    return start(request, "PUT", data);
+}
 
 /*!
     \overload
@@ -1260,13 +1311,16 @@ QNetworkReply *QNetworkAccessManager::put(const QNetworkRequest &request, QIODev
 /*!
     Sends a \c DELETE request for \a request and returns the reply.
 */
-QNetworkReply *QNetworkAccessManager::deleteResource(const QNetworkRequest &request) { return start(request, "DELETE", QByteArray()); }
+QNetworkReply *QNetworkAccessManager::deleteResource(const QNetworkRequest &request) {
+    return start(request, "DELETE", QByteArray());
+}
 
 /*!
     Sends \a request with the method \a verb and the body \a data, and returns
     the reply.
 */
-QNetworkReply *QNetworkAccessManager::sendCustomRequest(const QNetworkRequest &request, const QByteArray &verb, const QByteArray &data) {
+QNetworkReply *QNetworkAccessManager::sendCustomRequest(const QNetworkRequest &request, const QByteArray &verb,
+                                                        const QByteArray &data) {
     return start(request, verb, data);
 }
 

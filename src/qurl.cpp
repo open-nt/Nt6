@@ -15,9 +15,12 @@ bool isDigit(char c) { return c >= '0' && c <= '9'; }
 bool isUnreservedChar(char c) { return isAlpha(c) || isDigit(c) || std::strchr(kUnreserved, c) != nullptr; }
 
 int hexValue(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    if (c >= '0' && c <= '9')
+        return c - '0';
+    if (c >= 'a' && c <= 'f')
+        return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F')
+        return c - 'A' + 10;
     return -1;
 }
 
@@ -30,9 +33,12 @@ enum Component { UserComponent, PathComponent, QueryComponent, FragmentComponent
 
 const char *allowedIn(Component c) {
     switch (c) {
-    case UserComponent: return "!$&'()*+,;=";
-    case PathComponent: return "!$&'()*+,;=:@/";
-    default: return "!$&'()*+,;=:@/?";
+    case UserComponent:
+        return "!$&'()*+,;=";
+    case PathComponent:
+        return "!$&'()*+,;=:@/";
+    default:
+        return "!$&'()*+,;=:@/?";
     }
 }
 
@@ -1041,9 +1047,11 @@ QString QUrlQuery::query(QUrl::ComponentFormattingOptions encoding) const {
         if (encoding.testFlag(QUrl::FullyDecoded))
             return s;
         // '&', '=', '#' and '%' would change how the text is split.
-        const QByteArray keep = encoding.testFlag(QUrl::FullyEncoded) ? QByteArray("!$'()*+,;:@/?") : QByteArray("!$'()*+,;:@/? ");
+        const QByteArray keep =
+            encoding.testFlag(QUrl::FullyEncoded) ? QByteArray("!$'()*+,;:@/?") : QByteArray("!$'()*+,;:@/? ");
         const QByteArray encoded = QUrl::toPercentEncoding(s, keep);
-        return encoding.testFlag(QUrl::FullyEncoded) ? QString::fromUtf8(encoded) : QUrl(QString("x:?") + QString::fromUtf8(encoded)).query();
+        return encoding.testFlag(QUrl::FullyEncoded) ? QString::fromUtf8(encoded)
+                                                     : QUrl(QString("x:?") + QString::fromUtf8(encoded)).query();
     };
     for (qsizetype i = 0; i < m_items.size(); ++i) {
         if (i)

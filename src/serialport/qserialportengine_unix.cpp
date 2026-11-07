@@ -11,6 +11,7 @@
 #include <unistd.h>
 
 #include <cerrno>
+#include <cstdio>
 #include <cstring>
 
 namespace {
@@ -21,10 +22,9 @@ struct Speed {
 };
 
 const Speed kSpeeds[] = {
-    {50, B50},           {75, B75},           {110, B110},         {134, B134},         {150, B150},
-    {200, B200},         {300, B300},         {600, B600},         {1200, B1200},       {1800, B1800},
-    {2400, B2400},       {4800, B4800},       {9600, B9600},       {19200, B19200},     {38400, B38400},
-    {57600, B57600},     {115200, B115200},   {230400, B230400},
+    {50, B50},           {75, B75},       {110, B110},     {134, B134},     {150, B150},       {200, B200},
+    {300, B300},         {600, B600},     {1200, B1200},   {1800, B1800},   {2400, B2400},     {4800, B4800},
+    {9600, B9600},       {19200, B19200}, {38400, B38400}, {57600, B57600}, {115200, B115200}, {230400, B230400},
 #ifdef B460800
     {460800, B460800},
 #endif
@@ -79,8 +79,8 @@ namespace QtPrivate {
 
 bool fillSerialTermios(termios &tio, const SerialSettings &settings, bool readable) {
     // Raw bytes in both directions: no line editing, signals or translation.
-    tio.c_iflag &= ~static_cast<tcflag_t>(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | INPCK | IGNPAR
-                                          | IXON | IXOFF | IXANY);
+    tio.c_iflag &= ~static_cast<tcflag_t>(IGNBRK | BRKINT | PARMRK | ISTRIP | INLCR | IGNCR | ICRNL | INPCK | IGNPAR |
+                                          IXON | IXOFF | IXANY);
     tio.c_oflag &= ~static_cast<tcflag_t>(OPOST);
     tio.c_lflag &= ~static_cast<tcflag_t>(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
     tio.c_cflag &= ~static_cast<tcflag_t>(CSIZE | CSTOPB | PARENB | PARODD);
@@ -199,8 +199,8 @@ QList<qint32> serialStandardBaudRates() {
 }
 
 QString serialSystemLocation(const QString &portName) {
-    if (portName.isEmpty() || portName.startsWith(QString("/")) || portName.startsWith(QString("./"))
-        || portName.startsWith(QString("../")))
+    if (portName.isEmpty() || portName.startsWith(QString("/")) || portName.startsWith(QString("./")) ||
+        portName.startsWith(QString("../")))
         return portName;
     return QString("/dev/") + portName;
 }
@@ -261,17 +261,18 @@ void SerialEngine::close() {
 
 bool SerialEngine::apply(const SerialSettings &settings) {
     termios before;
-    if (::tcgetattr(m_fd, &before) != 0)
-        return failed();
+    if (::tcgetattr(m_fd, &before) != 0) { std::fprintf(stderr, "TRACE tcgetattr errno=%d\n", errno);
+        return failed(); }
     termios tio = before;
-    if (!fillSerialTermios(tio, settings, m_readable))
-        return failed();
-    if (::tcsetattr(m_fd, TCSANOW, &tio) != 0)
-        return failed();
+    if (!fillSerialTermios(tio, settings, m_readable)) { std::fprintf(stderr, "TRACE fill errno=%d\n", errno);
+        return failed(); }
+    if (::tcsetattr(m_fd, TCSANOW, &tio) != 0) { std::fprintf(stderr, "TRACE tcsetattr errno=%d cflag=%o readable=%d\n", errno, static_cast<unsigned>(tio.c_cflag), m_readable);
+        return failed(); }
     if (findSpeed(settings.inputBaudRate) && findSpeed(settings.outputBaudRate))
         return true;
     if (setSerialCustomBaudRate(m_fd, settings.inputBaudRate, settings.outputBaudRate))
         return true;
+    std::fprintf(stderr, "TRACE custom baud errno=%d\n", errno);
     failed();
     ::tcsetattr(m_fd, TCSANOW, &before);
     return false;
@@ -285,14 +286,11 @@ bool SerialEngine::pins(QSerialPort::PinoutSignals *out) {
     const struct {
         int bit;
         QSerialPort::PinoutSignal pin;
-    } map[] = {{TIOCM_DTR, QSerialPort::DataTerminalReadySignal},
-               {TIOCM_RTS, QSerialPort::RequestToSendSignal},
-               {TIOCM_CAR, QSerialPort::DataCarrierDetectSignal},
-               {TIOCM_DSR, QSerialPort::DataSetReadySignal},
-               {TIOCM_RNG, QSerialPort::RingIndicatorSignal},
-               {TIOCM_CTS, QSerialPort::ClearToSendSignal},
-               {TIOCM_ST, QSerialPort::SecondaryTransmittedDataSignal},
-               {TIOCM_SR, QSerialPort::SecondaryReceivedDataSignal}};
+    } map[] = {
+        {TIOCM_DTR, QSerialPort::DataTerminalReadySignal},       {TIOCM_RTS, QSerialPort::RequestToSendSignal},
+        {TIOCM_CAR, QSerialPort::DataCarrierDetectSignal},       {TIOCM_DSR, QSerialPort::DataSetReadySignal},
+        {TIOCM_RNG, QSerialPort::RingIndicatorSignal},           {TIOCM_CTS, QSerialPort::ClearToSendSignal},
+        {TIOCM_ST, QSerialPort::SecondaryTransmittedDataSignal}, {TIOCM_SR, QSerialPort::SecondaryReceivedDataSignal}};
     for (const auto &entry : map) {
         if (bits & entry.bit)
             result |= entry.pin;
@@ -385,8 +383,8 @@ QSerialPort::SerialPortError SerialEngine::error(SerialOperation operation) cons
     case ENXIO:
     case EIO:
         code = operation == SerialOperation::Open
-                       ? (m_errno == EIO ? QSerialPort::OpenError : QSerialPort::DeviceNotFoundError)
-                       : QSerialPort::ResourceError;
+                   ? (m_errno == EIO ? QSerialPort::OpenError : QSerialPort::DeviceNotFoundError)
+                   : QSerialPort::ResourceError;
         break;
     case EACCES:
     case EPERM:

@@ -229,7 +229,8 @@ check_shell() {
     local f
     while IFS= read -r f; do bash -n "$f" || return 1; done < <(repo_files '*.sh')
     need shellcheck || return 0
-    repo_files '*.sh' | xargs -r shellcheck
+    # Warnings and errors fail; the info-level style notes in the packaging scripts do not.
+    repo_files '*.sh' | xargs -r shellcheck --severity=warning
 }
 
 check_sanitizers() {

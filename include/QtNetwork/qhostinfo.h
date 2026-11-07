@@ -39,8 +39,7 @@ public:
 
         \sa fromName()
     */
-    template <typename Func>
-    static int lookupHost(const QString &name, Func &&functor) {
+    template <typename Func> static int lookupHost(const QString &name, Func &&functor) {
         return startLookup(name, nullptr, std::function<void(const QHostInfo &)>(std::forward<Func>(functor)));
     }
 
@@ -50,13 +49,13 @@ public:
         Looks up \a name and calls \a functor, unless \a context is destroyed
         first.
     */
-    template <typename Func>
-    static int lookupHost(const QString &name, const QObject *context, Func &&functor) {
+    template <typename Func> static int lookupHost(const QString &name, const QObject *context, Func &&functor) {
         return startLookup(name, context, std::function<void(const QHostInfo &)>(std::forward<Func>(functor)));
     }
 
 private:
-    static int startLookup(const QString &name, const QObject *context, std::function<void(const QHostInfo &)> callback);
+    static int startLookup(const QString &name, const QObject *context,
+                           std::function<void(const QHostInfo &)> callback);
 
     QString m_name;
     QList<QHostAddress> m_addresses;

@@ -7,7 +7,8 @@
 class QSslCipher {
 public:
     QSslCipher() = default;
-    QSslCipher(const QString &name, int usedBits, int supportedBits, const QString &protocolString, QSsl::SslProtocol protocol);
+    QSslCipher(const QString &name, int usedBits, int supportedBits, const QString &protocolString,
+               QSsl::SslProtocol protocol);
 
     bool isNull() const;
     QString name() const;
@@ -16,7 +17,9 @@ public:
     QString protocolString() const;
     QSsl::SslProtocol protocol() const;
 
-    friend bool operator==(const QSslCipher &a, const QSslCipher &b) { return a.m_name == b.m_name && a.m_protocolString == b.m_protocolString; }
+    friend bool operator==(const QSslCipher &a, const QSslCipher &b) {
+        return a.m_name == b.m_name && a.m_protocolString == b.m_protocolString;
+    }
     friend bool operator!=(const QSslCipher &a, const QSslCipher &b) { return !(a == b); }
 
 private:

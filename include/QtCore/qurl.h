@@ -73,7 +73,8 @@ public:
 
     static QUrl fromLocalFile(const QString &localFile);
     static QUrl fromEncoded(const QByteArray &input, ParsingMode mode = TolerantMode);
-    static QByteArray toPercentEncoding(const QString &input, const QByteArray &exclude = QByteArray(), const QByteArray &include = QByteArray());
+    static QByteArray toPercentEncoding(const QString &input, const QByteArray &exclude = QByteArray(),
+                                        const QByteArray &include = QByteArray());
     static QString fromPercentEncoding(const QByteArray &input);
 
     friend bool operator==(const QUrl &a, const QUrl &b) { return a.toEncoded() == b.toEncoded(); }

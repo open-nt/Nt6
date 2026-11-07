@@ -15,19 +15,22 @@
 #include <thread>
 
 static int g_failures = 0;
-#define CHECK(cond)                                                              \
-    do {                                                                         \
-        if (!(cond)) {                                                           \
-            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);          \
-            ++g_failures;                                                        \
-        }                                                                        \
+#define CHECK(cond)                                                                                                    \
+    do {                                                                                                               \
+        if (!(cond)) {                                                                                                 \
+            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);                                                \
+            ++g_failures;                                                                                              \
+        }                                                                                                              \
     } while (0)
 
 static bool runLoop(QEventLoop &loop, int timeoutMs = 5000) {
     bool timedOut = false;
     QTimer t;
     t.setSingleShot(true);
-    QObject::connect(&t, &QTimer::timeout, [&] { timedOut = true; loop.quit(); });
+    QObject::connect(&t, &QTimer::timeout, [&] {
+        timedOut = true;
+        loop.quit();
+    });
     t.start(timeoutMs);
     loop.exec();
     return !timedOut;
@@ -44,7 +47,8 @@ struct Identity {
     std::shared_ptr<X509> ownedCertificate;
 };
 
-static Identity makeIdentity(const char *commonName, const char *altNames, const Identity *issuer, long fromDays, long toDays, bool ca = false) {
+static Identity makeIdentity(const char *commonName, const char *altNames, const Identity *issuer, long fromDays,
+                             long toDays, bool ca = false) {
     Identity id;
     EVP_PKEY_CTX *kctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, nullptr);
     EVP_PKEY_keygen_init(kctx);
@@ -62,7 +66,8 @@ static Identity makeIdentity(const char *commonName, const char *altNames, const
     X509_set_pubkey(x, id.pkey);
     X509_NAME *name = X509_get_subject_name(x);
     X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, reinterpret_cast<const unsigned char *>("Nt Tests"), -1, -1, 0);
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char *>(commonName), -1, -1, 0);
+    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char *>(commonName), -1, -1,
+                               0);
     X509_set_issuer_name(x, issuer ? X509_get_subject_name(issuer->x509) : name);
 
     X509V3_CTX ctx;
@@ -197,7 +202,10 @@ static void testCertificates() {
 static void testHandshake() {
     CHECK(QSslSocket::supportsSsl() && QSslSocket::sslLibraryVersionString().contains("OpenSSL"));
 
-    const struct { QSsl::SslProtocol want, got; const char *text; } versions[] = {
+    const struct {
+        QSsl::SslProtocol want, got;
+        const char *text;
+    } versions[] = {
         {QSsl::SecureProtocols, QSsl::TlsV1_3, "TLSv1.3"},
         {QSsl::TlsV1_3, QSsl::TlsV1_3, "TLSv1.3"},
         {QSsl::TlsV1_2, QSsl::TlsV1_2, "TLSv1.2"},
@@ -304,7 +312,8 @@ struct Attempt {
 };
 
 // Connects a client to a server presenting `id`, writing a secret as early as it can.
-static Attempt attempt(const Identity &id, const QSslConfiguration &config, const QString &name, const std::function<void(QSslSocket &)> &setup = {}) {
+static Attempt attempt(const Identity &id, const QSslConfiguration &config, const QString &name,
+                       const std::function<void(QSslSocket &)> &setup = {}) {
     Attempt a;
     EchoServer server(serverConfig(id));
     QSslSocket client;
@@ -373,7 +382,8 @@ static void testRejections() {
     CHECK(QSslConfiguration::defaultConfiguration().usesSystemCaCertificates());
     CHECK(!trust.usesSystemCaCertificates());
     CHECK(QSslConfiguration().peerVerifyMode() == QSslSocket::AutoVerifyPeer);
-    expectRejected(attempt(f->good, QSslConfiguration::defaultConfiguration(), ip), QSslError::UnableToGetLocalIssuerCertificate);
+    expectRejected(attempt(f->good, QSslConfiguration::defaultConfiguration(), ip),
+                   QSslError::UnableToGetLocalIssuerCertificate);
 
     // Ignoring: everything, exactly the right errors, or the wrong ones.
     Attempt all = attempt(f->expired, trust, ip, [](QSslSocket &s) {
@@ -384,24 +394,37 @@ static void testRejections() {
         s.ignoreSslErrors({QSslError(QSslError::CertificateExpired, f->expired.certificate)});
     });
     CHECK(exact.encrypted && exact.serverSaw == "secret");
-    expectRejected(attempt(f->expired, trust, ip, [](QSslSocket &s) {
-                       s.ignoreSslErrors({QSslError(QSslError::CertificateExpired, f->good.certificate)});
-                   }), QSslError::CertificateExpired);
-    expectRejected(attempt(f->expired, trust, ip, [](QSslSocket &s) {
-                       s.ignoreSslErrors({QSslError(QSslError::HostNameMismatch, f->expired.certificate)});
-                   }), QSslError::CertificateExpired);
+    expectRejected(attempt(f->expired, trust, ip,
+                           [](QSslSocket &s) {
+                               s.ignoreSslErrors({QSslError(QSslError::CertificateExpired, f->good.certificate)});
+                           }),
+                   QSslError::CertificateExpired);
+    expectRejected(attempt(f->expired, trust, ip,
+                           [](QSslSocket &s) {
+                               s.ignoreSslErrors({QSslError(QSslError::HostNameMismatch, f->expired.certificate)});
+                           }),
+                   QSslError::CertificateExpired);
 
     // Data written at any moment before verification finishes stays on the
     // client: as the handshake starts, and after it ends but before the verdict.
-    expectRejected(attempt(f->expired, trust, ip, [](QSslSocket &s) {
-                       QObject::connect(&s, &QAbstractSocket::connected, &s, [&s] { CHECK(s.write("early") == 5); });
-                   }), QSslError::CertificateExpired);
-    expectRejected(attempt(f->expired, trust, ip, [](QSslSocket &s) {
-                       QObject::connect(&s, &QSslSocket::peerVerifyError, &s, [&s] { CHECK(s.write("verdict") == 7); });
-                   }), QSslError::CertificateExpired);
-    expectRejected(attempt(f->expired, trust, ip, [](QSslSocket &s) {
-                       QObject::connect(&s, &QSslSocket::sslErrors, &s, [&s] { CHECK(s.write("verdict") == 7); });
-                   }), QSslError::CertificateExpired);
+    expectRejected(attempt(f->expired, trust, ip,
+                           [](QSslSocket &s) {
+                               QObject::connect(&s, &QAbstractSocket::connected, &s,
+                                                [&s] { CHECK(s.write("early") == 5); });
+                           }),
+                   QSslError::CertificateExpired);
+    expectRejected(attempt(f->expired, trust, ip,
+                           [](QSslSocket &s) {
+                               QObject::connect(&s, &QSslSocket::peerVerifyError, &s,
+                                                [&s] { CHECK(s.write("verdict") == 7); });
+                           }),
+                   QSslError::CertificateExpired);
+    expectRejected(attempt(f->expired, trust, ip,
+                           [](QSslSocket &s) {
+                               QObject::connect(&s, &QSslSocket::sslErrors, &s,
+                                                [&s] { CHECK(s.write("verdict") == 7); });
+                           }),
+                   QSslError::CertificateExpired);
     // The same data arrives, in order, once a connection is accepted.
     Attempt queued = attempt(f->good, trust, ip, [](QSslSocket &s) {
         QObject::connect(&s, &QAbstractSocket::connected, &s, [&s] { CHECK(s.write("early-") == 6); });
@@ -476,7 +499,8 @@ static void testServer() {
         QEventLoop loop;
         QObject::connect(&client, &QAbstractSocket::disconnected, [&] { loop.quit(); });
         QAbstractSocket::SocketError serverError = QAbstractSocket::UnknownSocketError;
-        QObject::connect(&server.server, &QSslServer::errorOccurred, [&](QSslSocket *, QAbstractSocket::SocketError e) { serverError = e; });
+        QObject::connect(&server.server, &QSslServer::errorOccurred,
+                         [&](QSslSocket *, QAbstractSocket::SocketError e) { serverError = e; });
         client.connectToHostEncrypted("127.0.0.1", server.port());
         client.write("no cert");
         CHECK(runLoop(loop));
@@ -508,7 +532,10 @@ static void testServer() {
     QAbstractSocket::SocketError seen = QAbstractSocket::UnknownSocketError;
     QEventLoop loop;
     QObject::connect(&server, &QSslServer::newConnection, [&] { ++emitted; });
-    QObject::connect(&server, &QSslServer::errorOccurred, [&](QSslSocket *, QAbstractSocket::SocketError e) { seen = e; loop.quit(); });
+    QObject::connect(&server, &QSslServer::errorOccurred, [&](QSslSocket *, QAbstractSocket::SocketError e) {
+        seen = e;
+        loop.quit();
+    });
     QTcpSocket plain;
     QObject::connect(&plain, &QAbstractSocket::connected, [&] { plain.write("GET / HTTP/1.1\r\n\r\n"); });
     plain.connectToHost(QHostAddress::LocalHost, server.serverPort());
@@ -529,7 +556,10 @@ static void testServer() {
         CHECK(broken.listen(QHostAddress::LocalHost));
         QAbstractSocket::SocketError e = QAbstractSocket::UnknownSocketError;
         QEventLoop wait;
-        QObject::connect(&broken, &QSslServer::errorOccurred, [&](QSslSocket *, QAbstractSocket::SocketError x) { e = x; wait.quit(); });
+        QObject::connect(&broken, &QSslServer::errorOccurred, [&](QSslSocket *, QAbstractSocket::SocketError x) {
+            e = x;
+            wait.quit();
+        });
         QTcpSocket c;
         c.connectToHost(QHostAddress::LocalHost, broken.serverPort());
         CHECK(runLoop(wait));
@@ -539,7 +569,8 @@ static void testServer() {
     // A client talking to a server that is not speaking TLS.
     QTcpServer notTls;
     CHECK(notTls.listen(QHostAddress::LocalHost));
-    QObject::connect(&notTls, &QTcpServer::newConnection, [&] { notTls.nextPendingConnection()->write("220 hello, not TLS at all\r\n"); });
+    QObject::connect(&notTls, &QTcpServer::newConnection,
+                     [&] { notTls.nextPendingConnection()->write("220 hello, not TLS at all\r\n"); });
     QSslSocket client;
     client.setSslConfiguration(clientConfig());
     QEventLoop failed;
@@ -574,7 +605,8 @@ static void testServer() {
         CHECK(dropped.error() == QAbstractSocket::SslHandshakeFailedError && !dropped.isEncrypted());
 
         QNetworkAccessManager manager;
-        QNetworkRequest request{QUrl(QString("https://127.0.0.1:") + QString::number(dropper.serverPort()) + QString("/"))};
+        QNetworkRequest request{
+            QUrl(QString("https://127.0.0.1:") + QString::number(dropper.serverPort()) + QString("/"))};
         request.setSslConfiguration(clientConfig());
         QNetworkReply *reply = manager.get(request);
         QEventLoop replyLoop;
@@ -680,7 +712,8 @@ static void testBlocking() {
             rc = SSL_accept(ssl);
             if (rc != 1)
                 usleep(1000);
-        } while (rc != 1 && (SSL_get_error(ssl, rc) == SSL_ERROR_WANT_READ || SSL_get_error(ssl, rc) == SSL_ERROR_WANT_WRITE));
+        } while (rc != 1 &&
+                 (SSL_get_error(ssl, rc) == SSL_ERROR_WANT_READ || SSL_get_error(ssl, rc) == SSL_ERROR_WANT_WRITE));
         char buf[16];
         int n = 0;
         for (int i = 0; i < 2000 && n <= 0; ++i) {
@@ -729,14 +762,20 @@ static void testLifetime() {
     {
         auto *s = new QSslSocket;
         s->setSslConfiguration(clientConfig());
-        QObject::connect(s, &QSslSocket::encrypted, [&, s] { delete s; loop.quit(); });
+        QObject::connect(s, &QSslSocket::encrypted, [&, s] {
+            delete s;
+            loop.quit();
+        });
         s->connectToHostEncrypted("127.0.0.1", server.port());
         CHECK(runLoop(loop));
     }
     {
         auto *s = new QSslSocket;
         s->setSslConfiguration(clientConfig());
-        QObject::connect(s, &QIODevice::readyRead, [&, s] { delete s; loop.quit(); });
+        QObject::connect(s, &QIODevice::readyRead, [&, s] {
+            delete s;
+            loop.quit();
+        });
         s->connectToHostEncrypted("127.0.0.1", server.port());
         s->write("x");
         CHECK(runLoop(loop));
@@ -744,21 +783,30 @@ static void testLifetime() {
     {
         auto *s = new QSslSocket;
         s->setSslConfiguration(clientConfig());
-        QObject::connect(s, &QSslSocket::sslErrors, [&, s] { delete s; loop.quit(); });
+        QObject::connect(s, &QSslSocket::sslErrors, [&, s] {
+            delete s;
+            loop.quit();
+        });
         s->connectToHostEncrypted("127.0.0.1", bad.port());
         CHECK(runLoop(loop));
     }
     {
         auto *s = new QSslSocket;
         s->setSslConfiguration(clientConfig());
-        QObject::connect(s, &QSslSocket::peerVerifyError, [&, s] { delete s; loop.quit(); });
+        QObject::connect(s, &QSslSocket::peerVerifyError, [&, s] {
+            delete s;
+            loop.quit();
+        });
         s->connectToHostEncrypted("127.0.0.1", bad.port());
         CHECK(runLoop(loop));
     }
     {
         auto *s = new QSslSocket;
         s->setSslConfiguration(clientConfig());
-        QObject::connect(s, &QAbstractSocket::errorOccurred, [&, s] { delete s; loop.quit(); });
+        QObject::connect(s, &QAbstractSocket::errorOccurred, [&, s] {
+            delete s;
+            loop.quit();
+        });
         s->connectToHostEncrypted("127.0.0.1", bad.port());
         CHECK(runLoop(loop));
     }
@@ -766,7 +814,11 @@ static void testLifetime() {
         // abort() from inside a slot, and writing after it, are safe.
         QSslSocket s;
         s.setSslConfiguration(clientConfig());
-        QObject::connect(&s, &QSslSocket::encrypted, [&] { s.abort(); CHECK(s.write("x") == -1); loop.quit(); });
+        QObject::connect(&s, &QSslSocket::encrypted, [&] {
+            s.abort();
+            CHECK(s.write("x") == -1);
+            loop.quit();
+        });
         s.connectToHostEncrypted("127.0.0.1", server.port());
         CHECK(runLoop(loop));
     }
@@ -871,7 +923,8 @@ static void testHttps() {
     // An accepted error does not follow a redirect to somewhere else.
     HttpsServer alsoUntrusted(serverConfig(f->selfSigned));
     alsoUntrusted.script["/stolen"] = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nno";
-    untrusted.script["/bounce"] = QByteArray("HTTP/1.1 302 Found\r\nLocation: ") + alsoUntrusted.url("/stolen").toUtf8() + "\r\nContent-Length: 0\r\n\r\n";
+    untrusted.script["/bounce"] = QByteArray("HTTP/1.1 302 Found\r\nLocation: ") +
+                                  alsoUntrusted.url("/stolen").toUtf8() + "\r\nContent-Length: 0\r\n\r\n";
     r = manager.get(request(untrusted.url("/bounce")));
     r->ignoreSslErrors();
     QObject::connect(r, &R::sslErrors, r, [] {});
@@ -889,7 +942,8 @@ static void testHttps() {
         QTcpSocket *s = plain.nextPendingConnection();
         QObject::connect(s, &QIODevice::readyRead, s, [&, s] {
             s->readAll();
-            s->write(QByteArray("HTTP/1.1 302 Found\r\nLocation: ") + https.url("/ok").toUtf8() + "\r\nContent-Length: 0\r\n\r\n");
+            s->write(QByteArray("HTTP/1.1 302 Found\r\nLocation: ") + https.url("/ok").toUtf8() +
+                     "\r\nContent-Length: 0\r\n\r\n");
             s->disconnectFromHost();
         });
     });
@@ -909,7 +963,8 @@ static void testHttps() {
     // Secrets stay on their origin across an https redirect.
     HttpsServer other(serverConfig(f->good));
     other.script["/x"] = "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok";
-    https.script["/cross"] = QByteArray("HTTP/1.1 302 Found\r\nLocation: ") + other.url("/x").toUtf8() + "\r\nContent-Length: 0\r\n\r\n";
+    https.script["/cross"] =
+        QByteArray("HTTP/1.1 302 Found\r\nLocation: ") + other.url("/x").toUtf8() + "\r\nContent-Length: 0\r\n\r\n";
     QNetworkRequest authorized = request(https.url("/cross"));
     authorized.setRawHeader("Authorization", "Bearer secret");
     r = manager.get(authorized);
@@ -930,7 +985,8 @@ static void testHttps() {
     delete r;
     QTcpServer notTls;
     CHECK(notTls.listen(QHostAddress::LocalHost));
-    QObject::connect(&notTls, &QTcpServer::newConnection, [&] { notTls.nextPendingConnection()->write("HTTP/1.1 200 OK\r\n\r\n"); });
+    QObject::connect(&notTls, &QTcpServer::newConnection,
+                     [&] { notTls.nextPendingConnection()->write("HTTP/1.1 200 OK\r\n\r\n"); });
     r = manager.get(request(QString("https://127.0.0.1:") + QString::number(notTls.serverPort()) + QString("/")));
     fetch(r, &e);
     CHECK(e == R::SslHandshakeFailedError);

@@ -167,7 +167,8 @@ qint64 QLocalSocket::send() {
     }
     qint64 sent = 0;
     while (sent < m_wbuf.size()) {
-        const ssize_t n = ::send(m_fd, m_wbuf.constData() + sent, static_cast<std::size_t>(m_wbuf.size() - sent), MSG_NOSIGNAL);
+        const ssize_t n =
+            ::send(m_fd, m_wbuf.constData() + sent, static_cast<std::size_t>(m_wbuf.size() - sent), MSG_NOSIGNAL);
         if (n < 0) {
             if (errno == EINTR)
                 continue;
@@ -243,8 +244,8 @@ void QLocalSocket::connectToServer(OpenMode openMode) {
     if (rc != 0) {
         const int err = errno;
         ::close(fd);
-        const LocalSocketError e = err == ENOENT ? ServerNotFoundError
-                                   : err == EACCES || err == EPERM ? SocketAccessError
+        const LocalSocketError e = err == ENOENT                          ? ServerNotFoundError
+                                   : err == EACCES || err == EPERM        ? SocketAccessError
                                    : err == EAGAIN || err == ECONNREFUSED ? ConnectionRefusedError
                                                                           : ConnectionError;
         setError(e, QString::fromUtf8(std::strerror(err)));

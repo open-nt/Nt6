@@ -54,9 +54,7 @@ void QTestEventLoop::enterLoop(int seconds) { enterLoopMSecs(seconds * 1000); }
 
     Runs the event loop for at most \a timeout.
 */
-void QTestEventLoop::enterLoop(std::chrono::milliseconds timeout) {
-    enterLoopMSecs(static_cast<int>(timeout.count()));
-}
+void QTestEventLoop::enterLoop(std::chrono::milliseconds timeout) { enterLoopMSecs(static_cast<int>(timeout.count())); }
 
 /*!
     Runs the event loop until exitLoop() is called, or for at most

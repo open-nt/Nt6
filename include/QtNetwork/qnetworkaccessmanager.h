@@ -31,7 +31,8 @@ public:
     QNetworkReply *put(const QNetworkRequest &request, const QByteArray &data);
     QNetworkReply *put(const QNetworkRequest &request, QIODevice *data);
     QNetworkReply *deleteResource(const QNetworkRequest &request);
-    QNetworkReply *sendCustomRequest(const QNetworkRequest &request, const QByteArray &verb, const QByteArray &data = QByteArray());
+    QNetworkReply *sendCustomRequest(const QNetworkRequest &request, const QByteArray &verb,
+                                     const QByteArray &data = QByteArray());
 
     int transferTimeout() const;
     void setTransferTimeout(int timeout);
@@ -53,7 +54,9 @@ signals:
         \a errors. Unless a connected slot calls
         QNetworkReply::ignoreSslErrors(), the reply fails.
     */
-    void sslErrors(QNetworkReply *reply, const QList<QSslError> &errors) { emitSignal(&QNetworkAccessManager::sslErrors, reply, errors); }
+    void sslErrors(QNetworkReply *reply, const QList<QSslError> &errors) {
+        emitSignal(&QNetworkAccessManager::sslErrors, reply, errors);
+    }
 #endif
 
 private:

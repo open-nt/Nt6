@@ -15,12 +15,12 @@
 #include <string>
 
 static int g_failures = 0;
-#define CHECK(cond)                                                              \
-    do {                                                                         \
-        if (!(cond)) {                                                           \
-            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);          \
-            ++g_failures;                                                        \
-        }                                                                        \
+#define CHECK(cond)                                                                                                    \
+    do {                                                                                                               \
+        if (!(cond)) {                                                                                                 \
+            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);                                                \
+            ++g_failures;                                                                                              \
+        }                                                                                                              \
     } while (0)
 
 namespace geometry {
@@ -47,10 +47,7 @@ struct Specialized {
     bool operator==(const Specialized &) const { return false; }
 };
 
-template <>
-char *QTest::toString(const Specialized &) {
-    return qstrdup("specialized");
-}
+template <> char *QTest::toString(const Specialized &) { return qstrdup("specialized"); }
 
 enum class Color { Red = 1, Green = 2 };
 
@@ -713,8 +710,7 @@ static void testGlobalData() {
 static void testInheritance() {
     Derived derived;
     CHECK(run(&derived) == 0);
-    CHECK(derived.calls ==
-          "derived-init inherited derived-init own derived-init away derived-init inline ");
+    CHECK(derived.calls == "derived-init inherited derived-init own derived-init away derived-init inline ");
     CHECK(logged("Start testing of Derived"));
 }
 

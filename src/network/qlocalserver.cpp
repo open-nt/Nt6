@@ -111,15 +111,19 @@ bool QLocalServer::listen(const QString &name) {
     if (::bind(fd, reinterpret_cast<sockaddr *>(&addr), sizeof addr) != 0) {
         const int err = errno;
         ::close(fd);
-        fail(err == EACCES ? QLocalSocket::SocketAccessError : QLocalSocket::ConnectionError, QString::fromUtf8(std::strerror(err)));
+        fail(err == EACCES ? QLocalSocket::SocketAccessError : QLocalSocket::ConnectionError,
+             QString::fromUtf8(std::strerror(err)));
         return false;
     }
     // Applied before listen(), so nobody can connect under the wrong mode.
     if (m_options != NoOptions) {
         mode_t mode = 0;
-        if (m_options.testFlag(UserAccessOption)) mode |= S_IRWXU;
-        if (m_options.testFlag(GroupAccessOption)) mode |= S_IRWXG;
-        if (m_options.testFlag(OtherAccessOption)) mode |= S_IRWXO;
+        if (m_options.testFlag(UserAccessOption))
+            mode |= S_IRWXU;
+        if (m_options.testFlag(GroupAccessOption))
+            mode |= S_IRWXG;
+        if (m_options.testFlag(OtherAccessOption))
+            mode |= S_IRWXO;
         ::chmod(path.constData(), mode);
     }
     if (::listen(fd, SOMAXCONN) != 0) {

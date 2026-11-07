@@ -19,29 +19,37 @@ struct RecordedEvent {
 
 const char *prefix(Event event) {
     switch (event) {
-    case Event::Fail: return "FAIL!  ";
-    case Event::XFail: return "XFAIL  ";
-    case Event::XPass: return "XPASS  ";
-    case Event::Skip: return "SKIP   ";
-    case Event::Debug: return "QDEBUG ";
-    case Event::Info: return "QINFO  ";
-    case Event::Warning: return "QWARN  ";
-    case Event::Critical: return "QCRITICAL";
-    case Event::Fatal: return "QFATAL ";
-    case Event::Note: return "INFO   ";
+    case Event::Fail:
+        return "FAIL!  ";
+    case Event::XFail:
+        return "XFAIL  ";
+    case Event::XPass:
+        return "XPASS  ";
+    case Event::Skip:
+        return "SKIP   ";
+    case Event::Debug:
+        return "QDEBUG ";
+    case Event::Info:
+        return "QINFO  ";
+    case Event::Warning:
+        return "QWARN  ";
+    case Event::Critical:
+        return "QCRITICAL";
+    case Event::Fatal:
+        return "QFATAL ";
+    case Event::Note:
+        return "INFO   ";
     }
     return "";
 }
 
 bool isFailure(Event event) { return event == Event::Fail || event == Event::XPass; }
 bool isDiagnostic(Event event) {
-    return event == Event::Debug || event == Event::Info || event == Event::Warning ||
-           event == Event::Critical || event == Event::Fatal;
+    return event == Event::Debug || event == Event::Info || event == Event::Warning || event == Event::Critical ||
+           event == Event::Fatal;
 }
 
-std::string location(const std::string &file, int line) {
-    return file + "(" + std::to_string(line) + ")";
-}
+std::string location(const std::string &file, int line) { return file + "(" + std::to_string(line) + ")"; }
 
 class FileLogger : public Logger {
 public:
@@ -73,12 +81,11 @@ public:
         write("Config: Using Nt Test " QT_VERSION_STR "\n");
     }
 
-    void event(Event event, const std::string &label, const std::string &message, const char *file,
-               int line) override {
-        const bool shown = m_verbosity == Verbosity::Verbose
-                               ? true
-                               : (m_verbosity == Verbosity::Normal ? event != Event::Note
-                                                                   : isFailure(event) || event == Event::Fatal);
+    void event(Event event, const std::string &label, const std::string &message, const char *file, int line) override {
+        const bool shown =
+            m_verbosity == Verbosity::Verbose
+                ? true
+                : (m_verbosity == Verbosity::Normal ? event != Event::Note : isFailure(event) || event == Event::Fatal);
         if (!shown)
             return;
         std::string text = std::string(prefix(event)) + ": " + label;
@@ -96,9 +103,8 @@ public:
     }
 
     void end(const std::string &className, const Totals &totals) override {
-        write("Totals: " + std::to_string(totals.passed) + " passed, " + std::to_string(totals.failed) +
-              " failed, " + std::to_string(totals.skipped) + " skipped, 0 blacklisted, " +
-              std::to_string(totals.elapsedMs) + "ms\n");
+        write("Totals: " + std::to_string(totals.passed) + " passed, " + std::to_string(totals.failed) + " failed, " +
+              std::to_string(totals.skipped) + " skipped, 0 blacklisted, " + std::to_string(totals.elapsedMs) + "ms\n");
         write("********* Finished testing of " + className + " *********\n");
     }
 
@@ -112,8 +118,7 @@ public:
 
     void begin(const std::string &className) override { write("TAP version 13\n# " + className + "\n"); }
 
-    void event(Event event, const std::string &, const std::string &message, const char *file,
-               int line) override {
+    void event(Event event, const std::string &, const std::string &message, const char *file, int line) override {
         m_events.push_back({event, message, file ? file : "", line});
     }
 
@@ -139,8 +144,8 @@ public:
 
     void end(const std::string &, const Totals &totals) override {
         write("1.." + std::to_string(m_count) + "\n");
-        write("# tests " + std::to_string(m_count) + "\n# pass " + std::to_string(totals.passed) +
-              "\n# fail " + std::to_string(totals.failed) + "\n");
+        write("# tests " + std::to_string(m_count) + "\n# pass " + std::to_string(totals.passed) + "\n# fail " +
+              std::to_string(totals.failed) + "\n");
     }
 
 private:
@@ -170,8 +175,7 @@ public:
 
     void begin(const std::string &) override {}
 
-    void event(Event event, const std::string &, const std::string &message, const char *file,
-               int line) override {
+    void event(Event event, const std::string &, const std::string &message, const char *file, int line) override {
         if (isDiagnostic(event) || event == Event::XFail)
             m_systemErr += std::string(prefix(event)) + ": " + message + "\n";
         if (event != Event::Note && !isDiagnostic(event))
@@ -198,9 +202,9 @@ public:
 
     void end(const std::string &className, const Totals &totals) override {
         std::string text = "<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n<testsuite name=\"" + escape(className) +
-                           "\" tests=\"" + std::to_string(m_count) + "\" failures=\"" +
-                           std::to_string(totals.failed) + "\" errors=\"0\" skipped=\"" +
-                           std::to_string(totals.skipped) + "\" time=\"" + seconds(totals.elapsedMs) + "\">\n";
+                           "\" tests=\"" + std::to_string(m_count) + "\" failures=\"" + std::to_string(totals.failed) +
+                           "\" errors=\"0\" skipped=\"" + std::to_string(totals.skipped) + "\" time=\"" +
+                           seconds(totals.elapsedMs) + "\">\n";
         text += m_body;
         if (!m_systemErr.empty())
             text += "  <system-err>" + escape(m_systemErr) + "</system-err>\n";
@@ -218,12 +222,26 @@ private:
         std::string out;
         for (char c : text) {
             switch (c) {
-            case '&': out += "&amp;"; break;
-            case '<': out += "&lt;"; break;
-            case '>': out += "&gt;"; break;
-            case '"': out += "&quot;"; break;
-            case '\'': out += "&apos;"; break;
-            case '\n': case '\t': case '\r': out += c; break;
+            case '&':
+                out += "&amp;";
+                break;
+            case '<':
+                out += "&lt;";
+                break;
+            case '>':
+                out += "&gt;";
+                break;
+            case '"':
+                out += "&quot;";
+                break;
+            case '\'':
+                out += "&apos;";
+                break;
+            case '\n':
+            case '\t':
+            case '\r':
+                out += c;
+                break;
             default:
                 // Other control characters cannot appear in XML 1.0, even escaped.
                 if (static_cast<unsigned char>(c) >= 0x20)

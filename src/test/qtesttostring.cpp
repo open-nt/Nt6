@@ -41,8 +41,7 @@ std::string quoted(const char *data, std::size_t size) {
 std::string quoted(const std::string &text) { return quoted(text.data(), text.size()); }
 
 // The shortest form that reads back as the same value.
-template <typename T>
-char *shortestReal(T value, int maxPrecision) {
+template <typename T> char *shortestReal(T value, int maxPrecision) {
     char text[64];
     for (int precision = 6; precision <= maxPrecision; ++precision) {
         std::snprintf(text, sizeof text, "%.*g", precision, static_cast<double>(value));
@@ -52,8 +51,7 @@ char *shortestReal(T value, int maxPrecision) {
     return copy(text);
 }
 
-template <typename T>
-bool fuzzy(T a, T b, T factor) {
+template <typename T> bool fuzzy(T a, T b, T factor) {
     if (std::isnan(a) || std::isnan(b))
         return std::isnan(a) && std::isnan(b);
     if (std::isinf(a) || std::isinf(b) || a == b)

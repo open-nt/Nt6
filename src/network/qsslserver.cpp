@@ -43,7 +43,9 @@
 /*!
     Constructs a server with the given \a parent.
 */
-QSslServer::QSslServer(QObject *parent) : QTcpServer(parent) { m_configuration = QSslConfiguration::defaultConfiguration(); }
+QSslServer::QSslServer(QObject *parent) : QTcpServer(parent) {
+    m_configuration = QSslConfiguration::defaultConfiguration();
+}
 
 /*!
     Destroys the server.
@@ -100,7 +102,8 @@ void QSslServer::incomingConnection(qintptr socket) {
         s->deleteLater();
     });
 
-    QObject::connect(s, &QSslSocket::sslErrors, this, [this, s](const QList<QSslError> &errors) { sslErrors(s, errors); });
+    QObject::connect(s, &QSslSocket::sslErrors, this,
+                     [this, s](const QList<QSslError> &errors) { sslErrors(s, errors); });
     QObject::connect(s, &QAbstractSocket::errorOccurred, this, [this, s](QAbstractSocket::SocketError error) {
         if (s->isEncrypted())
             return; // the application owns the socket by now

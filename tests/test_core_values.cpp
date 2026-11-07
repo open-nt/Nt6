@@ -409,20 +409,50 @@ static void testIdentifiers() {
 static void testUrl() {
     // RFC 3986 section 5.4.
     const QUrl base("http://a/b/c/d;p?q");
-    const struct { const char *ref, *expected; } cases[] = {
-        {"g:h", "g:h"}, {"g", "http://a/b/c/g"}, {"./g", "http://a/b/c/g"}, {"g/", "http://a/b/c/g/"},
-        {"/g", "http://a/g"}, {"//g", "http://g"}, {"?y", "http://a/b/c/d;p?y"}, {"g?y", "http://a/b/c/g?y"},
-        {"#s", "http://a/b/c/d;p?q#s"}, {"g#s", "http://a/b/c/g#s"}, {"g?y#s", "http://a/b/c/g?y#s"},
-        {";x", "http://a/b/c/;x"}, {"g;x", "http://a/b/c/g;x"}, {"g;x?y#s", "http://a/b/c/g;x?y#s"},
-        {"", "http://a/b/c/d;p?q"}, {".", "http://a/b/c/"}, {"./", "http://a/b/c/"}, {"..", "http://a/b/"},
-        {"../", "http://a/b/"}, {"../g", "http://a/b/g"}, {"../..", "http://a/"}, {"../../", "http://a/"},
+    const struct {
+        const char *ref, *expected;
+    } cases[] = {
+        {"g:h", "g:h"},
+        {"g", "http://a/b/c/g"},
+        {"./g", "http://a/b/c/g"},
+        {"g/", "http://a/b/c/g/"},
+        {"/g", "http://a/g"},
+        {"//g", "http://g"},
+        {"?y", "http://a/b/c/d;p?y"},
+        {"g?y", "http://a/b/c/g?y"},
+        {"#s", "http://a/b/c/d;p?q#s"},
+        {"g#s", "http://a/b/c/g#s"},
+        {"g?y#s", "http://a/b/c/g?y#s"},
+        {";x", "http://a/b/c/;x"},
+        {"g;x", "http://a/b/c/g;x"},
+        {"g;x?y#s", "http://a/b/c/g;x?y#s"},
+        {"", "http://a/b/c/d;p?q"},
+        {".", "http://a/b/c/"},
+        {"./", "http://a/b/c/"},
+        {"..", "http://a/b/"},
+        {"../", "http://a/b/"},
+        {"../g", "http://a/b/g"},
+        {"../..", "http://a/"},
+        {"../../", "http://a/"},
         {"../../g", "http://a/g"},
-        {"../../../g", "http://a/g"}, {"../../../../g", "http://a/g"}, {"/./g", "http://a/g"},
-        {"/../g", "http://a/g"}, {"g.", "http://a/b/c/g."}, {".g", "http://a/b/c/.g"}, {"g..", "http://a/b/c/g.."},
-        {"..g", "http://a/b/c/..g"}, {"./../g", "http://a/b/g"}, {"./g/.", "http://a/b/c/g/"},
-        {"g/./h", "http://a/b/c/g/h"}, {"g/../h", "http://a/b/c/h"}, {"g;x=1/./y", "http://a/b/c/g;x=1/y"},
-        {"g;x=1/../y", "http://a/b/c/y"}, {"g?y/./x", "http://a/b/c/g?y/./x"}, {"g?y/../x", "http://a/b/c/g?y/../x"},
-        {"g#s/./x", "http://a/b/c/g#s/./x"}, {"g#s/../x", "http://a/b/c/g#s/../x"},
+        {"../../../g", "http://a/g"},
+        {"../../../../g", "http://a/g"},
+        {"/./g", "http://a/g"},
+        {"/../g", "http://a/g"},
+        {"g.", "http://a/b/c/g."},
+        {".g", "http://a/b/c/.g"},
+        {"g..", "http://a/b/c/g.."},
+        {"..g", "http://a/b/c/..g"},
+        {"./../g", "http://a/b/g"},
+        {"./g/.", "http://a/b/c/g/"},
+        {"g/./h", "http://a/b/c/g/h"},
+        {"g/../h", "http://a/b/c/h"},
+        {"g;x=1/./y", "http://a/b/c/g;x=1/y"},
+        {"g;x=1/../y", "http://a/b/c/y"},
+        {"g?y/./x", "http://a/b/c/g?y/./x"},
+        {"g?y/../x", "http://a/b/c/g?y/../x"},
+        {"g#s/./x", "http://a/b/c/g#s/./x"},
+        {"g#s/../x", "http://a/b/c/g#s/../x"},
     };
     for (const auto &c : cases) {
         const QByteArray got = base.resolved(QUrl(c.ref)).toEncoded();
@@ -477,7 +507,8 @@ static void testUrl() {
     CHECK(file.toEncoded() == "file:///tmp/a%20b.txt" && file.isLocalFile() && file.toLocalFile() == "/tmp/a b.txt");
     CHECK(QUrl("http://a/b").toLocalFile().isEmpty());
     CHECK(QUrl("http://a/b").isParentOf(QUrl("http://a/b/c")) && !QUrl("http://a/b").isParentOf(QUrl("http://a/bc")));
-    CHECK(QUrl("http://a/x/../y/").adjusted(QUrl::NormalizePathSegments | QUrl::StripTrailingSlash).toEncoded() == "http://a/y");
+    CHECK(QUrl("http://a/x/../y/").adjusted(QUrl::NormalizePathSegments | QUrl::StripTrailingSlash).toEncoded() ==
+          "http://a/y");
 
     QUrlQuery q(QString("a=1&b=x%20y&a=2&flag&=e"));
     CHECK(q.queryItemValue("a") == "1" && q.queryItemValue("b") == "x y");

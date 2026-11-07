@@ -34,7 +34,8 @@ public:
 class LookupRelay : public QObject {
 public:
     LookupRelay(const QObject *context, std::function<void(const QHostInfo &)> callback)
-        : m_context(const_cast<QObject *>(context)), m_hasContext(context != nullptr), m_callback(std::move(callback)) {}
+        : m_context(const_cast<QObject *>(context)), m_hasContext(context != nullptr), m_callback(std::move(callback)) {
+    }
 
 protected:
     void customEvent(QEvent *event) override {
@@ -186,7 +187,8 @@ QHostInfo QHostInfo::fromName(const QString &name) {
     if (!literal.isNull()) {
         result.setAddresses({literal});
         sockaddr_storage ss;
-        const socklen_t len = QtPrivate::toSockaddr(literal, 0, literal.protocol() == QAbstractSocket::IPv4Protocol ? AF_INET : AF_INET6, &ss);
+        const socklen_t len = QtPrivate::toSockaddr(
+            literal, 0, literal.protocol() == QAbstractSocket::IPv4Protocol ? AF_INET : AF_INET6, &ss);
         char host[NI_MAXHOST];
         if (getnameinfo(reinterpret_cast<sockaddr *>(&ss), len, host, sizeof host, nullptr, 0, NI_NAMEREQD) == 0)
             result.setHostName(QString::fromUtf8(host));
@@ -226,7 +228,8 @@ QHostInfo QHostInfo::fromName(const QString &name) {
     return result;
 }
 
-int QHostInfo::startLookup(const QString &name, const QObject *context, std::function<void(const QHostInfo &)> callback) {
+int QHostInfo::startLookup(const QString &name, const QObject *context,
+                           std::function<void(const QHostInfo &)> callback) {
     const int id = g_nextId.fetch_add(1);
     auto *relay = new LookupRelay(context, std::move(callback));
     std::thread([name, id, relay] {

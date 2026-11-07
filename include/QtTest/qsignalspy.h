@@ -24,8 +24,7 @@ public:
         Constructs an argument holding a copy of \a value.
     */
     template <typename T, typename = std::enable_if_t<!std::is_same_v<std::decay_t<T>, QSignalSpyArgument>>>
-    explicit QSignalSpyArgument(const T &value)
-        : m_type(&typeid(T)), m_value(std::make_shared<const T>(value)) {
+    explicit QSignalSpyArgument(const T &value) : m_type(&typeid(T)), m_value(std::make_shared<const T>(value)) {
         if constexpr (std::is_enum_v<T>) {
             m_kind = Integer;
             m_integer = static_cast<qlonglong>(value);
@@ -49,8 +48,7 @@ public:
 
         \sa value()
     */
-    template <typename T>
-    bool canConvert() const {
+    template <typename T> bool canConvert() const {
         if (m_type && *m_type == typeid(T))
             return true;
         return m_kind != None && (std::is_arithmetic_v<T> || std::is_enum_v<T>);
@@ -62,8 +60,7 @@ public:
 
         \sa canConvert()
     */
-    template <typename T>
-    T value() const {
+    template <typename T> T value() const {
         if (m_type && *m_type == typeid(T))
             return *static_cast<const T *>(m_value.get());
         if constexpr (std::is_arithmetic_v<T> || std::is_enum_v<T>) {
@@ -125,8 +122,8 @@ public:
             return;
         }
         m_valid = static_cast<bool>(QObject::connect(
-            object, signal, this,
-            [this](const std::decay_t<Args> &...args) { record(args...); }, Qt::DirectConnection));
+            object, signal, this, [this](const std::decay_t<Args> &...args) { record(args...); },
+            Qt::DirectConnection));
     }
 
     bool isValid() const noexcept;
@@ -134,8 +131,7 @@ public:
     bool wait(std::chrono::milliseconds timeout);
 
 private:
-    template <typename... Args>
-    void record(const Args &...args) {
+    template <typename... Args> void record(const Args &...args) {
         append(QList<QSignalSpyArgument>{QSignalSpyArgument(args)...});
     }
     static void warnNullObject();

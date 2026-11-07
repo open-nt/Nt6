@@ -103,12 +103,16 @@ signals:
         This signal is emitted as the body is sent, with \a bytesSent of
         \a bytesTotal bytes done.
     */
-    void uploadProgress(qint64 bytesSent, qint64 bytesTotal) { emitSignal(&QNetworkReply::uploadProgress, bytesSent, bytesTotal); }
+    void uploadProgress(qint64 bytesSent, qint64 bytesTotal) {
+        emitSignal(&QNetworkReply::uploadProgress, bytesSent, bytesTotal);
+    }
     /*!
         This signal is emitted as data arrives, with \a bytesReceived of
         \a bytesTotal bytes done. \a bytesTotal is \c -1 if the size is unknown.
     */
-    void downloadProgress(qint64 bytesReceived, qint64 bytesTotal) { emitSignal(&QNetworkReply::downloadProgress, bytesReceived, bytesTotal); }
+    void downloadProgress(qint64 bytesReceived, qint64 bytesTotal) {
+        emitSignal(&QNetworkReply::downloadProgress, bytesReceived, bytesTotal);
+    }
 
 #ifndef QT_NO_SSL
     /*!

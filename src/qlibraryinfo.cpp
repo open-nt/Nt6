@@ -28,7 +28,9 @@
 
     \sa build()
 */
-QVersionNumber QLibraryInfo::version() noexcept { return QVersionNumber(QT_VERSION_MAJOR, QT_VERSION_MINOR, QT_VERSION_PATCH); }
+QVersionNumber QLibraryInfo::version() noexcept {
+    return QVersionNumber(QT_VERSION_MAJOR, QT_VERSION_MINOR, QT_VERSION_PATCH);
+}
 
 /*!
     Returns a line of text describing the build, including the version.

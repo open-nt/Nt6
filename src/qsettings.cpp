@@ -114,7 +114,9 @@ std::atomic<int> g_defaultFormat{QSettings::NativeFormat};
 
 constexpr int kMaxCustomFormats = 16;
 
-int pathKey(QSettings::Format format, QSettings::Scope scope) { return (static_cast<int>(format) << 1) | static_cast<int>(scope); }
+int pathKey(QSettings::Format format, QSettings::Scope scope) {
+    return (static_cast<int>(format) << 1) | static_cast<int>(scope);
+}
 
 ConfFile *acquireConfFile(const QString &path, Qt::CaseSensitivity cs) {
     const QString name = QFileInfo(path).absoluteFilePath();
@@ -178,7 +180,7 @@ struct QSettings::Private {
     // A group, or an array whose element is selected by setArrayIndex().
     struct Group {
         QString name;
-        int num = -1; // 1-based index of the selected element; 0 before setArrayIndex(); -1 if not an array
+        int num = -1;    // 1-based index of the selected element; 0 before setArrayIndex(); -1 if not an array
         int maxNum = -1; // the array size seen so far; -1 if it was given to beginWriteArray()
 
         QString toString() const { return num > 0 ? name + QChar(u'/') + QString::number(num) : name; }
@@ -219,8 +221,7 @@ struct QSettings::Private {
         initAccess();
     }
 
-    Private(QSettings *owner, const QString &fileName, Format fmt)
-        : q(owner), format(fmt), scope(UserScope) {
+    Private(QSettings *owner, const QString &fileName, Format fmt) : q(owner), format(fmt), scope(UserScope) {
         initFormat();
         confFiles.push_back(acquireConfFile(fileName, cs));
         initAccess();
@@ -342,8 +343,8 @@ struct QSettings::Private {
         const QString prefix = key + QChar(u'/');
         eraseWithPrefix(f->addedKeys, prefix, cs);
         f->addedKeys.erase(key);
-        for (auto it = f->originalKeys.lower_bound(prefix); it != f->originalKeys.end() && it->first.startsWith(prefix, cs);
-             ++it)
+        for (auto it = f->originalKeys.lower_bound(prefix);
+             it != f->originalKeys.end() && it->first.startsWith(prefix, cs); ++it)
             f->removedKeys.insert(it->first);
         if (f->originalKeys.find(key) != f->originalKeys.end())
             f->removedKeys.insert(key);
@@ -647,7 +648,9 @@ struct QSettings::Private {
     and \c XDG_CONFIG_DIRS) each time a QSettings object is constructed, not once. There is no
     \c setSystemIniPath() or \c setUserIniPath(), which Qt 6 removed. The sections of an INI file
     are read at once, not when first used. A \c{@Variant()} value is only restored if the
-    stream operators of the type are registered. Comments and the order of the keys of an INI file
+    stream operators of the type are registered. A type without stream operators, such as the
+    QJsonValue family, is not stored: setValue() keeps it in memory, but a warning is printed when
+    the file is written and the setting is written as \c{@Invalid()}. Comments and the order of the keys of an INI file
     are not preserved when it is rewritten. A QSettings object is not thread-safe itself, and
     \c QSettings::value() on a file that another process is replacing sees either the old or the
     new file, never part of both.

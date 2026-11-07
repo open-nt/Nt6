@@ -327,7 +327,9 @@ static void testIniWriting() {
         s.setValue("pt", QPoint(1, -2));
         s.setValue("size", QSize(800, 600));
         s.setValue("rect", QRect(1, 2, 3, 4));
-        s.setValue("ba", QByteArray("a\0b\xff" "1", 5));
+        s.setValue("ba", QByteArray("a\0b\xff"
+                                    "1",
+                                    5));
         s.setValue("neg", -12);
         s.setValue("flag", false);
         s.setValue("dbl", 0.1);
@@ -340,7 +342,8 @@ static void testIniWriting() {
         s.setValue("padded", "  p ");
         s.setValue("empty", "");
         s.setValue("quote", "say \"hi\"\\");
-        s.setValue("ctl", "l1\nl2\tt\r\a\b\f\v\x01" "0");
+        s.setValue("ctl", "l1\nl2\tt\r\a\b\f\v\x01"
+                          "0");
         s.setValue("nul", QString(QChar(u'a')) + QChar(u'\0') + QChar(u'5'));
         s.setValue("at", "@Point(1 2)");
         s.setValue("atat", "@@x");
@@ -360,12 +363,27 @@ static void testIniWriting() {
     CHECK(actual.contains("k%U20AC=1\n"));
     CHECK(actual.contains("k%UD83D%UDE00=1\n"));
     CHECK(actual.startsWith("[General]\nalpha=x\nat=@@Point(1 2)\natat=@@@x\nba=@ByteArray(a\\0\\x62\\xff\\x31)\n"));
-    for (const char *line : {"big=18446744073709551615\n", "comma=\"a,b\"\n", "dbl=0.1\n", "empty=\n", "eq=\"a=b\"\n",
-                             "fl=0.5\n", "flag=false\n", "neg=-12\n", "none=@Invalid()\n", "one=solo\n",
-                             "padded=\"  p \"\n", "pt=@Point(1 -2)\n", "rect=@Rect(1 2 3 4)\n", "semi=\"a;b\"\n",
-                             "size=@Size(800 600)\n", "zeta=1\n", "emptylist=@Invalid()\n",
-                             "list=\"a,b\", , \" c\", \"d;e\"\n", "quote=say \\\"hi\\\"\\\\\n",
-                             "ctl=l1\\nl2\\tt\\r\\a\\b\\f\\v\\x1\\x30\n", "nul=@String(a\\0\\x35)\n"}) {
+    for (const char *line : {"big=18446744073709551615\n",
+                             "comma=\"a,b\"\n",
+                             "dbl=0.1\n",
+                             "empty=\n",
+                             "eq=\"a=b\"\n",
+                             "fl=0.5\n",
+                             "flag=false\n",
+                             "neg=-12\n",
+                             "none=@Invalid()\n",
+                             "one=solo\n",
+                             "padded=\"  p \"\n",
+                             "pt=@Point(1 -2)\n",
+                             "rect=@Rect(1 2 3 4)\n",
+                             "semi=\"a;b\"\n",
+                             "size=@Size(800 600)\n",
+                             "zeta=1\n",
+                             "emptylist=@Invalid()\n",
+                             "list=\"a,b\", , \" c\", \"d;e\"\n",
+                             "quote=say \\\"hi\\\"\\\\\n",
+                             "ctl=l1\\nl2\\tt\\r\\a\\b\\f\\v\\x1\\x30\n",
+                             "nul=@String(a\\0\\x35)\n"}) {
         if (!actual.contains(line))
             std::printf("missing line: %s", line);
         CHECK(actual.contains(line));
@@ -381,7 +399,9 @@ static void testIniWriting() {
     CHECK(s.value("pt").typeId() == QMetaType::QPoint);
     CHECK(s.value("size").value<QSize>() == QSize(800, 600));
     CHECK(s.value("rect").value<QRect>() == QRect(1, 2, 3, 4));
-    CHECK(s.value("ba").toByteArray() == QByteArray("a\0b\xff" "1", 5));
+    CHECK(s.value("ba").toByteArray() == QByteArray("a\0b\xff"
+                                                    "1",
+                                                    5));
     CHECK(s.value("neg").toInt() == -12 && s.value("neg").typeId() == QMetaType::QString);
     CHECK(s.value("flag").toString() == "false");
     CHECK(s.value("dbl").toDouble() == 0.1);
@@ -393,7 +413,8 @@ static void testIniWriting() {
     CHECK(s.value("padded").toString() == "  p ");
     CHECK(s.contains("empty") && s.value("empty").toString().isEmpty());
     CHECK(s.value("quote").toString() == "say \"hi\"\\");
-    CHECK(s.value("ctl").toString() == "l1\nl2\tt\r\a\b\f\v\x01" "0");
+    CHECK(s.value("ctl").toString() == "l1\nl2\tt\r\a\b\f\v\x01"
+                                       "0");
     CHECK(s.value("nul").toString() == QString(QChar(u'a')) + QChar(u'\0') + QChar(u'5'));
     CHECK(s.value("at").toString() == "@Point(1 2)");
     CHECK(s.value("atat").toString() == "@@x");
@@ -429,7 +450,8 @@ static void testIniReading() {
         "size=@Size(800 600)\r\n"
         "pt=@Point(3 4)\r\n"
         "pf=@Variant(\\0\\0\\0\\x1a?\\xf0\\0\\0\\0\\0\\0\\0@\\0\\0\\0\\0\\0\\0\\0)\r\n"
-        "map=@Variant(\\0\\0\\0\\b\\0\\0\\0\\x2\\0\\0\\0\\x2\\0\\x61\\0\\0\\0\\x2\\0\\0\\0\\x1\\0\\0\\0\\x2\\0\\x62\\0\\0\\0\\n"
+        "map=@Variant("
+        "\\0\\0\\0\\b\\0\\0\\0\\x2\\0\\0\\0\\x2\\0\\x61\\0\\0\\0\\x2\\0\\0\\0\\x1\\0\\0\\0\\x2\\0\\x62\\0\\0\\0\\n"
         "\\0\\0\\0\\x2\\0x)\r\n"
         "inv=@Invalid()\r\n"
         "str=@String(a@b)\r\n"
@@ -612,14 +634,43 @@ static void testStreamVersions() {
     }
 }
 
+// Types that cannot be streamed are written as invalid values.
+static void testUnstorableTypes() {
+    const QString path = newFile("unstorable");
+    {
+        QSettings s(path, QSettings::IniFormat);
+        s.setValue("json", QVariant::fromValue(QJsonObject{{"a", 1}}));
+        CHECK(s.value("json").typeId() == QMetaType::QJsonObject);
+    }
+    QSettings s(path, QSettings::IniFormat);
+    CHECK(readFile(path) == bytes("[General]\njson=@Invalid()\n"));
+    CHECK(s.contains("json") && !s.value("json").isValid());
+}
+
 static void testEscapedKeysRoundTrip() {
     const QString path = newFile("keys");
-    const QStringList keys = {"plain",       "with space",         "with=eq",           "with[brackets]",
-                              "per%cent",    "semi;colon",         "back\\slash/x",     QString::fromUtf8("é/ü"),
-                              "tab\tkey",    "quote\"key",         "hash#key",          QString::fromUtf8("日本語/キー"),
-                              "dots.and-dash_under", "%41literal", "%",                 "%U",
-                              "a/b/c/d/e",   "General/General",    "general/x",         "%General/x",
-                              "x/%General",  QString("emoji") + QChar(0xD83D) + QChar(0xDE00)};
+    const QStringList keys = {"plain",
+                              "with space",
+                              "with=eq",
+                              "with[brackets]",
+                              "per%cent",
+                              "semi;colon",
+                              "back\\slash/x",
+                              QString::fromUtf8("é/ü"),
+                              "tab\tkey",
+                              "quote\"key",
+                              "hash#key",
+                              QString::fromUtf8("日本語/キー"),
+                              "dots.and-dash_under",
+                              "%41literal",
+                              "%",
+                              "%U",
+                              "a/b/c/d/e",
+                              "General/General",
+                              "general/x",
+                              "%General/x",
+                              "x/%General",
+                              QString("emoji") + QChar(0xD83D) + QChar(0xDE00)};
     {
         QSettings s(path, QSettings::IniFormat);
         for (int i = 0; i < keys.size(); ++i)
@@ -661,7 +712,8 @@ static void testValuesRoundTrip() {
         "line1\nline2\r\n",
         QString("nul") + QChar(u'\0') + "x",
         "\x01\x02 control \x1f",
-        "0123 \x01" "9",
+        "0123 \x01"
+        "9",
         "tab\there",
         "[section]",
         "; not a comment",
@@ -698,7 +750,7 @@ static void testFormatErrors() {
         QSettings s(path, QSettings::IniFormat);
         CHECK(s.status() == QSettings::FormatError);
         CHECK(s.value("ok").toInt() == 1);
-        CHECK(s.value("also").toInt() == 2); // the keys around the bad lines are kept
+        CHECK(s.value("also").toInt() == 2);         // the keys around the bad lines are kept
         QSettings again(path, QSettings::IniFormat); // a second object on the loaded file reports it too
         CHECK(again.status() == QSettings::FormatError);
     }
@@ -1175,6 +1227,7 @@ int main(int argc, char **argv) {
     testIniWriting();
     testIniReading();
     testVariantTypes();
+    testUnstorableTypes();
     testEscapedKeysRoundTrip();
     testValuesRoundTrip();
     testFormatErrors();

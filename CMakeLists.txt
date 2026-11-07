@@ -55,6 +55,8 @@ add_library(NtCore
     src/qrandom.cpp
     src/qrunnable.cpp
     src/qsavefile.cpp
+    src/qsettings.cpp
+    src/qsettings_ini.cpp
     src/qsocketnotifier.cpp
     src/qstandardpaths.cpp
     src/qstring.cpp
@@ -277,6 +279,11 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_filesystemwatcher_tests PRIVATE Nt::Core)
     add_test(NAME nt_filesystemwatcher_tests COMMAND nt_filesystemwatcher_tests)
     nt_set_compile_options(nt_filesystemwatcher_tests)
+
+    add_executable(nt_settings_tests tests/test_settings.cpp)
+    target_link_libraries(nt_settings_tests PRIVATE Nt::Core)
+    add_test(NAME nt_settings_tests COMMAND nt_settings_tests)
+    nt_set_compile_options(nt_settings_tests)
 
     add_test(NAME ndoc_tests
              COMMAND ${CMAKE_COMMAND}

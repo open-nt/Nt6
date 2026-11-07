@@ -48,6 +48,7 @@
 #include "qrandom.h"
 #include "qrect.h"
 #include "qsavefile.h"
+#include "qsettings.h"
 #include "qsize.h"
 #include "qspan.h"
 #include "qstandardpaths.h"

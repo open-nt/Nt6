@@ -41,7 +41,7 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 | Threading primitives | `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock`, `QReadLocker`, `QWriteLocker`, `QWaitCondition`, `QSemaphore`, `QSemaphoreReleaser` |
 | Variant and meta | `QVariant` (+ `QVariantList`, `QVariantMap`, `QVariantHash`, `QVariantPair`; conversions, comparison, `QDataStream` and `QDebug` streaming), `QMetaType` (built-in ids as in Qt, `Q_DECLARE_METATYPE`, `qRegisterMetaType`, converters), `QMetaObject` (introspection, `invokeMethod`, `newInstance`, `connectSlotsByName`), `QMetaMethod`, `QMetaProperty`, `QMetaEnum`, `QMetaClassInfo`, `Q_PROPERTY`/`Q_ENUM`/`Q_FLAG`/`Q_GADGET`/`Q_NAMESPACE`/`Q_CLASSINFO`/`Q_INVOKABLE`, `QObject::property()`/`setProperty()`/`dynamicPropertyNames()`/`inherits()`, `QDynamicPropertyChangeEvent`, `SIGNAL()`/`SLOT()` connections, `QGenericArgument`/`Q_ARG`, `QTypeRevision`, `QSequentialIterable`, `QAssociativeIterable` |
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time and fixed offsets), `QDebug`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler` |
-| I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QDirIterator`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QLockFile` (stale-lock detection by dead pid and age), `QFileSystemWatcher` (inotify, with a polling fallback), `QStandardPaths` (XDG) |
+| I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QDirIterator`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QLockFile` (stale-lock detection by dead pid and age), `QFileSystemWatcher` (inotify, with a polling fallback), `QStandardPaths` (XDG), `QSettings` (INI files in Qt's syntax, custom formats, fallbacks, deferred write-back with file locking) |
 | Processes | `QProcess` (event-loop driven `fork`/`execve` with pidfd child watching: channels and redirection, `startDetached`, `execute`, environment, pipelines, `waitFor...()`), `QProcessEnvironment` |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
 | URLs | `QUrl` (parsing, RFC 3986 resolution, percent-encoding, formatting options), `QUrlQuery` |
@@ -56,7 +56,7 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 - **Containers:** `QKeyValueIterator`
 - **Variant and meta:** `QProperty` and bindable properties, `QObjectCleanupHandler`, `QSignalMapper`
 - **Date and time:** `QTimeZone`, `QCalendar`, `QChronoTimer`, `QTimeLine`
-- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`, `QResource`, `QSettings`
+- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`, `QResource`
 - **Processes and plugins:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
 - **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`/`QMimeData`
 - **Concurrency:** `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`

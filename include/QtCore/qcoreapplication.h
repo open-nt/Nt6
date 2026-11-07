@@ -18,6 +18,10 @@ public:
     // Defaults to the file name of argv[0].
     static void setApplicationName(const QString &name);
     static QString applicationName();
+    static void setOrganizationName(const QString &orgName);
+    static QString organizationName();
+    static void setOrganizationDomain(const QString &orgDomain);
+    static QString organizationDomain();
     static void setApplicationVersion(const QString &version);
     static QString applicationVersion();
 

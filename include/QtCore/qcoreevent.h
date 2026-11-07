@@ -18,6 +18,7 @@ public:
         \value SockAct A socket notifier became active; see QSocketNotifier.
         \value DynamicPropertyChange A dynamic property was added, changed or removed; delivered as a QDynamicPropertyChangeEvent.
         \value DeferredDelete The receiver should be deleted; posted by QObject::deleteLater().
+        \value UpdateRequest A request to update a deferred state; QSettings posts it to write its changes back from the event loop.
         \value User The first value available for application-defined events.
         \value MaxUser The last value available for application-defined events.
     */
@@ -29,6 +30,7 @@ public:
         SockAct = 50,
         DynamicPropertyChange = 170,
         DeferredDelete = 52,
+        UpdateRequest = 77,
         User = 1000,
         MaxUser = 65535
     };

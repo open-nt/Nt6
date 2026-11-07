@@ -233,22 +233,29 @@ check_shell() {
     repo_files '*.sh' | xargs -r shellcheck --severity=warning
 }
 
-# The thread tests under ThreadSanitizer, in their own build. Skipped like a missing tool if the
-# toolchain cannot run TSan programs (no runtime, or a kernel whose address layout it rejects).
+# The thread tests under ThreadSanitizer, in their own build. A toolchain without the TSan runtime
+# counts as a missing tool. A runtime that cannot start here is skipped: TSan refuses to run when
+# the kernel's address space randomisation is too high and the process may not lower it, which is
+# the case in unprivileged containers.
 check_tsan() {
     need cmake || return $?
     local cxx=${CXX:-c++} probe="$build_root/tsan-probe"
     need "$cxx" || return $?
     mkdir -p "$probe"
     printf 'int main() { return 0; }\n' > "$probe/probe.cpp"
-    if ! "$cxx" -fsanitize=thread "$probe/probe.cpp" -o "$probe/probe" 2>&1 || ! "$probe/probe" 2>&1; then
+    if ! "$cxx" -fsanitize=thread "$probe/probe.cpp" -o "$probe/probe" 2>&1; then
         if [ "${NT_CHECK_ALLOW_MISSING:-0}" = 1 ]; then
-            echo "SKIPPED: ThreadSanitizer does not work with $cxx"
+            echo "SKIPPED: $cxx cannot build with -fsanitize=thread"
             skipped+=("tsan")
             return 0
         fi
-        echo "ThreadSanitizer does not work with $cxx (set NT_CHECK_ALLOW_MISSING=1 to skip it)"
+        echo "$cxx cannot build with -fsanitize=thread (set NT_CHECK_ALLOW_MISSING=1 to skip it)"
         return 2
+    fi
+    if ! "$probe/probe" 2>&1; then
+        echo "SKIPPED: ThreadSanitizer programs cannot run in this environment"
+        skipped+=("tsan")
+        return 0
     fi
     configure "$build_root/tsan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF \
         -DNT_BUILD_EXAMPLES=OFF -DNT_SANITIZE=thread && \

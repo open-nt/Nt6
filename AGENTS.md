@@ -41,7 +41,8 @@ It checks, in order:
 - clang-format on the lines you changed (`.clang-format`), clang-tidy on `src/`
   (`.clang-tidy`) and cppcheck (`.cppcheck-suppressions`)
 - the tests again under AddressSanitizer and UBSan, and the thread tests under
-  ThreadSanitizer (skipped like a missing tool if the toolchain cannot run it)
+  ThreadSanitizer (skipped if the toolchain has no TSan runtime and
+  `NT_CHECK_ALLOW_MISSING=1` is set, or if TSan cannot start, as in unprivileged containers)
 
 Fix findings rather than suppressing them. When a suppression is justified, keep
 it narrow (`// NOLINT(<check>)` with a reason, or an entry with a comment in

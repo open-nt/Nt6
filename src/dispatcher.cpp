@@ -157,7 +157,8 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
             r = ::poll(fds.data(), static_cast<nfds_t>(fds.size()), timeout);
             if (r > 0 && (fds[0].revents & POLLIN)) {
                 char buf[64];
-                while (::read(wakeRead_, buf, sizeof buf) > 0) {
+                // The wake pipe is non-blocking and the lock is released above.
+                while (::read(wakeRead_, buf, sizeof buf) > 0) { // NOLINT(clang-analyzer-unix.BlockInCriticalSection)
                 }
             }
             lk.lock();

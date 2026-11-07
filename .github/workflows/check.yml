@@ -1,0 +1,39 @@
+# Runs check.sh, the same quality gate contributors run before committing:
+# -Werror build, tests, complete ndoc comments, clang-format, clang-tidy,
+# cppcheck and the tests under ASan and UBSan.
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: check.sh (Ubuntu 26.04)
+    runs-on: ubuntu-latest
+    container: ubuntu:26.04
+    steps:
+      - name: Install tools
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates git cmake ninja-build g++ \
+              clang-format clang-tidy clang-tools cppcheck shellcheck
+
+      - uses: actions/checkout@v4
+        with:
+          # clang-format is checked on the lines changed since the base commit.
+          fetch-depth: 0
+
+      - name: Mark the checkout as safe
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Run check.sh
+        env:
+          NT_CHECK_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: ./check.sh

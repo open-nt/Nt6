@@ -86,9 +86,9 @@ quint32 QRandomGenerator::generate() {
     }
     if (m_locked) {
         std::lock_guard<std::mutex> lock(g_globalLock);
-        return m_engine();
+        return static_cast<quint32>(m_engine());
     }
-    return m_engine();
+    return static_cast<quint32>(m_engine());
 }
 
 // Rejection sampling, so every value in the range is equally likely.

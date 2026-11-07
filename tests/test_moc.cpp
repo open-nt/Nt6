@@ -1,3 +1,4 @@
+// MIT License - see LICENSE
 #include "moc_classes.h"
 
 #include <QCoreApplication>

@@ -372,7 +372,7 @@ QString QDir::filePath(const QString &fileName) const {
 QString QDir::absoluteFilePath(const QString &fileName) const {
     if (isAbsolutePath(fileName))
         return fileName;
-    const QString base = absolutePath();
+    QString base = absolutePath();
     if (fileName.isEmpty())
         return base;
     return base.endsWith(QChar(u'/')) ? base + fileName : base + QChar(u'/') + fileName;

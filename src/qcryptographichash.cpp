@@ -322,7 +322,7 @@ struct QCryptographicHash::State {
     QByteArray finish() {
         if (isKeccakFamily(m)) {
             std::memset(buf + used, 0, static_cast<std::size_t>(block - used));
-            buf[used] ^= isSha3(m) ? 0x06 : 0x01;
+            buf[used] ^= static_cast<uchar>(isSha3(m) ? 0x06 : 0x01);
             buf[block - 1] ^= 0x80;
             absorb(buf);
             QByteArray out(digestSize(m), '\0');

@@ -554,6 +554,18 @@ struct std::hash<QByteArray> {
     std::size_t operator()(const QByteArray &b) const noexcept { return std::hash<std::string>{}(b.stdString()); }
 };
 
+// Returns a copy of the C string src allocated with new char[], or nullptr if
+// src is nullptr. The caller deletes it with delete[]. ndoc cannot document
+// global functions yet.
+inline char *qstrdup(const char *src) {
+    if (!src)
+        return nullptr;
+    const std::size_t size = std::char_traits<char>::length(src) + 1;
+    char *copy = new char[size];
+    std::char_traits<char>::copy(copy, src, size);
+    return copy;
+}
+
 inline QByteArray operator""_ba(const char *s, std::size_t n) { return QByteArray(s, static_cast<qsizetype>(n)); }
 #define QByteArrayLiteral(str) QByteArray(str, static_cast<qsizetype>(sizeof(str) - 1))
 

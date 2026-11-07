@@ -1,0 +1,7 @@
+// Suppressions for cppcheck, used by check.sh. Each needs a reason.
+// Qt returns these by value; the API is kept the same.
+returnByReference
+// Overriding operator<< in QStringList mirrors Qt.
+duplInheritedMember:include/QtCore/qstringlist.h
+// cppcheck cannot parse a ternary inside a doc-commented member of QList.
+internalAstError:include/QtCore/qlist.h

@@ -223,7 +223,7 @@ bool parseTokens(const QString &s, const QString &f, Parsed *p) {
         if (u == u'd') {
             run = qMin<qsizetype>(run, 4);
             if (run <= 2) {
-                if (!readInt(s, pos, run, 2, &p->day))
+                if (!readInt(s, pos, static_cast<int>(run), 2, &p->day))
                     return false;
             } else if (!matchName(s, pos, kDays, 7, run == 3 ? 3 : 0)) {
                 return false;
@@ -231,10 +231,12 @@ bool parseTokens(const QString &s, const QString &f, Parsed *p) {
         } else if (u == u'M') {
             run = qMin<qsizetype>(run, 4);
             if (run <= 2) {
-                if (!readInt(s, pos, run, 2, &p->month))
+                if (!readInt(s, pos, static_cast<int>(run), 2, &p->month))
                     return false;
-            } else if (!(p->month = matchName(s, pos, kMonths, 12, run == 3 ? 3 : 0))) {
-                return false;
+            } else {
+                p->month = matchName(s, pos, kMonths, 12, run == 3 ? 3 : 0);
+                if (p->month == 0)
+                    return false;
             }
         } else if (u == u'y' && run >= 4) {
             run = 4;
@@ -252,16 +254,16 @@ bool parseTokens(const QString &s, const QString &f, Parsed *p) {
             p->year += 1900; // same default century as the absent-year case
         } else if (u == u'h' || u == u'H') {
             run = qMin<qsizetype>(run, 2);
-            if (!readInt(s, pos, run, 2, &p->hour))
+            if (!readInt(s, pos, static_cast<int>(run), 2, &p->hour))
                 return false;
             p->hour12 = u == u'h';
         } else if (u == u'm') {
             run = qMin<qsizetype>(run, 2);
-            if (!readInt(s, pos, run, 2, &p->minute))
+            if (!readInt(s, pos, static_cast<int>(run), 2, &p->minute))
                 return false;
         } else if (u == u's') {
             run = qMin<qsizetype>(run, 2);
-            if (!readInt(s, pos, run, 2, &p->second))
+            if (!readInt(s, pos, static_cast<int>(run), 2, &p->second))
                 return false;
         } else if (u == u'z') {
             run = run >= 3 ? 3 : 1;

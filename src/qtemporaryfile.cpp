@@ -176,7 +176,8 @@ bool QTemporaryFile::open(OpenMode mode) {
     m_name = QString::fromUtf8(buf.data());
     m_fd = fd;
     m_error = NoError;
-    QIODevice::open(effective);
+    // Only records the open mode; the file is already open.
+    QIODevice::open(effective); // NOLINT(bugprone-parent-virtual-call)
     return true;
 }
 

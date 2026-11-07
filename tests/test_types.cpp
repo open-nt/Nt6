@@ -923,8 +923,9 @@ static void testHashKnownAnswers() {
         h.addData(QByteArrayView());
         CHECK(h.result() == fromHex(v.abc));
     }
-    CHECK(!QCryptographicHash::supportsAlgorithm(static_cast<QCryptographicHash::Algorithm>(99)));
-    CHECK(QCryptographicHash::hashLength(static_cast<QCryptographicHash::Algorithm>(99)) == 0);
+    // 15 is the largest value the enum can hold that is not an algorithm.
+    CHECK(!QCryptographicHash::supportsAlgorithm(static_cast<QCryptographicHash::Algorithm>(15)));
+    CHECK(QCryptographicHash::hashLength(static_cast<QCryptographicHash::Algorithm>(15)) == 0);
 }
 
 static void testHashIncremental() {

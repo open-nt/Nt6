@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qglobal.h>
+#include <QtCore/qnamespace.h>
 
 #include <chrono>
 

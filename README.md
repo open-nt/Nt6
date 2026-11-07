@@ -18,7 +18,7 @@
 
 # Nt ("Nut")
 
-A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial) and `Nt Network` (partial) so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
+A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
 
@@ -41,9 +41,10 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time and fixed offsets), `QDebug`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler` |
 | I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG) |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
-| Utilities | `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption` |
+| URLs | `QUrl` (parsing, RFC 3986 resolution, percent-encoding, formatting options), `QUrlQuery` |
+| Utilities | `QLibraryInfo`, `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption` |
 
-Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; all `QObject`s must be used from one thread (only `postEvent` is thread-safe); no `QMetaObject` introspection, properties or `SIGNAL()`/`SLOT()` strings.
+Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QUrl` does not convert internationalized host names to or from Punycode; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; all `QObject`s must be used from one thread (only `postEvent` is thread-safe); no `QMetaObject` introspection, properties or `SIGNAL()`/`SLOT()` strings.
 
 ### Nt Core: not implemented yet
 
@@ -53,11 +54,11 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 - **Date and time:** `QTimeZone`, `QCalendar`, `QChronoTimer`, `QTimeLine`
 - **File system:** `QDirIterator`, `QDirListing`, `QLockFile`, `QFileSystemWatcher`, `QFileSelector`, `QStorageInfo`, `QResource`, `QSettings`
 - **Processes and plugins:** `QProcess`, `QProcessEnvironment`, `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
-- **Formats:** `QJsonValue`/`QJsonObject`/`QJsonArray`/`QJsonDocument`, `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QUrl`, `QUrlQuery`, `QMimeDatabase`/`QMimeType`/`QMimeData`
+- **Formats:** `QJsonValue`/`QJsonObject`/`QJsonArray`/`QJsonDocument`, `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`/`QMimeData`
 - **Concurrency:** `QThread` (and per-thread event loops / cross-thread queued signals), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`
 - **Item models:** `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QAbstractProxyModel`, `QSortFilterProxyModel`, `QIdentityProxyModel`, `QConcatenateTablesProxyModel`, `QTransposeProxyModel`, `QModelIndex`, `QPersistentModelIndex`, `QItemSelection*`, `QRangeModel`
 - **Animation:** `QAbstractAnimation`, `QVariantAnimation`, `QPropertyAnimation`, `QPauseAnimation`, `QSequentialAnimationGroup`, `QParallelAnimationGroup`, `QAnimationGroup`, `QEasingCurve`
-- **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLibraryInfo`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDynamicPropertyChangeEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
+- **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDynamicPropertyChangeEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
 
 ### Nt Network: implemented
 
@@ -69,12 +70,40 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 | `QTcpServer` | `listen`, `newConnection`, `nextPendingConnection`, `waitForNewConnection`, pause/resume accepting, pending-connection limit |
 | `QUdpSocket` | `bind`, `writeDatagram`, `readDatagram`, `receiveDatagram`, connected mode, IPv4/IPv6 multicast join/leave |
 | `QNetworkDatagram` | data, sender, destination, `makeReply` |
+| `QHostInfo` | blocking `fromName`, asynchronous `lookupHost` (functor, with optional context object), `abortHostLookup`, local host and domain names |
+| `QNetworkInterface`, `QNetworkAddressEntry` | list interfaces, flags, type, MTU, hardware address, addresses, netmask, broadcast (Linux) |
+| `QLocalSocket`, `QLocalServer` | Unix domain sockets: event-driven and `waitFor*` APIs, access options, stale-socket recovery |
+| `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client over `http:` and `https:`: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |
+| `QSslSocket`, `QSslServer`, `QSslConfiguration`, `QSslCertificate`, `QSslKey`, `QSslError`, `QSslCipher` | TLS 1.2 and 1.3 through the system OpenSSL (1.1.1 or newer): certificate and host name verification, client certificates, `STARTTLS`, ALPN. Older protocol versions are not offered |
 
-Differences from Qt: host-name lookup is synchronous (blocks inside `connectToHost`); `setSocketOption`/`socketOption` take and return `int` instead of `QVariant` until `QVariant` exists; `QUdpSocket` does not report the destination address or hop limit of received datagrams.
+Differences from Qt: `QAbstractSocket::connectToHost` resolves names synchronously, although `QNetworkAccessManager` and `QHostInfo::lookupHost` do not block; `setSocketOption`/`socketOption` take and return `int` instead of `QVariant` until `QVariant` exists; `QUdpSocket` does not report the destination address or hop limit of received datagrams.
 
 ### Nt Network: not implemented yet
 
-`QHostInfo` (async DNS), `QDnsLookup`, `QNetworkInterface`/`QNetworkAddressEntry`, `QNetworkProxy`, `QLocalSocket`/`QLocalServer`, `QSslSocket` and the TLS classes, `QSctpSocket`, `QAuthenticator`, and the HTTP stack (`QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply`, `QNetworkCookie`, `QHttpMultiPart`, ...), which also needs `QUrl`.
+`QDnsLookup`, `QNetworkProxy`, `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, `QDtls`, HTTP/2, connection reuse and response compression.
+
+### Nt Test: implemented
+
+| Area | Notes |
+|---|---|
+| Test cases | `QTest::qExec`, `QTEST_MAIN`, `QTEST_GUILESS_MAIN`, `QTEST_APPLESS_MAIN`; `initTestCase`, `init`, `cleanup`, `cleanupTestCase`; test functions are the private slots found by `ntmoc` |
+| Assertions | `QVERIFY`, `QCOMPARE` and the ordered `QCOMPARE_EQ`/`NE`/`LT`/`LE`/`GT`/`GE`, `QFAIL`, `QSKIP`, `QEXPECT_FAIL`, `QVERIFY_THROWS_EXCEPTION` and `QVERIFY_THROWS_NO_EXCEPTION`, `QTRY_VERIFY` and `QTRY_COMPARE` (with timeout variants) |
+| Data-driven tests | `_data()` functions, `QTest::addColumn`, `QTest::newRow`, `QFETCH`, `QFETCH_GLOBAL`, `QTEST`, `QTestData`, `QFINDTESTDATA` |
+| Signals and events | `QSignalSpy` (and `QSignalSpyArgument`), `QTestEventLoop`, `QTest::qWait` |
+| Output | plain text, JUnit XML and TAP logs, to standard output or a file (`-o file,format`), with `-silent`, `-v1`, `-v2` and `-functions`; run one function or data row with `name[:tag]` |
+
+Differences from Qt: there is no GUI event simulation (`QTest::mouseClick`, `keyClick` and so on) because Nt has no GUI module, and no benchmarking (`QBENCHMARK`).
+
+### Nt Serial Port: implemented
+
+| Class | Notes |
+|---|---|
+| `QSerialPort` | exclusive open of any terminal device, baud rate per direction (custom rates through `termios2` on Linux), data bits, parity including mark and space, stop bits, hardware and software flow control, DTR/RTS and pinout signals, break, buffered async I/O through the event loop, `waitFor*` blocking API, read-buffer limit, device removal reported as `ResourceError`, device settings restored on close |
+| `QSerialPortInfo` | list ports from sysfs (Linux) with description, manufacturer, serial number and USB or PCI identifiers; standard baud rates |
+
+Guide: [Using Nt Serial Port](https://open-nt.github.io/Nt6/nt-serialport.html) covers settings, errors, permissions (`dialout`/`uucp`, udev rules) and testing with pseudo-terminals. The [`serialterm`](examples/serialport/serialterm.cpp) example lists ports and connects standard input and output to one (`serialterm ttyUSB0 --baud 115200`); it is built with the other examples.
+
+Differences from Qt: `OneAndHalfStop` is not available; bytes with parity or framing errors are dropped; `errorOccurred` is not emitted for `NoError`; `waitForBytesWritten` waits for the whole buffer; exclusive access uses `flock` and `TIOCEXCL` rather than a lock file; no bindable properties.
 
 ```cpp
 QTcpServer server;
@@ -89,7 +118,7 @@ Header names match Qt: `#include <QObject>`, `#include <QtCore/QTimer>`, `#inclu
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core` and `Nt::Network` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -110,7 +139,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Quick Dialogs | Nt Quick Dialogs |  |
 | Qt Quick Layouts | Nt Quick Layouts |  |
 | Qt Quick Test | Nt Quick Test |  |
-| Qt Test | Nt Test |  |
+| Qt Test | Nt Test | ✔ (partial, see Status) |
 | Qt Widgets | Nt Widgets |  |
 
 ### Add-ons
@@ -151,7 +180,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt SCXML | Nt SCXML |  |
 | Qt Sensors | Nt Sensors |  |
 | Qt Serial Bus | Nt Serial Bus |  |
-| Qt Serial Port | Nt Serial Port |  |
+| Qt Serial Port | Nt Serial Port | ✔ (see Status) |
 | Qt Shader Tools | Nt Shader Tools |  |
 | Qt Spatial Audio | Nt Spatial Audio |  |
 | Qt SQL | Nt SQL |  |
@@ -263,6 +292,10 @@ The `docs` target fails on any broken link or bad parameter name. `coverage.txt`
 
 `SIGNAL()`/`SLOT()` string connections, `BlockingQueuedConnection`, `UniqueConnection`, and `Q_PROPERTY`/`Q_GADGET`/`Q_ENUM` (the macros compile to nothing, so `ntmoc` only generates signal bodies).
 
+## TLS
+
+Nt Network links the system OpenSSL when it is found, and builds without TLS otherwise, with `QT_NO_SSL` defined and `https:` URLs failing with `ProtocolUnknownError`. Configure with `-DNT_USE_OPENSSL=OFF` to leave it out on purpose. Install `libssl-dev` (Debian, Ubuntu), `openssl-devel` (Enterprise Linux, Fedora) or `openssl` (Arch) to build with it.
+
 ## Build
 
 ```sh
@@ -270,6 +303,12 @@ cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
 Requires C++17 and a POSIX system. Link with `Nt::Core` and `Nt::Network` (or the `Qt6::Core` / `Qt6::Network` aliases).
+
+Release is the default build type. Builds add stack-protector, `_FORTIFY_SOURCE` and RELRO hardening (`-DNT_HARDENING=OFF` disables it), and `-DNT_SANITIZE="address;undefined"` builds with sanitizers.
+
+### Contributing
+
+Run `./check.sh` before every commit (`./check.sh --install-hook` installs a pre-commit hook). It builds with `-Werror`, runs the tests under ASan and UBSan, requires complete NDoc comments, and runs clang-format, clang-tidy and cppcheck. It needs `cmake`, a C++17 compiler, `clang-format`, `clang-tidy` and `cppcheck`; `ninja` is used when present.
 
 ## Packages
 

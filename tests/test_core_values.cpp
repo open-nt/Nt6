@@ -8,6 +8,7 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QHash>
+#include <QLibraryInfo>
 #include <QLine>
 #include <QList>
 #include <QListIterator>
@@ -23,6 +24,8 @@
 #include <QSize>
 #include <QSpan>
 #include <QStringView>
+#include <QUrl>
+#include <QUrlQuery>
 #include <QUuid>
 #include <QVarLengthArray>
 #include <QVersionNumber>
@@ -362,6 +365,15 @@ static void testIdentifiers() {
     CHECK(QVersionNumber::fromString(QStringView(u"1.")).segmentCount() == 1);
     CHECK(QVersionNumber::fromString(QStringView(u"x")).isNull());
     CHECK(QVersionNumber(1, 2).isPrefixOf(QVersionNumber(1, 2, 3)));
+
+    // These all come from the VERSION file at the root of the repository.
+    const QVersionNumber library = QLibraryInfo::version();
+    CHECK(library.toString() == NT_EXPECTED_VERSION);
+    CHECK(library == QVersionNumber::fromString(QString(NT_EXPECTED_VERSION)));
+    CHECK(QString(qVersion()) == NT_EXPECTED_VERSION && QString(QT_VERSION_STR) == NT_EXPECTED_VERSION);
+    CHECK(QT_VERSION == QT_VERSION_CHECK(library.majorVersion(), library.minorVersion(), library.microVersion()));
+    CHECK(QString(QLibraryInfo::build()).contains(NT_EXPECTED_VERSION));
+
     CHECK(QVersionNumber::commonPrefix(QVersionNumber(1, 2, 3), QVersionNumber(1, 2, 4)) == QVersionNumber(1, 2));
 
     const QUuid ns = QUuid::fromString(QStringView(u"{6ba7b810-9dad-11d1-80b4-00c04fd430c8}"));
@@ -392,6 +404,125 @@ static void testIdentifiers() {
     CHECK(QRandomGenerator::system()->generate64() != QRandomGenerator::system()->generate64());
     const double d = QRandomGenerator::global()->generateDouble();
     CHECK(d >= 0.0 && d < 1.0);
+}
+
+static void testUrl() {
+    // RFC 3986 section 5.4.
+    const QUrl base("http://a/b/c/d;p?q");
+    const struct {
+        const char *ref, *expected;
+    } cases[] = {
+        {"g:h", "g:h"},
+        {"g", "http://a/b/c/g"},
+        {"./g", "http://a/b/c/g"},
+        {"g/", "http://a/b/c/g/"},
+        {"/g", "http://a/g"},
+        {"//g", "http://g"},
+        {"?y", "http://a/b/c/d;p?y"},
+        {"g?y", "http://a/b/c/g?y"},
+        {"#s", "http://a/b/c/d;p?q#s"},
+        {"g#s", "http://a/b/c/g#s"},
+        {"g?y#s", "http://a/b/c/g?y#s"},
+        {";x", "http://a/b/c/;x"},
+        {"g;x", "http://a/b/c/g;x"},
+        {"g;x?y#s", "http://a/b/c/g;x?y#s"},
+        {"", "http://a/b/c/d;p?q"},
+        {".", "http://a/b/c/"},
+        {"./", "http://a/b/c/"},
+        {"..", "http://a/b/"},
+        {"../", "http://a/b/"},
+        {"../g", "http://a/b/g"},
+        {"../..", "http://a/"},
+        {"../../", "http://a/"},
+        {"../../g", "http://a/g"},
+        {"../../../g", "http://a/g"},
+        {"../../../../g", "http://a/g"},
+        {"/./g", "http://a/g"},
+        {"/../g", "http://a/g"},
+        {"g.", "http://a/b/c/g."},
+        {".g", "http://a/b/c/.g"},
+        {"g..", "http://a/b/c/g.."},
+        {"..g", "http://a/b/c/..g"},
+        {"./../g", "http://a/b/g"},
+        {"./g/.", "http://a/b/c/g/"},
+        {"g/./h", "http://a/b/c/g/h"},
+        {"g/../h", "http://a/b/c/h"},
+        {"g;x=1/./y", "http://a/b/c/g;x=1/y"},
+        {"g;x=1/../y", "http://a/b/c/y"},
+        {"g?y/./x", "http://a/b/c/g?y/./x"},
+        {"g?y/../x", "http://a/b/c/g?y/../x"},
+        {"g#s/./x", "http://a/b/c/g#s/./x"},
+        {"g#s/../x", "http://a/b/c/g#s/../x"},
+    };
+    for (const auto &c : cases) {
+        const QByteArray got = base.resolved(QUrl(c.ref)).toEncoded();
+        if (got != QByteArray(c.expected))
+            std::printf("  ref '%s' gave '%s'\n", c.ref, got.constData());
+        CHECK(got == QByteArray(c.expected));
+    }
+
+    QUrl u("HTTP://Jo%20e:p%40ss@EXAMPLE.com:8080/a%20b/c.txt?x=1&y=%26#frag");
+    CHECK(u.isValid() && u.scheme() == "http" && u.host() == "example.com" && u.port() == 8080);
+    CHECK(u.userName() == "Jo e" && u.password() == "p@ss");
+    CHECK(u.path() == "/a b/c.txt" && u.fileName() == "c.txt");
+    CHECK(u.query() == "x=1&y=%26" && u.fragment() == "frag");
+    CHECK(u.path(QUrl::FullyEncoded) == "/a%20b/c.txt");
+    CHECK(u.toEncoded() == "http://Jo%20e:p%40ss@example.com:8080/a%20b/c.txt?x=1&y=%26#frag");
+    CHECK(u.toString(QUrl::RemoveUserInfo) == "http://example.com:8080/a b/c.txt?x=1&y=%26#frag");
+    CHECK(u.toString(QUrl::RemovePassword) == "http://Jo e@example.com:8080/a b/c.txt?x=1&y=%26#frag");
+    CHECK(u.toEncoded(QUrl::RemoveQuery | QUrl::RemoveFragment | QUrl::RemoveAuthority) == "http:/a%20b/c.txt");
+    CHECK(QUrl("http://example.com").port(80) == 80);
+    CHECK(QUrl("http://[::1]:99/x").host() == "::1" && QUrl("http://[::1]:99/x").port() == 99);
+    CHECK(QUrl("http://[::1]:99/x").toEncoded() == "http://[::1]:99/x");
+
+    // Encoding round trips, and % is literal in decoded mode.
+    QUrl built;
+    built.setScheme("http");
+    built.setHost("example.com");
+    built.setPath("/100% é/?#");
+    CHECK(built.toEncoded() == "http://example.com/100%25%20%C3%A9/%3F%23");
+    CHECK(built.path() == "/100% é/?#");
+    CHECK(QUrl::fromEncoded(built.toEncoded()) == built);
+    CHECK(QUrl("mailto:a@b.c").path() == "a@b.c" && QUrl("mailto:a@b.c").host().isEmpty());
+    CHECK(QUrl("/just/a/path").isRelative());
+    CHECK(QUrl::toPercentEncoding("a b/é", "/", "a") == "%61%20b/%C3%A9");
+    CHECK(QUrl::fromPercentEncoding("a%20b%C3%A9") == "a bé");
+
+    // Invalid input.
+    CHECK(QUrl().isEmpty() && !QUrl().isValid());
+    CHECK(!QUrl("http://example.com:99999/").isValid());
+    CHECK(!QUrl("http://example.com:abc/").isValid());
+    CHECK(!QUrl("http://exa mple.com/").isValid());
+    CHECK(!QUrl("http://[zz::1]/").isValid());
+    CHECK(!QUrl("http://a/b c", QUrl::StrictMode).isValid());
+    CHECK(!QUrl("http://a/b%zz", QUrl::StrictMode).isValid());
+    CHECK(QUrl("http://a/b c").toEncoded() == "http://a/b%20c");
+    CHECK(QUrl("http://a/b%zz").toEncoded() == "http://a/b%25zz");
+    CHECK(QUrl("http://a").errorString().isEmpty());
+    QUrl badPort("http://a/");
+    badPort.setPort(70000);
+    CHECK(!badPort.isValid() && !badPort.errorString().isEmpty());
+
+    const QUrl file = QUrl::fromLocalFile("/tmp/a b.txt");
+    CHECK(file.toEncoded() == "file:///tmp/a%20b.txt" && file.isLocalFile() && file.toLocalFile() == "/tmp/a b.txt");
+    CHECK(QUrl("http://a/b").toLocalFile().isEmpty());
+    CHECK(QUrl("http://a/b").isParentOf(QUrl("http://a/b/c")) && !QUrl("http://a/b").isParentOf(QUrl("http://a/bc")));
+    CHECK(QUrl("http://a/x/../y/").adjusted(QUrl::NormalizePathSegments | QUrl::StripTrailingSlash).toEncoded() ==
+          "http://a/y");
+
+    QUrlQuery q(QString("a=1&b=x%20y&a=2&flag&=e"));
+    CHECK(q.queryItemValue("a") == "1" && q.queryItemValue("b") == "x y");
+    CHECK(q.allQueryItemValues("a").size() == 2 && q.hasQueryItem("flag") && !q.hasQueryItem("z"));
+    q.removeAllQueryItems("a");
+    q.removeQueryItem("flag");
+    CHECK(q.queryItems().size() == 2);
+    QUrlQuery made;
+    made.addQueryItem("k&=", "v é#");
+    CHECK(made.query(QUrl::FullyEncoded) == "k%26%3D=v%20%C3%A9%23");
+    CHECK(QUrlQuery(made.query(QUrl::FullyEncoded)) == made);
+    CHECK(QUrlQuery(QUrl("http://a/?x=1")).queryItemValue("x") == "1");
+    QUrlQuery fromList{{"a", "b"}};
+    CHECK(fromList.query() == "a=b");
 }
 
 class TimerTarget : public QObject {
@@ -426,6 +557,7 @@ int main(int argc, char **argv) {
     testContainers();
     testViews();
     testIdentifiers();
+    testUrl();
     testBasicTimer();
     if (g_failures == 0)
         std::printf("all core value tests passed\n");

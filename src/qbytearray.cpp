@@ -432,9 +432,9 @@ QByteArray QByteArray::toBase64(Base64Options options) const {
     const bool pad = !(options & OmitTrailingEquals);
     QByteArray r(static_cast<const char *>(""), 0);
     std::size_t i = 0;
+    const auto byteAt = [this](std::size_t k) { return static_cast<unsigned>(static_cast<unsigned char>(d[k])); };
     for (; i + 2 < d.size(); i += 3) {
-        const unsigned v = (static_cast<unsigned char>(d[i]) << 16) | (static_cast<unsigned char>(d[i + 1]) << 8) |
-                           static_cast<unsigned char>(d[i + 2]);
+        const unsigned v = (byteAt(i) << 16) | (byteAt(i + 1) << 8) | byteAt(i + 2);
         r.append(tbl[v >> 18]);
         r.append(tbl[(v >> 12) & 63]);
         r.append(tbl[(v >> 6) & 63]);
@@ -442,9 +442,9 @@ QByteArray QByteArray::toBase64(Base64Options options) const {
     }
     const std::size_t rem = d.size() - i;
     if (rem) {
-        unsigned v = static_cast<unsigned char>(d[i]) << 16;
+        unsigned v = byteAt(i) << 16;
         if (rem == 2)
-            v |= static_cast<unsigned char>(d[i + 1]) << 8;
+            v |= byteAt(i + 1) << 8;
         r.append(tbl[v >> 18]);
         r.append(tbl[(v >> 12) & 63]);
         if (rem == 2)

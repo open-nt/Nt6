@@ -27,8 +27,8 @@ public:
 
         Constructs a generator seeded from all \c N values of \a seedBuffer.
     */
-    template <qsizetype N>
-    QRandomGenerator(const quint32 (&seedBuffer)[N]) : QRandomGenerator(seedBuffer, N) {}
+    template <std::size_t N>
+    QRandomGenerator(const quint32 (&seedBuffer)[N]) : QRandomGenerator(seedBuffer, static_cast<qsizetype>(N)) {}
 
     quint32 generate();
     /*!

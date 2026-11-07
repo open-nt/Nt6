@@ -1,3 +1,4 @@
+// MIT License - see LICENSE
 #include <QtCore>
 #include <QDebug>
 #include <QSet>

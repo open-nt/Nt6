@@ -11,7 +11,12 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(NT_BUILD_TESTS "Build tests" ON)
 option(NT_BUILD_EXAMPLES "Build examples" ON)
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtCompilerOptions.cmake)
+
 find_package(Threads REQUIRED)
+
+# The version macros come from the VERSION file.
+configure_file(cmake/qconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/QtCore/qconfig.h @ONLY)
 
 add_library(NtCore
     src/dispatcher.cpp
@@ -22,8 +27,6 @@ add_library(NtCore
     src/qcoreapplication.cpp
     src/qcoreevent.cpp
     src/qcryptographichash.cpp
-    src/qdatetime.cpp
-    src/qcryptographichash.cpp
     src/qdatastream.cpp
     src/qdatetime.cpp
     src/qdebug.cpp
@@ -32,8 +35,8 @@ add_library(NtCore
     src/qfile.cpp
     src/qfileinfo.cpp
     src/qiodevice.cpp
+    src/qlibraryinfo.cpp
     src/qobject.cpp
-    src/qrandom.cpp
     src/qrandom.cpp
     src/qsavefile.cpp
     src/qsocketnotifier.cpp
@@ -42,8 +45,7 @@ add_library(NtCore
     src/qtemporaryfile.cpp
     src/qtextstream.cpp
     src/qtimer.cpp
-    src/quuid.cpp
-    src/qversionnumber.cpp
+    src/qurl.cpp
     src/quuid.cpp
     src/qversionnumber.cpp
 )
@@ -54,6 +56,7 @@ target_include_directories(NtCore
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtCore>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/generated>
         $<INSTALL_INTERFACE:include/nt6>
         $<INSTALL_INTERFACE:include/nt6/QtCore>
     PRIVATE
@@ -61,13 +64,16 @@ target_include_directories(NtCore
 )
 target_link_libraries(NtCore PUBLIC Threads::Threads)
 
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(NtCore PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+nt_set_compile_options(NtCore)
 
 add_library(NtNetwork
     src/network/qabstractsocket.cpp
     src/network/qhostaddress.cpp
+    src/network/qhostinfo.cpp
+    src/network/qlocalserver.cpp
+    src/network/qlocalsocket.cpp
+    src/network/qnetworkaccessmanager.cpp
+    src/network/qnetworkinterface.cpp
     src/network/qtcpserver.cpp
     src/network/qudpsocket.cpp
 )
@@ -82,27 +88,84 @@ target_include_directories(NtNetwork
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtNetwork PUBLIC NtCore)
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(NtNetwork PRIVATE -Wall -Wextra -Wpedantic)
+
+# TLS uses the system's OpenSSL. Without it, QSslSocket and https: are absent.
+option(NT_USE_OPENSSL "Build TLS support with the system OpenSSL" ON)
+set(NT_HAVE_OPENSSL OFF)
+if(NT_USE_OPENSSL)
+    find_package(OpenSSL 1.1.1 QUIET)
+    if(OPENSSL_FOUND)
+        set(NT_HAVE_OPENSSL ON)
+    else()
+        message(WARNING "OpenSSL 1.1.1 or newer was not found: building Nt Network without TLS")
+    endif()
 endif()
+if(NT_HAVE_OPENSSL)
+    target_sources(NtNetwork PRIVATE
+        src/network/qssl.cpp
+        src/network/qsslserver.cpp
+        src/network/qsslsocket.cpp)
+    target_link_libraries(NtNetwork PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+else()
+    target_compile_definitions(NtNetwork PUBLIC QT_NO_SSL)
+endif()
+nt_set_compile_options(NtNetwork)
+
+add_library(NtSerialPort
+    src/serialport/qserialport.cpp
+    src/serialport/qserialportbaud_linux.cpp
+    src/serialport/qserialportengine_unix.cpp
+    src/serialport/qserialportinfo.cpp
+    src/serialport/qserialportinfo_linux.cpp
+)
+add_library(Nt::SerialPort ALIAS NtSerialPort)
+add_library(Qt6::SerialPort ALIAS NtSerialPort)
+target_include_directories(NtSerialPort
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSerialPort>
+        $<INSTALL_INTERFACE:include/nt6/QtSerialPort>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/serialport
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtSerialPort PUBLIC NtCore)
+nt_set_compile_options(NtSerialPort)
+
+add_library(NtTest
+    src/test/qsignalspy.cpp
+    src/test/qtestcase.cpp
+    src/test/qtesteventloop.cpp
+    src/test/qtestlog.cpp
+    src/test/qtesttostring.cpp
+)
+add_library(Nt::Test ALIAS NtTest)
+add_library(Qt6::Test ALIAS NtTest)
+target_include_directories(NtTest
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtTest>
+        $<INSTALL_INTERFACE:include/nt6/QtTest>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/test
+)
+target_link_libraries(NtTest PUBLIC NtCore)
+nt_set_compile_options(NtTest)
 
 # Moc replacement and its CMake helpers.
 add_executable(ntmoc tools/ntmoc/main.cpp)
 add_executable(Nt::moc ALIAS ntmoc)
 add_executable(Qt6::moc ALIAS ntmoc)
 target_compile_definitions(ntmoc PRIVATE NT_VERSION_STRING="${PROJECT_VERSION}")
+nt_set_compile_options(ntmoc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtMoc.cmake)
 
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
 add_executable(Nt::ndoc ALIAS ndoc)
 target_compile_definitions(ndoc PRIVATE NT_VERSION_STRING="${PROJECT_VERSION}")
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(ndoc PRIVATE -Wall -Wextra -Wpedantic)
-endif()
+nt_set_compile_options(ndoc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtDoc.cmake)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    nt_add_docs(docs CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/doc/ndoc.conf STRICT)
+    nt_add_docs(docs CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/doc/ndoc.conf STRICT REQUIRE_COMPLETE)
 
     # The README badge is published next to the documentation.
     add_custom_target(badge
@@ -139,11 +202,26 @@ if(NT_BUILD_TESTS)
 
     add_executable(nt_core_value_tests tests/test_core_values.cpp)
     target_link_libraries(nt_core_value_tests PRIVATE Nt::Core)
+    target_compile_definitions(nt_core_value_tests PRIVATE NT_EXPECTED_VERSION="${PROJECT_VERSION}")
     add_test(NAME nt_core_value_tests COMMAND nt_core_value_tests)
+
+    if(NT_HAVE_OPENSSL)
+        add_executable(nt_ssl_tests tests/test_ssl.cpp)
+        target_link_libraries(nt_ssl_tests PRIVATE Nt::Network OpenSSL::SSL OpenSSL::Crypto)
+        add_test(NAME nt_ssl_tests COMMAND nt_ssl_tests)
+        nt_set_compile_options(nt_ssl_tests)
+    endif()
 
     add_executable(nt_network_tests tests/test_network.cpp)
     target_link_libraries(nt_network_tests PRIVATE Nt::Network)
     add_test(NAME nt_network_tests COMMAND nt_network_tests)
+
+    # The tests reach the private headers to check what a pseudo terminal hides.
+    add_executable(nt_serialport_tests tests/test_serialport.cpp)
+    target_include_directories(nt_serialport_tests PRIVATE src/serialport)
+    target_link_libraries(nt_serialport_tests PRIVATE Nt::SerialPort)
+    add_test(NAME nt_serialport_tests COMMAND nt_serialport_tests)
+    nt_set_compile_options(nt_serialport_tests)
 
     add_test(NAME ndoc_tests
              COMMAND ${CMAKE_COMMAND}
@@ -165,10 +243,16 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_moc_tests PRIVATE Nt::Core)
     add_test(NAME nt_moc_tests COMMAND nt_moc_tests)
 
-    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-        target_compile_options(nt_tests PRIVATE -Wall -Wextra -Wpedantic)
-        target_compile_options(nt_moc_tests PRIVATE -Wall -Wextra -Wpedantic)
-    endif()
+    add_executable(nt_test_tests tests/test_qtest.cpp)
+    target_link_libraries(nt_test_tests PRIVATE Nt::Test)
+    nt_enable_automoc(nt_test_tests)
+    add_test(NAME nt_test_tests COMMAND nt_test_tests)
+
+    nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
+                           nt_test_tests)
+    foreach(suite filesystem streams types)
+        nt_set_compile_options(nt_${suite}_tests)
+    endforeach()
 endif()
 
 if(NT_BUILD_EXAMPLES)
@@ -179,4 +263,19 @@ if(NT_BUILD_EXAMPLES)
     add_executable(moc_example examples/moc/main.cpp examples/moc/shape.h)
     target_link_libraries(moc_example PRIVATE Nt::Core)
     nt_enable_automoc(moc_example)
+    nt_set_compile_options(hello moc_example)
+
+    # A test written the way a Qt project writes one, with the .moc file included.
+    add_executable(tst_counter examples/test/tst_counter.cpp)
+    target_link_libraries(tst_counter PRIVATE Nt::Test)
+    nt_enable_automoc(tst_counter)
+    nt_set_compile_options(tst_counter)
+    if(NT_BUILD_TESTS)
+        add_test(NAME tst_counter COMMAND tst_counter)
+    endif()
+
+    # A serial terminal; see "Using Nt Serial Port" in the documentation.
+    add_executable(serialterm examples/serialport/serialterm.cpp)
+    target_link_libraries(serialterm PRIVATE Nt::SerialPort)
+    nt_set_compile_options(serialterm)
 endif()

@@ -5,8 +5,12 @@
 //     signals:
 //         void valueChanged(int value);
 //
+// and registers each Q_OBJECT class with its base classes and its private slots
+// that take no arguments, which is how Nt Test finds test functions.
+//
 // It is a text scanner, not a C++ parser. It understands namespaces, nested
-// classes, access/signals labels, overloaded signals and default arguments.
+// classes, access/signals/slots labels, overloaded signals and default arguments.
+// Preprocessor conditionals are not evaluated, so a slot inside `#if 0` is seen.
 // The command line follows the subset of Qt's moc that CMake's AUTOMOC uses.
 
 #include <cctype>
@@ -44,6 +48,8 @@ struct Signal {
 struct ClassInfo {
     std::string qualName;
     std::vector<Signal> signals_;
+    std::vector<std::string> baseTypes;
+    std::vector<std::string> privateSlots; // void, no arguments
 };
 
 bool isIdentStart(char c) { return std::isalpha(static_cast<unsigned char>(c)) || c == '_'; }
@@ -99,7 +105,7 @@ std::string stripSource(const std::string &s) {
         } else if (c == '"' || (c == '\'' && !(i > 0 && std::isdigit(static_cast<unsigned char>(s[i - 1]))))) {
             std::size_t j = i + 1;
             while (j < n && s[j] != c && s[j] != '\n')
-                j += (s[j] == '\\') ? 2 : 1;
+                j += (s[j] == '\\') ? 2u : 1u;
             j = (j < n && s[j] == c) ? j + 1 : j;
             blank(i, j);
             i = j;
@@ -255,13 +261,44 @@ bool parseSignal(const std::string &src, const std::vector<Token> &t, std::size_
     return true;
 }
 
+// Parses `[virtual|inline|static] void name()` from tokens [from, to); false if it is anything else.
+bool parseTestSlot(const std::vector<Token> &t, std::size_t from, std::size_t to, std::string &name) {
+    while (from < to && (t[from].text == "Q_SLOT" || t[from].text == "virtual" || t[from].text == "inline" ||
+                         t[from].text == "static"))
+        ++from;
+    if (to - from < 4 || t[from].text != "void" || !isIdentStart(t[from + 1].text[0]) || t[from + 2].text != "(")
+        return false;
+    const std::size_t close = t[from + 3].text == "void" ? from + 4 : from + 3;
+    if (close >= to || t[close].text != ")")
+        return false;
+    name = t[from + 1].text;
+    return true;
+}
+
+// The types in `public A, private virtual B<int, 2>`, without access or virtual.
+std::vector<std::string> parseBases(const std::string &src, const std::vector<Token> &t, std::size_t from,
+                                    std::size_t to) {
+    std::vector<std::string> bases;
+    for (auto [b, e] : splitParams(t, from, to)) {
+        while (b < e &&
+               (t[b].text == "public" || t[b].text == "protected" || t[b].text == "private" || t[b].text == "virtual"))
+            ++b;
+        if (b < e)
+            bases.push_back(collapse(src.substr(t[b].pos, t[e - 1].end - t[b].pos)));
+    }
+    return bases;
+}
+
 struct Scope {
     enum Kind { Namespace, Class, Other } kind = Other;
     std::string name;
     bool qobject = false;
     bool inSignals = false;
+    bool inPrivateSlots = false;
     bool isTemplate = false;
     std::vector<Signal> sigs;
+    std::vector<std::string> bases;
+    std::vector<std::string> privateSlots;
 };
 
 std::string qualify(const std::vector<Scope> &stack, const std::string &name) {
@@ -320,12 +357,15 @@ std::vector<ClassInfo> scan(const std::string &raw) {
             ++j;
             if (at(j) == "final")
                 ++j;
+            std::size_t basesFrom = j;
             if (at(j) == ":") {
+                basesFrom = j + 1;
                 while (j < n && t[j].text != "{" && t[j].text != ";")
                     ++j;
             }
             if (at(j) == "{") {
                 Scope s;
+                s.bases = parseBases(src, t, basesFrom, j);
                 s.kind = (cur && cur->kind == Scope::Other) ? Scope::Other : Scope::Class;
                 s.name = name;
                 s.isTemplate = i > 0 && at(i - 1) == ">";
@@ -345,12 +385,13 @@ std::vector<ClassInfo> scan(const std::string &raw) {
             if (!stack.empty()) {
                 Scope s = std::move(stack.back());
                 stack.pop_back();
-                if (s.kind == Scope::Class && s.qobject && !s.sigs.empty()) {
+                if (s.kind == Scope::Class && s.qobject) {
                     if (s.isTemplate) {
-                        std::cerr << "ntmoc: warning: signals of template class " << s.name
-                                  << " are not supported\n";
+                        if (!s.sigs.empty() || !s.privateSlots.empty())
+                            std::cerr << "ntmoc: warning: signals and slots of template class " << s.name
+                                      << " are not supported\n";
                     } else if (const std::string q = qualify(stack, s.name); !q.empty()) {
-                        classes.push_back({q, std::move(s.sigs)});
+                        classes.push_back({q, std::move(s.sigs), std::move(s.bases), std::move(s.privateSlots)});
                     }
                 }
             }
@@ -366,16 +407,19 @@ std::vector<ClassInfo> scan(const std::string &raw) {
             }
             if ((x == "signals" || x == "Q_SIGNALS") && at(i + 1) == ":") {
                 cur->inSignals = true;
+                cur->inPrivateSlots = false;
                 i += 2;
                 continue;
             }
             if (x == "public" || x == "private" || x == "protected") {
                 // `public:` or `public slots:` / `public Q_SLOTS:`
                 cur->inSignals = (at(i + 1) == "signals" || at(i + 1) == "Q_SIGNALS") && at(i + 2) == ":";
-                i += cur->inSignals ? 3 : 1;
+                cur->inPrivateSlots =
+                    x == "private" && (at(i + 1) == "slots" || at(i + 1) == "Q_SLOTS") && at(i + 2) == ":";
+                i += cur->inSignals ? 3 : (cur->inPrivateSlots ? 3 : 1);
                 continue;
             }
-            if (cur->inSignals) {
+            if (cur->inSignals || cur->inPrivateSlots) {
                 std::size_t j = i;
                 int depth = 0;
                 while (j < n) {
@@ -388,9 +432,11 @@ std::vector<ClassInfo> scan(const std::string &raw) {
                         break;
                     ++j;
                 }
+                if (std::string name; cur->inPrivateSlots && j < n && t[j].text != "}" && parseTestSlot(t, i, j, name))
+                    cur->privateSlots.push_back(std::move(name));
                 if (at(j) == ";") {
                     Signal sig;
-                    if (parseSignal(src, t, i, j, sig))
+                    if (cur->inSignals && parseSignal(src, t, i, j, sig))
                         cur->sigs.push_back(std::move(sig));
                     i = j + 1;
                 } else {
@@ -403,6 +449,34 @@ std::vector<ClassInfo> scan(const std::string &raw) {
         ++i;
     }
     return classes;
+}
+
+// Q_OBJECT declares NtMetaAccess inside the class, so the code here may call private slots and
+// name private bases. Classes without slots are registered too, to link their bases to their
+// derived classes.
+void generateMetaClass(std::ostringstream &o, const ClassInfo &c) {
+    const std::string access = c.qualName + "::NtMetaAccess";
+    o << "\nstruct " << access << " {\n";
+    for (std::size_t i = 0; i < c.privateSlots.size(); ++i)
+        o << "    static void invoke" << i << "(QObject *o) { static_cast<" << c.qualName << " *>(o)->"
+          << c.privateSlots[i] << "(); }\n";
+    o << "    static const bool registered;\n};\n"
+      << "const bool " << access << "::registered = [] {\n";
+    if (!c.privateSlots.empty()) {
+        o << "    static const QtPrivate::MetaSlot privateSlots[] = {\n";
+        for (std::size_t i = 0; i < c.privateSlots.size(); ++i)
+            o << "        {\"" << c.privateSlots[i] << "\", &invoke" << i << "},\n";
+        o << "    };\n";
+    }
+    if (!c.baseTypes.empty()) {
+        o << "    static const std::type_info *const bases[] = {\n";
+        for (const std::string &base : c.baseTypes)
+            o << "        &typeid(" << base << "),\n";
+        o << "    };\n";
+    }
+    o << "    return QtPrivate::registerMetaClass(typeid(" << c.qualName << "), {\"" << c.qualName << "\", "
+      << (c.privateSlots.empty() ? "nullptr" : "privateSlots") << ", " << c.privateSlots.size() << ", "
+      << (c.baseTypes.empty() ? "nullptr" : "bases") << ", " << c.baseTypes.size() << "});\n}();\n";
 }
 
 std::string generate(const std::vector<ClassInfo> &classes, const std::string &includePath) {
@@ -424,6 +498,7 @@ std::string generate(const std::vector<ClassInfo> &classes, const std::string &i
               << "    emitSignal(static_cast<void (" << c.qualName << "::*)(" << types << ")>(&"
               << c.qualName << "::" << s.name << ")" << args << ");\n}\n";
         }
+        generateMetaClass(o, c);
     }
     return o.str();
 }
@@ -470,7 +545,8 @@ int main(int argc, char **argv) {
         }
         if (a == "-h" || a == "--help") {
             std::cout << "Usage: ntmoc [options] -o <output.cpp> <input>\n"
-                         "Generates bodies for signals declared without one.\n"
+                         "Generates bodies for signals declared without one, and registers\n"
+                         "Q_OBJECT classes and their private slots for Nt Test.\n"
                          "  -o <file>            output file (default: stdout)\n"
                          "  -i                   do not #include the input in the output\n"
                          "  --output-dep-file    write <output>.d\n"

@@ -137,6 +137,17 @@ QDataStream &operator>>(QDataStream &in, QString &s);
 QDataStream &operator<<(QDataStream &out, QChar c);
 QDataStream &operator>>(QDataStream &in, QChar &c);
 
+template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+QDataStream &operator<<(QDataStream &out, Enum e) { return out << static_cast<std::underlying_type_t<Enum>>(e); }
+
+template <typename Enum, std::enable_if_t<std::is_enum_v<Enum>, int> = 0>
+QDataStream &operator>>(QDataStream &in, Enum &e) {
+    std::underlying_type_t<Enum> v{};
+    in >> v;
+    e = static_cast<Enum>(v);
+    return in;
+}
+
 template <typename T>
 QDataStream &operator<<(QDataStream &out, const QList<T> &l) {
     out << static_cast<quint32>(l.size());
@@ -150,11 +161,14 @@ QDataStream &operator>>(QDataStream &in, QList<T> &l) {
     l.clear();
     quint32 n = 0;
     in >> n;
-    for (quint32 i = 0; i < n && in.status() == QDataStream::Ok; ++i) {
-        T t;
+    for (quint32 i = 0; i < n; ++i) {
+        T t{};
         in >> t;
-        if (in.status() == QDataStream::Ok)
-            l.append(std::move(t));
+        if (in.status() != QDataStream::Ok) {
+            l.clear();
+            break;
+        }
+        l.append(std::move(t));
     }
     return in;
 }
@@ -172,12 +186,15 @@ QDataStream &operator>>(QDataStream &in, QMap<K, V> &m) {
     m.clear();
     quint32 n = 0;
     in >> n;
-    for (quint32 i = 0; i < n && in.status() == QDataStream::Ok; ++i) {
-        K k;
-        V v;
+    for (quint32 i = 0; i < n; ++i) {
+        K k{};
+        V v{};
         in >> k >> v;
-        if (in.status() == QDataStream::Ok)
-            m.insert(k, v);
+        if (in.status() != QDataStream::Ok) {
+            m.clear();
+            break;
+        }
+        m.insert(k, v);
     }
     return in;
 }
@@ -195,12 +212,15 @@ QDataStream &operator>>(QDataStream &in, QHash<K, V> &m) {
     m.clear();
     quint32 n = 0;
     in >> n;
-    for (quint32 i = 0; i < n && in.status() == QDataStream::Ok; ++i) {
-        K k;
-        V v;
+    for (quint32 i = 0; i < n; ++i) {
+        K k{};
+        V v{};
         in >> k >> v;
-        if (in.status() == QDataStream::Ok)
-            m.insert(k, v);
+        if (in.status() != QDataStream::Ok) {
+            m.clear();
+            break;
+        }
+        m.insert(k, v);
     }
     return in;
 }

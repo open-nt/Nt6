@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-label="Nt logo">
+  <title>Nt</title>
+  <defs>
+    <linearGradient id="nut" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3fd9b4"/>
+      <stop offset="1" stop-color="#1ea88a"/>
+    </linearGradient>
+  </defs>
+  <polygon points="128,24 218,76 218,180 128,232 38,180 38,76"
+           fill="url(#nut)" stroke="url(#nut)" stroke-width="24" stroke-linejoin="round"/>
+  <g fill="none" stroke="#ffffff" stroke-width="16" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M68 172V84L124 172V84"/>
+    <path d="M152 68V146Q152 172 178 172H188"/>
+    <path d="M136 100H184"/>
+  </g>
+</svg>

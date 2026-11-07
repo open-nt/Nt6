@@ -1,0 +1,13 @@
+/*!
+    \class Broken
+    \brief Has problems.
+
+    See \l{No Such Page}.
+*/
+class Broken {
+public:
+    /*!
+        Uses \a wrong.
+    */
+    void run(int count);
+};

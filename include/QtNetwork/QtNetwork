@@ -1,0 +1,6 @@
+#include "qabstractsocket.h"
+#include "qhostaddress.h"
+#include "qnetworkdatagram.h"
+#include "qtcpserver.h"
+#include "qtcpsocket.h"
+#include "qudpsocket.h"

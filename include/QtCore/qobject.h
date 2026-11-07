@@ -1,0 +1,278 @@
+// MIT License - see LICENSE
+#pragma once
+
+#include <QtCore/qcoreevent.h>
+#include <QtCore/qglobal.h>
+#include <QtCore/qlist.h>
+#include <QtCore/qnamespace.h>
+#include <QtCore/qstring.h>
+
+#include <chrono>
+#include <cstddef>
+#include <cstring>
+#include <functional>
+#include <memory>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
+class QObject;
+using QObjectList = QList<QObject *>;
+
+namespace QtPrivate {
+
+struct ConnectionData;
+struct ObjectData;
+
+// Shared with QPointer; obj is reset to null when the object dies.
+struct PointerData {
+    QObject *obj = nullptr;
+};
+
+struct Access {
+    static ObjectData &d(const QObject *o);
+    static std::shared_ptr<PointerData> guard(const QObject *o);
+};
+
+// Identifies a signal by the bytes of its pointer-to-member-function.
+struct SignalId {
+    unsigned char bytes[32] = {};
+
+    bool operator==(const SignalId &o) const noexcept {
+        return std::memcmp(bytes, o.bytes, sizeof bytes) == 0;
+    }
+
+    template <typename PMF>
+    static SignalId of(PMF pmf) noexcept {
+        static_assert(sizeof(PMF) <= sizeof(bytes), "member pointer too large");
+        SignalId id;
+        std::memcpy(id.bytes, &pmf, sizeof(PMF));
+        return id;
+    }
+};
+
+// Argument copy kept alive for queued deliveries.
+struct QueuedArgs {
+    std::shared_ptr<void> storage;
+    std::vector<void *> argv;
+};
+using ArgCloner = QueuedArgs (*)(void *const *);
+
+template <typename... A>
+struct TypeList {};
+
+template <typename... A, std::size_t... I>
+QueuedArgs cloneArgsImpl(TypeList<A...>, void *const *argv, std::index_sequence<I...>) {
+    using Tup = std::tuple<std::decay_t<A>...>;
+    (void)argv;
+    auto tup = std::make_shared<Tup>(*static_cast<const std::decay_t<A> *>(argv[I])...);
+    QueuedArgs q;
+    q.argv = std::vector<void *>{static_cast<void *>(&std::get<I>(*tup))...};
+    q.storage = std::move(tup);
+    return q;
+}
+
+template <typename... A>
+struct Cloner {
+    static QueuedArgs clone(void *const *argv) {
+        return cloneArgsImpl(TypeList<A...>{}, argv, std::index_sequence_for<A...>{});
+    }
+};
+
+template <typename Func, typename Recv, typename... A>
+struct IsSlotInvocable
+    : std::conditional_t<std::is_member_function_pointer_v<Func>,
+                         std::is_invocable<Func, Recv *, A...>,
+                         std::is_invocable<Func, A...>> {};
+
+template <typename Func, typename Recv, typename Tuple, std::size_t... I>
+constexpr bool prefixInvocable(std::index_sequence<I...>) {
+    return IsSlotInvocable<Func, Recv,
+                           const std::decay_t<std::tuple_element_t<I, Tuple>> &...>::value;
+}
+
+// Largest N such that the slot accepts the first N signal arguments; -1 if none.
+template <typename Func, typename Recv, typename Tuple, std::size_t N = std::tuple_size_v<Tuple>>
+constexpr std::size_t slotArity() {
+    if constexpr (prefixInvocable<Func, Recv, Tuple>(std::make_index_sequence<N>{}))
+        return N;
+    else if constexpr (N == 0)
+        return static_cast<std::size_t>(-1);
+    else
+        return slotArity<Func, Recv, Tuple, N - 1>();
+}
+
+template <typename Func, typename Recv, typename... A>
+void callSlot(Func &f, Recv *r, A &&...a) {
+    if constexpr (std::is_member_function_pointer_v<Func>) {
+        std::invoke(f, r, std::forward<A>(a)...);
+    } else {
+        (void)r;
+        std::invoke(f, std::forward<A>(a)...);
+    }
+}
+
+template <typename Tuple, typename Callable, std::size_t... I>
+void invokePrefix(Callable &&c, void *const *argv, std::index_sequence<I...>) {
+    (void)argv;
+    c(*static_cast<const std::decay_t<std::tuple_element_t<I, Tuple>> *>(argv[I])...);
+}
+
+} // namespace QtPrivate
+
+struct QMetaObject {
+    class Connection {
+    public:
+        Connection() = default;
+        explicit operator bool() const noexcept;
+
+    private:
+        friend class QObject;
+        std::weak_ptr<QtPrivate::ConnectionData> d;
+    };
+};
+
+class QObject {
+    Q_OBJECT
+public:
+    explicit QObject(QObject *parent = nullptr);
+    virtual ~QObject();
+    Q_DISABLE_COPY(QObject)
+
+    QObject *parent() const;
+    void setParent(QObject *parent);
+    const QObjectList &children() const;
+
+    QString objectName() const;
+    void setObjectName(const QString &name);
+
+    template <typename T>
+    T findChild(const QString &name = QString(), Qt::FindChildOptions options = Qt::FindChildrenRecursively) const {
+        for (QObject *c : children())
+            if (T t = dynamic_cast<T>(c); t && (name.isEmpty() || c->objectName() == name))
+                return t;
+        if (options.testFlag(Qt::FindChildrenRecursively))
+            for (QObject *c : children())
+                if (T t = c->findChild<T>(name, options))
+                    return t;
+        return nullptr;
+    }
+    template <typename T>
+    QList<T> findChildren(const QString &name = QString(), Qt::FindChildOptions options = Qt::FindChildrenRecursively) const {
+        QList<T> r;
+        for (QObject *c : children()) {
+            if (T t = dynamic_cast<T>(c); t && (name.isEmpty() || c->objectName() == name))
+                r.append(t);
+            if (options.testFlag(Qt::FindChildrenRecursively))
+                r.append(c->findChildren<T>(name, options));
+        }
+        return r;
+    }
+
+    // Translation is not implemented; returns the source text.
+    static QString tr(const char *sourceText, const char * = nullptr, int = -1) { return QString::fromUtf8(sourceText); }
+
+    bool signalsBlocked() const noexcept;
+    bool blockSignals(bool block) noexcept;
+
+    int startTimer(int intervalMs);
+    int startTimer(std::chrono::milliseconds interval);
+    void killTimer(int id);
+
+    // Valid only while a slot is being invoked by a signal.
+    QObject *sender() const;
+
+    virtual bool event(QEvent *event);
+
+    // connect(sender, &Sender::signal, receiver, &Receiver::slot)
+    // connect(sender, &Sender::signal, context, functor)
+    template <typename SenderT, typename SignalClass, typename... SArgs, typename RecvT,
+              typename Func>
+    static QMetaObject::Connection connect(const SenderT *sender,
+                                           void (SignalClass::*signal)(SArgs...),
+                                           const RecvT *receiver, Func &&slot,
+                                           Qt::ConnectionType type = Qt::AutoConnection) {
+        return connectHelper(sender, signal, const_cast<RecvT *>(receiver),
+                             std::forward<Func>(slot), type);
+    }
+
+    // connect(sender, &Sender::signal, functor)
+    template <typename SenderT, typename SignalClass, typename... SArgs, typename Func>
+    static QMetaObject::Connection connect(const SenderT *sender,
+                                           void (SignalClass::*signal)(SArgs...), Func &&slot,
+                                           Qt::ConnectionType type = Qt::AutoConnection) {
+        return connectHelper(sender, signal, static_cast<QObject *>(nullptr),
+                             std::forward<Func>(slot), type);
+    }
+
+    static bool disconnect(const QMetaObject::Connection &connection);
+
+    template <typename SenderT, typename SignalClass, typename... SArgs>
+    static bool disconnect(const SenderT *sender, void (SignalClass::*signal)(SArgs...),
+                           const QObject *receiver = nullptr, std::nullptr_t = nullptr) {
+        const QtPrivate::SignalId id = QtPrivate::SignalId::of(signal);
+        return disconnectImpl(sender, &id, receiver);
+    }
+
+    // Disconnects every connection from this object (to `receiver` if given).
+    bool disconnect(const QObject *receiver = nullptr) const;
+
+public slots:
+    void deleteLater();
+
+signals:
+    void destroyed(QObject *obj = nullptr) { emitSignal(&QObject::destroyed, obj); }
+
+protected:
+    virtual void timerEvent(QTimerEvent *event);
+    virtual void customEvent(QEvent *event);
+
+    // Stand-in for the body moc would generate: call it from each signal.
+    template <typename Obj, typename... Args>
+    void emitSignal(void (Obj::*signal)(Args...), const std::decay_t<Args> &...args) {
+        void *argv[] = {const_cast<void *>(static_cast<const void *>(std::addressof(args)))...,
+                        nullptr};
+        activateImpl(this, QtPrivate::SignalId::of(signal), argv,
+                     &QtPrivate::Cloner<Args...>::clone);
+    }
+
+private:
+    friend struct QtPrivate::Access;
+
+    template <typename SenderT, typename SignalClass, typename... SArgs, typename RecvT,
+              typename Func>
+    static QMetaObject::Connection connectHelper(const SenderT *sender,
+                                                 void (SignalClass::*signal)(SArgs...),
+                                                 RecvT *receiver, Func &&slot,
+                                                 Qt::ConnectionType type) {
+        static_assert(std::is_base_of_v<QObject, SenderT> &&
+                          std::is_base_of_v<SignalClass, SenderT>,
+                      "sender must be a QObject that has this signal");
+        static_assert(std::is_base_of_v<QObject, RecvT>, "receiver must be a QObject");
+        using F = std::decay_t<Func>;
+        using Args = std::tuple<SArgs...>;
+        constexpr std::size_t N = QtPrivate::slotArity<F, RecvT, Args>();
+        static_assert(N != static_cast<std::size_t>(-1),
+                      "slot arguments are not compatible with the signal");
+
+        auto invoke = [f = F(std::forward<Func>(slot)), receiver](void *const *argv) mutable {
+            QtPrivate::invokePrefix<Args>(
+                [&](const auto &...a) { QtPrivate::callSlot(f, receiver, a...); }, argv,
+                std::make_index_sequence<N>{});
+        };
+        return connectImpl(sender, QtPrivate::SignalId::of(signal), receiver,
+                           std::function<void(void *const *)>(std::move(invoke)), type);
+    }
+
+    static QMetaObject::Connection connectImpl(const QObject *sender,
+                                               const QtPrivate::SignalId &id, QObject *receiver,
+                                               std::function<void(void *const *)> invoke,
+                                               Qt::ConnectionType type);
+    static bool disconnectImpl(const QObject *sender, const QtPrivate::SignalId *id,
+                               const QObject *receiver);
+    static void activateImpl(QObject *sender, const QtPrivate::SignalId &id, void *const *argv,
+                             QtPrivate::ArgCloner clone);
+
+    std::unique_ptr<QtPrivate::ObjectData> d_ptr;
+};

@@ -80,6 +80,11 @@ reject(widget.html "notDocumented")
 reject(classes.html "Detail")
 expect(index.html "Fixture Core Classes")
 expect(index.html "Guide Page")
+
+# The header links to the source, with the GitHub mark.
+expect(index.html "<a class=\"source\" href=\"https://github.com/example/fixture\"")
+expect(index.html "aria-label=\"Source code on GitHub\"")
+expect(base.html "Font Awesome Free")
 expect(widget-members.html "from <a href=\"base.html\">Base</a>")
 
 # Coverage reports what is undocumented, and nothing that was excused.

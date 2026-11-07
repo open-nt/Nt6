@@ -87,6 +87,8 @@ Class names, `Class::member` and `function()` are linked automatically when they
 
 Paths are relative to the config file.
 
+`github` adds a *Source* link with the GitHub logo (from Font Awesome Free, CC BY 4.0) to the header of every page.
+
 ```ini
 project = Nt
 # Either a literal `version = 1.0.0`, or the first line of a file:
@@ -94,6 +96,7 @@ version_file = ../VERSION
 description = One line for the landing page.
 footer = Text for every page.
 logo = ../assets/nt-logo.svg
+github = https://github.com/open-nt/Nt6
 output = html
 sources = ../include ../src
 snippets = ../examples

@@ -272,7 +272,7 @@ Requires C++17 and a POSIX system. Link with `Nt::Core` and `Nt::Network` (or th
 
 ## Packages
 
-CPack builds native packages on the distribution they are for, in CI and locally:
+Install instructions for every system below are in the [Installing Nt](https://open-nt.github.io/Nt6/install.html) guide. CPack builds the native packages on the distribution they are for, in CI and locally:
 
 | Distribution | Packages | Workflow |
 |---|---|---|

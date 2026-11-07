@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
-project(Nt VERSION 0.1.0 LANGUAGES CXX)
+# The version lives in the VERSION file at the root of the repository.
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/VERSION NT_VERSION LIMIT_COUNT 1)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/VERSION)
+project(Nt VERSION ${NT_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -66,17 +69,29 @@ endif()
 add_executable(ntmoc tools/ntmoc/main.cpp)
 add_executable(Nt::moc ALIAS ntmoc)
 add_executable(Qt6::moc ALIAS ntmoc)
+target_compile_definitions(ntmoc PRIVATE NT_VERSION_STRING="${PROJECT_VERSION}")
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtMoc.cmake)
 
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
 add_executable(Nt::ndoc ALIAS ndoc)
+target_compile_definitions(ndoc PRIVATE NT_VERSION_STRING="${PROJECT_VERSION}")
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(ndoc PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtDoc.cmake)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nt_add_docs(docs CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/doc/ndoc.conf STRICT)
+
+    # The README badge is published next to the documentation.
+    add_custom_target(badge
+        COMMAND ${CMAKE_COMMAND}
+            -DVERSION_FILE=${CMAKE_CURRENT_SOURCE_DIR}/VERSION
+            -DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/doc/html/badges
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtBadge.cmake
+        COMMENT "Writing version badge"
+        VERBATIM)
+    add_dependencies(docs badge)
 endif()
 
 if(NT_BUILD_TESTS)
@@ -100,6 +115,13 @@ if(NT_BUILD_TESTS)
                  -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/tests/ndoc
                  -DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/ndoc_tests
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/ndoc/check.cmake)
+
+    add_test(NAME badge_tests
+             COMMAND ${CMAKE_COMMAND}
+                 -DBADGE_SCRIPT=${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtBadge.cmake
+                 -DVERSION_FILE=${CMAKE_CURRENT_SOURCE_DIR}/VERSION
+                 -DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/badge_tests
+                 -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/badge/check.cmake)
 
     nt_wrap_cpp(moc_test_sources tests/moc_classes.h)
     add_executable(nt_moc_tests tests/test_moc.cpp ${moc_test_sources})

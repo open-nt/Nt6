@@ -154,9 +154,10 @@
     \row
         \li \b{Nt 6}
         \li A version of Nt in running text and headings, with a space, as in
-            "Qt 6". The number is the Qt major version whose API Nt implements.
-            It is not Nt's own release number, which is the \c version in
-            \c{doc/ndoc.conf}.
+            "Qt 6". The major number is the Qt major version whose API Nt
+            implements, and Nt's own releases are numbered to match: the
+            current version, such as 6.1.0, is in the \c VERSION file at the
+            root of the repository.
     \row
         \li \b{Nt6}
         \li Code, paths, repository and package names, without a space, as in

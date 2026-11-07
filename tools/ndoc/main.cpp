@@ -34,7 +34,10 @@ namespace fs = std::filesystem;
 
 namespace {
 
-constexpr const char *kVersion = "ndoc 0.1.0";
+#ifndef NT_VERSION_STRING
+#define NT_VERSION_STRING "unknown"
+#endif
+constexpr const char *kVersion = "ndoc " NT_VERSION_STRING;
 constexpr std::size_t npos = std::string::npos;
 
 // ---------------------------------------------------------------------------
@@ -1443,6 +1446,13 @@ bool loadConfig(const fs::path &path, Config &cfg) {
             cfg.project = value;
         } else if (key == "version") {
             cfg.version = value;
+        } else if (key == "version_file") {
+            std::string text;
+            if (!readFile(resolve(value), text)) {
+                std::cerr << path.string() << ':' << number << ": cannot read " << value << '\n';
+                return false;
+            }
+            cfg.version = trim(text);
         } else if (key == "description") {
             cfg.description = value;
         } else if (key == "footer") {

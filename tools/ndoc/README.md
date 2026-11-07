@@ -89,7 +89,8 @@ Paths are relative to the config file.
 
 ```ini
 project = Nt
-version = 0.1.0
+# Either a literal `version = 1.0.0`, or the first line of a file:
+version_file = ../VERSION
 description = One line for the landing page.
 footer = Text for every page.
 logo = ../assets/nt-logo.svg

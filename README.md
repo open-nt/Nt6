@@ -1,5 +1,7 @@
 <p align="center"><img src="assets/nt-logo.svg" alt="Nt logo" width="160"></p>
 
+<p align="center"><a href="https://open-nt.github.io/Nt6/"><img src="https://open-nt.github.io/Nt6/badges/version.svg" alt="Nt version"></a></p>
+
 # Nt ("Nut")
 
 A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial) and `Nt Network` (partial) so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.

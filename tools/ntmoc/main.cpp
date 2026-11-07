@@ -20,7 +20,10 @@
 
 namespace {
 
-constexpr const char *kVersion = "moc 6.0.0 (Nt ntmoc 0.1.0)";
+#ifndef NT_VERSION_STRING
+#define NT_VERSION_STRING "unknown"
+#endif
+constexpr const char *kVersion = "moc 6.0.0 (Nt ntmoc " NT_VERSION_STRING ")";
 
 struct Token {
     std::string text;

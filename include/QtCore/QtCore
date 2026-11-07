@@ -77,3 +77,7 @@
 #include "qurl.h"
 #include "qurlquery.h"
 #include "qlibraryinfo.h"
+#include "qjsonarray.h"
+#include "qjsondocument.h"
+#include "qjsonobject.h"
+#include "qjsonvalue.h"

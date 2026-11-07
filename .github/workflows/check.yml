@@ -1,6 +1,6 @@
 # Runs check.sh, the same quality gate contributors run before committing:
 # -Werror build, tests, complete ndoc comments, clang-format, clang-tidy,
-# cppcheck and the tests under ASan and UBSan.
+# cppcheck, the tests under ASan and UBSan and the thread tests under TSan.
 name: Check
 
 on:

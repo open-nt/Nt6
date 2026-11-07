@@ -15,17 +15,24 @@ class QSocketNotifier;
 
 namespace QtPrivate {
 
-// Process-wide posted-event queue, timer table, fd notifiers and loop registry (POSIX).
+// Posted-event queue, timer table, fd notifiers and loop registry of one thread (POSIX). Any
+// thread may post events and wake it up; the owning thread runs process().
 class Dispatcher {
 public:
     using Clock = std::chrono::steady_clock;
 
-    static Dispatcher &instance();
+    Dispatcher();
+    ~Dispatcher();
+    Dispatcher(const Dispatcher &) = delete;
+    Dispatcher &operator=(const Dispatcher &) = delete;
 
-    void post(QObject *receiver, QEvent *event);
+    // Queues the event unless `receiver` no longer belongs to `owner`; returns false then and
+    // leaves the event with the caller.
+    bool post(QObject *receiver, QEvent *event, const void *owner);
     // type 0 matches every event.
     void removePosted(QObject *receiver, int type);
 
+    // Timer and notifier ids are unique across all dispatchers.
     int startTimer(QObject *obj, std::chrono::milliseconds interval);
     void killTimer(int id);
     void killTimers(QObject *obj);
@@ -37,11 +44,18 @@ public:
 
     // One pass over fd activity, due timers and queued events; with `wait`, blocks until there is work or `*stop`.
     bool process(bool wait, const std::atomic<bool> *stop);
+    // Delivers the queued events of `receiver` (every receiver if null) that match `type` (0 matches all),
+    // including DeferredDelete.
+    void sendPosted(QObject *receiver, int type);
     void wakeUp();
 
     void addLoop(QEventLoop *loop);
     void removeLoop(QEventLoop *loop);
     void exitAll(int code);
+    int loopLevel();
+
+    // Moves the timers, notifiers and queued events of `objs` to `to`.
+    void migrate(Dispatcher &to, const std::vector<QObject *> &objs);
 
 private:
     struct Posted {
@@ -63,7 +77,7 @@ private:
         bool enabled;
     };
 
-    Dispatcher();
+    static void deliver(const Posted &p);
 
     std::mutex m_;
     std::deque<Posted> queue_;
@@ -71,8 +85,6 @@ private:
     std::vector<Notifier> notifiers_;
     std::vector<QEventLoop *> loops_;
     std::uint64_t seq_ = 0;
-    int nextTimerId_ = 1;
-    int nextNotifierId_ = 1;
     int wakeRead_ = -1;
     int wakeWrite_ = -1;
 };

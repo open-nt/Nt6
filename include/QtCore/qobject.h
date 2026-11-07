@@ -7,6 +7,7 @@
 #include <QtCore/qnamespace.h>
 #include <QtCore/qstring.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstring>
@@ -19,6 +20,7 @@
 #include <vector>
 
 class QObject;
+class QThread;
 using QObjectList = QList<QObject *>;
 
 namespace QtPrivate {
@@ -28,7 +30,7 @@ struct ObjectData;
 
 // Shared with QPointer; obj is reset to null when the object dies.
 struct PointerData {
-    QObject *obj = nullptr;
+    std::atomic<QObject *> obj{nullptr};
 };
 
 struct Access {
@@ -220,6 +222,9 @@ public:
 
     bool signalsBlocked() const noexcept;
     bool blockSignals(bool block) noexcept;
+
+    QThread *thread() const;
+    void moveToThread(QThread *targetThread);
 
     int startTimer(int intervalMs);
     int startTimer(std::chrono::milliseconds interval);

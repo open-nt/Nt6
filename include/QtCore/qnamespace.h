@@ -79,17 +79,14 @@ enum TimeSpec {
 
     This enum describes how a signal is delivered to a slot.
 
-    \value AutoConnection The default. Nt objects live on a single thread, so this is the same as \c DirectConnection.
-    \value DirectConnection The slot is called immediately when the signal is emitted.
-    \value QueuedConnection The arguments are copied and the slot is called later from the event loop.
+    \value AutoConnection The default. The slot is called directly if the receiver lives in the thread that emits the signal, and queued otherwise. The decision is made at emission time.
+    \value DirectConnection The slot is called immediately when the signal is emitted, in the emitting thread.
+    \value QueuedConnection The arguments are copied and the slot is called later from the event loop of the receiver's thread.
+    \value BlockingQueuedConnection Like \c QueuedConnection, but the emitting thread blocks until the slot has returned. If the receiver lives in the emitting thread, the slot is called directly instead of deadlocking.
 
     \sa QObject::connect(), {Signals and Slots}
 */
-enum ConnectionType {
-    AutoConnection = 0,
-    DirectConnection = 1,
-    QueuedConnection = 2
-};
+enum ConnectionType { AutoConnection = 0, DirectConnection = 1, QueuedConnection = 2, BlockingQueuedConnection = 3 };
 
 /*!
     \enum Qt::CaseSensitivity
@@ -152,5 +149,12 @@ enum FindChildOption {
     FindChildrenRecursively = 1
 };
 Q_DECLARE_FLAGS(FindChildOptions, FindChildOption)
+
+/*!
+    \typedef Qt::HANDLE
+
+    An opaque thread handle: the value QThread::currentThreadId() returns, a \c{void *}.
+*/
+using HANDLE = void *;
 
 } // namespace Qt

@@ -2,7 +2,11 @@
 #include <QtCore/qcoreapplication.h>
 
 #include "dispatcher.h"
+#include "threaddata_p.h"
 
+#include <QtCore/qdebug.h>
+
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 
@@ -19,7 +23,7 @@
 */
 
 namespace {
-QCoreApplication *g_self = nullptr;
+std::atomic<QCoreApplication *> g_self{nullptr};
 QStringList g_arguments;
 QString g_appName;
 QString g_appVersion;
@@ -48,10 +52,13 @@ bool g_appNameSet = false;
     \differences
     Only part of the Qt API is present: there is no \c organizationName(),
     \c installTranslator(), \c libraryPaths(), \c applicationFilePath(),
-    \c sendPostedEvents() or \c processEvents() overload with a timeout.
+    \c processEvents() overload with a timeout or \c postEvent() priority.
     Creating a second application object aborts the process. \c exit() and
-    \c quit() stop every running QEventLoop, and aboutToQuit() is emitted
-    after the main loop has stopped. \c qApp is defined as
+    \c quit() stop every running QEventLoop of the thread that created the
+    application object, and aboutToQuit() is emitted after the main loop has
+    stopped. Unlike Qt, they do not make later calls to \c exec() return at once.
+    postEvent() may be called from any thread; processEvents() and
+    sendPostedEvents() work on the calling thread's queue. \c qApp is defined as
     \c QCoreApplication::instance().
     \enddifferences
 
@@ -67,11 +74,11 @@ bool g_appNameSet = false;
     \sa arguments()
 */
 QCoreApplication::QCoreApplication(int &argc, char **argv) {
-    if (g_self) {
+    QCoreApplication *expected = nullptr;
+    if (!g_self.compare_exchange_strong(expected, this)) {
         std::fputs("QCoreApplication: there should be only one application object\n", stderr);
         std::abort();
     }
-    g_self = this;
     g_arguments.clear();
     for (int i = 0; argv && i < argc; ++i)
         g_arguments.append(QString::fromUtf8(argv[i]));
@@ -82,14 +89,16 @@ QCoreApplication::QCoreApplication(int &argc, char **argv) {
     \c nullptr.
 */
 QCoreApplication::~QCoreApplication() {
-    if (g_self == this)
-        g_self = nullptr;
+    // Like Qt, wait for the global thread pool so that its tasks cannot outlive the application.
+    QtPrivate::waitForGlobalThreadPool();
+    QCoreApplication *expected = this;
+    g_self.compare_exchange_strong(expected, nullptr);
 }
 
 /*!
     Returns the application object, or \c nullptr if none exists.
 */
-QCoreApplication *QCoreApplication::instance() { return g_self; }
+QCoreApplication *QCoreApplication::instance() { return g_self.load(); }
 
 /*!
     Returns the command line as passed to the constructor, decoded as UTF-8.
@@ -149,8 +158,8 @@ QString QCoreApplication::applicationVersion() { return g_appVersion; }
 int QCoreApplication::exec() {
     QEventLoop loop;
     const int code = loop.exec();
-    if (g_self)
-        g_self->aboutToQuit();
+    if (QCoreApplication *app = g_self.load())
+        app->aboutToQuit();
     return code;
 }
 
@@ -160,7 +169,13 @@ int QCoreApplication::exec() {
 
     \sa quit(), exec()
 */
-void QCoreApplication::exit(int returnCode) { QtPrivate::Dispatcher::instance().exitAll(returnCode); }
+void QCoreApplication::exit(int returnCode) {
+    QCoreApplication *app = g_self.load();
+    QtPrivate::ThreadData *td = app ? QtPrivate::acquireThreadData(app) : QtPrivate::ThreadData::current();
+    td->dispatcher.exitAll(returnCode);
+    if (app)
+        td->release();
+}
 
 /*!
     Tells the application to exit with return code 0. This is the same as
@@ -178,7 +193,25 @@ void QCoreApplication::quit() { exit(0); }
     \sa QEventLoop::processEvents()
 */
 void QCoreApplication::processEvents(QEventLoop::ProcessEventsFlags flags) {
-    QtPrivate::Dispatcher::instance().process(flags.testFlag(QEventLoop::WaitForMoreEvents), nullptr);
+    QtPrivate::ThreadData::current()->dispatcher.process(flags.testFlag(QEventLoop::WaitForMoreEvents), nullptr);
+}
+
+/*!
+    Delivers the events posted to \a receiver that match \a eventType right away, in the
+    calling thread, and removes them from the queue. If \a receiver is \c nullptr, the events
+    of every object that lives in the calling thread match. An \a eventType of 0 matches all
+    events except \c QEvent::DeferredDelete, which is delivered only when asked for by type
+    or by an event loop. \a receiver must live in the calling thread.
+
+    \sa postEvent(), processEvents()
+*/
+void QCoreApplication::sendPostedEvents(QObject *receiver, int eventType) {
+    auto *td = QtPrivate::ThreadData::current();
+    if (receiver && QtPrivate::objectThreadData(receiver) != td) {
+        qWarning("QCoreApplication::sendPostedEvents: Cannot send posted events for objects in another thread");
+        return;
+    }
+    td->dispatcher.sendPosted(receiver, eventType);
 }
 
 /*!
@@ -196,7 +229,7 @@ void QCoreApplication::postEvent(QObject *receiver, QEvent *event) {
         delete event;
         return;
     }
-    QtPrivate::Dispatcher::instance().post(receiver, event);
+    QtPrivate::postToObject(receiver, event);
 }
 
 /*!
@@ -209,8 +242,8 @@ void QCoreApplication::postEvent(QObject *receiver, QEvent *event) {
 bool QCoreApplication::sendEvent(QObject *receiver, QEvent *event) {
     if (!receiver || !event)
         return false;
-    if (g_self)
-        return g_self->notify(receiver, event);
+    if (QCoreApplication *app = g_self.load())
+        return app->notify(receiver, event);
     return receiver->event(event);
 }
 
@@ -222,7 +255,11 @@ bool QCoreApplication::sendEvent(QObject *receiver, QEvent *event) {
     \sa postEvent()
 */
 void QCoreApplication::removePostedEvents(QObject *receiver, int eventType) {
-    QtPrivate::Dispatcher::instance().removePosted(receiver, eventType);
+    if (!receiver)
+        return;
+    QtPrivate::ThreadData *td = QtPrivate::acquireThreadData(receiver);
+    td->dispatcher.removePosted(receiver, eventType);
+    td->release();
 }
 
 /*!

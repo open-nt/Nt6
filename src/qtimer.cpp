@@ -25,7 +25,8 @@
     \differences
     Intervals are stored as an \c int number of milliseconds. There is no
     timer type, \c remainingTime() or \c callOnTimeout(), and interval
-    properties cannot be bound. Timers must be used from a single thread.
+    properties cannot be bound. A timer must be started and stopped from the
+    thread it lives in; the thread needs a running event loop.
     \enddifferences
 
     \sa {Signals and Slots}
@@ -155,3 +156,16 @@ void QTimer::timerEvent(QTimerEvent *event) {
         stop();
     timeout();
 }
+
+namespace QtPrivate {
+
+// Within a thread the timer becomes a child, so it dies with the context; across threads it
+// moves, and the finished timer deletes itself.
+void placeSingleShotTimer(QTimer *timer, QObject *context) {
+    if (context->thread() == timer->thread())
+        timer->setParent(context);
+    else
+        timer->moveToThread(context->thread());
+}
+
+} // namespace QtPrivate

@@ -32,11 +32,12 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 
 | Area | Classes |
 |---|---|
-| Object model | `QObject` (parent/child, `connect`/`disconnect` for member slots, functors and context objects, `blockSignals`, `sender()`, `deleteLater()`, `destroyed`, `objectName`, `findChild(ren)`, timers), `QMetaObject::Connection`, `qobject_cast`, `Qt::ConnectionType` (`Auto`, `Direct`, `Queued`), `QFlags`, `qOverload` |
-| Events and loop | `QEvent`, `QTimerEvent`, `QEventLoop`, `QCoreApplication` (`exec`, `quit`, `postEvent`, `sendEvent`, `processEvents`, `aboutToQuit`, `qApp`), `QTimer` (incl. `singleShot`), `QSocketNotifier` (fd readiness via `poll()`) |
+| Object model | `QObject` (parent/child, `connect`/`disconnect` for member slots, functors and context objects, `blockSignals`, `sender()`, `deleteLater()`, `destroyed`, `objectName`, `findChild(ren)`, timers, `thread()`, `moveToThread()`), `QMetaObject::Connection`, `qobject_cast`, `Qt::ConnectionType` (`Auto`, `Direct`, `Queued`, `BlockingQueued`), `QFlags`, `qOverload` |
+| Events and loop | `QEvent`, `QTimerEvent`, `QEventLoop`, `QCoreApplication` (`exec`, `quit`, `postEvent`, `sendEvent`, `processEvents`, `sendPostedEvents`, `aboutToQuit`, `qApp`), `QTimer` (incl. `singleShot`), `QSocketNotifier` (fd readiness via `poll()`) |
 | Text and bytes | `QString` (UTF-16, `arg`, `split`, `number`, `toInt`/`toDouble`, UTF-8/Latin-1 conversion), `QChar`, `QLatin1Char`, `QLatin1StringView`, `QStringView`, `QByteArray` (hex, Base64, percent-encoding, number conversion), `QByteArrayView`, `QByteArrayList`, `QStringList`, `QTextStream` (UTF-8) |
 | Containers | `QList`/`QVector`, `QQueue`, `QStack`, `QMap`, `QMultiMap`, `QHash`, `QMultiHash`, `QSet`, `QVarLengthArray`, `QBitArray`, `QCache`, `QContiguousCache`, `QSpan`, the Java-style iterators (`QListIterator`, `QMutableListIterator`, `QMapIterator`, `QMutableMapIterator`, `QHashIterator`, `QSetIterator`, ...) |
 | Smart pointers | `QPointer`, `QScopedPointer`, `QScopedArrayPointer`, `QSharedPointer`, `QWeakPointer`, `QEnableSharedFromThis`, `QSharedData`, `QSharedDataPointer`, `QExplicitlySharedDataPointer`, `QScopeGuard`, `QScopedValueRollback`, `QSignalBlocker` |
+| Threads | `QThread` (`start`/`quit`/`exit`/`wait`, a real event loop per thread, `create`, interruption, priority, stack size, `currentThread`, `idealThreadCount`), `QObject` thread affinity (timers, `QSocketNotifier`, posted events and `deleteLater` follow the object's thread), cross-thread queued and blocking-queued signals, `QRunnable`, `QThreadPool` (priorities, `tryStart`, `tryTake`, `reserveThread`, expiry), `QThreadStorage` |
 | Threading primitives | `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock`, `QReadLocker`, `QWriteLocker`, `QWaitCondition`, `QSemaphore`, `QSemaphoreReleaser` |
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time and fixed offsets), `QDebug`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler` |
 | I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG) |
@@ -45,7 +46,7 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 | Formats: JSON | `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument`, `QJsonParseError`, `QJsonValueRef`/`QJsonValueConstRef` and the STL-style iterators: strict RFC 8259 parser with Qt's error codes and offsets (1024 levels of nesting), `Indented`/`Compact` writer, sorted object keys, exact integers up to 2^53, `QDebug` output. `fromVariant()`/`toVariant()` and friends wait for `QVariant` |
 | Utilities | `QLibraryInfo`, `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption` |
 
-Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QUrl` does not convert internationalized host names to or from Punycode; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; all `QObject`s must be used from one thread (only `postEvent` is thread-safe); no `QMetaObject` introspection, properties or `SIGNAL()`/`SLOT()` strings.
+Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QUrl` does not convert internationalized host names to or from Punycode; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; a `QObject` must be deleted from its own thread (or while that thread is not handling its events) and `QPointer` is not safe against concurrent destruction, there is no `QThread::terminate()`; no `QMetaObject` introspection, properties or `SIGNAL()`/`SLOT()` strings.
 
 ### Nt Core: not implemented yet
 
@@ -56,7 +57,7 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 - **File system:** `QDirIterator`, `QDirListing`, `QLockFile`, `QFileSystemWatcher`, `QFileSelector`, `QStorageInfo`, `QResource`, `QSettings`
 - **Processes and plugins:** `QProcess`, `QProcessEnvironment`, `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
 - **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`/`QMimeData`
-- **Concurrency:** `QThread` (and per-thread event loops / cross-thread queued signals), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`
+- **Concurrency:** `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`
 - **Item models:** `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QAbstractProxyModel`, `QSortFilterProxyModel`, `QIdentityProxyModel`, `QConcatenateTablesProxyModel`, `QTransposeProxyModel`, `QModelIndex`, `QPersistentModelIndex`, `QItemSelection*`, `QRangeModel`
 - **Animation:** `QAbstractAnimation`, `QVariantAnimation`, `QPropertyAnimation`, `QPauseAnimation`, `QSequentialAnimationGroup`, `QParallelAnimationGroup`, `QAnimationGroup`, `QEasingCurve`
 - **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDynamicPropertyChangeEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
@@ -305,11 +306,11 @@ cmake -S . -B build && cmake --build build && ctest --test-dir build
 
 Requires C++17 and a POSIX system. Link with `Nt::Core` and `Nt::Network` (or the `Qt6::Core` / `Qt6::Network` aliases).
 
-Release is the default build type. Builds add stack-protector, `_FORTIFY_SOURCE` and RELRO hardening (`-DNT_HARDENING=OFF` disables it), and `-DNT_SANITIZE="address;undefined"` builds with sanitizers.
+Release is the default build type. Builds add stack-protector, `_FORTIFY_SOURCE` and RELRO hardening (`-DNT_HARDENING=OFF` disables it), and `-DNT_SANITIZE="address;undefined"` (or `thread`) builds with sanitizers.
 
 ### Contributing
 
-Run `./check.sh` before every commit (`./check.sh --install-hook` installs a pre-commit hook). It builds with `-Werror`, runs the tests under ASan and UBSan, requires complete NDoc comments, and runs clang-format, clang-tidy and cppcheck. It needs `cmake`, a C++17 compiler, `clang-format`, `clang-tidy` and `cppcheck`; `ninja` is used when present.
+Run `./check.sh` before every commit (`./check.sh --install-hook` installs a pre-commit hook). It builds with `-Werror`, runs the tests under ASan and UBSan and the thread tests under TSan, requires complete NDoc comments, and runs clang-format, clang-tidy and cppcheck. It needs `cmake`, a C++17 compiler, `clang-format`, `clang-tidy` and `cppcheck`; `ninja` is used when present.
 
 ## Packages
 

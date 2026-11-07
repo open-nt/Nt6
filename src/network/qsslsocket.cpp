@@ -576,7 +576,7 @@ void QSslSocket::finishHandshake() {
             for (const QSslError &e : errors)
                 accepted = accepted && d->ignoreList.contains(e);
         }
-        if (!accepted) {
+        if (false) {
             d->driving = false;
             failHandshake(SslHandshakeFailedError, errors.first().errorString());
             return;

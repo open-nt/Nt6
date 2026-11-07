@@ -35,6 +35,13 @@ add_library(NtCore
     src/qfile.cpp
     src/qfileinfo.cpp
     src/qiodevice.cpp
+    src/qjsonarray.cpp
+    src/qjsondocument.cpp
+    src/qjsonobject.cpp
+    src/qjsonobjectiterator.cpp
+    src/qjsonparser.cpp
+    src/qjsonvalue.cpp
+    src/qjsonwriter.cpp
     src/qlibraryinfo.cpp
     src/qobject.cpp
     src/qrandom.cpp
@@ -204,6 +211,11 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_core_value_tests PRIVATE Nt::Core)
     target_compile_definitions(nt_core_value_tests PRIVATE NT_EXPECTED_VERSION="${PROJECT_VERSION}")
     add_test(NAME nt_core_value_tests COMMAND nt_core_value_tests)
+
+    add_executable(nt_json_tests tests/test_json.cpp)
+    target_link_libraries(nt_json_tests PRIVATE Nt::Core)
+    nt_set_compile_options(nt_json_tests)
+    add_test(NAME nt_json_tests COMMAND nt_json_tests)
 
     if(NT_HAVE_OPENSSL)
         add_executable(nt_ssl_tests tests/test_ssl.cpp)

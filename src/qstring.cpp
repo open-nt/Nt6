@@ -1,11 +1,14 @@
 // MIT License - see LICENSE
 #include <QtCore/qstring.h>
 
+#include <QtCore/qlocale.h>
+
 #include "numparse_p.h"
 
 #include <algorithm>
 #include <climits>
 #include <cstdarg>
+#include <functional>
 
 namespace {
 
@@ -628,13 +631,21 @@ QStringList QString::split(QChar sep, Qt::SplitBehavior behavior, Qt::CaseSensit
     return split(QString(sep), behavior, cs);
 }
 
-static std::u16string substituteLowest(const std::u16string &s, const std::u16string &rep) {
-    auto parse = [&](std::size_t i, std::size_t &after) -> int {
+// A %L marker takes the text from localized() instead of rep, when it is given.
+static std::u16string substituteLowest(const std::u16string &s, const std::u16string &rep,
+                                       const std::function<std::u16string()> &localized = nullptr) {
+    bool lowestIsLocalized = false;
+    auto parse = [&](std::size_t i, std::size_t &after, bool *hasL = nullptr) -> int {
         if (i >= s.size() || s[i] != u'%')
             return -1;
         std::size_t j = i + 1;
-        if (j < s.size() && s[j] == u'L')
+        if (hasL)
+            *hasL = false;
+        if (j < s.size() && s[j] == u'L') {
+            if (hasL)
+                *hasL = true;
             ++j;
+        }
         if (j >= s.size() || s[j] < u'0' || s[j] > u'9')
             return -1;
         int v = s[j++] - u'0';
@@ -646,17 +657,21 @@ static std::u16string substituteLowest(const std::u16string &s, const std::u16st
     int lowest = INT_MAX;
     for (std::size_t i = 0; i < s.size(); ++i) {
         std::size_t after;
-        const int v = parse(i, after);
-        if (v >= 0 && v < lowest)
+        bool hasL = false;
+        const int v = parse(i, after, &hasL);
+        if (v >= 0 && v < lowest) {
             lowest = v;
+            lowestIsLocalized = hasL;
+        }
     }
     if (lowest == INT_MAX)
         return s + u" " + rep;
+    const std::u16string replacement = lowestIsLocalized && localized ? localized() : rep;
     std::u16string out;
     for (std::size_t i = 0; i < s.size();) {
         std::size_t after;
         if (parse(i, after) == lowest) {
-            out += rep;
+            out += replacement;
             i = after;
         } else {
             out.push_back(s[i++]);
@@ -689,11 +704,16 @@ QString QString::arg(const QString &a, int fieldWidth, QChar fillChar) const {
 
     Replaces the lowest-numbered place marker with the integer \a a written in
     \a base (2 to 36; other values mean 10), padded to \a fieldWidth with
-    \a fillChar. When padding a negative number with \c{'0'}, the zeros follow
+    \a fillChar. If the marker is written \c{%L1} and \a base is 10, the number is
+    written with QLocale::toString() in the default locale, so with its group
+    separators. When padding a negative number with \c{'0'}, the zeros follow
     the minus sign.
 */
 QString QString::arg(qlonglong a, int fieldWidth, int base, QChar fillChar) const {
-    return QString(substituteLowest(d, pad(ascii16(QtPrivate::signedToString(a, base)), fieldWidth, fillChar.unicode(), true)));
+    return QString(substituteLowest(d, pad(ascii16(QtPrivate::signedToString(a, base)), fieldWidth, fillChar.unicode(), true), [&] {
+        return base == 10 ? pad(QLocale().toString(a).u16string(), fieldWidth, fillChar.unicode(), true)
+                          : pad(ascii16(QtPrivate::signedToString(a, base)), fieldWidth, fillChar.unicode(), true);
+    }));
 }
 
 /*!
@@ -703,7 +723,10 @@ QString QString::arg(qlonglong a, int fieldWidth, int base, QChar fillChar) cons
     written in \a base, padded to \a fieldWidth with \a fillChar.
 */
 QString QString::arg(qulonglong a, int fieldWidth, int base, QChar fillChar) const {
-    return QString(substituteLowest(d, pad(ascii16(QtPrivate::intToString(a, false, base)), fieldWidth, fillChar.unicode(), true)));
+    return QString(substituteLowest(d, pad(ascii16(QtPrivate::intToString(a, false, base)), fieldWidth, fillChar.unicode(), true), [&] {
+        return base == 10 ? pad(QLocale().toString(a).u16string(), fieldWidth, fillChar.unicode(), true)
+                          : pad(ascii16(QtPrivate::intToString(a, false, base)), fieldWidth, fillChar.unicode(), true);
+    }));
 }
 
 /*!
@@ -714,7 +737,10 @@ QString QString::arg(qulonglong a, int fieldWidth, int base, QChar fillChar) con
     \a precision, and padded to \a fieldWidth with \a fillChar.
 */
 QString QString::arg(double a, int fieldWidth, char format, int precision, QChar fillChar) const {
-    return QString(substituteLowest(d, pad(ascii16(QtPrivate::formatDouble(a, format, precision)), fieldWidth, fillChar.unicode(), true)));
+    return QString(substituteLowest(d, pad(ascii16(QtPrivate::formatDouble(a, format, precision)), fieldWidth, fillChar.unicode(), true), [&] {
+        return pad(QLocale().toString(a, format, precision < 0 ? int(QLocale::FloatingPointShortest) : precision).u16string(), fieldWidth,
+                   fillChar.unicode(), true);
+    }));
 }
 
 /*!

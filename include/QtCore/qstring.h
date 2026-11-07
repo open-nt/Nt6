@@ -4,6 +4,7 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qchar.h>
 #include <QtCore/qglobal.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qnamespace.h>
 
 #include <functional>
@@ -859,6 +860,99 @@ public:
         \sa fromStdU16String(), u16string()
     */
     std::u16string toStdU16String() const { return d; }
+    /*!
+        Returns a string decoded from the first \a size UTF-32 code points of
+        \a s. If \a size is negative, \a s must be terminated by a null code
+        point. Code points above U+10FFFF and surrogate code points become
+        U+FFFD. The result is null if \a s is \c nullptr.
+
+        \sa toUcs4(), fromStdU32String()
+    */
+    static QString fromUcs4(const char32_t *s, qsizetype size = -1);
+    /*!
+        Returns a string decoded from the \a size UTF-32 code points in
+        \a s, as described for the \c char32_t overload.
+    */
+    static QString fromUcs4(const uint *s, qsizetype size = -1) {
+        return fromUcs4(reinterpret_cast<const char32_t *>(s), size);
+    }
+    /*!
+        Returns a string decoded from the first \a size wide characters of
+        \a s, which are UTF-32 where \c wchar_t has 32 bits and UTF-16 where
+        it has 16. If \a size is negative, \a s must be null-terminated.
+
+        \sa toWCharArray(), fromStdWString()
+    */
+    static QString fromWCharArray(const wchar_t *s, qsizetype size = -1);
+    /*!
+        Returns a string decoded from the UTF-32 string \a s.
+
+        \sa toStdU32String(), fromUcs4()
+    */
+    static QString fromStdU32String(const std::u32string &s) { return fromUcs4(s.data(), static_cast<qsizetype>(s.size())); }
+    /*!
+        Returns a string decoded from the wide string \a s.
+
+        \sa toStdWString(), fromWCharArray()
+    */
+    static QString fromStdWString(const std::wstring &s) { return fromWCharArray(s.data(), static_cast<qsizetype>(s.size())); }
+    QList<uint> toUcs4() const;
+    /*!
+        Returns the string as a \c std::u32string. Unpaired surrogates become
+        U+FFFD.
+
+        \sa fromStdU32String(), toUcs4()
+    */
+    std::u32string toStdU32String() const;
+    /*!
+        Splits the string into tokens along \a needle and returns a
+        QStringTokenizer over them, without copying the text. \a needle is a
+        QChar or a string, and \a flags are an optional Qt::SplitBehavior and
+        Qt::CaseSensitivity. The tokens are views into this string, which must
+        outlive them. See QStringTokenizer for the details.
+
+        \sa qTokenize(), split()
+    */
+    template <typename Needle, typename... Flags>
+    auto tokenize(Needle &&needle, Flags... flags) const & {
+        return qTokenize(*this, std::forward<Needle>(needle), flags...);
+    }
+    /*!
+        \overload
+
+        Splits the string into tokens along \a needle. The tokenizer takes
+        over the string, so the tokens stay valid for its lifetime.
+    */
+    template <typename Needle, typename... Flags>
+    auto tokenize(Needle &&needle, Flags... flags) && {
+        return qTokenize(std::move(*this), std::forward<Needle>(needle), flags...);
+    }
+    /*!
+        \overload
+
+        Splits the string into tokens along \a needle. The tokenizer takes a
+        copy of the string.
+    */
+    template <typename Needle, typename... Flags>
+    auto tokenize(Needle &&needle, Flags... flags) const && {
+        return qTokenize(QString(*this), std::forward<Needle>(needle), flags...);
+    }
+    /*!
+        Returns the string as a \c std::wstring, in UTF-32 or UTF-16
+        depending on the size of \c wchar_t. Unpaired surrogates become
+        U+FFFD in the UTF-32 case.
+
+        \sa fromStdWString(), toWCharArray()
+    */
+    std::wstring toStdWString() const;
+    /*!
+        Writes the string to \a array as wide characters and returns the
+        number of characters written. \a array must have room for at least
+        size() elements; no terminator is written.
+
+        \sa fromWCharArray(), toStdWString()
+    */
+    qsizetype toWCharArray(wchar_t *array) const;
 
     int compare(const QString &o, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     /*!
@@ -933,3 +1027,4 @@ inline QChar operator""_L1(char c) { return QChar(c); }
 } // namespace Qt
 
 #include <QtCore/qstringlist.h>
+#include <QtCore/qstringview.h>

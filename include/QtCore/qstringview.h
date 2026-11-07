@@ -439,6 +439,18 @@ public:
     */
     const_iterator cend() const noexcept { return p + n; }
 
+    /*!
+        Splits the view into tokens along \a needle and returns a
+        QStringTokenizer over them, without copying the text. \a needle is a
+        QChar or a string, and \a flags are an optional Qt::SplitBehavior and
+        Qt::CaseSensitivity. See QStringTokenizer for the details.
+
+        \sa qTokenize(), QString::split()
+    */
+    template <typename Needle, typename... Flags>
+    auto tokenize(Needle &&needle, Flags... flags) const {
+        return qTokenize(*this, std::forward<Needle>(needle), flags...);
+    }
     friend bool operator==(QStringView a, QStringView b) noexcept {
         return a.n == b.n && std::char_traits<char16_t>::compare(a.utf16(), b.utf16(), static_cast<std::size_t>(a.n)) == 0;
     }
@@ -454,3 +466,5 @@ private:
     const QChar *p = nullptr;
     qsizetype n = 0;
 };
+
+#include <QtCore/qstringtokenizer.h>

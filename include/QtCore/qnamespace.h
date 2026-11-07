@@ -151,6 +151,49 @@ enum FindChildOption {
 Q_DECLARE_FLAGS(FindChildOptions, FindChildOption)
 
 /*!
+    \enum Qt::DayOfWeek
+
+    This enum names the days of the week, numbered as in ISO 8601 and as
+    QDate::dayOfWeek() returns them.
+
+    \value Monday Day 1.
+    \value Tuesday Day 2.
+    \value Wednesday Day 3.
+    \value Thursday Day 4.
+    \value Friday Day 5.
+    \value Saturday Day 6.
+    \value Sunday Day 7.
+
+    \sa QLocale::firstDayOfWeek(), QLocale::weekdays()
+*/
+enum DayOfWeek {
+    Monday = 1,
+    Tuesday = 2,
+    Wednesday = 3,
+    Thursday = 4,
+    Friday = 5,
+    Saturday = 6,
+    Sunday = 7
+};
+
+/*!
+    \enum Qt::LayoutDirection
+
+    This enum gives the direction in which text is laid out.
+
+    \value LeftToRight Text runs from left to right.
+    \value RightToLeft Text runs from right to left.
+    \value LayoutDirectionAuto The direction is taken from the text itself.
+
+    \sa QLocale::textDirection()
+*/
+enum LayoutDirection {
+    LeftToRight,
+    RightToLeft,
+    LayoutDirectionAuto
+};
+
+/*!
     \typedef Qt::HANDLE
 
     An opaque thread handle: the value QThread::currentThreadId() returns, a \c{void *}.

@@ -45,6 +45,8 @@ add_library(NtCore
     src/qjsonvalue.cpp
     src/qjsonwriter.cpp
     src/qlibraryinfo.cpp
+    src/qlocale.cpp
+    src/qlocale_data.cpp
     src/qlockfile.cpp
     src/qmetaobject.cpp
     src/qmetatype.cpp
@@ -60,7 +62,8 @@ add_library(NtCore
     src/qsocketnotifier.cpp
     src/qstandardpaths.cpp
     src/qstring.cpp
-    src/qtemporaryfile.cpp
+    src/qstringconverter.cpp
+    src/qstringmatcher.cpp    src/qtemporaryfile.cpp
     src/qtextstream.cpp
     src/qthread.cpp
     src/qthreadpool.cpp
@@ -328,6 +331,16 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_variant_tests PRIVATE Nt::Core)
     add_test(NAME nt_variant_tests COMMAND nt_variant_tests)
     nt_set_compile_options(nt_variant_tests)
+
+    add_executable(nt_text_tests tests/test_text.cpp)
+    target_link_libraries(nt_text_tests PRIVATE Nt::Core)
+    add_test(NAME nt_text_tests COMMAND nt_text_tests)
+    nt_set_compile_options(nt_text_tests)
+
+    add_executable(nt_locale_tests tests/test_locale.cpp)
+    target_link_libraries(nt_locale_tests PRIVATE Nt::Core)
+    add_test(NAME nt_locale_tests COMMAND nt_locale_tests)
+    nt_set_compile_options(nt_locale_tests)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
                            nt_test_tests)

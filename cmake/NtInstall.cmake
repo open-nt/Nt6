@@ -18,10 +18,11 @@ set_target_properties(NtCore PROPERTIES EXPORT_NAME Core)
 set_target_properties(NtNetwork PROPERTIES EXPORT_NAME Network)
 set_target_properties(NtTest PROPERTIES EXPORT_NAME Test)
 set_target_properties(NtSerialPort PROPERTIES EXPORT_NAME SerialPort)
+set_target_properties(NtDBus PROPERTIES EXPORT_NAME DBus)
 set_target_properties(ntmoc PROPERTIES EXPORT_NAME moc)
 set_target_properties(ndoc PROPERTIES EXPORT_NAME ndoc)
 
-install(TARGETS NtCore NtNetwork NtSerialPort
+install(TARGETS NtCore NtNetwork NtSerialPort NtDBus NtTest
     EXPORT Nt6Targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
@@ -29,7 +30,7 @@ install(TARGETS ntmoc ndoc
     EXPORT Nt6Targets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 
-install(DIRECTORY include/QtCore include/QtNetwork include/QtSerialPort
+install(DIRECTORY include/QtCore include/QtNetwork include/QtSerialPort include/QtDBus include/QtTest
     DESTINATION ${NT_INSTALL_INCLUDEDIR}
     COMPONENT Development
     PATTERN "*_p.h" EXCLUDE)

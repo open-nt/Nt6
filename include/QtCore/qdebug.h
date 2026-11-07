@@ -6,6 +6,7 @@
 #include <QtCore/qglobal.h>
 #include <QtCore/qhash.h>
 #include <QtCore/qlist.h>
+#include <QtCore/qlogging.h>
 #include <QtCore/qmap.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
@@ -14,37 +15,13 @@
 #include <string>
 #include <utility>
 
-enum QtMsgType { QtDebugMsg, QtWarningMsg, QtCriticalMsg, QtFatalMsg, QtInfoMsg, QtSystemMsg = QtCriticalMsg };
-
-class QMessageLogContext {
-public:
-    /*!
-        The name of the source file the message came from, or \c nullptr.
-        The default message handler context always leaves it unset.
-    */
-    const char *file = nullptr;
-    /*!
-        The line number the message came from, or \c 0. The default message
-        handler context always leaves it unset.
-    */
-    int line = 0;
-    /*!
-        The name of the function the message came from, or \c nullptr. The
-        default message handler context always leaves it unset.
-    */
-    const char *function = nullptr;
-    /*!
-        The logging category of the message. It is \c{"default"}.
-    */
-    const char *category = "default";
-};
-
-using QtMessageHandler = void (*)(QtMsgType, const QMessageLogContext &, const QString &);
-QtMessageHandler qInstallMessageHandler(QtMessageHandler handler);
+class QIODevice;
 
 class QDebug {
 public:
     explicit QDebug(QtMsgType type);
+    explicit QDebug(QString *string);
+    explicit QDebug(QIODevice *device);
     /*!
         Constructs a copy of another stream. The copies share one buffer, and
         the message is emitted when the last copy is destroyed.
@@ -268,11 +245,19 @@ private:
         s->buf += text;
         return maybeSpace();
     }
+    friend class QDebugStateSaver;
     struct State {
         std::string buf;
-        QtMsgType type;
+        QtMsgType type = QtDebugMsg;
         bool space = true;
         bool quote = true;
+        bool output = true;
+        const char *file = nullptr;
+        int line = 0;
+        const char *function = nullptr;
+        std::string category;
+        QString *string = nullptr;
+        QIODevice *device = nullptr;
     };
     std::shared_ptr<State> s;
 };
@@ -349,16 +334,18 @@ QDebug operator<<(QDebug d, const QRectF &r);
 QDebug operator<<(QDebug d, const QMargins &m);
 QDebug operator<<(QDebug d, const QMarginsF &m);
 
-QDebug qDebug();
-QDebug qInfo();
-QDebug qWarning();
-QDebug qCritical();
-void qDebug(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-void qInfo(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-void qWarning(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-void qCritical(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-[[noreturn]] void qFatal(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+class QDebugStateSaver {
+public:
+    explicit QDebugStateSaver(QDebug &dbg);
+    ~QDebugStateSaver();
+    QDebugStateSaver(const QDebugStateSaver &) = delete;
+    QDebugStateSaver &operator=(const QDebugStateSaver &) = delete;
+
+private:
+    QDebug &m_debug;
+    bool m_space;
+    bool m_quote;
+};
 
 #define qPrintable(string) (string).toLocal8Bit().constData()
 #define qUtf8Printable(string) (string).toUtf8().constData()
-#define Q_FUNC_INFO __PRETTY_FUNCTION__

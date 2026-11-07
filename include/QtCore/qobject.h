@@ -39,6 +39,10 @@ struct PointerData {
 struct Access {
     static ObjectData &d(const QObject *o);
     static std::shared_ptr<PointerData> guard(const QObject *o);
+    // Runs `function` in the emitting thread with the signal's arguments, whatever their types;
+    // argv[i] points to argument i. Used by modules that relay signals they know only at run time.
+    static QMetaObject::Connection connectFunction(const QObject *sender, const QMetaMethod &signal, QObject *context,
+                                                   std::function<void(void *const *)> function);
 };
 
 // Argument copy kept alive for queued deliveries.
@@ -346,6 +350,8 @@ private:
                                                const QtPrivate::SignalId &id, QObject *receiver,
                                                std::function<void(void *const *)> invoke,
                                                Qt::ConnectionType type);
+    static QMetaObject::Connection connectFunction(const QObject *sender, const QMetaMethod &signal, QObject *context,
+                                                   std::function<void(void *const *)> function);
     static bool disconnectImpl(const QObject *sender, const QtPrivate::SignalId *id,
                                const QObject *receiver);
     static void activateImpl(QObject *sender, const QtPrivate::SignalId &id, void *const *argv,

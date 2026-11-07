@@ -1035,6 +1035,16 @@ QList<QByteArray> QMetaMethod::parameterNames() const {
 const char *QMetaMethod::tag() const { return isValid() && data().tag ? data().tag : ""; }
 
 /*!
+    Returns the attributes of the method, a combination of QMetaMethod::Attributes values.
+*/
+int QMetaMethod::attributes() const {
+    if (!isValid())
+        return 0;
+    const unsigned flags = data().flags;
+    return ((flags & 1) ? Cloned : 0) | ((flags & 2) ? Scriptable : 0);
+}
+
+/*!
     Returns the access level of the method. Signals are public.
 
     \sa methodType()
@@ -2002,6 +2012,19 @@ QMetaObject::Connection QObject::connect(const QObject *sender, const QMetaMetho
     if (const auto c = handle.d.lock())
         QtPrivate::setConnectionMethod(c, method.methodSignature().constData());
     return handle;
+}
+
+QMetaObject::Connection QObject::connectFunction(const QObject *sender, const QMetaMethod &signal, QObject *context,
+                                                 std::function<void(void *const *)> function) {
+    if (!sender || !signal.isValid() || signal.methodType() != QMetaMethod::Signal)
+        return {};
+    return connectImpl(sender, signal.data().signalId(), context, std::move(function), Qt::DirectConnection);
+}
+
+QMetaObject::Connection QtPrivate::Access::connectFunction(const QObject *sender, const QMetaMethod &signal,
+                                                           QObject *context,
+                                                           std::function<void(void *const *)> function) {
+    return QObject::connectFunction(sender, signal, context, std::move(function));
 }
 
 /*!

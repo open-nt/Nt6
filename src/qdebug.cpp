@@ -1,35 +1,14 @@
 // MIT License - see LICENSE
 #include <QtCore/qdebug.h>
+#include <QtCore/qiodevice.h>
+#include <QtCore/qlogging.h>
 
-#include <cstdarg>
+#include <cstdint>
 #include <cstdio>
-#include <cstdlib>
+
+#include "qlogging_p.h"
 
 namespace {
-
-QtMessageHandler g_handler = nullptr;
-
-void dispatch(QtMsgType type, const std::string &text) {
-    if (g_handler) {
-        g_handler(type, QMessageLogContext(), QString::fromStdString(text));
-    } else {
-        std::fprintf(stderr, "%s\n", text.c_str());
-        std::fflush(stderr);
-    }
-    if (type == QtFatalMsg)
-        std::abort();
-}
-
-std::string vformat(const char *fmt, va_list ap) {
-    va_list ap2;
-    va_copy(ap2, ap);
-    const int n = std::vsnprintf(nullptr, 0, fmt, ap);
-    std::string s(static_cast<std::size_t>(n < 0 ? 0 : n), '\0');
-    if (n > 0)
-        std::vsnprintf(s.data(), s.size() + 1, fmt, ap2);
-    va_end(ap2);
-    return s;
-}
 
 std::string escaped(const std::string &s) {
     std::string r;
@@ -49,22 +28,6 @@ std::string escaped(const std::string &s) {
 } // namespace
 
 /*!
-    \class QMessageLogContext
-    \brief The QMessageLogContext class carries information about the origin of a log message.
-
-    An instance of this class is passed to a message handler installed with
-    \c qInstallMessageHandler().
-
-    \differences
-    The context is not filled in: \c file, \c function and \c line are always
-    unset, and \c category is always \c{"default"}. There is no \c version
-    member and no \c QMessageLogger.
-    \enddifferences
-
-    \sa QDebug
-*/
-
-/*!
     \class QDebug
     \brief The QDebug class provides an output stream for debugging information.
 
@@ -81,34 +44,26 @@ std::string escaped(const std::string &s) {
     values unless disabled with nospace(), and strings are quoted unless
     disabled with noquote().
 
-    A message is written to \c stderr followed by a newline, unless a handler
-    was installed with \c qInstallMessageHandler(). That handler then
-    receives the message type (\c QtDebugMsg, \c QtInfoMsg, \c QtWarningMsg,
-    \c QtCriticalMsg or \c QtFatalMsg) and the text instead. A \c QtFatalMsg
+    A message is written to \c stderr followed by a newline, in the format set
+    with \c qSetMessagePattern(), unless a handler was installed with
+    \c qInstallMessageHandler(). That handler then receives the message type
+    (\c QtDebugMsg, \c QtInfoMsg, \c QtWarningMsg, \c QtCriticalMsg or
+    \c QtFatalMsg), a QMessageLogContext and the text instead. A \c QtFatalMsg
     message aborts the process after it is handled.
 
-    The same four functions also have printf-style overloads, such as
-    \c{qDebug(const char *fmt, ...)}, and \c qFatal() takes a format string.
-    They format the message with \c vsnprintf() and emit it directly.
+    The same functions also have printf-style forms, such as
+    \c{qDebug("count: %d", n)}, and \c qFatal() takes a format string. A
+    QLoggingCategory selects which messages are written; see \c qCDebug().
 
     \differences
-    There is no \c QDebugStateSaver, \c verbosity(), \c resetFormat() or
-    \c swap(), no constructors that write to a QIODevice or QString, no
-    stream manipulators such as \c endl, and no \c{<<} for QFlags, QSet,
-    QPair, QStringView, QMetaEnum or the value classes. Containers supported
-    are QList, QMap and QHash. There are no logging categories (\c qCDebug())
-    and no message pattern. The logging functions are not macros, so the
-    QMessageLogContext passed to a handler never has a file, line or function.
+    There is no \c verbosity(), \c resetFormat() or \c swap(), no stream
+    manipulators such as \c endl, and no \c{<<} for QFlags, QSet, QPair,
+    QStringView, QMetaEnum or the value classes. Containers supported are
+    QList, QMap and QHash.
     \enddifferences
 
-    \sa QMessageLogContext
+    \sa QMessageLogger, QMessageLogContext, QDebugStateSaver, QLoggingCategory
 */
-
-QtMessageHandler qInstallMessageHandler(QtMessageHandler handler) {
-    QtMessageHandler old = g_handler;
-    g_handler = handler;
-    return old;
-}
 
 /*!
     Constructs a debug stream that emits a message of the given \a type when
@@ -117,16 +72,42 @@ QtMessageHandler qInstallMessageHandler(QtMessageHandler handler) {
 QDebug::QDebug(QtMsgType type) : s(std::make_shared<State>()) { s->type = type; }
 
 /*!
+    Constructs a debug stream that appends its text to \a string when it is
+    destroyed, instead of emitting a message. A space written after the last
+    value is kept.
+*/
+QDebug::QDebug(QString *string) : s(std::make_shared<State>()) { s->string = string; }
+
+/*!
+    Constructs a debug stream that writes its text to \a device, as UTF-8,
+    when it is destroyed, instead of emitting a message. A space written after
+    the last value is kept.
+*/
+QDebug::QDebug(QIODevice *device) : s(std::make_shared<State>()) { s->device = device; }
+
+/*!
     Destroys the stream. If this is the last copy of the stream, the
     accumulated message is emitted, with a trailing space removed, and
-    for QtFatalMsg the process is aborted.
+    for QtFatalMsg the process is aborted. A stream for a QString or a
+    QIODevice writes its text there instead.
 */
 QDebug::~QDebug() {
     if (s.use_count() != 1)
         return;
+    if (s->string) {
+        *s->string += QString::fromStdString(s->buf);
+        return;
+    }
+    if (s->device) {
+        s->device->write(s->buf.data(), static_cast<qint64>(s->buf.size()));
+        return;
+    }
+    if (!s->output && s->type != QtFatalMsg)
+        return;
     if (s->space && !s->buf.empty() && s->buf.back() == ' ')
         s->buf.pop_back();
-    dispatch(s->type, s->buf);
+    const QMessageLogContext context(s->file, s->line, s->function, s->category.empty() ? "default" : s->category.c_str());
+    qt_message_output(s->type, context, QString::fromStdString(s->buf));
 }
 
 QDebug &QDebug::operator<<(char v) {
@@ -169,28 +150,39 @@ QDebug &QDebug::operator<<(const QObject *o) {
     return put(r + ")");
 }
 
-QDebug qDebug() { return QDebug(QtDebugMsg); }
-QDebug qInfo() { return QDebug(QtInfoMsg); }
-QDebug qWarning() { return QDebug(QtWarningMsg); }
-QDebug qCritical() { return QDebug(QtCriticalMsg); }
+/*!
+    \class QDebugStateSaver
+    \brief The QDebugStateSaver class saves and restores the formatting state of a QDebug stream.
 
-#define NT_PRINTF_LOGGER(name, type)           \
-    void name(const char *fmt, ...) {          \
-        va_list ap;                            \
-        va_start(ap, fmt);                     \
-        dispatch(type, vformat(fmt, ap));      \
-        va_end(ap);                            \
+    Construct one at the start of an \c{operator<<(QDebug, const T &)} that
+    changes the spacing or quoting of the stream. The settings are restored
+    when it is destroyed, so the caller's settings are not affected:
+
+    \code
+    QDebug operator<<(QDebug debug, const Point &p) {
+        QDebugStateSaver saver(debug);
+        debug.nospace() << "Point(" << p.x << ", " << p.y << ')';
+        return debug;
     }
-NT_PRINTF_LOGGER(qDebug, QtDebugMsg)
-NT_PRINTF_LOGGER(qInfo, QtInfoMsg)
-NT_PRINTF_LOGGER(qWarning, QtWarningMsg)
-NT_PRINTF_LOGGER(qCritical, QtCriticalMsg)
-#undef NT_PRINTF_LOGGER
+    \endcode
 
-void qFatal(const char *fmt, ...) {
-    va_list ap;
-    va_start(ap, fmt);
-    dispatch(QtFatalMsg, vformat(fmt, ap));
-    va_end(ap);
-    std::abort();
+    \differences
+    The state is the automatic spacing and the quoting. There is no verbosity
+    or integer base.
+    \enddifferences
+
+    \sa QDebug
+*/
+
+/*!
+    Saves the formatting state of \a dbg.
+*/
+QDebugStateSaver::QDebugStateSaver(QDebug &dbg) : m_debug(dbg), m_space(dbg.s->space), m_quote(dbg.s->quote) {}
+
+/*!
+    Restores the formatting state of the stream.
+*/
+QDebugStateSaver::~QDebugStateSaver() {
+    m_debug.s->space = m_space;
+    m_debug.s->quote = m_quote;
 }

@@ -372,6 +372,26 @@ static void testDynamicMetaObject() {
 
 // Properties
 
+static void testAttributes() {
+    const QMetaObject *mo = &meta::Tagged::staticMetaObject;
+    auto method = [mo](const char *sig) { return mo->method(mo->indexOfMethod(sig)); };
+    CHECK(method("scripted()").attributes() == QMetaMethod::Scriptable);
+    CHECK(std::strcmp(method("scripted()").tag(), "") == 0);
+    CHECK(method("tagged()").attributes() == 0);
+    CHECK(std::strcmp(method("tagged()").tag(), "MY_TAG") == 0);
+    CHECK(std::strcmp(method("tagged()").typeName(), "void") == 0);
+    CHECK(method("both()").attributes() == QMetaMethod::Scriptable);
+    CHECK(std::strcmp(method("both()").tag(), "MY_TAG") == 0);
+    CHECK(std::strcmp(method("both()").typeName(), "QString") == 0);
+    CHECK(method("plain(int)").attributes() == 0);
+    CHECK(method("plain()").attributes() == QMetaMethod::Cloned);
+    CHECK(method("scriptedSignal()").attributes() == QMetaMethod::Scriptable);
+    // Q_SCRIPTABLE makes a meta-method of a public function, like Q_INVOKABLE.
+    CHECK(method("invokable()").methodType() == QMetaMethod::Method);
+    CHECK(method("invokable()").attributes() == QMetaMethod::Scriptable);
+    CHECK(QMetaMethod().attributes() == 0);
+}
+
 static void testPropertyDescriptions() {
     const QMetaObject *mo = &Shape::staticMetaObject;
     CHECK(mo->propertyOffset() == 1); // objectName
@@ -1313,6 +1333,7 @@ int main(int argc, char **argv) {
     testClassInfo();
     testMethods();
     testDynamicMetaObject();
+    testAttributes();
     testPropertyDescriptions();
     testPropertyAccess();
     testObjectProperties();

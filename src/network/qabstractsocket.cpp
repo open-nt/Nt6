@@ -48,8 +48,7 @@
     hostFound() is emitted before the function returns. There is no proxy or
     SSL support: the proxy functions, \c proxyAuthenticationRequired() and the
     related error values are declared or omitted but never produced.
-    setSocketOption() and socketOption() take and return a plain \c int
-    instead of a QVariant. \c pauseMode(), \c setPauseMode(), \c resume(),
+    \c pauseMode(), \c setPauseMode(), \c resume(),
     \c setLocalPort() and the other protected peer/local setters are not
     available. Sockets must be used from a single thread.
     \enddifferences
@@ -925,30 +924,34 @@ static bool socketOptionLevel(QAbstractSocket::SocketOption o, int family, int *
 }
 
 /*!
-    Sets \a option to \a value. Does nothing if the socket has no operating
-    system socket yet or the option is not supported.
+    Sets \a option to \a value, converted to an integer. Does nothing if the
+    socket has no operating system socket yet, the option is not supported or
+    \a value cannot be converted.
 
     \sa socketOption()
 */
-void QAbstractSocket::setSocketOption(SocketOption option, int value) {
+void QAbstractSocket::setSocketOption(SocketOption option, const QVariant &value) {
     int level, name;
-    if (m_fd >= 0 && socketOptionLevel(option, m_family, &level, &name))
-        ::setsockopt(m_fd, level, name, &value, sizeof value);
+    bool ok = false;
+    int v = value.toInt(&ok);
+    if (ok && m_fd >= 0 && socketOptionLevel(option, m_family, &level, &name))
+        ::setsockopt(m_fd, level, name, &v, sizeof v);
 }
 
 /*!
-    Returns the value of \a option, or -1 if the socket has no operating
-    system socket or the option is not supported.
+    Returns the value of \a option as an \c int QVariant, or an invalid
+    QVariant if the socket has no operating system socket or the option is
+    not supported.
 
     \sa setSocketOption()
 */
-int QAbstractSocket::socketOption(SocketOption option) {
+QVariant QAbstractSocket::socketOption(SocketOption option) {
     int level, name, value = -1;
     socklen_t len = sizeof value;
     if (m_fd >= 0 && socketOptionLevel(option, m_family, &level, &name) &&
         ::getsockopt(m_fd, level, name, &value, &len) == 0)
-        return value;
-    return -1;
+        return QVariant(value);
+    return QVariant();
 }
 
 short QAbstractSocket::pollOnce(short events, int timeoutMs) {

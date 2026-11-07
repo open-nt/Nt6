@@ -5,7 +5,7 @@
 #include <QtCore/qflags.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
-
+#include <QtCore/qvariant.h>
 #include <memory>
 
 class QHostAddress;
@@ -116,9 +116,8 @@ public:
     virtual qintptr socketDescriptor() const { return m_fd; }
     virtual bool setSocketDescriptor(qintptr socketDescriptor, SocketState state = ConnectedState,
                                      OpenMode openMode = ReadWrite);
-    // Qt passes a QVariant; plain int values cover every option until QVariant exists.
-    virtual void setSocketOption(SocketOption option, int value);
-    virtual int socketOption(SocketOption option);
+    virtual void setSocketOption(SocketOption option, const QVariant &value);
+    virtual QVariant socketOption(SocketOption option);
 
     /*!
         Returns the socket type, TcpSocket or UdpSocket.

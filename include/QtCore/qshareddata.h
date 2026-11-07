@@ -112,6 +112,7 @@ public:
         Assigns \a o to this pointer, which then shares the data of \a o, and
         returns a reference to this pointer.
     */
+    // NOLINTNEXTLINE(bugprone-unhandled-self-assignment): copy and swap is safe for self-assignment
     QSharedDataPointer &operator=(const QSharedDataPointer &o) noexcept {
         QSharedDataPointer tmp(o);
         swap(tmp);

@@ -62,6 +62,8 @@ struct Method {
     Access access = AccessPrivate;
     bool isStatic = false;
     bool hasBody = false;
+    bool scriptable = false; // declared with Q_SCRIPTABLE
+    std::string tag;         // a tag macro in front of the return type, such as Q_NOREPLY
     int revision = 0;
 
     std::size_t metaParamCount() const { return params.size() - (privateSignal ? 1 : 0); }
@@ -727,10 +729,20 @@ std::size_t Scanner::parseMacro(std::size_t i, Scope &cur) {
     return i;
 }
 
+// An upper-case word in front of a return type, such as Q_NOREPLY, is a tag for QMetaMethod::tag().
+bool isTagMacro(const std::string &w) {
+    if (w.size() < 2)
+        return false;
+    for (const char c : w)
+        if (!(std::isupper(static_cast<unsigned char>(c)) || std::isdigit(static_cast<unsigned char>(c)) || c == '_'))
+            return false;
+    return true;
+}
+
 // A member declaration that starts at token i inside a class. Returns the index to continue at.
 std::size_t Scanner::parseMember(std::size_t i, Scope &cur) {
     const std::size_t n = t.size();
-    bool invokable = false, signalMark = false, slotMark = false;
+    bool invokable = false, signalMark = false, slotMark = false, scriptable = false;
     int revision = 0;
     std::size_t b = i;
     // Markers in front of the declaration.
@@ -746,6 +758,8 @@ std::size_t Scanner::parseMember(std::size_t i, Scope &cur) {
             slotMark = true;
             ++b;
         } else if (x == "Q_SCRIPTABLE") {
+            // Like Q_INVOKABLE, it makes a meta-method of a function outside the slot sections.
+            scriptable = invokable = true;
             ++b;
         } else if (x == "Q_REVISION" && at(b + 1) == "(") {
             const std::size_t c = matching(t, b + 1);
@@ -811,16 +825,23 @@ std::size_t Scanner::parseMember(std::size_t i, Scope &cur) {
     Method m;
     m.name = name;
     m.revision = revision;
+    m.scriptable = scriptable;
     std::string ret;
     std::size_t lead = b;
     bool isStatic = false;
     while (lead < p - 1) {
         const std::string &w = at(lead);
         if (w == "virtual" || w == "inline" || w == "explicit" || w == "constexpr" || w == "friend" || w == "extern" ||
-            w == "Q_INVOKABLE" || w == "Q_SCRIPTABLE" || w == "Q_SIGNAL" || w == "Q_SLOT") {
+            w == "Q_INVOKABLE" || w == "Q_SIGNAL" || w == "Q_SLOT") {
+            ++lead;
+        } else if (w == "Q_SCRIPTABLE") {
+            m.scriptable = true;
             ++lead;
         } else if (w == "static") {
             isStatic = true;
+            ++lead;
+        } else if (isTagMacro(w) && lead + 1 < p - 1 && at(lead + 1) != "::" && at(lead + 1) != "<") {
+            m.tag = w;
             ++lead;
         } else {
             break;
@@ -1302,8 +1323,8 @@ void generateMeta(std::ostringstream &o, const ClassData &c, const std::map<std:
             o << "        {" << cString(m.name) << ", " << cString(ret) << ", "
               << (np ? prefix + std::to_string(i) + "_t" : "nullptr") << ", "
               << (np ? prefix + std::to_string(i) + "_n" : "nullptr") << ", " << np << ", " << static_cast<int>(m.kind)
-              << ", " << static_cast<int>(m.access) << ", " << ((entries[i].cloned ? 1 : 0)) << ", " << m.revision
-              << ", nullptr, ";
+              << ", " << static_cast<int>(m.access) << ", " << ((entries[i].cloned ? 1 : 0) | (m.scriptable ? 2 : 0))
+              << ", " << m.revision << ", " << (m.tag.empty() ? std::string("nullptr") : cString(m.tag)) << ", ";
             if (m.kind == KindSignal) {
                 o << "[]() { return QtPrivate::SignalId::of(static_cast<void (" << cn << "::*)("
                   << joinTypes(m.params, m.params.size()) << ")>(&" << cn << "::" << m.name << ")); }";

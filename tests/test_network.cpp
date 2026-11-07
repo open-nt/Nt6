@@ -165,6 +165,14 @@ static void testBlockingApi() {
     CHECK(s->localPort() == server.serverPort() && s->peerPort() == client.localPort());
     CHECK(client.peerPort() == server.serverPort() && client.peerAddress() == QHostAddress::LocalHost);
 
+    CHECK(!QTcpSocket().socketOption(QAbstractSocket::LowDelayOption).isValid());
+    client.setSocketOption(QAbstractSocket::LowDelayOption, 1);
+    client.setSocketOption(QAbstractSocket::KeepAliveOption, QVariant(true));
+    client.setSocketOption(QAbstractSocket::KeepAliveOption, QVariant(QStringLiteral("not a number")));
+    CHECK(client.socketOption(QAbstractSocket::LowDelayOption).toInt() == 1);
+    CHECK(client.socketOption(QAbstractSocket::KeepAliveOption).toBool());
+    CHECK(!client.socketOption(QAbstractSocket::PathMtuSocketOption).isValid());
+
     CHECK(client.write("ping") == 4);
     CHECK(client.bytesToWrite() == 4 && client.waitForBytesWritten(1000));
     CHECK(s->waitForReadyRead(2000) && s->readAll() == "ping");
@@ -516,6 +524,45 @@ static void testHttp() {
     CHECK(lastProgress == 5 && totalProgress == 5 && doneSignals == 1);
     CHECK(http.requests.last().startsWith("GET /plain HTTP/1.1\r\n"));
     CHECK(http.requests.last().contains("Host: 127.0.0.1:"));
+    CHECK(r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200);
+    CHECK(r->attribute(QNetworkRequest::HttpReasonPhraseAttribute).toByteArray() == "OK");
+    CHECK(r->attribute(QNetworkRequest::ConnectionEncryptedAttribute).toBool() == false &&
+          r->attribute(QNetworkRequest::ConnectionEncryptedAttribute).isValid());
+    CHECK(!r->attribute(QNetworkRequest::RedirectionTargetAttribute).isValid());
+    CHECK(r->attribute(QNetworkRequest::SourceIsFromCacheAttribute) == QVariant(false));
+    CHECK(!r->attribute(QNetworkRequest::User).isValid());
+    r->deleteLater();
+
+    // Request attributes are stored, replaced and removed, and read back from the reply.
+    QNetworkRequest tagged{QUrl(http.url("/plain"))};
+    CHECK(!tagged.attribute(QNetworkRequest::User).isValid() &&
+          tagged.attribute(QNetworkRequest::User, 7).toInt() == 7);
+    tagged.setAttribute(QNetworkRequest::User, QStringLiteral("first"));
+    tagged.setAttribute(QNetworkRequest::User, 42);
+    tagged.setAttribute(static_cast<QNetworkRequest::Attribute>(QNetworkRequest::User + 1), true);
+    tagged.setAttribute(QNetworkRequest::CustomVerbAttribute, QByteArray("PURGE"));
+    tagged.setAttribute(QNetworkRequest::CustomVerbAttribute, QVariant());
+    CHECK(tagged.attribute(QNetworkRequest::User).toInt() == 42);
+    CHECK(tagged.attribute(static_cast<QNetworkRequest::Attribute>(QNetworkRequest::User + 1)).toBool());
+    CHECK(!tagged.attribute(QNetworkRequest::CustomVerbAttribute).isValid());
+    QNetworkRequest copy = tagged;
+    CHECK(copy == tagged);
+    copy.setAttribute(QNetworkRequest::User, 43);
+    CHECK(copy != tagged);
+    r = manager.get(tagged);
+    CHECK(!r->attribute(QNetworkRequest::HttpStatusCodeAttribute).isValid());
+    CHECK(fetch(r, &e) == "hello");
+    CHECK(r->attribute(QNetworkRequest::User).toInt() == 42);
+    CHECK(r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 200);
+    r->deleteLater();
+
+    sc["/moved"] = {"HTTP/1.1 302 Found\r\nLocation: /plain\r\nContent-Length: 0\r\n\r\n"};
+    QNetworkRequest moved{QUrl(http.url("/moved"))};
+    moved.setRedirectPolicy(QNetworkRequest::ManualRedirectPolicy);
+    r = manager.get(moved);
+    fetch(r, &e);
+    CHECK(r->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt() == 302);
+    CHECK(r->attribute(QNetworkRequest::RedirectionTargetAttribute).value<QUrl>().toString() == "/plain");
     r->deleteLater();
 
     // Chunked, split across writes inside sizes and terminators; extensions and trailers.

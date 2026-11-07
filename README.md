@@ -18,7 +18,7 @@
 
 # Nt ("Nut")
 
-A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
+A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
 
@@ -32,37 +32,32 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 
 | Area | Classes |
 |---|---|
-| Object model | `QObject` (parent/child, `connect`/`disconnect` for member slots, functors and context objects, `blockSignals`, `sender()`, `deleteLater()`, `destroyed`, `objectName`, `findChild(ren)`, timers, `thread()`, `moveToThread()`), `QMetaObject::Connection`, `qobject_cast`, `Qt::ConnectionType` (`Auto`, `Direct`, `Queued`, `BlockingQueued`), `QFlags`, `qOverload` |
-| Events and loop | `QEvent`, `QTimerEvent`, `QEventLoop`, `QCoreApplication` (`exec`, `quit`, `postEvent`, `sendEvent`, `processEvents`, `sendPostedEvents`, `aboutToQuit`, `qApp`), `QTimer` (incl. `singleShot`), `QSocketNotifier` (fd readiness via `poll()`) |
+| Object model | `QObject` (parent/child, `connect`/`disconnect` for member slots, functors and context objects, `blockSignals`, `sender()`, `deleteLater()`, `destroyed`, `objectName`, `findChild(ren)`, timers), `QMetaObject::Connection`, `qobject_cast`, `Qt::ConnectionType` (`Auto`, `Direct`, `Queued`), `QFlags`, `qOverload` |
+| Events and loop | `QEvent`, `QTimerEvent`, `QEventLoop`, `QCoreApplication` (`exec`, `quit`, `postEvent`, `sendEvent`, `processEvents`, `aboutToQuit`, `qApp`), `QTimer` (incl. `singleShot`), `QSocketNotifier` (fd readiness via `poll()`) |
 | Text and bytes | `QString` (UTF-16, `arg`, `split`, `number`, `toInt`/`toDouble`, UTF-8/Latin-1 conversion), `QChar`, `QLatin1Char`, `QLatin1StringView`, `QStringView`, `QByteArray` (hex, Base64, percent-encoding, number conversion), `QByteArrayView`, `QByteArrayList`, `QStringList`, `QTextStream` (UTF-8) |
 | Containers | `QList`/`QVector`, `QQueue`, `QStack`, `QMap`, `QMultiMap`, `QHash`, `QMultiHash`, `QSet`, `QVarLengthArray`, `QBitArray`, `QCache`, `QContiguousCache`, `QSpan`, the Java-style iterators (`QListIterator`, `QMutableListIterator`, `QMapIterator`, `QMutableMapIterator`, `QHashIterator`, `QSetIterator`, ...) |
 | Smart pointers | `QPointer`, `QScopedPointer`, `QScopedArrayPointer`, `QSharedPointer`, `QWeakPointer`, `QEnableSharedFromThis`, `QSharedData`, `QSharedDataPointer`, `QExplicitlySharedDataPointer`, `QScopeGuard`, `QScopedValueRollback`, `QSignalBlocker` |
-| Threads | `QThread` (`start`/`quit`/`exit`/`wait`, a real event loop per thread, `create`, interruption, priority, stack size, `currentThread`, `idealThreadCount`), `QObject` thread affinity (timers, `QSocketNotifier`, posted events and `deleteLater` follow the object's thread), cross-thread queued and blocking-queued signals, `QRunnable`, `QThreadPool` (priorities, `tryStart`, `tryTake`, `reserveThread`, expiry), `QThreadStorage` |
 | Threading primitives | `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock`, `QReadLocker`, `QWriteLocker`, `QWaitCondition`, `QSemaphore`, `QSemaphoreReleaser` |
-| Variant and meta | `QVariant` (+ `QVariantList`, `QVariantMap`, `QVariantHash`, `QVariantPair`; conversions, comparison, `QDataStream` and `QDebug` streaming), `QMetaType` (built-in ids as in Qt, `Q_DECLARE_METATYPE`, `qRegisterMetaType`, converters), `QMetaObject` (introspection, `invokeMethod`, `newInstance`, `connectSlotsByName`), `QMetaMethod`, `QMetaProperty`, `QMetaEnum`, `QMetaClassInfo`, `Q_PROPERTY`/`Q_ENUM`/`Q_FLAG`/`Q_GADGET`/`Q_NAMESPACE`/`Q_CLASSINFO`/`Q_INVOKABLE`, `QObject::property()`/`setProperty()`/`dynamicPropertyNames()`/`inherits()`, `QDynamicPropertyChangeEvent`, `SIGNAL()`/`SLOT()` connections, `QGenericArgument`/`Q_ARG`, `QTypeRevision`, `QSequentialIterable`, `QAssociativeIterable` |
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time and fixed offsets), `QDebug`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler` |
-| I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QDirIterator`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QLockFile` (stale-lock detection by dead pid and age), `QFileSystemWatcher` (inotify, with a polling fallback), `QStandardPaths` (XDG), `QSettings` (INI files in Qt's syntax, custom formats, fallbacks, deferred write-back with file locking) |
-| Processes | `QProcess` (event-loop driven `fork`/`execve` with pidfd child watching: channels and redirection, `startDetached`, `execute`, environment, pipelines, `waitFor...()`), `QProcessEnvironment` |
+| I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG) |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
-| URLs | `QUrl` (parsing, RFC 3986 resolution, percent-encoding, formatting options), `QUrlQuery` |
-| Formats: JSON | `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument`, `QJsonParseError`, `QJsonValueRef`/`QJsonValueConstRef` and the STL-style iterators: strict RFC 8259 parser with Qt's error codes and offsets (1024 levels of nesting), `Indented`/`Compact` writer, sorted object keys, exact integers up to 2^53, `QDebug` output. `fromVariant()`/`toVariant()`, `fromVariantMap()`/`toVariantList()` and friends convert to and from `QVariant`; the JSON classes are built-in metatypes |
-| Utilities | `QLibraryInfo`, `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption` |
+| Utilities | `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption` |
 
-Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QUrl` does not convert internationalized host names to or from Punycode; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; a `QObject` must be deleted from its own thread (or while that thread is not handling its events) and `QPointer` is not safe against concurrent destruction, there is no `QThread::terminate()`; the meta-object system needs `ntmoc` (a class it did not process has no meta-object of its own), and there are no bindable properties.
+Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; all `QObject`s must be used from one thread (only `postEvent` is thread-safe); no `QMetaObject` introspection, properties or `SIGNAL()`/`SLOT()` strings.
 
 ### Nt Core: not implemented yet
 
 - **Text:** `QAnyStringView`, `QUtf8StringView`, `QStringConverter`/`QStringEncoder`/`QStringDecoder`, `QStringMatcher`, `QStringTokenizer`, `QLocale`, `QCollator`, `QTextBoundaryFinder`, `QRegularExpression` (+ match classes), `QTranslator`, `QStringListModel`
 - **Containers:** `QKeyValueIterator`
-- **Variant and meta:** `QProperty` and bindable properties, `QObjectCleanupHandler`, `QSignalMapper`
+- **Variant and meta:** `QVariant`, `QMetaType`, `QMetaObject` introspection, `QMetaProperty`/`QMetaMethod`/`QMetaEnum`/`QMetaClassInfo`, `QProperty` and bindable properties, `QTypeRevision`, `QSequentialIterable`/`QAssociativeIterable`, `QObjectCleanupHandler`, `QSignalMapper`
 - **Date and time:** `QTimeZone`, `QCalendar`, `QChronoTimer`, `QTimeLine`
-- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`, `QResource`
-- **Processes and plugins:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
-- **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`/`QMimeData`
-- **Concurrency:** `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`
+- **File system:** `QDirIterator`, `QDirListing`, `QLockFile`, `QFileSystemWatcher`, `QFileSelector`, `QStorageInfo`, `QResource`, `QSettings`
+- **Processes and plugins:** `QProcess`, `QProcessEnvironment`, `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
+- **Formats:** `QJsonValue`/`QJsonObject`/`QJsonArray`/`QJsonDocument`, `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`/`QMimeData`
+- **Concurrency:** `QThread` (and per-thread event loops / cross-thread queued signals), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`
 - **Item models:** `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QAbstractProxyModel`, `QSortFilterProxyModel`, `QIdentityProxyModel`, `QConcatenateTablesProxyModel`, `QTransposeProxyModel`, `QModelIndex`, `QPersistentModelIndex`, `QItemSelection*`, `QRangeModel`
 - **Animation:** `QAbstractAnimation`, `QVariantAnimation`, `QPropertyAnimation`, `QPauseAnimation`, `QSequentialAnimationGroup`, `QParallelAnimationGroup`, `QAnimationGroup`, `QEasingCurve`
-- **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
+- **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLibraryInfo`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDynamicPropertyChangeEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
 
 ### Nt Network: implemented
 
@@ -77,37 +72,30 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 | `QHostInfo` | blocking `fromName`, asynchronous `lookupHost` (functor, with optional context object), `abortHostLookup`, local host and domain names |
 | `QNetworkInterface`, `QNetworkAddressEntry` | list interfaces, flags, type, MTU, hardware address, addresses, netmask, broadcast (Linux) |
 | `QLocalSocket`, `QLocalServer` | Unix domain sockets: event-driven and `waitFor*` APIs, access options, stale-socket recovery |
-| `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client over `http:` and `https:`: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |
-| `QSslSocket`, `QSslServer`, `QSslConfiguration`, `QSslCertificate`, `QSslKey`, `QSslError`, `QSslCipher` | TLS 1.2 and 1.3 through the system OpenSSL (1.1.1 or newer): certificate and host name verification, client certificates, `STARTTLS`, ALPN. Older protocol versions are not offered |
+| `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |
 
-Differences from Qt: `QAbstractSocket::connectToHost` resolves names synchronously, although `QNetworkAccessManager` and `QHostInfo::lookupHost` do not block; `setSocketOption`/`socketOption` take and return `int` instead of `QVariant` until `QVariant` exists; `QUdpSocket` does not report the destination address or hop limit of received datagrams.
+Differences from Qt: `QAbstractSocket::connectToHost` resolves names synchronously, although `QNetworkAccessManager` and `QHostInfo::lookupHost` do not block; `QUdpSocket` does not report the destination address or hop limit of received datagrams.
 
 ### Nt Network: not implemented yet
 
-`QDnsLookup`, `QNetworkProxy`, `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, `QDtls`, HTTP/2, connection reuse and response compression.
+`QDnsLookup`, `QNetworkProxy`, `QSslSocket` and the TLS classes (so no `https:` yet), `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, HTTP/2, connection reuse and response compression.
 
-### Nt Test: implemented
+### Nt D-Bus: implemented
 
-| Area | Notes |
-|---|---|
-| Test cases | `QTest::qExec`, `QTEST_MAIN`, `QTEST_GUILESS_MAIN`, `QTEST_APPLESS_MAIN`; `initTestCase`, `init`, `cleanup`, `cleanupTestCase`; test functions are the private slots found by `ntmoc` |
-| Assertions | `QVERIFY`, `QCOMPARE` and the ordered `QCOMPARE_EQ`/`NE`/`LT`/`LE`/`GT`/`GE`, `QFAIL`, `QSKIP`, `QEXPECT_FAIL`, `QVERIFY_THROWS_EXCEPTION` and `QVERIFY_THROWS_NO_EXCEPTION`, `QTRY_VERIFY` and `QTRY_COMPARE` (with timeout variants) |
-| Data-driven tests | `_data()` functions, `QTest::addColumn`, `QTest::newRow`, `QFETCH`, `QFETCH_GLOBAL`, `QTEST`, `QTestData`, `QFINDTESTDATA` |
-| Signals and events | `QSignalSpy` (and `QSignalSpyArgument`), `QTestEventLoop`, `QTest::qWait` |
-| Output | plain text, JUnit XML and TAP logs, to standard output or a file (`-o file,format`), with `-silent`, `-v1`, `-v2` and `-functions`; run one function or data row with `name[:tag]` |
-
-Differences from Qt: there is no GUI event simulation (`QTest::mouseClick`, `keyClick` and so on) because Nt has no GUI module, and no benchmarking (`QBENCHMARK`).
-
-### Nt Serial Port: implemented
+Nt D-Bus implements the D-Bus wire protocol itself (no libdbus) and works with `dbus-daemon`, `dbus-broker`, GDBus and sd-bus peers.
 
 | Class | Notes |
 |---|---|
-| `QSerialPort` | exclusive open of any terminal device, baud rate per direction (custom rates through `termios2` on Linux), data bits, parity including mark and space, stop bits, hardware and software flow control, DTR/RTS and pinout signals, break, buffered async I/O through the event loop, `waitFor*` blocking API, read-buffer limit, device removal reported as `ResourceError`, device settings restored on close |
-| `QSerialPortInfo` | list ports from sysfs (Linux) with description, manufacturer, serial number and USB or PCI identifiers; standard baud rates |
+| `QDBusConnection` | session, system and activation buses, named connections, peer-to-peer, blocking (`Block`, `BlockWithGui`), asynchronous and callback calls, `registerObject` with all export options and child objects, `registerVirtualObject`, `registerService`, signal connections with argument and signature matching; thread-safe, with one I/O thread for all connections |
+| `QDBusAbstractAdaptor`, `QDBusContext`, `QDBusVirtualObject` | exported interfaces with automatic signal relay, delayed and error replies, objects that handle whole sub-trees; `Introspectable`, `Properties` and `Peer` are answered for every object |
+| `QDBusAbstractInterface`, `QDBusInterface`, `QDBusConnectionInterface` | proxies with typed methods and relayed signals, remote properties, argument conversion from introspection data, the bus daemon's own interface |
+| `QDBusMessage`, `QDBusArgument`, `QDBusMetaType`, `QDBusVariant`, `QDBusObjectPath`, `QDBusSignature`, `QDBusUnixFileDescriptor`, `QDBusError` | the full type system including structures, maps, variants and file-descriptor passing; custom types with `qDBusRegisterMetaType`; every received message is validated |
+| `QDBusReply`, `QDBusPendingCall`, `QDBusPendingCallWatcher`, `QDBusPendingReply` | typed replies with signature checks; `QDBusPendingReply` is variadic |
+| `QDBusServer`, `QDBusServiceWatcher` | a peer-to-peer server (`EXTERNAL`, optional `ANONYMOUS`), watching names including `org.example.*` wildcards |
 
-Guide: [Using Nt Serial Port](https://open-nt.github.io/Nt6/nt-serialport.html) covers settings, errors, permissions (`dialout`/`uucp`, udev rules) and testing with pseudo-terminals. The [`serialterm`](examples/serialport/serialterm.cpp) example lists ports and connects standard input and output to one (`serialterm ttyUSB0 --baud 115200`); it is built with the other examples.
+Guide: [Using Nt D-Bus](https://open-nt.github.io/Nt6/nt-dbus.html). The [`dbus_clock`](examples/dbus/clock.cpp) example exports a clock on the session bus (`dbus_clock server`) and calls it (`dbus_clock client`).
 
-Differences from Qt: `OneAndHalfStop` is not available; bytes with parity or framing errors are dropped; `errorOccurred` is not emitted for `NoError`; `waitForBytesWritten` waits for the whole buffer; exclusive access uses `flock` and `TIOCEXCL` rather than a lock file; no bindable properties.
+Differences from Qt: only `unix:` addresses (no `tcp:`, `nonce-tcp:` or `autolaunch:`), and no `DBUS_COOKIE_SHA1` authentication; `QDBusInterface` has no meta-object built from introspection, so connect to remote signals with `QDBusConnection::connect()`; no `qdbusxml2cpp`, `qdbuscpp2xml`, `qdbus` or `qdbusviewer` tools.
 
 ```cpp
 QTcpServer server;
@@ -122,7 +110,7 @@ Header names match Qt: `#include <QObject>`, `#include <QtCore/QTimer>`, `#inclu
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core` and `Nt::Network` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -131,7 +119,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt module | Nt library | Done |
 |---|---|---|
 | Qt Core | Nt Core | ✔ (partial, see Status) |
-| Qt D-Bus | Nt D-Bus |  |
+| Qt D-Bus | Nt D-Bus | ✔ (see Status) |
 | Qt GUI | Nt GUI |  |
 | Qt Network | Nt Network | ✔ (partial, see Status) |
 | Qt Qml | Nt Qml |  |
@@ -143,7 +131,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Quick Dialogs | Nt Quick Dialogs |  |
 | Qt Quick Layouts | Nt Quick Layouts |  |
 | Qt Quick Test | Nt Quick Test |  |
-| Qt Test | Nt Test | ✔ (partial, see Status) |
+| Qt Test | Nt Test |  |
 | Qt Widgets | Nt Widgets |  |
 
 ### Add-ons
@@ -184,7 +172,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt SCXML | Nt SCXML |  |
 | Qt Sensors | Nt Sensors |  |
 | Qt Serial Bus | Nt Serial Bus |  |
-| Qt Serial Port | Nt Serial Port | ✔ (see Status) |
+| Qt Serial Port | Nt Serial Port |  |
 | Qt Shader Tools | Nt Shader Tools |  |
 | Qt Spatial Audio | Nt Spatial Audio |  |
 | Qt SQL | Nt SQL |  |
@@ -235,7 +223,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 
 ## ntmoc: MIT moc replacement
 
-Qt's moc is not used. `ntmoc` (`tools/ntmoc`) is a small MIT scanner. For each `Q_OBJECT` or `Q_GADGET` class and each `Q_NAMESPACE` namespace it generates the meta-object (signals, slots, `Q_INVOKABLE` methods and constructors, `Q_PROPERTY`, `Q_ENUM`/`Q_FLAG`, `Q_CLASSINFO`), and it generates the bodies of signals declared without one:
+Qt's moc is not used. `ntmoc` (`tools/ntmoc`) is a small MIT scanner that generates the bodies of signals declared without one:
 
 ```cpp
 class Counter : public QObject {
@@ -247,7 +235,7 @@ signals:
 };
 ```
 
-It handles namespaces, nested classes, overloaded signals (use `qOverload`), default arguments (each shorter call is a meta-method of its own, as in Qt) and unnamed parameters. Signals with a hand-written body (`{ emitSignal(&Counter::valueChanged, value); }`) also work, and a `Q_OBJECT` class that ntmoc never processes still compiles and connects with pointers to member functions, but it has no meta-object of its own: `QObject::metaObject()` then returns that of its nearest processed base class, and `SIGNAL()`/`SLOT()` strings cannot name its members. Limitations: classes must have `Q_OBJECT`; signals and slots of template classes are not supported; the preprocessor is not run, so members that macros declare are not seen, and of the conditionals only `#if 0` and tests of the macros given with `-D` (`#ifdef`, `#ifndef`, `defined()`, `!`) are evaluated, so every other `#if` keeps all its branches; parameter names are guessed by a heuristic, not a C++ parser. The Nt libraries are processed too (`nt_moc_library()` in `cmake/NtMoc.cmake`); a new `Q_OBJECT` class in a library ends its source file with `#include "moc_<header>.cpp"`.
+It handles namespaces, nested classes, overloaded signals (use `qOverload`), default arguments and unnamed parameters. Signals with a hand-written body (`{ emitSignal(&Counter::valueChanged, value); }`) also work without ntmoc. Limitations: classes must have `Q_OBJECT`; signals of template classes are not supported; parameter names are guessed by a heuristic, not a C++ parser.
 
 ### CMake
 
@@ -294,11 +282,7 @@ The `docs` target fails on any broken link or bad parameter name. `coverage.txt`
 
 ## Also not supported
 
-`BlockingQueuedConnection`, `UniqueConnection`, bindable properties (`BINDABLE`, `QProperty`) and `qt_metacast()`.
-
-## TLS
-
-Nt Network links the system OpenSSL when it is found, and builds without TLS otherwise, with `QT_NO_SSL` defined and `https:` URLs failing with `ProtocolUnknownError`. Configure with `-DNT_USE_OPENSSL=OFF` to leave it out on purpose. Install `libssl-dev` (Debian, Ubuntu), `openssl-devel` (Enterprise Linux, Fedora) or `openssl` (Arch) to build with it.
+`SIGNAL()`/`SLOT()` string connections, `BlockingQueuedConnection`, `UniqueConnection`, and `Q_PROPERTY`/`Q_GADGET`/`Q_ENUM` (the macros compile to nothing, so `ntmoc` only generates signal bodies).
 
 ## Build
 
@@ -307,12 +291,6 @@ cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
 Requires C++17 and a POSIX system. Link with `Nt::Core` and `Nt::Network` (or the `Qt6::Core` / `Qt6::Network` aliases).
-
-Release is the default build type. Builds add stack-protector, `_FORTIFY_SOURCE` and RELRO hardening (`-DNT_HARDENING=OFF` disables it), and `-DNT_SANITIZE="address;undefined"` (or `thread`) builds with sanitizers.
-
-### Contributing
-
-Run `./check.sh` before every commit (`./check.sh --install-hook` installs a pre-commit hook). It builds with `-Werror`, runs the tests under ASan and UBSan and the thread tests under TSan, requires complete NDoc comments, and runs clang-format, clang-tidy and cppcheck. It needs `cmake`, a C++17 compiler, `clang-format`, `clang-tidy` and `cppcheck`; `ninja` is used when present.
 
 ## Packages
 

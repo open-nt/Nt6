@@ -12,9 +12,20 @@ class QSerialPortPrivate;
 
 class QSerialPort : public QIODevice {
     Q_OBJECT
+    Q_PROPERTY(qint32 baudRate READ baudRate WRITE setBaudRate NOTIFY baudRateChanged)
+    Q_PROPERTY(DataBits dataBits READ dataBits WRITE setDataBits NOTIFY dataBitsChanged)
+    Q_PROPERTY(Parity parity READ parity WRITE setParity NOTIFY parityChanged)
+    Q_PROPERTY(StopBits stopBits READ stopBits WRITE setStopBits NOTIFY stopBitsChanged)
+    Q_PROPERTY(FlowControl flowControl READ flowControl WRITE setFlowControl NOTIFY flowControlChanged)
+    Q_PROPERTY(
+        bool dataTerminalReady READ isDataTerminalReady WRITE setDataTerminalReady NOTIFY dataTerminalReadyChanged)
+    Q_PROPERTY(bool requestToSend READ isRequestToSend WRITE setRequestToSend NOTIFY requestToSendChanged)
+    Q_PROPERTY(SerialPortError error READ error RESET clearError NOTIFY errorOccurred)
+    Q_PROPERTY(bool breakEnabled READ isBreakEnabled WRITE setBreakEnabled NOTIFY breakEnabledChanged)
 public:
     enum Direction { Input = 1, Output = 2, AllDirections = Input | Output };
     Q_DECLARE_FLAGS(Directions, Direction)
+    Q_FLAG(Directions)
 
     enum BaudRate {
         Baud1200 = 1200,
@@ -26,10 +37,15 @@ public:
         Baud57600 = 57600,
         Baud115200 = 115200
     };
+    Q_ENUM(BaudRate)
     enum DataBits { Data5 = 5, Data6 = 6, Data7 = 7, Data8 = 8 };
+    Q_ENUM(DataBits)
     enum Parity { NoParity = 0, EvenParity = 2, OddParity = 3, SpaceParity = 4, MarkParity = 5 };
+    Q_ENUM(Parity)
     enum StopBits { OneStop = 1, OneAndHalfStop = 3, TwoStop = 2 };
+    Q_ENUM(StopBits)
     enum FlowControl { NoFlowControl, HardwareControl, SoftwareControl };
+    Q_ENUM(FlowControl)
     enum PinoutSignal {
         NoSignal = 0x00,
         DataTerminalReadySignal = 0x04,
@@ -42,6 +58,7 @@ public:
         SecondaryReceivedDataSignal = 0x200
     };
     Q_DECLARE_FLAGS(PinoutSignals, PinoutSignal)
+    Q_FLAG(PinoutSignals)
 
     enum SerialPortError {
         NoError,
@@ -56,6 +73,7 @@ public:
         TimeoutError,
         NotOpenError
     };
+    Q_ENUM(SerialPortError)
 
     using Handle = int;
 

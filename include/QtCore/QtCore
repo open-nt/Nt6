@@ -97,3 +97,5 @@
 #include "qsequentialiterable.h"
 #include "qtyperevision.h"
 #include "qvariant.h"
+#include "qlogging.h"
+#include "qloggingcategory.h"

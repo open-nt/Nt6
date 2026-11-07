@@ -164,17 +164,15 @@ private slots:
         QCOMPARE(spy.at(0).size(), 2);
         QCOMPARE(spy.at(0).at(0).toInt(), 7);
         QCOMPARE(spy.at(0).at(1).toString(), "seven");
-        const auto last = spy.takeLast();
+        const QList<QVariant> last = spy.takeLast();
         QCOMPARE(last.at(0).value<int>(), 8);
         QCOMPARE(last.at(0).toDouble(), 8.0);
         QCOMPARE(last.at(0).toLongLong(), 8);
         QVERIFY(last.at(0).toBool());
         QVERIFY(last.at(0).canConvert<long>());
-        QVERIFY(!last.at(1).canConvert<int>());
+        QCOMPARE(last.at(0).typeId(), QMetaType::Int);
         QCOMPARE(last.at(1).toInt(), 0);
-        QVERIFY(QSignalSpyArgument(1).isValid());
-        QVERIFY(!QSignalSpyArgument().isValid());
-        QCOMPARE(QSignalSpyArgument(QByteArray("b")).toByteArray(), QByteArray("b"));
+        QVERIFY(last.at(1).canConvert<QString>());
     }
 
     void spyWithoutArguments() {

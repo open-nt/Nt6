@@ -3,23 +3,6 @@
 #include <QTest>
 
 /*!
-    \class QSignalSpyArgument
-    \brief The QSignalSpyArgument class holds one argument of a signal recorded by QSignalSpy.
-
-    It stands in for QVariant, which Nt does not have yet. Code like
-    \c{spy.at(0).at(0).toInt()} and \c{spy.at(0).at(0).value<MyType>()} reads
-    the same as with Qt.
-
-    \differences
-    This class does not exist in Qt, where the arguments are \c QVariant
-    objects. Write \c{auto arguments = spy.takeFirst();} rather than naming
-    \c{QList<QVariant>}. Only numbers and enums convert to one another.
-    \enddifferences
-
-    \sa QSignalSpy
-*/
-
-/*!
     \class QSignalSpy
     \brief The QSignalSpy class records the emissions of a signal.
 
@@ -34,10 +17,10 @@
     \endcode
 
     \differences
-    The arguments are QSignalSpyArgument objects, not \c QVariant. There is no
-    constructor taking a \c SIGNAL() string or a \c QMetaMethod, no
-    \c signal() function, and no check that the arguments are registered meta
-    types: every signal can be spied on, as long as its arguments can be copied.
+    There is no constructor taking a \c SIGNAL() string or a \c QMetaMethod and
+    no \c signal() function. Arguments are stored with
+    \c QVariant::fromValue(), so every signal can be spied on as long as its
+    arguments can be copied; they need not be registered meta types.
     \enddifferences
 
     \sa QTest::qWaitFor()

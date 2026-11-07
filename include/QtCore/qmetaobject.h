@@ -27,7 +27,7 @@
     \endcode
 
     \differences
-    There is no \c attributes(), and \c invokeOnGadget() is not available.
+    \c invokeOnGadget() is not available.
     Argument types are compared by name, as in Qt, so the types of a queued
     call must be registered with the meta-type system. A
     \c Qt::BlockingQueuedConnection call to an object in the calling thread
@@ -62,6 +62,17 @@ public:
     enum MethodType { Method, Signal, Slot, Constructor };
 
     /*!
+        \enum QMetaMethod::Attributes
+
+        This enum describes properties of a method, which attributes() combines.
+
+        \value Compatibility The method is a compatibility member; \c ntmoc never sets it.
+        \value Cloned The method is an overload that default arguments produced.
+        \value Scriptable The method is declared with \c Q_SCRIPTABLE.
+    */
+    enum Attributes { Compatibility = 0x1, Cloned = 0x2, Scriptable = 0x4 };
+
+    /*!
         Constructs an invalid method.
 
         \sa isValid()
@@ -80,6 +91,7 @@ public:
     QList<QByteArray> parameterTypes() const;
     QList<QByteArray> parameterNames() const;
     const char *tag() const;
+    int attributes() const;
     Access access() const;
     MethodType methodType() const;
     int methodIndex() const;

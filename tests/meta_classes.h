@@ -11,6 +11,23 @@ Q_NAMESPACE
 enum class Level { Low, Mid = 5, High };
 Q_ENUM_NS(Level)
 
+#define MY_TAG
+
+// Q_SCRIPTABLE and a tag in front of the return type.
+class Tagged : public QObject {
+    Q_OBJECT
+public slots:
+    Q_SCRIPTABLE int scripted() { return 1; }
+    MY_TAG void tagged() {}
+    Q_SCRIPTABLE MY_TAG QString both() { return QString(); }
+    void plain(int = 0) {}
+signals:
+    Q_SCRIPTABLE void scriptedSignal();
+
+public:
+    Q_SCRIPTABLE int invokable() { return 2; }
+};
+
 class Shape : public QObject {
     Q_OBJECT
     Q_CLASSINFO("Author", "Nt")

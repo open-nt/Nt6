@@ -739,9 +739,10 @@ private:
     headers and transfer settings.
 
     \differences
-    Attributes are not supported, as they need QVariant. setRedirectPolicy(),
+    Attributes are stored and returned, but none of them changes how the
+    request is sent; setRedirectPolicy(),
     setMaximumRedirectsAllowed() and setTransferTimeout() cover the common
-    ones. Known headers are read and written as QByteArray rather than
+    settings. Known headers are read and written as QByteArray rather than
     QVariant. There is no priority or HTTP/2 setting, and no
     \c UserVerifiedRedirectPolicy.
     \enddifferences
@@ -876,6 +877,75 @@ void QNetworkRequest::setRawHeader(const QByteArray &headerName, const QByteArra
 }
 
 /*!
+    \enum QNetworkRequest::Attribute
+
+    Keys for the values attached to a request with setAttribute() or reported
+    on a reply with QNetworkReply::attribute(). Only the first group is
+    produced by a reply; the rest are stored on a request but have no effect.
+
+    \value HttpStatusCodeAttribute The HTTP status code, as an \c int. Reply only.
+    \value HttpReasonPhraseAttribute The HTTP reason phrase, as a QByteArray. Reply only.
+    \value RedirectionTargetAttribute The \c Location of a redirect that was not followed, as a QUrl, possibly relative. Reply only.
+    \value ConnectionEncryptedAttribute \c true if the reply came over TLS. Reply only.
+    \value SourceIsFromCacheAttribute Always \c false, as there is no cache. Reply only.
+    \value HttpPipeliningWasUsedAttribute Always \c false. Reply only.
+    \value Http2WasUsedAttribute Always \c false. Reply only.
+    \value CacheLoadControlAttribute Stored only.
+    \value CacheSaveControlAttribute Stored only.
+    \value DoNotBufferUploadDataAttribute Stored only.
+    \value HttpPipeliningAllowedAttribute Stored only.
+    \value CustomVerbAttribute Stored only.
+    \value CookieLoadControlAttribute Stored only.
+    \value AuthenticationReuseAttribute Stored only.
+    \value CookieSaveControlAttribute Stored only.
+    \value MaximumDownloadBufferSizeAttribute Stored only.
+    \value DownloadBufferAttribute Stored only.
+    \value SynchronousRequestAttribute Stored only.
+    \value BackgroundRequestAttribute Stored only.
+    \value EmitAllUploadProgressSignalsAttribute Stored only.
+    \value Http2AllowedAttribute Stored only.
+    \value OriginalContentLengthAttribute Stored only.
+    \value RedirectPolicyAttribute Stored only; use setRedirectPolicy().
+    \value Http2DirectAttribute Stored only.
+    \value ResourceTypeAttribute Stored only.
+    \value AutoDeleteReplyOnFinishAttribute Stored only.
+    \value ConnectionCacheExpiryTimeoutSecondsAttribute Stored only.
+    \value Http2CleartextAllowedAttribute Stored only.
+    \value UseCredentialsAttribute Stored only.
+    \value User The first code reserved for applications.
+    \value UserMax The last code reserved for applications.
+*/
+
+/*!
+    Returns the value stored for \a code, or \a defaultValue if none is set.
+
+    \sa setAttribute()
+*/
+QVariant QNetworkRequest::attribute(Attribute code, const QVariant &defaultValue) const {
+    for (const auto &a : m_attributes)
+        if (a.first == static_cast<int>(code))
+            return a.second;
+    return defaultValue;
+}
+
+/*!
+    Stores \a value for \a code, replacing any previous value. An invalid
+    QVariant removes the attribute.
+
+    \sa attribute()
+*/
+void QNetworkRequest::setAttribute(Attribute code, const QVariant &value) {
+    for (qsizetype i = 0; i < m_attributes.size(); ++i) {
+        if (m_attributes.at(i).first == static_cast<int>(code)) {
+            m_attributes.removeAt(i);
+            break;
+        }
+    }
+    if (value.isValid())
+        m_attributes.append({static_cast<int>(code), value});
+}
+
+/*!
     Returns the redirect policy. The default is NoLessSafeRedirectPolicy.
 
     \sa setRedirectPolicy()
@@ -949,8 +1019,9 @@ void QNetworkRequest::setSslConfiguration(const QSslConfiguration &configuration
     status such as 404 sets error(), and its body stays readable.
 
     \differences
-    Attributes are not supported, as they need QVariant; use httpStatusCode()
-    and httpReasonPhrase() in place of the status attributes. header() returns
+    Only the attributes listed under QNetworkRequest::Attribute as reply
+    attributes are produced; the others read back what the request stored.
+    header() returns
     QByteArray. Unlike Qt, the whole response stays buffered until read, with
     no read buffer limit. There are no proxy errors, as proxies do not exist
     yet.
@@ -1056,6 +1127,39 @@ int QNetworkReply::httpStatusCode() const { return m_status; }
     \sa httpStatusCode()
 */
 QByteArray QNetworkReply::httpReasonPhrase() const { return m_reason; }
+
+/*!
+    Returns the attribute for \a code, or an invalid QVariant if it has none.
+    Status, reason, redirect target and encryption are taken from the
+    response; any other code returns what the request stored with
+    QNetworkRequest::setAttribute(), which is how applications tag a request
+    and find the tag again in the reply.
+
+    \sa httpStatusCode(), request()
+*/
+QVariant QNetworkReply::attribute(QNetworkRequest::Attribute code) const {
+    const bool answered = m_status > 0;
+    switch (code) {
+    case QNetworkRequest::HttpStatusCodeAttribute:
+        return answered ? QVariant(m_status) : QVariant();
+    case QNetworkRequest::HttpReasonPhraseAttribute:
+        return answered ? QVariant(m_reason) : QVariant();
+    case QNetworkRequest::RedirectionTargetAttribute: {
+        const QByteArray location = header(QNetworkRequest::LocationHeader);
+        const bool redirect = m_status == 301 || m_status == 302 || m_status == 303 || m_status == 305 ||
+                              m_status == 307 || m_status == 308;
+        return redirect && !location.isEmpty() ? QVariant::fromValue(QUrl(QString::fromUtf8(location))) : QVariant();
+    }
+    case QNetworkRequest::ConnectionEncryptedAttribute:
+        return answered ? QVariant(m_url.scheme().compare(QString("https"), Qt::CaseInsensitive) == 0) : QVariant();
+    case QNetworkRequest::SourceIsFromCacheAttribute:
+    case QNetworkRequest::HttpPipeliningWasUsedAttribute:
+    case QNetworkRequest::Http2WasUsedAttribute:
+        return answered ? QVariant(false) : QVariant();
+    default:
+        return m_request.attribute(code);
+    }
+}
 
 /*!
     Returns the value of the known \a header.

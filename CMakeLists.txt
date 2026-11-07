@@ -34,8 +34,8 @@ add_library(NtCore
     src/qdiriterator.cpp
     src/qeventloop.cpp
     src/qfile.cpp
-    src/qfilesystemwatcher.cpp
     src/qfileinfo.cpp
+    src/qfilesystemwatcher.cpp
     src/qiodevice.cpp
     src/qjsonarray.cpp
     src/qjsondocument.cpp
@@ -46,6 +46,8 @@ add_library(NtCore
     src/qjsonwriter.cpp
     src/qlibraryinfo.cpp
     src/qlockfile.cpp
+    src/qlogging.cpp
+    src/qloggingcategory.cpp
     src/qmetaobject.cpp
     src/qmetatype.cpp
     src/qmetatype_convert.cpp
@@ -155,6 +157,40 @@ target_include_directories(NtSerialPort
 target_link_libraries(NtSerialPort PUBLIC NtCore)
 nt_set_compile_options(NtSerialPort)
 
+add_library(NtDBus
+    src/dbus/qdbusabstractadaptor.cpp
+    src/dbus/qdbusabstractinterface.cpp
+    src/dbus/qdbusargument.cpp
+    src/dbus/qdbusconnection.cpp
+    src/dbus/qdbusconnectioninterface.cpp
+    src/dbus/qdbuscontext.cpp
+    src/dbus/qdbuserror.cpp
+    src/dbus/qdbusextratypes.cpp
+    src/dbus/qdbusinterface.cpp
+    src/dbus/qdbusmessage.cpp
+    src/dbus/qdbusmetatype.cpp
+    src/dbus/qdbusobjects.cpp
+    src/dbus/qdbuspendingcall.cpp
+    src/dbus/qdbusserver.cpp
+    src/dbus/qdbusservicewatcher.cpp
+    src/dbus/qdbustransport_unix.cpp
+    src/dbus/qdbusunixfiledescriptor.cpp
+    src/dbus/qdbusutil.cpp
+    src/dbus/qdbusvirtualobject.cpp
+)
+add_library(Nt::DBus ALIAS NtDBus)
+add_library(Qt6::DBus ALIAS NtDBus)
+target_include_directories(NtDBus
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtDBus>
+        $<INSTALL_INTERFACE:include/nt6/QtDBus>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/dbus
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtDBus PUBLIC NtCore)
+nt_set_compile_options(NtDBus)
+
 add_library(NtTest
     src/test/qsignalspy.cpp
     src/test/qtestcase.cpp
@@ -188,6 +224,7 @@ endif()
 nt_moc_library(NtNetwork include/QtNetwork)
 set(NT_MOC_DEFINES)
 nt_moc_library(NtSerialPort include/QtSerialPort)
+nt_moc_library(NtDBus include/QtDBus)
 
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
@@ -310,6 +347,11 @@ if(NT_BUILD_TESTS)
     nt_enable_automoc(nt_test_tests)
     add_test(NAME nt_test_tests COMMAND nt_test_tests)
 
+    add_executable(nt_logging_tests tests/test_logging.cpp tests/test_logging_nooutput.cpp)
+    target_link_libraries(nt_logging_tests PRIVATE Nt::Core)
+    add_test(NAME nt_logging_tests COMMAND nt_logging_tests)
+    nt_set_compile_options(nt_logging_tests)
+
     add_executable(nt_thread_tests tests/test_threads.cpp)
     target_link_libraries(nt_thread_tests PRIVATE Nt::Core)
     add_test(NAME nt_thread_tests COMMAND nt_thread_tests)
@@ -323,6 +365,22 @@ if(NT_BUILD_TESTS)
     nt_enable_automoc(nt_meta_tests)
     target_compile_definitions(nt_meta_tests PRIVATE NT_META_FEATURE)
     nt_set_compile_options(nt_meta_tests)
+
+    # The D-Bus tests start a private bus with dbus-daemon, and skip those tests without it.
+    find_program(NT_DBUS_DAEMON_EXECUTABLE dbus-daemon)
+    find_program(NT_DBUS_SEND_EXECUTABLE dbus-send)
+    nt_wrap_cpp(dbus_test_sources tests/dbus_classes.h)
+    add_executable(nt_dbus_tests tests/test_dbus.cpp ${dbus_test_sources})
+    target_include_directories(nt_dbus_tests PRIVATE tests src/dbus)
+    target_link_libraries(nt_dbus_tests PRIVATE Nt::DBus Nt::Test)
+    if(NT_DBUS_DAEMON_EXECUTABLE)
+        target_compile_definitions(nt_dbus_tests PRIVATE NT_DBUS_DAEMON="${NT_DBUS_DAEMON_EXECUTABLE}")
+    endif()
+    if(NT_DBUS_SEND_EXECUTABLE)
+        target_compile_definitions(nt_dbus_tests PRIVATE NT_DBUS_SEND="${NT_DBUS_SEND_EXECUTABLE}")
+    endif()
+    add_test(NAME nt_dbus_tests COMMAND nt_dbus_tests)
+    nt_set_compile_options(nt_dbus_tests)
 
     add_executable(nt_variant_tests tests/test_variant.cpp)
     target_link_libraries(nt_variant_tests PRIVATE Nt::Core)
@@ -359,4 +417,10 @@ if(NT_BUILD_EXAMPLES)
     add_executable(serialterm examples/serialport/serialterm.cpp)
     target_link_libraries(serialterm PRIVATE Nt::SerialPort)
     nt_set_compile_options(serialterm)
+
+    # A clock on the session bus; see "Using Nt D-Bus" in the documentation.
+    add_executable(dbus_clock examples/dbus/clock.cpp)
+    target_link_libraries(dbus_clock PRIVATE Nt::DBus)
+    nt_enable_automoc(dbus_clock)
+    nt_set_compile_options(dbus_clock)
 endif()

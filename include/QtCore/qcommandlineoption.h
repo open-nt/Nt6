@@ -96,6 +96,16 @@ public:
         \sa flags()
     */
     void setFlags(Flags f) { m_flags = f; }
+    /*!
+        Swaps this option with \a other.
+    */
+    void swap(QCommandLineOption &other) noexcept {
+        m_names.swap(other.m_names);
+        m_valueName.swap(other.m_valueName);
+        m_description.swap(other.m_description);
+        m_defaults.swap(other.m_defaults);
+        std::swap(m_flags, other.m_flags);
+    }
 
 private:
     QStringList m_names;

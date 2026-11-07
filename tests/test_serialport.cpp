@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
+#include <string>
 
 static int g_failures = 0;
 #define CHECK(cond)                                                                                                    \
@@ -651,6 +652,35 @@ static void testSystemPorts() {
     CHECK(QSerialPortInfo(QSerialPort("nt-no-such-port")).isNull());
 }
 
+static void testMetaObject() {
+    QSerialPort port;
+    const QMetaObject *mo = port.metaObject();
+    CHECK(std::string(mo->className()) == "QSerialPort");
+    for (const char *name : {"baudRate", "dataBits", "parity", "stopBits", "flowControl", "dataTerminalReady",
+                             "requestToSend", "error", "breakEnabled"}) {
+        const QMetaProperty property = mo->property(mo->indexOfProperty(name));
+        CHECK(property.isValid() && property.hasNotifySignal());
+    }
+
+    CHECK(port.setProperty("baudRate", 57600) && port.baudRate() == 57600);
+    CHECK(port.property("baudRate").toInt() == 57600);
+    const QMetaProperty parity = mo->property(mo->indexOfProperty("parity"));
+    CHECK(parity.isEnumType() && std::string(parity.enumerator().name()) == "Parity");
+    CHECK(std::string(parity.enumerator().valueToKey(QSerialPort::MarkParity)) == "MarkParity");
+
+    const QMetaEnum errors = mo->enumerator(mo->indexOfEnumerator("SerialPortError"));
+    CHECK(errors.isValid() && std::string(errors.valueToKey(QSerialPort::NotOpenError)) == "NotOpenError");
+    const QMetaEnum directions = mo->enumerator(mo->indexOfEnumerator("Directions"));
+    CHECK(directions.isValid() && directions.isFlag());
+    for (const char *name : {"BaudRate", "DataBits", "StopBits", "FlowControl", "PinoutSignals"})
+        CHECK(mo->indexOfEnumerator(name) >= 0);
+
+    // The error property resets through clearError().
+    port.close();
+    CHECK(port.error() == QSerialPort::NotOpenError);
+    CHECK(mo->property(mo->indexOfProperty("error")).reset(&port) && port.error() == QSerialPort::NoError);
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testClosedPort();
@@ -667,6 +697,7 @@ int main(int argc, char **argv) {
     testLifetime();
     testPortList();
     testSystemPorts();
+    testMetaObject();
     if (g_failures == 0)
         std::puts("all serial port tests passed");
     return g_failures == 0 ? 0 : 1;

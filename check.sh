@@ -241,7 +241,7 @@ check_tsan() {
     need "$cxx" || return $?
     mkdir -p "$probe"
     printf 'int main() { return 0; }\n' > "$probe/probe.cpp"
-    if ! "$cxx" -fsanitize=thread "$probe/probe.cpp" -o "$probe/probe" > /dev/null 2>&1 || ! "$probe/probe" > /dev/null 2>&1; then
+    if ! "$cxx" -fsanitize=thread "$probe/probe.cpp" -o "$probe/probe" 2>&1 || ! "$probe/probe" 2>&1; then
         if [ "${NT_CHECK_ALLOW_MISSING:-0}" = 1 ]; then
             echo "SKIPPED: ThreadSanitizer does not work with $cxx"
             skipped+=("tsan")

@@ -36,6 +36,8 @@ target_include_directories(NtCore
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtCore>
+        $<INSTALL_INTERFACE:include/nt6>
+        $<INSTALL_INTERFACE:include/nt6/QtCore>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
@@ -56,6 +58,7 @@ add_library(Qt6::Network ALIAS NtNetwork)
 target_include_directories(NtNetwork
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtNetwork>
+        $<INSTALL_INTERFACE:include/nt6/QtNetwork>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/network
         ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -92,6 +95,11 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         COMMENT "Writing version badge"
         VERBATIM)
     add_dependencies(docs badge)
+endif()
+
+if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtInstall.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtPackaging.cmake)
 endif()
 
 if(NT_BUILD_TESTS)

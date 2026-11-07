@@ -1,0 +1,37 @@
+@PACKAGE_INIT@
+
+# Nt 6: provides Nt6::Core, Nt6::Network, and the tools Nt6::moc and Nt6::ndoc.
+# Nt::Core and friends are aliases, so code written against a build tree works unchanged.
+
+if(CMAKE_VERSION VERSION_LESS 3.18)
+    message(FATAL_ERROR "Nt6 needs CMake 3.18 or newer")
+endif()
+
+include(CMakeFindDependencyMacro)
+find_dependency(Threads)
+
+include("${CMAKE_CURRENT_LIST_DIR}/Nt6Targets.cmake")
+
+foreach(module Core Network)
+    if(NOT TARGET Nt::${module})
+        add_library(Nt::${module} ALIAS Nt6::${module})
+    endif()
+endforeach()
+
+# NtMoc.cmake and NtDoc.cmake refer to the tools by their build-tree names.
+foreach(tool moc ndoc)
+    if(NOT TARGET Nt::${tool})
+        add_executable(Nt::${tool} ALIAS Nt6::${tool})
+    endif()
+endforeach()
+if(NOT TARGET ntmoc)
+    add_executable(ntmoc ALIAS Nt6::moc)
+endif()
+if(NOT TARGET ndoc)
+    add_executable(ndoc ALIAS Nt6::ndoc)
+endif()
+
+include("${CMAKE_CURRENT_LIST_DIR}/NtMoc.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/NtDoc.cmake")
+
+check_required_components(Nt6)

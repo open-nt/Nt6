@@ -275,7 +275,7 @@ private:
     do not exist. There is no category for a \c QObject.
     \enddifferences
 
-    \sa QMessageLogger, QDebug, qInstallMessageHandler()
+    \sa QMessageLogger, QDebug
 */
 
 QLoggingCategory::QLoggingCategory(const char *category, QtMsgType severityLevel)

@@ -177,10 +177,90 @@ public:
     static QRandomGenerator securelySeeded();
 
 private:
+    friend class QRandomGenerator64;
     struct SystemTag {};
     explicit QRandomGenerator(SystemTag) : m_system(true) {}
 
     bool m_system = false;
     bool m_locked = false;
     std::mt19937 m_engine;
+};
+
+/*!
+    \class QRandomGenerator64
+    \brief The QRandomGenerator64 class allows one to obtain 64-bit random values from a high-quality Random Number Generator.
+
+    It is a QRandomGenerator whose generate() and call operator return 64-bit
+    values, so it can feed the standard \c <random> distributions that need a
+    64-bit source. All other functions are inherited.
+
+    \code
+    quint64 id = QRandomGenerator64::global()->generate();
+    \endcode
+
+    \sa QRandomGenerator
+*/
+class QRandomGenerator64 : public QRandomGenerator {
+public:
+    /*!
+        The type of the values that the generator returns, \c quint64.
+    */
+    using result_type = quint64;
+
+    /*!
+        Constructs a generator seeded with \a seedValue. The same seed always
+        produces the same sequence.
+    */
+    QRandomGenerator64(quint32 seedValue = 1) : QRandomGenerator(seedValue) {}
+    /*!
+        \overload
+
+        Constructs a generator seeded from the \a len values at \a seedBuffer.
+    */
+    QRandomGenerator64(const quint32 *seedBuffer, qsizetype len) : QRandomGenerator(seedBuffer, len) {}
+    /*!
+        \overload
+
+        Constructs a generator seeded from all \c N values of \a seedBuffer.
+    */
+    template <std::size_t N>
+    QRandomGenerator64(const quint32 (&seedBuffer)[N]) : QRandomGenerator(seedBuffer, static_cast<qsizetype>(N)) {}
+
+    /*!
+        Returns a random 64-bit value.
+
+        \sa bounded()
+    */
+    quint64 generate() { return generate64(); }
+    /*!
+        Returns a random 64-bit value, the same as generate(). This lets the
+        generator be used with the C++ standard library's distributions.
+    */
+    result_type operator()() { return generate(); }
+    /*!
+        Discards the next \a z values of the sequence.
+    */
+    void discard(unsigned long long z) {
+        for (; z; --z)
+            generate();
+    }
+    /*!
+        Returns the smallest value that generate() can return, 0.
+
+        \sa max()
+    */
+    static constexpr result_type min() { return 0; }
+    /*!
+        Returns the largest value that generate() can return, 0xffffffffffffffff.
+
+        \sa min()
+    */
+    static constexpr result_type max() { return std::numeric_limits<result_type>::max(); }
+
+    static QRandomGenerator64 *system();
+    static QRandomGenerator64 *global();
+    static QRandomGenerator64 securelySeeded();
+
+private:
+    explicit QRandomGenerator64(SystemTag) : QRandomGenerator(SystemTag{}) {}
 };

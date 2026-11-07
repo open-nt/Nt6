@@ -6,7 +6,10 @@
 #define QT_NO_WARNING_OUTPUT
 #include <QtCore>
 
+Q_DECLARE_LOGGING_CATEGORY(lcNoOutput)
 Q_LOGGING_CATEGORY(lcNoOutput, "no.output")
+
+int noOutputCompiledOut(int *evaluated);
 
 int noOutputCompiledOut(int *evaluated) {
     static int delivered = 0;

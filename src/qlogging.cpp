@@ -360,7 +360,7 @@ bool fatalFor(QtMsgType type) {
     context is always present unless \c QT_NO_MESSAGELOGCONTEXT is defined.
     \enddifferences
 
-    \sa QDebug, QLoggingCategory, qInstallMessageHandler()
+    \sa QDebug, QLoggingCategory
 */
 
 void qt_message_output(QtMsgType type, const QMessageLogContext &context, const QString &message) {
@@ -384,7 +384,7 @@ void qt_message_output(QtMsgType type, const QMessageLogContext &context, const 
         std::abort();
 }
 
-/*!
+/*
     Installs \a handler as the message handler and returns the previous
     handler, or \c nullptr if there was none. Pass \c nullptr to restore the
     default handler, which writes each message to \c stderr in the format set
@@ -403,7 +403,7 @@ QtMessageHandler qInstallMessageHandler(QtMessageHandler handler) {
     return old;
 }
 
-/*!
+/*
     Changes the format of the messages written by the default message
     handler to \a messagePattern. The pattern is text in which these
     placeholders are replaced:
@@ -460,7 +460,7 @@ void qSetMessagePattern(const QString &messagePattern) {
         p.tokens = parsePattern(messagePattern.isEmpty() ? kDefaultPattern : messagePattern.toStdString());
 }
 
-/*!
+/*
     Returns \a str formatted according to the current message pattern, as
     the default message handler would write it, for a message of the given
     \a type and \a context. A custom message handler can call this to keep

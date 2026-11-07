@@ -217,6 +217,26 @@ void QCoreApplication::exit(int returnCode) {
 */
 void QCoreApplication::quit() { exit(0); }
 
+namespace {
+std::atomic<bool> g_quitLockEnabled{true};
+}
+
+/*!
+    Sets whether the application quits when the last QEventLoopLocker created
+    without a target is destroyed to \a enabled. The default is \c true.
+
+    \sa isQuitLockEnabled(), QEventLoopLocker
+*/
+void QCoreApplication::setQuitLockEnabled(bool enabled) { g_quitLockEnabled.store(enabled); }
+
+/*!
+    Returns \c true if the application quits when the last QEventLoopLocker
+    created without a target is destroyed.
+
+    \sa setQuitLockEnabled()
+*/
+bool QCoreApplication::isQuitLockEnabled() { return g_quitLockEnabled.load(); }
+
 /*!
     Processes pending events once according to \a flags. With
     \c QEventLoop::WaitForMoreEvents the call blocks until an event is

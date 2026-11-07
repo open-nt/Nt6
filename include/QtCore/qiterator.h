@@ -690,10 +690,10 @@ using QMutableHashIterator = QAssocMutableIterator<QHash<K, V>, K, V, false>;
     \differences
     The iterator moves forward only: there is no \c toBack(), \c hasPrevious(),
     \c previous(), \c peekPrevious() or \c findPrevious(), and it cannot be
-    assigned a new set. There is no mutable counterpart.
+    assigned a new set.
     \enddifferences
 
-    \sa QListIterator, QSet
+    \sa QMutableSetIterator, QListIterator, QSet
 */
 template <typename T>
 class QSetIterator {
@@ -747,4 +747,111 @@ public:
 private:
     const QSet<T> *c;
     typename QSet<T>::const_iterator i;
+};
+
+/*!
+    \class QMutableSetIterator
+    \brief The QMutableSetIterator class provides a Java-style non-const iterator for QSet.
+
+    QMutableSetIterator<T> iterates forward over a set and can remove values
+    from it. The iterator points between values: next() returns the value it
+    jumps over, and remove() removes that value.
+
+    \code
+    QSet<int> set = {1, 2, 3, 4};
+    QMutableSetIterator<int> it(set);
+    while (it.hasNext())
+        if (it.next() % 2 == 0)
+            it.remove();
+    \endcode
+
+    Values in a set cannot be changed in place, so unlike the list and map
+    iterators there is no \c setValue().
+
+    \differences
+    The iterator moves forward only: there is no \c toBack(), \c hasPrevious(),
+    \c previous(), \c peekPrevious() or \c findPrevious(), and it cannot be
+    assigned a new set.
+    \enddifferences
+
+    \sa QSetIterator, QMutableListIterator, QSet
+*/
+template <typename T> class QMutableSetIterator {
+public:
+    /*!
+    Constructs an iterator for traversing \a set. The iterator is set to be at
+    the front of the set, before the first value.
+
+    \sa toFront()
+    */
+    explicit QMutableSetIterator(QSet<T> &set) : c(&set), i(c->begin()), n(c->end()) {}
+    /*!
+    Moves the iterator to the front of the set, before the first value.
+
+    \sa next()
+    */
+    void toFront() {
+        i = c->begin();
+        n = c->end();
+    }
+    /*!
+    Returns \c true if there is at least one value ahead of the iterator;
+    otherwise returns \c false.
+
+    \sa next()
+    */
+    bool hasNext() const { return i != c->end(); }
+    /*!
+    Returns the next value and advances the iterator by one position. Calling
+    this function when the iterator is at the back of the set is undefined.
+
+    \sa hasNext(), peekNext(), remove()
+    */
+    const T &next() {
+        n = i++;
+        return *n;
+    }
+    /*!
+    Returns the next value without moving the iterator. Calling this function
+    when the iterator is at the back of the set is undefined.
+
+    \sa hasNext(), next()
+    */
+    const T &peekNext() const { return *i; }
+    /*!
+    Searches for \a v forward from the iterator position. Returns \c true if a
+    value equal to \a v is found, leaving the iterator just after it; otherwise
+    returns \c false and leaves the iterator at the back of the set.
+    */
+    bool findNext(const T &v) {
+        while (hasNext())
+            if (next() == v)
+                return true;
+        return false;
+    }
+    /*!
+    Removes the value that next() last returned. Does nothing if next() has not
+    been called since the iterator was created, moved to the front or last
+    removed a value.
+
+    \sa next()
+    */
+    void remove() {
+        if (n != c->end()) {
+            c->erase(n);
+            n = c->end();
+        }
+    }
+    /*!
+    Returns the value that next() last returned. Calling this function before
+    next() is undefined.
+
+    \sa next(), remove()
+    */
+    const T &value() const { return *n; }
+
+private:
+    QSet<T> *c;
+    typename QSet<T>::const_iterator i;
+    typename QSet<T>::const_iterator n;
 };

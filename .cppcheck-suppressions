@@ -5,3 +5,8 @@ returnByReference
 duplInheritedMember:include/QtCore/qstringlist.h
 // cppcheck cannot parse a ternary inside a doc-commented member of QList.
 internalAstError:include/QtCore/qlist.h
+// QRandomGenerator64 hides generate() and the static factories of QRandomGenerator, as in Qt.
+duplInheritedMember:src/qrandom.cpp
+duplInheritedMember:include/QtCore/qrandom.h
+// cppcheck cannot parse a ternary with a value-initialised temporary in the associative containers.
+internalAstError:include/QtCore/qassoc_p.h

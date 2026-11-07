@@ -50,7 +50,7 @@ std::mutex g_globalLock;
     system() and global() are.
 
     \differences
-    There is no \c QRandomGenerator64, no \c operator==, \c operator<< or
+    There is no \c operator==, \c operator<< or
     \c operator>> on the generator, no constructor taking a
     \c std::seed_seq, and no \c bounded() overload with two \c quint64 limits.
     A seeded generator uses \c std::mt19937. system() reads from
@@ -163,4 +163,41 @@ QRandomGenerator QRandomGenerator::securelySeeded() {
     quint32 seed[8];
     systemBytes(seed, sizeof seed);
     return QRandomGenerator(seed);
+}
+
+/*!
+    Returns the process-wide generator that reads from the operating system's
+    random number source. It is cryptographically secure and thread-safe.
+
+    \sa global(), securelySeeded()
+*/
+QRandomGenerator64 *QRandomGenerator64::system() {
+    static QRandomGenerator64 generator{SystemTag{}};
+    return &generator;
+}
+
+/*!
+    Returns the process-wide pseudo-random generator, which is seeded once
+    from system(). It is thread-safe but not suitable for cryptographic use.
+
+    \sa system(), securelySeeded()
+*/
+QRandomGenerator64 *QRandomGenerator64::global() {
+    static QRandomGenerator64 *generator = [] {
+        static QRandomGenerator64 g = securelySeeded();
+        g.m_locked = true;
+        return &g;
+    }();
+    return generator;
+}
+
+/*!
+    Returns a new generator that is seeded with random data from system().
+
+    \sa system(), global()
+*/
+QRandomGenerator64 QRandomGenerator64::securelySeeded() {
+    quint32 seed[8];
+    systemBytes(seed, sizeof seed);
+    return QRandomGenerator64(seed);
 }

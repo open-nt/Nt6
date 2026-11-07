@@ -85,7 +85,7 @@ public:
     */
     constexpr QNoDebug() noexcept = default;
     /*!
-        Discards \a value and returns a reference to the stream.
+        Discards the value and returns a reference to the stream.
     */
     template <typename T>
     QNoDebug &operator<<(const T &) noexcept {

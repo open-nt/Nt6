@@ -3,6 +3,7 @@
 
 #include <QtCore/qflags.h>
 #include <QtCore/qobject.h>
+#include <QtCore/qpointer.h>
 
 #include <memory>
 
@@ -45,3 +46,20 @@ private:
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QEventLoop::ProcessEventsFlags)
+
+class QThread;
+
+class QEventLoopLocker {
+public:
+    QEventLoopLocker();
+    explicit QEventLoopLocker(QEventLoop *loop);
+    explicit QEventLoopLocker(QThread *thread);
+    ~QEventLoopLocker();
+    Q_DISABLE_COPY(QEventLoopLocker)
+
+private:
+    enum class Kind { Application, Loop, Thread };
+    Kind m_kind;
+    QPointer<QObject> m_target;
+    const QObject *m_key;
+};

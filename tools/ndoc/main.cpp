@@ -724,6 +724,7 @@ private:
                     Access access) {
         bool signalSection = false;
         bool slotSection = false;
+        std::shared_ptr<Doc> carried; // the comment above a [[attribute]]
 
         while (i < end) {
             const std::string &t = T(i);
@@ -761,7 +762,17 @@ private:
                 }
             }
 
-            std::shared_ptr<Doc> doc = takeDoc(i);
+            if (t == "[" && T(i + 1) == "[") {
+                if (!carried)
+                    carried = takeDoc(i);
+                while (i < end && T(i) != "]")
+                    ++i;
+                i += 2;
+                continue;
+            }
+
+            std::shared_ptr<Doc> doc = carried ? std::move(carried) : takeDoc(i);
+            carried = nullptr;
 
             if (t == "Q_DECLARE_FLAGS" && T(i + 1) == "(" && T(i + 3) == "," && T(i + 5) == ")") {
                 Member m;
@@ -780,13 +791,6 @@ private:
                     i = matchParen(i) + 1;
                 continue;
             }
-            if (t == "[" && T(i + 1) == "[") {
-                while (i < end && T(i) != "]")
-                    ++i;
-                i += 2;
-                continue;
-            }
-
             std::string tmpl;
             const std::size_t declStart = i;
             std::size_t b = i;

@@ -33,9 +33,11 @@ add_library(NtCore
     src/qdir.cpp
     src/qdiriterator.cpp
     src/qeventloop.cpp
+    src/qexception.cpp
     src/qfile.cpp
     src/qfileinfo.cpp
     src/qfilesystemwatcher.cpp
+    src/qfloat16.cpp
     src/qiodevice.cpp
     src/qjsonarray.cpp
     src/qjsondocument.cpp
@@ -53,15 +55,18 @@ add_library(NtCore
     src/qmetatype_convert.cpp
     src/qmetatype_streams.cpp
     src/qobject.cpp
+    src/qobjectcleanuphandler.cpp
     src/qprocess.cpp
     src/qrandom.cpp
     src/qrunnable.cpp
     src/qsavefile.cpp
     src/qsettings.cpp
     src/qsettings_ini.cpp
+    src/qsignalmapper.cpp
     src/qsocketnotifier.cpp
     src/qstandardpaths.cpp
     src/qstring.cpp
+    src/qsysinfo.cpp
     src/qtemporaryfile.cpp
     src/qtextstream.cpp
     src/qthread.cpp
@@ -356,6 +361,11 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_thread_tests PRIVATE Nt::Core)
     add_test(NAME nt_thread_tests COMMAND nt_thread_tests)
     nt_set_compile_options(nt_thread_tests)
+
+    add_executable(nt_core_utils_tests tests/test_core_utils.cpp)
+    target_link_libraries(nt_core_utils_tests PRIVATE Nt::Core)
+    add_test(NAME nt_core_utils_tests COMMAND nt_core_utils_tests)
+    nt_set_compile_options(nt_core_utils_tests)
 
     nt_wrap_cpp(meta_test_sources tests/meta_classes.h)
     add_executable(nt_meta_tests tests/test_meta.cpp ${meta_test_sources})

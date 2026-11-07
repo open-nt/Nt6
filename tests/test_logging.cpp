@@ -349,7 +349,7 @@ static void testPattern() {
     CHECK(format(QtDebugMsg, "c", "m", nullptr, 0, nullptr) == "unknown:0 unknown c|m");
     CHECK(format(QtDebugMsg, "c", "m", "f", 1, "int main(int, char**)") == "f:1 main c|m");
     CHECK(format(QtDebugMsg, "c", "m", "f", 1, "std::vector<int>::size_type ns::f<std::pair<int, int>>(int)") == "f:1 ns::f<std::pair<int, int>> c|m");
-    CHECK(format(QtDebugMsg, "c", "m", "f", 1, "auto ns::g()::<lambda(int)>::operator()") == "f:1 ns::g");
+    CHECK(format(QtDebugMsg, "c", "m", "f", 1, "auto ns::g()::<lambda(int)>::operator()") == "f:1 ns::g c|m");
 
     qSetMessagePattern("%{if-debug}D%{endif}%{if-info}I%{endif}%{if-warning}W%{endif}%{if-critical}C%{endif}%{if-fatal}F%{endif}");
     CHECK(format(QtDebugMsg, "x", "") == "D" && format(QtInfoMsg, "x", "") == "I" && format(QtWarningMsg, "x", "") == "W");
@@ -417,7 +417,7 @@ static void testDefaultHandler() {
     CHECK(captureStderr([] { qWarning("hello %s", "there"); }) == "hello there\n");
     CHECK(captureStderr([] { qInfo() << "stream" << 3; }) == "stream 3\n");
     CHECK(captureStderr([] { qCCritical(lcTest) << "oops"; }) == "test.cat: oops\n");
-    CHECK(captureStderr([] { qCDebug(lcTest) << "multi\nline"; }) == "test.cat: \"multi\\nline\"\n");
+    CHECK(captureStderr([] { qCDebug(lcTest) << QString("multi\nline"); }) == "test.cat: \"multi\\nline\"\n");
     qSetMessagePattern("%{type}|%{category}|%{message}");
     CHECK(captureStderr([] { qWarning() << "w"; }) == "warning|default|\"w\"\n" || captureStderr([] { qWarning() << "w"; }) == "warning|default|w\n");
     qSetMessagePattern(QString());

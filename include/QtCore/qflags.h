@@ -141,6 +141,50 @@ private:
     Int i = 0;
 };
 
+/*!
+    \class QFlag
+    \brief The QFlag class is a helper data type for QFlags.
+
+    It is an integer that an enum value converts to implicitly, so that
+    expressions such as \c{Option1 | Option2} on unrelated enums can be
+    recognized and converted back to a QFlags value. Applications rarely name
+    it directly.
+
+    \sa QFlags
+*/
+class QFlag {
+public:
+    /*!
+        Constructs a QFlag with the given \a value.
+    */
+    constexpr QFlag(int value) noexcept : i(value) {}
+    /*!
+        \overload
+
+        Constructs a QFlag with the unsigned \a value, reinterpreted as an \c int.
+    */
+    constexpr QFlag(unsigned int value) noexcept : i(static_cast<int>(value)) {}
+    /*!
+        \overload
+
+        Constructs a QFlag with the \a value.
+    */
+    constexpr QFlag(short value) noexcept : i(value) {}
+    /*!
+        \overload
+
+        Constructs a QFlag with the unsigned \a value.
+    */
+    constexpr QFlag(unsigned short value) noexcept : i(value) {}
+    /*!
+        Returns the value as an \c int.
+    */
+    constexpr operator int() const noexcept { return i; }
+
+private:
+    int i;
+};
+
 #define Q_DECLARE_FLAGS(Flags, Enum) typedef QFlags<Enum> Flags;
 
 #define Q_DECLARE_OPERATORS_FOR_FLAGS(Flags)                                                   \

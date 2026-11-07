@@ -40,7 +40,8 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 | Threads | `QThread` (`start`/`quit`/`exit`/`wait`, a real event loop per thread, `create`, interruption, priority, stack size, `currentThread`, `idealThreadCount`), `QObject` thread affinity (timers, `QSocketNotifier`, posted events and `deleteLater` follow the object's thread), cross-thread queued and blocking-queued signals, `QRunnable`, `QThreadPool` (priorities, `tryStart`, `tryTake`, `reserveThread`, expiry), `QThreadStorage` |
 | Threading primitives | `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock`, `QReadLocker`, `QWriteLocker`, `QWaitCondition`, `QSemaphore`, `QSemaphoreReleaser` |
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time and fixed offsets), `QDebug`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler` |
-| I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG) |
+| I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QDirIterator`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QLockFile` (stale-lock detection by dead pid and age), `QFileSystemWatcher` (inotify, with a polling fallback), `QStandardPaths` (XDG) |
+| Processes | `QProcess` (event-loop driven `fork`/`execve` with pidfd child watching: channels and redirection, `startDetached`, `execute`, environment, pipelines, `waitFor...()`), `QProcessEnvironment` |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
 | URLs | `QUrl` (parsing, RFC 3986 resolution, percent-encoding, formatting options), `QUrlQuery` |
 | Formats: JSON | `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument`, `QJsonParseError`, `QJsonValueRef`/`QJsonValueConstRef` and the STL-style iterators: strict RFC 8259 parser with Qt's error codes and offsets (1024 levels of nesting), `Indented`/`Compact` writer, sorted object keys, exact integers up to 2^53, `QDebug` output. `fromVariant()`/`toVariant()` and friends wait for `QVariant` |
@@ -54,8 +55,8 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 - **Containers:** `QKeyValueIterator`
 - **Variant and meta:** `QVariant`, `QMetaType`, `QMetaObject` introspection, `QMetaProperty`/`QMetaMethod`/`QMetaEnum`/`QMetaClassInfo`, `QProperty` and bindable properties, `QTypeRevision`, `QSequentialIterable`/`QAssociativeIterable`, `QObjectCleanupHandler`, `QSignalMapper`
 - **Date and time:** `QTimeZone`, `QCalendar`, `QChronoTimer`, `QTimeLine`
-- **File system:** `QDirIterator`, `QDirListing`, `QLockFile`, `QFileSystemWatcher`, `QFileSelector`, `QStorageInfo`, `QResource`, `QSettings`
-- **Processes and plugins:** `QProcess`, `QProcessEnvironment`, `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
+- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`, `QResource`, `QSettings`
+- **Processes and plugins:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
 - **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`/`QMimeData`
 - **Concurrency:** `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`
 - **Item models:** `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QAbstractProxyModel`, `QSortFilterProxyModel`, `QIdentityProxyModel`, `QConcatenateTablesProxyModel`, `QTransposeProxyModel`, `QModelIndex`, `QPersistentModelIndex`, `QItemSelection*`, `QRangeModel`

@@ -9,10 +9,10 @@ ndoc [-o outdir] [--strict] [--require-complete] doc/ndoc.conf
 | Option | Effect |
 |---|---|
 | `-o <dir>` | Output directory, overriding `output` in the config |
-| `--strict` | Exit 1 on any warning |
+| `--strict` | Exit 1 on any warning, other than a missing comment |
 | `--require-complete` | Exit 1 if any public API is undocumented |
 
-Every run writes `coverage.txt` to the output directory, listing undocumented public API.
+Every run warns about each undocumented public class and member, like a linter, with `file:line: warning: 'Class::member()' is not documented`. These warnings are counted apart from the others, so `--strict` still passes while comments are missing; `--require-complete` is the gate for them. Every run also writes `coverage.txt` to the output directory, listing undocumented public API.
 
 From CMake, `nt_add_docs(<target> CONFIG <file> [OUTPUT <dir>] [STRICT] [REQUIRE_COMPLETE])` in `cmake/NtDoc.cmake` adds a documentation target.
 

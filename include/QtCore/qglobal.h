@@ -89,10 +89,34 @@ inline T qobject_cast(Obj *o) { return dynamic_cast<T>(o); }
 template <typename T, typename Obj>
 inline T qobject_cast(const Obj *o) { return dynamic_cast<T>(o); }
 
+/*!
+    \class QOverload
+    \brief The QOverload struct helps to select an overloaded member function.
+
+    Use \c qOverload to pick one overload of a member function when taking
+    its address, for example when connecting a signal:
+
+    \code
+    connect(spinBox, qOverload<int>(&QSpinBox::valueChanged), receiver, &Receiver::setValue);
+    \endcode
+
+    \differences
+    There is no \c qConstOverload or \c qNonConstOverload.
+    \enddifferences
+*/
 template <typename... Args>
 struct QOverload {
+    /*!
+        Returns \a ptr, the member function pointer of the overload taking
+        \c Args.
+    */
     template <typename R, typename T>
     constexpr auto operator()(R (T::*ptr)(Args...)) const noexcept -> decltype(ptr) { return ptr; }
+    /*!
+        \overload
+        Returns \a ptr, the const member function pointer of the overload
+        taking \c Args.
+    */
     template <typename R, typename T>
     constexpr auto operator()(R (T::*ptr)(Args...) const) const noexcept -> decltype(ptr) { return ptr; }
 };

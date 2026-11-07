@@ -258,8 +258,8 @@ static void makeListingTree(const QString &base) {
     writeFile(base + "/d.h", QByteArray(5, 'd'));
     writeFile(base + "/.hidden", "h");
     writeFile(base + "/noext", "n");
-    ::symlink("c.txt", (base + "/linkc").toUtf8().constData());
-    ::symlink("missing", (base + "/dangling").toUtf8().constData());
+    CHECK(::symlink("c.txt", (base + "/linkc").toUtf8().constData()) == 0);
+    CHECK(::symlink("missing", (base + "/dangling").toUtf8().constData()) == 0);
     setTimes(base + "/c.txt", 1000000);
     setTimes(base + "/B.TXT", 3000000);
     setTimes(base + "/a.cpp", 2000000);
@@ -292,7 +292,7 @@ static void testEntryList() {
     CHECK((d.entryList(QStringList{"*.txt"}, QDir::Files) == QStringList{"B.TXT", "c.txt"}));
     CHECK((d.entryList(QStringList{"*.txt"}, QDir::Files | QDir::CaseSensitive) == QStringList{"c.txt"}));
     CHECK((d.entryList(QStringList{"*.cpp", "*.h"}, QDir::Files) == QStringList{"a.cpp", "d.h"}));
-    CHECK((d.entryList(QStringList{"?dir"}, QDir::AllEntries | QDir::NoDotAndDotDot) == QStringList{"bdir"}));
+    CHECK((d.entryList(QStringList{"?dir"}, QDir::AllEntries | QDir::NoDotAndDotDot) == QStringList{"Adir", "bdir"}));
     CHECK((d.entryList(QStringList{"[a-b]*"}, QDir::Files) == QStringList{"a.cpp", "B.TXT"}));
     // AllDirs ignores name filters for directories only.
     CHECK((d.entryList(QStringList{"*.h"}, QDir::Files | QDir::AllDirs | QDir::NoDotAndDotDot) == QStringList{"Adir", "bdir", "d.h"}));

@@ -190,5 +190,32 @@
         shape or lettering that makes Nt look like a Qt product.
     \endlist
 
+    \section1 Download Assets
+
+    Every logo is an SVG file. The whole set is in the
+    \l{https://github.com/open-nt/Nt6/tree/main/assets/brand}{assets/brand}
+    folder of the repository, or download a single file here:
+
+    \table
+    \header
+        \li Logo
+        \li Teal or neon on pine
+        \li Pine on neon
+        \li Black on white
+        \li White on black
+    \row
+        \li Nt
+        \li \l{https://open-nt.github.io/Nt6/images/nt-logo.svg}{Teal}
+        \li -
+        \li \l{https://open-nt.github.io/Nt6/images/nt-logo-black.svg}{Black}
+        \li \l{https://open-nt.github.io/Nt6/images/nt-logo-white.svg}{White}
+    \row
+        \li Nt Development
+        \li \l{https://open-nt.github.io/Nt6/images/nt-development-logo-neon.svg}{Neon}
+        \li \l{https://open-nt.github.io/Nt6/images/nt-development-logo-pine.svg}{Pine}
+        \li \l{https://open-nt.github.io/Nt6/images/nt-development-logo-black.svg}{Black}
+        \li \l{https://open-nt.github.io/Nt6/images/nt-development-logo-white.svg}{White}
+    \endtable
+
     \sa {Signals and Slots}
 */

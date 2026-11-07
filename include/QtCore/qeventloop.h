@@ -9,6 +9,16 @@
 class QEventLoop : public QObject {
     Q_OBJECT
 public:
+    /*!
+        \enum QEventLoop::ProcessEventsFlag
+
+        This enum controls the types of events processed by processEvents().
+
+        \value AllEvents All pending events are processed.
+        \value ExcludeUserInputEvents Accepted for compatibility; it has no effect because Nt has no user input events.
+        \value ExcludeSocketNotifiers Accepted for compatibility; it has no effect, socket notifiers are always processed.
+        \value WaitForMoreEvents Block until an event is available instead of returning immediately.
+    */
     enum ProcessEventsFlag {
         AllEvents = 0x00,
         ExcludeUserInputEvents = 0x01,

@@ -10,8 +10,14 @@ execute_process(COMMAND "${NDOC}" -o "${OUTPUT_DIR}/html" "${SOURCE_DIR}/ndoc.co
 if(NOT result EQUAL 0)
     message(FATAL_ERROR "ndoc failed: ${out}${err}")
 endif()
-if(NOT err STREQUAL "")
-    message(FATAL_ERROR "unexpected warnings:\n${err}")
+# The only expected diagnostic is the missing comment on notDocumented().
+string(REGEX REPLACE "[^\n]*notDocumented\\(\\) const' is not documented\n" "" unexpected "${err}")
+if(NOT unexpected STREQUAL "")
+    message(FATAL_ERROR "unexpected warnings:\n${unexpected}")
+endif()
+string(REGEX MATCH "widget\\.h:[0-9]+: warning: 'Widget::notDocumented\\(\\) const' is not documented" found "${err}")
+if(found STREQUAL "")
+    message(FATAL_ERROR "no missing-comment warning for notDocumented():\n${err}")
 endif()
 
 function(expect file text)
@@ -101,6 +107,13 @@ execute_process(COMMAND "${NDOC}" --require-complete -o "${OUTPUT_DIR}/html" "${
                 RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
 if(result EQUAL 0)
     message(SEND_ERROR "--require-complete passed with undocumented API")
+endif()
+
+# Missing comments warn but do not fail --strict.
+execute_process(COMMAND "${NDOC}" --strict -o "${OUTPUT_DIR}/html" "${SOURCE_DIR}/ndoc.conf"
+                RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
+if(NOT result EQUAL 0)
+    message(SEND_ERROR "--strict failed on a missing comment alone")
 endif()
 
 # Strict mode fails on broken links and bad parameter names.

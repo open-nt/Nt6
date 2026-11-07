@@ -48,14 +48,79 @@ std::string escaped(const std::string &s) {
 
 } // namespace
 
+/*!
+    \class QMessageLogContext
+    \brief The QMessageLogContext class carries information about the origin of a log message.
+
+    An instance of this class is passed to a message handler installed with
+    \c qInstallMessageHandler().
+
+    \differences
+    The context is not filled in: \c file, \c function and \c line are always
+    unset, and \c category is always \c{"default"}. There is no \c version
+    member and no \c QMessageLogger.
+    \enddifferences
+
+    \sa QDebug
+*/
+
+/*!
+    \class QDebug
+    \brief The QDebug class provides an output stream for debugging information.
+
+    QDebug is used to write human-readable diagnostics. Obtain a stream from
+    \c qDebug(), \c qInfo(), \c qWarning() or \c qCritical() and write values
+    to it with \c{<<}. The message is emitted when the stream, and every copy
+    of it, is destroyed, so a statement such as
+
+    \code
+    qDebug() << "value:" << 42 << QString("text");
+    \endcode
+
+    produces one message, \c{value: 42 "text"}. Spaces are inserted between
+    values unless disabled with nospace(), and strings are quoted unless
+    disabled with noquote().
+
+    A message is written to \c stderr followed by a newline, unless a handler
+    was installed with \c qInstallMessageHandler(). That handler then
+    receives the message type (\c QtDebugMsg, \c QtInfoMsg, \c QtWarningMsg,
+    \c QtCriticalMsg or \c QtFatalMsg) and the text instead. A \c QtFatalMsg
+    message aborts the process after it is handled.
+
+    The same four functions also have printf-style overloads, such as
+    \c{qDebug(const char *fmt, ...)}, and \c qFatal() takes a format string.
+    They format the message with \c vsnprintf() and emit it directly.
+
+    \differences
+    There is no \c QDebugStateSaver, \c verbosity(), \c resetFormat() or
+    \c swap(), no constructors that write to a QIODevice or QString, no
+    stream manipulators such as \c endl, and no \c{<<} for QFlags, QSet,
+    QPair, QStringView, QMetaEnum or the value classes. Containers supported
+    are QList, QMap and QHash. There are no logging categories (\c qCDebug())
+    and no message pattern. The logging functions are not macros, so the
+    QMessageLogContext passed to a handler never has a file, line or function.
+    \enddifferences
+
+    \sa QMessageLogContext
+*/
+
 QtMessageHandler qInstallMessageHandler(QtMessageHandler handler) {
     QtMessageHandler old = g_handler;
     g_handler = handler;
     return old;
 }
 
+/*!
+    Constructs a debug stream that emits a message of the given \a type when
+    it is destroyed.
+*/
 QDebug::QDebug(QtMsgType type) : s(std::make_shared<State>()) { s->type = type; }
 
+/*!
+    Destroys the stream. If this is the last copy of the stream, the
+    accumulated message is emitted, with a trailing space removed, and
+    for QtFatalMsg the process is aborted.
+*/
 QDebug::~QDebug() {
     if (s.use_count() != 1)
         return;

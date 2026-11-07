@@ -149,18 +149,31 @@ bool writeFile(const fs::path &path, const std::string &text) {
 class Diagnostics {
 public:
     void warn(const std::string &file, int line, const std::string &message) {
-        std::string text = file;
-        if (line > 0)
-            text += ':' + std::to_string(line);
-        text += ": warning: " + message;
+        const std::string text = format(file, line, message);
         // Briefs are rendered on several pages; report each problem once.
         if (m_seen.insert(text).second)
             std::cerr << text << '\n';
     }
+    // A missing comment is reported like any warning, but is counted apart so
+    // that --strict keeps meaning "the comments that exist are correct";
+    // --require-complete is the gate for missing ones.
+    void warnMissing(const std::string &file, int line, const std::string &message) {
+        if (m_missing.insert(format(file, line, message)).second)
+            std::cerr << format(file, line, message) << '\n';
+    }
     int count() const { return static_cast<int>(m_seen.size()); }
+    int missingCount() const { return static_cast<int>(m_missing.size()); }
 
 private:
+    static std::string format(const std::string &file, int line, const std::string &message) {
+        std::string text = file;
+        if (line > 0)
+            text += ':' + std::to_string(line);
+        return text + ": warning: " + message;
+    }
+
     std::set<std::string> m_seen;
+    std::set<std::string> m_missing;
 };
 
 // ---------------------------------------------------------------------------
@@ -2918,7 +2931,7 @@ struct Coverage {
     bool complete() const { return classes == classesDocumented && members == membersDocumented; }
 };
 
-Coverage writeCoverage(const Model &M, const fs::path &file) {
+Coverage writeCoverage(const Model &M, const fs::path &file, Diagnostics &diag) {
     Coverage total;
     std::string report = "# Undocumented public API\n";
     for (const auto &entry : M.classes) {
@@ -2934,6 +2947,8 @@ Coverage writeCoverage(const Model &M, const fs::path &file) {
         } else {
             ++total.classes;
         }
+        if (!cls.doc)
+            diag.warnMissing(cls.file, cls.line, cls.word + " '" + cls.qualName + "' is not documented");
         std::string missing;
         for (const Member &m : cls.members) {
             if (!memberRequired(m))
@@ -2950,6 +2965,7 @@ Coverage writeCoverage(const Model &M, const fs::path &file) {
                     item += m.isConst ? ") const" : ")";
                 }
                 missing += "    " + item + "\n";
+                diag.warnMissing(m.file, m.line, "'" + cls.qualName + "::" + item + "' is not documented");
             }
         }
         if (!cls.doc || !missing.empty())
@@ -2977,7 +2993,7 @@ int usage(std::ostream &out, int code) {
            "Generates Qt-style HTML documentation from /*! */ comments.\n\n"
            "Options:\n"
            "  -o <dir>             Output directory, overriding the config file\n"
-           "  --strict             Exit non-zero on any warning\n"
+           "  --strict             Exit non-zero on any warning (not missing comments)\n"
            "  --require-complete   Exit non-zero if any public API is undocumented\n"
            "  -v, --version        Print the version\n"
            "  -h, --help           Print this help\n";
@@ -3052,10 +3068,10 @@ int main(int argc, char **argv) {
     if (!generator.run())
         return 2;
 
-    const Coverage coverage = writeCoverage(model, cfg.output / "coverage.txt");
+    const Coverage coverage = writeCoverage(model, cfg.output / "coverage.txt", diag);
     std::cout << "ndoc: " << coverage.classesDocumented << "/" << coverage.classes << " classes, "
               << coverage.membersDocumented << "/" << coverage.members << " members documented, "
-              << diag.count() << " warning(s); wrote " << displayPath(cfg.output) << '\n';
+              << diag.count() << " warning(s), " << diag.missingCount() << " missing comment(s); wrote " << displayPath(cfg.output) << '\n';
 
     if (strict && diag.count() != 0)
         return 1;

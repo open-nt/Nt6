@@ -4,6 +4,43 @@
 // Case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and
 // Cyrillic only; other scripts are returned unchanged.
 
+/*!
+    \class QChar
+    \brief The QChar class provides a 16-bit Unicode code unit.
+
+    A QChar holds one UTF-16 code unit. Characters outside the Basic
+    Multilingual Plane are represented by a pair of QChar surrogates; see
+    isHighSurrogate() and isLowSurrogate(). QChar is the element type of
+    QString.
+
+    The classification functions (isLetter(), isSpace(), isUpper() and so on)
+    and the case conversions (toLower(), toUpper()) are implemented with
+    built-in tables rather than the full Unicode database.
+
+    \differences
+    Classification and case mapping cover ASCII, Latin-1, Latin Extended-A,
+    Greek and Cyrillic only (isLetter() also recognizes the Japanese kana, CJK
+    ideographs and Hangul syllables); characters from other scripts are
+    returned unchanged. isNumber() and digitValue() recognize only the ASCII
+    digits, and toCaseFolded() is the same as toLower(). The surrogate-pair
+    helpers (\c requiresSurrogates(), \c fromUcs4(), \c toUcs4()), the
+    \c category(), \c script() and \c decomposition() functions, \c isMark(),
+    \c isSymbol() and the \c Category, \c Script and \c Direction enums are not
+    provided. QChar has no \c char32_t constructor.
+    \enddifferences
+
+    \sa QString, QLatin1Char
+*/
+
+/*!
+    Returns \c true if this is a letter; otherwise returns \c false.
+
+    Classification covers ASCII, Latin-1, Latin Extended, Greek, Cyrillic,
+    Hiragana, Katakana, CJK ideographs and Hangul syllables. Letters from
+    other scripts are not recognized.
+
+    \sa isLetterOrNumber(), isUpper(), isLower()
+*/
 bool QChar::isLetter() const noexcept {
     const char16_t c = ucs;
     if ((c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z'))
@@ -19,6 +56,11 @@ bool QChar::isLetter() const noexcept {
            (c >= 0xac00 && c <= 0xd7a3);
 }
 
+/*!
+    Returns \c true if this is a white space character, including the
+    control characters U+0009 to U+000D, U+0085, the no-break space and the
+    Unicode space separators; otherwise returns \c false.
+*/
 bool QChar::isSpace() const noexcept {
     const char16_t c = ucs;
     return c == u' ' || (c >= 0x09 && c <= 0x0d) || c == 0x85 || c == 0xa0 || c == 0x1680 ||
@@ -26,10 +68,29 @@ bool QChar::isSpace() const noexcept {
            c == 0x3000;
 }
 
+/*!
+    Returns \c true if this is an uppercase letter, that is a letter
+    whose toLower() is a different character; otherwise returns \c false.
+
+    \sa isLower(), toUpper()
+*/
 bool QChar::isUpper() const noexcept { return isLetter() && toLower().ucs != ucs; }
 
+/*!
+    Returns \c true if this is a lowercase letter, that is a letter whose
+    toUpper() is a different character; otherwise returns \c false.
+
+    \sa isUpper(), toLower()
+*/
 bool QChar::isLower() const noexcept { return isLetter() && toUpper().ucs != ucs; }
 
+/*!
+    Returns \c true if this is a punctuation character; otherwise returns
+    \c false.
+
+    Classification covers ASCII, a few Latin-1 characters and the General
+    Punctuation block (U+2010 to U+205E).
+*/
 bool QChar::isPunct() const noexcept {
     const char16_t c = ucs;
     if (c < 0x80)
@@ -40,6 +101,15 @@ bool QChar::isPunct() const noexcept {
            (c >= 0x2010 && c <= 0x2027) || (c >= 0x2030 && c <= 0x205e);
 }
 
+/*!
+    Returns the lowercase equivalent of this character, or the character
+    itself if it has none.
+
+    Case mapping covers ASCII, Latin-1, Latin Extended-A, Greek and
+    Cyrillic only.
+
+    \sa toUpper(), toCaseFolded()
+*/
 QChar QChar::toLower() const noexcept {
     const char16_t c = ucs;
     if (c < 0x80)
@@ -59,6 +129,15 @@ QChar QChar::toLower() const noexcept {
     return *this;
 }
 
+/*!
+    Returns the uppercase equivalent of this character, or the character
+    itself if it has none.
+
+    Case mapping covers ASCII, Latin-1, Latin Extended-A, Greek and
+    Cyrillic only.
+
+    \sa toLower()
+*/
 QChar QChar::toUpper() const noexcept {
     const char16_t c = ucs;
     if (c < 0x80)

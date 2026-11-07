@@ -75,10 +75,19 @@ public:
     bool bind(const QHostAddress &address, quint16 port = 0, BindMode mode = DefaultForPlatform);
     bool bind(quint16 port = 0, BindMode mode = DefaultForPlatform);
 
+    /*!
+        Returns \c true if the socket is valid and ready for use, that is, an
+        operating system socket exists; otherwise returns \c false.
+    */
     bool isValid() const { return m_fd >= 0; }
     qint64 bytesAvailable() const override;
     qint64 bytesToWrite() const override;
     bool canReadLine() const override;
+    /*!
+        \reimp
+
+        Returns \c true; sockets are sequential devices.
+    */
     bool isSequential() const override { return true; }
     void close() override;
     bool flush();
@@ -89,9 +98,21 @@ public:
     quint16 peerPort() const;
     QHostAddress peerAddress() const;
     QString peerName() const;
+    /*!
+        Returns the size of the internal read buffer in bytes, or 0 if the
+        buffer is unlimited.
+
+        \sa setReadBufferSize()
+    */
     qint64 readBufferSize() const { return m_readBufferSize; }
     void setReadBufferSize(qint64 size);
 
+    /*!
+        Returns the native operating system socket descriptor, or -1 if the
+        socket has none.
+
+        \sa setSocketDescriptor()
+    */
     virtual qintptr socketDescriptor() const { return m_fd; }
     virtual bool setSocketDescriptor(qintptr socketDescriptor, SocketState state = ConnectedState,
                                      OpenMode openMode = ReadWrite);
@@ -99,8 +120,21 @@ public:
     virtual void setSocketOption(SocketOption option, int value);
     virtual int socketOption(SocketOption option);
 
+    /*!
+        Returns the socket type, TcpSocket or UdpSocket.
+    */
     SocketType socketType() const { return m_type; }
+    /*!
+        Returns the state of the socket.
+
+        \sa stateChanged()
+    */
     SocketState state() const { return m_state; }
+    /*!
+        Returns the type of error that last occurred.
+
+        \sa errorOccurred(), errorString()
+    */
     SocketError error() const { return m_error; }
 
     virtual bool waitForConnected(int msecs = 30000);
@@ -109,10 +143,39 @@ public:
     virtual bool waitForDisconnected(int msecs = 30000);
 
 signals:
+    /*!
+        This signal is emitted after connectToHost() has been called and the
+        host lookup has succeeded.
+
+        \sa connected()
+    */
     void hostFound() { emitSignal(&QAbstractSocket::hostFound); }
+    /*!
+        This signal is emitted after connectToHost() has been called and a
+        connection has been successfully established.
+
+        \sa connectToHost(), disconnected()
+    */
     void connected() { emitSignal(&QAbstractSocket::connected); }
+    /*!
+        This signal is emitted when the socket has been disconnected.
+
+        \sa connectToHost(), disconnectFromHost(), abort()
+    */
     void disconnected() { emitSignal(&QAbstractSocket::disconnected); }
+    /*!
+        This signal is emitted whenever the socket's state changes to
+        \a state.
+
+        \sa state()
+    */
     void stateChanged(QAbstractSocket::SocketState state) { emitSignal(&QAbstractSocket::stateChanged, state); }
+    /*!
+        This signal is emitted after an error occurred. The \a error
+        parameter describes the type of error.
+
+        \sa error(), errorString()
+    */
     void errorOccurred(QAbstractSocket::SocketError error) { emitSignal(&QAbstractSocket::errorOccurred, error); }
 
 protected:
@@ -123,6 +186,10 @@ protected:
     void setSocketErrorFromErrno(int err);
     // Creates the OS socket if needed; family is AF_INET or AF_INET6.
     bool createSocket(int family);
+    /*!
+        Returns the address family of the operating system socket
+        (\c AF_INET or \c AF_INET6), or 0 if there is none.
+    */
     int socketFamily() const { return m_family; }
     virtual void readActivated();
 

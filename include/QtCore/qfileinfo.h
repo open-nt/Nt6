@@ -13,6 +13,10 @@ class QFile;
 
 class QFileInfo {
 public:
+    /*!
+        Constructs an empty QFileInfo. It refers to no file, and exists()
+        returns \c false.
+    */
     QFileInfo() = default;
     enum Permission {
         ReadOwner = 0x4000, WriteOwner = 0x2000, ExeOwner = 0x1000,
@@ -22,21 +26,60 @@ public:
     };
     Q_DECLARE_FLAGS(Permissions, Permission)
 
+    /*!
+        Constructs a QFileInfo for the path \a file. The file does not have to
+        exist.
+
+        \sa setFile()
+    */
     explicit QFileInfo(const QString &file) : m_file(file) {}
     explicit QFileInfo(const QFile &file);
     QFileInfo(const QDir &dir, const QString &file);
 
+    /*!
+        Sets the file to the path \a file and clears the cached information.
+
+        \sa refresh()
+    */
     void setFile(const QString &file) { m_file = file; m_cached = false; }
     void setFile(const QFile &file);
     void setFile(const QDir &dir, const QString &file);
+    /*!
+        Clears the cached information, so the next query reads the file system
+        again.
+
+        \sa setCaching()
+    */
     void refresh() { m_cached = false; }
+    /*!
+        Enables or disables caching of file information according to
+        \a enable, and clears what is cached. Caching is on by default. With
+        caching off, every query reads the file system.
+
+        \sa caching(), refresh()
+    */
     void setCaching(bool enable) { m_caching = enable; m_cached = false; }
+    /*!
+        Returns \c true if file information is cached; otherwise returns
+        \c false.
+
+        \sa setCaching()
+    */
     bool caching() const { return m_caching; }
     bool makeAbsolute();
+    /*!
+        Exchanges this QFileInfo with \a other.
+    */
     void swap(QFileInfo &other) noexcept { std::swap(m_file, other.m_file); std::swap(m_stat, other.m_stat); std::swap(m_cached, other.m_cached); std::swap(m_caching, other.m_caching); }
     bool exists() const;
     static bool exists(const QString &file);
 
+    /*!
+        Returns the path of the file as it was given, relative or absolute,
+        including the file name.
+
+        \sa absoluteFilePath(), fileName()
+    */
     QString filePath() const { return m_file; }
     QString absoluteFilePath() const;
     QString canonicalFilePath() const;
@@ -56,17 +99,39 @@ public:
     uint ownerId() const;
     uint groupId() const;
     Permissions permissions() const;
+    /*!
+        Returns \c true if the file has all of the given \a permissions;
+        otherwise returns \c false.
+
+        \sa permissions()
+    */
     bool permission(Permissions permissions) const { return (this->permissions() & permissions) == permissions; }
 
     bool isReadable() const;
     bool isWritable() const;
     bool isExecutable() const;
     bool isHidden() const;
+    /*!
+        Returns \c true if the file's path is relative; otherwise returns
+        \c false.
+
+        \sa isAbsolute(), makeAbsolute()
+    */
     bool isRelative() const { return !isAbsolute(); }
+    /*!
+        Returns \c true if the file's path is absolute, which means it starts
+        with a slash; otherwise returns \c false.
+
+        \sa isRelative()
+    */
     bool isAbsolute() const { return m_file.startsWith(QChar(u'/')); }
     bool isFile() const;
     bool isDir() const;
     bool isSymLink() const;
+    /*!
+        Returns \c true if the file is the root directory; otherwise returns
+        \c false.
+    */
     bool isRoot() const { return absoluteFilePath() == QString("/"); }
     qint64 size() const;
     QDateTime lastModified() const;

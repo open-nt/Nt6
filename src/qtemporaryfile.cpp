@@ -18,13 +18,67 @@
 #include <utility>
 #include <vector>
 
-/*
-    Differences from Qt:
-    - A template without "XXXXXX" gets ".XXXXXX" (files) or "-XXXXXX"
-      (directories) appended.
-    - QTemporaryFile::open() always opens the file ReadWrite; the extra
-      createNativeFile()/rename() helpers are not provided.
-    - QTemporaryDir::path() is absolute even for a relative template.
+/*!
+    \class QTemporaryFile
+    \brief The QTemporaryFile class is an I/O device that operates on temporary files.
+
+    QTemporaryFile creates a uniquely named file that is safe to use from
+    several processes. The file is created by open() and, by default, removed
+    when the object is destroyed.
+
+    The file name is built from a template. The six characters \c XXXXXX in
+    the last path component are replaced by random characters. A template
+    without \c XXXXXX gets \c{.XXXXXX} appended. The default template is
+    \c{qt_temp.XXXXXX} in QDir::tempPath(); a relative template is resolved
+    against the current directory.
+
+    \code
+    QTemporaryFile file;
+    if (file.open()) {
+        file.write("scratch data");
+        const QString name = file.fileName();
+    }
+    \endcode
+
+    \differences
+    open() always opens the file for reading and writing, whatever mode
+    was requested; only the \c Append, \c Truncate, \c Text and \c Unbuffered
+    flags are honored. There are no \c createNativeFile() and \c rename()
+    functions.
+    \enddifferences
+
+    \sa QTemporaryDir, QFile, QSaveFile
+*/
+
+/*!
+    \class QTemporaryDir
+    \brief The QTemporaryDir class creates a unique directory for temporary use.
+
+    QTemporaryDir creates a uniquely named directory in its constructor and,
+    by default, removes it with all of its contents when the object is
+    destroyed. Check isValid() before using path().
+
+    The directory name is built from a template. The six characters
+    \c XXXXXX in the last path component are replaced by random characters. A
+    template without \c XXXXXX gets \c{-XXXXXX} appended. The default template
+    is \c{qt_temp-XXXXXX} in QDir::tempPath(). The directory is created with
+    mode \c 0700.
+
+    \code
+    QTemporaryDir dir;
+    if (dir.isValid()) {
+        QFile file(dir.filePath("output.txt"));
+        file.open(QIODevice::WriteOnly);
+    }
+    \endcode
+
+    A QTemporaryDir can be moved but not copied.
+
+    \differences
+    path() is always an absolute path, even for a relative template.
+    \enddifferences
+
+    \sa QTemporaryFile, QDir
 */
 
 namespace {
@@ -49,20 +103,57 @@ QString defaultFileTemplate() { return QDir::tempPath() + QString::fromUtf8("/qt
 
 } // namespace
 
+/*!
+    Constructs a QTemporaryFile using the default template, which is
+    \c{qt_temp.XXXXXX} in QDir::tempPath(). The file is created by open().
+
+    \sa setFileTemplate()
+*/
 QTemporaryFile::QTemporaryFile() : m_template(defaultFileTemplate()) {}
 
+/*!
+    Constructs a QTemporaryFile with the given \a templateName. The file is
+    created by open().
+
+    \sa setFileTemplate()
+*/
 QTemporaryFile::QTemporaryFile(const QString &templateName) : m_template(templateName) {}
 
+/*!
+    Constructs a QTemporaryFile with the given \a parent, using the default
+    template.
+*/
 QTemporaryFile::QTemporaryFile(QObject *parent) : QFile(parent), m_template(defaultFileTemplate()) {}
 
+/*!
+    Constructs a QTemporaryFile with the given \a parent, using
+    \a templateName as the file name template.
+*/
 QTemporaryFile::QTemporaryFile(const QString &templateName, QObject *parent) : QFile(parent), m_template(templateName) {}
 
+/*!
+    Destroys the temporary file object, closing the file. The file is deleted
+    if autoRemove() is \c true.
+
+    \sa autoRemove()
+*/
 QTemporaryFile::~QTemporaryFile() {
     close();
     if (m_autoRemove && !m_name.isEmpty())
         ::unlink(m_name.toUtf8().constData());
 }
 
+/*!
+    \reimp
+
+    Creates the file from the template and opens it for reading and writing.
+    Only the \c Append, \c Truncate, \c Text and \c Unbuffered flags of
+    \a mode are used. Returns \c true on success; otherwise returns \c false
+    and sets error() to \c OpenError. If the file was already created by an
+    earlier call, it is reopened under the same name.
+
+    \sa open()
+*/
 bool QTemporaryFile::open(OpenMode mode) {
     if (isOpen()) {
         setFileError(OpenError, QString::fromUtf8("file already open"));
@@ -89,18 +180,38 @@ bool QTemporaryFile::open(OpenMode mode) {
     return true;
 }
 
+/*!
+    Constructs a QTemporaryDir that creates a directory using the default
+    template, \c{qt_temp-XXXXXX} in QDir::tempPath(). Use isValid() to check
+    whether the directory was created.
+*/
 QTemporaryDir::QTemporaryDir() { create(QDir::tempPath() + QString::fromUtf8("/qt_temp-XXXXXX")); }
 
+/*!
+    Constructs a QTemporaryDir that creates a directory from
+    \a templatePath. If \a templatePath is empty, the default template is
+    used. Use isValid() to check whether the directory was created.
+*/
 QTemporaryDir::QTemporaryDir(const QString &templatePath) {
     create(templatePath.isEmpty() ? QDir::tempPath() + QString::fromUtf8("/qt_temp-XXXXXX") : templatePath);
 }
 
+/*!
+    Move-constructs a QTemporaryDir from \a other. The directory and its
+    auto-remove setting are transferred; \a other becomes invalid and no
+    longer removes anything.
+*/
 QTemporaryDir::QTemporaryDir(QTemporaryDir &&other) noexcept
     : m_path(std::move(other.m_path)), m_error(std::move(other.m_error)), m_autoRemove(other.m_autoRemove) {
     other.m_path.clear();
     other.m_autoRemove = false;
 }
 
+/*!
+    Move-assigns \a other to this object and returns a reference to it. The
+    directory currently held, if any and if auto-remove is enabled, is
+    removed first.
+*/
 QTemporaryDir &QTemporaryDir::operator=(QTemporaryDir &&other) noexcept {
     if (this != &other) {
         if (m_autoRemove && isValid())
@@ -114,6 +225,12 @@ QTemporaryDir &QTemporaryDir::operator=(QTemporaryDir &&other) noexcept {
     return *this;
 }
 
+/*!
+    Destroys the object. If autoRemove() is \c true and the directory is
+    valid, it is removed with all its contents.
+
+    \sa remove()
+*/
 QTemporaryDir::~QTemporaryDir() {
     if (m_autoRemove && isValid())
         remove();
@@ -150,12 +267,26 @@ void QTemporaryDir::create(const QString &templatePath) {
     m_path = QFileInfo(QString::fromUtf8(buf.data())).absoluteFilePath();
 }
 
+/*!
+    Removes the directory and all its contents recursively. Returns \c true
+    if successful; returns \c false if the directory is not valid or the
+    removal fails.
+
+    \sa isValid(), autoRemove()
+*/
 bool QTemporaryDir::remove() {
     if (!isValid())
         return false;
     return QDir(m_path).removeRecursively();
 }
 
+/*!
+    Returns the path to \a fileName inside the temporary directory. The file
+    is not created. Returns an empty string if the directory is not valid or
+    \a fileName is an absolute path.
+
+    \sa path()
+*/
 QString QTemporaryDir::filePath(const QString &fileName) const {
     if (!isValid() || QDir::isAbsolutePath(fileName))
         return QString();

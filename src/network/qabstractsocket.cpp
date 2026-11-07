@@ -26,6 +26,140 @@
     Nt Network provides sockets driven by the Nt Core event loop.
 */
 
+/*!
+    \class QAbstractSocket
+    \brief The QAbstractSocket class is the base class of QTcpSocket and QUdpSocket.
+
+    QAbstractSocket is a non-blocking, event-loop driven socket built on POSIX
+    sockets. Call connectToHost() to connect, or bind() to receive datagrams,
+    then react to the connected(), readyRead() and disconnected() signals:
+
+    \code
+    QTcpSocket socket;
+    QObject::connect(&socket, &QTcpSocket::connected, [&] { socket.write("hello\n"); });
+    socket.connectToHost("localhost", 8080);
+    \endcode
+
+    The waitFor...() functions block the calling thread by polling the socket
+    and can be used without an event loop.
+
+    \differences
+    Host names are resolved synchronously inside connectToHost(), so
+    hostFound() is emitted before the function returns. There is no proxy or
+    SSL support: the proxy functions, \c proxyAuthenticationRequired() and the
+    related error values are declared or omitted but never produced.
+    setSocketOption() and socketOption() take and return a plain \c int
+    instead of a QVariant. \c pauseMode(), \c setPauseMode(), \c resume(),
+    \c setLocalPort() and the other protected peer/local setters are not
+    available. Sockets must be used from a single thread.
+    \enddifferences
+
+    \sa QTcpSocket, QUdpSocket, QTcpServer
+*/
+
+/*!
+    \enum QAbstractSocket::SocketType
+
+    This enum describes the transport layer protocol of a socket.
+
+    \value TcpSocket TCP, a reliable stream-oriented protocol.
+    \value UdpSocket UDP, an unreliable datagram protocol.
+    \value SctpSocket SCTP. Declared for source compatibility; not supported.
+    \value UnknownSocketType Any other type.
+*/
+
+/*!
+    \enum QAbstractSocket::NetworkLayerProtocol
+
+    This enum describes the network layer protocol of an address.
+
+    \value IPv4Protocol IPv4.
+    \value IPv6Protocol IPv6.
+    \value AnyIPProtocol Either IPv4 or IPv6 (a dual-stack address).
+    \value UnknownNetworkLayerProtocol Neither IPv4 nor IPv6.
+*/
+
+/*!
+    \enum QAbstractSocket::SocketError
+
+    This enum describes the socket errors that can occur.
+
+    \value ConnectionRefusedError The connection was refused by the peer.
+    \value RemoteHostClosedError The remote host closed the connection.
+    \value HostNotFoundError The host address was not found.
+    \value SocketAccessError The socket operation failed because the application lacked the required privileges.
+    \value SocketResourceError The local system ran out of resources (for example, file descriptors).
+    \value SocketTimeoutError The socket operation timed out.
+    \value DatagramTooLargeError The datagram was larger than the operating system's limit.
+    \value NetworkError An error occurred with the network (for example, the network was unreachable).
+    \value AddressInUseError The address specified to bind() is already in use.
+    \value SocketAddressNotAvailableError The address specified to bind() does not belong to the host.
+    \value UnsupportedSocketOperationError The requested socket operation is not supported by the local operating system.
+    \value UnfinishedSocketOperationError Declared for source compatibility; not used.
+    \value ProxyAuthenticationRequiredError Declared for source compatibility; not used.
+    \value SslHandshakeFailedError Declared for source compatibility; not used.
+    \value ProxyConnectionRefusedError Declared for source compatibility; not used.
+    \value ProxyConnectionClosedError Declared for source compatibility; not used.
+    \value ProxyConnectionTimeoutError Declared for source compatibility; not used.
+    \value ProxyNotFoundError Declared for source compatibility; not used.
+    \value ProxyProtocolError Declared for source compatibility; not used.
+    \value OperationError An operation was attempted while the socket was in a state that did not permit it.
+    \value SslInternalError Declared for source compatibility; not used.
+    \value SslInvalidUserDataError Declared for source compatibility; not used.
+    \value TemporaryError Declared for source compatibility; not used.
+    \value UnknownSocketError An unidentified error occurred.
+*/
+
+/*!
+    \enum QAbstractSocket::SocketState
+
+    This enum describes the different states in which a socket can be.
+
+    \value UnconnectedState The socket is not connected.
+    \value HostLookupState The socket is performing a host name lookup.
+    \value ConnectingState The socket has started establishing a connection.
+    \value ConnectedState A connection is established.
+    \value BoundState The socket is bound to an address and port.
+    \value ListeningState For internal use only.
+    \value ClosingState The socket is about to close; pending data is still being written.
+*/
+
+/*!
+    \enum QAbstractSocket::SocketOption
+
+    This enum represents the options that can be set on a socket. Use
+    setSocketOption() and socketOption() to access them.
+
+    \value LowDelayOption Disables Nagle's algorithm (\c TCP_NODELAY) when set to 1.
+    \value KeepAliveOption Enables TCP keep-alive (\c SO_KEEPALIVE) when set to 1.
+    \value MulticastTtlOption Sets the time-to-live (hop limit) of outgoing multicast datagrams.
+    \value MulticastLoopbackOption Controls whether multicast datagrams are looped back to the local host.
+    \value TypeOfServiceOption Sets the IP type-of-service field (\c IP_TOS).
+    \value SendBufferSizeSocketOption Sets the socket send buffer size in bytes.
+    \value ReceiveBufferSizeSocketOption Sets the socket receive buffer size in bytes.
+    \value PathMtuSocketOption Declared for source compatibility; not supported.
+*/
+
+/*!
+    \enum QAbstractSocket::BindFlag
+
+    This enum describes the different flags you can pass to modify the
+    behavior of bind().
+
+    \value ShareAddress Allows other services to bind to the same address and port (\c SO_REUSEADDR).
+    \value DontShareAddress Binds the address and port exclusively. This is the behavior when no sharing flag is given.
+    \value ReuseAddressHint Provides a hint that the address may be reused; treated like ShareAddress.
+    \value DefaultForPlatform The default option for the current platform. No special options are set.
+
+    \sa BindMode
+*/
+
+/*!
+    \typedef QAbstractSocket::BindMode
+
+    Stores an OR combination of BindFlag values.
+*/
+
 struct QAbstractSocket::Private {
     QHostAddress local, peer;
     quint16 localPort = 0, peerPort = 0;
@@ -64,11 +198,26 @@ static SocketError mapErrno(int e) {
     }
 }
 
+/*!
+    Creates a new abstract socket of type \a socketType with the given
+    \a parent. The socket starts in the UnconnectedState and no operating
+    system socket exists until connectToHost() or bind() is called.
+*/
 QAbstractSocket::QAbstractSocket(SocketType socketType, QObject *parent)
     : QIODevice(parent), m_type(socketType), d(new Private) {}
 
+/*!
+    Destroys the socket and closes the underlying operating system socket
+    without emitting disconnected().
+*/
 QAbstractSocket::~QAbstractSocket() { closeSocket(); }
 
+/*!
+    Sets the socket state to \a state and emits stateChanged() if the state
+    actually changed.
+
+    \sa state()
+*/
 void QAbstractSocket::setSocketState(SocketState state) {
     if (m_state == state)
         return;
@@ -76,12 +225,24 @@ void QAbstractSocket::setSocketState(SocketState state) {
     stateChanged(state);
 }
 
+/*!
+    Sets the type of error that last occurred to \a error, sets the
+    human-readable description to \a text and emits errorOccurred().
+
+    \sa error(), errorString()
+*/
 void QAbstractSocket::setSocketError(SocketError error, const QString &text) {
     m_error = error;
     setErrorString(text);
     errorOccurred(error);
 }
 
+/*!
+    Maps the POSIX error number \a err to a SocketError, uses \c strerror()
+    as the error string and emits errorOccurred().
+
+    \sa setSocketError()
+*/
 void QAbstractSocket::setSocketErrorFromErrno(int err) {
     setSocketError(mapErrno(err), QString::fromUtf8(std::strerror(err)));
 }
@@ -101,6 +262,13 @@ bool QAbstractSocket::adoptSocket(int fd, int family) {
     return true;
 }
 
+/*!
+    Creates a non-blocking operating system socket of the given address
+    \a family (\c AF_INET or \c AF_INET6) if none exists yet. Returns \c true
+    if a socket is available; otherwise sets the error and returns \c false.
+
+    \sa socketFamily()
+*/
 bool QAbstractSocket::createSocket(int family) {
     if (m_fd >= 0)
         return true;
@@ -154,17 +322,68 @@ void QAbstractSocket::updateAddresses() {
         d->peer = QtPrivate::fromSockaddr(ss, &d->peerPort);
 }
 
+/*!
+    Returns the host port number, in native byte order, of the local socket,
+    or 0 if the socket is neither connected nor bound.
+
+    \sa localAddress(), peerPort()
+*/
 quint16 QAbstractSocket::localPort() const { return d->localPort; }
+
+/*!
+    Returns the host address of the local socket, or a null address if the
+    socket is neither connected nor bound.
+
+    \sa localPort(), peerAddress()
+*/
 QHostAddress QAbstractSocket::localAddress() const { return d->local; }
+
+/*!
+    Returns the port of the connected peer, or 0 if the socket is not
+    connected.
+
+    \sa peerAddress(), localPort()
+*/
 quint16 QAbstractSocket::peerPort() const { return d->peerPort; }
+
+/*!
+    Returns the address of the connected peer, or a null address if the
+    socket is not connected.
+
+    \sa peerName(), peerPort(), localAddress()
+*/
 QHostAddress QAbstractSocket::peerAddress() const { return d->peer; }
+
+/*!
+    Returns the name of the peer as specified to connectToHost(), or the
+    peer address as a string if connectToHost() was given an address or the
+    name is unknown.
+
+    \sa peerAddress(), connectToHost()
+*/
 QString QAbstractSocket::peerName() const { return d->peerName.isEmpty() ? d->peer.toString() : d->peerName; }
 
+/*!
+    Sets the size of the internal read buffer to \a size bytes. If the buffer
+    is full, the socket stops reading from the network until the application
+    consumes data. A size of 0 (the default) means the buffer is unlimited.
+
+    \sa readBufferSize(), read()
+*/
 void QAbstractSocket::setReadBufferSize(qint64 size) {
     m_readBufferSize = size;
     updateNotifiers();
 }
 
+/*!
+    Initializes the socket to use the existing operating system socket
+    \a socketDescriptor, in the given \a state and \a openMode. The
+    descriptor is switched to non-blocking mode and the socket takes ownership
+    of it. Returns \c true on success; otherwise sets the error and returns
+    \c false.
+
+    \sa socketDescriptor()
+*/
 bool QAbstractSocket::setSocketDescriptor(qintptr fd, SocketState state, OpenMode mode) {
     closeSocket();
     m_rbuf.clear();
@@ -185,6 +404,17 @@ bool QAbstractSocket::setSocketDescriptor(qintptr fd, SocketState state, OpenMod
     return true;
 }
 
+/*!
+    Attempts to make a connection to \a hostName on the given \a port. The
+    \a protocol parameter restricts the lookup to IPv4 or IPv6 addresses.
+
+    The host name is resolved synchronously and hostFound() is emitted. The
+    socket then enters ConnectingState and connected() is emitted once the
+    connection is established, or errorOccurred() if every address fails.
+    The socket is opened in \a mode.
+
+    \sa connected(), waitForConnected(), disconnectFromHost()
+*/
 void QAbstractSocket::connectToHost(const QString &hostName, quint16 port, OpenMode mode,
                                     NetworkLayerProtocol protocol) {
     if (m_state != UnconnectedState && m_state != BoundState) {
@@ -236,6 +466,12 @@ void QAbstractSocket::connectToHost(const QString &hostName, quint16 port, OpenM
     connectNext();
 }
 
+/*!
+    \overload
+
+    Attempts to make a connection to \a address on the given \a port. No
+    host name lookup is performed, so hostFound() is not emitted.
+*/
 void QAbstractSocket::connectToHost(const QHostAddress &address, quint16 port, OpenMode mode) {
     if (m_state != UnconnectedState && m_state != BoundState) {
         setSocketError(OperationError, QString::fromUtf8("Trying to connect while connection is in progress"));
@@ -371,6 +607,12 @@ void QAbstractSocket::remoteClosed() {
     finishDisconnect();
 }
 
+/*!
+    Called when the operating system socket becomes readable. TCP sockets
+    read the available bytes into the internal buffer and emit readyRead();
+    a zero-byte read closes the socket with RemoteHostClosedError. UDP
+    sockets only emit readyRead() and leave the datagram queued.
+*/
 void QAbstractSocket::readActivated() {
     if (m_fd < 0 || m_state == ConnectingState)
         return;
@@ -402,6 +644,12 @@ void QAbstractSocket::readActivated() {
     }
 }
 
+/*!
+    \reimp
+
+    Copies up to \a maxSize bytes from the internal read buffer into \a data
+    and returns the number of bytes copied.
+*/
 qint64 QAbstractSocket::readData(char *data, qint64 maxSize) {
     const qint64 avail = m_rbuf.size() - m_rpos;
     if (avail <= 0)
@@ -421,6 +669,12 @@ qint64 QAbstractSocket::readData(char *data, qint64 maxSize) {
     return n;
 }
 
+/*!
+    \reimp
+
+    Queues \a maxSize bytes from \a data for sending and returns \a maxSize.
+    Returns -1 with OperationError if the socket is not connected.
+*/
 qint64 QAbstractSocket::writeData(const char *data, qint64 maxSize) {
     if (m_state != ConnectedState && m_state != ClosingState) {
         setSocketError(OperationError, QString::fromUtf8("Cannot write: socket is not connected"));
@@ -431,18 +685,47 @@ qint64 QAbstractSocket::writeData(const char *data, qint64 maxSize) {
     return maxSize;
 }
 
+/*!
+    \reimp
+
+    Returns the number of incoming bytes that are waiting to be read.
+*/
 qint64 QAbstractSocket::bytesAvailable() const { return QIODevice::bytesAvailable() + (m_rbuf.size() - m_rpos); }
 
+/*!
+    \reimp
+
+    Returns the number of bytes waiting to be written to the network.
+*/
 qint64 QAbstractSocket::bytesToWrite() const { return m_wbuf.size(); }
 
+/*!
+    \reimp
+
+    Returns \c true if a complete line of data can be read from the socket.
+*/
 bool QAbstractSocket::canReadLine() const { return QIODevice::canReadLine() || m_rbuf.indexOf('\n', m_rpos) != -1; }
 
+/*!
+    Attempts to send the queued outgoing data to the network without
+    blocking. Returns \c true if at least one byte was sent; otherwise
+    returns \c false.
+
+    \sa bytesToWrite(), waitForBytesWritten()
+*/
 bool QAbstractSocket::flush() {
     if (m_fd < 0 || m_wbuf.isEmpty())
         return false;
     return flushWrites() > 0;
 }
 
+/*!
+    Attempts to close the socket. If there is pending data waiting to be
+    written, the socket enters ClosingState and closes once the data has been
+    sent. Otherwise it closes immediately and emits disconnected().
+
+    \sa connectToHost(), close(), abort()
+*/
 void QAbstractSocket::disconnectFromHost() {
     switch (m_state) {
     case UnconnectedState:
@@ -471,6 +754,14 @@ void QAbstractSocket::disconnectFromHost() {
     }
 }
 
+/*!
+    \reimp
+
+    Flushes pending data, closes the socket, discards any unread data and
+    emits disconnected() if the socket was connected.
+
+    \sa disconnectFromHost(), abort()
+*/
 void QAbstractSocket::close() {
     QPointer<QAbstractSocket> self(this);
     QIODevice::close();
@@ -491,11 +782,29 @@ void QAbstractSocket::close() {
         disconnected();
 }
 
+/*!
+    Aborts the current connection and discards any pending outgoing data,
+    then closes the socket.
+
+    \sa disconnectFromHost(), close()
+*/
 void QAbstractSocket::abort() {
     m_wbuf.clear();
     close();
 }
 
+/*!
+    Binds the socket to \a address on \a port using the given \a mode. A
+    \a port of 0 lets the system choose a free port. Returns \c true on
+    success, after which the socket is in BoundState; otherwise sets the error
+    and returns \c false.
+
+    For UDP sockets, the socket is opened for reading and writing once bound.
+    Binding to QHostAddress::Any creates a dual-stack socket when the system
+    supports it.
+
+    \sa localPort(), localAddress()
+*/
 bool QAbstractSocket::bind(const QHostAddress &address, quint16 port, BindMode mode) {
     if (m_state != UnconnectedState) {
         setSocketError(OperationError, QString::fromUtf8("The socket is already bound or connected"));
@@ -534,6 +843,11 @@ bool QAbstractSocket::bind(const QHostAddress &address, quint16 port, BindMode m
     return true;
 }
 
+/*!
+    \overload
+
+    Binds to QHostAddress::Any on \a port using the given \a mode.
+*/
 bool QAbstractSocket::bind(quint16 port, BindMode mode) { return bind(QHostAddress(QHostAddress::Any), port, mode); }
 
 static bool socketOptionLevel(QAbstractSocket::SocketOption o, int family, int *level, int *name) {
@@ -555,12 +869,24 @@ static bool socketOptionLevel(QAbstractSocket::SocketOption o, int family, int *
     }
 }
 
+/*!
+    Sets \a option to \a value. Does nothing if the socket has no operating
+    system socket yet or the option is not supported.
+
+    \sa socketOption()
+*/
 void QAbstractSocket::setSocketOption(SocketOption option, int value) {
     int level, name;
     if (m_fd >= 0 && socketOptionLevel(option, m_family, &level, &name))
         ::setsockopt(m_fd, level, name, &value, sizeof value);
 }
 
+/*!
+    Returns the value of \a option, or -1 if the socket has no operating
+    system socket or the option is not supported.
+
+    \sa setSocketOption()
+*/
 int QAbstractSocket::socketOption(SocketOption option) {
     int level, name, value = -1;
     socklen_t len = sizeof value;
@@ -588,6 +914,14 @@ static int remainingMs(int msecs, const QElapsedTimer &t) {
     return left < 0 ? 0 : static_cast<int>(left);
 }
 
+/*!
+    Waits until the socket is connected, up to \a msecs milliseconds (a
+    negative value waits forever). Returns \c true if the connection has been
+    established; otherwise returns \c false and, on a timeout, sets
+    SocketTimeoutError.
+
+    \sa connectToHost(), connected()
+*/
 bool QAbstractSocket::waitForConnected(int msecs) {
     if (m_state == ConnectedState)
         return true;
@@ -605,6 +939,15 @@ bool QAbstractSocket::waitForConnected(int msecs) {
     return m_state == ConnectedState;
 }
 
+/*!
+    \reimp
+
+    Blocks until new data is available for reading and readyRead() has been
+    emitted, or until \a msecs milliseconds have passed. Returns \c true if
+    data arrived; otherwise returns \c false.
+
+    \sa waitForBytesWritten()
+*/
 bool QAbstractSocket::waitForReadyRead(int msecs) {
     if (m_state == ConnectingState && !waitForConnected(msecs))
         return false;
@@ -631,6 +974,15 @@ bool QAbstractSocket::waitForReadyRead(int msecs) {
     return self && m_readyReadEmitted;
 }
 
+/*!
+    \reimp
+
+    Blocks until at least some of the queued data has been written to the
+    network, or until \a msecs milliseconds have passed. Returns \c true if
+    data was written; otherwise returns \c false.
+
+    \sa waitForReadyRead(), flush()
+*/
 bool QAbstractSocket::waitForBytesWritten(int msecs) {
     if (m_state == ConnectingState && !waitForConnected(msecs))
         return false;
@@ -650,6 +1002,13 @@ bool QAbstractSocket::waitForBytesWritten(int msecs) {
     return false;
 }
 
+/*!
+    Waits until the socket has disconnected, up to \a msecs milliseconds.
+    Returns \c true if the connection has been closed; otherwise returns
+    \c false.
+
+    \sa disconnectFromHost(), disconnected()
+*/
 bool QAbstractSocket::waitForDisconnected(int msecs) {
     if (m_state == UnconnectedState)
         return false;

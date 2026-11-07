@@ -23,10 +23,60 @@ struct QTcpServer::Private {
     bool paused = false;
 };
 
+/*!
+    \class QTcpServer
+    \brief The QTcpServer class provides a TCP-based server.
+
+    Call listen() to start accepting connections, then connect to
+    newConnection() and fetch each accepted socket with
+    nextPendingConnection():
+
+    \code
+    QTcpServer server;
+    QObject::connect(&server, &QTcpServer::newConnection, [&] {
+        QTcpSocket *client = server.nextPendingConnection();
+        client->write("hello\n");
+    });
+    server.listen(QHostAddress::Any, 8080);
+    \endcode
+
+    Accepted sockets are children of the server. The server stops accepting
+    once maxPendingConnections() sockets are waiting and resumes as they are
+    taken.
+
+    \differences
+    There is no \c listenBacklogSize(), \c setListenBacklogSize() or proxy
+    support; the backlog is fixed at 128. Sockets are always bound with
+    \c SO_REUSEADDR. \c serverError() and \c errorString() report only the
+    errors of listen(), setSocketDescriptor() and accept. Servers must be
+    used from a single thread.
+    \enddifferences
+
+    \sa QTcpSocket, QAbstractSocket
+*/
+
+/*!
+    Constructs a TCP server with the given \a parent. The server is not
+    listening.
+*/
 QTcpServer::QTcpServer(QObject *parent) : QObject(parent), d(new Private) {}
 
+/*!
+    Destroys the server, closing it if it is listening.
+
+    \sa close()
+*/
 QTcpServer::~QTcpServer() { close(); }
 
+/*!
+    Sets the server to listen on the existing operating system socket
+    \a socketDescriptor, which must already be bound and listening. The
+    descriptor is switched to non-blocking mode and the server takes ownership
+    of it. Returns \c true on success; returns \c false if the server is
+    already listening or the descriptor is invalid.
+
+    \sa socketDescriptor(), listen()
+*/
 bool QTcpServer::setSocketDescriptor(qintptr fd) {
     if (isListening())
         return false;
@@ -46,6 +96,17 @@ bool QTcpServer::setSocketDescriptor(qintptr fd) {
     return true;
 }
 
+/*!
+    Tells the server to listen for incoming connections on \a address and
+    \a port. A \a port of 0 lets the system choose a free port. Returns
+    \c true on success; otherwise sets serverError() and errorString() and
+    returns \c false.
+
+    Listening on QHostAddress::Any accepts both IPv4 and IPv6 connections
+    when the system supports it.
+
+    \sa isListening(), close(), serverPort()
+*/
 bool QTcpServer::listen(const QHostAddress &address, quint16 port) {
     if (isListening()) {
         m_errorString = QString::fromUtf8("Server is already listening");
@@ -85,6 +146,12 @@ bool QTcpServer::listen(const QHostAddress &address, quint16 port) {
     return setSocketDescriptor(fd);
 }
 
+/*!
+    Closes the server so it no longer listens for incoming connections.
+    Connections that were already accepted remain valid.
+
+    \sa listen(), isListening()
+*/
 void QTcpServer::close() {
     if (m_notifier) {
         m_notifier->setEnabled(false);
@@ -99,16 +166,39 @@ void QTcpServer::close() {
     d->address.clear();
 }
 
+/*!
+    Returns the port the server is listening on, or 0 if it is not
+    listening.
+
+    \sa serverAddress(), listen()
+*/
 quint16 QTcpServer::serverPort() const { return d->port; }
 
+/*!
+    Returns the address the server is listening on, or a null address if it
+    is not listening.
+
+    \sa serverPort(), listen()
+*/
 QHostAddress QTcpServer::serverAddress() const { return d->address; }
 
+/*!
+    Pauses accepting new connections. Queued connections stay in the
+    operating system backlog until resumeAccepting() is called.
+
+    \sa resumeAccepting()
+*/
 void QTcpServer::pauseAccepting() {
     d->paused = true;
     if (m_notifier)
         m_notifier->setEnabled(false);
 }
 
+/*!
+    Resumes accepting new connections after pauseAccepting().
+
+    \sa pauseAccepting()
+*/
 void QTcpServer::resumeAccepting() {
     d->paused = false;
     if (m_notifier && static_cast<int>(d->pending.size()) < m_maxPending)
@@ -144,6 +234,15 @@ void QTcpServer::acceptActivated() {
         m_notifier->setEnabled(false);
 }
 
+/*!
+    This virtual function is called when a new connection is available.
+    \a handle is the native descriptor of the accepted socket. The default
+    implementation creates a QTcpSocket on it and adds it to the pending
+    connections with addPendingConnection(). Reimplement it to create a
+    different socket type.
+
+    \sa newConnection(), addPendingConnection()
+*/
 void QTcpServer::incomingConnection(qintptr handle) {
     auto *s = new QTcpSocket(this);
     if (!s->setSocketDescriptor(handle)) {
@@ -154,6 +253,12 @@ void QTcpServer::incomingConnection(qintptr handle) {
     addPendingConnection(s);
 }
 
+/*!
+    Called by incomingConnection() to add \a socket to the queue of pending
+    connections. The server becomes the socket's parent.
+
+    \sa nextPendingConnection(), incomingConnection()
+*/
 void QTcpServer::addPendingConnection(QTcpSocket *socket) {
     socket->setParent(this);
     d->pending.push_back(socket);
@@ -163,8 +268,21 @@ void QTcpServer::addPendingConnection(QTcpSocket *socket) {
     });
 }
 
+/*!
+    Returns \c true if the server has pending connections; otherwise returns
+    \c false.
+
+    \sa nextPendingConnection(), newConnection()
+*/
 bool QTcpServer::hasPendingConnections() const { return !d->pending.empty(); }
 
+/*!
+    Returns the next pending connection as a connected QTcpSocket, or
+    \c nullptr if there is none. The server owns the socket as its parent;
+    delete it when you are done, or reparent it.
+
+    \sa hasPendingConnections(), newConnection()
+*/
 QTcpSocket *QTcpServer::nextPendingConnection() {
     if (d->pending.empty())
         return nullptr;
@@ -175,6 +293,14 @@ QTcpSocket *QTcpServer::nextPendingConnection() {
     return s;
 }
 
+/*!
+    Waits up to \a msec milliseconds for a new connection to arrive (a
+    negative value waits forever). Returns \c true if a connection is
+    available. Returns \c false on timeout or error; if \a timedOut is not
+    null, it is set to \c true on a timeout.
+
+    \sa hasPendingConnections(), nextPendingConnection()
+*/
 bool QTcpServer::waitForNewConnection(int msec, bool *timedOut) {
     if (timedOut)
         *timedOut = false;

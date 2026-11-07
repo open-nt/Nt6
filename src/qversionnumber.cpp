@@ -1,6 +1,36 @@
 // MIT License - see LICENSE
 #include <QtCore/qversionnumber.h>
 
+/*!
+    \class QVersionNumber
+    \brief The QVersionNumber class contains a version number with an arbitrary number of segments.
+
+    A version number such as \c 6.5.1 is stored as a list of integer
+    segments. Versions compare segment by segment, and a missing trailing
+    segment counts as 0, so \c 1.2 and \c 1.2.0 compare equal.
+
+    \code
+    QVersionNumber v = QVersionNumber::fromString("6.5.1-beta");
+    v.majorVersion();     // 6
+    v < QVersionNumber(6, 6); // true
+    \endcode
+
+    \differences
+    fromString() takes a QStringView or a UTF-8 \c{const char *} rather than a
+    QAnyStringView. There is no \c QTypeRevision conversion and no
+    QDataStream operators. A segment that does not fit in an \c int ends
+    parsing in fromString().
+    \enddifferences
+
+    \sa QVersionNumber::compare()
+*/
+
+/*!
+    Returns a copy of the version number without its trailing zero segments.
+    For example \c 1.2.0.0 becomes \c 1.2.
+
+    \sa isNormalized()
+*/
 QVersionNumber QVersionNumber::normalized() const {
     QList<int> s = m;
     while (!s.isEmpty() && s.last() == 0)
@@ -8,6 +38,12 @@ QVersionNumber QVersionNumber::normalized() const {
     return QVersionNumber(s);
 }
 
+/*!
+    Returns \c true if this version number is a prefix of \a other, which
+    means all of its segments equal the first segments of \a other.
+
+    \sa commonPrefix()
+*/
 bool QVersionNumber::isPrefixOf(const QVersionNumber &other) const noexcept {
     if (segmentCount() > other.segmentCount())
         return false;
@@ -17,6 +53,12 @@ bool QVersionNumber::isPrefixOf(const QVersionNumber &other) const noexcept {
     return true;
 }
 
+/*!
+    Returns the segments joined with dots, for example \c{"6.5.1"}. A null
+    version number gives an empty string.
+
+    \sa fromString()
+*/
 QString QVersionNumber::toString() const {
     QString r;
     for (qsizetype i = 0; i < m.size(); ++i) {
@@ -27,22 +69,34 @@ QString QVersionNumber::toString() const {
     return r;
 }
 
+/*!
+    Compares \a a and \a b segment by segment, treating a missing trailing
+    segment as 0. Returns a negative number if \a a is smaller, 0 if they are
+    equal and a positive number if \a a is greater.
+*/
 int QVersionNumber::compare(const QVersionNumber &a, const QVersionNumber &b) noexcept {
     const qsizetype common = qMin(a.segmentCount(), b.segmentCount());
     for (qsizetype i = 0; i < common; ++i) {
-        const int d = a.m.at(i) - b.m.at(i);
-        if (d != 0)
-            return d;
+        if (a.m.at(i) != b.m.at(i))
+            return a.m.at(i) < b.m.at(i) ? -1 : 1;
     }
-    // Extra zero segments compare equal to an absent segment only in value:
-    // the longer version is greater unless its next segment is negative.
-    if (a.segmentCount() == b.segmentCount())
-        return 0;
-    const QVersionNumber &longer = a.segmentCount() > b.segmentCount() ? a : b;
-    const int sign = a.segmentCount() > b.segmentCount() ? 1 : -1;
-    return longer.m.at(common) < 0 ? -sign : sign;
+    // The shorter version is padded with zero segments.
+    const bool aLonger = a.segmentCount() > b.segmentCount();
+    const QVersionNumber &longer = aLonger ? a : b;
+    for (qsizetype i = common; i < longer.segmentCount(); ++i) {
+        const int s = longer.m.at(i);
+        if (s != 0)
+            return (s > 0) == aLonger ? 1 : -1;
+    }
+    return 0;
 }
 
+/*!
+    Returns the longest version number that is a prefix of both \a a and
+    \a b.
+
+    \sa isPrefixOf()
+*/
 QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &a, const QVersionNumber &b) {
     QList<int> s;
     const qsizetype common = qMin(a.segmentCount(), b.segmentCount());
@@ -51,6 +105,15 @@ QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &a, const QVers
     return QVersionNumber(s);
 }
 
+/*!
+    Parses the leading dot-separated decimal numbers of \a string into a
+    version number. Parsing stops at the first character that does not belong
+    to the version, such as a suffix like \c{-beta}. If \a suffixIndex is not
+    \c nullptr, it is set to the index in \a string where the version ends.
+    Returns a null version number if \a string does not start with a digit.
+
+    \sa toString()
+*/
 QVersionNumber QVersionNumber::fromString(QStringView string, qsizetype *suffixIndex) {
     QList<int> seg;
     qsizetype i = 0, consumed = 0;

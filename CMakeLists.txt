@@ -22,6 +22,8 @@ add_library(NtCore
     src/qcoreapplication.cpp
     src/qcoreevent.cpp
     src/qcryptographichash.cpp
+    src/qdatetime.cpp
+    src/qcryptographichash.cpp
     src/qdatastream.cpp
     src/qdatetime.cpp
     src/qdebug.cpp
@@ -32,6 +34,7 @@ add_library(NtCore
     src/qiodevice.cpp
     src/qobject.cpp
     src/qrandom.cpp
+    src/qrandom.cpp
     src/qsavefile.cpp
     src/qsocketnotifier.cpp
     src/qstandardpaths.cpp
@@ -39,6 +42,8 @@ add_library(NtCore
     src/qtemporaryfile.cpp
     src/qtextstream.cpp
     src/qtimer.cpp
+    src/quuid.cpp
+    src/qversionnumber.cpp
     src/quuid.cpp
     src/qversionnumber.cpp
 )
@@ -131,6 +136,10 @@ if(NT_BUILD_TESTS)
         target_link_libraries(nt_${suite}_tests PRIVATE Nt::Core)
         add_test(NAME nt_${suite}_tests COMMAND nt_${suite}_tests)
     endforeach()
+
+    add_executable(nt_core_value_tests tests/test_core_values.cpp)
+    target_link_libraries(nt_core_value_tests PRIVATE Nt::Core)
+    add_test(NAME nt_core_value_tests COMMAND nt_core_value_tests)
 
     add_executable(nt_network_tests tests/test_network.cpp)
     target_link_libraries(nt_network_tests PRIVATE Nt::Network)

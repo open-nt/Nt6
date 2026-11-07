@@ -13,24 +13,65 @@
 #include <string>
 #include <vector>
 
-/*
-    Differences from Qt:
-    - close() commits instead of aborting, so a base-class close() call still
-      finishes the save; prefer commit().
-    - The temporary file is named "<target>.XXXXXX" and, like Qt, is removed
-      when the object is destroyed or cancelWriting()/a write error precedes
-      commit(). Permissions of an existing target are preserved; a new target
-      gets 0666 masked by the umask.
-    - Only write modes are supported; Append is rejected and existing content
-      is never copied into the temporary file.
+/*!
+    \class QSaveFile
+    \brief The QSaveFile class provides an interface for safely writing to files.
+
+    QSaveFile writes to a temporary file next to the target and renames it
+    over the target when commit() is called, so readers never see a partially
+    written file. Call commit() when all data has been written. If a write
+    fails, or cancelWriting() is called, commit() fails and the target is left
+    untouched.
+
+    \code
+    QSaveFile file("config.txt");
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write("key=value\n");
+        if (!file.commit()) {
+            // handle file.errorString()
+        }
+    }
+    \endcode
+
+    The temporary file is named \c{<target>.XXXXXX} and is removed when the
+    object is destroyed without a commit. The permissions of an existing
+    target are preserved; a new target gets \c 0666 masked by the umask.
+
+    \differences
+    close() commits instead of aborting, so a call to the base-class close()
+    still finishes the save; prefer commit(). Only write modes are
+    supported: \c Append is rejected and existing content is never copied
+    into the temporary file.
+    \enddifferences
+
+    \sa QFile, QTemporaryFile, QFileDevice
 */
 
+/*!
+    Constructs a QSaveFile that will write to the file named \a name, with no
+    parent.
+
+    \sa setFileName()
+*/
 QSaveFile::QSaveFile(const QString &name) : m_target(name) { m_name = name; }
 
+/*!
+    Constructs a QSaveFile with no file name and the given \a parent.
+*/
 QSaveFile::QSaveFile(QObject *parent) : QFileDevice(parent) {}
 
+/*!
+    Constructs a QSaveFile that will write to the file named \a name, with the
+    given \a parent.
+*/
 QSaveFile::QSaveFile(const QString &name, QObject *parent) : QFileDevice(parent), m_target(name) { m_name = name; }
 
+/*!
+    Destroys the object. If the file is still open, it is closed and the
+    temporary file is removed without replacing the target.
+
+    \sa commit(), cancelWriting()
+*/
 QSaveFile::~QSaveFile() {
     if (isOpen()) {
         QFileDevice::close();
@@ -39,6 +80,20 @@ QSaveFile::~QSaveFile() {
     }
 }
 
+/*!
+    \reimp
+
+    Opens a temporary file next to the target for writing with the given
+    \a mode. Returns \c true on success; otherwise returns \c false and sets
+    error(). The open fails if \a mode does not include \c WriteOnly or
+    includes \c Append, if no file name is set, if \c NewOnly is given and the
+    target exists, if \c ExistingOnly is given and it does not, or if an
+    existing target is not writable. If the temporary file cannot be created
+    and the direct write fallback is enabled, the target is opened and
+    truncated instead.
+
+    \sa commit(), setDirectWriteFallback()
+*/
 bool QSaveFile::open(OpenMode mode) {
     if (isOpen()) {
         setFileError(OpenError, QString::fromUtf8("file already open"));
@@ -109,6 +164,12 @@ bool QSaveFile::open(OpenMode mode) {
     return true;
 }
 
+/*!
+    \reimp
+
+    Writes \a maxSize bytes from \a data to the temporary file. If the write
+    is short or fails, commit() will fail.
+*/
 qint64 QSaveFile::writeData(const char *data, qint64 maxSize) {
     const qint64 n = QFileDevice::writeData(data, maxSize);
     if (n != maxSize)
@@ -116,6 +177,16 @@ qint64 QSaveFile::writeData(const char *data, qint64 maxSize) {
     return n;
 }
 
+/*!
+    Syncs the temporary file to disk, closes it and renames it over the
+    target. Returns \c true if the target was replaced; otherwise returns
+    \c false, removes the temporary file and leaves the target untouched.
+    Returns \c false if the file is not open, a write failed, or
+    cancelWriting() was called. When writing directly to the target (see
+    setDirectWriteFallback()), the file is flushed and closed instead.
+
+    \sa cancelWriting(), open()
+*/
 bool QSaveFile::commit() {
     if (!isOpen())
         return false;
@@ -151,6 +222,13 @@ bool QSaveFile::commit() {
     return ok;
 }
 
+/*!
+    Cancels writing the file: sets error() to \c AbortError and makes a later
+    commit() fail without touching the target. Does nothing if the file is not
+    open.
+
+    \sa commit()
+*/
 void QSaveFile::cancelWriting() {
     if (!isOpen())
         return;

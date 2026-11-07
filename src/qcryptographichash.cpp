@@ -85,6 +85,7 @@ struct QCryptographicHash::State {
     uchar buf[200];
     int used;
     quint64 total;
+    QByteArray cache; // backs resultView()
 
     explicit State(Algorithm method) : m(method), block(blockSize(method)) { init(); }
 
@@ -361,17 +362,102 @@ struct QCryptographicHash::State {
     }
 };
 
+/*!
+    \class QCryptographicHash
+    \brief The QCryptographicHash class provides a way to generate cryptographic hashes.
+
+    QCryptographicHash computes a message digest of the data added to it with
+    addData(). Call result() to read the digest. More data may be added
+    afterwards, and result() then returns the digest of all the data so far.
+    For a single buffer, use the static hash() function.
+
+    \code
+    QCryptographicHash h(QCryptographicHash::Sha256);
+    h.addData(QByteArrayView("hello "));
+    h.addData(QByteArrayView("world"));
+    QByteArray digest = h.result().toHex();
+    \endcode
+
+    \differences
+    Algorithms are implemented in the library itself. The BLAKE2 algorithms
+    (\c Blake2b_160 to \c Blake2s_256) and \c addDataWithoutCopy() are not
+    available, and there is no \c swap(). Keccak_* and Sha3_* are the original
+    Keccak and the standardized SHA-3 padding respectively.
+    \enddifferences
+
+    \sa QMessageAuthenticationCode
+*/
+
+/*!
+    \enum QCryptographicHash::Algorithm
+
+    Selects the hash algorithm.
+
+    \value Md4 Message-Digest Algorithm 4. 16-byte digest. Not secure.
+    \value Md5 Message-Digest Algorithm 5. 16-byte digest. Not secure.
+    \value Sha1 Secure Hash Algorithm 1. 20-byte digest. Not secure.
+    \value Sha224 SHA-2 with a 28-byte digest.
+    \value Sha256 SHA-2 with a 32-byte digest.
+    \value Sha384 SHA-2 with a 48-byte digest.
+    \value Sha512 SHA-2 with a 64-byte digest.
+    \value Keccak_224 Keccak with a 28-byte digest, using the original Keccak padding.
+    \value Keccak_256 Keccak with a 32-byte digest, using the original Keccak padding.
+    \value Keccak_384 Keccak with a 48-byte digest, using the original Keccak padding.
+    \value Keccak_512 Keccak with a 64-byte digest, using the original Keccak padding.
+    \value Sha3_224 SHA-3 with a 28-byte digest.
+    \value Sha3_256 SHA-3 with a 32-byte digest.
+    \value Sha3_384 SHA-3 with a 48-byte digest.
+    \value Sha3_512 SHA-3 with a 64-byte digest.
+
+    \sa hashLength()
+*/
+
+/*!
+    Constructs an object that can compute hashes with the algorithm
+    \a method.
+
+    \sa hash()
+*/
 QCryptographicHash::QCryptographicHash(Algorithm method) : m_method(method), d(std::make_unique<State>(method)) {}
+/*!
+    Move-constructs an object from \a other. \a other must not be used
+    afterwards except to be assigned to or destroyed.
+*/
 QCryptographicHash::QCryptographicHash(QCryptographicHash &&other) noexcept = default;
+/*!
+    Destroys the object.
+*/
 QCryptographicHash::~QCryptographicHash() = default;
+/*!
+    Move-assigns \a other to this object and returns a reference to this
+    object. \a other must not be used afterwards except to be assigned to or
+    destroyed.
+*/
 QCryptographicHash &QCryptographicHash::operator=(QCryptographicHash &&other) noexcept = default;
 
+/*!
+    Resets the object, discarding all data added so far.
+
+    \sa addData()
+*/
 void QCryptographicHash::reset() noexcept { d->init(); }
 
+/*!
+    Adds \a data to the data being hashed.
+
+    \sa result()
+*/
 void QCryptographicHash::addData(QByteArrayView data) noexcept {
     d->add(reinterpret_cast<const uchar *>(data.data()), static_cast<std::size_t>(data.size()));
 }
 
+/*!
+    \overload
+
+    Reads from \a device until it is exhausted and adds the data. Returns
+    \c true if all the data was read; returns \c false if \a device is null,
+    not open or not readable, or if reading stopped before the end.
+*/
 bool QCryptographicHash::addData(QIODevice *device) {
     if (!device || !device->isReadable() || !device->isOpen())
         return false;
@@ -382,28 +468,97 @@ bool QCryptographicHash::addData(QIODevice *device) {
     return device->atEnd();
 }
 
+/*!
+    Returns the digest of the data added so far. The object stays usable, and
+    more data may be added afterwards.
+
+    \sa resultView(), reset()
+*/
 QByteArray QCryptographicHash::result() const {
     State copy = *d; // more data may follow
     return copy.finish();
 }
 
+/*!
+    Returns the digest of the data added so far as a view. The view is valid
+    until the next call to resultView() or until the object is modified or
+    destroyed.
+
+    \sa result()
+*/
+QByteArrayView QCryptographicHash::resultView() const noexcept {
+    d->cache = result();
+    return QByteArrayView(d->cache);
+}
+
+/*!
+    Returns the digest of \a data computed with \a method.
+
+    \sa addData(), result()
+*/
 QByteArray QCryptographicHash::hash(QByteArrayView data, Algorithm method) {
     QCryptographicHash h(method);
     h.addData(data);
     return h.result();
 }
 
+/*!
+    Returns the size in bytes of the digest that \a method produces, or 0 if
+    \a method is not supported.
+
+    \sa supportsAlgorithm()
+*/
 int QCryptographicHash::hashLength(Algorithm method) { return digestSize(method); }
 
+/*!
+    Returns \c true if \a method is supported; otherwise returns \c false.
+
+    \sa hashLength()
+*/
 bool QCryptographicHash::supportsAlgorithm(Algorithm method) { return digestSize(method) != 0; }
 
+/*!
+    \class QMessageAuthenticationCode
+    \brief The QMessageAuthenticationCode class provides a way to generate hash-based message authentication codes.
+
+    QMessageAuthenticationCode computes an HMAC, as defined by RFC 2104,
+    over the data added with addData(), using a secret key and one of the
+    QCryptographicHash algorithms.
+
+    \code
+    QByteArray mac = QMessageAuthenticationCode::hash("message", "secret", QCryptographicHash::Sha256);
+    \endcode
+
+    \differences
+    The class cannot be copied or moved. It supports the same algorithms as
+    QCryptographicHash.
+    \enddifferences
+
+    \sa QCryptographicHash
+*/
+
+/*!
+    Constructs an object that computes HMACs with the algorithm \a method and
+    the given \a key.
+
+    \sa setKey()
+*/
 QMessageAuthenticationCode::QMessageAuthenticationCode(QCryptographicHash::Algorithm method, QByteArrayView key)
     : m_method(method), m_inner(method) {
     setKey(key);
 }
 
+/*!
+    Destroys the object.
+*/
 QMessageAuthenticationCode::~QMessageAuthenticationCode() = default;
 
+/*!
+    Sets the secret to \a key and resets the object, discarding all data added
+    so far.
+
+    \sa reset()
+*/
 void QMessageAuthenticationCode::setKey(QByteArrayView key) {
     const int block = blockSize(m_method);
     QByteArray k = key.size() > block ? QCryptographicHash::hash(key, m_method) : key.toByteArray();
@@ -417,15 +572,37 @@ void QMessageAuthenticationCode::setKey(QByteArrayView key) {
     reset();
 }
 
+/*!
+    Resets the object, discarding all data added so far but keeping the key.
+
+    \sa setKey()
+*/
 void QMessageAuthenticationCode::reset() {
     m_inner.reset();
     m_inner.addData(m_innerPad);
 }
 
+/*!
+    Adds \a data to the message.
+
+    \sa result()
+*/
 void QMessageAuthenticationCode::addData(QByteArrayView data) { m_inner.addData(data); }
 
+/*!
+    \overload
+
+    Reads from \a device until it is exhausted and adds the data. Returns
+    \c true if all the data was read; otherwise returns \c false.
+*/
 bool QMessageAuthenticationCode::addData(QIODevice *device) { return m_inner.addData(device); }
 
+/*!
+    Returns the HMAC of the data added so far. The object stays usable, and
+    more data may be added afterwards.
+
+    \sa resultView(), reset()
+*/
 QByteArray QMessageAuthenticationCode::result() const {
     QCryptographicHash outer(m_method);
     outer.addData(m_outerPad);
@@ -433,6 +610,24 @@ QByteArray QMessageAuthenticationCode::result() const {
     return outer.result();
 }
 
+/*!
+    Returns the HMAC of the data added so far as a view. The view is valid
+    until the next call to resultView() or until the object is modified or
+    destroyed.
+
+    \sa result()
+*/
+QByteArrayView QMessageAuthenticationCode::resultView() const {
+    m_resultCache = result();
+    return QByteArrayView(m_resultCache);
+}
+
+/*!
+    Returns the HMAC of \a message computed with the secret \a key and the
+    algorithm \a method.
+
+    \sa result()
+*/
 QByteArray QMessageAuthenticationCode::hash(QByteArrayView message, QByteArrayView key, QCryptographicHash::Algorithm method) {
     QMessageAuthenticationCode mac(method, key);
     mac.addData(message);

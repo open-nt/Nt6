@@ -12,16 +12,46 @@
 #include <string>
 #include <vector>
 
-/*
-    Differences from Qt:
-    - Text on devices and byte arrays is always UTF-8 (a leading BOM is not detected and no BOM is
-      written); there is no setEncoding()/setAutoDetectUnicode()/setLocale(). Numbers always use the
-      "C" locale: '.' as decimal point and no group separators.
-    - Line breaks are never translated; readLine() splits on '\n' and strips one trailing '\r'.
-    - Output to a QString* always appends; the string is not a seekable output device.
-    - pos() on a device is derived from the device position minus the UTF-8 size of the text that
-      was read ahead, which is exact for valid UTF-8 input.
-    - Reading a number reads the longest valid numeric prefix ("12abc" yields 12 and leaves "abc").
+/*!
+    \class QTextStream
+    \brief The QTextStream class provides a convenient interface for reading and writing text.
+
+    QTextStream can operate on a QIODevice, a QByteArray, a QString or a
+    stdio \c FILE pointer. Use the stream operators to write values as text
+    and read them back as words and numbers:
+
+    \code
+    QFile file("numbers.txt");
+    if (file.open(QIODevice::WriteOnly)) {
+        QTextStream out(&file);
+        out << "pi = " << 3.14159 << Qt::endl;
+    }
+    \endcode
+
+    Output is buffered and written to the device when the buffer fills, on
+    flush(), and when the stream is destroyed. The formatting of numbers and
+    fields is controlled by setIntegerBase(), setNumberFlags(),
+    setRealNumberNotation(), setRealNumberPrecision(), setFieldWidth(),
+    setFieldAlignment() and setPadChar(), or by the manipulators in the
+    \c Qt namespace such as \c Qt::hex and \c Qt::endl.
+
+    Text on devices and byte arrays is always UTF-8.
+
+    \differences
+    There is no \c setEncoding(), \c setAutoDetectUnicode(), \c setLocale()
+    or \c setGenerateByteOrderMark(): a leading byte order mark is not
+    detected and none is written. Numbers always use the "C" locale, with
+    \c '.' as the decimal point and no group separators. Line breaks are never
+    translated; readLine() splits on a newline character and strips one
+    trailing carriage return. Output to a QString pointer always appends,
+    because the string is not a seekable output device. pos() on a device is
+    derived from the device position minus the UTF-8 size of the text that
+    was read ahead, which is exact for valid UTF-8 input. Reading a number
+    reads the longest valid numeric prefix, so \c{"12abc"} yields 12 and
+    leaves \c{"abc"}. There is no \c Qt::bom manipulator.
+    \enddifferences
+
+    \sa QIODevice, QFile, QDataStream, QBuffer
 */
 
 namespace {
@@ -152,24 +182,57 @@ QString formatReal(double v, char fmt, int precision, bool forcePoint) {
 
 } // namespace
 
+/*!
+    Constructs a text stream with no device or string. Set one with
+    setDevice() or setString() before using the stream.
+*/
 QTextStream::QTextStream() = default;
 
+/*!
+    Constructs a text stream that operates on \a device. The stream does not
+    take ownership of the device.
+
+    \sa setDevice()
+*/
 QTextStream::QTextStream(QIODevice *device) : m_dev(device) {}
 
+/*!
+    Constructs a text stream that operates on the stdio file \a fileHandle,
+    opened with the given \a mode. The stream does not close the file. A
+    seekable file can be repositioned with seek(); a terminal or pipe is read
+    one line at a time.
+*/
 QTextStream::QTextStream(FILE *fileHandle, QIODeviceBase::OpenMode mode) {
     auto dev = std::make_unique<StdioDevice>(fileHandle);
     dev->open(mode);
     attachOwned(dev.release());
 }
 
+/*!
+    Constructs a text stream that operates on \a string, using the open
+    \a mode. Reading starts at the beginning of the string. Writing appends
+    to the string and requires \c WriteOnly in \a mode. The string must
+    outlive the stream.
+
+    \sa setString()
+*/
 QTextStream::QTextStream(QString *string, QIODeviceBase::OpenMode mode) : m_str(string), m_strMode(mode) {}
 
+/*!
+    Constructs a text stream that operates on the byte array \a array, using
+    the open \a mode. The array must outlive the stream. Text is encoded as
+    UTF-8.
+*/
 QTextStream::QTextStream(QByteArray *array, QIODeviceBase::OpenMode mode) {
     auto buf = std::make_unique<QBuffer>(array);
     buf->open(mode);
     attachOwned(buf.release());
 }
 
+/*!
+    Constructs a text stream that reads from a copy of \a array, using the
+    open \a mode. Text is decoded as UTF-8.
+*/
 QTextStream::QTextStream(const QByteArray &array, QIODeviceBase::OpenMode mode) {
     auto buf = std::make_unique<QBuffer>();
     buf->setData(array);
@@ -177,6 +240,12 @@ QTextStream::QTextStream(const QByteArray &array, QIODeviceBase::OpenMode mode) 
     attachOwned(buf.release());
 }
 
+/*!
+    Flushes any buffered output and destroys the stream. A device given to
+    the constructor or setDevice() is not closed.
+
+    \sa flush()
+*/
 QTextStream::~QTextStream() { flush(); }
 
 void QTextStream::attachOwned(QIODevice *d) {
@@ -184,6 +253,13 @@ void QTextStream::attachOwned(QIODevice *d) {
     m_dev = d;
 }
 
+/*!
+    Flushes any buffered output, then sets the I/O device to \a device, which
+    can be \c nullptr. Any read-ahead text is discarded. The stream does not
+    take ownership of the device.
+
+    \sa device(), setString()
+*/
 void QTextStream::setDevice(QIODevice *device) {
     flush();
     m_owned.reset();
@@ -194,6 +270,13 @@ void QTextStream::setDevice(QIODevice *device) {
     m_partial.clear();
 }
 
+/*!
+    Flushes any buffered output, then makes the stream operate on \a string
+    with the open \a mode. Reading starts at the beginning of the string, and
+    writing appends to it.
+
+    \sa string(), setDevice()
+*/
 void QTextStream::setString(QString *string, QIODeviceBase::OpenMode mode) {
     flush();
     m_owned.reset();
@@ -205,6 +288,14 @@ void QTextStream::setString(QString *string, QIODeviceBase::OpenMode mode) {
     m_partial.clear();
 }
 
+/*!
+    Resets all formatting options to their defaults: right alignment, a space
+    pad character, field width \c 0, no number flags, integer base 10, smart
+    notation and precision 6. The status, device and read position are not
+    changed.
+
+    \sa Qt::reset()
+*/
 void QTextStream::reset() {
     m_align = AlignRight;
     m_pad = QChar(u' ');
@@ -215,6 +306,12 @@ void QTextStream::reset() {
     m_precision = 6;
 }
 
+/*!
+    Writes any buffered output to the device and, for files, asks the
+    operating system to flush it. Does nothing for a QString.
+
+    \sa Qt::flush(), Qt::endl()
+*/
 void QTextStream::flush() {
     flushWrite();
     if (!m_dev)
@@ -281,12 +378,27 @@ bool QTextStream::available(qsizetype n) const {
     return true;
 }
 
+/*!
+    Returns \c true if there is no more data to read from the stream;
+    otherwise returns \c false. For a QString, the stream is at its end when
+    it is not open for reading or the read position is at the end.
+
+    \sa read(), readLine()
+*/
 bool QTextStream::atEnd() const {
     if (m_str)
         return !((m_strMode & QIODeviceBase::ReadOnly) && m_readPos < m_str->size());
     return !available(1);
 }
 
+/*!
+    Returns the current position of the stream. For a device, this is the
+    device position adjusted for the text that was read ahead and the output
+    that is still buffered. For a QString, it is the read position as a
+    number of UTF-16 code units. Returns \c 0 if there is no device or string.
+
+    \sa seek()
+*/
 qint64 QTextStream::pos() const {
     if (m_str)
         return m_readPos;
@@ -297,6 +409,15 @@ qint64 QTextStream::pos() const {
     return m_dev->pos() - unread.toUtf8().size() - m_partial.size() + pending;
 }
 
+/*!
+    Flushes buffered output, discards read-ahead text and seeks to \a pos.
+    Returns \c true on success; otherwise returns \c false. For a QString,
+    \a pos is a position in UTF-16 code units from \c 0 to the string size,
+    and only the read position changes. For a device, the device must support
+    seeking.
+
+    \sa pos(), QIODevice::seek()
+*/
 bool QTextStream::seek(qint64 position) {
     if (m_str) {
         if (position < 0 || position > m_str->size())
@@ -313,6 +434,12 @@ bool QTextStream::seek(qint64 position) {
     return m_dev->seek(position);
 }
 
+/*!
+    Reads and discards whitespace from the stream until either a
+    non-whitespace character is detected, or until atEnd() returns \c true.
+
+    \sa Qt::ws()
+*/
 void QTextStream::skipWhiteSpace() {
     const QString &buf = m_str ? *m_str : m_read;
     while (available(1) && buf[m_readPos].isSpace())
@@ -515,6 +642,15 @@ QTextStream &QTextStream::operator>>(QByteArray &array) {
     return *this;
 }
 
+/*!
+    Reads one line of text from the stream into \a line, without the line
+    terminator, and returns \c true. Lines end at a newline; one trailing
+    carriage return is removed. If \a maxlen is greater than \c 0, at most
+    \a maxlen characters are read. Returns \c false and clears \a line if the
+    stream is at its end.
+
+    \sa readLine(), readAll()
+*/
 bool QTextStream::readLineInto(QString *line, qint64 maxlen) {
     if (!available(1)) {
         if (line)
@@ -542,6 +678,14 @@ bool QTextStream::readLineInto(QString *line, qint64 maxlen) {
     return true;
 }
 
+/*!
+    Reads one line of text from the stream and returns it, without the line
+    terminator. Lines end at a newline; one trailing carriage return is
+    removed. If \a maxlen is greater than \c 0, at most \a maxlen characters
+    are read. Returns a null string if the stream is at its end.
+
+    \sa readLineInto(), readAll(), atEnd()
+*/
 QString QTextStream::readLine(qint64 maxlen) {
     QString line;
     if (!readLineInto(&line, maxlen))
@@ -549,6 +693,13 @@ QString QTextStream::readLine(qint64 maxlen) {
     return line;
 }
 
+/*!
+    Reads the entire content of the stream from the current position and
+    returns it as a string. The result is empty, but not null, if there is
+    nothing left to read.
+
+    \sa readLine(), read()
+*/
 QString QTextStream::readAll() {
     QString r;
     if (m_str) {
@@ -565,6 +716,13 @@ QString QTextStream::readAll() {
     return r.isNull() ? emptyString() : r;
 }
 
+/*!
+    Reads at most \a maxlen characters from the stream and returns them as a
+    string. The result is shorter, or empty, if fewer characters remain or if
+    \a maxlen is not positive.
+
+    \sa readAll(), readLine()
+*/
 QString QTextStream::read(qint64 maxlen) {
     if (maxlen <= 0)
         return emptyString();

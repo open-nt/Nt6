@@ -34,10 +34,20 @@ public:
     QCryptographicHash &operator=(QCryptographicHash &&other) noexcept;
 
     void reset() noexcept;
+    /*!
+        Returns the algorithm that the object was constructed with.
+    */
     Algorithm algorithm() const noexcept { return m_method; }
     void addData(QByteArrayView data) noexcept;
+    /*!
+        \overload
+
+        Adds the \a length bytes at \a data to the data being hashed.
+    */
+    void addData(const char *data, qsizetype length) noexcept { addData(QByteArrayView(data, length)); }
     bool addData(QIODevice *device);
     QByteArray result() const;
+    QByteArrayView resultView() const noexcept;
 
     static QByteArray hash(QByteArrayView data, Algorithm method);
     static int hashLength(Algorithm method);
@@ -57,8 +67,15 @@ public:
     void reset();
     void setKey(QByteArrayView key);
     void addData(QByteArrayView data);
+    /*!
+        \overload
+
+        Adds the \a length bytes at \a data to the message.
+    */
+    void addData(const char *data, qsizetype length) { addData(QByteArrayView(data, length)); }
     bool addData(QIODevice *device);
     QByteArray result() const;
+    QByteArrayView resultView() const;
 
     static QByteArray hash(QByteArrayView message, QByteArrayView key, QCryptographicHash::Algorithm method);
 
@@ -67,4 +84,5 @@ private:
     QByteArray m_outerPad;
     QByteArray m_innerPad;
     QCryptographicHash m_inner;
+    mutable QByteArray m_resultCache;
 };

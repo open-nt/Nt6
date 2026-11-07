@@ -120,6 +120,80 @@ bool existsAsSpecified(const QString &path, QStandardPaths::LocateOptions option
 
 } // namespace
 
+/*!
+    \class QStandardPaths
+    \brief The QStandardPaths class provides methods for accessing standard paths.
+
+    The class locates the directories where a program should keep documents,
+    configuration, cache and other data, following the XDG base directory
+    specification. All functions are static.
+
+    \code
+    const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    const QString exe = QStandardPaths::findExecutable("git");
+    \endcode
+
+    \differences
+    Only the XDG layout of Linux and other POSIX systems is supported. The
+    application sub-directory is the executable's file name, since
+    QCoreApplication has no \c applicationName() or \c organizationName() yet.
+    There is no \c setTestModeEnabled() or \c isTestModeEnabled(), and
+    displayName() returns untranslated English names.
+    \enddifferences
+*/
+
+/*!
+    \enum QStandardPaths::StandardLocation
+
+    Identifies a kind of standard location.
+
+    \value DesktopLocation The user's desktop directory.
+    \value DocumentsLocation The user's documents directory.
+    \value FontsLocation The directory for fonts, below the XDG data home.
+    \value ApplicationsLocation The directory for desktop entries, below the XDG data home.
+    \value MusicLocation The user's music directory.
+    \value MoviesLocation The user's videos directory.
+    \value PicturesLocation The user's pictures directory.
+    \value TempLocation The directory for temporary files, as returned by QDir::tempPath().
+    \value HomeLocation The user's home directory.
+    \value AppLocalDataLocation The application's data directory below the XDG data home. Same as AppDataLocation.
+    \value CacheLocation The application's cache directory below the XDG cache home.
+    \value GenericDataLocation The XDG data home, shared by all applications.
+    \value RuntimeLocation The directory for runtime files such as sockets (\c XDG_RUNTIME_DIR).
+    \value ConfigLocation The XDG configuration home. Same as GenericConfigLocation.
+    \value DownloadLocation The user's download directory.
+    \value GenericCacheLocation The XDG cache home, shared by all applications.
+    \value GenericConfigLocation The XDG configuration home, shared by all applications.
+    \value AppDataLocation The application's data directory below the XDG data home.
+    \value AppConfigLocation The application's configuration directory below the XDG configuration home.
+    \value PublicShareLocation The user's public share directory.
+    \value TemplatesLocation The user's templates directory.
+    \value StateLocation The application's state directory below the XDG state home.
+    \value GenericStateLocation The XDG state home, shared by all applications.
+*/
+
+/*!
+    \enum QStandardPaths::LocateOption
+
+    Controls what locate() and locateAll() search for.
+
+    \value LocateFile Return only regular files.
+    \value LocateDirectory Return only directories.
+*/
+
+/*!
+    \typedef QStandardPaths::LocateOptions
+
+    A QFlags of LocateOption values.
+*/
+
+/*!
+    Returns the directory where files of the given \a type should be written,
+    or an empty string if the location cannot be determined. The directory is
+    not created.
+
+    \sa standardLocations(), locate()
+*/
 QString QStandardPaths::writableLocation(StandardLocation type) {
     switch (type) {
     case DesktopLocation: return userDir("XDG_DESKTOP_DIR", "Desktop");
@@ -149,6 +223,13 @@ QString QStandardPaths::writableLocation(StandardLocation type) {
     return QString();
 }
 
+/*!
+    Returns all directories of the given \a type, with the writable location
+    first. The result does not contain empty or duplicate entries, and the
+    directories are not checked for existence.
+
+    \sa writableLocation(), locateAll()
+*/
 QStringList QStandardPaths::standardLocations(StandardLocation type) {
     QStringList dirs;
     appendUnique(dirs, writableLocation(type));
@@ -190,6 +271,14 @@ QStringList QStandardPaths::standardLocations(StandardLocation type) {
     return dirs;
 }
 
+/*!
+    Finds the first entry named \a fileName in the standard locations of the
+    given \a type that matches \a options. Returns its full path, or an empty
+    string if there is none. If \a fileName is empty, the location directory
+    itself is tested.
+
+    \sa locateAll(), standardLocations()
+*/
 QString QStandardPaths::locate(StandardLocation type, const QString &fileName, LocateOptions options) {
     for (const QString &dir : standardLocations(type)) {
         const QString path = fileName.isEmpty() ? dir : dir + QChar(u'/') + fileName;
@@ -199,6 +288,12 @@ QString QStandardPaths::locate(StandardLocation type, const QString &fileName, L
     return QString();
 }
 
+/*!
+    Finds every entry named \a fileName in the standard locations of the given
+    \a type that matches \a options. Returns their full paths in search order.
+
+    \sa locate(), standardLocations()
+*/
 QStringList QStandardPaths::locateAll(StandardLocation type, const QString &fileName, LocateOptions options) {
     QStringList found;
     for (const QString &dir : standardLocations(type)) {
@@ -209,6 +304,10 @@ QStringList QStandardPaths::locateAll(StandardLocation type, const QString &file
     return found;
 }
 
+/*!
+    Returns a human-readable, untranslated English name for the location
+    \a type.
+*/
 QString QStandardPaths::displayName(StandardLocation type) {
     const char *name = "";
     switch (type) {
@@ -239,6 +338,12 @@ QString QStandardPaths::displayName(StandardLocation type) {
     return QString::fromUtf8(name);
 }
 
+/*!
+    Finds an executable file named \a executableName and returns its absolute
+    path, or an empty string if none is found. If \a executableName contains a
+    slash it is tested directly. Otherwise each directory in \a paths is
+    searched, or in the \c PATH environment variable if \a paths is empty.
+*/
 QString QStandardPaths::findExecutable(const QString &executableName, const QStringList &paths) {
     if (executableName.isEmpty())
         return QString();

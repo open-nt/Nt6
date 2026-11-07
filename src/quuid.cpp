@@ -41,8 +41,86 @@ QUuid fromNameHash(const QUuid &ns, const QByteArray &name, QCryptographicHash::
 
 } // namespace
 
+/*!
+    \class QUuid
+    \brief The QUuid class stores a Universally Unique Identifier (UUID).
+
+    A UUID is a 128-bit value, usually written as 32 hexadecimal digits in
+    the form \c{{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}}. createUuid() returns a
+    random (version 4) UUID, and createUuidV3() and createUuidV5() derive one
+    from a namespace and a name.
+
+    \code
+    QUuid id = QUuid::createUuid();
+    QString text = id.toString(QUuid::WithoutBraces);
+    \endcode
+
+    \differences
+    There is no \c createUuidV7(), no \c QUuid(QAnyStringView) or
+    \c fromString(QAnyStringView), and no QDataStream, \c QDebug or Windows
+    \c GUID conversions. Strings are parsed from a QStringView, a
+    \c{const char *} or a QByteArray. There are no predefined namespace
+    constants.
+    \enddifferences
+
+    \sa QRandomGenerator, QCryptographicHash
+*/
+
+/*!
+    \enum QUuid::Variant
+
+    Describes the layout of a UUID, which is stored in the top bits of
+    \c data4[0].
+
+    \value VarUnknown The variant is unknown. A null UUID has this variant.
+    \value NCS Reserved for NCS (Network Computing System) backward compatibility.
+    \value DCE Distributed Computing Environment, the variant defined by RFC 4122.
+    \value Microsoft Reserved for Microsoft Corporation backward compatibility.
+    \value Reserved Reserved for future definition.
+
+    \sa variant()
+*/
+
+/*!
+    \enum QUuid::Version
+
+    Describes how a UUID of the DCE variant was generated.
+
+    \value VerUnknown The version is unknown, or the UUID is not of the DCE variant.
+    \value Time Time-based.
+    \value EmbeddedPOSIX DCE security with embedded POSIX UIDs.
+    \value Md5 Name-based, hashed with MD5.
+    \value Name The same as Md5.
+    \value Random Random-number based.
+    \value Sha1 Name-based, hashed with SHA-1.
+
+    \sa version()
+*/
+
+/*!
+    \enum QUuid::StringFormat
+
+    Selects the text format used by toString() and toByteArray().
+
+    \value WithBraces The canonical form with dashes, enclosed in braces: \c{{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}}.
+    \value WithoutBraces The canonical form with dashes but without braces.
+    \value Id128 The 32 hexadecimal digits with neither dashes nor braces.
+*/
+
+/*!
+    Returns the UUID as 16 bytes in network (big-endian) order, as defined by
+    RFC 4122.
+
+    \sa fromRfc4122()
+*/
 QByteArray QUuid::toRfc4122() const { return rfcBytes(*this); }
 
+/*!
+    Returns the UUID as lowercase hexadecimal text, as a QByteArray, in the
+    given \a mode.
+
+    \sa toString(), fromString()
+*/
 QByteArray QUuid::toByteArray(StringFormat mode) const {
     const QByteArray hex = rfcBytes(*this).toHex();
     if (mode == Id128)
@@ -51,8 +129,19 @@ QByteArray QUuid::toByteArray(StringFormat mode) const {
     return mode == WithBraces ? '{' + dashed + '}' : dashed;
 }
 
+/*!
+    Returns the UUID as lowercase hexadecimal text in the given \a mode.
+
+    \sa toByteArray(), fromString()
+*/
 QString QUuid::toString(StringFormat mode) const { return QString::fromUtf8(toByteArray(mode)); }
 
+/*!
+    Creates a UUID from the 16 bytes in \a bytes, in network (big-endian)
+    order. Returns a null UUID if \a bytes does not hold exactly 16 bytes.
+
+    \sa toRfc4122()
+*/
 QUuid QUuid::fromRfc4122(const QByteArray &b) {
     if (b.size() != 16)
         return QUuid();
@@ -65,6 +154,13 @@ QUuid QUuid::fromRfc4122(const QByteArray &b) {
     return u;
 }
 
+/*!
+    Parses \a text as a UUID. It must be 32 hexadecimal digits, or the
+    canonical dashed form, optionally enclosed in braces. Digits may be
+    upper or lower case. Returns a null UUID if \a text is not valid.
+
+    \sa toString()
+*/
 QUuid QUuid::fromString(QStringView text) {
     if (text.size() == 38) {
         if (text[0] != QChar(u'{') || text[37] != QChar(u'}'))
@@ -97,8 +193,16 @@ QUuid QUuid::fromString(QStringView text) {
     return fromRfc4122(bytes);
 }
 
+/*!
+    Returns \c true if all fields are zero; otherwise returns \c false.
+*/
 bool QUuid::isNull() const noexcept { return *this == QUuid(); }
 
+/*!
+    Returns the variant of the UUID, or VarUnknown if it is null.
+
+    \sa version()
+*/
 QUuid::Variant QUuid::variant() const noexcept {
     if (isNull())
         return VarUnknown;
@@ -112,6 +216,12 @@ QUuid::Variant QUuid::variant() const noexcept {
     return Reserved;
 }
 
+/*!
+    Returns the version of the UUID, or VerUnknown if it is not of the DCE
+    variant or has an unrecognized version.
+
+    \sa variant()
+*/
 QUuid::Version QUuid::version() const noexcept {
     const int v = data3 >> 12;
     if (variant() != DCE || v < Time || v > Sha1)
@@ -119,6 +229,12 @@ QUuid::Version QUuid::version() const noexcept {
     return static_cast<Version>(v);
 }
 
+/*!
+    Creates a random (version 4, DCE variant) UUID using
+    QRandomGenerator::system().
+
+    \sa createUuidV3(), createUuidV5()
+*/
 QUuid QUuid::createUuid() {
     QUuid u;
     quint32 words[4];
@@ -131,8 +247,20 @@ QUuid QUuid::createUuid() {
     return u;
 }
 
+/*!
+    Creates a name-based, version 3 UUID by hashing \a name within the
+    namespace \a ns with MD5. The same inputs always give the same UUID.
+
+    \sa createUuidV5(), createUuid()
+*/
 QUuid QUuid::createUuidV3(const QUuid &ns, const QByteArray &name) { return fromNameHash(ns, name, QCryptographicHash::Md5, 3); }
 
+/*!
+    Creates a name-based, version 5 UUID by hashing \a name within the
+    namespace \a ns with SHA-1. The same inputs always give the same UUID.
+
+    \sa createUuidV3(), createUuid()
+*/
 QUuid QUuid::createUuidV5(const QUuid &ns, const QByteArray &name) { return fromNameHash(ns, name, QCryptographicHash::Sha1, 5); }
 
 bool operator==(const QUuid &a, const QUuid &b) noexcept {

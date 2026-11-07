@@ -124,6 +124,9 @@ void invokePrefix(Callable &&c, void *const *argv, std::index_sequence<I...>) {
 struct QMetaObject {
     class Connection {
     public:
+        /*!
+            Constructs an invalid connection handle.
+        */
         Connection() = default;
         explicit operator bool() const noexcept;
 
@@ -147,6 +150,15 @@ public:
     QString objectName() const;
     void setObjectName(const QString &name);
 
+    /*!
+        Returns the first child of this object that can be cast to \c T and,
+        if \a name is not empty, has that object name; otherwise returns
+        \c nullptr. \c T must be a pointer type. Direct children are tried
+        first, then descendants if \a options includes
+        \c Qt::FindChildrenRecursively (the default).
+
+        \sa findChildren(), children()
+    */
     template <typename T>
     T findChild(const QString &name = QString(), Qt::FindChildOptions options = Qt::FindChildrenRecursively) const {
         for (QObject *c : children())
@@ -158,6 +170,14 @@ public:
                     return t;
         return nullptr;
     }
+    /*!
+        Returns all children of this object that can be cast to \c T and, if
+        \a name is not empty, have that object name. \c T must be a pointer
+        type. Descendants are included if \a options contains
+        \c Qt::FindChildrenRecursively (the default).
+
+        \sa findChild(), children()
+    */
     template <typename T>
     QList<T> findChildren(const QString &name = QString(), Qt::FindChildOptions options = Qt::FindChildrenRecursively) const {
         QList<T> r;
@@ -170,6 +190,10 @@ public:
         return r;
     }
 
+    /*!
+        Returns the UTF-8 text \a sourceText as a QString. Translation is not
+        implemented, so the context and disambiguation arguments are ignored.
+    */
     // Translation is not implemented; returns the source text.
     static QString tr(const char *sourceText, const char * = nullptr, int = -1) { return QString::fromUtf8(sourceText); }
 
@@ -185,6 +209,18 @@ public:
 
     virtual bool event(QEvent *event);
 
+    /*!
+        Connects \a signal of \a sender to \a slot and returns a handle to the
+        connection. \a slot is a member function of \a receiver, or any
+        callable invoked in the context of \a receiver; it may accept fewer
+        arguments than the signal provides. The connection is removed when
+        either \a sender or \a receiver is destroyed.
+
+        \a type selects direct or queued delivery. Returns an invalid
+        connection if \a sender is \c nullptr.
+
+        \sa disconnect(), sender(), {Signals and Slots}
+    */
     // connect(sender, &Sender::signal, receiver, &Receiver::slot)
     // connect(sender, &Sender::signal, context, functor)
     template <typename SenderT, typename SignalClass, typename... SArgs, typename RecvT,
@@ -197,6 +233,11 @@ public:
                              std::forward<Func>(slot), type);
     }
 
+    /*!
+        \overload
+        Connects \a signal of \a sender to the callable \a slot, which has no
+        receiver object. \a type selects direct or queued delivery.
+    */
     // connect(sender, &Sender::signal, functor)
     template <typename SenderT, typename SignalClass, typename... SArgs, typename Func>
     static QMetaObject::Connection connect(const SenderT *sender,
@@ -208,6 +249,14 @@ public:
 
     static bool disconnect(const QMetaObject::Connection &connection);
 
+    /*!
+        Disconnects \a signal of \a sender from \a receiver, or from all
+        receivers if \a receiver is \c nullptr. Returns \c true if any
+        connection was removed; otherwise returns \c false. The last
+        parameter is unused and exists for compatibility.
+
+        \sa connect()
+    */
     template <typename SenderT, typename SignalClass, typename... SArgs>
     static bool disconnect(const SenderT *sender, void (SignalClass::*signal)(SArgs...),
                            const QObject *receiver = nullptr, std::nullptr_t = nullptr) {
@@ -222,12 +271,28 @@ public slots:
     void deleteLater();
 
 signals:
+    /*!
+        This signal is emitted immediately before the object \a obj is
+        destroyed, from the destructor of QObject. Connected slots run while
+        the derived part of the object is already gone.
+
+        \note Unlike in Qt, it is not emitted while signals are blocked.
+
+        \sa deleteLater()
+    */
     void destroyed(QObject *obj = nullptr) { emitSignal(&QObject::destroyed, obj); }
 
 protected:
     virtual void timerEvent(QTimerEvent *event);
     virtual void customEvent(QEvent *event);
 
+    /*!
+        Emits \a signal with \a args to every connected slot. This stands in
+        for the body that \c ntmoc generates; call it from each signal
+        function.
+
+        \sa connect()
+    */
     // Stand-in for the body moc would generate: call it from each signal.
     template <typename Obj, typename... Args>
     void emitSignal(void (Obj::*signal)(Args...), const std::decay_t<Args> &...args) {

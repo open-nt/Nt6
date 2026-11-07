@@ -7,10 +7,26 @@
 // Text formats use C-locale English names until QLocale exists.
 class QDate {
 public:
+    /*!
+        Constructs a null date. A null date is invalid.
+
+        \sa isNull(), isValid()
+    */
     constexpr QDate() noexcept = default;
     QDate(int y, int m, int d);
 
+    /*!
+        Returns \c true if the date is null; otherwise returns \c false. A null
+        date is invalid.
+
+        \sa isValid()
+    */
     constexpr bool isNull() const noexcept { return !isValid(); }
+    /*!
+        Returns \c true if the date is valid; otherwise returns \c false.
+
+        \sa isNull()
+    */
     constexpr bool isValid() const noexcept { return jd != kNullJd; }
     int year() const;
     int month() const;
@@ -26,6 +42,12 @@ public:
     QDate addMonths(int months) const;
     QDate addYears(int years) const;
     qint64 daysTo(QDate d) const;
+    /*!
+        Returns the date as a Julian day number, or the minimum \c qint64
+        value if the date is invalid.
+
+        \sa fromJulianDay()
+    */
     constexpr qint64 toJulianDay() const noexcept { return jd; }
     QString toString(Qt::DateFormat format = Qt::TextDate) const;
     QString toString(const QString &format) const;
@@ -51,21 +73,64 @@ private:
 
 class QTime {
 public:
+    /*!
+        Constructs a null time. A null time is invalid.
+
+        \sa isNull(), isValid()
+    */
     constexpr QTime() noexcept = default;
     QTime(int h, int m, int s = 0, int ms = 0);
 
+    /*!
+        Returns \c true if the time is null, which means it was default
+        constructed and not set; otherwise returns \c false. A null time is
+        also invalid.
+
+        \sa isValid()
+    */
     constexpr bool isNull() const noexcept { return ms == -1; }
+    /*!
+        Returns \c true if the time is valid; otherwise returns \c false.
+
+        \sa isNull()
+    */
     constexpr bool isValid() const noexcept { return ms >= 0 && ms < 86400000; }
+    /*!
+        Returns the hour, from 0 to 23, or -1 if the time is invalid.
+
+        \sa minute(), second(), msec()
+    */
     int hour() const { return isValid() ? ms / 3600000 : -1; }
+    /*!
+        Returns the minute, from 0 to 59, or -1 if the time is invalid.
+
+        \sa hour(), second(), msec()
+    */
     int minute() const { return isValid() ? (ms % 3600000) / 60000 : -1; }
+    /*!
+        Returns the second, from 0 to 59, or -1 if the time is invalid.
+
+        \sa hour(), minute(), msec()
+    */
     int second() const { return isValid() ? (ms / 1000) % 60 : -1; }
+    /*!
+        Returns the millisecond, from 0 to 999, or -1 if the time is invalid.
+
+        \sa hour(), minute(), second()
+    */
     int msec() const { return isValid() ? ms % 1000 : -1; }
     bool setHMS(int h, int m, int s, int msecs = 0);
     QTime addSecs(int secs) const;
     QTime addMSecs(int msecs) const;
     int secsTo(QTime t) const;
     int msecsTo(QTime t) const;
-    constexpr int msecsSinceStartOfDay() const noexcept { return ms == -1 ? 0 : ms; }
+    /*!
+        Returns the number of milliseconds since midnight, or 0 if the time is
+        invalid.
+
+        \sa fromMSecsSinceStartOfDay()
+    */
+    constexpr int msecsSinceStartOfDay() const noexcept { return isValid() ? ms : 0; }
     QString toString(Qt::DateFormat format = Qt::TextDate) const;
     QString toString(const QString &format) const;
 
@@ -88,34 +153,129 @@ private:
 
 class QDateTime {
 public:
+    /*!
+        Constructs a null datetime, which is invalid.
+
+        \sa isNull(), isValid()
+    */
     QDateTime() = default;
     QDateTime(QDate date, QTime time, Qt::TimeSpec spec = Qt::LocalTime, int offsetSeconds = 0);
 
+    /*!
+        Returns \c true if both the date and the time are null; otherwise
+        returns \c false.
+
+        \sa isValid()
+    */
     bool isNull() const noexcept { return m_date.isNull() && m_time.isNull(); }
+    /*!
+        Returns \c true if both the date and the time are valid; otherwise
+        returns \c false.
+
+        \sa isNull()
+    */
     bool isValid() const noexcept { return m_date.isValid() && m_time.isValid(); }
+    /*!
+        Returns the date part of the datetime.
+
+        \sa time(), setDate()
+    */
     QDate date() const { return m_date; }
+    /*!
+        Returns the time part of the datetime.
+
+        \sa date(), setTime()
+    */
     QTime time() const { return m_time; }
+    /*!
+        Returns the time specification of the datetime.
+
+        \sa setTimeSpec(), toTimeSpec()
+    */
     Qt::TimeSpec timeSpec() const { return m_spec; }
     int offsetFromUtc() const;
     qint64 toMSecsSinceEpoch() const;
     qint64 toSecsSinceEpoch() const;
+    /*!
+        Sets the date part to \a date. If the time is not valid, it is set to
+        midnight.
+
+        \sa date(), setTime()
+    */
     void setDate(QDate date) { m_date = date; if (!m_time.isValid()) m_time = QTime(0, 0); }
+    /*!
+        Sets the time part to \a time.
+
+        \sa time(), setDate()
+    */
     void setTime(QTime time) { m_time = time; }
+    /*!
+        Sets the time specification to \a spec, keeping the date and time
+        fields as they are. The offset is reset to 0 unless \a spec is
+        Qt::OffsetFromUTC; use setOffsetFromUtc() to set a fixed offset.
+
+        \sa timeSpec(), toTimeSpec()
+    */
     void setTimeSpec(Qt::TimeSpec spec) { m_spec = spec == Qt::OffsetFromUTC ? Qt::OffsetFromUTC : spec; if (spec != Qt::OffsetFromUTC) m_offset = 0; }
     void setOffsetFromUtc(int offsetSeconds);
     void setMSecsSinceEpoch(qint64 msecs);
+    /*!
+        Sets the datetime to \a secs seconds since the Unix epoch, shown in the
+        datetime's current time specification.
+
+        \sa toSecsSinceEpoch(), setMSecsSinceEpoch()
+    */
     void setSecsSinceEpoch(qint64 secs) { setMSecsSinceEpoch(secs * 1000); }
 
     QDateTime addDays(qint64 days) const;
     QDateTime addMonths(int months) const;
     QDateTime addYears(int years) const;
+    /*!
+        Returns a QDateTime that is \a secs seconds after this one, or before it
+        if \a secs is negative.
+
+        \sa addMSecs(), secsTo()
+    */
     QDateTime addSecs(qint64 secs) const { return addMSecs(secs * 1000); }
     QDateTime addMSecs(qint64 msecs) const;
+    /*!
+        Returns the number of days from this datetime's date to the date of
+        \a o, which is negative if \a o is earlier. The times are not taken
+        into account. Returns 0 if either date is invalid.
+
+        \sa secsTo(), addDays()
+    */
     qint64 daysTo(const QDateTime &o) const { return m_date.daysTo(o.m_date); }
+    /*!
+        Returns the number of whole seconds from this datetime to \a o, which
+        is negative if \a o is earlier. The difference is taken between the
+        instants the two datetimes represent, so their time specifications
+        do not matter.
+
+        \sa msecsTo(), addSecs()
+    */
     qint64 secsTo(const QDateTime &o) const { return msecsTo(o) / 1000; }
+    /*!
+        Returns the number of milliseconds from this datetime to \a o, which
+        is negative if \a o is earlier. The difference is taken between the
+        instants the two datetimes represent, so their time specifications
+        do not matter.
+
+        \sa secsTo(), addMSecs()
+    */
     qint64 msecsTo(const QDateTime &o) const { return o.toMSecsSinceEpoch() - toMSecsSinceEpoch(); }
     QDateTime toTimeSpec(Qt::TimeSpec spec) const;
+    /*!
+        Returns a copy of this datetime converted to local time.
+
+        \sa toUTC(), toTimeSpec()
+    */
     QDateTime toLocalTime() const { return toTimeSpec(Qt::LocalTime); }
+    /*!
+        Returns a copy of this datetime converted to UTC.
+
+        \sa toLocalTime(), toTimeSpec()
+    */
     QDateTime toUTC() const { return toTimeSpec(Qt::UTC); }
     QDateTime toOffsetFromUtc(int offsetSeconds) const;
     QString toString(Qt::DateFormat format = Qt::TextDate) const;

@@ -50,7 +50,7 @@ static void spinEvents(int msecs) {
 static speed_t inputSpeed(const termios &tio) {
     if (B9600 == 9600)
         return ::cfgetispeed(&tio);
-    const tcflag_t input = (tio.c_cflag & CIBAUD) >> IBSHIFT;
+    const tcflag_t input = (tio.c_cflag & CIBAUD) >> QtPrivate::kSerialInputSpeedShift;
     return input != 0 ? input : (tio.c_cflag & CBAUD);
 }
 

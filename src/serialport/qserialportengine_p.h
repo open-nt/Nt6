@@ -12,6 +12,10 @@
 // alone apart from its use of QSocketNotifier.
 namespace QtPrivate {
 
+// Where the kernel keeps the input speed in c_cflag: the CIBAUD bits are the CBAUD bits
+// shifted by this. It is the kernel's IBSHIFT, which not every libc header defines.
+inline constexpr int kSerialInputSpeedShift = 16;
+
 // What a port should be configured to. QSerialPort keeps one of these, so that
 // settings made while the port is closed take effect in open().
 struct SerialSettings {

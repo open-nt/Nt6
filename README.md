@@ -53,11 +53,11 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 - **Date and time:** `QTimeZone`, `QCalendar`, `QChronoTimer`, `QTimeLine`
 - **File system:** `QDirIterator`, `QDirListing`, `QLockFile`, `QFileSystemWatcher`, `QFileSelector`, `QStorageInfo`, `QResource`, `QSettings`
 - **Processes and plugins:** `QProcess`, `QProcessEnvironment`, `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
-- **Formats:** `QJsonValue`/`QJsonObject`/`QJsonArray`/`QJsonDocument`, `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QUrl`, `QUrlQuery`, `QMimeDatabase`/`QMimeType`/`QMimeData`
+- **Formats:** `QJsonValue`/`QJsonObject`/`QJsonArray`/`QJsonDocument`, `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`/`QMimeData`
 - **Concurrency:** `QThread` (and per-thread event loops / cross-thread queued signals), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`
 - **Item models:** `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QAbstractProxyModel`, `QSortFilterProxyModel`, `QIdentityProxyModel`, `QConcatenateTablesProxyModel`, `QTransposeProxyModel`, `QModelIndex`, `QPersistentModelIndex`, `QItemSelection*`, `QRangeModel`
 - **Animation:** `QAbstractAnimation`, `QVariantAnimation`, `QPropertyAnimation`, `QPauseAnimation`, `QSequentialAnimationGroup`, `QParallelAnimationGroup`, `QAnimationGroup`, `QEasingCurve`
-- **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLibraryInfo`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDynamicPropertyChangeEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
+- **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDynamicPropertyChangeEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
 
 ### Nt Network: implemented
 
@@ -69,12 +69,16 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 | `QTcpServer` | `listen`, `newConnection`, `nextPendingConnection`, `waitForNewConnection`, pause/resume accepting, pending-connection limit |
 | `QUdpSocket` | `bind`, `writeDatagram`, `readDatagram`, `receiveDatagram`, connected mode, IPv4/IPv6 multicast join/leave |
 | `QNetworkDatagram` | data, sender, destination, `makeReply` |
+| `QHostInfo` | blocking `fromName`, asynchronous `lookupHost` (functor, with optional context object), `abortHostLookup`, local host and domain names |
+| `QNetworkInterface`, `QNetworkAddressEntry` | list interfaces, flags, type, MTU, hardware address, addresses, netmask, broadcast (Linux) |
+| `QLocalSocket`, `QLocalServer` | Unix domain sockets: event-driven and `waitFor*` APIs, access options, stale-socket recovery |
+| `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |
 
-Differences from Qt: host-name lookup is synchronous (blocks inside `connectToHost`); `setSocketOption`/`socketOption` take and return `int` instead of `QVariant` until `QVariant` exists; `QUdpSocket` does not report the destination address or hop limit of received datagrams.
+Differences from Qt: `QAbstractSocket::connectToHost` resolves names synchronously, although `QNetworkAccessManager` and `QHostInfo::lookupHost` do not block; `setSocketOption`/`socketOption` take and return `int` instead of `QVariant` until `QVariant` exists; `QUdpSocket` does not report the destination address or hop limit of received datagrams.
 
 ### Nt Network: not implemented yet
 
-`QHostInfo` (async DNS), `QDnsLookup`, `QNetworkInterface`/`QNetworkAddressEntry`, `QNetworkProxy`, `QLocalSocket`/`QLocalServer`, `QSslSocket` and the TLS classes, `QSctpSocket`, `QAuthenticator`, and the HTTP stack (`QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply`, `QNetworkCookie`, `QHttpMultiPart`, ...), which also needs `QUrl`.
+`QDnsLookup`, `QNetworkProxy`, `QSslSocket` and the TLS classes (so no `https:` yet), `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, HTTP/2, connection reuse and response compression.
 
 ```cpp
 QTcpServer server;
@@ -270,6 +274,12 @@ cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
 Requires C++17 and a POSIX system. Link with `Nt::Core` and `Nt::Network` (or the `Qt6::Core` / `Qt6::Network` aliases).
+
+Release is the default build type. Builds add stack-protector, `_FORTIFY_SOURCE` and RELRO hardening (`-DNT_HARDENING=OFF` disables it), and `-DNT_SANITIZE="address;undefined"` builds with sanitizers.
+
+### Contributing
+
+Run `./check.sh` before every commit (`./check.sh --install-hook` installs a pre-commit hook). It builds with `-Werror`, runs the tests under ASan and UBSan, requires complete NDoc comments, and runs clang-format, clang-tidy and cppcheck. It needs `cmake`, a C++17 compiler, `clang-format`, `clang-tidy` and `cppcheck`; `ninja` is used when present.
 
 ## Packages
 

@@ -1465,12 +1465,12 @@ bool loadConfig(const fs::path &path, Config &cfg) {
         } else if (key == "version") {
             cfg.version = value;
         } else if (key == "version_file") {
-            std::string text;
-            if (!readFile(resolve(value), text)) {
+            std::string versionText;
+            if (!readFile(resolve(value), versionText)) {
                 std::cerr << path.string() << ':' << number << ": cannot read " << value << '\n';
                 return false;
             }
-            cfg.version = trim(text);
+            cfg.version = trim(versionText);
         } else if (key == "description") {
             cfg.description = value;
         } else if (key == "footer") {
@@ -1652,7 +1652,7 @@ public:
                     if (c != ' ')
                         args += c;
             }
-            target = target.substr(0, paren);
+            target.erase(paren);
         }
 
         if (const ClassDoc *cls = M.find(target)) {

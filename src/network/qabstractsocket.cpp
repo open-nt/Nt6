@@ -315,11 +315,14 @@ void QAbstractSocket::updateAddresses() {
         return;
     sockaddr_storage ss;
     socklen_t len = sizeof ss;
+    // d is created by the constructor and never null.
+    // NOLINTBEGIN(clang-analyzer-core.CallAndMessage)
     if (::getsockname(m_fd, reinterpret_cast<sockaddr *>(&ss), &len) == 0)
         d->local = QtPrivate::fromSockaddr(ss, &d->localPort);
     len = sizeof ss;
     if (::getpeername(m_fd, reinterpret_cast<sockaddr *>(&ss), &len) == 0)
         d->peer = QtPrivate::fromSockaddr(ss, &d->peerPort);
+    // NOLINTEND(clang-analyzer-core.CallAndMessage)
 }
 
 /*!
@@ -564,13 +567,13 @@ qint64 QAbstractSocket::flushWrites() {
         } else if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK)) {
             break;
         } else {
-            fatal = errno ? errno : EPIPE;
+            fatal = errno ? errno : EPIPE; // NOLINT(clang-analyzer-unix.Errno)
             break;
         }
     }
     updateNotifiers();
     if (sent > 0) {
-        bytesWritten(sent);
+        socketBytesWritten(sent);
         if (!self)
             return sent;
     }
@@ -608,6 +611,34 @@ void QAbstractSocket::remoteClosed() {
 }
 
 /*!
+    \internal
+
+    Handles \a size bytes in \a data as read from the operating system.
+    QSslSocket reimplements this to decrypt them.
+*/
+void QAbstractSocket::receivedRaw(const char *data, qint64 size) { deliverData(data, size); }
+
+/*!
+    \internal
+
+    Queues \a size bytes in \a data for the reader, and emits readyRead().
+*/
+void QAbstractSocket::deliverData(const char *data, qint64 size) {
+    m_rbuf.append(data, size);
+    updateNotifiers();
+    m_readyReadEmitted = true;
+    readyRead();
+}
+
+/*!
+    \internal
+
+    Reports that \a size bytes reached the operating system. QSslSocket
+    reimplements this, as those bytes are encrypted.
+*/
+void QAbstractSocket::socketBytesWritten(qint64 size) { bytesWritten(size); }
+
+/*!
     Called when the operating system socket becomes readable. TCP sockets
     read the available bytes into the internal buffer and emit readyRead();
     a zero-byte read closes the socket with RemoteHostClosedError. UDP
@@ -631,17 +662,24 @@ void QAbstractSocket::readActivated() {
         n = ::recv(m_fd, buf, sizeof buf, 0);
     } while (n < 0 && errno == EINTR);
     if (n > 0) {
-        m_rbuf.append(buf, n);
-        updateNotifiers();
-        m_readyReadEmitted = true;
-        readyRead();
+        receivedRaw(buf, n);
     } else if (n == 0) {
         remoteClosed();
     } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
-        const int e = errno;
-        setSocketErrorFromErrno(e == ECONNRESET ? ECONNRESET : e);
-        finishDisconnect();
+        connectionLost(errno);
     }
+}
+
+/*!
+    \internal
+
+    Handles a read failing with the system error \a error.
+*/
+void QAbstractSocket::connectionLost(int error) {
+    QPointer<QAbstractSocket> self(this);
+    setSocketErrorFromErrno(error);
+    if (self)
+        finishDisconnect();
 }
 
 /*!

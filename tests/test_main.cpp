@@ -1,3 +1,4 @@
+// MIT License - see LICENSE
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QObject>

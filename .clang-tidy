@@ -1,0 +1,49 @@
+# MIT License - see LICENSE
+#
+# Run through check.sh. Every enabled check must pass; WarningsAsErrors keeps it so.
+Checks: >
+  -*,
+  bugprone-*,
+  clang-analyzer-*,
+  misc-*,
+  performance-*,
+  portability-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-macro-parentheses,
+  -bugprone-narrowing-conversions,
+  -bugprone-reserved-identifier,
+  -bugprone-return-const-ref-from-parameter,
+  -clang-analyzer-deadcode.DeadStores,
+  -misc-const-correctness,
+  -misc-header-include-cycle,
+  -misc-include-cleaner,
+  -misc-no-recursion,
+  -misc-non-private-member-variables-in-classes,
+  -misc-use-anonymous-namespace,
+  -misc-use-internal-linkage,
+  -performance-enum-size,
+  -portability-avoid-pragma-once
+WarningsAsErrors: '*'
+HeaderFilterRegex: '.*/include/Qt(Core|Network)/.*'
+FormatStyle: none
+# Disabled checks, and why:
+#  bugprone-easily-swappable-parameters, misc-non-private-member-variables-in-classes
+#      The public API mirrors Qt, so signatures and struct layouts are fixed.
+#  bugprone-narrowing-conversions, bugprone-implicit-widening-of-multiplication-result
+#      -Wconversion and -Wsign-conversion already cover them, with fewer false positives.
+#  bugprone-macro-parentheses
+#      Q_DECLARE_FLAGS and similar macros take types and declarations.
+#  clang-analyzer-deadcode.DeadStores
+#      Flags defensive initialisation, which is deliberate here.
+#  bugprone-return-const-ref-from-parameter
+#      qMin(), qMax() and qBound() return const references, as in Qt.
+#  misc-header-include-cycle
+#      Qt-style headers include each other (qstring.h and qstringlist.h).
+#  portability-avoid-pragma-once
+#      The project uses #pragma once throughout.
+#  performance-enum-size
+#      Shrinking enums would change the ABI Qt users expect.
+#  misc-const-correctness, misc-include-cleaner, misc-no-recursion,
+#  misc-use-anonymous-namespace, misc-use-internal-linkage, bugprone-reserved-identifier
+#      Style preferences that fight Qt naming and the header layout.

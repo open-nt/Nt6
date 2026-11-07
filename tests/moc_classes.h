@@ -1,3 +1,4 @@
+// MIT License - see LICENSE
 #pragma once
 
 #include <QObject>

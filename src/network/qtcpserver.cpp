@@ -90,7 +90,7 @@ bool QTcpServer::setSocketDescriptor(qintptr fd) {
     if (fl >= 0)
         ::fcntl(static_cast<int>(fd), F_SETFL, fl | O_NONBLOCK);
     m_fd = static_cast<int>(fd);
-    d->address = QtPrivate::fromSockaddr(ss, &d->port);
+    d->address = QtPrivate::fromSockaddr(ss, &d->port); // NOLINT(clang-analyzer-core.CallAndMessage)
     m_notifier = new QSocketNotifier(m_fd, QSocketNotifier::Read, this);
     QObject::connect(m_notifier, &QSocketNotifier::activated, this, [this] { acceptActivated(); });
     return true;
@@ -223,12 +223,16 @@ void QTcpServer::acceptActivated() {
             }
             break;
         }
+        const std::size_t before = d->pending.size();
         incomingConnection(fd);
         if (!self)
             return;
-        newConnection();
-        if (!self)
-            return;
+        // A subclass may add the socket later, as QSslServer does.
+        if (d->pending.size() > before) {
+            newConnection();
+            if (!self)
+                return;
+        }
     }
     if (m_notifier && static_cast<int>(d->pending.size()) >= m_maxPending)
         m_notifier->setEnabled(false);

@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qconfig.h>
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -31,11 +33,10 @@ using ulong = unsigned long;
 #define Q_LIKELY(x) (x)
 #define Q_UNLIKELY(x) (x)
 
-#define QT_VERSION_MAJOR 6
-#define QT_VERSION_MINOR 0
-#define QT_VERSION_PATCH 0
 #define QT_VERSION_CHECK(major, minor, patch) (((major) << 16) | ((minor) << 8) | (patch))
 #define QT_VERSION QT_VERSION_CHECK(QT_VERSION_MAJOR, QT_VERSION_MINOR, QT_VERSION_PATCH)
+
+const char *qVersion() noexcept;
 
 #define Q_UNUSED(x) (void)(x);
 #define Q_ASSERT(cond) assert(cond)

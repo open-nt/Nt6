@@ -1,0 +1,23 @@
+# MIT License - see LICENSE
+# Matches the existing code style. check.sh only enforces it on changed lines.
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++17
+IndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -4
+NamespaceIndentation: None
+PointerAlignment: Right
+BreakBeforeBraces: Attach
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortLambdasOnASingleLine: All
+AllowShortEnumsOnASingleLine: true
+AlignAfterOpenBracket: Align
+BinPackArguments: true
+BinPackParameters: true
+SpaceAfterTemplateKeyword: true
+IncludeBlocks: Preserve
+SortIncludes: Never
+ReflowComments: false

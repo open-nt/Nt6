@@ -74,3 +74,6 @@
 #include "quuid.h"
 #include "qvarlengtharray.h"
 #include "qversionnumber.h"
+#include "qurl.h"
+#include "qurlquery.h"
+#include "qlibraryinfo.h"

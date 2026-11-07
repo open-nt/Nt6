@@ -99,7 +99,7 @@ std::string stripSource(const std::string &s) {
         } else if (c == '"' || (c == '\'' && !(i > 0 && std::isdigit(static_cast<unsigned char>(s[i - 1]))))) {
             std::size_t j = i + 1;
             while (j < n && s[j] != c && s[j] != '\n')
-                j += (s[j] == '\\') ? 2 : 1;
+                j += (s[j] == '\\') ? 2u : 1u;
             j = (j < n && s[j] == c) ? j + 1 : j;
             blank(i, j);
             i = j;

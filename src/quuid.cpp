@@ -122,7 +122,7 @@ QByteArray QUuid::toRfc4122() const { return rfcBytes(*this); }
     \sa toString(), fromString()
 */
 QByteArray QUuid::toByteArray(StringFormat mode) const {
-    const QByteArray hex = rfcBytes(*this).toHex();
+    QByteArray hex = rfcBytes(*this).toHex();
     if (mode == Id128)
         return hex;
     QByteArray dashed = hex.mid(0, 8) + '-' + hex.mid(8, 4) + '-' + hex.mid(12, 4) + '-' + hex.mid(16, 4) + '-' + hex.mid(20);

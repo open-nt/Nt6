@@ -292,7 +292,7 @@ QString QFileInfo::path() const {
     \sa path(), canonicalPath(), absoluteDir()
 */
 QString QFileInfo::absolutePath() const {
-    const QString abs = absoluteFilePath();
+    QString abs = absoluteFilePath();
     if (abs.isEmpty())
         return QString::fromUtf8(".");
     if (m_file.endsWith(QChar(u'/')))
@@ -424,7 +424,7 @@ QFileInfo::Permissions QFileInfo::permissions() const {
     if (!s.exists)
         return Permissions();
     // Qt reports the owner bits twice: as the Owner and the User permissions.
-    int p = 0;
+    Permissions p;
     if (s.mode & S_IRUSR) p |= ReadOwner | ReadUser;
     if (s.mode & S_IWUSR) p |= WriteOwner | WriteUser;
     if (s.mode & S_IXUSR) p |= ExeOwner | ExeUser;
@@ -434,7 +434,7 @@ QFileInfo::Permissions QFileInfo::permissions() const {
     if (s.mode & S_IROTH) p |= ReadOther;
     if (s.mode & S_IWOTH) p |= WriteOther;
     if (s.mode & S_IXOTH) p |= ExeOther;
-    return Permissions(static_cast<Permission>(p));
+    return p;
 }
 
 /*!

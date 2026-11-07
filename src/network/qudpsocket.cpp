@@ -176,9 +176,9 @@ QNetworkDatagram QUdpSocket::receiveDatagram(qint64 maxSize) {
     if (n < 0)
         return QNetworkDatagram();
     buf.resize(n);
-    QNetworkDatagram d(buf, localAddress(), localPort());
-    d.setSender(from, port);
-    return d;
+    QNetworkDatagram datagram(buf, localAddress(), localPort());
+    datagram.setSender(from, port);
+    return datagram;
 }
 
 /*!
@@ -217,8 +217,8 @@ qint64 QUdpSocket::writeDatagram(const char *data, qint64 size, const QHostAddre
     of bytes sent, or -1 on failure.
 */
 qint64 QUdpSocket::writeDatagram(const QNetworkDatagram &datagram) {
-    const QByteArray d = datagram.data();
-    return writeDatagram(d.constData(), d.size(), datagram.destinationAddress(),
+    const QByteArray payload = datagram.data();
+    return writeDatagram(payload.constData(), payload.size(), datagram.destinationAddress(),
                          static_cast<quint16>(datagram.destinationPort()));
 }
 

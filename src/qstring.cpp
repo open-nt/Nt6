@@ -213,7 +213,8 @@ QString::QString(QLatin1StringView s) : m_null(false) {
 
     \sa fromUtf8()
 */
-QString::QString(const QByteArray &utf8) : m_null(utf8.isNull()) { d = decodeUtf8(utf8.constData(), static_cast<std::size_t>(utf8.size())); }
+QString::QString(const QByteArray &utf8)
+    : d(decodeUtf8(utf8.constData(), static_cast<std::size_t>(utf8.size()))), m_null(utf8.isNull()) {}
 
 /*!
     Returns a string decoded from the first \a size bytes of the UTF-8 string
@@ -591,7 +592,7 @@ qsizetype QString::count(const QString &s, Qt::CaseSensitivity cs) const {
 QStringList QString::split(const QString &sep, Qt::SplitBehavior behavior, Qt::CaseSensitivity cs) const {
     QStringList r;
     const bool skip = behavior.testFlag(Qt::SkipEmptyParts);
-    auto add = [&](std::u16string part) {
+    auto add = [&](const std::u16string &part) {
         if (!(skip && part.empty()))
             r.append(QString(part));
     };

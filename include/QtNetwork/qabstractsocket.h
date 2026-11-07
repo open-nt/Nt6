@@ -192,6 +192,13 @@ protected:
     */
     int socketFamily() const { return m_family; }
     virtual void readActivated();
+    virtual void receivedRaw(const char *data, qint64 size);
+    void deliverData(const char *data, qint64 size);
+    virtual void socketBytesWritten(qint64 size);
+    virtual void remoteClosed();
+    virtual void connectionLost(int error);
+    void finishDisconnect();
+    void endWaitForReadyRead() { m_readyReadEmitted = true; }
 
 private:
     struct Private;
@@ -199,8 +206,6 @@ private:
     void socketConnected();
     void writeActivated();
     qint64 flushWrites();
-    void finishDisconnect();
-    void remoteClosed();
     void closeSocket();
     bool adoptSocket(int fd, int family);
     void updateAddresses();

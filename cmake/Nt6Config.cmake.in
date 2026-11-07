@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-# Nt 6: provides Nt6::Core, Nt6::Network, and the tools Nt6::moc and Nt6::ndoc.
+# Nt 6: provides Nt6::Core, Nt6::Network, Nt6::SerialPort, and the tools Nt6::moc and Nt6::ndoc.
 # Nt::Core and friends are aliases, so code written against a build tree works unchanged.
 
 if(CMAKE_VERSION VERSION_LESS 3.18)
@@ -15,7 +15,7 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/Nt6Targets.cmake")
 
-foreach(module Core Network)
+foreach(module Core Network SerialPort)
     if(NOT TARGET Nt::${module})
         add_library(Nt::${module} ALIAS Nt6::${module})
     endif()

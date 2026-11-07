@@ -45,7 +45,8 @@ const char *qVersion() noexcept;
     Class &operator=(const Class &) = delete;
 
 // Without moc these are markers only.
-#define Q_OBJECT
+// Declares the class that ntmoc defines. A class that never goes through ntmoc leaves it incomplete.
+#define Q_OBJECT struct NtMetaAccess;
 #define Q_GADGET
 #define Q_NAMESPACE
 #define Q_SIGNALS public

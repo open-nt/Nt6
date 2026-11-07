@@ -164,8 +164,8 @@
     nt_enable_automoc(app)                            # ntmoc, for Q_OBJECT classes
     \endcode
 
-    The package provides \c{Nt6::Core}, \c{Nt6::Network}, the tools \c{Nt6::moc}
-    and \c{Nt6::ndoc}, and the helper functions \c nt_enable_automoc(),
+    The package provides \c{Nt6::Core}, \c{Nt6::Network}, \c{Nt6::SerialPort},
+    the tools \c{Nt6::moc} and \c{Nt6::ndoc}, and the helper functions \c nt_enable_automoc(),
     \c nt_wrap_cpp() and \c nt_add_docs(). Check the installation with:
 
     \code

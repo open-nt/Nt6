@@ -554,6 +554,19 @@ struct std::hash<QByteArray> {
     std::size_t operator()(const QByteArray &b) const noexcept { return std::hash<std::string>{}(b.stdString()); }
 };
 
+/*!
+    Returns a copy of the C string \a src allocated with \c{new char[]}, or
+    \c nullptr if \a src is \c nullptr. The caller deletes it with \c{delete[]}.
+*/
+inline char *qstrdup(const char *src) {
+    if (!src)
+        return nullptr;
+    const std::size_t size = std::char_traits<char>::length(src) + 1;
+    char *copy = new char[size];
+    std::char_traits<char>::copy(copy, src, size);
+    return copy;
+}
+
 inline QByteArray operator""_ba(const char *s, std::size_t n) { return QByteArray(s, static_cast<qsizetype>(n)); }
 #define QByteArrayLiteral(str) QByteArray(str, static_cast<qsizetype>(sizeof(str) - 1))
 

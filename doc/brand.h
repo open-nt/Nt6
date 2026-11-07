@@ -36,7 +36,8 @@
     \row
         \li Teal
         \li The default. Use it on white or very light backgrounds.
-        \li \c{assets/nt-logo.svg}
+        \li \c{assets/nt-logo.svg}, and \c{assets/nt-logo.png} (512 x 512 with a
+            transparent background) where a raster image is needed
     \row
         \li Black on white
         \li Letterheads, printing in one colour, and any place the brand colours

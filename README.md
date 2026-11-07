@@ -18,7 +18,7 @@
 
 # Nt ("Nut")
 
-A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial) and `Nt Network` (partial) so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
+A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
 
@@ -41,9 +41,10 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time and fixed offsets), `QDebug`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler` |
 | I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG) |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
-| Utilities | `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption` |
+| URLs | `QUrl` (parsing, RFC 3986 resolution, percent-encoding, formatting options), `QUrlQuery` |
+| Utilities | `QLibraryInfo`, `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption` |
 
-Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; all `QObject`s must be used from one thread (only `postEvent` is thread-safe); no `QMetaObject` introspection, properties or `SIGNAL()`/`SLOT()` strings.
+Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QUrl` does not convert internationalized host names to or from Punycode; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; all `QObject`s must be used from one thread (only `postEvent` is thread-safe); no `QMetaObject` introspection, properties or `SIGNAL()`/`SLOT()` strings.
 
 ### Nt Core: not implemented yet
 
@@ -81,6 +82,27 @@ Differences from Qt: `QAbstractSocket::connectToHost` resolves names synchronous
 
 `QDnsLookup`, `QNetworkProxy`, `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, `QDtls`, HTTP/2, connection reuse and response compression.
 
+### Nt Test: implemented
+
+| Area | Notes |
+|---|---|
+| Test cases | `QTest::qExec`, `QTEST_MAIN`, `QTEST_GUILESS_MAIN`, `QTEST_APPLESS_MAIN`; `initTestCase`, `init`, `cleanup`, `cleanupTestCase`; test functions are the private slots found by `ntmoc` |
+| Assertions | `QVERIFY`, `QCOMPARE` and the ordered `QCOMPARE_EQ`/`NE`/`LT`/`LE`/`GT`/`GE`, `QFAIL`, `QSKIP`, `QEXPECT_FAIL`, `QVERIFY_THROWS_EXCEPTION` and `QVERIFY_THROWS_NO_EXCEPTION`, `QTRY_VERIFY` and `QTRY_COMPARE` (with timeout variants) |
+| Data-driven tests | `_data()` functions, `QTest::addColumn`, `QTest::newRow`, `QFETCH`, `QFETCH_GLOBAL`, `QTEST`, `QTestData`, `QFINDTESTDATA` |
+| Signals and events | `QSignalSpy` (and `QSignalSpyArgument`), `QTestEventLoop`, `QTest::qWait` |
+| Output | plain text, JUnit XML and TAP logs, to standard output or a file (`-o file,format`), with `-silent`, `-v1`, `-v2` and `-functions`; run one function or data row with `name[:tag]` |
+
+Differences from Qt: there is no GUI event simulation (`QTest::mouseClick`, `keyClick` and so on) because Nt has no GUI module, and no benchmarking (`QBENCHMARK`).
+
+### Nt Serial Port: implemented
+
+| Class | Notes |
+|---|---|
+| `QSerialPort` | exclusive open of any terminal device, baud rate per direction (custom rates through `termios2` on Linux), data bits, parity including mark and space, stop bits, hardware and software flow control, DTR/RTS and pinout signals, break, buffered async I/O through the event loop, `waitFor*` blocking API, read-buffer limit, device removal reported as `ResourceError`, device settings restored on close |
+| `QSerialPortInfo` | list ports from sysfs (Linux) with description, manufacturer, serial number and USB or PCI identifiers; standard baud rates |
+
+Differences from Qt: `OneAndHalfStop` is not available; bytes with parity or framing errors are dropped; `errorOccurred` is not emitted for `NoError`; `waitForBytesWritten` waits for the whole buffer; exclusive access uses `flock` and `TIOCEXCL` rather than a lock file; no bindable properties.
+
 ```cpp
 QTcpServer server;
 server.listen(QHostAddress::LocalHost, 0);
@@ -94,7 +116,7 @@ Header names match Qt: `#include <QObject>`, `#include <QtCore/QTimer>`, `#inclu
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core` and `Nt::Network` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -115,7 +137,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Quick Dialogs | Nt Quick Dialogs |  |
 | Qt Quick Layouts | Nt Quick Layouts |  |
 | Qt Quick Test | Nt Quick Test |  |
-| Qt Test | Nt Test |  |
+| Qt Test | Nt Test | ✔ (partial, see Status) |
 | Qt Widgets | Nt Widgets |  |
 
 ### Add-ons
@@ -156,7 +178,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt SCXML | Nt SCXML |  |
 | Qt Sensors | Nt Sensors |  |
 | Qt Serial Bus | Nt Serial Bus |  |
-| Qt Serial Port | Nt Serial Port |  |
+| Qt Serial Port | Nt Serial Port | ✔ (see Status) |
 | Qt Shader Tools | Nt Shader Tools |  |
 | Qt Spatial Audio | Nt Spatial Audio |  |
 | Qt SQL | Nt SQL |  |

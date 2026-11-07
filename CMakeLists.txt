@@ -111,6 +111,45 @@ else()
 endif()
 nt_set_compile_options(NtNetwork)
 
+add_library(NtSerialPort
+    src/serialport/qserialport.cpp
+    src/serialport/qserialportbaud_linux.cpp
+    src/serialport/qserialportengine_unix.cpp
+    src/serialport/qserialportinfo.cpp
+    src/serialport/qserialportinfo_linux.cpp
+)
+add_library(Nt::SerialPort ALIAS NtSerialPort)
+add_library(Qt6::SerialPort ALIAS NtSerialPort)
+target_include_directories(NtSerialPort
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSerialPort>
+        $<INSTALL_INTERFACE:include/nt6/QtSerialPort>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/serialport
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtSerialPort PUBLIC NtCore)
+nt_set_compile_options(NtSerialPort)
+
+add_library(NtTest
+    src/test/qsignalspy.cpp
+    src/test/qtestcase.cpp
+    src/test/qtesteventloop.cpp
+    src/test/qtestlog.cpp
+    src/test/qtesttostring.cpp
+)
+add_library(Nt::Test ALIAS NtTest)
+add_library(Qt6::Test ALIAS NtTest)
+target_include_directories(NtTest
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtTest>
+        $<INSTALL_INTERFACE:include/nt6/QtTest>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/test
+)
+target_link_libraries(NtTest PUBLIC NtCore)
+nt_set_compile_options(NtTest)
+
 # Moc replacement and its CMake helpers.
 add_executable(ntmoc tools/ntmoc/main.cpp)
 add_executable(Nt::moc ALIAS ntmoc)
@@ -177,6 +216,13 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_network_tests PRIVATE Nt::Network)
     add_test(NAME nt_network_tests COMMAND nt_network_tests)
 
+    # The tests reach the private headers to check what a pseudo terminal hides.
+    add_executable(nt_serialport_tests tests/test_serialport.cpp)
+    target_include_directories(nt_serialport_tests PRIVATE src/serialport)
+    target_link_libraries(nt_serialport_tests PRIVATE Nt::SerialPort)
+    add_test(NAME nt_serialport_tests COMMAND nt_serialport_tests)
+    nt_set_compile_options(nt_serialport_tests)
+
     add_test(NAME ndoc_tests
              COMMAND ${CMAKE_COMMAND}
                  -DNDOC=$<TARGET_FILE:ndoc>
@@ -197,7 +243,13 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_moc_tests PRIVATE Nt::Core)
     add_test(NAME nt_moc_tests COMMAND nt_moc_tests)
 
-    nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests)
+    add_executable(nt_test_tests tests/test_qtest.cpp)
+    target_link_libraries(nt_test_tests PRIVATE Nt::Test)
+    nt_enable_automoc(nt_test_tests)
+    add_test(NAME nt_test_tests COMMAND nt_test_tests)
+
+    nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
+                           nt_test_tests)
     foreach(suite filesystem streams types)
         nt_set_compile_options(nt_${suite}_tests)
     endforeach()
@@ -212,4 +264,13 @@ if(NT_BUILD_EXAMPLES)
     target_link_libraries(moc_example PRIVATE Nt::Core)
     nt_enable_automoc(moc_example)
     nt_set_compile_options(hello moc_example)
+
+    # A test written the way a Qt project writes one, with the .moc file included.
+    add_executable(tst_counter examples/test/tst_counter.cpp)
+    target_link_libraries(tst_counter PRIVATE Nt::Test)
+    nt_enable_automoc(tst_counter)
+    nt_set_compile_options(tst_counter)
+    if(NT_BUILD_TESTS)
+        add_test(NAME tst_counter COMMAND tst_counter)
+    endif()
 endif()

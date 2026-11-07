@@ -150,7 +150,7 @@ check_cmake_sources() {
 }
 
 check_headers() {
-    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -I$build_root/release/generated" out
+    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -I$build_root/release/generated" out
     need "$cxx" || return $?
     export cxx dirs
     # Each public header must compile when it is the only thing included.
@@ -220,7 +220,7 @@ check_cppcheck() {
     need cppcheck || return $?
     cppcheck --enable=warning,performance,portability --std=c++17 --inline-suppr \
         --suppressions-list=.cppcheck-suppressions --error-exitcode=1 --quiet \
-        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -I"$build_root/release/generated" -Isrc \
+        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -I"$build_root/release/generated" -Isrc \
         -j "$jobs" src tools
 }
 

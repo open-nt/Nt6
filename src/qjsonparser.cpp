@@ -4,7 +4,9 @@
 #include <charconv>
 #include <climits>
 #include <cmath>
+#include <cstdlib>
 #include <cstring>
+#include <string>
 #include <system_error>
 
 namespace {
@@ -333,11 +335,10 @@ private:
         double d = 0;
         const auto r = std::from_chars(first, last, d);
         if (r.ec == std::errc::result_out_of_range) {
-            if (!underflows(first, last)) {
+            if (!convertTiny(first, last, &d)) {
                 lastError = QJsonParseError::IllegalNumber;
                 return false;
             }
-            d = 0;
         } else if (r.ec != std::errc() || r.ptr != last || !std::isfinite(d)) {
             lastError = QJsonParseError::IllegalNumber;
             return false;
@@ -346,48 +347,54 @@ private:
         return true;
     }
 
-    // from_chars reports a range error both for too large and for too small numbers; this tells which, from the
-    // decimal exponent of the first significant digit.
-    static bool underflows(const char *first, const char *last) {
+    // from_chars reports a range error both for numbers that are too large and for ones that are too small, and
+    // some implementations do so for subnormal results too. This tells which it was, from the decimal exponent of
+    // the first significant digit, and converts the small ones with strtod. It is given the digits without the
+    // decimal point, so the C locale's point does not matter.
+    static bool convertTiny(const char *first, const char *last, double *out) {
         const char *p = first;
-        if (*p == '-')
+        const bool negative = *p == '-';
+        if (negative)
             ++p;
-        long long exponent = 0;
+        std::string digits;
+        long long fractionDigits = 0;
         bool seenDot = false;
-        bool seenNonZero = false;
-        long long intDigits = 0;
-        long long leadingFractionZeros = 0;
         for (; p < last && *p != 'e' && *p != 'E'; ++p) {
             if (*p == '.') {
                 seenDot = true;
-            } else if (!seenNonZero && *p == '0') {
-                if (seenDot)
-                    ++leadingFractionZeros;
-            } else {
-                seenNonZero = true;
-                if (!seenDot)
-                    ++intDigits;
+                continue;
             }
+            digits.push_back(*p);
+            if (seenDot)
+                ++fractionDigits;
         }
-        if (!seenNonZero)
-            return true;
+        long long exponent = 0;
         if (p < last) {
             ++p;
-            bool negExp = false;
-            if (p < last && (*p == '+' || *p == '-')) {
-                negExp = *p == '-';
+            const bool negativeExponent = p < last && *p == '-';
+            if (p < last && (*p == '+' || *p == '-'))
                 ++p;
-            }
             for (; p < last; ++p) {
                 if (exponent < 100000)
                     exponent = exponent * 10 + (*p - '0');
             }
-            if (negExp)
+            if (negativeExponent)
                 exponent = -exponent;
         }
-        // Position of the first significant digit relative to the decimal point.
-        const long long magnitude = (intDigits > 0 ? intDigits : -leadingFractionZeros) + exponent;
-        return magnitude <= 0;
+        const std::size_t firstSignificant = digits.find_first_not_of('0');
+        if (firstSignificant == std::string::npos) {
+            *out = 0;
+            return true;
+        }
+        // The value is 0.DIGITS x 10^magnitude.
+        const long long magnitude =
+            static_cast<long long>(digits.size() - firstSignificant) - fractionDigits + exponent;
+        if (magnitude > 0)
+            return false;
+        const std::string text =
+            (negative ? "-" : "") + digits.substr(firstSignificant) + "e" + std::to_string(exponent - fractionDigits);
+        *out = std::strtod(text.c_str(), nullptr);
+        return true;
     }
 
     // json is just past the opening quote. Leaves it just past the closing quote.

@@ -72,13 +72,14 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 | `QHostInfo` | blocking `fromName`, asynchronous `lookupHost` (functor, with optional context object), `abortHostLookup`, local host and domain names |
 | `QNetworkInterface`, `QNetworkAddressEntry` | list interfaces, flags, type, MTU, hardware address, addresses, netmask, broadcast (Linux) |
 | `QLocalSocket`, `QLocalServer` | Unix domain sockets: event-driven and `waitFor*` APIs, access options, stale-socket recovery |
-| `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |
+| `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client over `http:` and `https:`: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |
+| `QSslSocket`, `QSslServer`, `QSslConfiguration`, `QSslCertificate`, `QSslKey`, `QSslError`, `QSslCipher` | TLS 1.2 and 1.3 through the system OpenSSL (1.1.1 or newer): certificate and host name verification, client certificates, `STARTTLS`, ALPN. Older protocol versions are not offered |
 
 Differences from Qt: `QAbstractSocket::connectToHost` resolves names synchronously, although `QNetworkAccessManager` and `QHostInfo::lookupHost` do not block; `setSocketOption`/`socketOption` take and return `int` instead of `QVariant` until `QVariant` exists; `QUdpSocket` does not report the destination address or hop limit of received datagrams.
 
 ### Nt Network: not implemented yet
 
-`QDnsLookup`, `QNetworkProxy`, `QSslSocket` and the TLS classes (so no `https:` yet), `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, HTTP/2, connection reuse and response compression.
+`QDnsLookup`, `QNetworkProxy`, `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, `QDtls`, HTTP/2, connection reuse and response compression.
 
 ```cpp
 QTcpServer server;
@@ -266,6 +267,10 @@ The `docs` target fails on any broken link or bad parameter name. `coverage.txt`
 ## Also not supported
 
 `SIGNAL()`/`SLOT()` string connections, `BlockingQueuedConnection`, `UniqueConnection`, and `Q_PROPERTY`/`Q_GADGET`/`Q_ENUM` (the macros compile to nothing, so `ntmoc` only generates signal bodies).
+
+## TLS
+
+Nt Network links the system OpenSSL when it is found, and builds without TLS otherwise, with `QT_NO_SSL` defined and `https:` URLs failing with `ProtocolUnknownError`. Configure with `-DNT_USE_OPENSSL=OFF` to leave it out on purpose. Install `libssl-dev` (Debian, Ubuntu), `openssl-devel` (Enterprise Linux, Fedora) or `openssl` (Arch) to build with it.
 
 ## Build
 

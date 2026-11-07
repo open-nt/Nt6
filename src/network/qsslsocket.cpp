@@ -423,7 +423,7 @@ void QSslSocket::beginHandshake(SslMode mode) {
             }
         }
         if (literal.isNull() && !name.isEmpty()) // server name indication takes host names only
-            SSL_set_tlsext_host_name(d->ssl, utf8.constData());
+            SSL_ctrl(d->ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name, const_cast<char *>(utf8.constData()));
     } else {
         SSL_set_accept_state(d->ssl);
     }
@@ -576,7 +576,7 @@ void QSslSocket::finishHandshake() {
             for (const QSslError &e : errors)
                 accepted = accepted && d->ignoreList.contains(e);
         }
-        if (false) {
+        if (!accepted) {
             d->driving = false;
             failHandshake(SslHandshakeFailedError, errors.first().errorString());
             return;

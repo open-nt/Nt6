@@ -589,6 +589,11 @@ qint64 QAbstractSocket::flushWrites() {
     return sent;
 }
 
+/*!
+    \internal
+
+    Closes the socket and emits disconnected().
+*/
 void QAbstractSocket::finishDisconnect() {
     const bool wasActive = m_state != UnconnectedState;
     closeSocket();
@@ -599,6 +604,11 @@ void QAbstractSocket::finishDisconnect() {
         disconnected();
 }
 
+/*!
+    \internal
+
+    Handles the peer closing the connection.
+*/
 void QAbstractSocket::remoteClosed() {
     QPointer<QAbstractSocket> self(this);
     readChannelFinished();
@@ -669,6 +679,13 @@ void QAbstractSocket::readActivated() {
         connectionLost(errno);
     }
 }
+
+/*!
+    \fn void QAbstractSocket::endWaitForReadyRead()
+    \internal
+
+    Makes a waitForReadyRead() in progress return.
+*/
 
 /*!
     \internal

@@ -391,6 +391,23 @@ static void testRejections() {
                        s.ignoreSslErrors({QSslError(QSslError::HostNameMismatch, f->expired.certificate)});
                    }), QSslError::CertificateExpired);
 
+    // Data written at any moment before verification finishes stays on the
+    // client: as the handshake starts, and after it ends but before the verdict.
+    expectRejected(attempt(f->expired, trust, ip, [](QSslSocket &s) {
+                       QObject::connect(&s, &QAbstractSocket::connected, &s, [&s] { CHECK(s.write("early") == 5); });
+                   }), QSslError::CertificateExpired);
+    expectRejected(attempt(f->expired, trust, ip, [](QSslSocket &s) {
+                       QObject::connect(&s, &QSslSocket::peerVerifyError, &s, [&s] { CHECK(s.write("verdict") == 7); });
+                   }), QSslError::CertificateExpired);
+    expectRejected(attempt(f->expired, trust, ip, [](QSslSocket &s) {
+                       QObject::connect(&s, &QSslSocket::sslErrors, &s, [&s] { CHECK(s.write("verdict") == 7); });
+                   }), QSslError::CertificateExpired);
+    // The same data arrives, in order, once a connection is accepted.
+    Attempt queued = attempt(f->good, trust, ip, [](QSslSocket &s) {
+        QObject::connect(&s, &QAbstractSocket::connected, &s, [&s] { CHECK(s.write("early-") == 6); });
+    });
+    CHECK(queued.encrypted && queued.serverSaw == "secret" + QByteArray("early-"));
+
     // An allowance for one connection does not last into the next.
     {
         EchoServer bad(serverConfig(f->expired));

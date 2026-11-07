@@ -458,6 +458,12 @@ std::size_t qHash(const QSslCertificate &certificate, std::size_t seed) noexcept
 */
 
 /*!
+    \fn QSslKey::QSslKey()
+
+    Constructs a null key.
+*/
+
+/*!
     Constructs a key by parsing \a encoded, which is in \a format and holds a
     key of the given \a type. \a passPhrase decrypts a protected key. The key is
     null if parsing fails, or if the key is not an \a algorithm key.

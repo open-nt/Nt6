@@ -170,6 +170,7 @@ if(NT_BUILD_TESTS)
         add_executable(nt_ssl_tests tests/test_ssl.cpp)
         target_link_libraries(nt_ssl_tests PRIVATE Nt::Network OpenSSL::SSL OpenSSL::Crypto)
         add_test(NAME nt_ssl_tests COMMAND nt_ssl_tests)
+        nt_set_compile_options(nt_ssl_tests)
     endif()
 
     add_executable(nt_network_tests tests/test_network.cpp)

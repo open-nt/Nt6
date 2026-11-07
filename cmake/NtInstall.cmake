@@ -32,7 +32,8 @@ install(DIRECTORY include/QtCore include/QtNetwork
     COMPONENT Development
     PATTERN "*_p.h" EXCLUDE)
 
-install(FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/QtCore/qconfig.h
+# qconfig.h is generated; qassoc_p.h is private, but qmap.h and qhash.h include it.
+install(FILES ${CMAKE_CURRENT_BINARY_DIR}/generated/QtCore/qconfig.h include/QtCore/qassoc_p.h
     DESTINATION ${NT_INSTALL_INCLUDEDIR}/QtCore
     COMPONENT Development)
 install(EXPORT Nt6Targets

@@ -2,6 +2,7 @@
 #include <QTest>
 
 #include <QtCore/qeventloop.h>
+#include <QtCore/qmetaobject.h>
 #include <QtCore/qtimer.h>
 
 #include "qtestlog_p.h"
@@ -193,23 +194,31 @@ const char *testFunctionHelp = "Usage: %s [options] [testfunction[:datatag]]...\
 
 bool isKnownFormat(const std::string &format) { return format == "txt" || format == "junitxml" || format == "tap"; }
 
-// Collects the private slots of `type`, those of its bases first. A slot that a derived class
+// A test function: a private slot that takes no arguments.
+struct TestSlot {
+    std::string name;
+    QMetaMethod method;
+    void invoke(QObject *object) const { method.invoke(object, Qt::DirectConnection); }
+};
+
+// Collects the private slots of `mo`, those of its bases first. A slot that a derived class
 // declares again takes the place of the one in the base class.
-void collectSlots(const std::type_info &type, std::set<std::type_index> &visited,
-                  std::vector<QtPrivate::MetaSlot> &found) {
-    const QtPrivate::MetaClass *meta = QtPrivate::findMetaClass(type);
-    if (!meta || !visited.insert(std::type_index(type)).second)
+void collectSlots(const QMetaObject *mo, std::vector<TestSlot> &found) {
+    if (!mo)
         return;
-    for (std::size_t i = 0; i < meta->baseCount; ++i)
-        collectSlots(*meta->bases[i], visited, found);
-    for (std::size_t i = 0; i < meta->privateSlotCount; ++i) {
-        const QtPrivate::MetaSlot &slot = meta->privateSlots[i];
-        const auto same = [&](const QtPrivate::MetaSlot &other) { return std::string(other.name) == slot.name; };
-        const auto existing = std::find_if(found.begin(), found.end(), same);
+    collectSlots(mo->superClass(), found);
+    for (int i = mo->methodOffset(); i < mo->methodCount(); ++i) {
+        const QMetaMethod m = mo->method(i);
+        if (m.methodType() != QMetaMethod::Slot || m.access() != QMetaMethod::Private || m.parameterCount() != 0 ||
+            std::strcmp(m.typeName(), "void") != 0)
+            continue;
+        const std::string name = m.name().constData();
+        const auto existing =
+            std::find_if(found.begin(), found.end(), [&](const TestSlot &o) { return o.name == name; });
         if (existing == found.end())
-            found.push_back(slot);
+            found.push_back({name, m});
         else
-            existing->invoke = slot.invoke;
+            existing->method = m;
     }
 }
 
@@ -312,13 +321,13 @@ private:
     bool openLogs();
     void runAll();
     bool runFunction(const Selection &selection);
-    void runRow(const QtPrivate::MetaSlot &function);
+    void runRow(const TestSlot &function);
     Outcome finishRow();
     void beginRow();
-    void call(const QtPrivate::MetaSlot *slot);
-    void callWithTable(const QtPrivate::MetaSlot *slot, TestTable *table);
+    void call(const TestSlot *slot);
+    void callWithTable(const TestSlot *slot, TestTable *table);
     void checkExpectedFailure();
-    const QtPrivate::MetaSlot *findSlot(const std::string &name) const;
+    const TestSlot *findSlot(const std::string &name) const;
     bool matchesTag(const std::string &tag) const;
     std::string label() const;
     void event(Event event, const std::string &message, const char *file, int line);
@@ -327,7 +336,7 @@ private:
     std::vector<std::string> m_arguments;
 
     std::string m_className;
-    std::vector<QtPrivate::MetaSlot> m_slots;
+    std::vector<TestSlot> m_slots;
     std::vector<Selection> m_selection;
     std::vector<Output> m_outputs;
     std::vector<std::unique_ptr<Logger>> m_loggers;
@@ -411,9 +420,9 @@ Run::Parsed Run::parseArguments() {
         }
     }
     if (listFunctions) {
-        for (const QtPrivate::MetaSlot &slot : m_slots)
+        for (const TestSlot &slot : m_slots)
             if (!isSpecialSlot(slot.name))
-                std::printf("%s()\n", slot.name);
+                std::printf("%s()\n", slot.name.c_str());
         return Parsed::ExitSuccess;
     }
     if (m_outputs.empty())
@@ -423,17 +432,15 @@ Run::Parsed Run::parseArguments() {
 
 bool Run::collectTests() {
     const QObject &object = *m_object;
-    const std::type_info &type = typeid(object);
-    const QtPrivate::MetaClass *meta = QtPrivate::findMetaClass(type);
-    if (!meta) {
+    const QMetaObject *meta = object.metaObject();
+    if (meta == &QObject::staticMetaObject && typeid(object) != typeid(QObject)) {
         std::printf("QTest::qExec: no test functions are known for class %s. It needs Q_OBJECT, "
-                    "and ntmoc has to process it; the class cannot be in an anonymous namespace.\n",
-                    type.name());
+                    "and ntmoc has to process it.\n",
+                    typeid(object).name());
         return false;
     }
-    m_className = meta->className;
-    std::set<std::type_index> visited;
-    collectSlots(type, visited, m_slots);
+    m_className = meta->className();
+    collectSlots(meta, m_slots);
     return true;
 }
 
@@ -487,7 +494,7 @@ void Run::runAll() {
     if (initialized == Outcome::Pass) {
         std::vector<Selection> selection = m_selection;
         if (selection.empty())
-            for (const QtPrivate::MetaSlot &slot : m_slots)
+            for (const TestSlot &slot : m_slots)
                 if (!isSpecialSlot(slot.name))
                     selection.push_back({slot.name, {}});
         // The global data rows are the outer loop: every test function runs for each of them.
@@ -528,8 +535,8 @@ bool Run::matchesTag(const std::string &tag) const {
 // its rows matched the data tag of the selection.
 bool Run::runFunction(const Selection &selection) {
     m_function = selection.function;
-    const QtPrivate::MetaSlot *function = findSlot(selection.function);
-    const QtPrivate::MetaSlot *dataFunction = findSlot(selection.function + "_data");
+    const TestSlot *function = findSlot(selection.function);
+    const TestSlot *dataFunction = findSlot(selection.function + "_data");
     bool matched = false;
 
     TestTable table;
@@ -562,7 +569,7 @@ bool Run::runFunction(const Selection &selection) {
     return matched;
 }
 
-void Run::runRow(const QtPrivate::MetaSlot &function) {
+void Run::runRow(const TestSlot &function) {
     beginRow();
     event(Event::Note, "entering", nullptr, 0);
     call(findSlot("init"));
@@ -618,7 +625,7 @@ Outcome Run::finishRow() {
     return outcome;
 }
 
-void Run::call(const QtPrivate::MetaSlot *slot) {
+void Run::call(const TestSlot *slot) {
     if (!slot)
         return;
     try {
@@ -630,14 +637,14 @@ void Run::call(const QtPrivate::MetaSlot *slot) {
     }
 }
 
-void Run::callWithTable(const QtPrivate::MetaSlot *slot, TestTable *table) {
+void Run::callWithTable(const TestSlot *slot, TestTable *table) {
     m_activeTable = table;
     call(slot);
     m_activeTable = nullptr;
 }
 
-const QtPrivate::MetaSlot *Run::findSlot(const std::string &name) const {
-    for (const QtPrivate::MetaSlot &slot : m_slots)
+const TestSlot *Run::findSlot(const std::string &name) const {
+    for (const TestSlot &slot : m_slots)
         if (name == slot.name)
             return &slot;
     return nullptr;

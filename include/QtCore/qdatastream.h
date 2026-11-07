@@ -563,3 +563,56 @@ QDataStream &operator>>(QDataStream &in, QHash<K, V> &m) {
     }
     return in;
 }
+
+class QDate;
+class QTime;
+class QDateTime;
+class QUrl;
+class QUuid;
+class QVersionNumber;
+class QBitArray;
+class QPoint;
+class QPointF;
+class QSize;
+class QSizeF;
+class QLine;
+class QLineF;
+class QRect;
+class QRectF;
+class QMargins;
+class QMarginsF;
+
+QDataStream &operator<<(QDataStream &out, const QDate &date);
+QDataStream &operator>>(QDataStream &in, QDate &date);
+QDataStream &operator<<(QDataStream &out, const QTime &time);
+QDataStream &operator>>(QDataStream &in, QTime &time);
+QDataStream &operator<<(QDataStream &out, const QDateTime &dateTime);
+QDataStream &operator>>(QDataStream &in, QDateTime &dateTime);
+QDataStream &operator<<(QDataStream &out, const QUrl &url);
+QDataStream &operator>>(QDataStream &in, QUrl &url);
+QDataStream &operator<<(QDataStream &out, const QUuid &uuid);
+QDataStream &operator>>(QDataStream &in, QUuid &uuid);
+QDataStream &operator<<(QDataStream &out, const QVersionNumber &version);
+QDataStream &operator>>(QDataStream &in, QVersionNumber &version);
+QDataStream &operator<<(QDataStream &out, const QBitArray &bits);
+QDataStream &operator>>(QDataStream &in, QBitArray &bits);
+QDataStream &operator<<(QDataStream &out, const QPoint &p);
+QDataStream &operator>>(QDataStream &in, QPoint &p);
+QDataStream &operator<<(QDataStream &out, const QPointF &p);
+QDataStream &operator>>(QDataStream &in, QPointF &p);
+QDataStream &operator<<(QDataStream &out, const QSize &s);
+QDataStream &operator>>(QDataStream &in, QSize &s);
+QDataStream &operator<<(QDataStream &out, const QSizeF &s);
+QDataStream &operator>>(QDataStream &in, QSizeF &s);
+QDataStream &operator<<(QDataStream &out, const QLine &l);
+QDataStream &operator>>(QDataStream &in, QLine &l);
+QDataStream &operator<<(QDataStream &out, const QLineF &l);
+QDataStream &operator>>(QDataStream &in, QLineF &l);
+QDataStream &operator<<(QDataStream &out, const QRect &r);
+QDataStream &operator>>(QDataStream &in, QRect &r);
+QDataStream &operator<<(QDataStream &out, const QRectF &r);
+QDataStream &operator>>(QDataStream &in, QRectF &r);
+QDataStream &operator<<(QDataStream &out, const QMargins &m);
+QDataStream &operator>>(QDataStream &in, QMargins &m);
+QDataStream &operator<<(QDataStream &out, const QMarginsF &m);
+QDataStream &operator>>(QDataStream &in, QMarginsF &m);

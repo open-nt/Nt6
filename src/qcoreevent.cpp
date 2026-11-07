@@ -38,6 +38,29 @@
 */
 
 /*!
+    \class QDynamicPropertyChangeEvent
+    \brief The QDynamicPropertyChangeEvent class contains event parameters for dynamic property changes.
+
+    QObject::setProperty() sends this event of type \c QEvent::DynamicPropertyChange to the object
+    when a dynamic property is added, changed or removed. Handle it by reimplementing
+    QObject::event():
+
+    \code
+    bool Widget::event(QEvent *e) {
+        if (e->type() == QEvent::DynamicPropertyChange)
+            qDebug() << static_cast<QDynamicPropertyChangeEvent *>(e)->propertyName();
+        return QObject::event(e);
+    }
+    \endcode
+
+    \differences
+    None.
+    \enddifferences
+
+    \sa QObject::setProperty(), QObject::dynamicPropertyNames(), QEvent
+*/
+
+/*!
     Destroys the event.
 */
 QEvent::~QEvent() = default;
@@ -46,6 +69,11 @@ QEvent::~QEvent() = default;
     Destroys the timer event.
 */
 QTimerEvent::~QTimerEvent() = default;
+
+/*!
+    Destroys the event.
+*/
+QDynamicPropertyChangeEvent::~QDynamicPropertyChangeEvent() = default;
 
 /*!
     Registers and returns a custom event type. If \a hint lies between

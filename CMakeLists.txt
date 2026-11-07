@@ -46,6 +46,10 @@ add_library(NtCore
     src/qjsonwriter.cpp
     src/qlibraryinfo.cpp
     src/qlockfile.cpp
+    src/qmetaobject.cpp
+    src/qmetatype.cpp
+    src/qmetatype_convert.cpp
+    src/qmetatype_streams.cpp
     src/qobject.cpp
     src/qprocess.cpp
     src/qrandom.cpp
@@ -62,6 +66,8 @@ add_library(NtCore
     src/qtimer.cpp
     src/qurl.cpp
     src/quuid.cpp
+    src/qvariant.cpp
+    src/qvariantiterable.cpp
     src/qversionnumber.cpp
     src/threaddata.cpp
 )
@@ -173,6 +179,13 @@ add_executable(Qt6::moc ALIAS ntmoc)
 target_compile_definitions(ntmoc PRIVATE NT_VERSION_STRING="${PROJECT_VERSION}")
 nt_set_compile_options(ntmoc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtMoc.cmake)
+nt_moc_library(NtCore include/QtCore)
+if(NOT NT_HAVE_OPENSSL)
+    set(NT_MOC_DEFINES -DQT_NO_SSL)
+endif()
+nt_moc_library(NtNetwork include/QtNetwork)
+set(NT_MOC_DEFINES)
+nt_moc_library(NtSerialPort include/QtSerialPort)
 
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
@@ -294,6 +307,20 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_thread_tests PRIVATE Nt::Core)
     add_test(NAME nt_thread_tests COMMAND nt_thread_tests)
     nt_set_compile_options(nt_thread_tests)
+
+    nt_wrap_cpp(meta_test_sources tests/meta_classes.h)
+    add_executable(nt_meta_tests tests/test_meta.cpp ${meta_test_sources})
+    target_include_directories(nt_meta_tests PRIVATE tests)
+    target_link_libraries(nt_meta_tests PRIVATE Nt::Core)
+    add_test(NAME nt_meta_tests COMMAND nt_meta_tests)
+    nt_enable_automoc(nt_meta_tests)
+    target_compile_definitions(nt_meta_tests PRIVATE NT_META_FEATURE)
+    nt_set_compile_options(nt_meta_tests)
+
+    add_executable(nt_variant_tests tests/test_variant.cpp)
+    target_link_libraries(nt_variant_tests PRIVATE Nt::Core)
+    add_test(NAME nt_variant_tests COMMAND nt_variant_tests)
+    nt_set_compile_options(nt_variant_tests)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
                            nt_test_tests)

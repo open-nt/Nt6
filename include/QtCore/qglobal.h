@@ -44,19 +44,21 @@ const char *qVersion() noexcept;
     Class(const Class &) = delete; \
     Class &operator=(const Class &) = delete;
 
-// Without moc these are markers only.
-// Declares the class that ntmoc defines. A class that never goes through ntmoc leaves it incomplete.
-#define Q_OBJECT struct NtMetaAccess;
-#define Q_GADGET
-#define Q_NAMESPACE
+// Markers that ntmoc reads; they expand to nothing. Q_OBJECT, Q_GADGET, Q_NAMESPACE, Q_ENUM() and
+// Q_FLAG() are in qobjectdefs.h, and Q_DECLARE_METATYPE() in qmetatype.h.
 #define Q_SIGNALS public
 #define Q_SLOTS
 #define Q_EMIT
 #define Q_PROPERTY(...)
-#define Q_ENUM(...)
-#define Q_FLAG(...)
+#define Q_PRIVATE_PROPERTY(...)
+#define Q_CLASSINFO(name, value)
+#define Q_ENUMS(...)
+#define Q_FLAGS(...)
 #define Q_INVOKABLE
-#define Q_DECLARE_METATYPE(...)
+#define Q_SIGNAL
+#define Q_SLOT
+#define Q_SCRIPTABLE
+#define Q_REVISION(...)
 #define Q_INTERFACES(...)
 
 #ifndef QT_NO_KEYWORDS

@@ -13,6 +13,7 @@ public:
         \value None Not an event.
         \value Timer A timer fired; delivered as a QTimerEvent.
         \value MetaCall A queued signal-slot invocation, handled by QObject::event().
+        \value ThreadChange The object is about to move to another thread; see QObject::moveToThread().
         \value SockAct A socket notifier became active; see QSocketNotifier.
         \value DeferredDelete The receiver should be deleted; posted by QObject::deleteLater().
         \value User The first value available for application-defined events.
@@ -21,6 +22,7 @@ public:
     enum Type {
         None = 0,
         Timer = 1,
+        ThreadChange = 22,
         MetaCall = 43,
         SockAct = 50,
         DeferredDelete = 52,

@@ -59,7 +59,7 @@ public:
         Returns the guarded object, or \c nullptr if it has been destroyed or
         the pointer is null.
     */
-    T *data() const { return d && d->obj ? static_cast<T *>(d->obj) : nullptr; }
+    T *data() const { return d ? static_cast<T *>(d->obj.load()) : nullptr; }
     /*!
         Returns the guarded object. This is the same as data().
     */

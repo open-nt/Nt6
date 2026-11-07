@@ -81,3 +81,7 @@
 #include "qjsondocument.h"
 #include "qjsonobject.h"
 #include "qjsonvalue.h"
+#include "qrunnable.h"
+#include "qthread.h"
+#include "qthreadpool.h"
+#include "qthreadstorage.h"

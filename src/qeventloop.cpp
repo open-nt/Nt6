@@ -2,13 +2,18 @@
 #include <QtCore/qeventloop.h>
 
 #include "dispatcher.h"
+#include "threaddata_p.h"
 
 #include <atomic>
+#include <mutex>
 
 struct QEventLoop::Data {
     std::atomic<bool> exitFlag{false};
     std::atomic<int> code{0};
-    bool running = false;
+    std::atomic<bool> running{false};
+    // While the loop runs: the thread it runs in, with a reference. exit() may come from any thread.
+    std::mutex mutex;
+    QtPrivate::ThreadData *td = nullptr;
 };
 
 /*!
@@ -28,8 +33,8 @@ struct QEventLoop::Data {
     \differences
     \c ExcludeUserInputEvents and \c ExcludeSocketNotifiers are accepted but
     ignored, and there is no \c processEvents() overload with a timeout and
-    no \c QEventLoopLocker. All loops share one process-wide event
-    dispatcher.
+    no \c QEventLoopLocker or \c QAbstractEventDispatcher. A loop always runs
+    the event dispatcher of the thread that calls exec() or processEvents().
     \enddifferences
 
     \sa QCoreApplication, QTimer, QSocketNotifier
@@ -54,7 +59,7 @@ QEventLoop::~QEventLoop() = default;
 */
 bool QEventLoop::processEvents(ProcessEventsFlags flags) {
     const bool wait = flags.testFlag(WaitForMoreEvents);
-    return QtPrivate::Dispatcher::instance().process(wait, m_d->running ? &m_d->exitFlag : nullptr);
+    return QtPrivate::ThreadData::current()->dispatcher.process(wait, m_d->running ? &m_d->exitFlag : nullptr);
 }
 
 /*!
@@ -66,25 +71,39 @@ bool QEventLoop::processEvents(ProcessEventsFlags flags) {
     \sa exit(), quit(), isRunning()
 */
 int QEventLoop::exec(ProcessEventsFlags) {
-    if (m_d->running)
+    if (m_d->running.exchange(true))
         return -1;
 
-    auto &disp = QtPrivate::Dispatcher::instance();
+    auto *td = QtPrivate::ThreadData::current();
+    td->retain();
+    {
+        std::lock_guard<std::mutex> lk(m_d->mutex);
+        m_d->td = td;
+    }
     m_d->exitFlag = false;
     m_d->code = 0;
-    m_d->running = true;
-    disp.addLoop(this);
+    td->dispatcher.addLoop(this);
 
     struct Guard {
         QEventLoop *self;
+        QtPrivate::ThreadData *td;
         ~Guard() {
-            QtPrivate::Dispatcher::instance().removeLoop(self);
+            td->dispatcher.removeLoop(self);
+            {
+                std::lock_guard<std::mutex> lk(self->m_d->mutex);
+                self->m_d->td = nullptr;
+            }
             self->m_d->running = false;
+            td->release();
         }
-    } guard{this};
+    } guard{this, td};
 
+    // QThread::exit() sets quitNow before it looks for loops, and this check follows addLoop(),
+    // so an exit request cannot slip between the two.
+    if (td->quitNow.load())
+        return -1;
     while (!m_d->exitFlag.load())
-        disp.process(true, &m_d->exitFlag);
+        td->dispatcher.process(true, &m_d->exitFlag);
     return m_d->code.load();
 }
 
@@ -97,7 +116,7 @@ int QEventLoop::exec(ProcessEventsFlags) {
 void QEventLoop::exit(int returnCode) {
     m_d->code = returnCode;
     m_d->exitFlag = true;
-    QtPrivate::Dispatcher::instance().wakeUp();
+    wakeUp();
 }
 
 /*!
@@ -112,7 +131,11 @@ bool QEventLoop::isRunning() const { return m_d->running; }
     Wakes the event loop if it is blocked waiting for events, so that it
     re-checks its state. It is safe to call from any thread.
 */
-void QEventLoop::wakeUp() { QtPrivate::Dispatcher::instance().wakeUp(); }
+void QEventLoop::wakeUp() {
+    std::lock_guard<std::mutex> lk(m_d->mutex);
+    if (m_d->td)
+        m_d->td->dispatcher.wakeUp();
+}
 
 /*!
     Tells the event loop to exit with return code 0. This is the same as

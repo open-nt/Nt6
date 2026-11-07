@@ -45,16 +45,21 @@ add_library(NtCore
     src/qlibraryinfo.cpp
     src/qobject.cpp
     src/qrandom.cpp
+    src/qrunnable.cpp
     src/qsavefile.cpp
     src/qsocketnotifier.cpp
     src/qstandardpaths.cpp
     src/qstring.cpp
     src/qtemporaryfile.cpp
     src/qtextstream.cpp
+    src/qthread.cpp
+    src/qthreadpool.cpp
+    src/qthreadstorage.cpp
     src/qtimer.cpp
     src/qurl.cpp
     src/quuid.cpp
     src/qversionnumber.cpp
+    src/threaddata.cpp
 )
 add_library(Nt::Core ALIAS NtCore)
 add_library(Qt6::Core ALIAS NtCore)
@@ -259,6 +264,11 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_test_tests PRIVATE Nt::Test)
     nt_enable_automoc(nt_test_tests)
     add_test(NAME nt_test_tests COMMAND nt_test_tests)
+
+    add_executable(nt_thread_tests tests/test_threads.cpp)
+    target_link_libraries(nt_thread_tests PRIVATE Nt::Core)
+    add_test(NAME nt_thread_tests COMMAND nt_thread_tests)
+    nt_set_compile_options(nt_thread_tests)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
                            nt_test_tests)

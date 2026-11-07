@@ -24,6 +24,7 @@ public:
     static int exec();
     static void exit(int returnCode = 0);
     static void processEvents(QEventLoop::ProcessEventsFlags flags = QEventLoop::AllEvents);
+    static void sendPostedEvents(QObject *receiver = nullptr, int eventType = 0);
 
     // Takes ownership of `event`.
     static void postEvent(QObject *receiver, QEvent *event);

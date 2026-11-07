@@ -2,8 +2,12 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
+#ifdef __linux__
+#include <sys/eventfd.h>
+#endif
 
 #include "dispatcher.h"
+#include "qobject_p.h"
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qsocketnotifier.h>
@@ -12,37 +16,70 @@
 #include <cerrno>
 #include <climits>
 #include <memory>
+#include <unordered_set>
 
 namespace QtPrivate {
 
+namespace {
+
+std::atomic<int> g_nextTimerId{1};
+std::atomic<int> g_nextNotifierId{1};
+
+} // namespace
+
 Dispatcher::Dispatcher() {
+#ifdef __linux__
+    wakeRead_ = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
+    wakeWrite_ = wakeRead_;
+#else
     int fds[2];
-    if (::pipe2(fds, O_NONBLOCK | O_CLOEXEC) == 0) {
+    if (::pipe(fds) == 0) {
+        for (int fd : fds) {
+            ::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL) | O_NONBLOCK);
+            ::fcntl(fd, F_SETFD, FD_CLOEXEC);
+        }
         wakeRead_ = fds[0];
         wakeWrite_ = fds[1];
     }
+#endif
 }
 
-Dispatcher &Dispatcher::instance() {
-    // Leaked on purpose: QObjects with static storage may outlive a normal singleton.
-    static Dispatcher *d = new Dispatcher;
-    return *d;
+Dispatcher::~Dispatcher() {
+    for (const Posted &p : queue_)
+        delete p.event;
+    if (wakeRead_ >= 0)
+        ::close(wakeRead_);
+    if (wakeWrite_ >= 0 && wakeWrite_ != wakeRead_)
+        ::close(wakeWrite_);
 }
 
 void Dispatcher::wakeUp() {
-    const char b = 1;
+#ifdef __linux__
+    const std::uint64_t one = 1;
+    const void *buf = &one;
+    const std::size_t len = sizeof one;
+#else
+    const char one = 1;
+    const void *buf = &one;
+    const std::size_t len = 1;
+#endif
     ssize_t r;
     do {
-        r = ::write(wakeWrite_, &b, 1);
+        r = ::write(wakeWrite_, buf, len);
     } while (r < 0 && errno == EINTR);
 }
 
-void Dispatcher::post(QObject *receiver, QEvent *event) {
+bool Dispatcher::post(QObject *receiver, QEvent *event, const void *owner) {
     {
         std::lock_guard<std::mutex> lk(m_);
+        // The check happens under the lock so that migrate() either sees this event or the
+        // sender sees the new owner.
+        if (Access::d(receiver).threadData.load() != owner)
+            return false;
         queue_.push_back({receiver, event, ++seq_});
     }
     wakeUp();
+    return true;
 }
 
 void Dispatcher::removePosted(QObject *receiver, int type) {
@@ -63,10 +100,9 @@ void Dispatcher::removePosted(QObject *receiver, int type) {
 }
 
 int Dispatcher::startTimer(QObject *obj, std::chrono::milliseconds interval) {
-    int id;
+    const int id = g_nextTimerId.fetch_add(1);
     {
         std::lock_guard<std::mutex> lk(m_);
-        id = nextTimerId_++;
         timers_.push_back({id, obj, interval, Clock::now() + interval});
     }
     wakeUp();
@@ -86,10 +122,9 @@ void Dispatcher::killTimers(QObject *obj) {
 }
 
 int Dispatcher::addNotifier(QSocketNotifier *obj, int fd, int type) {
-    int id;
+    const int id = g_nextNotifierId.fetch_add(1);
     {
         std::lock_guard<std::mutex> lk(m_);
-        id = nextNotifierId_++;
         notifiers_.push_back({id, obj, fd, type, true});
     }
     wakeUp();
@@ -110,6 +145,14 @@ void Dispatcher::setNotifierEnabled(int id, bool enabled) {
                 n.enabled = enabled;
     }
     wakeUp();
+}
+
+void Dispatcher::deliver(const Posted &p) {
+    std::unique_ptr<QEvent> owned(p.event);
+    if (p.event->type() == QEvent::DeferredDelete)
+        delete p.receiver;
+    else
+        QCoreApplication::sendEvent(p.receiver, p.event);
 }
 
 bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
@@ -156,8 +199,8 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
             lk.unlock();
             r = ::poll(fds.data(), static_cast<nfds_t>(fds.size()), timeout);
             if (r > 0 && (fds[0].revents & POLLIN)) {
-                char buf[64];
-                // The wake pipe is non-blocking and the lock is released above.
+                std::uint64_t buf[8];
+                // The wake descriptor is non-blocking and the lock is released above.
                 while (::read(wakeRead_, buf, sizeof buf) > 0) { // NOLINT(clang-analyzer-unix.BlockInCriticalSection)
                 }
             }
@@ -221,19 +264,35 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
 
     // Events posted while handlers run wait for the next pass.
     while (!queue_.empty() && queue_.front().seq <= maxSeq) {
-        Posted p = queue_.front();
+        const Posted p = queue_.front();
         queue_.pop_front();
         lk.unlock();
-        std::unique_ptr<QEvent> owned(p.event);
-        if (p.event->type() == QEvent::DeferredDelete)
-            delete p.receiver;
-        else
-            QCoreApplication::sendEvent(p.receiver, p.event);
-        owned.reset();
+        deliver(p);
         lk.lock();
         did = true;
     }
     return did;
+}
+
+void Dispatcher::sendPosted(QObject *receiver, int type) {
+    std::unique_lock<std::mutex> lk(m_);
+    const std::uint64_t maxSeq = seq_;
+    for (;;) {
+        // Deliver one at a time: a handler may delete other receivers, which drops their queued events.
+        auto it = std::find_if(queue_.begin(), queue_.end(), [&](const Posted &p) {
+            if (p.seq > maxSeq || (receiver && p.receiver != receiver))
+                return false;
+            const int t = p.event->type();
+            return type == 0 ? t != QEvent::DeferredDelete : t == type;
+        });
+        if (it == queue_.end())
+            return;
+        const Posted p = *it;
+        queue_.erase(it);
+        lk.unlock();
+        deliver(p);
+        lk.lock();
+    }
 }
 
 void Dispatcher::addLoop(QEventLoop *loop) {
@@ -246,14 +305,62 @@ void Dispatcher::removeLoop(QEventLoop *loop) {
     loops_.erase(std::remove(loops_.begin(), loops_.end(), loop), loops_.end());
 }
 
+// Holding the lock keeps the loops alive: removeLoop() waits for it. exit() only touches atomics
+// and the wake descriptor.
 void Dispatcher::exitAll(int code) {
-    std::vector<QEventLoop *> copy;
+    std::lock_guard<std::mutex> lk(m_);
+    for (QEventLoop *l : loops_)
+        l->exit(code);
+}
+
+int Dispatcher::loopLevel() {
+    std::lock_guard<std::mutex> lk(m_);
+    return static_cast<int>(loops_.size());
+}
+
+void Dispatcher::migrate(Dispatcher &to, const std::vector<QObject *> &objs) {
+    const std::unordered_set<const QObject *> set(objs.begin(), objs.end());
+    std::vector<Timer> timers;
+    std::vector<Notifier> notifiers;
+    std::vector<Posted> events;
     {
         std::lock_guard<std::mutex> lk(m_);
-        copy = loops_;
+        auto moved = [&set](const QObject *o) { return set.count(o) != 0; };
+        for (auto it = timers_.begin(); it != timers_.end();) {
+            if (moved(it->obj)) {
+                timers.push_back(*it);
+                it = timers_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        for (auto it = notifiers_.begin(); it != notifiers_.end();) {
+            if (moved(it->obj)) {
+                notifiers.push_back(*it);
+                it = notifiers_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+        for (auto it = queue_.begin(); it != queue_.end();) {
+            if (moved(it->receiver)) {
+                events.push_back(*it);
+                it = queue_.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
-    for (QEventLoop *l : copy)
-        l->exit(code);
+    {
+        std::lock_guard<std::mutex> lk(to.m_);
+        to.timers_.insert(to.timers_.end(), timers.begin(), timers.end());
+        to.notifiers_.insert(to.notifiers_.end(), notifiers.begin(), notifiers.end());
+        for (Posted &p : events) {
+            p.seq = ++to.seq_;
+            to.queue_.push_back(p);
+        }
+    }
+    to.wakeUp();
 }
 
 } // namespace QtPrivate

@@ -12,7 +12,7 @@
 # Checks: file hygiene, tech-debt markers, CMake source lists, header
 # self-containment, a -Werror build, the tests, complete ndoc comments,
 # clang-format on changed lines, clang-tidy, cppcheck, and the tests again
-# under AddressSanitizer and UBSan.
+# under AddressSanitizer and UBSan, and the thread tests under ThreadSanitizer.
 #
 # Environment:
 #   NT_CHECK_BUILD_DIR       Build directory root (default: build/check).
@@ -233,6 +233,29 @@ check_shell() {
     repo_files '*.sh' | xargs -r shellcheck --severity=warning
 }
 
+# The thread tests under ThreadSanitizer, in their own build. Skipped like a missing tool if the
+# toolchain cannot run TSan programs (no runtime, or a kernel whose address layout it rejects).
+check_tsan() {
+    need cmake || return $?
+    local cxx=${CXX:-c++} probe="$build_root/tsan-probe"
+    need "$cxx" || return $?
+    mkdir -p "$probe"
+    printf 'int main() { return 0; }\n' > "$probe/probe.cpp"
+    if ! "$cxx" -fsanitize=thread "$probe/probe.cpp" -o "$probe/probe" > /dev/null 2>&1 || ! "$probe/probe" > /dev/null 2>&1; then
+        if [ "${NT_CHECK_ALLOW_MISSING:-0}" = 1 ]; then
+            echo "SKIPPED: ThreadSanitizer does not work with $cxx"
+            skipped+=("tsan")
+            return 0
+        fi
+        echo "ThreadSanitizer does not work with $cxx (set NT_CHECK_ALLOW_MISSING=1 to skip it)"
+        return 2
+    fi
+    configure "$build_root/tsan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF \
+        -DNT_BUILD_EXAMPLES=OFF -DNT_SANITIZE=thread && \
+        cmake --build "$build_root/tsan" -j "$jobs" --target nt_thread_tests && \
+        TSAN_OPTIONS=halt_on_error=1 ctest --test-dir "$build_root/tsan" -R '^nt_thread_tests$' --output-on-failure
+}
+
 check_sanitizers() {
     need cmake || return $?
     configure "$build_root/asan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF \
@@ -264,6 +287,7 @@ if [ "$quick" = 1 ]; then
     skipped+=("sanitizers (--quick)")
 else
     step "Tests under ASan and UBSan" check_sanitizers
+    step "Thread tests under TSan" check_tsan
 fi
 
 echo

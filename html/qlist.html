@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QList Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QList</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QList Class</h1>
+<p><code>template &lt;typename T&gt; class QList</code></p>
+<p class="brief">The QList class is a template class that provides a dynamic array. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QList&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+<tr><th>Inherited by</th><td><a href="qqueue.html">QQueue</a>, <a href="qsignalspy.html">QSignalSpy</a>, <a href="qstack.html">QStack</a>, <a href="qstringlist.html">QStringList</a></td></tr>
+</table>
+<p><a href="qlist-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">typedef</td><td><a href="#Container-typedef">Container</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#iterator-typedef">iterator</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#const_iterator-typedef">const_iterator</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#reverse_iterator-typedef">reverse_iterator</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#const_reverse_iterator-typedef">const_reverse_iterator</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#value_type-typedef">value_type</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#reference-typedef">reference</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#const_reference-typedef">const_reference</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#size_type-typedef">size_type</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#difference_type-typedef">difference_type</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#pointer-typedef">pointer</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#const_pointer-typedef">const_pointer</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#Iterator-typedef">Iterator</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#ConstIterator-typedef">ConstIterator</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QList">QList</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#QList-2">QList</a>(qsizetype <i>size</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QList-3">QList</a>(qsizetype <i>size</i>, const T &amp;<i>value</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QList-4">QList</a>(std::initializer_list&lt;T&gt; <i>args</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QList-5">QList</a>(It <i>first</i>, It <i>last</i>)</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#size">size</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#count">count</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#length">length</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#capacity">capacity</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isEmpty">isEmpty</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#empty">empty</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#clear">clear</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#reserve">reserve</a>(qsizetype <i>n</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#squeeze">squeeze</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#resize">resize</a>(qsizetype <i>n</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#resize-2">resize</a>(qsizetype <i>n</i>, const T &amp;<i>v</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#fill">fill</a>(const T &amp;<i>v</i>, qsizetype <i>n</i> = -1)</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#operator-5b5d">operator[]</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#operator-5b5d-2">operator[]</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#at">at</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">T</td><td><a href="#value">value</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">T</td><td><a href="#value-2">value</a>(qsizetype <i>i</i>, const T &amp;<i>def</i>) const</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#first">first</a>()</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#first-2">first</a>() const</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#last">last</a>()</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#last-2">last</a>() const</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#front">front</a>()</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#front-2">front</a>() const</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#back">back</a>()</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#back-2">back</a>() const</td></tr>
+<tr><td class="ret">T *</td><td><a href="#data">data</a>()</td></tr>
+<tr><td class="ret">const T *</td><td><a href="#data-2">data</a>() const</td></tr>
+<tr><td class="ret">const T *</td><td><a href="#constData">constData</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#append">append</a>(const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#append-2">append</a>(T &amp;&amp;<i>t</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#append-3">append</a>(const QList &amp;<i>l</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#push_back">push_back</a>(const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#push_back-2">push_back</a>(T &amp;&amp;<i>t</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#prepend">prepend</a>(const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#push_front">push_front</a>(const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#emplaceBack">emplaceBack</a>(Args &amp;&amp;...<i>args</i>)</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#emplace_back">emplace_back</a>(Args &amp;&amp;...<i>args</i>)</td></tr>
+<tr><td class="ret">iterator</td><td><a href="#insert">insert</a>(qsizetype <i>i</i>, const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">iterator</td><td><a href="#insert-2">insert</a>(qsizetype <i>i</i>, qsizetype <i>n</i>, const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">iterator</td><td><a href="#insert-3">insert</a>(const_iterator <i>before</i>, const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#replace">replace</a>(qsizetype <i>i</i>, const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#remove">remove</a>(qsizetype <i>i</i>, qsizetype <i>n</i> = 1)</td></tr>
+<tr><td class="ret">void</td><td><a href="#removeAt">removeAt</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#removeFirst">removeFirst</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#removeLast">removeLast</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#pop_back">pop_back</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#pop_front">pop_front</a>()</td></tr>
+<tr><td class="ret">iterator</td><td><a href="#erase">erase</a>(const_iterator <i>pos</i>)</td></tr>
+<tr><td class="ret">iterator</td><td><a href="#erase-2">erase</a>(const_iterator <i>first</i>, const_iterator <i>last</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#takeAt">takeAt</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#takeFirst">takeFirst</a>()</td></tr>
+<tr><td class="ret">T</td><td><a href="#takeLast">takeLast</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#removeOne">removeOne</a>(const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#removeAll">removeAll</a>(const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#removeIf">removeIf</a>(Pred <i>p</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#move">move</a>(qsizetype <i>from</i>, qsizetype <i>to</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#swapItemsAt">swapItemsAt</a>(qsizetype <i>i</i>, qsizetype <i>j</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#swap">swap</a>(QList &amp;<i>o</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#contains">contains</a>(const T &amp;<i>t</i>) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#indexOf">indexOf</a>(const T &amp;<i>t</i>, qsizetype <i>from</i> = 0) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#lastIndexOf">lastIndexOf</a>(const T &amp;<i>t</i>, qsizetype <i>from</i> = -1) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#count-2">count</a>(const T &amp;<i>t</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#startsWith">startsWith</a>(const T &amp;<i>t</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#endsWith">endsWith</a>(const T &amp;<i>t</i>) const</td></tr>
+<tr><td class="ret">QList</td><td><a href="#mid">mid</a>(qsizetype <i>pos</i>, qsizetype <i>len</i> = -1) const</td></tr>
+<tr><td class="ret">QList</td><td><a href="#first-3">first</a>(qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QList</td><td><a href="#last-3">last</a>(qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QList</td><td><a href="#sliced">sliced</a>(qsizetype <i>pos</i>, qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QList</td><td><a href="#sliced-2">sliced</a>(qsizetype <i>pos</i>) const</td></tr>
+<tr><td class="ret">QList</td><td><a href="#chopped">chopped</a>(qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">void</td><td><a href="#chop">chop</a>(qsizetype <i>n</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#reverse">reverse</a>()</td></tr>
+<tr><td class="ret">const std::vector&lt;T&gt; &amp;</td><td><a href="#toStdVector">toStdVector</a>() const</td></tr>
+<tr><td class="ret">iterator</td><td><a href="#begin">begin</a>()</td></tr>
+<tr><td class="ret">iterator</td><td><a href="#end">end</a>()</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#begin-2">begin</a>() const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#end-2">end</a>() const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#cbegin">cbegin</a>() const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#cend">cend</a>() const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#constBegin">constBegin</a>() const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#constEnd">constEnd</a>() const</td></tr>
+<tr><td class="ret">reverse_iterator</td><td><a href="#rbegin">rbegin</a>()</td></tr>
+<tr><td class="ret">reverse_iterator</td><td><a href="#rend">rend</a>()</td></tr>
+<tr><td class="ret">const_reverse_iterator</td><td><a href="#rbegin-2">rbegin</a>() const</td></tr>
+<tr><td class="ret">const_reverse_iterator</td><td><a href="#rend-2">rend</a>() const</td></tr>
+<tr><td class="ret">QList &amp;</td><td><a href="#operator-2b3d">operator+=</a>(const QList &amp;<i>l</i>)</td></tr>
+<tr><td class="ret">QList &amp;</td><td><a href="#operator-2b3d-2">operator+=</a>(const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">QList &amp;</td><td><a href="#operator-3c3c">operator&lt;&lt;</a>(const T &amp;<i>t</i>)</td></tr>
+<tr><td class="ret">QList &amp;</td><td><a href="#operator-3c3c-2">operator&lt;&lt;</a>(const QList &amp;<i>l</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>QList&lt;T&gt; stores its items contiguously and gives fast index-based access, fast appends and fast iteration. It is the container to reach for first.</p>
+<pre><code>QList&lt;QString&gt; names = {&quot;Ada&quot;, &quot;Grace&quot;};
+names &lt;&lt; &quot;Linus&quot;;
+names.removeAll(&quot;Grace&quot;);
+for (const QString &amp;n : names)
+    use(n);
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qqueue.html">QQueue</a>, <a href="qstack.html">QStack</a> and <a href="qvarlengtharray.html">QVarLengthArray</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>The list is a thin wrapper over <code>std::vector</code>, so copies are deep and it is not implicitly shared. <code>QList&lt;bool&gt;</code> is rejected with a <code>static_assert</code>. There is no <code>emplace()</code>, <code>assign()</code>, <code>shrink_to_fit()</code>, <code>max_size()</code>, <code>toList()</code> or <code>toVector()</code>, and no rvalue overloads of <a href="qlist.html#prepend">prepend()</a> or <a href="qlist.html#insert">insert()</a>. Indexes are not range-checked except by <a href="qlist.html#value">value()</a>. <code>QVector</code> is an alias of QList.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="const_iterator-typedef">typedef QList::const_iterator</h3>
+<p>The const iterator type, a random access iterator over <code>const T</code>.</p>
+<h3 class="member" id="const_pointer-typedef">typedef QList::const_pointer</h3>
+<p>Alias for <code>const T *</code>. Provided for STL compatibility.</p>
+<h3 class="member" id="const_reference-typedef">typedef QList::const_reference</h3>
+<p>Alias for <code>const T &amp;</code>. Provided for STL compatibility.</p>
+<h3 class="member" id="const_reverse_iterator-typedef">typedef QList::const_reverse_iterator</h3>
+<p>The const reverse iterator type.</p>
+<h3 class="member" id="ConstIterator-typedef">typedef QList::ConstIterator</h3>
+<p><a href="qt.html">Qt</a>-style synonym for <a href="qlist.html#const_iterator-typedef">QList::const_iterator</a>.</p>
+<h3 class="member" id="Container-typedef">typedef QList::Container</h3>
+<p>The underlying <code>std::vector&lt;T&gt;</code> that stores the items.</p>
+<h3 class="member" id="difference_type-typedef">typedef QList::difference_type</h3>
+<p>Alias for qsizetype. Provided for STL compatibility.</p>
+<h3 class="member" id="iterator-typedef">typedef QList::iterator</h3>
+<p>The non-const iterator type, a random access iterator over <code>T</code>.</p>
+<h3 class="member" id="Iterator-typedef">typedef QList::Iterator</h3>
+<p><a href="qt.html">Qt</a>-style synonym for <a href="qlist.html#iterator-typedef">QList::iterator</a>.</p>
+<h3 class="member" id="pointer-typedef">typedef QList::pointer</h3>
+<p>Alias for <code>T *</code>. Provided for STL compatibility.</p>
+<h3 class="member" id="reference-typedef">typedef QList::reference</h3>
+<p>Alias for <code>T &amp;</code>. Provided for STL compatibility.</p>
+<h3 class="member" id="reverse_iterator-typedef">typedef QList::reverse_iterator</h3>
+<p>The non-const reverse iterator type.</p>
+<h3 class="member" id="size_type-typedef">typedef QList::size_type</h3>
+<p>Alias for qsizetype. Provided for STL compatibility.</p>
+<h3 class="member" id="value_type-typedef">typedef QList::value_type</h3>
+<p>The type of the items stored in the list, <code>T</code>. Provided for STL compatibility.</p>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QList">QList::QList()</h3>
+<p>Constructs an empty list.</p>
+<h3 class="member" id="QList-2"><span class="tags">[explicit]</span> QList::QList(qsizetype <i>size</i>)</h3>
+<p>Constructs a list with <i>size</i> default-constructed items.</p>
+<h3 class="member" id="QList-3">QList::QList(qsizetype <i>size</i>, const T &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a list with <i>size</i> copies of <i>value</i>.</p>
+<h3 class="member" id="QList-4">QList::QList(std::initializer_list&lt;T&gt; <i>args</i>)</h3>
+<p>Constructs a list from the items in the initializer list <i>args</i>.</p>
+<h3 class="member" id="QList-5"><span class="template">template &lt;typename It, typename = typename std::iterator_traits&lt;It&gt;::iterator_category&gt;</span>QList::QList(It <i>first</i>, It <i>last</i>)</h3>
+<p>Constructs a list with a copy of the items in the range [<i>first</i>, <i>last</i>).</p>
+<h3 class="member" id="append">void QList::append(const T &amp;<i>t</i>)</h3>
+<p>Inserts <i>t</i> at the end of the list.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#prepend">prepend()</a>, <a href="qlist.html#insert">insert()</a> and <a href="qlist.html#push_back">push_back()</a>.</p>
+<h3 class="member" id="append-2">void QList::append(T &amp;&amp;<i>t</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Moves <i>t</i> to the end of the list.</p>
+<h3 class="member" id="append-3">void QList::append(const <a href="qlist.html">QList</a> &amp;<i>l</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the items of the list <i>l</i> to this list.</p>
+<h3 class="member" id="at">const T &amp; QList::at(qsizetype <i>i</i>) const</h3>
+<p>Returns the item at index position <i>i</i>. <i>i</i> must be a valid index.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#value">value()</a>, <a href="qlist.html#front">front()</a> and <a href="qlist.html#back">back()</a>.</p>
+<h3 class="member" id="back">T &amp; QList::back()</h3>
+<p>Same as <a href="qlist.html#last">last()</a>. This function is provided for STL compatibility.</p>
+<h3 class="member" id="back-2">const T &amp; QList::back() const</h3>
+<p>This is an overloaded function.</p>
+<p>Same as <a href="qlist.html#last">last()</a> const.</p>
+<h3 class="member" id="begin">iterator QList::begin()</h3>
+<p>Returns an iterator pointing to the first item in the list.</p>
+<h3 class="member" id="begin-2">const_iterator QList::begin() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const iterator pointing to the first item in the list.</p>
+<h3 class="member" id="capacity">qsizetype QList::capacity() const</h3>
+<p>Returns the maximum number of items the list can hold without reallocating.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#reserve">reserve()</a> and <a href="qlist.html#squeeze">squeeze()</a>.</p>
+<h3 class="member" id="cbegin">const_iterator QList::cbegin() const</h3>
+<p>Returns a const iterator pointing to the first item in the list.</p>
+<h3 class="member" id="cend">const_iterator QList::cend() const</h3>
+<p>Returns a const iterator pointing just after the last item in the list.</p>
+<h3 class="member" id="chop">void QList::chop(qsizetype <i>n</i>)</h3>
+<p>Removes <i>n</i> items from the end of the list. <i>n</i> must not be greater than <a href="qlist.html#size">size()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#chopped">chopped()</a> and <a href="qlist.html#resize">resize()</a>.</p>
+<h3 class="member" id="chopped"><a href="qlist.html">QList</a> QList::chopped(qsizetype <i>n</i>) const</h3>
+<p>Returns a sublist containing this list without its last <i>n</i> items.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#chop">chop()</a> and <a href="qlist.html#first">first()</a>.</p>
+<h3 class="member" id="clear">void QList::clear()</h3>
+<p>Removes all the items from the list.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#resize">resize()</a> and <a href="qlist.html#removeAll">removeAll()</a>.</p>
+<h3 class="member" id="constBegin">const_iterator QList::constBegin() const</h3>
+<p>Same as <a href="qlist.html#cbegin">cbegin()</a>.</p>
+<h3 class="member" id="constData">const T * QList::constData() const</h3>
+<p>Returns a const pointer to the data stored in the list.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#data">data()</a>.</p>
+<h3 class="member" id="constEnd">const_iterator QList::constEnd() const</h3>
+<p>Same as <a href="qlist.html#cend">cend()</a>.</p>
+<h3 class="member" id="contains">bool QList::contains(const T &amp;<i>t</i>) const</h3>
+<p>Returns <code>true</code> if the list contains an item equal to <i>t</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#indexOf">indexOf()</a> and <a href="qlist.html#count">count()</a>.</p>
+<h3 class="member" id="count">qsizetype QList::count() const</h3>
+<p>Same as <a href="qlist.html#size">size()</a>.</p>
+<h3 class="member" id="count-2">qsizetype QList::count(const T &amp;<i>t</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the number of items in the list equal to <i>t</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#contains">contains()</a> and <a href="qlist.html#indexOf">indexOf()</a>.</p>
+<h3 class="member" id="data">T * QList::data()</h3>
+<p>Returns a pointer to the data stored in the list. The pointer can be used to access and modify the items, and stays valid until the list is resized or destroyed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#constData">constData()</a>.</p>
+<h3 class="member" id="data-2">const T * QList::data() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const pointer to the data stored in the list.</p>
+<h3 class="member" id="emplace_back"><span class="template">template &lt;typename... Args&gt;</span>T &amp; QList::emplace_back(Args &amp;&amp;...<i>args</i>)</h3>
+<p>Same as emplaceBack(<i>args</i>). This function is provided for STL compatibility.</p>
+<h3 class="member" id="emplaceBack"><span class="template">template &lt;typename... Args&gt;</span>T &amp; QList::emplaceBack(Args &amp;&amp;...<i>args</i>)</h3>
+<p>Constructs a new item at the end of the list from <i>args</i> and returns a reference to it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#append">append()</a>.</p>
+<h3 class="member" id="empty">bool QList::empty() const</h3>
+<p>Same as <a href="qlist.html#isEmpty">isEmpty()</a>. This function is provided for STL compatibility.</p>
+<h3 class="member" id="end">iterator QList::end()</h3>
+<p>Returns an iterator pointing just after the last item in the list.</p>
+<h3 class="member" id="end-2">const_iterator QList::end() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const iterator pointing just after the last item in the list.</p>
+<h3 class="member" id="endsWith">bool QList::endsWith(const T &amp;<i>t</i>) const</h3>
+<p>Returns <code>true</code> if the list is not empty and its last item is equal to <i>t</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#startsWith">startsWith()</a>.</p>
+<h3 class="member" id="erase">iterator QList::erase(const_iterator <i>pos</i>)</h3>
+<p>Removes the item pointed to by the iterator <i>pos</i> and returns an iterator to the item that followed it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#removeAt">removeAt()</a>.</p>
+<h3 class="member" id="erase-2">iterator QList::erase(const_iterator <i>first</i>, const_iterator <i>last</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Removes the items in the range [<i>first</i>, <i>last</i>) and returns an iterator to the item that followed the range.</p>
+<h3 class="member" id="fill">void QList::fill(const T &amp;<i>v</i>, qsizetype <i>n</i> = -1)</h3>
+<p>Assigns <i>v</i> to every item in the list. If <i>n</i> is not negative, the list is first resized to <i>n</i> items.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#resize">resize()</a>.</p>
+<h3 class="member" id="first">T &amp; QList::first()</h3>
+<p>Returns a reference to the first item in the list. The list must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#last">last()</a>, <a href="qlist.html#front">front()</a> and <a href="qlist.html#isEmpty">isEmpty()</a>.</p>
+<h3 class="member" id="first-2">const T &amp; QList::first() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const reference to the first item in the list.</p>
+<h3 class="member" id="first-3"><a href="qlist.html">QList</a> QList::first(qsizetype <i>n</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a sublist containing the first <i>n</i> items of this list.</p>
+<h3 class="member" id="front">T &amp; QList::front()</h3>
+<p>Same as <a href="qlist.html#first">first()</a>. This function is provided for STL compatibility.</p>
+<h3 class="member" id="front-2">const T &amp; QList::front() const</h3>
+<p>This is an overloaded function.</p>
+<p>Same as <a href="qlist.html#first">first()</a> const.</p>
+<h3 class="member" id="indexOf">qsizetype QList::indexOf(const T &amp;<i>t</i>, qsizetype <i>from</i> = 0) const</h3>
+<p>Returns the index position of the first item equal to <i>t</i>, searching forward from index position <i>from</i>. A negative <i>from</i> counts from the end. Returns -1 if no item matches.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#lastIndexOf">lastIndexOf()</a> and <a href="qlist.html#contains">contains()</a>.</p>
+<h3 class="member" id="insert">iterator QList::insert(qsizetype <i>i</i>, const T &amp;<i>t</i>)</h3>
+<p>Inserts <i>t</i> at index position <i>i</i> and returns an iterator to the inserted item. <i>i</i> must be between 0 and <a href="qlist.html#size">size()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#append">append()</a>, <a href="qlist.html#prepend">prepend()</a> and <a href="qlist.html#remove">remove()</a>.</p>
+<h3 class="member" id="insert-2">iterator QList::insert(qsizetype <i>i</i>, qsizetype <i>n</i>, const T &amp;<i>t</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Inserts <i>n</i> copies of <i>t</i> at index position <i>i</i> and returns an iterator to the first inserted item.</p>
+<h3 class="member" id="insert-3">iterator QList::insert(const_iterator <i>before</i>, const T &amp;<i>t</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Inserts <i>t</i> before the item pointed to by the iterator <i>before</i> and returns an iterator to the inserted item.</p>
+<h3 class="member" id="isEmpty">bool QList::isEmpty() const</h3>
+<p>Returns <code>true</code> if the list has size 0; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#size">size()</a> and <a href="qlist.html#clear">clear()</a>.</p>
+<h3 class="member" id="last">T &amp; QList::last()</h3>
+<p>Returns a reference to the last item in the list. The list must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#first">first()</a>, <a href="qlist.html#back">back()</a> and <a href="qlist.html#isEmpty">isEmpty()</a>.</p>
+<h3 class="member" id="last-2">const T &amp; QList::last() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const reference to the last item in the list.</p>
+<h3 class="member" id="last-3"><a href="qlist.html">QList</a> QList::last(qsizetype <i>n</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a sublist containing the last <i>n</i> items of this list. If <i>n</i> is not less than <a href="qlist.html#size">size()</a>, the whole list is returned.</p>
+<h3 class="member" id="lastIndexOf">qsizetype QList::lastIndexOf(const T &amp;<i>t</i>, qsizetype <i>from</i> = -1) const</h3>
+<p>Returns the index position of the last item equal to <i>t</i>, searching backward from index position <i>from</i>. A negative <i>from</i> counts from the end, so the default of -1 starts at the last item. Returns -1 if no item matches.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#indexOf">indexOf()</a> and <a href="qlist.html#contains">contains()</a>.</p>
+<h3 class="member" id="length">qsizetype QList::length() const</h3>
+<p>Same as <a href="qlist.html#size">size()</a>.</p>
+<h3 class="member" id="mid"><a href="qlist.html">QList</a> QList::mid(qsizetype <i>pos</i>, qsizetype <i>len</i> = -1) const</h3>
+<p>Returns a sublist containing up to <i>len</i> items starting at index position <i>pos</i>. If <i>len</i> is negative or reaches past the end, all items from <i>pos</i> to the end are returned. A negative <i>pos</i> is treated as 0; if <i>pos</i> is beyond the end, an empty list is returned.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#first">first()</a>, <a href="qlist.html#last">last()</a> and <a href="qlist.html#sliced">sliced()</a>.</p>
+<h3 class="member" id="move">void QList::move(qsizetype <i>from</i>, qsizetype <i>to</i>)</h3>
+<p>Moves the item at index position <i>from</i> to index position <i>to</i>. Both must be valid indexes.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#swapItemsAt">swapItemsAt()</a>.</p>
+<h3 class="member" id="operator-2b3d"><a href="qlist.html">QList</a> &amp; QList::operator+=(const <a href="qlist.html">QList</a> &amp;<i>l</i>)</h3>
+<p>Appends the items of the list <i>l</i> to this list and returns a reference to this list.</p>
+<h3 class="member" id="operator-2b3d-2"><a href="qlist.html">QList</a> &amp; QList::operator+=(const T &amp;<i>t</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends <i>t</i> to this list and returns a reference to this list.</p>
+<h3 class="member" id="operator-3c3c"><a href="qlist.html">QList</a> &amp; QList::operator&lt;&lt;(const T &amp;<i>t</i>)</h3>
+<p>Appends <i>t</i> to this list and returns a reference to this list, so that calls can be chained.</p>
+<h3 class="member" id="operator-3c3c-2"><a href="qlist.html">QList</a> &amp; QList::operator&lt;&lt;(const <a href="qlist.html">QList</a> &amp;<i>l</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the items of the list <i>l</i> to this list and returns a reference to this list.</p>
+<h3 class="member" id="operator-5b5d">T &amp; QList::operator[](qsizetype <i>i</i>)</h3>
+<p>Returns a reference to the item at index position <i>i</i>, which can be assigned to. <i>i</i> must be a valid index.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#at">at()</a> and <a href="qlist.html#value">value()</a>.</p>
+<h3 class="member" id="operator-5b5d-2">const T &amp; QList::operator[](qsizetype <i>i</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Same as at(<i>i</i>).</p>
+<h3 class="member" id="pop_back">void QList::pop_back()</h3>
+<p>Same as <a href="qlist.html#removeLast">removeLast()</a>. This function is provided for STL compatibility.</p>
+<h3 class="member" id="pop_front">void QList::pop_front()</h3>
+<p>Same as <a href="qlist.html#removeFirst">removeFirst()</a>. This function is provided for STL compatibility.</p>
+<h3 class="member" id="prepend">void QList::prepend(const T &amp;<i>t</i>)</h3>
+<p>Inserts <i>t</i> at the beginning of the list.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#append">append()</a> and <a href="qlist.html#insert">insert()</a>.</p>
+<h3 class="member" id="push_back">void QList::push_back(const T &amp;<i>t</i>)</h3>
+<p>Same as append(<i>t</i>). This function is provided for STL compatibility.</p>
+<h3 class="member" id="push_back-2">void QList::push_back(T &amp;&amp;<i>t</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Same as append(<i>t</i>) for an rvalue.</p>
+<h3 class="member" id="push_front">void QList::push_front(const T &amp;<i>t</i>)</h3>
+<p>Same as prepend(<i>t</i>). This function is provided for STL compatibility.</p>
+<h3 class="member" id="rbegin">reverse_iterator QList::rbegin()</h3>
+<p>Returns a reverse iterator pointing to the last item in the list.</p>
+<h3 class="member" id="rbegin-2">const_reverse_iterator QList::rbegin() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const reverse iterator pointing to the last item in the list.</p>
+<h3 class="member" id="remove">void QList::remove(qsizetype <i>i</i>, qsizetype <i>n</i> = 1)</h3>
+<p>Removes <i>n</i> items starting at index position <i>i</i>. The range must be valid.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#removeAt">removeAt()</a>, <a href="qlist.html#insert">insert()</a> and <a href="qlist.html#takeAt">takeAt()</a>.</p>
+<h3 class="member" id="removeAll">qsizetype QList::removeAll(const T &amp;<i>t</i>)</h3>
+<p>Removes all items equal to <i>t</i> and returns the number of items removed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#removeOne">removeOne()</a> and <a href="qlist.html#removeIf">removeIf()</a>.</p>
+<h3 class="member" id="removeAt">void QList::removeAt(qsizetype <i>i</i>)</h3>
+<p>Removes the item at index position <i>i</i>. <i>i</i> must be a valid index.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#remove">remove()</a>, <a href="qlist.html#takeAt">takeAt()</a> and <a href="qlist.html#removeOne">removeOne()</a>.</p>
+<h3 class="member" id="removeFirst">void QList::removeFirst()</h3>
+<p>Removes the first item in the list. The list must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#removeLast">removeLast()</a> and <a href="qlist.html#takeFirst">takeFirst()</a>.</p>
+<h3 class="member" id="removeIf"><span class="template">template &lt;typename Pred&gt;</span>qsizetype QList::removeIf(Pred <i>p</i>)</h3>
+<p>Removes all items for which the predicate <i>p</i> returns <code>true</code> and returns the number of items removed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#removeAll">removeAll()</a>.</p>
+<h3 class="member" id="removeLast">void QList::removeLast()</h3>
+<p>Removes the last item in the list. The list must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#removeFirst">removeFirst()</a> and <a href="qlist.html#takeLast">takeLast()</a>.</p>
+<h3 class="member" id="removeOne">bool QList::removeOne(const T &amp;<i>t</i>)</h3>
+<p>Removes the first item equal to <i>t</i> and returns <code>true</code>; returns <code>false</code> if there is no such item.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#removeAll">removeAll()</a> and <a href="qlist.html#removeAt">removeAt()</a>.</p>
+<h3 class="member" id="rend">reverse_iterator QList::rend()</h3>
+<p>Returns a reverse iterator pointing just before the first item in the list.</p>
+<h3 class="member" id="rend-2">const_reverse_iterator QList::rend() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const reverse iterator pointing just before the first item in the list.</p>
+<h3 class="member" id="replace">void QList::replace(qsizetype <i>i</i>, const T &amp;<i>t</i>)</h3>
+<p>Replaces the item at index position <i>i</i> with <i>t</i>. <i>i</i> must be a valid index.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#remove">remove()</a>.</p>
+<h3 class="member" id="reserve">void QList::reserve(qsizetype <i>n</i>)</h3>
+<p>Attempts to allocate memory for at least <i>n</i> items, so that later appends do not reallocate.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#capacity">capacity()</a> and <a href="qlist.html#squeeze">squeeze()</a>.</p>
+<h3 class="member" id="resize">void QList::resize(qsizetype <i>n</i>)</h3>
+<p>Sets the size of the list to <i>n</i>. If <i>n</i> is larger than the current size, the new items are default-constructed; if it is smaller, items are removed from the end.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#size">size()</a> and <a href="qlist.html#chop">chop()</a>.</p>
+<h3 class="member" id="resize-2">void QList::resize(qsizetype <i>n</i>, const T &amp;<i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Sets the size of the list to <i>n</i>. New items are copies of <i>v</i>.</p>
+<h3 class="member" id="reverse">void QList::reverse()</h3>
+<p>Reverses the order of the items in the list in place.</p>
+<h3 class="member" id="size">qsizetype QList::size() const</h3>
+<p>Returns the number of items in the list.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#isEmpty">isEmpty()</a> and <a href="qlist.html#resize">resize()</a>.</p>
+<h3 class="member" id="sliced"><a href="qlist.html">QList</a> QList::sliced(qsizetype <i>pos</i>, qsizetype <i>n</i>) const</h3>
+<p>Returns a sublist containing <i>n</i> items starting at index position <i>pos</i>. Same as mid(<i>pos</i>, <i>n</i>).</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#mid">mid()</a>, <a href="qlist.html#first">first()</a> and <a href="qlist.html#last">last()</a>.</p>
+<h3 class="member" id="sliced-2"><a href="qlist.html">QList</a> QList::sliced(qsizetype <i>pos</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a sublist containing all items from index position <i>pos</i> to the end.</p>
+<h3 class="member" id="squeeze">void QList::squeeze()</h3>
+<p>Releases any memory not required to store the items.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#reserve">reserve()</a> and <a href="qlist.html#capacity">capacity()</a>.</p>
+<h3 class="member" id="startsWith">bool QList::startsWith(const T &amp;<i>t</i>) const</h3>
+<p>Returns <code>true</code> if the list is not empty and its first item is equal to <i>t</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#endsWith">endsWith()</a>.</p>
+<h3 class="member" id="swap">void QList::swap(<a href="qlist.html">QList</a> &amp;<i>o</i>)</h3>
+<p>Swaps this list with <i>o</i>. This operation is very fast and never fails.</p>
+<h3 class="member" id="swapItemsAt">void QList::swapItemsAt(qsizetype <i>i</i>, qsizetype <i>j</i>)</h3>
+<p>Exchanges the items at index positions <i>i</i> and <i>j</i>. Both must be valid indexes.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#move">move()</a>.</p>
+<h3 class="member" id="takeAt">T QList::takeAt(qsizetype <i>i</i>)</h3>
+<p>Removes the item at index position <i>i</i> and returns it. <i>i</i> must be a valid index.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#removeAt">removeAt()</a>, <a href="qlist.html#takeFirst">takeFirst()</a> and <a href="qlist.html#takeLast">takeLast()</a>.</p>
+<h3 class="member" id="takeFirst">T QList::takeFirst()</h3>
+<p>Removes the first item in the list and returns it. The list must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#takeLast">takeLast()</a> and <a href="qlist.html#removeFirst">removeFirst()</a>.</p>
+<h3 class="member" id="takeLast">T QList::takeLast()</h3>
+<p>Removes the last item in the list and returns it. The list must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#takeFirst">takeFirst()</a> and <a href="qlist.html#removeLast">removeLast()</a>.</p>
+<h3 class="member" id="toStdVector">const std::vector&lt;T&gt; &amp; QList::toStdVector() const</h3>
+<p>Returns a const reference to the underlying <code>std::vector&lt;T&gt;</code>.</p>
+<h3 class="member" id="value">T QList::value(qsizetype <i>i</i>) const</h3>
+<p>Returns the item at index position <i>i</i>, or a default-constructed value if <i>i</i> is out of range.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html#at">at()</a>.</p>
+<h3 class="member" id="value-2">T QList::value(qsizetype <i>i</i>, const T &amp;<i>def</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the item at index position <i>i</i>, or <i>def</i> if <i>i</i> is out of range.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

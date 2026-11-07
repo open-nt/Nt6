@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QSocketNotifier Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QSocketNotifier</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#public-slots">Public Slots</a></li>
+<li><a href="#signals">Signals</a></li>
+<li><a href="#reimplemented-protected-functions">Reimplemented Protected Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QSocketNotifier Class</h1>
+<p class="brief">The QSocketNotifier class provides a way to watch activity on a file descriptor. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QSocketNotifier&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+<tr><th>Inherits</th><td><a href="qobject.html">QObject</a></td></tr>
+</table>
+<p><a href="qsocketnotifier-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#Type-enum">Type</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QSocketNotifier">QSocketNotifier</a>(qintptr <i>socket</i>, Type <i>type</i>, <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QSocketNotifier">~QSocketNotifier</a>()</td></tr>
+<tr><td class="ret">qintptr</td><td><a href="#socket">socket</a>() const</td></tr>
+<tr><td class="ret">Type</td><td><a href="#type">type</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isEnabled">isEnabled</a>() const</td></tr>
+</table></div>
+<h2 id="public-slots">Public Slots</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">void</td><td><a href="#setEnabled">setEnabled</a>(bool <i>enable</i>)</td></tr>
+</table></div>
+<h2 id="signals">Signals</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">void</td><td><a href="#activated">activated</a>(<a href="qsocketdescriptor.html">QSocketDescriptor</a> <i>socket</i>, <a href="qsocketnotifier.html#Type-enum">QSocketNotifier::Type</a> <i>activationEvent</i>)</td></tr>
+</table></div>
+<h2 id="reimplemented-protected-functions">Reimplemented Protected Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">bool</td><td><a href="#event">event</a>(<a href="qevent.html">QEvent</a> *<i>e</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>A QSocketNotifier emits <a href="qsocketnotifier.html#activated">activated()</a> from the event loop when a file descriptor becomes readable, writable or has an exceptional condition. The notifier does not own the descriptor and does not read or write it; the slot must do so, otherwise <a href="qsocketnotifier.html#activated">activated()</a> fires again on the next pass.</p>
+<pre><code>QSocketNotifier notifier(fd, QSocketNotifier::Read);
+QObject::connect(&amp;notifier, &amp;QSocketNotifier::activated, [](QSocketDescriptor fd) {
+    drain(fd);
+});
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qsocketdescriptor.html">QSocketDescriptor</a> and <a href="qeventloop.html">QEventLoop</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>The notifier is serviced by the event loop of the thread it lives in, and moves with the object in <a href="qobject.html#moveToThread">QObject::moveToThread()</a>. It can be enabled and disabled only from that thread. Descriptors are watched with <code>poll()</code>, so only POSIX descriptors are supported, and the <code>Exception</code> type watches for <code>POLLPRI</code>. There is no constructor taking only a type, no <code>setSocket()</code>, and the type of the <code>activated()</code> signal's first argument is always <a href="qsocketdescriptor.html">QSocketDescriptor</a>.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="Type-enum">enum QSocketNotifier::Type</h3>
+<p>This enum describes the conditions a notifier watches for.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QSocketNotifier::Read</code></td><td>The descriptor has data to read.</td></tr>
+<tr><td><code>QSocketNotifier::Write</code></td><td>The descriptor can be written without blocking.</td></tr>
+<tr><td><code>QSocketNotifier::Exception</code></td><td>An exceptional condition, such as out-of-band data, occurred.</td></tr>
+</tbody></table>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QSocketNotifier">QSocketNotifier::QSocketNotifier(qintptr <i>socket</i>, Type <i>type</i>, <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a notifier that watches <i>socket</i> for the condition <i>type</i>. The notifier is enabled and has the given <i>parent</i>.</p>
+<h3 class="member" id="dtor.QSocketNotifier"><span class="tags">[override]</span> QSocketNotifier::~QSocketNotifier()</h3>
+<p>Destroys the notifier and stops watching the descriptor. The descriptor is not closed.</p>
+<h3 class="member" id="activated"><span class="tags">[signal]</span> void QSocketNotifier::activated(<a href="qsocketdescriptor.html">QSocketDescriptor</a> <i>socket</i>, <a href="qsocketnotifier.html#Type-enum">QSocketNotifier::Type</a> <i>activationEvent</i>)</h3>
+<p>This signal is emitted when the watched condition occurs. <i>socket</i> is the descriptor and <i>activationEvent</i> is the notifier type.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsocketnotifier.html#type">type()</a>.</p>
+<h3 class="member" id="event"><span class="tags">[override, protected]</span> bool QSocketNotifier::event(<a href="qevent.html">QEvent</a> *<i>e</i>)</h3>
+<p>Reimplements <a href="qobject.html#event">QObject::event()</a>.</p>
+<h3 class="member" id="isEnabled">bool QSocketNotifier::isEnabled() const</h3>
+<p>Returns <code>true</code> if the notifier is enabled; otherwise returns <code>false</code>. Notifiers are enabled when constructed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsocketnotifier.html#setEnabled">setEnabled()</a>.</p>
+<h3 class="member" id="setEnabled"><span class="tags">[slot]</span> void QSocketNotifier::setEnabled(bool <i>enable</i>)</h3>
+<p>Enables the notifier if <i>enable</i> is <code>true</code>; otherwise disables it. A disabled notifier does not emit <a href="qsocketnotifier.html#activated">activated()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsocketnotifier.html#isEnabled">isEnabled()</a>.</p>
+<h3 class="member" id="socket">qintptr QSocketNotifier::socket() const</h3>
+<p>Returns the descriptor the notifier watches.</p>
+<h3 class="member" id="type">Type QSocketNotifier::type() const</h3>
+<p>Returns the condition the notifier watches for.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

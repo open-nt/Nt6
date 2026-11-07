@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QThreadPool Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QThreadPool</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QThreadPool Class</h1>
+<p class="brief">The QThreadPool class manages a collection of threads. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QThreadPool&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+<tr><th>Inherits</th><td><a href="qobject.html">QObject</a></td></tr>
+</table>
+<p><a href="qthreadpool-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QThreadPool">QThreadPool</a>(<a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QThreadPool">~QThreadPool</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#start">start</a>(<a href="qrunnable.html">QRunnable</a> *<i>runnable</i>, int <i>priority</i> = 0)</td></tr>
+<tr><td class="ret">void</td><td><a href="#start-2">start</a>(std::function&lt;void()&gt; <i>functionToRun</i>, int <i>priority</i> = 0)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#tryStart">tryStart</a>(<a href="qrunnable.html">QRunnable</a> *<i>runnable</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#tryStart-2">tryStart</a>(std::function&lt;void()&gt; <i>functionToRun</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#startOnReservedThread">startOnReservedThread</a>(<a href="qrunnable.html">QRunnable</a> *<i>runnable</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#startOnReservedThread-2">startOnReservedThread</a>(std::function&lt;void()&gt; <i>functionToRun</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#expiryTimeout">expiryTimeout</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setExpiryTimeout">setExpiryTimeout</a>(int <i>expiryTimeout</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#maxThreadCount">maxThreadCount</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setMaxThreadCount">setMaxThreadCount</a>(int <i>maxThreadCount</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#activeThreadCount">activeThreadCount</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setStackSize">setStackSize</a>(uint <i>stackSize</i>)</td></tr>
+<tr><td class="ret">uint</td><td><a href="#stackSize">stackSize</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setThreadPriority">setThreadPriority</a>(<a href="qthread.html#Priority-enum">QThread::Priority</a> <i>priority</i>)</td></tr>
+<tr><td class="ret"><a href="qthread.html#Priority-enum">QThread::Priority</a></td><td><a href="#threadPriority">threadPriority</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#reserveThread">reserveThread</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#releaseThread">releaseThread</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#waitForDone">waitForDone</a>(int <i>msecs</i> = -1)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#waitForDone-2">waitForDone</a>(<a href="qdeadlinetimer.html">QDeadlineTimer</a> <i>deadline</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#tryTake">tryTake</a>(<a href="qrunnable.html">QRunnable</a> *<i>runnable</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#clear">clear</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#contains">contains</a>(const <a href="qthread.html">QThread</a> *<i>thread</i>) const</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">QThreadPool *</td><td><a href="#globalInstance">globalInstance</a>()</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>A thread pool runs <a href="qrunnable.html">QRunnable</a> tasks on a limited number of reusable threads, which saves the cost of creating a thread for each task. Every program has a global pool, <a href="qthreadpool.html#globalInstance">globalInstance()</a>, and may create more.</p>
+<pre><code>QThreadPool::globalInstance()-&gt;start([] { compute(); });
+QThreadPool::globalInstance()-&gt;waitForDone();
+</code></pre>
+<p><a href="qthreadpool.html#start">start()</a> hands a task to an idle thread, starts a new thread if fewer than <a href="qthreadpool.html#maxThreadCount">maxThreadCount()</a> threads are busy, and otherwise queues the task; queued tasks run in order of priority, and in order of arrival among equal priorities. A thread that has had no work for <a href="qthreadpool.html#expiryTimeout">expiryTimeout()</a> exits. The destructor waits for all tasks, including queued ones. The destructor of <a href="qcoreapplication.html">QCoreApplication</a> waits for the global pool.</p>
+<p class="see-also"><strong>See also</strong> <a href="qrunnable.html">QRunnable</a> and <a href="qthread.html">QThread</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>There is no <code>cancel()</code>, <code>setServiceLevel()</code> or <code>QThreadPool::start()</code> overload for move-only callables. The properties are plain functions; they cannot be bound. A thread count of 0 or less is accepted but at least one thread is always used. The pool's threads are <a href="qthread.html">QThread</a> objects, so <code>QThread::currentThread()</code> works in a task and <code>contains()</code> recognises it.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QThreadPool"><span class="tags">[explicit]</span> QThreadPool::QThreadPool(<a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a thread pool with the given <i>parent</i>. The maximum number of threads is <a href="qthread.html#idealThreadCount">QThread::idealThreadCount()</a> and an idle thread expires after 30 seconds.</p>
+<h3 class="member" id="dtor.QThreadPool"><span class="tags">[override]</span> QThreadPool::~QThreadPool()</h3>
+<p>Destroys the pool. It waits for all queued and running tasks to finish, then ends and joins its threads.</p>
+<h3 class="member" id="activeThreadCount">int QThreadPool::activeThreadCount() const</h3>
+<p>Returns the number of threads that run a task, plus the reserved threads. It can be larger than <a href="qthreadpool.html#maxThreadCount">maxThreadCount()</a> because of <a href="qthreadpool.html#reserveThread">reserveThread()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#maxThreadCount">maxThreadCount()</a> and <a href="qthreadpool.html#reserveThread">reserveThread()</a>.</p>
+<h3 class="member" id="clear">void QThreadPool::clear()</h3>
+<p>Removes all queued runnables that have not started, and deletes those with <a href="qrunnable.html#autoDelete">autoDelete()</a> set to <code>true</code>. Running tasks are not affected.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#tryTake">tryTake()</a>.</p>
+<h3 class="member" id="contains">bool QThreadPool::contains(const <a href="qthread.html">QThread</a> *<i>thread</i>) const</h3>
+<p>Returns <code>true</code> if <i>thread</i> is one of the threads of this pool, so a task can tell whether it runs in the pool.</p>
+<p>This function was introduced in 6.0.</p>
+<h3 class="member" id="expiryTimeout">int QThreadPool::expiryTimeout() const</h3>
+<p>Returns the time in milliseconds that an idle thread waits for work before it exits. The default is 30000. A negative value means that threads never expire.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#setExpiryTimeout">setExpiryTimeout()</a>.</p>
+<h3 class="member" id="globalInstance"><span class="tags">[static]</span> <a href="qthreadpool.html">QThreadPool</a> * QThreadPool::globalInstance()</h3>
+<p>Returns the global thread pool, which is created on first use. It is destroyed at exit, after <a href="qcoreapplication.html">QCoreApplication</a> has waited for its tasks.</p>
+<h3 class="member" id="maxThreadCount">int QThreadPool::maxThreadCount() const</h3>
+<p>Returns the maximum number of threads the pool uses. The default is <a href="qthread.html#idealThreadCount">QThread::idealThreadCount()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#setMaxThreadCount">setMaxThreadCount()</a> and <a href="qthreadpool.html#activeThreadCount">activeThreadCount()</a>.</p>
+<h3 class="member" id="releaseThread">void QThreadPool::releaseThread()</h3>
+<p>Releases a thread that <a href="qthreadpool.html#reserveThread">reserveThread()</a> reserved, which may start a queued task.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#reserveThread">reserveThread()</a>.</p>
+<h3 class="member" id="reserveThread">void QThreadPool::reserveThread()</h3>
+<p>Reserves a thread without running anything on it: <a href="qthreadpool.html#activeThreadCount">activeThreadCount()</a> increases by one even if it is already at <a href="qthreadpool.html#maxThreadCount">maxThreadCount()</a>. Use it when the calling thread is going to block for a long time on something the pool does. Call <a href="qthreadpool.html#releaseThread">releaseThread()</a> when done.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#releaseThread">releaseThread()</a> and <a href="qthreadpool.html#startOnReservedThread">startOnReservedThread()</a>.</p>
+<h3 class="member" id="setExpiryTimeout">void QThreadPool::setExpiryTimeout(int <i>expiryTimeout</i>)</h3>
+<p>Sets the time an idle thread waits for work before it exits to <i>expiryTimeout</i> milliseconds. A negative value keeps threads alive until the pool is destroyed or <a href="qthreadpool.html#waitForDone">waitForDone()</a> is called. The new value applies the next time a thread becomes idle.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#expiryTimeout">expiryTimeout()</a>.</p>
+<h3 class="member" id="setMaxThreadCount">void QThreadPool::setMaxThreadCount(int <i>maxThreadCount</i>)</h3>
+<p>Sets the maximum number of threads the pool uses to <i>maxThreadCount</i>. The pool always uses at least one thread, even if the limit is 0 or negative. Raising the limit starts queued tasks; lowering it does not stop running ones.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#maxThreadCount">maxThreadCount()</a> and <a href="qthreadpool.html#reserveThread">reserveThread()</a>.</p>
+<h3 class="member" id="setStackSize">void QThreadPool::setStackSize(uint <i>stackSize</i>)</h3>
+<p>Sets the stack size of threads that the pool starts from now on to <i>stackSize</i> bytes. 0 selects the system default.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthread.html#setStackSize">QThread::setStackSize()</a>.</p>
+<h3 class="member" id="setThreadPriority">void QThreadPool::setThreadPriority(<a href="qthread.html#Priority-enum">QThread::Priority</a> <i>priority</i>)</h3>
+<p>Sets the priority of the pool's threads, current and future, to <i>priority</i>. <code>InheritPriority</code>, the default, gives threads the priority of the thread that starts them.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#threadPriority">threadPriority()</a> and <a href="qthread.html#setPriority">QThread::setPriority()</a>.</p>
+<h3 class="member" id="stackSize">uint QThreadPool::stackSize() const</h3>
+<p>Returns the stack size used for new threads, or 0 for the system default.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#setStackSize">setStackSize()</a>.</p>
+<h3 class="member" id="start">void QThreadPool::start(<a href="qrunnable.html">QRunnable</a> *<i>runnable</i>, int <i>priority</i> = 0)</h3>
+<p>Runs <i>runnable</i> in a pool thread, or queues it if all threads are busy. Queued runnables run in order of <i>priority</i>, higher first, and in the order they were added if the priorities are equal. The pool deletes the runnable after it ran if <a href="qrunnable.html#autoDelete">autoDelete()</a> is <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#tryStart">tryStart()</a> and <a href="qrunnable.html">QRunnable</a>.</p>
+<h3 class="member" id="start-2">void QThreadPool::start(std::function&lt;void()&gt; <i>functionToRun</i>, int <i>priority</i> = 0)</h3>
+<p>This is an overloaded function.</p>
+<p>Runs <i>functionToRun</i> in a pool thread, or queues it, with the given <i>priority</i>.</p>
+<h3 class="member" id="startOnReservedThread">void QThreadPool::startOnReservedThread(<a href="qrunnable.html">QRunnable</a> *<i>runnable</i>)</h3>
+<p>Runs <i>runnable</i> on a thread that was reserved with <a href="qthreadpool.html#reserveThread">reserveThread()</a>, and releases that reservation, so <a href="qthreadpool.html#activeThreadCount">activeThreadCount()</a> does not change. If <i>runnable</i> is <code>nullptr</code>, the thread is simply released.</p>
+<p>This function was introduced in 6.3.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#reserveThread">reserveThread()</a> and <a href="qthreadpool.html#releaseThread">releaseThread()</a>.</p>
+<h3 class="member" id="startOnReservedThread-2">void QThreadPool::startOnReservedThread(std::function&lt;void()&gt; <i>functionToRun</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Runs <i>functionToRun</i> on a reserved thread.</p>
+<p>This function was introduced in 6.3.</p>
+<h3 class="member" id="threadPriority"><a href="qthread.html#Priority-enum">QThread::Priority</a> QThreadPool::threadPriority() const</h3>
+<p>Returns the priority of the pool's threads.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#setThreadPriority">setThreadPriority()</a>.</p>
+<h3 class="member" id="tryStart">bool QThreadPool::tryStart(<a href="qrunnable.html">QRunnable</a> *<i>runnable</i>)</h3>
+<p>Reserves a thread to run <i>runnable</i> and returns <code>true</code>, or returns <code>false</code> if all threads are in use. The runnable is not queued. The pool takes ownership of the runnable if it has autoDelete() set.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#start">start()</a>.</p>
+<h3 class="member" id="tryStart-2">bool QThreadPool::tryStart(std::function&lt;void()&gt; <i>functionToRun</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Runs <i>functionToRun</i> in a pool thread if one is available and returns <code>true</code>; returns <code>false</code> otherwise.</p>
+<h3 class="member" id="tryTake">bool QThreadPool::tryTake(<a href="qrunnable.html">QRunnable</a> *<i>runnable</i>)</h3>
+<p>Removes <i>runnable</i> from the queue if it has not started and returns <code>true</code>. Returns <code>false</code> if it is not queued, for instance because it is running. The pool does not delete the runnable, whatever autoDelete() says; the caller owns it again.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#clear">clear()</a>.</p>
+<h3 class="member" id="waitForDone">bool QThreadPool::waitForDone(int <i>msecs</i> = -1)</h3>
+<p>Waits up to <i>msecs</i> milliseconds for all queued and running tasks to finish and the pool's threads to exit; a negative value waits as long as it takes. Returns <code>true</code> if the pool is idle, and <code>false</code> if the time ran out. Threads that exit are replaced when new tasks arrive.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthreadpool.html#start">start()</a>.</p>
+<h3 class="member" id="waitForDone-2">bool QThreadPool::waitForDone(<a href="qdeadlinetimer.html">QDeadlineTimer</a> <i>deadline</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Waits until <i>deadline</i> has passed.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

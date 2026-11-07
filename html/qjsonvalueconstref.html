@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QJsonValueConstRef Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QJsonValueConstRef</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QJsonValueConstRef Class</h1>
+<p class="brief">The QJsonValueConstRef class is a read-only reference to a value inside an array or object. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QJsonValueConstRef&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+<tr><th>Inherited by</th><td><a href="qjsonvalueref.html">QJsonValueRef</a></td></tr>
+</table>
+<p><a href="qjsonvalueconstref-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QJsonValueConstRef">QJsonValueConstRef</a>(const QJsonValueConstRef &amp;)</td></tr>
+<tr><td class="ret"><a href="qjsonvalue.html#Type-enum">QJsonValue::Type</a></td><td><a href="#type">type</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isNull">isNull</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isBool">isBool</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isDouble">isDouble</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isString">isString</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isArray">isArray</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isObject">isObject</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isUndefined">isUndefined</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#toBool">toBool</a>(bool <i>defaultValue</i> = false) const</td></tr>
+<tr><td class="ret">int</td><td><a href="#toInt">toInt</a>(int <i>defaultValue</i> = 0) const</td></tr>
+<tr><td class="ret">qint64</td><td><a href="#toInteger">toInteger</a>(qint64 <i>defaultValue</i> = 0) const</td></tr>
+<tr><td class="ret">double</td><td><a href="#toDouble">toDouble</a>(double <i>defaultValue</i> = 0) const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#toString">toString</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#toString-2">toString</a>(const <a href="qstring.html">QString</a> &amp;<i>defaultValue</i>) const</td></tr>
+<tr><td class="ret"><a href="qjsonarray.html">QJsonArray</a></td><td><a href="#toArray">toArray</a>() const</td></tr>
+<tr><td class="ret"><a href="qjsonarray.html">QJsonArray</a></td><td><a href="#toArray-2">toArray</a>(const <a href="qjsonarray.html">QJsonArray</a> &amp;<i>defaultValue</i>) const</td></tr>
+<tr><td class="ret"><a href="qjsonobject.html">QJsonObject</a></td><td><a href="#toObject">toObject</a>() const</td></tr>
+<tr><td class="ret"><a href="qjsonobject.html">QJsonObject</a></td><td><a href="#toObject-2">toObject</a>(const <a href="qjsonobject.html">QJsonObject</a> &amp;<i>defaultValue</i>) const</td></tr>
+<tr><td class="ret"><a href="qjsonvalue.html">QJsonValue</a></td><td><a href="#operator-5b5d">operator[]</a>(const <a href="qstring.html">QString</a> &amp;<i>key</i>) const</td></tr>
+<tr><td class="ret"><a href="qjsonvalue.html">QJsonValue</a></td><td><a href="#operator-5b5d-2">operator[]</a>(<a href="qstringview.html">QStringView</a> <i>key</i>) const</td></tr>
+<tr><td class="ret"><a href="qjsonvalue.html">QJsonValue</a></td><td><a href="#operator-5b5d-3">operator[]</a>(<a href="qlatin1stringview.html">QLatin1StringView</a> <i>key</i>) const</td></tr>
+<tr><td class="ret"><a href="qjsonvalue.html">QJsonValue</a></td><td><a href="#operator-5b5d-4">operator[]</a>(K &amp;&amp;<i>key</i>) const</td></tr>
+<tr><td class="ret"><a href="qjsonvalue.html">QJsonValue</a></td><td><a href="#operator-5b5d-5">operator[]</a>(qsizetype <i>i</i>) const</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>Its instances are what the const iterators of <a href="qjsonarray.html">QJsonArray</a> and <a href="qjsonobject.html">QJsonObject</a> return. It reads the element each time it is used, so it behaves like a <code>const QJsonValue &amp;</code> and converts to <a href="qjsonvalue.html">QJsonValue</a> when copied into one.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonvalueref.html">QJsonValueRef</a> and <a href="qjsonvalue.html">QJsonValue</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>There is no conversion to <code>QVariant</code>. A reference does not keep the container alive, and reading through one after the container changed or was destroyed is not allowed.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QJsonValueConstRef">QJsonValueConstRef::QJsonValueConstRef(const <a href="qjsonvalueconstref.html">QJsonValueConstRef</a> &amp;)</h3>
+<p>Creates a copy of the reference; both refer to the same element.</p>
+<h3 class="member" id="isArray">bool QJsonValueConstRef::isArray() const</h3>
+<p>Returns <code>true</code> if the element is an array.</p>
+<h3 class="member" id="isBool">bool QJsonValueConstRef::isBool() const</h3>
+<p>Returns <code>true</code> if the element is a bool.</p>
+<h3 class="member" id="isDouble">bool QJsonValueConstRef::isDouble() const</h3>
+<p>Returns <code>true</code> if the element is a number.</p>
+<h3 class="member" id="isNull">bool QJsonValueConstRef::isNull() const</h3>
+<p>Returns <code>true</code> if the element is null.</p>
+<h3 class="member" id="isObject">bool QJsonValueConstRef::isObject() const</h3>
+<p>Returns <code>true</code> if the element is an object.</p>
+<h3 class="member" id="isString">bool QJsonValueConstRef::isString() const</h3>
+<p>Returns <code>true</code> if the element is a string.</p>
+<h3 class="member" id="isUndefined">bool QJsonValueConstRef::isUndefined() const</h3>
+<p>Returns <code>true</code> if the element is undefined, which it is when the reference is out of range.</p>
+<h3 class="member" id="operator-5b5d"><a href="qjsonvalue.html">QJsonValue</a> QJsonValueConstRef::operator[](const <a href="qstring.html">QString</a> &amp;<i>key</i>) const</h3>
+<p>Returns the value that <i>key</i> maps to if the element is an object, and an undefined value otherwise.</p>
+<h3 class="member" id="operator-5b5d-2"><a href="qjsonvalue.html">QJsonValue</a> QJsonValueConstRef::operator[](<a href="qstringview.html">QStringView</a> <i>key</i>) const</h3>
+<p>This is an overloaded function.</p>
+<h3 class="member" id="operator-5b5d-3"><a href="qjsonvalue.html">QJsonValue</a> QJsonValueConstRef::operator[](<a href="qlatin1stringview.html">QLatin1StringView</a> <i>key</i>) const</h3>
+<p>This is an overloaded function.</p>
+<h3 class="member" id="operator-5b5d-4"><span class="template">template &lt;typename K, typename = std::enable_if_t&lt;QtPrivate::IsJsonCString&lt;K&gt;&gt;&gt;</span><a href="qjsonvalue.html">QJsonValue</a> QJsonValueConstRef::operator[](K &amp;&amp;<i>key</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Looks <i>key</i> up when it is a C string, such as a string literal.</p>
+<h3 class="member" id="operator-5b5d-5"><a href="qjsonvalue.html">QJsonValue</a> QJsonValueConstRef::operator[](qsizetype <i>i</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the item at index <i>i</i> if the element is an array, and an undefined value otherwise.</p>
+<h3 class="member" id="toArray"><a href="qjsonarray.html">QJsonArray</a> QJsonValueConstRef::toArray() const</h3>
+<p>Returns the element as an array, or an empty array if it is not one.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonvalue.html#toArray">QJsonValue::toArray()</a>.</p>
+<h3 class="member" id="toArray-2"><a href="qjsonarray.html">QJsonArray</a> QJsonValueConstRef::toArray(const <a href="qjsonarray.html">QJsonArray</a> &amp;<i>defaultValue</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the element as an array, or <i>defaultValue</i> if it is not one.</p>
+<h3 class="member" id="toBool">bool QJsonValueConstRef::toBool(bool <i>defaultValue</i> = false) const</h3>
+<p>Returns the element as a bool, or <i>defaultValue</i> if it is not one.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonvalue.html#toBool">QJsonValue::toBool()</a>.</p>
+<h3 class="member" id="toDouble">double QJsonValueConstRef::toDouble(double <i>defaultValue</i> = 0) const</h3>
+<p>Returns the element as a <code>double</code>, or <i>defaultValue</i> if it is not a number.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonvalue.html#toDouble">QJsonValue::toDouble()</a>.</p>
+<h3 class="member" id="toInt">int QJsonValueConstRef::toInt(int <i>defaultValue</i> = 0) const</h3>
+<p>Returns the element as an <code>int</code>, or <i>defaultValue</i> if it is not a whole number that fits.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonvalue.html#toInt">QJsonValue::toInt()</a>.</p>
+<h3 class="member" id="toInteger">qint64 QJsonValueConstRef::toInteger(qint64 <i>defaultValue</i> = 0) const</h3>
+<p>Returns the element as a <code>qint64</code>, or <i>defaultValue</i> if it is not a whole number that fits.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonvalue.html#toInteger">QJsonValue::toInteger()</a>.</p>
+<h3 class="member" id="toObject"><a href="qjsonobject.html">QJsonObject</a> QJsonValueConstRef::toObject() const</h3>
+<p>Returns the element as an object, or an empty object if it is not one.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonvalue.html#toObject">QJsonValue::toObject()</a>.</p>
+<h3 class="member" id="toObject-2"><a href="qjsonobject.html">QJsonObject</a> QJsonValueConstRef::toObject(const <a href="qjsonobject.html">QJsonObject</a> &amp;<i>defaultValue</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the element as an object, or <i>defaultValue</i> if it is not one.</p>
+<h3 class="member" id="toString"><a href="qstring.html">QString</a> QJsonValueConstRef::toString() const</h3>
+<p>Returns the element as a string, or a null string if it is not one.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonvalue.html#toString">QJsonValue::toString()</a>.</p>
+<h3 class="member" id="toString-2"><a href="qstring.html">QString</a> QJsonValueConstRef::toString(const <a href="qstring.html">QString</a> &amp;<i>defaultValue</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the element as a string, or <i>defaultValue</i> if it is not one.</p>
+<h3 class="member" id="type"><a href="qjsonvalue.html#Type-enum">QJsonValue::Type</a> QJsonValueConstRef::type() const</h3>
+<p>Returns the type of the element.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

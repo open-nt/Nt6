@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QTcpServer Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntnetwork-module.html">Nt Network C++ Classes</a> &rsaquo; QTcpServer</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#signals">Signals</a></li>
+<li><a href="#protected-functions">Protected Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QTcpServer Class</h1>
+<p class="brief">The QTcpServer class provides a TCP-based server. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QTcpServer&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Network)</code></td></tr>
+<tr><th>Module</th><td><a href="ntnetwork-module.html">Nt Network C++ Classes</a></td></tr>
+<tr><th>Inherits</th><td><a href="qobject.html">QObject</a></td></tr>
+<tr><th>Inherited by</th><td><a href="qsslserver.html">QSslServer</a></td></tr>
+</table>
+<p><a href="qtcpserver-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QTcpServer">QTcpServer</a>(<a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QTcpServer">~QTcpServer</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#listen">listen</a>(const <a href="qhostaddress.html">QHostAddress</a> &amp;<i>address</i> = <a href="qhostaddress.html#SpecialAddress-enum">QHostAddress::Any</a>, quint16 <i>port</i> = 0)</td></tr>
+<tr><td class="ret">void</td><td><a href="#close">close</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isListening">isListening</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setMaxPendingConnections">setMaxPendingConnections</a>(int <i>numConnections</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#maxPendingConnections">maxPendingConnections</a>() const</td></tr>
+<tr><td class="ret">quint16</td><td><a href="#serverPort">serverPort</a>() const</td></tr>
+<tr><td class="ret"><a href="qhostaddress.html">QHostAddress</a></td><td><a href="#serverAddress">serverAddress</a>() const</td></tr>
+<tr><td class="ret">qintptr</td><td><a href="#socketDescriptor">socketDescriptor</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#setSocketDescriptor">setSocketDescriptor</a>(qintptr <i>socketDescriptor</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#waitForNewConnection">waitForNewConnection</a>(int <i>msec</i> = 0, bool *<i>timedOut</i> = nullptr)</td></tr>
+<tr><td class="ret">virtual bool</td><td><a href="#hasPendingConnections">hasPendingConnections</a>() const</td></tr>
+<tr><td class="ret">virtual <a href="qtcpsocket.html">QTcpSocket</a> *</td><td><a href="#nextPendingConnection">nextPendingConnection</a>()</td></tr>
+<tr><td class="ret"><a href="qabstractsocket.html#SocketError-enum">QAbstractSocket::SocketError</a></td><td><a href="#serverError">serverError</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#errorString">errorString</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#pauseAccepting">pauseAccepting</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#resumeAccepting">resumeAccepting</a>()</td></tr>
+</table></div>
+<h2 id="signals">Signals</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">void</td><td><a href="#newConnection">newConnection</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#acceptError">acceptError</a>(<a href="qabstractsocket.html#SocketError-enum">QAbstractSocket::SocketError</a> <i>socketError</i>)</td></tr>
+</table></div>
+<h2 id="protected-functions">Protected Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">virtual void</td><td><a href="#incomingConnection">incomingConnection</a>(qintptr <i>handle</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#addPendingConnection">addPendingConnection</a>(<a href="qtcpsocket.html">QTcpSocket</a> *<i>socket</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>Call <a href="qtcpserver.html#listen">listen()</a> to start accepting connections, then connect to <a href="qtcpserver.html#newConnection">newConnection()</a> and fetch each accepted socket with <a href="qtcpserver.html#nextPendingConnection">nextPendingConnection()</a>:</p>
+<pre><code>QTcpServer server;
+QObject::connect(&amp;server, &amp;QTcpServer::newConnection, [&amp;] {
+    QTcpSocket *client = server.nextPendingConnection();
+    client-&gt;write(&quot;hello\n&quot;);
+});
+server.listen(QHostAddress::Any, 8080);
+</code></pre>
+<p>Accepted sockets are children of the server. The server stops accepting once <a href="qtcpserver.html#maxPendingConnections">maxPendingConnections()</a> sockets are waiting and resumes as they are taken.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpsocket.html">QTcpSocket</a> and <a href="qabstractsocket.html">QAbstractSocket</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>There is no <code>listenBacklogSize()</code>, <code>setListenBacklogSize()</code> or proxy support; the backlog is fixed at 128. Sockets are always bound with <code>SO_REUSEADDR</code>. <code>serverError()</code> and <code>errorString()</code> report only the errors of <a href="qtcpserver.html#listen">listen()</a>, <a href="qtcpserver.html#setSocketDescriptor">setSocketDescriptor()</a> and accept. Servers must be used from a single thread.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QTcpServer"><span class="tags">[explicit]</span> QTcpServer::QTcpServer(<a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a TCP server with the given <i>parent</i>. The server is not listening.</p>
+<h3 class="member" id="dtor.QTcpServer"><span class="tags">[override]</span> QTcpServer::~QTcpServer()</h3>
+<p>Destroys the server, closing it if it is listening.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#close">close()</a>.</p>
+<h3 class="member" id="acceptError"><span class="tags">[signal]</span> void QTcpServer::acceptError(<a href="qabstractsocket.html#SocketError-enum">QAbstractSocket::SocketError</a> <i>socketError</i>)</h3>
+<p>This signal is emitted when accepting a new connection results in an error. The <i>socketError</i> parameter describes the type of error.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#serverError">serverError()</a>.</p>
+<h3 class="member" id="addPendingConnection"><span class="tags">[protected]</span> void QTcpServer::addPendingConnection(<a href="qtcpsocket.html">QTcpSocket</a> *<i>socket</i>)</h3>
+<p>Called by <a href="qtcpserver.html#incomingConnection">incomingConnection()</a> to add <i>socket</i> to the queue of pending connections. The server becomes the socket's parent.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#nextPendingConnection">nextPendingConnection()</a> and <a href="qtcpserver.html#incomingConnection">incomingConnection()</a>.</p>
+<h3 class="member" id="close">void QTcpServer::close()</h3>
+<p>Closes the server so it no longer listens for incoming connections. Connections that were already accepted remain valid.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#listen">listen()</a> and <a href="qtcpserver.html#isListening">isListening()</a>.</p>
+<h3 class="member" id="errorString"><a href="qstring.html">QString</a> QTcpServer::errorString() const</h3>
+<p>Returns a human-readable description of the last error that occurred.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#serverError">serverError()</a>.</p>
+<h3 class="member" id="hasPendingConnections"><span class="tags">[virtual]</span> bool QTcpServer::hasPendingConnections() const</h3>
+<p>Returns <code>true</code> if the server has pending connections; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#nextPendingConnection">nextPendingConnection()</a> and <a href="qtcpserver.html#newConnection">newConnection()</a>.</p>
+<h3 class="member" id="incomingConnection"><span class="tags">[virtual, protected]</span> void QTcpServer::incomingConnection(qintptr <i>handle</i>)</h3>
+<p>This virtual function is called when a new connection is available. <i>handle</i> is the native descriptor of the accepted socket. The default implementation creates a <a href="qtcpsocket.html">QTcpSocket</a> on it and adds it to the pending connections with <a href="qtcpserver.html#addPendingConnection">addPendingConnection()</a>. Reimplement it to create a different socket type.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#newConnection">newConnection()</a> and <a href="qtcpserver.html#addPendingConnection">addPendingConnection()</a>.</p>
+<h3 class="member" id="isListening">bool QTcpServer::isListening() const</h3>
+<p>Returns <code>true</code> if the server is listening for incoming connections; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#listen">listen()</a> and <a href="qtcpserver.html#close">close()</a>.</p>
+<h3 class="member" id="listen">bool QTcpServer::listen(const <a href="qhostaddress.html">QHostAddress</a> &amp;<i>address</i> = <a href="qhostaddress.html#SpecialAddress-enum">QHostAddress::Any</a>, quint16 <i>port</i> = 0)</h3>
+<p>Tells the server to listen for incoming connections on <i>address</i> and <i>port</i>. A <i>port</i> of 0 lets the system choose a free port. Returns <code>true</code> on success; otherwise sets <a href="qtcpserver.html#serverError">serverError()</a> and <a href="qtcpserver.html#errorString">errorString()</a> and returns <code>false</code>.</p>
+<p>Listening on <a href="qhostaddress.html#SpecialAddress-enum">QHostAddress::Any</a> accepts both IPv4 and IPv6 connections when the system supports it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#isListening">isListening()</a>, <a href="qtcpserver.html#close">close()</a> and <a href="qtcpserver.html#serverPort">serverPort()</a>.</p>
+<h3 class="member" id="maxPendingConnections">int QTcpServer::maxPendingConnections() const</h3>
+<p>Returns the maximum number of pending accepted connections.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#setMaxPendingConnections">setMaxPendingConnections()</a>.</p>
+<h3 class="member" id="newConnection"><span class="tags">[signal]</span> void QTcpServer::newConnection()</h3>
+<p>This signal is emitted every time a new connection is available. Call <a href="qtcpserver.html#nextPendingConnection">nextPendingConnection()</a> to accept it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#hasPendingConnections">hasPendingConnections()</a> and <a href="qtcpserver.html#nextPendingConnection">nextPendingConnection()</a>.</p>
+<h3 class="member" id="nextPendingConnection"><span class="tags">[virtual]</span> <a href="qtcpsocket.html">QTcpSocket</a> * QTcpServer::nextPendingConnection()</h3>
+<p>Returns the next pending connection as a connected <a href="qtcpsocket.html">QTcpSocket</a>, or <code>nullptr</code> if there is none. The server owns the socket as its parent; delete it when you are done, or reparent it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#hasPendingConnections">hasPendingConnections()</a> and <a href="qtcpserver.html#newConnection">newConnection()</a>.</p>
+<h3 class="member" id="pauseAccepting">void QTcpServer::pauseAccepting()</h3>
+<p>Pauses accepting new connections. Queued connections stay in the operating system backlog until <a href="qtcpserver.html#resumeAccepting">resumeAccepting()</a> is called.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#resumeAccepting">resumeAccepting()</a>.</p>
+<h3 class="member" id="resumeAccepting">void QTcpServer::resumeAccepting()</h3>
+<p>Resumes accepting new connections after <a href="qtcpserver.html#pauseAccepting">pauseAccepting()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#pauseAccepting">pauseAccepting()</a>.</p>
+<h3 class="member" id="serverAddress"><a href="qhostaddress.html">QHostAddress</a> QTcpServer::serverAddress() const</h3>
+<p>Returns the address the server is listening on, or a null address if it is not listening.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#serverPort">serverPort()</a> and <a href="qtcpserver.html#listen">listen()</a>.</p>
+<h3 class="member" id="serverError"><a href="qabstractsocket.html#SocketError-enum">QAbstractSocket::SocketError</a> QTcpServer::serverError() const</h3>
+<p>Returns the type of error that last occurred in the server.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#errorString">errorString()</a>.</p>
+<h3 class="member" id="serverPort">quint16 QTcpServer::serverPort() const</h3>
+<p>Returns the port the server is listening on, or 0 if it is not listening.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#serverAddress">serverAddress()</a> and <a href="qtcpserver.html#listen">listen()</a>.</p>
+<h3 class="member" id="setMaxPendingConnections">void QTcpServer::setMaxPendingConnections(int <i>numConnections</i>)</h3>
+<p>Sets the maximum number of pending accepted connections to <i>numConnections</i>. The server stops accepting while that many connections are waiting. The default is 30.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#maxPendingConnections">maxPendingConnections()</a> and <a href="qtcpserver.html#nextPendingConnection">nextPendingConnection()</a>.</p>
+<h3 class="member" id="setSocketDescriptor">bool QTcpServer::setSocketDescriptor(qintptr <i>socketDescriptor</i>)</h3>
+<p>Sets the server to listen on the existing operating system socket <i>socketDescriptor</i>, which must already be bound and listening. The descriptor is switched to non-blocking mode and the server takes ownership of it. Returns <code>true</code> on success; returns <code>false</code> if the server is already listening or the descriptor is invalid.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#socketDescriptor">socketDescriptor()</a> and <a href="qtcpserver.html#listen">listen()</a>.</p>
+<h3 class="member" id="socketDescriptor">qintptr QTcpServer::socketDescriptor() const</h3>
+<p>Returns the native operating system socket descriptor the server is listening on, or -1 if it is not listening.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#setSocketDescriptor">setSocketDescriptor()</a>.</p>
+<h3 class="member" id="waitForNewConnection">bool QTcpServer::waitForNewConnection(int <i>msec</i> = 0, bool *<i>timedOut</i> = nullptr)</h3>
+<p>Waits up to <i>msec</i> milliseconds for a new connection to arrive (a negative value waits forever). Returns <code>true</code> if a connection is available. Returns <code>false</code> on timeout or error; if <i>timedOut</i> is not null, it is set to <code>true</code> on a timeout.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtcpserver.html#hasPendingConnections">hasPendingConnections()</a> and <a href="qtcpserver.html#nextPendingConnection">nextPendingConnection()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

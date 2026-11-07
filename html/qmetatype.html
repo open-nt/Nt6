@@ -1,0 +1,375 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QMetaType Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QMetaType</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QMetaType Class</h1>
+<p class="brief">The QMetaType class manages named types in the meta-object system. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QMetaType&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qmetatype-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#Type-enum">Type</a></td></tr>
+<tr><td class="ret">enum</td><td><a href="#TypeFlag-enum">TypeFlag</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#TypeFlags-typedef">TypeFlags</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#ConverterFunction-typedef">ConverterFunction</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QMetaType">QMetaType</a>(int <i>typeId</i> = UnknownType)</td></tr>
+<tr><td class="ret"></td><td><a href="#QMetaType-2">QMetaType</a>(const QMetaTypeInterface *<i>d</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isValid">isValid</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isRegistered">isRegistered</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#id">id</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#sizeOf">sizeOf</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#alignOf">alignOf</a>() const</td></tr>
+<tr><td class="ret">TypeFlags</td><td><a href="#flags">flags</a>() const</td></tr>
+<tr><td class="ret">const <a href="qmetaobject.html">QMetaObject</a> *</td><td><a href="#metaObject">metaObject</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#name">name</a>() const</td></tr>
+<tr><td class="ret">void *</td><td><a href="#construct">construct</a>(void *<i>where</i>, const void *<i>copy</i> = nullptr) const</td></tr>
+<tr><td class="ret">void *</td><td><a href="#create">create</a>(const void *<i>copy</i> = nullptr) const</td></tr>
+<tr><td class="ret">void</td><td><a href="#destruct">destruct</a>(void *<i>data</i>) const</td></tr>
+<tr><td class="ret">void</td><td><a href="#destroy">destroy</a>(void *<i>data</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isDefaultConstructible">isDefaultConstructible</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isCopyConstructible">isCopyConstructible</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isMoveConstructible">isMoveConstructible</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isDestructible">isDestructible</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isEqualityComparable">isEqualityComparable</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isOrdered">isOrdered</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#equals">equals</a>(const void *<i>lhs</i>, const void *<i>rhs</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#compare">compare</a>(const void *<i>lhs</i>, const void *<i>rhs</i>, int &amp;<i>result</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#hasRegisteredDebugStreamOperator">hasRegisteredDebugStreamOperator</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#debugStream">debugStream</a>(<a href="qdebug.html">QDebug</a> &amp;<i>dbg</i>, const void *<i>rhs</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#hasRegisteredDataStreamOperators">hasRegisteredDataStreamOperators</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#save">save</a>(<a href="qdatastream.html">QDataStream</a> &amp;<i>stream</i>, const void *<i>data</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#load">load</a>(<a href="qdatastream.html">QDataStream</a> &amp;<i>stream</i>, void *<i>data</i>) const</td></tr>
+<tr><td class="ret">const QMetaTypeInterface *</td><td><a href="#iface">iface</a>() const</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">bool</td><td><a href="#isRegistered-2">isRegistered</a>(int <i>type</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#type">type</a>(const char *<i>typeName</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#type-2">type</a>(const ::<a href="qbytearray.html">QByteArray</a> &amp;<i>typeName</i>)</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#typeName">typeName</a>(int <i>type</i>)</td></tr>
+<tr><td class="ret">QMetaType</td><td><a href="#fromName">fromName</a>(<a href="qbytearrayview.html">QByteArrayView</a> <i>typeName</i>)</td></tr>
+<tr><td class="ret">void *</td><td><a href="#create-2">create</a>(int <i>type</i>, const void *<i>copy</i> = nullptr)</td></tr>
+<tr><td class="ret">void</td><td><a href="#destroy-2">destroy</a>(int <i>type</i>, void *<i>data</i>)</td></tr>
+<tr><td class="ret">void *</td><td><a href="#construct-2">construct</a>(int <i>type</i>, void *<i>where</i>, const void *<i>copy</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#destruct-2">destruct</a>(int <i>type</i>, void *<i>where</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#sizeOf-2">sizeOf</a>(int <i>type</i>)</td></tr>
+<tr><td class="ret">TypeFlags</td><td><a href="#typeFlags">typeFlags</a>(int <i>type</i>)</td></tr>
+<tr><td class="ret">const <a href="qmetaobject.html">QMetaObject</a> *</td><td><a href="#metaObjectForType">metaObjectForType</a>(int <i>type</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#equals-2">equals</a>(const void *<i>lhs</i>, const void *<i>rhs</i>, int <i>typeId</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#save-2">save</a>(<a href="qdatastream.html">QDataStream</a> &amp;<i>stream</i>, int <i>type</i>, const void *<i>data</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#load-2">load</a>(<a href="qdatastream.html">QDataStream</a> &amp;<i>stream</i>, int <i>type</i>, void *<i>data</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#registerNormalizedTypedef">registerNormalizedTypedef</a>(const ::<a href="qbytearray.html">QByteArray</a> &amp;<i>normalizedTypeName</i>, QMetaType <i>type</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#convert">convert</a>(QMetaType <i>fromType</i>, const void *<i>from</i>, QMetaType <i>toType</i>, void *<i>to</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#canConvert">canConvert</a>(QMetaType <i>fromType</i>, QMetaType <i>toType</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#registerConverterFunction">registerConverterFunction</a>(const ConverterFunction &amp;<i>function</i>, QMetaType <i>from</i>, QMetaType <i>to</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#unregisterConverterFunction">unregisterConverterFunction</a>(QMetaType <i>from</i>, QMetaType <i>to</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#registerConverter">registerConverter</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#registerConverter-2">registerConverter</a>(To (From::*<i>function</i>)() const)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#registerConverter-3">registerConverter</a>(To (From::*<i>function</i>)(bool *) const)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#registerConverter-4">registerConverter</a>(UnaryFunction <i>function</i>)</td></tr>
+<tr><td class="ret">QMetaType</td><td><a href="#fromType">fromType</a>()</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>QMetaType describes a C++ type at run time: its name, size, how to construct, copy, compare and destroy a value, and how to stream it. <a href="qvariant.html">QVariant</a>, queued connections and the property system are built on it.</p>
+<p>Obtain one for a type with <a href="qmetatype.html#fromType">fromType()</a>, or from an id or a name:</p>
+<pre><code>QMetaType t = QMetaType::fromType&lt;QString&gt;();
+void *s = t.create();      // a new, empty QString
+t.destroy(s);
+
+QMetaType u = QMetaType::fromName(&quot;QString&quot;);
+Q_ASSERT(t == u &amp;&amp; t.id() == QMetaType::QString);
+</code></pre>
+<p>The built-in types have the same ids as in <a href="qt.html">Qt</a>. Any other type gets an id the first time it is registered, with <code>qRegisterMetaType()</code>, <code>Q_DECLARE_METATYPE()</code> or by asking for its <a href="qmetatype.html#id">id()</a>; ids of types registered at run time are at least <code>QMetaType::User</code>.</p>
+<p>Debug streaming (<a href="qdebug.html">QDebug</a>) and data streaming (<a href="qdatastream.html">QDataStream</a>) of a type are available when its <code>operator&lt;&lt;</code> and <code>operator&gt;&gt;</code> exist and the stream classes are declared where the type is first used. Equality and ordering are detected the same way.</p>
+<p class="see-also"><strong>See also</strong> <a href="qvariant.html">QVariant</a> and <a href="qmetatypeid.html">QMetaTypeId</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>The layout of QMetaTypeInterface is Nt's own. Enumerators of <code>QMetaType::Type</code> for classes that Nt does not have (such as <code>QLocale</code>, <code>QRegularExpression</code> and <code>QModelIndex</code>) are reserved, but no type is registered for them. The JSON classes are registered, but <a href="qmetatype.html#convert">convert()</a> has no conversions for them. <code>QMetaType::QVersionNumber</code> does not exist; <a href="qversionnumber.html">QVersionNumber</a>, <a href="qmargins.html">QMargins</a> and <a href="qmarginsf.html">QMarginsF</a> get an id at the first registration like any user type. There is no <code>registerType()</code>, <code>registerComparators()</code>, <code>registerMutableView()</code>, <code>QMetaType::view()</code> or support for smart-pointer metatypes. A type with no <code>operator==</code> compares equal in a <a href="qvariant.html">QVariant</a> only when both variants share the same stored value.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="ConverterFunction-typedef">typedef QMetaType::ConverterFunction</h3>
+<p>The type of a function that converts a value. It reads the source value at its first argument and stores the result in the already constructed target at its second argument. It returns <code>false</code> if the conversion fails.</p>
+<h3 class="member" id="Type-enum">enum QMetaType::Type</h3>
+<p>The identifiers of the types that are built in. A type registered at run time gets an id from <code>User</code> upward.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QMetaType::UnknownType</code></td><td>No type.</td></tr>
+<tr><td><code>QMetaType::Bool</code></td><td><code>bool</code>.</td></tr>
+<tr><td><code>QMetaType::Int</code></td><td><code>int</code>.</td></tr>
+<tr><td><code>QMetaType::UInt</code></td><td><code>unsigned int</code>.</td></tr>
+<tr><td><code>QMetaType::LongLong</code></td><td><code>long long</code>.</td></tr>
+<tr><td><code>QMetaType::ULongLong</code></td><td><code>unsigned long long</code>.</td></tr>
+<tr><td><code>QMetaType::Double</code></td><td><code>double</code>.</td></tr>
+<tr><td><code>QMetaType::Long</code></td><td><code>long</code>.</td></tr>
+<tr><td><code>QMetaType::Short</code></td><td><code>short</code>.</td></tr>
+<tr><td><code>QMetaType::Char</code></td><td><code>char</code>.</td></tr>
+<tr><td><code>QMetaType::Char16</code></td><td><code>char16_t</code>.</td></tr>
+<tr><td><code>QMetaType::Char32</code></td><td><code>char32_t</code>.</td></tr>
+<tr><td><code>QMetaType::ULong</code></td><td><code>unsigned long</code>.</td></tr>
+<tr><td><code>QMetaType::UShort</code></td><td><code>unsigned short</code>.</td></tr>
+<tr><td><code>QMetaType::UChar</code></td><td><code>unsigned char</code>.</td></tr>
+<tr><td><code>QMetaType::Float</code></td><td><code>float</code>.</td></tr>
+<tr><td><code>QMetaType::SChar</code></td><td><code>signed char</code>.</td></tr>
+<tr><td><code>QMetaType::Nullptr</code></td><td><code>std::nullptr_t</code>.</td></tr>
+<tr><td><code>QMetaType::VoidStar</code></td><td><code>void *</code>.</td></tr>
+<tr><td><code>QMetaType::QObjectStar</code></td><td><code>QObject *</code>.</td></tr>
+<tr><td><code>QMetaType::Void</code></td><td><code>void</code>.</td></tr>
+<tr><td><code>QMetaType::QChar</code></td><td><a href="qchar.html">QChar</a>.</td></tr>
+<tr><td><code>QMetaType::QString</code></td><td><a href="qstring.html">QString</a>.</td></tr>
+<tr><td><code>QMetaType::QStringList</code></td><td><a href="qstringlist.html">QStringList</a>.</td></tr>
+<tr><td><code>QMetaType::QByteArray</code></td><td><a href="qbytearray.html">QByteArray</a>.</td></tr>
+<tr><td><code>QMetaType::QByteArrayList</code></td><td>QByteArrayList.</td></tr>
+<tr><td><code>QMetaType::QBitArray</code></td><td><a href="qbitarray.html">QBitArray</a>.</td></tr>
+<tr><td><code>QMetaType::QDate</code></td><td><a href="qdate.html">QDate</a>.</td></tr>
+<tr><td><code>QMetaType::QTime</code></td><td><a href="qtime.html">QTime</a>.</td></tr>
+<tr><td><code>QMetaType::QDateTime</code></td><td><a href="qdatetime.html">QDateTime</a>.</td></tr>
+<tr><td><code>QMetaType::QUrl</code></td><td><a href="qurl.html">QUrl</a>.</td></tr>
+<tr><td><code>QMetaType::QLocale</code></td><td>Reserved; Nt has no QLocale.</td></tr>
+<tr><td><code>QMetaType::QRect</code></td><td><a href="qrect.html">QRect</a>.</td></tr>
+<tr><td><code>QMetaType::QRectF</code></td><td><a href="qrectf.html">QRectF</a>.</td></tr>
+<tr><td><code>QMetaType::QSize</code></td><td><a href="qsize.html">QSize</a>.</td></tr>
+<tr><td><code>QMetaType::QSizeF</code></td><td><a href="qsizef.html">QSizeF</a>.</td></tr>
+<tr><td><code>QMetaType::QLine</code></td><td><a href="qline.html">QLine</a>.</td></tr>
+<tr><td><code>QMetaType::QLineF</code></td><td><a href="qlinef.html">QLineF</a>.</td></tr>
+<tr><td><code>QMetaType::QPoint</code></td><td><a href="qpoint.html">QPoint</a>.</td></tr>
+<tr><td><code>QMetaType::QPointF</code></td><td><a href="qpointf.html">QPointF</a>.</td></tr>
+<tr><td><code>QMetaType::QRegularExpression</code></td><td>Reserved; Nt has no QRegularExpression.</td></tr>
+<tr><td><code>QMetaType::QEasingCurve</code></td><td>Reserved; Nt has no QEasingCurve.</td></tr>
+<tr><td><code>QMetaType::QUuid</code></td><td><a href="quuid.html">QUuid</a>.</td></tr>
+<tr><td><code>QMetaType::QVariant</code></td><td><a href="qvariant.html">QVariant</a>.</td></tr>
+<tr><td><code>QMetaType::QModelIndex</code></td><td>Reserved; Nt has no QModelIndex.</td></tr>
+<tr><td><code>QMetaType::QPersistentModelIndex</code></td><td>Reserved; Nt has no QPersistentModelIndex.</td></tr>
+<tr><td><code>QMetaType::QJsonValue</code></td><td><a href="qjsonvalue.html">QJsonValue</a>.</td></tr>
+<tr><td><code>QMetaType::QJsonObject</code></td><td><a href="qjsonobject.html">QJsonObject</a>.</td></tr>
+<tr><td><code>QMetaType::QJsonArray</code></td><td><a href="qjsonarray.html">QJsonArray</a>.</td></tr>
+<tr><td><code>QMetaType::QJsonDocument</code></td><td><a href="qjsondocument.html">QJsonDocument</a>.</td></tr>
+<tr><td><code>QMetaType::QCborSimpleType</code></td><td>Reserved; Nt has no QCborSimpleType.</td></tr>
+<tr><td><code>QMetaType::QCborValue</code></td><td>Reserved; Nt has no QCborValue.</td></tr>
+<tr><td><code>QMetaType::QCborArray</code></td><td>Reserved; Nt has no QCborArray.</td></tr>
+<tr><td><code>QMetaType::QCborMap</code></td><td>Reserved; Nt has no QCborMap.</td></tr>
+<tr><td><code>QMetaType::QVariantMap</code></td><td><code>QMap&lt;QString, QVariant&gt;</code>.</td></tr>
+<tr><td><code>QMetaType::QVariantList</code></td><td><code>QList&lt;QVariant&gt;</code>.</td></tr>
+<tr><td><code>QMetaType::QVariantHash</code></td><td><code>QHash&lt;QString, QVariant&gt;</code>.</td></tr>
+<tr><td><code>QMetaType::QVariantPair</code></td><td><code>std::pair&lt;QVariant, QVariant&gt;</code>.</td></tr>
+<tr><td><code>QMetaType::User</code></td><td>The first id of a type registered at run time.</td></tr>
+</tbody></table>
+<h3 class="member" id="TypeFlag-enum">enum QMetaType::TypeFlag</h3>
+<p>These flags describe a type.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QMetaType::NeedsConstruction</code></td><td>Values of the type must be constructed.</td></tr>
+<tr><td><code>QMetaType::NeedsDestruction</code></td><td>Values of the type must be destroyed.</td></tr>
+<tr><td><code>QMetaType::RelocatableType</code></td><td>Values can be moved in memory with <code>memcpy</code>.</td></tr>
+<tr><td><code>QMetaType::PointerToQObject</code></td><td>The type is a pointer to a <a href="qobject.html">QObject</a>-derived class.</td></tr>
+<tr><td><code>QMetaType::IsEnumeration</code></td><td>The type is an enumeration.</td></tr>
+<tr><td><code>QMetaType::IsUnsignedEnumeration</code></td><td>The type is an enumeration with an unsigned underlying type.</td></tr>
+</tbody></table>
+<h3 class="member" id="TypeFlags-typedef">typedef QMetaType::TypeFlags</h3>
+<p>The <code>TypeFlags</code> type is a typedef for <code>QFlags&lt;TypeFlag&gt;</code>. It stores an OR combination of TypeFlag values.</p>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QMetaType">QMetaType::QMetaType(int <i>typeId</i> = UnknownType)</h3>
+<p>Constructs a <a href="qmetatype.html">QMetaType</a> for the built-in or registered type with the id <i>typeId</i>. The result is invalid if <i>typeId</i> is unknown.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#isValid">isValid()</a>.</p>
+<h3 class="member" id="QMetaType-2"><span class="tags">[explicit]</span> QMetaType::QMetaType(const QMetaTypeInterface *<i>d</i>)</h3>
+<p>Constructs a <a href="qmetatype.html">QMetaType</a> from the interface <i>d</i>. This is meant for code that Nt generates.</p>
+<h3 class="member" id="alignOf">qsizetype QMetaType::alignOf() const</h3>
+<p>Returns the alignment in bytes of a value of the type, or 0 if this object is not valid.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#sizeOf">sizeOf()</a>.</p>
+<h3 class="member" id="canConvert"><span class="tags">[static]</span> bool QMetaType::canConvert(<a href="qmetatype.html">QMetaType</a> <i>fromType</i>, <a href="qmetatype.html">QMetaType</a> <i>toType</i>)</h3>
+<p>Returns <code>true</code> if a value of the type <i>fromType</i> can be converted to <i>toType</i> with <a href="qmetatype.html#convert">convert()</a>. Whether a particular value converts can still depend on its contents.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#convert">convert()</a>.</p>
+<h3 class="member" id="compare">bool QMetaType::compare(const void *<i>lhs</i>, const void *<i>rhs</i>, int &amp;<i>result</i>) const</h3>
+<p>Compares the values at <i>lhs</i> and <i>rhs</i>. If the type is ordered, stores a negative number, 0 or a positive number in <i>result</i> when <i>lhs</i> is less than, equal to or greater than <i>rhs</i>, and returns <code>true</code>. Otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#isOrdered">isOrdered()</a> and <a href="qmetatype.html#equals">equals()</a>.</p>
+<h3 class="member" id="construct">void * QMetaType::construct(void *<i>where</i>, const void *<i>copy</i> = nullptr) const</h3>
+<p>Constructs a value of the type in the memory at <i>where</i>, as a copy of the value at <i>copy</i> or, if <i>copy</i> is <code>nullptr</code>, with the default constructor. Returns <i>where</i>, or <code>nullptr</code> if the type cannot be constructed that way.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#create">create()</a> and <a href="qmetatype.html#destruct">destruct()</a>.</p>
+<h3 class="member" id="construct-2"><span class="tags">[static]</span> void * QMetaType::construct(int <i>type</i>, void *<i>where</i>, const void *<i>copy</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a value of the type with the id <i>type</i> at <i>where</i>, as a copy of <i>copy</i> or default-constructed.</p>
+<h3 class="member" id="convert"><span class="tags">[static]</span> bool QMetaType::convert(<a href="qmetatype.html">QMetaType</a> <i>fromType</i>, const void *<i>from</i>, <a href="qmetatype.html">QMetaType</a> <i>toType</i>, void *<i>to</i>)</h3>
+<p>Converts the value at <i>from</i> of the type <i>fromType</i> to the type <i>toType</i>, storing the result in the constructed value at <i>to</i>. Returns <code>true</code> on success.</p>
+<p>A converter registered with <a href="qmetatype.html#registerConverter">registerConverter()</a> takes precedence. Otherwise the built-in conversions apply:</p>
+<ul>
+<li><p>Numbers, <code>bool</code> and <a href="qchar.html">QChar</a> convert to each other. A floating-point number converts to an     integer by rounding, and fails if it is not finite or does not fit.</p>
+</li>
+<li><p><a href="qstring.html">QString</a> and <a href="qbytearray.html">QByteArray</a> convert to numbers (an integer, or a number with a fraction     that is rounded) and to <code>bool</code> (false for an empty string, <code>&quot;0&quot;</code> and <code>&quot;false&quot;</code>).</p>
+</li>
+<li><p>Numbers, <code>bool</code>, <a href="qchar.html">QChar</a>, <a href="qdate.html">QDate</a>, <a href="qtime.html">QTime</a>, <a href="qdatetime.html">QDateTime</a>, <a href="qurl.html">QUrl</a>, <a href="quuid.html">QUuid</a>, <a href="qversionnumber.html">QVersionNumber</a> and a     <a href="qstringlist.html">QStringList</a> of one element convert to <a href="qstring.html">QString</a>; so does a <a href="qbytearray.html">QByteArray</a>, as UTF-8.</p>
+</li>
+<li><p><a href="qstring.html">QString</a> converts to <a href="qbytearray.html">QByteArray</a> (as UTF-8), <a href="qdate.html">QDate</a>, <a href="qtime.html">QTime</a>, <a href="qdatetime.html">QDateTime</a> (ISO 8601), <a href="qurl.html">QUrl</a>,     <a href="quuid.html">QUuid</a>, <a href="qversionnumber.html">QVersionNumber</a> and <a href="qstringlist.html">QStringList</a> (one element).</p>
+</li>
+<li><p><a href="qdatetime.html">QDateTime</a> converts to <a href="qdate.html">QDate</a> and <a href="qtime.html">QTime</a>, and <a href="qdate.html">QDate</a> to <a href="qdatetime.html">QDateTime</a>.</p>
+</li>
+<li><p><a href="qstringlist.html">QStringList</a>, QByteArrayList and QVariantList convert to each other when each element     converts; QVariantMap and QVariantHash convert to each other.</p>
+</li>
+<li><p><a href="qpoint.html">QPoint</a>, <a href="qsize.html">QSize</a>, <a href="qrect.html">QRect</a> and <a href="qline.html">QLine</a> convert to and from their floating-point variants.</p>
+</li>
+<li><p>An enumeration converts to and from integers; with <code>Q_ENUM()</code> it also converts to and     from its key name as a <a href="qstring.html">QString</a>.</p>
+</li>
+<li><p>A sequential or associative container converts to QVariantList, QVariantMap or     QVariantHash when its elements convert.</p>
+</li>
+<li><p>A pointer to a <a href="qobject.html">QObject</a>-derived class converts to another one if the cast succeeds.</p>
+</li>
+</ul>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#canConvert">canConvert()</a>, <a href="qmetatype.html#registerConverter">registerConverter()</a> and <a href="qvariant.html#convert">QVariant::convert()</a>.</p>
+<h3 class="member" id="create">void * QMetaType::create(const void *<i>copy</i> = nullptr) const</h3>
+<p>Creates a value of the type on the heap, as a copy of the value at <i>copy</i> or, if <i>copy</i> is <code>nullptr</code>, with the default constructor. Returns <code>nullptr</code> if the type cannot be constructed that way. Free the value with <a href="qmetatype.html#destroy">destroy()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#construct">construct()</a> and <a href="qmetatype.html#destroy">destroy()</a>.</p>
+<h3 class="member" id="create-2"><span class="tags">[static]</span> void * QMetaType::create(int <i>type</i>, const void *<i>copy</i> = nullptr)</h3>
+<p>This is an overloaded function.</p>
+<p>Creates a value of the type with the id <i>type</i>, as a copy of <i>copy</i> or default-constructed.</p>
+<h3 class="member" id="debugStream">bool QMetaType::debugStream(<a href="qdebug.html">QDebug</a> &amp;<i>dbg</i>, const void *<i>rhs</i>) const</h3>
+<p>Writes the value at <i>rhs</i> to <i>dbg</i> and returns <code>true</code>, or returns <code>false</code> if the type has no debug stream operator.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#hasRegisteredDebugStreamOperator">hasRegisteredDebugStreamOperator()</a>.</p>
+<h3 class="member" id="destroy">void QMetaType::destroy(void *<i>data</i>) const</h3>
+<p>Destroys the value at <i>data</i>, which <a href="qmetatype.html#create">create()</a> returned, and frees its memory.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#create">create()</a> and <a href="qmetatype.html#destruct">destruct()</a>.</p>
+<h3 class="member" id="destroy-2"><span class="tags">[static]</span> void QMetaType::destroy(int <i>type</i>, void *<i>data</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Destroys the value at <i>data</i> of the type with the id <i>type</i> and frees its memory.</p>
+<h3 class="member" id="destruct">void QMetaType::destruct(void *<i>data</i>) const</h3>
+<p>Destroys the value at <i>data</i> without freeing its memory.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#destroy">destroy()</a> and <a href="qmetatype.html#construct">construct()</a>.</p>
+<h3 class="member" id="destruct-2"><span class="tags">[static]</span> void QMetaType::destruct(int <i>type</i>, void *<i>where</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Destroys the value at <i>where</i> of the type with the id <i>type</i>.</p>
+<h3 class="member" id="equals">bool QMetaType::equals(const void *<i>lhs</i>, const void *<i>rhs</i>) const</h3>
+<p>Returns <code>true</code> if the values at <i>lhs</i> and <i>rhs</i> are equal. A type without <code>operator==</code> is equal only to itself, that is, when <i>lhs</i> and <i>rhs</i> are the same address.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#isEqualityComparable">isEqualityComparable()</a> and <a href="qmetatype.html#compare">compare()</a>.</p>
+<h3 class="member" id="equals-2"><span class="tags">[static]</span> bool QMetaType::equals(const void *<i>lhs</i>, const void *<i>rhs</i>, int <i>typeId</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if the values at <i>lhs</i> and <i>rhs</i> of the type with the id <i>typeId</i> are equal.</p>
+<h3 class="member" id="flags">TypeFlags QMetaType::flags() const</h3>
+<p>Returns the flags that describe the type.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#TypeFlag-enum">QMetaType::TypeFlag</a>.</p>
+<h3 class="member" id="fromName"><span class="tags">[static]</span> <a href="qmetatype.html">QMetaType</a> QMetaType::fromName(<a href="qbytearrayview.html">QByteArrayView</a> <i>typeName</i>)</h3>
+<p>Returns the <a href="qmetatype.html">QMetaType</a> of the type called <i>typeName</i>. The name is normalized first, so <code>&quot;unsigned int&quot;</code> and <code>&quot;uint&quot;</code> find the same type. The result is invalid if no type is registered under the name.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#name">name()</a>.</p>
+<h3 class="member" id="fromType"><span class="template">template &lt;typename T&gt;</span><span class="tags">[static]</span> <a href="qmetatype.html">QMetaType</a> QMetaType::fromType()</h3>
+<p>Returns the <a href="qmetatype.html">QMetaType</a> of <code>T</code>. The qualifiers of <code>T</code> are ignored.</p>
+<h3 class="member" id="hasRegisteredDataStreamOperators">bool QMetaType::hasRegisteredDataStreamOperators() const</h3>
+<p>Returns <code>true</code> if the type can be written to and read from a <a href="qdatastream.html">QDataStream</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#save">save()</a> and <a href="qmetatype.html#load">load()</a>.</p>
+<h3 class="member" id="hasRegisteredDebugStreamOperator">bool QMetaType::hasRegisteredDebugStreamOperator() const</h3>
+<p>Returns <code>true</code> if the type can be written to a <a href="qdebug.html">QDebug</a> stream.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#debugStream">debugStream()</a>.</p>
+<h3 class="member" id="id">int QMetaType::id() const</h3>
+<p>Returns the id of the type, registering the type first if it has no id yet. Returns 0 if this object is not valid.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#name">name()</a>.</p>
+<h3 class="member" id="iface">const QMetaTypeInterface * QMetaType::iface() const</h3>
+<p>Returns the interface that describes the type. This is meant for code that Nt generates.</p>
+<h3 class="member" id="isCopyConstructible">bool QMetaType::isCopyConstructible() const</h3>
+<p>Returns <code>true</code> if values of the type can be copy-constructed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#construct">construct()</a>.</p>
+<h3 class="member" id="isDefaultConstructible">bool QMetaType::isDefaultConstructible() const</h3>
+<p>Returns <code>true</code> if values of the type can be default-constructed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#construct">construct()</a>.</p>
+<h3 class="member" id="isDestructible">bool QMetaType::isDestructible() const</h3>
+<p>Returns <code>true</code> if values of the type can be destroyed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#destruct">destruct()</a>.</p>
+<h3 class="member" id="isEqualityComparable">bool QMetaType::isEqualityComparable() const</h3>
+<p>Returns <code>true</code> if values of the type can be compared for equality with <a href="qmetatype.html#equals">equals()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#equals">equals()</a>.</p>
+<h3 class="member" id="isMoveConstructible">bool QMetaType::isMoveConstructible() const</h3>
+<p>Returns <code>true</code> if values of the type can be move-constructed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#construct">construct()</a>.</p>
+<h3 class="member" id="isOrdered">bool QMetaType::isOrdered() const</h3>
+<p>Returns <code>true</code> if values of the type can be ordered with <a href="qmetatype.html#compare">compare()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#compare">compare()</a>.</p>
+<h3 class="member" id="isRegistered">bool QMetaType::isRegistered() const</h3>
+<p>Returns <code>true</code> if the type has been registered and has an id; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#isValid">isValid()</a> and <a href="qmetatype.html#id">id()</a>.</p>
+<h3 class="member" id="isRegistered-2"><span class="tags">[static]</span> bool QMetaType::isRegistered(int <i>type</i>)</h3>
+<p>Returns <code>true</code> if <i>type</i> is the id of a built-in or registered type.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#type">type()</a> and <a href="qmetatype.html#typeName">typeName()</a>.</p>
+<h3 class="member" id="isValid">bool QMetaType::isValid() const</h3>
+<p>Returns <code>true</code> if this object describes a type; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#isRegistered">isRegistered()</a>.</p>
+<h3 class="member" id="load">bool QMetaType::load(<a href="qdatastream.html">QDataStream</a> &amp;<i>stream</i>, void *<i>data</i>) const</h3>
+<p>Reads a value from <i>stream</i> into the constructed value at <i>data</i> and returns <code>true</code>, or returns <code>false</code> if the type cannot be streamed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#save">save()</a>.</p>
+<h3 class="member" id="load-2"><span class="tags">[static]</span> bool QMetaType::load(<a href="qdatastream.html">QDataStream</a> &amp;<i>stream</i>, int <i>type</i>, void *<i>data</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a value of the type with the id <i>type</i> from <i>stream</i> into <i>data</i>.</p>
+<h3 class="member" id="metaObject">const <a href="qmetaobject.html">QMetaObject</a> * QMetaType::metaObject() const</h3>
+<p>Returns the meta-object of the type if it is a pointer to a <a href="qobject.html">QObject</a>-derived class, a class with <code>Q_GADGET</code>, or an enumeration declared with <code>Q_ENUM()</code> or <code>Q_FLAG()</code>; otherwise returns <code>nullptr</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaobject.html">QMetaObject</a>.</p>
+<h3 class="member" id="metaObjectForType"><span class="tags">[static]</span> const <a href="qmetaobject.html">QMetaObject</a> * QMetaType::metaObjectForType(int <i>type</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the meta-object of the type with the id <i>type</i>.</p>
+<h3 class="member" id="name">const char * QMetaType::name() const</h3>
+<p>Returns the name of the type, or <code>nullptr</code> if this object is not valid. The name of a type registered with <code>Q_DECLARE_METATYPE()</code> or <code>qRegisterMetaType()</code> is the registered name; otherwise it is the name as the compiler spells it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#fromName">fromName()</a> and <a href="qmetatype.html#id">id()</a>.</p>
+<h3 class="member" id="registerConverter"><span class="template">template &lt;typename From, typename To&gt;</span><span class="tags">[static]</span> bool QMetaType::registerConverter()</h3>
+<p>Registers the implicit conversion from <code>From</code> to <code>To</code>, so that a <a href="qvariant.html">QVariant</a> that holds a <code>From</code> converts to a <code>To</code>. Returns <code>true</code> if the registration succeeded.</p>
+<h3 class="member" id="registerConverter-2"><span class="template">template &lt;typename From, typename To&gt;</span><span class="tags">[static]</span> bool QMetaType::registerConverter(To (From::*<i>function</i>)() const)</h3>
+<p>This is an overloaded function.</p>
+<p>Registers the member function <i>function</i> of <code>From</code> as the conversion to <code>To</code>.</p>
+<h3 class="member" id="registerConverter-3"><span class="template">template &lt;typename From, typename To&gt;</span><span class="tags">[static]</span> bool QMetaType::registerConverter(To (From::*<i>function</i>)(bool *) const)</h3>
+<p>This is an overloaded function.</p>
+<p>Registers the member function <i>function</i> of <code>From</code>, which reports success through its <code>bool</code> pointer argument, as the conversion to <code>To</code>.</p>
+<h3 class="member" id="registerConverter-4"><span class="template">template &lt;typename From, typename To, typename UnaryFunction&gt;</span><span class="tags">[static]</span> bool QMetaType::registerConverter(UnaryFunction <i>function</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Registers <i>function</i>, a callable that takes a <code>const From &amp;</code> and returns a <code>To</code>, as the conversion.</p>
+<h3 class="member" id="registerConverterFunction"><span class="tags">[static]</span> bool QMetaType::registerConverterFunction(const ConverterFunction &amp;<i>function</i>, <a href="qmetatype.html">QMetaType</a> <i>from</i>, <a href="qmetatype.html">QMetaType</a> <i>to</i>)</h3>
+<p>Registers <i>function</i> as the conversion from the type <i>from</i> to the type <i>to</i>, replacing an earlier conversion. Returns <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#convert">convert()</a> and <a href="qmetatype.html#registerConverter">registerConverter()</a>.</p>
+<h3 class="member" id="registerNormalizedTypedef"><span class="tags">[static]</span> int QMetaType::registerNormalizedTypedef(const ::<a href="qbytearray.html">QByteArray</a> &amp;<i>normalizedTypeName</i>, <a href="qmetatype.html">QMetaType</a> <i>type</i>)</h3>
+<p>Makes <i>normalizedTypeName</i> another name of <i>type</i>, registering the type if needed, and returns the id of the type. If the name already belongs to a different type, that type's id is returned and nothing changes.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#fromName">fromName()</a>.</p>
+<h3 class="member" id="save">bool QMetaType::save(<a href="qdatastream.html">QDataStream</a> &amp;<i>stream</i>, const void *<i>data</i>) const</h3>
+<p>Writes the value at <i>data</i> to <i>stream</i> and returns <code>true</code>, or returns <code>false</code> if the type cannot be streamed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#load">load()</a>.</p>
+<h3 class="member" id="save-2"><span class="tags">[static]</span> bool QMetaType::save(<a href="qdatastream.html">QDataStream</a> &amp;<i>stream</i>, int <i>type</i>, const void *<i>data</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the value at <i>data</i> of the type with the id <i>type</i> to <i>stream</i>.</p>
+<h3 class="member" id="sizeOf">qsizetype QMetaType::sizeOf() const</h3>
+<p>Returns the size in bytes of a value of the type, or 0 if this object is not valid.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#alignOf">alignOf()</a>.</p>
+<h3 class="member" id="sizeOf-2"><span class="tags">[static]</span> int QMetaType::sizeOf(int <i>type</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the size of the type with the id <i>type</i>.</p>
+<h3 class="member" id="type"><span class="tags">[static]</span> int QMetaType::type(const char *<i>typeName</i>)</h3>
+<p>Returns the id of the type called <i>typeName</i>, or <code>UnknownType</code> if there is none.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#fromName">fromName()</a> and <a href="qmetatype.html#typeName">typeName()</a>.</p>
+<h3 class="member" id="type-2"><span class="tags">[static]</span> int QMetaType::type(const ::<a href="qbytearray.html">QByteArray</a> &amp;<i>typeName</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the id of the type called <i>typeName</i>.</p>
+<h3 class="member" id="typeFlags"><span class="tags">[static]</span> TypeFlags QMetaType::typeFlags(int <i>type</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the flags of the type with the id <i>type</i>.</p>
+<h3 class="member" id="typeName"><span class="tags">[static]</span> const char * QMetaType::typeName(int <i>type</i>)</h3>
+<p>Returns the name of the type with the id <i>type</i>, or <code>nullptr</code> if there is none.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#type">type()</a> and <a href="qmetatype.html#name">name()</a>.</p>
+<h3 class="member" id="unregisterConverterFunction"><span class="tags">[static]</span> void QMetaType::unregisterConverterFunction(<a href="qmetatype.html">QMetaType</a> <i>from</i>, <a href="qmetatype.html">QMetaType</a> <i>to</i>)</h3>
+<p>Removes the conversion registered from the type <i>from</i> to the type <i>to</i>, if any.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetatype.html#registerConverterFunction">registerConverterFunction()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

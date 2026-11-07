@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Thread Support in Nt | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; Thread Support in Nt</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#threads-and-event-loops">Threads and Event Loops</a></li>
+<li><a href="#thread-affinity">Thread Affinity</a></li>
+<li><a href="#signals-across-threads">Signals Across Threads</a></li>
+<li><a href="#what-is-safe">What Is Safe</a></li>
+<li><a href="#running-tasks">Running Tasks</a></li>
+</ul></aside>
+<main>
+<h1>Thread Support in Nt</h1>
+<p class="brief">How threads, event loops and objects fit together in Nt Core.</p>
+<p>Nt follows <a href="qt.html">Qt</a>'s threading model. Every thread has its own event loop, every <a href="qobject.html">QObject</a> lives in exactly one thread, and objects talk across threads with queued signals and posted events instead of locks.</p>
+<h2 id="threads-and-event-loops">Threads and Event Loops</h2>
+<p>A <a href="qthread.html">QThread</a> runs an event loop in run() unless you reimplement it. The loop handles the timers, socket notifiers, posted events and queued signals of every object that lives in the thread. Threads that were not started by <a href="qthread.html">QThread</a>, such as the main thread, get a <a href="qthread.html">QThread</a> object and an event loop of their own as soon as they use Nt. <a href="qeventloop.html">QEventLoop</a> and <a href="qcoreapplication.html#processEvents">QCoreApplication::processEvents()</a> always work on the calling thread's loop, and <a href="qcoreapplication.html#exit">QCoreApplication::exit()</a> stops the loops of the thread that created the application object.</p>
+<h2 id="thread-affinity">Thread Affinity</h2>
+<p>An object lives in the thread that created it. <a href="qobject.html#moveToThread">QObject::moveToThread()</a> pushes an object, with its children, its timers, its socket notifiers and its posted events, to another thread. <a href="qobject.html#thread">QObject::thread()</a> tells where an object lives. Starting or stopping a timer and enabling a socket notifier work only from the object's own thread.</p>
+<h2 id="signals-across-threads">Signals Across Threads</h2>
+<p><code>Qt::AutoConnection</code> decides when the signal is emitted: if the receiver lives in the emitting thread the slot is called directly, otherwise the arguments are copied and the receiver's event loop calls the slot. <code>Qt::BlockingQueuedConnection</code> waits for the slot to return. Connecting, disconnecting and emitting are safe from any thread. A functor connected with a context object runs in the context object's thread.</p>
+<h2 id="what-is-safe">What Is Safe</h2>
+<ul>
+<li><p>postEvent(), deleteLater(), connect(), disconnect(), emitting signals     and <a href="qeventloop.html#exit">QEventLoop::exit()</a> may be called from any thread.</p>
+</li>
+<li><p>An object may be deleted from its own thread at any time. Deleting it     from another thread is safe only when its thread cannot be running     its events, for example after <a href="qthread.html#wait">QThread::wait()</a>. Use deleteLater()     otherwise.</p>
+</li>
+<li><p>Deleting a receiver while another thread emits a signal that is queued     to it is safe: the emission either reaches it or does not.</p>
+</li>
+<li><p>Direct connections run the slot in the emitting thread. The receiver     must not be deleted while that happens.</p>
+</li>
+</ul>
+<h2 id="running-tasks">Running Tasks</h2>
+<p><a href="qthreadpool.html">QThreadPool</a> runs <a href="qrunnable.html">QRunnable</a> tasks on a limited set of reusable threads. <a href="qthreadstorage.html">QThreadStorage</a> keeps per-thread data.</p>
+<p class="see-also"><strong>See also</strong> <a href="qthread.html">QThread</a>, <a href="qthreadpool.html">QThreadPool</a>, <a href="qrunnable.html">QRunnable</a>, <a href="qthreadstorage.html">QThreadStorage</a>, <a href="qobject.html">QObject</a> and <a href="signals-and-slots.html">Signals and Slots</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

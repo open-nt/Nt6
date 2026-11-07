@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QSettings Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QSettings</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#reimplemented-protected-functions">Reimplemented Protected Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#locations">Locations</a></li>
+<li><a href="#groups-and-arrays">Groups and arrays</a></li>
+<li><a href="#writing">Writing</a></li>
+<li><a href="#the-ini-format">The INI format</a></li>
+<li><a href="#custom-formats">Custom formats</a></li>
+<li><a href="#thread-safety">Thread safety</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QSettings Class</h1>
+<p class="brief">The QSettings class provides persistent platform-independent application settings. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QSettings&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+<tr><th>Inherits</th><td><a href="qobject.html">QObject</a></td></tr>
+</table>
+<p><a href="qsettings-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#Status-enum">Status</a></td></tr>
+<tr><td class="ret">enum</td><td><a href="#Format-enum">Format</a></td></tr>
+<tr><td class="ret">enum</td><td><a href="#Scope-enum">Scope</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#SettingsMap-typedef">SettingsMap</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#ReadFunc-typedef">ReadFunc</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#WriteFunc-typedef">WriteFunc</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QSettings">QSettings</a>(const <a href="qstring.html">QString</a> &amp;<i>organization</i>, const <a href="qstring.html">QString</a> &amp;<i>application</i> = <a href="qstring.html">QString</a>(), <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#QSettings-2">QSettings</a>(Scope <i>scope</i>, const <a href="qstring.html">QString</a> &amp;<i>organization</i>, const <a href="qstring.html">QString</a> &amp;<i>application</i> = <a href="qstring.html">QString</a>(), <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#QSettings-3">QSettings</a>(Format <i>format</i>, Scope <i>scope</i>, const <a href="qstring.html">QString</a> &amp;<i>organization</i>, const <a href="qstring.html">QString</a> &amp;<i>application</i> = <a href="qstring.html">QString</a>(), <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#QSettings-4">QSettings</a>(const <a href="qstring.html">QString</a> &amp;<i>fileName</i>, Format <i>format</i>, <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#QSettings-5">QSettings</a>(<a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#QSettings-6">QSettings</a>(Scope <i>scope</i>, <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QSettings">~QSettings</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#clear">clear</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#sync">sync</a>()</td></tr>
+<tr><td class="ret">Status</td><td><a href="#status">status</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isAtomicSyncRequired">isAtomicSyncRequired</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setAtomicSyncRequired">setAtomicSyncRequired</a>(bool <i>enable</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginGroup">beginGroup</a>(const <a href="qstring.html">QString</a> &amp;<i>prefix</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#endGroup">endGroup</a>()</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#group">group</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#beginReadArray">beginReadArray</a>(const <a href="qstring.html">QString</a> &amp;<i>prefix</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginWriteArray">beginWriteArray</a>(const <a href="qstring.html">QString</a> &amp;<i>prefix</i>, int <i>size</i> = -1)</td></tr>
+<tr><td class="ret">void</td><td><a href="#endArray">endArray</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#setArrayIndex">setArrayIndex</a>(int <i>i</i>)</td></tr>
+<tr><td class="ret"><a href="qstringlist.html">QStringList</a></td><td><a href="#allKeys">allKeys</a>() const</td></tr>
+<tr><td class="ret"><a href="qstringlist.html">QStringList</a></td><td><a href="#childKeys">childKeys</a>() const</td></tr>
+<tr><td class="ret"><a href="qstringlist.html">QStringList</a></td><td><a href="#childGroups">childGroups</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isWritable">isWritable</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setValue">setValue</a>(const <a href="qstring.html">QString</a> &amp;<i>key</i>, const <a href="qvariant.html">QVariant</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret"><a href="qvariant.html">QVariant</a></td><td><a href="#value">value</a>(const <a href="qstring.html">QString</a> &amp;<i>key</i>) const</td></tr>
+<tr><td class="ret"><a href="qvariant.html">QVariant</a></td><td><a href="#value-2">value</a>(const <a href="qstring.html">QString</a> &amp;<i>key</i>, const <a href="qvariant.html">QVariant</a> &amp;<i>defaultValue</i>) const</td></tr>
+<tr><td class="ret">void</td><td><a href="#remove">remove</a>(const <a href="qstring.html">QString</a> &amp;<i>key</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#contains">contains</a>(const <a href="qstring.html">QString</a> &amp;<i>key</i>) const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setFallbacksEnabled">setFallbacksEnabled</a>(bool <i>b</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#fallbacksEnabled">fallbacksEnabled</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#fileName">fileName</a>() const</td></tr>
+<tr><td class="ret">Format</td><td><a href="#format">format</a>() const</td></tr>
+<tr><td class="ret">Scope</td><td><a href="#scope">scope</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#organizationName">organizationName</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#applicationName">applicationName</a>() const</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">void</td><td><a href="#setDefaultFormat">setDefaultFormat</a>(Format <i>format</i>)</td></tr>
+<tr><td class="ret">Format</td><td><a href="#defaultFormat">defaultFormat</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#setPath">setPath</a>(Format <i>format</i>, Scope <i>scope</i>, const <a href="qstring.html">QString</a> &amp;<i>path</i>)</td></tr>
+<tr><td class="ret">Format</td><td><a href="#registerFormat">registerFormat</a>(const <a href="qstring.html">QString</a> &amp;<i>extension</i>, ReadFunc <i>readFunc</i>, WriteFunc <i>writeFunc</i>, <a href="qt.html#CaseSensitivity-enum">Qt::CaseSensitivity</a> <i>caseSensitivity</i> = <a href="qt.html#CaseSensitivity-enum">Qt::CaseSensitive</a>)</td></tr>
+</table></div>
+<h2 id="reimplemented-protected-functions">Reimplemented Protected Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">bool</td><td><a href="#event">event</a>(<a href="qevent.html">QEvent</a> *<i>event</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>Users expect applications to remember their settings (window sizes and positions, options, and so on) across sessions. QSettings stores them in a file, and a setting is a key and a <a href="qvariant.html">QVariant</a>. Keys are strings that can be grouped with <code>/</code>, like the path of a file.</p>
+<pre><code>QCoreApplication::setOrganizationName(&quot;MySoft&quot;);
+QCoreApplication::setApplicationName(&quot;Star Runner&quot;);
+
+QSettings settings;
+settings.setValue(&quot;editor/wrapMargin&quot;, 68);
+int margin = settings.value(&quot;editor/wrapMargin&quot;, 80).toInt();
+</code></pre>
+<h2 id="locations">Locations</h2>
+<p>QSettings(const <a href="qstring.html">QString</a> &amp;organization, const <a href="qstring.html">QString</a> &amp;application) and the constructors that depend on <a href="qcoreapplication.html">QCoreApplication</a> use these files on Linux, in the order in which they are searched. <code>$XDG_CONFIG_HOME</code> defaults to <code>~/.config</code>, and <code>$XDG_CONFIG_DIRS</code> to <code>/etc/xdg</code>. The extension is <code>.conf</code> for <code>NativeFormat</code> and <code>.ini</code> for <code>IniFormat</code>.</p>
+<ol>
+<li><p><code>$XDG_CONFIG_HOME/MySoft/Star Runner.conf</code> (user scope only)</p>
+</li>
+<li><p><code>$XDG_CONFIG_HOME/MySoft.conf</code> (user scope only)</p>
+</li>
+<li><p><code>/etc/xdg/MySoft/Star Runner.conf</code></p>
+</li>
+<li><p><code>/etc/xdg/MySoft.conf</code></p>
+</li>
+</ol>
+<p>A value that is not found in the first file is looked up in the next ones, unless <a href="qsettings.html#setFallbacksEnabled">setFallbacksEnabled()</a> turns that off. Settings are always written to the first file; the directories are created as needed. The organization-wide files let several applications share settings. If the organization name is empty, <a href="qsettings.html#status">status()</a> is <code>AccessError</code> and the files are placed under the name &quot;Unknown Organization&quot;. A QSettings can also use one explicit file (QSettings(const <a href="qstring.html">QString</a> &amp;fileName, Format format)); the file name must be given in a format that can be read, as <code>NativeFormat</code> and <code>IniFormat</code> are both the INI format on Linux. <a href="qsettings.html#setPath">setPath()</a> changes the directories, and <a href="qsettings.html#setDefaultFormat">setDefaultFormat()</a> the format of the constructors that take none.</p>
+<h2 id="groups-and-arrays">Groups and arrays</h2>
+<p><a href="qsettings.html#beginGroup">beginGroup()</a> and <a href="qsettings.html#endGroup">endGroup()</a> add a prefix to every key. <a href="qsettings.html#beginWriteArray">beginWriteArray()</a> and <a href="qsettings.html#beginReadArray">beginReadArray()</a> store lists of structures as <code>prefix/1/key</code>, <code>prefix/2/key</code> and so on, with <code>prefix/size</code>; <a href="qsettings.html#setArrayIndex">setArrayIndex()</a> selects the element, counting from 0.</p>
+<pre><code>int size = settings.beginReadArray(&quot;logins&quot;);
+for (int i = 0; i &lt; size; ++i) {
+    settings.setArrayIndex(i);
+    QString user = settings.value(&quot;userName&quot;).toString();
+}
+settings.endArray();
+</code></pre>
+<h2 id="writing">Writing</h2>
+<p>Changes are kept in memory, so that every QSettings object of the process that uses the same file sees them at once. They are written to the file when the event loop runs, when <a href="qsettings.html#sync">sync()</a> is called, and when the object is destroyed. The write takes the lock file <code>&lt;file&gt;.lock</code> with <a href="qlockfile.html">QLockFile</a>, reads the file again if another process changed it, applies the changes made by this process on top, and replaces the file with <a href="qsavefile.html">QSaveFile</a>, so that readers never see a partial file and writers do not lose each other's changes. <a href="qsettings.html#sync">sync()</a> also reads the file again if it changed.</p>
+<h2 id="the-ini-format">The INI format</h2>
+<pre><code>[General]
+size=@Size(800 600)
+title=Star Runner
+
+[editor]
+wrapMargin=68
+recent=a.txt, b.txt
+</code></pre>
+<p>Keys without a group are in the section <code>[General]</code>; a key <code>a/b/c</code> is the key <code>c</code> in the section called <code>a/b</code>, which is written with a backslash in place of the slash. Characters in group and key names other than letters, digits and <code>_-.</code> are written as <code>%XX</code> (or <code>%UXXXX</code>), so <code>My Group</code> becomes <code>My%20Group</code>. Values of type <a href="qstring.html">QString</a>, the integer types, <code>bool</code> and the floating-point types are written as text, and are read back as <a href="qstring.html">QString</a>: use <code>toInt()</code> and the like. A string that contains <code>,</code>, <code>;</code> or <code>=</code>, or begins or ends with a blank, is quoted; backslashes, double quotes and control characters are escaped, and non-ASCII characters are UTF-8. A <a href="qstringlist.html">QStringList</a> is written as comma-separated items and read back as a <a href="qstringlist.html">QStringList</a> when it has several, an empty one is written as <code>@Invalid()</code> and read back as an invalid <a href="qvariant.html">QVariant</a>, and a QVariantList is written the same way but is read as a <a href="qstringlist.html">QStringList</a>, or as a QVariantList when an item has a special form. A <a href="qbytearray.html">QByteArray</a> is <code>@ByteArray(...)</code>, <a href="qpoint.html">QPoint</a>, <a href="qsize.html">QSize</a> and <a href="qrect.html">QRect</a> are <code>@Point(x y)</code>, <code>@Size(w h)</code> and <code>@Rect(x y w h)</code>, a <a href="qdatetime.html">QDateTime</a> is <code>@DateTime(...)</code>, and any other type is <code>@Variant(...)</code> with the bytes of its <a href="qdatastream.html">QDataStream</a> form (version <code>Qt_4_0</code>), with unprintable bytes escaped. A string that begins with <code>@</code> gets a second one. The file is read as <a href="qt.html">Qt</a> reads it: a line that begins with <code>;</code> is a comment, and so is the rest of a line after a <code>;</code> that is not quoted; a backslash at the end of a line continues it; blanks around keys, values and list items are ignored.</p>
+<p>Keys and sections are case-sensitive in the INI format. A section named <code>General</code> (in any case) holds the keys without a group; a group called <code>General</code> is written as <code>[%General]</code>. Settings are written sorted, with <code>General</code> first, so the output is deterministic.</p>
+<h2 id="custom-formats">Custom formats</h2>
+<p><a href="qsettings.html#registerFormat">registerFormat()</a> adds a format that is read and written by functions of your own, using a SettingsMap of full keys:</p>
+<pre><code>static bool readXml(QIODevice &amp;device, QSettings::SettingsMap &amp;map);
+static bool writeXml(QIODevice &amp;device, const QSettings::SettingsMap &amp;map);
+
+const QSettings::Format XmlFormat = QSettings::registerFormat(&quot;xml&quot;, readXml, writeXml);
+QSettings settings(XmlFormat, QSettings::UserScope, &quot;MySoft&quot;, &quot;Star Runner&quot;);
+</code></pre>
+<h2 id="thread-safety">Thread safety</h2>
+<p>QSettings objects are reentrant: different objects, in different threads or different processes, may use the same file. Each object must be used from one thread at a time.</p>
+<p class="see-also"><strong>See also</strong> <a href="qvariant.html">QVariant</a>, <a href="qsavefile.html">QSaveFile</a>, <a href="qlockfile.html">QLockFile</a> and <a href="qstandardpaths.html">QStandardPaths</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>The keys and group names are <code>const QString &amp;</code>, as Nt has no QAnyStringView. The registry formats <code>Registry32Format</code> and <code>Registry64Format</code> are only enumerators: on Linux they make <a href="qsettings.html#status">status()</a> return <code>AccessError</code>, as does any unregistered custom format. <code>NativeFormat</code> is the INI format, and the macOS property lists are not supported. The keys of the INI format are case-sensitive on every platform. A line that begins with <code>#</code> in an INI file is also taken for a comment. The default directories are read from the environment (<code>XDG_CONFIG_HOME</code> and <code>XDG_CONFIG_DIRS</code>) each time a QSettings object is constructed, not once. There is no <code>setSystemIniPath()</code> or <code>setUserIniPath()</code>, which <a href="qt.html">Qt</a> 6 removed. The sections of an INI file are read at once, not when first used. A <code>@Variant()</code> value is only restored if the stream operators of the type are registered. A type without stream operators, such as the <a href="qjsonvalue.html">QJsonValue</a> family, is not stored: <a href="qsettings.html#setValue">setValue()</a> keeps it in memory, but a warning is printed when the file is written and the setting is written as <code>@Invalid()</code>. Comments and the order of the keys of an INI file are not preserved when it is rewritten. A QSettings object is not thread-safe itself, and <code>QSettings::value()</code> on a file that another process is replacing sees either the old or the new file, never part of both.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="Format-enum">enum QSettings::Format</h3>
+<p>The storage format of the settings.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QSettings::NativeFormat</code></td><td>The platform's native format. On Linux this is the INI format with the file extension <code>.conf</code>.</td></tr>
+<tr><td><code>QSettings::IniFormat</code></td><td>The INI format, with the file extension <code>.ini</code>.</td></tr>
+<tr><td><code>QSettings::Registry32Format</code></td><td>The 32-bit Windows registry. Not available: using it makes <a href="qsettings.html#status">status()</a> return <code>AccessError</code>.</td></tr>
+<tr><td><code>QSettings::Registry64Format</code></td><td>The 64-bit Windows registry. Not available: using it makes <a href="qsettings.html#status">status()</a> return <code>AccessError</code>.</td></tr>
+<tr><td><code>QSettings::InvalidFormat</code></td><td>The value returned by <a href="qsettings.html#registerFormat">registerFormat()</a> when no format can be registered; a <a href="qsettings.html">QSettings</a> object with this format cannot read or write.</td></tr>
+<tr><td><code>QSettings::CustomFormat1</code></td><td>The first format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat2</code></td><td>The second format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat3</code></td><td>The third format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat4</code></td><td>The fourth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat5</code></td><td>The fifth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat6</code></td><td>The sixth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat7</code></td><td>The seventh format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat8</code></td><td>The eighth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat9</code></td><td>The ninth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat10</code></td><td>The tenth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat11</code></td><td>The eleventh format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat12</code></td><td>The twelfth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat13</code></td><td>The thirteenth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat14</code></td><td>The fourteenth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat15</code></td><td>The fifteenth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+<tr><td><code>QSettings::CustomFormat16</code></td><td>The sixteenth format registered with <a href="qsettings.html#registerFormat">registerFormat()</a>.</td></tr>
+</tbody></table>
+<h3 class="member" id="ReadFunc-typedef">typedef QSettings::ReadFunc</h3>
+<p>A function that reads a custom format from <i>device</i> into <i>map</i> and returns <code>true</code> on success.</p>
+<h3 class="member" id="Scope-enum">enum QSettings::Scope</h3>
+<p>Whether the settings belong to the current user or to all users of the system.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QSettings::UserScope</code></td><td>Store the settings in the current user's configuration directory.</td></tr>
+<tr><td><code>QSettings::SystemScope</code></td><td>Store the settings in the system-wide configuration directory.</td></tr>
+</tbody></table>
+<h3 class="member" id="SettingsMap-typedef">typedef QSettings::SettingsMap</h3>
+<p>The type of the map that a custom format reads and writes: every setting by its full key (the group names and the key joined with <code>/</code>).</p>
+<h3 class="member" id="Status-enum">enum QSettings::Status</h3>
+<p>The status of a <a href="qsettings.html">QSettings</a> object after the last operation.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QSettings::NoError</code></td><td>No error occurred.</td></tr>
+<tr><td><code>QSettings::AccessError</code></td><td>An access error occurred: a file could not be opened, read or written, the organization name is missing, or the format is not usable.</td></tr>
+<tr><td><code>QSettings::FormatError</code></td><td>A format error occurred, for instance a malformed INI file or a custom format function that failed.</td></tr>
+</tbody></table>
+<h3 class="member" id="WriteFunc-typedef">typedef QSettings::WriteFunc</h3>
+<p>A function that writes <i>map</i> to <i>device</i> in a custom format and returns <code>true</code> on success.</p>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QSettings"><span class="tags">[explicit]</span> QSettings::QSettings(const <a href="qstring.html">QString</a> &amp;<i>organization</i>, const <a href="qstring.html">QString</a> &amp;<i>application</i> = <a href="qstring.html">QString</a>(), <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a <a href="qsettings.html">QSettings</a> object for accessing the settings of the application called <i>application</i> from the organization called <i>organization</i>, with the given <i>parent</i>. The settings are those of the current user, in the default format.</p>
+<p>If <i>application</i> is empty, only the organization-wide settings are accessed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setDefaultFormat">setDefaultFormat()</a>, <a href="qsettings.html#setPath">setPath()</a> and <a href="qsettings.html#fileName">fileName()</a>.</p>
+<h3 class="member" id="QSettings-2">QSettings::QSettings(Scope <i>scope</i>, const <a href="qstring.html">QString</a> &amp;<i>organization</i>, const <a href="qstring.html">QString</a> &amp;<i>application</i> = <a href="qstring.html">QString</a>(), <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a <a href="qsettings.html">QSettings</a> object for accessing the settings of the application called <i>application</i> from the organization called <i>organization</i>, in the given <i>scope</i>, with the given <i>parent</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setDefaultFormat">setDefaultFormat()</a>.</p>
+<h3 class="member" id="QSettings-3">QSettings::QSettings(Format <i>format</i>, Scope <i>scope</i>, const <a href="qstring.html">QString</a> &amp;<i>organization</i>, const <a href="qstring.html">QString</a> &amp;<i>application</i> = <a href="qstring.html">QString</a>(), <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a <a href="qsettings.html">QSettings</a> object for accessing the settings of the application called <i>application</i> from the organization called <i>organization</i>, in the given <i>format</i> and <i>scope</i>, with the given <i>parent</i>.</p>
+<p>If the <i>format</i> is not usable, <a href="qsettings.html#status">status()</a> returns <code>AccessError</code> and nothing can be read or written.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#Format-enum">Format</a> and <a href="qsettings.html#Scope-enum">Scope</a>.</p>
+<h3 class="member" id="QSettings-4">QSettings::QSettings(const <a href="qstring.html">QString</a> &amp;<i>fileName</i>, Format <i>format</i>, <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a <a href="qsettings.html">QSettings</a> object for accessing the settings stored in the file called <i>fileName</i>, with the given <i>parent</i>. If the file does not exist, it is created when the settings are written. The <i>format</i> is the way the file is read and written; <code>NativeFormat</code> and <code>IniFormat</code> are the same here.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#fileName">fileName()</a>.</p>
+<h3 class="member" id="QSettings-5"><span class="tags">[explicit]</span> QSettings::QSettings(<a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a <a href="qsettings.html">QSettings</a> object for accessing the settings of the application, with the given <i>parent</i>. The organization name is <a href="qcoreapplication.html#organizationName">QCoreApplication::organizationName()</a>, or <a href="qcoreapplication.html#organizationDomain">QCoreApplication::organizationDomain()</a> if it is empty, and the application name is <a href="qcoreapplication.html#applicationName">QCoreApplication::applicationName()</a>. The settings are those of the current user, in the default format.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setDefaultFormat">setDefaultFormat()</a>.</p>
+<h3 class="member" id="QSettings-6"><span class="tags">[explicit]</span> QSettings::QSettings(Scope <i>scope</i>, <a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a <a href="qsettings.html">QSettings</a> object for accessing the settings of the application in the given <i>scope</i>, with the given <i>parent</i>. The organization and application names are those of <a href="qcoreapplication.html">QCoreApplication</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html">QSettings()</a>.</p>
+<h3 class="member" id="dtor.QSettings"><span class="tags">[override]</span> QSettings::~QSettings()</h3>
+<p>Writes any unsaved changes to permanent storage, and destroys the object.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#sync">sync()</a>.</p>
+<h3 class="member" id="allKeys"><a href="qstringlist.html">QStringList</a> QSettings::allKeys() const</h3>
+<p>Returns a list of all keys, including subkeys, that can be read using the <a href="qsettings.html">QSettings</a> object.</p>
+<p>Example:</p>
+<pre><code>settings.setValue(&quot;fridge/color&quot;, QColor(Qt::white));
+settings.setValue(&quot;fridge/size&quot;, QSize(32, 96));
+settings.setValue(&quot;sofa&quot;, true);
+settings.setValue(&quot;tv&quot;, false);
+
+QStringList keys = settings.allKeys();
+// keys: [&quot;fridge/color&quot;, &quot;fridge/size&quot;, &quot;sofa&quot;, &quot;tv&quot;]
+</code></pre>
+<p>If a group is set using <a href="qsettings.html#beginGroup">beginGroup()</a>, only the keys in the group are returned, without the group prefix. The list is sorted.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#childGroups">childGroups()</a> and <a href="qsettings.html#childKeys">childKeys()</a>.</p>
+<h3 class="member" id="applicationName"><a href="qstring.html">QString</a> QSettings::applicationName() const</h3>
+<p>Returns the application name used for storing the settings, as given to the constructor. It is empty for a <a href="qsettings.html">QSettings</a> that uses a file name.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcoreapplication.html#applicationName">QCoreApplication::applicationName()</a>, <a href="qsettings.html#format">format()</a>, <a href="qsettings.html#scope">scope()</a> and <a href="qsettings.html#organizationName">organizationName()</a>.</p>
+<h3 class="member" id="beginGroup">void QSettings::beginGroup(const <a href="qstring.html">QString</a> &amp;<i>prefix</i>)</h3>
+<p>Appends <i>prefix</i> to the current group.</p>
+<p>The current group is automatically prepended to all keys specified to <a href="qsettings.html">QSettings</a>. In addition, query functions such as <a href="qsettings.html#childGroups">childGroups()</a>, <a href="qsettings.html#childKeys">childKeys()</a> and <a href="qsettings.html#allKeys">allKeys()</a> are based on the group. By default, no group is set.</p>
+<p>Groups are useful to avoid typing in the same setting paths over and over. For example:</p>
+<pre><code>settings.beginGroup(&quot;mainwindow&quot;);
+settings.setValue(&quot;size&quot;, win-&gt;size());
+settings.setValue(&quot;pos&quot;, win-&gt;pos());
+settings.endGroup();
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#endGroup">endGroup()</a> and <a href="qsettings.html#group">group()</a>.</p>
+<h3 class="member" id="beginReadArray">int QSettings::beginReadArray(const <a href="qstring.html">QString</a> &amp;<i>prefix</i>)</h3>
+<p>Adds <i>prefix</i> to the current group and starts reading from an array. Returns the size of the array.</p>
+<pre><code>int size = settings.beginReadArray(&quot;logins&quot;);
+for (int i = 0; i &lt; size; ++i) {
+    settings.setArrayIndex(i);
+    QString user = settings.value(&quot;userName&quot;).toString();
+}
+settings.endArray();
+</code></pre>
+<p>Use <a href="qsettings.html#beginWriteArray">beginWriteArray()</a> to write the array in the first place.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#beginWriteArray">beginWriteArray()</a>, <a href="qsettings.html#endArray">endArray()</a> and <a href="qsettings.html#setArrayIndex">setArrayIndex()</a>.</p>
+<h3 class="member" id="beginWriteArray">void QSettings::beginWriteArray(const <a href="qstring.html">QString</a> &amp;<i>prefix</i>, int <i>size</i> = -1)</h3>
+<p>Adds <i>prefix</i> to the current group and starts writing an array of size <i>size</i>. If <i>size</i> is -1 (the default), it is automatically determined based on the indexes of the entries written.</p>
+<p>If you have many occurrences of a certain set of keys, you can use arrays to make your life easier. For example, let's suppose that you want to save a list of users consisting of user name and password fields. You could then write:</p>
+<pre><code>struct Login {
+    QString userName;
+    QString password;
+};
+QList&lt;Login&gt; logins;
+
+QSettings settings;
+settings.beginWriteArray(&quot;logins&quot;);
+for (int i = 0; i &lt; logins.size(); ++i) {
+    settings.setArrayIndex(i);
+    settings.setValue(&quot;userName&quot;, logins.at(i).userName);
+    settings.setValue(&quot;password&quot;, logins.at(i).password);
+}
+settings.endArray();
+</code></pre>
+<p>The elements are stored as <code>logins/1/userName</code> and so on, and the size as <code>logins/size</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#beginReadArray">beginReadArray()</a>, <a href="qsettings.html#endArray">endArray()</a> and <a href="qsettings.html#setArrayIndex">setArrayIndex()</a>.</p>
+<h3 class="member" id="childGroups"><a href="qstringlist.html">QStringList</a> QSettings::childGroups() const</h3>
+<p>Returns a list of all key top-level groups that contain keys that can be read using the <a href="qsettings.html">QSettings</a> object. The list is sorted.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#childKeys">childKeys()</a> and <a href="qsettings.html#allKeys">allKeys()</a>.</p>
+<h3 class="member" id="childKeys"><a href="qstringlist.html">QStringList</a> QSettings::childKeys() const</h3>
+<p>Returns a list of all top-level keys that can be read using the <a href="qsettings.html">QSettings</a> object. The list is sorted.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#allKeys">allKeys()</a> and <a href="qsettings.html#childGroups">childGroups()</a>.</p>
+<h3 class="member" id="clear">void QSettings::clear()</h3>
+<p>Removes all entries in the primary location associated to this <a href="qsettings.html">QSettings</a> object. Entries in fallback locations are not removed.</p>
+<p>If you only want to remove the entries in the current <a href="qsettings.html#group">group()</a>, use remove(&quot;&quot;) instead.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#remove">remove()</a> and <a href="qsettings.html#setFallbacksEnabled">setFallbacksEnabled()</a>.</p>
+<h3 class="member" id="contains">bool QSettings::contains(const <a href="qstring.html">QString</a> &amp;<i>key</i>) const</h3>
+<p>Returns <code>true</code> if there exists a setting called <i>key</i>; returns <code>false</code> otherwise.</p>
+<p>If a group is set using <a href="qsettings.html#beginGroup">beginGroup()</a>, <i>key</i> is taken to be relative to that group.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#value">value()</a> and <a href="qsettings.html#setValue">setValue()</a>.</p>
+<h3 class="member" id="defaultFormat"><span class="tags">[static]</span> Format QSettings::defaultFormat()</h3>
+<p>Returns default file format used for storing settings for the <a href="qsettings.html">QSettings</a>(const <a href="qstring.html">QString</a> &amp;organization, const <a href="qstring.html">QString</a> &amp;application, <a href="qobject.html">QObject</a> *parent) constructor. If no default format is set, <code>QSettings::NativeFormat</code> is used.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setDefaultFormat">setDefaultFormat()</a>.</p>
+<h3 class="member" id="endArray">void QSettings::endArray()</h3>
+<p>Closes the array that was started using <a href="qsettings.html#beginReadArray">beginReadArray()</a> or <a href="qsettings.html#beginWriteArray">beginWriteArray()</a>. A warning is printed if there is no matching begin.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#beginReadArray">beginReadArray()</a> and <a href="qsettings.html#beginWriteArray">beginWriteArray()</a>.</p>
+<h3 class="member" id="endGroup">void QSettings::endGroup()</h3>
+<p>Resets the group to what it was before the corresponding <a href="qsettings.html#beginGroup">beginGroup()</a> call. A warning is printed if there is no matching <a href="qsettings.html#beginGroup">beginGroup()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#beginGroup">beginGroup()</a> and <a href="qsettings.html#group">group()</a>.</p>
+<h3 class="member" id="event"><span class="tags">[override, protected]</span> bool QSettings::event(<a href="qevent.html">QEvent</a> *<i>event</i>)</h3>
+<p>Reimplements <a href="qobject.html#event">QObject::event()</a>.</p>
+<p>Writes the unsaved changes when the object receives the update request that it posts to itself after a change.</p>
+<h3 class="member" id="fallbacksEnabled">bool QSettings::fallbacksEnabled() const</h3>
+<p>Returns <code>true</code> if fallbacks are enabled; returns <code>false</code> otherwise.</p>
+<p>By default, fallbacks are enabled.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setFallbacksEnabled">setFallbacksEnabled()</a>.</p>
+<h3 class="member" id="fileName"><a href="qstring.html">QString</a> QSettings::fileName() const</h3>
+<p>Returns the path where settings written using this <a href="qsettings.html">QSettings</a> object are stored: the absolute path of the primary file.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#isWritable">isWritable()</a> and <a href="qsettings.html#format">format()</a>.</p>
+<h3 class="member" id="format">Format QSettings::format() const</h3>
+<p>Returns the format used for storing the settings.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#defaultFormat">defaultFormat()</a>, <a href="qsettings.html#fileName">fileName()</a> and <a href="qsettings.html#scope">scope()</a>.</p>
+<h3 class="member" id="group"><a href="qstring.html">QString</a> QSettings::group() const</h3>
+<p>Returns the current group, without a trailing slash.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#beginGroup">beginGroup()</a> and <a href="qsettings.html#endGroup">endGroup()</a>.</p>
+<h3 class="member" id="isAtomicSyncRequired">bool QSettings::isAtomicSyncRequired() const</h3>
+<p>Returns <code>true</code> if <a href="qsettings.html">QSettings</a> is only allowed to perform atomic saving and reloading (synchronization) of the settings; otherwise returns <code>false</code>. The default is <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setAtomicSyncRequired">setAtomicSyncRequired()</a>.</p>
+<h3 class="member" id="isWritable">bool QSettings::isWritable() const</h3>
+<p>Returns <code>true</code> if settings can be written using this <a href="qsettings.html">QSettings</a> object; returns <code>false</code> otherwise. This is the case if the primary file can be written, or created, and the format can write.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#status">status()</a> and <a href="qsettings.html#sync">sync()</a>.</p>
+<h3 class="member" id="organizationName"><a href="qstring.html">QString</a> QSettings::organizationName() const</h3>
+<p>Returns the organization name used for storing the settings, as given to the constructor. It is empty for a <a href="qsettings.html">QSettings</a> that uses a file name.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcoreapplication.html#organizationName">QCoreApplication::organizationName()</a>, <a href="qsettings.html#format">format()</a>, <a href="qsettings.html#scope">scope()</a> and <a href="qsettings.html#applicationName">applicationName()</a>.</p>
+<h3 class="member" id="registerFormat"><span class="tags">[static]</span> Format QSettings::registerFormat(const <a href="qstring.html">QString</a> &amp;<i>extension</i>, ReadFunc <i>readFunc</i>, WriteFunc <i>writeFunc</i>, <a href="qt.html#CaseSensitivity-enum">Qt::CaseSensitivity</a> <i>caseSensitivity</i> = <a href="qt.html#CaseSensitivity-enum">Qt::CaseSensitive</a>)</h3>
+<p>Registers a custom storage format. On success, returns a special Format value that can then be passed to the <a href="qsettings.html">QSettings</a> constructors. On failure, returns <code>InvalidFormat</code>: at most 16 custom formats can be registered.</p>
+<p>The <i>extension</i> is the suffix of the files of the format, without the dot. The <i>readFunc</i> and <i>writeFunc</i> read and write a file as a SettingsMap of full keys; they return <code>true</code> on success, and the <a href="qsettings.html">QSettings</a> object reports <code>FormatError</code> otherwise. <i>caseSensitivity</i> tells whether the keys of the format are case-sensitive. The functions may be called from any thread, at any time, with the file locked against other writers.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setPath">setPath()</a>.</p>
+<h3 class="member" id="remove">void QSettings::remove(const <a href="qstring.html">QString</a> &amp;<i>key</i>)</h3>
+<p>Removes the setting <i>key</i> and any sub-settings of <i>key</i>.</p>
+<p>Example:</p>
+<pre><code>settings.setValue(&quot;ape&quot;, 0);
+settings.setValue(&quot;monkey&quot;, 1);
+settings.setValue(&quot;monkey/sea&quot;, 2);
+settings.setValue(&quot;monkey/doe&quot;, 4);
+
+settings.remove(&quot;monkey&quot;);
+QStringList keys = settings.allKeys();
+// keys: [&quot;ape&quot;]
+</code></pre>
+<p>Be aware that if one of the fallback locations contains a setting with the same key, that setting will be visible after calling remove().</p>
+<p>If <i>key</i> is an empty string, all keys in the current <a href="qsettings.html#group">group()</a> are removed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#clear">clear()</a>, <a href="qsettings.html#setValue">setValue()</a>, <a href="qsettings.html#value">value()</a> and <a href="qsettings.html#contains">contains()</a>.</p>
+<h3 class="member" id="scope">Scope QSettings::scope() const</h3>
+<p>Returns the scope used for storing the settings.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#format">format()</a>, <a href="qsettings.html#organizationName">organizationName()</a> and <a href="qsettings.html#applicationName">applicationName()</a>.</p>
+<h3 class="member" id="setArrayIndex">void QSettings::setArrayIndex(int <i>i</i>)</h3>
+<p>Sets the current array index to <i>i</i>. Calls to functions such as <a href="qsettings.html#setValue">setValue()</a>, <a href="qsettings.html#value">value()</a>, <a href="qsettings.html#remove">remove()</a> and <a href="qsettings.html#contains">contains()</a> act on the array entry at that index.</p>
+<p>You must call <a href="qsettings.html#beginReadArray">beginReadArray()</a> or <a href="qsettings.html#beginWriteArray">beginWriteArray()</a> before you can call this function. Note that the indexes in the file start at 1, not 0.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#beginReadArray">beginReadArray()</a> and <a href="qsettings.html#beginWriteArray">beginWriteArray()</a>.</p>
+<h3 class="member" id="setAtomicSyncRequired">void QSettings::setAtomicSyncRequired(bool <i>enable</i>)</h3>
+<p>Configures whether <a href="qsettings.html">QSettings</a> is required to use atomic saving and reloading (synchronization) of the settings, according to <i>enable</i>.</p>
+<p>If it is not required, and the directory of the file cannot be written (so that no temporary file can be created), the file is written in place, which is not atomic.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#isAtomicSyncRequired">isAtomicSyncRequired()</a>.</p>
+<h3 class="member" id="setDefaultFormat"><span class="tags">[static]</span> void QSettings::setDefaultFormat(Format <i>format</i>)</h3>
+<p>Sets the default file format to the given <i>format</i>, which is used for storing settings for the <a href="qsettings.html">QSettings</a>(const <a href="qstring.html">QString</a> &amp;organization, const <a href="qstring.html">QString</a> &amp;application, <a href="qobject.html">QObject</a> *parent) constructor. If no default format is set, <code>QSettings::NativeFormat</code> is used.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#defaultFormat">defaultFormat()</a> and <a href="qsettings.html#format">format()</a>.</p>
+<h3 class="member" id="setFallbacksEnabled">void QSettings::setFallbacksEnabled(bool <i>b</i>)</h3>
+<p>Sets whether fallbacks are enabled to <i>b</i>.</p>
+<p>By default, fallbacks are enabled: a key that is not in the primary file is looked up in the organization-wide and system-wide files.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#fallbacksEnabled">fallbacksEnabled()</a>.</p>
+<h3 class="member" id="setPath"><span class="tags">[static]</span> void QSettings::setPath(Format <i>format</i>, Scope <i>scope</i>, const <a href="qstring.html">QString</a> &amp;<i>path</i>)</h3>
+<p>Sets the path used for storing settings for the given <i>format</i> and <i>scope</i>, to <i>path</i>. The <i>format</i> can be a custom format.</p>
+<p>Without a path set, the user scope uses <code>$XDG_CONFIG_HOME</code> (or <code>~/.config</code>) and the system scope uses the directories of <code>$XDG_CONFIG_DIRS</code> (or <code>/etc/xdg</code>). A path set for <code>IniFormat</code> is also used by the other formats that have none of their own.</p>
+<p>This function does not affect <a href="qsettings.html">QSettings</a> objects that already exist.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html">QSettings()</a>.</p>
+<h3 class="member" id="setValue">void QSettings::setValue(const <a href="qstring.html">QString</a> &amp;<i>key</i>, const <a href="qvariant.html">QVariant</a> &amp;<i>value</i>)</h3>
+<p>Sets the value of setting <i>key</i> to <i>value</i>. If the <i>key</i> already exists, the previous value is overwritten.</p>
+<p>Keys are case-sensitive in the INI format, but not in every custom format or in <a href="qt.html">Qt</a> on some platforms: to stay portable, always refer to a key with the same case and avoid keys that differ only by case. An empty <i>key</i> is refused with a warning.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#value">value()</a>, <a href="qsettings.html#remove">remove()</a> and <a href="qsettings.html#contains">contains()</a>.</p>
+<h3 class="member" id="status">Status QSettings::status() const</h3>
+<p>Returns a status code indicating the first error that was met by <a href="qsettings.html">QSettings</a>, or <code>QSettings::NoError</code> if no error occurred.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#Status-enum">Status</a>.</p>
+<h3 class="member" id="sync">void QSettings::sync()</h3>
+<p>Writes any unsaved changes to permanent storage, and reloads any settings that have been changed in the meantime by another application.</p>
+<p>This function is called automatically from the event loop after settings have been set, and from the destructor, so you should not normally need to call it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#status">status()</a>.</p>
+<h3 class="member" id="value"><a href="qvariant.html">QVariant</a> QSettings::value(const <a href="qstring.html">QString</a> &amp;<i>key</i>) const</h3>
+<p>Returns the value for setting <i>key</i>, or an invalid <a href="qvariant.html">QVariant</a> if the setting does not exist.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setValue">setValue()</a> and <a href="qsettings.html#contains">contains()</a>.</p>
+<h3 class="member" id="value-2"><a href="qvariant.html">QVariant</a> QSettings::value(const <a href="qstring.html">QString</a> &amp;<i>key</i>, const <a href="qvariant.html">QVariant</a> &amp;<i>defaultValue</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the value for setting <i>key</i>. If the setting does not exist, returns <i>defaultValue</i>.</p>
+<p>If no default value is specified, a default <a href="qvariant.html">QVariant</a> is returned.</p>
+<p>The settings are looked up in the primary file and then in the fallback ones, unless <a href="qsettings.html#fallbacksEnabled">fallbacksEnabled()</a> is <code>false</code>. A value read from a file is a <a href="qstring.html">QString</a>, a <a href="qstringlist.html">QStringList</a>, a <a href="qbytearray.html">QByteArray</a> or whatever its <code>@Variant()</code> form encodes; convert it with <code>toInt()</code> and the like.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsettings.html#setValue">setValue()</a>, <a href="qsettings.html#contains">contains()</a> and <a href="qsettings.html#remove">remove()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QBitArray Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QBitArray</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QBitArray Class</h1>
+<p class="brief">The QBitArray class provides an array of bits. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QBitArray&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qbitarray-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QBitArray">QBitArray</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#QBitArray-2">QBitArray</a>(qsizetype <i>size</i>, bool <i>value</i> = false)</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#size">size</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#count">count</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#count-2">count</a>(bool <i>on</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isEmpty">isEmpty</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isNull">isNull</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#resize">resize</a>(qsizetype <i>size</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#truncate">truncate</a>(qsizetype <i>pos</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#clear">clear</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#swap">swap</a>(QBitArray &amp;<i>o</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#testBit">testBit</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#at">at</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setBit">setBit</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#setBit-2">setBit</a>(qsizetype <i>i</i>, bool <i>v</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#clearBit">clearBit</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#toggleBit">toggleBit</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#fill">fill</a>(bool <i>v</i>, qsizetype <i>size</i> = -1)</td></tr>
+<tr><td class="ret">void</td><td><a href="#fill-2">fill</a>(bool <i>v</i>, qsizetype <i>first</i>, qsizetype <i>last</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#operator-5b5d">operator[]</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret"><a href="qbitref.html">QBitRef</a></td><td><a href="#operator-5b5d-2">operator[]</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">QBitArray &amp;</td><td><a href="#operator-263d">operator&amp;=</a>(const QBitArray &amp;<i>o</i>)</td></tr>
+<tr><td class="ret">QBitArray &amp;</td><td><a href="#operator-7c3d">operator|=</a>(const QBitArray &amp;<i>o</i>)</td></tr>
+<tr><td class="ret">QBitArray &amp;</td><td><a href="#operator-5e3d">operator^=</a>(const QBitArray &amp;<i>o</i>)</td></tr>
+<tr><td class="ret">QBitArray</td><td><a href="#operator-7e">operator~</a>() const</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>A QBitArray stores a sequence of bits and gives access to each of them by index. Bits can be tested, set, cleared and toggled individually, and arrays can be combined with the bitwise operators <code>&amp;</code>, <code>|</code>, <code>^</code> and <code>~</code>.</p>
+<pre><code>QBitArray bits(5);
+bits.setBit(1);
+bits.setBit(3);
+QBitArray inverted = ~bits;
+</code></pre>
+<p>Like <a href="qbytearray.html">QByteArray</a>, a QBitArray distinguishes between a null array and an empty one; see <a href="qbitarray.html#isNull">isNull()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html">QByteArray</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Bits are stored in a <code>std::vector&lt;bool&gt;</code>. There is no <code>toUInt32()</code>, <code>fromBits()</code>, <code>bits()</code> or <code>operator&lt;&lt;()/\c</code> operator&gt;&gt;() for <a href="qdatastream.html">QDataStream</a>. Indexes are not range-checked. The bit count is a qsizetype.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QBitArray">QBitArray::QBitArray()</h3>
+<p>Constructs an empty, null bit array.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#isNull">isNull()</a>.</p>
+<h3 class="member" id="QBitArray-2"><span class="tags">[explicit]</span> QBitArray::QBitArray(qsizetype <i>size</i>, bool <i>value</i> = false)</h3>
+<p>Constructs a bit array containing <i>size</i> bits, each initialized to <i>value</i>. The array is not null.</p>
+<h3 class="member" id="at">bool QBitArray::at(qsizetype <i>i</i>) const</h3>
+<p>Returns the value of the bit at index position <i>i</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#testBit">testBit()</a>.</p>
+<h3 class="member" id="clear">void QBitArray::clear()</h3>
+<p>Clears the contents of the array and makes it null.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#isNull">isNull()</a> and <a href="qbitarray.html#resize">resize()</a>.</p>
+<h3 class="member" id="clearBit">void QBitArray::clearBit(qsizetype <i>i</i>)</h3>
+<p>Sets the bit at index position <i>i</i> to <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#setBit">setBit()</a> and <a href="qbitarray.html#toggleBit">toggleBit()</a>.</p>
+<h3 class="member" id="count">qsizetype QBitArray::count() const</h3>
+<p>Same as <a href="qbitarray.html#size">size()</a>.</p>
+<h3 class="member" id="count-2">qsizetype QBitArray::count(bool <i>on</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the number of bits in the array whose value is <i>on</i>.</p>
+<h3 class="member" id="fill">bool QBitArray::fill(bool <i>v</i>, qsizetype <i>size</i> = -1)</h3>
+<p>Sets every bit in the array to <i>v</i> and returns <code>true</code>. If <i>size</i> is not negative, the array is first resized to <i>size</i> bits.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#resize">resize()</a>.</p>
+<h3 class="member" id="fill-2">void QBitArray::fill(bool <i>v</i>, qsizetype <i>first</i>, qsizetype <i>last</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Sets the bits from index <i>first</i> up to, but not including, index <i>last</i> to <i>v</i>. Both indexes must be valid, with <i>first</i> not greater than <i>last</i>.</p>
+<h3 class="member" id="isEmpty">bool QBitArray::isEmpty() const</h3>
+<p>Returns <code>true</code> if the array has size 0; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="isNull">bool QBitArray::isNull() const</h3>
+<p>Returns <code>true</code> if this array is null; otherwise returns <code>false</code>.</p>
+<p>A default-constructed array, or one that has been cleared, is null. An array becomes non-null when it is constructed with a size or resized.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#isEmpty">isEmpty()</a> and <a href="qbitarray.html#clear">clear()</a>.</p>
+<h3 class="member" id="operator-263d"><a href="qbitarray.html">QBitArray</a> &amp; QBitArray::operator&amp;=(const <a href="qbitarray.html">QBitArray</a> &amp;<i>o</i>)</h3>
+<p>Performs a bitwise AND of this array with <i>o</i> and stores the result in this array. If <i>o</i> is longer, this array is enlarged to its size; the shorter operand is treated as padded with zero bits. Returns a reference to this array.</p>
+<h3 class="member" id="operator-5b5d">bool QBitArray::operator[](qsizetype <i>i</i>) const</h3>
+<p>Returns the value of the bit at index position <i>i</i>.</p>
+<h3 class="member" id="operator-5b5d-2"><a href="qbitref.html">QBitRef</a> QBitArray::operator[](qsizetype <i>i</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a <a href="qbitref.html">QBitRef</a> that refers to the bit at index position <i>i</i> and can be assigned to.</p>
+<h3 class="member" id="operator-5e3d"><a href="qbitarray.html">QBitArray</a> &amp; QBitArray::operator^=(const <a href="qbitarray.html">QBitArray</a> &amp;<i>o</i>)</h3>
+<p>Performs a bitwise XOR of this array with <i>o</i> and stores the result in this array. If <i>o</i> is longer, this array is enlarged to its size; the shorter operand is treated as padded with zero bits. Returns a reference to this array.</p>
+<h3 class="member" id="operator-7c3d"><a href="qbitarray.html">QBitArray</a> &amp; QBitArray::operator|=(const <a href="qbitarray.html">QBitArray</a> &amp;<i>o</i>)</h3>
+<p>Performs a bitwise OR of this array with <i>o</i> and stores the result in this array. If <i>o</i> is longer, this array is enlarged to its size; the shorter operand is treated as padded with zero bits. Returns a reference to this array.</p>
+<h3 class="member" id="operator-7e"><a href="qbitarray.html">QBitArray</a> QBitArray::operator~() const</h3>
+<p>Returns a copy of this array with every bit inverted.</p>
+<h3 class="member" id="resize">void QBitArray::resize(qsizetype <i>size</i>)</h3>
+<p>Resizes the array to <i>size</i> bits. New bits are set to <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#size">size()</a> and <a href="qbitarray.html#truncate">truncate()</a>.</p>
+<h3 class="member" id="setBit">void QBitArray::setBit(qsizetype <i>i</i>)</h3>
+<p>Sets the bit at index position <i>i</i> to <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#clearBit">clearBit()</a> and <a href="qbitarray.html#toggleBit">toggleBit()</a>.</p>
+<h3 class="member" id="setBit-2">void QBitArray::setBit(qsizetype <i>i</i>, bool <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Sets the bit at index position <i>i</i> to <i>v</i>.</p>
+<h3 class="member" id="size">qsizetype QBitArray::size() const</h3>
+<p>Returns the number of bits in the array.</p>
+<h3 class="member" id="swap">void QBitArray::swap(<a href="qbitarray.html">QBitArray</a> &amp;<i>o</i>)</h3>
+<p>Swaps this bit array with <i>o</i>. This operation is very fast and never fails.</p>
+<h3 class="member" id="testBit">bool QBitArray::testBit(qsizetype <i>i</i>) const</h3>
+<p>Returns <code>true</code> if the bit at index position <i>i</i> is set; otherwise returns <code>false</code>. <i>i</i> must be a valid index.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#setBit">setBit()</a> and <a href="qbitarray.html#clearBit">clearBit()</a>.</p>
+<h3 class="member" id="toggleBit">bool QBitArray::toggleBit(qsizetype <i>i</i>)</h3>
+<p>Inverts the bit at index position <i>i</i> and returns its previous value.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#setBit">setBit()</a> and <a href="qbitarray.html#clearBit">clearBit()</a>.</p>
+<h3 class="member" id="truncate">void QBitArray::truncate(qsizetype <i>pos</i>)</h3>
+<p>Truncates the array at index <i>pos</i>. If <i>pos</i> is beyond the end of the array, nothing happens.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbitarray.html#resize">resize()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

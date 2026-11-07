@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QMetaEnum Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QMetaEnum</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QMetaEnum Class</h1>
+<p class="brief">The QMetaEnum class provides meta-data about an enumerator. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QMetaEnum&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qmetaenum-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QMetaEnum">QMetaEnum</a>()</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#name">name</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#enumName">enumName</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#scope">scope</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isFlag">isFlag</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isScoped">isScoped</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#keyCount">keyCount</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#key">key</a>(int <i>i</i>) const</td></tr>
+<tr><td class="ret">int</td><td><a href="#value">value</a>(int <i>i</i>) const</td></tr>
+<tr><td class="ret">int</td><td><a href="#keyToValue">keyToValue</a>(const char *<i>key</i>, bool *<i>ok</i> = nullptr) const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#valueToKey">valueToKey</a>(int <i>value</i>) const</td></tr>
+<tr><td class="ret">int</td><td><a href="#keysToValue">keysToValue</a>(const char *<i>keys</i>, bool *<i>ok</i> = nullptr) const</td></tr>
+<tr><td class="ret"><a href="qbytearray.html">QByteArray</a></td><td><a href="#valueToKeys">valueToKeys</a>(int <i>value</i>) const</td></tr>
+<tr><td class="ret">const <a href="qmetaobject.html">QMetaObject</a> *</td><td><a href="#enclosingMetaObject">enclosingMetaObject</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isValid">isValid</a>() const</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">QMetaEnum</td><td><a href="#fromType">fromType</a>()</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>Use it to convert between the values of an enumeration declared with <code>Q_ENUM()</code> or <code>Q_FLAG()</code> and their names:</p>
+<pre><code>QMetaEnum e = QMetaEnum::fromType&lt;Shape::Kind&gt;();
+e.valueToKey(Shape::Circle);   // &quot;Circle&quot;
+e.keyToValue(&quot;Square&quot;);        // Shape::Square
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qmetaobject.html#enumerator">QMetaObject::enumerator()</a> and <a href="qmetaproperty.html#enumerator">QMetaProperty::enumerator()</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Values are <code>int</code>; there is no <code>value64()</code> or <code>is64Bit()</code>. There is no <code>QMetaEnum::fromType()</code> for an enumeration that is not declared with <code>Q_ENUM()</code>, <code>Q_FLAG()</code>, <code>Q_ENUM_NS()</code> or <code>Q_FLAG_NS()</code>.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QMetaEnum">QMetaEnum::QMetaEnum()</h3>
+<p>Constructs an invalid enumerator.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#isValid">isValid()</a>.</p>
+<h3 class="member" id="enclosingMetaObject">const <a href="qmetaobject.html">QMetaObject</a> * QMetaEnum::enclosingMetaObject() const</h3>
+<p>Returns the meta-object of the class or namespace that declares the enumeration.</p>
+<h3 class="member" id="enumName">const char * QMetaEnum::enumName() const</h3>
+<p>Returns the name of the enumeration, without its scope. For a flags type this is the name of the flags type.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#name">name()</a>.</p>
+<h3 class="member" id="fromType"><span class="template">template &lt;typename T&gt;</span><span class="tags">[static]</span> <a href="qmetaenum.html">QMetaEnum</a> QMetaEnum::fromType()</h3>
+<p>Returns the meta-data of the enumeration <code>T</code>, which must be declared with <code>Q_ENUM()</code> or <code>Q_FLAG()</code> (or the <code>_NS</code> forms). Returns an invalid object otherwise.</p>
+<h3 class="member" id="isFlag">bool QMetaEnum::isFlag() const</h3>
+<p>Returns <code>true</code> if the enumeration is a set of flags declared with <code>Q_FLAG()</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#keysToValue">keysToValue()</a>.</p>
+<h3 class="member" id="isScoped">bool QMetaEnum::isScoped() const</h3>
+<p>Returns <code>true</code> if the enumeration is an <code>enum class</code>.</p>
+<h3 class="member" id="isValid">bool QMetaEnum::isValid() const</h3>
+<p>Returns <code>true</code> if this object describes an enumerator; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="key">const char * QMetaEnum::key(int <i>i</i>) const</h3>
+<p>Returns the key at <i>i</i>, or <code>nullptr</code> if <i>i</i> is out of range.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#value">value()</a> and <a href="qmetaenum.html#keyCount">keyCount()</a>.</p>
+<h3 class="member" id="keyCount">int QMetaEnum::keyCount() const</h3>
+<p>Returns the number of keys.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#key">key()</a> and <a href="qmetaenum.html#value">value()</a>.</p>
+<h3 class="member" id="keysToValue">int QMetaEnum::keysToValue(const char *<i>keys</i>, bool *<i>ok</i> = nullptr) const</h3>
+<p>Returns the combined value of the keys in <i>keys</i>, which are separated by <code>|</code>, such as <code>&quot;Read|Write&quot;</code>. Returns -1 and sets <i>ok</i> to <code>false</code> if a key is unknown; otherwise sets <i>ok</i> to <code>true</code> if it is not <code>nullptr</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#valueToKeys">valueToKeys()</a> and <a href="qmetaenum.html#keyToValue">keyToValue()</a>.</p>
+<h3 class="member" id="keyToValue">int QMetaEnum::keyToValue(const char *<i>key</i>, bool *<i>ok</i> = nullptr) const</h3>
+<p>Returns the value of the key <i>key</i>, which may be qualified with the scope, such as <code>&quot;Mode::Up&quot;</code> or <code>&quot;Counter::Up&quot;</code>. Returns -1 if there is no such key and sets <i>ok</i> to <code>false</code>; otherwise sets <i>ok</i> to <code>true</code> if it is not <code>nullptr</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#valueToKey">valueToKey()</a> and <a href="qmetaenum.html#keysToValue">keysToValue()</a>.</p>
+<h3 class="member" id="name">const char * QMetaEnum::name() const</h3>
+<p>Returns the name of the enumerator, without its scope.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#enumName">enumName()</a> and <a href="qmetaenum.html#scope">scope()</a>.</p>
+<h3 class="member" id="scope">const char * QMetaEnum::scope() const</h3>
+<p>Returns the name of the class or namespace that declares the enumeration.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#name">name()</a>.</p>
+<h3 class="member" id="value">int QMetaEnum::value(int <i>i</i>) const</h3>
+<p>Returns the value of the key at <i>i</i>, or -1 if <i>i</i> is out of range.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#key">key()</a>.</p>
+<h3 class="member" id="valueToKey">const char * QMetaEnum::valueToKey(int <i>value</i>) const</h3>
+<p>Returns the key of the first enumerator with the value <i>value</i>, or <code>nullptr</code> if there is none.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#keyToValue">keyToValue()</a> and <a href="qmetaenum.html#valueToKeys">valueToKeys()</a>.</p>
+<h3 class="member" id="valueToKeys"><a href="qbytearray.html">QByteArray</a> QMetaEnum::valueToKeys(int <i>value</i>) const</h3>
+<p>Returns the keys whose values are set in <i>value</i>, separated by <code>|</code>. A value of 0 gives the key whose value is 0, if there is one. Bits that no key accounts for are ignored.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaenum.html#keysToValue">keysToValue()</a> and <a href="qmetaenum.html#valueToKey">valueToKey()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

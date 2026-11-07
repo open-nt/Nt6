@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QChar Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QChar</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QChar Class</h1>
+<p class="brief">The QChar class provides a 16-bit Unicode code unit. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QChar&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qchar-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#SpecialCharacter-enum">SpecialCharacter</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QChar">QChar</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-2">QChar</a>(char16_t <i>c</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-3">QChar</a>(char <i>c</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-4">QChar</a>(uchar <i>c</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-5">QChar</a>(short <i>c</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-6">QChar</a>(ushort <i>c</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-7">QChar</a>(int <i>c</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-8">QChar</a>(uint <i>c</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-9">QChar</a>(SpecialCharacter <i>s</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QChar-10">QChar</a>(<a href="qlatin1char.html">QLatin1Char</a> <i>c</i>)</td></tr>
+<tr><td class="ret">char16_t</td><td><a href="#unicode">unicode</a>() const</td></tr>
+<tr><td class="ret">char16_t &amp;</td><td><a href="#unicode-2">unicode</a>()</td></tr>
+<tr><td class="ret">uchar</td><td><a href="#cell">cell</a>() const</td></tr>
+<tr><td class="ret">uchar</td><td><a href="#row">row</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isNull">isNull</a>() const</td></tr>
+<tr><td class="ret">char</td><td><a href="#toLatin1">toLatin1</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isDigit">isDigit</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isNumber">isNumber</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isLetter">isLetter</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isLetterOrNumber">isLetterOrNumber</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isSpace">isSpace</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isUpper">isUpper</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isLower">isLower</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isPunct">isPunct</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isPrint">isPrint</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isHighSurrogate">isHighSurrogate</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isLowSurrogate">isLowSurrogate</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isSurrogate">isSurrogate</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#digitValue">digitValue</a>() const</td></tr>
+<tr><td class="ret">QChar</td><td><a href="#toLower">toLower</a>() const</td></tr>
+<tr><td class="ret">QChar</td><td><a href="#toUpper">toUpper</a>() const</td></tr>
+<tr><td class="ret">QChar</td><td><a href="#toCaseFolded">toCaseFolded</a>() const</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">QChar</td><td><a href="#fromLatin1">fromLatin1</a>(char <i>c</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>A QChar holds one UTF-16 code unit. Characters outside the Basic Multilingual Plane are represented by a pair of QChar surrogates; see <a href="qchar.html#isHighSurrogate">isHighSurrogate()</a> and <a href="qchar.html#isLowSurrogate">isLowSurrogate()</a>. QChar is the element type of <a href="qstring.html">QString</a>.</p>
+<p>The classification functions (<a href="qchar.html#isLetter">isLetter()</a>, <a href="qchar.html#isSpace">isSpace()</a>, <a href="qchar.html#isUpper">isUpper()</a> and so on) and the case conversions (<a href="qchar.html#toLower">toLower()</a>, <a href="qchar.html#toUpper">toUpper()</a>) are implemented with built-in tables rather than the full Unicode database.</p>
+<p class="see-also"><strong>See also</strong> <a href="qstring.html">QString</a> and <a href="qlatin1char.html">QLatin1Char</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Classification and case mapping cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only (<a href="qchar.html#isLetter">isLetter()</a> also recognizes the Japanese kana, CJK ideographs and Hangul syllables); characters from other scripts are returned unchanged. <a href="qchar.html#isNumber">isNumber()</a> and <a href="qchar.html#digitValue">digitValue()</a> recognize only the ASCII digits, and <a href="qchar.html#toCaseFolded">toCaseFolded()</a> is the same as <a href="qchar.html#toLower">toLower()</a>. The surrogate-pair helpers (<code>requiresSurrogates()</code>, <code>fromUcs4()</code>, <code>toUcs4()</code>), the <code>category()</code>, <code>script()</code> and <code>decomposition()</code> functions, <code>isMark()</code>, <code>isSymbol()</code> and the <code>Category</code>, <code>Script</code> and <code>Direction</code> enums are not provided. QChar has no <code>char32_t</code> constructor.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="SpecialCharacter-enum">enum QChar::SpecialCharacter</h3>
+<p>Names for commonly used code points.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QChar::Null</code></td><td>U+0000, the null character.</td></tr>
+<tr><td><code>QChar::Tabulation</code></td><td>U+0009, horizontal tabulation.</td></tr>
+<tr><td><code>QChar::LineFeed</code></td><td>U+000A, line feed.</td></tr>
+<tr><td><code>QChar::CarriageReturn</code></td><td>U+000D, carriage return.</td></tr>
+<tr><td><code>QChar::Space</code></td><td>U+0020, the space character.</td></tr>
+<tr><td><code>QChar::Nbsp</code></td><td>U+00A0, the no-break space.</td></tr>
+<tr><td><code>QChar::SoftHyphen</code></td><td>U+00AD, the soft hyphen.</td></tr>
+<tr><td><code>QChar::ReplacementCharacter</code></td><td>U+FFFD, used in place of invalid or unrepresentable input.</td></tr>
+<tr><td><code>QChar::ObjectReplacementCharacter</code></td><td>U+FFFC, the object replacement character.</td></tr>
+<tr><td><code>QChar::ByteOrderMark</code></td><td>U+FEFF, the byte order mark.</td></tr>
+<tr><td><code>QChar::LastValidCodePoint</code></td><td>U+10FFFF, the last valid Unicode code point.</td></tr>
+</tbody></table>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QChar"><span class="tags">[constexpr]</span> QChar::QChar()</h3>
+<p>Constructs a null character (U+0000).</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isNull">isNull()</a>.</p>
+<h3 class="member" id="QChar-2"><span class="tags">[constexpr]</span> QChar::QChar(char16_t <i>c</i>)</h3>
+<p>Constructs a character with the UTF-16 code unit <i>c</i>.</p>
+<h3 class="member" id="QChar-3"><span class="tags">[constexpr]</span> QChar::QChar(char <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a character from the Latin-1 byte <i>c</i>. The byte is zero-extended, not interpreted as a signed value.</p>
+<h3 class="member" id="QChar-4"><span class="tags">[constexpr]</span> QChar::QChar(uchar <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a character with the code unit <i>c</i>.</p>
+<h3 class="member" id="QChar-5"><span class="tags">[constexpr]</span> QChar::QChar(short <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a character with the code unit <i>c</i>, reinterpreted as an unsigned 16-bit value.</p>
+<h3 class="member" id="QChar-6"><span class="tags">[constexpr]</span> QChar::QChar(ushort <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a character with the code unit <i>c</i>.</p>
+<h3 class="member" id="QChar-7"><span class="tags">[constexpr]</span> QChar::QChar(int <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a character from <i>c</i>, truncated to 16 bits.</p>
+<h3 class="member" id="QChar-8"><span class="tags">[constexpr]</span> QChar::QChar(uint <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a character from <i>c</i>, truncated to 16 bits.</p>
+<h3 class="member" id="QChar-9"><span class="tags">[constexpr]</span> QChar::QChar(SpecialCharacter <i>s</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a character with the code point of the special character <i>s</i>.</p>
+<h3 class="member" id="QChar-10"><span class="tags">[constexpr]</span> QChar::QChar(<a href="qlatin1char.html">QLatin1Char</a> <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a character from the Latin-1 character <i>c</i>.</p>
+<h3 class="member" id="cell"><span class="tags">[constexpr]</span> uchar QChar::cell() const</h3>
+<p>Returns the low byte of the code unit (the &quot;cell&quot; within its row).</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#row">row()</a> and <a href="qchar.html#unicode">unicode()</a>.</p>
+<h3 class="member" id="digitValue">int QChar::digitValue() const</h3>
+<p>Returns the numeric value of this character if it is an ASCII digit; otherwise returns -1.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isDigit">isDigit()</a>.</p>
+<h3 class="member" id="fromLatin1"><span class="tags">[static, constexpr]</span> <a href="qchar.html">QChar</a> QChar::fromLatin1(char <i>c</i>)</h3>
+<p>Converts the Latin-1 byte <i>c</i> to a <a href="qchar.html">QChar</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#toLatin1">toLatin1()</a>.</p>
+<h3 class="member" id="isDigit">bool QChar::isDigit() const</h3>
+<p>Returns <code>true</code> if this is an ASCII digit (<code>0</code> to <code>9</code>); otherwise returns <code>false</code>. Digits from other scripts are not recognized.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isNumber">isNumber()</a> and <a href="qchar.html#digitValue">digitValue()</a>.</p>
+<h3 class="member" id="isHighSurrogate">bool QChar::isHighSurrogate() const</h3>
+<p>Returns <code>true</code> if this is a UTF-16 high surrogate (U+D800 to U+DBFF); otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isLowSurrogate">isLowSurrogate()</a> and <a href="qchar.html#isSurrogate">isSurrogate()</a>.</p>
+<h3 class="member" id="isLetter">bool QChar::isLetter() const</h3>
+<p>Returns <code>true</code> if this is a letter; otherwise returns <code>false</code>.</p>
+<p>Classification covers ASCII, Latin-1, Latin Extended, Greek, Cyrillic, Hiragana, Katakana, CJK ideographs and Hangul syllables. Letters from other scripts are not recognized.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isLetterOrNumber">isLetterOrNumber()</a>, <a href="qchar.html#isUpper">isUpper()</a> and <a href="qchar.html#isLower">isLower()</a>.</p>
+<h3 class="member" id="isLetterOrNumber">bool QChar::isLetterOrNumber() const</h3>
+<p>Returns <code>true</code> if this is a letter or a number; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isLetter">isLetter()</a> and <a href="qchar.html#isNumber">isNumber()</a>.</p>
+<h3 class="member" id="isLower">bool QChar::isLower() const</h3>
+<p>Returns <code>true</code> if this is a lowercase letter, that is a letter whose <a href="qchar.html#toUpper">toUpper()</a> is a different character; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isUpper">isUpper()</a> and <a href="qchar.html#toLower">toLower()</a>.</p>
+<h3 class="member" id="isLowSurrogate">bool QChar::isLowSurrogate() const</h3>
+<p>Returns <code>true</code> if this is a UTF-16 low surrogate (U+DC00 to U+DFFF); otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isHighSurrogate">isHighSurrogate()</a> and <a href="qchar.html#isSurrogate">isSurrogate()</a>.</p>
+<h3 class="member" id="isNull"><span class="tags">[constexpr]</span> bool QChar::isNull() const</h3>
+<p>Returns <code>true</code> if this is the null character (U+0000); otherwise returns <code>false</code>.</p>
+<h3 class="member" id="isNumber">bool QChar::isNumber() const</h3>
+<p>Returns <code>true</code> if this is a number. Only the ASCII digits count as numbers, so this is the same as <a href="qchar.html#isDigit">isDigit()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isDigit">isDigit()</a> and <a href="qchar.html#isLetterOrNumber">isLetterOrNumber()</a>.</p>
+<h3 class="member" id="isPrint">bool QChar::isPrint() const</h3>
+<p>Returns <code>true</code> if this is a printable character, that is, not a C0 or C1 control character and not U+007F; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="isPunct">bool QChar::isPunct() const</h3>
+<p>Returns <code>true</code> if this is a punctuation character; otherwise returns <code>false</code>.</p>
+<p>Classification covers ASCII, a few Latin-1 characters and the General Punctuation block (U+2010 to U+205E).</p>
+<h3 class="member" id="isSpace">bool QChar::isSpace() const</h3>
+<p>Returns <code>true</code> if this is a white space character, including the control characters U+0009 to U+000D, U+0085, the no-break space and the Unicode space separators; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="isSurrogate">bool QChar::isSurrogate() const</h3>
+<p>Returns <code>true</code> if this is a UTF-16 surrogate (U+D800 to U+DFFF); otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isHighSurrogate">isHighSurrogate()</a> and <a href="qchar.html#isLowSurrogate">isLowSurrogate()</a>.</p>
+<h3 class="member" id="isUpper">bool QChar::isUpper() const</h3>
+<p>Returns <code>true</code> if this is an uppercase letter, that is a letter whose <a href="qchar.html#toLower">toLower()</a> is a different character; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#isLower">isLower()</a> and <a href="qchar.html#toUpper">toUpper()</a>.</p>
+<h3 class="member" id="row"><span class="tags">[constexpr]</span> uchar QChar::row() const</h3>
+<p>Returns the high byte of the code unit (the &quot;row&quot; of its plane).</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#cell">cell()</a> and <a href="qchar.html#unicode">unicode()</a>.</p>
+<h3 class="member" id="toCaseFolded"><a href="qchar.html">QChar</a> QChar::toCaseFolded() const</h3>
+<p>Returns the case folded equivalent of this character. This is the same as <a href="qchar.html#toLower">toLower()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#toLower">toLower()</a>.</p>
+<h3 class="member" id="toLatin1"><span class="tags">[constexpr]</span> char QChar::toLatin1() const</h3>
+<p>Returns the Latin-1 representation of this character, or <code>'\\0'</code> if it is outside the range 0 to 255.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#fromLatin1">fromLatin1()</a> and <a href="qchar.html#unicode">unicode()</a>.</p>
+<h3 class="member" id="toLower"><a href="qchar.html">QChar</a> QChar::toLower() const</h3>
+<p>Returns the lowercase equivalent of this character, or the character itself if it has none.</p>
+<p>Case mapping covers ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#toUpper">toUpper()</a> and <a href="qchar.html#toCaseFolded">toCaseFolded()</a>.</p>
+<h3 class="member" id="toUpper"><a href="qchar.html">QChar</a> QChar::toUpper() const</h3>
+<p>Returns the uppercase equivalent of this character, or the character itself if it has none.</p>
+<p>Case mapping covers ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#toLower">toLower()</a>.</p>
+<h3 class="member" id="unicode"><span class="tags">[constexpr]</span> char16_t QChar::unicode() const</h3>
+<p>Returns the UTF-16 code unit of this character.</p>
+<p class="see-also"><strong>See also</strong> <a href="qchar.html#cell">cell()</a> and <a href="qchar.html#row">row()</a>.</p>
+<h3 class="member" id="unicode-2"><span class="tags">[constexpr]</span> char16_t &amp; QChar::unicode()</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a reference to the UTF-16 code unit of this character, which can be used to modify it.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QJsonArray::const_iterator Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QJsonArray::const_iterator</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QJsonArray::const_iterator Class</h1>
+<p class="brief">The QJsonArray::const_iterator class is an STL-style const iterator for <a href="qjsonarray.html">QJsonArray</a>. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QJsonArray&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+<tr><th>Nested in</th><td><a href="qjsonarray.html">QJsonArray</a></td></tr>
+</table>
+<p><a href="qjsonarray-const-iterator-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">typedef</td><td><a href="#iterator_category-typedef">iterator_category</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#difference_type-typedef">difference_type</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#value_type-typedef">value_type</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#reference-typedef">reference</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#pointer-typedef">pointer</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#const_iterator">const_iterator</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#const_iterator-2">const_iterator</a>(const <a href="qjsonarray.html">QJsonArray</a> *<i>array</i>, qsizetype <i>index</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#const_iterator-3">const_iterator</a>(const iterator &amp;<i>o</i>)</td></tr>
+<tr><td class="ret"><a href="qjsonvalueconstref.html">QJsonValueConstRef</a></td><td><a href="#operator-2a">operator*</a>() const</td></tr>
+<tr><td class="ret">QJsonRefArrow&lt;<a href="qjsonvalueconstref.html">QJsonValueConstRef</a>&gt;</td><td><a href="#operator-2d3e">operator-&gt;</a>() const</td></tr>
+<tr><td class="ret"><a href="qjsonvalueconstref.html">QJsonValueConstRef</a></td><td><a href="#operator-5b5d">operator[]</a>(qsizetype <i>j</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#operator-3d3d">operator==</a>(const const_iterator &amp;<i>o</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#operator-213d">operator!=</a>(const const_iterator &amp;<i>o</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#operator-3c">operator&lt;</a>(const const_iterator &amp;<i>o</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#operator-3c3d">operator&lt;=</a>(const const_iterator &amp;<i>o</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#operator-3e">operator&gt;</a>(const const_iterator &amp;<i>o</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#operator-3e3d">operator&gt;=</a>(const const_iterator &amp;<i>o</i>) const</td></tr>
+<tr><td class="ret">const_iterator &amp;</td><td><a href="#operator-2b2b">operator++</a>()</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#operator-2b2b-2">operator++</a>(int)</td></tr>
+<tr><td class="ret">const_iterator &amp;</td><td><a href="#operator-2d2d">operator--</a>()</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#operator-2d2d-2">operator--</a>(int)</td></tr>
+<tr><td class="ret">const_iterator &amp;</td><td><a href="#operator-2b3d">operator+=</a>(qsizetype <i>j</i>)</td></tr>
+<tr><td class="ret">const_iterator &amp;</td><td><a href="#operator-2d3d">operator-=</a>(qsizetype <i>j</i>)</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#operator-2b">operator+</a>(qsizetype <i>j</i>) const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#operator-2d">operator-</a>(qsizetype <i>j</i>) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#operator-2d-2">operator-</a>(const const_iterator &amp;<i>o</i>) const</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>A random access iterator over the values of an array. Dereferencing it gives a <a href="qjsonvalueconstref.html">QJsonValueConstRef</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qjsonarray-iterator.html">QJsonArray::iterator</a>.</p>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="difference_type-typedef">typedef QJsonArray::const_iterator::difference_type</h3>
+<p>Alias for <code>qsizetype</code>.</p>
+<h3 class="member" id="iterator_category-typedef">typedef QJsonArray::const_iterator::iterator_category</h3>
+<p>Marks the iterator as a random access iterator.</p>
+<h3 class="member" id="pointer-typedef">typedef QJsonArray::const_iterator::pointer</h3>
+<p>The type <code>operator-&gt;()</code> returns.</p>
+<h3 class="member" id="reference-typedef">typedef QJsonArray::const_iterator::reference</h3>
+<p>Alias for <a href="qjsonvalueconstref.html">QJsonValueConstRef</a>.</p>
+<h3 class="member" id="value_type-typedef">typedef QJsonArray::const_iterator::value_type</h3>
+<p>Alias for <a href="qjsonvalue.html">QJsonValue</a>.</p>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="const_iterator">QJsonArray::const_iterator::const_iterator()</h3>
+<p>Creates an iterator that refers to no array.</p>
+<h3 class="member" id="const_iterator-2"><span class="tags">[explicit]</span> QJsonArray::const_iterator::const_iterator(const <a href="qjsonarray.html">QJsonArray</a> *<i>array</i>, qsizetype <i>index</i>)</h3>
+<p>Creates an iterator that refers to position <i>index</i> of <i>array</i>.</p>
+<h3 class="member" id="const_iterator-3">QJsonArray::const_iterator::const_iterator(const iterator &amp;<i>o</i>)</h3>
+<p>Creates a const iterator that refers to the position of <i>o</i>.</p>
+<h3 class="member" id="operator-213d">bool QJsonArray::const_iterator::operator!=(const const_iterator &amp;<i>o</i>) const</h3>
+<p>Returns <code>true</code> if <i>o</i> refers to another position.</p>
+<h3 class="member" id="operator-2a"><a href="qjsonvalueconstref.html">QJsonValueConstRef</a> QJsonArray::const_iterator::operator*() const</h3>
+<p>Returns a reference to the current value.</p>
+<h3 class="member" id="operator-2b">const_iterator QJsonArray::const_iterator::operator+(qsizetype <i>j</i>) const</h3>
+<p>Returns an iterator <i>j</i> values after this one.</p>
+<h3 class="member" id="operator-2b2b">const_iterator &amp; QJsonArray::const_iterator::operator++()</h3>
+<p>Advances the iterator to the next value and returns it.</p>
+<h3 class="member" id="operator-2b2b-2">const_iterator QJsonArray::const_iterator::operator++(int)</h3>
+<p>This is an overloaded function.</p>
+<p>Advances the iterator and returns its previous position.</p>
+<h3 class="member" id="operator-2b3d">const_iterator &amp; QJsonArray::const_iterator::operator+=(qsizetype <i>j</i>)</h3>
+<p>Advances the iterator by <i>j</i> values and returns it.</p>
+<h3 class="member" id="operator-2d">const_iterator QJsonArray::const_iterator::operator-(qsizetype <i>j</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns an iterator <i>j</i> values before this one.</p>
+<h3 class="member" id="operator-2d-2">qsizetype QJsonArray::const_iterator::operator-(const const_iterator &amp;<i>o</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the number of values between <i>o</i> and this iterator.</p>
+<h3 class="member" id="operator-2d2d">const_iterator &amp; QJsonArray::const_iterator::operator--()</h3>
+<p>Moves the iterator to the previous value and returns it.</p>
+<h3 class="member" id="operator-2d2d-2">const_iterator QJsonArray::const_iterator::operator--(int)</h3>
+<p>This is an overloaded function.</p>
+<p>Moves the iterator back and returns its previous position.</p>
+<h3 class="member" id="operator-2d3d">const_iterator &amp; QJsonArray::const_iterator::operator-=(qsizetype <i>j</i>)</h3>
+<p>Moves the iterator back by <i>j</i> values and returns it.</p>
+<h3 class="member" id="operator-2d3e">QJsonRefArrow&lt;<a href="qjsonvalueconstref.html">QJsonValueConstRef</a>&gt; QJsonArray::const_iterator::operator-&gt;() const</h3>
+<p>Returns a pointer-like helper for the current value.</p>
+<h3 class="member" id="operator-3c">bool QJsonArray::const_iterator::operator&lt;(const const_iterator &amp;<i>o</i>) const</h3>
+<p>Returns <code>true</code> if this iterator is before <i>o</i>.</p>
+<h3 class="member" id="operator-3c3d">bool QJsonArray::const_iterator::operator&lt;=(const const_iterator &amp;<i>o</i>) const</h3>
+<p>Returns <code>true</code> if this iterator is before or at the same position as <i>o</i>.</p>
+<h3 class="member" id="operator-3d3d">bool QJsonArray::const_iterator::operator==(const const_iterator &amp;<i>o</i>) const</h3>
+<p>Returns <code>true</code> if <i>o</i> refers to the same position.</p>
+<h3 class="member" id="operator-3e">bool QJsonArray::const_iterator::operator&gt;(const const_iterator &amp;<i>o</i>) const</h3>
+<p>Returns <code>true</code> if this iterator is after <i>o</i>.</p>
+<h3 class="member" id="operator-3e3d">bool QJsonArray::const_iterator::operator&gt;=(const const_iterator &amp;<i>o</i>) const</h3>
+<p>Returns <code>true</code> if this iterator is after or at the same position as <i>o</i>.</p>
+<h3 class="member" id="operator-5b5d"><a href="qjsonvalueconstref.html">QJsonValueConstRef</a> QJsonArray::const_iterator::operator[](qsizetype <i>j</i>) const</h3>
+<p>Returns a reference to the value <i>j</i> positions after the current one.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

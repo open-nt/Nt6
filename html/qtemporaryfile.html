@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QTemporaryFile Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QTemporaryFile</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#reimplemented-protected-functions">Reimplemented Protected Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QTemporaryFile Class</h1>
+<p class="brief">The QTemporaryFile class is an I/O device that operates on temporary files. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QTemporaryFile&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+<tr><th>Inherits</th><td><a href="qfile.html">QFile</a></td></tr>
+</table>
+<p><a href="qtemporaryfile-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QTemporaryFile">QTemporaryFile</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#QTemporaryFile-2">QTemporaryFile</a>(const <a href="qstring.html">QString</a> &amp;<i>templateName</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QTemporaryFile-3">QTemporaryFile</a>(<a href="qobject.html">QObject</a> *<i>parent</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QTemporaryFile-4">QTemporaryFile</a>(const <a href="qstring.html">QString</a> &amp;<i>templateName</i>, <a href="qobject.html">QObject</a> *<i>parent</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QTemporaryFile">~QTemporaryFile</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#autoRemove">autoRemove</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setAutoRemove">setAutoRemove</a>(bool <i>b</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#open">open</a>()</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#fileTemplate">fileTemplate</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setFileTemplate">setFileTemplate</a>(const <a href="qstring.html">QString</a> &amp;<i>name</i>)</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#fileName">fileName</a>() const</td></tr>
+</table></div>
+<h2 id="reimplemented-protected-functions">Reimplemented Protected Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">bool</td><td><a href="#open-2">open</a>(OpenMode <i>mode</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>QTemporaryFile creates a uniquely named file that is safe to use from several processes. The file is created by <a href="qtemporaryfile.html#open">open()</a> and, by default, removed when the object is destroyed.</p>
+<p>The file name is built from a template. The six characters <code>XXXXXX</code> in the last path component are replaced by random characters. A template without <code>XXXXXX</code> gets <code>.XXXXXX</code> appended. The default template is <code>qt_temp.XXXXXX</code> in <a href="qdir.html#tempPath">QDir::tempPath()</a>; a relative template is resolved against the current directory.</p>
+<pre><code>QTemporaryFile file;
+if (file.open()) {
+    file.write(&quot;scratch data&quot;);
+    const QString name = file.fileName();
+}
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html">QTemporaryDir</a>, <a href="qfile.html">QFile</a> and <a href="qsavefile.html">QSaveFile</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p><a href="qtemporaryfile.html#open">open()</a> always opens the file for reading and writing, whatever mode was requested; only the <code>Append</code>, <code>Truncate</code>, <code>Text</code> and <code>Unbuffered</code> flags are honored. There are no <code>createNativeFile()</code> and <code>rename()</code> functions.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QTemporaryFile">QTemporaryFile::QTemporaryFile()</h3>
+<p>Constructs a <a href="qtemporaryfile.html">QTemporaryFile</a> using the default template, which is <code>qt_temp.XXXXXX</code> in <a href="qdir.html#tempPath">QDir::tempPath()</a>. The file is created by <a href="qtemporaryfile.html#open">open()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html#setFileTemplate">setFileTemplate()</a>.</p>
+<h3 class="member" id="QTemporaryFile-2"><span class="tags">[explicit]</span> QTemporaryFile::QTemporaryFile(const <a href="qstring.html">QString</a> &amp;<i>templateName</i>)</h3>
+<p>Constructs a <a href="qtemporaryfile.html">QTemporaryFile</a> with the given <i>templateName</i>. The file is created by <a href="qtemporaryfile.html#open">open()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html#setFileTemplate">setFileTemplate()</a>.</p>
+<h3 class="member" id="QTemporaryFile-3"><span class="tags">[explicit]</span> QTemporaryFile::QTemporaryFile(<a href="qobject.html">QObject</a> *<i>parent</i>)</h3>
+<p>Constructs a <a href="qtemporaryfile.html">QTemporaryFile</a> with the given <i>parent</i>, using the default template.</p>
+<h3 class="member" id="QTemporaryFile-4">QTemporaryFile::QTemporaryFile(const <a href="qstring.html">QString</a> &amp;<i>templateName</i>, <a href="qobject.html">QObject</a> *<i>parent</i>)</h3>
+<p>Constructs a <a href="qtemporaryfile.html">QTemporaryFile</a> with the given <i>parent</i>, using <i>templateName</i> as the file name template.</p>
+<h3 class="member" id="dtor.QTemporaryFile"><span class="tags">[override]</span> QTemporaryFile::~QTemporaryFile()</h3>
+<p>Destroys the temporary file object, closing the file. The file is deleted if <a href="qtemporaryfile.html#autoRemove">autoRemove()</a> is <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html#autoRemove">autoRemove()</a>.</p>
+<h3 class="member" id="autoRemove">bool QTemporaryFile::autoRemove() const</h3>
+<p>Returns <code>true</code> if the temporary file is removed when the object is destroyed; otherwise returns <code>false</code>. The default is <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html#setAutoRemove">setAutoRemove()</a>.</p>
+<h3 class="member" id="fileName"><a href="qstring.html">QString</a> QTemporaryFile::fileName() const</h3>
+<p>Returns the name of the temporary file, or an empty string if it has not been created yet.</p>
+<p class="see-also"><strong>See also</strong> <a href="qfiledevice.html#fileName">QFileDevice::fileName()</a>.</p>
+<h3 class="member" id="fileTemplate"><a href="qstring.html">QString</a> QTemporaryFile::fileTemplate() const</h3>
+<p>Returns the file name template, which is <code>qt_temp.XXXXXX</code> in <a href="qdir.html#tempPath">QDir::tempPath()</a> by default.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html#setFileTemplate">setFileTemplate()</a>.</p>
+<h3 class="member" id="open">bool QTemporaryFile::open()</h3>
+<p>This is an overloaded function.</p>
+<p>Creates the file from the template and opens it for reading and writing. Returns <code>true</code> on success; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="open-2"><span class="tags">[override, protected]</span> bool QTemporaryFile::open(OpenMode <i>mode</i>)</h3>
+<p>Reimplements <a href="qfile.html#open">QFile::open()</a>.</p>
+<p>Creates the file from the template and opens it for reading and writing. Only the <code>Append</code>, <code>Truncate</code>, <code>Text</code> and <code>Unbuffered</code> flags of <i>mode</i> are used. Returns <code>true</code> on success; otherwise returns <code>false</code> and sets <a href="qfiledevice.html#error">error()</a> to <code>OpenError</code>. If the file was already created by an earlier call, it is reopened under the same name.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html#open">open()</a>.</p>
+<h3 class="member" id="setAutoRemove">void QTemporaryFile::setAutoRemove(bool <i>b</i>)</h3>
+<p>Sets whether the file is removed when the object is destroyed to <i>b</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html#autoRemove">autoRemove()</a>.</p>
+<h3 class="member" id="setFileTemplate">void QTemporaryFile::setFileTemplate(const <a href="qstring.html">QString</a> &amp;<i>name</i>)</h3>
+<p>Sets the file name template to <i>name</i>. If the file is already created, the template has no effect.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html#fileTemplate">fileTemplate()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

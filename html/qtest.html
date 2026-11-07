@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QTest Namespace | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="nttest-module.html">Nt Test C++ Classes</a> &rsaquo; QTest</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QTest Namespace</h1>
+<p class="brief">The QTest namespace holds the functions behind Nt Test. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QTest&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Test)</code></td></tr>
+<tr><th>Module</th><td><a href="nttest-module.html">Nt Test C++ Classes</a></td></tr>
+</table>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#TestFailMode-enum">TestFailMode</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">int</td><td><a href="#qExec">qExec</a>(<a href="qobject.html">QObject</a> *<i>testObject</i>, int <i>argc</i> = 0, char **<i>argv</i> = nullptr)</td></tr>
+<tr><td class="ret">int</td><td><a href="#qExec-2">qExec</a>(<a href="qobject.html">QObject</a> *<i>testObject</i>, const <a href="qstringlist.html">QStringList</a> &amp;<i>arguments</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#addColumn">addColumn</a>(const char *<i>name</i>)</td></tr>
+<tr><td class="ret"><a href="qtestdata.html">QTestData</a> &amp;</td><td><a href="#newRow">newRow</a>(const char *<i>dataTag</i>)</td></tr>
+<tr><td class="ret"><a href="qtestdata.html">QTestData</a> &amp;</td><td><a href="#addRow">addRow</a>(const char *<i>format</i>, ...)</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#currentAppName">currentAppName</a>()</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#currentTestFunction">currentTestFunction</a>()</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#currentDataTag">currentDataTag</a>()</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#currentGlobalDataTag">currentGlobalDataTag</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#currentTestFailed">currentTestFailed</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#ignoreMessage">ignoreMessage</a>(QtMsgType <i>type</i>, const char *<i>message</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#qSleep">qSleep</a>(int <i>ms</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#qWait">qWait</a>(int <i>ms</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#qWait-2">qWait</a>(std::chrono::milliseconds <i>time</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#qWaitFor">qWaitFor</a>(Functor <i>predicate</i>, int <i>timeout</i> = 5000)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#qWaitFor-2">qWaitFor</a>(Functor <i>predicate</i>, std::chrono::milliseconds <i>timeout</i>)</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#qFindTestData">qFindTestData</a>(const <a href="qstring.html">QString</a> &amp;<i>base</i>, const char *<i>file</i> = nullptr, int <i>line</i> = 0)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString">toString</a>(const char *<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-2">toString</a>(std::nullptr_t)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-3">toString</a>(bool <i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-4">toString</a>(char <i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-5">toString</a>(const <a href="qstring.html">QString</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-6">toString</a>(<a href="qstringview.html">QStringView</a> <i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-7">toString</a>(<a href="qlatin1stringview.html">QLatin1StringView</a> <i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-8">toString</a>(const <a href="qstringlist.html">QStringList</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-9">toString</a>(const <a href="qbytearray.html">QByteArray</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-10">toString</a>(<a href="qchar.html">QChar</a> <i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-11">toString</a>(const <a href="qdate.html">QDate</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-12">toString</a>(const <a href="qtime.html">QTime</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-13">toString</a>(const <a href="qdatetime.html">QDateTime</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-14">toString</a>(const <a href="qurl.html">QUrl</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-15">toString</a>(const <a href="quuid.html">QUuid</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-16">toString</a>(const <a href="qversionnumber.html">QVersionNumber</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-17">toString</a>(const T &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-18">toString</a>(const <a href="qlist.html">QList</a>&lt;T&gt; &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-19">toString</a>(const std::pair&lt;T1, T2&gt; &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#toString-20">toString</a>(const std::tuple&lt;Types...&gt; &amp;<i>value</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#qVerify">qVerify</a>(bool <i>statement</i>, const char *<i>statementText</i>, const char *<i>description</i>, const char *<i>file</i>, int <i>line</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#qFail">qFail</a>(const char *<i>message</i>, const char *<i>file</i>, int <i>line</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#qSkip">qSkip</a>(const char *<i>message</i>, const char *<i>file</i>, int <i>line</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#qExpectFail">qExpectFail</a>(const char *<i>dataTag</i>, const char *<i>comment</i>, TestFailMode <i>mode</i>, const char *<i>file</i>, int <i>line</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#qCompare">qCompare</a>(const T1 &amp;<i>t1</i>, const T2 &amp;<i>t2</i>, const char *<i>actual</i>, const char *<i>expected</i>, const char *<i>file</i>, int <i>line</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#qCompare-2">qCompare</a>(const <a href="qlist.html">QList</a>&lt;T&gt; &amp;<i>t1</i>, const <a href="qlist.html">QList</a>&lt;T&gt; &amp;<i>t2</i>, const char *<i>actual</i>, const char *<i>expected</i>, const char *<i>file</i>, int <i>line</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#qTest">qTest</a>(const T &amp;<i>actual</i>, const char *<i>elementName</i>, const char *<i>actualText</i>, const char *<i>expected</i>, const char *<i>file</i>, int <i>line</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>There are no GUI event functions, no benchmarks (<code>QBENCHMARK</code>), no <code>failOnWarning()</code> and no <code>QTest::Throw</code>. Regular expressions are not accepted by <a href="qtest.html#ignoreMessage">ignoreMessage()</a>, since Nt has no <code>QRegularExpression</code>. Test classes must have gone through <code>ntmoc</code>, and must be outside anonymous namespaces and not templates. <code>ntmoc</code> does not evaluate preprocessor conditionals, so a private slot inside <code>#if</code> must exist in every configuration. Fatal signals and hung tests are not caught.</p>
+<p>Between rows, all pending events are processed to run <code>deleteLater()</code>, not only deferred deletes. Test macros must be used from the main thread.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="TestFailMode-enum">enum QTest::TestFailMode</h3>
+<p>This enum says what happens after a failure announced by <code>QEXPECT_FAIL</code>.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QTest::Abort</code></td><td>The test function stops, as it does after an unexpected failure.</td></tr>
+<tr><td><code>QTest::Continue</code></td><td>The test function goes on with the statement after the failure.</td></tr>
+</tbody></table>
+<h2 id="functions">Function Documentation</h2>
+<h3 class="member" id="addColumn"><span class="template">template &lt;typename T&gt;</span>void QTest::addColumn(const char *<i>name</i>)</h3>
+<p>Adds a column of type <code>T</code> called <i>name</i> to the test data table. Call it from a <code>_data</code> function, before the first row. QFETCH() reads the column by this name in the test function.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtest.html#newRow">newRow()</a> and <a href="qtest.html#addRow">addRow()</a>.</p>
+<h3 class="member" id="addRow"><a href="qtestdata.html">QTestData</a> &amp; QTest::addRow(const char *<i>format</i>, ...)</h3>
+<p>Adds a row to the test data table, with a tag built from the <code>printf</code> style <i>format</i> and the arguments after it, and returns the row.</p>
+<pre><code>for (int i = 0; i &lt; 4; ++i)
+    QTest::addRow(&quot;size-%d&quot;, i) &lt;&lt; i;
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qtest.html#newRow">newRow()</a>.</p>
+<h3 class="member" id="currentAppName">const char * QTest::currentAppName()</h3>
+<p>Returns the file name of the test program, or the class name if <a href="qtest.html#qExec">qExec()</a> was not given a command line. Returns an empty string before the first call of <a href="qtest.html#qExec">qExec()</a>.</p>
+<h3 class="member" id="currentDataTag">const char * QTest::currentDataTag()</h3>
+<p>Returns the tag of the current data row, or <code>nullptr</code> if there is none.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtest.html#currentGlobalDataTag">currentGlobalDataTag()</a>.</p>
+<h3 class="member" id="currentGlobalDataTag">const char * QTest::currentGlobalDataTag()</h3>
+<p>Returns the tag of the current row of <code>initTestCase_data()</code>, or <code>nullptr</code> if there is none.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtest.html#currentDataTag">currentDataTag()</a>.</p>
+<h3 class="member" id="currentTestFailed">bool QTest::currentTestFailed()</h3>
+<p>Returns <code>true</code> if a check has failed in the current data row. Use it after calling a helper function that uses QVERIFY() or QCOMPARE(), as they return only from the helper.</p>
+<h3 class="member" id="currentTestFunction">const char * QTest::currentTestFunction()</h3>
+<p>Returns the name of the running test function, or <code>nullptr</code> outside <a href="qtest.html#qExec">qExec()</a>.</p>
+<h3 class="member" id="ignoreMessage">void QTest::ignoreMessage(QtMsgType <i>type</i>, const char *<i>message</i>)</h3>
+<p>Expects the next message of the given <i>type</i> to be <i>message</i>, and keeps it out of the log. Call it again for each further message. The current data row fails if the message does not arrive before it ends.</p>
+<p><i>message</i> must match the whole text.</p>
+<h3 class="member" id="newRow"><a href="qtestdata.html">QTestData</a> &amp; QTest::newRow(const char *<i>dataTag</i>)</h3>
+<p>Adds a row called <i>dataTag</i> to the test data table and returns it, to fill in with <code>operator&lt;&lt;</code>. Call it from a <code>_data</code> function, after the columns. The tag names the row in the log and on the command line.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtest.html#addRow">addRow()</a> and <a href="qtest.html#addColumn">addColumn()</a>.</p>
+<h3 class="member" id="qCompare"><span class="template">template &lt;typename T1, typename T2&gt;</span>bool QTest::qCompare(const T1 &amp;<i>t1</i>, const T2 &amp;<i>t2</i>, const char *<i>actual</i>, const char *<i>expected</i>, const char *<i>file</i>, int <i>line</i>)</h3>
+<p>Compares <i>t1</i> with <i>t2</i> and reports the result for the current test function; <i>actual</i> and <i>expected</i> are their source text, and <i>file</i> and <i>line</i> the place of the comparison. Returns <code>false</code> if the test function must stop. QCOMPARE() calls it.</p>
+<p>C strings are compared by content, integers by value whatever their signedness, and floating point numbers with a tolerance, treating two NaNs as equal. Everything else uses <code>operator==</code>.</p>
+<h3 class="member" id="qCompare-2"><span class="template">template &lt;typename T&gt;</span>bool QTest::qCompare(const <a href="qlist.html">QList</a>&lt;T&gt; &amp;<i>t1</i>, const <a href="qlist.html">QList</a>&lt;T&gt; &amp;<i>t2</i>, const char *<i>actual</i>, const char *<i>expected</i>, const char *<i>file</i>, int <i>line</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Compares the lists <i>t1</i> and <i>t2</i> item by item, so that the failure message names the first item that differs. <i>actual</i>, <i>expected</i>, <i>file</i> and <i>line</i> are as for the general function.</p>
+<h3 class="member" id="qExec">int QTest::qExec(<a href="qobject.html">QObject</a> *<i>testObject</i>, int <i>argc</i> = 0, char **<i>argv</i> = nullptr)</h3>
+<p>Runs the test functions of <i>testObject</i> and returns the number of failures, up to 127. <i>argc</i> and <i>argv</i> hold the command line described in <a href="nt-test.html">Writing Tests with Nt Test</a>.</p>
+<p>Returns 1 without running anything if the arguments are wrong or <code>ntmoc</code> has not seen the class of <i>testObject</i>. It may be called more than once, but not while another call is running.</p>
+<h3 class="member" id="qExec-2">int QTest::qExec(<a href="qobject.html">QObject</a> *<i>testObject</i>, const <a href="qstringlist.html">QStringList</a> &amp;<i>arguments</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Runs <i>testObject</i> with the command line in <i>arguments</i>, the first item of which is the program name.</p>
+<h3 class="member" id="qExpectFail">bool QTest::qExpectFail(const char *<i>dataTag</i>, const char *<i>comment</i>, TestFailMode <i>mode</i>, const char *<i>file</i>, int <i>line</i>)</h3>
+<p>Announces that the next check fails for the row <i>dataTag</i>, or for all rows if it is empty, because of <i>comment</i>. <i>mode</i> says what happens after it. Returns <code>false</code> if the test function must stop, which is when a failure is already expected at <i>line</i> of <i>file</i>. QEXPECT_FAIL() calls it.</p>
+<h3 class="member" id="qFail">void QTest::qFail(const char *<i>message</i>, const char *<i>file</i>, int <i>line</i>)</h3>
+<p>Reports a failure of the current test function with <i>message</i>, at <i>line</i> of <i>file</i>. QFAIL() calls it and then returns.</p>
+<h3 class="member" id="qFindTestData"><a href="qstring.html">QString</a> QTest::qFindTestData(const <a href="qstring.html">QString</a> &amp;<i>base</i>, const char *<i>file</i> = nullptr, int <i>line</i> = 0)</h3>
+<p>Returns the absolute path of the test data file <i>base</i>, or an empty string, after a warning, if it does not exist. Looks next to the test program, in the current directory and in the directory of the source file <i>file</i>, in that order. QFINDTESTDATA() passes <i>file</i> and <i>line</i>, and <i>line</i> is only there for the warning.</p>
+<h3 class="member" id="qSkip">void QTest::qSkip(const char *<i>message</i>, const char *<i>file</i>, int <i>line</i>)</h3>
+<p>Marks the current data row as skipped, because of <i>message</i>, at <i>line</i> of <i>file</i>. QSKIP() calls it and then returns.</p>
+<h3 class="member" id="qSleep">void QTest::qSleep(int <i>ms</i>)</h3>
+<p>Blocks for <i>ms</i> milliseconds without processing events.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtest.html#qWait">qWait()</a>.</p>
+<h3 class="member" id="qTest"><span class="template">template &lt;typename T&gt;</span>bool QTest::qTest(const T &amp;<i>actual</i>, const char *<i>elementName</i>, const char *<i>actualText</i>, const char *<i>expected</i>, const char *<i>file</i>, int <i>line</i>)</h3>
+<p>Compares <i>actual</i> with the cell called <i>elementName</i> of the current data row and reports the result. <i>file</i> and <i>line</i> give the place of the comparison, <i>actualText</i> is the source text of <i>actual</i> and <i>expected</i> the text shown for the cell. Returns <code>false</code> if the test function must stop. QTEST() calls it.</p>
+<h3 class="member" id="qVerify">bool QTest::qVerify(bool <i>statement</i>, const char *<i>statementText</i>, const char *<i>description</i>, const char *<i>file</i>, int <i>line</i>)</h3>
+<p>Reports <i>statement</i>, the result of the check <i>statementText</i> at <i>line</i> of <i>file</i>, for the current test function, with <i>description</i> added to a failure. Returns <code>false</code> if the test function must stop. QVERIFY() and QVERIFY2() call it.</p>
+<h3 class="member" id="qWait">void QTest::qWait(int <i>ms</i>)</h3>
+<p>Waits for <i>ms</i> milliseconds, processing events meanwhile. Without a <a href="qcoreapplication.html">QCoreApplication</a> it only sleeps.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtest.html#qWaitFor">qWaitFor()</a> and <a href="qtest.html#qSleep">qSleep()</a>.</p>
+<h3 class="member" id="qWait-2">void QTest::qWait(std::chrono::milliseconds <i>time</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Waits for <i>time</i>, processing events meanwhile.</p>
+<h3 class="member" id="qWaitFor"><span class="template">template &lt;typename Functor&gt;</span>bool QTest::qWaitFor(Functor <i>predicate</i>, int <i>timeout</i> = 5000)</h3>
+<p>Calls <i>predicate</i> repeatedly, processing events in between, until it returns <code>true</code> or <i>timeout</i> milliseconds have passed. Returns the last value it returned. The default timeout is five seconds.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtest.html#qWait">qWait()</a>.</p>
+<h3 class="member" id="qWaitFor-2"><span class="template">template &lt;typename Functor&gt;</span>bool QTest::qWaitFor(Functor <i>predicate</i>, std::chrono::milliseconds <i>timeout</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Waits for <i>predicate</i> for at most <i>timeout</i>.</p>
+<h3 class="member" id="toString">char * QTest::toString(const char *<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> in double quotes, with quotes and control characters escaped, or <code>nullptr</code> as text for a null pointer.</p>
+<h3 class="member" id="toString-2">char * QTest::toString(std::nullptr_t)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the text <code>nullptr</code>.</p>
+<h3 class="member" id="toString-3">char * QTest::toString(bool <i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> or <code>false</code> as text.</p>
+<h3 class="member" id="toString-4">char * QTest::toString(char <i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the character <i>value</i> in double quotes, escaped when needed.</p>
+<h3 class="member" id="toString-5">char * QTest::toString(const <a href="qstring.html">QString</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> in double quotes, escaped when needed, as UTF-8.</p>
+<h3 class="member" id="toString-6">char * QTest::toString(<a href="qstringview.html">QStringView</a> <i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> in double quotes, escaped when needed, as UTF-8.</p>
+<h3 class="member" id="toString-7">char * QTest::toString(<a href="qlatin1stringview.html">QLatin1StringView</a> <i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> in double quotes, escaped when needed.</p>
+<h3 class="member" id="toString-8">char * QTest::toString(const <a href="qstringlist.html">QStringList</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the strings of <i>value</i> as <code>QStringList(&quot;a&quot;, &quot;b&quot;)</code>.</p>
+<h3 class="member" id="toString-9">char * QTest::toString(const <a href="qbytearray.html">QByteArray</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> in double quotes, with bytes that are not printable written as <code>\xNN</code>.</p>
+<h3 class="member" id="toString-10">char * QTest::toString(<a href="qchar.html">QChar</a> <i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the character <i>value</i> in double quotes, escaped when needed.</p>
+<h3 class="member" id="toString-11">char * QTest::toString(const <a href="qdate.html">QDate</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> in ISO 8601 form, or <code>Invalid QDate</code>.</p>
+<h3 class="member" id="toString-12">char * QTest::toString(const <a href="qtime.html">QTime</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> as <code>hh:mm:ss.zzz</code>, or <code>Invalid QTime</code>.</p>
+<h3 class="member" id="toString-13">char * QTest::toString(const <a href="qdatetime.html">QDateTime</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> in ISO 8601 form, or <code>Invalid QDateTime</code>.</p>
+<h3 class="member" id="toString-14">char * QTest::toString(const <a href="qurl.html">QUrl</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the encoded form of <i>value</i> in double quotes.</p>
+<h3 class="member" id="toString-15">char * QTest::toString(const <a href="quuid.html">QUuid</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> in the form <code>{00000000-0000-0000-0000-000000000000}</code>.</p>
+<h3 class="member" id="toString-16">char * QTest::toString(const <a href="qversionnumber.html">QVersionNumber</a> &amp;<i>value</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <i>value</i> with its segments separated by dots.</p>
+<h3 class="member" id="toString-17"><span class="template">template &lt;typename T&gt;</span>char * QTest::toString(const T &amp;<i>value</i>)</h3>
+<p>Returns a text form of <i>value</i> for a failure message, as an array allocated with <code>new char[]</code> that the caller deletes. Numbers, enums and pointers are covered here, and so are the Nt classes with an overload of this function. For anything else it returns <code>nullptr</code> and the failure message says that there is no text form.</p>
+<p>To cover your own type, specialize this template, or better, add an overload next to the type, in its namespace:</p>
+<pre><code>char *toString(const Point &amp;p)
+{
+    return qstrdup(QByteArray::number(p.x) + &quot;,&quot; + QByteArray::number(p.y));
+}
+</code></pre>
+<h3 class="member" id="toString-18"><span class="template">template &lt;typename T&gt;</span>char * QTest::toString(const <a href="qlist.html">QList</a>&lt;T&gt; &amp;<i>value</i>)</h3>
+<p>Returns a text form of <i>value</i>, with each item converted by <a href="qtest.html#toString">toString()</a>.</p>
+<h3 class="member" id="toString-19"><span class="template">template &lt;typename T1, typename T2&gt;</span>char * QTest::toString(const std::pair&lt;T1, T2&gt; &amp;<i>value</i>)</h3>
+<p>Returns a text form of <i>value</i>, with both members converted by <a href="qtest.html#toString">toString()</a>.</p>
+<h3 class="member" id="toString-20"><span class="template">template &lt;typename... Types&gt;</span>char * QTest::toString(const std::tuple&lt;Types...&gt; &amp;<i>value</i>)</h3>
+<p>Returns a text form of <i>value</i>, with each member converted by <a href="qtest.html#toString">toString()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

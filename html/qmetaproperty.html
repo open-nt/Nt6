@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QMetaProperty Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QMetaProperty</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QMetaProperty Class</h1>
+<p class="brief">The QMetaProperty class provides meta-data about a property. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QMetaProperty&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qmetaproperty-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QMetaProperty">QMetaProperty</a>()</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#name">name</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#typeName">typeName</a>() const</td></tr>
+<tr><td class="ret"><a href="qmetatype.html">QMetaType</a></td><td><a href="#metaType">metaType</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#typeId">typeId</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#userType">userType</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#propertyIndex">propertyIndex</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#relativePropertyIndex">relativePropertyIndex</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isReadable">isReadable</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isWritable">isWritable</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isResettable">isResettable</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isDesignable">isDesignable</a>(const <a href="qobject.html">QObject</a> *<i>obj</i> = nullptr) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isScriptable">isScriptable</a>(const <a href="qobject.html">QObject</a> *<i>obj</i> = nullptr) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isStored">isStored</a>(const <a href="qobject.html">QObject</a> *<i>obj</i> = nullptr) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isUser">isUser</a>(const <a href="qobject.html">QObject</a> *<i>obj</i> = nullptr) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isConstant">isConstant</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isFinal">isFinal</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isRequired">isRequired</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isFlagType">isFlagType</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isEnumType">isEnumType</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isBindable">isBindable</a>() const</td></tr>
+<tr><td class="ret"><a href="qmetaenum.html">QMetaEnum</a></td><td><a href="#enumerator">enumerator</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#hasNotifySignal">hasNotifySignal</a>() const</td></tr>
+<tr><td class="ret"><a href="qmetamethod.html">QMetaMethod</a></td><td><a href="#notifySignal">notifySignal</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#notifySignalIndex">notifySignalIndex</a>() const</td></tr>
+<tr><td class="ret">int</td><td><a href="#revision">revision</a>() const</td></tr>
+<tr><td class="ret">const <a href="qmetaobject.html">QMetaObject</a> *</td><td><a href="#enclosingMetaObject">enclosingMetaObject</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isValid">isValid</a>() const</td></tr>
+<tr><td class="ret"><a href="qvariant.html">QVariant</a></td><td><a href="#read">read</a>(const <a href="qobject.html">QObject</a> *<i>obj</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#write">write</a>(<a href="qobject.html">QObject</a> *<i>obj</i>, const <a href="qvariant.html">QVariant</a> &amp;<i>value</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#reset">reset</a>(<a href="qobject.html">QObject</a> *<i>obj</i>) const</td></tr>
+<tr><td class="ret"><a href="qvariant.html">QVariant</a></td><td><a href="#readOnGadget">readOnGadget</a>(const void *<i>gadget</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#writeOnGadget">writeOnGadget</a>(void *<i>gadget</i>, const <a href="qvariant.html">QVariant</a> &amp;<i>value</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#resetOnGadget">resetOnGadget</a>(void *<i>gadget</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#hasStdCppSet">hasStdCppSet</a>() const</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>A property is declared with <code>Q_PROPERTY()</code>. Read and write it through a <a href="qvariant.html">QVariant</a>, with an object or, for a <code>Q_GADGET</code>, a pointer to the value:</p>
+<pre><code>QMetaProperty p = obj-&gt;metaObject()-&gt;property(
+    obj-&gt;metaObject()-&gt;indexOfProperty(&quot;interval&quot;));
+p.write(obj, 500);
+int ms = p.read(obj).toInt();
+</code></pre>
+<p>Enumerations declared with <code>Q_ENUM()</code> can be written from their key names as well as from numbers. Writing converts the variant to the type of the property first, and fails if it cannot be converted.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaobject.html#property">QMetaObject::property()</a>, <a href="qobject.html#property">QObject::property()</a> and <a href="qmetaenum.html">QMetaEnum</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Bindable properties are not supported, so <code>isBindable()</code> is always <code>false</code> and there is no <code>bindable()</code> or <code>isQProperty()</code>. The <code>DESIGNABLE</code>, <code>SCRIPTABLE</code>, <code>STORED</code> and <code>USER</code> attributes are evaluated, but <code>EDITABLE</code> and <code>isEditable()</code> are not available. Property types that are not registered with <a href="qmetatype.html">QMetaType</a> cannot be read or written.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QMetaProperty">QMetaProperty::QMetaProperty()</h3>
+<p>Constructs an invalid property.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isValid">isValid()</a>.</p>
+<h3 class="member" id="enclosingMetaObject">const <a href="qmetaobject.html">QMetaObject</a> * QMetaProperty::enclosingMetaObject() const</h3>
+<p>Returns the meta-object of the class that declares the property.</p>
+<h3 class="member" id="enumerator"><a href="qmetaenum.html">QMetaEnum</a> QMetaProperty::enumerator() const</h3>
+<p>Returns the enumerator that describes the type of the property, or an invalid <a href="qmetaenum.html">QMetaEnum</a> if its type is not an enumeration with meta-data.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isEnumType">isEnumType()</a>.</p>
+<h3 class="member" id="hasNotifySignal">bool QMetaProperty::hasNotifySignal() const</h3>
+<p>Returns <code>true</code> if the property has a <code>NOTIFY</code> signal.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#notifySignal">notifySignal()</a>.</p>
+<h3 class="member" id="hasStdCppSet">bool QMetaProperty::hasStdCppSet() const</h3>
+<p>Returns <code>true</code> if the property has a setter that follows the <code>setName()</code> convention. Always <code>true</code> for a writable property of Nt.</p>
+<h3 class="member" id="isBindable">bool QMetaProperty::isBindable() const</h3>
+<p>Returns <code>false</code>: bindable properties are not supported.</p>
+<h3 class="member" id="isConstant">bool QMetaProperty::isConstant() const</h3>
+<p>Returns <code>true</code> if the property is declared <code>CONSTANT</code>, so its value does not change for an object.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isFinal">isFinal()</a>.</p>
+<h3 class="member" id="isDesignable">bool QMetaProperty::isDesignable(const <a href="qobject.html">QObject</a> *<i>obj</i> = nullptr) const</h3>
+<p>Returns <code>true</code> if the property is designable for <i>obj</i>, which is the value of its <code>DESIGNABLE</code> attribute. The default is <code>true</code>. If the attribute is a function and <i>obj</i> is <code>nullptr</code>, returns <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isScriptable">isScriptable()</a> and <a href="qmetaproperty.html#isStored">isStored()</a>.</p>
+<h3 class="member" id="isEnumType">bool QMetaProperty::isEnumType() const</h3>
+<p>Returns <code>true</code> if the type of the property is an enumeration that has meta-data.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#enumerator">enumerator()</a>.</p>
+<h3 class="member" id="isFinal">bool QMetaProperty::isFinal() const</h3>
+<p>Returns <code>true</code> if the property is declared <code>FINAL</code>, so no derived class overrides it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isConstant">isConstant()</a>.</p>
+<h3 class="member" id="isFlagType">bool QMetaProperty::isFlagType() const</h3>
+<p>Returns <code>true</code> if the type of the property is an enumeration declared with <code>Q_FLAG()</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isEnumType">isEnumType()</a>.</p>
+<h3 class="member" id="isReadable">bool QMetaProperty::isReadable() const</h3>
+<p>Returns <code>true</code> if the property can be read.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#read">read()</a> and <a href="qmetaproperty.html#isWritable">isWritable()</a>.</p>
+<h3 class="member" id="isRequired">bool QMetaProperty::isRequired() const</h3>
+<p>Returns <code>true</code> if the property is declared <code>REQUIRED</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isConstant">isConstant()</a>.</p>
+<h3 class="member" id="isResettable">bool QMetaProperty::isResettable() const</h3>
+<p>Returns <code>true</code> if the property has a <code>RESET</code> function.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#reset">reset()</a>.</p>
+<h3 class="member" id="isScriptable">bool QMetaProperty::isScriptable(const <a href="qobject.html">QObject</a> *<i>obj</i> = nullptr) const</h3>
+<p>Returns <code>true</code> if the property is scriptable for <i>obj</i>, which is the value of its <code>SCRIPTABLE</code> attribute. The default is <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isDesignable">isDesignable()</a> and <a href="qmetaproperty.html#isStored">isStored()</a>.</p>
+<h3 class="member" id="isStored">bool QMetaProperty::isStored(const <a href="qobject.html">QObject</a> *<i>obj</i> = nullptr) const</h3>
+<p>Returns <code>true</code> if the property is stored for <i>obj</i>, which is the value of its <code>STORED</code> attribute. The default is <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isDesignable">isDesignable()</a> and <a href="qmetaproperty.html#isUser">isUser()</a>.</p>
+<h3 class="member" id="isUser">bool QMetaProperty::isUser(const <a href="qobject.html">QObject</a> *<i>obj</i> = nullptr) const</h3>
+<p>Returns <code>true</code> if the property is the user property of <i>obj</i>, which is the value of its <code>USER</code> attribute. The default is <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaobject.html#userProperty">QMetaObject::userProperty()</a>.</p>
+<h3 class="member" id="isValid">bool QMetaProperty::isValid() const</h3>
+<p>Returns <code>true</code> if this object describes a property; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="isWritable">bool QMetaProperty::isWritable() const</h3>
+<p>Returns <code>true</code> if the property can be written.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#write">write()</a> and <a href="qmetaproperty.html#isReadable">isReadable()</a>.</p>
+<h3 class="member" id="metaType"><a href="qmetatype.html">QMetaType</a> QMetaProperty::metaType() const</h3>
+<p>Returns the <a href="qmetatype.html">QMetaType</a> of the property, or an invalid <a href="qmetatype.html">QMetaType</a> if the type is not known.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#typeId">typeId()</a>.</p>
+<h3 class="member" id="name">const char * QMetaProperty::name() const</h3>
+<p>Returns the name of the property.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#typeName">typeName()</a>.</p>
+<h3 class="member" id="notifySignal"><a href="qmetamethod.html">QMetaMethod</a> QMetaProperty::notifySignal() const</h3>
+<p>Returns the <code>NOTIFY</code> signal of the property, or an invalid <a href="qmetamethod.html">QMetaMethod</a> if it has none.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#hasNotifySignal">hasNotifySignal()</a>.</p>
+<h3 class="member" id="notifySignalIndex">int QMetaProperty::notifySignalIndex() const</h3>
+<p>Returns the index of the <code>NOTIFY</code> signal in its class, counting the methods of the base classes first, or -1 if the property has none.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#notifySignal">notifySignal()</a>.</p>
+<h3 class="member" id="propertyIndex">int QMetaProperty::propertyIndex() const</h3>
+<p>Returns the index of the property, counting the properties of the base classes first.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#relativePropertyIndex">relativePropertyIndex()</a>.</p>
+<h3 class="member" id="read"><a href="qvariant.html">QVariant</a> QMetaProperty::read(const <a href="qobject.html">QObject</a> *<i>obj</i>) const</h3>
+<p>Reads the property of <i>obj</i> and returns it as a <a href="qvariant.html">QVariant</a>. Returns an invalid variant if the property is not readable or its type is not registered.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#write">write()</a> and <a href="qmetaproperty.html#isReadable">isReadable()</a>.</p>
+<h3 class="member" id="readOnGadget"><a href="qvariant.html">QVariant</a> QMetaProperty::readOnGadget(const void *<i>gadget</i>) const</h3>
+<p>Reads the property of the <code>Q_GADGET</code> value at <i>gadget</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#read">read()</a>.</p>
+<h3 class="member" id="relativePropertyIndex">int QMetaProperty::relativePropertyIndex() const</h3>
+<p>Returns the index of the property among those of its own class.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#propertyIndex">propertyIndex()</a>.</p>
+<h3 class="member" id="reset">bool QMetaProperty::reset(<a href="qobject.html">QObject</a> *<i>obj</i>) const</h3>
+<p>Resets the property of <i>obj</i> with its <code>RESET</code> function and returns <code>true</code>, or returns <code>false</code> if the property cannot be reset.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#isResettable">isResettable()</a>.</p>
+<h3 class="member" id="resetOnGadget">bool QMetaProperty::resetOnGadget(void *<i>gadget</i>) const</h3>
+<p>Resets the property of the <code>Q_GADGET</code> value at <i>gadget</i> and returns <code>true</code> on success.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#reset">reset()</a>.</p>
+<h3 class="member" id="revision">int QMetaProperty::revision() const</h3>
+<p>Returns the revision of the property, which is 0 unless it is declared with <code>REVISION</code>.</p>
+<h3 class="member" id="typeId">int QMetaProperty::typeId() const</h3>
+<p>Returns the <code>QMetaType</code> id of the property, or <code>QMetaType::UnknownType</code> if the type is not known.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#metaType">metaType()</a>.</p>
+<h3 class="member" id="typeName">const char * QMetaProperty::typeName() const</h3>
+<p>Returns the name of the type of the property as it is declared, such as <code>&quot;int&quot;</code> or <code>&quot;Counter::Mode&quot;</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#metaType">metaType()</a>.</p>
+<h3 class="member" id="userType">int QMetaProperty::userType() const</h3>
+<p>Returns the <code>QMetaType</code> id of the property; the same as <a href="qmetaproperty.html#typeId">typeId()</a>.</p>
+<h3 class="member" id="write">bool QMetaProperty::write(<a href="qobject.html">QObject</a> *<i>obj</i>, const <a href="qvariant.html">QVariant</a> &amp;<i>value</i>) const</h3>
+<p>Writes <i>value</i> to the property of <i>obj</i> and returns <code>true</code> on success. <i>value</i> is converted to the type of the property first; for an enumeration it can also be the name of a key. Returns <code>false</code> if the property is not writable or the value cannot be converted. Writing an invalid variant resets a resettable property.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#read">read()</a>, <a href="qmetaproperty.html#reset">reset()</a> and <a href="qmetaproperty.html#isWritable">isWritable()</a>.</p>
+<h3 class="member" id="writeOnGadget">bool QMetaProperty::writeOnGadget(void *<i>gadget</i>, const <a href="qvariant.html">QVariant</a> &amp;<i>value</i>) const</h3>
+<p>Writes <i>value</i> to the property of the <code>Q_GADGET</code> value at <i>gadget</i> and returns <code>true</code> on success.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmetaproperty.html#write">write()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

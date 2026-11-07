@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QDebug Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QDebug</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QDebug Class</h1>
+<p class="brief">The QDebug class provides an output stream for debugging information. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QDebug&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qdebug-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QDebug">QDebug</a>(QtMsgType <i>type</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QDebug-2">QDebug</a>(<a href="qstring.html">QString</a> *<i>string</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QDebug-3">QDebug</a>(<a href="qiodevice.html">QIODevice</a> *<i>device</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QDebug-4">QDebug</a>(const QDebug &amp;)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3d">operator=</a>(const QDebug &amp;)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QDebug">~QDebug</a>()</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#space">space</a>()</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#nospace">nospace</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#autoInsertSpaces">autoInsertSpaces</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setAutoInsertSpaces">setAutoInsertSpaces</a>(bool <i>b</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#maybeSpace">maybeSpace</a>()</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#quote">quote</a>()</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#noquote">noquote</a>()</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#maybeQuote">maybeQuote</a>(char <i>c</i> = '&quot;')</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c">operator&lt;&lt;</a>(bool <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-2">operator&lt;&lt;</a>(char <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-3">operator&lt;&lt;</a>(signed char <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-4">operator&lt;&lt;</a>(unsigned char <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-5">operator&lt;&lt;</a>(short <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-6">operator&lt;&lt;</a>(unsigned short <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-7">operator&lt;&lt;</a>(int <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-8">operator&lt;&lt;</a>(unsigned int <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-9">operator&lt;&lt;</a>(long <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-10">operator&lt;&lt;</a>(unsigned long <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-11">operator&lt;&lt;</a>(long long <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-12">operator&lt;&lt;</a>(unsigned long long <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-13">operator&lt;&lt;</a>(float <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-14">operator&lt;&lt;</a>(double <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-15">operator&lt;&lt;</a>(const char *<i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-16">operator&lt;&lt;</a>(const std::string &amp;<i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-17">operator&lt;&lt;</a>(const void *<i>p</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-18">operator&lt;&lt;</a>(std::nullptr_t)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-19">operator&lt;&lt;</a>(<a href="qchar.html">QChar</a> <i>c</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-20">operator&lt;&lt;</a>(const <a href="qstring.html">QString</a> &amp;<i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-21">operator&lt;&lt;</a>(<a href="qlatin1stringview.html">QLatin1StringView</a> <i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-22">operator&lt;&lt;</a>(const <a href="qbytearray.html">QByteArray</a> &amp;<i>v</i>)</td></tr>
+<tr><td class="ret">QDebug &amp;</td><td><a href="#operator-3c3c-23">operator&lt;&lt;</a>(const <a href="qobject.html">QObject</a> *<i>o</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>QDebug is used to write human-readable diagnostics. Obtain a stream from <code>qDebug()</code>, <code>qInfo()</code>, <code>qWarning()</code> or <code>qCritical()</code> and write values to it with <code>&lt;&lt;</code>. The message is emitted when the stream, and every copy of it, is destroyed, so a statement such as</p>
+<pre><code>qDebug() &lt;&lt; &quot;value:&quot; &lt;&lt; 42 &lt;&lt; QString(&quot;text&quot;);
+</code></pre>
+<p>produces one message, <code>value: 42 &quot;text&quot;</code>. Spaces are inserted between values unless disabled with <a href="qdebug.html#nospace">nospace()</a>, and strings are quoted unless disabled with <a href="qdebug.html#noquote">noquote()</a>.</p>
+<p>A message is written to <code>stderr</code> followed by a newline, in the format set with <code>qSetMessagePattern()</code>, unless a handler was installed with <code>qInstallMessageHandler()</code>. That handler then receives the message type (<code>QtDebugMsg</code>, <code>QtInfoMsg</code>, <code>QtWarningMsg</code>, <code>QtCriticalMsg</code> or <code>QtFatalMsg</code>), a <a href="qmessagelogcontext.html">QMessageLogContext</a> and the text instead. A <code>QtFatalMsg</code> message aborts the process after it is handled.</p>
+<p>The same functions also have printf-style forms, such as <code>qDebug(&quot;count: %d&quot;, n)</code>, and <code>qFatal()</code> takes a format string. A <a href="qloggingcategory.html">QLoggingCategory</a> selects which messages are written; see <code>qCDebug()</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qmessagelogger.html">QMessageLogger</a>, <a href="qmessagelogcontext.html">QMessageLogContext</a>, <a href="qdebugstatesaver.html">QDebugStateSaver</a> and <a href="qloggingcategory.html">QLoggingCategory</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>There is no <code>verbosity()</code>, <code>resetFormat()</code> or <code>swap()</code>, no stream manipulators such as <code>endl</code>, and no <code>&lt;&lt;</code> for <a href="qflags.html">QFlags</a>, <a href="qset.html">QSet</a>, QPair, <a href="qstringview.html">QStringView</a>, <a href="qmetaenum.html">QMetaEnum</a> or the value classes. Containers supported are <a href="qlist.html">QList</a>, <a href="qmap.html">QMap</a> and <a href="qhash.html">QHash</a>.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QDebug"><span class="tags">[explicit]</span> QDebug::QDebug(QtMsgType <i>type</i>)</h3>
+<p>Constructs a debug stream that emits a message of the given <i>type</i> when it is destroyed.</p>
+<h3 class="member" id="QDebug-2"><span class="tags">[explicit]</span> QDebug::QDebug(<a href="qstring.html">QString</a> *<i>string</i>)</h3>
+<p>Constructs a debug stream that appends its text to <i>string</i> when it is destroyed, instead of emitting a message. A space written after the last value is kept.</p>
+<h3 class="member" id="QDebug-3"><span class="tags">[explicit]</span> QDebug::QDebug(<a href="qiodevice.html">QIODevice</a> *<i>device</i>)</h3>
+<p>Constructs a debug stream that writes its text to <i>device</i>, as UTF-8, when it is destroyed, instead of emitting a message. A space written after the last value is kept.</p>
+<h3 class="member" id="QDebug-4">QDebug::QDebug(const <a href="qdebug.html">QDebug</a> &amp;)</h3>
+<p>Constructs a copy of another stream. The copies share one buffer, and the message is emitted when the last copy is destroyed.</p>
+<h3 class="member" id="dtor.QDebug">QDebug::~QDebug()</h3>
+<p>Destroys the stream. If this is the last copy of the stream, the accumulated message is emitted, with a trailing space removed, and for QtFatalMsg the process is aborted. A stream for a <a href="qstring.html">QString</a> or a <a href="qiodevice.html">QIODevice</a> writes its text there instead.</p>
+<h3 class="member" id="autoInsertSpaces">bool QDebug::autoInsertSpaces() const</h3>
+<p>Returns <code>true</code> if spaces are inserted between values automatically.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#setAutoInsertSpaces">setAutoInsertSpaces()</a>, <a href="qdebug.html#space">space()</a> and <a href="qdebug.html#nospace">nospace()</a>.</p>
+<h3 class="member" id="maybeQuote"><a href="qdebug.html">QDebug</a> &amp; QDebug::maybeQuote(char <i>c</i> = '&quot;')</h3>
+<p>Writes the character <i>c</i> to the stream if quoting is enabled, and returns a reference to the stream.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#quote">quote()</a> and <a href="qdebug.html#noquote">noquote()</a>.</p>
+<h3 class="member" id="maybeSpace"><a href="qdebug.html">QDebug</a> &amp; QDebug::maybeSpace()</h3>
+<p>Writes a space character to the stream if spaces are enabled, and returns a reference to the stream.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#space">space()</a> and <a href="qdebug.html#nospace">nospace()</a>.</p>
+<h3 class="member" id="noquote"><a href="qdebug.html">QDebug</a> &amp; QDebug::noquote()</h3>
+<p>Disables quoting of strings and characters, and returns a reference to the stream. Strings are then written without escaping.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#quote">quote()</a> and <a href="qdebug.html#maybeQuote">maybeQuote()</a>.</p>
+<h3 class="member" id="nospace"><a href="qdebug.html">QDebug</a> &amp; QDebug::nospace()</h3>
+<p>Disables the automatic insertion of spaces between values, and returns a reference to the stream.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#space">space()</a> and <a href="qdebug.html#maybeSpace">maybeSpace()</a>.</p>
+<h3 class="member" id="operator-3c3c"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(bool <i>v</i>)</h3>
+<p>Writes the boolean value <i>v</i> to the debug stream as <code>true</code> or <code>false</code>, and returns a reference to the stream.</p>
+<h3 class="member" id="operator-3c3c-2"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(char <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the character <i>v</i> to the debug stream, in single quotes if quoting is enabled.</p>
+<h3 class="member" id="operator-3c3c-3"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(signed char <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the signed character <i>v</i> to the debug stream as a number.</p>
+<h3 class="member" id="operator-3c3c-4"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(unsigned char <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the unsigned character <i>v</i> to the debug stream as a number.</p>
+<h3 class="member" id="operator-3c3c-5"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(short <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the short integer <i>v</i> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-6"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(unsigned short <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the unsigned short integer <i>v</i> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-7"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(int <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the integer <i>v</i> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-8"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(unsigned int <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the unsigned integer <i>v</i> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-9"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(long <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the long integer <i>v</i> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-10"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(unsigned long <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the unsigned long integer <i>v</i> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-11"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(long long <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the long long integer <i>v</i> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-12"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(unsigned long long <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the unsigned long long integer <i>v</i> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-13"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(float <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the float <i>v</i> to the debug stream, using the shortest representation that reads back unchanged.</p>
+<h3 class="member" id="operator-3c3c-14"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(double <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the double <i>v</i> to the debug stream, using the shortest representation that reads back unchanged.</p>
+<h3 class="member" id="operator-3c3c-15"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(const char *<i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the zero-terminated string <i>v</i> to the debug stream, without quotes or escaping. A null pointer is written as <code>(null)</code>.</p>
+<h3 class="member" id="operator-3c3c-16"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(const std::string &amp;<i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the string <i>v</i> to the debug stream, without quotes or escaping.</p>
+<h3 class="member" id="operator-3c3c-17"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(const void *<i>p</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the pointer <i>p</i> to the debug stream as a hexadecimal address.</p>
+<h3 class="member" id="operator-3c3c-18"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(std::nullptr_t)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes <code>(nullptr)</code> to the debug stream.</p>
+<h3 class="member" id="operator-3c3c-19"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(<a href="qchar.html">QChar</a> <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the character <i>c</i> to the debug stream as a one-character string.</p>
+<h3 class="member" id="operator-3c3c-20"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(const <a href="qstring.html">QString</a> &amp;<i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the string <i>v</i> to the debug stream, in double quotes and with special characters escaped if quoting is enabled.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#quote">quote()</a> and <a href="qdebug.html#noquote">noquote()</a>.</p>
+<h3 class="member" id="operator-3c3c-21"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(<a href="qlatin1stringview.html">QLatin1StringView</a> <i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the Latin-1 string <i>v</i> to the debug stream, as for a <a href="qstring.html">QString</a>.</p>
+<h3 class="member" id="operator-3c3c-22"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(const <a href="qbytearray.html">QByteArray</a> &amp;<i>v</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the byte array <i>v</i> to the debug stream, in double quotes and with special characters escaped if quoting is enabled.</p>
+<h3 class="member" id="operator-3c3c-23"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator&lt;&lt;(const <a href="qobject.html">QObject</a> *<i>o</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Writes the object <i>o</i> to the debug stream as its address and, if set, its object name, for example <code>QObject(0x1234, name = &quot;x&quot;)</code>. A null pointer is written as <code>QObject(0x0)</code>.</p>
+<h3 class="member" id="operator-3d"><a href="qdebug.html">QDebug</a> &amp; QDebug::operator=(const <a href="qdebug.html">QDebug</a> &amp;)</h3>
+<p>Assigns another stream to this stream and returns a reference to this stream. The two streams then share one buffer.</p>
+<h3 class="member" id="quote"><a href="qdebug.html">QDebug</a> &amp; QDebug::quote()</h3>
+<p>Enables quoting of strings and characters, and returns a reference to the stream. This is the default.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#noquote">noquote()</a> and <a href="qdebug.html#maybeQuote">maybeQuote()</a>.</p>
+<h3 class="member" id="setAutoInsertSpaces">void QDebug::setAutoInsertSpaces(bool <i>b</i>)</h3>
+<p>Sets whether spaces are inserted between values automatically to <i>b</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#autoInsertSpaces">autoInsertSpaces()</a>, <a href="qdebug.html#space">space()</a> and <a href="qdebug.html#nospace">nospace()</a>.</p>
+<h3 class="member" id="space"><a href="qdebug.html">QDebug</a> &amp; QDebug::space()</h3>
+<p>Writes a space character after each value written to the stream, and returns a reference to the stream. This is the default.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdebug.html#nospace">nospace()</a> and <a href="qdebug.html#maybeSpace">maybeSpace()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

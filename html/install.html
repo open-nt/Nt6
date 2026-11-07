@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Installing Nt | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; Installing Nt</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#getting-the-packages">Getting the Packages</a></li>
+<li><a href="#ubuntu-22-04-24-04-and-26-04">Ubuntu 22.04, 24.04 and 26.04</a></li>
+<li><a href="#enterprise-linux-9-and-10">Enterprise Linux 9 and 10</a></li>
+<li><a href="#arch-linux">Arch Linux</a></li>
+<li><a href="#using-nt">Using Nt</a></li>
+<li><a href="#verifying-a-download">Verifying a Download</a></li>
+<li><a href="#building-the-packages-yourself">Building the Packages Yourself</a></li>
+</ul></aside>
+<main>
+<h1>Installing Nt</h1>
+<p class="brief">Installing Nt from the .deb, .rpm and pacman packages for Ubuntu, Enterprise Linux and Arch Linux.</p>
+<p>Nt is packaged for these systems. Each package is built on the system it is for, so that its dependencies and C++ runtime match.</p>
+<table class="data">
+<tr><th><p>System</p>
+</th><th><p>Format</p>
+</th><th><p>Packages</p>
+</th></tr>
+<tr><td><p>Ubuntu 22.04, 24.04 and 26.04</p>
+</td><td><p><code>.deb</code></p>
+</td><td><p><code>libnt6-dev</code> and <code>nt6-tools</code></p>
+</td></tr>
+<tr><td><p>Enterprise Linux 9 and 10 (RHEL, Rocky Linux, AlmaLinux)</p>
+</td><td><p><code>.rpm</code></p>
+</td><td><p><code>nt6-devel</code> and <code>nt6-tools</code></p>
+</td></tr>
+<tr><td><p>Arch Linux</p>
+</td><td><p><code>.pkg.tar.zst</code> (pacman)</p>
+</td><td><p><code>nt6</code>, with everything in one package</p>
+</td></tr>
+</table>
+<p>The development package (<code>libnt6-dev</code> or <code>nt6-devel</code>) holds the headers, the static libraries and the CMake package. The tools package holds <code>ntmoc</code>, a replacement for <a href="qt.html">Qt</a>'s moc, and <code>ndoc</code>, the documentation generator. Install both to build a <a href="qt.html">Qt</a>-style project.</p>
+<p>The packages need a C++17 compiler and CMake 3.18 or newer to be useful, which the sections below install too. Nt is statically linked, so a program built with it needs no Nt package to run.</p>
+<h2 id="getting-the-packages">Getting the Packages</h2>
+<p>Packages are attached to each release on the <a href="https://github.com/open-nt/Nt6/releases">GitHub releases page</a>. Download the ones for your system and release. The file names carry the version, which is the one in the <code>VERSION</code> file of the source tree; the examples below use 6.1.0, so replace it with the version you download.</p>
+<table class="data">
+<tr><th><p>System</p>
+</th><th><p>Files</p>
+</th></tr>
+<tr><td><p>Ubuntu 22.04</p>
+</td><td><p><code>libnt6-dev_6.1.0-1~ubuntu22.04_amd64.deb</code>, <code>nt6-tools_6.1.0-1~ubuntu22.04_amd64.deb</code></p>
+</td></tr>
+<tr><td><p>Ubuntu 24.04</p>
+</td><td><p><code>libnt6-dev_6.1.0-1~ubuntu24.04_amd64.deb</code>, <code>nt6-tools_6.1.0-1~ubuntu24.04_amd64.deb</code></p>
+</td></tr>
+<tr><td><p>Ubuntu 26.04</p>
+</td><td><p><code>libnt6-dev_6.1.0-1~ubuntu26.04_amd64.deb</code>, <code>nt6-tools_6.1.0-1~ubuntu26.04_amd64.deb</code></p>
+</td></tr>
+<tr><td><p>Enterprise Linux 9</p>
+</td><td><p><code>nt6-devel-6.1.0-1.el9.x86_64.rpm</code>, <code>nt6-tools-6.1.0-1.el9.x86_64.rpm</code></p>
+</td></tr>
+<tr><td><p>Enterprise Linux 10</p>
+</td><td><p><code>nt6-devel-6.1.0-1.el10.x86_64.rpm</code>, <code>nt6-tools-6.1.0-1.el10.x86_64.rpm</code></p>
+</td></tr>
+<tr><td><p>Arch Linux</p>
+</td><td><p><code>nt6-6.1.0-1-x86_64.pkg.tar.zst</code></p>
+</td></tr>
+</table>
+<p>With the <code>gh</code> command line tool, for example on Ubuntu 24.04:</p>
+<pre><code>gh release download v6.1.0 --repo open-nt/Nt6 --pattern '*ubuntu24.04*'
+</code></pre>
+<p>Or with <code>curl</code>:</p>
+<pre><code>curl -LO https://github.com/open-nt/Nt6/releases/download/v6.1.0/libnt6-dev_6.1.0-1~ubuntu24.04_amd64.deb
+curl -LO https://github.com/open-nt/Nt6/releases/download/v6.1.0/nt6-tools_6.1.0-1~ubuntu24.04_amd64.deb
+</code></pre>
+<p>Every build of the main branch also uploads its packages as artifacts of the workflow run, named <code>packages-ubuntu-22.04</code>, <code>packages-ubuntu-24.04</code>, <code>packages-ubuntu-26.04</code>, <code>packages-el9</code>, <code>packages-el10</code> and <code>packages-arch</code>.</p>
+<p class="note"><strong>Note:</strong> Install the packages built for your system. A package built for another release of the same system is not tested there and is not supported.</p>
+<h2 id="ubuntu-22-04-24-04-and-26-04">Ubuntu 22.04, 24.04 and 26.04</h2>
+<p>Install the compiler and CMake, then the two packages. <code>apt</code> installs a local file when its name starts with <code>./</code> or a path:</p>
+<pre><code>sudo apt update
+sudo apt install g++ cmake
+sudo apt install ./libnt6-dev_6.1.0-1~ubuntu24.04_amd64.deb ./nt6-tools_6.1.0-1~ubuntu24.04_amd64.deb
+</code></pre>
+<p>Use the file names for your release. To remove them again:</p>
+<pre><code>sudo apt remove libnt6-dev nt6-tools
+</code></pre>
+<p>On Ubuntu 22.04 the packaged CMake is 3.22, which is new enough. The libraries are installed in <code>/usr/lib/x86_64-linux-gnu</code>.</p>
+<h2 id="enterprise-linux-9-and-10">Enterprise Linux 9 and 10</h2>
+<p>This covers RHEL, Rocky Linux and AlmaLinux. The packages are built on Rocky Linux and are binary compatible with the others. Install the compiler and CMake, then the two packages. <code>dnf</code> installs a local file when given its path, and resolves the dependencies from the repositories:</p>
+<pre><code>sudo dnf install gcc-c++ cmake
+sudo dnf install ./nt6-devel-6.1.0-1.el9.x86_64.rpm ./nt6-tools-6.1.0-1.el9.x86_64.rpm
+</code></pre>
+<p>On Enterprise Linux 10 use the <code>el10</code> files. To remove them again:</p>
+<pre><code>sudo dnf remove nt6-devel nt6-tools
+</code></pre>
+<p>The libraries are installed in <code>/usr/lib64</code>.</p>
+<h2 id="arch-linux">Arch Linux</h2>
+<p>Install the compiler and CMake, then the package. <code>pacman -U</code> installs a local file:</p>
+<pre><code>sudo pacman -S --needed gcc cmake
+sudo pacman -U nt6-6.1.0-1-x86_64.pkg.tar.zst
+</code></pre>
+<p>To remove it again:</p>
+<pre><code>sudo pacman -R nt6
+</code></pre>
+<p>The package is built against the Arch Linux packages of the day, so install it on an up-to-date system (<code>sudo pacman -Syu</code>).</p>
+<h2 id="using-nt">Using Nt</h2>
+<p>The headers are in <code>/usr/include/nt6</code>, away from the headers of a <a href="qt.html">Qt</a> installation, so the two do not clash. Find Nt from CMake:</p>
+<pre><code>find_package(Nt6 6 REQUIRED)
+
+add_executable(app main.cpp counter.h)
+target_link_libraries(app PRIVATE Nt6::Network)   # Nt::Network works too
+nt_enable_automoc(app)                            # ntmoc, for Q_OBJECT classes
+</code></pre>
+<p>The package provides <code>Nt6::Core</code>, <code>Nt6::Network</code>, <code>Nt6::SerialPort</code>, <code>Nt6::Test</code>, the tools <code>Nt6::moc</code> and <code>Nt6::ndoc</code>, and the helper functions <code>nt_enable_automoc()</code>, <code>nt_wrap_cpp()</code> and <code>nt_add_docs()</code>. Check the installation with:</p>
+<pre><code>ntmoc --version
+ndoc --version
+</code></pre>
+<p>See <a href="brand.html">Nt Brand Guide</a> for the logo and the way to write Nt's name.</p>
+<h2 id="verifying-a-download">Verifying a Download</h2>
+<p>Each release has SHA-256 checksum files, <code>SHA256SUMS-&lt;system&gt;.txt</code>, next to the packages. Download the one for your system into the same directory and run:</p>
+<pre><code>sha256sum --check --ignore-missing SHA256SUMS-*.txt
+</code></pre>
+<p>Releases also carry SLSA level 3 build provenance, <code>multiple.intoto.jsonl</code>, which records that the packages were built from this repository by its GitHub workflows. Check a package with <a href="https://github.com/slsa-framework/slsa-verifier">slsa-verifier</a>:</p>
+<pre><code>slsa-verifier verify-artifact libnt6-dev_6.1.0-1~ubuntu24.04_amd64.deb \
+    --provenance-path multiple.intoto.jsonl \
+    --source-uri github.com/open-nt/Nt6 --source-tag v6.1.0
+</code></pre>
+<h2 id="building-the-packages-yourself">Building the Packages Yourself</h2>
+<p>Build the packages for your own system, or for all the systems above in Docker containers, from a checkout of the source:</p>
+<pre><code>packaging/build.sh                    # this machine; the packages are written to dist/
+packaging/build-packages.sh           # every system above, in containers
+packaging/build-packages.sh el9 arch  # some of them
+</code></pre>
+<p>Or use CPack directly. It picks <code>.deb</code>, <code>.rpm</code> or a pacman package from <code>/etc/os-release</code>:</p>
+<pre><code>cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr
+cmake --build build
+cpack --config build/CPackConfig.cmake
+</code></pre>
+<p>Pass <code>-G DEB</code>, <code>-G RPM</code> or <code>-G External</code> to <code>cpack</code> to choose the format; <code>External</code> writes the pacman package. To install without a package, run <code>cmake --install build</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="brand.html">Nt Brand Guide</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

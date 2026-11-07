@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QLockFile Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QLockFile</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QLockFile Class</h1>
+<p class="brief">The QLockFile class provides locking between processes using a file. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QLockFile&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qlockfile-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#LockError-enum">LockError</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QLockFile">QLockFile</a>(const <a href="qstring.html">QString</a> &amp;<i>fileName</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QLockFile">~QLockFile</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#lock">lock</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#tryLock">tryLock</a>(int <i>timeout</i> = 0)</td></tr>
+<tr><td class="ret">void</td><td><a href="#unlock">unlock</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#setStaleLockTime">setStaleLockTime</a>(int <i>staleLockTime</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#staleLockTime">staleLockTime</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isLocked">isLocked</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#getLockInfo">getLockInfo</a>(qint64 *<i>pid</i>, <a href="qstring.html">QString</a> *<i>hostname</i>, <a href="qstring.html">QString</a> *<i>appname</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#removeStaleLockFile">removeStaleLockFile</a>()</td></tr>
+<tr><td class="ret">LockError</td><td><a href="#error">error</a>() const</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>A lock file can be used to prevent multiple processes from accessing a same resource. For instance, a configuration file on disk, or a socket, a port, a region of shared memory...</p>
+<p>Serialization is only guaranteed if all processes that access the shared resource use QLockFile, with the same file name.</p>
+<p>QLockFile supports two use cases: protecting a resource for a short period of time (a few seconds at most) and for a long time.</p>
+<pre><code>QLockFile lockFile(&quot;/tmp/app.lock&quot;);
+if (lockFile.tryLock(2000)) {
+    useResource();
+    lockFile.unlock();
+} else if (lockFile.error() == QLockFile::LockFailedError) {
+    qint64 pid;
+    QString host, app;
+    lockFile.getLockInfo(&amp;pid, &amp;host, &amp;app);
+}
+</code></pre>
+<p>The lock file is created with the process id, application path and host name of the owner in it, so that other processes can find out who holds the lock. If the owning process dies without unlocking, the lock file is detected as stale: on the same host, because its process no longer exists (or the pid belongs to another program), and on any host once the file is older than <a href="qlockfile.html#staleLockTime">staleLockTime()</a>. A stale lock is then removed, with a second lock file named <code>.rmlock</code> making sure that two processes do not remove it at the same time.</p>
+<p>The file is created atomically: it is written under a temporary name in the same directory and then hard linked to the lock file name, so that other processes never see a partial file. If the file system does not support hard links, the lock file is created directly.</p>
+<p class="see-also"><strong>See also</strong> <a href="qfile.html">QFile</a> and <a href="qsavefile.html">QSaveFile</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Calling <a href="qlockfile.html#lock">lock()</a> or <a href="qlockfile.html#tryLock">tryLock()</a> on a lock that this object already holds prints a warning and fails with <code>LockFailedError</code> instead of waiting. While waiting, the polling interval starts at 10 ms and doubles up to half a second. An <a href="qlockfile.html#unlock">unlock()</a> that finds the lock file replaced by another process leaves the other file alone. The application path in the lock file is the executable path from <code>/proc</code>, and a lock file whose application name is not an absolute path is not checked for a reused pid. The lock is not re-created if the file is removed by another process.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="LockError-enum">enum QLockFile::LockError</h3>
+<p>This enum describes the result of the last call to <a href="qlockfile.html#lock">lock()</a> or <a href="qlockfile.html#tryLock">tryLock()</a>.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QLockFile::NoError</code></td><td>The lock was acquired successfully.</td></tr>
+<tr><td><code>QLockFile::LockFailedError</code></td><td>The lock could not be acquired because another process holds it.</td></tr>
+<tr><td><code>QLockFile::PermissionError</code></td><td>The lock file could not be created, for lack of permissions in the parent directory.</td></tr>
+<tr><td><code>QLockFile::UnknownError</code></td><td>Another error happened, for instance a full partition prevented writing out the lock file, or the directory of the lock file does not exist.</td></tr>
+</tbody></table>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QLockFile"><span class="tags">[explicit]</span> QLockFile::QLockFile(const <a href="qstring.html">QString</a> &amp;<i>fileName</i>)</h3>
+<p>Constructs a new lock file object. The object is created in an unlocked state. When calling <a href="qlockfile.html#lock">lock()</a> or <a href="qlockfile.html#tryLock">tryLock()</a>, a lock file named <i>fileName</i> will be created, if it doesn't already exist.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#lock">lock()</a> and <a href="qlockfile.html#unlock">unlock()</a>.</p>
+<h3 class="member" id="dtor.QLockFile">QLockFile::~QLockFile()</h3>
+<p>Destroys the lock file object. If the lock was acquired, this will release the lock, by deleting the lock file.</p>
+<h3 class="member" id="error">LockError QLockFile::error() const</h3>
+<p>Returns the lock file error status.</p>
+<p>If <a href="qlockfile.html#tryLock">tryLock()</a> returns <code>false</code>, this function can be called to find out the reason why the locking failed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#tryLock">tryLock()</a>.</p>
+<h3 class="member" id="getLockInfo">bool QLockFile::getLockInfo(qint64 *<i>pid</i>, <a href="qstring.html">QString</a> *<i>hostname</i>, <a href="qstring.html">QString</a> *<i>appname</i>) const</h3>
+<p>Retrieves information about the current owner of the lock file.</p>
+<p>If <a href="qlockfile.html#tryLock">tryLock()</a> returns <code>false</code>, and <a href="qlockfile.html#error">error()</a> returns <code>LockFailedError</code>, this function can be called to find out more information about the existing lock file: <i>pid</i> is the process id of the process that created it, <i>hostname</i> the host it ran on and <i>appname</i> the application it ran. Returns <code>true</code> if the information could be retrieved, in which case the outputs that are not <code>nullptr</code> are set; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#tryLock">tryLock()</a> and <a href="qlockfile.html#error">error()</a>.</p>
+<h3 class="member" id="isLocked">bool QLockFile::isLocked() const</h3>
+<p>Returns <code>true</code> if the lock was acquired by this <a href="qlockfile.html">QLockFile</a> instance, otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#lock">lock()</a>, <a href="qlockfile.html#unlock">unlock()</a> and <a href="qlockfile.html#tryLock">tryLock()</a>.</p>
+<h3 class="member" id="lock">bool QLockFile::lock()</h3>
+<p>Creates the lock file. If another process (or thread) has created the lock file already, this function will block until that process (or thread) releases it. Calling this function multiple times on the same lock from the same thread without unlocking first is not allowed.</p>
+<p>Returns <code>true</code> if the lock was acquired, <code>false</code> if it could not be acquired due to an unrecoverable error, such as no permissions in the parent directory.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#unlock">unlock()</a>, <a href="qlockfile.html#tryLock">tryLock()</a> and <a href="qlockfile.html#error">error()</a>.</p>
+<h3 class="member" id="removeStaleLockFile">bool QLockFile::removeStaleLockFile()</h3>
+<p>Attempts to forcefully remove an existing lock file.</p>
+<p>Calling this is not recommended when protecting a short-lived operation: <a href="qlockfile.html">QLockFile</a> already takes care of removing lock files after a crash, based on a time-out and a check that the process that created the lock file is still running. Also, this function is not guaranteed to remove the lock file if it is held by another process; it only deletes the file. The lock file must not be locked by this object.</p>
+<p>Returns <code>true</code> if the lock file was removed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#setStaleLockTime">setStaleLockTime()</a> and <a href="qlockfile.html#getLockInfo">getLockInfo()</a>.</p>
+<h3 class="member" id="setStaleLockTime">void QLockFile::setStaleLockTime(int <i>staleLockTime</i>)</h3>
+<p>Sets the time in milliseconds after which a lock file is considered stale to <i>staleLockTime</i>. The default value is 30000, i.e. 30 seconds. If your application typically keeps the file locked for more than 30 seconds (for instance while saving megabytes of data for 2 minutes), you should set a bigger value using setStaleLockTime().</p>
+<p>The value is used by <a href="qlockfile.html#lock">lock()</a> and <a href="qlockfile.html#tryLock">tryLock()</a> in order to determine when an existing lock file is considered stale, i.e. left over by a crashed process. This is done by checking the modification time of the lock file, in addition to checking whether the process that created it still exists on the same host. A value of 0 or less disables the check of the modification time.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#staleLockTime">staleLockTime()</a>.</p>
+<h3 class="member" id="staleLockTime">int QLockFile::staleLockTime() const</h3>
+<p>Returns the time in milliseconds after which a lock file is considered stale.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#setStaleLockTime">setStaleLockTime()</a>.</p>
+<h3 class="member" id="tryLock">bool QLockFile::tryLock(int <i>timeout</i> = 0)</h3>
+<p>Attempts to create the lock file. This function returns <code>true</code> if the lock was obtained; otherwise it returns <code>false</code>. If another process (or thread) has created the lock file already, this function will wait for at most <i>timeout</i> milliseconds for the lock file to become available.</p>
+<p>Note: Passing a negative number as the <i>timeout</i> is equivalent to calling <a href="qlockfile.html#lock">lock()</a>, i.e. this function will wait forever until the lock file can be locked if <i>timeout</i> is negative.</p>
+<p>If the lock was obtained, it must be released with <a href="qlockfile.html#unlock">unlock()</a> before another process (or thread) can successfully lock it.</p>
+<p>Calling this function multiple times on the same lock from the same thread without unlocking first is not allowed; it fails.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#lock">lock()</a> and <a href="qlockfile.html#unlock">unlock()</a>.</p>
+<h3 class="member" id="unlock">void QLockFile::unlock()</h3>
+<p>Releases the lock, by deleting the lock file. Calling this function without having successfully obtained the lock is a no-op.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlockfile.html#lock">lock()</a> and <a href="qlockfile.html#tryLock">tryLock()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

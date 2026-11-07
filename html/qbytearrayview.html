@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QByteArrayView Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QByteArrayView</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QByteArrayView Class</h1>
+<p class="brief">The QByteArrayView class provides a view on an array of bytes with a read-only subset of the <a href="qbytearray.html">QByteArray</a> API. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QByteArrayView&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qbytearrayview-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">typedef</td><td><a href="#const_iterator-typedef">const_iterator</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#iterator-typedef">iterator</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#value_type-typedef">value_type</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QByteArrayView">QByteArrayView</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArrayView-2">QByteArrayView</a>(std::nullptr_t)</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArrayView-3">QByteArrayView</a>(const char *<i>data</i>, qsizetype <i>len</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArrayView-4">QByteArrayView</a>(const char *<i>data</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArrayView-5">QByteArrayView</a>(const <a href="qbytearray.html">QByteArray</a> &amp;<i>b</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArrayView-6">QByteArrayView</a>(std::string_view <i>s</i>)</td></tr>
+<tr><td class="ret"><a href="qbytearray.html">QByteArray</a></td><td><a href="#toByteArray">toByteArray</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#data">data</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#constData">constData</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#size">size</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#length">length</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isNull">isNull</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isEmpty">isEmpty</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#empty">empty</a>() const</td></tr>
+<tr><td class="ret">char</td><td><a href="#at">at</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">char</td><td><a href="#operator-5b5d">operator[]</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">char</td><td><a href="#front">front</a>() const</td></tr>
+<tr><td class="ret">char</td><td><a href="#back">back</a>() const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#begin">begin</a>() const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#end">end</a>() const</td></tr>
+<tr><td class="ret">QByteArrayView</td><td><a href="#mid">mid</a>(qsizetype <i>pos</i>, qsizetype <i>len</i> = -1) const</td></tr>
+<tr><td class="ret">QByteArrayView</td><td><a href="#left">left</a>(qsizetype <i>c</i>) const</td></tr>
+<tr><td class="ret">QByteArrayView</td><td><a href="#right">right</a>(qsizetype <i>c</i>) const</td></tr>
+<tr><td class="ret">QByteArrayView</td><td><a href="#first">first</a>(qsizetype <i>c</i>) const</td></tr>
+<tr><td class="ret">QByteArrayView</td><td><a href="#last">last</a>(qsizetype <i>c</i>) const</td></tr>
+<tr><td class="ret">QByteArrayView</td><td><a href="#sliced">sliced</a>(qsizetype <i>pos</i>) const</td></tr>
+<tr><td class="ret">QByteArrayView</td><td><a href="#sliced-2">sliced</a>(qsizetype <i>pos</i>, qsizetype <i>c</i>) const</td></tr>
+<tr><td class="ret">QByteArrayView</td><td><a href="#chopped">chopped</a>(qsizetype <i>c</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#startsWith">startsWith</a>(QByteArrayView <i>s</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#endsWith">endsWith</a>(QByteArrayView <i>s</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#startsWith-2">startsWith</a>(char <i>c</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#endsWith-2">endsWith</a>(char <i>c</i>) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#indexOf">indexOf</a>(QByteArrayView <i>s</i>, qsizetype <i>from</i> = 0) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#indexOf-2">indexOf</a>(char <i>c</i>, qsizetype <i>from</i> = 0) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#lastIndexOf">lastIndexOf</a>(QByteArrayView <i>s</i>, qsizetype <i>from</i> = -1) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#lastIndexOf-2">lastIndexOf</a>(char <i>c</i>, qsizetype <i>from</i> = -1) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#contains">contains</a>(QByteArrayView <i>s</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#contains-2">contains</a>(char <i>c</i>) const</td></tr>
+<tr><td class="ret">int</td><td><a href="#compare">compare</a>(QByteArrayView <i>s</i>) const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#cbegin">cbegin</a>() const</td></tr>
+<tr><td class="ret">const_iterator</td><td><a href="#cend">cend</a>() const</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>A QByteArrayView refers to a contiguous range of bytes without owning or copying it, so the viewed data must outlive the view. It is cheap to copy and is meant for function parameters that only read bytes, accepting a <a href="qbytearray.html">QByteArray</a>, a string literal or a <code>std::string_view</code> alike.</p>
+<p>A view is <em>null</em> if it was constructed without data (or from a null <a href="qbytearray.html">QByteArray</a>), and empty if its size is 0. A null view is also empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html">QByteArray</a> and <a href="qstringview.html">QStringView</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Only part of the <a href="qt.html">Qt</a> API is provided: construction, element access, slicing, <a href="qbytearrayview.html#startsWith">startsWith()</a>, <a href="qbytearrayview.html#endsWith">endsWith()</a>, <a href="qbytearrayview.html#indexOf">indexOf()</a>, <a href="qbytearrayview.html#lastIndexOf">lastIndexOf()</a>, <a href="qbytearrayview.html#contains">contains()</a>, <a href="qbytearrayview.html#compare">compare()</a> and the comparison operators. There are no number conversions (<code>toInt()</code> and friends), <code>count()</code>, <code>split()</code>, <code>trimmed()</code>, <code>truncate()</code>, <code>chop()</code> or reverse iterators. <a href="qbytearrayview.html#first">first()</a>, <a href="qbytearrayview.html#last">last()</a>, <a href="qbytearrayview.html#sliced">sliced()</a> and <a href="qbytearrayview.html#chopped">chopped()</a> do not check their arguments.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="const_iterator-typedef">typedef QByteArrayView::const_iterator</h3>
+<p>A read-only iterator over the bytes of the view. It is a plain <code>const char *</code>.</p>
+<h3 class="member" id="iterator-typedef">typedef QByteArrayView::iterator</h3>
+<p>The iterator type, for STL compatibility. It is the same as const_iterator.</p>
+<h3 class="member" id="value_type-typedef">typedef QByteArrayView::value_type</h3>
+<p>The element type of the view, for STL compatibility.</p>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QByteArrayView"><span class="tags">[constexpr]</span> QByteArrayView::QByteArrayView()</h3>
+<p>Constructs a null view.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#isNull">isNull()</a>.</p>
+<h3 class="member" id="QByteArrayView-2"><span class="tags">[constexpr]</span> QByteArrayView::QByteArrayView(std::nullptr_t)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a null view.</p>
+<h3 class="member" id="QByteArrayView-3"><span class="tags">[constexpr]</span> QByteArrayView::QByteArrayView(const char *<i>data</i>, qsizetype <i>len</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a view of the <i>len</i> bytes starting at <i>data</i>.</p>
+<h3 class="member" id="QByteArrayView-4">QByteArrayView::QByteArrayView(const char *<i>data</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a view of the null-terminated string <i>data</i>, not including the terminator. The view is null if <i>data</i> is <code>nullptr</code>.</p>
+<h3 class="member" id="QByteArrayView-5">QByteArrayView::QByteArrayView(const <a href="qbytearray.html">QByteArray</a> &amp;<i>b</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a view of the contents of the byte array <i>b</i>. The view is null if <i>b</i> is null. It is invalidated when <i>b</i> is modified or destroyed.</p>
+<h3 class="member" id="QByteArrayView-6">QByteArrayView::QByteArrayView(std::string_view <i>s</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a view of the characters of the string view <i>s</i>.</p>
+<h3 class="member" id="at"><span class="tags">[constexpr]</span> char QByteArrayView::at(qsizetype <i>i</i>) const</h3>
+<p>Returns the byte at index position <i>i</i>. <i>i</i> must be a valid index; no bounds checking is done.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#front">front()</a> and <a href="qbytearrayview.html#back">back()</a>.</p>
+<h3 class="member" id="back"><span class="tags">[constexpr]</span> char QByteArrayView::back() const</h3>
+<p>Returns the last byte of the view. The view must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#front">front()</a>.</p>
+<h3 class="member" id="begin"><span class="tags">[constexpr]</span> const_iterator QByteArrayView::begin() const</h3>
+<p>Returns an iterator pointing to the first byte of the view.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#end">end()</a>.</p>
+<h3 class="member" id="cbegin">const_iterator QByteArrayView::cbegin() const</h3>
+<p>Returns a const iterator pointing to the first byte of the view. This is the same as <a href="qbytearrayview.html#begin">begin()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#cend">cend()</a>.</p>
+<h3 class="member" id="cend">const_iterator QByteArrayView::cend() const</h3>
+<p>Returns a const iterator pointing just after the last byte of the view. This is the same as <a href="qbytearrayview.html#end">end()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#cbegin">cbegin()</a>.</p>
+<h3 class="member" id="chopped"><span class="tags">[constexpr]</span> <a href="qbytearrayview.html">QByteArrayView</a> QByteArrayView::chopped(qsizetype <i>c</i>) const</h3>
+<p>Returns the view with the last <i>c</i> bytes removed. <i>c</i> must not exceed <a href="qbytearrayview.html#size">size()</a>; no bounds checking is done.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#sliced">sliced()</a>.</p>
+<h3 class="member" id="compare">int QByteArrayView::compare(<a href="qbytearrayview.html">QByteArrayView</a> <i>s</i>) const</h3>
+<p>Compares the view with <i>s</i> byte by byte and returns a negative integer, zero or a positive integer if the view is less than, equal to or greater than <i>s</i>.</p>
+<h3 class="member" id="constData"><span class="tags">[constexpr]</span> const char * QByteArrayView::constData() const</h3>
+<p>Returns a pointer to the first byte of the view. This is the same as <a href="qbytearrayview.html#data">data()</a>.</p>
+<h3 class="member" id="contains">bool QByteArrayView::contains(<a href="qbytearrayview.html">QByteArrayView</a> <i>s</i>) const</h3>
+<p>Returns <code>true</code> if the view contains <i>s</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#indexOf">indexOf()</a>.</p>
+<h3 class="member" id="contains-2">bool QByteArrayView::contains(char <i>c</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if the view contains the byte <i>c</i>; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="data"><span class="tags">[constexpr]</span> const char * QByteArrayView::data() const</h3>
+<p>Returns a pointer to the first byte of the view. The data is not necessarily null-terminated.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#constData">constData()</a>.</p>
+<h3 class="member" id="empty"><span class="tags">[constexpr]</span> bool QByteArrayView::empty() const</h3>
+<p>Returns <code>true</code> if the view has no bytes. This is the same as <a href="qbytearrayview.html#isEmpty">isEmpty()</a>, provided for STL compatibility.</p>
+<h3 class="member" id="end"><span class="tags">[constexpr]</span> const_iterator QByteArrayView::end() const</h3>
+<p>Returns an iterator pointing just after the last byte of the view.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#begin">begin()</a>.</p>
+<h3 class="member" id="endsWith">bool QByteArrayView::endsWith(<a href="qbytearrayview.html">QByteArrayView</a> <i>s</i>) const</h3>
+<p>Returns <code>true</code> if the view ends with <i>s</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#startsWith">startsWith()</a>.</p>
+<h3 class="member" id="endsWith-2">bool QByteArrayView::endsWith(char <i>c</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if the view ends with the byte <i>c</i>; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="first"><span class="tags">[constexpr]</span> <a href="qbytearrayview.html">QByteArrayView</a> QByteArrayView::first(qsizetype <i>c</i>) const</h3>
+<p>Returns a view of the first <i>c</i> bytes. <i>c</i> must not exceed <a href="qbytearrayview.html#size">size()</a>; no bounds checking is done.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#last">last()</a> and <a href="qbytearrayview.html#left">left()</a>.</p>
+<h3 class="member" id="front"><span class="tags">[constexpr]</span> char QByteArrayView::front() const</h3>
+<p>Returns the first byte of the view. The view must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#back">back()</a>.</p>
+<h3 class="member" id="indexOf">qsizetype QByteArrayView::indexOf(<a href="qbytearrayview.html">QByteArrayView</a> <i>s</i>, qsizetype <i>from</i> = 0) const</h3>
+<p>Returns the index position of the first occurrence of <i>s</i> in the view, searching forward from index position <i>from</i>, or -1 if it is not found.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#lastIndexOf">lastIndexOf()</a> and <a href="qbytearrayview.html#contains">contains()</a>.</p>
+<h3 class="member" id="indexOf-2">qsizetype QByteArrayView::indexOf(char <i>c</i>, qsizetype <i>from</i> = 0) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the index position of the first occurrence of the byte <i>c</i> in the view, searching forward from index position <i>from</i>, or -1 if it is not found.</p>
+<h3 class="member" id="isEmpty"><span class="tags">[constexpr]</span> bool QByteArrayView::isEmpty() const</h3>
+<p>Returns <code>true</code> if the view has no bytes; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#isNull">isNull()</a> and <a href="qbytearrayview.html#size">size()</a>.</p>
+<h3 class="member" id="isNull"><span class="tags">[constexpr]</span> bool QByteArrayView::isNull() const</h3>
+<p>Returns <code>true</code> if the view has no data (it was default-constructed or built from a null array or pointer); otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#isEmpty">isEmpty()</a>.</p>
+<h3 class="member" id="last"><span class="tags">[constexpr]</span> <a href="qbytearrayview.html">QByteArrayView</a> QByteArrayView::last(qsizetype <i>c</i>) const</h3>
+<p>Returns a view of the last <i>c</i> bytes. <i>c</i> must not exceed <a href="qbytearrayview.html#size">size()</a>; no bounds checking is done.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#first">first()</a> and <a href="qbytearrayview.html#right">right()</a>.</p>
+<h3 class="member" id="lastIndexOf">qsizetype QByteArrayView::lastIndexOf(<a href="qbytearrayview.html">QByteArrayView</a> <i>s</i>, qsizetype <i>from</i> = -1) const</h3>
+<p>Returns the index position of the last occurrence of <i>s</i> in the view, searching backward from index position <i>from</i>, or -1 if it is not found. A negative <i>from</i> searches from the end of the view; the match must begin at or before <i>from</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#indexOf">indexOf()</a> and <a href="qbytearrayview.html#contains">contains()</a>.</p>
+<h3 class="member" id="lastIndexOf-2">qsizetype QByteArrayView::lastIndexOf(char <i>c</i>, qsizetype <i>from</i> = -1) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the index position of the last occurrence of the byte <i>c</i> in the view, searching backward from index position <i>from</i>, or -1 if it is not found.</p>
+<h3 class="member" id="left"><a href="qbytearrayview.html">QByteArrayView</a> QByteArrayView::left(qsizetype <i>c</i>) const</h3>
+<p>Returns the first <i>c</i> bytes of the view, or the whole view if <i>c</i> is larger than <a href="qbytearrayview.html#size">size()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#right">right()</a>, <a href="qbytearrayview.html#mid">mid()</a> and <a href="qbytearrayview.html#first">first()</a>.</p>
+<h3 class="member" id="length"><span class="tags">[constexpr]</span> qsizetype QByteArrayView::length() const</h3>
+<p>Returns the number of bytes in the view. This is the same as <a href="qbytearrayview.html#size">size()</a>.</p>
+<h3 class="member" id="mid"><a href="qbytearrayview.html">QByteArrayView</a> QByteArrayView::mid(qsizetype <i>pos</i>, qsizetype <i>len</i> = -1) const</h3>
+<p>Returns a view of <i>len</i> bytes starting at index position <i>pos</i>. If <i>len</i> is negative or extends past the end, the view extends to the end. A negative <i>pos</i> is clamped to 0 and reduces <i>len</i> accordingly. If <i>pos</i> is past the end, an empty view is returned.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#left">left()</a>, <a href="qbytearrayview.html#right">right()</a> and <a href="qbytearrayview.html#sliced">sliced()</a>.</p>
+<h3 class="member" id="operator-5b5d"><span class="tags">[constexpr]</span> char QByteArrayView::operator[](qsizetype <i>i</i>) const</h3>
+<p>Returns the byte at index position <i>i</i>. This is the same as <a href="qbytearrayview.html#at">at()</a>.</p>
+<h3 class="member" id="right"><a href="qbytearrayview.html">QByteArrayView</a> QByteArrayView::right(qsizetype <i>c</i>) const</h3>
+<p>Returns the last <i>c</i> bytes of the view, or the whole view if <i>c</i> is larger than <a href="qbytearrayview.html#size">size()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#left">left()</a>, <a href="qbytearrayview.html#mid">mid()</a> and <a href="qbytearrayview.html#last">last()</a>.</p>
+<h3 class="member" id="size"><span class="tags">[constexpr]</span> qsizetype QByteArrayView::size() const</h3>
+<p>Returns the number of bytes in the view.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#isEmpty">isEmpty()</a>.</p>
+<h3 class="member" id="sliced"><span class="tags">[constexpr]</span> <a href="qbytearrayview.html">QByteArrayView</a> QByteArrayView::sliced(qsizetype <i>pos</i>) const</h3>
+<p>Returns a view of the part starting at index position <i>pos</i> and extending to the end. <i>pos</i> must not exceed <a href="qbytearrayview.html#size">size()</a>; no bounds checking is done.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#mid">mid()</a> and <a href="qbytearrayview.html#chopped">chopped()</a>.</p>
+<h3 class="member" id="sliced-2"><span class="tags">[constexpr]</span> <a href="qbytearrayview.html">QByteArrayView</a> QByteArrayView::sliced(qsizetype <i>pos</i>, qsizetype <i>c</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a view of <i>c</i> bytes starting at index position <i>pos</i>. The range must lie within the view; no bounds checking is done.</p>
+<h3 class="member" id="startsWith">bool QByteArrayView::startsWith(<a href="qbytearrayview.html">QByteArrayView</a> <i>s</i>) const</h3>
+<p>Returns <code>true</code> if the view starts with <i>s</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearrayview.html#endsWith">endsWith()</a>.</p>
+<h3 class="member" id="startsWith-2">bool QByteArrayView::startsWith(char <i>c</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if the view starts with the byte <i>c</i>; otherwise returns <code>false</code>.</p>
+<h3 class="member" id="toByteArray"><a href="qbytearray.html">QByteArray</a> QByteArrayView::toByteArray() const</h3>
+<p>Returns a copy of the viewed bytes as a <a href="qbytearray.html">QByteArray</a>. The result is null if the view is null.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

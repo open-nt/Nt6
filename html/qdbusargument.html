@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QDBusArgument Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntdbus-module.html">Nt D-Bus C++ Classes</a> &rsaquo; QDBusArgument</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QDBusArgument Class</h1>
+<p class="brief">The QDBusArgument class is used to marshall and demarshall D-Bus arguments. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QDBusArgument&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::DBus)</code></td></tr>
+<tr><th>Module</th><td><a href="ntdbus-module.html">Nt D-Bus C++ Classes</a></td></tr>
+</table>
+<p><a href="qdbusargument-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#ElementType-enum">ElementType</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QDBusArgument">QDBusArgument</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#QDBusArgument-2">QDBusArgument</a>(const QDBusArgument &amp;<i>other</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QDBusArgument-3">QDBusArgument</a>(QDBusArgument &amp;&amp;<i>other</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3d">operator=</a>(const QDBusArgument &amp;<i>other</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3d-2">operator=</a>(QDBusArgument &amp;&amp;<i>other</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QDBusArgument">~QDBusArgument</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#swap">swap</a>(QDBusArgument &amp;<i>other</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c">operator&lt;&lt;</a>(uchar <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-2">operator&lt;&lt;</a>(bool <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-3">operator&lt;&lt;</a>(short <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-4">operator&lt;&lt;</a>(ushort <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-5">operator&lt;&lt;</a>(int <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-6">operator&lt;&lt;</a>(uint <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-7">operator&lt;&lt;</a>(qlonglong <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-8">operator&lt;&lt;</a>(qulonglong <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-9">operator&lt;&lt;</a>(long <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-10">operator&lt;&lt;</a>(unsigned long <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-11">operator&lt;&lt;</a>(double <i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-12">operator&lt;&lt;</a>(const <a href="qstring.html">QString</a> &amp;<i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-13">operator&lt;&lt;</a>(const <a href="qdbusvariant.html">QDBusVariant</a> &amp;<i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-14">operator&lt;&lt;</a>(const <a href="qdbusobjectpath.html">QDBusObjectPath</a> &amp;<i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-15">operator&lt;&lt;</a>(const <a href="qdbussignature.html">QDBusSignature</a> &amp;<i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-16">operator&lt;&lt;</a>(const <a href="qdbusunixfiledescriptor.html">QDBusUnixFileDescriptor</a> &amp;<i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-17">operator&lt;&lt;</a>(const <a href="qstringlist.html">QStringList</a> &amp;<i>arg</i>)</td></tr>
+<tr><td class="ret">QDBusArgument &amp;</td><td><a href="#operator-3c3c-18">operator&lt;&lt;</a>(const <a href="qbytearray.html">QByteArray</a> &amp;<i>arg</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginStructure">beginStructure</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#endStructure">endStructure</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginArray">beginArray</a>(<a href="qmetatype.html">QMetaType</a> <i>elementMetaType</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginArray-2">beginArray</a>(int <i>elementMetaTypeId</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#endArray">endArray</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginMap">beginMap</a>(<a href="qmetatype.html">QMetaType</a> <i>keyMetaType</i>, <a href="qmetatype.html">QMetaType</a> <i>valueMetaType</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginMap-2">beginMap</a>(int <i>keyMetaTypeId</i>, int <i>valueMetaTypeId</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#endMap">endMap</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginMapEntry">beginMapEntry</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#endMapEntry">endMapEntry</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#appendVariant">appendVariant</a>(const <a href="qvariant.html">QVariant</a> &amp;<i>value</i>)</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#currentSignature">currentSignature</a>() const</td></tr>
+<tr><td class="ret">ElementType</td><td><a href="#currentType">currentType</a>() const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e">operator&gt;&gt;</a>(uchar &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-2">operator&gt;&gt;</a>(bool &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-3">operator&gt;&gt;</a>(short &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-4">operator&gt;&gt;</a>(ushort &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-5">operator&gt;&gt;</a>(int &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-6">operator&gt;&gt;</a>(uint &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-7">operator&gt;&gt;</a>(qlonglong &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-8">operator&gt;&gt;</a>(qulonglong &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-9">operator&gt;&gt;</a>(long &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-10">operator&gt;&gt;</a>(unsigned long &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-11">operator&gt;&gt;</a>(double &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-12">operator&gt;&gt;</a>(<a href="qstring.html">QString</a> &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-13">operator&gt;&gt;</a>(<a href="qdbusvariant.html">QDBusVariant</a> &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-14">operator&gt;&gt;</a>(<a href="qdbusobjectpath.html">QDBusObjectPath</a> &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-15">operator&gt;&gt;</a>(<a href="qdbussignature.html">QDBusSignature</a> &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-16">operator&gt;&gt;</a>(<a href="qdbusunixfiledescriptor.html">QDBusUnixFileDescriptor</a> &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-17">operator&gt;&gt;</a>(<a href="qstringlist.html">QStringList</a> &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">const QDBusArgument &amp;</td><td><a href="#operator-3e3e-18">operator&gt;&gt;</a>(<a href="qbytearray.html">QByteArray</a> &amp;<i>arg</i>) const</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginStructure-2">beginStructure</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#endStructure-2">endStructure</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginArray-3">beginArray</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#endArray-2">endArray</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginMap-3">beginMap</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#endMap-2">endMap</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#beginMapEntry-2">beginMapEntry</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#endMapEntry-2">endMapEntry</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#atEnd">atEnd</a>() const</td></tr>
+<tr><td class="ret"><a href="qvariant.html">QVariant</a></td><td><a href="#asVariant">asVariant</a>() const</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>To send a type of your own, give it stream operators and register it with qDBusRegisterMetaType(). A structure maps to a D-Bus structure with <a href="qdbusargument.html#beginStructure">beginStructure()</a> and <a href="qdbusargument.html#endStructure">endStructure()</a>:</p>
+<pre><code>struct Fix { double lat; double lon; };
+Q_DECLARE_METATYPE(Fix)
+
+QDBusArgument &amp;operator&lt;&lt;(QDBusArgument &amp;arg, const Fix &amp;fix) {
+    arg.beginStructure();
+    arg &lt;&lt; fix.lat &lt;&lt; fix.lon;
+    arg.endStructure();
+    return arg;
+}
+const QDBusArgument &amp;operator&gt;&gt;(const QDBusArgument &amp;arg, Fix &amp;fix) {
+    arg.beginStructure();
+    arg &gt;&gt; fix.lat &gt;&gt; fix.lon;
+    arg.endStructure();
+    return arg;
+}
+
+qDBusRegisterMetaType&lt;Fix&gt;();
+</code></pre>
+<p>Containers, structures and dictionaries of a received message that Nt has no C++ type for arrive in a <a href="qvariant.html">QVariant</a> as a QDBusArgument. qdbus_cast() turns one into a type that is registered:</p>
+<pre><code>QVariantMap map = qdbus_cast&lt;QVariantMap&gt;(reply.arguments().first());
+</code></pre>
+<p>A QDBusArgument that was default-constructed is for writing; one that came from a message is for reading. Reading from a copy does not move the position of the original.</p>
+<p class="see-also"><strong>See also</strong> <a href="qdbusmetatype.html">QDBusMetaType</a>, <a href="qdbusvariant.html">QDBusVariant</a> and <a href="qdbusmessage.html">QDBusMessage</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>The stream operators for <a href="qdate.html">QDate</a>, <a href="qtime.html">QTime</a>, <a href="qdatetime.html">QDateTime</a> and the geometry types are missing. A <code>std::pair</code> takes the place of QPair, and <code>std::tuple</code> maps to a structure as well. Marshalling <code>long</code> and <code>unsigned long</code> is supported because Nt's <code>qint64</code> is <code>long</code> on Linux. A value of the wrong type is not read: the function prints a warning, returns a default value and skips the value on the wire.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="ElementType-enum">enum QDBusArgument::ElementType</h3>
+<p>Describes the next value of an argument that is being read.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QDBusArgument::BasicType</code></td><td>A basic type: a number, a string, an object path or a signature.</td></tr>
+<tr><td><code>QDBusArgument::VariantType</code></td><td>A D-Bus variant.</td></tr>
+<tr><td><code>QDBusArgument::ArrayType</code></td><td>An array, read with <a href="qdbusargument.html#beginArray">beginArray()</a>.</td></tr>
+<tr><td><code>QDBusArgument::StructureType</code></td><td>A structure, read with <a href="qdbusargument.html#beginStructure">beginStructure()</a>.</td></tr>
+<tr><td><code>QDBusArgument::MapType</code></td><td>A dictionary, read with <a href="qdbusargument.html#beginMap">beginMap()</a>.</td></tr>
+<tr><td><code>QDBusArgument::MapEntryType</code></td><td>An entry of a dictionary, read with <a href="qdbusargument.html#beginMapEntry">beginMapEntry()</a>.</td></tr>
+<tr><td><code>QDBusArgument::UnknownType</code></td><td>There is no value at this position.</td></tr>
+</tbody></table>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QDBusArgument">QDBusArgument::QDBusArgument()</h3>
+<p>Constructs an empty argument for writing.</p>
+<h3 class="member" id="QDBusArgument-2">QDBusArgument::QDBusArgument(const <a href="qdbusargument.html">QDBusArgument</a> &amp;<i>other</i>)</h3>
+<p>Constructs a copy of <i>other</i>. Reading from one of them does not move the position of the other; writing to one writes to both.</p>
+<h3 class="member" id="QDBusArgument-3">QDBusArgument::QDBusArgument(<a href="qdbusargument.html">QDBusArgument</a> &amp;&amp;<i>other</i>)</h3>
+<p>Constructs an argument that takes the place of <i>other</i>.</p>
+<h3 class="member" id="dtor.QDBusArgument">QDBusArgument::~QDBusArgument()</h3>
+<p>Destroys the argument.</p>
+<h3 class="member" id="appendVariant">void QDBusArgument::appendVariant(const <a href="qvariant.html">QVariant</a> &amp;<i>value</i>)</h3>
+<p>Appends <i>value</i>, which can have any type that is known to the D-Bus type system. It is not wrapped in a D-Bus variant.</p>
+<h3 class="member" id="asVariant"><a href="qvariant.html">QVariant</a> QDBusArgument::asVariant() const</h3>
+<p>Reads the value at the current position and returns it in a <a href="qvariant.html">QVariant</a>: basic types, string lists and byte arrays as themselves, a variant as a <a href="qdbusvariant.html">QDBusVariant</a>, and other containers as a <a href="qdbusargument.html">QDBusArgument</a>.</p>
+<h3 class="member" id="atEnd">bool QDBusArgument::atEnd() const</h3>
+<p>Returns <code>true</code> if there are no more values in the current container, or in the argument.</p>
+<h3 class="member" id="beginArray">void QDBusArgument::beginArray(<a href="qmetatype.html">QMetaType</a> <i>elementMetaType</i>)</h3>
+<p>Opens an array with elements of the type <i>elementMetaType</i>, which must be known to the D-Bus type system. The values that follow are its elements, up to <a href="qdbusargument.html#endArray">endArray()</a>.</p>
+<h3 class="member" id="beginArray-2">void QDBusArgument::beginArray(int <i>elementMetaTypeId</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Opens an array whose elements have the meta-type id <i>elementMetaTypeId</i>.</p>
+<h3 class="member" id="beginArray-3">void QDBusArgument::beginArray() const</h3>
+<p>This is an overloaded function.</p>
+<p>Enters the array at the current position. Read elements while <a href="qdbusargument.html#atEnd">atEnd()</a> is <code>false</code>.</p>
+<h3 class="member" id="beginMap">void QDBusArgument::beginMap(<a href="qmetatype.html">QMetaType</a> <i>keyMetaType</i>, <a href="qmetatype.html">QMetaType</a> <i>valueMetaType</i>)</h3>
+<p>Opens a dictionary with keys of the type <i>keyMetaType</i>, which must be a basic type, and values of the type <i>valueMetaType</i>. Enclose each pair in <a href="qdbusargument.html#beginMapEntry">beginMapEntry()</a> and <a href="qdbusargument.html#endMapEntry">endMapEntry()</a>.</p>
+<h3 class="member" id="beginMap-2">void QDBusArgument::beginMap(int <i>keyMetaTypeId</i>, int <i>valueMetaTypeId</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Opens a map whose keys and values have the meta-type ids <i>keyMetaTypeId</i> and <i>valueMetaTypeId</i>.</p>
+<h3 class="member" id="beginMap-3">void QDBusArgument::beginMap() const</h3>
+<p>This is an overloaded function.</p>
+<p>Enters the dictionary at the current position. Read entries while <a href="qdbusargument.html#atEnd">atEnd()</a> is <code>false</code>.</p>
+<h3 class="member" id="beginMapEntry">void QDBusArgument::beginMapEntry()</h3>
+<p>Opens an entry of a dictionary. The two values that follow are its key and its value.</p>
+<h3 class="member" id="beginMapEntry-2">void QDBusArgument::beginMapEntry() const</h3>
+<p>This is an overloaded function.</p>
+<p>Enters the dictionary entry at the current position.</p>
+<h3 class="member" id="beginStructure">void QDBusArgument::beginStructure()</h3>
+<p>Opens a structure. The values that follow are its members, up to <a href="qdbusargument.html#endStructure">endStructure()</a>.</p>
+<h3 class="member" id="beginStructure-2">void QDBusArgument::beginStructure() const</h3>
+<p>This is an overloaded function.</p>
+<p>Enters the structure at the current position.</p>
+<h3 class="member" id="currentSignature"><a href="qstring.html">QString</a> QDBusArgument::currentSignature() const</h3>
+<p>Returns the signature of the value at the current position of an argument that is being read, or of everything written so far to one that is being written.</p>
+<h3 class="member" id="currentType">ElementType QDBusArgument::currentType() const</h3>
+<p>Returns the kind of the value at the current position, or <code>UnknownType</code> if there is none or the argument is being written.</p>
+<h3 class="member" id="endArray">void QDBusArgument::endArray()</h3>
+<p>Closes the array that <a href="qdbusargument.html#beginArray">beginArray()</a> opened.</p>
+<h3 class="member" id="endArray-2">void QDBusArgument::endArray() const</h3>
+<p>This is an overloaded function.</p>
+<p>Leaves the current array, skipping elements that were not read.</p>
+<h3 class="member" id="endMap">void QDBusArgument::endMap()</h3>
+<p>Closes the dictionary that <a href="qdbusargument.html#beginMap">beginMap()</a> opened.</p>
+<h3 class="member" id="endMap-2">void QDBusArgument::endMap() const</h3>
+<p>This is an overloaded function.</p>
+<p>Leaves the current dictionary, skipping entries that were not read.</p>
+<h3 class="member" id="endMapEntry">void QDBusArgument::endMapEntry()</h3>
+<p>Closes the entry that <a href="qdbusargument.html#beginMapEntry">beginMapEntry()</a> opened.</p>
+<h3 class="member" id="endMapEntry-2">void QDBusArgument::endMapEntry() const</h3>
+<p>This is an overloaded function.</p>
+<p>Leaves the current dictionary entry.</p>
+<h3 class="member" id="endStructure">void QDBusArgument::endStructure()</h3>
+<p>Closes the structure that <a href="qdbusargument.html#beginStructure">beginStructure()</a> opened.</p>
+<h3 class="member" id="endStructure-2">void QDBusArgument::endStructure() const</h3>
+<p>This is an overloaded function.</p>
+<p>Leaves the current structure, skipping members that were not read.</p>
+<h3 class="member" id="operator-3c3c"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(uchar <i>arg</i>)</h3>
+<p>Appends the byte <i>arg</i> and returns a reference to this argument.</p>
+<h3 class="member" id="operator-3c3c-2"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(bool <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the boolean <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-3"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(short <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the 16 bit integer <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-4"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(ushort <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the unsigned 16 bit integer <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-5"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(int <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the 32 bit integer <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-6"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(uint <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the unsigned 32 bit integer <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-7"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(qlonglong <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the 64 bit integer <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-8"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(qulonglong <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the unsigned 64 bit integer <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-9"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(long <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends <i>arg</i> as a 64 bit integer.</p>
+<h3 class="member" id="operator-3c3c-10"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(unsigned long <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends <i>arg</i> as an unsigned 64 bit integer.</p>
+<h3 class="member" id="operator-3c3c-11"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(double <i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the floating-point number <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-12"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(const <a href="qstring.html">QString</a> &amp;<i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the string <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-13"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(const <a href="qdbusvariant.html">QDBusVariant</a> &amp;<i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the variant <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-14"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(const <a href="qdbusobjectpath.html">QDBusObjectPath</a> &amp;<i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the object path <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-15"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(const <a href="qdbussignature.html">QDBusSignature</a> &amp;<i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the signature <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-16"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(const <a href="qdbusunixfiledescriptor.html">QDBusUnixFileDescriptor</a> &amp;<i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the file descriptor <i>arg</i>.</p>
+<h3 class="member" id="operator-3c3c-17"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(const <a href="qstringlist.html">QStringList</a> &amp;<i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends <i>arg</i> as an array of strings.</p>
+<h3 class="member" id="operator-3c3c-18"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&lt;&lt;(const <a href="qbytearray.html">QByteArray</a> &amp;<i>arg</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends <i>arg</i> as an array of bytes.</p>
+<h3 class="member" id="operator-3d"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator=(const <a href="qdbusargument.html">QDBusArgument</a> &amp;<i>other</i>)</h3>
+<p>Makes this argument a copy of <i>other</i> and returns a reference to it.</p>
+<h3 class="member" id="operator-3d-2"><a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator=(<a href="qdbusargument.html">QDBusArgument</a> &amp;&amp;<i>other</i>)</h3>
+<p>Moves <i>other</i> into this argument and returns a reference to it.</p>
+<h3 class="member" id="operator-3e3e">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(uchar &amp;<i>arg</i>) const</h3>
+<p>Reads a byte into <i>arg</i> and returns a reference to this argument.</p>
+<h3 class="member" id="operator-3e3e-2">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(bool &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a boolean into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-3">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(short &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a 16 bit integer into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-4">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(ushort &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads an unsigned 16 bit integer into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-5">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(int &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a 32 bit integer into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-6">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(uint &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads an unsigned 32 bit integer into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-7">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(qlonglong &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a 64 bit integer into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-8">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(qulonglong &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads an unsigned 64 bit integer into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-9">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(long &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a 64 bit integer into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-10">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(unsigned long &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads an unsigned 64 bit integer into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-11">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(double &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a floating-point number into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-12">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(<a href="qstring.html">QString</a> &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a string into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-13">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(<a href="qdbusvariant.html">QDBusVariant</a> &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a variant into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-14">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(<a href="qdbusobjectpath.html">QDBusObjectPath</a> &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads an object path into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-15">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(<a href="qdbussignature.html">QDBusSignature</a> &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a signature into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-16">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(<a href="qdbusunixfiledescriptor.html">QDBusUnixFileDescriptor</a> &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads a file descriptor into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-17">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(<a href="qstringlist.html">QStringList</a> &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads an array of strings into <i>arg</i>.</p>
+<h3 class="member" id="operator-3e3e-18">const <a href="qdbusargument.html">QDBusArgument</a> &amp; QDBusArgument::operator&gt;&gt;(<a href="qbytearray.html">QByteArray</a> &amp;<i>arg</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Reads an array of bytes into <i>arg</i>.</p>
+<h3 class="member" id="swap">void QDBusArgument::swap(<a href="qdbusargument.html">QDBusArgument</a> &amp;<i>other</i>)</h3>
+<p>Swaps this argument with <i>other</i>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

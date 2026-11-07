@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QAtomicInteger Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QAtomicInteger</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QAtomicInteger Class</h1>
+<p><code>template &lt;typename T&gt; class QAtomicInteger</code></p>
+<p class="brief">The QAtomicInteger class provides platform-independent atomic operations on integers. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QAtomicInteger&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qatomicinteger-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QAtomicInteger">QAtomicInteger</a>(T <i>v</i> = 0)</td></tr>
+<tr><td class="ret"></td><td><a href="#QAtomicInteger-2">QAtomicInteger</a>(const QAtomicInteger &amp;<i>o</i>)</td></tr>
+<tr><td class="ret">QAtomicInteger &amp;</td><td><a href="#operator-3d">operator=</a>(const QAtomicInteger &amp;<i>o</i>)</td></tr>
+<tr><td class="ret">QAtomicInteger &amp;</td><td><a href="#operator-3d-2">operator=</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#loadRelaxed">loadRelaxed</a>() const</td></tr>
+<tr><td class="ret">T</td><td><a href="#loadAcquire">loadAcquire</a>() const</td></tr>
+<tr><td class="ret">T</td><td><a href="#load">load</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#storeRelaxed">storeRelaxed</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#storeRelease">storeRelease</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#store">store</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#operator-T">operator T</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#ref">ref</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#deref">deref</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#testAndSetOrdered">testAndSetOrdered</a>(T <i>expected</i>, T <i>desired</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#testAndSetRelaxed">testAndSetRelaxed</a>(T <i>expected</i>, T <i>desired</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#fetchAndStoreOrdered">fetchAndStoreOrdered</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#fetchAndAddOrdered">fetchAndAddOrdered</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#fetchAndAddRelaxed">fetchAndAddRelaxed</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#fetchAndSubOrdered">fetchAndSubOrdered</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#fetchAndAndOrdered">fetchAndAndOrdered</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#fetchAndOrOrdered">fetchAndOrOrdered</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#fetchAndXorOrdered">fetchAndXorOrdered</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#operator-2b2b">operator++</a>()</td></tr>
+<tr><td class="ret">T</td><td><a href="#operator-2b2b-2">operator++</a>(int)</td></tr>
+<tr><td class="ret">T</td><td><a href="#operator-2d2d">operator--</a>()</td></tr>
+<tr><td class="ret">T</td><td><a href="#operator-2d2d-2">operator--</a>(int)</td></tr>
+<tr><td class="ret">T</td><td><a href="#operator-2b3d">operator+=</a>(T <i>v</i>)</td></tr>
+<tr><td class="ret">T</td><td><a href="#operator-2d3d">operator-=</a>(T <i>v</i>)</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">bool</td><td><a href="#isReferenceCountingNative">isReferenceCountingNative</a>()</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>QAtomicInteger&lt;T&gt; wraps a <code>std::atomic&lt;T&gt;</code> and offers the <a href="qt.html">Qt</a>-style load, store, compare-and-swap and fetch-and-modify operations. Functions with <em>Ordered</em> in their name use sequentially consistent ordering; those with <em>Relaxed</em>, <em>Acquire</em> or <em>Release</em> use the corresponding memory order. Plain <code>load()</code>, <code>store()</code>, the conversion operator and the arithmetic operators are sequentially consistent.</p>
+<p>QAtomicInt is the common instantiation for <code>int</code>, and is typically used as a thread-safe reference count:</p>
+<pre><code>QAtomicInt refCount(1);
+
+void retain() { refCount.ref(); }
+void release() { if (!refCount.deref()) delete this; }
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qatomicpointer.html">QAtomicPointer</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Only the Ordered variants of most operations are provided. There are no <code>fetchAndStoreRelaxed()</code>, <code>fetchAndStoreAcquire()</code>, <code>fetchAndStoreRelease()</code>, <code>testAndSetAcquire()</code>, <code>testAndSetRelease()</code>, <code>fetchAndSubRelaxed()</code> or similar relaxed/acquire/release forms beyond those documented here, no <code>testAndSet</code> overloads that report the current value, and no <code>is...Native()</code> queries other than <a href="qatomicinteger.html#isReferenceCountingNative">isReferenceCountingNative()</a>.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QAtomicInteger"><span class="tags">[constexpr]</span> QAtomicInteger::QAtomicInteger(T <i>v</i> = 0)</h3>
+<p>Constructs an atomic integer holding <i>v</i>.</p>
+<h3 class="member" id="QAtomicInteger-2">QAtomicInteger::QAtomicInteger(const <a href="qatomicinteger.html">QAtomicInteger</a> &amp;<i>o</i>)</h3>
+<p>Constructs a copy of <i>o</i>. The value is read with relaxed ordering; the copy is not atomic with respect to other threads.</p>
+<h3 class="member" id="deref">bool QAtomicInteger::deref()</h3>
+<p>Atomically decrements the value by one. Returns <code>true</code> if the new value is not zero; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#ref">ref()</a>.</p>
+<h3 class="member" id="fetchAndAddOrdered">T QAtomicInteger::fetchAndAddOrdered(T <i>v</i>)</h3>
+<p>Atomically adds <i>v</i> to the value and returns the previous value.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#fetchAndAddRelaxed">fetchAndAddRelaxed()</a> and <a href="qatomicinteger.html#fetchAndSubOrdered">fetchAndSubOrdered()</a>.</p>
+<h3 class="member" id="fetchAndAddRelaxed">T QAtomicInteger::fetchAndAddRelaxed(T <i>v</i>)</h3>
+<p>Atomically adds <i>v</i> to the value with relaxed ordering and returns the previous value.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#fetchAndAddOrdered">fetchAndAddOrdered()</a>.</p>
+<h3 class="member" id="fetchAndAndOrdered">T QAtomicInteger::fetchAndAndOrdered(T <i>v</i>)</h3>
+<p>Atomically performs a bitwise AND of the value with <i>v</i> and returns the previous value.</p>
+<h3 class="member" id="fetchAndOrOrdered">T QAtomicInteger::fetchAndOrOrdered(T <i>v</i>)</h3>
+<p>Atomically performs a bitwise OR of the value with <i>v</i> and returns the previous value.</p>
+<h3 class="member" id="fetchAndStoreOrdered">T QAtomicInteger::fetchAndStoreOrdered(T <i>v</i>)</h3>
+<p>Atomically replaces the value with <i>v</i> and returns the previous value.</p>
+<h3 class="member" id="fetchAndSubOrdered">T QAtomicInteger::fetchAndSubOrdered(T <i>v</i>)</h3>
+<p>Atomically subtracts <i>v</i> from the value and returns the previous value.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#fetchAndAddOrdered">fetchAndAddOrdered()</a>.</p>
+<h3 class="member" id="fetchAndXorOrdered">T QAtomicInteger::fetchAndXorOrdered(T <i>v</i>)</h3>
+<p>Atomically performs a bitwise XOR of the value with <i>v</i> and returns the previous value.</p>
+<h3 class="member" id="isReferenceCountingNative"><span class="tags">[static, constexpr]</span> bool QAtomicInteger::isReferenceCountingNative()</h3>
+<p>Returns <code>true</code>; reference counting with <a href="qatomicinteger.html#ref">ref()</a> and <a href="qatomicinteger.html#deref">deref()</a> is always natively supported.</p>
+<h3 class="member" id="load">T QAtomicInteger::load() const</h3>
+<p>Atomically loads and returns the value with sequentially consistent ordering.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#loadRelaxed">loadRelaxed()</a> and <a href="qatomicinteger.html#loadAcquire">loadAcquire()</a>.</p>
+<h3 class="member" id="loadAcquire">T QAtomicInteger::loadAcquire() const</h3>
+<p>Atomically loads and returns the value with acquire memory ordering.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#loadRelaxed">loadRelaxed()</a> and <a href="qatomicinteger.html#load">load()</a>.</p>
+<h3 class="member" id="loadRelaxed">T QAtomicInteger::loadRelaxed() const</h3>
+<p>Atomically loads and returns the value with relaxed memory ordering.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#loadAcquire">loadAcquire()</a> and <a href="qatomicinteger.html#load">load()</a>.</p>
+<h3 class="member" id="operator-T">QAtomicInteger::operator T() const</h3>
+<p>Atomically loads and returns the value, as <a href="qatomicinteger.html#load">load()</a> does.</p>
+<h3 class="member" id="operator-2b2b">T QAtomicInteger::operator++()</h3>
+<p>Atomically increments the value and returns the new value (prefix form).</p>
+<h3 class="member" id="operator-2b2b-2">T QAtomicInteger::operator++(int)</h3>
+<p>This is an overloaded function.</p>
+<p>Atomically increments the value and returns the previous value (postfix form).</p>
+<h3 class="member" id="operator-2b3d">T QAtomicInteger::operator+=(T <i>v</i>)</h3>
+<p>Atomically adds <i>v</i> to the value and returns the new value.</p>
+<h3 class="member" id="operator-2d2d">T QAtomicInteger::operator--()</h3>
+<p>Atomically decrements the value and returns the new value (prefix form).</p>
+<h3 class="member" id="operator-2d2d-2">T QAtomicInteger::operator--(int)</h3>
+<p>This is an overloaded function.</p>
+<p>Atomically decrements the value and returns the previous value (postfix form).</p>
+<h3 class="member" id="operator-2d3d">T QAtomicInteger::operator-=(T <i>v</i>)</h3>
+<p>Atomically subtracts <i>v</i> from the value and returns the new value.</p>
+<h3 class="member" id="operator-3d"><a href="qatomicinteger.html">QAtomicInteger</a> &amp; QAtomicInteger::operator=(const <a href="qatomicinteger.html">QAtomicInteger</a> &amp;<i>o</i>)</h3>
+<p>Assigns the value of <i>o</i> to this integer, reading it with relaxed ordering, and returns a reference to this object.</p>
+<h3 class="member" id="operator-3d-2"><a href="qatomicinteger.html">QAtomicInteger</a> &amp; QAtomicInteger::operator=(T <i>v</i>)</h3>
+<p>Atomically stores <i>v</i> and returns a reference to this object.</p>
+<h3 class="member" id="ref">bool QAtomicInteger::ref()</h3>
+<p>Atomically increments the value by one. Returns <code>true</code> if the new value is not zero; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#deref">deref()</a>.</p>
+<h3 class="member" id="store">void QAtomicInteger::store(T <i>v</i>)</h3>
+<p>Atomically stores <i>v</i> with sequentially consistent ordering.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#storeRelaxed">storeRelaxed()</a> and <a href="qatomicinteger.html#storeRelease">storeRelease()</a>.</p>
+<h3 class="member" id="storeRelaxed">void QAtomicInteger::storeRelaxed(T <i>v</i>)</h3>
+<p>Atomically stores <i>v</i> with relaxed memory ordering.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#storeRelease">storeRelease()</a> and <a href="qatomicinteger.html#store">store()</a>.</p>
+<h3 class="member" id="storeRelease">void QAtomicInteger::storeRelease(T <i>v</i>)</h3>
+<p>Atomically stores <i>v</i> with release memory ordering.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#storeRelaxed">storeRelaxed()</a> and <a href="qatomicinteger.html#store">store()</a>.</p>
+<h3 class="member" id="testAndSetOrdered">bool QAtomicInteger::testAndSetOrdered(T <i>expected</i>, T <i>desired</i>)</h3>
+<p>Atomically compares the value with <i>expected</i> and, if they are equal, replaces it with <i>desired</i>, using sequentially consistent ordering. Returns <code>true</code> if the value was replaced; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#testAndSetRelaxed">testAndSetRelaxed()</a>.</p>
+<h3 class="member" id="testAndSetRelaxed">bool QAtomicInteger::testAndSetRelaxed(T <i>expected</i>, T <i>desired</i>)</h3>
+<p>Atomically compares the value with <i>expected</i> and, if they are equal, replaces it with <i>desired</i>, using relaxed ordering. Returns <code>true</code> if the value was replaced; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qatomicinteger.html#testAndSetOrdered">testAndSetOrdered()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

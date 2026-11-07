@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Using Nt Serial Port | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; Using Nt Serial Port</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#finding-a-port">Finding a Port</a></li>
+<li><a href="#settings">Settings</a></li>
+<li><a href="#opening-the-port">Opening the Port</a></li>
+<li><a href="#reading-and-writing">Reading and Writing</a></li>
+<li><a href="#handling-errors">Handling Errors</a></li>
+<li><a href="#permission-to-open-a-port">Permission to Open a Port</a></li>
+<li><a href="#testing-without-hardware">Testing Without Hardware</a></li>
+<li><a href="#the-serialterm-example">The serialterm Example</a></li>
+</ul></aside>
+<main>
+<h1>Using Nt Serial Port</h1>
+<p class="brief">Finding, configuring and opening a serial port, reading and writing it, handling errors, and getting permission to use it on Linux.</p>
+<p>Link <code>Nt::SerialPort</code> (or <code>Nt6::SerialPort</code> from an installed package) and include <code>&lt;QSerialPort&gt;</code> and <code>&lt;QSerialPortInfo&gt;</code>:</p>
+<pre><code>find_package(Nt6 6 REQUIRED)
+add_executable(app main.cpp)
+target_link_libraries(app PRIVATE Nt6::SerialPort)
+</code></pre>
+<h2 id="finding-a-port">Finding a Port</h2>
+<p><a href="qserialportinfo.html#availablePorts">QSerialPortInfo::availablePorts()</a> lists the serial ports of the machine, with a description, the manufacturer, the serial number and, for USB devices, the vendor and product identifiers:</p>
+<pre><code>const QList&lt;QSerialPortInfo&gt; ports = QSerialPortInfo::availablePorts();
+for (const QSerialPortInfo &amp;info : ports) {
+    QString line = info.portName() + &quot;\t&quot; + info.systemLocation() + &quot;\t&quot; + info.description();
+    if (info.hasVendorIdentifier() &amp;&amp; info.hasProductIdentifier())
+        line += &quot;\t&quot; + QString::number(info.vendorIdentifier(), 16).rightJustified(4, QChar(u'0')) + &quot;:&quot; +
+                QString::number(info.productIdentifier(), 16).rightJustified(4, QChar(u'0'));
+    std::printf(&quot;%s\n&quot;, qPrintable(line));
+}
+</code></pre>
+<p>A <a href="qserialport.html">QSerialPort</a> can be made from a <a href="qserialportinfo.html">QSerialPortInfo</a>, from a name such as <code>ttyUSB0</code>, or from a full path such as <code>/dev/ttyS0</code>.</p>
+<h2 id="settings">Settings</h2>
+<p>Choose the baud rate, data bits, parity, stop bits and flow control. Both ends of the line must agree. A new port uses 9600 baud, 8 data bits, no parity, one stop bit and no flow control.</p>
+<pre><code>QSerialPort port(positional.first());
+
+bool ok = false;
+const qint32 baud = parser.value(&quot;baud&quot;).toInt(&amp;ok);
+if (!ok || baud &lt;= 0) {
+    std::fprintf(stderr, &quot;serialterm: --baud must be a positive number\n&quot;);
+    return 2;
+}
+QSerialPort::DataBits dataBits{};
+QSerialPort::Parity parity{};
+QSerialPort::StopBits stopBits{};
+QSerialPort::FlowControl flow{};
+if (!choose&lt;QSerialPort::DataBits&gt;(&quot;data-bits&quot;, parser.value(&quot;data-bits&quot;),
+                                   {{&quot;5&quot;, QSerialPort::Data5},
+                                    {&quot;6&quot;, QSerialPort::Data6},
+                                    {&quot;7&quot;, QSerialPort::Data7},
+                                    {&quot;8&quot;, QSerialPort::Data8}},
+                                   &amp;dataBits) ||
+    !choose&lt;QSerialPort::Parity&gt;(&quot;parity&quot;, parser.value(&quot;parity&quot;),
+                                 {{&quot;none&quot;, QSerialPort::NoParity},
+                                  {&quot;even&quot;, QSerialPort::EvenParity},
+                                  {&quot;odd&quot;, QSerialPort::OddParity},
+                                  {&quot;space&quot;, QSerialPort::SpaceParity},
+                                  {&quot;mark&quot;, QSerialPort::MarkParity}},
+                                 &amp;parity) ||
+    !choose&lt;QSerialPort::StopBits&gt;(&quot;stop-bits&quot;, parser.value(&quot;stop-bits&quot;),
+                                   {{&quot;1&quot;, QSerialPort::OneStop}, {&quot;2&quot;, QSerialPort::TwoStop}}, &amp;stopBits) ||
+    !choose&lt;QSerialPort::FlowControl&gt;(&quot;flow&quot;, parser.value(&quot;flow&quot;),
+                                      {{&quot;none&quot;, QSerialPort::NoFlowControl},
+                                       {&quot;hardware&quot;, QSerialPort::HardwareControl},
+                                       {&quot;software&quot;, QSerialPort::SoftwareControl}},
+                                      &amp;flow))
+    return 2;
+
+port.setBaudRate(baud);
+port.setDataBits(dataBits);
+port.setParity(parity);
+port.setStopBits(stopBits);
+port.setFlowControl(flow);
+</code></pre>
+<p>Settings made before open() take effect when the port opens, and settings made later take effect at once. If the driver refuses a value while the port is open, the setter returns <code>false</code> and sets error(); while the port is closed, open() fails instead. A baud rate that is not one of <a href="qserialportinfo.html#standardBaudRates">QSerialPortInfo::standardBaudRates()</a> is passed to the driver as it is, which most USB adapters accept. The device is set back to what it was before when the port is closed.</p>
+<h2 id="opening-the-port">Opening the Port</h2>
+<p>open() fails if the device cannot be opened. errorString() says why, and error() gives the reason as a code:</p>
+<pre><code>if (!port.open(QIODevice::ReadWrite)) {
+    std::fprintf(stderr, &quot;serialterm: cannot open %s: %s\n&quot;, qPrintable(port.portName()),
+                 qPrintable(port.errorString()));
+    return 1;
+}
+</code></pre>
+<table class="data">
+<tr><th><p>Error</p>
+</th><th><p>Usual cause</p>
+</th></tr>
+<tr><td><p><code>DeviceNotFoundError</code></p>
+</td><td><p>The device does not exist, for example the adapter is not plugged in.</p>
+</td></tr>
+<tr><td><p><code>PermissionError</code></p>
+</td><td><p>The user may not open the device (see <a href="nt-serialport.html#permission-to-open-a-port">Permission to Open a Port</a>),         or another process already has it open.</p>
+</td></tr>
+<tr><td><p><code>OpenError</code></p>
+</td><td><p>The port is already open in this object, or the file is not a         terminal device.</p>
+</td></tr>
+</table>
+<p>A port is opened exclusively, so two programs cannot read the same device by accident.</p>
+<h2 id="reading-and-writing">Reading and Writing</h2>
+<p>A <a href="qserialport.html">QSerialPort</a> is a <a href="qiodevice.html">QIODevice</a>. Reads and writes never block: write() queues the data and readyRead() is emitted when data has arrived, so a program with an event loop needs only to connect to it:</p>
+<pre><code>QObject::connect(&amp;port, &amp;QIODevice::readyRead, [&amp;port] {
+    const QByteArray data = port.readAll();
+    std::fwrite(data.constData(), 1, static_cast&lt;std::size_t&gt;(data.size()), stdout);
+    std::fflush(stdout);
+});
+</code></pre>
+<pre><code>QSocketNotifier input(STDIN_FILENO, QSocketNotifier::Read);
+QObject::connect(&amp;input, &amp;QSocketNotifier::activated, [&amp;] {
+    char buffer[512];
+    const ssize_t n = ::read(STDIN_FILENO, buffer, sizeof buffer);
+    if (n &gt; 0) {
+        port.write(buffer, n);
+        return;
+    }
+    input.setEnabled(false);
+    if (!quitTimer.isActive())
+        quitTimer.start(500);
+});
+</code></pre>
+<p>A program without an event loop can wait instead, with waitForReadyRead() and waitForBytesWritten(). Both run the port's own I/O while they wait. Use canReadLine() and readLine() for protocols made of lines, and setReadBufferSize() to cap the memory used by data nobody has read yet.</p>
+<p>flush() writes as much of the queued data as the device will take without blocking, and clear() discards what is buffered in one or both directions. The control lines are available through setDataTerminalReady(), setRequestToSend(), pinoutSignals() and setBreakEnabled().</p>
+<h2 id="handling-errors">Handling Errors</h2>
+<p>Errors are reported by errorOccurred(). It is emitted for every error, including the ones that make a function return <code>false</code>.</p>
+<pre><code>QObject::connect(&amp;port, &amp;QSerialPort::errorOccurred, [&amp;](QSerialPort::SerialPortError error) {
+    std::fprintf(stderr, &quot;serialterm: %s\n&quot;, qPrintable(port.errorString()));
+    // A device that disappears, for example an unplugged USB adapter, cannot recover.
+    if (error == QSerialPort::ResourceError) {
+        exitCode = 1;
+        QCoreApplication::quit();
+    }
+});
+</code></pre>
+<p><code>ResourceError</code> needs special care. It means the device went away, for example because a USB adapter was unplugged. The port stays open but idle; data that arrived earlier can still be read. Call close(), and call open() again when the device is back.</p>
+<p>A wait that runs out of time sets <code>TimeoutError</code>, which is not a failure of the port: it can be tried again.</p>
+<h2 id="permission-to-open-a-port">Permission to Open a Port</h2>
+<p>On Linux the serial devices belong to a group, so a user must be a member of it. The group is <code>dialout</code> on Debian, Ubuntu, Fedora and Enterprise Linux, and <code>uucp</code> on Arch Linux. Add the user, then log in again:</p>
+<pre><code>sudo usermod -aG dialout $USER
+</code></pre>
+<p>To give access to one device only, or to set a different group, add a udev rule such as the following to <code>/etc/udev/rules.d/99-serial.rules</code>:</p>
+<pre><code>SUBSYSTEM==&quot;tty&quot;, ATTRS{idVendor}==&quot;0403&quot;, ATTRS{idProduct}==&quot;6001&quot;, GROUP=&quot;dialout&quot;, MODE=&quot;0660&quot;, SYMLINK+=&quot;myadapter&quot;
+</code></pre>
+<p>If open() reports <code>PermissionError</code> although the permissions are right, another process has the port. On a desktop this is often ModemManager, which probes new USB serial adapters; stop it or add a udev rule that sets <code>ENV{ID_MM_DEVICE_IGNORE}=&quot;1&quot;</code>.</p>
+<h2 id="testing-without-hardware">Testing Without Hardware</h2>
+<p>A pair of connected pseudo-terminals stands in for a device. With socat:</p>
+<pre><code>socat -d -d pty,raw,echo=0 pty,raw,echo=0
+</code></pre>
+<p>socat prints the names of the two ends, such as <code>/dev/pts/3</code> and <code>/dev/pts/4</code>. Open one with the program under test and the other with a terminal program, or with <code>serialterm</code> from the examples.</p>
+<h2 id="the-serialterm-example">The serialterm Example</h2>
+<p><code>examples/serialport/serialterm.cpp</code> is a small terminal built from the snippets above. It is built with the other examples, and takes the same settings as options:</p>
+<pre><code>serialterm --list
+serialterm ttyUSB0 --baud 115200 --parity even
+printf 'AT\r\n' | serialterm ttyUSB0 --time 2
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qserialport.html">QSerialPort</a> and <a href="qserialportinfo.html">QSerialPortInfo</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

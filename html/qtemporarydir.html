@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QTemporaryDir Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QTemporaryDir</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QTemporaryDir Class</h1>
+<p class="brief">The QTemporaryDir class creates a unique directory for temporary use. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QTemporaryDir&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qtemporarydir-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QTemporaryDir">QTemporaryDir</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#QTemporaryDir-2">QTemporaryDir</a>(const <a href="qstring.html">QString</a> &amp;<i>templatePath</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QTemporaryDir-3">QTemporaryDir</a>(QTemporaryDir &amp;&amp;<i>other</i>)</td></tr>
+<tr><td class="ret">QTemporaryDir &amp;</td><td><a href="#operator-3d">operator=</a>(QTemporaryDir &amp;&amp;<i>other</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QTemporaryDir">~QTemporaryDir</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isValid">isValid</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#errorString">errorString</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#autoRemove">autoRemove</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setAutoRemove">setAutoRemove</a>(bool <i>b</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#remove">remove</a>()</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#path">path</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#filePath">filePath</a>(const <a href="qstring.html">QString</a> &amp;<i>fileName</i>) const</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>QTemporaryDir creates a uniquely named directory in its constructor and, by default, removes it with all of its contents when the object is destroyed. Check <a href="qtemporarydir.html#isValid">isValid()</a> before using <a href="qtemporarydir.html#path">path()</a>.</p>
+<p>The directory name is built from a template. The six characters <code>XXXXXX</code> in the last path component are replaced by random characters. A template without <code>XXXXXX</code> gets <code>-XXXXXX</code> appended. The default template is <code>qt_temp-XXXXXX</code> in <a href="qdir.html#tempPath">QDir::tempPath()</a>. The directory is created with mode <code>0700</code>.</p>
+<pre><code>QTemporaryDir dir;
+if (dir.isValid()) {
+    QFile file(dir.filePath(&quot;output.txt&quot;));
+    file.open(QIODevice::WriteOnly);
+}
+</code></pre>
+<p>A QTemporaryDir can be moved but not copied.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporaryfile.html">QTemporaryFile</a> and <a href="qdir.html">QDir</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p><a href="qtemporarydir.html#path">path()</a> is always an absolute path, even for a relative template.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QTemporaryDir">QTemporaryDir::QTemporaryDir()</h3>
+<p>Constructs a <a href="qtemporarydir.html">QTemporaryDir</a> that creates a directory using the default template, <code>qt_temp-XXXXXX</code> in <a href="qdir.html#tempPath">QDir::tempPath()</a>. Use <a href="qtemporarydir.html#isValid">isValid()</a> to check whether the directory was created.</p>
+<h3 class="member" id="QTemporaryDir-2"><span class="tags">[explicit]</span> QTemporaryDir::QTemporaryDir(const <a href="qstring.html">QString</a> &amp;<i>templatePath</i>)</h3>
+<p>Constructs a <a href="qtemporarydir.html">QTemporaryDir</a> that creates a directory from <i>templatePath</i>. If <i>templatePath</i> is empty, the default template is used. Use <a href="qtemporarydir.html#isValid">isValid()</a> to check whether the directory was created.</p>
+<h3 class="member" id="QTemporaryDir-3">QTemporaryDir::QTemporaryDir(<a href="qtemporarydir.html">QTemporaryDir</a> &amp;&amp;<i>other</i>)</h3>
+<p>Move-constructs a <a href="qtemporarydir.html">QTemporaryDir</a> from <i>other</i>. The directory and its auto-remove setting are transferred; <i>other</i> becomes invalid and no longer removes anything.</p>
+<h3 class="member" id="dtor.QTemporaryDir">QTemporaryDir::~QTemporaryDir()</h3>
+<p>Destroys the object. If <a href="qtemporarydir.html#autoRemove">autoRemove()</a> is <code>true</code> and the directory is valid, it is removed with all its contents.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html#remove">remove()</a>.</p>
+<h3 class="member" id="autoRemove">bool QTemporaryDir::autoRemove() const</h3>
+<p>Returns <code>true</code> if the directory is removed when the object is destroyed; otherwise returns <code>false</code>. The default is <code>true</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html#setAutoRemove">setAutoRemove()</a> and <a href="qtemporarydir.html#remove">remove()</a>.</p>
+<h3 class="member" id="errorString"><a href="qstring.html">QString</a> QTemporaryDir::errorString() const</h3>
+<p>Returns a description of the error that prevented the directory from being created, or an empty string if there was none.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html#isValid">isValid()</a>.</p>
+<h3 class="member" id="filePath"><a href="qstring.html">QString</a> QTemporaryDir::filePath(const <a href="qstring.html">QString</a> &amp;<i>fileName</i>) const</h3>
+<p>Returns the path to <i>fileName</i> inside the temporary directory. The file is not created. Returns an empty string if the directory is not valid or <i>fileName</i> is an absolute path.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html#path">path()</a>.</p>
+<h3 class="member" id="isValid">bool QTemporaryDir::isValid() const</h3>
+<p>Returns <code>true</code> if the temporary directory was created successfully; otherwise returns <code>false</code>. The directory is also invalid after being moved from.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html#errorString">errorString()</a> and <a href="qtemporarydir.html#path">path()</a>.</p>
+<h3 class="member" id="operator-3d"><a href="qtemporarydir.html">QTemporaryDir</a> &amp; QTemporaryDir::operator=(<a href="qtemporarydir.html">QTemporaryDir</a> &amp;&amp;<i>other</i>)</h3>
+<p>Move-assigns <i>other</i> to this object and returns a reference to it. The directory currently held, if any and if auto-remove is enabled, is removed first.</p>
+<h3 class="member" id="path"><a href="qstring.html">QString</a> QTemporaryDir::path() const</h3>
+<p>Returns the absolute path of the temporary directory, or an empty string if the directory is not valid.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html#filePath">filePath()</a> and <a href="qtemporarydir.html#isValid">isValid()</a>.</p>
+<h3 class="member" id="remove">bool QTemporaryDir::remove()</h3>
+<p>Removes the directory and all its contents recursively. Returns <code>true</code> if successful; returns <code>false</code> if the directory is not valid or the removal fails.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html#isValid">isValid()</a> and <a href="qtemporarydir.html#autoRemove">autoRemove()</a>.</p>
+<h3 class="member" id="setAutoRemove">void QTemporaryDir::setAutoRemove(bool <i>b</i>)</h3>
+<p>Sets whether the directory is removed when the object is destroyed to <i>b</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qtemporarydir.html#autoRemove">autoRemove()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

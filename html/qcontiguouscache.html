@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QContiguousCache Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QContiguousCache</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QContiguousCache Class</h1>
+<p><code>template &lt;typename T&gt; class QContiguousCache</code></p>
+<p class="brief">The QContiguousCache class is a template class that provides an efficient cache for a contiguous range of indexes. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QContiguousCache&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qcontiguouscache-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QContiguousCache">QContiguousCache</a>(qsizetype <i>capacity</i> = 0)</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#capacity">capacity</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#count">count</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#size">size</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isEmpty">isEmpty</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isFull">isFull</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#available">available</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#firstIndex">firstIndex</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#lastIndex">lastIndex</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#containsIndex">containsIndex</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#areIndexesValid">areIndexesValid</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#normalizeIndexes">normalizeIndexes</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#setCapacity">setCapacity</a>(qsizetype <i>c</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#clear">clear</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#append">append</a>(const T &amp;<i>v</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#prepend">prepend</a>(const T &amp;<i>v</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#insert">insert</a>(qsizetype <i>pos</i>, const T &amp;<i>v</i>)</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#at">at</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#operator-5b5d">operator[]</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#operator-5b5d-2">operator[]</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#first">first</a>()</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#first-2">first</a>() const</td></tr>
+<tr><td class="ret">T &amp;</td><td><a href="#last">last</a>()</td></tr>
+<tr><td class="ret">const T &amp;</td><td><a href="#last-2">last</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#removeFirst">removeFirst</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#removeLast">removeLast</a>()</td></tr>
+<tr><td class="ret">T</td><td><a href="#takeFirst">takeFirst</a>()</td></tr>
+<tr><td class="ret">T</td><td><a href="#takeLast">takeLast</a>()</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>QContiguousCache&lt;T&gt; holds a window of at most <a href="qcontiguouscache.html#capacity">capacity()</a> items that are addressed by an integer index, such as the visible rows of a very long list. The window covers the indexes <a href="qcontiguouscache.html#firstIndex">firstIndex()</a> through <a href="qcontiguouscache.html#lastIndex">lastIndex()</a>. Appending or prepending items slides the window and evicts items from the opposite end once the cache is full.</p>
+<pre><code>QContiguousCache&lt;QString&gt; rows(100);
+rows.insert(5000, &quot;row 5000&quot;);
+rows.append(&quot;row 5001&quot;);
+QString s = rows.at(5001);
+</code></pre>
+<p class="see-also"><strong>See also</strong> <a href="qcache.html">QCache</a> and <a href="qlist.html">QList</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>QContiguousCache is implemented on top of <code>std::deque</code> and is not implicitly shared, so copying it copies every item. There is no <code>swap()</code>, <code>detach()</code> or <code>setSharable()</code>.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QContiguousCache"><span class="tags">[explicit]</span> QContiguousCache::QContiguousCache(qsizetype <i>capacity</i> = 0)</h3>
+<p>Constructs a cache that can hold up to <i>capacity</i> items. The cache is initially empty and its first index is 0.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#setCapacity">setCapacity()</a>.</p>
+<h3 class="member" id="append">void QContiguousCache::append(const T &amp;<i>v</i>)</h3>
+<p>Appends <i>v</i> after the last item. If the cache is full, the first item is removed to make room, and <a href="qcontiguouscache.html#firstIndex">firstIndex()</a> advances. Does nothing if the capacity is 0 or less.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#prepend">prepend()</a> and <a href="qcontiguouscache.html#insert">insert()</a>.</p>
+<h3 class="member" id="areIndexesValid">bool QContiguousCache::areIndexesValid() const</h3>
+<p>Returns <code>true</code> if the indexes of the cache are far enough from the limits of <code>qsizetype</code> that further items can be added safely; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#normalizeIndexes">normalizeIndexes()</a>.</p>
+<h3 class="member" id="at">const T &amp; QContiguousCache::at(qsizetype <i>i</i>) const</h3>
+<p>Returns a reference to the item at index <i>i</i>. The index must satisfy <a href="qcontiguouscache.html#containsIndex">containsIndex()</a>.</p>
+<h3 class="member" id="available">qsizetype QContiguousCache::available() const</h3>
+<p>Returns the number of items that can still be added before the cache is full.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#isFull">isFull()</a> and <a href="qcontiguouscache.html#capacity">capacity()</a>.</p>
+<h3 class="member" id="capacity">qsizetype QContiguousCache::capacity() const</h3>
+<p>Returns the maximum number of items the cache can hold.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#setCapacity">setCapacity()</a> and <a href="qcontiguouscache.html#size">size()</a>.</p>
+<h3 class="member" id="clear">void QContiguousCache::clear()</h3>
+<p>Removes all items from the cache and resets the first index to 0.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#isEmpty">isEmpty()</a>.</p>
+<h3 class="member" id="containsIndex">bool QContiguousCache::containsIndex(qsizetype <i>i</i>) const</h3>
+<p>Returns <code>true</code> if the cache contains an item at index <i>i</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#firstIndex">firstIndex()</a> and <a href="qcontiguouscache.html#lastIndex">lastIndex()</a>.</p>
+<h3 class="member" id="count">qsizetype QContiguousCache::count() const</h3>
+<p>Returns the number of items in the cache; the same as <a href="qcontiguouscache.html#size">size()</a>.</p>
+<h3 class="member" id="first">T &amp; QContiguousCache::first()</h3>
+<p>Returns a reference to the first item. The cache must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#last">last()</a> and <a href="qcontiguouscache.html#firstIndex">firstIndex()</a>.</p>
+<h3 class="member" id="first-2">const T &amp; QContiguousCache::first() const</h3>
+<p>This is an overloaded function.</p>
+<h3 class="member" id="firstIndex">qsizetype QContiguousCache::firstIndex() const</h3>
+<p>Returns the index of the first item in the cache. The cache covers the indexes from firstIndex() to <a href="qcontiguouscache.html#lastIndex">lastIndex()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#lastIndex">lastIndex()</a> and <a href="qcontiguouscache.html#containsIndex">containsIndex()</a>.</p>
+<h3 class="member" id="insert">void QContiguousCache::insert(qsizetype <i>pos</i>, const T &amp;<i>v</i>)</h3>
+<p>Inserts <i>v</i> at index <i>pos</i>. If <i>pos</i> is inside the cache, the item at that index is replaced. If <i>pos</i> is just after the last item or just before the first, the item is appended or prepended. Any other index discards the current contents and starts a new range at <i>pos</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#append">append()</a>, <a href="qcontiguouscache.html#prepend">prepend()</a> and <a href="qcontiguouscache.html#containsIndex">containsIndex()</a>.</p>
+<h3 class="member" id="isEmpty">bool QContiguousCache::isEmpty() const</h3>
+<p>Returns <code>true</code> if the cache contains no items; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#size">size()</a>.</p>
+<h3 class="member" id="isFull">bool QContiguousCache::isFull() const</h3>
+<p>Returns <code>true</code> if the cache holds as many items as its capacity; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#available">available()</a> and <a href="qcontiguouscache.html#capacity">capacity()</a>.</p>
+<h3 class="member" id="last">T &amp; QContiguousCache::last()</h3>
+<p>Returns a reference to the last item. The cache must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#first">first()</a> and <a href="qcontiguouscache.html#lastIndex">lastIndex()</a>.</p>
+<h3 class="member" id="last-2">const T &amp; QContiguousCache::last() const</h3>
+<p>This is an overloaded function.</p>
+<h3 class="member" id="lastIndex">qsizetype QContiguousCache::lastIndex() const</h3>
+<p>Returns the index of the last item in the cache. If the cache is empty, the result is <a href="qcontiguouscache.html#firstIndex">firstIndex()</a> - 1.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#firstIndex">firstIndex()</a> and <a href="qcontiguouscache.html#containsIndex">containsIndex()</a>.</p>
+<h3 class="member" id="normalizeIndexes">void QContiguousCache::normalizeIndexes()</h3>
+<p>Moves the indexes as close to zero as possible while keeping each item's index modulo <a href="qcontiguouscache.html#capacity">capacity()</a> unchanged. Use this when <a href="qcontiguouscache.html#areIndexesValid">areIndexesValid()</a> returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#areIndexesValid">areIndexesValid()</a> and <a href="qcontiguouscache.html#firstIndex">firstIndex()</a>.</p>
+<h3 class="member" id="operator-5b5d">T &amp; QContiguousCache::operator[](qsizetype <i>i</i>)</h3>
+<p>Returns a reference to the item at index <i>i</i>. If the cache does not contain that index, a default-constructed item is inserted there first, as <a href="qcontiguouscache.html#insert">insert()</a> would, which may discard the current contents.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#at">at()</a> and <a href="qcontiguouscache.html#insert">insert()</a>.</p>
+<h3 class="member" id="operator-5b5d-2">const T &amp; QContiguousCache::operator[](qsizetype <i>i</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a reference to the item at index <i>i</i>, which must satisfy <a href="qcontiguouscache.html#containsIndex">containsIndex()</a>; the same as <a href="qcontiguouscache.html#at">at()</a>.</p>
+<h3 class="member" id="prepend">void QContiguousCache::prepend(const T &amp;<i>v</i>)</h3>
+<p>Prepends <i>v</i> before the first item, giving it the index <a href="qcontiguouscache.html#firstIndex">firstIndex()</a> - 1. If the cache is full, the last item is removed to make room. Does nothing if the capacity is 0 or less.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#append">append()</a> and <a href="qcontiguouscache.html#insert">insert()</a>.</p>
+<h3 class="member" id="removeFirst">void QContiguousCache::removeFirst()</h3>
+<p>Removes the first item. The first index advances by one. The cache must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#removeLast">removeLast()</a> and <a href="qcontiguouscache.html#takeFirst">takeFirst()</a>.</p>
+<h3 class="member" id="removeLast">void QContiguousCache::removeLast()</h3>
+<p>Removes the last item. The cache must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#removeFirst">removeFirst()</a> and <a href="qcontiguouscache.html#takeLast">takeLast()</a>.</p>
+<h3 class="member" id="setCapacity">void QContiguousCache::setCapacity(qsizetype <i>c</i>)</h3>
+<p>Sets the capacity of the cache to <i>c</i>. If the cache holds more than <i>c</i> items, the items at the front are removed until it fits.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#capacity">capacity()</a>.</p>
+<h3 class="member" id="size">qsizetype QContiguousCache::size() const</h3>
+<p>Returns the number of items currently in the cache.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#capacity">capacity()</a> and <a href="qcontiguouscache.html#isEmpty">isEmpty()</a>.</p>
+<h3 class="member" id="takeFirst">T QContiguousCache::takeFirst()</h3>
+<p>Removes the first item and returns it. The cache must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#removeFirst">removeFirst()</a> and <a href="qcontiguouscache.html#takeLast">takeLast()</a>.</p>
+<h3 class="member" id="takeLast">T QContiguousCache::takeLast()</h3>
+<p>Removes the last item and returns it. The cache must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qcontiguouscache.html#removeLast">removeLast()</a> and <a href="qcontiguouscache.html#takeFirst">takeFirst()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

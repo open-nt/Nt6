@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QStandardPaths Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QStandardPaths</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QStandardPaths Class</h1>
+<p class="brief">The QStandardPaths class provides methods for accessing standard paths. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QStandardPaths&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qstandardpaths-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#StandardLocation-enum">StandardLocation</a></td></tr>
+<tr><td class="ret">enum</td><td><a href="#LocateOption-enum">LocateOption</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#LocateOptions-typedef">LocateOptions</a></td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#writableLocation">writableLocation</a>(StandardLocation <i>type</i>)</td></tr>
+<tr><td class="ret"><a href="qstringlist.html">QStringList</a></td><td><a href="#standardLocations">standardLocations</a>(StandardLocation <i>type</i>)</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#locate">locate</a>(StandardLocation <i>type</i>, const <a href="qstring.html">QString</a> &amp;<i>fileName</i>, LocateOptions <i>options</i> = LocateFile)</td></tr>
+<tr><td class="ret"><a href="qstringlist.html">QStringList</a></td><td><a href="#locateAll">locateAll</a>(StandardLocation <i>type</i>, const <a href="qstring.html">QString</a> &amp;<i>fileName</i>, LocateOptions <i>options</i> = LocateFile)</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#displayName">displayName</a>(StandardLocation <i>type</i>)</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#findExecutable">findExecutable</a>(const <a href="qstring.html">QString</a> &amp;<i>executableName</i>, const <a href="qstringlist.html">QStringList</a> &amp;<i>paths</i> = <a href="qstringlist.html">QStringList</a>())</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>The class locates the directories where a program should keep documents, configuration, cache and other data, following the XDG base directory specification. All functions are static.</p>
+<pre><code>const QString dir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+const QString exe = QStandardPaths::findExecutable(&quot;git&quot;);
+</code></pre>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Only the XDG layout of Linux and other POSIX systems is supported. The application sub-directory is the executable's file name, since <a href="qcoreapplication.html">QCoreApplication</a> has no <code>applicationName()</code> or <code>organizationName()</code> yet. There is no <code>setTestModeEnabled()</code> or <code>isTestModeEnabled()</code>, and <a href="qstandardpaths.html#displayName">displayName()</a> returns untranslated English names.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="LocateOption-enum">enum QStandardPaths::LocateOption</h3>
+<p>Controls what <a href="qstandardpaths.html#locate">locate()</a> and <a href="qstandardpaths.html#locateAll">locateAll()</a> search for.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QStandardPaths::LocateFile</code></td><td>Return only regular files.</td></tr>
+<tr><td><code>QStandardPaths::LocateDirectory</code></td><td>Return only directories.</td></tr>
+</tbody></table>
+<h3 class="member" id="LocateOptions-typedef">typedef QStandardPaths::LocateOptions</h3>
+<p>A <a href="qflags.html">QFlags</a> of LocateOption values.</p>
+<h3 class="member" id="StandardLocation-enum">enum QStandardPaths::StandardLocation</h3>
+<p>Identifies a kind of standard location.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QStandardPaths::DesktopLocation</code></td><td>The user's desktop directory.</td></tr>
+<tr><td><code>QStandardPaths::DocumentsLocation</code></td><td>The user's documents directory.</td></tr>
+<tr><td><code>QStandardPaths::FontsLocation</code></td><td>The directory for fonts, below the XDG data home.</td></tr>
+<tr><td><code>QStandardPaths::ApplicationsLocation</code></td><td>The directory for desktop entries, below the XDG data home.</td></tr>
+<tr><td><code>QStandardPaths::MusicLocation</code></td><td>The user's music directory.</td></tr>
+<tr><td><code>QStandardPaths::MoviesLocation</code></td><td>The user's videos directory.</td></tr>
+<tr><td><code>QStandardPaths::PicturesLocation</code></td><td>The user's pictures directory.</td></tr>
+<tr><td><code>QStandardPaths::TempLocation</code></td><td>The directory for temporary files, as returned by <a href="qdir.html#tempPath">QDir::tempPath()</a>.</td></tr>
+<tr><td><code>QStandardPaths::HomeLocation</code></td><td>The user's home directory.</td></tr>
+<tr><td><code>QStandardPaths::AppLocalDataLocation</code></td><td>The application's data directory below the XDG data home. Same as AppDataLocation.</td></tr>
+<tr><td><code>QStandardPaths::CacheLocation</code></td><td>The application's cache directory below the XDG cache home.</td></tr>
+<tr><td><code>QStandardPaths::GenericDataLocation</code></td><td>The XDG data home, shared by all applications.</td></tr>
+<tr><td><code>QStandardPaths::RuntimeLocation</code></td><td>The directory for runtime files such as sockets (<code>XDG_RUNTIME_DIR</code>).</td></tr>
+<tr><td><code>QStandardPaths::ConfigLocation</code></td><td>The XDG configuration home. Same as GenericConfigLocation.</td></tr>
+<tr><td><code>QStandardPaths::DownloadLocation</code></td><td>The user's download directory.</td></tr>
+<tr><td><code>QStandardPaths::GenericCacheLocation</code></td><td>The XDG cache home, shared by all applications.</td></tr>
+<tr><td><code>QStandardPaths::GenericConfigLocation</code></td><td>The XDG configuration home, shared by all applications.</td></tr>
+<tr><td><code>QStandardPaths::AppDataLocation</code></td><td>The application's data directory below the XDG data home.</td></tr>
+<tr><td><code>QStandardPaths::AppConfigLocation</code></td><td>The application's configuration directory below the XDG configuration home.</td></tr>
+<tr><td><code>QStandardPaths::PublicShareLocation</code></td><td>The user's public share directory.</td></tr>
+<tr><td><code>QStandardPaths::TemplatesLocation</code></td><td>The user's templates directory.</td></tr>
+<tr><td><code>QStandardPaths::StateLocation</code></td><td>The application's state directory below the XDG state home.</td></tr>
+<tr><td><code>QStandardPaths::GenericStateLocation</code></td><td>The XDG state home, shared by all applications.</td></tr>
+</tbody></table>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="displayName"><span class="tags">[static]</span> <a href="qstring.html">QString</a> QStandardPaths::displayName(StandardLocation <i>type</i>)</h3>
+<p>Returns a human-readable, untranslated English name for the location <i>type</i>.</p>
+<h3 class="member" id="findExecutable"><span class="tags">[static]</span> <a href="qstring.html">QString</a> QStandardPaths::findExecutable(const <a href="qstring.html">QString</a> &amp;<i>executableName</i>, const <a href="qstringlist.html">QStringList</a> &amp;<i>paths</i> = <a href="qstringlist.html">QStringList</a>())</h3>
+<p>Finds an executable file named <i>executableName</i> and returns its absolute path, or an empty string if none is found. If <i>executableName</i> contains a slash it is tested directly. Otherwise each directory in <i>paths</i> is searched, or in the <code>PATH</code> environment variable if <i>paths</i> is empty.</p>
+<h3 class="member" id="locate"><span class="tags">[static]</span> <a href="qstring.html">QString</a> QStandardPaths::locate(StandardLocation <i>type</i>, const <a href="qstring.html">QString</a> &amp;<i>fileName</i>, LocateOptions <i>options</i> = LocateFile)</h3>
+<p>Finds the first entry named <i>fileName</i> in the standard locations of the given <i>type</i> that matches <i>options</i>. Returns its full path, or an empty string if there is none. If <i>fileName</i> is empty, the location directory itself is tested.</p>
+<p class="see-also"><strong>See also</strong> <a href="qstandardpaths.html#locateAll">locateAll()</a> and <a href="qstandardpaths.html#standardLocations">standardLocations()</a>.</p>
+<h3 class="member" id="locateAll"><span class="tags">[static]</span> <a href="qstringlist.html">QStringList</a> QStandardPaths::locateAll(StandardLocation <i>type</i>, const <a href="qstring.html">QString</a> &amp;<i>fileName</i>, LocateOptions <i>options</i> = LocateFile)</h3>
+<p>Finds every entry named <i>fileName</i> in the standard locations of the given <i>type</i> that matches <i>options</i>. Returns their full paths in search order.</p>
+<p class="see-also"><strong>See also</strong> <a href="qstandardpaths.html#locate">locate()</a> and <a href="qstandardpaths.html#standardLocations">standardLocations()</a>.</p>
+<h3 class="member" id="standardLocations"><span class="tags">[static]</span> <a href="qstringlist.html">QStringList</a> QStandardPaths::standardLocations(StandardLocation <i>type</i>)</h3>
+<p>Returns all directories of the given <i>type</i>, with the writable location first. The result does not contain empty or duplicate entries, and the directories are not checked for existence.</p>
+<p class="see-also"><strong>See also</strong> <a href="qstandardpaths.html#writableLocation">writableLocation()</a> and <a href="qstandardpaths.html#locateAll">locateAll()</a>.</p>
+<h3 class="member" id="writableLocation"><span class="tags">[static]</span> <a href="qstring.html">QString</a> QStandardPaths::writableLocation(StandardLocation <i>type</i>)</h3>
+<p>Returns the directory where files of the given <i>type</i> should be written, or an empty string if the location cannot be determined. The directory is not created.</p>
+<p class="see-also"><strong>See also</strong> <a href="qstandardpaths.html#standardLocations">standardLocations()</a> and <a href="qstandardpaths.html#locate">locate()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

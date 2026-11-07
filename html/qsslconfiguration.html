@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QSslConfiguration Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntnetwork-module.html">Nt Network C++ Classes</a> &rsaquo; QSslConfiguration</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QSslConfiguration Class</h1>
+<p class="brief">The QSslConfiguration class holds the settings of a TLS connection. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QSslConfiguration&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Network)</code></td></tr>
+<tr><th>Module</th><td><a href="ntnetwork-module.html">Nt Network C++ Classes</a></td></tr>
+</table>
+<p><a href="qsslconfiguration-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QSslConfiguration">QSslConfiguration</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isNull">isNull</a>() const</td></tr>
+<tr><td class="ret"><a href="qssl.html#SslProtocol-enum">QSsl::SslProtocol</a></td><td><a href="#protocol">protocol</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setProtocol">setProtocol</a>(<a href="qssl.html#SslProtocol-enum">QSsl::SslProtocol</a> <i>protocol</i>)</td></tr>
+<tr><td class="ret"><a href="qsslsocket.html#PeerVerifyMode-enum">QSslSocket::PeerVerifyMode</a></td><td><a href="#peerVerifyMode">peerVerifyMode</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setPeerVerifyMode">setPeerVerifyMode</a>(<a href="qsslsocket.html#PeerVerifyMode-enum">QSslSocket::PeerVerifyMode</a> <i>mode</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#peerVerifyDepth">peerVerifyDepth</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setPeerVerifyDepth">setPeerVerifyDepth</a>(int <i>depth</i>)</td></tr>
+<tr><td class="ret"><a href="qsslcertificate.html">QSslCertificate</a></td><td><a href="#localCertificate">localCertificate</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setLocalCertificate">setLocalCertificate</a>(const <a href="qsslcertificate.html">QSslCertificate</a> &amp;<i>certificate</i>)</td></tr>
+<tr><td class="ret"><a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt;</td><td><a href="#localCertificateChain">localCertificateChain</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setLocalCertificateChain">setLocalCertificateChain</a>(const <a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; &amp;<i>localChain</i>)</td></tr>
+<tr><td class="ret"><a href="qsslkey.html">QSslKey</a></td><td><a href="#privateKey">privateKey</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setPrivateKey">setPrivateKey</a>(const <a href="qsslkey.html">QSslKey</a> &amp;<i>key</i>)</td></tr>
+<tr><td class="ret"><a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt;</td><td><a href="#caCertificates">caCertificates</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setCaCertificates">setCaCertificates</a>(const <a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; &amp;<i>certificates</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#addCaCertificate">addCaCertificate</a>(const <a href="qsslcertificate.html">QSslCertificate</a> &amp;<i>certificate</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#addCaCertificates">addCaCertificates</a>(const <a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; &amp;<i>certificates</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#usesSystemCaCertificates">usesSystemCaCertificates</a>() const</td></tr>
+<tr><td class="ret"><a href="qlist.html">QList</a>&lt;<a href="qbytearray.html">QByteArray</a>&gt;</td><td><a href="#allowedNextProtocols">allowedNextProtocols</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setAllowedNextProtocols">setAllowedNextProtocols</a>(const <a href="qlist.html">QList</a>&lt;<a href="qbytearray.html">QByteArray</a>&gt; &amp;<i>protocols</i>)</td></tr>
+<tr><td class="ret"><a href="qbytearray.html">QByteArray</a></td><td><a href="#nextNegotiatedProtocol">nextNegotiatedProtocol</a>() const</td></tr>
+<tr><td class="ret"><a href="qsslcertificate.html">QSslCertificate</a></td><td><a href="#peerCertificate">peerCertificate</a>() const</td></tr>
+<tr><td class="ret"><a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt;</td><td><a href="#peerCertificateChain">peerCertificateChain</a>() const</td></tr>
+<tr><td class="ret"><a href="qsslcipher.html">QSslCipher</a></td><td><a href="#sessionCipher">sessionCipher</a>() const</td></tr>
+<tr><td class="ret"><a href="qssl.html#SslProtocol-enum">QSsl::SslProtocol</a></td><td><a href="#sessionProtocol">sessionProtocol</a>() const</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">QSslConfiguration</td><td><a href="#defaultConfiguration">defaultConfiguration</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#setDefaultConfiguration">setDefaultConfiguration</a>(const QSslConfiguration &amp;<i>configuration</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>The default verifies peers against the system's trusted certificates and requires TLS 1.2 or newer. To trust a private CA alongside them:</p>
+<pre><code>QSslConfiguration config = QSslConfiguration::defaultConfiguration();
+config.addCaCertificates(QSslCertificate::fromPath(&quot;company-ca.pem&quot;));
+socket.setSslConfiguration(config);
+</code></pre>
+<p>Use <a href="qsslconfiguration.html#setCaCertificates">setCaCertificates()</a> instead to trust only the certificates you list.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslsocket.html">QSslSocket</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p><a href="qsslconfiguration.html#caCertificates">caCertificates()</a> lists only certificates you added: system ones are used by OpenSSL directly and are not enumerated, so <code>systemCaCertificates()</code> does not exist. <a href="qsslconfiguration.html#usesSystemCaCertificates">usesSystemCaCertificates()</a> is an Nt addition. Cipher selection, session tickets, OCSP and DTLS settings are absent.</p>
+</div>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QSslConfiguration">QSslConfiguration::QSslConfiguration()</h3>
+<p>Constructs a configuration with the default settings.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#defaultConfiguration">defaultConfiguration()</a>.</p>
+<h3 class="member" id="addCaCertificate">void QSslConfiguration::addCaCertificate(const <a href="qsslcertificate.html">QSslCertificate</a> &amp;<i>certificate</i>)</h3>
+<p>Trusts <i>certificate</i> as well as the current set.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setCaCertificates">setCaCertificates()</a>.</p>
+<h3 class="member" id="addCaCertificates">void QSslConfiguration::addCaCertificates(const <a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; &amp;<i>certificates</i>)</h3>
+<p>Trusts <i>certificates</i> as well as the current set.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setCaCertificates">setCaCertificates()</a>.</p>
+<h3 class="member" id="allowedNextProtocols"><a href="qlist.html">QList</a>&lt;<a href="qbytearray.html">QByteArray</a>&gt; QSslConfiguration::allowedNextProtocols() const</h3>
+<p>Returns the application protocols offered during the handshake.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setAllowedNextProtocols">setAllowedNextProtocols()</a>.</p>
+<h3 class="member" id="caCertificates"><a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; QSslConfiguration::caCertificates() const</h3>
+<p>Returns the certificates added to the trusted set. System certificates are not listed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setCaCertificates">setCaCertificates()</a> and <a href="qsslconfiguration.html#addCaCertificate">addCaCertificate()</a>.</p>
+<h3 class="member" id="defaultConfiguration"><span class="tags">[static]</span> <a href="qsslconfiguration.html">QSslConfiguration</a> QSslConfiguration::defaultConfiguration()</h3>
+<p>Returns the configuration new sockets start with.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setDefaultConfiguration">setDefaultConfiguration()</a>.</p>
+<h3 class="member" id="isNull">bool QSslConfiguration::isNull() const</h3>
+<p>Returns <code>true</code> if every setting has its initial value.</p>
+<h3 class="member" id="localCertificate"><a href="qsslcertificate.html">QSslCertificate</a> QSslConfiguration::localCertificate() const</h3>
+<p>Returns the certificate this side presents.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setLocalCertificate">setLocalCertificate()</a>.</p>
+<h3 class="member" id="localCertificateChain"><a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; QSslConfiguration::localCertificateChain() const</h3>
+<p>Returns the local certificate and any intermediate certificates.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setLocalCertificateChain">setLocalCertificateChain()</a>.</p>
+<h3 class="member" id="nextNegotiatedProtocol"><a href="qbytearray.html">QByteArray</a> QSslConfiguration::nextNegotiatedProtocol() const</h3>
+<p>Returns the application protocol agreed with the peer. This is set on the configuration returned by <a href="qsslsocket.html#sslConfiguration">QSslSocket::sslConfiguration()</a>.</p>
+<h3 class="member" id="peerCertificate"><a href="qsslcertificate.html">QSslCertificate</a> QSslConfiguration::peerCertificate() const</h3>
+<p>Returns the peer's certificate. This is set on the configuration returned by <a href="qsslsocket.html#sslConfiguration">QSslSocket::sslConfiguration()</a>.</p>
+<h3 class="member" id="peerCertificateChain"><a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; QSslConfiguration::peerCertificateChain() const</h3>
+<p>Returns the peer's certificate chain, leaf first. This is set on the configuration returned by <a href="qsslsocket.html#sslConfiguration">QSslSocket::sslConfiguration()</a>.</p>
+<h3 class="member" id="peerVerifyDepth">int QSslConfiguration::peerVerifyDepth() const</h3>
+<p>Returns the longest certificate chain accepted; <code>0</code> means no limit.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setPeerVerifyDepth">setPeerVerifyDepth()</a>.</p>
+<h3 class="member" id="peerVerifyMode"><a href="qsslsocket.html#PeerVerifyMode-enum">QSslSocket::PeerVerifyMode</a> QSslConfiguration::peerVerifyMode() const</h3>
+<p>Returns how the peer is verified.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setPeerVerifyMode">setPeerVerifyMode()</a>.</p>
+<h3 class="member" id="privateKey"><a href="qsslkey.html">QSslKey</a> QSslConfiguration::privateKey() const</h3>
+<p>Returns the private key of the local certificate.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setPrivateKey">setPrivateKey()</a>.</p>
+<h3 class="member" id="protocol"><a href="qssl.html#SslProtocol-enum">QSsl::SslProtocol</a> QSslConfiguration::protocol() const</h3>
+<p>Returns the allowed TLS versions.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#setProtocol">setProtocol()</a>.</p>
+<h3 class="member" id="sessionCipher"><a href="qsslcipher.html">QSslCipher</a> QSslConfiguration::sessionCipher() const</h3>
+<p>Returns the cipher in use. This is set on the configuration returned by <a href="qsslsocket.html#sslConfiguration">QSslSocket::sslConfiguration()</a>.</p>
+<h3 class="member" id="sessionProtocol"><a href="qssl.html#SslProtocol-enum">QSsl::SslProtocol</a> QSslConfiguration::sessionProtocol() const</h3>
+<p>Returns the TLS version in use. This is set on the configuration returned by <a href="qsslsocket.html#sslConfiguration">QSslSocket::sslConfiguration()</a>.</p>
+<h3 class="member" id="setAllowedNextProtocols">void QSslConfiguration::setAllowedNextProtocols(const <a href="qlist.html">QList</a>&lt;<a href="qbytearray.html">QByteArray</a>&gt; &amp;<i>protocols</i>)</h3>
+<p>Sets the application protocols offered during the handshake to <i>protocols</i>, most preferred first, using ALPN.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#nextNegotiatedProtocol">nextNegotiatedProtocol()</a>.</p>
+<h3 class="member" id="setCaCertificates">void QSslConfiguration::setCaCertificates(const <a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; &amp;<i>certificates</i>)</h3>
+<p>Trusts only <i>certificates</i>, and no system certificates.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#addCaCertificates">addCaCertificates()</a>.</p>
+<h3 class="member" id="setDefaultConfiguration"><span class="tags">[static]</span> void QSslConfiguration::setDefaultConfiguration(const <a href="qsslconfiguration.html">QSslConfiguration</a> &amp;<i>configuration</i>)</h3>
+<p>Sets the configuration new sockets start with to <i>configuration</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#defaultConfiguration">defaultConfiguration()</a>.</p>
+<h3 class="member" id="setLocalCertificate">void QSslConfiguration::setLocalCertificate(const <a href="qsslcertificate.html">QSslCertificate</a> &amp;<i>certificate</i>)</h3>
+<p>Sets the certificate this side presents to <i>certificate</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#localCertificate">localCertificate()</a> and <a href="qsslconfiguration.html#setPrivateKey">setPrivateKey()</a>.</p>
+<h3 class="member" id="setLocalCertificateChain">void QSslConfiguration::setLocalCertificateChain(const <a href="qlist.html">QList</a>&lt;<a href="qsslcertificate.html">QSslCertificate</a>&gt; &amp;<i>localChain</i>)</h3>
+<p>Sets the local certificate and intermediates to <i>localChain</i>, leaf first.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#localCertificateChain">localCertificateChain()</a>.</p>
+<h3 class="member" id="setPeerVerifyDepth">void QSslConfiguration::setPeerVerifyDepth(int <i>depth</i>)</h3>
+<p>Sets the longest certificate chain accepted to <i>depth</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#peerVerifyDepth">peerVerifyDepth()</a>.</p>
+<h3 class="member" id="setPeerVerifyMode">void QSslConfiguration::setPeerVerifyMode(<a href="qsslsocket.html#PeerVerifyMode-enum">QSslSocket::PeerVerifyMode</a> <i>mode</i>)</h3>
+<p>Sets how the peer is verified to <i>mode</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#peerVerifyMode">peerVerifyMode()</a>.</p>
+<h3 class="member" id="setPrivateKey">void QSslConfiguration::setPrivateKey(const <a href="qsslkey.html">QSslKey</a> &amp;<i>key</i>)</h3>
+<p>Sets the private key of the local certificate to <i>key</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#privateKey">privateKey()</a>.</p>
+<h3 class="member" id="setProtocol">void QSslConfiguration::setProtocol(<a href="qssl.html#SslProtocol-enum">QSsl::SslProtocol</a> <i>protocol</i>)</h3>
+<p>Sets the allowed TLS versions to <i>protocol</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qsslconfiguration.html#protocol">protocol()</a>.</p>
+<h3 class="member" id="usesSystemCaCertificates">bool QSslConfiguration::usesSystemCaCertificates() const</h3>
+<p>Returns <code>true</code> if the system's trusted certificates are used.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

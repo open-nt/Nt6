@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QLocalServer Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntnetwork-module.html">Nt Network C++ Classes</a> &rsaquo; QLocalServer</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#signals">Signals</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#protected-functions">Protected Functions</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QLocalServer Class</h1>
+<p class="brief">The QLocalServer class accepts connections from other processes on the same machine. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QLocalServer&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Network)</code></td></tr>
+<tr><th>Module</th><td><a href="ntnetwork-module.html">Nt Network C++ Classes</a></td></tr>
+<tr><th>Inherits</th><td><a href="qobject.html">QObject</a></td></tr>
+</table>
+<p><a href="qlocalserver-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#SocketOption-enum">SocketOption</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#SocketOptions-typedef">SocketOptions</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QLocalServer">QLocalServer</a>(<a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</td></tr>
+<tr><td class="ret"></td><td><a href="#dtor.QLocalServer">~QLocalServer</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#listen">listen</a>(const <a href="qstring.html">QString</a> &amp;<i>name</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#close">close</a>()</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isListening">isListening</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#serverName">serverName</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#fullServerName">fullServerName</a>() const</td></tr>
+<tr><td class="ret"><a href="qstring.html">QString</a></td><td><a href="#errorString">errorString</a>() const</td></tr>
+<tr><td class="ret"><a href="qlocalsocket.html#LocalSocketError-enum">QLocalSocket::LocalSocketError</a></td><td><a href="#serverError">serverError</a>() const</td></tr>
+<tr><td class="ret">virtual bool</td><td><a href="#hasPendingConnections">hasPendingConnections</a>() const</td></tr>
+<tr><td class="ret">virtual <a href="qlocalsocket.html">QLocalSocket</a> *</td><td><a href="#nextPendingConnection">nextPendingConnection</a>()</td></tr>
+<tr><td class="ret">int</td><td><a href="#maxPendingConnections">maxPendingConnections</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setMaxPendingConnections">setMaxPendingConnections</a>(int <i>numConnections</i>)</td></tr>
+<tr><td class="ret">bool</td><td><a href="#waitForNewConnection">waitForNewConnection</a>(int <i>msec</i> = 0, bool *<i>timedOut</i> = nullptr)</td></tr>
+<tr><td class="ret">SocketOptions</td><td><a href="#socketOptions">socketOptions</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#setSocketOptions">setSocketOptions</a>(SocketOptions <i>options</i>)</td></tr>
+<tr><td class="ret">qintptr</td><td><a href="#socketDescriptor">socketDescriptor</a>() const</td></tr>
+</table></div>
+<h2 id="signals">Signals</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">void</td><td><a href="#newConnection">newConnection</a>()</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">bool</td><td><a href="#removeServer">removeServer</a>(const <a href="qstring.html">QString</a> &amp;<i>name</i>)</td></tr>
+</table></div>
+<h2 id="protected-functions">Protected Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">virtual void</td><td><a href="#incomingConnection">incomingConnection</a>(quintptr <i>socketDescriptor</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>Call <a href="qlocalserver.html#listen">listen()</a> with a name, then fetch each new connection when <a href="qlocalserver.html#newConnection">newConnection()</a> is emitted:</p>
+<pre><code>QLocalServer server;
+server.listen(&quot;my-service&quot;);
+QObject::connect(&amp;server, &amp;QLocalServer::newConnection, [&amp;] {
+    QLocalSocket *client = server.nextPendingConnection();
+    client-&gt;write(&quot;hello&quot;);
+});
+</code></pre>
+<p>If a previous process crashed without closing its server, <a href="qlocalserver.html#listen">listen()</a> fails with an address-in-use error. Call <a href="qlocalserver.html#removeServer">removeServer()</a> first to clear the stale socket file.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalsocket.html">QLocalSocket</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>Linux and other POSIX systems only, using Unix domain sockets. There is no listening backlog setting or <code>AbstractNamespaceOption</code>.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="SocketOption-enum">enum QLocalServer::SocketOption</h3>
+<p>Selects who may connect to the server.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QLocalServer::NoOptions</code></td><td>Access follows the process's umask.</td></tr>
+<tr><td><code>QLocalServer::UserAccessOption</code></td><td>The owner may connect.</td></tr>
+<tr><td><code>QLocalServer::GroupAccessOption</code></td><td>The owner's group may connect.</td></tr>
+<tr><td><code>QLocalServer::OtherAccessOption</code></td><td>Other users may connect.</td></tr>
+<tr><td><code>QLocalServer::WorldAccessOption</code></td><td>Everyone may connect.</td></tr>
+</tbody></table>
+<h3 class="member" id="SocketOptions-typedef">typedef QLocalServer::SocketOptions</h3>
+<p>The <code>SocketOptions</code> type is a typedef for <code>QFlags&lt;SocketOption&gt;</code>. It stores an OR combination of SocketOption values.</p>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QLocalServer"><span class="tags">[explicit]</span> QLocalServer::QLocalServer(<a href="qobject.html">QObject</a> *<i>parent</i> = nullptr)</h3>
+<p>Constructs a local server with the given <i>parent</i>.</p>
+<h3 class="member" id="dtor.QLocalServer"><span class="tags">[override]</span> QLocalServer::~QLocalServer()</h3>
+<p>Destroys the server and stops listening. Accepted sockets still pending are deleted with it.</p>
+<h3 class="member" id="close">void QLocalServer::close()</h3>
+<p>Stops listening and removes the socket file. Connections already accepted stay open.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#listen">listen()</a>.</p>
+<h3 class="member" id="errorString"><a href="qstring.html">QString</a> QLocalServer::errorString() const</h3>
+<p>Returns a description of the last error.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#serverError">serverError()</a>.</p>
+<h3 class="member" id="fullServerName"><a href="qstring.html">QString</a> QLocalServer::fullServerName() const</h3>
+<p>Returns the path of the listening socket, or an empty string if not listening.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#serverName">serverName()</a>.</p>
+<h3 class="member" id="hasPendingConnections"><span class="tags">[virtual]</span> bool QLocalServer::hasPendingConnections() const</h3>
+<p>Returns <code>true</code> if a connection is waiting for <a href="qlocalserver.html#nextPendingConnection">nextPendingConnection()</a>.</p>
+<h3 class="member" id="incomingConnection"><span class="tags">[virtual, protected]</span> void QLocalServer::incomingConnection(quintptr <i>socketDescriptor</i>)</h3>
+<p>Called for each accepted connection with its <i>socketDescriptor</i>. The default wraps it in a <a href="qlocalsocket.html">QLocalSocket</a> and queues it for <a href="qlocalserver.html#nextPendingConnection">nextPendingConnection()</a>.</p>
+<h3 class="member" id="isListening">bool QLocalServer::isListening() const</h3>
+<p>Returns <code>true</code> if the server is listening.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#listen">listen()</a>.</p>
+<h3 class="member" id="listen">bool QLocalServer::listen(const <a href="qstring.html">QString</a> &amp;<i>name</i>)</h3>
+<p>Starts listening on the socket <i>name</i>. A relative name is placed in <a href="qdir.html#tempPath">QDir::tempPath()</a>. Returns <code>true</code> on success.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#close">close()</a>, <a href="qlocalserver.html#removeServer">removeServer()</a> and <a href="qlocalserver.html#serverError">serverError()</a>.</p>
+<h3 class="member" id="maxPendingConnections">int QLocalServer::maxPendingConnections() const</h3>
+<p>Returns the most connections held for <a href="qlocalserver.html#nextPendingConnection">nextPendingConnection()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#setMaxPendingConnections">setMaxPendingConnections()</a>.</p>
+<h3 class="member" id="newConnection"><span class="tags">[signal]</span> void QLocalServer::newConnection()</h3>
+<p>This signal is emitted each time a new connection is available.</p>
+<h3 class="member" id="nextPendingConnection"><span class="tags">[virtual]</span> <a href="qlocalsocket.html">QLocalSocket</a> * QLocalServer::nextPendingConnection()</h3>
+<p>Returns the next pending connection, or <code>nullptr</code> if there is none. The socket is a child of the server until you reparent or delete it.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#newConnection">newConnection()</a>.</p>
+<h3 class="member" id="removeServer"><span class="tags">[static]</span> bool QLocalServer::removeServer(const <a href="qstring.html">QString</a> &amp;<i>name</i>)</h3>
+<p>Removes the socket file for <i>name</i>, which clears the leftovers of a crashed server. Returns <code>true</code> if there is no longer such a file.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#listen">listen()</a>.</p>
+<h3 class="member" id="serverError"><a href="qlocalsocket.html#LocalSocketError-enum">QLocalSocket::LocalSocketError</a> QLocalServer::serverError() const</h3>
+<p>Returns the last error.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#errorString">errorString()</a>.</p>
+<h3 class="member" id="serverName"><a href="qstring.html">QString</a> QLocalServer::serverName() const</h3>
+<p>Returns the name given to <a href="qlocalserver.html#listen">listen()</a>, or an empty string if not listening.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#fullServerName">fullServerName()</a>.</p>
+<h3 class="member" id="setMaxPendingConnections">void QLocalServer::setMaxPendingConnections(int <i>numConnections</i>)</h3>
+<p>Sets the most connections held for <a href="qlocalserver.html#nextPendingConnection">nextPendingConnection()</a> to <i>numConnections</i>. Further clients wait in the system's queue.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#maxPendingConnections">maxPendingConnections()</a>.</p>
+<h3 class="member" id="setSocketOptions">void QLocalServer::setSocketOptions(SocketOptions <i>options</i>)</h3>
+<p>Sets the access options to <i>options</i>, which apply from the next <a href="qlocalserver.html#listen">listen()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#socketOptions">socketOptions()</a>.</p>
+<h3 class="member" id="socketDescriptor">qintptr QLocalServer::socketDescriptor() const</h3>
+<p>Returns the native listening descriptor, or <code>-1</code> if not listening.</p>
+<h3 class="member" id="socketOptions">SocketOptions QLocalServer::socketOptions() const</h3>
+<p>Returns the access options.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#setSocketOptions">setSocketOptions()</a>.</p>
+<h3 class="member" id="waitForNewConnection">bool QLocalServer::waitForNewConnection(int <i>msec</i> = 0, bool *<i>timedOut</i> = nullptr)</h3>
+<p>Waits up to <i>msec</i> milliseconds for a connection; a negative value waits forever. Returns <code>true</code> if one is pending. If <i>timedOut</i> is not null, it says whether the wait timed out.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlocalserver.html#hasPendingConnections">hasPendingConnections()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

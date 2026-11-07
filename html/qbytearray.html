@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QByteArray Class | Nt 6.0.0</title>
+<link rel="stylesheet" href="style/ndoc.css">
+</head>
+<body>
+<header class="site"><a href="index.html"><img src="images/nt-logo.svg" alt=""></a><a class="name" href="index.html">Nt</a><span class="version">6.0.0</span><a class="source" href="https://github.com/open-nt/Nt6" title="Source code on GitHub" aria-label="Source code on GitHub"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512" aria-hidden="true"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc. --><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg><span>Source</span></a></header>
+<nav class="crumbs"><a href="index.html">Nt</a> &rsaquo; <a href="ntcore-module.html">Nt Core C++ Classes</a> &rsaquo; QByteArray</nav>
+<div class="layout">
+<aside class="toc"><h2>Contents</h2><ul>
+<li><a href="#public-types">Public Types</a></li>
+<li><a href="#public-functions">Public Functions</a></li>
+<li><a href="#static-public-members">Static Public Members</a></li>
+<li><a href="#details">Detailed Description</a></li>
+<li><a href="#differences">Differences from Qt</a></li>
+<li><a href="#types">Member Type Documentation</a></li>
+<li><a href="#functions">Member Function Documentation</a></li>
+</ul></aside>
+<main>
+<h1>QByteArray Class</h1>
+<p class="brief">The QByteArray class provides an array of bytes. <a href="#details">More&hellip;</a></p>
+<table class="info">
+<tr><th>Header</th><td><code>#include &lt;QByteArray&gt;</code></td></tr>
+<tr><th>CMake</th><td><code>target_link_libraries(app PRIVATE Nt::Core)</code></td></tr>
+<tr><th>Module</th><td><a href="ntcore-module.html">Nt Core C++ Classes</a></td></tr>
+</table>
+<p><a href="qbytearray-members.html">List of all members, including inherited members</a></p>
+<h2 id="public-types">Public Types</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">enum</td><td><a href="#Base64Option-enum">Base64Option</a></td></tr>
+<tr><td class="ret">typedef</td><td><a href="#Base64Options-typedef">Base64Options</a></td></tr>
+</table></div>
+<h2 id="public-functions">Public Functions</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret"></td><td><a href="#QByteArray">QByteArray</a>()</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArray-2">QByteArray</a>(const char *<i>data</i>, qsizetype <i>size</i> = -1)</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArray-3">QByteArray</a>(qsizetype <i>size</i>, char <i>ch</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArray-4">QByteArray</a>(const std::string &amp;<i>s</i>)</td></tr>
+<tr><td class="ret"></td><td><a href="#QByteArray-5">QByteArray</a>(std::string &amp;&amp;<i>s</i>)</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#size">size</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#length">length</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#count">count</a>() const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#capacity">capacity</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isEmpty">isEmpty</a>() const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#isNull">isNull</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#clear">clear</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#reserve">reserve</a>(qsizetype <i>n</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#squeeze">squeeze</a>()</td></tr>
+<tr><td class="ret">void</td><td><a href="#resize">resize</a>(qsizetype <i>n</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#resize-2">resize</a>(qsizetype <i>n</i>, char <i>c</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#fill">fill</a>(char <i>c</i>, qsizetype <i>n</i> = -1)</td></tr>
+<tr><td class="ret">char *</td><td><a href="#data">data</a>()</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#data-2">data</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#constData">constData</a>() const</td></tr>
+<tr><td class="ret">char</td><td><a href="#at">at</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">char &amp;</td><td><a href="#operator-5b5d">operator[]</a>(qsizetype <i>i</i>)</td></tr>
+<tr><td class="ret">char</td><td><a href="#operator-5b5d-2">operator[]</a>(qsizetype <i>i</i>) const</td></tr>
+<tr><td class="ret">char</td><td><a href="#front">front</a>() const</td></tr>
+<tr><td class="ret">char</td><td><a href="#back">back</a>() const</td></tr>
+<tr><td class="ret">char *</td><td><a href="#begin">begin</a>()</td></tr>
+<tr><td class="ret">char *</td><td><a href="#end">end</a>()</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#begin-2">begin</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#end-2">end</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#cbegin">cbegin</a>() const</td></tr>
+<tr><td class="ret">const char *</td><td><a href="#cend">cend</a>() const</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#append">append</a>(const QByteArray &amp;<i>a</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#append-2">append</a>(const char *<i>s</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#append-3">append</a>(const char *<i>s</i>, qsizetype <i>n</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#append-4">append</a>(qsizetype <i>n</i>, char <i>c</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#append-5">append</a>(char <i>c</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#push_back">push_back</a>(char <i>c</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#push_back-2">push_back</a>(const QByteArray &amp;<i>a</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#prepend">prepend</a>(const QByteArray &amp;<i>a</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#prepend-2">prepend</a>(const char *<i>s</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#prepend-3">prepend</a>(char <i>c</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#insert">insert</a>(qsizetype <i>pos</i>, const QByteArray &amp;<i>a</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#insert-2">insert</a>(qsizetype <i>pos</i>, const char *<i>s</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#insert-3">insert</a>(qsizetype <i>pos</i>, char <i>c</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#remove">remove</a>(qsizetype <i>pos</i>, qsizetype <i>len</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#replace">replace</a>(qsizetype <i>pos</i>, qsizetype <i>len</i>, const QByteArray &amp;<i>after</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#replace-2">replace</a>(const QByteArray &amp;<i>before</i>, const QByteArray &amp;<i>after</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#replace-3">replace</a>(char <i>before</i>, const QByteArray &amp;<i>after</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#replace-4">replace</a>(char <i>before</i>, char <i>after</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#chop">chop</a>(qsizetype <i>n</i>)</td></tr>
+<tr><td class="ret">void</td><td><a href="#truncate">truncate</a>(qsizetype <i>pos</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#operator-2b3d">operator+=</a>(const QByteArray &amp;<i>a</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#operator-2b3d-2">operator+=</a>(const char *<i>s</i>)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#operator-2b3d-3">operator+=</a>(char <i>c</i>)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#mid">mid</a>(qsizetype <i>pos</i>, qsizetype <i>len</i> = -1) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#left">left</a>(qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#right">right</a>(qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#first">first</a>(qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#last">last</a>(qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#sliced">sliced</a>(qsizetype <i>pos</i>, qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#sliced-2">sliced</a>(qsizetype <i>pos</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#chopped">chopped</a>(qsizetype <i>n</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#trimmed">trimmed</a>() const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#simplified">simplified</a>() const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#toUpper">toUpper</a>() const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#toLower">toLower</a>() const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#repeated">repeated</a>(qsizetype <i>times</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#leftJustified">leftJustified</a>(qsizetype <i>width</i>, char <i>fill</i> = ' ', bool <i>truncate</i> = false) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#rightJustified">rightJustified</a>(qsizetype <i>width</i>, char <i>fill</i> = ' ', bool <i>truncate</i> = false) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#startsWith">startsWith</a>(const QByteArray &amp;<i>a</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#startsWith-2">startsWith</a>(char <i>c</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#startsWith-3">startsWith</a>(const char *<i>s</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#endsWith">endsWith</a>(const QByteArray &amp;<i>a</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#endsWith-2">endsWith</a>(char <i>c</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#endsWith-3">endsWith</a>(const char *<i>s</i>) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#indexOf">indexOf</a>(const QByteArray &amp;<i>a</i>, qsizetype <i>from</i> = 0) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#indexOf-2">indexOf</a>(char <i>c</i>, qsizetype <i>from</i> = 0) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#indexOf-3">indexOf</a>(const char *<i>s</i>, qsizetype <i>from</i> = 0) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#lastIndexOf">lastIndexOf</a>(const QByteArray &amp;<i>a</i>, qsizetype <i>from</i> = -1) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#lastIndexOf-2">lastIndexOf</a>(char <i>c</i>, qsizetype <i>from</i> = -1) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#contains">contains</a>(const QByteArray &amp;<i>a</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#contains-2">contains</a>(char <i>c</i>) const</td></tr>
+<tr><td class="ret">bool</td><td><a href="#contains-3">contains</a>(const char *<i>s</i>) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#count-2">count</a>(const QByteArray &amp;<i>a</i>) const</td></tr>
+<tr><td class="ret">qsizetype</td><td><a href="#count-3">count</a>(char <i>c</i>) const</td></tr>
+<tr><td class="ret"><a href="qlist.html">QList</a>&lt;QByteArray&gt;</td><td><a href="#split">split</a>(char <i>sep</i>) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#toHex">toHex</a>(char <i>separator</i> = '\0') const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#toBase64">toBase64</a>(Base64Options <i>options</i> = Base64Encoding) const</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#toPercentEncoding">toPercentEncoding</a>(const QByteArray &amp;<i>exclude</i> = QByteArray(), const QByteArray &amp;<i>include</i> = QByteArray(), char <i>percent</i> = '%') const</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#setNum">setNum</a>(qlonglong <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#setNum-2">setNum</a>(qulonglong <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#setNum-3">setNum</a>(int <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#setNum-4">setNum</a>(uint <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray &amp;</td><td><a href="#setNum-5">setNum</a>(double <i>n</i>, char <i>format</i> = 'g', int <i>precision</i> = 6)</td></tr>
+<tr><td class="ret">int</td><td><a href="#toInt">toInt</a>(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</td></tr>
+<tr><td class="ret">uint</td><td><a href="#toUInt">toUInt</a>(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</td></tr>
+<tr><td class="ret">long</td><td><a href="#toLong">toLong</a>(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</td></tr>
+<tr><td class="ret">qlonglong</td><td><a href="#toLongLong">toLongLong</a>(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</td></tr>
+<tr><td class="ret">qulonglong</td><td><a href="#toULongLong">toULongLong</a>(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</td></tr>
+<tr><td class="ret">short</td><td><a href="#toShort">toShort</a>(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</td></tr>
+<tr><td class="ret">ushort</td><td><a href="#toUShort">toUShort</a>(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</td></tr>
+<tr><td class="ret">double</td><td><a href="#toDouble">toDouble</a>(bool *<i>ok</i> = nullptr) const</td></tr>
+<tr><td class="ret">float</td><td><a href="#toFloat">toFloat</a>(bool *<i>ok</i> = nullptr) const</td></tr>
+<tr><td class="ret">std::string</td><td><a href="#toStdString">toStdString</a>() const</td></tr>
+<tr><td class="ret">const std::string &amp;</td><td><a href="#stdString">stdString</a>() const</td></tr>
+<tr><td class="ret">void</td><td><a href="#swap">swap</a>(QByteArray &amp;<i>o</i>)</td></tr>
+<tr><td class="ret">int</td><td><a href="#compare">compare</a>(const QByteArray &amp;<i>o</i>, <a href="qt.html#CaseSensitivity-enum">Qt::CaseSensitivity</a> <i>cs</i> = <a href="qt.html#CaseSensitivity-enum">Qt::CaseSensitive</a>) const</td></tr>
+<tr><td class="ret"></td><td><a href="#operator-bool">operator bool</a>() const</td></tr>
+</table></div>
+<h2 id="static-public-members">Static Public Members</h2>
+<div class="scroll"><table class="summary">
+<tr><td class="ret">QByteArray</td><td><a href="#fromHex">fromHex</a>(const QByteArray &amp;<i>hex</i>)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#fromBase64">fromBase64</a>(const QByteArray &amp;<i>base64</i>, Base64Options <i>options</i> = Base64Encoding)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#fromPercentEncoding">fromPercentEncoding</a>(const QByteArray &amp;<i>pctEncoded</i>, char <i>percent</i> = '%')</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#number">number</a>(qlonglong <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#number-2">number</a>(qulonglong <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#number-3">number</a>(int <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#number-4">number</a>(uint <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#number-5">number</a>(long <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#number-6">number</a>(ulong <i>n</i>, int <i>base</i> = 10)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#number-7">number</a>(double <i>n</i>, char <i>format</i> = 'g', int <i>precision</i> = 6)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#fromStdString">fromStdString</a>(const std::string &amp;<i>s</i>)</td></tr>
+<tr><td class="ret">QByteArray</td><td><a href="#fromRawData">fromRawData</a>(const char *<i>data</i>, qsizetype <i>size</i>)</td></tr>
+</table></div>
+<h2 id="details">Detailed Description</h2>
+<p>QByteArray stores raw bytes, or 8-bit text, in a contiguous buffer. It is used wherever binary data is needed, such as I/O buffers, hashes and encoded text.</p>
+<pre><code>QByteArray ba(&quot;Hello&quot;);
+ba.append(&quot;, world&quot;);
+ba.replace(&quot;world&quot;, &quot;Nt&quot;);
+// ba == &quot;Hello, Nt&quot;
+</code></pre>
+<p>A QByteArray can be null or empty. A null array is one that was default constructed, constructed from a null <code>const char *</code>, or cleared; a null array is also empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qlist.html">QList</a>.</p>
+<h2 id="differences">Differences from Qt</h2>
+<div class="differences">
+<p>The bytes are stored in a <code>std::string</code> and the array is not implicitly shared, so copies are deep and <a href="qbytearray.html#fromRawData">fromRawData()</a> copies the data. There is no <code>QByteArrayView</code>, <code>QString</code> conversion, <code>slice()</code>, <code>nullTerminate()</code>, <code>isLower()/\c</code> isUpper(), <code>fromBase64Encoding()</code> or <code>percentDecoded()</code>, and no overloads of <a href="qbytearray.html#insert">insert()</a> or <a href="qbytearray.html#prepend">prepend()</a> taking a count and a character. <a href="qbytearray.html#split">split()</a> takes a single <code>char</code> separator and always keeps empty parts. <a href="qbytearray.html#fromBase64">fromBase64()</a> ignores its options argument and accepts both the standard and URL-safe alphabets. The conversions <a href="qbytearray.html#toStdString">toStdString()</a> and <a href="qbytearray.html#stdString">stdString()</a> are Nt additions. Indexes are qsizetype but are not range-checked.</p>
+</div>
+<h2 id="types">Member Type Documentation</h2>
+<h3 class="member" id="Base64Option-enum">enum QByteArray::Base64Option</h3>
+<p>These options change how <a href="qbytearray.html#toBase64">toBase64()</a> encodes data and how <a href="qbytearray.html#fromBase64">fromBase64()</a> decodes it.</p>
+<table class="data"><thead><tr><th>Constant</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>QByteArray::Base64Encoding</code></td><td>Use the standard Base64 alphabet, with <code>+</code> and <code>/</code> as the last two characters.</td></tr>
+<tr><td><code>QByteArray::Base64UrlEncoding</code></td><td>Use the URL-safe Base64 alphabet, with <code>-</code> and <code>_</code> as the last two characters.</td></tr>
+<tr><td><code>QByteArray::KeepTrailingEquals</code></td><td>Keep the <code>=</code> padding at the end of the encoded data.</td></tr>
+<tr><td><code>QByteArray::OmitTrailingEquals</code></td><td>Omit the <code>=</code> padding at the end of the encoded data.</td></tr>
+</tbody></table>
+<h3 class="member" id="Base64Options-typedef">typedef QByteArray::Base64Options</h3>
+<p>The Base64Options type is a typedef for <a href="qflags.html">QFlags</a>&lt;Base64Option&gt;. It stores an OR combination of Base64Option values.</p>
+<h2 id="functions">Member Function Documentation</h2>
+<h3 class="member" id="QByteArray">QByteArray::QByteArray()</h3>
+<p>Constructs a null byte array.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#isNull">isNull()</a>.</p>
+<h3 class="member" id="QByteArray-2">QByteArray::QByteArray(const char *<i>data</i>, qsizetype <i>size</i> = -1)</h3>
+<p>Constructs a byte array holding a copy of the first <i>size</i> bytes of <i>data</i>. If <i>size</i> is negative, <i>data</i> is treated as a <code>'\0'</code>-terminated string and its length is used. If <i>data</i> is <code>nullptr</code>, a null byte array is constructed.</p>
+<h3 class="member" id="QByteArray-3">QByteArray::QByteArray(qsizetype <i>size</i>, char <i>ch</i>)</h3>
+<p>Constructs a byte array of <i>size</i> bytes, each set to <i>ch</i>. A negative <i>size</i> is treated as 0.</p>
+<h3 class="member" id="QByteArray-4">QByteArray::QByteArray(const std::string &amp;<i>s</i>)</h3>
+<p>Constructs a byte array holding a copy of the string <i>s</i>.</p>
+<h3 class="member" id="QByteArray-5">QByteArray::QByteArray(std::string &amp;&amp;<i>s</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Constructs a byte array by moving the contents of the string <i>s</i>.</p>
+<h3 class="member" id="append"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::append(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>)</h3>
+<p>Appends the byte array <i>a</i> to this byte array and returns a reference to this byte array.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#prepend">prepend()</a> and <a href="qbytearray.html#insert">insert()</a>.</p>
+<h3 class="member" id="append-2"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::append(const char *<i>s</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the <code>'\0'</code>-terminated string <i>s</i> to this byte array. If <i>s</i> is <code>nullptr</code> nothing is appended.</p>
+<h3 class="member" id="append-3"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::append(const char *<i>s</i>, qsizetype <i>n</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the first <i>n</i> bytes of <i>s</i> to this byte array.</p>
+<h3 class="member" id="append-4"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::append(qsizetype <i>n</i>, char <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends <i>n</i> copies of the byte <i>c</i> to this byte array.</p>
+<h3 class="member" id="append-5"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::append(char <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the byte <i>c</i> to this byte array.</p>
+<h3 class="member" id="at">char QByteArray::at(qsizetype <i>i</i>) const</h3>
+<p>Returns the byte at index position <i>i</i>. <i>i</i> must be a valid index.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#front">front()</a> and <a href="qbytearray.html#back">back()</a>.</p>
+<h3 class="member" id="back">char QByteArray::back() const</h3>
+<p>Returns the last byte in the array. The array must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#front">front()</a> and <a href="qbytearray.html#at">at()</a>.</p>
+<h3 class="member" id="begin">char * QByteArray::begin()</h3>
+<p>Returns an iterator (a <code>char *</code>) pointing to the first byte in the array.</p>
+<h3 class="member" id="begin-2">const char * QByteArray::begin() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const iterator pointing to the first byte in the array.</p>
+<h3 class="member" id="capacity">qsizetype QByteArray::capacity() const</h3>
+<p>Returns the maximum number of bytes that can be stored in the array without forcing a reallocation.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#reserve">reserve()</a> and <a href="qbytearray.html#squeeze">squeeze()</a>.</p>
+<h3 class="member" id="cbegin">const char * QByteArray::cbegin() const</h3>
+<p>Returns a const iterator pointing to the first byte in the array.</p>
+<h3 class="member" id="cend">const char * QByteArray::cend() const</h3>
+<p>Returns a const iterator pointing just after the last byte in the array.</p>
+<h3 class="member" id="chop">void QByteArray::chop(qsizetype <i>n</i>)</h3>
+<p>Removes <i>n</i> bytes from the end of the array. If <i>n</i> is greater than or equal to <a href="qbytearray.html#size">size()</a>, the result is an empty byte array.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#truncate">truncate()</a>, <a href="qbytearray.html#resize">resize()</a> and <a href="qbytearray.html#chopped">chopped()</a>.</p>
+<h3 class="member" id="chopped"><a href="qbytearray.html">QByteArray</a> QByteArray::chopped(qsizetype <i>n</i>) const</h3>
+<p>Returns a byte array containing this byte array without its last <i>n</i> bytes.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#chop">chop()</a> and <a href="qbytearray.html#first">first()</a>.</p>
+<h3 class="member" id="clear">void QByteArray::clear()</h3>
+<p>Clears the contents of the byte array and makes it null.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#resize">resize()</a> and <a href="qbytearray.html#isNull">isNull()</a>.</p>
+<h3 class="member" id="compare">int QByteArray::compare(const <a href="qbytearray.html">QByteArray</a> &amp;<i>o</i>, <a href="qt.html#CaseSensitivity-enum">Qt::CaseSensitivity</a> <i>cs</i> = <a href="qt.html#CaseSensitivity-enum">Qt::CaseSensitive</a>) const</h3>
+<p>Compares this byte array with <i>o</i>, using the case sensitivity <i>cs</i>, and returns a negative value, 0 or a positive value if this array sorts before, equal to or after <i>o</i>. For <code>Qt::CaseInsensitive</code>, only ASCII letters are folded.</p>
+<h3 class="member" id="constData">const char * QByteArray::constData() const</h3>
+<p>Returns a pointer to the const data stored in the byte array. The data is terminated with a <code>'\0'</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#data">data()</a>.</p>
+<h3 class="member" id="contains">bool QByteArray::contains(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>) const</h3>
+<p>Returns <code>true</code> if this byte array contains an occurrence of the byte array <i>a</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#indexOf">indexOf()</a> and <a href="qbytearray.html#count">count()</a>.</p>
+<h3 class="member" id="contains-2">bool QByteArray::contains(char <i>c</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if this byte array contains the byte <i>c</i>.</p>
+<h3 class="member" id="contains-3">bool QByteArray::contains(const char *<i>s</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if this byte array contains the <code>'\0'</code>-terminated string <i>s</i>.</p>
+<h3 class="member" id="count">qsizetype QByteArray::count() const</h3>
+<p>This is an overloaded function.</p>
+<p>Same as <a href="qbytearray.html#size">size()</a>.</p>
+<h3 class="member" id="count-2">qsizetype QByteArray::count(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>) const</h3>
+<p>Returns the number of (potentially overlapping) occurrences of the byte array <i>a</i> in this byte array. Returns 0 if <i>a</i> is empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#contains">contains()</a> and <a href="qbytearray.html#indexOf">indexOf()</a>.</p>
+<h3 class="member" id="count-3">qsizetype QByteArray::count(char <i>c</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the number of occurrences of the byte <i>c</i> in this byte array.</p>
+<h3 class="member" id="data">char * QByteArray::data()</h3>
+<p>Returns a pointer to the data stored in the byte array. The pointer can be used to modify the bytes and stays valid until the array is resized or destroyed. The data is terminated with a <code>'\0'</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#constData">constData()</a>.</p>
+<h3 class="member" id="data-2">const char * QByteArray::data() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a pointer to the const data stored in the byte array.</p>
+<h3 class="member" id="end">char * QByteArray::end()</h3>
+<p>Returns an iterator (a <code>char *</code>) pointing just after the last byte in the array.</p>
+<h3 class="member" id="end-2">const char * QByteArray::end() const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a const iterator pointing just after the last byte in the array.</p>
+<h3 class="member" id="endsWith">bool QByteArray::endsWith(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>) const</h3>
+<p>Returns <code>true</code> if this byte array ends with the byte array <i>a</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#startsWith">startsWith()</a> and <a href="qbytearray.html#right">right()</a>.</p>
+<h3 class="member" id="endsWith-2">bool QByteArray::endsWith(char <i>c</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if this byte array ends with the byte <i>c</i>.</p>
+<h3 class="member" id="endsWith-3">bool QByteArray::endsWith(const char *<i>s</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if this byte array ends with the <code>'\0'</code>-terminated string <i>s</i>.</p>
+<h3 class="member" id="fill"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::fill(char <i>c</i>, qsizetype <i>n</i> = -1)</h3>
+<p>Sets every byte in the array to <i>c</i> and returns a reference to this byte array. If <i>n</i> is not negative, the array is first resized to <i>n</i> bytes. The array is no longer null afterwards.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#resize">resize()</a>.</p>
+<h3 class="member" id="first"><a href="qbytearray.html">QByteArray</a> QByteArray::first(qsizetype <i>n</i>) const</h3>
+<p>Returns a byte array containing the first <i>n</i> bytes of this byte array. Same as <a href="qbytearray.html#left">left()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#last">last()</a> and <a href="qbytearray.html#sliced">sliced()</a>.</p>
+<h3 class="member" id="fromBase64"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::fromBase64(const <a href="qbytearray.html">QByteArray</a> &amp;<i>base64</i>, Base64Options <i>options</i> = Base64Encoding)</h3>
+<p>Returns the decoded copy of the Base64 array <i>base64</i>. Both the standard and the URL-safe alphabets are accepted, and bytes outside the alphabet, including <code>'='</code> padding, are skipped. The <i>options</i> argument is accepted for compatibility with <a href="qt.html">Qt</a> but has no effect.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#toBase64">toBase64()</a>.</p>
+<h3 class="member" id="fromHex"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::fromHex(const <a href="qbytearray.html">QByteArray</a> &amp;<i>hex</i>)</h3>
+<p>Returns a decoded copy of the hex encoded array <i>hex</i>. Bytes that are not hexadecimal digits are skipped, and a trailing odd digit is ignored.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#toHex">toHex()</a>.</p>
+<h3 class="member" id="fromPercentEncoding"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::fromPercentEncoding(const <a href="qbytearray.html">QByteArray</a> &amp;<i>pctEncoded</i>, char <i>percent</i> = '%')</h3>
+<p>Returns a decoded copy of the percent-encoded array <i>pctEncoded</i>. Each <i>percent</i> byte followed by two hex digits is replaced by the byte they encode; anything else is copied unchanged.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#toPercentEncoding">toPercentEncoding()</a>.</p>
+<h3 class="member" id="fromRawData"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::fromRawData(const char *<i>data</i>, qsizetype <i>size</i>)</h3>
+<p>Constructs a byte array from the first <i>size</i> bytes of <i>data</i>.</p>
+<p>Unlike in <a href="qt.html">Qt</a>, the data is copied, not shared; this is equivalent to calling the <a href="qbytearray.html">QByteArray</a>(const char *, qsizetype) constructor.</p>
+<h3 class="member" id="fromStdString"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::fromStdString(const std::string &amp;<i>s</i>)</h3>
+<p>Returns a byte array holding a copy of the string <i>s</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#toStdString">toStdString()</a>.</p>
+<h3 class="member" id="front">char QByteArray::front() const</h3>
+<p>Returns the first byte in the array. The array must not be empty.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#back">back()</a> and <a href="qbytearray.html#at">at()</a>.</p>
+<h3 class="member" id="indexOf">qsizetype QByteArray::indexOf(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>, qsizetype <i>from</i> = 0) const</h3>
+<p>Returns the index position of the first occurrence of the byte array <i>a</i> in this byte array, searching forward from index position <i>from</i>. A negative <i>from</i> counts from the end. Returns -1 if <i>a</i> is not found.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#lastIndexOf">lastIndexOf()</a>, <a href="qbytearray.html#contains">contains()</a> and <a href="qbytearray.html#count">count()</a>.</p>
+<h3 class="member" id="indexOf-2">qsizetype QByteArray::indexOf(char <i>c</i>, qsizetype <i>from</i> = 0) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the index position of the first occurrence of the byte <i>c</i> in this byte array, searching forward from index position <i>from</i>. Returns -1 if <i>c</i> is not found.</p>
+<h3 class="member" id="indexOf-3">qsizetype QByteArray::indexOf(const char *<i>s</i>, qsizetype <i>from</i> = 0) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the index position of the first occurrence of the <code>'\0'</code>-terminated string <i>s</i>, searching forward from index position <i>from</i>.</p>
+<h3 class="member" id="insert"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::insert(qsizetype <i>pos</i>, const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>)</h3>
+<p>Inserts the byte array <i>a</i> at index position <i>pos</i> and returns a reference to this byte array. <i>pos</i> must not be greater than <a href="qbytearray.html#size">size()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#append">append()</a>, <a href="qbytearray.html#prepend">prepend()</a> and <a href="qbytearray.html#remove">remove()</a>.</p>
+<h3 class="member" id="insert-2"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::insert(qsizetype <i>pos</i>, const char *<i>s</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Inserts the <code>'\0'</code>-terminated string <i>s</i> at index position <i>pos</i>.</p>
+<h3 class="member" id="insert-3"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::insert(qsizetype <i>pos</i>, char <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Inserts the byte <i>c</i> at index position <i>pos</i>.</p>
+<h3 class="member" id="isEmpty">bool QByteArray::isEmpty() const</h3>
+<p>Returns <code>true</code> if the byte array has size 0; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#size">size()</a> and <a href="qbytearray.html#isNull">isNull()</a>.</p>
+<h3 class="member" id="isNull">bool QByteArray::isNull() const</h3>
+<p>Returns <code>true</code> if this byte array is null; otherwise returns <code>false</code>.</p>
+<p>An array is null if it was default constructed, constructed from a null <code>const char *</code>, or cleared, and nothing has been added to it since.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#isEmpty">isEmpty()</a> and <a href="qbytearray.html#clear">clear()</a>.</p>
+<h3 class="member" id="last"><a href="qbytearray.html">QByteArray</a> QByteArray::last(qsizetype <i>n</i>) const</h3>
+<p>Returns a byte array containing the last <i>n</i> bytes of this byte array. Same as <a href="qbytearray.html#right">right()</a>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#first">first()</a> and <a href="qbytearray.html#sliced">sliced()</a>.</p>
+<h3 class="member" id="lastIndexOf">qsizetype QByteArray::lastIndexOf(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>, qsizetype <i>from</i> = -1) const</h3>
+<p>Returns the index position of the last occurrence of the byte array <i>a</i> in this byte array, searching backward from index position <i>from</i>. A negative <i>from</i> counts from the end, so the default of -1 starts at the last byte. Returns -1 if <i>a</i> is not found.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#indexOf">indexOf()</a> and <a href="qbytearray.html#contains">contains()</a>.</p>
+<h3 class="member" id="lastIndexOf-2">qsizetype QByteArray::lastIndexOf(char <i>c</i>, qsizetype <i>from</i> = -1) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns the index position of the last occurrence of the byte <i>c</i> in this byte array, searching backward from index position <i>from</i>. Returns -1 if <i>c</i> is not found.</p>
+<h3 class="member" id="left"><a href="qbytearray.html">QByteArray</a> QByteArray::left(qsizetype <i>n</i>) const</h3>
+<p>Returns a byte array containing the first <i>n</i> bytes of this byte array. If <i>n</i> is not less than <a href="qbytearray.html#size">size()</a>, the whole array is returned.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#right">right()</a>, <a href="qbytearray.html#first">first()</a> and <a href="qbytearray.html#mid">mid()</a>.</p>
+<h3 class="member" id="leftJustified"><a href="qbytearray.html">QByteArray</a> QByteArray::leftJustified(qsizetype <i>width</i>, char <i>fill</i> = ' ', bool <i>truncate</i> = false) const</h3>
+<p>Returns a byte array of size <i>width</i> containing this byte array padded on the right with the byte <i>fill</i>. If this byte array is longer than <i>width</i> and <i>truncate</i> is <code>true</code>, the result is truncated to <i>width</i> bytes; otherwise it is returned unchanged.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#rightJustified">rightJustified()</a>.</p>
+<h3 class="member" id="length">qsizetype QByteArray::length() const</h3>
+<p>Same as <a href="qbytearray.html#size">size()</a>.</p>
+<h3 class="member" id="mid"><a href="qbytearray.html">QByteArray</a> QByteArray::mid(qsizetype <i>pos</i>, qsizetype <i>len</i> = -1) const</h3>
+<p>Returns a byte array containing <i>len</i> bytes from this byte array, starting at index position <i>pos</i>. If <i>len</i> is negative, or if <i>pos</i> + <i>len</i> is beyond the end of the array, all bytes from <i>pos</i> to the end are returned. If <i>pos</i> is negative, it is treated as 0 and <i>len</i> is reduced accordingly. If <i>pos</i> is beyond the end of the array, an empty, non-null byte array is returned.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#left">left()</a>, <a href="qbytearray.html#right">right()</a> and <a href="qbytearray.html#sliced">sliced()</a>.</p>
+<h3 class="member" id="number"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::number(qlonglong <i>n</i>, int <i>base</i> = 10)</h3>
+<p>Returns a byte array containing the string equivalent of the number <i>n</i> in the given <i>base</i>, which should be between 2 and 36. The default base is 10.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#setNum">setNum()</a> and <a href="qbytearray.html#toLongLong">toLongLong()</a>.</p>
+<h3 class="member" id="number-2"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::number(qulonglong <i>n</i>, int <i>base</i> = 10)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a byte array containing the string equivalent of the unsigned number <i>n</i> in the given <i>base</i>.</p>
+<h3 class="member" id="number-3"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::number(int <i>n</i>, int <i>base</i> = 10)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a byte array containing the string equivalent of the number <i>n</i> in the given <i>base</i>.</p>
+<h3 class="member" id="number-4"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::number(uint <i>n</i>, int <i>base</i> = 10)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a byte array containing the string equivalent of the number <i>n</i> in the given <i>base</i>.</p>
+<h3 class="member" id="number-5"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::number(long <i>n</i>, int <i>base</i> = 10)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a byte array containing the string equivalent of the number <i>n</i> in the given <i>base</i>.</p>
+<h3 class="member" id="number-6"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::number(ulong <i>n</i>, int <i>base</i> = 10)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a byte array containing the string equivalent of the number <i>n</i> in the given <i>base</i>.</p>
+<h3 class="member" id="number-7"><span class="tags">[static]</span> <a href="qbytearray.html">QByteArray</a> QByteArray::number(double <i>n</i>, char <i>format</i> = 'g', int <i>precision</i> = 6)</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a byte array containing the string equivalent of the floating-point number <i>n</i>. <i>format</i> is one of <code>'e'</code>, <code>'E'</code>, <code>'f'</code>, <code>'g'</code> or <code>'G'</code>, and <i>precision</i> is the number of digits after the decimal point (or of significant digits for <code>'g'</code> and <code>'G'</code>).</p>
+<h3 class="member" id="operator-bool"><span class="tags">[explicit]</span> QByteArray::operator bool() const</h3>
+<p>Returns <code>true</code> if the byte array is not empty; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#isEmpty">isEmpty()</a>.</p>
+<h3 class="member" id="operator-2b3d"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::operator+=(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>)</h3>
+<p>Appends the byte array <i>a</i> to this byte array and returns a reference to this byte array.</p>
+<h3 class="member" id="operator-2b3d-2"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::operator+=(const char *<i>s</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the <code>'\0'</code>-terminated string <i>s</i> to this byte array.</p>
+<h3 class="member" id="operator-2b3d-3"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::operator+=(char <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Appends the byte <i>c</i> to this byte array.</p>
+<h3 class="member" id="operator-5b5d">char &amp; QByteArray::operator[](qsizetype <i>i</i>)</h3>
+<p>Returns a reference to the byte at index position <i>i</i>, which can be assigned to. <i>i</i> must be a valid index.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#at">at()</a>.</p>
+<h3 class="member" id="operator-5b5d-2">char QByteArray::operator[](qsizetype <i>i</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Same as at(<i>i</i>).</p>
+<h3 class="member" id="prepend"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::prepend(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>)</h3>
+<p>Prepends the byte array <i>a</i> to this byte array and returns a reference to this byte array.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#append">append()</a> and <a href="qbytearray.html#insert">insert()</a>.</p>
+<h3 class="member" id="prepend-2"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::prepend(const char *<i>s</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Prepends the <code>'\0'</code>-terminated string <i>s</i> to this byte array.</p>
+<h3 class="member" id="prepend-3"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::prepend(char <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Prepends the byte <i>c</i> to this byte array.</p>
+<h3 class="member" id="push_back">void QByteArray::push_back(char <i>c</i>)</h3>
+<p>Same as append(<i>c</i>). This function is provided for STL compatibility.</p>
+<h3 class="member" id="push_back-2">void QByteArray::push_back(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Same as append(<i>a</i>). This function is provided for STL compatibility.</p>
+<h3 class="member" id="remove"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::remove(qsizetype <i>pos</i>, qsizetype <i>len</i>)</h3>
+<p>Removes <i>len</i> bytes from the array, starting at index position <i>pos</i>, and returns a reference to this byte array. If <i>pos</i> is out of range or <i>len</i> is not positive, nothing happens. If <i>pos</i> + <i>len</i> is beyond the end of the array, bytes are removed up to the end.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#insert">insert()</a>, <a href="qbytearray.html#replace">replace()</a> and <a href="qbytearray.html#chop">chop()</a>.</p>
+<h3 class="member" id="repeated"><a href="qbytearray.html">QByteArray</a> QByteArray::repeated(qsizetype <i>times</i>) const</h3>
+<p>Returns a copy of this byte array repeated <i>times</i> times. If <i>times</i> is less than 1, an empty byte array is returned.</p>
+<h3 class="member" id="replace"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::replace(qsizetype <i>pos</i>, qsizetype <i>len</i>, const <a href="qbytearray.html">QByteArray</a> &amp;<i>after</i>)</h3>
+<p>Replaces <i>len</i> bytes from index position <i>pos</i> with the byte array <i>after</i> and returns a reference to this byte array. If <i>pos</i> is out of range, nothing happens.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#insert">insert()</a> and <a href="qbytearray.html#remove">remove()</a>.</p>
+<h3 class="member" id="replace-2"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::replace(const <a href="qbytearray.html">QByteArray</a> &amp;<i>before</i>, const <a href="qbytearray.html">QByteArray</a> &amp;<i>after</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Replaces every occurrence of the byte array <i>before</i> with the byte array <i>after</i> and returns a reference to this byte array. If <i>before</i> is empty, nothing happens.</p>
+<h3 class="member" id="replace-3"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::replace(char <i>before</i>, const <a href="qbytearray.html">QByteArray</a> &amp;<i>after</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Replaces every occurrence of the byte <i>before</i> with the byte array <i>after</i> and returns a reference to this byte array.</p>
+<h3 class="member" id="replace-4"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::replace(char <i>before</i>, char <i>after</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Replaces every occurrence of the byte <i>before</i> with the byte <i>after</i> and returns a reference to this byte array.</p>
+<h3 class="member" id="reserve">void QByteArray::reserve(qsizetype <i>n</i>)</h3>
+<p>Attempts to allocate memory for at least <i>n</i> bytes, so that later appends do not reallocate.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#capacity">capacity()</a> and <a href="qbytearray.html#squeeze">squeeze()</a>.</p>
+<h3 class="member" id="resize">void QByteArray::resize(qsizetype <i>n</i>)</h3>
+<p>Sets the size of the byte array to <i>n</i> bytes. If <i>n</i> is larger than the current size, the new bytes are set to <code>'\0'</code>. The array is no longer null afterwards.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#size">size()</a>, <a href="qbytearray.html#truncate">truncate()</a> and <a href="qbytearray.html#chop">chop()</a>.</p>
+<h3 class="member" id="resize-2">void QByteArray::resize(qsizetype <i>n</i>, char <i>c</i>)</h3>
+<p>This is an overloaded function.</p>
+<p>Sets the size of the byte array to <i>n</i> bytes. If <i>n</i> is larger than the current size, the new bytes are set to <i>c</i>.</p>
+<h3 class="member" id="right"><a href="qbytearray.html">QByteArray</a> QByteArray::right(qsizetype <i>n</i>) const</h3>
+<p>Returns a byte array containing the last <i>n</i> bytes of this byte array. If <i>n</i> is not less than <a href="qbytearray.html#size">size()</a>, the whole array is returned.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#left">left()</a>, <a href="qbytearray.html#last">last()</a> and <a href="qbytearray.html#mid">mid()</a>.</p>
+<h3 class="member" id="rightJustified"><a href="qbytearray.html">QByteArray</a> QByteArray::rightJustified(qsizetype <i>width</i>, char <i>fill</i> = ' ', bool <i>truncate</i> = false) const</h3>
+<p>Returns a byte array of size <i>width</i> containing the byte <i>fill</i> followed by this byte array. If this byte array is longer than <i>width</i> and <i>truncate</i> is <code>true</code>, the result is truncated to the first <i>width</i> bytes; otherwise it is returned unchanged.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#leftJustified">leftJustified()</a>.</p>
+<h3 class="member" id="setNum"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::setNum(qlonglong <i>n</i>, int <i>base</i> = 10)</h3>
+<p>Sets the byte array to the string equivalent of the number <i>n</i> in the given <i>base</i>, and returns a reference to this byte array.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a> and <a href="qbytearray.html#toLongLong">toLongLong()</a>.</p>
+<h3 class="member" id="setNum-2"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::setNum(qulonglong <i>n</i>, int <i>base</i> = 10)</h3>
+<p>This is an overloaded function.</p>
+<p>Sets the byte array to the string equivalent of the number <i>n</i> in the given <i>base</i>.</p>
+<h3 class="member" id="setNum-3"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::setNum(int <i>n</i>, int <i>base</i> = 10)</h3>
+<p>This is an overloaded function.</p>
+<p>Sets the byte array to the string equivalent of the number <i>n</i> in the given <i>base</i>.</p>
+<h3 class="member" id="setNum-4"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::setNum(uint <i>n</i>, int <i>base</i> = 10)</h3>
+<p>This is an overloaded function.</p>
+<p>Sets the byte array to the string equivalent of the number <i>n</i> in the given <i>base</i>.</p>
+<h3 class="member" id="setNum-5"><a href="qbytearray.html">QByteArray</a> &amp; QByteArray::setNum(double <i>n</i>, char <i>format</i> = 'g', int <i>precision</i> = 6)</h3>
+<p>This is an overloaded function.</p>
+<p>Sets the byte array to the string equivalent of the floating-point number <i>n</i>, formatted with the given <i>format</i> and <i>precision</i> as described for <a href="qbytearray.html#number">number()</a>.</p>
+<h3 class="member" id="simplified"><a href="qbytearray.html">QByteArray</a> QByteArray::simplified() const</h3>
+<p>Returns a byte array with whitespace removed from the start and the end, and with each sequence of internal whitespace replaced with a single space. Whitespace means the ASCII characters space, <code>'\t'</code>, <code>'\n'</code>, <code>'\v'</code>, <code>'\f'</code> and <code>'\r'</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#trimmed">trimmed()</a>.</p>
+<h3 class="member" id="size">qsizetype QByteArray::size() const</h3>
+<p>Returns the number of bytes in the array.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#isEmpty">isEmpty()</a> and <a href="qbytearray.html#resize">resize()</a>.</p>
+<h3 class="member" id="sliced"><a href="qbytearray.html">QByteArray</a> QByteArray::sliced(qsizetype <i>pos</i>, qsizetype <i>n</i>) const</h3>
+<p>Returns a byte array containing <i>n</i> bytes of this byte array, starting at index position <i>pos</i>. Same as mid(<i>pos</i>, <i>n</i>).</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#first">first()</a>, <a href="qbytearray.html#last">last()</a> and <a href="qbytearray.html#chopped">chopped()</a>.</p>
+<h3 class="member" id="sliced-2"><a href="qbytearray.html">QByteArray</a> QByteArray::sliced(qsizetype <i>pos</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns a byte array containing the bytes of this byte array from index position <i>pos</i> to the end.</p>
+<h3 class="member" id="split"><a href="qlist.html">QList</a>&lt;<a href="qbytearray.html">QByteArray</a>&gt; QByteArray::split(char <i>sep</i>) const</h3>
+<p>Splits the byte array into subarrays wherever the byte <i>sep</i> occurs and returns the list of those arrays. Empty parts are kept, so an array without <i>sep</i> yields a list containing a copy of the whole array.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#indexOf">indexOf()</a>.</p>
+<h3 class="member" id="squeeze">void QByteArray::squeeze()</h3>
+<p>Releases any memory not required to store the array's data.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#reserve">reserve()</a> and <a href="qbytearray.html#capacity">capacity()</a>.</p>
+<h3 class="member" id="startsWith">bool QByteArray::startsWith(const <a href="qbytearray.html">QByteArray</a> &amp;<i>a</i>) const</h3>
+<p>Returns <code>true</code> if this byte array starts with the byte array <i>a</i>; otherwise returns <code>false</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#endsWith">endsWith()</a> and <a href="qbytearray.html#left">left()</a>.</p>
+<h3 class="member" id="startsWith-2">bool QByteArray::startsWith(char <i>c</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if this byte array starts with the byte <i>c</i>.</p>
+<h3 class="member" id="startsWith-3">bool QByteArray::startsWith(const char *<i>s</i>) const</h3>
+<p>This is an overloaded function.</p>
+<p>Returns <code>true</code> if this byte array starts with the <code>'\0'</code>-terminated string <i>s</i>.</p>
+<h3 class="member" id="stdString">const std::string &amp; QByteArray::stdString() const</h3>
+<p>Returns a const reference to the <code>std::string</code> that stores the data, without copying it. The reference is invalidated when the byte array is modified or destroyed.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#toStdString">toStdString()</a>.</p>
+<h3 class="member" id="swap">void QByteArray::swap(<a href="qbytearray.html">QByteArray</a> &amp;<i>o</i>)</h3>
+<p>Swaps this byte array with <i>o</i>. This operation is very fast and never fails.</p>
+<h3 class="member" id="toBase64"><a href="qbytearray.html">QByteArray</a> QByteArray::toBase64(Base64Options <i>options</i> = Base64Encoding) const</h3>
+<p>Returns a copy of the byte array encoded as Base64, using the alphabet and padding selected by <i>options</i>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#fromBase64">fromBase64()</a> and <a href="qbytearray.html#Base64Option-enum">Base64Option</a>.</p>
+<h3 class="member" id="toDouble">double QByteArray::toDouble(bool *<i>ok</i> = nullptr) const</h3>
+<p>Returns the byte array converted to a <code>double</code>. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and to <code>false</code> otherwise. Returns 0.0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a> and <a href="qbytearray.html#toFloat">toFloat()</a>.</p>
+<h3 class="member" id="toFloat">float QByteArray::toFloat(bool *<i>ok</i> = nullptr) const</h3>
+<p>Returns the byte array converted to a <code>float</code>. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and to <code>false</code> otherwise. Returns 0.0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#toDouble">toDouble()</a> and <a href="qbytearray.html#number">number()</a>.</p>
+<h3 class="member" id="toHex"><a href="qbytearray.html">QByteArray</a> QByteArray::toHex(char <i>separator</i> = '\0') const</h3>
+<p>Returns a hex encoded copy of the byte array, using lowercase digits. If <i>separator</i> is not <code>'\0'</code>, it is inserted between the hex digits of consecutive bytes.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#fromHex">fromHex()</a>.</p>
+<h3 class="member" id="toInt">int QByteArray::toInt(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</h3>
+<p>Returns the byte array converted to an <code>int</code> using the given <i>base</i>. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and the value fits in an <code>int</code>, and to <code>false</code> otherwise. Returns 0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a> and <a href="qbytearray.html#toLongLong">toLongLong()</a>.</p>
+<h3 class="member" id="toLong">long QByteArray::toLong(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</h3>
+<p>Returns the byte array converted to a <code>long</code> using the given <i>base</i>. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and the value fits in a <code>long</code>, and to <code>false</code> otherwise. Returns 0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a> and <a href="qbytearray.html#toLongLong">toLongLong()</a>.</p>
+<h3 class="member" id="toLongLong">qlonglong QByteArray::toLongLong(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</h3>
+<p>Returns the byte array converted to a <code>long long</code> using the given <i>base</i>, which must be between 2 and 36, or 0 to detect the base from the prefix. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and to <code>false</code> otherwise. Returns 0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a>, <a href="qbytearray.html#toULongLong">toULongLong()</a> and <a href="qbytearray.html#toInt">toInt()</a>.</p>
+<h3 class="member" id="toLower"><a href="qbytearray.html">QByteArray</a> QByteArray::toLower() const</h3>
+<p>Returns a lowercase copy of the byte array. Only the ASCII letters <code>A</code> to <code>Z</code> are converted; all other bytes are left unchanged.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#toUpper">toUpper()</a>.</p>
+<h3 class="member" id="toPercentEncoding"><a href="qbytearray.html">QByteArray</a> QByteArray::toPercentEncoding(const <a href="qbytearray.html">QByteArray</a> &amp;<i>exclude</i> = <a href="qbytearray.html">QByteArray</a>(), const <a href="qbytearray.html">QByteArray</a> &amp;<i>include</i> = <a href="qbytearray.html">QByteArray</a>(), char <i>percent</i> = '%') const</h3>
+<p>Returns a percent-encoded copy of the byte array. The unreserved characters <code>A-Z a-z 0-9 - . _ ~</code> and the bytes in <i>exclude</i> are left as they are, unless they also occur in <i>include</i>. Every other byte is replaced by <i>percent</i> followed by two uppercase hex digits.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#fromPercentEncoding">fromPercentEncoding()</a>.</p>
+<h3 class="member" id="toShort">short QByteArray::toShort(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</h3>
+<p>Returns the byte array converted to a <code>short</code> using the given <i>base</i>. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and the value fits in a <code>short</code>, and to <code>false</code> otherwise. Returns 0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a> and <a href="qbytearray.html#toLongLong">toLongLong()</a>.</p>
+<h3 class="member" id="toStdString">std::string QByteArray::toStdString() const</h3>
+<p>Returns a copy of the data as a <code>std::string</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#fromStdString">fromStdString()</a> and <a href="qbytearray.html#stdString">stdString()</a>.</p>
+<h3 class="member" id="toUInt">uint QByteArray::toUInt(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</h3>
+<p>Returns the byte array converted to an <code>unsigned int</code> using the given <i>base</i>. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and the value fits in an <code>unsigned int</code>, and to <code>false</code> otherwise. Returns 0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a> and <a href="qbytearray.html#toULongLong">toULongLong()</a>.</p>
+<h3 class="member" id="toULongLong">qulonglong QByteArray::toULongLong(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</h3>
+<p>Returns the byte array converted to an <code>unsigned long long</code> using the given <i>base</i>. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and to <code>false</code> otherwise. Returns 0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a> and <a href="qbytearray.html#toLongLong">toLongLong()</a>.</p>
+<h3 class="member" id="toUpper"><a href="qbytearray.html">QByteArray</a> QByteArray::toUpper() const</h3>
+<p>Returns an uppercase copy of the byte array. Only the ASCII letters <code>a</code> to <code>z</code> are converted; all other bytes are left unchanged.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#toLower">toLower()</a>.</p>
+<h3 class="member" id="toUShort">ushort QByteArray::toUShort(bool *<i>ok</i> = nullptr, int <i>base</i> = 10) const</h3>
+<p>Returns the byte array converted to an <code>unsigned short</code> using the given <i>base</i>. If <i>ok</i> is not <code>nullptr</code>, it is set to <code>true</code> if the conversion succeeded and the value fits in an <code>unsigned short</code>, and to <code>false</code> otherwise. Returns 0 on failure.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#number">number()</a> and <a href="qbytearray.html#toULongLong">toULongLong()</a>.</p>
+<h3 class="member" id="trimmed"><a href="qbytearray.html">QByteArray</a> QByteArray::trimmed() const</h3>
+<p>Returns a byte array with whitespace removed from the start and the end. Whitespace means the ASCII characters space, <code>'\t'</code>, <code>'\n'</code>, <code>'\v'</code>, <code>'\f'</code> and <code>'\r'</code>.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#simplified">simplified()</a>.</p>
+<h3 class="member" id="truncate">void QByteArray::truncate(qsizetype <i>pos</i>)</h3>
+<p>Truncates the array at index position <i>pos</i>. If <i>pos</i> is beyond the end of the array, nothing happens.</p>
+<p class="see-also"><strong>See also</strong> <a href="qbytearray.html#chop">chop()</a>, <a href="qbytearray.html#resize">resize()</a> and <a href="qbytearray.html#left">left()</a>.</p>
+</main>
+</div>
+<footer class="site">Nt is MIT licensed and is not affiliated with The Qt Company.</footer>
+</body>
+</html>

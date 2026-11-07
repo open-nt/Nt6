@@ -422,6 +422,9 @@ static void testLockErrors() {
         const QString path = tmp.path() + "/stolen.lock";
         QLockFile l(path);
         CHECK(l.tryLock());
+        // Keeping the old file open stops the file system from reusing its inode number for the new file.
+        QFile keepInode(path);
+        CHECK(keepInode.open(QIODevice::ReadOnly));
         ::unlink(path.toUtf8().constData());
         CHECK(writeFile(path, lockContents(1, "other", "other")));
         l.unlock();

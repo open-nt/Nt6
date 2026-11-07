@@ -100,8 +100,9 @@ struct IsQObjectPointer<T *> : std::bool_constant<IsComplete<T>::value && std::i
     \differences
     There is no \c QVariant::compare() or \c operator<(), no
     \c QVariant::toLocale(), \c toRegularExpression(), \c toEasingCurve(),
-    \c toModelIndex() or JSON and CBOR conversions, since Nt has no such
-    classes. Constructors for \c long and \c{unsigned long} exist because
+    \c toModelIndex() or CBOR conversions, since Nt has no such classes. The
+    JSON classes can be stored, but convert() does not convert between them
+    and other types; use QJsonValue::fromVariant() and QJsonValue::toVariant(). Constructors for \c long and \c{unsigned long} exist because
     Nt's \c qint64 is \c long on Linux; they store a \c qlonglong or
     \c qulonglong. A \c QVariantPair is a \c std::pair, as Nt has no
     QPair. The constructor that takes an \c std::in_place_type_t and

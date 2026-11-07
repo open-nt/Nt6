@@ -2,12 +2,16 @@
 #pragma once
 
 #include <QtCore/qjsonvalue.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qstringlist.h>
 
 #include <cstddef>
 #include <initializer_list>
 #include <iterator>
 #include <memory>
+
+class QVariant;
+using QVariantList = QList<QVariant>;
 
 class QJsonArray {
 public:
@@ -22,6 +26,8 @@ public:
     void swap(QJsonArray &other) noexcept { d.swap(other.d); }
 
     static QJsonArray fromStringList(const QStringList &list);
+    static QJsonArray fromVariantList(const QVariantList &list);
+    QVariantList toVariantList() const;
 
     qsizetype size() const;
     qsizetype count() const { return size(); }

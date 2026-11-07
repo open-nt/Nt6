@@ -2,6 +2,8 @@
 #pragma once
 
 #include <QtCore/qjsonvalue.h>
+#include <QtCore/qhash.h>
+#include <QtCore/qmap.h>
 #include <QtCore/qstringlist.h>
 
 #include <cstddef>
@@ -9,6 +11,10 @@
 #include <iterator>
 #include <memory>
 #include <utility>
+
+class QVariant;
+using QVariantMap = QMap<QString, QVariant>;
+using QVariantHash = QHash<QString, QVariant>;
 
 class QJsonObject {
 public:
@@ -27,6 +33,11 @@ public:
     qsizetype length() const { return size(); }
     bool isEmpty() const { return size() == 0; }
     bool empty() const { return isEmpty(); }
+
+    static QJsonObject fromVariantMap(const QVariantMap &map);
+    static QJsonObject fromVariantHash(const QVariantHash &hash);
+    QVariantMap toVariantMap() const;
+    QVariantHash toVariantHash() const;
 
     QStringList keys() const;
 

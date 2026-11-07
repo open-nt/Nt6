@@ -9,6 +9,7 @@
 #include <type_traits>
 
 class QDebug;
+class QVariant;
 class QJsonArray;
 class QJsonObject;
 class QJsonValueConstRef;
@@ -57,6 +58,9 @@ public:
     QJsonValue &operator=(QJsonValue &&other) noexcept;
 
     void swap(QJsonValue &other) noexcept;
+
+    static QJsonValue fromVariant(const QVariant &variant);
+    QVariant toVariant() const;
 
     Type type() const { return m_type; }
     bool isNull() const { return m_type == Null; }

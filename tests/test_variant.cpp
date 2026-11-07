@@ -171,7 +171,7 @@ static void testFromName() {
     CHECK(!QMetaType::isRegistered(-5));
     CHECK(!QMetaType::isRegistered(QMetaType::QLocale)); // reserved, not implemented
     CHECK(std::string(QMetaType::typeName(QMetaType::QLocale)) == "QLocale");
-    CHECK(!QMetaType(QMetaType::QJsonValue).isValid());
+    CHECK(!QMetaType(QMetaType::QCborValue).isValid());
     CHECK(!QMetaType().isValid());
     CHECK(QMetaType().id() == 0 && QMetaType().name() == nullptr && QMetaType().sizeOf() == 0);
     CHECK(!QMetaType(999999).isValid());

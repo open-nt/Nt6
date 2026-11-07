@@ -2,6 +2,7 @@
 #include <QtCore/qdatastream.h>
 #include <QtCore/qdatetime.h>
 #include <QtCore/qdebug.h>
+#include <QtCore/qjsondocument.h>
 #include <QtCore/qbitarray.h>
 #include <QtCore/qline.h>
 #include <QtCore/qmetatype.h>
@@ -172,6 +173,10 @@ const std::array<const QMetaTypeInterface *, kBuiltinCount> &builtinTable() {
         NT_ENTRY(QObject *)
         NT_ENTRY(signed char)
         NT_ENTRY(QVariant)
+        NT_ENTRY(QJsonValue)
+        NT_ENTRY(QJsonObject)
+        NT_ENTRY(QJsonArray)
+        NT_ENTRY(QJsonDocument)
         NT_ENTRY(QByteArrayList)
         NT_ENTRY(std::nullptr_t)
         NT_ENTRY(char16_t)

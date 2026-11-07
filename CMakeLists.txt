@@ -18,16 +18,29 @@ add_library(NtCore
     src/qbuffer.cpp
     src/qbytearray.cpp
     src/qchar.cpp
+    src/qcommandlineparser.cpp
     src/qcoreapplication.cpp
     src/qcoreevent.cpp
+    src/qcryptographichash.cpp
+    src/qdatastream.cpp
+    src/qdatetime.cpp
     src/qdebug.cpp
+    src/qdir.cpp
     src/qeventloop.cpp
     src/qfile.cpp
+    src/qfileinfo.cpp
     src/qiodevice.cpp
     src/qobject.cpp
+    src/qrandom.cpp
+    src/qsavefile.cpp
     src/qsocketnotifier.cpp
+    src/qstandardpaths.cpp
     src/qstring.cpp
+    src/qtemporaryfile.cpp
+    src/qtextstream.cpp
     src/qtimer.cpp
+    src/quuid.cpp
+    src/qversionnumber.cpp
 )
 add_library(Nt::Core ALIAS NtCore)
 add_library(Qt6::Core ALIAS NtCore)
@@ -112,6 +125,12 @@ if(NT_BUILD_TESTS)
     add_executable(nt_core_tests tests/test_core.cpp)
     target_link_libraries(nt_core_tests PRIVATE Nt::Core)
     add_test(NAME nt_core_tests COMMAND nt_core_tests)
+
+    foreach(suite filesystem streams types)
+        add_executable(nt_${suite}_tests tests/test_${suite}.cpp)
+        target_link_libraries(nt_${suite}_tests PRIVATE Nt::Core)
+        add_test(NAME nt_${suite}_tests COMMAND nt_${suite}_tests)
+    endforeach()
 
     add_executable(nt_network_tests tests/test_network.cpp)
     target_link_libraries(nt_network_tests PRIVATE Nt::Network)

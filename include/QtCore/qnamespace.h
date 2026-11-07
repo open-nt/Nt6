@@ -5,6 +5,26 @@
 
 namespace Qt {
 
+enum AspectRatioMode {
+    IgnoreAspectRatio,
+    KeepAspectRatio,
+    KeepAspectRatioByExpanding
+};
+
+enum DateFormat {
+    TextDate,
+    ISODate = 1,
+    ISODateWithMs = 9,
+    RFC2822Date = 8
+};
+
+enum TimeSpec {
+    LocalTime,
+    UTC,
+    OffsetFromUTC,
+    TimeZone
+};
+
 enum ConnectionType {
     AutoConnection = 0,
     DirectConnection = 1,

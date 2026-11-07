@@ -386,7 +386,6 @@ static void testOpenModes() {
     Pty pty;
     QSerialPort writer(pty.slave);
     CHECK(writer.open(QIODevice::WriteOnly) && writer.isWritable() && !writer.isReadable());
-    std::printf("DIAG open: %s (error %d)\n", qPrintable(writer.errorString()), static_cast<int>(writer.error()));
     CHECK(writer.write("out") == 3 && writer.waitForBytesWritten(2000));
     CHECK(pty.waitForBytes(3) == "out");
     CHECK(!writer.waitForReadyRead(0));

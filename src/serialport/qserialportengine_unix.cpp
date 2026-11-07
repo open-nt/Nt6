@@ -11,7 +11,6 @@
 #include <unistd.h>
 
 #include <cerrno>
-#include <cstdio>
 #include <cstring>
 
 namespace {
@@ -261,18 +260,25 @@ void SerialEngine::close() {
 
 bool SerialEngine::apply(const SerialSettings &settings) {
     termios before;
-    if (::tcgetattr(m_fd, &before) != 0) { std::fprintf(stderr, "TRACE tcgetattr errno=%d\n", errno);
-        return failed(); }
+    if (::tcgetattr(m_fd, &before) != 0)
+        return failed();
     termios tio = before;
-    if (!fillSerialTermios(tio, settings, m_readable)) { std::fprintf(stderr, "TRACE fill errno=%d\n", errno);
-        return failed(); }
-    if (::tcsetattr(m_fd, TCSANOW, &tio) != 0) { std::fprintf(stderr, "TRACE tcsetattr errno=%d cflag=%o readable=%d\n", errno, static_cast<unsigned>(tio.c_cflag), m_readable);
-        return failed(); }
+    if (!fillSerialTermios(tio, settings, m_readable))
+        return failed();
+    if (::tcsetattr(m_fd, TCSANOW, &tio) != 0) {
+        // Pseudo-terminals always keep the receiver on, and some systems report that as EINVAL.
+        // A port that is only written to loses nothing by leaving the receiver on.
+        const bool receiverRefused = errno == EINVAL && !m_readable && (tio.c_cflag & CREAD) == 0;
+        if (!receiverRefused)
+            return failed();
+        tio.c_cflag |= CREAD;
+        if (::tcsetattr(m_fd, TCSANOW, &tio) != 0)
+            return failed();
+    }
     if (findSpeed(settings.inputBaudRate) && findSpeed(settings.outputBaudRate))
         return true;
     if (setSerialCustomBaudRate(m_fd, settings.inputBaudRate, settings.outputBaudRate))
         return true;
-    std::fprintf(stderr, "TRACE custom baud errno=%d\n", errno);
     failed();
     ::tcsetattr(m_fd, TCSANOW, &before);
     return false;

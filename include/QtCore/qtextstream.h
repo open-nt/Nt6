@@ -6,7 +6,10 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qstringview.h>
 
+#include <cstdio>
+#include <limits>
 #include <memory>
+#include <type_traits>
 
 // Text is UTF-8 on devices and byte arrays, until QStringConverter exists.
 class QTextStream {
@@ -25,6 +28,7 @@ public:
 
     QTextStream();
     explicit QTextStream(QIODevice *device);
+    explicit QTextStream(FILE *fileHandle, QIODeviceBase::OpenMode mode = QIODeviceBase::ReadWrite);
     explicit QTextStream(QString *string, QIODeviceBase::OpenMode mode = QIODeviceBase::ReadWrite);
     explicit QTextStream(QByteArray *array, QIODeviceBase::OpenMode mode = QIODeviceBase::ReadWrite);
     explicit QTextStream(const QByteArray &array, QIODeviceBase::OpenMode mode = QIODeviceBase::ReadOnly);
@@ -103,16 +107,23 @@ public:
 private:
     template <typename T>
     QTextStream &readInteger(T &out) {
-        qlonglong v = 0;
         bool ok = false;
-        const QString tok = nextToken();
-        if constexpr (std::is_signed_v<T>)
-            v = parseSigned(tok, &ok);
-        else
-            v = static_cast<qlonglong>(parseUnsigned(tok, &ok));
-        out = ok ? static_cast<T>(v) : T();
+        const QString tok = scanInteger();
+        out = T();
+        if constexpr (std::is_signed_v<T>) {
+            const qlonglong v = parseSigned(tok, &ok);
+            ok = ok && v >= static_cast<qlonglong>(std::numeric_limits<T>::min())
+                && v <= static_cast<qlonglong>(std::numeric_limits<T>::max());
+            if (ok)
+                out = static_cast<T>(v);
+        } else {
+            const qulonglong v = parseUnsigned(tok, &ok);
+            ok = ok && v <= static_cast<qulonglong>(std::numeric_limits<T>::max());
+            if (ok)
+                out = static_cast<T>(v);
+        }
         if (!ok)
-            setStatus(tok.isEmpty() ? ReadPastEnd : ReadCorruptData);
+            setStatus(tok.isNull() ? ReadPastEnd : ReadCorruptData);
         return *this;
     }
     template <typename T>
@@ -121,9 +132,15 @@ private:
     QTextStream &writeUnsigned(T v) { return writeInteger(false, v); }
 
     QTextStream &writeInteger(bool negative, qulonglong magnitude);
+    QString padded(const QString &sign, const QString &body) const;
     void put(const QString &field);
-    void fill() const;
+    void rawPut(const QString &text);
+    void flushWrite() const;
+    bool fill() const;
+    bool available(qsizetype n) const;
     QString nextToken();
+    QString scanInteger();
+    QString scanReal();
     qlonglong parseSigned(const QString &s, bool *ok) const;
     qulonglong parseUnsigned(const QString &s, bool *ok) const;
     void attachOwned(QIODevice *d);
@@ -135,8 +152,8 @@ private:
     mutable QString m_read;
     mutable qsizetype m_readPos = 0;
     mutable QByteArray m_partial;
-    QByteArray m_write;
-    Status m_status = Ok;
+    mutable QByteArray m_write;
+    mutable Status m_status = Ok;
     FieldAlignment m_align = AlignRight;
     QChar m_pad = QChar(u' ');
     int m_width = 0;
@@ -186,6 +203,8 @@ QTextStream &showbase(QTextStream &s);
 QTextStream &noshowbase(QTextStream &s);
 QTextStream &forcesign(QTextStream &s);
 QTextStream &noforcesign(QTextStream &s);
+QTextStream &forcepoint(QTextStream &s);
+QTextStream &noforcepoint(QTextStream &s);
 QTextStream &uppercasebase(QTextStream &s);
 QTextStream &lowercasebase(QTextStream &s);
 QTextStream &uppercasedigits(QTextStream &s);

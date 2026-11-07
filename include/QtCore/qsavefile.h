@@ -14,7 +14,7 @@ public:
     ~QSaveFile() override;
 
     QString fileName() const { return m_target; }
-    void setFileName(const QString &name) { m_target = name; }
+    void setFileName(const QString &name) { if (!isOpen()) { m_target = name; m_name = name; } }
     bool open(OpenMode mode) override;
     bool commit();
     void cancelWriting();
@@ -29,7 +29,7 @@ private:
 
     QString m_target;
     QString m_temp;
-    bool m_cancelled = false;
+    bool m_writeError = false;
     bool m_direct = false;
     bool m_directFallback = false;
 };

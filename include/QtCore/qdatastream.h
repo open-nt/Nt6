@@ -9,15 +9,49 @@
 #include <QtCore/qstring.h>
 
 #include <memory>
+#include <type_traits>
 
+// Binary format compatible with Qt's QDataStream: big-endian by default, QString as UTF-16 code
+// units behind a byte-length prefix, null QString/QByteArray as length 0xFFFFFFFF. Container sizes
+// are always quint32 (the 64-bit extended size of stream version 21 is not supported).
 class QDataStream {
 public:
     enum Version {
+        Qt_1_0 = 1,
+        Qt_2_0 = 2,
+        Qt_2_1 = 3,
+        Qt_3_0 = 4,
+        Qt_3_1 = 5,
+        Qt_3_3 = 6,
+        Qt_4_0 = 7,
+        Qt_4_1 = Qt_4_0,
+        Qt_4_2 = 8,
+        Qt_4_3 = 9,
+        Qt_4_4 = 10,
+        Qt_4_5 = 11,
+        Qt_4_6 = 12,
+        Qt_4_7 = Qt_4_6,
+        Qt_4_8 = Qt_4_7,
+        Qt_4_9 = Qt_4_8,
         Qt_5_0 = 13,
-        Qt_5_15 = 20,
+        Qt_5_1 = 14,
+        Qt_5_2 = 15,
+        Qt_5_3 = Qt_5_2,
+        Qt_5_4 = 16,
+        Qt_5_5 = Qt_5_4,
+        Qt_5_6 = 17,
+        Qt_5_13 = 19,
+        Qt_5_14 = Qt_5_13,
+        Qt_5_15 = Qt_5_14,
         Qt_6_0 = 20,
-        Qt_6_5 = 21,
-        Qt_DefaultCompiledVersion = Qt_6_5
+        Qt_6_1 = Qt_6_0,
+        Qt_6_2 = Qt_6_0,
+        Qt_6_3 = Qt_6_0,
+        Qt_6_4 = Qt_6_0,
+        Qt_6_5 = Qt_6_0,
+        Qt_6_6 = Qt_6_0,
+        Qt_6_7 = 21,
+        Qt_DefaultCompiledVersion = Qt_6_7
     };
     enum ByteOrder { BigEndian, LittleEndian };
     enum Status { Ok, ReadPastEnd, ReadCorruptData, WriteFailed, SizeLimitExceeded };
@@ -50,6 +84,12 @@ public:
     QDataStream &operator>>(quint32 &v) { return *this >> reinterpret_cast<qint32 &>(v); }
     QDataStream &operator>>(qint64 &v);
     QDataStream &operator>>(quint64 &v) { return *this >> reinterpret_cast<qint64 &>(v); }
+    QDataStream &operator>>(char &v) { return *this >> reinterpret_cast<qint8 &>(v); }
+    // qint64 is `long` on LP64 Linux, so the `long long` family needs its own overloads.
+    template <typename T, std::enable_if_t<std::is_same_v<T, long long> && !std::is_same_v<long long, qint64>, int> = 0>
+    QDataStream &operator>>(T &v) { return *this >> reinterpret_cast<qint64 &>(v); }
+    template <typename T, std::enable_if_t<std::is_same_v<T, unsigned long long> && !std::is_same_v<unsigned long long, quint64>, int> = 0>
+    QDataStream &operator>>(T &v) { return *this >> reinterpret_cast<qint64 &>(v); }
     QDataStream &operator>>(bool &v);
     QDataStream &operator>>(float &v);
     QDataStream &operator>>(double &v);
@@ -62,6 +102,11 @@ public:
     QDataStream &operator<<(quint32 v) { return *this << static_cast<qint32>(v); }
     QDataStream &operator<<(qint64 v);
     QDataStream &operator<<(quint64 v) { return *this << static_cast<qint64>(v); }
+    QDataStream &operator<<(char v) { return *this << static_cast<qint8>(v); }
+    template <typename T, std::enable_if_t<std::is_same_v<T, long long> && !std::is_same_v<long long, qint64>, int> = 0>
+    QDataStream &operator<<(T v) { return *this << static_cast<qint64>(v); }
+    template <typename T, std::enable_if_t<std::is_same_v<T, unsigned long long> && !std::is_same_v<unsigned long long, quint64>, int> = 0>
+    QDataStream &operator<<(T v) { return *this << static_cast<qint64>(v); }
     QDataStream &operator<<(bool v) { return *this << static_cast<qint8>(v); }
     QDataStream &operator<<(float v);
     QDataStream &operator<<(double v);

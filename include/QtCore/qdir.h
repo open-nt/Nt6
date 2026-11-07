@@ -6,6 +6,8 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
 
+#include <utility>
+
 class QDir {
 public:
     enum Filter {
@@ -52,6 +54,7 @@ public:
     QDir(const QString &path, const QString &nameFilter, SortFlags sort = SortFlags(SortFlag(Name | IgnoreCase)), Filters filter = AllEntries);
 
     void setPath(const QString &path);
+    void swap(QDir &other) noexcept { std::swap(m_path, other.m_path); std::swap(m_nameFilters, other.m_nameFilters); std::swap(m_filter, other.m_filter); std::swap(m_sort, other.m_sort); }
     QString path() const { return m_path; }
     QString absolutePath() const;
     QString canonicalPath() const;
@@ -109,6 +112,7 @@ public:
     static QString tempPath();
     static QDir root() { return QDir(rootPath()); }
     static QString rootPath() { return QString("/"); }
+    static QFileInfoList drives();
     static bool match(const QString &filter, const QString &fileName);
     static bool match(const QStringList &filters, const QString &fileName);
 
@@ -117,7 +121,7 @@ public:
 
 private:
     QString m_path;
-    QStringList m_nameFilters;
+    QStringList m_nameFilters = QStringList(QString("*"));
     Filters m_filter = AllEntries;
     SortFlags m_sort = SortFlags(SortFlag(Name | IgnoreCase));
 };

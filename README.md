@@ -4,6 +4,10 @@
 
 A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial) and `Nt Network` (partial) so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
+**Documentation:** <https://open-nt.github.io/Nt6/>
+
+**Branding:** logo and naming rules are in the [Nt Brand Guide](https://open-nt.github.io/Nt6/brand.html); the artwork is in [`assets/brand/`](assets/brand).
+
 ## Status
 
 Qt Core has roughly 300 classes; Nt Core has 57 of them, chosen first for what Nt Network needs. **Nt Core is not complete.**

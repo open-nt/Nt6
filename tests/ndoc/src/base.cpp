@@ -16,6 +16,8 @@
 
     Text for Widget.
 
+    \image pic.svg A picture
+
     \target custom-anchor
     \table
     \header

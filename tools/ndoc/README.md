@@ -73,6 +73,7 @@ The syntax is a subset of QDoc's, so a comment reads the same as it would in Qt.
 | `\l target`, `\l{target}{label}` | A link to a class, member, page, section or URL |
 | `\code` ... `\endcode` | A code block |
 | `\snippet file tag` | Code between `//! [tag]` markers in a file under `snippets` |
+| `\image file alt text` | An image from a directory listed under `images` |
 | `\section1 Title`, `\section2 Title` | Headings; `\section1` also joins the contents list |
 | `\target name` | An anchor for `\l` |
 | `\list` ... `\li` ... `\endlist` | A list; `\list 1` is numbered |
@@ -95,6 +96,7 @@ logo = ../assets/nt-logo.svg
 output = html
 sources = ../include ../src
 snippets = ../examples
+images = ../assets/brand
 module NtCore = ../include/QtCore
 ```
 

@@ -1412,6 +1412,7 @@ struct Config {
     fs::path output = "html";
     std::vector<fs::path> sources;
     std::vector<fs::path> snippets;
+    std::vector<fs::path> images;
     std::vector<std::pair<std::string, std::vector<fs::path>>> modules;
 };
 
@@ -1456,6 +1457,9 @@ bool loadConfig(const fs::path &path, Config &cfg) {
         } else if (key == "snippets") {
             for (const std::string &w : splitWords(value))
                 cfg.snippets.push_back(resolve(w));
+        } else if (key == "images") {
+            for (const std::string &w : splitWords(value))
+                cfg.images.push_back(resolve(w));
         } else if (startsWith(key, "module ")) {
             std::vector<fs::path> dirs;
             for (const std::string &w : splitWords(value))
@@ -2000,6 +2004,10 @@ public:
                 flush();
                 closeValues();
                 out += snippet(rest, doc, offset);
+            } else if (word == "image") {
+                flush();
+                closeValues();
+                out += image(rest, doc, offset);
             } else if (word == "section1" || word == "section2") {
                 flush();
                 closeValues();
@@ -2155,6 +2163,24 @@ private:
         return "<pre><code>" + escapeHtml(body) + "</code></pre>\n";
     }
 
+    std::string image(const std::string &arguments, const Doc &doc, int offset) const {
+        const std::string name = arguments.substr(0, arguments.find_first_of(" \t"));
+        if (name.empty()) {
+            S.warn(doc, offset, "\\image needs a file");
+            return {};
+        }
+        std::string alt = trim(arguments.substr(name.size()));
+        bool found = false;
+        for (const fs::path &dir : S.cfg.images)
+            found = found || fs::exists(dir / name);
+        if (!found) {
+            S.warn(doc, offset, "can't find image file '" + name + "'");
+            return {};
+        }
+        return "<p class=\"figure\"><img src=\"images/" + escapeHtml(name) + "\" alt=\"" +
+               escapeHtml(alt) + "\"></p>\n";
+    }
+
     std::string snippet(const std::string &arguments, const Doc &doc, int offset) const {
         const std::vector<std::string> words = splitWords(arguments);
         if (words.empty()) {
@@ -2263,6 +2289,7 @@ table.data th { background: var(--surface); }
 .note, .warning { padding: 8px 12px; border-radius: 4px; }
 .note { background: var(--note); }
 .warning { background: var(--warn); border-left: 3px solid var(--warn-line); }
+.figure img { max-width: 100%; height: auto; }
 .differences { background: var(--surface); border-left: 3px solid var(--accent);
   padding: 4px 16px; border-radius: 4px; }
 td p, li p { margin: 0; }
@@ -2294,6 +2321,15 @@ public:
                           fs::copy_options::overwrite_existing, ec);
             if (ec)
                 m_diag.warn(S.cfg.logo.string(), 0, "can't copy logo: " + ec.message());
+        }
+
+        for (const fs::path &dir : S.cfg.images) {
+            fs::create_directories(S.cfg.output / "images");
+            std::error_code ec;
+            fs::copy(dir, S.cfg.output / "images",
+                     fs::copy_options::overwrite_existing | fs::copy_options::recursive, ec);
+            if (ec)
+                m_diag.warn(dir.string(), 0, "can't copy images: " + ec.message());
         }
 
         std::vector<const ClassDoc *> visible;

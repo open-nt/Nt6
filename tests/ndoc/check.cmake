@@ -68,6 +68,10 @@ expect(widget.html "w.show();")
 reject(widget.html "int before")
 expect(guide.html "id=\"first-section\"")
 expect(guide.html "id=\"custom-anchor\"")
+expect(guide.html "<img src=\"images/pic.svg\" alt=\"A picture\">")
+if(NOT EXISTS "${OUTPUT_DIR}/html/images/pic.svg")
+    message(SEND_ERROR "images/pic.svg was not copied")
+endif()
 expect(guide.html "<a href=\"widget.html\">Widget</a>")
 
 # Hidden API and the site index.

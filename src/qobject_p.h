@@ -56,7 +56,10 @@ private:
     bool done_ = false;
 };
 
-void unlinkConnection(const std::shared_ptr<ConnectionData> &c);
+// Disconnecting by signal, receiver and receiving method; a null argument matches everything.
+bool disconnectConnections(const QObject *sender, const SignalId *id, const QObject *receiver,
+                           const std::string *method);
+void setConnectionMethod(const std::shared_ptr<ConnectionData> &c, const std::string &method);
 
 } // namespace QtPrivate
 

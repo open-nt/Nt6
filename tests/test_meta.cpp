@@ -3,7 +3,9 @@
 
 #include <QtCore>
 
+#include <atomic>
 #include <cstdio>
+#include <thread>
 #include <string>
 
 static int g_failures = 0;
@@ -1197,6 +1199,87 @@ static void testLibraryClasses() {
     CHECK(QEventLoop::staticMetaObject.indexOfSlot("quit()") >= 0);
 }
 
+class ThreadProbe : public QObject {
+    Q_OBJECT
+public:
+    std::atomic<int> sum{0};
+    std::atomic<bool> wrongThread{false};
+
+public slots:
+    int addAndReturn(int a, int b) {
+        check();
+        return a + b;
+    }
+    void add(int v) {
+        check();
+        sum += v;
+    }
+
+signals:
+    void produced(int v);
+
+private:
+    void check() {
+        if (QThread::currentThread() != thread())
+            wrongThread = true;
+    }
+};
+
+static void testThreads() {
+    QThread thread;
+    ThreadProbe probe;
+    probe.moveToThread(&thread);
+    thread.start();
+
+    // Auto connection from another thread is queued, and a blocking call returns a value.
+    int result = 0;
+    CHECK(QMetaObject::invokeMethod(&probe, "addAndReturn", Qt::BlockingQueuedConnection, Q_RETURN_ARG(int, result),
+                                    Q_ARG(int, 20), Q_ARG(int, 22)));
+    CHECK(result == 42);
+    CHECK(QMetaObject::invokeMethod(&probe, "add", Qt::AutoConnection, Q_ARG(int, 5)));
+    CHECK(QMetaObject::invokeMethod(&probe, "add", Qt::QueuedConnection, Q_ARG(int, 6)));
+    bool functorThreadOk = false;
+    CHECK(QMetaObject::invokeMethod(
+        &probe, [&] { functorThreadOk = QThread::currentThread() == probe.thread(); }, Qt::BlockingQueuedConnection));
+    CHECK(functorThreadOk);
+    // The blocking call is processed after the queued ones.
+    CHECK(QMetaObject::invokeMethod(&probe, "addAndReturn", Qt::BlockingQueuedConnection, Q_RETURN_ARG(int, result),
+                                    Q_ARG(int, 0), Q_ARG(int, 0)));
+    CHECK(probe.sum == 11);
+
+    // A string-based connection into the thread is queued by AutoConnection.
+    CHECK(QObject::connect(&probe, SIGNAL(produced(int)), &probe, SLOT(add(int))));
+    emit probe.produced(100);
+    CHECK(QMetaObject::invokeMethod(&probe, "addAndReturn", Qt::BlockingQueuedConnection, Q_RETURN_ARG(int, result),
+                                    Q_ARG(int, 0), Q_ARG(int, 0)));
+    CHECK(probe.sum == 111);
+
+    // The thread of the object decides, not the thread that made the call.
+    std::thread other([&] {
+        QMetaObject::invokeMethod(&probe, "add", Q_ARG(int, 1000));
+        int r = 0;
+        QMetaObject::invokeMethod(&probe, "addAndReturn", Qt::BlockingQueuedConnection, Q_RETURN_ARG(int, r),
+                                  Q_ARG(int, 1), Q_ARG(int, 2));
+    });
+    other.join();
+    CHECK(probe.sum == 1111);
+
+    // Calling from the object's own thread directly runs the method before returning.
+    int direct = 0;
+    QMetaObject::invokeMethod(
+        &probe,
+        [&] {
+            QMetaObject::invokeMethod(&probe, "addAndReturn", Qt::BlockingQueuedConnection, Q_RETURN_ARG(int, direct),
+                                      Q_ARG(int, 3), Q_ARG(int, 4));
+        },
+        Qt::BlockingQueuedConnection);
+    CHECK(direct == 7);
+    CHECK(!probe.wrongThread);
+
+    thread.quit();
+    CHECK(thread.wait());
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testClassInfo();
@@ -1219,6 +1302,7 @@ int main(int argc, char **argv) {
     testTypeRevision();
     testUnusualDeclarations();
     testLibraryClasses();
+    testThreads();
     if (g_failures == 0)
         std::printf("meta: all tests passed\n");
     return g_failures == 0 ? 0 : 1;

@@ -226,7 +226,32 @@ void unlinkConn(const ConnPtr &c, std::vector<ConnPtr> &dead) {
 } // namespace
 
 namespace QtPrivate {
-void unlinkConnection(const std::shared_ptr<ConnectionData> &c) { unlinkConn(c); }
+void setConnectionMethod(const std::shared_ptr<ConnectionData> &c, const std::string &method) {
+    std::lock_guard<std::mutex> lk(signalSlotLock());
+    c->method = method;
+}
+
+// Removes the connections from `sender` that match; a null argument matches every connection.
+bool disconnectConnections(const QObject *sender, const SignalId *id, const QObject *receiver,
+                           const std::string *method) {
+    if (!sender)
+        return false;
+    bool any = false;
+    std::vector<ConnPtr> dead;
+    std::lock_guard<std::mutex> lk(signalSlotLock());
+    const auto out = Access::d(sender).outgoing;
+    for (const ConnPtr &c : out) {
+        if (id && !(c->signal == *id))
+            continue;
+        if (receiver && c->receiver != receiver)
+            continue;
+        if (method && c->method != *method)
+            continue;
+        unlinkConn(c, dead);
+        any = true;
+    }
+    return any;
+}
 } // namespace QtPrivate
 
 /*!
@@ -563,21 +588,7 @@ bool QObject::disconnect(const QMetaObject::Connection &connection) {
 
 bool QObject::disconnectImpl(const QObject *sender, const QtPrivate::SignalId *id,
                              const QObject *receiver) {
-    if (!sender)
-        return false;
-    bool any = false;
-    std::vector<ConnPtr> dead;
-    std::lock_guard<std::mutex> lk(signalSlotLock());
-    const auto out = Access::d(sender).outgoing;
-    for (const ConnPtr &c : out) {
-        if (id && !(c->signal == *id))
-            continue;
-        if (receiver && c->receiver != receiver)
-            continue;
-        unlinkConn(c, dead);
-        any = true;
-    }
-    return any;
+    return QtPrivate::disconnectConnections(sender, id, receiver, nullptr);
 }
 
 void QObject::activateImpl(QObject *sender, const QtPrivate::SignalId &id, void *const *argv,

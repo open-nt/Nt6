@@ -27,11 +27,11 @@
     \endcode
 
     \differences
-    There is no \c attributes() and no \c revision() for slots, and
-    \c invokeOnGadget() is not available. Invoking a method with
-    \c Qt::BlockingQueuedConnection is not supported. Argument types are
-    compared by name, as in Qt, so the types of a queued call must be
-    registered with the meta-type system.
+    There is no \c attributes(), and \c invokeOnGadget() is not available.
+    Argument types are compared by name, as in Qt, so the types of a queued
+    call must be registered with the meta-type system. A
+    \c Qt::BlockingQueuedConnection call to an object in the calling thread
+    runs the method directly, where Qt reports a deadlock.
     \enddifferences
 
     \sa QMetaObject, QMetaProperty, QMetaEnum

@@ -288,7 +288,7 @@ private:
     from that of Qt's moc. There are no \c qt_metacast() and \c qt_metacall()
     functions, no \c QMetaObject::tr() or \c changeGuard(), and
     \c qobject_cast() stays a wrapper around \c dynamic_cast.
-    \c Qt::BlockingQueuedConnection is not available. invokeMethod() has no
+    invokeMethod() has no
     overloads that take a pointer to a member function; pass a name or a
     functor. A class that \c ntmoc did not process has no meta-object of its
     own: QObject::metaObject() returns that of its nearest base class that

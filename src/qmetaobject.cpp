@@ -80,6 +80,7 @@
 
 #include "ntnormalize_p.h"
 #include "qobject_p.h"
+#include "threaddata_p.h"
 
 #include <algorithm>
 #include <cctype>
@@ -147,6 +148,17 @@ int indexOfMethodKind(const QMetaObject *mo, const char *method, unsigned kinds)
         }
     }
     return -1;
+}
+
+// Resolves Qt::AutoConnection by comparing the thread of `object` with the calling thread, and
+// calls a blocking connection within one thread directly.
+Qt::ConnectionType effectiveConnectionType(const QObject *object, Qt::ConnectionType type) {
+    const bool crossThread = QtPrivate::objectThreadData(object) != QtPrivate::ThreadData::current();
+    if (type == Qt::AutoConnection)
+        return crossThread ? Qt::QueuedConnection : Qt::DirectConnection;
+    if (type == Qt::BlockingQueuedConnection && !crossThread)
+        return Qt::DirectConnection;
+    return type;
 }
 
 void collectDescendants(QObject *o, QObjectList &out) {
@@ -701,15 +713,7 @@ bool QMetaObject::disconnect(const QObject *sender, int signal_index, const QObj
         return sender->disconnect(receiver);
     if (!s.isValid()) {
         const std::string sig = m.methodSignature().constData();
-        bool any = false;
-        const auto out = QtPrivate::Access::d(sender).outgoing;
-        for (const auto &c : out) {
-            if (c->receiver == receiver && c->method == sig) {
-                QtPrivate::unlinkConnection(c);
-                any = true;
-            }
-        }
-        return any;
+        return QtPrivate::disconnectConnections(sender, nullptr, receiver, &sig);
     }
     return QObject::disconnect(sender, s, receiver, m);
 }
@@ -824,10 +828,12 @@ void QMetaObject::activate(QObject *sender, const QMetaObject *mo, int local_sig
     \a val9, made with \c Q_ARG(), select the overload by their types, and \a ret, made with
     \c Q_RETURN_ARG(), receives the return value.
 
-    \a type is how the call is made: with \c Qt::DirectConnection and \c Qt::AutoConnection the
-    method runs before the function returns, and with \c Qt::QueuedConnection it runs from the
-    event loop of \a obj, with copies of the arguments. A queued call cannot return a value, and
-    its argument types must be registered with QMetaType.
+    \a type is how the call is made: with \c Qt::DirectConnection the method runs before the
+    function returns, and with \c Qt::QueuedConnection it runs from the event loop of the thread
+    of \a obj, with copies of the arguments. \c Qt::AutoConnection calls directly when \a obj
+    lives in the calling thread and queues otherwise. \c Qt::BlockingQueuedConnection queues the
+    call to another thread and waits for it, so it can return a value. A queued call cannot
+    return a value, and its argument types must be registered with QMetaType.
 
     \code
     QString result;
@@ -882,8 +888,15 @@ bool QMetaObject::invokeMethod(QObject *obj, const char *member, Qt::ConnectionT
 bool QMetaObject::invokeFunctor(QObject *context, std::function<void()> function, Qt::ConnectionType type) {
     if (!context)
         return false;
+    type = effectiveConnectionType(context, type);
     if (type == Qt::QueuedConnection) {
         QCoreApplication::postEvent(context, new QMetaCallEvent(std::move(function)));
+        return true;
+    }
+    if (type == Qt::BlockingQueuedConnection) {
+        auto latch = std::make_shared<QtPrivate::BlockingLatch>();
+        QCoreApplication::postEvent(context, new QMetaCallEvent(std::move(function), latch));
+        latch->wait();
         return true;
     }
     function();
@@ -1129,6 +1142,23 @@ bool QMetaMethod::invoke(QObject *object, Qt::ConnectionType connectionType, QGe
         return false;
     }
 
+    connectionType = effectiveConnectionType(object, connectionType);
+    if (connectionType == Qt::BlockingQueuedConnection) {
+        void *a[kMaxArgs + 1];
+        a[0] = returnValue.data();
+        for (int i = 0; i < n; ++i)
+            a[i + 1] = vals[i]->data();
+        const QMetaObject *mo = mobj;
+        const int idx = index;
+        // The calling thread waits, so the arguments and the return value stay valid.
+        auto latch = std::make_shared<QtPrivate::BlockingLatch>();
+        QCoreApplication::postEvent(
+            object, new QMetaCallEvent([mo, idx, object,
+                                        &a]() { mo->d.static_metacall(object, QMetaObject::InvokeMetaMethod, idx, a); },
+                                       latch));
+        latch->wait();
+        return true;
+    }
     if (connectionType == Qt::QueuedConnection) {
         if (returnValue.data()) {
             qWarning("QMetaMethod::invoke: Unable to invoke methods with return values in queued connections");
@@ -1970,7 +2000,7 @@ QMetaObject::Connection QObject::connect(const QObject *sender, const QMetaMetho
     QMetaObject::Connection handle = connectImpl(sender, signal.data().signalId(), target,
                                                  std::function<void(void *const *)>(std::move(invoke)), type);
     if (const auto c = handle.d.lock())
-        c->method = method.methodSignature().constData();
+        QtPrivate::setConnectionMethod(c, method.methodSignature().constData());
     return handle;
 }
 
@@ -2011,19 +2041,7 @@ bool QObject::disconnect(const QObject *sender, const char *signal, const QObjec
     }
     if (member)
         memberSig = NtMeta::normalizeSignature(member + 1);
-    bool any = false;
-    const auto out = QtPrivate::Access::d(sender).outgoing;
-    for (const auto &c : out) {
-        if (id && !(c->signal == *id))
-            continue;
-        if (receiver && c->receiver != receiver)
-            continue;
-        if (member && c->method != memberSig)
-            continue;
-        QtPrivate::unlinkConnection(c);
-        any = true;
-    }
-    return any;
+    return QtPrivate::disconnectConnections(sender, id, receiver, member ? &memberSig : nullptr);
 }
 
 /*!
@@ -2040,20 +2058,14 @@ bool QObject::disconnect(const QObject *sender, const QMetaMethod &signal, const
         qWarning("QObject::disconnect: Cannot disconnect a method without a receiver");
         return false;
     }
-    bool any = false;
-    const auto out = QtPrivate::Access::d(sender).outgoing;
-    for (const auto &c : out) {
-        if (signal.isValid() && !(signal.methodType() == QMetaMethod::Signal && signal.data().signalId &&
-                                  c->signal == signal.data().signalId()))
-            continue;
-        if (receiver && c->receiver != receiver)
-            continue;
-        if (method.isValid() && c->method != memberSig)
-            continue;
-        QtPrivate::unlinkConnection(c);
-        any = true;
+    QtPrivate::SignalId id;
+    if (signal.isValid()) {
+        if (signal.methodType() != QMetaMethod::Signal || !signal.data().signalId)
+            return false;
+        id = signal.data().signalId();
     }
-    return any;
+    return QtPrivate::disconnectConnections(sender, signal.isValid() ? &id : nullptr, receiver,
+                                            method.isValid() ? &memberSig : nullptr);
 }
 
 /*!

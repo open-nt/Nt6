@@ -817,7 +817,8 @@ QVariant::Type QVariant::nameToType(const char *name) {
 /*!
     Reads the variant from the stream \a ds in the format of QVariant::save(). If the type has
     no stream operators, the stream's status is set to \c QDataStream::ReadCorruptData and the
-    variant becomes invalid.
+    variant becomes invalid. Streams older than \c Qt_4_2 have no flag for a null value, and
+    those older than \c Qt_5_0 write the first user type as 127.
 
     \sa save()
 */
@@ -826,11 +827,14 @@ void QVariant::load(QDataStream &s) {
     quint32 typeId = 0;
     s >> typeId;
     qint8 isNull = 0;
-    s >> isNull;
+    if (s.version() >= QDataStream::Qt_4_2)
+        s >> isNull;
     if (s.status() != QDataStream::Ok)
         return;
+    // Streams older than Qt 5.0 use 127 for the first user type.
+    const bool user = typeId == QMetaType::User || (s.version() < QDataStream::Qt_5_0 && typeId == 127);
     QMetaType type;
-    if (typeId == QMetaType::User) {
+    if (user) {
         char *name = nullptr;
         s >> name;
         if (s.status() != QDataStream::Ok) {
@@ -865,19 +869,24 @@ void QVariant::load(QDataStream &s) {
     Writes the variant to the stream \a ds: the type id (or \c QMetaType::User followed by the
     type name for a registered type), a flag that tells if the value is null, and the value
     itself. If the type has no stream operators, the stream's status is set to
-    \c QDataStream::WriteFailed.
+    \c QDataStream::WriteFailed. A stream older than \c Qt_4_2 has no null flag, and one older
+    than \c Qt_5_0 writes 127 in place of \c QMetaType::User, as QSettings does.
 
     \sa load()
 */
 void QVariant::save(QDataStream &s) const {
     if (!isValid()) {
-        s << static_cast<quint32>(QMetaType::UnknownType) << static_cast<qint8>(1);
+        s << static_cast<quint32>(QMetaType::UnknownType);
+        if (s.version() >= QDataStream::Qt_4_2)
+            s << static_cast<qint8>(1);
         return;
     }
     const QMetaType type = metaType();
     const int id = type.id();
-    s << static_cast<quint32>(id >= QMetaType::User ? static_cast<int>(QMetaType::User) : id);
-    s << static_cast<qint8>(isNull() ? 1 : 0);
+    const quint32 userId = s.version() < QDataStream::Qt_5_0 ? 127u : static_cast<quint32>(QMetaType::User);
+    s << (id >= QMetaType::User ? userId : static_cast<quint32>(id));
+    if (s.version() >= QDataStream::Qt_4_2)
+        s << static_cast<qint8>(isNull() ? 1 : 0);
     if (id >= QMetaType::User)
         s << type.name();
     if (!type.save(s, constData()))

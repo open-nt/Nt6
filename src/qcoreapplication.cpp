@@ -27,6 +27,8 @@ std::atomic<QCoreApplication *> g_self{nullptr};
 QStringList g_arguments;
 QString g_appName;
 QString g_appVersion;
+QString g_orgName;
+QString g_orgDomain;
 bool g_appNameSet = false;
 }
 
@@ -50,8 +52,7 @@ bool g_appNameSet = false;
     and provides functions to send and post events.
 
     \differences
-    Only part of the Qt API is present: there is no \c organizationName(),
-    \c installTranslator(), \c libraryPaths(), \c applicationFilePath(),
+    Only part of the Qt API is present: there is no \c installTranslator(), \c libraryPaths(), \c applicationFilePath(),
     \c processEvents() overload with a timeout or \c postEvent() priority.
     Creating a second application object aborts the process. \c exit() and
     \c quit() stop every running QEventLoop of the thread that created the
@@ -133,6 +134,37 @@ QString QCoreApplication::applicationName() {
     const QString &exe = g_arguments.first();
     return exe.mid(exe.lastIndexOf(QChar(u'/')) + 1);
 }
+
+/*!
+    Sets the name of the organization to \a orgName. QSettings uses it to
+    locate the settings of the application.
+
+    \sa organizationName(), setOrganizationDomain(), QSettings
+*/
+void QCoreApplication::setOrganizationName(const QString &orgName) { g_orgName = orgName; }
+
+/*!
+    Returns the name of the organization, which is empty unless it was set with
+    setOrganizationName().
+
+    \sa setOrganizationName(), organizationDomain()
+*/
+QString QCoreApplication::organizationName() { return g_orgName; }
+
+/*!
+    Sets the Internet domain of the organization to \a orgDomain.
+
+    \sa organizationDomain(), setOrganizationName()
+*/
+void QCoreApplication::setOrganizationDomain(const QString &orgDomain) { g_orgDomain = orgDomain; }
+
+/*!
+    Returns the Internet domain of the organization, which is empty unless it
+    was set with setOrganizationDomain().
+
+    \sa setOrganizationDomain(), organizationName()
+*/
+QString QCoreApplication::organizationDomain() { return g_orgDomain; }
 
 /*!
     Sets the application version to \a version.

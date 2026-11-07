@@ -17,9 +17,19 @@
 
 // QDataStream
 
-QDataStream &operator<<(QDataStream &out, const QDate &date) { return out << static_cast<qint64>(date.toJulianDay()); }
+QDataStream &operator<<(QDataStream &out, const QDate &date) {
+    if (out.version() < QDataStream::Qt_5_0)
+        return out << (date.isValid() ? static_cast<quint32>(date.toJulianDay()) : 0u);
+    return out << static_cast<qint64>(date.toJulianDay());
+}
 
 QDataStream &operator>>(QDataStream &in, QDate &date) {
+    if (in.version() < QDataStream::Qt_5_0) {
+        quint32 jd = 0;
+        in >> jd;
+        date = jd == 0 ? QDate() : QDate::fromJulianDay(jd);
+        return in;
+    }
     qint64 jd = 0;
     in >> jd;
     date = jd == std::numeric_limits<qint64>::min() ? QDate() : QDate::fromJulianDay(jd);
@@ -38,6 +48,12 @@ QDataStream &operator>>(QDataStream &in, QTime &time) {
 }
 
 QDataStream &operator<<(QDataStream &out, const QDateTime &dateTime) {
+    if (out.version() < QDataStream::Qt_5_2) {
+        // Older versions only know local time and UTC.
+        const QDateTime utc = dateTime.timeSpec() == Qt::LocalTime ? dateTime : dateTime.toUTC();
+        out << utc.date() << utc.time();
+        return out << static_cast<qint8>(utc.timeSpec() == Qt::UTC ? Qt::UTC : Qt::LocalTime);
+    }
     out << dateTime.date() << dateTime.time();
     out << static_cast<qint8>(dateTime.timeSpec());
     if (dateTime.timeSpec() == Qt::OffsetFromUTC)

@@ -1,0 +1,87 @@
+# Builds the packages for every supported OS and generates SLSA level 3 build
+# provenance for them (https://slsa.dev), using the SLSA GitHub generator.
+#
+# Runs for version tags (v*), where the packages and the provenance are attached
+# to the GitHub release, and on request. The builds are the per-OS workflows.
+#
+# Verify a download with slsa-verifier:
+#   slsa-verifier verify-artifact <package> --provenance-path multiple.intoto.jsonl \
+#     --source-uri github.com/open-nt/Nt6 --source-tag <tag>
+name: SLSA
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ubuntu-22-04:
+    uses: ./.github/workflows/ubuntu-22.04.yml
+  ubuntu-24-04:
+    uses: ./.github/workflows/ubuntu-24.04.yml
+  ubuntu-26-04:
+    uses: ./.github/workflows/ubuntu-26.04.yml
+  el9:
+    uses: ./.github/workflows/el9.yml
+  el10:
+    uses: ./.github/workflows/el10.yml
+  arch:
+    uses: ./.github/workflows/arch.yml
+
+  # The subjects of the provenance: the SHA-256 of every package.
+  hash:
+    name: Hash the packages
+    needs: [ubuntu-22-04, ubuntu-24-04, ubuntu-26-04, el9, el10, arch]
+    runs-on: ubuntu-latest
+    outputs:
+      hashes: ${{ steps.hash.outputs.hashes }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          merge-multiple: true
+          path: dist
+
+      - name: Hash
+        id: hash
+        working-directory: dist
+        run: |
+          ls -l
+          echo "hashes=$(sha256sum *.deb *.rpm *.pkg.tar.zst | base64 -w0)" >> "$GITHUB_OUTPUT"
+
+  provenance:
+    name: SLSA provenance
+    needs: [hash]
+    permissions:
+      actions: read
+      id-token: write
+      contents: write
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
+    with:
+      base64-subjects: ${{ needs.hash.outputs.hashes }}
+      upload-assets: ${{ startsWith(github.ref, 'refs/tags/') }}
+
+  release:
+    name: Attach the packages to the release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [hash, provenance]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: packages-*
+          merge-multiple: true
+          path: dist
+
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" dist/* --clobber

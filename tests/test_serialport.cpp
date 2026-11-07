@@ -45,6 +45,15 @@ static void spinEvents(int msecs) {
     loop.exec();
 }
 
+// The input speed of tio. glibc before 2.42 and musl cannot report a separate one, so
+// the bits are read here; zero in CIBAUD means the same as the output speed.
+static speed_t inputSpeed(const termios &tio) {
+    if (B9600 == 9600)
+        return ::cfgetispeed(&tio);
+    const tcflag_t input = (tio.c_cflag & CIBAUD) >> IBSHIFT;
+    return input != 0 ? input : (tio.c_cflag & CBAUD);
+}
+
 namespace {
 
 class Pty {
@@ -276,7 +285,7 @@ static void testSettingsReachTheDevice() {
     CHECK(port.open(QIODevice::ReadWrite));
     termios tio;
     CHECK(::tcgetattr(observer, &tio) == 0);
-    CHECK(::cfgetospeed(&tio) == B57600 && ::cfgetispeed(&tio) == B57600);
+    CHECK(::cfgetospeed(&tio) == B57600 && inputSpeed(tio) == B57600);
     CHECK((tio.c_cflag & CSTOPB) != 0 && (tio.c_lflag & (ICANON | ECHO | ISIG)) == 0 && (tio.c_oflag & OPOST) == 0);
 
     // Changes on an open port apply at once.
@@ -324,7 +333,7 @@ static void testTermiosFlags() {
     CHECK((tio.c_cflag & (CLOCAL | CREAD)) == (CLOCAL | CREAD));
     CHECK(tio.c_iflag == 0 && tio.c_oflag == 0 && tio.c_lflag == 0);
     CHECK(tio.c_cc[VMIN] == 1 && tio.c_cc[VTIME] == 0);
-    CHECK(::cfgetospeed(&tio) == B9600 && ::cfgetispeed(&tio) == B9600);
+    CHECK(::cfgetospeed(&tio) == B9600 && inputSpeed(tio) == B9600);
     CHECK((fill(SerialSettings(), false).c_cflag & CREAD) == 0);
 
     SerialSettings s;
@@ -355,7 +364,10 @@ static void testTermiosFlags() {
     s.inputBaudRate = 2400;
     s.outputBaudRate = 19200;
     tio = fill(s);
-    CHECK(::cfgetispeed(&tio) == B2400 && ::cfgetospeed(&tio) == B19200);
+    CHECK(::cfgetospeed(&tio) == B19200 && inputSpeed(tio) == B2400);
+    s.inputBaudRate = 19200;
+    tio = fill(s);
+    CHECK(::cfgetospeed(&tio) == B19200 && inputSpeed(tio) == B19200);
 
     s = SerialSettings();
     s.dataBits = static_cast<QSerialPort::DataBits>(9);
@@ -370,6 +382,7 @@ static void testOpenModes() {
     Pty pty;
     QSerialPort writer(pty.slave);
     CHECK(writer.open(QIODevice::WriteOnly) && writer.isWritable() && !writer.isReadable());
+    std::printf("DIAG open: %s (error %d)\n", qPrintable(writer.errorString()), static_cast<int>(writer.error()));
     CHECK(writer.write("out") == 3 && writer.waitForBytesWritten(2000));
     CHECK(pty.waitForBytes(3) == "out");
     CHECK(!writer.waitForReadyRead(0));

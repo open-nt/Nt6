@@ -173,8 +173,22 @@ bool fillSerialTermios(termios &tio, const SerialSettings &settings, bool readab
     const Speed *input = findSpeed(settings.inputBaudRate);
     const Speed *output = findSpeed(settings.outputBaudRate);
     const speed_t placeholder = B9600;
-    return ::cfsetispeed(&tio, input && output ? input->code : placeholder) == 0
-           && ::cfsetospeed(&tio, input && output ? output->code : placeholder) == 0;
+    const speed_t inputCode = input && output ? input->code : placeholder;
+    const speed_t outputCode = input && output ? output->code : placeholder;
+#if defined(CIBAUD) && defined(IBSHIFT)
+    // glibc 2.42 and newer define B9600 as 9600 and handle a separate input speed. Older glibc
+    // and musl define the kernel's codes, and cfsetispeed() there sets the output speed too, so
+    // a different input speed is lost. Write the bits that the kernel reads; zero in CIBAUD
+    // means the same speed as the output.
+    if (B9600 != 9600) {
+        tio.c_cflag &= ~static_cast<tcflag_t>(CBAUD | CIBAUD);
+        tio.c_cflag |= outputCode;
+        if (inputCode != outputCode)
+            tio.c_cflag |= (inputCode << IBSHIFT) & CIBAUD;
+        return true;
+    }
+#endif
+    return ::cfsetispeed(&tio, inputCode) == 0 && ::cfsetospeed(&tio, outputCode) == 0;
 }
 
 QList<qint32> serialStandardBaudRates() {

@@ -3,6 +3,7 @@
 # Moc support for Nt: replaces Qt's moc with ntmoc.
 #
 #   nt_wrap_cpp(<outvar> <header>...)   explicit form, like qt_wrap_cpp()
+#                                       (passes the macros in NT_MOC_DEFINES, as -D options)
 #   nt_enable_automoc(<target>...)      CMake AUTOMOC driven by ntmoc
 
 if(NOT TARGET ntmoc)
@@ -17,7 +18,7 @@ function(nt_wrap_cpp outvar)
         set(out "${CMAKE_CURRENT_BINARY_DIR}/moc_${name}.cpp")
         add_custom_command(
             OUTPUT "${out}"
-            COMMAND ntmoc -o "${out}" "${abs}"
+            COMMAND ntmoc ${NT_MOC_DEFINES} -o "${out}" "${abs}"
             DEPENDS "${abs}" ntmoc
             COMMENT "ntmoc ${header}"
             VERBATIM)

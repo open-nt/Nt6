@@ -20,6 +20,7 @@
 
 #include "../../src/ntnormalize_p.h"
 
+#include <algorithm>
 #include <cctype>
 #include <cstdio>
 #include <fstream>
@@ -104,12 +105,81 @@ struct ClassData {
 bool isIdentStart(char c) { return std::isalpha(static_cast<unsigned char>(c)) || c == '_'; }
 bool isIdentChar(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
 
-// Blanks the body of `#if 0` blocks, keeping offsets and newlines. Other conditionals are not evaluated.
+// Macros given with -D, and the ones given with -U.
+std::map<std::string, std::string> &definedMacros() {
+    static std::map<std::string, std::string> macros;
+    return macros;
+}
+
+enum class Cond { False, True, Unknown };
+
+// Evaluates the conditions that matter for the headers: 0, 1, NAME, !NAME, defined(NAME) and
+// !defined(NAME), where only the macros given with -D are known. Everything else is Unknown and
+// keeps both branches.
+Cond evalCondition(const std::string &directive, std::string rest) {
+    const auto &macros = definedMacros();
+    const auto known = [&](const std::string &name) { return macros.find(name) != macros.end(); };
+    const auto trim = [](std::string &x) {
+        const std::size_t first = x.find_first_not_of(" \t");
+        x = first == std::string::npos ? std::string() : x.substr(first);
+        while (!x.empty() && std::isspace(static_cast<unsigned char>(x.back())))
+            x.pop_back();
+    };
+    trim(rest);
+    if (directive == "ifdef")
+        return known(rest) ? Cond::True : Cond::Unknown;
+    if (directive == "ifndef")
+        return known(rest) ? Cond::False : Cond::Unknown;
+    bool negate = false;
+    if (!rest.empty() && rest[0] == '!') {
+        negate = true;
+        rest = rest.substr(1);
+        trim(rest);
+    }
+    Cond result = Cond::Unknown;
+    if (rest == "0" || rest == "false") {
+        result = Cond::False;
+    } else if (rest == "1" || rest == "true") {
+        result = Cond::True;
+    } else {
+        std::string name = rest;
+        if (name.rfind("defined", 0) == 0) {
+            name = name.substr(7);
+            trim(name);
+            if (!name.empty() && name.front() == '(' && name.back() == ')') {
+                name = name.substr(1, name.size() - 2);
+                trim(name);
+            }
+            if (known(name))
+                result = Cond::True;
+        } else if (known(name)) {
+            const std::string &value = macros.at(name);
+            result = value == "0" ? Cond::False : Cond::True;
+        }
+        const bool simple = !name.empty() && std::all_of(name.begin(), name.end(), [](char c) {
+            return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
+        });
+        if (!simple)
+            return Cond::Unknown;
+    }
+    if (negate && result != Cond::Unknown)
+        return result == Cond::True ? Cond::False : Cond::True;
+    return negate ? Cond::Unknown : result;
+}
+
+// Blanks the lines of conditional blocks that are known to be disabled (`#if 0`, and tests of the
+// macros given with -D), keeping offsets and newlines. Other conditions are not evaluated: all of
+// their branches are kept.
 std::string blankDisabledBlocks(const std::string &s) {
+    struct Frame {
+        bool parentActive;
+        bool active;
+        bool taken; // a branch with a known true condition was seen
+    };
     std::string out = s;
+    std::vector<Frame> stack;
+    bool active = true;
     std::size_t pos = 0;
-    int depth = 0; // nesting of conditionals inside the disabled block
-    bool disabled = false;
     while (pos < s.size()) {
         std::size_t end = s.find('\n', pos);
         if (end == std::string::npos)
@@ -117,7 +187,6 @@ std::string blankDisabledBlocks(const std::string &s) {
         std::size_t k = pos;
         while (k < end && (s[k] == ' ' || s[k] == '\t'))
             ++k;
-        std::string directive;
         if (k < end && s[k] == '#') {
             ++k;
             while (k < end && (s[k] == ' ' || s[k] == '\t'))
@@ -125,27 +194,32 @@ std::string blankDisabledBlocks(const std::string &s) {
             std::size_t w = k;
             while (w < end && std::isalnum(static_cast<unsigned char>(s[w])))
                 ++w;
-            directive = s.substr(k, w - k);
-            std::string rest = s.substr(w, end - w);
-            const std::size_t first = rest.find_first_not_of(" \t");
-            rest = first == std::string::npos ? std::string() : rest.substr(first);
-            while (!rest.empty() && std::isspace(static_cast<unsigned char>(rest.back())))
-                rest.pop_back();
-            if (!disabled && directive == "if" && (rest == "0" || rest == "false")) {
-                disabled = true;
-                depth = 0;
-            } else if (disabled) {
-                if (directive == "if" || directive == "ifdef" || directive == "ifndef") {
-                    ++depth;
-                } else if (depth == 0 && (directive == "else" || directive == "elif" || directive == "endif")) {
-                    disabled = false;
-                    directive = "end";
-                } else if (directive == "endif") {
-                    --depth;
+            const std::string directive = s.substr(k, w - k);
+            const std::string rest = s.substr(w, end - w);
+            if (directive == "if" || directive == "ifdef" || directive == "ifndef") {
+                const Cond c = evalCondition(directive, rest);
+                stack.push_back({active, active && c != Cond::False, c == Cond::True});
+                active = stack.back().active;
+            } else if (directive == "elif" && !stack.empty()) {
+                Frame &f = stack.back();
+                if (f.taken) {
+                    f.active = false;
+                } else {
+                    const Cond c = evalCondition("if", rest);
+                    f.active = f.parentActive && c != Cond::False;
+                    f.taken = c == Cond::True;
                 }
+                active = f.active;
+            } else if (directive == "else" && !stack.empty()) {
+                Frame &f = stack.back();
+                f.active = f.parentActive && !f.taken;
+                active = f.active;
+            } else if (directive == "endif" && !stack.empty()) {
+                active = stack.back().parentActive;
+                stack.pop_back();
             }
         }
-        if (disabled || directive == "end")
+        if (!active)
             for (std::size_t i = pos; i < end; ++i)
                 out[i] = ' ';
         pos = end + 1;
@@ -1385,6 +1459,14 @@ int main(int argc, char **argv) {
             // ignored
         } else if (!a.empty() && a[0] == '-' && a.size() > 1) {
             bool matched = false;
+            const bool defineArg = a.rfind("-D", 0) == 0;
+            if (defineArg) {
+                const std::string def = a.size() > 2 ? a.substr(2) : (i + 1 < args.size() ? args[i + 1] : "");
+                const std::size_t eq = def.find('=');
+                definedMacros()[def.substr(0, eq)] = eq == std::string::npos ? "1" : def.substr(eq + 1);
+            } else if (a.rfind("-U", 0) == 0) {
+                definedMacros().erase(a.size() > 2 ? a.substr(2) : (i + 1 < args.size() ? args[i + 1] : ""));
+            }
             for (const std::string &v : valued) {
                 if (a == v) {
                     ++i;

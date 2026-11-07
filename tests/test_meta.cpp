@@ -148,6 +148,26 @@ class Disabled : public QObject {
 };
 #endif
 
+// ntmoc evaluates the tests of the macros it is given with -D (the target defines NT_META_FEATURE).
+class Conditional : public QObject {
+    Q_OBJECT
+public:
+#ifndef NT_META_FEATURE
+    int missing() const { return 0; }
+signals:
+    void notBuilt();
+#else
+signals:
+    void featured();
+#endif
+#if !defined(NT_META_FEATURE)
+public slots:
+    void alsoNotBuilt() {}
+#endif
+public slots:
+    void always() {}
+};
+
 struct StructObject : QObject {
     Q_OBJECT
     Q_PROPERTY(int number MEMBER number)
@@ -1225,6 +1245,14 @@ private:
     }
 };
 
+static void testConditionals() {
+    const QMetaObject *mo = &Conditional::staticMetaObject;
+    CHECK(mo->indexOfSignal("featured()") >= 0);
+    CHECK(mo->indexOfSignal("notBuilt()") < 0);
+    CHECK(mo->indexOfSlot("alsoNotBuilt()") < 0);
+    CHECK(mo->indexOfSlot("always()") >= 0);
+}
+
 static void testThreads() {
     QThread thread;
     ThreadProbe probe;
@@ -1302,6 +1330,7 @@ int main(int argc, char **argv) {
     testTypeRevision();
     testUnusualDeclarations();
     testLibraryClasses();
+    testConditionals();
     testThreads();
     if (g_failures == 0)
         std::printf("meta: all tests passed\n");

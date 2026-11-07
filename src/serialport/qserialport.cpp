@@ -17,6 +17,161 @@
 
     Nt Serial Port provides an event-driven serial port built on the Nt Core
     event loop, and a way to list the ports of the machine.
+
+    See \l{Using Nt Serial Port} for a walk through, and
+    \c{examples/serialport/serialterm.cpp} for a complete program.
+*/
+
+/*!
+    \page nt-serialport.html
+    \title Using Nt Serial Port
+    \brief Finding, configuring and opening a serial port, reading and writing it, handling errors, and getting permission to use it on Linux.
+
+    Link \c Nt::SerialPort (or \c Nt6::SerialPort from an installed package) and
+    include \c{<QSerialPort>} and \c{<QSerialPortInfo>}:
+
+    \code
+    find_package(Nt6 6 REQUIRED)
+    add_executable(app main.cpp)
+    target_link_libraries(app PRIVATE Nt6::SerialPort)
+    \endcode
+
+    \section1 Finding a Port
+
+    QSerialPortInfo::availablePorts() lists the serial ports of the machine,
+    with a description, the manufacturer, the serial number and, for USB
+    devices, the vendor and product identifiers:
+
+    \snippet serialport/serialterm.cpp list
+
+    A QSerialPort can be made from a QSerialPortInfo, from a name such as
+    \c ttyUSB0, or from a full path such as \c /dev/ttyS0.
+
+    \section1 Settings
+
+    Choose the baud rate, data bits, parity, stop bits and flow control. Both
+    ends of the line must agree. A new port uses 9600 baud, 8 data bits, no
+    parity, one stop bit and no flow control.
+
+    \snippet serialport/serialterm.cpp settings
+
+    Settings made before open() take effect when the port opens, and settings
+    made later take effect at once. If the driver refuses a value while the
+    port is open, the setter returns \c false and sets error(); while the
+    port is closed, open() fails instead. A baud rate that is not one of
+    QSerialPortInfo::standardBaudRates() is passed to the driver as it is,
+    which most USB adapters accept. The device is set back to what it was
+    before when the port is closed.
+
+    \section1 Opening the Port
+
+    open() fails if the device cannot be opened. errorString() says why, and
+    error() gives the reason as a code:
+
+    \snippet serialport/serialterm.cpp open
+
+    \table
+    \header
+        \li Error
+        \li Usual cause
+    \row
+        \li \c DeviceNotFoundError
+        \li The device does not exist, for example the adapter is not plugged in.
+    \row
+        \li \c PermissionError
+        \li The user may not open the device (see \l{Permission to Open a Port}),
+            or another process already has it open.
+    \row
+        \li \c OpenError
+        \li The port is already open in this object, or the file is not a
+            terminal device.
+    \endtable
+
+    A port is opened exclusively, so two programs cannot read the same device
+    by accident.
+
+    \section1 Reading and Writing
+
+    A QSerialPort is a QIODevice. Reads and writes never block: write()
+    queues the data and readyRead() is emitted when data has arrived, so a
+    program with an event loop needs only to connect to it:
+
+    \snippet serialport/serialterm.cpp read
+
+    \snippet serialport/serialterm.cpp write
+
+    A program without an event loop can wait instead, with waitForReadyRead()
+    and waitForBytesWritten(). Both run the port's own I/O while they wait.
+    Use canReadLine() and readLine() for protocols made of lines, and
+    setReadBufferSize() to cap the memory used by data nobody has read yet.
+
+    flush() writes as much of the queued data as the device will take without
+    blocking, and clear() discards what is buffered in one or both directions.
+    The control lines are available through setDataTerminalReady(),
+    setRequestToSend(), pinoutSignals() and setBreakEnabled().
+
+    \section1 Handling Errors
+
+    Errors are reported by errorOccurred(). It is emitted for every error,
+    including the ones that make a function return \c false.
+
+    \snippet serialport/serialterm.cpp errors
+
+    \c ResourceError needs special care. It means the device went away, for
+    example because a USB adapter was unplugged. The port stays open but idle;
+    data that arrived earlier can still be read. Call close(), and call open()
+    again when the device is back.
+
+    A wait that runs out of time sets \c TimeoutError, which is not a failure
+    of the port: it can be tried again.
+
+    \section1 Permission to Open a Port
+
+    On Linux the serial devices belong to a group, so a user must be a member
+    of it. The group is \c dialout on Debian, Ubuntu, Fedora and Enterprise
+    Linux, and \c uucp on Arch Linux. Add the user, then log in again:
+
+    \code
+    sudo usermod -aG dialout $USER
+    \endcode
+
+    To give access to one device only, or to set a different group, add a udev
+    rule such as the following to \c{/etc/udev/rules.d/99-serial.rules}:
+
+    \code
+    SUBSYSTEM=="tty", ATTRS{idVendor}=="0403", ATTRS{idProduct}=="6001", GROUP="dialout", MODE="0660", SYMLINK+="myadapter"
+    \endcode
+
+    If open() reports \c PermissionError although the permissions are right,
+    another process has the port. On a desktop this is often ModemManager,
+    which probes new USB serial adapters; stop it or add a udev rule that
+    sets \c{ENV{ID_MM_DEVICE_IGNORE}="1"}.
+
+    \section1 Testing Without Hardware
+
+    A pair of connected pseudo-terminals stands in for a device. With socat:
+
+    \code
+    socat -d -d pty,raw,echo=0 pty,raw,echo=0
+    \endcode
+
+    socat prints the names of the two ends, such as \c /dev/pts/3 and
+    \c /dev/pts/4. Open one with the program under test and the other with a
+    terminal program, or with \c serialterm from the examples.
+
+    \section1 The serialterm Example
+
+    \c{examples/serialport/serialterm.cpp} is a small terminal built from the
+    snippets above. It is built with the other examples, and takes the same
+    settings as options:
+
+    \code
+    serialterm --list
+    serialterm ttyUSB0 --baud 115200 --parity even
+    printf 'AT\r\n' | serialterm ttyUSB0 --time 2
+    \endcode
+
+    \sa QSerialPort, QSerialPortInfo
 */
 
 /*!

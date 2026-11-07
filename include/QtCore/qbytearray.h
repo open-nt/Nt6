@@ -554,10 +554,9 @@ struct std::hash<QByteArray> {
     std::size_t operator()(const QByteArray &b) const noexcept { return std::hash<std::string>{}(b.stdString()); }
 };
 
-/*!
-    Returns a copy of the C string \a src allocated with \c{new char[]}, or
-    \c nullptr if \a src is \c nullptr. The caller deletes it with \c{delete[]}.
-*/
+// Returns a copy of the C string src allocated with new char[], or nullptr if
+// src is nullptr. The caller deletes it with delete[]. ndoc cannot document
+// global functions yet.
 inline char *qstrdup(const char *src) {
     if (!src)
         return nullptr;

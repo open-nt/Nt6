@@ -163,7 +163,22 @@ namespace QTest {
 */
 enum TestFailMode { Abort = 1, Continue = 2 };
 
+/*!
+    Runs the test functions of \a testObject and returns the number of
+    failures, up to 127. \a argc and \a argv hold the command line described
+    in \l{Writing Tests with Nt Test}.
+
+    Returns 1 without running anything if the arguments are wrong or \c ntmoc
+    has not seen the class of \a testObject. It may be called more than once,
+    but not while another call is running.
+*/
 int qExec(QObject *testObject, int argc = 0, char **argv = nullptr);
+/*!
+    \overload
+
+    Runs \a testObject with the command line in \a arguments, the first item
+    of which is the program name.
+*/
 int qExec(QObject *testObject, const QStringList &arguments);
 
 /*!
@@ -178,19 +193,84 @@ void addColumn(const char *name) {
     QTestPrivate::addColumn(typeid(T), name);
 }
 
+/*!
+    Adds a row called \a dataTag to the test data table and returns it, to
+    fill in with \c{operator<<}. Call it from a \c _data function, after the
+    columns. The tag names the row in the log and on the command line.
+
+    \sa addRow(), addColumn()
+*/
 QTestData &newRow(const char *dataTag);
+/*!
+    Adds a row to the test data table, with a tag built from the \c printf
+    style \a format and the arguments after it, and returns the row.
+
+    \code
+    for (int i = 0; i < 4; ++i)
+        QTest::addRow("size-%d", i) << i;
+    \endcode
+
+    \sa newRow()
+*/
 QTestData &addRow(const char *format, ...);
 
+/*!
+    Returns the file name of the test program, or the class name if qExec()
+    was not given a command line. Returns an empty string before the first
+    call of qExec().
+*/
 const char *currentAppName();
+/*!
+    Returns the name of the running test function, or \c nullptr outside qExec().
+*/
 const char *currentTestFunction();
+/*!
+    Returns the tag of the current data row, or \c nullptr if there is none.
+
+    \sa currentGlobalDataTag()
+*/
 const char *currentDataTag();
+/*!
+    Returns the tag of the current row of \c initTestCase_data(), or
+    \c nullptr if there is none.
+
+    \sa currentDataTag()
+*/
 const char *currentGlobalDataTag();
+/*!
+    Returns \c true if a check has failed in the current data row. Use it
+    after calling a helper function that uses QVERIFY() or QCOMPARE(), as they
+    return only from the helper.
+*/
 bool currentTestFailed();
 
+/*!
+    Expects the next message of the given \a type to be \a message, and keeps
+    it out of the log. Call it again for each further message. The current
+    data row fails if the message does not arrive before it ends.
+
+    \a message must match the whole text.
+*/
 void ignoreMessage(QtMsgType type, const char *message);
 
+/*!
+    Blocks for \a ms milliseconds without processing events.
+
+    \sa qWait()
+*/
 void qSleep(int ms);
+/*!
+    Waits for \a ms milliseconds, processing events meanwhile. Without a
+    QCoreApplication it only sleeps.
+
+    \sa qWaitFor(), qSleep()
+*/
 void qWait(int ms);
+/*!
+    \overload
+
+    Waits for \a time, processing events meanwhile.
+*/
 void qWait(std::chrono::milliseconds time);
 
 /*!
@@ -224,23 +304,110 @@ bool qWaitFor(Functor predicate, std::chrono::milliseconds timeout) {
     return qWaitFor(std::move(predicate), static_cast<int>(timeout.count()));
 }
 
+/*!
+    Returns the absolute path of the test data file \a base, or an empty
+    string, after a warning, if it does not exist. Looks next to the test
+    program, in the current directory and in the directory of the source file
+    \a file, in that order. QFINDTESTDATA() passes \a file and \a line, and
+    \a line is only there for the warning.
+*/
 QString qFindTestData(const QString &base, const char *file = nullptr, int line = 0);
 
+/*!
+    \overload
+
+    Returns \a value in double quotes, with quotes and control characters escaped, or \c nullptr as text for a null pointer.
+*/
 char *toString(const char *value);
+/*!
+    \overload
+
+    Returns the text \c nullptr.
+*/
 char *toString(std::nullptr_t);
+/*!
+    \overload
+
+    Returns \c true or \c false as text.
+*/
 char *toString(bool value);
+/*!
+    \overload
+
+    Returns the character \a value in double quotes, escaped when needed.
+*/
 char *toString(char value);
+/*!
+    \overload
+
+    Returns \a value in double quotes, escaped when needed, as UTF-8.
+*/
 char *toString(const QString &value);
+/*!
+    \overload
+
+    Returns \a value in double quotes, escaped when needed, as UTF-8.
+*/
 char *toString(QStringView value);
+/*!
+    \overload
+
+    Returns \a value in double quotes, escaped when needed.
+*/
 char *toString(QLatin1StringView value);
+/*!
+    \overload
+
+    Returns the strings of \a value as \c{QStringList("a", "b")}.
+*/
 char *toString(const QStringList &value);
+/*!
+    \overload
+
+    Returns \a value in double quotes, with bytes that are not printable written as \c{\xNN}.
+*/
 char *toString(const QByteArray &value);
+/*!
+    \overload
+
+    Returns the character \a value in double quotes, escaped when needed.
+*/
 char *toString(QChar value);
+/*!
+    \overload
+
+    Returns \a value in ISO 8601 form, or \c{Invalid QDate}.
+*/
 char *toString(const QDate &value);
+/*!
+    \overload
+
+    Returns \a value as \c{hh:mm:ss.zzz}, or \c{Invalid QTime}.
+*/
 char *toString(const QTime &value);
+/*!
+    \overload
+
+    Returns \a value in ISO 8601 form, or \c{Invalid QDateTime}.
+*/
 char *toString(const QDateTime &value);
+/*!
+    \overload
+
+    Returns the encoded form of \a value in double quotes.
+*/
 char *toString(const QUrl &value);
+/*!
+    \overload
+
+    Returns \a value in the form \c{{00000000-0000-0000-0000-000000000000}}.
+*/
 char *toString(const QUuid &value);
+/*!
+    \overload
+
+    Returns \a value with its segments separated by dots.
+*/
 char *toString(const QVersionNumber &value);
 
 /*!
@@ -327,9 +494,29 @@ char *toString(const std::tuple<Types...> &value) {
         "std::tuple(", QTestPrivate::tupleItems(value, std::index_sequence_for<Types...>{}), ")");
 }
 
+/*!
+    Reports \a statement, the result of the check \a statementText at \a line
+    of \a file, for the current test function, with \a description added to a
+    failure. Returns \c false if the test function must stop. QVERIFY() and
+    QVERIFY2() call it.
+*/
 bool qVerify(bool statement, const char *statementText, const char *description, const char *file, int line);
+/*!
+    Reports a failure of the current test function with \a message, at
+    \a line of \a file. QFAIL() calls it and then returns.
+*/
 void qFail(const char *message, const char *file, int line);
+/*!
+    Marks the current data row as skipped, because of \a message, at \a line
+    of \a file. QSKIP() calls it and then returns.
+*/
 void qSkip(const char *message, const char *file, int line);
+/*!
+    Announces that the next check fails for the row \a dataTag, or for all
+    rows if it is empty, because of \a comment. \a mode says what happens
+    after it. Returns \c false if the test function must stop, which is when
+    a failure is already expected at \a line of \a file. QEXPECT_FAIL() calls it.
+*/
 bool qExpectFail(const char *dataTag, const char *comment, TestFailMode mode, const char *file, int line);
 
 /*!
@@ -387,8 +574,9 @@ bool qCompare(const QList<T> &t1, const QList<T> &t2, const char *actual, const 
 /*!
     Compares \a actual with the cell called \a elementName of the current
     data row and reports the result. \a file and \a line give the place of
-    the comparison, and \a actualText is the source text of \a actual.
-    Returns \c false if the test function must stop. QTEST() calls it.
+    the comparison, \a actualText is the source text of \a actual and
+    \a expected the text shown for the cell. Returns \c false if the test
+    function must stop. QTEST() calls it.
 */
 template <typename T>
 bool qTest(const T &actual, const char *elementName, const char *actualText, const char *expected,

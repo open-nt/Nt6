@@ -150,7 +150,7 @@ check_cmake_sources() {
 }
 
 check_headers() {
-    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -I$build_root/release/generated" out
+    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -Iinclude/QtTest -I$build_root/release/generated" out
     need "$cxx" || return $?
     export cxx dirs
     # Each public header must compile when it is the only thing included.
@@ -195,8 +195,9 @@ check_format() {
     files=$(cpp_files | grep -vE '\.inc$|^tests/ndoc/' || true)
     [ -n "$files" ] || return 0
     if [ "$fix" = 1 ]; then
+        # git clang-format refuses to edit a tree with unstaged changes, so apply its diff instead.
         # shellcheck disable=SC2086
-        git clang-format "$base" -- $files
+        git clang-format --diff "$base" -- $files | git apply --whitespace=nowarn 2> /dev/null || true
         return 0
     fi
     # shellcheck disable=SC2086
@@ -220,7 +221,7 @@ check_cppcheck() {
     need cppcheck || return $?
     cppcheck --enable=warning,performance,portability --std=c++17 --inline-suppr \
         --suppressions-list=.cppcheck-suppressions --error-exitcode=1 --quiet \
-        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -I"$build_root/release/generated" -Isrc \
+        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -Iinclude/QtTest -I"$build_root/release/generated" -Isrc \
         -j "$jobs" src tools
 }
 

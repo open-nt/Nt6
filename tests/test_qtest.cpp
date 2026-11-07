@@ -282,7 +282,7 @@ private slots:
         QCOMPARE(text(QTest::toString(-5)), "-5");
         QCOMPARE(text(QTest::toString(5ULL)), "5");
         QCOMPARE(text(QTest::toString(0.5)), "0.5");
-        QCOMPARE(text(QTest::toString(0.1F)), "0.100000001");
+        QCOMPARE(text(QTest::toString(0.1F)), "0.1");
         QCOMPARE(text(QTest::toString('a')), "\"a\"");
         QCOMPARE(text(QTest::toString("a\"b\n")), "\"a\\\"b\\n\"");
         QCOMPARE(text(QTest::toString(static_cast<const char *>(nullptr))), "nullptr");
@@ -614,7 +614,7 @@ static void testGood() {
 static void testFailures() {
     Failing failing;
     const int failures = run(&failing);
-    CHECK(failures == 19);
+    CHECK(failures == 20);
     CHECK(failing.reached == 1);
     CHECK(logged("FAIL!  : Failing::verifyStops() '1 == 2' returned FALSE. ()\n   Loc: ["));
     CHECK(logged("test_qtest.cpp("));
@@ -642,7 +642,7 @@ static void testFailures() {
     CHECK(logged("QDEBUG : Failing::wrongMessageType() typed"));
     CHECK(logged("PASS   : Failing::rows(passes)"));
     CHECK(logged("FAIL!  : Failing::rows(fails) Compared values are not the same"));
-    CHECK(logged("Totals: 3 passed, 19 failed, 0 skipped"));
+    CHECK(logged("Totals: 3 passed, 20 failed, 0 skipped"));
 }
 
 static void testExpectedFailures() {

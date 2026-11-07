@@ -273,4 +273,9 @@ if(NT_BUILD_EXAMPLES)
     if(NT_BUILD_TESTS)
         add_test(NAME tst_counter COMMAND tst_counter)
     endif()
+
+    # A serial terminal; see "Using Nt Serial Port" in the documentation.
+    add_executable(serialterm examples/serialport/serialterm.cpp)
+    target_link_libraries(serialterm PRIVATE Nt::SerialPort)
+    nt_set_compile_options(serialterm)
 endif()

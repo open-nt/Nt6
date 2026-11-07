@@ -94,60 +94,20 @@ bool fuzzyEqual(float a, float b) { return fuzzy(a, b, 100000.0F); }
 
 namespace QTest {
 
-/*!
-    \overload
-
-    Returns \a value in double quotes, or \c nullptr as text if it is null.
-*/
 char *toString(const char *value) { return copy(value ? quoted(value, std::strlen(value)) : "nullptr"); }
 
-/*!
-    \overload
-
-    Returns the text \c nullptr.
-*/
 char *toString(std::nullptr_t) { return copy("nullptr"); }
 
-/*!
-    \overload
-
-    Returns \c true or \c false as text, depending on \a value.
-*/
 char *toString(bool value) { return QTestPrivate::boolToString(value); }
 
-/*!
-    \overload
-
-    Returns \a value in double quotes.
-*/
 char *toString(char value) { return QTestPrivate::charToString(value); }
 
-/*!
-    \overload
-
-    Returns \a value in double quotes.
-*/
 char *toString(const QString &value) { return copy(quoted(value.toStdString())); }
 
-/*!
-    \overload
-
-    Returns \a value in double quotes.
-*/
 char *toString(QStringView value) { return copy(quoted(value.toString().toStdString())); }
 
-/*!
-    \overload
-
-    Returns \a value in double quotes.
-*/
 char *toString(QLatin1StringView value) { return copy(quoted(QString(value).toStdString())); }
 
-/*!
-    \overload
-
-    Returns the items of \a value.
-*/
 char *toString(const QStringList &value) {
     std::vector<std::string> items;
     for (const QString &item : value)
@@ -155,69 +115,28 @@ char *toString(const QStringList &value) {
     return QTestPrivate::sequenceToString("QStringList(", items, ")");
 }
 
-/*!
-    \overload
-
-    Returns \a value in double quotes, with bytes that are not printable as
-    escapes.
-*/
 char *toString(const QByteArray &value) {
     return copy(quoted(value.constData(), static_cast<std::size_t>(value.size())));
 }
 
-/*!
-    \overload
-
-    Returns \a value in double quotes.
-*/
 char *toString(QChar value) { return copy(quoted(QString(value).toStdString())); }
 
-/*!
-    \overload
-
-    Returns \a value in ISO 8601 format.
-*/
 char *toString(const QDate &value) {
     return copy(value.isValid() ? value.toString(Qt::ISODate).toStdString() : "Invalid QDate");
 }
 
-/*!
-    \overload
-
-    Returns \a value in ISO 8601 format, with milliseconds.
-*/
 char *toString(const QTime &value) {
     return copy(value.isValid() ? value.toString(Qt::ISODateWithMs).toStdString() : "Invalid QTime");
 }
 
-/*!
-    \overload
-
-    Returns \a value in ISO 8601 format, with milliseconds.
-*/
 char *toString(const QDateTime &value) {
     return copy(value.isValid() ? value.toString(Qt::ISODateWithMs).toStdString() : "Invalid QDateTime");
 }
 
-/*!
-    \overload
-
-    Returns \a value in double quotes.
-*/
 char *toString(const QUrl &value) { return copy(quoted(value.toString().toStdString())); }
 
-/*!
-    \overload
-
-    Returns \a value in its usual form, with braces.
-*/
 char *toString(const QUuid &value) { return copy(value.toString().toStdString()); }
 
-/*!
-    \overload
-
-    Returns \a value in dotted form.
-*/
 char *toString(const QVersionNumber &value) { return copy(value.toString().toStdString()); }
 
 } // namespace QTest

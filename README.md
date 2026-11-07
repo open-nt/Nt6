@@ -101,6 +101,8 @@ Differences from Qt: there is no GUI event simulation (`QTest::mouseClick`, `key
 | `QSerialPort` | exclusive open of any terminal device, baud rate per direction (custom rates through `termios2` on Linux), data bits, parity including mark and space, stop bits, hardware and software flow control, DTR/RTS and pinout signals, break, buffered async I/O through the event loop, `waitFor*` blocking API, read-buffer limit, device removal reported as `ResourceError`, device settings restored on close |
 | `QSerialPortInfo` | list ports from sysfs (Linux) with description, manufacturer, serial number and USB or PCI identifiers; standard baud rates |
 
+Guide: [Using Nt Serial Port](https://open-nt.github.io/Nt6/nt-serialport.html) covers settings, errors, permissions (`dialout`/`uucp`, udev rules) and testing with pseudo-terminals. The [`serialterm`](examples/serialport/serialterm.cpp) example lists ports and connects standard input and output to one (`serialterm ttyUSB0 --baud 115200`); it is built with the other examples.
+
 Differences from Qt: `OneAndHalfStop` is not available; bytes with parity or framing errors are dropped; `errorOccurred` is not emitted for `NoError`; `waitForBytesWritten` waits for the whole buffer; exclusive access uses `flock` and `TIOCEXCL` rather than a lock file; no bindable properties.
 
 ```cpp

@@ -10,6 +10,7 @@
 #include <chrono>
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 #include <exception>
 #include <filesystem>
 #include <mutex>
@@ -318,7 +319,7 @@ private:
     bool collectTests();
     bool openLogs();
     void runAll();
-    void runFunction(const Selection &selection);
+    bool runFunction(const Selection &selection);
     void runRow(const QtPrivate::MetaSlot &function);
     Outcome finishRow();
     void beginRow();
@@ -497,8 +498,24 @@ void Run::runAll() {
             for (const QtPrivate::MetaSlot &slot : m_slots)
                 if (!isSpecialSlot(slot.name))
                     selection.push_back({slot.name, {}});
-        for (const Selection &item : selection)
-            runFunction(item);
+        // The global data rows are the outer loop: every test function runs for each of them.
+        std::vector<bool> matched(selection.size(), false);
+        const std::size_t globalRows = std::max<std::size_t>(1, m_globalTable.rows.size());
+        for (std::size_t g = 0; g < globalRows; ++g) {
+            m_globalRow = m_globalTable.rows.empty() ? nullptr : m_globalTable.rows[g].get();
+            for (std::size_t i = 0; i < selection.size(); ++i)
+                if (runFunction(selection[i]))
+                    matched[i] = true;
+        }
+        m_globalRow = nullptr;
+        for (std::size_t i = 0; i < selection.size(); ++i) {
+            if (matched[i])
+                continue;
+            m_function = selection[i].function;
+            beginRow();
+            reportFailure("Unknown data tag: '" + selection[i].tag + "'", nullptr, 0);
+            finishRow();
+        }
     }
 
     m_function = "cleanupTestCase";
@@ -515,50 +532,42 @@ bool Run::matchesTag(const std::string &tag) const {
     return tag == local || tag == global || tag == global + ":" + local;
 }
 
-void Run::runFunction(const Selection &selection) {
+// Runs one test function for the current global data row. Returns whether any of
+// its rows matched the data tag of the selection.
+bool Run::runFunction(const Selection &selection) {
     m_function = selection.function;
     const QtPrivate::MetaSlot *function = findSlot(selection.function);
     const QtPrivate::MetaSlot *dataFunction = findSlot(selection.function + "_data");
     bool matched = false;
 
-    const std::size_t globalRows = std::max<std::size_t>(1, m_globalTable.rows.size());
-    for (std::size_t g = 0; g < globalRows; ++g) {
-        m_globalRow = m_globalTable.rows.empty() ? nullptr : m_globalTable.rows[g].get();
-        TestTable table;
-        m_localTable = &table;
-        if (dataFunction) {
-            beginRow();
-            callWithTable(dataFunction, &table);
-            if (m_rowFailed || m_rowSkipped) {
-                matched = true;
-                finishRow();
-                continue;
-            }
-            if (table.rows.empty()) {
-                matched = true;
-                skip("No data available for this test function", nullptr, 0);
-                finishRow();
-                continue;
-            }
-        }
-        const std::size_t localRows = std::max<std::size_t>(1, table.rows.size());
-        for (std::size_t l = 0; l < localRows; ++l) {
-            m_localRow = table.rows.empty() ? nullptr : table.rows[l].get();
-            if (matchesTag(selection.tag)) {
-                matched = true;
-                runRow(*function);
-            }
-        }
-        m_localRow = nullptr;
-        m_localTable = nullptr;
-    }
-    m_globalRow = nullptr;
-
-    if (!matched) {
+    TestTable table;
+    m_localTable = &table;
+    if (dataFunction) {
         beginRow();
-        reportFailure("Unknown data tag: '" + selection.tag + "'", nullptr, 0);
-        finishRow();
+        callWithTable(dataFunction, &table);
+        if (m_rowFailed || m_rowSkipped) {
+            m_localTable = nullptr;
+            finishRow();
+            return true;
+        }
+        if (table.rows.empty()) {
+            m_localTable = nullptr;
+            skip("No data available for this test function", nullptr, 0);
+            finishRow();
+            return true;
+        }
     }
+    const std::size_t localRows = std::max<std::size_t>(1, table.rows.size());
+    for (std::size_t l = 0; l < localRows; ++l) {
+        m_localRow = table.rows.empty() ? nullptr : table.rows[l].get();
+        if (matchesTag(selection.tag)) {
+            matched = true;
+            runRow(*function);
+        }
+    }
+    m_localRow = nullptr;
+    m_localTable = nullptr;
+    return matched;
 }
 
 void Run::runRow(const QtPrivate::MetaSlot &function) {
@@ -691,6 +700,8 @@ bool Run::expectFail(const char *tag, const char *comment, QTest::TestFailMode m
     if (tag && *tag && !matchesTag(tag))
         return true;
     if (m_expected.active) {
+        // Clear it first, or the error below would be taken for the expected failure.
+        m_expected.active = false;
         reportFailure("QEXPECT_FAIL was called twice without a check in between", file, line);
         return false;
     }
@@ -763,8 +774,11 @@ int execute(QObject *testObject, std::vector<std::string> arguments) {
     return run.exec();
 }
 
-std::string withPadding(const char *label, const char *expression, std::size_t width) {
-    std::string text = std::string("   ") + label + " (" + expression + ")";
+std::string withPadding(const char *label, std::size_t labelWidth, const char *expression, std::size_t width) {
+    std::string text = std::string("   ") + label;
+    if (text.size() < 3 + labelWidth)
+        text.append(3 + labelWidth - text.size(), ' ');
+    text += std::string(" (") + expression + ")";
     if (text.size() < width)
         text.append(width - text.size(), ' ');
     return text;
@@ -791,11 +805,13 @@ bool reportFailure(const char *summary, const char *actualValue, const char *exp
                    const char *actual, const char *expected, const char *actualLabel,
                    const char *expectedLabel, const char *file, int line) {
     const char *noText = "(no string representation)";
-    const std::size_t width = std::max(withPadding(actualLabel, actual, 0).size(),
-                                       withPadding(expectedLabel, expected, 0).size());
-    const std::string message = std::string(summary) + "\n" + withPadding(actualLabel, actual, width) +
+    // Pad the shorter label so that the expressions and the colons line up.
+    const std::size_t labelWidth = std::max(std::strlen(actualLabel), std::strlen(expectedLabel));
+    const std::size_t width = std::max(withPadding(actualLabel, labelWidth, actual, 0).size(),
+                                       withPadding(expectedLabel, labelWidth, expected, 0).size());
+    const std::string message = std::string(summary) + "\n" + withPadding(actualLabel, labelWidth, actual, width) +
                                 ": " + (actualValue ? actualValue : noText) + "\n" +
-                                withPadding(expectedLabel, expected, width) + ": " +
+                                withPadding(expectedLabel, labelWidth, expected, width) + ": " +
                                 (expectedValue ? expectedValue : noText);
     return currentRun("QCOMPARE").reportFailure(message, file, line);
 }
@@ -878,28 +894,14 @@ namespace QTest {
 
 using QTestPrivate::g_run;
 
-/*!
-    Runs the test functions of \a testObject and returns the number of
-    failures, up to 127. \a argc and \a argv hold the command line described
-    in \l{Writing Tests with Nt Test}.
-
-    Returns 1 without running anything if the arguments are wrong or \c ntmoc
-    has not seen the class of \a testObject. It may be called more than once,
-    but not while another call is running.
-*/
 int qExec(QObject *testObject, int argc, char **argv) {
     std::vector<std::string> arguments;
+    arguments.reserve(static_cast<std::size_t>(argc > 0 ? argc : 0));
     for (int i = 0; i < argc; ++i)
         arguments.emplace_back(argv[i]);
     return QTestPrivate::execute(testObject, std::move(arguments));
 }
 
-/*!
-    \overload
-
-    Runs \a testObject with the command line in \a arguments, the first item
-    of which is the program name.
-*/
 int qExec(QObject *testObject, const QStringList &arguments) {
     std::vector<std::string> list;
     for (const QString &argument : arguments)
@@ -907,26 +909,8 @@ int qExec(QObject *testObject, const QStringList &arguments) {
     return QTestPrivate::execute(testObject, std::move(list));
 }
 
-/*!
-    Adds a row called \a dataTag to the test data table and returns it, to
-    fill in with \c{operator<<}. Call it from a \c _data function, after the
-    columns. The tag names the row in the log and on the command line.
-
-    \sa addRow(), addColumn()
-*/
 QTestData &newRow(const char *dataTag) { return QTestPrivate::activeTable("QTest::newRow()").addRow(dataTag); }
 
-/*!
-    Adds a row to the test data table, with a tag built from the \c printf
-    style \a format and the arguments after it, and returns the row.
-
-    \code
-    for (int i = 0; i < 4; ++i)
-        QTest::addRow("size-%d", i) << i;
-    \endcode
-
-    \sa newRow()
-*/
 QTestData &addRow(const char *format, ...) {
     char tag[1024];
     va_list args;
@@ -936,64 +920,22 @@ QTestData &addRow(const char *format, ...) {
     return QTestPrivate::activeTable("QTest::addRow()").addRow(tag);
 }
 
-/*!
-    Returns the file name of the test program, or the class name if qExec()
-    was not given a command line. Returns an empty string before the first
-    call of qExec().
-*/
 const char *currentAppName() { return QTestPrivate::g_appName.c_str(); }
 
-/*!
-    Returns the name of the running test function, or \c nullptr outside qExec().
-*/
 const char *currentTestFunction() { return g_run ? g_run->function() : nullptr; }
 
-/*!
-    Returns the tag of the current data row, or \c nullptr if there is none.
-
-    \sa currentGlobalDataTag()
-*/
 const char *currentDataTag() { return g_run ? g_run->dataTag() : nullptr; }
 
-/*!
-    Returns the tag of the current row of \c initTestCase_data(), or
-    \c nullptr if there is none.
-
-    \sa currentDataTag()
-*/
 const char *currentGlobalDataTag() { return g_run ? g_run->globalDataTag() : nullptr; }
 
-/*!
-    Returns \c true if a check has failed in the current data row. Use it
-    after calling a helper function that uses QVERIFY() or QCOMPARE(), as they
-    return only from the helper.
-*/
 bool currentTestFailed() { return g_run && g_run->rowFailed(); }
 
-/*!
-    Expects the next message of the given \a type to be \a message, and keeps
-    it out of the log. Call it again for each further message. The current
-    data row fails if the message does not arrive before it ends.
-
-    \a message must match the whole text.
-*/
 void ignoreMessage(QtMsgType type, const char *message) {
     QTestPrivate::currentRun("QTest::ignoreMessage()").ignoreMessage(type, message);
 }
 
-/*!
-    Blocks for \a ms milliseconds without processing events.
-
-    \sa qWait()
-*/
 void qSleep(int ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }
 
-/*!
-    Waits for \a ms milliseconds, processing events meanwhile. Without a
-    QCoreApplication it only sleeps.
-
-    \sa qWaitFor(), qSleep()
-*/
 void qWait(int ms) {
     if (!QCoreApplication::instance()) {
         qSleep(ms);
@@ -1007,20 +949,8 @@ void qWait(int ms) {
     loop.exec();
 }
 
-/*!
-    \overload
-
-    Waits for \a time, processing events meanwhile.
-*/
 void qWait(std::chrono::milliseconds time) { qWait(static_cast<int>(time.count())); }
 
-/*!
-    Returns the absolute path of the test data file \a base, or an empty
-    string, after a warning, if it does not exist. Looks next to the test
-    program, in the current directory and in the directory of the source file
-    \a file, in that order. QFINDTESTDATA() passes \a file and \a line, and
-    \a line is only there for the warning.
-*/
 QString qFindTestData(const QString &base, const char *file, int line) {
     namespace fs = std::filesystem;
     const fs::path path(base.toStdString());
@@ -1043,12 +973,6 @@ QString qFindTestData(const QString &base, const char *file, int line) {
     return QString();
 }
 
-/*!
-    Reports \a statement, the result of the check \a statementText at \a line
-    of \a file, for the current test function, with \a description added to a
-    failure. Returns \c false if the test function must stop. QVERIFY() and
-    QVERIFY2() call it.
-*/
 bool qVerify(bool statement, const char *statementText, const char *description, const char *file, int line) {
     if (statement)
         return QTestPrivate::reportPass(file, line);
@@ -1056,28 +980,14 @@ bool qVerify(bool statement, const char *statementText, const char *description,
     return QTestPrivate::currentRun("QVERIFY").reportFailure(message, file, line);
 }
 
-/*!
-    Reports a failure of the current test function with \a message, at
-    \a line of \a file. QFAIL() calls it and then returns.
-*/
 void qFail(const char *message, const char *file, int line) {
     QTestPrivate::currentRun("QFAIL").reportFailure(message, file, line);
 }
 
-/*!
-    Marks the current data row as skipped, because of \a message, at \a line
-    of \a file. QSKIP() calls it and then returns.
-*/
 void qSkip(const char *message, const char *file, int line) {
     QTestPrivate::currentRun("QSKIP").skip(message, file, line);
 }
 
-/*!
-    Announces that the next check fails for the row \a dataTag, or for all
-    rows if it is empty, because of \a comment. \a mode says what happens
-    after it. Returns \c false if the test function must stop, which is when
-    a failure is already expected at \a line of \a file. QEXPECT_FAIL() calls it.
-*/
 bool qExpectFail(const char *dataTag, const char *comment, TestFailMode mode, const char *file, int line) {
     return QTestPrivate::currentRun("QEXPECT_FAIL").expectFail(dataTag, comment, mode, file, line);
 }

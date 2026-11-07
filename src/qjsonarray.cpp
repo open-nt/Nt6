@@ -3,6 +3,8 @@
 
 #include "qjson_p.h"
 
+#include <QtCore/qvariant.h>
+
 #include <algorithm>
 
 QJsonArray QJsonPrivateAccess::arrayFromData(std::shared_ptr<QJsonArrayPrivate> d) {
@@ -48,8 +50,7 @@ QJsonArray QJsonPrivateAccess::makeArray(std::vector<QJsonValue> &&items) {
     iterators.
 
     \differences
-    There is no \c fromVariantList() or \c toVariantList() until QVariant
-    exists. Out-of-range indexes never assert: \l at() returns an undefined
+    Out-of-range indexes never assert: \l at() returns an undefined
     value, and insert(), replace() and removeAt() do nothing. The iterators
     hold the array and an index instead of a pointer, so copying the array
     while an iterator is alive is harmless: writes through a non-const iterator
@@ -181,6 +182,36 @@ QJsonArray QJsonArray::fromStringList(const QStringList &list) {
     for (const QString &s : list)
         items.emplace_back(s);
     return QJsonPrivateAccess::makeArray(std::move(items));
+}
+
+/*!
+    Converts \a list to an array, converting each element with
+    QJsonValue::fromVariant().
+
+    \sa toVariantList(), QJsonValue::fromVariant()
+*/
+QJsonArray QJsonArray::fromVariantList(const QVariantList &list) {
+    std::vector<QJsonValue> items;
+    items.reserve(static_cast<std::size_t>(list.size()));
+    for (const QVariant &v : list)
+        items.push_back(QJsonValue::fromVariant(v));
+    return QJsonPrivateAccess::makeArray(std::move(items));
+}
+
+/*!
+    Converts the array to a QVariantList, converting each element with
+    QJsonValue::toVariant().
+
+    \sa fromVariantList(), QJsonValue::toVariant()
+*/
+QVariantList QJsonArray::toVariantList() const {
+    QVariantList list;
+    if (d) {
+        list.reserve(static_cast<qsizetype>(d->items.size()));
+        for (const QJsonValue &v : d->items)
+            list.append(v.toVariant());
+    }
+    return list;
 }
 
 QJsonArrayPrivate &QJsonArray::detached() {

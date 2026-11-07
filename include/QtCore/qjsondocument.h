@@ -8,6 +8,7 @@
 #include <QtCore/qstring.h>
 
 class QDebug;
+class QVariant;
 
 struct QJsonParseError {
     enum ParseError {
@@ -48,6 +49,9 @@ public:
     QJsonDocument &operator=(QJsonDocument &&other) noexcept;
 
     void swap(QJsonDocument &other) noexcept;
+
+    static QJsonDocument fromVariant(const QVariant &variant);
+    QVariant toVariant() const;
 
     static QJsonDocument fromJson(const QByteArray &json, QJsonParseError *error = nullptr);
     QByteArray toJson(JsonFormat format = Indented) const;

@@ -2,6 +2,7 @@
 #include <QtCore/qjsondocument.h>
 
 #include <QtCore/qdebug.h>
+#include <QtCore/qvariant.h>
 
 #include "qjson_p.h"
 
@@ -146,8 +147,7 @@ QString QJsonParseError::errorString() const {
     white space at all. Object keys appear in sorted order.
 
     \differences
-    There is no \c fromVariant() or \c toVariant() until QVariant exists, and
-    no \c fromRawData(), \c rawData() or \c fromBinaryData(), which Qt 6
+    There is no \c fromRawData(), \c rawData() or \c fromBinaryData(), which Qt 6
     removed too. Top-level scalars are rejected as in Qt. A raw control
     character in a string is rejected as \c IllegalValue. A lone surrogate
     written with an escape is accepted and is written back as U+FFFD, the
@@ -224,6 +224,50 @@ QJsonDocument &QJsonDocument::operator=(QJsonDocument &&other) noexcept = defaul
     Swaps this document with \a other.
 */
 void QJsonDocument::swap(QJsonDocument &other) noexcept { m_root.swap(other.m_root); }
+
+/*!
+    Converts \a variant to a document. A QVariantMap or QVariantHash gives a
+    document that holds an object, and a QVariantList or QStringList one that
+    holds an array; the contents are converted with QJsonValue::fromVariant().
+    Any other variant gives a null document.
+
+    \sa toVariant(), QJsonObject::fromVariantMap(), QJsonArray::fromVariantList()
+*/
+QJsonDocument QJsonDocument::fromVariant(const QVariant &variant) {
+    QJsonDocument doc;
+    switch (variant.typeId()) {
+    case QMetaType::QVariantMap:
+        doc.setObject(QJsonObject::fromVariantMap(variant.toMap()));
+        break;
+    case QMetaType::QVariantHash:
+        doc.setObject(QJsonObject::fromVariantHash(variant.toHash()));
+        break;
+    case QMetaType::QVariantList:
+        doc.setArray(QJsonArray::fromVariantList(variant.toList()));
+        break;
+    case QMetaType::QStringList:
+        doc.setArray(QJsonArray::fromStringList(variant.toStringList()));
+        break;
+    default:
+        break;
+    }
+    return doc;
+}
+
+/*!
+    Converts the document to a QVariantMap if it holds an object, or to a
+    QVariantList if it holds an array. A null document gives an invalid
+    QVariant.
+
+    \sa fromVariant()
+*/
+QVariant QJsonDocument::toVariant() const {
+    if (isArray())
+        return QVariant(array().toVariantList());
+    if (isObject())
+        return QVariant(object().toVariantMap());
+    return QVariant();
+}
 
 /*!
     Parses \a json as UTF-8 encoded JSON and returns the document. If the text

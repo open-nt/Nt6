@@ -11,6 +11,11 @@
 #include <QList>
 #include <QString>
 #include <QStringList>
+#include <QUrl>
+#include <QUuid>
+#include <QVariant>
+#include <QDate>
+#include <QDateTime>
 
 #include <algorithm>
 #include <cmath>
@@ -1203,6 +1208,168 @@ static void testTypes() {
     CHECK(QJsonDocument::Indented == 0 && QJsonDocument::Compact == 1);
 }
 
+static void testVariantScalars() {
+    using V = QJsonValue;
+    CHECK(V::fromVariant(QVariant()).isNull());
+    CHECK(V::fromVariant(QVariant(nullptr)).isNull());
+    CHECK(V::fromVariant(QVariant(true)).isBool() && V::fromVariant(QVariant(true)).toBool());
+    CHECK(V::fromVariant(QVariant(false)).isBool());
+    CHECK(V::fromVariant(QVariant(42)).isDouble() && V::fromVariant(QVariant(42)).toInt() == 42);
+    CHECK(V::fromVariant(QVariant(-7)).toInteger() == -7);
+    CHECK(V::fromVariant(QVariant(4000000000u)).toInteger() == 4000000000LL);
+    CHECK(V::fromVariant(QVariant::fromValue<short>(-3)).toInt() == -3);
+    CHECK(V::fromVariant(QVariant::fromValue<unsigned short>(65535)).toInt() == 65535);
+    CHECK(V::fromVariant(QVariant::fromValue<long>(123456789012L)).toInteger() == 123456789012L);
+    CHECK(V::fromVariant(QVariant(qlonglong(1) << 53)).toInteger() == (qlonglong(1) << 53));
+    CHECK(V::fromVariant(QVariant(qulonglong(9007199254740992ULL))).toInteger() == 9007199254740992LL);
+    CHECK(V::fromVariant(QVariant(std::numeric_limits<qulonglong>::max())).toDouble() == 18446744073709551616.0);
+    CHECK(V::fromVariant(QVariant(2.5)).toDouble() == 2.5);
+    CHECK(V::fromVariant(QVariant(1.5f)).toDouble() == 1.5);
+    CHECK(V::fromVariant(QVariant(std::nan(""))).isNull());
+    CHECK(V::fromVariant(QVariant(std::numeric_limits<double>::infinity())).isNull());
+    CHECK(V::fromVariant(QVariant(QString("hi"))).toString() == "hi");
+    CHECK(V::fromVariant(QVariant(QString())).isString());
+    CHECK(V::fromVariant(QVariant(QByteArray("bytes"))).toString() == "bytes");
+    CHECK(V::fromVariant(QVariant(QByteArray())).isNull());
+    CHECK(V::fromVariant(QVariant(QChar('x'))).toString() == "x");
+    CHECK(V::fromVariant(QVariant(QUrl("http://example.com/a b?q=1"))).toString() ==
+          QString::fromLatin1(QUrl("http://example.com/a b?q=1").toEncoded()));
+    const QUuid id = QUuid::fromString("{67C8770B-44F1-410A-AB9A-F9B5446F13EE}");
+    CHECK(V::fromVariant(QVariant::fromValue(id)).toString() == "67c8770b-44f1-410a-ab9a-f9b5446f13ee");
+    CHECK(V::fromVariant(QVariant(QDate(2024, 2, 29))).toString() == "2024-02-29");
+    CHECK(V::fromVariant(QVariant(QDate())).isNull());
+    const QDateTime dt(QDate(2024, 2, 29), QTime(13, 45, 6), Qt::UTC);
+    CHECK(V::fromVariant(QVariant(dt)).toString() == dt.toString(Qt::ISODateWithMs));
+    struct Opaque {};
+    CHECK(V::fromVariant(QVariant::fromValue(Opaque{})).isNull());
+}
+
+static void testVariantContainers() {
+    const QVariantList list{1, "two", 3.5, true, QVariant(), QStringList{"a", "b"}};
+    const QJsonArray arr = QJsonArray::fromVariantList(list);
+    CHECK(arr.size() == 6);
+    CHECK(arr[0].toInt() == 1 && arr[1].toString() == "two" && arr[2].toDouble() == 3.5);
+    CHECK(arr[3].toBool() && arr[4].isNull());
+    CHECK(arr[5].isArray() && arr[5].toArray().size() == 2 && arr[5].toArray()[1].toString() == "b");
+    CHECK(QJsonValue::fromVariant(QVariant(QStringList{"x"})).toArray().at(0).toString() == "x");
+    CHECK(QJsonValue::fromVariant(QVariant(list)).isArray());
+    CHECK(QJsonArray::fromVariantList(QVariantList()).isEmpty());
+
+    QVariantMap map;
+    map["name"] = "nt";
+    map["count"] = 3;
+    map["nested"] = QVariantMap{{"ok", true}, {"list", QVariantList{1, 2}}};
+    const QJsonObject obj = QJsonObject::fromVariantMap(map);
+    CHECK(obj.size() == 3 && obj["name"].toString() == "nt" && obj["count"].toInt() == 3);
+    CHECK(obj["nested"]["ok"].toBool() && obj["nested"]["list"][1].toInt() == 2);
+    CHECK(QJsonValue::fromVariant(QVariant(map)).isObject());
+
+    QVariantHash hash;
+    hash["b"] = 2;
+    hash["a"] = QVariant();
+    const QJsonObject hobj = QJsonObject::fromVariantHash(hash);
+    CHECK(hobj.size() == 2 && hobj["a"].isNull() && hobj["b"].toInt() == 2);
+    CHECK(hobj.keys() == QStringList({"a", "b"}));
+    CHECK(QJsonValue::fromVariant(QVariant(hash)).isObject());
+    CHECK(QJsonObject::fromVariantMap(QVariantMap()).isEmpty());
+
+    CHECK(QJsonValue::fromVariant(QVariant::fromValue(QJsonValue(5))).toInt() == 5);
+    CHECK(QJsonValue::fromVariant(QVariant::fromValue(QJsonValue(QJsonValue::Undefined))).isUndefined());
+    CHECK(QJsonValue::fromVariant(QVariant::fromValue(arr)).isArray());
+    CHECK(QJsonValue::fromVariant(QVariant::fromValue(obj)).isObject());
+    CHECK(QJsonValue::fromVariant(QVariant::fromValue(QJsonDocument(arr))).isArray());
+    CHECK(QJsonValue::fromVariant(QVariant::fromValue(QJsonDocument(obj))).isObject());
+    CHECK(QJsonValue::fromVariant(QVariant::fromValue(QJsonDocument())).isObject());
+}
+
+static void testVariantToVariant() {
+    CHECK(QJsonValue(QJsonValue::Null).toVariant().typeId() == QMetaType::Nullptr);
+    CHECK(QJsonValue(QJsonValue::Null).toVariant().isNull());
+    CHECK(!QJsonValue(QJsonValue::Undefined).toVariant().isValid());
+    CHECK(QJsonValue(true).toVariant().typeId() == QMetaType::Bool && QJsonValue(true).toVariant().toBool());
+    CHECK(QJsonValue(5).toVariant().typeId() == QMetaType::LongLong && QJsonValue(5).toVariant().toInt() == 5);
+    CHECK(QJsonValue(2.5).toVariant().typeId() == QMetaType::Double && QJsonValue(2.5).toVariant().toDouble() == 2.5);
+    CHECK(QJsonValue(qint64(1) << 60).toVariant().typeId() == QMetaType::Double);
+    CHECK(QJsonValue("s").toVariant().typeId() == QMetaType::QString && QJsonValue("s").toVariant().toString() == "s");
+    CHECK(QJsonValue(QJsonArray{1}).toVariant().typeId() == QMetaType::QVariantList);
+    CHECK(QJsonValue(QJsonObject{{"a", 1}}).toVariant().typeId() == QMetaType::QVariantMap);
+
+    const QJsonObject obj{
+        {"s", "str"}, {"n", QJsonValue()}, {"i", 7}, {"d", 0.25}, {"a", QJsonArray{1, "x", QJsonObject{{"k", false}}}}};
+    const QVariantMap map = obj.toVariantMap();
+    CHECK(map.size() == 5 && map["s"].toString() == "str" && map["i"].toInt() == 7 && map["d"].toDouble() == 0.25);
+    CHECK(map["n"].typeId() == QMetaType::Nullptr);
+    const QVariantList inner = map["a"].toList();
+    CHECK(inner.size() == 3 && inner[0].toInt() == 1 && inner[1].toString() == "x");
+    CHECK(inner[2].toMap()["k"].toBool() == false && inner[2].toMap().contains("k"));
+    const QVariantHash hash = obj.toVariantHash();
+    CHECK(hash.size() == 5 && hash["i"].toInt() == 7 && hash["a"].toList().size() == 3);
+    CHECK(QJsonObject().toVariantMap().isEmpty() && QJsonObject().toVariantHash().isEmpty());
+    CHECK(QJsonArray().toVariantList().isEmpty());
+    CHECK(QJsonArray({1, 2, 3}).toVariantList() == QVariantList({1, 2, 3}));
+}
+
+static void testVariantRoundTrip() {
+    QVariantMap map;
+    map["null"] = QVariant::fromValue(nullptr);
+    map["bool"] = true;
+    map["int"] = 12345;
+    map["big"] = qlonglong(9007199254740992LL);
+    map["neg"] = qlonglong(-9007199254740992LL);
+    map["double"] = 0.125;
+    map["string"] = "text \xE2\x82\xAC";
+    map["list"] = QVariantList{1, QVariantMap{{"x", "y"}}, QVariantList()};
+    map["map"] = QVariantMap{{"inner", QVariantList{false}}};
+    const QJsonObject obj = QJsonObject::fromVariantMap(map);
+    const QVariantMap back = obj.toVariantMap();
+    CHECK(back.keys() == map.keys());
+    CHECK(back["bool"].toBool() && back["int"].toInt() == 12345);
+    CHECK(back["big"].toLongLong() == 9007199254740992LL && back["neg"].toLongLong() == -9007199254740992LL);
+    CHECK(back["double"].toDouble() == 0.125 && back["string"].toString() == map["string"].toString());
+    CHECK(back == map);
+    CHECK(QJsonObject::fromVariantMap(back) == obj);
+
+    // Through text as well.
+    QJsonParseError err;
+    const QJsonDocument parsed = QJsonDocument::fromJson(QJsonDocument(obj).toJson(), &err);
+    CHECK(err.error == QJsonParseError::NoError && parsed.object() == obj);
+    CHECK(parsed.object().toVariantMap() == back);
+
+    const QVariantList list{1, "a", 2.5, true, QVariant::fromValue(nullptr), QVariantList{3}};
+    CHECK(QJsonArray::fromVariantList(list).toVariantList() == list);
+    CHECK(QJsonValue::fromVariant(QJsonValue(QJsonArray{1, "z"}).toVariant()) == QJsonValue(QJsonArray{1, "z"}));
+    for (const QJsonValue &v : {QJsonValue(), QJsonValue(true), QJsonValue(0), QJsonValue(-1.5), QJsonValue("q"),
+                                QJsonValue(QJsonArray{1}), QJsonValue(QJsonObject{{"a", 1}})})
+        CHECK(QJsonValue::fromVariant(v.toVariant()) == v);
+}
+
+static void testVariantDocument() {
+    CHECK(QJsonDocument::fromVariant(QVariant(QVariantMap{{"a", 1}})).isObject());
+    CHECK(QJsonDocument::fromVariant(QVariant(QVariantHash{{"a", 1}})).object()["a"].toInt() == 1);
+    CHECK(QJsonDocument::fromVariant(QVariant(QVariantList{1, 2})).array().size() == 2);
+    CHECK(QJsonDocument::fromVariant(QVariant(QStringList{"p", "q"})).array()[1].toString() == "q");
+    CHECK(QJsonDocument::fromVariant(QVariant(3)).isNull());
+    CHECK(QJsonDocument::fromVariant(QVariant()).isNull());
+    CHECK(QJsonDocument(QJsonObject{{"a", 1}}).toVariant().typeId() == QMetaType::QVariantMap);
+    CHECK(QJsonDocument(QJsonArray{1}).toVariant().typeId() == QMetaType::QVariantList);
+    CHECK(!QJsonDocument().toVariant().isValid());
+
+    const QJsonDocument doc = QJsonDocument::fromJson("{\"k\": [1, 2, {\"z\": null}]}");
+    CHECK(QJsonDocument::fromVariant(doc.toVariant()) == doc);
+    CHECK(QJsonValue::fromVariant(QVariant::fromValue(doc)).toObject() == doc.object());
+}
+
+static void testVariantMetaTypes() {
+    CHECK(QMetaType::fromType<QJsonValue>().id() == QMetaType::QJsonValue);
+    CHECK(QMetaType::fromType<QJsonObject>().id() == QMetaType::QJsonObject);
+    CHECK(QMetaType::fromType<QJsonArray>().id() == QMetaType::QJsonArray);
+    CHECK(QMetaType::fromType<QJsonDocument>().id() == QMetaType::QJsonDocument);
+    const QVariant v = QVariant::fromValue(QJsonObject{{"a", 1}});
+    CHECK(v.typeId() == QMetaType::QJsonObject && v.value<QJsonObject>()["a"].toInt() == 1);
+    CHECK(v == QVariant::fromValue(QJsonObject{{"a", 1}}));
+    CHECK(QMetaType::typeName(QMetaType::QJsonArray) == std::string("QJsonArray"));
+}
+
 int main() {
     testValueBasics();
     testValueComparison();
@@ -1224,6 +1391,12 @@ int main() {
     testDocument();
     testDebug();
     testTypes();
+    testVariantScalars();
+    testVariantContainers();
+    testVariantToVariant();
+    testVariantRoundTrip();
+    testVariantDocument();
+    testVariantMetaTypes();
     if (g_failures) {
         std::printf("%d failure(s)\n", g_failures);
         return 1;

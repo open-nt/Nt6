@@ -1,10 +1,18 @@
 // MIT License - see LICENSE
 #include <QtCore/qjsonvalue.h>
 
+#include <QtCore/qjsonarray.h>
+#include <QtCore/qjsondocument.h>
+#include <QtCore/qjsonobject.h>
+#include <QtCore/qurl.h>
+#include <QtCore/quuid.h>
+#include <QtCore/qvariant.h>
+
 #include "qjson_p.h"
 
 #include <climits>
 #include <cmath>
+#include <limits>
 #include <cstring>
 
 namespace {
@@ -62,8 +70,8 @@ QJsonValue QJsonPrivateAccess::fromObjectData(std::shared_ptr<QJsonObjectPrivate
     they are modified.
 
     \differences
-    There is no \c fromVariant() or \c toVariant() until QVariant exists.
-    Overloads taking a C string key are provided for the \c{operator[]}
+    There are no constructors that take a QVariant, as in Qt 6; use
+    fromVariant(). Overloads taking a C string key are provided for the \c{operator[]}
     functions of QJsonValue, QJsonObject and QJsonDocument, because
     QLatin1StringView converts implicitly in Nt, which would make a literal
     key ambiguous. A reference (QJsonValueRef) to an element that no longer
@@ -375,6 +383,124 @@ QJsonObject QJsonValue::toObject(const QJsonObject &defaultValue) const {
     if (m_type != Object)
         return defaultValue;
     return QJsonPrivateAccess::objectFromData(std::static_pointer_cast<QJsonObjectPrivate>(m_data));
+}
+
+/*!
+    Converts \a variant to a QJsonValue.
+
+    \table
+    \header \li QVariant type \li QJsonValue type
+    \row \li an invalid variant, \c std::nullptr_t \li Null
+    \row \li \c bool \li Bool
+    \row \li \c short, \c{unsigned short}, \c int, \c{unsigned int}, \c long, \c qlonglong
+              \li Double, kept as an exact integer up to 2^53
+    \row \li \c qulonglong \li Double; exact up to 2^53, rounded above that
+    \row \li \c float, \c double \li Double; NaN and infinity give Null
+    \row \li QString \li String
+    \row \li QStringList, QVariantList \li Array
+    \row \li QVariantMap, QVariantHash \li Object
+    \row \li QUrl \li String, the fully encoded form
+    \row \li QUuid \li String, without braces
+    \row \li QJsonValue, QJsonArray, QJsonObject \li the same value
+    \row \li QJsonDocument \li Array or Object, an empty Object for a null document
+    \row \li any other type \li String if it converts to a non-empty QString, as
+              QByteArray, QChar, QDate, QTime and QDateTime do (the dates and times in ISO 8601
+              form); otherwise Null
+    \endtable
+
+    \sa toVariant(), QJsonArray::fromVariantList(), QJsonObject::fromVariantMap()
+*/
+QJsonValue QJsonValue::fromVariant(const QVariant &variant) {
+    switch (variant.typeId()) {
+    case QMetaType::Nullptr:
+        return QJsonValue(Null);
+    case QMetaType::Bool:
+        return QJsonValue(variant.toBool());
+    case QMetaType::Short:
+    case QMetaType::UShort:
+    case QMetaType::Int:
+    case QMetaType::UInt:
+    case QMetaType::Long:
+    case QMetaType::LongLong:
+        return QJsonValue(static_cast<qint64>(variant.toLongLong()));
+    case QMetaType::ULong:
+    case QMetaType::ULongLong: {
+        const qulonglong n = variant.toULongLong();
+        if (n <= static_cast<qulonglong>(std::numeric_limits<qint64>::max()))
+            return QJsonValue(static_cast<qint64>(n));
+        return QJsonValue(static_cast<double>(n));
+    }
+    case QMetaType::Float:
+    case QMetaType::Double:
+        return QJsonValue(variant.toDouble());
+    case QMetaType::QString:
+        return QJsonValue(variant.toString());
+    case QMetaType::QStringList:
+        return QJsonValue(QJsonArray::fromStringList(variant.toStringList()));
+    case QMetaType::QVariantList:
+        return QJsonValue(QJsonArray::fromVariantList(variant.toList()));
+    case QMetaType::QVariantMap:
+        return QJsonValue(QJsonObject::fromVariantMap(variant.toMap()));
+    case QMetaType::QVariantHash:
+        return QJsonValue(QJsonObject::fromVariantHash(variant.toHash()));
+    case QMetaType::QUrl:
+        return QJsonValue(QString::fromLatin1(variant.toUrl().toEncoded()));
+    case QMetaType::QUuid:
+        return QJsonValue(variant.value<QUuid>().toString(QUuid::WithoutBraces));
+    case QMetaType::QJsonValue:
+        return variant.value<QJsonValue>();
+    case QMetaType::QJsonArray:
+        return QJsonValue(variant.value<QJsonArray>());
+    case QMetaType::QJsonObject:
+        return QJsonValue(variant.value<QJsonObject>());
+    case QMetaType::QJsonDocument: {
+        const QJsonDocument doc = variant.value<QJsonDocument>();
+        return doc.isArray() ? QJsonValue(doc.array()) : QJsonValue(doc.object());
+    }
+    default:
+        break;
+    }
+    const QString string = variant.toString();
+    return string.isEmpty() ? QJsonValue(Null) : QJsonValue(string);
+}
+
+/*!
+    Converts the value to a QVariant.
+
+    \table
+    \header \li QJsonValue type \li QVariant type
+    \row \li Null \li \c std::nullptr_t
+    \row \li Bool \li \c bool
+    \row \li Double \li \c qlonglong if the value was stored as an integer, otherwise
+              \c double
+    \row \li String \li QString
+    \row \li Array \li QVariantList
+    \row \li Object \li QVariantMap
+    \row \li Undefined \li an invalid QVariant
+    \endtable
+
+    \sa fromVariant(), QJsonArray::toVariantList(), QJsonObject::toVariantMap()
+*/
+QVariant QJsonValue::toVariant() const {
+    switch (m_type) {
+    case Null:
+        return QVariant::fromValue(nullptr);
+    case Bool:
+        return QVariant(m_bool);
+    case Double:
+        if (m_isInt)
+            return QVariant(static_cast<qlonglong>(m_int));
+        return QVariant(m_double);
+    case String:
+        return QVariant(QJsonPrivateAccess::string(*this));
+    case Array:
+        return QVariant(toArray().toVariantList());
+    case Object:
+        return QVariant(toObject().toVariantMap());
+    case Undefined:
+        break;
+    }
+    return QVariant();
 }
 
 /*!

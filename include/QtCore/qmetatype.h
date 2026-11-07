@@ -45,6 +45,10 @@ class QLineF;
 class QRect;
 class QRectF;
 class QBitArray;
+class QJsonValue;
+class QJsonObject;
+class QJsonArray;
+class QJsonDocument;
 template <typename T> class QSet;
 template <typename Enum> class QFlags;
 
@@ -165,6 +169,10 @@ NT_BUILTIN_METATYPE(QObject *, 39)
 NT_BUILTIN_METATYPE(signed char, 40)
 NT_BUILTIN_METATYPE(QVariant, 41)
 NT_BUILTIN_METATYPE(void, 43)
+NT_BUILTIN_METATYPE(QJsonValue, 45)
+NT_BUILTIN_METATYPE(QJsonObject, 46)
+NT_BUILTIN_METATYPE(QJsonArray, 47)
+NT_BUILTIN_METATYPE(QJsonDocument, 48)
 NT_BUILTIN_METATYPE(QByteArrayList, 49)
 NT_BUILTIN_METATYPE(std::nullptr_t, 51)
 NT_BUILTIN_METATYPE(char16_t, 56)
@@ -463,8 +471,9 @@ template <typename T> struct MetaTypeInterfaceFor {
     \differences
     The layout of QMetaTypeInterface is Nt's own. Enumerators of
     \c QMetaType::Type for classes that Nt does not have (such as
-    \c QLocale, \c QRegularExpression, \c QJsonValue and \c QModelIndex) are
-    reserved, but no type is registered for them. \c QMetaType::QVersionNumber
+    \c QLocale, \c QRegularExpression and \c QModelIndex) are
+    reserved, but no type is registered for them. The JSON classes are registered, but
+    convert() has no conversions for them. \c QMetaType::QVersionNumber
     does not exist; QVersionNumber, QMargins and QMarginsF get an id at the
     first registration like any user type. There is no
     \c registerType(), \c registerComparators(), \c registerMutableView(),
@@ -529,10 +538,10 @@ public:
         \value QVariant QVariant.
         \value QModelIndex Reserved; Nt has no QModelIndex.
         \value QPersistentModelIndex Reserved; Nt has no QPersistentModelIndex.
-        \value QJsonValue Reserved; Nt has no QJsonValue.
-        \value QJsonObject Reserved; Nt has no QJsonObject.
-        \value QJsonArray Reserved; Nt has no QJsonArray.
-        \value QJsonDocument Reserved; Nt has no QJsonDocument.
+        \value QJsonValue QJsonValue.
+        \value QJsonObject QJsonObject.
+        \value QJsonArray QJsonArray.
+        \value QJsonDocument QJsonDocument.
         \value QCborSimpleType Reserved; Nt has no QCborSimpleType.
         \value QCborValue Reserved; Nt has no QCborValue.
         \value QCborArray Reserved; Nt has no QCborArray.

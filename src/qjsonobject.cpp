@@ -3,6 +3,8 @@
 
 #include "qjson_p.h"
 
+#include <QtCore/qvariant.h>
+
 #include <algorithm>
 
 namespace {
@@ -90,8 +92,7 @@ void QJsonPrivateAccess::setObjectValue(QJsonObject &o, qsizetype index, const Q
     the \c{operator[]} functions return, changes a value in place and does not.
 
     \differences
-    There is no \c fromVariantMap(), \c fromVariantHash(), \c toVariantMap()
-    or \c toVariantHash() until QVariant exists. The iterators hold the object
+    The iterators hold the object
     and an index instead of a pointer, so a copy made while one is alive is
     harmless: writes through a non-const iterator go to the object it came
     from. Assigning an undefined value through \c{operator[]} or an iterator
@@ -266,6 +267,65 @@ qsizetype QJsonObject::size() const { return d ? static_cast<qsizetype>(d->items
 
     Same as isEmpty(), for STL compatibility.
 */
+
+/*!
+    Converts \a map to an object, converting each value with
+    QJsonValue::fromVariant().
+
+    \sa toVariantMap(), fromVariantHash(), QJsonValue::fromVariant()
+*/
+QJsonObject QJsonObject::fromVariantMap(const QVariantMap &map) {
+    std::vector<Entry> entries;
+    entries.reserve(static_cast<std::size_t>(map.size()));
+    for (auto it = map.cbegin(); it != map.cend(); ++it)
+        entries.push_back(Entry{it.key(), QJsonValue::fromVariant(it.value())});
+    return QJsonPrivateAccess::makeObjectSorting(std::move(entries));
+}
+
+/*!
+    Converts \a hash to an object, converting each value with
+    QJsonValue::fromVariant().
+
+    \sa toVariantHash(), fromVariantMap(), QJsonValue::fromVariant()
+*/
+QJsonObject QJsonObject::fromVariantHash(const QVariantHash &hash) {
+    std::vector<Entry> entries;
+    entries.reserve(static_cast<std::size_t>(hash.size()));
+    for (auto it = hash.cbegin(); it != hash.cend(); ++it)
+        entries.push_back(Entry{it.key(), QJsonValue::fromVariant(it.value())});
+    return QJsonPrivateAccess::makeObjectSorting(std::move(entries));
+}
+
+/*!
+    Converts the object to a QVariantMap, converting each value with
+    QJsonValue::toVariant().
+
+    \sa fromVariantMap(), toVariantHash(), QJsonValue::toVariant()
+*/
+QVariantMap QJsonObject::toVariantMap() const {
+    QVariantMap map;
+    if (d) {
+        for (const Entry &e : d->items)
+            map.insert(e.key, e.value.toVariant());
+    }
+    return map;
+}
+
+/*!
+    Converts the object to a QVariantHash, converting each value with
+    QJsonValue::toVariant().
+
+    \sa fromVariantHash(), toVariantMap(), QJsonValue::toVariant()
+*/
+QVariantHash QJsonObject::toVariantHash() const {
+    QVariantHash hash;
+    if (d) {
+        hash.reserve(static_cast<qsizetype>(d->items.size()));
+        for (const Entry &e : d->items)
+            hash.insert(e.key, e.value.toVariant());
+    }
+    return hash;
+}
 
 /*!
     Returns the keys of the object in sorted order.

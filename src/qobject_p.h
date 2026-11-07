@@ -8,6 +8,8 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <string>
+#include <utility>
 #include <vector>
 
 namespace QtPrivate {
@@ -19,6 +21,7 @@ struct ConnectionData {
     QObject *receiver = nullptr;
     SignalId signal;
     std::function<void(void *const *)> invoke;
+    std::string method; // normalized signature of the receiving method, for string-based connections
     Qt::ConnectionType type = Qt::AutoConnection;
     std::atomic<bool> alive{true};
 };
@@ -33,6 +36,7 @@ struct ObjectData {
     std::shared_ptr<PointerData> guard;
     std::atomic<ThreadData *> threadData{nullptr};
     bool ownsThreadRef = true;
+    std::vector<std::pair<QByteArray, QVariant>> dynamicProperties;
 };
 
 } // namespace QtPrivate
@@ -52,6 +56,8 @@ private:
     bool done_ = false;
 };
 
+void unlinkConnection(const std::shared_ptr<ConnectionData> &c);
+
 } // namespace QtPrivate
 
 // Delivers a queued signal emission to its receiver's event loop.
@@ -60,6 +66,9 @@ public:
     QMetaCallEvent(std::shared_ptr<QtPrivate::ConnectionData> conn, QtPrivate::QueuedArgs args,
                    std::shared_ptr<QtPrivate::BlockingLatch> latch = nullptr)
         : QEvent(MetaCall), m_conn(std::move(conn)), m_args(std::move(args)), m_latch(std::move(latch)) {}
+    // Runs `function` in the receiver's thread; `latch`, if given, is released afterwards.
+    explicit QMetaCallEvent(std::function<void()> function, std::shared_ptr<QtPrivate::BlockingLatch> latch = nullptr)
+        : QEvent(MetaCall), m_latch(std::move(latch)), m_function(std::move(function)) {}
     ~QMetaCallEvent() override;
     void place();
 
@@ -67,4 +76,5 @@ private:
     std::shared_ptr<QtPrivate::ConnectionData> m_conn;
     QtPrivate::QueuedArgs m_args;
     std::shared_ptr<QtPrivate::BlockingLatch> m_latch;
+    std::function<void()> m_function;
 };

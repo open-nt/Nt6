@@ -39,6 +39,7 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 | Smart pointers | `QPointer`, `QScopedPointer`, `QScopedArrayPointer`, `QSharedPointer`, `QWeakPointer`, `QEnableSharedFromThis`, `QSharedData`, `QSharedDataPointer`, `QExplicitlySharedDataPointer`, `QScopeGuard`, `QScopedValueRollback`, `QSignalBlocker` |
 | Threads | `QThread` (`start`/`quit`/`exit`/`wait`, a real event loop per thread, `create`, interruption, priority, stack size, `currentThread`, `idealThreadCount`), `QObject` thread affinity (timers, `QSocketNotifier`, posted events and `deleteLater` follow the object's thread), cross-thread queued and blocking-queued signals, `QRunnable`, `QThreadPool` (priorities, `tryStart`, `tryTake`, `reserveThread`, expiry), `QThreadStorage` |
 | Threading primitives | `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock`, `QReadLocker`, `QWriteLocker`, `QWaitCondition`, `QSemaphore`, `QSemaphoreReleaser` |
+| Variant and meta | `QVariant` (+ `QVariantList`, `QVariantMap`, `QVariantHash`, `QVariantPair`; conversions, comparison, `QDataStream` and `QDebug` streaming), `QMetaType` (built-in ids as in Qt, `Q_DECLARE_METATYPE`, `qRegisterMetaType`, converters), `QMetaObject` (introspection, `invokeMethod`, `newInstance`, `connectSlotsByName`), `QMetaMethod`, `QMetaProperty`, `QMetaEnum`, `QMetaClassInfo`, `Q_PROPERTY`/`Q_ENUM`/`Q_FLAG`/`Q_GADGET`/`Q_NAMESPACE`/`Q_CLASSINFO`/`Q_INVOKABLE`, `QObject::property()`/`setProperty()`/`dynamicPropertyNames()`/`inherits()`, `QDynamicPropertyChangeEvent`, `SIGNAL()`/`SLOT()` connections, `QGenericArgument`/`Q_ARG`, `QTypeRevision`, `QSequentialIterable`, `QAssociativeIterable` |
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time and fixed offsets), `QDebug`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler` |
 | I/O and file system | `QIODevice`, `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile`, `QDataStream` (Qt's wire format), `QFileInfo`, `QDir`, `QDirIterator`, `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QLockFile` (stale-lock detection by dead pid and age), `QFileSystemWatcher` (inotify, with a polling fallback), `QStandardPaths` (XDG) |
 | Processes | `QProcess` (event-loop driven `fork`/`execve` with pidfd child watching: channels and redirection, `startDetached`, `execute`, environment, pipelines, `waitFor...()`), `QProcessEnvironment` |
@@ -47,13 +48,13 @@ Qt Core has roughly 300 classes; Nt Core has about 100 of them, chosen first for
 | Formats: JSON | `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument`, `QJsonParseError`, `QJsonValueRef`/`QJsonValueConstRef` and the STL-style iterators: strict RFC 8259 parser with Qt's error codes and offsets (1024 levels of nesting), `Indented`/`Compact` writer, sorted object keys, exact integers up to 2^53, `QDebug` output. `fromVariant()`/`toVariant()` and friends wait for `QVariant` |
 | Utilities | `QLibraryInfo`, `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption` |
 
-Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QUrl` does not convert internationalized host names to or from Punycode; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; a `QObject` must be deleted from its own thread (or while that thread is not handling its events) and `QPointer` is not safe against concurrent destruction, there is no `QThread::terminate()`; no `QMetaObject` introspection, properties or `SIGNAL()`/`SLOT()` strings.
+Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no transactions or 64-bit container sizes; `QUrl` does not convert internationalized host names to or from Punycode; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time; `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; a `QObject` must be deleted from its own thread (or while that thread is not handling its events) and `QPointer` is not safe against concurrent destruction, there is no `QThread::terminate()`; the meta-object system needs `ntmoc` (a class it did not process has no meta-object of its own), and there are no bindable properties.
 
 ### Nt Core: not implemented yet
 
 - **Text:** `QAnyStringView`, `QUtf8StringView`, `QStringConverter`/`QStringEncoder`/`QStringDecoder`, `QStringMatcher`, `QStringTokenizer`, `QLocale`, `QCollator`, `QTextBoundaryFinder`, `QRegularExpression` (+ match classes), `QTranslator`, `QStringListModel`
 - **Containers:** `QKeyValueIterator`
-- **Variant and meta:** `QVariant`, `QMetaType`, `QMetaObject` introspection, `QMetaProperty`/`QMetaMethod`/`QMetaEnum`/`QMetaClassInfo`, `QProperty` and bindable properties, `QTypeRevision`, `QSequentialIterable`/`QAssociativeIterable`, `QObjectCleanupHandler`, `QSignalMapper`
+- **Variant and meta:** `QProperty` and bindable properties, `QObjectCleanupHandler`, `QSignalMapper`
 - **Date and time:** `QTimeZone`, `QCalendar`, `QChronoTimer`, `QTimeLine`
 - **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`, `QResource`, `QSettings`
 - **Processes and plugins:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
@@ -61,7 +62,7 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 - **Concurrency:** `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, `QException`, `QEventLoopLocker`, `QAbstractEventDispatcher`
 - **Item models:** `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QAbstractProxyModel`, `QSortFilterProxyModel`, `QIdentityProxyModel`, `QConcatenateTablesProxyModel`, `QTransposeProxyModel`, `QModelIndex`, `QPersistentModelIndex`, `QItemSelection*`, `QRangeModel`
 - **Animation:** `QAbstractAnimation`, `QVariantAnimation`, `QPropertyAnimation`, `QPauseAnimation`, `QSequentialAnimationGroup`, `QParallelAnimationGroup`, `QAnimationGroup`, `QEasingCurve`
-- **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDynamicPropertyChangeEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
+- **System and misc:** `QSysInfo`, `QOperatingSystemVersion`, `QLoggingCategory`, `QMessageLogger`, `QChildEvent`, `QDebugStateSaver`, `QGlobalStatic`, `QBEInteger`/`QLEInteger`, `qfloat16`, `QPartialOrdering`, permission classes, JNI and Windows-only classes
 
 ### Nt Network: implemented
 
@@ -234,7 +235,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 
 ## ntmoc: MIT moc replacement
 
-Qt's moc is not used. `ntmoc` (`tools/ntmoc`) is a small MIT scanner that generates the bodies of signals declared without one:
+Qt's moc is not used. `ntmoc` (`tools/ntmoc`) is a small MIT scanner. For each `Q_OBJECT` or `Q_GADGET` class and each `Q_NAMESPACE` namespace it generates the meta-object (signals, slots, `Q_INVOKABLE` methods and constructors, `Q_PROPERTY`, `Q_ENUM`/`Q_FLAG`, `Q_CLASSINFO`), and it generates the bodies of signals declared without one:
 
 ```cpp
 class Counter : public QObject {
@@ -246,7 +247,7 @@ signals:
 };
 ```
 
-It handles namespaces, nested classes, overloaded signals (use `qOverload`), default arguments and unnamed parameters. Signals with a hand-written body (`{ emitSignal(&Counter::valueChanged, value); }`) also work without ntmoc. Limitations: classes must have `Q_OBJECT`; signals of template classes are not supported; parameter names are guessed by a heuristic, not a C++ parser.
+It handles namespaces, nested classes, overloaded signals (use `qOverload`), default arguments (each shorter call is a meta-method of its own, as in Qt) and unnamed parameters. Signals with a hand-written body (`{ emitSignal(&Counter::valueChanged, value); }`) also work, and a `Q_OBJECT` class that ntmoc never processes still compiles and connects with pointers to member functions, but it has no meta-object of its own: `QObject::metaObject()` then returns that of its nearest processed base class, and `SIGNAL()`/`SLOT()` strings cannot name its members. Limitations: classes must have `Q_OBJECT`; signals and slots of template classes are not supported; the preprocessor is not run, so members that macros declare are not seen; parameter names are guessed by a heuristic, not a C++ parser. The Nt libraries are processed too (`nt_moc_library()` in `cmake/NtMoc.cmake`); a new `Q_OBJECT` class in a library ends its source file with `#include "moc_<header>.cpp"`.
 
 ### CMake
 
@@ -293,7 +294,7 @@ The `docs` target fails on any broken link or bad parameter name. `coverage.txt`
 
 ## Also not supported
 
-`SIGNAL()`/`SLOT()` string connections, `BlockingQueuedConnection`, `UniqueConnection`, and `Q_PROPERTY`/`Q_GADGET`/`Q_ENUM` (the macros compile to nothing, so `ntmoc` only generates signal bodies).
+`BlockingQueuedConnection`, `UniqueConnection`, bindable properties (`BINDABLE`, `QProperty`) and `qt_metacast()`.
 
 ## TLS
 

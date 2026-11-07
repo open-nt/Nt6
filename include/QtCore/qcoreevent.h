@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qbytearray.h>
 #include <QtCore/qglobal.h>
 
 class QEvent {
@@ -15,6 +16,7 @@ public:
         \value MetaCall A queued signal-slot invocation, handled by QObject::event().
         \value ThreadChange The object is about to move to another thread; see QObject::moveToThread().
         \value SockAct A socket notifier became active; see QSocketNotifier.
+        \value DynamicPropertyChange A dynamic property was added, changed or removed; delivered as a QDynamicPropertyChangeEvent.
         \value DeferredDelete The receiver should be deleted; posted by QObject::deleteLater().
         \value User The first value available for application-defined events.
         \value MaxUser The last value available for application-defined events.
@@ -25,6 +27,7 @@ public:
         ThreadChange = 22,
         MetaCall = 43,
         SockAct = 50,
+        DynamicPropertyChange = 170,
         DeferredDelete = 52,
         User = 1000,
         MaxUser = 65535
@@ -92,4 +95,22 @@ public:
 
 private:
     int id;
+};
+
+class QDynamicPropertyChangeEvent : public QEvent {
+public:
+    /*!
+        Constructs a dynamic property change event for the property called \a name.
+    */
+    explicit QDynamicPropertyChangeEvent(const QByteArray &name) : QEvent(DynamicPropertyChange), m_name(name) {}
+    ~QDynamicPropertyChangeEvent() override;
+    /*!
+        Returns the name of the dynamic property that was added, changed or removed.
+
+        \sa QObject::setProperty()
+    */
+    QByteArray propertyName() const { return m_name; }
+
+private:
+    QByteArray m_name;
 };

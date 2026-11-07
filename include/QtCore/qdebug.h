@@ -72,6 +72,18 @@ public:
     */
     QDebug &nospace() { s->space = false; return *this; }
     /*!
+        Returns \c true if spaces are inserted between values automatically.
+
+        \sa setAutoInsertSpaces(), space(), nospace()
+    */
+    bool autoInsertSpaces() const { return s->space; }
+    /*!
+        Sets whether spaces are inserted between values automatically to \a b.
+
+        \sa autoInsertSpaces(), space(), nospace()
+    */
+    void setAutoInsertSpaces(bool b) { s->space = b; }
+    /*!
         Writes a space character to the stream if spaces are enabled, and
         returns a reference to the stream.
 
@@ -267,6 +279,7 @@ private:
 
 template <typename T>
 QDebug operator<<(QDebug d, const QList<T> &l) {
+    const bool spaces = d.autoInsertSpaces();
     d.nospace() << "(";
     for (qsizetype i = 0; i < l.size(); ++i) {
         if (i)
@@ -274,29 +287,67 @@ QDebug operator<<(QDebug d, const QList<T> &l) {
         d << l.at(i);
     }
     d << ")";
-    d.space();
+    d.setAutoInsertSpaces(spaces);
     return d.maybeSpace();
 }
 
 template <typename K, typename V>
 QDebug operator<<(QDebug d, const QMap<K, V> &m) {
+    const bool spaces = d.autoInsertSpaces();
     d.nospace() << "QMap(";
     for (auto it = m.cbegin(); it != m.cend(); ++it)
         d << "(" << it.key() << ", " << it.value() << ")";
     d << ")";
-    d.space();
+    d.setAutoInsertSpaces(spaces);
     return d.maybeSpace();
 }
 
 template <typename K, typename V>
 QDebug operator<<(QDebug d, const QHash<K, V> &m) {
+    const bool spaces = d.autoInsertSpaces();
     d.nospace() << "QHash(";
     for (auto it = m.cbegin(); it != m.cend(); ++it)
         d << "(" << it.key() << ", " << it.value() << ")";
     d << ")";
-    d.space();
+    d.setAutoInsertSpaces(spaces);
     return d.maybeSpace();
 }
+
+class QDate;
+class QTime;
+class QDateTime;
+class QUrl;
+class QUuid;
+class QVersionNumber;
+class QBitArray;
+class QPoint;
+class QPointF;
+class QSize;
+class QSizeF;
+class QLine;
+class QLineF;
+class QRect;
+class QRectF;
+class QMargins;
+class QMarginsF;
+
+QDebug operator<<(QDebug d, const QDate &date);
+QDebug operator<<(QDebug d, const QTime &time);
+QDebug operator<<(QDebug d, const QDateTime &dateTime);
+QDebug operator<<(QDebug d, const QUrl &url);
+QDebug operator<<(QDebug d, const QUuid &uuid);
+QDebug operator<<(QDebug d, const QVersionNumber &version);
+QDebug operator<<(QDebug d, const QBitArray &bits);
+QDebug operator<<(QDebug d, const QPoint &p);
+QDebug operator<<(QDebug d, const QPointF &p);
+QDebug operator<<(QDebug d, const QSize &s);
+QDebug operator<<(QDebug d, const QSizeF &s);
+QDebug operator<<(QDebug d, const QLine &l);
+QDebug operator<<(QDebug d, const QLineF &l);
+QDebug operator<<(QDebug d, const QRect &r);
+QDebug operator<<(QDebug d, const QRectF &r);
+QDebug operator<<(QDebug d, const QMargins &m);
+QDebug operator<<(QDebug d, const QMarginsF &m);
 
 QDebug qDebug();
 QDebug qInfo();

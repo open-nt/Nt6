@@ -17,6 +17,10 @@
     box->setChecked(true);
     \endcode
 
+    Check boxes: unchecked, checked, with the keyboard focus, and disabled.
+
+    \image widgets/qcheckbox.png QCheckBox in the light color scheme
+
     \differences
     There are no tristate check boxes and no \c stateChanged() signal or \c checkState(); use toggled() and isChecked().
     \enddifferences

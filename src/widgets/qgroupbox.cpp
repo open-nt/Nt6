@@ -25,6 +25,10 @@
 
     A checkable group box has a check box in its title, and its children are disabled while it is unchecked.
 
+    Group boxes: plain, checkable and checked, and checkable and unchecked, which disables what is inside.
+
+    \image widgets/qgroupbox.png QGroupBox in the light color scheme
+
     \differences
     The title is always at the top left: there is no \c setAlignment(), and no \c setFlat(). The children are enabled
     and disabled when the group box is checked and unchecked, but not when they are added later.

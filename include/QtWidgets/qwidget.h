@@ -133,6 +133,9 @@ public:
     bool hasMouseTracking() const;
     bool underMouse() const;
 
+    // Rendering
+    void render(QPaintDevice *target, const QPoint &targetOffset = QPoint(), const QRegion &sourceRegion = QRegion());
+
     // Layout
     QLayout *layout() const;
     void setLayout(QLayout *layout);

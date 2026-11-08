@@ -20,6 +20,10 @@
     The button is drawn by the style: it looks pressed while it is down, and shows the keyboard focus. The
     Return and Enter keys click the button while it has the focus, as Space does.
 
+    Push buttons: normal, with the keyboard focus, pressed, checked, flat, and disabled.
+
+    \image widgets/qpushbutton.png QPushButton in the light color scheme
+
     \differences
     There are no icons, menus, \c autoDefault, \c setDefault() or default button handling in dialogs, and no QDialog.
     \enddifferences

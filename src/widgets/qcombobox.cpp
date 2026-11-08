@@ -182,6 +182,10 @@ private:
     The list is a widget inside the window of the combo box, not a window of its own, so it never reaches outside
     the window. It opens below the combo box, or above it if there is more room there.
 
+    Combo boxes: closed, disabled, and open, with the list below it.
+
+    \image widgets/qcombobox.png QComboBox in the light color scheme
+
     \differences
     The items are plain texts: there are no icons, no item data (\c setItemData(), \c currentData()), no model or
     delegate, and no \c QComboBox::InsertPolicy. A combo box cannot be edited (\c setEditable()), and has no

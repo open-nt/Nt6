@@ -136,6 +136,10 @@
     \li Pages with a row of tabs to choose the page.
     \endtable
 
+    The page of each widget class shows how the widget is drawn: normal, with the keyboard focus, pressed, checked,
+    read-only and disabled where that applies, in the light color scheme. The pictures are made by the
+    \c render_widgets program, which calls QWidget::render() to paint the widgets on an image.
+
     \section1 What Is Not There Yet
 
     There are no lists and tables, text editing of more than a line, menus, dialogs, grid or form layouts, and no

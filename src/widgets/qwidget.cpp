@@ -16,6 +16,18 @@
 
 #include <algorithm>
 
+namespace {
+
+// The device that render() paints on, while it runs: the widget it started from and where that widget is on the device.
+struct RenderContext {
+    QPaintDevice *target = nullptr;
+    const QWidget *root = nullptr;
+    QPoint origin;
+};
+RenderContext g_render;
+
+} // namespace
+
 namespace QtPrivate {
 
 std::vector<QWidget *> WidgetAccess::childWidgets(const QWidget *w) {
@@ -79,6 +91,29 @@ void WidgetAccess::paintRecursive(QWidget *w, const QPoint &origin, const QRect 
     }
     for (QWidget *child : childWidgets(w))
         paintRecursive(child, origin + child->pos(), visible, dirty);
+}
+
+void WidgetAccess::renderRecursive(QWidget *w, const QPoint &origin, const QRect &parentVisible, const QRegion &dirty) {
+    const QRect visible = QRect(origin, w->size()).intersected(parentVisible);
+    if (visible.isEmpty() || (w != g_render.root && data(w).hiddenExplicitly))
+        return;
+    QWidget::Data &d = data(w);
+    const QRegion region = dirty.intersected(visible);
+    if (!region.isEmpty()) {
+        d.painting = true;
+        d.paintClip = region;
+        if (w->isWindow() || d.autoFill) {
+            QPainter painter(w);
+            painter.fillRect(w->rect(), w->palette().color(w->isEnabled() ? QPalette::Active : QPalette::Disabled,
+                                                           QPalette::Window));
+        }
+        QPaintEvent event(region.translated(-origin));
+        QCoreApplication::sendEvent(w, &event);
+        d.painting = false;
+        d.paintClip = QRegion();
+    }
+    for (QWidget *child : childWidgets(w))
+        renderRecursive(child, origin + child->pos(), visible, dirty);
 }
 
 void WidgetAccess::paintTree(QWidget *top, const QRegion &region) {
@@ -225,7 +260,7 @@ using QtPrivate::WidgetAccess;
     \differences
     The widget has no window flags (\c Qt::Window, \c Qt::Dialog, \c Qt::Tool and so on), no widget
     attributes (\c setAttribute()), no \c windowIcon(), cursor, tool tip, context menu, actions,
-    shortcuts, \c grab(), \c render(), \c setFocusProxy(), \c setTabOrder(), \c stackUnder(),
+    shortcuts, \c grab(), \c setFocusProxy(), \c setTabOrder(), \c stackUnder(),
     \c setWindowOpacity() or transparent windows. Only top-level widgets are native windows, and
     a widget that is a window has its geometry set on the QWindow without a window frame, so
     \c frameGeometry() is not provided. \c raise() and \c lower() reorder the children of a parent, and
@@ -320,6 +355,16 @@ int QWidget::metric(PaintDeviceMetric m) const {
     \reimp
 */
 QPaintDevice *QWidget::redirected(QPoint *offset) const {
+    // While render() paints a tree of widgets, they paint on the device that it was given.
+    if (g_render.target) {
+        for (const QWidget *w = this; w; w = w->parentWidget()) {
+            if (w == g_render.root) {
+                *offset +=
+                    WidgetAccess::windowOffset(this) - WidgetAccess::windowOffset(g_render.root) + g_render.origin;
+                return g_render.target;
+            }
+        }
+    }
     const QWidget *top = window();
     if (!top->m_d->window)
         return nullptr;
@@ -335,6 +380,33 @@ bool QWidget::systemClip(QRegion *region) const {
         return false;
     *region = m_d->paintClip;
     return true;
+}
+
+/*!
+    Paints the widget and its visible children on \a target, with the top left corner of the widget at
+    \a targetOffset. Only \a sourceRegion of the widget is painted if it is not empty. The widget need not be
+    shown: it is painted as it would look, at its current size, with its layout done, and a widget that is hidden
+    with hide() is left out. A window has its background painted first.
+
+    The pixels of \a target are those of the device, so a QImage with a device pixel ratio of 2 gets a picture with
+    twice as many pixels. Use it to take a picture of a widget:
+
+    \code
+    QImage image(widget->size() * 2, QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(2.0);
+    widget->render(&image);
+    \endcode
+
+    \sa QPainter, QImage::setDevicePixelRatio()
+*/
+void QWidget::render(QPaintDevice *target, const QPoint &targetOffset, const QRegion &sourceRegion) {
+    if (!target || target->paintingActive() || g_render.target)
+        return;
+    WidgetAccess::activateLayout(this);
+    const QRegion source = sourceRegion.isEmpty() ? QRegion(rect()) : sourceRegion.intersected(rect());
+    g_render = {target, this, targetOffset};
+    WidgetAccess::renderRecursive(this, targetOffset, QRect(targetOffset, size()), source.translated(targetOffset));
+    g_render = RenderContext();
 }
 
 /*!

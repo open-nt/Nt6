@@ -634,6 +634,16 @@ if(NT_BUILD_EXAMPLES)
     target_link_libraries(gallery PRIVATE Nt::Widgets)
     nt_set_compile_options(gallery)
 
+    # Renders each widget in its states to doc/images/widgets, the pictures of the reference documentation:
+    #   cmake --build build --target widget_images
+    add_executable(render_widgets examples/widgets/render_widgets.cpp)
+    target_link_libraries(render_widgets PRIVATE Nt::Widgets)
+    nt_set_compile_options(render_widgets)
+    add_custom_target(widget_images
+        COMMAND render_widgets "${CMAKE_CURRENT_SOURCE_DIR}/doc/images"
+        COMMENT "Rendering the widgets to doc/images/widgets"
+        VERBATIM)
+
     # The same widget examples against Qt 6, as hello_widgets_qt and gallery_qt in qt-examples/. They are built
     # by a project of their own, because Nt provides the Qt6:: names itself.
     if(NT_EXAMPLES_QT)

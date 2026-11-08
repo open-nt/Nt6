@@ -24,6 +24,10 @@
     small->setChecked(true);
     \endcode
 
+    Radio buttons: not chosen, chosen, with the keyboard focus, and disabled.
+
+    \image widgets/qradiobutton.png QRadioButton in the light color scheme
+
     \differences
     Groups are made by the parent widget only; there is no \c QButtonGroup.
     \enddifferences

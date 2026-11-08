@@ -20,6 +20,10 @@
     The text is drawn in the WindowText color of the palette with the font of the widget. A label with
     word wrap breaks lines at the width it gets.
 
+    A label: plain, bold and larger, word-wrapped, right-aligned, and disabled.
+
+    \image widgets/qlabel.png QLabel in the light color scheme
+
     \differences
     The label shows plain text only: no rich text, images, movies, links, selection or buddies. It has no frame
     (it is not a QFrame), \c indent(), \c textFormat(), \c setPixmap() or \c setBuddy(). A word-wrapped label

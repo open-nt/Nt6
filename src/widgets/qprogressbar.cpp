@@ -22,6 +22,10 @@
     bar->setValue(50);
     \endcode
 
+    Progress bars: without a value, at 35 percent, complete, with a format, without text, and disabled.
+
+    \image widgets/qprogressbar.png QProgressBar in the light color scheme
+
     \differences
     The bar is horizontal and grows from the left: there is no \c setOrientation() and no \c setInvertedAppearance(). There
     is no busy indicator for a range of 0 to 0, which shows an empty bar, and no \c setTextDirection(). The text is

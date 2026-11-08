@@ -65,6 +65,10 @@ protected:
     connect(size, &QSpinBox::valueChanged, [](int value) { qDebug() << value; });
     \endcode
 
+    Spin boxes: plain, with a suffix and the keyboard focus, with a prefix, at the largest value, and disabled.
+
+    \image widgets/qspinbox.png QSpinBox in the light color scheme
+
     \differences
     There is no \c QAbstractSpinBox base class, \c QDoubleSpinBox, \c setSpecialValueText(), \c displayIntegerBase(),
     \c setAccelerated(), \c setButtonSymbols() or \c setKeyboardTracking(), and the buttons do not repeat while they

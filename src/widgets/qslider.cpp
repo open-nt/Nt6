@@ -23,6 +23,10 @@
 
     A horizontal slider has its smallest value at the left, a vertical one at the bottom.
 
+    Sliders at different values, one with the keyboard focus, one disabled, and a vertical one.
+
+    \image widgets/qslider.png QSlider in the light color scheme
+
     \differences
     There are no tick marks (\c setTickPosition(), \c setTickInterval()), no \c invertedAppearance, no
     \c invertedControls, no \c triggerAction() or \c actionTriggered(), and no \c QAbstractSlider base class. The range

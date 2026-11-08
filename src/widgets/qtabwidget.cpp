@@ -140,6 +140,10 @@ private:
     them in any other way than a parent owns its children: a page that is removed with removeTab() is not deleted,
     and deleting a page removes its tab.
 
+    A tab widget with the first tab current and the last one disabled.
+
+    \image widgets/qtabwidget.png QTabWidget in the light color scheme
+
     \differences
     There is no \c QTabBar class, and the tabs are always above the pages: no \c setTabPosition(), \c setTabShape(),
     \c setMovable(), \c setTabsClosable(), \c setDocumentMode(), tab icons, tool tips, corner widgets

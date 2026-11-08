@@ -58,6 +58,8 @@ struct WidgetAccess {
     static QWidget *widgetAt(QWidget *root, const QPoint &p);
     static void paintRecursive(QWidget *w, const QPoint &origin, const QRect &parentVisible, const QRegion &dirty);
     static void paintTree(QWidget *top, const QRegion &region);
+    // Paints `w` and its children on the device of the render() that is running; `origin` is where `w` is on it.
+    static void renderRecursive(QWidget *w, const QPoint &origin, const QRect &parentVisible, const QRegion &dirty);
     static void applyLocalGeometry(QWidget *w, const QRect &rect);
     static void sendShowEvents(QWidget *w);
     static void sendHideEvents(QWidget *w);

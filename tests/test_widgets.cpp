@@ -380,6 +380,92 @@ static void testApplication() {
     CHECK(alive == 1 && QApplication::style() != nullptr);
 }
 
+static void testRender() {
+    QWidget top;
+    top.resize(120, 60);
+    auto *layout = new QVBoxLayout(&top);
+    QPushButton button("Press", &top);
+    QCheckBox box("Check", &top);
+    layout->addWidget(&button);
+    layout->addWidget(&box);
+    const QRgb window = top.palette().color(QPalette::Window).rgb();
+
+    // A widget that has not been shown is painted with its layout done, over the background of the window
+    QImage image(120, 60, QImage::Format_ARGB32_Premultiplied);
+    image.fill(0u);
+    top.render(&image);
+    CHECK(image.pixel(1, 1) == window && image.pixel(119, 59) == window);
+    CHECK(button.geometry().width() > 60 && image.pixel(button.geometry().center()) != window);
+
+    // The picture is the one the window shows
+    top.show();
+    const QImage shown = grab(&top);
+    QImage again(top.size(), QImage::Format_ARGB32_Premultiplied);
+    again.fill(0u);
+    top.render(&again);
+    int differing = 0;
+    for (int y = 0; y < shown.height(); ++y)
+        for (int x = 0; x < shown.width(); ++x)
+            differing += shown.pixel(x, y) != again.pixel(x, y);
+    CHECK(shown.size() == again.size());
+    CHECK(differing == 0);
+
+    // A target offset, and a device with twice the pixels
+    QImage bigger(160, 100, QImage::Format_ARGB32_Premultiplied);
+    bigger.fill(0u);
+    top.render(&bigger, QPoint(20, 30));
+    CHECK(bigger.pixel(10, 10) == 0u && bigger.pixel(21, 31) == window && bigger.pixel(139, 89) == window);
+    CHECK(bigger.pixel(QPoint(20, 30) + button.geometry().center()) == image.pixel(button.geometry().center()));
+    QImage sharp(240, 120, QImage::Format_ARGB32_Premultiplied);
+    sharp.setDevicePixelRatio(2.0);
+    sharp.fill(0u);
+    top.render(&sharp);
+    CHECK(sharp.pixel(3, 3) == window && sharp.pixel(237, 117) == window);
+    CHECK(sharp.pixel(button.geometry().center() * 2) != window);
+
+    // A part of the widget, and a child that is hidden
+    QImage part(120, 60, QImage::Format_ARGB32_Premultiplied);
+    part.fill(0u);
+    top.render(&part, QPoint(), QRegion(QRect(0, 0, 30, 60)));
+    CHECK(part.pixel(10, 10) == window && part.pixel(60, 10) == 0u);
+    QWidget plain;
+    plain.resize(120, 60);
+    QPushButton loose("Loose", &plain); // not in a layout, so it stays where it is put
+    loose.setGeometry(70, 20, 40, 30);
+    QImage withLoose(120, 60, QImage::Format_ARGB32_Premultiplied);
+    withLoose.fill(0u);
+    plain.render(&withLoose);
+    auto inkIn = [&](const QImage &img, const QRect &r) {
+        int n = 0;
+        for (int y = r.top(); y <= r.bottom(); ++y)
+            for (int x = r.left(); x <= r.right(); ++x)
+                n += img.pixel(x, y) != window;
+        return n;
+    };
+    CHECK(inkIn(withLoose, loose.geometry()) > 20);
+    loose.hide();
+    QImage hidden(120, 60, QImage::Format_ARGB32_Premultiplied);
+    hidden.fill(0u);
+    plain.render(&hidden);
+    CHECK(inkIn(hidden, loose.geometry()) == 0);
+    box.hide();
+    box.show();
+
+    // A child can be rendered on its own
+    box.show();
+    QImage own(box.width(), box.height(), QImage::Format_ARGB32_Premultiplied);
+    own.fill(0u);
+    box.render(&own);
+    int inked = 0;
+    for (int y = 0; y < own.height(); ++y)
+        for (int x = 0; x < own.width(); ++x)
+            inked += own.pixel(x, y) != 0u;
+    CHECK(inked > 50);
+    QPainter busy(&own);
+    top.render(&own); // a device with an active painter is refused
+    busy.end();
+}
+
 static void testSizeHelpersAndOptions() {
     Probe w;
     QStyleOption option;
@@ -1777,6 +1863,7 @@ int main(int argc, char **argv) {
     testSizePolicy();
     testPalette();
     testApplication();
+    testRender();
     testSizeHelpersAndOptions();
     testWidgetBasics();
     testVisibilityAndEnabled();

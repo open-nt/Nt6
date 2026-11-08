@@ -25,6 +25,10 @@
     connect(name, &QLineEdit::textChanged, [](const QString &text) { qDebug() << text; });
     \endcode
 
+    Line edits: with a placeholder, with the cursor, with a selection, in password mode, read-only, and disabled.
+
+    \image widgets/qlineedit.png QLineEdit in the light color scheme
+
     \differences
     There is no clipboard (cut, copy, paste), undo and redo, drag and drop, context menu, input mask,
     \c QValidator, \c QCompleter, alignment, \c setClearButtonEnabled() or \c inputMethodHints(). The cursor does not

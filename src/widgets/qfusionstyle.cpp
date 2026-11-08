@@ -5,6 +5,7 @@
 #include <QtGui/qpainter.h>
 #include <QtGui/qstylehints.h>
 #include <QtWidgets/qstyleoption.h>
+#include <QtWidgets/qwidget.h>
 
 #include <algorithm>
 
@@ -196,10 +197,9 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
 
 int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const {
     (void)option;
-    (void)widget;
     switch (metric) {
     case PM_ButtonMargin:
-        return 8;
+        return 6;
     case PM_DefaultFrameWidth:
         return 1;
     case PM_IndicatorWidth:
@@ -211,7 +211,8 @@ int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, co
     case PM_LayoutTopMargin:
     case PM_LayoutRightMargin:
     case PM_LayoutBottomMargin:
-        return 9;
+        // As in Qt, a window has a wider margin than a widget inside it.
+        return widget && widget->isWindow() ? 11 : 9;
     case PM_LayoutHorizontalSpacing:
     case PM_LayoutVerticalSpacing:
         return 6;
@@ -224,13 +225,20 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
     switch (type) {
     case CT_PushButton: {
         const int m = pixelMetric(PM_ButtonMargin, option, widget);
-        return QSize(std::max(75, contentsSize.width() + 2 * m), std::max(23, contentsSize.height() + m + 2));
+        const int frame = 2 * pixelMetric(PM_DefaultFrameWidth, option, widget);
+        const auto *button = option && option->type == QStyleOption::SO_Button
+                                 ? static_cast<const QStyleOptionButton *>(option)
+                                 : nullptr;
+        const bool hasText = button && !button->text.isEmpty();
+        const int width = contentsSize.width() + m + frame + 6;
+        return QSize(hasText ? std::max(80, width) : width, contentsSize.height() + m + frame);
     }
     case CT_CheckBox: {
         const int indicator = pixelMetric(PM_IndicatorWidth, option, widget);
         const int spacing = pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
-        return QSize(indicator + (contentsSize.width() > 0 ? spacing + contentsSize.width() : 0),
-                     std::max(indicator, contentsSize.height()) + 2);
+        // The label has 4 pixels of margin besides the spacing; the height is one more than the contents need.
+        return QSize(indicator + (contentsSize.width() > 0 ? 4 + spacing + contentsSize.width() : 0),
+                     std::max(indicator, contentsSize.height() + 4) + 1);
     }
     case CT_LineEdit: {
         const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
@@ -245,18 +253,23 @@ QPalette QFusionStyle::standardPalette() const {
     QPalette palette;
     if (!hints || hints->colorScheme() != Qt::ColorScheme::Dark)
         return palette;
-    palette.setColor(QPalette::Window, QColor(0x2b, 0x2d, 0x31));
-    palette.setColor(QPalette::WindowText, QColor(0xe6, 0xe6, 0xe6));
-    palette.setColor(QPalette::Base, QColor(0x1e, 0x1f, 0x22));
-    palette.setColor(QPalette::AlternateBase, QColor(0x2b, 0x2d, 0x31));
-    palette.setColor(QPalette::Text, QColor(0xe6, 0xe6, 0xe6));
-    palette.setColor(QPalette::Button, QColor(0x3b, 0x3e, 0x44));
-    palette.setColor(QPalette::ButtonText, QColor(0xe6, 0xe6, 0xe6));
-    palette.setColor(QPalette::Light, QColor(0x4b, 0x4f, 0x57));
-    palette.setColor(QPalette::Dark, QColor(0x17, 0x18, 0x1a));
+    // The neutral grays that Qt's Fusion style uses for its dark scheme.
+    palette.setColor(QPalette::Window, QColor(0x2a, 0x2a, 0x2a));
+    palette.setColor(QPalette::WindowText, Qt::white);
+    palette.setColor(QPalette::Base, QColor(0x1e, 0x1e, 0x1e));
+    palette.setColor(QPalette::AlternateBase, QColor(0x2a, 0x2a, 0x2a));
+    palette.setColor(QPalette::Text, Qt::white);
+    palette.setColor(QPalette::Button, QColor(0x3b, 0x3b, 0x3b));
+    palette.setColor(QPalette::ButtonText, Qt::white);
+    // The shades around the button color are made from it, as QPalette(button, window) does.
+    const QColor button(0x3b, 0x3b, 0x3b);
+    palette.setColor(QPalette::Light, button.lighter(150));
+    palette.setColor(QPalette::Midlight, button.lighter(115));
+    palette.setColor(QPalette::Mid, button.darker(125));
+    palette.setColor(QPalette::Dark, button.darker(150));
     palette.setColor(QPalette::Highlight, QColor(0x3d, 0x8e, 0xc9));
     palette.setColor(QPalette::HighlightedText, Qt::white);
     for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::ButtonText, QPalette::Text})
-        palette.setColor(QPalette::Disabled, role, QColor(0x7a, 0x7d, 0x85));
+        palette.setColor(QPalette::Disabled, role, QColor(0x7f, 0x7f, 0x7f));
     return palette;
 }

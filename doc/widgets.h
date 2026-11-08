@@ -27,13 +27,43 @@
     target_link_libraries(hello_widgets PRIVATE Nt::Widgets)
     \endcode
 
+    \section1 The Gallery
+
+    The \c gallery example shows what the widgets can do: layouts, check boxes and buttons, and custom widgets
+    (a meter, color swatches and a mouse pad) that draw with the palette and handle the mouse, wheel and keys.
+    It follows the color scheme of the desktop, and its \e{Dark theme} check box overrides it with
+    QStyleHints::setColorScheme(). The logo is drawn from its outlines at the device resolution, so that it stays sharp
+    on a high-resolution screen.
+
+    \image widgets-gallery-light.png The gallery example with the light color scheme
+    \image widgets-gallery-dark.png The gallery example with the dark color scheme
+
+    \section1 High-Resolution Screens and Dark Mode
+
+    The widgets are measured in window coordinates, and the screen decides how many pixels each one covers:
+    QScreen::devicePixelRatio() is 2 on a screen that asks for twice the usual density, and everything a QPainter draws is
+    scaled by it. On the \c xcb platform the ratio comes from the \c Xft.dpi resource, or from the
+    \c QT_SCALE_FACTOR environment variable. The default style follows the desktop's color scheme, which is read from the
+    desktop portal; set your own palette with QApplication::setPalette(), or the scheme with QStyleHints::setColorScheme().
+
+    \section1 Comparing with Qt
+
+    The widget examples use only the API that Nt shares with Qt, so the same sources build against Qt 6. Configure Nt with
+    \c{-DNT_EXAMPLES_QT=ON} and the \c qt_examples target builds them against Qt as \c hello_widgets_qt and \c gallery_qt in
+    the \c qt-examples directory of the build tree, or build \c examples/qt as a project of its own. Run both with the same
+    font and the Fusion style (\c{QT_STYLE_OVERRIDE=Fusion}) to compare. Nt follows the layout of Qt's Fusion style:
+    the sizes of buttons and check boxes, the margins and spacing, and how a layout shares out space, so the widgets of the
+    two sit at the same coordinates. What remains different is small: Qt snaps text to whole pixel sizes, which makes it
+    a little narrower (about 2 percent), the buttons are shaded differently and the check box does not have the same check
+    mark, and Nt draws a focus indicator on a check box that has the focus without the keyboard.
+
     \section1 Layouts
 
     A QVBoxLayout stacks widgets from top to bottom, and a QHBoxLayout lines them up from left to right.
     Layouts can be put in other layouts with addLayout(). A layout asks every widget for its
-    QWidget::sizeHint() and QWidget::sizePolicy(), and shares out the space: widgets that want to expand
+    QWidget::sizeHint() and QWidget::sizePolicy(), and shares out the space as Qt does: widgets that want to expand
     (policy \c Expanding) or have a stretch factor get what is left over, and
-    widgets with a \c Fixed policy keep their hint. Call QWidget::updateGeometry() when the size hint of your own
+    widgets with a \c Fixed policy keep their hint, centered across the layout if it is wider than they are. Call QWidget::updateGeometry() when the size hint of your own
     widget changes, and the layout is done again from the event loop.
 
     \section1 Your Own Widgets

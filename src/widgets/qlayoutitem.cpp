@@ -3,6 +3,7 @@
 
 #include "qwidgetutil_p.h"
 
+#include <QtWidgets/qlayout.h>
 #include <QtWidgets/qwidget.h>
 
 #include <algorithm>
@@ -252,19 +253,36 @@ QSize QWidgetItem::minimumSize() const {
     \reimp
 */
 QSize QWidgetItem::maximumSize() const {
+    // Each direction on its own: a maximum that was set, or else what the policy allows.
     const QSize limit = m_widget->maximumSize();
-    if (limit.width() < QLAYOUTSIZE_MAX || limit.height() < QLAYOUTSIZE_MAX)
-        return QtPrivate::expandedTo(limit, m_widget->minimumSize());
+    const QSize lowest = m_widget->minimumSize();
     const QSizePolicy p = m_widget->sizePolicy();
     const QSize hint = validSize(m_widget->sizeHint());
-    return QSize((p.horizontalPolicy() & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX : hint.width(),
-                 (p.verticalPolicy() & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX : hint.height());
+    const int width = limit.width() < QLAYOUTSIZE_MAX                  ? std::max(limit.width(), lowest.width())
+                      : (p.horizontalPolicy() & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX
+                                                                       : hint.width();
+    const int height = limit.height() < QLAYOUTSIZE_MAX               ? std::max(limit.height(), lowest.height())
+                       : (p.verticalPolicy() & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX
+                                                                      : hint.height();
+    return QSize(width, height);
 }
 
 /*!
     \reimp
 */
-Qt::Orientations QWidgetItem::expandingDirections() const { return m_widget->sizePolicy().expandingDirections(); }
+Qt::Orientations QWidgetItem::expandingDirections() const {
+    const QSizePolicy policy = m_widget->sizePolicy();
+    Qt::Orientations directions = policy.expandingDirections();
+    // As in Qt, a widget with a layout that wants room also expands where its policy lets it grow.
+    if (const QLayout *layout = m_widget->layout()) {
+        const Qt::Orientations inside = layout->expandingDirections();
+        if ((policy.horizontalPolicy() & QSizePolicy::GrowFlag) && (inside & Qt::Horizontal))
+            directions |= Qt::Horizontal;
+        if ((policy.verticalPolicy() & QSizePolicy::GrowFlag) && (inside & Qt::Vertical))
+            directions |= Qt::Vertical;
+    }
+    return directions;
+}
 
 /*!
     \reimp

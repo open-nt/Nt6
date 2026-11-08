@@ -29,7 +29,7 @@
 */
 QCheckBox::QCheckBox(QWidget *parent) : QAbstractButton(parent) {
     setCheckable(true);
-    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
 }
 
 /*!
@@ -37,7 +37,7 @@ QCheckBox::QCheckBox(QWidget *parent) : QAbstractButton(parent) {
 */
 QCheckBox::QCheckBox(const QString &text, QWidget *parent) : QAbstractButton(parent) {
     setCheckable(true);
-    setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
     setText(text);
 }
 

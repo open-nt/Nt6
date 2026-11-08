@@ -58,7 +58,8 @@ public:
                                const QWidget *widget = nullptr) const = 0;
     virtual void drawControl(ControlElement element, const QStyleOption *option, QPainter *painter,
                              const QWidget *widget = nullptr) const = 0;
-    virtual QRect subElementRect(SubElement element, const QStyleOption *option, const QWidget *widget = nullptr) const = 0;
+    virtual QRect subElementRect(SubElement element, const QStyleOption *option,
+                                 const QWidget *widget = nullptr) const = 0;
     virtual int pixelMetric(PixelMetric metric, const QStyleOption *option = nullptr,
                             const QWidget *widget = nullptr) const = 0;
     virtual QSize sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize,

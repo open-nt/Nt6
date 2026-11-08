@@ -35,6 +35,7 @@ public:
     int count() const override { return static_cast<int>(m_items.size()); }
     QSize sizeHint() const override;
     QSize minimumSize() const override;
+    Qt::Orientations expandingDirections() const override;
     void setGeometry(const QRect &rect) override;
 
 private:

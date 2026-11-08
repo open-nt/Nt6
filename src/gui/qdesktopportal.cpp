@@ -36,8 +36,7 @@ QDesktopPortalSettings::QDesktopPortalSettings(QObject *parent) : QObject(parent
             m_scheme = schemeFromValue(value.toUInt());
     }
     bus.connect(QString::fromLatin1(kService), QString::fromLatin1(kPath), QString::fromLatin1(kInterface),
-                QString::fromLatin1("SettingChanged"), this,
-                SLOT(settingChanged(QString, QString, QDBusVariant)));
+                QString::fromLatin1("SettingChanged"), this, SLOT(settingChanged(QString, QString, QDBusVariant)));
 }
 
 Qt::ColorScheme QDesktopPortalSettings::schemeFromValue(unsigned value) {

@@ -18,45 +18,177 @@ struct Cell {
     int hint;
     int max;
     bool expansive;
-    int size;
+    bool empty; // spacers and empty layouts: no spacing is put next to them
+    int size = 0;
+    bool done = false;
+
+    // An item with a stretch factor starts from its minimum size and gets its size from the stretch.
+    int smartHint() const { return stretch > 0 ? min : hint; }
 };
 
-// Gives `extra` pixels to the cells that `eligible` selects, in proportion to `weight`, never past the maximum.
-template <typename Eligible, typename Weight>
-void grow(std::vector<Cell> &cells, int extra, Eligible eligible, Weight weight) {
-    while (extra > 0) {
-        long long total = 0;
-        for (const Cell &s : cells)
-            if (eligible(s) && s.size < s.max)
-                total += weight(s);
-        if (total <= 0)
-            return;
-        int used = 0;
-        bool clamped = false;
-        for (Cell &s : cells) {
-            if (!eligible(s) || s.size >= s.max)
-                continue;
-            const int share = static_cast<int>(static_cast<long long>(extra) * weight(s) / total);
-            const int give = std::min(share, s.max - s.size);
-            s.size += give;
-            used += give;
-            if (give < share)
-                clamped = true;
+int fixedRound(double v) { return static_cast<int>(std::lround(v)); }
+
+// Shares `space` between the cells with `spacing` between the non-empty ones, as Qt's qGeomCalc() does. The sizes
+// come out in Cell::size. If no cell can take the space that is left, it is returned as extra spacing: put it before the
+// first cell and after every cell that has spacing.
+int calculate(std::vector<Cell> &cells, int space, int spacing) {
+    int leftover = 0;
+    int hintSum = 0, minSum = 0, stretchSum = 0, spacerCount = 0, pendingSpacing = -1;
+    bool wannaGrow = false;
+    for (Cell &c : cells) {
+        c.done = false;
+        hintSum += c.smartHint();
+        minSum += c.min;
+        stretchSum += c.stretch;
+        if (!c.empty) {
+            if (pendingSpacing >= 0)
+                ++spacerCount;
+            pendingSpacing = spacing;
         }
-        extra -= used;
-        if (!clamped) {
-            // What is left from rounding goes to the first cells, one pixel each.
-            for (Cell &s : cells) {
-                if (extra <= 0)
-                    break;
-                if (eligible(s) && s.size < s.max && weight(s) > 0) {
-                    ++s.size;
-                    --extra;
+        wannaGrow = wannaGrow || c.expansive || c.stretch > 0;
+    }
+    const int count = static_cast<int>(cells.size());
+
+    if (space < minSum + spacerCount * spacing) {
+        // Less than the minimum sizes: the spacing shrinks too, and the larger cells give up space first.
+        int minimum = minSum + spacerCount * spacing;
+        if (spacing >= 0) {
+            spacing = minimum > 0 ? spacing * space / minimum : 0;
+            minimum = spacerCount * spacing;
+        }
+        std::vector<int> minSizes;
+        minSizes.reserve(cells.size());
+        for (const Cell &c : cells)
+            minSizes.push_back(c.min);
+        std::sort(minSizes.begin(), minSizes.end());
+        const int spaceLeft = space - minimum;
+        int sum = 0, idx = 0, used = 0, current = 0;
+        while (idx < count && used < spaceLeft) {
+            current = minSizes[static_cast<std::size_t>(idx)];
+            used = sum + current * (count - idx);
+            sum += current;
+            ++idx;
+        }
+        --idx;
+        const int deficit = used - spaceLeft;
+        const int items = count - idx;
+        // Cells smaller than `current` keep their minimum; the rest share what is left, evenly.
+        if (items == 0 || idx < 0) {
+            for (Cell &c : cells)
+                c.size = c.min;
+        } else {
+            int surplus = deficit % items;
+            for (Cell &c : cells) {
+                if (c.min < current) {
+                    c.size = c.min;
+                } else {
+                    c.size = current - deficit / items;
+                    if (surplus > 0) {
+                        --c.size;
+                        --surplus;
+                    }
                 }
             }
-            return;
         }
+    } else if (space < hintSum + spacerCount * spacing) {
+        // Between the minimum and the hint: every cell gives up the same amount, within its minimum.
+        int n = count;
+        int spaceLeft = space - spacerCount * spacing;
+        for (Cell &c : cells) {
+            if (!c.done && c.min >= c.smartHint()) {
+                c.size = c.smartHint();
+                c.done = true;
+                spaceLeft -= c.smartHint();
+                --n;
+            }
+        }
+        int overdraft = -spaceLeft;
+        for (const Cell &c : cells)
+            if (!c.done)
+                overdraft += c.smartHint();
+        bool finished = n == 0;
+        while (!finished) {
+            finished = true;
+            double carry = 0.0;
+            for (Cell &c : cells) {
+                if (c.done)
+                    continue;
+                carry += static_cast<double>(overdraft) / n;
+                const int w = fixedRound(carry);
+                c.size = c.smartHint() - w;
+                carry -= w;
+                if (c.size < c.min) {
+                    c.done = true;
+                    c.size = c.min;
+                    finished = false;
+                    overdraft -= c.smartHint() - c.min;
+                    --n;
+                    break;
+                }
+            }
+        }
+    } else {
+        // More than the hints. Cells that cannot grow, and those that do not want to when another does, keep
+        // their hint; the others share the rest, by stretch or equally.
+        int n = count;
+        int spaceLeft = space - spacerCount * spacing;
+        for (Cell &c : cells) {
+            if (!c.done && (c.max <= c.smartHint() || (wannaGrow && c.stretch <= 0 && !c.expansive))) {
+                c.size = c.smartHint();
+                c.done = true;
+                spaceLeft -= c.smartHint();
+                stretchSum -= c.stretch;
+                --n;
+            }
+        }
+        // Try an even sharing and see how far off it is: when more space is missing than is spare, give the small cells
+        // what they need and try again; otherwise cap the large ones.
+        int surplus, deficit;
+        do {
+            surplus = deficit = 0;
+            double carry = 0.0;
+            for (Cell &c : cells) {
+                if (c.done)
+                    continue;
+                if (stretchSum <= 0)
+                    carry += static_cast<double>(spaceLeft) / n;
+                else
+                    carry += static_cast<double>(spaceLeft) * c.stretch / stretchSum;
+                const int w = fixedRound(carry);
+                c.size = w;
+                carry -= w;
+                if (w < c.smartHint())
+                    deficit += c.smartHint() - w;
+                else if (w > c.max)
+                    surplus += w - c.max;
+            }
+            if (deficit > 0 && surplus <= deficit) {
+                for (Cell &c : cells) {
+                    if (!c.done && c.size < c.smartHint()) {
+                        c.size = c.smartHint();
+                        c.done = true;
+                        spaceLeft -= c.smartHint();
+                        stretchSum -= c.stretch;
+                        --n;
+                    }
+                }
+            }
+            if (surplus > 0 && surplus >= deficit) {
+                for (Cell &c : cells) {
+                    if (!c.done && c.size > c.max) {
+                        c.size = c.max;
+                        c.done = true;
+                        spaceLeft -= c.max;
+                        stretchSum -= c.stretch;
+                        --n;
+                    }
+                }
+            }
+        } while (n > 0 && surplus != deficit);
+        if (n == 0)
+            leftover = spaceLeft;
     }
+    return leftover / (spacerCount + 2);
 }
 
 } // namespace
@@ -66,11 +198,12 @@ void grow(std::vector<Cell> &cells, int extra, Eligible eligible, Weight weight)
     \brief The QBoxLayout class lines up child widgets horizontally or vertically.
 
     A box layout puts its items in a row or a column, as its direction says. Each item gets its size hint
-    along the box, and the space that is left over (or missing) is shared out as follows. If any
-    item has a stretch factor, only the items with one grow, in proportion to the factors. Otherwise the items that
-    want to expand (their size policy has the Expanding flag, as a stretch item does) share the space equally, and if there
-    are none, all items that can grow do. If the box is too small, items shrink down to their minimum size in proportion to
-    how much they can shrink. Across the box, items fill the available space within their limits.
+    along the box, and the space that is left over (or missing) is shared out as in Qt. If the box is bigger than
+    the hints, the items with a stretch factor share the space in proportion to the factors; without any, the items
+    that want to expand (their size policy has the Expanding flag, as a spacer made by addStretch() does) share it
+    equally, and if there are none, all items that can grow do. An item is never larger than its maximum size
+    or smaller than its minimum. If the box is too small, every item gives up the same amount of its hint, down to its minimum
+    size. Spacers do not have spacing next to them. Across the box, items fill the available space within their limits, and are centered where they cannot fill it.
 
     \code
     QVBoxLayout *layout = new QVBoxLayout(window);
@@ -299,7 +432,8 @@ QSize QBoxLayout::sizeHint() const {
         const QSize s = e.item->sizeHint();
         along += horizontal() ? s.width() : s.height();
         across = std::max(across, horizontal() ? s.height() : s.width());
-        ++n;
+        if (!e.item->isEmpty()) // there is no spacing next to spacers
+            ++n;
     }
     if (n > 1)
         along += (n - 1) * spacing();
@@ -319,7 +453,8 @@ QSize QBoxLayout::minimumSize() const {
         const QSize s = e.item->minimumSize();
         along += horizontal() ? s.width() : s.height();
         across = std::max(across, horizontal() ? s.height() : s.width());
-        ++n;
+        if (!e.item->isEmpty()) // there is no spacing next to spacers
+            ++n;
     }
     if (n > 1)
         along += (n - 1) * spacing();
@@ -331,13 +466,27 @@ QSize QBoxLayout::minimumSize() const {
 /*!
     \reimp
 */
+Qt::Orientations QBoxLayout::expandingDirections() const {
+    Qt::Orientations directions;
+    for (const Entry &e : m_items) {
+        if (e.item->isEmpty() && !e.item->spacerItem())
+            continue;
+        directions |= e.item->expandingDirections();
+        if (e.stretch > 0)
+            directions |= horizontal() ? Qt::Horizontal : Qt::Vertical;
+    }
+    return directions;
+}
+
+/*!
+    \reimp
+*/
 void QBoxLayout::setGeometry(const QRect &rect) {
     QLayout::setGeometry(rect);
     const QRect r = rect.marginsRemoved(contentsMargins());
     const bool h = horizontal();
 
     std::vector<Cell> cells;
-    bool anyStretch = false;
     for (const Entry &e : m_items) {
         if (e.item->isEmpty() && !e.item->spacerItem())
             continue;
@@ -348,103 +497,19 @@ void QBoxLayout::setGeometry(const QRect &rect) {
         s.min = h ? mn.width() : mn.height();
         s.hint = std::max(s.min, h ? hint.width() : hint.height());
         s.max = std::max(s.hint, h ? mx.width() : mx.height());
-        s.expansive = e.item->expandingDirections().testFlag(h ? Qt::Horizontal : Qt::Vertical);
-        s.size = s.hint;
-        anyStretch = anyStretch || e.stretch > 0;
+        s.expansive = e.stretch > 0 || e.item->expandingDirections().testFlag(h ? Qt::Horizontal : Qt::Vertical);
+        s.empty = e.item->isEmpty();
         cells.push_back(s);
     }
     if (cells.empty())
         return;
 
     const int gap = spacing();
-    const int available = (h ? r.width() : r.height()) - static_cast<int>(cells.size() - 1) * gap;
-    int total = 0;
-    for (const Cell &s : cells)
-        total += s.size;
-
-    if (anyStretch) {
-        // Items with a stretch factor share what the others leave, in proportion to the factors, within their limits.
-        int fixed = 0;
-        for (const Cell &c : cells)
-            if (c.stretch <= 0)
-                fixed += c.size;
-        int remaining = available - fixed;
-        std::vector<Cell *> open;
-        long long weights = 0;
-        for (Cell &c : cells) {
-            if (c.stretch > 0) {
-                open.push_back(&c);
-                weights += c.stretch;
-            }
-        }
-        bool settled = false;
-        while (!settled && !open.empty()) {
-            settled = true;
-            for (auto it = open.begin(); it != open.end();) {
-                Cell &c = **it;
-                const int share =
-                    weights > 0 ? static_cast<int>(static_cast<long long>(remaining) * c.stretch / weights) : 0;
-                if (share < c.min || share > c.max) {
-                    c.size = share < c.min ? c.min : c.max;
-                    remaining -= c.size;
-                    weights -= c.stretch;
-                    it = open.erase(it);
-                    settled = false;
-                } else {
-                    ++it;
-                }
-            }
-        }
-        int given = 0;
-        for (Cell *c : open) {
-            c->size = static_cast<int>(static_cast<long long>(remaining) * c->stretch / weights);
-            given += c->size;
-        }
-        // Pixels lost in the division go to the first items that can take them.
-        for (Cell *c : open) {
-            if (given >= remaining)
-                break;
-            if (c->size < c->max) {
-                ++c->size;
-                ++given;
-            }
-        }
-    } else if (available > total) {
-        const int extra = available - total;
-        // Items that want to expand grow first; what they cannot take goes to everything else that can grow.
-        grow(cells, extra, [](const Cell &c) { return c.expansive; }, [](const Cell &) { return 1; });
-        int used = 0;
-        for (const Cell &c : cells)
-            used += c.size;
-        if (available > used)
-            grow(cells, available - used, [](const Cell &) { return true; }, [](const Cell &) { return 1; });
-    } else if (available < total) {
-        const int deficit = total - available;
-        long long room = 0;
-        for (const Cell &c : cells)
-            room += c.size - c.min;
-        if (room > 0) {
-            const int take = static_cast<int>(std::min<long long>(deficit, room));
-            int taken = 0;
-            for (Cell &c : cells) {
-                const int cut = static_cast<int>(static_cast<long long>(take) * (c.size - c.min) / room);
-                c.size -= cut;
-                taken += cut;
-            }
-            for (Cell &c : cells) {
-                if (taken >= take)
-                    break;
-                if (c.size > c.min) {
-                    --c.size;
-                    ++taken;
-                }
-            }
-        }
-    }
+    const int extra = calculate(cells, h ? r.width() : r.height(), gap);
 
     // Place the cells, from the far end if the direction is reversed.
     const bool reversed = m_direction == RightToLeft || m_direction == BottomToTop;
-    int pos = h ? r.left() : r.top();
+    int pos = (h ? r.left() : r.top()) + extra;
     const int count = static_cast<int>(cells.size());
     for (int n = 0; n < count; ++n) {
         const Cell &s = cells[static_cast<std::size_t>(n)];
@@ -464,12 +529,15 @@ void QBoxLayout::setGeometry(const QRect &rect) {
                 crossPos += room;
             else if (a & (h ? Qt::AlignVCenter : Qt::AlignHCenter))
                 crossPos += room / 2;
+        } else {
+            // An item that cannot fill the box across is centered in it, as Qt does.
+            crossPos += (crossAvailable - cross) / 2;
         }
         int start = pos;
         if (reversed)
             start = (h ? r.left() + r.right() + 1 : r.top() + r.bottom() + 1) - pos - s.size;
         s.item->setGeometry(h ? QRect(start, crossPos, s.size, cross) : QRect(crossPos, start, cross, s.size));
-        pos += s.size + gap;
+        pos += s.size + (s.empty ? 0 : gap + extra);
     }
 }
 

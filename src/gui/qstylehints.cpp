@@ -38,11 +38,8 @@ QStyleHints::QStyleHints() = default;
 QStyleHints::~QStyleHints() = default;
 
 /*!
-    \property QStyleHints::colorScheme
-    \brief the color scheme of the application.
-
-    This is the scheme that setColorScheme() set, or else the one that the desktop reports. It is
-    Qt::ColorScheme::Unknown if the desktop does not say.
+    Returns the color scheme of the application: the one that setColorScheme() set, or else the one that
+    the desktop reports. It is Qt::ColorScheme::Unknown if the desktop does not say.
 
     \sa setColorScheme(), unsetColorScheme()
 */

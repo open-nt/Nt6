@@ -29,7 +29,9 @@ void QXcbIntegration::initialize() {
                      [](Qt::ColorScheme scheme) { QWindowSystemInterface::handleColorSchemeChange(scheme); });
 }
 
-Qt::ColorScheme QXcbIntegration::colorScheme() const { return m_portal ? m_portal->colorScheme() : Qt::ColorScheme::Unknown; }
+Qt::ColorScheme QXcbIntegration::colorScheme() const {
+    return m_portal ? m_portal->colorScheme() : Qt::ColorScheme::Unknown;
+}
 
 QPlatformWindow *QXcbIntegration::createPlatformWindow(QWindow *window) const {
     return new QXcbWindow(window, m_connection.get());

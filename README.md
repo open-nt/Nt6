@@ -141,6 +141,10 @@ Nt Widgets builds on Nt GUI. The widgets of a window are painted into the backin
 
 Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example is a small form, and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the Nt logo drawn from its outlines.
 
+<p align="center"><img src="doc/images/widgets-gallery-light.png" alt="The gallery example, light" width="320"> <img src="doc/images/widgets-gallery-dark.png" alt="The gallery example, dark" width="320"></p>
+
+The gallery follows the desktop: it uses twice as many pixels on a high-resolution screen (`QScreen::devicePixelRatio()`, from `Xft.dpi` or `QT_SCALE_FACTOR`) and the dark or light colors of the desktop (`QStyleHints::colorScheme()`, read from the desktop portal). The widget examples use only API that Qt has too, so `-DNT_EXAMPLES_QT=ON` also builds them against Qt 6 (`hello_widgets_qt`, `gallery_qt` in `qt-examples/`) to compare the two side by side.
+
 Not implemented yet: `QLineEdit` and other text widgets, grid, form and stacked layouts, `QFrame`, lists and views, menus, dialogs, scroll areas, tool tips, shortcuts and actions, window flags and attributes, cursors, `QStyleFactory`, style sheets.
 
 ## Qt 6 modules and their Nt names

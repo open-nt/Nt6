@@ -408,17 +408,28 @@ static void testSizeHelpersAndOptions() {
     CHECK(style->pixelMetric(QStyle::PM_DefaultFrameWidth) == 1 && style->pixelMetric(QStyle::PM_IndicatorWidth) == 14);
     CHECK(style->pixelMetric(QStyle::PM_IndicatorHeight) == 14 &&
           style->pixelMetric(QStyle::PM_CheckBoxLabelSpacing) == 6);
-    CHECK(style->pixelMetric(QStyle::PM_ButtonMargin) == 8);
-    CHECK(style->sizeFromContents(QStyle::CT_PushButton, &option, QSize(10, 10)).width() == 75);
-    CHECK(style->sizeFromContents(QStyle::CT_PushButton, &option, QSize(10, 10)).height() == 23);
-    CHECK(style->sizeFromContents(QStyle::CT_PushButton, &option, QSize(100, 30)) == QSize(116, 40));
+    CHECK(style->pixelMetric(QStyle::PM_ButtonMargin) == 6);
+    // A window has wider margins than a widget inside it, as in Qt
+    {
+        QWidget window;
+        QWidget inside(&window);
+        CHECK(style->pixelMetric(QStyle::PM_LayoutLeftMargin, nullptr, &window) == 11 &&
+              style->pixelMetric(QStyle::PM_LayoutBottomMargin, nullptr, &window) == 11);
+        CHECK(style->pixelMetric(QStyle::PM_LayoutLeftMargin, nullptr, &inside) == 9);
+    }
+    // A button with text is at least 80 wide; one without has no minimum
+    CHECK(style->sizeFromContents(QStyle::CT_PushButton, &option, QSize(10, 10)) == QSize(24, 18));
+    QStyleOptionButton withText;
+    withText.text = "Text";
+    CHECK(style->sizeFromContents(QStyle::CT_PushButton, &withText, QSize(10, 10)) == QSize(80, 18));
+    CHECK(style->sizeFromContents(QStyle::CT_PushButton, &withText, QSize(100, 18)) == QSize(114, 26));
     CHECK(style->sizeFromContents(QStyle::CT_CheckBox, &option, QSize(0, 10)).width() == 14);
-    CHECK(style->sizeFromContents(QStyle::CT_CheckBox, &option, QSize(50, 20)) == QSize(70, 22));
+    CHECK(style->sizeFromContents(QStyle::CT_CheckBox, &option, QSize(50, 20)) == QSize(74, 25));
     CHECK(style->sizeFromContents(QStyle::CT_LineEdit, &option, QSize(50, 20)) == QSize(58, 26));
     option.rect = QRect(0, 0, 100, 20);
     CHECK(style->subElementRect(QStyle::SE_CheckBoxIndicator, &option) == QRect(0, 3, 14, 14));
     CHECK(style->subElementRect(QStyle::SE_CheckBoxContents, &option) == QRect(20, 0, 80, 20));
-    CHECK(style->subElementRect(QStyle::SE_PushButtonContents, &option) == QRect(8, 4, 84, 12));
+    CHECK(style->subElementRect(QStyle::SE_PushButtonContents, &option) == QRect(6, 3, 88, 14));
 }
 
 static void testWidgetBasics() {
@@ -1043,22 +1054,22 @@ static void testLayouts() {
     auto *box = new QVBoxLayout(&top);
     CHECK(top.layout() == box && box->parentWidget() == &top && box->count() == 0 && box->isEmpty());
     CHECK(box->direction() == QBoxLayout::TopToBottom && box->spacing() == 6);
-    CHECK(box->contentsMargins() == QMargins(9, 9, 9, 9));
+    CHECK(box->contentsMargins() == QMargins(11, 11, 11, 11));
     box->addWidget(&a);
     box->addWidget(&b);
     box->addWidget(&c);
     CHECK(box->count() == 3 && !box->isEmpty() && box->indexOf(&b) == 1 && box->indexOf(&top) == -1);
     CHECK(box->itemAt(0)->widget() == &a && box->itemAt(5) == nullptr && box->itemAt(-1) == nullptr);
-    CHECK(box->sizeHint() == QSize(100 + 18, 30 + 40 + 20 + 12 + 18));
+    CHECK(box->sizeHint() == QSize(100 + 22, 30 + 40 + 20 + 12 + 22));
     CHECK(top.sizeHint() == box->sizeHint());
     box->activate();
-    CHECK(g(&a) == QRect(9, 9, 182, 30));
-    CHECK(g(&b) == QRect(9, 45, 182, 300 - 18 - 30 - 20 - 12));
-    CHECK(g(&c) == QRect(9, 300 - 9 - 20, 182, 20));
+    CHECK(g(&a) == QRect(11, 11, 178, 30));
+    CHECK(g(&b) == QRect(11, 47, 178, 300 - 22 - 30 - 20 - 12));
+    CHECK(g(&c) == QRect(11, 300 - 11 - 20, 178, 20));
     // The layout works from the event loop after a hint changed
     a.setHint(QSize(100, 50));
     settle(&top);
-    CHECK(g(&a).height() == 50 && g(&b).top() == 9 + 50 + 6 && g(&c).bottom() == 290);
+    CHECK(g(&a).height() == 50 && g(&b).top() == 11 + 50 + 6 && g(&c).bottom() == 288);
     a.setHint(QSize(100, 30));
     settle(&top);
 
@@ -1121,7 +1132,9 @@ static void testLayouts() {
     // ... and never past the maximum size
     y.setMaximumSize(100, 1000);
     row->activate();
-    CHECK(g(&y).width() == 100 && g(&x).width() + g(&z).width() == 200);
+    // (the space that nobody can take goes between the items, as in Qt)
+    CHECK(g(&y).width() == 100 && g(&x).width() == 20 && g(&z).width() == 20);
+    CHECK(g(&y).left() - g(&x).right() > 1 && g(&y).left() - g(&x).right() == g(&z).left() - g(&y).right());
     y.setMaximumSize(QLAYOUTSIZE_MAX, QLAYOUTSIZE_MAX);
     y.setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 
@@ -1142,7 +1155,7 @@ static void testLayouts() {
     CHECK(line->itemAt(0)->sizeHint() == QSize(0, 0) && line->itemAt(2)->sizeHint() == QSize(10, 0));
     CHECK(line->itemAt(0)->expandingDirections() == Qt::Orientations(Qt::Horizontal));
     line->activate();
-    CHECK(g(&q).right() == 199 && g(&q).width() == 30 && g(&p).right() == g(&q).left() - 4 - 10 - 4 - 1 &&
+    CHECK(g(&q).right() == 199 && g(&q).width() == 30 && g(&p).right() == g(&q).left() - 4 - 10 - 1 &&
           g(&p).width() == 30);
     CHECK(g(&p).height() == 50 && g(&p).top() == 0);
     line->insertStretch(0, 0);
@@ -1170,6 +1183,39 @@ static void testLayouts() {
     CHECK(g(&m) == QRect(0, 0, g(&m).width(), 10) && g(&n).top() == 45 && g(&n).height() == 10 &&
           g(&o).bottom() == 99 && g(&o).height() == 10);
 
+    // The same numbers as Qt's QVBoxLayout gives: no spacing next to spacers, and shrinking takes the same
+    // amount from every item that can give it
+    {
+        QWidget parity;
+        Probe a1(&parity), b1(&parity), c1(&parity);
+        for (Probe *w : {&a1, &b1, &c1}) {
+            w->setHint(QSize(30, 17));
+            w->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        }
+        a1.minimumHint = QSize(0, 5);
+        b1.minimumHint = QSize(0, 10);
+        c1.minimumHint = QSize(0, 10);
+        auto *vl = new QVBoxLayout(&parity);
+        vl->setContentsMargins(0, 0, 0, 0);
+        vl->setSpacing(10);
+        vl->addWidget(&a1);
+        vl->addStretch();
+        vl->addWidget(&b1);
+        CHECK(vl->sizeHint().height() == 17 + 10 + 17 && vl->minimumSize().height() == 5 + 10 + 10);
+        vl->insertSpacing(1, 5);
+        CHECK(vl->sizeHint().height() == 17 + 17 + 5 + 10);
+        delete vl->takeAt(1);
+        delete vl->takeAt(1);
+        vl->addWidget(&c1);
+        parity.resize(100, 60);
+        vl->activate();
+        CHECK(g(&a1) == QRect(0, 0, 100, 13) && g(&b1) == QRect(0, 23, 100, 14) && g(&c1) == QRect(0, 47, 100, 13));
+        // Three items that all may grow share 200 pixels equally, not their extra space
+        parity.resize(100, 200);
+        vl->activate();
+        CHECK(g(&a1).height() == 60 && g(&b1).top() == 70 && g(&c1).top() == 140);
+    }
+
     // Reversed directions
     QWidget rev;
     rev.resize(100, 40);
@@ -1184,15 +1230,16 @@ static void testLayouts() {
     rl->addWidget(&r1);
     rl->addWidget(&r2);
     rl->activate();
-    CHECK(g(&r1).right() == 99 && g(&r2).right() == 79 && g(&r1).width() == 20 && g(&r2).width() == 30);
+    // Items that cannot grow are spread out, with the space that is left (50 / 3) before, between and after them
+    CHECK(g(&r1).right() == 83 && g(&r2).right() == 47 && g(&r1).width() == 20 && g(&r2).width() == 30);
     rl->setDirection(QBoxLayout::LeftToRight);
     rl->setDirection(QBoxLayout::LeftToRight);
     rl->activate();
-    CHECK(g(&r1).left() == 0 && g(&r2).left() == 20);
+    CHECK(g(&r1).left() == 16 && g(&r2).left() == 52);
     rl->setDirection(QBoxLayout::BottomToTop);
     CHECK(rl->direction() == QBoxLayout::BottomToTop);
     rl->activate();
-    CHECK(g(&r1).bottom() == 39 && g(&r2).bottom() < g(&r1).top());
+    CHECK(g(&r1).bottom() == 33 && g(&r2).bottom() == 17);
 
     // Nested layouts
     QWidget nest;
@@ -1239,13 +1286,13 @@ static void testLayouts() {
     hl->addWidget(&h3);
     hid.show();
     settle(&hid);
-    CHECK(g(&h2).top() == 30 && g(&h3).top() == 60 && hl->sizeHint().height() == 80);
+    CHECK(g(&h2).top() == 40 && g(&h3).top() == 75 && hl->sizeHint().height() == 80);
     h2.hide();
     settle(&hid);
-    CHECK(g(&h3).top() == 30 && hl->sizeHint().height() == 50);
+    CHECK(g(&h3).top() == 62 && hl->sizeHint().height() == 50);
     h2.show();
     settle(&hid);
-    CHECK(g(&h3).top() == 60);
+    CHECK(g(&h3).top() == 75);
     auto *gone = new Probe(&hid);
     gone->setHint(QSize(100, 20));
     hl->addWidget(gone);
@@ -1322,15 +1369,15 @@ static void testLayouts() {
     wl->addWidget(&w1);
     wl->addWidget(&w2);
     win.show();
-    CHECK(win.size() == QSize(150 + 18, 50 + 60 + 6 + 18));
-    CHECK(g(&w1) == QRect(9, 9, 150, 50) && g(&w2) == QRect(9, 65, 150, 60));
+    CHECK(win.size() == QSize(150 + 22, 50 + 60 + 6 + 22));
+    CHECK(g(&w1) == QRect(11, 11, 150, 50) && g(&w2) == QRect(11, 67, 150, 60));
     win.resize(10, 10);
     settle(&win);
-    CHECK(win.width() >= 168 && win.height() >= 134);
+    CHECK(win.width() >= 172 && win.height() >= 138);
     win.resize(400, 400);
     settle(&win);
-    CHECK(g(&w1).width() == 382 && g(&w1).height() >= 50 && g(&w2).height() >= 60); // Minimum grows; both can
-    CHECK(wl->minimumSize() == QSize(168, 134) && wl->maximumSize().width() > 100000);
+    CHECK(g(&w1).width() == 378 && g(&w1).height() >= 50 && g(&w2).height() >= 60); // Minimum grows; both can
+    CHECK(wl->minimumSize() == QSize(172, 138) && wl->maximumSize().width() > 100000);
     CHECK(wl->expandingDirections() == Qt::Orientations());
 
     // The layout and its widgets go away with the window
@@ -1446,7 +1493,7 @@ static void testLabel() {
     auto *l1 = new QLabel("A short text", &host);
     vl->addWidget(l1);
     host.show();
-    CHECK(host.width() == l1->sizeHint().width() + 18 && l1->isVisible());
+    CHECK(host.width() == l1->sizeHint().width() + 22 && l1->isVisible());
     l1->setText("A much longer text than before");
     settle(&host);
     CHECK(l1->width() >= l1->sizeHint().width() && host.width() >= l1->sizeHint().width() + 18);

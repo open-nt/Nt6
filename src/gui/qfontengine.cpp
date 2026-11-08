@@ -129,8 +129,15 @@ void QFontEngine::measure() {
         std::lock_guard<std::mutex> lock(libraryMutex());
         auto face = static_cast<FT_Face>(m_face);
         const FT_Size_Metrics &sm = face->size->metrics;
-        m_ascent = static_cast<int>((sm.ascender + 63) >> 6);
-        m_descent = static_cast<int>((-sm.descender + 63) >> 6);
+        // Round the exact scaled metrics to the nearest pixel, which is what Qt does, rather than up as the
+        // FreeType size metrics do.
+        if (FT_IS_SCALABLE(face)) {
+            m_ascent = static_cast<int>((FT_MulFix(face->ascender, sm.y_scale) + 32) >> 6);
+            m_descent = static_cast<int>((FT_MulFix(-face->descender, sm.y_scale) + 32) >> 6);
+        } else {
+            m_ascent = static_cast<int>((sm.ascender + 63) >> 6);
+            m_descent = static_cast<int>((-sm.descender + 63) >> 6);
+        }
         const int line = static_cast<int>((sm.height + 32) >> 6);
         m_leading = std::max(0, line - m_ascent - m_descent);
         const FT_UInt x = FT_Get_Char_Index(face, 'x');

@@ -69,8 +69,8 @@ int main(int argc, char **argv) {
     const xcb_window_t id = static_cast<xcb_window_t>(window.windowHandle()->winId());
 
     // The layout put the button at the bottom, at the full width
-    CHECK(button->geometry().bottom() == 160 - 9 - 1 && button->width() == 240 - 18);
-    CHECK(label->geometry().top() == 9 && box->geometry().top() > label->geometry().bottom());
+    CHECK(button->geometry().bottom() == 160 - 11 - 1 && button->width() == 240 - 22);
+    CHECK(label->geometry().top() == 11 && box->geometry().top() > label->geometry().bottom());
 
     // Reads the pixel of the window at (x, y) as 0xRRGGBB from the server
     auto pixelAt = [&](int x, int y) -> int {
@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
 
     // Resizing the window lays the widgets out again
     window.resize(300, 200);
-    CHECK(waitFor([&] { return button->width() == 300 - 18 && button->geometry().bottom() == 200 - 9 - 1; }));
+    CHECK(waitFor([&] { return button->width() == 300 - 22 && button->geometry().bottom() == 200 - 11 - 1; }));
 
     // The window manager's close request closes the window
     const xcb_atom_t wmProtocols = internAtom(c, "WM_PROTOCOLS");

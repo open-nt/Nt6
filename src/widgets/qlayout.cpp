@@ -341,7 +341,7 @@ QSize QLayout::maximumSize() const { return QSize(QLAYOUTSIZE_MAX, QLAYOUTSIZE_M
 Qt::Orientations QLayout::expandingDirections() const {
     Qt::Orientations o;
     for (int i = 0; i < count(); ++i)
-        if (!itemAt(i)->isEmpty())
+        if (!itemAt(i)->isEmpty() || itemAt(i)->spacerItem()) // a stretch expands, though it is empty
             o |= itemAt(i)->expandingDirections();
     return o;
 }

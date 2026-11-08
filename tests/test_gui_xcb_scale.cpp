@@ -108,9 +108,16 @@ int main(int argc, char **argv) {
     const int paintsBefore = w.paints;
     w.resize(150, 100);
     CHECK(waitFor([&] { return w.lastSize == QSize(150, 100) && w.paints > paintsBefore; }));
-    geometry = xcb_get_geometry_reply(c, xcb_get_geometry(c, id), nullptr);
-    CHECK(geometry && geometry->width == 300 && geometry->height == 200);
-    std::free(geometry);
+    // The server is another process: wait until it has the new size.
+    bool resized = false;
+    for (int attempt = 0; attempt < 100 && !resized; ++attempt) {
+        geometry = xcb_get_geometry_reply(c, xcb_get_geometry(c, id), nullptr);
+        resized = geometry && geometry->width == 300 && geometry->height == 200;
+        std::free(geometry);
+        if (!resized)
+            waitFor([] { return false; }, 20);
+    }
+    CHECK(resized);
     CHECK(w.size() == QSize(150, 100));
 
     xcb_disconnect(c);

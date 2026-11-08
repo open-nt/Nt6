@@ -15,11 +15,17 @@
     \section1 A First Form
 
     Create a QApplication, a top-level QWidget, the widgets, and put them in layouts. Connect to the signals of
-    the controls:
+    the controls. The \c hello_widgets example has one of every widget, on the pages of a QTabWidget: buttons, check
+    boxes and radio buttons in a QGroupBox on the first page, line edits, a spin box and a combo box on the second, and
+    sliders and a progress bar that show the same value on the third. Each page is a function that builds a widget with
+    a layout:
 
     \snippet widgets/hello_widgets.cpp form
 
-    The \c hello_widgets example is this program. Link it with \c Nt::Widgets:
+    \image hello-widgets-light.png The hello_widgets example, in the light color scheme: the three pages and the open list of a combo box
+    \image hello-widgets-dark.png The hello_widgets example, in the dark color scheme
+
+    Link it with \c Nt::Widgets:
 
     \code
     find_package(Nt6 REQUIRED)
@@ -94,10 +100,42 @@
     released. A widget that does not use an event ignores it, and its parent gets it. Key events go to the widget that
     has the keyboard focus; set a \c focusPolicy so that it can get it, by tabbing or by clicking.
 
+    \section1 The Widgets
+
+    \table
+    \header
+    \li Widget
+    \li What it is for
+    \row
+    \li QLabel
+    \li A text, with alignment and word wrap.
+    \row
+    \li QPushButton, QCheckBox, QRadioButton
+    \li A button to click, an option to switch, and one choice of a group. Radio buttons with the same parent are exclusive.
+    \row
+    \li QLineEdit
+    \li One line of text to type, with selection, a placeholder and a password mode.
+    \row
+    \li QSpinBox
+    \li A whole number to type or step.
+    \row
+    \li QComboBox
+    \li One item to choose from a list that drops down.
+    \row
+    \li QSlider, QProgressBar
+    \li A value to drag, and one to show.
+    \row
+    \li QGroupBox
+    \li A frame with a title around other widgets, which can have a check box to switch them all.
+    \row
+    \li QTabWidget
+    \li Pages with a row of tabs to choose the page.
+    \endtable
+
     \section1 What Is Not There Yet
 
-    The widgets are QLabel, QPushButton and QCheckBox. There is no text entry (QLineEdit), no lists, menus,
-    dialogs, grid or form layouts, and no scrolling. The native window of a top-level widget is a
+    There are no lists and tables, text editing of more than a line, menus, dialogs, grid or form layouts, and no
+    scrolling. The native window of a top-level widget is a
     QWindow; child widgets are painted into the backing store of that window and are not native windows
     themselves. Each class lists what differs from Qt in its \e Differences from Qt section.
 

@@ -183,6 +183,12 @@ void WidgetAccess::clearReferences(QWidget *w) {
         top->m_d->window->forget(w);
 }
 
+void WidgetAccess::setPopup(QWidget *w, QWidget *popup) {
+    QWidget *top = w->window();
+    if (top->m_d->window)
+        top->m_d->window->setPopup(popup);
+}
+
 void WidgetAccess::activateLayout(QWidget *w) {
     if (w->m_d->layout)
         w->m_d->layout->activate();
@@ -252,10 +258,17 @@ QWidget::QWidget(QWidget *parent) : QObject(parent), m_d(std::make_unique<Data>(
     Destroys the widget, its child widgets and its layout. A window is closed without a close event.
 */
 QWidget::~QWidget() {
-    const QObjectList kids = children();
-    for (QObject *c : kids)
-        if (dynamic_cast<QWidget *>(c))
-            delete c;
+    // Deleting a child may delete other children, such as the popup of a combo box, so look at the list afresh each time.
+    for (bool found = true; found;) {
+        found = false;
+        for (QObject *c : children()) {
+            if (dynamic_cast<QWidget *>(c)) {
+                delete c;
+                found = true;
+                break;
+            }
+        }
+    }
     if (QWidget *p = parentWidget()) {
         if (p->m_d->layout)
             p->m_d->layout->removeWidget(this);
@@ -851,6 +864,14 @@ void QWidget::setVisible(bool visible) {
     } else {
         m_d->hiddenExplicitly = true;
         if (wasVisible) {
+            // A hidden widget cannot keep the keyboard focus.
+            QWidget *top = window();
+            for (QWidget *f = top->m_d->focusChild; f; f = f->parentWidget()) {
+                if (f == this) {
+                    WidgetAccess::setFocusWidget(top, nullptr);
+                    break;
+                }
+            }
             WidgetAccess::sendHideEvents(this);
             parentWidget()->update(geometry());
         }

@@ -18,8 +18,8 @@
     \endcode
 
     \differences
-    There are no icons, shortcuts (\c setShortcut()), auto-repeat, \c animateClick(), button groups and exclusive
-    buttons, \c autoExclusive, \c setIcon() or \c setIconSize().
+    There are no icons, shortcuts (\c setShortcut()), auto-repeat, \c animateClick(), \c QButtonGroup, \c setIcon() or
+    \c setIconSize(). The only exclusive buttons are the ones that are auto-exclusive, as radio buttons are.
     \enddifferences
 
     \sa QPushButton, QCheckBox
@@ -91,10 +91,41 @@ void QAbstractButton::setCheckable(bool checkable) {
 void QAbstractButton::setChecked(bool checked) {
     if (!m_checkable || m_checked == checked)
         return;
+    // The checked button of an exclusive group cannot be unchecked; check another one instead.
+    if (!checked && m_autoExclusive && parentWidget())
+        return;
+    if (checked && m_autoExclusive && parentWidget()) {
+        for (QObject *child : parentWidget()->children()) {
+            auto *other = dynamic_cast<QAbstractButton *>(child);
+            if (other && other != this && other->m_autoExclusive && other->m_checked) {
+                other->m_checked = false;
+                other->update();
+                emit other->toggled(false);
+            }
+        }
+    }
     m_checked = checked;
     update();
     emit toggled(checked);
 }
+
+/*!
+    \fn bool QAbstractButton::autoExclusive() const
+
+    Returns whether the button is auto-exclusive: of all the auto-exclusive buttons that have the same parent
+    widget, only one is checked at a time, and checking one unchecks the others. A checked button of such a group
+    cannot be unchecked, only another one can be checked. The default is \c false, and radio buttons set it.
+
+    \sa setAutoExclusive()
+*/
+
+/*!
+    \fn void QAbstractButton::setAutoExclusive(bool exclusive)
+
+    Sets whether the button is auto-exclusive to \a exclusive.
+
+    \sa autoExclusive()
+*/
 
 /*!
     \fn bool QAbstractButton::isDown() const

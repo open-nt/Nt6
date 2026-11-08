@@ -2,7 +2,14 @@ cmake_minimum_required(VERSION 3.16)
 # The version lives in the VERSION file at the root of the repository.
 file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/VERSION NT_VERSION LIMIT_COUNT 1)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/VERSION)
-project(Nt VERSION ${NT_VERSION} LANGUAGES CXX)
+string(STRIP "${NT_VERSION}" NT_VERSION)
+# project() takes only numeric versions: 6.0.0-rc1 is 6.0.0 with the suffix -rc1.
+if(NOT NT_VERSION MATCHES "^([0-9]+\\.[0-9]+\\.[0-9]+)(-[0-9A-Za-z.]+)?$")
+    message(FATAL_ERROR "VERSION '${NT_VERSION}' must be <major>.<minor>.<patch>[-<suffix>]")
+endif()
+set(NT_VERSION_NUMBER ${CMAKE_MATCH_1})
+set(NT_VERSION_SUFFIX "${CMAKE_MATCH_2}")
+project(Nt VERSION ${NT_VERSION_NUMBER} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -290,14 +297,22 @@ add_library(NtWidgets
     src/widgets/qapplication.cpp
     src/widgets/qboxlayout.cpp
     src/widgets/qcheckbox.cpp
+    src/widgets/qcombobox.cpp
     src/widgets/qfusionstyle.cpp
+    src/widgets/qgroupbox.cpp
     src/widgets/qlabel.cpp
     src/widgets/qlayout.cpp
     src/widgets/qlayoutitem.cpp
+    src/widgets/qlineedit.cpp
+    src/widgets/qprogressbar.cpp
     src/widgets/qpushbutton.cpp
+    src/widgets/qradiobutton.cpp
     src/widgets/qsizepolicy.cpp
+    src/widgets/qslider.cpp
+    src/widgets/qspinbox.cpp
     src/widgets/qstyle.cpp
     src/widgets/qstyleoption.cpp
+    src/widgets/qtabwidget.cpp
     src/widgets/qwidget.cpp
     src/widgets/qwidgetwindow.cpp
 )
@@ -337,7 +352,7 @@ nt_set_compile_options(NtTest)
 add_executable(ntmoc tools/ntmoc/main.cpp)
 add_executable(Nt::moc ALIAS ntmoc)
 add_executable(Qt6::moc ALIAS ntmoc)
-target_compile_definitions(ntmoc PRIVATE NT_VERSION_STRING="${PROJECT_VERSION}")
+target_compile_definitions(ntmoc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
 nt_set_compile_options(ntmoc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtMoc.cmake)
 nt_moc_library(NtCore include/QtCore)
@@ -354,7 +369,7 @@ nt_moc_library(NtWidgets include/QtWidgets)
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
 add_executable(Nt::ndoc ALIAS ndoc)
-target_compile_definitions(ndoc PRIVATE NT_VERSION_STRING="${PROJECT_VERSION}")
+target_compile_definitions(ndoc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
 nt_set_compile_options(ndoc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtDoc.cmake)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
@@ -533,6 +548,14 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_widgets_tests COMMAND nt_widgets_tests)
     set_tests_properties(nt_widgets_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_widgets_tests)
+
+    # The controls (radio buttons, line edits, sliders, spin boxes, combo boxes, tabs) on the offscreen platform.
+    add_executable(nt_widgets_controls_tests tests/test_widgets_controls.cpp)
+    target_include_directories(nt_widgets_controls_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_controls_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_controls_tests COMMAND nt_widgets_controls_tests)
+    set_tests_properties(nt_widgets_controls_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_controls_tests)
 
     # Drawing at a device pixel ratio of 2, on the offscreen platform.
     add_executable(nt_gui_scale_tests tests/test_gui_scale.cpp)

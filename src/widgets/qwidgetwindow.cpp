@@ -20,6 +20,8 @@ void QWidgetWindow::forget(QWidget *widget) {
         m_grab = nullptr;
     if (m_under == widget)
         m_under = nullptr;
+    if (m_popup == widget)
+        m_popup = nullptr;
 }
 
 void QWidgetWindow::paintEvent(QPaintEvent *event) {
@@ -53,6 +55,7 @@ void QWidgetWindow::showEvent(QShowEvent *event) { (void)event; }
 void QWidgetWindow::hideEvent(QHideEvent *event) {
     (void)event;
     m_grab = nullptr;
+    m_popup = nullptr;
     if (m_under) {
         QEvent leave(QEvent::Leave);
         for (QWidget *w = m_under; w; w = w->parentWidget()) {
@@ -150,6 +153,19 @@ void QWidgetWindow::deliverMouse(QMouseEvent *event, QWidget *target) {
 void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
     if (!m_widget)
         return;
+    if (m_popup && !m_grab) {
+        // A press outside the popup closes it, and does nothing else.
+        bool inside = false;
+        for (QWidget *w = WidgetAccess::widgetAt(m_widget, event->pos()); w; w = w->parentWidget())
+            inside = inside || w == m_popup;
+        if (!inside) {
+            QWidget *popup = m_popup;
+            m_popup = nullptr;
+            popup->hide();
+            event->accept();
+            return;
+        }
+    }
     QWidget *target = m_grab ? m_grab.data() : WidgetAccess::widgetAt(m_widget, event->pos());
     if (!m_grab) {
         m_grab = target;

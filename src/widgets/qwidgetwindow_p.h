@@ -5,7 +5,6 @@
 #include <QtGui/qpaintdevicewindow.h>
 #include <QtWidgets/qwidget.h>
 
-
 // The window of a top-level widget. It paints the widget tree and turns the events of the window into
 // events for the widgets.
 class QWidgetWindow : public QPaintDeviceWindow {
@@ -18,6 +17,8 @@ public:
     void detach() { m_widget = nullptr; }
     // The widgets must not be referenced after they are deleted.
     void forget(QWidget *widget);
+    // A popup (the list of a combo box) closes when the mouse is pressed outside it.
+    void setPopup(QWidget *popup) { m_popup = popup; }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -44,4 +45,5 @@ private:
     QWidget *m_widget;
     QPointer<QWidget> m_grab;
     QPointer<QWidget> m_under;
+    QPointer<QWidget> m_popup;
 };

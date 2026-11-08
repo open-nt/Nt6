@@ -136,16 +136,22 @@ Nt Widgets builds on Nt GUI. The widgets of a window are painted into the backin
 | `QWidget` | parent/child tree, geometry and size limits, size hints and policies, show/hide/enable, palette and font inheritance, painting with `update()`/`repaint()`, mouse (grab, enter/leave, tracking), wheel, key and focus events with propagation to the parent, click and tab focus, `mapTo*()`, `childAt()`, `raise()`/`lower()`, layouts |
 | `QLayout`, `QBoxLayout`, `QHBoxLayout`, `QVBoxLayout`, `QLayoutItem`, `QWidgetItem`, `QSpacerItem` | box layouts with stretch factors, spacing, margins, nested layouts, alignment across the box, reversed directions, stretches and spacers; laid out again from the event loop when a size hint changes |
 | `QSizePolicy` | the Qt policies |
-| `QLabel`, `QPushButton`, `QCheckBox`, `QAbstractButton` | text with alignment and word wrap; clicked/pressed/released/toggled, checkable and flat buttons, mouse and Space/Return handling |
-| `QStyle`, `QStyleOption`, `QStyleOptionButton`, `QStyleOptionFrame`, `QPalette` | a Fusion-like default style behind `QStyle`, replaceable with `QApplication::setStyle()` |
+| `QLabel`, `QPushButton`, `QCheckBox`, `QRadioButton`, `QAbstractButton` | text with alignment and word wrap; clicked/pressed/released/toggled, checkable and flat buttons, mouse and Space/Return handling; radio buttons that share a parent are exclusive, and the arrow keys move the choice |
+| `QLineEdit` | one line of text: typing, cursor and selection with keys and mouse, placeholder, password and no-echo modes, maximum length, read-only, `textChanged`/`textEdited`/`returnPressed`/`editingFinished` |
+| `QSlider`, `QProgressBar`, `QSpinBox` | a handle to drag (click for a page, keys, wheel, tracking, horizontal or vertical), a bar with a text format (`%p`, `%v`, `%m`), and an integer to type or step with a prefix, a suffix and wrapping |
+| `QComboBox` | items to choose from a list that drops down inside the window, above or below the box; keys and wheel change the item without opening it |
+| `QGroupBox`, `QTabWidget` | a titled frame, optionally with a check box that enables its children; pages with a row of tabs |
+| `QStyle`, `QStyleOption` and its subclasses, `QPalette` | a Fusion-like default style behind `QStyle`, with a light and a dark palette, replaceable with `QApplication::setStyle()` |
 
-Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example is a small form, and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the Nt logo drawn from its outlines.
+Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example has one of every widget, on the pages of a tab widget, and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the Nt logo drawn from its outlines.
 
+<p align="center"><img src="doc/images/hello-widgets-light.png" alt="The hello_widgets example, light: buttons, input, values, and the open list of a combo box" width="640"></p>
+<p align="center"><img src="doc/images/hello-widgets-dark.png" alt="The hello_widgets example, dark" width="960"></p>
 <p align="center"><img src="doc/images/widgets-gallery-light.png" alt="The gallery example, light" width="320"> <img src="doc/images/widgets-gallery-dark.png" alt="The gallery example, dark" width="320"></p>
 
-The gallery follows the desktop: it uses twice as many pixels on a high-resolution screen (`QScreen::devicePixelRatio()`, from `Xft.dpi` or `QT_SCALE_FACTOR`) and the dark or light colors of the desktop (`QStyleHints::colorScheme()`, read from the desktop portal). The widget examples use only API that Qt has too, so `-DNT_EXAMPLES_QT=ON` also builds them against Qt 6 (`hello_widgets_qt`, `gallery_qt` in `qt-examples/`) to compare the two side by side.
+The examples follow the desktop: it uses twice as many pixels on a high-resolution screen (`QScreen::devicePixelRatio()`, from `Xft.dpi` or `QT_SCALE_FACTOR`) and the dark or light colors of the desktop (`QStyleHints::colorScheme()`, read from the desktop portal). The widget examples use only API that Qt has too, so `-DNT_EXAMPLES_QT=ON` also builds them against Qt 6 (`hello_widgets_qt`, `gallery_qt` in `qt-examples/`) to compare the two side by side.
 
-Not implemented yet: `QLineEdit` and other text widgets, grid, form and stacked layouts, `QFrame`, lists and views, menus, dialogs, scroll areas, tool tips, shortcuts and actions, window flags and attributes, cursors, `QStyleFactory`, style sheets.
+Not implemented yet: multi-line text widgets, the clipboard, grid, form and stacked layouts, `QFrame`, lists and views, menus, dialogs, scroll areas, tool tips, shortcuts and actions, window flags and attributes, cursors, `QStyleFactory`, style sheets.
 
 ## Qt 6 modules and their Nt names
 
@@ -358,7 +364,7 @@ packaging/build-packages.sh el9 arch     # some of them
 packaging/build.sh                       # this machine only, no container
 ```
 
-Both write to `dist/`. Or run CPack directly: `cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr && cmake --build build && cpack --config build/CPackConfig.cmake` picks `.deb`, `.rpm` or pacman from `/etc/os-release`; use `-G DEB`, `-G RPM` or `-G External` (pacman, through `cmake/NtPacman.cmake`) to choose.
+Both write to `dist/`. Or run CPack directly: `cmake -S . -B build && cmake --build build && cpack --config build/CPackConfig.cmake` picks `.deb`, `.rpm` or pacman from `/etc/os-release`; use `-G DEB`, `-G RPM` or `-G External` (pacman, through `cmake/NtPacman.cmake`) to choose.
 
 ### Release provenance
 

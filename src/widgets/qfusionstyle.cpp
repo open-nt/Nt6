@@ -4,6 +4,7 @@
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qstylehints.h>
+#include <QtWidgets/qgroupbox.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qwidget.h>
 
@@ -15,8 +16,19 @@ QPalette::ColorGroup groupOf(const QStyleOption *option) {
     return (option->state & QStyle::State_Enabled) ? QPalette::Active : QPalette::Disabled;
 }
 
+// Whether a color is dark, as the window of a dark color scheme is.
+bool isDark(const QColor &color) { return color.red() + color.green() + color.blue() < 3 * 128; }
+
+// The color of the outlines: darker than the window, or lighter if the window is dark.
 QColor outlineOf(const QStyleOption *option) {
-    return option->palette.color(groupOf(option), QPalette::Window).darker(150);
+    const QColor window = option->palette.color(groupOf(option), QPalette::Window);
+    return isDark(window) ? window.lighter(185) : window.darker(150);
+}
+
+// The color of the pages of a tab widget and of the current tab: a little lighter than the window.
+QColor tabFrameColor(const QStyleOption *option) {
+    const QColor window = option->palette.color(groupOf(option), QPalette::Window);
+    return window.lighter(isDark(window) ? 130 : 103);
 }
 
 QColor mix(const QColor &a, const QColor &b, int percentOfA) {
@@ -37,6 +49,23 @@ void drawBox(QPainter *p, const QRect &r, const QColor &fill, const QColor &bord
     p->drawPoint(r.right(), r.top());
     p->drawPoint(r.left(), r.bottom());
     p->drawPoint(r.right(), r.bottom());
+}
+
+// A triangle that is wide at the top (pointing down) or at the bottom (pointing up), 7 by 4 pixels around `center`.
+void drawArrow(QPainter *p, const QPoint &center, bool down, const QColor &color) {
+    p->setPen(color);
+    for (int i = 0; i < 4; ++i) {
+        const int half = down ? 3 - i : i;
+        p->drawLine(center.x() - half, center.y() - 2 + i, center.x() + half, center.y() - 2 + i);
+    }
+}
+
+// The rectangle of the title of a group box in `r`, the check box included.
+QRect groupTitleRect(const QStyleOptionGroupBox *box) {
+    const int indicator = box->checkable ? 14 + 4 : 0;
+    const int width = indicator + box->fontMetrics.horizontalAdvance(box->text) + 6;
+    return QRect(box->rect.left(), box->rect.top(), std::min(width, std::max(0, box->rect.width())),
+                 box->fontMetrics.height());
 }
 
 } // namespace
@@ -100,6 +129,39 @@ void QFusionStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *o
         }
         break;
     }
+    case PE_IndicatorRadioButton: {
+        QColor fill = option->palette.color(group, QPalette::Base);
+        if (option->state & State_Sunken)
+            fill = fill.darker(110);
+        QColor border = outlineOf(option);
+        if (option->state & State_HasFocus)
+            border = option->palette.color(group, QPalette::Highlight);
+        painter->setPen(border);
+        painter->setBrush(fill);
+        painter->drawEllipse(r.adjusted(0, 0, -1, -1));
+        if (option->state & State_On) {
+            painter->setPen(Qt::NoPen);
+            painter->setBrush(option->palette.color(group, QPalette::Text));
+            painter->drawEllipse(r.adjusted(4, 4, -4, -4));
+        }
+        break;
+    }
+    case PE_IndicatorArrowUp:
+    case PE_IndicatorArrowDown:
+        drawArrow(painter, r.center(), element == PE_IndicatorArrowDown,
+                  option->palette.color(group, QPalette::ButtonText));
+        break;
+    case PE_FrameGroupBox:
+        painter->setPen(mix(outlineOf(option), option->palette.color(group, QPalette::Window), 45));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(r.adjusted(0, 0, -1, -1));
+        break;
+    case PE_FrameTabWidget:
+        painter->fillRect(r, tabFrameColor(option));
+        painter->setPen(outlineOf(option));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(r.adjusted(0, 0, -1, -1));
+        break;
     case PE_PanelLineEdit:
         painter->fillRect(r, option->palette.color(group, QPalette::Base));
         break;
@@ -172,6 +234,177 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         }
         break;
     }
+    case CE_RadioButton: {
+        QStyleOptionButton indicator = *static_cast<const QStyleOptionButton *>(option);
+        indicator.rect = subElementRect(SE_RadioButtonIndicator, option, widget);
+        drawPrimitive(PE_IndicatorRadioButton, &indicator, painter, widget);
+        QStyleOptionButton label = *static_cast<const QStyleOptionButton *>(option);
+        label.rect = subElementRect(SE_RadioButtonContents, option, widget);
+        drawControl(CE_RadioButtonLabel, &label, painter, widget);
+        break;
+    }
+    case CE_RadioButtonLabel:
+        drawControl(CE_CheckBoxLabel, option, painter, widget);
+        break;
+    case CE_Slider: {
+        const auto *slider = static_cast<const QStyleOptionSlider *>(option);
+        const QRect groove = subElementRect(SE_SliderGroove, option, widget);
+        const QRect handle = subElementRect(SE_SliderHandle, option, widget);
+        const bool horizontal = slider->orientation == Qt::Horizontal;
+        const QColor window = option->palette.color(group, QPalette::Window);
+        const QColor highlight = option->palette.color(group, QPalette::Highlight);
+        painter->save();
+        drawBox(painter, groove, option->palette.color(group, QPalette::Base).darker(106), outlineOf(option), window);
+        // The part from the end where the slider starts to the handle has the highlight color.
+        QRect filled = groove.adjusted(1, 1, -1, -1);
+        if (horizontal)
+            filled.setRight(handle.center().x());
+        else
+            filled.setTop(handle.center().y());
+        if (option->state & State_Enabled)
+            painter->fillRect(filled, highlight);
+        QColor fill = option->palette.color(group, QPalette::Button);
+        if (option->state & State_Sunken)
+            fill = fill.darker(112);
+        else if (option->state & State_MouseOver)
+            fill = fill.lighter(106);
+        drawBox(painter, handle, fill, (option->state & State_HasFocus) ? highlight : outlineOf(option), window);
+        if (!(option->state & State_Sunken)) {
+            painter->setPen(option->palette.color(group, QPalette::Light));
+            painter->drawLine(handle.left() + 2, handle.top() + 1, handle.right() - 2, handle.top() + 1);
+        }
+        painter->restore();
+        break;
+    }
+    case CE_ProgressBar: {
+        const auto *bar = static_cast<const QStyleOptionProgressBar *>(option);
+        const QRect r = option->rect;
+        const QColor window = option->palette.color(group, QPalette::Window);
+        painter->save();
+        drawBox(painter, r, option->palette.color(group, QPalette::Base), outlineOf(option), window);
+        const QRect inner = subElementRect(SE_ProgressBarContents, option, widget);
+        const qint64 span = static_cast<qint64>(bar->maximum) - bar->minimum;
+        QRect filled;
+        if (span > 0 && bar->progress > bar->minimum) {
+            const qint64 done = std::min<qint64>(bar->progress, bar->maximum) - bar->minimum;
+            filled = QRect(inner.left(), inner.top(), static_cast<int>(inner.width() * done / span), inner.height());
+            painter->fillRect(filled, option->palette.color(group, QPalette::Highlight));
+        }
+        if (bar->textVisible && !bar->text.isEmpty()) {
+            painter->setClipRect(inner);
+            painter->setPen(option->palette.color(group, QPalette::Text));
+            painter->drawText(inner, Qt::AlignCenter | Qt::TextSingleLine, bar->text);
+            if (!filled.isEmpty()) {
+                painter->setClipRect(filled);
+                painter->setPen(option->palette.color(group, QPalette::HighlightedText));
+                painter->drawText(inner, Qt::AlignCenter | Qt::TextSingleLine, bar->text);
+            }
+        }
+        painter->restore();
+        break;
+    }
+    case CE_TabBarTab: {
+        const auto *tab = static_cast<const QStyleOptionTab *>(option);
+        const bool selected = option->state & State_Selected;
+        const QColor window = option->palette.color(group, QPalette::Window);
+        QRect r = option->rect;
+        painter->save();
+        if (selected) {
+            const QColor border = outlineOf(option);
+            painter->fillRect(r.adjusted(1, 1, -1, 0), tabFrameColor(option));
+            painter->setPen(border);
+            painter->drawLine(r.left() + 1, r.top(), r.right() - 1, r.top());
+            painter->drawLine(r.left(), r.top() + 1, r.left(), r.bottom());
+            painter->drawLine(r.right(), r.top() + 1, r.right(), r.bottom());
+            painter->setPen(mix(border, window, 35));
+            painter->drawPoint(r.left(), r.top());
+            painter->drawPoint(r.right(), r.top());
+            if (option->state & State_HasFocus)
+                painter->fillRect(r.left() + 1, r.top() + 1, r.width() - 2, 2,
+                                  option->palette.color(group, QPalette::Highlight));
+        } else {
+            r.setTop(r.top() + 3);
+            QColor fill = window.darker(106);
+            if ((option->state & State_MouseOver) && (option->state & State_Enabled))
+                fill = window.darker(102);
+            drawBox(painter, r, fill, outlineOf(option), window);
+        }
+        painter->setPen(option->palette.color(group, QPalette::WindowText));
+        painter->drawText(r, Qt::AlignCenter | Qt::TextSingleLine, tab->text);
+        painter->restore();
+        break;
+    }
+    case CE_ComboBox: {
+        const auto *combo = static_cast<const QStyleOptionComboBox *>(option);
+        QStyleOption bevel = *option;
+        if (option->state & State_On)
+            bevel.state |= State_Sunken;
+        drawPrimitive(PE_PanelButtonCommand, &bevel, painter, widget);
+        const QRect arrow = subElementRect(SE_ComboBoxArrow, option, widget);
+        QStyleOption arrowOption = *option;
+        arrowOption.rect = arrow;
+        drawPrimitive(PE_IndicatorArrowDown, &arrowOption, painter, widget);
+        painter->save();
+        painter->setClipRect(option->rect.adjusted(1, 1, -arrow.width(), -1));
+        painter->setPen(option->palette.color(group, QPalette::ButtonText));
+        painter->drawText(option->rect.adjusted(8, 0, -arrow.width(), 0),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, combo->currentText);
+        painter->restore();
+        break;
+    }
+    case CE_SpinBox: {
+        const auto *spin = static_cast<const QStyleOptionSpinBox *>(option);
+        QStyleOption frame = *option;
+        drawPrimitive(PE_PanelLineEdit, &frame, painter, widget);
+        drawPrimitive(PE_FrameLineEdit, &frame, painter, widget);
+        const QColor window = option->palette.color(group, QPalette::Window);
+        const struct {
+            QRect rect;
+            bool up;
+            bool enabled;
+            bool pressed;
+        } buttons[] = {{subElementRect(SE_SpinBoxUp, option, widget), true, spin->upEnabled, spin->upPressed},
+                       {subElementRect(SE_SpinBoxDown, option, widget), false, spin->downEnabled, spin->downPressed}};
+        for (const auto &b : buttons) {
+            QColor fill = option->palette.color(group, QPalette::Button);
+            if (b.pressed)
+                fill = fill.darker(112);
+            painter->fillRect(b.rect, fill);
+            painter->setPen(mix(outlineOf(option), window, 60));
+            painter->drawLine(b.rect.left(), b.rect.top(), b.rect.left(), b.rect.bottom());
+            QStyleOption arrow = *option;
+            arrow.rect = b.rect;
+            if (!b.enabled)
+                arrow.state &= ~State(State_Enabled);
+            drawPrimitive(b.up ? PE_IndicatorArrowUp : PE_IndicatorArrowDown, &arrow, painter, widget);
+        }
+        painter->setPen(mix(outlineOf(option), window, 60));
+        painter->drawLine(buttons[1].rect.left(), buttons[1].rect.top(), buttons[1].rect.right(),
+                          buttons[1].rect.top());
+        break;
+    }
+    case CE_GroupBox: {
+        const auto *box = static_cast<const QStyleOptionGroupBox *>(option);
+        const QRect title = subElementRect(SE_GroupBoxTitle, option, widget);
+        QStyleOption frame = *option;
+        frame.rect = QRect(option->rect.left(), title.bottom() + 3, option->rect.width(),
+                           option->rect.bottom() - title.bottom() - 2);
+        drawPrimitive(PE_FrameGroupBox, &frame, painter, widget);
+        painter->save();
+        QRect text = title;
+        if (box->checkable) {
+            QStyleOptionButton indicator;
+            indicator.state = option->state;
+            indicator.palette = option->palette;
+            indicator.rect = subElementRect(SE_GroupBoxIndicator, option, widget);
+            drawPrimitive(PE_IndicatorCheckBox, &indicator, painter, widget);
+            text.setLeft(title.left() + 14 + 4);
+        }
+        painter->setPen(option->palette.color(group, QPalette::WindowText));
+        painter->drawText(text, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, box->text);
+        painter->restore();
+        break;
+    }
     }
 }
 
@@ -191,6 +424,71 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
         const int m = pixelMetric(PM_ButtonMargin, option, widget);
         return r.adjusted(m, m / 2, -m, -m / 2);
     }
+    case SE_RadioButtonIndicator: {
+        const int size = pixelMetric(PM_ExclusiveIndicatorWidth, option, widget);
+        return QRect(r.left(), r.top() + (r.height() - size) / 2, size, size);
+    }
+    case SE_RadioButtonContents: {
+        const int offset = pixelMetric(PM_ExclusiveIndicatorWidth, option, widget) +
+                           pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
+        return QRect(r.left() + offset, r.top(), std::max(0, r.width() - offset), r.height());
+    }
+    case SE_LineEditContents: {
+        const int frame = option->type == QStyleOption::SO_Frame
+                              ? static_cast<const QStyleOptionFrame *>(option)->lineWidth
+                              : pixelMetric(PM_DefaultFrameWidth, option, widget);
+        return r.adjusted(frame + 3, frame + 2, -(frame + 3), -(frame + 2));
+    }
+    case SE_SliderGroove: {
+        const auto *slider = static_cast<const QStyleOptionSlider *>(option);
+        const int thickness = 5;
+        if (slider->orientation == Qt::Horizontal)
+            return QRect(r.left(), r.center().y() - thickness / 2, r.width(), thickness);
+        return QRect(r.center().x() - thickness / 2, r.top(), thickness, r.height());
+    }
+    case SE_SliderHandle: {
+        const auto *slider = static_cast<const QStyleOptionSlider *>(option);
+        const int length = pixelMetric(PM_SliderLength, option, widget);
+        const int thickness = pixelMetric(PM_SliderThickness, option, widget) - 4;
+        const qint64 range = static_cast<qint64>(slider->maximum) - slider->minimum;
+        const qint64 done = std::clamp<qint64>(static_cast<qint64>(slider->sliderPosition) - slider->minimum, 0, range);
+        if (slider->orientation == Qt::Horizontal) {
+            const int span = std::max(0, r.width() - length);
+            const int x = range > 0 ? static_cast<int>(done * span / range) : 0;
+            return QRect(r.left() + x, r.center().y() - thickness / 2, length, thickness);
+        }
+        // The smallest value of a vertical slider is at the bottom.
+        const int span = std::max(0, r.height() - length);
+        const int y = range > 0 ? static_cast<int>(done * span / range) : 0;
+        return QRect(r.center().x() - thickness / 2, r.bottom() + 1 - length - y, thickness, length);
+    }
+    case SE_ProgressBarContents:
+        return r.adjusted(1, 1, -1, -1);
+    case SE_ComboBoxArrow: {
+        const int width = pixelMetric(PM_ComboBoxArrowWidth, option, widget);
+        return QRect(r.right() - width + 1, r.top(), width, r.height());
+    }
+    case SE_SpinBoxEditField:
+        return r.adjusted(1, 1, -(pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 1), -1);
+    case SE_SpinBoxUp: {
+        const int width = pixelMetric(PM_SpinBoxButtonWidth, option, widget);
+        return QRect(r.right() - width, r.top() + 1, width, (r.height() - 2) / 2);
+    }
+    case SE_SpinBoxDown: {
+        const int width = pixelMetric(PM_SpinBoxButtonWidth, option, widget);
+        const int upHeight = (r.height() - 2) / 2;
+        return QRect(r.right() - width, r.top() + 1 + upHeight, width, r.height() - 2 - upHeight);
+    }
+    case SE_GroupBoxTitle:
+        return groupTitleRect(static_cast<const QStyleOptionGroupBox *>(option));
+    case SE_GroupBoxIndicator: {
+        const QRect title = groupTitleRect(static_cast<const QStyleOptionGroupBox *>(option));
+        return QRect(title.left(), title.top() + (title.height() - 14) / 2, 14, 14);
+    }
+    case SE_GroupBoxContents: {
+        const QRect title = groupTitleRect(static_cast<const QStyleOptionGroupBox *>(option));
+        return r.adjusted(1, title.height() + 3, -1, -1);
+    }
     }
     return r;
 }
@@ -207,15 +505,30 @@ int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, co
         return 14;
     case PM_CheckBoxLabelSpacing:
         return 6;
-    case PM_LayoutLeftMargin:
     case PM_LayoutTopMargin:
+        // The title of a group box is above the layout inside it.
+        if (dynamic_cast<const QGroupBox *>(widget))
+            return widget->fontMetrics().height() + 14;
+        return widget && widget->isWindow() ? 11 : 9;
+    case PM_LayoutLeftMargin:
     case PM_LayoutRightMargin:
     case PM_LayoutBottomMargin:
-        // As in Qt, a window has a wider margin than a widget inside it.
+        // As in Qt, a window has a wider margin than a widget inside it, and a group box has some more for its frame.
+        if (dynamic_cast<const QGroupBox *>(widget))
+            return 12;
         return widget && widget->isWindow() ? 11 : 9;
     case PM_LayoutHorizontalSpacing:
     case PM_LayoutVerticalSpacing:
         return 6;
+    case PM_ExclusiveIndicatorWidth:
+    case PM_ExclusiveIndicatorHeight:
+        return 14;
+    case PM_SliderLength:
+    case PM_SpinBoxButtonWidth:
+        return 16;
+    case PM_SliderThickness:
+    case PM_ComboBoxArrowWidth:
+        return 20;
     }
     return 0;
 }
@@ -244,6 +557,26 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
         const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
         return QSize(contentsSize.width() + 2 * (frame + 3), contentsSize.height() + 2 * (frame + 2));
     }
+    case CT_RadioButton: {
+        const int indicator = pixelMetric(PM_ExclusiveIndicatorWidth, option, widget);
+        const int spacing = pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
+        return QSize(indicator + (contentsSize.width() > 0 ? 4 + spacing + contentsSize.width() : 0),
+                     std::max(indicator, contentsSize.height() + 4) + 1);
+    }
+    case CT_ProgressBar:
+        return QSize(contentsSize.width() + 8, contentsSize.height() + 6);
+    case CT_TabBarTab:
+        return QSize(contentsSize.width() + 20, contentsSize.height() + 10);
+    case CT_ComboBox: {
+        const int m = pixelMetric(PM_ButtonMargin, option, widget);
+        return QSize(contentsSize.width() + 8 + pixelMetric(PM_ComboBoxArrowWidth, option, widget) + 4,
+                     contentsSize.height() + m + 2 * pixelMetric(PM_DefaultFrameWidth, option, widget));
+    }
+    case CT_SpinBox: {
+        const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
+        return QSize(contentsSize.width() + 2 * (frame + 3) + pixelMetric(PM_SpinBoxButtonWidth, option, widget),
+                     contentsSize.height() + 2 * (frame + 2));
+    }
     }
     return contentsSize;
 }
@@ -269,6 +602,7 @@ QPalette QFusionStyle::standardPalette() const {
     palette.setColor(QPalette::Dark, button.darker(150));
     palette.setColor(QPalette::Highlight, QColor(0x3d, 0x8e, 0xc9));
     palette.setColor(QPalette::HighlightedText, Qt::white);
+    palette.setColor(QPalette::PlaceholderText, QColor(0x8a, 0x8a, 0x8a));
     for (QPalette::ColorRole role : {QPalette::WindowText, QPalette::ButtonText, QPalette::Text})
         palette.setColor(QPalette::Disabled, role, QColor(0x7f, 0x7f, 0x7f));
     return palette;

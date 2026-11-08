@@ -198,9 +198,16 @@ int main(int argc, char **argv) {
     const int paintsBefore = w.paints;
     w.resize(300, 150);
     CHECK(waitFor([&] { return w.lastSize == QSize(300, 150) && w.paints > paintsBefore; }));
-    geometry = xcb_get_geometry_reply(c, xcb_get_geometry(c, id), nullptr);
-    CHECK(geometry && geometry->width == 300 && geometry->height == 150);
-    std::free(geometry);
+    // The server is another process: wait until it has the new size.
+    bool resized = false;
+    for (int attempt = 0; attempt < 100 && !resized; ++attempt) {
+        geometry = xcb_get_geometry_reply(c, xcb_get_geometry(c, id), nullptr);
+        resized = geometry && geometry->width == 300 && geometry->height == 150;
+        std::free(geometry);
+        if (!resized)
+            waitFor([] { return false; }, 20);
+    }
+    CHECK(resized);
 
     // A move is reported with the position on the screen.
     w.setPosition(120, 90);

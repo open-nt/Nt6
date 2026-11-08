@@ -7,6 +7,12 @@
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qboxlayout.h>
+#include <QtWidgets/qcombobox.h>
+#include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qslider.h>
+#include <QtWidgets/qstyle.h>
+#include <QtWidgets/qstyleoption.h>
+#include <QtWidgets/qtabwidget.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qpushbutton.h>
@@ -125,6 +131,94 @@ int main(int argc, char **argv) {
     // Resizing the window lays the widgets out again
     window.resize(300, 200);
     CHECK(waitFor([&] { return button->width() == 300 - 22 && button->geometry().bottom() == 200 - 11 - 1; }));
+
+    // Tabs, a combo box with its popup, a line edit and a slider, through a real window
+    {
+        QWidget form;
+        auto *outer = new QVBoxLayout(&form);
+        auto *tabs = new QTabWidget(&form);
+        auto *first = new QWidget;
+        auto *second = new QWidget;
+        auto *secondLayout = new QVBoxLayout(second);
+        auto *combo = new QComboBox(second);
+        combo->addItems({"Red", "Green", "Blue"});
+        auto *edit = new QLineEdit(second);
+        auto *slider = new QSlider(Qt::Horizontal, second);
+        secondLayout->addWidget(combo);
+        secondLayout->addWidget(edit);
+        secondLayout->addWidget(slider);
+        secondLayout->addStretch();
+        tabs->addTab(first, "One");
+        tabs->addTab(second, "Two");
+        outer->addWidget(tabs);
+        form.resize(300, 240);
+        form.show();
+        CHECK(waitFor([&] { return form.windowHandle() && form.windowHandle()->isExposed() && tabs->width() > 100; }));
+        const xcb_window_t formId = static_cast<xcb_window_t>(form.windowHandle()->winId());
+
+        // Click on the second tab
+        QStyleOptionTab tabOption;
+        tabOption.initFrom(tabs);
+        const int firstTab = tabs->style()
+                                 ->sizeFromContents(QStyle::CT_TabBarTab, &tabOption,
+                                                    tabs->fontMetrics().size(Qt::TextSingleLine, "One"), tabs)
+                                 .width();
+        const QPoint second2 = tabs->mapTo(&form, QPoint(firstTab + 10, 12));
+        sendButton(c, formId, 1, XCB_BUTTON_PRESS, 20000, static_cast<int16_t>(second2.x()),
+                   static_cast<int16_t>(second2.y()));
+        sendButton(c, formId, 1, XCB_BUTTON_RELEASE, 20050, static_cast<int16_t>(second2.x()),
+                   static_cast<int16_t>(second2.y()));
+        CHECK(waitFor([&] { return tabs->currentIndex() == 1 && second->isVisible(); }));
+
+        // Click on the combo box: its popup opens, and a click on its second item chooses it
+        CHECK(waitFor([&] { return combo->isVisible() && combo->width() > 50; }));
+        const QPoint comboPoint = combo->mapTo(&form, QPoint(20, combo->height() / 2));
+        sendButton(c, formId, 1, XCB_BUTTON_PRESS, 21000, static_cast<int16_t>(comboPoint.x()),
+                   static_cast<int16_t>(comboPoint.y()));
+        sendButton(c, formId, 1, XCB_BUTTON_RELEASE, 21050, static_cast<int16_t>(comboPoint.x()),
+                   static_cast<int16_t>(comboPoint.y()));
+        CHECK(waitFor([&] { return combo->isPopupVisible(); }));
+        const int rowHeight = combo->fontMetrics().height() + 6;
+        const QPoint item = comboPoint + QPoint(0, combo->height() / 2 + 1 + rowHeight + rowHeight / 2);
+        sendButton(c, formId, 1, XCB_BUTTON_PRESS, 22000, static_cast<int16_t>(item.x()),
+                   static_cast<int16_t>(item.y()));
+        sendButton(c, formId, 1, XCB_BUTTON_RELEASE, 22050, static_cast<int16_t>(item.x()),
+                   static_cast<int16_t>(item.y()));
+        CHECK(waitFor([&] { return !combo->isPopupVisible() && combo->currentIndex() == 1; }));
+
+        // Type into the line edit
+        const QPoint editPoint = edit->mapTo(&form, QPoint(20, edit->height() / 2));
+        sendButton(c, formId, 1, XCB_BUTTON_PRESS, 23000, static_cast<int16_t>(editPoint.x()),
+                   static_cast<int16_t>(editPoint.y()));
+        sendButton(c, formId, 1, XCB_BUTTON_RELEASE, 23050, static_cast<int16_t>(editPoint.x()),
+                   static_cast<int16_t>(editPoint.y()));
+        CHECK(waitFor([&] { return edit->hasFocus(); }));
+        const xcb_keycode_t letterN = keycodeFor(c, 'n');
+        const xcb_keycode_t letterT = keycodeFor(c, 't');
+        if (letterN != 0 && letterT != 0) {
+            for (xcb_keycode_t code : {letterN, letterT}) {
+                sendKey(c, formId, code, 0, XCB_KEY_PRESS);
+                sendKey(c, formId, code, 0, XCB_KEY_RELEASE);
+            }
+            CHECK(waitFor([&] { return edit->text() == QString("nt"); }));
+        }
+
+        // Drag the slider handle to the right end
+        QStyleOptionSlider so;
+        so.initFrom(slider);
+        so.minimum = slider->minimum();
+        so.maximum = slider->maximum();
+        so.sliderPosition = slider->value();
+        const QRect handle = slider->style()->subElementRect(QStyle::SE_SliderHandle, &so, slider);
+        const QPoint from = slider->mapTo(&form, handle.center());
+        const QPoint to = slider->mapTo(&form, QPoint(slider->width() - 2, handle.center().y()));
+        sendButton(c, formId, 1, XCB_BUTTON_PRESS, 24000, static_cast<int16_t>(from.x()),
+                   static_cast<int16_t>(from.y()));
+        sendMotion(c, formId, static_cast<int16_t>(to.x()), static_cast<int16_t>(to.y()));
+        CHECK(waitFor([&] { return slider->value() == slider->maximum(); }));
+        sendButton(c, formId, 1, XCB_BUTTON_RELEASE, 24050, static_cast<int16_t>(to.x()), static_cast<int16_t>(to.y()));
+        CHECK(waitFor([&] { return !slider->isSliderDown(); }));
+    }
 
     // The window manager's close request closes the window
     const xcb_atom_t wmProtocols = internAtom(c, "WM_PROTOCOLS");

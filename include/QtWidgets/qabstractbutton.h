@@ -9,6 +9,7 @@ class QAbstractButton : public QWidget {
     Q_PROPERTY(bool checkable READ isCheckable WRITE setCheckable)
     Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled)
     Q_PROPERTY(bool down READ isDown WRITE setDown)
+    Q_PROPERTY(bool autoExclusive READ autoExclusive WRITE setAutoExclusive)
 public:
     ~QAbstractButton() override;
 
@@ -19,6 +20,8 @@ public:
     bool isChecked() const { return m_checked; }
     bool isDown() const { return m_down; }
     void setDown(bool down);
+    bool autoExclusive() const { return m_autoExclusive; }
+    void setAutoExclusive(bool exclusive) { m_autoExclusive = exclusive; }
 
 public slots:
     void setChecked(bool checked);
@@ -64,6 +67,7 @@ private:
 
     QString m_text;
     bool m_checkable = false;
+    bool m_autoExclusive = false;
     bool m_checked = false;
     bool m_down = false;
     bool m_keyDown = false;

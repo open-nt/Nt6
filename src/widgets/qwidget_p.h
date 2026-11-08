@@ -71,6 +71,8 @@ struct WidgetAccess {
     static void registerTopLevel(QWidget *w);
     static void unregisterTopLevel(QWidget *w);
     static void activateLayout(QWidget *w);
+    // Makes `popup` the popup of the window of `w`, or removes it if it is null.
+    static void setPopup(QWidget *w, QWidget *popup);
 };
 
 } // namespace QtPrivate

@@ -20,6 +20,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
@@ -31,6 +32,7 @@
 #include <QStyleHints>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QTextCursor>
 #include <QToolTip>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -733,6 +735,30 @@ bool listWidgets(const std::string &dir) {
     return picture(w, list, dir, "qlistwidget");
 }
 
+bool plainTextEdits(const std::string &dir) {
+    QWidget &w = *host(300, 10);
+    auto *layout = static_cast<QBoxLayout *>(w.layout());
+    auto *typed = new QPlainTextEdit(&w);
+    typed->setPlainText("Text of many lines, with a selection\nthat goes over the end of a line,\nand a long line that wraps at the width of the widget.");
+    QTextCursor cursor = typed->textCursor();
+    cursor.setPosition(8);
+    cursor.setPosition(52, QTextCursor::KeepAnchor);
+    typed->setTextCursor(cursor);
+    auto *empty = new QPlainTextEdit(&w);
+    empty->setPlaceholderText("Write something here");
+    auto *log = new QPlainTextEdit(&w);
+    log->setReadOnly(true);
+    log->appendPlainText("A read-only log:");
+    log->appendPlainText("12:00  started");
+    log->appendPlainText("12:01  ready");
+    for (QPlainTextEdit *edit : {typed, empty, log}) {
+        edit->setFixedHeight(edit == typed ? 84 : edit == log ? 66 : 52);
+        layout->addWidget(edit);
+    }
+    w.resize(300, w.sizeHint().height());
+    return picture(w, typed, dir, "qplaintextedit");
+}
+
 bool headerViews(const std::string &dir) {
     QWidget &w = *host(360, 200);
     auto *table = new QTableWidget(4, 3, &w);
@@ -777,7 +803,7 @@ int main(int argc, char *argv[]) {
     bool ok = true;
     for (bool (*render)(const std::string &) : {labels, pushButtons, checkBoxes, radioButtons, lineEdits, sliders,
                                                 progressBars, spinBoxes, comboBoxes, groupBoxes, tabWidgets, frames,
-                                                gridLayouts, formLayouts, stackedWidgets, toolTips, scrollBars, scrollAreas, listWidgets, headerViews,
+                                                gridLayouts, formLayouts, stackedWidgets, toolTips, scrollBars, scrollAreas, listWidgets, plainTextEdits, headerViews,
                                                 tableWidgets})
         ok = render(directory) && ok;
     return ok ? 0 : 1;

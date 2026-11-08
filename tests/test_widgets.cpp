@@ -745,6 +745,13 @@ static void testFormLayout() {
     form->activate();
     CHECK(form->expandingDirections() == (Qt::Horizontal | Qt::Vertical));
     CHECK(g(&f0).height() == 218 && g(&l1).top() == 232 && g(&button).bottom() == 289);
+    // ...but not past its largest height: the rows after it do not move away
+    f0.setFixedHeight(20);
+    f0.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    form->activate();
+    CHECK(g(&f0).height() == 20 && g(&l1).top() == 34 && g(&button).top() == 68);
+    f0.setMinimumSize(0, 0);
+    f0.setMaximumSize(QLAYOUTSIZE_MAX, QLAYOUTSIZE_MAX);
     f0.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     top.resize(300, 200);
 

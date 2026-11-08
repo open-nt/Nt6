@@ -584,7 +584,7 @@ struct QFormLayout::Metrics {
         const Row *row;
         bool wrapped;
         QSize labelHint, labelMin, fieldHint, fieldMin;
-        int hintHeight, minHeight;
+        int hintHeight, minHeight, maxHeight;
         bool expands;
     };
     std::vector<RowSizes> rows;
@@ -620,7 +620,10 @@ QFormLayout::Metrics QFormLayout::measure(int width) const {
         s.fieldHint = hintOf(r.field);
         s.fieldMin = minimumOf(r.field);
         s.expands = r.field && !r.field->isEmpty() && (r.field->expandingDirections() & Qt::Vertical);
+        const int fieldMax = r.field && !r.field->isEmpty() ? r.field->maximumSize().height() : 0;
+        s.maxHeight = fieldMax;
         if (s.wrapped) {
+            s.maxHeight = fieldMax >= QLAYOUTSIZE_MAX ? QLAYOUTSIZE_MAX : s.labelHint.height() + vs + fieldMax;
             s.hintHeight = s.labelHint.height() + vs + s.fieldHint.height();
             s.minHeight = s.labelMin.height() + vs + s.fieldMin.height();
             m.wrappedHint = std::max({m.wrappedHint, s.labelHint.width(), s.fieldHint.width()});
@@ -715,7 +718,8 @@ void QFormLayout::setGeometry(const QRect &rect) {
         c.stretch = 0;
         c.min = s.minHeight;
         c.hint = std::max(s.hintHeight, s.minHeight);
-        c.max = s.expands ? QLAYOUTSIZE_MAX : c.hint;
+        // A row grows only as far as its field can.
+        c.max = s.expands ? std::max(c.hint, s.maxHeight) : c.hint;
         c.expansive = s.expands;
         c.empty = false;
         cells.push_back(c);

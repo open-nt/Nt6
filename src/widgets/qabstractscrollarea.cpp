@@ -78,6 +78,7 @@ private:
 */
 QAbstractScrollArea::QAbstractScrollArea(QWidget *parent) : QFrame(parent) {
     setFrameStyle(StyledPanel | Sunken);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_viewport = new QtPrivate::ScrollAreaViewport(this);
     m_hbar = new QScrollBar(Qt::Horizontal, this);
     m_vbar = new QScrollBar(Qt::Vertical, this);

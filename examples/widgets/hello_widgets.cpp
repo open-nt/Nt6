@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
@@ -292,6 +293,10 @@ static QWidget *inputPage(QLabel *status) {
     form->addRow("Name", name);
     form->addRow("Password", password);
     form->addRow("Age", age);
+    auto *notes = new QPlainTextEdit(page);
+    notes->setPlaceholderText("Notes of many lines");
+    notes->setFixedHeight(70);
+    form->addRow("Notes", notes);
     form->addRow("Color", color);
     layout->addLayout(form);
     layout->addSpacing(6);
@@ -302,6 +307,8 @@ static QWidget *inputPage(QLabel *status) {
         greeting->setText(text.isEmpty() ? "Type a name." : "Hello, " + text + "!");
     });
     QObject::connect(name, &QLineEdit::returnPressed, [=] { status->setText("Name: " + name->text()); });
+    QObject::connect(notes, &QPlainTextEdit::textChanged,
+                     [=] { status->setText(QString("Notes: %1 lines.").arg(notes->blockCount())); });
     QObject::connect(age, &QSpinBox::valueChanged, [=](int value) { status->setText(QString("Age: %1").arg(value)); });
     QObject::connect(color, &QComboBox::currentIndexChanged,
                      [=](int) { status->setText("Color: " + color->currentText()); });

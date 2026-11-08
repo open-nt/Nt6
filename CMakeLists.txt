@@ -312,6 +312,7 @@ add_library(NtWidgets
     src/widgets/qlineedit.cpp
     src/widgets/qlistwidget.cpp
     src/widgets/qprogressbar.cpp
+    src/widgets/qplaintextedit.cpp
     src/widgets/qpushbutton.cpp
     src/widgets/qradiobutton.cpp
     src/widgets/qscrollarea.cpp
@@ -324,6 +325,8 @@ add_library(NtWidgets
     src/widgets/qstyle.cpp
     src/widgets/qstyleoption.cpp
     src/widgets/qtablewidget.cpp
+    src/widgets/qtextcursor.cpp
+    src/widgets/qtextedit.cpp
     src/widgets/qtabwidget.cpp
     src/widgets/qtooltip.cpp
     src/widgets/qwidget.cpp

@@ -1,6 +1,6 @@
 // MIT License - see LICENSE
 //
-// Tests for frames, scroll bars, scroll areas, lists and tables of Nt Widgets on the offscreen platform. The tests play the
+// Tests for frames, scroll bars, scroll areas, lists, tables and text editors of Nt Widgets on the offscreen platform. The tests play the
 // window system through QWindowSystemInterface.
 #include <QtCore>
 #include <QtGui/qevent.h>
@@ -14,12 +14,14 @@
 #include <QtWidgets/qlistwidget.h>
 #include <QtWidgets/qheaderview.h>
 #include <QtWidgets/qlabel.h>
+#include <QtWidgets/qplaintextedit.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qscrollarea.h>
 #include <QtWidgets/qscrollbar.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtablewidget.h>
+#include <QtWidgets/qtextedit.h>
 #include <QtWidgets/qtooltip.h>
 
 #include "platforms/offscreen/qoffscreenintegration_p.h"
@@ -75,6 +77,15 @@ void key(QWidget *w, int k, const QString &text = QString(), Qt::KeyboardModifie
     QWindow *win = w->window()->windowHandle();
     QWindowSystemInterface::handleKeyEvent(win, QEvent::KeyPress, k, mods, text);
     QWindowSystemInterface::handleKeyEvent(win, QEvent::KeyRelease, k, mods);
+}
+
+void type(QWidget *w, const QString &text) {
+    for (QChar c : text) {
+        int code = c.unicode();
+        if (code >= 'a' && code <= 'z')
+            code -= 32;
+        key(w, c == QChar(' ') ? int(Qt::Key_Space) : code, QString(c));
+    }
 }
 
 void wheel(QWidget *w, QPoint local, int notches) {
@@ -1481,6 +1492,497 @@ static void testListWidget() {
     list.setEnabled(true);
 }
 
+static void testPlainTextEdit() {
+    int changes = 0, cursors = 0, selectionsSeen = 0, blocksSeen = 0;
+    std::vector<bool> undoStates, redoStates;
+    QWidget top;
+    top.resize(300, 180);
+    auto *layout = new QVBoxLayout(&top);
+    layout->setContentsMargins(0, 0, 0, 0);
+    QPlainTextEdit edit(&top);
+    QPushButton after("After", &top);
+    layout->addWidget(&edit);
+    layout->addWidget(&after);
+    QObject::connect(&edit, &QPlainTextEdit::textChanged, [&] { ++changes; });
+    QObject::connect(&edit, &QPlainTextEdit::cursorPositionChanged, [&] { ++cursors; });
+    QObject::connect(&edit, &QPlainTextEdit::selectionChanged, [&] { ++selectionsSeen; });
+    QObject::connect(&edit, &QPlainTextEdit::blockCountChanged, [&](int n) { blocksSeen = n; });
+    QObject::connect(&edit, &QPlainTextEdit::undoAvailable, [&](bool b) { undoStates.push_back(b); });
+    QObject::connect(&edit, &QPlainTextEdit::redoAvailable, [&](bool b) { redoStates.push_back(b); });
+    top.show();
+    settle(&top);
+
+    CHECK(edit.toPlainText().isEmpty() && edit.blockCount() == 1 && !edit.isReadOnly() &&
+          edit.lineWrapMode() == QPlainTextEdit::WidgetWidth && edit.tabStopDistance() == 80 &&
+          !edit.tabChangesFocus() && edit.focusPolicy() == Qt::StrongFocus && edit.isUndoRedoEnabled() &&
+          edit.placeholderText().isEmpty());
+    CHECK(edit.sizePolicy().horizontalPolicy() == QSizePolicy::Expanding &&
+          edit.sizePolicy().verticalPolicy() == QSizePolicy::Expanding);
+    const int lh = edit.fontMetrics().height();
+    QWidget *view = edit.viewport();
+    CHECK(edit.textCursor().position() == 0 && edit.textCursor().atStart() && edit.textCursor().atEnd() &&
+          edit.cursorRect() == QRect(4, 4, 1, lh));
+
+    // Setting the text
+    edit.setPlainText("one\ntwo\nthree");
+    CHECK(edit.toPlainText() == "one\ntwo\nthree" && edit.blockCount() == 3 && changes == 1 && blocksSeen == 3);
+    edit.setPlainText("one\ntwo\nthree");
+    CHECK(changes == 1); // the same text
+    CHECK(edit.textCursor().position() == 0 && edit.cursorRect().y() == 4);
+    edit.clear();
+    CHECK(edit.toPlainText().isEmpty() && edit.blockCount() == 1 && changes == 2 && blocksSeen == 1);
+
+    // Typing: a click gives the focus, text goes in at the cursor
+    click(view, QPoint(20, 20));
+    CHECK(edit.hasFocus());
+    type(&edit, "Hello");
+    CHECK(edit.toPlainText() == "Hello" && edit.textCursor().position() == 5 && changes == 7);
+    key(&edit, Qt::Key_Space, " ");
+    type(&edit, "world");
+    CHECK(edit.toPlainText() == "Hello world" && edit.textCursor().position() == 11);
+    key(&edit, Qt::Key_Backspace);
+    CHECK(edit.toPlainText() == "Hello worl" && edit.textCursor().position() == 10);
+    key(&edit, Qt::Key_Left);
+    key(&edit, Qt::Key_Left);
+    key(&edit, Qt::Key_Delete);
+    CHECK(edit.toPlainText() == "Hello wol" && edit.textCursor().position() == 8);
+    key(&edit, Qt::Key_Return);
+    CHECK(edit.toPlainText() == "Hello wo\nl" && edit.blockCount() == 2 && blocksSeen == 2 &&
+          edit.textCursor().position() == 9 && edit.textCursor().blockNumber() == 1 &&
+          edit.textCursor().columnNumber() == 0 && edit.textCursor().atBlockStart());
+    key(&edit, Qt::Key_Tab);
+    CHECK(edit.toPlainText() == "Hello wo\n\tl");
+    key(&edit, Qt::Key_Backspace);
+    key(&edit, Qt::Key_Backspace);
+    CHECK(edit.toPlainText() == "Hello wol" && edit.blockCount() == 1);
+    // Editing keys that have nothing to do do nothing
+    key(&edit, Qt::Key_Home, QString(), Qt::ControlModifier);
+    key(&edit, Qt::Key_Backspace);
+    CHECK(edit.toPlainText() == "Hello wol");
+    key(&edit, Qt::Key_End, QString(), Qt::ControlModifier);
+    key(&edit, Qt::Key_Delete);
+    CHECK(edit.toPlainText() == "Hello wol");
+    key(&edit, Qt::Key_F5);
+    key(&edit, Qt::Key_C, "c", Qt::ControlModifier);
+    CHECK(edit.toPlainText() == "Hello wol");
+
+    // Moving: by a character, a word, a line, a page, to the ends
+    edit.setPlainText("alpha beta gamma\ndelta epsilon\n\nzeta");
+    key(&edit, Qt::Key_Right);
+    CHECK(edit.textCursor().position() == 1);
+    key(&edit, Qt::Key_Right, QString(), Qt::ControlModifier);
+    CHECK(edit.textCursor().position() == 6);
+    key(&edit, Qt::Key_Right, QString(), Qt::ControlModifier);
+    CHECK(edit.textCursor().position() == 11);
+    key(&edit, Qt::Key_Left, QString(), Qt::ControlModifier);
+    CHECK(edit.textCursor().position() == 6);
+    key(&edit, Qt::Key_End);
+    CHECK(edit.textCursor().position() == 16 && edit.textCursor().atBlockEnd());
+    key(&edit, Qt::Key_Down);
+    CHECK(edit.textCursor().blockNumber() == 1 && edit.textCursor().columnNumber() <= 13 &&
+          edit.textCursor().columnNumber() > 5);
+    key(&edit, Qt::Key_Down);
+    CHECK(edit.textCursor().blockNumber() == 2 && edit.textCursor().atBlockStart());
+    key(&edit, Qt::Key_Down);
+    CHECK(edit.textCursor().blockNumber() == 3);
+    key(&edit, Qt::Key_Down);
+    CHECK(edit.textCursor().blockNumber() == 3);
+    key(&edit, Qt::Key_Up);
+    key(&edit, Qt::Key_Up);
+    CHECK(edit.textCursor().blockNumber() == 1);
+    key(&edit, Qt::Key_Up);
+    CHECK(edit.textCursor().blockNumber() == 0 && edit.textCursor().columnNumber() > 5); // the column is kept
+    key(&edit, Qt::Key_Home);
+    CHECK(edit.textCursor().position() == 0);
+    key(&edit, Qt::Key_End, QString(), Qt::ControlModifier);
+    CHECK(edit.textCursor().atEnd() && edit.textCursor().position() == static_cast<int>(edit.toPlainText().size()));
+    key(&edit, Qt::Key_PageUp);
+    CHECK(edit.textCursor().blockNumber() == 0);
+    key(&edit, Qt::Key_PageDown);
+    CHECK(edit.textCursor().blockNumber() == 3);
+    key(&edit, Qt::Key_Left);
+    key(&edit, Qt::Key_Left);
+    key(&edit, Qt::Key_Home, QString(), Qt::ControlModifier);
+    CHECK(edit.textCursor().position() == 0);
+
+    // The column that Up and Down keep survives short lines
+    edit.moveCursor(QTextCursor::End);
+    edit.moveCursor(QTextCursor::Up);
+    edit.moveCursor(QTextCursor::Up);
+    edit.moveCursor(QTextCursor::EndOfBlock);
+    key(&edit, Qt::Key_Down);
+    key(&edit, Qt::Key_Down);
+    CHECK(edit.textCursor().blockNumber() == 3);
+    key(&edit, Qt::Key_Up);
+    key(&edit, Qt::Key_Up);
+    CHECK(edit.textCursor().blockNumber() == 1);
+
+    // Selecting: with Shift, with the mouse, a word, everything
+    edit.moveCursor(QTextCursor::Start);
+    selectionsSeen = 0;
+    key(&edit, Qt::Key_Right, QString(), Qt::ShiftModifier);
+    key(&edit, Qt::Key_Right, QString(), Qt::ShiftModifier);
+    CHECK(edit.textCursor().hasSelection() && edit.textCursor().selectedText() == "al" && selectionsSeen == 2 &&
+          edit.textCursor().anchor() == 0 && edit.textCursor().position() == 2);
+    key(&edit, Qt::Key_Right, QString(), Qt::ControlModifier | Qt::ShiftModifier);
+    CHECK(edit.textCursor().selectedText() == "alpha ");
+    key(&edit, Qt::Key_Down, QString(), Qt::ShiftModifier);
+    CHECK(edit.textCursor().selectedText().contains("\n"));
+    key(&edit, Qt::Key_Left); // collapses to the start
+    CHECK(!edit.textCursor().hasSelection() && edit.textCursor().position() == 0);
+    key(&edit, Qt::Key_Right, QString(), Qt::ShiftModifier);
+    key(&edit, Qt::Key_Right); // collapses to the end
+    CHECK(!edit.textCursor().hasSelection() && edit.textCursor().position() == 1);
+    // A selection is replaced by what is typed, and removed by Backspace
+    edit.setPlainText("one two three");
+    key(&edit, Qt::Key_Right, QString(), Qt::ControlModifier | Qt::ShiftModifier);
+    type(&edit, "1");
+    CHECK(edit.toPlainText() == "1two three" && edit.textCursor().position() == 1);
+    key(&edit, Qt::Key_Right, QString(), Qt::ControlModifier | Qt::ShiftModifier);
+    key(&edit, Qt::Key_Backspace);
+    CHECK(edit.toPlainText() == "1three");
+    key(&edit, Qt::Key_Home);
+    key(&edit, Qt::Key_Right, QString(), Qt::ControlModifier | Qt::ShiftModifier);
+    key(&edit, Qt::Key_Delete);
+    CHECK(edit.toPlainText().isEmpty());
+    edit.setPlainText("one two three");
+    key(&edit, Qt::Key_A, "a", Qt::ControlModifier);
+    CHECK(edit.textCursor().selectedText() == "one two three" && edit.textCursor().position() == 13);
+    edit.selectAll();
+    CHECK(edit.textCursor().selectionStart() == 0 && edit.textCursor().selectionEnd() == 13);
+    key(&edit, Qt::Key_Home);
+    // Mouse: click places the cursor, drag selects, double click takes a word
+    press(view, QPoint(4 + 1, 4 + 2));
+    CHECK(edit.textCursor().position() == 0);
+    drag(view, QPoint(4 + edit.fontMetrics().horizontalAdvance("one t") + 1, 6));
+    CHECK(edit.textCursor().selectedText().startsWith("one") && edit.textCursor().hasSelection());
+    release(view, QPoint(60, 6));
+    const int wordX = 4 + edit.fontMetrics().horizontalAdvance("one t") + 2;
+    QWindow *win = top.windowHandle();
+    const QPoint dbl = inWindow(view, QPoint(wordX, 6));
+    QWindowSystemInterface::handleMouseEvent(win, QPointF(dbl), QPointF(dbl), Qt::LeftButton, Qt::LeftButton,
+                                             QEvent::MouseButtonDblClick, Qt::NoModifier);
+    QWindowSystemInterface::handleMouseEvent(win, QPointF(dbl), QPointF(dbl), Qt::NoButton, Qt::LeftButton,
+                                             QEvent::MouseButtonRelease, Qt::NoModifier);
+    CHECK(edit.textCursor().selectedText() == "two");
+    click(view, QPoint(200, 6), Qt::ShiftModifier);
+    CHECK(edit.textCursor().selectedText().size() > 3);
+    click(view, QPoint(250, 100));
+    CHECK(!edit.textCursor().hasSelection() && edit.textCursor().atEnd());
+
+    // Undo and redo: typing is undone together, a change of the program on its own
+    edit.setPlainText("start");
+    undoStates.clear();
+    redoStates.clear();
+    key(&edit, Qt::Key_End, QString(), Qt::ControlModifier);
+    type(&edit, " now");
+    CHECK(edit.toPlainText() == "start now" && undoStates == std::vector<bool>{true});
+    key(&edit, Qt::Key_Z, "z", Qt::ControlModifier);
+    CHECK(edit.toPlainText() == "start" && undoStates == (std::vector<bool>{true, false}) &&
+          redoStates == std::vector<bool>{true} && edit.textCursor().position() == 5);
+    key(&edit, Qt::Key_Y, "y", Qt::ControlModifier);
+    CHECK(edit.toPlainText() == "start now" && redoStates == (std::vector<bool>{true, false}) &&
+          edit.textCursor().position() == 9);
+    key(&edit, Qt::Key_Z, "z", Qt::ControlModifier);
+    key(&edit, Qt::Key_Z, "Z", Qt::ControlModifier | Qt::ShiftModifier);
+    CHECK(edit.toPlainText() == "start now");
+    edit.undo();
+    edit.undo(); // nothing more to undo
+    CHECK(edit.toPlainText() == "start");
+    edit.redo();
+    edit.redo();
+    CHECK(edit.toPlainText() == "start now");
+    // Typing after moving is a new change; a change erases what could be redone
+    key(&edit, Qt::Key_Left);
+    type(&edit, "X");
+    type(&edit, "Y");
+    key(&edit, Qt::Key_Left);
+    type(&edit, "Z");
+    CHECK(edit.toPlainText() == "start noXZYw");
+    edit.setPlainText("abc");
+    CHECK(undoStates.back() == false);
+    edit.setUndoRedoEnabled(false);
+    type(&edit, "d");
+    edit.undo();
+    CHECK(!edit.isUndoRedoEnabled() && edit.toPlainText().contains("d"));
+    edit.setUndoRedoEnabled(true);
+
+    // Read-only: the cursor moves and selects, the text stays
+    edit.setPlainText("fixed text");
+    edit.setReadOnly(true);
+    CHECK(edit.isReadOnly());
+    type(&edit, "x");
+    key(&edit, Qt::Key_Return);
+    key(&edit, Qt::Key_Backspace);
+    key(&edit, Qt::Key_Delete);
+    CHECK(edit.hasFocus());
+    key(&edit, Qt::Key_Tab); // a read-only editor lets the Tab key move the focus
+    CHECK(after.hasFocus());
+    edit.setFocus();
+    key(&edit, Qt::Key_Z, "z", Qt::ControlModifier);
+    CHECK(edit.toPlainText() == "fixed text");
+    edit.setFocus();
+    key(&edit, Qt::Key_Right);
+    key(&edit, Qt::Key_Right, QString(), Qt::ShiftModifier);
+    CHECK(edit.textCursor().selectedText() == "i" && edit.textCursor().position() == 2);
+    edit.insertPlainText("!"); // the program may
+    CHECK(edit.toPlainText() == "f!xed text");
+    edit.setReadOnly(false);
+    edit.setFocus();
+
+    // Tab: typed, or it moves the focus
+    edit.clear();
+    key(&edit, Qt::Key_Tab);
+    CHECK(edit.toPlainText() == "\t" && edit.hasFocus());
+    edit.setTabChangesFocus(true);
+    key(&edit, Qt::Key_Tab);
+    CHECK(edit.toPlainText() == "\t" && after.hasFocus());
+    edit.setTabChangesFocus(false);
+    edit.setFocus();
+
+    // Appending and inserting
+    edit.clear();
+    edit.appendPlainText("first");
+    CHECK(edit.toPlainText() == "first" && edit.blockCount() == 1);
+    edit.appendPlainText("second");
+    edit.appendPlainText("");
+    CHECK(edit.toPlainText() == "first\nsecond\n" && edit.blockCount() == 3);
+    edit.setPlainText("hello world");
+    edit.moveCursor(QTextCursor::Start);
+    edit.moveCursor(QTextCursor::NextWord, QTextCursor::KeepAnchor);
+    edit.insertPlainText("bye ");
+    CHECK(edit.toPlainText() == "bye world" && edit.textCursor().position() == 4 && !edit.textCursor().hasSelection());
+    edit.insertPlainText("big ");
+    CHECK(edit.toPlainText() == "bye big world");
+
+    // QTextCursor
+    edit.setPlainText("The quick brown fox\njumps over\nthe lazy dog");
+    QTextCursor c = edit.textCursor();
+    CHECK(!c.isNull() && c.position() == 0 && c == edit.textCursor() && QTextCursor().isNull() &&
+          !(c != edit.textCursor()));
+    CHECK(c.movePosition(QTextCursor::NextWord) && c.position() == 4);
+    CHECK(c.movePosition(QTextCursor::EndOfWord, QTextCursor::KeepAnchor) && c.selectedText() == "quick" &&
+          c.hasSelection() && c.selectionStart() == 4 && c.selectionEnd() == 9 && c.anchor() == 4);
+    c.clearSelection();
+    CHECK(!c.hasSelection() && c.position() == 9);
+    c.select(QTextCursor::WordUnderCursor);
+    CHECK(c.selectedText() == "quick");
+    c.setPosition(0);
+    c.select(QTextCursor::BlockUnderCursor);
+    CHECK(c.selectedText() == "The quick brown fox");
+    c.select(QTextCursor::LineUnderCursor);
+    CHECK(c.selectedText() == "The quick brown fox");
+    c.select(QTextCursor::Document);
+    CHECK(c.selectedText() == edit.toPlainText());
+    c.setPosition(10);
+    c.setPosition(14, QTextCursor::KeepAnchor);
+    CHECK(c.selectedText() == "brow" && c.anchor() == 10);
+    c.setPosition(-5);
+    CHECK(c.position() == 0);
+    c.setPosition(9999);
+    CHECK(c.atEnd() && c.position() == static_cast<int>(edit.toPlainText().size()) &&
+          !c.movePosition(QTextCursor::End));
+    CHECK(c.movePosition(QTextCursor::StartOfBlock) && c.atBlockStart() && c.blockNumber() == 2 &&
+          c.positionInBlock() == 0);
+    CHECK(c.movePosition(QTextCursor::PreviousBlock) && c.blockNumber() == 1 && c.position() == 20);
+    CHECK(c.movePosition(QTextCursor::NextBlock) && c.blockNumber() == 2);
+    CHECK(c.movePosition(QTextCursor::Up) && c.blockNumber() == 1);
+    CHECK(c.movePosition(QTextCursor::Down, QTextCursor::MoveAnchor, 1) && c.blockNumber() == 2);
+    CHECK(c.movePosition(QTextCursor::Left, QTextCursor::MoveAnchor, 2) && c.position() == 29);
+    CHECK(c.movePosition(QTextCursor::WordLeft) && c.movePosition(QTextCursor::Right) &&
+          c.movePosition(QTextCursor::NoMove) == false);
+    c.movePosition(QTextCursor::Start);
+    CHECK(c.atStart() && !c.movePosition(QTextCursor::PreviousCharacter) &&
+          c.movePosition(QTextCursor::NextCharacter, QTextCursor::MoveAnchor, 3) && c.position() == 3 &&
+          c.movePosition(QTextCursor::StartOfWord) && c.position() == 0);
+    // The cursor changes the text; the editor's cursor follows the text
+    c.setPosition(0);
+    c.insertText("Oh. ");
+    CHECK(edit.toPlainText().startsWith("Oh. The quick") && c.position() == 4);
+    c.setPosition(4);
+    c.setPosition(8, QTextCursor::KeepAnchor);
+    c.removeSelectedText();
+    CHECK(edit.toPlainText().startsWith("Oh. quick") && !c.hasSelection());
+    c.deleteChar();
+    CHECK(edit.toPlainText().startsWith("Oh. uick"));
+    c.deletePreviousChar();
+    CHECK(edit.toPlainText().startsWith("Oh.uick") && c.position() == 3);
+    c.setPosition(0);
+    c.insertBlock();
+    CHECK(edit.toPlainText().startsWith("\nOh.uick") && edit.blockCount() == 4);
+    c.setPosition(static_cast<int>(edit.toPlainText().size()));
+    c.deleteChar();
+    c.setPosition(0);
+    c.deletePreviousChar();
+    c.removeSelectedText();
+    CHECK(edit.toPlainText().startsWith("\nOh.uick"));
+    // The editor's own cursor moves with edits before it
+    edit.setPlainText("abcdef");
+    edit.moveCursor(QTextCursor::End);
+    QTextCursor front = edit.textCursor();
+    front.setPosition(0);
+    front.insertText("123");
+    CHECK(edit.textCursor().position() == 9);
+    front.setPosition(1);
+    front.setPosition(5, QTextCursor::KeepAnchor);
+    front.removeSelectedText();
+    CHECK(edit.toPlainText() == "1cdef" && edit.textCursor().position() == 5);
+    // setTextCursor puts the editor's cursor where the cursor is
+    edit.setPlainText("one two three");
+    QTextCursor mover = edit.textCursor();
+    mover.setPosition(4);
+    mover.setPosition(7, QTextCursor::KeepAnchor);
+    cursors = selectionsSeen = 0;
+    edit.setTextCursor(mover);
+    CHECK(edit.textCursor().selectedText() == "two" && cursors == 1 && selectionsSeen == 1);
+    edit.setTextCursor(QTextCursor());
+    CHECK(edit.textCursor().selectedText() == "two");
+    QTextCursor beyond = mover;
+    beyond.setPosition(5000);
+    edit.setTextCursor(beyond);
+    CHECK(edit.textCursor().atEnd());
+    // An edit block is undone together
+    edit.setPlainText("base");
+    QTextCursor grouped = edit.textCursor();
+    grouped.movePosition(QTextCursor::End);
+    grouped.beginEditBlock();
+    grouped.insertText(" one");
+    grouped.beginEditBlock();
+    grouped.insertText(" two");
+    grouped.endEditBlock();
+    grouped.insertText(" three");
+    grouped.endEditBlock();
+    grouped.endEditBlock(); // too many: ignored
+    CHECK(edit.toPlainText() == "base one two three");
+    edit.undo();
+    CHECK(edit.toPlainText() == "base");
+    // A cursor of an editor that is deleted is null
+    QTextCursor orphan;
+    {
+        QPlainTextEdit gone;
+        orphan = gone.textCursor();
+        CHECK(!orphan.isNull());
+    }
+    CHECK(orphan.isNull() && !orphan.movePosition(QTextCursor::End) && orphan.selectedText().isEmpty() &&
+          orphan.blockNumber() == 0 && !orphan.atEnd() && !orphan.atBlockEnd());
+    orphan.setPosition(3);
+    orphan.insertText("x");
+    orphan.deleteChar();
+    orphan.deletePreviousChar();
+    orphan.removeSelectedText();
+    orphan.beginEditBlock();
+    orphan.endEditBlock();
+    orphan.select(QTextCursor::Document);
+
+    // Wrapping and scrolling
+    edit.clear();
+    const QString words =
+        "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma";
+    edit.setPlainText(words);
+    settle(&top);
+    CHECK(edit.blockCount() == 1 && edit.horizontalScrollBar()->isHidden());
+    edit.moveCursor(QTextCursor::End);
+    CHECK(edit.cursorRect().y() > 4 + lh); // on a later line
+    const int endY = edit.cursorRect().y();
+    edit.moveCursor(QTextCursor::Start);
+    CHECK(edit.cursorRect().y() == 4);
+    key(&edit, Qt::Key_Down);
+    CHECK(edit.textCursor().position() > 0 && edit.textCursor().blockNumber() == 0 && edit.cursorRect().y() == 4 + lh);
+    key(&edit, Qt::Key_End);
+    CHECK(edit.textCursor().position() < static_cast<int>(words.size()) && edit.cursorRect().y() == 4 + lh);
+    key(&edit, Qt::Key_Home);
+    CHECK(edit.cursorRect().x() == 4 && edit.cursorRect().y() == 4 + lh);
+    CHECK(endY > 0);
+    // A click on a wrapped line lands on it
+    click(view, QPoint(10, 4 + lh + lh / 2));
+    CHECK(edit.cursorRect().y() == 4 + lh && edit.textCursor().position() > 5);
+    edit.setLineWrapMode(QPlainTextEdit::NoWrap);
+    settle(&top);
+    CHECK(edit.lineWrapMode() == QPlainTextEdit::NoWrap && !edit.horizontalScrollBar()->isHidden() &&
+          edit.cursorRect().y() == 4 - edit.verticalScrollBar()->value());
+    edit.moveCursor(QTextCursor::End);
+    CHECK(edit.horizontalScrollBar()->value() > 0 && edit.cursorRect().x() < view->width() &&
+          edit.cursorRect().x() >= 0);
+    edit.moveCursor(QTextCursor::Start);
+    CHECK(edit.horizontalScrollBar()->value() == 0);
+    edit.setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    edit.setTabStopDistance(40);
+    CHECK(edit.tabStopDistance() == 40);
+    edit.setPlainText("a\tb");
+    edit.moveCursor(QTextCursor::End);
+    CHECK(edit.cursorRect().x() >= 4 + 40 && edit.cursorRect().x() < 4 + 40 + 30);
+    edit.setTabStopDistance(80);
+    // Many lines: the editor scrolls to the cursor
+    QString many;
+    for (int i = 0; i < 60; ++i)
+        many += QString("line %1\n").arg(i);
+    edit.setPlainText(many);
+    QScrollBar *bar = edit.verticalScrollBar();
+    CHECK(!bar->isHidden() && bar->maximum() > 0 && bar->singleStep() == lh);
+    edit.moveCursor(QTextCursor::End);
+    CHECK(bar->value() == bar->maximum() && edit.cursorRect().bottom() <= view->height());
+    edit.moveCursor(QTextCursor::Start);
+    CHECK(bar->value() == 0);
+    key(&edit, Qt::Key_PageDown);
+    CHECK(edit.textCursor().blockNumber() > 3 && edit.textCursor().blockNumber() < 20);
+    bar->setValue(0);
+    wheel(view, QPoint(10, 10), -1);
+    CHECK(bar->value() == 3 * lh);
+    edit.setPlainText("short");
+    CHECK(bar->isHidden() && bar->value() == 0);
+
+    // Appending follows the end of a log
+    edit.setReadOnly(true);
+    edit.setPlainText(many);
+    bar->setValue(bar->maximum());
+    edit.appendPlainText("a new line");
+    CHECK(bar->value() == bar->maximum());
+    bar->setValue(0);
+    edit.appendPlainText("another");
+    CHECK(bar->value() == 0);
+    edit.setReadOnly(false);
+
+    // Painting: background, selection, cursor
+    edit.setPlainText("Selected text");
+    edit.moveCursor(QTextCursor::Start);
+    edit.moveCursor(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    edit.setFocus();
+    QImage image = grab(&top);
+    const QPoint origin = inWindow(view);
+    const QPalette pal = edit.palette();
+    CHECK(image.pixel(origin + QPoint(view->width() - 3, view->height() - 3)) == pal.color(QPalette::Base).rgb());
+    CHECK(image.pixel(origin + QPoint(4 + 1, 4 + 1)) == pal.color(QPalette::Highlight).rgb());
+    edit.moveCursor(QTextCursor::Start);
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(4 + 1, 4 + 1)) == pal.color(QPalette::Base).rgb());
+    const QRect caret = edit.cursorRect();
+    CHECK(image.pixel(origin + QPoint(caret.x(), caret.y() + 3)) == pal.color(QPalette::Text).rgb());
+    edit.clearFocus();
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(caret.x(), caret.y() + 3)) == pal.color(QPalette::Base).rgb());
+    edit.setEnabled(false);
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(view->width() - 3, view->height() - 3)) ==
+          pal.color(QPalette::Disabled, QPalette::Base).rgb());
+    edit.setEnabled(true);
+    edit.setPlaceholderText("Write here");
+    CHECK(edit.placeholderText() == "Write here");
+    edit.clear();
+    image = grab(&top);
+    CHECK(image.width() > 0);
+
+    // QTextEdit has the other names
+    QTextEdit rich("start", &top);
+    CHECK(rich.toPlainText() == "start" && rich.acceptRichText());
+    rich.setText("replaced");
+    rich.append("added");
+    CHECK(rich.toPlainText() == "replaced\nadded" && rich.blockCount() == 2);
+    rich.setAcceptRichText(false);
+    CHECK(!rich.acceptRichText());
+    QTextEdit plain;
+    CHECK(plain.toPlainText().isEmpty());
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -1495,6 +1997,7 @@ int main(int argc, char **argv) {
     testTableWidget();
     testTableToolTips();
     testListWidget();
+    testPlainTextEdit();
     if (g_failures == 0)
         std::puts("all scroll tests passed");
     return g_failures == 0 ? 0 : 1;

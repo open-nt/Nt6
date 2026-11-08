@@ -139,6 +139,9 @@
     \li QListWidget
     \li Items in rows to select, with the mouse or the keys; one, several or none at a time.
     \row
+    \li QPlainTextEdit, QTextEdit
+    \li Text of many lines to type and select, with wrapping and undo; QTextCursor moves in it and changes it.
+    \row
     \li QSpinBox
     \li A whole number to type or step.
     \row
@@ -199,7 +202,7 @@
     \section1 What Is Not There Yet
 
     There are no lists and trees, no model and view classes (a table keeps its items itself, and cannot be edited or sorted),
-    text editing of more than a line, menus and dialogs. The native window of a top-level widget is a
+    menus and dialogs. The native window of a top-level widget is a
     QWindow; child widgets are painted into the backing store of that window and are not native windows
     themselves. Each class lists what differs from Qt in its \e Differences from Qt section.
 

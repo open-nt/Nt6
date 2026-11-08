@@ -8,6 +8,7 @@
 #include <cstring>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <memory>
 #include <new>
 #include <utility>
@@ -29,11 +30,8 @@
     \endcode
 
     \differences
-    There is no \c first(n), \c last(n), \c mid(), \c sliced(), \c removeAll(),
-    \c removeOne(), \c removeIf(), \c takeAt(), \c startsWith(),
-    \c endsWith(), \c max_size() or \c assign(), no rvalue overload of
-    insert(), and the only comparison operators are \c{operator==()} and
-    \c{operator!=()}. Indexes are not range-checked except by value().
+    Indexes are not range-checked except by value(). The relational operators
+    compare items with \c{operator<()} only. There is no \c qHash() overload.
     \enddifferences
 
     \sa QList
@@ -66,13 +64,20 @@ public:
     QVarLengthArray() noexcept = default;
     /*! Constructs an array with \a size value-initialized items. */
     explicit QVarLengthArray(qsizetype size) { resize(size); }
+    /*! \overload
+        \since 6.4
+
+        Constructs an array with \a size copies of \a v. */
+    QVarLengthArray(qsizetype size, const T &v) { resize(size, v); }
     /*! Constructs an array from the items in the initializer list \a list. */
-    QVarLengthArray(std::initializer_list<T> list) { assign(list.begin(), list.end()); }
+    QVarLengthArray(std::initializer_list<T> list) { appendRange(list.begin(), list.end()); }
     /*! Constructs an array with a copy of the items in the range [\a first, \a last). */
     template <typename It, typename = typename std::iterator_traits<It>::iterator_category>
-    QVarLengthArray(It first, It last) { assign(first, last); }
+    QVarLengthArray(It first, It last) {
+        appendRange(first, last);
+    }
     /*! Constructs a copy of the array \a o. */
-    QVarLengthArray(const QVarLengthArray &o) { assign(o.begin(), o.end()); }
+    QVarLengthArray(const QVarLengthArray &o) { appendRange(o.begin(), o.end()); }
     /*! Constructs an array by moving the contents of \a o, which is left empty. */
     QVarLengthArray(QVarLengthArray &&o) noexcept(std::is_nothrow_move_constructible_v<T>) { takeFrom(o); }
     /*! Destroys the array and all its items. */
@@ -294,6 +299,10 @@ public:
         \sa append(), insert()
     */
     void prepend(const T &v) { insert(begin(), v); }
+    /*! \overload
+
+        Moves \a v to the beginning of the array. */
+    void prepend(T &&v) { emplace(cbegin(), std::move(v)); }
     /*!
         Constructs a new item at the end of the array from \a args and
         returns a reference to it.
@@ -341,6 +350,28 @@ public:
     void insert(qsizetype i, const T &v) { insert(static_cast<const_iterator>(ptr + i), v); }
     /*! \overload
 
+        Moves \a v before the item pointed to by \a before and returns an iterator to the inserted item. */
+    template <typename It,
+              typename = std::enable_if_t<std::is_same_v<It, iterator> || std::is_same_v<It, const_iterator>>>
+    iterator insert(It before, T &&v) {
+        return emplace(before, std::move(v));
+    }
+    /*! \overload
+
+        Moves \a v to index position \a i. \a i must be between 0 and size(). */
+    void insert(qsizetype i, T &&v) { emplace(static_cast<const_iterator>(ptr + i), std::move(v)); }
+    /*! \overload
+
+        Inserts \a n copies of \a v before the item pointed to by \a before and returns an iterator to the first inserted item. */
+    template <typename It,
+              typename = std::enable_if_t<std::is_same_v<It, iterator> || std::is_same_v<It, const_iterator>>>
+    iterator insert(It before, qsizetype n, const T &v) {
+        const qsizetype i = before - ptr;
+        insert(i, n, v);
+        return ptr + i;
+    }
+    /*! \overload
+
         Inserts \a n copies of \a v at index position \a i. \a i must be between 0 and size(). */
     void insert(qsizetype i, qsizetype n, const T &v) {
         const T copy = v;
@@ -380,6 +411,81 @@ public:
         \sa removeLast(), removeAt()
     */
     void removeFirst() { remove(0, 1); }
+    /*!
+        \since 6.1
+        Removes all items that compare equal to \a t and returns the number
+        of items removed.
+
+        \sa removeOne(), removeIf()
+    */
+    template <typename AT = T> qsizetype removeAll(const AT &t) {
+        return removeIf([&t](const T &v) { return v == t; });
+    }
+    /*!
+        \since 6.1
+        Removes the first item that compares equal to \a t. Returns \c true
+        if an item was removed; otherwise returns \c false.
+
+        \sa removeAll()
+    */
+    template <typename AT = T> bool removeOne(const AT &t) {
+        const qsizetype i = indexOf(t);
+        if (i < 0)
+            return false;
+        removeAt(i);
+        return true;
+    }
+    /*!
+        \since 6.1
+        Removes all items for which the predicate \a pred returns \c true
+        and returns the number of items removed.
+
+        \sa removeAll()
+    */
+    template <typename Predicate> qsizetype removeIf(Predicate pred) {
+        T *const newEnd = std::remove_if(ptr, ptr + sz, pred);
+        const qsizetype removed = (ptr + sz) - newEnd;
+        std::destroy(newEnd, ptr + sz);
+        sz -= removed;
+        return removed;
+    }
+    /*!
+        \since 6.6
+        Replaces the contents of the array with \a n copies of \a t and
+        returns a reference to the array.
+
+        \sa fill()
+    */
+    QVarLengthArray &assign(qsizetype n, const T &t) {
+        const T copy = t; // t may live in this array
+        clear();
+        reserve(n);
+        std::uninitialized_fill(ptr, ptr + n, copy);
+        sz = n;
+        return *this;
+    }
+    /*! \overload
+        \since 6.6
+
+        Replaces the contents of the array with a copy of the items in the range [\a first, \a last) and returns a reference to the array. The range must not refer to this array. */
+    template <typename It, typename = typename std::iterator_traits<It>::iterator_category>
+    QVarLengthArray &assign(It first, It last) {
+        clear();
+        appendRange(first, last);
+        return *this;
+    }
+    /*! \overload
+        \since 6.6
+
+        Replaces the contents of the array with the items in \a list and returns a reference to the array. */
+    QVarLengthArray &assign(std::initializer_list<T> list) { return assign(list.begin(), list.end()); }
+    /*!
+        Returns the largest number of items the array can theoretically hold.
+        This function is provided for STL compatibility.
+    */
+    static constexpr qsizetype max_size() noexcept {
+        return static_cast<qsizetype>(std::numeric_limits<qsizetype>::max() / static_cast<qsizetype>(sizeof(T)));
+    }
     /*! Same as squeeze(). This function is provided for STL compatibility. */
     void shrink_to_fit() { squeeze(); }
     /*!
@@ -397,8 +503,22 @@ public:
     }
     /*! Appends \a v to the array and returns a reference to the array. */
     QVarLengthArray &operator+=(const T &v) { append(v); return *this; }
+    /*! \overload
+
+        Moves \a v to the end of the array and returns a reference to the array. */
+    QVarLengthArray &operator+=(T &&v) {
+        append(std::move(v));
+        return *this;
+    }
     /*! Appends \a v to the array and returns a reference to the array, so that calls can be chained. */
     QVarLengthArray &operator<<(const T &v) { append(v); return *this; }
+    /*! \overload
+
+        Moves \a v to the end of the array and returns a reference to the array, so that calls can be chained. */
+    QVarLengthArray &operator<<(T &&v) {
+        append(std::move(v));
+        return *this;
+    }
     /*! \overload
 
         Appends the items in the initializer list \a list to the array. */
@@ -506,12 +626,17 @@ public:
         return a.sz == b.sz && std::equal(a.begin(), a.end(), b.begin());
     }
     friend bool operator!=(const QVarLengthArray &a, const QVarLengthArray &b) { return !(a == b); }
+    friend bool operator<(const QVarLengthArray &a, const QVarLengthArray &b) {
+        return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
+    }
+    friend bool operator>(const QVarLengthArray &a, const QVarLengthArray &b) { return b < a; }
+    friend bool operator<=(const QVarLengthArray &a, const QVarLengthArray &b) { return !(b < a); }
+    friend bool operator>=(const QVarLengthArray &a, const QVarLengthArray &b) { return !(a < b); }
 
 private:
     T *inlineData() noexcept { return reinterpret_cast<T *>(storage); }
 
-    template <typename It>
-    void assign(It first, It last) {
+    template <typename It> void appendRange(It first, It last) {
         for (; first != last; ++first)
             emplace_back(*first);
     }

@@ -10,10 +10,14 @@
 #include <QtCore/qmap.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qstringview.h>
 
+#include <cstdio>
 #include <memory>
+#include <list>
 #include <string>
 #include <utility>
+#include <vector>
 
 class QIODevice;
 
@@ -88,6 +92,53 @@ public:
         \sa quote(), noquote()
     */
     QDebug &maybeQuote(char c = '"') { if (s->quote) s->buf.push_back(c); return *this; }
+    /*!
+        \since 5.6
+        Returns the verbosity of the stream, from 0 (least verbose) to 7
+        (most verbose). The default is 2.
+
+        \sa setVerbosity()
+    */
+    int verbosity() const { return s->verbosity; }
+    /*!
+        \since 5.6
+        Sets the verbosity of the stream to \a verbosityLevel, which is
+        clamped to the range 0 to 7. Streaming operators may use it to decide
+        how much detail to write.
+
+        \sa verbosity()
+    */
+    void setVerbosity(int verbosityLevel) {
+        s->verbosity = verbosityLevel < 0 ? 0 : (verbosityLevel > 7 ? 7 : verbosityLevel);
+    }
+    /*!
+        \overload
+        \since 5.13
+        Sets the verbosity of the stream to \a verbosityLevel and returns a
+        reference to the stream.
+    */
+    QDebug &verbosity(int verbosityLevel) {
+        setVerbosity(verbosityLevel);
+        return *this;
+    }
+    /*!
+        \since 5.4
+        Restores the default formatting: automatic spaces, quoting and
+        verbosity 2. Returns a reference to the stream.
+
+        \sa space(), quote(), setVerbosity()
+    */
+    QDebug &resetFormat() {
+        s->space = true;
+        s->quote = true;
+        s->verbosity = DefaultVerbosity;
+        return *this;
+    }
+    /*!
+        \since 5.0
+        Swaps this stream with \a other.
+    */
+    void swap(QDebug &other) noexcept { s.swap(other.s); }
 
     /*!
         Writes the boolean value \a v to the debug stream as \c true or
@@ -224,6 +275,12 @@ public:
     */
     QDebug &operator<<(QLatin1StringView v) { return *this << QString(v); }
     /*!
+        \since 5.10
+        Writes the string view \a v to the debug stream, quoted and escaped
+        like a QString, and returns a reference to the stream.
+    */
+    QDebug &operator<<(QStringView v) { return *this << v.toString(); }
+    /*!
         \overload
 
         Writes the byte array \a v to the debug stream, in double quotes and
@@ -246,12 +303,14 @@ private:
         return maybeSpace();
     }
     friend class QDebugStateSaver;
+    static constexpr int DefaultVerbosity = 2;
     struct State {
         std::string buf;
         QtMsgType type = QtDebugMsg;
         bool space = true;
         bool quote = true;
         bool output = true;
+        int verbosity = DefaultVerbosity;
         const char *file = nullptr;
         int line = 0;
         const char *function = nullptr;
@@ -270,6 +329,79 @@ QDebug operator<<(QDebug d, const QList<T> &l) {
         if (i)
             d << ", ";
         d << l.at(i);
+    }
+    d << ")";
+    d.setAutoInsertSpaces(spaces);
+    return d.maybeSpace();
+}
+
+namespace QtPrivate {
+template <typename It> QDebug printSequence(QDebug d, const char *name, It first, It last) {
+    const bool spaces = d.autoInsertSpaces();
+    d.nospace() << name << "(";
+    for (It it = first; it != last; ++it) {
+        if (it != first)
+            d << ", ";
+        d << *it;
+    }
+    d << ")";
+    d.setAutoInsertSpaces(spaces);
+    return d.maybeSpace();
+}
+template <typename Map> QDebug printAssociative(QDebug d, const char *name, const Map &m) {
+    const bool spaces = d.autoInsertSpaces();
+    d.nospace() << name << "(";
+    for (auto it = m.cbegin(); it != m.cend(); ++it)
+        d << "(" << it.key() << ", " << it.value() << ")";
+    d << ")";
+    d.setAutoInsertSpaces(spaces);
+    return d.maybeSpace();
+}
+} // namespace QtPrivate
+
+template <typename T> QDebug operator<<(QDebug d, const QSet<T> &set) {
+    return QtPrivate::printSequence(d, "QSet", set.cbegin(), set.cend());
+}
+
+template <typename T, typename Alloc> QDebug operator<<(QDebug d, const std::vector<T, Alloc> &v) {
+    return QtPrivate::printSequence(d, "std::vector", v.cbegin(), v.cend());
+}
+
+template <typename T, typename Alloc> QDebug operator<<(QDebug d, const std::list<T, Alloc> &l) {
+    return QtPrivate::printSequence(d, "std::list", l.cbegin(), l.cend());
+}
+
+template <typename T1, typename T2> QDebug operator<<(QDebug d, const std::pair<T1, T2> &pair) {
+    const bool spaces = d.autoInsertSpaces();
+    d.nospace() << "std::pair(" << pair.first << ", " << pair.second << ")";
+    d.setAutoInsertSpaces(spaces);
+    return d.maybeSpace();
+}
+
+template <typename K, typename V> QDebug operator<<(QDebug d, const QMultiMap<K, V> &m) {
+    return QtPrivate::printAssociative(d, "QMultiMap", m);
+}
+
+template <typename K, typename V> QDebug operator<<(QDebug d, const QMultiHash<K, V> &m) {
+    return QtPrivate::printAssociative(d, "QMultiHash", m);
+}
+
+template <typename Enum> QDebug operator<<(QDebug d, QFlags<Enum> flags) {
+    const bool spaces = d.autoInsertSpaces();
+    d.nospace() << "QFlags(";
+    bool needSeparator = false;
+    using U = std::make_unsigned_t<typename QFlags<Enum>::Int>;
+    const auto bits = static_cast<U>(flags.toInt());
+    for (unsigned i = 0; i < sizeof(U) * 8; ++i) {
+        const U bit = static_cast<U>(U(1) << i);
+        if ((bits & bit) == 0)
+            continue;
+        if (needSeparator)
+            d << "|";
+        needSeparator = true;
+        char buf[24];
+        std::snprintf(buf, sizeof buf, "0x%llx", static_cast<unsigned long long>(bit));
+        d << buf;
     }
     d << ")";
     d.setAutoInsertSpaces(spaces);
@@ -345,6 +477,7 @@ private:
     QDebug &m_debug;
     bool m_space;
     bool m_quote;
+    int m_verbosity;
 };
 
 #define qPrintable(string) (string).toLocal8Bit().constData()

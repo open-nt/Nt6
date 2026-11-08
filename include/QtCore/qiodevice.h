@@ -170,6 +170,20 @@ public:
     QByteArray readAll();
     qint64 readLine(char *data, qint64 maxSize);
     QByteArray readLine(qint64 maxSize = 0);
+    bool readLineInto(QByteArray *line, qint64 maxSize = 0);
+    qint64 skip(qint64 maxSize);
+
+    void startTransaction();
+    void commitTransaction();
+    void rollbackTransaction();
+    /*!
+        \since 5.7
+        Returns \c true if a transaction is in progress on the device;
+        otherwise returns \c false.
+
+        \sa startTransaction()
+    */
+    bool isTransactionStarted() const { return m_transaction; }
     qint64 write(const char *data, qint64 maxSize);
     /*!
         \overload
@@ -251,6 +265,7 @@ protected:
     */
     virtual qint64 writeData(const char *data, qint64 maxSize) = 0;
     virtual qint64 readLineData(char *data, qint64 maxSize);
+    virtual qint64 skipData(qint64 maxSize);
     /*!
         Sets the open mode of the device to \a mode without any other effect.
         Subclasses call this from their open() reimplementations.
@@ -269,9 +284,12 @@ protected:
 private:
     qint64 bufferedBytes() const { return m_buf.size() - m_bufPos; }
     void compactBuffer();
+    void keepForTransaction(const char *data, qint64 n);
 
     OpenMode m_mode = NotOpen;
     QString m_error;
     QByteArray m_buf; // look-ahead data for sequential devices
     qint64 m_bufPos = 0;
+    qint64 m_transactionPos = 0; // buffer index (sequential) or device position (random access)
+    bool m_transaction = false;
 };

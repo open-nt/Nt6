@@ -52,7 +52,7 @@ class QWidget : public QObject, public QPaintDevice {
     Q_PROPERTY(bool mouseTracking READ hasMouseTracking WRITE setMouseTracking)
     Q_PROPERTY(QString toolTip READ toolTip WRITE setToolTip)
 public:
-    explicit QWidget(QWidget *parent = nullptr);
+    explicit QWidget(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
     ~QWidget() override;
 
     QPaintEngine *paintEngine() const override;
@@ -107,7 +107,14 @@ public:
     // Hierarchy and windows
     QWidget *parentWidget() const;
     void setParent(QWidget *parent);
-    bool isWindow() const { return parentWidget() == nullptr; }
+    void setParent(QWidget *parent, Qt::WindowFlags f);
+    bool isWindow() const;
+    Qt::WindowFlags windowFlags() const;
+    void setWindowFlags(Qt::WindowFlags type);
+    Qt::WindowType windowType() const;
+    Qt::WindowModality windowModality() const;
+    void setWindowModality(Qt::WindowModality windowModality);
+    bool isModal() const { return windowModality() != Qt::NonModal; }
     QWidget *window() const;
     QWindow *windowHandle() const;
     QString windowTitle() const;
@@ -161,7 +168,7 @@ public:
     void setLayout(QLayout *layout);
 
 public slots:
-    void setVisible(bool visible);
+    virtual void setVisible(bool visible);
     void show();
     void hide();
     bool close();

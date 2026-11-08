@@ -734,6 +734,54 @@ static void testStandardPaths() {
         ::setenv("HOME", oldHome.toUtf8().constData(), 1);
 }
 
+static void testFilePermissionsAndTimes() {
+    const QString path = g_root + "/perm.txt";
+    CHECK(writeFile(path, "data"));
+    QFile f(path);
+    CHECK(f.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ReadGroup));
+    CHECK(f.permissions() ==
+          (QFile::ReadOwner | QFile::WriteOwner | QFile::ReadUser | QFile::WriteUser | QFile::ReadGroup));
+    CHECK(QFile::permissions(path) == QFileInfo(path).permissions());
+    CHECK(QFile::setPermissions(path, QFileInfo::ReadUser | QFileInfo::WriteUser | QFileInfo::ExeOther));
+    struct stat st;
+    CHECK(::stat(path.toUtf8().constData(), &st) == 0 && (st.st_mode & 07777) == 0601);
+    CHECK(QFile::permissions(g_root + "/missing") == QFile::Permissions());
+    CHECK(!QFile::setPermissions(g_root + "/missing", QFile::ReadOwner));
+    QFile missing(g_root + "/missing");
+    CHECK(!missing.setPermissions(QFile::ReadOwner) && missing.error() == QFile::PermissionsError);
+
+    const QDateTime when = QDateTime::fromMSecsSinceEpoch(1500000000123LL);
+    CHECK(f.setFileTime(when, QFileDevice::FileModificationTime));
+    CHECK(f.fileTime(QFileDevice::FileModificationTime) == when);
+    CHECK(QFileInfo(path).lastModified() == when);
+    const QDateTime earlier = QDateTime::fromMSecsSinceEpoch(-1500LL);
+    CHECK(f.setFileTime(earlier, QFileDevice::FileAccessTime));
+    CHECK(f.fileTime(QFileDevice::FileAccessTime) == earlier);
+    CHECK(f.fileTime(QFileDevice::FileModificationTime) == when); // left alone
+    CHECK(f.fileTime(QFileDevice::FileMetadataChangeTime).isValid());
+    CHECK(!f.setFileTime(when, QFileDevice::FileBirthTime) && f.error() == QFile::UnspecifiedError);
+    CHECK(!f.setFileTime(QDateTime(), QFileDevice::FileModificationTime));
+    const QDateTime birth = f.fileTime(QFileDevice::FileBirthTime);
+    CHECK(!birth.isValid() || birth <= QDateTime::currentDateTime().addSecs(5));
+    CHECK(!missing.fileTime(QFileDevice::FileModificationTime).isValid());
+
+    CHECK(f.open(QIODevice::ReadWrite));
+    CHECK(f.setPermissions(QFile::ReadOwner | QFile::WriteOwner));
+    CHECK(f.permissions().testFlag(QFile::WriteOwner) && !f.permissions().testFlag(QFile::ReadGroup));
+    CHECK(f.setFileTime(when.addSecs(10), QFileDevice::FileModificationTime));
+    CHECK(f.fileTime(QFileDevice::FileModificationTime) == when.addSecs(10));
+    f.close();
+
+    const QString linkPath = g_root + "/perm-link";
+    CHECK(f.link(linkPath));
+    CHECK(QFile::symLinkTarget(linkPath) == path && QFile(linkPath).symLinkTarget() == path);
+    CHECK(QFileInfo(linkPath).isSymLink() && readFile(linkPath) == "data");
+    CHECK(!f.link(linkPath) && f.error() == QFile::RenameError);
+    CHECK(QFile::link("perm.txt", g_root + "/rel-link") && readFile(g_root + "/rel-link") == "data");
+    CHECK(QFile::symLinkTarget(path).isEmpty());
+    CHECK(QFile::remove(linkPath) && QFile::remove(g_root + "/rel-link") && QFile::remove(path));
+}
+
 int main() {
     const char *tmp = std::getenv("TMPDIR");
     const QString tmpBase = tmp && *tmp ? QDir::cleanPath(QString::fromUtf8(tmp)) : QString::fromUtf8("/tmp");
@@ -755,6 +803,7 @@ int main() {
     testTemporaryFile();
     testTemporaryDir();
     testSaveFile();
+    testFilePermissionsAndTimes();
     testStandardPaths();
 
     // Restore permissions that could block cleanup, then remove the sandbox.

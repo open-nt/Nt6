@@ -358,8 +358,8 @@ int systemOffsetAt(time_t seconds) {
 
     \differences
     There is no QCalendar support, so every function uses the Gregorian
-    calendar, and there are no \c startOfDay(), \c endOfDay(), \c currentDate()
-    with a time zone, \c longMonthName(), \c shortMonthName(),
+    calendar, and there are no \c startOfDay(), \c endOfDay() or
+    \c currentDate() overloads that take a QTimeZone, \c longMonthName(), \c shortMonthName(),
     \c longDayName() or \c shortDayName(). Text formats use C-locale English
     names. The format string passed to toString() and fromString() supports
     the \c d, \c M and \c y tokens, and single-quoted literal text.
@@ -577,6 +577,67 @@ QDate QDate::fromJulianDay(qint64 julianDay) {
     \sa QDateTime::currentDateTime(), QTime::currentTime()
 */
 QDate QDate::currentDate() { return QDateTime::currentDateTime().date(); }
+
+namespace {
+
+// Returns true if \a dt names a local time that exists, that is, one that survives a round trip
+// through the epoch (a time in a daylight-saving gap is moved by mktime()).
+bool isExistingLocalTime(const QDateTime &dt) {
+    const QDateTime back = QDateTime::fromMSecsSinceEpoch(dt.toMSecsSinceEpoch(), Qt::LocalTime);
+    return back.date() == dt.date() && back.time() == dt.time();
+}
+
+} // namespace
+
+/*!
+    \since 5.14
+    Returns the first moment of this date in the time specification \a spec,
+    with \a offsetSeconds as the offset when \a spec is Qt::OffsetFromUTC.
+    The result is midnight, unless the date starts later in local time
+    because a daylight-saving transition skips midnight; then it is the first
+    minute of the day that exists. Returns an invalid QDateTime if the date is
+    invalid.
+
+    \sa endOfDay()
+*/
+QDateTime QDate::startOfDay(Qt::TimeSpec spec, int offsetSeconds) const {
+    if (!isValid())
+        return {};
+    QDateTime dt(*this, QTime(0, 0), spec, offsetSeconds);
+    if (spec != Qt::LocalTime || isExistingLocalTime(dt))
+        return dt;
+    // A transition never skips more than a few hours; search the first existing minute.
+    for (int minute = 1; minute < 24 * 60; ++minute) {
+        const QDateTime candidate(*this, QTime(minute / 60, minute % 60), spec);
+        if (isExistingLocalTime(candidate))
+            return candidate;
+    }
+    return dt;
+}
+
+/*!
+    \since 5.14
+    Returns the last moment of this date, one millisecond before the next
+    day starts, in the time specification \a spec, with \a offsetSeconds as
+    the offset when \a spec is Qt::OffsetFromUTC. Returns an invalid
+    QDateTime if the date is invalid.
+
+    \sa startOfDay()
+*/
+QDateTime QDate::endOfDay(Qt::TimeSpec spec, int offsetSeconds) const {
+    if (!isValid())
+        return {};
+    QDateTime dt(*this, QTime(23, 59, 59, 999), spec, offsetSeconds);
+    if (spec != Qt::LocalTime || isExistingLocalTime(dt))
+        return dt;
+    // The day ends in a daylight-saving gap; take the last minute that exists.
+    for (int minute = 24 * 60 - 1; minute > 0; --minute) {
+        const QDateTime candidate(*this, QTime(minute / 60, minute % 60, 59, 999), spec);
+        if (isExistingLocalTime(candidate))
+            return candidate;
+    }
+    return dt;
+}
 
 /*!
     Returns the date as text in the given \a format, or an empty string if

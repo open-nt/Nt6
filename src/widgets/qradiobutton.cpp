@@ -3,6 +3,7 @@
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qbuttongroup.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 
@@ -80,13 +81,19 @@ void QRadioButton::keyPressEvent(QKeyEvent *event) {
     const int key = event->key();
     if (key == Qt::Key_Up || key == Qt::Key_Left || key == Qt::Key_Down || key == Qt::Key_Right) {
         // Move the choice to the previous or next radio button of the group, in the order they were created.
+        // The buttons of a button group go together; otherwise the radio buttons of the same parent do.
         std::vector<QRadioButton *> group;
-        if (parentWidget()) {
-            for (QObject *child : parentWidget()->children()) {
-                auto *other = dynamic_cast<QRadioButton *>(child);
-                if (other && other->isEnabled() && !other->isHidden())
-                    group.push_back(other);
-            }
+        const auto consider = [&](QObject *object) {
+            auto *other = dynamic_cast<QRadioButton *>(object);
+            if (other && other->group() == this->group() && other->isEnabled() && !other->isHidden())
+                group.push_back(other);
+        };
+        if (this->group()) {
+            for (QAbstractButton *button : this->group()->buttons())
+                consider(button);
+        } else if (parentWidget()) {
+            for (QObject *child : parentWidget()->children())
+                consider(child);
         }
         const auto it = std::find(group.begin(), group.end(), this);
         if (it != group.end() && group.size() > 1) {

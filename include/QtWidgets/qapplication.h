@@ -22,6 +22,7 @@ public:
     static QList<QWidget *> topLevelWidgets();
     static QList<QWidget *> allWidgets();
     static QWidget *activeWindow();
+    static QWidget *activeModalWidget();
     static QWidget *focusWidget();
     static QWidget *widgetAt(const QPoint &point);
 

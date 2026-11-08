@@ -77,6 +77,22 @@ void QXcbWindow::setVisible(bool visible) {
     m_connection->flush();
 }
 
+void QXcbWindow::setTransientParent(const QPlatformWindow *parent) {
+    xcb_connection_t *c = m_connection->xcb();
+    const xcb_atom_t windowType = m_connection->atom("_NET_WM_WINDOW_TYPE");
+    if (parent) {
+        const xcb_window_t parentId = static_cast<xcb_window_t>(parent->winId());
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, XCB_ATOM_WM_TRANSIENT_FOR, XCB_ATOM_WINDOW, 32, 1,
+                            &parentId);
+        const xcb_atom_t dialog = m_connection->atom("_NET_WM_WINDOW_TYPE_DIALOG");
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, windowType, XCB_ATOM_ATOM, 32, 1, &dialog);
+    } else {
+        xcb_delete_property(c, m_id, XCB_ATOM_WM_TRANSIENT_FOR);
+        xcb_delete_property(c, m_id, windowType);
+    }
+    m_connection->flush();
+}
+
 void QXcbWindow::setWindowTitle(const QString &title) {
     const QByteArray utf8 = title.toUtf8();
     xcb_connection_t *c = m_connection->xcb();

@@ -20,10 +20,10 @@ class QWeakPointer;
 
     \differences
     QSharedPointer is a thin subclass of \c{std::shared_ptr<T>}, so
-    reference counting and the deleter follow the standard library. There is
-    no \c objectCast(), \c qSharedPointerObjectCast(),
-    \c qSharedPointerConstCast() or \c qHash(), and no custom-deleter
-    \c reset() overload.
+    reference counting and the deleter follow the standard library, and
+    \c reset() is the inherited \c{std::shared_ptr} one. objectCast() uses
+    \c qobject_cast, which in Nt is a \c dynamic_cast. There is no
+    \c qSharedPointerFromVariant().
     \enddifferences
 
     \sa QWeakPointer, QEnableSharedFromThis
@@ -112,6 +112,19 @@ public:
     */
     template <typename X>
     QSharedPointer<X> constCast() const { return QSharedPointer<X>(std::const_pointer_cast<X>(static_cast<const Base &>(*this))); }
+    /*!
+        Returns a shared pointer to the same object converted to \c{X *}
+        with \c qobject_cast. The result is null if the object is not an
+        \c X. \c T and \c X must be QObject types.
+    */
+    template <typename X> QSharedPointer<X> objectCast() const {
+        X *x = qobject_cast<X *>(this->get());
+        return x ? QSharedPointer<X>(std::shared_ptr<X>(static_cast<const Base &>(*this), x)) : QSharedPointer<X>();
+    }
+    /*!
+        Swaps this shared pointer with \a other.
+    */
+    void swap(QSharedPointer &other) noexcept { Base::swap(other); }
 
     /*!
         Creates a new \c T constructed from \a args and returns a shared
@@ -132,8 +145,9 @@ public:
 
     \differences
     QWeakPointer is a thin subclass of \c{std::weak_ptr<T>}. It cannot observe
-    a QObject directly, and has no \c data(), \c{operator bool()} or
-    \c{operator==()}.
+    a QObject that is not owned by a QSharedPointer, and has no \c data().
+    Comparisons lock the pointer, so a pointer whose object was destroyed
+    compares equal to \c nullptr.
     \enddifferences
 
     \sa QSharedPointer
@@ -156,6 +170,28 @@ public:
         Constructs a weak pointer from the \c{std::weak_ptr} \a b.
     */
     QWeakPointer(const Base &b) noexcept : Base(b) {}
+    /*!
+        \overload
+        Constructs a weak pointer from \a o, whose pointer type \c{X *} must
+        be implicitly convertible to \c{T *}.
+    */
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X *, T *>>>
+    QWeakPointer(const QWeakPointer<X> &o) noexcept : Base(o) {}
+
+    /*!
+        Returns \c true if the observed object still exists; otherwise
+        returns \c false.
+
+        \sa isNull()
+    */
+    explicit operator bool() const noexcept { return !this->expired(); }
+    /*!
+        Returns \c true if the observed object has been destroyed or the
+        pointer is null; otherwise returns \c false.
+
+        \sa isNull()
+    */
+    bool operator!() const noexcept { return this->expired(); }
 
     /*!
         Returns \c true if the observed object has been destroyed or the
@@ -173,6 +209,33 @@ public:
         \sa QSharedPointer::toWeakRef()
     */
     QSharedPointer<T> toStrongRef() const { return QSharedPointer<T>(Base::lock()); }
+    /*!
+        Same as toStrongRef().
+    */
+    QSharedPointer<T> lock() const { return toStrongRef(); }
+    /*!
+        Swaps this weak pointer with \a other.
+    */
+    void swap(QWeakPointer &other) noexcept { Base::swap(other); }
+
+    template <typename X> friend bool operator==(const QWeakPointer &a, const QWeakPointer<X> &b) {
+        return a.toStrongRef().get() == b.toStrongRef().get();
+    }
+    template <typename X> friend bool operator!=(const QWeakPointer &a, const QWeakPointer<X> &b) { return !(a == b); }
+    template <typename X> friend bool operator==(const QWeakPointer &a, const QSharedPointer<X> &b) {
+        return a.toStrongRef().get() == b.get();
+    }
+    template <typename X> friend bool operator!=(const QWeakPointer &a, const QSharedPointer<X> &b) {
+        return !(a == b);
+    }
+    template <typename X> friend bool operator==(const QSharedPointer<X> &a, const QWeakPointer &b) { return b == a; }
+    template <typename X> friend bool operator!=(const QSharedPointer<X> &a, const QWeakPointer &b) {
+        return !(b == a);
+    }
+    friend bool operator==(const QWeakPointer &a, std::nullptr_t) noexcept { return a.isNull(); }
+    friend bool operator!=(const QWeakPointer &a, std::nullptr_t) noexcept { return !a.isNull(); }
+    friend bool operator==(std::nullptr_t, const QWeakPointer &a) noexcept { return a.isNull(); }
+    friend bool operator!=(std::nullptr_t, const QWeakPointer &a) noexcept { return !a.isNull(); }
 };
 
 template <typename T>
@@ -188,6 +251,29 @@ template <typename X, typename T>
 QSharedPointer<X> qSharedPointerCast(const QSharedPointer<T> &p) { return p.template staticCast<X>(); }
 template <typename X, typename T>
 QSharedPointer<X> qSharedPointerDynamicCast(const QSharedPointer<T> &p) { return p.template dynamicCast<X>(); }
+template <typename X, typename T> QSharedPointer<X> qSharedPointerConstCast(const QSharedPointer<T> &p) {
+    return p.template constCast<X>();
+}
+template <typename X, typename T> QSharedPointer<X> qSharedPointerObjectCast(const QSharedPointer<T> &p) {
+    return p.template objectCast<X>();
+}
+template <typename X, typename T> QSharedPointer<X> qSharedPointerCast(const QWeakPointer<T> &p) {
+    return qSharedPointerCast<X>(p.toStrongRef());
+}
+template <typename X, typename T> QSharedPointer<X> qSharedPointerDynamicCast(const QWeakPointer<T> &p) {
+    return qSharedPointerDynamicCast<X>(p.toStrongRef());
+}
+template <typename X, typename T> QSharedPointer<X> qSharedPointerConstCast(const QWeakPointer<T> &p) {
+    return qSharedPointerConstCast<X>(p.toStrongRef());
+}
+template <typename X, typename T> QSharedPointer<X> qSharedPointerObjectCast(const QWeakPointer<T> &p) {
+    return qSharedPointerObjectCast<X>(p.toStrongRef());
+}
+template <typename T> std::size_t qHash(const QSharedPointer<T> &p, std::size_t seed = 0) noexcept {
+    return std::hash<T *>{}(p.get()) ^ (seed * 0x9e3779b9u);
+}
+template <typename T> void swap(QSharedPointer<T> &a, QSharedPointer<T> &b) noexcept { a.swap(b); }
+template <typename T> void swap(QWeakPointer<T> &a, QWeakPointer<T> &b) noexcept { a.swap(b); }
 
 /*!
     \class QEnableSharedFromThis

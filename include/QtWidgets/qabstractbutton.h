@@ -3,6 +3,8 @@
 
 #include <QtWidgets/qwidget.h>
 
+class QButtonGroup;
+
 class QAbstractButton : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QString text READ text WRITE setText)
@@ -22,6 +24,7 @@ public:
     void setDown(bool down);
     bool autoExclusive() const { return m_autoExclusive; }
     void setAutoExclusive(bool exclusive) { m_autoExclusive = exclusive; }
+    QButtonGroup *group() const { return m_group; }
 
 public slots:
     void setChecked(bool checked);
@@ -63,7 +66,13 @@ protected:
     void leaveEvent(QEvent *event) override;
 
 private:
+    friend class QButtonGroup;
     void activate();
+    // Sets the checked state without the rules of exclusive groups, and emits toggled().
+    void changeChecked(bool checked);
+    void emitPressed();
+    void emitReleased();
+    void emitClicked();
 
     QString m_text;
     bool m_checkable = false;
@@ -71,4 +80,5 @@ private:
     bool m_checked = false;
     bool m_down = false;
     bool m_keyDown = false;
+    QButtonGroup *m_group = nullptr;
 };

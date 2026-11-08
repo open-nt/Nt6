@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qtoolbutton.h>
 
+#include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
@@ -25,10 +26,10 @@
     \image widgets/qtoolbutton.png QToolButton in the light color scheme
 
     \differences
-    There is no icon, so there is no \c setIcon(), \c setToolButtonStyle() or \c setIconSize(); a button shows a text, or an
-    arrow if \c arrowType() is not \c Qt::NoArrow. There is no menu (\c setMenu(), \c setPopupMode()), no default action
-    (\c setDefaultAction()), no auto-repeat, and no \c triggered() signal. The button can be reached with the Tab key, but
-    does not take the focus when clicked, as in Qt.
+    There is no icon, so there is no \c setIcon() or \c setIconSize(), and toolButtonStyle() changes nothing; a button
+    shows a text, or an arrow if \c arrowType() is not \c Qt::NoArrow. There is no menu (\c setMenu(),
+    \c setPopupMode()) and no auto-repeat. The button can be reached with the Tab key, but does not take the focus when
+    clicked, as in Qt.
     \enddifferences
 
     \sa QPushButton, QAbstractButton
@@ -40,6 +41,11 @@
 QToolButton::QToolButton(QWidget *parent) : QAbstractButton(parent) {
     setFocusPolicy(Qt::TabFocus);
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    // A click triggers the default action, which then sets the checked state of the button.
+    QObject::connect(this, &QAbstractButton::clicked, this, [this] {
+        if (m_defaultAction && m_defaultAction->isEnabled())
+            m_defaultAction->trigger();
+    });
 }
 
 /*!
@@ -74,6 +80,86 @@ void QToolButton::setAutoRaise(bool enable) {
 
     \sa setArrowType()
 */
+
+/*!
+    \fn Qt::ToolButtonStyle QToolButton::toolButtonStyle() const
+
+    Returns whether the button shows its icon, its text or both. The default is Qt::ToolButtonIconOnly.
+
+    \sa setToolButtonStyle()
+*/
+
+/*!
+    Sets whether the button shows its icon, its text or both to \a style. Buttons have no icons in Nt, so they show
+    their text whatever the style.
+
+    \sa toolButtonStyle()
+*/
+void QToolButton::setToolButtonStyle(Qt::ToolButtonStyle style) {
+    if (m_style == style)
+        return;
+    m_style = style;
+    updateGeometry();
+    update();
+}
+
+/*!
+    \fn QAction *QToolButton::defaultAction() const
+
+    Returns the default action of the button, or \c nullptr.
+
+    \sa setDefaultAction()
+*/
+
+/*!
+    Makes \a action the default action of the button: the button takes the text, tool tip, checkable and checked state
+    and enabled state of the action and follows their changes, and clicking the button triggers the
+    action. The action is added to the actions of the button.
+
+    \sa defaultAction(), triggered()
+*/
+void QToolButton::setDefaultAction(QAction *action) {
+    if (m_defaultAction == action)
+        return;
+    QObject::disconnect(m_triggered);
+    m_defaultAction = action;
+    if (!action)
+        return;
+    if (!actions().contains(action))
+        addAction(action);
+    m_triggered = QObject::connect(action, &QAction::triggered, this, [this, action] { emit triggered(action); });
+    syncAction();
+}
+
+void QToolButton::syncAction() {
+    QAction *action = m_defaultAction;
+    if (!action)
+        return;
+    setText(action->iconText());
+    setToolTip(action->toolTip());
+    setCheckable(action->isCheckable());
+    if (action->isCheckable() && isChecked() != action->isChecked()) {
+        // Follow the action without the rules of exclusive groups: the action group decides.
+        const bool exclusive = autoExclusive();
+        setAutoExclusive(false);
+        setChecked(action->isChecked());
+        setAutoExclusive(exclusive);
+    }
+    setEnabled(action->isEnabled());
+}
+
+/*!
+    \reimp
+*/
+void QToolButton::actionEvent(QActionEvent *event) {
+    if (event->type() == QEvent::ActionChanged && event->action() == m_defaultAction)
+        syncAction();
+    if (event->type() == QEvent::ActionRemoved && event->action() == m_defaultAction) {
+        QObject::disconnect(m_triggered);
+        m_defaultAction = nullptr;
+    }
+    QAbstractButton::actionEvent(event);
+}
 
 /*!
     Sets the arrow that the button shows in place of its text to \a type.

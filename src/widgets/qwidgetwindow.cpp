@@ -100,16 +100,22 @@ void QWidgetWindow::moveEvent(QMoveEvent *event) {
     QCoreApplication::sendEvent(m_widget, &move);
 }
 
-void QWidgetWindow::showEvent(QShowEvent *event) { (void)event; }
+void QWidgetWindow::showEvent(QShowEvent *event) {
+    (void)event;
+    if (m_widget && m_widget->isModal())
+        WidgetAccess::modalShown(m_widget);
+}
 
 void QWidgetWindow::hideEvent(QHideEvent *event) {
     (void)event;
+    if (m_widget)
+        WidgetAccess::modalHidden(m_widget);
     cancelToolTip();
     m_grab = nullptr;
     m_popup = nullptr;
     if (m_under) {
         QEvent leave(QEvent::Leave);
-        for (QWidget *w = m_under; w; w = w->parentWidget()) {
+        for (QWidget *w = m_under; w; w = WidgetAccess::up(w)) {
             WidgetAccess::setUnderMouse(w, false);
             QCoreApplication::sendEvent(w, &leave);
         }
@@ -122,6 +128,11 @@ void QWidgetWindow::hideEvent(QHideEvent *event) {
 void QWidgetWindow::closeEvent(QCloseEvent *event) {
     if (!m_widget)
         return;
+    // A window that a modal window blocks cannot be closed.
+    if (WidgetAccess::blockedByModal(m_widget)) {
+        event->ignore();
+        return;
+    }
     QCloseEvent close;
     QCoreApplication::sendEvent(m_widget, &close);
     event->setAccepted(close.isAccepted());
@@ -145,7 +156,7 @@ namespace {
 // with the position `startPos` translated for each of them. A disabled widget swallows the event.
 template <typename Make> bool propagate(QWidget *target, const QPointF &startPos, Make make) {
     QPointF pos = startPos;
-    for (QWidget *w = target; w; w = w->parentWidget()) {
+    for (QWidget *w = target; w; w = WidgetAccess::up(w)) {
         if (!w->isEnabled())
             return true;
         auto event = make(pos);
@@ -167,9 +178,9 @@ void QWidgetWindow::updateUnderMouse(QWidget *target, const QPointF &local, cons
     m_under = target;
     // Leave the widgets that the mouse is no longer over, bottom up, then enter the new ones, top down.
     std::vector<QWidget *> newChain;
-    for (QWidget *w = target; w; w = w->parentWidget())
+    for (QWidget *w = target; w; w = WidgetAccess::up(w))
         newChain.push_back(w);
-    for (QWidget *w = old; w; w = w->parentWidget()) {
+    for (QWidget *w = old; w; w = WidgetAccess::up(w)) {
         if (std::find(newChain.begin(), newChain.end(), w) != newChain.end())
             break;
         WidgetAccess::setUnderMouse(w, false);
@@ -177,7 +188,7 @@ void QWidgetWindow::updateUnderMouse(QWidget *target, const QPointF &local, cons
         QCoreApplication::sendEvent(w, &leave);
     }
     std::vector<QWidget *> oldChain;
-    for (QWidget *w = old; w; w = w->parentWidget())
+    for (QWidget *w = old; w; w = WidgetAccess::up(w))
         oldChain.push_back(w);
     for (auto it = newChain.rbegin(); it != newChain.rend(); ++it) {
         QWidget *w = *it;
@@ -204,11 +215,15 @@ void QWidgetWindow::deliverMouse(QMouseEvent *event, QWidget *target) {
 void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
     if (!m_widget)
         return;
+    if (WidgetAccess::blockedByModal(m_widget)) {
+        event->ignore();
+        return;
+    }
     cancelToolTip();
     if (m_popup && !m_grab) {
         // A press outside the popup closes it, and does nothing else.
         bool inside = false;
-        for (QWidget *w = WidgetAccess::widgetAt(m_widget, event->pos()); w; w = w->parentWidget()) {
+        for (QWidget *w = WidgetAccess::widgetAt(m_widget, event->pos()); w; w = WidgetAccess::up(w)) {
             // A submenu is part of the popup of its menu, and the widget that opened the popup gets the press.
             for (QWidget *p = w; p && !inside; p = WidgetAccess::data(p).popupParent.data())
                 inside = p == m_popup;
@@ -235,6 +250,10 @@ void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
 void QWidgetWindow::mouseDoubleClickEvent(QMouseEvent *event) {
     if (!m_widget)
         return;
+    if (WidgetAccess::blockedByModal(m_widget)) {
+        event->ignore();
+        return;
+    }
     QWidget *target = m_grab ? m_grab.data() : WidgetAccess::widgetAt(m_widget, event->pos());
     if (!m_grab)
         m_grab = target;
@@ -244,6 +263,10 @@ void QWidgetWindow::mouseDoubleClickEvent(QMouseEvent *event) {
 void QWidgetWindow::mouseReleaseEvent(QMouseEvent *event) {
     if (!m_widget)
         return;
+    if (WidgetAccess::blockedByModal(m_widget)) {
+        event->ignore();
+        return;
+    }
     QWidget *target = m_grab ? m_grab.data() : WidgetAccess::widgetAt(m_widget, event->pos());
     deliverMouse(event, target);
     if (event->buttons() == Qt::NoButton) {
@@ -257,6 +280,12 @@ void QWidgetWindow::mouseReleaseEvent(QMouseEvent *event) {
 void QWidgetWindow::mouseMoveEvent(QMouseEvent *event) {
     if (!m_widget)
         return;
+    if (WidgetAccess::blockedByModal(m_widget)) {
+        cancelToolTip();
+        updateUnderMouse(nullptr, QPointF(), QPointF());
+        event->ignore();
+        return;
+    }
     if (m_grab && event->buttons() != Qt::NoButton) {
         cancelToolTip();
         deliverMouse(event, m_grab);
@@ -272,6 +301,10 @@ void QWidgetWindow::mouseMoveEvent(QMouseEvent *event) {
 void QWidgetWindow::wheelEvent(QWheelEvent *event) {
     if (!m_widget)
         return;
+    if (WidgetAccess::blockedByModal(m_widget)) {
+        event->ignore();
+        return;
+    }
     cancelToolTip();
     QWidget *target = WidgetAccess::widgetAt(m_widget, event->position().toPoint());
     const QPointF local = event->position() - QPointF(target->mapTo(m_widget, QPoint(0, 0)));
@@ -285,6 +318,10 @@ void QWidgetWindow::wheelEvent(QWheelEvent *event) {
 void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
     if (!m_widget)
         return;
+    if (WidgetAccess::blockedByModal(m_widget)) {
+        event->ignore();
+        return;
+    }
     cancelToolTip();
     if (!m_popup && !event->isAutoRepeat() && event->modifiers() == Qt::AltModifier && event->key() >= Qt::Key_A &&
         event->key() <= Qt::Key_Z && WidgetAccess::activateMnemonic(m_widget, event->key())) {
@@ -314,6 +351,10 @@ void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
 void QWidgetWindow::keyReleaseEvent(QKeyEvent *event) {
     if (!m_widget)
         return;
+    if (WidgetAccess::blockedByModal(m_widget)) {
+        event->ignore();
+        return;
+    }
     QWidget *target = WidgetAccess::focusWidgetOf(m_widget);
     if (!target)
         target = m_widget;
@@ -370,7 +411,7 @@ void QWidgetWindow::timerEvent(QTimerEvent *event) {
     m_tipTimer = 0;
     // Ask the widget under the mouse, and its parents in turn, until one has a tool tip.
     QPoint pos = m_tipPos - WidgetAccess::windowOffset(m_tipWidget);
-    for (QWidget *w = m_tipWidget; w; w = w->parentWidget()) {
+    for (QWidget *w = m_tipWidget; w; w = WidgetAccess::up(w)) {
         QHelpEvent help(QEvent::ToolTip, pos, m_tipGlobalPos);
         help.accept();
         QCoreApplication::sendEvent(w, &help);

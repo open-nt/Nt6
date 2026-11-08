@@ -683,6 +683,36 @@ void QPainter::drawImage(const QPoint &point, const QImage &image) { drawImage(p
 */
 
 /*!
+    \fn void QPainter::drawPixmap(const QPoint &point, const QPixmap &pixmap)
+
+    Draws \a pixmap with its top left corner at \a point.
+*/
+
+/*!
+    \fn void QPainter::drawPixmap(int x, int y, const QPixmap &pixmap)
+
+    \overload
+
+    Draws \a pixmap with its top left corner at \a x, \a y.
+*/
+
+/*!
+    \fn void QPainter::drawPixmap(const QRect &target, const QPixmap &pixmap, const QRect &source)
+
+    \overload
+
+    Draws the part \a source of \a pixmap, or all of it if \a source is null, scaled to fill \a target.
+*/
+
+/*!
+    \fn void QPainter::drawPixmap(int x, int y, int width, int height, const QPixmap &pixmap)
+
+    \overload
+
+    Draws \a pixmap scaled to the rectangle at \a x, \a y of \a width by \a height.
+*/
+
+/*!
     \overload
 
     Draws the part \a source of \a image, scaled to fill \a target. A null

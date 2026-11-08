@@ -168,6 +168,8 @@ public:
     QList<T> findChildren(const QString &name = QString(), Qt::FindChildOptions options = Qt::FindChildrenRecursively) const {
         QList<T> r;
         for (QObject *c : children()) {
+            if (!c)
+                continue;
             if (T t = dynamic_cast<T>(c); t && (name.isEmpty() || c->objectName() == name))
                 r.append(t);
             if (options.testFlag(Qt::FindChildrenRecursively))
@@ -197,6 +199,9 @@ public:
     QObject *sender() const;
 
     virtual bool event(QEvent *event);
+    virtual bool eventFilter(QObject *watched, QEvent *event);
+    void installEventFilter(QObject *filterObj);
+    void removeEventFilter(QObject *obj);
 
     /*!
         Connects \a signal of \a sender to \a slot and returns a handle to the

@@ -34,6 +34,8 @@ struct QWidget::Data {
     bool pendingShow = false;      // created below a visible parent, not shown yet
     bool disabled = false;         // setEnabled(false) on this widget
     QString title;
+    Qt::WindowFlags windowFlags;
+    Qt::WindowModality modality = Qt::NonModal;
     QPalette palette;
     bool paletteSet = false;
     QFont font;
@@ -63,8 +65,15 @@ struct WidgetAccess {
     static QWidget::Data &data(QWidget *w) { return *w->m_d; }
     static const QWidget::Data &data(const QWidget *w) { return *w->m_d; }
 
-    // The widgets that are children of `w`, bottom to top.
+    // The widgets that are children of `w` in its window, bottom to top: not the child windows, such as dialogs.
     static std::vector<QWidget *> childWidgets(const QWidget *w);
+    // The parent of `w` in its window: its parent widget, or null if `w` is a window.
+    static QWidget *up(const QWidget *w) { return w->isWindow() ? nullptr : w->parentWidget(); }
+    // Whether a modal window that is shown blocks the input of the window `top`.
+    static bool blockedByModal(const QWidget *top);
+    // Keeps the list of the modal windows that are shown, in the order they were shown.
+    static void modalShown(QWidget *top);
+    static void modalHidden(QWidget *top);
     // Position of `w` in the client area of its window.
     static QPoint windowOffset(const QWidget *w);
     // The part of `w` that is not clipped by an ancestor, in window coordinates.

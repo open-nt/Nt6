@@ -4,6 +4,7 @@
 #include <unistd.h>
 
 #include <QtCore/qfile.h>
+#include <QtCore/qfileinfo.h>
 
 #include <algorithm>
 #include <cerrno>
@@ -22,11 +23,12 @@
     The last failure is available from error() and errorString().
 
     \differences
-    There are no permission or timestamp functions (\c permissions(), \c
-    setPermissions(), \c fileTime(), \c setFileTime() and the \c Permission
-    and \c FileTime enums), no memory mapping (\c map() and \c unmap()), and
-    no \c FileHandleFlags. flush() calls \c fsync() on the descriptor instead
-    of flushing a user-space buffer. The class is POSIX-only.
+    There is no memory mapping (\c map() and \c unmap()) and no
+    \c FileHandleFlags. flush() calls \c fsync() on the descriptor instead
+    of flushing a user-space buffer. The class is POSIX-only. Permission and
+    Permissions are the QFileInfo types. setFileTime() can change only the
+    access and modification times, and fileTime() reports the birth time only
+    where the kernel and file system provide it (\c statx() on Linux).
     \enddifferences
 
     \sa QFile, QSaveFile, QTemporaryFile, QIODevice
@@ -212,6 +214,173 @@ bool QFileDevice::resize(qint64 sz) {
     return ::ftruncate(m_fd, static_cast<off_t>(sz)) == 0;
 }
 
+namespace {
+
+mode_t toMode(QFileDevice::Permissions p) {
+    mode_t m = 0;
+    // The owner is the user on POSIX systems, so either flag sets the owner bit, as in Qt.
+    if (p & (QFileDevice::ReadOwner | QFileDevice::ReadUser))
+        m |= S_IRUSR;
+    if (p & (QFileDevice::WriteOwner | QFileDevice::WriteUser))
+        m |= S_IWUSR;
+    if (p & (QFileDevice::ExeOwner | QFileDevice::ExeUser))
+        m |= S_IXUSR;
+    if (p & QFileDevice::ReadGroup)
+        m |= S_IRGRP;
+    if (p & QFileDevice::WriteGroup)
+        m |= S_IWGRP;
+    if (p & QFileDevice::ExeGroup)
+        m |= S_IXGRP;
+    if (p & QFileDevice::ReadOther)
+        m |= S_IROTH;
+    if (p & QFileDevice::WriteOther)
+        m |= S_IWOTH;
+    if (p & QFileDevice::ExeOther)
+        m |= S_IXOTH;
+    return m;
+}
+
+QFileDevice::Permissions fromMode(mode_t m) {
+    QFileDevice::Permissions p;
+    if (m & S_IRUSR)
+        p |= QFileDevice::ReadOwner | QFileDevice::ReadUser;
+    if (m & S_IWUSR)
+        p |= QFileDevice::WriteOwner | QFileDevice::WriteUser;
+    if (m & S_IXUSR)
+        p |= QFileDevice::ExeOwner | QFileDevice::ExeUser;
+    if (m & S_IRGRP)
+        p |= QFileDevice::ReadGroup;
+    if (m & S_IWGRP)
+        p |= QFileDevice::WriteGroup;
+    if (m & S_IXGRP)
+        p |= QFileDevice::ExeGroup;
+    if (m & S_IROTH)
+        p |= QFileDevice::ReadOther;
+    if (m & S_IWOTH)
+        p |= QFileDevice::WriteOther;
+    if (m & S_IXOTH)
+        p |= QFileDevice::ExeOther;
+    return p;
+}
+
+qint64 toMSecs(const struct timespec &t) { return static_cast<qint64>(t.tv_sec) * 1000 + t.tv_nsec / 1000000; }
+
+// Reads the stat of the open descriptor \a fd, or of \a path when fd is negative.
+bool statFile(int fd, const QString &path, struct stat *st) {
+    if (fd >= 0)
+        return ::fstat(fd, st) == 0;
+    return !path.isEmpty() && ::stat(path.toUtf8().constData(), st) == 0;
+}
+
+QDateTime birthTime(int fd, const QString &path) {
+#if defined(__linux__) && defined(STATX_BTIME)
+    struct statx sx;
+    const QByteArray p = path.toUtf8();
+    const int r = fd >= 0 ? ::statx(fd, "", AT_EMPTY_PATH, STATX_BTIME, &sx)
+                          : ::statx(AT_FDCWD, p.constData(), 0, STATX_BTIME, &sx);
+    if (r == 0 && (sx.stx_mask & STATX_BTIME))
+        return QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(sx.stx_btime.tv_sec) * 1000 +
+                                              sx.stx_btime.tv_nsec / 1000000);
+#else
+    Q_UNUSED(fd)
+    Q_UNUSED(path)
+#endif
+    return QDateTime();
+}
+
+} // namespace
+
+/*!
+    Returns the permissions of the file: of the open descriptor, or of the
+    file named fileName() if the device is not open. Returns no permissions if
+    the file does not exist.
+
+    \sa setPermissions(), QFileInfo::permissions()
+*/
+QFileDevice::Permissions QFileDevice::permissions() const {
+    struct stat st;
+    return statFile(m_fd, m_name, &st) ? fromMode(st.st_mode) : Permissions();
+}
+
+/*!
+    Sets the permissions of the file to \a permissions. Returns \c true if
+    successful; otherwise sets error() to \c PermissionsError and returns
+    \c false. The owner bits are set if either the Owner or the User flag is
+    given.
+
+    \sa permissions()
+*/
+bool QFileDevice::setPermissions(Permissions permissions) {
+    const int r =
+        m_fd >= 0 ? ::fchmod(m_fd, toMode(permissions)) : ::chmod(m_name.toUtf8().constData(), toMode(permissions));
+    if (r != 0) {
+        setFileError(PermissionsError, QString::fromUtf8(std::strerror(errno)));
+        return false;
+    }
+    return true;
+}
+
+/*!
+    \since 5.10
+    Returns the time stamp \a time of the file, of the open descriptor or of
+    the file named fileName(). Returns an invalid QDateTime if the file does
+    not exist or the time is not available, such as a birth time on a file
+    system that does not record it.
+
+    \sa setFileTime(), QFileInfo::lastModified()
+*/
+QDateTime QFileDevice::fileTime(FileTime time) const {
+    if (time == FileBirthTime)
+        return birthTime(m_fd, m_name);
+    struct stat st;
+    if (!statFile(m_fd, m_name, &st))
+        return QDateTime();
+    switch (time) {
+    case FileAccessTime:
+        return QDateTime::fromMSecsSinceEpoch(toMSecs(st.st_atim));
+    case FileMetadataChangeTime:
+        return QDateTime::fromMSecsSinceEpoch(toMSecs(st.st_ctim));
+    case FileModificationTime:
+    case FileBirthTime:
+        break;
+    }
+    return QDateTime::fromMSecsSinceEpoch(toMSecs(st.st_mtim));
+}
+
+/*!
+    \since 5.10
+    Sets the time stamp \a fileTime of the file to \a newDate. Returns
+    \c true if successful; otherwise sets error() to \c UnspecifiedError and
+    returns \c false. Only FileAccessTime and FileModificationTime can be
+    changed, and \a newDate must be valid.
+
+    \sa fileTime()
+*/
+bool QFileDevice::setFileTime(const QDateTime &newDate, FileTime fileTime) {
+    if (!newDate.isValid() || (fileTime != FileAccessTime && fileTime != FileModificationTime)) {
+        setFileError(UnspecifiedError, QString::fromUtf8("Setting this file time is not supported"));
+        return false;
+    }
+    const qint64 ms = newDate.toMSecsSinceEpoch();
+    struct timespec times[2];
+    times[0].tv_sec = times[1].tv_sec = 0;
+    times[0].tv_nsec = times[1].tv_nsec = UTIME_OMIT;
+    struct timespec &t = times[fileTime == FileAccessTime ? 0 : 1];
+    qint64 secs = ms / 1000, rest = ms % 1000;
+    if (rest < 0) {
+        rest += 1000;
+        --secs;
+    }
+    t.tv_sec = static_cast<time_t>(secs);
+    t.tv_nsec = static_cast<long>(rest * 1000000);
+    const int r = m_fd >= 0 ? ::futimens(m_fd, times) : ::utimensat(AT_FDCWD, m_name.toUtf8().constData(), times, 0);
+    if (r != 0) {
+        setFileError(UnspecifiedError, QString::fromUtf8(std::strerror(errno)));
+        return false;
+    }
+    return true;
+}
+
 /*!
     \reimp
 
@@ -306,7 +475,7 @@ qint64 QFileDevice::readLineData(char *data, qint64 maxSize) {
     The constructors do not accept \c std::filesystem::path, and there are no
     \c open() overloads that take a \c FILE* or a file descriptor. The \c
     Text open flag is accepted but does not translate line endings. There is
-    no \c symLinkTarget(), \c link(), \c moveToTrash(), \c readLink(),
+    no \c moveToTrash(), \c readLink(),
     \c decodeName() or \c encodeName(). Static copy() refuses to overwrite an
     existing file, and rename() does not fall back to copying across
     filesystems. Permissions are not copied.
@@ -400,6 +569,91 @@ bool QFile::remove() {
         return false;
     }
     return true;
+}
+
+/*!
+    \reimp
+
+    Returns the permissions of the file named fileName(), or of the open
+    descriptor.
+*/
+QFile::Permissions QFile::permissions() const { return QFileDevice::permissions(); }
+
+/*!
+    \reimp
+
+    Sets the permissions of the file to \a permissions.
+*/
+bool QFile::setPermissions(Permissions permissions) { return QFileDevice::setPermissions(permissions); }
+
+/*!
+    \overload
+
+    Returns the permissions of the file \a fileName, or no permissions if the
+    file does not exist.
+*/
+QFile::Permissions QFile::permissions(const QString &fileName) {
+    struct stat st;
+    return statFile(-1, fileName, &st) ? fromMode(st.st_mode) : Permissions();
+}
+
+/*!
+    \overload
+
+    Sets the permissions of the file \a fileName to \a permissions. Returns
+    \c true if successful; otherwise returns \c false.
+*/
+bool QFile::setPermissions(const QString &fileName, Permissions permissions) {
+    return ::chmod(fileName.toUtf8().constData(), toMode(permissions)) == 0;
+}
+
+/*!
+    \since 4.2
+    Returns the absolute path that the symbolic link fileName() points to, or
+    an empty string if the file is not a symbolic link.
+
+    \sa link(), QFileInfo::symLinkTarget()
+*/
+QString QFile::symLinkTarget() const { return QFileInfo(m_name).symLinkTarget(); }
+
+/*!
+    \overload
+
+    Returns the absolute path that the symbolic link \a fileName points to,
+    or an empty string if it is not a symbolic link.
+*/
+QString QFile::symLinkTarget(const QString &fileName) { return QFileInfo(fileName).symLinkTarget(); }
+
+/*!
+    Creates a symbolic link named \a linkName that points to fileName().
+    Returns \c true if successful; otherwise sets error() to
+    \c RenameError and returns \c false. An existing \a linkName is not
+    replaced.
+
+    \sa symLinkTarget()
+*/
+bool QFile::link(const QString &linkName) {
+    if (m_name.isEmpty()) {
+        setFileError(RenameError, QString::fromUtf8("No file name specified"));
+        return false;
+    }
+    if (!link(m_name, linkName)) {
+        setFileError(RenameError, QString::fromUtf8(std::strerror(errno)));
+        return false;
+    }
+    return true;
+}
+
+/*!
+    \overload
+
+    Creates a symbolic link named \a linkName that points to \a fileName.
+    The link stores \a fileName as given, so a relative name is resolved
+    relative to the directory of the link. Returns \c true if successful;
+    otherwise returns \c false.
+*/
+bool QFile::link(const QString &fileName, const QString &linkName) {
+    return ::symlink(fileName.toUtf8().constData(), linkName.toUtf8().constData()) == 0;
 }
 
 /*!

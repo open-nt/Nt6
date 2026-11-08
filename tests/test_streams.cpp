@@ -4,6 +4,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 
@@ -851,6 +852,116 @@ static void testParserProcess() {
     CHECK(code == 0 && out == "returned");
 }
 
+// ------------------------------------------------- QIODevice transactions
+
+// A sequential device whose data arrives in pieces, like a socket.
+class ChunkDevice : public QIODevice {
+public:
+    void feed(const QByteArray &d) { pending.append(d); }
+    bool isSequential() const override { return true; }
+    qint64 bytesAvailable() const override { return QIODevice::bytesAvailable() + pending.size(); }
+
+protected:
+    qint64 readData(char *data, qint64 maxSize) override {
+        const qint64 n = std::min<qint64>(maxSize, pending.size());
+        std::memcpy(data, pending.constData(), static_cast<std::size_t>(n));
+        pending.remove(0, n);
+        return n;
+    }
+    qint64 writeData(const char *, qint64) override { return -1; }
+
+private:
+    QByteArray pending;
+};
+
+static void testDeviceTransactions() {
+    {
+        ChunkDevice dev;
+        dev.open(QIODevice::ReadOnly);
+        dev.feed("abcdef");
+        dev.startTransaction();
+        CHECK(dev.isTransactionStarted());
+        CHECK(dev.read(2) == "ab");
+        CHECK(dev.peek(1) == "c");
+        CHECK(dev.read(3) == "cde");
+        dev.rollbackTransaction();
+        CHECK(!dev.isTransactionStarted() && dev.bytesAvailable() == 6);
+        CHECK(dev.read(4) == "abcd");
+        dev.startTransaction();
+        dev.feed("gh\nij");
+        CHECK(dev.readLine() == "efgh\n");
+        dev.commitTransaction();
+        CHECK(dev.readAll() == "ij");
+        dev.feed("0123456789");
+        CHECK(dev.skip(3) == 3 && dev.read(2) == "34");
+        dev.startTransaction();
+        CHECK(dev.skip(100) == 5 && dev.atEnd());
+        dev.rollbackTransaction();
+        CHECK(dev.readAll() == "56789");
+        dev.feed("xy");
+        char c = 0;
+        dev.startTransaction();
+        CHECK(dev.getChar(&c) && c == 'x');
+        dev.ungetChar(c);
+        CHECK(dev.read(2) == "xy");
+        dev.rollbackTransaction();
+        CHECK(dev.read(2) == "xy");
+    }
+    {
+        QBuffer buf;
+        buf.setData("line one\nline two");
+        buf.open(QIODevice::ReadOnly);
+        buf.startTransaction();
+        CHECK(buf.readLine() == "line one\n");
+        buf.rollbackTransaction();
+        CHECK(buf.pos() == 0);
+        QByteArray line;
+        CHECK(buf.readLineInto(&line) && line == "line one\n");
+        CHECK(buf.readLineInto(&line) && line == "line two");
+        CHECK(!buf.readLineInto(&line) && line.isEmpty());
+        CHECK(buf.seek(2) && buf.skip(3) == 3 && buf.pos() == 5 && buf.skip(1000) == 12 && buf.atEnd());
+        CHECK(buf.skip(4) == 0);
+        buf.close();
+        CHECK(buf.skip(1) == -1);
+    }
+    {
+        // QDataStream on a device that receives a message in two parts.
+        QByteArray message;
+        {
+            QDataStream out(&message, QIODevice::WriteOnly);
+            out << QString("hello") << qint32(42);
+        }
+        ChunkDevice dev;
+        dev.open(QIODevice::ReadOnly);
+        QDataStream in(&dev);
+        dev.feed(message.left(7));
+        QString text;
+        qint32 number = 0;
+        in.startTransaction();
+        CHECK(in.isDeviceTransactionStarted());
+        in >> text >> number;
+        CHECK(!in.commitTransaction() && !in.isDeviceTransactionStarted());
+        CHECK(dev.bytesAvailable() == 7);
+        dev.feed(message.mid(7));
+        in.startTransaction();
+        in.startTransaction(); // nested: only the outermost acts on the device
+        in >> text;
+        CHECK(in.commitTransaction() && in.isDeviceTransactionStarted());
+        in >> number;
+        CHECK(in.commitTransaction() && text == "hello" && number == 42 && in.status() == QDataStream::Ok);
+        dev.feed(bytes({1, 2, 3}));
+        in.startTransaction();
+        qint8 b = 0;
+        in >> b;
+        in.rollbackTransaction();
+        CHECK(in.status() == QDataStream::ReadPastEnd && dev.bytesAvailable() == 3);
+        in.startTransaction();
+        in >> b;
+        in.abortTransaction();
+        CHECK(in.status() == QDataStream::ReadCorruptData && dev.bytesAvailable() == 2);
+    }
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     QCoreApplication::setApplicationName("Demo");
@@ -862,6 +973,7 @@ int main(int argc, char **argv) {
     testDataStreamRaw();
     testDataStreamStatus();
     testDataStreamEnum();
+    testDeviceTransactions();
     testTextStreamWriteBasics();
     testTextStreamFormatting();
     testTextStreamReading();

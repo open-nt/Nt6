@@ -56,10 +56,12 @@ std::string escaped(const std::string &s) {
     QLoggingCategory selects which messages are written; see \c qCDebug().
 
     \differences
-    There is no \c verbosity(), \c resetFormat() or \c swap(), no stream
-    manipulators such as \c endl, and no \c{<<} for QFlags, QSet, QPair,
-    QStringView, QMetaEnum or the value classes. Containers supported are
-    QList, QMap and QHash.
+    There are no stream manipulators such as \c endl and no \c{<<} for
+    QMetaEnum. The containers supported are QList, QSet, QMap, QMultiMap,
+    QHash, QMultiHash, \c std::vector, \c std::list and \c std::pair; a
+    QList is written without the \c QList prefix. QFlags values are written
+    as hexadecimal bits, because Nt does not look up \c Q_FLAG names here.
+    The verbosity is stored but the built-in operators ignore it.
     \enddifferences
 
     \sa QMessageLogger, QMessageLogContext, QDebugStateSaver, QLoggingCategory
@@ -167,8 +169,8 @@ QDebug &QDebug::operator<<(const QObject *o) {
     \endcode
 
     \differences
-    The state is the automatic spacing and the quoting. There is no verbosity
-    or integer base.
+    The state is the automatic spacing, the quoting and the verbosity. There
+    is no integer base.
     \enddifferences
 
     \sa QDebug
@@ -177,7 +179,8 @@ QDebug &QDebug::operator<<(const QObject *o) {
 /*!
     Saves the formatting state of \a dbg.
 */
-QDebugStateSaver::QDebugStateSaver(QDebug &dbg) : m_debug(dbg), m_space(dbg.s->space), m_quote(dbg.s->quote) {}
+QDebugStateSaver::QDebugStateSaver(QDebug &dbg)
+    : m_debug(dbg), m_space(dbg.s->space), m_quote(dbg.s->quote), m_verbosity(dbg.s->verbosity) {}
 
 /*!
     Restores the formatting state of the stream.
@@ -185,4 +188,5 @@ QDebugStateSaver::QDebugStateSaver(QDebug &dbg) : m_debug(dbg), m_space(dbg.s->s
 QDebugStateSaver::~QDebugStateSaver() {
     m_debug.s->space = m_space;
     m_debug.s->quote = m_quote;
+    m_debug.s->verbosity = m_verbosity;
 }

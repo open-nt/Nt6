@@ -2125,7 +2125,7 @@ static void testButtons() {
     CHECK(clicked == clickedBefore);
     button.setEnabled(true);
 
-    // The keyboard: Space (press and release) and Return click
+    // The keyboard: Space (press and release) clicks
     button.setFocus();
     CHECK(button.hasFocus());
     const int before2 = clicked;
@@ -2138,9 +2138,15 @@ static void testButtons() {
     CHECK(!button.isDown() && clicked == before2 + 1);
     QWindowSystemInterface::handleKeyEvent(win, QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier); // no press before
     CHECK(clicked == before2 + 1);
+    // As in Qt, Return and Enter click a button outside a dialog only if it is auto-default
+    CHECK(!button.autoDefault() && !button.isDefault());
+    key(&top, Qt::Key_Return);
+    CHECK(clicked == before2 + 1);
+    button.setAutoDefault(true);
     key(&top, Qt::Key_Return);
     key(&top, Qt::Key_Enter);
     CHECK(clicked == before2 + 3);
+    button.setAutoDefault(false);
     key(&top, Qt::Key_X);
     CHECK(clicked == before2 + 3);
     // Losing the focus while Space is down raises the button

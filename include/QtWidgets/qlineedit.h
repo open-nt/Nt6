@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qpointer.h>
+#include <QtWidgets/qcompleter.h>
 #include <QtWidgets/qwidget.h>
 
 class QLineEdit : public QWidget {
@@ -21,6 +23,8 @@ public:
     QString text() const { return m_text; }
     QString displayText() const;
     QString placeholderText() const { return m_placeholder; }
+    void setCompleter(QCompleter *completer);
+    QCompleter *completer() const { return m_completer.data(); }
     void setPlaceholderText(const QString &text);
     int maxLength() const { return m_maxLength; }
     void setMaxLength(int length);
@@ -111,4 +115,6 @@ private:
     bool m_frame = true;
     bool m_dragging = false;
     EchoMode m_echoMode = Normal;
+    QPointer<QCompleter> m_completer;
+    bool m_deleting = false; // the key being handled deletes text
 };

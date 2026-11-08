@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qnamespace.h>
+#include <QtGui/qpixmap.h>
 #include <QtWidgets/qwidget.h>
 
 class QLabel : public QWidget {
@@ -9,6 +10,7 @@ class QLabel : public QWidget {
     Q_PROPERTY(QString text READ text WRITE setText)
     Q_PROPERTY(bool wordWrap READ wordWrap WRITE setWordWrap)
     Q_PROPERTY(int margin READ margin WRITE setMargin)
+    Q_PROPERTY(bool scaledContents READ hasScaledContents WRITE setScaledContents)
 public:
     explicit QLabel(QWidget *parent = nullptr);
     explicit QLabel(const QString &text, QWidget *parent = nullptr);
@@ -21,12 +23,16 @@ public:
     void setWordWrap(bool on);
     int margin() const { return m_margin; }
     void setMargin(int margin);
+    QPixmap pixmap() const { return m_pixmap; }
+    bool hasScaledContents() const { return m_scaled; }
+    void setScaledContents(bool scaled);
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
 public slots:
     void setText(const QString &text);
     void setNum(int number);
+    void setPixmap(const QPixmap &pixmap);
     void clear();
 
 protected:
@@ -40,4 +46,6 @@ private:
     Qt::Alignment m_alignment = Qt::AlignLeft | Qt::AlignVCenter;
     bool m_wordWrap = false;
     int m_margin = 0;
+    QPixmap m_pixmap;
+    bool m_scaled = false;
 };

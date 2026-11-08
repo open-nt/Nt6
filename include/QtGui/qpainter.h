@@ -11,6 +11,7 @@
 #include <QtGui/qfont.h>
 #include <QtGui/qimage.h>
 #include <QtGui/qpen.h>
+#include <QtGui/qpixmap.h>
 #include <QtGui/qregion.h>
 
 #include <memory>
@@ -99,6 +100,14 @@ public:
     void drawImage(int x, int y, const QImage &image) { drawImage(QPoint(x, y), image); }
     void drawImage(const QRect &target, const QImage &image, const QRect &source = QRect());
     void drawImage(const QPoint &point, const QImage &image, const QRect &source);
+    void drawPixmap(const QPoint &point, const QPixmap &pixmap) { drawImage(point, pixmap.toImage()); }
+    void drawPixmap(int x, int y, const QPixmap &pixmap) { drawImage(QPoint(x, y), pixmap.toImage()); }
+    void drawPixmap(const QRect &target, const QPixmap &pixmap, const QRect &source = QRect()) {
+        drawImage(target, pixmap.toImage(), source);
+    }
+    void drawPixmap(int x, int y, int width, int height, const QPixmap &pixmap) {
+        drawImage(QRect(x, y, width, height), pixmap.toImage());
+    }
 
     void drawText(const QPoint &position, const QString &text);
     void drawText(int x, int y, const QString &text) { drawText(QPoint(x, y), text); }

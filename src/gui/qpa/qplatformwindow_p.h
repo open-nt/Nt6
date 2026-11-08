@@ -20,6 +20,8 @@ public:
     virtual void setVisible(bool visible) = 0;
     virtual void setWindowTitle(const QString &title) { (void)title; }
     virtual void requestActivateWindow() {}
+    // Keeps the window above `parent`, as a dialog, or makes it a normal window again if `parent` is null.
+    virtual void setTransientParent(const QPlatformWindow *parent) { (void)parent; }
     virtual quintptr winId() const { return 0; }
 
 private:

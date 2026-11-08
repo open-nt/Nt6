@@ -609,6 +609,211 @@ Q_DECLARE_FLAGS(Orientations, Orientation)
 Q_DECLARE_OPERATORS_FOR_FLAGS(Orientations)
 
 /*!
+    \enum Qt::WindowType
+
+    This enum gives the kind of window a widget is, and hints for how the window system decorates it. The
+    WindowFlags type is a typedef for \c{QFlags<WindowType>}.
+
+    \value Widget A widget that is a child of its parent; with no parent it is a window anyway.
+    \value Window A window, even if the widget has a parent.
+    \value Dialog A dialog: a window that the window system keeps above its parent.
+    \value Sheet Accepted for compatibility; the same as Dialog.
+    \value Drawer Accepted for compatibility; the same as Dialog.
+    \value Popup A popup window, such as a menu.
+    \value Tool A tool window, kept above its parent.
+    \value ToolTip A tool tip.
+    \value SplashScreen A splash screen.
+    \value SubWindow A child window inside another widget.
+    \value WindowType_Mask The bits of the flags that hold the kind of window.
+    \value MSWindowsFixedSizeDialogHint Accepted for compatibility; it does nothing.
+    \value FramelessWindowHint A window without a frame or a title bar.
+    \value WindowTitleHint A window with a title bar.
+    \value WindowSystemMenuHint A window with a window menu.
+    \value WindowMinimizeButtonHint A window with a button that minimizes it.
+    \value WindowMaximizeButtonHint A window with a button that maximizes it.
+    \value WindowMinMaxButtonsHint Both of the above.
+    \value WindowContextHelpButtonHint A window with a help button.
+    \value WindowStaysOnTopHint A window that is kept above the others.
+    \value WindowCloseButtonHint A window with a close button.
+    \value CustomizeWindowHint The decoration hints replace the ones the window system would choose.
+*/
+enum WindowType {
+    Widget = 0x00000000,
+    Window = 0x00000001,
+    Dialog = 0x00000002 | Window,
+    Sheet = 0x00000004 | Window,
+    Drawer = Sheet | Dialog,
+    Popup = 0x00000008 | Window,
+    Tool = Popup | Dialog,
+    ToolTip = Popup | Sheet,
+    SplashScreen = ToolTip | Dialog,
+    SubWindow = 0x00000012,
+    WindowType_Mask = 0x000000ff,
+    MSWindowsFixedSizeDialogHint = 0x00000100,
+    FramelessWindowHint = 0x00000800,
+    WindowTitleHint = 0x00001000,
+    WindowSystemMenuHint = 0x00002000,
+    WindowMinimizeButtonHint = 0x00004000,
+    WindowMaximizeButtonHint = 0x00008000,
+    WindowMinMaxButtonsHint = WindowMinimizeButtonHint | WindowMaximizeButtonHint,
+    WindowContextHelpButtonHint = 0x00010000,
+    WindowStaysOnTopHint = 0x00040000,
+    CustomizeWindowHint = 0x02000000,
+    WindowCloseButtonHint = 0x08000000
+};
+Q_DECLARE_FLAGS(WindowFlags, WindowType)
+Q_DECLARE_OPERATORS_FOR_FLAGS(WindowFlags)
+
+/*!
+    \enum Qt::WindowState
+
+    The state of a window, such as a QMdiSubWindow. The WindowStates type is a typedef for
+    \c{QFlags<WindowState>}.
+
+    \value WindowNoState Normal.
+    \value WindowMinimized Minimized to a title bar or an icon.
+    \value WindowMaximized Taking all the room it has.
+    \value WindowFullScreen Taking the whole screen.
+    \value WindowActive The active window.
+*/
+enum WindowState {
+    WindowNoState = 0x00000000,
+    WindowMinimized = 0x00000001,
+    WindowMaximized = 0x00000002,
+    WindowFullScreen = 0x00000004,
+    WindowActive = 0x00000008
+};
+Q_DECLARE_FLAGS(WindowStates, WindowState)
+Q_DECLARE_OPERATORS_FOR_FLAGS(WindowStates)
+
+/*!
+    \enum Qt::WindowModality
+
+    This enum says which windows a modal window blocks the input of while it is shown.
+
+    \value NonModal None.
+    \value WindowModal Its parent window, and the parent window of that, and so on.
+    \value ApplicationModal All the other windows of the application.
+*/
+enum WindowModality { NonModal, WindowModal, ApplicationModal };
+
+/*!
+    \enum Qt::ToolButtonStyle
+
+    This enum says what a tool button shows.
+
+    \value ToolButtonIconOnly Only the icon.
+    \value ToolButtonTextOnly Only the text.
+    \value ToolButtonTextBesideIcon The text beside the icon.
+    \value ToolButtonTextUnderIcon The text under the icon.
+    \value ToolButtonFollowStyle What the style says.
+*/
+enum ToolButtonStyle {
+    ToolButtonIconOnly,
+    ToolButtonTextOnly,
+    ToolButtonTextBesideIcon,
+    ToolButtonTextUnderIcon,
+    ToolButtonFollowStyle
+};
+
+/*!
+    \enum Qt::ToolBarArea
+
+    This enum gives the sides of a QMainWindow where tool bars go. The ToolBarAreas type is a typedef for
+    \c{QFlags<ToolBarArea>}.
+
+    \value LeftToolBarArea The left side.
+    \value RightToolBarArea The right side.
+    \value TopToolBarArea The top, below the menu bar.
+    \value BottomToolBarArea The bottom, above the status bar.
+    \value AllToolBarAreas All the sides.
+    \value NoToolBarArea None.
+*/
+enum ToolBarArea {
+    LeftToolBarArea = 0x1,
+    RightToolBarArea = 0x2,
+    TopToolBarArea = 0x4,
+    BottomToolBarArea = 0x8,
+    AllToolBarAreas = 0xf,
+    NoToolBarArea = 0
+};
+Q_DECLARE_FLAGS(ToolBarAreas, ToolBarArea)
+Q_DECLARE_OPERATORS_FOR_FLAGS(ToolBarAreas)
+
+/*!
+    \enum Qt::DockWidgetArea
+
+    This enum gives the sides of a QMainWindow where dock widgets go. The DockWidgetAreas type is a typedef for
+    \c{QFlags<DockWidgetArea>}.
+
+    \value LeftDockWidgetArea The left side.
+    \value RightDockWidgetArea The right side.
+    \value TopDockWidgetArea The top.
+    \value BottomDockWidgetArea The bottom.
+    \value AllDockWidgetAreas All the sides.
+    \value NoDockWidgetArea None.
+*/
+enum DockWidgetArea {
+    LeftDockWidgetArea = 0x1,
+    RightDockWidgetArea = 0x2,
+    TopDockWidgetArea = 0x4,
+    BottomDockWidgetArea = 0x8,
+    AllDockWidgetAreas = 0xf,
+    NoDockWidgetArea = 0
+};
+Q_DECLARE_FLAGS(DockWidgetAreas, DockWidgetArea)
+Q_DECLARE_OPERATORS_FOR_FLAGS(DockWidgetAreas)
+
+/*!
+    \enum Qt::DayOfWeek
+
+    The days of the week, numbered as QDate::dayOfWeek() numbers them.
+
+    \value Monday Monday, 1.
+    \value Tuesday Tuesday, 2.
+    \value Wednesday Wednesday, 3.
+    \value Thursday Thursday, 4.
+    \value Friday Friday, 5.
+    \value Saturday Saturday, 6.
+    \value Sunday Sunday, 7.
+*/
+enum DayOfWeek { Monday = 1, Tuesday = 2, Wednesday = 3, Thursday = 4, Friday = 5, Saturday = 6, Sunday = 7 };
+
+/*!
+    \enum Qt::MatchFlag
+
+    How a text is matched against items, as by QCompleter. The MatchFlags type is a typedef for
+    \c{QFlags<MatchFlag>}.
+
+    \value MatchExactly The whole text.
+    \value MatchContains The text anywhere in the item.
+    \value MatchStartsWith The start of the item.
+    \value MatchEndsWith The end of the item.
+    \value MatchRegularExpression A regular expression; not supported by Nt.
+    \value MatchWildcard A wildcard pattern; not supported by Nt.
+    \value MatchFixedString The text as a string, ignoring case unless MatchCaseSensitive is set.
+    \value MatchTypeMask The bits that hold the kind of match.
+    \value MatchCaseSensitive Case matters.
+    \value MatchWrap Searching wraps round to the start.
+    \value MatchRecursive Items under items are searched too.
+*/
+enum MatchFlag {
+    MatchExactly = 0,
+    MatchContains = 1,
+    MatchStartsWith = 2,
+    MatchEndsWith = 3,
+    MatchRegularExpression = 4,
+    MatchWildcard = 5,
+    MatchFixedString = 8,
+    MatchTypeMask = 0x0F,
+    MatchCaseSensitive = 16,
+    MatchWrap = 32,
+    MatchRecursive = 64
+};
+Q_DECLARE_FLAGS(MatchFlags, MatchFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(MatchFlags)
+
+/*!
     \typedef Qt::HANDLE
 
     An opaque thread handle: the value QThread::currentThreadId() returns, a \c{void *}.

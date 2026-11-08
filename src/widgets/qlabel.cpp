@@ -25,8 +25,8 @@
     \image widgets/qlabel.png QLabel in the light color scheme
 
     \differences
-    The label shows plain text only: no rich text, images, movies, links, selection or buddies. It has no frame
-    (it is not a QFrame), \c indent(), \c textFormat(), \c setPixmap() or \c setBuddy(). A word-wrapped label
+    The label shows plain text or a pixmap: no rich text, movies, links, selection or buddies. It has no frame
+    (it is not a QFrame), \c indent(), \c textFormat() or \c setBuddy(). A word-wrapped label
     has no height-for-width, so its size hint is the height of the text on one line unless it has new lines.
     \enddifferences
 
@@ -62,9 +62,10 @@ QLabel::~QLabel() = default;
     \sa text()
 */
 void QLabel::setText(const QString &text) {
-    if (m_text == text)
+    if (m_text == text && m_pixmap.isNull())
         return;
     m_text = text;
+    m_pixmap = QPixmap();
     updateGeometry();
     update();
 }
@@ -73,6 +74,42 @@ void QLabel::setText(const QString &text) {
     Sets the text of the label to \a number, as a decimal number.
 */
 void QLabel::setNum(int number) { setText(QString::number(number)); }
+
+/*!
+    Shows \a pixmap instead of the text, which is cleared. The pixmap is placed by the alignment, or scaled to the
+    label if hasScaledContents() is \c true.
+
+    \sa pixmap(), setText()
+*/
+void QLabel::setPixmap(const QPixmap &pixmap) {
+    m_pixmap = pixmap;
+    m_text.clear();
+    updateGeometry();
+    update();
+}
+
+/*!
+    \fn QPixmap QLabel::pixmap() const
+
+    Returns the pixmap of the label, or a null pixmap if it shows text.
+
+    \sa setPixmap()
+*/
+
+/*!
+    \fn bool QLabel::hasScaledContents() const
+
+    Returns whether the pixmap is scaled to fill the label. The default is \c false.
+*/
+
+/*!
+    Sets whether the pixmap is scaled to fill the label to \a scaled.
+*/
+void QLabel::setScaledContents(bool scaled) {
+    m_scaled = scaled;
+    updateGeometry();
+    update();
+}
 
 /*!
     Clears the text of the label.
@@ -144,6 +181,8 @@ QSize QLabel::textSize(int width) const {
     \reimp
 */
 QSize QLabel::sizeHint() const {
+    if (!m_pixmap.isNull())
+        return QSize(m_pixmap.width() + 2 * m_margin, m_pixmap.height() + 2 * m_margin);
     const QSize s = textSize(0);
     return QSize(s.width() + 2 * m_margin, s.height() + 2 * m_margin);
 }
@@ -152,6 +191,8 @@ QSize QLabel::sizeHint() const {
     \reimp
 */
 QSize QLabel::minimumSizeHint() const {
+    if (!m_pixmap.isNull())
+        return m_scaled ? QSize(2 * m_margin, 2 * m_margin) : sizeHint();
     if (m_wordWrap) {
         const int widest = fontMetrics().averageCharWidth() * 3;
         return QSize(widest + 2 * m_margin, fontMetrics().height() + 2 * m_margin);
@@ -165,6 +206,26 @@ QSize QLabel::minimumSizeHint() const {
 void QLabel::paintEvent(QPaintEvent *event) {
     (void)event;
     QPainter painter(this);
+    if (!m_pixmap.isNull()) {
+        const QRect area = rect().adjusted(m_margin, m_margin, -m_margin, -m_margin);
+        if (m_scaled) {
+            painter.drawPixmap(area, m_pixmap);
+            return;
+        }
+        // Placed in the area by the alignment.
+        int x = area.left();
+        int y = area.top();
+        if (m_alignment & Qt::AlignHCenter)
+            x += (area.width() - m_pixmap.width()) / 2;
+        else if (m_alignment & Qt::AlignRight)
+            x = area.right() + 1 - m_pixmap.width();
+        if (m_alignment & Qt::AlignVCenter)
+            y += (area.height() - m_pixmap.height()) / 2;
+        else if (m_alignment & Qt::AlignBottom)
+            y = area.bottom() + 1 - m_pixmap.height();
+        painter.drawPixmap(x, y, m_pixmap);
+        return;
+    }
     painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::WindowText));
     painter.setFont(font());
     int flags = int(m_alignment);

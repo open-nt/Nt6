@@ -1520,7 +1520,7 @@ static void testDial() {
                       49 - static_cast<int>(std::lround(radius * std::sin(degrees * pi / 180))));
     };
     press(&dial, at(225));
-    CHECK(dial.isSliderDown() && pressed == 1 && dial.value() == 0 && moved == 1);
+    CHECK(dial.isSliderDown() && pressed == 1 && dial.value() == 0 && moved == 0);
     drag(&dial, at(90));
     CHECK(dial.value() == 50 && dial.sliderPosition() == 50);
     drag(&dial, at(-45));

@@ -206,3 +206,30 @@ const QGlyph &QFontEngine::glyph(char32_t codePoint) {
 #endif
     return m_glyphs.emplace(codePoint, std::move(g)).first->second;
 }
+
+QStringList QFontEngine::families() {
+    QStringList out;
+#ifdef NT_HAVE_FREETYPE
+    std::lock_guard<std::mutex> lock(libraryMutex());
+    if (!FcInit())
+        return out;
+    FcPattern *pattern = FcPatternCreate();
+    FcObjectSet *objects = FcObjectSetBuild(FC_FAMILY, static_cast<char *>(nullptr));
+    FcFontSet *set = FcFontList(nullptr, pattern, objects);
+    if (set) {
+        for (int i = 0; i < set->nfont; ++i) {
+            FcChar8 *family = nullptr;
+            if (FcPatternGetString(set->fonts[i], FC_FAMILY, 0, &family) == FcResultMatch && family) {
+                const QString name = QString::fromUtf8(reinterpret_cast<const char *>(family));
+                if (!out.contains(name))
+                    out.append(name);
+            }
+        }
+        FcFontSetDestroy(set);
+    }
+    FcObjectSetDestroy(objects);
+    FcPatternDestroy(pattern);
+    std::sort(out.begin(), out.end(), [](const QString &a, const QString &b) { return a.toLower() < b.toLower(); });
+#endif
+    return out;
+}

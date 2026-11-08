@@ -5,6 +5,8 @@
 #include <QtCore/qnamespace.h>
 
 #include <chrono>
+#include <limits>
+#include <utility>
 
 /*!
     \class QElapsedTimer
@@ -24,8 +26,7 @@
     \differences
     The timer is always based on \c std::chrono::steady_clock, so
     clockType() always returns MonotonicClock and isMonotonic() always
-    returns \c true. There is no \c secsTo(), \c operator<() or
-    \c durationElapsed(). hasExpired() treats an invalid timer as expired.
+    returns \c true. hasExpired() treats an invalid timer as expired.
     \enddifferences
 
     \sa QDeadlineTimer
@@ -107,6 +108,14 @@ public:
         return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - t0).count();
     }
     /*!
+        \since 6.6
+        Returns a \c std::chrono::nanoseconds duration with the time since the
+        timer was started, or zero if the timer is invalid.
+
+        \sa nsecsElapsed()
+    */
+    std::chrono::nanoseconds durationElapsed() const noexcept { return std::chrono::nanoseconds(nsecsElapsed()); }
+    /*!
         Returns the number of milliseconds since the timer was started, or 0
         if the timer is invalid.
 
@@ -140,8 +149,27 @@ public:
     qint64 msecsTo(const QElapsedTimer &o) const noexcept {
         return std::chrono::duration_cast<std::chrono::milliseconds>(o.t0 - t0).count();
     }
+    /*!
+        Returns the number of seconds from this timer's start time to the
+        start time of \a o. The result is negative if \a o was started
+        earlier.
+
+        \sa msecsTo()
+    */
+    qint64 secsTo(const QElapsedTimer &o) const noexcept { return msecsTo(o) / 1000; }
+    /*!
+        \since 6.6
+        Returns the time from this timer's start time to the start time of
+        \a o as a \c std::chrono::nanoseconds duration.
+
+        \sa msecsTo()
+    */
+    std::chrono::nanoseconds durationTo(const QElapsedTimer &o) const noexcept {
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(o.t0 - t0);
+    }
     friend bool operator==(const QElapsedTimer &a, const QElapsedTimer &b) noexcept { return a.t0 == b.t0 && a.valid == b.valid; }
     friend bool operator!=(const QElapsedTimer &a, const QElapsedTimer &b) noexcept { return !(a == b); }
+    friend bool operator<(const QElapsedTimer &a, const QElapsedTimer &b) noexcept { return a.t0 < b.t0; }
 
 private:
     Clock::time_point t0{};
@@ -163,12 +191,15 @@ private:
         poll();
     \endcode
 
+    Deadlines can be compared and moved with \c{+} and \c{-}; a deadline that
+    never expires compares greater than any other and is not changed by
+    arithmetic.
+
     \differences
     The timer is based on \c std::chrono::steady_clock. The Qt::TimerType
-    argument of the constructors and setters is accepted but ignored. There
-    is no \c QDeadlineTimer::current(), \c addNSecs(), \c deadline(),
-    \c setDeadline(), \c setPreciseDeadline(), \c operator+(), comparison
-    operators, or constructor taking a \c std::chrono::duration.
+    argument of the constructors and setters is stored but does not change the
+    precision. Constructors and setters taking a \c std::chrono::time_point
+    accept only the steady clock.
     \enddifferences
 
     \sa QElapsedTimer
@@ -187,26 +218,75 @@ public:
     enum ForeverConstant { Forever };
 
     /*!
-        Constructs a deadline that is already expired. The timer type is
-        ignored.
+        Constructs a deadline that is already expired, with the timer type
+        \a type.
 
         \sa setRemainingTime()
     */
-    QDeadlineTimer(Qt::TimerType = Qt::CoarseTimer) noexcept : m_forever(false), tp(Clock::now()) {}
+    QDeadlineTimer(Qt::TimerType type = Qt::CoarseTimer) noexcept : m_forever(false), tp(Clock::now()), m_type(type) {}
     /*!
-        Constructs a deadline that never expires. The timer type is ignored.
+        Constructs a deadline that never expires, with the timer type \a type.
 
         \sa isForever()
     */
-    QDeadlineTimer(ForeverConstant, Qt::TimerType = Qt::CoarseTimer) noexcept : m_forever(true) {}
+    QDeadlineTimer(ForeverConstant, Qt::TimerType type = Qt::CoarseTimer) noexcept : m_forever(true), m_type(type) {}
     /*!
-        Constructs a deadline that expires in \a msecs milliseconds. A
-        negative value means the deadline never expires. The timer type is
-        ignored.
+        Constructs a deadline that expires in \a msecs milliseconds, with the
+        timer type \a type. A negative value means the deadline never expires.
 
         \sa setRemainingTime()
     */
-    QDeadlineTimer(qint64 msecs, Qt::TimerType = Qt::CoarseTimer) noexcept { setRemainingTime(msecs); }
+    QDeadlineTimer(qint64 msecs, Qt::TimerType type = Qt::CoarseTimer) noexcept { setRemainingTime(msecs, type); }
+    /*!
+        Constructs a deadline that expires after the duration \a remaining,
+        with the timer type \a type. A zero or negative duration gives a
+        deadline that has already expired, and \c{duration::max()} one that
+        never expires.
+
+        \sa setRemainingTime()
+    */
+    template <class Rep, class Period>
+    QDeadlineTimer(std::chrono::duration<Rep, Period> remaining, Qt::TimerType type = Qt::CoarseTimer) noexcept {
+        setRemainingTime(remaining, type);
+    }
+    /*!
+        Constructs a deadline at the steady-clock time point \a deadline, with
+        the timer type \a type.
+
+        \sa setDeadline()
+    */
+    QDeadlineTimer(Clock::time_point deadline, Qt::TimerType type = Qt::CoarseTimer) noexcept
+        : m_forever(false), tp(deadline), m_type(type) {}
+
+    /*!
+        Returns a deadline that expired at the current time, with the timer
+        type \a type.
+
+        \sa hasExpired()
+    */
+    static QDeadlineTimer current(Qt::TimerType type = Qt::CoarseTimer) noexcept {
+        return QDeadlineTimer(Clock::now(), type);
+    }
+    /*!
+        Returns a deadline \a nsecs nanoseconds later than \a dt. A deadline
+        that never expires is returned unchanged.
+
+        \sa deadlineNSecs()
+    */
+    static QDeadlineTimer addNSecs(QDeadlineTimer dt, qint64 nsecs) noexcept {
+        if (!dt.m_forever)
+            dt.tp += std::chrono::nanoseconds(nsecs);
+        return dt;
+    }
+
+    /*!
+        Swaps this deadline with \a other.
+    */
+    void swap(QDeadlineTimer &other) noexcept {
+        std::swap(m_forever, other.m_forever);
+        std::swap(tp, other.tp);
+        std::swap(m_type, other.m_type);
+    }
 
     /*!
         Returns \c true if the deadline never expires; otherwise returns
@@ -220,6 +300,19 @@ public:
         \sa remainingTime()
     */
     bool hasExpired() const noexcept { return !m_forever && Clock::now() >= tp; }
+    /*!
+        Returns the timer type of this deadline.
+
+        \sa setTimerType()
+    */
+    Qt::TimerType timerType() const noexcept { return m_type; }
+    /*!
+        Sets the timer type of this deadline to \a type. Nt records the type
+        but always uses the precision of the steady clock.
+
+        \sa timerType()
+    */
+    void setTimerType(Qt::TimerType type) noexcept { m_type = type; }
     /*!
         Returns the time left until the deadline in nanoseconds, or -1 if the
         deadline never expires. The result is 0 once the deadline has passed.
@@ -244,12 +337,26 @@ public:
         return n < 0 ? -1 : (n + 999999) / 1000000;
     }
     /*!
-        Sets the deadline to \a msecs milliseconds from now. A negative value
-        means the deadline never expires. The timer type is ignored.
+        Returns the time left until the deadline as a
+        \c std::chrono::nanoseconds duration. The result is zero once the
+        deadline has passed and \c{std::chrono::nanoseconds::max()} if it never
+        expires.
+
+        \sa remainingTimeNSecs()
+    */
+    std::chrono::nanoseconds remainingTimeAsDuration() const noexcept {
+        if (m_forever)
+            return std::chrono::nanoseconds::max();
+        return std::chrono::nanoseconds(remainingTimeNSecs());
+    }
+    /*!
+        Sets the deadline to \a msecs milliseconds from now and the timer type
+        to \a type. A negative value means the deadline never expires.
 
         \sa setPreciseRemainingTime()
     */
-    void setRemainingTime(qint64 msecs, Qt::TimerType = Qt::CoarseTimer) noexcept {
+    void setRemainingTime(qint64 msecs, Qt::TimerType type = Qt::CoarseTimer) noexcept {
+        m_type = type;
         if (msecs < 0) {
             m_forever = true;
         } else {
@@ -258,24 +365,140 @@ public:
         }
     }
     /*!
+        \overload
+        Sets the deadline to the duration \a remaining from now and the timer
+        type to \a type. A zero or negative duration makes the deadline expire
+        now, and \c{duration::max()} makes it never expire.
+    */
+    template <class Rep, class Period>
+    void setRemainingTime(std::chrono::duration<Rep, Period> remaining, Qt::TimerType type = Qt::CoarseTimer) noexcept {
+        m_type = type;
+        m_forever = remaining == remaining.max();
+        if (!m_forever) {
+            tp = Clock::now();
+            if (remaining > remaining.zero())
+                tp += std::chrono::duration_cast<Clock::duration>(remaining);
+        }
+    }
+    /*!
         Sets the deadline to \a secs seconds and \a nsecs nanoseconds from
-        now. The timer type is ignored.
+        now and the timer type to \a type. A negative \a secs means the
+        deadline never expires.
 
         \sa setRemainingTime()
     */
-    void setPreciseRemainingTime(qint64 secs, qint64 nsecs = 0, Qt::TimerType = Qt::CoarseTimer) noexcept {
+    void setPreciseRemainingTime(qint64 secs, qint64 nsecs = 0, Qt::TimerType type = Qt::CoarseTimer) noexcept {
+        m_type = type;
+        if (secs < 0) {
+            m_forever = true;
+            return;
+        }
         m_forever = false;
         tp = Clock::now() + std::chrono::seconds(secs) + std::chrono::nanoseconds(nsecs);
     }
     /*!
-        Returns the deadline as a time point of the timer's clock. The value
-        is meaningless if the deadline never expires.
+        Returns the deadline in milliseconds since the reference point of the
+        steady clock, the same reference that QElapsedTimer::msecsSinceReference()
+        uses. A deadline that never expires returns the largest \c qint64.
+
+        \sa deadlineNSecs(), setDeadline()
+    */
+    qint64 deadline() const noexcept {
+        if (m_forever)
+            return std::numeric_limits<qint64>::max();
+        return std::chrono::duration_cast<std::chrono::milliseconds>(tp.time_since_epoch()).count();
+    }
+    /*!
+        Returns the deadline in nanoseconds since the reference point of the
+        steady clock. A deadline that never expires returns the largest
+        \c qint64.
+
+        \sa deadline(), setPreciseDeadline()
+    */
+    qint64 deadlineNSecs() const noexcept {
+        if (m_forever)
+            return std::numeric_limits<qint64>::max();
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
+    }
+    /*!
+        Sets the deadline to \a msecs milliseconds since the reference point of
+        the steady clock and the timer type to \a type. The largest \c qint64
+        means the deadline never expires.
+
+        \sa deadline(), setPreciseDeadline()
+    */
+    void setDeadline(qint64 msecs, Qt::TimerType type = Qt::CoarseTimer) noexcept {
+        m_type = type;
+        m_forever = msecs == std::numeric_limits<qint64>::max();
+        if (!m_forever)
+            tp = Clock::time_point(std::chrono::duration_cast<Clock::duration>(std::chrono::milliseconds(msecs)));
+    }
+    /*!
+        \overload
+        Sets the deadline to the steady-clock time point \a deadline and the
+        timer type to \a type.
+    */
+    void setDeadline(Clock::time_point deadline, Qt::TimerType type = Qt::CoarseTimer) noexcept {
+        m_type = type;
+        m_forever = false;
+        tp = deadline;
+    }
+    /*!
+        Sets the deadline to \a secs seconds and \a nsecs nanoseconds since the
+        reference point of the steady clock and the timer type to \a type. The
+        largest \c qint64 for \a secs means the deadline never expires.
+
+        \sa setDeadline(), deadlineNSecs()
+    */
+    void setPreciseDeadline(qint64 secs, qint64 nsecs = 0, Qt::TimerType type = Qt::CoarseTimer) noexcept {
+        m_type = type;
+        m_forever = secs == std::numeric_limits<qint64>::max();
+        if (!m_forever)
+            tp = Clock::time_point(std::chrono::duration_cast<Clock::duration>(std::chrono::seconds(secs) +
+                                                                               std::chrono::nanoseconds(nsecs)));
+    }
+    /*!
+        Returns the deadline as a time point of the timer's clock. A deadline
+        that never expires returns \c{Clock::time_point::max()}.
 
         \sa isForever()
     */
-    Clock::time_point timePoint() const noexcept { return tp; }
+    Clock::time_point timePoint() const noexcept { return m_forever ? Clock::time_point::max() : tp; }
+    /*!
+        Moves the deadline \a msecs milliseconds later and returns a reference
+        to it. A deadline that never expires is not changed.
+
+        \sa addNSecs()
+    */
+    QDeadlineTimer &operator+=(qint64 msecs) noexcept {
+        *this = addNSecs(*this, msecs * 1000000);
+        return *this;
+    }
+    /*!
+        Moves the deadline \a msecs milliseconds earlier and returns a
+        reference to it. A deadline that never expires is not changed.
+
+        \sa addNSecs()
+    */
+    QDeadlineTimer &operator-=(qint64 msecs) noexcept { return *this += -msecs; }
+
+    friend QDeadlineTimer operator+(QDeadlineTimer dt, qint64 msecs) noexcept { return dt += msecs; }
+    friend QDeadlineTimer operator+(qint64 msecs, QDeadlineTimer dt) noexcept { return dt += msecs; }
+    friend QDeadlineTimer operator-(QDeadlineTimer dt, qint64 msecs) noexcept { return dt -= msecs; }
+    friend qint64 operator-(QDeadlineTimer a, QDeadlineTimer b) noexcept {
+        return (a.deadlineNSecs() - b.deadlineNSecs()) / 1000000;
+    }
+    friend bool operator==(QDeadlineTimer a, QDeadlineTimer b) noexcept {
+        return a.deadlineNSecs() == b.deadlineNSecs();
+    }
+    friend bool operator!=(QDeadlineTimer a, QDeadlineTimer b) noexcept { return !(a == b); }
+    friend bool operator<(QDeadlineTimer a, QDeadlineTimer b) noexcept { return a.deadlineNSecs() < b.deadlineNSecs(); }
+    friend bool operator<=(QDeadlineTimer a, QDeadlineTimer b) noexcept { return !(b < a); }
+    friend bool operator>(QDeadlineTimer a, QDeadlineTimer b) noexcept { return b < a; }
+    friend bool operator>=(QDeadlineTimer a, QDeadlineTimer b) noexcept { return !(a < b); }
 
 private:
     bool m_forever = false;
     Clock::time_point tp{};
+    Qt::TimerType m_type = Qt::CoarseTimer;
 };

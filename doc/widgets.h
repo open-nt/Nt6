@@ -239,7 +239,8 @@
     \section1 What Is Not There Yet
 
     There are no trees, no model and view classes (a table and a list keep their items themselves, and cannot be edited or
-    sorted by the user), no tool bars, no \c QMainWindow and no dialogs. The native window of a top-level widget is a
+    sorted by the user), no native dialogs, and tool bars and dock widgets cannot be dragged. The native window of a
+    window, top-level or with a parent such as a dialog, is a
     QWindow; child widgets are painted into the backing store of that window and are not native windows
     themselves. Each class lists what differs from Qt in its \e Differences from Qt section.
 

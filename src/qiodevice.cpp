@@ -1,7 +1,10 @@
 // MIT License - see LICENSE
 #include <QtCore/qiodevice.h>
+#include <QtCore/qlogging.h>
 
 #include <algorithm>
+#include <limits>
+#include <utility>
 
 /*!
     \class QIODevice
@@ -24,12 +27,11 @@
     \differences
     There is no read-channel API (\c setCurrentReadChannel(), \c
     readChannelCount(), \c writeChannelCount(), \c channelReadyRead() and \c
-    channelBytesWritten()), no transaction API (\c startTransaction(), \c
-    commitTransaction(), \c rollbackTransaction() and \c
-    isTransactionStarted()), no \c skip() and no \c readLine() that takes a
-    QByteArray buffer. Only sequential devices buffer data, and the base class
-    does not translate line endings in text mode. Errors are reported only as
-    a string through errorString(); there is no error enum.
+    channelBytesWritten()). Only sequential devices buffer data, and the base
+    class does not translate line endings in text mode. Errors are reported
+    only as a string through errorString(); there is no error enum. A
+    transaction on a random-access device is rolled back by seeking, and on a
+    sequential device it ends when the device is opened, closed or seeks.
     \enddifferences
 
     \sa QFile, QBuffer, QTextStream, QDataStream
@@ -78,6 +80,7 @@ bool QIODevice::open(OpenMode mode) {
     m_mode = mode;
     m_buf.clear();
     m_bufPos = 0;
+    m_transaction = false;
     m_error.clear();
     return true;
 }
@@ -99,6 +102,7 @@ void QIODevice::close() {
     m_mode = NotOpen;
     m_buf.clear();
     m_bufPos = 0;
+    m_transaction = false;
 }
 
 /*!
@@ -114,6 +118,8 @@ void QIODevice::close() {
 bool QIODevice::seek(qint64) {
     m_buf.clear();
     m_bufPos = 0;
+    if (isSequential())
+        m_transaction = false; // the kept bytes are gone
     return true;
 }
 
@@ -157,6 +163,8 @@ bool QIODevice::canReadLine() const {
 QString QIODevice::errorString() const { return m_error.isEmpty() ? QString::fromUtf8("Unknown error") : m_error; }
 
 void QIODevice::compactBuffer() {
+    if (m_transaction)
+        return; // a rollback may still need the consumed bytes
     if (m_bufPos >= m_buf.size()) {
         m_buf.clear();
         m_bufPos = 0;
@@ -190,10 +198,12 @@ qint64 QIODevice::read(char *data, qint64 maxSize) {
     }
     if (total < maxSize) {
         const qint64 n = readData(data + total, maxSize - total);
-        if (n > 0)
+        if (n > 0) {
+            keepForTransaction(data + total, n);
             total += n;
-        else if (n < 0 && total == 0)
+        } else if (n < 0 && total == 0) {
             return -1;
+        }
     }
     return total;
 }
@@ -291,8 +301,10 @@ qint64 QIODevice::readLine(char *data, qint64 maxSize) {
     compactBuffer();
     if (total < limit) {
         const qint64 n = readLineData(data + total, limit - total);
-        if (n > 0)
+        if (n > 0) {
+            keepForTransaction(data + total, n);
             total += n;
+        }
     }
     data[total] = '\0';
     return total;
@@ -401,10 +413,13 @@ void QIODevice::ungetChar(char c) {
         seek(pos() - 1);
         return;
     }
-    if (m_bufPos > 0)
+    if (m_bufPos > 0) {
         m_buf[--m_bufPos] = c;
-    else
+        if (m_transaction && m_bufPos < m_transactionPos)
+            m_transactionPos = m_bufPos;
+    } else {
         m_buf.prepend(c);
+    }
 }
 
 /*!
@@ -420,6 +435,174 @@ bool QIODevice::getChar(char *c) {
     if (c)
         *c = ch;
     return true;
+}
+
+// While a transaction runs on a sequential device, bytes read past the look-ahead buffer are
+// appended to it as already consumed, so that rollbackTransaction() can return them.
+void QIODevice::keepForTransaction(const char *data, qint64 n) {
+    if (!m_transaction || !isSequential())
+        return;
+    m_buf.append(data, n);
+    m_bufPos = m_buf.size();
+}
+
+/*!
+    \since 6.9
+    Reads a line from the device into \a line, replacing its contents, but no
+    more than \a maxSize bytes; a \a maxSize of \c 0 does not limit the line
+    length. The newline, if found, is included. If \a line is \c nullptr, the
+    line is read and discarded.
+
+    Returns \c true if any data was read; otherwise returns \c false and
+    leaves \a line empty.
+
+    \sa readLine(), canReadLine()
+*/
+bool QIODevice::readLineInto(QByteArray *line, qint64 maxSize) {
+    QByteArray r = readLine(maxSize);
+    const bool ok = !r.isEmpty();
+    if (line)
+        *line = std::move(r);
+    return ok;
+}
+
+/*!
+    \since 5.10
+    Skips up to \a maxSize bytes of data and returns the number of bytes
+    actually skipped, or \c -1 if the device is not open for reading or an
+    error occurred. Look-ahead data is skipped first; the rest is passed to
+    skipData().
+
+    \sa read(), peek(), skipData()
+*/
+qint64 QIODevice::skip(qint64 maxSize) {
+    if (!isReadable()) {
+        setErrorString(QString::fromUtf8("device not open for reading"));
+        return -1;
+    }
+    if (maxSize <= 0)
+        return 0;
+    qint64 total = 0;
+    if (isSequential()) {
+        total = std::min(bufferedBytes(), maxSize);
+        m_bufPos += total;
+        compactBuffer();
+        if (total == maxSize)
+            return total;
+    }
+    const qint64 n = skipData(maxSize - total);
+    if (n < 0)
+        return total > 0 ? total : -1;
+    return total + n;
+}
+
+/*!
+    \since 6.0
+    Skips up to \a maxSize bytes and returns the number of bytes skipped, or
+    \c -1 on error. skip() calls this function after it has skipped buffered
+    look-ahead data.
+
+    The base implementation seeks forward on a random-access device, without
+    moving past size(), and reads and discards the data on a sequential
+    device. Subclasses reimplement it when they can skip data more cheaply.
+
+    \sa skip()
+*/
+qint64 QIODevice::skipData(qint64 maxSize) {
+    if (!isSequential()) {
+        const qint64 from = pos();
+        const qint64 n = std::max<qint64>(0, std::min(maxSize, size() - from));
+        if (n > 0 && !seek(from + n))
+            return -1;
+        return n;
+    }
+    char buf[4096];
+    qint64 total = 0;
+    while (total < maxSize) {
+        const qint64 n = read(buf, std::min<qint64>(sizeof buf, maxSize - total));
+        if (n < 0)
+            return total > 0 ? total : -1;
+        if (n == 0)
+            break;
+        total += n;
+    }
+    return total;
+}
+
+/*!
+    \since 5.7
+    Starts a read transaction on the device.
+
+    Inside a transaction, data read from the device is kept so that
+    rollbackTransaction() can restore the read position to where the
+    transaction started. Call commitTransaction() to accept the data that
+    was read. This is useful for parsing a message that may not have arrived
+    completely:
+
+    \code
+    socket->startTransaction();
+    QByteArray header = socket->read(8);
+    if (header.size() < 8) {
+        socket->rollbackTransaction(); // wait for more data
+        return;
+    }
+    socket->commitTransaction();
+    \endcode
+
+    Starting a transaction while one is in progress prints a warning and does
+    nothing. Writing is not affected by transactions.
+
+    \sa commitTransaction(), rollbackTransaction(), isTransactionStarted()
+*/
+void QIODevice::startTransaction() {
+    if (m_transaction) {
+        qWarning("QIODevice::startTransaction: Called while transaction already in progress");
+        return;
+    }
+    m_transactionPos = isSequential() ? m_bufPos : pos();
+    m_transaction = true;
+}
+
+/*!
+    \since 5.7
+    Completes a read transaction. The data read since startTransaction() is
+    consumed. Prints a warning if no transaction is in progress.
+
+    \sa startTransaction(), rollbackTransaction()
+*/
+void QIODevice::commitTransaction() {
+    if (!m_transaction) {
+        qWarning("QIODevice::commitTransaction: Called while no transaction in progress");
+        return;
+    }
+    m_transaction = false;
+    if (isSequential() && m_bufPos > 0) {
+        m_buf.remove(0, m_bufPos);
+        m_bufPos = 0;
+    }
+    compactBuffer();
+}
+
+/*!
+    \since 5.7
+    Rolls back a read transaction, restoring the read position to where
+    startTransaction() was called, so that the same data is read again.
+    Prints a warning if no transaction is in progress.
+
+    \sa startTransaction(), commitTransaction()
+*/
+void QIODevice::rollbackTransaction() {
+    if (!m_transaction) {
+        qWarning("QIODevice::rollbackTransaction: Called while no transaction in progress");
+        return;
+    }
+    m_transaction = false;
+    if (isSequential()) {
+        m_bufPos = m_transactionPos;
+        compactBuffer();
+    } else {
+        seek(m_transactionPos);
+    }
 }
 
 #include "moc_qiodevice.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qobject.h>
+#include <QtCore/qpointer.h>
 
 #include <atomic>
 #include <condition_variable>
@@ -37,7 +38,12 @@ struct ObjectData {
     std::atomic<ThreadData *> threadData{nullptr};
     bool ownsThreadRef = true;
     std::vector<std::pair<QByteArray, QVariant>> dynamicProperties;
+    std::vector<QPointer<QObject>> eventFilters; // the most recently installed last
 };
+
+// Runs the event filters for `event` to `receiver`: those of the application, then those of `receiver`. Returns true
+// if a filter stopped the event.
+bool runEventFilters(QObject *receiver, QEvent *event);
 
 } // namespace QtPrivate
 

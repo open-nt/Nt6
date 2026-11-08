@@ -1,7 +1,9 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qabstractbutton.h>
 
+#include <QtCore/qpointer.h>
 #include <QtGui/qevent.h>
+#include <QtWidgets/qbuttongroup.h>
 
 /*!
     \class QAbstractButton
@@ -18,8 +20,8 @@
     \endcode
 
     \differences
-    There are no icons, shortcuts (\c setShortcut()), auto-repeat, \c animateClick(), \c QButtonGroup, \c setIcon() or
-    \c setIconSize(). The only exclusive buttons are the ones that are auto-exclusive, as radio buttons are.
+    There are no icons, shortcuts (\c setShortcut()), auto-repeat, \c animateClick(), \c setIcon() or
+    \c setIconSize().
     \enddifferences
 
     \sa QPushButton, QCheckBox
@@ -33,7 +35,10 @@ QAbstractButton::QAbstractButton(QWidget *parent) : QWidget(parent) { setFocusPo
 /*!
     Destroys the button.
 */
-QAbstractButton::~QAbstractButton() = default;
+QAbstractButton::~QAbstractButton() {
+    if (m_group)
+        m_group->removeButton(this);
+}
 
 /*!
     \fn QString QAbstractButton::text() const
@@ -83,6 +88,14 @@ void QAbstractButton::setCheckable(bool checkable) {
 */
 
 /*!
+    \fn QButtonGroup *QAbstractButton::group() const
+
+    Returns the group that the button belongs to, or \c nullptr if it is in none.
+
+    \sa QButtonGroup::addButton()
+*/
+
+/*!
     Checks a checkable button if \a checked is \c true, and unchecks it otherwise. Emits toggled() if the state
     changes. Nothing happens if the button is not checkable.
 
@@ -91,22 +104,68 @@ void QAbstractButton::setCheckable(bool checkable) {
 void QAbstractButton::setChecked(bool checked) {
     if (!m_checkable || m_checked == checked)
         return;
+    const bool groupExclusive = m_group && m_group->exclusive();
+    const bool siblingsExclusive = !m_group && m_autoExclusive && parentWidget();
     // The checked button of an exclusive group cannot be unchecked; check another one instead.
-    if (!checked && m_autoExclusive && parentWidget())
+    if (!checked && (groupExclusive || siblingsExclusive))
         return;
-    if (checked && m_autoExclusive && parentWidget()) {
+    if (checked && groupExclusive) {
+        for (QAbstractButton *other : m_group->buttons()) {
+            if (other != this && other->m_checked)
+                other->changeChecked(false);
+        }
+    } else if (checked && siblingsExclusive) {
         for (QObject *child : parentWidget()->children()) {
             auto *other = dynamic_cast<QAbstractButton *>(child);
-            if (other && other != this && other->m_autoExclusive && other->m_checked) {
-                other->m_checked = false;
-                other->update();
-                emit other->toggled(false);
-            }
+            if (other && other != this && !other->m_group && other->m_autoExclusive && other->m_checked)
+                other->changeChecked(false);
         }
     }
+    changeChecked(checked);
+}
+
+void QAbstractButton::changeChecked(bool checked) {
+    if (m_checked == checked)
+        return;
     m_checked = checked;
     update();
+    QPointer<QAbstractButton> guard(this);
     emit toggled(checked);
+    if (guard && m_group) {
+        emit m_group->idToggled(m_group->id(this), checked);
+        if (guard && m_group)
+            emit m_group->buttonToggled(this, checked);
+    }
+}
+
+void QAbstractButton::emitPressed() {
+    QPointer<QAbstractButton> guard(this);
+    emit pressed();
+    if (guard && m_group) {
+        emit m_group->idPressed(m_group->id(this));
+        if (guard && m_group)
+            emit m_group->buttonPressed(this);
+    }
+}
+
+void QAbstractButton::emitReleased() {
+    QPointer<QAbstractButton> guard(this);
+    emit released();
+    if (guard && m_group) {
+        emit m_group->idReleased(m_group->id(this));
+        if (guard && m_group)
+            emit m_group->buttonReleased(this);
+    }
+}
+
+void QAbstractButton::emitClicked() {
+    QPointer<QAbstractButton> guard(this);
+    emit clicked(m_checked);
+    if (guard && m_group) {
+        emit m_group->idClicked(m_group->id(this));
+        if (guard && m_group)
+            emit m_group->buttonClicked(this);
+    }
 }
 
 /*!
@@ -114,7 +173,8 @@ void QAbstractButton::setChecked(bool checked) {
 
     Returns whether the button is auto-exclusive: of all the auto-exclusive buttons that have the same parent
     widget, only one is checked at a time, and checking one unchecks the others. A checked button of such a group
-    cannot be unchecked, only another one can be checked. The default is \c false, and radio buttons set it.
+    cannot be unchecked, only another one can be checked. A button in a QButtonGroup follows the group instead. The
+    default is \c false, and radio buttons set it.
 
     \sa setAutoExclusive()
 */
@@ -151,7 +211,7 @@ void QAbstractButton::setDown(bool down) {
 void QAbstractButton::activate() {
     if (m_checkable)
         setChecked(!m_checked);
-    emit clicked(m_checked);
+    emitClicked();
 }
 
 /*!
@@ -162,9 +222,9 @@ void QAbstractButton::click() {
     if (!isEnabled())
         return;
     setDown(true);
-    emit pressed();
+    emitPressed();
     setDown(false);
-    emit released();
+    emitReleased();
     activate();
 }
 
@@ -190,7 +250,7 @@ void QAbstractButton::mousePressEvent(QMouseEvent *event) {
         return;
     }
     setDown(true);
-    emit pressed();
+    emitPressed();
     event->accept();
 }
 
@@ -204,7 +264,7 @@ void QAbstractButton::mouseReleaseEvent(QMouseEvent *event) {
     }
     const bool inside = hitButton(event->pos());
     setDown(false);
-    emit released();
+    emitReleased();
     if (inside)
         activate();
     event->accept();
@@ -223,9 +283,9 @@ void QAbstractButton::mouseMoveEvent(QMouseEvent *event) {
     if (inside != m_down && !m_keyDown) {
         setDown(inside);
         if (inside)
-            emit pressed();
+            emitPressed();
         else
-            emit released();
+            emitReleased();
     }
     event->accept();
 }
@@ -237,7 +297,7 @@ void QAbstractButton::keyPressEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
         m_keyDown = true;
         setDown(true);
-        emit pressed();
+        emitPressed();
         event->accept();
         return;
     }
@@ -255,7 +315,7 @@ void QAbstractButton::keyReleaseEvent(QKeyEvent *event) {
     if (event->key() == Qt::Key_Space && !event->isAutoRepeat() && m_keyDown) {
         m_keyDown = false;
         setDown(false);
-        emit released();
+        emitReleased();
         activate();
         event->accept();
         return;
@@ -271,7 +331,7 @@ void QAbstractButton::focusOutEvent(QFocusEvent *event) {
     if (m_keyDown) {
         m_keyDown = false;
         setDown(false);
-        emit released();
+        emitReleased();
     }
 }
 

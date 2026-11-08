@@ -457,6 +457,12 @@ public:
     int writeRawData(const char *s, int len);
     int skipRawData(int len);
 
+    void startTransaction();
+    bool commitTransaction();
+    void rollbackTransaction();
+    void abortTransaction();
+    bool isDeviceTransactionStarted() const;
+
 private:
     bool readSwapped(void *out, int size);
     QDataStream &writeSwapped(const void *in, int size);
@@ -467,6 +473,7 @@ private:
     Status st = Ok;
     FloatingPointPrecision precision = DoublePrecision;
     int ver = Qt_DefaultCompiledVersion;
+    int transactionDepth = 0;
 };
 
 QDataStream &operator<<(QDataStream &out, const QByteArray &ba);

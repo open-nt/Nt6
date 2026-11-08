@@ -20,6 +20,7 @@ public:
     void setVisible(bool visible) override;
     void setWindowTitle(const QString &title) override;
     void requestActivateWindow() override;
+    void setTransientParent(const QPlatformWindow *parent) override;
     quintptr winId() const override { return m_id; }
 
     xcb_window_t id() const { return m_id; }

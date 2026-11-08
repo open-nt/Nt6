@@ -27,8 +27,8 @@
     detected with testFlag() when no other flag is set.
 
     \differences
-    The stored value is always an \c int; there is no \c toInt() or
-    \c fromInt() in the public API.
+    The stored value is always an \c int, whatever the underlying type of
+    the enum.
     \enddifferences
 */
 template <typename Enum>
@@ -135,9 +135,48 @@ public:
     constexpr QFlags &setFlag(Enum f, bool on = true) noexcept {
         return on ? (*this |= f) : (*this &= QFlags::fromInt(~static_cast<Int>(f)));
     }
+    /*!
+        \since 6.2
+        Returns \c true if every flag in \a flags is set. If \a flags is
+        empty, returns \c true only when no flag is set.
+
+        \sa testFlag(), testAnyFlags()
+    */
+    constexpr bool testFlags(QFlags flags) const noexcept {
+        return (i & flags.i) == flags.i && (flags.i != 0 || i == 0);
+    }
+    /*!
+        \since 6.2
+        Returns \c true if any bit of \a f is set; otherwise returns
+        \c false. A flag with the value \c 0 is never set.
+
+        \sa testFlag(), testAnyFlags()
+    */
+    constexpr bool testAnyFlag(Enum f) const noexcept { return (i & static_cast<Int>(f)) != 0; }
+    /*!
+        \since 6.2
+        Returns \c true if any flag in \a flags is set; otherwise returns
+        \c false.
+
+        \sa testFlags(), testAnyFlag()
+    */
+    constexpr bool testAnyFlags(QFlags flags) const noexcept { return (i & flags.i) != 0; }
+    /*!
+        \since 6.2
+        Returns the stored flags as an integer.
+
+        \sa fromInt()
+    */
+    constexpr Int toInt() const noexcept { return i; }
+    /*!
+        \since 6.2
+        Returns a QFlags object holding the integer \a v unchanged.
+
+        \sa toInt()
+    */
+    static constexpr QFlags fromInt(Int v) noexcept { QFlags q; q.i = v; return q; }
 
 private:
-    static constexpr QFlags fromInt(Int v) noexcept { QFlags q; q.i = v; return q; }
     Int i = 0;
 };
 

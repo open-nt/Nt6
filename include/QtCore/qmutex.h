@@ -38,8 +38,7 @@
 
     \differences
     QMutex wraps \c std::timed_mutex. It has no \c RecursionMode constructor
-    argument and no QDeadlineTimer overload of tryLock(). A negative timeout
-    passed to tryLock() does not wait forever; it is treated as 0.
+    argument.
     \enddifferences
 
     \sa QMutexLocker, QRecursiveMutex, QReadWriteLock, QWaitCondition
@@ -71,14 +70,53 @@ public:
         for it to become available. Returns \c true if the lock was obtained;
         otherwise returns \c false.
 
-        If \a timeoutMs is 0 or negative, the call returns immediately.
+        If \a timeoutMs is 0, the call returns immediately. A negative
+        \a timeoutMs waits until the lock is obtained, like lock().
 
         \sa lock(), unlock()
     */
     bool tryLock(int timeoutMs = 0) {
-        if (timeoutMs <= 0)
+        if (timeoutMs < 0) {
+            lock();
+            return true;
+        }
+        if (timeoutMs == 0)
             return m.try_lock();
         return m.try_lock_for(std::chrono::milliseconds(timeoutMs));
+    }
+    /*!
+        \overload
+        \since 6.6
+        Attempts to lock the mutex until \a deadline expires. Returns \c true
+        if the lock was obtained; otherwise returns \c false. A deadline that
+        never expires waits like lock().
+    */
+    bool tryLock(QDeadlineTimer deadline) {
+        if (deadline.isForever()) {
+            lock();
+            return true;
+        }
+        return m.try_lock_until(deadline.timePoint());
+    }
+    /*!
+        Attempts to lock the mutex, waiting for at most \a duration. Returns
+        \c true if the lock was obtained; otherwise returns \c false. This is
+        provided for use with \c std::unique_lock.
+
+        \sa tryLock()
+    */
+    template <class Rep, class Period> bool try_lock_for(std::chrono::duration<Rep, Period> duration) {
+        return m.try_lock_for(duration);
+    }
+    /*!
+        Attempts to lock the mutex, waiting until \a timePoint at most.
+        Returns \c true if the lock was obtained; otherwise returns \c false.
+        This is provided for use with \c std::unique_lock.
+
+        \sa tryLock()
+    */
+    template <class Clock, class Duration> bool try_lock_until(std::chrono::time_point<Clock, Duration> timePoint) {
+        return m.try_lock_until(timePoint);
     }
     /*!
         Attempts to lock the mutex without blocking. Returns \c true if the
@@ -109,9 +147,7 @@ private:
     count returns to zero.
 
     \differences
-    QRecursiveMutex wraps \c std::recursive_timed_mutex. It has no
-    \c try_lock() or \c isRecursive(). A negative timeout passed to tryLock()
-    is treated as 0 rather than waiting forever.
+    QRecursiveMutex wraps \c std::recursive_timed_mutex.
     \enddifferences
 
     \sa QMutex, QMutexLocker
@@ -144,14 +180,61 @@ public:
         for it to become available. Returns \c true if the lock was obtained;
         otherwise returns \c false.
 
-        If \a timeoutMs is 0 or negative, the call returns immediately.
+        If \a timeoutMs is 0, the call returns immediately. A negative
+        \a timeoutMs waits until the lock is obtained, like lock().
 
         \sa lock(), unlock()
     */
     bool tryLock(int timeoutMs = 0) {
-        if (timeoutMs <= 0)
+        if (timeoutMs < 0) {
+            lock();
+            return true;
+        }
+        if (timeoutMs == 0)
             return m.try_lock();
         return m.try_lock_for(std::chrono::milliseconds(timeoutMs));
+    }
+    /*!
+        \overload
+        \since 6.6
+        Attempts to lock the mutex until \a deadline expires. Returns \c true
+        if the lock was obtained; otherwise returns \c false. A deadline that
+        never expires waits like lock().
+    */
+    bool tryLock(QDeadlineTimer deadline) {
+        if (deadline.isForever()) {
+            lock();
+            return true;
+        }
+        return m.try_lock_until(deadline.timePoint());
+    }
+    /*!
+        Attempts to lock the mutex without blocking. Returns \c true if the
+        lock was obtained; otherwise returns \c false. This is provided for use
+        with \c std::lock and \c std::unique_lock.
+
+        \sa tryLock()
+    */
+    bool try_lock() { return m.try_lock(); }
+    /*!
+        Attempts to lock the mutex, waiting for at most \a duration. Returns
+        \c true if the lock was obtained; otherwise returns \c false. This is
+        provided for use with \c std::unique_lock.
+
+        \sa tryLock()
+    */
+    template <class Rep, class Period> bool try_lock_for(std::chrono::duration<Rep, Period> duration) {
+        return m.try_lock_for(duration);
+    }
+    /*!
+        Attempts to lock the mutex, waiting until \a timePoint at most.
+        Returns \c true if the lock was obtained; otherwise returns \c false.
+        This is provided for use with \c std::unique_lock.
+
+        \sa tryLock()
+    */
+    template <class Clock, class Duration> bool try_lock_until(std::chrono::time_point<Clock, Duration> timePoint) {
+        return m.try_lock_until(timePoint);
     }
 
 private:
@@ -183,9 +266,9 @@ private:
     copied.
 
     \differences
-    QMutexLocker is constructed from a pointer only; there is no constructor
-    taking a mutex reference, and no move assignment operator. A null pointer
-    is accepted and results in a locker that never locks anything.
+    A null pointer is accepted and results in a locker that never locks
+    anything. The locker works with any type that has \c lock() and
+    \c unlock(), not only the Nt mutex classes.
     \enddifferences
 
     \sa QMutex, QRecursiveMutex, QReadLocker, QWriteLocker
@@ -207,6 +290,25 @@ public:
         locked state. \a o no longer refers to a mutex afterwards.
     */
     QMutexLocker(QMutexLocker &&o) noexcept : mt(o.mt), locked(o.locked) { o.mt = nullptr; o.locked = false; }
+    QMutexLocker &operator=(const QMutexLocker &) = delete;
+    /*!
+        Move-assigns \a o to this locker. The mutex this locker held is
+        unlocked first; then the locker takes over the mutex and locked state
+        of \a o, which no longer refers to a mutex.
+    */
+    QMutexLocker &operator=(QMutexLocker &&o) noexcept {
+        QMutexLocker moved(std::move(o));
+        swap(moved);
+        return *this;
+    }
+    /*!
+        Swaps the mutex and the locked state of this locker with those of
+        \a other.
+    */
+    void swap(QMutexLocker &other) noexcept {
+        std::swap(mt, other.mt);
+        std::swap(locked, other.locked);
+    }
     /*!
         Destroys the locker and unlocks the mutex if it is currently locked by
         this locker.
@@ -271,9 +373,8 @@ private:
     readers block until it has finished. The lock is not recursive.
 
     \differences
-    There is no \c RecursionMode constructor argument. A negative timeout
-    passed to tryLockForRead() or tryLockForWrite() is treated as 0 rather
-    than waiting forever.
+    There is no \c RecursionMode constructor argument, so a thread that
+    holds the lock for reading must not lock it again while a writer waits.
     \enddifferences
 
     \sa QReadLocker, QWriteLocker, QMutex
@@ -314,14 +415,21 @@ public:
     /*!
         Attempts to lock the lock for reading, waiting up to \a timeoutMs
         milliseconds. Returns \c true if the lock was obtained; otherwise
-        returns \c false. If \a timeoutMs is 0 or negative, the call returns
-        immediately.
+        returns \c false. If \a timeoutMs is 0, the call returns immediately;
+        if it is negative, the call waits like lockForRead().
 
         \sa lockForRead(), unlock()
     */
-    bool tryLockForRead(int timeoutMs = 0) {
+    bool tryLockForRead(int timeoutMs = 0) { return tryLockForRead(QDeadlineTimer(static_cast<qint64>(timeoutMs))); }
+    /*!
+        \overload
+        \since 6.6
+        Attempts to lock the lock for reading until \a deadline expires.
+        Returns \c true if the lock was obtained; otherwise returns \c false.
+    */
+    bool tryLockForRead(QDeadlineTimer deadline) {
         std::unique_lock<std::mutex> lk(m);
-        if (!cv.wait_for(lk, std::chrono::milliseconds(timeoutMs < 0 ? 0 : timeoutMs), [&] { return !writer && waitingWriters == 0; }))
+        if (!waitUntil(lk, deadline, [&] { return !writer && waitingWriters == 0; }))
             return false;
         ++readers;
         return true;
@@ -329,15 +437,22 @@ public:
     /*!
         Attempts to lock the lock for writing, waiting up to \a timeoutMs
         milliseconds. Returns \c true if the lock was obtained; otherwise
-        returns \c false. If \a timeoutMs is 0 or negative, the call returns
-        immediately.
+        returns \c false. If \a timeoutMs is 0, the call returns immediately;
+        if it is negative, the call waits like lockForWrite().
 
         \sa lockForWrite(), unlock()
     */
-    bool tryLockForWrite(int timeoutMs = 0) {
+    bool tryLockForWrite(int timeoutMs = 0) { return tryLockForWrite(QDeadlineTimer(static_cast<qint64>(timeoutMs))); }
+    /*!
+        \overload
+        \since 6.6
+        Attempts to lock the lock for writing until \a deadline expires.
+        Returns \c true if the lock was obtained; otherwise returns \c false.
+    */
+    bool tryLockForWrite(QDeadlineTimer deadline) {
         std::unique_lock<std::mutex> lk(m);
         ++waitingWriters;
-        const bool ok = cv.wait_for(lk, std::chrono::milliseconds(timeoutMs < 0 ? 0 : timeoutMs), [&] { return !writer && readers == 0; });
+        const bool ok = waitUntil(lk, deadline, [&] { return !writer && readers == 0; });
         --waitingWriters;
         if (ok)
             writer = true;
@@ -364,6 +479,19 @@ public:
     }
 
 private:
+    friend class QWaitCondition;
+    template <typename Pred> bool waitUntil(std::unique_lock<std::mutex> &lk, QDeadlineTimer deadline, Pred pred) {
+        if (deadline.isForever()) {
+            cv.wait(lk, pred);
+            return true;
+        }
+        return cv.wait_until(lk, deadline.timePoint(), pred);
+    }
+    bool lockedForWrite() {
+        std::lock_guard<std::mutex> lk(m);
+        return writer;
+    }
+
     std::mutex m;
     std::condition_variable cv;
     int readers = 0;
@@ -523,7 +651,6 @@ private:
     \endcode
 
     \differences
-    wait() accepts only a QMutex; there is no overload for QReadWriteLock.
     The \c notify_one() and \c notify_all() members, named as in the C++
     standard library, are additions.
     \enddifferences
@@ -566,8 +693,37 @@ public:
         A deadline that never expires waits indefinitely.
     */
     bool wait(QMutex *mutex, QDeadlineTimer deadline) {
-        const qint64 r = deadline.remainingTime();
-        return wait(mutex, r < 0 ? ULONG_MAX : static_cast<unsigned long>(r));
+        std::unique_lock<QMutex> lk(*mutex, std::adopt_lock);
+        const bool ok = waitOn(lk, deadline);
+        lk.release();
+        return ok;
+    }
+    /*!
+        \overload
+
+        Releases \a lock and waits on the condition for up to \a timeMs
+        milliseconds. The lock must be held by the calling thread, for reading
+        or for writing, and it is locked again in the same mode before this
+        function returns. The default \a timeMs, \c ULONG_MAX, waits
+        indefinitely.
+    */
+    bool wait(QReadWriteLock *lock, unsigned long timeMs = ULONG_MAX) {
+        return wait(lock, timeMs == ULONG_MAX ? QDeadlineTimer(QDeadlineTimer::Forever)
+                                              : QDeadlineTimer(std::chrono::milliseconds(static_cast<qint64>(timeMs))));
+    }
+    /*!
+        \overload
+
+        Releases \a lock and waits until woken or until \a deadline expires.
+        The lock is locked again, in the mode the calling thread held it,
+        before this function returns.
+    */
+    bool wait(QReadWriteLock *lock, QDeadlineTimer deadline) {
+        ReadWriteLockable l{lock, lock->lockedForWrite()};
+        std::unique_lock<ReadWriteLockable> lk(l, std::adopt_lock);
+        const bool ok = waitOn(lk, deadline);
+        lk.release();
+        return ok;
     }
     /*!
         Wakes one thread waiting on the condition. Which thread is woken is
@@ -594,6 +750,25 @@ public:
     void notify_all() { cv.notify_all(); }
 
 private:
+    struct ReadWriteLockable {
+        QReadWriteLock *rw;
+        bool write;
+        void lock() {
+            if (write)
+                rw->lockForWrite();
+            else
+                rw->lockForRead();
+        }
+        void unlock() { rw->unlock(); }
+    };
+    template <typename Lock> bool waitOn(Lock &lk, QDeadlineTimer deadline) {
+        if (deadline.isForever()) {
+            cv.wait(lk);
+            return true;
+        }
+        return cv.wait_until(lk, deadline.timePoint()) == std::cv_status::no_timeout;
+    }
+
     std::condition_variable_any cv;
 };
 
@@ -617,8 +792,8 @@ private:
     \endcode
 
     \differences
-    A negative timeout passed to tryAcquire() is treated as 0 rather than
-    waiting forever. There is no QDeadlineTimer overload of tryAcquire().
+    The semaphore is built on \c std::mutex and \c std::condition_variable,
+    and release() wakes every waiting thread.
     \enddifferences
 
     \sa QSemaphoreReleaser, QMutex, QWaitCondition
@@ -645,17 +820,66 @@ public:
         Tries to acquire \a n resources, waiting up to \a timeoutMs
         milliseconds for them to become available. Returns \c true if the
         resources were acquired; otherwise returns \c false and acquires
-        nothing. If \a timeoutMs is 0 or negative, the call returns
-        immediately.
+        nothing. If \a timeoutMs is 0, the call returns immediately; if it
+        is negative, the call waits like acquire().
 
         \sa acquire(), release()
     */
-    bool tryAcquire(int n = 1, int timeoutMs = 0) {
+    bool tryAcquire(int n, int timeoutMs) { return tryAcquire(n, QDeadlineTimer(static_cast<qint64>(timeoutMs))); }
+    /*!
+        \overload
+        Tries to acquire \a n resources without waiting. Returns \c true if
+        they were acquired; otherwise returns \c false.
+    */
+    bool tryAcquire(int n = 1) { return tryAcquire(n, QDeadlineTimer()); }
+    /*!
+        \overload
+        \since 6.6
+        Tries to acquire \a n resources, waiting until \a deadline expires.
+        Returns \c true if the resources were acquired; otherwise returns
+        \c false and acquires nothing.
+    */
+    bool tryAcquire(int n, QDeadlineTimer deadline) {
         std::unique_lock<std::mutex> lk(m);
-        if (!cv.wait_for(lk, std::chrono::milliseconds(timeoutMs < 0 ? 0 : timeoutMs), [&] { return avail >= n; }))
+        const auto ready = [&] { return avail >= n; };
+        if (deadline.isForever())
+            cv.wait(lk, ready);
+        else if (!cv.wait_until(lk, deadline.timePoint(), ready))
             return false;
         avail -= n;
         return true;
+    }
+    /*!
+        \since 6.3
+        Tries to acquire one resource without waiting. Returns \c true on
+        success. This is provided for compatibility with
+        \c std::counting_semaphore.
+
+        \sa tryAcquire()
+    */
+    bool try_acquire() noexcept { return tryAcquire(1); }
+    /*!
+        \since 6.3
+        Tries to acquire one resource, waiting for at most \a timeout.
+        Returns \c true on success. This is provided for compatibility with
+        \c std::counting_semaphore.
+
+        \sa tryAcquire()
+    */
+    template <class Rep, class Period> bool try_acquire_for(const std::chrono::duration<Rep, Period> &timeout) {
+        return tryAcquire(1, QDeadlineTimer(timeout));
+    }
+    /*!
+        \since 6.3
+        Tries to acquire one resource, waiting until \a timePoint at most.
+        Returns \c true on success. This is provided for compatibility with
+        \c std::counting_semaphore.
+
+        \sa tryAcquire()
+    */
+    template <class Clock, class Duration>
+    bool try_acquire_until(const std::chrono::time_point<Clock, Duration> &timePoint) {
+        return try_acquire_for(timePoint - Clock::now());
     }
     /*!
         Releases \a n resources, waking threads that are waiting to acquire
@@ -705,9 +929,7 @@ private:
     \endcode
 
     \differences
-    The releaser cannot be moved or copied, and there is no way to change the
-    semaphore or the count after construction. There is no constructor taking
-    a \c{QSemaphore *}.
+    None.
     \enddifferences
 
     \sa QSemaphore
@@ -724,11 +946,48 @@ public:
     */
     explicit QSemaphoreReleaser(QSemaphore &s, int n = 1) : sem(&s), count(n) {}
     /*!
+        \overload
+        Constructs a releaser that releases \a n resources on \a s when it is
+        destroyed. If \a s is \c nullptr, the releaser does nothing.
+    */
+    explicit QSemaphoreReleaser(QSemaphore *s, int n = 1) : sem(s), count(n) {}
+    /*!
+        Move-constructs a releaser from \a other, which no longer releases
+        anything afterwards.
+    */
+    QSemaphoreReleaser(QSemaphoreReleaser &&other) noexcept
+        : sem(std::exchange(other.sem, nullptr)), count(other.count) {}
+    /*!
+        Move-assigns \a other to this releaser and returns a reference to it.
+        A release pending on this releaser happens first.
+    */
+    QSemaphoreReleaser &operator=(QSemaphoreReleaser &&other) noexcept {
+        QSemaphoreReleaser moved(std::move(other));
+        swap(moved);
+        return *this;
+    }
+    /*!
         Destroys the releaser and releases the resources on the semaphore,
         unless it was cancelled.
     */
     ~QSemaphoreReleaser() { if (sem) sem->release(count); }
     QSemaphoreReleaser(const QSemaphoreReleaser &) = delete;
+    QSemaphoreReleaser &operator=(const QSemaphoreReleaser &) = delete;
+    /*!
+        Swaps the semaphore and count of this releaser with those of
+        \a other.
+    */
+    void swap(QSemaphoreReleaser &other) noexcept {
+        std::swap(sem, other.sem);
+        std::swap(count, other.count);
+    }
+    /*!
+        Returns the semaphore the releaser operates on, or \c nullptr if there
+        is none or the release was cancelled.
+
+        \sa cancel()
+    */
+    QSemaphore *semaphore() const noexcept { return sem; }
     /*!
         Cancels the pending release and returns the semaphore the releaser was
         operating on, or \c nullptr if there was none. The destructor then does

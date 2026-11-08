@@ -6,7 +6,9 @@
 #include <algorithm>
 #include <initializer_list>
 #include <iterator>
+#include <limits>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 /*!
@@ -27,10 +29,10 @@
     \differences
     The list is a thin wrapper over \c std::vector, so copies are deep and it
     is not implicitly shared. \c QList<bool> is rejected with a
-    \c static_assert. There is no \c emplace(), \c assign(),
-    \c shrink_to_fit(), \c max_size(), \c toList() or \c toVector(), and
-    no rvalue overloads of prepend() or insert(). Indexes are not
-    range-checked except by value(). \c QVector is an alias of QList.
+    \c static_assert. There is no \c Qt::Initialization constructor or
+    resize() overload. Indexes are not range-checked except by value().
+    \c QVector is an alias of QList, so toList(), toVector(), fromList()
+    and fromVector() return a copy of the same type.
     \enddifferences
 
     \sa QQueue, QStack, QVarLengthArray
@@ -157,6 +159,17 @@ public:
         \sa reserve(), capacity()
     */
     void squeeze() { d.shrink_to_fit(); }
+    /*! Same as squeeze(). This function is provided for STL compatibility. */
+    void shrink_to_fit() { d.shrink_to_fit(); }
+    /*!
+        Returns the largest number of items the list can theoretically hold.
+        This function is provided for STL compatibility.
+    */
+    qsizetype max_size() const noexcept {
+        const std::size_t n = d.max_size();
+        constexpr auto limit = static_cast<std::size_t>(std::numeric_limits<qsizetype>::max());
+        return static_cast<qsizetype>(n < limit ? n : limit);
+    }
     /*!
         Sets the size of the list to \a n. If \a n is larger than the current
         size, the new items are default-constructed; if it is smaller, items
@@ -232,6 +245,20 @@ public:
 
         Returns a const reference to the last item in the list. */
     const T &last() const { return d.back(); }
+    /*!
+        Returns a const reference to the first item in the list. The list must
+        not be empty.
+
+        \sa constLast(), first()
+    */
+    const T &constFirst() const { return d.front(); }
+    /*!
+        Returns a const reference to the last item in the list. The list must
+        not be empty.
+
+        \sa constFirst(), last()
+    */
+    const T &constLast() const { return d.back(); }
     /*! Same as first(). This function is provided for STL compatibility. */
     T &front() { return d.front(); }
     /*! \overload
@@ -289,8 +316,32 @@ public:
         \sa append(), insert()
     */
     void prepend(const T &t) { d.insert(d.begin(), t); }
+    /*! \overload
+
+        Moves \a t to the beginning of the list. */
+    void prepend(T &&t) { d.insert(d.begin(), std::move(t)); }
     /*! Same as prepend(\a t). This function is provided for STL compatibility. */
     void push_front(const T &t) { prepend(t); }
+    /*! \overload
+
+        Same as prepend(\a t). This function is provided for STL compatibility. */
+    void push_front(T &&t) { prepend(std::move(t)); }
+    /*!
+        Constructs a new item from \a args and inserts it at index position
+        \a i. Returns an iterator to the new item. \a i must be between 0
+        and size().
+
+        \sa emplaceBack(), insert()
+    */
+    template <typename... Args> iterator emplace(qsizetype i, Args &&...args) {
+        return d.emplace(d.begin() + i, std::forward<Args>(args)...);
+    }
+    /*! \overload
+
+        Constructs a new item from \a args and inserts it before the item pointed to by \a before. Returns an iterator to the new item. */
+    template <typename... Args> iterator emplace(const_iterator before, Args &&...args) {
+        return d.emplace(before, std::forward<Args>(args)...);
+    }
     /*!
         Constructs a new item at the end of the list from \a args and returns
         a reference to it.
@@ -317,6 +368,48 @@ public:
 
         Inserts \a t before the item pointed to by the iterator \a before and returns an iterator to the inserted item. */
     iterator insert(const_iterator before, const T &t) { return d.insert(before, t); }
+    /*! \overload
+
+        Moves \a t to index position \a i and returns an iterator to the inserted item. */
+    iterator insert(qsizetype i, T &&t) { return d.insert(d.begin() + i, std::move(t)); }
+    /*! \overload
+
+        Moves \a t before the item pointed to by the iterator \a before and returns an iterator to the inserted item. */
+    iterator insert(const_iterator before, T &&t) { return d.insert(before, std::move(t)); }
+    /*! \overload
+
+        Inserts \a n copies of \a t before the item pointed to by the iterator \a before and returns an iterator to the first inserted item. */
+    iterator insert(const_iterator before, qsizetype n, const T &t) {
+        return d.insert(before, static_cast<std::size_t>(n), t);
+    }
+    /*!
+        \since 6.6
+        Replaces the contents of the list with \a n copies of \a t and
+        returns a reference to the list.
+
+        \sa fill()
+    */
+    QList &assign(qsizetype n, const T &t) {
+        d.assign(static_cast<std::size_t>(n), t);
+        return *this;
+    }
+    /*! \overload
+        \since 6.6
+
+        Replaces the contents of the list with a copy of the items in the range [\a first, \a last) and returns a reference to the list. */
+    template <typename It, typename = typename std::iterator_traits<It>::iterator_category>
+    QList &assign(It first, It last) {
+        d.assign(first, last);
+        return *this;
+    }
+    /*! \overload
+        \since 6.6
+
+        Replaces the contents of the list with the items in \a l and returns a reference to the list. */
+    QList &assign(std::initializer_list<T> l) {
+        d.assign(l);
+        return *this;
+    }
     /*!
         Replaces the item at index position \a i with \a t. \a i must be a
         valid index.
@@ -554,6 +647,14 @@ public:
     void reverse() { std::reverse(d.begin(), d.end()); }
     /*! Returns a const reference to the underlying \c{std::vector<T>}. */
     const std::vector<T> &toStdVector() const { return d; }
+    /*! Returns a copy of this list. Provided for compatibility with code that converts between QList and QVector. */
+    QList toList() const { return *this; }
+    /*! Returns a copy of this list. Provided for compatibility with code that converts between QList and QVector. */
+    QList toVector() const { return *this; }
+    /*! Returns a copy of \a list. Provided for compatibility with code that converts between QList and QVector. */
+    static QList fromList(const QList &list) { return list; }
+    /*! Returns a copy of \a vector. Provided for compatibility with code that converts between QList and QVector. */
+    static QList fromVector(const QList &vector) { return vector; }
 
     /*! Returns an iterator pointing to the first item in the list. */
     iterator begin() { return d.begin(); }
@@ -587,6 +688,10 @@ public:
 
         Returns a const reverse iterator pointing just before the first item in the list. */
     const_reverse_iterator rend() const noexcept { return d.rend(); }
+    /*! Returns a const reverse iterator pointing to the last item in the list. */
+    const_reverse_iterator crbegin() const noexcept { return d.crbegin(); }
+    /*! Returns a const reverse iterator pointing just before the first item in the list. */
+    const_reverse_iterator crend() const noexcept { return d.crend(); }
 
     /*! Appends the items of the list \a l to this list and returns a reference to this list. */
     QList &operator+=(const QList &l) { append(l); return *this; }
@@ -594,16 +699,33 @@ public:
 
         Appends \a t to this list and returns a reference to this list. */
     QList &operator+=(const T &t) { append(t); return *this; }
+    /*! \overload
+
+        Moves \a t to the end of this list and returns a reference to this list. */
+    QList &operator+=(T &&t) {
+        append(std::move(t));
+        return *this;
+    }
     /*! Appends \a t to this list and returns a reference to this list, so that calls can be chained. */
     QList &operator<<(const T &t) { append(t); return *this; }
     /*! \overload
 
         Appends the items of the list \a l to this list and returns a reference to this list. */
     QList &operator<<(const QList &l) { append(l); return *this; }
+    /*! \overload
+
+        Moves \a t to the end of this list and returns a reference to this list. */
+    QList &operator<<(T &&t) {
+        append(std::move(t));
+        return *this;
+    }
     friend QList operator+(const QList &a, const QList &b) { QList r(a); r.append(b); return r; }
     friend bool operator==(const QList &a, const QList &b) { return a.d == b.d; }
     friend bool operator!=(const QList &a, const QList &b) { return a.d != b.d; }
     friend bool operator<(const QList &a, const QList &b) { return a.d < b.d; }
+    friend bool operator<=(const QList &a, const QList &b) { return a.d <= b.d; }
+    friend bool operator>(const QList &a, const QList &b) { return a.d > b.d; }
+    friend bool operator>=(const QList &a, const QList &b) { return a.d >= b.d; }
 
 private:
     Container d;

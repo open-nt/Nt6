@@ -1280,6 +1280,139 @@ static void testSelfWait() {
         fn();                                                                                                          \
     } while (0)
 
+// Deadline overloads of the locking classes, and waiting on a QReadWriteLock.
+static void testDeadlineLocking() {
+    {
+        QMutex m;
+        CHECK(m.tryLock(QDeadlineTimer(QDeadlineTimer::Forever)));
+        std::atomic<int> result{-1};
+        std::thread t([&] {
+            QElapsedTimer clock;
+            clock.start();
+            const bool got = m.tryLock(QDeadlineTimer(20));
+            result = got ? 1 : (clock.elapsed() >= 15 ? 0 : 2);
+        });
+        t.join();
+        CHECK(result == 0);
+        std::thread waiter([&] {
+            result = m.tryLock(-1) ? 3 : 4;
+            m.unlock();
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        m.unlock();
+        waiter.join();
+        CHECK(result == 3);
+        std::unique_lock<QMutex> lk(m, std::chrono::milliseconds(5));
+        CHECK(lk.owns_lock());
+        lk.unlock();
+        CHECK(m.try_lock_until(std::chrono::steady_clock::now()));
+        m.unlock();
+    }
+    {
+        QRecursiveMutex m;
+        CHECK(m.try_lock() && m.tryLock(QDeadlineTimer(0)) && m.try_lock_for(std::chrono::milliseconds(1)));
+        m.unlock();
+        m.unlock();
+        m.unlock();
+        CHECK(m.tryLock(-1));
+        m.unlock();
+    }
+    {
+        QMutex a, b;
+        QMutexLocker la(&a);
+        QMutexLocker lb(&b);
+        lb = std::move(la);
+        CHECK(lb.mutex() == &a && lb.isLocked() && !la.mutex());
+        CHECK(b.tryLock()); // the old mutex of lb was unlocked
+        b.unlock();
+        QMutexLocker<QMutex> lc(nullptr);
+        lc.swap(lb);
+        CHECK(lc.mutex() == &a && !lb.mutex());
+    }
+    {
+        QReadWriteLock rw;
+        rw.lockForWrite();
+        std::atomic<int> result{-1};
+        std::thread t([&] {
+            result = (rw.tryLockForRead(QDeadlineTimer(10)) ? 1 : 0) + (rw.tryLockForWrite(QDeadlineTimer(0)) ? 2 : 0);
+        });
+        t.join();
+        CHECK(result == 0);
+        std::thread waiter([&] {
+            result = rw.tryLockForRead(-1) ? 5 : 6;
+            rw.unlock();
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        rw.unlock();
+        waiter.join();
+        CHECK(result == 5);
+        CHECK(rw.tryLockForWrite(QDeadlineTimer(QDeadlineTimer::Forever)));
+        rw.unlock();
+    }
+    {
+        QSemaphore sem;
+        CHECK(!sem.tryAcquire() && !sem.try_acquire() && !sem.tryAcquire(1, QDeadlineTimer(5)));
+        CHECK(!sem.try_acquire_for(std::chrono::milliseconds(1)));
+        CHECK(!sem.try_acquire_until(std::chrono::steady_clock::now() - std::chrono::seconds(1)));
+        std::thread t([&] {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            sem.release(3);
+        });
+        CHECK(sem.tryAcquire(2, -1));
+        t.join();
+        CHECK(sem.tryAcquire(1, QDeadlineTimer(QDeadlineTimer::Forever)) && sem.available() == 0);
+        sem.release(2);
+        CHECK(sem.try_acquire() && sem.try_acquire_until(std::chrono::system_clock::now() + std::chrono::seconds(1)));
+    }
+    {
+        QSemaphore sem;
+        {
+            QSemaphoreReleaser r1(&sem, 2);
+            QSemaphoreReleaser r2(std::move(r1));
+            CHECK(r2.semaphore() == &sem && r1.semaphore() == nullptr);
+            QSemaphoreReleaser r3;
+            r3 = std::move(r2);
+            QSemaphoreReleaser r4(static_cast<QSemaphore *>(nullptr));
+            r4.swap(r3);
+            CHECK(r4.semaphore() == &sem && !r3.semaphore());
+        }
+        CHECK(sem.available() == 2);
+    }
+    {
+        // wait() on a QReadWriteLock relocks it in the mode it was held.
+        QReadWriteLock rw;
+        QWaitCondition cond;
+        bool ready = false;
+        std::atomic<int> modes{0};
+        std::thread writer([&] {
+            rw.lockForWrite();
+            while (!ready)
+                cond.wait(&rw);
+            modes += rw.tryLockForRead(0) ? 100 : 1; // still held for writing
+            rw.unlock();
+        });
+        std::thread reader([&] {
+            rw.lockForRead();
+            while (!ready)
+                cond.wait(&rw, QDeadlineTimer(QDeadlineTimer::Forever));
+            modes += rw.tryLockForWrite(0) ? 100 : 10; // still held for reading
+            rw.unlock();
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        rw.lockForWrite();
+        ready = true;
+        rw.unlock();
+        cond.wakeAll();
+        writer.join();
+        reader.join();
+        CHECK(modes == 11);
+        rw.lockForRead();
+        CHECK(!cond.wait(&rw, 5) && !cond.wait(&rw, QDeadlineTimer(5)));
+        CHECK(!rw.tryLockForWrite(0));
+        rw.unlock();
+    }
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
 
@@ -1308,6 +1441,7 @@ int main(int argc, char **argv) {
     RUN(testDeleteReceiverWhileEmitting);
     RUN(testManyThreads);
     RUN(testSelfWait);
+    RUN(testDeadlineLocking);
 
     if (g_failures == 0)
         std::puts("all thread tests passed");

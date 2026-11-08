@@ -3,10 +3,12 @@
 #include <QSet>
 
 #include <cmath>
+#include <functional>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <limits>
+#include <list>
 #include <string>
 
 static int g_failures = 0;
@@ -2520,6 +2522,254 @@ static void testIterators() {
     CHECK(si.peekNext() >= 1 && si.peekNext() <= 3);
 }
 
+namespace {
+enum class Opt { None = 0, A = 1, B = 2, C = 8 };
+Q_DECLARE_FLAGS(Opts, Opt)
+
+struct Base {
+    virtual ~Base() = default;
+};
+struct Derived : Base {};
+} // namespace
+
+static QString debugText(const std::function<void(QDebug &)> &write) {
+    QString text;
+    {
+        QDebug d(&text);
+        write(d);
+    }
+    return text;
+}
+
+static void testMoreCoreApi() {
+    // QElapsedTimer
+    {
+        QElapsedTimer a, b;
+        a.start();
+        b.start();
+        CHECK(!(b < a));
+        CHECK(a.secsTo(b) == 0 && a.durationTo(b) >= std::chrono::nanoseconds(0));
+        CHECK(a.durationElapsed() >= std::chrono::nanoseconds(0));
+        QElapsedTimer invalid;
+        CHECK(invalid.durationElapsed() == std::chrono::nanoseconds(0));
+    }
+    // QDeadlineTimer
+    {
+        const QDeadlineTimer now = QDeadlineTimer::current();
+        CHECK(now.hasExpired() && !now.isForever());
+        const QDeadlineTimer later = now + 1000;
+        CHECK(later > now && later - now == 1000 && now < later && now <= later && later >= now);
+        CHECK(later.deadline() - now.deadline() == 1000);
+        CHECK(QDeadlineTimer::addNSecs(now, 5000000).deadlineNSecs() - now.deadlineNSecs() == 5000000);
+        QDeadlineTimer moved = later;
+        moved -= 1000;
+        CHECK(moved == now);
+        moved += 1;
+        CHECK(moved != now);
+
+        const QDeadlineTimer never(QDeadlineTimer::Forever);
+        CHECK(never.deadline() == std::numeric_limits<qint64>::max());
+        CHECK(never.deadlineNSecs() == std::numeric_limits<qint64>::max());
+        CHECK(never > later && (never + 5).isForever() && never == QDeadlineTimer(-1));
+        CHECK(never.remainingTimeAsDuration() == std::chrono::nanoseconds::max());
+        CHECK(never.timePoint() == QDeadlineTimer::Clock::time_point::max());
+
+        QDeadlineTimer set;
+        set.setDeadline(later.deadline(), Qt::PreciseTimer);
+        CHECK(set.deadline() == later.deadline() && set.timerType() == Qt::PreciseTimer);
+        set.setDeadline(std::numeric_limits<qint64>::max());
+        CHECK(set.isForever());
+        set.setPreciseDeadline(later.deadlineNSecs() / 1000000000, later.deadlineNSecs() % 1000000000);
+        CHECK(set.deadlineNSecs() == later.deadlineNSecs());
+        set.setPreciseRemainingTime(-1);
+        CHECK(set.isForever());
+        set.setTimerType(Qt::VeryCoarseTimer);
+        CHECK(set.timerType() == Qt::VeryCoarseTimer);
+
+        const QDeadlineTimer chronoTimer(std::chrono::seconds(60));
+        CHECK(!chronoTimer.hasExpired() && chronoTimer.remainingTime() > 59000);
+        CHECK(chronoTimer.remainingTimeAsDuration() > std::chrono::seconds(59));
+        CHECK(QDeadlineTimer(std::chrono::milliseconds(-5)).hasExpired());
+        CHECK(QDeadlineTimer(std::chrono::nanoseconds::max()).isForever());
+        CHECK(QDeadlineTimer(later.timePoint()) == later);
+        QDeadlineTimer x = now, y = never;
+        x.swap(y);
+        CHECK(x.isForever() && y == now);
+    }
+    // QList
+    {
+        QList<std::string> l;
+        l.emplace(0, 3, 'b');
+        l.emplace(l.cbegin(), "a");
+        std::string moved("c");
+        l.insert(2, std::move(moved));
+        l.prepend(std::string("z"));
+        CHECK((l == QList<std::string>{"z", "a", "bbb", "c"}));
+        CHECK(l.constFirst() == "z" && l.constLast() == "c");
+        l.insert(l.cbegin() + 1, 2, std::string("y"));
+        CHECK(l.size() == 6 && l[1] == "y" && l[2] == "y");
+        l.assign(2, std::string("q"));
+        CHECK((l == QList<std::string>{"q", "q"}));
+        l.assign({"1", "2", "3"});
+        CHECK(l.size() == 3 && *l.crbegin() == "3" && *(l.crend() - 1) == "1");
+        const std::vector<std::string> src{"x", "y"};
+        l.assign(src.begin(), src.end());
+        CHECK(l == QList<std::string>(src.begin(), src.end()));
+        l += std::string("w");
+        l << std::string("v");
+        CHECK(l.size() == 4 && l.last() == "v");
+        CHECK(l.toList() == l && l.toVector() == l && QList<std::string>::fromList(l) == l &&
+              QList<std::string>::fromVector(l) == l);
+        l.shrink_to_fit();
+        CHECK(l.max_size() > 0);
+        const QList<int> a{1, 2}, b{1, 3};
+        CHECK(a < b && a <= b && b > a && b >= a && a <= a && a >= a);
+    }
+    // QVarLengthArray
+    {
+        QVarLengthArray<int, 4> v(6, 7);
+        CHECK(v.size() == 6 && v[5] == 7);
+        v.assign({1, 2, 3, 2, 4, 2});
+        CHECK(v.removeAll(2) == 3 && v.size() == 3 && v[2] == 4);
+        CHECK(v.removeOne(3) && !v.removeOne(42) && v.size() == 2);
+        CHECK(v.removeIf([](int i) { return i > 1; }) == 1 && v.size() == 1);
+        v.assign(5, 9);
+        CHECK(v.size() == 5 && v[4] == 9);
+        v.assign(5, v[0]);
+        CHECK(v.size() == 5 && v[0] == 9);
+        const int src[] = {5, 6};
+        v.assign(std::begin(src), std::end(src));
+        CHECK(v.size() == 2 && v[1] == 6);
+        int moved = 1;
+        v.insert(0, std::move(moved));
+        v.prepend(0);
+        v.insert(v.cend(), 2, 8);
+        v += 10;
+        v << 11;
+        CHECK((v == QVarLengthArray<int, 4>{0, 1, 5, 6, 8, 8, 10, 11}));
+        QVarLengthArray<int, 4> w{0, 1, 5, 7};
+        CHECK(v < w && w > v && v <= w && w >= v && v <= v);
+        CHECK((QVarLengthArray<int, 4>::max_size() > 0));
+
+        QVarLengthArray<std::string, 2> strings{"a", "b", "a", "c"};
+        CHECK(strings.removeAll(std::string("a")) == 2 && strings.size() == 2 && strings[0] == "b");
+        strings.insert(strings.cbegin(), std::string("z"));
+        strings.prepend(std::string("y"));
+        CHECK(strings.size() == 4 && strings[0] == "y" && strings[1] == "z");
+    }
+    // QFlags
+    {
+        Opts o = Opt::A;
+        o |= Opt::C;
+        CHECK(o.toInt() == 9 && Opts::fromInt(9) == o);
+        CHECK(o.testFlags(Opts(Opt::A) | Opt::C) && !o.testFlags(Opts(Opt::A) | Opt::B));
+        CHECK(o.testAnyFlag(Opt::C) && !o.testAnyFlag(Opt::B) && !o.testAnyFlag(Opt::None));
+        CHECK(o.testAnyFlags(Opts(Opt::B) | Opt::C) && !o.testAnyFlags(Opt::B));
+        CHECK(Opts().testFlags(Opts()) && !o.testFlags(Opts()));
+    }
+    // QSharedPointer and QWeakPointer
+    {
+        QSharedPointer<QObject> obj(new QTimer);
+        {
+            const QSharedPointer<QTimer> timer = obj.objectCast<QTimer>();
+            CHECK(timer && timer.use_count() == 2);
+        }
+        CHECK(!obj.objectCast<QThread>());
+        CHECK(qSharedPointerObjectCast<QTimer>(obj).data() == obj.data());
+        QSharedPointer<const QObject> constObj = obj;
+        CHECK(qSharedPointerConstCast<QObject>(constObj) == obj);
+        QWeakPointer<QObject> weak = obj;
+        CHECK(weak && !!weak && weak == obj && obj == weak && weak != nullptr && !(nullptr == weak));
+        CHECK(weak.lock() == obj && qSharedPointerObjectCast<QTimer>(weak) == obj);
+        QWeakPointer<QObject> weak2 = weak;
+        CHECK(weak == weak2);
+        QSharedPointer<Base> base(new Derived);
+        CHECK(qSharedPointerDynamicCast<Derived>(QWeakPointer<Base>(base)));
+        CHECK(qHash(obj) == qHash(QSharedPointer<QObject>(obj)) && qHash(obj, 1) != qHash(obj, 2));
+        QSet<QSharedPointer<QObject>> set;
+        set.insert(obj);
+        CHECK(set.contains(obj));
+        set.clear();
+        constObj.reset();
+        QSharedPointer<QObject> other;
+        obj.swap(other);
+        CHECK(!obj && other && weak == other);
+        other.reset();
+        CHECK(!weak && weak.isNull() && weak == nullptr && weak == other);
+        QSharedPointer<int> counted;
+        bool deleted = false;
+        counted.reset(new int(1), [&deleted](int *p) {
+            deleted = true;
+            delete p;
+        });
+        counted.reset();
+        CHECK(deleted);
+    }
+    // QPointer
+    {
+        auto *timer = new QTimer;
+        QPointer<QTimer> p = timer;
+        QPointer<QObject> o = p;
+        QPointer<QObject> empty;
+        CHECK(o == p && o == timer && timer == o && o != empty && empty == nullptr);
+        o.swap(empty);
+        CHECK(!o && empty == timer);
+        delete timer;
+        CHECK(empty.isNull() && p == nullptr);
+    }
+    // QDebug
+    {
+        CHECK(debugText([](QDebug &d) { d << QSet<int>{3}; }) == "QSet(3) ");
+        CHECK(debugText([](QDebug &d) { d << std::vector<int>{1, 2}; }) == "std::vector(1, 2) ");
+        CHECK(debugText([](QDebug &d) { d << std::list<int>{4}; }) == "std::list(4) ");
+        CHECK(debugText([](QDebug &d) { d << std::make_pair(1, QString("a")); }) == "std::pair(1, \"a\") ");
+        QMultiMap<int, int> mm;
+        mm.insert(1, 2);
+        CHECK(debugText([&](QDebug &d) { d << mm; }) == "QMultiMap((1, 2)) ");
+        QMultiHash<int, int> mh;
+        mh.insert(3, 4);
+        CHECK(debugText([&](QDebug &d) { d << mh; }) == "QMultiHash((3, 4)) ");
+        CHECK(debugText([](QDebug &d) { d << (Opts(Opt::A) | Opt::C); }) == "QFlags(0x1|0x8) ");
+        CHECK(debugText([](QDebug &d) { d << Opts(); }) == "QFlags() ");
+        const QString s("v\"w");
+        CHECK(debugText([&](QDebug &d) { d << QStringView(s); }) == debugText([&](QDebug &d) { d << s; }));
+        CHECK(debugText([](QDebug &d) {
+                  d.nospace().noquote().verbosity(5);
+                  CHECK(d.verbosity() == 5);
+                  d.setVerbosity(42);
+                  CHECK(d.verbosity() == 7);
+                  {
+                      QDebugStateSaver saver(d);
+                      d.setVerbosity(1);
+                  }
+                  CHECK(d.verbosity() == 7);
+                  d.resetFormat();
+                  CHECK(d.verbosity() == 2 && d.autoInsertSpaces());
+                  d << QString("q");
+              }) == "\"q\" ");
+        QString t1, t2;
+        {
+            QDebug a(&t1), b(&t2);
+            a.swap(b);
+            a << 1;
+            b << 2;
+        }
+        CHECK(t1 == "2 " && t2 == "1 ");
+    }
+    // QDate::startOfDay() and endOfDay()
+    {
+        const QDate date(2024, 3, 15);
+        CHECK(date.startOfDay(Qt::UTC) == QDateTime(date, QTime(0, 0), Qt::UTC));
+        CHECK(date.endOfDay(Qt::UTC) == QDateTime(date, QTime(23, 59, 59, 999), Qt::UTC));
+        CHECK(date.endOfDay(Qt::UTC).addMSecs(1) == date.addDays(1).startOfDay(Qt::UTC));
+        const QDateTime offset = date.startOfDay(Qt::OffsetFromUTC, 3600);
+        CHECK(offset.offsetFromUtc() == 3600 && offset.time() == QTime(0, 0));
+        CHECK(date.startOfDay().date() == date && date.startOfDay().timeSpec() == Qt::LocalTime);
+        CHECK(date.startOfDay() < date.endOfDay());
+        CHECK(!QDate().startOfDay().isValid() && !QDate().endOfDay(Qt::UTC).isValid());
+    }
+}
+
 static void testExtras() {
     CHECK(QDate::fromJulianDay(784354017364LL).isValid());
     CHECK(!QDate::fromJulianDay(784354017365LL).isValid());
@@ -2633,6 +2883,7 @@ int main(int argc, char **argv) {
     testBasicTimer();
     testIterators();
     testExtras();
+    testMoreCoreApi();
 
     if (g_failures) {
         std::printf("%d type test check(s) failed\n", g_failures);

@@ -313,6 +313,53 @@ QObject::QObject(QObject *parent) : d_ptr(new QtPrivate::ObjectData) {
 }
 
 /*!
+    Filters the events for \a watched, an object that this one is installed on as an event filter. Return \c true to
+    stop \a event, so that \a watched does not get it, or \c false to let it go on. The default implementation returns
+    \c false.
+
+    \code
+    bool KeyLogger::eventFilter(QObject *watched, QEvent *event) {
+        if (event->type() == QEvent::KeyPress)
+            qDebug() << "key for" << watched;
+        return false;
+    }
+    \endcode
+
+    \sa installEventFilter()
+*/
+bool QObject::eventFilter(QObject *watched, QEvent *event) {
+    (void)watched;
+    (void)event;
+    return false;
+}
+
+/*!
+    Installs \a filterObj as an event filter of this object: its eventFilter() sees the events of this object before
+    this object does. A filter installed on the application sees the events of all objects. The filter installed last
+    runs first; installing a filter again moves it to the front. A deleted filter is removed.
+
+    \sa removeEventFilter(), eventFilter()
+*/
+void QObject::installEventFilter(QObject *filterObj) {
+    if (!filterObj)
+        return;
+    removeEventFilter(filterObj);
+    d_ptr->eventFilters.emplace_back(filterObj);
+}
+
+/*!
+    Removes \a obj from the event filters of this object.
+
+    \sa installEventFilter()
+*/
+void QObject::removeEventFilter(QObject *obj) {
+    auto &filters = d_ptr->eventFilters;
+    filters.erase(std::remove_if(filters.begin(), filters.end(),
+                                 [obj](const QPointer<QObject> &f) { return f.isNull() || f.data() == obj; }),
+                  filters.end());
+}
+
+/*!
     Destroys the object, emitting destroyed() first. Every connection to or
     from the object is removed, its timers are stopped, its pending posted
     events are discarded, and its children are deleted.

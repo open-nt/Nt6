@@ -7,6 +7,7 @@
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
+#include <QtCore/qpointer.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qscreen.h>
@@ -19,6 +20,7 @@ struct QWindow::Data {
     QScreen *screen = nullptr;
     QPlatformWindow *platform = nullptr;
     QString title;
+    QPointer<QWindow> transientParent;
     QRect geometry;
     bool visible = false;
     bool exposed = false;
@@ -109,6 +111,8 @@ void QWindow::create() {
     m_d->platform->setGeometry(m_d->geometry);
     if (!m_d->title.isEmpty())
         m_d->platform->setWindowTitle(m_d->title);
+    if (m_d->transientParent && m_d->transientParent->m_d->platform)
+        m_d->platform->setTransientParent(m_d->transientParent->m_d->platform);
 }
 
 /*!
@@ -151,6 +155,28 @@ void QWindow::setTitle(const QString &title) {
     if (m_d->platform)
         m_d->platform->setWindowTitle(title);
     emit titleChanged(title);
+}
+
+/*!
+    Returns the window that this window is transient for, or \c nullptr if it is a normal window.
+
+    \sa setTransientParent()
+*/
+QWindow *QWindow::transientParent() const { return m_d->transientParent.data(); }
+
+/*!
+    Makes the window transient for \a parent: the window system keeps it above \a parent and treats it as a dialog of
+    it. With \c nullptr the window is a normal window again.
+
+    \sa transientParent()
+*/
+void QWindow::setTransientParent(QWindow *parent) {
+    if (parent == this || m_d->transientParent == parent)
+        return;
+    m_d->transientParent = parent;
+    if (m_d->platform)
+        m_d->platform->setTransientParent(parent ? parent->m_d->platform : nullptr);
+    emit transientParentChanged(parent);
 }
 
 /*!

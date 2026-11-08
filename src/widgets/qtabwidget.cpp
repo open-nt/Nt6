@@ -5,122 +5,11 @@
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
+#include <QtWidgets/qtabbar.h>
 
 #include "qwidgetutil_p.h"
 
 #include <algorithm>
-
-// The row of tabs of a QTabWidget, a child of it.
-class QTabBarWidget : public QWidget {
-public:
-    explicit QTabBarWidget(QTabWidget *owner) : QWidget(owner), m_owner(owner) {
-        setFocusPolicy(Qt::StrongFocus);
-        setMouseTracking(true);
-    }
-
-    QSize tabSize(int index) const {
-        QStyleOptionTab option;
-        option.initFrom(this);
-        option.text = m_owner->m_tabs[static_cast<std::size_t>(index)].text;
-        const QFontMetrics fm = fontMetrics();
-        return style()->sizeFromContents(QStyle::CT_TabBarTab, &option, fm.size(Qt::TextSingleLine, option.text), this);
-    }
-    int barHeight() const {
-        QStyleOptionTab option;
-        option.initFrom(this);
-        const QFontMetrics fm = fontMetrics();
-        return style()->sizeFromContents(QStyle::CT_TabBarTab, &option, QSize(0, fm.height()), this).height();
-    }
-    int tabsWidth() const {
-        int width = 0;
-        for (int i = 0; i < m_owner->count(); ++i)
-            width += tabSize(i).width();
-        return width;
-    }
-    QRect tabRect(int index) const {
-        int x = 0;
-        for (int i = 0; i < index; ++i)
-            x += tabSize(i).width();
-        return QRect(x, 0, tabSize(index).width(), height());
-    }
-    int tabAt(const QPoint &pos) const {
-        for (int i = 0; i < m_owner->count(); ++i)
-            if (tabRect(i).contains(pos))
-                return i;
-        return -1;
-    }
-
-protected:
-    void paintEvent(QPaintEvent *) override {
-        QPainter painter(this);
-        painter.setFont(font());
-        // The selected tab is drawn last so that it overlaps its neighbours.
-        for (int pass = 0; pass < 2; ++pass) {
-            for (int i = 0; i < m_owner->count(); ++i) {
-                const bool selected = i == m_owner->currentIndex();
-                if (selected != (pass == 1))
-                    continue;
-                QStyleOptionTab option;
-                option.initFrom(this);
-                option.rect = tabRect(i);
-                option.text = m_owner->m_tabs[static_cast<std::size_t>(i)].text;
-                option.state &= ~(QStyle::State_HasFocus | QStyle::State_MouseOver | QStyle::State_Enabled);
-                if (m_owner->m_tabs[static_cast<std::size_t>(i)].enabled && isEnabled())
-                    option.state |= QStyle::State_Enabled;
-                if (selected) {
-                    option.state |= QStyle::State_Selected;
-                    if (hasFocus())
-                        option.state |= QStyle::State_HasFocus;
-                }
-                if (i == m_hover)
-                    option.state |= QStyle::State_MouseOver;
-                style()->drawControl(QStyle::CE_TabBarTab, &option, &painter, this);
-            }
-        }
-    }
-    void mousePressEvent(QMouseEvent *event) override {
-        const int index = tabAt(event->pos());
-        if (event->button() != Qt::LeftButton || index < 0) {
-            event->ignore();
-            return;
-        }
-        if (m_owner->isTabEnabled(index))
-            m_owner->setCurrentIndex(index);
-        event->accept();
-    }
-    void mouseMoveEvent(QMouseEvent *event) override {
-        const int index = tabAt(event->pos());
-        if (index != m_hover) {
-            m_hover = index;
-            update();
-        }
-        event->accept();
-    }
-    void leaveEvent(QEvent *event) override {
-        m_hover = -1;
-        update();
-        QWidget::leaveEvent(event);
-    }
-    void keyPressEvent(QKeyEvent *event) override {
-        const int key = event->key();
-        if (key != Qt::Key_Left && key != Qt::Key_Right) {
-            event->ignore();
-            return;
-        }
-        const int step = key == Qt::Key_Right ? 1 : -1;
-        for (int i = m_owner->currentIndex() + step; i >= 0 && i < m_owner->count(); i += step) {
-            if (m_owner->isTabEnabled(i)) {
-                m_owner->setCurrentIndex(i);
-                break;
-            }
-        }
-        event->accept();
-    }
-
-private:
-    QTabWidget *m_owner;
-    int m_hover = -1;
-};
 
 /*!
     \class QTabWidget
@@ -145,9 +34,9 @@ private:
     \image widgets/qtabwidget.png QTabWidget in the light color scheme
 
     \differences
-    There is no \c QTabBar class, and the tabs are always above the pages: no \c setTabPosition(), \c setTabShape(),
-    \c setMovable(), \c setTabsClosable(), \c setDocumentMode(), tab icons, tool tips, corner widgets
-    (\c setCornerWidget()) or \c setUsesScrollButtons(); tabs that do not fit are cut off. Ctrl+Tab does not switch
+    The tabs are always above the pages: there is no \c setTabPosition(), \c setTabShape(), \c setDocumentMode(),
+    tab icons, corner widgets (\c setCornerWidget()), \c setTabBar() or \c setUsesScrollButtons(); tabs that do not
+    fit are cut off. Ctrl+Tab does not switch
     tabs. A change of the size hint of a page does not update the layout the tab widget is in.
     \enddifferences
 
@@ -158,8 +47,18 @@ private:
     Constructs an empty tab widget with the given \a parent.
 */
 QTabWidget::QTabWidget(QWidget *parent) : QWidget(parent) {
-    m_bar = new QTabBarWidget(this);
+    m_bar = new QTabBar(this);
+    m_bar->setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    QObject::connect(m_bar, &QTabBar::currentChanged, this, [this](int index) { select(index); });
+    QObject::connect(m_bar, &QTabBar::tabMoved, this, [this](int from, int to) {
+        QWidget *page = m_pages[static_cast<std::size_t>(from)];
+        m_pages.erase(m_pages.begin() + from);
+        m_pages.insert(m_pages.begin() + to, page);
+    });
+    QObject::connect(m_bar, &QTabBar::tabCloseRequested, this, &QTabWidget::tabCloseRequested);
+    QObject::connect(m_bar, &QTabBar::tabBarClicked, this, &QTabWidget::tabBarClicked);
+    QObject::connect(m_bar, &QTabBar::tabBarDoubleClicked, this, &QTabWidget::tabBarDoubleClicked);
 }
 
 /*!
@@ -167,8 +66,9 @@ QTabWidget::QTabWidget(QWidget *parent) : QWidget(parent) {
 */
 QTabWidget::~QTabWidget() {
     // The pages are deleted as children of the widget, after this object is gone.
-    for (const Tab &tab : m_tabs)
-        QObject::disconnect(tab.page, &QObject::destroyed, this, nullptr);
+    for (QWidget *page : m_pages)
+        QObject::disconnect(page, &QObject::destroyed, this, nullptr);
+    QObject::disconnect(m_bar, nullptr, this, nullptr);
 }
 
 /*!
@@ -192,13 +92,9 @@ int QTabWidget::insertTab(int index, QWidget *page, const QString &label) {
     const int at = std::clamp(index, 0, count());
     page->setParent(this);
     page->hide();
-    m_tabs.insert(m_tabs.begin() + at, Tab{page, label, true});
+    m_pages.insert(m_pages.begin() + at, page);
     QObject::connect(page, &QObject::destroyed, this, [this](QObject *gone) { pageGone(gone); });
-    if (m_current < 0) {
-        select(at);
-    } else if (at <= m_current) {
-        ++m_current;
-    }
+    m_bar->insertTab(at, label);
     layoutChildren();
     updateGeometry();
     update();
@@ -214,7 +110,7 @@ int QTabWidget::insertTab(int index, QWidget *page, const QString &label) {
 void QTabWidget::removeTab(int index) {
     if (index < 0 || index >= count())
         return;
-    QWidget *page = m_tabs[static_cast<std::size_t>(index)].page;
+    QWidget *page = m_pages[static_cast<std::size_t>(index)];
     QObject::disconnect(page, &QObject::destroyed, this, nullptr);
     pageGone(page);
     page->hide();
@@ -232,23 +128,12 @@ void QTabWidget::clear() {
 
 // Takes the tab of `page` out, after the page is deleted or removed.
 void QTabWidget::pageGone(QObject *page) {
-    for (std::size_t i = 0; i < m_tabs.size(); ++i) {
-        if (static_cast<QObject *>(m_tabs[i].page) != page)
+    for (std::size_t i = 0; i < m_pages.size(); ++i) {
+        if (static_cast<QObject *>(m_pages[i]) != page)
             continue;
-        const int index = static_cast<int>(i);
-        const bool wasCurrent = index == m_current;
-        m_tabs.erase(m_tabs.begin() + index);
-        if (index < m_current) {
-            --m_current;
-        } else if (wasCurrent) {
-            m_current = -1;
-            if (count() > 0)
-                select(std::min(index, count() - 1));
-            else
-                emit currentChanged(-1);
-        }
+        m_pages.erase(m_pages.begin() + static_cast<std::ptrdiff_t>(i));
+        m_bar->removeTab(static_cast<int>(i));
         updateGeometry();
-        m_bar->update();
         update();
         return;
     }
@@ -258,14 +143,6 @@ void QTabWidget::pageGone(QObject *page) {
     \fn int QTabWidget::count() const
 
     Returns the number of tabs.
-*/
-
-/*!
-    \fn int QTabWidget::currentIndex() const
-
-    Returns the index of the current tab, or -1 if there are none.
-
-    \sa setCurrentIndex()
 */
 
 /*!
@@ -282,7 +159,7 @@ void QTabWidget::pageGone(QObject *page) {
     \sa indexOf()
 */
 QWidget *QTabWidget::widget(int index) const {
-    return index >= 0 && index < count() ? m_tabs[static_cast<std::size_t>(index)].page : nullptr;
+    return index >= 0 && index < count() ? m_pages[static_cast<std::size_t>(index)] : nullptr;
 }
 
 /*!
@@ -292,7 +169,7 @@ QWidget *QTabWidget::widget(int index) const {
 */
 int QTabWidget::indexOf(const QWidget *page) const {
     for (int i = 0; i < count(); ++i)
-        if (m_tabs[static_cast<std::size_t>(i)].page == page)
+        if (m_pages[static_cast<std::size_t>(i)] == page)
             return i;
     return -1;
 }
@@ -302,9 +179,7 @@ int QTabWidget::indexOf(const QWidget *page) const {
 
     \sa setTabText()
 */
-QString QTabWidget::tabText(int index) const {
-    return index >= 0 && index < count() ? m_tabs[static_cast<std::size_t>(index)].text : QString();
-}
+QString QTabWidget::tabText(int index) const { return m_bar->tabText(index); }
 
 /*!
     Sets the text of the tab at \a index to \a text.
@@ -312,11 +187,8 @@ QString QTabWidget::tabText(int index) const {
     \sa tabText()
 */
 void QTabWidget::setTabText(int index, const QString &text) {
-    if (index < 0 || index >= count())
-        return;
-    m_tabs[static_cast<std::size_t>(index)].text = text;
+    m_bar->setTabText(index, text);
     layoutChildren();
-    m_bar->update();
 }
 
 /*!
@@ -324,9 +196,7 @@ void QTabWidget::setTabText(int index, const QString &text) {
 
     \sa setTabEnabled()
 */
-bool QTabWidget::isTabEnabled(int index) const {
-    return index >= 0 && index < count() && m_tabs[static_cast<std::size_t>(index)].enabled;
-}
+bool QTabWidget::isTabEnabled(int index) const { return m_bar->isTabEnabled(index); }
 
 /*!
     Sets whether the tab at \a index can be chosen to \a enabled. A disabled tab is drawn grayed out and the
@@ -334,12 +204,60 @@ bool QTabWidget::isTabEnabled(int index) const {
 
     \sa isTabEnabled()
 */
-void QTabWidget::setTabEnabled(int index, bool enabled) {
-    if (index < 0 || index >= count())
-        return;
-    m_tabs[static_cast<std::size_t>(index)].enabled = enabled;
-    m_bar->update();
+void QTabWidget::setTabEnabled(int index, bool enabled) { m_bar->setTabEnabled(index, enabled); }
+
+/*!
+    Returns the index of the current tab, or -1 if there are none.
+
+    \sa setCurrentIndex()
+*/
+int QTabWidget::currentIndex() const { return m_bar->currentIndex(); }
+
+/*!
+    Returns the tool tip of the tab at \a index.
+
+    \sa setTabToolTip()
+*/
+QString QTabWidget::tabToolTip(int index) const { return m_bar->tabToolTip(index); }
+
+/*!
+    Sets the tool tip of the tab at \a index to \a tip.
+*/
+void QTabWidget::setTabToolTip(int index, const QString &tip) { m_bar->setTabToolTip(index, tip); }
+
+/*!
+    Returns whether the tabs have close buttons. The default is \c false.
+
+    \sa setTabsClosable(), tabCloseRequested()
+*/
+bool QTabWidget::tabsClosable() const { return m_bar->tabsClosable(); }
+
+/*!
+    Sets whether the tabs have close buttons to \a closable. A click on one emits tabCloseRequested(); the tab widget
+    does not remove the tab itself.
+*/
+void QTabWidget::setTabsClosable(bool closable) {
+    m_bar->setTabsClosable(closable);
+    layoutChildren();
 }
+
+/*!
+    Returns whether the user can drag the tabs into another order. The default is \c false.
+
+    \sa setMovable()
+*/
+bool QTabWidget::isMovable() const { return m_bar->isMovable(); }
+
+/*!
+    Sets whether the user can drag the tabs into another order to \a movable. The pages move with their tabs.
+*/
+void QTabWidget::setMovable(bool movable) { m_bar->setMovable(movable); }
+
+/*!
+    \fn QTabBar *QTabWidget::tabBar() const
+
+    Returns the tab bar of the tab widget.
+*/
 
 bool QTabWidget::focusIn(const QWidget *page) const {
     for (const QWidget *w = focusWidget(); w; w = w->parentWidget())
@@ -350,19 +268,21 @@ bool QTabWidget::focusIn(const QWidget *page) const {
 
 // Makes the tab at `index` current: the page of the old one is hidden, the page of the new one is shown.
 void QTabWidget::select(int index) {
-    if (index == m_current)
+    QWidget *old = m_shown;
+    QWidget *page = widget(index);
+    if (page == old && page) {
+        emit currentChanged(index);
         return;
-    QWidget *old = widget(m_current);
+    }
     const bool hadFocus = old && focusIn(old);
     if (old)
         old->hide();
-    m_current = index;
-    if (QWidget *page = widget(index)) {
+    m_shown = page;
+    if (page) {
         page->show();
         if (hadFocus)
             m_bar->setFocus();
     }
-    m_bar->update();
     update();
     emit currentChanged(index);
 }
@@ -373,11 +293,7 @@ void QTabWidget::select(int index) {
 
     \sa currentIndex()
 */
-void QTabWidget::setCurrentIndex(int index) {
-    if (index < 0 || index >= count())
-        return;
-    select(index);
-}
+void QTabWidget::setCurrentIndex(int index) { m_bar->setCurrentIndex(index); }
 
 /*!
     Makes the tab of \a page the current one. Nothing happens if \a page is not in a tab.
@@ -387,12 +303,12 @@ void QTabWidget::setCurrentIndex(int index) {
 void QTabWidget::setCurrentWidget(QWidget *page) { setCurrentIndex(indexOf(page)); }
 
 void QTabWidget::layoutChildren() {
-    const int bar = m_bar->barHeight();
+    const int bar = m_bar->sizeHint().height();
     m_bar->setGeometry(0, 0, width(), bar);
     // The frame of the pages is 1 pixel wide, and its top edge is hidden behind the current tab.
     const QRect pages(1, bar, std::max(0, width() - 2), std::max(0, height() - bar - 1));
-    for (const Tab &tab : m_tabs)
-        tab.page->setGeometry(pages);
+    for (QWidget *page : m_pages)
+        page->setGeometry(pages);
 }
 
 /*!
@@ -400,9 +316,10 @@ void QTabWidget::layoutChildren() {
 */
 QSize QTabWidget::sizeHint() const {
     QSize pages(0, 0);
-    for (const Tab &tab : m_tabs)
-        pages = QtPrivate::expandedTo(pages, tab.page->sizeHint().isValid() ? tab.page->sizeHint() : QSize(0, 0));
-    return QSize(std::max(m_bar->tabsWidth(), pages.width()) + 2, m_bar->barHeight() + pages.height() + 1);
+    for (QWidget *page : m_pages)
+        pages = QtPrivate::expandedTo(pages, page->sizeHint().isValid() ? page->sizeHint() : QSize(0, 0));
+    const QSize bar = m_bar->sizeHint();
+    return QSize(std::max(bar.width(), pages.width()) + 2, bar.height() + pages.height() + 1);
 }
 
 /*!
@@ -410,11 +327,12 @@ QSize QTabWidget::sizeHint() const {
 */
 QSize QTabWidget::minimumSizeHint() const {
     QSize pages(0, 0);
-    for (const Tab &tab : m_tabs) {
-        const QSize min = tab.page->minimumSizeHint();
+    for (QWidget *page : m_pages) {
+        const QSize min = page->minimumSizeHint();
         pages = QtPrivate::expandedTo(pages, min.isValid() ? min : QSize(0, 0));
     }
-    return QSize(std::max(m_bar->tabsWidth(), pages.width()) + 2, m_bar->barHeight() + pages.height() + 1);
+    const QSize bar = m_bar->sizeHint();
+    return QSize(std::max(bar.width(), pages.width()) + 2, bar.height() + pages.height() + 1);
 }
 
 /*!
@@ -425,7 +343,7 @@ void QTabWidget::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
     QStyleOption option;
     option.initFrom(this);
-    const int bar = m_bar->barHeight();
+    const int bar = m_bar->sizeHint().height();
     option.rect = QRect(0, bar - 1, width(), height() - bar + 1);
     style()->drawPrimitive(QStyle::PE_FrameTabWidget, &option, &painter, this);
 }

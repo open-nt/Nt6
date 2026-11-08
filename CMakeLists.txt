@@ -264,6 +264,7 @@ add_library(NtGui
     src/gui/qfontmetrics.cpp
     src/gui/qguiapplication.cpp
     src/gui/qimage.cpp
+    src/gui/qpixmap.cpp
     src/gui/qkeysequence.cpp
     src/gui/qpaintdevice.cpp
     src/gui/qpaintdevicewindow.cpp
@@ -345,32 +346,58 @@ add_library(NtWidgets
     src/widgets/qabstractbutton.cpp
     src/widgets/qabstractitemview.cpp
     src/widgets/qabstractscrollarea.cpp
+    src/widgets/qabstractslider.cpp
+    src/widgets/qabstractspinbox.cpp
     src/widgets/qapplication.cpp
     src/widgets/qboxlayout.cpp
+    src/widgets/qcalendarwidget.cpp
+    src/widgets/qbuttongroup.cpp
     src/widgets/qcheckbox.cpp
+    src/widgets/qcolordialog.cpp
+    src/widgets/qcommandlinkbutton.cpp
+    src/widgets/qcompleter.cpp
+    src/widgets/qdatetimeedit.cpp
     src/widgets/qcombobox.cpp
     src/widgets/qdial.cpp
+    src/widgets/qdialog.cpp
+    src/widgets/qdialogbuttonbox.cpp
+    src/widgets/qdockwidget.cpp
+    src/widgets/qerrormessage.cpp
+    src/widgets/qfiledialog.cpp
+    src/widgets/qfocusframe.cpp
+    src/widgets/qfontdialog.cpp
+    src/widgets/qfontcombobox.cpp
     src/widgets/qformlayout.cpp
     src/widgets/qframe.cpp
     src/widgets/qfusionstyle.cpp
     src/widgets/qgridlayout.cpp
     src/widgets/qgroupbox.cpp
     src/widgets/qheaderview.cpp
+    src/widgets/qinputdialog.cpp
+    src/widgets/qkeysequenceedit.cpp
     src/widgets/qlabel.cpp
     src/widgets/qlayout.cpp
     src/widgets/qlayoutitem.cpp
     src/widgets/qlcdnumber.cpp
     src/widgets/qlineedit.cpp
     src/widgets/qlistwidget.cpp
+    src/widgets/qmainwindow.cpp
+    src/widgets/qmdiarea.cpp
+    src/widgets/qmdisubwindow.cpp
     src/widgets/qmenu.cpp
     src/widgets/qmenubar.cpp
+    src/widgets/qmessagebox.cpp
     src/widgets/qprogressbar.cpp
+    src/widgets/qprogressdialog.cpp
     src/widgets/qplaintextedit.cpp
     src/widgets/qpushbutton.cpp
     src/widgets/qradiobutton.cpp
+    src/widgets/qrubberband.cpp
     src/widgets/qscrollarea.cpp
     src/widgets/qscrollbar.cpp
     src/widgets/qsizepolicy.cpp
+    src/widgets/qsplashscreen.cpp
+    src/widgets/qsizegrip.cpp
     src/widgets/qslider.cpp
     src/widgets/qspinbox.cpp
     src/widgets/qsplitter.cpp
@@ -379,14 +406,20 @@ add_library(NtWidgets
     src/widgets/qstatusbar.cpp
     src/widgets/qstyle.cpp
     src/widgets/qstyleoption.cpp
+    src/widgets/qtabbar.cpp
     src/widgets/qtablewidget.cpp
     src/widgets/qtextcursor.cpp
     src/widgets/qtextedit.cpp
+    src/widgets/qtextbrowser.cpp
+    src/widgets/qtoolbar.cpp
+    src/widgets/qtoolbox.cpp
     src/widgets/qtoolbutton.cpp
     src/widgets/qtabwidget.cpp
     src/widgets/qtooltip.cpp
     src/widgets/qwidget.cpp
+    src/widgets/qwidgetaction.cpp
     src/widgets/qwidgetwindow.cpp
+    src/widgets/qwizard.cpp
 )
 add_library(Nt::Widgets ALIAS NtWidgets)
 add_library(Qt6::Widgets ALIAS NtWidgets)
@@ -654,6 +687,30 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_widgets_controls_tests COMMAND nt_widgets_controls_tests)
     set_tests_properties(nt_widgets_controls_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_widgets_controls_tests)
+
+    # The main window, tool bars, dock widgets and size grips on the offscreen platform.
+    add_executable(nt_widgets_mainwindow_tests tests/test_widgets_mainwindow.cpp)
+    target_include_directories(nt_widgets_mainwindow_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_mainwindow_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_mainwindow_tests COMMAND nt_widgets_mainwindow_tests)
+    set_tests_properties(nt_widgets_mainwindow_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_mainwindow_tests)
+
+    # Windows with a parent, modality and dialogs on the offscreen platform.
+    add_executable(nt_widgets_dialogs_tests tests/test_widgets_dialogs.cpp)
+    target_include_directories(nt_widgets_dialogs_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_dialogs_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_dialogs_tests COMMAND nt_widgets_dialogs_tests)
+    set_tests_properties(nt_widgets_dialogs_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_dialogs_tests)
+
+    # The base classes of the input widgets and button groups on the offscreen platform.
+    add_executable(nt_widgets_input_tests tests/test_widgets_input.cpp)
+    target_include_directories(nt_widgets_input_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_input_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_input_tests COMMAND nt_widgets_input_tests)
+    set_tests_properties(nt_widgets_input_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_input_tests)
 
     # Frames, scroll bars, scroll areas and tables on the offscreen platform.
     add_executable(nt_widgets_scroll_tests tests/test_widgets_scroll.cpp)

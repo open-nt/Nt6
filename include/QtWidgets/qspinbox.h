@@ -1,11 +1,9 @@
 // MIT License - see LICENSE
 #pragma once
 
-#include <QtWidgets/qwidget.h>
+#include <QtWidgets/qabstractspinbox.h>
 
-class QLineEdit;
-
-class QSpinBox : public QWidget {
+class QSpinBox : public QAbstractSpinBox {
     Q_OBJECT
     Q_PROPERTY(int minimum READ minimum WRITE setMinimum)
     Q_PROPERTY(int maximum READ maximum WRITE setMaximum)
@@ -13,7 +11,7 @@ class QSpinBox : public QWidget {
     Q_PROPERTY(int singleStep READ singleStep WRITE setSingleStep)
     Q_PROPERTY(QString prefix READ prefix WRITE setPrefix)
     Q_PROPERTY(QString suffix READ suffix WRITE setSuffix)
-    Q_PROPERTY(bool wrapping READ wrapping WRITE setWrapping)
+    Q_PROPERTY(QString cleanText READ cleanText)
 public:
     explicit QSpinBox(QWidget *parent = nullptr);
     ~QSpinBox() override;
@@ -30,20 +28,11 @@ public:
     void setPrefix(const QString &prefix);
     QString suffix() const { return m_suffix; }
     void setSuffix(const QString &suffix);
-    bool wrapping() const { return m_wrapping; }
-    void setWrapping(bool wrapping);
-    QString text() const;
     QString cleanText() const;
-    void stepBy(int steps);
-
-    QSize sizeHint() const override;
-    QSize minimumSizeHint() const override;
+    void stepBy(int steps) override;
 
 public slots:
     void setValue(int value);
-    void stepUp();
-    void stepDown();
-    void selectAll();
 
 signals:
     /*!
@@ -52,35 +41,90 @@ signals:
     */
     void valueChanged(int value) { emitSignal(&QSpinBox::valueChanged, value); }
     /*!
-        This signal is emitted when the user has finished editing the text: Return or Enter is pressed, or the spin box
-        loses the focus.
+        This signal is emitted when the value changes, with the \a text that shows it, prefix and suffix included.
     */
-    void editingFinished() { emitSignal(&QSpinBox::editingFinished); }
+    void textChanged(const QString &text) { emitSignal(&QSpinBox::textChanged, text); }
 
 protected:
-    void paintEvent(QPaintEvent *event) override;
-    void resizeEvent(QResizeEvent *event) override;
-    void mousePressEvent(QMouseEvent *event) override;
-    void mouseReleaseEvent(QMouseEvent *event) override;
-    void wheelEvent(QWheelEvent *event) override;
-    void keyPressEvent(QKeyEvent *event) override;
-    void changeEvent(QEvent *event) override;
+    virtual QString textFromValue(int value) const;
+    virtual int valueFromText(const QString &text) const;
+    StepEnabled stepEnabled() const override;
 
 private:
-    enum Button { NoButton, UpButton, DownButton };
+    QString valueText() const override;
+    QStringList sizeTexts() const override;
+    void takeText(const QString &number, bool atMinimum, bool finished) override;
+    bool acceptsCharacter(QChar c) const override;
+    void changeValue(int value, bool rewrite);
 
-    QString textFromValue(int value) const;
-    void layoutEdit();
-    void editEdited(const QString &text);
-    void editFinished();
-
-    QLineEdit *m_edit = nullptr;
     int m_minimum = 0;
     int m_maximum = 99;
     int m_value = 0;
     int m_step = 1;
-    QString m_prefix;
-    QString m_suffix;
-    bool m_wrapping = false;
-    Button m_pressed = NoButton;
+};
+
+class QDoubleSpinBox : public QAbstractSpinBox {
+    Q_OBJECT
+    Q_PROPERTY(double minimum READ minimum WRITE setMinimum)
+    Q_PROPERTY(double maximum READ maximum WRITE setMaximum)
+    Q_PROPERTY(double value READ value WRITE setValue NOTIFY valueChanged)
+    Q_PROPERTY(double singleStep READ singleStep WRITE setSingleStep)
+    Q_PROPERTY(int decimals READ decimals WRITE setDecimals)
+    Q_PROPERTY(QString prefix READ prefix WRITE setPrefix)
+    Q_PROPERTY(QString suffix READ suffix WRITE setSuffix)
+    Q_PROPERTY(QString cleanText READ cleanText)
+public:
+    explicit QDoubleSpinBox(QWidget *parent = nullptr);
+    ~QDoubleSpinBox() override;
+
+    double minimum() const { return m_minimum; }
+    void setMinimum(double minimum);
+    double maximum() const { return m_maximum; }
+    void setMaximum(double maximum);
+    void setRange(double minimum, double maximum);
+    double value() const { return m_value; }
+    double singleStep() const { return m_step; }
+    void setSingleStep(double step);
+    int decimals() const { return m_decimals; }
+    void setDecimals(int decimals);
+    QString prefix() const { return m_prefix; }
+    void setPrefix(const QString &prefix);
+    QString suffix() const { return m_suffix; }
+    void setSuffix(const QString &suffix);
+    QString cleanText() const;
+    void stepBy(int steps) override;
+
+    virtual QString textFromValue(double value) const;
+    virtual double valueFromText(const QString &text) const;
+
+public slots:
+    void setValue(double value);
+
+signals:
+    /*!
+        This signal is emitted when the value changes to \a value, whether the user changed it by typing or with the
+        buttons, or setValue() did.
+    */
+    void valueChanged(double value) { emitSignal(&QDoubleSpinBox::valueChanged, value); }
+    /*!
+        This signal is emitted when the value changes, with the \a text that shows it, prefix and suffix included.
+    */
+    void textChanged(const QString &text) { emitSignal(&QDoubleSpinBox::textChanged, text); }
+
+protected:
+    StepEnabled stepEnabled() const override;
+
+private:
+    QString valueText() const override;
+    QStringList sizeTexts() const override;
+    void takeText(const QString &number, bool atMinimum, bool finished) override;
+    bool acceptsCharacter(QChar c) const override;
+    double round(double value) const;
+    void changeValue(double value, bool rewrite);
+
+    double m_minimum = 0.0;
+    double m_maximum = 99.99;
+    double m_value = 0.0;
+    double m_step = 1.0;
+    int m_decimals = 2;
 };

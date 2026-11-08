@@ -1,11 +1,12 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qpointer.h>
 #include <QtWidgets/qwidget.h>
 
 #include <vector>
 
-class QTabBarWidget;
+class QTabBar;
 
 class QTabWidget : public QWidget {
     Q_OBJECT
@@ -19,15 +20,22 @@ public:
     int insertTab(int index, QWidget *page, const QString &label);
     void removeTab(int index);
     void clear();
-    int count() const { return static_cast<int>(m_tabs.size()); }
-    int currentIndex() const { return m_current; }
-    QWidget *currentWidget() const { return widget(m_current); }
+    int count() const { return static_cast<int>(m_pages.size()); }
+    int currentIndex() const;
+    QWidget *currentWidget() const { return widget(currentIndex()); }
     QWidget *widget(int index) const;
     int indexOf(const QWidget *page) const;
     QString tabText(int index) const;
     void setTabText(int index, const QString &text);
     bool isTabEnabled(int index) const;
     void setTabEnabled(int index, bool enabled);
+    QString tabToolTip(int index) const;
+    void setTabToolTip(int index, const QString &tip);
+    bool tabsClosable() const;
+    void setTabsClosable(bool closable);
+    bool isMovable() const;
+    void setMovable(bool movable);
+    QTabBar *tabBar() const { return m_bar; }
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -42,6 +50,18 @@ signals:
         tabs left.
     */
     void currentChanged(int index) { emitSignal(&QTabWidget::currentChanged, index); }
+    /*!
+        This signal is emitted when the user clicks the close button of the tab at \a index.
+    */
+    void tabCloseRequested(int index) { emitSignal(&QTabWidget::tabCloseRequested, index); }
+    /*!
+        This signal is emitted when the user presses on the tab at \a index, or -1 for the empty part of the bar.
+    */
+    void tabBarClicked(int index) { emitSignal(&QTabWidget::tabBarClicked, index); }
+    /*!
+        This signal is emitted when the user double-clicks the tab at \a index, or -1 for the empty part of the bar.
+    */
+    void tabBarDoubleClicked(int index) { emitSignal(&QTabWidget::tabBarDoubleClicked, index); }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -49,19 +69,12 @@ protected:
     void changeEvent(QEvent *event) override;
 
 private:
-    friend class QTabBarWidget;
-    struct Tab {
-        QWidget *page;
-        QString text;
-        bool enabled;
-    };
-
     void layoutChildren();
     void pageGone(QObject *page);
     void select(int index);
     bool focusIn(const QWidget *page) const;
 
-    std::vector<Tab> m_tabs;
-    int m_current = -1;
-    QTabBarWidget *m_bar = nullptr;
+    std::vector<QWidget *> m_pages;
+    QPointer<QWidget> m_shown; // the page that is shown
+    QTabBar *m_bar = nullptr;
 };

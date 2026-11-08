@@ -97,6 +97,30 @@ QString QLineEdit::displayText() const {
 }
 
 /*!
+    Makes \a completer complete what the user types, or removes the completer with \c nullptr. The line edit does not
+    own the completer.
+
+    \sa completer(), QCompleter
+*/
+void QLineEdit::setCompleter(QCompleter *completer) {
+    if (m_completer == completer)
+        return;
+    if (m_completer && m_completer->widget() == this)
+        m_completer->setWidget(nullptr);
+    m_completer = completer;
+    if (completer)
+        completer->setWidget(this);
+}
+
+/*!
+    \fn QCompleter *QLineEdit::completer() const
+
+    Returns the completer of the line edit, or \c nullptr.
+
+    \sa setCompleter()
+*/
+
+/*!
     \fn QString QLineEdit::placeholderText() const
 
     Returns the text that is shown in gray while the line edit is empty.
@@ -403,8 +427,11 @@ void QLineEdit::changeText(const QString &text, int cursor, bool userEdit) {
     update();
     if (changed) {
         emit textChanged(m_text);
-        if (userEdit)
+        if (userEdit) {
             emit textEdited(m_text);
+            if (m_completer)
+                m_completer->textEdited(m_text, m_deleting);
+        }
     }
     if (oldCursor != m_cursor)
         emit cursorPositionChanged(oldCursor, m_cursor);
@@ -552,6 +579,9 @@ void QLineEdit::mouseDoubleClickEvent(QMouseEvent *event) {
     \reimp
 */
 void QLineEdit::keyPressEvent(QKeyEvent *event) {
+    if (m_completer && m_completer->handleKey(event))
+        return;
+    m_deleting = event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete;
     const bool shift = event->modifiers() & Qt::ShiftModifier;
     const bool control = event->modifiers() & Qt::ControlModifier;
     const int size = static_cast<int>(m_text.size());
@@ -604,7 +634,9 @@ void QLineEdit::keyPressEvent(QKeyEvent *event) {
     case Qt::Key_Enter:
         emit returnPressed();
         emit editingFinished();
-        break;
+        // As in Qt the key goes on to the parent, so that a dialog can click its default button.
+        event->ignore();
+        return;
     case Qt::Key_A:
         if (control) {
             selectAll();

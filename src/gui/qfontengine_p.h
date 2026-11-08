@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qstringlist.h>
 #include <QtGui/qfont.h>
 
 #include <memory>
@@ -43,6 +44,8 @@ public:
 
     // Pixel size that a QFont stands for.
     static double pixelSizeOf(const QFont &font);
+    // The font families that fontconfig knows, sorted; empty without fontconfig.
+    static QStringList families();
 
 private:
     QFontEngine(void *face, double pixelSize);

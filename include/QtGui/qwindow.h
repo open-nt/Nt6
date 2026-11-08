@@ -46,6 +46,8 @@ public:
 
     QString title() const;
     void setTitle(const QString &title);
+    QWindow *transientParent() const;
+    void setTransientParent(QWindow *parent);
     bool isVisible() const;
     bool isExposed() const;
     bool isActive() const;
@@ -93,6 +95,12 @@ signals:
         This signal is emitted when the title changes to \a title.
     */
     void titleChanged(const QString &title) { emitSignal(&QWindow::titleChanged, title); }
+    /*!
+        This signal is emitted when the transient parent of the window changes to \a transientParent.
+    */
+    void transientParentChanged(QWindow *transientParent) {
+        emitSignal(&QWindow::transientParentChanged, transientParent);
+    }
     /*!
         This signal is emitted when the x position changes to \a arg.
     */

@@ -4,6 +4,8 @@
 #include <QtCore/qnamespace.h>
 #include <QtCore/qstring.h>
 
+class QDateTime;
+
 // Text formats use C-locale English names until QLocale exists.
 class QDate {
 public:
@@ -42,6 +44,8 @@ public:
     QDate addMonths(int months) const;
     QDate addYears(int years) const;
     qint64 daysTo(QDate d) const;
+    QDateTime startOfDay(Qt::TimeSpec spec = Qt::LocalTime, int offsetSeconds = 0) const;
+    QDateTime endOfDay(Qt::TimeSpec spec = Qt::LocalTime, int offsetSeconds = 0) const;
     /*!
         Returns the date as a Julian day number, or the minimum \c qint64
         value if the date is invalid.

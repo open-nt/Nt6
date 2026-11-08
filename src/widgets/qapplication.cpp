@@ -20,6 +20,7 @@ QApplication *g_app = nullptr;
 std::unique_ptr<QStyle> g_style;
 QPalette *g_palette = nullptr;
 std::vector<QWidget *> g_topLevels;
+std::vector<QWidget *> g_modals; // the modal windows that are shown, in the order they were shown
 
 // Tells the widgets that use the application palette that it changed.
 void sendPaletteChange() {
@@ -39,6 +40,38 @@ void WidgetAccess::registerTopLevel(QWidget *w) { g_topLevels.push_back(w); }
 
 void WidgetAccess::unregisterTopLevel(QWidget *w) {
     g_topLevels.erase(std::remove(g_topLevels.begin(), g_topLevels.end(), w), g_topLevels.end());
+    modalHidden(w);
+}
+
+void WidgetAccess::modalShown(QWidget *top) {
+    modalHidden(top);
+    g_modals.push_back(top);
+}
+
+void WidgetAccess::modalHidden(QWidget *top) {
+    g_modals.erase(std::remove(g_modals.begin(), g_modals.end(), top), g_modals.end());
+}
+
+bool WidgetAccess::blockedByModal(const QWidget *top) {
+    // A window is not blocked by a modal window that it belongs to (a dialog of the dialog), nor by one shown before
+    // a modal window that it belongs to.
+    const auto belongsTo = [](const QWidget *w, const QWidget *owner) {
+        for (; w; w = w->parentWidget() ? w->parentWidget()->window() : nullptr)
+            if (w == owner)
+                return true;
+        return false;
+    };
+    for (auto it = g_modals.rbegin(); it != g_modals.rend(); ++it) {
+        const QWidget *modal = *it;
+        if (belongsTo(top, modal))
+            return false;
+        if (modal->windowModality() == Qt::ApplicationModal)
+            return true;
+        // A window-modal window blocks the windows that it belongs to.
+        if (belongsTo(modal, top))
+            return true;
+    }
+    return false;
 }
 
 } // namespace QtPrivate
@@ -205,6 +238,13 @@ QWidget *QApplication::activeWindow() {
             return w;
     return nullptr;
 }
+
+/*!
+    Returns the modal window that was shown last and is still shown, or \c nullptr if no modal window is shown.
+
+    \sa QWidget::setWindowModality()
+*/
+QWidget *QApplication::activeModalWidget() { return g_modals.empty() ? nullptr : g_modals.back(); }
 
 /*!
     Returns the widget that has the keyboard focus: the focus widget of the active window, or \c nullptr.

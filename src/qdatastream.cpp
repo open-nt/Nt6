@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtCore/qbuffer.h>
 #include <QtCore/qdatastream.h>
+#include <QtCore/qlogging.h>
 
 #include <algorithm>
 #include <cstring>
@@ -39,8 +40,7 @@
     Container sizes are \c quint32 only; the 64-bit extended size used by
     stream version 21 (Qt 6.7) for more than \c 0xFFFFFFFD elements is
     neither written nor read. Writing such a size sets \c SizeLimitExceeded.
-    The transaction API (\c startTransaction() and friends) is not
-    implemented. Streams of version 1 (Qt 1.x Latin-1 strings) are not
+Streams of version 1 (Qt 1.x Latin-1 strings) are not
     special-cased. Streaming is supported for the built-in numbers, QString,
     QChar, QByteArray, QList, QMap, QHash and enumerations only.
     \enddifferences
@@ -355,6 +355,116 @@ int QDataStream::skipRawData(int len) {
         setStatus(ReadPastEnd);
     return skipped;
 }
+
+/*!
+    \since 5.7
+    Starts a read transaction on the stream, and on its device for the
+    outermost call. Transactions may be nested; only the outermost one acts on
+    the device.
+
+    Use transactions to read a message that may not have arrived completely:
+    read it, then call commitTransaction(). If the data ran out, the read
+    position goes back to where the transaction started, so the message can be
+    read again when more data is available:
+
+    \code
+    in.startTransaction();
+    QString name;
+    qint32 value;
+    in >> name >> value;
+    if (!in.commitTransaction())
+        return; // wait for more data
+    \endcode
+
+    The outermost call resets the status to \c Ok.
+
+    \sa commitTransaction(), rollbackTransaction(), abortTransaction()
+*/
+void QDataStream::startTransaction() {
+    if (!dev)
+        return;
+    if (++transactionDepth == 1) {
+        dev->startTransaction();
+        resetStatus();
+    }
+}
+
+/*!
+    \since 5.7
+    Completes a read transaction. Returns \c true if no read error occurred
+    during the transaction; otherwise returns \c false.
+
+    For the outermost transaction, if the status is \c ReadPastEnd the device
+    transaction is rolled back, so that the data is read again later;
+    otherwise it is committed. An inner transaction only reports the status.
+
+    \sa startTransaction(), rollbackTransaction()
+*/
+bool QDataStream::commitTransaction() {
+    if (transactionDepth == 0) {
+        qWarning("QDataStream: No transaction in progress");
+        return false;
+    }
+    if (--transactionDepth == 0 && dev) {
+        if (st == ReadPastEnd) {
+            dev->rollbackTransaction();
+            return false;
+        }
+        dev->commitTransaction();
+    }
+    return st == Ok;
+}
+
+/*!
+    \since 5.7
+    Reverts a read transaction, typically because the data read so far is
+    incomplete. Sets the status to \c ReadPastEnd unless another error was
+    already recorded. For the outermost transaction, the device transaction is
+    rolled back if the status is \c ReadPastEnd and committed otherwise.
+
+    \sa startTransaction(), abortTransaction()
+*/
+void QDataStream::rollbackTransaction() {
+    setStatus(ReadPastEnd);
+    if (transactionDepth == 0) {
+        qWarning("QDataStream: No transaction in progress");
+        return;
+    }
+    if (--transactionDepth != 0 || !dev)
+        return;
+    if (st == ReadPastEnd)
+        dev->rollbackTransaction();
+    else
+        dev->commitTransaction();
+}
+
+/*!
+    \since 5.7
+    Aborts a read transaction because the data is corrupt. Sets the status to
+    \c ReadCorruptData, and for the outermost transaction commits the device
+    transaction, so that the bad data is not read again.
+
+    \sa startTransaction(), rollbackTransaction()
+*/
+void QDataStream::abortTransaction() {
+    st = ReadCorruptData;
+    if (transactionDepth == 0) {
+        qWarning("QDataStream: No transaction in progress");
+        return;
+    }
+    if (--transactionDepth != 0 || !dev)
+        return;
+    dev->commitTransaction();
+}
+
+/*!
+    \since 5.7
+    Returns \c true if a read transaction is in progress on the stream's
+    device; otherwise returns \c false.
+
+    \sa QIODevice::isTransactionStarted()
+*/
+bool QDataStream::isDeviceTransactionStarted() const { return dev && dev->isTransactionStarted(); }
 
 QDataStream &operator<<(QDataStream &out, const QByteArray &ba) {
     if (ba.isNull())

@@ -128,6 +128,8 @@ void QFusionStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *o
         QColor border = outlineOf(option);
         if (option->state & State_HasFocus)
             border = option->palette.color(group, QPalette::Highlight);
+        else if (button && (button->features & QStyleOptionButton::DefaultButton) && (option->state & State_Enabled))
+            border = option->palette.color(group, QPalette::Highlight).darker(130);
         if (flat && !down && !(option->state & State_MouseOver)) {
             if (option->state & State_HasFocus) {
                 painter->setPen(border);

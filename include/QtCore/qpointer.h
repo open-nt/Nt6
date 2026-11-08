@@ -20,7 +20,8 @@
     \differences
     The guard is held through a shared control block, so a QPointer may
     outlive the object but is not thread-safe against concurrent destruction.
-    There are no comparison operators; compare data() instead.
+    Comparisons with other guarded pointers, raw pointers and \c nullptr go
+    through the conversion to \c{T *}, so they compare the current data().
     \enddifferences
 
     \sa QObject, QSharedPointer
@@ -54,6 +55,18 @@ public:
         pointer.
     */
     QPointer &operator=(T *p) { assign(p); return *this; }
+    /*!
+        \since 6.6
+        Constructs a guarded pointer that tracks the object of \a other, whose
+        type \c{X *} must convert implicitly to \c{T *}.
+    */
+    template <typename X, typename = std::enable_if_t<std::is_convertible_v<X *, T *> && !std::is_same_v<X, T>>>
+    QPointer(const QPointer<X> &other) : d(other.d) {}
+
+    /*!
+        Swaps this guarded pointer with \a other.
+    */
+    void swap(QPointer &other) noexcept { d.swap(other.d); }
 
     /*!
         Returns the guarded object, or \c nullptr if it has been destroyed or
@@ -89,6 +102,8 @@ public:
     void clear() { d.reset(); }
 
 private:
+    template <typename X> friend class QPointer;
+
     void assign(T *p) {
         if (p)
             d = QtPrivate::Access::guard(p);

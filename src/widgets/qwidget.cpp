@@ -36,13 +36,14 @@ std::vector<QWidget *> WidgetAccess::childWidgets(const QWidget *w) {
     std::vector<QWidget *> out;
     for (QObject *c : w->children())
         if (auto *cw = dynamic_cast<QWidget *>(c))
-            out.push_back(cw);
+            if (!cw->isWindow())
+                out.push_back(cw);
     return out;
 }
 
 QPoint WidgetAccess::windowOffset(const QWidget *w) {
     QPoint offset;
-    while (w->parentWidget()) {
+    while (!w->isWindow()) {
         offset += w->pos();
         w = w->parentWidget();
     }
@@ -51,13 +52,13 @@ QPoint WidgetAccess::windowOffset(const QWidget *w) {
 
 QRect WidgetAccess::visibleRect(const QWidget *w) {
     QRect r(windowOffset(w), w->size());
-    for (const QWidget *p = w->parentWidget(); p; p = p->parentWidget())
+    for (const QWidget *p = up(w); p; p = up(p))
         r = r.intersected(QRect(windowOffset(p), p->size()));
     return r;
 }
 
 bool WidgetAccess::shownSelf(const QWidget *w) {
-    if (!w->parentWidget())
+    if (w->isWindow())
         return w->m_d->window && w->m_d->window->isVisible();
     return !w->m_d->hiddenExplicitly && !w->m_d->pendingShow;
 }
@@ -211,9 +212,7 @@ void WidgetAccess::setUnderMouse(QWidget *w, bool under) {
 }
 
 void WidgetAccess::clearReferences(QWidget *w) {
-    QWidget *top = w;
-    while (top->parentWidget())
-        top = top->parentWidget();
+    QWidget *top = w->window();
     if (top->m_d->focusChild == w)
         top->m_d->focusChild = nullptr;
     if (top->m_d->window)
@@ -275,14 +274,19 @@ using QtPrivate::WidgetAccess;
 */
 
 /*!
-    Constructs a widget that is a child of \a parent, or a window if \a parent is \c nullptr. A
-    QApplication must exist. The widget is hidden until show() is called, or until its parent is shown.
+    Constructs a widget that is a child of \a parent, or a window if \a parent is \c nullptr or the window flags
+    \a f have Qt::Window. A window with a parent, such as a dialog, has a window of its own; it is deleted with its
+    parent and the window system keeps it above the window of its parent. A QApplication must exist. The widget is
+    hidden until show() is called, or until its parent is shown if it is a child.
+
+    \sa windowFlags()
 */
-QWidget::QWidget(QWidget *parent) : QObject(parent), m_d(std::make_unique<Data>()) {
+QWidget::QWidget(QWidget *parent, Qt::WindowFlags f) : QObject(parent), m_d(std::make_unique<Data>()) {
     if (!QApplication::instance())
         qFatal("QWidget: a QApplication must be created before a widget");
     m_d->font = QFont();
-    if (parent) {
+    m_d->windowFlags = f;
+    if (parent && !(f & Qt::Window)) {
         m_d->geometry = QRect(0, 0, 100, 30);
         m_d->pendingShow = parent->isVisible();
     } else {
@@ -306,10 +310,12 @@ QWidget::~QWidget() {
             }
         }
     }
-    if (QWidget *p = parentWidget()) {
+    if (QWidget *p = WidgetAccess::up(this)) {
         if (p->m_d->layout)
             p->m_d->layout->removeWidget(this);
     }
+    if (m_d->modality != Qt::NonModal)
+        WidgetAccess::modalHidden(this);
     WidgetAccess::clearReferences(this);
     for (Data::ActionLink &link : m_d->actions) {
         QObject::disconnect(link.changed);
@@ -326,7 +332,7 @@ QWidget::~QWidget() {
         m_d->window->detach();
         m_d->window.reset();
     }
-    if (!parentWidget())
+    if (isWindow())
         WidgetAccess::unregisterTopLevel(this);
 }
 
@@ -366,7 +372,7 @@ int QWidget::metric(PaintDeviceMetric m) const {
 QPaintDevice *QWidget::redirected(QPoint *offset) const {
     // While render() paints a tree of widgets, they paint on the device that it was given.
     if (g_render.target) {
-        for (const QWidget *w = this; w; w = w->parentWidget()) {
+        for (const QWidget *w = this; w; w = WidgetAccess::up(w)) {
             if (w == g_render.root) {
                 *offset +=
                     WidgetAccess::windowOffset(this) - WidgetAccess::windowOffset(g_render.root) + g_render.origin;
@@ -505,12 +511,12 @@ void WidgetAccess::applyLocalGeometry(QWidget *w, const QRect &rect) {
     if (rect.size() != old.size()) {
         QResizeEvent resize(rect.size(), old.size());
         QCoreApplication::sendEvent(w, &resize);
-        if (QWidget *parent = w->parentWidget()) {
+        if (QWidget *parent = up(w)) {
             if (parent->m_d->childChanged)
                 parent->m_d->childChanged(w);
         }
     }
-    if (QWidget *parent = w->parentWidget()) {
+    if (QWidget *parent = up(w)) {
         if (shownSelf(w))
             parent->update(old.united(rect));
     }
@@ -751,7 +757,7 @@ void QWidget::adjustSize() {
     changed, so that the layout does its work again.
 */
 void QWidget::updateGeometry() {
-    if (QWidget *p = parentWidget()) {
+    if (QWidget *p = WidgetAccess::up(this)) {
         if (p->m_d->layout)
             p->m_d->layout->invalidate();
         if (p->m_d->childChanged)
@@ -836,16 +842,31 @@ QWidget *QWidget::parentWidget() const { return dynamic_cast<QWidget *>(parent()
 
 /*!
     Makes \a parent the parent of the widget, or makes the widget a window if \a parent is \c nullptr. The
-    widget becomes hidden; call show() to show it again.
+    widget becomes hidden; call show() to show it again. As in Qt the kind of window is dropped from the window
+    flags, so a dialog given a parent this way becomes a child widget; setParent() with flags keeps it a window.
 */
 void QWidget::setParent(QWidget *parent) {
-    if (parent == parentWidget())
+    setParent(parent, m_d->windowFlags & ~Qt::WindowFlags(Qt::WindowType_Mask));
+}
+
+/*!
+    \overload
+
+    Makes \a parent the parent of the widget and sets the window flags to \a f. With Qt::Window in \a f the widget is
+    a window of its own, with a parent.
+
+    \sa windowFlags()
+*/
+void QWidget::setParent(QWidget *parent, Qt::WindowFlags f) {
+    if (parent == parentWidget() && f == m_d->windowFlags)
         return;
     const bool wasWindow = isWindow();
-    if (QWidget *old = parentWidget()) {
+    if (QWidget *old = WidgetAccess::up(this)) {
         if (old->m_d->layout)
             old->m_d->layout->removeWidget(this);
     }
+    if (m_d->modality != Qt::NonModal)
+        WidgetAccess::modalHidden(this);
     WidgetAccess::clearReferences(this);
     if (m_d->window) {
         m_d->window->detach();
@@ -855,13 +876,14 @@ void QWidget::setParent(QWidget *parent) {
         WidgetAccess::unregisterTopLevel(this);
     bool wasShown = isVisible();
     QObject::setParent(parent);
-    if (!parent)
+    m_d->windowFlags = f;
+    if (isWindow())
         WidgetAccess::registerTopLevel(this);
     m_d->hiddenExplicitly = false;
-    m_d->pendingShow = parent && parent->isVisible();
-    if (wasShown)
+    m_d->pendingShow = !isWindow() && parent->isVisible();
+    if (wasShown && !isWindow())
         update();
-    if (parent && parent->m_d->layout)
+    if (!isWindow() && parent->m_d->layout)
         parent->m_d->layout->invalidate();
     QEvent change(QEvent::ParentChange);
     QCoreApplication::sendEvent(this, &change);
@@ -874,15 +896,80 @@ void QWidget::setParent(QWidget *parent) {
 */
 QWidget *QWidget::window() const {
     const QWidget *w = this;
-    while (w->parentWidget())
+    while (!w->isWindow())
         w = w->parentWidget();
     return const_cast<QWidget *>(w);
 }
 
 /*!
-    \fn bool QWidget::isWindow() const
+    Returns \c true if the widget is a window: it has no parent, or its window flags have Qt::Window.
 
-    Returns \c true if the widget has no parent, so it is a window.
+    \sa window(), windowFlags()
+*/
+bool QWidget::isWindow() const { return !parentWidget() || (m_d->windowFlags & Qt::Window); }
+
+/*!
+    Returns the window flags of the widget: the kind of window it is and the hints for its decoration. A widget has
+    none, Qt::Widget, unless they were given to the constructor, setParent() or setWindowFlags().
+
+    \sa setWindowFlags(), windowType()
+*/
+Qt::WindowFlags QWidget::windowFlags() const { return m_d->windowFlags; }
+
+/*!
+    Sets the window flags of the widget to \a type. Making a child widget a window, or a window with a parent a
+    child, hides it, as setParent() does; call show() to show it again.
+
+    \sa windowFlags()
+*/
+void QWidget::setWindowFlags(Qt::WindowFlags type) {
+    if (QWidget *p = parentWidget(); p && bool(type & Qt::Window) != bool(m_d->windowFlags & Qt::Window)) {
+        setParent(p, type);
+        return;
+    }
+    m_d->windowFlags = type;
+}
+
+/*!
+    Returns the kind of window the widget is: the part of windowFlags() that Qt::WindowType_Mask selects.
+
+    \sa windowFlags()
+*/
+Qt::WindowType QWidget::windowType() const {
+    return static_cast<Qt::WindowType>(static_cast<int>(m_d->windowFlags & Qt::WindowType_Mask));
+}
+
+/*!
+    Returns which windows the widget blocks the input of while it is a window that is shown. The default is
+    Qt::NonModal.
+
+    \sa setWindowModality(), isModal()
+*/
+Qt::WindowModality QWidget::windowModality() const { return m_d->modality; }
+
+/*!
+    Sets which windows the widget blocks the input of while it is a window that is shown to \a windowModality. A
+    modal window blocks the mouse, the keyboard and closing for the windows it blocks; they are still painted.
+
+    \sa windowModality(), QApplication::activeModalWidget()
+*/
+void QWidget::setWindowModality(Qt::WindowModality windowModality) {
+    if (m_d->modality == windowModality)
+        return;
+    const bool shown = isWindow() && isVisible();
+    if (shown && m_d->modality != Qt::NonModal)
+        WidgetAccess::modalHidden(this);
+    m_d->modality = windowModality;
+    if (shown && windowModality != Qt::NonModal)
+        WidgetAccess::modalShown(this);
+}
+
+/*!
+    \fn bool QWidget::isModal() const
+
+    Returns \c true if windowModality() is not Qt::NonModal.
+
+    \sa setWindowModality()
 */
 
 /*!
@@ -940,7 +1027,7 @@ void QWidget::activateWindow() {
     \sa isHidden(), setVisible()
 */
 bool QWidget::isVisible() const {
-    if (!parentWidget())
+    if (isWindow())
         return m_d->window && m_d->window->isVisible();
     return !m_d->hiddenExplicitly && !m_d->pendingShow && parentWidget()->isVisible();
 }
@@ -952,7 +1039,7 @@ bool QWidget::isVisible() const {
     \sa isVisible()
 */
 bool QWidget::isHidden() const {
-    if (!parentWidget())
+    if (isWindow())
         return !(m_d->window && m_d->window->isVisible());
     return m_d->hiddenExplicitly || m_d->pendingShow;
 }
@@ -964,13 +1051,16 @@ bool QWidget::isHidden() const {
     \sa show(), hide()
 */
 void QWidget::setVisible(bool visible) {
-    if (!parentWidget()) {
+    if (isWindow()) {
         if (visible) {
             m_d->hiddenExplicitly = false;
             if (!m_d->window) {
                 m_d->window = std::make_unique<QWidgetWindow>(this);
                 m_d->window->setTitle(m_d->title);
             }
+            // A window with a parent, such as a dialog, is kept above the window of its parent.
+            if (QWidget *p = parentWidget())
+                m_d->window->setTransientParent(p->window()->windowHandle());
             if (m_d->window->isVisible())
                 return;
             if (!m_d->geometrySet)
@@ -998,7 +1088,7 @@ void QWidget::setVisible(bool visible) {
         if (wasVisible) {
             // A hidden widget cannot keep the keyboard focus.
             QWidget *top = window();
-            for (QWidget *f = top->m_d->focusChild; f; f = f->parentWidget()) {
+            for (QWidget *f = top->m_d->focusChild; f; f = WidgetAccess::up(f)) {
                 if (f == this) {
                     WidgetAccess::setFocusWidget(top, nullptr);
                     break;
@@ -1033,7 +1123,7 @@ void QWidget::hide() { setVisible(false); }
     \sa closeEvent()
 */
 bool QWidget::close() {
-    if (parentWidget()) {
+    if (!isWindow()) {
         hide();
         return true;
     }
@@ -1046,7 +1136,7 @@ bool QWidget::close() {
     \sa lower()
 */
 void QWidget::raise() {
-    if (QWidget *p = parentWidget()) {
+    if (QWidget *p = WidgetAccess::up(this)) {
         QObject::setParent(nullptr);
         QObject::setParent(p);
         update();
@@ -1061,7 +1151,7 @@ void QWidget::raise() {
     \sa raise()
 */
 void QWidget::lower() {
-    QWidget *p = parentWidget();
+    QWidget *p = WidgetAccess::up(this);
     if (!p)
         return;
     const QObjectList siblings = p->children();
@@ -1081,7 +1171,7 @@ void QWidget::lower() {
     \sa setEnabled()
 */
 bool QWidget::isEnabled() const {
-    for (const QWidget *w = this; w; w = w->parentWidget())
+    for (const QWidget *w = this; w; w = WidgetAccess::up(w))
         if (w->m_d->disabled)
             return false;
     return true;
@@ -1121,7 +1211,7 @@ void QWidget::setEnabled(bool enabled) {
     \sa setPalette()
 */
 const QPalette &QWidget::palette() const {
-    for (const QWidget *w = this; w; w = w->parentWidget())
+    for (const QWidget *w = this; w; w = WidgetAccess::up(w))
         if (w->m_d->paletteSet)
             return w->m_d->palette;
     m_d->palette = QApplication::palette();
@@ -1154,7 +1244,7 @@ void QWidget::setPalette(const QPalette &palette) {
     \sa setFont()
 */
 const QFont &QWidget::font() const {
-    for (const QWidget *w = this; w; w = w->parentWidget())
+    for (const QWidget *w = this; w; w = WidgetAccess::up(w))
         if (w->m_d->fontSet)
             return w->m_d->font;
     m_d->font = QGuiApplication::font();
@@ -1504,8 +1594,8 @@ bool QWidget::event(QEvent *e) {
         if (m_d->layout) {
             m_d->layout->clearPendingRequest();
             m_d->layout->activate();
-            if (parentWidget() && parentWidget()->m_d->childChanged)
-                parentWidget()->m_d->childChanged(this);
+            if (QWidget *p = WidgetAccess::up(this); p && p->m_d->childChanged)
+                p->m_d->childChanged(this);
         }
         return true;
     case QEvent::EnabledChange:

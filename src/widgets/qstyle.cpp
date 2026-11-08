@@ -44,6 +44,7 @@
     \value State_Selected The element is selected, as the current tab of a tab bar is.
     \value State_MouseOver The mouse is over the element.
     \value State_Active The window of the element is active.
+    \value State_Horizontal The element is horizontal, as the handle of a splitter that divides left from right.
 */
 
 /*!
@@ -63,6 +64,9 @@
     \value PE_FrameGroupBox The frame of a group box.
     \value PE_FrameTabWidget The frame around the pages of a tab widget.
     \value PE_PanelTipLabel The background and the frame of a tool tip.
+    \value PE_IndicatorArrowLeft An arrow that points left, as on a tool button.
+    \value PE_IndicatorArrowRight An arrow that points right, as on a tool button.
+    \value PE_PanelStatusBar The background of a status bar.
 */
 
 /*!
@@ -85,6 +89,8 @@
     \value CE_GroupBox A group box: frame and title, described by a QStyleOptionGroupBox.
     \value CE_ScrollBar A scroll bar: groove and handle, described by a QStyleOptionSlider.
     \value CE_Header One section of a header: background and text, described by a QStyleOptionHeader.
+    \value CE_Dial A dial: the face, the handle and the notches, described by a QStyleOptionSlider.
+    \value CE_Splitter The handle of a splitter, which is horizontal if the state has State_Horizontal.
 */
 
 /*!
@@ -138,6 +144,7 @@
     \value PM_HeaderMargin The space on each side of the text in a section of a header.
     \value PM_HeaderDefaultSectionSizeHorizontal The width of a section of a horizontal header, or of a column of a table.
     \value PM_HeaderDefaultSectionSizeVertical The height of a section of a vertical header, or of a row of a table.
+    \value PM_SplitterWidth The width of the handle of a splitter.
 */
 
 /*!
@@ -153,6 +160,7 @@
     \value CT_TabBarTab A tab of a tab bar.
     \value CT_ComboBox A combo box.
     \value CT_SpinBox A spin box.
+    \value CT_ToolButton A tool button with a text.
 */
 
 /*!

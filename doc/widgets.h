@@ -142,6 +142,18 @@
     \li QPlainTextEdit, QTextEdit
     \li Text of many lines to type and select, with wrapping and undo; QTextCursor moves in it and changes it.
     \row
+    \li QToolButton
+    \li A small button with a text or an arrow, that can be checked or flat.
+    \row
+    \li QDial, QLCDNumber
+    \li A value to turn on a dial, and one to show with seven-segment digits.
+    \row
+    \li QSplitter
+    \li Widgets side by side or one above the other, with handles to share the room between them.
+    \row
+    \li QStatusBar
+    \li A strip at the bottom of a window for a message and small widgets.
+    \row
     \li QSpinBox
     \li A whole number to type or step.
     \row

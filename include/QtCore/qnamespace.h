@@ -494,6 +494,19 @@ enum TextElideMode { ElideLeft, ElideRight, ElideMiddle, ElideNone };
 enum ScrollBarPolicy { ScrollBarAsNeeded, ScrollBarAlwaysOff, ScrollBarAlwaysOn };
 
 /*!
+    \enum Qt::ArrowType
+
+    This enum says which way the arrow of a tool button points.
+
+    \value NoArrow No arrow.
+    \value UpArrow An arrow that points up.
+    \value DownArrow An arrow that points down.
+    \value LeftArrow An arrow that points to the left.
+    \value RightArrow An arrow that points to the right.
+*/
+enum ArrowType { NoArrow, UpArrow, DownArrow, LeftArrow, RightArrow };
+
+/*!
     \enum Qt::SortOrder
 
     This enum says in which direction items are sorted.

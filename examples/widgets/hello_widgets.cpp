@@ -6,12 +6,14 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDial>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
 #include <QHeaderView>
+#include <QLCDNumber>
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
@@ -23,9 +25,12 @@
 #include <QScrollBar>
 #include <QSlider>
 #include <QSpinBox>
+#include <QSplitter>
 #include <QStackedWidget>
+#include <QStatusBar>
 #include <QTabWidget>
 #include <QTableWidget>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -212,6 +217,19 @@ static QWidget *buttonsPage(QLabel *status) {
     buttons->addWidget(button);
     buttons->addWidget(toggle);
     buttons->addWidget(flat);
+    buttons->addSpacing(12);
+    auto *tool = new QToolButton(page);
+    tool->setText("Tool");
+    tool->setCheckable(true);
+    buttons->addWidget(tool);
+    for (Qt::ArrowType type : {Qt::LeftArrow, Qt::RightArrow}) {
+        auto *arrow = new QToolButton(page);
+        arrow->setArrowType(type);
+        arrow->setAutoRaise(true);
+        buttons->addWidget(arrow);
+        QObject::connect(arrow, &QToolButton::clicked,
+                         [=] { status->setText(type == Qt::LeftArrow ? "Tool button: left." : "Tool button: right."); });
+    }
     buttons->addStretch();
     layout->addLayout(buttons);
 
@@ -336,6 +354,21 @@ static QWidget *valuesPage(QLabel *status) {
     left->addLayout(row("Progress", bar, page));
     left->addLayout(row("Spin box", spin, page));
     left->addWidget(hint);
+
+    // A dial and a seven-segment display for the same value.
+    auto *dial = new QDial(page);
+    dial->setRange(0, 100);
+    dial->setValue(35);
+    dial->setNotchesVisible(true);
+    dial->setMaximumSize(110, 110);
+    auto *lcd = new QLCDNumber(3, page);
+    lcd->setSegmentStyle(QLCDNumber::Flat);
+    lcd->display(35);
+    lcd->setMinimumHeight(48);
+    auto *meter = new QHBoxLayout;
+    meter->addWidget(dial);
+    meter->addWidget(lcd, 1);
+    left->addLayout(meter);
     left->addStretch();
     auto *tall = new QSlider(Qt::Vertical, page);
     tall->setRange(0, 100);
@@ -350,9 +383,12 @@ static QWidget *valuesPage(QLabel *status) {
             tall->setValue(value);
             bar->setValue(value);
             spin->setValue(value);
+            dial->setValue(value);
+            lcd->display(value);
             status->setText(QString("Value: %1").arg(value));
         });
     QObject::connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
+    QObject::connect(dial, &QDial::valueChanged, slider, &QSlider::setValue);
     return page;
 }
 
@@ -407,13 +443,14 @@ static QWidget *viewsPage(QLabel *status) {
     list->addItems({"Compiler", "Kernel", "Unix", "Python", "C++", "Web", "Navy", "Apollo"});
     list->setSelectionMode(QAbstractItemView::ExtendedSelection);
     list->setCurrentRow(1);
-    list->setMaximumWidth(120);
     QObject::connect(list, &QListWidget::itemSelectionChanged,
                      [=] { status->setText(QString("%1 teams selected.").arg(list->selectedItems().size())); });
-    auto *bottom = new QHBoxLayout;
-    bottom->addWidget(list);
-    bottom->addWidget(area, 1);
-    layout->addLayout(bottom, 2);
+    // A splitter lets the user share the room between the list and the form.
+    auto *split = new QSplitter(Qt::Horizontal, page);
+    split->addWidget(list);
+    split->addWidget(area);
+    split->setSizes({120, 300});
+    layout->addWidget(split, 2);
     return page;
 }
 
@@ -457,14 +494,15 @@ int main(int argc, char *argv[]) {
 
     auto *quit = new QPushButton("Quit", &window);
     QObject::connect(quit, &QPushButton::clicked, &app, &QApplication::quit);
-    auto *bottom = new QHBoxLayout;
-    bottom->addWidget(status, 1);
-    bottom->addWidget(quit);
+    auto *bar = new QStatusBar(&window);
+    bar->setSizeGripEnabled(false);
+    bar->addWidget(status, 1);
+    bar->addPermanentWidget(quit);
 
     auto *layout = new QVBoxLayout(&window);
     layout->addLayout(header);
     layout->addWidget(tabs, 1);
-    layout->addLayout(bottom);
+    layout->addWidget(bar);
 
     window.resize(500, 760);
     window.show();

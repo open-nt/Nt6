@@ -22,6 +22,7 @@ public:
         State_Off = 0x00000008,
         State_On = 0x00000020,
         State_HasFocus = 0x00000100,
+        State_Horizontal = 0x00000080,
         State_Selected = 0x00000200,
         State_MouseOver = 0x00002000,
         State_Active = 0x00010000
@@ -40,7 +41,10 @@ public:
         PE_IndicatorArrowDown,
         PE_FrameGroupBox,
         PE_FrameTabWidget,
-        PE_PanelTipLabel
+        PE_PanelTipLabel,
+        PE_IndicatorArrowLeft,
+        PE_IndicatorArrowRight,
+        PE_PanelStatusBar
     };
     enum ControlElement {
         CE_PushButton,
@@ -57,7 +61,9 @@ public:
         CE_SpinBox,
         CE_GroupBox,
         CE_ScrollBar,
-        CE_Header
+        CE_Header,
+        CE_Dial,
+        CE_Splitter
     };
     enum SubElement {
         SE_CheckBoxIndicator,
@@ -100,7 +106,8 @@ public:
         PM_ScrollBarSliderMin,
         PM_HeaderMargin,
         PM_HeaderDefaultSectionSizeHorizontal,
-        PM_HeaderDefaultSectionSizeVertical
+        PM_HeaderDefaultSectionSizeVertical,
+        PM_SplitterWidth
     };
     enum ContentsType {
         CT_PushButton,
@@ -110,7 +117,8 @@ public:
         CT_ProgressBar,
         CT_TabBarTab,
         CT_ComboBox,
-        CT_SpinBox
+        CT_SpinBox,
+        CT_ToolButton
     };
 
     ~QStyle() override;

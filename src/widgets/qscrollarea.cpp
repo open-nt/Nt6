@@ -35,7 +35,7 @@
     \image widgets/qscrollarea.png QScrollArea in the light color scheme
 
     \differences
-    There is no \c setAlignment(), and no height-for-width layouts in the widget. The scroll area takes over the
+    There are no height-for-width layouts in the widget. The scroll area takes over the
     widget: it becomes a child of the viewport, and is deleted with the scroll area unless takeWidget() is used.
     Scroll bars move by pixels and a single step is 20 pixels.
     \enddifferences
@@ -154,7 +154,7 @@ void QScrollArea::updateScrollBars() {
             vbar->setPageStep(std::max(1, view.height()));
             hbar->setRange(0, std::max(0, size.width() - view.width()));
             vbar->setRange(0, std::max(0, size.height() - view.height()));
-            widget->move(-hbar->value(), -vbar->value());
+            placeWidget();
         }
         if (!m_updateAgain)
             break;
@@ -176,8 +176,47 @@ void QScrollArea::resizeEvent(QResizeEvent *event) {
 void QScrollArea::scrollContentsBy(int dx, int dy) {
     (void)dx;
     (void)dy;
-    if (QWidget *widget = m_widget.data())
-        widget->move(-horizontalScrollBar()->value(), -verticalScrollBar()->value());
+    placeWidget();
+}
+
+// Puts the widget in the viewport: scrolled, or where the alignment says if it is smaller than the viewport.
+void QScrollArea::placeWidget() {
+    QWidget *widget = m_widget.data();
+    if (!widget)
+        return;
+    const QSize view = viewport()->size(), size = widget->size();
+    int x = -horizontalScrollBar()->value(), y = -verticalScrollBar()->value();
+    if (size.width() < view.width()) {
+        if (m_alignment & Qt::AlignRight)
+            x = view.width() - size.width();
+        else if (m_alignment & Qt::AlignHCenter)
+            x = (view.width() - size.width()) / 2;
+    }
+    if (size.height() < view.height()) {
+        if (m_alignment & Qt::AlignBottom)
+            y = view.height() - size.height();
+        else if (m_alignment & Qt::AlignVCenter)
+            y = (view.height() - size.height()) / 2;
+    }
+    widget->move(x, y);
+}
+
+/*!
+    \fn Qt::Alignment QScrollArea::alignment() const
+
+    Returns where the widget is in the viewport when it is smaller than it. The default is \c{Qt::AlignLeft | Qt::AlignTop}.
+
+    \sa setAlignment()
+*/
+
+/*!
+    Sets where the widget is in the viewport when it is smaller than it to \a alignment, for example \c Qt::AlignCenter.
+
+    \sa alignment()
+*/
+void QScrollArea::setAlignment(Qt::Alignment alignment) {
+    m_alignment = alignment;
+    placeWidget();
 }
 
 /*!

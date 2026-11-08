@@ -193,6 +193,19 @@ void QStyleOption::initFrom(const QWidget *widget) {
 */
 
 /*!
+    \variable QStyleOptionSlider::tickMarks
+
+    Whether a dial draws its notches. A slider does not use it.
+*/
+
+/*!
+    \variable QStyleOptionSlider::wrapping
+
+    Whether a dial goes all the way round, so that its smallest and largest value are at the same place. A slider does
+    not use it.
+*/
+
+/*!
     \class QStyleOptionProgressBar
     \brief The QStyleOptionProgressBar class describes the parameters for drawing a progress bar.
 

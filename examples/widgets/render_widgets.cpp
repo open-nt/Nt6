@@ -10,6 +10,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDial>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
@@ -18,6 +19,7 @@
 #include <QHBoxLayout>
 #include <QImage>
 #include <QLabel>
+#include <QLCDNumber>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPlainTextEdit>
@@ -27,12 +29,15 @@
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSlider>
+#include <QSplitter>
 #include <QSpinBox>
 #include <QStackedWidget>
+#include <QStatusBar>
 #include <QStyleHints>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QTextCursor>
+#include <QToolButton>
 #include <QToolTip>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -759,6 +764,117 @@ bool plainTextEdits(const std::string &dir) {
     return picture(w, typed, dir, "qplaintextedit");
 }
 
+bool toolButtons(const std::string &dir) {
+    QWidget &w = *host(300, 10, QBoxLayout::LeftToRight);
+    auto *layout = static_cast<QBoxLayout *>(w.layout());
+    auto *text = new QToolButton(&w);
+    text->setText("Text");
+    auto *checked = new QToolButton(&w);
+    checked->setText("Checked");
+    checked->setCheckable(true);
+    checked->setChecked(true);
+    auto *raised = new QToolButton(&w);
+    raised->setText("Flat");
+    raised->setAutoRaise(true);
+    auto *disabled = new QToolButton(&w);
+    disabled->setText("Disabled");
+    disabled->setEnabled(false);
+    layout->addWidget(text);
+    layout->addWidget(checked);
+    layout->addWidget(raised);
+    layout->addWidget(disabled);
+    for (Qt::ArrowType type : {Qt::LeftArrow, Qt::RightArrow, Qt::UpArrow, Qt::DownArrow}) {
+        auto *arrow = new QToolButton(&w);
+        arrow->setArrowType(type);
+        layout->addWidget(arrow);
+    }
+    layout->addStretch();
+    w.resize(300, w.sizeHint().height());
+    return picture(w, nullptr, dir, "qtoolbutton");
+}
+
+bool dials(const std::string &dir) {
+    QWidget &w = *host(10, 10, QBoxLayout::LeftToRight);
+    auto *layout = static_cast<QBoxLayout *>(w.layout());
+    auto *plain = new QDial(&w);
+    plain->setValue(25);
+    auto *notches = new QDial(&w);
+    notches->setNotchesVisible(true);
+    notches->setValue(75);
+    auto *wrapping = new QDial(&w);
+    wrapping->setWrapping(true);
+    wrapping->setValue(50);
+    auto *disabled = new QDial(&w);
+    disabled->setValue(40);
+    disabled->setEnabled(false);
+    for (QDial *dial : {plain, notches, wrapping, disabled}) {
+        dial->setFixedSize(70, 70);
+        layout->addWidget(dial);
+    }
+    w.resize(w.sizeHint());
+    return picture(w, nullptr, dir, "qdial");
+}
+
+bool lcdNumbers(const std::string &dir) {
+    QWidget &w = *host(10, 10);
+    auto *layout = static_cast<QBoxLayout *>(w.layout());
+    int row = 0;
+    for (QLCDNumber::SegmentStyle style : {QLCDNumber::Filled, QLCDNumber::Outline, QLCDNumber::Flat}) {
+        auto *lcd = new QLCDNumber(6, &w);
+        lcd->setSegmentStyle(style);
+        lcd->display(row == 0 ? 12.34 : row == 1 ? 5678 : -90.1);
+        lcd->setFixedHeight(48);
+        layout->addWidget(lcd);
+        ++row;
+    }
+    auto *hex = new QLCDNumber(4, &w);
+    hex->setMode(QLCDNumber::Hex);
+    hex->display(0xBEEF);
+    hex->setFixedHeight(48);
+    layout->addWidget(hex);
+    w.resize(160, w.sizeHint().height());
+    return picture(w, nullptr, dir, "qlcdnumber");
+}
+
+bool splitters(const std::string &dir) {
+    QWidget &w = *host(320, 190);
+    auto *layout = static_cast<QBoxLayout *>(w.layout());
+    auto *outer = new QSplitter(Qt::Vertical, &w);
+    auto *inner = new QSplitter(Qt::Horizontal);
+    auto pane = [](const char *name) {
+        auto *frame = new QFrame;
+        frame->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
+        auto *label = new QLabel(name, frame);
+        label->setAlignment(Qt::AlignCenter);
+        auto *box = new QVBoxLayout(frame);
+        box->addWidget(label);
+        return frame;
+    };
+    for (const char *name : {"Left", "Middle", "Right"})
+        inner->addWidget(pane(name));
+    outer->addWidget(inner);
+    outer->addWidget(pane("Below"));
+    inner->setSizes({100, 140, 70});
+    outer->setSizes({110, 60});
+    layout->addWidget(outer);
+    return picture(w, nullptr, dir, "qsplitter");
+}
+
+bool statusBars(const std::string &dir) {
+    QWidget &w = *host(320, 10);
+    auto *layout = static_cast<QBoxLayout *>(w.layout());
+    auto *message = new QStatusBar(&w);
+    message->showMessage("A message");
+    auto *widgets = new QStatusBar(&w);
+    widgets->addWidget(new QLabel("Ready", widgets), 1);
+    widgets->addPermanentWidget(new QLabel("Ln 3, Col 9", widgets));
+    widgets->addPermanentWidget(new QPushButton("Quit", widgets));
+    layout->addWidget(message);
+    layout->addWidget(widgets);
+    w.resize(320, w.sizeHint().height());
+    return picture(w, nullptr, dir, "qstatusbar");
+}
+
 bool headerViews(const std::string &dir) {
     QWidget &w = *host(360, 200);
     auto *table = new QTableWidget(4, 3, &w);
@@ -804,6 +920,7 @@ int main(int argc, char *argv[]) {
     for (bool (*render)(const std::string &) : {labels, pushButtons, checkBoxes, radioButtons, lineEdits, sliders,
                                                 progressBars, spinBoxes, comboBoxes, groupBoxes, tabWidgets, frames,
                                                 gridLayouts, formLayouts, stackedWidgets, toolTips, scrollBars, scrollAreas, listWidgets, plainTextEdits, headerViews,
+                                                toolButtons, dials, lcdNumbers, splitters, statusBars,
                                                 tableWidgets})
         ok = render(directory) && ok;
     return ok ? 0 : 1;

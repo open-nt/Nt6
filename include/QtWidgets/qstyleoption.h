@@ -61,6 +61,8 @@ public:
     int maximum = 100;
     int sliderPosition = 0;
     int pageStep = 0;
+    bool tickMarks = false;
+    bool wrapping = false;
 };
 
 class QStyleOptionProgressBar : public QStyleOption {

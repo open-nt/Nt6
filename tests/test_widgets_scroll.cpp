@@ -641,6 +641,21 @@ static void testScrollAreaWidget() {
     CHECK(area.widget() == sized);
     area.setWidget(nullptr);
     CHECK(area.widget() == nullptr);
+
+    // A widget smaller than the viewport is put where the alignment says
+    CHECK(area.alignment() == (Qt::AlignLeft | Qt::AlignTop));
+    auto *small = new QWidget;
+    small->resize(60, 40);
+    area.setWidget(small);
+    const QSize room = area.viewport()->size();
+    CHECK(small->pos() == QPoint(0, 0));
+    area.setAlignment(Qt::AlignCenter);
+    CHECK(area.alignment() == Qt::AlignCenter &&
+          small->pos() == QPoint((room.width() - 60) / 2, (room.height() - 40) / 2));
+    area.setAlignment(Qt::AlignRight | Qt::AlignBottom);
+    CHECK(small->pos() == QPoint(room.width() - 60, room.height() - 40));
+    small->resize(400, 40); // wider than the viewport: it scrolls from the left, and the bar takes room from the bottom
+    CHECK(small->pos() == QPoint(0, area.viewport()->height() - 40));
 }
 
 

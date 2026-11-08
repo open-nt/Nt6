@@ -12,23 +12,29 @@
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qcombobox.h>
+#include <QtWidgets/qdial.h>
 #include <QtWidgets/qgroupbox.h>
 #include <QtWidgets/qlabel.h>
+#include <QtWidgets/qlcdnumber.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qprogressbar.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
 #include <QtWidgets/qslider.h>
 #include <QtWidgets/qspinbox.h>
+#include <QtWidgets/qsplitter.h>
+#include <QtWidgets/qstatusbar.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabwidget.h>
+#include <QtWidgets/qtoolbutton.h>
 #include <QtWidgets/qtooltip.h>
 
 #include "platforms/offscreen/qoffscreenintegration_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
 #include "qtooltip_p.h"
 
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 
@@ -1373,6 +1379,647 @@ static void testEverythingPaints() {
     QGuiApplication::styleHints()->unsetColorScheme();
 }
 
+// A widget with a size hint that it does not get from its contents.
+class Box : public QWidget {
+public:
+    explicit Box(QSize hint, QWidget *parent = nullptr) : QWidget(parent), m_hint(hint) {}
+    QSize sizeHint() const override { return m_hint; }
+
+private:
+    QSize m_hint;
+};
+
+static void testToolButton() {
+    int clicked = 0, toggles = 0;
+    QWidget top;
+    top.resize(200, 80);
+    QToolButton button(&top);
+    button.setGeometry(10, 10, 60, 30);
+    QObject::connect(&button, &QToolButton::clicked, [&](bool) { ++clicked; });
+    QObject::connect(&button, &QToolButton::toggled, [&](bool) { ++toggles; });
+    CHECK(!button.autoRaise() && button.arrowType() == Qt::NoArrow && button.focusPolicy() == Qt::TabFocus &&
+          button.text().isEmpty());
+    CHECK(button.sizePolicy().horizontalPolicy() == QSizePolicy::Fixed &&
+          button.sizePolicy().verticalPolicy() == QSizePolicy::Fixed);
+    button.setText("Open");
+    const QFontMetrics fm = button.fontMetrics();
+    CHECK(button.sizeHint() == QSize(fm.horizontalAdvance("Open") + 14, fm.height() + 7));
+    button.setArrowType(Qt::DownArrow);
+    CHECK(button.arrowType() == Qt::DownArrow && button.sizeHint() == QSize(24, 23));
+    button.setArrowType(Qt::NoArrow);
+    top.show();
+    settle(&top);
+
+    click(&button, QPoint(30, 15));
+    CHECK(clicked == 1 && !button.isChecked());
+    button.setCheckable(true);
+    click(&button, QPoint(30, 15));
+    CHECK(clicked == 2 && toggles == 1 && button.isChecked());
+    button.setChecked(false);
+
+    // Painting: a raised button has the color of a button; with automatic raise it is flat until the mouse is over it
+    const QPalette pal = button.palette();
+    const QPoint origin = inWindow(&button);
+    hover(&top, QPoint(150, 70)); // the mouse is away from the button
+    QImage image = grab(&top);
+    const QRgb window = pal.color(QPalette::Window).rgb();
+    // (the window and the button have the same color in the light palette: the frame tells them apart)
+    CHECK(image.pixel(origin + QPoint(0, 15)) != window);
+    button.setAutoRaise(true);
+    button.clearFocus();
+    CHECK(button.autoRaise());
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(0, 15)) == window);
+    hover(&button, QPoint(30, 15));
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(0, 15)) != window);
+    hover(&top, QPoint(150, 70));
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(0, 15)) == window);
+    // Pressed
+    button.setAutoRaise(false);
+    const QRgb raised = image.pixel(origin + QPoint(4, 4));
+    press(&button, QPoint(30, 15));
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(4, 4)) != raised);
+    release(&button, QPoint(30, 15));
+    // The arrows draw something in the middle, and each of them different
+    button.setText(QString());
+    std::vector<QImage> arrows;
+    for (Qt::ArrowType arrow : {Qt::UpArrow, Qt::DownArrow, Qt::LeftArrow, Qt::RightArrow}) {
+        button.setArrowType(arrow);
+        button.setFixedSize(24, 23);
+        arrows.push_back(grab(&top).copy());
+    }
+    const QRect middle(origin + QPoint(6, 6), QSize(12, 12));
+    auto ink = [&](const QImage &img) {
+        int n = 0;
+        for (int y = middle.top(); y <= middle.bottom(); ++y)
+            for (int x = middle.left(); x <= middle.right(); ++x)
+                if (img.pixel(x, y) == pal.color(QPalette::ButtonText).rgb())
+                    ++n;
+        return n;
+    };
+    CHECK(ink(arrows[0]) > 5 && ink(arrows[0]) == ink(arrows[1]) && ink(arrows[2]) == ink(arrows[3]) &&
+          ink(arrows[2]) > 5);
+    CHECK(arrows[0].pixel(origin + QPoint(8, 10)) != arrows[1].pixel(origin + QPoint(8, 10)) &&
+          arrows[2].pixel(origin + QPoint(9, 9)) != arrows[3].pixel(origin + QPoint(9, 9)));
+    button.setEnabled(false);
+    image = grab(&top);
+    button.setEnabled(true);
+    const int disabledClicks = clicked;
+    button.setEnabled(false);
+    click(&button, QPoint(10, 10));
+    CHECK(clicked == disabledClicks);
+}
+
+static void testDial() {
+    std::vector<int> values;
+    int pressed = 0, released = 0, moved = 0;
+    QWidget top;
+    top.resize(200, 120);
+    QDial dial(&top);
+    dial.setGeometry(0, 0, 100, 100);
+    QObject::connect(&dial, &QDial::valueChanged, [&](int v) { values.push_back(v); });
+    QObject::connect(&dial, &QDial::sliderPressed, [&] { ++pressed; });
+    QObject::connect(&dial, &QDial::sliderReleased, [&] { ++released; });
+    QObject::connect(&dial, &QDial::sliderMoved, [&](int) { ++moved; });
+    CHECK(dial.minimum() == 0 && dial.maximum() == 99 && dial.value() == 0 && dial.singleStep() == 1 &&
+          dial.pageStep() == 10 && !dial.wrapping() && !dial.notchesVisible() && dial.hasTracking() &&
+          !dial.isSliderDown());
+    CHECK(dial.sizeHint() == QSize(100, 100) && dial.minimumSizeHint() == QSize(50, 50) &&
+          dial.focusPolicy() == Qt::WheelFocus);
+    top.show();
+    settle(&top);
+
+    dial.setValue(40);
+    CHECK(dial.value() == 40 && dial.sliderPosition() == 40 && values == std::vector<int>{40});
+    dial.setValue(500);
+    CHECK(dial.value() == 99);
+    dial.setRange(0, 50);
+    CHECK(dial.value() == 50 && dial.maximum() == 50);
+    dial.setMaximum(20);
+    CHECK(dial.value() == 20);
+    dial.setMinimum(30);
+    CHECK(dial.minimum() == 30 && dial.maximum() == 30 && dial.value() == 30);
+    dial.setRange(10, 0);
+    CHECK(dial.minimum() == 10 && dial.maximum() == 10);
+    dial.setSingleStep(0);
+    dial.setPageStep(0);
+    CHECK(dial.singleStep() == 1 && dial.pageStep() == 1);
+    dial.setSingleStep(1);
+    dial.setPageStep(10);
+    dial.setRange(0, 99);
+    dial.setValue(0);
+    values.clear();
+
+    // The mouse: a point on the circle gives the value of its angle
+    const double pi = 3.14159265358979323846;
+    auto at = [&](double degrees, double radius = 30) {
+        return QPoint(49 + static_cast<int>(std::lround(radius * std::cos(degrees * pi / 180))),
+                      49 - static_cast<int>(std::lround(radius * std::sin(degrees * pi / 180))));
+    };
+    press(&dial, at(225));
+    CHECK(dial.isSliderDown() && pressed == 1 && dial.value() == 0 && moved == 1);
+    drag(&dial, at(90));
+    CHECK(dial.value() == 50 && dial.sliderPosition() == 50);
+    drag(&dial, at(-45));
+    CHECK(dial.value() == 99);
+    drag(&dial, at(-80)); // between the ends: the nearer
+    CHECK(dial.value() == 99);
+    drag(&dial, at(-100));
+    CHECK(dial.value() == 0);
+    drag(&dial, at(180));
+    CHECK(dial.value() > 10 && dial.value() < 25);
+    release(&dial, at(180));
+    CHECK(!dial.isSliderDown() && released == 1);
+    const int after = dial.value();
+    drag(&dial, at(0));
+    CHECK(dial.value() == after);
+    press(&dial, at(90));
+    CHECK(dial.value() == 50);
+    release(&dial, at(90));
+    mouse(&dial, QEvent::MouseButtonPress, at(90), Qt::RightButton, Qt::RightButton);
+    mouse(&dial, QEvent::MouseButtonRelease, at(90), Qt::RightButton, Qt::NoButton);
+    // Without tracking, the value changes when the dial is released
+    dial.setTracking(false);
+    CHECK(!dial.hasTracking());
+    dial.setValue(0);
+    values.clear();
+    press(&dial, at(90));
+    drag(&dial, at(45));
+    CHECK(dial.value() == 0 && dial.sliderPosition() > 50 && values.empty());
+    release(&dial, at(45));
+    CHECK(dial.value() > 50 && values.size() == 1);
+    dial.setTracking(true);
+
+    // Keys and wheel
+    dial.setValue(10);
+    dial.setFocus();
+    key(&dial, Qt::Key_Right);
+    CHECK(dial.value() == 11);
+    key(&dial, Qt::Key_Up);
+    key(&dial, Qt::Key_Down);
+    key(&dial, Qt::Key_Left);
+    CHECK(dial.value() == 10);
+    key(&dial, Qt::Key_PageUp);
+    CHECK(dial.value() == 20);
+    key(&dial, Qt::Key_PageDown);
+    CHECK(dial.value() == 10);
+    key(&dial, Qt::Key_End);
+    CHECK(dial.value() == 99);
+    key(&dial, Qt::Key_Right); // the end stays
+    CHECK(dial.value() == 99);
+    key(&dial, Qt::Key_Home);
+    CHECK(dial.value() == 0);
+    key(&dial, Qt::Key_A, "a");
+    wheel(&dial, QPoint(50, 50), 1);
+    CHECK(dial.value() == 3);
+    wheel(&dial, QPoint(50, 50), -2);
+    CHECK(dial.value() == 0);
+
+    // Wrapping: the full circle, the smallest value at the bottom, and the keys go round
+    dial.setWrapping(true);
+    CHECK(dial.wrapping());
+    press(&dial, at(-90));
+    CHECK(dial.value() == 0);
+    drag(&dial, at(180)); // clockwise: the left side is a quarter
+    CHECK(dial.value() == 25);
+    drag(&dial, at(90));
+    CHECK(dial.value() == 50);
+    drag(&dial, at(0));
+    CHECK(dial.value() == 74 || dial.value() == 75);
+    release(&dial, at(180));
+    dial.setValue(99);
+    key(&dial, Qt::Key_Right);
+    CHECK(dial.value() == 0);
+    key(&dial, Qt::Key_Left);
+    CHECK(dial.value() == 99);
+    wheel(&dial, QPoint(50, 50), 1);
+    CHECK(dial.value() == 2);
+    key(&dial, Qt::Key_PageDown);
+    CHECK(dial.value() == 92);
+    dial.setWrapping(false);
+
+    // Painting: the handle is a dot of the highlight color where the angle puts it
+    dial.setValue(0);
+    const QPalette pal = dial.palette();
+    QImage image = grab(&top);
+    CHECK(image.pixel(25, 73) == pal.color(QPalette::Highlight).rgb());
+    dial.setValue(99);
+    image = grab(&top);
+    CHECK(image.pixel(73, 73) == pal.color(QPalette::Highlight).rgb() &&
+          image.pixel(25, 73) != pal.color(QPalette::Highlight).rgb());
+    dial.setNotchesVisible(true);
+    CHECK(dial.notchesVisible());
+    const QImage notched = grab(&top);
+    CHECK(notched.pixel(49, 49 - 47) != image.pixel(49, 49 - 47) || notched.pixel(49, 3) != image.pixel(49, 3));
+    dial.setNotchesVisible(false);
+    dial.setEnabled(false);
+    image = grab(&top);
+    CHECK(image.pixel(73, 73) != pal.color(QPalette::Highlight).rgb());
+    dial.setEnabled(true);
+}
+
+static void testLcdNumber() {
+    int overflows = 0;
+    QWidget top;
+    top.resize(200, 60);
+    QLCDNumber lcd(&top);
+    lcd.setGeometry(10, 10, 100, 30);
+    QObject::connect(&lcd, &QLCDNumber::overflow, [&] { ++overflows; });
+    CHECK(lcd.digitCount() == 5 && lcd.mode() == QLCDNumber::Dec && lcd.segmentStyle() == QLCDNumber::Filled &&
+          !lcd.smallDecimalPoint() && lcd.value() == 0 && lcd.intValue() == 0 && lcd.frameShape() == QFrame::Box &&
+          lcd.frameShadow() == QFrame::Raised);
+    CHECK(lcd.sizeHint() == QSize(10 + 9 * 6, 23) && lcd.sizePolicy().horizontalPolicy() == QSizePolicy::Minimum);
+    lcd.setSmallDecimalPoint(true);
+    CHECK(lcd.smallDecimalPoint() && lcd.sizeHint() == QSize(10 + 9 * 5, 23));
+    lcd.setSmallDecimalPoint(false);
+    QLCDNumber eight(8);
+    CHECK(eight.digitCount() == 8 && eight.sizeHint().width() == 10 + 9 * 9);
+    lcd.setDigitCount(7);
+    CHECK(lcd.digitCount() == 7 && lcd.sizeHint().width() == 10 + 9 * 8);
+    lcd.setDigitCount(500);
+    CHECK(lcd.digitCount() == 99);
+    lcd.setDigitCount(-4);
+    CHECK(lcd.digitCount() == 0);
+    lcd.setDigitCount(5);
+    top.show();
+    settle(&top);
+
+    lcd.display(42);
+    CHECK(lcd.value() == 42 && lcd.intValue() == 42 && overflows == 0);
+    lcd.display(3.5);
+    CHECK(lcd.value() == 3.5 && lcd.intValue() == 4);
+    lcd.display(-3.5);
+    CHECK(lcd.intValue() == -4);
+    lcd.display(QString("12.5"));
+    CHECK(lcd.value() == 12.5);
+    lcd.display(QString("--"));
+    CHECK(lcd.value() == 0);
+    CHECK(!lcd.checkOverflow(12345) && lcd.checkOverflow(123456) && lcd.checkOverflow(-12345) &&
+          !lcd.checkOverflow(1234.5) && lcd.checkOverflow(12345678.0));
+    lcd.display(123456);
+    CHECK(overflows == 1);
+    lcd.display(12345);
+    CHECK(overflows == 1);
+    lcd.display(QString("abcdefg"));
+    CHECK(overflows == 2);
+    lcd.display(1234567.0);
+    CHECK(overflows == 3); // a number that does not fit as a whole number overflows
+    // Modes
+    lcd.setHexMode();
+    CHECK(lcd.mode() == QLCDNumber::Hex);
+    lcd.display(255);
+    CHECK(lcd.intValue() == 255 && !lcd.checkOverflow(255) && lcd.checkOverflow(0xFFFFFF));
+    lcd.setBinMode();
+    CHECK(lcd.mode() == QLCDNumber::Bin && lcd.checkOverflow(255) && !lcd.checkOverflow(31));
+    lcd.setOctMode();
+    CHECK(lcd.mode() == QLCDNumber::Oct && !lcd.checkOverflow(255) && lcd.checkOverflow(0100000));
+    lcd.setDecMode();
+    lcd.setMode(QLCDNumber::Dec);
+    lcd.display(8);
+    overflows = 0;
+    lcd.setMode(QLCDNumber::Hex); // the number is shown again
+    CHECK(lcd.value() == 8);
+    lcd.setMode(QLCDNumber::Dec);
+
+    // Painting: the digits are lit segments at the right, blank digits at the left
+    auto inkIn = [&](const QImage &img, const QRect &area) {
+        const QRgb color = lcd.palette().color(QPalette::WindowText).rgb();
+        int n = 0;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+            for (int x = area.left(); x <= area.right(); ++x)
+                if (img.pixel(x, y) == color)
+                    ++n;
+        return n;
+    };
+    const QPoint origin = inWindow(&lcd);
+    const int cell = (lcd.contentsRect().width() - 4) / 5;
+    const QRect first(origin + QPoint(lcd.contentsRect().left() + 2, 4), QSize(cell, lcd.height() - 8));
+    const QRect last(origin + QPoint(lcd.contentsRect().left() + 2 + 4 * cell, 4), QSize(cell, lcd.height() - 8));
+    lcd.display(8);
+    QImage image = grab(&top);
+    const int eightInk = inkIn(image, last);
+    CHECK(eightInk > 20 && inkIn(image, first) == 0);
+    lcd.display(1);
+    image = grab(&top);
+    const int oneInk = inkIn(image, last);
+    CHECK(oneInk > 0 && oneInk < eightInk);
+    lcd.display(QString(" "));
+    image = grab(&top);
+    CHECK(inkIn(image, last) == 0);
+    lcd.display(QString("-"));
+    image = grab(&top);
+    CHECK(inkIn(image, last) > 0 && inkIn(image, last) < oneInk + 10);
+    lcd.display(88888);
+    lcd.setSegmentStyle(QLCDNumber::Flat);
+    CHECK(lcd.segmentStyle() == QLCDNumber::Flat);
+    image = grab(&top);
+    const int flat = inkIn(image, last);
+    lcd.setSegmentStyle(QLCDNumber::Filled);
+    image = grab(&top);
+    const int filled = inkIn(image, last);
+    lcd.setSegmentStyle(QLCDNumber::Outline);
+    image = grab(&top);
+    const int outline = inkIn(image, last);
+    CHECK(flat > filled && outline > 10); // the segments are so thin that the outline of one is all of it
+    lcd.setSegmentStyle(QLCDNumber::Filled);
+    // The decimal point: its own digit, or small
+    lcd.display(QString("1.2"));
+    image = grab(&top);
+    const int ownPoint = inkIn(
+        image, QRect(origin + QPoint(lcd.contentsRect().left() + 2 + 2 * cell, 4), QSize(2 * cell, lcd.height() - 8)));
+    lcd.setSmallDecimalPoint(true);
+    lcd.display(QString("1.2"));
+    image = grab(&top);
+    CHECK(ownPoint > 0 && inkIn(image, last) > 0);
+    lcd.display(QString(".5"));
+    lcd.setDigitCount(0);
+    lcd.display(5);
+    image = grab(&top);
+    lcd.setDigitCount(5);
+    lcd.display(2);
+    lcd.setEnabled(false);
+    image = grab(&top);
+    lcd.setEnabled(true);
+}
+
+static void testSplitter() {
+    std::vector<std::pair<int, int>> moves;
+    QWidget top;
+    top.resize(300, 100);
+    auto *layout = new QVBoxLayout(&top);
+    layout->setContentsMargins(0, 0, 0, 0);
+    QSplitter split(&top);
+    layout->addWidget(&split);
+    auto *a = new Box(QSize(0, 0)), *b = new Box(QSize(0, 0)), *c = new Box(QSize(0, 0));
+    a->setMinimumWidth(30);
+    QObject::connect(&split, &QSplitter::splitterMoved, [&](int pos, int index) { moves.emplace_back(pos, index); });
+    CHECK(split.orientation() == Qt::Horizontal && split.count() == 0 && split.childrenCollapsible() &&
+          split.sizes().isEmpty() && split.sizePolicy().horizontalPolicy() == QSizePolicy::Expanding);
+    CHECK(split.handleWidth() == 4);
+    split.addWidget(a);
+    split.addWidget(b);
+    split.addWidget(c);
+    CHECK(split.count() == 3 && split.widget(1) == b && split.widget(3) == nullptr && split.widget(-1) == nullptr &&
+          split.indexOf(c) == 2 && split.indexOf(&top) == -1 && a->parentWidget() == &split);
+    top.show();
+    settle(&top);
+    CHECK(split.width() == 300 && split.height() == 100);
+    // Equal sizes for widgets with no hints, with a handle between
+    CHECK(split.sizes() == (QList<int>{97, 97, 98}));
+    CHECK(a->geometry() == QRect(0, 0, 97, 100) && b->geometry() == QRect(101, 0, 97, 100) &&
+          c->geometry() == QRect(202, 0, 98, 100));
+    // setSizes: the sizes are scaled to the room
+    split.setSizes({100, 100, 92});
+    CHECK(split.sizes() == (QList<int>{100, 100, 92}) && b->x() == 104 && c->x() == 208);
+    split.setSizes({1, 2, 1});
+    CHECK(split.sizes() == (QList<int>{73, 146, 73}));
+    split.setSizes({1});
+    CHECK(split.sizes() == (QList<int>{292, 0, 0}));
+    split.setSizes({100, 100, 92});
+
+    // A handle is dragged
+    const QPoint handle0(a->width() + 2, 50);
+    press(&split, handle0);
+    drag(&split, QPoint(handle0.x() + 30, 50));
+    CHECK(split.sizes() == (QList<int>{130, 70, 92}) && moves.back() == std::make_pair(130, 1));
+    CHECK(a->width() == 130 && b->x() == 134 && b->width() == 70);
+    drag(&split, QPoint(handle0.x() + 30 + 40, 50));
+    CHECK(split.sizes()[0] == 170);
+    release(&split, QPoint(handle0.x() + 70, 50));
+    const std::size_t seen = moves.size();
+    drag(&split, QPoint(10, 50)); // without the button nothing moves
+    CHECK(moves.size() == seen);
+    // The minimum of a widget: not below it, but to nothing if dragged below half of it
+    split.setSizes({100, 100, 92});
+    press(&split, QPoint(102, 50));
+    drag(&split, QPoint(24, 50));
+    CHECK(split.sizes()[0] == 30 && split.sizes()[1] == 170);
+    drag(&split, QPoint(10, 50));
+    CHECK(split.sizes()[0] == 0 && split.sizes()[1] == 200 && b->x() == 4);
+    drag(&split, QPoint(120, 50));
+    CHECK(split.sizes()[0] > 100);
+    split.setCollapsible(0, false);
+    CHECK(!split.isCollapsible(0) && split.isCollapsible(1));
+    drag(&split, QPoint(5, 50));
+    CHECK(split.sizes()[0] == 30);
+    release(&split, QPoint(5, 50));
+    split.setChildrenCollapsible(false);
+    CHECK(!split.childrenCollapsible() && !split.isCollapsible(1) && !split.isCollapsible(7));
+    split.setCollapsible(9, true);
+    split.setChildrenCollapsible(true);
+    // The other end: the last widget to nothing
+    split.setSizes({100, 100, 92});
+    press(&split, QPoint(a->width() + split.handleWidth() + b->width() + 2, 50));
+    drag(&split, QPoint(299, 50));
+    CHECK(split.sizes()[2] == 0 && split.sizes()[1] == 192);
+    release(&split, QPoint(299, 50));
+    split.setSizes({100, 100, 92});
+
+    // When the splitter is resized: in proportion, or by the stretch factors
+    top.resize(600, 100);
+    settle(&top);
+    CHECK(split.width() == 600 && split.sizes()[0] + split.sizes()[1] + split.sizes()[2] == 592 &&
+          split.sizes()[0] > 190 && split.sizes()[2] > 170);
+    split.setSizes({100, 100, 92});
+    top.resize(300, 100);
+    settle(&top);
+    split.setSizes({100, 100, 92});
+    split.setStretchFactor(2, 1);
+    split.setStretchFactor(9, 1);
+    top.resize(500, 100);
+    settle(&top);
+    CHECK(split.sizes() == (QList<int>{100, 100, 292}));
+    split.setStretchFactor(1, 1);
+    top.resize(300, 100);
+    settle(&top);
+    CHECK(split.sizes()[0] == 100 && split.sizes()[1] + split.sizes()[2] == 192);
+    split.setStretchFactor(1, 0);
+    split.setStretchFactor(2, 0);
+    // Too small: the minimum sizes hold
+    top.resize(50, 100);
+    settle(&top);
+    CHECK(split.sizes()[0] >= 30);
+    top.resize(300, 100);
+    settle(&top);
+
+    // Handle width
+    split.setHandleWidth(10);
+    CHECK(split.handleWidth() == 10);
+    split.setSizes({100, 100, 80});
+    CHECK(b->x() == 110 && c->x() == 220);
+    split.setHandleWidth(4);
+    split.setSizes({100, 100, 92});
+
+    // A vertical splitter: the widgets are one above the other
+    split.setOrientation(Qt::Vertical);
+    CHECK(split.orientation() == Qt::Vertical);
+    settle(&top);
+    CHECK(a->width() == 300 && a->x() == 0 && a->y() == 0 && b->y() > a->height() && c->y() > b->y());
+    CHECK(split.sizes()[0] + split.sizes()[1] + split.sizes()[2] == 100 - 8);
+    split.setSizes({20, 30, 42});
+    const int boundary = a->height();
+    press(&split, QPoint(150, boundary + 2));
+    drag(&split, QPoint(150, boundary + 12));
+    CHECK(split.sizes()[0] == 30 && split.sizes()[1] == 20);
+    release(&split, QPoint(150, boundary + 12));
+    split.setOrientation(Qt::Horizontal);
+    split.setOrientation(Qt::Horizontal);
+
+    // Painting: the handle has a grip in the middle
+    split.setSizes({100, 100, 92});
+    QImage image = grab(&top);
+    const QPoint grip = inWindow(&split, QPoint(102, 50));
+    const QRgb window = split.palette().color(QPalette::Window).rgb();
+    CHECK(image.pixel(inWindow(&split, QPoint(100, 48))) != window &&
+          image.pixel(inWindow(&split, QPoint(101, 49))) != window);
+    CHECK(image.pixel(inWindow(&split, QPoint(100, 5))) == window);
+    (void)grip;
+
+    // Moving and removing widgets
+    split.insertWidget(0, c);
+    CHECK(split.indexOf(c) == 0 && split.indexOf(a) == 1 && split.count() == 3);
+    split.insertWidget(3, c);
+    CHECK(split.indexOf(c) == 2);
+    split.insertWidget(2, c);
+    CHECK(split.indexOf(c) == 2);
+    split.addWidget(nullptr);
+    delete b;
+    CHECK(split.count() == 2 && split.indexOf(c) == 1);
+    settle(&top);
+    CHECK(split.sizes()[0] + split.sizes()[1] == 296 && a->width() + c->width() == 296);
+    // Sizes of the widgets that have hints
+    QSplitter hinted;
+    hinted.resize(300, 100);
+    auto *h1 = new Box(QSize(100, 20)), *h2 = new Box(QSize(50, 40));
+    hinted.addWidget(h1);
+    hinted.addWidget(h2);
+    CHECK(hinted.sizeHint() == QSize(100 + 50 + 4, 40) && hinted.minimumSizeHint() == QSize(4, 0));
+    hinted.show();
+    settle(&hinted);
+    CHECK(hinted.sizes()[0] > hinted.sizes()[1] && hinted.sizes()[0] + hinted.sizes()[1] == 296);
+    hinted.setOrientation(Qt::Vertical);
+    CHECK(hinted.sizeHint() == QSize(100, 20 + 40 + 4));
+    hinted.setHandleWidth(0);
+    CHECK(hinted.sizeHint() == QSize(100, 60));
+}
+
+static void testStatusBar() {
+    std::vector<QString> messages;
+    QWidget top;
+    top.resize(300, 60);
+    auto *layout = new QVBoxLayout(&top);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addStretch();
+    QStatusBar bar(&top);
+    layout->addWidget(&bar);
+    QObject::connect(&bar, &QStatusBar::messageChanged, [&](const QString &m) { messages.push_back(m); });
+    top.show();
+    settle(&top);
+    const int lh = bar.fontMetrics().height();
+    CHECK(bar.currentMessage().isEmpty() && !bar.isSizeGripEnabled() &&
+          bar.sizePolicy().verticalPolicy() == QSizePolicy::Fixed);
+    CHECK(bar.sizeHint().height() == lh + 5 && bar.height() == lh + 5 && bar.width() == 300 &&
+          bar.minimumSizeHint().height() == lh + 5);
+    bar.setSizeGripEnabled(true);
+    CHECK(bar.isSizeGripEnabled());
+    bar.setSizeGripEnabled(false);
+
+    // The widgets on the left, and on the right
+    QLabel left("Left", &top), second("Second", &top), perm("Right", &top), perm2("Far", &top);
+    bar.addWidget(&left);
+    bar.addWidget(&second, 1);
+    bar.addPermanentWidget(&perm);
+    bar.addPermanentWidget(&perm2);
+    settle(&top);
+    CHECK(left.parentWidget() == &bar && !left.isHidden() && !perm.isHidden());
+    CHECK(left.x() == 6 && left.y() == 3 && left.height() == bar.height() - 5);
+    // The permanent widgets from the right edge: the last added is the farthest right
+    CHECK(perm2.x() + perm2.width() == 300 - 6 && perm.x() + perm.width() == perm2.x() - 4);
+    CHECK(second.x() == left.x() + left.width() + 4 &&
+          second.x() + second.width() == perm.x() - 4); // the stretch takes the rest
+    CHECK(bar.sizeHint().width() >=
+          left.sizeHint().width() + second.sizeHint().width() + perm.sizeHint().width() + perm2.sizeHint().width());
+
+    // A message hides the widgets on the left, until it is cleared
+    bar.showMessage("Ready");
+    CHECK(bar.currentMessage() == "Ready" && messages == std::vector<QString>{"Ready"} && left.isHidden() &&
+          second.isHidden() && !perm.isHidden());
+    QImage image = grab(&top);
+    const QPoint origin = inWindow(&bar);
+    const QRgb window = bar.palette().color(QPalette::Window).rgb();
+    int ink = 0;
+    for (int x = 4; x < 60; ++x)
+        for (int y = 3; y < bar.height() - 2; ++y)
+            if (image.pixel(origin + QPoint(x, y)) != window)
+                ++ink;
+    CHECK(ink > 20);
+    bar.showMessage("Ready"); // the same message is announced again
+    CHECK(messages.size() == 2);
+    bar.clearMessage();
+    CHECK(bar.currentMessage().isEmpty() && !left.isHidden() && !second.isHidden() && messages.back().isEmpty() &&
+          messages.size() == 3);
+    bar.clearMessage();
+    CHECK(messages.size() == 3);
+    // A widget that was hidden stays hidden
+    second.hide();
+    bar.showMessage("Again");
+    bar.clearMessage();
+    CHECK(second.isHidden() && !left.isHidden());
+    second.show();
+    // An empty message clears
+    bar.showMessage("x");
+    bar.showMessage(QString());
+    CHECK(bar.currentMessage().isEmpty() && !left.isHidden());
+
+    // A message that goes away by itself
+    messages.clear();
+    bar.showMessage("Soon gone", 40);
+    CHECK(bar.currentMessage() == "Soon gone" && left.isHidden());
+    CHECK(waitFor([&] { return bar.currentMessage().isEmpty(); }));
+    CHECK(!left.isHidden() && messages == (std::vector<QString>{"Soon gone", QString()}));
+    // A new message replaces the old one and its timer
+    bar.showMessage("First", 30);
+    bar.showMessage("Second");
+    CHECK(!waitFor([&] { return bar.currentMessage().isEmpty(); }, 120) && bar.currentMessage() == "Second");
+    bar.clearMessage();
+
+    // Widgets that are added during a message are hidden until it ends
+    bar.showMessage("Busy");
+    QLabel late("Late", &top);
+    bar.addWidget(&late);
+    CHECK(late.isHidden());
+    bar.clearMessage();
+    CHECK(!late.isHidden());
+    bar.removeWidget(&late);
+    CHECK(late.isHidden() && late.parentWidget() == &bar);
+    bar.removeWidget(&late);
+    bar.removeWidget(nullptr);
+    bar.addWidget(&late);
+    CHECK(!late.isHidden());
+    bar.insertWidget(0, &late);
+    CHECK(late.x() == 6);
+    bar.insertPermanentWidget(0, &late);
+    CHECK(late.x() > 200 || late.x() + late.width() <= 300);
+    // A deleted widget leaves the bar
+    auto *doomed = new QLabel("Doomed", &top);
+    bar.addPermanentWidget(doomed);
+    const int hintWidth = bar.sizeHint().width();
+    delete doomed;
+    CHECK(bar.sizeHint().width() < hintWidth);
+
+    // The look: a line at the top
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(150, 0)) != window && image.pixel(origin + QPoint(150, 1)) == window);
+    bar.setEnabled(false);
+    bar.showMessage("Disabled");
+    image = grab(&top);
+    bar.setEnabled(true);
+    bar.clearMessage();
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -1388,6 +2035,11 @@ int main(int argc, char **argv) {
     testGroupBox();
     testTabWidget();
     testToolTips();
+    testToolButton();
+    testDial();
+    testLcdNumber();
+    testSplitter();
+    testStatusBar();
     testHideTakesFocus();
     testEverythingPaints();
     if (g_failures == 0)

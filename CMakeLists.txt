@@ -300,6 +300,7 @@ add_library(NtWidgets
     src/widgets/qboxlayout.cpp
     src/widgets/qcheckbox.cpp
     src/widgets/qcombobox.cpp
+    src/widgets/qdial.cpp
     src/widgets/qformlayout.cpp
     src/widgets/qframe.cpp
     src/widgets/qfusionstyle.cpp
@@ -309,6 +310,7 @@ add_library(NtWidgets
     src/widgets/qlabel.cpp
     src/widgets/qlayout.cpp
     src/widgets/qlayoutitem.cpp
+    src/widgets/qlcdnumber.cpp
     src/widgets/qlineedit.cpp
     src/widgets/qlistwidget.cpp
     src/widgets/qprogressbar.cpp
@@ -320,14 +322,17 @@ add_library(NtWidgets
     src/widgets/qsizepolicy.cpp
     src/widgets/qslider.cpp
     src/widgets/qspinbox.cpp
+    src/widgets/qsplitter.cpp
     src/widgets/qstackedlayout.cpp
     src/widgets/qstackedwidget.cpp
+    src/widgets/qstatusbar.cpp
     src/widgets/qstyle.cpp
     src/widgets/qstyleoption.cpp
     src/widgets/qtablewidget.cpp
     src/widgets/qtextcursor.cpp
     src/widgets/qtextedit.cpp
     src/widgets/qtabwidget.cpp
+    src/widgets/qtoolbutton.cpp
     src/widgets/qtooltip.cpp
     src/widgets/qwidget.cpp
     src/widgets/qwidgetwindow.cpp

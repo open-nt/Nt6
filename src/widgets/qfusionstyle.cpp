@@ -9,6 +9,7 @@
 #include <QtWidgets/qwidget.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -150,6 +151,23 @@ void QFusionStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *o
     case PE_IndicatorArrowDown:
         drawArrow(painter, r.center(), element == PE_IndicatorArrowDown,
                   option->palette.color(group, QPalette::ButtonText));
+        break;
+    case PE_IndicatorArrowLeft:
+    case PE_IndicatorArrowRight: {
+        // The same triangle turned: 4 pixels wide and 7 high.
+        painter->setPen(option->palette.color(group, QPalette::ButtonText));
+        const QPoint c = r.center();
+        for (int i = 0; i < 4; ++i) {
+            const int half = element == PE_IndicatorArrowLeft ? i : 3 - i;
+            const int x = c.x() - 2 + i;
+            painter->drawLine(x, c.y() - half, x, c.y() + half);
+        }
+        break;
+    }
+    case PE_PanelStatusBar:
+        painter->fillRect(r, option->palette.color(group, QPalette::Window));
+        painter->setPen(outlineOf(option));
+        painter->drawLine(r.left(), r.top(), r.right(), r.top());
         break;
     case PE_FrameGroupBox:
         painter->setPen(mix(outlineOf(option), option->palette.color(group, QPalette::Window), 45));
@@ -306,6 +324,73 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
                 painter->drawText(inner, Qt::AlignCenter | Qt::TextSingleLine, bar->text);
             }
         }
+        painter->restore();
+        break;
+    }
+    case CE_Splitter: {
+        const QColor window = option->palette.color(group, QPalette::Window);
+        painter->save();
+        painter->fillRect(option->rect, window);
+        // Three dots in the middle of the handle, along it
+        const bool horizontal = option->state & State_Horizontal;
+        const QColor dot = mix(outlineOf(option), window, 70);
+        const QPoint c = option->rect.center();
+        for (int i = -1; i <= 1; ++i) {
+            const QRect d =
+                horizontal ? QRect(c.x() - 1, c.y() + i * 4 - 1, 2, 2) : QRect(c.x() + i * 4 - 1, c.y() - 1, 2, 2);
+            painter->fillRect(d, dot);
+        }
+        painter->restore();
+        break;
+    }
+    case CE_Dial: {
+        const auto *dial = static_cast<const QStyleOptionSlider *>(option);
+        const QRect box = option->rect;
+        const int size = std::min(box.width(), box.height());
+        const QPoint center = box.center();
+        const QColor window = option->palette.color(group, QPalette::Window);
+        const QColor highlight = option->palette.color(group, QPalette::Highlight);
+        painter->save();
+        const qreal pi = 3.14159265358979323846;
+        const qint64 range = static_cast<qint64>(dial->maximum) - dial->minimum;
+        const qreal fraction =
+            range > 0
+                ? static_cast<qreal>(std::clamp(dial->sliderPosition, dial->minimum, dial->maximum) - dial->minimum) /
+                      static_cast<qreal>(range)
+                : 0;
+        // A dial that does not wrap spans 270 degrees from the bottom left to the bottom right, one that wraps the full circle
+        // from the bottom.
+        const qreal span = dial->wrapping ? 360.0 : 270.0, start = dial->wrapping ? 270.0 : 225.0;
+        auto point = [&](qreal degrees, qreal radius) {
+            const qreal rad = degrees * pi / 180.0;
+            return QPoint(center.x() + static_cast<int>(std::lround(radius * std::cos(rad))),
+                          center.y() - static_cast<int>(std::lround(radius * std::sin(rad))));
+        };
+        const int outer = std::max(2, size / 2 - 3 - (dial->tickMarks ? 4 : 0));
+        if (dial->tickMarks) {
+            painter->setPen(mix(outlineOf(option), window, 80));
+            const int notches = dial->wrapping ? 12 : 10;
+            for (int i = 0; i <= notches; ++i) {
+                if (dial->wrapping && i == notches)
+                    break;
+                const qreal a = start - span * i / notches;
+                const int rim = size / 2 - 1;
+                painter->drawLine(point(a, rim), point(a, rim - (i % 5 == 0 ? 4 : 2)));
+            }
+        }
+        painter->setPen(outlineOf(option));
+        painter->setBrush(option->palette.color(group, QPalette::Button));
+        painter->drawEllipse(QRect(center.x() - outer, center.y() - outer, 2 * outer + 1, 2 * outer + 1));
+        // The handle: a dot on the face, in the highlight color if the dial is enabled and has the focus
+        const qreal angle = start - span * fraction;
+        const int hr = std::max(2, outer / 6);
+        const QPoint h = point(angle, outer * 0.72);
+        painter->setPen((option->state & State_HasFocus) ? highlight : outlineOf(option));
+        painter->setBrush(
+            (option->state & State_Sunken)
+                ? highlight.darker(115)
+                : (option->state & State_Enabled ? highlight : option->palette.color(group, QPalette::Mid)));
+        painter->drawEllipse(QRect(h.x() - hr, h.y() - hr, 2 * hr + 1, 2 * hr + 1));
         painter->restore();
         break;
     }
@@ -625,6 +710,8 @@ int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, co
         return 100;
     case PM_HeaderDefaultSectionSizeVertical:
         return 30;
+    case PM_SplitterWidth:
+        return 4;
     }
     return 0;
 }
@@ -668,6 +755,8 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
         return QSize(contentsSize.width() + 8 + pixelMetric(PM_ComboBoxArrowWidth, option, widget),
                      contentsSize.height() + m + 2 * pixelMetric(PM_DefaultFrameWidth, option, widget));
     }
+    case CT_ToolButton:
+        return QSize(contentsSize.width() + 14, contentsSize.height() + 7);
     case CT_SpinBox: {
         const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
         return QSize(contentsSize.width() + 2 * (frame + 3) + pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 3,

@@ -23,12 +23,13 @@
     Only part of the Qt API is provided: construction, element access,
     slicing, trimmed(), startsWith(), endsWith(), indexOf(), lastIndexOf(),
     contains(), compare(), a few number conversions (toInt(), toUInt(),
-    toLongLong(), toULongLong() and toDouble()) and the comparison operators.
+    toLongLong(), toULongLong() and toDouble()), the QRegularExpression
+    searches and the comparison operators.
     The searching, comparison and conversion functions copy the view into a
     QString first, so they allocate. \c split(), \c count(), \c toLocal8Bit(),
     \c toUcs4(), the other \c toXxx() number conversions, the reverse
-    iterators, \c isRightToLeft(), the QLatin1StringView overloads and the
-    QRegularExpression overloads are not provided. first(), last(), sliced(),
+    iterators, \c isRightToLeft() and the QLatin1StringView overloads are not
+    provided. first(), last(), sliced(),
     chopped(), truncate() and chop() do not check their arguments.
     \enddifferences
 
@@ -391,6 +392,11 @@ public:
         less than, equal to or greater than \a s. See QString::compare().
     */
     int compare(QStringView s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return toString().compare(s.toString(), cs); }
+    bool contains(const QRegularExpression &re, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype indexOf(const QRegularExpression &re, qsizetype from = 0, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype lastIndexOf(const QRegularExpression &re, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype lastIndexOf(const QRegularExpression &re, qsizetype from, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype count(const QRegularExpression &re) const;
     /*!
         Returns the view converted to an \c int using \a base. See
         QString::toInt() for how \a ok is set and which inputs are accepted.

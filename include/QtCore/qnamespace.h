@@ -780,6 +780,19 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(DockWidgetAreas)
 enum DayOfWeek { Monday = 1, Tuesday = 2, Wednesday = 3, Thursday = 4, Friday = 5, Saturday = 6, Sunday = 7 };
 
 /*!
+    \enum Qt::LayoutDirection
+
+    The direction in which text is written and laid out.
+
+    \value LeftToRight Left to right.
+    \value RightToLeft Right to left.
+    \value LayoutDirectionAuto The direction is determined automatically from the content.
+
+    \sa QLocale::textDirection()
+*/
+enum LayoutDirection { LeftToRight, RightToLeft, LayoutDirectionAuto };
+
+/*!
     \enum Qt::MatchFlag
 
     How a text is matched against items, as by QCompleter. The MatchFlags type is a typedef for

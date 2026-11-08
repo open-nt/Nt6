@@ -31,6 +31,7 @@ add_library(NtCore
     src/qbuffer.cpp
     src/qbytearray.cpp
     src/qchar.cpp
+    src/qcollator.cpp
     src/qcommandlineparser.cpp
     src/qcoreapplication.cpp
     src/qcoreevent.cpp
@@ -55,6 +56,7 @@ add_library(NtCore
     src/qjsonvalue.cpp
     src/qjsonwriter.cpp
     src/qlibraryinfo.cpp
+    src/qlocale.cpp
     src/qlockfile.cpp
     src/qlogging.cpp
     src/qloggingcategory.cpp
@@ -66,6 +68,7 @@ add_library(NtCore
     src/qobjectcleanuphandler.cpp
     src/qprocess.cpp
     src/qrandom.cpp
+    src/qregularexpression.cpp
     src/qrunnable.cpp
     src/qsavefile.cpp
     src/qsettings.cpp
@@ -74,13 +77,16 @@ add_library(NtCore
     src/qsocketnotifier.cpp
     src/qstandardpaths.cpp
     src/qstring.cpp
+    src/qstringconverter.cpp
     src/qsysinfo.cpp
     src/qtemporaryfile.cpp
+    src/qtextboundaryfinder.cpp
     src/qtextstream.cpp
     src/qthread.cpp
     src/qthreadpool.cpp
     src/qthreadstorage.cpp
     src/qtimer.cpp
+    src/qtranslator.cpp
     src/qurl.cpp
     src/quuid.cpp
     src/qvariant.cpp
@@ -513,7 +519,7 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_core_tests PRIVATE Nt::Core)
     add_test(NAME nt_core_tests COMMAND nt_core_tests)
 
-    foreach(suite filesystem streams types)
+    foreach(suite filesystem streams text types)
         add_executable(nt_${suite}_tests tests/test_${suite}.cpp)
         target_link_libraries(nt_${suite}_tests PRIVATE Nt::Core)
         add_test(NAME nt_${suite}_tests COMMAND nt_${suite}_tests)
@@ -764,7 +770,7 @@ if(NT_BUILD_TESTS)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
                            nt_test_tests)
-    foreach(suite filesystem streams types)
+    foreach(suite filesystem streams text types)
         nt_set_compile_options(nt_${suite}_tests)
     endforeach()
 endif()

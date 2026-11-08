@@ -222,12 +222,21 @@ public:
     QReturnArgument(const char *aName, T &aData) : QGenericReturnArgument(aName, static_cast<void *>(&aData)) {}
 };
 
+class QString;
+namespace QtPrivate {
+// Translates through the translators installed on QCoreApplication; used by tr().
+QString translate(const char *context, const char *sourceText, const char *disambiguation, int n);
+} // namespace QtPrivate
+
 // Q_OBJECT and Q_GADGET declare what ntmoc defines. A class that never goes through ntmoc leaves
 // them undefined, which is fine until something refers to staticMetaObject.
 #define Q_OBJECT                                                                                                       \
 public:                                                                                                                \
     static const QMetaObject staticMetaObject;                                                                         \
     static void qt_static_metacall(QObject *, QMetaObject::Call, int, void **);                                        \
+    static QString tr(const char *sourceText, const char *disambiguation = nullptr, int n = -1) {                      \
+        return QtPrivate::translate(staticMetaObject.className(), sourceText, disambiguation, n);                      \
+    }                                                                                                                  \
                                                                                                                        \
 private:                                                                                                               \
     struct QPrivateSignal {                                                                                            \

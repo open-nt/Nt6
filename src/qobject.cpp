@@ -142,7 +142,7 @@
     \endcode
 
     \differences
-    Translation via tr() is not implemented, and there are no event filters or
+    There are no event filters or
     \c Qt::UniqueConnection. A queued
     invocation that has not run yet is discarded if its connection is
     disconnected, where Qt still runs it. A \c Qt::BlockingQueuedConnection to
@@ -457,6 +457,18 @@ void QObject::setParent(QObject *parent) {
     if (parent)
         Access::d(parent).children.push_back(this);
 }
+
+/*!
+    \fn QString QObject::tr(const char *sourceText, const char *disambiguation, int n)
+
+    Returns the translation of the UTF-8 text \a sourceText in the context
+    \c{"QObject"}, with the disambiguation comment \a disambiguation and,
+    for plural forms, the count \a n, as QCoreApplication::translate()
+    does. Every class with \c Q_OBJECT gets its own tr(), which uses the
+    class name as the context.
+
+    \sa QCoreApplication::installTranslator()
+*/
 
 /*!
     Returns \c true if signals emitted by this object are blocked; otherwise

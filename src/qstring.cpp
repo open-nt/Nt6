@@ -134,12 +134,13 @@ std::u16string pad(std::u16string s, int fieldWidth, char16_t fill, bool numeric
     assignment; there is no implicit sharing, so fromRawData() copies its
     argument. Case conversion, case-insensitive comparison and QChar
     classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic
-    only. There is no locale support: localeAwareCompare() is a plain
-    comparison, toLocal8Bit() and fromLocal8Bit() use UTF-8, and a \c{%L1}
+    only. localeAwareCompare() uses QCollator, whose collation is
+    simplified; toLocal8Bit() and fromLocal8Bit() use UTF-8, and a \c{%L1}
     place marker in arg() is handled like \c{%1}. count() returns 0 for an
     empty argument. Functions taking QStringView or QLatin1StringView are
-    mostly missing; use the QString overloads. Not provided are the
-    QRegularExpression overloads, \c normalized(), \c toHtmlEscaped(),
+    mostly missing; use the QString overloads. section() has no
+    QRegularExpression overload. Not provided are \c normalized(),
+    \c toHtmlEscaped(),
     \c toWCharArray(), \c fromWCharArray(), \c toUcs4(), \c fromUcs4(),
     \c setRawData(), \c setUnicode() and \c setUtf16(), nor QStringBuilder
     concatenation.

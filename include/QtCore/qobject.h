@@ -178,13 +178,6 @@ public:
         return r;
     }
 
-    /*!
-        Returns the UTF-8 text \a sourceText as a QString. Translation is not
-        implemented, so the context and disambiguation arguments are ignored.
-    */
-    // Translation is not implemented; returns the source text.
-    static QString tr(const char *sourceText, const char * = nullptr, int = -1) { return QString::fromUtf8(sourceText); }
-
     bool signalsBlocked() const noexcept;
     bool blockSignals(bool block) noexcept;
 

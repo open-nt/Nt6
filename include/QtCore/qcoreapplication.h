@@ -5,6 +5,8 @@
 #include <QtCore/qobject.h>
 #include <QtCore/qstringlist.h>
 
+class QTranslator;
+
 class QCoreApplication : public QObject {
     Q_OBJECT
 public:
@@ -39,6 +41,9 @@ public:
     static void removePostedEvents(QObject *receiver, int eventType = 0);
 
     virtual bool notify(QObject *receiver, QEvent *event);
+    static bool installTranslator(QTranslator *translationFile);
+    static bool removeTranslator(QTranslator *translationFile);
+    static QString translate(const char *context, const char *sourceText, const char *disambiguation = nullptr, int n = -1);
 
 public slots:
     static void quit();
@@ -54,3 +59,11 @@ signals:
 };
 
 #define qApp QCoreApplication::instance()
+
+#define Q_DECLARE_TR_FUNCTIONS(context)                                                                                \
+public:                                                                                                                \
+    static QString tr(const char *sourceText, const char *disambiguation = nullptr, int n = -1) {                      \
+        return QCoreApplication::translate(#context, sourceText, disambiguation, n);                                   \
+    }                                                                                                                  \
+                                                                                                                       \
+private:

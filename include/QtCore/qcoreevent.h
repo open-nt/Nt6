@@ -17,6 +17,8 @@ public:
         \value ThreadChange The object is about to move to another thread; see QObject::moveToThread().
         \value SockAct A socket notifier became active; see QSocketNotifier.
         \value DynamicPropertyChange A dynamic property was added, changed or removed; delivered as a QDynamicPropertyChangeEvent.
+        \value LanguageChange The translations changed; QCoreApplication posts it to the application object when a translator is installed or removed.
+        \value LocaleChange The default locale changed.
         \value DeferredDelete The receiver should be deleted; posted by QObject::deleteLater().
         \value UpdateRequest A request to update a deferred state; QSettings posts it to write its changes back from the event loop, and QWindow::requestUpdate() uses it to ask for a repaint.
         \value LayoutRequest A widget's layout has to be done again; posted by QLayout::invalidate().
@@ -61,6 +63,8 @@ public:
         MetaCall = 43,
         SockAct = 50,
         DynamicPropertyChange = 170,
+        LanguageChange = 89,
+        LocaleChange = 88,
         DeferredDelete = 52,
         UpdateRequest = 77,
         LayoutRequest = 76,

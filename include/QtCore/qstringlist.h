@@ -21,10 +21,11 @@
 
     \differences
     QStringList derives from QList<QString> as in Qt 6. contains(),
-    indexOf(), filter() and replaceInStrings() take plain QString arguments
-    only: there are no QStringView, QLatin1StringView or QRegularExpression
-    overloads. \c lastIndexOf() is the inherited QList one and has no case
-    sensitivity argument. join() accepts a QString or QChar separator only.
+    indexOf(), filter() and replaceInStrings() take QString or
+    QRegularExpression arguments: there are no QStringView or
+    QLatin1StringView overloads. The QString \c lastIndexOf() is the
+    inherited QList one and has no case sensitivity argument. join() accepts
+    a QString or QChar separator only.
     \enddifferences
 
     \sa QString, QList
@@ -141,6 +142,11 @@ public:
             s.replace(before, after, cs);
         return *this;
     }
+    using QList<QString>::lastIndexOf;
+    QStringList filter(const QRegularExpression &re) const;
+    qsizetype indexOf(const QRegularExpression &re, qsizetype from = 0) const;
+    qsizetype lastIndexOf(const QRegularExpression &re, qsizetype from = -1) const;
+    QStringList &replaceInStrings(const QRegularExpression &re, const QString &after);
     /*!
         Removes duplicate strings from the list, keeping the first occurrence
         of each, and returns the number of strings removed. Strings are

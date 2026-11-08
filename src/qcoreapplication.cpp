@@ -53,7 +53,7 @@ bool g_appNameSet = false;
     and provides functions to send and post events.
 
     \differences
-    Only part of the Qt API is present: there is no \c installTranslator(), \c libraryPaths(), \c applicationFilePath(),
+    Only part of the Qt API is present: there is no \c libraryPaths(), \c applicationFilePath(),
     \c processEvents() overload with a timeout or \c postEvent() priority.
     Creating a second application object aborts the process. \c exit() and
     \c quit() stop every running QEventLoop of the thread that created the

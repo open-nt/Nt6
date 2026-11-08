@@ -12,6 +12,8 @@
 
 class QString;
 class QStringList;
+class QRegularExpression;
+class QRegularExpressionMatch;
 
 /*!
     \class QLatin1StringView
@@ -616,6 +618,14 @@ public:
     qsizetype count(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return count(QString(c), cs); }
     QStringList split(const QString &sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     QStringList split(QChar sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    bool contains(const QRegularExpression &re, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype indexOf(const QRegularExpression &re, qsizetype from = 0, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype lastIndexOf(const QRegularExpression &re, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype lastIndexOf(const QRegularExpression &re, qsizetype from, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype count(const QRegularExpression &re) const;
+    QString &replace(const QRegularExpression &re, const QString &after);
+    QString &remove(const QRegularExpression &re);
+    QStringList split(const QRegularExpression &sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts) const;
 
     // --- formatting / numbers ---
     QString arg(const QString &a, int fieldWidth = 0, QChar fillChar = QChar(u' ')) const;
@@ -867,12 +877,7 @@ public:
         Compares the strings \a a and \a b using the case sensitivity \a cs.
     */
     static int compare(const QString &a, const QString &b, Qt::CaseSensitivity cs = Qt::CaseSensitive) { return a.compare(b, cs); }
-    /*!
-        Compares the strings \a a and \a b and returns a negative integer,
-        zero or a positive integer. The comparison is not locale aware: it
-        is the same as compare() with Qt::CaseSensitive.
-    */
-    static int localeAwareCompare(const QString &a, const QString &b) { return a.compare(b); }
+    static int localeAwareCompare(const QString &a, const QString &b);
     /*!
         Returns \c false; right-to-left text detection is not implemented.
     */

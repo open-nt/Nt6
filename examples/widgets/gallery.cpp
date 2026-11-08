@@ -287,7 +287,7 @@ protected:
     }
     void enterEvent(QEnterEvent *event) override {
         m_inside = true;
-        m_mouse = event->pos();
+        m_mouse = event->position().toPoint();
         update();
     }
     void leaveEvent(QEvent *) override {
@@ -296,13 +296,13 @@ protected:
         report("The mouse left the pad.");
     }
     void mouseMoveEvent(QMouseEvent *event) override {
-        m_mouse = event->pos();
+        m_mouse = event->position().toPoint();
         update();
         report(QString("Pad: %1, %2%3").arg(m_mouse.x()).arg(m_mouse.y()).arg(m_down ? " (button down)" : ""));
     }
     void mousePressEvent(QMouseEvent *event) override {
         m_down = true;
-        m_mouse = event->pos();
+        m_mouse = event->position().toPoint();
         update();
         report(QString("Pad: pressed at %1, %2").arg(m_mouse.x()).arg(m_mouse.y()));
     }

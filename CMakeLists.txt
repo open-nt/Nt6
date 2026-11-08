@@ -10,6 +10,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(NT_BUILD_TESTS "Build tests" ON)
 option(NT_BUILD_EXAMPLES "Build examples" ON)
+option(NT_EXAMPLES_QT "Also build the widget examples against Qt 6 (the qt_examples target), to compare them with Nt" OFF)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtCompilerOptions.cmake)
 
@@ -609,6 +610,18 @@ if(NT_BUILD_EXAMPLES)
     add_executable(gallery examples/widgets/gallery.cpp)
     target_link_libraries(gallery PRIVATE Nt::Widgets)
     nt_set_compile_options(gallery)
+
+    # The same widget examples against Qt 6, as hello_widgets_qt and gallery_qt in qt-examples/. They are built
+    # by a project of their own, because Nt provides the Qt6:: names itself.
+    if(NT_EXAMPLES_QT)
+        include(ExternalProject)
+        ExternalProject_Add(qt_examples
+            SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/examples/qt"
+            BINARY_DIR "${CMAKE_BINARY_DIR}/qt-examples"
+            CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+            BUILD_ALWAYS ON
+            INSTALL_COMMAND "")
+    endif()
 
     # A serial terminal; see "Using Nt Serial Port" in the documentation.
     add_executable(serialterm examples/serialport/serialterm.cpp)

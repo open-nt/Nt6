@@ -96,18 +96,6 @@ QPixmap &QPixmap::operator=(QPixmap &&other) noexcept {
 */
 
 /*!
-    \fn int QPixmap::width() const
-
-    Returns the width of the pixmap in pixels.
-*/
-
-/*!
-    \fn int QPixmap::height() const
-
-    Returns the height of the pixmap in pixels.
-*/
-
-/*!
     \fn QSize QPixmap::size() const
 
     Returns the size of the pixmap.
@@ -117,12 +105,6 @@ QPixmap &QPixmap::operator=(QPixmap &&other) noexcept {
     \fn QRect QPixmap::rect() const
 
     Returns the rectangle of the pixmap, at the origin.
-*/
-
-/*!
-    \fn int QPixmap::depth() const
-
-    Returns the bits per pixel, 32, or 0 for a null pixmap.
 */
 
 /*!
@@ -179,7 +161,7 @@ int QPixmap::metric(PaintDeviceMetric metric) const {
     case PdmHeight:
         return m_image.height();
     case PdmDepth:
-        return depth();
+        return m_image.isNull() ? 0 : 32;
     default:
         return QPaintDevice::metric(metric);
     }

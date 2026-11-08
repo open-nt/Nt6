@@ -1,0 +1,11 @@
+If you write C++ with Qt, meet Nt ("Nut"): a small, clean-room implementation of the Qt 6 API under the MIT license.
+
+You keep writing the code you know: QObject, signals and slots, QString, QTimer, sockets, widgets. Nt builds with CMake and a C++17 compiler.
+
+It comes in nine modules (Core, Network, Serial Port, D-Bus, HTTP Server, WebSockets, GUI, Widgets and Test), and it grows one module at a time.
+
+Over the next eight posts I'll show how it works, one lesson each. Follow along, and tell me which part of the Qt API you would want first.
+
+https://github.com/open-nt/Nt6
+
+#cpp #opensource #qt #cmake #linux

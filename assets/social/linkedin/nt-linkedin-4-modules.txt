@@ -1,0 +1,9 @@
+Qt is big. Nt is growing a module at a time: Core, Network, Serial Port, D-Bus, HTTP Server, WebSockets, GUI, Widgets and Test.
+
+Four of them (Core, Network, GUI and Widgets) are marked partial: the classes Nt needs first are there, and the rest is coming.
+
+The part I like most: every class documents what differs from Qt, in a "Differences from Qt" section. No surprises hiding in the details.
+
+https://open-nt.github.io/Nt6/
+
+#cpp #qt #opensource #documentation

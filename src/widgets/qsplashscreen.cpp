@@ -61,7 +61,7 @@ QSplashScreen::~QSplashScreen() {
 */
 void QSplashScreen::setPixmap(const QPixmap &pixmap) {
     m_pixmap = pixmap;
-    const QSize size = sizeHint();
+    const QSize size = m_pixmap.isNull() ? QSize(300, 150) : m_pixmap.size();
     QRect area(QPoint(0, 0), size);
     if (QScreen *screen = QGuiApplication::primaryScreen())
         area.moveCenter(screen->geometry().center());

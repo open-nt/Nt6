@@ -1,0 +1,7 @@
+Why trust a young library? Because of what happens before every commit: ./check.sh builds with -Werror, runs clang-tidy and cppcheck, runs the tests, checks that every public class is documented, and repeats the tests under AddressSanitizer, UBSan and ThreadSanitizer. CI builds Nt on Ubuntu 22.04, 24.04 and 26.04, Enterprise Linux 9 and 10, and Arch Linux.
+
+And it is open: star it, fork it, send a pull request. Contributors are welcome.
+
+https://github.com/open-nt/Nt6
+
+#opensource #cpp #contributing #linux

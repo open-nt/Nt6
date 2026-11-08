@@ -1,0 +1,13 @@
+An HTTP service with Nt HTTP Server:
+
+QHttpServer server;
+server.route("/hello/<arg>", [](const QString &name) { return "Hello, " + name; });
+server.bind(tcp);  // a QTcpServer
+
+Routes take typed arguments (<arg> arrives as a QString, an int or a double), and the server can listen on TCP, TLS (HTTPS) and local sockets.
+
+Same names as Qt, with Nt underneath.
+
+https://github.com/open-nt/Nt6
+
+#cpp #qt #webdevelopment #opensource

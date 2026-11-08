@@ -1,0 +1,11 @@
+Two words in Nt's description deserve a proper explanation.
+
+Clean-room: Nt is written without copying Qt's source code. It follows the public Qt 6 API, so your code keeps its shape.
+
+MIT: a short, permissive license. You can use, change and ship Nt in open or closed source products, as long as you keep the license notice.
+
+And one thing to be clear about: Nt is not affiliated with The Qt Company, and its name and logo are not meant to be mistaken for Qt's.
+
+https://github.com/open-nt/Nt6
+
+#opensource #mitlicense #cpp #qt

@@ -1,0 +1,9 @@
+Nt Widgets is the newest part: labels, buttons, line edits, sliders, spin boxes, tables, lists, text editors, menus and more, drawn with a Fusion-like style.
+
+The hello_widgets example shows one of every widget, live, on its first tab. It follows your desktop's dark or light theme, and a CMake option (-DNT_EXAMPLES_QT=ON) builds the same example against real Qt, so you can compare the two side by side.
+
+Run it and see.
+
+https://github.com/open-nt/Nt6
+
+#cpp #qt #gui #linux #opensource

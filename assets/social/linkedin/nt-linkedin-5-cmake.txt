@@ -1,0 +1,11 @@
+Using Nt in a project takes three lines:
+
+find_package(Nt6 6 REQUIRED)
+target_link_libraries(app PRIVATE Nt6::Network)
+nt_enable_automoc(app)
+
+Both Nt:: and Qt6:: target names work. Headers install to /usr/include/nt6, so Nt can sit next to Qt on the same machine. And there are packages for Ubuntu, Enterprise Linux, Arch and snap.
+
+https://github.com/open-nt/Nt6
+
+#cmake #cpp #linux #packaging

@@ -90,7 +90,7 @@ QMdiSubWindow::QMdiSubWindow(QWidget *parent, Qt::WindowFlags flags) : QWidget(p
         QCloseEvent close;
         QCoreApplication::sendEvent(this, &close);
     });
-    resize(sizeHint());
+    resize(QMdiSubWindow::sizeHint()); // not virtual during construction
     updateButtons();
 }
 

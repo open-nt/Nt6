@@ -1,0 +1,9 @@
+Signals and slots are the heart of Qt code. In Nt they work the way you expect: Q_OBJECT, signals:, slots:, emit and pointer-to-member connect().
+
+The difference is the tool behind them. Instead of Qt's moc, Nt uses ntmoc, a small MIT scanner that generates the bodies of the signals you declare. It also accepts the command line that CMake's AUTOMOC uses, so it plugs into your build.
+
+Your class stays exactly as you would write it for Qt.
+
+https://github.com/open-nt/Nt6
+
+#cpp #qt #cmake #opensource

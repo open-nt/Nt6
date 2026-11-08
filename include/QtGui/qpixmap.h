@@ -21,11 +21,8 @@ public:
     void swap(QPixmap &other) noexcept { m_image.swap(other.m_image); }
 
     bool isNull() const { return m_image.isNull(); }
-    int width() const { return m_image.width(); }
-    int height() const { return m_image.height(); }
     QSize size() const { return m_image.size(); }
     QRect rect() const { return m_image.rect(); }
-    int depth() const { return m_image.isNull() ? 0 : 32; }
     bool hasAlphaChannel() const { return m_image.hasAlphaChannel(); }
     void fill(const QColor &color = Qt::white);
     QPixmap copy(const QRect &rect = QRect()) const;

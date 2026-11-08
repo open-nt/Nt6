@@ -748,7 +748,8 @@ bool plainTextEdits(const std::string &dir) {
     QWidget &w = *host(300, 10);
     auto *layout = static_cast<QBoxLayout *>(w.layout());
     auto *typed = new QPlainTextEdit(&w);
-    typed->setPlainText("Text of many lines, with a selection\nthat goes over the end of a line,\nand a long line that wraps at the width of the widget.");
+    typed->setPlainText("Text of many lines, with a selection\nthat goes over the end of a line,\nand a long line that "
+                        "wraps at the width of the widget.");
     QTextCursor cursor = typed->textCursor();
     cursor.setPosition(8);
     cursor.setPosition(52, QTextCursor::KeepAnchor);
@@ -962,11 +963,11 @@ int main(int argc, char *argv[]) {
     ::mkdir(directory.c_str(), 0755);
     ::mkdir((directory + "/widgets").c_str(), 0755);
     bool ok = true;
-    for (bool (*render)(const std::string &) : {labels, pushButtons, checkBoxes, radioButtons, lineEdits, sliders,
-                                                progressBars, spinBoxes, comboBoxes, groupBoxes, tabWidgets, frames,
-                                                gridLayouts, formLayouts, stackedWidgets, toolTips, scrollBars, scrollAreas, listWidgets, plainTextEdits, headerViews,
-                                                toolButtons, dials, lcdNumbers, splitters, statusBars, menus, menuBars,
-                                                tableWidgets})
+    for (bool (*render)(const std::string &) :
+         {labels,     pushButtons, checkBoxes,  radioButtons,   lineEdits,   sliders,     progressBars,   spinBoxes,
+          comboBoxes, groupBoxes,  tabWidgets,  frames,         gridLayouts, formLayouts, stackedWidgets, toolTips,
+          scrollBars, scrollAreas, listWidgets, plainTextEdits, headerViews, toolButtons, dials,          lcdNumbers,
+          splitters,  statusBars,  menus,       menuBars,       tableWidgets})
         ok = render(directory) && ok;
     return ok ? 0 : 1;
 }

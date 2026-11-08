@@ -52,10 +52,7 @@ public:
 
     QActionGroup *actionGroup() const { return m_group; }
     void setActionGroup(QActionGroup *group);
-    template <typename T>
-    T menu() const {
-        return dynamic_cast<T>(m_menu.data());
-    }
+    template <typename T> T menu() const { return dynamic_cast<T>(m_menu.data()); }
     void setMenu(QObject *menu);
     QList<QObject *> associatedObjects() const;
     void activate(ActionEvent event);

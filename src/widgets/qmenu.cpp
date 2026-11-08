@@ -287,8 +287,9 @@ void QMenu::layoutItems() const {
             if (isSubMenuAction(action))
                 option.menuItemType = QStyleOptionMenuItem::SubMenu;
             const QFontMetrics metrics(option.font);
-            size = style()->sizeFromContents(QStyle::CT_MenuItem, &option,
-                                             QSize(metrics.horizontalAdvance(plainLabel(option.text)), metrics.height()), this);
+            size = style()->sizeFromContents(
+                QStyle::CT_MenuItem, &option,
+                QSize(metrics.horizontalAdvance(plainLabel(option.text)), metrics.height()), this);
             const qsizetype at = option.text.indexOf('\t');
             if (at >= 0)
                 tab = std::max(tab, menuMetrics.horizontalAdvance(option.text.mid(at + 1)));
@@ -574,8 +575,7 @@ void QMenu::activateItem(QAction *action) {
         return;
     // The menus from this one to the first, which all report the action
     std::vector<QPointer<QMenu>> chain;
-    for (QMenu *menu = this; menu;
-         menu = dynamic_cast<QMenu *>(WidgetAccess::data(menu).popupParent.data()))
+    for (QMenu *menu = this; menu; menu = dynamic_cast<QMenu *>(WidgetAccess::data(menu).popupParent.data()))
         chain.emplace_back(menu);
     QMenu *root = rootMenu();
     QPointer<QWidget> bar = root->m_bar;
@@ -619,8 +619,9 @@ void QMenu::paintEvent(QPaintEvent *event) {
         else if (isSubMenuAction(action))
             option.menuItemType = QStyleOptionMenuItem::SubMenu;
         if (action->isCheckable()) {
-            option.checkType = action->actionGroup() && action->actionGroup()->isExclusive() ? QStyleOptionMenuItem::Exclusive
-                                                                                              : QStyleOptionMenuItem::NonExclusive;
+            option.checkType = action->actionGroup() && action->actionGroup()->isExclusive()
+                                   ? QStyleOptionMenuItem::Exclusive
+                                   : QStyleOptionMenuItem::NonExclusive;
             option.checked = action->isChecked();
         }
         style()->drawControl(QStyle::CE_MenuItem, &option, &painter, this);

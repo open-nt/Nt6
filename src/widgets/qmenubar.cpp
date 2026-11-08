@@ -154,8 +154,9 @@ void QMenuBar::layoutItems() const {
         QStyleOptionMenuItem option;
         option.text = action->text();
         option.font = font();
-        const QSize size = style()->sizeFromContents(QStyle::CT_MenuBarItem, &option,
-                                                     QSize(metrics.horizontalAdvance(plainTitle(action->text())), metrics.height()), this);
+        const QSize size = style()->sizeFromContents(
+            QStyle::CT_MenuBarItem, &option,
+            QSize(metrics.horizontalAdvance(plainTitle(action->text())), metrics.height()), this);
         m_items.push_back({action, QRect(x, 0, size.width(), size.height())});
         height = size.height();
         x += size.width() + spacing;

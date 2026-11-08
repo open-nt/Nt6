@@ -3,6 +3,8 @@
 // Tests for Nt GUI on the offscreen platform: value types, painting, events and the window
 // life cycle. No display is needed.
 #include <QtCore>
+#include <QtGui/qaction.h>
+#include <QtGui/qactiongroup.h>
 #include <QtGui/qbackingstore.h>
 #include <QtGui/qbrush.h>
 #include <QtGui/qcolor.h>
@@ -11,6 +13,7 @@
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qimage.h>
+#include <QtGui/qkeysequence.h>
 #include <QtGui/qpaintdevicewindow.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qpen.h>
@@ -1048,6 +1051,239 @@ static void testPlatformRegistry() {
     CHECK(QtPrivate::createPlatformIntegration("no-such-platform", argc, nullptr) == nullptr);
 }
 
+static void testKeySequence() {
+    const QKeySequence empty;
+    CHECK(empty.isEmpty() && empty.count() == 0 && empty.toString().isEmpty() && empty[0] == 0);
+    const QKeySequence save(Qt::CTRL | Qt::Key_S);
+    CHECK(!save.isEmpty() && save.count() == 1 && save[0] == (Qt::ControlModifier | Qt::Key_S) && save[1] == 0);
+    CHECK(save.toString() == "Ctrl+S" && save.toString(QKeySequence::NativeText) == "Ctrl+S");
+    CHECK(QKeySequence("Ctrl+S") == save && QKeySequence("ctrl + s") != save && QKeySequence("CTRL+s") == save);
+    CHECK(QKeySequence("Shift+Ctrl+Alt+Meta+F5").toString() == "Meta+Ctrl+Alt+Shift+F5");
+    CHECK(QKeySequence("Alt+F4")[0] == (Qt::ALT | Qt::Key_F4) && QKeySequence("F12")[0] == Qt::Key_F12);
+    CHECK(QKeySequence("Esc")[0] == Qt::Key_Escape && QKeySequence("Del").toString() == "Del" &&
+          QKeySequence("PgDown").toString() == "PgDown" && QKeySequence("Space").toString() == "Space");
+    CHECK(QKeySequence("Ctrl++")[0] == (Qt::CTRL | Qt::Key_Plus) && QKeySequence("Ctrl+-").toString() == "Ctrl+-");
+    CHECK(QKeySequence("").isEmpty() && QKeySequence("Ctrl+").isEmpty() && QKeySequence("Nonsense").isEmpty() &&
+          QKeySequence("F13").isEmpty());
+    CHECK(QKeySequence::fromString("Ctrl+O") == QKeySequence::Open);
+    CHECK(save.matches(QKeySequence("Ctrl+S")) == QKeySequence::ExactMatch &&
+          save.matches(QKeySequence("Ctrl+D")) == QKeySequence::NoMatch &&
+          empty.matches(QKeySequence()) == QKeySequence::NoMatch);
+    CHECK(QKeySequence(QKeySequence::Copy).toString() == "Ctrl+C" &&
+          QKeySequence(QKeySequence::Redo).toString() == "Ctrl+Shift+Z" &&
+          QKeySequence(QKeySequence::Quit).toString() == "Ctrl+Q" &&
+          QKeySequence(QKeySequence::HelpContents).toString() == "F1" &&
+          QKeySequence(QKeySequence::UnknownKey).isEmpty());
+    CHECK(QKeySequence::keyBindings(QKeySequence::Paste).size() == 1 &&
+          QKeySequence::keyBindings(QKeySequence::UnknownKey).isEmpty());
+    CHECK(QKeySequence::mnemonic("&File")[0] == (Qt::ALT | Qt::Key_F) &&
+          QKeySequence::mnemonic("Fi&le")[0] == (Qt::ALT | Qt::Key_L) && QKeySequence::mnemonic("A && B").isEmpty() &&
+          QKeySequence::mnemonic("Plain").isEmpty() && QKeySequence::mnemonic("A && &B")[0] == (Qt::ALT | Qt::Key_B));
+    CHECK(QKeySequence("Ctrl+A") < QKeySequence("Ctrl+B") && QKeySequence(Qt::Key_unknown).isEmpty());
+}
+
+static void testAction() {
+    std::string log;
+    auto add = [&](const char *text) {
+        log += text;
+        log += ' ';
+    };
+    QAction a("&Open");
+    QObject::connect(&a, &QAction::triggered, [&](bool c) { add(c ? "triggered(1)" : "triggered(0)"); });
+    QObject::connect(&a, &QAction::toggled, [&](bool c) { add(c ? "toggled(1)" : "toggled(0)"); });
+    QObject::connect(&a, &QAction::changed, [&] { add("changed"); });
+    QObject::connect(&a, &QAction::hovered, [&] { add("hovered"); });
+    QObject::connect(&a, &QAction::enabledChanged, [&](bool c) { add(c ? "enabled(1)" : "enabled(0)"); });
+    QObject::connect(&a, &QAction::checkableChanged, [&](bool c) { add(c ? "checkable(1)" : "checkable(0)"); });
+    QObject::connect(&a, &QAction::visibleChanged, [&] { add("visible"); });
+    auto flush = [&] {
+        std::string out = log;
+        log.clear();
+        return out;
+    };
+    CHECK(a.text() == "&Open" && a.iconText() == "Open" && a.toolTip() == "Open" && a.statusTip().isEmpty());
+    CHECK(a.isEnabled() && a.isVisible() && !a.isCheckable() && !a.isChecked() && !a.isSeparator() &&
+          a.shortcut().isEmpty());
+    CHECK(a.actionGroup() == nullptr && a.associatedObjects().isEmpty() && a.menu<QObject *>() == nullptr);
+    a.trigger();
+    CHECK(flush() == "triggered(0) ");
+    a.setEnabled(false);
+    CHECK(flush() == "changed enabled(0) " && !a.isEnabled());
+    a.trigger();
+    CHECK(flush().empty());
+    a.hover();
+    CHECK(flush() == "hovered ");
+    a.setEnabled(false);
+    CHECK(flush().empty());
+    a.setEnabled(true);
+    CHECK(flush() == "changed enabled(1) ");
+    a.setCheckable(true);
+    CHECK(flush() == "changed checkable(1) ");
+    a.setCheckable(true);
+    CHECK(flush().empty());
+    a.trigger();
+    CHECK(flush() == "changed toggled(1) triggered(1) " && a.isChecked());
+    a.trigger();
+    CHECK(flush() == "changed toggled(0) triggered(0) " && !a.isChecked());
+    a.setChecked(true);
+    CHECK(flush() == "changed toggled(1) ");
+    a.setChecked(true);
+    CHECK(flush().empty());
+    a.toggle();
+    CHECK(flush() == "changed toggled(0) " && !a.isChecked());
+    a.setText("&Open");
+    CHECK(flush().empty());
+    a.setText("Close && Quit");
+    CHECK(flush() == "changed " && a.iconText() == "Close & Quit" && a.toolTip() == "Close & Quit");
+    a.setToolTip("Closes");
+    CHECK(flush() == "changed " && a.toolTip() == "Closes");
+    a.setToolTip("");
+    CHECK(flush() == "changed " && a.toolTip() == "Close & Quit");
+    a.setStatusTip("Closes the file");
+    a.setShortcut(QKeySequence("Ctrl+W"));
+    a.setData(42);
+    QFont bold;
+    bold.setBold(true);
+    a.setFont(bold);
+    CHECK(flush() == "changed changed changed " && a.statusTip() == "Closes the file" &&
+          a.shortcut().toString() == "Ctrl+W" && a.data().toInt() == 42 && a.font().bold());
+    a.setShortcut(QKeySequence("Ctrl+W"));
+    CHECK(flush().empty());
+    a.setVisible(false);
+    CHECK(flush() == "changed enabled(0) visible " && !a.isVisible() && !a.isEnabled());
+    a.setEnabled(true); // it is enabled already; only the visibility holds it back
+    CHECK(flush().empty() && !a.isEnabled());
+    a.setEnabled(false);
+    a.setVisible(true);
+    CHECK(flush() == "changed changed visible " && !a.isEnabled());
+    a.setEnabled(true);
+    flush();
+    a.setSeparator(true);
+    CHECK(flush() == "changed " && a.isSeparator());
+    a.setSeparator(false);
+    flush();
+    a.setDisabled(true);
+    CHECK(!a.isEnabled());
+    a.setDisabled(false);
+    flush();
+    // A state that is set on an action that is not checkable is kept until it is
+    a.setCheckable(false);
+    flush();
+    a.setChecked(true);
+    CHECK(flush().empty() && !a.isChecked());
+    a.setCheckable(true);
+    CHECK(flush() == "changed checkable(1) toggled(1) " && a.isChecked());
+    a.setCheckable(false);
+    CHECK(flush() == "changed checkable(0) toggled(0) " && !a.isChecked());
+
+    // Menu and associated objects
+    QObject owner;
+    a.setMenu(&owner);
+    CHECK(a.menu<QObject *>() == &owner && a.menu<QAction *>() == nullptr);
+    flush();
+    // Deleting an action in a group, and a group that goes first
+    auto *gone = new QAction("gone");
+    QActionGroup *group = new QActionGroup(nullptr);
+    group->addAction(gone);
+    delete gone;
+    CHECK(group->actions().isEmpty());
+    delete group;
+}
+
+static void testActionGroup() {
+    std::string log;
+    QActionGroup group(nullptr);
+    QAction b1("B1"), b2("B2"), b3("B3");
+    for (QAction *x : {&b1, &b2, &b3}) {
+        x->setCheckable(true);
+        CHECK(group.addAction(x) == x && x->actionGroup() == &group);
+    }
+    CHECK(group.addAction(&b1) == &b1 && group.actions().size() == 3 &&
+          group.addAction(static_cast<QAction *>(nullptr)) == nullptr);
+    CHECK(group.isExclusive() && group.exclusionPolicy() == QActionGroup::ExclusionPolicy::Exclusive &&
+          group.isEnabled() && group.isVisible() && group.checkedAction() == nullptr);
+    QObject::connect(&group, &QActionGroup::triggered,
+                     [&](QAction *x) { log += "group triggered " + x->text().toStdString() + " "; });
+    QObject::connect(&group, &QActionGroup::hovered,
+                     [&](QAction *x) { log += "group hovered " + x->text().toStdString() + " "; });
+    QObject::connect(&b1, &QAction::toggled, [&](bool c) { log += c ? "b1 on " : "b1 off "; });
+    QObject::connect(&b2, &QAction::toggled, [&](bool c) { log += c ? "b2 on " : "b2 off "; });
+    b1.setChecked(true);
+    CHECK(log == "b1 on " && group.checkedAction() == &b1);
+    log.clear();
+    b2.trigger();
+    CHECK(log == "b1 off b2 on group triggered B2 " && group.checkedAction() == &b2 && !b1.isChecked());
+    log.clear();
+    b2.trigger(); // the checked action of an exclusive group stays checked
+    CHECK(log == "group triggered B2 " && b2.isChecked());
+    log.clear();
+    b3.hover();
+    CHECK(log == "group hovered B3 ");
+    log.clear();
+    b2.setChecked(false);
+    CHECK(log == "b2 off " && group.checkedAction() == nullptr);
+    log.clear();
+
+    group.setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
+    CHECK(group.isExclusive());
+    b1.setChecked(true);
+    b1.trigger();
+    CHECK(!b1.isChecked());
+    b3.trigger();
+    b2.trigger();
+    CHECK(b2.isChecked() && !b3.isChecked());
+    group.setExclusive(false);
+    CHECK(!group.isExclusive() && group.exclusionPolicy() == QActionGroup::ExclusionPolicy::None);
+    b3.trigger();
+    CHECK(b2.isChecked() && b3.isChecked());
+    group.setExclusive(true);
+    CHECK(group.exclusionPolicy() == QActionGroup::ExclusionPolicy::Exclusive);
+
+    group.setEnabled(false);
+    CHECK(!b1.isEnabled() && !b3.isEnabled() && !group.isEnabled());
+    QAction late("Late");
+    group.addAction(&late);
+    CHECK(!late.isEnabled());
+    group.setDisabled(false);
+    CHECK(b1.isEnabled() && late.isEnabled());
+    group.setVisible(false);
+    CHECK(!b1.isVisible() && !group.isVisible());
+    QAction later("Later");
+    group.addAction(&later);
+    CHECK(!later.isVisible());
+    group.setVisible(true);
+    CHECK(b1.isVisible() && later.isVisible());
+
+    // An action that is added when it is checked takes the check
+    QActionGroup other(nullptr);
+    QAction c1("C1"), c2("C2");
+    c1.setCheckable(true);
+    c2.setCheckable(true);
+    c1.setChecked(true);
+    c2.setChecked(true);
+    other.addAction(&c1);
+    other.addAction(&c2);
+    CHECK(!c1.isChecked() && c2.isChecked() && other.checkedAction() == &c2);
+    // Moving an action to another group, and out of any
+    other.addAction(&b1);
+    CHECK(b1.actionGroup() == &other && !group.actions().contains(&b1));
+    b1.setActionGroup(&group);
+    CHECK(b1.actionGroup() == &group && !other.actions().contains(&b1));
+    b1.setActionGroup(nullptr);
+    CHECK(b1.actionGroup() == nullptr && !group.actions().contains(&b1));
+    group.removeAction(&b1);
+    group.removeAction(nullptr);
+    // The group makes actions of its own
+    QAction *made = other.addAction("Made");
+    CHECK(made->parent() == &other && made->text() == "Made" && made->actionGroup() == &other);
+    // Actions stay when the group goes
+    auto *temporary = new QActionGroup(nullptr);
+    QAction kept("Kept");
+    temporary->addAction(&kept);
+    delete temporary;
+    CHECK(kept.actionGroup() == nullptr);
+}
+
 static void testMetaObject() {
     QWindow w;
     CHECK(w.metaObject()->indexOfProperty("title") >= 0 && w.metaObject()->indexOfProperty("visible") >= 0);
@@ -1414,6 +1650,9 @@ int main(int argc, char **argv) {
     testQuitOnLastWindowClosed();
     testPlatformRegistry();
     testMetaObject();
+    testKeySequence();
+    testAction();
+    testActionGroup();
     if (haveRealFonts()) {
         testFontValues();
         testFontMetrics();

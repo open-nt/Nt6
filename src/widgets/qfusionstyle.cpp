@@ -32,9 +32,43 @@ QColor tabFrameColor(const QStyleOption *option) {
     return window.lighter(isDark(window) ? 130 : 103);
 }
 
+// The frame of a menu: darker than the outlines of the controls.
+QColor menuFrameOf(const QStyleOption *option) {
+    const QColor window = option->palette.color(groupOf(option), QPalette::Window);
+    return isDark(window) ? window.lighter(185) : window.darker(160);
+}
+
 QColor mix(const QColor &a, const QColor &b, int percentOfA) {
     auto m = [percentOfA](int x, int y) { return (x * percentOfA + y * (100 - percentOfA)) / 100; };
     return QColor(m(a.red(), b.red()), m(a.green(), b.green()), m(a.blue(), b.blue()));
+}
+
+// Draws `text` with the character after the first '&' underlined; `flags` are the alignment flags.
+void drawMnemonicText(QPainter *p, const QRect &rect, int flags, const QString &text) {
+    QString plain;
+    qsizetype mnemonic = -1;
+    for (qsizetype i = 0; i < text.size(); ++i) {
+        if (text.at(i) == '&' && i + 1 < text.size()) {
+            ++i;
+            if (text.at(i) != '&' && mnemonic < 0)
+                mnemonic = plain.size();
+        }
+        plain += text.at(i);
+    }
+    p->drawText(rect, flags | Qt::TextSingleLine, plain);
+    if (mnemonic < 0)
+        return;
+    const QFontMetrics fm(p->font());
+    const int total = fm.horizontalAdvance(plain);
+    int x = rect.left();
+    if (flags & Qt::AlignRight)
+        x = rect.right() + 1 - total;
+    else if (flags & Qt::AlignHCenter)
+        x = rect.left() + (rect.width() - total) / 2;
+    const int before = fm.horizontalAdvance(plain.left(mnemonic));
+    const int width = fm.horizontalAdvance(plain.at(mnemonic));
+    const int baseline = rect.top() + (rect.height() - fm.height()) / 2 + fm.ascent();
+    p->drawLine(x + before, baseline + 2, x + before + width - 1, baseline + 2);
 }
 
 // A box with a one pixel border whose corners are cut, which looks rounded without antialiasing.
@@ -164,6 +198,12 @@ void QFusionStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *o
         }
         break;
     }
+    case PE_PanelMenu:
+        painter->fillRect(r, option->palette.color(group, QPalette::Base));
+        painter->setPen(menuFrameOf(option));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(r.adjusted(0, 0, -1, -1));
+        break;
     case PE_PanelStatusBar:
         painter->fillRect(r, option->palette.color(group, QPalette::Window));
         painter->setPen(outlineOf(option));
@@ -340,6 +380,70 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
                 horizontal ? QRect(c.x() - 1, c.y() + i * 4 - 1, 2, 2) : QRect(c.x() + i * 4 - 1, c.y() - 1, 2, 2);
             painter->fillRect(d, dot);
         }
+        painter->restore();
+        break;
+    }
+    case CE_MenuItem: {
+        const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
+        const QRect r = item->rect;
+        const bool enabled = item->state & State_Enabled;
+        const bool selected = enabled && (item->state & State_Selected);
+        const QColor base = item->palette.color(group, QPalette::Base);
+        painter->save();
+        painter->setFont(item->font);
+        if (item->menuItemType == QStyleOptionMenuItem::Separator) {
+            painter->setPen(mix(menuFrameOf(item), base, 57));
+            painter->drawLine(r.left() + 5, r.top(), r.right() - 5, r.top());
+            painter->restore();
+            break;
+        }
+        if (selected)
+            painter->fillRect(r, item->palette.color(group, QPalette::Highlight));
+        const QColor text = item->palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text);
+        if (item->checkType != QStyleOptionMenuItem::NotCheckable) {
+            QStyleOption box;
+            box.state = (item->state & State_Enabled) | (item->checked ? State_On : State_Off);
+            box.palette = item->palette;
+            box.rect = QRect(r.left() + 8, r.top() + (r.height() - 14) / 2, 14, 14);
+            drawPrimitive(PE_IndicatorCheckBox, &box, painter, widget);
+        }
+        painter->setPen(text);
+        const qsizetype tab = item->text.indexOf('\t');
+        const QString label = tab < 0 ? item->text : item->text.left(tab);
+        drawMnemonicText(painter, QRect(r.left() + 28, r.top(), r.width() - 28, r.height()),
+                         Qt::AlignLeft | Qt::AlignVCenter, label);
+        if (tab >= 0)
+            painter->drawText(QRect(r.left(), r.top(), r.width() - 15, r.height()),
+                              Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, item->text.mid(tab + 1));
+        if (item->menuItemType == QStyleOptionMenuItem::SubMenu) {
+            painter->setPen(mix(text, selected ? item->palette.color(group, QPalette::Highlight) : base, 63));
+            const int cy = r.top() + r.height() / 2;
+            for (int i = 0; i < 4; ++i)
+                painter->drawLine(r.right() - 9 + i, cy - (3 - i), r.right() - 9 + i, cy + (3 - i));
+        }
+        painter->restore();
+        break;
+    }
+    case CE_MenuBarEmptyArea: {
+        const QColor window = option->palette.color(group, QPalette::Window);
+        painter->fillRect(option->rect, window);
+        painter->setPen(isDark(window) ? window.lighter(112) : window.darker(112));
+        painter->drawLine(option->rect.left(), option->rect.bottom(), option->rect.right(), option->rect.bottom());
+        break;
+    }
+    case CE_MenuBarItem: {
+        const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
+        const bool selected = (item->state & State_Enabled) && (item->state & State_Selected);
+        painter->save();
+        painter->setFont(item->font);
+        if (selected) {
+            const QColor highlight = item->palette.color(group, QPalette::Highlight);
+            painter->setPen(highlight.darker(125));
+            painter->setBrush(highlight);
+            painter->drawRect(item->rect.adjusted(0, 0, -1, -1));
+        }
+        painter->setPen(item->palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text));
+        drawMnemonicText(painter, item->rect, Qt::AlignCenter, item->text);
         painter->restore();
         break;
     }
@@ -710,6 +814,8 @@ int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, co
         return 100;
     case PM_HeaderDefaultSectionSizeVertical:
         return 30;
+    case PM_MenuBarItemSpacing:
+        return 6;
     case PM_SplitterWidth:
         return 4;
     }
@@ -757,6 +863,19 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
     }
     case CT_ToolButton:
         return QSize(contentsSize.width() + 14, contentsSize.height() + 7);
+    case CT_MenuItem: {
+        const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
+        if (item->menuItemType == QStyleOptionMenuItem::Separator)
+            return QSize(120, 2);
+        int width = contentsSize.width() + 51;
+        if (item->text.contains('\t'))
+            width += item->tabWidth;
+        if (item->menuItemType == QStyleOptionMenuItem::SubMenu)
+            width += 12;
+        return QSize(std::max(width, 120), contentsSize.height() + 8);
+    }
+    case CT_MenuBarItem:
+        return QSize(contentsSize.width() + 9, contentsSize.height() + 5);
     case CT_SpinBox: {
         const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
         return QSize(contentsSize.width() + 2 * (frame + 3) + pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 3,

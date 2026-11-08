@@ -30,6 +30,27 @@ enum Mode { Fast, Slow = 4 };
 
     \snippet demo.cpp use
 
+    \code
+    #include <QObject>
+    class Counter : public QObject { // a counter
+        Q_OBJECT
+        int m_value = 1'000;
+        const char *m_name = "a<b";
+    };
+    \endcode
+
+    \code
+    find_package(Fx REQUIRED) # the package
+    \endcode
+
+    \badcode
+    int plain = 0;
+    \endcode
+
+    \code
+    sudo apt install cmake
+    \endcode
+
     \list
     \li One item
     \li Item with \c code

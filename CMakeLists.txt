@@ -109,6 +109,7 @@ add_library(NtNetwork
     src/network/qabstractsocket.cpp
     src/network/qhostaddress.cpp
     src/network/qhostinfo.cpp
+    src/network/qhttpheaders.cpp
     src/network/qlocalserver.cpp
     src/network/qlocalsocket.cpp
     src/network/qnetworkaccessmanager.cpp
@@ -204,8 +205,55 @@ target_include_directories(NtDBus
 target_link_libraries(NtDBus PUBLIC NtCore)
 nt_set_compile_options(NtDBus)
 
+add_library(NtWebSockets
+    src/websockets/qmaskgenerator.cpp
+    src/websockets/qwebsocket.cpp
+    src/websockets/qwebsocketcorsauthenticator.cpp
+    src/websockets/qwebsockethandshake.cpp
+    src/websockets/qwebsockethandshakeoptions.cpp
+    src/websockets/qwebsocketprotocol.cpp
+    src/websockets/qwebsocketserver.cpp
+)
+add_library(Nt::WebSockets ALIAS NtWebSockets)
+add_library(Qt6::WebSockets ALIAS NtWebSockets)
+target_include_directories(NtWebSockets
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtWebSockets>
+        $<INSTALL_INTERFACE:include/nt6/QtWebSockets>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/websockets
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtWebSockets PUBLIC NtNetwork)
+nt_set_compile_options(NtWebSockets)
+
+add_library(NtHttpServer
+    src/httpserver/qabstracthttpserver.cpp
+    src/httpserver/qhttpserver.cpp
+    src/httpserver/qhttpserverrequest.cpp
+    src/httpserver/qhttpserverresponder.cpp
+    src/httpserver/qhttpserverresponse.cpp
+    src/httpserver/qhttpserverstream.cpp
+    src/httpserver/qhttpserverwebsocketupgraderesponse.cpp
+)
+add_library(Nt::HttpServer ALIAS NtHttpServer)
+add_library(Qt6::HttpServer ALIAS NtHttpServer)
+target_include_directories(NtHttpServer
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtHttpServer>
+        $<INSTALL_INTERFACE:include/nt6/QtHttpServer>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/httpserver
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/websockets
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtHttpServer PUBLIC NtNetwork NtWebSockets)
+nt_set_compile_options(NtHttpServer)
+
 add_library(NtGui
     src/gui/platforms/offscreen/qoffscreenintegration.cpp
+    src/gui/qaction.cpp
+    src/gui/qactiongroup.cpp
     src/gui/qbackingstore.cpp
     src/gui/qbrush.cpp
     src/gui/qcolor.cpp
@@ -216,6 +264,7 @@ add_library(NtGui
     src/gui/qfontmetrics.cpp
     src/gui/qguiapplication.cpp
     src/gui/qimage.cpp
+    src/gui/qkeysequence.cpp
     src/gui/qpaintdevice.cpp
     src/gui/qpaintdevicewindow.cpp
     src/gui/qpaintengine.cpp
@@ -313,6 +362,8 @@ add_library(NtWidgets
     src/widgets/qlcdnumber.cpp
     src/widgets/qlineedit.cpp
     src/widgets/qlistwidget.cpp
+    src/widgets/qmenu.cpp
+    src/widgets/qmenubar.cpp
     src/widgets/qprogressbar.cpp
     src/widgets/qplaintextedit.cpp
     src/widgets/qpushbutton.cpp
@@ -331,8 +382,8 @@ add_library(NtWidgets
     src/widgets/qtablewidget.cpp
     src/widgets/qtextcursor.cpp
     src/widgets/qtextedit.cpp
-    src/widgets/qtabwidget.cpp
     src/widgets/qtoolbutton.cpp
+    src/widgets/qtabwidget.cpp
     src/widgets/qtooltip.cpp
     src/widgets/qwidget.cpp
     src/widgets/qwidgetwindow.cpp
@@ -384,6 +435,12 @@ nt_moc_library(NtNetwork include/QtNetwork)
 set(NT_MOC_DEFINES)
 nt_moc_library(NtSerialPort include/QtSerialPort)
 nt_moc_library(NtDBus include/QtDBus)
+if(NOT NT_HAVE_OPENSSL)
+    set(NT_MOC_DEFINES -DQT_NO_SSL)
+endif()
+nt_moc_library(NtWebSockets include/QtWebSockets)
+set(NT_MOC_DEFINES)
+nt_moc_library(NtHttpServer include/QtHttpServer)
 nt_moc_library(NtGui include/QtGui src/gui/qpa)
 nt_moc_library(NtWidgets include/QtWidgets)
 
@@ -441,6 +498,7 @@ if(NT_BUILD_TESTS)
 
     if(NT_HAVE_OPENSSL)
         add_executable(nt_ssl_tests tests/test_ssl.cpp)
+        target_include_directories(nt_ssl_tests PRIVATE tests)
         target_link_libraries(nt_ssl_tests PRIVATE Nt::Network OpenSSL::SSL OpenSSL::Crypto)
         add_test(NAME nt_ssl_tests COMMAND nt_ssl_tests)
         nt_set_compile_options(nt_ssl_tests)
@@ -548,6 +606,25 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_dbus_tests COMMAND nt_dbus_tests)
     nt_set_compile_options(nt_dbus_tests)
 
+    add_executable(nt_websockets_tests tests/test_websockets.cpp)
+    target_link_libraries(nt_websockets_tests PRIVATE Nt::WebSockets)
+    add_test(NAME nt_websockets_tests COMMAND nt_websockets_tests)
+    nt_set_compile_options(nt_websockets_tests)
+
+    add_executable(nt_httpserver_tests tests/test_httpserver.cpp)
+    target_link_libraries(nt_httpserver_tests PRIVATE Nt::HttpServer)
+    add_test(NAME nt_httpserver_tests COMMAND nt_httpserver_tests)
+    nt_set_compile_options(nt_httpserver_tests)
+
+    # The TLS tests make their certificates with OpenSSL (tests/test_certificates.h).
+    foreach(tls_test nt_websockets_tests nt_httpserver_tests)
+        if(NT_HAVE_OPENSSL)
+            target_include_directories(${tls_test} PRIVATE tests)
+            target_link_libraries(${tls_test} PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+            target_compile_definitions(${tls_test} PRIVATE NT_TEST_TLS)
+        endif()
+    endforeach()
+
     add_executable(nt_variant_tests tests/test_variant.cpp)
     target_link_libraries(nt_variant_tests PRIVATE Nt::Core)
     add_test(NAME nt_variant_tests COMMAND nt_variant_tests)
@@ -585,6 +662,13 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_widgets_scroll_tests COMMAND nt_widgets_scroll_tests)
     set_tests_properties(nt_widgets_scroll_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_widgets_scroll_tests)
+
+    add_executable(nt_widgets_menu_tests tests/test_widgets_menu.cpp)
+    target_include_directories(nt_widgets_menu_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_menu_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_menu_tests COMMAND nt_widgets_menu_tests)
+    set_tests_properties(nt_widgets_menu_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_menu_tests)
 
     # Drawing at a device pixel ratio of 2, on the offscreen platform.
     add_executable(nt_gui_scale_tests tests/test_gui_scale.cpp)
@@ -689,6 +773,16 @@ if(NT_BUILD_EXAMPLES)
     add_executable(serialterm examples/serialport/serialterm.cpp)
     target_link_libraries(serialterm PRIVATE Nt::SerialPort)
     nt_set_compile_options(serialterm)
+
+    # An echo server and client; see "Using Nt WebSockets" in the documentation.
+    add_executable(websocket_echo examples/websockets/echo.cpp)
+    target_link_libraries(websocket_echo PRIVATE Nt::WebSockets)
+    nt_set_compile_options(websocket_echo)
+
+    # A small web service; see "Using Nt HTTP Server" in the documentation.
+    add_executable(hello_server examples/httpserver/hello_server.cpp)
+    target_link_libraries(hello_server PRIVATE Nt::HttpServer)
+    nt_set_compile_options(hello_server)
 
     # A clock on the session bus; see "Using Nt D-Bus" in the documentation.
     add_executable(dbus_clock examples/dbus/clock.cpp)

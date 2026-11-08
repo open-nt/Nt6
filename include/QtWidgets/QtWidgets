@@ -17,6 +17,8 @@
 #include "qlcdnumber.h"
 #include "qlineedit.h"
 #include "qlistwidget.h"
+#include "qmenu.h"
+#include "qmenubar.h"
 #include "qprogressbar.h"
 #include "qplaintextedit.h"
 #include "qpushbutton.h"

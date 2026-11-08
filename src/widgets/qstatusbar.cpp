@@ -65,7 +65,8 @@ void QStatusBar::insertEntry(int index, QWidget *widget, int stretch, bool perma
             positions.push_back(i);
     int at;
     if (index < 0 || index >= static_cast<int>(positions.size()))
-        at = permanent ? static_cast<int>(m_entries.size()) : static_cast<int>(positions.empty() ? 0 : positions.back() + 1);
+        at = permanent ? static_cast<int>(m_entries.size())
+                       : static_cast<int>(positions.empty() ? 0 : positions.back() + 1);
     else
         at = positions[static_cast<std::size_t>(index)];
     if (!permanent && positions.empty()) {
@@ -323,7 +324,8 @@ void QStatusBar::paintEvent(QPaintEvent *event) {
             right = std::min(right, e.widget->x() - kSpacing);
     painter.setFont(font());
     painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::WindowText));
-    const QRect text(kSideMargin, kTopMargin, std::max(0, right - kSideMargin), std::max(0, height() - kTopMargin - kBottomMargin));
+    const QRect text(kSideMargin, kTopMargin, std::max(0, right - kSideMargin),
+                     std::max(0, height() - kTopMargin - kBottomMargin));
     painter.drawText(text, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                      fontMetrics().elidedText(m_message, Qt::ElideRight, text.width()));
 }

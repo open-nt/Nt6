@@ -11,6 +11,7 @@
 #include "qnetworkaccessmanager.h"
 #include "qnetworkreply.h"
 #include "qnetworkrequest.h"
+#include "qhttpheaders.h"
 #ifndef QT_NO_SSL
 #include "qssl.h"
 #include "qsslcertificate.h"

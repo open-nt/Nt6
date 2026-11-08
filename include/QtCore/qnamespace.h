@@ -252,6 +252,25 @@ Q_DECLARE_FLAGS(KeyboardModifiers, KeyboardModifier)
 Q_DECLARE_OPERATORS_FOR_FLAGS(KeyboardModifiers)
 
 /*!
+    \enum Qt::Modifier
+
+    This enum holds the modifiers as they are added to a key code in a QKeySequence, as in \c{Qt::CTRL | Qt::Key_S}.
+
+    \value SHIFT The Shift key.
+    \value CTRL The Ctrl key.
+    \value ALT The Alt key.
+    \value META The Meta (Super, Windows) key.
+    \value MODIFIER_MASK The bits that a key code does not use, where the modifiers are.
+*/
+enum Modifier {
+    META = MetaModifier,
+    SHIFT = ShiftModifier,
+    CTRL = ControlModifier,
+    ALT = AltModifier,
+    MODIFIER_MASK = -0x2000000
+};
+
+/*!
     \enum Qt::Key
 
     This enum holds the keys that QKeyEvent reports. Printable keys use their
@@ -331,6 +350,13 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(KeyboardModifiers)
     \value Key_X The X key.
     \value Key_Y The Y key.
     \value Key_Z The Z key.
+    \value Key_Menu The Menu key, which opens a context menu.
+    \value Key_Plus The + key.
+    \value Key_Comma The , key.
+    \value Key_Minus The - key.
+    \value Key_Period The . key.
+    \value Key_Slash The / key.
+    \value Key_Equal The = key.
     \value Key_unknown A key without a Qt::Key value.
 */
 enum Key {
@@ -371,7 +397,14 @@ enum Key {
     Key_F10 = 0x01000039,
     Key_F11 = 0x0100003a,
     Key_F12 = 0x0100003b,
+    Key_Menu = 0x01000055,
     Key_Space = 0x20,
+    Key_Plus = 0x2b,
+    Key_Comma = 0x2c,
+    Key_Minus = 0x2d,
+    Key_Period = 0x2e,
+    Key_Slash = 0x2f,
+    Key_Equal = 0x3d,
     Key_0 = 0x30,
     Key_1 = 0x31,
     Key_2 = 0x32,

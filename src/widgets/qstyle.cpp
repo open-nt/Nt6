@@ -67,6 +67,7 @@
     \value PE_IndicatorArrowLeft An arrow that points left, as on a tool button.
     \value PE_IndicatorArrowRight An arrow that points right, as on a tool button.
     \value PE_PanelStatusBar The background of a status bar.
+    \value PE_PanelMenu The background and the frame of a menu.
 */
 
 /*!
@@ -91,6 +92,9 @@
     \value CE_Header One section of a header: background and text, described by a QStyleOptionHeader.
     \value CE_Dial A dial: the face, the handle and the notches, described by a QStyleOptionSlider.
     \value CE_Splitter The handle of a splitter, which is horizontal if the state has State_Horizontal.
+    \value CE_MenuItem An entry of a menu, with a QStyleOptionMenuItem.
+    \value CE_MenuBarItem A title in a menu bar, with a QStyleOptionMenuItem.
+    \value CE_MenuBarEmptyArea The background of a menu bar.
 */
 
 /*!
@@ -145,6 +149,7 @@
     \value PM_HeaderDefaultSectionSizeHorizontal The width of a section of a horizontal header, or of a column of a table.
     \value PM_HeaderDefaultSectionSizeVertical The height of a section of a vertical header, or of a row of a table.
     \value PM_SplitterWidth The width of the handle of a splitter.
+    \value PM_MenuBarItemSpacing The space between the titles of a menu bar, which is also the space before the first.
 */
 
 /*!
@@ -161,6 +166,8 @@
     \value CT_ComboBox A combo box.
     \value CT_SpinBox A spin box.
     \value CT_ToolButton A tool button with a text.
+    \value CT_MenuItem An entry of a menu: the size of its text becomes the size of the entry.
+    \value CT_MenuBarItem A title of a menu bar.
 */
 
 /*!

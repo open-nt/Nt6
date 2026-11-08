@@ -44,7 +44,8 @@ public:
         PE_PanelTipLabel,
         PE_IndicatorArrowLeft,
         PE_IndicatorArrowRight,
-        PE_PanelStatusBar
+        PE_PanelStatusBar,
+        PE_PanelMenu
     };
     enum ControlElement {
         CE_PushButton,
@@ -63,7 +64,10 @@ public:
         CE_ScrollBar,
         CE_Header,
         CE_Dial,
-        CE_Splitter
+        CE_Splitter,
+        CE_MenuItem,
+        CE_MenuBarItem,
+        CE_MenuBarEmptyArea
     };
     enum SubElement {
         SE_CheckBoxIndicator,
@@ -107,7 +111,8 @@ public:
         PM_HeaderMargin,
         PM_HeaderDefaultSectionSizeHorizontal,
         PM_HeaderDefaultSectionSizeVertical,
-        PM_SplitterWidth
+        PM_SplitterWidth,
+        PM_MenuBarItemSpacing
     };
     enum ContentsType {
         CT_PushButton,
@@ -118,7 +123,9 @@ public:
         CT_TabBarTab,
         CT_ComboBox,
         CT_SpinBox,
-        CT_ToolButton
+        CT_ToolButton,
+        CT_MenuItem,
+        CT_MenuBarItem
     };
 
     ~QStyle() override;

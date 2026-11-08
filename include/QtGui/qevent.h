@@ -9,6 +9,8 @@
 #include <QtCore/qstring.h>
 #include <QtGui/qregion.h>
 
+class QAction;
+
 class QInputEvent : public QEvent {
 public:
     QInputEvent(Type type, Qt::KeyboardModifiers modifiers = Qt::NoModifier) : QEvent(type), m_modifiers(modifiers) {}
@@ -79,6 +81,19 @@ private:
     QString m_text;
     bool m_autorep;
     ushort m_count;
+};
+
+class QActionEvent : public QEvent {
+public:
+    QActionEvent(int type, QAction *action, QAction *before = nullptr);
+    ~QActionEvent() override;
+
+    QAction *action() const { return m_action; }
+    QAction *before() const { return m_before; }
+
+private:
+    QAction *m_action;
+    QAction *m_before;
 };
 
 class QHelpEvent : public QEvent {

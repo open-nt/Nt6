@@ -499,6 +499,59 @@ static QByteArray fetch(QNetworkReply *reply, QNetworkReply::NetworkError *error
     return body;
 }
 
+static void testHttpHeaders() {
+    using WKH = QHttpHeaders::WellKnownHeader;
+    QHttpHeaders h;
+    CHECK(h.isEmpty() && h.size() == 0 && h.value("missing", "default") == "default");
+    CHECK(h.append("Content-Type", "  text/plain \t") && h.append(WKH::SetCookie, "a=1") &&
+          h.append("set-cookie", "b=2"));
+    CHECK(h.size() == 3 && QString(h.nameAt(0)) == "content-type" && h.valueAt(0) == "text/plain");
+    CHECK(h.contains("CONTENT-type") && h.contains(WKH::ContentType) && !h.contains(WKH::Host));
+    CHECK(h.value(WKH::ContentType) == "text/plain" && h.value("Set-Cookie") == "a=1");
+    CHECK(h.values(WKH::SetCookie) == (QList<QByteArray>{"a=1", "b=2"}));
+    CHECK(h.combinedValue("set-cookie") == "a=1, b=2" && h.combinedValue("none").isNull());
+    CHECK(h.append("x-empty", "") && !h.combinedValue("x-empty").isNull() && h.combinedValue("x-empty").isEmpty());
+
+    // Names must be tokens, and values must not break the message framing.
+    CHECK(!h.append("bad name", "v") && !h.append("", "v") && !h.append("x(y)", "v"));
+    CHECK(!h.append("x-inject", "a\r\nset-cookie: evil") && !h.append("x-nul", QByteArrayView("a\0b", 3)));
+    CHECK(!h.append("x-lf", "a\nb") && h.size() == 4);
+
+    CHECK(h.replaceOrAppend(WKH::SetCookie, "c=3") && h.values("set-cookie") == QList<QByteArray>{"c=3"} &&
+          h.size() == 3);
+    CHECK(h.replaceOrAppend("x-new", "n") && QString(h.nameAt(h.size() - 1)) == "x-new");
+    CHECK(h.insert(0, WKH::Host, "example.org") && QString(h.nameAt(0)) == "host");
+    CHECK(!h.insert(-1, "a", "b") && !h.insert(h.size() + 1, "a", "b"));
+    CHECK(h.replace(0, "Host", "other.org") && h.value(WKH::Host) == "other.org");
+    CHECK(!h.replace(h.size(), "a", "b") && !h.replace(0, "a b", "c") && !h.replace(0, "a", "b\r"));
+    h.removeAll(WKH::Host);
+    CHECK(!h.contains("host"));
+    h.removeAt(0);
+    CHECK(QString(h.nameAt(0)) == "set-cookie");
+
+    CHECK(QHttpHeaders::wellKnownHeaderName(WKH::ContentLength) == "content-length");
+    CHECK(QHttpHeaders::wellKnownHeaderName(WKH::WWWAuthenticate) == "www-authenticate");
+    CHECK(QHttpHeaders::wellKnownHeaderName(WKH::XFrameOptions) == "x-frame-options");
+    CHECK(QHttpHeaders::wellKnownHeaderName(WKH::AIM) == "a-im");
+
+    const QHttpHeaders pairs = QHttpHeaders::fromListOfPairs({{"A", "1"}, {"bad name", "x"}, {"b", "2"}, {"a", "3"}});
+    CHECK(pairs.size() == 3 &&
+          pairs.toListOfPairs() == (QList<std::pair<QByteArray, QByteArray>>{{"a", "1"}, {"b", "2"}, {"a", "3"}}));
+    const QMultiMap<QByteArray, QByteArray> map = pairs.toMultiMap();
+    CHECK(map.size() == 3 && map.values("a").size() == 2);
+    CHECK(QHttpHeaders::fromMultiMap(map).size() == 3 && QHttpHeaders::fromMultiHash(pairs.toMultiHash()).size() == 3);
+    CHECK(pairs.toMultiHash().count("a") == 2);
+
+    QHttpHeaders copy = pairs;
+    QHttpHeaders other;
+    other.swap(copy);
+    CHECK(copy.isEmpty() && other.size() == 3);
+    QHttpHeaders moved(std::move(other));
+    CHECK(moved.size() == 3);
+    moved.clear();
+    CHECK(moved.isEmpty());
+}
+
 static void testHttp() {
     using R = QNetworkReply;
     TestHttpServer http;
@@ -850,6 +903,7 @@ int main(int argc, char **argv) {
     testHostInfo();
     testNetworkInterface();
     testLocalSockets();
+    testHttpHeaders();
     testHttp();
     if (g_failures == 0)
         std::puts("all network tests passed");

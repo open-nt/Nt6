@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qlist.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
@@ -15,6 +16,8 @@
 
 #include <memory>
 
+class QAction;
+class QActionEvent;
 class QCloseEvent;
 class QEnterEvent;
 class QFocusEvent;
@@ -138,6 +141,14 @@ public:
     bool hasMouseTracking() const;
     bool underMouse() const;
 
+    // Actions
+    QList<QAction *> actions() const;
+    void addAction(QAction *action);
+    void addActions(const QList<QAction *> &actions);
+    void insertAction(QAction *before, QAction *action);
+    void insertActions(QAction *before, const QList<QAction *> &actions);
+    void removeAction(QAction *action);
+
     // Tool tip
     QString toolTip() const;
     void setToolTip(const QString &text);
@@ -195,6 +206,7 @@ protected:
     virtual void enterEvent(QEnterEvent *event);
     virtual void leaveEvent(QEvent *event);
     virtual void changeEvent(QEvent *event);
+    virtual void actionEvent(QActionEvent *event);
     virtual bool focusNextPrevChild(bool next);
     int metric(PaintDeviceMetric metric) const override;
     QPaintDevice *redirected(QPoint *offset) const override;

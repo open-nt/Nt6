@@ -505,6 +505,36 @@ QMoveEvent::~QMoveEvent() = default;
 QShowEvent::~QShowEvent() = default;
 
 /*!
+    \class QActionEvent
+    \brief The QActionEvent class provides an event that is sent when an action of a widget is added, removed or changed.
+
+    A widget that shows its actions, such as a menu, handles it in QWidget::actionEvent().
+
+    \sa QAction, QWidget::actionEvent()
+*/
+
+/*!
+    Constructs the event of the given \a type, which is \c ActionAdded, \c ActionRemoved or \c ActionChanged, for the
+    \a action. For \c ActionAdded, \a before is the action that the new one is in front of; \c nullptr if it is last.
+*/
+QActionEvent::QActionEvent(int type, QAction *action, QAction *before)
+    : QEvent(static_cast<Type>(type)), m_action(action), m_before(before) {}
+
+QActionEvent::~QActionEvent() = default;
+
+/*!
+    \fn QAction *QActionEvent::action() const
+
+    Returns the action that was added, removed or changed.
+*/
+
+/*!
+    \fn QAction *QActionEvent::before() const
+
+    Returns the action that the added action is in front of, or \c nullptr.
+*/
+
+/*!
     \class QHideEvent
     \brief The QHideEvent class provides an event that is sent when a window is hidden.
 

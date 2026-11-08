@@ -1,0 +1,6 @@
+#include "qmaskgenerator.h"
+#include "qwebsocket.h"
+#include "qwebsocketcorsauthenticator.h"
+#include "qwebsockethandshakeoptions.h"
+#include "qwebsocketprotocol.h"
+#include "qwebsocketserver.h"

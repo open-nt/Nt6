@@ -18,7 +18,7 @@
 
 # Nt ("Nut")
 
-A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
+A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial) and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
 
@@ -71,14 +71,16 @@ Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no
 | `QNetworkDatagram` | data, sender, destination, `makeReply` |
 | `QHostInfo` | blocking `fromName`, asynchronous `lookupHost` (functor, with optional context object), `abortHostLookup`, local host and domain names |
 | `QNetworkInterface`, `QNetworkAddressEntry` | list interfaces, flags, type, MTU, hardware address, addresses, netmask, broadcast (Linux) |
+| `QSslSocket`, `QSslServer`, `QSslConfiguration`, `QSslCertificate`, `QSslKey`, `QSslCipher`, `QSslError` | TLS with the system's OpenSSL (built when OpenSSL 1.1.1 or newer is found, `-DNT_USE_OPENSSL=OFF` to leave it out); `https:` in `QNetworkAccessManager` |
 | `QLocalSocket`, `QLocalServer` | Unix domain sockets: event-driven and `waitFor*` APIs, access options, stale-socket recovery |
+| `QHttpHeaders` | ordered, case-insensitive header fields; names and values are validated, so CR/LF cannot be injected |
 | `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |
 
 Differences from Qt: `QAbstractSocket::connectToHost` resolves names synchronously, although `QNetworkAccessManager` and `QHostInfo::lookupHost` do not block; `QUdpSocket` does not report the destination address or hop limit of received datagrams.
 
 ### Nt Network: not implemented yet
 
-`QDnsLookup`, `QNetworkProxy`, `QSslSocket` and the TLS classes (so no `https:` yet), `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, HTTP/2, connection reuse and response compression.
+`QDnsLookup`, `QNetworkProxy`, DTLS, `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, HTTP/2, connection reuse and response compression.
 
 ### Nt D-Bus: implemented
 
@@ -96,6 +98,53 @@ Nt D-Bus implements the D-Bus wire protocol itself (no libdbus) and works with `
 Guide: [Using Nt D-Bus](https://open-nt.github.io/Nt6/nt-dbus.html). The [`dbus_clock`](examples/dbus/clock.cpp) example exports a clock on the session bus (`dbus_clock server`) and calls it (`dbus_clock client`).
 
 Differences from Qt: only `unix:` addresses (no `tcp:`, `nonce-tcp:` or `autolaunch:`), and no `DBUS_COOKIE_SHA1` authentication; `QDBusInterface` has no meta-object built from introspection, so connect to remote signals with `QDBusConnection::connect()`; no `qdbusxml2cpp`, `qdbuscpp2xml`, `qdbus` or `qdbusviewer` tools.
+
+### Nt HTTP Server: implemented
+
+Nt HTTP Server is an HTTP/1.1 server for embedding in an application, on top of Nt Network.
+
+| Class | Notes |
+|---|---|
+| `QHttpServer` | routes with typed path arguments (`/user/<arg>` → `int`, `QString`, `QByteArray`, `double`, `QUrl`, ...), method filters, context objects and member-function slots, after-request handlers, a missing handler |
+| `QAbstractHttpServer` | serves any number of `QTcpServer`, `QSslServer` (HTTPS) and `QLocalServer` objects; persistent connections, pipelining, chunked request bodies, `Expect: 100-continue`; malformed or oversized requests are refused, and requests with both `Transfer-Encoding` and `Content-Length` are rejected |
+| `QHttpServerRequest`, `QHttpServerResponse`, `QHttpServerResponder` | the request with its absolute URL, headers and body; responses from strings, JSON, bytes or files; writing through the responder, including chunked bodies with trailers, streaming a `QIODevice`, and answering later |
+| `QHttpServerRouterRule` | the rule a route returns |
+| `QHttpServerWebSocketUpgradeResponse` | WebSocket upgrades on the server's own port: verifiers accept, deny or pass each upgrade request, and accepted connections arrive through `newWebSocketConnection()` as `QWebSocket`s |
+
+Guide: [Using Nt HTTP Server](https://open-nt.github.io/Nt6/nt-httpserver.html). The [`hello_server`](examples/httpserver/hello_server.cpp) example is a small web service with JSON, streaming and delayed answers.
+
+```cpp
+QHttpServer server;
+server.route("/hello/<arg>", [](const QString &name) { return "Hello, " + name; });
+auto *tcp = new QTcpServer;
+tcp->listen(QHostAddress::Any, 8080);
+server.bind(tcp);
+```
+
+Differences from Qt: no HTTP/2, no WebSocket upgrades on a `QLocalServer`, no `QHttpServerConfiguration` (rate limits, keep-alive timeout, address filters) and no idle timeout; no `router()`, custom rules or converters; handlers cannot return a `QFuture`; the request size limits are fixed (8 KiB request line, 64 KiB of header fields, 64 MiB body); `QHttpHeaders` takes `QByteArrayView` rather than `QAnyStringView` and knows the common header names only.
+
+### Nt WebSockets: implemented
+
+Nt WebSockets implements the WebSocket protocol (RFC 6455) itself, on top of Nt Network, and interoperates with browsers and other implementations (tested against Python's `websockets`).
+
+| Class | Notes |
+|---|---|
+| `QWebSocket` | client (`ws:` and `wss:`) and server side; text and binary messages, frame-by-frame signals, fragmentation of large messages, ping/pong with round-trip time, the closing handshake with codes and reasons, size limits on incoming frames and messages, custom request headers, TLS settings |
+| `QWebSocketServer` | `ws:` and `wss:` (`SecureMode`) servers; every opening handshake is checked (426 for other versions), handshake timeout, a limit on pending connections, `handleConnection()` for sockets accepted elsewhere |
+| `QWebSocketCorsAuthenticator`, `QWebSocketHandshakeOptions`, `QMaskGenerator`, `QWebSocketProtocol` | origin checks, subprotocol negotiation, custom masking keys, versions and close codes |
+
+Every frame from the peer is validated: masking, reserved bits and opcodes, control-frame rules, fragmentation, UTF-8 of text (also across frames) and close codes; a peer that breaks the protocol is sent the matching close code and disconnected. Nt HTTP Server can also accept upgrades on its own port.
+
+Guide: [Using Nt WebSockets](https://open-nt.github.io/Nt6/nt-websockets.html). The [`websocket_echo`](examples/websockets/echo.cpp) example is an echo server (`websocket_echo server`) and a client for it (`websocket_echo client ws://127.0.0.1:1234 hello`).
+
+```cpp
+QWebSocket socket;
+QObject::connect(&socket, &QWebSocket::connected, [&] { socket.sendTextMessage("hello"); });
+QObject::connect(&socket, &QWebSocket::textMessageReceived, [](const QString &reply) { qDebug() << reply; });
+socket.open(QUrl("ws://127.0.0.1:1234"));
+```
+
+Differences from Qt: no extensions (so no `permessage-deflate` compression), no proxies, only version 13 of the protocol, no timeout for a client's opening handshake, and frames are received whole before they are reported; incoming frames and messages are limited to 64 MiB by default (1 GiB at most).
 
 ```cpp
 QTcpServer server;
@@ -120,6 +169,7 @@ Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration 
 | `QPainter`, `QPaintDevice`, `QPaintEngine` | software raster engine: pen, brush, opacity, clipping, translation, composition modes; rectangles, lines, points, ellipses, images and text, without antialiasing of shapes |
 | `QFont`, `QFontMetrics` | families found with fontconfig, point or pixel size, weight, italic; metrics, `elidedText()`, `drawText()` with alignment, word wrap and clipping; glyphs are anti-aliased by FreeType |
 | `QImage`, `QColor`, `QRgb`, `QPen`, `QBrush`, `QRegion` | 32-bit images (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`) with implicit sharing, colors with `#rgb` and CSS names, solid pens and brushes, rectangle-list regions |
+| `QAction`, `QActionGroup`, `QKeySequence`, `QActionEvent` | what a user can do, shared by menus and shortcuts: text, check state, enabled and visible, a shortcut (a key with modifiers, from a string or a standard key), exclusive groups, and the events for widgets that show actions. No icons, and one key per sequence |
 | `QMouseEvent`, `QWheelEvent`, `QKeyEvent`, `QFocusEvent`, `QEnterEvent`, `QPaintEvent`, `QExposeEvent`, `QResizeEvent`, `QMoveEvent`, `QShowEvent`, `QHideEvent`, `QCloseEvent` | the event classes, with the `Qt::Key`, `Qt::MouseButton` and `Qt::KeyboardModifier` enums |
 
 Guide: [Using Nt GUI](https://open-nt.github.io/Nt6/nt-gui.html). The [`hello_window`](examples/gui/hello_window.cpp) example paints a window and follows the mouse.
@@ -146,23 +196,24 @@ Nt Widgets builds on Nt GUI. The widgets of a window are painted into the backin
 | `QFrame`, `QScrollBar`, `QAbstractScrollArea`, `QScrollArea` | box, panel, line and styled frames with a shadow; a scroll bar (handle, page click, wheel); a base class with a viewport, two scroll bars and margins; a scrolling view of a widget, resizable or not, with `ensureVisible()` |
 | `QPlainTextEdit`, `QTextEdit`, `QTextCursor` | plain text of many lines: typing, the arrow, Page, Home and End keys with words and Shift, mouse and double-click selection, wrapping or not, tab stops, undo and redo, read-only, a placeholder, `appendPlainText()` that follows the end of a log; a cursor that moves by characters, words, lines and blocks, selects and edits, with edit blocks. No rich text and no clipboard yet |
 | `QListWidget`, `QListWidgetItem`, `QAbstractItemView` | a list of text items with single, multi, extended (Control and Shift) and no selection, keys (arrows, Page, Home, End, Space, Return, type-ahead), sorting, colors, alignment, tool tips and scrolling; the base class has the selection mode and the alternating row colors that the table shares |
+| `QMenu`, `QMenuBar`, `QWidget::addAction()` | popup menus inside the window (a menu is a child widget, so it never leaves the window): entries with mnemonics, shortcuts, check boxes, separators and submenus that open on hover; keys (arrows, Return, Space, Escape, letters), `popup()` and a blocking `exec()`; a menu bar with menus that switch while one is open, Left and Right between them, and Alt+letter. A shortcut of an action works anywhere in the window it was added to. No icons, tear-off, scrolling menus or `QMainWindow` |
 | `QToolButton`, `QDial`, `QLCDNumber`, `QSplitter`, `QStatusBar` | a tool button with text or an arrow, checkable, flat with `autoRaise`; a dial with notches and wrapping; a seven-segment display in decimal, hex, octal and binary with three segment styles; a splitter with draggable handles, collapsible and stretching panes, as many panes as there are; a status bar with a temporary message, and widgets on the left and permanent ones on the right |
 | `QTableWidget`, `QTableWidgetItem`, `QHeaderView` | a table of items with text, alignment, colors, font and a tool tip; row and column headers whose sections the user can resize; a current cell (click and keys), scrolling, alternating row colors, grid lines, inserting and removing rows and columns |
 | `QToolTip`, `QHelpEvent`, `QWidget::setToolTip()` | tool tips that appear after the mouse rests, follow the widget under the mouse, and show the text of the nearest widget that has one; `QEvent::ToolTip` for tool tips that depend on the position |
 | `QStyle`, `QStyleOption` and its subclasses, `QPalette` | a Fusion-like default style behind `QStyle`, with a light and a dark palette, replaceable with `QApplication::setStyle()` |
 
-Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example has the Nt logo and one of every widget on the pages of a tab widget (its first page, *Nt*, is a showcase of all the widgets, live, and the *Buttons* page has tool buttons, the *Values* page a dial and a seven-segment display, and the *Views* page a table, a list in a splitter with a scroll area, and the window has a status bar), and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the Nt logo drawn from its outlines.
+Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example has the Nt logo and one of every widget on the pages of a tab widget (its first page, *Nt*, is a showcase of all the widgets, live, and the *Views* page has a table and a scroll area), and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the Nt logo drawn from its outlines.
 
 <p align="center"><img src="doc/images/hello-widgets-nt.png" alt="The Nt page of hello_widgets, which shows every widget" width="360"> <img src="doc/images/hello-widgets-light.png" alt="The pages of hello_widgets, light, with the open list of a combo box" width="360"> <img src="doc/images/hello-widgets-dark.png" alt="The pages of hello_widgets, dark" width="360"></p>
 <p align="center"><img src="doc/images/widgets-gallery-light.png" alt="The gallery example, light" width="320"> <img src="doc/images/widgets-gallery-dark.png" alt="The gallery example, dark" width="320"></p>
 
 The examples follow the desktop: it uses twice as many pixels on a high-resolution screen (`QScreen::devicePixelRatio()`, from `Xft.dpi` or `QT_SCALE_FACTOR`) and the dark or light colors of the desktop (`QStyleHints::colorScheme()`, read from the desktop portal). The widget examples use only API that Qt has too, so `-DNT_EXAMPLES_QT=ON` also builds them against Qt 6 (`hello_widgets_qt`, `gallery_qt` in `qt-examples/`) to compare the two side by side.
 
-Not implemented yet: rich text and the clipboard, the model/view classes (lists, trees, editing and sorting of tables), menus, dialogs, shortcuts and actions, window flags and attributes, cursors, `QStyleFactory`, style sheets.
+Not implemented yet: rich text and the clipboard, the model/view classes (trees, editing and sorting by the user), dialogs, tool bars and `QMainWindow`, window flags and attributes, cursors, `QStyleFactory`, style sheets.
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::Gui` and `Nt::Widgets` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -183,7 +234,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Quick Dialogs | Nt Quick Dialogs |  |
 | Qt Quick Layouts | Nt Quick Layouts |  |
 | Qt Quick Test | Nt Quick Test |  |
-| Qt Test | Nt Test |  |
+| Qt Test | Nt Test | ✔ |
 | Qt Widgets | Nt Widgets | ✔ (partial, see Status) |
 
 ### Add-ons
@@ -198,7 +249,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Graphs | Nt Graphs |  |
 | Qt GRPC | Nt GRPC |  |
 | Qt Help | Nt Help |  |
-| Qt HTTP Server | Nt HTTP Server |  |
+| Qt HTTP Server | Nt HTTP Server | ✔ (see Status) |
 | Qt Image Formats | Nt Image Formats |  |
 | Qt Lottie Animation | Nt Lottie Animation |  |
 | Qt MQTT | Nt MQTT |  |
@@ -224,7 +275,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt SCXML | Nt SCXML |  |
 | Qt Sensors | Nt Sensors |  |
 | Qt Serial Bus | Nt Serial Bus |  |
-| Qt Serial Port | Nt Serial Port |  |
+| Qt Serial Port | Nt Serial Port | ✔ |
 | Qt Shader Tools | Nt Shader Tools |  |
 | Qt Spatial Audio | Nt Spatial Audio |  |
 | Qt SQL | Nt SQL |  |
@@ -235,7 +286,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Virtual Keyboard | Nt Virtual Keyboard |  |
 | Qt Wayland Compositor | Nt Wayland Compositor |  |
 | Qt WebChannel | Nt WebChannel |  |
-| Qt WebSockets | Nt WebSockets |  |
+| Qt WebSockets | Nt WebSockets | ✔ (see Status) |
 | Qt WebView | Nt WebView |  |
 | Qt XML | Nt XML |  |
 | Qt 5 Compatibility APIs: Graphical Effects | Nt 5 Compatibility APIs: Graphical Effects |  |
@@ -342,7 +393,7 @@ The class pages of the widgets show how each widget is drawn, in its states, in 
 cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
-Requires C++17 and a POSIX system. Link with `Nt::Core` and `Nt::Network` (or the `Qt6::Core` / `Qt6::Network` aliases).
+Requires C++17 and a POSIX system. Link with the modules you use, such as `Nt::Core`, `Nt::Network`, `Nt::HttpServer` or `Nt::WebSockets` (or the `Qt6::` aliases, `Qt6::Core`, `Qt6::Network`, `Qt6::HttpServer`, `Qt6::WebSockets`).
 
 ## Packages
 

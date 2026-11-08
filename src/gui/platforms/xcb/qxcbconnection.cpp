@@ -97,6 +97,8 @@ int keysymToQtKey(xcb_keysym_t sym) {
         return Qt::Key_Pause;
     case 0xff61:
         return Qt::Key_Print;
+    case 0xff67:
+        return Qt::Key_Menu;
     case 0xff50:
     case 0xff95:
         return Qt::Key_Home;

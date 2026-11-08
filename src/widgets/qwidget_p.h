@@ -4,6 +4,7 @@
 #include "qwidgetwindow_p.h"
 
 #include <QtCore/qpointer.h>
+#include <QtGui/qaction.h>
 #include <QtGui/qpalette.h>
 #include <QtWidgets/qlayout.h>
 #include <QtWidgets/qwidget.h>
@@ -13,6 +14,17 @@
 #include <vector>
 
 struct QWidget::Data {
+    struct ActionLink {
+        QPointer<QAction> action;
+        QObject *raw = nullptr;
+        QMetaObject::Connection changed;
+        QMetaObject::Connection destroyed;
+    };
+    std::vector<ActionLink> actions;
+    // For a popup that is part of another one (the submenu of a menu): the popup that it belongs to.
+    QPointer<QWidget> popupParent;
+    // The widget that opened a popup: a press on it reaches it, so that it can switch or close the popup itself.
+    QPointer<QWidget> popupAnchor;
     QRect geometry;
     bool geometrySet = false;
     QSize minimumSize{0, 0};
@@ -80,6 +92,8 @@ struct WidgetAccess {
     static void activateLayout(QWidget *w);
     // Makes `popup` the popup of the window of `w`, or removes it if it is null.
     static void setPopup(QWidget *w, QWidget *popup);
+    // Opens the menu of the menu bar under `top` whose title has the mnemonic Alt and `key`; false if there is none.
+    static bool activateMnemonic(QWidget *top, int key);
 };
 
 } // namespace QtPrivate

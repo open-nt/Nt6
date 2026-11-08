@@ -111,6 +111,256 @@ std::string escapeHtml(const std::string &s) {
     return out;
 }
 
+// ---------------------------------------------------------------------------
+// Syntax highlighting of code blocks
+// ---------------------------------------------------------------------------
+
+enum class CodeLanguage { Plain, Cpp, CMake };
+
+// The first identifier on a line and whether "(" follows it.
+bool startsWithCall(const std::string &line, std::string &name) {
+    std::size_t i = line.find_first_not_of(" \t");
+    if (i == npos || !isIdentStart(line[i]))
+        return false;
+    const std::size_t begin = i;
+    while (i < line.size() && isIdentChar(line[i]))
+        ++i;
+    name = line.substr(begin, i - begin);
+    while (i < line.size() && line[i] == ' ')
+        ++i;
+    return i < line.size() && line[i] == '(';
+}
+
+// Guesses the language of a code block: CMake if a line calls a CMake command, C++ if a line
+// has C++ punctuation, and otherwise plain text (shell commands, JSON, configuration files).
+CodeLanguage detectLanguage(const std::string &code) {
+    static const std::set<std::string> cmakeCommands = {"add_compile_definitions",
+                                                        "add_executable",
+                                                        "add_library",
+                                                        "add_subdirectory",
+                                                        "add_test",
+                                                        "cmake_minimum_required",
+                                                        "enable_testing",
+                                                        "find_package",
+                                                        "include",
+                                                        "install",
+                                                        "project",
+                                                        "set",
+                                                        "target_compile_definitions",
+                                                        "target_include_directories",
+                                                        "target_link_libraries",
+                                                        "target_sources",
+                                                        "qt_add_executable",
+                                                        "qt_standard_project_setup"};
+    std::istringstream in(code);
+    bool cpp = false;
+    for (std::string line; std::getline(in, line);) {
+        std::string name;
+        if (startsWithCall(line, name) && cmakeCommands.count(lower(name)) && line.find(';') == npos &&
+            line.find("::") == npos)
+            return CodeLanguage::CMake;
+        const std::string t = trim(line);
+        if (t.find(';') != npos || t.find("::") != npos || t.find("->") != npos || startsWith(t, "#include") ||
+            startsWith(t, "//") || startsWith(t, "/*") || t == "}" || t == "};")
+            cpp = true;
+    }
+    return cpp ? CodeLanguage::Cpp : CodeLanguage::Plain;
+}
+
+void appendToken(std::string &out, const char *cls, const std::string &text) {
+    if (cls)
+        out += std::string("<span class=\"") + cls + "\">" + escapeHtml(text) + "</span>";
+    else
+        out += escapeHtml(text);
+}
+
+// Returns the end of a quoted literal starting at text[begin], honoring backslash escapes.
+std::size_t quotedEnd(const std::string &text, std::size_t begin) {
+    const char quote = text[begin];
+    std::size_t i = begin + 1;
+    while (i < text.size() && text[i] != quote && text[i] != '\n')
+        i += text[i] == '\\' ? std::size_t{2} : std::size_t{1};
+    return std::min(i + 1, text.size());
+}
+
+std::string highlightCpp(const std::string &text) {
+    static const std::set<std::string> keywords = {
+        "alignas",    "alignof",       "auto",         "bool",      "break",
+        "case",       "catch",         "char",         "char16_t",  "char32_t",
+        "char8_t",    "class",         "co_await",     "co_return", "co_yield",
+        "concept",    "const",         "consteval",    "constexpr", "constinit",
+        "const_cast", "continue",      "decltype",     "default",   "delete",
+        "do",         "double",        "dynamic_cast", "else",      "enum",
+        "explicit",   "export",        "extern",       "false",     "final",
+        "float",      "for",           "friend",       "goto",      "if",
+        "inline",     "int",           "long",         "mutable",   "namespace",
+        "new",        "noexcept",      "nullptr",      "operator",  "override",
+        "private",    "protected",     "public",       "register",  "reinterpret_cast",
+        "requires",   "return",        "short",        "signed",    "sizeof",
+        "static",     "static_assert", "static_cast",  "struct",    "switch",
+        "template",   "this",          "thread_local", "throw",     "true",
+        "try",        "typedef",       "typeid",       "typename",  "union",
+        "unsigned",   "using",         "virtual",      "void",      "volatile",
+        "wchar_t",    "while",         "signals",      "slots",     "emit",
+        "Q_SIGNALS",  "Q_SLOTS",       "Q_EMIT",       "qint8",     "qint16",
+        "qint32",     "qint64",        "quint8",       "quint16",   "quint32",
+        "quint64",    "qreal",         "qsizetype",    "uchar",     "ushort",
+        "uint",       "ulong"};
+    static const std::set<std::string> typeIntroducers = {"class", "struct", "enum", "union", "namespace"};
+    std::string out;
+    std::string previousWord;
+    bool lineStart = true;
+    std::size_t i = 0;
+    while (i < text.size()) {
+        const char c = text[i];
+        if (c == '\n') {
+            out += c;
+            lineStart = true;
+            ++i;
+            continue;
+        }
+        if (c == ' ' || c == '\t') {
+            out += c;
+            ++i;
+            continue;
+        }
+        const bool atLineStart = lineStart;
+        lineStart = false;
+        if (c == '/' && i + 1 < text.size() && text[i + 1] == '/') {
+            const std::size_t end = std::min(text.find('\n', i), text.size());
+            appendToken(out, "cm", text.substr(i, end - i));
+            i = end;
+        } else if (c == '/' && i + 1 < text.size() && text[i + 1] == '*') {
+            const std::size_t close = text.find("*/", i + 2);
+            const std::size_t end = close == npos ? text.size() : close + 2;
+            appendToken(out, "cm", text.substr(i, end - i));
+            i = end;
+        } else if (c == '#' && atLineStart) {
+            std::size_t end = i + 1;
+            while (end < text.size() && (text[end] == ' ' || isIdentChar(text[end])))
+                ++end;
+            appendToken(out, "pp", text.substr(i, end - i));
+            i = end;
+            const std::size_t lineEnd = std::min(text.find('\n', i), text.size());
+            const std::size_t lt = text.find_first_of("<\"", i);
+            if (lt != npos && lt < lineEnd) {
+                const std::size_t gt = text.find(text[lt] == '<' ? '>' : '"', lt + 1);
+                if (gt != npos && gt < lineEnd) {
+                    appendToken(out, nullptr, text.substr(i, lt - i));
+                    appendToken(out, "st", text.substr(lt, gt + 1 - lt));
+                    i = gt + 1;
+                }
+            }
+        } else if (c == '"' || c == '\'') {
+            const std::size_t end = quotedEnd(text, i);
+            appendToken(out, "st", text.substr(i, end - i));
+            i = end;
+        } else if (std::isdigit(static_cast<unsigned char>(c)) ||
+                   (c == '.' && i + 1 < text.size() && std::isdigit(static_cast<unsigned char>(text[i + 1])))) {
+            std::size_t end = i + 1;
+            while (end < text.size() &&
+                   (isIdentChar(text[end]) || text[end] == '.' || text[end] == '\'' ||
+                    ((text[end] == '+' || text[end] == '-') && (text[end - 1] == 'e' || text[end - 1] == 'E'))))
+                ++end;
+            appendToken(out, "nu", text.substr(i, end - i));
+            i = end;
+        } else if (isIdentStart(c)) {
+            std::size_t end = i;
+            while (end < text.size() && isIdentChar(text[end]))
+                ++end;
+            const std::string word = text.substr(i, end - i);
+            // A prefixed string literal: u8"...", L'x', R"(...)".
+            if (end < text.size() && (text[end] == '"' || text[end] == '\'') &&
+                (word == "L" || word == "u" || word == "U" || word == "u8" || word == "R" || word == "LR" ||
+                 word == "uR" || word == "UR" || word == "u8R")) {
+                std::size_t stop;
+                if (word.back() == 'R' && text[end] == '"') {
+                    const std::size_t paren = text.find('(', end);
+                    const std::string delimiter =
+                        ")" + (paren == npos ? std::string() : text.substr(end + 1, paren - end - 1)) + "\"";
+                    const std::size_t close = paren == npos ? npos : text.find(delimiter, paren);
+                    stop = close == npos ? text.size() : close + delimiter.size();
+                } else {
+                    stop = quotedEnd(text, end);
+                }
+                appendToken(out, "st", text.substr(i, stop - i));
+                i = stop;
+                continue;
+            }
+            const char *cls = nullptr;
+            if (keywords.count(word))
+                cls = "kw";
+            else if (typeIntroducers.count(previousWord) ||
+                     (word.size() > 1 && word[0] == 'Q' && std::isupper(static_cast<unsigned char>(word[1])) &&
+                      word.find('_') == npos))
+                cls = "ty";
+            else if (word.size() > 2 && (startsWith(word, "Q_") || startsWith(word, "QT_")))
+                cls = "mc";
+            appendToken(out, cls, word);
+            previousWord = word;
+            i = end;
+        } else {
+            out += escapeHtml(std::string(1, c));
+            ++i;
+        }
+    }
+    return out;
+}
+
+std::string highlightCMake(const std::string &text) {
+    std::string out;
+    std::size_t i = 0;
+    while (i < text.size()) {
+        const char c = text[i];
+        if (c == '#') {
+            const std::size_t end = std::min(text.find('\n', i), text.size());
+            appendToken(out, "cm", text.substr(i, end - i));
+            i = end;
+        } else if (c == '"') {
+            const std::size_t end = quotedEnd(text, i);
+            appendToken(out, "st", text.substr(i, end - i));
+            i = end;
+        } else if (c == '$' && i + 1 < text.size() && text[i + 1] == '{') {
+            const std::size_t close = text.find('}', i);
+            const std::size_t end = close == npos ? text.size() : close + 1;
+            appendToken(out, "ty", text.substr(i, end - i));
+            i = end;
+        } else if (isIdentStart(c)) {
+            std::size_t end = i;
+            while (end < text.size() && (isIdentChar(text[end]) || text[end] == ':' || text[end] == '-'))
+                ++end;
+            const std::string word = text.substr(i, end - i);
+            std::size_t next = end;
+            while (next < text.size() && text[next] == ' ')
+                ++next;
+            const bool call = next < text.size() && text[next] == '(';
+            bool upper = word.size() > 1;
+            for (char w : word)
+                if (std::islower(static_cast<unsigned char>(w)) || w == ':')
+                    upper = false;
+            appendToken(out, call ? "kw" : upper ? "mc" : nullptr, word);
+            i = end;
+        } else {
+            out += escapeHtml(std::string(1, c));
+            ++i;
+        }
+    }
+    return out;
+}
+
+// Returns code as HTML, highlighted according to its detected language.
+std::string highlightCode(const std::string &code) {
+    switch (detectLanguage(code)) {
+    case CodeLanguage::Cpp:
+        return highlightCpp(code);
+    case CodeLanguage::CMake:
+        return highlightCMake(code);
+    case CodeLanguage::Plain:
+        break;
+    }
+    return escapeHtml(code);
+}
+
 // Makes a string usable as an HTML id or file name.
 std::string slug(const std::string &s) {
     std::string out;
@@ -248,7 +498,7 @@ std::shared_ptr<Doc> parseDoc(const std::string &text, const std::string &file, 
     for (std::size_t i = 0; i < raw.size(); ++i) {
         std::string word, rest;
         const bool isCmd = commandOf(raw[i], word, rest);
-        if (isCmd && word == "code")
+        if (isCmd && (word == "code" || word == "badcode"))
             inCode = true;
         if (isCmd && word == "endcode")
             inCode = false;
@@ -2018,7 +2268,7 @@ public:
                 continue;
             }
 
-            if (word == "code") {
+            if (word == "code" || word == "badcode") {
                 flush();
                 closeValues();
                 std::vector<std::string> code;
@@ -2032,8 +2282,8 @@ public:
                     code.push_back(lines[i]);
                 }
                 if (!closed)
-                    S.warn(doc, offset, "\\code without \\endcode");
-                out += codeBlock(code);
+                    S.warn(doc, offset, "\\" + word + " without \\endcode");
+                out += codeBlock(code, word == "code");
             } else if (word == "snippet") {
                 flush();
                 closeValues();
@@ -2182,7 +2432,7 @@ private:
         return text.substr(begin);
     }
 
-    static std::string codeBlock(std::vector<std::string> code) {
+    static std::string codeBlock(std::vector<std::string> code, bool highlight = true) {
         while (!code.empty() && trim(code.back()).empty())
             code.pop_back();
         while (!code.empty() && trim(code.front()).empty())
@@ -2194,7 +2444,7 @@ private:
         std::string body;
         for (const std::string &line : code)
             body += (indent != npos && line.size() >= indent ? line.substr(indent) : trim(line)) + "\n";
-        return "<pre><code>" + escapeHtml(body) + "</code></pre>\n";
+        return "<pre><code>" + (highlight ? highlightCode(body) : escapeHtml(body)) + "</code></pre>\n";
     }
 
     std::string image(const std::string &arguments, const Doc &doc, int offset) const {
@@ -2266,77 +2516,105 @@ private:
 
 constexpr const char *kStylesheet = R"css(:root {
   color-scheme: light dark;
-  --bg: #ffffff; --surface: #f4f7f6; --text: #1d2b28; --muted: #5b6b67;
-  --border: #d8e2df; --accent: #137a63; --code-bg: #f0f4f3;
-  --note: #e6f6f1; --warn: #fdf1e3; --warn-line: #c97a1a;
+  --bg: #ffffff; --surface: #f5f6f7; --text: #222222; --muted: #606a70;
+  --border: #dfe3e6; --accent: #1b7d4a; --code-bg: #f3f4f5;
+  --note: #e8f7ee; --warn: #fdf1e3; --warn-line: #c97a1a;
+  --hl-kw: #8a6d00; --hl-ty: #1f7a1f; --hl-cm: #007a80; --hl-st: #2f7d32;
+  --hl-nu: #a3209f; --hl-pp: #007a80; --hl-mc: #5c4fb0;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #12191a; --surface: #192324; --text: #e3ecea; --muted: #9db0ab;
-    --border: #2c3a3a; --accent: #4fd8b6; --code-bg: #1d2829;
-    --note: #17332d; --warn: #3a2a15; --warn-line: #e0a050;
+    --bg: #262626; --surface: #2e2e2e; --text: #f0f0f0; --muted: #a8a8a8;
+    --border: #3d3d3d; --accent: #2cde85; --code-bg: #1e1e1e;
+    --note: #1f3a2c; --warn: #3a2a15; --warn-line: #e0a050;
+    --hl-kw: #d6d64a; --hl-ty: #5fbf3a; --hl-cm: #3fd6d6; --hl-st: #5fbf3a;
+    --hl-nu: #e04fe0; --hl-pp: #3fd6d6; --hl-mc: #b0a8ff;
   }
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--text);
-  font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  font: 18px/1.6 "Titillium Web", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
-code, pre { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 0.9em; }
+code, pre { font-family: "Source Code Pro", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.85em; }
 code { background: var(--code-bg); padding: 0.1em 0.3em; border-radius: 3px; }
-pre { background: var(--code-bg); padding: 12px 16px; border-radius: 6px; overflow-x: auto; }
-pre code { background: none; padding: 0; }
-header.site { display: flex; align-items: center; gap: 12px; padding: 10px 24px;
+pre { background: var(--code-bg); padding: 14px 18px; border-radius: 4px; overflow-x: auto;
+  line-height: 1.5; border: 1px solid var(--border); }
+pre code { background: none; padding: 0; font-size: 1em; }
+pre .kw { color: var(--hl-kw); }
+pre .ty { color: var(--hl-ty); }
+pre .cm { color: var(--hl-cm); }
+pre .st { color: var(--hl-st); }
+pre .nu { color: var(--hl-nu); }
+pre .pp { color: var(--hl-pp); }
+pre .mc { color: var(--hl-mc); }
+header.site { display: flex; align-items: center; gap: 12px; padding: 10px 32px;
   background: var(--surface); border-bottom: 1px solid var(--border); }
 header.site img { height: 32px; width: 32px; }
-header.site .name { font-weight: 600; color: var(--text); }
+header.site .name { font-weight: 600; color: var(--text); font-size: 1.1em; }
 header.site .version { color: var(--muted); font-size: 0.875em; }
 header.site .source { margin-left: auto; display: flex; align-items: center; gap: 6px;
   color: var(--muted); font-size: 0.875em; }
 header.site .source svg { height: 20px; width: auto; fill: currentColor; }
 header.site .source:hover { color: var(--accent); }
-nav.crumbs { padding: 8px 24px; font-size: 0.875em; color: var(--muted);
-  border-bottom: 1px solid var(--border); }
-.layout { display: flex; gap: 40px; max-width: 1180px; margin: 0 auto; padding: 24px; }
+nav.crumbs { max-width: 1240px; margin: 0 auto; padding: 18px 32px 0; font-size: 0.95em;
+  color: var(--muted); }
+nav.crumbs a { color: var(--muted); }
+nav.crumbs a:hover { color: var(--accent); }
+nav.crumbs .sep { padding: 0 0.6em; }
+nav.crumbs .sep::before { content: ""; display: inline-block; width: 0.45em; height: 0.45em;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg); vertical-align: 0.1em; }
+nav.crumbs .current { color: var(--muted); text-decoration: underline;
+  text-underline-offset: 0.2em; }
+.layout { display: flex; gap: 48px; max-width: 1240px; margin: 0 auto; padding: 24px 32px; }
 main { flex: 1; min-width: 0; }
-aside.toc { width: 220px; flex: none; order: 2; font-size: 0.875em; position: sticky;
-  top: 16px; align-self: flex-start; }
-aside.toc h2 { font-size: 0.75em; letter-spacing: 0.06em; text-transform: uppercase;
-  color: var(--muted); margin: 0 0 8px; border: 0; padding: 0; }
+aside.toc { width: 230px; flex: none; order: 2; font-size: 0.875em; position: sticky;
+  top: 16px; align-self: flex-start; border-left: 1px solid var(--border); padding-left: 16px; }
+aside.toc h2 { font-size: 0.8em; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); margin: 0 0 8px; padding: 0; }
 aside.toc ul { list-style: none; margin: 0; padding: 0; }
 aside.toc li { padding: 3px 0; }
-h1 { font-size: 2em; line-height: 1.2; margin: 0 0 8px; }
-h2 { font-size: 1.35em; margin: 32px 0 12px; padding-bottom: 6px;
-  border-bottom: 1px solid var(--border); }
-h3.member { font-size: 1em; font-weight: 600; margin: 28px 0 8px; padding: 8px 12px;
-  background: var(--surface); border-radius: 4px; overflow-wrap: anywhere; }
+aside.toc a { color: var(--text); }
+aside.toc a:hover { color: var(--accent); }
+h1, h2, h3, h4 { font-weight: 300; line-height: 1.25; }
+h1 { font-size: 2.5em; margin: 16px 0 24px; }
+h2 { font-size: 1.85em; margin: 40px 0 16px; }
+h3 { font-size: 1.35em; margin: 28px 0 12px; }
+h3.member { font-size: 1em; font-weight: 400; margin: 32px 0 8px; padding: 8px 14px;
+  background: var(--surface); border-left: 3px solid var(--accent); border-radius: 2px;
+  overflow-wrap: anywhere; line-height: 1.5; }
 h3.member .tags { color: var(--muted); font-weight: 400; font-size: 0.85em; }
 .template { display: block; color: var(--muted); font-weight: 400; font-size: 0.9em; }
-.brief { font-size: 1.05em; }
+.brief { font-size: 1.1em; }
 table { border-collapse: collapse; width: 100%; margin: 12px 0; }
 .scroll { overflow-x: auto; }
 table.info { width: auto; }
-table.info th { text-align: left; padding: 4px 16px 4px 0; color: var(--muted); font-weight: 500;
+table.info th { text-align: left; padding: 4px 16px 4px 0; color: var(--muted); font-weight: 600;
   vertical-align: top; white-space: nowrap; }
 table.info td { padding: 4px 0; }
-table.summary td { padding: 4px 8px; vertical-align: top; border-bottom: 1px solid var(--border); }
+table.summary td { padding: 6px 10px; vertical-align: top; border-bottom: 1px solid var(--border); }
 table.summary td.ret { width: 30%; text-align: right; color: var(--muted); }
 table.data th, table.data td { padding: 6px 10px; border: 1px solid var(--border);
   text-align: left; vertical-align: top; }
-table.data th { background: var(--surface); }
-.note, .warning { padding: 8px 12px; border-radius: 4px; }
-.note { background: var(--note); }
+table.data th { background: var(--surface); font-weight: 600; }
+.note, .warning { padding: 10px 14px; border-radius: 2px; }
+.note { background: var(--note); border-left: 3px solid var(--accent); }
 .warning { background: var(--warn); border-left: 3px solid var(--warn-line); }
 .figure img { max-width: 100%; height: auto; }
 .differences { background: var(--surface); border-left: 3px solid var(--accent);
-  padding: 4px 16px; border-radius: 4px; }
+  padding: 4px 16px; border-radius: 2px; }
 td p, li p { margin: 0; }
 footer.site { border-top: 1px solid var(--border); color: var(--muted); font-size: 0.8125em;
-  padding: 16px 24px; margin-top: 32px; }
+  padding: 16px 32px; margin-top: 32px; }
 @media (max-width: 860px) {
+  body { font-size: 16px; }
   .layout { flex-direction: column; padding: 16px; gap: 16px; }
-  aside.toc { width: auto; position: static; order: 0; }
+  aside.toc { width: auto; position: static; order: 0; border-left: 0; padding-left: 0; }
   header.site, nav.crumbs, footer.site { padding-left: 16px; padding-right: 16px; }
+  h1 { font-size: 2em; }
+  h2 { font-size: 1.5em; }
   table.summary td.ret { width: auto; }
 }
 )css";
@@ -2404,6 +2682,10 @@ private:
                            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n";
         html += "<title>" + escapeHtml(title) + " | " + escapeHtml(cfg.project) + " " +
                 escapeHtml(cfg.version) + "</title>\n";
+        html += "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n"
+                "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
+                "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Source+Code+Pro"
+                ":wght@400;600&family=Titillium+Web:wght@300;400;600&display=swap\">\n";
         html += "<link rel=\"stylesheet\" href=\"style/ndoc.css\">\n</head>\n<body>\n";
         html += "<header class=\"site\">";
         if (!cfg.logo.empty())
@@ -2418,9 +2700,9 @@ private:
         html += "</header>\n";
         html += "<nav class=\"crumbs\"><a href=\"index.html\">" + escapeHtml(cfg.project) + "</a>";
         for (const auto &crumb : crumbs) {
-            html += " &rsaquo; ";
+            html += "<span class=\"sep\" aria-hidden=\"true\"></span>";
             html += crumb.second.empty()
-                        ? escapeHtml(crumb.first)
+                        ? "<span class=\"current\" aria-current=\"page\">" + escapeHtml(crumb.first) + "</span>"
                         : "<a href=\"" + escapeHtml(crumb.second) + "\">" + escapeHtml(crumb.first) + "</a>";
         }
         html += "</nav>\n<div class=\"layout\">\n";
@@ -2515,8 +2797,9 @@ private:
         if (mod.doc) {
             body += "<p class=\"brief\">" + R.brief(*mod.doc, ctx) + "</p>\n";
             if (!mod.doc->cmakeTarget.empty()) {
-                body += "<h2 id=\"using\">Using the Module</h2>\n<pre><code>target_link_libraries(app PRIVATE " +
-                        escapeHtml(mod.doc->cmakeTarget) + ")</code></pre>\n";
+                body += "<h2 id=\"using\">Using the Module</h2>\n<pre><code>" +
+                        highlightCMake("target_link_libraries(app PRIVATE " + mod.doc->cmakeTarget + ")") +
+                        "</code></pre>\n";
                 toc.emplace_back("using", "Using the Module");
             }
             details = R.blocks(mod.doc->lines, mod.doc->line, *mod.doc, ctx, nullptr, &toc);

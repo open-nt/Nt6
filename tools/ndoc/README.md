@@ -71,7 +71,8 @@ The syntax is a subset of QDoc's, so a comment reads the same as it would in Qt.
 | `\c code`, `\c{some code}` | Inline code |
 | `\e text`, `\b text` | Emphasis, bold |
 | `\l target`, `\l{target}{label}` | A link to a class, member, page, section or URL |
-| `\code` ... `\endcode` | A code block |
+| `\code` ... `\endcode` | A code block, syntax highlighted as C++ or CMake when it looks like either |
+| `\badcode` ... `\endcode` | A code block that is never highlighted |
 | `\snippet file tag` | Code between `//! [tag]` markers in a file under `snippets` |
 | `\image file alt text` | An image from a directory listed under `images` |
 | `\section1 Title`, `\section2 Title` | Headings; `\section1` also joins the contents list |

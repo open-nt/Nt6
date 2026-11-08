@@ -983,7 +983,8 @@ void QListWidget::keyPressEvent(QKeyEvent *event) {
         break;
     case Qt::Key_Space:
         if (m_current >= 0) {
-            if (selectionMode() == MultiSelection || (selectionMode() == ExtendedSelection && (modifiers & Qt::ControlModifier)))
+            if (selectionMode() == MultiSelection ||
+                (selectionMode() == ExtendedSelection && (modifiers & Qt::ControlModifier)))
                 select(m_current, Qt::ControlModifier);
             else
                 select(m_current, Qt::NoModifier);

@@ -20,7 +20,8 @@ public:
         SO_ComboBox,
         SO_SpinBox,
         SO_GroupBox,
-        SO_Header
+        SO_Header,
+        SO_MenuItem
     };
 
     explicit QStyleOption(int optionType = SO_Default) : type(optionType), fontMetrics(QFont()) {}
@@ -119,3 +120,18 @@ public:
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStyleOptionButton::ButtonFeatures)
+
+class QStyleOptionMenuItem : public QStyleOption {
+public:
+    enum MenuItemType { Normal, Separator, SubMenu };
+    enum CheckType { NotCheckable, Exclusive, NonExclusive };
+
+    QStyleOptionMenuItem() : QStyleOption(SO_MenuItem) {}
+
+    MenuItemType menuItemType = Normal;
+    CheckType checkType = NotCheckable;
+    bool checked = false;
+    QString text;
+    QFont font;
+    int tabWidth = 0;
+};

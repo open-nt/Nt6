@@ -8,6 +8,8 @@
 // The CMake target `widget_images` runs it into doc/images. The PNG encoder at the top is all there is to it: Nt has
 // no image file support yet.
 #include <QApplication>
+#include <QAction>
+#include <QActionGroup>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDial>
@@ -22,6 +24,8 @@
 #include <QLCDNumber>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
+#include <QMenuBar>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
@@ -744,7 +748,8 @@ bool plainTextEdits(const std::string &dir) {
     QWidget &w = *host(300, 10);
     auto *layout = static_cast<QBoxLayout *>(w.layout());
     auto *typed = new QPlainTextEdit(&w);
-    typed->setPlainText("Text of many lines, with a selection\nthat goes over the end of a line,\nand a long line that wraps at the width of the widget.");
+    typed->setPlainText("Text of many lines, with a selection\nthat goes over the end of a line,\nand a long line that "
+                        "wraps at the width of the widget.");
     QTextCursor cursor = typed->textCursor();
     cursor.setPosition(8);
     cursor.setPosition(52, QTextCursor::KeepAnchor);
@@ -875,6 +880,47 @@ bool statusBars(const std::string &dir) {
     return picture(w, nullptr, dir, "qstatusbar");
 }
 
+bool menus(const std::string &dir) {
+    QWidget &w = *host(250, 160);
+    auto *menu = new QMenu(&w);
+    menu->addAction("Open");
+    QAction *save = menu->addAction("Save As");
+    save->setShortcut(QKeySequence("Ctrl+S"));
+    menu->addSeparator();
+    QAction *wrap = menu->addAction("Wrap lines");
+    wrap->setCheckable(true);
+    wrap->setChecked(true);
+    QAction *numbers = menu->addAction("Line numbers");
+    numbers->setCheckable(true);
+    menu->addMenu("More")->addAction("Preferences");
+    menu->addAction("Disabled")->setEnabled(false);
+    w.show();
+    QCoreApplication::processEvents();
+    menu->popup(w.mapToGlobal(QPoint(12, 8)));
+    menu->setActiveAction(save);
+    return picture(w, nullptr, dir, "qmenu");
+}
+
+bool menuBars(const std::string &dir) {
+    auto *window = new QWidget;
+    window->resize(300, 130);
+    auto *bar = new QMenuBar(window);
+    QMenu *file = bar->addMenu("&File");
+    bar->addMenu("&Edit")->addAction("Copy");
+    bar->addMenu("&Help")->addAction("About");
+    file->addAction("&New");
+    file->addAction("&Open...")->setShortcut(QKeySequence("Ctrl+O"));
+    file->addSeparator();
+    file->addAction("&Quit")->setShortcut(QKeySequence("Ctrl+Q"));
+    bar->setGeometry(0, 0, 300, bar->sizeHint().height());
+    window->show();
+    QCoreApplication::processEvents();
+    const QRect item = bar->actionGeometry(file->menuAction());
+    bar->setActiveAction(file->menuAction());
+    file->popup(window->mapToGlobal(QPoint(item.left() + 2, item.bottom() + 3)));
+    return picture(*window, nullptr, dir, "qmenubar");
+}
+
 bool headerViews(const std::string &dir) {
     QWidget &w = *host(360, 200);
     auto *table = new QTableWidget(4, 3, &w);
@@ -917,11 +963,11 @@ int main(int argc, char *argv[]) {
     ::mkdir(directory.c_str(), 0755);
     ::mkdir((directory + "/widgets").c_str(), 0755);
     bool ok = true;
-    for (bool (*render)(const std::string &) : {labels, pushButtons, checkBoxes, radioButtons, lineEdits, sliders,
-                                                progressBars, spinBoxes, comboBoxes, groupBoxes, tabWidgets, frames,
-                                                gridLayouts, formLayouts, stackedWidgets, toolTips, scrollBars, scrollAreas, listWidgets, plainTextEdits, headerViews,
-                                                toolButtons, dials, lcdNumbers, splitters, statusBars,
-                                                tableWidgets})
+    for (bool (*render)(const std::string &) :
+         {labels,     pushButtons, checkBoxes,  radioButtons,   lineEdits,   sliders,     progressBars,   spinBoxes,
+          comboBoxes, groupBoxes,  tabWidgets,  frames,         gridLayouts, formLayouts, stackedWidgets, toolTips,
+          scrollBars, scrollAreas, listWidgets, plainTextEdits, headerViews, toolButtons, dials,          lcdNumbers,
+          splitters,  statusBars,  menus,       menuBars,       tableWidgets})
         ok = render(directory) && ok;
     return ok ? 0 : 1;
 }

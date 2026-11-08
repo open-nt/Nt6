@@ -94,7 +94,8 @@ void QToolButton::setArrowType(Qt::ArrowType type) {
 QSize QToolButton::sizeHint() const {
     QStyleOptionButton option;
     option.initFrom(this);
-    const QSize contents = m_arrow != Qt::NoArrow ? QSize(10, 16) : QSize(fontMetrics().horizontalAdvance(text()), fontMetrics().height());
+    const QSize contents =
+        m_arrow != Qt::NoArrow ? QSize(10, 16) : QSize(fontMetrics().horizontalAdvance(text()), fontMetrics().height());
     return style()->sizeFromContents(QStyle::CT_ToolButton, &option, contents, this);
 }
 

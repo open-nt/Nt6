@@ -154,6 +154,9 @@
     \li QStatusBar
     \li A strip at the bottom of a window for a message and small widgets.
     \row
+    \li QMenuBar, QMenu
+    \li The titles at the top of a window, and the lists of actions that they open; QMenu pops up anywhere, too.
+    \row
     \li QSpinBox
     \li A whole number to type or step.
     \row
@@ -211,10 +214,32 @@
     read-only and disabled where that applies, in the light color scheme. The pictures are made by the
     \c render_widgets program, which calls QWidget::render() to paint the widgets on an image.
 
+    \section2 Actions and Menus
+
+    A QAction is something the user can do, with a text, a shortcut and a state of being enabled or checked in one
+    place. Add it to a QMenu and to any widget, and it is the same action in both. QMenu and QMenuBar show actions;
+    a shortcut such as \c{QKeySequence::Save} works wherever the action has been added in the window that has the focus.
+
+    \code
+    QMenuBar *bar = new QMenuBar(window);
+    QMenu *file = bar->addMenu("&File");
+    QAction *save = file->addAction("&Save");
+    save->setShortcut(QKeySequence::Save);
+    connect(save, &QAction::triggered, window, &Editor::save);
+    file->addSeparator();
+    file->addAction("&Quit", [] { QApplication::quit(); });
+    \endcode
+
+    \image hello-widgets-menu.png The View menu of the hello_widgets example, with its Page submenu open
+
+    A menu pops up in the window of its parent: it is a child widget, above the others, and not a window of its own, so it
+    cannot reach outside the window (it moves to stay inside). The \c QMenu::exec() function opens a menu where you say and
+    waits for the user to choose.
+
     \section1 What Is Not There Yet
 
-    There are no lists and trees, no model and view classes (a table keeps its items itself, and cannot be edited or sorted),
-    menus and dialogs. The native window of a top-level widget is a
+    There are no trees, no model and view classes (a table and a list keep their items themselves, and cannot be edited or
+    sorted by the user), no tool bars, no \c QMainWindow and no dialogs. The native window of a top-level widget is a
     QWindow; child widgets are painted into the backing store of that window and are not native windows
     themselves. Each class lists what differs from Qt in its \e Differences from Qt section.
 

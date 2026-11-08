@@ -47,6 +47,9 @@ public:
         \value Close A window was asked to close; delivered as a QCloseEvent.
         \value Wheel The mouse wheel turned; delivered as a QWheelEvent.
         \value ToolTip A widget is asked for its tool tip; delivered as a QHelpEvent.
+        \value ActionChanged An action of a widget has changed; delivered as a QActionEvent.
+        \value ActionAdded An action has been added to a widget; delivered as a QActionEvent.
+        \value ActionRemoved An action has been removed from a widget; delivered as a QActionEvent.
         \value Expose Part of a window became visible and needs painting; delivered as a QExposeEvent.
         \value User The first value available for application-defined events.
         \value MaxUser The last value available for application-defined events.
@@ -88,6 +91,9 @@ public:
         Close = 19,
         Wheel = 31,
         ToolTip = 110,
+        ActionChanged = 113,
+        ActionAdded = 114,
+        ActionRemoved = 115,
         Expose = 206,
         User = 1000,
         MaxUser = 65535

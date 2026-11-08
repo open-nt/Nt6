@@ -407,7 +407,9 @@ void QPlainTextEdit::layoutText() {
         int widest = 0;
         for (int b = 0; b < static_cast<int>(m_blockStarts.size()); ++b) {
             const int start = m_blockStarts[static_cast<std::size_t>(b)];
-            const int end = b + 1 < static_cast<int>(m_blockStarts.size()) ? m_blockStarts[static_cast<std::size_t>(b) + 1] - 1 : size;
+            const int end = b + 1 < static_cast<int>(m_blockStarts.size())
+                                ? m_blockStarts[static_cast<std::size_t>(b) + 1] - 1
+                                : size;
             if (m_wrap == NoWrap || start == end) {
                 m_lines.push_back(VLine{start, end - start, b});
                 widest = std::max(widest, advance(start, end - start));
@@ -600,7 +602,8 @@ int QPlainTextEdit::moved(int position, QTextCursor::MoveOperation operation, in
         const VLine &line = m_lines[static_cast<std::size_t>(index)];
         p = line.start + line.length;
         // A line that wraps ends before the space that it breaks at, so that the cursor stays on it.
-        const bool wrapped = index + 1 < static_cast<int>(m_lines.size()) && m_lines[static_cast<std::size_t>(index) + 1].block == line.block;
+        const bool wrapped = index + 1 < static_cast<int>(m_lines.size()) &&
+                             m_lines[static_cast<std::size_t>(index) + 1].block == line.block;
         if (wrapped && line.length > 0 && m_text.at(p - 1) == QChar(' '))
             --p;
         break;
@@ -867,8 +870,8 @@ void QPlainTextEdit::paintEvent(QPaintEvent *event) {
     const QFontMetrics fm = fontMetrics();
     if (m_text.isEmpty() && !m_placeholder.isEmpty()) {
         painter.setPen(pal.color(group, QPalette::PlaceholderText));
-        painter.drawText(QRect(offsetX, offsetY, all.width() - 2 * margin(), lh), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-                         m_placeholder);
+        painter.drawText(QRect(offsetX, offsetY, all.width() - 2 * margin(), lh),
+                         Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, m_placeholder);
     }
     auto drawText = [&](int x, int y, int start, int length, const QColor &color) {
         painter.setPen(color);
@@ -876,7 +879,8 @@ void QPlainTextEdit::paintEvent(QPaintEvent *event) {
         auto flush = [&](int end) {
             if (end > segment) {
                 const QString piece = m_text.mid(segment, end - segment);
-                painter.drawText(QRect(cursor, y, fm.horizontalAdvance(piece) + 2, lh), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine | Qt::TextDontClip, piece);
+                painter.drawText(QRect(cursor, y, fm.horizontalAdvance(piece) + 2, lh),
+                                 Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine | Qt::TextDontClip, piece);
                 cursor += fm.horizontalAdvance(piece);
             }
         };
@@ -898,9 +902,11 @@ void QPlainTextEdit::paintEvent(QPaintEvent *event) {
         if (y > all.bottom())
             break;
         const int lineEnd = line.start + line.length;
-        const bool lastOfBlock = i + 1 >= static_cast<int>(m_lines.size()) || m_lines[static_cast<std::size_t>(i) + 1].block != line.block;
+        const bool lastOfBlock =
+            i + 1 >= static_cast<int>(m_lines.size()) || m_lines[static_cast<std::size_t>(i) + 1].block != line.block;
         const int a = std::max(from, line.start), b = std::min(to, lineEnd);
-        const bool newline = lastOfBlock && lineEnd < static_cast<int>(m_text.size()) && from <= lineEnd && to > lineEnd;
+        const bool newline =
+            lastOfBlock && lineEnd < static_cast<int>(m_text.size()) && from <= lineEnd && to > lineEnd;
         QRect selected;
         if (from != to && (a < b || newline)) {
             const int xa = offsetX + advance(line.start, std::max(a, line.start) - line.start);
@@ -1093,7 +1099,8 @@ void QPlainTextEdit::keyPressEvent(QKeyEvent *event) {
     default:
         break;
     }
-    if (!(mods & (Qt::ControlModifier | Qt::AltModifier)) && !event->text().isEmpty() && event->text().at(0).isPrint()) {
+    if (!(mods & (Qt::ControlModifier | Qt::AltModifier)) && !event->text().isEmpty() &&
+        event->text().at(0).isPrint()) {
         const QString text = event->text();
         applyEdit(selStart, selEnd, text, true, selStart + static_cast<int>(text.size()));
         return;

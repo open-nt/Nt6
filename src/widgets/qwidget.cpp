@@ -6,6 +6,7 @@
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
+#include <QtGui/qaction.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qpainter.h>
@@ -310,6 +311,13 @@ QWidget::~QWidget() {
             p->m_d->layout->removeWidget(this);
     }
     WidgetAccess::clearReferences(this);
+    for (Data::ActionLink &link : m_d->actions) {
+        QObject::disconnect(link.changed);
+        QObject::disconnect(link.destroyed);
+        if (link.action)
+            link.action->removeAssociated(this);
+    }
+    m_d->actions.clear();
     if (m_d->layout) {
         delete m_d->layout;
         m_d->layout = nullptr;
@@ -1427,6 +1435,11 @@ bool QWidget::event(QEvent *e) {
     case QEvent::Hide:
         hideEvent(static_cast<QHideEvent *>(e));
         return true;
+    case QEvent::ActionAdded:
+    case QEvent::ActionRemoved:
+    case QEvent::ActionChanged:
+        actionEvent(static_cast<QActionEvent *>(e));
+        return true;
     case QEvent::Close:
         closeEvent(static_cast<QCloseEvent *>(e));
         return true;
@@ -1542,6 +1555,112 @@ void QWidget::showEvent(QShowEvent *event) { (void)event; }
     Handles the hide \a event: the widget has been hidden. The default does nothing.
 */
 void QWidget::hideEvent(QHideEvent *event) { (void)event; }
+
+/*!
+    Handles the action \a event: an action of the widget has been added, removed or changed. The default does nothing;
+    QMenu and QMenuBar update what they show. When an action is deleted, the event has no action.
+
+    \sa addAction(), QActionEvent
+*/
+void QWidget::actionEvent(QActionEvent *event) { (void)event; }
+
+/*!
+    Returns the actions that the widget has, in order. A menu shows them, and an action with a shortcut works when the
+    window of the widget has the focus.
+
+    \sa addAction(), insertAction(), removeAction()
+*/
+QList<QAction *> QWidget::actions() const {
+    QList<QAction *> list;
+    for (const Data::ActionLink &link : m_d->actions)
+        if (link.action)
+            list.append(link.action.data());
+    return list;
+}
+
+/*!
+    Adds \a action at the end of the actions of the widget. The widget does not own the action.
+
+    \sa insertAction(), removeAction(), actions()
+*/
+void QWidget::addAction(QAction *action) { insertAction(nullptr, action); }
+
+/*!
+    Adds all the \a actions at the end of the actions of the widget.
+
+    \sa addAction()
+*/
+void QWidget::addActions(const QList<QAction *> &actions) {
+    for (QAction *action : actions)
+        insertAction(nullptr, action);
+}
+
+/*!
+    Adds \a action in front of the action \a before, or at the end if \a before is \c nullptr or is not an action of the
+    widget. An action that the widget has already is moved. The widget gets a QEvent::ActionAdded.
+
+    \sa addAction(), removeAction()
+*/
+void QWidget::insertAction(QAction *before, QAction *action) {
+    if (!action)
+        return;
+    removeAction(action);
+    auto at = m_d->actions.end();
+    for (auto it = m_d->actions.begin(); it != m_d->actions.end(); ++it)
+        if (it->action == before && before) {
+            at = it;
+            break;
+        }
+    Data::ActionLink link;
+    link.action = action;
+    link.raw = action;
+    link.changed = QObject::connect(action, &QAction::changed, this, [this, action] {
+        QActionEvent event(QEvent::ActionChanged, action);
+        QCoreApplication::sendEvent(this, &event);
+    });
+    link.destroyed = QObject::connect(action, &QObject::destroyed, this, [this](QObject *object) {
+        for (auto it = m_d->actions.begin(); it != m_d->actions.end(); ++it)
+            if (it->raw == object) {
+                m_d->actions.erase(it);
+                break;
+            }
+        QActionEvent event(QEvent::ActionRemoved, nullptr);
+        QCoreApplication::sendEvent(this, &event);
+    });
+    m_d->actions.insert(at, std::move(link));
+    action->addAssociated(this);
+    QActionEvent event(QEvent::ActionAdded, action, before);
+    QCoreApplication::sendEvent(this, &event);
+}
+
+/*!
+    Adds all the \a actions in front of the action \a before.
+
+    \sa insertAction()
+*/
+void QWidget::insertActions(QAction *before, const QList<QAction *> &actions) {
+    for (QAction *action : actions)
+        insertAction(before, action);
+}
+
+/*!
+    Removes \a action from the actions of the widget. The widget gets a QEvent::ActionRemoved.
+
+    \sa addAction()
+*/
+void QWidget::removeAction(QAction *action) {
+    for (auto it = m_d->actions.begin(); it != m_d->actions.end(); ++it) {
+        if (it->action != action)
+            continue;
+        QObject::disconnect(it->changed);
+        QObject::disconnect(it->destroyed);
+        m_d->actions.erase(it);
+        action->removeAssociated(this);
+        QActionEvent event(QEvent::ActionRemoved, action);
+        QCoreApplication::sendEvent(this, &event);
+        return;
+    }
+}
 
 /*!
     Handles the close event \a event, sent when a window is asked to close. Call

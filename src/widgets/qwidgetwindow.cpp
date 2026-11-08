@@ -5,6 +5,7 @@
 #include "qwidget_p.h"
 
 #include <QtCore/qcoreapplication.h>
+#include <QtGui/qaction.h>
 #include <QtGui/qevent.h>
 #include <QtWidgets/qtooltip.h>
 #include <QtWidgets/qwidget.h>
@@ -12,6 +13,53 @@
 #include <algorithm>
 
 using QtPrivate::WidgetAccess;
+
+namespace {
+
+// The key and the modifiers of a key event as a key sequence has them. Shift is left out for the keys that are not
+// letters, digits or named keys, since the Shift that makes a + from a = is not asked for in a shortcut.
+int shortcutCode(int key, Qt::KeyboardModifiers modifiers) {
+    int code = key;
+    if (modifiers & Qt::ShiftModifier)
+        code |= Qt::SHIFT;
+    if (modifiers & Qt::ControlModifier)
+        code |= Qt::CTRL;
+    if (modifiers & Qt::AltModifier)
+        code |= Qt::ALT;
+    if (modifiers & Qt::MetaModifier)
+        code |= Qt::META;
+    return code;
+}
+
+int normalizedShortcut(int code) {
+    const int key = code & 0x01ffffff;
+    const bool symbol = key > Qt::Key_Space && key < 0x7f && !(key >= '0' && key <= '9') && !(key >= 'A' && key <= 'Z');
+    return symbol ? code & ~static_cast<int>(Qt::SHIFT) : code;
+}
+
+// Finds the enabled action with the shortcut among the actions of `w`, of the menus of those, and of the children.
+QAction *findShortcut(QWidget *w, int code, std::vector<const QWidget *> &seen, bool checkHidden) {
+    if (std::find(seen.begin(), seen.end(), w) != seen.end())
+        return nullptr;
+    seen.push_back(w);
+    if (checkHidden && (w->isHidden() || !w->isEnabled()))
+        return nullptr;
+    for (QAction *action : w->actions()) {
+        if (action->isEnabled() && !action->shortcut().isEmpty() && normalizedShortcut(action->shortcut()[0]) == code)
+            return action;
+        if (QWidget *menu = action->menu<QWidget *>())
+            if (QAction *found = findShortcut(menu, code, seen, false))
+                return found;
+    }
+    for (QObject *child : w->children())
+        if (auto *widget = dynamic_cast<QWidget *>(child))
+            if (!widget->isWindow())
+                if (QAction *found = findShortcut(widget, code, seen, true))
+                    return found;
+    return nullptr;
+}
+
+} // namespace
 
 QWidgetWindow::QWidgetWindow(QWidget *widget) : m_widget(widget) {}
 
@@ -160,8 +208,12 @@ void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
     if (m_popup && !m_grab) {
         // A press outside the popup closes it, and does nothing else.
         bool inside = false;
-        for (QWidget *w = WidgetAccess::widgetAt(m_widget, event->pos()); w; w = w->parentWidget())
-            inside = inside || w == m_popup;
+        for (QWidget *w = WidgetAccess::widgetAt(m_widget, event->pos()); w; w = w->parentWidget()) {
+            // A submenu is part of the popup of its menu, and the widget that opened the popup gets the press.
+            for (QWidget *p = w; p && !inside; p = WidgetAccess::data(p).popupParent.data())
+                inside = p == m_popup;
+            inside = inside || w == WidgetAccess::data(m_popup.data()).popupAnchor.data();
+        }
         if (!inside) {
             QWidget *popup = m_popup;
             m_popup = nullptr;
@@ -234,6 +286,21 @@ void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
     if (!m_widget)
         return;
     cancelToolTip();
+    if (!m_popup && !event->isAutoRepeat() && event->modifiers() == Qt::AltModifier && event->key() >= Qt::Key_A &&
+        event->key() <= Qt::Key_Z && WidgetAccess::activateMnemonic(m_widget, event->key())) {
+        event->accept();
+        return;
+    }
+    if (!m_popup && !event->isAutoRepeat()) {
+        std::vector<const QWidget *> seen;
+        const int code = normalizedShortcut(shortcutCode(event->key(), event->modifiers()));
+        if ((event->modifiers() & ~Qt::ShiftModifier) != Qt::NoModifier || event->key() >= 0x01000000)
+            if (QAction *action = findShortcut(m_widget, code, seen, true)) {
+                action->trigger();
+                event->accept();
+                return;
+            }
+    }
     QWidget *target = WidgetAccess::focusWidgetOf(m_widget);
     if (!target)
         target = m_widget;

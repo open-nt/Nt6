@@ -3,6 +3,8 @@
 // The Nt logo, and one of every widget on the pages of a tab widget. The first page, Nt, is a showcase of all the
 // widgets that Nt has, each one live. Run it with a display, or without one: `hello_widgets -platform offscreen`.
 // A number as an argument opens that page first: `hello_widgets 3`.
+#include <QAction>
+#include <QActionGroup>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -17,6 +19,8 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
+#include <QMenuBar>
 #include <QPlainTextEdit>
 #include <QProgressBar>
 #include <QPushButton>
@@ -227,8 +231,9 @@ static QWidget *buttonsPage(QLabel *status) {
         arrow->setArrowType(type);
         arrow->setAutoRaise(true);
         buttons->addWidget(arrow);
-        QObject::connect(arrow, &QToolButton::clicked,
-                         [=] { status->setText(type == Qt::LeftArrow ? "Tool button: left." : "Tool button: right."); });
+        QObject::connect(arrow, &QToolButton::clicked, [=] {
+            status->setText(type == Qt::LeftArrow ? "Tool button: left." : "Tool button: right.");
+        });
     }
     buttons->addStretch();
     layout->addLayout(buttons);
@@ -459,6 +464,14 @@ int main(int argc, char *argv[]) {
 
     QWidget window;
     window.setWindowTitle("Hello, widgets");
+    // The menu bar goes at the top of the window, as wide as it, and the rest has the margins of a layout.
+    auto *outer = new QVBoxLayout(&window);
+    outer->setContentsMargins(0, 0, 0, 0);
+    outer->setSpacing(0);
+    auto *menuBar = new QMenuBar(&window);
+    outer->addWidget(menuBar);
+    auto *content = new QWidget(&window);
+    outer->addWidget(content, 1);
 
     // The header: the logo, the name and what the example is.
     auto *title = new QLabel("Nt Widgets", &window);
@@ -499,10 +512,46 @@ int main(int argc, char *argv[]) {
     bar->addWidget(status, 1);
     bar->addPermanentWidget(quit);
 
-    auto *layout = new QVBoxLayout(&window);
+    auto *layout = new QVBoxLayout(content);
     layout->addLayout(header);
     layout->addWidget(tabs, 1);
     layout->addWidget(bar);
+
+    // Actions: each menu entry is one, and a shortcut works without the menu being open.
+    QMenu *file = menuBar->addMenu("&File");
+    QAction *openAction = file->addAction("&Open...");
+    openAction->setShortcut(QKeySequence::Open);
+    QObject::connect(openAction, &QAction::triggered, [=] { status->setText("Open..."); });
+    QAction *saveAction = file->addAction("&Save");
+    saveAction->setShortcut(QKeySequence::Save);
+    QObject::connect(saveAction, &QAction::triggered, [=] { status->setText("Saved."); });
+    file->addSeparator();
+    QAction *quitAction = file->addAction("&Quit");
+    quitAction->setShortcut(QKeySequence::Quit);
+    QObject::connect(quitAction, &QAction::triggered, &app, &QApplication::quit);
+
+    QMenu *view = menuBar->addMenu("&View");
+    QAction *showStatus = view->addAction("Status &bar");
+    showStatus->setCheckable(true);
+    showStatus->setChecked(true);
+    QObject::connect(showStatus, &QAction::toggled, bar, &QStatusBar::setVisible);
+    QMenu *page = view->addMenu("&Page");
+    auto *pages = new QActionGroup(&window);
+    for (int i = 0; i < tabs->count(); ++i) {
+        QAction *go = page->addAction(tabs->tabText(i));
+        go->setCheckable(true);
+        go->setChecked(i == tabs->currentIndex());
+        pages->addAction(go);
+        QObject::connect(go, &QAction::triggered, [=] { tabs->setCurrentIndex(i); });
+    }
+    QObject::connect(tabs, &QTabWidget::currentChanged, [=](int index) {
+        if (index >= 0 && index < pages->actions().size())
+            pages->actions().at(index)->setChecked(true);
+    });
+
+    QMenu *help = menuBar->addMenu("&Help");
+    QObject::connect(help->addAction("&About Nt"), &QAction::triggered,
+                     [=] { status->setText("Nt: a small, MIT-licensed implementation of the Qt 6 API."); });
 
     window.resize(500, 760);
     window.show();

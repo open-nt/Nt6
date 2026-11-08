@@ -122,7 +122,8 @@ QLCDNumber::QLCDNumber(QWidget *parent) : QLCDNumber(5, parent) {}
 /*!
     Constructs a display with \a numDigits digits and the given \a parent.
 */
-QLCDNumber::QLCDNumber(uint numDigits, QWidget *parent) : QFrame(parent), m_digits(static_cast<int>(std::min(numDigits, 99u))) {
+QLCDNumber::QLCDNumber(uint numDigits, QWidget *parent)
+    : QFrame(parent), m_digits(static_cast<int>(std::min(numDigits, 99u))) {
     setFrameStyle(Box | Raised);
     setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
     m_text = "0";
@@ -311,9 +312,7 @@ QString QLCDNumber::format(double num) const {
 
     \sa display()
 */
-bool QLCDNumber::checkOverflow(double num) const {
-    return static_cast<int>(digitsOf(format(num)).size()) > m_digits;
-}
+bool QLCDNumber::checkOverflow(double num) const { return static_cast<int>(digitsOf(format(num)).size()) > m_digits; }
 
 /*!
     \overload

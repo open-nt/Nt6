@@ -1,3 +1,5 @@
+#include "qaction.h"
+#include "qactiongroup.h"
 #include "qbackingstore.h"
 #include "qbrush.h"
 #include "qcolor.h"
@@ -6,6 +8,7 @@
 #include "qfont.h"
 #include "qfontmetrics.h"
 #include "qimage.h"
+#include "qkeysequence.h"
 #include "qpaintdevice.h"
 #include "qpaintdevicewindow.h"
 #include "qpaintengine.h"

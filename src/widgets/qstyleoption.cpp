@@ -32,6 +32,7 @@
     \value SO_SpinBox A QStyleOptionSpinBox.
     \value SO_GroupBox A QStyleOptionGroupBox.
     \value SO_Header A QStyleOptionHeader.
+    \value SO_MenuItem A QStyleOptionMenuItem.
 */
 
 /*!
@@ -389,4 +390,75 @@ void QStyleOption::initFrom(const QWidget *widget) {
     \variable QStyleOptionGroupBox::checkable
 
     Whether the title has a check box.
+*/
+
+/*!
+    \class QStyleOptionMenuItem
+    \brief The QStyleOptionMenuItem class describes the parameters for drawing an entry of a menu, or a title of a menu bar.
+
+    \sa QStyleOption, QMenu, QMenuBar
+*/
+
+/*!
+    \enum QStyleOptionMenuItem::MenuItemType
+
+    This enum says what kind of entry a menu has.
+
+    \value Normal An entry that triggers an action.
+    \value Separator A line between groups of entries.
+    \value SubMenu An entry that opens another menu.
+*/
+
+/*!
+    \enum QStyleOptionMenuItem::CheckType
+
+    This enum says whether an entry of a menu has a check box.
+
+    \value NotCheckable No check box.
+    \value Exclusive A check box of an action in an exclusive group; Fusion draws it as it does for a non-exclusive one.
+    \value NonExclusive A check box that is on or off by itself.
+*/
+
+/*!
+    \fn QStyleOptionMenuItem::QStyleOptionMenuItem()
+
+    Constructs an option for an entry of a menu.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::menuItemType
+
+    What kind of entry this is.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::checkType
+
+    Whether the entry has a check box.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::checked
+
+    Whether the check box is on.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::text
+
+    The text of the entry. A \c{&} marks the mnemonic, and a tab separates the text from the shortcut that is shown
+    at the right.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::font
+
+    The font of the text.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::tabWidth
+
+    The width of the widest shortcut of the entries before this one in the menu, which a style adds to the width of an
+    entry that has a shortcut.
 */

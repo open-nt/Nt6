@@ -99,7 +99,9 @@ QSplitter::QSplitter(QWidget *parent) : QFrame(parent) { init(); }
 /*!
     Constructs a splitter with the given \a orientation and \a parent.
 */
-QSplitter::QSplitter(Qt::Orientation orientation, QWidget *parent) : QFrame(parent), m_orientation(orientation) { init(); }
+QSplitter::QSplitter(Qt::Orientation orientation, QWidget *parent) : QFrame(parent), m_orientation(orientation) {
+    init();
+}
 
 void QSplitter::init() { setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding); }
 
@@ -256,7 +258,9 @@ bool QSplitter::isCollapsible(int index) const {
     return index >= 0 && index < count() && canCollapse(m_items[static_cast<std::size_t>(index)]);
 }
 
-bool QSplitter::canCollapse(const Item &item) const { return item.collapsible < 0 ? m_collapsible : item.collapsible != 0; }
+bool QSplitter::canCollapse(const Item &item) const {
+    return item.collapsible < 0 ? m_collapsible : item.collapsible != 0;
+}
 
 /*!
     Returns the width of the handles: the one that setHandleWidth() set, or else the width that the style has.
@@ -374,8 +378,8 @@ void QSplitter::fit() {
         for (int i = 0; i < count(); ++i) {
             Item &item = m_items[static_cast<std::size_t>(i)];
             const int size = i + 1 == count() ? room - assigned
-                                              : sum > 0 ? static_cast<int>(std::lround(static_cast<double>(item.size) * room / sum))
-                                                        : room / count();
+                             : sum > 0 ? static_cast<int>(std::lround(static_cast<double>(item.size) * room / sum))
+                                       : room / count();
             item.size = std::max(0, size);
             assigned += item.size;
         }

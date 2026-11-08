@@ -425,7 +425,12 @@ static void testRender() {
     sharp.fill(0u);
     top.render(&sharp);
     CHECK(sharp.pixel(3, 3) == window && sharp.pixel(237, 117) == window);
-    CHECK(sharp.pixel(button.geometry().center() * 2) != window);
+    // (the button has the color of the window, so look for its frame and text anywhere in it)
+    int buttonInk = 0;
+    for (int y = button.geometry().top() * 2; y < button.geometry().bottom() * 2; ++y)
+        for (int x = button.geometry().left() * 2; x < button.geometry().right() * 2; ++x)
+            buttonInk += sharp.pixel(x, y) != window;
+    CHECK(buttonInk > 20);
 
     // A part of the widget, and a child that is hidden
     QImage part(120, 60, QImage::Format_ARGB32_Premultiplied);

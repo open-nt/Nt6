@@ -231,9 +231,8 @@ static QWidget *buttonsPage(QLabel *status) {
         arrow->setArrowType(type);
         arrow->setAutoRaise(true);
         buttons->addWidget(arrow);
-        QObject::connect(arrow, &QToolButton::clicked, [=] {
-            status->setText(type == Qt::LeftArrow ? "Tool button: left." : "Tool button: right.");
-        });
+        QObject::connect(arrow, &QToolButton::clicked,
+                         [=] { status->setText(type == Qt::LeftArrow ? "Tool button: left." : "Tool button: right."); });
     }
     buttons->addStretch();
     layout->addLayout(buttons);

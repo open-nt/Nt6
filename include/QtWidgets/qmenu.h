@@ -20,7 +20,8 @@ public:
 
     using QWidget::addAction;
     QAction *addAction(const QString &text);
-    template <typename Functor> QAction *addAction(const QString &text, Functor functor) {
+    template <typename Functor>
+    QAction *addAction(const QString &text, Functor functor) {
         QAction *action = addAction(text);
         QObject::connect(action, &QAction::triggered, action, std::move(functor));
         return action;

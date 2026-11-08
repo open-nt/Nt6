@@ -9,29 +9,12 @@ struct KeyName {
 };
 
 const KeyName kNames[] = {
-    {Qt::Key_Escape, "Esc"},
-    {Qt::Key_Tab, "Tab"},
-    {Qt::Key_Backtab, "Backtab"},
-    {Qt::Key_Backspace, "Backspace"},
-    {Qt::Key_Return, "Return"},
-    {Qt::Key_Enter, "Enter"},
-    {Qt::Key_Insert, "Ins"},
-    {Qt::Key_Delete, "Del"},
-    {Qt::Key_Pause, "Pause"},
-    {Qt::Key_Print, "Print"},
-    {Qt::Key_Home, "Home"},
-    {Qt::Key_End, "End"},
-    {Qt::Key_Left, "Left"},
-    {Qt::Key_Up, "Up"},
-    {Qt::Key_Right, "Right"},
-    {Qt::Key_Down, "Down"},
-    {Qt::Key_PageUp, "PgUp"},
-    {Qt::Key_PageDown, "PgDown"},
-    {Qt::Key_Space, "Space"},
-    {Qt::Key_Menu, "Menu"},
-    {Qt::Key_CapsLock, "CapsLock"},
-    {Qt::Key_NumLock, "NumLock"},
-    {Qt::Key_ScrollLock, "ScrollLock"},
+    {Qt::Key_Escape, "Esc"},      {Qt::Key_Tab, "Tab"},      {Qt::Key_Backtab, "Backtab"}, {Qt::Key_Backspace, "Backspace"},
+    {Qt::Key_Return, "Return"},   {Qt::Key_Enter, "Enter"},  {Qt::Key_Insert, "Ins"},      {Qt::Key_Delete, "Del"},
+    {Qt::Key_Pause, "Pause"},     {Qt::Key_Print, "Print"},  {Qt::Key_Home, "Home"},       {Qt::Key_End, "End"},
+    {Qt::Key_Left, "Left"},       {Qt::Key_Up, "Up"},        {Qt::Key_Right, "Right"},     {Qt::Key_Down, "Down"},
+    {Qt::Key_PageUp, "PgUp"},     {Qt::Key_PageDown, "PgDown"}, {Qt::Key_Space, "Space"},  {Qt::Key_Menu, "Menu"},
+    {Qt::Key_CapsLock, "CapsLock"}, {Qt::Key_NumLock, "NumLock"}, {Qt::Key_ScrollLock, "ScrollLock"},
 };
 
 struct ModifierName {
@@ -258,92 +241,35 @@ QList<QKeySequence> QKeySequence::keyBindings(StandardKey key) {
     const int Ctrl = Qt::CTRL, Shift = Qt::SHIFT, Alt = Qt::ALT;
     int code = 0;
     switch (key) {
-    case HelpContents:
-        code = Qt::Key_F1;
-        break;
-    case Open:
-        code = with(Ctrl, Qt::Key_O);
-        break;
-    case Close:
-        code = with(Ctrl, Qt::Key_W);
-        break;
-    case Save:
-        code = with(Ctrl, Qt::Key_S);
-        break;
-    case New:
-        code = with(Ctrl, Qt::Key_N);
-        break;
-    case Delete:
-        code = Qt::Key_Delete;
-        break;
-    case Cut:
-        code = with(Ctrl, Qt::Key_X);
-        break;
-    case Copy:
-        code = with(Ctrl, Qt::Key_C);
-        break;
-    case Paste:
-        code = with(Ctrl, Qt::Key_V);
-        break;
-    case Undo:
-        code = with(Ctrl, Qt::Key_Z);
-        break;
-    case Redo:
-        code = with(Ctrl | Shift, Qt::Key_Z);
-        break;
-    case Back:
-        code = with(Alt, Qt::Key_Left);
-        break;
-    case Forward:
-        code = with(Alt, Qt::Key_Right);
-        break;
-    case Refresh:
-        code = Qt::Key_F5;
-        break;
-    case ZoomIn:
-        code = with(Ctrl, Qt::Key_Plus);
-        break;
-    case ZoomOut:
-        code = with(Ctrl, Qt::Key_Minus);
-        break;
-    case Print:
-        code = with(Ctrl, Qt::Key_P);
-        break;
-    case Find:
-        code = with(Ctrl, Qt::Key_F);
-        break;
-    case FindNext:
-        code = Qt::Key_F3;
-        break;
-    case FindPrevious:
-        code = with(Shift, Qt::Key_F3);
-        break;
-    case Replace:
-        code = with(Ctrl, Qt::Key_H);
-        break;
-    case SelectAll:
-        code = with(Ctrl, Qt::Key_A);
-        break;
-    case Quit:
-        code = with(Ctrl, Qt::Key_Q);
-        break;
-    case SaveAs:
-        code = with(Ctrl | Shift, Qt::Key_S);
-        break;
-    case Cancel:
-        code = Qt::Key_Escape;
-        break;
-    case FullScreen:
-        code = Qt::Key_F11;
-        break;
-    case NextChild:
-        code = with(Ctrl, Qt::Key_Tab);
-        break;
-    case PreviousChild:
-        code = with(Ctrl | Shift, Qt::Key_Backtab);
-        break;
-    case UnknownKey:
-        break;
+    case HelpContents: code = Qt::Key_F1; break;
+    case Open: code = with(Ctrl, Qt::Key_O); break;
+    case Close: code = with(Ctrl, Qt::Key_W); break;
+    case Save: code = with(Ctrl, Qt::Key_S); break;
+    case New: code = with(Ctrl, Qt::Key_N); break;
+    case Delete: code = Qt::Key_Delete; break;
+    case Cut: code = with(Ctrl, Qt::Key_X); break;
+    case Copy: code = with(Ctrl, Qt::Key_C); break;
+    case Paste: code = with(Ctrl, Qt::Key_V); break;
+    case Undo: code = with(Ctrl, Qt::Key_Z); break;
+    case Redo: code = with(Ctrl | Shift, Qt::Key_Z); break;
+    case Back: code = with(Alt, Qt::Key_Left); break;
+    case Forward: code = with(Alt, Qt::Key_Right); break;
+    case Refresh: code = Qt::Key_F5; break;
+    case ZoomIn: code = with(Ctrl, Qt::Key_Plus); break;
+    case ZoomOut: code = with(Ctrl, Qt::Key_Minus); break;
+    case Print: code = with(Ctrl, Qt::Key_P); break;
+    case Find: code = with(Ctrl, Qt::Key_F); break;
+    case FindNext: code = Qt::Key_F3; break;
+    case FindPrevious: code = with(Shift, Qt::Key_F3); break;
+    case Replace: code = with(Ctrl, Qt::Key_H); break;
+    case SelectAll: code = with(Ctrl, Qt::Key_A); break;
+    case Quit: code = with(Ctrl, Qt::Key_Q); break;
+    case SaveAs: code = with(Ctrl | Shift, Qt::Key_S); break;
+    case Cancel: code = Qt::Key_Escape; break;
+    case FullScreen: code = Qt::Key_F11; break;
+    case NextChild: code = with(Ctrl, Qt::Key_Tab); break;
+    case PreviousChild: code = with(Ctrl | Shift, Qt::Key_Backtab); break;
+    case UnknownKey: break;
     }
     QList<QKeySequence> list;
     if (code != 0)

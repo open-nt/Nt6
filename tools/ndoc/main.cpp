@@ -2549,11 +2549,12 @@ pre .st { color: var(--hl-st); }
 pre .nu { color: var(--hl-nu); }
 pre .pp { color: var(--hl-pp); }
 pre .mc { color: var(--hl-mc); }
-header.site { display: flex; align-items: center; gap: 12px; padding: 10px 32px;
+header.site { display: flex; align-items: center; gap: 10px; padding: 6px 32px;
   background: var(--surface); border-bottom: 1px solid var(--border); }
-header.site img { height: 32px; width: 32px; }
+header.site .logo { display: flex; }
+header.site .logo img { display: block; height: 48px; width: 48px; }
 header.site .name { font-weight: 600; color: var(--text); font-size: 1.1em; }
-header.site .version { color: var(--muted); font-size: 0.875em; }
+header.site .version { color: var(--muted); font-size: 0.95em; line-height: 1; }
 header.site .source { margin-left: auto; display: flex; align-items: center; gap: 6px;
   color: var(--muted); font-size: 0.875em; }
 header.site .source svg { height: 20px; width: auto; fill: currentColor; }
@@ -2688,10 +2689,12 @@ private:
                 ":wght@400;600&family=Titillium+Web:wght@300;400;600&display=swap\">\n";
         html += "<link rel=\"stylesheet\" href=\"style/ndoc.css\">\n</head>\n<body>\n";
         html += "<header class=\"site\">";
+        // The logo stands for the project name; without one, the name is written out.
         if (!cfg.logo.empty())
-            html += "<a href=\"index.html\"><img src=\"images/" +
-                    escapeHtml(cfg.logo.filename().string()) + "\" alt=\"\"></a>";
-        html += "<a class=\"name\" href=\"index.html\">" + escapeHtml(cfg.project) + "</a>";
+            html += "<a class=\"logo\" href=\"index.html\"><img src=\"images/" +
+                    escapeHtml(cfg.logo.filename().string()) + "\" alt=\"" + escapeHtml(cfg.project) + "\"></a>";
+        else
+            html += "<a class=\"name\" href=\"index.html\">" + escapeHtml(cfg.project) + "</a>";
         html += "<span class=\"version\">" + escapeHtml(cfg.version) + "</span>";
         if (!cfg.github.empty())
             html += "<a class=\"source\" href=\"" + escapeHtml(cfg.github) +

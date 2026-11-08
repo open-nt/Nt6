@@ -98,6 +98,9 @@ reject(classes.html "Detail")
 expect(index.html "Fixture Core Classes")
 expect(index.html "Guide Page")
 
+# Without a logo the header writes out the project name.
+expect(index.html "<a class=\"name\" href=\"index.html\">")
+
 # The header links to the source, with the GitHub mark.
 expect(index.html "<a class=\"source\" href=\"https://github.com/example/fixture\"")
 expect(index.html "aria-label=\"Source code on GitHub\"")

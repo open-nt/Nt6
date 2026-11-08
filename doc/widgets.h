@@ -136,6 +136,9 @@
     \li QLineEdit
     \li One line of text to type, with selection, a placeholder and a password mode.
     \row
+    \li QListWidget
+    \li Items in rows to select, with the mouse or the keys; one, several or none at a time.
+    \row
     \li QSpinBox
     \li A whole number to type or step.
     \row

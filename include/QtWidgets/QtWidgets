@@ -1,4 +1,5 @@
 #include "qabstractbutton.h"
+#include "qabstractitemview.h"
 #include "qabstractscrollarea.h"
 #include "qapplication.h"
 #include "qboxlayout.h"
@@ -13,6 +14,7 @@
 #include "qlayout.h"
 #include "qlayoutitem.h"
 #include "qlineedit.h"
+#include "qlistwidget.h"
 #include "qprogressbar.h"
 #include "qpushbutton.h"
 #include "qradiobutton.h"

@@ -14,6 +14,7 @@
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
@@ -393,7 +394,19 @@ static QWidget *viewsPage(QLabel *status) {
     auto *area = new QScrollArea(page);
     area->setWidget(form);
     area->setWidgetResizable(true);
-    layout->addWidget(area, 2);
+
+    // A list of the teams, which lets the user select several.
+    auto *list = new QListWidget(page);
+    list->addItems({"Compiler", "Kernel", "Unix", "Python", "C++", "Web", "Navy", "Apollo"});
+    list->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    list->setCurrentRow(1);
+    list->setMaximumWidth(120);
+    QObject::connect(list, &QListWidget::itemSelectionChanged,
+                     [=] { status->setText(QString("%1 teams selected.").arg(list->selectedItems().size())); });
+    auto *bottom = new QHBoxLayout;
+    bottom->addWidget(list);
+    bottom->addWidget(area, 1);
+    layout->addLayout(bottom, 2);
     return page;
 }
 

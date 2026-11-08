@@ -294,6 +294,7 @@ nt_set_compile_options(NtGui)
 
 add_library(NtWidgets
     src/widgets/qabstractbutton.cpp
+    src/widgets/qabstractitemview.cpp
     src/widgets/qabstractscrollarea.cpp
     src/widgets/qapplication.cpp
     src/widgets/qboxlayout.cpp
@@ -309,6 +310,7 @@ add_library(NtWidgets
     src/widgets/qlayout.cpp
     src/widgets/qlayoutitem.cpp
     src/widgets/qlineedit.cpp
+    src/widgets/qlistwidget.cpp
     src/widgets/qprogressbar.cpp
     src/widgets/qpushbutton.cpp
     src/widgets/qradiobutton.cpp

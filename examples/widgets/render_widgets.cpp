@@ -19,6 +19,7 @@
 #include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
@@ -718,6 +719,20 @@ QTableWidget *staffTable(QWidget *parent) {
     return table;
 }
 
+bool listWidgets(const std::string &dir) {
+    QWidget &w = *host(220, 150);
+    auto *list = new QListWidget(&w);
+    list->addItems({"Inbox", "Drafts", "Sent", "Archive", "Spam", "Trash", "Projects", "Receipts"});
+    list->item(2)->setForeground(QBrush(QColor(190, 70, 20)));
+    list->item(3)->setBackground(QBrush(QColor(255, 226, 150)));
+    list->item(4)->setFlags(Qt::NoItemFlags);
+    list->item(1)->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    list->setCurrentRow(0);
+    list->setCurrentRow(1);
+    w.layout()->addWidget(list);
+    return picture(w, list, dir, "qlistwidget");
+}
+
 bool headerViews(const std::string &dir) {
     QWidget &w = *host(360, 200);
     auto *table = new QTableWidget(4, 3, &w);
@@ -762,7 +777,7 @@ int main(int argc, char *argv[]) {
     bool ok = true;
     for (bool (*render)(const std::string &) : {labels, pushButtons, checkBoxes, radioButtons, lineEdits, sliders,
                                                 progressBars, spinBoxes, comboBoxes, groupBoxes, tabWidgets, frames,
-                                                gridLayouts, formLayouts, stackedWidgets, toolTips, scrollBars, scrollAreas, headerViews,
+                                                gridLayouts, formLayouts, stackedWidgets, toolTips, scrollBars, scrollAreas, listWidgets, headerViews,
                                                 tableWidgets})
         ok = render(directory) && ok;
     return ok ? 0 : 1;

@@ -494,6 +494,16 @@ enum TextElideMode { ElideLeft, ElideRight, ElideMiddle, ElideNone };
 enum ScrollBarPolicy { ScrollBarAsNeeded, ScrollBarAlwaysOff, ScrollBarAlwaysOn };
 
 /*!
+    \enum Qt::SortOrder
+
+    This enum says in which direction items are sorted.
+
+    \value AscendingOrder From the smallest to the largest.
+    \value DescendingOrder From the largest to the smallest.
+*/
+enum SortOrder { AscendingOrder, DescendingOrder };
+
+/*!
     \enum Qt::ItemFlag
 
     This enum describes what the user can do with an item of a table.

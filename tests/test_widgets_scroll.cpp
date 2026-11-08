@@ -1,6 +1,6 @@
 // MIT License - see LICENSE
 //
-// Tests for frames, scroll bars, scroll areas and tables of Nt Widgets on the offscreen platform. The tests play the
+// Tests for frames, scroll bars, scroll areas, lists and tables of Nt Widgets on the offscreen platform. The tests play the
 // window system through QWindowSystemInterface.
 #include <QtCore>
 #include <QtGui/qevent.h>
@@ -11,6 +11,7 @@
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qframe.h>
+#include <QtWidgets/qlistwidget.h>
 #include <QtWidgets/qheaderview.h>
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qpushbutton.h>
@@ -880,6 +881,19 @@ static void testTableWidget() {
     CHECK(current.size() == 8 && current[4] == 3 && current[5] == 2 && current[6] == 1 && current[7] == 1);
     click(view, QPoint(210, 100));
     CHECK(selections == 2 && clicks == 3); // the same cell: not a new selection
+    // The selection mode: the same, as in Qt, with one selected cell at most
+    CHECK(table.selectionMode() == QAbstractItemView::ExtendedSelection);
+    table.setCurrentCell(1, 1);
+    CHECK(table.selectedItems().size() == 1);
+    const int changes = selections;
+    table.setSelectionMode(QAbstractItemView::NoSelection);
+    CHECK(selections == changes + 1 && table.selectedItems().isEmpty() && !table.item(1, 1)->isSelected() &&
+          table.currentRow() == 1);
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(103, 33)) != highlight);
+    table.setSelectionMode(QAbstractItemView::SingleSelection);
+    CHECK(table.selectedItems().size() == 1 && table.item(1, 1)->isSelected());
+    table.setSelectionMode(QAbstractItemView::ExtendedSelection);
     // Press in one cell, release in another: no click
     press(view, QPoint(10, 40));
     release(view, QPoint(110, 40));
@@ -1101,6 +1115,372 @@ static void testTableToolTips() {
     QToolTip::hideText();
 }
 
+static void testListWidget() {
+    std::vector<int> rowsSeen;
+    int selections = 0, clicks = 0, doubles = 0, activations = 0, currentItems = 0;
+    QStringList texts;
+    QWidget top;
+    top.resize(200, 120);
+    auto *layout = new QVBoxLayout(&top);
+    layout->setContentsMargins(0, 0, 0, 0);
+    QListWidget list(&top);
+    layout->addWidget(&list);
+    QObject::connect(&list, &QListWidget::currentRowChanged, [&](int r) { rowsSeen.push_back(r); });
+    QObject::connect(&list, &QListWidget::currentTextChanged, [&](const QString &t) { texts.append(t); });
+    QObject::connect(&list, &QListWidget::currentItemChanged,
+                     [&](QListWidgetItem *, QListWidgetItem *) { ++currentItems; });
+    QObject::connect(&list, &QListWidget::itemSelectionChanged, [&] { ++selections; });
+    QObject::connect(&list, &QListWidget::itemClicked, [&](QListWidgetItem *) { ++clicks; });
+    QObject::connect(&list, &QListWidget::itemDoubleClicked, [&](QListWidgetItem *) { ++doubles; });
+    QObject::connect(&list, &QListWidget::itemActivated, [&](QListWidgetItem *) { ++activations; });
+    top.show();
+    settle(&top);
+
+    CHECK(list.count() == 0 && list.currentRow() == -1 && list.currentItem() == nullptr &&
+          list.selectedItems().isEmpty());
+    CHECK(list.selectionMode() == QAbstractItemView::SingleSelection && !list.alternatingRowColors() &&
+          list.focusPolicy() == Qt::StrongFocus && list.horizontalScrollBarPolicy() == Qt::ScrollBarAlwaysOff);
+    CHECK(list.item(0) == nullptr && list.takeItem(0) == nullptr && list.row(nullptr) == -1);
+    const int h = list.rowHeight();
+    CHECK(h == list.fontMetrics().height());
+
+    // The first item becomes the current one, without being selected
+    list.addItem("Alpha");
+    CHECK(list.count() == 1 && list.currentRow() == 0 && list.currentItem()->text() == "Alpha" &&
+          rowsSeen == std::vector<int>{0} && texts == QStringList{"Alpha"} && currentItems == 1 &&
+          list.selectedItems().isEmpty());
+    list.addItems({"Beta", "Gamma", "Delta"});
+    list.addItem(new QListWidgetItem("Epsilon"));
+    CHECK(list.count() == 5 && list.item(4)->text() == "Epsilon" && list.item(4)->listWidget() == &list &&
+          list.row(list.item(3)) == 3 && rowsSeen.size() == 1);
+    list.insertItem(1, "Inserted");
+    list.insertItems(0, {"First", "Second"});
+    CHECK(list.count() == 8 && list.item(0)->text() == "First" && list.item(1)->text() == "Second" &&
+          list.item(2)->text() == "Alpha" && list.item(3)->text() == "Inserted");
+    CHECK(list.currentRow() == 2 && list.currentItem()->text() == "Alpha"); // the current item stays where it moved
+    list.insertItem(99, "Last");
+    list.insertItem(-3, "Zero");
+    CHECK(list.count() == 10 && list.item(0)->text() == "Zero" && list.item(9)->text() == "Last" &&
+          list.currentRow() == 3);
+    list.clear();
+    CHECK(list.count() == 0 && list.currentRow() == -1 && rowsSeen.back() == -1 && texts.back().isEmpty());
+    list.addItems({"Alpha", "Beta", "Gamma", "Delta", "Epsilon"});
+    list.setCurrentRow(-1);
+    list.clear();
+    list.addItems({"Alpha", "Beta", "Gamma", "Delta", "Epsilon"});
+    rowsSeen.clear();
+    selections = clicks = 0;
+
+    // Geometry
+    QWidget *view = list.viewport();
+    CHECK(list.visualItemRect(list.item(2)) == QRect(0, 2 * h, view->width(), h));
+    QListWidgetItem stray;
+    CHECK(list.visualItemRect(&stray).isNull() && list.visualItemRect(nullptr).isNull());
+    CHECK(list.itemAt(QPoint(5, h + 1)) == list.item(1) && list.itemAt(5, 0) == list.item(0) &&
+          list.itemAt(5, 5 * h) == nullptr && list.itemAt(-1, 5) == nullptr &&
+          list.itemAt(view->width(), 5) == nullptr && list.itemAt(5, -1) == nullptr);
+    CHECK(list.verticalScrollBar()->isHidden() && list.verticalScrollBar()->singleStep() == h);
+
+    // Painting: rows, a selected row, alternating colors, a background
+    const QPalette pal = list.palette();
+    const QPoint origin = inWindow(view);
+    QImage image = grab(&top);
+    const QRgb base = pal.color(QPalette::Base).rgb();
+    CHECK(image.pixel(origin + QPoint(view->width() - 3, 3)) == base);
+    list.setAlternatingRowColors(true);
+    image = grab(&top);
+    CHECK(list.alternatingRowColors() &&
+          image.pixel(origin + QPoint(view->width() - 3, h + 3)) == pal.color(QPalette::AlternateBase).rgb() &&
+          image.pixel(origin + QPoint(view->width() - 3, 2 * h + 3)) == base);
+    list.setAlternatingRowColors(false);
+    list.item(3)->setBackground(QBrush(QColor(250, 200, 60)));
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(view->width() - 3, 3 * h + 3)) == QColor(250, 200, 60).rgb());
+    list.item(3)->setBackground(QBrush());
+
+    // Clicking selects the item, and says so
+    click(view, QPoint(10, h + 3));
+    CHECK(list.currentRow() == 1 && list.item(1)->isSelected() && list.selectedItems().size() == 1 && list.hasFocus());
+    CHECK(rowsSeen == std::vector<int>{1} && selections == 1 && clicks == 1);
+    image = grab(&top);
+    const QRgb highlight = pal.color(QPalette::Highlight).rgb();
+    CHECK(image.pixel(origin + QPoint(view->width() - 3, h + 3)) == highlight &&
+          image.pixel(origin + QPoint(view->width() - 3, 3)) == base);
+    click(view, QPoint(10, 3 * h + 3));
+    CHECK(list.currentRow() == 3 && !list.item(1)->isSelected() && list.item(3)->isSelected() &&
+          list.selectedItems().size() == 1 && selections == 2); // the item that goes and the new one are one change
+    click(view, QPoint(10, 3 * h + 3));
+    CHECK(selections == 2 && clicks == 3);
+    // Press in one row, release in another: no click
+    press(view, QPoint(10, 3));
+    release(view, QPoint(10, h + 3));
+    CHECK(clicks == 3);
+    release(view, QPoint(10, 3));
+    // Below the items nothing is selected
+    click(view, QPoint(10, 5 * h + 2));
+    CHECK(list.currentRow() == 0 || list.currentRow() == 3);
+    // Double click activates
+    QWindow *win = top.windowHandle();
+    const QPoint dbl = inWindow(view, QPoint(10, 2 * h + 3));
+    QWindowSystemInterface::handleMouseEvent(win, QPointF(dbl), QPointF(dbl), Qt::LeftButton, Qt::LeftButton,
+                                             QEvent::MouseButtonDblClick, Qt::NoModifier);
+    QWindowSystemInterface::handleMouseEvent(win, QPointF(dbl), QPointF(dbl), Qt::NoButton, Qt::LeftButton,
+                                             QEvent::MouseButtonRelease, Qt::NoModifier);
+    CHECK(doubles == 1 && activations == 1 && list.currentRow() == 2);
+
+    // Keys
+    list.setCurrentRow(0);
+    CHECK(list.currentRow() == 0 && list.item(0)->isSelected());
+    key(&list, Qt::Key_Down);
+    CHECK(list.currentRow() == 1 && list.item(1)->isSelected() && !list.item(0)->isSelected());
+    key(&list, Qt::Key_Up);
+    key(&list, Qt::Key_Up);
+    CHECK(list.currentRow() == 0);
+    key(&list, Qt::Key_End);
+    CHECK(list.currentRow() == 4);
+    key(&list, Qt::Key_Down);
+    CHECK(list.currentRow() == 4);
+    key(&list, Qt::Key_Home);
+    CHECK(list.currentRow() == 0);
+    key(&list, Qt::Key_PageDown);
+    CHECK(list.currentRow() > 0 && list.currentRow() <= 4);
+    key(&list, Qt::Key_PageUp);
+    CHECK(list.currentRow() == 0);
+    activations = 0;
+    key(&list, Qt::Key_Return);
+    key(&list, Qt::Key_Enter);
+    CHECK(activations == 2);
+    // A letter goes to the next item that starts with it, and wraps around
+    key(&list, Qt::Key_G, "g");
+    CHECK(list.currentRow() == 2 && list.item(2)->isSelected());
+    key(&list, Qt::Key_D, "D");
+    CHECK(list.currentRow() == 3);
+    key(&list, Qt::Key_A, "a");
+    CHECK(list.currentRow() == 0);
+    key(&list, Qt::Key_Z, "z");
+    CHECK(list.currentRow() == 0);
+    key(&list, Qt::Key_F1);
+    key(&list, Qt::Key_A, "a", Qt::ControlModifier);
+    CHECK(list.selectedItems().size() == 1); // Control+A does not select all in this mode
+
+    // Items that are not enabled or not selectable
+    list.item(1)->setFlags(Qt::ItemIsSelectable); // not enabled
+    list.item(2)->setFlags(Qt::ItemIsEnabled);    // not selectable
+    key(&list, Qt::Key_Down);
+    CHECK(list.currentRow() == 2 && !list.item(2)->isSelected()); // enabled: current, but not selected
+    list.item(1)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+    list.item(1)->setFlags(Qt::NoItemFlags);
+    list.setCurrentRow(0);
+    key(&list, Qt::Key_Down);
+    CHECK(list.currentRow() == 2);
+    key(&list, Qt::Key_Up);
+    CHECK(list.currentRow() == 0);
+    click(view, QPoint(10, h + 3));
+    CHECK(list.currentRow() == 0);
+    list.setCurrentRow(1);
+    CHECK(list.currentRow() == 0);
+    list.item(1)->setSelected(true);
+    CHECK(!list.item(1)->isSelected());
+    list.item(1)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+    list.item(2)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+
+    // Selection modes
+    list.setSelectionMode(QAbstractItemView::NoSelection); // clears the selection
+    list.setSelectionMode(QAbstractItemView::MultiSelection);
+    click(view, QPoint(10, 3));
+    click(view, QPoint(10, 2 * h + 3));
+    CHECK(list.item(0)->isSelected() && list.item(2)->isSelected() && list.selectedItems().size() == 2);
+    click(view, QPoint(10, 3));
+    CHECK(!list.item(0)->isSelected() && list.selectedItems().size() == 1);
+    key(&list, Qt::Key_Down); // moves the current item and nothing else
+    CHECK(list.currentRow() == 1 && list.selectedItems().size() == 1);
+    key(&list, Qt::Key_Space);
+    CHECK(list.item(1)->isSelected() && list.selectedItems().size() == 2);
+    key(&list, Qt::Key_Space);
+    CHECK(!list.item(1)->isSelected());
+    key(&list, Qt::Key_A, QString(), Qt::ControlModifier);
+    CHECK(list.selectedItems().size() == 5);
+    list.item(1)->setSelected(false);
+    CHECK(list.selectedItems().size() == 4);
+    list.item(1)->setSelected(true);
+    list.setSelectionMode(QAbstractItemView::SingleSelection);
+    CHECK(list.selectedItems().size() == 1);
+    list.setSelectionMode(QAbstractItemView::ExtendedSelection);
+    click(view, QPoint(10, 3));
+    CHECK(list.selectedItems().size() == 1 && list.item(0)->isSelected());
+    click(view, QPoint(10, 3 * h + 3), Qt::ShiftModifier);
+    CHECK(list.selectedItems().size() == 4 && list.item(3)->isSelected() && list.currentRow() == 3);
+    click(view, QPoint(10, h + 3), Qt::ShiftModifier);
+    CHECK(list.selectedItems().size() == 2 && list.item(0)->isSelected() && list.item(1)->isSelected());
+    click(view, QPoint(10, 4 * h + 3), Qt::ControlModifier);
+    CHECK(list.selectedItems().size() == 3 && list.item(4)->isSelected());
+    click(view, QPoint(10, 4 * h + 3), Qt::ControlModifier);
+    CHECK(list.selectedItems().size() == 2 && !list.item(4)->isSelected());
+    click(view, QPoint(10, 3 * h + 3), Qt::ControlModifier | Qt::ShiftModifier);
+    CHECK(list.selectedItems().size() == 4 && list.item(3)->isSelected() &&
+          list.item(4)->isSelected()); // the range from the last anchor is added
+    click(view, QPoint(10, 2 * h + 3));
+    CHECK(list.selectedItems().size() == 1 && list.item(2)->isSelected());
+    key(&list, Qt::Key_Down, QString(), Qt::ShiftModifier);
+    key(&list, Qt::Key_Down, QString(), Qt::ShiftModifier);
+    CHECK(list.selectedItems().size() == 3 && list.currentRow() == 4 && list.item(4)->isSelected());
+    key(&list, Qt::Key_Up, QString(), Qt::ShiftModifier);
+    CHECK(list.selectedItems().size() == 2 && !list.item(4)->isSelected());
+    key(&list, Qt::Key_Up, QString(), Qt::ControlModifier); // the current item moves, the selection stays
+    CHECK(list.currentRow() == 2 && list.selectedItems().size() == 2);
+    key(&list, Qt::Key_Space, QString(), Qt::ControlModifier);
+    CHECK(list.selectedItems().size() == 1);
+    key(&list, Qt::Key_Space);
+    CHECK(list.item(2)->isSelected() && list.selectedItems().size() == 1);
+    click(view, QPoint(10, 5 * h + 2)); // empty space clears the selection
+    CHECK(list.selectedItems().isEmpty());
+    list.selectAll();
+    CHECK(list.selectedItems().size() == 5);
+    list.setSelectionMode(QAbstractItemView::NoSelection);
+    CHECK(list.selectedItems().isEmpty());
+    click(view, QPoint(10, 3));
+    CHECK(list.currentRow() == 0 && list.selectedItems().isEmpty());
+    list.setCurrentRow(2);
+    CHECK(list.currentRow() == 2 && list.selectedItems().isEmpty());
+    list.item(2)->setSelected(true);
+    CHECK(list.selectedItems().isEmpty());
+    list.selectAll();
+    CHECK(list.selectedItems().isEmpty());
+    list.setSelectionMode(QAbstractItemView::SingleSelection);
+    list.setCurrentRow(4);
+    CHECK(list.selectedItems().size() == 1);
+    list.item(0)->setSelected(true);
+    CHECK(list.selectedItems().size() == 1 && list.item(0)->isSelected() && !list.item(4)->isSelected());
+
+    // Items that go or come
+    list.setCurrentRow(2);
+    rowsSeen.clear();
+    selections = 0;
+    QListWidgetItem *taken = list.takeItem(1);
+    CHECK(taken && taken->text() == "Beta" && taken->listWidget() == nullptr && list.count() == 4 &&
+          list.currentRow() == 1 && rowsSeen.empty() && list.currentItem()->text() == "Gamma");
+    taken->setSelected(true); // not in a list
+    CHECK(!taken->isSelected());
+    QListWidgetItem *current = list.takeItem(1); // the current item: its successor takes over
+    CHECK(current->text() == "Gamma" && list.currentRow() == 1 && list.currentItem()->text() == "Delta" &&
+          rowsSeen == std::vector<int>{1} && selections == 1);
+    delete current;
+    delete list.takeItem(2);
+    CHECK(list.count() == 2 && list.currentRow() == 1);
+    delete list.takeItem(1); // the last
+    CHECK(list.currentRow() == 0);
+    delete list.takeItem(0);
+    CHECK(list.count() == 0 && list.currentRow() == -1 && list.takeItem(0) == nullptr);
+    // An item that is deleted leaves the list; one that is inserted moves between lists
+    list.addItem(taken);
+    auto *doomed = new QListWidgetItem("Doomed", &list);
+    CHECK(list.count() == 2 && doomed->listWidget() == &list);
+    delete doomed;
+    CHECK(list.count() == 1);
+    QListWidget other;
+    other.addItem(taken);
+    CHECK(list.count() == 0 && other.count() == 1 && taken->listWidget() == &other);
+    other.insertItem(0, taken); // into the same list, at the place it is
+    CHECK(other.count() == 1 && other.item(0) == taken);
+    other.addItem("B");
+    other.addItem("A");
+    other.insertItem(0, other.item(2)); // moves "A" to the front
+    CHECK(other.count() == 3 && other.item(0)->text() == "A");
+    other.insertItem(3, other.item(0)); // and to the end
+    CHECK(other.item(2)->text() == "A");
+    list.addItem(other.takeItem(1));
+    list.addItem(other.takeItem(0));
+    list.addItem(other.takeItem(0));
+
+    // Sorting
+    list.clear();
+    list.addItems({"pear", "apple", "fig", "apple"});
+    list.setCurrentRow(2);
+    list.sortItems();
+    CHECK(list.item(0)->text() == "apple" && list.item(1)->text() == "apple" && list.item(2)->text() == "fig" &&
+          list.item(3)->text() == "pear" && list.currentItem()->text() == "fig" && list.currentRow() == 2);
+    list.sortItems(Qt::DescendingOrder);
+    CHECK(list.item(0)->text() == "pear" && list.item(3)->text() == "apple" && list.currentItem()->text() == "fig");
+
+    // Text: alignment, color, font, a text that is too long
+    list.clear();
+    list.addItems(
+        {"Right", "Colored", "A text that is much too long to fit in the width of this list, so it is elided"});
+    list.item(0)->setTextAlignment(Qt::AlignRight | Qt::AlignVCenter);
+    list.item(1)->setForeground(QBrush(QColor(255, 0, 0)));
+    QFont bold = list.font();
+    bold.setBold(true);
+    list.item(1)->setFont(bold);
+    CHECK(list.item(1)->font().bold() && !list.item(0)->font().bold() &&
+          list.item(0)->textAlignment() == (Qt::AlignRight | Qt::AlignVCenter) &&
+          list.item(1)->foreground().color() == QColor(255, 0, 0));
+    list.item(0)->setText("Right");
+    list.item(0)->setToolTip("About the first");
+    settle(&top);
+    image = grab(&top);
+    CHECK(image.width() > 0);
+
+    // Scrolling: more rows than fit
+    list.clear();
+    for (int i = 0; i < 40; ++i)
+        list.addItem(QString("Item %1").arg(i));
+    QScrollBar *bar = list.verticalScrollBar();
+    CHECK(!bar->isHidden() && bar->maximum() == 40 * h - view->height() && bar->pageStep() == view->height());
+    list.setCurrentRow(39);
+    CHECK(bar->value() == bar->maximum() && list.visualItemRect(list.item(39)).bottom() == view->height() - 1);
+    list.setCurrentRow(0);
+    CHECK(bar->value() == 0);
+    key(&list, Qt::Key_End);
+    CHECK(list.currentRow() == 39 && bar->value() == bar->maximum());
+    key(&list, Qt::Key_Home);
+    CHECK(bar->value() == 0);
+    key(&list, Qt::Key_PageDown);
+    CHECK(list.currentRow() > 3 && list.currentRow() < 20);
+    list.scrollToItem(list.item(30));
+    CHECK(list.visualItemRect(list.item(30)).bottom() <= view->height() &&
+          list.visualItemRect(list.item(30)).top() >= 0);
+    list.scrollToItem(nullptr);
+    list.scrollToItem(&stray);
+    bar->setValue(h + h / 2);
+    CHECK(list.itemAt(5, 0) == list.item(1) && list.itemAt(5, h - h / 2 + 1) == list.item(2));
+    CHECK(list.visualItemRect(list.item(1)).top() == -h / 2);
+    bar->setValue(0);
+    wheel(view, QPoint(10, 10), -1);
+    CHECK(bar->value() == 3 * h);
+    wheel(view, QPoint(10, 10), 1);
+    CHECK(bar->value() == 0);
+    click(view, QPoint(10, 3));
+    wheel(view, QPoint(10, 10), -2);
+    click(view, QPoint(10, 3));
+    CHECK(list.currentRow() == 6);
+    // Removing rows shrinks the range
+    for (int i = 0; i < 30; ++i)
+        delete list.takeItem(list.count() - 1);
+    CHECK(bar->maximum() == std::max(0, 10 * h - view->height()));
+
+    // Tool tips: of the item, then of the list
+    QtPrivate::toolTipDelay() = 15;
+    list.clear();
+    list.addItems({"Has a tip", "None"});
+    list.item(0)->setToolTip("About this item");
+    list.setToolTip("The whole list");
+    hover(view, QPoint(20, 3));
+    CHECK(waitFor([] { return QToolTip::isVisible(); }) && QToolTip::text() == QString("About this item"));
+    hover(view, QPoint(20, h + 3));
+    CHECK(waitFor([] { return QToolTip::text() == QString("The whole list"); }));
+    list.setToolTip(QString());
+    hover(view, QPoint(20, h + 4));
+    CHECK(!waitFor([] { return QToolTip::isVisible(); }, 100));
+    QToolTip::hideText();
+
+    // A disabled list draws in the disabled colors
+    list.setEnabled(false);
+    image = grab(&top);
+    CHECK(image.pixel(origin + QPoint(view->width() - 3, 3)) ==
+          list.palette().color(QPalette::Disabled, QPalette::Base).rgb());
+    list.setEnabled(true);
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -1114,6 +1494,7 @@ int main(int argc, char **argv) {
     testHeaderView();
     testTableWidget();
     testTableToolTips();
+    testListWidget();
     if (g_failures == 0)
         std::puts("all scroll tests passed");
     return g_failures == 0 ? 0 : 1;

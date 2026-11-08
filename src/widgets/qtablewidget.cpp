@@ -242,7 +242,8 @@ void QTableWidgetItem::setFlags(Qt::ItemFlags flags) {
     \sa setSelected()
 */
 bool QTableWidgetItem::isSelected() const {
-    return m_table && m_table->currentRow() == m_row && m_table->currentColumn() == m_column;
+    return m_table && m_table->selectionMode() != QAbstractItemView::NoSelection && m_table->currentRow() == m_row &&
+           m_table->currentColumn() == m_column;
 }
 
 /*!
@@ -287,7 +288,8 @@ void QTableWidgetItem::setSelected(bool select) {
     \differences
     There is no model and no \c QTableView: the table keeps its items itself. There is no editing (\c setEditTriggers(),
     \c editItem()), no sorting, no drag and drop, no spans, and no cell widgets. A single cell is selected, so
-    \c selectedItems() has at most one item and there is no \c selectionMode, selection model or \c selectRow(). The
+    \c selectedItems() has at most one item: every selection mode but \c NoSelection selects the current cell, and
+    \c ExtendedSelection is the default, as in Qt. There is no \c selectionBehavior, selection model or \c selectRow(). The
     table scrolls by pixels, and the user cannot move or hide the sections of the headers. Items are not created
     by the table: put them there with setItem().
     \enddifferences
@@ -298,17 +300,17 @@ void QTableWidgetItem::setSelected(bool select) {
 /*!
     Constructs an empty table with the given \a parent.
 */
-QTableWidget::QTableWidget(QWidget *parent) : QAbstractScrollArea(parent) { init(0, 0); }
+QTableWidget::QTableWidget(QWidget *parent) : QAbstractItemView(parent) { init(0, 0); }
 
 /*!
     Constructs a table of \a rows by \a columns empty cells with the given \a parent.
 */
-QTableWidget::QTableWidget(int rows, int columns, QWidget *parent) : QAbstractScrollArea(parent) {
-    init(rows, columns);
-}
+QTableWidget::QTableWidget(int rows, int columns, QWidget *parent) : QAbstractItemView(parent) { init(rows, columns); }
 
 void QTableWidget::init(int rows, int columns) {
     setFocusPolicy(Qt::StrongFocus);
+    // As in Qt, but only one cell is ever selected: see the differences from Qt.
+    setSelectionMode(ExtendedSelection);
     m_hheader = new QHeaderView(Qt::Horizontal, this);
     m_vheader = new QHeaderView(Qt::Vertical, this);
     m_hheader->setSectionsClickable(true);
@@ -829,7 +831,8 @@ void QTableWidget::setCurrentItem(QTableWidgetItem *item) {
 QList<QTableWidgetItem *> QTableWidget::selectedItems() const {
     QList<QTableWidgetItem *> items;
     if (QTableWidgetItem *it = currentItem())
-        items.append(it);
+        if (selectionMode() != NoSelection)
+            items.append(it);
     return items;
 }
 
@@ -884,26 +887,6 @@ void QTableWidget::setShowGrid(bool show) {
     if (m_showGrid == show)
         return;
     m_showGrid = show;
-    viewport()->update();
-}
-
-/*!
-    \fn bool QTableWidget::alternatingRowColors() const
-
-    Returns whether every other row has a different background. The default is \c false.
-
-    \sa setAlternatingRowColors()
-*/
-
-/*!
-    Sets whether every other row has the alternate base color of the palette as its background to \a enable.
-
-    \sa alternatingRowColors()
-*/
-void QTableWidget::setAlternatingRowColors(bool enable) {
-    if (m_alternating == enable)
-        return;
-    m_alternating = enable;
     viewport()->update();
 }
 
@@ -978,13 +961,23 @@ void QTableWidget::scrollContentsBy(int dx, int dy) {
 void QTableWidget::changeEvent(QEvent *event) {
     updateLayout();
     viewport()->update();
-    QAbstractScrollArea::changeEvent(event);
+    QAbstractItemView::changeEvent(event);
 }
 
 /*!
     \reimp
 */
 QSize QTableWidget::viewportSizeHint() const { return QSize(); }
+
+/*!
+    \reimp
+
+    The current cell is selected unless the mode is \c NoSelection.
+*/
+void QTableWidget::selectionModeChanged() {
+    if (m_currentRow >= 0)
+        emit itemSelectionChanged();
+}
 
 /*!
     \reimp
@@ -1009,12 +1002,13 @@ void QTableWidget::paintEvent(QPaintEvent *event) {
             if (cell.left() > all.right())
                 break;
             const QTableWidgetItem *it = item(r, c);
-            const bool current = r == m_currentRow && c == m_currentColumn;
+            const bool isCurrent = r == m_currentRow && c == m_currentColumn;
+            const bool current = isCurrent && selectionMode() != NoSelection;
             if (current)
                 painter.fillRect(cell, highlight);
             else if (it && it->background().style() != Qt::NoBrush)
                 painter.fillRect(cell, it->background().color());
-            else if (m_alternating && (r & 1))
+            else if (alternatingRowColors() && (r & 1))
                 painter.fillRect(cell, pal.color(group, QPalette::AlternateBase));
             if (m_showGrid) {
                 painter.setPen(lines);
@@ -1038,7 +1032,7 @@ void QTableWidget::paintEvent(QPaintEvent *event) {
                                  QFontMetrics(font).elidedText(it->text(), Qt::ElideRight, textRect.width()));
                 painter.setClipping(false);
             }
-            if (current && hasFocus()) {
+            if (isCurrent && hasFocus()) {
                 painter.setPen(pal.color(group, QPalette::Base).lighter(110));
                 painter.setBrush(Qt::NoBrush);
                 painter.drawRect(cell.adjusted(1, 1, -2, -2));
@@ -1061,7 +1055,7 @@ bool QTableWidget::viewportEvent(QEvent *event) {
             return true;
         }
     }
-    return QAbstractScrollArea::viewportEvent(event);
+    return QAbstractItemView::viewportEvent(event);
 }
 
 /*!
@@ -1127,7 +1121,7 @@ void QTableWidget::mouseDoubleClickEvent(QMouseEvent *event) {
 */
 void QTableWidget::keyPressEvent(QKeyEvent *event) {
     if (m_rows == 0 || m_columns == 0) {
-        QAbstractScrollArea::keyPressEvent(event);
+        QAbstractItemView::keyPressEvent(event);
         return;
     }
     int dRow = 0, dColumn = 0;

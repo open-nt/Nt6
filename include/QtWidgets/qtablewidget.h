@@ -5,7 +5,7 @@
 #include <QtCore/qstringlist.h>
 #include <QtGui/qbrush.h>
 #include <QtGui/qfont.h>
-#include <QtWidgets/qabstractscrollarea.h>
+#include <QtWidgets/qabstractitemview.h>
 
 #include <vector>
 
@@ -57,12 +57,11 @@ private:
     Qt::ItemFlags m_flags = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
 };
 
-class QTableWidget : public QAbstractScrollArea {
+class QTableWidget : public QAbstractItemView {
     Q_OBJECT
     Q_PROPERTY(int rowCount READ rowCount WRITE setRowCount)
     Q_PROPERTY(int columnCount READ columnCount WRITE setColumnCount)
     Q_PROPERTY(bool showGrid READ showGrid WRITE setShowGrid)
-    Q_PROPERTY(bool alternatingRowColors READ alternatingRowColors WRITE setAlternatingRowColors)
 public:
     explicit QTableWidget(QWidget *parent = nullptr);
     QTableWidget(int rows, int columns, QWidget *parent = nullptr);
@@ -107,8 +106,6 @@ public:
 
     bool showGrid() const { return m_showGrid; }
     void setShowGrid(bool show);
-    bool alternatingRowColors() const { return m_alternating; }
-    void setAlternatingRowColors(bool enable);
 
 public slots:
     void clear();
@@ -152,6 +149,7 @@ protected:
     void focusInEvent(QFocusEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void selectionModeChanged() override;
     QSize viewportSizeHint() const override;
 
 private:
@@ -180,7 +178,6 @@ private:
     int m_pressedRow = -1;
     int m_pressedColumn = -1;
     bool m_showGrid = true;
-    bool m_alternating = false;
     bool m_inLayout = false;
     bool m_layoutAgain = false;
 };

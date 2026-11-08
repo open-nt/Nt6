@@ -399,7 +399,12 @@ static void testRender() {
     image.fill(0u);
     top.render(&image);
     CHECK(image.pixel(1, 1) == window && image.pixel(119, 59) == window);
-    CHECK(button.geometry().width() > 60 && image.pixel(button.geometry().center()) != window);
+    // (the button has the color of the window in some palettes, so look for its frame and text anywhere in it)
+    int renderedInk = 0;
+    for (int y = button.geometry().top(); y <= button.geometry().bottom(); ++y)
+        for (int x = button.geometry().left(); x <= button.geometry().right(); ++x)
+            renderedInk += image.pixel(x, y) != window;
+    CHECK(button.geometry().width() > 60 && renderedInk > 20);
 
     // The picture is the one the window shows
     top.show();

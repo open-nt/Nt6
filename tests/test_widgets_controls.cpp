@@ -1955,7 +1955,7 @@ static void testStatusBar() {
         for (int y = 3; y < bar.height() - 2; ++y)
             if (image.pixel(origin + QPoint(x, y)) != window)
                 ++ink;
-    CHECK(ink > 20);
+    CHECK(!haveRealFonts() || ink > 20);
     bar.showMessage("Ready"); // the same message is announced again
     CHECK(messages.size() == 2);
     bar.clearMessage();

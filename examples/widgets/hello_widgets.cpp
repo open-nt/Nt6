@@ -1,7 +1,8 @@
 // MIT License - see LICENSE
 //
-// One of every widget, on the pages of a tab widget. Run it with a display, or without one:
-// `hello_widgets -platform offscreen`. A number as an argument opens that page first: `hello_widgets 2`.
+// The Nt logo, and one of every widget on the pages of a tab widget. The first page, Nt, is a showcase of all the
+// widgets that Nt has, each one live. Run it with a display, or without one: `hello_widgets -platform offscreen`.
+// A number as an argument opens that page first: `hello_widgets 3`.
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -18,15 +19,116 @@
 #include <QVBoxLayout>
 #include <QWidget>
 
+#include "ntlogo.h"
+
 //! [form]
 // A label and a widget side by side, with the labels of all rows of a page the same width.
-static QHBoxLayout *row(const QString &text, QWidget *widget, QWidget *page) {
+static QHBoxLayout *row(const QString &text, QWidget *widget, QWidget *page, int labelWidth = 90) {
     auto *label = new QLabel(text, page);
-    label->setFixedWidth(90);
+    label->setFixedWidth(labelWidth);
     auto *layout = new QHBoxLayout;
     layout->addWidget(label);
     layout->addWidget(widget, 1);
     return layout;
+}
+
+// The widgets of Nt, one row each: the name of the class and a live example. Everything reports to the status line.
+static QWidget *showcasePage(QLabel *status) {
+    auto *page = new QWidget;
+    auto *layout = new QVBoxLayout(page);
+    layout->setSpacing(5);
+    const int names = 104;
+
+    auto *label = new QLabel("Plain text, nothing to edit.", page);
+    layout->addLayout(row("QLabel", label, page, names));
+
+    auto *buttons = new QWidget(page);
+    auto *buttonsLayout = new QHBoxLayout(buttons);
+    buttonsLayout->setContentsMargins(0, 0, 0, 0);
+    auto *push = new QPushButton("Click me", buttons);
+    auto *toggle = new QPushButton("Toggle", buttons);
+    toggle->setCheckable(true);
+    auto *flat = new QPushButton("Flat", buttons);
+    flat->setFlat(true);
+    buttonsLayout->addWidget(push);
+    buttonsLayout->addWidget(toggle);
+    buttonsLayout->addWidget(flat);
+    buttonsLayout->addStretch();
+    layout->addLayout(row("QPushButton", buttons, page, names));
+    int clicks = 0;
+    QObject::connect(push, &QPushButton::clicked,
+                     [=]() mutable { status->setText(QString("Clicked %1 times.").arg(++clicks)); });
+    QObject::connect(toggle, &QPushButton::toggled,
+                     [=](bool on) { status->setText(on ? "Toggled on." : "Toggled off."); });
+
+    auto *check = new QCheckBox("Check me", page);
+    layout->addLayout(row("QCheckBox", check, page, names));
+    QObject::connect(check, &QCheckBox::toggled, [=](bool on) { status->setText(on ? "Checked." : "Unchecked."); });
+
+    // Radio buttons with the same parent are exclusive, so they get a widget of their own.
+    auto *radios = new QWidget(page);
+    auto *radiosLayout = new QHBoxLayout(radios);
+    radiosLayout->setContentsMargins(0, 0, 0, 0);
+    auto *yes = new QRadioButton("Yes", radios);
+    auto *no = new QRadioButton("No", radios);
+    yes->setChecked(true);
+    radiosLayout->addWidget(yes);
+    radiosLayout->addWidget(no);
+    radiosLayout->addStretch();
+    layout->addLayout(row("QRadioButton", radios, page, names));
+    for (QRadioButton *choice : {yes, no})
+        QObject::connect(choice, &QRadioButton::toggled, [=](bool on) {
+            if (on)
+                status->setText("Chose " + choice->text() + ".");
+        });
+
+    auto *edit = new QLineEdit(page);
+    edit->setPlaceholderText("Type here");
+    layout->addLayout(row("QLineEdit", edit, page, names));
+    QObject::connect(edit, &QLineEdit::textChanged, [=](const QString &text) { status->setText("Text: " + text); });
+
+    auto *spin = new QSpinBox(page);
+    spin->setRange(0, 100);
+    spin->setValue(35);
+    spin->setSuffix(" %");
+    layout->addLayout(row("QSpinBox", spin, page, names));
+
+    auto *combo = new QComboBox(page);
+    combo->addItems({"Teal", "Orange", "Green", "Purple"});
+    layout->addLayout(row("QComboBox", combo, page, names));
+    QObject::connect(combo, &QComboBox::currentIndexChanged,
+                     [=](int) { status->setText("Chose " + combo->currentText() + "."); });
+
+    auto *slider = new QSlider(Qt::Horizontal, page);
+    slider->setRange(0, 100);
+    slider->setValue(35);
+    layout->addLayout(row("QSlider", slider, page, names));
+
+    auto *bar = new QProgressBar(page);
+    bar->setValue(35);
+    layout->addLayout(row("QProgressBar", bar, page, names));
+    // The spin box, the slider and the progress bar show one value; setValue() does nothing for the same value.
+    QObject::connect(slider, &QSlider::valueChanged, spin, &QSpinBox::setValue);
+    QObject::connect(slider, &QSlider::valueChanged, bar, &QProgressBar::setValue);
+    QObject::connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
+
+    auto *group = new QGroupBox("Checkable", page);
+    group->setCheckable(true);
+    auto *groupLayout = new QHBoxLayout(group);
+    groupLayout->addWidget(new QLabel("Unchecking disables what is inside.", group));
+    layout->addLayout(row("QGroupBox", group, page, names));
+
+    auto *tabs = new QTabWidget(page);
+    for (const char *name : {"Tabs", "Pages"}) {
+        auto *inner = new QWidget;
+        auto *innerLayout = new QVBoxLayout(inner);
+        innerLayout->addWidget(new QLabel(QString("The page \"%1\".").arg(name), inner));
+        tabs->addTab(inner, name);
+    }
+    tabs->setFixedHeight(80);
+    layout->addLayout(row("QTabWidget", tabs, page, names));
+    layout->addStretch();
+    return page;
 }
 
 // Buttons, check boxes and radio buttons.
@@ -166,14 +268,27 @@ int main(int argc, char *argv[]) {
     QWidget window;
     window.setWindowTitle("Hello, widgets");
 
+    // The header: the logo, the name and what the example is.
     auto *title = new QLabel("Nt Widgets", &window);
     QFont font = title->font();
     font.setPointSize(16);
     font.setBold(true);
     title->setFont(font);
+    auto *subtitle = new QLabel("One of every widget, live.", &window);
+    auto *words = new QVBoxLayout;
+    words->setSpacing(2);
+    words->addStretch();
+    words->addWidget(title);
+    words->addWidget(subtitle);
+    words->addStretch();
+    auto *header = new QHBoxLayout;
+    header->setSpacing(12);
+    header->addWidget(new NtExamples::Logo(56, &window));
+    header->addLayout(words, 1);
     auto *status = new QLabel("Ready.", &window);
 
     auto *tabs = new QTabWidget(&window);
+    tabs->addTab(showcasePage(status), "Nt");
     tabs->addTab(buttonsPage(status), "Buttons");
     tabs->addTab(inputPage(status), "Input");
     tabs->addTab(valuesPage(status), "Values");
@@ -191,11 +306,11 @@ int main(int argc, char *argv[]) {
     bottom->addWidget(quit);
 
     auto *layout = new QVBoxLayout(&window);
-    layout->addWidget(title);
+    layout->addLayout(header);
     layout->addWidget(tabs, 1);
     layout->addLayout(bottom);
 
-    window.resize(480, 400);
+    window.resize(500, 600);
     window.show();
     return app.exec();
 }

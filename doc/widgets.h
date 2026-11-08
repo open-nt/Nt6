@@ -15,15 +15,19 @@
     \section1 A First Form
 
     Create a QApplication, a top-level QWidget, the widgets, and put them in layouts. Connect to the signals of
-    the controls. The \c hello_widgets example has one of every widget, on the pages of a QTabWidget: buttons, check
-    boxes and radio buttons in a QGroupBox on the first page, line edits, a spin box and a combo box on the second, and
-    sliders and a progress bar that show the same value on the third. Each page is a function that builds a widget with
-    a layout:
+    the controls. The \c hello_widgets example has the Nt logo and one of every widget, on the pages of a QTabWidget.
+    The first page, \e Nt, is a showcase: one row for each widget that Nt has, with the name of its class and a live
+    example. The pages after it group the widgets as an application would: buttons, check boxes and radio buttons in a
+    QGroupBox; line edits, a spin box and a combo box; and sliders and a progress bar that show the same value. Each
+    page is a function that builds a widget with a layout:
 
     \snippet widgets/hello_widgets.cpp form
 
-    \image hello-widgets-light.png The hello_widgets example, in the light color scheme: the three pages and the open list of a combo box
-    \image hello-widgets-dark.png The hello_widgets example, in the dark color scheme
+    \image hello-widgets-nt.png The Nt page of the hello_widgets example, which shows every widget
+    \image hello-widgets-light.png The pages of the hello_widgets example in the light color scheme, with the open list of a combo box
+    \image hello-widgets-dark.png The pages of the hello_widgets example in the dark color scheme
+
+    The logo is drawn from its outlines by the widget in \c ntlogo.h, which the \c gallery example uses too.
 
     Link it with \c Nt::Widgets:
 

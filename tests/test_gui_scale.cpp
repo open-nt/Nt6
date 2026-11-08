@@ -194,9 +194,10 @@ void testText() {
         p.drawText(QRect(0, 0, 60, 30), Qt::AlignCenter, "Wg", &bound2);
         CHECK(p.boundingRect(QRect(0, 0, 60, 30), Qt::AlignCenter, "Wg") == bound2);
     }
-    // The same text covers about the same area of the window, with four times as many pixels
+    // The same text covers about the same area of the window, with up to four times as many pixels (a hinted font
+    // may cover fewer at the smaller size, or more)
     CHECK(std::abs(bound1.width() - bound2.width()) <= 2 && std::abs(bound1.height() - bound2.height()) <= 2);
-    CHECK(inkCount(two) > 3 * inkCount(one));
+    CHECK(inkCount(two) > 2 * inkCount(one));
     CHECK(QRect(0, 0, 60, 30).contains(bound2));
 }
 

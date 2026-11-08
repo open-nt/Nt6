@@ -1,6 +1,0 @@
-# Undocumented public API
-
-QMessageLogger
-    fatal(const char*, ...) const
-    fatal(const QLoggingCategory&, const char*, ...) const
-    fatal(CategoryFunction, const char*, ...) const

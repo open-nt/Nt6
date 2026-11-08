@@ -89,6 +89,30 @@
     needed when Nt is built, or text has fixed metrics and does not draw. Sizes in points
     are converted to pixels at 96 dots per inch.
 
+    \section1 Screens, Scale and Color Scheme
+
+    A screen has a device pixel ratio, QScreen::devicePixelRatio(): the number of pixels of the screen that one unit
+    of window coordinates covers. A window, its events and its QPainter work in those units, and the painter
+    scales what it draws, so an application written for an ordinary screen is the right size on a high-resolution
+    one. On the \c xcb platform the ratio comes from the \c Xft.dpi resource of the desktop (192 dots per inch is a ratio
+    of 2), or from the \c QT_SCALE_FACTOR environment variable. A QImage has a ratio of its own, set with
+    QImage::setDevicePixelRatio(), for painting at the resolution of the screen.
+
+    The color scheme of the desktop, light or dark, is QStyleHints::colorScheme(), which QGuiApplication::styleHints()
+    returns. On the \c xcb platform it is read from the desktop portal and followed as it changes; connect to
+    QStyleHints::colorSchemeChanged() to react, or call QStyleHints::setColorScheme() to choose one yourself.
+
+    \section1 Widgets on Nt GUI
+
+    Nt Widgets is built on the classes of this page: the widgets of a window are painted by a QPainter into the
+    backing store of one QWindow, and the events of the window are sent to the widgets. The \c hello_widgets example,
+    here on a screen with twice the usual pixels and the dark color scheme of the desktop, shows every widget
+    that Nt has on the pages of a tab widget:
+
+    \image hello-widgets-window.png The hello_widgets example: the Nt logo, and a page of tabs with a live example of every widget
+
+    See \l{Using Nt Widgets}{Using Nt Widgets} for the widgets, layouts and styles.
+
     \section1 What Is Not There Yet
 
     Shapes are drawn without antialiasing, and text is drawn glyph by glyph
@@ -99,5 +123,5 @@
     \c PutImage. Each class lists its own limits in its \e Differences from Qt
     section.
 
-    \sa QGuiApplication, QWindow, QRasterWindow, QPainter, QImage
+    \sa QGuiApplication, QWindow, QRasterWindow, QPainter, QImage, QStyleHints, QScreen
 */

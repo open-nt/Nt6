@@ -106,10 +106,10 @@
 
     Nt Widgets is built on the classes of this page: the widgets of a window are painted by a QPainter into the
     backing store of one QWindow, and the events of the window are sent to the widgets. The \c hello_widgets example,
-    here on a screen with twice the usual pixels and the dark color scheme of the desktop, shows every widget
+    here on a screen with twice the usual pixels in the dark and the light color scheme, shows every widget
     that Nt has on the pages of a tab widget:
 
-    \image hello-widgets-window.png The hello_widgets example: the Nt logo, and a page of tabs with a live example of every widget
+    \image hello-widgets-window.png The hello_widgets example in the dark and the light color scheme: the Nt logo, and a page of tabs with a live example of every widget
 
     See \l{Using Nt Widgets}{Using Nt Widgets} for the widgets, layouts and styles.
 

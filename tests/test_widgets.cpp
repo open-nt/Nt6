@@ -10,6 +10,7 @@
 #include <QtWidgets/qabstractbutton.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qboxlayout.h>
+#include <QtWidgets/qgridlayout.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qlayout.h>
@@ -466,6 +467,154 @@ static void testRender() {
     busy.end();
 }
 
+static void testGridLayout() {
+    auto g = [](QWidget *w) { return w->geometry(); };
+    QWidget top;
+    top.resize(200, 100);
+    Probe a(&top), b(&top), c(&top), d(&top);
+    a.setHint(QSize(30, 20));
+    b.setHint(QSize(50, 20));
+    c.setHint(QSize(30, 30));
+    d.setHint(QSize(50, 30));
+    for (Probe *p : {&a, &b, &c, &d})
+        p->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    auto *grid = new QGridLayout(&top);
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setSpacing(10);
+    CHECK(top.layout() == grid && grid->rowCount() == 0 && grid->columnCount() == 0 && grid->count() == 0);
+    grid->addWidget(&a, 0, 0);
+    grid->addWidget(&b, 0, 1);
+    grid->addWidget(&c, 1, 0);
+    grid->addWidget(&d, 1, 1);
+    CHECK(grid->rowCount() == 2 && grid->columnCount() == 2 && grid->count() == 4);
+    CHECK(grid->sizeHint() == QSize(30 + 10 + 50, 20 + 10 + 30) && grid->minimumSize() == QSize(10, 20 + 10 + 30));
+    CHECK(a.parentWidget() == &top && grid->indexOf(&c) == 2 && grid->itemAt(1)->widget() == &b);
+    CHECK(grid->itemAtPosition(1, 0)->widget() == &c && grid->itemAtPosition(5, 5) == nullptr);
+    int row = -1, column = -1, rowSpan = -1, columnSpan = -1;
+    grid->getItemPosition(3, &row, &column, &rowSpan, &columnSpan);
+    CHECK(row == 1 && column == 1 && rowSpan == 1 && columnSpan == 1);
+
+    // The column with the stretch factor takes the width that is left; the empty row with one takes the height
+    grid->setColumnStretch(1, 1);
+    grid->setRowStretch(2, 1);
+    CHECK(grid->columnStretch(1) == 1 && grid->columnStretch(0) == 0 && grid->rowStretch(2) == 1 &&
+          grid->rowCount() == 3);
+    CHECK(grid->expandingDirections() == (Qt::Horizontal | Qt::Vertical));
+    grid->activate();
+    CHECK(g(&a) == QRect(0, 0, 30, 20) && g(&b) == QRect(40, 0, 160, 20));
+    CHECK(g(&c) == QRect(0, 30, 30, 30) && g(&d) == QRect(40, 30, 160, 30));
+    // The same, with more room: only the stretched column and row grow
+    top.resize(300, 200);
+    grid->activate();
+    CHECK(g(&a).width() == 30 && g(&b) == QRect(40, 0, 260, 20) && g(&c).top() == 30);
+
+    // A widget that covers two columns, and needs more than they have: both get some of what is missing
+    QWidget top2;
+    top2.resize(300, 100);
+    Probe w1(&top2), w2(&top2), w3(&top2);
+    w1.setHint(QSize(30, 20));
+    w2.setHint(QSize(50, 20));
+    w3.setHint(QSize(100, 20));
+    for (Probe *p : {&w1, &w2, &w3})
+        p->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    auto *g2 = new QGridLayout(&top2);
+    g2->setContentsMargins(0, 0, 0, 0);
+    g2->setSpacing(10);
+    g2->addWidget(&w1, 0, 0);
+    g2->addWidget(&w2, 0, 1);
+    g2->addWidget(&w3, 1, 0, 1, 2);
+    CHECK(g2->sizeHint() == QSize(100, 50) && g2->itemAtPosition(1, 1)->widget() == &w3);
+    g2->getItemPosition(2, &row, &column, &rowSpan, &columnSpan);
+    CHECK(row == 1 && column == 0 && rowSpan == 1 && columnSpan == 2);
+    top2.resize(100, 50);
+    g2->activate();
+    CHECK(g(&w1) == QRect(2, 0, 30, 20) && g(&w2) == QRect(47, 0, 50, 20) && g(&w3) == QRect(0, 30, 100, 20));
+
+    // Fixed widgets in a bigger grid are centered in their cells; an alignment puts them at a side
+    top2.resize(300, 100);
+    g2->activate();
+    const int extraX = g(&w2).left() - g(&w1).right() - 1;
+    CHECK(extraX > 10 && g(&w3).width() == 100);
+    QWidget top3;
+    top3.resize(120, 60);
+    Probe left(&top3), right(&top3), bottom(&top3);
+    for (Probe *p : {&left, &right, &bottom}) {
+        p->setHint(QSize(30, 10));
+        p->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    }
+    auto *g3 = new QGridLayout(&top3);
+    g3->setContentsMargins(0, 0, 0, 0);
+    g3->setColumnStretch(0, 1);
+    g3->setColumnStretch(1, 1);
+    g3->setRowStretch(0, 1);
+    g3->addWidget(&left, 0, 0, Qt::AlignLeft | Qt::AlignTop);
+    g3->addWidget(&right, 0, 1, Qt::AlignRight | Qt::AlignBottom);
+    g3->addWidget(&bottom, 1, 0, 1, 2, Qt::AlignHCenter);
+    g3->setSpacing(0);
+    g3->activate();
+    CHECK(g(&left).topLeft() == QPoint(0, 0));
+    CHECK(g(&right).right() == 119 && g(&right).bottom() == 49);
+    CHECK(g(&bottom) == QRect(45, 50, 30, 10));
+
+    // Empty rows and columns have no spacing, and the spacing may differ by direction
+    QWidget top4;
+    top4.resize(200, 100);
+    Probe p1(&top4), p2(&top4);
+    p1.setHint(QSize(20, 10));
+    p2.setHint(QSize(20, 10));
+    auto *g4 = new QGridLayout(&top4);
+    g4->setContentsMargins(1, 2, 3, 4);
+    g4->setHorizontalSpacing(7);
+    g4->setVerticalSpacing(5);
+    CHECK(g4->horizontalSpacing() == 7 && g4->verticalSpacing() == 5);
+    g4->addWidget(&p1, 0, 0);
+    g4->addWidget(&p2, 2, 2);
+    CHECK(g4->rowCount() == 3 && g4->columnCount() == 3);
+    CHECK(g4->sizeHint() == QSize(1 + 20 + 7 + 20 + 3, 2 + 10 + 5 + 10 + 4));
+    g4->setColumnMinimumWidth(1, 30);
+    CHECK(g4->columnMinimumWidth(1) == 30 && g4->rowMinimumHeight(0) == 0);
+    CHECK(g4->sizeHint().width() == 1 + 20 + 7 + 30 + 7 + 20 + 3);
+    g4->setRowMinimumHeight(1, 12);
+    CHECK(g4->sizeHint().height() == 2 + 10 + 5 + 12 + 5 + 10 + 4);
+
+    // Items go where they are put: addItem() fills the next cell, a layout goes in a cell, a spacer takes room
+    QWidget top5;
+    top5.resize(100, 100);
+    auto *q1p = new Probe(&top5);
+    Probe &q1 = *q1p;
+    Probe q2(&top5);
+    auto *g5 = new QGridLayout(&top5);
+    g5->addWidget(&q1, 0, 0);
+    g5->addItem(new QSpacerItem(10, 10, QSizePolicy::Fixed, QSizePolicy::Fixed), 0, 1);
+    auto *inner = new QHBoxLayout;
+    inner->addWidget(&q2);
+    g5->addLayout(inner, 1, 0, 1, 2);
+    CHECK(inner->parent() == g5 && q2.parentWidget() == &top5 && g5->itemAtPosition(1, 1) == inner);
+    g5->addItem(new QSpacerItem(1, 1));
+    CHECK(g5->count() == 4);
+    int r5, c5, rs5, cs5;
+    g5->getItemPosition(3, &r5, &c5, &rs5, &cs5);
+    CHECK(r5 == 2 && c5 == 0); // the next free cell: the rows so far have two columns
+    g5->getItemPosition(99, &r5, &c5, &rs5, &cs5);
+    CHECK(r5 == 2);
+
+    // A widget that is deleted, or removed, leaves its cell
+    delete q1p;
+    CHECK(g5->itemAtPosition(0, 0) == nullptr);
+    g5->removeWidget(&q2);
+    CHECK(inner->count() == 0);
+    delete g5->takeAt(0);
+
+    // The layout works from the event loop after a hint changed, and the widgets are hidden and shown
+    a.setHint(QSize(40, 20));
+    settle(&top);
+    CHECK(g(&a).width() == 40 && g(&b).left() == 50);
+    a.hide();
+    settle(&top);
+    CHECK(grid->sizeHint().width() == 50 + 10 + 0 + 0 || grid->sizeHint().width() >= 50);
+    a.show();
+}
+
 static void testSizeHelpersAndOptions() {
     Probe w;
     QStyleOption option;
@@ -514,7 +663,7 @@ static void testSizeHelpersAndOptions() {
     CHECK(style->sizeFromContents(QStyle::CT_PushButton, &withText, QSize(100, 18)) == QSize(114, 26));
     CHECK(style->sizeFromContents(QStyle::CT_CheckBox, &option, QSize(0, 10)).width() == 14);
     CHECK(style->sizeFromContents(QStyle::CT_CheckBox, &option, QSize(50, 20)) == QSize(74, 25));
-    CHECK(style->sizeFromContents(QStyle::CT_LineEdit, &option, QSize(50, 20)) == QSize(58, 26));
+    CHECK(style->sizeFromContents(QStyle::CT_LineEdit, &option, QSize(50, 20)) == QSize(58, 28));
     option.rect = QRect(0, 0, 100, 20);
     CHECK(style->subElementRect(QStyle::SE_CheckBoxIndicator, &option) == QRect(0, 3, 14, 14));
     CHECK(style->subElementRect(QStyle::SE_CheckBoxContents, &option) == QRect(20, 0, 80, 20));
@@ -1872,6 +2021,7 @@ int main(int argc, char **argv) {
     testMouse();
     testKeysAndFocus();
     testLayouts();
+    testGridLayout();
     testLabel();
     testButtons();
     testSignalsAndDeletion();

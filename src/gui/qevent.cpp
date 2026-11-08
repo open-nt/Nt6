@@ -258,6 +258,78 @@ QFocusEvent::~QFocusEvent() = default;
 */
 
 /*!
+    \class QHelpEvent
+    \brief The QHelpEvent class asks a widget for the help it has at a position, such as a tool tip.
+
+    A window sends a QHelpEvent of the type QEvent::ToolTip to the widget under the mouse when the mouse has rested
+    there for a moment. A widget that has something to show for the position shows it and accepts the event; one that does
+    not ignores it, and the event goes on to its parent. Reimplement QWidget::event() to show a tool tip that depends on
+    the position, as a table does for its cells:
+
+    \code
+    bool MyWidget::event(QEvent *event)
+    {
+        if (event->type() == QEvent::ToolTip) {
+            auto *help = static_cast<QHelpEvent *>(event);
+            QToolTip::showText(help->globalPos(), describe(help->pos()), this);
+            return true;
+        }
+        return QWidget::event(event);
+    }
+    \endcode
+
+    \differences
+    There is no \c WhatsThis event type, and the position is a QPoint.
+    \enddifferences
+
+    \sa QEvent, QMouseEvent
+*/
+
+/*!
+    \fn QHelpEvent::QHelpEvent(Type type, const QPoint &pos, const QPoint &globalPos)
+
+    Constructs a help event of the given \a type for a mouse at \a pos in the widget and \a globalPos on the screen.
+*/
+
+QHelpEvent::~QHelpEvent() = default;
+
+/*!
+    \fn int QHelpEvent::x() const
+
+    Returns the x coordinate of the position in the widget.
+*/
+
+/*!
+    \fn int QHelpEvent::y() const
+
+    Returns the y coordinate of the position in the widget.
+*/
+
+/*!
+    \fn int QHelpEvent::globalX() const
+
+    Returns the x coordinate of the position on the screen.
+*/
+
+/*!
+    \fn int QHelpEvent::globalY() const
+
+    Returns the y coordinate of the position on the screen.
+*/
+
+/*!
+    \fn QPoint QHelpEvent::pos() const
+
+    Returns the position in the widget.
+*/
+
+/*!
+    \fn QPoint QHelpEvent::globalPos() const
+
+    Returns the position on the screen.
+*/
+
+/*!
     \class QEnterEvent
     \brief The QEnterEvent class contains parameters that describe an enter event.
 

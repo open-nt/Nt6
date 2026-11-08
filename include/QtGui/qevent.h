@@ -81,6 +81,23 @@ private:
     ushort m_count;
 };
 
+class QHelpEvent : public QEvent {
+public:
+    QHelpEvent(Type type, const QPoint &pos, const QPoint &globalPos) : QEvent(type), m_pos(pos), m_global(globalPos) {}
+    ~QHelpEvent() override;
+
+    int x() const { return m_pos.x(); }
+    int y() const { return m_pos.y(); }
+    int globalX() const { return m_global.x(); }
+    int globalY() const { return m_global.y(); }
+    QPoint pos() const { return m_pos; }
+    QPoint globalPos() const { return m_global; }
+
+private:
+    QPoint m_pos;
+    QPoint m_global;
+};
+
 class QFocusEvent : public QEvent {
 public:
     explicit QFocusEvent(Type type) : QEvent(type) {}

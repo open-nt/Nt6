@@ -19,7 +19,8 @@ public:
         SO_Tab,
         SO_ComboBox,
         SO_SpinBox,
-        SO_GroupBox
+        SO_GroupBox,
+        SO_Header
     };
 
     explicit QStyleOption(int optionType = SO_Default) : type(optionType), fontMetrics(QFont()) {}
@@ -59,6 +60,7 @@ public:
     int minimum = 0;
     int maximum = 100;
     int sliderPosition = 0;
+    int pageStep = 0;
 };
 
 class QStyleOptionProgressBar : public QStyleOption {
@@ -102,6 +104,16 @@ public:
 
     QString text;
     bool checkable = false;
+};
+
+class QStyleOptionHeader : public QStyleOption {
+public:
+    QStyleOptionHeader() : QStyleOption(SO_Header) {}
+
+    Qt::Orientation orientation = Qt::Horizontal;
+    QString text;
+    Qt::Alignment textAlignment = Qt::AlignCenter;
+    bool lastSection = false;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStyleOptionButton::ButtonFeatures)

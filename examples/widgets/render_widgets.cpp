@@ -10,7 +10,10 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFrame>
+#include <QGridLayout>
 #include <QGroupBox>
+#include <QHeaderView>
 #include <QHBoxLayout>
 #include <QImage>
 #include <QLabel>
@@ -18,10 +21,14 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSlider>
 #include <QSpinBox>
 #include <QStyleHints>
 #include <QTabWidget>
+#include <QTableWidget>
+#include <QToolTip>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -522,6 +529,168 @@ bool tabWidgets(const std::string &dir) {
     return picture(w, nullptr, dir, "qtabwidget");
 }
 
+bool frames(const std::string &dir) {
+    QWidget &w = *host(380, 10);
+    auto *grid = new QGridLayout;
+    static_cast<QBoxLayout *>(w.layout())->addLayout(grid);
+    struct Sample {
+        const char *name;
+        int style;
+        int lineWidth;
+    };
+    const Sample samples[] = {{"Box", QFrame::Box | QFrame::Plain, 1},
+                              {"Box, raised", QFrame::Box | QFrame::Raised, 2},
+                              {"Panel, sunken", QFrame::Panel | QFrame::Sunken, 2},
+                              {"StyledPanel", QFrame::StyledPanel | QFrame::Sunken, 1}};
+    int column = 0;
+    for (const Sample &sample : samples) {
+        auto *frame = new QFrame(&w);
+        frame->setFrameStyle(sample.style);
+        frame->setLineWidth(sample.lineWidth);
+        frame->setMinimumSize(70, 44);
+        auto *caption = new QLabel(sample.name, &w);
+        caption->setAlignment(Qt::AlignHCenter);
+        grid->addWidget(frame, 0, column);
+        grid->addWidget(caption, 1, column);
+        ++column;
+    }
+    auto *hline = new QFrame(&w);
+    hline->setFrameStyle(QFrame::HLine | QFrame::Sunken);
+    auto *caption = new QLabel("A sunken HLine", &w);
+    caption->setAlignment(Qt::AlignHCenter);
+    grid->addWidget(hline, 2, 0, 1, 4);
+    grid->addWidget(caption, 3, 0, 1, 4);
+    w.resize(380, w.sizeHint().height());
+    return picture(w, nullptr, dir, "qframe");
+}
+
+bool gridLayouts(const std::string &dir) {
+    QWidget &w = *host(300, 10);
+    auto *grid = new QGridLayout;
+    static_cast<QBoxLayout *>(w.layout())->addLayout(grid);
+    grid->addWidget(new QLabel("Name", &w), 0, 0);
+    grid->addWidget(new QLineEdit("Ada Lovelace", &w), 0, 1, 1, 2);
+    grid->addWidget(new QLabel("Role", &w), 1, 0);
+    auto *role = new QComboBox(&w);
+    role->addItems({"Engineer", "Designer", "Writer"});
+    grid->addWidget(role, 1, 1, 1, 2);
+    grid->addWidget(new QLabel("Notes", &w), 2, 0, Qt::AlignTop);
+    auto *notes = new QFrame(&w);
+    notes->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
+    notes->setMinimumSize(0, 40);
+    grid->addWidget(notes, 2, 1, 1, 2);
+    grid->addWidget(new QPushButton("OK", &w), 3, 1);
+    grid->addWidget(new QPushButton("Cancel", &w), 3, 2);
+    grid->setColumnStretch(1, 1);
+    grid->setColumnStretch(2, 1);
+    w.resize(300, w.sizeHint().height());
+    return picture(w, nullptr, dir, "qgridlayout");
+}
+
+bool toolTips(const std::string &dir) {
+    QWidget &w = *host(280, 120);
+    auto *button = new QPushButton("Save", &w);
+    button->setToolTip("Saves the document");
+    auto *layout = static_cast<QBoxLayout *>(w.layout());
+    layout->addWidget(button);
+    layout->addStretch();
+    w.show();
+    QCoreApplication::processEvents();
+    QToolTip::showText(button->mapToGlobal(QPoint(30, 12)), "Saves the document", button);
+    return picture(w, nullptr, dir, "qtooltip");
+}
+
+bool scrollBars(const std::string &dir) {
+    QWidget &w = *host(300, 10, QBoxLayout::LeftToRight);
+    auto *left = new QVBoxLayout;
+    static_cast<QBoxLayout *>(w.layout())->addLayout(left);
+    auto bar = [&](int value, int maximum, int page, bool enabled) {
+        auto *b = new QScrollBar(Qt::Horizontal, &w);
+        b->setRange(0, maximum);
+        b->setPageStep(page);
+        b->setValue(value);
+        b->setEnabled(enabled);
+        left->addWidget(b);
+    };
+    bar(0, 100, 50, true);
+    bar(40, 100, 50, true);
+    bar(100, 100, 50, true);
+    bar(300, 1000, 40, true);
+    bar(0, 100, 50, false);
+    left->addStretch();
+    auto *vertical = new QScrollBar(Qt::Vertical, &w);
+    vertical->setRange(0, 100);
+    vertical->setPageStep(40);
+    vertical->setValue(30);
+    vertical->setMinimumSize(0, 100);
+    w.layout()->addWidget(vertical);
+    w.resize(300, w.sizeHint().height());
+    return picture(w, nullptr, dir, "qscrollbar");
+}
+
+bool scrollAreas(const std::string &dir) {
+    QWidget &w = *host(260, 150);
+    auto *area = new QScrollArea(&w);
+    auto *page = new QWidget;
+    auto *layout = new QVBoxLayout(page);
+    for (int i = 1; i <= 6; ++i) {
+        auto *row = new QHBoxLayout;
+        row->addWidget(new QLabel(QString("Setting %1").arg(i), page));
+        row->addWidget(new QCheckBox("Enabled", page));
+        layout->addLayout(row);
+    }
+    layout->addWidget(new QPushButton("Apply", page));
+    area->setWidget(page);
+    area->setWidgetResizable(true);
+    w.layout()->addWidget(area);
+    w.show();
+    QCoreApplication::processEvents();
+    area->verticalScrollBar()->setValue(area->verticalScrollBar()->maximum() / 3);
+    return picture(w, nullptr, dir, "qscrollarea");
+}
+
+// A table with the labels of a small staff list, for the pictures of the table and of its header.
+QTableWidget *staffTable(QWidget *parent) {
+    auto *table = new QTableWidget(7, 3, parent);
+    table->setHorizontalHeaderLabels({"Name", "Role", "Status"});
+    const char *rows[][3] = {{"Ada", "Engineer", "Active"},    {"Grace", "Admiral", "Active"},
+                             {"Linus", "Maintainer", "Away"},  {"Margaret", "Director", "Active"},
+                             {"Dennis", "Researcher", "Away"}, {"Barbara", "Professor", "Active"},
+                             {"Ken", "Engineer", "Active"}};
+    for (int r = 0; r < 7; ++r)
+        for (int c = 0; c < 3; ++c)
+            table->setItem(r, c, new QTableWidgetItem(rows[r][c]));
+    table->setColumnWidth(0, 110);
+    table->setColumnWidth(1, 120);
+    table->setColumnWidth(2, 70);
+    return table;
+}
+
+bool headerViews(const std::string &dir) {
+    QWidget &w = *host(360, 200);
+    auto *table = new QTableWidget(4, 3, &w);
+    table->setHorizontalHeaderLabels({"Name", "Role", "Status"});
+    table->setVerticalHeaderLabels({"A", "B", "C", "D"});
+    table->setColumnWidth(0, 110);
+    table->setColumnWidth(1, 90);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->setShowGrid(false);
+    w.layout()->addWidget(table);
+    return picture(w, nullptr, dir, "qheaderview");
+}
+
+bool tableWidgets(const std::string &dir) {
+    QWidget &w = *host(380, 250);
+    QTableWidget *table = staffTable(&w);
+    table->setAlternatingRowColors(true);
+    table->item(2, 2)->setForeground(QBrush(QColor(190, 70, 20)));
+    table->item(5, 0)->setBackground(QBrush(QColor(255, 226, 150)));
+    table->item(0, 2)->setTextAlignment(Qt::AlignCenter);
+    table->setCurrentCell(1, 1);
+    w.layout()->addWidget(table);
+    return picture(w, table, dir, "qtablewidget");
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -540,7 +709,9 @@ int main(int argc, char *argv[]) {
     ::mkdir((directory + "/widgets").c_str(), 0755);
     bool ok = true;
     for (bool (*render)(const std::string &) : {labels, pushButtons, checkBoxes, radioButtons, lineEdits, sliders,
-                                                progressBars, spinBoxes, comboBoxes, groupBoxes, tabWidgets})
+                                                progressBars, spinBoxes, comboBoxes, groupBoxes, tabWidgets, frames,
+                                                gridLayouts, toolTips, scrollBars, scrollAreas, headerViews,
+                                                tableWidgets})
         ok = render(directory) && ok;
     return ok ? 0 : 1;
 }

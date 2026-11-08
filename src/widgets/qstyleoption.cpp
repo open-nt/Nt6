@@ -31,6 +31,7 @@
     \value SO_ComboBox A QStyleOptionComboBox.
     \value SO_SpinBox A QStyleOptionSpinBox.
     \value SO_GroupBox A QStyleOptionGroupBox.
+    \value SO_Header A QStyleOptionHeader.
 */
 
 /*!
@@ -185,6 +186,13 @@ void QStyleOption::initFrom(const QWidget *widget) {
 */
 
 /*!
+    \variable QStyleOptionSlider::pageStep
+
+    The part of the range that fits in a page. A scroll bar makes its handle that part of the groove long; a slider
+    does not use it and leaves it at 0.
+*/
+
+/*!
     \class QStyleOptionProgressBar
     \brief The QStyleOptionProgressBar class describes the parameters for drawing a progress bar.
 
@@ -304,6 +312,43 @@ void QStyleOption::initFrom(const QWidget *widget) {
     \variable QStyleOptionSpinBox::downPressed
 
     Whether the button that steps down is pressed.
+*/
+
+/*!
+    \class QStyleOptionHeader
+    \brief The QStyleOptionHeader class describes the parameters for drawing one section of a header.
+
+    \sa QStyleOption, QHeaderView
+*/
+
+/*!
+    \fn QStyleOptionHeader::QStyleOptionHeader()
+
+    Constructs an option for a header section.
+*/
+
+/*!
+    \variable QStyleOptionHeader::orientation
+
+    The direction of the header: horizontal for the column headers of a table, vertical for the row headers.
+*/
+
+/*!
+    \variable QStyleOptionHeader::text
+
+    The text of the section.
+*/
+
+/*!
+    \variable QStyleOptionHeader::textAlignment
+
+    How the text is placed in the section, centered by default.
+*/
+
+/*!
+    \variable QStyleOptionHeader::lastSection
+
+    Whether this is the last section of the header, which has no separator after it.
 */
 
 /*!

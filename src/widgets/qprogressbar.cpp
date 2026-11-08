@@ -189,11 +189,9 @@ QString QProgressBar::text() const {
 */
 QSize QProgressBar::sizeHint() const {
     const QFontMetrics fm = fontMetrics();
-    const int digit = std::max(9, fm.horizontalAdvance(QChar('0')));
     QStyleOptionProgressBar option;
     option.initFrom(this);
-    return style()->sizeFromContents(QStyle::CT_ProgressBar, &option,
-                                     QSize(digit * 7 + fm.horizontalAdvance(QChar('%')) + 4, fm.height()), this);
+    return style()->sizeFromContents(QStyle::CT_ProgressBar, &option, QSize(2 * fm.height() + 47, fm.height()), this);
 }
 
 /*!

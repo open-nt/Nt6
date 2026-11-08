@@ -6,16 +6,22 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFrame>
+#include <QGridLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
+#include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
 #include <QProgressBar>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QSlider>
 #include <QSpinBox>
 #include <QTabWidget>
+#include <QTableWidget>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -46,6 +52,7 @@ static QWidget *showcasePage(QLabel *status) {
     auto *buttonsLayout = new QHBoxLayout(buttons);
     buttonsLayout->setContentsMargins(0, 0, 0, 0);
     auto *push = new QPushButton("Click me", buttons);
+    push->setToolTip("A push button: click it");
     auto *toggle = new QPushButton("Toggle", buttons);
     toggle->setCheckable(true);
     auto *flat = new QPushButton("Flat", buttons);
@@ -84,6 +91,7 @@ static QWidget *showcasePage(QLabel *status) {
 
     auto *edit = new QLineEdit(page);
     edit->setPlaceholderText("Type here");
+    edit->setToolTip("A line edit: type some text");
     layout->addLayout(row("QLineEdit", edit, page, names));
     QObject::connect(edit, &QLineEdit::textChanged, [=](const QString &text) { status->setText("Text: " + text); });
 
@@ -112,6 +120,32 @@ static QWidget *showcasePage(QLabel *status) {
     QObject::connect(slider, &QSlider::valueChanged, bar, &QProgressBar::setValue);
     QObject::connect(spin, &QSpinBox::valueChanged, slider, &QSlider::setValue);
 
+    auto *scrollBar = new QScrollBar(Qt::Horizontal, page);
+    scrollBar->setRange(0, 100);
+    scrollBar->setPageStep(25);
+    scrollBar->setValue(20);
+    layout->addLayout(row("QScrollBar", scrollBar, page, names));
+    QObject::connect(scrollBar, &QScrollBar::valueChanged,
+                     [=](int value) { status->setText(QString("Scrolled to %1.").arg(value)); });
+
+    auto *frames = new QWidget(page);
+    auto *framesLayout = new QHBoxLayout(frames);
+    framesLayout->setContentsMargins(0, 0, 0, 0);
+    for (int style : {QFrame::Box | QFrame::Plain, QFrame::Panel | QFrame::Raised, QFrame::Panel | QFrame::Sunken,
+                      QFrame::StyledPanel | QFrame::Sunken}) {
+        auto *frame = new QFrame(frames);
+        frame->setFrameStyle(style);
+        frame->setLineWidth(2);
+        frame->setFixedSize(46, 20);
+        framesLayout->addWidget(frame);
+    }
+    framesLayout->addStretch();
+    layout->addLayout(row("QFrame", frames, page, names));
+
+    auto *tip = new QLabel("Rest the mouse here for a tool tip.", page);
+    tip->setToolTip("A tool tip, from QWidget::setToolTip()");
+    layout->addLayout(row("QToolTip", tip, page, names));
+
     auto *group = new QGroupBox("Checkable", page);
     group->setCheckable(true);
     auto *groupLayout = new QHBoxLayout(group);
@@ -125,8 +159,37 @@ static QWidget *showcasePage(QLabel *status) {
         innerLayout->addWidget(new QLabel(QString("The page \"%1\".").arg(name), inner));
         tabs->addTab(inner, name);
     }
-    tabs->setFixedHeight(80);
+    tabs->setFixedHeight(70);
     layout->addLayout(row("QTabWidget", tabs, page, names));
+
+    // A table that is small enough to leave the rest of the page in view: the rows are low and it has no row headers.
+    auto *table = new QTableWidget(3, 3, page);
+    table->setHorizontalHeaderLabels({"Name", "Role", "Status"});
+    table->verticalHeader()->hide();
+    table->horizontalHeader()->setStretchLastSection(true);
+    const char *staff[][3] = {{"Ada", "Engineer", "Active"}, {"Grace", "Admiral", "Active"}, {"Linus", "Maintainer", "Away"}};
+    for (int r = 0; r < 3; ++r) {
+        table->setRowHeight(r, 22);
+        for (int c = 0; c < 3; ++c)
+            table->setItem(r, c, new QTableWidgetItem(staff[r][c]));
+    }
+    table->setColumnWidth(0, 90);
+    table->setColumnWidth(1, 100);
+    table->setFixedHeight(table->horizontalHeader()->sizeHint().height() + 3 * 22 + 4);
+    layout->addLayout(row("QTableWidget", table, page, names));
+    QObject::connect(table, &QTableWidget::cellClicked, [=](int r, int c) {
+        status->setText(QString("Cell %1, %2: %3").arg(r).arg(c).arg(table->item(r, c)->text()));
+    });
+
+    auto *area = new QScrollArea(page);
+    auto *areaPage = new QWidget;
+    auto *areaLayout = new QVBoxLayout(areaPage);
+    for (int i = 1; i <= 6; ++i)
+        areaLayout->addWidget(new QLabel(QString("Line %1 of a page that scrolls").arg(i), areaPage));
+    area->setWidget(areaPage);
+    area->setWidgetResizable(true);
+    area->setFixedHeight(56);
+    layout->addLayout(row("QScrollArea", area, page, names));
     layout->addStretch();
     return page;
 }
@@ -262,6 +325,55 @@ static QWidget *valuesPage(QLabel *status) {
     return page;
 }
 
+// A table of people and a form in a scroll area: the views of data, and a grid layout.
+static QWidget *viewsPage(QLabel *status) {
+    auto *page = new QWidget;
+    auto *layout = new QVBoxLayout(page);
+
+    auto *table = new QTableWidget(12, 4, page);
+    table->setHorizontalHeaderLabels({"Name", "Role", "Team", "Status"});
+    table->setAlternatingRowColors(true);
+    const char *names[] = {"Ada", "Grace", "Linus", "Margaret", "Dennis", "Barbara", "Ken", "Donald", "Edsger", "Guido", "Bjarne", "Tim"};
+    const char *roles[] = {"Engineer", "Admiral", "Maintainer", "Director", "Researcher", "Professor", "Engineer", "Professor", "Scientist", "Designer", "Architect", "Inventor"};
+    const char *teams[] = {"Compiler", "Navy", "Kernel", "Apollo", "Unix", "Systems", "Unix", "Typography", "Algorithms", "Python", "C++", "Web"};
+    for (int r = 0; r < 12; ++r) {
+        table->setItem(r, 0, new QTableWidgetItem(names[r]));
+        table->setItem(r, 1, new QTableWidgetItem(roles[r]));
+        table->setItem(r, 2, new QTableWidgetItem(teams[r]));
+        auto *state = new QTableWidgetItem(r % 3 == 2 ? "Away" : "Active");
+        state->setTextAlignment(Qt::AlignCenter);
+        if (r % 3 == 2)
+            state->setForeground(QBrush(QColor(190, 70, 20)));
+        state->setToolTip(r % 3 == 2 ? "Away: not at the desk" : "Active: at the desk");
+        table->setItem(r, 3, state);
+    }
+    table->item(0, 0)->setToolTip("Rest the mouse on a cell: its tool tip is the item's");
+    table->setColumnWidth(0, 100);
+    table->setColumnWidth(1, 100);
+    table->setColumnWidth(2, 100);
+    table->horizontalHeader()->setStretchLastSection(true);
+    table->setCurrentCell(2, 1);
+    QObject::connect(table, &QTableWidget::currentCellChanged, [=](int r, int c, int, int) {
+        if (r >= 0 && table->item(r, c))
+            status->setText(QString("%1 (%2, %3)").arg(table->item(r, c)->text()).arg(r).arg(c));
+    });
+    layout->addWidget(table, 3);
+
+    auto *form = new QWidget;
+    auto *grid = new QGridLayout(form);
+    for (int i = 0; i < 8; ++i) {
+        grid->addWidget(new QLabel(QString("Setting %1").arg(i + 1), form), i, 0);
+        auto *edit = new QLineEdit(QString("Value %1").arg(i + 1), form);
+        grid->addWidget(edit, i, 1);
+    }
+    grid->setColumnStretch(1, 1);
+    auto *area = new QScrollArea(page);
+    area->setWidget(form);
+    area->setWidgetResizable(true);
+    layout->addWidget(area, 2);
+    return page;
+}
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
 
@@ -292,6 +404,7 @@ int main(int argc, char *argv[]) {
     tabs->addTab(buttonsPage(status), "Buttons");
     tabs->addTab(inputPage(status), "Input");
     tabs->addTab(valuesPage(status), "Values");
+    tabs->addTab(viewsPage(status), "Views");
     for (const QString &argument : app.arguments()) {
         bool isNumber = false;
         const int index = argument.toInt(&isNumber);
@@ -310,7 +423,7 @@ int main(int argc, char *argv[]) {
     layout->addWidget(tabs, 1);
     layout->addLayout(bottom);
 
-    window.resize(500, 600);
+    window.resize(500, 760);
     window.show();
     return app.exec();
 }

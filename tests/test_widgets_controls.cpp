@@ -23,9 +23,11 @@
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabwidget.h>
+#include <QtWidgets/qtooltip.h>
 
 #include "platforms/offscreen/qoffscreenintegration_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
+#include "qtooltip_p.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -369,8 +371,8 @@ static void testSlider() {
     CHECK(slider.orientation() == Qt::Horizontal && slider.hasTracking() && !slider.isSliderDown());
     CHECK(slider.sizePolicy().horizontalPolicy() == QSizePolicy::Expanding &&
           slider.sizePolicy().verticalPolicy() == QSizePolicy::Fixed);
-    CHECK(slider.sizeHint().height() == 20 && slider.sizeHint().width() >= 80 && slider.minimumSizeHint().width() < 80);
-    CHECK(slider.width() == 200 - 22 && slider.height() == 20);
+    CHECK(slider.sizeHint().height() == 15 && slider.sizeHint().width() >= 80 && slider.minimumSizeHint().width() < 80);
+    CHECK(slider.width() == 200 - 22 && slider.height() == 15);
 
     QList<int> values, moved;
     int pressed = 0, released = 0;
@@ -480,10 +482,10 @@ static void testSlider() {
     QImage image = grab(&top);
     const QRgb highlight = top.palette().color(QPalette::Highlight).rgb();
     const QPoint origin = inWindow(&slider);
-    CHECK(image.pixel(origin + QPoint(slider.width() / 2, 10)) != highlight);
+    CHECK(image.pixel(origin + QPoint(slider.width() / 2, slider.height() / 2)) != highlight);
     slider.setValue(100);
     image = grab(&top);
-    CHECK(image.pixel(origin + QPoint(slider.width() / 2, 10)) == highlight);
+    CHECK(image.pixel(origin + QPoint(slider.width() / 2, slider.height() / 2)) == highlight);
 
     // A vertical slider has its smallest value at the bottom
     QSlider vertical(Qt::Vertical, &top);
@@ -491,7 +493,7 @@ static void testSlider() {
     vertical.show();
     vertical.setRange(0, 10);
     CHECK(vertical.orientation() == Qt::Vertical && vertical.sizePolicy().verticalPolicy() == QSizePolicy::Expanding);
-    CHECK(vertical.sizeHint().width() == 20 && vertical.sizeHint().height() >= 80);
+    CHECK(vertical.sizeHint().width() == 15 && vertical.sizeHint().height() >= 80);
     vertical.setValue(0);
     QStyleOptionSlider vo;
     vo.initFrom(&vertical);
@@ -1113,6 +1115,206 @@ static void testTabWidget() {
     delete pageC;
 }
 
+namespace {
+
+// Runs the event loop until `condition` holds or `ms` milliseconds have passed.
+template <typename Condition> bool waitFor(Condition condition, int ms = 2000) {
+    QElapsedTimer timer;
+    timer.start();
+    while (!condition()) {
+        if (timer.elapsed() > ms)
+            return false;
+        QEventLoop loop;
+        QTimer::singleShot(3, [&] { loop.quit(); });
+        loop.exec();
+    }
+    return true;
+}
+
+void hover(QWidget *w, QPoint local) { mouse(w, QEvent::MouseMove, local, Qt::NoButton, Qt::NoButton); }
+
+// The widget of a tool tip: the visible child of the window that is not one of `known`.
+QWidget *tipOf(QWidget *top, std::initializer_list<QWidget *> known) {
+    QWidget *tip = nullptr;
+    for (QObject *child : top->children()) {
+        auto *w = dynamic_cast<QWidget *>(child);
+        if (w && !w->isHidden() && std::find(known.begin(), known.end(), w) == known.end())
+            tip = w;
+    }
+    return tip;
+}
+
+// A widget with a tool tip that depends on the position of the mouse.
+class Areas : public QWidget {
+public:
+    QPoint lastHelp;
+
+protected:
+    bool event(QEvent *e) override {
+        if (e->type() == QEvent::ToolTip) {
+            auto *help = static_cast<QHelpEvent *>(e);
+            lastHelp = help->pos();
+            QToolTip::showText(help->globalPos(), help->x() < width() / 2 ? "Left half" : "Right half", this);
+            return true;
+        }
+        return QWidget::event(e);
+    }
+};
+
+} // namespace
+
+static void testToolTips() {
+    QtPrivate::toolTipDelay() = 15;
+    QWidget top;
+    top.resize(300, 200);
+    auto *layout = new QVBoxLayout(&top);
+    QPushButton button("Save", &top);
+    button.setToolTip("Saves the document");
+    QWidget group(&top);
+    group.setToolTip("The group\nhas two lines");
+    auto *groupLayout = new QVBoxLayout(&group);
+    QLabel inherits("Inherits the tool tip of the group", &group);
+    QPushButton none("No tool tip of its own", &group);
+    groupLayout->addWidget(&inherits);
+    groupLayout->addWidget(&none);
+    QPushButton off("Disabled", &top);
+    off.setToolTip("Tool tips are shown for disabled widgets");
+    off.setEnabled(false);
+    QPushButton plain("Plain", &top);
+    layout->addWidget(&button);
+    layout->addWidget(&group);
+    layout->addWidget(&off);
+    layout->addWidget(&plain);
+    top.show();
+    settle(&top);
+
+    CHECK(button.toolTip() == QString("Saves the document") && plain.toolTip().isEmpty() &&
+          button.property("toolTip").toString() == QString("Saves the document"));
+    CHECK(!QToolTip::isVisible() && QToolTip::text().isEmpty());
+
+    // The mouse rests on the button: the tool tip appears after the delay, next to the mouse
+    hover(&button, QPoint(20, 10));
+    CHECK(!QToolTip::isVisible()); // not yet
+    CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    CHECK(QToolTip::text() == QString("Saves the document"));
+    QWidget *tip = tipOf(&top, {&button, &group, &off, &plain});
+    CHECK(tip != nullptr);
+    if (tip) {
+        const QPoint mouse = button.mapTo(&top, QPoint(20, 10));
+        CHECK(tip->x() == mouse.x() + 2 && tip->y() == mouse.y() + 16);
+        CHECK(tip->width() > top.fontMetrics().horizontalAdvance("Saves the document") &&
+              tip->height() >= top.fontMetrics().height() + 4);
+        CHECK(QRect(QPoint(0, 0), top.size()).contains(tip->geometry()));
+        const QImage image = grab(&top);
+        const QRgb base = top.palette().color(QPalette::ToolTipBase).rgb();
+        CHECK(image.pixel(tip->geometry().center() + QPoint(tip->width() / 2 - 4, 0)) == base);
+    }
+    // Moving within the same widget keeps it; moving to another widget takes it away
+    hover(&button, QPoint(40, 12));
+    CHECK(QToolTip::isVisible());
+    hover(&plain, QPoint(10, 5));
+    CHECK(!QToolTip::isVisible());
+    CHECK(!waitFor([] { return QToolTip::isVisible(); }, 150)); // the plain button has no tool tip, nor has a parent
+
+    // A widget with no tool tip of its own gets the one of its parent, also several lines
+    hover(&inherits, QPoint(10, 5));
+    CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    CHECK(QToolTip::text() == QString("The group\nhas two lines"));
+    tip = tipOf(&top, {&button, &group, &off, &plain});
+    CHECK(tip != nullptr && tip->height() >= 2 * top.fontMetrics().height());
+    hover(&none, QPoint(10, 5)); // another widget of the group: asked again, the same answer
+    CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    CHECK(QToolTip::text() == QString("The group\nhas two lines"));
+
+    // A disabled widget shows its tool tip
+    hover(&off, QPoint(10, 5));
+    CHECK(waitFor([] { return QToolTip::text() == QString("Tool tips are shown for disabled widgets"); }));
+
+    // A mouse button, a key, the wheel and leaving the window take it away
+    hover(&button, QPoint(20, 10));
+    CHECK(waitFor([] { return QToolTip::text() == QString("Saves the document"); }));
+    click(&button, QPoint(20, 10));
+    CHECK(!QToolTip::isVisible());
+    hover(&button, QPoint(21, 10));
+    CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    key(&button, Qt::Key_Shift);
+    CHECK(!QToolTip::isVisible());
+    hover(&button, QPoint(22, 10));
+    CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    wheel(&button, QPoint(22, 10), 1);
+    CHECK(!QToolTip::isVisible());
+    hover(&button, QPoint(23, 10));
+    CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(top.windowHandle(), &leave);
+    CHECK(!QToolTip::isVisible());
+
+    // The tool tip does not appear while the mouse keeps moving, and not after the mouse button is pressed
+    for (int i = 0; i < 5; ++i) {
+        hover(&button, QPoint(20 + i, 10));
+        CHECK(!waitFor([] { return QToolTip::isVisible(); }, 4));
+    }
+    CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    QToolTip::hideText();
+    CHECK(!QToolTip::isVisible());
+    press(&button, QPoint(20, 10));
+    drag(&button, QPoint(25, 10)); // a button is down: the mouse is dragged, no tool tip
+    CHECK(!waitFor([] { return QToolTip::isVisible(); }, 100));
+    release(&button, QPoint(25, 10));
+
+    // QToolTip::showText() from the program, and hideText()
+    QToolTip::showText(top.mapToGlobal(QPoint(10, 10)), "From the program", &top);
+    CHECK(QToolTip::isVisible() && QToolTip::text() == QString("From the program"));
+    tip = tipOf(&top, {&button, &group, &off, &plain});
+    CHECK(tip && tip->x() == 12 && tip->y() == 26);
+    QToolTip::showText(top.mapToGlobal(QPoint(10, 10)), "Replaced", &top);
+    CHECK(QToolTip::text() == QString("Replaced"));
+    QToolTip::showText(QPoint(), QString());
+    CHECK(!QToolTip::isVisible());
+    // Near the right edge and the bottom of the window the tool tip is moved to stay inside
+    QToolTip::showText(top.mapToGlobal(QPoint(295, 195)), "At the corner of the window", &top);
+    tip = tipOf(&top, {&button, &group, &off, &plain});
+    CHECK(tip && QRect(QPoint(0, 0), top.size()).contains(tip->geometry()));
+    QToolTip::hideText();
+    // A rectangle: the tool tip goes when the mouse leaves it
+    QToolTip::showText(button.mapToGlobal(QPoint(10, 10)), "In a rectangle", &button, QRect(0, 0, 30, 20));
+    hover(&button, QPoint(10, 10));
+    hover(&button, QPoint(12, 12)); // starts a timer, shows nothing new
+    CHECK(QToolTip::isVisible());
+    hover(&button, QPoint(40, 12));
+    CHECK(!QToolTip::isVisible());
+    QToolTip::hideText();
+
+    // A widget that handles QEvent::ToolTip chooses the text by the position
+    QWidget top2;
+    top2.resize(200, 100);
+    Areas areas;
+    areas.setParent(&top2);
+    areas.setGeometry(0, 0, 200, 100);
+    top2.show();
+    settle(&top2);
+    hover(&areas, QPoint(20, 50));
+    CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    CHECK(QToolTip::text() == QString("Left half") && areas.lastHelp == QPoint(20, 50));
+    hover(&areas, QPoint(150, 50)); // the same widget: the tool tip stays, the text of the first position
+    CHECK(QToolTip::text() == QString("Left half"));
+    QToolTip::hideText();
+    hover(&areas, QPoint(151, 50));
+    CHECK(waitFor([] { return QToolTip::text() == QString("Right half"); }));
+    QToolTip::hideText();
+
+    // The tool tip is not found by the mouse
+    QToolTip::showText(top2.mapToGlobal(QPoint(10, 10)), "Over the widget", &top2);
+    CHECK(top2.childAt(QPoint(20, 30)) == &areas);
+
+    // Window hidden: nothing remains. Setting an empty tool tip removes it
+    top2.hide();
+    CHECK(!QToolTip::isVisible());
+    button.setToolTip(QString());
+    CHECK(button.toolTip().isEmpty());
+    QtPrivate::toolTipDelay() = 700;
+}
+
 static void testHideTakesFocus() {
     QWidget top;
     QWidget group(&top);
@@ -1185,6 +1387,7 @@ int main(int argc, char **argv) {
     testComboBox();
     testGroupBox();
     testTabWidget();
+    testToolTips();
     testHideTakesFocus();
     testEverythingPaints();
     if (g_failures == 0)

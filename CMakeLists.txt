@@ -294,12 +294,16 @@ nt_set_compile_options(NtGui)
 
 add_library(NtWidgets
     src/widgets/qabstractbutton.cpp
+    src/widgets/qabstractscrollarea.cpp
     src/widgets/qapplication.cpp
     src/widgets/qboxlayout.cpp
     src/widgets/qcheckbox.cpp
     src/widgets/qcombobox.cpp
+    src/widgets/qframe.cpp
     src/widgets/qfusionstyle.cpp
+    src/widgets/qgridlayout.cpp
     src/widgets/qgroupbox.cpp
+    src/widgets/qheaderview.cpp
     src/widgets/qlabel.cpp
     src/widgets/qlayout.cpp
     src/widgets/qlayoutitem.cpp
@@ -307,12 +311,16 @@ add_library(NtWidgets
     src/widgets/qprogressbar.cpp
     src/widgets/qpushbutton.cpp
     src/widgets/qradiobutton.cpp
+    src/widgets/qscrollarea.cpp
+    src/widgets/qscrollbar.cpp
     src/widgets/qsizepolicy.cpp
     src/widgets/qslider.cpp
     src/widgets/qspinbox.cpp
     src/widgets/qstyle.cpp
     src/widgets/qstyleoption.cpp
+    src/widgets/qtablewidget.cpp
     src/widgets/qtabwidget.cpp
+    src/widgets/qtooltip.cpp
     src/widgets/qwidget.cpp
     src/widgets/qwidgetwindow.cpp
 )
@@ -556,6 +564,14 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_widgets_controls_tests COMMAND nt_widgets_controls_tests)
     set_tests_properties(nt_widgets_controls_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_widgets_controls_tests)
+
+    # Frames, scroll bars, scroll areas and tables on the offscreen platform.
+    add_executable(nt_widgets_scroll_tests tests/test_widgets_scroll.cpp)
+    target_include_directories(nt_widgets_scroll_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_scroll_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_scroll_tests COMMAND nt_widgets_scroll_tests)
+    set_tests_properties(nt_widgets_scroll_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_scroll_tests)
 
     # Drawing at a device pixel ratio of 2, on the offscreen platform.
     add_executable(nt_gui_scale_tests tests/test_gui_scale.cpp)

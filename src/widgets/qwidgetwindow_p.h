@@ -37,13 +37,20 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void keyReleaseEvent(QKeyEvent *event) override;
     bool event(QEvent *event) override;
+    void timerEvent(QTimerEvent *event) override;
 
 private:
     void deliverMouse(QMouseEvent *event, QWidget *target);
+    void toolTipMoved(QWidget *under, const QPoint &pos, const QPoint &globalPos);
+    void cancelToolTip();
     void updateUnderMouse(QWidget *target, const QPointF &local, const QPointF &global);
 
     QWidget *m_widget;
     QPointer<QWidget> m_grab;
     QPointer<QWidget> m_under;
     QPointer<QWidget> m_popup;
+    int m_tipTimer = 0;
+    QPointer<QWidget> m_tipWidget;
+    QPoint m_tipPos;       // in the window
+    QPoint m_tipGlobalPos; // on the screen
 };

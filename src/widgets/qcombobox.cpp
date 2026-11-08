@@ -419,7 +419,7 @@ void QComboBox::choose(int index) {
 */
 QSize QComboBox::sizeHint() const {
     const QFontMetrics fm = fontMetrics();
-    int width = fm.horizontalAdvance(QString(7, QChar('x')));
+    int width = m_items.isEmpty() ? fm.horizontalAdvance(QString(7, QChar('x'))) : 0;
     for (const QString &item : m_items)
         width = std::max(width, fm.horizontalAdvance(item));
     QStyleOptionComboBox option;

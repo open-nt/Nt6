@@ -8,6 +8,7 @@
 #include <QtWidgets/qlayout.h>
 #include <QtWidgets/qwidget.h>
 
+#include <functional>
 #include <memory>
 #include <vector>
 
@@ -28,7 +29,11 @@ struct QWidget::Data {
     QStyle *style = nullptr;
     bool autoFill = false;
     bool mouseTracking = false;
+    QString toolTip;
+    bool mouseTransparent = false; // not found by the mouse: the tool tip
     bool underMouse = false;
+    // Called on a parent when a child widget is resized or its size hint changes: a scroll area follows its contents.
+    std::function<void(QWidget *)> childChanged;
     Qt::FocusPolicy focusPolicy = Qt::NoFocus;
     QLayout *layout = nullptr;
     // Only top-level widgets:

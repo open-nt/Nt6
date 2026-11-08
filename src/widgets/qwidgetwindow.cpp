@@ -1,10 +1,12 @@
 // MIT License - see LICENSE
 #include "qwidgetwindow_p.h"
 
+#include "qtooltip_p.h"
 #include "qwidget_p.h"
 
 #include <QtCore/qcoreapplication.h>
 #include <QtGui/qevent.h>
+#include <QtWidgets/qtooltip.h>
 #include <QtWidgets/qwidget.h>
 
 #include <algorithm>
@@ -54,6 +56,7 @@ void QWidgetWindow::showEvent(QShowEvent *event) { (void)event; }
 
 void QWidgetWindow::hideEvent(QHideEvent *event) {
     (void)event;
+    cancelToolTip();
     m_grab = nullptr;
     m_popup = nullptr;
     if (m_under) {
@@ -153,6 +156,7 @@ void QWidgetWindow::deliverMouse(QMouseEvent *event, QWidget *target) {
 void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
     if (!m_widget)
         return;
+    cancelToolTip();
     if (m_popup && !m_grab) {
         // A press outside the popup closes it, and does nothing else.
         bool inside = false;
@@ -202,11 +206,13 @@ void QWidgetWindow::mouseMoveEvent(QMouseEvent *event) {
     if (!m_widget)
         return;
     if (m_grab && event->buttons() != Qt::NoButton) {
+        cancelToolTip();
         deliverMouse(event, m_grab);
         return;
     }
     QWidget *under = WidgetAccess::widgetAt(m_widget, event->pos());
     updateUnderMouse(under, event->position(), event->globalPosition());
+    toolTipMoved(under, event->pos(), event->globalPos());
     if (under->hasMouseTracking())
         deliverMouse(event, under);
 }
@@ -214,6 +220,7 @@ void QWidgetWindow::mouseMoveEvent(QMouseEvent *event) {
 void QWidgetWindow::wheelEvent(QWheelEvent *event) {
     if (!m_widget)
         return;
+    cancelToolTip();
     QWidget *target = WidgetAccess::widgetAt(m_widget, event->position().toPoint());
     const QPointF local = event->position() - QPointF(target->mapTo(m_widget, QPoint(0, 0)));
     const bool handled = propagate(target, local, [&](const QPointF &pos) {
@@ -226,6 +233,7 @@ void QWidgetWindow::wheelEvent(QWheelEvent *event) {
 void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
     if (!m_widget)
         return;
+    cancelToolTip();
     QWidget *target = WidgetAccess::focusWidgetOf(m_widget);
     if (!target)
         target = m_widget;
@@ -257,8 +265,50 @@ bool QWidgetWindow::event(QEvent *event) {
         return true;
     }
     if (event->type() == QEvent::Leave && m_widget) {
+        cancelToolTip();
         updateUnderMouse(nullptr, QPointF(), QPointF());
         return true;
     }
     return QPaintDeviceWindow::event(event);
+}
+
+// The mouse is at `pos` in the window, over `under`: a tool tip that is shown stays while the mouse is on its widget,
+// and otherwise the mouse has to rest before the next one is asked for.
+void QWidgetWindow::toolTipMoved(QWidget *under, const QPoint &pos, const QPoint &globalPos) {
+    const QPoint inWidget = pos - WidgetAccess::windowOffset(under);
+    if (QtPrivate::toolTipFollowsMouse(under, inWidget))
+        return;
+    if (m_tipTimer)
+        killTimer(m_tipTimer);
+    m_tipWidget = under;
+    m_tipPos = pos;
+    m_tipGlobalPos = globalPos;
+    m_tipTimer = startTimer(QtPrivate::toolTipDelay());
+}
+
+void QWidgetWindow::cancelToolTip() {
+    if (m_tipTimer) {
+        killTimer(m_tipTimer);
+        m_tipTimer = 0;
+    }
+    QToolTip::hideText();
+}
+
+void QWidgetWindow::timerEvent(QTimerEvent *event) {
+    if (event->timerId() != m_tipTimer) {
+        QPaintDeviceWindow::timerEvent(event);
+        return;
+    }
+    killTimer(m_tipTimer);
+    m_tipTimer = 0;
+    // Ask the widget under the mouse, and its parents in turn, until one has a tool tip.
+    QPoint pos = m_tipPos - WidgetAccess::windowOffset(m_tipWidget);
+    for (QWidget *w = m_tipWidget; w; w = w->parentWidget()) {
+        QHelpEvent help(QEvent::ToolTip, pos, m_tipGlobalPos);
+        help.accept();
+        QCoreApplication::sendEvent(w, &help);
+        if (help.isAccepted())
+            return;
+        pos += w->pos();
+    }
 }

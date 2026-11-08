@@ -18,7 +18,8 @@
     the controls. The \c hello_widgets example has the Nt logo and one of every widget, on the pages of a QTabWidget.
     The first page, \e Nt, is a showcase: one row for each widget that Nt has, with the name of its class and a live
     example. The pages after it group the widgets as an application would: buttons, check boxes and radio buttons in a
-    QGroupBox; line edits, a spin box and a combo box; and sliders and a progress bar that show the same value. Each
+    QGroupBox; line edits, a spin box and a combo box; sliders and a progress bar that show the same value; and, on the
+    \e Views page, a QTableWidget of people with a QScrollArea that holds a form made with a QGridLayout. Each
     page is a function that builds a widget with a layout:
 
     \snippet widgets/hello_widgets.cpp form
@@ -68,6 +69,11 @@
     mark, and Nt draws a focus indicator on a check box that has the focus without the keyboard.
 
     \section1 Layouts
+
+    A QGridLayout puts widgets in the cells of a grid; a widget can span several rows and columns, and rows and columns
+    can have a stretch factor:
+
+    \image widgets/qgridlayout.png A form in a QGridLayout
 
     A QVBoxLayout stacks widgets from top to bottom, and a QHBoxLayout lines them up from left to right.
     Layouts can be put in other layouts with addLayout(). A layout asks every widget for its
@@ -134,7 +140,41 @@
     \row
     \li QTabWidget
     \li Pages with a row of tabs to choose the page.
+    \row
+    \li QFrame
+    \li A box, a panel or a line around or between other widgets; the base of the scroll areas.
+    \row
+    \li QScrollBar, QScrollArea
+    \li A bar to scroll with, and a view of a larger widget with scroll bars.
+    \row
+    \li QTableWidget, QHeaderView
+    \li Rows and columns of items with row and column headers, which scrolls. Items have text, colors, an alignment
+    and a tool tip.
+    \row
+    \li QToolTip
+    \li A text that explains a widget, shown when the mouse rests on it: set it with QWidget::setToolTip().
     \endtable
+
+    \section2 Tables and Scroll Areas
+
+    A QTableWidget has an item for each cell that is not empty. You can reach the headers to size or label them, and
+    the table tells you which cell the user clicked. Rest the mouse over a cell for the tool tip of its item:
+
+    \code
+    QTableWidget *table = new QTableWidget(3, 2, window);
+    table->setHorizontalHeaderLabels({"Name", "Role"});
+    table->horizontalHeader()->setStretchLastSection(true);
+    QTableWidgetItem *ada = new QTableWidgetItem("Ada");
+    ada->setToolTip("The first programmer");
+    table->setItem(0, 0, ada);
+    connect(table, &QTableWidget::cellClicked, [](int row, int column) { qDebug() << row << column; });
+    \endcode
+
+    \image widgets/qtablewidget.png A QTableWidget with alternating row colors, a selected cell and colored items
+
+    A QScrollArea shows a part of one widget and has the scroll bars to move it. To make your own widget scroll, derive
+    from QAbstractScrollArea, paint on its \c viewport(), and set the range of the scroll bars when the viewport or your
+    contents change.
 
     The page of each widget class shows how the widget is drawn: normal, with the keyboard focus, pressed, checked,
     read-only and disabled where that applies, in the light color scheme. The pictures are made by the
@@ -142,8 +182,8 @@
 
     \section1 What Is Not There Yet
 
-    There are no lists and tables, text editing of more than a line, menus, dialogs, grid or form layouts, and no
-    scrolling. The native window of a top-level widget is a
+    There are no lists and trees, no model and view classes (a table keeps its items itself, and cannot be edited or sorted),
+    text editing of more than a line, menus, dialogs, or form and stacked layouts. The native window of a top-level widget is a
     QWindow; child widgets are painted into the backing store of that window and are not native windows
     themselves. Each class lists what differs from Qt in its \e Differences from Qt section.
 

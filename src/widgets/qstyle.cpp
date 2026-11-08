@@ -62,6 +62,7 @@
     \value PE_IndicatorArrowDown An arrow that points down, as on a combo box.
     \value PE_FrameGroupBox The frame of a group box.
     \value PE_FrameTabWidget The frame around the pages of a tab widget.
+    \value PE_PanelTipLabel The background and the frame of a tool tip.
 */
 
 /*!
@@ -82,6 +83,8 @@
     \value CE_ComboBox A combo box without its popup, described by a QStyleOptionComboBox.
     \value CE_SpinBox The frame and buttons of a spin box, described by a QStyleOptionSpinBox.
     \value CE_GroupBox A group box: frame and title, described by a QStyleOptionGroupBox.
+    \value CE_ScrollBar A scroll bar: groove and handle, described by a QStyleOptionSlider.
+    \value CE_Header One section of a header: background and text, described by a QStyleOptionHeader.
 */
 
 /*!
@@ -105,6 +108,7 @@
     \value SE_GroupBoxIndicator The check box in the title of a checkable group box.
     \value SE_GroupBoxTitle The title of a group box, with the check box if it has one.
     \value SE_GroupBoxContents The area inside the frame of a group box.
+    \value SE_ScrollBarSlider The handle of a scroll bar, from the position, range and page step of a QStyleOptionSlider.
 */
 
 /*!
@@ -129,6 +133,11 @@
     \value PM_SliderLength The length of the handle of a slider.
     \value PM_SpinBoxButtonWidth The width of the buttons of a spin box.
     \value PM_ComboBoxArrowWidth The width of the part of a combo box that has the arrow.
+    \value PM_ScrollBarExtent The thickness of a scroll bar: the width of a vertical one, the height of a horizontal one.
+    \value PM_ScrollBarSliderMin The shortest that the handle of a scroll bar gets.
+    \value PM_HeaderMargin The space on each side of the text in a section of a header.
+    \value PM_HeaderDefaultSectionSizeHorizontal The width of a section of a horizontal header, or of a column of a table.
+    \value PM_HeaderDefaultSectionSizeVertical The height of a section of a vertical header, or of a row of a table.
 */
 
 /*!

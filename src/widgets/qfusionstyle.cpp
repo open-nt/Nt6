@@ -156,6 +156,12 @@ void QFusionStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *o
         painter->setBrush(Qt::NoBrush);
         painter->drawRect(r.adjusted(0, 0, -1, -1));
         break;
+    case PE_PanelTipLabel:
+        painter->fillRect(r, option->palette.color(group, QPalette::ToolTipBase));
+        painter->setPen(option->palette.color(group, QPalette::ToolTipText).lighter(300));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRect(r.adjusted(0, 0, -1, -1));
+        break;
     case PE_FrameTabWidget:
         painter->fillRect(r, tabFrameColor(option));
         painter->setPen(outlineOf(option));
@@ -300,6 +306,67 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
                 painter->drawText(inner, Qt::AlignCenter | Qt::TextSingleLine, bar->text);
             }
         }
+        painter->restore();
+        break;
+    }
+    case CE_ScrollBar: {
+        const auto *bar = static_cast<const QStyleOptionSlider *>(option);
+        const QRect r = option->rect;
+        const bool horizontal = bar->orientation == Qt::Horizontal;
+        const QColor window = option->palette.color(group, QPalette::Window);
+        painter->save();
+        painter->fillRect(r, isDark(window) ? window.lighter(112) : window.darker(104));
+        painter->setPen(outlineOf(option));
+        // The line between the bar and the contents it scrolls
+        if (horizontal)
+            painter->drawLine(r.left(), r.top(), r.right(), r.top());
+        else
+            painter->drawLine(r.left(), r.top(), r.left(), r.bottom());
+        if (bar->maximum > bar->minimum) {
+            const QRect handle = subElementRect(SE_ScrollBarSlider, option, widget);
+            QColor fill = option->palette.color(group, QPalette::Button);
+            if (option->state & State_Sunken)
+                fill = fill.darker(112);
+            else if (option->state & State_MouseOver)
+                fill = fill.lighter(106);
+            drawBox(painter, handle, fill, outlineOf(option), window);
+            if (!(option->state & State_Sunken)) {
+                painter->setPen(option->palette.color(group, QPalette::Light));
+                if (horizontal)
+                    painter->drawLine(handle.left() + 2, handle.top() + 1, handle.right() - 2, handle.top() + 1);
+                else
+                    painter->drawLine(handle.left() + 1, handle.top() + 2, handle.left() + 1, handle.bottom() - 2);
+            }
+        }
+        painter->restore();
+        break;
+    }
+    case CE_Header: {
+        const auto *header = static_cast<const QStyleOptionHeader *>(option);
+        const QRect r = option->rect;
+        const bool horizontal = header->orientation == Qt::Horizontal;
+        painter->save();
+        QColor fill = option->palette.color(group, QPalette::Button);
+        if (option->state & State_Sunken)
+            fill = fill.darker(108);
+        else if (option->state & State_MouseOver)
+            fill = fill.lighter(104);
+        painter->fillRect(r, fill);
+        painter->setPen(outlineOf(option));
+        if (horizontal) {
+            painter->drawLine(r.left(), r.bottom(), r.right(), r.bottom());
+            if (!header->lastSection)
+                painter->drawLine(r.right(), r.top() + 3, r.right(), r.bottom() - 3);
+        } else {
+            painter->drawLine(r.right(), r.top(), r.right(), r.bottom());
+            if (!header->lastSection)
+                painter->drawLine(r.left() + 3, r.bottom(), r.right() - 3, r.bottom());
+        }
+        const int margin = pixelMetric(PM_HeaderMargin, option, widget);
+        const QRect text = r.adjusted(margin, 0, -margin, -1);
+        painter->setPen(option->palette.color(group, QPalette::ButtonText));
+        painter->drawText(text, int(header->textAlignment) | Qt::AlignVCenter | Qt::TextSingleLine,
+                          header->fontMetrics.elidedText(header->text, Qt::ElideRight, text.width()));
         painter->restore();
         break;
     }
@@ -449,7 +516,7 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
     case SE_SliderHandle: {
         const auto *slider = static_cast<const QStyleOptionSlider *>(option);
         const int length = pixelMetric(PM_SliderLength, option, widget);
-        const int thickness = pixelMetric(PM_SliderThickness, option, widget) - 4;
+        const int thickness = pixelMetric(PM_SliderThickness, option, widget);
         const qint64 range = static_cast<qint64>(slider->maximum) - slider->minimum;
         const qint64 done = std::clamp<qint64>(static_cast<qint64>(slider->sliderPosition) - slider->minimum, 0, range);
         if (slider->orientation == Qt::Horizontal) {
@@ -461,6 +528,24 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
         const int span = std::max(0, r.height() - length);
         const int y = range > 0 ? static_cast<int>(done * span / range) : 0;
         return QRect(r.center().x() - thickness / 2, r.bottom() + 1 - length - y, thickness, length);
+    }
+    case SE_ScrollBarSlider: {
+        const auto *bar = static_cast<const QStyleOptionSlider *>(option);
+        const bool horizontal = bar->orientation == Qt::Horizontal;
+        const qint64 range = static_cast<qint64>(bar->maximum) - bar->minimum;
+        // The groove is the bar without the line that separates it from the contents.
+        const QRect groove = horizontal ? r.adjusted(0, 1, 0, 0) : r.adjusted(1, 0, 0, 0);
+        const int length = horizontal ? groove.width() : groove.height();
+        if (range <= 0)
+            return groove;
+        const qint64 total = range + std::max(1, bar->pageStep);
+        const int handle = std::clamp(static_cast<int>(length * std::max(1, bar->pageStep) / total),
+                                      std::min(length, pixelMetric(PM_ScrollBarSliderMin, option, widget)), length);
+        const qint64 done = std::clamp<qint64>(static_cast<qint64>(bar->sliderPosition) - bar->minimum, 0, range);
+        const int offset = static_cast<int>((length - handle) * done / range);
+        if (horizontal)
+            return QRect(groove.left() + offset, groove.top(), handle, groove.height()).adjusted(0, 1, 0, -1);
+        return QRect(groove.left(), groove.top() + offset, groove.width(), handle).adjusted(1, 0, -1, 0);
     }
     case SE_ProgressBarContents:
         return r.adjusted(1, 1, -1, -1);
@@ -527,8 +612,19 @@ int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, co
     case PM_SpinBoxButtonWidth:
         return 16;
     case PM_SliderThickness:
+        return 15;
     case PM_ComboBoxArrowWidth:
         return 20;
+    case PM_ScrollBarExtent:
+        return 14;
+    case PM_ScrollBarSliderMin:
+        return 26;
+    case PM_HeaderMargin:
+        return 4;
+    case PM_HeaderDefaultSectionSizeHorizontal:
+        return 100;
+    case PM_HeaderDefaultSectionSizeVertical:
+        return 30;
     }
     return 0;
 }
@@ -555,7 +651,7 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
     }
     case CT_LineEdit: {
         const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
-        return QSize(contentsSize.width() + 2 * (frame + 3), contentsSize.height() + 2 * (frame + 2));
+        return QSize(contentsSize.width() + 2 * (frame + 3), contentsSize.height() + 2 * (frame + 3));
     }
     case CT_RadioButton: {
         const int indicator = pixelMetric(PM_ExclusiveIndicatorWidth, option, widget);
@@ -564,18 +660,18 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
                      std::max(indicator, contentsSize.height() + 4) + 1);
     }
     case CT_ProgressBar:
-        return QSize(contentsSize.width() + 8, contentsSize.height() + 6);
+        return QSize(contentsSize.width() + 8, contentsSize.height() + 8);
     case CT_TabBarTab:
         return QSize(contentsSize.width() + 20, contentsSize.height() + 10);
     case CT_ComboBox: {
         const int m = pixelMetric(PM_ButtonMargin, option, widget);
-        return QSize(contentsSize.width() + 8 + pixelMetric(PM_ComboBoxArrowWidth, option, widget) + 4,
+        return QSize(contentsSize.width() + 8 + pixelMetric(PM_ComboBoxArrowWidth, option, widget),
                      contentsSize.height() + m + 2 * pixelMetric(PM_DefaultFrameWidth, option, widget));
     }
     case CT_SpinBox: {
         const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
-        return QSize(contentsSize.width() + 2 * (frame + 3) + pixelMetric(PM_SpinBoxButtonWidth, option, widget),
-                     contentsSize.height() + 2 * (frame + 2));
+        return QSize(contentsSize.width() + 2 * (frame + 3) + pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 3,
+                     contentsSize.height() + 2 * (frame + 2) + 3);
     }
     }
     return contentsSize;

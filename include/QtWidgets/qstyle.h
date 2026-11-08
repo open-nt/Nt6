@@ -39,7 +39,8 @@ public:
         PE_IndicatorArrowUp,
         PE_IndicatorArrowDown,
         PE_FrameGroupBox,
-        PE_FrameTabWidget
+        PE_FrameTabWidget,
+        PE_PanelTipLabel
     };
     enum ControlElement {
         CE_PushButton,
@@ -54,7 +55,9 @@ public:
         CE_TabBarTab,
         CE_ComboBox,
         CE_SpinBox,
-        CE_GroupBox
+        CE_GroupBox,
+        CE_ScrollBar,
+        CE_Header
     };
     enum SubElement {
         SE_CheckBoxIndicator,
@@ -72,7 +75,8 @@ public:
         SE_SpinBoxDown,
         SE_GroupBoxIndicator,
         SE_GroupBoxTitle,
-        SE_GroupBoxContents
+        SE_GroupBoxContents,
+        SE_ScrollBarSlider
     };
     enum PixelMetric {
         PM_ButtonMargin,
@@ -91,7 +95,12 @@ public:
         PM_SliderThickness,
         PM_SliderLength,
         PM_SpinBoxButtonWidth,
-        PM_ComboBoxArrowWidth
+        PM_ComboBoxArrowWidth,
+        PM_ScrollBarExtent,
+        PM_ScrollBarSliderMin,
+        PM_HeaderMargin,
+        PM_HeaderDefaultSectionSizeHorizontal,
+        PM_HeaderDefaultSectionSizeVertical
     };
     enum ContentsType {
         CT_PushButton,

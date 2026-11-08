@@ -47,6 +47,7 @@ class QWidget : public QObject, public QPaintDevice {
     Q_PROPERTY(int height READ height)
     Q_PROPERTY(bool autoFillBackground READ autoFillBackground WRITE setAutoFillBackground)
     Q_PROPERTY(bool mouseTracking READ hasMouseTracking WRITE setMouseTracking)
+    Q_PROPERTY(QString toolTip READ toolTip WRITE setToolTip)
 public:
     explicit QWidget(QWidget *parent = nullptr);
     ~QWidget() override;
@@ -132,6 +133,10 @@ public:
     void setMouseTracking(bool enable);
     bool hasMouseTracking() const;
     bool underMouse() const;
+
+    // Tool tip
+    QString toolTip() const;
+    void setToolTip(const QString &text);
 
     // Rendering
     void render(QPaintDevice *target, const QPoint &targetOffset = QPoint(), const QRegion &sourceRegion = QRegion());

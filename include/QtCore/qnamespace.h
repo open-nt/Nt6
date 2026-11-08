@@ -483,6 +483,31 @@ enum TextFlag { TextSingleLine = 0x0100, TextDontClip = 0x0200, TextWordWrap = 0
 enum TextElideMode { ElideLeft, ElideRight, ElideMiddle, ElideNone };
 
 /*!
+    \enum Qt::ScrollBarPolicy
+
+    This enum says when a scroll area shows a scroll bar.
+
+    \value ScrollBarAsNeeded The scroll bar is shown when the contents do not fit.
+    \value ScrollBarAlwaysOff The scroll bar is never shown.
+    \value ScrollBarAlwaysOn The scroll bar is always shown.
+*/
+enum ScrollBarPolicy { ScrollBarAsNeeded, ScrollBarAlwaysOff, ScrollBarAlwaysOn };
+
+/*!
+    \enum Qt::ItemFlag
+
+    This enum describes what the user can do with an item of a table.
+
+    \value NoItemFlags The item cannot be used.
+    \value ItemIsSelectable The user can select the item.
+    \value ItemIsEnabled The user can interact with the item; a disabled item is drawn in the disabled colors and
+           cannot be selected.
+*/
+enum ItemFlag { NoItemFlags = 0, ItemIsSelectable = 1, ItemIsEnabled = 32 };
+Q_DECLARE_FLAGS(ItemFlags, ItemFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(ItemFlags)
+
+/*!
     \enum Qt::ColorScheme
 
     This enum describes the color scheme of the desktop: whether the interface is meant to be light

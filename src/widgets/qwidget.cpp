@@ -13,6 +13,7 @@
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qstyle.h>
+#include <QtWidgets/qtooltip.h>
 
 #include <algorithm>
 
@@ -64,7 +65,7 @@ QWidget *WidgetAccess::widgetAt(QWidget *root, const QPoint &p) {
     const std::vector<QWidget *> kids = childWidgets(root);
     for (auto it = kids.rbegin(); it != kids.rend(); ++it) {
         QWidget *child = *it;
-        if (shownSelf(child) && child->geometry().contains(p))
+        if (shownSelf(child) && !data(child).mouseTransparent && child->geometry().contains(p))
             return widgetAt(child, p - child->pos());
     }
     return root;
@@ -260,7 +261,7 @@ using QtPrivate::WidgetAccess;
     \differences
     The widget has no window flags (\c Qt::Window, \c Qt::Dialog, \c Qt::Tool and so on), no widget
     attributes (\c setAttribute()), no \c windowIcon(), cursor, tool tip, context menu, actions,
-    shortcuts, \c grab(), \c setFocusProxy(), \c setTabOrder(), \c stackUnder(),
+    shortcuts, \c grab(), \c setFocusProxy(), \c toolTipDuration(), \c statusTip(), \c whatsThis(), \c setTabOrder(), \c stackUnder(),
     \c setWindowOpacity() or transparent windows. Only top-level widgets are native windows, and
     a widget that is a window has its geometry set on the QWindow without a window frame, so
     \c frameGeometry() is not provided. \c raise() and \c lower() reorder the children of a parent, and
@@ -383,6 +384,23 @@ bool QWidget::systemClip(QRegion *region) const {
 }
 
 /*!
+    Returns the tool tip of the widget: the text that appears next to the mouse when it rests on the widget for a
+    moment. It is empty by default, and then the tool tip of the parent applies, if it has one.
+
+    \sa setToolTip(), QToolTip
+*/
+QString QWidget::toolTip() const { return m_d->toolTip; }
+
+/*!
+    Sets the tool tip of the widget to \a text, which may have several lines. An empty text removes it. The tool tip
+    is shown for a disabled widget too. A widget can show a tool tip that depends on the position of the mouse if it
+    handles the QEvent::ToolTip event.
+
+    \sa toolTip(), QHelpEvent
+*/
+void QWidget::setToolTip(const QString &text) { m_d->toolTip = text; }
+
+/*!
     Paints the widget and its visible children on \a target, with the top left corner of the widget at
     \a targetOffset. Only \a sourceRegion of the widget is painted if it is not empty. The widget need not be
     shown: it is painted as it would look, at its current size, with its layout done, and a widget that is hidden
@@ -479,6 +497,10 @@ void WidgetAccess::applyLocalGeometry(QWidget *w, const QRect &rect) {
     if (rect.size() != old.size()) {
         QResizeEvent resize(rect.size(), old.size());
         QCoreApplication::sendEvent(w, &resize);
+        if (QWidget *parent = w->parentWidget()) {
+            if (parent->m_d->childChanged)
+                parent->m_d->childChanged(w);
+        }
     }
     if (QWidget *parent = w->parentWidget()) {
         if (shownSelf(w))
@@ -696,6 +718,8 @@ void QWidget::updateGeometry() {
     if (QWidget *p = parentWidget()) {
         if (p->m_d->layout)
             p->m_d->layout->invalidate();
+        if (p->m_d->childChanged)
+            p->m_d->childChanged(this);
     }
 }
 
@@ -1426,10 +1450,21 @@ bool QWidget::event(QEvent *e) {
     case QEvent::Leave:
         leaveEvent(e);
         return true;
+    case QEvent::ToolTip:
+        // The tool tip of the widget; a widget that has none leaves the event to its parent.
+        if (!m_d->toolTip.isEmpty()) {
+            QToolTip::showText(static_cast<QHelpEvent *>(e)->globalPos(), m_d->toolTip, this);
+            e->accept();
+        } else {
+            e->ignore();
+        }
+        return true;
     case QEvent::LayoutRequest:
         if (m_d->layout) {
             m_d->layout->clearPendingRequest();
             m_d->layout->activate();
+            if (parentWidget() && parentWidget()->m_d->childChanged)
+                parentWidget()->m_d->childChanged(this);
         }
         return true;
     case QEvent::EnabledChange:

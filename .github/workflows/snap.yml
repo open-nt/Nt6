@@ -1,0 +1,83 @@
+# Builds and smoke-tests the snap (snap/snapcraft.yaml).
+# Also called by slsa.yml, which signs the snap with SLSA provenance and, for a
+# version tag, publishes it to the Snap Store.
+#
+# Publishing needs the repository secret SNAPCRAFT_STORE_CREDENTIALS, made with:
+#   snapcraft export-login --snaps nt6 --acls package_access,package_push,package_release -
+# A version with a pre-release suffix (6.1.0-rc1) goes to the candidate channel;
+# any other goes to stable.
+name: Snap
+
+on:
+  push:
+    branches: [main]
+    paths: ["snap/**", ".github/workflows/snap.yml", "CMakeLists.txt", "cmake/**", "VERSION"]
+  pull_request:
+    branches: [main]
+    paths: ["snap/**", ".github/workflows/snap.yml", "CMakeLists.txt", "cmake/**", "VERSION"]
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      publish:
+        description: Publish the snap to the Snap Store
+        type: boolean
+        default: false
+    secrets:
+      SNAPCRAFT_STORE_CREDENTIALS:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Snap
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the snap
+        id: build
+        uses: snapcore/action-build@v1
+
+      - name: Install the snap and run the tools
+        run: |
+          sudo snap install --dangerous "${{ steps.build.outputs.snap }}"
+          nt6.ntmoc --version
+          nt6.ndoc --version
+          test -f /snap/nt6/current/usr/lib/cmake/Nt6/Nt6Config.cmake \
+            || test -f /snap/nt6/current/usr/lib/x86_64-linux-gnu/cmake/Nt6/Nt6Config.cmake
+          test "$(snap list nt6 | awk 'NR == 2 { print $2 }')" = "$(head -n 1 VERSION)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages-snap
+          path: ${{ steps.build.outputs.snap }}
+          if-no-files-found: error
+
+  publish:
+    name: Publish to the Snap Store
+    if: inputs.publish
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-snap
+          path: dist
+
+      - name: Pick the snap and the channel
+        id: channel
+        run: |
+          echo "snap=$(ls "$GITHUB_WORKSPACE"/dist/nt6_*.snap)" >> "$GITHUB_OUTPUT"
+          case "$GITHUB_REF_NAME" in
+          v*-*) echo "name=candidate" >> "$GITHUB_OUTPUT" ;;
+          *) echo "name=stable" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.channel.outputs.snap }}
+          release: ${{ steps.channel.outputs.name }}

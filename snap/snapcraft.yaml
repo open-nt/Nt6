@@ -1,0 +1,57 @@
+# MIT License - see LICENSE
+#
+# The snap of Nt: the ntmoc and ndoc tools, plus the headers, static libraries
+# and CMake package under /snap/nt6/current/usr. Built by .github/workflows/snap.yml.
+name: nt6
+title: Nt
+summary: Clean-room subset of the Qt 6 API, with its moc replacement and doc generator
+description: |
+  Nt is a small, MIT-licensed implementation of a subset of the Qt 6 API.
+
+  This snap provides ntmoc, a replacement for Qt's moc, and ndoc, the
+  documentation generator. The headers, static libraries and CMake package
+  are in /snap/nt6/current/usr; build against them with
+  -DCMAKE_PREFIX_PATH=/snap/nt6/current/usr.
+website: https://open-nt.github.io/Nt6/
+source-code: https://github.com/open-nt/Nt6
+issues: https://github.com/open-nt/Nt6/issues
+license: MIT
+icon: assets/nt-logo.svg
+adopt-info: nt
+
+base: core24
+confinement: strict
+grade: stable
+
+platforms:
+  amd64:
+
+apps:
+  ntmoc:
+    command: usr/bin/ntmoc
+    plugs: [home]
+    aliases: [ntmoc]
+  ndoc:
+    command: usr/bin/ndoc
+    plugs: [home]
+    aliases: [ndoc]
+
+parts:
+  nt:
+    plugin: cmake
+    source: .
+    cmake-parameters:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/usr
+      - -DNT_BUILD_TESTS=OFF
+      - -DNT_BUILD_EXAMPLES=OFF
+    build-packages:
+      - g++
+      - libfontconfig-dev
+      - libfreetype-dev
+      - libssl-dev
+      - libxcb1-dev
+      - pkg-config
+    override-build: |
+      craftctl set version="$(head -n 1 "$CRAFT_PART_SRC/VERSION")"
+      craftctl default

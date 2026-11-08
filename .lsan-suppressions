@@ -1,0 +1,4 @@
+# Suppressions for LeakSanitizer, used by check.sh. Each needs a reason.
+# Fontconfig leaks a few hundred bytes while it parses its configuration in FcInit(); Nt GUI
+# starts it the first time text is measured or drawn.
+leak:libfontconfig

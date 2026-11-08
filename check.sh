@@ -150,7 +150,7 @@ check_cmake_sources() {
 }
 
 check_headers() {
-    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -Iinclude/QtDBus -Iinclude/QtTest -I$build_root/release/generated" out
+    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -Iinclude/QtDBus -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtTest -I$build_root/release/generated" out
     need "$cxx" || return $?
     export cxx dirs
     # Each public header must compile when it is the only thing included.
@@ -221,7 +221,7 @@ check_cppcheck() {
     need cppcheck || return $?
     cppcheck --enable=warning,performance,portability --std=c++17 --inline-suppr \
         --suppressions-list=.cppcheck-suppressions --error-exitcode=1 --quiet \
-        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -Iinclude/QtDBus -Iinclude/QtTest -I"$build_root/release/generated" -Isrc \
+        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtSerialPort -Iinclude/QtDBus -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtTest -I"$build_root/release/generated" -Isrc \
         -j "$jobs" src tools
 }
 
@@ -269,6 +269,7 @@ check_sanitizers() {
         -DNT_BUILD_EXAMPLES=OFF "-DNT_SANITIZE=address;undefined" && \
         cmake --build "$build_root/asan" -j "$jobs" && \
         ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 UBSAN_OPTIONS=print_stacktrace=1 \
+        LSAN_OPTIONS="suppressions=$root/.lsan-suppressions" \
         ctest --test-dir "$build_root/asan" -j "$jobs" --output-on-failure
 }
 

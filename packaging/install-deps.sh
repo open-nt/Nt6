@@ -13,13 +13,13 @@ case "$like" in
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
     apt-get install -y --no-install-recommends \
-        ca-certificates cmake dpkg-dev file g++ libssl-dev make tar zstd
+        ca-certificates cmake dpkg-dev file g++ libfontconfig-dev libfreetype-dev libssl-dev libxcb1-dev make pkg-config tar zstd
     ;;
 *" rhel "* | *" fedora "* | *" centos "*)
-    dnf -y install cmake gcc-c++ make openssl-devel rpm-build tar zstd findutils
+    dnf -y install cmake gcc-c++ fontconfig-devel freetype-devel libxcb-devel make openssl-devel pkgconf-pkg-config rpm-build tar zstd findutils
     ;;
 *" arch "*)
-    pacman -Syu --noconfirm --needed cmake gcc make openssl tar zstd
+    pacman -Syu --noconfirm --needed cmake fontconfig freetype2 gcc libxcb make openssl pkgconf tar zstd
     ;;
 *)
     echo "install-deps.sh: unsupported distribution: ${PRETTY_NAME:-$ID}" >&2

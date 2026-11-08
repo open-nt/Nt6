@@ -86,8 +86,8 @@
 
     Every build of the main branch also uploads its packages as artifacts of the
     workflow run, named \c packages-ubuntu-22.04, \c packages-ubuntu-24.04,
-    \c packages-ubuntu-26.04, \c packages-el9, \c packages-el10 and
-    \c packages-arch.
+    \c packages-ubuntu-26.04, \c packages-el9, \c packages-el10,
+    \c packages-arch and \c packages-snap.
 
     \note Install the packages built for your system. A package built for another
     release of the same system is not tested there and is not supported.
@@ -150,6 +150,28 @@
 
     The package is built against the Arch Linux packages of the day, so install
     it on an up-to-date system (\c{sudo pacman -Syu}).
+
+    \section1 Snap
+
+    The snap carries the tools and the development files in one package. It is
+    built for \c amd64 on \c core24 and is published to the Snap Store as \c nt6:
+
+    \code
+    sudo snap install nt6
+    \endcode
+
+    A release candidate is on the \c candidate channel; add \c{--channel=candidate}.
+    To install the snap of a release instead, download \c{nt6_6.1.0_amd64.snap}
+    from the releases page and run \c{sudo snap install --dangerous nt6_6.1.0_amd64.snap}.
+    The commands are \c nt6.ntmoc and \c nt6.ndoc, and \c ntmoc and \c ndoc once
+    the Snap Store has granted the aliases, or after
+    \c{sudo snap alias nt6.ntmoc ntmoc} and \c{sudo snap alias nt6.ndoc ndoc}.
+
+    The snap is strictly confined: the tools read and write files in your home
+    directory, not elsewhere. The headers, static libraries and CMake package are
+    in \c{/snap/nt6/current/usr}; to build against them, pass
+    \c{-DCMAKE_PREFIX_PATH=/snap/nt6/current/usr} to CMake. Remove the snap with
+    \c{sudo snap remove nt6}.
 
     \section1 Using Nt
 

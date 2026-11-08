@@ -196,6 +196,123 @@ target_include_directories(NtDBus
 target_link_libraries(NtDBus PUBLIC NtCore)
 nt_set_compile_options(NtDBus)
 
+add_library(NtGui
+    src/gui/platforms/offscreen/qoffscreenintegration.cpp
+    src/gui/qbackingstore.cpp
+    src/gui/qbrush.cpp
+    src/gui/qcolor.cpp
+    src/gui/qdesktopportal.cpp
+    src/gui/qevent.cpp
+    src/gui/qfont.cpp
+    src/gui/qfontengine.cpp
+    src/gui/qfontmetrics.cpp
+    src/gui/qguiapplication.cpp
+    src/gui/qimage.cpp
+    src/gui/qpaintdevice.cpp
+    src/gui/qpaintdevicewindow.cpp
+    src/gui/qpaintengine.cpp
+    src/gui/qpainter.cpp
+    src/gui/qpalette.cpp
+    src/gui/qpen.cpp
+    src/gui/qplatform.cpp
+    src/gui/qrasterpaintengine.cpp
+    src/gui/qrasterwindow.cpp
+    src/gui/qregion.cpp
+    src/gui/qscreen.cpp
+    src/gui/qstylehints.cpp
+    src/gui/qtextlayout.cpp
+    src/gui/qwindow.cpp
+    src/gui/qwindowsysteminterface.cpp
+)
+add_library(Nt::Gui ALIAS NtGui)
+add_library(Qt6::Gui ALIAS NtGui)
+target_include_directories(NtGui
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtGui>
+        $<INSTALL_INTERFACE:include/nt6/QtGui>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtGui PUBLIC NtCore PRIVATE NtDBus)
+
+# Text is rasterized with FreeType and the fonts are found with fontconfig. Without them the
+# library still builds, but fonts have fixed metrics and draw nothing.
+option(NT_USE_FREETYPE "Build text support of Nt GUI with FreeType and fontconfig" ON)
+set(NT_HAVE_FREETYPE OFF)
+if(NT_USE_FREETYPE)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(NT_FT QUIET freetype2 fontconfig)
+    endif()
+    if(NT_FT_FOUND)
+        set(NT_HAVE_FREETYPE ON)
+    else()
+        message(WARNING "FreeType and fontconfig were not found: building Nt GUI without text rendering")
+    endif()
+endif()
+if(NT_HAVE_FREETYPE)
+    target_compile_definitions(NtGui PRIVATE NT_HAVE_FREETYPE)
+    target_include_directories(NtGui SYSTEM PRIVATE ${NT_FT_INCLUDE_DIRS})
+    target_link_directories(NtGui PRIVATE ${NT_FT_LIBRARY_DIRS})
+    target_link_libraries(NtGui PRIVATE ${NT_FT_LIBRARIES})
+endif()
+
+# The xcb platform talks to an X server (or XWayland); it is built when XCB is found.
+option(NT_USE_XCB "Build the xcb platform of Nt GUI" ON)
+set(NT_HAVE_XCB OFF)
+if(NT_USE_XCB)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(NT_XCB QUIET xcb)
+    endif()
+    if(NT_XCB_FOUND)
+        set(NT_HAVE_XCB ON)
+    else()
+        message(WARNING "XCB was not found: building Nt GUI without the xcb platform")
+    endif()
+endif()
+if(NT_HAVE_XCB)
+    target_sources(NtGui PRIVATE
+        src/gui/platforms/xcb/qxcbconnection.cpp
+        src/gui/platforms/xcb/qxcbintegration.cpp
+        src/gui/platforms/xcb/qxcbwindow.cpp)
+    target_compile_definitions(NtGui PRIVATE NT_HAVE_XCB)
+    target_include_directories(NtGui SYSTEM PRIVATE ${NT_XCB_INCLUDE_DIRS})
+    target_link_directories(NtGui PRIVATE ${NT_XCB_LIBRARY_DIRS})
+    target_link_libraries(NtGui PRIVATE ${NT_XCB_LIBRARIES})
+endif()
+nt_set_compile_options(NtGui)
+
+add_library(NtWidgets
+    src/widgets/qabstractbutton.cpp
+    src/widgets/qapplication.cpp
+    src/widgets/qboxlayout.cpp
+    src/widgets/qcheckbox.cpp
+    src/widgets/qfusionstyle.cpp
+    src/widgets/qlabel.cpp
+    src/widgets/qlayout.cpp
+    src/widgets/qlayoutitem.cpp
+    src/widgets/qpushbutton.cpp
+    src/widgets/qsizepolicy.cpp
+    src/widgets/qstyle.cpp
+    src/widgets/qstyleoption.cpp
+    src/widgets/qwidget.cpp
+    src/widgets/qwidgetwindow.cpp
+)
+add_library(Nt::Widgets ALIAS NtWidgets)
+add_library(Qt6::Widgets ALIAS NtWidgets)
+target_include_directories(NtWidgets
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtWidgets>
+        $<INSTALL_INTERFACE:include/nt6/QtWidgets>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/widgets
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtWidgets PUBLIC NtGui)
+nt_set_compile_options(NtWidgets)
+
 add_library(NtTest
     src/test/qsignalspy.cpp
     src/test/qtestcase.cpp
@@ -230,6 +347,8 @@ nt_moc_library(NtNetwork include/QtNetwork)
 set(NT_MOC_DEFINES)
 nt_moc_library(NtSerialPort include/QtSerialPort)
 nt_moc_library(NtDBus include/QtDBus)
+nt_moc_library(NtGui include/QtGui src/gui/qpa)
+nt_moc_library(NtWidgets include/QtWidgets)
 
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
@@ -397,6 +516,58 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_variant_tests COMMAND nt_variant_tests)
     nt_set_compile_options(nt_variant_tests)
 
+    # The GUI tests run on the offscreen platform, so they need no display. They reach the private
+    # platform headers to play the window system.
+    add_executable(nt_gui_tests tests/test_gui.cpp)
+    target_include_directories(nt_gui_tests PRIVATE src/gui)
+    target_link_libraries(nt_gui_tests PRIVATE Nt::Gui)
+    add_test(NAME nt_gui_tests COMMAND nt_gui_tests)
+    set_tests_properties(nt_gui_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_gui_tests)
+
+    # The widget tests run on the offscreen platform too, and play the window system with the private headers.
+    add_executable(nt_widgets_tests tests/test_widgets.cpp)
+    target_include_directories(nt_widgets_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_tests COMMAND nt_widgets_tests)
+    set_tests_properties(nt_widgets_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_tests)
+
+    # Drawing at a device pixel ratio of 2, on the offscreen platform.
+    add_executable(nt_gui_scale_tests tests/test_gui_scale.cpp)
+    target_include_directories(nt_gui_scale_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_gui_scale_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_gui_scale_tests COMMAND nt_gui_scale_tests)
+    set_tests_properties(nt_gui_scale_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_gui_scale_tests)
+
+    # The xcb tests need an X server (or XWayland); they report a skip without one.
+    if(NT_HAVE_XCB)
+        add_executable(nt_gui_xcb_tests tests/test_gui_xcb.cpp)
+        target_include_directories(nt_gui_xcb_tests SYSTEM PRIVATE ${NT_XCB_INCLUDE_DIRS})
+        target_include_directories(nt_gui_xcb_tests PRIVATE src/gui tests)
+        target_link_directories(nt_gui_xcb_tests PRIVATE ${NT_XCB_LIBRARY_DIRS})
+        target_link_libraries(nt_gui_xcb_tests PRIVATE Nt::Gui ${NT_XCB_LIBRARIES})
+        add_test(NAME nt_gui_xcb_tests COMMAND nt_gui_xcb_tests)
+        nt_set_compile_options(nt_gui_xcb_tests)
+
+        add_executable(nt_gui_xcb_scale_tests tests/test_gui_xcb_scale.cpp)
+        target_include_directories(nt_gui_xcb_scale_tests SYSTEM PRIVATE ${NT_XCB_INCLUDE_DIRS})
+        target_include_directories(nt_gui_xcb_scale_tests PRIVATE src/gui tests)
+        target_link_directories(nt_gui_xcb_scale_tests PRIVATE ${NT_XCB_LIBRARY_DIRS})
+        target_link_libraries(nt_gui_xcb_scale_tests PRIVATE Nt::Gui ${NT_XCB_LIBRARIES})
+        add_test(NAME nt_gui_xcb_scale_tests COMMAND nt_gui_xcb_scale_tests)
+        nt_set_compile_options(nt_gui_xcb_scale_tests)
+
+        add_executable(nt_widgets_xcb_tests tests/test_widgets_xcb.cpp)
+        target_include_directories(nt_widgets_xcb_tests SYSTEM PRIVATE ${NT_XCB_INCLUDE_DIRS})
+        target_include_directories(nt_widgets_xcb_tests PRIVATE src/gui tests)
+        target_link_directories(nt_widgets_xcb_tests PRIVATE ${NT_XCB_LIBRARY_DIRS})
+        target_link_libraries(nt_widgets_xcb_tests PRIVATE Nt::Widgets ${NT_XCB_LIBRARIES})
+        add_test(NAME nt_widgets_xcb_tests COMMAND nt_widgets_xcb_tests)
+        nt_set_compile_options(nt_widgets_xcb_tests)
+    endif()
+
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
                            nt_test_tests)
     foreach(suite filesystem streams types)
@@ -405,7 +576,8 @@ if(NT_BUILD_TESTS)
 endif()
 
 if(NT_BUILD_EXAMPLES)
-    add_executable(hello examples/hello.cpp)
+    # examples/hello/CMakeLists.txt is the standalone version of this target.
+    add_executable(hello examples/hello/hello.cpp)
     target_link_libraries(hello PRIVATE Nt::Core)
 
     # Same flow as a Qt project using CMAKE_AUTOMOC.
@@ -422,6 +594,21 @@ if(NT_BUILD_EXAMPLES)
     if(NT_BUILD_TESTS)
         add_test(NAME tst_counter COMMAND tst_counter)
     endif()
+
+    # A window that is painted with QPainter; see "Using Nt GUI" in the documentation.
+    add_executable(hello_window examples/gui/hello_window.cpp)
+    target_link_libraries(hello_window PRIVATE Nt::Gui)
+    nt_set_compile_options(hello_window)
+
+    # A form made of widgets and layouts; see "Using Nt Widgets" in the documentation.
+    add_executable(hello_widgets examples/widgets/hello_widgets.cpp)
+    target_link_libraries(hello_widgets PRIVATE Nt::Widgets)
+    nt_set_compile_options(hello_widgets)
+
+    # A tour of the widgets: layouts, controls, custom widgets, a dark theme.
+    add_executable(gallery examples/widgets/gallery.cpp)
+    target_link_libraries(gallery PRIVATE Nt::Widgets)
+    nt_set_compile_options(gallery)
 
     # A serial terminal; see "Using Nt Serial Port" in the documentation.
     add_executable(serialterm examples/serialport/serialterm.cpp)

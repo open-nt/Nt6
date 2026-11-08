@@ -13,7 +13,9 @@
 
     \differences
     Only the enums listed here exist. Qt's other \c Qt:: enums, such as the
-    key, mouse and widget enums, belong to modules Nt does not provide.
+    window flags, cursor shapes and item-view roles, are not provided. The
+    enums that Nt GUI uses (keys, mouse buttons, modifiers, colors, pen and
+    brush styles and alignment) hold a subset of Qt's values, with the same numbers.
     \enddifferences
 */
 namespace Qt {
@@ -149,6 +151,381 @@ enum FindChildOption {
     FindChildrenRecursively = 1
 };
 Q_DECLARE_FLAGS(FindChildOptions, FindChildOption)
+
+/*!
+    \enum Qt::GlobalColor
+
+    This enum names the predefined colors that QColor and QBrush accept.
+
+    \value color0 Zero pixel value, transparent in a bitmap.
+    \value color1 Pixel value one, opaque in a bitmap.
+    \value black Black, 0x000000.
+    \value white White, 0xffffff.
+    \value darkGray Dark gray, 0x808080.
+    \value gray Gray, 0xa0a0a4.
+    \value lightGray Light gray, 0xc0c0c0.
+    \value red Red, 0xff0000.
+    \value green Green, 0x00ff00.
+    \value blue Blue, 0x0000ff.
+    \value cyan Cyan, 0x00ffff.
+    \value magenta Magenta, 0xff00ff.
+    \value yellow Yellow, 0xffff00.
+    \value darkRed Dark red, 0x800000.
+    \value darkGreen Dark green, 0x008000.
+    \value darkBlue Dark blue, 0x000080.
+    \value darkCyan Dark cyan, 0x008080.
+    \value darkMagenta Dark magenta, 0x800080.
+    \value darkYellow Dark yellow, 0x808000.
+    \value transparent Fully transparent.
+*/
+enum GlobalColor {
+    color0,
+    color1,
+    black,
+    white,
+    darkGray,
+    gray,
+    lightGray,
+    red,
+    green,
+    blue,
+    cyan,
+    magenta,
+    yellow,
+    darkRed,
+    darkGreen,
+    darkBlue,
+    darkCyan,
+    darkMagenta,
+    darkYellow,
+    transparent
+};
+
+/*!
+    \enum Qt::MouseButton
+
+    This enum describes the mouse buttons. The MouseButtons type is a typedef
+    for \c{QFlags<MouseButton>}.
+
+    \value NoButton No button, as in a mouse move event.
+    \value LeftButton The left button.
+    \value RightButton The right button.
+    \value MiddleButton The middle button, often the wheel.
+    \value BackButton The back navigation button.
+    \value ForwardButton The forward navigation button.
+    \value AllButtons Every button.
+*/
+enum MouseButton {
+    NoButton = 0x00000000,
+    LeftButton = 0x00000001,
+    RightButton = 0x00000002,
+    MiddleButton = 0x00000004,
+    BackButton = 0x00000008,
+    ForwardButton = 0x00000010,
+    AllButtons = 0x07ffffff
+};
+Q_DECLARE_FLAGS(MouseButtons, MouseButton)
+Q_DECLARE_OPERATORS_FOR_FLAGS(MouseButtons)
+
+/*!
+    \enum Qt::KeyboardModifier
+
+    This enum describes the modifier keys. The KeyboardModifiers type is a
+    typedef for \c{QFlags<KeyboardModifier>}.
+
+    \value NoModifier No modifier key is pressed.
+    \value ShiftModifier A Shift key is pressed.
+    \value ControlModifier A Ctrl key is pressed.
+    \value AltModifier An Alt key is pressed.
+    \value MetaModifier A Meta (Super, Windows) key is pressed.
+    \value KeypadModifier The key is on the keypad.
+*/
+enum KeyboardModifier {
+    NoModifier = 0x00000000,
+    ShiftModifier = 0x02000000,
+    ControlModifier = 0x04000000,
+    AltModifier = 0x08000000,
+    MetaModifier = 0x10000000,
+    KeypadModifier = 0x20000000
+};
+Q_DECLARE_FLAGS(KeyboardModifiers, KeyboardModifier)
+Q_DECLARE_OPERATORS_FOR_FLAGS(KeyboardModifiers)
+
+/*!
+    \enum Qt::Key
+
+    This enum holds the keys that QKeyEvent reports. Printable keys use their
+    Latin-1 upper case code, so \c Key_A is 0x41.
+
+    \value Key_Escape The Escape key.
+    \value Key_Tab The Tab key.
+    \value Key_Backtab Shift+Tab.
+    \value Key_Backspace The Backspace key.
+    \value Key_Return The main Return key.
+    \value Key_Enter The Enter key on the keypad.
+    \value Key_Insert The Insert key.
+    \value Key_Delete The Delete key.
+    \value Key_Pause The Pause key.
+    \value Key_Print The Print Screen key.
+    \value Key_Home The Home key.
+    \value Key_End The End key.
+    \value Key_Left The left arrow.
+    \value Key_Up The up arrow.
+    \value Key_Right The right arrow.
+    \value Key_Down The down arrow.
+    \value Key_PageUp The Page Up key.
+    \value Key_PageDown The Page Down key.
+    \value Key_Shift A Shift key.
+    \value Key_Control A Ctrl key.
+    \value Key_Meta A Meta key.
+    \value Key_Alt An Alt key.
+    \value Key_CapsLock The Caps Lock key.
+    \value Key_NumLock The Num Lock key.
+    \value Key_ScrollLock The Scroll Lock key.
+    \value Key_F1 The F1 key.
+    \value Key_F2 The F2 key.
+    \value Key_F3 The F3 key.
+    \value Key_F4 The F4 key.
+    \value Key_F5 The F5 key.
+    \value Key_F6 The F6 key.
+    \value Key_F7 The F7 key.
+    \value Key_F8 The F8 key.
+    \value Key_F9 The F9 key.
+    \value Key_F10 The F10 key.
+    \value Key_F11 The F11 key.
+    \value Key_F12 The F12 key.
+    \value Key_Space The space bar.
+    \value Key_0 The 0 key.
+    \value Key_1 The 1 key.
+    \value Key_2 The 2 key.
+    \value Key_3 The 3 key.
+    \value Key_4 The 4 key.
+    \value Key_5 The 5 key.
+    \value Key_6 The 6 key.
+    \value Key_7 The 7 key.
+    \value Key_8 The 8 key.
+    \value Key_9 The 9 key.
+    \value Key_A The A key.
+    \value Key_B The B key.
+    \value Key_C The C key.
+    \value Key_D The D key.
+    \value Key_E The E key.
+    \value Key_F The F key.
+    \value Key_G The G key.
+    \value Key_H The H key.
+    \value Key_I The I key.
+    \value Key_J The J key.
+    \value Key_K The K key.
+    \value Key_L The L key.
+    \value Key_M The M key.
+    \value Key_N The N key.
+    \value Key_O The O key.
+    \value Key_P The P key.
+    \value Key_Q The Q key.
+    \value Key_R The R key.
+    \value Key_S The S key.
+    \value Key_T The T key.
+    \value Key_U The U key.
+    \value Key_V The V key.
+    \value Key_W The W key.
+    \value Key_X The X key.
+    \value Key_Y The Y key.
+    \value Key_Z The Z key.
+    \value Key_unknown A key without a Qt::Key value.
+*/
+enum Key {
+    Key_Escape = 0x01000000,
+    Key_Tab = 0x01000001,
+    Key_Backtab = 0x01000002,
+    Key_Backspace = 0x01000003,
+    Key_Return = 0x01000004,
+    Key_Enter = 0x01000005,
+    Key_Insert = 0x01000006,
+    Key_Delete = 0x01000007,
+    Key_Pause = 0x01000008,
+    Key_Print = 0x01000009,
+    Key_Home = 0x01000010,
+    Key_End = 0x01000011,
+    Key_Left = 0x01000012,
+    Key_Up = 0x01000013,
+    Key_Right = 0x01000014,
+    Key_Down = 0x01000015,
+    Key_PageUp = 0x01000016,
+    Key_PageDown = 0x01000017,
+    Key_Shift = 0x01000020,
+    Key_Control = 0x01000021,
+    Key_Meta = 0x01000022,
+    Key_Alt = 0x01000023,
+    Key_CapsLock = 0x01000024,
+    Key_NumLock = 0x01000025,
+    Key_ScrollLock = 0x01000026,
+    Key_F1 = 0x01000030,
+    Key_F2 = 0x01000031,
+    Key_F3 = 0x01000032,
+    Key_F4 = 0x01000033,
+    Key_F5 = 0x01000034,
+    Key_F6 = 0x01000035,
+    Key_F7 = 0x01000036,
+    Key_F8 = 0x01000037,
+    Key_F9 = 0x01000038,
+    Key_F10 = 0x01000039,
+    Key_F11 = 0x0100003a,
+    Key_F12 = 0x0100003b,
+    Key_Space = 0x20,
+    Key_0 = 0x30,
+    Key_1 = 0x31,
+    Key_2 = 0x32,
+    Key_3 = 0x33,
+    Key_4 = 0x34,
+    Key_5 = 0x35,
+    Key_6 = 0x36,
+    Key_7 = 0x37,
+    Key_8 = 0x38,
+    Key_9 = 0x39,
+    Key_A = 0x41,
+    Key_B = 0x42,
+    Key_C = 0x43,
+    Key_D = 0x44,
+    Key_E = 0x45,
+    Key_F = 0x46,
+    Key_G = 0x47,
+    Key_H = 0x48,
+    Key_I = 0x49, // NOLINT(misc-confusable-identifiers): the name is Qt's
+    Key_J = 0x4a,
+    Key_K = 0x4b,
+    Key_L = 0x4c,
+    Key_M = 0x4d,
+    Key_N = 0x4e,
+    Key_O = 0x4f, // NOLINT(misc-confusable-identifiers): the name is Qt's
+    Key_P = 0x50,
+    Key_Q = 0x51,
+    Key_R = 0x52,
+    Key_S = 0x53,
+    Key_T = 0x54,
+    Key_U = 0x55,
+    Key_V = 0x56,
+    Key_W = 0x57,
+    Key_X = 0x58,
+    Key_Y = 0x59,
+    Key_Z = 0x5a,
+    Key_unknown = 0x01ffffff
+};
+
+/*!
+    \enum Qt::PenStyle
+
+    This enum describes how QPainter draws lines.
+
+    \value NoPen No line is drawn.
+    \value SolidLine A plain line.
+*/
+enum PenStyle { NoPen, SolidLine };
+
+/*!
+    \enum Qt::BrushStyle
+
+    This enum describes how QPainter fills shapes.
+
+    \value NoBrush No fill.
+    \value SolidPattern A uniform fill.
+*/
+enum BrushStyle { NoBrush, SolidPattern };
+
+/*!
+    \enum Qt::AlignmentFlag
+
+    This enum describes how text and items are aligned. The Alignment type is
+    a typedef for \c{QFlags<AlignmentFlag>}.
+
+    \value AlignLeft Aligns with the left edge.
+    \value AlignRight Aligns with the right edge.
+    \value AlignHCenter Centers horizontally.
+    \value AlignTop Aligns with the top.
+    \value AlignBottom Aligns with the bottom.
+    \value AlignVCenter Centers vertically.
+    \value AlignCenter Centers both ways: \c{AlignHCenter | AlignVCenter}.
+*/
+enum AlignmentFlag {
+    AlignLeft = 0x0001,
+    AlignRight = 0x0002,
+    AlignHCenter = 0x0004,
+    AlignTop = 0x0020,
+    AlignBottom = 0x0040,
+    AlignVCenter = 0x0080,
+    AlignCenter = AlignVCenter | AlignHCenter
+};
+Q_DECLARE_FLAGS(Alignment, AlignmentFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(Alignment)
+
+/*!
+    \enum Qt::TextFlag
+
+    This enum holds the flags that QPainter::drawText() and
+    QFontMetrics::boundingRect() accept in addition to Qt::AlignmentFlag.
+
+    \value TextSingleLine Treats all whitespace, new lines included, as spaces.
+    \value TextDontClip Text that does not fit is drawn outside the rectangle instead of being clipped.
+    \value TextWordWrap Breaks lines at word boundaries to fit the width of the rectangle.
+    \value TextWrapAnywhere Breaks lines between any two characters if a word does not fit.
+*/
+enum TextFlag { TextSingleLine = 0x0100, TextDontClip = 0x0200, TextWordWrap = 0x1000, TextWrapAnywhere = 0x2000 };
+
+/*!
+    \enum Qt::TextElideMode
+
+    This enum says where QFontMetrics::elidedText() replaces text with an ellipsis.
+
+    \value ElideLeft The ellipsis is at the start of the text.
+    \value ElideRight The ellipsis is at the end of the text.
+    \value ElideMiddle The ellipsis is in the middle of the text.
+    \value ElideNone The text is not shortened.
+*/
+enum TextElideMode { ElideLeft, ElideRight, ElideMiddle, ElideNone };
+
+/*!
+    \enum Qt::ColorScheme
+
+    This enum describes the color scheme of the desktop: whether the interface is meant to be light
+    on dark or dark on light. QStyleHints::colorScheme() returns it.
+
+    \value Unknown The color scheme is not known; applications should treat it as Light.
+    \value Light Dark text on light backgrounds.
+    \value Dark Light text on dark backgrounds.
+*/
+enum class ColorScheme { Unknown, Light, Dark };
+
+/*!
+    \enum Qt::FocusPolicy
+
+    This enum says how a widget gets the keyboard focus.
+
+    \value NoFocus The widget does not accept focus.
+    \value TabFocus The widget accepts focus by tabbing.
+    \value ClickFocus The widget accepts focus by clicking.
+    \value StrongFocus The widget accepts focus by tabbing and clicking.
+    \value WheelFocus Accepted for compatibility; the same as StrongFocus.
+*/
+enum FocusPolicy {
+    NoFocus = 0,
+    TabFocus = 0x1,
+    ClickFocus = 0x2,
+    StrongFocus = TabFocus | ClickFocus | 0x8,
+    WheelFocus = StrongFocus | 0x4
+};
+
+/*!
+    \enum Qt::Orientation
+
+    This enum describes a direction.
+
+    \value Horizontal Left to right.
+    \value Vertical Top to bottom.
+
+    The Orientations type is a typedef for \c{QFlags<Orientation>}.
+*/
+enum Orientation { Horizontal = 0x1, Vertical = 0x2 };
+Q_DECLARE_FLAGS(Orientations, Orientation)
+Q_DECLARE_OPERATORS_FOR_FLAGS(Orientations)
 
 /*!
     \typedef Qt::HANDLE

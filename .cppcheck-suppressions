@@ -10,3 +10,8 @@ duplInheritedMember:src/qrandom.cpp
 duplInheritedMember:include/QtCore/qrandom.h
 // cppcheck cannot parse a ternary with a value-initialised temporary in the associative containers.
 internalAstError:include/QtCore/qassoc_p.h
+// QBoxLayout::addWidget() has more arguments than QLayout::addWidget(), and QWidget is a QPaintDevice that
+// reports width() and height() from its geometry; both are as in Qt.
+duplInheritedMember:include/QtWidgets/qboxlayout.h
+duplInheritedMember:include/QtWidgets/qwidget.h
+duplInheritedMember:include/QtWidgets/qstyleoption.h

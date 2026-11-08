@@ -30,11 +30,16 @@ jobs:
     uses: ./.github/workflows/el10.yml
   arch:
     uses: ./.github/workflows/arch.yml
+  snap:
+    uses: ./.github/workflows/snap.yml
+    with:
+      publish: ${{ startsWith(github.ref, 'refs/tags/') }}
+    secrets: inherit
 
   # The subjects of the provenance: the SHA-256 of every package.
   hash:
     name: Hash the packages
-    needs: [ubuntu-22-04, ubuntu-24-04, ubuntu-26-04, el9, el10, arch]
+    needs: [ubuntu-22-04, ubuntu-24-04, ubuntu-26-04, el9, el10, arch, snap]
     runs-on: ubuntu-latest
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
@@ -50,7 +55,7 @@ jobs:
         working-directory: dist
         run: |
           ls -l
-          echo "hashes=$(sha256sum *.deb *.rpm *.pkg.tar.zst | base64 -w0)" >> "$GITHUB_OUTPUT"
+          echo "hashes=$(sha256sum *.deb *.rpm *.pkg.tar.zst *.snap | base64 -w0)" >> "$GITHUB_OUTPUT"
 
   provenance:
     name: SLSA provenance

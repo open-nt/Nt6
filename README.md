@@ -108,9 +108,44 @@ QObject::connect(&server, &QTcpServer::newConnection, [&] {
 
 Header names match Qt: `#include <QObject>`, `#include <QtCore/QTimer>`, `#include <QtNetwork/QTcpSocket>`, `#include <QtCore/qobject.h>`.
 
+### Nt GUI: implemented
+
+Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration (QPA), which creates the windows and delivers input. The platforms are `xcb` (X11, including XWayland) and `offscreen` (no display, for tests); pick one with `-platform` or `QT_QPA_PLATFORM`.
+
+| Class | Notes |
+|---|---|
+| `QGuiApplication`, `QScreen` | platform selection, screens, focus window, keyboard modifiers and mouse buttons, `quitOnLastWindowClosed` |
+| `QWindow`, `QBackingStore` | top-level windows: geometry, title, show/hide/close, expose, `requestUpdate`, mouse, wheel, key, focus, enter/leave, move, resize and close events |
+| `QPaintDeviceWindow`, `QRasterWindow` | windows you paint on with `QPainter`, repainted from the event loop |
+| `QPainter`, `QPaintDevice`, `QPaintEngine` | software raster engine: pen, brush, opacity, clipping, translation, composition modes; rectangles, lines, points, ellipses, images and text, without antialiasing of shapes |
+| `QFont`, `QFontMetrics` | families found with fontconfig, point or pixel size, weight, italic; metrics, `elidedText()`, `drawText()` with alignment, word wrap and clipping; glyphs are anti-aliased by FreeType |
+| `QImage`, `QColor`, `QRgb`, `QPen`, `QBrush`, `QRegion` | 32-bit images (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`) with implicit sharing, colors with `#rgb` and CSS names, solid pens and brushes, rectangle-list regions |
+| `QMouseEvent`, `QWheelEvent`, `QKeyEvent`, `QFocusEvent`, `QEnterEvent`, `QPaintEvent`, `QExposeEvent`, `QResizeEvent`, `QMoveEvent`, `QShowEvent`, `QHideEvent`, `QCloseEvent` | the event classes, with the `Qt::Key`, `Qt::MouseButton` and `Qt::KeyboardModifier` enums |
+
+Guide: [Using Nt GUI](https://open-nt.github.io/Nt6/nt-gui.html). The [`hello_window`](examples/gui/hello_window.cpp) example paints a window and follows the mouse.
+
+Not implemented yet: text shaping (HarfBuzz) and font fallback, `QFontDatabase`, `QTextLayout`, `QPixmap`, `QTransform`, paths and gradients, antialiasing, the clipboard, cursors, RandR multi-screen, and Wayland.
+
+### Nt Widgets: implemented
+
+Nt Widgets builds on Nt GUI. The widgets of a window are painted into the backing store of one native window, so only top-level widgets are `QWindow`s.
+
+| Class | Notes |
+|---|---|
+| `QApplication` | the style, the default palette, top-level widgets, `activeWindow()`, `focusWidget()`, `closeAllWindows()` |
+| `QWidget` | parent/child tree, geometry and size limits, size hints and policies, show/hide/enable, palette and font inheritance, painting with `update()`/`repaint()`, mouse (grab, enter/leave, tracking), wheel, key and focus events with propagation to the parent, click and tab focus, `mapTo*()`, `childAt()`, `raise()`/`lower()`, layouts |
+| `QLayout`, `QBoxLayout`, `QHBoxLayout`, `QVBoxLayout`, `QLayoutItem`, `QWidgetItem`, `QSpacerItem` | box layouts with stretch factors, spacing, margins, nested layouts, alignment across the box, reversed directions, stretches and spacers; laid out again from the event loop when a size hint changes |
+| `QSizePolicy` | the Qt policies |
+| `QLabel`, `QPushButton`, `QCheckBox`, `QAbstractButton` | text with alignment and word wrap; clicked/pressed/released/toggled, checkable and flat buttons, mouse and Space/Return handling |
+| `QStyle`, `QStyleOption`, `QStyleOptionButton`, `QStyleOptionFrame`, `QPalette` | a Fusion-like default style behind `QStyle`, replaceable with `QApplication::setStyle()` |
+
+Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example is a small form, and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the Nt logo drawn from its outlines.
+
+Not implemented yet: `QLineEdit` and other text widgets, grid, form and stacked layouts, `QFrame`, lists and views, menus, dialogs, scroll areas, tool tips, shortcuts and actions, window flags and attributes, cursors, `QStyleFactory`, style sheets.
+
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core` and `Nt::Network` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::Gui` and `Nt::Widgets` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -120,7 +155,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 |---|---|---|
 | Qt Core | Nt Core | ✔ (partial, see Status) |
 | Qt D-Bus | Nt D-Bus | ✔ (see Status) |
-| Qt GUI | Nt GUI |  |
+| Qt GUI | Nt GUI | ✔ (partial, see Status) |
 | Qt Network | Nt Network | ✔ (partial, see Status) |
 | Qt Qml | Nt Qml |  |
 | Qt Qml Core | Nt Qml Core |  |
@@ -132,7 +167,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Quick Layouts | Nt Quick Layouts |  |
 | Qt Quick Test | Nt Quick Test |  |
 | Qt Test | Nt Test |  |
-| Qt Widgets | Nt Widgets |  |
+| Qt Widgets | Nt Widgets | ✔ (partial, see Status) |
 
 ### Add-ons
 
@@ -301,6 +336,7 @@ Install instructions for every system below are in the [Installing Nt](https://o
 | Ubuntu 22.04, 24.04, 26.04 | `libnt6-dev_<version>-1~ubuntu<release>_amd64.deb`, `nt6-tools_...deb` | `ubuntu-22.04.yml`, `ubuntu-24.04.yml`, `ubuntu-26.04.yml` |
 | Enterprise Linux 9 and 10 (RHEL, Rocky, Alma) | `nt6-devel-<version>-1.el<N>.x86_64.rpm`, `nt6-tools-...rpm` | `el9.yml`, `el10.yml` |
 | Arch Linux | `nt6-<version>-1-x86_64.pkg.tar.zst` | `arch.yml` |
+| Any Linux with snapd | `nt6_<version>_amd64.snap` (`snap install nt6`) | `snap.yml` |
 
 `libnt6-dev` / `nt6-devel` holds the headers (in `/usr/include/nt6`, so Nt can sit next to Qt), the static libraries and the CMake package; `nt6-tools` holds `ntmoc` and `ndoc`. Arch has one package with everything. In a project:
 
@@ -322,7 +358,7 @@ Both write to `dist/`. Or run CPack directly: `cmake -S . -B build -DCMAKE_INSTA
 
 ### Release provenance
 
-Pushing a `v*` tag runs `slsa.yml`: it builds the packages for all six systems, generates [SLSA](https://slsa.dev) level 3 provenance with the [SLSA GitHub generator](https://github.com/slsa-framework/slsa-github-generator), and attaches the packages and `multiple.intoto.jsonl` to the GitHub release. Check a download with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier):
+Pushing a `v*` tag runs `slsa.yml`: it builds the packages for all six systems and the snap, generates [SLSA](https://slsa.dev) level 3 provenance with the [SLSA GitHub generator](https://github.com/slsa-framework/slsa-github-generator), and attaches the packages and `multiple.intoto.jsonl` to the GitHub release, and publishes the snap to the Snap Store (the `candidate` channel for a pre-release version such as `6.1.0-rc1`, otherwise `stable`; this needs the `SNAPCRAFT_STORE_CREDENTIALS` secret, see `snap.yml`). Check a download with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier):
 
 ```sh
 slsa-verifier verify-artifact libnt6-dev_6.1.0-1~ubuntu24.04_amd64.deb \

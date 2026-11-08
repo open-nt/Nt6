@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -20,6 +21,7 @@
 #include <QScrollBar>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QVBoxLayout>
@@ -230,6 +232,24 @@ static QWidget *buttonsPage(QLabel *status) {
     groupLayout->addWidget(large);
     groupLayout->addStretch();
     layout->addWidget(group);
+
+    // A stacked widget shows the page of the chosen size, and only that one.
+    auto *details = new QStackedWidget(page);
+    const char *sizes[] = {"Small: a size that is easy to carry.", "Medium: the size that most people take.",
+                           "Large: a size with room for everything."};
+    for (const char *text : sizes)
+        details->addWidget(new QLabel(text, details));
+    details->setCurrentIndex(1);
+    details->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+    layout->addWidget(details);
+    int index = 0;
+    for (QRadioButton *choice : {small, medium, large}) {
+        const int stackIndex = index++;
+        QObject::connect(choice, &QRadioButton::toggled, [=](bool on) {
+            if (on)
+                details->setCurrentIndex(stackIndex);
+        });
+    }
     layout->addStretch();
 
     int count = 0;
@@ -266,10 +286,13 @@ static QWidget *inputPage(QLabel *status) {
     color->addItems({"Teal", "Orange", "Green", "Purple", "Yellow", "Pink"});
     auto *greeting = new QLabel("Type a name.", page);
 
-    layout->addLayout(row("Name", name, page));
-    layout->addLayout(row("Password", password, page));
-    layout->addLayout(row("Age", age, page));
-    layout->addLayout(row("Color", color, page));
+    // A QFormLayout lines up the fields, and the labels in front of them.
+    auto *form = new QFormLayout;
+    form->addRow("Name", name);
+    form->addRow("Password", password);
+    form->addRow("Age", age);
+    form->addRow("Color", color);
+    layout->addLayout(form);
     layout->addSpacing(6);
     layout->addWidget(greeting);
     layout->addStretch();

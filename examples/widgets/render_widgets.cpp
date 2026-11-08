@@ -10,6 +10,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QFormLayout>
 #include <QFrame>
 #include <QGridLayout>
 #include <QGroupBox>
@@ -25,6 +26,7 @@
 #include <QScrollBar>
 #include <QSlider>
 #include <QSpinBox>
+#include <QStackedWidget>
 #include <QStyleHints>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -587,6 +589,56 @@ bool gridLayouts(const std::string &dir) {
     return picture(w, nullptr, dir, "qgridlayout");
 }
 
+bool formLayouts(const std::string &dir) {
+    QWidget &w = *host(320, 10);
+    auto *form = new QFormLayout;
+    static_cast<QBoxLayout *>(w.layout())->addLayout(form);
+    form->addRow("Name:", new QLineEdit("Ada Lovelace", &w));
+    auto *age = new QSpinBox(&w);
+    age->setValue(36);
+    form->addRow("Age:", age);
+    auto *role = new QComboBox(&w);
+    role->addItems({"Engineer", "Designer", "Writer"});
+    form->addRow("Role:", role);
+    auto *notes = new QFrame(&w);
+    notes->setFrameStyle(QFrame::StyledPanel | QFrame::Sunken);
+    notes->setMinimumSize(0, 46);
+    notes->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    form->addRow("Notes:", notes);
+    form->addRow(new QPushButton("Save", &w));
+    w.resize(320, w.sizeHint().height());
+    return picture(w, nullptr, dir, "qformlayout");
+}
+
+bool stackedWidgets(const std::string &dir) {
+    QWidget &w = *host(280, 10);
+    auto *layout = static_cast<QBoxLayout *>(w.layout());
+    auto *choice = new QComboBox(&w);
+    choice->addItems({"General", "Advanced", "About"});
+    layout->addWidget(choice);
+    auto *group = new QGroupBox(&w);
+    auto *inner = new QVBoxLayout(group);
+    auto *stack = new QStackedWidget(group);
+    inner->addWidget(stack);
+    for (int page = 0; page < 3; ++page) {
+        auto *content = new QWidget;
+        auto *column = new QVBoxLayout(content);
+        column->setContentsMargins(0, 0, 0, 0);
+        if (page == 0) {
+            column->addWidget(new QCheckBox("Check for updates", content));
+            column->addWidget(new QCheckBox("Send usage reports", content));
+        } else if (page == 1) {
+            column->addWidget(new QLabel("The advanced page.", content));
+        } else {
+            column->addWidget(new QLabel("The about page.", content));
+        }
+        stack->addWidget(content);
+    }
+    layout->addWidget(group);
+    w.resize(280, w.sizeHint().height());
+    return picture(w, nullptr, dir, "qstackedwidget");
+}
+
 bool toolTips(const std::string &dir) {
     QWidget &w = *host(280, 120);
     auto *button = new QPushButton("Save", &w);
@@ -710,7 +762,7 @@ int main(int argc, char *argv[]) {
     bool ok = true;
     for (bool (*render)(const std::string &) : {labels, pushButtons, checkBoxes, radioButtons, lineEdits, sliders,
                                                 progressBars, spinBoxes, comboBoxes, groupBoxes, tabWidgets, frames,
-                                                gridLayouts, toolTips, scrollBars, scrollAreas, headerViews,
+                                                gridLayouts, formLayouts, stackedWidgets, toolTips, scrollBars, scrollAreas, headerViews,
                                                 tableWidgets})
         ok = render(directory) && ok;
     return ok ? 0 : 1;

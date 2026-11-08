@@ -299,6 +299,7 @@ add_library(NtWidgets
     src/widgets/qboxlayout.cpp
     src/widgets/qcheckbox.cpp
     src/widgets/qcombobox.cpp
+    src/widgets/qformlayout.cpp
     src/widgets/qframe.cpp
     src/widgets/qfusionstyle.cpp
     src/widgets/qgridlayout.cpp
@@ -316,6 +317,8 @@ add_library(NtWidgets
     src/widgets/qsizepolicy.cpp
     src/widgets/qslider.cpp
     src/widgets/qspinbox.cpp
+    src/widgets/qstackedlayout.cpp
+    src/widgets/qstackedwidget.cpp
     src/widgets/qstyle.cpp
     src/widgets/qstyleoption.cpp
     src/widgets/qtablewidget.cpp

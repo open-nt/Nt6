@@ -10,7 +10,10 @@
 #include <QtWidgets/qabstractbutton.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qboxlayout.h>
+#include <QtWidgets/qformlayout.h>
 #include <QtWidgets/qgridlayout.h>
+#include <QtWidgets/qstackedlayout.h>
+#include <QtWidgets/qstackedwidget.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qlayout.h>
@@ -613,6 +616,311 @@ static void testGridLayout() {
     settle(&top);
     CHECK(grid->sizeHint().width() == 50 + 10 + 0 + 0 || grid->sizeHint().width() >= 50);
     a.show();
+}
+
+static void testFormLayout() {
+    auto g = [](QWidget *w) { return w->geometry(); };
+    QWidget top;
+    top.resize(300, 200);
+    Probe l0(&top), f0(&top), l1(&top), f1(&top), button(&top);
+    l0.setHint(QSize(40, 16));
+    f0.setHint(QSize(100, 20));
+    l1.setHint(QSize(70, 16));
+    f1.setHint(QSize(50, 30));
+    button.setHint(QSize(60, 24));
+    f0.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    f1.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+    button.setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    auto *form = new QFormLayout(&top);
+    CHECK(top.layout() == form && form->rowCount() == 0 && form->count() == 0);
+    CHECK(form->fieldGrowthPolicy() == QFormLayout::AllNonFixedFieldsGrow &&
+          form->rowWrapPolicy() == QFormLayout::DontWrapRows && form->labelAlignment() == Qt::AlignLeft &&
+          form->formAlignment() == (Qt::AlignLeft | Qt::AlignTop));
+    form->setContentsMargins(10, 10, 10, 10);
+    form->setHorizontalSpacing(10);
+    form->setVerticalSpacing(4);
+    CHECK(form->horizontalSpacing() == 10 && form->verticalSpacing() == 4);
+    form->addRow(&l0, &f0);
+    form->addRow(&l1, &f1);
+    form->addRow(&button);
+    CHECK(form->rowCount() == 3 && form->count() == 5);
+    CHECK(form->itemAt(0, QFormLayout::LabelRole)->widget() == &l0 &&
+          form->itemAt(0, QFormLayout::FieldRole)->widget() == &f0 &&
+          form->itemAt(2, QFormLayout::SpanningRole)->widget() == &button &&
+          form->itemAt(2, QFormLayout::FieldRole) == nullptr && form->itemAt(3, QFormLayout::LabelRole) == nullptr &&
+          form->itemAt(-1, QFormLayout::LabelRole) == nullptr);
+    CHECK(form->itemAt(0)->widget() == &l0 && form->itemAt(1)->widget() == &f0 &&
+          form->itemAt(4)->widget() == &button && form->itemAt(5) == nullptr);
+    int row = -1;
+    QFormLayout::ItemRole role = QFormLayout::LabelRole;
+    form->getWidgetPosition(&f1, &row, &role);
+    CHECK(row == 1 && role == QFormLayout::FieldRole);
+    form->getWidgetPosition(&button, &row, &role);
+    CHECK(row == 2 && role == QFormLayout::SpanningRole);
+    form->getWidgetPosition(&top, &row, &role);
+    CHECK(row == -1);
+    CHECK(form->labelForField(&f0) == &l0 && form->labelForField(&button) == nullptr &&
+          form->labelForField(&top) == nullptr);
+
+    // Labels in the first column, fields in the second, a row of one widget across
+    CHECK(form->sizeHint() == QSize(20 + 70 + 10 + 100, 20 + 20 + 30 + 24 + 2 * 4));
+    CHECK(form->minimumSize() == QSize(20 + 0 + 10 + 50, 20 + 20 + 30 + 24 + 2 * 4));
+    form->activate();
+    CHECK(g(&l0) == QRect(10, 10, 40, 20) && g(&f0) == QRect(90, 10, 200, 20));
+    CHECK(g(&l1) == QRect(10, 34, 70, 27) && g(&f1) == QRect(90, 34, 50, 30));
+    CHECK(g(&button) == QRect(10, 68, 280, 24));
+    // The label of a field that is much taller keeps near the top of the row
+    f1.setFixedHeight(100);
+    form->activate();
+    CHECK(g(&l1) == QRect(10, 34, 70, 27) && g(&f1) == QRect(90, 34, 50, 100) && g(&button).top() == 138);
+    f1.setFixedHeight(30);
+    f1.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+    // Growth of the fields
+    form->setFieldGrowthPolicy(QFormLayout::ExpandingFieldsGrow);
+    form->activate();
+    CHECK(g(&f0).width() == 200 && g(&f1).width() == 50);
+    l1.setHint(QSize(70, 16));
+    f1.setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+    form->activate();
+    CHECK(g(&f1).width() == 50); // a field that does not expand stays at its hint
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    form->activate();
+    CHECK(g(&f1).width() == 200);
+    form->setFieldGrowthPolicy(QFormLayout::FieldsStayAtSizeHint);
+    form->activate();
+    CHECK(g(&f0).width() == 100 && g(&f1).width() == 50 && g(&button).width() == 280);
+    // Where the form goes when it does not fill the room
+    button.hide(); // a row of one widget takes the whole width
+    form->setFormAlignment(Qt::AlignRight | Qt::AlignBottom);
+    form->activate();
+    CHECK(g(&f0).right() == 289 && g(&l0).left() == 10 + 100 + 0 && g(&f0).bottom() < 190);
+    button.show();
+    form->setFormAlignment(Qt::AlignLeft | Qt::AlignTop);
+    form->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
+    f1.setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+
+    // Alignment of the labels
+    form->setLabelAlignment(Qt::AlignRight);
+    form->activate();
+    CHECK(g(&l0) == QRect(40, 10, 40, 20) && g(&l1).left() == 10);
+    form->setLabelAlignment(Qt::AlignHCenter);
+    form->activate();
+    CHECK(g(&l0).left() == 25);
+    form->setLabelAlignment(Qt::AlignLeft);
+
+    // Labels above the fields
+    form->setRowWrapPolicy(QFormLayout::WrapAllRows);
+    CHECK(form->sizeHint() == QSize(20 + 100, 20 + (16 + 4 + 20) + (16 + 4 + 30) + 24 + 2 * 4));
+    form->setLabelAlignment(Qt::AlignRight); // not for a label above its field
+    form->activate();
+    CHECK(g(&l0) == QRect(10, 10, 40, 16) && g(&f0) == QRect(10, 30, 280, 20));
+    CHECK(g(&l1) == QRect(10, 54, 70, 16) && g(&f1) == QRect(10, 74, 50, 30) && g(&button) == QRect(10, 108, 280, 24));
+    form->setLabelAlignment(Qt::AlignLeft);
+    // Only the rows that do not fit are wrapped
+    form->setRowWrapPolicy(QFormLayout::WrapLongRows);
+    CHECK(form->sizeHint().width() == 20 + 70 + 10 + 100 && form->minimumSize().width() < form->sizeHint().width());
+    form->activate();
+    CHECK(g(&f0).left() == 90 && g(&f1).left() == 90);
+    top.resize(110, 200);
+    form->activate();
+    CHECK(g(&f0).left() == 90 && g(&f1).top() > g(&l1).top() && g(&f1).left() == 10);
+    top.resize(300, 200);
+    form->setRowWrapPolicy(QFormLayout::DontWrapRows);
+
+    // Hidden widgets leave their row
+    l1.hide();
+    f1.hide();
+    form->activate();
+    CHECK(g(&button) == QRect(10, 34, 280, 24));
+    CHECK(form->sizeHint().height() == 20 + 20 + 24 + 4);
+    l1.show();
+    f1.show();
+
+    // Rows with the spare height: a field that expands vertically takes it
+    top.resize(300, 300);
+    form->activate();
+    CHECK(g(&button).top() == 68);
+    f0.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    form->activate();
+    CHECK(form->expandingDirections() == (Qt::Horizontal | Qt::Vertical));
+    CHECK(g(&f0).height() == 218 && g(&l1).top() == 232 && g(&button).bottom() == 289);
+    f0.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    top.resize(300, 200);
+
+    // Rows that are added: text for the label, layouts, insertion, removal
+    form->addRow("Text:", new QWidget);
+    QWidget *added = form->itemAt(3, QFormLayout::FieldRole)->widget();
+    auto *label = dynamic_cast<QLabel *>(form->labelForField(added));
+    CHECK(form->rowCount() == 4 && label && label->text() == "Text:" && label->parentWidget() == &top);
+    auto *inner = new QHBoxLayout;
+    form->addRow("Layout:", inner);
+    CHECK(form->rowCount() == 5 && form->itemAt(4, QFormLayout::FieldRole) == inner && inner->parent() == form &&
+          form->labelForField(inner) != nullptr);
+    form->getLayoutPosition(inner, &row, &role);
+    CHECK(row == 4 && role == QFormLayout::FieldRole);
+    auto *whole = new QVBoxLayout;
+    form->addRow(whole);
+    CHECK(form->rowCount() == 6 && form->itemAt(5, QFormLayout::SpanningRole) == whole);
+    auto *first = new Probe(&top);
+    form->insertRow(0, "First", first);
+    CHECK(form->rowCount() == 7 && form->itemAt(0, QFormLayout::FieldRole)->widget() == first &&
+          form->itemAt(1, QFormLayout::FieldRole)->widget() == &f0);
+    form->insertRow(99, new QLabel("Last", &top));
+    CHECK(form->rowCount() == 8);
+    form->insertRow(-5, new QLabel("Very first", &top));
+    CHECK(form->rowCount() == 9 && form->itemAt(0, QFormLayout::SpanningRole) != nullptr);
+    // removeRow deletes what is in the row
+    QPointer<QWidget> guarded = first;
+    form->removeRow(1);
+    CHECK(form->rowCount() == 8 && guarded.isNull());
+    form->removeRow(-1);
+    form->removeRow(100);
+    CHECK(form->rowCount() == 8);
+    // setWidget fills a slot of a row; a slot that is taken is left alone
+    const int rows = form->rowCount();
+    form->setWidget(rows, QFormLayout::SpanningRole, new QLabel("Spanning", &top));
+    CHECK(form->rowCount() == rows + 1);
+    QLabel taken("Taken", &top);
+    form->setWidget(1, QFormLayout::LabelRole, &taken); // the first row has a label
+    CHECK(taken.parentWidget() == &top && form->indexOf(&taken) == -1);
+    form->setWidget(rows + 50, QFormLayout::FieldRole, &taken);
+    CHECK(form->rowCount() == rows + 1);
+    form->setWidget(0, QFormLayout::FieldRole, nullptr);
+    form->setLayout(0, QFormLayout::FieldRole, nullptr);
+
+    // Taking an item out: a row with only one item left stays a row
+    QLayoutItem *item = form->takeAt(2);
+    CHECK(item != nullptr);
+    delete item;
+    CHECK(form->takeAt(-1) == nullptr && form->takeAt(1000) == nullptr);
+
+    // A deleted widget leaves the form
+    auto *doomed = new Probe(&top);
+    form->addRow("Doomed", doomed);
+    const int before = form->count();
+    delete doomed;
+    CHECK(form->count() == before - 1);
+
+    // addItem() makes a row of its own
+    const int rowsBefore = form->rowCount();
+    form->addItem(new QSpacerItem(10, 10));
+    CHECK(form->rowCount() == rowsBefore + 1);
+    form->addItem(nullptr);
+}
+
+static void testStackedLayout() {
+    std::vector<int> changes, removals;
+    QWidget top;
+    top.resize(200, 100);
+    Probe a(&top), b(&top), c(&top);
+    a.setHint(QSize(50, 30));
+    b.setHint(QSize(80, 20));
+    c.setHint(QSize(30, 60));
+    auto *stack = new QStackedLayout(&top);
+    CHECK(stack->currentIndex() == -1 && stack->currentWidget() == nullptr && stack->count() == 0);
+    CHECK(stack->contentsMargins() == QMargins(0, 0, 0, 0));
+    QObject::connect(stack, &QStackedLayout::currentChanged, [&](int i) { changes.push_back(i); });
+    QObject::connect(stack, &QStackedLayout::widgetRemoved, [&](int i) { removals.push_back(i); });
+    top.show();
+    CHECK(stack->addWidget(&a) == 0 && stack->currentIndex() == 0 && changes == std::vector<int>{0});
+    CHECK(stack->addWidget(&b) == 1 && stack->addWidget(&c) == 2);
+    CHECK(stack->count() == 3 && stack->currentWidget() == &a && stack->widget(1) == &b &&
+          stack->widget(3) == nullptr && stack->widget(-1) == nullptr && stack->indexOf(&c) == 2);
+    CHECK(!a.isHidden() && b.isHidden() && c.isHidden());
+    CHECK(stack->sizeHint() == QSize(80, 60)); // the largest of the pages, also the hidden ones
+    CHECK(stack->expandingDirections() == (Qt::Horizontal | Qt::Vertical)); // as for any layout of Qt
+    stack->activate();
+    CHECK(a.geometry() == QRect(0, 0, 200, 100));
+
+    stack->setCurrentIndex(1);
+    CHECK(stack->currentIndex() == 1 && stack->currentWidget() == &b && a.isHidden() && !b.isHidden() &&
+          changes == (std::vector<int>{0, 1}));
+    CHECK(b.geometry() == QRect(0, 0, 200, 100));
+    stack->setCurrentIndex(1);
+    stack->setCurrentIndex(7);
+    stack->setCurrentIndex(-2);
+    CHECK(changes.size() == 2 && stack->currentIndex() == 1);
+    stack->setCurrentWidget(&c);
+    CHECK(stack->currentIndex() == 2 && !c.isHidden() && b.isHidden() && changes.back() == 2);
+    stack->setCurrentWidget(&top); // not a page
+    CHECK(stack->currentIndex() == 2);
+    stack->setCurrentWidget(nullptr);
+    CHECK(stack->currentIndex() == 2);
+
+    // Margins
+    stack->setContentsMargins(5, 6, 7, 8);
+    stack->activate();
+    CHECK(c.geometry() == QRect(5, 6, 188, 86) && stack->sizeHint() == QSize(80 + 12, 60 + 14));
+
+    // Inserting before the current page keeps the current page
+    Probe d(&top);
+    CHECK(stack->insertWidget(0, &d) == 0 && stack->currentIndex() == 3 && stack->currentWidget() == &c &&
+          d.isHidden());
+    CHECK(stack->insertWidget(1, nullptr) == -1);
+    // Removing: the current page is replaced by the next, or by the one before when it was last
+    changes.clear();
+    delete stack->takeAt(3);
+    CHECK(removals == std::vector<int>{3} && stack->count() == 3 && stack->currentIndex() == 2 &&
+          stack->currentWidget() == &b);
+    CHECK(!b.isHidden() && changes == std::vector<int>{2});
+    changes.clear();
+    delete stack->takeAt(0);
+    CHECK(stack->currentIndex() == 1 && stack->currentWidget() == &b && changes.empty());
+    CHECK(stack->takeAt(9) == nullptr);
+    // A deleted page leaves the stack
+    auto *doomed = new Probe(&top);
+    stack->addWidget(doomed);
+    const int pages = stack->count();
+    delete doomed;
+    CHECK(stack->count() == pages - 1);
+    // addItem() takes the widget of the item
+    Probe e(&top);
+    stack->addItem(new QWidgetItem(&e));
+    CHECK(stack->indexOf(&e) == stack->count() - 1);
+    stack->addItem(new QSpacerItem(1, 1)); // not a widget
+    stack->addItem(nullptr);
+    CHECK(stack->count() == pages);
+    // The last page goes: no current page
+    while (stack->count() > 0)
+        delete stack->takeAt(0);
+    CHECK(stack->currentIndex() == -1 && stack->currentWidget() == nullptr && changes.back() == -1);
+    CHECK(stack->sizeHint() == QSize(12, 14));
+}
+
+static void testStackedWidget() {
+    std::vector<int> changes, removals;
+    QWidget top;
+    top.resize(200, 120);
+    auto *box = new QVBoxLayout(&top);
+    QStackedWidget stack(&top);
+    box->addWidget(&stack);
+    auto *p1 = new Probe, *p2 = new Probe;
+    p1->setHint(QSize(60, 40));
+    p2->setHint(QSize(90, 20));
+    QObject::connect(&stack, &QStackedWidget::currentChanged, [&](int i) { changes.push_back(i); });
+    QObject::connect(&stack, &QStackedWidget::widgetRemoved, [&](int i) { removals.push_back(i); });
+    CHECK(stack.count() == 0 && stack.currentIndex() == -1 && stack.currentWidget() == nullptr &&
+          stack.frameShape() == QFrame::NoFrame);
+    CHECK(stack.addWidget(p1) == 0 && stack.addWidget(p2) == 1 && stack.insertWidget(1, new Probe) == 1);
+    CHECK(stack.count() == 3 && stack.widget(0) == p1 && stack.indexOf(p2) == 2 && stack.currentIndex() == 0 &&
+          stack.currentWidget() == p1 && p1->parentWidget() == &stack && changes == std::vector<int>{0});
+    top.show();
+    settle(&top);
+    CHECK(p1->geometry() == QRect(0, 0, stack.width(), stack.height()) && !p1->isHidden() && p2->isHidden());
+    stack.setCurrentWidget(p2);
+    CHECK(stack.currentIndex() == 2 && stack.currentWidget() == p2 && p1->isHidden() && changes.back() == 2);
+    CHECK(p2->geometry() == QRect(0, 0, stack.width(), stack.height()));
+    stack.setCurrentIndex(0);
+    CHECK(changes.back() == 0);
+    // removeWidget: not deleted, hidden, and still a child
+    stack.removeWidget(p1);
+    CHECK(stack.count() == 2 && stack.indexOf(p1) == -1 && p1->parentWidget() == &stack && p1->isHidden());
+    CHECK(removals == std::vector<int>{0} && stack.currentIndex() == 0);
+    stack.removeWidget(p1);
+    stack.removeWidget(nullptr);
+    CHECK(removals.size() == 1);
+    delete p1;
 }
 
 static void testSizeHelpersAndOptions() {
@@ -2022,6 +2330,9 @@ int main(int argc, char **argv) {
     testKeysAndFocus();
     testLayouts();
     testGridLayout();
+    testFormLayout();
+    testStackedLayout();
+    testStackedWidget();
     testLabel();
     testButtons();
     testSignalsAndDeletion();

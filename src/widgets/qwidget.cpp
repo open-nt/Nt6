@@ -642,6 +642,34 @@ void QWidget::setFixedWidth(int w) {
 }
 
 /*!
+    Sets the minimum width to \a minw, and keeps the minimum height.
+
+    \sa setMinimumSize()
+*/
+void QWidget::setMinimumWidth(int minw) { setMinimumSize(QSize(minw, minimumSize().height())); }
+
+/*!
+    Sets the minimum height to \a minh, and keeps the minimum width.
+
+    \sa setMinimumSize()
+*/
+void QWidget::setMinimumHeight(int minh) { setMinimumSize(QSize(minimumSize().width(), minh)); }
+
+/*!
+    Sets the maximum width to \a maxw, and keeps the maximum height.
+
+    \sa setMaximumSize()
+*/
+void QWidget::setMaximumWidth(int maxw) { setMaximumSize(QSize(maxw, maximumSize().height())); }
+
+/*!
+    Sets the maximum height to \a maxh, and keeps the maximum width.
+
+    \sa setMaximumSize()
+*/
+void QWidget::setMaximumHeight(int maxh) { setMaximumSize(QSize(maximumSize().width(), maxh)); }
+
+/*!
     Sets the minimum and the maximum height to \a h.
 */
 void QWidget::setFixedHeight(int h) {

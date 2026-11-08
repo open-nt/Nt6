@@ -50,6 +50,8 @@ protected:
 private:
     friend class QBoxLayout;
     friend class QGridLayout;
+    friend class QFormLayout;
+    friend class QStackedLayout;
     friend class QWidget;
     void clearPendingRequest();
     // Makes the widgets of the layout, and of the layouts in it, children of the widget it manages.

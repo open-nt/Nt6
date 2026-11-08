@@ -77,6 +77,10 @@ public:
     void setMaximumSize(int maxw, int maxh) { setMaximumSize(QSize(maxw, maxh)); }
     void setFixedSize(const QSize &size);
     void setFixedSize(int w, int h) { setFixedSize(QSize(w, h)); }
+    void setMinimumWidth(int minw);
+    void setMinimumHeight(int minh);
+    void setMaximumWidth(int maxw);
+    void setMaximumHeight(int maxh);
     void setFixedWidth(int w);
     void setFixedHeight(int h);
     virtual QSize sizeHint() const;

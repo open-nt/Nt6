@@ -75,6 +75,16 @@
 
     \image widgets/qgridlayout.png A form in a QGridLayout
 
+    A QFormLayout is made for forms: it puts the labels in one column and the fields in another, so that they line up,
+    and takes care of the sizes the labels and fields should have. A row of one widget goes across the form:
+
+    \image widgets/qformlayout.png A QFormLayout
+
+    A QStackedLayout shows one of its widgets at a time at the size of the layout, which is how pages are made;
+    QStackedWidget is a widget with one:
+
+    \image widgets/qstackedwidget.png A QStackedWidget with a combo box that chooses the page
+
     A QVBoxLayout stacks widgets from top to bottom, and a QHBoxLayout lines them up from left to right.
     Layouts can be put in other layouts with addLayout(). A layout asks every widget for its
     QWidget::sizeHint() and QWidget::sizePolicy(), and shares out the space as Qt does: widgets that want to expand
@@ -141,6 +151,9 @@
     \li QTabWidget
     \li Pages with a row of tabs to choose the page.
     \row
+    \li QStackedWidget
+    \li Pages of which one is shown; connect it to what chooses the page.
+    \row
     \li QFrame
     \li A box, a panel or a line around or between other widgets; the base of the scroll areas.
     \row
@@ -183,7 +196,7 @@
     \section1 What Is Not There Yet
 
     There are no lists and trees, no model and view classes (a table keeps its items itself, and cannot be edited or sorted),
-    text editing of more than a line, menus, dialogs, or form and stacked layouts. The native window of a top-level widget is a
+    text editing of more than a line, menus and dialogs. The native window of a top-level widget is a
     QWindow; child widgets are painted into the backing store of that window and are not native windows
     themselves. Each class lists what differs from Qt in its \e Differences from Qt section.
 

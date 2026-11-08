@@ -1193,10 +1193,11 @@ static void testConcurrentSignals() {
                 e.fire(n);
         });
     }
+    // The counter outlives the loop: an emission that began before disconnect() may still call the slot afterwards.
+    std::atomic<int> extra{0};
     threads.emplace_back([&] {
         while (!stop) {
             Recorder r;
-            std::atomic<int> extra{0};
             auto c = QObject::connect(&e, &Emitter::valueChanged, [&extra](int) { ++extra; });
             QObject::disconnect(c);
             QObject::connect(&e, &Emitter::valueChanged, &r, &Recorder::onValue, Qt::QueuedConnection);

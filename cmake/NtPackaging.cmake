@@ -3,7 +3,7 @@
 # CPack configuration: .deb for Debian and Ubuntu, .rpm for Enterprise Linux and
 # Fedora, and .pkg.tar.zst for Arch Linux.
 #
-#   cmake -S . -B build -DCMAKE_INSTALL_PREFIX=/usr
+#   cmake -S . -B build
 #   cmake --build build
 #   cpack --config build/CPackConfig.cmake            # format chosen from /etc/os-release
 #   cpack --config build/CPackConfig.cmake -G DEB     # or RPM, or External (pacman)
@@ -41,11 +41,23 @@ if(NOT CPACK_GENERATOR)
     endif()
 endif()
 
-if(CMAKE_INSTALL_PREFIX STREQUAL "/usr/local")
-    message(WARNING "Packages will install to /usr/local; configure with -DCMAKE_INSTALL_PREFIX=/usr")
+# Packages install under /usr, whatever prefix a plain "cmake --install" would use.
+if(NOT CPACK_PACKAGING_INSTALL_PREFIX)
+    if(CMAKE_INSTALL_PREFIX STREQUAL "/usr/local")
+        set(CPACK_PACKAGING_INSTALL_PREFIX /usr)
+    else()
+        set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
+    endif()
 endif()
 
 set(CPACK_PACKAGE_NAME nt6)
+# The VERSION file may carry a pre-release suffix (6.0.0-rc1). Each package format
+# spells it its own way, so the release sorts before 6.0.0: dpkg and rpm use a tilde,
+# and pacman, which forbids hyphens in pkgver, an underscore.
+set(CPACK_PACKAGE_VERSION ${NT_VERSION})
+string(REPLACE "-" "~" CPACK_DEBIAN_PACKAGE_VERSION "${NT_VERSION}")
+string(REPLACE "-" "~" CPACK_RPM_PACKAGE_VERSION "${NT_VERSION}")
+string(REPLACE "-" "_" CPACK_NT_PACMAN_VERSION "${NT_VERSION}")
 set(CPACK_PACKAGE_VENDOR "Nt contributors")
 set(CPACK_PACKAGE_CONTACT "Nt contributors <noreply@github.com>")
 set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/open-nt/Nt6")
@@ -53,7 +65,6 @@ set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "MIT-licensed clean-room implementation of
 set(CPACK_PACKAGE_DESCRIPTION
     "Nt is a small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module. It is not affiliated with The Qt Company.")
 set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE)
-set(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
 set(CPACK_STRIP_FILES ON)
 set(CPACK_COMPONENTS_ALL Development Tools)
 
@@ -92,8 +103,8 @@ set(CPACK_RPM_TOOLS_PACKAGE_GROUP "Development/Tools")
 set(CPACK_RPM_TOOLS_PACKAGE_SUMMARY "ntmoc and ndoc for Nt")
 # Directories that belong to the system or to other packages.
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
-    ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake
-    ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATAROOTDIR}/doc)
+    ${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake
+    ${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_DATAROOTDIR}/doc)
 
 # Arch Linux: CPack has no pacman generator, so the External generator calls
 # NtPacman.cmake, which writes nt6-<version>-<release>-<arch>.pkg.tar.zst.

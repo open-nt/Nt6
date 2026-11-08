@@ -10,8 +10,8 @@ if(NOT result EQUAL 0)
 endif()
 
 file(STRINGS "${VERSION_FILE}" version LIMIT_COUNT 1)
-if(NOT version MATCHES "^6\\.[0-9]+\\.[0-9]+$")
-    message(SEND_ERROR "VERSION '${version}' must be 6.x.y")
+if(NOT version MATCHES "^6\\.[0-9]+\\.[0-9]+(-[0-9A-Za-z.]+)?$")
+    message(SEND_ERROR "VERSION '${version}' must be 6.x.y or 6.x.y-suffix")
 endif()
 
 file(READ "${OUTPUT_DIR}/version.svg" svg)

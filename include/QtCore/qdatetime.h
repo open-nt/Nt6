@@ -4,7 +4,12 @@
 #include <QtCore/qnamespace.h>
 #include <QtCore/qstring.h>
 
+#include <memory>
+
 class QDateTime;
+class QTimeZone;
+class QCalendar;
+struct QTimeZonePrivate;
 
 // Text formats use C-locale English names until QLocale exists.
 class QDate {
@@ -16,6 +21,7 @@ public:
     */
     constexpr QDate() noexcept = default;
     QDate(int y, int m, int d);
+    QDate(int y, int m, int d, QCalendar cal);
 
     /*!
         Returns \c true if the date is null; otherwise returns \c false. A null
@@ -37,6 +43,15 @@ public:
     int dayOfYear() const;
     int daysInMonth() const;
     int daysInYear() const;
+    int year(QCalendar cal) const;
+    int month(QCalendar cal) const;
+    int day(QCalendar cal) const;
+    int dayOfYear(QCalendar cal) const;
+    int daysInMonth(QCalendar cal) const;
+    int daysInYear(QCalendar cal) const;
+    bool setDate(int year, int month, int day, QCalendar cal);
+    QDate addMonths(int months, QCalendar cal) const;
+    QDate addYears(int years, QCalendar cal) const;
     int weekNumber(int *yearNumber = nullptr) const;
     bool setDate(int year, int month, int day);
     void getDate(int *year, int *month, int *day) const;
@@ -46,6 +61,8 @@ public:
     qint64 daysTo(QDate d) const;
     QDateTime startOfDay(Qt::TimeSpec spec = Qt::LocalTime, int offsetSeconds = 0) const;
     QDateTime endOfDay(Qt::TimeSpec spec = Qt::LocalTime, int offsetSeconds = 0) const;
+    QDateTime startOfDay(const QTimeZone &zone) const;
+    QDateTime endOfDay(const QTimeZone &zone) const;
     /*!
         Returns the date as a Julian day number, or the minimum \c qint64
         value if the date is invalid.
@@ -164,6 +181,7 @@ public:
     */
     QDateTime() = default;
     QDateTime(QDate date, QTime time, Qt::TimeSpec spec = Qt::LocalTime, int offsetSeconds = 0);
+    QDateTime(QDate date, QTime time, const QTimeZone &timeZone);
 
     /*!
         Returns \c true if both the date and the time are null; otherwise
@@ -206,13 +224,23 @@ public:
 
         \sa date(), setTime()
     */
-    void setDate(QDate date) { m_date = date; if (!m_time.isValid()) m_time = QTime(0, 0); }
+    void setDate(QDate date) {
+        m_date = date;
+        if (!m_time.isValid())
+            m_time = QTime(0, 0);
+        if (m_spec == Qt::TimeZone)
+            m_offset = kNoOffsetHint;
+    }
     /*!
         Sets the time part to \a time.
 
         \sa time(), setDate()
     */
-    void setTime(QTime time) { m_time = time; }
+    void setTime(QTime time) {
+        m_time = time;
+        if (m_spec == Qt::TimeZone)
+            m_offset = kNoOffsetHint;
+    }
     /*!
         Sets the time specification to \a spec, keeping the date and time
         fields as they are. The offset is reset to 0 unless \a spec is
@@ -220,8 +248,29 @@ public:
 
         \sa timeSpec(), toTimeSpec()
     */
-    void setTimeSpec(Qt::TimeSpec spec) { m_spec = spec == Qt::OffsetFromUTC ? Qt::OffsetFromUTC : spec; if (spec != Qt::OffsetFromUTC) m_offset = 0; }
+    void setTimeSpec(Qt::TimeSpec spec) {
+        m_spec = spec == Qt::TimeZone ? Qt::LocalTime : spec;
+        if (spec != Qt::OffsetFromUTC)
+            m_offset = 0;
+        m_zone.reset();
+    }
     void setOffsetFromUtc(int offsetSeconds);
+    QTimeZone timeZone() const;
+    void setTimeZone(const QTimeZone &toZone);
+    QDateTime toTimeZone(const QTimeZone &toZone) const;
+    bool isDaylightTime() const;
+    QString timeZoneAbbreviation() const;
+    /*!
+        \since 5.0
+        Swaps this datetime with \a other.
+    */
+    void swap(QDateTime &other) noexcept {
+        std::swap(m_date, other.m_date);
+        std::swap(m_time, other.m_time);
+        std::swap(m_spec, other.m_spec);
+        std::swap(m_offset, other.m_offset);
+        m_zone.swap(other.m_zone);
+    }
     void setMSecsSinceEpoch(qint64 msecs);
     /*!
         Sets the datetime to \a secs seconds since the Unix epoch, shown in the
@@ -286,11 +335,14 @@ public:
     QString toString(const QString &format) const;
 
     static QDateTime currentDateTime();
+    static QDateTime currentDateTime(const QTimeZone &zone);
     static QDateTime currentDateTimeUtc();
     static qint64 currentMSecsSinceEpoch() noexcept;
     static qint64 currentSecsSinceEpoch() noexcept;
     static QDateTime fromMSecsSinceEpoch(qint64 msecs, Qt::TimeSpec spec = Qt::LocalTime, int offsetFromUtc = 0);
     static QDateTime fromSecsSinceEpoch(qint64 secs, Qt::TimeSpec spec = Qt::LocalTime, int offsetFromUtc = 0);
+    static QDateTime fromMSecsSinceEpoch(qint64 msecs, const QTimeZone &timeZone);
+    static QDateTime fromSecsSinceEpoch(qint64 secs, const QTimeZone &timeZone);
     static QDateTime fromString(const QString &string, Qt::DateFormat format = Qt::TextDate);
     static QDateTime fromString(const QString &string, const QString &format);
 
@@ -305,5 +357,9 @@ private:
     QDate m_date;
     QTime m_time;
     Qt::TimeSpec m_spec = Qt::LocalTime;
+    // For Qt::OffsetFromUTC the offset; for Qt::TimeZone the offset last computed, which tells the
+    // two occurrences of a local time in a daylight-saving fold apart.
     int m_offset = 0;
+    static constexpr int kNoOffsetHint = std::numeric_limits<int>::min();
+    std::shared_ptr<const QTimeZonePrivate> m_zone; // for Qt::TimeZone
 };

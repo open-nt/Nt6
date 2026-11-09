@@ -211,7 +211,7 @@ std::optional<QStringConverter::Encoding> QStringConverter::encodingForData(QByt
     Returns Utf8 if neither is present, and an empty optional if the document
     names an encoding that is not supported.
 
-    \sa decoderForHtml(), encodingForData()
+    \sa QStringDecoder::decoderForHtml(), encodingForData()
 */
 std::optional<QStringConverter::Encoding> QStringConverter::encodingForHtml(QByteArrayView data) {
     if (const auto bom = encodingForData(data))

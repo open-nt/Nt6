@@ -30,7 +30,9 @@ add_library(NtCore
     src/dispatcher.cpp
     src/qbuffer.cpp
     src/qbytearray.cpp
+    src/qcalendar.cpp
     src/qchar.cpp
+    src/qchronotimer.cpp
     src/qcollator.cpp
     src/qcommandlineparser.cpp
     src/qcoreapplication.cpp
@@ -41,6 +43,7 @@ add_library(NtCore
     src/qdebug.cpp
     src/qdir.cpp
     src/qdiriterator.cpp
+    src/qeasingcurve.cpp
     src/qeventloop.cpp
     src/qexception.cpp
     src/qfile.cpp
@@ -85,7 +88,9 @@ add_library(NtCore
     src/qthread.cpp
     src/qthreadpool.cpp
     src/qthreadstorage.cpp
+    src/qtimeline.cpp
     src/qtimer.cpp
+    src/qtimezone.cpp
     src/qtranslator.cpp
     src/qurl.cpp
     src/quuid.cpp
@@ -520,7 +525,7 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_core_tests PRIVATE Nt::Core)
     add_test(NAME nt_core_tests COMMAND nt_core_tests)
 
-    foreach(suite filesystem streams text types)
+    foreach(suite datetime filesystem streams text types)
         add_executable(nt_${suite}_tests tests/test_${suite}.cpp)
         target_link_libraries(nt_${suite}_tests PRIVATE Nt::Core)
         add_test(NAME nt_${suite}_tests COMMAND nt_${suite}_tests)
@@ -771,7 +776,7 @@ if(NT_BUILD_TESTS)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
                            nt_test_tests)
-    foreach(suite filesystem streams text types)
+    foreach(suite datetime filesystem streams text types)
         nt_set_compile_options(nt_${suite}_tests)
     endforeach()
 endif()

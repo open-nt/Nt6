@@ -31,7 +31,7 @@ class QLocale;
     resource system, so file names starting with \c{:} are ordinary paths.
     \enddifferences
 
-    \sa QCoreApplication::installTranslator(), QObject::tr()
+    \sa QCoreApplication::installTranslator()
 */
 class QTranslator : public QObject {
     Q_OBJECT

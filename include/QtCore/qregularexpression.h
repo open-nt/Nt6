@@ -294,7 +294,47 @@ public:
         \enddifferences
     */
     struct Sentinel {};
-    class RangeIterator;
+
+    /*!
+        \class QRegularExpressionMatchIterator::RangeIterator
+        \brief The RangeIterator class lets a range-based for loop walk over the matches.
+
+        \differences
+        The class name is an Nt detail; Qt uses an unnamed iterator type.
+        \enddifferences
+    */
+    class RangeIterator {
+    public:
+        /*!
+            Returns the current match.
+        */
+        const QRegularExpressionMatch &operator*() const { return m_current; }
+        /*!
+            Advances to the next match and returns a reference to this iterator.
+        */
+        RangeIterator &operator++() {
+            fetch();
+            return *this;
+        }
+        friend bool operator!=(const RangeIterator &it, Sentinel) { return !it.m_done; }
+        friend bool operator==(const RangeIterator &it, Sentinel) { return it.m_done; }
+
+    private:
+        friend class QRegularExpressionMatchIterator;
+        explicit RangeIterator(const QRegularExpressionMatchIterator &it)
+            : m_it(std::make_shared<QRegularExpressionMatchIterator>(it)) {
+            fetch();
+        }
+        void fetch() {
+            if (m_it->hasNext())
+                m_current = m_it->next();
+            else
+                m_done = true;
+        }
+        std::shared_ptr<QRegularExpressionMatchIterator> m_it;
+        QRegularExpressionMatch m_current;
+        bool m_done = false;
+    };
 
     RangeIterator begin() const;
     /*!
@@ -305,44 +345,6 @@ public:
 private:
     friend class QRegularExpression;
     std::shared_ptr<QRegularExpressionMatchIteratorPrivate> d;
-};
-
-/*!
-    \class QRegularExpressionMatchIterator::RangeIterator
-    \brief The RangeIterator class lets a range-based for loop walk over the matches.
-
-    \differences
-    The class name is an Nt detail; Qt uses an unnamed iterator type.
-    \enddifferences
-*/
-class QRegularExpressionMatchIterator::RangeIterator {
-public:
-    /*!
-        Returns the current match.
-    */
-    const QRegularExpressionMatch &operator*() const { return m_current; }
-    /*!
-        Advances to the next match and returns a reference to this iterator.
-    */
-    RangeIterator &operator++() {
-        fetch();
-        return *this;
-    }
-    friend bool operator!=(const RangeIterator &it, Sentinel) { return !it.m_done; }
-    friend bool operator==(const RangeIterator &it, Sentinel) { return it.m_done; }
-
-private:
-    friend class QRegularExpressionMatchIterator;
-    explicit RangeIterator(QRegularExpressionMatchIterator it) : m_it(std::move(it)) { fetch(); }
-    void fetch() {
-        if (m_it.hasNext())
-            m_current = m_it.next();
-        else
-            m_done = true;
-    }
-    QRegularExpressionMatchIterator m_it;
-    QRegularExpressionMatch m_current;
-    bool m_done = false;
 };
 
 /*!

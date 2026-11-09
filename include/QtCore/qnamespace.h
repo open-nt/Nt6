@@ -65,7 +65,7 @@ enum DateFormat {
     \value LocalTime The local time of the system.
     \value UTC Coordinated Universal Time.
     \value OffsetFromUTC A fixed offset in seconds from UTC.
-    \value TimeZone Declared for compatibility; Nt has no time zone database and QDateTime does not support it.
+    \value TimeZone A time zone given as a QTimeZone.
 
     The \c QDateTime class uses this enum.
 */
@@ -556,12 +556,107 @@ enum SortOrder { AscendingOrder, DescendingOrder };
 
     \value NoItemFlags The item cannot be used.
     \value ItemIsSelectable The user can select the item.
+    \value ItemIsEditable The user can edit the item.
+    \value ItemIsDragEnabled The item can be dragged.
+    \value ItemIsDropEnabled The item can be used as a drop target.
+    \value ItemIsUserCheckable The user can check or uncheck the item.
     \value ItemIsEnabled The user can interact with the item; a disabled item is drawn in the disabled colors and
            cannot be selected.
+    \value ItemIsAutoTristate The check state of the item depends on the check states of its children.
+    \value ItemNeverHasChildren The item never has children; views can use this for optimization.
+    \value ItemIsUserTristate The user can cycle through three check states.
 */
-enum ItemFlag { NoItemFlags = 0, ItemIsSelectable = 1, ItemIsEnabled = 32 };
+enum ItemFlag {
+    NoItemFlags = 0,
+    ItemIsSelectable = 1,
+    ItemIsEditable = 2,
+    ItemIsDragEnabled = 4,
+    ItemIsDropEnabled = 8,
+    ItemIsUserCheckable = 16,
+    ItemIsEnabled = 32,
+    ItemIsAutoTristate = 64,
+    ItemNeverHasChildren = 128,
+    ItemIsUserTristate = 256
+};
 Q_DECLARE_FLAGS(ItemFlags, ItemFlag)
 Q_DECLARE_OPERATORS_FOR_FLAGS(ItemFlags)
+
+/*!
+    \enum Qt::ItemDataRole
+
+    The roles under which an item model stores the data of an item. Roles from UserRole on are for
+    application-specific data.
+
+    \value DisplayRole The text shown for the item (QString).
+    \value DecorationRole The icon or color shown with the item.
+    \value EditRole The data in a form suitable for editing (QString).
+    \value ToolTipRole The tool tip of the item (QString).
+    \value StatusTipRole The status bar text of the item (QString).
+    \value WhatsThisRole The "What's This?" text of the item (QString).
+    \value FontRole The font of the item.
+    \value TextAlignmentRole The alignment of the text (Qt::Alignment).
+    \value BackgroundRole The background of the item.
+    \value ForegroundRole The foreground (text) color of the item.
+    \value CheckStateRole The check state of the item (Qt::CheckState).
+    \value AccessibleTextRole The text for accessibility tools.
+    \value AccessibleDescriptionRole The description for accessibility tools.
+    \value SizeHintRole The size hint of the item.
+    \value InitialSortOrderRole The initial sort order of a header section (Qt::SortOrder).
+    \value DisplayPropertyRole Reserved.
+    \value DecorationPropertyRole Reserved.
+    \value ToolTipPropertyRole Reserved.
+    \value StatusTipPropertyRole Reserved.
+    \value WhatsThisPropertyRole Reserved.
+    \value UserRole The first role for application-specific data.
+*/
+enum ItemDataRole {
+    DisplayRole = 0,
+    DecorationRole = 1,
+    EditRole = 2,
+    ToolTipRole = 3,
+    StatusTipRole = 4,
+    WhatsThisRole = 5,
+    FontRole = 6,
+    TextAlignmentRole = 7,
+    BackgroundRole = 8,
+    ForegroundRole = 9,
+    CheckStateRole = 10,
+    AccessibleTextRole = 11,
+    AccessibleDescriptionRole = 12,
+    SizeHintRole = 13,
+    InitialSortOrderRole = 14,
+    DisplayPropertyRole = 27,
+    DecorationPropertyRole = 28,
+    ToolTipPropertyRole = 29,
+    StatusTipPropertyRole = 30,
+    WhatsThisPropertyRole = 31,
+    UserRole = 0x0100
+};
+
+/*!
+    \enum Qt::CheckState
+
+    \value Unchecked The item is not checked.
+    \value PartiallyChecked Some of the children of the item are checked.
+    \value Checked The item is checked.
+*/
+enum CheckState { Unchecked, PartiallyChecked, Checked };
+
+/*!
+    \enum Qt::DropAction
+
+    The actions a drag and drop operation can perform.
+
+    \value CopyAction Copy the data to the target.
+    \value MoveAction Move the data from the source to the target.
+    \value LinkAction Create a link from the source to the target.
+    \value ActionMask The bits of the actions.
+    \value TargetMoveAction The target moves the data and the source should not delete it.
+    \value IgnoreAction Ignore the action.
+*/
+enum DropAction { CopyAction = 0x1, MoveAction = 0x2, LinkAction = 0x4, ActionMask = 0xff, TargetMoveAction = 0x8002, IgnoreAction = 0x0 };
+Q_DECLARE_FLAGS(DropActions, DropAction)
+Q_DECLARE_OPERATORS_FOR_FLAGS(DropActions)
 
 /*!
     \enum Qt::ColorScheme
@@ -802,8 +897,8 @@ enum LayoutDirection { LeftToRight, RightToLeft, LayoutDirectionAuto };
     \value MatchContains The text anywhere in the item.
     \value MatchStartsWith The start of the item.
     \value MatchEndsWith The end of the item.
-    \value MatchRegularExpression A regular expression; not supported by Nt.
-    \value MatchWildcard A wildcard pattern; not supported by Nt.
+    \value MatchRegularExpression A regular expression (QRegularExpression).
+    \value MatchWildcard A shell wildcard pattern.
     \value MatchFixedString The text as a string, ignoring case unless MatchCaseSensitive is set.
     \value MatchTypeMask The bits that hold the kind of match.
     \value MatchCaseSensitive Case matters.

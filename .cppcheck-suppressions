@@ -15,3 +15,8 @@ internalAstError:include/QtCore/qassoc_p.h
 duplInheritedMember:include/QtWidgets/qboxlayout.h
 duplInheritedMember:include/QtWidgets/qwidget.h
 duplInheritedMember:include/QtWidgets/qstyleoption.h
+// QAnyStringView and QStringEncoder/QStringDecoder take a view by value, as the Qt API does; it is two words.
+passedByValue:include/QtCore/qanystringview.h
+passedByValue:include/QtCore/qstringconverter.h
+passedByValue:src/qstringconverter.cpp
+passedByValue:src/qcalendar.cpp

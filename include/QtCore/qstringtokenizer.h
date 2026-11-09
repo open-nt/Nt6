@@ -12,6 +12,11 @@
 
 namespace QtPrivate {
 namespace Tok {
+// Keeps the constructor arguments out of class template argument deduction, so that the deduction
+// guide below (which normalizes the haystack and needle types) is always used.
+template <typename T> struct Identity {
+    using type = T;
+};
 template <typename H>
 using HaystackType = std::conditional_t<std::is_same_v<std::decay_t<H>, QString> && !std::is_lvalue_reference_v<H>, QString, QStringView>;
 template <typename N>
@@ -70,7 +75,7 @@ inline qsizetype find(QStringView hay, QStringView needle, qsizetype from, Qt::C
     forward iterator compared against a sentinel returned by end().
     \enddifferences
 
-    \sa QString::split(), qTokenize()
+    \sa QString::split()
 */
 template <typename Haystack, typename Needle>
 class QStringTokenizer {
@@ -207,14 +212,18 @@ public:
         \a needle. \a sb selects whether empty tokens are produced and \a cs
         the case sensitivity of the needle.
     */
-    QStringTokenizer(Haystack haystack, Needle needle, Qt::SplitBehavior sb = Qt::KeepEmptyParts, Qt::CaseSensitivity cs = Qt::CaseSensitive)
+    QStringTokenizer(typename QtPrivate::Tok::Identity<Haystack>::type haystack,
+                     typename QtPrivate::Tok::Identity<Needle>::type needle, Qt::SplitBehavior sb = Qt::KeepEmptyParts,
+                     Qt::CaseSensitivity cs = Qt::CaseSensitive)
         : m_haystack(std::move(haystack)), m_needle(std::move(needle)), m_sb(sb), m_cs(cs) {}
     /*!
         \overload
         Constructs a tokenizer for \a haystack and \a needle with the case
         sensitivity \a cs and the split behavior \a sb.
     */
-    QStringTokenizer(Haystack haystack, Needle needle, Qt::CaseSensitivity cs, Qt::SplitBehavior sb = Qt::KeepEmptyParts)
+    QStringTokenizer(typename QtPrivate::Tok::Identity<Haystack>::type haystack,
+                     typename QtPrivate::Tok::Identity<Needle>::type needle, Qt::CaseSensitivity cs,
+                     Qt::SplitBehavior sb = Qt::KeepEmptyParts)
         : QStringTokenizer(std::move(haystack), std::move(needle), sb, cs) {}
 
     /*!
@@ -264,6 +273,7 @@ private:
 template <typename H, typename N, typename... Rest>
 QStringTokenizer(H &&, N &&, Rest...) -> QStringTokenizer<QtPrivate::Tok::HaystackType<H>, QtPrivate::Tok::NeedleType<N>>;
 
+// Returns a QStringTokenizer that splits haystack at needle.
 template <typename H, typename N, typename... Rest>
 auto qTokenize(H &&haystack, N &&needle, Rest &&...rest) {
     using Tokenizer = QStringTokenizer<QtPrivate::Tok::HaystackType<H>, QtPrivate::Tok::NeedleType<N>>;

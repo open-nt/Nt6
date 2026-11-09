@@ -1152,9 +1152,8 @@ QString QLocale::monthName(int month, FormatType format) const {
         return QString();
     if (format == LongFormat)
         return nth(d->months, month - 1);
-    const QString shortName = nth(d->shortMonths, month - 1);
     if (format == ShortFormat)
-        return shortName;
+        return nth(d->shortMonths, month - 1);
     return standaloneMonthName(month, NarrowFormat);
 }
 

@@ -358,8 +358,17 @@ public:
     explicit QLocale(QStringView name);
     QLocale(Language language, Territory territory = AnyTerritory);
     QLocale(Language language, Script script, Territory territory);
+    /*!
+        Constructs a copy of \a other.
+    */
     QLocale(const QLocale &other) noexcept = default;
+    /*!
+        Assigns \a other to this locale and returns a reference to this locale.
+    */
     QLocale &operator=(const QLocale &other) noexcept = default;
+    /*!
+        Destroys the locale.
+    */
     ~QLocale() = default;
     /*!
         Swaps this locale with \a other.

@@ -134,6 +134,11 @@
     \c ntmoc tool generates their bodies. See \l{Signals and Slots} for an
     overview.
 
+    The \c Q_OBJECT macro also declares \c{static QString tr(const char *sourceText,
+    const char *disambiguation = nullptr, int n = -1)}, which returns the translation of
+    \a sourceText from the translators installed with
+    QCoreApplication::installTranslator(), using the class name as the context.
+
     \code
     QObject parent;
     auto *child = new QObject(&parent);
@@ -457,18 +462,6 @@ void QObject::setParent(QObject *parent) {
     if (parent)
         Access::d(parent).children.push_back(this);
 }
-
-/*!
-    \fn QString QObject::tr(const char *sourceText, const char *disambiguation, int n)
-
-    Returns the translation of the UTF-8 text \a sourceText in the context
-    \c{"QObject"}, with the disambiguation comment \a disambiguation and,
-    for plural forms, the count \a n, as QCoreApplication::translate()
-    does. Every class with \c Q_OBJECT gets its own tr(), which uses the
-    class name as the context.
-
-    \sa QCoreApplication::installTranslator()
-*/
 
 /*!
     Returns \c true if signals emitted by this object are blocked; otherwise

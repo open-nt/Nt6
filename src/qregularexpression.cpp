@@ -475,7 +475,7 @@ private:
         return node;
     }
 
-    NodePtr classNode(ClassItem item, bool negated = false) {
+    NodePtr classNode(const ClassItem &item, bool negated = false) {
         NodePtr node = makeNode(NodeType::Class);
         node->items.push_back(item);
         node->negated = negated;

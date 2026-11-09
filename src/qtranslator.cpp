@@ -372,7 +372,10 @@ QString QTranslator::translate(const char *context, const char *sourceText, cons
             }
             i += len;
         }
-        if ((hasContext && msgContext != ctx) || (hasSource && msgSource != src) || (hasComment && msgComment != comment))
+        // lrelease writes the comment field empty and keeps the disambiguation only in the hash, so an
+        // empty stored comment matches any comment.
+        if ((hasContext && msgContext != ctx) || (hasSource && msgSource != src) ||
+            (hasComment && !msgComment.isEmpty() && msgComment != comment))
             return false;
         if (forms.empty())
             return false;
@@ -501,7 +504,7 @@ bool QCoreApplication::removeTranslator(QTranslator *translationFile) {
 
     This function is thread-safe.
 
-    \sa installTranslator(), QObject::tr()
+    \sa installTranslator()
 */
 QString QCoreApplication::translate(const char *context, const char *sourceText, const char *disambiguation, int n) {
     QString result;

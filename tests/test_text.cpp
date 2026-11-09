@@ -1,7 +1,12 @@
 // MIT License - see LICENSE
 #include <QtCore>
+#include <QtCore/qtemporarydir.h>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdio>
+#include <iterator>
+#include <limits>
 #include <string>
 
 static int g_failures = 0;
@@ -313,7 +318,490 @@ static void testRegexLimits() {
     CHECK(m.isValid());
 }
 
-int main() {
+static const uchar kGermanQm[] = {
+    0x3c, 0xb8, 0x64, 0x18, 0xca, 0xef, 0x9c, 0x95, 0xcd, 0x21, 0x1c, 0xbf, 0x60, 0xa1, 0xbd, 0xdd, 0xa7, 0x00, 0x00,
+    0x00, 0x05, 0x64, 0x65, 0x5f, 0x44, 0x45, 0x42, 0x00, 0x00, 0x00, 0x20, 0x00, 0x05, 0x66, 0xbe, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x05, 0x66, 0xbe, 0x00, 0x00, 0x00, 0xb0, 0x00, 0x4a, 0x36, 0x95, 0x00, 0x00, 0x00, 0x7e, 0x0d, 0x00,
+    0xbf, 0x39, 0x00, 0x00, 0x00, 0x30, 0x69, 0x00, 0x00, 0x00, 0xdb, 0x03, 0x00, 0x00, 0x00, 0x12, 0x00, 0x41, 0x00,
+    0x75, 0x00, 0x66, 0x00, 0x6d, 0x00, 0x61, 0x00, 0x63, 0x00, 0x68, 0x00, 0x65, 0x00, 0x6e, 0x08, 0x00, 0x00, 0x00,
+    0x00, 0x06, 0x00, 0x00, 0x00, 0x04, 0x4f, 0x70, 0x65, 0x6e, 0x07, 0x00, 0x00, 0x00, 0x05, 0x4f, 0x74, 0x68, 0x65,
+    0x72, 0x01, 0x03, 0x00, 0x00, 0x00, 0x10, 0x00, 0x25, 0x00, 0x6e, 0x00, 0x20, 0x00, 0x44, 0x00, 0x61, 0x00, 0x74,
+    0x00, 0x65, 0x00, 0x69, 0x03, 0x00, 0x00, 0x00, 0x14, 0x00, 0x25, 0x00, 0x6e, 0x00, 0x20, 0x00, 0x44, 0x00, 0x61,
+    0x00, 0x74, 0x00, 0x65, 0x00, 0x69, 0x00, 0x65, 0x00, 0x6e, 0x08, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00,
+    0x0a, 0x25, 0x6e, 0x20, 0x66, 0x69, 0x6c, 0x65, 0x28, 0x73, 0x29, 0x07, 0x00, 0x00, 0x00, 0x06, 0x57, 0x69, 0x6e,
+    0x64, 0x6f, 0x77, 0x01, 0x03, 0x00, 0x00, 0x00, 0x12, 0x00, 0x53, 0x00, 0x63, 0x00, 0x68, 0x00, 0x6c, 0x00, 0x69,
+    0x00, 0x65, 0x00, 0xdf, 0x00, 0x65, 0x00, 0x6e, 0x08, 0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x05, 0x43,
+    0x6c, 0x6f, 0x73, 0x65, 0x07, 0x00, 0x00, 0x00, 0x06, 0x57, 0x69, 0x6e, 0x64, 0x6f, 0x77, 0x01, 0x03, 0x00, 0x00,
+    0x00, 0x0c, 0x00, 0xd6, 0x00, 0x66, 0x00, 0x66, 0x00, 0x6e, 0x00, 0x65, 0x00, 0x6e, 0x08, 0x00, 0x00, 0x00, 0x00,
+    0x06, 0x00, 0x00, 0x00, 0x04, 0x4f, 0x70, 0x65, 0x6e, 0x07, 0x00, 0x00, 0x00, 0x06, 0x57, 0x69, 0x6e, 0x64, 0x6f,
+    0x77, 0x01, 0x88, 0x00, 0x00, 0x00, 0x02, 0x01, 0x01};
+static const uchar kPolishQm[] = {
+    0x3c, 0xb8, 0x64, 0x18, 0xca, 0xef, 0x9c, 0x95, 0xcd, 0x21, 0x1c, 0xbf, 0x60, 0xa1, 0xbd, 0xdd, 0xa7, 0x00,
+    0x00, 0x00, 0x05, 0x70, 0x6c, 0x5f, 0x50, 0x4c, 0x42, 0x00, 0x00, 0x00, 0x08, 0x0d, 0x00, 0xbf, 0x39, 0x00,
+    0x00, 0x00, 0x00, 0x69, 0x00, 0x00, 0x00, 0x5f, 0x03, 0x00, 0x00, 0x00, 0x0e, 0x00, 0x25, 0x00, 0x6e, 0x00,
+    0x20, 0x00, 0x70, 0x00, 0x6c, 0x00, 0x69, 0x00, 0x6b, 0x03, 0x00, 0x00, 0x00, 0x10, 0x00, 0x25, 0x00, 0x6e,
+    0x00, 0x20, 0x00, 0x70, 0x00, 0x6c, 0x00, 0x69, 0x00, 0x6b, 0x00, 0x69, 0x03, 0x00, 0x00, 0x00, 0x12, 0x00,
+    0x25, 0x00, 0x6e, 0x00, 0x20, 0x00, 0x70, 0x00, 0x6c, 0x00, 0x69, 0x00, 0x6b, 0x00, 0xf3, 0x00, 0x77, 0x08,
+    0x00, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x0a, 0x25, 0x6e, 0x20, 0x66, 0x69, 0x6c, 0x65, 0x28, 0x73,
+    0x29, 0x07, 0x00, 0x00, 0x00, 0x06, 0x57, 0x69, 0x6e, 0x64, 0x6f, 0x77, 0x01, 0x88, 0x00, 0x00, 0x00, 0x0a,
+    0x01, 0x01, 0xff, 0x14, 0x02, 0x04, 0xfd, 0x2c, 0x0a, 0x13};
+
+// ------------------------------------------------------------------ views, matcher, converters, tokenizer
+
+static void testMatcherAndViews() {
+    QStringMatcher m(u"needle"_s);
+    CHECK(m.indexIn(u"haystack with a needle in it"_s) == 16 && m.indexIn(u"no"_s) == -1);
+    CHECK(m.indexIn(u"needle needle"_s, 1) == 7 && m.indexIn(QStringView(u"xneedle")) == 1);
+    m.setCaseSensitivity(Qt::CaseInsensitive);
+    CHECK(m.indexIn(u"A NEEDLE"_s) == 2 && m.caseSensitivity() == Qt::CaseInsensitive);
+    m.setPattern(u"Ä"_s);
+    CHECK(m.indexIn(u"xxä"_s) == 2 && m.pattern() == u"Ä"_s && m.patternView() == u"Ä");
+    CHECK(QStringMatcher().indexIn(u"abc"_s, 1) == 1 && QStringMatcher(u"c"_s).indexIn(u"abc"_s, -1) == 2);
+    const QChar raw[] = {u'b', u'c'};
+    CHECK(QStringMatcher(raw, 2).indexIn(u"abcbc"_s, 2) == 3);
+
+    QUtf8StringView u8("Grüße");
+    CHECK(u8.size() == 7 && u8.toString() == u"Grüße"_s && u8.isValidUtf8() && !u8.isNull());
+    CHECK(u8.first(2) == QUtf8StringView("Gr") && u8.last(2) == QUtf8StringView("ße").last(2) &&
+          u8.sliced(1, 1).front() == 'r');
+    CHECK(!QUtf8StringView("\xc3\x28").isValidUtf8() && !QUtf8StringView("\xed\xa0\x80").isValidUtf8() &&
+          !QUtf8StringView("\xe2\x82").isValidUtf8());
+    CHECK(QUtf8StringView("abc") < QUtf8StringView("abd") &&
+          QUtf8StringView("ABC").compare("abc", Qt::CaseInsensitive) == 0);
+    CHECK(QUtf8StringView().isNull() && QUtf8StringView(QByteArray()).isNull() &&
+          QUtf8StringView(std::string("x")).size() == 1);
+
+    const QString s = u"text"_s;
+    const QAnyStringView a(s), b("text"), c(QLatin1StringView("text")), d(u"te");
+    CHECK(a == b && b == c && a != d && d < a && a.size() == 4 && a.size_bytes() == 8 && b.size_bytes() == 4);
+    CHECK(c.toString() == u"text"_s && a.front() == u't' && b.back() == u't' && a.sliced(1, 2).toString() == u"ex"_s);
+    CHECK(b.chopped(1).toString() == u"tex"_s && QAnyStringView::compare(u"A", "a", Qt::CaseInsensitive) == 0);
+    CHECK(QAnyStringView().isNull() && QAnyStringView("").isEmpty() && !QAnyStringView("").isNull());
+    const qsizetype units = b.visit([](auto view) { return view.size(); });
+    CHECK(units == 4);
+    const QChar ch(u'q');
+    CHECK(QAnyStringView(ch).toString() == u"q"_s);
+}
+
+static void testConverters() {
+    QStringEncoder toUtf8(QStringConverter::Utf8);
+    CHECK(toUtf8.isValid() && QByteArray(toUtf8.name()) == "UTF-8" &&
+          toUtf8(u"aé€"_s) == QByteArray("a\xc3\xa9\xe2\x82\xac"));
+    CHECK(QStringEncoder(QStringConverter::Utf16BE)(u"A€"_s) == QByteArray("\x00\x41\x20\xac", 4));
+    CHECK(QStringEncoder(QStringConverter::Utf16LE, QStringConverter::Flag::WriteBom)(u"A"_s) ==
+          QByteArray("\xff\xfe\x41\x00", 4));
+    CHECK(QStringEncoder(QStringConverter::Utf32BE)(u"\U0001F600"_s) == QByteArray("\x00\x01\xf6\x00", 4));
+    QStringEncoder latin1(QStringConverter::Latin1);
+    CHECK(latin1(u"aé€"_s) == QByteArray("a\xe9?") && latin1.hasError());
+    latin1.resetState();
+    CHECK(!latin1.hasError());
+    // A surrogate pair split between two calls is joined.
+    QStringEncoder pieces(QStringConverter::Utf8);
+    const QString smile = u"\U0001F600"_s;
+    QByteArray joined = pieces(QStringView(smile).first(1));
+    joined += pieces(QStringView(smile).sliced(1));
+    CHECK(joined == QByteArray("\xf0\x9f\x98\x80") && !pieces.hasError());
+    CHECK(QStringEncoder(QStringConverter::Utf8, QStringConverter::Flag::Stateless)(QStringView(smile).first(1)) ==
+          QByteArray("\xef\xbf\xbd"));
+    char buffer[64];
+    QStringEncoder enc(QStringConverter::Utf8);
+    CHECK(enc.requiredSpace(3) >= 9 && enc.appendToBuffer(buffer, u"abc") - buffer == 3);
+
+    QStringDecoder fromUtf8(QStringConverter::Utf8);
+    QString text = fromUtf8(QByteArray("\xef\xbb\xbfGr\xc3"));
+    text += fromUtf8(QByteArray("\xbc\xc3\x9f"
+                                "e"));
+    CHECK(text == u"Grüße"_s && !fromUtf8.hasError());
+    QStringDecoder bad(QStringConverter::Utf8);
+    CHECK(bad(QByteArray("a\xff"
+                         "b\xc0\x80")) == u"a�b��"_s &&
+          bad.hasError());
+    CHECK(QStringDecoder(QStringConverter::Utf8, QStringConverter::Flag::ConvertInvalidToNull)(QByteArray("\xff")) ==
+          QString(QChar(0)));
+    CHECK(QStringDecoder(QStringConverter::Utf8,
+                         QStringConverter::Flag::ConvertInitialBom)(QByteArray("\xef\xbb\xbfx")) == u"﻿x"_s);
+    CHECK(QStringDecoder(QStringConverter::Utf16)(QByteArray("\xfe\xff\x00\x41", 4)) == u"A"_s);
+    CHECK(QStringDecoder(QStringConverter::Utf16)(QByteArray("\xff\xfe\x41\x00", 4)) == u"A"_s);
+    CHECK(QStringDecoder(QStringConverter::Utf32LE)(QByteArray("\x00\xf6\x01\x00", 4)) == u"\U0001F600"_s);
+    CHECK(QStringDecoder(QStringConverter::Latin1)(QByteArray("\xe9")) == u"é"_s);
+    QStringDecoder split16(QStringConverter::Utf16BE);
+    QString s16 = split16(QByteArray("\x00", 1));
+    s16 += split16(QByteArray("\x41\xd8\x3d", 3));
+    s16 += split16(QByteArray("\xde\x00", 2));
+    CHECK(s16 == u"A\U0001F600"_s);
+    QStringDecoder stateless(QStringConverter::Utf8, QStringConverter::Flag::Stateless);
+    CHECK(stateless(QByteArray("\xc3")) == u"�"_s);
+    char16_t out[16];
+    QStringDecoder dec(QStringConverter::Utf8);
+    CHECK(dec.appendToBuffer(out, QByteArray("hi")) - out == 2 && out[1] == u'i');
+
+    CHECK(QStringConverter::encodingForName("utf8") == QStringConverter::Utf8);
+    CHECK(QStringConverter::encodingForName("ISO-8859-1") == QStringConverter::Latin1);
+    CHECK(QStringConverter::encodingForName(u"UTF-16le") == QStringConverter::Utf16LE);
+    CHECK(!QStringConverter::encodingForName("Shift_JIS") && !QStringDecoder("Shift_JIS").isValid());
+    CHECK(QStringDecoder("latin1")(QByteArray("\xe9")) == u"é"_s &&
+          QByteArray(QStringEncoder("locale").name()) == "Locale");
+    CHECK(QByteArray(QStringConverter::nameForEncoding(QStringConverter::Utf32BE)) == "UTF-32BE");
+    CHECK(QStringConverter::encodingForData(QByteArray("\xff\xfe\x00\x00", 4)) == QStringConverter::Utf32LE);
+    CHECK(QStringConverter::encodingForData(QByteArray("\xef\xbb\xbf")) == QStringConverter::Utf8);
+    CHECK(QStringConverter::encodingForData(QByteArray("\x00<", 2), u'<') == QStringConverter::Utf16BE);
+    CHECK(!QStringConverter::encodingForData(QByteArray("abc")));
+    CHECK(QStringConverter::encodingForHtml(QByteArray("<html><head><meta charset=\"ISO-8859-1\">")) ==
+          QStringConverter::Latin1);
+    CHECK(QStringConverter::encodingForHtml(QByteArray("<META http-equiv=x content='text/html; charset=utf-8'>")) ==
+          QStringConverter::Utf8);
+    CHECK(QStringConverter::encodingForHtml(QByteArray("<p>plain</p>")) == QStringConverter::Utf8);
+    CHECK(!QStringConverter::encodingForHtml(QByteArray("<meta charset=koi8-r>")));
+    CHECK(QStringDecoder::decoderForHtml(QByteArray("<meta charset=latin1>"))(QByteArray("\xe9")) == u"é"_s);
+    CHECK(QStringConverter::availableCodecs().contains(u"UTF-8"_s));
+    QStringDecoder moved = std::move(dec);
+    CHECK(moved.isValid() && moved(QByteArray("ok")) == u"ok"_s);
+}
+
+static void testTokenizer() {
+    const QString line = u"a,b,,c"_s;
+    QStringList parts;
+    for (QStringView part : QStringTokenizer{line, u','})
+        parts << part.toString();
+    CHECK((parts == QStringList{u"a"_s, u"b"_s, u""_s, u"c"_s}));
+    parts.clear();
+    for (QStringView part : qTokenize(line, u',', Qt::SkipEmptyParts))
+        parts << part.toString();
+    CHECK((parts == QStringList{u"a"_s, u"b"_s, u"c"_s}));
+    const QList<QStringView> views = qTokenize(u"x--y--z"_s, u"--").toContainer();
+    CHECK(views.size() == 3 && views.at(2) == u"z");
+    // A temporary haystack is kept alive by the tokenizer.
+    CHECK(qTokenize(QString(u"p;q"_s), u';').toContainer().at(1) == u"q");
+    CHECK(QStringTokenizer(line, QLatin1StringView(","), Qt::CaseInsensitive).toContainer().size() == 4);
+    CHECK(qTokenize(u"aXbxc"_s, u'x', Qt::CaseInsensitive).toContainer().size() == 3);
+    CHECK(qTokenize(u"ab"_s, u"").toContainer().size() == 4);
+    CHECK(qTokenize(QString(), u',').toContainer().size() == 1);
+    CHECK(qTokenize(QString(), u',', Qt::SkipEmptyParts).toContainer().isEmpty());
+    auto tok = qTokenize(u"1 2"_s, u' ');
+    auto it = tok.begin();
+    CHECK(*it == u"1" && it->size() == 1);
+    ++it;
+    CHECK(it != tok.end() && *it++ == u"2" && it == tok.end());
+}
+
+// ------------------------------------------------------------------ QLocale
+
+static void testLocaleNumbers() {
+    const QLocale c = QLocale::c();
+    CHECK(c.name() == u"C"_s && c.language() == QLocale::C && c.toString(1234567) == u"1234567"_s);
+    CHECK(c.toString(-1.5) == u"-1.5"_s && c.toString(1e10, 'e', 2) == u"1.00e+10"_s && c.toDouble(u"2.5e3") == 2500.0);
+    CHECK(c.numberOptions() == QLocale::OmitGroupSeparator);
+
+    const QLocale us(QLocale::English, QLocale::UnitedStates);
+    CHECK(us.name() == u"en_US"_s && us.bcp47Name() == u"en"_s && us.toString(1234567) == u"1,234,567"_s);
+    CHECK(us.toString(-1234.5, 'f', 2) == u"-1,234.50"_s && us.toString(qulonglong(1000)) == u"1,000"_s);
+    CHECK(us.toString(std::numeric_limits<qlonglong>::min()) == u"-9,223,372,036,854,775,808"_s);
+    bool ok = false;
+    CHECK(us.toInt(u"1,234", &ok) == 1234 && ok && us.toDouble(u" -1,234.5 ", &ok) == -1234.5 && ok);
+    CHECK(us.toInt(u"12,34", &ok) == 0 && !ok); // misplaced separator
+    CHECK(us.toInt(u"1,2345", &ok) == 0 && !ok);
+    CHECK(us.toShort(u"40000", &ok) == 0 && !ok && us.toUInt(u"-1", &ok) == 0 && !ok);
+    CHECK(us.toULongLong(u"18,446,744,073,709,551,615") == std::numeric_limits<qulonglong>::max());
+
+    const QLocale de(u"de_DE.UTF-8"_s);
+    CHECK(de.language() == QLocale::German && de.territory() == QLocale::Germany && de.decimalPoint() == u","_s &&
+          de.groupSeparator() == u"."_s);
+    CHECK(de.toString(1234567.891, 'f', 2) == u"1.234.567,89"_s && de.toDouble(u"1.234,5") == 1234.5 &&
+          de.toFloat(u"0,25") == 0.25f);
+    QLocale strict = de;
+    strict.setNumberOptions(QLocale::RejectGroupSeparator | QLocale::OmitGroupSeparator);
+    CHECK(strict.toString(1234) == u"1234"_s && strict.toInt(u"1.234", &ok) == 0 && !ok);
+    QLocale exp = c;
+    exp.setNumberOptions(QLocale::OmitLeadingZeroInExponent);
+    CHECK(exp.toString(1e5, 'e', 1) == u"1.0e+5"_s);
+    exp.setNumberOptions(QLocale::IncludeTrailingZeroesAfterDot);
+    CHECK(exp.toString(1.5, 'g', 4) == u"1.500"_s);
+    exp.setNumberOptions(QLocale::RejectTrailingZeroesAfterDot);
+    CHECK(exp.toDouble(u"1.50", &ok) == 0.0 && !ok && exp.toDouble(u"1.5", &ok) == 1.5 && ok);
+    CHECK(c.toString(0.1, 'g', QLocale::FloatingPointShortest) == u"0.1"_s);
+    CHECK(c.toString(1.0 / 3, 'g', QLocale::FloatingPointShortest) == u"0.3333333333333333"_s);
+    CHECK(c.toString(1234.5, 'f', QLocale::FloatingPointShortest) == u"1234.5"_s);
+
+    const QLocale sv(QLocale::Swedish);
+    CHECK(sv.toString(-1234) == u"−1 234"_s && sv.toInt(u"−1 234") == -1234 && sv.negativeSign() == u"−"_s);
+    const QLocale es(QLocale::Spanish, QLocale::Spain);
+    CHECK(es.toString(1234) == u"1234"_s && es.toString(12345) == u"12.345"_s); // groups only from five digits
+    const QLocale ch(QLocale::German, QLocale::Switzerland);
+    CHECK(ch.toString(1234.5, 'f', 1) == u"1’234.5"_s);
+    CHECK(c.toString(std::numeric_limits<double>::infinity()) == u"inf"_s && std::isnan(c.toDouble(u"nan")));
+}
+
+static void testLocaleNamesAndDates() {
+    const QLocale us(u"en_US"_s), gb(u"en-GB"_s), de(QLocale::German), fr(QLocale::French, QLocale::Canada);
+    CHECK(gb.bcp47Name() == u"en-GB"_s && gb.name(QLocale::TagSeparator::Dash) == u"en-GB"_s &&
+          fr.name() == u"fr_CA"_s);
+    CHECK(QLocale(u"xx_YY"_s) == QLocale::c() && QLocale(QLocale::Welsh) == QLocale::c());
+    CHECK(QLocale(QLocale::German, QLocale::UnitedStates).territory() == QLocale::Germany);
+    CHECK(QLocale(u"zh_Hant_TW"_s).script() == QLocale::TraditionalHanScript &&
+          QLocale(u"zh"_s).territory() == QLocale::China);
+    CHECK(de.nativeLanguageName() == u"Deutsch"_s && de.nativeTerritoryName() == u"Deutschland"_s &&
+          de.nativeCountryName() == u"Deutschland"_s);
+    CHECK(QLocale::languageToString(QLocale::German) == u"German"_s &&
+          QLocale::territoryToString(QLocale::Spain) == u"Spain"_s);
+    CHECK(QLocale::scriptToString(QLocale::CyrillicScript) == u"Cyrillic"_s &&
+          QLocale::countryToString(QLocale::Japan) == u"Japan"_s);
+    CHECK(QLocale::languageToCode(QLocale::Japanese) == u"ja"_s && QLocale::territoryToCode(QLocale::Japan) == u"JP"_s);
+    CHECK(QLocale::scriptToCode(QLocale::LatinScript) == u"Latn"_s &&
+          QLocale::codeToScript(u"cyrl") == QLocale::CyrillicScript);
+    CHECK(QLocale::codeToLanguage(u"DE") == QLocale::German && QLocale::codeToTerritory(u"de") == QLocale::Germany);
+    CHECK(QLocale::codeToLanguage(u"zz") == QLocale::AnyLanguage &&
+          QLocale::codeToTerritory(u"ZZ") == QLocale::AnyTerritory);
+    CHECK((us.uiLanguages() == QStringList{u"en-US"_s, u"en"_s}) && us.collation() == us);
+    CHECK(QLocale::matchingLocales(QLocale::English, QLocale::AnyScript, QLocale::AnyTerritory).size() == 4);
+    CHECK(QLocale::matchingLocales(QLocale::AnyLanguage, QLocale::AnyScript, QLocale::Canada).size() == 2);
+    CHECK(QLocale::matchingLocales(QLocale::C, QLocale::AnyScript, QLocale::AnyTerritory).at(0) == QLocale::c());
+
+    CHECK(us.firstDayOfWeek() == Qt::Sunday && de.firstDayOfWeek() == Qt::Monday && us.weekdays().size() == 5);
+    CHECK(us.measurementSystem() == QLocale::ImperialUSSystem && gb.measurementSystem() == QLocale::ImperialUKSystem &&
+          de.measurementSystem() == QLocale::MetricSystem && de.textDirection() == Qt::LeftToRight);
+    CHECK(us.monthName(1) == u"January"_s && us.monthName(1, QLocale::ShortFormat) == u"Jan"_s &&
+          us.monthName(13).isEmpty());
+    CHECK(us.dayName(7) == u"Sunday"_s && us.dayName(1, QLocale::NarrowFormat) == u"M"_s &&
+          us.standaloneMonthName(2, QLocale::NarrowFormat) == u"F"_s);
+    const QLocale ru(QLocale::Russian), pl(QLocale::Polish);
+    CHECK(ru.monthName(1) == u"января"_s && ru.standaloneMonthName(1) == u"январь"_s &&
+          pl.standaloneMonthName(3) == u"marzec"_s);
+    CHECK(QLocale(QLocale::Japanese).monthName(12) == u"12月"_s && QLocale(QLocale::Chinese).monthName(1) == u"一月"_s);
+    CHECK(us.amText() == u"AM"_s && QLocale(QLocale::Swedish).pmText() == u"em"_s);
+
+    const QDate date(2024, 5, 1);
+    const QTime time(14, 5, 9, 120);
+    CHECK(us.toString(date) == u"Wednesday, May 1, 2024"_s && us.toString(date, QLocale::ShortFormat) == u"5/1/24"_s);
+    CHECK(de.toString(date) == u"Mittwoch, 1. Mai 2024"_s && de.toString(date, QLocale::ShortFormat) == u"01.05.24"_s);
+    CHECK(ru.toString(date) == u"среда, 1 мая 2024 г."_s);
+    CHECK(QLocale(QLocale::Spanish).toString(date) == u"miércoles, 1 de mayo de 2024"_s);
+    CHECK(QLocale(QLocale::Japanese).toString(date) == u"2024年5月1日水曜日"_s);
+    CHECK(us.toString(time, QLocale::ShortFormat) == u"2:05 PM"_s &&
+          de.toString(time, QLocale::ShortFormat) == u"14:05"_s);
+    CHECK(us.toString(time, u"hh:mm:ss.zzz ap"_s) == u"02:05:09.120 pm"_s &&
+          us.toString(time, u"H 'o''clock' z"_s) == u"14 o'clock 12"_s);
+    CHECK(QLocale::c().toString(date) == u"Wednesday, 1 May 2024"_s);
+    const QDateTime dt(date, time, Qt::UTC);
+    CHECK(us.toString(dt, QLocale::LongFormat) == u"Wednesday, May 1, 2024 2:05:09 PM UTC"_s);
+    CHECK(us.toString(dt, u"yyyy-MM-dd HH:mm t"_s) == u"2024-05-01 14:05 UTC"_s);
+    CHECK(us.dateTimeFormat(QLocale::ShortFormat) == u"M/d/yy h:mm AP"_s && de.timeFormat() == u"HH:mm:ss t"_s);
+
+    CHECK(us.toDate(u"Wednesday, May 1, 2024"_s) == date &&
+          us.toDate(u"5/1/24"_s, QLocale::ShortFormat) == QDate(1924, 5, 1));
+    CHECK(de.toDate(u"1. mai 2024"_s, u"d. MMMM yyyy"_s) == date &&
+          de.toDate(u"31.02.2024"_s, u"dd.MM.yyyy"_s).isNull());
+    CHECK(ru.toDate(u"1 январь 2024"_s, u"d MMMM yyyy"_s) == QDate(2024, 1, 1));
+    CHECK(us.toTime(u"2:05 PM"_s, QLocale::ShortFormat) == QTime(14, 5) &&
+          us.toTime(u"12:30 am"_s, u"h:mm ap"_s) == QTime(0, 30));
+    CHECK(!us.toTime(u"13:00 PM"_s, u"h:mm AP"_s).isValid() && !us.toDate(u"May 1"_s, u"MMMM d, yyyy"_s).isValid());
+    CHECK(us.toDateTime(u"2024-05-01 14:05 UTC+02:00"_s, u"yyyy-MM-dd HH:mm t"_s).offsetFromUtc() == 7200);
+    CHECK(us.toDateTime(u"2024-05-01 14:05:09.12"_s, u"yyyy-MM-dd HH:mm:ss.z"_s).time() == time);
+}
+
+static void testLocaleMisc() {
+    const QLocale us(QLocale::English), de(QLocale::German), ja(QLocale::Japanese), c = QLocale::c();
+    CHECK(us.toCurrencyString(1234.5) == u"$1,234.50"_s && us.toCurrencyString(-3) == u"-$3"_s);
+    CHECK(de.toCurrencyString(1234.5) == u"1.234,50 €"_s && ja.toCurrencyString(1234.6) == u"￥1,235"_s);
+    CHECK(us.toCurrencyString(2.5, u"EUR "_s, 1) == u"EUR 2.5"_s && c.toCurrencyString(1234.5) == u"1234.50"_s);
+    CHECK(de.currencySymbol() == u"€"_s && de.currencySymbol(QLocale::CurrencyIsoCode) == u"EUR"_s &&
+          us.currencySymbol(QLocale::CurrencyDisplayName) == u"US Dollar"_s);
+    CHECK(us.formattedDataSize(1023) == u"1,023 bytes"_s && us.formattedDataSize(1536) == u"1.50 KiB"_s);
+    CHECK(us.formattedDataSize(1500000, 1, QLocale::DataSizeSIFormat) == u"1.5 MB"_s);
+    CHECK(us.formattedDataSize(2048, 0, QLocale::DataSizeTraditionalFormat) == u"2 kB"_s &&
+          de.formattedDataSize(1536) == u"1,50 KiB"_s);
+    CHECK(us.quoteString(u"hi") == u"“hi”"_s && de.quoteString(u"hi") == u"„hi“"_s &&
+          de.quoteString(u"x", QLocale::AlternateQuotation) == u"‚x‘"_s);
+    const QStringList three{u"a"_s, u"b"_s, u"c"_s};
+    CHECK(us.createSeparatedList(three) == u"a, b, and c"_s &&
+          QLocale(QLocale::English, QLocale::UnitedKingdom).createSeparatedList(three) == u"a, b and c"_s);
+    CHECK(de.createSeparatedList({u"a"_s, u"b"_s}) == u"a und b"_s && us.createSeparatedList({}).isEmpty() &&
+          us.createSeparatedList({u"x"_s}) == u"x"_s);
+    CHECK(us.toUpper(u"straße ǆ ω"_s) == u"STRAßE Ǆ Ω"_s && us.toLower(u"ΣΑΣ İ"_s) == u"σασ İ"_s);
+    CHECK(us.percent() == u"%"_s && us.zeroDigit() == u"0"_s && us.positiveSign() == u"+"_s &&
+          us.exponential() == u"e"_s);
+    QLocale a = us, b = de;
+    a.swap(b);
+    CHECK(a == de && b == us && qHash(a) == qHash(QLocale(QLocale::German)));
+    QLocale::setDefault(de);
+    CHECK(QLocale() == de && QLocale().toString(1.5) == u"1,5"_s);
+    QLocale::setDefault(c);
+    CHECK(QLocale() == c);
+}
+
+// ------------------------------------------------------------------ QCollator
+
+static void testCollator() {
+    QCollator en(QLocale(QLocale::English));
+    QStringList words{u"banana"_s, u"Apple"_s, u"apple"_s, u"cherry"_s, u"Äpfel"_s, u"apfel"_s};
+    std::sort(words.begin(), words.end(), en);
+    CHECK((words == QStringList{u"apfel"_s, u"Äpfel"_s, u"apple"_s, u"Apple"_s, u"banana"_s, u"cherry"_s}));
+    CHECK(en.compare(u"a"_s, u"A"_s) < 0 && en.compare(u"resume"_s, u"résumé"_s) < 0 &&
+          en.compare(u"résumé"_s, u"resumes"_s) < 0);
+    en.setCaseSensitivity(Qt::CaseInsensitive);
+    CHECK(en.compare(u"a"_s, u"A"_s) == 0 && en.caseSensitivity() == Qt::CaseInsensitive);
+    CHECK(en.compare(u"file10"_s, u"file2"_s) < 0);
+    en.setNumericMode(true);
+    CHECK(en.numericMode() && en.compare(u"file10"_s, u"file2"_s) > 0 && en.compare(u"file02"_s, u"file2"_s) != 0);
+    CHECK(en.compare(u"v1.10"_s, u"v1.9"_s) > 0 && en(u"x9"_s, u"x10"_s));
+    CHECK(en.compare(u"ab"_s, u"a-c"_s) > 0);
+    en.setIgnorePunctuation(true);
+    CHECK(en.ignorePunctuation() && en.compare(u"a-b"_s, u"ab"_s) == 0 && en.compare(u"a b"_s, u"a-b"_s) == 0);
+    CHECK(en.compare(u"straße"_s, u"strasse"_s) > 0 && en.compare(u"straße"_s, u"strasse"_s) != 0 &&
+          en.compare(u"strasse"_s, u"strast"_s) < 0);
+
+    QCollator sv(QLocale(QLocale::Swedish));
+    CHECK(sv.compare(u"ö"_s, u"z"_s) > 0 && sv.compare(u"å"_s, u"ä"_s) < 0 && en.compare(u"ö"_s, u"z"_s) < 0);
+    CHECK(QCollator(QLocale(QLocale::Spanish)).compare(u"ñu"_s, u"nz"_s) > 0);
+    CHECK(QCollator(QLocale(QLocale::Polish)).compare(u"łza"_s, u"lz"_s) > 0);
+    CHECK(QCollator(QLocale(QLocale::Russian)).compare(u"ёж"_s, u"ель"_s) != 0);
+    CHECK(QCollator().compare(u"Ω"_s, u"z"_s) > 0);
+
+    const QCollatorSortKey k1 = sv.sortKey(u"ä"_s), k2 = sv.sortKey(u"z"_s);
+    CHECK(k1.compare(k2) > 0 && k2 < k1 && k1.compare(k1) == 0);
+    QCollator copy = sv;
+    copy.setLocale(QLocale(QLocale::English));
+    CHECK(copy.locale().language() == QLocale::English && sv.locale().language() == QLocale::Swedish);
+    copy.swap(sv);
+    CHECK(sv.locale().language() == QLocale::English);
+    const QChar a[] = {u'a'}, b[] = {u'b'};
+    CHECK(sv.compare(a, 1, b, 1) < 0 && QCollator::defaultCompare(u"a", u"b") < 0 &&
+          QCollator::defaultSortKey(u"a") < QCollator::defaultSortKey(u"b"));
+    CHECK(QString::localeAwareCompare(u"apple"_s, u"Banana"_s) < 0);
+}
+
+// ------------------------------------------------------------------ QTextBoundaryFinder
+
+static QStringList segments(QTextBoundaryFinder::BoundaryType type, const QString &text, bool itemsOnly) {
+    QTextBoundaryFinder f(type, text);
+    QStringList out;
+    qsizetype start = 0;
+    for (qsizetype end; (end = f.toNextBoundary()) != -1; start = end) {
+        if (!itemsOnly || (f.boundaryReasons() & QTextBoundaryFinder::EndOfItem))
+            out << text.mid(start, end - start);
+    }
+    return out;
+}
+
+static void testBoundaryFinder() {
+    using F = QTextBoundaryFinder;
+    CHECK((segments(F::Grapheme, u"éa\r\n\U0001F600"_s, false) ==
+           QStringList{u"é"_s, u"a"_s, u"\r\n"_s, u"\U0001F600"_s}));
+    CHECK(segments(F::Grapheme, u"\U0001F1E9\U0001F1EA\U0001F1EB\U0001F1F7"_s, false).size() == 2); // two flags
+    CHECK(segments(F::Grapheme, u"\U0001F469‍\U0001F4BB"_s, false).size() == 1);
+    CHECK(segments(F::Grapheme, u"각"_s, false).size() == 1); // a decomposed Hangul syllable
+    CHECK((segments(F::Word, u"Hello, world! It's 3.14 o'clock"_s, true) ==
+           QStringList{u"Hello"_s, u"world"_s, u"It's"_s, u"3.14"_s, u"o'clock"_s}));
+    CHECK((segments(F::Word, u"a  b"_s, false) == QStringList{u"a"_s, u"  "_s, u"b"_s}));
+    CHECK((segments(F::Word, u"snake_case x2 カタカナ漢字"_s, true) ==
+           QStringList{u"snake_case"_s, u"x2"_s, u"カタカナ"_s, u"漢"_s, u"字"_s}));
+    CHECK((segments(F::Sentence, u"Hello there. How are you? Fine!"_s, false) ==
+           QStringList{u"Hello there. "_s, u"How are you? "_s, u"Fine!"_s}));
+    // UAX #29 has no abbreviation list, so "Mr." before a capital ends a sentence.
+    CHECK((segments(F::Sentence, u"Mr. Smith arrived. etc. and more. Pi is 3.14 ok."_s, false) ==
+           QStringList{u"Mr. "_s, u"Smith arrived. etc. and more. "_s, u"Pi is 3.14 ok."_s}));
+    CHECK((segments(F::Sentence, u"\"Stop!\" he said.\nNext"_s, false) ==
+           QStringList{u"\"Stop!\" "_s, u"he said.\n"_s, u"Next"_s}));
+    CHECK((segments(F::Line, u"The quick (brown) fox-like jump."_s, false) ==
+           QStringList{u"The "_s, u"quick "_s, u"(brown) "_s, u"fox-"_s, u"like "_s, u"jump."_s}));
+    CHECK((segments(F::Line, u"a b c"_s, false) == QStringList{u"a b "_s, u"c"_s}));
+    CHECK((segments(F::Line, u"-5 $10 100%"_s, false) == QStringList{u"-5 "_s, u"$10 "_s, u"100%"_s}));
+    CHECK(segments(F::Line, u"漢字かな"_s, false).size() == 4);
+
+    F f(F::Line, u"one\ntwo co­op"_s);
+    f.setPosition(4);
+    CHECK(f.isAtBoundary() && (f.boundaryReasons() & F::MandatoryBreak));
+    f.setPosition(11);
+    CHECK((f.boundaryReasons() & F::SoftHyphen) && f.position() == 11);
+    f.toEnd();
+    CHECK(f.position() == 13 && (f.boundaryReasons() & F::MandatoryBreak) && f.toNextBoundary() == -1 &&
+          f.position() == -1);
+    f.toEnd();
+    CHECK(f.toPreviousBoundary() == 11 && f.toPreviousBoundary() == 8 && f.toPreviousBoundary() == 4 &&
+          f.toPreviousBoundary() == -1);
+    f.toStart();
+    CHECK(f.position() == 0 && !f.isAtBoundary());
+    f.setPosition(100);
+    CHECK(f.position() == 13);
+
+    F w(F::Word, u" hi "_s);
+    CHECK(w.isValid() && w.type() == F::Word && w.string() == u" hi "_s);
+    w.setPosition(1);
+    CHECK(w.boundaryReasons() == (F::BreakOpportunity | F::StartOfItem));
+    w.setPosition(3);
+    CHECK(w.boundaryReasons() == (F::BreakOpportunity | F::EndOfItem));
+    w.setPosition(2);
+    CHECK(w.boundaryReasons() == F::NotAtBoundary);
+    F g(F::Grapheme, QStringView(u"ab"));
+    CHECK(g.boundaryReasons() == (F::BreakOpportunity | F::StartOfItem));
+    g.toEnd();
+    CHECK(g.boundaryReasons() == (F::BreakOpportunity | F::EndOfItem));
+    const QChar chars[] = {u'x', u'.'};
+    F s(F::Sentence, chars, 2);
+    CHECK(s.toNextBoundary() == 2);
+    CHECK(!F().isValid() && F().toNextBoundary() == -1);
+}
+
+// ------------------------------------------------------------------ QTranslator
+
+static void testTranslator() {
+    QTranslator de;
+    CHECK(de.isEmpty() && de.translate("Window", "Open").isNull());
+    CHECK(de.load(kGermanQm, int(sizeof kGermanQm)) && !de.isEmpty() && de.language() == u"de_DE"_s &&
+          de.filePath().isEmpty());
+    CHECK(de.translate("Window", "Open") == u"Öffnen"_s && de.translate("Other", "Open") == u"Aufmachen"_s);
+    // "Close" is unique in its context, so lrelease drops the disambiguation "menu": both find it.
+    CHECK(de.translate("Window", "Close", "menu") == u"Schließen"_s &&
+          de.translate("Window", "Close") == u"Schließen"_s);
+    CHECK(de.translate("Nowhere", "Open").isNull() && de.translate("Window", "Missing").isNull());
+    CHECK(de.translate("Window", "%n file(s)", nullptr, 1) == u"%n Datei"_s &&
+          de.translate("Window", "%n file(s)", nullptr, 3) == u"%n Dateien"_s);
+    CHECK(!de.load(reinterpret_cast<const uchar *>("not a qm file"), 13) && de.isEmpty());
+
+    QTranslator pl;
+    CHECK(pl.load(kPolishQm, int(sizeof kPolishQm)));
+    const int counts[] = {1, 2, 4, 5, 12, 22, 25, 112, 0};
+    const char *const expected[] = {"plik",  "pliki",  "pliki",  "plików", "plików",
+                                    "pliki", "plików", "plików", "plików"};
+    for (std::size_t k = 0; k < std::size(counts); ++k)
+        CHECK(pl.translate("Window", "%n file(s)", nullptr, counts[k]) == u"%n "_s + QString::fromUtf8(expected[k]));
+
+    CHECK(QCoreApplication::translate("Window", "Open") == u"Open"_s);
+    CHECK(!QCoreApplication::installTranslator(nullptr) && !QCoreApplication::installTranslator(&de));
+    CHECK(de.load(kGermanQm, int(sizeof kGermanQm)) && QCoreApplication::installTranslator(&de) &&
+          QCoreApplication::installTranslator(&pl));
+    CHECK(QCoreApplication::translate("Window", "Open") == u"Öffnen"_s);
+    CHECK(QCoreApplication::translate("Window", "%n file(s)", nullptr, 5) ==
+          u"5 plików"_s); // the last installed is searched first
+    CHECK(QCoreApplication::translate("Window", "Untranslated %n", nullptr, 7) == u"Untranslated 7"_s);
+    CHECK(QCoreApplication::removeTranslator(&pl) && !QCoreApplication::removeTranslator(&pl));
+    CHECK(QCoreApplication::translate("Window", "%n file(s)", nullptr, 5) == u"5 Dateien"_s);
+    {
+        QTranslator temporary;
+        CHECK(temporary.load(kPolishQm, int(sizeof kPolishQm)) && QCoreApplication::installTranslator(&temporary));
+    } // the destructor uninstalls it
+    CHECK(QCoreApplication::translate("Window", "%n file(s)", nullptr, 2) == u"2 Dateien"_s);
+    CHECK(QObject::tr("Open") == u"Open"_s);
+    QCoreApplication::removeTranslator(&de);
+
+    // Loading from files, with the fallback search.
+    QTemporaryDir tmp;
+    CHECK(tmp.isValid());
+    const QString dir = QFileInfo(tmp.path()).canonicalFilePath();
+    {
+        QFile f(dir + u"/app_pl.qm"_s);
+        CHECK(f.open(QIODevice::WriteOnly) &&
+              f.write(reinterpret_cast<const char *>(kPolishQm), qint64(sizeof kPolishQm)) == qint64(sizeof kPolishQm));
+    }
+    QTranslator file;
+    CHECK(file.load(u"app_pl_PL"_s, dir) && file.filePath() == dir + u"/app_pl.qm"_s && file.language() == u"pl_PL"_s);
+    CHECK(!file.load(u"other_pl"_s, dir) && file.isEmpty());
+    CHECK(file.load(QLocale(QLocale::Polish), u"app"_s, u"_"_s, dir) && !file.isEmpty());
+    CHECK(!file.load(QLocale(QLocale::German), u"app"_s, u"_"_s, dir));
+    CHECK(file.load(dir + u"/app_pl.qm"_s));
+}
+
+int main(int argc, char **argv) {
+    QCoreApplication app(argc, argv);
     testRegexBasics();
     testRegexGroupsAndAnchors();
     testRegexUnicode();
@@ -322,6 +810,15 @@ int main() {
     testRegexStatics();
     testRegexStringApi();
     testRegexLimits();
+    testMatcherAndViews();
+    testConverters();
+    testTokenizer();
+    testLocaleNumbers();
+    testLocaleNamesAndDates();
+    testLocaleMisc();
+    testCollator();
+    testBoundaryFinder();
+    testTranslator();
     if (g_failures == 0)
         std::puts("all text tests passed");
     return g_failures == 0 ? 0 : 1;

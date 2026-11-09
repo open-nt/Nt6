@@ -16,11 +16,15 @@
 
 </p>
 
+<p align="left"><a href="https://snapcraft.io/open-nt6"><img src="https://snapcraft.io/en/dark/install.svg" alt="Get it from the Snap Store" height="40"></a></p>
+
 # Nt ("Nut")
 
 A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial) and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
+
+**Install:** `sudo snap install open-nt6` ([Snap Store](https://snapcraft.io/open-nt6)), or see [Packages](#packages) for `.deb`, `.rpm` and Arch packages.
 
 **Branding:** logo and naming rules are in the [Nt Brand Guide](https://open-nt.github.io/Nt6/brand.html); the artwork is in [`assets/brand/`](assets/brand).
 
@@ -39,26 +43,25 @@ Qt Core has roughly 300 classes; Nt Core has about 180 of them, chosen first for
 | Containers | `QList`/`QVector`, `QQueue`, `QStack`, `QMap`, `QMultiMap`, `QHash`, `QMultiHash`, `QSet`, `QVarLengthArray`, `QBitArray`, `QCache`, `QContiguousCache`, `QSpan`, the Java-style iterators (`QListIterator`, `QMutableListIterator`, `QMapIterator`, `QMutableMapIterator`, `QHashIterator`, `QSetIterator`, ...) |
 | Smart pointers | `QPointer`, `QScopedPointer`, `QScopedArrayPointer`, `QSharedPointer`, `QWeakPointer`, `QEnableSharedFromThis`, `QSharedData`, `QSharedDataPointer`, `QExplicitlySharedDataPointer`, `QScopeGuard`, `QScopedValueRollback`, `QSignalBlocker` |
 | Threads | `QThread` (per-thread event loops and queued signals across threads), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QException`, `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QAtomicScopedValueRollback`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock`, `QReadLocker`, `QWriteLocker`, `QWaitCondition` (with `QMutex` or `QReadWriteLock`), `QSemaphore`, `QSemaphoreReleaser`; deadline and `std::chrono` overloads |
-| Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time and fixed offsets), `QDebug`, `QDebugStateSaver`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler`, `QMessageLogger`, `QLoggingCategory` |
+| Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time, fixed offsets and time zones), `QTimeZone` (the system's IANA database), `QCalendar` (Gregorian, Julian, Milanković, Jalali, Islamic civil), `QChronoTimer`, `QTimeLine`, `QEasingCurve`, `QDebug`, `QDebugStateSaver`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler`, `QMessageLogger`, `QLoggingCategory` |
 | I/O and file system | `QIODevice` (with read transactions), `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile` (permissions, file times, symbolic links), `QDataStream` (Qt's wire format, transactions), `QFileInfo`, `QDir`, `QDirIterator`, `QLockFile`, `QFileSystemWatcher` (inotify), `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG), `QSettings` (INI) |
 | Processes and formats | `QProcess`, `QProcessEnvironment`, `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument` |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
 | Utilities | `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption`, `QSysInfo`, `QOperatingSystemVersion`, `QLibraryInfo`, `QGlobalStatic`, `qfloat16`, `QBEInteger`/`QLEInteger` |
 
-Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no 64-bit container sizes; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time (`QFile::fileTime()` reports it where the kernel does); `QDateTime` has no `QTimeZone` (only local time, UTC and fixed offsets); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; no bindable properties (`QProperty`). Each class's reference page lists how it differs from Qt.
+Known limits: `QTextStream` reads and writes UTF-8 only and `QDataStream` has no 64-bit container sizes; `QDir` name filters are case-insensitive and `QFileInfo` has no birth time (`QFile::fileTime()` reports it where the kernel does); `QTimeZone` has no localized names (no CLDR/ICU); `QChar` case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic only; `QList<bool>` is rejected at compile time; no bindable properties (`QProperty`). Each class's reference page lists how it differs from Qt.
 
 ### Nt Core: not implemented yet
 
 - **Text:** `QStringListModel`
 - **Containers:** `QKeyValueIterator`
 - **Meta:** `QProperty` and bindable properties
-- **Date and time:** `QTimeZone`, `QCalendar`, `QChronoTimer`, `QTimeLine`
 - **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`, `QResource`
 - **Plugins and IPC:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
 - **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`/`QMimeData`
 - **Concurrency:** `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, QtConcurrent, `QAbstractEventDispatcher`
 - **Item models:** `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QAbstractProxyModel`, `QSortFilterProxyModel`, `QIdentityProxyModel`, `QConcatenateTablesProxyModel`, `QTransposeProxyModel`, `QModelIndex`, `QPersistentModelIndex`, `QItemSelection*`, `QRangeModel`
-- **Animation:** `QAbstractAnimation`, `QVariantAnimation`, `QPropertyAnimation`, `QPauseAnimation`, `QSequentialAnimationGroup`, `QParallelAnimationGroup`, `QAnimationGroup`, `QEasingCurve`
+- **Animation:** `QAbstractAnimation`, `QVariantAnimation`, `QPropertyAnimation`, `QPauseAnimation`, `QSequentialAnimationGroup`, `QParallelAnimationGroup`, `QAnimationGroup`
 - **System and misc:** `QChildEvent`, permission classes, JNI and Windows-only classes
 
 ### Nt Network: implemented
@@ -413,7 +416,7 @@ Install instructions for every system below are in the [Installing Nt](https://o
 | Ubuntu 22.04, 24.04, 26.04 | `libnt6-dev_<version>-1~ubuntu<release>_amd64.deb`, `nt6-tools_...deb` | `ubuntu-22.04.yml`, `ubuntu-24.04.yml`, `ubuntu-26.04.yml` |
 | Enterprise Linux 9 and 10 (RHEL, Rocky, Alma) | `nt6-devel-<version>-1.el<N>.x86_64.rpm`, `nt6-tools-...rpm` | `el9.yml`, `el10.yml` |
 | Arch Linux | `nt6-<version>-1-x86_64.pkg.tar.zst` | `arch.yml` |
-| Any Linux with snapd (amd64, and arm64 built on a Jetson) | `open-nt6_<version>_amd64.snap`, `open-nt6_<version>_arm64.snap` (`snap install open-nt6`) | `snap.yml` |
+| Any Linux with snapd (amd64, and arm64 built on a Jetson) | `open-nt6_<version>_amd64.snap`, `open-nt6_<version>_arm64.snap` (`snap install open-nt6`, from the [Snap Store](https://snapcraft.io/open-nt6)) | `snap.yml` |
 
 `libnt6-dev` / `nt6-devel` holds the headers (in `/usr/include/nt6`, so Nt can sit next to Qt), the static libraries and the CMake package; `nt6-tools` holds `ntmoc` and `ndoc`. Arch has one package with everything. In a project:
 
@@ -432,6 +435,8 @@ packaging/build.sh                       # this machine only, no container
 ```
 
 Both write to `dist/`. Or run CPack directly: `cmake -S . -B build && cmake --build build && cpack --config build/CPackConfig.cmake` picks `.deb`, `.rpm` or pacman from `/etc/os-release`; use `-G DEB`, `-G RPM` or `-G External` (pacman, through `cmake/NtPacman.cmake`) to choose.
+
+The snap is on the Snap Store as [`open-nt6`](https://snapcraft.io/open-nt6). A pre-release version such as `6.0.0-rc2` is on the `candidate` channel until a final release reaches `stable`, so install it with `sudo snap install open-nt6 --channel=candidate`. The tools are `open-nt6.ntmoc` and `open-nt6.ndoc`, and the headers, libraries and CMake package are in `/snap/open-nt6/current/usr` (pass `-DCMAKE_PREFIX_PATH=/snap/open-nt6/current/usr` to CMake).
 
 The snap has its own target, `cmake --build build --target snap`, which runs `snapcraft pack` (in LXD or Multipass) and writes `open-nt6_<version>_<arch>.snap` to the build directory. Pass more options with `-DNT_SNAPCRAFT_ARGS="..."`. In CI the arm64 snap is built on the self-hosted Jetson runner (labels `self-hosted, linux, arm64, jetson`), without a container, using `snapcraft pack --destructive-mode`; that job is skipped for pull requests.
 

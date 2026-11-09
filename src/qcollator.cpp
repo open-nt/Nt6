@@ -76,13 +76,14 @@ bool tailored(QLocale::Language lang, char32_t lower, std::uint32_t *primary) {
 // Latin letters without a canonical decomposition that sort as (sequences of) basic letters.
 const char *latinExpansion(char32_t lower) {
     switch (lower) {
-    case 0xdf: return "ss";   // ß
+    case 0xdf:                // ß
     case 0x1e9e: return "ss"; // ẞ
     case 0xe6: return "ae";   // æ
     case 0x153: return "oe";  // œ
     case 0xf8: return "o";    // ø
-    case 0x111: return "d";   // đ
-    case 0xf0: return "d";    // ð
+    case 0x111:               // đ
+    case 0xf0:
+        return "d";           // ð
     case 0x142: return "l";   // ł
     case 0x131: return "i";   // ı
     case 0x127: return "h";   // ħ

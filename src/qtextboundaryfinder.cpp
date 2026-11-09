@@ -64,7 +64,7 @@ std::vector<bool> graphemeBoundaries(const char16_t *s, qsizetype n) {
             bool brk = true;
             const Hangul hp = hangulType(prev), hc = hangulType(c);
             if (prev == u'\r' && c == u'\n')
-                brk = false;
+                brk = false; // NOLINT(bugprone-branch-clone): one branch per UAX rule
             else if (isControl(prev) || isControl(c))
                 brk = true;
             else if (hp == Hangul::L && (hc == Hangul::L || hc == Hangul::V || hc == Hangul::LV || hc == Hangul::LVT))
@@ -160,7 +160,7 @@ std::vector<bool> wordBreaks(const std::vector<WordClass> &w) {
         const WordClass a = at(i - 1), b = at(i);
         bool br = true;
         if (a == WordClass::CR && b == WordClass::LF)
-            br = false;
+            br = false; // NOLINT(bugprone-branch-clone): one branch per UAX rule
         else if (a == WordClass::CR || a == WordClass::LF || a == WordClass::Newline || b == WordClass::CR || b == WordClass::LF ||
                  b == WordClass::Newline)
             br = true;
@@ -447,6 +447,7 @@ void QTextBoundaryFinder::compute() {
     case Word: {
         const std::vector<Unit> units = clusters(s, n, gb, true);
         std::vector<WordClass> classes;
+        classes.reserve(units.size());
         for (const Unit &u : units)
             classes.push_back(wordClass(u.cp));
         const std::vector<bool> brk = wordBreaks(classes);
@@ -468,6 +469,7 @@ void QTextBoundaryFinder::compute() {
     case Sentence: {
         const std::vector<Unit> units = clusters(s, n, gb, true);
         std::vector<SentenceClass> classes;
+        classes.reserve(units.size());
         for (const Unit &u : units)
             classes.push_back(sentenceClass(u.cp));
         const std::vector<bool> brk = sentenceBreaks(classes);
@@ -503,13 +505,13 @@ void QTextBoundaryFinder::compute() {
                 --k;
             const LineClass beforeSpaces = cls[k];
             if (a == LineClass::CR && b == LineClass::LF)
-                brk = false;
+                brk = false; // NOLINT(bugprone-branch-clone): one branch per UAX rule
             else if (isHardBreak(a))
                 brk = mandatory = true;
             else if (isHardBreak(b) || b == LineClass::SP || b == LineClass::ZW)
                 brk = false;
             else if (beforeSpaces == LineClass::ZW)
-                brk = true;
+                brk = true; // NOLINT(bugprone-branch-clone): one branch per UAX rule
             else if (a == LineClass::WJ || b == LineClass::WJ || a == LineClass::GL)
                 brk = false;
             else if (b == LineClass::GL)

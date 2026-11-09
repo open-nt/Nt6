@@ -1,4 +1,15 @@
-# Builds the documentation with NDoc and publishes it to GitHub Pages.
+# Builds the documentation with NDoc and publishes it to GitHub Pages, together
+# with the apt repository (/apt) made from the .deb packages of every release.
+#
+# A Pages deployment replaces the whole site, so the apt repository is rebuilt
+# from the release assets each time; it also runs after slsa.yml, which attaches
+# the packages of a new release. The repository is signed with the key in the
+# APT_SIGNING_KEY secret (an armored private key; APT_SIGNING_PASSPHRASE if it
+# has one). Without the secret the docs are published without the repository.
+# Make the key once and keep the private part only in the secret:
+#
+#   gpg --quick-gen-key "Nt apt repository <you@example.org>" ed25519 sign 5y
+#   gpg --export-secret-keys --armor <key id> | gh secret set APT_SIGNING_KEY
 name: Docs
 
 on:
@@ -7,6 +18,9 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_run:
+    workflows: [SLSA]
+    types: [completed]
 
 permissions:
   contents: read
@@ -25,6 +39,38 @@ jobs:
         run: |
           cmake -S . -B build -DNT_BUILD_TESTS=OFF -DNT_BUILD_EXAMPLES=OFF
           cmake --build build --target docs
+
+      - name: Build the apt repository
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          NT_APT_GPG_PASSPHRASE: ${{ secrets.APT_SIGNING_PASSPHRASE }}
+        run: |
+          if [ -z "$APT_SIGNING_KEY" ]; then
+            echo "::warning::The repository secret APT_SIGNING_KEY is not set; publishing without the apt repository (see the header of docs.yml)"
+            exit 0
+          fi
+          export GNUPGHOME=$RUNNER_TEMP/gnupg
+          mkdir -m 700 "$GNUPGHOME"
+          printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
+          key=$(gpg --batch --list-secret-keys --with-colons | awk -F: '$1 == "fpr" { print $10; exit }')
+          mkdir -p "$RUNNER_TEMP/debs"
+          for tag in $(gh release list --limit 100 --exclude-drafts --json tagName --jq '.[].tagName'); do
+            # Releases without .deb assets are skipped; a failed download fails the job.
+            assets=$(gh release view "$tag" --json assets --jq '.assets[].name')
+            if grep -q '\.deb$' <<< "$assets"; then
+              gh release download "$tag" --pattern '*.deb' --dir "$RUNNER_TEMP/debs/$tag"
+            fi
+          done
+          debs=$(find "$RUNNER_TEMP/debs" -name '*.deb' | sort)
+          if [ -z "$debs" ]; then
+            echo "::warning::No release has .deb packages; publishing without the apt repository"
+            exit 0
+          fi
+          # shellcheck disable=SC2086
+          packaging/apt-repo.sh --output build/doc/html/apt --key "$key" $debs
 
       - uses: actions/upload-pages-artifact@v3
         with:

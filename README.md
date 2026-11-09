@@ -13,6 +13,7 @@
 [![Docs](https://github.com/open-nt/Nt6/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/docs.yml)
 [![SLSA](https://github.com/open-nt/Nt6/actions/workflows/slsa.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/slsa.yml)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
+[![Snap Store](https://snapcraft.io/open-nt6/badge.svg)](https://snapcraft.io/open-nt6)
 
 </p>
 
@@ -24,7 +25,7 @@ A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module b
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
 
-**Install:** `sudo snap install open-nt6` ([Snap Store](https://snapcraft.io/open-nt6)), or see [Packages](#packages) for `.deb`, `.rpm` and Arch packages.
+**Install:** `sudo snap install open-nt6` ([Snap Store](https://snapcraft.io/open-nt6)), or see [Packages](#packages) for `.deb`, `.rpm` and Arch packages. On Ubuntu, add the signed [apt repository](https://open-nt.github.io/Nt6/install.html) and `sudo apt install libnt6-dev nt6-tools`.
 
 **Branding:** logo and naming rules are in the [Nt Brand Guide](https://open-nt.github.io/Nt6/brand.html); the artwork is in [`assets/brand/`](assets/brand).
 

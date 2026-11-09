@@ -94,6 +94,33 @@
 
     \section1 Ubuntu 22.04, 24.04 and 26.04
 
+    \section2 From the apt repository
+
+    The Ubuntu packages of every release are also in a signed apt repository,
+    so that \c{apt upgrade} picks up new releases. Add its key and the sources
+    for your release (the suite is your release's code name: \c jammy,
+    \c noble or \c resolute), then install:
+
+    \code
+    sudo install -d -m 0755 /etc/apt/keyrings
+    sudo curl -fsSLo /etc/apt/keyrings/nt6.gpg https://open-nt.github.io/Nt6/apt/nt6.gpg
+    sudo tee /etc/apt/sources.list.d/nt6.sources > /dev/null <<EOF
+    Types: deb
+    URIs: https://open-nt.github.io/Nt6/apt
+    Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
+    Components: main
+    Signed-By: /etc/apt/keyrings/nt6.gpg
+    EOF
+    sudo apt update
+    sudo apt install g++ cmake libnt6-dev nt6-tools
+    \endcode
+
+    The \c main component has final releases only. For pre-releases such as
+    \c 6.1.0-rc1 as well, use \c{Components: main testing}. Until the first
+    final release, \c testing is the only component with packages.
+
+    \section2 From the downloaded packages
+
     Install the compiler and CMake, then the two packages. \c apt installs a local
     file when its name starts with \c{./} or a path:
 

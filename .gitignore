@@ -3,3 +3,6 @@ build-*/
 dist/
 *.snap
 html/
+
+# Local secrets, such as the apt signing key
+.env

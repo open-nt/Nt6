@@ -170,11 +170,13 @@ public:
     static QString cleanPath(const QString &path);
     /*!
         Returns \c true if \a path is absolute, which means it starts with a
-        slash; otherwise returns \c false.
+        slash, or with a colon for a resource; otherwise returns \c false.
 
         \sa isRelativePath()
     */
-    static bool isAbsolutePath(const QString &path) { return path.startsWith(QChar(u'/')); }
+    static bool isAbsolutePath(const QString &path) {
+        return path.startsWith(QChar(u'/')) || path.startsWith(QChar(u':'));
+    }
     /*!
         Returns \c true if \a path is relative; otherwise returns \c false.
 

@@ -78,6 +78,7 @@ add_library(NtCore
     src/qprocess.cpp
     src/qrandom.cpp
     src/qregularexpression.cpp
+    src/qresource.cpp
     src/qrunnable.cpp
     src/qsavefile.cpp
     src/qsettings.cpp
@@ -497,6 +498,14 @@ nt_moc_library(NtHttpServer include/QtHttpServer)
 nt_moc_library(NtGui include/QtGui src/gui/qpa)
 nt_moc_library(NtWidgets include/QtWidgets)
 
+# Resource compiler and its CMake helpers.
+add_executable(ntrcc tools/ntrcc/main.cpp)
+add_executable(Nt::rcc ALIAS ntrcc)
+add_executable(Qt6::rcc ALIAS ntrcc)
+target_compile_definitions(ntrcc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
+nt_set_compile_options(ntrcc)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtRcc.cmake)
+
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
 add_executable(Nt::ndoc ALIAS ndoc)
@@ -619,6 +628,25 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_test_tests PRIVATE Nt::Test)
     nt_enable_automoc(nt_test_tests)
     add_test(NAME nt_test_tests COMMAND nt_test_tests)
+
+    # Resources compiled with ntrcc in each of the ways the CMake helpers offer: from a .qrc file,
+    # from a list of files, with AUTORCC, and as a binary .rcc file read at run time.
+    nt_add_resources(resource_test_sources tests/resources/test.qrc)
+    add_executable(nt_resource_tests tests/test_resources.cpp tests/resources/autorcc.qrc ${resource_test_sources})
+    nt_add_resources(nt_resource_tests listed PREFIX /listed BASE tests/resources FILES
+                     tests/resources/hello.txt tests/resources/icons/open.svg)
+    nt_enable_autorcc(nt_resource_tests)
+    nt_add_binary_resources(nt_resource_tests_rcc tests/resources/binary.qrc
+                            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/resource_tests.rcc)
+    add_dependencies(nt_resource_tests nt_resource_tests_rcc)
+    target_include_directories(nt_resource_tests PRIVATE src)
+    target_link_libraries(nt_resource_tests PRIVATE Nt::Core)
+    target_compile_definitions(nt_resource_tests PRIVATE
+        NT_RESOURCE_RCC="${CMAKE_CURRENT_BINARY_DIR}/resource_tests.rcc"
+        NT_RCC="$<TARGET_FILE:ntrcc>"
+        NT_RESOURCE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/resources")
+    add_test(NAME nt_resource_tests COMMAND nt_resource_tests)
+    nt_set_compile_options(nt_resource_tests)
 
     add_executable(nt_logging_tests tests/test_logging.cpp tests/test_logging_nooutput.cpp)
     target_link_libraries(nt_logging_tests PRIVATE Nt::Core)

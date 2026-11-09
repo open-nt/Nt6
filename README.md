@@ -11,7 +11,6 @@
 [![Enterprise Linux 10](https://github.com/open-nt/Nt6/actions/workflows/el10.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/el10.yml)
 [![Arch Linux](https://github.com/open-nt/Nt6/actions/workflows/arch.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/arch.yml)
 [![Docs](https://github.com/open-nt/Nt6/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/docs.yml)
-[![SLSA](https://github.com/open-nt/Nt6/actions/workflows/slsa.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/slsa.yml)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
 [![Snap Store](https://snapcraft.io/open-nt6/badge.svg)](https://snapcraft.io/open-nt6)
 

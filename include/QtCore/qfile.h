@@ -5,6 +5,8 @@
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qiodevice.h>
 
+#include <memory>
+
 class QFileDevice : public QIODevice {
     Q_OBJECT
 public:
@@ -147,6 +149,10 @@ protected:
     int m_fd = -1;
     /*! \internal */
     FileError m_error = NoError;
+    /*! \internal */
+    struct ResourceData;
+    /*! \internal */
+    std::unique_ptr<ResourceData> m_resource;
 };
 
 class QFile : public QFileDevice {

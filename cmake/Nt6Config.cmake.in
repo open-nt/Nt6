@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-# Nt 6: provides Nt6::Core, Nt6::Network, Nt6::SerialPort, Nt6::DBus, Nt6::HttpServer, Nt6::WebSockets, Nt6::Gui, Nt6::Widgets, Nt6::Test, and the tools Nt6::moc and Nt6::ndoc.
+# Nt 6: provides Nt6::Core, Nt6::Network, Nt6::SerialPort, Nt6::DBus, Nt6::HttpServer, Nt6::WebSockets, Nt6::Gui, Nt6::Widgets, Nt6::Test, and the tools Nt6::moc, Nt6::rcc and Nt6::ndoc.
 # Nt::Core and friends are aliases, so code written against a build tree works unchanged.
 
 if(CMAKE_VERSION VERSION_LESS 3.18)
@@ -21,8 +21,8 @@ foreach(module Core Network SerialPort DBus HttpServer WebSockets Gui Widgets Te
     endif()
 endforeach()
 
-# NtMoc.cmake and NtDoc.cmake refer to the tools by their build-tree names.
-foreach(tool moc ndoc)
+# NtMoc.cmake, NtRcc.cmake and NtDoc.cmake refer to the tools by their build-tree names.
+foreach(tool moc rcc ndoc)
     if(NOT TARGET Nt::${tool})
         add_executable(Nt::${tool} ALIAS Nt6::${tool})
     endif()
@@ -30,11 +30,15 @@ endforeach()
 if(NOT TARGET ntmoc)
     add_executable(ntmoc ALIAS Nt6::moc)
 endif()
+if(NOT TARGET ntrcc)
+    add_executable(ntrcc ALIAS Nt6::rcc)
+endif()
 if(NOT TARGET ndoc)
     add_executable(ndoc ALIAS Nt6::ndoc)
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/NtMoc.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/NtRcc.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/NtDoc.cmake")
 
 check_required_components(Nt6)

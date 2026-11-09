@@ -4,6 +4,8 @@
 
 #include <QtCore/qfile.h>
 
+#include "qresource_p.h"
+
 #include <dirent.h>
 #include <pwd.h>
 #include <sys/stat.h>
@@ -153,11 +155,15 @@ QString normalizeStored(const QString &path) {
 }
 
 bool isDirPath(const QString &path) {
+    if (NtResource::isResourcePath(path))
+        return NtResource::find(path).dir;
     struct stat st;
     return ::stat(path.toUtf8().constData(), &st) == 0 && S_ISDIR(st.st_mode);
 }
 
 bool removeTree(const QString &path) {
+    if (NtResource::isResourcePath(path))
+        return false;
     struct stat st;
     const QByteArray native = path.toUtf8();
     if (::lstat(native.constData(), &st) != 0)
@@ -197,6 +203,11 @@ struct Entry {
     filter and a sort order. Use it to list a directory, to create, remove
     and rename entries, and to convert between relative and absolute paths.
     Paths always use \c / as the separator.
+
+    A path that starts with a colon, such as \c{:/icons}, refers to a
+    directory of \l{The Nt Resource System}{resources}. It can be listed,
+    entered and iterated with QDirIterator like any other directory, but
+    nothing can be created, removed or renamed in it.
 
     \code
     QDir dir("/var/log");
@@ -493,14 +504,26 @@ QFileInfoList QDir::entryInfoList(const QStringList &nameFilters, Filters filter
     const bool caseSensitive = f & CaseSensitive;
 
     QFileInfoList result;
-    DIR *d = ::opendir(m_path.toUtf8().constData());
-    if (!d)
-        return result;
+    QStringList names;
+    if (NtResource::isResourcePath(m_path)) {
+        // A resource directory has no "." and ".." entries.
+        const NtResource::Entry dir = NtResource::find(m_path, QLocale(), true);
+        if (!dir.dir)
+            return result;
+        names = dir.children;
+    } else {
+        DIR *d = ::opendir(m_path.toUtf8().constData());
+        if (!d)
+            return result;
+        while (const dirent *e = ::readdir(d))
+            names.append(QString::fromUtf8(e->d_name));
+        ::closedir(d);
+    }
 
     std::vector<Entry> entries;
-    while (const dirent *e = ::readdir(d)) {
+    for (const QString &name : names) {
         Entry en;
-        en.name = QString::fromUtf8(e->d_name);
+        en.name = name;
         const bool dot = en.name == QString::fromUtf8(".");
         const bool dotdot = en.name == QString::fromUtf8("..");
         if ((dot && (f & NoDot)) || (dotdot && (f & NoDotDot)))
@@ -541,7 +564,6 @@ QFileInfoList QDir::entryInfoList(const QStringList &nameFilters, Filters filter
         }
         entries.push_back(std::move(en));
     }
-    ::closedir(d);
 
     const int by = s & SortByMask;
     const bool ignoreCase = s & IgnoreCase;
@@ -583,6 +605,8 @@ QFileInfoList QDir::entryInfoList(const QStringList &nameFilters, Filters filter
     \sa mkpath(), rmdir()
 */
 bool QDir::mkdir(const QString &dirName) const {
+    if (NtResource::isResourcePath(filePath(dirName)))
+        return false;
     return ::mkdir(filePath(dirName).toUtf8().constData(), 0777) == 0;
 }
 
@@ -592,7 +616,10 @@ bool QDir::mkdir(const QString &dirName) const {
 
     \sa rmpath(), removeRecursively(), mkdir()
 */
-bool QDir::rmdir(const QString &dirName) const { return ::rmdir(filePath(dirName).toUtf8().constData()) == 0; }
+bool QDir::rmdir(const QString &dirName) const {
+    const QString path = filePath(dirName);
+    return !NtResource::isResourcePath(path) && ::rmdir(path.toUtf8().constData()) == 0;
+}
 
 /*!
     Creates \a dirPath and any missing parent directories. Returns \c true if
@@ -604,6 +631,8 @@ bool QDir::mkpath(const QString &dirPath) const {
     const QString full = cleanPath(filePath(dirPath));
     if (full.isEmpty())
         return false;
+    if (NtResource::isResourcePath(full))
+        return isDirPath(full);
     QString cur = isAbsolutePath(full) ? QString::fromUtf8("/") : QString();
     for (const QString &part : full.split(QChar(u'/'), Qt::SkipEmptyParts)) {
         if (!cur.isEmpty() && !cur.endsWith(QChar(u'/')))
@@ -625,7 +654,7 @@ bool QDir::mkpath(const QString &dirPath) const {
 */
 bool QDir::rmpath(const QString &dirPath) const {
     QString cur = cleanPath(filePath(dirPath));
-    if (::rmdir(cur.toUtf8().constData()) != 0)
+    if (NtResource::isResourcePath(cur) || ::rmdir(cur.toUtf8().constData()) != 0)
         return false;
     for (;;) {
         const qsizetype slash = cur.lastIndexOf(QChar(u'/'));
@@ -692,7 +721,11 @@ bool QDir::exists(const QString &name) const { return QFileInfo(filePath(name)).
 
     \sa exists()
 */
-bool QDir::isReadable() const { return ::access(m_path.toUtf8().constData(), R_OK | X_OK) == 0 && exists(); }
+bool QDir::isReadable() const {
+    if (NtResource::isResourcePath(m_path))
+        return exists();
+    return ::access(m_path.toUtf8().constData(), R_OK | X_OK) == 0 && exists();
+}
 
 /*!
     Converts the directory's path to an absolute path. Always returns
@@ -709,10 +742,14 @@ bool QDir::makeAbsolute() {
     Returns \a path with redundant separators and \c . components removed, and
     \c .. components resolved lexically. A trailing slash is dropped. An empty
     \a path is returned as is; a path that cleans to nothing becomes \c{.}.
+    A resource path is cleaned to one that starts with \c{:/}.
 */
 QString QDir::cleanPath(const QString &path) {
     if (path.isEmpty())
         return path;
+    // A resource path is always taken from the root of the resources.
+    if (NtResource::isResourcePath(path))
+        return QChar(u':') + cleanPath(QChar(u'/') + path.mid(1));
     const bool absolute = path.startsWith(QChar(u'/'));
     QStringList stack;
     const QString dotdot = QString::fromUtf8("..");

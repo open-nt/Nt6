@@ -120,19 +120,20 @@ public:
     bool isRelative() const { return !isAbsolute(); }
     /*!
         Returns \c true if the file's path is absolute, which means it starts
-        with a slash; otherwise returns \c false.
+        with a slash, or with a colon for a resource; otherwise returns
+        \c false.
 
         \sa isRelative()
     */
-    bool isAbsolute() const { return m_file.startsWith(QChar(u'/')); }
+    bool isAbsolute() const { return m_file.startsWith(QChar(u'/')) || m_file.startsWith(QChar(u':')); }
     bool isFile() const;
     bool isDir() const;
     bool isSymLink() const;
     /*!
-        Returns \c true if the file is the root directory; otherwise returns
-        \c false.
+        Returns \c true if the file is the root directory, or the root of the
+        resources (\c{:/}); otherwise returns \c false.
     */
-    bool isRoot() const { return absoluteFilePath() == QString("/"); }
+    bool isRoot() const { const QString a = absoluteFilePath(); return a == QString("/") || a == QString(":/"); }
     qint64 size() const;
     QDateTime lastModified() const;
     QDateTime lastRead() const;
@@ -145,6 +146,7 @@ private:
     struct Stat {
         bool exists = false;
         bool link = false;
+        bool resource = false;
         unsigned mode = 0;
         unsigned uid = 0;
         unsigned gid = 0;

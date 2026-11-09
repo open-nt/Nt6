@@ -6,7 +6,7 @@
 # clashing. Two components are installed:
 #
 #   Development  headers, static or shared libraries, CMake package
-#   Tools        ntmoc and ndoc
+#   Tools        ntmoc, ntrcc and ndoc
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -25,12 +25,13 @@ set_target_properties(NtGui PROPERTIES EXPORT_NAME Gui)
 set_target_properties(NtWidgets PROPERTIES EXPORT_NAME Widgets)
 set_target_properties(ntmoc PROPERTIES EXPORT_NAME moc)
 set_target_properties(ndoc PROPERTIES EXPORT_NAME ndoc)
+set_target_properties(ntrcc PROPERTIES EXPORT_NAME rcc)
 
 install(TARGETS NtCore NtNetwork NtSerialPort NtDBus NtWebSockets NtHttpServer NtGui NtWidgets NtTest
     EXPORT Nt6Targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
-install(TARGETS ntmoc ndoc
+install(TARGETS ntmoc ntrcc ndoc
     EXPORT Nt6Targets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 
@@ -60,6 +61,7 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/Nt6Config.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/Nt6ConfigVersion.cmake
     cmake/NtMoc.cmake
+    cmake/NtRcc.cmake
     cmake/NtDoc.cmake
     DESTINATION ${NT_INSTALL_CMAKEDIR}
     COMPONENT Development)

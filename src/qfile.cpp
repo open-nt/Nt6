@@ -6,10 +6,27 @@
 #include <QtCore/qfile.h>
 #include <QtCore/qfileinfo.h>
 
+#include "qresource_p.h"
+
 #include <algorithm>
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+
+// The contents of a resource opened by a file device. Resources are read from memory.
+struct QFileDevice::ResourceData {
+    NtResource::Entry entry;
+    qint64 pos = 0;
+};
+
+namespace {
+
+QString resourceError(const char *text) { return QString::fromUtf8(text); }
+
+constexpr mode_t kResourceMode = 0444; // resources are readable by everyone and never writable
+
+} // namespace
 
 /*!
     \class QFileDevice
@@ -83,6 +100,22 @@ bool QFileDevice::openPath(const QString &path, OpenMode mode) {
         setFileError(OpenError, QString::fromUtf8("no open mode given"));
         return false;
     }
+    if (NtResource::isResourcePath(path)) {
+        if (mode & WriteOnly) {
+            setFileError(OpenError, resourceError("Resources are read-only"));
+            return false;
+        }
+        NtResource::Entry entry = NtResource::find(path);
+        if (!entry.exists || entry.dir) {
+            setFileError(OpenError, resourceError(entry.exists ? "Is a directory" : "No such resource"));
+            return false;
+        }
+        m_resource = std::make_unique<ResourceData>();
+        m_resource->entry = std::move(entry);
+        m_error = NoError;
+        QIODevice::open(mode);
+        return true;
+    }
     int flags = mode.testFlag(ReadOnly) ? (mode.testFlag(WriteOnly) ? O_RDWR : O_RDONLY) : O_WRONLY;
     if (mode.testFlag(WriteOnly)) {
         if (!mode.testFlag(ExistingOnly))
@@ -118,6 +151,7 @@ void QFileDevice::close() {
     if (m_fd >= 0)
         ::close(m_fd);
     m_fd = -1;
+    m_resource.reset();
 }
 
 /*!
@@ -126,6 +160,8 @@ void QFileDevice::close() {
     Returns the current file position, or \c 0 if the file is not open.
 */
 qint64 QFileDevice::pos() const {
+    if (m_resource)
+        return m_resource->pos;
     if (m_fd < 0)
         return 0;
     return static_cast<qint64>(::lseek(m_fd, 0, SEEK_CUR));
@@ -139,6 +175,10 @@ qint64 QFileDevice::pos() const {
     determined.
 */
 qint64 QFileDevice::size() const {
+    if (m_resource)
+        return m_resource->entry.size;
+    if (NtResource::isResourcePath(m_name))
+        return NtResource::find(m_name).size;
     struct stat st;
     if (m_fd >= 0 && ::fstat(m_fd, &st) == 0)
         return static_cast<qint64>(st.st_size);
@@ -157,6 +197,11 @@ qint64 QFileDevice::size() const {
     \c PositionError.
 */
 bool QFileDevice::seek(qint64 offset) {
+    if (m_resource && offset >= 0) {
+        QIODevice::seek(offset);
+        m_resource->pos = offset;
+        return true;
+    }
     if (m_fd < 0 || offset < 0)
         return false;
     QIODevice::seek(offset);
@@ -298,6 +343,8 @@ QDateTime birthTime(int fd, const QString &path) {
     \sa setPermissions(), QFileInfo::permissions()
 */
 QFileDevice::Permissions QFileDevice::permissions() const {
+    if (NtResource::isResourcePath(m_name))
+        return NtResource::find(m_name).exists ? fromMode(kResourceMode) : Permissions();
     struct stat st;
     return statFile(m_fd, m_name, &st) ? fromMode(st.st_mode) : Permissions();
 }
@@ -311,6 +358,10 @@ QFileDevice::Permissions QFileDevice::permissions() const {
     \sa permissions()
 */
 bool QFileDevice::setPermissions(Permissions permissions) {
+    if (NtResource::isResourcePath(m_name)) {
+        setFileError(PermissionsError, resourceError("Resources are read-only"));
+        return false;
+    }
     const int r =
         m_fd >= 0 ? ::fchmod(m_fd, toMode(permissions)) : ::chmod(m_name.toUtf8().constData(), toMode(permissions));
     if (r != 0) {
@@ -330,6 +381,11 @@ bool QFileDevice::setPermissions(Permissions permissions) {
     \sa setFileTime(), QFileInfo::lastModified()
 */
 QDateTime QFileDevice::fileTime(FileTime time) const {
+    if (NtResource::isResourcePath(m_name)) {
+        // A resource records only when its source file was modified.
+        const qint64 ms = NtResource::find(m_name).lastModified;
+        return time == FileModificationTime && ms != 0 ? QDateTime::fromMSecsSinceEpoch(ms) : QDateTime();
+    }
     if (time == FileBirthTime)
         return birthTime(m_fd, m_name);
     struct stat st;
@@ -357,7 +413,8 @@ QDateTime QFileDevice::fileTime(FileTime time) const {
     \sa fileTime()
 */
 bool QFileDevice::setFileTime(const QDateTime &newDate, FileTime fileTime) {
-    if (!newDate.isValid() || (fileTime != FileAccessTime && fileTime != FileModificationTime)) {
+    if (!newDate.isValid() || (fileTime != FileAccessTime && fileTime != FileModificationTime) ||
+        NtResource::isResourcePath(m_name)) {
         setFileError(UnspecifiedError, QString::fromUtf8("Setting this file time is not supported"));
         return false;
     }
@@ -389,6 +446,13 @@ bool QFileDevice::setFileTime(const QDateTime &newDate, FileTime fileTime) {
     error, in which case error() is set to \c ReadError.
 */
 qint64 QFileDevice::readData(char *data, qint64 maxSize) {
+    if (m_resource) {
+        const qint64 n = std::min(maxSize, std::max<qint64>(0, m_resource->entry.size - m_resource->pos));
+        if (n > 0)
+            std::memcpy(data, m_resource->entry.data + m_resource->pos, static_cast<std::size_t>(n));
+        m_resource->pos += n;
+        return n;
+    }
     if (m_fd < 0)
         return -1;
     ssize_t n;
@@ -435,6 +499,18 @@ qint64 QFileDevice::writeData(const char *data, qint64 maxSize) {
     of bytes read.
 */
 qint64 QFileDevice::readLineData(char *data, qint64 maxSize) {
+    if (m_resource && maxSize > 0) {
+        const qint64 left = std::max<qint64>(0, m_resource->entry.size - m_resource->pos);
+        const uchar *from = m_resource->entry.data + m_resource->pos;
+        qint64 n = std::min(maxSize, left);
+        if (n <= 0)
+            return 0;
+        if (const void *nl = std::memchr(from, '\n', static_cast<std::size_t>(n)))
+            n = static_cast<const uchar *>(nl) - from + 1;
+        std::memcpy(data, from, static_cast<std::size_t>(n));
+        m_resource->pos += n;
+        return n;
+    }
     // Reads a chunk and seeks back past the newline to avoid one syscall per byte.
     if (m_fd < 0 || maxSize <= 0)
         return -1;
@@ -466,6 +542,11 @@ qint64 QFileDevice::readLineData(char *data, qint64 maxSize) {
         file.close();
     }
     \endcode
+
+    A name that starts with a colon, such as \c{:/data/config.json}, refers
+    to a \l{The Nt Resource System}{resource} compiled into the program.
+    Resources can be opened only for reading, and cannot be removed, renamed
+    or changed; copy() copies one out to a real file.
 
     QFile also has static functions to check whether a file exists and to
     remove, rename and copy files. For text and binary data, use QTextStream
@@ -540,6 +621,8 @@ bool QFile::open(OpenMode mode) {
     \sa remove()
 */
 bool QFile::exists(const QString &fileName) {
+    if (NtResource::isResourcePath(fileName))
+        return NtResource::find(fileName).exists;
     struct stat st;
     return ::stat(fileName.toUtf8().constData(), &st) == 0;
 }
@@ -552,7 +635,13 @@ bool QFile::exists(const QString &fileName) {
 
     \sa remove(), exists()
 */
-bool QFile::remove(const QString &fileName) { return ::unlink(fileName.toUtf8().constData()) == 0; }
+bool QFile::remove(const QString &fileName) {
+    if (NtResource::isResourcePath(fileName)) {
+        errno = EROFS;
+        return false;
+    }
+    return ::unlink(fileName.toUtf8().constData()) == 0;
+}
 
 /*!
     Removes the file specified by fileName(), closing it first if it is open.
@@ -593,6 +682,8 @@ bool QFile::setPermissions(Permissions permissions) { return QFileDevice::setPer
     file does not exist.
 */
 QFile::Permissions QFile::permissions(const QString &fileName) {
+    if (NtResource::isResourcePath(fileName))
+        return NtResource::find(fileName).exists ? fromMode(kResourceMode) : Permissions();
     struct stat st;
     return statFile(-1, fileName, &st) ? fromMode(st.st_mode) : Permissions();
 }
@@ -604,6 +695,8 @@ QFile::Permissions QFile::permissions(const QString &fileName) {
     \c true if successful; otherwise returns \c false.
 */
 bool QFile::setPermissions(const QString &fileName, Permissions permissions) {
+    if (NtResource::isResourcePath(fileName))
+        return false;
     return ::chmod(fileName.toUtf8().constData(), toMode(permissions)) == 0;
 }
 
@@ -653,6 +746,10 @@ bool QFile::link(const QString &linkName) {
     otherwise returns \c false.
 */
 bool QFile::link(const QString &fileName, const QString &linkName) {
+    if (NtResource::isResourcePath(linkName)) {
+        errno = EROFS;
+        return false;
+    }
     return ::symlink(fileName.toUtf8().constData(), linkName.toUtf8().constData()) == 0;
 }
 
@@ -665,6 +762,10 @@ bool QFile::link(const QString &fileName, const QString &linkName) {
     \sa rename()
 */
 bool QFile::rename(const QString &oldName, const QString &newName) {
+    if (NtResource::isResourcePath(oldName) || NtResource::isResourcePath(newName)) {
+        errno = EROFS;
+        return false;
+    }
     return ::rename(oldName.toUtf8().constData(), newName.toUtf8().constData()) == 0;
 }
 

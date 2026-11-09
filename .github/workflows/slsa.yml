@@ -55,6 +55,15 @@ jobs:
           *) echo "name=stable" >> "$GITHUB_OUTPUT" ;;
           esac
 
+      - name: Check the store credential
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          if [ -z "$SNAPCRAFT_STORE_CREDENTIALS" ]; then
+            echo "::error::The repository secret SNAPCRAFT_STORE_CREDENTIALS is not set; see the header of snap.yml"
+            exit 1
+          fi
+
       - uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}

@@ -1,0 +1,16 @@
+<!DOCTYPE RCC>
+<RCC version="1.0">
+    <!-- Files, an alias and a directory, which is added with everything in it. -->
+    <qresource prefix="/">
+        <file>hello.txt</file>
+        <file alias="renamed.txt">data/lines.txt</file>
+        <file>icons</file>
+    </qresource>
+    <qresource prefix="/text" lang="fr">
+        <file alias="greeting.txt">greeting_fr.txt</file>
+    </qresource>
+    <qresource prefix="/text">
+        <file alias="greeting.txt">greeting_en.txt</file>
+        <file alias="a &amp; b.txt">hello.txt</file>
+    </qresource>
+</RCC>

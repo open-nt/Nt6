@@ -32,8 +32,8 @@
 
     The development package (\c libnt6-dev or \c nt6-devel) holds the headers,
     the static libraries and the CMake package. The tools package holds
-    \c ntmoc, a replacement for Qt's moc, and \c ndoc, the documentation
-    generator. Install both to build a Qt-style project.
+    \c ntmoc and \c ntrcc, replacements for Qt's moc and rcc, and \c ndoc,
+    the documentation generator. Install both to build a Qt-style project.
 
     The packages need a C++17 compiler and CMake 3.18 or newer to be useful, which
     the sections below install too. Nt is statically linked, so a program built with
@@ -198,9 +198,10 @@
     \c{sudo snap install --dangerous open-nt6_<version>_<arch>.snap}. Both are
     covered by the release provenance described at the end of this page.
 
-    The commands are \c open-nt6.ntmoc and \c open-nt6.ndoc, and \c ntmoc and \c ndoc once
-    the Snap Store has granted the aliases, or after
-    \c{sudo snap alias open-nt6.ntmoc ntmoc} and \c{sudo snap alias open-nt6.ndoc ndoc}.
+    The commands are \c open-nt6.ntmoc, \c open-nt6.ntrcc and \c open-nt6.ndoc, and
+    \c ntmoc, \c ntrcc and \c ndoc once the Snap Store has granted the aliases, or after
+    \c{sudo snap alias open-nt6.ntmoc ntmoc}, \c{sudo snap alias open-nt6.ntrcc ntrcc} and
+    \c{sudo snap alias open-nt6.ndoc ndoc}.
 
     The snap is strictly confined: the tools read and write files in your home
     directory, not elsewhere. The headers, static libraries and CMake package are
@@ -232,14 +233,17 @@
     add_executable(app main.cpp counter.h)
     target_link_libraries(app PRIVATE Nt6::Network)   # Nt::Network works too
     nt_enable_automoc(app)                            # ntmoc, for Q_OBJECT classes
+    nt_enable_autorcc(app)                            # ntrcc, for .qrc files
     \endcode
 
     The package provides \c{Nt6::Core}, \c{Nt6::Network}, \c{Nt6::SerialPort}, \c{Nt6::HttpServer}, \c{Nt6::WebSockets}, \c{Nt6::Test},
-    the tools \c{Nt6::moc} and \c{Nt6::ndoc}, and the helper functions \c nt_enable_automoc(),
-    \c nt_wrap_cpp() and \c nt_add_docs(). Check the installation with:
+    the tools \c{Nt6::moc}, \c{Nt6::rcc} and \c{Nt6::ndoc}, and the helper functions
+    \c nt_enable_automoc(), \c nt_wrap_cpp(), \c nt_enable_autorcc(), \c nt_add_resources()
+    (see \l{The Nt Resource System}) and \c nt_add_docs(). Check the installation with:
 
     \code
     ntmoc --version
+    ntrcc --version
     ndoc --version
     \endcode
 

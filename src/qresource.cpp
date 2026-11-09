@@ -96,7 +96,7 @@ struct Tree {
 
     Node node(quint32 i) const {
         const uchar *p = base + nodeTable + static_cast<std::size_t>(i) * NtResource::kNodeSize;
-        const char *s = reinterpret_cast<const char *>(base + strings); // NOLINT: bytes of UTF-8 text
+        const char *s = reinterpret_cast<const char *>(base + strings);
         Node n;
         n.name = std::string_view(s + read32(p), read32(p + 4));
         n.dir = (read32(p + 8) & NtResource::kDirectoryFlag) != 0;
@@ -193,7 +193,7 @@ struct Registry {
 // The registry is never destroyed, so resources compiled into other object files can unregister
 // themselves from static destructors in any order.
 Registry &registry() {
-    static Registry *r = new Registry; // NOLINT(cppcoreguidelines-owning-memory): intentionally never freed
+    static Registry *r = new Registry; // never freed, on purpose
     return *r;
 }
 
@@ -436,7 +436,7 @@ QByteArray QResource::uncompressedData() const {
     const NtResource::Entry &e = d->get();
     if (!e.data)
         return QByteArray();
-    return QByteArray(reinterpret_cast<const char *>(e.data), static_cast<qsizetype>(e.size)); // NOLINT: bytes
+    return QByteArray(reinterpret_cast<const char *>(e.data), static_cast<qsizetype>(e.size));
 }
 
 /*!

@@ -49,14 +49,14 @@ static void testFile() {
     CHECK(readAll(":/data/../hello.txt") == "Hello, resources!\n");
 
     QFile f(":/renamed.txt");
-    CHECK(f.size() == 18);
+    CHECK(f.size() == 19);
     CHECK(f.open(QIODevice::ReadOnly));
-    CHECK(f.size() == 18);
+    CHECK(f.size() == 19);
     CHECK(f.handle() == -1);
     CHECK(f.readLine() == "first\n");
     CHECK(f.pos() == 6);
     CHECK(f.readLine() == "second\n");
-    CHECK(f.readLine() == "third");
+    CHECK(f.readLine() == "third\n");
     CHECK(f.atEnd());
     CHECK(f.read(4).isEmpty());
     CHECK(f.seek(1));
@@ -217,7 +217,7 @@ static void testResource() {
 
     r.setFileName("/data/../renamed.txt");
     CHECK(r.absoluteFilePath() == ":/renamed.txt");
-    CHECK(r.uncompressedData() == "first\nsecond\nthird");
+    CHECK(r.uncompressedData() == "first\nsecond\nthird\n");
 
     r.setFileName(":/missing");
     CHECK(!r.isValid());
@@ -268,7 +268,7 @@ static void testBinary() {
     CHECK(!QFile::exists(":/bin/bin.txt"));
     CHECK(!QResource::registerResource(rcc, "bin")); // the root must start with a slash
     CHECK(QResource::registerResource(rcc, "/bin"));
-    CHECK(readAll(":/bin/bin.txt") == "first\nsecond\nthird");
+    CHECK(readAll(":/bin/bin.txt") == "first\nsecond\nthird\n");
     CHECK(readAll(":/bin/deep/hello.txt") == "Hello, resources!\n");
     CHECK(QDir(":/").entryList().contains("bin"));
     CHECK(QDir(":/bin").entryList() == (QStringList() << "bin.txt" << "deep"));
@@ -278,7 +278,7 @@ static void testBinary() {
     CHECK(open.open(QIODevice::ReadOnly));
     CHECK(QResource::unregisterResource(rcc, "/bin"));
     CHECK(!QFile::exists(":/bin/bin.txt"));
-    CHECK(open.readAll() == "first\nsecond\nthird");
+    CHECK(open.readAll() == "first\nsecond\nthird\n");
     CHECK(!QResource::unregisterResource(rcc, "/bin"));
 
     // Registered twice, it stays until it is unregistered twice.
@@ -296,7 +296,7 @@ static void testBinary() {
     const QByteArray bytes = in.readAll();
     const auto *data = reinterpret_cast<const uchar *>(bytes.constData());
     CHECK(QResource::registerResource(data, "/mem"));
-    CHECK(readAll(":/mem/bin.txt") == "first\nsecond\nthird");
+    CHECK(readAll(":/mem/bin.txt") == "first\nsecond\nthird\n");
     CHECK(QResource::unregisterResource(data, "/mem"));
     CHECK(!QFile::exists(":/mem/bin.txt"));
     CHECK(!QResource::registerResource(static_cast<const uchar *>(nullptr)));

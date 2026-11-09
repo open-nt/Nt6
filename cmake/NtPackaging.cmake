@@ -85,7 +85,7 @@ set(CPACK_DEBIAN_DEVELOPMENT_PACKAGE_DESCRIPTION "${CPACK_PACKAGE_DESCRIPTION_SU
 set(CPACK_DEBIAN_TOOLS_PACKAGE_NAME nt6-tools)
 set(CPACK_DEBIAN_TOOLS_PACKAGE_SECTION devel)
 set(CPACK_DEBIAN_TOOLS_PACKAGE_SHLIBDEPS ON)
-set(CPACK_DEBIAN_TOOLS_PACKAGE_DESCRIPTION "ntmoc, a moc replacement, and ndoc, a documentation generator, for Nt")
+set(CPACK_DEBIAN_TOOLS_PACKAGE_DESCRIPTION "ntmoc and ntrcc, moc and rcc replacements, and ndoc, a documentation generator, for Nt")
 
 # Enterprise Linux and Fedora: nt6-devel and nt6-tools.
 set(CPACK_RPM_COMPONENT_INSTALL ON)
@@ -100,7 +100,7 @@ set(CPACK_RPM_DEVELOPMENT_PACKAGE_REQUIRES "glibc-devel, openssl-devel, libxcb-d
 set(CPACK_RPM_DEVELOPMENT_PACKAGE_SUMMARY "${CPACK_PACKAGE_DESCRIPTION_SUMMARY} (development files)")
 set(CPACK_RPM_TOOLS_PACKAGE_NAME nt6-tools)
 set(CPACK_RPM_TOOLS_PACKAGE_GROUP "Development/Tools")
-set(CPACK_RPM_TOOLS_PACKAGE_SUMMARY "ntmoc and ndoc for Nt")
+set(CPACK_RPM_TOOLS_PACKAGE_SUMMARY "ntmoc, ntrcc and ndoc for Nt")
 # Directories that belong to the system or to other packages.
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
     ${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake

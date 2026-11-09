@@ -155,8 +155,8 @@
 
     The snap carries the tools and the development files in one package. It is
     built for \c amd64 and \c arm64 (including NVIDIA Jetson) on \c core24 and is
-    published to the Snap Store as \c open-nt6. snapd picks the build for your
-    architecture:
+    published to the Snap Store as \l{https://snapcraft.io/open-nt6}{open-nt6}.
+    snapd picks the build for your architecture:
 
     \code
     sudo snap install open-nt6

@@ -35,20 +35,21 @@
     setFieldAlignment() and setPadChar(), or by the manipulators in the
     \c Qt namespace such as \c Qt::hex and \c Qt::endl.
 
-    Text on devices and byte arrays is always UTF-8.
+    Text on devices and byte arrays is UTF-8 unless setEncoding() selects
+    another encoding. A byte order mark at the start of the data selects the
+    encoding it stands for, unless setAutoDetectUnicode() turned detection
+    off.
 
     \differences
-    There is no \c setEncoding(), \c setAutoDetectUnicode(), \c setLocale()
-    or \c setGenerateByteOrderMark(): a leading byte order mark is not
-    detected and none is written. Numbers always use the "C" locale, with
+    There is no \c setLocale(): numbers always use the "C" locale, with
     \c '.' as the decimal point and no group separators. Line breaks are never
     translated; readLine() splits on a newline character and strips one
     trailing carriage return. Output to a QString pointer always appends,
     because the string is not a seekable output device. pos() on a device is
-    derived from the device position minus the UTF-8 size of the text that
-    was read ahead, which is exact for valid UTF-8 input. Reading a number
+    derived from the device position minus the encoded size of the text that
+    was read ahead, which is exact for valid input. Reading a number
     reads the longest valid numeric prefix, so \c{"12abc"} yields 12 and
-    leaves \c{"abc"}. There is no \c Qt::bom manipulator.
+    leaves \c{"abc"}.
     \enddifferences
 
     \sa QIODevice, QFile, QDataStream, QBuffer
@@ -98,22 +99,6 @@ private:
 };
 
 QString emptyString() { return QString(qsizetype(0), QChar()); }
-
-// Number of leading bytes of `b` that do not end in a truncated UTF-8 sequence.
-qsizetype completeUtf8Prefix(const QByteArray &b) {
-    const qsizetype n = b.size();
-    qsizetype i = n;
-    int back = 0;
-    while (i > 0 && back < 3 && (static_cast<uchar>(b[i - 1]) & 0xC0) == 0x80) {
-        --i;
-        ++back;
-    }
-    if (i == 0)
-        return n;
-    const uchar lead = static_cast<uchar>(b[i - 1]);
-    const int need = lead >= 0xF0 ? 4 : lead >= 0xE0 ? 3 : lead >= 0xC0 ? 2 : 1;
-    return need > back + 1 ? i - 1 : n;
-}
 
 int digitValue(QChar c) {
     const char16_t u = c.unicode();
@@ -267,7 +252,8 @@ void QTextStream::setDevice(QIODevice *device) {
     m_str = nullptr;
     m_read.clear();
     m_readPos = 0;
-    m_partial.clear();
+    m_decoderReady = false;
+    m_encoderReady = false;
 }
 
 /*!
@@ -285,7 +271,8 @@ void QTextStream::setString(QString *string, QIODeviceBase::OpenMode mode) {
     m_strMode = mode;
     m_read.clear();
     m_readPos = 0;
-    m_partial.clear();
+    m_decoderReady = false;
+    m_encoderReady = false;
 }
 
 /*!
@@ -329,13 +316,13 @@ void QTextStream::flushWrite() const {
         m_write.clear();
         return;
     }
-    const bool readAhead = m_readPos < m_read.size() || !m_partial.isEmpty();
+    const bool readAhead = m_readPos < m_read.size() || (m_decoderReady && m_decoder.m_pendingCount > 0);
     if (readAhead && !m_dev->isSequential()) {
         // Writes go where the application logically is, not where the read-ahead ended.
         const qint64 logical = pos();
         m_read.clear();
         m_readPos = 0;
-        m_partial.clear();
+        m_decoder.m_pendingCount = 0;
         m_dev->seek(logical);
     }
     const qint64 n = m_dev->write(m_write.constData(), m_write.size());
@@ -355,17 +342,25 @@ bool QTextStream::fill() const {
     char chunk[kReadChunk];
     const qint64 n = m_dev->read(chunk, sizeof chunk);
     if (n <= 0) {
-        if (m_partial.isEmpty())
+        if (!m_decoderReady || m_decoder.m_pendingCount == 0)
             return false;
-        m_read.append(QString::fromUtf8(m_partial));
-        m_partial.clear();
+        // The data ended inside a sequence: decode what is left as invalid input.
+        QStringDecoder rest(m_encoding, QStringConverter::Flag::Stateless);
+        m_read.append(
+            rest(QByteArrayView(reinterpret_cast<const char *>(m_decoder.m_pending), m_decoder.m_pendingCount)));
+        m_decoder.m_pendingCount = 0;
         return true;
     }
-    QByteArray bytes = m_partial;
-    bytes.append(chunk, n);
-    const qsizetype complete = completeUtf8Prefix(bytes);
-    m_partial = bytes.mid(complete);
-    m_read.append(QString::fromUtf8(bytes.constData(), complete));
+    const QByteArrayView bytes(chunk, n);
+    if (!m_decoderReady) {
+        if (m_autoDetect) {
+            if (const auto detected = QStringConverter::encodingForData(bytes))
+                m_encoding = *detected;
+        }
+        m_decoder = QStringDecoder(m_encoding);
+        m_decoderReady = true;
+    }
+    m_read.append(m_decoder(bytes));
     return true;
 }
 
@@ -406,7 +401,8 @@ qint64 QTextStream::pos() const {
         return 0;
     const qint64 pending = m_write.size();
     const QString unread = m_read.mid(m_readPos);
-    return m_dev->pos() - unread.toUtf8().size() - m_partial.size() + pending;
+    const qint64 pendingInput = m_decoderReady ? m_decoder.m_pendingCount : 0;
+    return m_dev->pos() - QStringEncoder(m_encoding)(unread).size() - pendingInput + pending;
 }
 
 /*!
@@ -430,7 +426,7 @@ bool QTextStream::seek(qint64 position) {
     flushWrite();
     m_read.clear();
     m_readPos = 0;
-    m_partial.clear();
+    m_decoder.m_pendingCount = 0;
     return m_dev->seek(position);
 }
 
@@ -761,7 +757,14 @@ void QTextStream::rawPut(const QString &text) {
     }
     if (!m_dev)
         return;
-    m_write.append(text.toUtf8());
+    if (!m_encoderReady) {
+        // A byte order mark is written only at the start of the output.
+        const bool atStart = m_dev->isSequential() || m_dev->pos() == 0;
+        m_encoder = QStringEncoder(m_encoding, m_writeBom && atStart ? QStringConverter::Flag::WriteBom
+                                                                     : QStringConverter::Flag::Default);
+        m_encoderReady = true;
+    }
+    m_write.append(m_encoder(text));
     if (m_write.size() >= kWriteBufferLimit)
         flushWrite();
 }
@@ -847,6 +850,10 @@ QTextStream &bin(QTextStream &s) { s.setIntegerBase(2); return s; }
 QTextStream &oct(QTextStream &s) { s.setIntegerBase(8); return s; }
 QTextStream &dec(QTextStream &s) { s.setIntegerBase(10); return s; }
 QTextStream &hex(QTextStream &s) { s.setIntegerBase(16); return s; }
+QTextStream &bom(QTextStream &s) {
+    s.setGenerateByteOrderMark(true);
+    return s;
+}
 
 QTextStream &showbase(QTextStream &s) { s.setNumberFlags(s.numberFlags() | QTextStream::ShowBase); return s; }
 QTextStream &noshowbase(QTextStream &s) { s.setNumberFlags(s.numberFlags() & ~QTextStream::NumberFlags(QTextStream::ShowBase)); return s; }
@@ -876,3 +883,24 @@ QTextStream &reset(QTextStream &s) { s.reset(); return s; }
 QTextStream &ws(QTextStream &s) { s.skipWhiteSpace(); return s; }
 
 } // namespace Qt
+
+/*!
+    \since 6.0
+    Sets the encoding of the stream to \a encoding. Buffered output is
+    written first; text read from then on is decoded with the new encoding
+    (unless Unicode detection finds a byte order mark at the start of the
+    data), and text written is encoded with it.
+
+    \sa encoding(), setAutoDetectUnicode()
+*/
+void QTextStream::setEncoding(QStringConverter::Encoding encoding) {
+    flushWrite();
+    m_encoding = encoding;
+    if (m_decoderReady) {
+        // Keep decoding from where the stream is, with the new encoding.
+        QStringDecoder next(encoding);
+        next.m_started = true;
+        m_decoder = std::move(next);
+    }
+    m_encoderReady = false;
+}

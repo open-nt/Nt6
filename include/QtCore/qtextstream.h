@@ -4,6 +4,7 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qiodevice.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qstringconverter.h>
 #include <QtCore/qstringview.h>
 
 #include <cstdio>
@@ -223,6 +224,45 @@ public:
         \sa realNumberPrecision(), setRealNumberNotation()
     */
     void setRealNumberPrecision(int p) { m_precision = p; }
+    void setEncoding(QStringConverter::Encoding encoding);
+    /*!
+        \since 6.0
+        Returns the encoding of the stream: the one set with setEncoding(),
+        or the one found by Unicode detection. The default is
+        QStringConverter::Utf8.
+
+        \sa setEncoding(), autoDetectUnicode()
+    */
+    QStringConverter::Encoding encoding() const { return m_encoding; }
+    /*!
+        Sets whether the stream detects the encoding of the data from a byte
+        order mark at its start to \a enabled. It is enabled by default.
+
+        \sa autoDetectUnicode(), encoding()
+    */
+    void setAutoDetectUnicode(bool enabled) { m_autoDetect = enabled; }
+    /*!
+        Returns \c true if the stream detects the encoding from a byte order
+        mark; otherwise returns \c false.
+
+        \sa setAutoDetectUnicode()
+    */
+    bool autoDetectUnicode() const { return m_autoDetect; }
+    /*!
+        Sets whether the stream writes a byte order mark before the first text
+        it writes, for the Unicode encodings, to \a generate. It is off by
+        default.
+
+        \sa generateByteOrderMark(), Qt::bom()
+    */
+    void setGenerateByteOrderMark(bool generate) { m_writeBom = generate; }
+    /*!
+        Returns \c true if the stream writes a byte order mark; otherwise
+        returns \c false.
+
+        \sa setGenerateByteOrderMark()
+    */
+    bool generateByteOrderMark() const { return m_writeBom; }
     /*!
         Returns the current real number precision.
 
@@ -500,7 +540,13 @@ private:
     QIODeviceBase::OpenMode m_strMode = QIODeviceBase::ReadWrite;
     mutable QString m_read;
     mutable qsizetype m_readPos = 0;
-    mutable QByteArray m_partial;
+    mutable QStringDecoder m_decoder;
+    mutable bool m_decoderReady = false;
+    mutable QStringEncoder m_encoder;
+    mutable bool m_encoderReady = false;
+    mutable QStringConverter::Encoding m_encoding = QStringConverter::Utf8; // detection in fill() can change it
+    bool m_autoDetect = true;
+    bool m_writeBom = false;
     mutable QByteArray m_write;
     mutable Status m_status = Ok;
     FieldAlignment m_align = AlignRight;
@@ -597,6 +643,11 @@ QTextStream &dec(QTextStream &s);
     returns \a s.
 */
 QTextStream &hex(QTextStream &s);
+/*!
+    Calls QTextStream::setGenerateByteOrderMark() with \c true on the
+    stream \a s and returns \a s.
+*/
+QTextStream &bom(QTextStream &s);
 /*!
     Sets the \c ShowBase number flag on the stream \a s and returns \a s.
 

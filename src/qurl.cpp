@@ -467,7 +467,7 @@ void QUrl::setAuthority(const QString &authority, ParsingMode mode) {
             const int p = portText.toInt(&ok);
             bool digits = ok;
             for (QChar c : portText)
-                digits = digits && c.isDigit();
+                digits = digits && QtPrivate::isAsciiDigit(c);
             if (digits && p <= 65535)
                 m_port = p;
             else

@@ -1,7 +1,10 @@
 // MIT License - see LICENSE
 #include <QtCore/qstring.h>
 
+#include <QtCore/qlocale.h>
+
 #include "numparse_p.h"
+#include "qunicode_p.h"
 
 #include <algorithm>
 #include <climits>
@@ -74,10 +77,18 @@ std::string encodeUtf8(const std::u16string &s) {
     return out;
 }
 
+// Simple case folding of each code point. It keeps the length (simple foldings stay in the same
+// plane), so positions found in the folded text are positions in the original.
 std::u16string foldCase(const std::u16string &s) {
-    std::u16string r(s);
-    for (char16_t &c : r)
-        c = QChar(c).toLower().unicode();
+    std::u16string r;
+    r.reserve(s.size());
+    const qsizetype n = static_cast<qsizetype>(s.size());
+    for (qsizetype i = 0; i < n;) {
+        int len = 1;
+        const char32_t c = QtPrivate::Unicode::codePointAt(s.data(), n, i, &len);
+        QtPrivate::Unicode::appendUtf16(r, QtPrivate::Unicode::foldCase(c));
+        i += len;
+    }
     return r;
 }
 
@@ -132,11 +143,10 @@ std::u16string pad(std::u16string s, int fieldWidth, char16_t fill, bool numeric
     \differences
     The string is a thin wrapper around \c std::u16string and copies on
     assignment; there is no implicit sharing, so fromRawData() copies its
-    argument. Case conversion, case-insensitive comparison and QChar
-    classification cover ASCII, Latin-1, Latin Extended-A, Greek and Cyrillic
-    only. localeAwareCompare() uses QCollator, whose collation is
-    simplified; toLocal8Bit() and fromLocal8Bit() use UTF-8, and a \c{%L1}
-    place marker in arg() is handled like \c{%1}. count() returns 0 for an
+    argument. Case-insensitive comparison and searching use the simple case
+    folding of each character, so \c{"ß"} does not match \c{"ss"}.
+    localeAwareCompare() uses QCollator, whose collation is
+    simplified; toLocal8Bit() and fromLocal8Bit() use UTF-8. count() returns 0 for an
     empty argument. Functions taking QStringView or QLatin1StringView are
     mostly missing; use the QString overloads. section() has no
     QRegularExpression overload. Not provided are \c normalized(),
@@ -401,26 +411,43 @@ QString QString::simplified() const {
 }
 
 /*!
-    Returns an uppercase copy of the string. Case mapping is per character
-    (see QChar::toUpper()); special cases such as the German sharp s are not
-    expanded.
+    Returns an uppercase copy of the string, using the full case mappings of
+    Unicode: characters such as U+00DF (\c{"ß"}) become several characters
+    (\c{"SS"}), so the result can be longer. Characters outside the Basic
+    Multilingual Plane are converted too.
 
-    \sa toLower(), QChar::toUpper()
+    \sa toLower(), toCaseFolded(), QChar::toUpper()
 */
 QString QString::toUpper() const {
-    std::u16string r(d);
-    for (char16_t &c : r)
-        c = QChar(c).toUpper().unicode();
-    return QString(r);
+    if (isNull())
+        return QString();
+    return QString(QtPrivate::Unicode::convertCase(d, QtPrivate::Unicode::CaseConversion::Upper));
 }
 
 /*!
-    Returns a lowercase copy of the string. Case mapping is per character
-    (see QChar::toLower()).
+    Returns a lowercase copy of the string, using the full case mappings of
+    Unicode.
 
     \sa toUpper(), toCaseFolded(), QChar::toLower()
 */
-QString QString::toLower() const { return QString(foldCase(d)); }
+QString QString::toLower() const {
+    if (isNull())
+        return QString();
+    return QString(QtPrivate::Unicode::convertCase(d, QtPrivate::Unicode::CaseConversion::Lower));
+}
+
+/*!
+    Returns the case folded equivalent of the string, for comparing text
+    regardless of case. Full case folding is used, so \c{"Straße"} folds to
+    \c{"strasse"}.
+
+    \sa toLower(), compare()
+*/
+QString QString::toCaseFolded() const {
+    if (isNull())
+        return QString();
+    return QString(QtPrivate::Unicode::convertCase(d, QtPrivate::Unicode::CaseConversion::Fold));
+}
 
 /*!
     Returns a copy of this string repeated \a times times. An empty string is
@@ -629,12 +656,17 @@ QStringList QString::split(QChar sep, Qt::SplitBehavior behavior, Qt::CaseSensit
     return split(QString(sep), behavior, cs);
 }
 
-static std::u16string substituteLowest(const std::u16string &s, const std::u16string &rep) {
+// Replaces the lowest-numbered place marker with rep, or with localized (if given) where the marker
+// is written %Ln.
+static std::u16string substituteLowest(const std::u16string &s, const std::u16string &rep,
+                                       const std::u16string *localized = nullptr) {
+    bool isLocalized = false;
     auto parse = [&](std::size_t i, std::size_t &after) -> int {
         if (i >= s.size() || s[i] != u'%')
             return -1;
         std::size_t j = i + 1;
-        if (j < s.size() && s[j] == u'L')
+        isLocalized = j < s.size() && s[j] == u'L';
+        if (isLocalized)
             ++j;
         if (j >= s.size() || s[j] < u'0' || s[j] > u'9')
             return -1;
@@ -657,7 +689,7 @@ static std::u16string substituteLowest(const std::u16string &s, const std::u16st
     for (std::size_t i = 0; i < s.size();) {
         std::size_t after;
         if (parse(i, after) == lowest) {
-            out += rep;
+            out += isLocalized && localized ? *localized : rep;
             i = after;
         } else {
             out.push_back(s[i++]);
@@ -691,10 +723,16 @@ QString QString::arg(const QString &a, int fieldWidth, QChar fillChar) const {
     Replaces the lowest-numbered place marker with the integer \a a written in
     \a base (2 to 36; other values mean 10), padded to \a fieldWidth with
     \a fillChar. When padding a negative number with \c{'0'}, the zeros follow
-    the minus sign.
+    the minus sign. A marker written \c{%L1} is replaced by the number as the
+    default QLocale writes it, with group separators, when \a base is 10.
 */
 QString QString::arg(qlonglong a, int fieldWidth, int base, QChar fillChar) const {
-    return QString(substituteLowest(d, pad(ascii16(QtPrivate::signedToString(a, base)), fieldWidth, fillChar.unicode(), true)));
+    const std::u16string plain = pad(ascii16(QtPrivate::signedToString(a, base)), fieldWidth, fillChar.unicode(), true);
+    if (base == 10 && d.find(u"%L") != std::u16string::npos) {
+        const std::u16string localized = pad(QLocale().toString(a).u16string(), fieldWidth, fillChar.unicode(), true);
+        return QString(substituteLowest(d, plain, &localized));
+    }
+    return QString(substituteLowest(d, plain));
 }
 
 /*!
@@ -704,7 +742,13 @@ QString QString::arg(qlonglong a, int fieldWidth, int base, QChar fillChar) cons
     written in \a base, padded to \a fieldWidth with \a fillChar.
 */
 QString QString::arg(qulonglong a, int fieldWidth, int base, QChar fillChar) const {
-    return QString(substituteLowest(d, pad(ascii16(QtPrivate::intToString(a, false, base)), fieldWidth, fillChar.unicode(), true)));
+    const std::u16string plain =
+        pad(ascii16(QtPrivate::intToString(a, false, base)), fieldWidth, fillChar.unicode(), true);
+    if (base == 10 && d.find(u"%L") != std::u16string::npos) {
+        const std::u16string localized = pad(QLocale().toString(a).u16string(), fieldWidth, fillChar.unicode(), true);
+        return QString(substituteLowest(d, plain, &localized));
+    }
+    return QString(substituteLowest(d, plain));
 }
 
 /*!
@@ -712,10 +756,18 @@ QString QString::arg(qulonglong a, int fieldWidth, int base, QChar fillChar) con
 
     Replaces the lowest-numbered place marker with the floating-point value
     \a a, formatted as described for number() using \a format and
-    \a precision, and padded to \a fieldWidth with \a fillChar.
+    \a precision, and padded to \a fieldWidth with \a fillChar. A marker
+    written \c{%L1} is replaced by the value as the default QLocale writes it.
 */
 QString QString::arg(double a, int fieldWidth, char format, int precision, QChar fillChar) const {
-    return QString(substituteLowest(d, pad(ascii16(QtPrivate::formatDouble(a, format, precision)), fieldWidth, fillChar.unicode(), true)));
+    const std::u16string plain =
+        pad(ascii16(QtPrivate::formatDouble(a, format, precision)), fieldWidth, fillChar.unicode(), true);
+    if (d.find(u"%L") != std::u16string::npos) {
+        const std::u16string localized =
+            pad(QLocale().toString(a, format, precision).u16string(), fieldWidth, fillChar.unicode(), true);
+        return QString(substituteLowest(d, plain, &localized));
+    }
+    return QString(substituteLowest(d, plain));
 }
 
 /*!

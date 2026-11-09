@@ -722,10 +722,24 @@ public:
     friend QList operator+(const QList &a, const QList &b) { QList r(a); r.append(b); return r; }
     friend bool operator==(const QList &a, const QList &b) { return a.d == b.d; }
     friend bool operator!=(const QList &a, const QList &b) { return a.d != b.d; }
-    friend bool operator<(const QList &a, const QList &b) { return a.d < b.d; }
-    friend bool operator<=(const QList &a, const QList &b) { return a.d <= b.d; }
-    friend bool operator>(const QList &a, const QList &b) { return a.d > b.d; }
-    friend bool operator>=(const QList &a, const QList &b) { return a.d >= b.d; }
+    // The relational operators exist only for element types that have operator<, so that type
+    // traits (such as the ones QMetaType uses) see whether a list can be ordered.
+    template <typename U = T, typename = decltype(std::declval<const U &>() < std::declval<const U &>())>
+    friend bool operator<(const QList &a, const QList &b) {
+        return a.d < b.d;
+    }
+    template <typename U = T, typename = decltype(std::declval<const U &>() < std::declval<const U &>())>
+    friend bool operator<=(const QList &a, const QList &b) {
+        return a.d <= b.d;
+    }
+    template <typename U = T, typename = decltype(std::declval<const U &>() < std::declval<const U &>())>
+    friend bool operator>(const QList &a, const QList &b) {
+        return a.d > b.d;
+    }
+    template <typename U = T, typename = decltype(std::declval<const U &>() < std::declval<const U &>())>
+    friend bool operator>=(const QList &a, const QList &b) {
+        return a.d >= b.d;
+    }
 
 private:
     Container d;

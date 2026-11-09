@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <iterator>
+#include <string>
 
 namespace QtPrivate {
 namespace Unicode {
@@ -92,6 +93,44 @@ inline char32_t toUpper(char32_t c) {
         return c >= u'a' && c <= u'z' ? c - 32 : c;
     return mapCase(UnicodeData::uppercaseMappings, c);
 }
+inline char32_t toTitle(char32_t c) {
+    if (c < 0x80)
+        return toUpper(c);
+    return mapCase(UnicodeData::titlecaseMappings, c);
+}
+
+inline void appendUtf16(std::u16string &out, char32_t c) {
+    if (c >= 0x10000) {
+        out.push_back(static_cast<char16_t>(0xd800 + ((c - 0x10000) >> 10)));
+        out.push_back(static_cast<char16_t>(0xdc00 + ((c - 0x10000) & 0x3ff)));
+    } else {
+        out.push_back(static_cast<char16_t>(c));
+    }
+}
+
+enum class CaseConversion { Lower, Upper, Fold };
+
+// Appends the full case mapping of c, which may be several characters (U+00DF uppercases to "SS").
+inline void appendFullCase(std::u16string &out, char32_t c, CaseConversion kind) {
+    if (c >= 0x80) {
+        const auto *first = kind == CaseConversion::Upper   ? std::begin(UnicodeData::specialUppercase)
+                            : kind == CaseConversion::Lower ? std::begin(UnicodeData::specialLowercase)
+                                                            : std::begin(UnicodeData::specialCaseFoldings);
+        const auto *last = kind == CaseConversion::Upper   ? std::end(UnicodeData::specialUppercase)
+                           : kind == CaseConversion::Lower ? std::end(UnicodeData::specialLowercase)
+                                                           : std::end(UnicodeData::specialCaseFoldings);
+        const auto *it = std::lower_bound(first, last, c,
+                                          [](const UnicodeData::SpecialCasing &m, char32_t v) { return m.code < v; });
+        if (it != last && it->code == c) {
+            for (char32_t m : it->mapped)
+                if (m)
+                    appendUtf16(out, m);
+            return;
+        }
+    }
+    appendUtf16(out, kind == CaseConversion::Upper ? toUpper(c)
+                                                   : (kind == CaseConversion::Lower ? toLower(c) : foldCase(c)));
+}
 
 // Splits a precomposed letter into its base letter and first combining mark. Returns false (and
 // leaves the outputs alone) if the character has no such decomposition.
@@ -128,6 +167,20 @@ inline char32_t codePointBefore(const char16_t *s, qsizetype i, int *len) {
     }
     *len = 1;
     return c;
+}
+
+// Returns s with the full case conversion kind applied to each code point.
+inline std::u16string convertCase(const std::u16string &s, CaseConversion kind) {
+    std::u16string out;
+    out.reserve(s.size());
+    const qsizetype n = static_cast<qsizetype>(s.size());
+    for (qsizetype i = 0; i < n;) {
+        int len = 1;
+        const char32_t c = codePointAt(s.data(), n, i, &len);
+        appendFullCase(out, c, kind);
+        i += len;
+    }
+    return out;
 }
 
 } // namespace Unicode

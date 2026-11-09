@@ -546,13 +546,7 @@ public:
     QString simplified() const;
     QString toUpper() const;
     QString toLower() const;
-    /*!
-        Returns the case folded equivalent of the string. This is the same as
-        toLower().
-
-        \sa toLower()
-    */
-    QString toCaseFolded() const { return toLower(); }
+    QString toCaseFolded() const;
     QString repeated(qsizetype times) const;
     QString leftJustified(qsizetype width, QChar fill = QChar(u' '), bool truncate = false) const;
     QString rightJustified(qsizetype width, QChar fill = QChar(u' '), bool truncate = false) const;

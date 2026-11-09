@@ -2680,11 +2680,11 @@ QString &QString::replace(const QRegularExpression &re, const QString &after) {
         result.append(source.mid(last, m.capturedStart() - last));
         for (qsizetype k = 0; k < after.size(); ++k) {
             const QChar c = after.at(k);
-            if (c == u'\\' && k + 1 < after.size() && after.at(k + 1).isDigit()) {
-                int num = after.at(k + 1).digitValue();
+            if (c == u'\\' && k + 1 < after.size() && QtPrivate::isAsciiDigit(after.at(k + 1))) {
+                int num = after.at(k + 1).unicode() - u'0';
                 qsizetype used = 1;
-                if (k + 2 < after.size() && after.at(k + 2).isDigit()) {
-                    const int two = num * 10 + after.at(k + 2).digitValue();
+                if (k + 2 < after.size() && QtPrivate::isAsciiDigit(after.at(k + 2))) {
+                    const int two = num * 10 + (after.at(k + 2).unicode() - u'0');
                     if (two <= groups) {
                         num = two;
                         used = 2;

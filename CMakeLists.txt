@@ -28,6 +28,8 @@ configure_file(cmake/qconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/QtCore/q
 
 add_library(NtCore
     src/dispatcher.cpp
+    src/qabstractitemmodel.cpp
+    src/qabstractproxymodel.cpp
     src/qbuffer.cpp
     src/qbytearray.cpp
     src/qcalendar.cpp
@@ -35,6 +37,7 @@ add_library(NtCore
     src/qchronotimer.cpp
     src/qcollator.cpp
     src/qcommandlineparser.cpp
+    src/qconcatenatetablesproxymodel.cpp
     src/qcoreapplication.cpp
     src/qcoreevent.cpp
     src/qcryptographichash.cpp
@@ -50,7 +53,9 @@ add_library(NtCore
     src/qfileinfo.cpp
     src/qfilesystemwatcher.cpp
     src/qfloat16.cpp
+    src/qidentityproxymodel.cpp
     src/qiodevice.cpp
+    src/qitemselectionmodel.cpp
     src/qjsonarray.cpp
     src/qjsondocument.cpp
     src/qjsonobject.cpp
@@ -67,6 +72,7 @@ add_library(NtCore
     src/qmetatype.cpp
     src/qmetatype_convert.cpp
     src/qmetatype_streams.cpp
+    src/qmimedata.cpp
     src/qobject.cpp
     src/qobjectcleanuphandler.cpp
     src/qprocess.cpp
@@ -78,9 +84,11 @@ add_library(NtCore
     src/qsettings_ini.cpp
     src/qsignalmapper.cpp
     src/qsocketnotifier.cpp
+    src/qsortfilterproxymodel.cpp
     src/qstandardpaths.cpp
     src/qstring.cpp
     src/qstringconverter.cpp
+    src/qstringlistmodel.cpp
     src/qsysinfo.cpp
     src/qtemporaryfile.cpp
     src/qtextboundaryfinder.cpp
@@ -92,6 +100,7 @@ add_library(NtCore
     src/qtimer.cpp
     src/qtimezone.cpp
     src/qtranslator.cpp
+    src/qtransposeproxymodel.cpp
     src/qurl.cpp
     src/quuid.cpp
     src/qvariant.cpp
@@ -525,7 +534,7 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_core_tests PRIVATE Nt::Core)
     add_test(NAME nt_core_tests COMMAND nt_core_tests)
 
-    foreach(suite datetime filesystem streams text types)
+    foreach(suite datetime filesystem models streams text types)
         add_executable(nt_${suite}_tests tests/test_${suite}.cpp)
         target_link_libraries(nt_${suite}_tests PRIVATE Nt::Core)
         add_test(NAME nt_${suite}_tests COMMAND nt_${suite}_tests)
@@ -776,7 +785,7 @@ if(NT_BUILD_TESTS)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
                            nt_test_tests)
-    foreach(suite datetime filesystem streams text types)
+    foreach(suite datetime filesystem models streams text types)
         nt_set_compile_options(nt_${suite}_tests)
     endforeach()
 endif()

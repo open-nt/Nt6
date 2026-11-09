@@ -66,13 +66,17 @@ public:
 
         \sa internalId()
     */
-    void *internalPointer() const noexcept { return reinterpret_cast<void *>(i); }
+    void *internalPointer() const noexcept {
+        return reinterpret_cast<void *>(i); // NOLINT(performance-no-int-to-ptr): the id holds the model's pointer
+    }
     /*!
         \since 6.0
         Returns the pointer the model stored in the index, as a pointer to
         const.
     */
-    const void *constInternalPointer() const noexcept { return reinterpret_cast<const void *>(i); }
+    const void *constInternalPointer() const noexcept {
+        return reinterpret_cast<const void *>(i); // NOLINT(performance-no-int-to-ptr): the id holds the model's pointer
+    }
     QModelIndex parent() const;
     QModelIndex sibling(int row, int column) const;
     QModelIndex siblingAtColumn(int column) const;
@@ -113,9 +117,7 @@ private:
     const QAbstractItemModel *m = nullptr;
 };
 
-/*! \typedef QModelIndexList
-
-    A list of QModelIndex. */
+// A list of model indexes.
 using QModelIndexList = QList<QModelIndex>;
 
 inline std::size_t qHash(const QModelIndex &index, std::size_t seed = 0) noexcept {

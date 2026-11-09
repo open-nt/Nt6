@@ -626,12 +626,22 @@ public:
         return a.sz == b.sz && std::equal(a.begin(), a.end(), b.begin());
     }
     friend bool operator!=(const QVarLengthArray &a, const QVarLengthArray &b) { return !(a == b); }
+    template <typename U = T, typename = decltype(std::declval<const U &>() < std::declval<const U &>())>
     friend bool operator<(const QVarLengthArray &a, const QVarLengthArray &b) {
         return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
     }
-    friend bool operator>(const QVarLengthArray &a, const QVarLengthArray &b) { return b < a; }
-    friend bool operator<=(const QVarLengthArray &a, const QVarLengthArray &b) { return !(b < a); }
-    friend bool operator>=(const QVarLengthArray &a, const QVarLengthArray &b) { return !(a < b); }
+    template <typename U = T, typename = decltype(std::declval<const U &>() < std::declval<const U &>())>
+    friend bool operator>(const QVarLengthArray &a, const QVarLengthArray &b) {
+        return b < a;
+    }
+    template <typename U = T, typename = decltype(std::declval<const U &>() < std::declval<const U &>())>
+    friend bool operator<=(const QVarLengthArray &a, const QVarLengthArray &b) {
+        return !(b < a);
+    }
+    template <typename U = T, typename = decltype(std::declval<const U &>() < std::declval<const U &>())>
+    friend bool operator>=(const QVarLengthArray &a, const QVarLengthArray &b) {
+        return !(a < b);
+    }
 
 private:
     T *inlineData() noexcept { return reinterpret_cast<T *>(storage); }

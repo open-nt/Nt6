@@ -1,8 +1,9 @@
 // MIT License - see LICENSE
 #include <QtCore/qchar.h>
 
-// Case mapping and classification cover ASCII, Latin-1, Latin Extended-A, Greek and
-// Cyrillic only; other scripts are returned unchanged.
+#include "qunicode_p.h"
+
+namespace U = QtPrivate::Unicode;
 
 /*!
     \class QChar
@@ -10,149 +11,170 @@
 
     A QChar holds one UTF-16 code unit. Characters outside the Basic
     Multilingual Plane are represented by a pair of QChar surrogates; see
-    isHighSurrogate() and isLowSurrogate(). QChar is the element type of
-    QString.
+    isHighSurrogate(), isLowSurrogate() and surrogateToUcs4(). QChar is the
+    element type of QString.
 
     The classification functions (isLetter(), isSpace(), isUpper() and so on)
-    and the case conversions (toLower(), toUpper()) are implemented with
-    built-in tables rather than the full Unicode database.
+    and the case conversions (toLower(), toUpper(), toCaseFolded()) use the
+    general categories and the simple case mappings of the Unicode database
+    (version 16). Each also has a static overload that takes a full code point
+    as a \c char32_t.
+
+    \code
+    QChar::isLetter(U'\U0001D400');   // true: MATHEMATICAL BOLD CAPITAL A
+    QChar(u'Σ').toLower();            // σ
+    QChar(u'٣').digitValue();         // 3
+    \endcode
 
     \differences
-    Classification and case mapping cover ASCII, Latin-1, Latin Extended-A,
-    Greek and Cyrillic only (isLetter() also recognizes the Japanese kana, CJK
-    ideographs and Hangul syllables); characters from other scripts are
-    returned unchanged. isNumber() and digitValue() recognize only the ASCII
-    digits, and toCaseFolded() is the same as toLower(). The surrogate-pair
-    helpers (\c requiresSurrogates(), \c fromUcs4(), \c toUcs4()), the
-    \c category(), \c script() and \c decomposition() functions, \c isMark(),
-    \c isSymbol() and the \c Category, \c Script and \c Direction enums are not
-    provided. QChar has no \c char32_t constructor.
+    The \c script(), \c direction(), \c joiningType(), \c combiningClass(),
+    \c decomposition() and \c unicodeVersion() functions, the \c Script,
+    \c Direction, \c Decomposition and \c JoiningType enums and
+    \c fromUcs4() are not provided, and QChar has no \c char32_t
+    constructor. digitValue() recognizes decimal digits only, not other
+    numbers such as superscript digits.
     \enddifferences
 
     \sa QString, QLatin1Char
 */
 
 /*!
-    Returns \c true if this is a letter; otherwise returns \c false.
-
-    Classification covers ASCII, Latin-1, Latin Extended, Greek, Cyrillic,
-    Hiragana, Katakana, CJK ideographs and Hangul syllables. Letters from
-    other scripts are not recognized.
-
-    \sa isLetterOrNumber(), isUpper(), isLower()
+    Returns the general category of the code point \a ucs4.
 */
-bool QChar::isLetter() const noexcept {
-    const char16_t c = ucs;
-    if ((c >= u'a' && c <= u'z') || (c >= u'A' && c <= u'Z'))
-        return true;
-    if (c < 0xaa)
-        return false;
-    if (c == 0xaa || c == 0xb5 || c == 0xba)
-        return true;
-    if (c >= 0xc0 && c <= 0x24f)
-        return c != 0xd7 && c != 0xf7;
-    return (c >= 0x370 && c <= 0x3ff && c != 0x37e && c != 0x387) || (c >= 0x400 && c <= 0x481) ||
-           (c >= 0x48a && c <= 0x52f) || (c >= 0x3040 && c <= 0x30ff) || (c >= 0x4e00 && c <= 0x9fff) ||
-           (c >= 0xac00 && c <= 0xd7a3);
+QChar::Category QChar::category(char32_t ucs4) noexcept { return static_cast<Category>(U::category(ucs4)); }
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is a decimal digit of any script.
+*/
+bool QChar::isDigit(char32_t ucs4) noexcept {
+    if (ucs4 < 0x80)
+        return ucs4 >= u'0' && ucs4 <= u'9';
+    return U::isDigit(ucs4);
 }
 
 /*!
-    Returns \c true if this is a white space character, including the
-    control characters U+0009 to U+000D, U+0085, the no-break space and the
-    Unicode space separators; otherwise returns \c false.
+    \overload
+    Returns \c true if \a ucs4 is a number of any kind.
 */
-bool QChar::isSpace() const noexcept {
-    const char16_t c = ucs;
-    return c == u' ' || (c >= 0x09 && c <= 0x0d) || c == 0x85 || c == 0xa0 || c == 0x1680 ||
-           (c >= 0x2000 && c <= 0x200a) || c == 0x2028 || c == 0x2029 || c == 0x202f || c == 0x205f ||
-           c == 0x3000;
+bool QChar::isNumber(char32_t ucs4) noexcept {
+    if (ucs4 < 0x80)
+        return ucs4 >= u'0' && ucs4 <= u'9';
+    return U::isNumber(ucs4);
 }
 
 /*!
-    Returns \c true if this is an uppercase letter, that is a letter
-    whose toLower() is a different character; otherwise returns \c false.
-
-    \sa isLower(), toUpper()
+    \overload
+    Returns \c true if \a ucs4 is a letter.
 */
-bool QChar::isUpper() const noexcept { return isLetter() && toLower().ucs != ucs; }
-
-/*!
-    Returns \c true if this is a lowercase letter, that is a letter whose
-    toUpper() is a different character; otherwise returns \c false.
-
-    \sa isUpper(), toLower()
-*/
-bool QChar::isLower() const noexcept { return isLetter() && toUpper().ucs != ucs; }
-
-/*!
-    Returns \c true if this is a punctuation character; otherwise returns
-    \c false.
-
-    Classification covers ASCII, a few Latin-1 characters and the General
-    Punctuation block (U+2010 to U+205E).
-*/
-bool QChar::isPunct() const noexcept {
-    const char16_t c = ucs;
-    if (c < 0x80)
-        return (c >= 0x21 && c <= 0x2f && c != u'$' && c != u'+') ||
-               (c >= 0x3a && c <= 0x40 && c != u'<' && c != u'=' && c != u'>') ||
-               (c >= 0x5b && c <= 0x60 && c != u'^' && c != u'`') || c == u'{' || c == u'}';
-    return c == 0xa1 || c == 0xa7 || c == 0xab || c == 0xb6 || c == 0xb7 || c == 0xbb || c == 0xbf ||
-           (c >= 0x2010 && c <= 0x2027) || (c >= 0x2030 && c <= 0x205e);
+bool QChar::isLetter(char32_t ucs4) noexcept {
+    if (ucs4 < 0x80)
+        return (ucs4 >= u'a' && ucs4 <= u'z') || (ucs4 >= u'A' && ucs4 <= u'Z');
+    return U::isLetter(ucs4);
 }
 
 /*!
-    Returns the lowercase equivalent of this character, or the character
-    itself if it has none.
-
-    Case mapping covers ASCII, Latin-1, Latin Extended-A, Greek and
-    Cyrillic only.
-
-    \sa toUpper(), toCaseFolded()
+    \overload
+    Returns \c true if \a ucs4 is a letter or a number.
 */
-QChar QChar::toLower() const noexcept {
-    const char16_t c = ucs;
-    if (c < 0x80)
-        return (c >= u'A' && c <= u'Z') ? QChar(char16_t(c + 32)) : *this;
-    if ((c >= 0xc0 && c <= 0xde && c != 0xd7))
-        return QChar(char16_t(c + 32));
-    if ((c >= 0x100 && c <= 0x137) || (c >= 0x14a && c <= 0x177))
-        return (c % 2 == 0) ? QChar(char16_t(c + 1)) : *this;
-    if ((c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17e))
-        return (c % 2 == 1) ? QChar(char16_t(c + 1)) : *this;
-    if (c >= 0x391 && c <= 0x3a9 && c != 0x3a2)
-        return QChar(char16_t(c + 32));
-    if (c >= 0x410 && c <= 0x42f)
-        return QChar(char16_t(c + 32));
-    if (c >= 0x400 && c <= 0x40f)
-        return QChar(char16_t(c + 80));
-    return *this;
+bool QChar::isLetterOrNumber(char32_t ucs4) noexcept {
+    if (ucs4 < 0x80)
+        return (ucs4 >= u'a' && ucs4 <= u'z') || (ucs4 >= u'A' && ucs4 <= u'Z') || (ucs4 >= u'0' && ucs4 <= u'9');
+    return U::isLetterOrNumber(ucs4);
 }
 
 /*!
-    Returns the uppercase equivalent of this character, or the character
-    itself if it has none.
-
-    Case mapping covers ASCII, Latin-1, Latin Extended-A, Greek and
-    Cyrillic only.
-
-    \sa toLower()
+    \overload
+    Returns \c true if \a ucs4 is white space.
 */
-QChar QChar::toUpper() const noexcept {
-    const char16_t c = ucs;
-    if (c < 0x80)
-        return (c >= u'a' && c <= u'z') ? QChar(char16_t(c - 32)) : *this;
-    if (c >= 0xe0 && c <= 0xfe && c != 0xf7)
-        return QChar(char16_t(c - 32));
-    if ((c >= 0x100 && c <= 0x137) || (c >= 0x14a && c <= 0x177))
-        return (c % 2 == 1) ? QChar(char16_t(c - 1)) : *this;
-    if ((c >= 0x139 && c <= 0x148) || (c >= 0x179 && c <= 0x17e))
-        return (c % 2 == 0) ? QChar(char16_t(c - 1)) : *this;
-    if (c >= 0x3b1 && c <= 0x3c9 && c != 0x3c2)
-        return QChar(char16_t(c - 32));
-    if (c >= 0x430 && c <= 0x44f)
-        return QChar(char16_t(c - 32));
-    if (c >= 0x450 && c <= 0x45f)
-        return QChar(char16_t(c - 80));
-    return *this;
+bool QChar::isSpace(char32_t ucs4) noexcept {
+    if (ucs4 < 0x80)
+        return ucs4 == u' ' || (ucs4 >= 0x09 && ucs4 <= 0x0d);
+    return U::isSpace(ucs4);
 }
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is an uppercase letter.
+*/
+bool QChar::isUpper(char32_t ucs4) noexcept {
+    if (ucs4 < 0x80)
+        return ucs4 >= u'A' && ucs4 <= u'Z';
+    return U::category(ucs4) == U::Letter_Uppercase;
+}
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is a lowercase letter.
+*/
+bool QChar::isLower(char32_t ucs4) noexcept {
+    if (ucs4 < 0x80)
+        return ucs4 >= u'a' && ucs4 <= u'z';
+    return U::isLower(ucs4);
+}
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is a titlecase letter.
+*/
+bool QChar::isTitleCase(char32_t ucs4) noexcept { return ucs4 >= 0x80 && U::category(ucs4) == U::Letter_Titlecase; }
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is punctuation.
+*/
+bool QChar::isPunct(char32_t ucs4) noexcept { return U::isPunct(ucs4); }
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is a combining mark.
+*/
+bool QChar::isMark(char32_t ucs4) noexcept { return ucs4 >= 0x300 && U::isMark(ucs4); }
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is a symbol.
+*/
+bool QChar::isSymbol(char32_t ucs4) noexcept { return U::isSymbol(ucs4); }
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is printable: neither a control character nor
+    unassigned.
+*/
+bool QChar::isPrint(char32_t ucs4) noexcept {
+    if (ucs4 < 0x80)
+        return ucs4 >= 0x20 && ucs4 != 0x7f;
+    const U::Category k = U::category(ucs4);
+    return k != U::Other_Control && k != U::Other_NotAssigned;
+}
+
+/*!
+    \overload
+    Returns the value of \a ucs4 if it is a decimal digit, or -1.
+*/
+int QChar::digitValue(char32_t ucs4) noexcept { return U::digitValue(ucs4); }
+
+/*!
+    \overload
+    Returns the simple lowercase mapping of \a ucs4.
+*/
+char32_t QChar::toLower(char32_t ucs4) noexcept { return U::toLower(ucs4); }
+
+/*!
+    \overload
+    Returns the simple uppercase mapping of \a ucs4.
+*/
+char32_t QChar::toUpper(char32_t ucs4) noexcept { return U::toUpper(ucs4); }
+
+/*!
+    \overload
+    Returns the simple titlecase mapping of \a ucs4.
+*/
+char32_t QChar::toTitleCase(char32_t ucs4) noexcept { return U::toTitle(ucs4); }
+
+/*!
+    \overload
+    Returns the simple case folding of \a ucs4.
+*/
+char32_t QChar::toCaseFolded(char32_t ucs4) noexcept { return U::foldCase(ucs4); }

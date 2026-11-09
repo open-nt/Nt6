@@ -120,6 +120,7 @@ public:
     static QStringList availableCodecs();
 
 protected:
+    friend class QTextStream;
     /*!
         Constructs an invalid converter.
     */

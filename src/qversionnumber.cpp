@@ -118,11 +118,11 @@ QVersionNumber QVersionNumber::fromString(QStringView string, qsizetype *suffixI
     QList<int> seg;
     qsizetype i = 0, consumed = 0;
     const qsizetype n = string.size();
-    while (i < n && string[i].isDigit()) {
+    while (i < n && QtPrivate::isAsciiDigit(string[i])) {
         qlonglong v = 0;
         bool overflow = false;
         qsizetype start = i;
-        while (i < n && string[i].isDigit()) {
+        while (i < n && QtPrivate::isAsciiDigit(string[i])) {
             v = v * 10 + (string[i].unicode() - u'0');
             if (v > std::numeric_limits<int>::max()) {
                 overflow = true;
@@ -136,7 +136,7 @@ QVersionNumber QVersionNumber::fromString(QStringView string, qsizetype *suffixI
         }
         seg.append(static_cast<int>(v));
         consumed = i;
-        if (i + 1 < n && string[i] == QChar(u'.') && string[i + 1].isDigit())
+        if (i + 1 < n && string[i] == QChar(u'.') && QtPrivate::isAsciiDigit(string[i + 1]))
             ++i;
         else
             break;

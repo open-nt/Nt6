@@ -178,7 +178,7 @@ QString formatTokens(const QString &f, QDate date, QTime time, const QDateTime *
 
 bool readInt(const QString &s, qsizetype &pos, int minDigits, int maxDigits, int *out) {
     int v = 0, digits = 0;
-    while (pos < s.size() && digits < maxDigits && s[pos].isDigit()) {
+    while (pos < s.size() && digits < maxDigits && QtPrivate::isAsciiDigit(s[pos])) {
         v = v * 10 + (s[pos].unicode() - u'0');
         ++pos;
         ++digits;
@@ -316,7 +316,7 @@ qsizetype parseIsoTime(const QString &s, qsizetype pos, QTime *out) {
         if (pos < s.size() && (s[pos] == QChar(u'.') || s[pos] == QChar(u','))) {
             ++pos;
             int digits = 0, value = 0;
-            while (pos < s.size() && s[pos].isDigit()) {
+            while (pos < s.size() && QtPrivate::isAsciiDigit(s[pos])) {
                 if (digits < 3) {
                     value = value * 10 + (s[pos].unicode() - u'0');
                     ++digits;
@@ -695,7 +695,7 @@ QDate QDate::fromString(const QString &string, Qt::DateFormat format) {
     switch (format) {
     case Qt::ISODate:
     case Qt::ISODateWithMs:
-        if (string.size() < 10 || (string.size() > 10 && string[10].isDigit()))
+        if (string.size() < 10 || (string.size() > 10 && QtPrivate::isAsciiDigit(string[10])))
             return QDate();
         return fromString(string.left(10), QString("yyyy-MM-dd"));
     case Qt::RFC2822Date: {

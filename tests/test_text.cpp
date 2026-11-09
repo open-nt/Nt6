@@ -802,6 +802,125 @@ static void testTranslator() {
     CHECK(file.load(dir + u"/app_pl.qm"_s));
 }
 
+// ------------------------------------------------------------------ Unicode in QChar and QString
+
+static void testUnicodeCharAndString() {
+    CHECK(QChar(u'Ж').isLetter() && QChar(u'Ж').isUpper() && QChar(u'ж').isLower() && QChar(u'Ж').toLower() == u'ж');
+    CHECK(QChar(u'ا').isLetter() && QChar(u'क').isLetter() && QChar(u'ก').isLetter() && !QChar(u'·').isLetter());
+    CHECK(QChar(u'Ǆ').isUpper() && QChar(u'ǅ').isTitleCase() && QChar(u'ǆ').toTitleCase() == u'ǅ' &&
+          QChar(u'ǆ').toUpper() == u'Ǆ');
+    CHECK(QChar(u'٣').isDigit() && QChar(u'٣').digitValue() == 3 && QChar(u'७').digitValue() == 7 &&
+          QChar(u'x').digitValue() == -1);
+    CHECK(QChar(u'½').isNumber() && !QChar(u'½').isDigit() && QChar(u'Ⅻ').isNumber() &&
+          QChar(u'Ⅻ').category() == QChar::Number_Letter);
+    CHECK(QChar(u'́').isMark() && QChar(u'€').isSymbol() && QChar(u'«').isPunct() && QChar(u'　').isSpace() &&
+          QChar(u' ').isSpace());
+    CHECK(QChar(u'A').category() == QChar::Letter_Uppercase && QChar(u'​').category() == QChar::Other_Format &&
+          QChar(u'\x7f').category() == QChar::Other_Control && QChar(0xe000).category() == QChar::Other_PrivateUse);
+    CHECK(!QChar(u'\x07').isPrint() && QChar(u'ä').isPrint() && !QChar(0x0378).isPrint() &&
+          QChar(0xfffe).isNonCharacter());
+    CHECK(QChar(u'ẞ').toCaseFolded() == u'ß' && QChar(u'Σ').toCaseFolded() == u'σ' &&
+          QChar(u'ς').toCaseFolded() == u'σ');
+    CHECK(QChar(u'ß').toUpper() == u'ß'); // the simple mapping has no single-character uppercase
+    // Code points outside the BMP, through the static overloads.
+    CHECK(QChar::isLetter(char32_t(0x1D400)) && QChar::isUpper(char32_t(0x1D400)) &&
+          QChar::category(char32_t(0x1F600)) == QChar::Symbol_Other);
+    CHECK(QChar::toLower(char32_t(0x10400)) == 0x10428 && QChar::toUpper(char32_t(0x10428)) == 0x10400 &&
+          QChar::isDigit(char32_t(0x1D7CE)));
+    CHECK(QChar::digitValue(char32_t(0x1D7D0)) == 2 && QChar::isSpace(char32_t(' ')) &&
+          !QChar::isLetter(char32_t(0x110000)));
+    CHECK(QChar::requiresSurrogates(0x1F600) && !QChar::requiresSurrogates(0xFFFF) &&
+          QChar::highSurrogate(0x1F600) == 0xd83d && QChar::lowSurrogate(0x1F600) == 0xde00 &&
+          QChar::surrogateToUcs4(char16_t(0xd83d), char16_t(0xde00)) == 0x1F600);
+    CHECK(QChar::surrogateToUcs4(QChar(0xd83d), QChar(0xde00)) == 0x1F600 && QChar::isHighSurrogate(char32_t(0xd800)) &&
+          QChar::isLowSurrogate(char32_t(0xdfff)) && QChar::isSurrogate(char32_t(0xdabc)) &&
+          !QChar::isSurrogate(char32_t(0xe000)));
+
+    CHECK(u"straße"_s.toUpper() == u"STRASSE"_s && u"ﬁ"_s.toUpper() == u"FI"_s && u"İ"_s.toLower() == u"i̇"_s);
+    CHECK(u"ΣΊΣΥΦΟΣ"_s.toLower() == u"σίσυφοσ"_s && u"ǆemal"_s.toUpper() == u"ǄEMAL"_s);
+    CHECK(u"Straße"_s.toCaseFolded() == u"strasse"_s && u"ΣΑΣ"_s.toCaseFolded() == u"σασ"_s);
+    CHECK(u"\U00010400x"_s.toLower() == u"\U00010428x"_s && u"\U00010428"_s.toUpper() == u"\U00010400"_s);
+    CHECK(QString().toUpper().isNull() && QString(u""_s).toLower().isEmpty());
+    // Case-insensitive search uses simple folding and keeps positions.
+    CHECK(u"ПРИВЕТ мир"_s.indexOf(u"привет"_s, 0, Qt::CaseInsensitive) == 0 &&
+          u"aΣb"_s.indexOf(u"ς"_s, 0, Qt::CaseInsensitive) == 1);
+    CHECK(u"x\U00010400y"_s.indexOf(u"\U00010428y"_s, 0, Qt::CaseInsensitive) == 1);
+    CHECK(QString::compare(u"ÄÖÜ"_s, u"äöü"_s, Qt::CaseInsensitive) == 0 &&
+          u"ǅ"_s.compare(u"ǆ"_s, Qt::CaseInsensitive) == 0);
+    // Number parsers still accept only ASCII digits.
+    CHECK(QVersionNumber::fromString(u"١.٢"_s).isNull() && !QDate::fromString(u"٢٠٢٤-01-01"_s, Qt::ISODate).isValid());
+    CHECK(u"\\1"_s.isEmpty() == false);
+}
+
+static void testArgLocalized() {
+    const QLocale saved;
+    QLocale::setDefault(QLocale(QLocale::German));
+    CHECK(u"%1 and %L1"_s.arg(1234567) == u"1234567 and 1.234.567"_s);
+    CHECK(u"%L1"_s.arg(qulonglong(1000)) == u"1.000"_s && u"%L1"_s.arg(1234.5, 0, 'f', 1) == u"1.234,5"_s);
+    CHECK(u"%L1 %2"_s.arg(1000).arg(u"x"_s) == u"1.000 x"_s && u"%L1"_s.arg(255, 0, 16) == u"ff"_s);
+    CHECK(u"[%L1]"_s.arg(1234, 8) == u"[   1.234]"_s);
+    QLocale::setDefault(QLocale::c());
+    CHECK(u"%L1"_s.arg(1234567) == u"1234567"_s);
+    QLocale::setDefault(saved);
+}
+
+static void testTextStreamEncodings() {
+    QByteArray out;
+    {
+        QTextStream ts(&out, QIODevice::WriteOnly);
+        CHECK(ts.encoding() == QStringConverter::Utf8 && ts.autoDetectUnicode() && !ts.generateByteOrderMark());
+        ts.setEncoding(QStringConverter::Utf16LE);
+        ts << Qt::bom << u"Aé"_s;
+        CHECK(ts.generateByteOrderMark() && ts.encoding() == QStringConverter::Utf16LE);
+    }
+    CHECK(out == QByteArray("\xff\xfe\x41\x00\xe9\x00", 6));
+    {
+        // The byte order mark is detected and selects UTF-16LE.
+        QTextStream in(out);
+        CHECK(in.readAll() == u"Aé"_s && in.encoding() == QStringConverter::Utf16LE);
+    }
+    {
+        QTextStream in(out);
+        in.setAutoDetectUnicode(false);
+        in.setEncoding(QStringConverter::Latin1);
+        CHECK(in.readAll().size() == 6);
+    }
+    QByteArray latin;
+    {
+        QTextStream ts(&latin, QIODevice::WriteOnly);
+        ts.setEncoding(QStringConverter::Latin1);
+        ts << u"café €"_s;
+    }
+    CHECK(latin == QByteArray("caf\xe9 ?"));
+    {
+        QTextStream in(latin);
+        in.setEncoding(QStringConverter::Latin1);
+        CHECK(in.readLine() == u"café ?"_s);
+    }
+    // A UTF-8 byte order mark is skipped, and positions count bytes of the encoding.
+    QByteArray utf8("\xef\xbb\xbfGr\xc3\xbc\xc3\x9f"
+                    "e\nnext");
+    {
+        QTextStream in(utf8);
+        CHECK(in.readLine() == u"Grüße"_s && in.pos() == 11 && in.readLine() == u"next"_s);
+    }
+    QByteArray utf32("\x00\x00\xfe\xff\x00\x01\xf6\x00\x00\x00\x00\x41", 12);
+    {
+        QTextStream in(utf32);
+        CHECK(in.readAll() == u"\U0001F600A"_s && in.encoding() == QStringConverter::Utf32BE);
+    }
+    QBuffer device;
+    device.open(QIODevice::ReadWrite);
+    {
+        QTextStream ts(&device);
+        ts.setGenerateByteOrderMark(true);
+        ts << u"x"_s;
+        ts.flush();
+        ts << u"y"_s; // no second byte order mark
+    }
+    CHECK(device.data() == QByteArray("\xef\xbb\xbfxy"));
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testRegexBasics();
@@ -821,6 +940,9 @@ int main(int argc, char **argv) {
     testCollator();
     testBoundaryFinder();
     testTranslator();
+    testUnicodeCharAndString();
+    testArgLocalized();
+    testTextStreamEncodings();
     if (g_failures == 0)
         std::puts("all text tests passed");
     return g_failures == 0 ? 0 : 1;

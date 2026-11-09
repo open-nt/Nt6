@@ -1,8 +1,8 @@
 # MIT License - see LICENSE
 #
 # The snap of Nt: the ntmoc and ndoc tools, plus the headers, static libraries
-# and CMake package under /snap/nt6/current/usr. Built by .github/workflows/snap.yml.
-name: nt6
+# and CMake package under /snap/open-nt6/current/usr. Built by .github/workflows/snap.yml.
+name: open-nt6
 title: Nt
 summary: Clean-room subset of the Qt 6 API, with its moc replacement and doc generator
 description: |
@@ -10,8 +10,8 @@ description: |
 
   This snap provides ntmoc, a replacement for Qt's moc, and ndoc, the
   documentation generator. The headers, static libraries and CMake package
-  are in /snap/nt6/current/usr; build against them with
-  -DCMAKE_PREFIX_PATH=/snap/nt6/current/usr.
+  are in /snap/open-nt6/current/usr; build against them with
+  -DCMAKE_PREFIX_PATH=/snap/open-nt6/current/usr.
 website: https://open-nt.github.io/Nt6/
 source-code: https://github.com/open-nt/Nt6
 issues: https://github.com/open-nt/Nt6/issues

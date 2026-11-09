@@ -506,6 +506,7 @@ endif()
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtInstall.cmake)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtPackaging.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtSnap.cmake)
 endif()
 
 if(NT_BUILD_TESTS)

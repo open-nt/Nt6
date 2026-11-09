@@ -32,9 +32,35 @@ jobs:
     uses: ./.github/workflows/arch.yml
   snap:
     uses: ./.github/workflows/snap.yml
-    with:
-      publish: ${{ startsWith(github.ref, 'refs/tags/') }}
-    secrets: inherit
+
+  # Not a dependency of the hash and release jobs: a failed publish (for example
+  # a missing store credential) must not stop the packages reaching the release.
+  snap-publish:
+    name: Publish the snap to the Snap Store
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [snap]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages-snap
+          path: dist
+
+      - name: Pick the snap and the channel
+        id: channel
+        run: |
+          echo "snap=$(ls "$GITHUB_WORKSPACE"/dist/open-nt6_*.snap)" >> "$GITHUB_OUTPUT"
+          case "$GITHUB_REF_NAME" in
+          v*-*) echo "name=candidate" >> "$GITHUB_OUTPUT" ;;
+          *) echo "name=stable" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      - uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.channel.outputs.snap }}
+          release: ${{ steps.channel.outputs.name }}
 
   # The subjects of the provenance: the SHA-256 of every package.
   hash:

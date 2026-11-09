@@ -468,7 +468,9 @@ static void testTokenizer() {
     for (QStringView part : qTokenize(line, u',', Qt::SkipEmptyParts))
         parts << part.toString();
     CHECK((parts == QStringList{u"a"_s, u"b"_s, u"c"_s}));
-    const QList<QStringView> views = qTokenize(u"x--y--z"_s, u"--").toContainer();
+    // Views from toContainer() point into the haystack, which must outlive them.
+    const QString dashed = u"x--y--z"_s;
+    const QList<QStringView> views = qTokenize(dashed, u"--").toContainer();
     CHECK(views.size() == 3 && views.at(2) == u"z");
     // A temporary haystack is kept alive by the tokenizer.
     CHECK(qTokenize(QString(u"p;q"_s), u';').toContainer().at(1) == u"q");

@@ -87,7 +87,7 @@
     Every build of the main branch also uploads its packages as artifacts of the
     workflow run, named \c packages-ubuntu-22.04, \c packages-ubuntu-24.04,
     \c packages-ubuntu-26.04, \c packages-el9, \c packages-el10,
-    \c packages-arch and \c packages-snap.
+    \c packages-arch, \c packages-snap and \c packages-snap-arm64.
 
     \note Install the packages built for your system. A package built for another
     release of the same system is not tested there and is not supported.
@@ -154,15 +154,23 @@
     \section1 Snap
 
     The snap carries the tools and the development files in one package. It is
-    built for \c amd64 on \c core24 and is published to the Snap Store as \c open-nt6:
+    built for \c amd64 and \c arm64 (including NVIDIA Jetson) on \c core24 and is
+    published to the Snap Store as \c open-nt6. snapd picks the build for your
+    architecture:
 
     \code
     sudo snap install open-nt6
     \endcode
 
-    A release candidate is on the \c candidate channel; add \c{--channel=candidate}.
-    To install the snap of a release instead, download \c{open-nt6_6.1.0_amd64.snap}
-    from the releases page and run \c{sudo snap install --dangerous open-nt6_6.1.0_amd64.snap}.
+    Releases of a pre-release version (\c 6.0.0-rc2, for example) are on the \c candidate
+    channel until a final release reaches \c stable; until then install with
+    \c{sudo snap install open-nt6 --channel=candidate}.
+
+    To install the snap of a release instead, download \c{open-nt6_<version>_amd64.snap}
+    or \c{open-nt6_<version>_arm64.snap} from the releases page and run
+    \c{sudo snap install --dangerous open-nt6_<version>_<arch>.snap}. Both are
+    covered by the release provenance described at the end of this page.
+
     The commands are \c open-nt6.ntmoc and \c open-nt6.ndoc, and \c ntmoc and \c ndoc once
     the Snap Store has granted the aliases, or after
     \c{sudo snap alias open-nt6.ntmoc ntmoc} and \c{sudo snap alias open-nt6.ndoc ndoc}.
@@ -172,6 +180,19 @@
     in \c{/snap/open-nt6/current/usr}; to build against them, pass
     \c{-DCMAKE_PREFIX_PATH=/snap/open-nt6/current/usr} to CMake. Remove the snap with
     \c{sudo snap remove open-nt6}.
+
+    To build the snap yourself, configure Nt and build the \c snap target:
+
+    \code
+    cmake -S . -B build
+    cmake --build build --target snap
+    \endcode
+
+    This runs \c snapcraft in LXD or Multipass and writes
+    \c{open-nt6_<version>_<arch>.snap} to the build directory. The arm64 snap is
+    built in CI on a Jetson, where there is no container runtime, with
+    \c{snapcraft pack --destructive-mode}; pass that with
+    \c{-DNT_SNAPCRAFT_ARGS=--destructive-mode} on a machine running Ubuntu 24.04.
 
     \section1 Using Nt
 

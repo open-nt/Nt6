@@ -25,6 +25,7 @@ grade: stable
 
 platforms:
   amd64:
+  arm64:
 
 apps:
   ntmoc:

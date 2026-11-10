@@ -66,6 +66,16 @@ using QtMessageHandler = void (*)(QtMsgType, const QMessageLogContext &, const Q
 QtMessageHandler qInstallMessageHandler(QtMessageHandler handler);
 
 void qSetMessagePattern(const QString &messagePattern);
+// The text the system has for an error number; for errno if errorCode is -1.
+QString qt_error_string(int errorCode = -1);
+// Logs a critical message that ends with the text of an error number, in parentheses: of errno, or of code.
+#if defined(__GNUC__) || defined(__clang__)
+void qErrnoWarning(const char *msg, ...) __attribute__((format(printf, 1, 2)));
+void qErrnoWarning(int code, const char *msg, ...) __attribute__((format(printf, 2, 3)));
+#else
+void qErrnoWarning(const char *msg, ...);
+void qErrnoWarning(int code, const char *msg, ...);
+#endif
 QString qFormatLogMessage(QtMsgType type, const QMessageLogContext &context, const QString &str);
 
 #ifdef QT_NO_MESSAGELOGCONTEXT

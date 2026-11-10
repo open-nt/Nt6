@@ -94,6 +94,9 @@ private:
         return category;                        \
     }
 
+// A category that only the file it is defined in can use.
+#define Q_STATIC_LOGGING_CATEGORY(name, ...) static Q_LOGGING_CATEGORY(name, __VA_ARGS__)
+
 // The first argument of a category macro is the category; the rest, if any, goes to the logger.
 #define NT_LOG_CATEGORY_(first, ...) first
 

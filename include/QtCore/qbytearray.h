@@ -743,3 +743,5 @@ inline QByteArray operator""_ba(const char *s, std::size_t n) { return QByteArra
 #define QByteArrayLiteral(str) QByteArray(str, static_cast<qsizetype>(sizeof(str) - 1))
 
 #include <QtCore/qlist.h>
+// qgetenv() and the other functions of the environment come with the byte array, as they do with Qt's qglobal.h.
+#include <QtCore/qtenvironmentvariables.h>

@@ -96,6 +96,7 @@ add_library(NtCore
     src/qstringlistmodel.cpp
     src/qsysinfo.cpp
     src/qtemporaryfile.cpp
+    src/qtenvironmentvariables.cpp
     src/qtextboundaryfinder.cpp
     src/qtextstream.cpp
     src/qthread.cpp
@@ -635,7 +636,7 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_core_tests PRIVATE Nt::Core)
     add_test(NAME nt_core_tests COMMAND nt_core_tests)
 
-    foreach(suite coreapi datetime filesystem models streams text types)
+    foreach(suite coreapi datetime filesystem globals models streams text types)
         add_executable(nt_${suite}_tests tests/test_${suite}.cpp)
         target_link_libraries(nt_${suite}_tests PRIVATE Nt::Core)
         add_test(NAME nt_${suite}_tests COMMAND nt_${suite}_tests)
@@ -928,7 +929,7 @@ if(NT_BUILD_TESTS)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
                            nt_test_tests)
-    foreach(suite coreapi datetime filesystem models streams text types)
+    foreach(suite coreapi datetime filesystem globals models streams text types)
         nt_set_compile_options(nt_${suite}_tests)
     endforeach()
 endif()

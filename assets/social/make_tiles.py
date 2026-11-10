@@ -193,7 +193,40 @@ def banner():
     t.save("nt-social-7-banner-1500x500.png")
 
 
-for fn in (hero, code_tile, modules_tile, widgets_tile, contribute_tile, card, banner):
+# ---- 8. GitHub social preview 1280x640 ----
+def github_preview():
+    """The repository's social preview. GitHub asks for 1280x640 and crops the edges in some places, so everything
+    that matters stays 80 px inside."""
+    t = Tile(1280, 640)
+    pad = 80
+    t.paste(mark(92), pad, 70)
+    t.text(pad + 92 + 22, 70 + 46, "Nt", FONT("Bold", 56), WHITE, "lm")
+    t.text(pad, 186, "Write Qt.", FONT("Bold", 108), WHITE)
+    t.text(pad, 186 + 104, "Ship MIT.", FONT("Bold", 108), NEON)
+    t.wrap(pad, 448, "A small, clean-room implementation of the Qt 6 API, built module by module.",
+           FONT("Regular", 27), 560, MUTED, 1.3)
+    x = pad
+    for label in ("MIT", "C++17", "Linux first"):
+        f = FONT("SemiBold", 19)
+        w = t.width(label, f) + 36
+        t.chip(label, f, x + w, 552, fg=NEON, bg=(22, 72, 61), height=36)
+        x += w + 12
+    page = Image.open(f"{REPO}/doc/images/hello-widgets-nt.png").convert("RGBA")  # the first tab, Nt
+    pw_t, ph_t = 460, 480
+    page = page.resize((pw_t * S, int(page.height * pw_t / page.width * S)), Image.LANCZOS).crop((0, 0, pw_t * S, ph_t * S))
+    mask = Image.new("L", page.size, 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, page.width, page.height), 20 * S, fill=255)
+    page.putalpha(mask)
+    x = t.w - pad - pw_t
+    y = (t.h - ph_t) / 2
+    t.rrect((x - 3, y - 3, x + pw_t + 3, y + ph_t + 3), 22, fill=(30, 90, 77))
+    t.paste(page, x, y)
+    t.text(pad, t.h - 30, "Nt is a clean-room implementation of the Qt 6 API and is not affiliated with The Qt Company.",
+           FONT("Regular", 13), (110, 150, 140), "lm")
+    t.save("nt-social-8-github-1280x640.png")
+
+
+for fn in (hero, code_tile, modules_tile, widgets_tile, contribute_tile, card, banner, github_preview):
     fn()
 
 # a contact sheet for a quick look

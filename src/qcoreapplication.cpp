@@ -11,6 +11,7 @@
 
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <climits>
 #include <cstdio>
@@ -32,6 +33,43 @@
 
 namespace {
 std::atomic<QCoreApplication *> g_self{nullptr};
+
+// The routines of qAddPreRoutine() and qAddPostRoutine(). They are registered from static initializers too, so the
+// lists are made on first use.
+struct Routines {
+    std::mutex mutex;
+    std::vector<QtStartUpFunction> pre;
+    std::vector<QtCleanUpFunction> post;
+};
+Routines &routines() {
+    static Routines r;
+    return r;
+}
+
+void callPreRoutines() {
+    std::vector<QtStartUpFunction> pre;
+    {
+        const std::lock_guard<std::mutex> lock(routines().mutex);
+        pre = routines().pre;
+    }
+    for (QtStartUpFunction function : pre)
+        function();
+}
+
+// Last added, first called. A routine may add or remove routines, so the lock is not held while one runs.
+void callPostRoutines() {
+    for (;;) {
+        QtCleanUpFunction function = nullptr;
+        {
+            const std::lock_guard<std::mutex> lock(routines().mutex);
+            if (routines().post.empty())
+                return;
+            function = routines().post.back();
+            routines().post.pop_back();
+        }
+        function();
+    }
+}
 QStringList g_arguments;
 QString g_appName;
 QString g_appVersion;
@@ -91,6 +129,7 @@ QCoreApplication::QCoreApplication(int &argc, char **argv) {
     g_arguments.clear();
     for (int i = 0; argv && i < argc; ++i)
         g_arguments.append(QString::fromUtf8(argv[i]));
+    callPreRoutines();
 }
 
 /*!
@@ -98,10 +137,35 @@ QCoreApplication::QCoreApplication(int &argc, char **argv) {
     \c nullptr.
 */
 QCoreApplication::~QCoreApplication() {
+    callPostRoutines();
     // Like Qt, wait for the global thread pool so that its tasks cannot outlive the application.
     QtPrivate::waitForGlobalThreadPool();
     QCoreApplication *expected = this;
     g_self.compare_exchange_strong(expected, nullptr);
+}
+
+void qAddPreRoutine(QtStartUpFunction function) {
+    if (!function)
+        return;
+    {
+        const std::lock_guard<std::mutex> lock(routines().mutex);
+        routines().pre.push_back(function);
+    }
+    if (g_self.load())
+        function();
+}
+
+void qAddPostRoutine(QtCleanUpFunction function) {
+    if (!function)
+        return;
+    const std::lock_guard<std::mutex> lock(routines().mutex);
+    routines().post.push_back(function);
+}
+
+void qRemovePostRoutine(QtCleanUpFunction function) {
+    const std::lock_guard<std::mutex> lock(routines().mutex);
+    auto &post = routines().post;
+    post.erase(std::remove(post.begin(), post.end(), function), post.end());
 }
 
 /*!

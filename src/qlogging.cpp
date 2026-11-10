@@ -9,6 +9,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <cerrno>
 #include <chrono>
 #include <cstdarg>
 #include <cstdint>
@@ -18,6 +19,7 @@
 #include <ctime>
 #include <mutex>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "qlogging_p.h"
@@ -480,6 +482,32 @@ QDebug QMessageLogger::makeStream(QtMsgType type, const QLoggingCategory *cat) c
     stream.s->category = cat ? cat->categoryName() : (m_context.category ? m_context.category : "default");
     stream.s->output = type == QtFatalMsg || !cat || cat->isEnabled(type);
     return stream;
+}
+
+QString qt_error_string(int errorCode) {
+    if (errorCode == -1)
+        errorCode = errno;
+    return QString::fromStdString(std::generic_category().message(errorCode));
+}
+
+static void errnoWarning(int code, const char *msg, va_list ap) {
+    const QString text = QString::fromStdString(vformat(msg, ap));
+    qt_message_output(QtCriticalMsg, QMessageLogContext(), text + QString(" (") + qt_error_string(code) + QString(")"));
+}
+
+void qErrnoWarning(const char *msg, ...) {
+    const int code = errno; // before anything below can change it
+    va_list ap;
+    va_start(ap, msg);
+    errnoWarning(code, msg, ap);
+    va_end(ap);
+}
+
+void qErrnoWarning(int code, const char *msg, ...) {
+    va_list ap;
+    va_start(ap, msg);
+    errnoWarning(code, msg, ap);
+    va_end(ap);
 }
 
 void QMessageLogger::logFormatted(QtMsgType type, const QLoggingCategory *cat, const char *msg, va_list ap) const {

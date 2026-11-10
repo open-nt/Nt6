@@ -71,6 +71,22 @@ signals:
 
 #define qApp QCoreApplication::instance()
 
+using QtStartUpFunction = void (*)();
+using QtCleanUpFunction = void (*)();
+// Calls the function from the constructor of the application object, or at once if there is one already.
+void qAddPreRoutine(QtStartUpFunction function);
+// Calls the function when the application object is destroyed; the routines run last added, first called.
+void qAddPostRoutine(QtCleanUpFunction function);
+void qRemovePostRoutine(QtCleanUpFunction function);
+// Registers a function of the file to run when the application object is constructed.
+#define Q_COREAPP_STARTUP_FUNCTION(AFUNC)                                                                              \
+    static void AFUNC##_ctor_function() { qAddPreRoutine(AFUNC); }                                                     \
+    namespace {                                                                                                        \
+    static const struct AFUNC##_ctor_class_ {                                                                          \
+        AFUNC##_ctor_class_() { AFUNC##_ctor_function(); }                                                             \
+    } AFUNC##_ctor_instance_;                                                                                          \
+    }
+
 #define Q_DECLARE_TR_FUNCTIONS(context)                                                                                \
 public:                                                                                                                \
     static QString tr(const char *sourceText, const char *disambiguation = nullptr, int n = -1) {                      \

@@ -20,13 +20,96 @@
 
 # Nt ("Nut")
 
-A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial), `Nt SVG`, `Nt Concurrent` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
+**Write Qt. Ship MIT.** Nt is a small, MIT-licensed, clean-room implementation of the Qt 6 API in C++17. It keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`, `QHttpServer`), so code written for Qt compiles against Nt, and it links statically by default.
 
-**Documentation:** <https://open-nt.github.io/Nt6/>
+- **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`) are MIT licensed, so you can link Nt statically into any program, open or closed.
+- **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
-**Install:** `sudo snap install open-nt6` ([Snap Store](https://snapcraft.io/open-nt6)), or see [Packages](#packages) for `.deb`, `.rpm` and Arch packages. On Ubuntu, add the signed [apt repository](https://open-nt.github.io/Nt6/install.html) and `sudo apt install libnt6-dev nt6-tools`.
+Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
 
-**Branding:** logo and naming rules are in the [Nt Brand Guide](https://open-nt.github.io/Nt6/brand.html); the artwork is in [`assets/brand/`](assets/brand).
+**[Documentation](https://open-nt.github.io/Nt6/)** · **[Install](https://open-nt.github.io/Nt6/install.html)** · **[Examples](examples)** · **[Contributing](CONTRIBUTING.md)** · **[Discussions](https://github.com/open-nt/Nt6/discussions)**
+
+## Quick start
+
+A web service in one file, `main.cpp`:
+
+```cpp
+#include <QtCore>
+#include <QtHttpServer>
+#include <QtNetwork>
+
+int main(int argc, char **argv) {
+    QCoreApplication app(argc, argv);
+
+    QHttpServer server;
+    server.route("/hello/<arg>", [](const QString &name) { return QString("Hello, %1!\n").arg(name); });
+
+    auto *tcp = new QTcpServer;
+    if (!tcp->listen(QHostAddress::LocalHost, 8080) || !server.bind(tcp))
+        return 1;
+    return app.exec();
+}
+```
+
+Its `CMakeLists.txt`:
+
+```cmake
+cmake_minimum_required(VERSION 3.18)
+project(hello LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
+
+find_package(Nt6 6 REQUIRED)
+
+add_executable(hello main.cpp)
+target_link_libraries(hello PRIVATE Nt6::HttpServer)
+```
+
+Build it, run it and call it:
+
+```sh
+cmake -S . -B build && cmake --build build
+./build/hello &
+curl http://127.0.0.1:8080/hello/Nt      # Hello, Nt!
+```
+
+Classes with `Q_OBJECT` need one more line, `nt_enable_automoc(hello)`; see [ntmoc](#ntmoc-mit-moc-replacement).
+
+### Install
+
+| System | Command |
+|---|---|
+| Ubuntu 22.04, 24.04, 26.04 | add the signed [apt repository](https://open-nt.github.io/Nt6/install.html), then `sudo apt install libnt6-dev nt6-tools` |
+| Any Linux with snapd | `sudo snap install open-nt6 --channel=candidate` ([Snap Store](https://snapcraft.io/open-nt6); pass `-DCMAKE_PREFIX_PATH=/snap/open-nt6/current/usr` to CMake) |
+| Enterprise Linux 9 and 10, Arch Linux | `.rpm` and pacman packages from the [releases](https://github.com/open-nt/Nt6/releases); see [Packages](#packages) |
+| From source | `cmake -S . -B build && cmake --build build && sudo cmake --install build` |
+
+Or use Nt without installing it: `add_subdirectory(Nt6)` in your project and link `Nt::HttpServer`.
+
+### Widgets
+
+Nt Widgets draws its own Fusion-like style, light and dark. This is [`hello_widgets`](examples/widgets/hello_widgets.cpp), one of every widget:
+
+<p align="center"><img src="doc/images/hello-widgets-window.png" alt="The hello_widgets example, dark and light" width="720"></p>
+
+### More examples
+
+| Example | Shows |
+|---|---|
+| [`examples/hello`](examples/hello) | a standalone project that uses an installed Nt |
+| [`examples/signals`](examples/signals), [`examples/moc`](examples/moc) | signals and slots, and `ntmoc` |
+| [`examples/httpserver`](examples/httpserver/hello_server.cpp) | routes, JSON, streaming, delayed answers and WebSockets on one port |
+| [`examples/websockets`](examples/websockets), [`examples/dbus`](examples/dbus), [`examples/serialport`](examples/serialport) | an echo server and client, a clock on the session bus, serial ports |
+| [`examples/gui`](examples/gui), [`examples/widgets`](examples/widgets), [`examples/svg`](examples/svg) | a painted window, the widget gallery, SVG rendering |
+
+## Contents
+
+- [Status](#status): what each module implements, and what it does not yet
+- [Qt 6 modules and their Nt names](#qt-6-modules-and-their-nt-names)
+- [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator): the tools
+- [Build](#build) and [Packages](#packages)
+- [Contributing](CONTRIBUTING.md), [Security](SECURITY.md) and the [Nt Brand Guide](https://open-nt.github.io/Nt6/brand.html) (artwork in [`assets/brand/`](assets/brand))
 
 ## Status
 
@@ -39,7 +122,7 @@ Qt Core has roughly 300 classes; Nt Core has about 180 of them, chosen first for
 | Object model | `QObject` (parent/child, `connect`/`disconnect` for member slots, functors, context objects and `SIGNAL()`/`SLOT()` strings, `blockSignals`, `sender()`, `deleteLater()`, `destroyed`, `objectName`, `findChild(ren)`, timers, thread affinity), `QMetaObject::Connection`, `qobject_cast`, `Qt::ConnectionType` (`Auto`, `Direct`, `Queued`), `QFlags`, `qOverload`, `QObjectCleanupHandler`, `QSignalMapper` |
 | Meta-objects and variants | `QMetaObject` (generated by `ntmoc`; `invokeMethod()` by name, pointer to member function or functor), `QMetaMethod`, `QMetaProperty`, `QMetaEnum`, `QMetaClassInfo`, `QMetaType`, `QVariant`, `QSequentialIterable`, `QAssociativeIterable`, `QTypeRevision`, `QPartialOrdering` |
 | Events and loop | `QEvent`, `QTimerEvent`, `QDynamicPropertyChangeEvent`, `QEventLoop`, `QEventLoopLocker`, `QCoreApplication` (`exec`, `quit`, `postEvent`, `sendEvent`, `processEvents`, `aboutToQuit`, `qApp`), `QTimer` (incl. `singleShot`), `QSocketNotifier` (fd readiness via `poll()`) |
-| Text and bytes | `QString` (UTF-16, `arg`, `split`, `number`, `toInt`/`toDouble`, UTF-8/Latin-1/UCS-4 conversion, Unicode normalization and full case mapping), `QChar` (Unicode 16 categories, scripts, bidi classes, joining types, mirroring and age), `QLatin1Char`, `QLatin1StringView`, `QStringView`, `QAnyStringView`, `QUtf8StringView`, `QStringConverter`/`QStringEncoder`/`QStringDecoder`, `QStringMatcher`, `QStringTokenizer`, `QRegularExpression` (+ `QRegularExpressionMatch` and its iterator), `QLocale` (about thirty locales, no CLDR), `QCollator`, `QTextBoundaryFinder`, `QTranslator` (`.qm` files, with `tr()` and `QCoreApplication::installTranslator()`), `QByteArray` (hex, Base64, percent-encoding, number conversion), `QByteArrayView`, `QByteArrayList`, `QStringList`, `QTextStream` (UTF-8, UTF-16, UTF-32 and Latin-1, BOM detection) |
+| Text and bytes | `QString` (UTF-16, `arg`, `split`, `number`, `toInt`/`toDouble`, UTF-8/Latin-1/UCS-4 conversion, Unicode normalization and full case mapping), `QChar` (Unicode 16 categories, scripts, bidi classes, joining types, mirroring and age), `QLatin1Char`, `QLatin1StringView`, `QStringView`, `QAnyStringView`, `QUtf8StringView`, `QStringConverter`/`QStringEncoder`/`QStringDecoder`, `QStringMatcher`, `QByteArrayMatcher`, `QStaticByteArrayMatcher`, `QLatin1StringMatcher`, `QStringTokenizer`, `QRegularExpression` (+ `QRegularExpressionMatch` and its iterator), `QLocale` (about thirty locales, no CLDR), `QCollator`, `QTextBoundaryFinder`, `QTranslator` (`.qm` files, with `tr()` and `QCoreApplication::installTranslator()`), `QByteArray` (hex, Base64, percent-encoding, number conversion), `QByteArrayView`, `QByteArrayList`, `QStringList`, `QTextStream` (UTF-8, UTF-16, UTF-32 and Latin-1, BOM detection) |
 | Containers | `QList`/`QVector`, `QQueue`, `QStack`, `QMap`, `QMultiMap`, `QHash`, `QMultiHash`, `QSet`, `QVarLengthArray`, `QBitArray`, `QCache`, `QContiguousCache`, `QSpan`, `QKeyValueIterator` (with `asKeyValueRange()`), `qHash()`/`qHashRange()`/`qHashMulti()`, the Java-style iterators (`QListIterator`, `QMutableListIterator`, `QMapIterator`, `QMutableMapIterator`, `QHashIterator`, `QSetIterator`, ...) |
 | Smart pointers | `QPointer`, `QScopedPointer`, `QScopedArrayPointer`, `QSharedPointer`, `QWeakPointer`, `QEnableSharedFromThis`, `QSharedData`, `QSharedDataPointer`, `QExplicitlySharedDataPointer`, `QScopeGuard`, `QScopedValueRollback`, `QSignalBlocker` |
 | Threads | `QThread` (per-thread event loops and queued signals across threads), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QException`, `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QAtomicScopedValueRollback`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock` (recursive or not), `QReadLocker`, `QWriteLocker`, `QWaitCondition` (with `QMutex` or `QReadWriteLock`), `QSemaphore`, `QSemaphoreReleaser`; deadline and `std::chrono` overloads |
@@ -50,6 +133,7 @@ Qt Core has roughly 300 classes; Nt Core has about 180 of them, chosen first for
 | Item models | `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QModelIndex`, `QPersistentModelIndex`, `QStringListModel`, `QItemSelectionModel`, `QItemSelection`, `QItemSelectionRange`, `QAbstractProxyModel`, `QIdentityProxyModel`, `QSortFilterProxyModel` (filtering, sorting, recursive filtering), `QTransposeProxyModel`, `QConcatenateTablesProxyModel`, `QMimeData` |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
 | Utilities | `QUrl` (`fromUserInput()`, internationalized host names in Punycode) and `QUrlQuery`, `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak, BLAKE2b, BLAKE2s), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption`, `QSysInfo`, `QOperatingSystemVersion`, `QLibraryInfo`, `QGlobalStatic`, `qfloat16`, `QBEInteger`/`QLEInteger` |
+| Global functions and macros | the environment (`qgetenv()`, `qputenv()`, `qEnvironmentVariable()` and the rest), `<QtMath>` (`qSin()`, `qDegreesToRadians()`, `qNextPowerOfTwo()`, `M_PI`), `<QtNumeric>` (`qIsNaN()`, `qInf()`, `qFloatDistance()`, `qAddOverflow()`), `<QtAlgorithms>` (`qPopulationCount()`, `qCountTrailingZeroBits()`), `qAsConst()`, `qExchange()`, `qErrnoWarning()`, `qAddPostRoutine()` and `Q_COREAPP_STARTUP_FUNCTION()`, `Q_UNREACHABLE()`, `Q_ASSUME()`, `Q_ASSERT_X()`, `Q_CHECK_PTR()`, `Q_FALLTHROUGH()`, `Q_DISABLE_COPY_MOVE()`, `Q_DECLARE_INTERFACE()`, `Q_DECLARE_TYPEINFO()`, `Q_STATIC_LOGGING_CATEGORY()` and the `Q_DECL_*` keywords |
 
 Known limits: `QDataStream` has no 64-bit container sizes; `QDir` name filters are case-insensitive; `QTimeZone` has no localized names (no CLDR/ICU); `QList<bool>` is rejected at compile time; no bindable properties (`QProperty`). Each class's reference page lists how it differs from Qt.
 
@@ -455,10 +539,6 @@ cmake --build build --target docs      # writes build/doc/html
 The documentation is published to <https://open-nt.github.io/Nt6/> on every push to `main`.
 
 The class pages of the widgets show how each widget is drawn, in its states, in the light color scheme. The pictures in `doc/images/widgets` come from the real widgets: `cmake --build build --target widget_images` renders them with `QWidget::render()` on the offscreen platform (no display needed), so run it again after changing how a widget or the style draws, and commit the result. The `docs` target fails on any broken link or bad parameter name. `coverage.txt` in the output lists public API that has no documentation yet. See [tools/ndoc/README.md](tools/ndoc/README.md) for the comment syntax. Write documentation from Nt's behaviour: Qt's documentation text is not MIT licensed, so it must not be copied or reworded.
-
-## Also not supported
-
-`SIGNAL()`/`SLOT()` string connections, `BlockingQueuedConnection`, `UniqueConnection`, and `Q_PROPERTY`/`Q_GADGET`/`Q_ENUM` (the macros compile to nothing, so `ntmoc` only generates signal bodies).
 
 ## Build
 

@@ -8,7 +8,12 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <exception>
 #include <limits>
+#include <new>
+#include <type_traits>
+#include <utility>
 
 using qint8 = std::int8_t;
 using quint8 = std::uint8_t;
@@ -42,11 +47,103 @@ using ulong = unsigned long;
 
 const char *qVersion() noexcept;
 
+// The text of a macro argument, after the argument has been expanded.
+#define QT_STRINGIFY2(x) #x
+#define QT_STRINGIFY(x) QT_STRINGIFY2(x)
+
+// Nt is not built in a namespace.
+#define QT_BEGIN_NAMESPACE
+#define QT_END_NAMESPACE
+#define QT_USE_NAMESPACE
+#define QT_PREPEND_NAMESPACE(name) ::name
+#define QT_FORWARD_DECLARE_CLASS(name) class name;
+#define QT_FORWARD_DECLARE_STRUCT(name) struct name;
+
+// The keywords and attributes that Qt wrapped for old compilers.
+#define Q_DECL_CONSTEXPR constexpr
+#define Q_DECL_RELAXED_CONSTEXPR constexpr
+#define Q_DECL_NOEXCEPT noexcept
+#define Q_DECL_NOTHROW noexcept
+#define Q_DECL_NOEXCEPT_EXPR(x) noexcept(x)
+#define Q_DECL_OVERRIDE override
+#define Q_DECL_FINAL final
+#define Q_DECL_EQ_DEFAULT = default
+#define Q_DECL_EQ_DELETE = delete
+#define Q_NULLPTR nullptr
+#define Q_DECL_UNUSED [[maybe_unused]]
+#define Q_DECL_DEPRECATED [[deprecated]]
+#define Q_DECL_DEPRECATED_X(text) [[deprecated(text)]]
+#define Q_REQUIRED_RESULT [[nodiscard]]
+#define Q_NORETURN [[noreturn]]
+#define Q_FALLTHROUGH() [[fallthrough]]
+#if defined(_MSC_VER)
+#define Q_DECL_EXPORT __declspec(dllexport)
+#define Q_DECL_IMPORT __declspec(dllimport)
+#define Q_DECL_HIDDEN
+#define Q_ALWAYS_INLINE __forceinline
+#define Q_NEVER_INLINE __declspec(noinline)
+#define NT_UNREACHABLE_IMPL() __assume(0)
+#elif defined(__GNUC__) || defined(__clang__)
+#define Q_DECL_EXPORT __attribute__((visibility("default")))
+#define Q_DECL_IMPORT __attribute__((visibility("default")))
+#define Q_DECL_HIDDEN __attribute__((visibility("hidden")))
+#define Q_ALWAYS_INLINE inline __attribute__((always_inline))
+#define Q_NEVER_INLINE __attribute__((noinline))
+#define NT_UNREACHABLE_IMPL() __builtin_unreachable()
+#else
+#define Q_DECL_EXPORT
+#define Q_DECL_IMPORT
+#define Q_DECL_HIDDEN
+#define Q_ALWAYS_INLINE inline
+#define Q_NEVER_INLINE
+#define NT_UNREACHABLE_IMPL() std::abort()
+#endif
+
 #define Q_UNUSED(x) (void)(x);
 #define Q_ASSERT(cond) assert(cond)
+// An assertion that also names the place and says what is wrong.
+#define Q_ASSERT_X(cond, where, what) assert((cond) && (where) && (what))
+#define Q_STATIC_ASSERT(condition) static_assert(bool(condition), #condition)
+#define Q_STATIC_ASSERT_X(condition, message) static_assert(bool(condition), message)
+// Code that cannot be reached: asserts in a debug build and is a hint to the optimizer otherwise.
+#define Q_UNREACHABLE()                                                                                                \
+    do {                                                                                                               \
+        Q_ASSERT_X(false, "Q_UNREACHABLE()", "Q_UNREACHABLE was reached");                                             \
+        NT_UNREACHABLE_IMPL();                                                                                         \
+    } while (false)
+#define Q_UNREACHABLE_RETURN(...)                                                                                      \
+    do {                                                                                                               \
+        Q_UNREACHABLE();                                                                                               \
+        return __VA_ARGS__;                                                                                            \
+    } while (false)
+// Tells the optimizer that the expression holds; it must have no side effects.
+#define Q_ASSUME(expr)                                                                                                 \
+    do {                                                                                                               \
+        const bool ntAssumed = (expr);                                                                                 \
+        Q_ASSERT_X(ntAssumed, "Q_ASSUME()", "Assumption in Q_ASSUME(\"" #expr "\") was not correct");                  \
+        if (!ntAssumed)                                                                                                \
+            NT_UNREACHABLE_IMPL();                                                                                     \
+    } while (false)
 #define Q_DISABLE_COPY(Class)      \
     Class(const Class &) = delete; \
     Class &operator=(const Class &) = delete;
+#define Q_DISABLE_MOVE(Class)                                                                                          \
+    Class(Class &&) = delete;                                                                                          \
+    Class &operator=(Class &&) = delete;
+#define Q_DISABLE_COPY_MOVE(Class)                                                                                     \
+    Q_DISABLE_COPY(Class)                                                                                              \
+    Q_DISABLE_MOVE(Class)
+
+inline void qt_noop() {}
+// Ends the program as std::terminate() does.
+[[noreturn]] inline void qTerminate() noexcept { std::terminate(); }
+// Throws std::bad_alloc. Q_CHECK_PTR() calls it for a null pointer.
+[[noreturn]] inline void qBadAlloc() { throw std::bad_alloc(); }
+#define Q_CHECK_PTR(p)                                                                                                 \
+    do {                                                                                                               \
+        if (Q_UNLIKELY(!(p)))                                                                                          \
+            qBadAlloc();                                                                                               \
+    } while (false)
 
 // Markers that ntmoc reads; they expand to nothing. Q_OBJECT, Q_GADGET, Q_NAMESPACE, Q_ENUM() and
 // Q_FLAG() are in qobjectdefs.h, and Q_DECLARE_METATYPE() in qmetatype.h.
@@ -64,6 +161,7 @@ const char *qVersion() noexcept;
 #define Q_SCRIPTABLE
 #define Q_REVISION(...)
 #define Q_INTERFACES(...)
+#define Q_MOC_INCLUDE(...)
 
 #ifndef QT_NO_KEYWORDS
 #  define signals public
@@ -73,6 +171,7 @@ const char *qVersion() noexcept;
 #  define forever for (;;)
 #endif
 #define Q_FOREACH(variable, container) for (variable : container)
+#define Q_FOREVER for (;;)
 
 template <typename T>
 constexpr const T &qMin(const T &a, const T &b) { return (b < a) ? b : a; }
@@ -90,6 +189,22 @@ inline bool qFuzzyIsNull(double d) { return std::fabs(d) <= 0.000000000001; }
 inline bool qFuzzyCompare(double p1, double p2) {
     return std::fabs(p1 - p2) * 1000000000000. <= std::fmin(std::fabs(p1), std::fabs(p2));
 }
+
+// A const reference to an lvalue, so that a range-based for loop does not call the non-const begin().
+template <typename T> constexpr std::add_const_t<T> &qAsConst(T &t) noexcept { return t; }
+template <typename T> void qAsConst(const T &&) = delete;
+// Sets t to newValue and returns what it was.
+template <typename T, typename U = T> constexpr T qExchange(T &t, U &&newValue) {
+    T old = std::move(t);
+    t = std::forward<U>(newValue);
+    return old;
+}
+
+// The identifier that Q_DECLARE_INTERFACE() gave an interface, or nullptr. qobject_cast() finds interfaces
+// without it, as it is a dynamic_cast.
+template <typename T> inline const char *qobject_interface_iid() { return nullptr; }
+#define Q_DECLARE_INTERFACE(IFace, IId)                                                                                \
+    template <> inline const char *qobject_interface_iid<IFace *>() { return IId; }
 
 // moc-style cast; works on any polymorphic type.
 template <typename T, typename Obj>

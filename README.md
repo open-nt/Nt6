@@ -477,7 +477,7 @@ Install instructions for every system below are in the [Installing Nt](https://o
 | Ubuntu 22.04, 24.04, 26.04 | `libnt6-dev_<version>-1~ubuntu<release>_amd64.deb`, `nt6-tools_...deb` | `ubuntu-22.04.yml`, `ubuntu-24.04.yml`, `ubuntu-26.04.yml` |
 | Enterprise Linux 9 and 10 (RHEL, Rocky, Alma) | `nt6-devel-<version>-1.el<N>.x86_64.rpm`, `nt6-tools-...rpm` | `el9.yml`, `el10.yml` |
 | Arch Linux | `nt6-<version>-1-x86_64.pkg.tar.zst` | `arch.yml` |
-| Any Linux with snapd (amd64, and arm64 built on a Jetson) | `open-nt6_<version>_amd64.snap`, `open-nt6_<version>_arm64.snap` (`snap install open-nt6`, from the [Snap Store](https://snapcraft.io/open-nt6)) | `snap.yml` |
+| Any Linux with snapd (amd64 and arm64) | `open-nt6_<version>_amd64.snap`, `open-nt6_<version>_arm64.snap` (`snap install open-nt6`, from the [Snap Store](https://snapcraft.io/open-nt6)) | `snap.yml` |
 
 `libnt6-dev` / `nt6-devel` holds the headers (in `/usr/include/nt6`, so Nt can sit next to Qt), the static libraries and the CMake package; `nt6-tools` holds `ntmoc`, `ntrcc` and `ndoc`. Arch has one package with everything. In a project:
 
@@ -499,7 +499,7 @@ Both write to `dist/`. Or run CPack directly: `cmake -S . -B build && cmake --bu
 
 The snap is on the Snap Store as [`open-nt6`](https://snapcraft.io/open-nt6). A pre-release version such as `6.0.0-rc2` is on the `candidate` channel until a final release reaches `stable`, so install it with `sudo snap install open-nt6 --channel=candidate`. The tools are `open-nt6.ntmoc` and `open-nt6.ndoc`, and the headers, libraries and CMake package are in `/snap/open-nt6/current/usr` (pass `-DCMAKE_PREFIX_PATH=/snap/open-nt6/current/usr` to CMake).
 
-The snap has its own target, `cmake --build build --target snap`, which runs `snapcraft pack` (in LXD or Multipass) and writes `open-nt6_<version>_<arch>.snap` to the build directory. Pass more options with `-DNT_SNAPCRAFT_ARGS="..."`. In CI the arm64 snap is built on the self-hosted Jetson runner (labels `self-hosted, linux, arm64, jetson`), without a container, using `snapcraft pack --destructive-mode`; that job is skipped for pull requests.
+The snap has its own target, `cmake --build build --target snap`, which runs `snapcraft pack` (in LXD or Multipass) and writes `open-nt6_<version>_<arch>.snap` to the build directory. Pass more options with `-DNT_SNAPCRAFT_ARGS="..."`. In CI each architecture is built natively, the arm64 snap on GitHub's hosted `ubuntu-24.04-arm` runner. On a machine without a container runtime, such as a Jetson running Ubuntu 24.04, pass `-DNT_SNAPCRAFT_ARGS=--destructive-mode`.
 
 ### Release provenance
 

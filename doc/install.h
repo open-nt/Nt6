@@ -217,10 +217,10 @@
     \endcode
 
     This runs \c snapcraft in LXD or Multipass and writes
-    \c{open-nt6_<version>_<arch>.snap} to the build directory. The arm64 snap is
-    built in CI on a Jetson, where there is no container runtime, with
-    \c{snapcraft pack --destructive-mode}; pass that with
-    \c{-DNT_SNAPCRAFT_ARGS=--destructive-mode} on a machine running Ubuntu 24.04.
+    \c{open-nt6_<version>_<arch>.snap} to the build directory. CI builds each
+    architecture natively, the arm64 snap on a hosted arm64 runner. On a machine
+    running Ubuntu 24.04 that has no container runtime, such as a Jetson, pass
+    \c{-DNT_SNAPCRAFT_ARGS=--destructive-mode}.
 
     \section1 Using Nt
 

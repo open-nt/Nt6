@@ -1,5 +1,5 @@
-# Builds and smoke-tests the snap (snap/snapcraft.yaml) for amd64, on a GitHub
-# runner, and for arm64, on the Jetson self-hosted runner.
+# Builds and smoke-tests the snap (snap/snapcraft.yaml) for amd64 and arm64, each
+# natively on a GitHub-hosted runner of that architecture.
 # Also called by slsa.yml, which signs the snap with SLSA provenance and, for a
 # version tag, publishes it to the Snap Store (the publish job lives there, so a
 # failed publish cannot block the release).
@@ -24,9 +24,26 @@ permissions:
   contents: read
 
 jobs:
+  # The arm64 snap is built natively on GitHub's hosted arm64 runner (free for
+  # public repositories) and not cross-compiled: the build runs ntmoc and ntrcc,
+  # and the snap is installed and run afterwards, both of which need the target
+  # architecture.
   build:
-    name: Snap
-    runs-on: ubuntu-latest
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Snap
+            arch: amd64
+            runner: ubuntu-latest
+            artifact: packages-snap
+          - name: Snap (arm64)
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            artifact: packages-snap-arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -36,6 +53,10 @@ jobs:
 
       - name: Install the snap and run the tools
         run: |
+          case "${{ steps.build.outputs.snap }}" in
+          *_${{ matrix.arch }}.snap) ;;
+          *) echo "::error::Expected a snap for ${{ matrix.arch }}, got ${{ steps.build.outputs.snap }}"; exit 1 ;;
+          esac
           sudo snap install --dangerous "${{ steps.build.outputs.snap }}"
           open-nt6.ntmoc --version
           open-nt6.ntrcc --version
@@ -45,56 +66,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: packages-snap
+          name: ${{ matrix.artifact }}
           path: ${{ steps.build.outputs.snap }}
-          if-no-files-found: error
-
-  # The Jetson runner has no container runtime, so snapcraft builds directly on
-  # the host (Ubuntu 24.04, the same as the snap's core24 base) in destructive
-  # mode. Skipped for pull requests: a self-hosted runner must not run code from
-  # forks.
-  build-arm64:
-    name: Snap (arm64, Jetson)
-    if: github.event_name != 'pull_request'
-    runs-on: [self-hosted, linux, arm64, jetson]
-    timeout-minutes: 90
-    steps:
-      # A runner hook on the Jetson deletes the workspace before every job, and
-      # actions/checkout cannot start without it, so recreate it first.
-      - name: Ensure workspace directory exists
-        working-directory: ${{ runner.temp }}
-        run: mkdir -p "$GITHUB_WORKSPACE"
-
-      - uses: actions/checkout@v4
-        with:
-          clean: true
-
-      - name: Install snapcraft
-        run: |
-          sudo -n true || { echo "::error::The runner user needs passwordless sudo"; exit 1; }
-          command -v snapcraft > /dev/null || sudo -n snap install snapcraft --classic
-          snapcraft --version
-
-      - name: Build the snap
-        run: snapcraft pack --destructive-mode --output dist
-
-      - name: Install the snap and run the tools
-        run: |
-          snap=$(ls dist/open-nt6_*_arm64.snap)
-          sudo -n snap install --dangerous "$snap"
-          open-nt6.ntmoc --version
-          open-nt6.ntrcc --version
-          open-nt6.ndoc --version
-          find /snap/open-nt6/current/usr/lib -name Nt6Config.cmake | grep -q .
-          test "$(snap list open-nt6 | awk 'NR == 2 { print $2 }')" = "$(head -n 1 VERSION)"
-
-      # Leave the host clean for the next job.
-      - name: Remove the snap
-        if: always()
-        run: sudo -n snap remove --purge open-nt6 || true
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: packages-snap-arm64
-          path: dist/*.snap
           if-no-files-found: error

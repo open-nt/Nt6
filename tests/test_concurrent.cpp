@@ -143,6 +143,7 @@ static void testRun() {
     QFuture<int> a = QtConcurrent::run(&pool, twice, 21);
     static_assert(std::is_same_v<decltype(QtConcurrent::run(twice, 1)), QFuture<int>>);
     CHECK(a.result() == 42);
+    a.waitForFinished(); // the result arrives before the end
     CHECK(a.isFinished() && !a.isCanceled());
     CHECK(QtConcurrent::run(twice, 4).result() == 8);
 

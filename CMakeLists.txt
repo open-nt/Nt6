@@ -932,14 +932,17 @@ if(NT_BUILD_EXAMPLES)
     target_link_libraries(hello_window PRIVATE Nt::Gui)
     nt_set_compile_options(hello_window)
 
-    # A form made of widgets and layouts; see "Using Nt Widgets" in the documentation.
-    add_executable(hello_widgets examples/widgets/hello_widgets.cpp)
-    target_link_libraries(hello_widgets PRIVATE Nt::Widgets)
+    # A form made of widgets and layouts, with the Nt logo as an SVG resource; see "Using Nt Widgets" in the
+    # documentation.
+    nt_add_resources(hello_widgets_resources examples/widgets/hello_widgets.qrc)
+    add_executable(hello_widgets examples/widgets/hello_widgets.cpp ${hello_widgets_resources})
+    target_link_libraries(hello_widgets PRIVATE Nt::SvgWidgets)
     nt_set_compile_options(hello_widgets)
 
     # A tour of the widgets: layouts, controls, custom widgets, a dark theme.
-    add_executable(gallery examples/widgets/gallery.cpp)
-    target_link_libraries(gallery PRIVATE Nt::Widgets)
+    nt_add_resources(gallery_resources examples/widgets/gallery.qrc)
+    add_executable(gallery examples/widgets/gallery.cpp ${gallery_resources})
+    target_link_libraries(gallery PRIVATE Nt::SvgWidgets)
     nt_set_compile_options(gallery)
 
     # Renders each widget in its states to doc/images/widgets, the pictures of the reference documentation:

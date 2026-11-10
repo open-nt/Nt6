@@ -10,6 +10,8 @@
 #
 # Nt's libraries are static, so the OpenSSL, FreeType, fontconfig and XCB development packages are needed to link
 # them. Without a display, run the examples with `-platform offscreen`.
+#
+# hello_widgets and gallery show the Nt logo with Nt SVG, which is part of Nt from 6.0.0-rc3.
 cmake_minimum_required(VERSION 3.18)
 project(NtWidgetsExamples LANGUAGES CXX)
 
@@ -23,13 +25,16 @@ endif()
 list(APPEND CMAKE_PREFIX_PATH /snap/open-nt6/current/usr)
 find_package(Nt6 6 REQUIRED)
 
-# A form made of widgets and layouts; see "Using Nt Widgets" in the documentation.
-add_executable(hello_widgets hello_widgets.cpp ntlogo.h)
-target_link_libraries(hello_widgets PRIVATE Nt6::Widgets)
+# A form made of widgets and layouts; see "Using Nt Widgets" in the documentation. Its logo, nt-logo.svg, is
+# compiled into the program from hello_widgets.qrc and shown by a QSvgWidget.
+qt_add_resources(hello_widgets_resources hello_widgets.qrc)
+add_executable(hello_widgets hello_widgets.cpp ${hello_widgets_resources})
+target_link_libraries(hello_widgets PRIVATE Nt6::SvgWidgets)
 
-# A tour of the widgets: layouts, controls, custom widgets, a dark theme.
-add_executable(gallery gallery.cpp ntlogo.h)
-target_link_libraries(gallery PRIVATE Nt6::Widgets)
+# A tour of the widgets: layouts, controls, custom widgets, a dark theme. It shows the same logo, from gallery.qrc.
+qt_add_resources(gallery_resources gallery.qrc)
+add_executable(gallery gallery.cpp ${gallery_resources})
+target_link_libraries(gallery PRIVATE Nt6::SvgWidgets)
 
 # Renders each widget in its states to <directory>/widgets/*.png: `render_widgets <directory>`.
 add_executable(render_widgets render_widgets.cpp)

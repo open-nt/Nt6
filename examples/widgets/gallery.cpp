@@ -3,6 +3,9 @@
 // A tour of Nt Widgets: layouts, buttons, check boxes, labels, custom widgets that paint with the palette
 // and react to the mouse, wheel and keyboard, a dark theme, and enabling and disabling groups of widgets.
 // Run it with a display, or without one: `gallery -platform offscreen`.
+//
+// The logo is nt-logo.svg, which gallery.qrc compiles into the program as the resource :/nt-logo.svg. A QSvgWidget
+// from Nt SVG shows it.
 #include <QApplication>
 #include <QCheckBox>
 #include <QFontMetrics>
@@ -14,11 +17,10 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QStyleHints>
+#include <QSvgWidget>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 #include <QWidget>
-
-#include "ntlogo.h"
 
 #include <algorithm>
 #include <cmath>
@@ -256,7 +258,10 @@ int main(int argc, char *argv[]) {
     words->addWidget(title);
     words->addWidget(subtitle);
     words->addStretch();
-    header->addWidget(new NtExamples::Logo(72, &window));
+    // The logo is a resource of the program (see gallery.qrc), drawn by the widget at the resolution of the screen.
+    auto *logo = new QSvgWidget(":/nt-logo.svg", &window);
+    logo->setFixedSize(72, 72);
+    header->addWidget(logo);
     header->addLayout(words, 1);
     root->addLayout(header);
 

@@ -28,23 +28,28 @@
     \image hello-widgets-light.png The pages of the hello_widgets example in the light color scheme, with the open list of a combo box
     \image hello-widgets-dark.png The pages of the hello_widgets example in the dark color scheme
 
-    The logo is drawn from its outlines by the widget in \c ntlogo.h, which the \c gallery example uses too.
+    The logo in the header is a picture, not a widget drawn by hand: \c nt-logo.svg is listed in
+    \c hello_widgets.qrc, which compiles it into the program as the resource \c{:/nt-logo.svg}, and a QSvgWidget
+    from Nt SVG shows it at the size it is given. See \l{The Nt Resource System} and \l{Using Nt SVG}.
 
-    Link it with \c Nt::Widgets:
+    Link it with \c Nt::SvgWidgets, which brings \c Nt::Widgets with it, and add the resource file:
 
     \code
     find_package(Nt6 REQUIRED)
-    add_executable(hello_widgets main.cpp)
-    target_link_libraries(hello_widgets PRIVATE Nt::Widgets)
+    qt_add_resources(resources hello_widgets.qrc)
+    add_executable(hello_widgets hello_widgets.cpp ${resources})
+    target_link_libraries(hello_widgets PRIVATE Nt::SvgWidgets)
     \endcode
+
+    An application without pictures needs only \c Nt::Widgets.
 
     \section1 The Gallery
 
     The \c gallery example shows what the widgets can do: layouts, check boxes and buttons, and custom widgets
     (a meter, color swatches and a mouse pad) that draw with the palette and handle the mouse, wheel and keys.
     It follows the color scheme of the desktop, and its \e{Dark theme} check box overrides it with
-    QStyleHints::setColorScheme(). The logo is drawn from its outlines at the device resolution, so that it stays sharp
-    on a high-resolution screen.
+    QStyleHints::setColorScheme(). Its logo is the same SVG resource in a QSvgWidget, which draws it at the device
+    resolution, so that it stays sharp on a high-resolution screen.
 
     \image widgets-gallery-light.png The gallery example with the light color scheme
     \image widgets-gallery-dark.png The gallery example with the dark color scheme

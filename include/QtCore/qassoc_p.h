@@ -2,6 +2,8 @@
 #pragma once
 
 #include <QtCore/qglobal.h>
+#include <QtCore/qhashfunctions.h>
+#include <QtCore/qkeyvalueiterator.h>
 #include <QtCore/qlist.h>
 
 #include <functional>
@@ -9,14 +11,11 @@
 #include <type_traits>
 #include <utility>
 
-namespace QtPrivate {
-
-template <typename K, typename = void>
-struct HasQHash : std::false_type {};
-template <typename K>
-struct HasQHash<K, std::void_t<decltype(qHash(std::declval<const K &>(), std::size_t{}))>> : std::true_type {};
-
-} // namespace QtPrivate
+// Returns a hash of the items of list, in order, mixed with seed.
+template <typename T, typename = std::enable_if_t<QtPrivate::IsHashable<T>>>
+std::size_t qHash(const QList<T> &list, std::size_t seed = 0) {
+    return qHashRange(list.begin(), list.end(), seed);
+}
 
 // Uses qHash(key, seed) when available (found via ADL), std::hash otherwise.
 template <typename K>
@@ -194,6 +193,18 @@ public:
     const_iterator cend() const { return end(); }
     const_iterator constBegin() const { return begin(); }
     const_iterator constEnd() const { return end(); }
+
+    using key_value_iterator = QKeyValueIterator<const K &, V &, iterator>;
+    using const_key_value_iterator = QKeyValueIterator<const K &, const V &, const_iterator>;
+    key_value_iterator keyValueBegin() { return key_value_iterator(begin()); }
+    key_value_iterator keyValueEnd() { return key_value_iterator(end()); }
+    const_key_value_iterator keyValueBegin() const { return const_key_value_iterator(begin()); }
+    const_key_value_iterator keyValueEnd() const { return const_key_value_iterator(end()); }
+    const_key_value_iterator constKeyValueBegin() const { return keyValueBegin(); }
+    const_key_value_iterator constKeyValueEnd() const { return keyValueEnd(); }
+    auto asKeyValueRange() & { return KeyValueRange<AssocContainer &, key_value_iterator>(*this); }
+    auto asKeyValueRange() const & { return KeyValueRange<const AssocContainer &, const_key_value_iterator>(*this); }
+    auto asKeyValueRange() && { return KeyValueRange<AssocContainer, key_value_iterator>(std::move(*this)); }
 
     void swap(AssocContainer &o) noexcept { d.swap(o.d); }
     friend bool operator==(const AssocContainer &a, const AssocContainer &b) { return a.d == b.d; }

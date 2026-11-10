@@ -17,10 +17,14 @@ class QLocale;
     QCoreApplication::translate() then return its translations:
 
     \code
+    QDir::setSearchPaths(u"i18n"_s, {QCoreApplication::applicationDirPath() + u"/translations"_s});
     QTranslator translator;
-    if (translator.load(QLocale(), u"myapp"_s, u"_"_s, u":/i18n"_s))
+    if (translator.load(QLocale(), u"myapp"_s, u"_"_s, u"i18n:"_s))
         QCoreApplication::installTranslator(&translator);
     \endcode
+
+    Nt has no resource system, so ship the \c .qm files with the program, as
+    \l{Resource Files} describes.
 
     Plural forms are selected with the numerus rules stored in the file, and
     \c{%n} in the result is replaced by the count.
@@ -28,7 +32,8 @@ class QLocale;
     \differences
     The files listed as dependencies of a \c .qm file are not loaded, and the
     obsolete message tags of very old files are not understood. There is no
-    resource system, so file names starting with \c{:} are ordinary paths.
+    resource system, so file names starting with \c{:} are ordinary paths;
+    use a QDir search path prefix instead.
     \enddifferences
 
     \sa QCoreApplication::installTranslator()

@@ -6,12 +6,16 @@
 #include <QtCore/qglobal.h>
 #include <QtCore/qnamespace.h>
 
+#include <algorithm>
 #include <functional>
+#include <iterator>
 #include <string>
 #include <type_traits>
 
+class QAnyStringView;
 class QString;
 class QStringList;
+template <typename T> class QList;
 class QRegularExpression;
 class QRegularExpressionMatch;
 
@@ -25,10 +29,11 @@ class QRegularExpressionMatch;
     conversion. \c QLatin1String is an alias for this class.
 
     \differences
-    Only construction, data access, size() and the subscript operators are
-    provided. Qt's searching, comparison, slicing and iteration functions, the
-    comparison operators and the \c QLatin1StringView(QByteArrayView)
-    constructor are not available.
+    The searching and comparison functions that take a QString convert the
+    view to a QString first, so they allocate. The number conversions, arg()
+    and the \c QLatin1StringView(QByteArrayView) constructor are not
+    available. first(), last(), sliced() and chopped() do not check their
+    arguments.
     \enddifferences
 
     \sa QString, QLatin1Char
@@ -94,7 +99,194 @@ public:
     */
     constexpr QChar operator[](qsizetype i) const { return at(i); }
 
+    /*!
+        \since 6.0
+        Returns the number of characters, the same as size().
+    */
+    constexpr qsizetype length() const noexcept { return n; }
+    /*!
+        \since 6.0
+        Returns \c true if the view is empty. Provided for STL compatibility.
+    */
+    constexpr bool empty() const noexcept { return n == 0; }
+    /*!
+        \since 5.10
+        Returns the first character. The view must not be empty.
+    */
+    constexpr QChar front() const { return at(0); }
+    /*!
+        \since 5.10
+        Returns the last character. The view must not be empty.
+    */
+    constexpr QChar back() const { return at(n - 1); }
+    /*!
+        \since 6.0
+        Returns a view of the first \a len characters.
+
+        \sa last(), sliced()
+    */
+    constexpr QLatin1StringView first(qsizetype len) const { return QLatin1StringView(p, len); }
+    /*!
+        \since 6.0
+        Returns a view of the last \a len characters.
+
+        \sa first(), sliced()
+    */
+    constexpr QLatin1StringView last(qsizetype len) const { return QLatin1StringView(p + n - len, len); }
+    /*!
+        \since 6.0
+        Returns a view of the characters from \a pos to the end.
+
+        \sa first(), last()
+    */
+    constexpr QLatin1StringView sliced(qsizetype pos) const { return QLatin1StringView(p + pos, n - pos); }
+    /*!
+        \since 6.0
+        \overload
+        Returns a view of \a len characters starting at \a pos.
+    */
+    constexpr QLatin1StringView sliced(qsizetype pos, qsizetype len) const { return QLatin1StringView(p + pos, len); }
+    /*!
+        \since 5.10
+        Returns a view without the last \a len characters.
+    */
+    constexpr QLatin1StringView chopped(qsizetype len) const { return QLatin1StringView(p, n - len); }
+    /*!
+        \since 5.10
+        Removes \a len characters from the end of the view.
+    */
+    constexpr void chop(qsizetype len) { n -= len; }
+    /*!
+        \since 5.10
+        Shortens the view to \a len characters.
+    */
+    constexpr void truncate(qsizetype len) { n = len; }
+    /*!
+        \since 5.8
+        Returns a view of \a len characters starting at \a pos, or up to the
+        end if \a len is negative. Positions outside the view are clamped.
+    */
+    constexpr QLatin1StringView mid(qsizetype pos, qsizetype len = -1) const {
+        if (pos < 0)
+            pos = 0;
+        if (pos > n)
+            pos = n;
+        if (len < 0 || len > n - pos)
+            len = n - pos;
+        return QLatin1StringView(p + pos, len);
+    }
+    /*!
+        \since 5.8
+        Returns a view of the first \a len characters, or the whole view.
+    */
+    constexpr QLatin1StringView left(qsizetype len) const { return mid(0, len < 0 ? 0 : len); }
+    /*!
+        \since 5.8
+        Returns a view of the last \a len characters, or the whole view.
+    */
+    constexpr QLatin1StringView right(qsizetype len) const { return len >= n ? *this : mid(n - (len < 0 ? 0 : len)); }
+    /*!
+        \since 5.10
+        Returns a view without the leading and trailing white space (space,
+        tab, line feed, vertical tab, form feed, carriage return, U+0085 and
+        U+00A0).
+    */
+    constexpr QLatin1StringView trimmed() const noexcept {
+        qsizetype b = 0;
+        qsizetype e = n;
+        while (b < e && isSpace(p[b]))
+            ++b;
+        while (e > b && isSpace(p[e - 1]))
+            --e;
+        return QLatin1StringView(p + b, e - b);
+    }
+    /*!
+        \since 5.10
+        Returns a pointer to the first byte, for iteration.
+    */
+    constexpr const char *begin() const noexcept { return p; }
+    /*!
+        \since 5.10
+        Returns a pointer just past the last byte.
+    */
+    constexpr const char *end() const noexcept { return p + n; }
+    /*!
+        \since 5.10
+        Returns a pointer to the first byte. Same as begin().
+    */
+    constexpr const char *cbegin() const noexcept { return p; }
+    /*!
+        \since 5.10
+        Returns a pointer just past the last byte. Same as end().
+    */
+    constexpr const char *cend() const noexcept { return p + n; }
+
+    QString toString() const;
+    bool startsWith(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    bool startsWith(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    bool endsWith(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    bool endsWith(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    qsizetype indexOf(const QString &s, qsizetype from = 0, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    qsizetype indexOf(QChar c, qsizetype from = 0, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    qsizetype lastIndexOf(const QString &s, qsizetype from = -1, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    qsizetype lastIndexOf(QChar c, qsizetype from = -1, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    bool contains(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    bool contains(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    qsizetype count(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    qsizetype count(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    int compare(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+
+    /*!
+        Returns \c true if \a a and \a b hold the same characters.
+    */
+    friend constexpr bool operator==(QLatin1StringView a, QLatin1StringView b) noexcept {
+        return a.n == b.n && std::char_traits<char>::compare(a.p, b.p, static_cast<std::size_t>(a.n)) == 0;
+    }
+    /*!
+        Returns \c true if \a a and \a b differ.
+    */
+    friend constexpr bool operator!=(QLatin1StringView a, QLatin1StringView b) noexcept { return !(a == b); }
+    /*!
+        Returns \c true if \a a sorts before \a b by character value.
+    */
+    friend constexpr bool operator<(QLatin1StringView a, QLatin1StringView b) noexcept {
+        return compareBytes(a, b) < 0;
+    }
+    /*!
+        Returns \c true if \a a sorts after \a b by character value.
+    */
+    friend constexpr bool operator>(QLatin1StringView a, QLatin1StringView b) noexcept {
+        return compareBytes(a, b) > 0;
+    }
+    /*!
+        Returns \c true if \a a sorts before \a b or equals it.
+    */
+    friend constexpr bool operator<=(QLatin1StringView a, QLatin1StringView b) noexcept {
+        return compareBytes(a, b) <= 0;
+    }
+    /*!
+        Returns \c true if \a a sorts after \a b or equals it.
+    */
+    friend constexpr bool operator>=(QLatin1StringView a, QLatin1StringView b) noexcept {
+        return compareBytes(a, b) >= 0;
+    }
+
 private:
+    static constexpr bool isSpace(char c) noexcept {
+        const auto u = static_cast<unsigned char>(c);
+        return u == ' ' || (u >= '\t' && u <= '\r') || u == 0x85 || u == 0xA0;
+    }
+    static constexpr int compareBytes(QLatin1StringView a, QLatin1StringView b) noexcept {
+        const qsizetype m = a.n < b.n ? a.n : b.n;
+        for (qsizetype i = 0; i < m; ++i) {
+            const auto x = static_cast<unsigned char>(a.p[i]);
+            const auto y = static_cast<unsigned char>(b.p[i]);
+            if (x != y)
+                return x < y ? -1 : 1;
+        }
+        return a.n == b.n ? 0 : (a.n < b.n ? -1 : 1);
+    }
+
     const char *p = "";
     qsizetype n = 0;
 };
@@ -780,6 +972,7 @@ public:
     int toInt(bool *ok = nullptr, int base = 10) const;
     uint toUInt(bool *ok = nullptr, int base = 10) const;
     long toLong(bool *ok = nullptr, int base = 10) const;
+    ulong toULong(bool *ok = nullptr, int base = 10) const;
     qlonglong toLongLong(bool *ok = nullptr, int base = 10) const;
     qulonglong toULongLong(bool *ok = nullptr, int base = 10) const;
     short toShort(bool *ok = nullptr, int base = 10) const;
@@ -863,6 +1056,136 @@ public:
         \sa fromStdU16String(), u16string()
     */
     std::u16string toStdU16String() const { return d; }
+    std::u32string toStdU32String() const;
+    static QString fromStdU32String(const std::u32string &s);
+    std::wstring toStdWString() const;
+    static QString fromStdWString(const std::wstring &s);
+    QList<uint> toUcs4() const;
+    static QString fromUcs4(const char32_t *unicode, qsizetype size = -1);
+    qsizetype toWCharArray(wchar_t *array) const;
+    static QString fromWCharArray(const wchar_t *string, qsizetype size = -1);
+    QString normalized(NormalizationForm mode) const;
+    QString toHtmlEscaped() const;
+    bool isValidUtf16() const noexcept;
+    bool isUpper() const;
+    bool isLower() const;
+    /*!
+        Returns a pointer to the characters of the string, followed by a
+        \c{'\0'}. Same as constData().
+    */
+    const QChar *unicode() const { return data(); }
+    /*!
+        Replaces the contents with the \a size characters at \a unicode and
+        returns a reference to this string. If \a unicode is \c nullptr, the
+        string is only resized to \a size.
+
+        \sa setUtf16(), setRawData()
+    */
+    QString &setUnicode(const QChar *unicode, qsizetype size) {
+        if (unicode)
+            *this = QString(unicode, size);
+        else
+            resize(size);
+        return *this;
+    }
+    /*!
+        Replaces the contents with the \a size UTF-16 code units at \a utf16
+        and returns a reference to this string.
+
+        \sa setUnicode()
+    */
+    QString &setUtf16(const char16_t *utf16, qsizetype size) {
+        return setUnicode(reinterpret_cast<const QChar *>(utf16), size);
+    }
+    /*!
+        Replaces the contents with a copy of the \a size characters at
+        \a unicode and returns a reference to this string. Unlike in Qt, the
+        data is copied.
+
+        \sa fromRawData()
+    */
+    QString &setRawData(const QChar *unicode, qsizetype size) { return setUnicode(unicode, size); }
+    /*!
+        \since 6.8
+        Removes the characters before index position \a pos and returns a
+        reference to this string.
+
+        \sa sliced()
+    */
+    QString &slice(qsizetype pos) {
+        d.erase(0, static_cast<std::size_t>(pos));
+        return *this;
+    }
+    /*!
+        \overload
+        \since 6.8
+        Keeps the \a n characters starting at index position \a pos and
+        returns a reference to this string.
+    */
+    QString &slice(qsizetype pos, qsizetype n) {
+        d = d.substr(static_cast<std::size_t>(pos), static_cast<std::size_t>(n));
+        return *this;
+    }
+    /*!
+        \since 6.5
+        Makes sure that the characters are followed by a \c{'\0'} and returns
+        a reference to this string. Nt keeps strings null-terminated already,
+        so this only clears the null state of a null string.
+
+        \sa nullTerminated()
+    */
+    QString &nullTerminate() {
+        m_null = false;
+        return *this;
+    }
+    /*!
+        \since 6.5
+        Returns a copy of the string whose characters are followed by a
+        \c{'\0'}.
+
+        \sa nullTerminate()
+    */
+    QString nullTerminated() const {
+        QString copy(*this);
+        return copy.nullTerminate();
+    }
+    /*!
+        \since 6.1
+        Removes every character for which \a pred returns \c true and returns
+        a reference to this string. \a pred is called with a QChar.
+
+        \sa remove()
+    */
+    template <typename Predicate> QString &removeIf(Predicate pred) {
+        d.erase(std::remove_if(d.begin(), d.end(), [&pred](char16_t u) { return pred(QChar(u)); }), d.end());
+        return *this;
+    }
+    QString &assign(const QAnyStringView &v);
+    /*!
+        \since 6.6
+        Replaces the contents with \a n copies of \a c and returns a reference
+        to this string.
+    */
+    QString &assign(qsizetype n, QChar c) {
+        d.assign(static_cast<std::size_t>(n), c.unicode());
+        m_null = false;
+        return *this;
+    }
+    /*!
+        \since 6.6
+        \overload
+        Replaces the contents with the characters in the range [\a first,
+        \a last), each of which must convert to QChar, and returns a reference
+        to this string.
+    */
+    template <typename InputIterator, typename = typename std::iterator_traits<InputIterator>::iterator_category>
+    QString &assign(InputIterator first, InputIterator last) {
+        d.clear();
+        for (; first != last; ++first)
+            d.push_back(QChar(*first).unicode());
+        m_null = false;
+        return *this;
+    }
 
     int compare(const QString &o, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     /*!
@@ -899,6 +1222,94 @@ private:
     std::u16string d;
     bool m_null = true;
 };
+
+/*!
+    Returns the view as a QString.
+*/
+inline QString QLatin1StringView::toString() const { return QString(*this); }
+/*!
+    Returns \c true if the view starts with \a s, compared with \a cs.
+*/
+inline bool QLatin1StringView::startsWith(const QString &s, Qt::CaseSensitivity cs) const {
+    return toString().startsWith(s, cs);
+}
+/*!
+    \overload
+    Returns \c true if the view starts with \a c, compared with \a cs.
+*/
+inline bool QLatin1StringView::startsWith(QChar c, Qt::CaseSensitivity cs) const {
+    return toString().startsWith(c, cs);
+}
+/*!
+    Returns \c true if the view ends with \a s, compared with \a cs.
+*/
+inline bool QLatin1StringView::endsWith(const QString &s, Qt::CaseSensitivity cs) const {
+    return toString().endsWith(s, cs);
+}
+/*!
+    \overload
+    Returns \c true if the view ends with \a c, compared with \a cs.
+*/
+inline bool QLatin1StringView::endsWith(QChar c, Qt::CaseSensitivity cs) const { return toString().endsWith(c, cs); }
+/*!
+    Returns the position of the first \a s at or after \a from, compared
+    with \a cs, or -1.
+*/
+inline qsizetype QLatin1StringView::indexOf(const QString &s, qsizetype from, Qt::CaseSensitivity cs) const {
+    return toString().indexOf(s, from, cs);
+}
+/*!
+    \overload
+    Returns the position of the first \a c at or after \a from, compared
+    with \a cs, or -1.
+*/
+inline qsizetype QLatin1StringView::indexOf(QChar c, qsizetype from, Qt::CaseSensitivity cs) const {
+    return toString().indexOf(c, from, cs);
+}
+/*!
+    Returns the position of the last \a s at or before \a from (-1 means
+    the end), compared with \a cs, or -1.
+*/
+inline qsizetype QLatin1StringView::lastIndexOf(const QString &s, qsizetype from, Qt::CaseSensitivity cs) const {
+    return toString().lastIndexOf(s, from, cs);
+}
+/*!
+    \overload
+    Returns the position of the last \a c at or before \a from, compared
+    with \a cs, or -1.
+*/
+inline qsizetype QLatin1StringView::lastIndexOf(QChar c, qsizetype from, Qt::CaseSensitivity cs) const {
+    return toString().lastIndexOf(c, from, cs);
+}
+/*!
+    Returns \c true if the view contains \a s, compared with \a cs.
+*/
+inline bool QLatin1StringView::contains(const QString &s, Qt::CaseSensitivity cs) const {
+    return indexOf(s, 0, cs) != -1;
+}
+/*!
+    \overload
+    Returns \c true if the view contains \a c, compared with \a cs.
+*/
+inline bool QLatin1StringView::contains(QChar c, Qt::CaseSensitivity cs) const { return indexOf(c, 0, cs) != -1; }
+/*!
+    Returns how often \a s occurs, possibly overlapping, compared with \a cs.
+*/
+inline qsizetype QLatin1StringView::count(const QString &s, Qt::CaseSensitivity cs) const {
+    return toString().count(s, cs);
+}
+/*!
+    \overload
+    Returns how often \a c occurs, compared with \a cs.
+*/
+inline qsizetype QLatin1StringView::count(QChar c, Qt::CaseSensitivity cs) const { return toString().count(c, cs); }
+/*!
+    Compares the view with \a s, using \a cs, and returns a negative number,
+    zero or a positive number as the view sorts before, equal to or after it.
+*/
+inline int QLatin1StringView::compare(const QString &s, Qt::CaseSensitivity cs) const {
+    return toString().compare(s, cs);
+}
 
 inline std::size_t qHash(const QString &s, std::size_t seed = 0) noexcept {
     return std::hash<std::u16string>{}(s.u16string()) ^ (seed * 0x9e3779b9u);

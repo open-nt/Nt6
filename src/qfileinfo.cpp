@@ -21,8 +21,8 @@
       QFileDevice::Permission) because QFileDevice has no permission enum yet.
     - absoluteFilePath() and absolutePath() are lexically cleaned (no trailing
       slash, "." and ".." resolved) without touching the file system.
-    - birthTime() is not provided; isReadable()/isWritable()/isExecutable()
-      use access(2), i.e. the real rather than the effective user ID.
+    - isReadable()/isWritable()/isExecutable() use access(2), i.e. the real
+      rather than the effective user ID.
 */
 
 namespace {
@@ -56,8 +56,9 @@ QString emptyString() { return QString::fromUtf8(""); }
     \differences
     Permissions are reported as QFileInfo::Permissions, with the same values
     as Qt's \c QFileDevice::Permission, because QFileDevice has no permission
-    enum yet. There is no \c birthTime(), \c fileTime(), \c isNativePath(),
-    \c isBundle(), \c isShortcut() or \c isJunction(). isReadable(),
+    enum yet. fileTime() is a template over the QFileDevice::FileTime enum,
+    because \c qfileinfo.h cannot include \c qfile.h. isShortcut(),
+    isAlias(), isJunction() and isBundle() are always \c false. isReadable(),
     isWritable() and isExecutable() use \c access(2), which tests against the
     real rather than the effective user ID. absoluteFilePath() and
     absolutePath() are lexically cleaned without touching the file system.
@@ -99,7 +100,7 @@ QString emptyString() { return QString::fromUtf8(""); }
 
     \sa setFile()
 */
-QFileInfo::QFileInfo(const QFile &file) : m_file(file.fileName()) {}
+QFileInfo::QFileInfo(const QFile &file) : m_file(QtPrivate::resolveSearchPath(file.fileName())) {}
 
 /*!
     Constructs a QFileInfo for \a file, interpreted relative to \a dir. If
@@ -496,6 +497,31 @@ bool QFileInfo::isDir() const {
     \sa symLinkTarget()
 */
 bool QFileInfo::isSymLink() const { return info().link; }
+
+/*!
+    \since 5.10
+    Returns when the file was created, or an invalid QDateTime if the file
+    system does not record it (Linux reports it through \c statx(2)).
+
+    \sa lastModified(), metadataChangeTime()
+*/
+QDateTime QFileInfo::birthTime() const {
+    return m_file.isEmpty() ? QDateTime() : QFile(m_file).fileTime(QFileDevice::FileBirthTime);
+}
+
+QDateTime QFileInfo::fileTimeByIndex(int time) const {
+    switch (static_cast<QFileDevice::FileTime>(time)) {
+    case QFileDevice::FileAccessTime:
+        return lastRead();
+    case QFileDevice::FileBirthTime:
+        return birthTime();
+    case QFileDevice::FileMetadataChangeTime:
+        return metadataChangeTime();
+    case QFileDevice::FileModificationTime:
+        return lastModified();
+    }
+    return QDateTime();
+}
 
 /*!
     Returns the size of the file in bytes, or 0 if it does not exist.

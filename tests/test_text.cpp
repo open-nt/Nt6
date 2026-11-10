@@ -921,8 +921,190 @@ static void testTextStreamEncodings() {
     CHECK(device.data() == QByteArray("\xef\xbb\xbfxy"));
 }
 
+static void testNormalization() {
+    const QString composed = u"é"_s;   // é
+    const QString decomposed = u"é"_s; // e + combining acute
+    CHECK(decomposed.normalized(QString::NormalizationForm_C) == composed);
+    CHECK(composed.normalized(QString::NormalizationForm_D) == decomposed);
+    // Marks are put in canonical order: dot below (220) before acute (230).
+    CHECK(u"q̣́"_s.normalized(QString::NormalizationForm_D) == u"q̣́"_s);
+    CHECK(u"ḍ̇"_s.normalized(QString::NormalizationForm_C) == u"ḍ̇"_s);
+    // Compatibility forms fold presentation variants.
+    CHECK(u"ﬁ"_s.normalized(QString::NormalizationForm_KC) == u"fi"_s);
+    CHECK(u"ﬁ"_s.normalized(QString::NormalizationForm_C) == u"ﬁ"_s);
+    CHECK(u"x²"_s.normalized(QString::NormalizationForm_KD) == u"x2"_s);
+    // Singletons and exclusions: Ångström sign → Å; U+0958 stays decomposed.
+    CHECK(u"Å"_s.normalized(QString::NormalizationForm_C) == u"Å"_s);
+    CHECK(u"क़"_s.normalized(QString::NormalizationForm_C) == u"क़"_s);
+    // Hangul syllables decompose and recompose by formula.
+    CHECK(u"한"_s.normalized(QString::NormalizationForm_D) == u"한"_s);
+    CHECK(u"한"_s.normalized(QString::NormalizationForm_C) == u"한"_s);
+    // Characters outside the BMP.
+    CHECK(u"\U0001D15E"_s.normalized(QString::NormalizationForm_C) == u"\U0001D157\U0001D165"_s);
+    CHECK(QString().normalized(QString::NormalizationForm_C).isNull() &&
+          u"plain ascii"_s.normalized(QString::NormalizationForm_KC) == u"plain ascii"_s);
+
+    CHECK(QChar(u'é').decomposition() == decomposed && QChar(u'é').decompositionTag() == QChar::Canonical);
+    CHECK(QChar(u'½').decomposition() == u"1⁄2"_s && QChar(u'½').decompositionTag() == QChar::Fraction);
+    CHECK(QChar(u' ').decompositionTag() == QChar::NoBreak && QChar(u'a').decompositionTag() == QChar::NoDecomposition);
+    CHECK(QChar(u'a').decomposition().isEmpty());
+    CHECK(QChar(u'한').decomposition() == u"한"_s); // LVT -> LV + T
+    CHECK(QChar::decomposition(char32_t(0x1D15E)) == u"\U0001D157\U0001D165"_s);
+    CHECK(QChar(u'́').combiningClass() == 230 && QChar(u'̣').combiningClass() == 220 &&
+          QChar(u'a').combiningClass() == 0);
+    CHECK(QChar::combiningClass(char32_t(0x1D165)) == 216);
+}
+
+static void testStringConversions() {
+    const QString s = u"aé\U0001F600"_s;
+    CHECK(s.toStdU32String() == U"aé\U0001F600");
+    CHECK(QString::fromStdU32String(U"x\U0001F600") == u"x\U0001F600"_s);
+    CHECK(s.toUcs4() == QList<uint>({0x61, 0xe9, 0x1F600}));
+    const char32_t ucs4[] = {0x41, 0x1F600, 0x110000, 0};
+    CHECK(QString::fromUcs4(ucs4) == u"A\U0001F600�"_s);
+    CHECK(QString::fromUcs4(ucs4, 1) == u"A"_s);
+    CHECK(s.toStdWString() == L"aé\U0001F600");
+    CHECK(QString::fromStdWString(L"w\U0001F600") == u"w\U0001F600"_s);
+    wchar_t buf[8] = {};
+    const qsizetype n = s.toWCharArray(buf);
+    CHECK(QString::fromWCharArray(buf, n) == s && QString::fromWCharArray(L"zz") == u"zz"_s);
+    // Unpaired surrogates.
+    const QString broken(QChar(char16_t(0xD800)));
+    CHECK(!broken.isValidUtf16() && s.isValidUtf16() && QString().isValidUtf16());
+    CHECK(!QString(QChar(char16_t(0xDC00))).isValidUtf16());
+    CHECK(broken.toStdU32String() == U"�");
+
+    CHECK(u"<a href=\"x\">&</a>"_s.toHtmlEscaped() == u"&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;"_s);
+    CHECK(u"ABC 1!"_s.isUpper() && !u"Abc"_s.isUpper() && u"été"_s.isLower() && !u"Été"_s.isLower());
+
+    QString t = u"hello world"_s;
+    CHECK(t.slice(6) == u"world"_s);
+    t = u"hello world"_s;
+    CHECK(t.slice(1, 4) == u"ello"_s);
+    CHECK(!QString().nullTerminated().isNull() && QString().nullTerminated().unicode()[0] == QChar(u'\0'));
+    QString digits = u"a1b2c3"_s;
+    CHECK(digits.removeIf([](QChar c) { return c.isDigit(); }) == u"abc"_s);
+    CHECK(QString().assign(3, QChar(u'x')) == u"xxx"_s);
+    const std::u16string src = u"iter";
+    CHECK(QString().assign(src.begin(), src.end()) == u"iter"_s);
+    QString any;
+    CHECK(any.assign("utf-8 \xc3\xa9") == u"utf-8 \u00e9"_s && any.assign(u"utf-16") == u"utf-16"_s);
+    CHECK(any.assign(QLatin1StringView("latin")) == u"latin"_s && any.assign(u"copy"_s) == u"copy"_s);
+    CHECK(!QString().assign(QAnyStringView()).isNull());
+    QString raw;
+    CHECK(raw.setUnicode(s.unicode(), 2) == u"aé"_s && raw.setUtf16(u"xyz", 2) == u"xy"_s);
+    CHECK(raw.setUnicode(nullptr, 5).size() == 5 && raw.setRawData(s.constData(), 1) == u"a"_s);
+}
+
+static void testStringViewsAndDebug() {
+    // QLatin1StringView
+    const QLatin1StringView l1("  Hello, World  ");
+    CHECK(l1.trimmed() == QLatin1StringView("Hello, World") && l1.length() == 16 && !l1.empty());
+    const QLatin1StringView hw = l1.trimmed();
+    CHECK(hw.first(5) == QLatin1StringView("Hello") && hw.last(5) == QLatin1StringView("World"));
+    CHECK(hw.sliced(7) == QLatin1StringView("World") && hw.sliced(7, 3) == QLatin1StringView("Wor"));
+    CHECK(hw.mid(7, 100) == QLatin1StringView("World") && hw.left(5) == QLatin1StringView("Hello") &&
+          hw.right(5) == QLatin1StringView("World"));
+    CHECK(hw.front() == QChar(u'H') && hw.back() == QChar(u'd') && hw.chopped(7) == QLatin1StringView("Hello"));
+    CHECK(hw.startsWith(u"hello"_s, Qt::CaseInsensitive) && hw.endsWith(QChar(u'd')) && hw.contains(u"o, W"_s));
+    CHECK(hw.indexOf(QChar(u'o')) == 4 && hw.lastIndexOf(QChar(u'o')) == 8 && hw.count(QChar(u'l')) == 3);
+    CHECK(hw.compare(u"hello, world"_s, Qt::CaseInsensitive) == 0 && hw.toString() == u"Hello, World"_s);
+    CHECK(QLatin1StringView("abc") < QLatin1StringView("abd") && QLatin1StringView("\xe9") > QLatin1StringView("z"));
+    CHECK(QLatin1StringView("abc") == "abc" && QLatin1StringView("abc") != QLatin1StringView("ab"));
+    CHECK(u"abc"_s == QLatin1StringView("abc") && QLatin1StringView("abc") == u"abc"_s);
+    std::string collected(hw.begin(), hw.end());
+    CHECK(collected == "Hello, World");
+
+    // QStringView
+    const QString text = u"a,b,,c"_s;
+    const QStringView v(text);
+    const QList<QStringView> parts = v.split(QChar(u','));
+    CHECK(parts.size() == 4 && parts.at(0) == u"a" && parts.at(2).isEmpty() && parts.at(3) == u"c");
+    CHECK(parts.at(3).data() == text.constData() + 5); // views into the same characters
+    CHECK(v.split(u",", Qt::SkipEmptyParts).size() == 3);
+    CHECK(QStringView(u"aXbxc").split(u"x", Qt::KeepEmptyParts, Qt::CaseInsensitive).size() == 3);
+    CHECK(v.count(QChar(u',')) == 3 && v.count(u",,") == 1 && v.count(QLatin1StringView(",")) == 3);
+    CHECK(v.startsWith(QLatin1StringView("a,")) && v.endsWith(QLatin1StringView(",c")) &&
+          v.contains(QLatin1StringView(",,")));
+    CHECK(v.indexOf(QLatin1StringView(",,")) == 3 && v.lastIndexOf(QLatin1StringView(",")) == 4);
+    CHECK(QStringView(u"abc").compare(QLatin1StringView("ABC"), Qt::CaseInsensitive) == 0 &&
+          QStringView(u"b").compare(QChar(u'a')) > 0);
+    QString reversed;
+    for (auto it = QStringView(u"abc").rbegin(); it != QStringView(u"abc").rend(); ++it)
+        reversed += *it;
+    CHECK(reversed == u"cba"_s);
+    bool ok = false;
+    CHECK(QStringView(u"-12").toShort(&ok) == -12 && ok && QStringView(u"70000").toShort(&ok) == 0 && !ok);
+    CHECK(QStringView(u"65535").toUShort(&ok) == 65535 && ok && QStringView(u"-1").toULong(&ok) == 0 && !ok);
+    CHECK(QStringView(u"123456").toLong(&ok) == 123456 && ok && QStringView(u"1.5").toFloat(&ok) == 1.5f && ok);
+    CHECK(u"4000000000"_s.toULong(&ok) == 4000000000UL && ok);
+    CHECK(QStringView(u"é").toLocal8Bit() == "\xc3\xa9" &&
+          QStringView(u"A\U0001F600").toUcs4() == QList<uint>({0x41, 0x1F600}));
+    CHECK(QStringView(u"ABC").isUpper() && QStringView(u"abc").isLower() && QStringView(u"ok").isValidUtf16());
+
+    // QDebug manipulators.
+    QString out;
+    {
+        QDebug d(&out);
+        d << Qt::hex << Qt::showbase << 255 << Qt::dec << 255 << Qt::uppercasedigits << Qt::hex << 255;
+    }
+    CHECK(out == u"0xff 255 0xFF "_s); // a QDebug writing to a string keeps the trailing space
+    out.clear();
+    {
+        QDebug d(&out);
+        d.nospace() << qSetFieldWidth(5) << 42 << qSetFieldWidth(0) << "|" << qSetPadChar(u'0') << qSetFieldWidth(4)
+                    << 7;
+    }
+    CHECK(out == u"   42|0007"_s);
+    out.clear();
+    {
+        QDebug d(&out);
+        d << Qt::fixed << qSetRealNumberPrecision(2) << 3.14159 << Qt::forcesign << 1;
+    }
+    CHECK(out == u"3.14 +1 "_s);
+    out.clear();
+    {
+        QDebug d(&out);
+        {
+            QDebugStateSaver saver(d);
+            d << Qt::hex << 16;
+        }
+        d << 16 << 0.5;
+    }
+    CHECK(out == u"10 16 0.5 "_s);
+
+    // QTextStream with a locale.
+    QString s;
+    QTextStream ts(&s);
+    ts.setLocale(QLocale(QLocale::German));
+    CHECK(ts.locale() == QLocale(QLocale::German));
+    ts << 1234567 << ' ' << 1234.5 << ' ' << -1000 << ' ' << Qt::hex << 255;
+    CHECK(s == u"1.234.567 1.234,5 -1.000 ff"_s);
+    QString input = u"1.234.567 2.500,25 12"_s;
+    QTextStream in(&input);
+    in.setLocale(QLocale(QLocale::German));
+    int big = 0;
+    double real = 0;
+    int small = 0;
+    in >> big >> real >> small;
+    CHECK(big == 1234567 && real == 2500.25 && small == 12);
+    QLocale noGroups(QLocale::German);
+    noGroups.setNumberOptions(QLocale::OmitGroupSeparator);
+    QString plain;
+    QTextStream ps(&plain);
+    ps.setLocale(noGroups);
+    ps << 1234567 << ' ' << 0.5;
+    CHECK(plain == u"1234567 0,5"_s);
+    ps.setLocale(QLocale::c());
+    ps << ' ' << 1234.5;
+    CHECK(plain.endsWith(u" 1234.5"_s));
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    testStringViewsAndDebug();
+    testNormalization();
+    testStringConversions();
     testRegexBasics();
     testRegexGroupsAndAnchors();
     testRegexUnicode();

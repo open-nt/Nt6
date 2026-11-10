@@ -12,7 +12,7 @@
     coordinates and for operations such as intersection and angles.
 
     \differences
-    There are no QDebug or QDataStream stream operators.
+    None.
     \enddifferences
 
     \sa QLineF, QPoint
@@ -168,8 +168,7 @@ private:
     down, a positive angle turns the line upwards on screen.
 
     \differences
-    Coordinates are always \c double, which is what \c qreal is in Nt. There
-    are no QDebug or QDataStream stream operators.
+    Coordinates are always \c double, which is what \c qreal is in Nt.
     \enddifferences
 
     \sa QLine, QPointF

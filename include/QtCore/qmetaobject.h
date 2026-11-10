@@ -8,6 +8,7 @@
 #include <QtCore/qobjectdefs.h>
 #include <QtCore/qvariant.h>
 
+#include <optional>
 #include <type_traits>
 
 /*!
@@ -206,7 +207,7 @@ private:
     \endcode
 
     \differences
-    Values are \c int; there is no \c value64() or \c is64Bit(). There is no
+    Values are \c int, so is64Bit() is always \c false. There is no
     \c QMetaEnum::fromType() for an enumeration that is not declared with
     \c Q_ENUM(), \c Q_FLAG(), \c Q_ENUM_NS() or \c Q_FLAG_NS().
     \enddifferences
@@ -233,6 +234,40 @@ public:
     int keyToValue(const char *key, bool *ok = nullptr) const;
     const char *valueToKey(int value) const;
     int keysToValue(const char *keys, bool *ok = nullptr) const;
+    /*!
+        \since 6.9
+        Returns \c false: the enumerations that \c ntmoc records have \c int
+        values.
+
+        \sa value64()
+    */
+    bool is64Bit() const { return false; }
+    /*!
+        \since 6.9
+        Returns the value of the key at \a i as a 64-bit number, sign-extended,
+        or \c std::nullopt if \a i is out of range.
+
+        \sa value(), keyCount()
+    */
+    std::optional<quint64> value64(int i) const {
+        if (i < 0 || i >= keyCount())
+            return std::nullopt;
+        return static_cast<quint64>(static_cast<qint64>(value(i)));
+    }
+    /*!
+        \since 6.9
+        Returns the value of \a key as a 64-bit number, or \c std::nullopt if
+        the enumeration has no such key.
+
+        \sa keyToValue()
+    */
+    std::optional<quint64> keyToValue64(const char *key) const {
+        bool ok = false;
+        const int v = keyToValue(key, &ok);
+        if (!ok)
+            return std::nullopt;
+        return static_cast<quint64>(static_cast<qint64>(v));
+    }
     QByteArray valueToKeys(int value) const;
     const QMetaObject *enclosingMetaObject() const;
     /*!

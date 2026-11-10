@@ -17,6 +17,13 @@ public:
 
     // The command line as passed to the constructor, decoded as UTF-8.
     static QStringList arguments();
+    static QString applicationFilePath();
+    static QString applicationDirPath();
+    static qint64 applicationPid();
+    static QStringList libraryPaths();
+    static void setLibraryPaths(const QStringList &paths);
+    static void addLibraryPath(const QString &path);
+    static void removeLibraryPath(const QString &path);
     // Defaults to the file name of argv[0].
     static void setApplicationName(const QString &name);
     static QString applicationName();
@@ -32,6 +39,8 @@ public:
     static void setQuitLockEnabled(bool enabled);
     static bool isQuitLockEnabled();
     static void processEvents(QEventLoop::ProcessEventsFlags flags = QEventLoop::AllEvents);
+    static void processEvents(QEventLoop::ProcessEventsFlags flags, int ms);
+    static void processEvents(QEventLoop::ProcessEventsFlags flags, QDeadlineTimer deadline);
     static void sendPostedEvents(QObject *receiver = nullptr, int eventType = 0);
 
     // Takes ownership of `event`.

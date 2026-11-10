@@ -24,6 +24,10 @@ struct ConnectionData {
     std::function<void(void *const *)> invoke;
     std::string method; // normalized signature of the receiving method, for string-based connections
     Qt::ConnectionType type = Qt::AutoConnection;
+    SignalId slot; // the member function slot, when hasSlot is set, for Qt::UniqueConnection
+    bool hasSlot = false;
+    bool singleShot = false; // Qt::SingleShotConnection
+    bool fired = false;      // a single-shot connection has been emitted; guarded by the signal-slot lock
     std::atomic<bool> alive{true};
 };
 
@@ -66,6 +70,8 @@ private:
 bool disconnectConnections(const QObject *sender, const SignalId *id, const QObject *receiver,
                            const std::string *method);
 void setConnectionMethod(const std::shared_ptr<ConnectionData> &c, const std::string &method);
+// Removes a single-shot connection after its slot was called.
+void finishSingleShot(const std::shared_ptr<ConnectionData> &c);
 
 } // namespace QtPrivate
 

@@ -18,7 +18,7 @@ class QPointF;
     nearest integer.
 
     \differences
-    There are no QDebug or QDataStream stream operators, no
+    There are no
     \c operator*() or \c operator/() overloads taking \c float or \c qreal
     other than \c double, and no platform conversions such as
     \c toCGPoint().
@@ -164,8 +164,7 @@ private:
 
     \differences
     Coordinates are always \c double, which is what \c qreal is in Nt. There
-    are no QDebug or QDataStream stream operators and no platform
-    conversions such as \c toCGPoint().
+    are no platform conversions such as \c toCGPoint().
     \enddifferences
 
     \sa QPoint, QLineF

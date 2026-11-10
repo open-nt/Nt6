@@ -2,12 +2,14 @@
 #pragma once
 
 #include <QtCore/qglobal.h>
+#include <QtCore/qsysinfo.h>
 
 #include <algorithm>
 #include <utility>
 #include <vector>
 
 class QBitArray;
+class QDataStream;
 
 /*!
     \class QBitRef
@@ -66,9 +68,8 @@ private:
     empty one; see isNull().
 
     \differences
-    Bits are stored in a \c{std::vector<bool>}. There is no \c toUInt32(),
-    \c fromBits(), \c bits() or \c operator<<()/\c operator>>() for
-    QDataStream. Indexes are not range-checked. The bit count is a qsizetype.
+    Bits are stored in a \c{std::vector<bool>}, so bits() packs them into a
+    separate buffer each time it is called. Indexes are not range-checked. The bit count is a qsizetype.
     \enddifferences
 
     \sa QByteArray
@@ -227,6 +228,10 @@ public:
         return r;
     }
 
+    const char *bits() const;
+    static QBitArray fromBits(const char *data, qsizetype size);
+    quint32 toUInt32(QSysInfo::Endian endianness, bool *ok = nullptr) const noexcept;
+
     friend bool operator==(const QBitArray &a, const QBitArray &b) { return a.d == b.d; }
     friend bool operator!=(const QBitArray &a, const QBitArray &b) { return a.d != b.d; }
     friend QBitArray operator&(QBitArray a, const QBitArray &b) { a &= b; return a; }
@@ -247,8 +252,15 @@ private:
     }
 
     std::vector<bool> d;
+    mutable std::vector<char> m_bytes; // the packed bits returned by bits()
     bool m_null = true;
 };
 
 inline QBitRef::operator bool() const { return static_cast<const QBitArray &>(arr).testBit(idx); }
 inline QBitRef &QBitRef::operator=(bool v) { arr.setBit(idx, v); return *this; }
+
+// Writes the bit array to a stream: the number of bits (a quint32 before stream version Qt_6_0, a qint64 from it on),
+// then the bits packed eight to a byte, the first bit in the least significant bit of the first byte.
+QDataStream &operator<<(QDataStream &out, const QBitArray &ba);
+// Reads a bit array written by operator<<(); on corrupt data the array is cleared and the stream status is set.
+QDataStream &operator>>(QDataStream &in, QBitArray &ba);

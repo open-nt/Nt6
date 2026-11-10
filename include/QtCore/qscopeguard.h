@@ -17,8 +17,7 @@
     \endcode
 
     \differences
-    The constructor accepts only an rvalue callable, and there is no
-    assignment operator.
+    None.
     \enddifferences
 
     \sa QScopedValueRollback, QSignalBlocker
@@ -30,6 +29,11 @@ public:
         Constructs a guard that calls \a f on destruction.
     */
     explicit QScopeGuard(F &&f) noexcept : func(std::move(f)) {}
+    /*!
+        \overload
+        Constructs a guard that calls a copy of \a f on destruction.
+    */
+    explicit QScopeGuard(const F &f) noexcept : func(f) {}
     /*!
         Move-constructs a guard from \a o. The moved-from guard no longer
         calls its function.
@@ -62,7 +66,7 @@ QScopeGuard<std::decay_t<F>> qScopeGuard(F &&f) { return QScopeGuard<std::decay_
     exists, and restores the previous blocked state on destruction.
 
     \differences
-    There is no move constructor or move assignment.
+    None.
     \enddifferences
 
     \sa QObject::blockSignals()
@@ -85,6 +89,25 @@ public:
     ~QSignalBlocker() { if (obj) obj->blockSignals(previous); }
     QSignalBlocker(const QSignalBlocker &) = delete;
     QSignalBlocker &operator=(const QSignalBlocker &) = delete;
+    /*!
+        Constructs a blocker that takes over the object of \a other; \a other
+        then restores nothing when it is destroyed.
+    */
+    QSignalBlocker(QSignalBlocker &&other) noexcept
+        : obj(std::exchange(other.obj, nullptr)), previous(other.previous) {}
+    /*!
+        Restores the state of the current object, then takes over the object
+        of \a other, and returns a reference to this blocker.
+    */
+    QSignalBlocker &operator=(QSignalBlocker &&other) noexcept {
+        if (this != &other) {
+            if (obj)
+                obj->blockSignals(previous);
+            obj = std::exchange(other.obj, nullptr);
+            previous = other.previous;
+        }
+        return *this;
+    }
     /*!
         Blocks the object's signals again after unblock().
 
@@ -112,7 +135,7 @@ private:
     and assigns it back when destroyed, unless commit() was called.
 
     \differences
-    There is no move constructor or assignment.
+    None.
     \enddifferences
 
     \sa QScopeGuard

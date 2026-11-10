@@ -1,9 +1,13 @@
 // MIT License - see LICENSE
 #include <QtCore/qstring.h>
 
+#include <QtCore/qanystringview.h>
+#include <QtCore/qstringview.h>
+
 #include <QtCore/qlocale.h>
 
 #include "numparse_p.h"
+#include "qnormalize_p.h"
 #include "qunicode_p.h"
 
 #include <algorithm>
@@ -149,11 +153,8 @@ std::u16string pad(std::u16string s, int fieldWidth, char16_t fill, bool numeric
     simplified; toLocal8Bit() and fromLocal8Bit() use UTF-8. count() returns 0 for an
     empty argument. Functions taking QStringView or QLatin1StringView are
     mostly missing; use the QString overloads. section() has no
-    QRegularExpression overload. Not provided are \c normalized(),
-    \c toHtmlEscaped(),
-    \c toWCharArray(), \c fromWCharArray(), \c toUcs4(), \c fromUcs4(),
-    \c setRawData(), \c setUnicode() and \c setUtf16(), nor QStringBuilder
-    concatenation.
+    QRegularExpression overload. setRawData() copies the data. There is no
+    QStringBuilder concatenation.
     \enddifferences
 
     \sa QChar, QStringList, QStringView, QByteArray
@@ -434,6 +435,290 @@ QString QString::toLower() const {
     if (isNull())
         return QString();
     return QString(QtPrivate::Unicode::convertCase(d, QtPrivate::Unicode::CaseConversion::Lower));
+}
+
+/*!
+    Returns the string in the Unicode normalization form \a mode. Use
+    \c NormalizationForm_C to store and compare text, and the compatibility
+    forms (KD, KC) to match characters that only differ in presentation, such
+    as \c{"ﬁ"} and \c{"fi"}.
+
+    \code
+    QString(u"e\u0301"_s).normalized(QString::NormalizationForm_C); // "é", one character
+    \endcode
+
+    \sa QChar::decomposition(), QChar::combiningClass()
+*/
+QString QString::normalized(NormalizationForm mode) const {
+    if (isNull())
+        return QString();
+    const bool compat = mode == NormalizationForm_KD || mode == NormalizationForm_KC;
+    const bool compose = mode == NormalizationForm_C || mode == NormalizationForm_KC;
+    return QString(QtPrivate::Unicode::normalize(d, compat, compose));
+}
+
+namespace {
+QList<QStringView> splitView(QStringView view, const QString &sep, Qt::SplitBehavior behavior, Qt::CaseSensitivity cs) {
+    QList<QStringView> parts;
+    const QString text = view.toString();
+    qsizetype start = 0;
+    auto add = [&](qsizetype from, qsizetype to) {
+        if (to > from || !behavior.testFlag(Qt::SkipEmptyParts))
+            parts.append(view.sliced(from, to - from));
+    };
+    if (sep.isEmpty()) {
+        // An empty separator splits between every character, as in QString::split().
+        add(0, 0);
+        for (qsizetype i = 0; i < view.size(); ++i)
+            add(i, i + 1);
+        add(view.size(), view.size());
+        return parts;
+    }
+    for (qsizetype at = text.indexOf(sep, 0, cs); at != -1; at = text.indexOf(sep, start, cs)) {
+        add(start, at);
+        start = at + sep.size();
+    }
+    add(start, view.size());
+    return parts;
+}
+} // namespace
+
+/*!
+    Splits the view where \a sep occurs, compared with \a cs, and returns
+    views of the parts, which refer to the same characters. With
+    \c Qt::SkipEmptyParts in \a behavior, empty parts are left out.
+
+    \sa QString::split()
+*/
+QList<QStringView> QStringView::split(QStringView sep, Qt::SplitBehavior behavior, Qt::CaseSensitivity cs) const {
+    return splitView(*this, sep.toString(), behavior, cs);
+}
+
+/*!
+    \overload
+    Splits the view where the character \a sep occurs. \a behavior and
+    \a cs are as for the other overload.
+*/
+QList<QStringView> QStringView::split(QChar sep, Qt::SplitBehavior behavior, Qt::CaseSensitivity cs) const {
+    return splitView(*this, QString(sep), behavior, cs);
+}
+
+/*!
+    \since 6.6
+    Replaces the contents with the text of \a v, which may be Latin-1, UTF-8
+    or UTF-16, and returns a reference to this string.
+
+    \code
+    QString s;
+    s.assign("utf-8 text");
+    s.assign(u"utf-16 text");
+    \endcode
+*/
+QString &QString::assign(const QAnyStringView &v) {
+    *this = v.toString();
+    m_null = false;
+    return *this;
+}
+
+/*!
+    Returns a copy of the string with the HTML metacharacters \c{<}, \c{>},
+    \c{&} and \c{"} replaced by their entities, for inclusion in HTML
+    text or attribute values.
+*/
+QString QString::toHtmlEscaped() const {
+    std::u16string out;
+    out.reserve(d.size());
+    for (char16_t u : d) {
+        switch (u) {
+        case u'<':
+            out += u"&lt;";
+            break;
+        case u'>':
+            out += u"&gt;";
+            break;
+        case u'&':
+            out += u"&amp;";
+            break;
+        case u'"':
+            out += u"&quot;";
+            break;
+        default:
+            out += u;
+        }
+    }
+    return QString(out);
+}
+
+/*!
+    \since 5.15
+    Returns \c true if the string is valid UTF-16: every high surrogate is
+    followed by a low surrogate and no low surrogate stands alone.
+*/
+bool QString::isValidUtf16() const noexcept {
+    for (std::size_t i = 0; i < d.size(); ++i) {
+        const char16_t u = d[i];
+        if (u >= 0xD800 && u <= 0xDBFF) {
+            if (i + 1 >= d.size() || d[i + 1] < 0xDC00 || d[i + 1] > 0xDFFF)
+                return false;
+            ++i;
+        } else if (u >= 0xDC00 && u <= 0xDFFF) {
+            return false;
+        }
+    }
+    return true;
+}
+
+/*!
+    \since 5.12
+    Returns \c true if the string equals its toUpper(), that is, if it has no
+    character that uppercasing would change. The empty string is uppercase.
+
+    \sa isLower(), toUpper()
+*/
+bool QString::isUpper() const { return toUpper() == *this; }
+
+/*!
+    \since 5.12
+    Returns \c true if the string equals its toLower().
+
+    \sa isUpper(), toLower()
+*/
+bool QString::isLower() const { return toLower() == *this; }
+
+/*!
+    \since 5.4
+    Returns the string as a \c std::u32string of code points. Unpaired
+    surrogates become U+FFFD.
+
+    \sa fromStdU32String(), toUcs4()
+*/
+std::u32string QString::toStdU32String() const {
+    std::u32string out;
+    out.reserve(d.size());
+    const auto n = static_cast<qsizetype>(d.size());
+    for (qsizetype i = 0; i < n;) {
+        int len = 1;
+        char32_t c = QtPrivate::Unicode::codePointAt(d.data(), n, i, &len);
+        if (c >= 0xD800 && c <= 0xDFFF)
+            c = 0xFFFD;
+        out.push_back(c);
+        i += len;
+    }
+    return out;
+}
+
+/*!
+    \since 5.5
+    Returns a string holding the code points of \a s.
+
+    \sa toStdU32String(), fromUcs4()
+*/
+QString QString::fromStdU32String(const std::u32string &s) {
+    return fromUcs4(s.data(), static_cast<qsizetype>(s.size()));
+}
+
+/*!
+    Returns the string as a \c std::wstring. \c wchar_t is 32 bits on Linux
+    and macOS, where each element is a code point, and 16 bits on Windows,
+    where it is a UTF-16 code unit.
+
+    \sa fromStdWString(), toWCharArray()
+*/
+std::wstring QString::toStdWString() const {
+    std::wstring out(static_cast<std::size_t>(size()), L'\0');
+    out.resize(static_cast<std::size_t>(toWCharArray(out.data())));
+    return out;
+}
+
+/*!
+    Returns a string decoded from \a s, as UTF-32 or UTF-16 depending on the
+    size of \c wchar_t.
+
+    \sa toStdWString(), fromWCharArray()
+*/
+QString QString::fromStdWString(const std::wstring &s) {
+    return fromWCharArray(s.data(), static_cast<qsizetype>(s.size()));
+}
+
+/*!
+    Returns the code points of the string. Unpaired surrogates become
+    U+FFFD.
+
+    \sa fromUcs4(), toStdU32String()
+*/
+QList<uint> QString::toUcs4() const {
+    QList<uint> out;
+    for (char32_t c : toStdU32String())
+        out.append(static_cast<uint>(c));
+    return out;
+}
+
+/*!
+    Returns a string holding the first \a size code points of \a unicode; if
+    \a size is negative, \a unicode must end with a 0. Code points that are
+    not valid become U+FFFD.
+
+    \sa toUcs4()
+*/
+QString QString::fromUcs4(const char32_t *unicode, qsizetype size) {
+    if (!unicode)
+        return QString();
+    if (size < 0) {
+        size = 0;
+        while (unicode[size])
+            ++size;
+    }
+    std::u16string out;
+    out.reserve(static_cast<std::size_t>(size));
+    for (qsizetype i = 0; i < size; ++i) {
+        const char32_t c = unicode[i];
+        QtPrivate::Unicode::appendUtf16(out, (c > 0x10FFFF || (c >= 0xD800 && c <= 0xDFFF)) ? char32_t(0xFFFD) : c);
+    }
+    QString r(out);
+    r.m_null = false;
+    return r;
+}
+
+/*!
+    Writes the string to \a array as \c wchar_t values, UTF-32 where
+    \c wchar_t is 32 bits and UTF-16 where it is 16 bits, and returns how
+    many were written. \a array must have room for size() values; no
+    terminating 0 is written.
+
+    \sa fromWCharArray(), toStdWString()
+*/
+qsizetype QString::toWCharArray(wchar_t *array) const {
+    if constexpr (sizeof(wchar_t) == sizeof(char16_t)) {
+        std::copy(d.begin(), d.end(), array);
+        return size();
+    } else {
+        const std::u32string ucs4 = toStdU32String();
+        std::copy(ucs4.begin(), ucs4.end(), array);
+        return static_cast<qsizetype>(ucs4.size());
+    }
+}
+
+/*!
+    Returns a string decoded from the first \a size values of \a string, as
+    UTF-32 where \c wchar_t is 32 bits and UTF-16 where it is 16 bits. If
+    \a size is negative, \a string must end with a 0.
+
+    \sa toWCharArray(), fromStdWString()
+*/
+QString QString::fromWCharArray(const wchar_t *string, qsizetype size) {
+    if (!string)
+        return QString();
+    if (size < 0) {
+        size = 0;
+        while (string[size])
+            ++size;
+    }
+    if constexpr (sizeof(wchar_t) == sizeof(char16_t)) {
+        return QString(reinterpret_cast<const char16_t *>(string), size);
+    } else {
+        std::u32string ucs4(string, string + size);
+        return fromUcs4(ucs4.data(), size);
+    }
 }
 
 /*!
@@ -883,6 +1168,23 @@ long QString::toLong(bool *ok, int base) const {
     good = good && v >= LONG_MIN && v <= LONG_MAX;
     if (ok) *ok = good;
     return good ? static_cast<long>(v) : 0;
+}
+
+/*!
+    Returns the string converted to an \c{unsigned long} using \a base.
+    Conversion follows toULongLong(), and also fails if the value does not
+    fit in an \c{unsigned long}. On failure \a ok is set to \c false (if it
+    is not \c nullptr) and 0 is returned.
+
+    \sa toULongLong(), toLong()
+*/
+ulong QString::toULong(bool *ok, int base) const {
+    bool good = false;
+    const qulonglong v = toULongLong(&good, base);
+    good = good && v <= ULONG_MAX;
+    if (ok)
+        *ok = good;
+    return good ? static_cast<ulong>(v) : 0;
 }
 
 /*!

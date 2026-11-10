@@ -104,8 +104,11 @@ inline T qobject_cast(const Obj *o) { return dynamic_cast<T>(o); }
     connect(spinBox, qOverload<int>(&QSpinBox::valueChanged), receiver, &Receiver::setValue);
     \endcode
 
+    \c qConstOverload and \c qNonConstOverload pick only among the const or
+    the non-const overloads.
+
     \differences
-    There is no \c qConstOverload or \c qNonConstOverload.
+    None.
     \enddifferences
 */
 template <typename... Args>
@@ -126,3 +129,22 @@ struct QOverload {
 };
 template <typename... Args>
 inline constexpr QOverload<Args...> qOverload = {};
+
+namespace QtPrivate {
+template <typename... Args> struct QConstOverload {
+    template <typename R, typename T>
+    constexpr auto operator()(R (T::*ptr)(Args...) const) const noexcept -> decltype(ptr) {
+        return ptr;
+    }
+};
+template <typename... Args> struct QNonConstOverload {
+    template <typename R, typename T> constexpr auto operator()(R (T::*ptr)(Args...)) const noexcept -> decltype(ptr) {
+        return ptr;
+    }
+};
+} // namespace QtPrivate
+
+// Selects the const overload of a member function taking Args.
+template <typename... Args> inline constexpr QtPrivate::QConstOverload<Args...> qConstOverload = {};
+// Selects the non-const overload of a member function taking Args.
+template <typename... Args> inline constexpr QtPrivate::QNonConstOverload<Args...> qNonConstOverload = {};

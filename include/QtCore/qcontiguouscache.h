@@ -4,6 +4,7 @@
 #include <QtCore/qglobal.h>
 
 #include <deque>
+#include <utility>
 #include <limits>
 
 // A bounded window over a logically contiguous range of indexes.
@@ -26,8 +27,8 @@
 
     \differences
     QContiguousCache is implemented on top of \c std::deque and is not
-    implicitly shared, so copying it copies every item. There is no
-    \c swap(), \c detach() or \c setSharable().
+    implicitly shared, so copying it copies every item, and detach() does
+    nothing.
     \enddifferences
 
     \sa QCache, QList
@@ -138,6 +139,19 @@ public:
     \sa isEmpty()
     */
     void clear() { d.clear(); m_first = 0; }
+    /*!
+        \since 4.8
+        Swaps this cache with \a other.
+    */
+    void swap(QContiguousCache &other) noexcept {
+        d.swap(other.d);
+        std::swap(m_cap, other.m_cap);
+        std::swap(m_first, other.m_first);
+    }
+    /*!
+        Does nothing: the cache is never shared.
+    */
+    void detach() {}
 
     /*!
     Appends \a v after the last item. If the cache is full, the first item is

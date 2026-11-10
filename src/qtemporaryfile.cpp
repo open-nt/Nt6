@@ -43,8 +43,8 @@
     \differences
     open() always opens the file for reading and writing, whatever mode
     was requested; only the \c Append, \c Truncate, \c Text and \c Unbuffered
-    flags are honored. There are no \c createNativeFile() and \c rename()
-    functions.
+    flags are honored. Every file of Nt is a native file, so createNativeFile()
+    always returns \c nullptr.
     \enddifferences
 
     \sa QTemporaryDir, QFile, QSaveFile
@@ -179,6 +179,45 @@ bool QTemporaryFile::open(OpenMode mode) {
     // Only records the open mode; the file is already open.
     QIODevice::open(effective); // NOLINT(bugprone-parent-virtual-call)
     return true;
+}
+
+/*!
+    Renames the temporary file to \a newName, keeping it open, and returns
+    \c true if successful. Unlike QFile::rename(), it never copies the file,
+    so it fails if \a newName is on another file system. Whether the file is
+    removed on destruction still depends on autoRemove().
+
+    \sa setAutoRemove()
+*/
+bool QTemporaryFile::rename(const QString &newName) {
+    if (m_name.isEmpty() || newName.isEmpty())
+        return false;
+    if (::rename(m_name.toUtf8().constData(), newName.toUtf8().constData()) != 0) {
+        setFileError(RenameError, QString::fromUtf8(std::strerror(errno)));
+        return false;
+    }
+    m_name = newName;
+    return true;
+}
+
+/*!
+    Returns a temporary copy of \a file if it is not a native file, or
+    \c nullptr if it is. Nt has no resource or other virtual files, so this
+    always returns \c nullptr.
+*/
+QTemporaryFile *QTemporaryFile::createNativeFile(QFile &file) {
+    Q_UNUSED(file)
+    return nullptr;
+}
+
+/*!
+    \overload
+    Returns a temporary copy of the file \a fileName if it is not a native
+    file, or \c nullptr if it is; with Nt, always \c nullptr.
+*/
+QTemporaryFile *QTemporaryFile::createNativeFile(const QString &fileName) {
+    Q_UNUSED(fileName)
+    return nullptr;
 }
 
 /*!

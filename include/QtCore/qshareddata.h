@@ -2,8 +2,11 @@
 #pragma once
 
 #include <QtCore/qglobal.h>
+#include <QtCore/qhashfunctions.h>
 
 #include <atomic>
+#include <functional>
+#include <cstddef>
 #include <utility>
 
 /*!
@@ -73,10 +76,7 @@ struct QAdoptSharedDataTag {
     data if it is shared (copy-on-write).
 
     \differences
-    There is no \c{operator!()}, no relational operators other than
-    \c{==} and \c{!=} between two pointers, and no \c{clone()} customisation
-    point or \c qHash(); detaching always copy-constructs \c T. The
-    conversion to \c bool is implicit.
+    The conversion to \c bool is implicit.
     \enddifferences
 
     \sa QSharedData, QExplicitlySharedDataPointer
@@ -191,10 +191,55 @@ public:
     void swap(QSharedDataPointer &o) noexcept { std::swap(d, o.d); }
     friend bool operator==(const QSharedDataPointer &a, const QSharedDataPointer &b) { return a.d == b.d; }
     friend bool operator!=(const QSharedDataPointer &a, const QSharedDataPointer &b) { return a.d != b.d; }
+    /*!
+        Returns \c true if \a a points to an object before \a b in memory
+        order.
+    */
+    friend bool operator<(const QSharedDataPointer &a, const QSharedDataPointer &b) {
+        return std::less<T *>()(a.d, b.d);
+    }
+    /*!
+        Returns \c true if \a p points to \a ptr.
+    */
+    friend bool operator==(const QSharedDataPointer &p, const T *ptr) { return p.d == ptr; }
+    /*!
+        Returns \c true if \a p does not point to \a ptr.
+    */
+    friend bool operator!=(const QSharedDataPointer &p, const T *ptr) { return p.d != ptr; }
+    /*!
+        Returns \c true if \a p is null.
+    */
+    friend bool operator==(const QSharedDataPointer &p, std::nullptr_t) { return p.d == nullptr; }
+    /*!
+        Returns \c true if \a p is not null.
+    */
+    friend bool operator!=(const QSharedDataPointer &p, std::nullptr_t) { return p.d != nullptr; }
+    /*!
+        Returns \c true if the pointer is null.
+    */
+    bool operator!() const noexcept { return d == nullptr; }
+    /*!
+        \since 6.0
+        Returns the shared object and makes this pointer null, without
+        changing the reference count; the caller now holds that reference.
+    */
+    T *take() noexcept { return std::exchange(d, nullptr); }
+
+protected:
+    /*!
+        Returns a new copy of the shared object, for detach(). The default
+        copy-constructs \c T; specialize it for a class that needs another
+        way, such as a virtual \c clone():
+
+        \code
+        template <> Shape::Data *QSharedDataPointer<Shape::Data>::clone() { return d->clone(); }
+        \endcode
+    */
+    T *clone() { return new T(*d); }
 
 private:
     void detachHelper() {
-        T *x = new T(*d);
+        T *x = clone();
         x->ref.store(1);
         if (d->ref.fetch_sub(1) == 1)
             delete d;
@@ -213,9 +258,7 @@ private:
     private copy explicitly.
 
     \differences
-    It has no move constructor or move assignment, no \c reset(), \c swap(),
-    \c constData() or \c{operator!()}, and no adopting constructor. The
-    conversion to \c bool is implicit.
+    The conversion to \c bool is implicit.
     \enddifferences
 
     \sa QSharedData, QSharedDataPointer
@@ -283,7 +326,74 @@ public:
         \c false.
     */
     operator bool() const noexcept { return d != nullptr; }
+    /*!
+        Returns \c true if the pointer is null.
+    */
+    bool operator!() const noexcept { return d == nullptr; }
+    /*!
+        Returns a const pointer to the shared object, or \c nullptr.
+    */
+    const T *constData() const noexcept { return d; }
+    /*!
+        \since 6.0
+        Constructs a pointer that takes over a reference to \a data that the
+        caller already counted, without incrementing the reference count.
+    */
+    QExplicitlySharedDataPointer(QAdoptSharedDataTag, T *data) noexcept : d(data) {}
+    /*!
+        Constructs a pointer that takes over the object of \a o, leaving
+        \a o null.
+    */
+    QExplicitlySharedDataPointer(QExplicitlySharedDataPointer &&o) noexcept : d(std::exchange(o.d, nullptr)) {}
+    /*!
+        Takes over the object of \a o, releasing the current one, and returns
+        a reference to this pointer.
+    */
+    QExplicitlySharedDataPointer &operator=(QExplicitlySharedDataPointer &&o) noexcept {
+        QExplicitlySharedDataPointer moved(std::move(o));
+        swap(moved);
+        return *this;
+    }
+    /*!
+        Points to \a ptr instead, releasing the current object.
+    */
+    void reset(T *ptr = nullptr) noexcept {
+        QExplicitlySharedDataPointer tmp(ptr);
+        swap(tmp);
+    }
+    /*!
+        Swaps this pointer with \a other.
+    */
+    void swap(QExplicitlySharedDataPointer &other) noexcept { std::swap(d, other.d); }
+    /*!
+        \since 6.0
+        Returns the shared object and makes this pointer null, without
+        changing the reference count.
+    */
+    T *take() noexcept { return std::exchange(d, nullptr); }
+    /*!
+        Returns \c true if \a a and \a b point to the same object.
+    */
+    friend bool operator==(const QExplicitlySharedDataPointer &a, const QExplicitlySharedDataPointer &b) {
+        return a.d == b.d;
+    }
+    /*!
+        Returns \c true if \a a and \a b point to different objects.
+    */
+    friend bool operator!=(const QExplicitlySharedDataPointer &a, const QExplicitlySharedDataPointer &b) {
+        return a.d != b.d;
+    }
 
 private:
     T *d;
 };
+
+// Returns a hash of the pointer held by ptr, mixed with seed.
+template <typename T> std::size_t qHash(const QSharedDataPointer<T> &ptr, std::size_t seed = 0) noexcept {
+    return qHash(ptr.constData(), seed);
+}
+
+// Returns a hash of the pointer held by ptr, mixed with seed.
+template <typename T> std::size_t qHash(const QExplicitlySharedDataPointer<T> &ptr, std::size_t seed = 0) noexcept {
+    return qHash(ptr.constData(), seed);
+}

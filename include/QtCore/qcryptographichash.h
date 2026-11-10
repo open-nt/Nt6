@@ -5,6 +5,7 @@
 #include <QtCore/qbytearrayview.h>
 
 #include <memory>
+#include <utility>
 
 class QIODevice;
 
@@ -46,6 +47,20 @@ public:
     */
     void addData(const char *data, qsizetype length) noexcept { addData(QByteArrayView(data, length)); }
     bool addData(QIODevice *device);
+    /*!
+        \since 6.8
+        Adds \a data to the hash. Nt processes the data immediately, so this is
+        the same as addData().
+    */
+    void addDataWithoutCopy(QByteArrayView data) noexcept { addData(data); }
+    /*!
+        \since 5.10
+        Swaps this hash with \a other.
+    */
+    void swap(QCryptographicHash &other) noexcept {
+        std::swap(m_method, other.m_method);
+        d.swap(other.d);
+    }
     QByteArray result() const;
     QByteArrayView resultView() const noexcept;
 

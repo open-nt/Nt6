@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qflags.h>
+#include <QtCore/qelapsedtimer.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qpointer.h>
 
@@ -32,6 +33,8 @@ public:
     ~QEventLoop() override;
 
     bool processEvents(ProcessEventsFlags flags = AllEvents);
+    void processEvents(ProcessEventsFlags flags, int maxTime);
+    void processEvents(ProcessEventsFlags flags, QDeadlineTimer deadline);
     int exec(ProcessEventsFlags flags = AllEvents);
     void exit(int returnCode = 0);
     bool isRunning() const;

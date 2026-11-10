@@ -2,7 +2,9 @@
 #include <QtCore/qrandom.h>
 #include <QtCore/quuid.h>
 
+#include <chrono>
 #include <cstring>
+#include <mutex>
 
 namespace {
 
@@ -56,9 +58,8 @@ QUuid fromNameHash(const QUuid &ns, const QByteArray &name, QCryptographicHash::
     \endcode
 
     \differences
-    There is no \c createUuidV7(), no \c QUuid(QAnyStringView) or
-    \c fromString(QAnyStringView), and no QDataStream, \c QDebug or Windows
-    \c GUID conversions. Strings are parsed from a QStringView, a
+    There is no \c QUuid(QAnyStringView) or
+    \c fromString(QAnyStringView), and no Windows \c GUID conversions. Strings are parsed from a QStringView, a
     \c{const char *} or a QByteArray. There are no predefined namespace
     constants.
     \enddifferences
@@ -93,6 +94,7 @@ QUuid fromNameHash(const QUuid &ns, const QByteArray &name, QCryptographicHash::
     \value Name The same as Md5.
     \value Random Random-number based.
     \value Sha1 Name-based, hashed with SHA-1.
+    \value UnixEpoch Time-ordered: a Unix timestamp in milliseconds followed by random bits (version 7).
 
     \sa version()
 */
@@ -224,7 +226,7 @@ QUuid::Variant QUuid::variant() const noexcept {
 */
 QUuid::Version QUuid::version() const noexcept {
     const int v = data3 >> 12;
-    if (variant() != DCE || v < Time || v > Sha1)
+    if (variant() != DCE || v < Time || v > UnixEpoch || v == 6)
         return VerUnknown;
     return static_cast<Version>(v);
 }
@@ -243,6 +245,49 @@ QUuid QUuid::createUuid() {
     u.data2 = static_cast<ushort>(words[1]);
     u.data3 = static_cast<ushort>((words[1] >> 16 & 0x0fff) | 0x4000);
     std::memcpy(u.data4, &words[2], 8);
+    u.data4[0] = static_cast<uchar>((u.data4[0] & 0x3f) | 0x80);
+    return u;
+}
+
+/*!
+    \since 6.9
+    Creates a time-ordered, version 7 UUID: the first 48 bits are the
+    milliseconds since the Unix epoch, and the remaining bits other than the
+    version and variant are random. UUIDs created by one process sort in the
+    order they were created, even within the same millisecond, because a
+    counter in the 12 bits after the version breaks ties.
+
+    \sa createUuid(), version()
+*/
+QUuid QUuid::createUuidV7() {
+    static std::mutex lock;
+    static quint64 lastMs = 0;
+    static quint32 counter = 0;
+    quint64 ms = static_cast<quint64>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+            .count());
+    quint32 seq = 0;
+    {
+        std::lock_guard<std::mutex> lk(lock);
+        if (ms > lastMs) {
+            counter = QRandomGenerator::system()->bounded(0x800u); // leave room to count up
+        } else {
+            ms = lastMs; // the clock did not advance, or went back: keep the order
+            if (++counter > 0xfff) {
+                ++ms;
+                counter = 0;
+            }
+        }
+        lastMs = ms;
+        seq = counter;
+    }
+    quint32 words[2];
+    QRandomGenerator::system()->fillRange(words, 2);
+    QUuid u;
+    u.data1 = static_cast<uint>(ms >> 16);
+    u.data2 = static_cast<ushort>(ms & 0xffff);
+    u.data3 = static_cast<ushort>(0x7000 | seq);
+    std::memcpy(u.data4, words, 8);
     u.data4[0] = static_cast<uchar>((u.data4[0] & 0x3f) | 0x80);
     return u;
 }

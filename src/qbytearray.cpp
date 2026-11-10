@@ -33,12 +33,11 @@ static bool isSpaceAscii(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); 
     \differences
     The bytes are stored in a \c std::string and the array is not implicitly
     shared, so copies are deep and fromRawData() copies the data. There is
-    no \c QByteArrayView, \c QString conversion, \c slice(),
-    \c nullTerminate(), \c isLower()/\c isUpper(), \c fromBase64Encoding() or
-    \c percentDecoded(), and no overloads of insert() or prepend() taking a
-    count and a character. split() takes a single \c char separator and
-    always keeps empty parts. fromBase64() ignores its options argument and
-    accepts both the standard and URL-safe alphabets. The conversions
+    no \c QString conversion. split() takes a single \c char separator and
+    always keeps empty parts. Unless \c AbortOnBase64DecodingErrors is given,
+    fromBase64() and fromBase64Encoding() accept both the standard and the
+    URL-safe alphabets and skip other characters; a strict decode accepts
+    missing \c{=} padding. The conversions
     toStdString() and stdString() are Nt additions. Indexes are qsizetype
     but are not range-checked.
     \enddifferences
@@ -463,31 +462,113 @@ QByteArray QByteArray::toBase64(Base64Options options) const {
 
     \sa toBase64()
 */
-QByteArray QByteArray::fromBase64(const QByteArray &in, Base64Options) {
-    auto val = [](char c) -> int {
-        if (c >= 'A' && c <= 'Z') return c - 'A';
-        if (c >= 'a' && c <= 'z') return c - 'a' + 26;
-        if (c >= '0' && c <= '9') return c - '0' + 52;
-        if (c == '+' || c == '-') return 62;
-        if (c == '/' || c == '_') return 63;
+QByteArray QByteArray::fromBase64(const QByteArray &in, Base64Options options) {
+    return fromBase64Encoding(in, options).decoded;
+}
+
+/*!
+    \since 5.15
+    Decodes \a base64 with the alphabet and error handling selected by
+    \a options, and returns the bytes with the status of the decoding.
+
+    By default characters outside the alphabet are skipped, as in
+    fromBase64(). With \c AbortOnBase64DecodingErrors, only the alphabet
+    chosen by \c Base64Encoding or \c Base64UrlEncoding is accepted, \c{=}
+    may only pad the end, and the status tells what was wrong; the decoded
+    bytes are then empty.
+
+    \sa fromBase64(), toBase64()
+*/
+QByteArray::FromBase64Result QByteArray::fromBase64Encoding(const QByteArray &in, Base64Options options) {
+    const bool strict = options.testFlag(AbortOnBase64DecodingErrors);
+    const bool url = options.testFlag(Base64UrlEncoding);
+    auto val = [strict, url](char c) -> int {
+        if (c >= 'A' && c <= 'Z')
+            return c - 'A';
+        if (c >= 'a' && c <= 'z')
+            return c - 'a' + 26;
+        if (c >= '0' && c <= '9')
+            return c - '0' + 52;
+        if ((c == '+' && (!strict || !url)) || (c == '-' && (!strict || url)))
+            return 62;
+        if ((c == '/' && (!strict || !url)) || (c == '_' && (!strict || url)))
+            return 63;
         return -1;
     };
+    FromBase64Result result;
+    auto fail = [&result](Base64DecodingStatus status) {
+        result.decoded = QByteArray();
+        result.decodingStatus = status;
+        return result;
+    };
+    std::size_t end = in.d.size();
+    std::size_t padding = 0;
+    if (strict) {
+        while (end > 0 && in.d[end - 1] == '=') {
+            --end;
+            ++padding;
+        }
+    }
     QByteArray r(static_cast<const char *>(""), 0);
     unsigned acc = 0;
     int bits = 0;
-    for (char c : in.d) {
-        const int v = val(c);
-        if (v < 0)
-            continue;
-        acc = (acc << 6) | static_cast<unsigned>(v);
+    std::size_t digits = 0;
+    for (std::size_t i = 0; i < end; ++i) {
+        const int v = val(in.d[i]);
+        if (v < 0) {
+            if (!strict)
+                continue;
+            return fail(in.d[i] == '=' ? Base64DecodingStatus::IllegalPadding : Base64DecodingStatus::IllegalCharacter);
+        }
+        ++digits;
+        acc = ((acc << 6) | static_cast<unsigned>(v)) & 0xffffff;
         bits += 6;
         if (bits >= 8) {
             bits -= 8;
             r.append(static_cast<char>((acc >> bits) & 0xff));
         }
     }
-    return r;
+    if (strict) {
+        if (digits % 4 == 1)
+            return fail(Base64DecodingStatus::IllegalInputLength);
+        if (padding > 0 && (digits % 4 == 0 || (digits + padding) % 4 != 0))
+            return fail(Base64DecodingStatus::IllegalPadding);
+    }
+    result.decoded = r;
+    return result;
 }
+
+/*!
+    \since 5.12
+    Returns \c true if the byte array contains no lowercase ASCII letters,
+    that is, if it equals its toUpper().
+
+    \sa isLower(), toUpper()
+*/
+bool QByteArray::isUpper() const {
+    return std::none_of(d.begin(), d.end(), [](char c) { return c >= 'a' && c <= 'z'; });
+}
+
+/*!
+    \since 5.12
+    Returns \c true if the byte array contains no uppercase ASCII letters,
+    that is, if it equals its toLower().
+
+    \sa isUpper(), toLower()
+*/
+bool QByteArray::isLower() const {
+    return std::none_of(d.begin(), d.end(), [](char c) { return c >= 'A' && c <= 'Z'; });
+}
+
+/*!
+    \since 6.4
+    Returns a copy of the byte array with each \a percent followed by two hex
+    digits replaced by the byte they encode. Same as
+    fromPercentEncoding(*this, \a percent).
+
+    \sa fromPercentEncoding()
+*/
+QByteArray QByteArray::percentDecoded(char percent) const { return fromPercentEncoding(*this, percent); }
 
 /*!
     Returns a percent-encoded copy of the byte array. The unreserved

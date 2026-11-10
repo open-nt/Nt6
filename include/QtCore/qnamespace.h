@@ -85,10 +85,19 @@ enum TimeSpec {
     \value DirectConnection The slot is called immediately when the signal is emitted, in the emitting thread.
     \value QueuedConnection The arguments are copied and the slot is called later from the event loop of the receiver's thread.
     \value BlockingQueuedConnection Like \c QueuedConnection, but the emitting thread blocks until the slot has returned. If the receiver lives in the emitting thread, the slot is called directly instead of deadlocking.
+    \value UniqueConnection A flag combined with one of the types above: connect() fails if the same signal is already connected to the same slot of the same receiver. It applies to member function slots and to slots named by string, not to functors.
+    \value SingleShotConnection A flag combined with one of the types above: the slot is called for the first emission only, and the connection is then removed.
 
     \sa QObject::connect(), {Signals and Slots}
 */
-enum ConnectionType { AutoConnection = 0, DirectConnection = 1, QueuedConnection = 2, BlockingQueuedConnection = 3 };
+enum ConnectionType {
+    AutoConnection = 0,
+    DirectConnection = 1,
+    QueuedConnection = 2,
+    BlockingQueuedConnection = 3,
+    UniqueConnection = 0x80,
+    SingleShotConnection = 0x100
+};
 
 /*!
     \enum Qt::CaseSensitivity

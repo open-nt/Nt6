@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qglobal.h>
+#include <QtCore/qmargins.h>
 #include <QtCore/qnamespace.h>
 
 class QSizeF;
@@ -15,8 +16,7 @@ class QSizeF;
     Use QSizeF for floating-point dimensions.
 
     \differences
-    There are no QDebug or QDataStream stream operators, and no
-    \c grownBy() or \c shrunkBy().
+    None.
     \enddifferences
 
     \sa QSizeF, QPoint, QRect
@@ -197,6 +197,26 @@ public:
     friend QSize operator*(double f, const QSize &s) { return s * f; }
     friend QSize operator/(const QSize &s, double d) { return QSize(qRound(s.wd / d), qRound(s.ht / d)); }
 
+    /*!
+        \since 5.14
+        Returns the size grown by the margins \a m: wider by the left and right
+        margins and taller by the top and bottom ones.
+
+        \sa shrunkBy()
+    */
+    constexpr QSize grownBy(QMargins m) const noexcept {
+        return QSize(wd + m.left() + m.right(), ht + m.top() + m.bottom());
+    }
+    /*!
+        \since 5.14
+        Returns the size shrunk by the margins \a m.
+
+        \sa grownBy()
+    */
+    constexpr QSize shrunkBy(QMargins m) const noexcept {
+        return QSize(wd - m.left() - m.right(), ht - m.top() - m.bottom());
+    }
+
 private:
     int wd = -1;
     int ht = -1;
@@ -214,10 +234,7 @@ private:
     they are equal within the precision of \c double.
 
     \differences
-    Dimensions are always \c double, which is what \c qreal is in Nt. There
-    are no QDebug or QDataStream stream operators, no \c grownBy() or
-    \c shrunkBy(), and \c scale() and \c scaled() have no overloads taking a
-    separate width and height.
+    Dimensions are always \c double, which is what \c qreal is in Nt.
     \enddifferences
 
     \sa QSize, QPointF, QRectF
@@ -391,6 +408,37 @@ public:
     friend constexpr QSizeF operator*(const QSizeF &s, double f) { return QSizeF(s.wd * f, s.ht * f); }
     friend constexpr QSizeF operator*(double f, const QSizeF &s) { return s * f; }
     friend constexpr QSizeF operator/(const QSizeF &s, double d) { return QSizeF(s.wd / d, s.ht / d); }
+
+    /*!
+        \since 5.14
+        Returns the size grown by the margins \a m.
+
+        \sa shrunkBy()
+    */
+    constexpr QSizeF grownBy(const QMarginsF &m) const noexcept {
+        return QSizeF(wd + m.left() + m.right(), ht + m.top() + m.bottom());
+    }
+    /*!
+        \since 5.14
+        Returns the size shrunk by the margins \a m.
+
+        \sa grownBy()
+    */
+    constexpr QSizeF shrunkBy(const QMarginsF &m) const noexcept {
+        return QSizeF(wd - m.left() - m.right(), ht - m.top() - m.bottom());
+    }
+    /*!
+        \overload
+        Scales the size to a rectangle of width \a w and height \a h, as
+        \a mode says.
+    */
+    void scale(double w, double h, Qt::AspectRatioMode mode) { *this = scaled(QSizeF(w, h), mode); }
+    /*!
+        \overload
+        Returns the size scaled to a rectangle of width \a w and height \a h,
+        as \a mode says.
+    */
+    QSizeF scaled(double w, double h, Qt::AspectRatioMode mode) const { return scaled(QSizeF(w, h), mode); }
 
 private:
     double wd = -1.;

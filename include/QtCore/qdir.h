@@ -240,6 +240,10 @@ public:
     */
     static QString rootPath() { return QString("/"); }
     static QFileInfoList drives();
+    static void setSearchPaths(const QString &prefix, const QStringList &searchPaths);
+    static void addSearchPath(const QString &prefix, const QString &path);
+    static QStringList searchPaths(const QString &prefix);
+    static QStringList nameFiltersFromString(const QString &nameFilter);
     static bool match(const QString &filter, const QString &fileName);
     static bool match(const QStringList &filters, const QString &fileName);
 

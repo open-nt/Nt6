@@ -10,6 +10,8 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <map>
+#include <mutex>
 #include <cerrno>
 #include <climits>
 #include <cstdlib>
@@ -206,9 +208,9 @@ struct Entry {
 
     \differences
     Only POSIX paths are supported, so toNativeSeparators() and
-    fromNativeSeparators() return their argument unchanged. There is no
-    support for search paths (\c setSearchPaths(), \c addSearchPath(),
-    \c searchPaths()) or \c nameFiltersFromString(). Drives is accepted but
+    fromNativeSeparators() return their argument unchanged. Search path prefixes are resolved by QDir, QFileInfo, QFile::open() and
+    QFile::exists(), but not by the other static QFile functions, and
+    QFileInfo::filePath() returns the resolved path. Drives is accepted but
     lists nothing, drives() returns only the root directory, and Modified is
     ignored. Name filters are case-insensitive unless CaseSensitive is set,
     and match() is always case-insensitive. LocaleAware is ignored when
@@ -311,7 +313,7 @@ QDir::QDir(const QString &path, const QString &nameFilter, SortFlags sort, Filte
 
     \sa path(), absolutePath()
 */
-void QDir::setPath(const QString &path) { m_path = normalizeStored(path); }
+void QDir::setPath(const QString &path) { m_path = normalizeStored(QtPrivate::resolveSearchPath(path)); }
 
 /*!
     Returns the absolute path of the directory, with \c . and \c .. components
@@ -801,6 +803,95 @@ QFileInfoList QDir::drives() {
     \sa entryList()
 */
 bool QDir::match(const QString &filter, const QString &fileName) { return match(splitFilterString(filter), fileName); }
+
+namespace {
+std::mutex &searchPathLock() {
+    static std::mutex m;
+    return m;
+}
+std::map<QString, QStringList> &searchPathTable() {
+    static std::map<QString, QStringList> table;
+    return table;
+}
+} // namespace
+
+/*!
+    \since 4.3
+    Sets the search paths of \a prefix to \a searchPaths, replacing the
+    previous ones; an empty list removes the prefix. A path such as
+    \c{"icons:logo.png"} then refers to the first existing \c logo.png in
+    those directories, or to the one in the first directory if none exists.
+    The prefix must be at least two characters long.
+
+    \code
+    QDir::setSearchPaths("icons", {QDir::homePath() + "/icons", "/usr/share/myapp/icons"});
+    QFile logo("icons:logo.png");
+    \endcode
+
+    \sa addSearchPath(), searchPaths()
+*/
+void QDir::setSearchPaths(const QString &prefix, const QStringList &searchPaths) {
+    if (prefix.size() < 2)
+        return;
+    std::lock_guard<std::mutex> lk(searchPathLock());
+    if (searchPaths.isEmpty())
+        searchPathTable().erase(prefix);
+    else
+        searchPathTable()[prefix] = searchPaths;
+}
+
+/*!
+    \since 4.3
+    Appends \a path to the search paths of \a prefix.
+
+    \sa setSearchPaths(), searchPaths()
+*/
+void QDir::addSearchPath(const QString &prefix, const QString &path) {
+    if (prefix.size() < 2 || path.isEmpty())
+        return;
+    std::lock_guard<std::mutex> lk(searchPathLock());
+    searchPathTable()[prefix].append(path);
+}
+
+/*!
+    \since 4.3
+    Returns the search paths of \a prefix, or an empty list.
+
+    \sa setSearchPaths(), addSearchPath()
+*/
+QStringList QDir::searchPaths(const QString &prefix) {
+    std::lock_guard<std::mutex> lk(searchPathLock());
+    const auto it = searchPathTable().find(prefix);
+    return it == searchPathTable().end() ? QStringList() : it->second;
+}
+
+/*!
+    Returns the name filters in \a nameFilter, which separates them with
+    spaces or semicolons. Leading and trailing spaces of each filter are
+    removed and empty filters are skipped.
+
+    \sa setNameFilters()
+*/
+QStringList QDir::nameFiltersFromString(const QString &nameFilter) { return splitFilterString(nameFilter); }
+
+namespace QtPrivate {
+QString resolveSearchPath(const QString &path) {
+    const qsizetype colon = path.indexOf(QChar(u':'));
+    if (colon < 2)
+        return path;
+    const QStringList dirs = QDir::searchPaths(path.left(colon));
+    if (dirs.isEmpty())
+        return path;
+    const QString rest = path.mid(colon + 1);
+    for (const QString &dir : dirs) {
+        const QString candidate = dir + QChar(u'/') + rest;
+        struct stat st;
+        if (::stat(candidate.toUtf8().constData(), &st) == 0)
+            return candidate;
+    }
+    return dirs.first() + QChar(u'/') + rest;
+}
+} // namespace QtPrivate
 
 /*!
     \overload

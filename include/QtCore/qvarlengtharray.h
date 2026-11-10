@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qglobal.h>
+#include <QtCore/qhashfunctions.h>
 
 #include <algorithm>
 #include <cstdlib>
@@ -31,7 +32,7 @@
 
     \differences
     Indexes are not range-checked except by value(). The relational operators
-    compare items with \c{operator<()} only. There is no \c qHash() overload.
+    compare items with \c{operator<()} only.
     \enddifferences
 
     \sa QList
@@ -686,3 +687,9 @@ private:
     qsizetype cap = Prealloc;
     qsizetype sz = 0;
 };
+
+// Returns a hash of the items of array, in order, mixed with seed.
+template <typename T, qsizetype Prealloc, typename = std::enable_if_t<QtPrivate::IsHashable<T>>>
+std::size_t qHash(const QVarLengthArray<T, Prealloc> &array, std::size_t seed = 0) {
+    return qHashRange(array.begin(), array.end(), seed);
+}

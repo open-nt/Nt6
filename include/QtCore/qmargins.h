@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <algorithm>
+
 #include <QtCore/qglobal.h>
 
 /*!
@@ -13,8 +15,7 @@
     floating-point margins.
 
     \differences
-    There are no QDebug or QDataStream stream operators, and no
-    \c operator|() or \c operator&() combining margins. Division by an
+    Division by an
     integer truncates; division by a \c double rounds.
     \enddifferences
 
@@ -153,6 +154,22 @@ public:
     friend QMargins operator/(const QMargins &x, double d) { return QMargins(qRound(x.l / d), qRound(x.t / d), qRound(x.r / d), qRound(x.b / d)); }
     friend constexpr QMargins operator+(const QMargins &m) noexcept { return m; }
     friend constexpr QMargins operator-(const QMargins &m) noexcept { return QMargins(-m.l, -m.t, -m.r, -m.b); }
+    /*!
+        \since 6.0
+        Returns the margins made of the larger of each margin of \a m1 and
+        \a m2.
+    */
+    friend constexpr QMargins operator|(const QMargins &m1, const QMargins &m2) noexcept {
+        return QMargins(std::max(m1.l, m2.l), std::max(m1.t, m2.t), std::max(m1.r, m2.r), std::max(m1.b, m2.b));
+    }
+    /*!
+        \since 6.0
+        Returns the margins made of the smaller of each margin of \a m1 and
+        \a m2.
+    */
+    friend constexpr QMargins operator&(const QMargins &m1, const QMargins &m2) noexcept {
+        return QMargins(std::min(m1.l, m2.l), std::min(m1.t, m2.t), std::min(m1.r, m2.r), std::min(m1.b, m2.b));
+    }
 
 private:
     int l = 0, t = 0, r = 0, b = 0;
@@ -168,9 +185,8 @@ private:
     margins.
 
     \differences
-    Margins are always \c double, which is what \c qreal is in Nt. There are
-    no QDebug or QDataStream stream operators, and no \c operator|() or
-    \c operator&() combining margins. Equality is fuzzy per margin.
+    Margins are always \c double, which is what \c qreal is in Nt. Equality
+    is fuzzy per margin.
     \enddifferences
 
     \sa QMargins, QRectF
@@ -303,6 +319,22 @@ public:
     friend constexpr QMarginsF operator+(double v, const QMarginsF &x) { return x + v; }
     friend constexpr QMarginsF operator-(const QMarginsF &x, double v) { return x + (-v); }
     friend constexpr QMarginsF operator+(const QMarginsF &m) { return m; }
+    /*!
+        \since 6.0
+        Returns the margins made of the larger of each margin of \a m1 and
+        \a m2.
+    */
+    friend constexpr QMarginsF operator|(const QMarginsF &m1, const QMarginsF &m2) noexcept {
+        return QMarginsF(std::max(m1.l, m2.l), std::max(m1.t, m2.t), std::max(m1.r, m2.r), std::max(m1.b, m2.b));
+    }
+    /*!
+        \since 6.0
+        Returns the margins made of the smaller of each margin of \a m1 and
+        \a m2.
+    */
+    friend constexpr QMarginsF operator&(const QMarginsF &m1, const QMarginsF &m2) noexcept {
+        return QMarginsF(std::min(m1.l, m2.l), std::min(m1.t, m2.t), std::min(m1.r, m2.r), std::min(m1.b, m2.b));
+    }
     friend constexpr QMarginsF operator-(const QMarginsF &m) { return QMarginsF(-m.l, -m.t, -m.r, -m.b); }
 
 private:

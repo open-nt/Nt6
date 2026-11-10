@@ -5,6 +5,8 @@
 
 #include <functional>
 
+class QString;
+
 /*!
     \class QLatin1Char
     \brief The QLatin1Char class provides an 8-bit ASCII/Latin-1 character.
@@ -254,6 +256,70 @@ public:
         Returns the general category of this character.
     */
     Category category() const noexcept { return category(char32_t(ucs)); }
+
+    /*!
+        \enum QChar::Decomposition
+
+        The kind of a character's decomposition mapping, from the tags of the
+        Unicode Character Database.
+
+        \value NoDecomposition The character has no decomposition.
+        \value Canonical A canonical decomposition.
+        \value Font A font variant.
+        \value NoBreak A no-break version of a space or hyphen.
+        \value Initial An initial presentation form (Arabic).
+        \value Medial A medial presentation form (Arabic).
+        \value Final A final presentation form (Arabic).
+        \value Isolated An isolated presentation form (Arabic).
+        \value Circle An encircled form.
+        \value Super A superscript form.
+        \value Sub A subscript form.
+        \value Vertical A vertical layout presentation form.
+        \value Wide A wide (zenkaku) compatibility character.
+        \value Narrow A narrow (hankaku) compatibility character.
+        \value Small A small variant form.
+        \value Square A CJK squared font variant.
+        \value Compat Another compatibility character.
+        \value Fraction A vulgar fraction form.
+    */
+    enum Decomposition {
+        NoDecomposition,
+        Canonical,
+        Font,
+        NoBreak,
+        Initial,
+        Medial,
+        Final,
+        Isolated,
+        Circle,
+        Super,
+        Sub,
+        Vertical,
+        Wide,
+        Narrow,
+        Small,
+        Square,
+        Compat,
+        Fraction
+    };
+    /*!
+        Returns the tag of this character's decomposition mapping, or
+        \c NoDecomposition.
+
+        \sa decomposition()
+    */
+    Decomposition decompositionTag() const noexcept { return decompositionTag(char32_t(ucs)); }
+    QString decomposition() const;
+    /*!
+        Returns the canonical combining class of this character, which orders
+        combining marks during normalization; 0 for most characters.
+
+        \sa QString::normalized()
+    */
+    unsigned char combiningClass() const noexcept { return combiningClass(char32_t(ucs)); }
+    static Decomposition decompositionTag(char32_t ucs4) noexcept;
+    static QString decomposition(char32_t ucs4);
+    static unsigned char combiningClass(char32_t ucs4) noexcept;
     /*!
         Returns \c true if this is a decimal digit of any script (category
         Number_DecimalDigit); otherwise returns \c false.

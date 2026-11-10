@@ -3,6 +3,7 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qiodevice.h>
+#include <QtCore/qlocale.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringconverter.h>
 #include <QtCore/qstringview.h>
@@ -269,6 +270,13 @@ public:
         \sa setRealNumberPrecision()
     */
     int realNumberPrecision() const { return m_precision; }
+    void setLocale(const QLocale &locale);
+    /*!
+        Returns the locale used for numbers. The default is QLocale::c().
+
+        \sa setLocale()
+    */
+    QLocale locale() const { return m_locale; }
 
     /*!
         Reads a character from the stream into \a c, skipping leading
@@ -547,6 +555,11 @@ private:
     mutable QStringConverter::Encoding m_encoding = QStringConverter::Utf8; // detection in fill() can change it
     bool m_autoDetect = true;
     bool m_writeBom = false;
+    QLocale m_locale = QLocale::c();
+    bool m_localized = false; // m_locale is not the C locale
+    QChar m_decimal = QChar(u'.');
+    QChar m_group; // null when the locale omits group separators
+    QString groupDigits(const QString &digits) const;
     mutable QByteArray m_write;
     mutable Status m_status = Ok;
     FieldAlignment m_align = AlignRight;

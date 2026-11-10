@@ -11,6 +11,7 @@
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringview.h>
+#include <QtCore/qtextstream.h>
 
 #include <cstdio>
 #include <memory>
@@ -157,75 +158,80 @@ public:
 
         Writes the signed character \a v to the debug stream as a number.
     */
-    QDebug &operator<<(signed char v) { return put(std::to_string(static_cast<int>(v))); }
+    QDebug &operator<<(signed char v) { return putNumber(static_cast<int>(v)); }
     /*!
         \overload
 
         Writes the unsigned character \a v to the debug stream as a number.
     */
-    QDebug &operator<<(unsigned char v) { return put(std::to_string(static_cast<unsigned>(v))); }
+    QDebug &operator<<(unsigned char v) { return putNumber(static_cast<unsigned>(v)); }
     /*!
         \overload
 
         Writes the short integer \a v to the debug stream.
     */
-    QDebug &operator<<(short v) { return put(std::to_string(v)); }
+    QDebug &operator<<(short v) { return putNumber(v); }
     /*!
         \overload
 
         Writes the unsigned short integer \a v to the debug stream.
     */
-    QDebug &operator<<(unsigned short v) { return put(std::to_string(v)); }
+    QDebug &operator<<(unsigned short v) { return putNumber(v); }
     /*!
         \overload
 
         Writes the integer \a v to the debug stream.
     */
-    QDebug &operator<<(int v) { return put(std::to_string(v)); }
+    QDebug &operator<<(int v) { return putNumber(v); }
     /*!
         \overload
 
         Writes the unsigned integer \a v to the debug stream.
     */
-    QDebug &operator<<(unsigned int v) { return put(std::to_string(v)); }
+    QDebug &operator<<(unsigned int v) { return putNumber(v); }
     /*!
         \overload
 
         Writes the long integer \a v to the debug stream.
     */
-    QDebug &operator<<(long v) { return put(std::to_string(v)); }
+    QDebug &operator<<(long v) { return putNumber(v); }
     /*!
         \overload
 
         Writes the unsigned long integer \a v to the debug stream.
     */
-    QDebug &operator<<(unsigned long v) { return put(std::to_string(v)); }
+    QDebug &operator<<(unsigned long v) { return putNumber(v); }
     /*!
         \overload
 
         Writes the long long integer \a v to the debug stream.
     */
-    QDebug &operator<<(long long v) { return put(std::to_string(v)); }
+    QDebug &operator<<(long long v) { return putNumber(v); }
     /*!
         \overload
 
         Writes the unsigned long long integer \a v to the debug stream.
     */
-    QDebug &operator<<(unsigned long long v) { return put(std::to_string(v)); }
+    QDebug &operator<<(unsigned long long v) { return putNumber(v); }
     /*!
         \overload
 
         Writes the float \a v to the debug stream, using the shortest
         representation that reads back unchanged.
     */
-    QDebug &operator<<(float v) { return put(QString::number(static_cast<double>(v), 'g', -1).toStdString()); }
+    QDebug &operator<<(float v) {
+        return s->format.isDefault() ? put(QString::number(static_cast<double>(v), 'g', -1).toStdString())
+                                     : putNumber(v);
+    }
     /*!
         \overload
 
         Writes the double \a v to the debug stream, using the shortest
         representation that reads back unchanged.
     */
-    QDebug &operator<<(double v) { return put(QString::number(v, 'g', -1).toStdString()); }
+    QDebug &operator<<(double v) {
+        return s->format.isDefault() ? put(QString::number(v, 'g', -1).toStdString()) : putNumber(v);
+    }
     /*!
         \overload
 
@@ -295,12 +301,42 @@ public:
         pointer is written as \c{QObject(0x0)}.
     */
     QDebug &operator<<(const QObject *o);
+    QDebug &operator<<(QTextStreamFunction f);
+    QDebug &operator<<(const QTextStreamManipulator &m);
 
 private:
     friend class QMessageLogger;
     QDebug &put(const std::string &text) {
         s->buf += text;
         return maybeSpace();
+    }
+    // The QTextStream settings that the manipulators change, applied to numbers.
+    struct Format {
+        int base = 10;
+        QTextStream::NumberFlags flags;
+        QTextStream::RealNumberNotation notation = QTextStream::SmartNotation;
+        int precision = 6;
+        int width = 0;
+        QChar pad = QChar(u' ');
+        QTextStream::FieldAlignment align = QTextStream::AlignRight;
+        bool changed = false; // set once a manipulator ran; until then numbers take the fast path
+        bool isDefault() const { return !changed; }
+    };
+    static void applyFormat(QTextStream &ts, const Format &f);
+    static void readFormat(const QTextStream &ts, Format &f);
+    template <typename T> QDebug &putNumber(T v) {
+        if (s->format.isDefault()) {
+            if constexpr (std::is_floating_point_v<T>)
+                return put(QString::number(static_cast<double>(v), 'g', -1).toStdString());
+            else
+                return put(std::to_string(v));
+        }
+        QString out;
+        QTextStream ts(&out);
+        applyFormat(ts, s->format);
+        ts << v;
+        ts.flush();
+        return put(out.toStdString());
     }
     friend class QDebugStateSaver;
     static constexpr int DefaultVerbosity = 2;
@@ -317,6 +353,7 @@ private:
         std::string category;
         QString *string = nullptr;
         QIODevice *device = nullptr;
+        Format format;
     };
     std::shared_ptr<State> s;
 };
@@ -478,6 +515,7 @@ private:
     bool m_space;
     bool m_quote;
     int m_verbosity;
+    QDebug::Format m_format;
 };
 
 #define qPrintable(string) (string).toLocal8Bit().constData()

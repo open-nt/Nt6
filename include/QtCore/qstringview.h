@@ -20,17 +20,10 @@
     QString), and empty if its size is 0. A null view is also empty.
 
     \differences
-    Only part of the Qt API is provided: construction, element access,
-    slicing, trimmed(), startsWith(), endsWith(), indexOf(), lastIndexOf(),
-    contains(), compare(), a few number conversions (toInt(), toUInt(),
-    toLongLong(), toULongLong() and toDouble()), the QRegularExpression
-    searches and the comparison operators.
     The searching, comparison and conversion functions copy the view into a
-    QString first, so they allocate. \c split(), \c count(), \c toLocal8Bit(),
-    \c toUcs4(), the other \c toXxx() number conversions, the reverse
-    iterators, \c isRightToLeft() and the QLatin1StringView overloads are not
-    provided. first(), last(), sliced(),
-    chopped(), truncate() and chop() do not check their arguments.
+    QString first, so they allocate. There is no \c arg(), \c tokenize() or
+    \c isRightToLeft(). first(), last(), sliced(), chopped(), truncate() and
+    chop() do not check their arguments.
     \enddifferences
 
     \sa QString, QStringList, QLatin1StringView
@@ -444,6 +437,157 @@ public:
         \sa cbegin()
     */
     const_iterator cend() const noexcept { return p + n; }
+    /*!
+        \typedef QStringView::const_reverse_iterator
+
+        A reverse iterator over the characters.
+    */
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    /*!
+        \typedef QStringView::reverse_iterator
+
+        The same as const_reverse_iterator.
+    */
+    using reverse_iterator = const_reverse_iterator;
+    /*!
+        Returns a reverse iterator at the last character.
+    */
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    /*!
+        Returns a reverse iterator before the first character.
+    */
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    /*!
+        Returns a reverse iterator at the last character. Same as rbegin().
+    */
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+    /*!
+        Returns a reverse iterator before the first character. Same as rend().
+    */
+    const_reverse_iterator crend() const noexcept { return rend(); }
+
+    /*!
+        \overload
+        Returns \c true if the view starts with \a s, compared with \a cs.
+    */
+    bool startsWith(QLatin1StringView s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const {
+        return toString().startsWith(QString(s), cs);
+    }
+    /*!
+        \overload
+        Returns \c true if the view ends with \a s, compared with \a cs.
+    */
+    bool endsWith(QLatin1StringView s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const {
+        return toString().endsWith(QString(s), cs);
+    }
+    /*!
+        \overload
+        Returns the position of the first \a s at or after \a from, or -1.
+        \a cs selects case sensitivity.
+    */
+    qsizetype indexOf(QLatin1StringView s, qsizetype from = 0, Qt::CaseSensitivity cs = Qt::CaseSensitive) const {
+        return toString().indexOf(QString(s), from, cs);
+    }
+    /*!
+        \overload
+        Returns the position of the last \a s at or before \a from, or -1.
+        \a cs selects case sensitivity.
+    */
+    qsizetype lastIndexOf(QLatin1StringView s, qsizetype from = -1, Qt::CaseSensitivity cs = Qt::CaseSensitive) const {
+        return toString().lastIndexOf(QString(s), from, cs);
+    }
+    /*!
+        \overload
+        Returns \c true if the view contains \a s, compared with \a cs.
+    */
+    bool contains(QLatin1StringView s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const {
+        return indexOf(s, 0, cs) != -1;
+    }
+    /*!
+        \overload
+        Compares the view with \a s, using \a cs.
+    */
+    int compare(QLatin1StringView s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const {
+        return toString().compare(QString(s), cs);
+    }
+    /*!
+        \overload
+        Compares the view with \a c, using \a cs.
+    */
+    int compare(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return compare(QStringView(&c, 1), cs); }
+
+    /*!
+        Returns how often \a s occurs in the view, possibly overlapping,
+        compared with \a cs.
+    */
+    qsizetype count(QStringView s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const {
+        return toString().count(s.toString(), cs);
+    }
+    /*!
+        \overload
+        Returns how often \a c occurs, compared with \a cs.
+    */
+    qsizetype count(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return toString().count(c, cs); }
+    /*!
+        \overload
+        Returns how often \a s occurs, compared with \a cs.
+    */
+    qsizetype count(QLatin1StringView s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const {
+        return toString().count(QString(s), cs);
+    }
+
+    QList<QStringView> split(QStringView sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts,
+                             Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    QList<QStringView> split(QChar sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts,
+                             Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+
+    /*!
+        Returns the view as UTF-8, the 8-bit encoding of Nt.
+    */
+    QByteArray toLocal8Bit() const { return toUtf8(); }
+    /*!
+        Returns the code points of the view; unpaired surrogates become U+FFFD.
+    */
+    QList<uint> toUcs4() const { return toString().toUcs4(); }
+    /*!
+        Returns \c true if the view is valid UTF-16.
+    */
+    bool isValidUtf16() const noexcept { return toString().isValidUtf16(); }
+    /*!
+        \since 6.7
+        Returns \c true if the view equals its uppercase form.
+    */
+    bool isUpper() const { return toString().isUpper(); }
+    /*!
+        \since 6.7
+        Returns \c true if the view equals its lowercase form.
+    */
+    bool isLower() const { return toString().isLower(); }
+    /*!
+        Returns the view converted to a \c short in \a base, or 0 on failure;
+        \c{*ok} reports success if \a ok is not \c nullptr.
+    */
+    short toShort(bool *ok = nullptr, int base = 10) const { return toString().toShort(ok, base); }
+    /*!
+        Returns the view converted to an \c{unsigned short} in \a base, or 0;
+        \c{*ok} reports success if \a ok is not \c nullptr.
+    */
+    ushort toUShort(bool *ok = nullptr, int base = 10) const { return toString().toUShort(ok, base); }
+    /*!
+        Returns the view converted to a \c long in \a base, or 0; \c{*ok}
+        reports success if \a ok is not \c nullptr.
+    */
+    long toLong(bool *ok = nullptr, int base = 10) const { return toString().toLong(ok, base); }
+    /*!
+        Returns the view converted to an \c{unsigned long} in \a base, or 0;
+        \c{*ok} reports success if \a ok is not \c nullptr.
+    */
+    ulong toULong(bool *ok = nullptr, int base = 10) const { return toString().toULong(ok, base); }
+    /*!
+        Returns the view converted to a \c float, or 0; \c{*ok} reports
+        success if \a ok is not \c nullptr.
+    */
+    float toFloat(bool *ok = nullptr) const { return toString().toFloat(ok); }
 
     friend bool operator==(QStringView a, QStringView b) noexcept {
         return a.n == b.n && std::char_traits<char16_t>::compare(a.utf16(), b.utf16(), static_cast<std::size_t>(a.n)) == 0;

@@ -2007,11 +2007,9 @@ QMetaObject::Connection QObject::connect(const QObject *sender, const QMetaMetho
             a[i + 1] = argv[i];
         mo->d.static_metacall(target, QMetaObject::InvokeMetaMethod, idx, a);
     };
-    QMetaObject::Connection handle = connectImpl(sender, signal.data().signalId(), target,
-                                                 std::function<void(void *const *)>(std::move(invoke)), type);
-    if (const auto c = handle.d.lock())
-        QtPrivate::setConnectionMethod(c, method.methodSignature().constData());
-    return handle;
+    const std::string signature = method.methodSignature().constData();
+    return connectImpl(sender, signal.data().signalId(), target, std::function<void(void *const *)>(std::move(invoke)),
+                       type, nullptr, &signature);
 }
 
 QMetaObject::Connection QObject::connectFunction(const QObject *sender, const QMetaMethod &signal, QObject *context,

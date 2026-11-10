@@ -17,6 +17,8 @@ class QTimer : public QObject {
     Q_PROPERTY(bool singleShot READ isSingleShot WRITE setSingleShot)
     Q_PROPERTY(int interval READ interval WRITE setInterval)
     Q_PROPERTY(bool active READ isActive)
+    Q_PROPERTY(int remainingTime READ remainingTime)
+    Q_PROPERTY(Qt::TimerType timerType READ timerType WRITE setTimerType)
 public:
     explicit QTimer(QObject *parent = nullptr);
     ~QTimer() override;
@@ -29,8 +31,58 @@ public:
     int interval() const;
     std::chrono::milliseconds intervalAsDuration() const;
 
+    int remainingTime() const;
+    std::chrono::milliseconds remainingTimeAsDuration() const;
+
     void setSingleShot(bool singleShot);
     bool isSingleShot() const;
+
+    void setTimerType(Qt::TimerType type);
+    Qt::TimerType timerType() const;
+
+    /*!
+        \since 5.12
+        Connects timeout() to \a functor, which is called each time the timer
+        fires, with the connection \a type. Returns the connection.
+
+        \sa timeout()
+    */
+    template <typename Func>
+    QMetaObject::Connection callOnTimeout(Func &&functor, Qt::ConnectionType type = Qt::AutoConnection) {
+        return QObject::connect(this, &QTimer::timeout, std::forward<Func>(functor), type);
+    }
+
+    /*!
+        \since 5.12
+        \overload
+
+        Connects timeout() to \a slot, a member function of \a receiver or a
+        functor run in the thread of \a receiver, with the connection \a type.
+        The connection is removed when \a receiver is destroyed.
+    */
+    template <typename RecvT, typename Func>
+    QMetaObject::Connection callOnTimeout(const RecvT *receiver, Func &&slot,
+                                          Qt::ConnectionType type = Qt::AutoConnection) {
+        return QObject::connect(this, &QTimer::timeout, receiver, std::forward<Func>(slot), type);
+    }
+
+    /*!
+        \overload
+        Calls \a functor once, after \a interval.
+    */
+    template <typename Func> static void singleShot(std::chrono::milliseconds interval, Func &&functor) {
+        singleShot(static_cast<int>(interval.count()), std::forward<Func>(functor));
+    }
+
+    /*!
+        \overload
+        Calls \a functor once, after \a interval, unless \a context is destroyed
+        first.
+    */
+    template <typename RecvT, typename Func>
+    static void singleShot(std::chrono::milliseconds interval, const RecvT *context, Func &&functor) {
+        singleShot(static_cast<int>(interval.count()), context, std::forward<Func>(functor));
+    }
 
     /*!
         Calls \a functor once, \a msec milliseconds from now.
@@ -90,4 +142,6 @@ private:
     int m_id = 0;
     int m_interval = 0;
     bool m_single = false;
+    Qt::TimerType m_type = Qt::CoarseTimer;
+    std::chrono::steady_clock::time_point m_deadline;
 };

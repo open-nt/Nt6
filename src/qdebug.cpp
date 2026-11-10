@@ -56,8 +56,9 @@ std::string escaped(const std::string &s) {
     QLoggingCategory selects which messages are written; see \c qCDebug().
 
     \differences
-    There are no stream manipulators such as \c endl and no \c{<<} for
-    QMetaEnum. The containers supported are QList, QSet, QMap, QMultiMap,
+    The QTextStream manipulators, such as \c Qt::hex, \c Qt::fixed and
+    qSetFieldWidth(), apply to numbers only, not to strings. There is no
+    \c{<<} for QMetaEnum. The containers supported are QList, QSet, QMap, QMultiMap,
     QHash, QMultiHash, \c std::vector, \c std::list and \c std::pair; a
     QList is written without the \c QList prefix. QFlags values are written
     as hexadecimal bits, because Nt does not look up \c Q_FLAG names here.
@@ -169,8 +170,7 @@ QDebug &QDebug::operator<<(const QObject *o) {
     \endcode
 
     \differences
-    The state is the automatic spacing, the quoting and the verbosity. There
-    is no integer base.
+    None.
     \enddifferences
 
     \sa QDebug
@@ -180,7 +180,8 @@ QDebug &QDebug::operator<<(const QObject *o) {
     Saves the formatting state of \a dbg.
 */
 QDebugStateSaver::QDebugStateSaver(QDebug &dbg)
-    : m_debug(dbg), m_space(dbg.s->space), m_quote(dbg.s->quote), m_verbosity(dbg.s->verbosity) {}
+    : m_debug(dbg), m_space(dbg.s->space), m_quote(dbg.s->quote), m_verbosity(dbg.s->verbosity),
+      m_format(dbg.s->format) {}
 
 /*!
     Restores the formatting state of the stream.
@@ -189,4 +190,61 @@ QDebugStateSaver::~QDebugStateSaver() {
     m_debug.s->space = m_space;
     m_debug.s->quote = m_quote;
     m_debug.s->verbosity = m_verbosity;
+    m_debug.s->format = m_format;
+}
+
+void QDebug::applyFormat(QTextStream &ts, const Format &f) {
+    ts.setIntegerBase(f.base);
+    ts.setNumberFlags(f.flags);
+    ts.setRealNumberNotation(f.notation);
+    ts.setRealNumberPrecision(f.precision);
+    ts.setFieldWidth(f.width);
+    ts.setPadChar(f.pad);
+    ts.setFieldAlignment(f.align);
+}
+
+void QDebug::readFormat(const QTextStream &ts, Format &f) {
+    f.base = ts.integerBase();
+    f.flags = ts.numberFlags();
+    f.notation = ts.realNumberNotation();
+    f.precision = ts.realNumberPrecision();
+    f.width = ts.fieldWidth();
+    f.pad = ts.padChar();
+    f.align = ts.fieldAlignment();
+    f.changed = true;
+}
+
+/*!
+    \since 5.4
+    Applies the QTextStream manipulator \a f, such as \c Qt::hex,
+    \c Qt::showbase, \c Qt::fixed or \c Qt::endl, and returns a reference to
+    the stream. The settings change how later numbers are written:
+
+    \code
+    qDebug() << Qt::hex << Qt::showbase << 255 << Qt::dec << 255; // 0xff 255
+    \endcode
+*/
+QDebug &QDebug::operator<<(QTextStreamFunction f) {
+    QString out;
+    QTextStream ts(&out);
+    applyFormat(ts, s->format);
+    f(ts);
+    ts.flush();
+    readFormat(ts, s->format);
+    s->buf += out.toStdString(); // Qt::endl writes a line break
+    return *this;
+}
+
+/*!
+    \since 5.4
+    Applies the manipulator \a m, made by qSetFieldWidth(), qSetPadChar() or
+    qSetRealNumberPrecision(), and returns a reference to the stream.
+*/
+QDebug &QDebug::operator<<(const QTextStreamManipulator &m) {
+    QString out;
+    QTextStream ts(&out);
+    applyFormat(ts, s->format);
+    m.exec(ts);
+    readFormat(ts, s->format);
+    return *this;
 }

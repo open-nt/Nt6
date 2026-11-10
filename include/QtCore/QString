@@ -1,1 +1,3 @@
 #include "qstring.h"
+// QString::assign() takes a QAnyStringView, which qstring.h can only declare.
+#include "qanystringview.h"

@@ -6,10 +6,16 @@
 #include "threaddata_p.h"
 
 #include <QtCore/qdebug.h>
+#include <QtCore/qdir.h>
+
+#include <unistd.h>
 
 #include <atomic>
+#include <climits>
 #include <cstdio>
 #include <cstdlib>
+#include <mutex>
+#include <vector>
 
 /*!
     \module NtCore
@@ -53,8 +59,8 @@ bool g_appNameSet = false;
     and provides functions to send and post events.
 
     \differences
-    Only part of the Qt API is present: there is no \c libraryPaths(), \c applicationFilePath(),
-    \c processEvents() overload with a timeout or \c postEvent() priority.
+    Only part of the Qt API is present: the library paths are only a list, as
+    Nt loads no plugins, and there is no \c postEvent() priority.
     Creating a second application object aborts the process. \c exit() and
     \c quit() stop every running QEventLoop of the thread that created the
     application object, and aboutToQuit() is emitted after the main loop has
@@ -109,6 +115,128 @@ QCoreApplication *QCoreApplication::instance() { return g_self.load(); }
     \sa applicationName()
 */
 QStringList QCoreApplication::arguments() { return g_arguments; }
+
+/*!
+    \since 4.0
+    Returns the absolute path of the executable file of the application, with
+    symbolic links resolved. On Linux it is read from \c{/proc/self/exe};
+    elsewhere it is derived from the first command-line argument.
+
+    \sa applicationDirPath(), arguments()
+*/
+QString QCoreApplication::applicationFilePath() {
+#if defined(__linux__)
+    std::vector<char> buf(PATH_MAX);
+    const ssize_t n = ::readlink("/proc/self/exe", buf.data(), buf.size() - 1);
+    if (n > 0)
+        return QString::fromUtf8(buf.data(), static_cast<qsizetype>(n));
+#endif
+    if (g_arguments.isEmpty())
+        return QString();
+    char resolved[PATH_MAX];
+    if (::realpath(g_arguments.first().toUtf8().constData(), resolved))
+        return QString::fromUtf8(resolved);
+    return QString();
+}
+
+/*!
+    \since 4.0
+    Returns the directory that contains the executable file of the
+    application.
+
+    \sa applicationFilePath()
+*/
+QString QCoreApplication::applicationDirPath() {
+    const QString file = applicationFilePath();
+    const qsizetype slash = file.lastIndexOf(QChar(u'/'));
+    return slash <= 0 ? (slash == 0 ? QString::fromUtf8("/") : QString()) : file.left(slash);
+}
+
+/*!
+    \since 4.4
+    Returns the process identifier of the application.
+*/
+qint64 QCoreApplication::applicationPid() { return static_cast<qint64>(::getpid()); }
+
+namespace {
+std::mutex &libraryPathLock() {
+    static std::mutex m;
+    return m;
+}
+// Null until set: then libraryPaths() computes the default.
+QStringList &libraryPathList() {
+    static QStringList paths;
+    return paths;
+}
+bool g_libraryPathsSet = false;
+
+QStringList defaultLibraryPaths() {
+    QStringList paths;
+    const QString dir = QCoreApplication::applicationDirPath();
+    if (!dir.isEmpty())
+        paths.append(dir);
+    return paths;
+}
+} // namespace
+
+/*!
+    Returns the directories searched for plugins and libraries. Unless
+    setLibraryPaths() was called, the list holds the directory of the
+    executable. Nt loads no plugins, so the list is only kept for
+    applications that use it themselves.
+
+    \sa setLibraryPaths(), addLibraryPath()
+*/
+QStringList QCoreApplication::libraryPaths() {
+    std::lock_guard<std::mutex> lk(libraryPathLock());
+    return g_libraryPathsSet ? libraryPathList() : defaultLibraryPaths();
+}
+
+/*!
+    Replaces the library paths with \a paths.
+
+    \sa libraryPaths()
+*/
+void QCoreApplication::setLibraryPaths(const QStringList &paths) {
+    std::lock_guard<std::mutex> lk(libraryPathLock());
+    libraryPathList() = paths;
+    g_libraryPathsSet = true;
+}
+
+/*!
+    Puts \a path at the front of the library paths, so it is searched first.
+    Nothing changes if \a path is empty or already in the list.
+
+    \sa removeLibraryPath(), libraryPaths()
+*/
+void QCoreApplication::addLibraryPath(const QString &path) {
+    if (path.isEmpty())
+        return;
+    std::lock_guard<std::mutex> lk(libraryPathLock());
+    if (!g_libraryPathsSet) {
+        libraryPathList() = defaultLibraryPaths();
+        g_libraryPathsSet = true;
+    }
+    const QString clean = QDir::cleanPath(path);
+    if (!libraryPathList().contains(clean))
+        libraryPathList().prepend(clean);
+}
+
+/*!
+    Removes \a path from the library paths.
+
+    \sa addLibraryPath()
+*/
+void QCoreApplication::removeLibraryPath(const QString &path) {
+    if (path.isEmpty())
+        return;
+    std::lock_guard<std::mutex> lk(libraryPathLock());
+    if (!g_libraryPathsSet) {
+        libraryPathList() = defaultLibraryPaths();
+        g_libraryPathsSet = true;
+    }
+    libraryPathList().removeAll(QDir::cleanPath(path));
+}
 
 /*!
     Sets the application name to \a name.
@@ -247,6 +375,29 @@ bool QCoreApplication::isQuitLockEnabled() { return g_quitLockEnabled.load(); }
 */
 void QCoreApplication::processEvents(QEventLoop::ProcessEventsFlags flags) {
     QtPrivate::ThreadData::current()->dispatcher.process(flags.testFlag(QEventLoop::WaitForMoreEvents), nullptr);
+}
+
+/*!
+    \overload
+    Processes the pending events of the calling thread for at most \a ms
+    milliseconds, or until there are none left, as \a flags selects. It does
+    not wait for new events.
+*/
+void QCoreApplication::processEvents(QEventLoop::ProcessEventsFlags flags, int ms) {
+    processEvents(flags, QDeadlineTimer(ms));
+}
+
+/*!
+    \since 6.7
+    \overload
+    Processes the pending events of the calling thread until \a deadline
+    expires or there are none left. \a flags is accepted for compatibility.
+*/
+void QCoreApplication::processEvents(QEventLoop::ProcessEventsFlags flags, QDeadlineTimer deadline) {
+    Q_UNUSED(flags)
+    auto &dispatcher = QtPrivate::ThreadData::current()->dispatcher;
+    while (dispatcher.process(false, nullptr) && !deadline.hasExpired()) {
+    }
 }
 
 /*!

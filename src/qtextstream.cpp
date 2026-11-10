@@ -41,8 +41,9 @@
     off.
 
     \differences
-    There is no \c setLocale(): numbers always use the "C" locale, with
-    \c '.' as the decimal point and no group separators. Line breaks are never
+    setLocale() changes the decimal point and the group separator of
+    decimal numbers, and the minus sign; the digits stay ASCII and every
+    locale groups by three. Line breaks are never
     translated; readLine() splits on a newline character and strips one
     trailing carriage return. Output to a QString pointer always appends,
     because the string is not a seekable output device. pos() on a device is
@@ -484,7 +485,13 @@ QString QTextStream::scanInteger() {
             base = 8;
     }
     const qsizetype digitsStart = n;
+    const bool grouped = !m_group.isNull() && base == 10;
     while (available(n + 1)) {
+        if (grouped && n > digitsStart && buf[m_readPos + n] == m_group && available(n + 2) &&
+            digitValue(buf[m_readPos + n + 1]) >= 0 && digitValue(buf[m_readPos + n + 1]) < 10) {
+            ++n; // a group separator between digits
+            continue;
+        }
         const int d = digitValue(buf[m_readPos + n]);
         if (d < 0 || d >= base)
             break;
@@ -492,8 +499,10 @@ QString QTextStream::scanInteger() {
     }
     if (n == digitsStart)
         return emptyString();
-    const QString tok = buf.mid(m_readPos, n);
+    QString tok = buf.mid(m_readPos, n);
     m_readPos += n;
+    if (grouped)
+        tok.remove(m_group);
     return tok;
 }
 
@@ -529,11 +538,12 @@ QString QTextStream::scanReal() {
         }
     } else {
         qsizetype digits = 0;
-        while (isDigit(at(n))) {
+        while (isDigit(at(n)) || (!m_group.isNull() && digits > 0 && at(n) == m_group && isDigit(at(n + 1)))) {
+            if (isDigit(at(n)))
+                ++digits;
             ++n;
-            ++digits;
         }
-        if (at(n) == u'.') {
+        if (at(n) == m_decimal) {
             ++n;
             while (isDigit(at(n))) {
                 ++n;
@@ -556,8 +566,14 @@ QString QTextStream::scanReal() {
     }
     if (end < 0)
         return emptyString();
-    const QString tok = buf.mid(m_readPos, end);
+    QString tok = buf.mid(m_readPos, end);
     m_readPos += end;
+    if (m_localized) {
+        // Back to the C form for strtod().
+        if (!m_group.isNull())
+            tok.remove(m_group);
+        tok.replace(m_decimal, QChar(u'.'));
+    }
     return tok;
 }
 
@@ -771,16 +787,59 @@ void QTextStream::rawPut(const QString &text) {
 
 void QTextStream::put(const QString &field) { rawPut(padded(QString(), field)); }
 
+/*!
+    Sets the locale used to write and read numbers to \a locale. Decimal
+    numbers are then written with its decimal point and group separator
+    (unless its number options include \c QLocale::OmitGroupSeparator), and
+    read with or without the group separator. Use QLocale::c() to go back to
+    the default.
+
+    \code
+    QString out;
+    QTextStream stream(&out);
+    stream.setLocale(QLocale(QLocale::German));
+    stream << 1234567.5; // "1.234.567,5"
+    \endcode
+
+    \sa locale()
+*/
+void QTextStream::setLocale(const QLocale &locale) {
+    m_locale = locale;
+    m_localized = !(locale == QLocale::c());
+    const QString point = locale.decimalPoint();
+    m_decimal = m_localized && !point.isEmpty() ? point.at(0) : QChar(u'.');
+    const QString group = locale.groupSeparator();
+    m_group = m_localized && !group.isEmpty() && !locale.numberOptions().testFlag(QLocale::OmitGroupSeparator)
+                  ? group.at(0)
+                  : QChar();
+}
+
+// Inserts the group separator every three digits from the right.
+QString QTextStream::groupDigits(const QString &digits) const {
+    if (m_group.isNull() || digits.size() <= 3)
+        return digits;
+    QString out;
+    const qsizetype lead = digits.size() % 3;
+    for (qsizetype i = 0; i < digits.size(); ++i) {
+        if (i != 0 && (i - lead) % 3 == 0)
+            out.append(m_group);
+        out.append(digits.at(i));
+    }
+    return out;
+}
+
 QTextStream &QTextStream::writeInteger(bool negative, qulonglong magnitude) {
     const int base = m_base >= 2 && m_base <= 36 ? m_base : 10;
     QString digits = QString::fromLatin1(QtPrivate::intToString(magnitude, false, base).c_str());
+    if (m_localized && base == 10)
+        digits = groupDigits(digits);
     if (m_flags & UppercaseDigits)
         digits = digits.toUpper();
     QString prefix;
     if (negative)
-        prefix = QString(QChar(u'-'));
+        prefix = m_localized ? m_locale.negativeSign() : QString(QChar(u'-'));
     else if (m_flags & ForceSign)
-        prefix = QString(QChar(u'+'));
+        prefix = m_localized ? m_locale.positiveSign() : QString(QChar(u'+'));
     if (m_flags & ShowBase) {
         const bool upper = m_flags & UppercaseBase;
         if (base == 16)
@@ -812,9 +871,9 @@ QTextStream &QTextStream::operator<<(double f) {
         body = QString::fromLatin1(upper ? "NAN" : "nan");
     } else {
         if (std::signbit(f))
-            sign = QString(QChar(u'-'));
+            sign = m_localized ? m_locale.negativeSign() : QString(QChar(u'-'));
         else if (m_flags & ForceSign)
-            sign = QString(QChar(u'+'));
+            sign = m_localized ? m_locale.positiveSign() : QString(QChar(u'+'));
         const double mag = std::fabs(f);
         if (std::isinf(mag)) {
             body = QString::fromLatin1(upper ? "INF" : "inf");
@@ -827,6 +886,16 @@ QTextStream &QTextStream::operator<<(double f) {
             if (upper)
                 fmt = static_cast<char>(fmt - 32);
             body = formatReal(mag, fmt, m_precision, m_flags & ForcePoint);
+            if (m_localized) {
+                // Group the integer digits and use the locale's decimal point.
+                qsizetype intEnd = 0;
+                while (intEnd < body.size() && body.at(intEnd).unicode() >= u'0' && body.at(intEnd).unicode() <= u'9')
+                    ++intEnd;
+                QString rest = body.mid(intEnd);
+                if (!rest.isEmpty() && rest.at(0) == QChar(u'.'))
+                    rest[0] = m_decimal;
+                body = groupDigits(body.left(intEnd)) + rest;
+            }
         }
     }
     rawPut(padded(sign, body));

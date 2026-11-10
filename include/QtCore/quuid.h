@@ -9,7 +9,16 @@
 class QUuid {
 public:
     enum Variant { VarUnknown = -1, NCS = 0, DCE = 2, Microsoft = 6, Reserved = 7 };
-    enum Version { VerUnknown = -1, Time = 1, EmbeddedPOSIX = 2, Md5 = 3, Name = Md5, Random = 4, Sha1 = 5 };
+    enum Version {
+        VerUnknown = -1,
+        Time = 1,
+        EmbeddedPOSIX = 2,
+        Md5 = 3,
+        Name = Md5,
+        Random = 4,
+        Sha1 = 5,
+        UnixEpoch = 7
+    };
     enum StringFormat { WithBraces = 0, WithoutBraces = 1, Id128 = 3 };
 
     /*!
@@ -67,6 +76,7 @@ public:
     static QUuid createUuid();
     static QUuid createUuidV3(const QUuid &ns, const QByteArray &name);
     static QUuid createUuidV5(const QUuid &ns, const QByteArray &name);
+    static QUuid createUuidV7();
     /*!
         \overload
 

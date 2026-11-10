@@ -1197,11 +1197,15 @@ private:
                            std::size_t declStart) {
         std::size_t k = b + 1;
         std::string name;
+        std::string scope; // "Outer" in "class Outer::Inner {", a nested class defined out of line
         std::size_t specialization = 0;
         while (k < end && T(k) != "{" && T(k) != ";" && T(k) != ":" && T(k) != "(" && T(k) != "=") {
             if (T(k) == "<") {
                 specialization = k;
                 k = matchAngle(k);
+            } else if (T(k) == "::" && !name.empty()) {
+                scope += (scope.empty() ? "" : "::") + name;
+                name.clear();
             } else if (isIdent(T(k)) && !isMacroName(T(k)) && T(k) != "final") {
                 name = T(k);
             }
@@ -1240,11 +1244,10 @@ private:
         if (!m_header || specialization != 0 || name.empty() || access == Access::Private)
             return after;
 
-        std::string qual = name;
-        if (cls)
-            qual = cls->qualName + "::" + name;
-        else if (!ns.empty())
-            qual = ns + "::" + name;
+        std::string outer = cls ? cls->qualName : ns;
+        if (!scope.empty())
+            outer = outer.empty() ? scope : outer + "::" + scope;
+        const std::string qual = outer.empty() ? name : outer + "::" + name;
 
         auto &slot = M.classes[qual];
         if (!slot)
@@ -1254,7 +1257,7 @@ private:
         rec->name = name;
         rec->word = T(b);
         rec->tmpl = tmpl;
-        rec->parent = cls ? cls->qualName : std::string();
+        rec->parent = cls ? cls->qualName : (scope.empty() ? std::string() : outer);
         rec->bases = std::move(bases);
         rec->file = m_file;
         rec->line = L.lineAt(L.tokens[declStart].pos);

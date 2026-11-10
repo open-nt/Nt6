@@ -5,6 +5,10 @@
 #include <QtCore/qfileinfo.h>
 #include <QtCore/qiodevice.h>
 
+#include <cstdio>
+#include <map>
+#include <utility>
+
 class QFileDevice : public QIODevice {
     Q_OBJECT
 public:
@@ -88,6 +92,37 @@ public:
         NoError, ReadError, WriteError, FatalError, ResourceError, OpenError, AbortError, TimeOutError,
         UnspecifiedError, RemoveError, RenameError, PositionError, ResizeError, PermissionsError, CopyError
     };
+    /*!
+        \enum QFileDevice::FileHandleFlag
+
+        How QFile::open() treats a file handle or descriptor it is given.
+
+        \value AutoCloseHandle close() closes the handle too.
+        \value DontCloseHandle The handle stays open after close(); this is the default.
+    */
+    enum FileHandleFlag { AutoCloseHandle = 0x0001, DontCloseHandle = 0 };
+    /*!
+        \typedef QFileDevice::FileHandleFlags
+
+        A QFlags of FileHandleFlag values.
+    */
+    Q_DECLARE_FLAGS(FileHandleFlags, FileHandleFlag)
+    /*!
+        \enum QFileDevice::MemoryMapFlag
+        \since 4.4
+
+        Options of map().
+
+        \value NoOptions Changes to the mapped memory are written to the file.
+        \value MapPrivateOption Changes to the mapped memory stay private to the mapping and are not written to the file (copy-on-write).
+    */
+    enum MemoryMapFlag { NoOptions = 0, MapPrivateOption = 0x0001 };
+    /*!
+        \typedef QFileDevice::MemoryMapFlags
+
+        A QFlags of MemoryMapFlag values.
+    */
+    Q_DECLARE_FLAGS(MemoryMapFlags, MemoryMapFlag)
 
     ~QFileDevice() override;
 
@@ -131,6 +166,8 @@ public:
     virtual bool setPermissions(Permissions permissions);
     QDateTime fileTime(FileTime time) const;
     bool setFileTime(const QDateTime &newDate, FileTime fileTime);
+    uchar *map(qint64 offset, qint64 size, MemoryMapFlags flags = NoOptions);
+    bool unmap(uchar *address);
 
 protected:
     QFileDevice();
@@ -139,6 +176,7 @@ protected:
     qint64 writeData(const char *data, qint64 maxSize) override;
     qint64 readLineData(char *data, qint64 maxSize) override;
     bool openPath(const QString &path, OpenMode mode);
+    bool openHandle(int fd, std::FILE *fh, OpenMode mode, FileHandleFlags handleFlags);
     void setFileError(FileError e, const QString &text);
 
     /*! \internal */
@@ -147,7 +185,15 @@ protected:
     int m_fd = -1;
     /*! \internal */
     FileError m_error = NoError;
+
+private:
+    bool m_closeHandle = true;                                // close() closes m_fd (or m_stdio)
+    std::FILE *m_stdio = nullptr;                             // the stream given to QFile::open(FILE *)
+    std::map<uchar *, std::pair<void *, std::size_t>> m_maps; // address returned by map() -> mmap() region
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(QFileDevice::FileHandleFlags)
+Q_DECLARE_OPERATORS_FOR_FLAGS(QFileDevice::MemoryMapFlags)
 
 class QFile : public QFileDevice {
     Q_OBJECT
@@ -166,6 +212,8 @@ public:
     */
     void setFileName(const QString &name) { if (!isOpen()) m_name = name; }
     bool open(OpenMode mode) override;
+    bool open(std::FILE *fh, OpenMode mode, FileHandleFlags handleFlags = DontCloseHandle);
+    bool open(int fd, OpenMode mode, FileHandleFlags handleFlags = DontCloseHandle);
     /*!
         \overload
 
@@ -178,6 +226,29 @@ public:
     bool remove();
     bool rename(const QString &newName);
     bool copy(const QString &newName);
+    bool moveToTrash();
+    static bool moveToTrash(const QString &fileName, QString *pathInTrash = nullptr);
+    QString readLink() const;
+    static QString readLink(const QString &fileName);
+    /*!
+        Returns \a fileName converted to the 8-bit encoding of file names,
+        which is UTF-8.
+
+        \sa decodeName()
+    */
+    static QByteArray encodeName(const QString &fileName) { return fileName.toUtf8(); }
+    /*!
+        Returns the file name \a localFileName, given in the 8-bit encoding of
+        file names (UTF-8), as a QString.
+
+        \sa encodeName()
+    */
+    static QString decodeName(const QByteArray &localFileName) { return QString::fromUtf8(localFileName); }
+    /*!
+        \overload
+        Returns the file name \a localFileName, given in UTF-8, as a QString.
+    */
+    static QString decodeName(const char *localFileName) { return QString::fromUtf8(localFileName); }
 
     static bool exists(const QString &fileName);
     static bool remove(const QString &fileName);

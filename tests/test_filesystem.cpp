@@ -5,12 +5,14 @@
 #include <QtCore/qtemporarydir.h>
 #include <QtCore/qtemporaryfile.h>
 
+#include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <unistd.h>
 
 #include <cstdio>
 #include <cstdlib>
+#include <string>
 
 static int g_failures = 0;
 #define CHECK(cond)                                                              \
@@ -782,6 +784,170 @@ static void testFilePermissionsAndTimes() {
     CHECK(QFile::remove(linkPath) && QFile::remove(g_root + "/rel-link") && QFile::remove(path));
 }
 
+static void testSearchPaths() {
+    const QString a = g_root + "/sp_a";
+    const QString b = g_root + "/sp_b";
+    CHECK(QDir().mkpath(a) && QDir().mkpath(b));
+    CHECK(writeFile(b + "/only_b.txt", "B") && writeFile(a + "/both.txt", "A") && writeFile(b + "/both.txt", "B"));
+    QDir::setSearchPaths("data", {a});
+    QDir::addSearchPath("data", b);
+    CHECK(QDir::searchPaths("data") == QStringList({a, b}));
+    QDir::addSearchPath("x", a); // a one-letter prefix is not accepted
+    CHECK(QDir::searchPaths("x").isEmpty());
+
+    // The first directory that has the file wins.
+    QFile both("data:both.txt");
+    CHECK(both.open(QIODevice::ReadOnly) && both.readAll() == "A");
+    QFile onlyB("data:only_b.txt");
+    CHECK(onlyB.open(QIODevice::ReadOnly) && onlyB.readAll() == "B");
+    CHECK(QFile::exists("data:only_b.txt") && !QFile::exists("data:missing.txt"));
+    CHECK(QFileInfo("data:only_b.txt").absoluteFilePath() == b + "/only_b.txt");
+    // A missing file resolves into the first directory, so it can be created there.
+    CHECK(QFileInfo("data:new.txt").absoluteFilePath() == a + "/new.txt");
+    CHECK(QDir("data:").exists());
+
+    QDir::setSearchPaths("data", {});
+    CHECK(QDir::searchPaths("data").isEmpty() && !QFile::exists("data:only_b.txt"));
+
+    CHECK(QDir::nameFiltersFromString("*.cpp *.h") == QStringList({"*.cpp", "*.h"}));
+    CHECK(QDir::nameFiltersFromString(" *.txt; *.md ;") == QStringList({"*.txt", "*.md"}));
+}
+
+static void testFileExtras() {
+    // Trash under a private XDG_DATA_HOME on the same file system.
+    const QString dataHome = g_root + "/xdg";
+    CHECK(QDir().mkpath(dataHome));
+    const char *previous = std::getenv("XDG_DATA_HOME");
+    const std::string saved = previous ? previous : "";
+    const bool hadSaved = previous != nullptr;
+    ::setenv("XDG_DATA_HOME", dataHome.toUtf8().constData(), 1);
+    const QString victim = g_root + "/trash me.txt";
+    CHECK(writeFile(victim, "bye"));
+    QString inTrash;
+    CHECK(QFile::moveToTrash(victim, &inTrash));
+    CHECK(!QFile::exists(victim) && inTrash == dataHome + "/Trash/files/trash me.txt");
+    QFile info(dataHome + "/Trash/info/trash me.txt.trashinfo");
+    CHECK(info.open(QIODevice::ReadOnly));
+    const QByteArray text = info.readAll();
+    CHECK(text.startsWith("[Trash Info]\nPath=") && text.contains("/trash%20me.txt\n") &&
+          text.contains("DeletionDate="));
+    // A second file of the same name gets a new name in the trash.
+    CHECK(writeFile(victim, "again"));
+    QFile again(victim);
+    CHECK(again.moveToTrash() && again.fileName() != inTrash && QFile::exists(again.fileName()));
+    CHECK(!QFile::moveToTrash(g_root + "/does-not-exist"));
+    if (hadSaved)
+        ::setenv("XDG_DATA_HOME", saved.c_str(), 1);
+    else
+        ::unsetenv("XDG_DATA_HOME");
+
+    // readLink() returns the stored target; symLinkTarget() makes it absolute.
+    CHECK(writeFile(g_root + "/target.txt", "t"));
+    CHECK(QFile::link("target.txt", g_root + "/rel.lnk"));
+    CHECK(QFile::readLink(g_root + "/rel.lnk") == "target.txt");
+    CHECK(QFile(g_root + "/rel.lnk").readLink() == "target.txt");
+    CHECK(QFile::readLink(g_root + "/target.txt").isEmpty());
+
+    CHECK(QFile::encodeName(QString::fromUtf8("caf\xc3\xa9")) == "caf\xc3\xa9");
+    CHECK(QFile::decodeName(QByteArray("caf\xc3\xa9")) == QString::fromUtf8("caf\xc3\xa9"));
+
+    // QTemporaryFile::rename() keeps the file open.
+    QTemporaryFile temp(g_root + "/tmpXXXXXX");
+    CHECK(temp.open());
+    CHECK(temp.write("abc") == 3);
+    const QString renamed = g_root + "/renamed.tmp";
+    CHECK(temp.rename(renamed) && temp.fileName() == renamed && temp.isOpen());
+    CHECK(temp.write("def") == 3 && temp.flush());
+    CHECK(QFileInfo(renamed).size() == 6);
+    QFile plain(renamed);
+    CHECK(QTemporaryFile::createNativeFile(plain) == nullptr && QTemporaryFile::createNativeFile(renamed) == nullptr);
+}
+
+static void testFileMappingAndHandles() {
+    const QString path = g_root + "/mapped.bin";
+    QByteArray content(10000, 'a');
+    content[5000] = 'X';
+    CHECK(writeFile(path, content));
+    QFile f(path);
+    CHECK(f.map(0, 10) == nullptr && f.error() == QFileDevice::PermissionsError); // not open
+    CHECK(f.open(QIODevice::ReadWrite));
+    // An offset that is not page-aligned works, and writes reach the file.
+    uchar *p = f.map(4999, 3);
+    CHECK(p && p[0] == 'a' && p[1] == 'X');
+    if (p)
+        p[2] = 'Y';
+    CHECK(f.map(9990, 20) == nullptr);
+    uchar *priv = f.map(0, 4, QFileDevice::MapPrivateOption);
+    CHECK(priv != nullptr);
+    if (priv)
+        priv[0] = 'Z'; // copy-on-write: not written to the file
+    f.close();
+    CHECK(p && p[1] == 'X'); // mappings outlive close()
+    CHECK(f.unmap(p) && f.unmap(priv) && !f.unmap(p));
+    QFile check(path);
+    CHECK(check.open(QIODevice::ReadOnly));
+    const QByteArray after = check.readAll();
+    CHECK(after.at(5001) == 'Y' && after.at(0) == 'a');
+
+    // QFile::open() on a descriptor and on a stdio stream.
+    const int fd = ::open(path.toUtf8().constData(), O_RDONLY | O_CLOEXEC);
+    {
+        QFile viaFd;
+        CHECK(viaFd.open(fd, QIODevice::ReadOnly) && viaFd.read(3) == "aaa");
+        viaFd.close();
+        CHECK(::fcntl(fd, F_GETFD) != -1); // DontCloseHandle: still open
+    }
+    {
+        QFile viaFd;
+        CHECK(viaFd.open(fd, QIODevice::ReadOnly, QFileDevice::AutoCloseHandle));
+        viaFd.close();
+        CHECK(::fcntl(fd, F_GETFD) == -1);
+    }
+    std::FILE *fh = std::fopen((g_root + "/stdio.txt").toUtf8().constData(), "w");
+    CHECK(fh != nullptr);
+    if (fh) {
+        std::fputs("from stdio ", fh);
+        QFile viaStream;
+        CHECK(viaStream.open(fh, QIODevice::WriteOnly, QFileDevice::AutoCloseHandle));
+        CHECK(viaStream.write("then QFile") == 10);
+        viaStream.close();
+    }
+    QFile written(g_root + "/stdio.txt");
+    CHECK(written.open(QIODevice::ReadOnly) && written.readAll() == "from stdio then QFile");
+    QFile none;
+    CHECK(!none.open(static_cast<std::FILE *>(nullptr), QIODevice::ReadOnly));
+
+    // QFileInfo queries.
+    CHECK(QFile::link(path, g_root + "/mapped.lnk"));
+    QFileInfo link(g_root + "/mapped.lnk");
+    CHECK(link.isSymbolicLink() && !QFileInfo(path).isSymbolicLink());
+    CHECK(!link.isShortcut() && !link.isAlias() && !link.isJunction() && !link.isBundle());
+    CHECK(link.isNativePath() && !QFileInfo().isNativePath());
+    const QDateTime born = QFileInfo(path).birthTime();
+    CHECK(!born.isValid() || std::llabs(born.secsTo(QDateTime::currentDateTime())) < 3600);
+    CHECK(!QFileInfo(g_root + "/none").birthTime().isValid());
+    const QFileInfo info(path);
+    CHECK(info.fileTime(QFileDevice::FileModificationTime) == info.lastModified());
+    CHECK(info.fileTime(QFile::FileAccessTime) == info.lastRead());
+    CHECK(info.fileTime(QFile::FileMetadataChangeTime) == info.metadataChangeTime());
+    CHECK(info.fileTime(QFile::FileBirthTime) == info.birthTime());
+    CHECK(info.fileTime(QFile::FileModificationTime) == QFile(path).fileTime(QFileDevice::FileModificationTime));
+}
+
+static void testStandardPathsTestMode() {
+    CHECK(!QStandardPaths::isTestModeEnabled());
+    QStandardPaths::setTestModeEnabled(true);
+    CHECK(QStandardPaths::isTestModeEnabled());
+    const QString home = QDir::homePath();
+    CHECK(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) == home + "/.qttest/share");
+    CHECK(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation) == home + "/.qttest/config");
+    CHECK(QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation) == home + "/.qttest/cache");
+    CHECK(QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation) ==
+          QStringList({home + "/.qttest/share"}));
+    QStandardPaths::setTestModeEnabled(false);
+    CHECK(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) != home + "/.qttest/share");
+}
+
 int main() {
     const char *tmp = std::getenv("TMPDIR");
     const QString tmpBase = tmp && *tmp ? QDir::cleanPath(QString::fromUtf8(tmp)) : QString::fromUtf8("/tmp");
@@ -805,6 +971,10 @@ int main() {
     testSaveFile();
     testFilePermissionsAndTimes();
     testStandardPaths();
+    testSearchPaths();
+    testFileExtras();
+    testFileMappingAndHandles();
+    testStandardPathsTestMode();
 
     // Restore permissions that could block cleanup, then remove the sandbox.
     ::chmod((g_root + "/rodir").toUtf8().constData(), 0755);

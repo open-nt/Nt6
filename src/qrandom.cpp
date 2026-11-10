@@ -50,9 +50,6 @@ std::mutex g_globalLock;
     system() and global() are.
 
     \differences
-    There is no \c operator==, \c operator<< or
-    \c operator>> on the generator, no constructor taking a
-    \c std::seed_seq, and no \c bounded() overload with two \c quint64 limits.
     A seeded generator uses \c std::mt19937. system() reads from
     \c getrandom(2), and global() is guarded by a mutex rather than being
     thread-local.

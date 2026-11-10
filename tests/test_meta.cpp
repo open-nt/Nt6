@@ -1328,8 +1328,17 @@ static void testThreads() {
     CHECK(thread.wait());
 }
 
+static void testEnum64() {
+    const QMetaEnum e = QMetaEnum::fromType<Concrete::Mode>();
+    CHECK(e.isValid() && !e.is64Bit());
+    CHECK(e.value64(1) == std::optional<quint64>(8));
+    CHECK(!e.value64(-1) && !e.value64(e.keyCount()));
+    CHECK(e.keyToValue64("D") == std::optional<quint64>(10) && !e.keyToValue64("nope"));
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
+    testEnum64();
     testClassInfo();
     testMethods();
     testDynamicMetaObject();

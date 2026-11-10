@@ -30,6 +30,7 @@ add_library(NtCore
     src/dispatcher.cpp
     src/qabstractitemmodel.cpp
     src/qabstractproxymodel.cpp
+    src/qbitarray.cpp
     src/qbuffer.cpp
     src/qbytearray.cpp
     src/qcalendar.cpp
@@ -800,6 +801,27 @@ if(NT_BUILD_EXAMPLES)
     target_link_libraries(moc_example PRIVATE Nt::Core)
     nt_enable_automoc(moc_example)
     nt_set_compile_options(hello moc_example)
+
+    # examples/signals: the patterns of the "Signals and Slots" guide; it checks itself.
+    add_executable(signals_example examples/signals/main.cpp examples/signals/thermostat.h)
+    target_link_libraries(signals_example PRIVATE Nt::Core)
+    nt_enable_automoc(signals_example)
+    nt_set_compile_options(signals_example)
+
+    # examples/resources: data files without Qt resources; see "Resource Files" in the documentation.
+    include(examples/resources/embed.cmake)
+    add_executable(resources_example examples/resources/main.cpp)
+    target_link_libraries(resources_example PRIVATE Nt::Core)
+    nt_example_embed(resources_example banner_txt examples/resources/data/banner.txt)
+    add_custom_command(TARGET resources_example POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/examples/resources/data"
+                "$<TARGET_FILE_DIR:resources_example>/data"
+        VERBATIM)
+    nt_set_compile_options(resources_example)
+    if(NT_BUILD_TESTS)
+        add_test(NAME signals_example COMMAND signals_example)
+        add_test(NAME resources_example COMMAND resources_example)
+    endif()
 
     # A test written the way a Qt project writes one, with the .moc file included.
     add_executable(tst_counter examples/test/tst_counter.cpp)

@@ -25,8 +25,29 @@ public:
         \value Base64UrlEncoding Use the URL-safe Base64 alphabet, with \c{-} and \c{_} as the last two characters.
         \value KeepTrailingEquals Keep the \c{=} padding at the end of the encoded data.
         \value OmitTrailingEquals Omit the \c{=} padding at the end of the encoded data.
+        \value IgnoreBase64DecodingErrors Skip characters that are not part of the alphabet while decoding. This is the default.
+        \value AbortOnBase64DecodingErrors Stop at the first error while decoding; fromBase64Encoding() then reports it.
     */
-    enum Base64Option { Base64Encoding = 0, Base64UrlEncoding = 1, KeepTrailingEquals = 0, OmitTrailingEquals = 2 };
+    enum Base64Option {
+        Base64Encoding = 0,
+        Base64UrlEncoding = 1,
+        KeepTrailingEquals = 0,
+        OmitTrailingEquals = 2,
+        IgnoreBase64DecodingErrors = 0,
+        AbortOnBase64DecodingErrors = 4
+    };
+    /*!
+        \enum QByteArray::Base64DecodingStatus
+        \since 5.15
+
+        The result of fromBase64Encoding().
+
+        \value Ok The data was decoded.
+        \value IllegalInputLength The number of Base64 characters cannot encode whole bytes.
+        \value IllegalCharacter The data contains a character that is not part of the alphabet.
+        \value IllegalPadding The \c{=} padding is in the wrong place or has the wrong length.
+    */
+    enum class Base64DecodingStatus { Ok, IllegalInputLength, IllegalCharacter, IllegalPadding };
     /*!
         \typedef QByteArray::Base64Options
 
@@ -259,6 +280,12 @@ public:
     */
     QByteArray &prepend(char c) { d.insert(d.begin(), c); m_null = false; return *this; }
     /*!
+        \overload
+        Prepends \a count copies of the byte \a c and returns a reference to
+        this byte array.
+    */
+    QByteArray &prepend(qsizetype count, char c) { return insert(0, count, c); }
+    /*!
         Inserts the byte array \a a at index position \a pos and returns a
         reference to this byte array. \a pos must not be greater than size().
 
@@ -277,6 +304,16 @@ public:
         Inserts the byte \a c at index position \a pos.
     */
     QByteArray &insert(qsizetype pos, char c) { d.insert(d.begin() + pos, c); return *this; }
+    /*!
+        \overload
+        Inserts \a count copies of the byte \a c at index position \a pos and
+        returns a reference to this byte array.
+    */
+    QByteArray &insert(qsizetype pos, qsizetype count, char c) {
+        d.insert(static_cast<std::size_t>(pos), static_cast<std::size_t>(count), c);
+        m_null = false;
+        return *this;
+    }
     QByteArray &remove(qsizetype pos, qsizetype len);
     QByteArray &replace(qsizetype pos, qsizetype len, const QByteArray &after);
     QByteArray &replace(const QByteArray &before, const QByteArray &after);
@@ -363,6 +400,52 @@ public:
         \sa chop(), first()
     */
     QByteArray chopped(qsizetype n) const { return left(size() - n); }
+    /*!
+        \since 6.8
+        Removes the bytes before index position \a pos and returns a reference
+        to this byte array. \a pos must not be greater than size().
+
+        \sa sliced(), truncate()
+    */
+    QByteArray &slice(qsizetype pos) {
+        d.erase(0, static_cast<std::size_t>(pos));
+        return *this;
+    }
+    /*!
+        \overload
+        \since 6.8
+        Keeps the \a n bytes starting at index position \a pos and returns a
+        reference to this byte array. The range must lie within the array.
+    */
+    QByteArray &slice(qsizetype pos, qsizetype n) {
+        d = d.substr(static_cast<std::size_t>(pos), static_cast<std::size_t>(n));
+        return *this;
+    }
+    /*!
+        \since 6.5
+        Makes sure that the data is followed by a \c{'\0'} byte and returns a
+        reference to this byte array. Nt keeps the data null-terminated
+        already, so this only clears the null state of a null array.
+
+        \sa nullTerminated(), constData()
+    */
+    QByteArray &nullTerminate() {
+        m_null = false;
+        return *this;
+    }
+    /*!
+        \since 6.5
+        Returns a copy of this byte array whose data is followed by a
+        \c{'\0'} byte.
+
+        \sa nullTerminate()
+    */
+    QByteArray nullTerminated() const {
+        QByteArray copy(*this);
+        return copy.nullTerminate();
+    }
+    bool isUpper() const;
+    bool isLower() const;
     QByteArray trimmed() const;
     QByteArray simplified() const;
     QByteArray toUpper() const;
@@ -434,6 +517,9 @@ public:
     static QByteArray fromBase64(const QByteArray &base64, Base64Options options = Base64Encoding);
     QByteArray toPercentEncoding(const QByteArray &exclude = QByteArray(), const QByteArray &include = QByteArray(), char percent = '%') const;
     static QByteArray fromPercentEncoding(const QByteArray &pctEncoded, char percent = '%');
+    QByteArray percentDecoded(char percent = '%') const;
+    class FromBase64Result;
+    static FromBase64Result fromBase64Encoding(const QByteArray &base64, Base64Options options = Base64Encoding);
 
     static QByteArray number(qlonglong n, int base = 10);
     static QByteArray number(qulonglong n, int base = 10);
@@ -544,6 +630,69 @@ private:
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QByteArray::Base64Options)
+
+/*!
+    \class QByteArray::FromBase64Result
+    \since 5.15
+    \brief The QByteArray::FromBase64Result class holds the result of QByteArray::fromBase64Encoding().
+
+    The result converts to \c true when the data was decoded, and \c{*}
+    gives the decoded bytes:
+
+    \code
+    if (auto result = QByteArray::fromBase64Encoding(text, QByteArray::AbortOnBase64DecodingErrors))
+        process(*result);
+    else
+        qWarning() << "bad Base64:" << int(result.decodingStatus);
+    \endcode
+
+    \differences
+    None.
+    \enddifferences
+
+    \sa QByteArray::fromBase64Encoding()
+*/
+class QByteArray::FromBase64Result {
+public:
+    /*! The decoded bytes; empty if decoding failed. */
+    QByteArray decoded;
+    /*! Whether decoding succeeded, and if not, why. */
+    QByteArray::Base64DecodingStatus decodingStatus = QByteArray::Base64DecodingStatus::Ok;
+
+    /*!
+        Swaps this result with \a other.
+    */
+    void swap(FromBase64Result &other) noexcept {
+        decoded.swap(other.decoded);
+        std::swap(decodingStatus, other.decodingStatus);
+    }
+    /*!
+        Returns \c true if the data was decoded.
+    */
+    explicit operator bool() const noexcept { return decodingStatus == QByteArray::Base64DecodingStatus::Ok; }
+    /*!
+        Returns the decoded bytes.
+    */
+    QByteArray &operator*() & noexcept { return decoded; }
+    /*!
+        \overload
+    */
+    const QByteArray &operator*() const & noexcept { return decoded; }
+    /*!
+        \overload
+    */
+    QByteArray &&operator*() && noexcept { return std::move(decoded); }
+    /*!
+        Returns \c true if \a a and \a b have the same status and bytes.
+    */
+    friend bool operator==(const FromBase64Result &a, const FromBase64Result &b) noexcept {
+        return a.decodingStatus == b.decodingStatus && a.decoded == b.decoded;
+    }
+    /*!
+        Returns \c true if \a a and \a b differ.
+    */
+    friend bool operator!=(const FromBase64Result &a, const FromBase64Result &b) noexcept { return !(a == b); }
+};
 
 inline std::size_t qHash(const QByteArray &b, std::size_t seed = 0) noexcept {
     return std::hash<std::string>{}(b.stdString()) ^ (seed * 0x9e3779b9u);

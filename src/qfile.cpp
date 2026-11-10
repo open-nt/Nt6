@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -7,9 +8,14 @@
 #include <QtCore/qfileinfo.h>
 
 #include <algorithm>
+#include <climits>
+#include <ctime>
 #include <cerrno>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <string>
+#include <vector>
 
 /*!
     \class QFileDevice
@@ -23,8 +29,8 @@
     The last failure is available from error() and errorString().
 
     \differences
-    There is no memory mapping (\c map() and \c unmap()) and no
-    \c FileHandleFlags. flush() calls \c fsync() on the descriptor instead
+    map() and unmap() use \c mmap(2), and a mapping is removed only by
+    unmap() or the destructor. flush() calls \c fsync() on the descriptor instead
     of flushing a user-space buffer. The class is POSIX-only. Permission and
     Permissions are the QFileInfo types. setFileTime() can change only the
     access and modification times, and fileTime() reports the birth time only
@@ -43,10 +49,21 @@ QFileDevice::QFileDevice() = default;
 */
 QFileDevice::QFileDevice(QObject *parent) : QIODevice(parent) {}
 /*!
-    Destroys the file device. It does not close the file; subclasses do so in
-    their own destructors.
+    Destroys the file device, removing the mappings that map() created.
+    Subclasses close the file in their own destructors; a descriptor that is
+    still open here is closed unless it was opened with \c DontCloseHandle.
 */
-QFileDevice::~QFileDevice() = default;
+QFileDevice::~QFileDevice() {
+    for (const auto &m : m_maps)
+        ::munmap(m.second.first, m.second.second);
+    if (m_fd >= 0 && m_closeHandle) {
+        if (m_stdio)
+            std::fclose(m_stdio);
+        else
+            ::close(m_fd);
+    }
+    m_fd = -1;
+}
 
 /*!
     Sets the file error to \a e and the error string to \a text.
@@ -101,8 +118,96 @@ bool QFileDevice::openPath(const QString &path, OpenMode mode) {
         return false;
     }
     m_fd = fd;
+    m_closeHandle = true;
+    m_stdio = nullptr;
     m_error = NoError;
     QIODevice::open(mode);
+    return true;
+}
+
+/*!
+    Adopts the open descriptor \a fd, or the stream \a fh if it is not
+    \c nullptr, in \a mode. With \c AutoCloseHandle in \a handleFlags,
+    close() closes it too. Subclasses call this from their open() overloads.
+
+    \sa openPath()
+*/
+bool QFileDevice::openHandle(int fd, std::FILE *fh, OpenMode mode, FileHandleFlags handleFlags) {
+    if (isOpen()) {
+        setFileError(OpenError, QString::fromUtf8("file already open"));
+        return false;
+    }
+    if (fh) {
+        // Data the stream still buffers would be written after ours; push it out first.
+        std::fflush(fh);
+        fd = ::fileno(fh);
+    }
+    if (fd < 0) {
+        setFileError(OpenError, QString::fromUtf8("invalid file handle"));
+        return false;
+    }
+    m_fd = fd;
+    m_stdio = fh;
+    m_closeHandle = handleFlags.testFlag(AutoCloseHandle);
+    m_error = NoError;
+    QIODevice::open(mode);
+    return true;
+}
+
+/*!
+    \since 4.4
+    Maps \a size bytes of the file, starting at \a offset, into memory and
+    returns the address, or \c nullptr if it fails. The file must be open,
+    and the range must lie within it. The memory is writable if the file is
+    open for writing or \a flags contains \c MapPrivateOption. The mapping
+    stays valid after close() until unmap() is called or the object is
+    destroyed.
+
+    \sa unmap()
+*/
+uchar *QFileDevice::map(qint64 offset, qint64 size, MemoryMapFlags flags) {
+    if (m_fd < 0) {
+        setFileError(PermissionsError, QString::fromUtf8("the file is not open"));
+        return nullptr;
+    }
+    if (offset < 0 || size <= 0 || offset > this->size() - size) {
+        setFileError(UnspecifiedError, QString::fromUtf8("the range is not in the file"));
+        return nullptr;
+    }
+    const qint64 page = ::sysconf(_SC_PAGESIZE);
+    const qint64 start = offset - offset % page; // mmap() needs a page-aligned offset
+    const auto delta = static_cast<std::size_t>(offset - start);
+    const std::size_t length = static_cast<std::size_t>(size) + delta;
+    const bool priv = flags.testFlag(MapPrivateOption);
+    int prot = PROT_READ;
+    if (priv || openMode().testFlag(WriteOnly))
+        prot |= PROT_WRITE;
+    void *base = ::mmap(nullptr, length, prot, priv ? MAP_PRIVATE : MAP_SHARED, m_fd, static_cast<off_t>(start));
+    if (base == MAP_FAILED) {
+        setFileError(errno == EACCES ? PermissionsError : ResourceError, QString::fromUtf8(std::strerror(errno)));
+        return nullptr;
+    }
+    uchar *address = static_cast<uchar *>(base) + delta;
+    m_maps[address] = {base, length};
+    m_error = NoError;
+    return address;
+}
+
+/*!
+    \since 4.4
+    Removes the mapping at \a address, which map() returned. Returns \c true
+    if successful.
+
+    \sa map()
+*/
+bool QFileDevice::unmap(uchar *address) {
+    const auto it = m_maps.find(address);
+    if (it == m_maps.end()) {
+        setFileError(PermissionsError, QString::fromUtf8("the address was not mapped by this file"));
+        return false;
+    }
+    ::munmap(it->second.first, it->second.second);
+    m_maps.erase(it);
     return true;
 }
 
@@ -115,9 +220,15 @@ void QFileDevice::close() {
     if (!isOpen())
         return;
     QIODevice::close();
-    if (m_fd >= 0)
-        ::close(m_fd);
+    if (m_fd >= 0 && m_closeHandle) {
+        if (m_stdio)
+            std::fclose(m_stdio);
+        else
+            ::close(m_fd);
+    }
     m_fd = -1;
+    m_stdio = nullptr;
+    m_closeHandle = true;
 }
 
 /*!
@@ -472,11 +583,10 @@ qint64 QFileDevice::readLineData(char *data, qint64 maxSize) {
     and QDataStream on top of a QFile.
 
     \differences
-    The constructors do not accept \c std::filesystem::path, and there are no
-    \c open() overloads that take a \c FILE* or a file descriptor. The \c
-    Text open flag is accepted but does not translate line endings. There is
-    no \c moveToTrash(), \c readLink(),
-    \c decodeName() or \c encodeName(). Static copy() refuses to overwrite an
+    The constructors do not accept \c std::filesystem::path. The \c Text open
+    flag is accepted but does not translate line endings. moveToTrash()
+    follows the freedesktop.org trash specification, so it works on Linux and
+    other XDG desktops. Static copy() refuses to overwrite an
     existing file, and rename() does not fall back to copying across
     filesystems. Permissions are not copied.
     \enddifferences
@@ -530,7 +640,36 @@ bool QFile::open(OpenMode mode) {
         setFileError(OpenError, QString::fromUtf8("no file name specified"));
         return false;
     }
-    return openPath(m_name, mode);
+    return openPath(QtPrivate::resolveSearchPath(m_name), mode);
+}
+
+/*!
+    \overload
+    Opens the existing C stream \a fh in \a mode, which must match how the
+    stream was opened. close() also closes the stream if \a handleFlags has
+    \c AutoCloseHandle. Reads and writes go to the stream's descriptor, so
+    do not mix them with \c stdio calls on \a fh.
+
+    \code
+    QFile out;
+    out.open(stdout, QIODevice::WriteOnly);
+    \endcode
+*/
+bool QFile::open(std::FILE *fh, OpenMode mode, FileHandleFlags handleFlags) {
+    if (!fh) {
+        setFileError(OpenError, QString::fromUtf8("invalid file handle"));
+        return false;
+    }
+    return openHandle(-1, fh, mode, handleFlags);
+}
+
+/*!
+    \overload
+    Opens the existing file descriptor \a fd in \a mode. close() also
+    closes the descriptor if \a handleFlags has \c AutoCloseHandle.
+*/
+bool QFile::open(int fd, OpenMode mode, FileHandleFlags handleFlags) {
+    return openHandle(fd, nullptr, mode, handleFlags);
 }
 
 /*!
@@ -541,7 +680,7 @@ bool QFile::open(OpenMode mode) {
 */
 bool QFile::exists(const QString &fileName) {
     struct stat st;
-    return ::stat(fileName.toUtf8().constData(), &st) == 0;
+    return ::stat(QtPrivate::resolveSearchPath(fileName).toUtf8().constData(), &st) == 0;
 }
 
 /*!
@@ -730,6 +869,161 @@ bool QFile::copy(const QString &newName) {
         return false;
     }
     return true;
+}
+
+namespace {
+
+// The trash directory for `path` (absolute) as the freedesktop.org trash specification defines
+// it: the home trash if the file is on the same file system as it, or $topdir/.Trash-$uid on the
+// top directory of the file's mount. Returns false if neither can be created.
+bool trashFor(const std::string &path, std::string &trash, bool &relativePaths) {
+    auto ensureDir = [](const std::string &dir) {
+        if (::mkdir(dir.c_str(), 0700) == 0)
+            return true;
+        struct stat st;
+        return errno == EEXIST && ::lstat(dir.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+    };
+    struct stat fileSt;
+    if (::lstat(path.c_str(), &fileSt) != 0)
+        return false;
+    std::string dataHome;
+    if (const char *xdg = std::getenv("XDG_DATA_HOME"); xdg && *xdg == '/')
+        dataHome = xdg;
+    else if (const char *home = std::getenv("HOME"); home && *home)
+        dataHome = std::string(home) + "/.local/share";
+    if (!dataHome.empty()) {
+        // Create the parents too, since a fresh home may not have ~/.local/share yet.
+        std::string partial;
+        for (std::size_t at = 1; at != std::string::npos;) {
+            const std::size_t next = dataHome.find('/', at);
+            partial = dataHome.substr(0, next);
+            ::mkdir(partial.c_str(), 0700);
+            at = next == std::string::npos ? next : next + 1;
+        }
+        struct stat homeSt;
+        if (::stat(dataHome.c_str(), &homeSt) == 0 && homeSt.st_dev == fileSt.st_dev) {
+            trash = dataHome + "/Trash";
+            relativePaths = false;
+            return ensureDir(trash) && ensureDir(trash + "/files") && ensureDir(trash + "/info");
+        }
+    }
+    // Climb to the top directory of the mount that holds the file.
+    std::string top = path.substr(0, path.rfind('/'));
+    while (!top.empty()) {
+        const std::string parent = top.substr(0, top.rfind('/'));
+        struct stat st;
+        if (::stat(parent.empty() ? "/" : parent.c_str(), &st) != 0 || st.st_dev != fileSt.st_dev)
+            break;
+        top = parent;
+    }
+    trash = (top.empty() ? std::string() : top) + "/.Trash-" + std::to_string(::getuid());
+    relativePaths = true;
+    return ensureDir(trash) && ensureDir(trash + "/files") && ensureDir(trash + "/info");
+}
+
+} // namespace
+
+/*!
+    \since 5.15
+    Moves the file named by fileName() to the trash, closing it first, and
+    sets fileName() to its path in the trash. Returns \c true if successful;
+    otherwise returns \c false and sets error() to \c RenameError.
+
+    \sa remove()
+*/
+bool QFile::moveToTrash() {
+    if (isOpen())
+        close();
+    QString inTrash;
+    if (!moveToTrash(m_name, &inTrash)) {
+        setFileError(RenameError, QString::fromUtf8("unable to move the file to the trash"));
+        return false;
+    }
+    m_name = inTrash;
+    return true;
+}
+
+/*!
+    \since 5.15
+    \overload
+    Moves the file or directory \a fileName to the trash of the desktop, as
+    the freedesktop.org trash specification describes, so that the user can
+    restore it. Returns \c true if successful and stores the new path in
+    \c{*pathInTrash} if \a pathInTrash is not \c nullptr.
+*/
+bool QFile::moveToTrash(const QString &fileName, QString *pathInTrash) {
+    if (fileName.isEmpty())
+        return false;
+    const std::string path = QFileInfo(fileName).absoluteFilePath().toStdString();
+    std::string trash;
+    bool relative = false;
+    if (path == "/" || !trashFor(path, trash, relative))
+        return false;
+    const std::string base = path.substr(path.rfind('/') + 1);
+    std::string recorded = path;
+    if (relative) {
+        const std::string top = trash.substr(0, trash.rfind('/'));
+        recorded = path.substr(top.size() + 1);
+    }
+    char date[32];
+    const std::time_t now = std::time(nullptr);
+    std::tm local{};
+    ::localtime_r(&now, &local);
+    std::strftime(date, sizeof date, "%Y-%m-%dT%H:%M:%S", &local);
+    const QByteArray encoded = QByteArray::fromStdString(recorded).toPercentEncoding("/");
+    const std::string info = "[Trash Info]\nPath=" + encoded.toStdString() + "\nDeletionDate=" + date + "\n";
+    // Reserve a unique name by creating its .trashinfo file exclusively, then move the file.
+    for (int n = 1; n < 10000; ++n) {
+        const std::string name = n == 1 ? base : base + "." + std::to_string(n);
+        std::string infoPath = trash;
+        infoPath.append("/info/").append(name).append(".trashinfo");
+        const int fd = ::open(infoPath.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0600);
+        if (fd < 0) {
+            if (errno == EEXIST)
+                continue;
+            return false;
+        }
+        const bool written = ::write(fd, info.data(), info.size()) == static_cast<ssize_t>(info.size());
+        ::close(fd);
+        std::string target = trash;
+        target.append("/files/").append(name);
+        struct stat st;
+        if (!written || ::lstat(target.c_str(), &st) == 0 || ::rename(path.c_str(), target.c_str()) != 0) {
+            const bool taken = written && ::lstat(target.c_str(), &st) == 0;
+            ::unlink(infoPath.c_str());
+            if (taken)
+                continue;
+            return false;
+        }
+        if (pathInTrash)
+            *pathInTrash = QString::fromStdString(target);
+        return true;
+    }
+    return false;
+}
+
+/*!
+    \since 6.6
+    Returns the target of the symbolic link named by fileName() exactly as it
+    is stored, without making it absolute, or an empty string if the file is
+    not a symbolic link.
+
+    \sa symLinkTarget()
+*/
+QString QFile::readLink() const { return readLink(m_name); }
+
+/*!
+    \since 6.6
+    \overload
+    Returns the stored target of the symbolic link \a fileName, or an empty
+    string if it is not a symbolic link.
+*/
+QString QFile::readLink(const QString &fileName) {
+    std::vector<char> buf(PATH_MAX);
+    const ssize_t n = ::readlink(fileName.toUtf8().constData(), buf.data(), buf.size());
+    if (n < 0)
+        return QString();
+    return QString::fromUtf8(buf.data(), static_cast<qsizetype>(n));
 }
 
 #include "moc_qfile.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

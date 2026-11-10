@@ -21,6 +21,12 @@ public:
         \sa seed(), securelySeeded()
     */
     QRandomGenerator(quint32 seedValue = 1) : m_engine(seedValue) {}
+    /*!
+        \since 5.10
+        \overload
+        Constructs a deterministic generator seeded from \a sseq.
+    */
+    explicit QRandomGenerator(std::seed_seq &sseq) : m_engine(sseq) {}
     QRandomGenerator(const quint32 *seedBuffer, qsizetype len);
     /*!
         \overload
@@ -87,6 +93,14 @@ public:
         return static_cast<int>(bounded(static_cast<quint32>(highest) - static_cast<quint32>(lowest)) + static_cast<quint32>(lowest));
     }
     quint64 bounded(quint64 highest);
+    /*!
+        \since 6.4
+        \overload
+
+        Returns a random \c quint64 that is greater than or equal to \a lowest
+        and less than \a highest.
+    */
+    quint64 bounded(quint64 lowest, quint64 highest) { return bounded(highest - lowest) + lowest; }
     /*!
         \overload
 
@@ -175,6 +189,18 @@ public:
     // Seeded once from system(); thread-safe.
     static QRandomGenerator *global();
     static QRandomGenerator securelySeeded();
+
+    /*!
+        Returns \c true if \a a and \a b will produce the same sequence: both
+        are system(), or both are seeded generators in the same state.
+    */
+    friend bool operator==(const QRandomGenerator &a, const QRandomGenerator &b) {
+        return a.m_system == b.m_system && (a.m_system || a.m_engine == b.m_engine);
+    }
+    /*!
+        Returns \c true if \a a and \a b will produce different sequences.
+    */
+    friend bool operator!=(const QRandomGenerator &a, const QRandomGenerator &b) { return !(a == b); }
 
 private:
     friend class QRandomGenerator64;

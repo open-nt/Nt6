@@ -21,7 +21,7 @@
     width and height.
 
     \differences
-    There are no QDebug or QDataStream stream operators.
+    None.
     \enddifferences
 
     \sa QRectF, QPoint, QSize, QMargins
@@ -591,12 +591,7 @@ private:
     width and height.
 
     \differences
-    Coordinates are always \c double, which is what \c qreal is in Nt. There
-    are no QDebug or QDataStream stream operators. The corner setters
-    \c setTopLeft(), \c setBottomRight(), \c setTopRight() and
-    \c setBottomLeft(), the corner movers \c moveTopLeft(),
-    \c moveBottomRight(), \c moveTopRight() and \c moveBottomLeft(), and
-    \c getRect() and \c getCoords() are not implemented.
+    Coordinates are always \c double, which is what \c qreal is in Nt.
     \enddifferences
 
     \sa QRect, QPointF, QSizeF, QMarginsF
@@ -790,6 +785,67 @@ public:
     */
     constexpr void setBottom(double v) noexcept { h = v - yp; }
     /*!
+        Sets the top-left corner to \a p, keeping the bottom-right corner.
+
+        \sa topLeft(), moveTopLeft()
+    */
+    constexpr void setTopLeft(const QPointF &p) noexcept {
+        setLeft(p.x());
+        setTop(p.y());
+    }
+    /*!
+        Sets the bottom-right corner to \a p, keeping the top-left corner.
+
+        \sa bottomRight(), moveBottomRight()
+    */
+    constexpr void setBottomRight(const QPointF &p) noexcept {
+        setRight(p.x());
+        setBottom(p.y());
+    }
+    /*!
+        Sets the top-right corner to \a p, keeping the bottom-left corner.
+
+        \sa topRight(), moveTopRight()
+    */
+    constexpr void setTopRight(const QPointF &p) noexcept {
+        setRight(p.x());
+        setTop(p.y());
+    }
+    /*!
+        Sets the bottom-left corner to \a p, keeping the top-right corner.
+
+        \sa bottomLeft(), moveBottomLeft()
+    */
+    constexpr void setBottomLeft(const QPointF &p) noexcept {
+        setLeft(p.x());
+        setBottom(p.y());
+    }
+    /*!
+        Stores the position of the top-left corner in \c{*x} and \c{*y} and the
+        size in \c{*width} and \c{*height}, through \a x, \a y, \a width and
+        \a height.
+
+        \sa getCoords()
+    */
+    constexpr void getRect(double *x, double *y, double *width, double *height) const {
+        *x = xp;
+        *y = yp;
+        *width = w;
+        *height = h;
+    }
+    /*!
+        Stores the top-left corner in \c{*x1} and \c{*y1} and the bottom-right
+        corner in \c{*x2} and \c{*y2}, through \a x1, \a y1, \a x2 and \a y2.
+
+        \sa getRect()
+    */
+    constexpr void getCoords(double *x1, double *y1, double *x2, double *y2) const {
+        *x1 = xp;
+        *y1 = yp;
+        *x2 = xp + w;
+        *y2 = yp + h;
+    }
+    /*!
         Sets the width of the rectangle to \a v, keeping the left edge.
 
         \sa width(), setHeight()
@@ -843,6 +899,38 @@ public:
         \sa right(), moveLeft()
     */
     constexpr void moveRight(double p) noexcept { xp = p - w; }
+    /*!
+        Moves the rectangle so that its top-left corner is at \a p, keeping
+        its size.
+    */
+    constexpr void moveTopLeft(const QPointF &p) noexcept {
+        moveLeft(p.x());
+        moveTop(p.y());
+    }
+    /*!
+        Moves the rectangle so that its bottom-right corner is at \a p,
+        keeping its size.
+    */
+    constexpr void moveBottomRight(const QPointF &p) noexcept {
+        moveRight(p.x());
+        yp = p.y() - h;
+    }
+    /*!
+        Moves the rectangle so that its top-right corner is at \a p, keeping
+        its size.
+    */
+    constexpr void moveTopRight(const QPointF &p) noexcept {
+        moveRight(p.x());
+        moveTop(p.y());
+    }
+    /*!
+        Moves the rectangle so that its bottom-left corner is at \a p,
+        keeping its size.
+    */
+    constexpr void moveBottomLeft(const QPointF &p) noexcept {
+        moveLeft(p.x());
+        yp = p.y() - h;
+    }
     /*!
         Moves the rectangle vertically, leaving the rectangle's bottom edge
         at the given \a p. The rectangle's size is unchanged.

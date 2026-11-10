@@ -23,9 +23,9 @@
     static singleShot() functions when no timer object is needed.
 
     \differences
-    Intervals are stored as an \c int number of milliseconds. There is no
-    timer type, \c remainingTime() or \c callOnTimeout(), and interval
-    properties cannot be bound. A timer must be started and stopped from the
+    Intervals are stored as an \c int number of milliseconds. The timer type
+    is stored but does not change the precision, and interval properties
+    cannot be bound. A timer must be started and stopped from the
     thread it lives in; the thread needs a running event loop.
     \enddifferences
 
@@ -94,6 +94,44 @@ std::chrono::milliseconds QTimer::intervalAsDuration() const {
 }
 
 /*!
+    \since 5.0
+    Returns the number of milliseconds until the next timeout, \c 0 if it is
+    overdue, or \c -1 if the timer is not running.
+
+    \sa remainingTimeAsDuration(), interval()
+*/
+int QTimer::remainingTime() const {
+    if (!isActive())
+        return -1;
+    const auto left = std::chrono::ceil<std::chrono::milliseconds>(m_deadline - std::chrono::steady_clock::now());
+    return left.count() < 0 ? 0 : static_cast<int>(left.count());
+}
+
+/*!
+    \since 5.8
+    Returns the time until the next timeout as a \c{std::chrono::milliseconds}
+    value: zero if it is overdue, or \c -1 ms if the timer is not running.
+
+    \sa remainingTime()
+*/
+std::chrono::milliseconds QTimer::remainingTimeAsDuration() const { return std::chrono::milliseconds(remainingTime()); }
+
+/*!
+    Sets the timer type to \a type. Nt records it, but every type has the
+    millisecond precision of the event dispatcher.
+
+    \sa timerType()
+*/
+void QTimer::setTimerType(Qt::TimerType type) { m_type = type; }
+
+/*!
+    Returns the timer type. The default is \c Qt::CoarseTimer.
+
+    \sa setTimerType()
+*/
+Qt::TimerType QTimer::timerType() const { return m_type; }
+
+/*!
     Sets whether the timer stops after its first timeout. It does if
     \a singleShot is \c true; otherwise it repeats.
 
@@ -118,6 +156,7 @@ bool QTimer::isSingleShot() const { return m_single; }
 void QTimer::start() {
     stop();
     m_id = startTimer(m_interval);
+    m_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(m_interval);
 }
 
 /*!
@@ -154,6 +193,8 @@ void QTimer::timerEvent(QTimerEvent *event) {
         return;
     if (m_single)
         stop();
+    else
+        m_deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(m_interval);
     timeout();
 }
 

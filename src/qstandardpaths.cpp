@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <atomic>
 #include <cstdlib>
 #include <fstream>
 #include <string>
@@ -41,10 +42,17 @@ QString dirFromEnv(const char *var, const char *homeRelative) {
     return v.isEmpty() ? QDir::cleanPath(homeDir() + QChar(u'/') + QString::fromUtf8(homeRelative)) : v;
 }
 
-QString dataHome() { return dirFromEnv("XDG_DATA_HOME", ".local/share"); }
-QString configHome() { return dirFromEnv("XDG_CONFIG_HOME", ".config"); }
-QString cacheHome() { return dirFromEnv("XDG_CACHE_HOME", ".cache"); }
-QString stateHome() { return dirFromEnv("XDG_STATE_HOME", ".local/state"); }
+std::atomic<bool> g_testMode{false};
+
+// In test mode the user directories move under ~/.qttest, so tests cannot touch real data.
+QString testHome(const char *sub) {
+    return QDir::cleanPath(homeDir() + QString::fromUtf8("/.qttest/") + QString::fromUtf8(sub));
+}
+
+QString dataHome() { return g_testMode ? testHome("share") : dirFromEnv("XDG_DATA_HOME", ".local/share"); }
+QString configHome() { return g_testMode ? testHome("config") : dirFromEnv("XDG_CONFIG_HOME", ".config"); }
+QString cacheHome() { return g_testMode ? testHome("cache") : dirFromEnv("XDG_CACHE_HOME", ".cache"); }
+QString stateHome() { return g_testMode ? testHome("state") : dirFromEnv("XDG_STATE_HOME", ".local/state"); }
 
 QStringList dirList(const char *var, const char *fallback) {
     const char *v = std::getenv(var);
@@ -135,9 +143,8 @@ bool existsAsSpecified(const QString &path, QStandardPaths::LocateOptions option
 
     \differences
     Only the XDG layout of Linux and other POSIX systems is supported. The
-    application sub-directory is the executable's file name, since
-    QCoreApplication has no \c applicationName() or \c organizationName() yet.
-    There is no \c setTestModeEnabled() or \c isTestModeEnabled(), and
+    application sub-directory is the executable's file name, not the
+    organization and application names.
     displayName() returns untranslated English names.
     \enddifferences
 */
@@ -233,6 +240,8 @@ QString QStandardPaths::writableLocation(StandardLocation type) {
 QStringList QStandardPaths::standardLocations(StandardLocation type) {
     QStringList dirs;
     appendUnique(dirs, writableLocation(type));
+    if (g_testMode)
+        return dirs; // only the test directories, not the system-wide ones
     const QStringList dataDirs = dirList("XDG_DATA_DIRS", "/usr/local/share:/usr/share");
     const QStringList configDirs = dirList("XDG_CONFIG_DIRS", "/etc/xdg");
     const QString app = appName();
@@ -270,6 +279,26 @@ QStringList QStandardPaths::standardLocations(StandardLocation type) {
     }
     return dirs;
 }
+
+/*!
+    \since 5.2
+    Enables test mode if \a testMode is \c true, or disables it. In test
+    mode the data, configuration, cache and state locations are
+    sub-directories of \c{~/.qttest} (\c share, \c config, \c cache and
+    \c state), and standardLocations() returns only the writable location,
+    so that tests do not read or change the user's real files.
+
+    \sa isTestModeEnabled()
+*/
+void QStandardPaths::setTestModeEnabled(bool testMode) { g_testMode = testMode; }
+
+/*!
+    \since 5.2
+    Returns \c true if test mode is enabled.
+
+    \sa setTestModeEnabled()
+*/
+bool QStandardPaths::isTestModeEnabled() { return g_testMode; }
 
 /*!
     Finds the first entry named \a fileName in the standard locations of the

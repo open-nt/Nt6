@@ -26,6 +26,8 @@
 
     The size, lookup, insertion, removal and iteration functions are shared
     with the other associative containers and behave as they do in Qt.
+    keyValueBegin(), keyValueEnd() and \c asKeyValueRange() visit the key
+    and value pairs, as described in QKeyValueIterator.
 
     \differences
     QHash is implemented on top of \c std::unordered_map and has no implicit
@@ -57,6 +59,12 @@ public:
         \sa reserve()
     */
     qsizetype capacity() const { return static_cast<qsizetype>(this->d.bucket_count()); }
+    /*!
+        Shrinks the hash table to the smallest size that holds the items.
+
+        \sa capacity()
+    */
+    void squeeze() { this->d.rehash(0); }
 };
 
 /*!
@@ -76,7 +84,7 @@ public:
 
     \differences
     QMultiHash is implemented on top of \c std::unordered_multimap and is not
-    implicitly shared. It has no \c capacity() function. The order of values
+    implicitly shared. The order of values
     stored under one key is not specified.
     \enddifferences
 
@@ -96,6 +104,18 @@ public:
         Prepares the hash for holding at least \a n items without rehashing.
     */
     void reserve(qsizetype n) { this->d.reserve(static_cast<std::size_t>(n)); }
+    /*!
+        Returns the number of buckets in the hash table.
+
+        \sa reserve(), squeeze()
+    */
+    qsizetype capacity() const { return static_cast<qsizetype>(this->d.bucket_count()); }
+    /*!
+        Shrinks the hash table to the smallest size that holds the items.
+
+        \sa capacity()
+    */
+    void squeeze() { this->d.rehash(0); }
     /*!
         Returns the keys of the hash, each key listed once even if it has
         several values. The order of the keys is unspecified.
@@ -131,9 +151,8 @@ public:
     \differences
     QSet is implemented on top of \c std::unordered_set and has no implicit
     sharing. Its iterators are constant. The predicate passed to removeIf() is
-    called with an iterator rather than with the value. There is no
-    \c capacity(), \c squeeze(), \c constFind() or \c isSubsetOf(), and
-    \c toList() is provided although it was removed from Qt 6.
+    called with an iterator rather than with the value. \c toList() is
+    provided although it was removed from Qt 6.
     \enddifferences
 
     \sa QHash, QSetIterator
@@ -204,6 +223,39 @@ public:
         Prepares the set for holding at least \a n values without rehashing.
     */
     void reserve(qsizetype n) { d.reserve(static_cast<std::size_t>(n)); }
+    /*!
+        Returns the number of buckets in the hash table of the set.
+
+        \sa reserve(), squeeze()
+    */
+    qsizetype capacity() const { return static_cast<qsizetype>(d.bucket_count()); }
+    /*!
+        Shrinks the hash table to the smallest size that holds the values.
+
+        \sa capacity()
+    */
+    void squeeze() { d.rehash(0); }
+    /*!
+        Returns an iterator to the value \a value, or constEnd() if the set
+        does not contain it.
+
+        \sa find(), contains()
+    */
+    const_iterator constFind(const T &value) const { return d.find(value); }
+    /*!
+        \since 5.12
+        Returns \c true if every value of this set is also in \a other.
+
+        \sa contains(), intersects()
+    */
+    bool isSubsetOf(const QSet &other) const {
+        if (d.size() > other.d.size())
+            return false;
+        for (const T &t : d)
+            if (!other.contains(t))
+                return false;
+        return true;
+    }
     /*!
         Returns \c true if the set contains the value \a t; otherwise returns
         \c false.

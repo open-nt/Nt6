@@ -234,7 +234,8 @@
     nt_enable_automoc(app)                            # ntmoc, for Q_OBJECT classes
     \endcode
 
-    The package provides \c{Nt6::Core}, \c{Nt6::Network}, \c{Nt6::SerialPort}, \c{Nt6::HttpServer}, \c{Nt6::WebSockets}, \c{Nt6::Test},
+    The package provides \c{Nt6::Core}, \c{Nt6::Network}, \c{Nt6::SerialPort}, \c{Nt6::DBus}, \c{Nt6::HttpServer},
+    \c{Nt6::WebSockets}, \c{Nt6::Gui}, \c{Nt6::Widgets}, \c{Nt6::Test},
     the tools \c{Nt6::moc} and \c{Nt6::ndoc}, and the helper functions \c nt_enable_automoc(),
     \c nt_wrap_cpp() and \c nt_add_docs(). Check the installation with:
 
@@ -242,6 +243,15 @@
     ntmoc --version
     ndoc --version
     \endcode
+
+    The libraries are static, so a program that links \c{Nt6::Network} also needs the OpenSSL
+    development package, and one that links \c{Nt6::Gui} or \c{Nt6::Widgets} needs those of
+    FreeType, fontconfig and XCB (\c{libssl-dev libfreetype-dev libfontconfig-dev libxcb1-dev} on
+    Ubuntu). The \c{examples/hello}, \c{examples/widgets} and \c{examples/resources} directories are
+    standalone projects to start from.
+
+    Coming from Qt, read \l{Resource Files} for how to ship data files without \c{.qrc} files, and
+    \l{Using Nt Widgets} for user interfaces.
 
     See \l{Nt Brand Guide} for the logo and the way to write Nt's name.
 

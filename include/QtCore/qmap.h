@@ -3,6 +3,7 @@
 
 #include <QtCore/qassoc_p.h>
 
+#include <iterator>
 #include <map>
 
 /*!
@@ -24,11 +25,13 @@
 
     The size, lookup, insertion, removal and iteration functions are shared
     with the other associative containers and behave as they do in Qt.
+    keyValueBegin(), keyValueEnd() and \c asKeyValueRange() visit the key
+    and value pairs, as described in QKeyValueIterator.
 
     \differences
     QMap is implemented on top of \c std::map and has no implicit sharing:
     copying a map copies all of its elements. Iterator invalidation follows
-    \c std::map rather than Qt, and there is no \c keyValueBegin().
+    \c std::map rather than Qt.
     \enddifferences
 
     \sa QMultiMap, QHash
@@ -130,9 +133,9 @@ public:
     \differences
     QMultiMap is implemented on top of \c std::multimap and is not implicitly
     shared. Values stored under one key are returned in insertion order,
-    whereas Qt returns the most recently inserted first. Unlike QMap it has no
-    \c first(), \c last(), \c takeFirst() or const lowerBound()/upperBound()
-    overloads.
+    whereas Qt returns the most recently inserted first, so first() and last()
+    return the value inserted first among those of the smallest and the largest
+    key.
     \enddifferences
 
     \sa QMap, QMultiHash
@@ -186,4 +189,42 @@ public:
         \sa lowerBound()
     */
     typename Base::iterator upperBound(const K &k) { return typename Base::iterator(this->d.upper_bound(k)); }
+    /*!
+        \overload
+        Returns a const iterator to the first item whose key is not less than
+        \a k, or end().
+    */
+    typename Base::const_iterator lowerBound(const K &k) const {
+        return typename Base::const_iterator(this->d.lower_bound(k));
+    }
+    /*!
+        \overload
+        Returns a const iterator to the first item whose key is greater than
+        \a k, or end().
+    */
+    typename Base::const_iterator upperBound(const K &k) const {
+        return typename Base::const_iterator(this->d.upper_bound(k));
+    }
+    /*!
+        Returns a reference to the first value, the one with the smallest key.
+        The map must not be empty.
+
+        \sa last(), firstKey()
+    */
+    V &first() { return this->d.begin()->second; }
+    /*!
+        \overload
+    */
+    const V &first() const { return this->d.begin()->second; }
+    /*!
+        Returns a reference to the last value, the one with the largest key.
+        The map must not be empty.
+
+        \sa first(), lastKey()
+    */
+    V &last() { return std::prev(this->d.end())->second; }
+    /*!
+        \overload
+    */
+    const V &last() const { return std::prev(this->d.end())->second; }
 };

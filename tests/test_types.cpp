@@ -2,7 +2,9 @@
 #include <QtCore>
 #include <QSet>
 
+#include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <functional>
 #include <cstdio>
 #include <cstdlib>
@@ -2846,9 +2848,307 @@ static void testExtras() {
     CHECK(va.capacity() == 4);
 }
 
+static void testKeyValueIteration() {
+    QMap<QString, int> ages{{QStringLiteral("ada"), 36}, {QStringLiteral("alan"), 41}, {QStringLiteral("grace"), 85}};
+    QStringList keys;
+    int total = 0;
+    for (auto [name, age] : ages.asKeyValueRange()) {
+        keys << name;
+        total += age;
+    }
+    CHECK(keys == QStringList({QStringLiteral("ada"), QStringLiteral("alan"), QStringLiteral("grace")}) &&
+          total == 162);
+    for (auto [name, age] : ages.asKeyValueRange())
+        age += 1; // the value is a reference
+    CHECK(ages.value(QStringLiteral("ada")) == 37);
+    const auto oldest = std::max_element(ages.constKeyValueBegin(), ages.constKeyValueEnd(),
+                                         [](const auto &a, const auto &b) { return a.second < b.second; });
+    CHECK(oldest->first == QStringLiteral("grace") && (*oldest).second == 86);
+    CHECK(std::distance(ages.keyValueBegin(), ages.keyValueEnd()) == 3);
+
+    QHash<int, QString> names{{1, QStringLiteral("one")}, {2, QStringLiteral("two")}};
+    int keySum = 0;
+    for (auto [k, v] : std::as_const(names).asKeyValueRange())
+        keySum += k * static_cast<int>(v.size());
+    CHECK(keySum == 1 * 3 + 2 * 3);
+    // A temporary container is kept alive by the range.
+    int count = 0;
+    for (auto [k, v] : QMap<int, int>{{1, 2}, {3, 4}}.asKeyValueRange())
+        count += k + v;
+    CHECK(count == 10);
+    QMultiMap<int, char> multi;
+    multi.insert(1, 'a');
+    multi.insert(1, 'b');
+    CHECK(std::distance(multi.keyValueBegin(), multi.keyValueEnd()) == 2);
+}
+
+static void testBitArrayExtras() {
+    QBitArray bits(10);
+    bits.setBit(0);
+    bits.setBit(3);
+    bits.setBit(9);
+    const char *packed = bits.bits();
+    CHECK(static_cast<unsigned char>(packed[0]) == 0x09 && static_cast<unsigned char>(packed[1]) == 0x02);
+    CHECK(QBitArray::fromBits(packed, 10) == bits);
+    bool ok = false;
+    CHECK(bits.toUInt32(QSysInfo::LittleEndian, &ok) == 0x209 && ok);
+    // Big-endian: the first bit is the most significant of the ten.
+    CHECK(bits.toUInt32(QSysInfo::BigEndian, &ok) == 0x241 && ok);
+    CHECK(QBitArray(33).toUInt32(QSysInfo::LittleEndian, &ok) == 0 && !ok);
+
+    for (int version : {int(QDataStream::Qt_5_15), int(QDataStream::Qt_6_0)}) {
+        QByteArray data;
+        {
+            QDataStream out(&data, QIODevice::WriteOnly);
+            out.setVersion(version);
+            out << bits;
+        }
+        CHECK(data.size() == (version < QDataStream::Qt_6_0 ? 4 : 8) + 2);
+        QDataStream in(data);
+        in.setVersion(version);
+        QBitArray back;
+        in >> back;
+        CHECK(in.status() == QDataStream::Ok && back == bits);
+    }
+    // A size larger than the data reports ReadPastEnd instead of allocating it.
+    QByteArray corrupt;
+    {
+        QDataStream out(&corrupt, QIODevice::WriteOnly);
+        out << qint64(1) << 40;
+    }
+    corrupt.truncate(8);
+    QDataStream in(corrupt);
+    QBitArray back;
+    in >> back;
+    CHECK(in.status() == QDataStream::ReadPastEnd && back.isEmpty());
+}
+
+static void testByteArrayExtras() {
+    QByteArray a("hello world");
+    CHECK(a.slice(6) == "world" && a == "world");
+    a = "hello world";
+    CHECK(a.slice(1, 4) == "ello");
+    CHECK(QByteArray().nullTerminated().constData()[0] == '\0' && !QByteArray().nullTerminated().isNull());
+    CHECK(QByteArray("ABC 1!").isUpper() && !QByteArray("ABc").isUpper());
+    CHECK(QByteArray("abc 1!").isLower() && !QByteArray("aBc").isLower() && QByteArray().isLower());
+    QByteArray b("ab");
+    CHECK(b.insert(1, 3, '-') == "a---b" && b.prepend(2, '>') == ">>a---b");
+    CHECK(QByteArray("a%20b%2Fc").percentDecoded() == "a b/c");
+
+    using R = QByteArray::Base64DecodingStatus;
+    const auto strict = QByteArray::AbortOnBase64DecodingErrors;
+    auto ok = QByteArray::fromBase64Encoding("aGVsbG8=", strict);
+    CHECK(ok && *ok == "hello" && ok.decodingStatus == R::Ok);
+    CHECK(QByteArray::fromBase64Encoding("aGVsbG8", strict).decoded == "hello");
+    CHECK(QByteArray::fromBase64Encoding("aGVs*G8=", strict).decodingStatus == R::IllegalCharacter);
+    CHECK(QByteArray::fromBase64Encoding("aGV=sbG8", strict).decodingStatus == R::IllegalPadding);
+    CHECK(QByteArray::fromBase64Encoding("aGVsbG8==", strict).decodingStatus == R::IllegalPadding);
+    CHECK(QByteArray::fromBase64Encoding("aGVsb", strict).decodingStatus == R::IllegalInputLength);
+    CHECK(!QByteArray::fromBase64Encoding("aGVs*G8=", strict).decoded.size());
+    // The URL alphabet is only accepted when asked for in strict mode.
+    CHECK(QByteArray::fromBase64Encoding("-_8", strict).decodingStatus == R::IllegalCharacter);
+    CHECK(QByteArray::fromBase64Encoding("-_8", strict | QByteArray::Base64UrlEncoding).decoded ==
+          QByteArray("\xfb\xff"));
+    // The default is lenient, as fromBase64() is.
+    CHECK(QByteArray::fromBase64Encoding("aGVs*bG8=").decoded == "hello");
+    CHECK(QByteArray::fromBase64("aGVs bG8=") == "hello");
+}
+
+static void testUuidV7() {
+    const QUuid a = QUuid::createUuidV7();
+    const QUuid b = QUuid::createUuidV7();
+    CHECK(a.version() == QUuid::UnixEpoch && a.variant() == QUuid::DCE);
+    CHECK(a != b && a < b);
+    const qint64 ms = (static_cast<qint64>(a.data1) << 16) | a.data2;
+    CHECK(std::llabs(ms - QDateTime::currentMSecsSinceEpoch()) < 10000);
+    QUuid last = b;
+    for (int k = 0; k < 2000; ++k) {
+        const QUuid next = QUuid::createUuidV7();
+        CHECK(last < next);
+        last = next;
+    }
+}
+
+static void testGeometryAndCacheExtras() {
+    CHECK((QMargins(1, 5, 3, 0) | QMargins(2, 4, 3, 1)) == QMargins(2, 5, 3, 1));
+    CHECK((QMargins(1, 5, 3, 0) & QMargins(2, 4, 3, 1)) == QMargins(1, 4, 3, 0));
+    CHECK((QMarginsF(1.5, 0, 2, 0) | QMarginsF(1, 1, 2.5, 0)) == QMarginsF(1.5, 1, 2.5, 0));
+    CHECK((QMarginsF(1.5, 0, 2, 0) & QMarginsF(1, 1, 2.5, 0)) == QMarginsF(1, 0, 2, 0));
+
+    QRectF r(10, 20, 30, 40); // right 40, bottom 60
+    QRectF a = r;
+    a.setTopLeft(QPointF(0, 0));
+    CHECK(a == QRectF(0, 0, 40, 60));
+    a = r;
+    a.setBottomRight(QPointF(50, 70));
+    CHECK(a == QRectF(10, 20, 40, 50));
+    a = r;
+    a.setTopRight(QPointF(35, 25));
+    CHECK(a == QRectF(10, 25, 25, 35));
+    a = r;
+    a.setBottomLeft(QPointF(5, 50));
+    CHECK(a == QRectF(5, 20, 35, 30));
+    a = r;
+    a.moveTopLeft(QPointF(1, 2));
+    CHECK(a == QRectF(1, 2, 30, 40));
+    a.moveBottomRight(QPointF(100, 100));
+    CHECK(a == QRectF(70, 60, 30, 40));
+    a.moveTopRight(QPointF(30, 0));
+    CHECK(a == QRectF(0, 0, 30, 40));
+    a.moveBottomLeft(QPointF(5, 45));
+    CHECK(a == QRectF(5, 5, 30, 40));
+    double x = 0, y = 0, w = 0, h = 0;
+    r.getRect(&x, &y, &w, &h);
+    CHECK(x == 10 && y == 20 && w == 30 && h == 40);
+    r.getCoords(&x, &y, &w, &h);
+    CHECK(x == 10 && y == 20 && w == 40 && h == 60);
+
+    QContiguousCache<int> c1(4), c2(2);
+    c1.append(1);
+    c1.append(2);
+    c2.append(9);
+    c1.swap(c2);
+    CHECK(c1.capacity() == 2 && c1.count() == 1 && c1.first() == 9);
+    CHECK(c2.capacity() == 4 && c2.count() == 2 && c2.last() == 2);
+    c2.detach();
+
+    QCryptographicHash h1(QCryptographicHash::Sha256), h2(QCryptographicHash::Md5);
+    h1.addDataWithoutCopy("abc");
+    h1.swap(h2);
+    CHECK(h1.algorithm() == QCryptographicHash::Md5 && h2.algorithm() == QCryptographicHash::Sha256);
+    CHECK(h2.result() == QCryptographicHash::hash("abc", QCryptographicHash::Sha256));
+}
+
+static void testContainerAndHashExtras() {
+    QSet<int> small{1, 2}, big{1, 2, 3};
+    CHECK(small.isSubsetOf(big) && !big.isSubsetOf(small) && QSet<int>().isSubsetOf(small));
+    CHECK(small.constFind(2) != small.constEnd() && small.constFind(9) == small.constEnd());
+    big.reserve(100);
+    CHECK(big.capacity() >= 100);
+    big.squeeze();
+    CHECK(big.capacity() < 100 && big.size() == 3);
+    QMultiHash<int, int> mh;
+    mh.reserve(50);
+    CHECK(mh.capacity() >= 50);
+    mh.insert(1, 1);
+    mh.squeeze();
+    QHash<int, int> h;
+    h.reserve(64);
+    h.squeeze();
+    CHECK(h.capacity() >= 0);
+
+    QMultiMap<int, char> mm;
+    mm.insert(2, 'a');
+    mm.insert(1, 'b');
+    mm.insert(3, 'c');
+    CHECK(mm.first() == 'b' && mm.last() == 'c');
+    mm.first() = 'z';
+    const QMultiMap<int, char> &cmm = mm;
+    CHECK(cmm.first() == 'z' && cmm.lowerBound(2).value() == 'a' && cmm.upperBound(2).value() == 'c');
+
+    // Hash functions.
+    CHECK(qHash(42) == qHash(42) && qHash(42) != qHash(43) && qHash(42, 1) != qHash(42, 2));
+    CHECK(qHash(0.0) == qHash(-0.0) && qHash(1.5f) == qHash(1.5));
+    enum class Color { Red, Green };
+    CHECK(qHash(Color::Red) != qHash(Color::Green));
+    const int x = 0;
+    CHECK(qHash(&x) == qHash(&x));
+    const QList<int> l1{1, 2, 3}, l2{3, 2, 1};
+    CHECK(qHashRange(l1.begin(), l1.end()) != qHashRange(l2.begin(), l2.end()));
+    CHECK(qHashRangeCommutative(l1.begin(), l1.end()) == qHashRangeCommutative(l2.begin(), l2.end()));
+    CHECK(qHashMulti(0, 1, QString("a")) == qHashMulti(0, 1, QString("a")) &&
+          qHashMulti(0, 1, 2) != qHashMulti(0, 2, 1));
+    CHECK(qHashBits("abc", 3) == qHashBits("abc", 3) && qHashBits("abc", 3) != qHashBits("abd", 3));
+    CHECK(qHash(std::make_pair(1, 2)) != qHash(std::make_pair(2, 1)));
+    QHash<QList<int>, QString> byList;
+    byList.insert(l1, QString("up"));
+    CHECK(byList.value(QList<int>{1, 2, 3}) == QString("up") && !byList.contains(l2));
+    QVarLengthArray<int, 4> v1{1, 2}, v2{1, 2};
+    CHECK(qHash(v1) == qHash(v2));
+    QSet<std::pair<int, int>> pairs{{1, 2}, {1, 2}, {2, 1}};
+    CHECK(pairs.size() == 2);
+
+    // QSize
+    CHECK(QSize(10, 20).grownBy(QMargins(1, 2, 3, 4)) == QSize(14, 26) &&
+          QSize(10, 20).shrunkBy(QMargins(1, 2, 3, 4)) == QSize(6, 14));
+    CHECK(QSizeF(10, 20).grownBy(QMarginsF(0.5, 0, 0.5, 1)) == QSizeF(11, 21) &&
+          QSizeF(10, 20).shrunkBy(QMarginsF(1, 1, 1, 1)) == QSizeF(8, 18));
+    QSizeF sf(10, 20);
+    CHECK(sf.scaled(5, 5, Qt::KeepAspectRatio) == QSizeF(2.5, 5));
+    sf.scale(40, 40, Qt::IgnoreAspectRatio);
+    CHECK(sf == QSizeF(40, 40));
+}
+
+namespace {
+struct Shared : QSharedData {
+    int value = 0;
+    int copies = 0;
+};
+} // namespace
+
+static void testSharedPointersAndGuards() {
+    QSharedDataPointer<Shared> a(new Shared);
+    QSharedDataPointer<Shared> nothing;
+    CHECK(!nothing && !(!a) && nothing == nullptr && a != nullptr && a == a.constData());
+    QSharedDataPointer<Shared> b = a;
+    b->value = 5; // detaches
+    CHECK(a->value == 0 && b->value == 5 && a != b);
+    CHECK((a < b) != (b < a));
+    QSharedDataPointer<Shared> c = a;
+    Shared *raw = c.take();
+    CHECK(!c && raw == a.constData());
+    QSharedDataPointer<Shared> adopt(QAdoptSharedDataTag{}, raw); // takes the reference back
+    CHECK(adopt == a);
+    CHECK(qHash(a) == qHash(adopt));
+
+    QExplicitlySharedDataPointer<Shared> e(new Shared);
+    QExplicitlySharedDataPointer<Shared> f = e;
+    f->value = 7; // no detach
+    CHECK(e->value == 7 && e == f && !(!e) && e.constData() == f.constData());
+    QExplicitlySharedDataPointer<Shared> g(std::move(f));
+    CHECK(!f && g == e);
+    g.reset();
+    CHECK(!g);
+    g.swap(e);
+    CHECK(g && !e && g->value == 7);
+    e = std::move(g);
+    CHECK(e && !g);
+
+    QObject obj;
+    {
+        QSignalBlocker outer(&obj);
+        CHECK(obj.signalsBlocked());
+        QSignalBlocker moved(std::move(outer));
+        CHECK(obj.signalsBlocked());
+    }
+    CHECK(!obj.signalsBlocked());
+    {
+        QSignalBlocker first(&obj);
+        QObject other;
+        QSignalBlocker second(&other);
+        second = std::move(first);
+        CHECK(!other.signalsBlocked() && obj.signalsBlocked());
+    }
+    CHECK(!obj.signalsBlocked());
+
+    int calls = 0;
+    const auto bump = [&calls] { ++calls; };
+    {
+        QScopeGuard<std::decay_t<decltype(bump)>> guard(bump); // from an lvalue
+    }
+    CHECK(calls == 1);
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     useTimeZone("UTC");
+    testKeyValueIteration();
+    testBitArrayExtras();
+    testByteArrayExtras();
+    testUuidV7();
+    testGeometryAndCacheExtras();
+    testContainerAndHashExtras();
+    testSharedPointersAndGuards();
     testDateValidity();
     testDateJulianAndWeekday();
     testDateWeekNumber();

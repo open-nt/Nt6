@@ -1,6 +1,9 @@
 // MIT License - see LICENSE
 #include <QtCore/qchar.h>
 
+#include <QtCore/qstring.h>
+
+#include "qnormalize_p.h"
 #include "qunicode_p.h"
 
 namespace U = QtPrivate::Unicode;
@@ -27,9 +30,9 @@ namespace U = QtPrivate::Unicode;
     \endcode
 
     \differences
-    The \c script(), \c direction(), \c joiningType(), \c combiningClass(),
-    \c decomposition() and \c unicodeVersion() functions, the \c Script,
-    \c Direction, \c Decomposition and \c JoiningType enums and
+    The \c script(), \c direction(), \c joiningType() and
+    \c unicodeVersion() functions, the \c Script, \c Direction and
+    \c JoiningType enums and
     \c fromUcs4() are not provided, and QChar has no \c char32_t
     constructor. digitValue() recognizes decimal digits only, not other
     numbers such as superscript digits.
@@ -178,3 +181,55 @@ char32_t QChar::toTitleCase(char32_t ucs4) noexcept { return U::toTitle(ucs4); }
     Returns the simple case folding of \a ucs4.
 */
 char32_t QChar::toCaseFolded(char32_t ucs4) noexcept { return U::foldCase(ucs4); }
+
+/*!
+    \overload
+    Returns the tag of the decomposition mapping of \a ucs4.
+*/
+QChar::Decomposition QChar::decompositionTag(char32_t ucs4) noexcept {
+    if (ucs4 >= U::HangulSBase && ucs4 < U::HangulSBase + U::HangulSCount)
+        return Canonical;
+    const auto *m = U::decompositionMapping(ucs4);
+    return m ? static_cast<Decomposition>(m->tag) : NoDecomposition;
+}
+
+/*!
+    Returns this character's decomposition mapping: the characters it
+    decomposes into, one level deep, or an empty string if it has none.
+
+    \sa decompositionTag(), QString::normalized()
+*/
+QString QChar::decomposition() const { return decomposition(char32_t(ucs)); }
+
+/*!
+    \overload
+    Returns the one-level decomposition mapping of \a ucs4.
+*/
+QString QChar::decomposition(char32_t ucs4) {
+    std::u16string out;
+    if (ucs4 >= U::HangulSBase && ucs4 < U::HangulSBase + U::HangulSCount) {
+        // A syllable maps to its leading consonant and vowel (LV), and an LVT syllable to LV + T.
+        const char32_t s = ucs4 - U::HangulSBase;
+        if (s % U::HangulTCount == 0) {
+            U::appendUtf16(out, U::HangulLBase + s / U::HangulNCount);
+            U::appendUtf16(out, U::HangulVBase + (s % U::HangulNCount) / U::HangulTCount);
+        } else {
+            U::appendUtf16(out, ucs4 - s % U::HangulTCount);
+            U::appendUtf16(out, U::HangulTBase + s % U::HangulTCount);
+        }
+        return QString(out);
+    }
+    if (const auto *m = U::decompositionMapping(ucs4)) {
+        for (int i = 0; i < m->length; ++i)
+            U::appendUtf16(out, QtPrivate::UnicodeData::decompositionPool[m->offset + i]);
+    }
+    return QString(out);
+}
+
+/*!
+    \overload
+    Returns the canonical combining class of \a ucs4.
+*/
+unsigned char QChar::combiningClass(char32_t ucs4) noexcept {
+    return static_cast<unsigned char>(U::combiningClass(ucs4));
+}

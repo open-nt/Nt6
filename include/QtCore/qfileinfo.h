@@ -6,10 +6,16 @@
 #include <QtCore/qlist.h>
 #include <QtCore/qstring.h>
 
+#include <type_traits>
 #include <utility>
 
 class QDir;
 class QFile;
+
+namespace QtPrivate {
+// Replaces a "prefix:" registered with QDir::setSearchPaths() by the matching search directory.
+QString resolveSearchPath(const QString &path);
+} // namespace QtPrivate
 
 class QFileInfo {
 public:
@@ -32,7 +38,7 @@ public:
 
         \sa setFile()
     */
-    explicit QFileInfo(const QString &file) : m_file(file) {}
+    explicit QFileInfo(const QString &file) : m_file(QtPrivate::resolveSearchPath(file)) {}
     explicit QFileInfo(const QFile &file);
     QFileInfo(const QDir &dir, const QString &file);
 
@@ -41,7 +47,10 @@ public:
 
         \sa refresh()
     */
-    void setFile(const QString &file) { m_file = file; m_cached = false; }
+    void setFile(const QString &file) {
+        m_file = QtPrivate::resolveSearchPath(file);
+        m_cached = false;
+    }
     void setFile(const QFile &file);
     void setFile(const QDir &dir, const QString &file);
     /*!
@@ -129,6 +138,38 @@ public:
     bool isDir() const;
     bool isSymLink() const;
     /*!
+        \since 6.4
+        Returns \c true if the file is a symbolic link. Same as isSymLink() on
+        POSIX systems.
+    */
+    bool isSymbolicLink() const { return isSymLink(); }
+    /*!
+        \since 6.4
+        Returns \c false: Windows shortcuts (\c .lnk files) are ordinary
+        files on the platforms Nt supports.
+    */
+    bool isShortcut() const { return false; }
+    /*!
+        \since 6.4
+        Returns \c false: macOS aliases are not recognized.
+    */
+    bool isAlias() const { return false; }
+    /*!
+        \since 5.15
+        Returns \c false: NTFS junctions exist only on Windows.
+    */
+    bool isJunction() const { return false; }
+    /*!
+        Returns \c false: macOS bundles are not recognized.
+    */
+    bool isBundle() const { return false; }
+    /*!
+        \since 5.14
+        Returns \c true if the path refers to a file of the native file
+        system, which is any non-empty path for Nt.
+    */
+    bool isNativePath() const { return !m_file.isEmpty(); }
+    /*!
         Returns \c true if the file is the root directory; otherwise returns
         \c false.
     */
@@ -137,11 +178,27 @@ public:
     QDateTime lastModified() const;
     QDateTime lastRead() const;
     QDateTime metadataChangeTime() const;
+    QDateTime birthTime() const;
+    /*!
+        \since 6.6
+        Returns the time stamp \a time of the file, one of the
+        QFileDevice::FileTime values: the same as lastRead(), birthTime(),
+        metadataChangeTime() or lastModified().
+
+        \code
+        QDateTime changed = QFileInfo(path).fileTime(QFile::FileModificationTime);
+        \endcode
+    */
+    template <typename FileTime, typename = std::enable_if_t<std::is_enum_v<FileTime>>>
+    QDateTime fileTime(FileTime time) const {
+        return fileTimeByIndex(static_cast<int>(time));
+    }
 
     friend bool operator==(const QFileInfo &a, const QFileInfo &b) { return a.absoluteFilePath() == b.absoluteFilePath(); }
     friend bool operator!=(const QFileInfo &a, const QFileInfo &b) { return !(a == b); }
 
 private:
+    QDateTime fileTimeByIndex(int time) const;
     struct Stat {
         bool exists = false;
         bool link = false;

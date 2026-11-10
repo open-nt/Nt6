@@ -5,35 +5,141 @@
     \title Signals and Slots
     \brief How Nt objects notify each other without knowing about each other.
 
-    A \e signal is a member function an object emits when something happens. A
-    \e slot is any function that runs in response. The sender does not know who
-    is listening, which keeps classes independent.
+    Objects often need to react to each other: a label shows a new value, a timer starts work, a
+    network reply hands over its data. In Nt, as in Qt, the object where something happens emits a
+    \e signal, and every function connected to that signal, a \e slot, is called. The sender does
+    not know who is listening, so classes stay independent and can be reused and tested alone.
 
-    \section1 Declaring Signals
-
-    Declare signals in a \c signals: section of a class marked \c Q_OBJECT.
-    The \c ntmoc tool generates their bodies:
-
-    \code
-    class Counter : public QObject {
-        Q_OBJECT
-    public:
-        void setValue(int value) { emit valueChanged(value); }
-    signals:
-        void valueChanged(int value);
-    };
-    \endcode
-
-    \section1 Connecting
-
-    Pass a pointer to the signal and a slot to \c{QObject::connect()}. A slot
-    may be a member function or any callable, and may take fewer arguments than
-    the signal:
+    This page builds up the pattern step by step with the \c signals example in
+    \c{examples/signals}, which checks each step when it runs. Build it on its own against an
+    installed Nt:
 
     \code
-    QObject::connect(&counter, &Counter::valueChanged, &display, &Display::show);
-    QObject::connect(&counter, &Counter::valueChanged, [](int v) { log(v); });
+    cmake -S examples/signals -B build-signals
+    cmake --build build-signals
+    build-signals/signals
     \endcode
+
+    \section1 Declaring Signals and Slots
+
+    A class with signals derives from QObject, starts with \c Q_OBJECT, and lists its signals in a
+    \c signals: section. Signals are only declared; \c ntmoc writes their bodies. Slots are
+    ordinary member functions:
+
+    \snippet signals/thermostat.h class
+
+    \c emit is an empty word that marks the call as a signal for the reader. Emit a signal only
+    when something really changed, as setTemperature() does: when two objects are connected to
+    each other, this is what stops them from updating each other forever.
+
+    The receiving class is a QObject too, so that Nt can remove its connections when it is
+    destroyed:
+
+    \snippet signals/thermostat.h receiver
+
+    \section2 Building with ntmoc
+
+    \c ntmoc must process every header that declares a \c Q_OBJECT class. With CMake, list the
+    header among the sources of the target and call \c nt_enable_automoc(), as for
+    \c CMAKE_AUTOMOC with Qt:
+
+    \code
+    find_package(Nt6 6 REQUIRED)
+    add_executable(signals main.cpp thermostat.h)
+    target_link_libraries(signals PRIVATE Nt6::Core)
+    nt_enable_automoc(signals)
+    \endcode
+
+    If the linker reports an undefined reference to a signal, or to \c staticMetaObject, the class
+    was not processed: check that the header is listed and that it has \c Q_OBJECT.
+
+    \section1 Connecting a Signal to a Slot
+
+    QObject::connect() takes the sender, a pointer to the signal, the receiver and a pointer to the
+    slot. The compiler checks that the slot can take the signal's arguments:
+
+    \snippet signals/main.cpp connect
+
+    By default the slot runs at once, inside the \c emit, before setTemperature() returns. A
+    signal can be connected to many slots, which run in the order they were connected, and a slot
+    can be connected to many signals.
+
+    \section2 Lambdas and Other Functions
+
+    Any callable can be a slot: a lambda, a free function or a member of a class that is not a
+    QObject. Pass a context object before the lambda: the connection lives only as long as the
+    context, and with threads, the lambda runs in the context's thread:
+
+    \snippet signals/main.cpp lambda
+
+    \warning A lambda that captures \c this, or a reference to a local variable, must not outlive
+    what it captures. Connecting it with \c this, or the object it uses, as the context object
+    removes the connection in time.
+
+    \section2 Arguments
+
+    A slot may take fewer arguments than the signal; the trailing ones are dropped. The types must
+    match or convert implicitly:
+
+    \snippet signals/main.cpp fewer-arguments
+
+    When a signal is overloaded, name the overload with \c qOverload, for example
+    \c{qOverload<int>(&QSpinBox::valueChanged)}.
+
+    \section1 Lifetime and Disconnecting
+
+    When the sender or the receiver is destroyed, its connections are removed, so a slot is never
+    called on a deleted object:
+
+    \snippet signals/main.cpp context
+
+    To stop listening earlier, keep the QMetaObject::Connection that connect() returns, or
+    disconnect by sender, signal and receiver:
+
+    \snippet signals/main.cpp disconnect
+
+    Inside a slot, sender() returns the object that emitted the signal. Do not delete the sender
+    from its own signal; call \c deleteLater() on it instead, which deletes it once control
+    returns to the event loop.
+
+    \section1 Connection Flags
+
+    Two flags change how often a slot runs. Combine them with a connection type with \c{|} and a
+    cast to \c Qt::ConnectionType:
+
+    \snippet signals/main.cpp flags
+
+    \c Qt::UniqueConnection recognizes member function slots and slots named with \c SLOT();
+    every lambda is a new slot.
+
+    \section1 Queued Connections and the Event Loop
+
+    A queued connection copies the arguments and calls the slot later, from the event loop of the
+    receiver's thread. Connections between threads are queued automatically. Nothing is delivered
+    until the event loop runs, which QCoreApplication::exec() does:
+
+    \snippet signals/main.cpp queued
+
+    The arguments of a queued signal must be copyable types that the meta-type system knows:
+    built-in types, Nt's value classes, and your own types registered with
+    \c Q_DECLARE_METATYPE().
+
+    \section1 Common Mistakes
+
+    \list
+        \li \b{Nothing happens.} The connection failed or was never made. connect() returns a
+             QMetaObject::Connection that converts to \c false when it failed, and string-based
+             connections print a warning.
+        \li \b{A queued slot, a timer or a reply never fires.} No event loop is running. Call
+             QCoreApplication::exec(), or use a QEventLoop while waiting.
+        \li \b{A crash in a lambda.} It used an object that was destroyed. Pass that object as the
+             context of the connection.
+        \li \b{A slot is called twice.} The same connection was made twice, for example each time
+             a dialog opens. Connect once, disconnect first, or use \c Qt::UniqueConnection.
+        \li \b{Endless updates.} Two objects set each other's values. Emit only when the value
+             changes.
+        \li \b{A signal emitted in a constructor is lost.} Nobody could connect to the object yet.
+    \endlist
 
     \section1 Delivery
 
@@ -147,8 +253,7 @@
     \endcode
 
     \differences
-    There are no event filters or
-    \c Qt::UniqueConnection. A queued
+    \c Qt::UniqueConnection does not detect duplicate functor slots. A queued
     invocation that has not run yet is discarded if its connection is
     disconnected, where Qt still runs it. A \c Qt::BlockingQueuedConnection to
     a receiver in the emitting thread calls the slot directly, where Qt
@@ -236,6 +341,12 @@ void setConnectionMethod(const std::shared_ptr<ConnectionData> &c, const std::st
     c->method = method;
 }
 
+void finishSingleShot(const std::shared_ptr<ConnectionData> &c) {
+    std::vector<ConnPtr> dead; // released after the lock
+    std::lock_guard<std::mutex> lk(signalSlotLock());
+    unlinkConn(c, dead);
+}
+
 // Removes the connections from `sender` that match; a null argument matches every connection.
 bool disconnectConnections(const QObject *sender, const SignalId *id, const QObject *receiver,
                            const std::string *method) {
@@ -297,6 +408,8 @@ void QMetaCallEvent::place() {
     } else if (m_conn->alive) {
         SenderScope scope(m_conn->sender);
         m_conn->invoke(m_args.argv.data());
+        if (m_conn->singleShot)
+            QtPrivate::finishSingleShot(m_conn);
     }
     if (m_latch)
         m_latch->release();
@@ -595,21 +708,36 @@ void QObject::timerEvent(QTimerEvent *) {}
 */
 void QObject::customEvent(QEvent *) {}
 
-QMetaObject::Connection QObject::connectImpl(const QObject *sender, const QtPrivate::SignalId &id,
-                                             QObject *receiver,
-                                             std::function<void(void *const *)> invoke,
-                                             Qt::ConnectionType type) {
+QMetaObject::Connection QObject::connectImpl(const QObject *sender, const QtPrivate::SignalId &id, QObject *receiver,
+                                             std::function<void(void *const *)> invoke, Qt::ConnectionType type,
+                                             const QtPrivate::SignalId *slot, const std::string *method) {
     if (!sender)
         return {};
+    const int flags = static_cast<int>(type);
     auto *s = const_cast<QObject *>(sender);
     auto c = std::make_shared<ConnectionData>();
     c->sender = s;
     c->receiver = receiver;
     c->signal = id;
     c->invoke = std::move(invoke);
-    c->type = type;
+    c->type = static_cast<Qt::ConnectionType>(flags & ~(Qt::UniqueConnection | Qt::SingleShotConnection));
+    c->singleShot = (flags & Qt::SingleShotConnection) != 0;
+    if (slot) {
+        c->slot = *slot;
+        c->hasSlot = true;
+    }
+    if (method)
+        c->method = *method;
     {
         std::lock_guard<std::mutex> lk(signalSlotLock());
+        if ((flags & Qt::UniqueConnection) && (slot || method)) {
+            for (const ConnPtr &other : Access::d(s).outgoing) {
+                if (!other->alive || !(other->signal == id) || other->receiver != receiver)
+                    continue;
+                if ((slot && other->hasSlot && other->slot == *slot) || (method && other->method == *method))
+                    return {};
+            }
+        }
         Access::d(s).outgoing.push_back(c);
         if (receiver)
             Access::d(receiver).incoming.push_back(c);
@@ -669,6 +797,11 @@ void QObject::activateImpl(QObject *sender, const QtPrivate::SignalId &id, void 
             std::lock_guard<std::mutex> lk(signalSlotLock());
             if (!c->alive)
                 continue;
+            if (c->singleShot) {
+                if (c->fired)
+                    continue;
+                c->fired = true;
+            }
             // The receiver's thread is compared with the emitting thread at emission time.
             const bool crossThread =
                 c->receiver && QtPrivate::objectThreadData(c->receiver) != QtPrivate::ThreadData::current();
@@ -684,8 +817,12 @@ void QObject::activateImpl(QObject *sender, const QtPrivate::SignalId &id, void 
         if (latch) {
             latch->wait();
         } else if (direct) {
-            SenderScope scope(sender);
-            c->invoke(argv);
+            {
+                SenderScope scope(sender);
+                c->invoke(argv);
+            }
+            if (c->singleShot)
+                QtPrivate::finishSingleShot(c);
         }
     }
 }

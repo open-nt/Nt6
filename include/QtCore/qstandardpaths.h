@@ -41,5 +41,7 @@ public:
     static QStringList locateAll(StandardLocation type, const QString &fileName, LocateOptions options = LocateFile);
     static QString displayName(StandardLocation type);
     static QString findExecutable(const QString &executableName, const QStringList &paths = QStringList());
+    static void setTestModeEnabled(bool testMode);
+    static bool isTestModeEnabled();
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStandardPaths::LocateOptions)

@@ -1181,7 +1181,7 @@ static void testValueStreaming() {
                            "00000005"         // x1, y1, x2, y2
                            "0000000000253d8c" // julian day of 1970-01-01
                            "000003e8"         // 1000 ms
-                           "0000000a"
+                           "000000000000000a" // a QBitArray's size is 64-bit from Qt_6_0 on
                            "02"
                            "02"); // 10 bits: bit 1 and bit 9
     // Reading a truncated value sets the status

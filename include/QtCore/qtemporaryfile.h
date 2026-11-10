@@ -54,6 +54,9 @@ public:
         \sa QFileDevice::fileName()
     */
     QString fileName() const { return m_name; }
+    bool rename(const QString &newName);
+    static QTemporaryFile *createNativeFile(QFile &file);
+    static QTemporaryFile *createNativeFile(const QString &fileName);
 
 protected:
     bool open(OpenMode mode) override;

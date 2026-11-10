@@ -124,38 +124,6 @@ QDataStream &operator>>(QDataStream &in, QVersionNumber &version) {
     return in;
 }
 
-QDataStream &operator<<(QDataStream &out, const QBitArray &bits) {
-    const qsizetype n = bits.size();
-    out << static_cast<quint32>(n);
-    for (qsizetype i = 0; i < n; i += 8) {
-        quint8 byte = 0;
-        for (qsizetype j = 0; j < 8 && i + j < n; ++j)
-            if (bits.testBit(i + j))
-                byte = static_cast<quint8>(byte | (1u << j));
-        out << byte;
-    }
-    return out;
-}
-
-QDataStream &operator>>(QDataStream &in, QBitArray &bits) {
-    quint32 count = 0;
-    in >> count;
-    if (in.status() != QDataStream::Ok)
-        return in;
-    const qsizetype n = static_cast<qsizetype>(count);
-    QBitArray result(n);
-    for (qsizetype i = 0; i < n; i += 8) {
-        quint8 byte = 0;
-        in >> byte;
-        if (in.status() != QDataStream::Ok)
-            return in;
-        for (qsizetype j = 0; j < 8 && i + j < n; ++j)
-            result.setBit(i + j, ((static_cast<unsigned>(byte) >> j) & 1u) != 0);
-    }
-    bits = result;
-    return in;
-}
-
 QDataStream &operator<<(QDataStream &out, const QPoint &p) {
     return out << static_cast<qint32>(p.x()) << static_cast<qint32>(p.y());
 }

@@ -38,6 +38,20 @@
     target_link_libraries(hello_widgets PRIVATE Nt::Widgets)
     \endcode
 
+    \c{examples/widgets/CMakeLists.txt} builds the three widget examples on their own against an
+    installed Nt, such as the snap:
+
+    \code
+    sudo snap install open-nt6
+    sudo apt install cmake g++ libssl-dev libfreetype-dev libfontconfig-dev libxcb1-dev
+    cmake -S examples/widgets -B build-widgets -DCMAKE_PREFIX_PATH=/snap/open-nt6/current/usr
+    cmake --build build-widgets
+    build-widgets/hello_widgets
+    \endcode
+
+    Without a display, add \c{-platform offscreen}. Nt cannot load image files yet, so the examples
+    draw their pictures, as \l{Resource Files} explains.
+
     \section1 The Gallery
 
     The \c gallery example shows what the widgets can do: layouts, check boxes and buttons, and custom widgets

@@ -35,8 +35,7 @@ struct QEventLoop::Data {
 
     \differences
     \c ExcludeUserInputEvents and \c ExcludeSocketNotifiers are accepted but
-    ignored, and there is no \c processEvents() overload with a timeout and
-    no \c QEventLoopLocker or \c QAbstractEventDispatcher. A loop always runs
+    ignored, and there is no \c QAbstractEventDispatcher. A loop always runs
     the event dispatcher of the thread that calls exec() or processEvents().
     \enddifferences
 
@@ -63,6 +62,29 @@ QEventLoop::~QEventLoop() = default;
 bool QEventLoop::processEvents(ProcessEventsFlags flags) {
     const bool wait = flags.testFlag(WaitForMoreEvents);
     return QtPrivate::ThreadData::current()->dispatcher.process(wait, m_d->running ? &m_d->exitFlag : nullptr);
+}
+
+/*!
+    \overload
+    Processes the pending events for at most \a maxTime milliseconds, or
+    until there are none left, as \a flags selects. It does not wait for new
+    events, even with \c WaitForMoreEvents. Call it during a long computation
+    to keep the program responsive.
+
+    \sa exec()
+*/
+void QEventLoop::processEvents(ProcessEventsFlags flags, int maxTime) { processEvents(flags, QDeadlineTimer(maxTime)); }
+
+/*!
+    \since 6.7
+    \overload
+    Processes the pending events until \a deadline expires or there are none
+    left, as \a flags selects.
+*/
+void QEventLoop::processEvents(ProcessEventsFlags flags, QDeadlineTimer deadline) {
+    flags &= ~ProcessEventsFlags(WaitForMoreEvents);
+    while (processEvents(flags) && !deadline.hasExpired()) {
+    }
 }
 
 /*!

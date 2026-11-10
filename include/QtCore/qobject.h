@@ -340,14 +340,20 @@ private:
                 [&](const auto &...a) { QtPrivate::callSlot(f, receiver, a...); }, argv,
                 std::make_index_sequence<N>{});
         };
-        return connectImpl(sender, QtPrivate::SignalId::of(signal), receiver,
-                           std::function<void(void *const *)>(std::move(invoke)), type);
+        if constexpr (std::is_member_function_pointer_v<F>) {
+            const QtPrivate::SignalId slotId = QtPrivate::SignalId::of(slot);
+            return connectImpl(sender, QtPrivate::SignalId::of(signal), receiver,
+                               std::function<void(void *const *)>(std::move(invoke)), type, &slotId);
+        } else {
+            return connectImpl(sender, QtPrivate::SignalId::of(signal), receiver,
+                               std::function<void(void *const *)>(std::move(invoke)), type);
+        }
     }
 
-    static QMetaObject::Connection connectImpl(const QObject *sender,
-                                               const QtPrivate::SignalId &id, QObject *receiver,
-                                               std::function<void(void *const *)> invoke,
-                                               Qt::ConnectionType type);
+    static QMetaObject::Connection connectImpl(const QObject *sender, const QtPrivate::SignalId &id, QObject *receiver,
+                                               std::function<void(void *const *)> invoke, Qt::ConnectionType type,
+                                               const QtPrivate::SignalId *slot = nullptr,
+                                               const std::string *method = nullptr);
     static QMetaObject::Connection connectFunction(const QObject *sender, const QMetaMethod &signal, QObject *context,
                                                    std::function<void(void *const *)> function);
     static bool disconnectImpl(const QObject *sender, const QtPrivate::SignalId *id,

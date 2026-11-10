@@ -380,8 +380,7 @@ struct QCryptographicHash::State {
 
     \differences
     Algorithms are implemented in the library itself. The BLAKE2 algorithms
-    (\c Blake2b_160 to \c Blake2s_256) and \c addDataWithoutCopy() are not
-    available, and there is no \c swap(). Keccak_* and Sha3_* are the original
+    (\c Blake2b_160 to \c Blake2s_256) are not available. Keccak_* and Sha3_* are the original
     Keccak and the standardized SHA-3 padding respectively.
     \enddifferences
 

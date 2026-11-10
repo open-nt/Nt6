@@ -17,6 +17,7 @@ set(NT_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/Nt6)
 set_target_properties(NtCore PROPERTIES EXPORT_NAME Core)
 set_target_properties(NtNetwork PROPERTIES EXPORT_NAME Network)
 set_target_properties(NtTest PROPERTIES EXPORT_NAME Test)
+set_target_properties(NtConcurrent PROPERTIES EXPORT_NAME Concurrent)
 set_target_properties(NtSerialPort PROPERTIES EXPORT_NAME SerialPort)
 set_target_properties(NtDBus PROPERTIES EXPORT_NAME DBus)
 set_target_properties(NtHttpServer PROPERTIES EXPORT_NAME HttpServer)
@@ -29,7 +30,7 @@ set_target_properties(ntmoc PROPERTIES EXPORT_NAME moc)
 set_target_properties(ndoc PROPERTIES EXPORT_NAME ndoc)
 set_target_properties(ntrcc PROPERTIES EXPORT_NAME rcc)
 
-install(TARGETS NtCore NtNetwork NtSerialPort NtDBus NtWebSockets NtHttpServer NtGui NtWidgets NtSvg NtSvgWidgets NtTest
+install(TARGETS NtCore NtNetwork NtSerialPort NtDBus NtWebSockets NtHttpServer NtGui NtWidgets NtSvg NtSvgWidgets NtConcurrent NtTest
     EXPORT Nt6Targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
@@ -37,7 +38,7 @@ install(TARGETS ntmoc ntrcc ndoc
     EXPORT Nt6Targets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 
-install(DIRECTORY include/QtCore include/QtNetwork include/QtSerialPort include/QtDBus include/QtHttpServer include/QtWebSockets include/QtGui include/QtWidgets include/QtSvg include/QtSvgWidgets include/QtTest
+install(DIRECTORY include/QtCore include/QtNetwork include/QtSerialPort include/QtDBus include/QtHttpServer include/QtWebSockets include/QtGui include/QtWidgets include/QtSvg include/QtSvgWidgets include/QtConcurrent include/QtTest
     DESTINATION ${NT_INSTALL_INCLUDEDIR}
     COMPONENT Development
     PATTERN "*_p.h" EXCLUDE)

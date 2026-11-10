@@ -1,7 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
-#include <QtConcurrent/qtconcurrent_p.h>
+#include <QtConcurrent/qtconcurrentthreadengine.h>
 
 namespace QtConcurrent {
 

@@ -1,5 +1,5 @@
 // MIT License - see LICENSE
-#include <QtConcurrent/qtconcurrent_p.h>
+#include <QtConcurrent/qtconcurrentthreadengine.h>
 
 #include <algorithm>
 #include <atomic>
@@ -49,13 +49,10 @@ public:
                 m_stop.store(true);
                 break;
             }
-            qsizetype done;
-            {
-                std::lock_guard<std::mutex> lk(m_mutex);
-                m_done += end - begin;
-                done = m_done;
-            }
-            m_job.future.setProgressValue(static_cast<int>(std::min<qsizetype>(done, INT_MAX)));
+            // Under the lock, so that the progress never goes backwards.
+            std::lock_guard<std::mutex> lk(m_mutex);
+            m_done += end - begin;
+            m_job.future.setProgressValue(static_cast<int>(std::min<qsizetype>(m_done, INT_MAX)));
         }
         // Every reason to leave the loop is permanent, so the thread that brings the count to zero
         // is the last one that had anything to do.

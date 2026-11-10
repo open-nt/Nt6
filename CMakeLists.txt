@@ -531,6 +531,19 @@ target_include_directories(NtSvgWidgets
 target_link_libraries(NtSvgWidgets PUBLIC NtSvg NtWidgets)
 nt_set_compile_options(NtSvgWidgets)
 
+add_library(NtConcurrent
+    src/concurrent/qtconcurrentthreadengine.cpp
+)
+add_library(Nt::Concurrent ALIAS NtConcurrent)
+add_library(Qt6::Concurrent ALIAS NtConcurrent)
+target_include_directories(NtConcurrent
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtConcurrent>
+        $<INSTALL_INTERFACE:include/nt6/QtConcurrent>
+)
+target_link_libraries(NtConcurrent PUBLIC NtCore)
+nt_set_compile_options(NtConcurrent)
+
 add_library(NtTest
     src/test/qsignalspy.cpp
     src/test/qtestcase.cpp
@@ -751,6 +764,11 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_future_tests PRIVATE Nt::Core)
     add_test(NAME nt_future_tests COMMAND nt_future_tests)
     nt_set_compile_options(nt_future_tests)
+
+    add_executable(nt_concurrent_tests tests/test_concurrent.cpp)
+    target_link_libraries(nt_concurrent_tests PRIVATE Nt::Concurrent)
+    add_test(NAME nt_concurrent_tests COMMAND nt_concurrent_tests)
+    nt_set_compile_options(nt_concurrent_tests)
 
     nt_wrap_cpp(meta_test_sources tests/meta_classes.h)
     add_executable(nt_meta_tests tests/test_meta.cpp ${meta_test_sources})

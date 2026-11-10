@@ -1597,6 +1597,16 @@ static void testAbstractEventDispatcher() {
     CHECK(d != nullptr && d == QAbstractEventDispatcher::instance());
     CHECK(d == QAbstractEventDispatcher::instance(QThread::currentThread()));
     CHECK(d->thread() == QThread::currentThread());
+    // QThread and QCoreApplication hand out the same object.
+    CHECK(QThread::currentThread()->eventDispatcher() == d);
+    CHECK(QCoreApplication::eventDispatcher() == d);
+    {
+        // A thread has its dispatcher before it is started.
+        QThread idle;
+        QAbstractEventDispatcher *theirs = idle.eventDispatcher();
+        CHECK(theirs != nullptr && theirs != d && theirs == QAbstractEventDispatcher::instance(&idle));
+        CHECK(theirs->thread() == &idle);
+    }
 
     TimerCounter obj;
     const int id = d->registerTimer(5, Qt::PreciseTimer, &obj);
@@ -1646,6 +1656,7 @@ static void testAbstractEventDispatcher() {
     CHECK(spinUntil([&] { return waiting.load(); }));
     QAbstractEventDispatcher *remote = QAbstractEventDispatcher::instance(t);
     CHECK(remote == theirs.load());
+    CHECK(t->eventDispatcher() == remote);
     // The wait may not have started yet; interrupting makes the next one return too.
     remote->interrupt();
     CHECK(spinUntil([&] { return returned.load(); }));

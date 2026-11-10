@@ -1,119 +1,183 @@
 // MIT License - see LICENSE
 //
-// Guide to shipping data files with an Nt program, in place of Qt resources, for the NDoc
-// documentation. This file holds only a documentation comment and is not part of the library.
+// Overview page about resources for the NDoc documentation. This file holds only a
+// documentation comment and is not part of the library.
 
 /*!
     \page resources.html
-    \title Resource Files
-    \brief How to ship data files, such as text, settings and translations, with an Nt program.
+    \title The Nt Resource System
+    \brief Compiling files into a program with ntrcc and reading them with QFile.
 
-    In Qt, files listed in a \c .qrc file are compiled into the program by \c rcc, and the program
-    opens them with paths that start with \c{:/}, such as \c{":/i18n/app_de.qm"}. Nt has no resource
-    compiler and no QResource class yet, so \c qt_add_resources() does not exist and a path that
-    starts with \c{:} is an ordinary relative file name. This page shows what to do instead.
+    Resources are files, such as icons, translations or default settings,
+    that are compiled into the program so that it does not need to find them
+    on disk at run time. Nt reads the Qt resource collection files
+    (\c .qrc) that Qt projects already have, and compiles them with
+    \c ntrcc, its replacement for Qt's \c rcc.
 
-    \note If you are porting from Qt, search your code for \c{":/"} and \c{"qrc:"}: each of those
-    paths needs one of the approaches below.
+    \section1 Resource Collection Files
 
-    \section1 Choosing an Approach
+    A \c .qrc file is XML. Each \c <qresource> element puts the files it
+    lists below its \c prefix; each \c <file> names a file relative to the
+    \c .qrc file, and its \c alias attribute gives it another name. A
+    directory is added with every file in it, except hidden ones.
+
+    \badcode
+    <!DOCTYPE RCC>
+    <RCC version="1.0">
+        <qresource prefix="/">
+            <file>icons/open.svg</file>
+            <file alias="config.json">defaults/config-1.2.json</file>
+            <file>themes</file>
+        </qresource>
+        <qresource prefix="/text" lang="fr">
+            <file alias="welcome.txt">welcome_fr.txt</file>
+        </qresource>
+    </RCC>
+    \endcode
+
+    \section2 Compression
+
+    \c ntrcc compresses a file when that makes it at least 70% smaller, with
+    Zstandard if Nt was built with libzstd, otherwise with zlib. QFile
+    decompresses a resource into memory when it opens it, so code that reads
+    resources does not change. The attributes of a \c <file> override the
+    command line for that file:
+
+    \badcode
+    <file compression-algorithm="zlib" compress="9">data/catalog.json</file>
+    <file compression-algorithm="none">images/photo.jpg</file>
+    <file threshold="20">help/index.html</file>
+    \endcode
+
+    \c compression-algorithm is \c zstd, \c zlib, \c best or \c none;
+    \c compress is the level (1 to 9 for zlib, 1 to 22 for Zstandard, \c -1
+    for the default, \c 0 for none); \c threshold is the percentage a file
+    must shrink by. Files that are already compressed, such as PNG or JPEG
+    images, rarely pass the threshold and are stored as they are.
+
+    zlib and libzstd are found when Nt is configured; turn them off with
+    \c{-DNT_USE_ZLIB=OFF} and \c{-DNT_USE_ZSTD=OFF}. A build without an
+    algorithm cannot read resources compressed with it, and its \c ntrcc
+    refuses to write them.
+
+    \section2 Locales
+
+    The \c lang attribute makes a variant for one language (\c fr) or one
+    language and territory (\c fr_FR). A file is read in the variant that
+    best fits the locale: one for the language and territory, then one for
+    the language, then one without \c lang.
+
+    \section1 Building with CMake
+
+    The helpers are in \c NtRcc.cmake, which the Nt6 package includes.
+    Either list the \c .qrc file among the sources and turn on AUTORCC:
+
+    \code
+    add_executable(viewer main.cpp viewer.qrc)
+    target_link_libraries(viewer PRIVATE Nt::Core)
+    nt_enable_autorcc(viewer)
+    \endcode
+
+    or compile it explicitly, as \c qt_add_resources() does:
+
+    \code
+    nt_add_resources(viewer_resources viewer.qrc)
+    add_executable(viewer main.cpp ${viewer_resources})
+    \endcode
+
+    The Qt 6 form names the files in CMake and needs no \c .qrc file. Each
+    file is named by its path relative to \c BASE, or by its
+    \c QT_RESOURCE_ALIAS source file property:
+
+    \code
+    nt_add_resources(viewer icons PREFIX /icons BASE art FILES art/open.svg art/save.svg)
+    \endcode
+
+    \c nt_add_binary_resources() writes a binary \c .rcc file instead, to be
+    loaded at run time with QResource::registerResource(). Unless Qt's own
+    are defined, \c qt_add_resources(), \c qt6_add_resources(),
+    \c qt_add_binary_resources() and \c qt6_add_binary_resources() are the
+    same functions, and \c Qt6::rcc is \c ntrcc, so \c CMAKE_AUTORCC finds it.
+
+    \section1 Using Resources
+
+    A resource path starts with a colon. QFile opens it for reading,
+    QFileInfo describes it, and QDir and QDirIterator list resource
+    directories:
+
+    \code
+    QFile file(":/config.json");
+    if (file.open(QIODevice::ReadOnly))
+        settings = QJsonDocument::fromJson(file.readAll());
+
+    for (const QString &name : QDir(":/icons").entryList(QDir::Files))
+        addIcon(name);
+    \endcode
+
+    Resources cannot be written, removed or renamed. QResource reads the
+    bytes of a resource without opening it, and registers \c .rcc files.
+
+    Resources compiled into an executable are registered when the program
+    starts. Resources in a static library are registered only if their object
+    file is linked, so call \c{Q_INIT_RESOURCE(name)}, with the base name of
+    the \c .qrc file, from a function in the global namespace such as
+    \c main(). \c{Q_CLEANUP_RESOURCE(name)} undoes it.
+
+    \section1 Search Paths
+
+    QDir::setSearchPaths() gives a list of directories a name prefix, and
+    the directories can be resource directories. A name such as
+    \c{icons:open.png} then refers to the first \c open.png in the list, so
+    files on disk can override resources:
+
+    \code
+    QDir::setSearchPaths("icons", QStringList() << QDir::homePath() + "/.viewer/icons" << ":/icons");
+    QFile icon("icons:open.png");
+    \endcode
+
+    QFile, QFileInfo, QDir and QDirIterator all understand prefixes, and
+    QDir::addSearchPath() appends to a list. A file that exists in none of
+    the directories is created in the first one, if it can be written.
+
+    \section1 Running ntrcc
+
+    \badcode
+    ntrcc [options] <inputs.qrc>...
+    \endcode
 
     \table
-    \header
-        \li You have
-        \li Use
-    \row
-        \li Data files that go with the program: templates, default settings, translations
-        \li \l{Files Next to the Program}{Ship the files and find them through a search path}
-    \row
-        \li A few small files that must always be there, even if the program is copied alone
-        \li \l{Files Inside the Program}{Compile them into the program}
-    \row
-        \li Files the user creates or changes
-        \li The writable locations of QStandardPaths, such as \c AppDataLocation and \c AppConfigLocation
+    \header \li Option \li Meaning
+    \row \li \c{-o}, \c{--output <file>} \li Write to \c <file> instead of the standard output.
+    \row \li \c{--name <name>} \li Name the functions \c qInitResources_<name>() and
+             \c qCleanupResources_<name>(), used by the macros. The default is the base name
+             of the first input.
+    \row \li \c{--root <path>} \li Put every resource below \c <path>.
+    \row \li \c{--binary} \li Write a binary \c .rcc file instead of C++.
+    \row \li \c{--list}, \c{--list-mapping} \li List the files the inputs refer to, with their
+             resource paths for \c --list-mapping.
+    \row \li \c{-d}, \c{--depfile <file>} \li Also write a Makefile dependency file.
+    \row \li \c{--compress-algo <algo>} \li Compress with \c zstd, \c zlib, \c best (the
+             default) or \c none.
+    \row \li \c{--compress <level>} \li The compression level; \c 0 turns compression off.
+    \row \li \c{--threshold <percent>} \li Compress a file only if that saves at least
+             \c <percent> of it (70 by default).
+    \row \li \c{--no-compress}, \c{--no-zstd} \li Do not compress; do not use Zstandard.
     \endtable
 
-    The \c resources example, in \c{examples/resources}, does the first two. Build it on its own
-    against an installed Nt:
+    Single dashes work as well as double ones, as with \c rcc. When
+    \c SOURCE_DATE_EPOCH is set, the time stamps of the resources are clamped
+    to it, for reproducible builds.
 
-    \code
-    cmake -S examples/resources -B build-resources
-    cmake --build build-resources
-    build-resources/resources
-    \endcode
+    \section1 Differences from Qt
 
-    \section1 Files Next to the Program
+    Compression needs zlib or libzstd when Nt is built, and the default
+    Zstandard level is 14. The compiled format is Nt's own, so \c .rcc
+    files from Qt's \c rcc cannot be registered, and Nt's cannot be read by
+    Qt. QResource has no search paths of its own, as in Qt 6: use
+    QDir::setSearchPaths(). The \c qrc: URL scheme is not understood by
+    QFile. Resources and their directories are listed in name
+    order. The \c BIG_RESOURCES option and \c OUTPUT_TARGETS of
+    \c qt_add_resources() are accepted and have no effect.
 
-    Keep the files in a directory of your project, for example \c{data/}, copy it next to the
-    executable when you build, and install it with the program:
-
-    \code
-    add_custom_command(TARGET myapp POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/data" "$<TARGET_FILE_DIR:myapp>/data")
-    include(GNUInstallDirs)
-    install(DIRECTORY data/ DESTINATION "${CMAKE_INSTALL_DATADIR}/myapp")
-    \endcode
-
-    At run time, register a search path prefix with QDir::setSearchPaths(). A path that starts
-    with the prefix and a colon, such as \c{"data:greeting.txt"}, then refers to the first
-    directory of the list that has the file. This is the closest match to \c{":/greeting.txt"} in
-    Qt, and keeps the rest of the code free of directory names:
-
-    \snippet resources/main.cpp search-path
-
-    QCoreApplication::applicationDirPath() finds the files while you develop, and
-    QStandardPaths::standardLocations() with \c AppDataLocation finds them once installed:
-    \c{/usr/share/myapp}, \c{/usr/local/share/myapp} and the user's \c{~/.local/share/myapp}. The
-    application sub-directory is the file name of the executable.
-
-    The prefix is understood by QFile::open(), QFile::exists(), QFileInfo, QDir, and the classes
-    that open files through them, such as QTranslator. It must be at least two characters long, so
-    that it is not mistaken for a drive letter.
-
-    \section2 Translations
-
-    Ship the \c .qm files made by \c lrelease in the same way and load them through a prefix:
-
-    \code
-    QDir::setSearchPaths("i18n", {QCoreApplication::applicationDirPath() + "/translations"});
-    QTranslator translator;
-    if (translator.load(QLocale(), "myapp", "_", "i18n:"))
-        QCoreApplication::installTranslator(&translator);
-    \endcode
-
-    \section1 Files Inside the Program
-
-    For a small file that must never be missing, compile its bytes into the program. The example's
-    \c embed.cmake turns a file into a C++ array at build time, and rebuilds it when the file
-    changes:
-
-    \code
-    include(embed.cmake)
-    nt_example_embed(myapp banner_txt data/banner.txt)
-    \endcode
-
-    Copy \c embed.cmake into your project; it is part of the example, not of the Nt package. Declare
-    the array where you use it, and read it through QByteArray::fromRawData(), which does not copy
-    the bytes, or through a QBuffer, which reads them like a file:
-
-    \snippet resources/main.cpp declare
-    \snippet resources/main.cpp embedded
-
-    Embedded data cannot be changed or replaced without rebuilding, and it makes the program
-    larger, so keep it for files of a few kilobytes to a few megabytes.
-
-    \section1 Images and Icons
-
-    Nt GUI cannot decode image files such as PNG or SVG yet, so images cannot be loaded from a file
-    or from embedded bytes with QImage. Draw simple graphics with QPainter instead, as the Nt logo
-    in the \c gallery example is drawn from its outlines.
-
-    \section1 What Is Not There Yet
-
-    \list
-        \li The resource system: \c rcc, \c .qrc files, QResource, \c{:/} and \c{qrc:} paths.
-        \li Image file formats for QImage, QPixmap and QIcon.
-    \endlist
-
-    \sa {Installing Nt}, QDir::setSearchPaths(), QStandardPaths, QBuffer
+    \sa QResource, QFile, QDir
 */

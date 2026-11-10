@@ -1,0 +1,3 @@
+#include "qsvggenerator.h"
+#include "qsvgrenderer.h"
+#include "qtsvgglobal.h"

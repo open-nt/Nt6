@@ -46,12 +46,12 @@
 using namespace Qt::StringLiterals;
 
 static int g_failures = 0;
-#define CHECK(cond)                                                              \
-    do {                                                                         \
-        if (!(cond)) {                                                           \
-            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);          \
-            ++g_failures;                                                        \
-        }                                                                        \
+#define CHECK(cond)                                                                                                    \
+    do {                                                                                                               \
+        if (!(cond)) {                                                                                                 \
+            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);                                                \
+            ++g_failures;                                                                                              \
+        }                                                                                                              \
     } while (0)
 
 static void testByteArrayView() {
@@ -124,7 +124,8 @@ static void testLatin1() {
     CHECK(QLatin1Char('x') <= 'x' && 'y' != QLatin1Char('x'));
     static_assert(QLatin1Char('q') == 'q');
 
-    CHECK(QLatin1StringView().isNull() && QLatin1StringView().isEmpty() && QLatin1StringView() == QLatin1StringView(""));
+    CHECK(QLatin1StringView().isNull() && QLatin1StringView().isEmpty() &&
+          QLatin1StringView() == QLatin1StringView(""));
     CHECK(!QLatin1StringView("").isNull() && QLatin1StringView("").isEmpty());
     CHECK(QString(QLatin1StringView()).isNull() && !QString(QLatin1StringView("")).isNull());
     const char raw[] = "hello world";
@@ -407,7 +408,7 @@ static void testUrl() {
     CHECK(QUrl::toAce(u"Pročprostěnemluvíčesky"_s) == "xn--proprostnemluvesky-uyb24dma41a");
     CHECK(QUrl::toAce(QString::fromUtf8("\xf0\x9f\x92\xa9.la")) == "xn--ls8h.la"); // outside the BMP
     CHECK(QUrl::toAce(u"Example.COM"_s) == "example.com");
-    CHECK(QUrl::toAce(u"example.com."_s) == "example.com."); // the root label
+    CHECK(QUrl::toAce(u"example.com."_s) == "example.com.");           // the root label
     CHECK(QUrl::toAce(u"例え。テスト"_s) == "xn--r8jz45g.xn--zckzah"); // ideographic full stop
     CHECK(QUrl::toAce(u"faß.de"_s) == "xn--fa-hia.de");
     CHECK(QUrl::toAce(u"faß.de"_s, QUrl::AceTransitionalProcessing) == "fass.de");
@@ -422,10 +423,10 @@ static void testUrl() {
     CHECK(QUrl::fromAce("xn--ls8h.la") == QString::fromUtf8("\xf0\x9f\x92\xa9.la"));
     CHECK(QUrl::fromAce("xn--ihqwcrb4cv8a8dqg056pqjye") == u"他们为什么不说中文"_s);
     CHECK(QUrl::fromAce("www.example.com") == u"www.example.com"_s);
-    CHECK(QUrl::fromAce("xn--.com") == u"xn--.com"_s);        // nothing to decode
-    CHECK(QUrl::fromAce("xn--a!b.com") == u"xn--a!b.com"_s);  // not Punycode: kept
+    CHECK(QUrl::fromAce("xn--.com") == u"xn--.com"_s);                       // nothing to decode
+    CHECK(QUrl::fromAce("xn--a!b.com") == u"xn--a!b.com"_s);                 // not Punycode: kept
     CHECK(QUrl::fromAce("xn--99999999999.com") == u"xn--99999999999.com"_s); // overflows
-    CHECK(QUrl::fromAce("xn--abc-.com") == u"xn--abc-.com"_s); // would be plain ASCII
+    CHECK(QUrl::fromAce("xn--abc-.com") == u"xn--abc-.com"_s);               // would be plain ASCII
     for (const QString &name : {u"bücher.example"_s, u"ελληνικά.gr"_s, u"한국어.kr"_s, u"a-ü-b.x"_s})
         CHECK(QUrl::fromAce(QUrl::toAce(name)) == name);
 

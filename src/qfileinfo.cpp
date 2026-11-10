@@ -5,6 +5,9 @@
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
 
+#include "qdir_p.h"
+#include "qresource_p.h"
+
 #include <grp.h>
 #include <pwd.h>
 #include <sys/stat.h>
@@ -43,7 +46,10 @@ QString emptyString() { return QString::fromUtf8(""); }
     \brief The QFileInfo class provides information about a file's name, location, type and metadata.
 
     A QFileInfo holds a path, relative or absolute, and queries the file
-    system for information about it. The results are cached until refresh()
+    system for information about it. A path that starts with a colon, such
+    as \c{:/icons/open.png}, refers to a \l{The Nt Resource System}{resource}:
+    resources are read-only, have no owner, and record only their
+    modification time. The results are cached until refresh()
     is called or the path changes; use setCaching() to turn caching off.
 
     \code
@@ -100,7 +106,7 @@ QString emptyString() { return QString::fromUtf8(""); }
 
     \sa setFile()
 */
-QFileInfo::QFileInfo(const QFile &file) : m_file(QtPrivate::resolveSearchPath(file.fileName())) {}
+QFileInfo::QFileInfo(const QFile &file) : m_file(file.fileName()) {}
 
 /*!
     Constructs a QFileInfo for \a file, interpreted relative to \a dir. If
@@ -144,11 +150,19 @@ bool QFileInfo::makeAbsolute() {
 }
 
 const QFileInfo::Stat &QFileInfo::info() const {
+    const QString file = ntResolveSearchPath(m_file);
     if (m_cached && m_caching)
         return m_stat;
     m_stat = Stat();
-    if (!m_file.isEmpty()) {
-        const QByteArray path = m_file.toUtf8();
+    if (NtResource::isResourcePath(file)) {
+        const NtResource::Entry e = NtResource::find(file);
+        m_stat.resource = true;
+        m_stat.exists = e.exists;
+        m_stat.mode = static_cast<unsigned>((e.dir ? S_IFDIR : S_IFREG) | 0444);
+        m_stat.size = e.uncompressedSize;
+        m_stat.mtimeMs = e.lastModified;
+    } else if (!file.isEmpty()) {
+        const QByteArray path = file.toUtf8();
         struct stat st;
         if (::stat(path.constData(), &st) == 0) {
             m_stat.exists = true;
@@ -191,6 +205,9 @@ bool QFileInfo::exists(const QString &file) { return QFileInfo(file).exists(); }
     \sa canonicalFilePath(), filePath()
 */
 QString QFileInfo::absoluteFilePath() const {
+    const QString resolved = ntResolveSearchPath(m_file);
+    if (resolved != m_file)
+        return QFileInfo(resolved).absoluteFilePath();
     if (m_file.isEmpty())
         return QString();
     if (isAbsolute())
@@ -206,20 +223,25 @@ QString QFileInfo::absoluteFilePath() const {
     \sa absoluteFilePath()
 */
 QString QFileInfo::canonicalFilePath() const {
-    if (m_file.isEmpty())
+    const QString file = ntResolveSearchPath(m_file);
+    if (file.isEmpty())
         return QString();
+    if (NtResource::isResourcePath(file))
+        return exists() ? absoluteFilePath() : QString();
     char buf[PATH_MAX];
-    if (!::realpath(m_file.toUtf8().constData(), buf))
+    if (!::realpath(file.toUtf8().constData(), buf))
         return QString();
     return QString::fromUtf8(buf);
 }
 
 /*!
-    Returns the file name, without its directory path.
+    Returns the file name, without its directory path. For a name that uses
+    a \l{QDir::setSearchPaths()}{search path} prefix, it is the name of the
+    file the prefix resolves to.
 
     \sa path(), baseName(), suffix()
 */
-QString QFileInfo::fileName() const { return lastComponent(m_file); }
+QString QFileInfo::fileName() const { return lastComponent(ntResolveSearchPath(m_file)); }
 
 /*!
     Returns the file name without its directory path and without the last
@@ -338,10 +360,11 @@ QDir QFileInfo::absoluteDir() const { return QDir(absolutePath()); }
     \sa isSymLink()
 */
 QString QFileInfo::symLinkTarget() const {
-    if (m_file.isEmpty())
+    const QString file = ntResolveSearchPath(m_file);
+    if (file.isEmpty())
         return QString();
     std::vector<char> buf(256);
-    const QByteArray path = m_file.toUtf8();
+    const QByteArray path = file.toUtf8();
     for (;;) {
         const ssize_t n = ::readlink(path.constData(), buf.data(), buf.size());
         if (n < 0)
@@ -364,7 +387,7 @@ QString QFileInfo::symLinkTarget() const {
 */
 QString QFileInfo::owner() const {
     const Stat &s = info();
-    if (!s.exists)
+    if (!s.exists || s.resource)
         return QString();
     std::vector<char> buf(1024);
     passwd pw;
@@ -382,7 +405,7 @@ QString QFileInfo::owner() const {
 */
 QString QFileInfo::group() const {
     const Stat &s = info();
-    if (!s.exists)
+    if (!s.exists || s.resource)
         return QString();
     std::vector<char> buf(1024);
     ::group gr;
@@ -400,7 +423,7 @@ QString QFileInfo::group() const {
 */
 uint QFileInfo::ownerId() const {
     const Stat &s = info();
-    return s.exists ? s.uid : static_cast<uint>(-2);
+    return s.exists && !s.resource ? s.uid : static_cast<uint>(-2);
 }
 
 /*!
@@ -411,7 +434,7 @@ uint QFileInfo::ownerId() const {
 */
 uint QFileInfo::groupId() const {
     const Stat &s = info();
-    return s.exists ? s.gid : static_cast<uint>(-2);
+    return s.exists && !s.resource ? s.gid : static_cast<uint>(-2);
 }
 
 /*!
@@ -444,7 +467,12 @@ QFileInfo::Permissions QFileInfo::permissions() const {
 
     \sa isWritable(), isExecutable(), permissions()
 */
-bool QFileInfo::isReadable() const { return !m_file.isEmpty() && ::access(m_file.toUtf8().constData(), R_OK) == 0; }
+bool QFileInfo::isReadable() const {
+    const QString file = ntResolveSearchPath(m_file);
+    if (NtResource::isResourcePath(file))
+        return exists();
+    return !file.isEmpty() && ::access(file.toUtf8().constData(), R_OK) == 0;
+}
 
 /*!
     Returns \c true if the process may write the file; otherwise returns
@@ -452,7 +480,10 @@ bool QFileInfo::isReadable() const { return !m_file.isEmpty() && ::access(m_file
 
     \sa isReadable(), isExecutable(), permissions()
 */
-bool QFileInfo::isWritable() const { return !m_file.isEmpty() && ::access(m_file.toUtf8().constData(), W_OK) == 0; }
+bool QFileInfo::isWritable() const {
+    const QString file = ntResolveSearchPath(m_file);
+    return !file.isEmpty() && !NtResource::isResourcePath(file) && ::access(file.toUtf8().constData(), W_OK) == 0;
+}
 
 /*!
     Returns \c true if the process may execute the file, or search it if it
@@ -460,7 +491,10 @@ bool QFileInfo::isWritable() const { return !m_file.isEmpty() && ::access(m_file
 
     \sa isReadable(), isWritable(), permissions()
 */
-bool QFileInfo::isExecutable() const { return !m_file.isEmpty() && ::access(m_file.toUtf8().constData(), X_OK) == 0; }
+bool QFileInfo::isExecutable() const {
+    const QString file = ntResolveSearchPath(m_file);
+    return !file.isEmpty() && !NtResource::isResourcePath(file) && ::access(file.toUtf8().constData(), X_OK) == 0;
+}
 
 /*!
     Returns \c true if the file name starts with a dot; otherwise returns
@@ -497,6 +531,20 @@ bool QFileInfo::isDir() const {
     \sa symLinkTarget()
 */
 bool QFileInfo::isSymLink() const { return info().link; }
+
+/*!
+    \since 5.14
+    Returns \c true if the path refers to a file of the native file system;
+    returns \c false for an empty path and for a resource (a path that
+    starts with \c{:/}, or a \l{QDir::setSearchPaths()}{search path} that
+    leads to one).
+
+    \sa QTemporaryFile::createNativeFile()
+*/
+bool QFileInfo::isNativePath() const {
+    const QString file = ntResolveSearchPath(m_file);
+    return !file.isEmpty() && !NtResource::isResourcePath(file);
+}
 
 /*!
     \since 5.10
@@ -539,7 +587,7 @@ qint64 QFileInfo::size() const {
 */
 QDateTime QFileInfo::lastModified() const {
     const Stat &s = info();
-    return s.exists ? QDateTime::fromMSecsSinceEpoch(s.mtimeMs) : QDateTime();
+    return s.exists && (s.mtimeMs != 0 || !s.resource) ? QDateTime::fromMSecsSinceEpoch(s.mtimeMs) : QDateTime();
 }
 
 /*!
@@ -550,7 +598,7 @@ QDateTime QFileInfo::lastModified() const {
 */
 QDateTime QFileInfo::lastRead() const {
     const Stat &s = info();
-    return s.exists ? QDateTime::fromMSecsSinceEpoch(s.atimeMs) : QDateTime();
+    return s.exists && !s.resource ? QDateTime::fromMSecsSinceEpoch(s.atimeMs) : QDateTime();
 }
 
 /*!
@@ -562,5 +610,5 @@ QDateTime QFileInfo::lastRead() const {
 */
 QDateTime QFileInfo::metadataChangeTime() const {
     const Stat &s = info();
-    return s.exists ? QDateTime::fromMSecsSinceEpoch(s.ctimeMs) : QDateTime();
+    return s.exists && !s.resource ? QDateTime::fromMSecsSinceEpoch(s.ctimeMs) : QDateTime();
 }

@@ -79,6 +79,7 @@ add_library(NtCore
     src/qprocess.cpp
     src/qrandom.cpp
     src/qregularexpression.cpp
+    src/qresource.cpp
     src/qrunnable.cpp
     src/qsavefile.cpp
     src/qsettings.cpp
@@ -123,6 +124,46 @@ target_include_directories(NtCore
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtCore PUBLIC Threads::Threads)
+
+# Compressed resources (see ntrcc) need zlib or Zstandard, each used when it is found. Without
+# them, resources compressed with that algorithm cannot be read and ntrcc cannot write them.
+option(NT_USE_ZLIB "Read and write zlib-compressed resources with the system zlib" ON)
+option(NT_USE_ZSTD "Read and write Zstandard-compressed resources with the system libzstd" ON)
+set(NT_HAVE_ZLIB OFF)
+set(NT_HAVE_ZSTD OFF)
+if(NT_USE_ZLIB)
+    find_package(ZLIB QUIET)
+    if(ZLIB_FOUND)
+        set(NT_HAVE_ZLIB ON)
+    else()
+        message(WARNING "zlib was not found: building Nt without zlib-compressed resources")
+    endif()
+endif()
+if(NT_USE_ZSTD)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(NT_ZSTD QUIET libzstd)
+    endif()
+    if(NT_ZSTD_FOUND)
+        set(NT_HAVE_ZSTD ON)
+    else()
+        message(WARNING "libzstd was not found: building Nt without Zstandard-compressed resources")
+    endif()
+endif()
+# Links <target> with the compression libraries that were found.
+function(nt_link_compression target)
+    if(NT_HAVE_ZLIB)
+        target_compile_definitions(${target} PRIVATE NT_HAVE_ZLIB)
+        target_link_libraries(${target} PRIVATE ZLIB::ZLIB)
+    endif()
+    if(NT_HAVE_ZSTD)
+        target_compile_definitions(${target} PRIVATE NT_HAVE_ZSTD)
+        target_include_directories(${target} SYSTEM PRIVATE ${NT_ZSTD_INCLUDE_DIRS})
+        target_link_directories(${target} PRIVATE ${NT_ZSTD_LIBRARY_DIRS})
+        target_link_libraries(${target} PRIVATE ${NT_ZSTD_LIBRARIES})
+    endif()
+endfunction()
+nt_link_compression(NtCore)
 
 nt_set_compile_options(NtCore)
 
@@ -455,6 +496,38 @@ target_include_directories(NtWidgets
 target_link_libraries(NtWidgets PUBLIC NtGui)
 nt_set_compile_options(NtWidgets)
 
+add_library(NtSvg
+    src/svg/qsvgdocument.cpp
+    src/svg/qsvggenerator.cpp
+    src/svg/qsvgraster.cpp
+    src/svg/qsvgrenderer.cpp
+    src/svg/qsvgxml.cpp
+)
+add_library(Nt::Svg ALIAS NtSvg)
+add_library(Qt6::Svg ALIAS NtSvg)
+target_include_directories(NtSvg
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSvg>
+        $<INSTALL_INTERFACE:include/nt6/QtSvg>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/svg
+)
+target_link_libraries(NtSvg PUBLIC NtGui)
+nt_set_compile_options(NtSvg)
+
+add_library(NtSvgWidgets
+    src/svgwidgets/qsvgwidget.cpp
+)
+add_library(Nt::SvgWidgets ALIAS NtSvgWidgets)
+add_library(Qt6::SvgWidgets ALIAS NtSvgWidgets)
+target_include_directories(NtSvgWidgets
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSvgWidgets>
+        $<INSTALL_INTERFACE:include/nt6/QtSvgWidgets>
+)
+target_link_libraries(NtSvgWidgets PUBLIC NtSvg NtWidgets)
+nt_set_compile_options(NtSvgWidgets)
+
 add_library(NtTest
     src/test/qsignalspy.cpp
     src/test/qtestcase.cpp
@@ -497,6 +570,17 @@ set(NT_MOC_DEFINES)
 nt_moc_library(NtHttpServer include/QtHttpServer)
 nt_moc_library(NtGui include/QtGui src/gui/qpa)
 nt_moc_library(NtWidgets include/QtWidgets)
+nt_moc_library(NtSvg include/QtSvg)
+nt_moc_library(NtSvgWidgets include/QtSvgWidgets)
+
+# Resource compiler and its CMake helpers.
+add_executable(ntrcc tools/ntrcc/main.cpp)
+add_executable(Nt::rcc ALIAS ntrcc)
+add_executable(Qt6::rcc ALIAS ntrcc)
+target_compile_definitions(ntrcc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
+nt_link_compression(ntrcc)
+nt_set_compile_options(ntrcc)
+include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtRcc.cmake)
 
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
@@ -620,6 +704,31 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_test_tests PRIVATE Nt::Test)
     nt_enable_automoc(nt_test_tests)
     add_test(NAME nt_test_tests COMMAND nt_test_tests)
+
+    # Resources compiled with ntrcc in each of the ways the CMake helpers offer: from a .qrc file,
+    # from a list of files, with AUTORCC, and as a binary .rcc file read at run time.
+    nt_add_resources(resource_test_sources tests/resources/test.qrc)
+    add_executable(nt_resource_tests tests/test_resources.cpp tests/resources/autorcc.qrc ${resource_test_sources})
+    nt_add_resources(nt_resource_tests listed PREFIX /listed BASE tests/resources FILES
+                     tests/resources/hello.txt tests/resources/icons/open.svg)
+    nt_enable_autorcc(nt_resource_tests)
+    nt_add_binary_resources(nt_resource_tests_rcc tests/resources/binary.qrc
+                            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/resource_tests.rcc)
+    add_dependencies(nt_resource_tests nt_resource_tests_rcc)
+    target_include_directories(nt_resource_tests PRIVATE src)
+    target_link_libraries(nt_resource_tests PRIVATE Nt::Core)
+    target_compile_definitions(nt_resource_tests PRIVATE
+        NT_RESOURCE_RCC="${CMAKE_CURRENT_BINARY_DIR}/resource_tests.rcc"
+        NT_RCC="$<TARGET_FILE:ntrcc>"
+        NT_RESOURCE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/resources")
+    add_test(NAME nt_resource_tests COMMAND nt_resource_tests)
+    if(NT_HAVE_ZLIB)
+        target_compile_definitions(nt_resource_tests PRIVATE NT_HAVE_ZLIB)
+    endif()
+    if(NT_HAVE_ZSTD)
+        target_compile_definitions(nt_resource_tests PRIVATE NT_HAVE_ZSTD)
+    endif()
+    nt_set_compile_options(nt_resource_tests)
 
     add_executable(nt_logging_tests tests/test_logging.cpp tests/test_logging_nooutput.cpp)
     target_link_libraries(nt_logging_tests PRIVATE Nt::Core)
@@ -757,6 +866,14 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_gui_scale_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gui_scale_tests)
 
+    # Nt SVG: the reader, the rasterizer, the generator and the widget, on the offscreen platform.
+    add_executable(nt_svg_tests tests/test_svg.cpp)
+    target_include_directories(nt_svg_tests PRIVATE src/svg)
+    target_link_libraries(nt_svg_tests PRIVATE Nt::SvgWidgets)
+    add_test(NAME nt_svg_tests COMMAND nt_svg_tests)
+    set_tests_properties(nt_svg_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_svg_tests)
+
     # The xcb tests need an X server (or XWayland); they report a skip without one.
     if(NT_HAVE_XCB)
         add_executable(nt_gui_xcb_tests tests/test_gui_xcb.cpp)
@@ -808,19 +925,8 @@ if(NT_BUILD_EXAMPLES)
     nt_enable_automoc(signals_example)
     nt_set_compile_options(signals_example)
 
-    # examples/resources: data files without Qt resources; see "Resource Files" in the documentation.
-    include(examples/resources/embed.cmake)
-    add_executable(resources_example examples/resources/main.cpp)
-    target_link_libraries(resources_example PRIVATE Nt::Core)
-    nt_example_embed(resources_example banner_txt examples/resources/data/banner.txt)
-    add_custom_command(TARGET resources_example POST_BUILD
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${CMAKE_CURRENT_SOURCE_DIR}/examples/resources/data"
-                "$<TARGET_FILE_DIR:resources_example>/data"
-        VERBATIM)
-    nt_set_compile_options(resources_example)
     if(NT_BUILD_TESTS)
         add_test(NAME signals_example COMMAND signals_example)
-        add_test(NAME resources_example COMMAND resources_example)
     endif()
 
     # A test written the way a Qt project writes one, with the .moc file included.
@@ -837,14 +943,17 @@ if(NT_BUILD_EXAMPLES)
     target_link_libraries(hello_window PRIVATE Nt::Gui)
     nt_set_compile_options(hello_window)
 
-    # A form made of widgets and layouts; see "Using Nt Widgets" in the documentation.
-    add_executable(hello_widgets examples/widgets/hello_widgets.cpp)
-    target_link_libraries(hello_widgets PRIVATE Nt::Widgets)
+    # A form made of widgets and layouts, with the Nt logo as an SVG resource; see "Using Nt Widgets" in the
+    # documentation.
+    nt_add_resources(hello_widgets_resources examples/widgets/hello_widgets.qrc)
+    add_executable(hello_widgets examples/widgets/hello_widgets.cpp ${hello_widgets_resources})
+    target_link_libraries(hello_widgets PRIVATE Nt::SvgWidgets)
     nt_set_compile_options(hello_widgets)
 
     # A tour of the widgets: layouts, controls, custom widgets, a dark theme.
-    add_executable(gallery examples/widgets/gallery.cpp)
-    target_link_libraries(gallery PRIVATE Nt::Widgets)
+    nt_add_resources(gallery_resources examples/widgets/gallery.qrc)
+    add_executable(gallery examples/widgets/gallery.cpp ${gallery_resources})
+    target_link_libraries(gallery PRIVATE Nt::SvgWidgets)
     nt_set_compile_options(gallery)
 
     # Renders each widget in its states to doc/images/widgets, the pictures of the reference documentation:
@@ -868,6 +977,11 @@ if(NT_BUILD_EXAMPLES)
             BUILD_ALWAYS ON
             INSTALL_COMMAND "")
     endif()
+
+    # Shows an SVG file in a window, or converts what it draws; see "Using Nt SVG" in the documentation.
+    add_executable(svg_viewer examples/svg/svg_viewer.cpp)
+    target_link_libraries(svg_viewer PRIVATE Nt::SvgWidgets)
+    nt_set_compile_options(svg_viewer)
 
     # A serial terminal; see "Using Nt Serial Port" in the documentation.
     add_executable(serialterm examples/serialport/serialterm.cpp)

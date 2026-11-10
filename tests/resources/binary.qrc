@@ -1,0 +1,6 @@
+<RCC>
+    <qresource>
+        <file alias="bin.txt">data/lines.txt</file>
+        <file alias="deep/hello.txt">hello.txt</file>
+    </qresource>
+</RCC>

@@ -168,13 +168,18 @@ public:
     void refresh() const {}
 
     static QString cleanPath(const QString &path);
+    static void setSearchPaths(const QString &prefix, const QStringList &searchPaths);
+    static void addSearchPath(const QString &prefix, const QString &path);
+    static QStringList searchPaths(const QString &prefix);
     /*!
         Returns \c true if \a path is absolute, which means it starts with a
-        slash; otherwise returns \c false.
+        slash, or with a colon for a resource; otherwise returns \c false.
 
         \sa isRelativePath()
     */
-    static bool isAbsolutePath(const QString &path) { return path.startsWith(QChar(u'/')); }
+    static bool isAbsolutePath(const QString &path) {
+        return path.startsWith(QChar(u'/')) || path.startsWith(QChar(u':'));
+    }
     /*!
         Returns \c true if \a path is relative; otherwise returns \c false.
 
@@ -240,9 +245,6 @@ public:
     */
     static QString rootPath() { return QString("/"); }
     static QFileInfoList drives();
-    static void setSearchPaths(const QString &prefix, const QStringList &searchPaths);
-    static void addSearchPath(const QString &prefix, const QString &path);
-    static QStringList searchPaths(const QString &prefix);
     static QStringList nameFiltersFromString(const QString &nameFilter);
     static bool match(const QString &filter, const QString &fileName);
     static bool match(const QStringList &filters, const QString &fileName);

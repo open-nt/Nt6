@@ -91,6 +91,7 @@ if [ "$verify_install" = 1 ]; then
     esac
     consumer
     ntmoc --version
+    ntrcc --version
     ndoc --version
 fi
 

@@ -3,6 +3,9 @@
 // The Nt logo, and one of every widget on the pages of a tab widget. The first page, Nt, is a showcase of all the
 // widgets that Nt has, each one live. Run it with a display, or without one: `hello_widgets -platform offscreen`.
 // A number as an argument opens that page first: `hello_widgets 3`.
+//
+// The logo is nt-logo.svg, which hello_widgets.qrc compiles into the program as the resource :/nt-logo.svg. A
+// QSvgWidget from Nt SVG shows it.
 #include <QAction>
 #include <QActionGroup>
 #include <QApplication>
@@ -32,13 +35,12 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStatusBar>
+#include <QSvgWidget>
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
-
-#include "ntlogo.h"
 
 //! [form]
 // A label and a widget side by side, with the labels of all rows of a page the same width.
@@ -488,7 +490,11 @@ int main(int argc, char *argv[]) {
     words->addStretch();
     auto *header = new QHBoxLayout;
     header->setSpacing(12);
-    header->addWidget(new NtExamples::Logo(56, &window));
+    // The logo is a resource of the program (see hello_widgets.qrc). An SVG document has no pixels of its own, so
+    // the widget draws it at whatever size it has, sharp on any screen.
+    auto *logo = new QSvgWidget(":/nt-logo.svg", &window);
+    logo->setFixedSize(56, 56);
+    header->addWidget(logo);
     header->addLayout(words, 1);
     auto *status = new QLabel("Ready.", &window);
 

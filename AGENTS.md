@@ -3,7 +3,7 @@
 ## Project
 
 Nt is a small, MIT-licensed, clean-room implementation of a subset of the
-Qt 6 API (modules `NtCore`, `NtNetwork`, `NtSerialPort`, `NtDBus` and `NtTest`;
+Qt 6 API (modules `NtCore`, `NtNetwork`, `NtSerialPort`, `NtDBus`, `NtSvg` and `NtTest`;
 headers in `include/Qt*/`, sources in `src/`). Tools: `ntmoc` (a moc replacement)
 and `ndoc` (the documentation generator). Source files start with
 `// MIT License - see LICENSE`.

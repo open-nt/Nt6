@@ -38,6 +38,7 @@ jobs:
         run: |
           sudo snap install --dangerous "${{ steps.build.outputs.snap }}"
           open-nt6.ntmoc --version
+          open-nt6.ntrcc --version
           open-nt6.ndoc --version
           find /snap/open-nt6/current/usr/lib -name Nt6Config.cmake | grep -q .
           test "$(snap list open-nt6 | awk 'NR == 2 { print $2 }')" = "$(head -n 1 VERSION)"
@@ -82,6 +83,7 @@ jobs:
           snap=$(ls dist/open-nt6_*_arm64.snap)
           sudo -n snap install --dangerous "$snap"
           open-nt6.ntmoc --version
+          open-nt6.ntrcc --version
           open-nt6.ndoc --version
           find /snap/open-nt6/current/usr/lib -name Nt6Config.cmake | grep -q .
           test "$(snap list open-nt6 | awk 'NR == 2 { print $2 }')" = "$(head -n 1 VERSION)"

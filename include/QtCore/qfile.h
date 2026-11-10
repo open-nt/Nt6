@@ -7,6 +7,7 @@
 
 #include <cstdio>
 #include <map>
+#include <memory>
 #include <utility>
 
 class QFileDevice : public QIODevice {
@@ -185,6 +186,10 @@ protected:
     int m_fd = -1;
     /*! \internal */
     FileError m_error = NoError;
+    /*! \internal */
+    struct ResourceData;
+    /*! \internal */
+    std::unique_ptr<ResourceData> m_resource;
 
 private:
     bool m_closeHandle = true;                                // close() closes m_fd (or m_stdio)

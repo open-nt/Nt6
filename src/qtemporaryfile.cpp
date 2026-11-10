@@ -13,6 +13,7 @@
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
 #include <random>
 #include <string>
 #include <utility>
@@ -43,8 +44,8 @@
     \differences
     open() always opens the file for reading and writing, whatever mode
     was requested; only the \c Append, \c Truncate, \c Text and \c Unbuffered
-    flags are honored. Every file of Nt is a native file, so createNativeFile()
-    always returns \c nullptr.
+    flags are honored. createNativeFile() copies resources only; a file that
+    is reached through a custom file engine does not exist in Nt.
     \enddifferences
 
     \sa QTemporaryDir, QFile, QSaveFile
@@ -201,23 +202,48 @@ bool QTemporaryFile::rename(const QString &newName) {
 }
 
 /*!
-    Returns a temporary copy of \a file if it is not a native file, or
-    \c nullptr if it is. Nt has no resource or other virtual files, so this
-    always returns \c nullptr.
+    Returns a temporary copy of \a file if it is a resource, for code that
+    needs a file on disk; returns \c nullptr if \a file is a native file
+    already, has no name or cannot be read. The copy is open for reading and
+    writing at position 0, and the caller owns it. \a file is left as it
+    was: open at the same position, or closed.
+
+    \code
+    QFile icon(":/icons/open.svg");
+    std::unique_ptr<QTemporaryFile> copy(QTemporaryFile::createNativeFile(icon));
+    const QString path = copy ? copy->fileName() : icon.fileName();
+    \endcode
+
+    \sa QFileInfo::isNativePath()
 */
 QTemporaryFile *QTemporaryFile::createNativeFile(QFile &file) {
-    Q_UNUSED(file)
-    return nullptr;
+    if (file.fileName().isEmpty() || QFileInfo(file.fileName()).isNativePath())
+        return nullptr;
+    const bool wasOpen = file.isOpen();
+    const qint64 oldPos = wasOpen ? file.pos() : 0;
+    if (!wasOpen && !file.open(QIODevice::ReadOnly))
+        return nullptr;
+    auto copy = std::make_unique<QTemporaryFile>();
+    bool ok = copy->open() && file.seek(0);
+    if (ok) {
+        const QByteArray data = file.readAll();
+        ok = copy->write(data) == data.size() && copy->seek(0);
+    }
+    if (wasOpen)
+        file.seek(oldPos);
+    else
+        file.close();
+    return ok ? copy.release() : nullptr;
 }
 
 /*!
     \overload
-    Returns a temporary copy of the file \a fileName if it is not a native
-    file, or \c nullptr if it is; with Nt, always \c nullptr.
+    Returns a temporary copy of the file \a fileName if it is a resource, or
+    \c nullptr if it is a native file already.
 */
 QTemporaryFile *QTemporaryFile::createNativeFile(const QString &fileName) {
-    Q_UNUSED(fileName)
-    return nullptr;
+    QFile file(fileName);
+    return createNativeFile(file);
 }
 
 /*!

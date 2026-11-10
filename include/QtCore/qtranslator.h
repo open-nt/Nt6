@@ -23,8 +23,8 @@ class QLocale;
         QCoreApplication::installTranslator(&translator);
     \endcode
 
-    Nt has no resource system, so ship the \c .qm files with the program, as
-    \l{Resource Files} describes.
+    The \c .qm files can be shipped next to the program, as here, or compiled
+    into it as resources; see \l{The Nt Resource System}.
 
     Plural forms are selected with the numerus rules stored in the file, and
     \c{%n} in the result is replaced by the count.

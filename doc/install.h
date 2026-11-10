@@ -32,8 +32,8 @@
 
     The development package (\c libnt6-dev or \c nt6-devel) holds the headers,
     the static libraries and the CMake package. The tools package holds
-    \c ntmoc, a replacement for Qt's moc, and \c ndoc, the documentation
-    generator. Install both to build a Qt-style project.
+    \c ntmoc and \c ntrcc, replacements for Qt's moc and rcc, and \c ndoc,
+    the documentation generator. Install both to build a Qt-style project.
 
     The packages need a C++17 compiler and CMake 3.18 or newer to be useful, which
     the sections below install too. Nt is statically linked, so a program built with
@@ -198,9 +198,10 @@
     \c{sudo snap install --dangerous open-nt6_<version>_<arch>.snap}. Both are
     covered by the release provenance described at the end of this page.
 
-    The commands are \c open-nt6.ntmoc and \c open-nt6.ndoc, and \c ntmoc and \c ndoc once
-    the Snap Store has granted the aliases, or after
-    \c{sudo snap alias open-nt6.ntmoc ntmoc} and \c{sudo snap alias open-nt6.ndoc ndoc}.
+    The commands are \c open-nt6.ntmoc, \c open-nt6.ntrcc and \c open-nt6.ndoc, and
+    \c ntmoc, \c ntrcc and \c ndoc once the Snap Store has granted the aliases, or after
+    \c{sudo snap alias open-nt6.ntmoc ntmoc}, \c{sudo snap alias open-nt6.ntrcc ntrcc} and
+    \c{sudo snap alias open-nt6.ndoc ndoc}.
 
     The snap is strictly confined: the tools read and write files in your home
     directory, not elsewhere. The headers, static libraries and CMake package are
@@ -232,25 +233,28 @@
     add_executable(app main.cpp counter.h)
     target_link_libraries(app PRIVATE Nt6::Network)   # Nt::Network works too
     nt_enable_automoc(app)                            # ntmoc, for Q_OBJECT classes
+    nt_enable_autorcc(app)                            # ntrcc, for .qrc files
     \endcode
 
     The package provides \c{Nt6::Core}, \c{Nt6::Network}, \c{Nt6::SerialPort}, \c{Nt6::DBus}, \c{Nt6::HttpServer},
-    \c{Nt6::WebSockets}, \c{Nt6::Gui}, \c{Nt6::Widgets}, \c{Nt6::Test},
-    the tools \c{Nt6::moc} and \c{Nt6::ndoc}, and the helper functions \c nt_enable_automoc(),
-    \c nt_wrap_cpp() and \c nt_add_docs(). Check the installation with:
+    \c{Nt6::WebSockets}, \c{Nt6::Gui}, \c{Nt6::Widgets}, \c{Nt6::Svg}, \c{Nt6::SvgWidgets}, \c{Nt6::Test},
+    the tools \c{Nt6::moc}, \c{Nt6::rcc} and \c{Nt6::ndoc}, and the helper functions
+    \c nt_enable_automoc(), \c nt_wrap_cpp(), \c nt_enable_autorcc(), \c nt_add_resources()
+    (see \l{The Nt Resource System}) and \c nt_add_docs(). Check the installation with:
 
     \code
     ntmoc --version
+    ntrcc --version
     ndoc --version
     \endcode
 
     The libraries are static, so a program that links \c{Nt6::Network} also needs the OpenSSL
     development package, and one that links \c{Nt6::Gui} or \c{Nt6::Widgets} needs those of
     FreeType, fontconfig and XCB (\c{libssl-dev libfreetype-dev libfontconfig-dev libxcb1-dev} on
-    Ubuntu). The \c{examples/hello}, \c{examples/widgets} and \c{examples/resources} directories are
-    standalone projects to start from.
+    Ubuntu). The \c{examples/hello} and \c{examples/widgets} directories are standalone projects to
+    start from.
 
-    Coming from Qt, read \l{Resource Files} for how to ship data files without \c{.qrc} files, and
+    Coming from Qt, read \l{The Nt Resource System} for how \c{.qrc} files are compiled with \c ntrcc, and
     \l{Using Nt Widgets} for user interfaces.
 
     See \l{Nt Brand Guide} for the logo and the way to write Nt's name.

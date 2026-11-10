@@ -11,7 +11,6 @@
 [![Enterprise Linux 10](https://github.com/open-nt/Nt6/actions/workflows/el10.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/el10.yml)
 [![Arch Linux](https://github.com/open-nt/Nt6/actions/workflows/arch.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/arch.yml)
 [![Docs](https://github.com/open-nt/Nt6/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/docs.yml)
-[![SLSA](https://github.com/open-nt/Nt6/actions/workflows/slsa.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/slsa.yml)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
 [![Snap Store](https://snapcraft.io/open-nt6/badge.svg)](https://snapcraft.io/open-nt6)
 
@@ -21,7 +20,7 @@
 
 # Nt ("Nut")
 
-A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial) and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
+A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial), `Nt SVG` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
 
@@ -45,7 +44,7 @@ Qt Core has roughly 300 classes; Nt Core has about 180 of them, chosen first for
 | Smart pointers | `QPointer`, `QScopedPointer`, `QScopedArrayPointer`, `QSharedPointer`, `QWeakPointer`, `QEnableSharedFromThis`, `QSharedData`, `QSharedDataPointer`, `QExplicitlySharedDataPointer`, `QScopeGuard`, `QScopedValueRollback`, `QSignalBlocker` |
 | Threads | `QThread` (per-thread event loops and queued signals across threads), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QException`, `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QAtomicScopedValueRollback`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock` (recursive or not), `QReadLocker`, `QWriteLocker`, `QWaitCondition` (with `QMutex` or `QReadWriteLock`), `QSemaphore`, `QSemaphoreReleaser`; deadline and `std::chrono` overloads |
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time, fixed offsets and time zones), `QTimeZone` (the system's IANA database), `QCalendar` (Gregorian, Julian, Milanković, Jalali, Islamic civil), `QChronoTimer`, `QTimeLine`, `QEasingCurve`, `QDebug`, `QDebugStateSaver`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler`, `QMessageLogger`, `QLoggingCategory` |
-| I/O and file system | `QIODevice` (with read transactions and read/write channels), `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile` (permissions, file times, symbolic links), `QDataStream` (Qt's wire format, transactions), `QFileInfo`, `QDir`, `QDirIterator`, `QLockFile`, `QFileSystemWatcher` (inotify), `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG), `QSettings` (INI) |
+| I/O and file system | `QIODevice` (with read transactions and read/write channels), `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile` (permissions, file times, symbolic links), `QDataStream` (Qt's wire format, transactions), `QFileInfo`, `QDir`, `QDirIterator`, `QLockFile`, `QFileSystemWatcher` (inotify), `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG), `QSettings` (INI), `QResource` (`:/` paths in `QFile`, `QFileInfo`, `QDir` and `QDirIterator`; resources compiled by `ntrcc`, compressed with Zstandard or zlib) |
 | Processes and formats | `QProcess`, `QProcessEnvironment`, `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument` |
 | Item models | `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QModelIndex`, `QPersistentModelIndex`, `QStringListModel`, `QItemSelectionModel`, `QItemSelection`, `QItemSelectionRange`, `QAbstractProxyModel`, `QIdentityProxyModel`, `QSortFilterProxyModel` (filtering, sorting, recursive filtering), `QTransposeProxyModel`, `QConcatenateTablesProxyModel`, `QMimeData` |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
@@ -56,7 +55,7 @@ Known limits: `QDataStream` has no 64-bit container sizes; `QDir` name filters a
 ### Nt Core: not implemented yet
 
 - **Meta:** `QProperty` and bindable properties
-- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`, `QResource` (see [Resource Files](https://open-nt.github.io/Nt6/resources.html) for how to ship data files instead)
+- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`
 - **Plugins and IPC:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
 - **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`
 - **Concurrency:** `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, QtConcurrent, `QAbstractEventDispatcher`
@@ -214,7 +213,7 @@ Nt Widgets builds on Nt GUI. The widgets of a window are painted into the backin
 | `QToolTip`, `QHelpEvent`, `QWidget::setToolTip()` | tool tips that appear after the mouse rests, follow the widget under the mouse, and show the text of the nearest widget that has one; `QEvent::ToolTip` for tool tips that depend on the position |
 | `QStyle`, `QStyleOption` and its subclasses, `QPalette` | a Fusion-like default style behind `QStyle`, with a light and a dark palette, replaceable with `QApplication::setStyle()` |
 
-Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example has the Nt logo and one of every widget on the pages of a tab widget (its first page, *Nt*, is a showcase of all the widgets, live, and the *Views* page has a table and a scroll area), and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the Nt logo drawn from its outlines.
+Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example has the Nt logo, an SVG resource shown by a `QSvgWidget`, and one of every widget on the pages of a tab widget (its first page, *Nt*, is a showcase of all the widgets, live, and the *Views* page has a table and a scroll area), and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the same logo.
 
 <p align="center"><img src="doc/images/hello-widgets-nt.png" alt="The Nt page of hello_widgets, which shows every widget" width="360"> <img src="doc/images/hello-widgets-light.png" alt="The pages of hello_widgets, light, with the open list of a combo box" width="360"> <img src="doc/images/hello-widgets-dark.png" alt="The pages of hello_widgets, dark" width="360"></p>
 <p align="center"><img src="doc/images/widgets-gallery-light.png" alt="The gallery example, light" width="320"> <img src="doc/images/widgets-gallery-dark.png" alt="The gallery example, dark" width="320"></p>
@@ -225,9 +224,35 @@ Not implemented yet: rich text and the clipboard, the model/view classes (trees,
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
+
+### Nt SVG: implemented
+
+Nt SVG reads SVG documents and draws them with a `QPainter`, and writes what a painter draws as SVG. The XML reader and the antialiased rasterizer are its own: shapes are filled and stroked at the resolution of the device, whatever the painter can do itself. `Nt::Svg` needs only Nt GUI; `Nt::SvgWidgets` adds the widget.
+
+| Class | Notes |
+|---|---|
+| `QSvgRenderer` | loads from a file, a resource or a `QByteArray`; draws the document, or one element by its `id`, into any rectangle of any paint device; default size, view box, aspect ratio modes, `boundsOnElement()`, `elementExists()` |
+| `QSvgGenerator` | a paint device that writes rectangles, lines, points and ellipses as SVG elements and images as embedded PNG, to a file or a `QIODevice`; title, description, size, view box, resolution; SVG Tiny 1.2 or SVG 1.1 (with clipping) |
+| `QSvgWidget` | shows a document scaled to the widget |
+
+Drawn: `svg`, `g`, `defs`, `symbol`, `use`, `a`, `switch`; `path` (all commands, arcs included), `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`; `text` and `tspan`; linear and radial gradients (units, transformations, spread methods, focal point, references); `clipPath`; fills and strokes with opacity, both fill rules, caps, joins, miter limits and dashes; group opacity; transformations; lengths with units; properties from attributes, `style` attributes and `<style>` sheets (element, class and id selectors).
+
+Documents are treated as untrusted input: loading reads only the bytes it is given, nesting and references have a fixed depth, and one drawing visits a bounded number of elements (`QtSvg::AssumeTrustedSource` lifts that limit).
+
+Guide: [Using Nt SVG](https://open-nt.github.io/Nt6/nt-svg.html). The [`svg_viewer`](examples/svg/svg_viewer.cpp) example shows a file in a window and writes one with `QSvgGenerator`.
+
+```cpp
+QSvgRenderer renderer(QString(":/logo.svg"));
+QImage image(256, 256, QImage::Format_ARGB32_Premultiplied);
+image.fill(Qt::transparent);
+QPainter painter(&image);
+renderer.render(&painter);
+```
+
+Differences from Qt: static documents only (no SMIL or CSS animation); no `image`, `mask`, `pattern`, `marker`, filters or `textPath`; text is drawn upright in one color with system fonts, following position and scale but not rotation; `preserveAspectRatio` is not read (use `setAspectRatioMode()`); no `load(QXmlStreamReader *)`, `transformForElement()` or `QGraphicsSvgItem`. `QSvgGenerator` writes text as an image of its glyphs, not as `text` elements.
 
 ### Essentials
 
@@ -292,7 +317,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Spatial Audio | Nt Spatial Audio |  |
 | Qt SQL | Nt SQL |  |
 | Qt State Machine | Nt State Machine |  |
-| Qt SVG | Nt SVG |  |
+| Qt SVG | Nt SVG | ✔ (see Status) |
 | Qt TextToSpeech | Nt TextToSpeech |  |
 | Qt UI Tools | Nt UI Tools |  |
 | Qt Virtual Keyboard | Nt Virtual Keyboard |  |
@@ -374,6 +399,20 @@ ntmoc also accepts the moc command line CMake's AUTOMOC uses (`-o`, `-I`, `-D`, 
 
 Everything else (`signals:`, `slots:`, `emit`, `Q_OBJECT`, pointer-to-member `connect`, slots taking fewer arguments than the signal) is source compatible. Define `QT_NO_KEYWORDS` to use `Q_SIGNALS`/`Q_SLOTS`/`Q_EMIT`.
 
+## ntrcc: MIT rcc replacement
+
+Qt's rcc is not used. `ntrcc` (`tools/ntrcc`) compiles `.qrc` resource collection files into C++ that registers the resources when the program starts, or into a binary `.rcc` file for `QResource::registerResource()`. Files are compressed with Zstandard or zlib when that saves at least 70% (`--compress-algo`, `--compress`, `--threshold` and the matching `<file>` attributes change it); zlib and libzstd are used when they are found at configure time (`-DNT_USE_ZLIB=OFF`, `-DNT_USE_ZSTD=OFF`).
+
+```cmake
+add_executable(app main.cpp app.qrc)
+nt_enable_autorcc(app)                      # CMAKE_AUTORCC works too: Qt6::rcc is ntrcc
+
+nt_add_resources(sources icons.qrc)         # or qt_add_resources(sources icons.qrc)
+nt_add_resources(app images PREFIX /images FILES open.png save.png)
+```
+
+The compiled format is Nt's own, so `.rcc` files from Qt's rcc cannot be loaded. See "The Nt Resource System" in the documentation.
+
 ## NDoc: MIT documentation generator
 
 Qt's qdoc is not used. `ndoc` (`tools/ndoc`) is a small MIT tool that generates Qt-style reference pages from `/*! */` comments written next to the code, in headers or source files:
@@ -418,7 +457,7 @@ Install instructions for every system below are in the [Installing Nt](https://o
 | Arch Linux | `nt6-<version>-1-x86_64.pkg.tar.zst` | `arch.yml` |
 | Any Linux with snapd (amd64, and arm64 built on a Jetson) | `open-nt6_<version>_amd64.snap`, `open-nt6_<version>_arm64.snap` (`snap install open-nt6`, from the [Snap Store](https://snapcraft.io/open-nt6)) | `snap.yml` |
 
-`libnt6-dev` / `nt6-devel` holds the headers (in `/usr/include/nt6`, so Nt can sit next to Qt), the static libraries and the CMake package; `nt6-tools` holds `ntmoc` and `ndoc`. Arch has one package with everything. In a project:
+`libnt6-dev` / `nt6-devel` holds the headers (in `/usr/include/nt6`, so Nt can sit next to Qt), the static libraries and the CMake package; `nt6-tools` holds `ntmoc`, `ntrcc` and `ndoc`. Arch has one package with everything. In a project:
 
 ```cmake
 find_package(Nt6 6 REQUIRED)

@@ -10,6 +10,7 @@
 #include <map>
 
 class QThread;
+class QAbstractEventDispatcher;
 
 namespace QtPrivate {
 
@@ -53,6 +54,9 @@ struct ThreadData {
     bool isOrphan = false;
     // Only touched by the owning thread (and by the destructor).
     std::map<std::size_t, StorageSlot> storage;
+    // The QAbstractEventDispatcher that stands for `dispatcher`, once there is one. Guarded by a lock of its own.
+    QAbstractEventDispatcher *eventDispatcher = nullptr;
+    bool eventDispatcherOwned = false;
 };
 
 // The thread an object lives in, without taking a reference: good for comparing pointers only.
@@ -64,6 +68,8 @@ void initObjectThread(QObject *o);
 void releaseObjectThread(QObject *o);
 // Posts to the thread that the receiver lives in, following it if it moves meanwhile.
 void postToObject(QObject *receiver, QEvent *event);
+// Deletes the QAbstractEventDispatcher that stands for `td`, if the thread data owns one.
+void destroyEventDispatcher(ThreadData *td);
 // Waits for the tasks of the global QThreadPool, if it was ever created.
 void waitForGlobalThreadPool();
 

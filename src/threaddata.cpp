@@ -45,6 +45,7 @@ thread_local Holder t_holder;
 ThreadData::ThreadData() = default;
 
 ThreadData::~ThreadData() {
+    destroyEventDispatcher(this);
     clearStorage();
     if (QThread *t = thread.load()) {
         if (adopted)

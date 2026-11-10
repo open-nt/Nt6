@@ -12,6 +12,7 @@
 #include <vector>
 
 class QSocketNotifier;
+class QAbstractEventDispatcher;
 
 namespace QtPrivate {
 
@@ -33,9 +34,20 @@ public:
     void removePosted(QObject *receiver, int type);
 
     // Timer and notifier ids are unique across all dispatchers.
+    static int allocateTimerId();
     int startTimer(QObject *obj, std::chrono::milliseconds interval);
-    void killTimer(int id);
-    void killTimers(QObject *obj);
+    // Starts a timer under an id from allocateTimerId().
+    void startTimerWithId(int id, QObject *obj, std::chrono::milliseconds interval);
+    // Both return whether a timer was removed.
+    bool killTimer(int id);
+    bool killTimers(QObject *obj);
+    struct TimerInfo {
+        int id;
+        std::chrono::milliseconds interval;
+    };
+    std::vector<TimerInfo> timersOf(QObject *obj);
+    // Milliseconds until the timer fires; -1 if there is no such timer.
+    long long remainingTime(int id);
 
     // type: 0 read, 1 write, 2 exception (QSocketNotifier::Type).
     int addNotifier(QSocketNotifier *obj, int fd, int type);
@@ -48,6 +60,10 @@ public:
     // including DeferredDelete.
     void sendPosted(QObject *receiver, int type);
     void wakeUp();
+    // Makes the blocking process() that runs, or the next one, return without waiting for work.
+    void interrupt();
+    // The object that reports aboutToBlock() and awake(); it must outlive the dispatcher's use.
+    void setObserver(QAbstractEventDispatcher *observer) { observer_.store(observer); }
 
     void addLoop(QEventLoop *loop);
     void removeLoop(QEventLoop *loop);
@@ -85,6 +101,8 @@ private:
     std::vector<Notifier> notifiers_;
     std::vector<QEventLoop *> loops_;
     std::uint64_t seq_ = 0;
+    std::atomic<bool> interrupted_{false};
+    std::atomic<QAbstractEventDispatcher *> observer_{nullptr};
     int wakeRead_ = -1;
     int wakeWrite_ = -1;
 };

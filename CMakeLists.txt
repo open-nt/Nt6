@@ -71,6 +71,7 @@ add_library(NtCore
     src/qjsonwriter.cpp
     src/qlibraryinfo.cpp
     src/qlocale.cpp
+    src/qlibrary.cpp
     src/qlockfile.cpp
     src/qlogging.cpp
     src/qloggingcategory.cpp
@@ -88,6 +89,7 @@ add_library(NtCore
     src/qrunnable.cpp
     src/qsavefile.cpp
     src/qsettings.cpp
+    src/qsharedmemory.cpp
     src/qsettings_ini.cpp
     src/qsignalmapper.cpp
     src/qsocketnotifier.cpp
@@ -98,6 +100,7 @@ add_library(NtCore
     src/qstringconverter.cpp
     src/qstringlistmodel.cpp
     src/qsysinfo.cpp
+    src/qsystemsemaphore.cpp
     src/qtemporaryfile.cpp
     src/qtenvironmentvariables.cpp
     src/qtextboundaryfinder.cpp
@@ -131,6 +134,13 @@ target_include_directories(NtCore
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtCore PUBLIC Threads::Threads)
+# QLibrary loads with dlopen(). QSharedMemory and QSystemSemaphore use POSIX shared memory and named semaphores,
+# which older C libraries keep in librt.
+target_link_libraries(NtCore PRIVATE ${CMAKE_DL_LIBS})
+find_library(NT_RT_LIBRARY rt)
+if(NT_RT_LIBRARY)
+    target_link_libraries(NtCore PRIVATE ${NT_RT_LIBRARY})
+endif()
 
 # Compressed resources (see ntrcc) need zlib or Zstandard, each used when it is found. Without
 # them, resources compressed with that algorithm cannot be read and ntrcc cannot write them.
@@ -742,6 +752,17 @@ if(NT_BUILD_TESTS)
         NT_RCC="$<TARGET_FILE:ntrcc>"
         NT_RESOURCE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/resources")
     add_test(NAME nt_resource_tests COMMAND nt_resource_tests)
+
+    # QLibrary, QSharedMemory and QSystemSemaphore. The library that the QLibrary tests load is built next to
+    # the test.
+    add_library(nt_test_plugin MODULE tests/test_library_plugin.cpp)
+    set_target_properties(nt_test_plugin PROPERTIES PREFIX "lib" SUFFIX ".so"
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_plugins)
+    add_executable(nt_ipc_tests tests/test_ipc.cpp)
+    target_link_libraries(nt_ipc_tests PRIVATE Nt::Core)
+    target_compile_definitions(nt_ipc_tests PRIVATE NT_TEST_PLUGIN_DIR="${CMAKE_CURRENT_BINARY_DIR}/test_plugins")
+    add_dependencies(nt_ipc_tests nt_test_plugin)
+    add_test(NAME nt_ipc_tests COMMAND nt_ipc_tests)
     if(NT_HAVE_ZLIB)
         target_compile_definitions(nt_resource_tests PRIVATE NT_HAVE_ZLIB)
     endif()
@@ -930,7 +951,7 @@ if(NT_BUILD_TESTS)
         nt_set_compile_options(nt_widgets_xcb_tests)
     endif()
 
-    nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests
+    nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests nt_ipc_tests
                            nt_test_tests)
     foreach(suite coreapi datetime filesystem globals models storage streams text types)
         nt_set_compile_options(nt_${suite}_tests)

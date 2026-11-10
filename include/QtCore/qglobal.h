@@ -30,6 +30,8 @@ using qptrdiff = std::ptrdiff_t;
 using qintptr = std::intptr_t;
 using quintptr = std::uintptr_t;
 using qreal = double;
+// A pointer to a function of any type, as QLibrary::resolve() returns it; cast it before the call.
+using QFunctionPointer = void (*)();
 using uchar = unsigned char;
 using ushort = unsigned short;
 using uint = unsigned int;

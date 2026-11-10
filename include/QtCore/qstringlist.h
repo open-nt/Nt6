@@ -22,9 +22,10 @@
     \differences
     QStringList derives from QList<QString> as in Qt 6. contains(),
     indexOf(), filter() and replaceInStrings() take plain QString arguments
-    only: there are no QStringView, QLatin1StringView or QRegularExpression
-    overloads. \c lastIndexOf() is the inherited QList one and has no case
-    sensitivity argument. join() accepts a QString or QChar separator only.
+    only, apart from the QRegularExpression overloads: there are no QStringView
+    or QLatin1StringView overloads. \c lastIndexOf() with a string is the inherited QList
+    one and has no case sensitivity argument. contains() with a QRegularExpression is an
+    Nt addition. join() accepts a QString or QChar separator only.
     \enddifferences
 
     \sa QString, QList
@@ -115,6 +116,70 @@ public:
             if (at(i).compare(s, cs) == 0)
                 return i;
         return -1;
+    }
+    /*!
+        \overload
+
+        Returns \c true if a string in the list matches the regular expression \a re; otherwise
+        returns \c false.
+
+        \sa indexOf()
+    */
+    bool contains(const QRegularExpression &re) const { return indexOf(re) != -1; }
+    /*!
+        \overload
+
+        Returns the index position of the first string in the list that matches the regular
+        expression \a re, searching forward from index position \a from, or -1 if there is none.
+
+        \sa lastIndexOf(), contains()
+    */
+    qsizetype indexOf(const QRegularExpression &re, qsizetype from = 0) const {
+        for (qsizetype i = from < 0 ? 0 : from; i < size(); ++i)
+            if (at(i).contains(re))
+                return i;
+        return -1;
+    }
+    using QList<QString>::lastIndexOf;
+    /*!
+        Returns the index position of the last string in the list that matches the regular
+        expression \a re, searching backward from index position \a from, or -1 if there is none.
+        A negative \a from counts from the end of the list.
+
+        \sa indexOf()
+    */
+    qsizetype lastIndexOf(const QRegularExpression &re, qsizetype from = -1) const {
+        for (qsizetype i = from < 0 ? from + size() : (from < size() ? from : size() - 1); i >= 0; --i)
+            if (at(i).contains(re))
+                return i;
+        return -1;
+    }
+    /*!
+        \overload
+
+        Returns a list of the strings that match the regular expression \a re.
+
+        \sa QString::contains()
+    */
+    QStringList filter(const QRegularExpression &re) const {
+        QStringList r;
+        for (const QString &s : *this)
+            if (s.contains(re))
+                r.append(s);
+        return r;
+    }
+    /*!
+        \overload
+
+        Replaces every match of the regular expression \a re with \a after in each string of the
+        list, and returns a reference to the list.
+
+        \sa QString::replace()
+    */
+    QStringList &replaceInStrings(const QRegularExpression &re, const QString &after) {
+        for (QString &s : *this)
+            s.replace(re, after);
+        return *this;
     }
     /*!
         Returns a list of the strings that contain the substring \a needle,

@@ -12,6 +12,8 @@
 
 class QString;
 class QStringList;
+class QRegularExpression;
+class QRegularExpressionMatch;
 
 /*!
     \class QLatin1StringView
@@ -112,6 +114,26 @@ public:
         \value NormalizationForm_KC Compatibility decomposition followed by canonical composition.
     */
     enum NormalizationForm { NormalizationForm_D, NormalizationForm_C, NormalizationForm_KD, NormalizationForm_KC };
+    /*!
+        \enum QString::SectionFlag
+
+        Flags for the section() overload that takes a QRegularExpression. They are stored in a
+        SectionFlags value, a typedef for \c{QFlags<SectionFlag>}.
+
+        \value SectionDefault Empty fields count and the separators are not included.
+        \value SectionSkipEmpty Empty fields are not counted.
+        \value SectionIncludeLeadingSep The separator before the first field is included.
+        \value SectionIncludeTrailingSep The separator after the last field is included.
+        \value SectionCaseInsensitiveSeps The separator expression matches case-insensitively.
+    */
+    enum SectionFlag {
+        SectionDefault = 0x00,
+        SectionSkipEmpty = 0x01,
+        SectionIncludeLeadingSep = 0x02,
+        SectionIncludeTrailingSep = 0x04,
+        SectionCaseInsensitiveSeps = 0x08
+    };
+    Q_DECLARE_FLAGS(SectionFlags, SectionFlag)
     /*!
         A mutable random-access iterator over the characters of the string. It is a plain \c{QChar *}.
     */
@@ -556,6 +578,7 @@ public:
     QString rightJustified(qsizetype width, QChar fill = QChar(u' '), bool truncate = false) const;
     QString section(QChar sep, qsizetype start, qsizetype end = -1) const;
     QString section(const QString &sep, qsizetype start, qsizetype end = -1) const;
+    QString section(const QRegularExpression &re, qsizetype start, qsizetype end = -1, SectionFlags flags = SectionDefault) const;
 
     // --- searching ---
     bool startsWith(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
@@ -616,6 +639,14 @@ public:
     qsizetype count(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return count(QString(c), cs); }
     QStringList split(const QString &sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     QStringList split(QChar sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    QStringList split(const QRegularExpression &sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts) const;
+    qsizetype indexOf(const QRegularExpression &re, qsizetype from = 0, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype lastIndexOf(const QRegularExpression &re, qsizetype from, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype lastIndexOf(const QRegularExpression &re, QRegularExpressionMatch *rmatch = nullptr) const;
+    bool contains(const QRegularExpression &re, QRegularExpressionMatch *rmatch = nullptr) const;
+    qsizetype count(const QRegularExpression &re) const;
+    QString &remove(const QRegularExpression &re);
+    QString &replace(const QRegularExpression &re, const QString &after);
 
     // --- formatting / numbers ---
     QString arg(const QString &a, int fieldWidth = 0, QChar fillChar = QChar(u' ')) const;
@@ -900,6 +931,8 @@ private:
     std::u16string d;
     bool m_null = true;
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(QString::SectionFlags)
 
 inline std::size_t qHash(const QString &s, std::size_t seed = 0) noexcept {
     return std::hash<std::u16string>{}(s.u16string()) ^ (seed * 0x9e3779b9u);

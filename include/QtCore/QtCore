@@ -47,6 +47,7 @@
 #include "qpoint.h"
 #include "qrandom.h"
 #include "qrect.h"
+#include "qregularexpression.h"
 #include "qsavefile.h"
 #include "qsettings.h"
 #include "qsize.h"

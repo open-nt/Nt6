@@ -53,6 +53,11 @@ add_library(NtCore
     src/qobject.cpp
     src/qprocess.cpp
     src/qrandom.cpp
+    src/qregexcompile.cpp
+    src/qregexexec.cpp
+    src/qregexunicode.cpp
+    src/qregexunicodedata.cpp
+    src/qregularexpression.cpp
     src/qrunnable.cpp
     src/qsavefile.cpp
     src/qsettings.cpp
@@ -284,6 +289,11 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_settings_tests PRIVATE Nt::Core)
     add_test(NAME nt_settings_tests COMMAND nt_settings_tests)
     nt_set_compile_options(nt_settings_tests)
+
+    add_executable(nt_regex_tests tests/test_regex.cpp)
+    target_link_libraries(nt_regex_tests PRIVATE Nt::Core)
+    add_test(NAME nt_regex_tests COMMAND nt_regex_tests)
+    nt_set_compile_options(nt_regex_tests)
 
     add_test(NAME ndoc_tests
              COMMAND ${CMAKE_COMMAND}

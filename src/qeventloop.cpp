@@ -35,8 +35,8 @@ struct QEventLoop::Data {
 
     \differences
     \c ExcludeUserInputEvents and \c ExcludeSocketNotifiers are accepted but
-    ignored, and there is no \c QAbstractEventDispatcher. A loop always runs
-    the event dispatcher of the thread that calls exec() or processEvents().
+    ignored. A loop always runs the event dispatcher of the thread that calls
+    exec() or processEvents(), and that dispatcher cannot be replaced.
     \enddifferences
 
     \sa QCoreApplication, QTimer, QSocketNotifier

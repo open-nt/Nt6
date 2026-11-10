@@ -31,9 +31,7 @@ class QLocale;
 
     \differences
     The files listed as dependencies of a \c .qm file are not loaded, and the
-    obsolete message tags of very old files are not understood. There is no
-    resource system, so file names starting with \c{:} are ordinary paths;
-    use a QDir search path prefix instead.
+    obsolete message tags of very old files are not understood.
     \enddifferences
 
     \sa QCoreApplication::installTranslator()

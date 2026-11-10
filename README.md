@@ -132,7 +132,7 @@ Qt Core has roughly 300 classes; Nt Core has about 180 of them, chosen first for
 | Processes and formats | `QProcess`, `QProcessEnvironment`, `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument` |
 | Item models | `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QModelIndex`, `QPersistentModelIndex`, `QStringListModel`, `QItemSelectionModel`, `QItemSelection`, `QItemSelectionRange`, `QAbstractProxyModel`, `QIdentityProxyModel`, `QSortFilterProxyModel` (filtering, sorting, recursive filtering), `QTransposeProxyModel`, `QConcatenateTablesProxyModel`, `QMimeData` |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
-| Utilities | `QUrl` (`fromUserInput()`, internationalized host names in Punycode) and `QUrlQuery`, `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak, BLAKE2b, BLAKE2s), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption`, `QSysInfo`, `QOperatingSystemVersion`, `QLibraryInfo`, `QGlobalStatic`, `qfloat16`, `QBEInteger`/`QLEInteger` |
+| Utilities | `QUrl` (`fromUserInput()`, internationalized host names in Punycode) and `QUrlQuery`, `QUuid`, `QVersionNumber`, `QRandomGenerator`, `QCryptographicHash` (MD4, MD5, SHA-1, SHA-2, SHA-3, Keccak, BLAKE2b, BLAKE2s), `QMessageAuthenticationCode`, `QCommandLineParser`, `QCommandLineOption`, `QSysInfo`, `QOperatingSystemVersion`, `QLibraryInfo`, `QGlobalStatic`, `QApplicationStatic` (`Q_APPLICATION_STATIC()`), `qfloat16`, `QBEInteger`/`QLEInteger` |
 | Global functions and macros | the environment (`qgetenv()`, `qputenv()`, `qEnvironmentVariable()` and the rest), `<QtMath>` (`qSin()`, `qDegreesToRadians()`, `qNextPowerOfTwo()`, `M_PI`), `<QtNumeric>` (`qIsNaN()`, `qInf()`, `qFloatDistance()`, `qAddOverflow()`), `<QtAlgorithms>` (`qPopulationCount()`, `qCountTrailingZeroBits()`), `qAsConst()`, `qExchange()`, `qErrnoWarning()`, `qAddPostRoutine()` and `Q_COREAPP_STARTUP_FUNCTION()`, `Q_UNREACHABLE()`, `Q_ASSUME()`, `Q_ASSERT_X()`, `Q_CHECK_PTR()`, `Q_FALLTHROUGH()`, `Q_DISABLE_COPY_MOVE()`, `Q_DECLARE_INTERFACE()`, `Q_DECLARE_TYPEINFO()`, `Q_STATIC_LOGGING_CATEGORY()` and the `Q_DECL_*` keywords |
 
 Known limits: `QDataStream` has no 64-bit container sizes; `QDir` name filters are case-insensitive; `QTimeZone` has no localized names (no CLDR/ICU); `QList<bool>` is rejected at compile time; no bindable properties (`QProperty`). Each class's reference page lists how it differs from Qt.
@@ -140,7 +140,6 @@ Known limits: `QDataStream` has no 64-bit container sizes; `QDir` name filters a
 ### Nt Core: not implemented yet
 
 - **Meta:** `QProperty` and bindable properties
-- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`
 - **Plugins and IPC:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
 - **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`
 - **Concurrency:** `QFutureIterator`, custom event dispatchers (`QThread::setEventDispatcher()`) and native event filters; QtConcurrent is in Nt Concurrent, below

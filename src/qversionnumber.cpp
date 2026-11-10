@@ -18,7 +18,9 @@
     \differences
     The segments are always held in a QList<int>; there is no constructor
     taking a \c QSpan or a \c QVarLengthArray. A segment that does not fit in
-    an \c int ends parsing in fromString().
+    an \c int ends parsing in fromString(). compare() and the comparison
+    operators treat a missing trailing segment as 0, so \c 1.2 and \c 1.2.0
+    are equal; in Qt the version with more segments is the greater one.
     \enddifferences
 
     \sa QVersionNumber::compare()

@@ -639,7 +639,7 @@ struct QSettings::Private {
     processes, may use the same file. Each object must be used from one thread at a time.
 
     \differences
-    The keys and group names are \c{const QString &}, as Nt has no QAnyStringView. The registry
+    The keys and group names are \c{const QString &} and not QAnyStringView. The registry
     formats \c Registry32Format and \c Registry64Format are only enumerators: on Linux they make
     status() return \c AccessError, as does any unregistered custom format. \c NativeFormat is
     the INI format, and the macOS property lists are not supported. The keys of the INI format

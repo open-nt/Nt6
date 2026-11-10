@@ -3,8 +3,11 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qflags.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
+
+#include <utility>
 
 /*!
     \class QIODeviceBase
@@ -62,6 +65,8 @@ public:
     Q_DECLARE_FLAGS(OpenMode, OpenModeFlag)
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS(QIODeviceBase::OpenMode)
+
+class QProcess;
 
 class QIODevice : public QObject, public QIODeviceBase {
     Q_OBJECT
@@ -184,6 +189,27 @@ public:
         \sa startTransaction()
     */
     bool isTransactionStarted() const { return m_transaction; }
+
+    int readChannelCount() const;
+    int writeChannelCount() const;
+    /*!
+        \since 5.7
+        Returns the index of the current read channel, the one that read(),
+        readLine(), peek() and bytesAvailable() work on.
+
+        \sa setCurrentReadChannel(), readChannelCount()
+    */
+    int currentReadChannel() const { return m_readChannel; }
+    void setCurrentReadChannel(int channel);
+    /*!
+        \since 5.7
+        Returns the index of the current write channel, the one that write()
+        sends to.
+
+        \sa setCurrentWriteChannel(), writeChannelCount()
+    */
+    int currentWriteChannel() const { return m_writeChannel; }
+    void setCurrentWriteChannel(int channel);
     qint64 write(const char *data, qint64 maxSize);
     /*!
         \overload
@@ -231,6 +257,26 @@ signals:
         \sa readyRead()
     */
     void bytesWritten(qint64 bytes) { emitSignal(&QIODevice::bytesWritten, bytes); }
+    /*!
+        \since 5.7
+        This signal is emitted every time a payload of data has been written
+        to the device. The \a bytes argument is the number of bytes that were
+        written, and \a channel is the index of the channel they went to.
+        Unlike bytesWritten(), it is emitted whatever the current write
+        channel is.
+
+        \sa bytesWritten(), channelReadyRead()
+    */
+    void channelBytesWritten(int channel, qint64 bytes) { emitSignal(&QIODevice::channelBytesWritten, channel, bytes); }
+    /*!
+        \since 5.7
+        This signal is emitted when new data is available for reading on the
+        channel with the index \a channel. Unlike readyRead(), it is emitted
+        whatever the current read channel is.
+
+        \sa readyRead(), channelBytesWritten()
+    */
+    void channelReadyRead(int channel) { emitSignal(&QIODevice::channelReadyRead, channel); }
     /*!
         This signal is emitted when the input (reading) stream is closed in
         this device. It is only emitted by subclasses that support it.
@@ -282,13 +328,19 @@ protected:
     void setErrorString(const QString &str) { m_error = str; }
 
 private:
+    friend class QProcess; // has two read channels
     qint64 bufferedBytes() const { return m_buf.size() - m_bufPos; }
     void compactBuffer();
     void keepForTransaction(const char *data, qint64 n);
 
     OpenMode m_mode = NotOpen;
     QString m_error;
-    QByteArray m_buf; // look-ahead data for sequential devices
+    QByteArray m_buf;                           // look-ahead data for sequential devices, of the current read channel
+    QList<std::pair<int, QByteArray>> m_parked; // ...and of the other channels that have some
+    int m_readChannels = 1;                     // while open for reading
+    int m_writeChannels = 1;                    // while open for writing
+    int m_readChannel = 0;
+    int m_writeChannel = 0;
     qint64 m_bufPos = 0;
     qint64 m_transactionPos = 0; // buffer index (sequential) or device position (random access)
     bool m_transaction = false;

@@ -4,8 +4,27 @@
 #include <QtCore/qglobal.h>
 
 #include <functional>
+#include <type_traits>
 
 class QString;
+
+namespace QtPrivate {
+// The UTF-16 form of one code point, returned by QChar::fromUcs4(): one or two code units.
+struct Ucs4Chars {
+    char16_t chars[2];
+    bool pair;
+    constexpr qsizetype size() const noexcept { return pair ? 2 : 1; }
+    constexpr const char16_t *data() const noexcept { return chars; }
+    constexpr const char16_t *begin() const noexcept { return chars; }
+    constexpr const char16_t *end() const noexcept { return chars + size(); }
+    // Converts to QStringView (or any view constructible from a pointer and a size) without
+    // including it here.
+    template <typename View, typename = std::enable_if_t<std::is_constructible_v<View, const char16_t *, qsizetype>>>
+    constexpr operator View() const noexcept {
+        return View(chars, size());
+    }
+};
+} // namespace QtPrivate
 
 /*!
     \class QLatin1Char
@@ -16,8 +35,7 @@ class QString;
     converted to a QChar by interpreting the byte as a Latin-1 code point.
 
     \differences
-    Only the constructor, toLatin1() and unicode() are provided. There are no
-    comparison operators.
+    None.
     \enddifferences
 
     \sa QChar, QLatin1StringView
@@ -41,6 +59,34 @@ public:
     */
     constexpr char16_t unicode() const noexcept { return static_cast<unsigned char>(ch); }
 
+    // Comparisons, by code point (so 'é' sorts after 'z'), with another QLatin1Char or a char.
+    friend constexpr bool operator==(QLatin1Char lhs, QLatin1Char rhs) noexcept {
+        return lhs.unicode() == rhs.unicode();
+    }
+    friend constexpr bool operator==(char lhs, QLatin1Char rhs) noexcept { return QLatin1Char(lhs) == rhs; }
+    friend constexpr bool operator==(QLatin1Char lhs, char rhs) noexcept { return lhs == QLatin1Char(rhs); }
+    friend constexpr bool operator!=(QLatin1Char lhs, QLatin1Char rhs) noexcept {
+        return lhs.unicode() != rhs.unicode();
+    }
+    friend constexpr bool operator!=(char lhs, QLatin1Char rhs) noexcept { return QLatin1Char(lhs) != rhs; }
+    friend constexpr bool operator!=(QLatin1Char lhs, char rhs) noexcept { return lhs != QLatin1Char(rhs); }
+    friend constexpr bool operator<(QLatin1Char lhs, QLatin1Char rhs) noexcept { return lhs.unicode() < rhs.unicode(); }
+    friend constexpr bool operator<(char lhs, QLatin1Char rhs) noexcept { return QLatin1Char(lhs) < rhs; }
+    friend constexpr bool operator<(QLatin1Char lhs, char rhs) noexcept { return lhs < QLatin1Char(rhs); }
+    friend constexpr bool operator>(QLatin1Char lhs, QLatin1Char rhs) noexcept { return lhs.unicode() > rhs.unicode(); }
+    friend constexpr bool operator>(char lhs, QLatin1Char rhs) noexcept { return QLatin1Char(lhs) > rhs; }
+    friend constexpr bool operator>(QLatin1Char lhs, char rhs) noexcept { return lhs > QLatin1Char(rhs); }
+    friend constexpr bool operator<=(QLatin1Char lhs, QLatin1Char rhs) noexcept {
+        return lhs.unicode() <= rhs.unicode();
+    }
+    friend constexpr bool operator<=(char lhs, QLatin1Char rhs) noexcept { return QLatin1Char(lhs) <= rhs; }
+    friend constexpr bool operator<=(QLatin1Char lhs, char rhs) noexcept { return lhs <= QLatin1Char(rhs); }
+    friend constexpr bool operator>=(QLatin1Char lhs, QLatin1Char rhs) noexcept {
+        return lhs.unicode() >= rhs.unicode();
+    }
+    friend constexpr bool operator>=(char lhs, QLatin1Char rhs) noexcept { return QLatin1Char(lhs) >= rhs; }
+    friend constexpr bool operator>=(QLatin1Char lhs, char rhs) noexcept { return lhs >= QLatin1Char(rhs); }
+
 private:
     char ch;
 };
@@ -62,6 +108,10 @@ public:
         \value ReplacementCharacter U+FFFD, used in place of invalid or unrepresentable input.
         \value ObjectReplacementCharacter U+FFFC, the object replacement character.
         \value ByteOrderMark U+FEFF, the byte order mark.
+        \value ByteOrderSwapped U+FFFE, a byte order mark read with the wrong byte order.
+        \value ParagraphSeparator U+2029, the paragraph separator.
+        \value LineSeparator U+2028, the line separator.
+        \value VisualTabCharacter U+2192, the arrow some editors draw for a tab.
         \value LastValidCodePoint U+10FFFF, the last valid Unicode code point.
     */
     enum SpecialCharacter {
@@ -75,6 +125,10 @@ public:
         ReplacementCharacter = 0xfffd,
         ObjectReplacementCharacter = 0xfffc,
         ByteOrderMark = 0xfeff,
+        ByteOrderSwapped = 0xfffe,
+        ParagraphSeparator = 0x2029,
+        LineSeparator = 0x2028,
+        VisualTabCharacter = 0x2192,
         LastValidCodePoint = 0x10ffff
     };
 
@@ -320,6 +374,539 @@ public:
     static Decomposition decompositionTag(char32_t ucs4) noexcept;
     static QString decomposition(char32_t ucs4);
     static unsigned char combiningClass(char32_t ucs4) noexcept;
+
+    /*!
+        \enum QChar::Direction
+
+        The bidirectional class of a character, from the Unicode Character
+        Database, used by the bidirectional algorithm (UAX #9).
+
+        \value DirL Left-to-right.
+        \value DirR Right-to-left.
+        \value DirEN European number.
+        \value DirES European number separator.
+        \value DirET European number terminator.
+        \value DirAN Arabic number.
+        \value DirCS Common number separator.
+        \value DirB Paragraph separator.
+        \value DirS Segment separator, such as a tab.
+        \value DirWS Whitespace.
+        \value DirON Other neutral.
+        \value DirLRE Left-to-right embedding.
+        \value DirLRO Left-to-right override.
+        \value DirAL Right-to-left Arabic letter.
+        \value DirRLE Right-to-left embedding.
+        \value DirRLO Right-to-left override.
+        \value DirPDF Pop directional format.
+        \value DirNSM Nonspacing mark.
+        \value DirBN Boundary neutral.
+        \value DirLRI Left-to-right isolate.
+        \value DirRLI Right-to-left isolate.
+        \value DirFSI First strong isolate.
+        \value DirPDI Pop directional isolate.
+    */
+    enum Direction {
+        DirL,
+        DirR,
+        DirEN,
+        DirES,
+        DirET,
+        DirAN,
+        DirCS,
+        DirB,
+        DirS,
+        DirWS,
+        DirON,
+        DirLRE,
+        DirLRO,
+        DirAL,
+        DirRLE,
+        DirRLO,
+        DirPDF,
+        DirNSM,
+        DirBN,
+        DirLRI,
+        DirRLI,
+        DirFSI,
+        DirPDI
+    };
+
+    /*!
+        \enum QChar::JoiningType
+
+        How a character joins its neighbours in cursive scripts such as Arabic
+        and Syriac (ArabicShaping.txt).
+
+        \value Joining_None The character does not join.
+        \value Joining_Causing The character causes joining, like U+200D ZERO WIDTH JOINER.
+        \value Joining_Dual The character joins on both sides.
+        \value Joining_Right The character joins on its right side only.
+        \value Joining_Left The character joins on its left side only.
+        \value Joining_Transparent The character does not affect joining, like most combining marks.
+    */
+    enum JoiningType { Joining_None, Joining_Causing, Joining_Dual, Joining_Right, Joining_Left, Joining_Transparent };
+
+    /*!
+        \enum QChar::Script
+
+        The script of a character (Scripts.txt of the Unicode Character
+        Database).
+
+        \value Script_Unknown Unassigned, private-use and other characters that belong to no script.
+        \value Script_Inherited Combining marks that take the script of the character they follow.
+        \value Script_Common Characters used by several scripts, such as punctuation, digits and symbols.
+        \value Script_Adlam Adlam.
+        \value Script_Ahom Ahom.
+        \value Script_AnatolianHieroglyphs Anatolian Hieroglyphs.
+        \value Script_Arabic Arabic.
+        \value Script_Armenian Armenian.
+        \value Script_Avestan Avestan.
+        \value Script_Balinese Balinese.
+        \value Script_Bamum Bamum.
+        \value Script_BassaVah Bassa Vah.
+        \value Script_Batak Batak.
+        \value Script_Bengali Bengali.
+        \value Script_Bhaiksuki Bhaiksuki.
+        \value Script_Bopomofo Bopomofo.
+        \value Script_Brahmi Brahmi.
+        \value Script_Braille Braille.
+        \value Script_Buginese Buginese.
+        \value Script_Buhid Buhid.
+        \value Script_CanadianAboriginal Canadian Aboriginal.
+        \value Script_Carian Carian.
+        \value Script_CaucasianAlbanian Caucasian Albanian.
+        \value Script_Chakma Chakma.
+        \value Script_Cham Cham.
+        \value Script_Cherokee Cherokee.
+        \value Script_Chorasmian Chorasmian.
+        \value Script_Coptic Coptic.
+        \value Script_Cuneiform Cuneiform.
+        \value Script_Cypriot Cypriot.
+        \value Script_CyproMinoan Cypro Minoan.
+        \value Script_Cyrillic Cyrillic.
+        \value Script_Deseret Deseret.
+        \value Script_Devanagari Devanagari.
+        \value Script_DivesAkuru Dives Akuru.
+        \value Script_Dogra Dogra.
+        \value Script_Duployan Duployan.
+        \value Script_EgyptianHieroglyphs Egyptian Hieroglyphs.
+        \value Script_Elbasan Elbasan.
+        \value Script_Elymaic Elymaic.
+        \value Script_Ethiopic Ethiopic.
+        \value Script_Garay Garay.
+        \value Script_Georgian Georgian.
+        \value Script_Glagolitic Glagolitic.
+        \value Script_Gothic Gothic.
+        \value Script_Grantha Grantha.
+        \value Script_Greek Greek.
+        \value Script_Gujarati Gujarati.
+        \value Script_GunjalaGondi Gunjala Gondi.
+        \value Script_Gurmukhi Gurmukhi.
+        \value Script_GurungKhema Gurung Khema.
+        \value Script_Han Han.
+        \value Script_Hangul Hangul.
+        \value Script_HanifiRohingya Hanifi Rohingya.
+        \value Script_Hanunoo Hanunoo.
+        \value Script_Hatran Hatran.
+        \value Script_Hebrew Hebrew.
+        \value Script_Hiragana Hiragana.
+        \value Script_ImperialAramaic Imperial Aramaic.
+        \value Script_InscriptionalPahlavi Inscriptional Pahlavi.
+        \value Script_InscriptionalParthian Inscriptional Parthian.
+        \value Script_Javanese Javanese.
+        \value Script_Kaithi Kaithi.
+        \value Script_Kannada Kannada.
+        \value Script_Katakana Katakana.
+        \value Script_Kawi Kawi.
+        \value Script_KayahLi Kayah Li.
+        \value Script_Kharoshthi Kharoshthi.
+        \value Script_KhitanSmallScript Khitan Small Script.
+        \value Script_Khmer Khmer.
+        \value Script_Khojki Khojki.
+        \value Script_Khudawadi Khudawadi.
+        \value Script_KiratRai Kirat Rai.
+        \value Script_Lao Lao.
+        \value Script_Latin Latin.
+        \value Script_Lepcha Lepcha.
+        \value Script_Limbu Limbu.
+        \value Script_LinearA Linear A.
+        \value Script_LinearB Linear B.
+        \value Script_Lisu Lisu.
+        \value Script_Lycian Lycian.
+        \value Script_Lydian Lydian.
+        \value Script_Mahajani Mahajani.
+        \value Script_Makasar Makasar.
+        \value Script_Malayalam Malayalam.
+        \value Script_Mandaic Mandaic.
+        \value Script_Manichaean Manichaean.
+        \value Script_Marchen Marchen.
+        \value Script_MasaramGondi Masaram Gondi.
+        \value Script_Medefaidrin Medefaidrin.
+        \value Script_MeeteiMayek Meetei Mayek.
+        \value Script_MendeKikakui Mende Kikakui.
+        \value Script_MeroiticCursive Meroitic Cursive.
+        \value Script_MeroiticHieroglyphs Meroitic Hieroglyphs.
+        \value Script_Miao Miao.
+        \value Script_Modi Modi.
+        \value Script_Mongolian Mongolian.
+        \value Script_Mro Mro.
+        \value Script_Multani Multani.
+        \value Script_Myanmar Myanmar.
+        \value Script_Nabataean Nabataean.
+        \value Script_NagMundari Nag Mundari.
+        \value Script_Nandinagari Nandinagari.
+        \value Script_NewTaiLue New Tai Lue.
+        \value Script_Newa Newa.
+        \value Script_Nko Nko.
+        \value Script_Nushu Nushu.
+        \value Script_NyiakengPuachueHmong Nyiakeng Puachue Hmong.
+        \value Script_Ogham Ogham.
+        \value Script_OlChiki Ol Chiki.
+        \value Script_OlOnal Ol Onal.
+        \value Script_OldHungarian Old Hungarian.
+        \value Script_OldItalic Old Italic.
+        \value Script_OldNorthArabian Old North Arabian.
+        \value Script_OldPermic Old Permic.
+        \value Script_OldPersian Old Persian.
+        \value Script_OldSogdian Old Sogdian.
+        \value Script_OldSouthArabian Old South Arabian.
+        \value Script_OldTurkic Old Turkic.
+        \value Script_OldUyghur Old Uyghur.
+        \value Script_Oriya Oriya.
+        \value Script_Osage Osage.
+        \value Script_Osmanya Osmanya.
+        \value Script_PahawhHmong Pahawh Hmong.
+        \value Script_Palmyrene Palmyrene.
+        \value Script_PauCinHau Pau Cin Hau.
+        \value Script_PhagsPa Phags Pa.
+        \value Script_Phoenician Phoenician.
+        \value Script_PsalterPahlavi Psalter Pahlavi.
+        \value Script_Rejang Rejang.
+        \value Script_Runic Runic.
+        \value Script_Samaritan Samaritan.
+        \value Script_Saurashtra Saurashtra.
+        \value Script_Sharada Sharada.
+        \value Script_Shavian Shavian.
+        \value Script_Siddham Siddham.
+        \value Script_SignWriting SignWriting.
+        \value Script_Sinhala Sinhala.
+        \value Script_Sogdian Sogdian.
+        \value Script_SoraSompeng Sora Sompeng.
+        \value Script_Soyombo Soyombo.
+        \value Script_Sundanese Sundanese.
+        \value Script_Sunuwar Sunuwar.
+        \value Script_SylotiNagri Syloti Nagri.
+        \value Script_Syriac Syriac.
+        \value Script_Tagalog Tagalog.
+        \value Script_Tagbanwa Tagbanwa.
+        \value Script_TaiLe Tai Le.
+        \value Script_TaiTham Tai Tham.
+        \value Script_TaiViet Tai Viet.
+        \value Script_Takri Takri.
+        \value Script_Tamil Tamil.
+        \value Script_Tangsa Tangsa.
+        \value Script_Tangut Tangut.
+        \value Script_Telugu Telugu.
+        \value Script_Thaana Thaana.
+        \value Script_Thai Thai.
+        \value Script_Tibetan Tibetan.
+        \value Script_Tifinagh Tifinagh.
+        \value Script_Tirhuta Tirhuta.
+        \value Script_Todhri Todhri.
+        \value Script_Toto Toto.
+        \value Script_TuluTigalari Tulu Tigalari.
+        \value Script_Ugaritic Ugaritic.
+        \value Script_Vai Vai.
+        \value Script_Vithkuqi Vithkuqi.
+        \value Script_Wancho Wancho.
+        \value Script_WarangCiti Warang Citi.
+        \value Script_Yezidi Yezidi.
+        \value Script_Yi Yi.
+        \value Script_ZanabazarSquare Zanabazar Square.
+        \value ScriptCount The number of scripts; not a script.
+    */
+    enum Script {
+        Script_Unknown,
+        Script_Inherited,
+        Script_Common,
+        Script_Adlam,
+        Script_Ahom,
+        Script_AnatolianHieroglyphs,
+        Script_Arabic,
+        Script_Armenian,
+        Script_Avestan,
+        Script_Balinese,
+        Script_Bamum,
+        Script_BassaVah,
+        Script_Batak,
+        Script_Bengali,
+        Script_Bhaiksuki,
+        Script_Bopomofo,
+        Script_Brahmi,
+        Script_Braille,
+        Script_Buginese,
+        Script_Buhid,
+        Script_CanadianAboriginal,
+        Script_Carian,
+        Script_CaucasianAlbanian,
+        Script_Chakma,
+        Script_Cham,
+        Script_Cherokee,
+        Script_Chorasmian,
+        Script_Coptic,
+        Script_Cuneiform,
+        Script_Cypriot,
+        Script_CyproMinoan,
+        Script_Cyrillic,
+        Script_Deseret,
+        Script_Devanagari,
+        Script_DivesAkuru,
+        Script_Dogra,
+        Script_Duployan,
+        Script_EgyptianHieroglyphs,
+        Script_Elbasan,
+        Script_Elymaic,
+        Script_Ethiopic,
+        Script_Garay,
+        Script_Georgian,
+        Script_Glagolitic,
+        Script_Gothic,
+        Script_Grantha,
+        Script_Greek,
+        Script_Gujarati,
+        Script_GunjalaGondi,
+        Script_Gurmukhi,
+        Script_GurungKhema,
+        Script_Han,
+        Script_Hangul,
+        Script_HanifiRohingya,
+        Script_Hanunoo,
+        Script_Hatran,
+        Script_Hebrew,
+        Script_Hiragana,
+        Script_ImperialAramaic,
+        Script_InscriptionalPahlavi,
+        Script_InscriptionalParthian,
+        Script_Javanese,
+        Script_Kaithi,
+        Script_Kannada,
+        Script_Katakana,
+        Script_Kawi,
+        Script_KayahLi,
+        Script_Kharoshthi,
+        Script_KhitanSmallScript,
+        Script_Khmer,
+        Script_Khojki,
+        Script_Khudawadi,
+        Script_KiratRai,
+        Script_Lao,
+        Script_Latin,
+        Script_Lepcha,
+        Script_Limbu,
+        Script_LinearA,
+        Script_LinearB,
+        Script_Lisu,
+        Script_Lycian,
+        Script_Lydian,
+        Script_Mahajani,
+        Script_Makasar,
+        Script_Malayalam,
+        Script_Mandaic,
+        Script_Manichaean,
+        Script_Marchen,
+        Script_MasaramGondi,
+        Script_Medefaidrin,
+        Script_MeeteiMayek,
+        Script_MendeKikakui,
+        Script_MeroiticCursive,
+        Script_MeroiticHieroglyphs,
+        Script_Miao,
+        Script_Modi,
+        Script_Mongolian,
+        Script_Mro,
+        Script_Multani,
+        Script_Myanmar,
+        Script_Nabataean,
+        Script_NagMundari,
+        Script_Nandinagari,
+        Script_NewTaiLue,
+        Script_Newa,
+        Script_Nko,
+        Script_Nushu,
+        Script_NyiakengPuachueHmong,
+        Script_Ogham,
+        Script_OlChiki,
+        Script_OlOnal,
+        Script_OldHungarian,
+        Script_OldItalic,
+        Script_OldNorthArabian,
+        Script_OldPermic,
+        Script_OldPersian,
+        Script_OldSogdian,
+        Script_OldSouthArabian,
+        Script_OldTurkic,
+        Script_OldUyghur,
+        Script_Oriya,
+        Script_Osage,
+        Script_Osmanya,
+        Script_PahawhHmong,
+        Script_Palmyrene,
+        Script_PauCinHau,
+        Script_PhagsPa,
+        Script_Phoenician,
+        Script_PsalterPahlavi,
+        Script_Rejang,
+        Script_Runic,
+        Script_Samaritan,
+        Script_Saurashtra,
+        Script_Sharada,
+        Script_Shavian,
+        Script_Siddham,
+        Script_SignWriting,
+        Script_Sinhala,
+        Script_Sogdian,
+        Script_SoraSompeng,
+        Script_Soyombo,
+        Script_Sundanese,
+        Script_Sunuwar,
+        Script_SylotiNagri,
+        Script_Syriac,
+        Script_Tagalog,
+        Script_Tagbanwa,
+        Script_TaiLe,
+        Script_TaiTham,
+        Script_TaiViet,
+        Script_Takri,
+        Script_Tamil,
+        Script_Tangsa,
+        Script_Tangut,
+        Script_Telugu,
+        Script_Thaana,
+        Script_Thai,
+        Script_Tibetan,
+        Script_Tifinagh,
+        Script_Tirhuta,
+        Script_Todhri,
+        Script_Toto,
+        Script_TuluTigalari,
+        Script_Ugaritic,
+        Script_Vai,
+        Script_Vithkuqi,
+        Script_Wancho,
+        Script_WarangCiti,
+        Script_Yezidi,
+        Script_Yi,
+        Script_ZanabazarSquare,
+        ScriptCount
+    };
+
+    /*!
+        \enum QChar::UnicodeVersion
+
+        The version of Unicode that assigned a character.
+
+        \value Unicode_Unassigned The character is not assigned.
+        \value Unicode_1_1 Version 1.1.
+        \value Unicode_2_0 Version 2.0.
+        \value Unicode_2_1_2 Version 2.1.2.
+        \value Unicode_3_0 Version 3.0.
+        \value Unicode_3_1 Version 3.1.
+        \value Unicode_3_2 Version 3.2.
+        \value Unicode_4_0 Version 4.0.
+        \value Unicode_4_1 Version 4.1.
+        \value Unicode_5_0 Version 5.0.
+        \value Unicode_5_1 Version 5.1.
+        \value Unicode_5_2 Version 5.2.
+        \value Unicode_6_0 Version 6.0.
+        \value Unicode_6_1 Version 6.1.
+        \value Unicode_6_2 Version 6.2.
+        \value Unicode_6_3 Version 6.3.
+        \value Unicode_7_0 Version 7.0.
+        \value Unicode_8_0 Version 8.0.
+        \value Unicode_9_0 Version 9.0.
+        \value Unicode_10_0 Version 10.0.
+        \value Unicode_11_0 Version 11.0.
+        \value Unicode_12_0 Version 12.0.
+        \value Unicode_12_1 Version 12.1.
+        \value Unicode_13_0 Version 13.0.
+        \value Unicode_14_0 Version 14.0.
+        \value Unicode_15_0 Version 15.0.
+        \value Unicode_15_1 Version 15.1.
+        \value Unicode_16_0 Version 16.0.
+    */
+    enum UnicodeVersion {
+        Unicode_Unassigned,
+        Unicode_1_1,
+        Unicode_2_0,
+        Unicode_2_1_2,
+        Unicode_3_0,
+        Unicode_3_1,
+        Unicode_3_2,
+        Unicode_4_0,
+        Unicode_4_1,
+        Unicode_5_0,
+        Unicode_5_1,
+        Unicode_5_2,
+        Unicode_6_0,
+        Unicode_6_1,
+        Unicode_6_2,
+        Unicode_6_3,
+        Unicode_7_0,
+        Unicode_8_0,
+        Unicode_9_0,
+        Unicode_10_0,
+        Unicode_11_0,
+        Unicode_12_0,
+        Unicode_12_1,
+        Unicode_13_0,
+        Unicode_14_0,
+        Unicode_15_0,
+        Unicode_15_1,
+        Unicode_16_0
+    };
+
+    /*!
+        Returns the bidirectional class of this character.
+
+        \sa hasMirrored(), QString::isRightToLeft()
+    */
+    Direction direction() const noexcept { return direction(char32_t(ucs)); }
+    /*!
+        Returns how this character joins its neighbours in cursive scripts.
+    */
+    JoiningType joiningType() const noexcept { return joiningType(char32_t(ucs)); }
+    /*!
+        Returns the script this character belongs to.
+    */
+    Script script() const noexcept { return script(char32_t(ucs)); }
+    /*!
+        Returns the Unicode version that assigned this character, or
+        \c Unicode_Unassigned.
+
+        \sa currentUnicodeVersion()
+    */
+    UnicodeVersion unicodeVersion() const noexcept { return unicodeVersion(char32_t(ucs)); }
+    /*!
+        Returns \c true if this character is mirrored when it appears in
+        right-to-left text, such as a parenthesis; otherwise returns \c false.
+
+        \sa mirroredChar()
+    */
+    bool hasMirrored() const noexcept { return hasMirrored(char32_t(ucs)); }
+    /*!
+        Returns the mirror image of this character, such as \c{)} for
+        \c{(}, or the character itself if it has none.
+
+        \sa hasMirrored()
+    */
+    QChar mirroredChar() const noexcept { return QChar(static_cast<char16_t>(mirroredChar(char32_t(ucs)))); }
+    static Direction direction(char32_t ucs4) noexcept;
+    static JoiningType joiningType(char32_t ucs4) noexcept;
+    static Script script(char32_t ucs4) noexcept;
+    static UnicodeVersion unicodeVersion(char32_t ucs4) noexcept;
+    static UnicodeVersion currentUnicodeVersion() noexcept;
+    static bool hasMirrored(char32_t ucs4) noexcept;
+    static char32_t mirroredChar(char32_t ucs4) noexcept;
     /*!
         Returns \c true if this is a decimal digit of any script (category
         Number_DecimalDigit); otherwise returns \c false.
@@ -528,6 +1115,23 @@ public:
         surrogates.
     */
     static constexpr char16_t lowSurrogate(char32_t ucs4) noexcept { return char16_t(ucs4 % 0x400 + 0xdc00); }
+    /*!
+        \since 6.0
+
+        Returns the UTF-16 code units of the code point \a c: one, or a
+        surrogate pair. The result converts to QStringView, and has
+        \c size(), \c data(), \c begin() and \c end():
+
+        \code
+        QString s = "smile ";
+        s += QStringView(QChar::fromUcs4(U'\U0001F600'));   // two code units
+        \endcode
+    */
+    static constexpr QtPrivate::Ucs4Chars fromUcs4(char32_t c) noexcept {
+        if (requiresSurrogates(c))
+            return {{highSurrogate(c), lowSurrogate(c)}, true};
+        return {{char16_t(c), u'\0'}, false};
+    }
 
     friend constexpr bool operator==(QChar a, QChar b) noexcept { return a.ucs == b.ucs; }
     friend constexpr bool operator!=(QChar a, QChar b) noexcept { return a.ucs != b.ucs; }

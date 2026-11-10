@@ -30,6 +30,10 @@ using ushort = unsigned short;
 using uint = unsigned int;
 using ulong = unsigned long;
 
+// 64-bit integer literals of the types qint64 and quint64, whatever those are on the platform.
+#define Q_INT64_C(c) static_cast<qint64>(c##LL)
+#define Q_UINT64_C(c) static_cast<quint64>(c##ULL)
+
 #define Q_LIKELY(x) (x)
 #define Q_UNLIKELY(x) (x)
 

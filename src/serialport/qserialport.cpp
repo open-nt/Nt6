@@ -481,6 +481,8 @@ bool QSerialPortPrivate::receive() {
         emittingReadyRead = true;
         q->readyRead();
         if (guard)
+            q->channelReadyRead(0);
+        if (guard)
             emittingReadyRead = false;
     }
     if (broken && guard)
@@ -506,8 +508,11 @@ bool QSerialPortPrivate::send() {
     wbuf.remove(0, sent);
     updateNotifiers();
     QPointer<QSerialPort> guard(q);
-    if (sent > 0)
+    if (sent > 0) {
         q->bytesWritten(sent);
+        if (guard)
+            q->channelBytesWritten(0, sent);
+    }
     if (broken && guard)
         fail(QtPrivate::SerialOperation::Write);
     return sent > 0;

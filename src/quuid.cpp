@@ -58,10 +58,8 @@ QUuid fromNameHash(const QUuid &ns, const QByteArray &name, QCryptographicHash::
     \endcode
 
     \differences
-    There is no \c QUuid(QAnyStringView) or
-    \c fromString(QAnyStringView), and no Windows \c GUID conversions. Strings are parsed from a QStringView, a
-    \c{const char *} or a QByteArray. There are no predefined namespace
-    constants.
+    There are no Windows \c GUID or Apple \c NSUUID conversions, and no
+    \c toUInt128() or \c fromUInt128().
     \enddifferences
 
     \sa QRandomGenerator, QCryptographicHash
@@ -156,14 +154,8 @@ QUuid QUuid::fromRfc4122(const QByteArray &b) {
     return u;
 }
 
-/*!
-    Parses \a text as a UUID. It must be 32 hexadecimal digits, or the
-    canonical dashed form, optionally enclosed in braces. Digits may be
-    upper or lower case. Returns a null UUID if \a text is not valid.
-
-    \sa toString()
-*/
-QUuid QUuid::fromString(QStringView text) {
+// Parses text as a UUID; described at QUuid::fromString().
+static QUuid parseUuid(QStringView text) {
     if (text.size() == 38) {
         if (text[0] != QChar(u'{') || text[37] != QChar(u'}'))
             return QUuid();
@@ -192,7 +184,75 @@ QUuid QUuid::fromString(QStringView text) {
             high = -1;
         }
     }
-    return fromRfc4122(bytes);
+    return QUuid::fromRfc4122(bytes);
+}
+
+/*!
+    Parses \a text as a UUID. It must be 32 hexadecimal digits, or the
+    canonical dashed form, optionally enclosed in braces. Digits may be
+    upper or lower case. Returns a null UUID if \a text is not valid.
+
+    \a text can be a QString, a QStringView, a QLatin1StringView, or UTF-8
+    text in a QByteArray or a \c{const char *}.
+
+    \sa toString()
+*/
+QUuid QUuid::fromString(QAnyStringView text) {
+    // A UUID is ASCII, so it has the same length in every encoding.
+    if (text.size() != 32 && text.size() != 36 && text.size() != 38)
+        return QUuid();
+    const QString utf16 = text.toString();
+    return parseUuid(QStringView(utf16));
+}
+
+/*!
+    \since 6.6
+    Returns the 16 bytes of the UUID in the byte order \a order. With
+    \c QSysInfo::BigEndian, the default, they are the bytes of toRfc4122();
+    with \c QSysInfo::LittleEndian they are in the reverse order.
+
+    \sa fromBytes(), toRfc4122()
+*/
+QUuid::Id128Bytes QUuid::toBytes(QSysInfo::Endian order) const noexcept {
+    uchar big[16];
+    for (int i = 0; i < 4; ++i)
+        big[i] = static_cast<uchar>(data1 >> (24 - 8 * i));
+    big[4] = static_cast<uchar>(data2 >> 8);
+    big[5] = static_cast<uchar>(data2);
+    big[6] = static_cast<uchar>(data3 >> 8);
+    big[7] = static_cast<uchar>(data3);
+    std::memcpy(big + 8, data4, 8);
+    Id128Bytes result = {};
+    for (int i = 0; i < 16; ++i)
+        result.data[i] = order == QSysInfo::BigEndian ? big[i] : big[15 - i];
+    return result;
+}
+
+/*!
+    \since 6.6
+    Returns the UUID held in the 16 bytes at \a bytes, which are in the byte
+    order \a order. Returns a null UUID if \a bytes is \c nullptr.
+
+    \code
+    const QUuid::Id128Bytes raw = uuid.toBytes();
+    QUuid::fromBytes(raw.data) == uuid;   // true
+    \endcode
+
+    \sa toBytes(), fromRfc4122()
+*/
+QUuid QUuid::fromBytes(const void *bytes, QSysInfo::Endian order) noexcept {
+    if (!bytes)
+        return QUuid();
+    uchar p[16];
+    const auto *in = static_cast<const uchar *>(bytes);
+    for (int i = 0; i < 16; ++i)
+        p[i] = order == QSysInfo::BigEndian ? in[i] : in[15 - i];
+    QUuid u;
+    u.data1 = quint32(p[0]) << 24 | quint32(p[1]) << 16 | quint32(p[2]) << 8 | p[3];
+    u.data2 = static_cast<ushort>(p[4] << 8 | p[5]);
+    u.data3 = static_cast<ushort>(p[6] << 8 | p[7]);
+    std::memcpy(u.data4, p + 8, 8);
+    return u;
 }
 
 /*!

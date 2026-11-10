@@ -33,8 +33,7 @@
     queued ones. The destructor of QCoreApplication waits for the global pool.
 
     \differences
-    There is no \c cancel(), \c setServiceLevel() or \c QThreadPool::start() overload for
-    move-only callables. The properties are plain functions; they cannot be bound. A
+    There is no \c cancel() or \c setServiceLevel(). The properties are plain functions; they cannot be bound. A
     thread count of 0 or less is accepted but at least one thread is always used. The pool's
     threads are QThread objects, so \c QThread::currentThread() works in a task and
     \c contains() recognises it.

@@ -8,7 +8,9 @@
 #include <chrono>
 #include <climits>
 #include <condition_variable>
+#include <map>
 #include <mutex>
+#include <thread>
 #include <utility>
 
 /*!
@@ -370,11 +372,19 @@ private:
     \endcode
 
     Writers are preferred: once a thread is waiting to lock for writing, new
-    readers block until it has finished. The lock is not recursive.
+    readers block until it has finished.
+
+    A lock constructed with QReadWriteLock::Recursive can be locked several
+    times by the thread that holds it, in the mode in which it holds it, and
+    is released by the same number of calls to unlock(). A thread that holds
+    such a lock for writing can also lock it for reading. No lock can be
+    upgraded: a thread that holds a lock for reading and locks it for writing
+    waits for itself. A thread that holds a non-recursive lock for reading
+    must not lock it for reading again, because that call blocks while a
+    writer waits.
 
     \differences
-    There is no \c RecursionMode constructor argument, so a thread that
-    holds the lock for reading must not lock it again while a writer waits.
+    None.
     \enddifferences
 
     \sa QReadLocker, QWriteLocker, QMutex
@@ -382,36 +392,44 @@ private:
 class QReadWriteLock {
 public:
     /*!
-        Constructs an unlocked read-write lock.
+        \enum QReadWriteLock::RecursionMode
+        \since 4.4
+
+        This enum says whether a thread can lock a lock that it already holds.
+
+        \value NonRecursive A thread locks the lock once.
+        \value Recursive    A thread can lock the lock several times in the
+                            same mode, and releases it with as many calls to
+                            unlock().
     */
-    QReadWriteLock() = default;
+    enum RecursionMode { NonRecursive, Recursive };
+
+    /*!
+        \since 4.4
+
+        Constructs an unlocked read-write lock with the given
+        \a recursionMode. The default is a non-recursive lock.
+    */
+    explicit QReadWriteLock(RecursionMode recursionMode = NonRecursive) : recursive(recursionMode == Recursive) {}
     QReadWriteLock(const QReadWriteLock &) = delete;
     QReadWriteLock &operator=(const QReadWriteLock &) = delete;
 
     /*!
         Locks the lock for reading. This call blocks while another thread holds
-        the lock for writing or is waiting to.
+        the lock for writing or is waiting to. A thread that already holds a
+        recursive lock gets it at once.
 
         \sa tryLockForRead(), unlock()
     */
-    void lockForRead() {
-        std::unique_lock<std::mutex> lk(m);
-        cv.wait(lk, [&] { return !writer && waitingWriters == 0; });
-        ++readers;
-    }
+    void lockForRead() { (void)tryLockForRead(QDeadlineTimer(QDeadlineTimer::Forever)); }
     /*!
         Locks the lock for writing. This call blocks until no other thread
-        holds the lock for reading or writing.
+        holds the lock for reading or writing. A thread that already holds a
+        recursive lock for writing gets it at once.
 
         \sa tryLockForWrite(), unlock()
     */
-    void lockForWrite() {
-        std::unique_lock<std::mutex> lk(m);
-        ++waitingWriters;
-        cv.wait(lk, [&] { return !writer && readers == 0; });
-        --waitingWriters;
-        writer = true;
-    }
+    void lockForWrite() { (void)tryLockForWrite(QDeadlineTimer(QDeadlineTimer::Forever)); }
     /*!
         Attempts to lock the lock for reading, waiting up to \a timeoutMs
         milliseconds. Returns \c true if the lock was obtained; otherwise
@@ -429,9 +447,23 @@ public:
     */
     bool tryLockForRead(QDeadlineTimer deadline) {
         std::unique_lock<std::mutex> lk(m);
+        const std::thread::id self = std::this_thread::get_id();
+        if (recursive) {
+            if (writer && writerThread == self) {
+                ++writerDepth; // one more level of the write lock
+                return true;
+            }
+            const auto it = readerDepth.find(self);
+            if (it != readerDepth.end()) {
+                ++it->second; // does not wait for a writer, which waits for this thread
+                return true;
+            }
+        }
         if (!waitUntil(lk, deadline, [&] { return !writer && waitingWriters == 0; }))
             return false;
         ++readers;
+        if (recursive)
+            readerDepth[self] = 1;
         return true;
     }
     /*!
@@ -451,29 +483,47 @@ public:
     */
     bool tryLockForWrite(QDeadlineTimer deadline) {
         std::unique_lock<std::mutex> lk(m);
+        const std::thread::id self = std::this_thread::get_id();
+        if (recursive && writer && writerThread == self) {
+            ++writerDepth;
+            return true;
+        }
         ++waitingWriters;
         const bool ok = waitUntil(lk, deadline, [&] { return !writer && readers == 0; });
         --waitingWriters;
-        if (ok)
+        if (ok) {
             writer = true;
-        else
+            writerThread = self;
+            writerDepth = 1;
+        } else {
             cv.notify_all();
+        }
         return ok;
     }
     /*!
         Unlocks the lock. The calling thread must hold it for reading or for
         writing; if the lock is held for writing, the write lock is released,
-        otherwise one read lock is.
+        otherwise one read lock is. A recursive lock that the thread locked
+        several times is released by the last matching call.
 
         \sa lockForRead(), lockForWrite()
     */
     void unlock() {
         {
             std::lock_guard<std::mutex> lk(m);
-            if (writer)
+            if (writer) {
+                if (recursive && --writerDepth > 0)
+                    return;
                 writer = false;
-            else if (readers > 0)
+            } else if (recursive) {
+                const auto it = readerDepth.find(std::this_thread::get_id());
+                if (it == readerDepth.end() || --it->second > 0)
+                    return;
+                readerDepth.erase(it);
                 --readers;
+            } else if (readers > 0) {
+                --readers;
+            }
         }
         cv.notify_all();
     }
@@ -491,12 +541,29 @@ private:
         std::lock_guard<std::mutex> lk(m);
         return writer;
     }
+    // Whether the calling thread holds a recursive lock more than once.
+    bool lockedRecursively() {
+        std::lock_guard<std::mutex> lk(m);
+        if (!recursive)
+            return false;
+        const std::thread::id self = std::this_thread::get_id();
+        if (writer)
+            return writerThread == self && writerDepth > 1;
+        const auto it = readerDepth.find(self);
+        return it != readerDepth.end() && it->second > 1;
+    }
 
     std::mutex m;
     std::condition_variable cv;
-    int readers = 0;
+    int readers = 0; // threads that hold the lock for reading
     int waitingWriters = 0;
     bool writer = false;
+    const bool recursive;
+    // Of a recursive lock: the thread that holds it for writing and how often, and how often
+    // each reading thread holds it.
+    std::thread::id writerThread;
+    int writerDepth = 0;
+    std::map<std::thread::id, int> readerDepth;
 };
 
 /*!
@@ -717,8 +784,13 @@ public:
         Releases \a lock and waits until woken or until \a deadline expires.
         The lock is locked again, in the mode the calling thread held it,
         before this function returns.
+
+        A recursive lock that the calling thread has locked more than once
+        cannot be released; the function then returns \c false at once.
     */
     bool wait(QReadWriteLock *lock, QDeadlineTimer deadline) {
+        if (lock->lockedRecursively())
+            return false;
         ReadWriteLockable l{lock, lock->lockedForWrite()};
         std::unique_lock<ReadWriteLockable> lk(l, std::adopt_lock);
         const bool ok = waitOn(lk, deadline);

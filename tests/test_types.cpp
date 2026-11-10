@@ -806,28 +806,18 @@ static void testRandom() {
 
 struct HashVec { QCryptographicHash::Algorithm alg; int len; const char *empty, *abc, *longMsg, *million; };
 static const HashVec kHashVecs[] = {
-    {QCryptographicHash::Md4, 16,
-     "31d6cfe0d16ae931b73c59d7e0c089c0",
-     "a448017aaf21d8525fc10ae87aa6729d",
-     "4691a9ec81b1a6bd1ab8557240b245c5",
-     "bbce80cc6bb65e5c6745e30d4eeca9a4"},
-    {QCryptographicHash::Md5, 16,
-     "d41d8cd98f00b204e9800998ecf8427e",
-     "900150983cd24fb0d6963f7d28e17f72",
-     "8215ef0796a20bcaaae116d3876c664a",
-     "7707d6ae4e027c70eea2a935c2296f21"},
-    {QCryptographicHash::Sha1, 20,
-     "da39a3ee5e6b4b0d3255bfef95601890afd80709",
-     "a9993e364706816aba3e25717850c26c9cd0d89d",
-     "84983e441c3bd26ebaae4aa1f95129e5e54670f1",
+    {QCryptographicHash::Md4, 16, "31d6cfe0d16ae931b73c59d7e0c089c0", "a448017aaf21d8525fc10ae87aa6729d",
+     "4691a9ec81b1a6bd1ab8557240b245c5", "bbce80cc6bb65e5c6745e30d4eeca9a4"},
+    {QCryptographicHash::Md5, 16, "d41d8cd98f00b204e9800998ecf8427e", "900150983cd24fb0d6963f7d28e17f72",
+     "8215ef0796a20bcaaae116d3876c664a", "7707d6ae4e027c70eea2a935c2296f21"},
+    {QCryptographicHash::Sha1, 20, "da39a3ee5e6b4b0d3255bfef95601890afd80709",
+     "a9993e364706816aba3e25717850c26c9cd0d89d", "84983e441c3bd26ebaae4aa1f95129e5e54670f1",
      "34aa973cd4c4daa4f61eeb2bdbad27316534016f"},
-    {QCryptographicHash::Sha224, 28,
-     "d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f",
+    {QCryptographicHash::Sha224, 28, "d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f",
      "23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7",
      "75388b16512776cc5dba5da1fd890150b0c6455cb4f58b1952522525",
      "20794655980c91d8bbb4c1ea97618a4bf03f42581948b2ee4ee7ad67"},
-    {QCryptographicHash::Sha256, 32,
-     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    {QCryptographicHash::Sha256, 32, "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
      "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
      "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1",
      "cdc76e5c9914fb9281a1c7e284d73e67f1809a48a497200e046d39ccc7112cd0"},
@@ -837,17 +827,19 @@ static const HashVec kHashVecs[] = {
      "3391fdddfc8dc7393707a65b1b4709397cf8b1d162af05abfe8f450de5f36bc6b0455a8520bc4e6f5fe95b1fe3c8452b",
      "9d0e1809716474cb086e834e310a4a1ced149e9c00f248527972cec5704c2a5b07b8b3dc38ecc4ebae97ddd87f3d8985"},
     {QCryptographicHash::Sha512, 64,
-     "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e",
-     "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f",
-     "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd70354ec631238ca3445",
-     "e718483d0ce769644e2e42c7bc15b4638e1f98b13b2044285632a803afa973ebde0ff244877ea60a4cb0432ce577c31beb009c5c2c49aa2e4eadb217ad8cc09b"},
-    {QCryptographicHash::Keccak_224, 28,
-     "f71837502ba8e10837bdd8d365adb85591895602fc552b48b7390abd",
+     "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a"
+     "538327af927da3e",
+     "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2"
+     "a9ac94fa54ca49f",
+     "204a8fc6dda82f0a0ced7beb8e08a41657c16ef468b228a8279be331a703c33596fd15c13b1b07f9aa1d3bea57789ca031ad85c7a71dd7035"
+     "4ec631238ca3445",
+     "e718483d0ce769644e2e42c7bc15b4638e1f98b13b2044285632a803afa973ebde0ff244877ea60a4cb0432ce577c31beb009c5c2c49aa2e4"
+     "eadb217ad8cc09b"},
+    {QCryptographicHash::Keccak_224, 28, "f71837502ba8e10837bdd8d365adb85591895602fc552b48b7390abd",
      "c30411768506ebe1c2871b1ee2e87d38df342317300a9b97a95ec6a8",
      "e51faa2b4655150b931ee8d700dc202f763ca5f962c529eae55012b6",
      "19f9167be2a04c43abd0ed554788101b9c339031acc8e1468531303f"},
-    {QCryptographicHash::Keccak_256, 32,
-     "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
+    {QCryptographicHash::Keccak_256, 32, "c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470",
      "4e03657aea45a94fc7d47ba826c8d667c0d1e6e33a64a036ec44f58fa12d6c45",
      "45d3b367a6904e6e8d502ee04999a7c27647f91fa845d456525fd352ae3d7371",
      "fadae6b49f129bbb812be8407b7b2894f34aecf6dbd1f9b0f0c7e9853098fc96"},
@@ -857,17 +849,19 @@ static const HashVec kHashVecs[] = {
      "b41e8896428f1bcbb51e17abd6acc98052a3502e0d5bf7fa1af949b4d3c855e7c4dc2c390326b3f3e74c7b1e2b9a3657",
      "0c8324e1ebc182822c5e2a086cac07c2fe00e3bce61d01ba8ad6b71780e2dec5fb89e5ae90cb593e57bc6258fdd94e17"},
     {QCryptographicHash::Keccak_512, 64,
-     "0eab42de4c3ceb9235fc91acffe746b29c29a8c366b7c60e4e67c466f36a4304c00fa9caf9d87976ba469bcbe06713b435f091ef2769fb160cdab33d3670680e",
-     "18587dc2ea106b9a1563e32b3312421ca164c7f1f07bc922a9c83d77cea3a1e5d0c69910739025372dc14ac9642629379540c17e2a65b19d77aa511a9d00bb96",
-     "6aa6d3669597df6d5a007b00d09c20795b5c4218234e1698a944757a488ecdc09965435d97ca32c3cfed7201ff30e070cd947f1fc12b9d9214c467d342bcba5d",
-     "5cf53f2e556be5a624425ede23d0e8b2c7814b4ba0e4e09cbbf3c2fac7056f61e048fc341262875ebc58a5183fea651447124370c1ebf4d6c89bc9a7731063bb"},
-    {QCryptographicHash::Sha3_224, 28,
-     "6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7",
+     "0eab42de4c3ceb9235fc91acffe746b29c29a8c366b7c60e4e67c466f36a4304c00fa9caf9d87976ba469bcbe06713b435f091ef2769fb160"
+     "cdab33d3670680e",
+     "18587dc2ea106b9a1563e32b3312421ca164c7f1f07bc922a9c83d77cea3a1e5d0c69910739025372dc14ac9642629379540c17e2a65b19d7"
+     "7aa511a9d00bb96",
+     "6aa6d3669597df6d5a007b00d09c20795b5c4218234e1698a944757a488ecdc09965435d97ca32c3cfed7201ff30e070cd947f1fc12b9d921"
+     "4c467d342bcba5d",
+     "5cf53f2e556be5a624425ede23d0e8b2c7814b4ba0e4e09cbbf3c2fac7056f61e048fc341262875ebc58a5183fea651447124370c1ebf4d6c"
+     "89bc9a7731063bb"},
+    {QCryptographicHash::Sha3_224, 28, "6b4e03423667dbb73b6e15454f0eb1abd4597f9a1b078e3f5b5a6bc7",
      "e642824c3f8cf24ad09234ee7d3c766fc9a3a5168d0c94ad73b46fdf",
      "8a24108b154ada21c9fd5574494479ba5c7e7ab76ef264ead0fcce33",
      "d69335b93325192e516a912e6d19a15cb51c6ed5c15243e7a7fd653c"},
-    {QCryptographicHash::Sha3_256, 32,
-     "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
+    {QCryptographicHash::Sha3_256, 32, "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
      "3a985da74fe225b2045c172d6bd390bd855f086e3e9d525b46bfe24511431532",
      "41c0dba2a9d6240849100376a8235e2c82e1b9998a999e21db32dd97496d3376",
      "5c8875ae474a3634ba4fd55ec85bffd661f32aca75c6d699d0cdcb6c115891c1"},
@@ -877,10 +871,49 @@ static const HashVec kHashVecs[] = {
      "991c665755eb3a4b6bbdfb75c78a492e8c56a22c5c4d7e429bfdbc32b9d4ad5aa04a1f076e62fea19eef51acd0657c22",
      "eee9e24d78c1855337983451df97c8ad9eedf256c6334f8e948d252d5e0e76847aa0774ddb90a842190d2c558b4b8340"},
     {QCryptographicHash::Sha3_512, 64,
-     "a69f73cca23a9ac5c8b567dc185a756e97c982164fe25859e0d1dcc1475c80a615b2123af1f5f94c11e3e9402c3ac558f500199d95b6d3e301758586281dcd26",
-     "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56592f8274eec53f0",
-     "04a371e84ecfb5b8b77cb48610fca8182dd457ce6f326a0fd3d7ec2f1e91636dee691fbe0c985302ba1b0d8dc78c086346b533b49c030d99a27daf1139d6e75e",
-     "3c3a876da14034ab60627c077bb98f7e120a2a5370212dffb3385a18d4f38859ed311d0a9d5141ce9cc5c66ee689b266a8aa18ace8282a0e0db596c90b0a7b87"},
+     "a69f73cca23a9ac5c8b567dc185a756e97c982164fe25859e0d1dcc1475c80a615b2123af1f5f94c11e3e9402c3ac558f500199d95b6d3e30"
+     "1758586281dcd26",
+     "b751850b1a57168a5693cd924b6b096e08f621827444f70d884f5d0240d2712e10e116e9192af3c91a7ec57647e3934057340b4cf408d5a56"
+     "592f8274eec53f0",
+     "04a371e84ecfb5b8b77cb48610fca8182dd457ce6f326a0fd3d7ec2f1e91636dee691fbe0c985302ba1b0d8dc78c086346b533b49c030d99a"
+     "27daf1139d6e75e",
+     "3c3a876da14034ab60627c077bb98f7e120a2a5370212dffb3385a18d4f38859ed311d0a9d5141ce9cc5c66ee689b266a8aa18ace8282a0e0"
+     "db596c90b0a7b87"},
+    // BLAKE2 (RFC 7693), unkeyed.
+    {QCryptographicHash::Blake2b_160, 20, "3345524abf6bbe1809449224b5972c41790b6cf2",
+     "384264f676f39536840523f284921cdc68b6846b", "4fc6d7704103fc8aca4690f70432c8d35acfb833",
+     "9b512a5ed7d52ddeb8d8762e4b6dd880b25ea54d"},
+    {QCryptographicHash::Blake2b_256, 32, "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8",
+     "bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319",
+     "5f7a93da9c5621583f22e49e8e91a40cbba37536622235a380f434b9f68e49c4",
+     "0741850f36cba4259628355d1073e24ddb9ca0e1bfac36fd39ae5dc2101e23a4"},
+    {QCryptographicHash::Blake2b_384, 48,
+     "b32811423377f52d7862286ee1a72ee540524380fda1724a6f25d7978c6fd3244a6caf0498812673c5e05ef583825100",
+     "6f56a82c8e7ef526dfe182eb5212f7db9df1317e57815dbda46083fc30f54ee6c66ba83be64b302d7cba6ce15bb556f4",
+     "5643daabfc919190d373a3d58935804d731b58812f30184f98793f7321d0cb34bb41b217fabce6bdf28ca6be1c923b81",
+     "92650b7746765a98701ec2077c3603127c62525c8543477c8519d6cc53ac5a9f0098ed56eb7aaf03ca50bfe046e7bba3"},
+    {QCryptographicHash::Blake2b_512, 64,
+     "786a02f742015903c6c6fd852552d272912f4740e15847618a86e217f71f5419d25e1031afee585313896444934eb04b903a685b1448b755d"
+     "56f701afe9be2ce",
+     "ba80a53f981c4d0d6a2797b69f12f6e94c212f14685ac4b74b12bb6fdbffa2d17d87c5392aab792dc252d5de4533cc9518d38aa8dbf1925ab"
+     "92386edd4009923",
+     "7285ff3e8bd768d69be62b3bf18765a325917fa9744ac2f582a20850bc2b1141ed1b3e4528595acc90772bdf2d37dc8a47130b44f33a02e87"
+     "30e5ad8e166e888",
+     "98fb3efb7206fd19ebf69b6f312cf7b64e3b94dbe1a17107913975a793f177e1d077609d7fba363cbba00d05f7aa4e4fa8715d6428104c0a7"
+     "5643b0ff3fd3eaf"},
+    {QCryptographicHash::Blake2s_128, 16, "64550d6ffe2c0a01a14aba1eade0200c", "aa4938119b1dc7b87cbad0ffd200d0ae",
+     "2a3e71dddff483f71e21207b63f89be3", "1d7e5cadca3075d31d56ef6752b31307"},
+    {QCryptographicHash::Blake2s_160, 20, "354c9c33f735962418bdacb9479873429c34916f",
+     "5ae3b99be29b01834c3b508521ede60438f8de17", "d25307f530efe55e1aa04b2f7163d3f127772ab6",
+     "2422370c58163843f1790adf32ceb06180e649d7"},
+    {QCryptographicHash::Blake2s_224, 28, "1fa1291e65248b37b3433475b2a0dd63d54a11ecc4e3e034e7bc1ef4",
+     "0b033fc226df7abde29f67a05d3dc62cf271ef3dfea4d387407fbd55",
+     "0d1d0b7d4cb777da47ca5b1fdb0338f00d3d86d67339d585ee7377de",
+     "0a704b2294e76042150da14d37f2dfd9789707daee520ca55fbdf835"},
+    {QCryptographicHash::Blake2s_256, 32, "69217a3079908094e11121d042354a7c1f55b6482ca1a51e1b250dfd1ed0eef9",
+     "508c5e8c327c14e2e1a72ba34eeb452f37458b209ed63a294d999b4c86675982",
+     "6f4df5116a6f332edab1d9e10ee87df6557beab6259d7663f3bcd5722c13f189",
+     "bec0c0e6cde5b67acb73b81f79a67a4079ae1c60dac9d2661af18e9f8b50dfa5"},
 };
 
 static QByteArray fromHex(const char *h) { return QByteArray::fromHex(QByteArray(h)); }
@@ -927,9 +960,8 @@ static void testHashKnownAnswers() {
         h.addData(QByteArrayView());
         CHECK(h.result() == fromHex(v.abc));
     }
-    // 15 is the largest value the enum can hold that is not an algorithm.
-    CHECK(!QCryptographicHash::supportsAlgorithm(static_cast<QCryptographicHash::Algorithm>(15)));
-    CHECK(QCryptographicHash::hashLength(static_cast<QCryptographicHash::Algorithm>(15)) == 0);
+    CHECK(!QCryptographicHash::supportsAlgorithm(QCryptographicHash::NumAlgorithms));
+    CHECK(QCryptographicHash::hashLength(QCryptographicHash::NumAlgorithms) == 0);
 }
 
 static void testHashIncremental() {
@@ -937,7 +969,7 @@ static void testHashIncremental() {
     for (int i = 0; i < data.size(); ++i)
         data[i] = static_cast<char>((i * 31 + i / 7) & 0xff);
     const int chunks[] = {1, 2, 3, 7, 55, 56, 57, 63, 64, 65, 71, 72, 73, 103, 104, 105, 127, 128, 129, 135, 136, 137, 143, 144, 145, 199, 200, 201, 1000};
-    for (int alg = 0; alg <= QCryptographicHash::Sha3_512; ++alg) {
+    for (int alg = 0; alg < QCryptographicHash::NumAlgorithms; ++alg) {
         const auto method = static_cast<QCryptographicHash::Algorithm>(alg);
         if (!QCryptographicHash::supportsAlgorithm(method))
             continue;
@@ -988,6 +1020,12 @@ static QByteArray naiveHmac(QCryptographicHash::Algorithm method, QByteArray key
     case QCryptographicHash::Keccak_256: case QCryptographicHash::Sha3_256: block = 136; break;
     case QCryptographicHash::Keccak_384: case QCryptographicHash::Sha3_384: block = 104; break;
     case QCryptographicHash::Keccak_512: case QCryptographicHash::Sha3_512: block = 72; break;
+    case QCryptographicHash::Blake2b_160:
+    case QCryptographicHash::Blake2b_256:
+    case QCryptographicHash::Blake2b_384:
+    case QCryptographicHash::Blake2b_512:
+        block = 128;
+        break;
     default: break;
     }
     if (key.size() > block)
@@ -1044,7 +1082,7 @@ static void testMessageAuthenticationCode() {
 
     // every algorithm against the definition, with keys around the block size
     const int keyLengths[] = {0, 1, 20, 63, 64, 65, 71, 72, 73, 103, 104, 105, 127, 128, 129, 135, 136, 137, 143, 144, 145, 200, 300};
-    for (int alg = 0; alg <= QCryptographicHash::Sha3_512; ++alg) {
+    for (int alg = 0; alg < QCryptographicHash::NumAlgorithms; ++alg) {
         const auto method = static_cast<QCryptographicHash::Algorithm>(alg);
         if (!QCryptographicHash::supportsAlgorithm(method))
             continue;
@@ -1062,6 +1100,14 @@ static void testMessageAuthenticationCode() {
             }
         }
     }
+    // HMAC over BLAKE2, as Python's hmac module computes it.
+    const QByteArray fox("The quick brown fox jumps over the lazy dog");
+    CHECK(hx(QMessageAuthenticationCode::hash(fox, QByteArray("key"), QCryptographicHash::Blake2b_512)) ==
+          "92294f92c0dfb9b00ec9ae8bd94d7e7d8a036b885a499f149dfe2fd2199394aaaf6b8894a1730cccb2cd050f9bcf5062a38b51b0dab3"
+          "3207f8ef35ae2c9df51b");
+    CHECK(hx(QMessageAuthenticationCode::hash(fox, QByteArray("key"), QCryptographicHash::Blake2s_256)) ==
+          "f93215bb90d4af4c3061cd932fb169fb8bb8a91d0b4022baea1271e1323cd9a0");
+
     QMessageAuthenticationCode mac(QCryptographicHash::Sha256);
     mac.setKey(QByteArray("Jefe"));
     mac.addData(QByteArray("what do ya want for nothing?"));

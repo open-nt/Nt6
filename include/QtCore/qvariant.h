@@ -11,10 +11,12 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
 
+#include <initializer_list>
 #include <memory>
 #include <new>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 class QDataStream;
 class QDebug;
@@ -23,6 +25,7 @@ class QVariant;
 class QSequentialIterable;
 class QAssociativeIterable;
 class QLatin1StringView;
+class QPartialOrdering;
 
 using QVariantList = QList<QVariant>;
 using QVariantMap = QMap<QString, QVariant>;
@@ -97,18 +100,26 @@ struct IsQObjectPointer<T *> : std::bool_constant<IsComplete<T>::value && std::i
     A QVariant can be streamed to a QDataStream in Qt's wire format and
     printed with QDebug.
 
+    A value can also be built in place and reached without a copy:
+
+    \code
+    QVariant v(std::in_place_type<QString>, 3, QChar('x'));   // "xxx"
+    if (QString *s = get_if<QString>(&v))
+        s->append("!");
+    v.emplace<QStringList>({"a", "b"});
+    QVariant w = QVariant::fromStdVariant(std::variant<int, QString>(7));
+    \endcode
+
     \differences
-    There is no \c QVariant::compare() or \c operator<(), no
-    \c QVariant::toLocale(), \c toRegularExpression(), \c toEasingCurve(),
-    \c toModelIndex() or CBOR conversions, since Nt has no such classes. The
-    JSON classes can be stored, but convert() does not convert between them
-    and other types; use QJsonValue::fromVariant() and QJsonValue::toVariant(). Constructors for \c long and \c{unsigned long} exist because
-    Nt's \c qint64 is \c long on Linux; they store a \c qlonglong or
-    \c qulonglong. A \c QVariantPair is a \c std::pair, as Nt has no
-    QPair. The constructor that takes an \c std::in_place_type_t and
-    \c fromStdVariant() are missing, and so is the \c QVariant::Private
-    layout. Copies of a variant share the stored value until one is changed,
-    but \c detach() and \c isDetached() are not part of the API.
+    There are no CBOR conversions, since Nt has no CBOR classes. Constructors
+    for \c long and \c{unsigned long} exist because Nt's \c qint64 is
+    \c long on Linux; they store a \c qlonglong or \c qulonglong. A
+    \c QVariantPair is a \c std::pair, as Nt has no QPair. \c get() and
+    \c get_if() are function templates in the global namespace, not hidden
+    friends, so they are found without a \c using declaration. The
+    \c QVariant::Private layout is not provided. Copies of a variant share
+    the stored value until one is changed, but \c detach() and
+    \c isDetached() are not part of the API.
     \enddifferences
 
     \sa QMetaType, QSequentialIterable, QAssociativeIterable
@@ -138,6 +149,7 @@ public:
         \value Time QTime.
         \value DateTime QDateTime.
         \value Url QUrl.
+        \value Locale QLocale.
         \value Rect QRect.
         \value RectF QRectF.
         \value Size QSize.
@@ -146,8 +158,12 @@ public:
         \value LineF QLineF.
         \value Point QPoint.
         \value PointF QPointF.
+        \value RegularExpression QRegularExpression.
         \value Hash QVariantHash.
+        \value EasingCurve QEasingCurve.
         \value Uuid QUuid.
+        \value ModelIndex QModelIndex.
+        \value PersistentModelIndex QPersistentModelIndex.
         \value UserType The first id of a registered user type.
         \value LastType The largest value of the enumeration.
     */
@@ -170,6 +186,7 @@ public:
         Time = QMetaType::QTime,
         DateTime = QMetaType::QDateTime,
         Url = QMetaType::QUrl,
+        Locale = QMetaType::QLocale,
         Rect = QMetaType::QRect,
         RectF = QMetaType::QRectF,
         Size = QMetaType::QSize,
@@ -178,12 +195,26 @@ public:
         LineF = QMetaType::QLineF,
         Point = QMetaType::QPoint,
         PointF = QMetaType::QPointF,
+        RegularExpression = QMetaType::QRegularExpression,
         Hash = QMetaType::QVariantHash,
+        EasingCurve = QMetaType::QEasingCurve,
         Uuid = QMetaType::QUuid,
+        ModelIndex = QMetaType::QModelIndex,
+        PersistentModelIndex = QMetaType::QPersistentModelIndex,
         UserType = QMetaType::User,
         LastType = 0xffffffff
     };
 
+private:
+    // Enables the in-place constructors and emplace() for a type a variant can hold.
+    template <typename T, typename... Args>
+    using if_in_place =
+        std::enable_if_t<std::conjunction_v<std::is_same<T, std::remove_cv_t<std::remove_reference_t<T>>>,
+                                            std::negation<std::is_same<T, QVariant>>, std::is_copy_constructible<T>,
+                                            std::is_destructible<T>, std::is_constructible<T, Args...>>,
+                         bool>;
+
+public:
     QVariant() noexcept = default;
     ~QVariant() = default;
     explicit QVariant(QMetaType type, const void *copy = nullptr);
@@ -221,6 +252,46 @@ public:
     QVariant(const QRectF &rect);
     QVariant(const QUrl &url);
     QVariant(const QBitArray &bitarray);
+    QVariant(const QLocale &locale);
+    QVariant(const QRegularExpression &re);
+    QVariant(const QEasingCurve &easing);
+    QVariant(const QUuid &uuid);
+    QVariant(const QModelIndex &modelIndex);
+    QVariant(const QPersistentModelIndex &modelIndex);
+    QVariant(const QJsonValue &jsonValue);
+    QVariant(const QJsonObject &jsonObject);
+    QVariant(const QJsonArray &jsonArray);
+    QVariant(const QJsonDocument &jsonDocument);
+
+    /*!
+        Constructs a variant that holds a \c T, which is constructed in place from \a args.
+        The first argument is \c{std::in_place_type<T>} and only selects the type.
+
+        \code
+        QVariant v(std::in_place_type<QString>, 3, QChar('x'));   // holds "xxx"
+        \endcode
+
+        \since 6.6
+        \sa emplace(), fromValue()
+    */
+    template <typename T, typename... Args, if_in_place<T, Args...> = true>
+    explicit QVariant(std::in_place_type_t<T>, Args &&...args) {
+        d.type = QMetaType::fromType<T>().iface();
+        d.data = QtPrivate::makeValue<T>(d.type, std::forward<Args>(args)...);
+    }
+
+    /*!
+        \overload
+        Constructs a variant that holds a \c T, which is constructed in place from the
+        initializer list \a il and \a args.
+
+        \since 6.6
+    */
+    template <typename T, typename U, typename... Args, if_in_place<T, std::initializer_list<U> &, Args...> = true>
+    explicit QVariant(std::in_place_type_t<T>, std::initializer_list<U> il, Args &&...args) {
+        d.type = QMetaType::fromType<T>().iface();
+        d.data = QtPrivate::makeValue<T>(d.type, il, std::forward<Args>(args)...);
+    }
 
     QVariant &operator=(const QVariant &other) = default;
     QVariant &operator=(QVariant &&other) noexcept = default;
@@ -268,6 +339,16 @@ public:
     QLineF toLineF() const;
     QRectF toRectF() const;
     QUrl toUrl() const;
+    QLocale toLocale() const;
+    QRegularExpression toRegularExpression() const;
+    QEasingCurve toEasingCurve() const;
+    QUuid toUuid() const;
+    QModelIndex toModelIndex() const;
+    QPersistentModelIndex toPersistentModelIndex() const;
+    QJsonValue toJsonValue() const;
+    QJsonObject toJsonObject() const;
+    QJsonArray toJsonArray() const;
+    QJsonDocument toJsonDocument() const;
 
     void load(QDataStream &ds);
     void save(QDataStream &ds) const;
@@ -299,6 +380,58 @@ public:
         \sa fromValue()
     */
     static QVariant fromMetaType(QMetaType type, const void *copy = nullptr) { return QVariant(type, copy); }
+
+    /*!
+        Returns a variant that holds the active alternative of \a value. The result is invalid
+        if the alternative is \c std::monostate or if \a value is valueless by exception.
+
+        \since 6.6
+        \sa fromValue()
+    */
+    template <typename... Types> static QVariant fromStdVariant(const std::variant<Types...> &value) {
+        if (value.valueless_by_exception())
+            return QVariant();
+        return std::visit([](const auto &alternative) { return fromAlternative(alternative); }, value);
+    }
+
+    /*!
+        \overload
+        Returns a variant that holds the active alternative of \a value, which is moved from.
+
+        \since 6.6
+    */
+    template <typename... Types> static QVariant fromStdVariant(std::variant<Types...> &&value) {
+        if (value.valueless_by_exception())
+            return QVariant();
+        return std::visit(
+            [](auto &&alternative) { return fromAlternative(std::forward<decltype(alternative)>(alternative)); },
+            std::move(value));
+    }
+
+    /*!
+        Replaces what the variant holds with a \c T that is constructed in place from \a args,
+        and returns a reference to the new value.
+
+        \since 6.6
+        \sa setValue()
+    */
+    template <typename T, typename... Args, if_in_place<T, Args...> = true> T &emplace(Args &&...args) {
+        *this = QVariant(std::in_place_type<T>, std::forward<Args>(args)...);
+        return *static_cast<T *>(d.data.get());
+    }
+
+    /*!
+        \overload
+        Replaces what the variant holds with a \c T that is constructed in place from the
+        initializer list \a il and \a args, and returns a reference to the new value.
+
+        \since 6.6
+    */
+    template <typename T, typename U, typename... Args, if_in_place<T, std::initializer_list<U> &, Args...> = true>
+    T &emplace(std::initializer_list<U> il, Args &&...args) {
+        *this = QVariant(std::in_place_type<T>, il, std::forward<Args>(args)...);
+        return *static_cast<T *>(d.data.get());
+    }
 
     /*!
         Stores a copy of \a value in the variant, replacing what it held.
@@ -357,10 +490,19 @@ public:
     */
     friend bool operator!=(const QVariant &a, const QVariant &b) { return !a.equals(b); }
 
+    static QPartialOrdering compare(const QVariant &lhs, const QVariant &rhs);
+
     static const char *typeToName(int typeId);
     static Type nameToType(const char *name);
 
 private:
+    template <typename T> static QVariant fromAlternative(T &&alternative) {
+        if constexpr (std::is_same_v<std::remove_cv_t<std::remove_reference_t<T>>, std::monostate>)
+            return QVariant();
+        else
+            return fromValue(std::forward<T>(alternative));
+    }
+
     template <typename T> static bool isNullPointer(const T &value) {
         if constexpr (std::is_pointer_v<T> || std::is_same_v<T, std::nullptr_t>)
             return value == nullptr;
@@ -420,3 +562,23 @@ template <typename T> bool QVariant::canConvert() const {
 
 // Returns the value of `value` converted to T, as QVariant::value() does.
 template <typename T> inline T qvariant_cast(const QVariant &value) { return value.template value<T>(); }
+
+// Returns a pointer to the value in *v if it holds exactly a T, and nullptr otherwise (also when v
+// is nullptr). The value is not converted. The non-const overload detaches the value from copies
+// of the variant first.
+template <typename T> T *get_if(QVariant *v) noexcept {
+    if (!v || !v->isValid() || v->metaType() != QMetaType::fromType<T>())
+        return nullptr;
+    return static_cast<T *>(v->data());
+}
+template <typename T> const T *get_if(const QVariant *v) noexcept {
+    if (!v || !v->isValid() || v->metaType() != QMetaType::fromType<T>())
+        return nullptr;
+    return static_cast<const T *>(v->constData());
+}
+
+// Returns the value in v, which must hold exactly a T: the behaviour is undefined otherwise.
+template <typename T> T &get(QVariant &v) { return *get_if<T>(&v); }
+template <typename T> const T &get(const QVariant &v) { return *get_if<T>(&v); }
+template <typename T> T &&get(QVariant &&v) { return std::move(*get_if<T>(&v)); }
+template <typename T> const T &&get(const QVariant &&v) { return std::move(*get_if<T>(&v)); }

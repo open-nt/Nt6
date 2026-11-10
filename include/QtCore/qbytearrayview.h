@@ -3,6 +3,7 @@
 
 #include <QtCore/qbytearray.h>
 
+#include <iterator>
 #include <string_view>
 
 // A read-only, non-owning view of bytes.
@@ -19,12 +20,11 @@
     QByteArray), and empty if its size is 0. A null view is also empty.
 
     \differences
-    Only part of the Qt API is provided: construction, element access,
-    slicing, startsWith(), endsWith(), indexOf(), lastIndexOf(), contains(),
-    compare() and the comparison operators. There are no number conversions
-    (\c toInt() and friends), \c count(), \c split(), \c trimmed(),
-    \c truncate(), \c chop() or reverse iterators. first(), last(), sliced()
-    and chopped() do not check their arguments.
+    The number conversions copy the bytes into a QByteArray first, so they
+    allocate. There is no constructor from a container of bytes other than
+    QByteArray and \c std::string_view; use fromArray() for a literal array.
+    first(), last(), sliced(), chopped(), slice(), truncate() and chop() do
+    not check their arguments.
     \enddifferences
 
     \sa QByteArray, QStringView
@@ -335,6 +335,231 @@ public:
     */
     const_iterator cend() const noexcept { return p + n; }
 
+    /*!
+        A read-only reverse iterator over the bytes of the view.
+    */
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    /*!
+        The reverse iterator type, for STL compatibility. It is the same as const_reverse_iterator.
+    */
+    using reverse_iterator = const_reverse_iterator;
+    /*!
+        The type of sizes and indexes, for STL compatibility.
+    */
+    using size_type = qsizetype;
+    /*!
+        The type of the distance between two iterators, for STL compatibility.
+    */
+    using difference_type = qptrdiff;
+
+    /*!
+        Returns a view of the whole array \a data, including a terminating
+        null if there is one: \c{fromArray("ab")} has three bytes, where
+        \c{QByteArrayView("ab")} has two.
+    */
+    template <std::size_t N> static constexpr QByteArrayView fromArray(const char (&data)[N]) noexcept {
+        return QByteArrayView(data, static_cast<qsizetype>(N));
+    }
+
+    /*!
+        Returns a reverse iterator pointing to the last byte of the view.
+
+        \sa rend()
+    */
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    /*!
+        Returns a reverse iterator pointing just before the first byte of the view.
+
+        \sa rbegin()
+    */
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    /*!
+        Returns a reverse iterator pointing to the last byte of the view. This is the same as rbegin().
+    */
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+    /*!
+        Returns a reverse iterator pointing just before the first byte of the view. This is the same as rend().
+    */
+    const_reverse_iterator crend() const noexcept { return rend(); }
+
+    /*!
+        \since 6.8
+        Returns the largest number of bytes a view can refer to.
+    */
+    static constexpr qsizetype max_size() noexcept { return static_cast<qsizetype>(~std::size_t(0) >> 1); }
+
+    /*!
+        Returns the number of occurrences of \a s in the view, which may
+        overlap. An empty \a s is found size() + 1 times.
+
+        \sa indexOf(), contains()
+    */
+    qsizetype count(QByteArrayView s) const noexcept {
+        if (s.n == 0)
+            return n + 1;
+        qsizetype found = 0;
+        for (auto at = view().find(s.view()); at != std::string_view::npos; at = view().find(s.view(), at + 1))
+            ++found;
+        return found;
+    }
+    /*!
+        \overload
+
+        Returns the number of bytes in the view that equal \a c.
+    */
+    qsizetype count(char c) const noexcept {
+        qsizetype found = 0;
+        for (qsizetype i = 0; i < n; ++i)
+            found += p[i] == c ? 1 : 0;
+        return found;
+    }
+
+    /*!
+        Returns the view without the whitespace at its start and its end.
+        Whitespace means the ASCII characters space, \c{'\t'}, \c{'\n'},
+        \c{'\v'}, \c{'\f'} and \c{'\r'}, as for QByteArray::trimmed().
+    */
+    constexpr QByteArrayView trimmed() const noexcept {
+        qsizetype b = 0;
+        qsizetype e = n;
+        while (b < e && isSpace(p[b]))
+            ++b;
+        while (e > b && isSpace(p[e - 1]))
+            --e;
+        return QByteArrayView(p + b, e - b);
+    }
+
+    /*!
+        Shortens the view to its first \a len bytes. \a len must not exceed
+        size(); no bounds checking is done.
+
+        \sa chop(), first()
+    */
+    constexpr void truncate(qsizetype len) { n = len; }
+    /*!
+        Removes \a len bytes from the end of the view. \a len must not exceed
+        size(); no bounds checking is done.
+
+        \sa truncate(), chopped()
+    */
+    constexpr void chop(qsizetype len) { n -= len; }
+    /*!
+        \since 6.8
+        Changes the view to start at index position \a pos and to extend to
+        its end, and returns a reference to it. \a pos must not exceed size().
+
+        \sa sliced()
+    */
+    constexpr QByteArrayView &slice(qsizetype pos) {
+        *this = sliced(pos);
+        return *this;
+    }
+    /*!
+        \since 6.8
+        \overload
+
+        Changes the view to the \a len bytes that start at index position
+        \a pos, and returns a reference to it. The range must lie within the
+        view.
+    */
+    constexpr QByteArrayView &slice(qsizetype pos, qsizetype len) {
+        *this = sliced(pos, len);
+        return *this;
+    }
+
+    /*!
+        \since 6.3
+        Returns \c true if the view holds well-formed UTF-8; otherwise returns
+        \c false. An empty view is valid.
+    */
+    bool isValidUtf8() const noexcept { return QtPrivate::isValidUtf8(p, n); }
+
+    /*!
+        \overload
+
+        Compares the view with \a s and returns a negative integer, zero or a
+        positive integer if the view is less than, equal to or greater than
+        \a s. With Qt::CaseInsensitive as \a cs, the ASCII letters compare
+        equal whatever their case.
+    */
+    int compare(QByteArrayView s, Qt::CaseSensitivity cs) const noexcept {
+        if (cs == Qt::CaseSensitive)
+            return compare(s);
+        const qsizetype common = n < s.n ? n : s.n;
+        for (qsizetype i = 0; i < common; ++i) {
+            const int a = foldAscii(p[i]);
+            const int b = foldAscii(s.p[i]);
+            if (a != b)
+                return a - b;
+        }
+        return n == s.n ? 0 : (n < s.n ? -1 : 1);
+    }
+
+    /*!
+        Returns the view converted to a \c short in base \a base, which is
+        between 2 and 36, or 0 to detect the base from a \c{0x}, \c{0b} or
+        \c{0} prefix. Returns 0 if the conversion fails or the value does not
+        fit. If \a ok is not \c nullptr, \c{*ok} is set to whether the
+        conversion succeeded.
+
+        \sa QByteArray::toShort()
+    */
+    short toShort(bool *ok = nullptr, int base = 10) const { return toByteArray().toShort(ok, base); }
+    /*!
+        Returns the view converted to an \c{unsigned short} in base \a base,
+        as toShort() does, and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    ushort toUShort(bool *ok = nullptr, int base = 10) const { return toByteArray().toUShort(ok, base); }
+    /*!
+        Returns the view converted to an \c int in base \a base, as toShort()
+        does, and sets \c{*ok} if \a ok is not \c nullptr.
+
+        \sa QByteArray::toInt()
+    */
+    int toInt(bool *ok = nullptr, int base = 10) const { return toByteArray().toInt(ok, base); }
+    /*!
+        Returns the view converted to an \c{unsigned int} in base \a base, as
+        toShort() does, and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    uint toUInt(bool *ok = nullptr, int base = 10) const { return toByteArray().toUInt(ok, base); }
+    /*!
+        Returns the view converted to a \c long in base \a base, as toShort()
+        does, and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    long toLong(bool *ok = nullptr, int base = 10) const { return toByteArray().toLong(ok, base); }
+    /*!
+        Returns the view converted to an \c{unsigned long} in base \a base, as
+        toShort() does, and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    ulong toULong(bool *ok = nullptr, int base = 10) const { return toByteArray().toULong(ok, base); }
+    /*!
+        Returns the view converted to a \c{long long} in base \a base, as
+        toShort() does, and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    qlonglong toLongLong(bool *ok = nullptr, int base = 10) const { return toByteArray().toLongLong(ok, base); }
+    /*!
+        Returns the view converted to an \c{unsigned long long} in base
+        \a base, as toShort() does, and sets \c{*ok} if \a ok is not
+        \c nullptr.
+    */
+    qulonglong toULongLong(bool *ok = nullptr, int base = 10) const { return toByteArray().toULongLong(ok, base); }
+    /*!
+        Returns the view converted to a \c float, or 0 if it is not a number.
+        If \a ok is not \c nullptr, \c{*ok} is set to whether the conversion
+        succeeded.
+
+        \sa toDouble()
+    */
+    float toFloat(bool *ok = nullptr) const { return toByteArray().toFloat(ok); }
+    /*!
+        Returns the view converted to a \c double, or 0 if it is not a number.
+        The text is read in the C locale. If \a ok is not \c nullptr,
+        \c{*ok} is set to whether the conversion succeeded.
+
+        \sa QByteArray::toDouble()
+    */
+    double toDouble(bool *ok = nullptr) const { return toByteArray().toDouble(ok); }
+
     friend bool operator==(QByteArrayView a, QByteArrayView b) noexcept { return a.view() == b.view(); }
     friend bool operator!=(QByteArrayView a, QByteArrayView b) noexcept { return a.view() != b.view(); }
     friend bool operator<(QByteArrayView a, QByteArrayView b) noexcept { return a.view() < b.view(); }
@@ -343,6 +568,11 @@ public:
     friend bool operator>=(QByteArrayView a, QByteArrayView b) noexcept { return a.view() >= b.view(); }
 
 private:
+    static constexpr bool isSpace(char c) noexcept { return c == ' ' || (c >= '\t' && c <= '\r'); }
+    static constexpr int foldAscii(char c) noexcept {
+        const auto u = static_cast<unsigned char>(c);
+        return u >= 'A' && u <= 'Z' ? u + ('a' - 'A') : u;
+    }
     std::string_view view() const noexcept { return std::string_view(p ? p : "", static_cast<std::size_t>(n)); }
 
     const char *p = nullptr;

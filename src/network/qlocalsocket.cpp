@@ -151,8 +151,11 @@ void QLocalSocket::receive() {
     }
     updateNotifiers();
     QPointer<QLocalSocket> guard(this); // a slot may delete the socket
-    if (got)
+    if (got) {
         readyRead();
+        if (guard)
+            channelReadyRead(0);
+    }
     if (peerClosed && guard && m_fd >= 0) {
         setError(PeerClosedError, QString("The remote socket closed the connection"));
         if (guard)
@@ -184,8 +187,11 @@ qint64 QLocalSocket::send() {
     m_wbuf = m_wbuf.mid(sent);
     updateNotifiers();
     QPointer<QLocalSocket> guard(this);
-    if (sent > 0)
+    if (sent > 0) {
         bytesWritten(sent);
+        if (guard)
+            channelBytesWritten(0, sent);
+    }
     if (guard && m_state == ClosingState && m_wbuf.isEmpty())
         finishClosing();
     return sent;

@@ -16,6 +16,7 @@
 #include <unistd.h>
 
 #include <atomic>
+#include <memory>
 #include <chrono>
 #include <condition_variable>
 #include <cstdio>
@@ -961,6 +962,31 @@ static void testRunnable() {
     CHECK(ran == 3);
 }
 
+static void testPoolMoveOnly() {
+    QThreadPool pool;
+    std::atomic<int> sum{0};
+    auto owned = std::make_unique<int>(5);
+    pool.start([&sum, p = std::move(owned)] { sum += *p; });
+    auto second = std::make_unique<int>(7);
+    while (!pool.tryStart([&sum, p = std::move(second)] { sum += *p; })) {
+        // a moved-from callable is not retried: tryStart() destroyed it
+        second = std::make_unique<int>(7);
+    }
+    CHECK(pool.waitForDone());
+    CHECK(sum == 12);
+    std::unique_ptr<QRunnable> r(QRunnable::create([p = std::make_unique<int>(1), &sum] { sum += *p; }));
+    r->run();
+    CHECK(sum == 13 && r->autoDelete());
+    pool.reserveThread();
+    pool.startOnReservedThread([p = std::make_unique<int>(2), &sum] { sum += *p; });
+    CHECK(pool.waitForDone());
+    CHECK(sum == 15);
+    std::function<void()> copyable = [&sum] { ++sum; };
+    pool.start(copyable); // still the std::function overload
+    CHECK(pool.waitForDone());
+    CHECK(sum == 16);
+}
+
 static void testPoolBasics() {
     QThreadPool pool;
     CHECK(pool.maxThreadCount() == QThread::idealThreadCount());
@@ -1351,6 +1377,81 @@ static void testDeadlineLocking() {
         rw.unlock();
     }
     {
+        // A recursive lock is locked several times by the thread that holds it.
+        QReadWriteLock rw(QReadWriteLock::Recursive);
+        // Whether another thread can lock rw for reading right now.
+        const auto readable = [&rw] {
+            bool ok = false;
+            std::thread t([&] {
+                ok = rw.tryLockForRead();
+                if (ok)
+                    rw.unlock();
+            });
+            t.join();
+            return ok;
+        };
+        rw.lockForWrite();
+        CHECK(rw.tryLockForWrite());
+        rw.lockForRead(); // the writer may read as well
+        CHECK(!readable());
+        rw.unlock();
+        CHECK(!readable());
+        rw.unlock();
+        CHECK(!readable());
+        rw.unlock();
+        CHECK(readable());
+
+        // A reader gets the lock again although a writer waits, and the writer runs after the
+        // last unlock().
+        rw.lockForRead();
+        std::atomic<bool> wrote{false};
+        std::thread writer([&] {
+            rw.lockForWrite();
+            wrote = true;
+            rw.unlock();
+        });
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        CHECK(rw.tryLockForRead());
+        CHECK(!rw.tryLockForWrite(QDeadlineTimer(5))); // a read lock is not upgraded
+        rw.unlock();
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        CHECK(!wrote);
+        rw.unlock();
+        writer.join();
+        CHECK(wrote && readable());
+
+        // Two threads read at the same time, each with its own count.
+        rw.lockForRead();
+        rw.lockForRead();
+        CHECK(readable());
+        rw.unlock();
+        rw.unlock();
+        CHECK(rw.tryLockForWrite());
+        rw.unlock();
+
+        // A wait condition releases a lock that is held once, and refuses one held twice.
+        QWaitCondition cond;
+        rw.lockForWrite();
+        CHECK(!cond.wait(&rw, 5)); // timed out, and locked for writing again
+        CHECK(!readable());
+        rw.lockForWrite();
+        CHECK(!cond.wait(&rw, 60000)); // returns at once
+        rw.unlock();
+        rw.unlock();
+        CHECK(readable());
+
+        // A non-recursive lock is unchanged.
+        QReadWriteLock plain(QReadWriteLock::NonRecursive);
+        plain.lockForWrite();
+        CHECK(!plain.tryLockForWrite() && !plain.tryLockForRead());
+        plain.unlock();
+        CHECK(plain.tryLockForRead() && plain.tryLockForRead());
+        plain.unlock();
+        plain.unlock();
+        CHECK(plain.tryLockForWrite());
+        plain.unlock();
+    }
+    {
         QSemaphore sem;
         CHECK(!sem.tryAcquire() && !sem.try_acquire() && !sem.tryAcquire(1, QDeadlineTimer(5)));
         CHECK(!sem.try_acquire_for(std::chrono::milliseconds(1)));
@@ -1418,6 +1519,7 @@ int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
 
     RUN(testThreadBasics);
+    RUN(testPoolMoveOnly);
     RUN(testExecAndExit);
     RUN(testThreadStatics);
     RUN(testThreadCreate);

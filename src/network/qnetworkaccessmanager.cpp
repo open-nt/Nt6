@@ -666,8 +666,11 @@ private:
         m_downloaded += n;
         QPointer<QNetworkReply> guard(this);
         downloadProgress(m_downloaded, m_expected);
-        if (guard && !m_finished)
+        if (guard && !m_finished) {
             readyRead();
+            if (guard)
+                channelReadyRead(0);
+        }
     }
 
     void complete() {

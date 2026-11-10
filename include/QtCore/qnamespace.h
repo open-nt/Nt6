@@ -114,6 +114,19 @@ enum CaseSensitivity {
 };
 
 /*!
+    \enum Qt::Initialization
+
+    This enum is the tag of the constructors that leave the contents of a
+    container unset, such as \c{QByteArray(size, Qt::Uninitialized)}, for
+    callers that fill in every element afterwards.
+
+    \value Uninitialized The elements need no particular value. Nt
+           value-initializes them: bytes and characters are zero, and class
+           types are default-constructed.
+*/
+enum Initialization { Uninitialized };
+
+/*!
     \enum Qt::SplitBehaviorFlags
 
     This enum controls whether empty parts are kept when splitting a string.

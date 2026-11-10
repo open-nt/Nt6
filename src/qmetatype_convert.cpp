@@ -1,7 +1,12 @@
 // MIT License - see LICENSE
 // Built-in conversions between meta-types; see QMetaType::convert().
+#include <QtCore/qabstractitemmodel.h>
 #include <QtCore/qbitarray.h>
 #include <QtCore/qdatetime.h>
+#include <QtCore/qjsonarray.h>
+#include <QtCore/qjsondocument.h>
+#include <QtCore/qjsonobject.h>
+#include <QtCore/qjsonvalue.h>
 #include <QtCore/qline.h>
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qobject.h>
@@ -487,6 +492,169 @@ bool convertToContainer(QMetaType from, const void *src, QMetaType to, void *dst
     return true;
 }
 
+bool isJsonId(int id) {
+    return id == QMetaType::QJsonValue || id == QMetaType::QJsonObject || id == QMetaType::QJsonArray ||
+           id == QMetaType::QJsonDocument;
+}
+
+bool isMapId(int id) { return id == QMetaType::QVariantMap || id == QMetaType::QVariantHash; }
+bool isListId(int id) { return id == QMetaType::QVariantList || id == QMetaType::QStringList; }
+
+// The conversions that have a JSON class on one side or on both.
+bool canConvertJson(int f, int t) {
+    const bool object = f == QMetaType::QJsonObject || isMapId(f);
+    const bool array = f == QMetaType::QJsonArray || isListId(f);
+    switch (t) {
+    case QMetaType::QJsonValue:
+        return isJsonId(f) || object || array || f == QMetaType::Nullptr || f == QMetaType::QString || isNumericId(f);
+    case QMetaType::QJsonObject:
+        return object || f == QMetaType::QJsonValue || f == QMetaType::QJsonDocument;
+    case QMetaType::QJsonArray:
+        return array || f == QMetaType::QJsonValue || f == QMetaType::QJsonDocument;
+    case QMetaType::QJsonDocument:
+        return object || array || f == QMetaType::QJsonValue;
+    default:
+        break;
+    }
+    // From a JSON class to another type.
+    const bool toObject = isMapId(t);
+    const bool toArray = isListId(t);
+    switch (f) {
+    case QMetaType::QJsonValue:
+        return toObject || toArray || t == QMetaType::QString || isNumericId(t);
+    case QMetaType::QJsonObject:
+        return toObject;
+    case QMetaType::QJsonArray:
+        return toArray;
+    default:
+        return toObject || toArray; // a document
+    }
+}
+
+bool convertJson(QMetaType from, const void *src, QMetaType to, void *dst) {
+    const int f = from.id();
+    const int t = to.id();
+    if (!canConvertJson(f, t))
+        return false;
+
+    // Bring the source into a QJsonValue first.
+    QJsonValue value;
+    switch (f) {
+    case QMetaType::QJsonValue:
+        value = *static_cast<const QJsonValue *>(src);
+        break;
+    case QMetaType::QJsonObject:
+        value = QJsonValue(*static_cast<const QJsonObject *>(src));
+        break;
+    case QMetaType::QJsonArray:
+        value = QJsonValue(*static_cast<const QJsonArray *>(src));
+        break;
+    case QMetaType::QJsonDocument: {
+        const QJsonDocument &doc = *static_cast<const QJsonDocument *>(src);
+        if (doc.isObject())
+            value = QJsonValue(doc.object());
+        else if (doc.isArray())
+            value = QJsonValue(doc.array());
+        else
+            return false;
+        break;
+    }
+    default: {
+        Number n;
+        if (f == QMetaType::Bool || !readNumber(f, src, n)) {
+            value = QJsonValue::fromVariant(QVariant(from, src));
+        } else if (n.kind == Number::Real) {
+            value = QJsonValue(n.d);
+        } else if (n.kind == Number::Signed) {
+            value = QJsonValue(static_cast<qint64>(n.s));
+        } else if (n.u <= static_cast<qulonglong>(std::numeric_limits<qint64>::max())) {
+            value = QJsonValue(static_cast<qint64>(n.u));
+        } else {
+            value = QJsonValue(static_cast<double>(n.u));
+        }
+        break;
+    }
+    }
+
+    switch (t) {
+    case QMetaType::QJsonValue:
+        *static_cast<QJsonValue *>(dst) = value;
+        return true;
+    case QMetaType::QJsonObject:
+        if (!value.isObject())
+            return false;
+        *static_cast<QJsonObject *>(dst) = value.toObject();
+        return true;
+    case QMetaType::QJsonArray:
+        if (!value.isArray())
+            return false;
+        *static_cast<QJsonArray *>(dst) = value.toArray();
+        return true;
+    case QMetaType::QJsonDocument:
+        if (value.isObject())
+            *static_cast<QJsonDocument *>(dst) = QJsonDocument(value.toObject());
+        else if (value.isArray())
+            *static_cast<QJsonDocument *>(dst) = QJsonDocument(value.toArray());
+        else
+            return false;
+        return true;
+    case QMetaType::QString:
+        if (!value.isString() && !value.isNull())
+            return false;
+        *static_cast<QString *>(dst) = value.toString();
+        return true;
+    case QMetaType::QVariantMap:
+        if (!value.isObject())
+            return false;
+        *static_cast<QVariantMap *>(dst) = value.toObject().toVariantMap();
+        return true;
+    case QMetaType::QVariantHash:
+        if (!value.isObject())
+            return false;
+        *static_cast<QVariantHash *>(dst) = value.toObject().toVariantHash();
+        return true;
+    case QMetaType::QVariantList:
+        if (!value.isArray())
+            return false;
+        *static_cast<QVariantList *>(dst) = value.toArray().toVariantList();
+        return true;
+    case QMetaType::QStringList: {
+        if (!value.isArray())
+            return false;
+        QStringList list;
+        const QJsonArray array = value.toArray();
+        for (qsizetype i = 0; i < array.size(); ++i) {
+            const QJsonValue element = array.at(i);
+            if (!element.isString())
+                return false;
+            list.append(element.toString());
+        }
+        *static_cast<QStringList *>(dst) = list;
+        return true;
+    }
+    case QMetaType::Bool:
+        if (!value.isBool())
+            return false;
+        *static_cast<bool *>(dst) = value.toBool();
+        return true;
+    default:
+        break;
+    }
+    // A number: an integer keeps its exact value, anything else goes through double.
+    if (!value.isDouble())
+        return false;
+    Number num;
+    const QVariant number = value.toVariant();
+    if (number.typeId() == QMetaType::LongLong) {
+        num.kind = Number::Signed;
+        num.s = number.toLongLong();
+    } else {
+        num.kind = Number::Real;
+        num.d = value.toDouble();
+    }
+    return storeNumber(t, dst, num);
+}
+
 bool containerTarget(int toId) {
     return toId == QMetaType::QVariantList || toId == QMetaType::QStringList || toId == QMetaType::QByteArrayList ||
            toId == QMetaType::QVariantMap || toId == QMetaType::QVariantHash;
@@ -499,6 +667,8 @@ bool canConvertBuiltin(QMetaType from, QMetaType to) {
     const int t = to.id();
     const bool fromNum = isNumericId(f);
     const bool toNum = isNumericId(t);
+    if (isJsonId(f) || isJsonId(t))
+        return canConvertJson(f, t);
     if (isEnumType(from)) {
         if (toNum || t == QMetaType::QChar)
             return true;
@@ -543,6 +713,10 @@ bool canConvertBuiltin(QMetaType from, QMetaType to) {
         return f == QMetaType::QRectF;
     case QMetaType::QRectF:
         return f == QMetaType::QRect;
+    case QMetaType::QModelIndex:
+        return f == QMetaType::QPersistentModelIndex;
+    case QMetaType::QPersistentModelIndex:
+        return f == QMetaType::QModelIndex;
     case QMetaType::QObjectStar:
         return from.flags().testFlag(QMetaType::PointerToQObject) || f == QMetaType::QObjectStar;
     case QMetaType::QVariantList:
@@ -568,6 +742,9 @@ bool convertBuiltin(QMetaType from, const void *src, QMetaType to, void *dst) {
     const int f = from.id();
     const int t = to.id();
     Number num;
+
+    if (isJsonId(f) || isJsonId(t))
+        return convertJson(from, src, to, dst);
 
     // Enumerations
     if (isEnumType(from)) {
@@ -837,6 +1014,18 @@ bool convertBuiltin(QMetaType from, const void *src, QMetaType to, void *dst) {
     case QMetaType::QRectF:
         if (f == QMetaType::QRect) {
             *static_cast<QRectF *>(dst) = QRectF(*static_cast<const QRect *>(src));
+            return true;
+        }
+        return false;
+    case QMetaType::QModelIndex:
+        if (f == QMetaType::QPersistentModelIndex) {
+            *static_cast<QModelIndex *>(dst) = QModelIndex(*static_cast<const QPersistentModelIndex *>(src));
+            return true;
+        }
+        return false;
+    case QMetaType::QPersistentModelIndex:
+        if (f == QMetaType::QModelIndex) {
+            *static_cast<QPersistentModelIndex *>(dst) = QPersistentModelIndex(*static_cast<const QModelIndex *>(src));
             return true;
         }
         return false;

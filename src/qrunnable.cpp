@@ -18,8 +18,7 @@
     \endcode
 
     \differences
-    The class has no \c QRunnable::create() overload for move-only callables; it takes a
-    \c std::function.
+    None.
     \enddifferences
 
     \sa QThreadPool

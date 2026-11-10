@@ -636,7 +636,10 @@ void QAbstractSocket::deliverData(const char *data, qint64 size) {
     m_rbuf.append(data, size);
     updateNotifiers();
     m_readyReadEmitted = true;
+    QPointer<QAbstractSocket> self(this); // a slot may delete the socket
     readyRead();
+    if (self)
+        channelReadyRead(0);
 }
 
 /*!
@@ -645,7 +648,12 @@ void QAbstractSocket::deliverData(const char *data, qint64 size) {
     Reports that \a size bytes reached the operating system. QSslSocket
     reimplements this, as those bytes are encrypted.
 */
-void QAbstractSocket::socketBytesWritten(qint64 size) { bytesWritten(size); }
+void QAbstractSocket::socketBytesWritten(qint64 size) {
+    QPointer<QAbstractSocket> self(this);
+    bytesWritten(size);
+    if (self)
+        channelBytesWritten(0, size);
+}
 
 /*!
     Called when the operating system socket becomes readable. TCP sockets
@@ -658,7 +666,10 @@ void QAbstractSocket::readActivated() {
         return;
     if (m_type == UdpSocket) {
         m_readyReadEmitted = true;
+        QPointer<QAbstractSocket> self(this);
         readyRead();
+        if (self)
+            channelReadyRead(0);
         return;
     }
     if (m_readBufferSize > 0 && m_rbuf.size() - m_rpos >= m_readBufferSize) {

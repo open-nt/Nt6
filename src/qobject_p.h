@@ -43,6 +43,7 @@ struct ObjectData {
     bool ownsThreadRef = true;
     std::vector<std::pair<QByteArray, QVariant>> dynamicProperties;
     std::vector<QPointer<QObject>> eventFilters; // the most recently installed last
+    bool deleting = false;                       // the destructor runs: children send it no ChildRemoved
 };
 
 // Runs the event filters for `event` to `receiver`: those of the application, then those of `receiver`. Returns true

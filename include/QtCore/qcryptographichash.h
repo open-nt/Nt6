@@ -26,7 +26,16 @@ public:
         Sha3_224 = 11,
         Sha3_256,
         Sha3_384,
-        Sha3_512
+        Sha3_512,
+        Blake2b_160 = 15,
+        Blake2b_256,
+        Blake2b_384,
+        Blake2b_512,
+        Blake2s_128 = 19,
+        Blake2s_160,
+        Blake2s_224,
+        Blake2s_256,
+        NumAlgorithms
     };
 
     explicit QCryptographicHash(Algorithm method);

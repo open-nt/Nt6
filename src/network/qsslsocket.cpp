@@ -712,8 +712,11 @@ void QSslSocket::socketBytesWritten(qint64 size) {
             d->records.pop_front();
         }
     }
-    if (self && plain > 0)
+    if (self && plain > 0) {
         bytesWritten(plain);
+        if (self)
+            channelBytesWritten(0, plain);
+    }
 }
 
 /*!

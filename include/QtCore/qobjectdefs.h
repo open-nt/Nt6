@@ -9,6 +9,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <tuple>
 #include <type_traits>
 #include <typeinfo>
 #include <utility>
@@ -48,6 +49,37 @@ template <typename R, typename C, typename... A> struct MemberClass<R (C::*)(A..
 template <typename R, typename C, typename... A> struct MemberClass<R (C::*)(A...) noexcept> {
     using type = C;
 };
+template <typename R, typename C, typename... A> struct MemberClass<R (C::*)(A...) const noexcept> {
+    using type = C;
+};
+
+// The context object that QMetaObject::invokeMethod() takes for a function of type F: an instance
+// of the class for a pointer to a member function, and any QObject for another function.
+template <typename F, bool = std::is_member_function_pointer_v<F>> struct InvokeContext {
+    using type = QObject;
+};
+template <typename F> struct InvokeContext<F, true> {
+    using type = typename MemberClass<F>::type;
+};
+
+// True if QMetaObject::invokeMethod() can call a function of type F with arguments of the types A;
+// a member function is called on the context object.
+template <typename F, typename... A>
+inline constexpr bool CanInvoke = std::is_member_function_pointer_v<std::decay_t<F>>
+                                      ? std::is_invocable_v<F, typename InvokeContext<std::decay_t<F>>::type *, A...>
+                                      : std::is_invocable_v<F, A...>;
+
+// The result of that call, as the member `type`.
+template <typename F, typename... A>
+struct InvokeResultOf : std::conditional_t<std::is_member_function_pointer_v<std::decay_t<F>>,
+                                           std::invoke_result<F, typename InvokeContext<std::decay_t<F>>::type *, A...>,
+                                           std::invoke_result<F, A...>> {};
+
+// True for the calls that the overloads of invokeMethod() with plain arguments handle: a member
+// function, or a functor that is given arguments.
+template <typename F, typename... A>
+inline constexpr bool InvokesWithArguments =
+    CanInvoke<F, A...> && (std::is_member_function_pointer_v<std::decay_t<F>> || sizeof...(A) > 0);
 
 // One method as ntmoc describes it. Types are normalized.
 struct MetaMethodData {
@@ -222,6 +254,42 @@ public:
     QReturnArgument(const char *aName, T &aData) : QGenericReturnArgument(aName, static_cast<void *>(&aData)) {}
 };
 
+/*!
+    \class QTemplatedMetaMethodReturnArgument
+    \brief The QTemplatedMetaMethodReturnArgument class refers to the variable that receives the result of QMetaObject::invokeMethod().
+    \since 6.5
+
+    qReturnArg() creates one from a variable of type \c T. Pass it to the
+    overloads of QMetaObject::invokeMethod() that take a function and plain
+    arguments:
+
+    \code
+    int sum = 0;
+    QMetaObject::invokeMethod(&calculator, &Calculator::add, qReturnArg(sum), 2, 3);
+    \endcode
+
+    \differences
+    The class holds only the address of the variable; there is no
+    \c QMetaMethodReturnArgument base class with a type name and a meta-type.
+    The overloads of QMetaObject::invokeMethod() and QMetaMethod::invoke()
+    that take the name of a method do not accept it; use \c Q_RETURN_ARG()
+    there.
+    \enddifferences
+
+    \sa QMetaObject::invokeMethod()
+*/
+template <typename T> struct QTemplatedMetaMethodReturnArgument {
+    /*!
+        The address of the variable that receives the result.
+    */
+    void *data;
+};
+
+// Returns the argument that makes QMetaObject::invokeMethod() store the result of the call in data.
+template <typename T> QTemplatedMetaMethodReturnArgument<T> qReturnArg(T &data) {
+    return QTemplatedMetaMethodReturnArgument<T>{static_cast<void *>(&data)};
+}
+
 class QString;
 namespace QtPrivate {
 // Translates through the translators installed on QCoreApplication; used by tr().
@@ -297,9 +365,9 @@ private:
     from that of Qt's moc. There are no \c qt_metacast() and \c qt_metacall()
     functions, no \c QMetaObject::tr() or \c changeGuard(), and
     \c qobject_cast() stays a wrapper around \c dynamic_cast.
-    invokeMethod() has no
-    overloads that take a pointer to a member function; pass a name or a
-    functor. A class that \c ntmoc did not process has no meta-object of its
+    The invokeMethod() overloads that take the name of a method need
+    \c Q_ARG() and \c Q_RETURN_ARG(); plain arguments and qReturnArg() are
+    for the overloads that take a function. A class that \c ntmoc did not process has no meta-object of its
     own: QObject::metaObject() returns that of its nearest base class that
     has one.
     \enddifferences
@@ -475,27 +543,7 @@ struct QMetaObject {
     template <typename Functor, typename = std::enable_if_t<std::is_invocable_v<Functor>>>
     static bool invokeMethod(QObject *context, Functor &&function, Qt::ConnectionType type = Qt::AutoConnection,
                              std::remove_cv_t<std::remove_reference_t<std::invoke_result_t<Functor>>> *ret = nullptr) {
-        using R = std::invoke_result_t<Functor>;
-        if (!context)
-            return false;
-        if constexpr (std::is_void_v<R>) {
-            (void)ret;
-            return invokeFunctor(context, std::function<void()>(std::forward<Functor>(function)), type);
-        } else {
-            if (type == Qt::QueuedConnection && ret)
-                return false;
-            if (type == Qt::QueuedConnection)
-                return invokeFunctor(context, [f = std::forward<Functor>(function)]() mutable { (void)f(); }, type);
-            return invokeFunctor(
-                context,
-                [&function, ret]() mutable {
-                    if (ret)
-                        *ret = function();
-                    else
-                        (void)function();
-                },
-                type);
-        }
+        return invokeCallable(context, std::forward<Functor>(function), type, ret);
     }
 
     /*!
@@ -507,6 +555,112 @@ struct QMetaObject {
     static bool invokeMethod(QObject *context, Functor &&function,
                              std::remove_cv_t<std::remove_reference_t<std::invoke_result_t<Functor>>> *ret) {
         return invokeMethod(context, std::forward<Functor>(function), Qt::AutoConnection, ret);
+    }
+
+    /*!
+        \overload
+        \since 6.7
+
+        Calls \a function with the arguments \a args in the context of \a context, using the
+        connection type \a type, and returns \c true if the call was made or queued.
+        \a function is a pointer to a member function of the class of \a context, which is
+        called on \a context, or a functor that takes \a args:
+
+        \code
+        QMetaObject::invokeMethod(&label, &Label::setText, Qt::QueuedConnection, QString("Done"));
+        QMetaObject::invokeMethod(&label, [](int code) { report(code); }, Qt::QueuedConnection, 3);
+        \endcode
+
+        A queued call copies \a function and \a args, and runs when control returns to the
+        event loop of the thread of \a context; nothing runs if \a context is destroyed first.
+        The arguments are checked when the call is compiled, so their types need not be
+        registered with QMetaType. Returns \c false if \a context is \c nullptr.
+    */
+    template <typename Functor, typename... Args,
+              std::enable_if_t<QtPrivate::InvokesWithArguments<Functor, Args...>, int> = 0>
+    static bool invokeMethod(typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type *context,
+                             Functor &&function, Qt::ConnectionType type, Args &&...args) {
+        return invokeFunction(context, std::forward<Functor>(function), type,
+                              static_cast<InvokeResult<Functor, Args...> *>(nullptr), std::forward<Args>(args)...);
+    }
+
+    /*!
+        \overload
+        \since 6.7
+
+        Calls \a function with the arguments \a args in the context of \a context with
+        \c Qt::AutoConnection: at once if \a context lives in the calling thread, and from the
+        event loop of its thread otherwise.
+    */
+    template <typename Functor, typename... Args,
+              std::enable_if_t<QtPrivate::InvokesWithArguments<Functor, Args...>, int> = 0>
+    static bool invokeMethod(typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type *context,
+                             Functor &&function, Args &&...args) {
+        return invokeFunction(context, std::forward<Functor>(function), Qt::AutoConnection,
+                              static_cast<InvokeResult<Functor, Args...> *>(nullptr), std::forward<Args>(args)...);
+    }
+
+    /*!
+        \overload
+        \since 6.7
+
+        Calls \a function with the arguments \a args in the context of \a context, using the
+        connection type \a type, and stores the result in the variable that \a ret refers to;
+        create \a ret with qReturnArg(). A queued call cannot return a value, so the function
+        returns \c false if the call would be queued.
+    */
+    template <typename Functor, typename Ret, typename... Args,
+              std::enable_if_t<QtPrivate::CanInvoke<Functor, Args...>, int> = 0>
+    static bool invokeMethod(typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type *context,
+                             Functor &&function, Qt::ConnectionType type, QTemplatedMetaMethodReturnArgument<Ret> ret,
+                             Args &&...args) {
+        return invokeFunction(context, std::forward<Functor>(function), type, static_cast<Ret *>(ret.data),
+                              std::forward<Args>(args)...);
+    }
+
+    /*!
+        \overload
+        \since 6.7
+
+        Calls \a function with the arguments \a args in the context of \a context with
+        \c Qt::AutoConnection and stores the result in the variable that \a ret refers to.
+    */
+    template <typename Functor, typename Ret, typename... Args,
+              std::enable_if_t<QtPrivate::CanInvoke<Functor, Args...>, int> = 0>
+    static bool invokeMethod(typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type *context,
+                             Functor &&function, QTemplatedMetaMethodReturnArgument<Ret> ret, Args &&...args) {
+        return invokeFunction(context, std::forward<Functor>(function), Qt::AutoConnection,
+                              static_cast<Ret *>(ret.data), std::forward<Args>(args)...);
+    }
+
+    /*!
+        \overload
+        \since 5.10
+
+        Calls \a function, a pointer to a member function without parameters, on \a context
+        using the connection type \a type, and stores the result in \a ret.
+    */
+    template <typename Functor, typename Ret,
+              std::enable_if_t<
+                  std::is_member_function_pointer_v<std::decay_t<Functor>> && QtPrivate::CanInvoke<Functor>, int> = 0>
+    static bool invokeMethod(typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type *context,
+                             Functor &&function, Qt::ConnectionType type, Ret *ret) {
+        return invokeFunction(context, std::forward<Functor>(function), type, ret);
+    }
+
+    /*!
+        \overload
+        \since 5.10
+
+        Calls \a function, a pointer to a member function without parameters, on \a context
+        with \c Qt::AutoConnection and stores the result in \a ret.
+    */
+    template <typename Functor, typename Ret,
+              std::enable_if_t<
+                  std::is_member_function_pointer_v<std::decay_t<Functor>> && QtPrivate::CanInvoke<Functor>, int> = 0>
+    static bool invokeMethod(typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type *context,
+                             Functor &&function, Ret *ret) {
+        return invokeFunction(context, std::forward<Functor>(function), Qt::AutoConnection, ret);
     }
 
     QObject *newInstance(QGenericArgument val0 = QGenericArgument(nullptr), QGenericArgument val1 = QGenericArgument(),
@@ -527,6 +681,72 @@ struct QMetaObject {
 
 private:
     static bool invokeFunctor(QObject *context, std::function<void()> function, Qt::ConnectionType type);
+    // Returns Qt::DirectConnection, Qt::QueuedConnection or Qt::BlockingQueuedConnection: how a
+    // call of the given type to an object in the thread of context is made from this thread.
+    static Qt::ConnectionType resolveConnectionType(const QObject *context, Qt::ConnectionType type);
+
+    // The type of the variable that can receive the result of calling Functor with Args.
+    template <typename Functor, typename... Args>
+    using InvokeResult =
+        std::remove_cv_t<std::remove_reference_t<typename QtPrivate::InvokeResultOf<Functor, Args...>::type>>;
+
+    // Calls function with args, on context if it is a member function.
+    template <typename Context, typename Functor, typename Ret, typename... Args>
+    static bool invokeFunction(Context *context, Functor &&function, Qt::ConnectionType type, Ret *ret,
+                               Args &&...args) {
+        if constexpr (std::is_member_function_pointer_v<std::decay_t<Functor>>)
+            return invokeCallable(context, std::forward<Functor>(function), type, ret, context,
+                                  std::forward<Args>(args)...);
+        else
+            return invokeCallable(context, std::forward<Functor>(function), type, ret, std::forward<Args>(args)...);
+    }
+
+    // Calls function with args in the context of context, and stores the result in *ret unless
+    // ret is null.
+    template <typename Functor, typename Ret, typename... Args>
+    static bool invokeCallable(QObject *context, Functor &&function, Qt::ConnectionType type, Ret *ret,
+                               Args &&...args) {
+        if (!context)
+            return false;
+        type = resolveConnectionType(context, type);
+        if (type == Qt::QueuedConnection) {
+            if (ret)
+                return false;
+            // The call runs after this function has returned, so it owns the function and the
+            // arguments.
+            auto call = std::make_shared<std::pair<std::decay_t<Functor>, std::tuple<std::decay_t<Args>...>>>(
+                std::piecewise_construct, std::forward_as_tuple(std::forward<Functor>(function)),
+                std::forward_as_tuple(std::forward<Args>(args)...));
+            return invokeFunctor(
+                context,
+                [call]() {
+                    // Each copy is passed on as the argument was given: as an lvalue or an rvalue.
+                    std::apply(
+                        [&call](std::decay_t<Args> &...values) {
+                            (void)std::invoke(
+                                call->first,
+                                static_cast<std::conditional_t<std::is_lvalue_reference_v<Args>, std::decay_t<Args> &,
+                                                               std::decay_t<Args> &&>>(values)...);
+                        },
+                        call->second);
+                },
+                type);
+        }
+        // A direct or blocking call is over when invokeFunctor() returns, so references do.
+        return invokeFunctor(
+            context,
+            [&]() {
+                if constexpr (std::is_void_v<std::invoke_result_t<Functor, Args...>>) {
+                    std::invoke(std::forward<Functor>(function), std::forward<Args>(args)...);
+                } else {
+                    if (ret)
+                        *ret = std::invoke(std::forward<Functor>(function), std::forward<Args>(args)...);
+                    else
+                        (void)std::invoke(std::forward<Functor>(function), std::forward<Args>(args)...);
+                }
+            },
+            type);
+    }
 };
 
 namespace QtPrivate {

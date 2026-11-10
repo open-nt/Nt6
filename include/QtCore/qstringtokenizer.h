@@ -280,3 +280,18 @@ auto qTokenize(H &&haystack, N &&needle, Rest &&...rest) {
     return Tokenizer(QtPrivate::Tok::HaystackType<H>(std::forward<H>(haystack)), QtPrivate::Tok::NeedleType<N>(std::forward<N>(needle)),
                      std::forward<Rest>(rest)...);
 }
+
+template <typename Needle, typename... Flags> auto QStringView::tokenize(Needle &&needle, Flags... flags) const {
+    using Tokenizer = QStringTokenizer<QStringView, QtPrivate::Tok::NeedleType<Needle>>;
+    return Tokenizer(*this, QtPrivate::Tok::NeedleType<Needle>(std::forward<Needle>(needle)), flags...);
+}
+
+template <typename Needle, typename... Flags> auto QString::tokenize(Needle &&needle, Flags... flags) const & {
+    using Tokenizer = QStringTokenizer<QStringView, QtPrivate::Tok::NeedleType<Needle>>;
+    return Tokenizer(QStringView(*this), QtPrivate::Tok::NeedleType<Needle>(std::forward<Needle>(needle)), flags...);
+}
+
+template <typename Needle, typename... Flags> auto QString::tokenize(Needle &&needle, Flags... flags) && {
+    using Tokenizer = QStringTokenizer<QString, QtPrivate::Tok::NeedleType<Needle>>;
+    return Tokenizer(std::move(*this), QtPrivate::Tok::NeedleType<Needle>(std::forward<Needle>(needle)), flags...);
+}

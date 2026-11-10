@@ -11,6 +11,10 @@
 #include <optional>
 #include <type_traits>
 
+namespace QtPrivate {
+struct Access;
+} // namespace QtPrivate
+
 /*!
     \class QMetaMethod
     \brief The QMetaMethod class provides meta-data about a member function.
@@ -28,8 +32,8 @@
     \endcode
 
     \differences
-    \c invokeOnGadget() is not available.
-    Argument types are compared by name, as in Qt, so the types of a queued
+    invokeOnGadget() and invoke() take \c Q_ARG() and \c Q_RETURN_ARG()
+    arguments only, not plain values and qReturnArg(). Argument types are compared by name, as in Qt, so the types of a queued
     call must be registered with the meta-type system. A
     \c Qt::BlockingQueuedConnection call to an object in the calling thread
     runs the method directly, where Qt reports a deadlock.
@@ -152,6 +156,29 @@ public:
                       val7, val8, val9);
     }
 
+    bool invokeOnGadget(void *gadget, QGenericReturnArgument returnValue,
+                        QGenericArgument val0 = QGenericArgument(nullptr), QGenericArgument val1 = QGenericArgument(),
+                        QGenericArgument val2 = QGenericArgument(), QGenericArgument val3 = QGenericArgument(),
+                        QGenericArgument val4 = QGenericArgument(), QGenericArgument val5 = QGenericArgument(),
+                        QGenericArgument val6 = QGenericArgument(), QGenericArgument val7 = QGenericArgument(),
+                        QGenericArgument val8 = QGenericArgument(), QGenericArgument val9 = QGenericArgument()) const;
+    /*!
+        \overload
+        \since 5.5
+
+        Invokes the method on \a gadget with the arguments \a val0, \a val1, \a val2, \a val3,
+        \a val4, \a val5, \a val6, \a val7, \a val8 and \a val9, discarding the result.
+    */
+    bool invokeOnGadget(void *gadget, QGenericArgument val0 = QGenericArgument(nullptr),
+                        QGenericArgument val1 = QGenericArgument(), QGenericArgument val2 = QGenericArgument(),
+                        QGenericArgument val3 = QGenericArgument(), QGenericArgument val4 = QGenericArgument(),
+                        QGenericArgument val5 = QGenericArgument(), QGenericArgument val6 = QGenericArgument(),
+                        QGenericArgument val7 = QGenericArgument(), QGenericArgument val8 = QGenericArgument(),
+                        QGenericArgument val9 = QGenericArgument()) const {
+        return invokeOnGadget(gadget, QGenericReturnArgument(), val0, val1, val2, val3, val4, val5, val6, val7, val8,
+                              val9);
+    }
+
     QObject *newInstance(QGenericArgument val0 = QGenericArgument(nullptr), QGenericArgument val1 = QGenericArgument(),
                          QGenericArgument val2 = QGenericArgument(), QGenericArgument val3 = QGenericArgument(),
                          QGenericArgument val4 = QGenericArgument(), QGenericArgument val5 = QGenericArgument(),
@@ -184,9 +211,12 @@ private:
     friend struct QMetaObject;
     friend class QMetaProperty;
     friend class QObject;
+    friend struct QtPrivate::Access;
 
     static QMetaMethod fromSignalImpl(const QMetaObject *mo, const QtPrivate::SignalId &id);
     const QtPrivate::MetaMethodData &data() const;
+    int checkArguments(const char *where, const QGenericReturnArgument &returnValue,
+                       const QGenericArgument *const *vals) const;
 
     const QMetaObject *mobj = nullptr;
     int index = -1; // local to mobj

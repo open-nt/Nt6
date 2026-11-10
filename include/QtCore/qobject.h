@@ -22,6 +22,7 @@
 #include <utility>
 #include <vector>
 
+class QChildEvent;
 class QObject;
 class QThread;
 using QObjectList = QList<QObject *>;
@@ -43,6 +44,13 @@ struct Access {
     // argv[i] points to argument i. Used by modules that relay signals they know only at run time.
     static QMetaObject::Connection connectFunction(const QObject *sender, const QMetaMethod &signal, QObject *context,
                                                    std::function<void(void *const *)> function);
+    // The meta-method of the signal `id` of `sender`, or an invalid one if ntmoc did not see it.
+    static QMetaMethod signalMethod(const QObject *sender, const SignalId &id);
+    // Calls QObject::connectNotify() or disconnectNotify() of `sender` for the signal `id`.
+    static void connectNotify(QObject *sender, const SignalId &id);
+    static void disconnectNotify(QObject *sender, const SignalId &id);
+    // The number of connections from `sender`, from the signal `id` only if it is not null.
+    static int connectionCount(const QObject *sender, const SignalId *id);
 };
 
 // Argument copy kept alive for queued deliveries.
@@ -135,6 +143,13 @@ public:
 
     QString objectName() const;
     void setObjectName(const QString &name);
+
+    bool isWidgetType() const;
+    bool isWindowType() const;
+    bool isQuickItemType() const;
+
+    void dumpObjectTree() const;
+    void dumpObjectInfo() const;
 
     /*!
         Returns the first child of this object that can be cast to \c T and,
@@ -297,7 +312,14 @@ signals:
 
 protected:
     virtual void timerEvent(QTimerEvent *event);
+    virtual void childEvent(QChildEvent *event);
     virtual void customEvent(QEvent *event);
+    virtual void connectNotify(const QMetaMethod &signal);
+    virtual void disconnectNotify(const QMetaMethod &signal);
+
+    int senderSignalIndex() const;
+    int receivers(const char *signal) const;
+    bool isSignalConnected(const QMetaMethod &signal) const;
 
     /*!
         Emits \a signal with \a args to every connected slot. This stands in

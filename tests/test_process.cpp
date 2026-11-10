@@ -389,6 +389,62 @@ static void testChannelsSeparateAndMerged() {
         CHECK(p.readAllStandardOutput() == ";out2;");
     }
     {
+        // The channels of QIODevice: QProcess has two to read from and one to write to.
+        QProcess p;
+        CHECK(p.readChannelCount() == 0 && p.writeChannelCount() == 0);
+        int ready[2] = {0, 0};
+        int readyReads = 0;
+        QObject::connect(&p, &QIODevice::channelReadyRead, [&](int channel) { ++ready[channel]; });
+        QObject::connect(&p, &QIODevice::readyRead, [&] { ++readyReads; });
+        p.start(helper(), {"both"});
+        CHECK(p.readChannelCount() == 2 && p.writeChannelCount() == 1);
+        CHECK(p.currentReadChannel() == 0 && p.currentWriteChannel() == 0);
+        CHECK(finishedWithin(p));
+        CHECK(ready[0] >= 1 && ready[1] >= 1 && readyReads >= 1);
+
+        // Look-ahead data stays with its channel.
+        CHECK(p.peek(4) == "out1");
+        p.setCurrentReadChannel(1);
+        CHECK(p.readChannel() == QProcess::StandardError && p.currentReadChannel() == 1);
+        CHECK(p.bytesAvailable() == 10 && p.read(5) == "err1;");
+        p.ungetChar('!');
+        p.setReadChannel(QProcess::StandardOutput);
+        CHECK(p.currentReadChannel() == 0 && p.bytesAvailable() == 10);
+        CHECK(p.readAll() == "out1;out2;");
+        p.setCurrentReadChannel(1);
+        CHECK(p.readAll() == "!err2;");
+        p.setCurrentReadChannel(-1); // ignored
+        CHECK(p.currentReadChannel() == 1);
+
+        // The channel cannot change during a transaction.
+        p.startTransaction();
+        p.setCurrentReadChannel(0);
+        CHECK(p.currentReadChannel() == 1);
+        p.rollbackTransaction();
+        p.setCurrentReadChannel(0);
+        CHECK(p.currentReadChannel() == 0);
+        p.close();
+        CHECK(p.readChannelCount() == 0);
+    }
+    {
+        QProcess p;
+        qint64 written = 0;
+        int writeChannel = -1;
+        QObject::connect(&p, &QIODevice::channelBytesWritten, [&](int channel, qint64 bytes) {
+            writeChannel = channel;
+            written += bytes;
+        });
+        p.start("/bin/cat", QStringList());
+        CHECK(p.waitForStarted(5000));
+        CHECK(p.write("hello") == 5);
+        CHECK(p.waitForBytesWritten(5000));
+        CHECK(written == 5 && writeChannel == 0);
+        p.closeWriteChannel();
+        CHECK(p.writeChannelCount() == 0 && p.readChannelCount() == 2);
+        CHECK(finishedWithin(p));
+        CHECK(p.readAll() == "hello");
+    }
+    {
         QProcess p;
         p.start("/bin/sh", {"-c", "echo one; echo two; printf three"});
         CHECK(finishedWithin(p));

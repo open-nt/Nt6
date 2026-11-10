@@ -1,14 +1,44 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qanystringview.h>
+#include <QtCore/qhashfunctions.h>
 #include <QtCore/qlist.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringview.h>
 
+#include <cstddef>
 #include <initializer_list>
+#include <iterator>
 
 class QVersionNumber {
 public:
+    /*!
+        \since 6.6
+        A read-only iterator over the segments of the version number.
+    */
+    using const_iterator = QList<int>::const_iterator;
+    /*!
+        \since 6.6
+        A read-only iterator over the segments in reverse order.
+    */
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    /*!
+        \since 6.6
+        The type of a segment, \c int.
+    */
+    using value_type = int;
+    /*!
+        \since 6.6
+        The type of the distance between two iterators.
+    */
+    using difference_type = qsizetype;
+    /*!
+        \since 6.6
+        The type of a segment count or index.
+    */
+    using size_type = qsizetype;
+
     /*!
         Constructs a null version number with no segments.
 
@@ -92,15 +122,66 @@ public:
 
     static int compare(const QVersionNumber &a, const QVersionNumber &b) noexcept;
     static QVersionNumber commonPrefix(const QVersionNumber &a, const QVersionNumber &b);
-    static QVersionNumber fromString(QStringView string, qsizetype *suffixIndex = nullptr);
-    /*!
-        \overload
+    static QVersionNumber fromString(QAnyStringView string, qsizetype *suffixIndex = nullptr);
 
-        Parses \a string, which is interpreted as UTF-8.
+    /*!
+        \since 6.6
+        Returns an iterator to the first segment.
+
+        \sa end(), segments()
     */
-    static QVersionNumber fromString(const char *string, qsizetype *suffixIndex = nullptr) {
-        return fromString(QStringView(QString::fromUtf8(string)), suffixIndex);
-    }
+    const_iterator begin() const noexcept { return m.constBegin(); }
+    /*!
+        \since 6.6
+        Returns an iterator to the position after the last segment.
+
+        \sa begin()
+    */
+    const_iterator end() const noexcept { return m.constEnd(); }
+    /*!
+        \since 6.6
+        Returns an iterator to the first segment.
+    */
+    const_iterator cbegin() const noexcept { return m.constBegin(); }
+    /*!
+        \since 6.6
+        Returns an iterator to the position after the last segment.
+    */
+    const_iterator cend() const noexcept { return m.constEnd(); }
+    /*!
+        \since 6.6
+        Returns an iterator to the first segment.
+    */
+    const_iterator constBegin() const noexcept { return m.constBegin(); }
+    /*!
+        \since 6.6
+        Returns an iterator to the position after the last segment.
+    */
+    const_iterator constEnd() const noexcept { return m.constEnd(); }
+    /*!
+        \since 6.6
+        Returns a reverse iterator to the last segment.
+
+        \sa rend()
+    */
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    /*!
+        \since 6.6
+        Returns a reverse iterator to the position before the first segment.
+
+        \sa rbegin()
+    */
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    /*!
+        \since 6.6
+        Returns a reverse iterator to the last segment.
+    */
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+    /*!
+        \since 6.6
+        Returns a reverse iterator to the position before the first segment.
+    */
+    const_reverse_iterator crend() const noexcept { return rend(); }
 
     friend bool operator==(const QVersionNumber &a, const QVersionNumber &b) noexcept { return compare(a, b) == 0; }
     friend bool operator!=(const QVersionNumber &a, const QVersionNumber &b) noexcept { return compare(a, b) != 0; }
@@ -112,3 +193,8 @@ public:
 private:
     QList<int> m;
 };
+
+// Returns a hash of the segments of key, mixed with seed.
+inline std::size_t qHash(const QVersionNumber &key, std::size_t seed = 0) noexcept {
+    return qHashRange(key.begin(), key.end(), seed);
+}

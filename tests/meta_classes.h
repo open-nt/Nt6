@@ -185,6 +185,11 @@ public:
     int y = 0;
     QString label;
     Q_INVOKABLE int sum() const { return x + y; }
+    Q_INVOKABLE void move(int dx, int dy) {
+        x += dx;
+        y += dy;
+    }
+    Q_INVOKABLE QString describe(const QString &prefix) const { return prefix + label; }
 };
 
 } // namespace meta

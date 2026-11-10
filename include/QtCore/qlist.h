@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qglobal.h>
+#include <QtCore/qnamespace.h>
 
 #include <algorithm>
 #include <initializer_list>
@@ -29,8 +30,8 @@
     \differences
     The list is a thin wrapper over \c std::vector, so copies are deep and it
     is not implicitly shared. \c QList<bool> is rejected with a
-    \c static_assert. There is no \c Qt::Initialization constructor or
-    resize() overload. Indexes are not range-checked except by value().
+    \c static_assert. The \c Qt::Uninitialized constructor and
+    resizeForOverwrite() value-initialize the new items. Indexes are not range-checked except by value().
     \c QVector is an alias of QList, so toList(), toVector(), fromList()
     and fromVector() return a copy of the same type.
     \enddifferences
@@ -109,6 +110,12 @@ public:
 
         Constructs a list with \a size copies of \a value. */
     QList(qsizetype size, const T &value) : d(static_cast<std::size_t>(size), value) {}
+    /*! \overload
+        \since 6.8
+
+        Constructs a list with \a size items whose values the caller is about
+        to assign. Pass \c Qt::Uninitialized as the second argument. */
+    QList(qsizetype size, Qt::Initialization) : d(static_cast<std::size_t>(size)) {}
     /*! Constructs a list from the items in the initializer list \a args. */
     QList(std::initializer_list<T> args) : d(args) {}
     /*! Constructs a list with a copy of the items in the range [\a first, \a last). */
@@ -182,6 +189,14 @@ public:
 
         Sets the size of the list to \a n. New items are copies of \a v. */
     void resize(qsizetype n, const T &v) { d.resize(static_cast<std::size_t>(n), v); }
+    /*!
+        \since 6.8
+        Sets the size of the list to \a size, for a caller that is about to
+        assign every new item.
+
+        \sa resize()
+    */
+    void resizeForOverwrite(qsizetype size) { d.resize(static_cast<std::size_t>(size)); }
     /*!
         Assigns \a v to every item in the list. If \a n is not negative, the
         list is first resized to \a n items.

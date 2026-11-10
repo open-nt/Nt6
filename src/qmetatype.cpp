@@ -5,7 +5,12 @@
 #include <QtCore/qjsondocument.h>
 #include <QtCore/qbitarray.h>
 #include <QtCore/qline.h>
+#include <QtCore/qabstractitemmodel.h>
+#include <QtCore/qcompare.h>
+#include <QtCore/qeasingcurve.h>
+#include <QtCore/qlocale.h>
 #include <QtCore/qmetatype.h>
+#include <QtCore/qregularexpression.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qurl.h>
@@ -153,6 +158,11 @@ const std::array<const QMetaTypeInterface *, kBuiltinCount> &builtinTable() {
         NT_ENTRY(QTime)
         NT_ENTRY(QDateTime)
         NT_ENTRY(QUrl)
+        NT_ENTRY(QLocale)
+        NT_ENTRY(QRegularExpression)
+        NT_ENTRY(QEasingCurve)
+        NT_ENTRY(QModelIndex)
+        NT_ENTRY(QPersistentModelIndex)
         NT_ENTRY(QRect)
         NT_ENTRY(QRectF)
         NT_ENTRY(QSize)
@@ -539,6 +549,29 @@ bool QMetaType::compare(const void *lhs, const void *rhs, int &result) const {
 }
 
 /*!
+    \overload
+    Compares the values at \a lhs and \a rhs and returns the result as an ordering:
+    \c QPartialOrdering::Less, \c Equivalent or \c Greater for a type that is ordered, and
+    \c QPartialOrdering::Unordered for a type that has no \c operator<, for an invalid type and
+    if \a lhs or \a rhs is \c nullptr. Two floating-point values are unordered if one of them
+    is not a number.
+
+    \since 6.0
+    \sa isOrdered(), equals(), QVariant::compare()
+*/
+QPartialOrdering QMetaType::compare(const void *lhs, const void *rhs) const {
+    if (!d_ptr || !lhs || !rhs || !d_ptr->lessThan)
+        return QPartialOrdering::Unordered;
+    if (d_ptr->equals && d_ptr->equals(d_ptr, lhs, rhs))
+        return QPartialOrdering::Equivalent;
+    if (d_ptr->lessThan(d_ptr, lhs, rhs))
+        return QPartialOrdering::Less;
+    if (d_ptr->lessThan(d_ptr, rhs, lhs))
+        return QPartialOrdering::Greater;
+    return d_ptr->equals ? QPartialOrdering::Unordered : QPartialOrdering::Equivalent;
+}
+
+/*!
     Returns \c true if the type can be written to a QDebug stream.
 
     \sa debugStream()
@@ -750,6 +783,13 @@ int QMetaType::registerNormalizedTypedef(const ::QByteArray &normalizedTypeName,
     \li QStringList, QByteArrayList and QVariantList convert to each other when each element
         converts; QVariantMap and QVariantHash convert to each other.
     \li QPoint, QSize, QRect and QLine convert to and from their floating-point variants.
+    \li QModelIndex and QPersistentModelIndex convert to each other.
+    \li A QJsonValue converts to \c bool, a number, QString, QStringList, QVariantList,
+        QVariantMap, QVariantHash, QJsonObject, QJsonArray and QJsonDocument when it holds a
+        value of that kind, and all of these, and \c nullptr, convert to a QJsonValue. A
+        QJsonObject converts to and from QVariantMap and QVariantHash, a QJsonArray to and from
+        QVariantList and QStringList, and a QJsonDocument to and from the object or array it
+        holds.
     \li An enumeration converts to and from integers; with \c Q_ENUM() it also converts to and
         from its key name as a QString.
     \li A sequential or associative container converts to QVariantList, QVariantMap or

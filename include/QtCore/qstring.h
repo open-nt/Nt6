@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qbytearray.h>
+#include <QtCore/qbytearrayview.h>
 #include <QtCore/qchar.h>
 #include <QtCore/qglobal.h>
 #include <QtCore/qnamespace.h>
@@ -18,6 +19,7 @@ class QStringList;
 template <typename T> class QList;
 class QRegularExpression;
 class QRegularExpressionMatch;
+template <typename Haystack, typename Needle> class QStringTokenizer;
 
 /*!
     \class QLatin1StringView
@@ -30,9 +32,9 @@ class QRegularExpressionMatch;
 
     \differences
     The searching and comparison functions that take a QString convert the
-    view to a QString first, so they allocate. The number conversions, arg()
-    and the \c QLatin1StringView(QByteArrayView) constructor are not
-    available. first(), last(), sliced() and chopped() do not check their
+    view to a QString first, so they allocate, and so do the number
+    conversions. arg() takes strings and characters only. first(), last(),
+    sliced(), chopped(), slice(), truncate() and chop() do not check their
     arguments.
     \enddifferences
 
@@ -221,6 +223,166 @@ public:
     */
     constexpr const char *cend() const noexcept { return p + n; }
 
+    /*!
+        A read-only reverse iterator over the characters of the view.
+    */
+    using const_reverse_iterator = std::reverse_iterator<const char *>;
+    /*!
+        The reverse iterator type, for STL compatibility. It is the same as const_reverse_iterator.
+    */
+    using reverse_iterator = const_reverse_iterator;
+
+    /*!
+        \overload
+
+        Constructs a view of the characters from \a first up to, but not
+        including, \a last. \a last must be a pointer, so that a literal 0
+        as the second argument still means a length.
+    */
+    template <typename End,
+              typename = std::enable_if_t<std::is_pointer_v<End> && std::is_convertible_v<End, const char *>>>
+    constexpr QLatin1StringView(const char *first, End last) noexcept : p(first), n(last - first) {}
+    /*!
+        \overload
+
+        Constructs a view of the bytes of \a b, read as Latin-1. The view is
+        null if \a b is null.
+    */
+    explicit QLatin1StringView(QByteArrayView b) noexcept : p(b.data()), n(b.size()) {}
+
+    /*!
+        Returns \c true if the view has no data, as a default-constructed one;
+        otherwise returns \c false. A null view is also empty.
+
+        \sa isEmpty()
+    */
+    constexpr bool isNull() const noexcept { return p == nullptr; }
+
+    /*!
+        Returns a reverse iterator pointing to the last character of the view.
+
+        \sa rend()
+    */
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    /*!
+        Returns a reverse iterator pointing just before the first character of the view.
+
+        \sa rbegin()
+    */
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    /*!
+        Returns a reverse iterator pointing to the last character of the view. This is the same as rbegin().
+    */
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+    /*!
+        Returns a reverse iterator pointing just before the first character of the view. This is the same as rend().
+    */
+    const_reverse_iterator crend() const noexcept { return rend(); }
+
+    /*!
+        \since 6.8
+        Returns the largest number of characters a view can refer to.
+    */
+    static constexpr qsizetype max_size() noexcept { return static_cast<qsizetype>(~std::size_t(0) >> 1); }
+
+    /*!
+        \since 6.8
+        Changes the view to start at index position \a pos and to extend to
+        its end, and returns a reference to it. \a pos must not exceed size().
+
+        \sa sliced()
+    */
+    constexpr QLatin1StringView &slice(qsizetype pos) {
+        *this = sliced(pos);
+        return *this;
+    }
+    /*!
+        \since 6.8
+        \overload
+
+        Changes the view to the \a len characters that start at index position
+        \a pos, and returns a reference to it. The range must lie within the
+        view.
+    */
+    constexpr QLatin1StringView &slice(qsizetype pos, qsizetype len) {
+        *this = sliced(pos, len);
+        return *this;
+    }
+
+    /*!
+        \since 6.4
+        Returns the view converted to a \c short in base \a base, as
+        QString::toShort() does. Returns 0 if the conversion fails; if \a ok
+        is not \c nullptr, \c{*ok} is set to whether it succeeded.
+    */
+    short toShort(bool *ok = nullptr, int base = 10) const;
+    /*!
+        \since 6.4
+        Returns the view converted to an \c{unsigned short} in base \a base,
+        and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    ushort toUShort(bool *ok = nullptr, int base = 10) const;
+    /*!
+        \since 6.4
+        Returns the view converted to an \c int in base \a base, as
+        QString::toInt() does, and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    int toInt(bool *ok = nullptr, int base = 10) const;
+    /*!
+        \since 6.4
+        Returns the view converted to an \c{unsigned int} in base \a base, and
+        sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    uint toUInt(bool *ok = nullptr, int base = 10) const;
+    /*!
+        \since 6.4
+        Returns the view converted to a \c long in base \a base, and sets
+        \c{*ok} if \a ok is not \c nullptr.
+    */
+    long toLong(bool *ok = nullptr, int base = 10) const;
+    /*!
+        \since 6.4
+        Returns the view converted to an \c{unsigned long} in base \a base,
+        and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    ulong toULong(bool *ok = nullptr, int base = 10) const;
+    /*!
+        \since 6.4
+        Returns the view converted to a \c{long long} in base \a base, and
+        sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    qlonglong toLongLong(bool *ok = nullptr, int base = 10) const;
+    /*!
+        \since 6.4
+        Returns the view converted to an \c{unsigned long long} in base
+        \a base, and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    qulonglong toULongLong(bool *ok = nullptr, int base = 10) const;
+    /*!
+        \since 6.4
+        Returns the view converted to a \c float, or 0 if it is not a number,
+        and sets \c{*ok} if \a ok is not \c nullptr.
+    */
+    float toFloat(bool *ok = nullptr) const;
+    /*!
+        \since 6.4
+        Returns the view converted to a \c double, or 0 if it is not a number,
+        and sets \c{*ok} if \a ok is not \c nullptr. The text is read in the C
+        locale.
+    */
+    double toDouble(bool *ok = nullptr) const;
+
+    /*!
+        Returns a string in which the place markers of this view (\c{%1} to
+        \c{%99}) are replaced by \a a and \a rest: the lowest-numbered marker
+        by \a a, the next one by the first of \a rest, and so on. The
+        arguments are strings, views or characters. The markers are replaced
+        in one pass, so a marker inside an argument is left alone.
+
+        \sa QString::arg()
+    */
+    template <typename A, typename... Rest> QString arg(const A &a, const Rest &...rest) const;
+
     QString toString() const;
     bool startsWith(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     bool startsWith(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
@@ -287,7 +449,7 @@ private:
         return a.n == b.n ? 0 : (a.n < b.n ? -1 : 1);
     }
 
-    const char *p = "";
+    const char *p = nullptr;
     qsizetype n = 0;
 };
 using QLatin1String = QLatin1StringView;
@@ -345,6 +507,15 @@ public:
         \a c. A negative \a size gives an empty, non-null string.
     */
     QString(qsizetype size, QChar c) : d(static_cast<std::size_t>(size < 0 ? 0 : size), c.unicode()), m_null(false) {}
+    /*!
+        \overload
+
+        Constructs a string of the given \a size whose characters the caller
+        is about to assign. Pass \c Qt::Uninitialized as the second argument;
+        Nt sets the characters to U+0000.
+    */
+    QString(qsizetype size, Qt::Initialization)
+        : d(static_cast<std::size_t>(size < 0 ? 0 : size), u'\0'), m_null(false) {}
     QString(QLatin1StringView s);
     QString(const QByteArray &utf8);
     /*!
@@ -432,6 +603,14 @@ public:
         than the current size, the new characters are set to \a c.
     */
     void resize(qsizetype n, QChar c) { d.resize(static_cast<std::size_t>(n), c.unicode()); m_null = false; }
+    /*!
+        \since 6.8
+        Sets the size of the string to \a size characters, for a caller that
+        is about to assign every new character. Nt sets them to U+0000.
+
+        \sa resize()
+    */
+    void resizeForOverwrite(qsizetype size) { resize(size); }
     QString &fill(QChar c, qsizetype n = -1);
     /*!
         Truncates the string at index position \a pos. If \a pos is beyond
@@ -804,6 +983,28 @@ public:
     qsizetype count(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const { return count(QString(c), cs); }
     QStringList split(const QString &sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     QStringList split(QChar sep, Qt::SplitBehavior behavior = Qt::KeepEmptyParts, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+    /*!
+        \since 6.0
+        Returns a tokenizer that splits this string at each occurrence of
+        \a needle without copying the parts: each token is a QStringView of
+        this string, which must stay alive and unchanged while the tokenizer
+        is used. \a flags may hold a Qt::SplitBehavior and a
+        Qt::CaseSensitivity, in either order. Include \c{<QStringTokenizer>}
+        to use this function.
+
+        \sa QStringTokenizer, split()
+    */
+    template <typename Needle, typename... Flags> auto tokenize(Needle &&needle, Flags... flags) const &;
+    /*!
+        \since 6.0
+        \overload
+
+        Returns a tokenizer for a temporary string, splitting it at each
+        occurrence of \a needle according to \a flags. The string is moved
+        into the tokenizer, so the tokens stay valid for as long as the
+        tokenizer lives.
+    */
+    template <typename Needle, typename... Flags> auto tokenize(Needle &&needle, Flags... flags) &&;
     bool contains(const QRegularExpression &re, QRegularExpressionMatch *rmatch = nullptr) const;
     qsizetype indexOf(const QRegularExpression &re, qsizetype from = 0, QRegularExpressionMatch *rmatch = nullptr) const;
     qsizetype lastIndexOf(const QRegularExpression &re, QRegularExpressionMatch *rmatch = nullptr) const;
@@ -890,18 +1091,16 @@ public:
 
         Replaces the lowest-numbered place marker with \a a1, the next one
         with \a a2, and each further one with the corresponding argument of
-        \a rest. Every argument is converted to a QString. This overload only
-        takes part in overload resolution when none of the arguments is an
-        arithmetic type.
+        \a rest. Every argument is converted to a QString. The markers are
+        replaced in one pass, so a marker inside an argument is left alone:
+        \c{QString("%1 %2").arg("%2", "x")} is \c{"%2 x"}. An argument that
+        has no marker is dropped. This overload only takes part in overload
+        resolution when none of the arguments is an arithmetic type.
     */
     template <typename A1, typename A2, typename... Rest,
               typename = std::enable_if_t<!std::is_arithmetic_v<A1> && !std::is_arithmetic_v<A2> &&
                                           (!std::is_arithmetic_v<Rest> && ...)>>
-    QString arg(const A1 &a1, const A2 &a2, const Rest &...rest) const {
-        QString s = arg(QString(a1)).arg(QString(a2));
-        ((s = s.arg(QString(rest))), ...);
-        return s;
-    }
+    QString arg(const A1 &a1, const A2 &a2, const Rest &...rest) const;
 
     static QString number(qlonglong n, int base = 10);
     static QString number(qulonglong n, int base = 10);
@@ -1195,10 +1394,7 @@ public:
     */
     static int compare(const QString &a, const QString &b, Qt::CaseSensitivity cs = Qt::CaseSensitive) { return a.compare(b, cs); }
     static int localeAwareCompare(const QString &a, const QString &b);
-    /*!
-        Returns \c false; right-to-left text detection is not implemented.
-    */
-    bool isRightToLeft() const { return false; }
+    bool isRightToLeft() const noexcept;
     /*!
         Swaps this string with \a o. This operation is very fast and never
         fails.
@@ -1227,6 +1423,16 @@ private:
     Returns the view as a QString.
 */
 inline QString QLatin1StringView::toString() const { return QString(*this); }
+inline short QLatin1StringView::toShort(bool *ok, int base) const { return toString().toShort(ok, base); }
+inline ushort QLatin1StringView::toUShort(bool *ok, int base) const { return toString().toUShort(ok, base); }
+inline int QLatin1StringView::toInt(bool *ok, int base) const { return toString().toInt(ok, base); }
+inline uint QLatin1StringView::toUInt(bool *ok, int base) const { return toString().toUInt(ok, base); }
+inline long QLatin1StringView::toLong(bool *ok, int base) const { return toString().toLong(ok, base); }
+inline ulong QLatin1StringView::toULong(bool *ok, int base) const { return toString().toULong(ok, base); }
+inline qlonglong QLatin1StringView::toLongLong(bool *ok, int base) const { return toString().toLongLong(ok, base); }
+inline qulonglong QLatin1StringView::toULongLong(bool *ok, int base) const { return toString().toULongLong(ok, base); }
+inline float QLatin1StringView::toFloat(bool *ok) const { return toString().toFloat(ok); }
+inline double QLatin1StringView::toDouble(bool *ok) const { return toString().toDouble(ok); }
 /*!
     Returns \c true if the view starts with \a s, compared with \a cs.
 */
@@ -1313,6 +1519,35 @@ inline int QLatin1StringView::compare(const QString &s, Qt::CaseSensitivity cs) 
 
 inline std::size_t qHash(const QString &s, std::size_t seed = 0) noexcept {
     return std::hash<std::u16string>{}(s.u16string()) ^ (seed * 0x9e3779b9u);
+}
+
+namespace QtPrivate {
+// Replaces the place markers of pattern with the count strings at args, in one pass.
+QString multiArg(const QString &pattern, const QString *args, qsizetype count);
+
+template <typename T, typename = void> struct HasToString : std::false_type {};
+template <typename T>
+struct HasToString<T, std::void_t<decltype(std::declval<const T &>().toString())>>
+    : std::is_convertible<decltype(std::declval<const T &>().toString()), QString> {};
+
+// The text of an argument of arg(): a view is copied, anything else is converted to a QString.
+template <typename T> QString argText(const T &a) {
+    if constexpr (HasToString<T>::value)
+        return a.toString();
+    else
+        return QString(a);
+}
+} // namespace QtPrivate
+
+template <typename A1, typename A2, typename... Rest, typename>
+QString QString::arg(const A1 &a1, const A2 &a2, const Rest &...rest) const {
+    const QString texts[] = {QtPrivate::argText(a1), QtPrivate::argText(a2), QtPrivate::argText(rest)...};
+    return QtPrivate::multiArg(*this, texts, static_cast<qsizetype>(2 + sizeof...(Rest)));
+}
+
+template <typename A, typename... Rest> QString QLatin1StringView::arg(const A &a, const Rest &...rest) const {
+    const QString texts[] = {QtPrivate::argText(a), QtPrivate::argText(rest)...};
+    return QtPrivate::multiArg(toString(), texts, static_cast<qsizetype>(1 + sizeof...(Rest)));
 }
 
 template <>

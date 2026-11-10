@@ -204,6 +204,7 @@
 #include <QtCore/qobject.h>
 
 #include "dispatcher.h"
+#include "ntnormalize_p.h"
 #include "qobject_p.h"
 #include "threaddata_p.h"
 
@@ -266,8 +267,9 @@
     The meta-object of a class exists only if \c ntmoc processed the class;
     metaObject() of any other class returns that of its nearest registered
     base class, which is \c QObject::staticMetaObject at the least. There
-    is no \c qt_metacast(), \c connectNotify(), \c receivers() or
-    \c isSignalConnected(), and no bindable properties. \c property() and
+    is no \c qt_metacast(), and no bindable properties. disconnectNotify() is
+    not called for connections removed because an object is destroyed, and
+    isQuickItemType() always returns \c false. \c property() and
     \c setProperty() cover the static properties that \c Q_PROPERTY()
     declares and dynamic properties, and send a QDynamicPropertyChangeEvent
     when a dynamic property changes; they are not thread-safe, so call them
@@ -301,6 +303,16 @@ std::shared_ptr<PointerData> Access::guard(const QObject *o) {
     }
     return d.guard;
 }
+
+QMetaMethod Access::signalMethod(const QObject *sender, const SignalId &id) {
+    return QMetaMethod::fromSignalImpl(sender->metaObject(), id);
+}
+
+void Access::connectNotify(QObject *sender, const SignalId &id) { sender->connectNotify(signalMethod(sender, id)); }
+
+void Access::disconnectNotify(QObject *sender, const SignalId &id) {
+    sender->disconnectNotify(signalMethod(sender, id));
+}
 } // namespace QtPrivate
 
 namespace {
@@ -310,11 +322,20 @@ using QtPrivate::ConnectionData;
 using ConnPtr = std::shared_ptr<ConnectionData>;
 
 thread_local QObject *g_sender = nullptr;
+thread_local const QtPrivate::SignalId *g_signal = nullptr;
 
 struct SenderScope {
     QObject *prev;
-    explicit SenderScope(QObject *s) : prev(g_sender) { g_sender = s; }
-    ~SenderScope() { g_sender = prev; }
+    const QtPrivate::SignalId *prevSignal;
+    SenderScope(QObject *s, const QtPrivate::SignalId *id) : prev(g_sender), prevSignal(g_signal) {
+        g_sender = s;
+        g_signal = id;
+    }
+    ~SenderScope() {
+        g_sender = prev;
+        g_signal = prevSignal;
+    }
+    Q_DISABLE_COPY(SenderScope)
 };
 
 void eraseConn(std::vector<ConnPtr> &v, const ConnPtr &c) {
@@ -333,6 +354,13 @@ void unlinkConn(const ConnPtr &c, std::vector<ConnPtr> &dead) {
     dead.push_back(c);
 }
 
+// Tells the senders of connections removed by a disconnect call; runs after the lock is released.
+void notifyDisconnected(const std::vector<ConnPtr> &dead) {
+    for (const ConnPtr &c : dead)
+        if (c->sender)
+            Access::disconnectNotify(c->sender, c->signal);
+}
+
 } // namespace
 
 namespace QtPrivate {
@@ -343,8 +371,11 @@ void setConnectionMethod(const std::shared_ptr<ConnectionData> &c, const std::st
 
 void finishSingleShot(const std::shared_ptr<ConnectionData> &c) {
     std::vector<ConnPtr> dead; // released after the lock
-    std::lock_guard<std::mutex> lk(signalSlotLock());
-    unlinkConn(c, dead);
+    {
+        std::lock_guard<std::mutex> lk(signalSlotLock());
+        unlinkConn(c, dead);
+    }
+    notifyDisconnected(dead);
 }
 
 // Removes the connections from `sender` that match; a null argument matches every connection.
@@ -354,19 +385,31 @@ bool disconnectConnections(const QObject *sender, const SignalId *id, const QObj
         return false;
     bool any = false;
     std::vector<ConnPtr> dead;
-    std::lock_guard<std::mutex> lk(signalSlotLock());
-    const auto out = Access::d(sender).outgoing;
-    for (const ConnPtr &c : out) {
-        if (id && !(c->signal == *id))
-            continue;
-        if (receiver && c->receiver != receiver)
-            continue;
-        if (method && c->method != *method)
-            continue;
-        unlinkConn(c, dead);
-        any = true;
+    {
+        std::lock_guard<std::mutex> lk(signalSlotLock());
+        const auto out = Access::d(sender).outgoing;
+        for (const ConnPtr &c : out) {
+            if (id && !(c->signal == *id))
+                continue;
+            if (receiver && c->receiver != receiver)
+                continue;
+            if (method && c->method != *method)
+                continue;
+            unlinkConn(c, dead);
+            any = true;
+        }
     }
+    notifyDisconnected(dead);
     return any;
+}
+
+int Access::connectionCount(const QObject *sender, const SignalId *id) {
+    std::lock_guard<std::mutex> lk(signalSlotLock());
+    int n = 0;
+    for (const ConnPtr &c : d(sender).outgoing)
+        if (c->alive && (!id || c->signal == *id))
+            ++n;
+    return n;
 }
 } // namespace QtPrivate
 
@@ -406,7 +449,7 @@ void QMetaCallEvent::place() {
     if (m_function) {
         m_function();
     } else if (m_conn->alive) {
-        SenderScope scope(m_conn->sender);
+        SenderScope scope(m_conn->sender, &m_conn->signal);
         m_conn->invoke(m_args.argv.data());
         if (m_conn->singleShot)
             QtPrivate::finishSingleShot(m_conn);
@@ -483,6 +526,7 @@ void QObject::removeEventFilter(QObject *obj) {
     events are discarded, and its children are deleted.
 */
 QObject::~QObject() {
+    d_ptr->deleting = true;
     destroyed(this);
 
     auto &d = *d_ptr;
@@ -511,6 +555,10 @@ QObject::~QObject() {
     if (d.parent) {
         auto &siblings = Access::d(d.parent).children;
         siblings.erase(std::remove(siblings.begin(), siblings.end(), this), siblings.end());
+        if (!Access::d(d.parent).deleting) {
+            QChildEvent e(QEvent::ChildRemoved, this);
+            QCoreApplication::sendEvent(d.parent, &e);
+        }
     }
     QtPrivate::releaseObjectThread(this);
 }
@@ -553,6 +601,9 @@ void QObject::setObjectName(const QString &name) {
     parent. A \c nullptr \a parent makes it a top-level object. Does nothing
     if \a parent is this object or one of its descendants.
 
+    The previous parent receives a \c ChildRemoved event and the new one a
+    \c ChildAdded event; see childEvent().
+
     \sa parent(), children()
 */
 void QObject::setParent(QObject *parent) {
@@ -567,13 +618,21 @@ void QObject::setParent(QObject *parent) {
         qWarning("QObject::setParent: Cannot set parent, new parent is in a different thread");
         return;
     }
-    if (d.parent) {
-        auto &siblings = Access::d(d.parent).children;
+    if (QObject *old = d.parent) {
+        auto &siblings = Access::d(old).children;
         siblings.erase(std::remove(siblings.begin(), siblings.end(), this), siblings.end());
+        d.parent = nullptr;
+        if (!Access::d(old).deleting) {
+            QChildEvent e(QEvent::ChildRemoved, this);
+            QCoreApplication::sendEvent(old, &e);
+        }
     }
     d.parent = parent;
-    if (parent)
+    if (parent) {
         Access::d(parent).children.push_back(this);
+        QChildEvent e(QEvent::ChildAdded, this);
+        QCoreApplication::sendEvent(parent, &e);
+    }
 }
 
 /*!
@@ -668,15 +727,20 @@ void QObject::deleteLater() { QCoreApplication::postEvent(this, new QEvent(QEven
     it was recognised and handled; otherwise returns \c false.
 
     The base implementation dispatches \c QEvent::Timer events to
-    timerEvent(), runs queued slot invocations, and passes events of type
-    \c QEvent::User and above to customEvent().
+    timerEvent(), child events to childEvent(), runs queued slot invocations,
+    and passes events of type \c QEvent::User and above to customEvent().
 
-    \sa timerEvent(), customEvent()
+    \sa timerEvent(), childEvent(), customEvent()
 */
 bool QObject::event(QEvent *e) {
     switch (e->type()) {
     case QEvent::Timer:
         timerEvent(static_cast<QTimerEvent *>(e));
+        return true;
+    case QEvent::ChildAdded:
+    case QEvent::ChildPolished:
+    case QEvent::ChildRemoved:
+        childEvent(static_cast<QChildEvent *>(e));
         return true;
     case QEvent::MetaCall:
         static_cast<QMetaCallEvent *>(e)->place();
@@ -707,6 +771,183 @@ void QObject::timerEvent(QTimerEvent *) {}
     \sa event(), QEvent::registerEventType()
 */
 void QObject::customEvent(QEvent *) {}
+
+/*!
+    Called when a child is added to or removed from this object, with the
+    details in \a event. A \c ChildAdded event arrives while the child is
+    still being constructed, and a \c ChildRemoved event for a destroyed
+    child while it is being destroyed, so use only the QObject part of
+    QChildEvent::child() then. The base implementation does nothing.
+
+    \sa setParent(), event()
+*/
+void QObject::childEvent(QChildEvent *event) { (void)event; }
+
+/*!
+    Called when something connects to \a signal of this object, after the
+    connection was made, in the thread that connected. Reimplement it to
+    start costly work only once somebody listens. The base implementation
+    does nothing.
+
+    \a signal is invalid for a signal of a class that \c ntmoc did not
+    process.
+
+    \sa disconnectNotify(), isSignalConnected()
+*/
+void QObject::connectNotify(const QMetaMethod &signal) { (void)signal; }
+
+/*!
+    Called when a connection from \a signal of this object is removed by a
+    disconnect call or after a \c Qt::SingleShotConnection was used, in the
+    thread that removed it. It is not called for connections removed because
+    the sender or the receiver is destroyed. The base implementation does
+    nothing.
+
+    \sa connectNotify()
+*/
+void QObject::disconnectNotify(const QMetaMethod &signal) { (void)signal; }
+
+/*!
+    Returns the method index of the signal that invoked the slot that is
+    running, as QMetaMethod::methodIndex() gives it, or -1 when no slot is
+    being invoked from a signal or \c ntmoc did not see the signal.
+
+    \sa sender()
+*/
+int QObject::senderSignalIndex() const {
+    if (!g_sender || !g_signal)
+        return -1;
+    const QMetaMethod m = Access::signalMethod(g_sender, *g_signal);
+    return m.isValid() ? m.methodIndex() : -1;
+}
+
+/*!
+    Returns the number of connections from \a signal of this object, named
+    with the \c SIGNAL() macro, or 0 if the object has no such signal.
+
+    \code
+    if (receivers(SIGNAL(valueChanged(int))) > 0)
+        computeExpensiveValue();
+    \endcode
+
+    \sa isSignalConnected()
+*/
+int QObject::receivers(const char *signal) const {
+    if (!signal || signal[0] != '2')
+        return 0;
+    const QMetaObject *mo = metaObject();
+    const int index = mo->indexOfSignal(NtMeta::normalizeSignature(signal + 1).c_str());
+    if (index < 0)
+        return 0;
+    const QMetaMethod m = mo->method(index);
+    if (!m.data().signalId)
+        return 0;
+    const QtPrivate::SignalId id = m.data().signalId();
+    return Access::connectionCount(this, &id);
+}
+
+/*!
+    Returns \c true if at least one connection from \a signal of this object
+    exists; otherwise returns \c false.
+
+    \code
+    static const QMetaMethod changed = QMetaMethod::fromSignal(&Sensor::valueChanged);
+    if (isSignalConnected(changed))
+        emit valueChanged(read());
+    \endcode
+
+    \sa receivers(), connectNotify()
+*/
+bool QObject::isSignalConnected(const QMetaMethod &signal) const {
+    if (!signal.isValid() || signal.methodType() != QMetaMethod::Signal || !signal.data().signalId)
+        return false;
+    const QtPrivate::SignalId id = signal.data().signalId();
+    return Access::connectionCount(this, &id) > 0;
+}
+
+/*!
+    Returns \c true if the object is a widget (it inherits QWidget);
+    otherwise returns \c false.
+
+    \sa isWindowType()
+*/
+bool QObject::isWidgetType() const { return inherits("QWidget"); }
+
+/*!
+    Returns \c true if the object is a window (it inherits QWindow);
+    otherwise returns \c false.
+
+    \sa isWidgetType()
+*/
+bool QObject::isWindowType() const { return inherits("QWindow"); }
+
+/*!
+    Returns \c true if the object is a Qt Quick item; Nt has no Qt Quick, so
+    this always returns \c false.
+*/
+bool QObject::isQuickItemType() const { return false; }
+
+namespace {
+QByteArray describe(const QObject *o) {
+    return QByteArray(o->metaObject()->className()) + "::" + o->objectName().toUtf8();
+}
+
+void dumpTree(const QObject *o, int depth) {
+    qDebug("%s%s", QByteArray(depth * 4, ' ').constData(), describe(o).constData());
+    for (const QObject *child : o->children())
+        dumpTree(child, depth + 1);
+}
+
+QByteArray signalName(const QObject *sender, const QtPrivate::SignalId &id) {
+    const QMetaMethod m = Access::signalMethod(sender, id);
+    return m.isValid() ? m.methodSignature() : QByteArray("<signal unknown to ntmoc>");
+}
+} // namespace
+
+/*!
+    Writes the tree of this object and its descendants to the debug output,
+    one object per line as \c{ClassName::objectName}, indented by depth.
+    Use it while debugging.
+
+    \sa dumpObjectInfo()
+*/
+void QObject::dumpObjectTree() const { dumpTree(this, 0); }
+
+/*!
+    Writes the connections of this object to the debug output: those from
+    its signals (\c{SIGNALS OUT}) and those to it (\c{SIGNALS IN}). Use it
+    while debugging.
+
+    \sa dumpObjectTree()
+*/
+void QObject::dumpObjectInfo() const {
+    std::vector<ConnPtr> out;
+    std::vector<ConnPtr> in;
+    {
+        std::lock_guard<std::mutex> lk(signalSlotLock());
+        out = d_ptr->outgoing;
+        in = d_ptr->incoming;
+    }
+    qDebug("OBJECT %s", describe(this).constData());
+    qDebug("  SIGNALS OUT");
+    if (out.empty())
+        qDebug("        <None>");
+    for (const ConnPtr &c : out) {
+        if (!c->alive)
+            continue;
+        const QByteArray target = c->receiver ? describe(c->receiver) : QByteArray("<functor>");
+        qDebug("        signal: %s", signalName(this, c->signal).constData());
+        qDebug("          --> %s %s", target.constData(), c->method.empty() ? "<slot>" : c->method.c_str());
+    }
+    qDebug("  SIGNALS IN");
+    if (in.empty())
+        qDebug("        <None>");
+    for (const ConnPtr &c : in) {
+        if (!c->alive || !c->sender)
+            continue;
+        qDebug("          <-- %s %s", describe(c->sender).constData(), signalName(c->sender, c->signal).constData());
+    }
+}
 
 QMetaObject::Connection QObject::connectImpl(const QObject *sender, const QtPrivate::SignalId &id, QObject *receiver,
                                              std::function<void(void *const *)> invoke, Qt::ConnectionType type,
@@ -742,6 +983,7 @@ QMetaObject::Connection QObject::connectImpl(const QObject *sender, const QtPriv
         if (receiver)
             Access::d(receiver).incoming.push_back(c);
     }
+    Access::connectNotify(s, id);
     QMetaObject::Connection handle;
     handle.d = c;
     return handle;
@@ -759,10 +1001,13 @@ bool QObject::disconnect(const QMetaObject::Connection &connection) {
     if (!c)
         return false;
     std::vector<ConnPtr> dead;
-    std::lock_guard<std::mutex> lk(signalSlotLock());
-    if (!c->alive)
-        return false;
-    unlinkConn(c, dead);
+    {
+        std::lock_guard<std::mutex> lk(signalSlotLock());
+        if (!c->alive)
+            return false;
+        unlinkConn(c, dead);
+    }
+    notifyDisconnected(dead);
     return true;
 }
 
@@ -818,7 +1063,7 @@ void QObject::activateImpl(QObject *sender, const QtPrivate::SignalId &id, void 
             latch->wait();
         } else if (direct) {
             {
-                SenderScope scope(sender);
+                SenderScope scope(sender, &c->signal);
                 c->invoke(argv);
             }
             if (c->singleShot)

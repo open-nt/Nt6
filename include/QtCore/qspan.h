@@ -51,9 +51,8 @@ inline constexpr std::size_t dynamic_extent = static_cast<std::size_t>(-1);
     \differences
     The extent is not enforced: every QSpan stores its size at run time, and
     first(), last() and the other slicing functions always return a
-    dynamic-extent \c{QSpan<T>}. Indexes and counts are not bounds-checked.
-    There are no \c crbegin() or \c crend() functions, and no conversion
-    to a byte span.
+    dynamic-extent \c{QSpan<T>}, as do the free functions \c as_bytes() and
+    \c as_writable_bytes(). Indexes and counts are not bounds-checked.
     \enddifferences
 */
 template <typename T, std::size_t E = q20::dynamic_extent>
@@ -272,6 +271,18 @@ public:
         \sa rbegin()
     */
     constexpr reverse_iterator rend() const noexcept { return reverse_iterator(begin()); }
+    /*!
+        Returns a const reverse iterator pointing to the last element of the span.
+
+        \sa crend(), rbegin()
+    */
+    constexpr const_reverse_iterator crbegin() const noexcept { return const_reverse_iterator(cend()); }
+    /*!
+        Returns a const reverse iterator pointing just before the first element of the span.
+
+        \sa crbegin(), rend()
+    */
+    constexpr const_reverse_iterator crend() const noexcept { return const_reverse_iterator(cbegin()); }
 
     /*!
         Returns a span over the first \a c elements. \a c must not exceed
@@ -327,3 +338,14 @@ template <typename T, std::size_t N>
 QSpan(T (&)[N]) -> QSpan<T>;
 template <typename C>
 QSpan(C &) -> QSpan<std::remove_pointer_t<decltype(std::declval<C &>().data())>>;
+
+// Returns the storage of the elements of s as read-only bytes.
+template <typename T, std::size_t E> QSpan<const std::byte> as_bytes(QSpan<T, E> s) noexcept {
+    return QSpan<const std::byte>(reinterpret_cast<const std::byte *>(s.data()), s.size_bytes());
+}
+
+// Returns the storage of the elements of s as writable bytes; s must be a span of non-const elements.
+template <typename T, std::size_t E, typename = std::enable_if_t<!std::is_const_v<T>>>
+QSpan<std::byte> as_writable_bytes(QSpan<T, E> s) noexcept {
+    return QSpan<std::byte>(reinterpret_cast<std::byte *>(s.data()), s.size_bytes());
+}

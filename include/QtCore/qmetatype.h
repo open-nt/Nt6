@@ -45,6 +45,12 @@ class QLineF;
 class QRect;
 class QRectF;
 class QBitArray;
+class QLocale;
+class QRegularExpression;
+class QEasingCurve;
+class QModelIndex;
+class QPersistentModelIndex;
+class QPartialOrdering;
 class QJsonValue;
 class QJsonObject;
 class QJsonArray;
@@ -148,6 +154,7 @@ NT_BUILTIN_METATYPE(QDate, 14)
 NT_BUILTIN_METATYPE(QTime, 15)
 NT_BUILTIN_METATYPE(QDateTime, 16)
 NT_BUILTIN_METATYPE(QUrl, 17)
+NT_BUILTIN_METATYPE(QLocale, 18)
 NT_BUILTIN_METATYPE(QRect, 19)
 NT_BUILTIN_METATYPE(QRectF, 20)
 NT_BUILTIN_METATYPE(QSize, 21)
@@ -156,6 +163,8 @@ NT_BUILTIN_METATYPE(QLine, 23)
 NT_BUILTIN_METATYPE(QLineF, 24)
 NT_BUILTIN_METATYPE(QPoint, 25)
 NT_BUILTIN_METATYPE(QPointF, 26)
+NT_BUILTIN_METATYPE(QRegularExpression, 27)
+NT_BUILTIN_METATYPE(QEasingCurve, 29)
 NT_BUILTIN_METATYPE(QUuid, 30)
 NT_BUILTIN_METATYPE(void *, 31)
 NT_BUILTIN_METATYPE(long, 32)
@@ -168,12 +177,14 @@ NT_BUILTIN_METATYPE(float, 38)
 NT_BUILTIN_METATYPE(QObject *, 39)
 NT_BUILTIN_METATYPE(signed char, 40)
 NT_BUILTIN_METATYPE(QVariant, 41)
+NT_BUILTIN_METATYPE(QModelIndex, 42)
 NT_BUILTIN_METATYPE(void, 43)
 NT_BUILTIN_METATYPE(QJsonValue, 45)
 NT_BUILTIN_METATYPE(QJsonObject, 46)
 NT_BUILTIN_METATYPE(QJsonArray, 47)
 NT_BUILTIN_METATYPE(QJsonDocument, 48)
 NT_BUILTIN_METATYPE(QByteArrayList, 49)
+NT_BUILTIN_METATYPE(QPersistentModelIndex, 50)
 NT_BUILTIN_METATYPE(std::nullptr_t, 51)
 NT_BUILTIN_METATYPE(char16_t, 56)
 NT_BUILTIN_METATYPE(char32_t, 57)
@@ -470,10 +481,9 @@ template <typename T> struct MetaTypeInterfaceFor {
 
     \differences
     The layout of QMetaTypeInterface is Nt's own. Enumerators of
-    \c QMetaType::Type for classes that Nt does not have (such as
-    \c QLocale, \c QRegularExpression and \c QModelIndex) are
-    reserved, but no type is registered for them. The JSON classes are registered, but
-    convert() has no conversions for them. \c QMetaType::QVersionNumber
+    \c QMetaType::Type for classes that Nt does not have (the CBOR
+    classes) are reserved, but no type is registered for them.
+    \c QMetaType::QVersionNumber
     does not exist; QVersionNumber, QMargins and QMarginsF get an id at the
     first registration like any user type. There is no
     \c registerType(), \c registerComparators(), \c registerMutableView(),
@@ -523,7 +533,7 @@ public:
         \value QTime QTime.
         \value QDateTime QDateTime.
         \value QUrl QUrl.
-        \value QLocale Reserved; Nt has no QLocale.
+        \value QLocale QLocale.
         \value QRect QRect.
         \value QRectF QRectF.
         \value QSize QSize.
@@ -532,12 +542,12 @@ public:
         \value QLineF QLineF.
         \value QPoint QPoint.
         \value QPointF QPointF.
-        \value QRegularExpression Reserved; Nt has no QRegularExpression.
-        \value QEasingCurve Reserved; Nt has no QEasingCurve.
+        \value QRegularExpression QRegularExpression.
+        \value QEasingCurve QEasingCurve.
         \value QUuid QUuid.
         \value QVariant QVariant.
-        \value QModelIndex Reserved; Nt has no QModelIndex.
-        \value QPersistentModelIndex Reserved; Nt has no QPersistentModelIndex.
+        \value QModelIndex QModelIndex.
+        \value QPersistentModelIndex QPersistentModelIndex.
         \value QJsonValue QJsonValue.
         \value QJsonObject QJsonObject.
         \value QJsonArray QJsonArray.
@@ -672,6 +682,7 @@ public:
 
     bool equals(const void *lhs, const void *rhs) const;
     bool compare(const void *lhs, const void *rhs, int &result) const;
+    QPartialOrdering compare(const void *lhs, const void *rhs) const;
 
     bool hasRegisteredDebugStreamOperator() const noexcept;
     bool debugStream(QDebug &dbg, const void *rhs) const;

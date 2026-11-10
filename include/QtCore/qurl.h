@@ -3,8 +3,11 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qflags.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
+
+#include <utility>
 
 class QUrl {
 public:
@@ -19,15 +22,29 @@ public:
         RemovePath = 0x20,
         RemoveQuery = 0x40,
         RemoveFragment = 0x80,
+        PreferLocalFile = 0x200,
         StripTrailingSlash = 0x400,
+        RemoveFilename = 0x800,
         NormalizePathSegments = 0x1000
     };
     Q_DECLARE_FLAGS(FormattingOptions, UrlFormattingOption)
     enum ComponentFormattingOption { PrettyDecoded = 0x0, FullyEncoded = 0x100000, FullyDecoded = 0x200000 };
     Q_DECLARE_FLAGS(ComponentFormattingOptions, ComponentFormattingOption)
+    enum UserInputResolutionOption { DefaultResolution, AssumeLocalFile };
+    Q_DECLARE_FLAGS(UserInputResolutionOptions, UserInputResolutionOption)
+    enum AceProcessingOption : unsigned { IgnoreIDNWhitelist = 0x1, AceTransitionalProcessing = 0x2 };
+    Q_DECLARE_FLAGS(AceProcessingOptions, AceProcessingOption)
 
     QUrl() = default;
     QUrl(const QString &url, ParsingMode mode = TolerantMode);
+    /*!
+        Sets this URL to the one parsed from \a url, as setUrl() does in tolerant mode, and
+        returns a reference to this URL.
+    */
+    QUrl &operator=(const QString &url) {
+        setUrl(url);
+        return *this;
+    }
 
     void setUrl(const QString &url, ParsingMode mode = TolerantMode);
     QString url(FormattingOptions options = None) const { return toString(options); }
@@ -41,6 +58,8 @@ public:
     bool isRelative() const { return m_scheme.isEmpty(); }
     bool isLocalFile() const { return m_scheme == QString("file"); }
     void clear() { *this = QUrl(); }
+    void swap(QUrl &other) noexcept { std::swap(*this, other); }
+    bool matches(const QUrl &url, FormattingOptions options) const;
     QString errorString() const { return m_error; }
 
     void setScheme(const QString &scheme);
@@ -76,6 +95,12 @@ public:
     static QByteArray toPercentEncoding(const QString &input, const QByteArray &exclude = QByteArray(),
                                         const QByteArray &include = QByteArray());
     static QString fromPercentEncoding(const QByteArray &input);
+    static QUrl fromUserInput(const QString &userInput, const QString &workingDirectory = QString(),
+                              UserInputResolutionOptions options = DefaultResolution);
+    static QByteArray toAce(const QString &domain, AceProcessingOptions options = {});
+    static QString fromAce(const QByteArray &domain, AceProcessingOptions options = {});
+    static QStringList toStringList(const QList<QUrl> &urls, FormattingOptions options = None);
+    static QList<QUrl> fromStringList(const QStringList &urls, ParsingMode mode = TolerantMode);
 
     friend bool operator==(const QUrl &a, const QUrl &b) { return a.toEncoded() == b.toEncoded(); }
     friend bool operator!=(const QUrl &a, const QUrl &b) { return !(a == b); }
@@ -84,7 +109,7 @@ public:
 private:
     void fail(const QString &message);
     void parse(const QString &text, ParsingMode mode);
-    QByteArray encodedAuthority() const;
+    QByteArray encodedAuthority(bool aceHost = true) const;
 
     // Components are held percent-encoded, except the scheme and host.
     QString m_scheme;
@@ -105,5 +130,7 @@ private:
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS(QUrl::FormattingOptions)
 Q_DECLARE_OPERATORS_FOR_FLAGS(QUrl::ComponentFormattingOptions)
+Q_DECLARE_OPERATORS_FOR_FLAGS(QUrl::UserInputResolutionOptions)
+Q_DECLARE_OPERATORS_FOR_FLAGS(QUrl::AceProcessingOptions)
 
 std::size_t qHash(const QUrl &url, std::size_t seed = 0) noexcept;

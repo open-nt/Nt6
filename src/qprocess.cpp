@@ -478,7 +478,8 @@ struct QProcess::Private {
     QProcessEnvironment environment{QProcessEnvironment::InheritFromParent};
     ProcessChannelMode channelMode = SeparateChannels;
     InputChannelMode inputMode = ManagedInputChannel;
-    ProcessChannel readChannel = StandardOutput;
+    // The index of the current read channel: 0 for standard output, 1 for standard error.
+    int current() const { return q->currentReadChannel() == 0 ? 0 : 1; }
     QString stdinFile;
     QString stdoutFile;
     QString stderrFile;
@@ -668,8 +669,7 @@ struct QProcess::Private {
     setReadBufferSize(). A crashed child reports an exitCode() of 0 and
     exitStatus() \c CrashExit. There is no deprecated setEnvironment() or
     environment(), no UnixProcessParameters and no \c
-    setCreateProcessArgumentsModifier(). setReadChannel() does not move the
-    look-ahead data of peek() and ungetChar() between channels.
+    setCreateProcessArgumentsModifier().
     The poller of an unsupported kernel adds up to 10 ms of delay in
     detecting the end of a child. The finished() signal has no overload
     taking only the exit code.
@@ -682,7 +682,9 @@ struct QProcess::Private {
     Constructs a QProcess object with the given \a parent. The process is not
     running.
 */
-QProcess::QProcess(QObject *parent) : QIODevice(parent), d(std::make_unique<Private>(this)) {}
+QProcess::QProcess(QObject *parent) : QIODevice(parent), d(std::make_unique<Private>(this)) {
+    m_readChannels = 2; // standard output and standard error
+}
 
 /*!
     Destroys the QProcess object. If the process is still running, a warning
@@ -957,14 +959,14 @@ void QProcess::setInputChannelMode(InputChannelMode mode) { d->inputMode = mode;
 
     \sa setReadChannel()
 */
-QProcess::ProcessChannel QProcess::readChannel() const { return d->readChannel; }
+QProcess::ProcessChannel QProcess::readChannel() const { return d->current() == 0 ? StandardOutput : StandardError; }
 
 /*!
     Sets the current read channel to \a channel.
 
     \sa readChannel(), readAllStandardOutput()
 */
-void QProcess::setReadChannel(ProcessChannel channel) { d->readChannel = channel; }
+void QProcess::setReadChannel(ProcessChannel channel) { setCurrentReadChannel(channel == StandardOutput ? 0 : 1); }
 
 /*!
     Closes the read channel \a channel. The process may receive SIGPIPE when
@@ -1095,9 +1097,7 @@ QProcess::ExitStatus QProcess::exitStatus() const { return d->exitStatus; }
 
     \sa setReadChannel(), readAllStandardOutput()
 */
-qint64 QProcess::bytesAvailable() const {
-    return QIODevice::bytesAvailable() + d->pending(d->readChannel == StandardOutput ? 0 : 1);
-}
+qint64 QProcess::bytesAvailable() const { return QIODevice::bytesAvailable() + d->pending(d->current()); }
 
 /*!
     Returns the number of bytes written to the process that have not been
@@ -1114,7 +1114,7 @@ qint64 QProcess::bytesToWrite() const { return d->wbuf.size() - d->wpos; }
     \sa readLine()
 */
 bool QProcess::canReadLine() const {
-    const int ch = d->readChannel == StandardOutput ? 0 : 1;
+    const int ch = d->current();
     const QByteArray &b = d->buf[ch];
     return QIODevice::canReadLine() || (b.size() > d->bufPos[ch] && b.indexOf('\n', d->bufPos[ch]) >= 0);
 }
@@ -1164,9 +1164,7 @@ qint64 QProcess::Private::readFrom(int ch, char *data, qint64 maxSize) {
 /*!
     \reimp
 */
-qint64 QProcess::readData(char *data, qint64 maxSize) {
-    return d->readFrom(d->readChannel == StandardOutput ? 0 : 1, data, maxSize);
-}
+qint64 QProcess::readData(char *data, qint64 maxSize) { return d->readFrom(d->current(), data, maxSize); }
 
 /*!
     \reimp
@@ -1772,7 +1770,7 @@ void QProcess::Private::processDied(int status) {
     pid = -1;
     diedOk = true;
 
-    const int ch = readChannel == StandardOutput ? 0 : 1;
+    const int ch = current();
     if (!finishedEmitted[ch]) {
         finishedEmitted[ch] = true;
         q->readChannelFinished();
@@ -1794,13 +1792,16 @@ void QProcess::Private::processDied(int status) {
 
 void QProcess::Private::emitReadyRead(int ch) {
     QPointer<QProcess> guard(q);
-    if (readChannel == (ch == 0 ? StandardOutput : StandardError) && !inReadyRead) {
+    if (current() == ch && !inReadyRead) {
         inReadyRead = true;
         q->readyRead();
         if (!guard)
             return;
         inReadyRead = false;
     }
+    q->channelReadyRead(ch);
+    if (!guard)
+        return;
     if (ch == 0)
         q->readyReadStandardOutput();
     else
@@ -1811,7 +1812,7 @@ void QProcess::Private::onEof(int ch) {
     QPointer<QProcess> guard(q);
     closeChannelFd(ch);
     eofSeen[ch] = true;
-    if (readChannel == (ch == 0 ? StandardOutput : StandardError) && !finishedEmitted[ch]) {
+    if (current() == ch && !finishedEmitted[ch]) {
         finishedEmitted[ch] = true;
         q->readChannelFinished();
     }
@@ -1889,7 +1890,10 @@ bool QProcess::Private::canWrite() {
         if (closeWritePending)
             closeStdin();
     }
+    QPointer<QProcess> guard(q);
     q->bytesWritten(n);
+    if (guard)
+        q->channelBytesWritten(0, n);
     return true;
 }
 
@@ -1898,7 +1902,7 @@ bool QProcess::Private::waitFor(Wait what, int msecs) {
     const bool infinite = msecs < 0;
     const auto deadline = Clock::now() + std::chrono::milliseconds(infinite ? 0 : msecs);
     enum Kind { StartK, PidK, OutK, ErrK, InK };
-    const int channel = readChannel == StandardOutput ? 0 : 1;
+    const int channel = current();
     const unsigned seqBefore = dataSeq[channel];
     for (;;) {
         std::vector<pollfd> fds;

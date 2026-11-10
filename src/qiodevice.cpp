@@ -25,9 +25,8 @@
     subclasses that choose to emit them.
 
     \differences
-    There is no read-channel API (\c setCurrentReadChannel(), \c
-    readChannelCount(), \c writeChannelCount(), \c channelReadyRead() and \c
-    channelBytesWritten()). Only sequential devices buffer data, and the base
+    A device has one read channel and one write channel, except QProcess,
+    which has two read channels; a subclass cannot declare more. Only sequential devices buffer data, and the base
     class does not translate line endings in text mode. Errors are reported
     only as a string through errorString(); there is no error enum. A
     transaction on a random-access device is rolled back by seeking, and on a
@@ -80,6 +79,7 @@ bool QIODevice::open(OpenMode mode) {
     m_mode = mode;
     m_buf.clear();
     m_bufPos = 0;
+    m_parked.clear();
     m_transaction = false;
     m_error.clear();
     return true;
@@ -102,7 +102,80 @@ void QIODevice::close() {
     m_mode = NotOpen;
     m_buf.clear();
     m_bufPos = 0;
+    m_parked.clear();
     m_transaction = false;
+}
+
+/*!
+    \since 5.7
+    Returns the number of read channels if the device is open for reading;
+    otherwise returns 0. A device has one read channel, except QProcess, which
+    has one for the standard output of the process and one for its standard
+    error.
+
+    \sa writeChannelCount(), setCurrentReadChannel()
+*/
+int QIODevice::readChannelCount() const { return isReadable() ? m_readChannels : 0; }
+
+/*!
+    \since 5.7
+    Returns the number of write channels if the device is open for writing;
+    otherwise returns 0.
+
+    \sa readChannelCount(), setCurrentWriteChannel()
+*/
+int QIODevice::writeChannelCount() const { return isWritable() ? m_writeChannels : 0; }
+
+/*!
+    \since 5.7
+    Sets the current read channel to \a channel, the index of one of the
+    readChannelCount() channels. read(), readLine(), peek(), bytesAvailable()
+    and readyRead() then refer to that channel. Data that peek() or ungetChar()
+    left in the buffer of the previous channel stays with that channel.
+
+    The channel can be chosen before the device is open. This function prints
+    a warning and does nothing while a transaction is in progress.
+
+    \code
+    process.setCurrentReadChannel(QProcess::StandardError);
+    const QByteArray errors = process.readAll();
+    \endcode
+
+    \sa currentReadChannel(), channelReadyRead()
+*/
+void QIODevice::setCurrentReadChannel(int channel) {
+    if (m_transaction) {
+        qWarning("QIODevice::setCurrentReadChannel: Called while a transaction is in progress");
+        return;
+    }
+    if (channel < 0 || channel == m_readChannel)
+        return;
+    // Park the look-ahead data of the channel that is left, and take up that of the new one.
+    m_buf.remove(0, m_bufPos);
+    m_bufPos = 0;
+    QByteArray taken;
+    for (qsizetype i = 0; i < m_parked.size(); ++i) {
+        if (m_parked.at(i).first == channel) {
+            taken = m_parked.takeAt(i).second;
+            break;
+        }
+    }
+    if (!m_buf.isEmpty())
+        m_parked.append({m_readChannel, m_buf});
+    m_buf = taken;
+    m_readChannel = channel;
+}
+
+/*!
+    \since 5.7
+    Sets the current write channel to \a channel, the index of one of the
+    writeChannelCount() channels. Does nothing if \a channel is negative.
+
+    \sa currentWriteChannel(), channelBytesWritten()
+*/
+void QIODevice::setCurrentWriteChannel(int channel) {
+    if (channel >= 0)
+        m_writeChannel = channel;
 }
 
 /*!

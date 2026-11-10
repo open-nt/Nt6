@@ -175,43 +175,7 @@ public:
         Returns \c true if the view holds well-formed UTF-8; otherwise returns
         \c false.
     */
-    bool isValidUtf8() const noexcept {
-        qsizetype i = 0;
-        while (i < n) {
-            const auto c = static_cast<unsigned char>(p[i]);
-            int extra = 0;
-            char32_t min = 0;
-            if (c < 0x80) {
-                ++i;
-                continue;
-            }
-            if (c >= 0xc2 && c <= 0xdf) {
-                extra = 1;
-                min = 0x80;
-            } else if (c >= 0xe0 && c <= 0xef) {
-                extra = 2;
-                min = 0x800;
-            } else if (c >= 0xf0 && c <= 0xf4) {
-                extra = 3;
-                min = 0x10000;
-            } else {
-                return false;
-            }
-            char32_t cp = c & (0x3f >> extra);
-            for (int k = 1; k <= extra; ++k) {
-                if (i + k >= n)
-                    return false;
-                const auto cc = static_cast<unsigned char>(p[i + k]);
-                if ((cc & 0xc0) != 0x80)
-                    return false;
-                cp = (cp << 6) | (cc & 0x3f);
-            }
-            if (cp < min || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
-                return false;
-            i += extra + 1;
-        }
-        return true;
-    }
+    bool isValidUtf8() const noexcept { return QtPrivate::isValidUtf8(p, n); }
     /*!
         \since 6.5
         Compares this view with \a other and returns a negative number, zero

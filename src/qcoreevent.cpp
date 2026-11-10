@@ -14,9 +14,9 @@
     accept flag, and subclasses add the data for a specific kind of event.
 
     \differences
-    Only the event types in QEvent::Type exist. There is no \c clone(),
-    \c spontaneous() or \c QEvent::isInputEvent(), and events cannot be
-    copied.
+    Only the event types in QEvent::Type exist. spontaneous() always
+    returns \c false, and isInputEvent(), isPointerEvent() and
+    isSinglePointEvent() are decided by the event type.
     \enddifferences
 
     \sa QObject::event(), QTimerEvent, QCoreApplication
@@ -61,9 +61,87 @@
 */
 
 /*!
+    \class QChildEvent
+    \brief The QChildEvent class contains event parameters for child object events.
+
+    An object receives a \c ChildAdded event when it becomes the parent of
+    another object, and a \c ChildRemoved event when a child is removed or
+    destroyed. QObject::event() passes both to QObject::childEvent().
+
+    \code
+    void Tracker::childEvent(QChildEvent *event) {
+        if (event->added())
+            qDebug() << "new child" << event->child();
+    }
+    \endcode
+
+    \differences
+    \c ChildPolished is defined, but Nt never sends it.
+    \enddifferences
+
+    \sa QObject::childEvent(), QObject::setParent()
+*/
+
+/*!
     Destroys the event.
 */
 QEvent::~QEvent() = default;
+
+/*!
+    \since 6.0
+    Returns a copy of this event, allocated with \c new; the caller owns it.
+    Each event class reimplements clone() to copy itself.
+*/
+QEvent *QEvent::clone() const { return new QEvent(*this); }
+
+/*!
+    \since 6.0
+    Returns \c true if the event is a mouse, wheel or key event; otherwise
+    returns \c false.
+
+    \sa isPointerEvent()
+*/
+bool QEvent::isInputEvent() const noexcept {
+    switch (t) {
+    case KeyPress:
+    case KeyRelease:
+        return true;
+    default:
+        return isPointerEvent();
+    }
+}
+
+/*!
+    \since 6.0
+    Returns \c true if the event is a mouse or wheel event; otherwise returns
+    \c false.
+
+    \sa isSinglePointEvent()
+*/
+bool QEvent::isPointerEvent() const noexcept { return isSinglePointEvent(); }
+
+/*!
+    \since 6.0
+    Returns \c true if the event comes from a pointing device with one
+    point, as mouse and wheel events do; otherwise returns \c false.
+*/
+bool QEvent::isSinglePointEvent() const noexcept {
+    switch (t) {
+    case MouseButtonPress:
+    case MouseButtonRelease:
+    case MouseButtonDblClick:
+    case MouseMove:
+    case Wheel:
+        return true;
+    default:
+        return false;
+    }
+}
+
+/*!
+    Destroys the child event.
+*/
+QChildEvent::~QChildEvent() = default;
 
 /*!
     Destroys the timer event.

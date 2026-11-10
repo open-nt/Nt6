@@ -1100,9 +1100,61 @@ static void testStringViewsAndDebug() {
     CHECK(plain.endsWith(u" 1234.5"_s));
 }
 
+static void testUnicodeProperties() {
+    CHECK(QChar(u'a').direction() == QChar::DirL && QChar(u'א').direction() == QChar::DirR);
+    CHECK(QChar(u'ب').direction() == QChar::DirAL && QChar(u'1').direction() == QChar::DirEN);
+    CHECK(QChar(u' ').direction() == QChar::DirWS && QChar(0x0300).direction() == QChar::DirNSM);
+    CHECK(QChar::direction(char32_t(0x2067)) == QChar::DirRLI && QChar::direction(char32_t(0x2069)) == QChar::DirPDI);
+    CHECK(QChar::direction(U'\U00010900') == QChar::DirR); // PHOENICIAN LETTER ALF
+
+    CHECK(QChar(u'(').hasMirrored() && QChar(u'(').mirroredChar() == QChar(u')'));
+    CHECK(QChar(u'«').mirroredChar() == QChar(u'»') && QChar(u'a').mirroredChar() == QChar(u'a'));
+    CHECK(!QChar(u'a').hasMirrored());
+    CHECK(QChar(0x2211).hasMirrored() &&
+          QChar(0x2211).mirroredChar() == QChar(0x2211)); // N-ARY SUMMATION: no glyph pair
+    CHECK(QChar::mirroredChar(U'\U0001D6DB') == U'\U0001D6DB');
+
+    CHECK(QChar(0x0628).joiningType() == QChar::Joining_Dual && QChar(0x0627).joiningType() == QChar::Joining_Right);
+    CHECK(QChar(0x200d).joiningType() == QChar::Joining_Causing &&
+          QChar(0x0301).joiningType() == QChar::Joining_Transparent);
+    CHECK(QChar(u'a').joiningType() == QChar::Joining_None &&
+          QChar(0x00ad).joiningType() == QChar::Joining_Transparent);
+    CHECK(QChar(0xa872).joiningType() == QChar::Joining_Left); // PHAGS-PA SUPERFIXED LETTER RA
+
+    CHECK(QChar(u'a').script() == QChar::Script_Latin && QChar(u'α').script() == QChar::Script_Greek);
+    CHECK(QChar(0x0300).script() == QChar::Script_Inherited && QChar(u'1').script() == QChar::Script_Common);
+    CHECK(QChar(0x4e00).script() == QChar::Script_Han && QChar(0x0915).script() == QChar::Script_Devanagari);
+    CHECK(QChar::script(U'\U0001F600') == QChar::Script_Common && QChar(0xe000).script() == QChar::Script_Unknown);
+    CHECK(QChar::script(char32_t(0x110000)) == QChar::Script_Unknown &&
+          QChar::script(U'\U0001E900') == QChar::Script_Adlam);
+    CHECK(QChar(0xa840).script() == QChar::Script_PhagsPa && QChar(0x07ca).script() == QChar::Script_Nko);
+
+    CHECK(QChar(u'a').unicodeVersion() == QChar::Unicode_1_1 && QChar(0x20ac).unicodeVersion() == QChar::Unicode_2_1_2);
+    CHECK(QChar::unicodeVersion(U'\U0001F600') == QChar::Unicode_6_1 &&
+          QChar(0x0378).unicodeVersion() == QChar::Unicode_Unassigned);
+    CHECK(QChar::unicodeVersion(U'\U0001FAE9') == QChar::Unicode_16_0);
+    CHECK(QChar::currentUnicodeVersion() == QChar::Unicode_16_0);
+
+    const auto smile = QChar::fromUcs4(U'\U0001F600');
+    CHECK(smile.size() == 2 && QStringView(smile) == u"\U0001F600"_s && smile.end() - smile.begin() == 2);
+    CHECK(QChar::fromUcs4(U'a').size() == 1 && QStringView(QChar::fromUcs4(U'é')) == u"é"_s);
+    CHECK(QChar(QChar::ParagraphSeparator).unicode() == 0x2029 && QChar(QChar::LineSeparator).unicode() == 0x2028);
+    CHECK(QChar(QChar::ByteOrderSwapped).unicode() == 0xfffe && QChar(QChar::VisualTabCharacter).unicode() == 0x2192);
+
+    CHECK(!u"abc"_s.isRightToLeft() && u"שלום"_s.isRightToLeft() && !QString().isRightToLeft());
+    CHECK(u"123 שלום abc"_s.isRightToLeft());                    // digits and spaces are not strong
+    const QChar rli(0x2067);                                     // RIGHT-TO-LEFT ISOLATE
+    const QChar pdi(0x2069);                                     // POP DIRECTIONAL ISOLATE
+    CHECK(!(rli + u"שלום"_s + pdi + u" abc"_s).isRightToLeft()); // the isolate is skipped
+    CHECK(!(rli + u"שלום"_s).isRightToLeft());                   // an unterminated isolate hides the rest
+    CHECK(u"\U00010900"_s.isRightToLeft());                      // a strong character outside the BMP
+    CHECK(QStringView(u"مرحبا").isRightToLeft() && !QStringView(u"hi").isRightToLeft());
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testStringViewsAndDebug();
+    testUnicodeProperties();
     testNormalization();
     testStringConversions();
     testRegexBasics();

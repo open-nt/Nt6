@@ -16,10 +16,9 @@
     \endcode
 
     \differences
-    fromString() takes a QStringView or a UTF-8 \c{const char *} rather than a
-    QAnyStringView. There is no \c QTypeRevision conversion and no
-    QDataStream operators. A segment that does not fit in an \c int ends
-    parsing in fromString().
+    The segments are always held in a QList<int>; there is no constructor
+    taking a \c QSpan or a \c QVarLengthArray. A segment that does not fit in
+    an \c int ends parsing in fromString().
     \enddifferences
 
     \sa QVersionNumber::compare()
@@ -105,16 +104,8 @@ QVersionNumber QVersionNumber::commonPrefix(const QVersionNumber &a, const QVers
     return QVersionNumber(s);
 }
 
-/*!
-    Parses the leading dot-separated decimal numbers of \a string into a
-    version number. Parsing stops at the first character that does not belong
-    to the version, such as a suffix like \c{-beta}. If \a suffixIndex is not
-    \c nullptr, it is set to the index in \a string where the version ends.
-    Returns a null version number if \a string does not start with a digit.
-
-    \sa toString()
-*/
-QVersionNumber QVersionNumber::fromString(QStringView string, qsizetype *suffixIndex) {
+// Parses the leading version of string; the rest is described at QVersionNumber::fromString().
+static QVersionNumber parseVersion(QStringView string, qsizetype *suffixIndex) {
     QList<int> seg;
     qsizetype i = 0, consumed = 0;
     const qsizetype n = string.size();
@@ -144,4 +135,28 @@ QVersionNumber QVersionNumber::fromString(QStringView string, qsizetype *suffixI
     if (suffixIndex)
         *suffixIndex = consumed;
     return QVersionNumber(seg);
+}
+
+/*!
+    Parses the leading dot-separated decimal numbers of \a string into a
+    version number. Parsing stops at the first character that does not belong
+    to the version, such as a suffix like \c{-beta}. If \a suffixIndex is not
+    \c nullptr, it is set to the index in \a string where the version ends.
+    Returns a null version number if \a string does not start with a digit.
+
+    \a string can be a QString, a QStringView, a QLatin1StringView, or UTF-8
+    text in a QByteArray or a \c{const char *}:
+
+    \code
+    qsizetype suffix = 0;
+    const QVersionNumber v = QVersionNumber::fromString("6.5.1-beta", &suffix);
+    // v is 6.5.1 and suffix is 5, the index of "-beta"
+    \endcode
+
+    \sa toString()
+*/
+QVersionNumber QVersionNumber::fromString(QAnyStringView string, qsizetype *suffixIndex) {
+    // The version is ASCII, so an index into the UTF-16 text is the same index in any encoding.
+    const QString utf16 = string.toString();
+    return parseVersion(QStringView(utf16), suffixIndex);
 }

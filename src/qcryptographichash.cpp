@@ -62,17 +62,104 @@ int digestSize(QCryptographicHash::Algorithm m) {
     case H::Sha512:
     case H::Sha3_512:
     case H::Keccak_512: return 64;
+    case H::Blake2s_128:
+        return 16;
+    case H::Blake2b_160:
+    case H::Blake2s_160:
+        return 20;
+    case H::Blake2s_224:
+        return 28;
+    case H::Blake2b_256:
+    case H::Blake2s_256:
+        return 32;
+    case H::Blake2b_384:
+        return 48;
+    case H::Blake2b_512:
+        return 64;
+    case H::NumAlgorithms:
+        break;
     }
     return 0;
 }
 
-bool isKeccakFamily(QCryptographicHash::Algorithm m) { return m >= QCryptographicHash::Keccak_224; }
-bool isSha3(QCryptographicHash::Algorithm m) { return m >= QCryptographicHash::Sha3_224; }
+bool isKeccakFamily(QCryptographicHash::Algorithm m) {
+    return m >= QCryptographicHash::Keccak_224 && m <= QCryptographicHash::Sha3_512;
+}
+bool isSha3(QCryptographicHash::Algorithm m) {
+    return m >= QCryptographicHash::Sha3_224 && m <= QCryptographicHash::Sha3_512;
+}
+bool isBlake2b(QCryptographicHash::Algorithm m) {
+    return m >= QCryptographicHash::Blake2b_160 && m <= QCryptographicHash::Blake2b_512;
+}
+bool isBlake2s(QCryptographicHash::Algorithm m) {
+    return m >= QCryptographicHash::Blake2s_128 && m <= QCryptographicHash::Blake2s_256;
+}
+bool isBlake2(QCryptographicHash::Algorithm m) { return isBlake2b(m) || isBlake2s(m); }
 
 int blockSize(QCryptographicHash::Algorithm m) {
     if (isKeccakFamily(m))
         return 200 - 2 * digestSize(m);
-    return m == QCryptographicHash::Sha384 || m == QCryptographicHash::Sha512 ? 128 : 64;
+    if (isBlake2s(m))
+        return 64;
+    return m == QCryptographicHash::Sha384 || m == QCryptographicHash::Sha512 || isBlake2b(m) ? 128 : 64;
+}
+
+// The message word schedule of BLAKE2 (RFC 7693, section 2.7).
+constexpr unsigned char kBlake2Sigma[10][16] = {
+    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, {14, 10, 4, 8, 9, 15, 13, 6, 1, 12, 0, 2, 11, 7, 5, 3},
+    {11, 8, 12, 0, 5, 2, 15, 13, 10, 14, 3, 6, 7, 1, 9, 4}, {7, 9, 3, 1, 13, 12, 11, 14, 2, 6, 5, 10, 4, 0, 15, 8},
+    {9, 0, 5, 7, 2, 4, 10, 15, 14, 1, 11, 12, 6, 8, 3, 13}, {2, 12, 6, 10, 0, 11, 8, 3, 4, 13, 7, 5, 15, 14, 1, 9},
+    {12, 5, 1, 15, 14, 13, 4, 10, 0, 7, 6, 3, 9, 2, 8, 11}, {13, 11, 7, 14, 12, 1, 3, 9, 5, 0, 15, 4, 8, 6, 2, 10},
+    {6, 15, 14, 9, 11, 3, 0, 8, 12, 2, 13, 7, 1, 4, 10, 5}, {10, 2, 8, 4, 7, 6, 1, 5, 15, 11, 9, 14, 3, 12, 13, 0}};
+
+template <typename W> W rotr(W x, int n) { return (x >> n) | (x << (int(sizeof(W) * 8) - n)); }
+
+// The BLAKE2 compression function F for 64-bit words (BLAKE2b: 12 rounds, rotations 32, 24, 16,
+// 63) or 32-bit words (BLAKE2s: 10 rounds, rotations 16, 12, 8, 7). `t` counts the bytes so far.
+template <typename W> void blake2Compress(W *h, const W *iv, const uchar *block, quint64 t, bool last) {
+    constexpr bool wide = sizeof(W) == 8;
+    constexpr int rounds = wide ? 12 : 10;
+    constexpr int r1 = wide ? 32 : 16, r2 = wide ? 24 : 12, r3 = wide ? 16 : 8, r4 = wide ? 63 : 7;
+    W m[16];
+    for (int i = 0; i < 16; ++i) {
+        W w = 0;
+        for (int b = int(sizeof(W)) - 1; b >= 0; --b)
+            w = static_cast<W>((w << 8) | block[i * int(sizeof(W)) + b]);
+        m[i] = w;
+    }
+    W v[16];
+    for (int i = 0; i < 8; ++i) {
+        v[i] = h[i];
+        v[i + 8] = iv[i];
+    }
+    v[12] ^= static_cast<W>(t);
+    if constexpr (!wide)
+        v[13] ^= static_cast<W>(t >> 32);
+    if (last)
+        v[14] = static_cast<W>(~v[14]);
+    const auto g = [&v](int a, int b, int c, int d, W x, W y) {
+        v[a] = static_cast<W>(v[a] + v[b] + x);
+        v[d] = rotr<W>(v[d] ^ v[a], r1);
+        v[c] = static_cast<W>(v[c] + v[d]);
+        v[b] = rotr<W>(v[b] ^ v[c], r2);
+        v[a] = static_cast<W>(v[a] + v[b] + y);
+        v[d] = rotr<W>(v[d] ^ v[a], r3);
+        v[c] = static_cast<W>(v[c] + v[d]);
+        v[b] = rotr<W>(v[b] ^ v[c], r4);
+    };
+    for (int r = 0; r < rounds; ++r) {
+        const unsigned char *s = kBlake2Sigma[r % 10];
+        g(0, 4, 8, 12, m[s[0]], m[s[1]]);
+        g(1, 5, 9, 13, m[s[2]], m[s[3]]);
+        g(2, 6, 10, 14, m[s[4]], m[s[5]]);
+        g(3, 7, 11, 15, m[s[6]], m[s[7]]);
+        g(0, 5, 10, 15, m[s[8]], m[s[9]]);
+        g(1, 6, 11, 12, m[s[10]], m[s[11]]);
+        g(2, 7, 8, 13, m[s[12]], m[s[13]]);
+        g(3, 4, 9, 14, m[s[14]], m[s[15]]);
+    }
+    for (int i = 0; i < 8; ++i)
+        h[i] ^= v[i] ^ v[i + 8];
 }
 
 } // namespace
@@ -116,7 +203,30 @@ struct QCryptographicHash::State {
             std::memcpy(h64, kSha512Init, sizeof kSha512Init);
             break;
         default:
+            // BLAKE2 starts from the SHA-512 (b) or SHA-256 (s) initial values, the first word mixed
+            // with the parameter block: digest length, no key, fanout and depth 1.
+            if (isBlake2b(m)) {
+                std::memcpy(h64, kSha512Init, sizeof kSha512Init);
+                h64[0] ^= 0x01010000u ^ static_cast<quint64>(digestSize(m));
+            } else if (isBlake2s(m)) {
+                for (int i = 0; i < 8; ++i)
+                    h32[i] = static_cast<quint32>(kSha512Init[i] >> 32);
+                h32[0] ^= 0x01010000u ^ static_cast<quint32>(digestSize(m));
+            }
             break;
+        }
+    }
+
+    void blake2(const uchar *p, bool last) {
+        if (isBlake2b(m)) {
+            quint64 iv[8];
+            std::memcpy(iv, kSha512Init, sizeof iv);
+            blake2Compress<quint64>(h64, iv, p, total, last);
+        } else {
+            quint32 iv[8];
+            for (int i = 0; i < 8; ++i)
+                iv[i] = static_cast<quint32>(kSha512Init[i] >> 32);
+            blake2Compress<quint32>(h32, iv, p, total, last);
         }
     }
 
@@ -299,6 +409,22 @@ struct QCryptographicHash::State {
     }
 
     void add(const uchar *p, std::size_t n) {
+        if (isBlake2(m)) {
+            // The last block is compressed with a flag, so a full block waits for more data.
+            while (n > 0) {
+                if (used == block) {
+                    blake2(buf, false);
+                    used = 0;
+                }
+                const std::size_t take = std::min(n, static_cast<std::size_t>(block - used));
+                std::memcpy(buf + used, p, take);
+                used += static_cast<int>(take);
+                total += take;
+                p += take;
+                n -= take;
+            }
+            return;
+        }
         total += n;
         while (n > 0) {
             if (used == 0 && n >= static_cast<std::size_t>(block)) {
@@ -320,6 +446,18 @@ struct QCryptographicHash::State {
     }
 
     QByteArray finish() {
+        if (isBlake2(m)) {
+            std::memset(buf + used, 0, static_cast<std::size_t>(block - used));
+            blake2(buf, true);
+            QByteArray out(digestSize(m), '\0');
+            for (int i = 0; i < out.size(); ++i) {
+                if (isBlake2b(m))
+                    out[i] = static_cast<char>(h64[i / 8] >> (8 * (i % 8)));
+                else
+                    out[i] = static_cast<char>(h32[i / 4] >> (8 * (i % 4)));
+            }
+            return out;
+        }
         if (isKeccakFamily(m)) {
             std::memset(buf + used, 0, static_cast<std::size_t>(block - used));
             buf[used] ^= static_cast<uchar>(isSha3(m) ? 0x06 : 0x01);
@@ -379,9 +517,9 @@ struct QCryptographicHash::State {
     \endcode
 
     \differences
-    Algorithms are implemented in the library itself. The BLAKE2 algorithms
-    (\c Blake2b_160 to \c Blake2s_256) are not available. Keccak_* and Sha3_* are the original
-    Keccak and the standardized SHA-3 padding respectively.
+    Algorithms are implemented in the library itself. Keccak_* and Sha3_* are the original
+    Keccak and the standardized SHA-3 padding respectively. The BLAKE2 algorithms are unkeyed;
+    use QMessageAuthenticationCode for a keyed hash. There is no \c hashInto().
     \enddifferences
 
     \sa QMessageAuthenticationCode
@@ -407,6 +545,15 @@ struct QCryptographicHash::State {
     \value Sha3_256 SHA-3 with a 32-byte digest.
     \value Sha3_384 SHA-3 with a 48-byte digest.
     \value Sha3_512 SHA-3 with a 64-byte digest.
+    \value Blake2b_160 BLAKE2b (RFC 7693) with a 20-byte digest.
+    \value Blake2b_256 BLAKE2b with a 32-byte digest.
+    \value Blake2b_384 BLAKE2b with a 48-byte digest.
+    \value Blake2b_512 BLAKE2b with a 64-byte digest.
+    \value Blake2s_128 BLAKE2s (RFC 7693) with a 16-byte digest.
+    \value Blake2s_160 BLAKE2s with a 20-byte digest.
+    \value Blake2s_224 BLAKE2s with a 28-byte digest.
+    \value Blake2s_256 BLAKE2s with a 32-byte digest.
+    \value NumAlgorithms The number of algorithms; not an algorithm.
 
     \sa hashLength()
 */

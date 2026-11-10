@@ -20,3 +20,6 @@ passedByValue:include/QtCore/qanystringview.h
 passedByValue:include/QtCore/qstringconverter.h
 passedByValue:src/qstringconverter.cpp
 passedByValue:src/qcalendar.cpp
+passedByValue:include/QtCore/quuid.h
+passedByValue:src/quuid.cpp
+passedByValue:src/qversionnumber.cpp

@@ -4,6 +4,8 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qglobal.h>
 
+class QObject;
+
 class QEvent {
 public:
     /*!
@@ -53,6 +55,9 @@ public:
         \value ActionAdded An action has been added to a widget; delivered as a QActionEvent.
         \value ActionRemoved An action has been removed from a widget; delivered as a QActionEvent.
         \value Expose Part of a window became visible and needs painting; delivered as a QExposeEvent.
+        \value ChildAdded An object gained a child; delivered as a QChildEvent.
+        \value ChildPolished A widget child was polished; delivered as a QChildEvent.
+        \value ChildRemoved An object lost a child; delivered as a QChildEvent.
         \value User The first value available for application-defined events.
         \value MaxUser The last value available for application-defined events.
     */
@@ -99,6 +104,9 @@ public:
         ActionAdded = 114,
         ActionRemoved = 115,
         Expose = 206,
+        ChildAdded = 68,
+        ChildPolished = 69,
+        ChildRemoved = 71,
         User = 1000,
         MaxUser = 65535
     };
@@ -108,7 +116,7 @@ public:
     */
     explicit QEvent(Type type) : t(type) {}
     virtual ~QEvent();
-    Q_DISABLE_COPY(QEvent)
+    virtual QEvent *clone() const;
 
     /*!
         Returns the event type.
@@ -142,7 +150,28 @@ public:
     */
     void ignore() { accepted = false; }
 
+    /*!
+        \since 6.0
+        Returns \c true if the event came from outside the application, such
+        as from the window system; otherwise returns \c false. Nt delivers
+        every event from within the application, so this returns \c false.
+    */
+    bool spontaneous() const { return false; }
+    bool isInputEvent() const noexcept;
+    bool isPointerEvent() const noexcept;
+    bool isSinglePointEvent() const noexcept;
+
     static int registerEventType(int hint = -1);
+
+protected:
+    /*!
+        Constructs a copy of \a other. Only subclasses copy events, in clone().
+    */
+    QEvent(const QEvent &other) = default;
+    /*!
+        Assigns \a other to this event and returns a reference to it.
+    */
+    QEvent &operator=(const QEvent &other) = default;
 
 private:
     Type t;
@@ -162,6 +191,10 @@ public:
         QObject::startTimer().
     */
     int timerId() const { return id; }
+    /*!
+        \reimp
+    */
+    QTimerEvent *clone() const override { return new QTimerEvent(*this); }
 
 private:
     int id;
@@ -180,7 +213,44 @@ public:
         \sa QObject::setProperty()
     */
     QByteArray propertyName() const { return m_name; }
+    /*!
+        \reimp
+    */
+    QDynamicPropertyChangeEvent *clone() const override { return new QDynamicPropertyChangeEvent(*this); }
 
 private:
     QByteArray m_name;
+};
+
+class QChildEvent : public QEvent {
+public:
+    /*!
+        Constructs a child event of the given \a type (\c ChildAdded,
+        \c ChildPolished or \c ChildRemoved) for \a child.
+    */
+    QChildEvent(Type type, QObject *child) : QEvent(type), c(child) {}
+    ~QChildEvent() override;
+    /*!
+        Returns the child object that was added or removed.
+    */
+    QObject *child() const { return c; }
+    /*!
+        Returns \c true if the event is \c ChildAdded; otherwise returns \c false.
+    */
+    bool added() const { return type() == ChildAdded; }
+    /*!
+        Returns \c true if the event is \c ChildPolished; otherwise returns \c false.
+    */
+    bool polished() const { return type() == ChildPolished; }
+    /*!
+        Returns \c true if the event is \c ChildRemoved; otherwise returns \c false.
+    */
+    bool removed() const { return type() == ChildRemoved; }
+    /*!
+        \reimp
+    */
+    QChildEvent *clone() const override { return new QChildEvent(*this); }
+
+private:
+    QObject *c;
 };

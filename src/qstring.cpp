@@ -211,7 +211,7 @@ QString::QString(const QChar *u, qsizetype size) {
 
     \sa fromLatin1()
 */
-QString::QString(QLatin1StringView s) : m_null(false) {
+QString::QString(QLatin1StringView s) : m_null(s.isNull()) {
     d.reserve(static_cast<std::size_t>(s.size()));
     for (qsizetype i = 0; i < s.size(); ++i)
         d.push_back(static_cast<unsigned char>(s.data()[i]));
@@ -458,6 +458,60 @@ QString QString::normalized(NormalizationForm mode) const {
 }
 
 namespace {
+// Returns true if the first strong character of [p, p + n) that is not inside an isolate is
+// right-to-left (UAX #9, rule P2).
+bool firstStrongIsRightToLeft(const QChar *p, qsizetype n) noexcept {
+    int isolates = 0;
+    for (qsizetype i = 0; i < n; ++i) {
+        char32_t c = p[i].unicode();
+        if (QChar::isHighSurrogate(c) && i + 1 < n && p[i + 1].isLowSurrogate()) {
+            c = QChar::surrogateToUcs4(p[i], p[i + 1]);
+            ++i;
+        }
+        switch (QChar::direction(c)) {
+        case QChar::DirLRI:
+        case QChar::DirRLI:
+        case QChar::DirFSI:
+            ++isolates;
+            break;
+        case QChar::DirPDI:
+            if (isolates > 0)
+                --isolates;
+            break;
+        case QChar::DirL:
+            if (isolates == 0)
+                return false;
+            break;
+        case QChar::DirR:
+        case QChar::DirAL:
+            if (isolates == 0)
+                return true;
+            break;
+        default:
+            break;
+        }
+    }
+    return false;
+}
+} // namespace
+
+/*!
+    Returns \c true if the string reads right to left: if its first strong
+    character outside directional isolates (see QChar::direction()) is
+    right-to-left. Returns \c false otherwise, including when it has no strong
+    character.
+*/
+bool QString::isRightToLeft() const noexcept { return firstStrongIsRightToLeft(constData(), size()); }
+
+/*!
+    \since 6.0
+    Returns \c true if the view reads right to left, as QString::isRightToLeft()
+    decides.
+*/
+bool QStringView::isRightToLeft() const noexcept { return firstStrongIsRightToLeft(data(), size()); }
+
+namespace {
+
 QList<QStringView> splitView(QStringView view, const QString &sep, Qt::SplitBehavior behavior, Qt::CaseSensitivity cs) {
     QList<QStringView> parts;
     const QString text = view.toString();
@@ -981,6 +1035,54 @@ static std::u16string substituteLowest(const std::u16string &s, const std::u16st
         }
     }
     return out;
+}
+
+// Returns `pattern` with its place markers replaced by the `count` strings at `args` in one pass:
+// the lowest-numbered marker by the first string, the next one by the second, and so on. Because
+// the text is scanned once, a marker inside an argument is not replaced. Arguments without a
+// marker are dropped, and markers without an argument stay.
+QString QtPrivate::multiArg(const QString &pattern, const QString *args, qsizetype count) {
+    const std::u16string &s = pattern.u16string();
+    // Reads a marker at i: its number, or -1, and where it ends.
+    const auto parse = [&s](std::size_t i, std::size_t &after) -> int {
+        if (s[i] != u'%')
+            return -1;
+        std::size_t j = i + 1;
+        if (j < s.size() && s[j] == u'L')
+            ++j;
+        if (j >= s.size() || s[j] < u'0' || s[j] > u'9')
+            return -1;
+        int v = s[j++] - u'0';
+        if (j < s.size() && s[j] >= u'0' && s[j] <= u'9')
+            v = v * 10 + (s[j++] - u'0');
+        after = j;
+        return v;
+    };
+    int argOf[100];
+    std::fill(std::begin(argOf), std::end(argOf), -2); // -2: not in the pattern
+    for (std::size_t i = 0; i < s.size(); ++i) {
+        std::size_t after = 0;
+        const int v = parse(i, after);
+        if (v >= 0)
+            argOf[v] = -1; // -1: in the pattern, no argument for it
+    }
+    qsizetype next = 0;
+    for (int &slot : argOf) {
+        if (slot == -1 && next < count)
+            slot = static_cast<int>(next++);
+    }
+    std::u16string out;
+    for (std::size_t i = 0; i < s.size();) {
+        std::size_t after = 0;
+        const int v = parse(i, after);
+        if (v >= 0 && argOf[v] >= 0) {
+            out += args[argOf[v]].u16string();
+            i = after;
+        } else {
+            out.push_back(s[i++]);
+        }
+    }
+    return QString(out);
 }
 
 /*!

@@ -1,8 +1,13 @@
 // MIT License - see LICENSE
+#include <QtCore/qdir.h>
+#include <QtCore/qfileinfo.h>
 #include <QtCore/qurl.h>
 #include <QtCore/qurlquery.h>
 
+#include <algorithm>
 #include <cstring>
+#include <limits>
+#include <vector>
 
 namespace {
 
@@ -190,6 +195,158 @@ bool validIpLiteral(const QString &inner) {
     return true;
 }
 
+// Punycode (RFC 3492): the encoding of a Unicode label in the letters, digits and hyphen that a
+// host name may contain. The parameters are those of section 5.
+constexpr quint32 kPunyBase = 36;
+constexpr quint32 kPunyTMin = 1;
+constexpr quint32 kPunyTMax = 26;
+constexpr quint32 kPunySkew = 38;
+constexpr quint32 kPunyDamp = 700;
+constexpr quint32 kPunyInitialBias = 72;
+constexpr quint32 kPunyInitialN = 128;
+constexpr quint32 kPunyMax = std::numeric_limits<quint32>::max();
+
+quint32 punyAdapt(quint32 delta, quint32 points, bool first) {
+    delta = first ? delta / kPunyDamp : delta / 2;
+    delta += delta / points;
+    quint32 k = 0;
+    while (delta > ((kPunyBase - kPunyTMin) * kPunyTMax) / 2) {
+        delta /= kPunyBase - kPunyTMin;
+        k += kPunyBase;
+    }
+    return k + (kPunyBase - kPunyTMin + 1) * delta / (delta + kPunySkew);
+}
+
+quint32 punyThreshold(quint32 k, quint32 bias) {
+    if (k <= bias)
+        return kPunyTMin;
+    return k >= bias + kPunyTMax ? kPunyTMax : k - bias;
+}
+
+char punyDigit(quint32 d) { return static_cast<char>(d < 26 ? 'a' + d : '0' + (d - 26)); }
+
+int punyValue(char c) {
+    if (c >= 'a' && c <= 'z')
+        return c - 'a';
+    if (c >= 'A' && c <= 'Z')
+        return c - 'A';
+    if (c >= '0' && c <= '9')
+        return c - '0' + 26;
+    return -1;
+}
+
+// Encodes the code points of a label; returns false if a number overflows.
+bool punyEncode(const std::vector<char32_t> &input, QByteArray &out) {
+    out.clear();
+    for (char32_t c : input)
+        if (c < 0x80)
+            out.append(static_cast<char>(c));
+    const auto basic = static_cast<quint32>(out.size());
+    quint32 handled = basic;
+    if (basic > 0)
+        out.append('-');
+
+    quint32 n = kPunyInitialN;
+    quint32 delta = 0;
+    quint32 bias = kPunyInitialBias;
+    while (handled < input.size()) {
+        quint32 next = kPunyMax;
+        for (char32_t c : input)
+            if (c >= n && c < next)
+                next = c;
+        if (next - n > (kPunyMax - delta) / (handled + 1))
+            return false;
+        delta += (next - n) * (handled + 1);
+        n = next;
+        for (char32_t c : input) {
+            if (c < n && ++delta == 0)
+                return false;
+            if (c != n)
+                continue;
+            quint32 q = delta;
+            for (quint32 k = kPunyBase;; k += kPunyBase) {
+                const quint32 t = punyThreshold(k, bias);
+                if (q < t)
+                    break;
+                out.append(punyDigit(t + (q - t) % (kPunyBase - t)));
+                q = (q - t) / (kPunyBase - t);
+            }
+            out.append(punyDigit(q));
+            bias = punyAdapt(delta, handled + 1, handled == basic);
+            delta = 0;
+            ++handled;
+        }
+        ++delta;
+        ++n;
+    }
+    return true;
+}
+
+// Decodes a label (without its "xn--" prefix); returns false if it is not valid Punycode.
+bool punyDecode(const QByteArray &input, std::vector<char32_t> &out) {
+    out.clear();
+    const qsizetype dash = input.lastIndexOf('-');
+    for (qsizetype i = 0; i < dash; ++i) {
+        if (static_cast<uchar>(input[i]) >= 0x80)
+            return false;
+        out.push_back(static_cast<char32_t>(input[i]));
+    }
+    quint32 n = kPunyInitialN;
+    quint32 i = 0;
+    quint32 bias = kPunyInitialBias;
+    qsizetype in = dash > 0 ? dash + 1 : 0;
+    while (in < input.size()) {
+        const quint32 old = i;
+        quint32 w = 1;
+        for (quint32 k = kPunyBase;; k += kPunyBase) {
+            if (in >= input.size())
+                return false;
+            const int value = punyValue(input[in++]);
+            if (value < 0)
+                return false;
+            const auto digit = static_cast<quint32>(value);
+            if (digit > (kPunyMax - i) / w)
+                return false;
+            i += digit * w;
+            const quint32 t = punyThreshold(k, bias);
+            if (digit < t)
+                break;
+            if (w > kPunyMax / (kPunyBase - t))
+                return false;
+            w *= kPunyBase - t;
+        }
+        const auto count = static_cast<quint32>(out.size()) + 1;
+        bias = punyAdapt(i - old, count, old == 0);
+        if (i / count > kPunyMax - n)
+            return false;
+        n += i / count;
+        i %= count;
+        if (n > 0x10ffff || (n >= 0xd800 && n <= 0xdfff))
+            return false;
+        out.insert(out.begin() + static_cast<std::ptrdiff_t>(i), static_cast<char32_t>(n));
+        ++i;
+    }
+    return true;
+}
+
+constexpr qsizetype kMaxLabel = 63;
+
+bool isAsciiText(const QString &s) {
+    for (QChar c : s)
+        if (c.unicode() >= 0x80)
+            return false;
+    return true;
+}
+
+std::vector<char32_t> codePoints(const QString &s) {
+    std::vector<char32_t> out;
+    const QList<uint> ucs4 = s.toUcs4();
+    out.reserve(static_cast<std::size_t>(ucs4.size()));
+    for (uint c : ucs4)
+        out.push_back(static_cast<char32_t>(c));
+    return out;
+}
+
 } // namespace
 
 /*!
@@ -216,11 +373,15 @@ bool validIpLiteral(const QString &inner) {
     RFC 3986.
 
     \differences
-    Internationalized host names are lower-cased but not converted to or from
-    Punycode, so \c ace_encoded helpers do not exist. Formatting options cover
-    the common removal flags; \c PreferLocalFile, \c RemoveFilename and the
-    individual delimiter-decoding flags are absent. There is no
-    \c setIdnWhitelist() or \c fromUserInput().
+    A host name is stored as it was given, in lower case: one in ACE form
+    (\c{xn--}) is not turned into Unicode for display, so call fromAce() on it.
+    The encoded forms always use the ACE form. toAce() and fromAce() apply
+    Punycode but not the full UTS #46 mapping tables: labels are lower-cased,
+    not normalized or validated, and there is no IDN whitelist, so
+    \c setIdnWhitelist() and \c idnWhitelist() do not exist and
+    \c IgnoreIDNWhitelist has no effect. The individual delimiter-decoding
+    flags of \c ComponentFormattingOption are absent. fromUserInput() does not
+    recognise Windows drive paths.
     \enddifferences
 
     \sa QUrlQuery
@@ -250,6 +411,9 @@ bool validIpLiteral(const QString &inner) {
     \value RemovePath Leaves out the path.
     \value RemoveQuery Leaves out the query.
     \value RemoveFragment Leaves out the fragment.
+    \value PreferLocalFile Makes toString() return the local file path if the URL is a
+           local file with no query and no fragment.
+    \value RemoveFilename Leaves out the last segment of the path, keeping the slash before it.
     \value StripTrailingSlash Removes a trailing slash from the path.
     \value NormalizePathSegments Removes \c . and \c .. segments from the path.
 */
@@ -262,6 +426,26 @@ bool validIpLiteral(const QString &inner) {
     \value PrettyDecoded Readable, keeping escapes that would change the meaning.
     \value FullyEncoded Percent-encoded, as on the wire.
     \value FullyDecoded Every escape decoded.
+*/
+
+/*!
+    \enum QUrl::UserInputResolutionOption
+
+    Selects how fromUserInput() treats text that could be a file name.
+
+    \value DefaultResolution Text that is not an existing file is taken as a host name.
+    \value AssumeLocalFile Text without a scheme is taken as a file in the working directory,
+           even if no such file exists.
+*/
+
+/*!
+    \enum QUrl::AceProcessingOption
+
+    Options for toAce() and fromAce().
+
+    \value IgnoreIDNWhitelist Accepted for compatibility; Nt has no IDN whitelist.
+    \value AceTransitionalProcessing Maps \c ß to \c ss and final sigma to sigma, and removes
+           zero-width joiners, as registries did before IDNA 2008.
 */
 
 /*!
@@ -336,6 +520,8 @@ void QUrl::parse(const QString &text, ParsingMode mode) {
     \sa toEncoded()
 */
 QString QUrl::toString(FormattingOptions options) const {
+    if (options.testFlag(PreferLocalFile) && isLocalFile() && !m_hasQuery && !m_hasFragment)
+        return adjusted(options).toLocalFile();
     QString r;
     const QUrl u = adjusted(options);
     if (!u.m_scheme.isEmpty() && !options.testFlag(RemoveScheme))
@@ -405,6 +591,8 @@ QUrl QUrl::adjusted(FormattingOptions options) const {
         u.m_hasFragment = false;
         u.m_fragment.clear();
     }
+    if (options.testFlag(RemoveFilename))
+        u.m_path.truncate(u.m_path.lastIndexOf('/') + 1);
     if (options.testFlag(NormalizePathSegments))
         u.m_path = removeDotSegments(u.m_path);
     if (options.testFlag(StripTrailingSlash)) {
@@ -477,7 +665,7 @@ void QUrl::setAuthority(const QString &authority, ParsingMode mode) {
     setHost(rest, mode == DecodedMode ? DecodedMode : mode);
 }
 
-QByteArray QUrl::encodedAuthority() const {
+QByteArray QUrl::encodedAuthority(bool aceHost) const {
     QByteArray r;
     if (m_hasUser) {
         r += m_user;
@@ -485,7 +673,8 @@ QByteArray QUrl::encodedAuthority() const {
             r += ':' + m_password;
         r += '@';
     }
-    r += m_host.toUtf8();
+    const QByteArray ace = aceHost && !isAsciiText(m_host) ? toAce(m_host) : QByteArray();
+    r += ace.isEmpty() ? m_host.toUtf8() : ace;
     if (m_port >= 0)
         r += ':' + QByteArray::number(m_port);
     return r;
@@ -496,7 +685,9 @@ QByteArray QUrl::encodedAuthority() const {
 
     \sa setAuthority()
 */
-QString QUrl::authority(ComponentFormattingOptions options) const { return present(encodedAuthority(), options); }
+QString QUrl::authority(ComponentFormattingOptions options) const {
+    return present(encodedAuthority(options.testFlag(FullyEncoded)), options);
+}
 
 /*!
     Sets the user name and password from \a userInfo, which has the form
@@ -600,13 +791,19 @@ void QUrl::setHost(const QString &host, ParsingMode mode) {
 
 /*!
     Returns the host. An IPv6 address is returned in brackets, unless \a options
-    is FullyDecoded.
+    is FullyDecoded. With FullyEncoded, an internationalized host name is returned
+    in its ACE form, as it is used in DNS.
 
-    \sa setHost()
+    \sa setHost(), toAce()
 */
 QString QUrl::host(ComponentFormattingOptions options) const {
     if (options.testFlag(FullyDecoded) && m_host.startsWith(QChar(u'[')))
         return m_host.mid(1, m_host.size() - 2);
+    if (options.testFlag(FullyEncoded) && !isAsciiText(m_host)) {
+        const QByteArray ace = toAce(m_host);
+        if (!ace.isEmpty())
+            return QString::fromLatin1(ace);
+    }
     return m_host;
 }
 
@@ -796,6 +993,205 @@ QUrl QUrl::fromLocalFile(const QString &localFile) {
 }
 
 /*!
+    Returns \c true if this URL and \a url are the same once \a options have been applied to
+    both; otherwise returns \c false. This compares two URLs while ignoring, for example, the
+    fragment or a trailing slash:
+
+    \code
+    QUrl a("http://example.com/docs/#intro");
+    QUrl b("http://example.com/docs");
+    a.matches(b, QUrl::RemoveFragment | QUrl::StripTrailingSlash);   // true
+    \endcode
+
+    \since 5.2
+    \sa adjusted()
+*/
+bool QUrl::matches(const QUrl &url, FormattingOptions options) const {
+    const FormattingOptions applied = options & ~FormattingOptions(PreferLocalFile);
+    return toEncoded(applied) == url.toEncoded(applied);
+}
+
+/*!
+    \fn void QUrl::swap(QUrl &other)
+
+    Swaps this URL with \a other.
+
+    \since 5.0
+*/
+
+/*!
+    Returns a URL for text that a person typed, such as the contents of an address bar. The
+    text \a userInput is trimmed, and then:
+
+    \list
+    \li an absolute path, or the name of a file that exists in \a workingDirectory, gives a
+        \c file: URL;
+    \li text that is a URL with a scheme is parsed as it is;
+    \li anything else is taken as a host name, with an optional port and path, and gets the
+        scheme \c http, or \c ftp if the host name starts with \c{ftp.}.
+    \endlist
+
+    With \c AssumeLocalFile in \a options, text without a scheme is resolved against
+    \a workingDirectory even if no such file exists. Returns an invalid URL if nothing can be
+    made of the text.
+
+    \code
+    QUrl::fromUserInput("example.com/index.html");   // http://example.com/index.html
+    QUrl::fromUserInput("localhost:8080");            // http://localhost:8080
+    QUrl::fromUserInput("/etc/hosts");                // file:///etc/hosts
+    \endcode
+
+    \since 5.4
+    \sa fromLocalFile()
+*/
+QUrl QUrl::fromUserInput(const QString &userInput, const QString &workingDirectory,
+                         UserInputResolutionOptions options) {
+    const QString trimmed = userInput.trimmed();
+    if (trimmed.isEmpty())
+        return QUrl();
+    // An IPv6 address has at least two colons, which a host name with a port does not.
+    if (trimmed.count(QChar(u':')) >= 2 && validIpLiteral(trimmed.toLower())) {
+        QUrl address;
+        address.setScheme(QString("http"));
+        address.setHost(trimmed);
+        return address;
+    }
+    if (QDir::isAbsolutePath(trimmed))
+        return fromLocalFile(trimmed);
+
+    QUrl url(trimmed, TolerantMode);
+    if (!workingDirectory.isEmpty()) {
+        const QFileInfo file(QDir(workingDirectory), trimmed);
+        if (file.exists() || (options.testFlag(AssumeLocalFile) && url.isRelative()))
+            return fromLocalFile(file.absoluteFilePath());
+    }
+
+    // "host:8080" parses as a URL with the scheme "host", so see what it is as a host name too.
+    QUrl prepended(QString("http://") + trimmed, TolerantMode);
+    if (url.isValid() && !url.isRelative() && prepended.port() == -1)
+        return url;
+    if (prepended.isValid() && !prepended.host().isEmpty()) {
+        if (prepended.host().startsWith(QString("ftp.")))
+            prepended.setScheme(QString("ftp"));
+        return prepended;
+    }
+    return QUrl();
+}
+
+/*!
+    Returns the ASCII Compatible Encoding of \a domain: each label that has characters outside
+    ASCII is lower-cased and replaced by \c{xn--} followed by its Punycode form (RFC 3492). This
+    is the form of an internationalized domain name that DNS uses. \a options adjusts the
+    mapping. Returns an empty byte array if a label cannot be encoded or is longer than 63
+    characters.
+
+    \code
+    QUrl::toAce("bücher.example");   // "xn--bcher-kva.example"
+    \endcode
+
+    \since 4.2
+    \sa fromAce()
+*/
+QByteArray QUrl::toAce(const QString &domain, AceProcessingOptions options) {
+    QString text = domain.toLower();
+    // The other full stops that separate labels.
+    for (const char16_t dot : {u'\u3002', u'\uff0e', u'\uff61'})
+        text.replace(QChar(dot), QChar(u'.'));
+    if (options.testFlag(AceTransitionalProcessing)) {
+        text.replace(QChar(u'\u00df'), QString("ss"));
+        text.replace(QChar(u'\u03c2'), QChar(u'\u03c3'));
+        text.remove(QChar(u'\u200c'));
+        text.remove(QChar(u'\u200d'));
+    }
+    QByteArray result;
+    const QStringList labels = text.split(QChar(u'.'));
+    for (qsizetype i = 0; i < labels.size(); ++i) {
+        const QString &label = labels.at(i);
+        // Only the last label may be empty: the root of a fully qualified name.
+        if (label.isEmpty() && (i + 1 < labels.size() || labels.size() == 1))
+            return QByteArray();
+        QByteArray encoded;
+        if (isAsciiText(label)) {
+            encoded = label.toLatin1();
+        } else {
+            if (!punyEncode(codePoints(label), encoded))
+                return QByteArray();
+            encoded.prepend("xn--");
+        }
+        if (encoded.size() > kMaxLabel)
+            return QByteArray();
+        if (i > 0)
+            result.append('.');
+        result.append(encoded);
+    }
+    return result;
+}
+
+/*!
+    Returns the Unicode form of the ACE-encoded \a domain: each label that starts with
+    \c{xn--} and is valid Punycode is decoded, and every other label is kept, in lower case.
+    \a options is accepted for compatibility.
+
+    \code
+    QUrl::fromAce("xn--bcher-kva.example");   // "bücher.example"
+    \endcode
+
+    \since 4.2
+    \sa toAce()
+*/
+QString QUrl::fromAce(const QByteArray &domain, AceProcessingOptions options) {
+    Q_UNUSED(options)
+    QString result;
+    const QList<QByteArray> labels = domain.toLower().split('.');
+    for (qsizetype i = 0; i < labels.size(); ++i) {
+        const QByteArray &label = labels.at(i);
+        if (i > 0)
+            result.append(QChar(u'.'));
+        std::vector<char32_t> decoded;
+        QByteArray again;
+        // A label is decoded only if it has a character to decode, and encoding the result gives
+        // the same label back.
+        const auto beyondAscii = [](char32_t c) { return c >= 0x80; };
+        if (label.startsWith("xn--") && punyDecode(label.mid(4), decoded) &&
+            std::any_of(decoded.begin(), decoded.end(), beyondAscii) && punyEncode(decoded, again) &&
+            again == label.mid(4)) {
+            result.append(QString::fromUcs4(decoded.data(), static_cast<qsizetype>(decoded.size())));
+        } else {
+            result.append(QString::fromLatin1(label));
+        }
+    }
+    return result;
+}
+
+/*!
+    Returns the URLs in \a urls as strings, each formatted with \a options as toString() does.
+
+    \since 5.1
+    \sa fromStringList(), toString()
+*/
+QStringList QUrl::toStringList(const QList<QUrl> &urls, FormattingOptions options) {
+    QStringList result;
+    result.reserve(urls.size());
+    for (const QUrl &url : urls)
+        result.append(url.toString(options));
+    return result;
+}
+
+/*!
+    Returns the strings in \a urls as URLs, each parsed using \a mode.
+
+    \since 5.1
+    \sa toStringList()
+*/
+QList<QUrl> QUrl::fromStringList(const QStringList &urls, ParsingMode mode) {
+    QList<QUrl> result;
+    result.reserve(urls.size());
+    for (const QString &url : urls)
+        result.append(QUrl(url, mode));
+    return result;
+}
+
+/*!
     Returns a URL parsed from the percent-encoded \a input using \a mode.
 
     \sa toEncoded()
@@ -932,9 +1328,13 @@ std::size_t qHash(const QUrl &url, std::size_t seed) noexcept { return qHash(url
     url.toEncoded();    // "http://example.com/search?q=a%20b&page=2"
     \endcode
 
+    Pairs are separated by \c & and keys from values by \c = unless
+    setQueryDelimiters() chooses other characters, such as \c ; for queries
+    in the older HTML style.
+
     \differences
-    Pairs are always separated by \c & and \c =; there is no
-    \c setQueryDelimiters(). Items are \c std::pair rather than \c QPair.
+    Items are \c std::pair rather than \c QPair. The delimiters must be
+    ASCII characters.
     \enddifferences
 
     \sa QUrl
@@ -982,14 +1382,6 @@ std::size_t qHash(const QUrl &url, std::size_t seed) noexcept { return qHash(url
 */
 
 /*!
-    \fn QList<std::pair<QString, QString>> QUrlQuery::queryItems() const
-
-    Returns the items as key-value pairs, in order.
-
-    \sa setQueryItems()
-*/
-
-/*!
     \fn void QUrlQuery::addQueryItem(const QString &key, const QString &value)
 
     Appends an item with the given \a key and \a value. Existing items with the
@@ -1021,13 +1413,15 @@ void QUrlQuery::setQuery(const QString &queryString) {
     m_items.clear();
     const QByteArray bytes = queryString.toUtf8();
     qsizetype start = 0;
+    const char pairDelimiter = m_pairDelimiter.toLatin1();
+    const char valueDelimiter = m_valueDelimiter.toLatin1();
     while (start <= bytes.size()) {
-        qsizetype end = bytes.indexOf('&', start);
+        qsizetype end = bytes.indexOf(pairDelimiter, start);
         if (end < 0)
             end = bytes.size();
         const QByteArray pair = bytes.mid(start, end - start);
         if (!pair.isEmpty()) {
-            const qsizetype eq = pair.indexOf('=');
+            const qsizetype eq = pair.indexOf(valueDelimiter);
             const QByteArray key = eq < 0 ? pair : pair.left(eq);
             const QByteArray value = eq < 0 ? QByteArray() : pair.mid(eq + 1);
             m_items.append({QUrl::fromPercentEncoding(key), QUrl::fromPercentEncoding(value)});
@@ -1043,23 +1437,63 @@ void QUrlQuery::setQuery(const QString &queryString) {
 */
 QString QUrlQuery::query(QUrl::ComponentFormattingOptions encoding) const {
     QString r;
-    const auto format = [&](const QString &s) {
-        if (encoding.testFlag(QUrl::FullyDecoded))
-            return s;
-        // '&', '=', '#' and '%' would change how the text is split.
-        const QByteArray keep =
-            encoding.testFlag(QUrl::FullyEncoded) ? QByteArray("!$'()*+,;:@/?") : QByteArray("!$'()*+,;:@/? ");
-        const QByteArray encoded = QUrl::toPercentEncoding(s, keep);
-        return encoding.testFlag(QUrl::FullyEncoded) ? QString::fromUtf8(encoded)
-                                                     : QUrl(QString("x:?") + QString::fromUtf8(encoded)).query();
-    };
     for (qsizetype i = 0; i < m_items.size(); ++i) {
         if (i)
-            r.append(QChar(u'&'));
-        r += format(m_items.at(i).first);
+            r.append(m_pairDelimiter);
+        r += format(m_items.at(i).first, encoding);
         if (!m_items.at(i).second.isNull())
-            r += QChar(u'=') + format(m_items.at(i).second);
+            r += m_valueDelimiter + format(m_items.at(i).second, encoding);
     }
+    return r;
+}
+
+// Returns the key or value `s` formatted according to `encoding`. The delimiters, '#' and '%' are
+// always encoded, since they would change how the text is split.
+QString QUrlQuery::format(const QString &s, QUrl::ComponentFormattingOptions encoding) const {
+    if (encoding.testFlag(QUrl::FullyDecoded))
+        return s;
+    QByteArray keep =
+        encoding.testFlag(QUrl::FullyEncoded) ? QByteArray("!$'()*+,;:@/?=&") : QByteArray("!$'()*+,;:@/?=& ");
+    keep.replace(m_pairDelimiter.toLatin1(), QByteArray());
+    keep.replace(m_valueDelimiter.toLatin1(), QByteArray());
+    const QByteArray encoded = QUrl::toPercentEncoding(s, keep);
+    return encoding.testFlag(QUrl::FullyEncoded) ? QString::fromUtf8(encoded)
+                                                 : QUrl(QString("x:?") + QString::fromUtf8(encoded)).query();
+}
+
+/*!
+    Sets the characters that separate a key from its value to
+    \a valueDelimiter and the pairs from each other to \a pairDelimiter.
+    They apply to setQuery() and query() calls that follow; the items are
+    kept. Both must be ASCII characters, and different.
+
+    \code
+    QUrlQuery q;
+    q.setQueryDelimiters(u':', u';');
+    q.setQuery("a:1;b:2");
+    q.queryItemValue("b");   // "2"
+    \endcode
+
+    \sa queryValueDelimiter(), queryPairDelimiter()
+*/
+void QUrlQuery::setQueryDelimiters(QChar valueDelimiter, QChar pairDelimiter) {
+    m_valueDelimiter = valueDelimiter;
+    m_pairDelimiter = pairDelimiter;
+}
+
+/*!
+    Returns the items as key-value pairs, in order, with keys and values
+    formatted according to \a encoding.
+
+    \sa setQueryItems()
+*/
+QList<std::pair<QString, QString>> QUrlQuery::queryItems(QUrl::ComponentFormattingOptions encoding) const {
+    if (encoding == QUrl::PrettyDecoded || encoding.testFlag(QUrl::FullyDecoded))
+        return m_items;
+    QList<std::pair<QString, QString>> r;
+    r.reserve(m_items.size());
+    for (const auto &item : m_items)
+        r.append({format(item.first, encoding), item.second.isNull() ? QString() : format(item.second, encoding)});
     return r;
 }
 
@@ -1090,28 +1524,29 @@ void QUrlQuery::removeQueryItem(const QString &key) {
 }
 
 /*!
-    Returns the value of the first item with the given \a key, or an empty
-    string if there is none.
+    Returns the value of the first item with the given \a key, formatted
+    according to \a encoding, or an empty string if there is none.
 
     \sa allQueryItemValues()
 */
-QString QUrlQuery::queryItemValue(const QString &key) const {
+QString QUrlQuery::queryItemValue(const QString &key, QUrl::ComponentFormattingOptions encoding) const {
     for (const auto &item : m_items)
         if (item.first == key)
-            return item.second;
+            return encoding == QUrl::PrettyDecoded ? item.second : format(item.second, encoding);
     return QString();
 }
 
 /*!
-    Returns the values of every item with the given \a key.
+    Returns the values of every item with the given \a key, formatted
+    according to \a encoding.
 
     \sa queryItemValue()
 */
-QStringList QUrlQuery::allQueryItemValues(const QString &key) const {
+QStringList QUrlQuery::allQueryItemValues(const QString &key, QUrl::ComponentFormattingOptions encoding) const {
     QStringList r;
     for (const auto &item : m_items)
         if (item.first == key)
-            r.append(item.second);
+            r.append(encoding == QUrl::PrettyDecoded ? item.second : format(item.second, encoding));
     return r;
 }
 

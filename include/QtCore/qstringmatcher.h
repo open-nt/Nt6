@@ -143,3 +143,21 @@ private:
     Qt::CaseSensitivity m_cs = Qt::CaseSensitive;
     std::array<qsizetype, 256> m_skip{};
 };
+
+/*!
+    \overload
+    \since 6.7
+
+    Returns the strings in which \a matcher finds its pattern, with the case
+    sensitivity of the matcher. This is faster than the QString overload for
+    a long list, because the matcher prepares the pattern once.
+
+    This function is defined in \c{<QStringMatcher>}.
+*/
+inline QStringList QStringList::filter(const QStringMatcher &matcher) const {
+    QStringList out;
+    for (const QString &s : *this)
+        if (matcher.indexIn(s) != -1)
+            out.append(s);
+    return out;
+}

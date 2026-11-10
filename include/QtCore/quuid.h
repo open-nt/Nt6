@@ -1,10 +1,12 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qanystringview.h>
 #include <QtCore/qbytearray.h>
 #include <QtCore/qcryptographichash.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringview.h>
+#include <QtCore/qsysinfo.h>
 
 class QUuid {
 public:
@@ -22,6 +24,29 @@ public:
     enum StringFormat { WithBraces = 0, WithoutBraces = 1, Id128 = 3 };
 
     /*!
+        \class QUuid::Id128Bytes
+        \brief The QUuid::Id128Bytes union holds the 16 bytes of a UUID.
+        \since 6.6
+
+        The bytes can be read as 16 bytes, or as 16-, 32- or 64-bit words.
+        toBytes() fills one in and fromBytes() reads one.
+
+        \differences
+        There is no \c quint128 member and no conversion to QByteArrayView.
+        \enddifferences
+    */
+    union Id128Bytes {
+        /*! The identifier as 16 bytes. */
+        quint8 data[16];
+        /*! The identifier as eight 16-bit words in the byte order of the host. */
+        quint16 data16[8];
+        /*! The identifier as four 32-bit words in the byte order of the host. */
+        quint32 data32[4];
+        /*! The identifier as two 64-bit words in the byte order of the host. */
+        quint64 data64[2];
+    };
+
+    /*!
         Constructs the null UUID, with all fields zero.
 
         \sa isNull()
@@ -34,21 +59,20 @@ public:
     constexpr QUuid(uint l, ushort w1, ushort w2, uchar b1, uchar b2, uchar b3, uchar b4, uchar b5, uchar b6, uchar b7, uchar b8) noexcept
         : data1(l), data2(w1), data3(w2), data4{b1, b2, b3, b4, b5, b6, b7, b8} {}
     /*!
-        Constructs a UUID by parsing \a text, as fromString() does.
+        Constructs a UUID by parsing \a text, as fromString() does. The text can
+        be a QString, a QStringView, a QLatin1StringView, or UTF-8 text in a
+        QByteArray or a \c{const char *}.
     */
-    explicit QUuid(QStringView text) : QUuid(fromString(text)) {}
+    explicit QUuid(QAnyStringView text) : QUuid(fromString(text)) {}
     /*!
-        \overload
+        \since 6.6
+        Constructs a UUID from the 16 bytes of \a id128, which are in the byte
+        order \a order.
 
-        Constructs a UUID by parsing the UTF-8 string \a text.
+        \sa fromBytes(), toBytes()
     */
-    explicit QUuid(const char *text) : QUuid(fromString(text)) {}
-    /*!
-        \overload
-
-        Constructs a UUID by parsing the UTF-8 string \a text.
-    */
-    explicit QUuid(const QByteArray &text) : QUuid(fromString(text)) {}
+    explicit QUuid(Id128Bytes id128, QSysInfo::Endian order = QSysInfo::BigEndian) noexcept
+        : QUuid(fromBytes(id128.data, order)) {}
 
     QString toString(StringFormat mode = WithBraces) const;
     QByteArray toByteArray(StringFormat mode = WithBraces) const;
@@ -57,21 +81,9 @@ public:
     Variant variant() const noexcept;
     Version version() const noexcept;
 
-    static QUuid fromString(QStringView text);
-    /*!
-        \overload
-
-        Parses the UTF-8 string \a text. Returns a null UUID if \a text is
-        \c nullptr or not valid.
-    */
-    static QUuid fromString(const char *text) { return text ? fromString(QStringView(QString::fromUtf8(text))) : QUuid(); }
-    /*!
-        \overload
-
-        Parses the UTF-8 string \a text. Returns a null UUID if \a text is not
-        valid.
-    */
-    static QUuid fromString(const QByteArray &text) { return fromString(QStringView(QString::fromUtf8(text))); }
+    static QUuid fromString(QAnyStringView text);
+    Id128Bytes toBytes(QSysInfo::Endian order = QSysInfo::BigEndian) const noexcept;
+    static QUuid fromBytes(const void *bytes, QSysInfo::Endian order = QSysInfo::BigEndian) noexcept;
     static QUuid fromRfc4122(const QByteArray &bytes);
     static QUuid createUuid();
     static QUuid createUuidV3(const QUuid &ns, const QByteArray &name);

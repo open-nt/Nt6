@@ -6,7 +6,27 @@
 #include "qnormalize_p.h"
 #include "qunicode_p.h"
 
+#include <algorithm>
+#include <iterator>
+
 namespace U = QtPrivate::Unicode;
+namespace D = QtPrivate::UnicodeData;
+
+static_assert(D::scriptCount == QChar::ScriptCount, "regenerate the QChar::Script enum with tools/gen_unicodedata.py");
+static_assert(D::ageCount == QChar::Unicode_16_0, "add the new QChar::UnicodeVersion values");
+
+namespace {
+// The value of the run of a run-length table that contains `c`; each entry is a code point shifted
+// left by Shift, ORed with the value.
+template <unsigned Shift, std::size_t N> unsigned runValue(const std::uint32_t (&runs)[N], char32_t c) noexcept {
+    if (c > 0x10ffff)
+        return 0;
+    constexpr std::uint32_t mask = (1u << Shift) - 1;
+    const auto *it =
+        std::upper_bound(std::begin(runs), std::end(runs), (static_cast<std::uint32_t>(c) << Shift) | mask);
+    return it == std::begin(runs) ? 0 : *(it - 1) & mask;
+}
+} // namespace
 
 /*!
     \class QChar
@@ -29,11 +49,16 @@ namespace U = QtPrivate::Unicode;
     QChar(u'٣').digitValue();         // 3
     \endcode
 
+    The properties used for bidirectional text and shaping come from the
+    same database: direction(), hasMirrored() and mirroredChar(),
+    joiningType(), script() and unicodeVersion().
+
     \differences
-    The \c script(), \c direction(), \c joiningType() and
-    \c unicodeVersion() functions, the \c Script, \c Direction and
-    \c JoiningType enums and
-    \c fromUcs4() are not provided, and QChar has no \c char32_t
+    The numeric values of the \c Script enumerators follow Nt's own order
+    (Unknown, Inherited, Common, then alphabetical) and differ from Qt's;
+    use the names. Unassigned code points have the direction \c DirL rather
+    than the default of their block. The deprecated \c Joining enum and
+    \c joining() are not provided, and QChar has no \c char32_t
     constructor. digitValue() recognizes decimal digits only, not other
     numbers such as superscript digits.
     \enddifferences
@@ -232,4 +257,61 @@ QString QChar::decomposition(char32_t ucs4) {
 */
 unsigned char QChar::combiningClass(char32_t ucs4) noexcept {
     return static_cast<unsigned char>(U::combiningClass(ucs4));
+}
+
+/*!
+    \overload
+    Returns the bidirectional class of \a ucs4.
+*/
+QChar::Direction QChar::direction(char32_t ucs4) noexcept {
+    return static_cast<Direction>(runValue<5>(D::directionRuns, ucs4));
+}
+
+/*!
+    \overload
+    Returns the joining type of \a ucs4.
+*/
+QChar::JoiningType QChar::joiningType(char32_t ucs4) noexcept {
+    return static_cast<JoiningType>(runValue<3>(D::joiningRuns, ucs4));
+}
+
+/*!
+    \overload
+    Returns the script of \a ucs4; \c Script_Unknown for code points that
+    are not assigned.
+*/
+QChar::Script QChar::script(char32_t ucs4) noexcept { return static_cast<Script>(runValue<8>(D::scriptRuns, ucs4)); }
+
+/*!
+    \overload
+    Returns the Unicode version that assigned \a ucs4.
+*/
+QChar::UnicodeVersion QChar::unicodeVersion(char32_t ucs4) noexcept {
+    return static_cast<UnicodeVersion>(runValue<5>(D::ageRuns, ucs4));
+}
+
+/*!
+    Returns the version of the Unicode Character Database that Nt's tables
+    were generated from.
+
+    \sa unicodeVersion()
+*/
+QChar::UnicodeVersion QChar::currentUnicodeVersion() noexcept { return Unicode_16_0; }
+
+/*!
+    \overload
+    Returns \c true if \a ucs4 is mirrored in right-to-left text.
+*/
+bool QChar::hasMirrored(char32_t ucs4) noexcept { return runValue<1>(D::mirroredRuns, ucs4) != 0; }
+
+/*!
+    \overload
+    Returns the mirror image of \a ucs4, or \a ucs4 itself if it has none.
+*/
+char32_t QChar::mirroredChar(char32_t ucs4) noexcept {
+    const auto *first = std::begin(D::mirroringPairs);
+    const auto *last = std::end(D::mirroringPairs);
+    const auto *it =
+        std::lower_bound(first, last, ucs4, [](const D::CaseMapping &m, char32_t v) { return m.code < v; });
+    return it != last && it->code == ucs4 ? it->mapped : ucs4;
 }

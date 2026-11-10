@@ -21,13 +21,15 @@
 
     \differences
     The searching, comparison and conversion functions copy the view into a
-    QString first, so they allocate. There is no \c arg(), \c tokenize() or
-    \c isRightToLeft(). first(), last(), sliced(), chopped(), truncate() and
-    chop() do not check their arguments.
+    QString first, so they allocate. arg() takes strings and characters only.
+    first(), last(), sliced(), chopped(), slice(), truncate() and chop() do
+    not check their arguments.
     \enddifferences
 
     \sa QString, QStringList, QLatin1StringView
 */
+template <typename Haystack, typename Needle> class QStringTokenizer;
+
 class QStringView {
 public:
     /*!
@@ -563,6 +565,7 @@ public:
         Returns \c true if the view equals its lowercase form.
     */
     bool isLower() const { return toString().isLower(); }
+    bool isRightToLeft() const noexcept;
     /*!
         Returns the view converted to a \c short in \a base, or 0 on failure;
         \c{*ok} reports success if \a ok is not \c nullptr.
@@ -588,6 +591,115 @@ public:
         success if \a ok is not \c nullptr.
     */
     float toFloat(bool *ok = nullptr) const { return toString().toFloat(ok); }
+
+    /*!
+        Returns a view of the whole array \a string, including a terminating
+        null if there is one: \c{fromArray(u"ab")} has three characters, where
+        \c{QStringView(u"ab")} has two.
+    */
+    template <std::size_t N> static QStringView fromArray(const char16_t (&string)[N]) noexcept {
+        return QStringView(string, static_cast<qsizetype>(N));
+    }
+
+    /*!
+        \since 6.1
+        Returns an iterator pointing to the first character of the view. This is the same as begin().
+    */
+    const_iterator constBegin() const noexcept { return p; }
+    /*!
+        \since 6.1
+        Returns an iterator pointing just after the last character of the view. This is the same as end().
+    */
+    const_iterator constEnd() const noexcept { return p + n; }
+
+    /*!
+        \since 6.8
+        Returns the largest number of characters a view can refer to.
+    */
+    static constexpr qsizetype max_size() noexcept {
+        return static_cast<qsizetype>((~std::size_t(0) >> 1) / sizeof(char16_t));
+    }
+
+    /*!
+        \since 6.8
+        Changes the view to start at index position \a pos and to extend to
+        its end, and returns a reference to it. \a pos must not exceed size().
+
+        \sa sliced()
+    */
+    QStringView &slice(qsizetype pos) {
+        *this = sliced(pos);
+        return *this;
+    }
+    /*!
+        \since 6.8
+        \overload
+
+        Changes the view to the \a c characters that start at index position
+        \a pos, and returns a reference to it. The range must lie within the
+        view.
+    */
+    QStringView &slice(qsizetype pos, qsizetype c) {
+        *this = sliced(pos, c);
+        return *this;
+    }
+
+    /*!
+        Copies the view to \a array as a wide string and returns the number of
+        \c wchar_t written. Where \c wchar_t has 32 bits, a surrogate pair
+        becomes one element. \a array must have room for size() elements; no
+        terminating null is written.
+
+        \sa QString::toWCharArray()
+    */
+    qsizetype toWCharArray(wchar_t *array) const { return toString().toWCharArray(array); }
+
+    /*!
+        \since 6.4
+        Compares the view with \a other as text in the current locale and
+        returns a negative number, zero or a positive number if the view sorts
+        before, with or after \a other.
+
+        \sa QString::localeAwareCompare(), QCollator
+    */
+    int localeAwareCompare(QStringView other) const {
+        return QString::localeAwareCompare(toString(), other.toString());
+    }
+
+    /*!
+        Returns a string in which the place markers of this view (\c{%1} to
+        \c{%99}) are replaced by \a a and \a rest: the lowest-numbered marker
+        by \a a, the next one by the first of \a rest, and so on. The
+        arguments are strings, views or characters. The markers are replaced
+        in one pass, so a marker inside an argument is left alone.
+
+        \code
+        QStringView pattern = u"%1 of %2";
+        const QString text = pattern.arg(u"3", QLatin1StringView("7")); // "3 of 7"
+        \endcode
+
+        \sa QString::arg()
+    */
+    template <typename A, typename... Rest> QString arg(const A &a, const Rest &...rest) const {
+        const QString texts[] = {QtPrivate::argText(a), QtPrivate::argText(rest)...};
+        return QtPrivate::multiArg(toString(), texts, static_cast<qsizetype>(1 + sizeof...(Rest)));
+    }
+
+    /*!
+        \since 6.0
+        Returns a tokenizer that splits this view at each occurrence of
+        \a needle, without copying the text. \a flags may hold a
+        Qt::SplitBehavior and a Qt::CaseSensitivity, in either order. Include
+        \c{<QStringTokenizer>} to use this function.
+
+        \code
+        for (QStringView field : QStringView(u"a,b,,c").tokenize(u',', Qt::SkipEmptyParts))
+            use(field); // "a", "b", "c"
+        \endcode
+
+        \sa QStringTokenizer, split()
+    */
+    template <typename Needle, typename... Flags> auto tokenize(Needle &&needle, Flags... flags) const;
 
     friend bool operator==(QStringView a, QStringView b) noexcept {
         return a.n == b.n && std::char_traits<char16_t>::compare(a.utf16(), b.utf16(), static_cast<std::size_t>(a.n)) == 0;

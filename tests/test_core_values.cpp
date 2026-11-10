@@ -523,6 +523,28 @@ static void testUrl() {
     CHECK(QUrlQuery(QUrl("http://a/?x=1")).queryItemValue("x") == "1");
     QUrlQuery fromList{{"a", "b"}};
     CHECK(fromList.query() == "a=b");
+
+    QUrlQuery semi;
+    CHECK(semi.queryValueDelimiter() == QChar(u'=') && semi.queryPairDelimiter() == QChar(u'&'));
+    CHECK(QUrlQuery::defaultQueryValueDelimiter() == u'=' && QUrlQuery::defaultQueryPairDelimiter() == u'&');
+    semi.setQueryDelimiters(u':', u';');
+    semi.setQuery("a:1;b:x%20y;c:p&q=r");
+    CHECK(semi.queryItemValue("a") == "1" && semi.queryItemValue("b") == "x y" && semi.queryItemValue("c") == "p&q=r");
+    semi.addQueryItem("d", "s;t:u");
+    CHECK(semi.query(QUrl::FullyEncoded) == "a:1;b:x%20y;c:p&q=r;d:s%3Bt%3Au");
+    QUrlQuery reread;
+    reread.setQueryDelimiters(u':', u';');
+    reread.setQuery(semi.query(QUrl::FullyEncoded));
+    CHECK(reread == semi && reread.queryItemValue("d") == "s;t:u");
+    CHECK(semi != QUrlQuery(semi.query())); // different delimiters
+    CHECK(semi.queryItemValue("b", QUrl::FullyEncoded) == "x%20y" &&
+          semi.queryItemValue("b", QUrl::FullyDecoded) == "x y");
+    CHECK(semi.allQueryItemValues("d", QUrl::FullyEncoded) == QStringList{"s%3Bt%3Au"});
+    CHECK(semi.queryItems(QUrl::FullyEncoded).value(1).second == "x%20y" && semi.queryItems().value(1).second == "x y");
+    QUrlQuery plain(QString("z=1"));
+    plain.swap(semi);
+    CHECK(plain.queryPairDelimiter() == QChar(u';') && semi.queryItemValue("z") == "1" &&
+          semi.queryPairDelimiter() == QChar(u'&'));
 }
 
 class TimerTarget : public QObject {

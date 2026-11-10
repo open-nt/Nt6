@@ -4,6 +4,7 @@
 #include <QtCore>
 
 #include <atomic>
+#include <memory>
 #include <cstdio>
 #include <thread>
 #include <string>
@@ -783,6 +784,96 @@ static void testInvokeMethod() {
     CHECK(!QMetaObject::invokeMethod(&shape, [] { return 1; }, Qt::QueuedConnection, &result));
 }
 
+// invokeMethod with a pointer to a member function, and with arguments
+static void testInvokeFunctions() {
+    Shape shape;
+
+    // Member functions run on the context object.
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::bumpCounter));
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::bumpCounter, Qt::DirectConnection));
+    CHECK(shape.m_counter == 2);
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::setLabel, QStringLiteral("a")));
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::setLabel, "b")); // converted as in a call
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::setLabel, Qt::DirectConnection, QStringLiteral("c")));
+    CHECK(shape.log == "label:a;label:b;label:c;");
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::setSides, 8)); // not a slot or Q_INVOKABLE
+    CHECK(shape.sides() == 8);
+    QString byRef = QStringLiteral("ref");
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::byRef, byRef));
+    CHECK(byRef == "ref!");
+    CHECK(!QMetaObject::invokeMethod(static_cast<Shape *>(nullptr), &Shape::bumpCounter));
+
+    // Return values.
+    int sum = 0;
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::add, qReturnArg(sum), 2, 3));
+    CHECK(sum == 5);
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::add, Qt::DirectConnection, qReturnArg(sum), 20, 22));
+    CHECK(sum == 42);
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::add, 1, 1)); // the result is discarded
+    QString text;
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::describe, qReturnArg(text), 4)); // a const member
+    CHECK(text == "shape v4");
+    int sides = 0;
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::sides, &sides));
+    CHECK(sides == 8);
+    sides = 0;
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::sides, Qt::DirectConnection, &sides));
+    CHECK(sides == 8);
+    double wide = 0;
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::sides, qReturnArg(wide))); // converted on assignment
+    CHECK(wide == 8.0);
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::sides));
+    // A member of a base class.
+    CHECK(QMetaObject::invokeMethod(&shape, &QObject::setObjectName, QStringLiteral("named")));
+    CHECK(shape.objectName() == "named");
+
+    // Functors and functions with arguments.
+    QString seen;
+    CHECK(QMetaObject::invokeMethod(
+        &shape, [&seen](int n, const QString &s) { seen = s + QString::number(n); }, 5, QStringLiteral("five")));
+    CHECK(seen == "five5");
+    CHECK(QMetaObject::invokeMethod(&shape, [](int n) { return 2 * n; }, qReturnArg(sum), 21));
+    CHECK(sum == 42);
+    CHECK(QMetaObject::invokeMethod(&shape, [] { return 9; }, qReturnArg(sum)));
+    CHECK(sum == 9);
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::twice, Qt::DirectConnection, qReturnArg(sum), 4)); // static
+    CHECK(sum == 8);
+    CHECK(!QMetaObject::invokeMethod(static_cast<QObject *>(nullptr), [](int) {}, 1));
+
+    // Queued calls copy the function and the arguments, and cannot return a value.
+    shape.log.clear();
+    {
+        QString temp = QStringLiteral("copy");
+        CHECK(QMetaObject::invokeMethod(&shape, &Shape::setLabel, Qt::QueuedConnection, temp));
+        temp = "changed";
+        const QString constant = QStringLiteral("const");
+        CHECK(QMetaObject::invokeMethod(&shape, &Shape::setLabel, Qt::QueuedConnection, constant));
+        CHECK(QMetaObject::invokeMethod(&shape, &Shape::setLabel, Qt::QueuedConnection, "literal"));
+    }
+    CHECK(QMetaObject::invokeMethod(&shape, &Shape::bumpCounter, Qt::QueuedConnection));
+    auto seenQueued = std::make_shared<QString>();
+    CHECK(QMetaObject::invokeMethod(
+        &shape, [seenQueued](const QString &s, int n) { *seenQueued = s + QString::number(n); }, Qt::QueuedConnection,
+        QStringLiteral("q"), 7));
+    CHECK(shape.log.isEmpty() && shape.m_counter == 2 && seenQueued->isEmpty());
+    QCoreApplication::processEvents();
+    CHECK(shape.log == "label:copy;label:const;label:literal;");
+    CHECK(shape.m_counter == 3 && *seenQueued == "q7");
+    CHECK(!QMetaObject::invokeMethod(&shape, &Shape::add, Qt::QueuedConnection, qReturnArg(sum), 1, 2));
+    CHECK(!QMetaObject::invokeMethod(&shape, &Shape::sides, Qt::QueuedConnection, &sides));
+    CHECK(!QMetaObject::invokeMethod(&shape, [](int n) { return n; }, Qt::QueuedConnection, qReturnArg(sum), 1));
+
+    // A queued call to a destroyed object does not run.
+    auto ran = std::make_shared<bool>(false);
+    {
+        Shape gone;
+        CHECK(QMetaObject::invokeMethod(&gone, [ran](int) { *ran = true; }, Qt::QueuedConnection, 1));
+        CHECK(QMetaObject::invokeMethod(&gone, &Shape::bumpCounter, Qt::QueuedConnection));
+    }
+    QCoreApplication::processEvents();
+    CHECK(!*ran);
+}
+
 static void testQueuedInvoke() {
     Shape shape;
     CHECK(QMetaObject::invokeMethod(&shape, "setLabel", Qt::QueuedConnection, Q_ARG(QString, QStringLiteral("later"))));
@@ -1041,6 +1132,27 @@ static void testGadget() {
     CHECK(!mo->property(1).writeOnGadget(&p, QStringLiteral("x")));
     CHECK(mo->property(0).readOnGadget(nullptr).isNull());
     CHECK(mo->indexOfMethod("sum()") == 0);
+    // Invoking the methods of a gadget.
+    const QMetaMethod sumMethod = mo->method(mo->indexOfMethod("sum()"));
+    int total = 0;
+    CHECK(sumMethod.invokeOnGadget(&p, Q_RETURN_ARG(int, total)));
+    CHECK(total == 13);
+    CHECK(sumMethod.invokeOnGadget(&p)); // the result is discarded
+    const QMetaMethod moveMethod = mo->method(mo->indexOfMethod("move(int,int)"));
+    CHECK(moveMethod.isValid() && moveMethod.invokeOnGadget(&p, Q_ARG(int, 1), Q_ARG(int, -2)));
+    CHECK(p.x == 4 && p.y == 8);
+    QString described;
+    const QMetaMethod describeMethod = mo->method(mo->indexOfMethod("describe(QString)"));
+    CHECK(describeMethod.invokeOnGadget(&p, Q_RETURN_ARG(QString, described), Q_ARG(QString, QStringLiteral("a "))));
+    CHECK(described == "a pt");
+    CHECK(!moveMethod.invokeOnGadget(&p, Q_ARG(int, 1)));                                          // too few arguments
+    CHECK(!moveMethod.invokeOnGadget(&p, Q_ARG(QString, described), Q_ARG(int, 1)));               // wrong type
+    CHECK(!moveMethod.invokeOnGadget(&p, Q_RETURN_ARG(int, total), Q_ARG(int, 1), Q_ARG(int, 1))); // returns void
+    CHECK(!sumMethod.invokeOnGadget(&p, Q_RETURN_ARG(QString, described)));                        // wrong return type
+    CHECK(!sumMethod.invokeOnGadget(nullptr) && !QMetaMethod().invokeOnGadget(&p));
+    CHECK(p.x == 4 && p.y == 8);
+    p.x = 3;
+    p.y = 10;
     // A gadget in a QVariant knows its meta-object.
     const QVariant v = QVariant::fromValue(p);
     CHECK(v.metaType().metaObject() == mo);
@@ -1302,6 +1414,24 @@ static void testThreads() {
                                     Q_ARG(int, 0), Q_ARG(int, 0)));
     CHECK(probe.sum == 111);
 
+    // Member functions and arguments: queued into the thread by AutoConnection, and a blocking
+    // call returns a value.
+    CHECK(QMetaObject::invokeMethod(&probe, &ThreadProbe::add, 2000));
+    CHECK(QMetaObject::invokeMethod(&probe, &ThreadProbe::addAndReturn, Qt::BlockingQueuedConnection,
+                                    qReturnArg(result), 30, 12));
+    CHECK(result == 42 && probe.sum == 2111);
+    bool argumentThreadOk = false;
+    CHECK(QMetaObject::invokeMethod(
+        &probe, [&](int n) { argumentThreadOk = n == 5 && QThread::currentThread() == probe.thread(); },
+        Qt::BlockingQueuedConnection, 5));
+    CHECK(argumentThreadOk);
+    CHECK(QMetaObject::invokeMethod(&probe, &ThreadProbe::add, -2000));
+    // A functor that returns a value is copied when AutoConnection queues it.
+    CHECK(QMetaObject::invokeMethod(&probe, [p = &probe] { return p->addAndReturn(0, 0); }));
+    CHECK(QMetaObject::invokeMethod(&probe, &ThreadProbe::addAndReturn, Qt::BlockingQueuedConnection,
+                                    qReturnArg(result), 0, 0));
+    CHECK(probe.sum == 111);
+
     // The thread of the object decides, not the thread that made the call.
     std::thread other([&] {
         QMetaObject::invokeMethod(&probe, "add", Q_ARG(int, 1000));
@@ -1336,9 +1466,119 @@ static void testEnum64() {
     CHECK(e.keyToValue64("D") == std::optional<quint64>(10) && !e.keyToValue64("nope"));
 }
 
+// connectNotify(), disconnectNotify(), receivers(), isSignalConnected(), senderSignalIndex() and
+// child events.
+class Listened : public QObject {
+    Q_OBJECT
+public:
+    QStringList notes;
+    QList<QChildEvent::Type> childEvents;
+    QList<QObject *> childObjects;
+    int lastIndex = -2;
+
+    int receiversOfPing() const { return receivers(SIGNAL(ping(int))); }
+    int signalIndexNow() const { return senderSignalIndex(); }
+    bool pingConnected() const { return isSignalConnected(QMetaMethod::fromSignal(&Listened::ping)); }
+
+public slots:
+    void record(int) {
+        if (auto *s = qobject_cast<Listened *>(sender()))
+            s->lastIndex = senderSignalIndex();
+    }
+
+signals:
+    void ping(int v);
+    void pong();
+
+protected:
+    void connectNotify(const QMetaMethod &signal) override { notes << "+" + QString::fromLatin1(signal.name()); }
+    void disconnectNotify(const QMetaMethod &signal) override { notes << "-" + QString::fromLatin1(signal.name()); }
+    void childEvent(QChildEvent *event) override {
+        childEvents << event->type();
+        childObjects << event->child();
+    }
+};
+
+static QStringList g_debugLines;
+static void captureDebug(QtMsgType, const QMessageLogContext &, const QString &msg) { g_debugLines << msg; }
+
+static void testNotifyAndChildren() {
+    Listened a;
+    Listened b;
+    CHECK(a.receiversOfPing() == 0 && !a.pingConnected());
+    const QMetaObject::Connection c1 = QObject::connect(&a, &Listened::ping, &b, &Listened::record);
+    QObject::connect(&a, SIGNAL(ping(int)), &b, SLOT(record(int)));
+    QObject::connect(&a, &Listened::pong, [] {});
+    CHECK(a.notes == QStringList({"+ping", "+ping", "+pong"}));
+    CHECK(a.receiversOfPing() == 2 && a.pingConnected());
+
+    a.ping(1);
+    CHECK(a.lastIndex == QMetaMethod::fromSignal(&Listened::ping).methodIndex());
+    CHECK(a.lastIndex >= 0);
+
+    a.notes.clear();
+    QObject::disconnect(c1);
+    CHECK(a.notes == QStringList({"-ping"}) && a.receiversOfPing() == 1);
+    QObject::disconnect(&a, SIGNAL(ping(int)), &b, SLOT(record(int)));
+    CHECK(a.notes == QStringList({"-ping", "-ping"}) && !a.pingConnected());
+
+    // A single-shot connection is reported as removed once it ran.
+    a.notes.clear();
+    QObject::connect(&a, &Listened::ping, &b, [](int) {}, Qt::SingleShotConnection);
+    a.ping(2);
+    CHECK(a.notes == QStringList({"+ping", "-ping"}));
+
+    // Destroying the receiver removes its connections without disconnectNotify().
+    a.notes.clear();
+    {
+        Listened r;
+        QObject::connect(&a, &Listened::ping, &r, &Listened::record);
+    }
+    CHECK(a.notes == QStringList({"+ping"}) && !a.pingConnected());
+    CHECK(b.signalIndexNow() == -1); // no slot is running
+
+    // Child events: added, removed by setParent(), removed on destruction; none while the parent dies.
+    Listened parent;
+    auto *child = new QObject(&parent);
+    auto *other = new QObject;
+    other->setParent(&parent);
+    other->setParent(nullptr);
+    delete child;
+    CHECK(parent.childEvents == QList<QChildEvent::Type>({QEvent::ChildAdded, QEvent::ChildAdded, QEvent::ChildRemoved,
+                                                          QEvent::ChildRemoved}));
+    CHECK(parent.childObjects == QList<QObject *>({child, other, other, child}));
+    delete other;
+    {
+        auto *dying = new Listened;
+        new QObject(dying);
+        delete dying; // its child sends no ChildRemoved to it
+    }
+    QChildEvent added(QEvent::ChildAdded, &parent);
+    CHECK(added.added() && !added.removed() && !added.polished() && added.child() == &parent);
+    std::unique_ptr<QEvent> copy(added.clone());
+    CHECK(copy->type() == QEvent::ChildAdded && static_cast<QChildEvent *>(copy.get())->child() == &parent);
+
+    CHECK(!parent.isWidgetType() && !parent.isWindowType() && !parent.isQuickItemType());
+
+    // dumpObjectTree() and dumpObjectInfo() write to the debug output.
+    parent.setObjectName("root");
+    auto *leaf = new QObject(&parent);
+    leaf->setObjectName("leaf");
+    QObject::connect(&parent, &Listened::pong, leaf, [] {});
+    const QtMessageHandler previous = qInstallMessageHandler(captureDebug);
+    parent.dumpObjectTree();
+    parent.dumpObjectInfo();
+    qInstallMessageHandler(previous);
+    CHECK(g_debugLines.size() >= 2);
+    CHECK(g_debugLines.value(0).endsWith("Listened::root"));
+    CHECK(g_debugLines.value(1) == "    QObject::leaf");
+    CHECK(g_debugLines.contains("  SIGNALS OUT") && g_debugLines.contains("        signal: pong()"));
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testEnum64();
+    testNotifyAndChildren();
     testClassInfo();
     testMethods();
     testDynamicMetaObject();
@@ -1348,6 +1588,7 @@ int main(int argc, char **argv) {
     testObjectProperties();
     testEnums();
     testInvokeMethod();
+    testInvokeFunctions();
     testQueuedInvoke();
     testNewInstance();
     testStringConnections();

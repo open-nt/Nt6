@@ -68,6 +68,15 @@ public:
         negative \a size is treated as 0.
     */
     QByteArray(qsizetype size, char ch) : d(static_cast<std::size_t>(size < 0 ? 0 : size), ch), m_null(false) {}
+    /*!
+        \overload
+
+        Constructs a byte array of \a size bytes that the caller is about to
+        assign. Pass \c Qt::Uninitialized as the second argument; Nt sets the
+        bytes to \c{'\0'}.
+    */
+    QByteArray(qsizetype size, Qt::Initialization)
+        : d(static_cast<std::size_t>(size < 0 ? 0 : size), '\0'), m_null(false) {}
     /*! Constructs a byte array holding a copy of the string \a s. */
     QByteArray(const std::string &s) : d(s), m_null(false) {}
     /*! \overload
@@ -148,6 +157,14 @@ public:
         the current size, the new bytes are set to \a c.
     */
     void resize(qsizetype n, char c) { d.resize(static_cast<std::size_t>(n), c); m_null = false; }
+    /*!
+        \since 6.8
+        Sets the size of the byte array to \a size bytes, for a caller that is
+        about to assign every new byte. Nt sets them to \c{'\0'}.
+
+        \sa resize()
+    */
+    void resizeForOverwrite(qsizetype size) { resize(size); }
     QByteArray &fill(char c, qsizetype n = -1);
 
     /*!
@@ -446,6 +463,7 @@ public:
     }
     bool isUpper() const;
     bool isLower() const;
+    bool isValidUtf8() const noexcept;
     QByteArray trimmed() const;
     QByteArray simplified() const;
     QByteArray toUpper() const;
@@ -568,6 +586,7 @@ public:
     int toInt(bool *ok = nullptr, int base = 10) const;
     uint toUInt(bool *ok = nullptr, int base = 10) const;
     long toLong(bool *ok = nullptr, int base = 10) const;
+    ulong toULong(bool *ok = nullptr, int base = 10) const;
     qlonglong toLongLong(bool *ok = nullptr, int base = 10) const;
     qulonglong toULongLong(bool *ok = nullptr, int base = 10) const;
     short toShort(bool *ok = nullptr, int base = 10) const;
@@ -630,6 +649,11 @@ private:
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QByteArray::Base64Options)
+
+namespace QtPrivate {
+// Returns true if the size bytes at data are well-formed UTF-8.
+bool isValidUtf8(const char *data, qsizetype size) noexcept;
+} // namespace QtPrivate
 
 /*!
     \class QByteArray::FromBase64Result

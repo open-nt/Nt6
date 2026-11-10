@@ -1,13 +1,22 @@
 // MIT License - see LICENSE
 #include <QtCore/qvariant.h>
 
+#include <QtCore/qabstractitemmodel.h>
 #include <QtCore/qbitarray.h>
+#include <QtCore/qcompare.h>
 #include <QtCore/qdatastream.h>
 #include <QtCore/qdatetime.h>
 #include <QtCore/qdebug.h>
+#include <QtCore/qeasingcurve.h>
+#include <QtCore/qjsonarray.h>
+#include <QtCore/qjsondocument.h>
+#include <QtCore/qjsonobject.h>
+#include <QtCore/qjsonvalue.h>
 #include <QtCore/qline.h>
+#include <QtCore/qlocale.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qrect.h>
+#include <QtCore/qregularexpression.h>
 #include <QtCore/qurl.h>
 #include <QtCore/quuid.h>
 
@@ -132,6 +141,29 @@ bool equalNumbers(const Wide &a, const Wide &b) {
     return sgn.s >= 0 && static_cast<qulonglong>(sgn.s) == uns.u;
 }
 
+// Orders two numbers as C++ would after the usual arithmetic conversions, but by value when one
+// is signed and the other unsigned.
+QPartialOrdering compareNumbers(const Wide &a, const Wide &b) {
+    const auto order = [](auto x, auto y) {
+        return x < y ? QPartialOrdering::Less : (y < x ? QPartialOrdering::Greater : QPartialOrdering::Equivalent);
+    };
+    if (a.real || b.real) {
+        const auto asDouble = [](const Wide &w) {
+            return w.real ? w.d : (w.isUnsigned ? static_cast<double>(w.u) : static_cast<double>(w.s));
+        };
+        const double x = asDouble(a);
+        const double y = asDouble(b);
+        if (std::isnan(x) || std::isnan(y))
+            return QPartialOrdering::Unordered;
+        return order(x, y);
+    }
+    if (a.isUnsigned == b.isUnsigned)
+        return a.isUnsigned ? order(a.u, b.u) : order(a.s, b.s);
+    if (a.isUnsigned)
+        return b.s < 0 ? QPartialOrdering::Greater : order(a.u, static_cast<qulonglong>(b.s));
+    return a.s < 0 ? QPartialOrdering::Less : order(static_cast<qulonglong>(a.s), b.u);
+}
+
 template <typename T> T numberFrom(const QVariant &v, bool *ok) {
     const QMetaType target = QMetaType::fromType<T>();
     T result{};
@@ -204,6 +236,16 @@ QVariant::QVariant(const QRect &rect) { *this = fromValue(rect); }
 QVariant::QVariant(const QRectF &rect) { *this = fromValue(rect); }
 QVariant::QVariant(const QUrl &url) { *this = fromValue(url); }
 QVariant::QVariant(const QBitArray &bitarray) { *this = fromValue(bitarray); }
+QVariant::QVariant(const QLocale &locale) { *this = fromValue(locale); }
+QVariant::QVariant(const QRegularExpression &re) { *this = fromValue(re); }
+QVariant::QVariant(const QEasingCurve &easing) { *this = fromValue(easing); }
+QVariant::QVariant(const QUuid &uuid) { *this = fromValue(uuid); }
+QVariant::QVariant(const QModelIndex &modelIndex) { *this = fromValue(modelIndex); }
+QVariant::QVariant(const QPersistentModelIndex &modelIndex) { *this = fromValue(modelIndex); }
+QVariant::QVariant(const QJsonValue &jsonValue) { *this = fromValue(jsonValue); }
+QVariant::QVariant(const QJsonObject &jsonObject) { *this = fromValue(jsonObject); }
+QVariant::QVariant(const QJsonArray &jsonArray) { *this = fromValue(jsonArray); }
+QVariant::QVariant(const QJsonDocument &jsonDocument) { *this = fromValue(jsonDocument); }
 
 /*!
     \fn QVariant::QVariant()
@@ -407,6 +449,76 @@ QVariant::QVariant(const QBitArray &bitarray) { *this = fromValue(bitarray); }
 /*!
     \fn QVariant::QVariant(const QBitArray &bitarray)
     Constructs a variant that holds \a bitarray.
+*/
+
+/*!
+    \fn QVariant::QVariant(const QLocale &locale)
+    Constructs a variant that holds \a locale.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QRegularExpression &re)
+    Constructs a variant that holds \a re.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QEasingCurve &easing)
+    Constructs a variant that holds \a easing.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QUuid &uuid)
+    Constructs a variant that holds \a uuid.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QModelIndex &modelIndex)
+    Constructs a variant that holds \a modelIndex.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QPersistentModelIndex &modelIndex)
+    Constructs a variant that holds \a modelIndex.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QJsonValue &jsonValue)
+    Constructs a variant that holds \a jsonValue.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QJsonObject &jsonObject)
+    Constructs a variant that holds \a jsonObject.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QJsonArray &jsonArray)
+    Constructs a variant that holds \a jsonArray.
+
+    \since 6.0
+*/
+
+/*!
+    \fn QVariant::QVariant(const QJsonDocument &jsonDocument)
+    Constructs a variant that holds \a jsonDocument.
+
+    \since 6.0
 */
 
 /*!
@@ -740,6 +852,90 @@ QRectF QVariant::toRectF() const { return value<QRectF>(); }
 QUrl QVariant::toUrl() const { return value<QUrl>(); }
 
 /*!
+    Returns the variant as a QLocale if it holds one; otherwise returns the default locale.
+
+    \since 6.0
+*/
+QLocale QVariant::toLocale() const { return value<QLocale>(); }
+
+/*!
+    Returns the variant as a QRegularExpression if it holds one; otherwise returns an empty
+    QRegularExpression.
+
+    \since 6.0
+*/
+QRegularExpression QVariant::toRegularExpression() const { return value<QRegularExpression>(); }
+
+/*!
+    Returns the variant as a QEasingCurve if it holds one; otherwise returns a linear curve.
+
+    \since 6.0
+*/
+QEasingCurve QVariant::toEasingCurve() const { return value<QEasingCurve>(); }
+
+/*!
+    Returns the variant as a QUuid, converting it from a QString if needed. Otherwise returns a
+    null QUuid.
+
+    \since 6.0
+*/
+QUuid QVariant::toUuid() const { return value<QUuid>(); }
+
+/*!
+    Returns the variant as a QModelIndex, converting it from a QPersistentModelIndex if needed.
+    Otherwise returns an invalid QModelIndex.
+
+    \since 6.0
+    \sa toPersistentModelIndex()
+*/
+QModelIndex QVariant::toModelIndex() const { return value<QModelIndex>(); }
+
+/*!
+    Returns the variant as a QPersistentModelIndex, converting it from a QModelIndex if needed.
+    Otherwise returns an invalid QPersistentModelIndex.
+
+    \since 6.0
+    \sa toModelIndex()
+*/
+QPersistentModelIndex QVariant::toPersistentModelIndex() const { return value<QPersistentModelIndex>(); }
+
+/*!
+    Returns the variant as a QJsonValue. A number, \c bool, QString, list, map, \c nullptr and
+    the other JSON classes are converted; anything else gives a null QJsonValue.
+
+    \since 6.0
+    \sa QJsonValue::fromVariant(), toJsonObject(), toJsonArray()
+*/
+QJsonValue QVariant::toJsonValue() const { return value<QJsonValue>(); }
+
+/*!
+    Returns the variant as a QJsonObject, converting it from a QVariantMap, a QVariantHash, or
+    a QJsonValue or QJsonDocument that holds an object. Otherwise returns an empty QJsonObject.
+
+    \since 6.0
+    \sa toJsonValue(), toJsonArray()
+*/
+QJsonObject QVariant::toJsonObject() const { return value<QJsonObject>(); }
+
+/*!
+    Returns the variant as a QJsonArray, converting it from a QVariantList, a QStringList, or a
+    QJsonValue or QJsonDocument that holds an array. Otherwise returns an empty QJsonArray.
+
+    \since 6.0
+    \sa toJsonValue(), toJsonObject()
+*/
+QJsonArray QVariant::toJsonArray() const { return value<QJsonArray>(); }
+
+/*!
+    Returns the variant as a QJsonDocument, converting it from a list, a map, or a QJsonValue,
+    QJsonObject or QJsonArray. Otherwise returns a null QJsonDocument.
+
+    \since 6.0
+    \sa toJsonObject(), toJsonArray()
+*/
+QJsonDocument QVariant::toJsonDocument() const { return value<QJsonDocument>(); }
+
+/*!
     Returns a pointer to the stored value, or \c nullptr if the variant is invalid.
 
     \sa data()
@@ -784,6 +980,37 @@ bool QVariant::equals(const QVariant &other) const {
     if (canConvert(other.metaType()) && converted.convert(other.metaType()))
         return other.metaType().equals(other.constData(), converted.constData());
     return false;
+}
+
+/*!
+    Compares \a lhs and \a rhs and returns the result as an ordering.
+
+    Two variants of the same type are compared with the \c operator< and \c operator== of
+    that type; the result is \c QPartialOrdering::Unordered if the type has no \c operator<.
+    Two numbers of different types are compared by value. Any other pair of types is unordered:
+    unlike \c operator==(), this function does not convert one value to the type of the other.
+    Two invalid variants are unordered too, and so are two numbers if one of them is not a
+    number (NaN).
+
+    \code
+    QVariant::compare(QVariant(1), QVariant(2.5));        // QPartialOrdering::Less
+    QVariant::compare(QVariant("b"), QVariant("a"));      // QPartialOrdering::Greater
+    QVariant::compare(QVariant(1), QVariant("1"));        // QPartialOrdering::Unordered
+    \endcode
+
+    \since 6.0
+    \sa QMetaType::compare()
+*/
+QPartialOrdering QVariant::compare(const QVariant &lhs, const QVariant &rhs) {
+    if (!lhs.isValid() || !rhs.isValid())
+        return QPartialOrdering::Unordered;
+    Wide a;
+    Wide b;
+    if (wideOf(lhs, a) && wideOf(rhs, b))
+        return compareNumbers(a, b);
+    if (lhs.metaType() != rhs.metaType())
+        return QPartialOrdering::Unordered;
+    return lhs.metaType().compare(lhs.constData(), rhs.constData());
 }
 
 const QtPrivate::SequenceInterface *QVariant::sequenceInterface() const { return d.type ? d.type->sequence : nullptr; }

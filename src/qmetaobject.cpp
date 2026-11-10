@@ -885,6 +885,10 @@ bool QMetaObject::invokeMethod(QObject *obj, const char *member, Qt::ConnectionT
     return mo->method(idx).invoke(obj, type, ret, val0, val1, val2, val3, val4, val5, val6, val7, val8, val9);
 }
 
+Qt::ConnectionType QMetaObject::resolveConnectionType(const QObject *context, Qt::ConnectionType type) {
+    return effectiveConnectionType(context, type);
+}
+
 bool QMetaObject::invokeFunctor(QObject *context, std::function<void()> function, Qt::ConnectionType type) {
     if (!context)
         return false;
@@ -1105,6 +1109,35 @@ struct QueuedValues {
 
 } // namespace
 
+// Returns the number of arguments in vals if they and returnValue fit this method, which `where`
+// names in a warning; otherwise returns -1.
+int QMetaMethod::checkArguments(const char *where, const QGenericReturnArgument &returnValue,
+                                const QGenericArgument *const *vals) const {
+    const MetaMethodData &m = data();
+    int n = 0;
+    while (n < kMaxArgs && vals[n]->name())
+        ++n;
+    if (n != m.paramCount) {
+        qWarning("%s: Unable to invoke %s::%s with %d arguments", where, mobj->className(), m.name, n);
+        return -1;
+    }
+    for (int i = 0; i < n; ++i) {
+        if (!sameTypeName(vals[i]->name(), m.paramTypes[i], parameterMetaType(i))) {
+            qWarning("%s: Unable to invoke %s::%s: argument %d is %s, not %s", where, mobj->className(),
+                     methodSignature().constData(), i + 1, vals[i]->name(), m.paramTypes[i]);
+            return -1;
+        }
+    }
+    if (returnValue.name() && !sameTypeName(returnValue.name(), m.returnType, returnMetaType())) {
+        qWarning("%s: Unable to invoke %s::%s: the return type is %s, not %s", where, mobj->className(),
+                 methodSignature().constData(), m.returnType, returnValue.name());
+        return -1;
+    }
+    if (returnValue.data() && std::strcmp(m.returnType, "void") == 0)
+        return -1;
+    return n;
+}
+
 /*!
     Invokes this method on \a object and returns \c true if it could be invoked. The arguments
     \a val0, \a val1, \a val2, \a val3, \a val4, \a val5, \a val6, \a val7, \a val8 and \a val9,
@@ -1125,26 +1158,8 @@ bool QMetaMethod::invoke(QObject *object, Qt::ConnectionType connectionType, QGe
         return false;
     const MetaMethodData &m = data();
     const QGenericArgument *vals[] = {&val0, &val1, &val2, &val3, &val4, &val5, &val6, &val7, &val8, &val9};
-    int n = 0;
-    while (n < kMaxArgs && vals[n]->name())
-        ++n;
-    if (n != m.paramCount) {
-        qWarning("QMetaMethod::invoke: Unable to invoke %s::%s with %d arguments", mobj->className(), m.name, n);
-        return false;
-    }
-    for (int i = 0; i < n; ++i) {
-        if (!sameTypeName(vals[i]->name(), m.paramTypes[i], parameterMetaType(i))) {
-            qWarning("QMetaMethod::invoke: Unable to invoke %s::%s: argument %d is %s, not %s", mobj->className(),
-                     methodSignature().constData(), i + 1, vals[i]->name(), m.paramTypes[i]);
-            return false;
-        }
-    }
-    if (returnValue.name() && !sameTypeName(returnValue.name(), m.returnType, returnMetaType())) {
-        qWarning("QMetaMethod::invoke: Unable to invoke %s::%s: the return type is %s, not %s", mobj->className(),
-                 methodSignature().constData(), m.returnType, returnValue.name());
-        return false;
-    }
-    if (returnValue.data() && std::strcmp(m.returnType, "void") == 0)
+    const int n = checkArguments("QMetaMethod::invoke", returnValue, vals);
+    if (n < 0)
         return false;
     if (!object->metaObject()->inherits(mobj)) {
         qWarning("QMetaMethod::invoke: %s is not an instance of %s", object->metaObject()->className(),
@@ -1202,6 +1217,48 @@ bool QMetaMethod::invoke(QObject *object, Qt::ConnectionType connectionType, QGe
     for (int i = 0; i < n; ++i)
         a[i + 1] = vals[i]->data();
     mobj->d.static_metacall(object, QMetaObject::InvokeMetaMethod, index, a);
+    return true;
+}
+
+/*!
+    \since 5.5
+
+    Invokes this method on \a gadget, an instance of the \c Q_GADGET class that declares the
+    method, and returns \c true if it could be invoked. The arguments \a val0, \a val1, \a val2,
+    \a val3, \a val4, \a val5, \a val6, \a val7, \a val8 and \a val9, made with \c Q_ARG(), must
+    match the parameters of the method in number and type, and \a returnValue, made with
+    \c Q_RETURN_ARG(), receives the return value; its type must match the return type of the
+    method. The call is always direct.
+
+    \code
+    const QMetaObject &mo = Point::staticMetaObject;
+    Point point{3, 4};
+    int length = 0;
+    mo.method(mo.indexOfMethod("manhattanLength()")).invokeOnGadget(&point, Q_RETURN_ARG(int, length));
+    \endcode
+
+    Returns \c false if \a gadget is \c nullptr, if the method is a constructor, or if the
+    arguments do not fit. The function cannot check that \a gadget is an instance of the right
+    class; passing anything else is undefined behavior.
+
+    \sa invoke(), QMetaProperty::readOnGadget()
+*/
+bool QMetaMethod::invokeOnGadget(void *gadget, QGenericReturnArgument returnValue, QGenericArgument val0,
+                                 QGenericArgument val1, QGenericArgument val2, QGenericArgument val3,
+                                 QGenericArgument val4, QGenericArgument val5, QGenericArgument val6,
+                                 QGenericArgument val7, QGenericArgument val8, QGenericArgument val9) const {
+    if (!isValid() || ctor || !gadget || !mobj->d.static_metacall)
+        return false;
+    const QGenericArgument *vals[] = {&val0, &val1, &val2, &val3, &val4, &val5, &val6, &val7, &val8, &val9};
+    const int n = checkArguments("QMetaMethod::invokeOnGadget", returnValue, vals);
+    if (n < 0)
+        return false;
+    void *a[kMaxArgs + 1];
+    a[0] = returnValue.data();
+    for (int i = 0; i < n; ++i)
+        a[i + 1] = vals[i]->data();
+    // The generated function of a gadget takes the instance through its QObject parameter.
+    mobj->d.static_metacall(static_cast<QObject *>(gadget), QMetaObject::InvokeMetaMethod, index, a);
     return true;
 }
 

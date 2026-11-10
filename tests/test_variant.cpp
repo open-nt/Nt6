@@ -169,8 +169,10 @@ static void testFromName() {
     CHECK(QMetaType::isRegistered(QMetaType::Int));
     CHECK(!QMetaType::isRegistered(0));
     CHECK(!QMetaType::isRegistered(-5));
-    CHECK(!QMetaType::isRegistered(QMetaType::QLocale)); // reserved, not implemented
+    CHECK(QMetaType::isRegistered(QMetaType::QLocale));
     CHECK(std::string(QMetaType::typeName(QMetaType::QLocale)) == "QLocale");
+    CHECK(!QMetaType::isRegistered(QMetaType::QCborMap)); // reserved, not implemented
+    CHECK(std::string(QMetaType::typeName(QMetaType::QCborMap)) == "QCborMap");
     CHECK(!QMetaType(QMetaType::QCborValue).isValid());
     CHECK(!QMetaType().isValid());
     CHECK(QMetaType().id() == 0 && QMetaType().name() == nullptr && QMetaType().sizeOf() == 0);

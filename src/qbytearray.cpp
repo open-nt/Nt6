@@ -560,6 +560,55 @@ bool QByteArray::isLower() const {
     return std::none_of(d.begin(), d.end(), [](char c) { return c >= 'A' && c <= 'Z'; });
 }
 
+// Returns true if the `size` bytes at `data` are well-formed UTF-8: no truncated or overlong
+// sequences, no surrogates and nothing above U+10FFFF.
+bool QtPrivate::isValidUtf8(const char *data, qsizetype size) noexcept {
+    qsizetype i = 0;
+    while (i < size) {
+        const auto c = static_cast<unsigned char>(data[i]);
+        if (c < 0x80) {
+            ++i;
+            continue;
+        }
+        int extra = 0;
+        char32_t min = 0;
+        if (c >= 0xc2 && c <= 0xdf) {
+            extra = 1;
+            min = 0x80;
+        } else if (c >= 0xe0 && c <= 0xef) {
+            extra = 2;
+            min = 0x800;
+        } else if (c >= 0xf0 && c <= 0xf4) {
+            extra = 3;
+            min = 0x10000;
+        } else {
+            return false;
+        }
+        if (i + extra >= size)
+            return false;
+        char32_t cp = c & (0x3fU >> extra);
+        for (int k = 1; k <= extra; ++k) {
+            const auto cc = static_cast<unsigned char>(data[i + k]);
+            if ((cc & 0xc0) != 0x80)
+                return false;
+            cp = (cp << 6) | (cc & 0x3fU);
+        }
+        if (cp < min || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff))
+            return false;
+        i += extra + 1;
+    }
+    return true;
+}
+
+/*!
+    \since 6.3
+    Returns \c true if the byte array holds well-formed UTF-8; otherwise
+    returns \c false. An empty array is valid.
+
+    \sa QString::fromUtf8(), QByteArrayView::isValidUtf8()
+*/
+bool QByteArray::isValidUtf8() const noexcept { return QtPrivate::isValidUtf8(d.data(), size()); }
+
 /*!
     \since 6.4
     Returns a copy of the byte array with each \a percent followed by two hex
@@ -724,6 +773,23 @@ long QByteArray::toLong(bool *ok, int base) const {
     good = good && v >= LONG_MIN && v <= LONG_MAX;
     if (ok) *ok = good;
     return good ? static_cast<long>(v) : 0;
+}
+
+/*!
+    Returns the byte array converted to an \c{unsigned long} using the given
+    \a base. If \a ok is not \c nullptr, it is set to \c true if the
+    conversion succeeded and the value fits in an \c{unsigned long}, and to
+    \c false otherwise. Returns 0 on failure.
+
+    \sa number(), toULongLong()
+*/
+ulong QByteArray::toULong(bool *ok, int base) const {
+    bool good = false;
+    const qulonglong v = toULongLong(&good, base);
+    good = good && v <= ULONG_MAX;
+    if (ok)
+        *ok = good;
+    return good ? static_cast<ulong>(v) : 0;
 }
 
 /*!

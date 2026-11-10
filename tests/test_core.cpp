@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <cstdio>
+#include <memory>
 #include <thread>
 
 static int g_failures = 0;
@@ -487,9 +488,27 @@ static void testProcessEventsTimeout() {
     CHECK(ran == 6);
 }
 
+static void testEventClone() {
+    QTimerEvent timer(42);
+    timer.ignore();
+    std::unique_ptr<QEvent> copy(timer.clone());
+    CHECK(copy->type() == QEvent::Timer && static_cast<QTimerEvent *>(copy.get())->timerId() == 42);
+    CHECK(!copy->isAccepted()); // the accept flag is copied too
+    QDynamicPropertyChangeEvent prop("name");
+    std::unique_ptr<QEvent> propCopy(static_cast<const QEvent &>(prop).clone());
+    CHECK(static_cast<QDynamicPropertyChangeEvent *>(propCopy.get())->propertyName() == "name");
+    QEvent user(QEvent::User);
+    std::unique_ptr<QEvent> userCopy(user.clone());
+    CHECK(userCopy->type() == QEvent::User && !user.spontaneous());
+    CHECK(QEvent(QEvent::KeyPress).isInputEvent() && !QEvent(QEvent::KeyPress).isPointerEvent());
+    CHECK(QEvent(QEvent::MouseMove).isPointerEvent() && QEvent(QEvent::Wheel).isSinglePointEvent());
+    CHECK(QEvent(QEvent::MouseButtonPress).isInputEvent() && !QEvent(QEvent::Timer).isInputEvent());
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testString();
+    testEventClone();
     testByteArray();
     testContainers();
     testPointers();

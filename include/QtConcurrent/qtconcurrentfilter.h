@@ -246,7 +246,8 @@ QFuture<ResultType> filteredReduced(QThreadPool *pool, Sequence &&sequence, Keep
 
     Filters the items of \a sequence with \a filterFunction, in the threads of \a pool, and
     reduces the items that are kept with \a reduceFunction as \a options says, starting from \a
-    initialValue.
+    initialValue. Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfSequence<Sequence> = true,
@@ -266,7 +267,8 @@ QFuture<ResultType> filteredReduced(QThreadPool *pool, Sequence &&sequence, Keep
     \overload
 
     Filters the items from \a begin to \a end with \a filterFunction, in the threads of \a pool,
-    and reduces the items that are kept with \a reduceFunction as \a options says.
+    and reduces the items that are kept with \a reduceFunction as \a options says. Without the
+    \c ResultType template argument, the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           QtPrivate::IfIterator<Iterator> = true>
@@ -285,7 +287,8 @@ QFuture<ResultType> filteredReduced(QThreadPool *pool, Iterator begin, Iterator 
 
     Filters the items from \a begin to \a end with \a filterFunction, in the threads of \a pool,
     and reduces the items that are kept with \a reduceFunction as \a options says, starting from
-    \a initialValue.
+    \a initialValue. Without the \c ResultType template argument, the result type is taken from
+    \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfIterator<Iterator> = true,
@@ -305,6 +308,8 @@ QFuture<ResultType> filteredReduced(QThreadPool *pool, Iterator begin, Iterator 
 
     Filters the items of \a sequence with \a filterFunction, in the threads of the global
     QThreadPool, and reduces the items that are kept with \a reduceFunction as \a options says.
+    Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           QtPrivate::IfSequence<Sequence> = true>
@@ -323,7 +328,8 @@ QFuture<ResultType> filteredReduced(Sequence &&sequence, KeepFunctor &&filterFun
 
     Filters the items of \a sequence with \a filterFunction, in the threads of the global
     QThreadPool, and reduces the items that are kept with \a reduceFunction as \a options says,
-    starting from \a initialValue.
+    starting from \a initialValue. Without the \c ResultType template argument, the result type
+    is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfSequence<Sequence> = true,
@@ -344,7 +350,8 @@ QFuture<ResultType> filteredReduced(Sequence &&sequence, KeepFunctor &&filterFun
 
     Filters the items from \a begin to \a end with \a filterFunction, in the threads of the
     global QThreadPool, and reduces the items that are kept with \a reduceFunction as \a options
-    says.
+    says. Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           QtPrivate::IfIterator<Iterator> = true>
@@ -363,7 +370,8 @@ QFuture<ResultType> filteredReduced(Iterator begin, Iterator end, KeepFunctor &&
 
     Filters the items from \a begin to \a end with \a filterFunction, in the threads of the
     global QThreadPool, and reduces the items that are kept with \a reduceFunction as \a options
-    says, starting from \a initialValue.
+    says, starting from \a initialValue. Without the \c ResultType template argument, the result
+    type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfIterator<Iterator> = true,
@@ -376,15 +384,8 @@ QFuture<ResultType> filteredReduced(Iterator begin, Iterator end, KeepFunctor &&
         std::forward<ReduceFunctor>(reduceFunction), options, false, std::forward<InitialValueType>(initialValue));
 }
 
-/*!
-    \fn template <typename Sequence, typename KeepFunctor, typename ReduceFunctor> QFuture<ResultType> QtConcurrent::filteredReduced(QThreadPool *pool, Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Filters the items of \a sequence with \a filterFunction, in the threads of \a pool, and
-    reduces the items that are kept with \a reduceFunction as \a options says. The result type
-    is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true>
 QFuture<ResultType> filteredReduced(QThreadPool *pool, Sequence &&sequence, KeepFunctor &&filterFunction,
@@ -396,15 +397,8 @@ QFuture<ResultType> filteredReduced(QThreadPool *pool, Sequence &&sequence, Keep
                                                        std::forward<ReduceFunctor>(reduceFunction), options, false);
 }
 
-/*!
-    \fn template <typename Sequence, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType> QFuture<ResultType> QtConcurrent::filteredReduced(QThreadPool *pool, Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Filters the items of \a sequence with \a filterFunction, in the threads of \a pool, and
-    reduces the items that are kept with \a reduceFunction as \a options says, starting from \a
-    initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -417,15 +411,8 @@ QFuture<ResultType> filteredReduced(QThreadPool *pool, Sequence &&sequence, Keep
         std::forward<ReduceFunctor>(reduceFunction), options, false, std::forward<InitialValueType>(initialValue));
 }
 
-/*!
-    \fn template <typename Iterator, typename KeepFunctor, typename ReduceFunctor> QFuture<ResultType> QtConcurrent::filteredReduced(QThreadPool *pool, Iterator begin, Iterator end, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Filters the items from \a begin to \a end with \a filterFunction, in the threads of \a pool,
-    and reduces the items that are kept with \a reduceFunction as \a options says. The result
-    type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true>
 QFuture<ResultType> filteredReduced(QThreadPool *pool, Iterator begin, Iterator end, KeepFunctor &&filterFunction,
@@ -436,15 +423,8 @@ QFuture<ResultType> filteredReduced(QThreadPool *pool, Iterator begin, Iterator 
                                                        std::forward<ReduceFunctor>(reduceFunction), options, false);
 }
 
-/*!
-    \fn template <typename Iterator, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType> QFuture<ResultType> QtConcurrent::filteredReduced(QThreadPool *pool, Iterator begin, Iterator end, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Filters the items from \a begin to \a end with \a filterFunction, in the threads of \a pool,
-    and reduces the items that are kept with \a reduceFunction as \a options says, starting from
-    \a initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -456,15 +436,8 @@ QFuture<ResultType> filteredReduced(QThreadPool *pool, Iterator begin, Iterator 
         std::forward<ReduceFunctor>(reduceFunction), options, false, std::forward<InitialValueType>(initialValue));
 }
 
-/*!
-    \fn template <typename Sequence, typename KeepFunctor, typename ReduceFunctor> QFuture<ResultType> QtConcurrent::filteredReduced(Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Filters the items of \a sequence with \a filterFunction, in the threads of the global
-    QThreadPool, and reduces the items that are kept with \a reduceFunction as \a options says.
-    The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true>
 QFuture<ResultType> filteredReduced(Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction,
@@ -475,15 +448,8 @@ QFuture<ResultType> filteredReduced(Sequence &&sequence, KeepFunctor &&filterFun
                                                        std::forward<ReduceFunctor>(reduceFunction), options, false);
 }
 
-/*!
-    \fn template <typename Sequence, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType> QFuture<ResultType> QtConcurrent::filteredReduced(Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Filters the items of \a sequence with \a filterFunction, in the threads of the global
-    QThreadPool, and reduces the items that are kept with \a reduceFunction as \a options says,
-    starting from \a initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -496,15 +462,8 @@ QFuture<ResultType> filteredReduced(Sequence &&sequence, KeepFunctor &&filterFun
         std::forward<ReduceFunctor>(reduceFunction), options, false, std::forward<InitialValueType>(initialValue));
 }
 
-/*!
-    \fn template <typename Iterator, typename KeepFunctor, typename ReduceFunctor> QFuture<ResultType> QtConcurrent::filteredReduced(Iterator begin, Iterator end, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Filters the items from \a begin to \a end with \a filterFunction, in the threads of the
-    global QThreadPool, and reduces the items that are kept with \a reduceFunction as \a options
-    says. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true>
 QFuture<ResultType> filteredReduced(Iterator begin, Iterator end, KeepFunctor &&filterFunction,
@@ -515,15 +474,8 @@ QFuture<ResultType> filteredReduced(Iterator begin, Iterator end, KeepFunctor &&
                                                        std::forward<ReduceFunctor>(reduceFunction), options, false);
 }
 
-/*!
-    \fn template <typename Iterator, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType> QFuture<ResultType> QtConcurrent::filteredReduced(Iterator begin, Iterator end, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Filters the items from \a begin to \a end with \a filterFunction, in the threads of the
-    global QThreadPool, and reduces the items that are kept with \a reduceFunction as \a options
-    says, starting from \a initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -565,7 +517,8 @@ ResultType blockingFilteredReduced(QThreadPool *pool, Sequence &&sequence, KeepF
 
     Filters the items of \a sequence with \a filterFunction, in the threads of \a pool and in
     the calling thread, and reduces the items that are kept with \a reduceFunction as \a options
-    says, starting from \a initialValue.
+    says, starting from \a initialValue. Without the \c ResultType template argument, the result
+    type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfSequence<Sequence> = true,
@@ -587,7 +540,8 @@ ResultType blockingFilteredReduced(QThreadPool *pool, Sequence &&sequence, KeepF
 
     Filters the items from \a begin to \a end with \a filterFunction, in the threads of \a pool
     and in the calling thread, and reduces the items that are kept with \a reduceFunction as \a
-    options says.
+    options says. Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           QtPrivate::IfIterator<Iterator> = true>
@@ -607,7 +561,8 @@ ResultType blockingFilteredReduced(QThreadPool *pool, Iterator begin, Iterator e
 
     Filters the items from \a begin to \a end with \a filterFunction, in the threads of \a pool
     and in the calling thread, and reduces the items that are kept with \a reduceFunction as \a
-    options says, starting from \a initialValue.
+    options says, starting from \a initialValue. Without the \c ResultType template argument,
+    the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfIterator<Iterator> = true,
@@ -628,7 +583,8 @@ ResultType blockingFilteredReduced(QThreadPool *pool, Iterator begin, Iterator e
 
     Filters the items of \a sequence with \a filterFunction, in the threads of the global
     QThreadPool and in the calling thread, and reduces the items that are kept with \a
-    reduceFunction as \a options says.
+    reduceFunction as \a options says. Without the \c ResultType template argument, the result
+    type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           QtPrivate::IfSequence<Sequence> = true>
@@ -648,7 +604,8 @@ ResultType blockingFilteredReduced(Sequence &&sequence, KeepFunctor &&filterFunc
 
     Filters the items of \a sequence with \a filterFunction, in the threads of the global
     QThreadPool and in the calling thread, and reduces the items that are kept with \a
-    reduceFunction as \a options says, starting from \a initialValue.
+    reduceFunction as \a options says, starting from \a initialValue. Without the \c ResultType
+    template argument, the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfSequence<Sequence> = true,
@@ -670,7 +627,8 @@ ResultType blockingFilteredReduced(Sequence &&sequence, KeepFunctor &&filterFunc
 
     Filters the items from \a begin to \a end with \a filterFunction, in the threads of the
     global QThreadPool and in the calling thread, and reduces the items that are kept with \a
-    reduceFunction as \a options says.
+    reduceFunction as \a options says. Without the \c ResultType template argument, the result
+    type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           QtPrivate::IfIterator<Iterator> = true>
@@ -690,7 +648,8 @@ ResultType blockingFilteredReduced(Iterator begin, Iterator end, KeepFunctor &&f
 
     Filters the items from \a begin to \a end with \a filterFunction, in the threads of the
     global QThreadPool and in the calling thread, and reduces the items that are kept with \a
-    reduceFunction as \a options says, starting from \a initialValue.
+    reduceFunction as \a options says, starting from \a initialValue. Without the \c ResultType
+    template argument, the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfIterator<Iterator> = true,
@@ -704,15 +663,8 @@ ResultType blockingFilteredReduced(Iterator begin, Iterator end, KeepFunctor &&f
         .result();
 }
 
-/*!
-    \fn template <typename Sequence, typename KeepFunctor, typename ReduceFunctor> ResultType QtConcurrent::blockingFilteredReduced(QThreadPool *pool, Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Filters the items of \a sequence with \a filterFunction, in the threads of \a pool and in
-    the calling thread, and reduces the items that are kept with \a reduceFunction as \a options
-    says. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true>
 ResultType blockingFilteredReduced(QThreadPool *pool, Sequence &&sequence, KeepFunctor &&filterFunction,
@@ -725,15 +677,8 @@ ResultType blockingFilteredReduced(QThreadPool *pool, Sequence &&sequence, KeepF
         .result();
 }
 
-/*!
-    \fn template <typename Sequence, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType> ResultType QtConcurrent::blockingFilteredReduced(QThreadPool *pool, Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Filters the items of \a sequence with \a filterFunction, in the threads of \a pool and in
-    the calling thread, and reduces the items that are kept with \a reduceFunction as \a options
-    says, starting from \a initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -747,15 +692,8 @@ ResultType blockingFilteredReduced(QThreadPool *pool, Sequence &&sequence, KeepF
         .result();
 }
 
-/*!
-    \fn template <typename Iterator, typename KeepFunctor, typename ReduceFunctor> ResultType QtConcurrent::blockingFilteredReduced(QThreadPool *pool, Iterator begin, Iterator end, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Filters the items from \a begin to \a end with \a filterFunction, in the threads of \a pool
-    and in the calling thread, and reduces the items that are kept with \a reduceFunction as \a
-    options says. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true>
 ResultType blockingFilteredReduced(QThreadPool *pool, Iterator begin, Iterator end, KeepFunctor &&filterFunction,
@@ -767,16 +705,8 @@ ResultType blockingFilteredReduced(QThreadPool *pool, Iterator begin, Iterator e
         .result();
 }
 
-/*!
-    \fn template <typename Iterator, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType> ResultType QtConcurrent::blockingFilteredReduced(QThreadPool *pool, Iterator begin, Iterator end, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Filters the items from \a begin to \a end with \a filterFunction, in the threads of \a pool
-    and in the calling thread, and reduces the items that are kept with \a reduceFunction as \a
-    options says, starting from \a initialValue. The result type is taken from \a
-    reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -789,15 +719,8 @@ ResultType blockingFilteredReduced(QThreadPool *pool, Iterator begin, Iterator e
         .result();
 }
 
-/*!
-    \fn template <typename Sequence, typename KeepFunctor, typename ReduceFunctor> ResultType QtConcurrent::blockingFilteredReduced(Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Filters the items of \a sequence with \a filterFunction, in the threads of the global
-    QThreadPool and in the calling thread, and reduces the items that are kept with \a
-    reduceFunction as \a options says. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename KeepFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true>
 ResultType blockingFilteredReduced(Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction,
@@ -809,16 +732,8 @@ ResultType blockingFilteredReduced(Sequence &&sequence, KeepFunctor &&filterFunc
         .result();
 }
 
-/*!
-    \fn template <typename Sequence, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType> ResultType QtConcurrent::blockingFilteredReduced(Sequence &&sequence, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Filters the items of \a sequence with \a filterFunction, in the threads of the global
-    QThreadPool and in the calling thread, and reduces the items that are kept with \a
-    reduceFunction as \a options says, starting from \a initialValue. The result type is taken
-    from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -832,15 +747,8 @@ ResultType blockingFilteredReduced(Sequence &&sequence, KeepFunctor &&filterFunc
         .result();
 }
 
-/*!
-    \fn template <typename Iterator, typename KeepFunctor, typename ReduceFunctor> ResultType QtConcurrent::blockingFilteredReduced(Iterator begin, Iterator end, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Filters the items from \a begin to \a end with \a filterFunction, in the threads of the
-    global QThreadPool and in the calling thread, and reduces the items that are kept with \a
-    reduceFunction as \a options says. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename KeepFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true>
 ResultType blockingFilteredReduced(Iterator begin, Iterator end, KeepFunctor &&filterFunction,
@@ -852,16 +760,8 @@ ResultType blockingFilteredReduced(Iterator begin, Iterator end, KeepFunctor &&f
         .result();
 }
 
-/*!
-    \fn template <typename Iterator, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType> ResultType QtConcurrent::blockingFilteredReduced(Iterator begin, Iterator end, KeepFunctor &&filterFunction, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Filters the items from \a begin to \a end with \a filterFunction, in the threads of the
-    global QThreadPool and in the calling thread, and reduces the items that are kept with \a
-    reduceFunction as \a options says, starting from \a initialValue. The result type is taken
-    from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename KeepFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>

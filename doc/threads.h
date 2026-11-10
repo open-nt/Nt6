@@ -87,5 +87,18 @@
     thread-safe, with one rule: a result that is moved out with
     QFuture::takeResult() must not be read at the same time by another thread.
 
-    \sa QThread, QThreadPool, QRunnable, QThreadStorage, QObject, QFuture, QPromise, {Signals and Slots}
+    \section1 Nt Concurrent
+
+    The functions of the QtConcurrent namespace, in the \c Nt::Concurrent library, start such
+    computations without a promise in sight. QtConcurrent::run() runs one function in a thread
+    pool and returns the future of its result; QtConcurrent::mapped(), QtConcurrent::filtered()
+    and QtConcurrent::mappedReduced() share the items of a sequence between the threads of the
+    pool:
+
+    \code
+    QFuture<QString> text = QtConcurrent::run(readFile, path);
+    QFuture<int> words = QtConcurrent::mappedReduced(files, countWords, [](int &total, int n) { total += n; });
+    \endcode
+
+    \sa QThread, QThreadPool, QRunnable, QThreadStorage, QObject, QFuture, QPromise, QtConcurrent, {Signals and Slots}
 */

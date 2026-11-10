@@ -3,7 +3,7 @@
 ## Project
 
 Nt is a small, MIT-licensed, clean-room implementation of a subset of the
-Qt 6 API (modules `NtCore`, `NtNetwork`, `NtSerialPort`, `NtDBus`, `NtSvg` and `NtTest`;
+Qt 6 API (modules `NtCore`, `NtNetwork`, `NtSerialPort`, `NtDBus`, `NtSvg`, `NtConcurrent` and `NtTest`;
 headers in `include/Qt*/`, sources in `src/`). Tools: `ntmoc` (a moc replacement)
 and `ndoc` (the documentation generator). Source files start with
 `// MIT License - see LICENSE`.
@@ -40,7 +40,7 @@ It checks, in order:
 - all tests, and complete ndoc coverage (`--strict --require-complete`)
 - clang-format on the lines you changed (`.clang-format`), clang-tidy on `src/`
   (`.clang-tidy`) and cppcheck (`.cppcheck-suppressions`)
-- the tests again under AddressSanitizer and UBSan, and the thread and future tests under
+- the tests again under AddressSanitizer and UBSan, and the thread, future and concurrent tests under
   ThreadSanitizer (skipped if the toolchain has no TSan runtime and
   `NT_CHECK_ALLOW_MISSING=1` is set, or if TSan cannot start, as in unprivileged containers)
 

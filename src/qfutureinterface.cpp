@@ -275,7 +275,7 @@ bool QFutureInterfaceBase::isSuspended() const { return queryState(Suspended); }
     Returns \c true if the computation is suspended or about to be. It is the same as
     \c{isSuspending() || isSuspended()}.
 */
-bool QFutureInterfaceBase::isPaused() const { return queryState(State(kSuspendFlags)); }
+bool QFutureInterfaceBase::isPaused() const { return (d->state.load() & kSuspendFlags) != 0; }
 
 /*!
     Returns \c true if the consumer asked the computation to slow down because it has more results than it

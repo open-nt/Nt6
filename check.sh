@@ -233,7 +233,7 @@ check_shell() {
     repo_files '*.sh' | xargs -r shellcheck --severity=warning
 }
 
-# The thread and future tests under ThreadSanitizer, in their own build. A toolchain without the TSan runtime
+# The thread, future and concurrent tests under ThreadSanitizer, in their own build. A toolchain without the TSan runtime
 # counts as a missing tool. A runtime that cannot start here is skipped: TSan refuses to run when
 # the kernel's address space randomisation is too high and the process may not lower it, which is
 # the case in unprivileged containers.
@@ -259,8 +259,8 @@ check_tsan() {
     fi
     configure "$build_root/tsan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF \
         -DNT_BUILD_EXAMPLES=OFF -DNT_SANITIZE=thread && \
-        cmake --build "$build_root/tsan" -j "$jobs" --target nt_thread_tests nt_future_tests && \
-        TSAN_OPTIONS=halt_on_error=1 ctest --test-dir "$build_root/tsan" -R '^nt_(thread|future)_tests$' --output-on-failure
+        cmake --build "$build_root/tsan" -j "$jobs" --target nt_thread_tests nt_future_tests nt_concurrent_tests && \
+        TSAN_OPTIONS=halt_on_error=1 ctest --test-dir "$build_root/tsan" -R '^nt_(thread|future|concurrent)_tests$' --output-on-failure
 }
 
 check_sanitizers() {

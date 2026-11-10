@@ -210,6 +210,9 @@ QFuture<QtPrivate::MapResult<MapFunctor, Iterator>> mapped(Iterator begin, Itera
     std::vector<int> lengths = QtConcurrent::blockingMapped<std::vector<int>>(&pool, words, &QString::size);
     \endcode
 
+    Without the \c OutputSequence template argument, the result is a container like \a sequence
+    that holds the mapped type: a \c{QList<int>} gives a \c{QList<QString>}, for example.
+
     \since 6.0
     \sa mapped(), blockingMap()
 */
@@ -226,7 +229,8 @@ OutputSequence blockingMapped(QThreadPool *pool, Sequence &&sequence, MapFunctor
     \overload
 
     Calls \a function for each item from \a begin to \a end, in the threads of \a pool and in
-    the calling thread, and returns the results in an \c OutputSequence.
+    the calling thread, and returns the results in an \c OutputSequence. Without the \c
+    OutputSequence template argument, the result is a QList.
 */
 template <typename OutputSequence, typename Iterator, typename MapFunctor, QtPrivate::IfIterator<Iterator> = true>
 OutputSequence blockingMapped(QThreadPool *pool, Iterator begin, Iterator end, MapFunctor &&function) {
@@ -240,7 +244,10 @@ OutputSequence blockingMapped(QThreadPool *pool, Iterator begin, Iterator end, M
     \overload
 
     Calls \a function for each item of \a sequence, in the threads of the global QThreadPool and
-    in the calling thread, and returns the results in an \c OutputSequence.
+    in the calling thread, and returns the results in an \c OutputSequence. Without the \c
+    OutputSequence template argument, the result is a container like \a sequence that holds the
+    mapped type, or a QList if \a sequence is not a template with the item type as its first
+    argument.
 */
 template <typename OutputSequence, typename Sequence, typename MapFunctor, QtPrivate::IfSequence<Sequence> = true>
 OutputSequence blockingMapped(Sequence &&sequence, MapFunctor &&function) {
@@ -256,6 +263,7 @@ OutputSequence blockingMapped(Sequence &&sequence, MapFunctor &&function) {
 
     Calls \a function for each item from \a begin to \a end, in the threads of the global
     QThreadPool and in the calling thread, and returns the results in an \c OutputSequence.
+    Without the \c OutputSequence template argument, the result is a QList.
 */
 template <typename OutputSequence, typename Iterator, typename MapFunctor, QtPrivate::IfIterator<Iterator> = true>
 OutputSequence blockingMapped(Iterator begin, Iterator end, MapFunctor &&function) {
@@ -263,16 +271,8 @@ OutputSequence blockingMapped(Iterator begin, Iterator end, MapFunctor &&functio
         QtPrivate::startMapped(nullptr, nullptr, begin, end, std::forward<MapFunctor>(function), true));
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor> auto QtConcurrent::blockingMapped(QThreadPool *pool, Sequence &&sequence, MapFunctor &&function)
-
-    \overload
-
-    Calls \a function for each item of \a sequence, in the threads of \a pool and in the calling
-    thread, and returns the results in a container like \a sequence that holds the mapped type:
-    a \c{QList<int>} gives a \c{QList<QString>}, for example. A sequence that is not a template
-    with the item type as its first argument gives a QList.
-*/
+// As the overload with the same parameters and an OutputSequence template argument; returns a container like
+// the sequence that holds the mapped type, or a QList.
 template <typename Sequence, typename MapFunctor, QtPrivate::IfSequence<Sequence> = true>
 typename QtPrivate::RebindSequence<std::decay_t<Sequence>,
                                    QtPrivate::MapResult<MapFunctor, QtPrivate::ConstIteratorOf<Sequence>>>::type
@@ -284,14 +284,7 @@ blockingMapped(QThreadPool *pool, Sequence &&sequence, MapFunctor &&function) {
                                true));
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor> QList<MapResult> QtConcurrent::blockingMapped(QThreadPool *pool, Iterator begin, Iterator end, MapFunctor &&function)
-
-    \overload
-
-    Calls \a function for each item from \a begin to \a end, in the threads of \a pool and in
-    the calling thread, and returns the results in a QList.
-*/
+// As the overload with the same parameters and an OutputSequence template argument; returns a QList.
 template <typename Iterator, typename MapFunctor, QtPrivate::IfIterator<Iterator> = true>
 QList<QtPrivate::MapResult<MapFunctor, Iterator>> blockingMapped(QThreadPool *pool, Iterator begin, Iterator end,
                                                                  MapFunctor &&function) {
@@ -299,16 +292,8 @@ QList<QtPrivate::MapResult<MapFunctor, Iterator>> blockingMapped(QThreadPool *po
         QtPrivate::startMapped(pool, nullptr, begin, end, std::forward<MapFunctor>(function), true));
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor> auto QtConcurrent::blockingMapped(Sequence &&sequence, MapFunctor &&function)
-
-    \overload
-
-    Calls \a function for each item of \a sequence, in the threads of the global QThreadPool and
-    in the calling thread, and returns the results in a container like \a sequence that holds
-    the mapped type: a \c{QList<int>} gives a \c{QList<QString>}, for example. A sequence that
-    is not a template with the item type as its first argument gives a QList.
-*/
+// As the overload with the same parameters and an OutputSequence template argument; returns a container like
+// the sequence that holds the mapped type, or a QList.
 template <typename Sequence, typename MapFunctor, QtPrivate::IfSequence<Sequence> = true>
 typename QtPrivate::RebindSequence<std::decay_t<Sequence>,
                                    QtPrivate::MapResult<MapFunctor, QtPrivate::ConstIteratorOf<Sequence>>>::type
@@ -320,14 +305,7 @@ blockingMapped(Sequence &&sequence, MapFunctor &&function) {
                                true));
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor> QList<MapResult> QtConcurrent::blockingMapped(Iterator begin, Iterator end, MapFunctor &&function)
-
-    \overload
-
-    Calls \a function for each item from \a begin to \a end, in the threads of the global
-    QThreadPool and in the calling thread, and returns the results in a QList.
-*/
+// As the overload with the same parameters and an OutputSequence template argument; returns a QList.
 template <typename Iterator, typename MapFunctor, QtPrivate::IfIterator<Iterator> = true>
 QList<QtPrivate::MapResult<MapFunctor, Iterator>> blockingMapped(Iterator begin, Iterator end, MapFunctor &&function) {
     return QtPrivate::collectResults<QList<QtPrivate::MapResult<MapFunctor, Iterator>>>(
@@ -374,7 +352,8 @@ QFuture<ResultType> mappedReduced(QThreadPool *pool, Sequence &&sequence, MapFun
     \overload
 
     Maps the items of \a sequence with \a function, in the threads of \a pool, and reduces the
-    results with \a reduceFunction as \a options says, starting from \a initialValue.
+    results with \a reduceFunction as \a options says, starting from \a initialValue. Without
+    the \c ResultType template argument, the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename MapFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfSequence<Sequence> = true,
@@ -394,7 +373,8 @@ QFuture<ResultType> mappedReduced(QThreadPool *pool, Sequence &&sequence, MapFun
     \overload
 
     Maps the items from \a begin to \a end with \a function, in the threads of \a pool, and
-    reduces the results with \a reduceFunction as \a options says.
+    reduces the results with \a reduceFunction as \a options says. Without the \c ResultType
+    template argument, the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename MapFunctor, typename ReduceFunctor,
           QtPrivate::IfIterator<Iterator> = true>
@@ -412,7 +392,8 @@ QFuture<ResultType> mappedReduced(QThreadPool *pool, Iterator begin, Iterator en
 
     Maps the items from \a begin to \a end with \a function, in the threads of \a pool, and
     reduces the results with \a reduceFunction as \a options says, starting from \a
-    initialValue.
+    initialValue. Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename MapFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfIterator<Iterator> = true,
@@ -431,7 +412,8 @@ QFuture<ResultType> mappedReduced(QThreadPool *pool, Iterator begin, Iterator en
     \overload
 
     Maps the items of \a sequence with \a function, in the threads of the global QThreadPool,
-    and reduces the results with \a reduceFunction as \a options says.
+    and reduces the results with \a reduceFunction as \a options says. Without the \c ResultType
+    template argument, the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename MapFunctor, typename ReduceFunctor,
           QtPrivate::IfSequence<Sequence> = true>
@@ -450,7 +432,8 @@ QFuture<ResultType> mappedReduced(Sequence &&sequence, MapFunctor &&function, Re
 
     Maps the items of \a sequence with \a function, in the threads of the global QThreadPool,
     and reduces the results with \a reduceFunction as \a options says, starting from \a
-    initialValue.
+    initialValue. Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename MapFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfSequence<Sequence> = true,
@@ -470,7 +453,8 @@ QFuture<ResultType> mappedReduced(Sequence &&sequence, MapFunctor &&function, Re
     \overload
 
     Maps the items from \a begin to \a end with \a function, in the threads of the global
-    QThreadPool, and reduces the results with \a reduceFunction as \a options says.
+    QThreadPool, and reduces the results with \a reduceFunction as \a options says. Without the
+    \c ResultType template argument, the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename MapFunctor, typename ReduceFunctor,
           QtPrivate::IfIterator<Iterator> = true>
@@ -487,7 +471,8 @@ QFuture<ResultType> mappedReduced(Iterator begin, Iterator end, MapFunctor &&fun
 
     Maps the items from \a begin to \a end with \a function, in the threads of the global
     QThreadPool, and reduces the results with \a reduceFunction as \a options says, starting
-    from \a initialValue.
+    from \a initialValue. Without the \c ResultType template argument, the result type is taken
+    from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename MapFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfIterator<Iterator> = true,
@@ -500,15 +485,8 @@ QFuture<ResultType> mappedReduced(Iterator begin, Iterator end, MapFunctor &&fun
                                                      std::forward<InitialValueType>(initialValue));
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor, typename ReduceFunctor> QFuture<ResultType> QtConcurrent::mappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Maps the items of \a sequence with \a function, in the threads of \a pool, and reduces the
-    results with \a reduceFunction as \a options says. The result type is taken from \a
-    reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename MapFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true>
 QFuture<ResultType> mappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunctor &&function,
@@ -520,15 +498,8 @@ QFuture<ResultType> mappedReduced(QThreadPool *pool, Sequence &&sequence, MapFun
                                                      std::forward<ReduceFunctor>(reduceFunction), options, false);
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor, typename ReduceFunctor, typename InitialValueType> QFuture<ResultType> QtConcurrent::mappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Maps the items of \a sequence with \a function, in the threads of \a pool, and reduces the
-    results with \a reduceFunction as \a options says, starting from \a initialValue. The result
-    type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename MapFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -541,15 +512,8 @@ QFuture<ResultType> mappedReduced(QThreadPool *pool, Sequence &&sequence, MapFun
         std::forward<ReduceFunctor>(reduceFunction), options, false, std::forward<InitialValueType>(initialValue));
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor, typename ReduceFunctor> QFuture<ResultType> QtConcurrent::mappedReduced(QThreadPool *pool, Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Maps the items from \a begin to \a end with \a function, in the threads of \a pool, and
-    reduces the results with \a reduceFunction as \a options says. The result type is taken from
-    \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename MapFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true>
 QFuture<ResultType> mappedReduced(QThreadPool *pool, Iterator begin, Iterator end, MapFunctor &&function,
@@ -559,15 +523,8 @@ QFuture<ResultType> mappedReduced(QThreadPool *pool, Iterator begin, Iterator en
                                                      std::forward<ReduceFunctor>(reduceFunction), options, false);
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor, typename ReduceFunctor, typename InitialValueType> QFuture<ResultType> QtConcurrent::mappedReduced(QThreadPool *pool, Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Maps the items from \a begin to \a end with \a function, in the threads of \a pool, and
-    reduces the results with \a reduceFunction as \a options says, starting from \a
-    initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename MapFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -579,15 +536,8 @@ QFuture<ResultType> mappedReduced(QThreadPool *pool, Iterator begin, Iterator en
                                                      std::forward<InitialValueType>(initialValue));
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor, typename ReduceFunctor> QFuture<ResultType> QtConcurrent::mappedReduced(Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Maps the items of \a sequence with \a function, in the threads of the global QThreadPool,
-    and reduces the results with \a reduceFunction as \a options says. The result type is taken
-    from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename MapFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true>
 QFuture<ResultType> mappedReduced(Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction,
@@ -598,15 +548,8 @@ QFuture<ResultType> mappedReduced(Sequence &&sequence, MapFunctor &&function, Re
                                                      std::forward<ReduceFunctor>(reduceFunction), options, false);
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor, typename ReduceFunctor, typename InitialValueType> QFuture<ResultType> QtConcurrent::mappedReduced(Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Maps the items of \a sequence with \a function, in the threads of the global QThreadPool,
-    and reduces the results with \a reduceFunction as \a options says, starting from \a
-    initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename MapFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -619,15 +562,8 @@ QFuture<ResultType> mappedReduced(Sequence &&sequence, MapFunctor &&function, Re
         std::forward<ReduceFunctor>(reduceFunction), options, false, std::forward<InitialValueType>(initialValue));
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor, typename ReduceFunctor> QFuture<ResultType> QtConcurrent::mappedReduced(Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Maps the items from \a begin to \a end with \a function, in the threads of the global
-    QThreadPool, and reduces the results with \a reduceFunction as \a options says. The result
-    type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename MapFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true>
 QFuture<ResultType> mappedReduced(Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction,
@@ -636,15 +572,8 @@ QFuture<ResultType> mappedReduced(Iterator begin, Iterator end, MapFunctor &&fun
                                                      std::forward<ReduceFunctor>(reduceFunction), options, false);
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor, typename ReduceFunctor, typename InitialValueType> QFuture<ResultType> QtConcurrent::mappedReduced(Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Maps the items from \a begin to \a end with \a function, in the threads of the global
-    QThreadPool, and reduces the results with \a reduceFunction as \a options says, starting
-    from \a initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename MapFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -686,7 +615,8 @@ ResultType blockingMappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunc
 
     Maps the items of \a sequence with \a function, in the threads of \a pool and in the calling
     thread, and reduces the results with \a reduceFunction as \a options says, starting from \a
-    initialValue.
+    initialValue. Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename MapFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfSequence<Sequence> = true,
@@ -708,6 +638,8 @@ ResultType blockingMappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunc
 
     Maps the items from \a begin to \a end with \a function, in the threads of \a pool and in
     the calling thread, and reduces the results with \a reduceFunction as \a options says.
+    Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename MapFunctor, typename ReduceFunctor,
           QtPrivate::IfIterator<Iterator> = true>
@@ -726,7 +658,8 @@ ResultType blockingMappedReduced(QThreadPool *pool, Iterator begin, Iterator end
 
     Maps the items from \a begin to \a end with \a function, in the threads of \a pool and in
     the calling thread, and reduces the results with \a reduceFunction as \a options says,
-    starting from \a initialValue.
+    starting from \a initialValue. Without the \c ResultType template argument, the result type
+    is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename MapFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfIterator<Iterator> = true,
@@ -747,6 +680,8 @@ ResultType blockingMappedReduced(QThreadPool *pool, Iterator begin, Iterator end
 
     Maps the items of \a sequence with \a function, in the threads of the global QThreadPool and
     in the calling thread, and reduces the results with \a reduceFunction as \a options says.
+    Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename MapFunctor, typename ReduceFunctor,
           QtPrivate::IfSequence<Sequence> = true>
@@ -766,7 +701,8 @@ ResultType blockingMappedReduced(Sequence &&sequence, MapFunctor &&function, Red
 
     Maps the items of \a sequence with \a function, in the threads of the global QThreadPool and
     in the calling thread, and reduces the results with \a reduceFunction as \a options says,
-    starting from \a initialValue.
+    starting from \a initialValue. Without the \c ResultType template argument, the result type
+    is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Sequence, typename MapFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfSequence<Sequence> = true,
@@ -788,7 +724,8 @@ ResultType blockingMappedReduced(Sequence &&sequence, MapFunctor &&function, Red
 
     Maps the items from \a begin to \a end with \a function, in the threads of the global
     QThreadPool and in the calling thread, and reduces the results with \a reduceFunction as \a
-    options says.
+    options says. Without the \c ResultType template argument, the result type is taken from \a
+    reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename MapFunctor, typename ReduceFunctor,
           QtPrivate::IfIterator<Iterator> = true>
@@ -806,7 +743,8 @@ ResultType blockingMappedReduced(Iterator begin, Iterator end, MapFunctor &&func
 
     Maps the items from \a begin to \a end with \a function, in the threads of the global
     QThreadPool and in the calling thread, and reduces the results with \a reduceFunction as \a
-    options says, starting from \a initialValue.
+    options says, starting from \a initialValue. Without the \c ResultType template argument,
+    the result type is taken from \a reduceFunction.
 */
 template <typename ResultType, typename Iterator, typename MapFunctor, typename ReduceFunctor,
           typename InitialValueType, QtPrivate::IfIterator<Iterator> = true,
@@ -820,15 +758,8 @@ ResultType blockingMappedReduced(Iterator begin, Iterator end, MapFunctor &&func
         .result();
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor, typename ReduceFunctor> ResultType QtConcurrent::blockingMappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Maps the items of \a sequence with \a function, in the threads of \a pool and in the calling
-    thread, and reduces the results with \a reduceFunction as \a options says. The result type
-    is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename MapFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true>
 ResultType blockingMappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunctor &&function,
@@ -841,15 +772,8 @@ ResultType blockingMappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunc
         .result();
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor, typename ReduceFunctor, typename InitialValueType> ResultType QtConcurrent::blockingMappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Maps the items of \a sequence with \a function, in the threads of \a pool and in the calling
-    thread, and reduces the results with \a reduceFunction as \a options says, starting from \a
-    initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename MapFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -863,15 +787,8 @@ ResultType blockingMappedReduced(QThreadPool *pool, Sequence &&sequence, MapFunc
         .result();
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor, typename ReduceFunctor> ResultType QtConcurrent::blockingMappedReduced(QThreadPool *pool, Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Maps the items from \a begin to \a end with \a function, in the threads of \a pool and in
-    the calling thread, and reduces the results with \a reduceFunction as \a options says. The
-    result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename MapFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true>
 ResultType blockingMappedReduced(QThreadPool *pool, Iterator begin, Iterator end, MapFunctor &&function,
@@ -882,15 +799,8 @@ ResultType blockingMappedReduced(QThreadPool *pool, Iterator begin, Iterator end
         .result();
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor, typename ReduceFunctor, typename InitialValueType> ResultType QtConcurrent::blockingMappedReduced(QThreadPool *pool, Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Maps the items from \a begin to \a end with \a function, in the threads of \a pool and in
-    the calling thread, and reduces the results with \a reduceFunction as \a options says,
-    starting from \a initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename MapFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -903,15 +813,8 @@ ResultType blockingMappedReduced(QThreadPool *pool, Iterator begin, Iterator end
         .result();
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor, typename ReduceFunctor> ResultType QtConcurrent::blockingMappedReduced(Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Maps the items of \a sequence with \a function, in the threads of the global QThreadPool and
-    in the calling thread, and reduces the results with \a reduceFunction as \a options says.
-    The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename MapFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true>
 ResultType blockingMappedReduced(Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction,
@@ -923,15 +826,8 @@ ResultType blockingMappedReduced(Sequence &&sequence, MapFunctor &&function, Red
         .result();
 }
 
-/*!
-    \fn template <typename Sequence, typename MapFunctor, typename ReduceFunctor, typename InitialValueType> ResultType QtConcurrent::blockingMappedReduced(Sequence &&sequence, MapFunctor &&function, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Maps the items of \a sequence with \a function, in the threads of the global QThreadPool and
-    in the calling thread, and reduces the results with \a reduceFunction as \a options says,
-    starting from \a initialValue. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Sequence, typename MapFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfSequence<Sequence> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>
@@ -945,15 +841,8 @@ ResultType blockingMappedReduced(Sequence &&sequence, MapFunctor &&function, Red
         .result();
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor, typename ReduceFunctor> ResultType QtConcurrent::blockingMappedReduced(Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction, ReduceOptions options)
-
-    \overload
-
-    Maps the items from \a begin to \a end with \a function, in the threads of the global
-    QThreadPool and in the calling thread, and reduces the results with \a reduceFunction as \a
-    options says. The result type is taken from \a reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename MapFunctor, typename ReduceFunctor,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true>
 ResultType blockingMappedReduced(Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction,
@@ -963,16 +852,8 @@ ResultType blockingMappedReduced(Iterator begin, Iterator end, MapFunctor &&func
         .result();
 }
 
-/*!
-    \fn template <typename Iterator, typename MapFunctor, typename ReduceFunctor, typename InitialValueType> ResultType QtConcurrent::blockingMappedReduced(Iterator begin, Iterator end, MapFunctor &&function, ReduceFunctor &&reduceFunction, InitialValueType &&initialValue, ReduceOptions options)
-
-    \overload
-
-    Maps the items from \a begin to \a end with \a function, in the threads of the global
-    QThreadPool and in the calling thread, and reduces the results with \a reduceFunction as \a
-    options says, starting from \a initialValue. The result type is taken from \a
-    reduceFunction.
-*/
+// As the overload with the same parameters and a ResultType template argument, which is taken from the reduce
+// function here.
 template <typename Iterator, typename MapFunctor, typename ReduceFunctor, typename InitialValueType,
           typename ResultType = QtPrivate::ReduceResult<ReduceFunctor>, QtPrivate::IfIterator<Iterator> = true,
           QtPrivate::IfInitialValue<InitialValueType, ResultType> = true>

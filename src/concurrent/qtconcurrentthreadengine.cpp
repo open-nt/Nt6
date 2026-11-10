@@ -5,6 +5,69 @@
 #include <atomic>
 #include <climits>
 
+/*!
+    \module NtConcurrent
+    \title Nt Concurrent C++ Classes
+    \brief Functions that run code in the threads of a pool without using threads directly.
+    \cmaketarget Nt::Concurrent
+
+    Nt Concurrent runs functions in the threads of a QThreadPool and gives back a QFuture for
+    what they produce. QtConcurrent::run() and QtConcurrent::task() start one function;
+    QtConcurrent::map(), QtConcurrent::mapped(), QtConcurrent::filter(), QtConcurrent::filtered()
+    and their \c Reduced forms apply a function to every item of a sequence, sharing the items
+    between the threads. See \l{Thread Support in Nt}.
+
+    Link with \c Nt::Concurrent and include \c{<QtConcurrent>}.
+*/
+
+/*!
+    \namespace QtConcurrent
+    \inmodule NtConcurrent
+    \brief The QtConcurrent namespace provides high-level APIs that make it possible to write multi-threaded programs without using low-level threading primitives.
+
+    The functions come in three groups:
+
+    \list
+    \li run() and task() run one function in another thread and return a QFuture for its result.
+    A function whose first parameter is a \c{QPromise<T> &} can report several results and
+    its progress, and can be canceled and suspended.
+    \li map(), mapped() and mappedReduced() call a function for every item of a sequence: in
+    place, into a future of the results, or into one value that a reduce function builds.
+    \li filter(), filtered() and filteredReduced() keep the items that a function accepts, in
+    the same three ways.
+    \endlist
+
+    \code
+    QList<QImage> images = load();
+    QFuture<QImage> thumbnails = QtConcurrent::mapped(images, [](const QImage &image) { return image.scaled(64, 64); });
+    QFutureWatcher<QImage> watcher;
+    QObject::connect(&watcher, &QFutureWatcherBase::resultReadyAt, [&](int i) { show(i, watcher.resultAt(i)); });
+    watcher.setFuture(thumbnails);
+    \endcode
+
+    Every map and filter function takes a sequence or a pair of iterators, optionally a
+    QThreadPool in front (the global pool otherwise), and has a \c blocking form that returns
+    the result instead of a future. The future of a map or a filter reports the number of items
+    handled as its progress, can be canceled and suspended, and throws the first exception that
+    one of the functions threw. The functions must be safe to call from several threads at a
+    time, except the reduce function, which one thread calls at a time.
+
+    \differences
+    The items are handed out in blocks of a fixed size, chosen from the number of items and of
+    threads, not in blocks that adapt to the speed of the function. A suspended computation is
+    reported as suspended when the first of its threads stops, while the others may still
+    finish the block they are in. The blocking functions run in the calling thread too, so
+    they work from a thread of a pool that has no thread to spare; waiting for the future of a
+    non-blocking function from such a thread does not, since QFuture::waitForFinished() does
+    not lend the thread to the pool. A sequence has at most \c INT_MAX items. There are no
+    \c QtConcurrent::median or \c ThreadEngine classes, and \c blockingMapped() deduces its
+    container for class templates with the item type as their first argument only. Results of
+    type \c bool cannot be read from a QFuture, as Nt has no \c{QList<bool>}.
+    \enddifferences
+
+    \sa QFuture, QFutureWatcher, QThreadPool, QPromise
+*/
+
 namespace QtPrivate {
 
 namespace {

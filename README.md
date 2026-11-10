@@ -20,7 +20,7 @@
 
 # Nt ("Nut")
 
-A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial), `Nt SVG` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
+A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial), `Nt SVG`, `Nt Concurrent` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
 
@@ -43,7 +43,7 @@ Qt Core has roughly 300 classes; Nt Core has about 180 of them, chosen first for
 | Containers | `QList`/`QVector`, `QQueue`, `QStack`, `QMap`, `QMultiMap`, `QHash`, `QMultiHash`, `QSet`, `QVarLengthArray`, `QBitArray`, `QCache`, `QContiguousCache`, `QSpan`, `QKeyValueIterator` (with `asKeyValueRange()`), `qHash()`/`qHashRange()`/`qHashMulti()`, the Java-style iterators (`QListIterator`, `QMutableListIterator`, `QMapIterator`, `QMutableMapIterator`, `QHashIterator`, `QSetIterator`, ...) |
 | Smart pointers | `QPointer`, `QScopedPointer`, `QScopedArrayPointer`, `QSharedPointer`, `QWeakPointer`, `QEnableSharedFromThis`, `QSharedData`, `QSharedDataPointer`, `QExplicitlySharedDataPointer`, `QScopeGuard`, `QScopedValueRollback`, `QSignalBlocker` |
 | Threads | `QThread` (per-thread event loops and queued signals across threads), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QException`, `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QAtomicScopedValueRollback`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock` (recursive or not), `QReadLocker`, `QWriteLocker`, `QWaitCondition` (with `QMutex` or `QReadWriteLock`), `QSemaphore`, `QSemaphoreReleaser`; deadline and `std::chrono` overloads |
-| Futures | `QFuture`/`QFuture<void>` (state, results, iteration, progress, `cancel`, `suspend`/`resume`, exceptions, `then`/`onCanceled`/`onFailed` with a launch policy, thread pool or context object, `cancelChain`), `QPromise`, `QFutureInterface`, `QFutureWatcher` (signals through the watcher's event loop, pending-results limit), `QFutureSynchronizer`, `QtFuture::makeReady*`/`makeExceptionalFuture`/`connect`/`whenAll`/`whenAny`, `QAbstractEventDispatcher` (a handle onto the thread's dispatcher: timers, `wakeUp`, `interrupt`, `aboutToBlock`/`awake`) |
+| Futures | `QFuture`/`QFuture<void>` (state, results, iteration, progress, `cancel`, `suspend`/`resume`, exceptions, `then`/`onCanceled`/`onFailed` with a launch policy, thread pool or context object, `cancelChain`), `QPromise`, `QFutureInterface`, `QFutureWatcher` (signals through the watcher's event loop, pending-results limit), `QFutureSynchronizer`, `QtFuture::makeReady*`/`makeExceptionalFuture`/`connect`/`whenAll`/`whenAny`, `QAbstractEventDispatcher` (a handle onto the thread's dispatcher: timers, `wakeUp`, `interrupt`, `aboutToBlock`/`awake`; from `instance()`, `QThread::eventDispatcher()` or `QCoreApplication::eventDispatcher()`) |
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time, fixed offsets and time zones), `QTimeZone` (the system's IANA database), `QCalendar` (Gregorian, Julian, Milanković, Jalali, Islamic civil), `QChronoTimer`, `QTimeLine`, `QEasingCurve`, `QDebug`, `QDebugStateSaver`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler`, `QMessageLogger`, `QLoggingCategory` |
 | I/O and file system | `QIODevice` (with read transactions and read/write channels), `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile` (permissions, file times, symbolic links), `QDataStream` (Qt's wire format, transactions), `QFileInfo`, `QDir`, `QDirIterator`, `QLockFile`, `QFileSystemWatcher` (inotify), `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG), `QSettings` (INI), `QResource` (`:/` paths in `QFile`, `QFileInfo`, `QDir` and `QDirIterator`; resources compiled by `ntrcc`, compressed with Zstandard or zlib) |
 | Processes and formats | `QProcess`, `QProcessEnvironment`, `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument` |
@@ -59,7 +59,7 @@ Known limits: `QDataStream` has no 64-bit container sizes; `QDir` name filters a
 - **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`
 - **Plugins and IPC:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
 - **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`
-- **Concurrency:** QtConcurrent, `QFutureIterator`, custom event dispatchers and native event filters
+- **Concurrency:** `QFutureIterator`, custom event dispatchers (`QThread::setEventDispatcher()`) and native event filters; QtConcurrent is in Nt Concurrent, below
 - **Item models:** `QRangeModel`
 - **Animation:** `QAbstractAnimation`, `QVariantAnimation`, `QPropertyAnimation`, `QPauseAnimation`, `QSequentialAnimationGroup`, `QParallelAnimationGroup`, `QAnimationGroup`
 - **System and misc:** permission classes, JNI and Windows-only classes
@@ -225,9 +225,30 @@ Not implemented yet: rich text and the clipboard, the model/view classes (trees,
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
+
+### Nt Concurrent: implemented
+
+Nt Concurrent runs functions in the threads of a `QThreadPool` and returns a `QFuture` for what they produce.
+
+| Function | Notes |
+|---|---|
+| `QtConcurrent::run()` | a function, member function or function object with its arguments, in the global pool or a given one; a function that takes a `QPromise<T> &` first reports several results and progress and can be canceled and suspended |
+| `QtConcurrent::task()` | `QTaskBuilder`: `withArguments()`, `onThreadPool()`, `withPriority()`, `spawn()` |
+| `map()`, `mapped()`, `mappedReduced()` | on a sequence or a pair of iterators; results in the order of the items; `ReduceOptions` (`UnorderedReduce`, `OrderedReduce`, `SequentialReduce`), initial values, result type named or taken from the reduce function |
+| `filter()`, `filtered()`, `filteredReduced()` | the same forms for keeping items |
+| `blocking...()` | every map and filter function, run in the pool and the calling thread |
+
+The futures of the map and filter functions report progress, can be canceled and suspended, and rethrow the first exception. Link with `Nt::Concurrent` (or `Qt6::Concurrent`) and include `<QtConcurrent>`.
+
+```cpp
+QFuture<QString> text = QtConcurrent::run(readFile, path);
+int words = QtConcurrent::blockingMappedReduced(files, countWords, [](int &total, int n) { total += n; });
+```
+
+Differences from Qt: items are handed out in blocks of a fixed size rather than an adaptive one; waiting for a non-blocking map from a thread of a saturated pool does not lend that thread to the pool (the `blocking` functions do work there); results of type `bool` cannot be read from a `QFuture`.
 
 ### Nt SVG: implemented
 
@@ -283,7 +304,7 @@ Differences from Qt: static documents only (no SMIL or CSS animation); no `image
 | Qt Bluetooth | Nt Bluetooth |  |
 | Qt Canvas Painter | Nt Canvas Painter |  |
 | Qt CoAP | Nt CoAP |  |
-| Qt Concurrent | Nt Concurrent |  |
+| Qt Concurrent | Nt Concurrent | ✔ |
 | Qt Graphs | Nt Graphs |  |
 | Qt GRPC | Nt GRPC |  |
 | Qt Help | Nt Help |  |

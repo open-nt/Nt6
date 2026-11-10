@@ -20,6 +20,7 @@ configure_file(cmake/qconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/QtCore/q
 
 add_library(NtCore
     src/dispatcher.cpp
+    src/qabstracteventdispatcher.cpp
     src/qbuffer.cpp
     src/qbytearray.cpp
     src/qchar.cpp
@@ -33,9 +34,13 @@ add_library(NtCore
     src/qdir.cpp
     src/qdiriterator.cpp
     src/qeventloop.cpp
+    src/qeventlooplocker.cpp
+    src/qexception.cpp
     src/qfile.cpp
     src/qfilesystemwatcher.cpp
     src/qfileinfo.cpp
+    src/qfutureinterface.cpp
+    src/qfuturewatcher.cpp
     src/qiodevice.cpp
     src/qjsonarray.cpp
     src/qjsondocument.cpp
@@ -314,6 +319,11 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_thread_tests PRIVATE Nt::Core)
     add_test(NAME nt_thread_tests COMMAND nt_thread_tests)
     nt_set_compile_options(nt_thread_tests)
+
+    add_executable(nt_future_tests tests/test_futures.cpp)
+    target_link_libraries(nt_future_tests PRIVATE Nt::Core)
+    add_test(NAME nt_future_tests COMMAND nt_future_tests)
+    nt_set_compile_options(nt_future_tests)
 
     nt_wrap_cpp(meta_test_sources tests/meta_classes.h)
     add_executable(nt_meta_tests tests/test_meta.cpp ${meta_test_sources})

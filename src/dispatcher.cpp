@@ -9,6 +9,7 @@
 #include "dispatcher.h"
 #include "qobject_p.h"
 
+#include <QtCore/qabstracteventdispatcher.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qsocketnotifier.h>
 
@@ -99,26 +100,61 @@ void Dispatcher::removePosted(QObject *receiver, int type) {
         delete e;
 }
 
+int Dispatcher::allocateTimerId() { return g_nextTimerId.fetch_add(1); }
+
 int Dispatcher::startTimer(QObject *obj, std::chrono::milliseconds interval) {
-    const int id = g_nextTimerId.fetch_add(1);
+    const int id = allocateTimerId();
+    startTimerWithId(id, obj, interval);
+    return id;
+}
+
+void Dispatcher::startTimerWithId(int id, QObject *obj, std::chrono::milliseconds interval) {
     {
         std::lock_guard<std::mutex> lk(m_);
         timers_.push_back({id, obj, interval, Clock::now() + interval});
     }
     wakeUp();
-    return id;
 }
 
-void Dispatcher::killTimer(int id) {
+bool Dispatcher::killTimer(int id) {
     std::lock_guard<std::mutex> lk(m_);
-    timers_.erase(std::remove_if(timers_.begin(), timers_.end(), [id](const Timer &t) { return t.id == id; }),
-                  timers_.end());
+    const auto it = std::remove_if(timers_.begin(), timers_.end(), [id](const Timer &t) { return t.id == id; });
+    const bool found = it != timers_.end();
+    timers_.erase(it, timers_.end());
+    return found;
 }
 
-void Dispatcher::killTimers(QObject *obj) {
+bool Dispatcher::killTimers(QObject *obj) {
     std::lock_guard<std::mutex> lk(m_);
-    timers_.erase(std::remove_if(timers_.begin(), timers_.end(), [obj](const Timer &t) { return t.obj == obj; }),
-                  timers_.end());
+    const auto it = std::remove_if(timers_.begin(), timers_.end(), [obj](const Timer &t) { return t.obj == obj; });
+    const bool found = it != timers_.end();
+    timers_.erase(it, timers_.end());
+    return found;
+}
+
+std::vector<Dispatcher::TimerInfo> Dispatcher::timersOf(QObject *obj) {
+    std::vector<TimerInfo> out;
+    std::lock_guard<std::mutex> lk(m_);
+    for (const Timer &t : timers_)
+        if (t.obj == obj)
+            out.push_back({t.id, t.interval});
+    return out;
+}
+
+long long Dispatcher::remainingTime(int id) {
+    std::lock_guard<std::mutex> lk(m_);
+    for (const Timer &t : timers_) {
+        if (t.id == id) {
+            const auto left = std::chrono::duration_cast<std::chrono::milliseconds>(t.next - Clock::now()).count();
+            return left < 0 ? 0 : left;
+        }
+    }
+    return -1;
+}
+
+void Dispatcher::interrupt() {
+    interrupted_ = true;
+    wakeUp();
 }
 
 int Dispatcher::addNotifier(QSocketNotifier *obj, int fd, int type) {
@@ -162,6 +198,8 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
     for (;;) {
         if (wait && stop && stop->load())
             return false;
+        if (wait && interrupted_.exchange(false))
+            return false;
 
         const auto now = Clock::now();
         bool timerDue = false;
@@ -197,7 +235,12 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
         int r = 0;
         if (needPoll) {
             lk.unlock();
+            QAbstractEventDispatcher *observer = timeout != 0 ? observer_.load() : nullptr;
+            if (observer)
+                observer->aboutToBlock();
             r = ::poll(fds.data(), static_cast<nfds_t>(fds.size()), timeout);
+            if (observer)
+                observer->awake();
             if (r > 0 && (fds[0].revents & POLLIN)) {
                 std::uint64_t buf[8];
                 // The wake descriptor is non-blocking and the lock is released above.

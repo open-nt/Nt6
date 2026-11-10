@@ -60,5 +60,32 @@
     QThreadPool runs QRunnable tasks on a limited set of reusable threads.
     QThreadStorage keeps per-thread data.
 
-    \sa QThread, QThreadPool, QRunnable, QThreadStorage, QObject, {Signals and Slots}
+    \section1 Futures and Promises
+
+    A QPromise reports the progress and the results of a computation, which can run
+    in any thread, to the QFuture that it makes. The future can be waited for,
+    asked for its results while they arrive, canceled and suspended, and it
+    rethrows the exception that ended the computation. QFuture::then(),
+    QFuture::onFailed() and QFuture::onCanceled() attach a continuation that runs
+    where the previous future finishes, in a thread pool, or in the event loop of a
+    context object. QFutureWatcher turns what a future does into signals of its own
+    thread, and QFutureSynchronizer waits for a set of futures.
+
+    \code
+    QPromise<int> promise;
+    QFuture<int> future = promise.future();
+    QFuture<QString> text = future.then(qApp, [](int answer) { return QString::number(answer); });
+    pool.start([p = std::make_shared<QPromise<int>>(std::move(promise))] {
+        p->start();
+        p->addResult(42);
+        p->finish();
+    });
+    \endcode
+
+    A promise that is destroyed without finishing cancels its future, so no thread
+    waits forever. All the functions of a future, a promise and a watcher are
+    thread-safe, with one rule: a result that is moved out with
+    QFuture::takeResult() must not be read at the same time by another thread.
+
+    \sa QThread, QThreadPool, QRunnable, QThreadStorage, QObject, QFuture, QPromise, {Signals and Slots}
 */

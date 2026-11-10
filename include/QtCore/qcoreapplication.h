@@ -27,6 +27,8 @@ public:
 
     static int exec();
     static void exit(int returnCode = 0);
+    static bool isQuitLockEnabled();
+    static void setQuitLockEnabled(bool enabled);
     static void processEvents(QEventLoop::ProcessEventsFlags flags = QEventLoop::AllEvents);
     static void sendPostedEvents(QObject *receiver = nullptr, int eventType = 0);
 

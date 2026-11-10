@@ -301,7 +301,9 @@
 
     Pass \c{-G DEB}, \c{-G RPM} or \c{-G External} to \c cpack to choose the
     format; \c External writes the pacman package. To install without a package,
-    run \c{cmake --install build}.
+    run \c{cmake --install build}. Remove those files again with
+    \c{cmake --build build --target uninstall} (\c{make uninstall}), which uses the
+    \c install_manifest.txt written by the install.
 
     \sa {Nt Brand Guide}
 */

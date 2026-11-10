@@ -78,3 +78,22 @@ install(FILES LICENSE
     DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/nt6-tools
     RENAME copyright
     COMPONENT Tools)
+
+# "make uninstall" removes the files listed in install_manifest*.txt.
+set(NT_UNINSTALL_KEEP_DIRS
+    ${CMAKE_INSTALL_FULL_BINDIR}
+    ${CMAKE_INSTALL_FULL_LIBDIR}
+    ${CMAKE_INSTALL_FULL_INCLUDEDIR}
+    ${CMAKE_INSTALL_FULL_DATAROOTDIR}
+    ${CMAKE_INSTALL_FULL_DATAROOTDIR}/doc
+    ${CMAKE_INSTALL_FULL_LIBDIR}/cmake)
+if(NOT TARGET uninstall)
+    add_custom_target(uninstall
+        COMMAND ${CMAKE_COMMAND}
+            -DBINARY_DIR=${CMAKE_CURRENT_BINARY_DIR}
+            -DPREFIX=${CMAKE_INSTALL_PREFIX}
+            "-DKEEP_DIRS=${NT_UNINSTALL_KEEP_DIRS}"
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtUninstall.cmake
+        COMMENT "Removing installed files"
+        VERBATIM)
+endif()

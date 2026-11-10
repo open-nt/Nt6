@@ -29,55 +29,153 @@ struct NamedColor {
 
 // The color keywords of SVG 1.1, in alphabetical order.
 const NamedColor kColors[] = {
-    {"aliceblue", 0xf0f8ff},      {"antiquewhite", 0xfaebd7},      {"aqua", 0x00ffff},
-    {"aquamarine", 0x7fffd4},     {"azure", 0xf0ffff},             {"beige", 0xf5f5dc},
-    {"bisque", 0xffe4c4},         {"black", 0x000000},             {"blanchedalmond", 0xffebcd},
-    {"blue", 0x0000ff},           {"blueviolet", 0x8a2be2},        {"brown", 0xa52a2a},
-    {"burlywood", 0xdeb887},      {"cadetblue", 0x5f9ea0},         {"chartreuse", 0x7fff00},
-    {"chocolate", 0xd2691e},      {"coral", 0xff7f50},             {"cornflowerblue", 0x6495ed},
-    {"cornsilk", 0xfff8dc},       {"crimson", 0xdc143c},           {"cyan", 0x00ffff},
-    {"darkblue", 0x00008b},       {"darkcyan", 0x008b8b},          {"darkgoldenrod", 0xb8860b},
-    {"darkgray", 0xa9a9a9},       {"darkgreen", 0x006400},         {"darkgrey", 0xa9a9a9},
-    {"darkkhaki", 0xbdb76b},      {"darkmagenta", 0x8b008b},       {"darkolivegreen", 0x556b2f},
-    {"darkorange", 0xff8c00},     {"darkorchid", 0x9932cc},        {"darkred", 0x8b0000},
-    {"darksalmon", 0xe9967a},     {"darkseagreen", 0x8fbc8f},      {"darkslateblue", 0x483d8b},
-    {"darkslategray", 0x2f4f4f},  {"darkslategrey", 0x2f4f4f},     {"darkturquoise", 0x00ced1},
-    {"darkviolet", 0x9400d3},     {"deeppink", 0xff1493},          {"deepskyblue", 0x00bfff},
-    {"dimgray", 0x696969},        {"dimgrey", 0x696969},           {"dodgerblue", 0x1e90ff},
-    {"firebrick", 0xb22222},      {"floralwhite", 0xfffaf0},       {"forestgreen", 0x228b22},
-    {"fuchsia", 0xff00ff},        {"gainsboro", 0xdcdcdc},         {"ghostwhite", 0xf8f8ff},
-    {"gold", 0xffd700},           {"goldenrod", 0xdaa520},         {"gray", 0x808080},
-    {"green", 0x008000},          {"greenyellow", 0xadff2f},       {"grey", 0x808080},
-    {"honeydew", 0xf0fff0},       {"hotpink", 0xff69b4},           {"indianred", 0xcd5c5c},
-    {"indigo", 0x4b0082},         {"ivory", 0xfffff0},             {"khaki", 0xf0e68c},
-    {"lavender", 0xe6e6fa},       {"lavenderblush", 0xfff0f5},     {"lawngreen", 0x7cfc00},
-    {"lemonchiffon", 0xfffacd},   {"lightblue", 0xadd8e6},         {"lightcoral", 0xf08080},
-    {"lightcyan", 0xe0ffff},      {"lightgoldenrodyellow", 0xfafad2}, {"lightgray", 0xd3d3d3},
-    {"lightgreen", 0x90ee90},     {"lightgrey", 0xd3d3d3},         {"lightpink", 0xffb6c1},
-    {"lightsalmon", 0xffa07a},    {"lightseagreen", 0x20b2aa},     {"lightskyblue", 0x87cefa},
-    {"lightslategray", 0x778899}, {"lightslategrey", 0x778899},    {"lightsteelblue", 0xb0c4de},
-    {"lightyellow", 0xffffe0},    {"lime", 0x00ff00},              {"limegreen", 0x32cd32},
-    {"linen", 0xfaf0e6},          {"magenta", 0xff00ff},           {"maroon", 0x800000},
-    {"mediumaquamarine", 0x66cdaa}, {"mediumblue", 0x0000cd},      {"mediumorchid", 0xba55d3},
-    {"mediumpurple", 0x9370db},   {"mediumseagreen", 0x3cb371},    {"mediumslateblue", 0x7b68ee},
-    {"mediumspringgreen", 0x00fa9a}, {"mediumturquoise", 0x48d1cc}, {"mediumvioletred", 0xc71585},
-    {"midnightblue", 0x191970},   {"mintcream", 0xf5fffa},         {"mistyrose", 0xffe4e1},
-    {"moccasin", 0xffe4b5},       {"navajowhite", 0xffdead},       {"navy", 0x000080},
-    {"oldlace", 0xfdf5e6},        {"olive", 0x808000},             {"olivedrab", 0x6b8e23},
-    {"orange", 0xffa500},         {"orangered", 0xff4500},         {"orchid", 0xda70d6},
-    {"palegoldenrod", 0xeee8aa},  {"palegreen", 0x98fb98},         {"paleturquoise", 0xafeeee},
-    {"palevioletred", 0xdb7093},  {"papayawhip", 0xffefd5},        {"peachpuff", 0xffdab9},
-    {"peru", 0xcd853f},           {"pink", 0xffc0cb},              {"plum", 0xdda0dd},
-    {"powderblue", 0xb0e0e6},     {"purple", 0x800080},            {"red", 0xff0000},
-    {"rosybrown", 0xbc8f8f},      {"royalblue", 0x4169e1},         {"saddlebrown", 0x8b4513},
-    {"salmon", 0xfa8072},         {"sandybrown", 0xf4a460},        {"seagreen", 0x2e8b57},
-    {"seashell", 0xfff5ee},       {"sienna", 0xa0522d},            {"silver", 0xc0c0c0},
-    {"skyblue", 0x87ceeb},        {"slateblue", 0x6a5acd},         {"slategray", 0x708090},
-    {"slategrey", 0x708090},      {"snow", 0xfffafa},              {"springgreen", 0x00ff7f},
-    {"steelblue", 0x4682b4},      {"tan", 0xd2b48c},               {"teal", 0x008080},
-    {"thistle", 0xd8bfd8},        {"tomato", 0xff6347},            {"turquoise", 0x40e0d0},
-    {"violet", 0xee82ee},         {"wheat", 0xf5deb3},             {"white", 0xffffff},
-    {"whitesmoke", 0xf5f5f5},     {"yellow", 0xffff00},            {"yellowgreen", 0x9acd32},
+    {"aliceblue", 0xf0f8ff},
+    {"antiquewhite", 0xfaebd7},
+    {"aqua", 0x00ffff},
+    {"aquamarine", 0x7fffd4},
+    {"azure", 0xf0ffff},
+    {"beige", 0xf5f5dc},
+    {"bisque", 0xffe4c4},
+    {"black", 0x000000},
+    {"blanchedalmond", 0xffebcd},
+    {"blue", 0x0000ff},
+    {"blueviolet", 0x8a2be2},
+    {"brown", 0xa52a2a},
+    {"burlywood", 0xdeb887},
+    {"cadetblue", 0x5f9ea0},
+    {"chartreuse", 0x7fff00},
+    {"chocolate", 0xd2691e},
+    {"coral", 0xff7f50},
+    {"cornflowerblue", 0x6495ed},
+    {"cornsilk", 0xfff8dc},
+    {"crimson", 0xdc143c},
+    {"cyan", 0x00ffff},
+    {"darkblue", 0x00008b},
+    {"darkcyan", 0x008b8b},
+    {"darkgoldenrod", 0xb8860b},
+    {"darkgray", 0xa9a9a9},
+    {"darkgreen", 0x006400},
+    {"darkgrey", 0xa9a9a9},
+    {"darkkhaki", 0xbdb76b},
+    {"darkmagenta", 0x8b008b},
+    {"darkolivegreen", 0x556b2f},
+    {"darkorange", 0xff8c00},
+    {"darkorchid", 0x9932cc},
+    {"darkred", 0x8b0000},
+    {"darksalmon", 0xe9967a},
+    {"darkseagreen", 0x8fbc8f},
+    {"darkslateblue", 0x483d8b},
+    {"darkslategray", 0x2f4f4f},
+    {"darkslategrey", 0x2f4f4f},
+    {"darkturquoise", 0x00ced1},
+    {"darkviolet", 0x9400d3},
+    {"deeppink", 0xff1493},
+    {"deepskyblue", 0x00bfff},
+    {"dimgray", 0x696969},
+    {"dimgrey", 0x696969},
+    {"dodgerblue", 0x1e90ff},
+    {"firebrick", 0xb22222},
+    {"floralwhite", 0xfffaf0},
+    {"forestgreen", 0x228b22},
+    {"fuchsia", 0xff00ff},
+    {"gainsboro", 0xdcdcdc},
+    {"ghostwhite", 0xf8f8ff},
+    {"gold", 0xffd700},
+    {"goldenrod", 0xdaa520},
+    {"gray", 0x808080},
+    {"green", 0x008000},
+    {"greenyellow", 0xadff2f},
+    {"grey", 0x808080},
+    {"honeydew", 0xf0fff0},
+    {"hotpink", 0xff69b4},
+    {"indianred", 0xcd5c5c},
+    {"indigo", 0x4b0082},
+    {"ivory", 0xfffff0},
+    {"khaki", 0xf0e68c},
+    {"lavender", 0xe6e6fa},
+    {"lavenderblush", 0xfff0f5},
+    {"lawngreen", 0x7cfc00},
+    {"lemonchiffon", 0xfffacd},
+    {"lightblue", 0xadd8e6},
+    {"lightcoral", 0xf08080},
+    {"lightcyan", 0xe0ffff},
+    {"lightgoldenrodyellow", 0xfafad2},
+    {"lightgray", 0xd3d3d3},
+    {"lightgreen", 0x90ee90},
+    {"lightgrey", 0xd3d3d3},
+    {"lightpink", 0xffb6c1},
+    {"lightsalmon", 0xffa07a},
+    {"lightseagreen", 0x20b2aa},
+    {"lightskyblue", 0x87cefa},
+    {"lightslategray", 0x778899},
+    {"lightslategrey", 0x778899},
+    {"lightsteelblue", 0xb0c4de},
+    {"lightyellow", 0xffffe0},
+    {"lime", 0x00ff00},
+    {"limegreen", 0x32cd32},
+    {"linen", 0xfaf0e6},
+    {"magenta", 0xff00ff},
+    {"maroon", 0x800000},
+    {"mediumaquamarine", 0x66cdaa},
+    {"mediumblue", 0x0000cd},
+    {"mediumorchid", 0xba55d3},
+    {"mediumpurple", 0x9370db},
+    {"mediumseagreen", 0x3cb371},
+    {"mediumslateblue", 0x7b68ee},
+    {"mediumspringgreen", 0x00fa9a},
+    {"mediumturquoise", 0x48d1cc},
+    {"mediumvioletred", 0xc71585},
+    {"midnightblue", 0x191970},
+    {"mintcream", 0xf5fffa},
+    {"mistyrose", 0xffe4e1},
+    {"moccasin", 0xffe4b5},
+    {"navajowhite", 0xffdead},
+    {"navy", 0x000080},
+    {"oldlace", 0xfdf5e6},
+    {"olive", 0x808000},
+    {"olivedrab", 0x6b8e23},
+    {"orange", 0xffa500},
+    {"orangered", 0xff4500},
+    {"orchid", 0xda70d6},
+    {"palegoldenrod", 0xeee8aa},
+    {"palegreen", 0x98fb98},
+    {"paleturquoise", 0xafeeee},
+    {"palevioletred", 0xdb7093},
+    {"papayawhip", 0xffefd5},
+    {"peachpuff", 0xffdab9},
+    {"peru", 0xcd853f},
+    {"pink", 0xffc0cb},
+    {"plum", 0xdda0dd},
+    {"powderblue", 0xb0e0e6},
+    {"purple", 0x800080},
+    {"red", 0xff0000},
+    {"rosybrown", 0xbc8f8f},
+    {"royalblue", 0x4169e1},
+    {"saddlebrown", 0x8b4513},
+    {"salmon", 0xfa8072},
+    {"sandybrown", 0xf4a460},
+    {"seagreen", 0x2e8b57},
+    {"seashell", 0xfff5ee},
+    {"sienna", 0xa0522d},
+    {"silver", 0xc0c0c0},
+    {"skyblue", 0x87ceeb},
+    {"slateblue", 0x6a5acd},
+    {"slategray", 0x708090},
+    {"slategrey", 0x708090},
+    {"snow", 0xfffafa},
+    {"springgreen", 0x00ff7f},
+    {"steelblue", 0x4682b4},
+    {"tan", 0xd2b48c},
+    {"teal", 0x008080},
+    {"thistle", 0xd8bfd8},
+    {"tomato", 0xff6347},
+    {"turquoise", 0x40e0d0},
+    {"violet", 0xee82ee},
+    {"wheat", 0xf5deb3},
+    {"white", 0xffffff},
+    {"whitesmoke", 0xf5f5f5},
+    {"yellow", 0xffff00},
+    {"yellowgreen", 0x9acd32},
 };
 
 bool isSpace(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f'; }
@@ -143,15 +241,13 @@ bool parseLength(const std::string &text, double reference, double *out, bool *p
         *out = v * reference / 100.0;
     else if (unit == "pt")
         *out = v * 96.0 / 72.0;
-    else if (unit == "pc")
-        *out = v * 16.0;
     else if (unit == "mm")
         *out = v * 96.0 / 25.4;
     else if (unit == "cm")
         *out = v * 96.0 / 2.54;
     else if (unit == "in")
         *out = v * 96.0;
-    else if (unit == "em")
+    else if (unit == "em" || unit == "pc")
         *out = v * 16.0;
     else if (unit == "ex")
         *out = v * 8.0;
@@ -649,8 +745,8 @@ bool parseViewBox(const XmlElement &e, Box *out) {
 
 std::uint32_t premultiplied(const Rgba &c, double opacity) {
     const double a = clamp01(c.a * opacity);
-    const auto channel = [a](double v) { return static_cast<std::uint32_t>(clamp01(v) * a * 255.0 + 0.5); };
-    return (static_cast<std::uint32_t>(a * 255.0 + 0.5) << 24u) | (channel(c.r) << 16u) | (channel(c.g) << 8u) |
+    const auto channel = [a](double v) { return static_cast<std::uint32_t>(std::lround(clamp01(v) * a * 255.0)); };
+    return (static_cast<std::uint32_t>(std::lround(a * 255.0)) << 24u) | (channel(c.r) << 16u) | (channel(c.g) << 8u) |
            channel(c.b);
 }
 
@@ -662,7 +758,7 @@ QFont fontFor(const Style &style, double scale) {
         family = family.substr(1, family.size() - 2);
     if (!family.empty())
         font.setFamily(QString::fromUtf8(family.c_str(), static_cast<qsizetype>(family.size())));
-    font.setPixelSize(std::max(1, static_cast<int>(std::min(4000.0, style.fontSize * scale) + 0.5)));
+    font.setPixelSize(std::max(1, static_cast<int>(std::lround(std::min(4000.0, style.fontSize * scale)))));
     font.setBold(style.bold);
     font.setItalic(style.italic);
     return font;
@@ -714,9 +810,9 @@ void StyleDelta::applyTo(Style &s) const {
 struct Document::Context {
     Surface *surface = nullptr; // null when only the bounds are wanted
     Box *bounds = nullptr;
-    long long budget = 0;  // elements left to draw, so that references to references cannot take forever
-    int depth = 0;         // of references and layers
-    bool clip = false;     // drawing a clip path: shapes are filled solid, nothing is stroked
+    long long budget = 0; // elements left to draw, so that references to references cannot take forever
+    int depth = 0;        // of references and layers
+    bool clip = false;    // drawing a clip path: shapes are filled solid, nothing is stroked
 };
 
 Document::Document() = default;
@@ -902,8 +998,8 @@ void Document::build(const XmlElement &e, Node *parent, const Sheet &sheet, int 
     parent->children.push_back(std::move(owned));
 }
 
-void Document::buildText(const XmlElement &e, Node *node, const Sheet &sheet, const StyleDelta &inherited,
-                         bool *space, int depth) {
+void Document::buildText(const XmlElement &e, Node *node, const Sheet &sheet, const StyleDelta &inherited, bool *space,
+                         int depth) {
     if (depth > kMaxNesting)
         return;
     bool first = true;
@@ -1050,9 +1146,9 @@ void Document::resolveGradients() {
             if (g.stops.empty())
                 g.stops = base.stops;
             if (g.radial == base.radial) {
-                for (Length Gradient::*field : {&Gradient::x1, &Gradient::y1, &Gradient::x2, &Gradient::y2,
-                                                &Gradient::cx, &Gradient::cy, &Gradient::r, &Gradient::fx,
-                                                &Gradient::fy}) {
+                for (Length Gradient::*field :
+                     {&Gradient::x1, &Gradient::y1, &Gradient::x2, &Gradient::y2, &Gradient::cx, &Gradient::cy,
+                      &Gradient::r, &Gradient::fx, &Gradient::fy}) {
                     if (!(g.*field).set)
                         g.*field = base.*field;
                 }
@@ -1100,8 +1196,7 @@ void Document::render(Surface *surface, const Mat &m, const Node *only) const {
         renderNode(*m_root, m, Style(), ctx, false);
 }
 
-void Document::renderNode(const Node &node, const Mat &m, const Style &inherited, Context &ctx,
-                          bool referenced) const {
+void Document::renderNode(const Node &node, const Mat &m, const Style &inherited, Context &ctx, bool referenced) const {
     if (--ctx.budget < 0)
         return;
     if ((!node.rendered && !referenced) || !node.style.display)
@@ -1120,8 +1215,8 @@ void Document::renderNode(const Node &node, const Mat &m, const Style &inherited
     // What is painted in one go can take the opacity itself; anything else is painted on a layer first, so
     // that its parts do not show through each other.
     const bool single =
-        node.type == Node::Text || (node.type == Node::Shape && (style.fill.kind == PaintSpec::None ||
-                                                                 style.stroke.kind == PaintSpec::None));
+        node.type == Node::Text ||
+        (node.type == Node::Shape && (style.fill.kind == PaintSpec::None || style.stroke.kind == PaintSpec::None));
     if (!clip && (opacity >= 1.0 || single || ctx.depth >= kMaxNesting)) {
         drawContent(node, cm, style, opacity, ctx);
         return;
@@ -1152,13 +1247,12 @@ void Document::renderNode(const Node &node, const Mat &m, const Style &inherited
         drawContent(node, Mat(), style, 1.0, measuring);
         km = km * Mat{box.width(), 0.0, 0.0, box.height(), box.x0, box.y0};
     }
-    drawClip(*clip, km, masking, 0);
+    drawClip(*clip, km, masking);
     ctx.budget = masking.budget;
     ctx.surface->composite(layer, opacity, &mask);
 }
 
-void Document::drawClip(const Node &clip, const Mat &m, Context &ctx, int depth) const {
-    (void)depth;
+void Document::drawClip(const Node &clip, const Mat &m, Context &ctx) const {
     Style style = inheritedStyle(&clip);
     clip.style.applyTo(style);
     const Mat cm = m * clip.transform;
@@ -1232,7 +1326,8 @@ bool Document::shaderFor(const PaintSpec &paint, const Style &style, double opac
             } else {
                 out->p1 = {resolve(g.cx, 0.5, vw), resolve(g.cy, 0.5, vh)};
                 out->radius = resolve(g.r, 0.5, std::sqrt((vw * vw + vh * vh) / 2.0));
-                out->p2 = {g.fx.set ? resolve(g.fx, 0.5, vw) : out->p1.x, g.fy.set ? resolve(g.fy, 0.5, vh) : out->p1.y};
+                out->p2 = {g.fx.set ? resolve(g.fx, 0.5, vw) : out->p1.x,
+                           g.fy.set ? resolve(g.fy, 0.5, vh) : out->p1.y};
                 // A focal point outside the circle is moved onto it.
                 const double dx = out->p2.x - out->p1.x, dy = out->p2.y - out->p1.y;
                 const double distance = std::hypot(dx, dy);
@@ -1371,7 +1466,7 @@ void Document::drawText(const Node &node, const Mat &m, const Style &style, doub
                         continue;
                     }
                 }
-                const auto channel = [](double v) { return static_cast<int>(clamp01(v) * 255.0 + 0.5); };
+                const auto channel = [](double v) { return static_cast<int>(std::lround(clamp01(v) * 255.0)); };
                 QImage image(reinterpret_cast<uchar *>(ctx.surface->pixels.data()), ctx.surface->width,
                              ctx.surface->height, QImage::Format_ARGB32_Premultiplied);
                 QPainter painter(&image);

@@ -76,7 +76,8 @@ static bool rectIs(const QRectF &r, double x, double y, double w, double h, doub
     const bool ok = std::fabs(r.x() - x) <= tolerance && std::fabs(r.y() - y) <= tolerance &&
                     std::fabs(r.width() - w) <= tolerance && std::fabs(r.height() - h) <= tolerance;
     if (!ok)
-        std::printf("  rectangle is %g,%g %gx%g, expected %g,%g %gx%g\n", r.x(), r.y(), r.width(), r.height(), x, y, w, h);
+        std::printf("  rectangle is %g,%g %gx%g, expected %g,%g %gx%g\n", r.x(), r.y(), r.width(), r.height(), x, y, w,
+                    h);
     return ok;
 }
 
@@ -110,10 +111,27 @@ static void testXml() {
     CHECK(parse("<a><b></b></a>") != nullptr);
     CHECK(parse("<a b='1' />") != nullptr);
     // Not well formed.
-    for (const char *bad :
-         {"", "text", "<a>", "<a></b>", "<a><b></a></b>", "<a b></a>", "<a b=1></a>", "<a b='1' b='2'/>",
-          "<a b='1'c='2'/>", "<a b='<'/>", "<a/><b/>", "<a/>trailing", "<a><!-- open</a>", "<a><![CDATA[ open</a>",
-          "<a b='open/>", "<!DOCTYPE a [", "<", "<a", "<a/", "<a><?pi</a>", "</a>"})
+    for (const char *bad : {"",
+                            "text",
+                            "<a>",
+                            "<a></b>",
+                            "<a><b></a></b>",
+                            "<a b></a>",
+                            "<a b=1></a>",
+                            "<a b='1' b='2'/>",
+                            "<a b='1'c='2'/>",
+                            "<a b='<'/>",
+                            "<a/><b/>",
+                            "<a/>trailing",
+                            "<a><!-- open</a>",
+                            "<a><![CDATA[ open</a>",
+                            "<a b='open/>",
+                            "<!DOCTYPE a [",
+                            "<",
+                            "<a",
+                            "<a/",
+                            "<a><?pi</a>",
+                            "</a>"})
         CHECK(parse(bad) == nullptr);
     // Character references that are not characters are replaced.
     root = parse("<a b='&#0;&#xd800;&#x110000;&#;&#xZ;'/>");
@@ -573,10 +591,11 @@ static void testPaint() {
     // an id is worth more than a class, a class more than an element name, whatever the order.
     CHECK(rgb(pixel(full + "fill='red' style='fill: blue; stroke:none'/>"), 0, 0, 255));
     CHECK(rgb(pixel(full + "style='fill:#0f0 !important;'/>"), 0, 255, 0));
-    const std::string css = "<style type='text/css'><![CDATA[ /* a comment */ #x { fill: #f00 } .a, .b { fill: #00f; }\n"
-                            " rect { fill: #0f0 } g > rect { fill: black } rect.a.wide { fill: #ff0 }\n"
-                            " @media print { rect { fill: black } } circle:hover { fill: black } ]]></style>"
-                            "<style type='text/x-other'>rect { fill: black }</style>";
+    const std::string css =
+        "<style type='text/css'><![CDATA[ /* a comment */ #x { fill: #f00 } .a, .b { fill: #00f; }\n"
+        " rect { fill: #0f0 } g > rect { fill: black } rect.a.wide { fill: #ff0 }\n"
+        " @media print { rect { fill: black } } circle:hover { fill: black } ]]></style>"
+        "<style type='text/x-other'>rect { fill: black }</style>";
     CHECK(rgb(pixel(css + full + "/>"), 0, 255, 0));
     CHECK(rgb(pixel(css + full + "fill='red'/>"), 0, 255, 0));
     CHECK(rgb(pixel(css + full + "class='a'/>"), 0, 0, 255));
@@ -607,7 +626,8 @@ static void testGradients() {
     // Percentages, stop offsets in percent, colors and opacity from the style attribute.
     i = row("<linearGradient id='g' x1='25%' x2='75%'><stop offset='0%' style='stop-color:red'/>"
             "<stop offset='100%' style='stop-color:blue;stop-opacity:0.5'/></linearGradient>");
-    CHECK(rgb(i.pixel(10, 5), 255, 0, 0) && rgb(i.pixel(50, 5), 158, 65, 162, 6) && rgb(i.pixel(90, 5), 127, 127, 255, 3));
+    CHECK(rgb(i.pixel(10, 5), 255, 0, 0) && rgb(i.pixel(50, 5), 158, 65, 162, 6) &&
+          rgb(i.pixel(90, 5), 127, 127, 255, 3));
     // User space, a transformation, and vertical.
     i = row("<linearGradient id='g' gradientUnits='userSpaceOnUse' x1='0' x2='10' "
             "gradientTransform='translate(20) scale(4 1)'>" +
@@ -644,9 +664,10 @@ static void testGradients() {
 
     // Radial: from the center out.
     const auto disc = [&](const std::string &attributes) {
-        return draw(doc("width='100' height='100'", "<radialGradient id='g' " + attributes + ">" + stops +
-                                                        "</radialGradient><rect width='100' height='100' fill='url(#g)'/>"),
-                    100, 100);
+        return draw(
+            doc("width='100' height='100'", "<radialGradient id='g' " + attributes + ">" + stops +
+                                                "</radialGradient><rect width='100' height='100' fill='url(#g)'/>"),
+            100, 100);
     };
     i = disc("");
     CHECK(gray(i.pixel(50, 50), 3) && gray(i.pixel(75, 50), 130, 5) && gray(i.pixel(50, 25), 125, 5));
@@ -659,12 +680,14 @@ static void testGradients() {
     i = disc("fx='5'");
     CHECK(qRed(i.pixel(95, 50)) < 80 && qRed(i.pixel(3, 50)) > 220);
     // A gradient on a stroke, and a bounding box without an area, which paints nothing.
-    i = draw(doc("width='100' height='10'", "<linearGradient id='g'>" + stops +
-                                                "</linearGradient><path d='M0 5 H100 M0 5 V6' stroke='url(#g)' stroke-width='10'/>"),
+    i = draw(doc("width='100' height='10'",
+                 "<linearGradient id='g'>" + stops +
+                     "</linearGradient><path d='M0 5 H100 M0 5 V6' stroke='url(#g)' stroke-width='10'/>"),
              100, 10);
     CHECK(gray(i.pixel(50, 5), 129));
-    i = draw(doc("width='100' height='10'", "<linearGradient id='g'>" + stops +
-                                                "</linearGradient><line x1='0' y1='5' x2='100' y2='5' stroke='url(#g)' stroke-width='10'/>"),
+    i = draw(doc("width='100' height='10'",
+                 "<linearGradient id='g'>" + stops +
+                     "</linearGradient><line x1='0' y1='5' x2='100' y2='5' stroke='url(#g)' stroke-width='10'/>"),
              100, 10);
     CHECK(isWhite(i.pixel(50, 5)));
 }
@@ -700,7 +723,8 @@ static void testStrokes() {
     // A sharp turn back, in both directions, with every join.
     for (const char *join : {"miter", "round", "bevel"}) {
         i = drawn(std::string("<path d='M5 5 H30 L5 9 M35 18 V12 L33 18' fill='none' stroke='black' stroke-width='2' "
-                              "stroke-linejoin='") + join + "'/>");
+                              "stroke-linejoin='") +
+                  join + "'/>");
         CHECK(black(i.pixel(20, 4)) && black(i.pixel(29, 5)) && isWhite(i.pixel(20, 12)));
     }
     // A closed path has a join at its start too, and no caps.
@@ -726,7 +750,8 @@ static void testStrokes() {
     // Dashes with caps, around a closed shape, and a pattern far too fine to draw, which still ends.
     i = drawn(line + "stroke-dasharray='0 10' stroke-linecap='round'/>");
     CHECK(black(i.pixel(10, 10)) && black(i.pixel(20, 9)) && isWhite(i.pixel(15, 10)));
-    i = drawn("<rect x='5' y='5' width='30' height='10' fill='none' stroke='black' stroke-width='2' stroke-dasharray='5'/>");
+    i = drawn(
+        "<rect x='5' y='5' width='30' height='10' fill='none' stroke='black' stroke-width='2' stroke-dasharray='5'/>");
     CHECK(black(i.pixel(7, 5)) && isWhite(i.pixel(12, 5)) && black(i.pixel(17, 5)));
     i = drawn(line + "stroke-dasharray='0.0000001'/>");
     CHECK(i.width() == 40);
@@ -735,9 +760,12 @@ static void testStrokes() {
     i = drawn("<g transform='scale(1 4)'><line x1='0' y1='2.5' x2='40' y2='2.5' stroke='black' stroke-width='1'/></g>");
     CHECK(black(i.pixel(20, 8)) && black(i.pixel(20, 11)) && isWhite(i.pixel(20, 7)) && isWhite(i.pixel(20, 12)));
     // A curve is stroked evenly: a ring is as wide all the way around.
-    i = draw(doc("width='40' height='40'", "<circle cx='20' cy='20' r='14' fill='none' stroke='black' stroke-width='6'/>"), 40, 40);
+    i = draw(
+        doc("width='40' height='40'", "<circle cx='20' cy='20' r='14' fill='none' stroke='black' stroke-width='6'/>"),
+        40, 40);
     CHECK(black(i.pixel(20, 4)) && black(i.pixel(34, 20)) && black(i.pixel(10, 10)) && black(i.pixel(29, 29)));
-    CHECK(isWhite(i.pixel(20, 20)) && isWhite(i.pixel(20, 10)) && isWhite(i.pixel(20, 1)) && isWhite(i.pixel(13, 13)) && isWhite(i.pixel(7, 7)));
+    CHECK(isWhite(i.pixel(20, 20)) && isWhite(i.pixel(20, 10)) && isWhite(i.pixel(20, 1)) && isWhite(i.pixel(13, 13)) &&
+          isWhite(i.pixel(7, 7)));
 }
 
 static void testStructure() {
@@ -774,11 +802,13 @@ static void testStructure() {
               "<use href='#s' x='10' y='10'/><use href='#r' y='20'/>");
     CHECK(isWhite(i.pixel(5, 5)) && black(i.pixel(15, 15)) && black(i.pixel(22, 2)) && black(i.pixel(22, 22)));
     // A nested document fits its view box into its viewport, centered.
-    i = drawn("<svg x='10' y='10' width='20' height='10' viewBox='0 0 2 2'><rect width='2' height='2' fill='red'/></svg>");
+    i = drawn(
+        "<svg x='10' y='10' width='20' height='10' viewBox='0 0 2 2'><rect width='2' height='2' fill='red'/></svg>");
     CHECK(rgb(i.pixel(20, 15), 255, 0, 0) && rgb(i.pixel(16, 11), 255, 0, 0) && isWhite(i.pixel(13, 15)) &&
           isWhite(i.pixel(26, 15)) && isWhite(i.pixel(20, 21)));
     // Links are groups; elements that are not known are not drawn, nor what is in them.
-    i = drawn("<a href='https://example.org'><rect width='5' height='5'/></a><switch><rect x='10' width='5' height='5'/></switch>"
+    i = drawn("<a href='https://example.org'><rect width='5' height='5'/></a><switch><rect x='10' width='5' "
+              "height='5'/></switch>"
               "<mask><rect x='20' width='5' height='5'/></mask><foo><rect x='20' width='5' height='5'/></foo>"
               "<title>t</title><metadata><x:y xmlns:x='x'/></metadata><svg:rect xmlns:svg='http://www.w3.org/2000/svg' "
               "y='10' width='5' height='5'/>");
@@ -795,7 +825,8 @@ static void testStructure() {
     i = drawn("<clipPath id='c' transform='translate(20)'><rect width='10' height='40' transform='translate(5)'/>"
               "<use href='#r'/></clipPath><defs><rect id='r' y='30' width='20' height='10'/></defs>"
               "<g transform='translate(0 -5)' clip-path='url(#c)'><rect width='40' height='45' fill='red'/></g>");
-    CHECK(rgb(i.pixel(30, 10), 255, 0, 0) && isWhite(i.pixel(22, 10)) && isWhite(i.pixel(36, 10)) && rgb(i.pixel(22, 30), 255, 0, 0));
+    CHECK(rgb(i.pixel(30, 10), 255, 0, 0) && isWhite(i.pixel(22, 10)) && isWhite(i.pixel(36, 10)) &&
+          rgb(i.pixel(22, 30), 255, 0, 0));
     i = drawn("<clipPath id='c'><path d='M0 0 H40 V40 H0 Z M10 10 H30 V30 H10 Z' clip-rule='evenodd'/></clipPath>"
               "<rect width='40' height='40' clip-path='url(#c)'/>");
     CHECK(black(i.pixel(5, 5)) && isWhite(i.pixel(20, 20)));
@@ -830,7 +861,8 @@ static void testText() {
     const QImage end = drawn("<text x='110' y='30' font-size='24' text-anchor='end'>HH</text>");
     CHECK(ink(end, 110, 120) == 0 && ink(end, 60, 110) > 40 && ink(end, 0, 20) == 0);
     const QImage middle = drawn("<text x='60' y='30' font-size='24' style='text-anchor:middle'>HH</text>");
-    CHECK(ink(middle, 30, 60) > 20 && ink(middle, 60, 90) > 20 && std::abs(ink(middle, 30, 60) - ink(middle, 60, 90)) < 30);
+    CHECK(ink(middle, 30, 60) > 20 && ink(middle, 60, 90) > 20 &&
+          std::abs(ink(middle, 30, 60) - ink(middle, 60, 90)) < 30);
     const QImage big = draw(doc("width='120' height='40'", "<text x='10' y='30' font-size='24'>HH</text>"), 240, 80);
     CHECK(ink(big, 0, 240) > 3 * ink(i, 0, 120));
     // Runs, colors, positions of their own, and white space.
@@ -847,7 +879,8 @@ static void testText() {
     }
     CHECK(red && blue && lower);
     // Text has bounds, and nothing is drawn of text that is hidden or has no fill.
-    QSvgRenderer r(doc("width='120' height='40'", "<text id='t' x='10' y='30' font-size='24'>HH</text><text id='e'></text>"));
+    QSvgRenderer r(
+        doc("width='120' height='40'", "<text id='t' x='10' y='30' font-size='24'>HH</text><text id='e'></text>"));
     const QRectF bounds = r.boundsOnElement("t");
     CHECK(bounds.x() == 10.0 && bounds.width() > 15.0 && bounds.y() < 15.0 && bounds.y() + bounds.height() >= 30.0);
     CHECK(r.boundsOnElement("e").isNull());
@@ -866,7 +899,8 @@ static void testRenderBounds() {
     r.setAspectRatioMode(Qt::KeepAspectRatio);
     CHECK(r.aspectRatioMode() == Qt::KeepAspectRatio);
     i = draw(r, 40, 20);
-    CHECK(isWhite(i.pixel(9, 10)) && rgb(i.pixel(10, 0), 255, 0, 0) && rgb(i.pixel(29, 19), 255, 0, 0) && isWhite(i.pixel(30, 10)));
+    CHECK(isWhite(i.pixel(9, 10)) && rgb(i.pixel(10, 0), 255, 0, 0) && rgb(i.pixel(29, 19), 255, 0, 0) &&
+          isWhite(i.pixel(30, 10)));
     r.setAspectRatioMode(Qt::KeepAspectRatioByExpanding);
     i = draw(r, 40, 20);
     CHECK(rgb(i.pixel(0, 0), 255, 0, 0) && rgb(i.pixel(39, 19), 255, 0, 0));
@@ -880,7 +914,8 @@ static void testRenderBounds() {
         r.render(&painter, QRectF(0, 0, -5, 5));
     }
     CHECK(rgb(image.pixel(10, 10), 255, 0, 0) && rgb(image.pixel(29, 19), 255, 0, 0));
-    CHECK(isWhite(image.pixel(9, 15)) && isWhite(image.pixel(30, 15)) && isWhite(image.pixel(20, 9)) && isWhite(image.pixel(20, 20)));
+    CHECK(isWhite(image.pixel(9, 15)) && isWhite(image.pixel(30, 15)) && isWhite(image.pixel(20, 9)) &&
+          isWhite(image.pixel(20, 20)));
     // Bounds between pixels are antialiased, and the translation of the painter applies.
     r.setAspectRatioMode(Qt::IgnoreAspectRatio);
     image.fill(Qt::white);
@@ -889,10 +924,13 @@ static void testRenderBounds() {
         painter.translate(10, 0);
         r.render(&painter, QRectF(2.5, 2.5, 5, 5));
     }
-    CHECK(rgb(image.pixel(12, 5), 255, 127, 127, 3) && rgb(image.pixel(13, 5), 255, 0, 0) && rgb(image.pixel(17, 5), 255, 127, 127, 3));
+    CHECK(rgb(image.pixel(12, 5), 255, 127, 127, 3) && rgb(image.pixel(13, 5), 255, 0, 0) &&
+          rgb(image.pixel(17, 5), 255, 127, 127, 3));
     CHECK(rgb(image.pixel(12, 2), 255, 191, 191, 3) && isWhite(image.pixel(11, 5)) && isWhite(image.pixel(3, 5)));
     // The view box can be changed, and a new document resets it.
-    QSvgRenderer quarters(doc("viewBox='0 0 10 10'", "<rect width='5' height='5' fill='red'/><rect x='5' y='5' width='5' height='5' fill='blue'/>"));
+    QSvgRenderer quarters(
+        doc("viewBox='0 0 10 10'",
+            "<rect width='5' height='5' fill='red'/><rect x='5' y='5' width='5' height='5' fill='blue'/>"));
     quarters.setViewBox(QRectF(5, 5, 5, 5));
     CHECK(quarters.viewBoxF() == QRectF(5, 5, 5, 5));
     CHECK(rgb(draw(quarters, 10, 10).pixel(2, 2), 0, 0, 255));
@@ -923,12 +961,13 @@ static void testRenderBounds() {
 }
 
 static void testElements() {
-    QSvgRenderer r(doc("width='200' height='100'",
-                       "<g id='grp' transform='translate(100,0)'><rect id='a' x='10' y='20' width='30' height='40' fill='red'/>"
-                       "<rect id='s' x='10' y='20' width='30' height='40' stroke='black' stroke-width='2'/>"
-                       "<circle id='c' cx='20' cy='20' r='10' transform='scale(2)'/></g>"
-                       "<defs><rect id='d' width='8' height='8' fill='blue'/></defs><g id='empty'/>"
-                       "<g fill='lime'><rect id='inherits' width='5' height='5'/></g><rect id='a' width='1' height='1'/>"));
+    QSvgRenderer r(
+        doc("width='200' height='100'",
+            "<g id='grp' transform='translate(100,0)'><rect id='a' x='10' y='20' width='30' height='40' fill='red'/>"
+            "<rect id='s' x='10' y='20' width='30' height='40' stroke='black' stroke-width='2'/>"
+            "<circle id='c' cx='20' cy='20' r='10' transform='scale(2)'/></g>"
+            "<defs><rect id='d' width='8' height='8' fill='blue'/></defs><g id='empty'/>"
+            "<g fill='lime'><rect id='inherits' width='5' height='5'/></g><rect id='a' width='1' height='1'/>"));
     CHECK(r.elementExists("a") && r.elementExists("grp") && r.elementExists("d") && r.elementExists("empty"));
     CHECK(!r.elementExists("nope") && !r.elementExists(""));
     CHECK(rectIs(r.boundsOnElement("a"), 10, 20, 30, 40)); // the first of two with the same id
@@ -948,7 +987,8 @@ static void testElements() {
         r.render(&painter, "nope", QRectF(20, 20, 10, 10));
         r.render(&painter, "empty", QRectF(20, 20, 10, 10));
     }
-    CHECK(rgb(image.pixel(0, 0), 255, 0, 0) && rgb(image.pixel(9, 19), 255, 0, 0) && isWhite(image.pixel(10, 10)) && isWhite(image.pixel(5, 20)));
+    CHECK(rgb(image.pixel(0, 0), 255, 0, 0) && rgb(image.pixel(9, 19), 255, 0, 0) && isWhite(image.pixel(10, 10)) &&
+          isWhite(image.pixel(5, 20)));
     CHECK(rgb(image.pixel(20, 0), 0, 0, 255) && rgb(image.pixel(39, 9), 0, 0, 255) && isWhite(image.pixel(30, 10)));
     CHECK(rgb(image.pixel(5, 35), 0, 255, 0));
     CHECK(isWhite(image.pixel(25, 25)));
@@ -1003,19 +1043,27 @@ static void testRobustness() {
     }
     CHECK(survive(doc("width='20' height='20'", nested + "<rect width='20' height='20'/>" + close)));
     // Numbers without sense.
-    CHECK(survive(doc("width='1e300' height='1e300' viewBox='0 0 1e-300 1e300'", "<rect width='1e300' height='1e300'/>")));
-    CHECK(survive(doc("viewBox='0 0 20 20'", "<path id='a' d='M-1e30 -1e30 L1e30 1e30 L1e30 -1e30 Z A1e308 1e308 0 0 0 5 5'/>")));
+    CHECK(survive(
+        doc("width='1e300' height='1e300' viewBox='0 0 1e-300 1e300'", "<rect width='1e300' height='1e300'/>")));
+    CHECK(survive(
+        doc("viewBox='0 0 20 20'", "<path id='a' d='M-1e30 -1e30 L1e30 1e30 L1e30 -1e30 Z A1e308 1e308 0 0 0 5 5'/>")));
     CHECK(survive(doc("viewBox='0 0 20 20'", "<circle id='a' cx='10' cy='10' r='1e20' stroke='red' stroke-width='1e20' "
                                              "stroke-dasharray='1e-20 1e20'/>")));
-    CHECK(survive(doc("viewBox='0 0 20 20'", "<rect width='20' height='20' transform='matrix(1e200 1e200 1e200 1e200 0 0) "
-                                             "scale(1e200) rotate(1e30) skewX(90)'/>")));
-    CHECK(survive(doc("viewBox='0 0 20 20'", "<linearGradient id='g' x1='1e300' x2='-1e300' gradientTransform='scale(1e-200)'>"
-                                             "<stop/><stop offset='1'/></linearGradient><rect id='a' width='20' height='20' fill='url(#g)'/>")));
-    CHECK(survive(doc("viewBox='0 0 20 20'", "<text id='a' x='1e300' y='nan' font-size='1e300' transform='scale(1e100)'>x</text>")));
-    CHECK(survive(doc("viewBox='0 0 20 20'", "<svg width='1e-300' height='0' viewBox='0 0 1 1'><rect width='1' height='1'/></svg>")));
+    CHECK(survive(doc("viewBox='0 0 20 20'",
+                      "<rect width='20' height='20' transform='matrix(1e200 1e200 1e200 1e200 0 0) "
+                      "scale(1e200) rotate(1e30) skewX(90)'/>")));
+    CHECK(
+        survive(doc("viewBox='0 0 20 20'",
+                    "<linearGradient id='g' x1='1e300' x2='-1e300' gradientTransform='scale(1e-200)'>"
+                    "<stop/><stop offset='1'/></linearGradient><rect id='a' width='20' height='20' fill='url(#g)'/>")));
+    CHECK(survive(doc("viewBox='0 0 20 20'",
+                      "<text id='a' x='1e300' y='nan' font-size='1e300' transform='scale(1e100)'>x</text>")));
+    CHECK(survive(doc("viewBox='0 0 20 20'",
+                      "<svg width='1e-300' height='0' viewBox='0 0 1 1'><rect width='1' height='1'/></svg>")));
     // Style sheets and attributes that end early.
-    CHECK(survive(doc("", "<style>rect { fill: red</style><style>/* open</style><style>}{}{{</style>"
-                          "<rect width='5' height='5' style=':;;:;fill' transform='translate(' fill='url(' class=' '/>")));
+    CHECK(survive(doc("",
+                      "<style>rect { fill: red</style><style>/* open</style><style>}{}{{</style>"
+                      "<rect width='5' height='5' style=':;;:;fill' transform='translate(' fill='url(' class=' '/>")));
     // Every prefix of a document either fails to load or draws.
     const QByteArray whole = doc("width='20' height='20'",
                                  "<defs><linearGradient id='g'><stop offset='0'/></linearGradient></defs>"
@@ -1086,18 +1134,23 @@ static void testGenerator() {
     generator.setResolution(0);
     CHECK(generator.title() == "A <title> & more" && generator.description() == "\"desc\"");
     CHECK(generator.resolution() == 96 && generator.size() == QSize(60, 40));
-    CHECK(generator.width() == 60 && generator.height() == 40 && generator.logicalDpiX() == 96 && generator.logicalDpiY() == 96);
+    CHECK(generator.width() == 60 && generator.height() == 40 && generator.logicalDpiX() == 96 &&
+          generator.logicalDpiY() == 96);
     CHECK(generator.widthMM() == 16 && generator.heightMM() == 11 && generator.depth() == 32);
     CHECK(generator.paintEngine() && generator.paintEngine()->type() == QPaintEngine::User);
 
     const QByteArray svg = generate(generator, paintScene);
-    CHECK(svg.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n<svg width=\"15.875mm\" height=\"10.583mm\" viewBox=\"0 0 60 40\""));
+    CHECK(svg.startsWith("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n<svg width=\"15.875mm\" "
+                         "height=\"10.583mm\" viewBox=\"0 0 60 40\""));
     CHECK(svg.contains("version=\"1.2\" baseProfile=\"tiny\""));
     CHECK(svg.contains("<title>A &lt;title&gt; &amp; more</title>") && svg.contains("<desc>&quot;desc&quot;</desc>"));
     CHECK(svg.contains("<rect x=\"0\" y=\"0\" width=\"60\" height=\"40\" fill=\"#f0f0c8\"/>"));
-    CHECK(svg.contains("<rect x=\"5.5\" y=\"5.5\" width=\"20\" height=\"12\" fill=\"none\" stroke=\"#0000a0\" stroke-width=\"3\"/>"));
-    CHECK(svg.contains("<line x1=\"2.5\" y1=\"30.5\" x2=\"40.5\" y2=\"30.5\" stroke=\"#007800\" stroke-width=\"1\" stroke-linecap=\"square\"/>"));
-    CHECK(svg.contains("fill=\"#ff0000\" fill-opacity=\"0.5\"") && svg.contains("fill=\"#000000\" fill-opacity=\"0.502\""));
+    CHECK(svg.contains(
+        "<rect x=\"5.5\" y=\"5.5\" width=\"20\" height=\"12\" fill=\"none\" stroke=\"#0000a0\" stroke-width=\"3\"/>"));
+    CHECK(svg.contains("<line x1=\"2.5\" y1=\"30.5\" x2=\"40.5\" y2=\"30.5\" stroke=\"#007800\" stroke-width=\"1\" "
+                       "stroke-linecap=\"square\"/>"));
+    CHECK(svg.contains("fill=\"#ff0000\" fill-opacity=\"0.5\"") &&
+          svg.contains("fill=\"#000000\" fill-opacity=\"0.502\""));
     CHECK(svg.contains("<rect x=\"55\" y=\"1\" width=\"4\" height=\"4\"")); // the translation of the painter
     CHECK(svg.endsWith("</svg>\n") && !svg.contains("clipPath"));
 
@@ -1115,7 +1168,8 @@ static void testGenerator() {
     for (int y = 0; y < 40; ++y) {
         for (int x = 0; x < 60; ++x) {
             const QRgb a = painted.pixel(x, y), b = rendered.pixel(x, y);
-            if (std::abs(qRed(a) - qRed(b)) > 2 || std::abs(qGreen(a) - qGreen(b)) > 2 || std::abs(qBlue(a) - qBlue(b)) > 2) {
+            if (std::abs(qRed(a) - qRed(b)) > 2 || std::abs(qGreen(a) - qGreen(b)) > 2 ||
+                std::abs(qBlue(a) - qBlue(b)) > 2) {
                 if (++different < 5)
                     std::printf("  (%d,%d) painted %08x rendered %08x\n", x, y, a, b);
             }
@@ -1138,7 +1192,8 @@ static void testGenerator() {
         painter.setPen(Qt::NoPen);
         painter.drawEllipse(0, 0, 40, 20);
     });
-    CHECK(ellipses.contains("<ellipse cx=\"10\" cy=\"10\" rx=\"9\" ry=\"9\" fill=\"#ff0000\" stroke=\"#000000\" stroke-width=\"2\"/>"));
+    CHECK(ellipses.contains(
+        "<ellipse cx=\"10\" cy=\"10\" rx=\"9\" ry=\"9\" fill=\"#ff0000\" stroke=\"#000000\" stroke-width=\"2\"/>"));
     CHECK(ellipses.contains("<ellipse cx=\"30\" cy=\"10\" rx=\"10\" ry=\"5\" fill=\"#ff0000\"/>"));
     CHECK(ellipses.contains("<ellipse cx=\"2\" cy=\"2\" rx=\"2\" ry=\"2\" fill=\"#0000ff\"/>"));
     CHECK(occurrences(ellipses, "<ellipse") == 3);
@@ -1177,15 +1232,19 @@ static void testGenerator() {
     // The 2 by 2 image: the PNG signature and header, in base64.
     CHECK(withImages.contains("<image x=\"4\" y=\"4\" width=\"8\" height=\"8\" preserveAspectRatio=\"none\" "
                               "xlink:href=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0k"));
-    CHECK(withImages.contains("<image x=\"20\" y=\"4\" width=\"1\" height=\"2\" preserveAspectRatio=\"none\" opacity=\"0.25\""));
+    CHECK(withImages.contains(
+        "<image x=\"20\" y=\"4\" width=\"1\" height=\"2\" preserveAspectRatio=\"none\" opacity=\"0.25\""));
     QFont font;
     const bool fonts = QFontMetrics(font).horizontalAdvance(QString("Text")) > 0;
     CHECK(fonts ? occurrences(withImages, "<image") >= 3 : occurrences(withImages, "<image") == 2);
-    CHECK(withImages.contains("<clipPath id=\"clip1\"><rect x=\"2\" y=\"2\" width=\"10\" height=\"10\"/></clipPath>\n<g clip-path=\"url(#clip1)\">"));
-    CHECK(occurrences(withImages, "<clipPath") == 2 && occurrences(withImages, "</g>") == 2 && occurrences(withImages, "<g ") == 2);
+    CHECK(withImages.contains("<clipPath id=\"clip1\"><rect x=\"2\" y=\"2\" width=\"10\" "
+                              "height=\"10\"/></clipPath>\n<g clip-path=\"url(#clip1)\">"));
+    CHECK(occurrences(withImages, "<clipPath") == 2 && occurrences(withImages, "</g>") == 2 &&
+          occurrences(withImages, "<g ") == 2);
     CHECK(withImages.indexOf("fill=\"#070809\"") > withImages.lastIndexOf("</g>"));
     const QImage clipped = draw(withImages, 80, 40);
-    CHECK(rgb(clipped.pixel(1, 1), 4, 5, 6) && rgb(clipped.pixel(8, 8), 1, 2, 3) && rgb(clipped.pixel(11, 11), 4, 5, 6));
+    CHECK(rgb(clipped.pixel(1, 1), 4, 5, 6) && rgb(clipped.pixel(8, 8), 1, 2, 3) &&
+          rgb(clipped.pixel(11, 11), 4, 5, 6));
     CHECK(isWhite(clipped.pixel(14, 14)) && isWhite(clipped.pixel(40, 20)) && rgb(clipped.pixel(75, 35), 7, 8, 9));
     // SVG Tiny has no clipping.
     QSvgGenerator tinyClip;
@@ -1238,14 +1297,15 @@ static void testWidget() {
     widget.setOptions(QtSvg::Tiny12FeaturesOnly);
     CHECK(widget.options() == QtSvg::Options(QtSvg::Tiny12FeaturesOnly));
     CHECK(widget.renderer()->options() == QtSvg::Options(QtSvg::Tiny12FeaturesOnly));
-    widget.load(doc("width='30' height='20'", "<rect width='15' height='20' fill='red'/><rect x='15' width='15' height='20' fill='blue'/>"));
+    widget.load(doc("width='30' height='20'",
+                    "<rect width='15' height='20' fill='red'/><rect x='15' width='15' height='20' fill='blue'/>"));
     CHECK(widget.renderer()->isValid() && widget.sizeHint() == QSize(30, 20));
     widget.resize(60, 40);
     QImage image(60, 40, QImage::Format_RGB32);
     image.fill(Qt::white);
     widget.render(&image);
-    CHECK(rgb(image.pixel(5, 5), 255, 0, 0) && rgb(image.pixel(29, 39), 255, 0, 0) && rgb(image.pixel(30, 0), 0, 0, 255) &&
-          rgb(image.pixel(59, 39), 0, 0, 255));
+    CHECK(rgb(image.pixel(5, 5), 255, 0, 0) && rgb(image.pixel(29, 39), 255, 0, 0) &&
+          rgb(image.pixel(30, 0), 0, 0, 255) && rgb(image.pixel(59, 39), 0, 0, 255));
     widget.renderer()->setAspectRatioMode(Qt::KeepAspectRatio);
     widget.resize(60, 80);
     QImage tall(60, 80, QImage::Format_RGB32);

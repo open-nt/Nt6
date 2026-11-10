@@ -145,8 +145,7 @@ private:
                 return;
             }
             out.append(from, amp);
-            const char *semi =
-                static_cast<const char *>(std::memchr(amp, ';', static_cast<std::size_t>(to - amp)));
+            const char *semi = static_cast<const char *>(std::memchr(amp, ';', static_cast<std::size_t>(to - amp)));
             if (!semi || semi - amp > 12) {
                 out += '&';
                 from = amp + 1;

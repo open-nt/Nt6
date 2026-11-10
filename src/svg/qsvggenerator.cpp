@@ -55,7 +55,7 @@ std::string number(double v) {
         v = 0.0;
     const bool negative = v < 0.0;
     const double clamped = std::min(std::fabs(v), 1e15);
-    const auto thousandths = static_cast<long long>(clamped * 1000.0 + 0.5);
+    const auto thousandths = std::llround(clamped * 1000.0);
     std::string out = std::to_string(thousandths / 1000);
     int fraction = static_cast<int>(thousandths % 1000);
     if (fraction != 0) {
@@ -207,8 +207,8 @@ public:
         std::string head = "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n<svg";
         if (s.size.isValid()) {
             const double mm = 25.4 / std::max(1, s.resolution);
-            head += " width=\"" + number(s.size.width() * mm) + "mm\" height=\"" + number(s.size.height() * mm) +
-                    "mm\"";
+            head +=
+                " width=\"" + number(s.size.width() * mm) + "mm\" height=\"" + number(s.size.height() * mm) + "mm\"";
         }
         QRectF box = s.viewBox;
         if (box.isEmpty() && s.size.isValid())
@@ -274,11 +274,11 @@ public:
             const QRect r = rects[i].normalized();
             if (brush.style() != Qt::NoBrush) {
                 // Inside the outline, as the raster engine fills it.
-                const QRect area = stroke ? QRect(r.x() - half + pw, r.y() - half + pw, r.width() - pw, r.height() - pw)
-                                          : r;
+                const QRect area =
+                    stroke ? QRect(r.x() - half + pw, r.y() - half + pw, r.width() - pw, r.height() - pw) : r;
                 if (!area.isEmpty())
-                    out += "<rect" + box(area.x(), area.y(), area.width(), area.height()) + fill(brush.color()) +
-                           "/>\n";
+                    out +=
+                        "<rect" + box(area.x(), area.y(), area.width(), area.height()) + fill(brush.color()) + "/>\n";
             }
             if (stroke) {
                 // The outline covers `pw` pixels around the rectangle; its center line is what SVG strokes.
@@ -295,12 +295,13 @@ public:
         if (pen.style() == Qt::NoPen)
             return;
         const int pw = std::max(1, pen.width());
-        const double c = pw / 2.0 - (pw - 1) / 2;
+        const int half = (pw - 1) / 2;
+        const double c = pw / 2.0 - half;
         std::string out;
         for (int i = 0; i < lineCount; ++i) {
             out += "<line x1=\"" + number(lines[i].x1() + c) + "\" y1=\"" + number(lines[i].y1() + c) + "\" x2=\"" +
-                   number(lines[i].x2() + c) + "\" y2=\"" + number(lines[i].y2() + c) + "\"" +
-                   stroke(pen.color(), pw) + " stroke-linecap=\"square\"/>\n";
+                   number(lines[i].x2() + c) + "\" y2=\"" + number(lines[i].y2() + c) + "\"" + stroke(pen.color(), pw) +
+                   " stroke-linecap=\"square\"/>\n";
         }
         write(out);
     }
@@ -409,8 +410,8 @@ private:
     void writeImage(const QRect &target, const QImage &image, qreal opacity) {
         const std::string png = encodePng(image);
         const QByteArray base64 = QByteArray(png.data(), static_cast<qsizetype>(png.size())).toBase64();
-        std::string out = "<image" + box(target.x(), target.y(), target.width(), target.height()) +
-                          " preserveAspectRatio=\"none\"";
+        std::string out =
+            "<image" + box(target.x(), target.y(), target.width(), target.height()) + " preserveAspectRatio=\"none\"";
         if (opacity < 1.0)
             out += " opacity=\"" + number(std::max<qreal>(0.0, opacity)) + "\"";
         out += " xlink:href=\"data:image/png;base64,";

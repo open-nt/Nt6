@@ -122,8 +122,8 @@ struct Shader {
     bool gradient = false;
     std::uint32_t color = 0; // premultiplied ARGB
     bool radial = false;
-    Mat toGradient;          // from device space to the space of the gradient
-    Pt p1, p2;               // linear: the gradient vector; radial: p1 the center, p2 the focal point
+    Mat toGradient; // from device space to the space of the gradient
+    Pt p1, p2;      // linear: the gradient vector; radial: p1 the center, p2 the focal point
     double radius = 0.0;
     Spread spread = Spread::Pad;
     std::vector<std::uint32_t> table; // premultiplied ARGB along the gradient

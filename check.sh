@@ -141,7 +141,7 @@ check_cmake_sources() {
         echo "listed more than once in CMakeLists.txt:"; printf '%s\n' "$listed" | uniq -d; bad=1
     fi
     while IFS= read -r f; do
-        printf '%s\n' "$listed" | grep -qx "$f" || { echo "$f: not built by CMakeLists.txt"; bad=1; }
+        grep -qx "$f" <<<"$listed" || { echo "$f: not built by CMakeLists.txt"; bad=1; }
     done < <(repo_files 'src/*.cpp')
     while IFS= read -r f; do
         [ -f "$f" ] || { echo "$f: listed in CMakeLists.txt but missing"; bad=1; }

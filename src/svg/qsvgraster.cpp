@@ -46,8 +46,8 @@ void blendPixel(std::uint32_t *dst, std::uint32_t src) {
 } // namespace
 
 Mat Mat::operator*(const Mat &o) const {
-    return {a * o.a + c * o.b, b * o.a + d * o.b, a * o.c + c * o.d, b * o.c + d * o.d,
-            a * o.e + c * o.f + e, b * o.e + d * o.f + f};
+    return {a * o.a + c * o.b, b * o.a + d * o.b,     a * o.c + c * o.d,
+            b * o.c + d * o.d, a * o.e + c * o.f + e, b * o.e + d * o.f + f};
 }
 
 bool Mat::invert(Mat *out) const {
@@ -478,8 +478,7 @@ std::vector<Path::Contour> Path::flatten(double tolerance) const {
         }
     }
     // A move that nothing follows draws nothing, not even caps.
-    out.erase(std::remove_if(out.begin(), out.end(),
-                             [](const Contour &c) { return c.points.size() < 2 && !c.closed; }),
+    out.erase(std::remove_if(out.begin(), out.end(), [](const Contour &c) { return c.points.size() < 2 && !c.closed; }),
               out.end());
     return out;
 }
@@ -538,9 +537,9 @@ public:
                 circle(pts[0]);
             else if (m_style.cap == LineCap::Square)
                 polygon({{pts[0].x - m_hw, pts[0].y - m_hw},
-                      {pts[0].x + m_hw, pts[0].y - m_hw},
-                      {pts[0].x + m_hw, pts[0].y + m_hw},
-                      {pts[0].x - m_hw, pts[0].y + m_hw}});
+                         {pts[0].x + m_hw, pts[0].y - m_hw},
+                         {pts[0].x + m_hw, pts[0].y + m_hw},
+                         {pts[0].x - m_hw, pts[0].y + m_hw}});
             return;
         }
         const std::size_t n = pts.size();
@@ -562,8 +561,10 @@ public:
                 if (i == segments - 1)
                     b = {b.x + dir.x, b.y + dir.y};
             }
-            polygon({{a.x + nrm.x, a.y + nrm.y}, {b.x + nrm.x, b.y + nrm.y}, {b.x - nrm.x, b.y - nrm.y},
-                  {a.x - nrm.x, a.y - nrm.y}});
+            polygon({{a.x + nrm.x, a.y + nrm.y},
+                     {b.x + nrm.x, b.y + nrm.y},
+                     {b.x - nrm.x, b.y - nrm.y},
+                     {a.x - nrm.x, a.y - nrm.y}});
         }
         for (std::size_t i = closed ? 0 : 1; i < segments; ++i)
             join(pts[i], normals[(i + segments - 1) % segments], normals[i]);
@@ -910,7 +911,7 @@ void Surface::fill(const Polygons &polygons, FillRule rule, const Shader &shader
             } else if (cover > 1.0f) {
                 cover = 1.0f;
             }
-            const unsigned c = static_cast<unsigned>(cover * 255.0f + 0.5f);
+            const unsigned c = static_cast<unsigned>(std::lround(cover * 255.0f));
             if (c == 0u)
                 continue;
             const std::uint32_t src = solid ? shader.color : shader.at(x + x0 + 0.5, y + y0 + 0.5);

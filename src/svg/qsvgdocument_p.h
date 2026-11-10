@@ -24,8 +24,8 @@ struct PaintSpec {
     enum Kind { None, Color, CurrentColor, Url };
     Kind kind = None;
     Rgba color;
-    std::string url;          // the id of a gradient
-    Kind fallback = None;     // what to use if the id is not found: None, Color or CurrentColor
+    std::string url;      // the id of a gradient
+    Kind fallback = None; // what to use if the id is not found: None, Color or CurrentColor
 };
 
 // The properties that children inherit.
@@ -116,8 +116,8 @@ struct Gradient {
     bool transformSet = false;
     Spread spread = Spread::Pad;
     bool spreadSet = false;
-    Length x1, y1, x2, y2;     // linear
-    Length cx, cy, r, fx, fy;  // radial
+    Length x1, y1, x2, y2;    // linear
+    Length cx, cy, r, fx, fy; // radial
     std::vector<GradientStop> stops;
     std::string href;
 };
@@ -161,7 +161,7 @@ private:
     void drawContent(const Node &node, const Mat &m, const Style &style, double opacity, Context &ctx) const;
     void drawShape(const Node &node, const Mat &m, const Style &style, double opacity, Context &ctx) const;
     void drawText(const Node &node, const Mat &m, const Style &style, double opacity, Context &ctx) const;
-    void drawClip(const Node &clip, const Mat &m, Context &ctx, int depth) const;
+    void drawClip(const Node &clip, const Mat &m, Context &ctx) const;
     bool shaderFor(const PaintSpec &paint, const Style &style, double opacity, const Box &box, const Mat &m,
                    Shader *out) const;
 

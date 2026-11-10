@@ -11,6 +11,8 @@
 #include <tuple>
 #include <utility>
 
+class QAbstractEventDispatcher;
+
 namespace QtPrivate {
 struct ThreadAccess;
 struct ThreadData;
@@ -66,6 +68,8 @@ public:
     uint stackSize() const;
 
     int loopLevel() const;
+
+    QAbstractEventDispatcher *eventDispatcher() const;
 
     /*!
         Creates a thread that calls \a f with \a args, copied into the thread, instead of running

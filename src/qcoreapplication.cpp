@@ -5,6 +5,7 @@
 #include "qobject_p.h"
 #include "threaddata_p.h"
 
+#include <QtCore/qabstracteventdispatcher.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qdir.h>
 
@@ -107,6 +108,17 @@ QCoreApplication::~QCoreApplication() {
     Returns the application object, or \c nullptr if none exists.
 */
 QCoreApplication *QCoreApplication::instance() { return g_self.load(); }
+
+/*!
+    Returns the event dispatcher of the thread that the application object lives in, which is
+    the main thread, or \c nullptr if there is no application object.
+
+    \sa QAbstractEventDispatcher::instance(), QThread::eventDispatcher()
+*/
+QAbstractEventDispatcher *QCoreApplication::eventDispatcher() {
+    QCoreApplication *app = g_self.load();
+    return app ? QAbstractEventDispatcher::instance(app->thread()) : nullptr;
+}
 
 /*!
     Returns the command line as passed to the constructor, decoded as UTF-8.

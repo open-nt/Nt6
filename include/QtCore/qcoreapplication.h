@@ -5,6 +5,7 @@
 #include <QtCore/qobject.h>
 #include <QtCore/qstringlist.h>
 
+class QAbstractEventDispatcher;
 class QTranslator;
 
 class QCoreApplication : public QObject {
@@ -14,6 +15,7 @@ public:
     ~QCoreApplication() override;
 
     static QCoreApplication *instance();
+    static QAbstractEventDispatcher *eventDispatcher();
 
     // The command line as passed to the constructor, decoded as UTF-8.
     static QStringList arguments();

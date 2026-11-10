@@ -1,0 +1,6 @@
+#include "qtaskbuilder.h"
+#include "qtconcurrentfilter.h"
+#include "qtconcurrentmap.h"
+#include "qtconcurrentreducekit.h"
+#include "qtconcurrentrun.h"
+#include "qtconcurrenttask.h"

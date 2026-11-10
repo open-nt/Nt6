@@ -9,6 +9,7 @@
 #include "qobject_p.h"
 #include "threaddata_p.h"
 
+#include <QtCore/qabstracteventdispatcher.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qeventloop.h>
@@ -51,8 +52,9 @@
     main thread, get one when they first use Nt; currentThread() returns it.
 
     \differences
-    There is no \c terminate() or \c setTerminationEnabled(), and no \c eventDispatcher() or
-    \c setEventDispatcher() (Nt has no QAbstractEventDispatcher). Priorities are stored and
+    There is no \c terminate() or \c setTerminationEnabled(), and no \c setEventDispatcher():
+    the dispatcher of a thread cannot be replaced, and eventDispatcher() returns a handle onto it
+    even before the thread has started. Priorities are stored and
     returned by priority(), but are applied only for \c IdlePriority (as \c SCHED_IDLE) and,
     if the process has a real-time scheduling policy, as a scaled real-time priority. The
     \c started() and \c finished() signals have no \c QPrivateSignal argument, and an adopted
@@ -379,6 +381,17 @@ uint QThread::stackSize() const {
     \sa exec(), QEventLoop::exec()
 */
 int QThread::loopLevel() const { return m_d->td->dispatcher.loopLevel(); }
+
+/*!
+    Returns the event dispatcher of the thread. It is created on first use and lives as long
+    as the thread data does, so it can be asked for before the thread is started.
+
+    \since 6.0
+    \sa QAbstractEventDispatcher::instance()
+*/
+QAbstractEventDispatcher *QThread::eventDispatcher() const {
+    return QAbstractEventDispatcher::instance(const_cast<QThread *>(this));
+}
 
 QThread *QThread::createImpl(std::function<void()> body) { return new FunctorThread(std::move(body)); }
 

@@ -5,6 +5,7 @@
 #include <QtCore/qbuffer.h>
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
+#include <QtCore/qrect.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qimage.h>
@@ -21,6 +22,7 @@
 #include "qsvgraster_p.h"
 #include "qsvgxml_p.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -835,10 +837,11 @@ static void testStructure() {
     CHECK(black(drawn("<rect width='40' height='40' clip-path='url(#nope)'/>").pixel(20, 20)));
 }
 
+// Without a font, or in a build without FreeType, text has metrics but draws nothing.
+static bool haveRealFonts() { return QFontMetrics(QFont()).inFont(QChar('H')); }
+
 static void testText() {
-    QFont font;
-    font.setPixelSize(20);
-    if (QFontMetrics(font).horizontalAdvance(QString("XX")) <= 0) {
+    if (!haveRealFonts()) {
         std::puts("no fonts: text is not tested");
         return;
     }
@@ -863,8 +866,27 @@ static void testText() {
     const QImage middle = drawn("<text x='60' y='30' font-size='24' style='text-anchor:middle'>HH</text>");
     CHECK(ink(middle, 30, 60) > 20 && ink(middle, 60, 90) > 20 &&
           std::abs(ink(middle, 30, 60) - ink(middle, 60, 90)) < 30);
+    // Hinting makes the stems of a small size wider than half those of the size twice as large, so the letters are
+    // measured and not the ink.
+    const auto extent = [](const QImage &image) {
+        int left = image.width(), top = image.height(), right = -1, bottom = -1;
+        for (int y = 0; y < image.height(); ++y) {
+            for (int x = 0; x < image.width(); ++x) {
+                if (qGreen(image.pixel(x, y)) < 128) {
+                    left = std::min(left, x);
+                    top = std::min(top, y);
+                    right = std::max(right, x);
+                    bottom = std::max(bottom, y);
+                }
+            }
+        }
+        return QRect(QPoint(left, top), QPoint(right, bottom));
+    };
     const QImage big = draw(doc("width='120' height='40'", "<text x='10' y='30' font-size='24'>HH</text>"), 240, 80);
-    CHECK(ink(big, 0, 240) > 3 * ink(i, 0, 120));
+    const QRect small = extent(i), large = extent(big);
+    CHECK(std::abs(large.width() - 2 * small.width()) <= 4 && std::abs(large.height() - 2 * small.height()) <= 4);
+    CHECK(std::abs(large.left() - 2 * small.left()) <= 4 && std::abs(large.bottom() - 2 * small.bottom()) <= 4);
+    CHECK(ink(big, 0, 240) > 2 * ink(i, 0, 120));
     // Runs, colors, positions of their own, and white space.
     i = drawn("<text x='5' y='15' font-size='12' fill='blue'>  a\n  <tspan fill='red' font-weight='bold'>HH</tspan>"
               "<tspan x='5' y='35' font-style='italic'>HH</tspan> </text>");
@@ -1234,8 +1256,7 @@ static void testGenerator() {
                               "xlink:href=\"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0k"));
     CHECK(withImages.contains(
         "<image x=\"20\" y=\"4\" width=\"1\" height=\"2\" preserveAspectRatio=\"none\" opacity=\"0.25\""));
-    QFont font;
-    const bool fonts = QFontMetrics(font).horizontalAdvance(QString("Text")) > 0;
+    const bool fonts = haveRealFonts();
     CHECK(fonts ? occurrences(withImages, "<image") >= 3 : occurrences(withImages, "<image") == 2);
     CHECK(withImages.contains("<clipPath id=\"clip1\"><rect x=\"2\" y=\"2\" width=\"10\" "
                               "height=\"10\"/></clipPath>\n<g clip-path=\"url(#clip1)\">"));

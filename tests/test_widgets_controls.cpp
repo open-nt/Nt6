@@ -1299,6 +1299,8 @@ static void testToolTips() {
     areas.setGeometry(0, 0, 200, 100);
     top2.show();
     settle(&top2);
+    // The mouse leaves the first window for this one: the tool tip its timer was about to ask for is not shown.
+    QCoreApplication::sendEvent(top.windowHandle(), &leave);
     hover(&areas, QPoint(20, 50));
     CHECK(waitFor([] { return QToolTip::isVisible(); }));
     CHECK(QToolTip::text() == QString("Left half") && areas.lastHelp == QPoint(20, 50));

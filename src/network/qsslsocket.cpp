@@ -452,8 +452,11 @@ void QSslSocket::beginHandshake(SslMode mode) {
         const QByteArray utf8 = name.toUtf8();
         if (verify == VerifyPeer && !name.isEmpty()) {
             SSL_set_hostflags(d->ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-            const int ok = literal.isNull() ? SSL_set1_host(d->ssl, utf8.constData())
-                                            : X509_VERIFY_PARAM_set1_ip_asc(SSL_get0_param(d->ssl), utf8.constData());
+            // The name goes to the parameters of the verification, as the address does: OpenSSL 4 deprecates
+            // SSL_set1_host(), which took either.
+            X509_VERIFY_PARAM *param = SSL_get0_param(d->ssl);
+            const int ok = literal.isNull() ? X509_VERIFY_PARAM_set1_host(param, utf8.constData(), 0)
+                                            : X509_VERIFY_PARAM_set1_ip_asc(param, utf8.constData());
             if (ok != 1) {
                 failHandshake(SslInternalError, QString("Could not set the expected host name"));
                 return;

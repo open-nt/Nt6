@@ -93,15 +93,32 @@ int infoNid(QSslCertificate::SubjectInfo info) {
     return NID_undef;
 }
 
-QStringList nameEntries(X509_NAME *name, QSslCertificate::SubjectInfo info) {
+// The size of a string in bytes. OpenSSL 4.1 deprecates the function that returns it as an int.
+int asn1Size(const ASN1_STRING *value) {
+#if OPENSSL_VERSION_NUMBER >= 0x40100000L
+    return static_cast<int>(ASN1_STRING_get_length(value));
+#else
+    return ASN1_STRING_length(value);
+#endif
+}
+
+// OpenSSL 4 returns the names of a certificate as const; before OpenSSL 3 the functions that read a name took it as
+// non-const.
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+const X509_NAME *readableName(const X509_NAME *name) { return name; }
+#else
+X509_NAME *readableName(const X509_NAME *name) { return const_cast<X509_NAME *>(name); }
+#endif
+
+QStringList nameEntries(const X509_NAME *name, QSslCertificate::SubjectInfo info) {
     QStringList out;
     int index = -1;
-    while ((index = X509_NAME_get_index_by_NID(name, infoNid(info), index)) >= 0)
+    while ((index = X509_NAME_get_index_by_NID(readableName(name), infoNid(info), index)) >= 0)
         out.append(asn1Text(X509_NAME_ENTRY_get_data(X509_NAME_get_entry(name, index))));
     return out;
 }
 
-QString displayName(X509_NAME *name) {
+QString displayName(const X509_NAME *name) {
     for (auto info :
          {QSslCertificate::CommonName, QSslCertificate::Organization, QSslCertificate::OrganizationalUnitName}) {
         const QStringList values = nameEntries(name, info);
@@ -285,7 +302,7 @@ QByteArray QSslCertificate::serialNumber() const {
     if (!x)
         return QByteArray();
     const ASN1_INTEGER *serial = X509_get0_serialNumber(x.get());
-    const QByteArray raw(reinterpret_cast<const char *>(ASN1_STRING_get0_data(serial)), ASN1_STRING_length(serial));
+    const QByteArray raw(reinterpret_cast<const char *>(ASN1_STRING_get0_data(serial)), asn1Size(serial));
     return raw.toHex(':');
 }
 
@@ -352,7 +369,7 @@ QMultiMap<QSsl::AlternativeNameEntryType, QString> QSslCertificate::subjectAlter
         } else if (n->type == GEN_EMAIL) {
             out.insert(QSsl::EmailEntry, asn1Text(n->d.rfc822Name));
         } else if (n->type == GEN_IPADD) {
-            const int size = ASN1_STRING_length(n->d.iPAddress);
+            const int size = asn1Size(n->d.iPAddress);
             const unsigned char *data = ASN1_STRING_get0_data(n->d.iPAddress);
             if (size == 4)
                 out.insert(QSsl::IpAddressEntry, QHostAddress(quint32(data[0]) << 24 | quint32(data[1]) << 16 |

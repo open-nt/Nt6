@@ -50,11 +50,14 @@ inline Identity makeIdentity(const char *commonName, const char *altNames, const
     X509_gmtime_adj(X509_getm_notBefore(x), fromDays * 86400);
     X509_gmtime_adj(X509_getm_notAfter(x), toDays * 86400);
     X509_set_pubkey(x, id.pkey);
-    X509_NAME *name = X509_get_subject_name(x);
+    // The name is made apart and copied in: OpenSSL 4 returns the names of a certificate as const.
+    X509_NAME *name = X509_NAME_new();
     X509_NAME_add_entry_by_txt(name, "O", MBSTRING_ASC, reinterpret_cast<const unsigned char *>("Nt Tests"), -1, -1, 0);
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, reinterpret_cast<const unsigned char *>(commonName), -1, -1,
                                0);
+    X509_set_subject_name(x, name);
     X509_set_issuer_name(x, issuer ? X509_get_subject_name(issuer->x509) : name);
+    X509_NAME_free(name);
 
     X509V3_CTX ctx;
     X509V3_set_ctx_nodb(&ctx);

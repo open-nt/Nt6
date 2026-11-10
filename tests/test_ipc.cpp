@@ -137,7 +137,16 @@ static void testLibrary() {
     const int before = hintedCalls ? hintedCalls() : 0;
     hinted.unload();
     QLibrary again(full);
+    // The runtime of the sanitizers ends the process when a library is loaded with RTLD_DEEPBIND.
     again.setLoadHints(QLibrary::ExportExternalSymbolsHint | QLibrary::DeepBindHint | QLibrary::LoadArchiveMemberHint);
+    CHECK(again.loadHints().testFlag(QLibrary::DeepBindHint));
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__) || defined(NT_TEST_NO_DEEPBIND)
+    again.setLoadHints(QLibrary::ExportExternalSymbolsHint | QLibrary::LoadArchiveMemberHint);
+#elif defined(__has_feature)
+#  if __has_feature(address_sanitizer) || __has_feature(thread_sanitizer) || __has_feature(memory_sanitizer)
+    again.setLoadHints(QLibrary::ExportExternalSymbolsHint | QLibrary::LoadArchiveMemberHint);
+#  endif
+#endif
     const Calls againCalls = reinterpret_cast<Calls>(again.resolve("nt_plugin_calls"));
     CHECK(againCalls && againCalls() == before + 1);
 

@@ -137,3 +137,4 @@
 #include "qvariant.h"
 #include "qvarlengtharray.h"
 #include "qversionnumber.h"
+#include "qxmlstream.h"

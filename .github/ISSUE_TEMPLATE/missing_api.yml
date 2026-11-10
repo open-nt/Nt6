@@ -1,0 +1,35 @@
+name: Missing API
+description: A Qt 6 class, function or module that Nt does not have yet
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Nt is built class by class, and requests decide what comes next. The README lists what each module has.
+  - type: input
+    id: api
+    attributes:
+      label: Class or function
+      description: The Qt 6 name, as you would write it in code.
+      placeholder: QNetworkCookieJar, or QString::localeAwareCompare()
+    validations:
+      required: true
+  - type: textarea
+    id: use
+    attributes:
+      label: What you need it for
+      description: The program or library you are building or porting, and which parts of the class it uses. A partial class that covers them can land sooner than a complete one.
+    validations:
+      required: true
+  - type: textarea
+    id: code
+    attributes:
+      label: Code that should compile
+      description: Optional. A few lines that use the API, or the compiler error you get today.
+      render: cpp
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Contributing
+      options:
+        - label: I would like to implement this myself (see CONTRIBUTING.md for the clean-room rule)

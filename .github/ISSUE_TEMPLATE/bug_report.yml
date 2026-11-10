@@ -1,0 +1,61 @@
+name: Bug report
+description: Something in Nt crashes, misbehaves or differs from Qt without the documentation saying so
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the report. Security problems go to the Security tab instead (see SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Nt version
+      description: A release (`6.0.0-rc2`) or a commit, and how you installed it (apt, snap, rpm, Arch, source).
+      placeholder: 6.0.0-rc2 from the apt repository
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: System
+      description: Distribution, architecture and compiler.
+      placeholder: Ubuntu 24.04, x86_64, GCC 13.3
+    validations:
+      required: true
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      options:
+        - Nt Core
+        - Nt Network
+        - Nt Serial Port
+        - Nt D-Bus
+        - Nt HTTP Server
+        - Nt WebSockets
+        - Nt GUI
+        - Nt Widgets
+        - Nt SVG
+        - Nt Concurrent
+        - Nt Test
+        - ntmoc
+        - ntrcc
+        - ndoc
+        - Build, CMake or packages
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happens, and what you expected
+      description: If Qt behaves differently, say what Qt does.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: A small program that shows it
+      description: The shortest `main.cpp` you can make, with its output or the compiler error.
+      render: cpp
+    validations:
+      required: true

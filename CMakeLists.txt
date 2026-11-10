@@ -495,6 +495,38 @@ target_include_directories(NtWidgets
 target_link_libraries(NtWidgets PUBLIC NtGui)
 nt_set_compile_options(NtWidgets)
 
+add_library(NtSvg
+    src/svg/qsvgdocument.cpp
+    src/svg/qsvggenerator.cpp
+    src/svg/qsvgraster.cpp
+    src/svg/qsvgrenderer.cpp
+    src/svg/qsvgxml.cpp
+)
+add_library(Nt::Svg ALIAS NtSvg)
+add_library(Qt6::Svg ALIAS NtSvg)
+target_include_directories(NtSvg
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSvg>
+        $<INSTALL_INTERFACE:include/nt6/QtSvg>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/svg
+)
+target_link_libraries(NtSvg PUBLIC NtGui)
+nt_set_compile_options(NtSvg)
+
+add_library(NtSvgWidgets
+    src/svgwidgets/qsvgwidget.cpp
+)
+add_library(Nt::SvgWidgets ALIAS NtSvgWidgets)
+add_library(Qt6::SvgWidgets ALIAS NtSvgWidgets)
+target_include_directories(NtSvgWidgets
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSvgWidgets>
+        $<INSTALL_INTERFACE:include/nt6/QtSvgWidgets>
+)
+target_link_libraries(NtSvgWidgets PUBLIC NtSvg NtWidgets)
+nt_set_compile_options(NtSvgWidgets)
+
 add_library(NtTest
     src/test/qsignalspy.cpp
     src/test/qtestcase.cpp
@@ -537,6 +569,8 @@ set(NT_MOC_DEFINES)
 nt_moc_library(NtHttpServer include/QtHttpServer)
 nt_moc_library(NtGui include/QtGui src/gui/qpa)
 nt_moc_library(NtWidgets include/QtWidgets)
+nt_moc_library(NtSvg include/QtSvg)
+nt_moc_library(NtSvgWidgets include/QtSvgWidgets)
 
 # Resource compiler and its CMake helpers.
 add_executable(ntrcc tools/ntrcc/main.cpp)
@@ -831,6 +865,14 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_gui_scale_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gui_scale_tests)
 
+    # Nt SVG: the reader, the rasterizer, the generator and the widget, on the offscreen platform.
+    add_executable(nt_svg_tests tests/test_svg.cpp)
+    target_include_directories(nt_svg_tests PRIVATE src/svg)
+    target_link_libraries(nt_svg_tests PRIVATE Nt::SvgWidgets)
+    add_test(NAME nt_svg_tests COMMAND nt_svg_tests)
+    set_tests_properties(nt_svg_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_svg_tests)
+
     # The xcb tests need an X server (or XWayland); they report a skip without one.
     if(NT_HAVE_XCB)
         add_executable(nt_gui_xcb_tests tests/test_gui_xcb.cpp)
@@ -921,6 +963,11 @@ if(NT_BUILD_EXAMPLES)
             BUILD_ALWAYS ON
             INSTALL_COMMAND "")
     endif()
+
+    # Shows an SVG file in a window, or converts what it draws; see "Using Nt SVG" in the documentation.
+    add_executable(svg_viewer examples/svg/svg_viewer.cpp)
+    target_link_libraries(svg_viewer PRIVATE Nt::SvgWidgets)
+    nt_set_compile_options(svg_viewer)
 
     # A serial terminal; see "Using Nt Serial Port" in the documentation.
     add_executable(serialterm examples/serialport/serialterm.cpp)

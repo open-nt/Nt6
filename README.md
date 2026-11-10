@@ -20,7 +20,7 @@
 
 # Nt ("Nut")
 
-A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial) and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
+A small, MIT-licensed, clean-room implementation of the Qt 6 API, built module by module: `Nt Core` (partial), `Nt Network` (partial), `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI` (partial), `Nt Widgets` (partial), `Nt SVG` and `Nt Test` so far. Not affiliated with The Qt Company; no Qt source code is used. Statically linked by default (`-DBUILD_SHARED_LIBS=ON` for a shared library). Linux/POSIX only for now.
 
 **Documentation:** <https://open-nt.github.io/Nt6/>
 
@@ -225,9 +225,35 @@ Not implemented yet: rich text and the clipboard, the model/view classes (trees,
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
+
+### Nt SVG: implemented
+
+Nt SVG reads SVG documents and draws them with a `QPainter`, and writes what a painter draws as SVG. The XML reader and the antialiased rasterizer are its own: shapes are filled and stroked at the resolution of the device, whatever the painter can do itself. `Nt::Svg` needs only Nt GUI; `Nt::SvgWidgets` adds the widget.
+
+| Class | Notes |
+|---|---|
+| `QSvgRenderer` | loads from a file, a resource or a `QByteArray`; draws the document, or one element by its `id`, into any rectangle of any paint device; default size, view box, aspect ratio modes, `boundsOnElement()`, `elementExists()` |
+| `QSvgGenerator` | a paint device that writes rectangles, lines, points and ellipses as SVG elements and images as embedded PNG, to a file or a `QIODevice`; title, description, size, view box, resolution; SVG Tiny 1.2 or SVG 1.1 (with clipping) |
+| `QSvgWidget` | shows a document scaled to the widget |
+
+Drawn: `svg`, `g`, `defs`, `symbol`, `use`, `a`, `switch`; `path` (all commands, arcs included), `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`; `text` and `tspan`; linear and radial gradients (units, transformations, spread methods, focal point, references); `clipPath`; fills and strokes with opacity, both fill rules, caps, joins, miter limits and dashes; group opacity; transformations; lengths with units; properties from attributes, `style` attributes and `<style>` sheets (element, class and id selectors).
+
+Documents are treated as untrusted input: loading reads only the bytes it is given, nesting and references have a fixed depth, and one drawing visits a bounded number of elements (`QtSvg::AssumeTrustedSource` lifts that limit).
+
+Guide: [Using Nt SVG](https://open-nt.github.io/Nt6/nt-svg.html). The [`svg_viewer`](examples/svg/svg_viewer.cpp) example shows a file in a window and writes one with `QSvgGenerator`.
+
+```cpp
+QSvgRenderer renderer(QString(":/logo.svg"));
+QImage image(256, 256, QImage::Format_ARGB32_Premultiplied);
+image.fill(Qt::transparent);
+QPainter painter(&image);
+renderer.render(&painter);
+```
+
+Differences from Qt: static documents only (no SMIL or CSS animation); no `image`, `mask`, `pattern`, `marker`, filters or `textPath`; text is drawn upright in one color with system fonts, following position and scale but not rotation; `preserveAspectRatio` is not read (use `setAspectRatioMode()`); no `load(QXmlStreamReader *)`, `transformForElement()` or `QGraphicsSvgItem`. `QSvgGenerator` writes text as an image of its glyphs, not as `text` elements.
 
 ### Essentials
 
@@ -292,7 +318,7 @@ The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and s
 | Qt Spatial Audio | Nt Spatial Audio |  |
 | Qt SQL | Nt SQL |  |
 | Qt State Machine | Nt State Machine |  |
-| Qt SVG | Nt SVG |  |
+| Qt SVG | Nt SVG | ✔ (see Status) |
 | Qt TextToSpeech | Nt TextToSpeech |  |
 | Qt UI Tools | Nt UI Tools |  |
 | Qt Virtual Keyboard | Nt Virtual Keyboard |  |

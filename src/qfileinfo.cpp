@@ -5,6 +5,7 @@
 #include <QtCore/qdir.h>
 #include <QtCore/qfile.h>
 
+#include "qdir_p.h"
 #include "qresource_p.h"
 
 #include <grp.h>
@@ -148,18 +149,19 @@ bool QFileInfo::makeAbsolute() {
 }
 
 const QFileInfo::Stat &QFileInfo::info() const {
+    const QString file = ntResolveSearchPath(m_file);
     if (m_cached && m_caching)
         return m_stat;
     m_stat = Stat();
-    if (NtResource::isResourcePath(m_file)) {
-        const NtResource::Entry e = NtResource::find(m_file);
+    if (NtResource::isResourcePath(file)) {
+        const NtResource::Entry e = NtResource::find(file);
         m_stat.resource = true;
         m_stat.exists = e.exists;
         m_stat.mode = static_cast<unsigned>((e.dir ? S_IFDIR : S_IFREG) | 0444);
-        m_stat.size = e.size;
+        m_stat.size = e.uncompressedSize;
         m_stat.mtimeMs = e.lastModified;
-    } else if (!m_file.isEmpty()) {
-        const QByteArray path = m_file.toUtf8();
+    } else if (!file.isEmpty()) {
+        const QByteArray path = file.toUtf8();
         struct stat st;
         if (::stat(path.constData(), &st) == 0) {
             m_stat.exists = true;
@@ -202,6 +204,9 @@ bool QFileInfo::exists(const QString &file) { return QFileInfo(file).exists(); }
     \sa canonicalFilePath(), filePath()
 */
 QString QFileInfo::absoluteFilePath() const {
+    const QString resolved = ntResolveSearchPath(m_file);
+    if (resolved != m_file)
+        return QFileInfo(resolved).absoluteFilePath();
     if (m_file.isEmpty())
         return QString();
     if (isAbsolute())
@@ -217,22 +222,25 @@ QString QFileInfo::absoluteFilePath() const {
     \sa absoluteFilePath()
 */
 QString QFileInfo::canonicalFilePath() const {
-    if (m_file.isEmpty())
+    const QString file = ntResolveSearchPath(m_file);
+    if (file.isEmpty())
         return QString();
-    if (NtResource::isResourcePath(m_file))
+    if (NtResource::isResourcePath(file))
         return exists() ? absoluteFilePath() : QString();
     char buf[PATH_MAX];
-    if (!::realpath(m_file.toUtf8().constData(), buf))
+    if (!::realpath(file.toUtf8().constData(), buf))
         return QString();
     return QString::fromUtf8(buf);
 }
 
 /*!
-    Returns the file name, without its directory path.
+    Returns the file name, without its directory path. For a name that uses
+    a \l{QDir::setSearchPaths()}{search path} prefix, it is the name of the
+    file the prefix resolves to.
 
     \sa path(), baseName(), suffix()
 */
-QString QFileInfo::fileName() const { return lastComponent(m_file); }
+QString QFileInfo::fileName() const { return lastComponent(ntResolveSearchPath(m_file)); }
 
 /*!
     Returns the file name without its directory path and without the last
@@ -351,10 +359,11 @@ QDir QFileInfo::absoluteDir() const { return QDir(absolutePath()); }
     \sa isSymLink()
 */
 QString QFileInfo::symLinkTarget() const {
-    if (m_file.isEmpty())
+    const QString file = ntResolveSearchPath(m_file);
+    if (file.isEmpty())
         return QString();
     std::vector<char> buf(256);
-    const QByteArray path = m_file.toUtf8();
+    const QByteArray path = file.toUtf8();
     for (;;) {
         const ssize_t n = ::readlink(path.constData(), buf.data(), buf.size());
         if (n < 0)
@@ -458,9 +467,10 @@ QFileInfo::Permissions QFileInfo::permissions() const {
     \sa isWritable(), isExecutable(), permissions()
 */
 bool QFileInfo::isReadable() const {
-    if (NtResource::isResourcePath(m_file))
+    const QString file = ntResolveSearchPath(m_file);
+    if (NtResource::isResourcePath(file))
         return exists();
-    return !m_file.isEmpty() && ::access(m_file.toUtf8().constData(), R_OK) == 0;
+    return !file.isEmpty() && ::access(file.toUtf8().constData(), R_OK) == 0;
 }
 
 /*!
@@ -470,7 +480,8 @@ bool QFileInfo::isReadable() const {
     \sa isReadable(), isExecutable(), permissions()
 */
 bool QFileInfo::isWritable() const {
-    return !m_file.isEmpty() && !NtResource::isResourcePath(m_file) && ::access(m_file.toUtf8().constData(), W_OK) == 0;
+    const QString file = ntResolveSearchPath(m_file);
+    return !file.isEmpty() && !NtResource::isResourcePath(file) && ::access(file.toUtf8().constData(), W_OK) == 0;
 }
 
 /*!
@@ -480,7 +491,8 @@ bool QFileInfo::isWritable() const {
     \sa isReadable(), isWritable(), permissions()
 */
 bool QFileInfo::isExecutable() const {
-    return !m_file.isEmpty() && !NtResource::isResourcePath(m_file) && ::access(m_file.toUtf8().constData(), X_OK) == 0;
+    const QString file = ntResolveSearchPath(m_file);
+    return !file.isEmpty() && !NtResource::isResourcePath(file) && ::access(file.toUtf8().constData(), X_OK) == 0;
 }
 
 /*!

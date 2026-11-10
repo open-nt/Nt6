@@ -7,8 +7,16 @@
 
 #include "qresource_p.h"
 
+#ifdef NT_HAVE_ZLIB
+#include <zlib.h>
+#endif
+#ifdef NT_HAVE_ZSTD
+#include <zstd.h>
+#endif
+
 #include <algorithm>
 #include <cstring>
+#include <new>
 #include <limits>
 #include <mutex>
 #include <set>
@@ -69,8 +77,10 @@ struct Node {
     std::string_view name;
     std::string_view locale;
     bool dir = false;
+    NtResource::Compression compression = NtResource::Compression::None;
     quint32 first = 0;
     quint32 count = 0;
+    quint32 uncompressedSize = 0;
     qint64 lastModified = 0;
 };
 
@@ -99,10 +109,16 @@ struct Tree {
         const char *s = reinterpret_cast<const char *>(base + strings);
         Node n;
         n.name = std::string_view(s + read32(p), read32(p + 4));
-        n.dir = (read32(p + 8) & NtResource::kDirectoryFlag) != 0;
+        const quint32 flags = read32(p + 8);
+        n.dir = (flags & NtResource::kDirectoryFlag) != 0;
+        if (flags & NtResource::kZlibFlag)
+            n.compression = NtResource::Compression::Zlib;
+        else if (flags & NtResource::kZstdFlag)
+            n.compression = NtResource::Compression::Zstd;
         n.locale = std::string_view(s + read32(p + 12), read32(p + 16));
         n.first = read32(p + 20);
         n.count = read32(p + 24);
+        n.uncompressedSize = n.compression == NtResource::Compression::None ? n.count : read32(p + 28);
         n.lastModified = read64(p + 32);
         return n;
     }
@@ -128,8 +144,13 @@ struct Tree {
             const uchar *p = base + nodeTable + static_cast<std::size_t>(i) * kNodeSize;
             if (quint64(read32(p)) + read32(p + 4) > strSize || quint64(read32(p + 12)) + read32(p + 16) > strSize)
                 return false;
-            const bool dir = (read32(p + 8) & kDirectoryFlag) != 0;
+            const quint32 flags = read32(p + 8);
+            const bool dir = (flags & kDirectoryFlag) != 0;
             const quint64 first = read32(p + 20), n = read32(p + 24);
+            // A file has at most one compression algorithm, and a directory none.
+            const quint32 compression = flags & (kZlibFlag | kZstdFlag);
+            if ((flags & ~kKnownFlags) != 0 || compression == (kZlibFlag | kZstdFlag) || (dir && compression != 0))
+                return false;
             if (i == 0 && !dir)
                 return false;
             if (dir ? (n != 0 && (first <= i || first + n > nodeCount)) : first + n > dataSize)
@@ -255,6 +276,8 @@ NtResource::Entry NtResource::find(const QString &path, const QLocale &locale, b
                 const Node file = tree.node(hit.node);
                 entry.data = tree.base + tree.dataOffset + file.first;
                 entry.size = file.count;
+                entry.compression = file.compression;
+                entry.uncompressedSize = file.uncompressedSize;
                 entry.lastModified = file.lastModified;
                 entry.keepAlive = tree.owned;
                 break;
@@ -273,6 +296,60 @@ NtResource::Entry NtResource::find(const QString &path, const QLocale &locale, b
     for (const std::string &c : children)
         entry.children.append(QString::fromUtf8(c.c_str()));
     return entry;
+}
+
+bool NtResource::canDecompress(Compression c) {
+#ifdef NT_HAVE_ZLIB
+    constexpr bool zlib = true;
+#else
+    constexpr bool zlib = false;
+#endif
+#ifdef NT_HAVE_ZSTD
+    constexpr bool zstd = true;
+#else
+    constexpr bool zstd = false;
+#endif
+    return c == Compression::None || (c == Compression::Zlib && zlib) || (c == Compression::Zstd && zstd);
+}
+
+bool NtResource::decompress(Entry &entry) {
+    if (!entry.exists || entry.dir || entry.compression == Compression::None)
+        return true;
+    if (!canDecompress(entry.compression))
+        return false;
+    const auto expected = static_cast<std::size_t>(entry.uncompressedSize);
+    std::shared_ptr<std::vector<uchar>> out;
+    try {
+        out = std::make_shared<std::vector<uchar>>(std::max<std::size_t>(expected, 1));
+    } catch (const std::bad_alloc &) {
+        return false;
+    }
+    bool ok = false;
+    if (entry.compression == Compression::Zlib) {
+#ifdef NT_HAVE_ZLIB
+        uLongf length = static_cast<uLongf>(expected);
+        ok = ::uncompress(out->data(), &length, entry.data, static_cast<uLong>(entry.size)) == Z_OK &&
+             length == expected;
+#endif
+    } else {
+#ifdef NT_HAVE_ZSTD
+        // The size recorded in the frame must agree with the tree before anything is decompressed.
+        ok = ZSTD_getFrameContentSize(entry.data, static_cast<std::size_t>(entry.size)) == expected;
+        if (ok) {
+            const std::size_t n =
+                ZSTD_decompress(out->data(), expected, entry.data, static_cast<std::size_t>(entry.size));
+            ok = !ZSTD_isError(n) && n == expected;
+        }
+#endif
+    }
+    if (!ok)
+        return false;
+    out->resize(expected);
+    entry.data = out->data();
+    entry.size = entry.uncompressedSize;
+    entry.compression = Compression::None;
+    entry.keepAlive = std::move(out);
+    return true;
 }
 
 struct QResource::Private {
@@ -314,11 +391,11 @@ struct QResource::Private {
     one for its language, then one for every locale.
 
     \differences
-    Resources are never compressed: compressionAlgorithm() always returns
-    \c NoCompression, and ntrcc ignores the compression options of the
-    \c .qrc file. The compiled format is Nt's own and is not compatible with
-    the output of Qt's \c rcc. There are no search paths, and a resource file
-    is read into memory rather than mapped. The data of a resource stays valid
+    Compressed resources need zlib or libzstd when Nt is built. The compiled
+    format is Nt's own and is not compatible with the output of Qt's
+    \c rcc. As in Qt 6, QResource has no search paths of its own; use
+    QDir::setSearchPaths(). A resource file is read into memory rather than
+    mapped. The data of a resource stays valid
     while the QResource exists or the tree is registered. The
     \c MapPrivateOption of registerResource() does not exist.
     \enddifferences
@@ -394,16 +471,19 @@ bool QResource::isValid() const { return d->get().exists; }
 
 /*!
     \since 5.13
-    Returns the compression algorithm of the data, which is always
-    \c NoCompression in Nt.
+    Returns the compression algorithm of the data returned by data(), or
+    \c NoCompression if it is stored as is. QFile and uncompressedData()
+    decompress the data; they fail if Nt was built without the algorithm.
 
     \sa data(), uncompressedData()
 */
-QResource::Compression QResource::compressionAlgorithm() const { return NoCompression; }
+QResource::Compression QResource::compressionAlgorithm() const {
+    return static_cast<Compression>(d->get().compression);
+}
 
 /*!
-    Returns the size of the data in bytes, or \c 0 if the resource is not a
-    file.
+    Returns the size of the data in bytes, compressed if the resource is
+    compressed, or \c 0 if the resource is not a file.
 
     \sa data(), uncompressedSize()
 */
@@ -411,7 +491,9 @@ qint64 QResource::size() const { return d->get().size; }
 
 /*!
     Returns the data of the resource, or \c nullptr if it is not a file. The
-    data is not terminated by a null byte.
+    data is not terminated by a null byte, and is compressed if
+    compressionAlgorithm() is not \c NoCompression; use uncompressedData()
+    to read it either way.
 
     \sa size(), uncompressedData()
 */
@@ -419,22 +501,24 @@ const uchar *QResource::data() const { return d->get().data; }
 
 /*!
     \since 5.15
-    Returns the size of the uncompressed data, which equals size().
+    Returns the size of the uncompressed data, which equals size() if the
+    resource is not compressed.
 
     \sa uncompressedData()
 */
-qint64 QResource::uncompressedSize() const { return size(); }
+qint64 QResource::uncompressedSize() const { return d->get().uncompressedSize; }
 
 /*!
     \since 5.15
-    Returns a copy of the data of the resource, or an empty array if it is not
-    a file.
+    Returns a copy of the data of the resource, decompressed if it is
+    compressed. Returns an empty array if it is not a file, or if it cannot be
+    decompressed: Nt was built without the algorithm, or the data is damaged.
 
     \sa data()
 */
 QByteArray QResource::uncompressedData() const {
-    const NtResource::Entry &e = d->get();
-    if (!e.data)
+    NtResource::Entry e = d->get();
+    if (!e.data || !NtResource::decompress(e))
         return QByteArray();
     return QByteArray(reinterpret_cast<const char *>(e.data), static_cast<qsizetype>(e.size));
 }

@@ -56,7 +56,9 @@ parts:
       - libfreetype-dev
       - libssl-dev
       - libxcb1-dev
+      - libzstd-dev
       - pkg-config
+      - zlib1g-dev
     override-build: |
       craftctl set version="$(head -n 1 "$CRAFT_PART_SRC/VERSION")"
       craftctl default

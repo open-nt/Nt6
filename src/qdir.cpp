@@ -3,7 +3,9 @@
 #include <QtCore/qdir.h>
 
 #include <QtCore/qfile.h>
+#include <QtCore/qlogging.h>
 
+#include "qdir_p.h"
 #include "qresource_p.h"
 
 #include <dirent.h>
@@ -15,6 +17,8 @@
 #include <cerrno>
 #include <climits>
 #include <cstdlib>
+#include <map>
+#include <mutex>
 #include <string>
 #include <utility>
 #include <vector>
@@ -154,7 +158,63 @@ QString normalizeStored(const QString &path) {
     return out;
 }
 
-bool isDirPath(const QString &path) {
+// The search paths of QDir::setSearchPaths(), by prefix.
+struct SearchPaths {
+    std::mutex mutex;
+    std::map<QString, QStringList> paths;
+};
+
+SearchPaths &searchPathTable() {
+    static SearchPaths *table = new SearchPaths; // never freed, so it outlives static destructors
+    return *table;
+}
+
+bool isSearchPathPrefix(const QString &prefix) {
+    if (prefix.size() < 2) {
+        qWarning("QDir::setSearchPaths: Prefix must be longer than 1 character");
+        return false;
+    }
+    for (const QChar c : prefix) {
+        if (!c.isLetterOrNumber()) {
+            qWarning("QDir::setSearchPaths: Prefix can only contain letters or numbers");
+            return false;
+        }
+    }
+    return true;
+}
+
+QString resolveSearchPath(const QString &path, int depth) {
+    const qsizetype colon = path.indexOf(QChar(u':'));
+    // A one-letter prefix is never registered, and ":/" is a resource.
+    if (colon < 2 || depth > 8)
+        return path;
+    QStringList candidates;
+    {
+        SearchPaths &table = searchPathTable();
+        const std::lock_guard<std::mutex> lock(table.mutex);
+        const auto it = table.paths.find(path.left(colon));
+        if (it == table.paths.end())
+            return path;
+        candidates = it->second;
+    }
+    const QString rest = path.mid(colon + 1);
+    QString first;
+    for (const QString &dir : candidates) {
+        // A search path can itself use a prefix or name a resource directory.
+        const QString candidate = resolveSearchPath(QDir::cleanPath(dir + QChar(u'/') + rest), depth + 1);
+        if (first.isEmpty())
+            first = candidate;
+        // Tested without resolving prefixes again, so that prefixes naming each other end.
+        struct stat st;
+        if (NtResource::isResourcePath(candidate) ? NtResource::find(candidate).exists
+                                                  : ::stat(candidate.toUtf8().constData(), &st) == 0)
+            return candidate;
+    }
+    return first.isEmpty() ? path : first;
+}
+
+bool isDirPath(const QString &rawPath) {
+    const QString path = ntResolveSearchPath(rawPath);
     if (NtResource::isResourcePath(path))
         return NtResource::find(path).dir;
     struct stat st;
@@ -195,6 +255,8 @@ struct Entry {
 
 } // namespace
 
+QString ntResolveSearchPath(const QString &path) { return resolveSearchPath(path, 0); }
+
 /*!
     \class QDir
     \brief The QDir class provides access to directory structures and their contents.
@@ -209,6 +271,9 @@ struct Entry {
     entered and iterated with QDirIterator like any other directory, but
     nothing can be created, removed or renamed in it.
 
+    setSearchPaths() gives a name prefix a list of directories, so that a
+    path such as \c{icons:open.png} names the first such file in them.
+
     \code
     QDir dir("/var/log");
     dir.setNameFilters(QStringList() << "*.log");
@@ -218,8 +283,9 @@ struct Entry {
     \differences
     Only POSIX paths are supported, so toNativeSeparators() and
     fromNativeSeparators() return their argument unchanged. There is no
-    support for search paths (\c setSearchPaths(), \c addSearchPath(),
-    \c searchPaths()) or \c nameFiltersFromString(). Drives is accepted but
+    \c nameFiltersFromString(). A path that uses a search path prefix keeps
+    its prefix in path() and the paths of its entries; it is resolved each
+    time the file system is used. Drives is accepted but
     lists nothing, drives() returns only the root directory, and Modified is
     ignored. Name filters are case-insensitive unless CaseSensitive is set,
     and match() is always case-insensitive. LocaleAware is ignored when
@@ -331,6 +397,9 @@ void QDir::setPath(const QString &path) { m_path = normalizeStored(path); }
     \sa canonicalPath(), path(), cleanPath()
 */
 QString QDir::absolutePath() const {
+    const QString resolved = ntResolveSearchPath(m_path);
+    if (resolved != m_path)
+        return QDir(resolved).absolutePath();
     if (isAbsolute())
         return cleanPath(m_path);
     return cleanPath(currentPath() + QChar(u'/') + m_path);
@@ -505,14 +574,15 @@ QFileInfoList QDir::entryInfoList(const QStringList &nameFilters, Filters filter
 
     QFileInfoList result;
     QStringList names;
-    if (NtResource::isResourcePath(m_path)) {
+    const QString path = ntResolveSearchPath(m_path);
+    if (NtResource::isResourcePath(path)) {
         // A resource directory has no "." and ".." entries.
-        const NtResource::Entry dir = NtResource::find(m_path, QLocale(), true);
+        const NtResource::Entry dir = NtResource::find(path, QLocale(), true);
         if (!dir.dir)
             return result;
         names = dir.children;
     } else {
-        DIR *d = ::opendir(m_path.toUtf8().constData());
+        DIR *d = ::opendir(path.toUtf8().constData());
         if (!d)
             return result;
         while (const dirent *e = ::readdir(d))
@@ -722,9 +792,10 @@ bool QDir::exists(const QString &name) const { return QFileInfo(filePath(name)).
     \sa exists()
 */
 bool QDir::isReadable() const {
-    if (NtResource::isResourcePath(m_path))
+    const QString path = ntResolveSearchPath(m_path);
+    if (NtResource::isResourcePath(path))
         return exists();
-    return ::access(m_path.toUtf8().constData(), R_OK | X_OK) == 0 && exists();
+    return ::access(path.toUtf8().constData(), R_OK | X_OK) == 0 && exists();
 }
 
 /*!
@@ -736,6 +807,71 @@ bool QDir::isReadable() const {
 bool QDir::makeAbsolute() {
     m_path = absolutePath();
     return true;
+}
+
+/*!
+    Sets or replaces the search paths for file names that start with
+    \a prefix to \a searchPaths. An empty list removes the prefix.
+
+    A file name such as \c{icons:open.png} is then looked up in each search
+    path in turn, and refers to the first file that exists. If none exists,
+    it refers to the file in the first search path, so that files can be
+    created there. Search paths can be resource directories, such as
+    \c{:/icons}, and can use other prefixes. QFile, QFileInfo, QDir and
+    QDirIterator all resolve prefixes:
+
+    \code
+    QDir::setSearchPaths("icons", QStringList() << QDir::homePath() + "/.app/icons" << ":/icons");
+    QFile icon("icons:open.png");   // the user's icon, or the built-in one
+    \endcode
+
+    The \a prefix must be at least two characters long, so that it cannot be
+    confused with a drive letter, and may contain only letters and digits;
+    otherwise a warning is printed and nothing changes.
+
+    \since 4.3
+    \sa addSearchPath(), searchPaths()
+*/
+void QDir::setSearchPaths(const QString &prefix, const QStringList &searchPaths) {
+    if (!isSearchPathPrefix(prefix))
+        return;
+    SearchPaths &table = searchPathTable();
+    const std::lock_guard<std::mutex> lock(table.mutex);
+    if (searchPaths.isEmpty()) {
+        table.paths.erase(prefix);
+        return;
+    }
+    QStringList cleaned;
+    for (const QString &dir : searchPaths)
+        cleaned.append(cleanPath(dir));
+    table.paths[prefix] = cleaned;
+}
+
+/*!
+    Adds \a path to the end of the search paths for \a prefix.
+
+    \since 4.3
+    \sa setSearchPaths()
+*/
+void QDir::addSearchPath(const QString &prefix, const QString &path) {
+    if (path.isEmpty() || !isSearchPathPrefix(prefix))
+        return;
+    SearchPaths &table = searchPathTable();
+    const std::lock_guard<std::mutex> lock(table.mutex);
+    table.paths[prefix].append(cleanPath(path));
+}
+
+/*!
+    Returns the search paths for \a prefix, or an empty list if it has none.
+
+    \since 4.3
+    \sa setSearchPaths(), addSearchPath()
+*/
+QStringList QDir::searchPaths(const QString &prefix) {
+    SearchPaths &table = searchPathTable();
+    const std::lock_guard<std::mutex> lock(table.mutex);
+    const auto it = table.paths.find(prefix);
+    return it == table.paths.end() ? QStringList() : it->second;
 }
 
 /*!

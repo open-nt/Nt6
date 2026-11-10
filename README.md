@@ -44,7 +44,7 @@ Qt Core has roughly 300 classes; Nt Core has about 180 of them, chosen first for
 | Smart pointers | `QPointer`, `QScopedPointer`, `QScopedArrayPointer`, `QSharedPointer`, `QWeakPointer`, `QEnableSharedFromThis`, `QSharedData`, `QSharedDataPointer`, `QExplicitlySharedDataPointer`, `QScopeGuard`, `QScopedValueRollback`, `QSignalBlocker` |
 | Threads | `QThread` (per-thread event loops and queued signals across threads), `QThreadPool`, `QRunnable`, `QThreadStorage`, `QException`, `QAtomicInt`, `QAtomicInteger`, `QAtomicPointer`, `QAtomicScopedValueRollback`, `QMutex`, `QRecursiveMutex`, `QMutexLocker`, `QReadWriteLock`, `QReadLocker`, `QWriteLocker`, `QWaitCondition` (with `QMutex` or `QReadWriteLock`), `QSemaphore`, `QSemaphoreReleaser`; deadline and `std::chrono` overloads |
 | Time and diagnostics | `QElapsedTimer`, `QDeadlineTimer`, `QBasicTimer`, `QDate`, `QTime`, `QDateTime` (UTC, local time, fixed offsets and time zones), `QTimeZone` (the system's IANA database), `QCalendar` (Gregorian, Julian, Milanković, Jalali, Islamic civil), `QChronoTimer`, `QTimeLine`, `QEasingCurve`, `QDebug`, `QDebugStateSaver`, `qDebug()`/`qInfo()`/`qWarning()`/`qCritical()`/`qFatal()`, `qInstallMessageHandler`, `QMessageLogger`, `QLoggingCategory` |
-| I/O and file system | `QIODevice` (with read transactions), `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile` (permissions, file times, symbolic links), `QDataStream` (Qt's wire format, transactions), `QFileInfo`, `QDir`, `QDirIterator`, `QLockFile`, `QFileSystemWatcher` (inotify), `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG), `QSettings` (INI) |
+| I/O and file system | `QIODevice` (with read transactions), `QIODeviceBase`, `QBuffer`, `QFileDevice`, `QFile` (permissions, file times, symbolic links), `QDataStream` (Qt's wire format, transactions), `QFileInfo`, `QDir`, `QDirIterator`, `QLockFile`, `QFileSystemWatcher` (inotify), `QSaveFile`, `QTemporaryFile`, `QTemporaryDir`, `QStandardPaths` (XDG), `QSettings` (INI), `QResource` (`:/` paths in `QFile`, `QFileInfo`, `QDir` and `QDirIterator`; resources compiled by `ntrcc`, compressed with Zstandard or zlib) |
 | Processes and formats | `QProcess`, `QProcessEnvironment`, `QJsonValue`, `QJsonObject`, `QJsonArray`, `QJsonDocument` |
 | Item models | `QAbstractItemModel`, `QAbstractListModel`, `QAbstractTableModel`, `QModelIndex`, `QPersistentModelIndex`, `QStringListModel`, `QItemSelectionModel`, `QItemSelection`, `QItemSelectionRange`, `QAbstractProxyModel`, `QIdentityProxyModel`, `QSortFilterProxyModel` (filtering, sorting, recursive filtering), `QTransposeProxyModel`, `QConcatenateTablesProxyModel`, `QMimeData` |
 | Geometry | `QPoint`/`QPointF`, `QSize`/`QSizeF`, `QRect`/`QRectF`, `QLine`/`QLineF`, `QMargins`/`QMarginsF` |
@@ -56,7 +56,7 @@ Known limits: `QDataStream` has no 64-bit container sizes; `QDir` name filters a
 
 - **Containers:** `QKeyValueIterator`
 - **Meta:** `QProperty` and bindable properties
-- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`, `QResource`
+- **File system:** `QDirListing`, `QFileSelector`, `QStorageInfo`
 - **Plugins and IPC:** `QLibrary`, `QPluginLoader`, `QSharedMemory`, `QSystemSemaphore`
 - **Formats:** `QCbor*`, `QXmlStreamReader`/`QXmlStreamWriter` (+ helpers), `QMimeDatabase`/`QMimeType`
 - **Concurrency:** `QFuture`/`QPromise`/`QFutureWatcher`/`QFutureSynchronizer`, QtConcurrent, `QAbstractEventDispatcher`
@@ -374,6 +374,20 @@ ntmoc also accepts the moc command line CMake's AUTOMOC uses (`-o`, `-I`, `-D`, 
 
 Everything else (`signals:`, `slots:`, `emit`, `Q_OBJECT`, pointer-to-member `connect`, slots taking fewer arguments than the signal) is source compatible. Define `QT_NO_KEYWORDS` to use `Q_SIGNALS`/`Q_SLOTS`/`Q_EMIT`.
 
+## ntrcc: MIT rcc replacement
+
+Qt's rcc is not used. `ntrcc` (`tools/ntrcc`) compiles `.qrc` resource collection files into C++ that registers the resources when the program starts, or into a binary `.rcc` file for `QResource::registerResource()`. Files are compressed with Zstandard or zlib when that saves at least 70% (`--compress-algo`, `--compress`, `--threshold` and the matching `<file>` attributes change it); zlib and libzstd are used when they are found at configure time (`-DNT_USE_ZLIB=OFF`, `-DNT_USE_ZSTD=OFF`).
+
+```cmake
+add_executable(app main.cpp app.qrc)
+nt_enable_autorcc(app)                      # CMAKE_AUTORCC works too: Qt6::rcc is ntrcc
+
+nt_add_resources(sources icons.qrc)         # or qt_add_resources(sources icons.qrc)
+nt_add_resources(app images PREFIX /images FILES open.png save.png)
+```
+
+The compiled format is Nt's own, so `.rcc` files from Qt's rcc cannot be loaded. See "The Nt Resource System" in the documentation.
+
 ## NDoc: MIT documentation generator
 
 Qt's qdoc is not used. `ndoc` (`tools/ndoc`) is a small MIT tool that generates Qt-style reference pages from `/*! */` comments written next to the code, in headers or source files:
@@ -418,7 +432,7 @@ Install instructions for every system below are in the [Installing Nt](https://o
 | Arch Linux | `nt6-<version>-1-x86_64.pkg.tar.zst` | `arch.yml` |
 | Any Linux with snapd (amd64, and arm64 built on a Jetson) | `open-nt6_<version>_amd64.snap`, `open-nt6_<version>_arm64.snap` (`snap install open-nt6`, from the [Snap Store](https://snapcraft.io/open-nt6)) | `snap.yml` |
 
-`libnt6-dev` / `nt6-devel` holds the headers (in `/usr/include/nt6`, so Nt can sit next to Qt), the static libraries and the CMake package; `nt6-tools` holds `ntmoc` and `ndoc`. Arch has one package with everything. In a project:
+`libnt6-dev` / `nt6-devel` holds the headers (in `/usr/include/nt6`, so Nt can sit next to Qt), the static libraries and the CMake package; `nt6-tools` holds `ntmoc`, `ntrcc` and `ndoc`. Arch has one package with everything. In a project:
 
 ```cmake
 find_package(Nt6 6 REQUIRED)

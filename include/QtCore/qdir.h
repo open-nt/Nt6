@@ -168,6 +168,9 @@ public:
     void refresh() const {}
 
     static QString cleanPath(const QString &path);
+    static void setSearchPaths(const QString &prefix, const QStringList &searchPaths);
+    static void addSearchPath(const QString &prefix, const QString &path);
+    static QStringList searchPaths(const QString &prefix);
     /*!
         Returns \c true if \a path is absolute, which means it starts with a
         slash, or with a colon for a resource; otherwise returns \c false.

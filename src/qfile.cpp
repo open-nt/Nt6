@@ -6,6 +6,7 @@
 #include <QtCore/qfile.h>
 #include <QtCore/qfileinfo.h>
 
+#include "qdir_p.h"
 #include "qresource_p.h"
 
 #include <algorithm>
@@ -90,6 +91,7 @@ void QFileDevice::setFileError(FileError e, const QString &text) {
     \sa close()
 */
 bool QFileDevice::openPath(const QString &path, OpenMode mode) {
+    const QString resolved = ntResolveSearchPath(path);
     if (mode & (Append | Truncate))
         mode |= WriteOnly;
     if (isOpen()) {
@@ -100,14 +102,18 @@ bool QFileDevice::openPath(const QString &path, OpenMode mode) {
         setFileError(OpenError, QString::fromUtf8("no open mode given"));
         return false;
     }
-    if (NtResource::isResourcePath(path)) {
+    if (NtResource::isResourcePath(resolved)) {
         if (mode & WriteOnly) {
             setFileError(OpenError, resourceError("Resources are read-only"));
             return false;
         }
-        NtResource::Entry entry = NtResource::find(path);
+        NtResource::Entry entry = NtResource::find(resolved);
         if (!entry.exists || entry.dir) {
             setFileError(OpenError, resourceError(entry.exists ? "Is a directory" : "No such resource"));
+            return false;
+        }
+        if (!NtResource::decompress(entry)) {
+            setFileError(OpenError, resourceError("Cannot decompress the resource"));
             return false;
         }
         m_resource = std::make_unique<ResourceData>();
@@ -127,7 +133,7 @@ bool QFileDevice::openPath(const QString &path, OpenMode mode) {
         if (mode.testFlag(Truncate) || (!mode.testFlag(ReadOnly) && !mode.testFlag(Append)))
             flags |= O_TRUNC;
     }
-    const std::string p = path.toUtf8().toStdString();
+    const std::string p = resolved.toUtf8().toStdString();
     const int fd = ::open(p.c_str(), flags | O_CLOEXEC, 0666);
     if (fd < 0) {
         setFileError(OpenError, QString::fromUtf8(std::strerror(errno)));
@@ -175,14 +181,15 @@ qint64 QFileDevice::pos() const {
     determined.
 */
 qint64 QFileDevice::size() const {
+    const QString name = ntResolveSearchPath(m_name);
     if (m_resource)
         return m_resource->entry.size;
-    if (NtResource::isResourcePath(m_name))
-        return NtResource::find(m_name).size;
+    if (NtResource::isResourcePath(name))
+        return NtResource::find(name).uncompressedSize;
     struct stat st;
     if (m_fd >= 0 && ::fstat(m_fd, &st) == 0)
         return static_cast<qint64>(st.st_size);
-    if (!m_name.isEmpty() && ::stat(m_name.toUtf8().constData(), &st) == 0)
+    if (!name.isEmpty() && ::stat(name.toUtf8().constData(), &st) == 0)
         return static_cast<qint64>(st.st_size);
     return 0;
 }
@@ -343,10 +350,11 @@ QDateTime birthTime(int fd, const QString &path) {
     \sa setPermissions(), QFileInfo::permissions()
 */
 QFileDevice::Permissions QFileDevice::permissions() const {
-    if (NtResource::isResourcePath(m_name))
-        return NtResource::find(m_name).exists ? fromMode(kResourceMode) : Permissions();
+    const QString name = ntResolveSearchPath(m_name);
+    if (NtResource::isResourcePath(name))
+        return NtResource::find(name).exists ? fromMode(kResourceMode) : Permissions();
     struct stat st;
-    return statFile(m_fd, m_name, &st) ? fromMode(st.st_mode) : Permissions();
+    return statFile(m_fd, name, &st) ? fromMode(st.st_mode) : Permissions();
 }
 
 /*!
@@ -358,12 +366,13 @@ QFileDevice::Permissions QFileDevice::permissions() const {
     \sa permissions()
 */
 bool QFileDevice::setPermissions(Permissions permissions) {
-    if (NtResource::isResourcePath(m_name)) {
+    const QString name = ntResolveSearchPath(m_name);
+    if (NtResource::isResourcePath(name)) {
         setFileError(PermissionsError, resourceError("Resources are read-only"));
         return false;
     }
     const int r =
-        m_fd >= 0 ? ::fchmod(m_fd, toMode(permissions)) : ::chmod(m_name.toUtf8().constData(), toMode(permissions));
+        m_fd >= 0 ? ::fchmod(m_fd, toMode(permissions)) : ::chmod(name.toUtf8().constData(), toMode(permissions));
     if (r != 0) {
         setFileError(PermissionsError, QString::fromUtf8(std::strerror(errno)));
         return false;
@@ -381,15 +390,16 @@ bool QFileDevice::setPermissions(Permissions permissions) {
     \sa setFileTime(), QFileInfo::lastModified()
 */
 QDateTime QFileDevice::fileTime(FileTime time) const {
-    if (NtResource::isResourcePath(m_name)) {
+    const QString name = ntResolveSearchPath(m_name);
+    if (NtResource::isResourcePath(name)) {
         // A resource records only when its source file was modified.
-        const qint64 ms = NtResource::find(m_name).lastModified;
+        const qint64 ms = NtResource::find(name).lastModified;
         return time == FileModificationTime && ms != 0 ? QDateTime::fromMSecsSinceEpoch(ms) : QDateTime();
     }
     if (time == FileBirthTime)
-        return birthTime(m_fd, m_name);
+        return birthTime(m_fd, name);
     struct stat st;
-    if (!statFile(m_fd, m_name, &st))
+    if (!statFile(m_fd, name, &st))
         return QDateTime();
     switch (time) {
     case FileAccessTime:
@@ -413,8 +423,9 @@ QDateTime QFileDevice::fileTime(FileTime time) const {
     \sa fileTime()
 */
 bool QFileDevice::setFileTime(const QDateTime &newDate, FileTime fileTime) {
+    const QString name = ntResolveSearchPath(m_name);
     if (!newDate.isValid() || (fileTime != FileAccessTime && fileTime != FileModificationTime) ||
-        NtResource::isResourcePath(m_name)) {
+        NtResource::isResourcePath(name)) {
         setFileError(UnspecifiedError, QString::fromUtf8("Setting this file time is not supported"));
         return false;
     }
@@ -430,7 +441,7 @@ bool QFileDevice::setFileTime(const QDateTime &newDate, FileTime fileTime) {
     }
     t.tv_sec = static_cast<time_t>(secs);
     t.tv_nsec = static_cast<long>(rest * 1000000);
-    const int r = m_fd >= 0 ? ::futimens(m_fd, times) : ::utimensat(AT_FDCWD, m_name.toUtf8().constData(), times, 0);
+    const int r = m_fd >= 0 ? ::futimens(m_fd, times) : ::utimensat(AT_FDCWD, name.toUtf8().constData(), times, 0);
     if (r != 0) {
         setFileError(UnspecifiedError, QString::fromUtf8(std::strerror(errno)));
         return false;
@@ -546,7 +557,8 @@ qint64 QFileDevice::readLineData(char *data, qint64 maxSize) {
     A name that starts with a colon, such as \c{:/data/config.json}, refers
     to a \l{The Nt Resource System}{resource} compiled into the program.
     Resources can be opened only for reading, and cannot be removed, renamed
-    or changed; copy() copies one out to a real file.
+    or changed; copy() copies one out to a real file. A compressed resource
+    is decompressed into memory when it is opened.
 
     QFile also has static functions to check whether a file exists and to
     remove, rename and copy files. For text and binary data, use QTextStream
@@ -621,10 +633,11 @@ bool QFile::open(OpenMode mode) {
     \sa remove()
 */
 bool QFile::exists(const QString &fileName) {
-    if (NtResource::isResourcePath(fileName))
-        return NtResource::find(fileName).exists;
+    const QString name = ntResolveSearchPath(fileName);
+    if (NtResource::isResourcePath(name))
+        return NtResource::find(name).exists;
     struct stat st;
-    return ::stat(fileName.toUtf8().constData(), &st) == 0;
+    return ::stat(name.toUtf8().constData(), &st) == 0;
 }
 
 /*!
@@ -636,11 +649,12 @@ bool QFile::exists(const QString &fileName) {
     \sa remove(), exists()
 */
 bool QFile::remove(const QString &fileName) {
-    if (NtResource::isResourcePath(fileName)) {
+    const QString name = ntResolveSearchPath(fileName);
+    if (NtResource::isResourcePath(name)) {
         errno = EROFS;
         return false;
     }
-    return ::unlink(fileName.toUtf8().constData()) == 0;
+    return ::unlink(name.toUtf8().constData()) == 0;
 }
 
 /*!
@@ -682,10 +696,11 @@ bool QFile::setPermissions(Permissions permissions) { return QFileDevice::setPer
     file does not exist.
 */
 QFile::Permissions QFile::permissions(const QString &fileName) {
-    if (NtResource::isResourcePath(fileName))
-        return NtResource::find(fileName).exists ? fromMode(kResourceMode) : Permissions();
+    const QString name = ntResolveSearchPath(fileName);
+    if (NtResource::isResourcePath(name))
+        return NtResource::find(name).exists ? fromMode(kResourceMode) : Permissions();
     struct stat st;
-    return statFile(-1, fileName, &st) ? fromMode(st.st_mode) : Permissions();
+    return statFile(-1, name, &st) ? fromMode(st.st_mode) : Permissions();
 }
 
 /*!
@@ -695,9 +710,10 @@ QFile::Permissions QFile::permissions(const QString &fileName) {
     \c true if successful; otherwise returns \c false.
 */
 bool QFile::setPermissions(const QString &fileName, Permissions permissions) {
-    if (NtResource::isResourcePath(fileName))
+    const QString name = ntResolveSearchPath(fileName);
+    if (NtResource::isResourcePath(name))
         return false;
-    return ::chmod(fileName.toUtf8().constData(), toMode(permissions)) == 0;
+    return ::chmod(name.toUtf8().constData(), toMode(permissions)) == 0;
 }
 
 /*!
@@ -746,11 +762,12 @@ bool QFile::link(const QString &linkName) {
     otherwise returns \c false.
 */
 bool QFile::link(const QString &fileName, const QString &linkName) {
-    if (NtResource::isResourcePath(linkName)) {
+    const QString linkPath = ntResolveSearchPath(linkName);
+    if (NtResource::isResourcePath(linkPath)) {
         errno = EROFS;
         return false;
     }
-    return ::symlink(fileName.toUtf8().constData(), linkName.toUtf8().constData()) == 0;
+    return ::symlink(fileName.toUtf8().constData(), linkPath.toUtf8().constData()) == 0;
 }
 
 /*!
@@ -762,11 +779,13 @@ bool QFile::link(const QString &fileName, const QString &linkName) {
     \sa rename()
 */
 bool QFile::rename(const QString &oldName, const QString &newName) {
-    if (NtResource::isResourcePath(oldName) || NtResource::isResourcePath(newName)) {
+    const QString to = ntResolveSearchPath(newName);
+    const QString from = ntResolveSearchPath(oldName);
+    if (NtResource::isResourcePath(from) || NtResource::isResourcePath(to)) {
         errno = EROFS;
         return false;
     }
-    return ::rename(oldName.toUtf8().constData(), newName.toUtf8().constData()) == 0;
+    return ::rename(from.toUtf8().constData(), to.toUtf8().constData()) == 0;
 }
 
 /*!

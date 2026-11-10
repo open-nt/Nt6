@@ -6,9 +6,17 @@
 // described in src/qresource_p.h.
 //
 // The command line follows the subset of Qt's rcc that CMake's AUTORCC and qt_add_resources() use.
-// Data is never compressed; the compression options are accepted and ignored.
+// Files are compressed with Zstandard or zlib, when ntrcc is built with them, if that makes them
+// smaller by at least the threshold (70% by default), as rcc does.
 
 #include <sys/stat.h>
+
+#ifdef NT_HAVE_ZLIB
+#include <zlib.h>
+#endif
+#ifdef NT_HAVE_ZSTD
+#include <zstd.h>
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -21,6 +29,7 @@
 #include <fstream>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -42,6 +51,12 @@ constexpr std::uint32_t kFormatVersion = 1;
 constexpr std::uint32_t kHeaderSize = 36;
 constexpr std::uint32_t kNodeSize = 40;
 constexpr std::uint32_t kDirectoryFlag = 1;
+constexpr std::uint32_t kZlibFlag = 2;
+constexpr std::uint32_t kZstdFlag = 4;
+
+// The Zstandard level when none is given: slower than libzstd's default, but resources are compiled
+// once and read many times.
+[[maybe_unused]] constexpr int kZstdDefaultLevel = 14;
 
 struct Error : std::runtime_error {
     using std::runtime_error::runtime_error;
@@ -263,10 +278,21 @@ private:
 // ---------------------------------------------------------------------------------------------
 // The resources described by the .qrc files.
 
+// A compression algorithm. Best is Zstandard if ntrcc has it, then zlib, then none.
+enum class Algorithm { None, Zlib, Zstd, Best };
+
+// Compression settings; what a <file> leaves unset comes from the command line.
+struct Compression {
+    std::optional<Algorithm> algorithm;
+    std::optional<int> level; // -1 is the algorithm's default, 0 no compression
+    std::optional<int> threshold;
+};
+
 struct File {
     std::string locale;
     fs::path source;
     std::int64_t lastModified = 0;
+    Compression compression;
 };
 
 struct Directory {
@@ -283,7 +309,32 @@ struct Options {
     bool binary = false;
     bool list = false;
     bool listMapping = false;
+    bool noZstd = false;
+    Algorithm algorithm = Algorithm::Best;
+    int level = -1;
+    int threshold = 70;
 };
+
+Algorithm parseAlgorithm(const std::string &name) {
+    if (name == "none")
+        return Algorithm::None;
+    if (name == "zlib")
+        return Algorithm::Zlib;
+    if (name == "zstd")
+        return Algorithm::Zstd;
+    if (name == "best")
+        return Algorithm::Best;
+    throw Error("unknown compression algorithm '" + name + "' (expected zstd, zlib, best or none)");
+}
+
+int parseNumber(const std::string &text, const char *what, int low, int high) {
+    char *end = nullptr;
+    const long v = std::strtol(text.c_str(), &end, 10);
+    if (text.empty() || *end != '\0' || v < low || v > high)
+        throw Error(std::string("invalid ") + what + " '" + text + "' (expected " + std::to_string(low) + " to " +
+                    std::to_string(high) + ")");
+    return static_cast<int>(v);
+}
 
 std::string trim(const std::string &s) {
     const std::size_t b = s.find_first_not_of(" \t\r\n");
@@ -371,13 +422,26 @@ public:
                 if (text.empty())
                     throw Error(where(qrcFile, file) + "<file> names no file");
                 const auto alias = file.attributes.find("alias");
+                Compression compression;
+                try {
+                    for (const auto &a : file.attributes) {
+                        if (a.first == "compress")
+                            compression.level = parseNumber(a.second, "compression level", -1, 22);
+                        else if (a.first == "threshold")
+                            compression.threshold = parseNumber(a.second, "threshold", 0, 100);
+                        else if (a.first == "compression-algorithm" || a.first == "compress-algo")
+                            compression.algorithm = parseAlgorithm(a.second);
+                    }
+                } catch (const Error &e) {
+                    throw Error(where(qrcFile, file) + e.what());
+                }
                 const std::string name = alias == file.attributes.end() ? text : alias->second;
                 const fs::path source = (base / fs::path(text)).lexically_normal();
                 const std::vector<std::string> target = components(rootOption + '/' + prefix + '/' + name);
                 if (fs::is_directory(source)) {
-                    addDirectory(source, target, locale);
+                    addDirectory(source, target, locale, compression);
                 } else if (fs::is_regular_file(source)) {
-                    add(target, locale, source);
+                    add(target, locale, source, compression);
                 } else {
                     throw Error(where(qrcFile, file) + "cannot find file '" + text + "'");
                 }
@@ -393,7 +457,8 @@ private:
         return file + ":" + std::to_string(e.line) + ": ";
     }
 
-    void addDirectory(const fs::path &dir, const std::vector<std::string> &target, const std::string &locale) {
+    void addDirectory(const fs::path &dir, const std::vector<std::string> &target, const std::string &locale,
+                      const Compression &compression) {
         std::vector<fs::path> entries;
         for (const fs::directory_entry &e : fs::directory_iterator(dir)) {
             const std::string n = e.path().filename().string();
@@ -405,13 +470,14 @@ private:
             std::vector<std::string> child = target;
             child.push_back(p.filename().string());
             if (fs::is_directory(p))
-                addDirectory(p, child, locale);
+                addDirectory(p, child, locale, compression);
             else if (fs::is_regular_file(p))
-                add(child, locale, p);
+                add(child, locale, p, compression);
         }
     }
 
-    void add(const std::vector<std::string> &target, const std::string &locale, const fs::path &source) {
+    void add(const std::vector<std::string> &target, const std::string &locale, const fs::path &source,
+             const Compression &compression) {
         if (target.empty())
             throw Error("'" + source.string() + "' has an empty resource name");
         Directory *dir = &m_root;
@@ -427,6 +493,7 @@ private:
         f.locale = locale;
         f.source = source;
         f.lastModified = modificationTime(source);
+        f.compression = compression;
         variants[locale] = f;
         m_mapping.emplace_back(joinPath(target), source);
     }
@@ -458,7 +525,62 @@ std::vector<unsigned char> readFile(const fs::path &path) {
     return std::vector<unsigned char>(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 }
 
-std::vector<unsigned char> serialize(const Directory &root) {
+// Picks the algorithm for a file, or throws if ntrcc was built without the one asked for.
+Algorithm resolveAlgorithm(Algorithm a, bool noZstd) {
+#ifdef NT_HAVE_ZSTD
+    constexpr bool haveZstd = true;
+#else
+    constexpr bool haveZstd = false;
+#endif
+#ifdef NT_HAVE_ZLIB
+    constexpr bool haveZlib = true;
+#else
+    constexpr bool haveZlib = false;
+#endif
+    if (a == Algorithm::Zstd && noZstd)
+        a = Algorithm::Best;
+    if (a == Algorithm::Best)
+        return haveZstd && !noZstd ? Algorithm::Zstd : (haveZlib ? Algorithm::Zlib : Algorithm::None);
+    if (a == Algorithm::Zstd && !haveZstd)
+        throw Error("Zstandard compression was asked for, but ntrcc was built without libzstd");
+    if (a == Algorithm::Zlib && !haveZlib)
+        throw Error("zlib compression was asked for, but ntrcc was built without zlib");
+    return a;
+}
+
+// Compresses bytes with the algorithm at the level (-1 for its default). Returns an empty vector if
+// that fails.
+std::vector<unsigned char> compress(Algorithm a, int level, const std::vector<unsigned char> &bytes) {
+    std::vector<unsigned char> out;
+    static_cast<void>(level); // unused when ntrcc has neither library
+    static_cast<void>(bytes);
+    if (a == Algorithm::Zlib) {
+#ifdef NT_HAVE_ZLIB
+        if (level > 9)
+            throw Error("the zlib compression level must be between 1 and 9");
+        uLongf length = compressBound(static_cast<uLong>(bytes.size()));
+        out.resize(length);
+        if (compress2(out.data(), &length, bytes.data(), static_cast<uLong>(bytes.size()),
+                      level < 0 ? Z_DEFAULT_COMPRESSION : level) != Z_OK)
+            return std::vector<unsigned char>();
+        out.resize(length);
+#endif
+    } else if (a == Algorithm::Zstd) {
+#ifdef NT_HAVE_ZSTD
+        if (level > ZSTD_maxCLevel())
+            throw Error("the Zstandard compression level must be between 1 and " + std::to_string(ZSTD_maxCLevel()));
+        out.resize(ZSTD_compressBound(bytes.size()));
+        const std::size_t n =
+            ZSTD_compress(out.data(), out.size(), bytes.data(), bytes.size(), level < 0 ? kZstdDefaultLevel : level);
+        if (ZSTD_isError(n))
+            return std::vector<unsigned char>();
+        out.resize(n);
+#endif
+    }
+    return out;
+}
+
+std::vector<unsigned char> serialize(const Directory &root, const Options &opts) {
     struct Node {
         std::string name;
         std::string locale;
@@ -466,6 +588,8 @@ std::vector<unsigned char> serialize(const Directory &root) {
         const File *file = nullptr;
         std::uint64_t first = 0;
         std::uint64_t count = 0;
+        std::uint64_t uncompressed = 0;
+        std::uint32_t flags = 0;
     };
     std::vector<Node> nodes(1);
     nodes[0].dir = &root;
@@ -516,7 +640,25 @@ std::vector<unsigned char> serialize(const Directory &root) {
         names[i] = {intern(nodes[i].name), nodes[i].name.size()};
         locales[i] = {intern(nodes[i].locale), nodes[i].locale.size()};
         if (nodes[i].file) {
-            const std::vector<unsigned char> bytes = readFile(nodes[i].file->source);
+            const File &file = *nodes[i].file;
+            std::vector<unsigned char> bytes = readFile(file.source);
+            nodes[i].uncompressed = bytes.size();
+            try {
+                const Algorithm a = resolveAlgorithm(file.compression.algorithm.value_or(opts.algorithm), opts.noZstd);
+                const int level = file.compression.level.value_or(opts.level);
+                const auto threshold = static_cast<std::uint64_t>(file.compression.threshold.value_or(opts.threshold));
+                if (a != Algorithm::None && level != 0 && !bytes.empty()) {
+                    std::vector<unsigned char> packed = compress(a, level, bytes);
+                    // Compressed only if that saves at least threshold percent.
+                    if (!packed.empty() && packed.size() < bytes.size() &&
+                        (bytes.size() - packed.size()) * 100 >= threshold * bytes.size()) {
+                        bytes = std::move(packed);
+                        nodes[i].flags = a == Algorithm::Zlib ? kZlibFlag : kZstdFlag;
+                    }
+                }
+            } catch (const Error &e) {
+                throw Error("'" + file.source.string() + "': " + e.what());
+            }
             nodes[i].first = data.size();
             nodes[i].count = bytes.size();
             data.insert(data.end(), bytes.begin(), bytes.end());
@@ -543,12 +685,12 @@ std::vector<unsigned char> serialize(const Directory &root) {
         const std::size_t at = static_cast<std::size_t>(nodeTable) + i * kNodeSize;
         put32(out, at, names[i].first);
         put32(out, at + 4, names[i].second);
-        put32(out, at + 8, nodes[i].dir ? kDirectoryFlag : 0);
+        put32(out, at + 8, nodes[i].dir ? kDirectoryFlag : nodes[i].flags);
         put32(out, at + 12, locales[i].first);
         put32(out, at + 16, locales[i].second);
         put32(out, at + 20, nodes[i].first);
         put32(out, at + 24, nodes[i].count);
-        put32(out, at + 28, 0);
+        put32(out, at + 28, nodes[i].dir ? 0 : nodes[i].uncompressed);
         put64(out, at + 32, nodes[i].file ? nodes[i].file->lastModified : 0);
     }
     std::memcpy(out.data() + stringTable, strings.data(), strings.size());
@@ -634,18 +776,23 @@ void usage(std::ostream &out) {
            "  --list                  List the files the inputs refer to.\n"
            "  --list-mapping          List each resource path and the file it comes from.\n"
            "  -d, --depfile <file>    Also write a Makefile dependency file.\n"
-           "  --no-compress, --compress <level>, --threshold <n>, --compress-algo <algo>,\n"
-           "  --no-zstd, --format-version <n>, --no-namespace\n"
-           "                          Accepted for compatibility with rcc; data is never compressed.\n"
+           "  --compress-algo <algo>  Compress with zstd, zlib, best (the default: zstd if available,\n"
+           "                          then zlib) or none.\n"
+           "  --compress <level>      Compression level: 1-9 for zlib, 1-22 for zstd, -1 for the\n"
+           "                          default, 0 for no compression.\n"
+           "  --threshold <percent>   Compress a file only if that saves at least <percent> (default 70).\n"
+           "  --no-compress           Do not compress.\n"
+           "  --no-zstd               Do not use Zstandard.\n"
+           "  --format-version <n>, --no-namespace\n"
+           "                          Accepted for compatibility with rcc; they change nothing.\n"
            "  -v, --version           Show the version.\n"
            "  -h, --help              Show this help.\n";
 }
 
 Options parseArguments(int argc, char **argv) {
     Options opts;
-    const std::set<std::string> ignoredFlags = {"no-compress", "no-zstd", "no-namespace", "verbose"};
-    const std::set<std::string> ignoredValues = {"compress", "threshold", "compress-algo", "format-version",
-                                                 "namespace", "pass"};
+    const std::set<std::string> ignoredFlags = {"no-namespace", "verbose"};
+    const std::set<std::string> ignoredValues = {"format-version", "namespace", "pass"};
     for (int i = 1; i < argc; ++i) {
         std::string a = argv[i];
         if (a.size() > 1 && a[0] == '-' && a != "-") {
@@ -680,6 +827,16 @@ Options parseArguments(int argc, char **argv) {
                 opts.list = true;
             else if (key == "list-mapping")
                 opts.listMapping = true;
+            else if (key == "no-compress")
+                opts.algorithm = Algorithm::None;
+            else if (key == "no-zstd")
+                opts.noZstd = true;
+            else if (key == "compress-algo")
+                opts.algorithm = parseAlgorithm(take());
+            else if (key == "compress")
+                opts.level = parseNumber(take(), "compression level", -1, 22);
+            else if (key == "threshold")
+                opts.threshold = parseNumber(take(), "threshold", 0, 100);
             else if (key == "v" || key == "version") {
                 std::cout << kVersion << '\n';
                 std::exit(0);
@@ -723,7 +880,7 @@ int main(int argc, char **argv) {
             return 0;
         }
 
-        const std::vector<unsigned char> tree = serialize(collection.root());
+        const std::vector<unsigned char> tree = serialize(collection.root(), opts);
         if (opts.binary) {
             writeOutput(opts.output, std::string(tree.begin(), tree.end()));
         } else {

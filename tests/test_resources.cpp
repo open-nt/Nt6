@@ -203,6 +203,76 @@ static void testDirIterator() {
     CHECK(files == (QStringList() << ":/icons/open.svg" << ":/icons/sub/close.svg" << ":/listed/icons/open.svg"));
 }
 
+// QDir search paths, over resource and real directories.
+static void testSearchPaths() {
+    const QString disk = g_tmp + "/icons";
+    CHECK(QDir().mkpath(disk + "/sub"));
+    CHECK(writeFile(disk + "/extra.txt", "extra\n"));
+    CHECK(writeFile(disk + "/open.svg", "on disk\n"));
+
+    CHECK(QDir::searchPaths("icons").isEmpty());
+    QDir::setSearchPaths("icons", QStringList() << ":/icons/" << disk);
+    CHECK(QDir::searchPaths("icons") == (QStringList() << ":/icons" << disk));
+
+    // The first search path that has the file wins.
+    CHECK(QFile::exists("icons:open.svg"));
+    CHECK(readAll("icons:open.svg").startsWith("<svg"));
+    CHECK(readAll("icons:extra.txt") == "extra\n");
+    CHECK(QFileInfo("icons:sub/close.svg").isFile());
+    CHECK(QFileInfo("icons:sub/close.svg").absoluteFilePath() == ":/icons/sub/close.svg");
+    CHECK(QFileInfo("icons:extra.txt").absoluteFilePath() == disk + "/extra.txt");
+    CHECK(QFileInfo("icons:extra.txt").fileName() == "extra.txt");
+    CHECK(QFileInfo("icons:extra.txt").filePath() == "icons:extra.txt");
+    CHECK(QFileInfo("icons:extra.txt").size() == 6);
+    CHECK(QFile("icons:extra.txt").size() == 6);
+    CHECK(!QFile::exists("icons:missing.txt"));
+
+    QDir dir("icons:sub");
+    CHECK(dir.exists());
+    CHECK(dir.absolutePath() == ":/icons/sub");
+    CHECK(dir.entryList() == QStringList("close.svg"));
+    CHECK(QFileInfo(dir.entryInfoList().value(0)).isFile());
+    QStringList found;
+    QDirIterator it("icons:sub");
+    while (it.hasNext())
+        found << it.next();
+    CHECK(found == QStringList("icons:sub/close.svg"));
+
+    // A file that exists nowhere is created in the first search path that is not read-only: here
+    // the first is a resource, so writing fails; with the disk first, it is created there.
+    QFile fresh("icons:new.txt");
+    CHECK(!fresh.open(QIODevice::WriteOnly));
+    QDir::setSearchPaths("icons", QStringList() << disk << ":/icons");
+    CHECK(writeFile("icons:new.txt", "new\n"));
+    CHECK(readAll(disk + "/new.txt") == "new\n");
+    CHECK(readAll("icons:open.svg") == "on disk\n");
+    CHECK(QFile::remove("icons:new.txt"));
+    CHECK(!QFile::exists(disk + "/new.txt"));
+
+    // addSearchPath() appends; a search path can use another prefix.
+    QDir::setSearchPaths("theme", QStringList("icons:sub"));
+    CHECK(readAll("theme:close.svg").startsWith("<svg"));
+    QDir::addSearchPath("theme", ":/text");
+    CHECK(QDir::searchPaths("theme") == (QStringList() << "icons:sub" << ":/text"));
+    CHECK(QFile::exists("theme:greeting.txt"));
+
+    // Prefixes that name each other resolve to nothing, without looping.
+    QDir::setSearchPaths("loopa", QStringList("loopb:"));
+    QDir::setSearchPaths("loopb", QStringList("loopa:"));
+    CHECK(!QFile::exists("loopa:x"));
+    CHECK(!QFileInfo("loopb:x").exists());
+
+    // Invalid prefixes are refused, an empty list removes a prefix, and unknown prefixes are names.
+    QDir::setSearchPaths("x", QStringList(disk));
+    CHECK(QDir::searchPaths("x").isEmpty());
+    QDir::addSearchPath("a-b", disk);
+    CHECK(QDir::searchPaths("a-b").isEmpty());
+    for (const char *prefix : {"icons", "theme", "loopa", "loopb"})
+        QDir::setSearchPaths(QString::fromUtf8(prefix), QStringList());
+    CHECK(QDir::searchPaths("icons").isEmpty());
+    CHECK(!QFile::exists("icons:open.svg"));
+}
+
 static void testResource() {
     QResource r(":/hello.txt");
     CHECK(r.isValid());
@@ -365,6 +435,127 @@ static void testCompiler() {
     CHECK(runRcc(QStringList()) == 1);
 }
 
+// Compressed resources: written by ntrcc into a binary file, read back through QResource and QFile.
+static void testCompression() {
+    QByteArray big;
+    for (int i = 0; i < 200; ++i)
+        big += "Line " + QByteArray::number(i % 7) + " of a text that compresses well.\n";
+    CHECK(writeFile(g_tmp + "/big.txt", big));
+    CHECK(writeFile(g_tmp + "/small.txt", "abc\n"));
+    QByteArray qrc = "<RCC><qresource>\n"
+                     "<file alias=\"best.txt\">big.txt</file>\n"
+                     "<file alias=\"none.txt\" compression-algorithm=\"none\">big.txt</file>\n"
+                     "<file alias=\"small.txt\" threshold=\"0\">small.txt</file>\n";
+#ifdef NT_HAVE_ZLIB
+    qrc += "<file alias=\"zlib.txt\" compression-algorithm=\"zlib\" compress=\"9\">big.txt</file>\n";
+#endif
+    qrc += "</qresource></RCC>\n";
+    CHECK(writeFile(g_tmp + "/compressed.qrc", qrc));
+    const QString rcc = g_tmp + "/compressed.rcc";
+    CHECK(runRcc(QStringList() << "--binary" << "--root" << "/c" << "-o" << rcc << g_tmp + "/compressed.qrc") == 0);
+    CHECK(QResource::registerResource(rcc));
+
+#if defined(NT_HAVE_ZSTD)
+    const QResource::Compression best = QResource::ZstdCompression;
+#elif defined(NT_HAVE_ZLIB)
+    const QResource::Compression best = QResource::ZlibCompression;
+#else
+    const QResource::Compression best = QResource::NoCompression;
+#endif
+    QResource r(":/c/best.txt");
+    CHECK(r.compressionAlgorithm() == best);
+    CHECK(r.uncompressedSize() == big.size());
+    CHECK(best == QResource::NoCompression ? r.size() == big.size() : r.size() < big.size() / 4);
+    CHECK(r.uncompressedData() == big);
+    CHECK(readAll(":/c/best.txt") == big);
+    CHECK(QFileInfo(":/c/best.txt").size() == big.size());
+    CHECK(QFile(":/c/best.txt").size() == big.size());
+    QFile f(":/c/best.txt");
+    CHECK(f.open(QIODevice::ReadOnly));
+    CHECK(f.size() == big.size());
+    CHECK(f.readLine() == "Line 0 of a text that compresses well.\n");
+    CHECK(f.seek(big.size() - 6));
+    CHECK(f.readAll() == "well.\n");
+
+    QResource none(":/c/none.txt");
+    CHECK(none.compressionAlgorithm() == QResource::NoCompression);
+    CHECK(none.size() == big.size() && none.uncompressedSize() == big.size());
+    CHECK(readAll(":/c/none.txt") == big);
+    // A file that compression does not make smaller is stored as is, whatever the threshold.
+    CHECK(QResource(":/c/small.txt").compressionAlgorithm() == QResource::NoCompression);
+    CHECK(readAll(":/c/small.txt") == "abc\n");
+
+#ifdef NT_HAVE_ZLIB
+    QResource zlib(":/c/zlib.txt");
+    CHECK(zlib.compressionAlgorithm() == QResource::ZlibCompression);
+    CHECK(zlib.uncompressedData() == big);
+    CHECK(readAll(":/c/zlib.txt") == big);
+#endif
+    CHECK(QResource::unregisterResource(rcc));
+
+    // The command line: --no-compress, and the threshold that keeps files as they are.
+    CHECK(runRcc(QStringList() << "--binary" << "--no-compress" << "--root" << "/n" << "-o" << rcc
+                               << g_tmp + "/compressed.qrc") == 0);
+    CHECK(QResource::registerResource(rcc));
+    CHECK(QResource(":/n/best.txt").compressionAlgorithm() == QResource::NoCompression);
+    CHECK(QResource::unregisterResource(rcc));
+    CHECK(runRcc(QStringList() << "--binary" << "--threshold" << "100" << "--root" << "/t" << "-o" << rcc
+                               << g_tmp + "/compressed.qrc") == 0);
+    CHECK(QResource::registerResource(rcc));
+    CHECK(QResource(":/t/best.txt").compressionAlgorithm() == QResource::NoCompression);
+    CHECK(QResource::unregisterResource(rcc));
+
+    // Bad compression settings are errors.
+    const QString in = g_tmp + "/compressed.qrc";
+    CHECK(runRcc(QStringList() << "--compress-algo" << "lzma" << in) == 1);
+    CHECK(runRcc(QStringList() << "--threshold" << "101" << in) == 1);
+    CHECK(runRcc(QStringList() << "--compress" << "x" << in) == 1);
+    CHECK(writeFile(g_tmp + "/badattr.qrc", "<RCC><qresource><file compress=\"99\">big.txt</file></qresource></RCC>"));
+    CHECK(runRcc(QStringList() << g_tmp + "/badattr.qrc") == 1);
+#ifdef NT_HAVE_ZLIB
+    CHECK(runRcc(QStringList() << "--compress-algo" << "zlib" << "--compress" << "12" << in) == 1);
+#else
+    CHECK(runRcc(QStringList() << "--compress-algo" << "zlib" << in) == 1);
+#endif
+#ifndef NT_HAVE_ZSTD
+    CHECK(runRcc(QStringList() << "--compress-algo" << "zstd" << in) == 1);
+#endif
+
+#ifdef NT_HAVE_ZLIB
+    // Damaged compressed data cannot be read, but the rest of the tree can. zlib.txt sorts last, so
+    // its data ends the file, and the last byte is part of its checksum.
+    CHECK(runRcc(QStringList() << "--binary" << "--root" << "/d" << "-o" << rcc << in) == 0);
+    QFile file(rcc);
+    CHECK(file.open(QIODevice::ReadOnly));
+    QByteArray bytes = file.readAll();
+    file.close();
+    bytes[bytes.size() - 1] = static_cast<char>(bytes.at(bytes.size() - 1) ^ 0x55);
+    CHECK(writeFile(rcc, bytes));
+    CHECK(QResource::registerResource(rcc));
+    QResource damaged(":/d/zlib.txt");
+    CHECK(damaged.isValid() && damaged.compressionAlgorithm() == QResource::ZlibCompression);
+    CHECK(damaged.uncompressedData().isEmpty());
+    QFile broken(":/d/zlib.txt");
+    CHECK(!broken.open(QIODevice::ReadOnly));
+    CHECK(broken.error() == QFileDevice::OpenError);
+    CHECK(readAll(":/d/none.txt") == big);
+    CHECK(QResource::unregisterResource(rcc));
+#endif
+
+    // Unknown flags, or a directory marked as compressed, are refused.
+    CHECK(runRcc(QStringList() << "--binary" << "-o" << rcc << in) == 0);
+    QFile again(rcc);
+    CHECK(again.open(QIODevice::ReadOnly));
+    const QByteArray good = again.readAll();
+    QByteArray flagged = good;
+    flagged[36 + 11] = '\x09'; // the root directory: directory and an unknown bit
+    CHECK(writeFile(rcc, flagged));
+    CHECK(!QResource::registerResource(rcc));
+    flagged[36 + 11] = '\x03'; // the root directory, compressed with zlib
+    CHECK(writeFile(rcc, flagged));
+    CHECK(!QResource::registerResource(rcc));
+}
+
 int main() {
     const char *tmp = std::getenv("TMPDIR");
     const QString tmpBase = tmp && *tmp ? QDir::cleanPath(QString::fromUtf8(tmp)) : QString::fromUtf8("/tmp");
@@ -378,11 +569,13 @@ int main() {
     testFileInfo();
     testDir();
     testDirIterator();
+    testSearchPaths();
     testResource();
     testCmakeForms();
     testInitMacros();
     testBinary();
     testCompiler();
+    testCompression();
 
     CHECK(QDir(g_tmp).removeRecursively());
     if (g_failures == 0)

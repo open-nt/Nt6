@@ -28,9 +28,11 @@ configure_file(cmake/qconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/QtCore/q
 
 add_library(NtCore
     src/dispatcher.cpp
+    src/qabstractanimation.cpp
     src/qabstracteventdispatcher.cpp
     src/qabstractitemmodel.cpp
     src/qabstractproxymodel.cpp
+    src/qanimationgroup.cpp
     src/qbitarray.cpp
     src/qbuffer.cpp
     src/qbytearray.cpp
@@ -82,12 +84,16 @@ add_library(NtCore
     src/qmimedata.cpp
     src/qobject.cpp
     src/qobjectcleanuphandler.cpp
+    src/qparallelanimationgroup.cpp
+    src/qpauseanimation.cpp
     src/qprocess.cpp
+    src/qpropertyanimation.cpp
     src/qrandom.cpp
     src/qregularexpression.cpp
     src/qresource.cpp
     src/qrunnable.cpp
     src/qsavefile.cpp
+    src/qsequentialanimationgroup.cpp
     src/qsettings.cpp
     src/qsharedmemory.cpp
     src/qsettings_ini.cpp
@@ -116,6 +122,7 @@ add_library(NtCore
     src/qurl.cpp
     src/quuid.cpp
     src/qvariant.cpp
+    src/qvariantanimation.cpp
     src/qvariantiterable.cpp
     src/qversionnumber.cpp
     src/qxmlstream.cpp
@@ -650,7 +657,7 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_core_tests PRIVATE Nt::Core)
     add_test(NAME nt_core_tests COMMAND nt_core_tests)
 
-    foreach(suite coreapi datetime filesystem globals models storage streams text types xmlstream)
+    foreach(suite animation coreapi datetime filesystem globals models storage streams text types xmlstream)
         add_executable(nt_${suite}_tests tests/test_${suite}.cpp)
         target_link_libraries(nt_${suite}_tests PRIVATE Nt::Core)
         add_test(NAME nt_${suite}_tests COMMAND nt_${suite}_tests)
@@ -954,7 +961,7 @@ if(NT_BUILD_TESTS)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests nt_ipc_tests
                            nt_test_tests)
-    foreach(suite coreapi datetime filesystem globals models storage streams text types xmlstream)
+    foreach(suite animation coreapi datetime filesystem globals models storage streams text types xmlstream)
         nt_set_compile_options(nt_${suite}_tests)
     endforeach()
 endif()

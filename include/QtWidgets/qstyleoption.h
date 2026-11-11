@@ -1,11 +1,16 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qabstractitemmodel.h>
+#include <QtCore/qlocale.h>
 #include <QtCore/qnamespace.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
+#include <QtGui/qbrush.h>
+#include <QtGui/qfont.h>
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qpalette.h>
+#include <QtGui/qpixmap.h>
 #include <QtWidgets/qstyle.h>
 
 class QStyleOption {
@@ -21,7 +26,8 @@ public:
         SO_SpinBox,
         SO_GroupBox,
         SO_Header,
-        SO_MenuItem
+        SO_MenuItem,
+        SO_ViewItem
     };
 
     explicit QStyleOption(int optionType = SO_Default) : type(optionType), fontMetrics(QFont()) {}
@@ -117,6 +123,19 @@ public:
     QString text;
     Qt::Alignment textAlignment = Qt::AlignCenter;
     bool lastSection = false;
+    /*!
+        \enum QStyleOptionHeader::SortIndicator
+
+        The arrow that a section shows for the order that its column is
+        sorted in.
+
+        \value None No arrow: the column is not the one that is sorted by.
+        \value SortUp The arrow of the descending order.
+        \value SortDown The arrow of the ascending order.
+    */
+    enum SortIndicator { None, SortUp, SortDown };
+    /*! The arrow of the sort order that the section shows; \c None by default. */
+    SortIndicator sortIndicator = None;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStyleOptionButton::ButtonFeatures)
@@ -135,3 +154,77 @@ public:
     QFont font;
     int tabWidth = 0;
 };
+
+/*!
+    \class QStyleOptionViewItem
+    \brief The QStyleOptionViewItem class describes how an item of an item view is drawn.
+
+    A view fills one of these in for each item that it draws and passes it
+    to its delegate; QStyledItemDelegate::initStyleOption() adds what the
+    model says about the item: its text, check state, decoration, font and
+    colors.
+
+    \differences
+    The decoration is a QPixmap in \c decoration, where Qt has a QIcon in
+    \c icon, as Nt has no QIcon. There is no \c viewItemPosition and no
+    \c decorationPosition: the decoration is on the left.
+    \enddifferences
+
+    \sa QStyledItemDelegate, QAbstractItemView
+*/
+class QStyleOptionViewItem : public QStyleOption {
+public:
+    /*!
+        \enum QStyleOptionViewItem::ViewItemFeature
+
+        What an item has and how it is drawn.
+
+        \value None Nothing special.
+        \value WrapText The text may be broken into lines. Nt draws one line.
+        \value Alternate The item is in a row that has the alternate background.
+        \value HasCheckIndicator The item has a check box.
+        \value HasDisplay The item has text.
+        \value HasDecoration The item has a decoration.
+    */
+    enum ViewItemFeature {
+        None = 0x00,
+        WrapText = 0x01,
+        Alternate = 0x02,
+        HasCheckIndicator = 0x04,
+        HasDisplay = 0x08,
+        HasDecoration = 0x10
+    };
+    Q_DECLARE_FLAGS(ViewItemFeatures, ViewItemFeature)
+
+    /*! Constructs an option for an item, with the type \c SO_ViewItem. */
+    QStyleOptionViewItem() : QStyleOption(SO_ViewItem) {}
+
+    /*! How the text is aligned in its part of the item; left and vertically centered by default. */
+    Qt::Alignment displayAlignment = Qt::AlignLeft | Qt::AlignVCenter;
+    /*! Where the text gets its ellipsis when it does not fit; at the end by default. */
+    Qt::TextElideMode textElideMode = Qt::ElideRight;
+    /*! The size that the decoration is drawn in; the size of \c decoration if it is empty. */
+    QSize decorationSize;
+    /*! The font of the text. */
+    QFont font;
+    /*! Whether the decoration is part of what shows the selection. */
+    bool showDecorationSelected = false;
+    /*! What the item has; see ViewItemFeature. */
+    ViewItemFeatures features;
+    /*! The locale that numbers and dates are written with. */
+    QLocale locale;
+    /*! The widget that the item is drawn on: the view, or \c nullptr. */
+    const QWidget *widget = nullptr;
+    /*! The model index of the item. */
+    QModelIndex index;
+    /*! The check state of the item, if it has a check box. */
+    Qt::CheckState checkState = Qt::Unchecked;
+    /*! The decoration of the item, drawn left of its text; null if it has none. */
+    QPixmap decoration;
+    /*! The text of the item. */
+    QString text;
+    /*! The background of the item, if the model gives it one. */
+    QBrush backgroundBrush;
+};
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(QStyleOptionViewItem::ViewItemFeatures)

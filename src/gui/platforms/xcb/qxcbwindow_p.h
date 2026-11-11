@@ -22,6 +22,7 @@ public:
     void requestActivateWindow() override;
     void setTransientParent(const QPlatformWindow *parent) override;
     quintptr winId() const override { return m_id; }
+    void setCursor(Qt::CursorShape shape) override;
 
     xcb_window_t id() const { return m_id; }
     // The geometry that the X server reported.

@@ -33,6 +33,8 @@ public:
         \value WindowActivate The window of a widget became the active window.
         \value WindowDeactivate The window of a widget stopped being the active window.
         \value MouseTrackingChange The mouse tracking setting of a widget changed.
+        \value ModifiedChange The window of a widget got, or lost, unsaved changes.
+        \value CursorChange The cursor of a widget changed.
         \value MouseButtonPress A mouse button was pressed; delivered as a QMouseEvent.
         \value MouseButtonRelease A mouse button was released; delivered as a QMouseEvent.
         \value MouseButtonDblClick A mouse button was double-clicked; delivered as a QMouseEvent.
@@ -82,6 +84,8 @@ public:
         WindowActivate = 24,
         WindowDeactivate = 25,
         MouseTrackingChange = 109,
+        ModifiedChange = 102,
+        CursorChange = 183,
         MouseButtonPress = 2,
         MouseButtonRelease = 3,
         MouseButtonDblClick = 4,

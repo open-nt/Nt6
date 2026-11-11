@@ -2,14 +2,55 @@
 #pragma once
 
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 #include <QtNetwork/qhostaddress.h>
 
 #include <cstring>
 
+// Without the flag, a write to a closed connection raises SIGPIPE, on a system that has signals.
+#ifndef MSG_NOSIGNAL
+#define MSG_NOSIGNAL 0
+#endif
+
 namespace QtPrivate {
+
+// Makes `fd` non-blocking and close-on-exec, for a system that cannot ask for both as the socket is made.
+// Closes it and returns -1 if that fails.
+inline int prepareSocket(int fd) {
+    if (fd < 0)
+        return fd;
+    const int flags = ::fcntl(fd, F_GETFL, 0);
+    if (flags < 0 || ::fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0) {
+        ::close(fd);
+        return -1;
+    }
+#ifdef FD_CLOEXEC
+    (void)::fcntl(fd, F_SETFD, FD_CLOEXEC);
+#endif
+    return fd;
+}
+
+// socket() for a non-blocking, close-on-exec socket of `type` (SOCK_STREAM or SOCK_DGRAM).
+inline int nonBlockingSocket(int family, int type) {
+#if defined(SOCK_NONBLOCK) && defined(SOCK_CLOEXEC)
+    return ::socket(family, type | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+#else
+    return prepareSocket(::socket(family, type, 0));
+#endif
+}
+
+// accept() that returns a non-blocking, close-on-exec socket.
+inline int nonBlockingAccept(int listener) {
+#if defined(SOCK_NONBLOCK) && defined(SOCK_CLOEXEC)
+    return ::accept4(listener, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
+#else
+    return prepareSocket(::accept(listener, nullptr, nullptr));
+#endif
+}
 
 // Fills `ss` for an AF_INET or AF_INET6 socket; IPv4 addresses are mapped on IPv6 sockets.
 inline socklen_t toSockaddr(const QHostAddress &a, quint16 port, int family, sockaddr_storage *ss) {

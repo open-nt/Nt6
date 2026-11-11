@@ -14,6 +14,7 @@ class QHeaderView : public QWidget {
     Q_PROPERTY(int minimumSectionSize READ minimumSectionSize WRITE setMinimumSectionSize)
     Q_PROPERTY(bool stretchLastSection READ stretchLastSection WRITE setStretchLastSection)
     Q_PROPERTY(bool sectionsClickable READ sectionsClickable WRITE setSectionsClickable)
+    Q_PROPERTY(bool showSortIndicator READ isSortIndicatorShown WRITE setSortIndicatorShown)
 public:
     explicit QHeaderView(Qt::Orientation orientation, QWidget *parent = nullptr);
     ~QHeaderView() override;
@@ -35,6 +36,11 @@ public:
     void setStretchLastSection(bool stretch);
     bool sectionsClickable() const { return m_clickable; }
     void setSectionsClickable(bool clickable);
+    bool isSortIndicatorShown() const { return m_sortShown; }
+    void setSortIndicatorShown(bool show);
+    void setSortIndicator(int logicalIndex, Qt::SortOrder order);
+    int sortIndicatorSection() const { return m_sortSection; }
+    Qt::SortOrder sortIndicatorOrder() const { return m_sortOrder; }
 
     QSize sizeHint() const override;
 
@@ -43,6 +49,15 @@ signals:
         This signal is emitted when the user clicks the section \a logicalIndex, if the sections are clickable.
     */
     void sectionClicked(int logicalIndex) { emitSignal(&QHeaderView::sectionClicked, logicalIndex); }
+    /*!
+        This signal is emitted when the section that shows the sort indicator, or the order that it shows,
+        changes: \a logicalIndex is the section and \a order the order. A view sorts its model by it.
+
+        \sa setSortIndicator()
+    */
+    void sortIndicatorChanged(int logicalIndex, Qt::SortOrder order) {
+        emitSignal(&QHeaderView::sortIndicatorChanged, logicalIndex, order);
+    }
     /*!
         This signal is emitted when the section \a logicalIndex changes its size from \a oldSize to \a newSize,
         whether the user dragged its edge or resizeSection() was called.
@@ -60,6 +75,7 @@ protected:
 
 private:
     friend class QTableWidget;
+    friend class QTreeView;
     void setCount(int count);
     void insertSections(int logicalIndex, int count);
     void removeSections(int logicalIndex, int count);
@@ -76,6 +92,9 @@ private:
     int m_minimumSize = 20;
     bool m_stretchLast = false;
     bool m_clickable = false;
+    bool m_sortShown = false;
+    int m_sortSection = -1;
+    Qt::SortOrder m_sortOrder = Qt::AscendingOrder;
     int m_pressed = -1;
     int m_resizing = -1;
     int m_resizeStart = 0;

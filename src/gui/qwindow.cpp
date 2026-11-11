@@ -26,6 +26,8 @@ struct QWindow::Data {
     bool exposed = false;
     bool active = false;
     bool updateRequested = false;
+    QCursor cursor;
+    bool quitOnClose = true;
 };
 
 /*!
@@ -113,7 +115,35 @@ void QWindow::create() {
         m_d->platform->setWindowTitle(m_d->title);
     if (m_d->transientParent && m_d->transientParent->m_d->platform)
         m_d->platform->setTransientParent(m_d->transientParent->m_d->platform);
+    QtPrivate::GuiAccess::applyCursor(this);
 }
+
+/*!
+    Returns the cursor that shows while the mouse is over the window: the
+    standard arrow, unless setCursor() set another one.
+
+    \sa setCursor(), unsetCursor()
+*/
+QCursor QWindow::cursor() const { return m_d->cursor; }
+
+/*!
+    Sets the cursor that shows while the mouse is over the window to
+    \a cursor. An override cursor of the application shows instead for as
+    long as there is one; see QGuiApplication::setOverrideCursor().
+
+    \sa cursor(), unsetCursor()
+*/
+void QWindow::setCursor(const QCursor &cursor) {
+    m_d->cursor = cursor;
+    QtPrivate::GuiAccess::applyCursor(this);
+}
+
+/*!
+    Gives the window the standard arrow cursor again.
+
+    \sa setCursor()
+*/
+void QWindow::unsetCursor() { setCursor(QCursor()); }
 
 /*!
     Hides the window and releases the platform window. The window object
@@ -397,7 +427,7 @@ void QWindow::setVisible(bool visible) {
     }
     emit visibleChanged(m_d->visible);
     if (!visible)
-        QtPrivate::GuiAccess::maybeQuitOnLastWindowClosed();
+        QtPrivate::GuiAccess::maybeQuitOnLastWindowClosed(this);
 }
 
 /*!
@@ -622,6 +652,10 @@ void QWindow::wheelEvent(QWheelEvent *event) { event->ignore(); }
 namespace QtPrivate {
 
 QPlatformWindow *GuiAccess::platformWindow(const QWindow *window) { return window->m_d->platform; }
+
+void GuiAccess::setQuitOnClose(QWindow *window, bool quit) { window->m_d->quitOnClose = quit; }
+
+bool GuiAccess::quitOnClose(const QWindow *window) { return window->m_d->quitOnClose; }
 
 void GuiAccess::applyGeometry(QWindow *window, const QRect &rect) {
     QWindow::Data &d = *window->m_d;

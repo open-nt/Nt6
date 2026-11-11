@@ -78,9 +78,12 @@ struct QImage::Data {
 
     \differences
     Only the formats Format_RGB32, Format_ARGB32 and Format_ARGB32_Premultiplied
-    exist, so every pixel is 32 bits. There is no loading or saving of image
-    files, no \c scaled(), \c transformed(), \c mirrored(), \c rgbSwapped(), no
-    color tables, no metadata and no \c QPixmap.
+    exist, so every pixel is 32 bits; files with other pixel formats are
+    converted when they load. Image files are PNG, BMP and JPEG (JPEG only if Nt
+    was built with libjpeg), found by their contents; there is no QImageReader or
+    QImageWriter and no plugins for other formats. There is no \c scaled(),
+    \c transformed(), \c mirrored(), \c rgbSwapped(), no color tables and no
+    metadata.
     The paint engine of an image is not shared between copies. Implicit sharing
     is not thread-safe for concurrent writers.
     \enddifferences

@@ -1,5 +1,8 @@
 // MIT License - see LICENSE
 #include <QtGui/qpixmap.h>
+#include <QtGui/qpaintengine.h>
+
+#include <QtCore/qiodevice.h>
 
 #include <utility>
 
@@ -21,9 +24,9 @@
     Pixmaps share their data: copying one is cheap, and it is copied when one of the copies is painted on.
 
     \differences
-    A pixmap is a QImage in memory, not a resource of the window system. It cannot be loaded from or saved to a file
-    (there is no \c load(), \c save() or \c QPixmap(fileName)), and there is no \c scaled(), \c transformed(),
-    \c mask(), \c QPixmapCache or device pixel ratio.
+    A pixmap is a QImage in memory, not a resource of the window system. Files load and save through QImage, so they
+    are PNG, BMP and JPEG, and the format is found from the contents of the file. There is no \c scaled(),
+    \c transformed(), \c mask(), \c QPixmapCache or device pixel ratio.
     \enddifferences
 
     \sa QImage, QPainter
@@ -51,6 +54,14 @@ QPixmap::QPixmap(const QSize &size) {
         m_image.fill(Qt::transparent);
     }
 }
+
+/*!
+    Constructs a pixmap from the image file \a fileName. The pixmap is null if the file cannot be loaded. The
+    \a format is ignored, as in QImage::load().
+
+    \sa load()
+*/
+QPixmap::QPixmap(const QString &fileName, const char *format) { load(fileName, format); }
 
 /*!
     Constructs a pixmap that shares the data of \a other.
@@ -144,6 +155,63 @@ QPixmap QPixmap::fromImage(const QImage &image) {
     if (!image.isNull())
         pixmap.m_image = image.convertToFormat(QImage::Format_ARGB32_Premultiplied);
     return pixmap;
+}
+
+/*!
+    Loads the image file \a fileName and returns \c true if it succeeded; otherwise returns \c false and leaves the
+    pixmap null.
+
+    \sa QImage::load(), save()
+*/
+bool QPixmap::load(const QString &fileName, const char *format) {
+    QImage image;
+    if (!image.load(fileName, format)) {
+        m_image = QImage();
+        return false;
+    }
+    *this = fromImage(image);
+    return true;
+}
+
+/*!
+    Loads the pixmap from the \a len bytes at \a data and returns \c true if it succeeded.
+
+    \sa QImage::loadFromData()
+*/
+bool QPixmap::loadFromData(const uchar *data, uint len, const char *format) {
+    return loadFromData(QByteArrayView(reinterpret_cast<const char *>(data), static_cast<qsizetype>(len)), format);
+}
+
+/*!
+    \overload
+
+    Loads the pixmap from \a data.
+*/
+bool QPixmap::loadFromData(QByteArrayView data, const char *format) {
+    QImage image;
+    if (!image.loadFromData(data, format)) {
+        m_image = QImage();
+        return false;
+    }
+    *this = fromImage(image);
+    return true;
+}
+
+/*!
+    Saves the pixmap to the file \a fileName and returns \c true if it succeeded. See QImage::save() for the
+    \a format and the \a quality.
+*/
+bool QPixmap::save(const QString &fileName, const char *format, int quality) const {
+    return m_image.save(fileName, format, quality);
+}
+
+/*!
+    \overload
+
+    Writes the pixmap to \a device, which must be open for writing.
+*/
+bool QPixmap::save(QIODevice *device, const char *format, int quality) const {
+    return m_image.save(device, format, quality);
 }
 
 /*!

@@ -61,8 +61,7 @@
     non-blocking function from such a thread does not, since QFuture::waitForFinished() does
     not lend the thread to the pool. A sequence has at most \c INT_MAX items. There are no
     \c QtConcurrent::median or \c ThreadEngine classes, and \c blockingMapped() deduces its
-    container for class templates with the item type as their first argument only. Results of
-    type \c bool cannot be read from a QFuture, as Nt has no \c{QList<bool>}.
+    container for class templates with the item type as their first argument only.
     \enddifferences
 
     \sa QFuture, QFutureWatcher, QThreadPool, QPromise

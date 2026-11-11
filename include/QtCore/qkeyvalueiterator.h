@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <iterator>
+#include <type_traits>
 #include <utility>
 
 /*!
@@ -80,7 +81,7 @@ public:
     /*!
         Returns the key and the value of the current item.
     */
-    value_type operator*() const { return value_type(i.key(), i.value()); }
+    value_type operator*() const { return value_type(keyOf(i, 0), i.value()); }
     /*!
         Returns a proxy for accessing the key and the value of the current
         item through \c{->first} and \c{->second}.
@@ -136,6 +137,14 @@ public:
     friend bool operator!=(const QKeyValueIterator &a, const QKeyValueIterator &b) { return a.i != b.i; }
 
 private:
+    // A container whose key type is a view (QJsonObject) has an iterator with a keyView() that
+    // refers to the stored key; key() returns a copy, which a view must not outlive.
+    template <typename I>
+    static auto keyOf(const I &it, int) -> std::enable_if_t<std::is_same_v<decltype(it.keyView()), Key>, Key> {
+        return it.keyView();
+    }
+    template <typename I> static decltype(auto) keyOf(const I &it, long) { return it.key(); }
+
     Iterator i{};
 };
 

@@ -7,6 +7,7 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qsize.h>
 #include <QtCore/qstring.h>
+#include <QtGui/qcursor.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qpaintdevice.h>
@@ -51,6 +52,8 @@ class QWidget : public QObject, public QPaintDevice {
     Q_PROPERTY(bool autoFillBackground READ autoFillBackground WRITE setAutoFillBackground)
     Q_PROPERTY(bool mouseTracking READ hasMouseTracking WRITE setMouseTracking)
     Q_PROPERTY(QString toolTip READ toolTip WRITE setToolTip)
+    Q_PROPERTY(bool windowModified READ isWindowModified WRITE setWindowModified)
+    Q_PROPERTY(bool updatesEnabled READ updatesEnabled WRITE setUpdatesEnabled)
 public:
     explicit QWidget(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
     ~QWidget() override;
@@ -125,6 +128,11 @@ public:
     bool isVisible() const;
     bool isHidden() const;
     bool isEnabled() const;
+    void setAttribute(Qt::WidgetAttribute attribute, bool on = true);
+    bool testAttribute(Qt::WidgetAttribute attribute) const;
+    bool updatesEnabled() const;
+    void setUpdatesEnabled(bool enable);
+    bool isWindowModified() const;
 
     // Look
     const QPalette &palette() const;
@@ -145,6 +153,9 @@ public:
     bool focusNextChild() { return focusNextPrevChild(true); }
     bool focusPreviousChild() { return focusNextPrevChild(false); }
     void setMouseTracking(bool enable);
+    QCursor cursor() const;
+    void setCursor(const QCursor &cursor);
+    void unsetCursor();
     bool hasMouseTracking() const;
     bool underMouse() const;
 
@@ -177,6 +188,7 @@ public slots:
     void setEnabled(bool enabled);
     void setDisabled(bool disable) { setEnabled(!disable); }
     void setWindowTitle(const QString &title);
+    void setWindowModified(bool modified);
     void setFocus();
     void clearFocus();
     void update();

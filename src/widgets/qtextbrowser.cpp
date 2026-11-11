@@ -5,6 +5,7 @@
 #include <QtCore/qfile.h>
 #include <QtCore/qfileinfo.h>
 #include <QtGui/qevent.h>
+#include <QtGui/qtextdocument.h>
 
 #include <algorithm>
 
@@ -13,7 +14,8 @@
     \brief The QTextBrowser class shows documents that the user can go back and forward through.
 
     A text browser is a read-only QTextEdit that loads its text from a source, a file name or a URL, and keeps a history
-    of the sources it showed:
+    of the sources it showed. A source that is HTML, by its name (\c .html, \c .htm) or by its contents, is shown as
+    rich text, and a click on one of its links goes to the document that the link names:
 
     \code
     auto *help = new QTextBrowser(window);
@@ -23,12 +25,14 @@
     \endcode
 
     A relative source is looked up next to the current one, then in the search paths. Alt+Left and Alt+Right go
-    backward and forward.
+    backward and forward. A click on a link emits anchorClicked(); with openLinks(), which is the default, the
+    browser then shows the target, if it is a local file or a relative name.
 
     \differences
-    Text is plain in Nt, so documents are shown as their text: there are no links to click (\c anchorClicked(),
-    \c highlighted()), no HTML, Markdown or images, and \c openLinks() and \c openExternalLinks() are recorded only.
-    loadResource() reads local files; the fragment of a source is ignored.
+    The HTML is what QTextDocument reads; there are no images and no Markdown. A link to somewhere else than a
+    file (\c http, \c mailto) is never opened: \c openExternalLinks() is recorded only, and anchorClicked() tells
+    about the click. loadResource() reads local files; the fragment of a source is ignored, so a link does not
+    scroll to a place in a document. Links are not reached with the keys.
     \enddifferences
 
     \sa QTextEdit
@@ -37,7 +41,10 @@
 /*!
     Constructs an empty, read-only text browser with the given \a parent.
 */
-QTextBrowser::QTextBrowser(QWidget *parent) : QTextEdit(parent) { setReadOnly(true); }
+QTextBrowser::QTextBrowser(QWidget *parent) : QTextEdit(parent) {
+    setReadOnly(true);
+    viewport()->setMouseTracking(true); // for the links under the mouse
+}
 
 /*!
     Destroys the text browser.
@@ -165,13 +172,14 @@ int QTextBrowser::forwardHistoryCount() const {
 /*!
     \fn bool QTextBrowser::openLinks() const
 
-    Returns whether clicked links are followed; recorded only.
+    Returns whether the browser shows the target of a link that is clicked. The default is \c true.
 */
 
 /*!
     \fn void QTextBrowser::setOpenLinks(bool open)
 
-    Sets whether clicked links are followed to \a open; recorded only.
+    Sets whether the browser shows the target of a link that is clicked to \a open. anchorClicked() is emitted in
+    either case.
 */
 
 /*!
@@ -189,7 +197,7 @@ void QTextBrowser::setSource(const QUrl &name) {
         if (resolved.isLocalFile() && QFileInfo::exists(resolved.toLocalFile()))
             url = resolved;
     }
-    show(url);
+    showSource(url);
     if (m_position + 1 < static_cast<int>(m_history.size()))
         m_history.erase(m_history.begin() + m_position + 1, m_history.end());
     m_history.push_back(url);
@@ -206,7 +214,7 @@ void QTextBrowser::backward() {
         return;
     const bool back = isBackwardAvailable(), fwd = isForwardAvailable();
     --m_position;
-    show(source());
+    showSource(source());
     emit sourceChanged(source());
     notifyHistory(back, fwd);
 }
@@ -219,7 +227,7 @@ void QTextBrowser::forward() {
         return;
     const bool back = isBackwardAvailable(), fwd = isForwardAvailable();
     ++m_position;
-    show(source());
+    showSource(source());
     emit sourceChanged(source());
     notifyHistory(back, fwd);
 }
@@ -237,14 +245,21 @@ void QTextBrowser::home() {
 */
 void QTextBrowser::reload() {
     if (m_position >= 0)
-        show(source());
+        showSource(source());
 }
 
-void QTextBrowser::show(const QUrl &url) {
+void QTextBrowser::showSource(const QUrl &url) {
     QUrl file = url;
     file.setFragment(QString());
     const QVariant text = loadResource(1, file);
-    setPlainText(text.isValid() ? text.toString() : QString());
+    const QString contents = text.isValid() ? text.toString() : QString();
+    const QString path = file.path().toLower();
+    m_pressedLink.clear();
+    if (path.endsWith(QStringLiteral(".html")) || path.endsWith(QStringLiteral(".htm")) ||
+        Qt::mightBeRichText(contents))
+        setHtml(contents);
+    else
+        setPlainText(contents);
 }
 
 void QTextBrowser::notifyHistory(bool back, bool fwd) {
@@ -272,6 +287,46 @@ void QTextBrowser::keyPressEvent(QKeyEvent *event) {
         return;
     }
     QTextEdit::keyPressEvent(event);
+}
+
+/*!
+    \reimp
+*/
+void QTextBrowser::mousePressEvent(QMouseEvent *event) {
+    m_pressedLink = event->button() == Qt::LeftButton ? anchorAt(event->pos()) : QString();
+    QTextEdit::mousePressEvent(event);
+}
+
+/*!
+    \reimp
+
+    Emits highlighted() when the mouse comes over a link or leaves it.
+*/
+void QTextBrowser::mouseMoveEvent(QMouseEvent *event) {
+    QTextEdit::mouseMoveEvent(event);
+    const QString link = anchorAt(event->pos());
+    if (link != m_highlighted) {
+        m_highlighted = link;
+        emit highlighted(link.isEmpty() ? QUrl() : QUrl(link));
+    }
+}
+
+/*!
+    \reimp
+
+    A click on a link emits anchorClicked(), and shows the target of the link if openLinks() is set.
+*/
+void QTextBrowser::mouseReleaseEvent(QMouseEvent *event) {
+    QTextEdit::mouseReleaseEvent(event);
+    const QString link = m_pressedLink;
+    m_pressedLink.clear();
+    if (link.isEmpty() || event->button() != Qt::LeftButton || anchorAt(event->pos()) != link)
+        return;
+    const QUrl url(link);
+    emit anchorClicked(url);
+    // Only documents that the browser can read are followed.
+    if (m_openLinks && (url.isRelative() || url.isLocalFile()) && !url.path().isEmpty())
+        setSource(url);
 }
 
 #include "moc_qtextbrowser.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

@@ -3,6 +3,11 @@
 
 #include "sockaddr_p.h"
 
+#ifdef __ZEPHYR__
+#include "../zephyr/qnetworkinterface_zephyr_p.h"
+
+#include <net/if.h>
+#else
 #include <ifaddrs.h>
 #include <linux/if_packet.h>
 #include <net/if.h>
@@ -10,12 +15,14 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include <cstdio>
 #include <cstring>
 
 namespace {
 
+#ifndef __ZEPHYR__
 QHostAddress toAddress(const sockaddr *sa) {
     if (!sa)
         return QHostAddress();
@@ -23,6 +30,8 @@ QHostAddress toAddress(const sockaddr *sa) {
     std::memcpy(&ss, sa, sa->sa_family == AF_INET6 ? sizeof(sockaddr_in6) : sizeof(sockaddr_in));
     return QtPrivate::fromSockaddr(ss, nullptr);
 }
+
+#endif // !__ZEPHYR__
 
 int prefixFromMask(const QHostAddress &mask) {
     if (mask.isNull())
@@ -53,6 +62,7 @@ QHostAddress maskFromPrefix(int length, bool v6) {
     return QHostAddress(length <= 0 ? 0u : 0xffffffffu << (32 - qMin(length, 32)));
 }
 
+#ifndef __ZEPHYR__
 int interfaceMtu(const char *name) {
     const int fd = ::socket(AF_INET, SOCK_DGRAM | SOCK_CLOEXEC, 0);
     if (fd < 0)
@@ -85,6 +95,7 @@ QNetworkInterface::InterfaceFlags toFlags(unsigned f) {
         r |= QNetworkInterface::CanMulticast;
     return r;
 }
+#endif // !__ZEPHYR__
 
 } // namespace
 
@@ -316,6 +327,47 @@ QString QNetworkInterface::interfaceNameFromIndex(int index) {
 */
 QList<QNetworkInterface> QNetworkInterface::allInterfaces() {
     QList<QNetworkInterface> result;
+#ifdef __ZEPHYR__
+    for (const QtPrivate::ZephyrInterface &from : QtPrivate::zephyrInterfaces()) {
+        QNetworkInterface i;
+        i.m_name = QString::fromUtf8(from.name.c_str());
+        i.m_index = from.index;
+        i.m_mtu = from.mtu;
+        if (from.up)
+            i.m_flags |= IsUp;
+        if (from.running)
+            i.m_flags |= IsRunning;
+        if (from.wifi) {
+            i.m_type = Wifi;
+        } else if (from.ethernet) {
+            i.m_type = Ethernet;
+            i.m_flags |= CanBroadcast | CanMulticast;
+        }
+        QString mac;
+        for (std::size_t b = 0; b < from.hardwareAddress.size(); ++b) {
+            char hex[4];
+            std::snprintf(hex, sizeof hex, b ? ":%02X" : "%02X", from.hardwareAddress[b]);
+            mac.append(QString::fromUtf8(hex));
+        }
+        i.m_hardware = mac;
+        for (const QtPrivate::ZephyrAddress &address : from.addresses) {
+            QNetworkAddressEntry entry;
+            if (address.ipv6) {
+                entry.setIp(QHostAddress(address.ip));
+            } else {
+                const auto v4 = [](const unsigned char *p) {
+                    return QHostAddress(quint32(p[0]) << 24 | quint32(p[1]) << 16 | quint32(p[2]) << 8 | quint32(p[3]));
+                };
+                entry.setIp(v4(address.ip));
+                if (address.hasMask)
+                    entry.setNetmask(v4(address.mask));
+            }
+            i.m_entries.append(entry);
+        }
+        result.append(i);
+    }
+    return result;
+#else
     ifaddrs *list = nullptr;
     if (getifaddrs(&list) != 0)
         return result;
@@ -365,6 +417,7 @@ QList<QNetworkInterface> QNetworkInterface::allInterfaces() {
     }
     freeifaddrs(list);
     return result;
+#endif
 }
 
 /*!

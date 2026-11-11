@@ -63,6 +63,17 @@ QString QJsonObject::iterator::key() const {
 }
 
 /*!
+    \since 6.10
+    Returns a view of the key of the current entry, without copying it. The
+    view is valid until a key is inserted into the object or removed from it.
+
+    \sa key()
+*/
+QAnyStringView QJsonObject::iterator::keyView() const {
+    return QAnyStringView(QJsonPrivateAccess::data(*o)->items[static_cast<std::size_t>(i)].key);
+}
+
+/*!
     \fn QJsonValueRef QJsonObject::iterator::value() const
 
     Returns a reference to the value of the current entry.
@@ -283,6 +294,17 @@ QString QJsonObject::iterator::key() const {
 */
 QString QJsonObject::const_iterator::key() const {
     return QJsonPrivateAccess::data(*o)->items[static_cast<std::size_t>(i)].key;
+}
+
+/*!
+    \since 6.10
+    Returns a view of the key of the current entry, without copying it. The
+    view is valid until a key is inserted into the object or removed from it.
+
+    \sa key()
+*/
+QAnyStringView QJsonObject::const_iterator::keyView() const {
+    return QAnyStringView(QJsonPrivateAccess::data(*o)->items[static_cast<std::size_t>(i)].key);
 }
 
 /*!

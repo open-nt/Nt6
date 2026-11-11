@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qanystringview.h>
 #include <QtCore/qjsonvalue.h>
 #include <QtCore/qkeyvalueiterator.h>
 #include <QtCore/qhash.h>
@@ -97,6 +98,7 @@ public:
         explicit iterator(QJsonObject *object, qsizetype index) : o(object), i(index) {}
 
         QString key() const;
+        QAnyStringView keyView() const;
         QJsonValueRef value() const { return QJsonValueRef(o, i); }
         QJsonValueRef operator*() const { return QJsonValueRef(o, i); }
         QJsonRefArrow<QJsonValueRef> operator->() const { return QJsonRefArrow<QJsonValueRef>(**this); }
@@ -166,6 +168,7 @@ public:
         const_iterator(const iterator &other) : o(other.o), i(other.i) {}
 
         QString key() const;
+        QAnyStringView keyView() const;
         QJsonValueConstRef value() const { return QJsonValueConstRef(o, i); }
         QJsonValueConstRef operator*() const { return QJsonValueConstRef(o, i); }
         QJsonRefArrow<QJsonValueConstRef> operator->() const { return QJsonRefArrow<QJsonValueConstRef>(**this); }
@@ -241,13 +244,15 @@ public:
         \since 6.10
 
         An iterator over the members as pairs of a key and a reference to the
-        value; see QKeyValueIterator. */
-    using key_value_iterator = QKeyValueIterator<QString, QJsonValueRef, iterator>;
+        value; see QKeyValueIterator. The key is a QAnyStringView of the key
+        that the object stores. */
+    using key_value_iterator = QKeyValueIterator<QAnyStringView, QJsonValueRef, iterator>;
     /*! \typedef QJsonObject::const_key_value_iterator
         \since 6.10
 
-        A const iterator over the members as pairs of a key and a value. */
-    using const_key_value_iterator = QKeyValueIterator<QString, QJsonValueConstRef, const_iterator>;
+        A const iterator over the members as pairs of a key and a value. The
+        key is a QAnyStringView of the key that the object stores. */
+    using const_key_value_iterator = QKeyValueIterator<QAnyStringView, QJsonValueConstRef, const_iterator>;
     /*!
         \since 6.10
         Returns an iterator to the first member, as a pair of key and value.
@@ -289,11 +294,13 @@ public:
 
         \code
         for (auto [key, value] : object.asKeyValueRange())
-            qDebug() << key << value.toString();
+            qDebug() << key.toString() << value.toString();
         \endcode
 
-        The value of a pair from an object that is not const is a reference
-        that can be assigned to.
+        The key of a pair is a QAnyStringView of the key that the object
+        stores: it is valid until a key is inserted or removed, and
+        \c{toString()} copies it. The value of a pair from an object that is
+        not const is a reference that can be assigned to.
     */
     auto asKeyValueRange() & { return QtPrivate::KeyValueRange<QJsonObject &, key_value_iterator>(*this); }
     /*!

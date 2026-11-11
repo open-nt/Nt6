@@ -1,0 +1,46 @@
+# MIT License - see LICENSE
+
+menuconfig NT
+	bool "Nt, a clean-room subset of the Qt 6 API"
+	depends on CPP
+	select REQUIRES_FULL_LIBCPP
+	select CPP_EXCEPTIONS
+	select CPP_RTTI
+	select POSIX_API
+	select EVENTFD
+	select POSIX_FILE_SYSTEM
+	select THREAD_LOCAL_STORAGE
+	select DYNAMIC_THREAD
+	select DYNAMIC_THREAD_ALLOC
+	select POSIX_PRIORITY_SCHEDULING
+	help
+	  Builds Nt Core for the application: QObject with signals and slots, the event loop,
+	  timers, threads, the containers and strings, JSON, XML and the item models. Link the
+	  application with Nt::Core.
+
+	  Nt uses C++17, exceptions, run-time type information, POSIX threads and the heap. It suits
+	  devices with megabytes of flash and RAM, such as the i.MX RT series, not small
+	  microcontrollers.
+
+if NT
+
+config NT_THREAD_STACK_SIZE
+	int "Stack size of the threads that Nt starts"
+	default 8192
+	help
+	  The stack size, in bytes, of a QThread that was given none with QThread::setStackSize(),
+	  of the threads of a QThreadPool and of the threads that Nt starts for itself, such as the
+	  one that resolves a host name. The stacks are allocated from the kernel heap
+	  (CONFIG_HEAP_MEM_POOL_SIZE).
+
+config NT_NETWORK
+	bool "Nt Network"
+	depends on NETWORKING
+	depends on NET_SOCKETS
+	help
+	  Builds Nt Network: QTcpSocket, QTcpServer, QUdpSocket, QHostAddress, QHostInfo and
+	  QNetworkAccessManager for http:. Link the application with Nt::Network.
+
+	  TLS, QLocalSocket and QLocalServer are not available on Zephyr.
+
+endif # NT

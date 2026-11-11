@@ -1,7 +1,11 @@
 // MIT License - see LICENSE
 #include <QtCore/qrandom.h>
 
+#ifdef __ZEPHYR__
+#include <unistd.h>
+#else
 #include <sys/random.h>
+#endif
 
 #include <cerrno>
 #include <cstdio>
@@ -13,7 +17,13 @@ namespace {
 void systemBytes(void *out, std::size_t size) {
     auto *p = static_cast<unsigned char *>(out);
     while (size > 0) {
+#ifdef __ZEPHYR__
+        // getentropy() fills at most 256 bytes at a time, from the entropy driver of the board.
+        const std::size_t chunk = size < 256 ? size : 256;
+        const ssize_t n = getentropy(p, chunk) == 0 ? static_cast<ssize_t>(chunk) : -1;
+#else
         const ssize_t n = getrandom(p, size, 0);
+#endif
         if (n < 0) {
             if (errno == EINTR)
                 continue;

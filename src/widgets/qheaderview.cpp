@@ -325,6 +325,9 @@ void QHeaderView::paintEvent(QPaintEvent *event) {
             option.rect = horizontal ? QRect(start, 0, size, height()) : QRect(0, start, width(), size);
             option.text = labelAt(i);
             option.lastSection = false;
+            option.sortIndicator = !m_sortShown || i != m_sortSection  ? QStyleOptionHeader::None
+                                   : m_sortOrder == Qt::AscendingOrder ? QStyleOptionHeader::SortDown
+                                                                       : QStyleOptionHeader::SortUp;
             option.state &= ~QStyle::State(QStyle::State_Sunken);
             if (i == m_pressed)
                 option.state |= QStyle::State_Sunken;
@@ -337,6 +340,7 @@ void QHeaderView::paintEvent(QPaintEvent *event) {
         option.rect = horizontal ? QRect(start, 0, extent - start, height()) : QRect(0, start, width(), extent - start);
         option.text = QString();
         option.lastSection = true;
+        option.sortIndicator = QStyleOptionHeader::None;
         option.state &= ~QStyle::State(QStyle::State_Sunken);
         style()->drawControl(QStyle::CE_Header, &option, &painter, this);
     }
@@ -387,10 +391,73 @@ void QHeaderView::mouseReleaseEvent(QMouseEvent *event) {
     m_pressed = -1;
     m_resizing = -1;
     update();
-    if (pressed >= 0 && pressed == logicalIndexAt(m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y()))
+    if (pressed >= 0 &&
+        pressed == logicalIndexAt(m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y())) {
+        // A click on the section that is sorted by turns the order round; on another one, sorts by that one.
+        if (m_sortShown && m_clickable) {
+            setSortIndicator(pressed, pressed == m_sortSection && m_sortOrder == Qt::AscendingOrder
+                                          ? Qt::DescendingOrder
+                                          : Qt::AscendingOrder);
+        }
         emit sectionClicked(pressed);
+    }
     event->accept();
 }
+
+/*!
+    \fn bool QHeaderView::isSortIndicatorShown() const
+
+    Returns whether the header shows which section its view is sorted by. The default is \c false.
+
+    \sa setSortIndicatorShown()
+*/
+
+/*!
+    Sets whether the section that the view is sorted by has an arrow for the sort order to \a show. With the
+    arrow shown and sectionsClickable() on, a click on a section moves the arrow to it, or turns it round, and
+    sortIndicatorChanged() tells.
+
+    \sa isSortIndicatorShown(), setSortIndicator()
+*/
+void QHeaderView::setSortIndicatorShown(bool show) {
+    if (m_sortShown == show)
+        return;
+    m_sortShown = show;
+    update();
+}
+
+/*!
+    Makes the section \a logicalIndex the one that shows the sort indicator, for the order \a order, and emits
+    sortIndicatorChanged() if that is a change. A \a logicalIndex of -1 means that the view is not sorted.
+
+    \sa sortIndicatorSection(), sortIndicatorOrder()
+*/
+void QHeaderView::setSortIndicator(int logicalIndex, Qt::SortOrder order) {
+    if (logicalIndex < -1 || logicalIndex >= count())
+        return;
+    if (m_sortSection == logicalIndex && m_sortOrder == order)
+        return;
+    m_sortSection = logicalIndex;
+    m_sortOrder = order;
+    update();
+    emit sortIndicatorChanged(logicalIndex, order);
+}
+
+/*!
+    \fn int QHeaderView::sortIndicatorSection() const
+
+    Returns the section that shows the sort indicator, or -1 if none does.
+
+    \sa setSortIndicator()
+*/
+
+/*!
+    \fn Qt::SortOrder QHeaderView::sortIndicatorOrder() const
+
+    Returns the order that the sort indicator shows.
+
+    \sa setSortIndicator()
+*/
 
 /*!
     \reimp

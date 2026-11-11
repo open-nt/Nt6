@@ -30,8 +30,12 @@ public:
     void setGeometry(const QRect &rect) override;
     void setVisible(bool visible) override;
     quintptr winId() const override { return m_id; }
+    void setCursor(Qt::CursorShape shape) override { m_cursor = shape; }
+    // The cursor that `window` shows, for tests: its own, or the override cursor of the application.
+    static Qt::CursorShape cursorOf(const QWindow *window);
 
 private:
+    Qt::CursorShape m_cursor = Qt::ArrowCursor;
     bool m_visible = false;
     quintptr m_id = nextId();
     static quintptr nextId();

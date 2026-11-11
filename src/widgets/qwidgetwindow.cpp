@@ -136,6 +136,20 @@ void QWidgetWindow::closeEvent(QCloseEvent *event) {
     QCloseEvent close;
     QCoreApplication::sendEvent(m_widget, &close);
     event->setAccepted(close.isAccepted());
+    if (close.isAccepted() && m_widget && m_widget->testAttribute(Qt::WA_DeleteOnClose))
+        m_widget->deleteLater();
+}
+
+void QWidgetWindow::updateCursor() {
+    QCursor cursor;
+    for (QWidget *w = m_under; w; w = WidgetAccess::up(w)) {
+        if (WidgetAccess::data(w).cursorSet) {
+            cursor = WidgetAccess::data(w).cursor;
+            break;
+        }
+    }
+    if (cursor != this->cursor())
+        setCursor(cursor);
 }
 
 void QWidgetWindow::focusInEvent(QFocusEvent *event) {
@@ -164,6 +178,8 @@ template <typename Make> bool propagate(QWidget *target, const QPointF &startPos
         QCoreApplication::sendEvent(w, &event);
         if (event.isAccepted())
             return true;
+        if (w->testAttribute(Qt::WA_NoMousePropagation))
+            return false;
         pos += QPointF(w->pos());
     }
     return false;
@@ -199,6 +215,7 @@ void QWidgetWindow::updateUnderMouse(QWidget *target, const QPointF &local, cons
         QEnterEvent enter(local - QPointF(offset), global);
         QCoreApplication::sendEvent(w, &enter);
     }
+    updateCursor();
 }
 
 void QWidgetWindow::deliverMouse(QMouseEvent *event, QWidget *target) {

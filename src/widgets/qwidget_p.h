@@ -9,6 +9,7 @@
 #include <QtWidgets/qlayout.h>
 #include <QtWidgets/qwidget.h>
 
+#include <bitset>
 #include <functional>
 #include <memory>
 #include <vector>
@@ -46,6 +47,14 @@ struct QWidget::Data {
     QString toolTip;
     bool mouseTransparent = false; // not found by the mouse: the tool tip
     bool underMouse = false;
+    QCursor cursor;
+    bool cursorSet = false;
+    bool updatesDisabled = false;
+    bool windowModified = false;
+    // -1: not set, so a window has it and another widget does not.
+    int quitOnClose = -1;
+    // The attributes that have no other member here.
+    std::bitset<Qt::WA_AttributeCount> attributes;
     // Called on a parent when a child widget is resized or its size hint changes: a scroll area follows its contents.
     std::function<void(QWidget *)> childChanged;
     Qt::FocusPolicy focusPolicy = Qt::NoFocus;
@@ -91,6 +100,10 @@ struct WidgetAccess {
     static void sendHideEvents(QWidget *w);
     static void windowActivated(QWidget *top, bool active);
     static void setUnderMouse(QWidget *w, bool under);
+    // The title that the window of `w` shows: its window title with the marker for unsaved changes resolved.
+    static QString shownTitle(const QWidget *w);
+    // True if `w` or one of its ancestors in the window is not repainted.
+    static bool updatesBlocked(const QWidget *w);
     static QWidget *focusWidgetOf(QWidget *top);
     static bool focusable(const QWidget *w);
     static std::vector<QWidget *> tabChain(QWidget *top);

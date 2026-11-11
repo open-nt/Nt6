@@ -20,6 +20,9 @@
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qsizepolicy.h>
 #include <QtWidgets/qstyle.h>
+#include <QtWidgets/qstylefactory.h>
+#include <QtGui/qcursor.h>
+#include <QtGui/qguiapplication.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qwidget.h>
 
@@ -2336,6 +2339,289 @@ static void testSignalsAndDeletion() {
     }
 }
 
+static Qt::CursorShape shown(QWidget *w) { return QOffscreenWindow::cursorOf(w->window()->windowHandle()); }
+
+static void testCursors() {
+    // The value class.
+    QCursor arrow;
+    QCursor hand(Qt::PointingHandCursor);
+    CHECK(arrow.shape() == Qt::ArrowCursor && hand.shape() == Qt::PointingHandCursor && arrow != hand);
+    arrow.setShape(Qt::PointingHandCursor);
+    CHECK(arrow == hand);
+    QCursor wait = Qt::WaitCursor;
+    wait.swap(arrow);
+    CHECK(arrow.shape() == Qt::WaitCursor && wait.shape() == Qt::PointingHandCursor);
+    CHECK(QDebug::toString(hand).contains("QCursor"));
+
+    Probe top;
+    top.resize(200, 150);
+    Probe panel(&top);
+    panel.setGeometry(20, 20, 100, 80);
+    Probe field(&panel);
+    field.setGeometry(10, 10, 30, 30);
+    Probe other(&top);
+    other.setGeometry(130, 20, 50, 50);
+    CHECK(top.cursor().shape() == Qt::ArrowCursor && !top.testAttribute(Qt::WA_SetCursor));
+    panel.setCursor(Qt::CrossCursor);
+    CHECK(panel.testAttribute(Qt::WA_SetCursor) && panel.cursor().shape() == Qt::CrossCursor);
+    // A child shows the cursor of its parent until it has one of its own.
+    CHECK(field.cursor().shape() == Qt::CrossCursor && !field.testAttribute(Qt::WA_SetCursor));
+    CHECK(other.cursor().shape() == Qt::ArrowCursor);
+    top.show();
+    CHECK(top.windowHandle()->cursor().shape() == Qt::ArrowCursor && shown(&top) == Qt::ArrowCursor);
+
+    // The window shows the cursor of the widget that the mouse is over.
+    mouse(&top, QEvent::MouseMove, QPoint(25, 25), Qt::NoButton, Qt::NoButton);
+    CHECK(shown(&top) == Qt::CrossCursor && QCursor::pos() == top.mapToGlobal(QPoint(25, 25)));
+    mouse(&top, QEvent::MouseMove, QPoint(35, 35), Qt::NoButton, Qt::NoButton);
+    CHECK(field.underMouse() && shown(&top) == Qt::CrossCursor);
+    field.setCursor(Qt::IBeamCursor);
+    CHECK(shown(&top) == Qt::IBeamCursor && field.cursor().shape() == Qt::IBeamCursor);
+    mouse(&top, QEvent::MouseMove, QPoint(140, 30), Qt::NoButton, Qt::NoButton);
+    CHECK(other.underMouse() && shown(&top) == Qt::ArrowCursor);
+    mouse(&top, QEvent::MouseMove, QPoint(35, 35), Qt::NoButton, Qt::NoButton);
+    CHECK(shown(&top) == Qt::IBeamCursor);
+    field.unsetCursor();
+    CHECK(shown(&top) == Qt::CrossCursor && !field.testAttribute(Qt::WA_SetCursor));
+    field.unsetCursor();
+    panel.setAttribute(Qt::WA_SetCursor, false);
+    CHECK(shown(&top) == Qt::ArrowCursor && panel.cursor().shape() == Qt::ArrowCursor);
+    top.setCursor(Qt::SizeAllCursor);
+    CHECK(shown(&top) == Qt::SizeAllCursor && field.cursor().shape() == Qt::SizeAllCursor);
+
+    // The override cursors of the application: a stack, on top of everything.
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
+    QGuiApplication::restoreOverrideCursor();
+    QGuiApplication::changeOverrideCursor(Qt::BusyCursor);
+    CHECK(shown(&top) == Qt::SizeAllCursor);
+    QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+    CHECK(shown(&top) == Qt::WaitCursor && QGuiApplication::overrideCursor()->shape() == Qt::WaitCursor);
+    CHECK(top.cursor().shape() == Qt::SizeAllCursor);
+    QGuiApplication::setOverrideCursor(Qt::ForbiddenCursor);
+    CHECK(shown(&top) == Qt::ForbiddenCursor);
+    QGuiApplication::changeOverrideCursor(Qt::BusyCursor);
+    CHECK(shown(&top) == Qt::BusyCursor);
+    top.setCursor(Qt::OpenHandCursor); // waits under the override cursor
+    CHECK(shown(&top) == Qt::BusyCursor);
+    // A window that is shown while there is an override cursor has it too.
+    Probe second;
+    second.show();
+    CHECK(shown(&second) == Qt::BusyCursor);
+    QGuiApplication::restoreOverrideCursor();
+    CHECK(shown(&top) == Qt::WaitCursor && shown(&second) == Qt::WaitCursor);
+    QGuiApplication::restoreOverrideCursor();
+    CHECK(shown(&top) == Qt::OpenHandCursor && shown(&second) == Qt::ArrowCursor);
+    CHECK(QGuiApplication::overrideCursor() == nullptr);
+
+    QCursor::setPos(40, 50);
+    CHECK(QCursor::pos() == QPoint(40, 50) && QCursor::pos(QGuiApplication::primaryScreen()) == QPoint(40, 50));
+    QCursor::setPos(QGuiApplication::primaryScreen(), QPoint(1, 2));
+    CHECK(QCursor::pos() == QPoint(1, 2));
+}
+
+class CloseProbe : public Probe {
+public:
+    using Probe::Probe;
+    bool refuse = false;
+
+protected:
+    void closeEvent(QCloseEvent *e) override {
+        if (refuse)
+            e->ignore();
+    }
+};
+
+static void testAttributes() {
+    Probe top;
+    top.resize(200, 150);
+    Probe child(&top);
+    child.setGeometry(20, 20, 100, 80);
+    Probe inner(&child);
+    inner.setGeometry(10, 10, 30, 30);
+
+    // Attributes that are other names of a property.
+    CHECK(!child.testAttribute(Qt::WA_Disabled) && !child.testAttribute(Qt::WA_MouseTracking));
+    child.setAttribute(Qt::WA_Disabled);
+    CHECK(!child.isEnabled() && child.testAttribute(Qt::WA_Disabled) && inner.testAttribute(Qt::WA_Disabled));
+    child.setEnabled(true);
+    CHECK(!child.testAttribute(Qt::WA_Disabled));
+    child.setAttribute(Qt::WA_MouseTracking);
+    CHECK(child.hasMouseTracking() && child.testAttribute(Qt::WA_MouseTracking));
+    child.setMouseTracking(false);
+    CHECK(!child.testAttribute(Qt::WA_MouseTracking));
+    CHECK(!child.testAttribute(Qt::WA_SetPalette) && !child.testAttribute(Qt::WA_SetFont));
+    child.setPalette(top.palette());
+    child.setFont(top.font());
+    CHECK(child.testAttribute(Qt::WA_SetPalette) && child.testAttribute(Qt::WA_SetFont));
+    CHECK(!child.testAttribute(Qt::WA_SetStyle));
+    // Attributes that are only kept.
+    CHECK(!child.testAttribute(Qt::WA_AcceptDrops));
+    child.setAttribute(Qt::WA_AcceptDrops);
+    child.setAttribute(Qt::WA_Hover);
+    CHECK(child.testAttribute(Qt::WA_AcceptDrops) && child.testAttribute(Qt::WA_Hover) &&
+          !inner.testAttribute(Qt::WA_Hover));
+    child.setAttribute(Qt::WA_AcceptDrops, false);
+    CHECK(!child.testAttribute(Qt::WA_AcceptDrops));
+
+    top.show();
+    settle(&top);
+
+    // The mouse does not find a transparent widget, nor its children.
+    mouse(&top, QEvent::MouseMove, QPoint(35, 35), Qt::NoButton, Qt::NoButton);
+    CHECK(inner.underMouse() && inner.testAttribute(Qt::WA_UnderMouse) && child.testAttribute(Qt::WA_UnderMouse));
+    child.setAttribute(Qt::WA_TransparentForMouseEvents);
+    CHECK(child.testAttribute(Qt::WA_TransparentForMouseEvents) && top.childAt(35, 35) == nullptr);
+    top.log.clear();
+    child.log.clear();
+    click(&top, QPoint(35, 35));
+    CHECK(top.log.contains("press") && !child.log.contains("press") && !inner.underMouse());
+    child.setAttribute(Qt::WA_TransparentForMouseEvents, false);
+    CHECK(top.childAt(35, 35) == &inner);
+
+    // An event that is not accepted goes up to the parent, unless the widget keeps it.
+    top.log.clear();
+    child.log.clear();
+    inner.log.clear();
+    inner.acceptMouse = false;
+    child.acceptMouse = false;
+    click(&top, QPoint(35, 35));
+    CHECK(inner.log.contains("press") && child.log.contains("press") && top.log.contains("press"));
+    top.log.clear();
+    child.log.clear();
+    child.setAttribute(Qt::WA_NoMousePropagation);
+    click(&top, QPoint(35, 35));
+    CHECK(child.log.contains("press") && !top.log.contains("press"));
+    child.setAttribute(Qt::WA_NoMousePropagation, false);
+    inner.acceptMouse = true;
+    child.acceptMouse = true;
+
+    // Updates that are turned off: nothing is painted, also not the children, until they are on again.
+    CHECK(child.updatesEnabled() && !child.testAttribute(Qt::WA_UpdatesDisabled));
+    settle(&top);
+    child.paints = 0;
+    inner.paints = 0;
+    child.setUpdatesEnabled(false);
+    CHECK(!child.updatesEnabled() && !inner.updatesEnabled() && inner.testAttribute(Qt::WA_UpdatesDisabled) &&
+          top.updatesEnabled());
+    child.update();
+    inner.repaint();
+    top.update();
+    settle(&top);
+    CHECK(child.paints == 0 && inner.paints == 0);
+    child.setAttribute(Qt::WA_UpdatesDisabled, false);
+    settle(&top);
+    CHECK(child.updatesEnabled() && child.paints == 1 && inner.paints == 1);
+
+    // A widget that fills itself gets no background first.
+    top.setAutoFillBackground(true);
+    child.setAutoFillBackground(true);
+    QPalette red = child.palette();
+    red.setColor(QPalette::Window, QColor(200, 0, 0));
+    child.setPalette(red);
+    QImage image = grab(&top);
+    CHECK(image.pixelColor(25, 25) == QColor(200, 0, 0));
+    child.setAttribute(Qt::WA_OpaquePaintEvent);
+    top.update();
+    image = grab(&top);
+    CHECK(image.pixelColor(25, 25) != QColor(200, 0, 0));
+    child.setAttribute(Qt::WA_OpaquePaintEvent, false);
+    child.setAttribute(Qt::WA_NoSystemBackground);
+    top.update();
+    CHECK(grab(&top).pixelColor(25, 25) != QColor(200, 0, 0));
+    child.setAttribute(Qt::WA_NoSystemBackground, false);
+    CHECK(grab(&top).pixelColor(25, 25) == QColor(200, 0, 0));
+
+    // The mark of unsaved changes in the title.
+    top.setWindowTitle("notes.txt[*] - Editor");
+    CHECK(top.windowHandle()->title() == QString("notes.txt - Editor") && !top.isWindowModified());
+    top.setWindowModified(true);
+    CHECK(top.isWindowModified() && top.testAttribute(Qt::WA_WindowModified) &&
+          top.windowTitle() == QString("notes.txt[*] - Editor"));
+    CHECK(top.windowHandle()->title() == QString("notes.txt* - Editor"));
+    top.setWindowTitle("a[*][*]b[*]");
+    CHECK(top.windowHandle()->title() == QString("a[*]b*"));
+    top.setAttribute(Qt::WA_WindowModified, false);
+    CHECK(top.windowHandle()->title() == QString("a[*]b") && !top.isWindowModified());
+
+    // Delete on close: when the close is accepted, and not otherwise.
+    QPointer<CloseProbe> kept = new CloseProbe;
+    kept->show();
+    CHECK(kept->close() && kept);
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK(kept);
+    kept->setAttribute(Qt::WA_DeleteOnClose);
+    kept->show();
+    kept->refuse = true;
+    CHECK(!kept->close());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK(kept && kept->isVisible());
+    kept->refuse = false;
+    CHECK(kept->close());
+    CHECK(kept); // deleted from the event loop, not inside close()
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK(!kept);
+    QPointer<Probe> neverShown = new Probe;
+    neverShown->setAttribute(Qt::WA_DeleteOnClose);
+    CHECK(neverShown->close());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK(!neverShown);
+    QPointer<Probe> part = new Probe(&top);
+    part->setAttribute(Qt::WA_DeleteOnClose);
+    part->show();
+    CHECK(part->close());
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK(!part);
+
+    // The windows that keep the application running.
+    CHECK(top.testAttribute(Qt::WA_QuitOnClose) && !child.testAttribute(Qt::WA_QuitOnClose));
+    QWidget tool(nullptr, Qt::Tool);
+    CHECK(!tool.testAttribute(Qt::WA_QuitOnClose));
+    int lastClosed = 0;
+    const auto connection = QObject::connect(qApp, &QGuiApplication::lastWindowClosed, [&] { ++lastClosed; });
+    const bool quits = QGuiApplication::quitOnLastWindowClosed();
+    QGuiApplication::setQuitOnLastWindowClosed(false);
+    Probe main1;
+    Probe helper;
+    helper.setAttribute(Qt::WA_QuitOnClose, false);
+    CHECK(!helper.testAttribute(Qt::WA_QuitOnClose));
+    top.hide();
+    lastClosed = 0;
+    main1.show();
+    helper.show();
+    tool.show();
+    // Closing a window that does not count ends nothing; closing the last one that counts does, though others show.
+    tool.close();
+    CHECK(lastClosed == 0);
+    main1.close();
+    CHECK(lastClosed == 1 && helper.isVisible());
+    helper.close();
+    CHECK(lastClosed == 1);
+    helper.setAttribute(Qt::WA_QuitOnClose);
+    helper.show();
+    helper.close();
+    CHECK(lastClosed == 2);
+    QObject::disconnect(connection);
+    QGuiApplication::setQuitOnLastWindowClosed(quits);
+}
+
+static void testStyleFactory() {
+    CHECK(QStyleFactory::keys() == QStringList{"Fusion"});
+    QStyle *fusion = QStyleFactory::create("fusion");
+    QStyle *second = QStyleFactory::create("Fusion");
+    CHECK(fusion != nullptr && second != nullptr && second != fusion);
+    delete second;
+    delete fusion;
+    CHECK(QStyleFactory::create("Windows") == nullptr && QStyleFactory::create(QString()) == nullptr);
+    Probe w;
+    QStyle *before = QApplication::style();
+    CHECK(QApplication::setStyle("NoSuchStyle") == nullptr && QApplication::style() == before);
+    w.log.clear();
+    QStyle *set = QApplication::setStyle("FUSION");
+    CHECK(set != nullptr && QApplication::style() == set && w.style() == set && w.log.contains("styleChange"));
+    QApplication::setStyle(nullptr);
+    CHECK(QApplication::style() != nullptr);
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -2350,6 +2636,9 @@ int main(int argc, char **argv) {
     testGeometryOfWindows();
     testPainting();
     testMouse();
+    testCursors();
+    testAttributes();
+    testStyleFactory();
     testKeysAndFocus();
     testLayouts();
     testGridLayout();

@@ -89,6 +89,24 @@
     needed when Nt is built, or text has fixed metrics and does not draw. Sizes in points
     are converted to pixels at 96 dots per inch.
 
+    \section1 Rich Text
+
+    A QTextDocument holds text with formats: paragraphs with their alignment and margins, and parts of
+    their text with a font, a size, a color or a link. It reads a subset of HTML, breaks its lines for a
+    width, and draws itself with a painter:
+
+    \code
+    QTextDocument document;
+    document.setDefaultFont(painter.font());
+    document.setHtml("<h3>Status</h3><p>Disk <b>87&nbsp;%</b> full, see <a href=\"disk\">details</a>.</p>");
+    document.setTextWidth(240);
+    document.drawContents(&painter);
+    QString link = document.documentLayout()->anchorAt(mousePosition);
+    \endcode
+
+    QTextLayout does the same for one paragraph, line by line, for code that places its lines itself.
+    QLabel and QTextEdit of Nt Widgets show rich text through a QTextDocument.
+
     \section1 Screens, Scale and Color Scheme
 
     A screen has a device pixel ratio, QScreen::devicePixelRatio(): the number of pixels of the screen that one unit
@@ -118,7 +136,7 @@
     Shapes are drawn without antialiasing, and text is drawn glyph by glyph
     without shaping, kerning or font fallback, so complex scripts and emoji do
     not display. Widgets and layouts are in \l{Using Nt Widgets}{Nt Widgets}. There is no clipboard,
-    drag and drop, cursors or input methods. The \c xcb platform shows one screen,
+    drag and drop or input methods; a QCursor has one of the standard shapes. The \c xcb platform shows one screen,
     the whole X desktop, and copies the window contents to the server with
     \c PutImage. Each class lists its own limits in its \e Differences from Qt
     section.

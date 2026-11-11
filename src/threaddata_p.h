@@ -7,6 +7,7 @@
 
 #include <atomic>
 #include <cstddef>
+#include <functional>
 #include <map>
 
 class QThread;
@@ -72,6 +73,11 @@ void postToObject(QObject *receiver, QEvent *event);
 void destroyEventDispatcher(ThreadData *td);
 // Waits for the tasks of the global QThreadPool, if it was ever created.
 void waitForGlobalThreadPool();
+
+// Runs `body` in a new thread that nobody waits for. Returns false if the thread could not be started. It
+// stands in for a detached std::thread, which cannot start a thread where the C++ library has no thread
+// support, as on Zephyr. Defined in qthread.cpp.
+bool startDetachedThread(std::function<void()> body);
 
 // Lets the thread machinery reach the private parts of QThread. Defined in qthread.cpp.
 struct ThreadAccess {

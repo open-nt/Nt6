@@ -447,7 +447,7 @@ public:
     */
     bool tryLockForRead(QDeadlineTimer deadline) {
         std::unique_lock<std::mutex> lk(m);
-        const std::thread::id self = std::this_thread::get_id();
+        const void *const self = threadToken();
         if (recursive) {
             if (writer && writerThread == self) {
                 ++writerDepth; // one more level of the write lock
@@ -483,7 +483,7 @@ public:
     */
     bool tryLockForWrite(QDeadlineTimer deadline) {
         std::unique_lock<std::mutex> lk(m);
-        const std::thread::id self = std::this_thread::get_id();
+        const void *const self = threadToken();
         if (recursive && writer && writerThread == self) {
             ++writerDepth;
             return true;
@@ -516,7 +516,7 @@ public:
                     return;
                 writer = false;
             } else if (recursive) {
-                const auto it = readerDepth.find(std::this_thread::get_id());
+                const auto it = readerDepth.find(threadToken());
                 if (it == readerDepth.end() || --it->second > 0)
                     return;
                 readerDepth.erase(it);
@@ -546,7 +546,7 @@ private:
         std::lock_guard<std::mutex> lk(m);
         if (!recursive)
             return false;
-        const std::thread::id self = std::this_thread::get_id();
+        const void *const self = threadToken();
         if (writer)
             return writerThread == self && writerDepth > 1;
         const auto it = readerDepth.find(self);
@@ -561,9 +561,16 @@ private:
     const bool recursive;
     // Of a recursive lock: the thread that holds it for writing and how often, and how often
     // each reading thread holds it.
-    std::thread::id writerThread;
+    const void *writerThread = nullptr;
     int writerDepth = 0;
-    std::map<std::thread::id, int> readerDepth;
+    std::map<const void *, int> readerDepth;
+
+    // Identifies the calling thread by the address of an object of its own. std::this_thread::get_id()
+    // is the same in every thread where the C++ library has no thread support, as on Zephyr.
+    static const void *threadToken() noexcept {
+        static thread_local char token;
+        return &token;
+    }
 };
 
 /*!

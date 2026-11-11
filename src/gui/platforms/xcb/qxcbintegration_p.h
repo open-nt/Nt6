@@ -19,6 +19,8 @@ public:
     QPlatformWindow *createPlatformWindow(QWindow *window) const override;
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
     Qt::ColorScheme colorScheme() const override;
+    QPoint cursorPosition() const override;
+    void setCursorPosition(const QPoint &pos) override;
 
 private:
     explicit QXcbIntegration(std::unique_ptr<QXcbConnection> connection);

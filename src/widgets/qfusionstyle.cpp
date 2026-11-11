@@ -554,7 +554,14 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
                 painter->drawLine(r.left() + 3, r.bottom(), r.right() - 3, r.bottom());
         }
         const int margin = pixelMetric(PM_HeaderMargin, option, widget);
-        const QRect text = r.adjusted(margin, 0, -margin, -1);
+        QRect text = r.adjusted(margin, 0, -margin, -1);
+        if (header->sortIndicator != QStyleOptionHeader::None && horizontal) {
+            // The arrow of the sort order, at the right end of the section; the text stops before it.
+            const QPoint center(r.right() - margin - 4, r.center().y());
+            drawArrow(painter, center, header->sortIndicator == QStyleOptionHeader::SortDown,
+                      option->palette.color(group, QPalette::ButtonText));
+            text.setRight(center.x() - 8);
+        }
         painter->setPen(option->palette.color(group, QPalette::ButtonText));
         painter->drawText(text, int(header->textAlignment) | Qt::AlignVCenter | Qt::TextSingleLine,
                           header->fontMetrics.elidedText(header->text, Qt::ElideRight, text.width()));

@@ -21,8 +21,7 @@
     \endcode
 
     \differences
-    \c QList<bool> cannot be registered, because Nt rejects it at compile time; an array of
-    booleans arrives as a QDBusArgument.
+    None.
     \enddifferences
 
     \sa QDBusArgument

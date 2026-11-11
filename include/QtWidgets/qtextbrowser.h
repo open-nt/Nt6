@@ -58,12 +58,25 @@ signals:
         This signal is emitted when the source changes to \a src.
     */
     void sourceChanged(const QUrl &src) { emitSignal(&QTextBrowser::sourceChanged, src); }
+    /*!
+        This signal is emitted when the user clicks a link; \a link is its target, as it is written in the
+        document. With openLinks() the browser then shows it.
+    */
+    void anchorClicked(const QUrl &link) { emitSignal(&QTextBrowser::anchorClicked, link); }
+    /*!
+        This signal is emitted when the mouse comes over a link, with its target as \a link, and when it
+        leaves the link, with an empty URL.
+    */
+    void highlighted(const QUrl &link) { emitSignal(&QTextBrowser::highlighted, link); }
 
 protected:
     void keyPressEvent(QKeyEvent *event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
 
 private:
-    void show(const QUrl &url);
+    void showSource(const QUrl &url);
     void notifyHistory(bool back, bool fwd);
 
     std::vector<QUrl> m_history;
@@ -71,4 +84,6 @@ private:
     QStringList m_searchPaths;
     bool m_openExternal = false;
     bool m_openLinks = true;
+    QString m_pressedLink;
+    QString m_highlighted;
 };

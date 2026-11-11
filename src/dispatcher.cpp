@@ -2,8 +2,12 @@
 #include <fcntl.h>
 #include <poll.h>
 #include <unistd.h>
-#ifdef __linux__
+#if defined(__linux__) || defined(__ZEPHYR__)
 #include <sys/eventfd.h>
+#endif
+// Zephyr has no exec() to close the descriptor on.
+#ifndef EFD_CLOEXEC
+#define EFD_CLOEXEC 0
 #endif
 
 #include "dispatcher.h"
@@ -29,7 +33,7 @@ std::atomic<int> g_nextNotifierId{1};
 } // namespace
 
 Dispatcher::Dispatcher() {
-#ifdef __linux__
+#if defined(__linux__) || defined(__ZEPHYR__)
     wakeRead_ = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     wakeWrite_ = wakeRead_;
 #else
@@ -55,7 +59,7 @@ Dispatcher::~Dispatcher() {
 }
 
 void Dispatcher::wakeUp() {
-#ifdef __linux__
+#if defined(__linux__) || defined(__ZEPHYR__)
     const std::uint64_t one = 1;
     const void *buf = &one;
     const std::size_t len = sizeof one;

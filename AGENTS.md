@@ -16,11 +16,24 @@ Nt should be cross-platform, targeting:
 - Android
 - Windows
 - macOS (OSX)
+- Zephyr (Nt Core and Nt Network only, headless; see `doc/zephyr.h`)
 
 **Linux first, portability later.** Develop and validate on Linux now. Don't
 add other-platform support prematurely, but avoid design choices that make it
 hard later (e.g. keep platform-specific code isolated and prefer portable
 C++/CMake constructs over Linux-only APIs where it costs little).
+
+## Zephyr
+
+`zephyr/` makes the repository a Zephyr module; `CONFIG_NT` builds with `NT_ZEPHYR=ON`, which
+keeps only Nt Core and Nt Network and drops the classes listed in `doc/zephyr.h`. Zephyr-only code
+lives in `src/zephyr/`. Two headers are force-included there instead of scattering `#ifdef`s:
+`include/QtCore/qstdthreads_zephyr_p.h` (the `std::mutex` family, which the Zephyr SDK's libstdc++
+lacks) and `src/zephyr/ntposix_zephyr_p.h` (POSIX functions Zephyr lacks). Do not use
+`std::thread` or `std::this_thread::get_id()` in Core or Network: neither works there; use
+`QtPrivate::startDetachedThread()` or QThread. `./check.sh` does not build for Zephyr; build
+`examples/zephyr/hello` with west (e.g. `-b mimxrt1170_evk/mimxrt1176/cm7`) after touching
+platform code. A cross build gets `ntmoc`/`ntrcc` from `cmake/NtHostTools.cmake`.
 
 ## Before every commit: `./check.sh`
 

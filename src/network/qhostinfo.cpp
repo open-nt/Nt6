@@ -6,6 +6,7 @@
 #include <QtNetwork/qhostinfo.h>
 
 #include "sockaddr_p.h"
+#include "threaddata_p.h"
 
 #include <netdb.h>
 #include <unistd.h>
@@ -16,7 +17,6 @@
 #include <memory>
 #include <mutex>
 #include <set>
-#include <thread>
 
 namespace {
 
@@ -232,11 +232,14 @@ int QHostInfo::startLookup(const QString &name, const QObject *context,
                            std::function<void(const QHostInfo &)> callback) {
     const int id = g_nextId.fetch_add(1);
     auto *relay = new LookupRelay(context, std::move(callback));
-    std::thread([name, id, relay] {
+    const auto lookup = [name, id, relay] {
         QHostInfo info = fromName(name);
         info.setLookupId(id);
         QCoreApplication::postEvent(relay, new ResultEvent(info));
-    }).detach();
+    };
+    // Without a thread to run it in, the lookup blocks the caller; the result is still delivered later.
+    if (!QtPrivate::startDetachedThread(lookup))
+        lookup();
     return id;
 }
 

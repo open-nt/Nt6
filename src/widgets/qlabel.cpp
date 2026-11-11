@@ -1,7 +1,10 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qlabel.h>
 
+#include <QtGui/qcursor.h>
+#include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtGui/qtextdocument.h>
 #include <QtWidgets/qstyle.h>
 
 #include <algorithm>
@@ -20,14 +23,26 @@
     The text is drawn in the WindowText color of the palette with the font of the widget. A label with
     word wrap breaks lines at the width it gets.
 
+    A text that looks like HTML is shown as rich text, through a QTextDocument, which says what is
+    understood; setTextFormat() decides it for the text if it does not look like what it is. A link in the text
+    shows the pointing hand, and a click on it emits linkActivated():
+
+    \code
+    QLabel *label = new QLabel("<b>Done.</b> See the <a href=\"report\">report</a>.", parent);
+    QObject::connect(label, &QLabel::linkActivated, [](const QString &link) { open(link); });
+    \endcode
+
     A label: plain, bold and larger, word-wrapped, right-aligned, and disabled.
 
     \image widgets/qlabel.png QLabel in the light color scheme
 
     \differences
-    The label shows plain text or a pixmap: no rich text, movies, links, selection or buddies. It has no frame
-    (it is not a QFrame), \c indent(), \c textFormat() or \c setBuddy(). A word-wrapped label
-    has no height-for-width, so its size hint is the height of the text on one line unless it has new lines.
+    The label shows plain text, rich text or a pixmap: no movies, Markdown, selection of the text, links
+    reached with the keys, or buddies. It has no frame (it is not a QFrame), \c indent(),
+    \c textInteractionFlags() or \c setBuddy(). Nothing opens a link for openExternalLinks(): a click emits
+    linkActivated() with or without it. Rich text is placed as a whole by the alignment of the label; its
+    paragraphs are aligned by their own HTML. A word-wrapped label has no height-for-width, so its size
+    hint is that of the text with the lines that it has without the wrapping.
     \enddifferences
 
     \sa QPushButton, QWidget
@@ -41,7 +56,7 @@ QLabel::QLabel(QWidget *parent) : QWidget(parent) {}
 /*!
     Constructs a label that shows \a text, with the given \a parent.
 */
-QLabel::QLabel(const QString &text, QWidget *parent) : QWidget(parent), m_text(text) {}
+QLabel::QLabel(const QString &text, QWidget *parent) : QWidget(parent), m_text(text) { updateDocument(); }
 
 /*!
     Destroys the label.
@@ -66,8 +81,107 @@ void QLabel::setText(const QString &text) {
         return;
     m_text = text;
     m_pixmap = QPixmap();
+    updateDocument();
     updateGeometry();
     update();
+}
+
+/*!
+    \fn Qt::TextFormat QLabel::textFormat() const
+
+    Returns how the text of the label is read. The default is Qt::AutoText: a text that
+    Qt::mightBeRichText() takes for rich text is shown as rich text, and any other as it is.
+
+    \sa setTextFormat()
+*/
+
+/*!
+    Sets how the text of the label is read to \a format. Qt::MarkdownText is shown as plain text.
+
+    \sa textFormat()
+*/
+void QLabel::setTextFormat(Qt::TextFormat format) {
+    if (m_format == format)
+        return;
+    m_format = format;
+    updateDocument();
+    updateGeometry();
+    update();
+}
+
+/*!
+    \fn bool QLabel::openExternalLinks() const
+
+    Returns whether the label is to open the links that the user clicks. Nt has nothing to open them
+    with, so this is recorded only.
+
+    \sa setOpenExternalLinks(), linkActivated()
+*/
+
+/*!
+    \fn void QLabel::setOpenExternalLinks(bool open)
+
+    Sets whether the label is to open links to \a open; recorded only.
+
+    \sa openExternalLinks()
+*/
+
+// Makes the document of a text that is rich text, and drops that of one that is not.
+void QLabel::updateDocument() {
+    const bool rich =
+        !m_text.isEmpty() && (m_format == Qt::RichText || (m_format == Qt::AutoText && Qt::mightBeRichText(m_text)));
+    setHovered(QString());
+    m_pressed.clear();
+    if (!rich) {
+        m_document.reset();
+        return;
+    }
+    if (!m_document) {
+        m_document = std::make_unique<QTextDocument>();
+        m_document->setDocumentMargin(0);
+    }
+    m_document->setDefaultFont(font());
+    m_document->setHtml(m_text);
+    // The mouse is followed without a button too, for the links.
+    if (m_text.contains(QStringLiteral("href"), Qt::CaseInsensitive))
+        setMouseTracking(true);
+}
+
+// Lays the document out for the label as it is, and returns where it is drawn.
+QRect QLabel::documentRect() const {
+    const QRect area = rect().adjusted(m_margin, m_margin, -m_margin, -m_margin);
+    m_document->setTextWidth(m_wordWrap ? std::max(1, area.width()) : -1);
+    const QSizeF size = m_document->size();
+    const int w = static_cast<int>(size.width()), h = static_cast<int>(size.height());
+    int x = area.left();
+    int y = area.top();
+    if (m_alignment & Qt::AlignHCenter)
+        x += (area.width() - w) / 2;
+    else if (m_alignment & Qt::AlignRight)
+        x = area.right() + 1 - w;
+    if (m_alignment & Qt::AlignVCenter)
+        y += (area.height() - h) / 2;
+    else if (m_alignment & Qt::AlignBottom)
+        y = area.bottom() + 1 - h;
+    return QRect(x, y, w, h);
+}
+
+QString QLabel::linkAt(const QPoint &pos) const {
+    if (!m_document)
+        return QString();
+    const QRect where = documentRect();
+    return m_document->documentLayout()->anchorAt(QPointF(pos.x() - where.x(), pos.y() - where.y()));
+}
+
+void QLabel::setHovered(const QString &link) {
+    if (m_hovered == link)
+        return;
+    m_hovered = link;
+    if (link.isEmpty())
+        unsetCursor();
+    else
+        setCursor(Qt::PointingHandCursor);
+    emit linkHovered(link);
 }
 
 /*!
@@ -183,6 +297,11 @@ QSize QLabel::textSize(int width) const {
 QSize QLabel::sizeHint() const {
     if (!m_pixmap.isNull())
         return QSize(m_pixmap.width() + 2 * m_margin, m_pixmap.height() + 2 * m_margin);
+    if (m_document) {
+        m_document->setTextWidth(-1);
+        const QSizeF size = m_document->size();
+        return QSize(static_cast<int>(size.width()) + 2 * m_margin, static_cast<int>(size.height()) + 2 * m_margin);
+    }
     const QSize s = textSize(0);
     return QSize(s.width() + 2 * m_margin, s.height() + 2 * m_margin);
 }
@@ -228,6 +347,12 @@ void QLabel::paintEvent(QPaintEvent *event) {
     }
     painter.setPen(palette().color(isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::WindowText));
     painter.setFont(font());
+    if (m_document) {
+        const QRect where = documentRect();
+        painter.translate(where.x(), where.y());
+        m_document->drawContents(&painter);
+        return;
+    }
     int flags = int(m_alignment);
     if (m_wordWrap)
         flags |= Qt::TextWordWrap;
@@ -237,6 +362,69 @@ void QLabel::paintEvent(QPaintEvent *event) {
 /*!
     \reimp
 */
-void QLabel::changeEvent(QEvent *event) { QWidget::changeEvent(event); }
+void QLabel::changeEvent(QEvent *event) {
+    if (m_document && event->type() == QEvent::FontChange) {
+        // The sizes of the HTML are taken of the font.
+        m_document->setDefaultFont(font());
+        m_document->setHtml(m_text);
+        updateGeometry();
+    }
+    QWidget::changeEvent(event);
+}
+
+/*!
+    \reimp
+
+    A press on a link is the start of a click on it.
+*/
+void QLabel::mousePressEvent(QMouseEvent *event) {
+    m_pressed = event->button() == Qt::LeftButton ? linkAt(event->pos()) : QString();
+    if (m_pressed.isEmpty())
+        event->ignore();
+    else
+        event->accept();
+}
+
+/*!
+    \reimp
+
+    Over a link the cursor is the pointing hand, and linkHovered() is emitted.
+*/
+void QLabel::mouseMoveEvent(QMouseEvent *event) {
+    if (!m_document) {
+        event->ignore();
+        return;
+    }
+    setHovered(linkAt(event->pos()));
+    if (m_pressed.isEmpty())
+        event->ignore();
+    else
+        event->accept();
+}
+
+/*!
+    \reimp
+
+    A release on the link that was pressed emits linkActivated().
+*/
+void QLabel::mouseReleaseEvent(QMouseEvent *event) {
+    if (m_pressed.isEmpty() || event->button() != Qt::LeftButton) {
+        event->ignore();
+        return;
+    }
+    const QString link = m_pressed;
+    m_pressed.clear();
+    event->accept();
+    if (linkAt(event->pos()) == link)
+        emit linkActivated(link);
+}
+
+/*!
+    \reimp
+*/
+void QLabel::leaveEvent(QEvent *event) {
+    setHovered(QString());
+    QWidget::leaveEvent(event);
+}
 
 #include "moc_qlabel.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

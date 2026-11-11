@@ -1,4 +1,5 @@
 // MIT License - see LICENSE
+#include <QtWidgets/qstylefactory.h>
 #include <QtWidgets/qapplication.h>
 
 #include "qfusionstyle_p.h"
@@ -175,6 +176,22 @@ void QApplication::setStyle(QStyle *style) {
     }
     if (!g_palette)
         sendPaletteChange();
+}
+
+/*!
+    \overload
+
+    Makes the style called \a style the style of the application, and
+    returns it; QStyleFactory::keys() lists the names. Returns \c nullptr,
+    and leaves the style as it is, if there is no style of that name.
+
+    \sa QStyleFactory::create()
+*/
+QStyle *QApplication::setStyle(const QString &style) {
+    QStyle *created = QStyleFactory::create(style);
+    if (created)
+        setStyle(created);
+    return created;
 }
 
 /*!

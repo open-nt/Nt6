@@ -52,6 +52,12 @@ QXcbWindow::~QXcbWindow() {
     m_connection->flush();
 }
 
+void QXcbWindow::setCursor(Qt::CursorShape shape) {
+    const xcb_cursor_t cursor = m_connection->cursor(shape);
+    xcb_change_window_attributes(m_connection->xcb(), m_id, XCB_CW_CURSOR, &cursor);
+    m_connection->flush();
+}
+
 void QXcbWindow::setGeometry(const QRect &rect) {
     m_geometry = rect;
     const QRect native = toNative(rect);

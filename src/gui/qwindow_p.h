@@ -21,7 +21,11 @@ struct GuiAccess {
     static QPlatformIntegration *integration();
     static void registerWindow(QWindow *window);
     static void unregisterWindow(QWindow *window);
-    static void maybeQuitOnLastWindowClosed();
+    // Called when `closed` was hidden: quits if it was the last window that keeps the application running.
+    static void maybeQuitOnLastWindowClosed(QWindow *closed);
+    // Whether the window keeps the application running while it shows; true unless it is set otherwise.
+    static void setQuitOnClose(QWindow *window, bool quit);
+    static bool quitOnClose(const QWindow *window);
     static bool inputWindowActivated(QWindow *window);
     static void addScreen(QPlatformScreen *screen);
     static void removeScreen(QPlatformScreen *screen);
@@ -29,6 +33,12 @@ struct GuiAccess {
     static void setPlatformColorScheme(Qt::ColorScheme scheme);
     static void setFocusWindow(QWindow *window);
     static void setInput(Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers);
+    // The last position of the mouse that the platform reported, or that was set.
+    static void setCursorPosition(const QPoint &pos);
+    static QPoint cursorPosition();
+    // Gives the platform window of `window` the cursor that it has to show now: the override cursor of the
+    // application, or its own.
+    static void applyCursor(QWindow *window);
     // Deletes the platform integration; the application object calls it as it goes away.
     static void shutdown();
 };

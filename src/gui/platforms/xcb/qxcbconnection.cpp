@@ -2,6 +2,7 @@
 #include "qxcbconnection_p.h"
 
 #include "qpa/qwindowsysteminterface_p.h"
+#include "qwindow_p.h"
 #include "qxcbwindow_p.h"
 
 #include <QtCore/qcoreapplication.h>
@@ -427,6 +428,102 @@ QXcbConnection::Key QXcbConnection::translateKey(xcb_keycode_t code, uint16_t st
     if (state & XCB_MOD_MASK_CONTROL)
         key.text.clear();
     return key;
+}
+
+namespace {
+
+// The glyph of the X cursor font for a shape; the mask is the glyph after it. Shapes that the font does not
+// have get the nearest one.
+int cursorGlyph(Qt::CursorShape shape) {
+    switch (shape) {
+    case Qt::UpArrowCursor:
+        return 22; // center_ptr
+    case Qt::CrossCursor:
+        return 34; // crosshair
+    case Qt::WaitCursor:
+    case Qt::BusyCursor:
+        return 150; // watch
+    case Qt::IBeamCursor:
+        return 152; // xterm
+    case Qt::SizeVerCursor:
+    case Qt::SplitVCursor:
+        return 116; // sb_v_double_arrow
+    case Qt::SizeHorCursor:
+    case Qt::SplitHCursor:
+        return 108; // sb_h_double_arrow
+    case Qt::SizeBDiagCursor:
+        return 136; // top_right_corner
+    case Qt::SizeFDiagCursor:
+        return 134; // top_left_corner
+    case Qt::SizeAllCursor:
+    case Qt::OpenHandCursor:
+    case Qt::ClosedHandCursor:
+    case Qt::DragMoveCursor:
+        return 52; // fleur
+    case Qt::PointingHandCursor:
+    case Qt::DragLinkCursor:
+        return 60; // hand2
+    case Qt::ForbiddenCursor:
+        return 0; // X_cursor
+    case Qt::WhatsThisCursor:
+        return 92; // question_arrow
+    case Qt::DragCopyCursor:
+        return 90; // plus
+    default:
+        return 68; // left_ptr
+    }
+}
+
+} // namespace
+
+xcb_cursor_t QXcbConnection::cursor(Qt::CursorShape shape) {
+    const auto known = m_cursors.find(static_cast<int>(shape));
+    if (known != m_cursors.end())
+        return known->second;
+    xcb_cursor_t cursor = XCB_NONE;
+    if (shape == Qt::BlankCursor) {
+        // A cursor of one pixel with an empty mask: nothing shows.
+        const xcb_pixmap_t pixmap = xcb_generate_id(m_connection);
+        xcb_create_pixmap(m_connection, 1, pixmap, m_screen->root, 1, 1);
+        const xcb_gcontext_t gc = xcb_generate_id(m_connection);
+        const uint32_t zero = 0;
+        xcb_create_gc(m_connection, gc, pixmap, XCB_GC_FOREGROUND, &zero);
+        const xcb_rectangle_t all{0, 0, 1, 1};
+        xcb_poly_fill_rectangle(m_connection, pixmap, gc, 1, &all);
+        cursor = xcb_generate_id(m_connection);
+        xcb_create_cursor(m_connection, cursor, pixmap, pixmap, 0, 0, 0, 0, 0, 0, 0, 0);
+        xcb_free_gc(m_connection, gc);
+        xcb_free_pixmap(m_connection, pixmap);
+    } else {
+        if (m_cursorFont == XCB_NONE) {
+            m_cursorFont = xcb_generate_id(m_connection);
+            xcb_open_font(m_connection, m_cursorFont, 6, "cursor");
+        }
+        const auto glyph = static_cast<uint16_t>(cursorGlyph(shape));
+        cursor = xcb_generate_id(m_connection);
+        // Black with a white outline, as the cursors of X have always been.
+        xcb_create_glyph_cursor(m_connection, cursor, m_cursorFont, m_cursorFont, glyph,
+                                static_cast<uint16_t>(glyph + 1), 0, 0, 0, 0xffff, 0xffff, 0xffff);
+    }
+    m_cursors[static_cast<int>(shape)] = cursor;
+    return cursor;
+}
+
+QPoint QXcbConnection::pointerPosition() const {
+    xcb_query_pointer_reply_t *reply =
+        xcb_query_pointer_reply(m_connection, xcb_query_pointer(m_connection, m_screen->root), nullptr);
+    if (!reply)
+        return QtPrivate::GuiAccess::cursorPosition();
+    const QPoint pos(toLogical(reply->root_x), toLogical(reply->root_y));
+    std::free(reply);
+    return pos;
+}
+
+void QXcbConnection::warpPointer(const QPoint &logical) {
+    xcb_warp_pointer(m_connection, XCB_NONE, m_screen->root, 0, 0, 0, 0, static_cast<int16_t>(toNative(logical.x())),
+                     static_cast<int16_t>(toNative(logical.y())));
+    xcb_flush(m_connection);
+    QtPrivate::GuiAccess::setCursorPosition(logical);
 }
 
 QRect QXcbConnection::toLogicalCovering(const QRect &native) const {

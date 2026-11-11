@@ -39,6 +39,7 @@ void QWindowSystemInterface::handleWindowActivated(QWindow *window) {
 }
 
 void QWindowSystemInterface::handleEnterEvent(QWindow *window, const QPointF &local, const QPointF &global) {
+    QtPrivate::GuiAccess::setCursorPosition(global.toPoint());
     QEnterEvent event(local, global);
     QCoreApplication::sendEvent(window, &event);
 }
@@ -52,6 +53,7 @@ void QWindowSystemInterface::handleMouseEvent(QWindow *window, const QPointF &lo
                                               Qt::MouseButtons buttons, Qt::MouseButton button, QEvent::Type type,
                                               Qt::KeyboardModifiers modifiers) {
     QtPrivate::GuiAccess::setInput(buttons, modifiers);
+    QtPrivate::GuiAccess::setCursorPosition(global.toPoint());
     QMouseEvent event(type, local, global, button, buttons, modifiers);
     QCoreApplication::sendEvent(window, &event);
 }

@@ -16,6 +16,7 @@
 #include <QtGui/qkeysequence.h>
 #include <QtGui/qpaintdevicewindow.h>
 #include <QtGui/qpainter.h>
+#include <QtGui/qpixmap.h>
 #include <QtGui/qpen.h>
 #include <QtGui/qrasterwindow.h>
 #include <QtGui/qregion.h>
@@ -23,6 +24,7 @@
 #include <QtGui/qstylehints.h>
 #include <QtGui/qwindow.h>
 
+#include "image_fixtures.h"
 #include "qpa/qdesktopportal_p.h"
 #include "qpa/qplatformintegration_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
@@ -234,6 +236,251 @@ static QImage newImage(int w, int h, QImage::Format f = QImage::Format_ARGB32_Pr
     QImage img(w, h, f);
     img.fill(Qt::white);
     return img;
+}
+
+static QRgb fixtureRgb(int x, int y) { return qRgb((x * 40 + 10) & 255, (y * 40 + 20) & 255, ((x + y) * 20) & 255); }
+
+static int scale16(unsigned v) { return static_cast<int>((v * 255 + 32767) / 65535); }
+
+static bool nearRgb(QRgb a, QRgb b, int tolerance) {
+    return std::abs(qRed(a) - qRed(b)) <= tolerance && std::abs(qGreen(a) - qGreen(b)) <= tolerance &&
+           std::abs(qBlue(a) - qBlue(b)) <= tolerance && qAlpha(a) == qAlpha(b);
+}
+
+template <std::size_t N> static QImage fromFixture(const unsigned char (&bytes)[N]) {
+    return QImage::fromData(bytes, static_cast<int>(N));
+}
+
+static void testImagePngFiles() {
+#ifdef NT_HAVE_ZLIB
+    // Files made by another encoder: every color type, bit depths, interlacing and transparency.
+    QImage image = fromFixture(kPngRgbInterlaced);
+    CHECK(image.size() == QSize(5, 5) && image.format() == QImage::Format_RGB32);
+    bool same = !image.isNull();
+    for (int y = 0; same && y < 5; ++y)
+        for (int x = 0; x < 5; ++x)
+            same = same && image.pixel(x, y) == fixtureRgb(x, y);
+    CHECK(same);
+
+    image = fromFixture(kPngRgb16);
+    CHECK(image.size() == QSize(3, 2) && !image.hasAlphaChannel());
+    CHECK(image.pixel(1, 1) == qRgb(scale16(20100), scale16(30500), 255));
+
+    image = fromFixture(kPngGray16Key);
+    CHECK(image.size() == QSize(3, 1) && image.hasAlphaChannel());
+    CHECK(image.pixel(0, 0) == qRgba(0, 0, 0, 255) && qAlpha(image.pixel(1, 0)) == 0 &&
+          image.pixel(2, 0) == qRgba(255, 255, 255, 255));
+
+    image = fromFixture(kPngGray2);
+    CHECK(image.size() == QSize(5, 2) && !image.hasAlphaChannel());
+    CHECK(image.pixel(0, 0) == qRgb(0, 0, 0) && image.pixel(1, 0) == qRgb(85, 85, 85) &&
+          image.pixel(3, 1) == qRgb(0, 0, 0) && image.pixel(2, 1) == qRgb(255, 255, 255));
+
+    image = fromFixture(kPngPalette4);
+    CHECK(image.size() == QSize(5, 3) && image.hasAlphaChannel());
+    CHECK(image.pixel(0, 0) == qRgba(255, 0, 0, 255) && image.pixel(1, 0) == qRgba(0, 255, 0, 128) &&
+          image.pixel(2, 0) == qRgba(0, 0, 255, 255));
+
+    image = fromFixture(kPngPalette1Interlaced);
+    CHECK(image.size() == QSize(9, 9));
+    same = !image.isNull();
+    for (int y = 0; same && y < 9; ++y)
+        for (int x = 0; x < 9; ++x)
+            same = same && image.pixel(x, y) == ((x * y) % 2 ? qRgb(255, 255, 255) : qRgb(0, 0, 0));
+    CHECK(same);
+
+    image = fromFixture(kPngRgba);
+    CHECK(image.size() == QSize(7, 5) && image.format() == QImage::Format_ARGB32);
+    same = !image.isNull();
+    for (int y = 0; same && y < 5; ++y)
+        for (int x = 0; x < 7; ++x)
+            same = same && image.pixel(x, y) ==
+                               ((fixtureRgb(x, y) & 0x00ffffffu) | (static_cast<uint>((x * 30 + y * 10) & 255) << 24));
+    CHECK(same);
+
+    image = fromFixture(kPngGrayAlpha);
+    CHECK(image.size() == QSize(4, 3) && image.pixel(2, 1) == qRgba(120, 120, 120, 155));
+
+    // Saving and loading again keeps every pixel, with and without transparency.
+    QImage source(13, 9, QImage::Format_ARGB32);
+    for (int y = 0; y < source.height(); ++y)
+        for (int x = 0; x < source.width(); ++x)
+            source.setPixel(x, y, qRgba(x * 19, y * 27, (x * y) & 255, 255 - x * 10));
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    CHECK(buffer.open(QIODevice::WriteOnly) && source.save(&buffer, "PNG"));
+    buffer.close();
+    CHECK(bytes.startsWith("\x89PNG"));
+    QImage loaded = QImage::fromData(bytes);
+    CHECK(loaded.format() == QImage::Format_ARGB32 && loaded == source);
+
+    QImage opaque = source.convertToFormat(QImage::Format_RGB32);
+    CHECK(opaque.save(&buffer, "png") == false); // closed device
+    QBuffer opaqueBuffer(&bytes);
+    CHECK(opaqueBuffer.open(QIODevice::WriteOnly) && opaque.save(&opaqueBuffer, "png", 0));
+    opaqueBuffer.close();
+    loaded = QImage::fromData(bytes);
+    CHECK(loaded.format() == QImage::Format_RGB32 && loaded == opaque);
+
+    // Premultiplied pixels are written as straight ones.
+    QImage premultiplied = source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+    QBuffer premultipliedBuffer(&bytes);
+    CHECK(premultipliedBuffer.open(QIODevice::WriteOnly) && premultiplied.save(&premultipliedBuffer, "PNG", 100));
+    premultipliedBuffer.close();
+    loaded = QImage::fromData(bytes);
+    CHECK(loaded.size() == source.size() && nearRgb(loaded.pixel(5, 3), source.pixel(5, 3), 6));
+
+    // A large image of one color compresses and loads back.
+    QImage wide(2000, 300, QImage::Format_ARGB32);
+    wide.fill(QColor(10, 20, 30, 40));
+    QBuffer wideBuffer(&bytes);
+    CHECK(wideBuffer.open(QIODevice::WriteOnly) && wide.save(&wideBuffer, "PNG"));
+    wideBuffer.close();
+    CHECK(bytes.size() < 20000 && QImage::fromData(bytes) == wide);
+
+    // Damaged files are refused.
+    QByteArray good(reinterpret_cast<const char *>(kPngRgba), static_cast<qsizetype>(sizeof(kPngRgba)));
+    CHECK(QImage::fromData(good.left(good.size() / 2)).isNull());
+    QByteArray badCrc = good;
+    badCrc[20] = static_cast<char>(badCrc[20] ^ 0x55); // inside IHDR
+    CHECK(QImage::fromData(badCrc).isNull());
+    QByteArray noSignature = good;
+    noSignature[1] = 'X';
+    CHECK(QImage::fromData(noSignature).isNull());
+    QByteArray corrupt = good;
+    corrupt[corrupt.size() - 20] = static_cast<char>(corrupt[corrupt.size() - 20] ^ 0xff); // inside IDAT
+    CHECK(QImage::fromData(corrupt).isNull());
+#endif
+}
+
+static void testImageBmpFiles() {
+    QImage image = fromFixture(kBmp24);
+    CHECK(image.size() == QSize(5, 3) && image.format() == QImage::Format_RGB32);
+    bool same = !image.isNull();
+    for (int y = 0; same && y < 3; ++y)
+        for (int x = 0; x < 5; ++x)
+            same = same && image.pixel(x, y) == fixtureRgb(x, y);
+    CHECK(same);
+
+    image = fromFixture(kBmp8);
+    CHECK(image.size() == QSize(4, 3));
+    CHECK(image.pixel(0, 0) == qRgb(255, 0, 0) && image.pixel(1, 0) == qRgb(0, 255, 0) &&
+          image.pixel(2, 1) == qRgb(255, 0, 0) && image.pixel(1, 2) == qRgb(255, 0, 0));
+
+    image = fromFixture(kBmp32);
+    CHECK(image.size() == QSize(3, 2) && image.pixel(2, 0) == qRgb(90, 100, 110));
+
+    // Transparency survives a round trip; so do the rows of any length.
+    for (int width : {1, 2, 3, 5}) {
+        QImage source(width, 3, QImage::Format_ARGB32);
+        for (int y = 0; y < 3; ++y)
+            for (int x = 0; x < width; ++x)
+                source.setPixel(x, y, qRgba(x * 50, y * 70, 200 - x, 30 + x * 40 + y));
+        QByteArray bytes;
+        QBuffer buffer(&bytes);
+        CHECK(buffer.open(QIODevice::WriteOnly) && source.save(&buffer, "BMP"));
+        buffer.close();
+        CHECK(QImage::fromData(bytes) == source);
+
+        QImage opaque = source.convertToFormat(QImage::Format_RGB32);
+        QBuffer opaqueBuffer(&bytes);
+        CHECK(opaqueBuffer.open(QIODevice::WriteOnly) && opaque.save(&opaqueBuffer, "bmp"));
+        opaqueBuffer.close();
+        const QImage loaded = QImage::fromData(bytes);
+        CHECK(loaded.format() == QImage::Format_RGB32 && loaded == opaque);
+    }
+
+    QByteArray good(reinterpret_cast<const char *>(kBmp24), static_cast<qsizetype>(sizeof(kBmp24)));
+    CHECK(QImage::fromData(good.left(good.size() - 4)).isNull() && QImage::fromData(good.left(20)).isNull());
+}
+
+static void testImageJpegFiles() {
+#ifdef NT_HAVE_JPEG
+    for (const QImage &image : {fromFixture(kJpegRed), fromFixture(kJpegProgressive)}) {
+        CHECK(image.size() == QSize(16, 16) && image.format() == QImage::Format_RGB32);
+        CHECK(nearRgb(image.pixel(8, 8), qRgb(200, 30, 40), 4));
+    }
+    const QImage gray = fromFixture(kJpegGray);
+    CHECK(gray.size() == QSize(8, 8) && nearRgb(gray.pixel(3, 3), qRgb(120, 120, 120), 3));
+
+    QImage source(40, 30, QImage::Format_ARGB32);
+    source.fill(QColor(30, 160, 90));
+    QByteArray bytes;
+    QBuffer buffer(&bytes);
+    CHECK(buffer.open(QIODevice::WriteOnly) && source.save(&buffer, "JPG", 90));
+    buffer.close();
+    CHECK(bytes.startsWith("\xff\xd8\xff"));
+    const QImage loaded = QImage::fromData(bytes);
+    CHECK(loaded.size() == source.size() && nearRgb(loaded.pixel(20, 15), qRgb(30, 160, 90), 4));
+    QBuffer defaultBuffer(&bytes);
+    CHECK(defaultBuffer.open(QIODevice::WriteOnly) && source.save(&defaultBuffer, "jpeg"));
+    defaultBuffer.close();
+    CHECK(!QImage::fromData(bytes).isNull());
+
+    QByteArray good(reinterpret_cast<const char *>(kJpegRed), static_cast<qsizetype>(sizeof(kJpegRed)));
+    CHECK(QImage::fromData(good.left(40)).isNull());
+#endif
+}
+
+static void testImageFiles() {
+    testImagePngFiles();
+    testImageBmpFiles();
+    testImageJpegFiles();
+
+    // Anything else is not an image.
+    CHECK(QImage::fromData(QByteArray()).isNull() && QImage::fromData(QByteArray("GIF89a not supported")).isNull());
+    CHECK(QImage::fromData(QByteArray(100, '\0')).isNull());
+    // An image that claims to be huge is refused without allocating it.
+    const unsigned char huge[] = {0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 0,    0,    0,    0x0d,
+                                  'I',  'H', 'D', 'R', 0x7f, 0xff, 0xff, 0xff, 0x7f, 0xff, 0xff, 0xff,
+                                  8,    6,   0,   0,   0,    0,    0,    0,    0,    0};
+    CHECK(QImage::fromData(huge, static_cast<int>(sizeof(huge))).isNull());
+
+    // Files, by suffix and by format; the contents decide how they load.
+    QTemporaryDir dir;
+    CHECK(dir.isValid());
+    QImage source(6, 4, QImage::Format_ARGB32);
+    source.fill(QColor(200, 100, 50, 255));
+    source.setPixel(2, 1, qRgba(1, 2, 3, 4));
+    const QString png = dir.path() + QLatin1String("/image.png");
+    const QString bmp = dir.path() + QLatin1String("/IMAGE.BMP");
+    const QString renamed = dir.path() + QLatin1String("/noextension");
+    CHECK(source.save(png) && source.save(bmp) && source.save(renamed, "png"));
+    CHECK(!source.save(dir.path() + QLatin1String("/image.xyz")) && !source.save(renamed, "xyz"));
+    CHECK(!source.save(dir.path() + QLatin1String("/missing/image.png")) && !QImage().save(png));
+    CHECK(QImage(png) == source && QImage(bmp) == source && QImage(renamed) == source);
+    QImage loaded;
+    CHECK(loaded.load(png) && loaded == source);
+    CHECK(!loaded.load(dir.path() + QLatin1String("/nothing.png")) && loaded.isNull());
+    CHECK(QImage(dir.path() + QLatin1String("/nothing.png")).isNull());
+
+    QFile text(dir.path() + QLatin1String("/text.png"));
+    CHECK(text.open(QIODevice::WriteOnly) && text.write("not an image") > 0);
+    text.close();
+    CHECK(QImage(text.fileName()).isNull());
+
+    // Devices.
+    QBuffer closed;
+    CHECK(!loaded.load(&closed) && !loaded.load(static_cast<QIODevice *>(nullptr)) && !source.save(&closed, "png") &&
+          !source.save(static_cast<QIODevice *>(nullptr), "png"));
+    QByteArray bytes;
+    QBuffer device(&bytes);
+    CHECK(device.open(QIODevice::WriteOnly) && !source.save(&device) && source.save(&device, "BMP"));
+    device.close();
+    CHECK(device.open(QIODevice::ReadOnly) && loaded.load(&device) && loaded == source);
+
+    // Pixmaps load and save through images.
+    QPixmap pixmap(png);
+    CHECK(pixmap.size() == QSize(6, 4) && pixmap.toImage().pixel(0, 0) == qRgba(200, 100, 50, 255));
+    QPixmap other;
+    CHECK(other.load(bmp) && other.size() == QSize(6, 4) && !other.load(text.fileName()) && other.isNull());
+    CHECK(other.loadFromData(bytes) && other.size() == QSize(6, 4));
+    CHECK(other.loadFromData(reinterpret_cast<const uchar *>(bytes.constData()), static_cast<uint>(bytes.size())));
+    CHECK(!other.loadFromData(QByteArray("nope")) && other.isNull());
+    const QString copy = dir.path() + QLatin1String("/copy.png");
+    CHECK(pixmap.save(copy) && QImage(copy).size() == source.size() && QImage(copy).pixel(0, 0) == source.pixel(0, 0));
+    QBuffer pixmapDevice(&bytes);
+    CHECK(pixmapDevice.open(QIODevice::WriteOnly) && pixmap.save(&pixmapDevice, "BMP") && !QPixmap().save(copy));
 }
 
 static void testPainterBasics() {
@@ -1635,6 +1882,7 @@ int main(int argc, char **argv) {
     testRegion();
     testPenBrush();
     testImage();
+    testImageFiles();
     testPainterBasics();
     testPainterShapes();
     testPainterState();

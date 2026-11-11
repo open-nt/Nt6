@@ -17,6 +17,7 @@ public:
     static QApplication *instance();
     static QStyle *style();
     static void setStyle(QStyle *style);
+    static QStyle *setStyle(const QString &style);
     static QPalette palette();
     static void setPalette(const QPalette &palette);
     static QList<QWidget *> topLevelWidgets();

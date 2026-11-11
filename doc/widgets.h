@@ -146,7 +146,7 @@
     \li What it is for
     \row
     \li QLabel
-    \li A text, with alignment and word wrap.
+    \li A text, with alignment and word wrap; plain, or rich text with links to click.
     \row
     \li QPushButton, QCheckBox, QRadioButton
     \li A button to click, an option to switch, and one choice of a group. Radio buttons with the same parent are exclusive.
@@ -157,8 +157,13 @@
     \li QListWidget
     \li Items in rows to select, with the mouse or the keys; one, several or none at a time.
     \row
+    \li QTreeView, QTreeWidget
+    \li A tree with columns and a header: QTreeView shows any model of Nt Core, and QTreeWidget keeps its own
+        items. Items are sorted by a click on the header and edited in place through a QStyledItemDelegate.
+    \row
     \li QPlainTextEdit, QTextEdit
     \li Text of many lines to type and select, with wrapping and undo; QTextCursor moves in it and changes it.
+        QTextEdit also shows rich text, from HTML, and QTextBrowser follows its links.
     \row
     \li QToolButton
     \li A small button with a text or an arrow, that can be checked or flat.

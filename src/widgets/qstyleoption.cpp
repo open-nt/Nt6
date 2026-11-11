@@ -33,6 +33,7 @@
     \value SO_GroupBox A QStyleOptionGroupBox.
     \value SO_Header A QStyleOptionHeader.
     \value SO_MenuItem A QStyleOptionMenuItem.
+    \value SO_ViewItem A QStyleOptionViewItem.
 */
 
 /*!

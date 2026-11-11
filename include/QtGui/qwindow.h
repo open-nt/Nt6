@@ -6,6 +6,7 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qsize.h>
 #include <QtCore/qstring.h>
+#include <QtGui/qcursor.h>
 
 #include <memory>
 
@@ -75,6 +76,10 @@ public:
     QPoint mapFromGlobal(const QPoint &pos) const { return pos - position(); }
 
     QPlatformWindow *handle() const;
+
+    QCursor cursor() const;
+    void setCursor(const QCursor &cursor);
+    void unsetCursor();
 
 public slots:
     void setVisible(bool visible);

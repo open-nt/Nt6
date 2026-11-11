@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qbytearrayview.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qsize.h>
 #include <QtCore/qstring.h>
@@ -8,11 +9,14 @@
 #include <QtGui/qimage.h>
 #include <QtGui/qpaintdevice.h>
 
+class QIODevice;
+
 class QPixmap : public QPaintDevice {
 public:
     QPixmap();
     QPixmap(int width, int height);
     explicit QPixmap(const QSize &size);
+    explicit QPixmap(const QString &fileName, const char *format = nullptr);
     QPixmap(const QPixmap &other);
     QPixmap(QPixmap &&other) noexcept;
     ~QPixmap() override;
@@ -28,6 +32,11 @@ public:
     QPixmap copy(const QRect &rect = QRect()) const;
     QImage toImage() const { return m_image; }
     static QPixmap fromImage(const QImage &image);
+    bool load(const QString &fileName, const char *format = nullptr);
+    bool loadFromData(const uchar *data, uint len, const char *format = nullptr);
+    bool loadFromData(QByteArrayView data, const char *format = nullptr);
+    bool save(const QString &fileName, const char *format = nullptr, int quality = -1) const;
+    bool save(QIODevice *device, const char *format = nullptr, int quality = -1) const;
 
     QPaintEngine *paintEngine() const override;
 

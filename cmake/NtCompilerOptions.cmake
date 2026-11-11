@@ -26,8 +26,13 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR AND NOT _nt_multi_config
 endif()
 
 # The libraries are static; position independent code lets them be linked into
-# PIE executables and shared objects.
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# PIE executables and shared objects. A Zephyr image is linked at fixed addresses, and its stack
+# protection and other hardening are chosen with Kconfig.
+if(NT_ZEPHYR)
+    set(NT_HARDENING OFF)
+else()
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+endif()
 
 set(_nt_warning_flags)
 set(_nt_hardening_flags)

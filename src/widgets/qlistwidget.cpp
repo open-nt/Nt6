@@ -603,6 +603,7 @@ void QListWidget::select(int row, Qt::KeyboardModifiers modifiers) {
         setRowSelected(row, !item(row)->m_selected);
         m_anchor = row;
         break;
+    case ContiguousSelection: // as ExtendedSelection; Control is not told apart here
     case ExtendedSelection:
         if (shift && m_anchor >= 0) {
             const int from = std::min(m_anchor, row), to = std::max(m_anchor, row);
@@ -920,6 +921,7 @@ void QListWidget::navigate(int target, Qt::KeyboardModifiers modifiers) {
     case SingleSelection:
         select(target, Qt::NoModifier);
         break;
+    case ContiguousSelection:
     case ExtendedSelection:
         if (!control || (modifiers & Qt::ShiftModifier))
             select(target, modifiers & Qt::ShiftModifier ? Qt::ShiftModifier : Qt::NoModifier);

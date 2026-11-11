@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qwidget.h>
 
+#include "gui/qwindow_p.h"
 #include "qwidget_p.h"
 #include "qwidgetutil_p.h"
 
@@ -78,11 +79,15 @@ void WidgetAccess::paintRecursive(QWidget *w, const QPoint &origin, const QRect 
     if (visible.isEmpty() || !WidgetAccess::shownSelf(w))
         return;
     QWidget::Data &d = data(w);
+    // A widget whose updates are off keeps what is on the screen, and so do its children.
+    if (d.updatesDisabled)
+        return;
     const QRegion region = dirty.intersected(visible);
     if (!region.isEmpty()) {
         d.painting = true;
         d.paintClip = region;
-        if (w->isWindow() || d.autoFill) {
+        if ((w->isWindow() || d.autoFill) && !d.attributes.test(Qt::WA_NoSystemBackground) &&
+            !d.attributes.test(Qt::WA_OpaquePaintEvent)) {
             QPainter painter(w);
             painter.fillRect(w->rect(), w->palette().color(w->isEnabled() ? QPalette::Active : QPalette::Disabled,
                                                            QPalette::Window));
@@ -105,7 +110,8 @@ void WidgetAccess::renderRecursive(QWidget *w, const QPoint &origin, const QRect
     if (!region.isEmpty()) {
         d.painting = true;
         d.paintClip = region;
-        if (w->isWindow() || d.autoFill) {
+        if ((w->isWindow() || d.autoFill) && !d.attributes.test(Qt::WA_NoSystemBackground) &&
+            !d.attributes.test(Qt::WA_OpaquePaintEvent)) {
             QPainter painter(w);
             painter.fillRect(w->rect(), w->palette().color(w->isEnabled() ? QPalette::Active : QPalette::Disabled,
                                                            QPalette::Window));
@@ -209,6 +215,37 @@ void WidgetAccess::setUnderMouse(QWidget *w, bool under) {
         return;
     w->m_d->underMouse = under;
     w->update();
+}
+
+QString WidgetAccess::shownTitle(const QWidget *w) {
+    QString title = data(w).title;
+    // "[*]" stands for the mark of unsaved changes; "[*][*]" is a literal "[*]".
+    const QString marker = QStringLiteral("[*]");
+    QString shown;
+    qsizetype from = 0;
+    for (;;) {
+        const qsizetype at = title.indexOf(marker, from);
+        if (at < 0)
+            break;
+        shown += title.mid(from, at - from);
+        if (title.mid(at + marker.size(), marker.size()) == marker) {
+            shown += marker;
+            from = at + 2 * marker.size();
+        } else {
+            if (data(w).windowModified)
+                shown += QChar('*');
+            from = at + marker.size();
+        }
+    }
+    return shown + title.mid(from);
+}
+
+bool WidgetAccess::updatesBlocked(const QWidget *w) {
+    for (; w; w = up(w)) {
+        if (data(w).updatesDisabled)
+            return true;
+    }
+    return false;
 }
 
 void WidgetAccess::clearReferences(QWidget *w) {
@@ -994,7 +1031,7 @@ void QWidget::setWindowTitle(const QString &title) {
         return;
     m_d->title = title;
     if (m_d->window)
-        m_d->window->setTitle(title);
+        m_d->window->setTitle(WidgetAccess::shownTitle(this));
     QEvent change(QEvent::WindowTitleChange);
     QCoreApplication::sendEvent(this, &change);
     emit windowTitleChanged(title);
@@ -1056,7 +1093,8 @@ void QWidget::setVisible(bool visible) {
             m_d->hiddenExplicitly = false;
             if (!m_d->window) {
                 m_d->window = std::make_unique<QWidgetWindow>(this);
-                m_d->window->setTitle(m_d->title);
+                m_d->window->setTitle(WidgetAccess::shownTitle(this));
+                QtPrivate::GuiAccess::setQuitOnClose(m_d->window.get(), testAttribute(Qt::WA_QuitOnClose));
             }
             // A window with a parent, such as a dialog, is kept above the window of its parent.
             if (QWidget *p = parentWidget())
@@ -1125,9 +1163,16 @@ void QWidget::hide() { setVisible(false); }
 bool QWidget::close() {
     if (!isWindow()) {
         hide();
+        if (testAttribute(Qt::WA_DeleteOnClose))
+            deleteLater();
         return true;
     }
-    return m_d->window ? m_d->window->close() : true;
+    if (m_d->window)
+        return m_d->window->close();
+    // A window that was never shown has nothing to close, but is still deleted if it asks for that.
+    if (testAttribute(Qt::WA_DeleteOnClose))
+        deleteLater();
+    return true;
 }
 
 /*!
@@ -1423,6 +1468,235 @@ bool QWidget::hasMouseTracking() const { return m_d->mouseTracking; }
 bool QWidget::underMouse() const { return m_d->underMouse; }
 
 /*!
+    Returns the cursor that shows while the mouse is over the widget: its
+    own if setCursor() gave it one, otherwise that of the nearest ancestor
+    that has one, and the standard arrow if none has.
+
+    \sa setCursor(), unsetCursor()
+*/
+QCursor QWidget::cursor() const {
+    for (const QWidget *w = this; w; w = WidgetAccess::up(w)) {
+        if (w->m_d->cursorSet)
+            return w->m_d->cursor;
+    }
+    return QCursor();
+}
+
+/*!
+    Sets the cursor that shows while the mouse is over the widget, and
+    over its children that have no cursor of their own, to \a cursor. A
+    text field has an I-beam and a link a pointing hand:
+
+    \code
+    link->setCursor(Qt::PointingHandCursor);
+    \endcode
+
+    An override cursor of the application shows instead for as long as
+    there is one; see QGuiApplication::setOverrideCursor().
+
+    \sa cursor(), unsetCursor(), Qt::WA_SetCursor
+*/
+void QWidget::setCursor(const QCursor &cursor) {
+    m_d->cursor = cursor;
+    m_d->cursorSet = true;
+    QWidget *top = window();
+    if (top->m_d->window)
+        top->m_d->window->updateCursor();
+    QEvent change(QEvent::CursorChange);
+    QCoreApplication::sendEvent(this, &change);
+}
+
+/*!
+    Takes the cursor of the widget away, so that the widget shows the
+    cursor of its parent again.
+
+    \sa setCursor()
+*/
+void QWidget::unsetCursor() {
+    if (!m_d->cursorSet)
+        return;
+    m_d->cursorSet = false;
+    m_d->cursor = QCursor();
+    QWidget *top = window();
+    if (top->m_d->window)
+        top->m_d->window->updateCursor();
+    QEvent change(QEvent::CursorChange);
+    QCoreApplication::sendEvent(this, &change);
+}
+
+/*!
+    Sets the attribute \a attribute of the widget if \a on is \c true, and
+    clears it otherwise. Qt::WidgetAttribute lists the attributes and what
+    they do. Several of them are other names for a property of the widget:
+    setting Qt::WA_Disabled, Qt::WA_MouseTracking, Qt::WA_UpdatesDisabled or
+    Qt::WA_WindowModified is the same as calling the function for it.
+
+    \code
+    auto *about = new AboutDialog(this);
+    about->setAttribute(Qt::WA_DeleteOnClose);
+    about->show();
+    \endcode
+
+    \sa testAttribute()
+*/
+void QWidget::setAttribute(Qt::WidgetAttribute attribute, bool on) {
+    if (attribute < 0 || attribute >= Qt::WA_AttributeCount)
+        return;
+    switch (attribute) {
+    case Qt::WA_Disabled:
+        setEnabled(!on);
+        return;
+    case Qt::WA_MouseTracking:
+        setMouseTracking(on);
+        return;
+    case Qt::WA_UpdatesDisabled:
+        setUpdatesEnabled(!on);
+        return;
+    case Qt::WA_WindowModified:
+        setWindowModified(on);
+        return;
+    case Qt::WA_TransparentForMouseEvents:
+        m_d->mouseTransparent = on;
+        return;
+    case Qt::WA_UnderMouse:
+        return; // only Nt knows where the mouse is
+    case Qt::WA_SetPalette:
+        m_d->paletteSet = on;
+        return;
+    case Qt::WA_SetFont:
+        m_d->fontSet = on;
+        return;
+    case Qt::WA_SetCursor:
+        if (!on)
+            unsetCursor();
+        else if (!m_d->cursorSet)
+            setCursor(m_d->cursor);
+        return;
+    case Qt::WA_SetStyle:
+        if (!on)
+            setStyle(nullptr);
+        return;
+    case Qt::WA_QuitOnClose:
+        m_d->quitOnClose = on ? 1 : 0;
+        if (m_d->window)
+            QtPrivate::GuiAccess::setQuitOnClose(m_d->window.get(), on);
+        return;
+    default:
+        m_d->attributes.set(attribute, on);
+        if (attribute == Qt::WA_NoSystemBackground || attribute == Qt::WA_OpaquePaintEvent)
+            update();
+        return;
+    }
+}
+
+/*!
+    Returns \c true if the attribute \a attribute of the widget is set;
+    otherwise returns \c false.
+
+    \sa setAttribute()
+*/
+bool QWidget::testAttribute(Qt::WidgetAttribute attribute) const {
+    if (attribute < 0 || attribute >= Qt::WA_AttributeCount)
+        return false;
+    switch (attribute) {
+    case Qt::WA_Disabled:
+        return !isEnabled();
+    case Qt::WA_MouseTracking:
+        return m_d->mouseTracking;
+    case Qt::WA_UpdatesDisabled:
+        return WidgetAccess::updatesBlocked(this);
+    case Qt::WA_WindowModified:
+        return m_d->windowModified;
+    case Qt::WA_TransparentForMouseEvents:
+        return m_d->mouseTransparent;
+    case Qt::WA_UnderMouse:
+        return m_d->underMouse;
+    case Qt::WA_SetPalette:
+        return m_d->paletteSet;
+    case Qt::WA_SetFont:
+        return m_d->fontSet;
+    case Qt::WA_SetCursor:
+        return m_d->cursorSet;
+    case Qt::WA_SetStyle:
+        return m_d->style != nullptr;
+    case Qt::WA_QuitOnClose: {
+        if (m_d->quitOnClose >= 0)
+            return m_d->quitOnClose == 1;
+        // The windows that a user thinks of as windows keep the application running; tool tips, popups,
+        // tool windows and splash screens do not.
+        const Qt::WindowType type = windowType();
+        return isWindow() && (type == Qt::Window || type == Qt::Dialog || type == Qt::Widget);
+    }
+    default:
+        return m_d->attributes.test(attribute);
+    }
+}
+
+/*!
+    Returns whether the widget is repainted when it is asked to. It is
+    not if setUpdatesEnabled() turned that off for it or for one of its
+    ancestors.
+
+    \sa setUpdatesEnabled()
+*/
+bool QWidget::updatesEnabled() const { return !WidgetAccess::updatesBlocked(this); }
+
+/*!
+    Turns the repainting of the widget and its children on if \a enable is
+    \c true, and off otherwise. While it is off, update() and repaint() do
+    nothing and the screen keeps what it shows. This avoids flicker while a
+    lot is changed at once:
+
+    \code
+    list->setUpdatesEnabled(false);
+    fillWithManyItems(list);
+    list->setUpdatesEnabled(true);
+    \endcode
+
+    Turning it on again repaints the widget.
+
+    \sa updatesEnabled(), update()
+*/
+void QWidget::setUpdatesEnabled(bool enable) {
+    if (m_d->updatesDisabled == !enable)
+        return;
+    m_d->updatesDisabled = !enable;
+    if (enable)
+        update();
+}
+
+/*!
+    Returns whether the window has changes that are not saved.
+
+    \sa setWindowModified()
+*/
+bool QWidget::isWindowModified() const { return m_d->windowModified; }
+
+/*!
+    Sets whether the window has changes that are not saved to \a modified.
+    The title of the window shows it, if windowTitle() has the placeholder
+    \c{[*]}: an asterisk is shown in its place while the window is
+    modified, and nothing otherwise. Write \c{[*][*]} for a literal
+    \c{[*]}.
+
+    \code
+    editor->setWindowTitle("notes.txt[*] - Editor");
+    editor->setWindowModified(true);   // shows "notes.txt* - Editor"
+    \endcode
+
+    \sa isWindowModified(), setWindowTitle()
+*/
+void QWidget::setWindowModified(bool modified) {
+    if (m_d->windowModified == modified)
+        return;
+    m_d->windowModified = modified;
+    if (m_d->window)
+        m_d->window->setTitle(WidgetAccess::shownTitle(this));
+    QEvent change(QEvent::ModifiedChange);
+    QCoreApplication::sendEvent(this, &change);
+}
+
+/*!
     Returns the layout that manages the children of the widget, or \c nullptr.
 
     \sa setLayout()
@@ -1473,7 +1747,7 @@ void QWidget::update(const QRect &rect) { update(QRegion(rect)); }
     Updates \a region of the widget.
 */
 void QWidget::update(const QRegion &region) {
-    if (!isVisible())
+    if (!isVisible() || WidgetAccess::updatesBlocked(this))
         return;
     QWidget *top = window();
     if (!top->m_d->window)

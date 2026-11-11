@@ -56,6 +56,13 @@ public:
     // The smallest rectangle of window coordinates that covers `native`, a rectangle of X pixels.
     QRect toLogicalCovering(const QRect &native) const;
 
+    // The cursor of the X server for a shape: a glyph of its cursor font, made the first time it is asked
+    // for. XCB_NONE, which shows the cursor of the parent window, if it cannot be made.
+    xcb_cursor_t cursor(Qt::CursorShape shape);
+    // Where the pointer is, in the logical coordinates of the screen.
+    QPoint pointerPosition() const;
+    void warpPointer(const QPoint &logical);
+
     void registerWindow(xcb_window_t id, QXcbWindow *window) { m_windows[id] = window; }
     void unregisterWindow(xcb_window_t id) { m_windows.erase(id); }
     QXcbWindow *window(xcb_window_t id) const;
@@ -97,6 +104,8 @@ private:
     xcb_screen_t *m_screen = nullptr;
     std::unique_ptr<QXcbScreen> m_platformScreen;
     std::unordered_map<xcb_window_t, QXcbWindow *> m_windows;
+    std::unordered_map<int, xcb_cursor_t> m_cursors;
+    xcb_font_t m_cursorFont = XCB_NONE;
     std::unordered_map<std::string, xcb_atom_t> m_atoms;
     xcb_atom_t m_wmProtocols = 0;
     xcb_atom_t m_wmDeleteWindow = 0;

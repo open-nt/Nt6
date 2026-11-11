@@ -1,8 +1,10 @@
 // MIT License - see LICENSE
+#include <QtGui/qcursor.h>
 #include <QtGui/qguiapplication.h>
 
 #include "qfont_p.h"
 #include "qpa/qplatformintegration_p.h"
+#include "qpa/qplatformwindow_p.h"
 #include "qpa/qplatformscreen_p.h"
 #include "qwindow_p.h"
 
@@ -42,6 +44,8 @@ struct GuiState {
     Qt::MouseButtons buttons;
     Qt::KeyboardModifiers modifiers;
     bool quitOnLastWindowClosed = true;
+    QPoint cursorPosition;
+    QList<QCursor> overrideCursors; // the last one is the one that shows
     QString platformName;
     QStyleHints *styleHints = nullptr;
 };
@@ -250,6 +254,72 @@ void QGuiApplication::setQuitOnLastWindowClosed(bool quit) {
 */
 bool QGuiApplication::quitOnLastWindowClosed() { return g_state && g_state->quitOnLastWindowClosed; }
 
+namespace {
+void applyCursorToAllWindows() {
+    for (QWindow *window : g_state->windows)
+        QtPrivate::GuiAccess::applyCursor(window);
+}
+} // namespace
+
+/*!
+    Sets the cursor of the whole application to \a cursor: it shows over
+    every window, whatever cursors the windows and their widgets have,
+    until restoreOverrideCursor() takes it away again. Override cursors
+    stack: each call needs a restoreOverrideCursor() of its own, and the
+    cursor of the last call is the one that shows.
+
+    \code
+    QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+    compute();
+    QGuiApplication::restoreOverrideCursor();
+    \endcode
+
+    \sa restoreOverrideCursor(), changeOverrideCursor(), overrideCursor()
+*/
+void QGuiApplication::setOverrideCursor(const QCursor &cursor) {
+    if (!g_state)
+        return;
+    g_state->overrideCursors.append(cursor);
+    applyCursorToAllWindows();
+}
+
+/*!
+    Replaces the override cursor that shows with \a cursor. Nothing happens
+    if there is no override cursor.
+
+    \sa setOverrideCursor()
+*/
+void QGuiApplication::changeOverrideCursor(const QCursor &cursor) {
+    if (!g_state || g_state->overrideCursors.isEmpty())
+        return;
+    g_state->overrideCursors.last() = cursor;
+    applyCursorToAllWindows();
+}
+
+/*!
+    Takes away the override cursor that was set last. The one before it
+    shows again, or, after the last one, the cursors of the windows.
+    Nothing happens if there is no override cursor.
+
+    \sa setOverrideCursor()
+*/
+void QGuiApplication::restoreOverrideCursor() {
+    if (!g_state || g_state->overrideCursors.isEmpty())
+        return;
+    g_state->overrideCursors.removeLast();
+    applyCursorToAllWindows();
+}
+
+/*!
+    Returns the override cursor that shows, or \c nullptr if there is
+    none. The pointer is valid until the override cursors change.
+
+    \sa setOverrideCursor()
+*/
+QCursor *QGuiApplication::overrideCursor() {
+    return g_state && !g_state->overrideCursors.isEmpty() ? &g_state->overrideCursors.last() : nullptr;
+}
+
 namespace QtPrivate {
 
 QPlatformIntegration *GuiAccess::integration() { return g_state ? g_state->integration.get() : nullptr; }
@@ -264,11 +334,15 @@ void GuiAccess::unregisterWindow(QWindow *window) {
         g_state->focus = nullptr;
 }
 
-void GuiAccess::maybeQuitOnLastWindowClosed() {
+void GuiAccess::maybeQuitOnLastWindowClosed(QWindow *closed) {
     if (!g_state || !g_app)
         return;
+    // Only the windows that keep the application running count: a tool window that is left open does not
+    // keep it alive, and closing one does not end it.
+    if (closed && !quitOnClose(closed))
+        return;
     for (QWindow *w : g_state->windows) {
-        if (w->isVisible())
+        if (w->isVisible() && quitOnClose(w))
             return;
     }
     emit g_app->lastWindowClosed();
@@ -327,6 +401,21 @@ void GuiAccess::setFocusWindow(QWindow *window) { g_state->focus = window; }
 void GuiAccess::setInput(Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers) {
     g_state->buttons = buttons;
     g_state->modifiers = modifiers;
+}
+
+void GuiAccess::setCursorPosition(const QPoint &pos) {
+    if (g_state)
+        g_state->cursorPosition = pos;
+}
+
+QPoint GuiAccess::cursorPosition() { return g_state ? g_state->cursorPosition : QPoint(); }
+
+void GuiAccess::applyCursor(QWindow *window) {
+    QPlatformWindow *platform = platformWindow(window);
+    if (!platform || !g_state)
+        return;
+    platform->setCursor(g_state->overrideCursors.isEmpty() ? window->cursor().shape()
+                                                           : g_state->overrideCursors.last().shape());
 }
 
 void GuiAccess::shutdown() {

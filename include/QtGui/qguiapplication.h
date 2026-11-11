@@ -11,6 +11,7 @@ class QScreen;
 class QStyleHints;
 class QWindow;
 
+class QCursor;
 class QGuiApplication : public QCoreApplication {
     Q_OBJECT
     Q_PROPERTY(bool quitOnLastWindowClosed READ quitOnLastWindowClosed WRITE setQuitOnLastWindowClosed)
@@ -32,6 +33,11 @@ public:
     static void setFont(const QFont &font);
     static void setQuitOnLastWindowClosed(bool quit);
     static bool quitOnLastWindowClosed();
+
+    static void setOverrideCursor(const QCursor &cursor);
+    static void changeOverrideCursor(const QCursor &cursor);
+    static void restoreOverrideCursor();
+    static QCursor *overrideCursor();
 
 signals:
     /*!

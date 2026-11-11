@@ -15,13 +15,25 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-option(NT_BUILD_TESTS "Build tests" ON)
-option(NT_BUILD_EXAMPLES "Build examples" ON)
+# NT_ZEPHYR builds the headless subset for the Zephyr RTOS: Nt Core and Nt Network only, without the
+# classes that need processes, shared libraries or a desktop. The Zephyr module in zephyr/ turns it
+# on; see doc/zephyr.h.
+option(NT_ZEPHYR "Build Nt Core and Nt Network for the Zephyr RTOS" OFF)
+if(NT_ZEPHYR)
+    set(_nt_hosted OFF)
+else()
+    set(_nt_hosted ON)
+endif()
+
+option(NT_BUILD_TESTS "Build tests" ${_nt_hosted})
+option(NT_BUILD_EXAMPLES "Build examples" ${_nt_hosted})
 option(NT_EXAMPLES_QT "Also build the widget examples against Qt 6 (the qt_examples target), to compare them with Nt" OFF)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtCompilerOptions.cmake)
 
-find_package(Threads REQUIRED)
+if(NOT NT_ZEPHYR)
+    find_package(Threads REQUIRED)
+endif()
 
 # The version macros come from the VERSION file.
 configure_file(cmake/qconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/QtCore/qconfig.h @ONLY)
@@ -57,7 +69,6 @@ add_library(NtCore
     src/qfile.cpp
     src/qfileinfo.cpp
     src/qfileselector.cpp
-    src/qfilesystemwatcher.cpp
     src/qfloat16.cpp
     src/qfutureinterface.cpp
     src/qfuturewatcher.cpp
@@ -73,7 +84,6 @@ add_library(NtCore
     src/qjsonwriter.cpp
     src/qlibraryinfo.cpp
     src/qlocale.cpp
-    src/qlibrary.cpp
     src/qlockfile.cpp
     src/qlogging.cpp
     src/qloggingcategory.cpp
@@ -86,7 +96,6 @@ add_library(NtCore
     src/qobjectcleanuphandler.cpp
     src/qparallelanimationgroup.cpp
     src/qpauseanimation.cpp
-    src/qprocess.cpp
     src/qpropertyanimation.cpp
     src/qrandom.cpp
     src/qregularexpression.cpp
@@ -95,18 +104,15 @@ add_library(NtCore
     src/qsavefile.cpp
     src/qsequentialanimationgroup.cpp
     src/qsettings.cpp
-    src/qsharedmemory.cpp
     src/qsettings_ini.cpp
     src/qsignalmapper.cpp
     src/qsocketnotifier.cpp
     src/qsortfilterproxymodel.cpp
     src/qstandardpaths.cpp
-    src/qstorageinfo.cpp
     src/qstring.cpp
     src/qstringconverter.cpp
     src/qstringlistmodel.cpp
     src/qsysinfo.cpp
-    src/qsystemsemaphore.cpp
     src/qtemporaryfile.cpp
     src/qtenvironmentvariables.cpp
     src/qtextboundaryfinder.cpp
@@ -128,6 +134,16 @@ add_library(NtCore
     src/qxmlstream.cpp
     src/threaddata.cpp
 )
+# Zephyr has no processes, shared libraries, named shared memory, file change notification or statvfs().
+if(NOT NT_ZEPHYR)
+    target_sources(NtCore PRIVATE
+        src/qfilesystemwatcher.cpp
+        src/qlibrary.cpp
+        src/qprocess.cpp
+        src/qsharedmemory.cpp
+        src/qstorageinfo.cpp
+        src/qsystemsemaphore.cpp)
+endif()
 add_library(Nt::Core ALIAS NtCore)
 add_library(Qt6::Core ALIAS NtCore)
 
@@ -141,19 +157,40 @@ target_include_directories(NtCore
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(NtCore PUBLIC Threads::Threads)
-# QLibrary loads with dlopen(). QSharedMemory and QSystemSemaphore use POSIX shared memory and named semaphores,
-# which older C libraries keep in librt.
-target_link_libraries(NtCore PRIVATE ${CMAKE_DL_LIBS})
-find_library(NT_RT_LIBRARY rt)
-if(NT_RT_LIBRARY)
-    target_link_libraries(NtCore PRIVATE ${NT_RT_LIBRARY})
+if(NT_ZEPHYR)
+    # The kernel's include directories, definitions and compiler flags come from zephyr_interface.
+    target_link_libraries(NtCore PUBLIC zephyr_interface)
+    add_dependencies(NtCore zephyr_generated_headers)
+    # The C++ library of the Zephyr SDK has no std::mutex or std::condition_variable. This header
+    # supplies them, for Nt and for the code that includes its headers.
+    target_sources(NtCore PRIVATE
+        src/zephyr/ntposix_zephyr.cpp
+        src/zephyr/qstdthreads_zephyr.cpp)
+    target_compile_options(NtCore PUBLIC
+        "$<$<COMPILE_LANGUAGE:CXX>:SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/include/QtCore/qstdthreads_zephyr_p.h>")
+    target_compile_definitions(NtCore PUBLIC
+        QT_NO_FILESYSTEMWATCHER QT_NO_LIBRARY QT_NO_PROCESS QT_NO_SHAREDMEMORY QT_NO_STORAGEINFO
+        QT_NO_SYSTEMSEMAPHORE)
+    # The build is strict C++17, which hides the POSIX declarations of the C library unless asked for,
+    # and Zephyr lacks some of them altogether (see src/zephyr/ntposix_zephyr_p.h).
+    set(NT_ZEPHYR_PRIVATE_OPTIONS
+        -D_GNU_SOURCE "SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/src/zephyr/ntposix_zephyr_p.h")
+    target_compile_options(NtCore PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+else()
+    target_link_libraries(NtCore PUBLIC Threads::Threads)
+    # QLibrary loads with dlopen(). QSharedMemory and QSystemSemaphore use POSIX shared memory and named
+    # semaphores, which older C libraries keep in librt.
+    target_link_libraries(NtCore PRIVATE ${CMAKE_DL_LIBS})
+    find_library(NT_RT_LIBRARY rt)
+    if(NT_RT_LIBRARY)
+        target_link_libraries(NtCore PRIVATE ${NT_RT_LIBRARY})
+    endif()
 endif()
 
 # Compressed resources (see ntrcc) need zlib or Zstandard, each used when it is found. Without
 # them, resources compressed with that algorithm cannot be read and ntrcc cannot write them.
-option(NT_USE_ZLIB "Read and write zlib-compressed resources with the system zlib" ON)
-option(NT_USE_ZSTD "Read and write Zstandard-compressed resources with the system libzstd" ON)
+option(NT_USE_ZLIB "Read and write zlib-compressed resources with the system zlib" ${_nt_hosted})
+option(NT_USE_ZSTD "Read and write Zstandard-compressed resources with the system libzstd" ${_nt_hosted})
 set(NT_HAVE_ZLIB OFF)
 set(NT_HAVE_ZSTD OFF)
 if(NT_USE_ZLIB)
@@ -197,8 +234,6 @@ add_library(NtNetwork
     src/network/qhostaddress.cpp
     src/network/qhostinfo.cpp
     src/network/qhttpheaders.cpp
-    src/network/qlocalserver.cpp
-    src/network/qlocalsocket.cpp
     src/network/qnetworkaccessmanager.cpp
     src/network/qnetworkinterface.cpp
     src/network/qtcpserver.cpp
@@ -215,9 +250,19 @@ target_include_directories(NtNetwork
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtNetwork PUBLIC NtCore)
+if(NT_ZEPHYR)
+    target_compile_options(NtNetwork PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+    target_sources(NtNetwork PRIVATE src/zephyr/qnetworkinterface_zephyr.cpp)
+    target_compile_definitions(NtNetwork PUBLIC QT_NO_LOCALSERVER QT_NO_LOCALSOCKET)
+else()
+    # Zephyr has no Unix domain sockets.
+    target_sources(NtNetwork PRIVATE
+        src/network/qlocalserver.cpp
+        src/network/qlocalsocket.cpp)
+endif()
 
 # TLS uses the system's OpenSSL. Without it, QSslSocket and https: are absent.
-option(NT_USE_OPENSSL "Build TLS support with the system OpenSSL" ON)
+option(NT_USE_OPENSSL "Build TLS support with the system OpenSSL" ${_nt_hosted})
 set(NT_HAVE_OPENSSL OFF)
 if(NT_USE_OPENSSL)
     find_package(OpenSSL 1.1.1 QUIET)
@@ -237,6 +282,9 @@ else()
     target_compile_definitions(NtNetwork PUBLIC QT_NO_SSL)
 endif()
 nt_set_compile_options(NtNetwork)
+
+# The other modules need a hosted system. This block ends after Nt Test.
+if(NOT NT_ZEPHYR)
 
 add_library(NtSerialPort
     src/serialport/qserialport.cpp
@@ -394,6 +442,7 @@ add_library(NtGui
     src/gui/qbackingstore.cpp
     src/gui/qbrush.cpp
     src/gui/qcolor.cpp
+    src/gui/qcursor.cpp
     src/gui/qdesktopportal.cpp
     src/gui/qevent.cpp
     src/gui/qfont.cpp
@@ -401,6 +450,10 @@ add_library(NtGui
     src/gui/qfontmetrics.cpp
     src/gui/qguiapplication.cpp
     src/gui/qimage.cpp
+    src/gui/qimagebmp.cpp
+    src/gui/qimageio.cpp
+    src/gui/qimagejpeg.cpp
+    src/gui/qimagepng.cpp
     src/gui/qpixmap.cpp
     src/gui/qkeysequence.cpp
     src/gui/qpaintdevice.cpp
@@ -415,7 +468,10 @@ add_library(NtGui
     src/gui/qregion.cpp
     src/gui/qscreen.cpp
     src/gui/qstylehints.cpp
+    src/gui/qtextdocument.cpp
+    src/gui/qtextformat.cpp
     src/gui/qtextlayout.cpp
+    src/gui/qtextlayout_api.cpp
     src/gui/qwindow.cpp
     src/gui/qwindowsysteminterface.cpp
 )
@@ -453,6 +509,31 @@ if(NT_HAVE_FREETYPE)
     target_link_libraries(NtGui PRIVATE ${NT_FT_LIBRARIES})
 endif()
 
+# JPEG files are read and written with libjpeg. PNG and BMP need nothing but zlib, which is optional too.
+option(NT_USE_JPEG "Read and write JPEG images in Nt GUI with libjpeg" ON)
+set(NT_HAVE_JPEG OFF)
+if(NT_USE_JPEG)
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(NT_JPEG QUIET libjpeg)
+    endif()
+    if(NT_JPEG_FOUND)
+        set(NT_HAVE_JPEG ON)
+    else()
+        message(WARNING "libjpeg was not found: building Nt GUI without JPEG images")
+    endif()
+endif()
+if(NT_HAVE_JPEG)
+    target_compile_definitions(NtGui PRIVATE NT_HAVE_JPEG)
+    target_include_directories(NtGui SYSTEM PRIVATE ${NT_JPEG_INCLUDE_DIRS})
+    target_link_directories(NtGui PRIVATE ${NT_JPEG_LIBRARY_DIRS})
+    target_link_libraries(NtGui PRIVATE ${NT_JPEG_LIBRARIES})
+endif()
+if(NT_HAVE_ZLIB)
+    target_compile_definitions(NtGui PRIVATE NT_HAVE_ZLIB)
+    target_link_libraries(NtGui PRIVATE ZLIB::ZLIB)
+endif()
+
 # The xcb platform talks to an X server (or XWayland); it is built when XCB is found.
 option(NT_USE_XCB "Build the xcb platform of Nt GUI" ON)
 set(NT_HAVE_XCB OFF)
@@ -481,6 +562,7 @@ nt_set_compile_options(NtGui)
 
 add_library(NtWidgets
     src/widgets/qabstractbutton.cpp
+    src/widgets/qabstractitemdelegate.cpp
     src/widgets/qabstractitemview.cpp
     src/widgets/qabstractscrollarea.cpp
     src/widgets/qabstractslider.cpp
@@ -542,6 +624,8 @@ add_library(NtWidgets
     src/widgets/qstackedwidget.cpp
     src/widgets/qstatusbar.cpp
     src/widgets/qstyle.cpp
+    src/widgets/qstyleditemdelegate.cpp
+    src/widgets/qstylefactory.cpp
     src/widgets/qstyleoption.cpp
     src/widgets/qtabbar.cpp
     src/widgets/qtablewidget.cpp
@@ -553,6 +637,8 @@ add_library(NtWidgets
     src/widgets/qtoolbutton.cpp
     src/widgets/qtabwidget.cpp
     src/widgets/qtooltip.cpp
+    src/widgets/qtreeview.cpp
+    src/widgets/qtreewidget.cpp
     src/widgets/qwidget.cpp
     src/widgets/qwidgetaction.cpp
     src/widgets/qwidgetwindow.cpp
@@ -635,12 +721,19 @@ target_include_directories(NtTest
 target_link_libraries(NtTest PUBLIC NtCore)
 nt_set_compile_options(NtTest)
 
-# Moc replacement and its CMake helpers.
-add_executable(ntmoc tools/ntmoc/main.cpp)
+endif() # NOT NT_ZEPHYR
+
+# Moc replacement and its CMake helpers. A cross build runs the tools on the build machine, so it
+# uses ntmoc and ntrcc built for that (see cmake/NtHostTools.cmake).
+if(CMAKE_CROSSCOMPILING)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtHostTools.cmake)
+else()
+    add_executable(ntmoc tools/ntmoc/main.cpp)
+    target_compile_definitions(ntmoc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
+    nt_set_compile_options(ntmoc)
+endif()
 add_executable(Nt::moc ALIAS ntmoc)
 add_executable(Qt6::moc ALIAS ntmoc)
-target_compile_definitions(ntmoc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
-nt_set_compile_options(ntmoc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtMoc.cmake)
 nt_moc_library(NtCore include/QtCore)
 if(NOT NT_HAVE_OPENSSL)
@@ -648,6 +741,7 @@ if(NOT NT_HAVE_OPENSSL)
 endif()
 nt_moc_library(NtNetwork include/QtNetwork)
 set(NT_MOC_DEFINES)
+if(NOT NT_ZEPHYR)
 nt_moc_library(NtSerialPort include/QtSerialPort)
 nt_moc_library(NtSql include/QtSql)
 nt_moc_library(NtDBus include/QtDBus)
@@ -661,15 +755,23 @@ nt_moc_library(NtGui include/QtGui src/gui/qpa)
 nt_moc_library(NtWidgets include/QtWidgets)
 nt_moc_library(NtSvg include/QtSvg)
 nt_moc_library(NtSvgWidgets include/QtSvgWidgets)
+endif() # NOT NT_ZEPHYR
 
 # Resource compiler and its CMake helpers.
-add_executable(ntrcc tools/ntrcc/main.cpp)
+if(NOT CMAKE_CROSSCOMPILING)
+    add_executable(ntrcc tools/ntrcc/main.cpp)
+    target_compile_definitions(ntrcc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
+    nt_link_compression(ntrcc)
+    nt_set_compile_options(ntrcc)
+endif()
 add_executable(Nt::rcc ALIAS ntrcc)
 add_executable(Qt6::rcc ALIAS ntrcc)
-target_compile_definitions(ntrcc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
-nt_link_compression(ntrcc)
-nt_set_compile_options(ntrcc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtRcc.cmake)
+
+# The rest is the documentation, the packages, the tests and the examples, none of which is cross built.
+if(CMAKE_CROSSCOMPILING)
+    return()
+endif()
 
 # Documentation generator; build the docs with the `docs` target.
 add_executable(ndoc tools/ndoc/main.cpp)
@@ -913,6 +1015,12 @@ if(NT_BUILD_TESTS)
     add_executable(nt_gui_tests tests/test_gui.cpp)
     target_include_directories(nt_gui_tests PRIVATE src/gui)
     target_link_libraries(nt_gui_tests PRIVATE Nt::Gui)
+    if(NT_HAVE_ZLIB)
+        target_compile_definitions(nt_gui_tests PRIVATE NT_HAVE_ZLIB)
+    endif()
+    if(NT_HAVE_JPEG)
+        target_compile_definitions(nt_gui_tests PRIVATE NT_HAVE_JPEG)
+    endif()
     add_test(NAME nt_gui_tests COMMAND nt_gui_tests)
     set_tests_properties(nt_gui_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gui_tests)
@@ -926,6 +1034,28 @@ if(NT_BUILD_TESTS)
     nt_set_compile_options(nt_widgets_tests)
 
     # The controls (radio buttons, line edits, sliders, spin boxes, combo boxes, tabs) on the offscreen platform.
+    add_executable(nt_widgets_itemviews_tests tests/test_widgets_itemviews.cpp)
+    target_include_directories(nt_widgets_itemviews_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_itemviews_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_itemviews_tests COMMAND nt_widgets_itemviews_tests)
+    set_tests_properties(nt_widgets_itemviews_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_itemviews_tests)
+
+    # The rich text classes of Nt GUI: formats, QTextLayout and QTextDocument with its HTML.
+    add_executable(nt_richtext_tests tests/test_richtext.cpp)
+    target_link_libraries(nt_richtext_tests PRIVATE Nt::Gui)
+    add_test(NAME nt_richtext_tests COMMAND nt_richtext_tests)
+    set_tests_properties(nt_richtext_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_richtext_tests)
+
+    # Rich text in the widgets: QLabel, QTextEdit and the links of QTextBrowser.
+    add_executable(nt_widgets_richtext_tests tests/test_widgets_richtext.cpp)
+    target_include_directories(nt_widgets_richtext_tests PRIVATE src/gui src/widgets)
+    target_link_libraries(nt_widgets_richtext_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_widgets_richtext_tests COMMAND nt_widgets_richtext_tests)
+    set_tests_properties(nt_widgets_richtext_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_richtext_tests)
+
     add_executable(nt_widgets_controls_tests tests/test_widgets_controls.cpp)
     target_include_directories(nt_widgets_controls_tests PRIVATE src/gui src/widgets)
     target_link_libraries(nt_widgets_controls_tests PRIVATE Nt::Widgets)

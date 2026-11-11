@@ -20,6 +20,7 @@
 #include <climits>
 #include <condition_variable>
 #include <cstring>
+#include <memory>
 #include <mutex>
 #include <thread>
 
@@ -95,7 +96,40 @@ void applyPriority(pthread_t handle, QThread::Priority priority) {
     pthread_setschedparam(handle, policy, &param); // best effort: real-time policies need privileges
 }
 
+// Zephyr allocates the stack of a thread from the kernel heap, and its default is far too small for a
+// thread that runs an event loop, so every thread gets a size: CONFIG_NT_THREAD_STACK_SIZE unless
+// QThread::setStackSize() asked for another.
+void applyStackSize(pthread_attr_t *attr, std::size_t stackSize) {
+#ifdef CONFIG_NT_THREAD_STACK_SIZE
+    if (stackSize == 0)
+        stackSize = CONFIG_NT_THREAD_STACK_SIZE;
+#endif
+    if (stackSize > 0)
+        pthread_attr_setstacksize(attr, std::max<std::size_t>(stackSize, static_cast<std::size_t>(PTHREAD_STACK_MIN)));
+}
+
+void *detachedMain(void *p) {
+    const std::unique_ptr<std::function<void()>> body(static_cast<std::function<void()> *>(p));
+    (*body)();
+    return nullptr;
+}
+
 } // namespace
+
+bool startDetachedThread(std::function<void()> body) {
+    auto owned = std::make_unique<std::function<void()>>(std::move(body));
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    applyStackSize(&attr, 0);
+    pthread_t handle{};
+    const int err = pthread_create(&handle, &attr, &detachedMain, owned.get());
+    pthread_attr_destroy(&attr);
+    if (err != 0)
+        return false;
+    (void)owned.release(); // the thread owns it now
+    return true;
+}
 } // namespace QtPrivate
 
 struct QThread::Data {
@@ -443,9 +477,7 @@ void QThread::start(Priority priority) {
 
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    if (d.stackSize > 0)
-        pthread_attr_setstacksize(&attr,
-                                  std::max<std::size_t>(d.stackSize, static_cast<std::size_t>(PTHREAD_STACK_MIN)));
+    QtPrivate::applyStackSize(&attr, d.stackSize);
     const int err = pthread_create(&d.handle, &attr, &QtPrivate::ThreadAccess::threadMain, this);
     pthread_attr_destroy(&attr);
     if (err != 0) {

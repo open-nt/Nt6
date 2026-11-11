@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qnamespace.h>
+#include <QtCore/qpoint.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
 
@@ -23,6 +24,11 @@ public:
     // The color scheme of the desktop when the application starts. Later changes go through
     // QWindowSystemInterface::handleColorSchemeChange().
     virtual Qt::ColorScheme colorScheme() const { return Qt::ColorScheme::Unknown; }
+    // Where the mouse cursor is on the desktop. The default is where the last mouse event or the last
+    // setCursorPosition() put it.
+    virtual QPoint cursorPosition() const;
+    // Moves the mouse cursor. The default only remembers the position.
+    virtual void setCursorPosition(const QPoint &pos);
 };
 
 namespace QtPrivate {

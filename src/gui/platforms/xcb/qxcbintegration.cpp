@@ -33,6 +33,10 @@ Qt::ColorScheme QXcbIntegration::colorScheme() const {
     return m_portal ? m_portal->colorScheme() : Qt::ColorScheme::Unknown;
 }
 
+QPoint QXcbIntegration::cursorPosition() const { return m_connection->pointerPosition(); }
+
+void QXcbIntegration::setCursorPosition(const QPoint &pos) { m_connection->warpPointer(pos); }
+
 QPlatformWindow *QXcbIntegration::createPlatformWindow(QWindow *window) const {
     return new QXcbWindow(window, m_connection.get());
 }

@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qnamespace.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
 
@@ -23,6 +24,8 @@ public:
     // Keeps the window above `parent`, as a dialog, or makes it a normal window again if `parent` is null.
     virtual void setTransientParent(const QPlatformWindow *parent) { (void)parent; }
     virtual quintptr winId() const { return 0; }
+    // Shows the mouse cursor with this shape while it is over the window.
+    virtual void setCursor(Qt::CursorShape shape) { (void)shape; }
 
 private:
     QWindow *m_window;

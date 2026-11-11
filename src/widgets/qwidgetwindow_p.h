@@ -19,6 +19,8 @@ public:
     void forget(QWidget *widget);
     // A popup (the list of a combo box) closes when the mouse is pressed outside it.
     void setPopup(QWidget *popup) { m_popup = popup; }
+    // Shows the cursor of the widget that the mouse is over: its own, or that of the nearest ancestor that has one.
+    void updateCursor();
 
 protected:
     void paintEvent(QPaintEvent *event) override;

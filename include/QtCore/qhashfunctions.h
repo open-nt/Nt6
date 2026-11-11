@@ -4,6 +4,7 @@
 #include <QtCore/qglobal.h>
 
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <type_traits>
@@ -13,19 +14,30 @@
 // qHashRangeCommutative() and qHashMulti(), which QHash, QSet and QMultiHash use through ADL.
 // Hash values are not stable across Nt versions or runs; do not store them.
 
+namespace QtPrivate {
+// Brings a 64-bit hash down to a std::size_t: unchanged where that has 64 bits, and with the two halves
+// combined on a 32-bit platform, so that every bit of the hash still counts.
+constexpr std::size_t foldHash(std::uint64_t hash) noexcept {
+    if constexpr (sizeof(std::size_t) >= sizeof(std::uint64_t))
+        return static_cast<std::size_t>(hash);
+    else
+        return static_cast<std::size_t>(hash ^ (hash >> 32));
+}
+} // namespace QtPrivate
+
 // Returns a hash of an integer or enumeration key, mixed with seed.
 template <typename T, typename = std::enable_if_t<std::is_integral_v<T> || std::is_enum_v<T>>>
 constexpr std::size_t qHash(T key, std::size_t seed = 0) noexcept {
-    std::size_t v = 0;
+    std::uint64_t v = 0;
     if constexpr (std::is_enum_v<T>)
-        v = static_cast<std::size_t>(static_cast<std::underlying_type_t<T>>(key));
+        v = static_cast<std::uint64_t>(static_cast<std::underlying_type_t<T>>(key));
     else
-        v = static_cast<std::size_t>(key);
+        v = static_cast<std::uint64_t>(key);
     // A 64-bit finalizer (from MurmurHash3), so that nearby keys spread over the buckets.
     v ^= v >> 33;
     v *= 0xff51afd7ed558ccdULL;
     v ^= v >> 33;
-    return v ^ seed;
+    return QtPrivate::foldHash(v) ^ seed;
 }
 
 // Returns a hash of a floating-point key; 0.0 and -0.0 hash the same.
@@ -66,7 +78,7 @@ template <typename T> inline constexpr bool IsHashable = HasQHash<T>::value || H
 
 // Mixes `value` into `seed`, so that the order of the values matters.
 constexpr std::size_t hashCombine(std::size_t seed, std::size_t value) noexcept {
-    return seed ^ (value + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
+    return seed ^ static_cast<std::size_t>(std::uint64_t{value} + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2));
 }
 
 template <typename T> std::size_t hashOne(const T &value, std::size_t seed) {
@@ -81,12 +93,12 @@ template <typename T> std::size_t hashOne(const T &value, std::size_t seed) {
 // Returns a hash of the len bytes at p, mixed with seed (FNV-1a).
 inline std::size_t qHashBits(const void *p, std::size_t len, std::size_t seed = 0) noexcept {
     const auto *bytes = static_cast<const unsigned char *>(p);
-    std::size_t h = 0xcbf29ce484222325ULL ^ seed;
+    std::uint64_t h = 0xcbf29ce484222325ULL ^ seed;
     for (std::size_t i = 0; i < len; ++i) {
         h ^= bytes[i];
         h *= 0x100000001b3ULL;
     }
-    return h;
+    return QtPrivate::foldHash(h);
 }
 
 // Returns a hash of the values in [first, last), which depends on their order.

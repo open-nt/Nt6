@@ -1,13 +1,18 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qbytearray.h>
+#include <QtCore/qbytearrayview.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qsize.h>
+#include <QtCore/qstring.h>
 #include <QtGui/qcolor.h>
 #include <QtGui/qpaintdevice.h>
 #include <QtGui/qrgb.h>
 
 #include <memory>
+
+class QIODevice;
 
 class QImage : public QPaintDevice {
 public:
@@ -20,6 +25,7 @@ public:
     QImage(uchar *data, int width, int height, qsizetype bytesPerLine, Format format);
     QImage(const uchar *data, int width, int height, Format format);
     QImage(const uchar *data, int width, int height, qsizetype bytesPerLine, Format format);
+    explicit QImage(const QString &fileName, const char *format = nullptr);
     QImage(const QImage &other);
     QImage(QImage &&other) noexcept;
     ~QImage() override;
@@ -53,6 +59,15 @@ public:
     void setPixel(const QPoint &pt, uint index_or_rgb) { setPixel(pt.x(), pt.y(), index_or_rgb); }
     QColor pixelColor(int x, int y) const;
     void setPixelColor(int x, int y, const QColor &color);
+
+    bool load(const QString &fileName, const char *format = nullptr);
+    bool load(QIODevice *device, const char *format = nullptr);
+    bool loadFromData(const uchar *data, int len, const char *format = nullptr);
+    bool loadFromData(QByteArrayView data, const char *format = nullptr);
+    static QImage fromData(const uchar *data, int size, const char *format = nullptr);
+    static QImage fromData(QByteArrayView data, const char *format = nullptr);
+    bool save(const QString &fileName, const char *format = nullptr, int quality = -1) const;
+    bool save(QIODevice *device, const char *format = nullptr, int quality = -1) const;
 
     QImage copy(const QRect &rect = QRect()) const;
     QImage copy(int x, int y, int w, int h) const { return copy(QRect(x, y, w, h)); }

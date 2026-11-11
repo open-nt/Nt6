@@ -2,6 +2,7 @@
 #include "qoffscreenintegration_p.h"
 
 #include "qpa/qwindowsysteminterface_p.h"
+#include "qwindow_p.h"
 
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qwindow.h>
@@ -28,6 +29,11 @@ void QOffscreenWindow::setGeometry(const QRect &rect) {
     QPlatformWindow::setGeometry(rect);
     if (m_visible)
         QWindowSystemInterface::handleExposeEvent(window(), QRegion(QRect(QPoint(0, 0), rect.size())));
+}
+
+Qt::CursorShape QOffscreenWindow::cursorOf(const QWindow *window) {
+    const auto *platform = static_cast<const QOffscreenWindow *>(QtPrivate::GuiAccess::platformWindow(window));
+    return platform ? platform->m_cursor : Qt::ArrowCursor;
 }
 
 void QOffscreenWindow::setVisible(bool visible) {

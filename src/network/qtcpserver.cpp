@@ -114,10 +114,10 @@ bool QTcpServer::listen(const QHostAddress &address, quint16 port) {
     }
     int fam = address.kind() == 4 ? AF_INET : AF_INET6;
     const bool dual = address.kind() == 7 || address.kind() == 0;
-    int fd = ::socket(fam, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    int fd = QtPrivate::nonBlockingSocket(fam, SOCK_STREAM);
     if (fd < 0 && dual) {
         fam = AF_INET;
-        fd = ::socket(fam, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+        fd = QtPrivate::nonBlockingSocket(fam, SOCK_STREAM);
     }
     auto fail = [&](int e) {
         m_errorString = QString::fromUtf8(std::strerror(e));
@@ -208,7 +208,7 @@ void QTcpServer::resumeAccepting() {
 void QTcpServer::acceptActivated() {
     QPointer<QTcpServer> self(this);
     while (isListening() && static_cast<int>(d->pending.size()) < m_maxPending) {
-        const int fd = ::accept4(m_fd, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
+        const int fd = QtPrivate::nonBlockingAccept(m_fd);
         if (fd < 0) {
             if (errno == EINTR)
                 continue;

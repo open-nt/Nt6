@@ -712,10 +712,13 @@ static void testQtCompatibility(const QString &dir) {
     int sum = 0;
     QStringList keys;
     for (auto [key, value] : object.asKeyValueRange()) {
-        keys.append(key);
+        keys.append(key.toString());
         sum += value.toInt();
         value = value.toInt() * 10;
     }
+    static_assert(std::is_same_v<decltype((*object.keyValueBegin()).first), QAnyStringView>);
+    static_assert(std::is_same_v<decltype((*object.constKeyValueBegin()).first), QAnyStringView>);
+    CHECK(object.begin().keyView() == QStringLiteral("one") && object.constBegin().keyView().toString() == QStringLiteral("one"));
     CHECK(sum == 3 && keys == QStringList({QStringLiteral("one"), QStringLiteral("two")}));
     const QJsonObject &constObject = object;
     sum = 0;

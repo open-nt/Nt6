@@ -1,0 +1,6 @@
+# MIT License - see LICENSE
+# Makes Nt a Zephyr module: add the repository to the west manifest, or name it in ZEPHYR_EXTRA_MODULES.
+name: nt
+build:
+  cmake: zephyr
+  kconfig: zephyr/Kconfig

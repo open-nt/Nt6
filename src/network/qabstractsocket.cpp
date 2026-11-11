@@ -271,8 +271,7 @@ bool QAbstractSocket::adoptSocket(int fd, int family) {
 bool QAbstractSocket::createSocket(int family) {
     if (m_fd >= 0)
         return true;
-    const int type = (m_type == UdpSocket ? SOCK_DGRAM : SOCK_STREAM) | SOCK_NONBLOCK | SOCK_CLOEXEC;
-    const int fd = ::socket(family, type, 0);
+    const int fd = QtPrivate::nonBlockingSocket(family, m_type == UdpSocket ? SOCK_DGRAM : SOCK_STREAM);
     if (fd < 0) {
         setSocketErrorFromErrno(errno);
         return false;

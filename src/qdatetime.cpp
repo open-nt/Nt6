@@ -335,9 +335,15 @@ qsizetype parseIsoTime(const QString &s, qsizetype pos, QTime *out) {
 }
 
 int systemOffsetAt(time_t seconds) {
+#ifdef __ZEPHYR__
+    // The C library has no time zones: local time is UTC.
+    (void)seconds;
+    return 0;
+#else
     struct tm t;
     localtime_r(&seconds, &t);
     return static_cast<int>(t.tm_gmtoff);
+#endif
 }
 
 } // namespace
@@ -1453,7 +1459,11 @@ QString QDateTime::timeZoneAbbreviation() const {
     if (t.tm_zone)
         return QString::fromLocal8Bit(t.tm_zone);
 #endif
+#ifdef __ZEPHYR__
+    return QTimeZonePrivate::offsetName(0);
+#else
     return QTimeZonePrivate::offsetName(static_cast<int>(t.tm_gmtoff));
+#endif
 }
 
 /*!

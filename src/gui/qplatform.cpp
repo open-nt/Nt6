@@ -1,5 +1,7 @@
 // MIT License - see LICENSE
 #include "qpa/qplatformbackingstore_p.h"
+
+#include "qwindow_p.h"
 #include "qpa/qplatformintegration_p.h"
 #include "qpa/qplatformscreen_p.h"
 #include "qpa/qplatformwindow_p.h"
@@ -21,6 +23,10 @@ QSizeF QPlatformScreen::physicalSize() const {
 QPlatformWindow::~QPlatformWindow() = default;
 QPlatformBackingStore::~QPlatformBackingStore() = default;
 QPlatformIntegration::~QPlatformIntegration() = default;
+
+QPoint QPlatformIntegration::cursorPosition() const { return QtPrivate::GuiAccess::cursorPosition(); }
+
+void QPlatformIntegration::setCursorPosition(const QPoint &pos) { QtPrivate::GuiAccess::setCursorPosition(pos); }
 
 namespace QtPrivate {
 

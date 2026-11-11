@@ -552,6 +552,30 @@ enum TextFlag { TextSingleLine = 0x0100, TextDontClip = 0x0200, TextWordWrap = 0
 enum TextElideMode { ElideLeft, ElideRight, ElideMiddle, ElideNone };
 
 /*!
+    \enum Qt::TextFormat
+
+    This enum says how a text is to be read, by a QLabel for example.
+
+    \value PlainText The text is shown as it is.
+    \value RichText The text is HTML, as QTextDocument::setHtml() reads it.
+    \value AutoText The text is rich text if Qt::mightBeRichText() says so, and plain text otherwise.
+    \value MarkdownText The text is Markdown. Nt shows it as plain text.
+*/
+enum TextFormat { PlainText, RichText, AutoText, MarkdownText };
+
+/*!
+    \enum Qt::WhiteSpaceMode
+
+    This enum says what Qt::convertFromPlainText() does with white space.
+
+    \value WhiteSpaceNormal Spaces are left to the rules of HTML, which show a run of them as one.
+    \value WhiteSpacePre Spaces are kept as they are.
+    \value WhiteSpaceNoWrap Spaces are left as with WhiteSpaceNormal.
+    \omitvalue WhiteSpaceModeUndefined
+*/
+enum WhiteSpaceMode { WhiteSpaceNormal, WhiteSpacePre, WhiteSpaceNoWrap, WhiteSpaceModeUndefined = -1 };
+
+/*!
     \enum Qt::ScrollBarPolicy
 
     This enum says when a scroll area shows a scroll bar.
@@ -827,6 +851,139 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(WindowStates)
     \value ApplicationModal All the other windows of the application.
 */
 enum WindowModality { NonModal, WindowModal, ApplicationModal };
+
+/*!
+    \enum Qt::CursorShape
+
+    The shapes of the mouse cursor, for QCursor.
+
+    \value ArrowCursor The standard arrow.
+    \value UpArrowCursor An arrow that points up.
+    \value CrossCursor A crosshair, for picking a point.
+    \value WaitCursor An hourglass or a watch: the application is busy and takes no input.
+    \value IBeamCursor A caret, over text that can be selected and edited.
+    \value SizeVerCursor A vertical double arrow, for resizing something vertically.
+    \value SizeHorCursor A horizontal double arrow.
+    \value SizeBDiagCursor A double arrow from the bottom left to the top right.
+    \value SizeFDiagCursor A double arrow from the top left to the bottom right.
+    \value SizeAllCursor Arrows in the four directions, for moving something.
+    \value BlankCursor No cursor at all.
+    \value SplitVCursor For dragging a horizontal splitter up and down.
+    \value SplitHCursor For dragging a vertical splitter left and right.
+    \value PointingHandCursor A hand with a pointing finger, over a link.
+    \value ForbiddenCursor A crossed circle: what is dragged cannot be dropped here.
+    \value WhatsThisCursor An arrow with a question mark.
+    \value BusyCursor An arrow with an hourglass: the application works, but still takes input.
+    \value OpenHandCursor An open hand, over something that can be dragged.
+    \value ClosedHandCursor A closed hand, while it is dragged.
+    \value DragCopyCursor What is dragged will be copied.
+    \value DragMoveCursor What is dragged will be moved.
+    \value DragLinkCursor A link to what is dragged will be made.
+    \omitvalue LastCursor
+    \value BitmapCursor A cursor made of a bitmap. Nt has none.
+    \value CustomCursor A cursor of the platform that has no shape of its own here.
+
+    \sa QCursor
+*/
+enum CursorShape {
+    ArrowCursor,
+    UpArrowCursor,
+    CrossCursor,
+    WaitCursor,
+    IBeamCursor,
+    SizeVerCursor,
+    SizeHorCursor,
+    SizeBDiagCursor,
+    SizeFDiagCursor,
+    SizeAllCursor,
+    BlankCursor,
+    SplitVCursor,
+    SplitHCursor,
+    PointingHandCursor,
+    ForbiddenCursor,
+    WhatsThisCursor,
+    BusyCursor,
+    OpenHandCursor,
+    ClosedHandCursor,
+    DragCopyCursor,
+    DragMoveCursor,
+    DragLinkCursor,
+    LastCursor = DragLinkCursor,
+    BitmapCursor = 24,
+    CustomCursor = 25
+};
+
+/*!
+    \enum Qt::WidgetAttribute
+
+    The attributes of a widget, which QWidget::setAttribute() sets and
+    QWidget::testAttribute() reads. The numbers are those of Qt. Nt has the
+    attributes listed here; of these, the ones described as kept for the
+    application are stored and returned, and change nothing by themselves.
+
+    \value WA_Disabled The widget is disabled; the same as QWidget::setEnabled() with \c false.
+    \value WA_UnderMouse The mouse is over the widget. Set by Nt; see QWidget::underMouse().
+    \value WA_MouseTracking The widget gets mouse move events while no button is down; see QWidget::setMouseTracking().
+    \value WA_OpaquePaintEvent The widget paints all of its pixels itself, so its background is not filled first.
+    \value WA_StaticContents Kept for the application.
+    \value WA_NoSystemBackground The background of the widget is not filled before it is painted.
+    \value WA_UpdatesDisabled The widget is not repainted; see QWidget::setUpdatesEnabled().
+    \value WA_InputMethodEnabled Kept for the application; Nt has no input methods.
+    \value WA_SetPalette The widget has a palette of its own. Set by QWidget::setPalette().
+    \value WA_SetFont The widget has a font of its own. Set by QWidget::setFont().
+    \value WA_SetCursor The widget has a cursor of its own. Set by QWidget::setCursor().
+    \value WA_WindowModified The window has changes that are not saved; see QWidget::setWindowModified().
+    \value WA_Resized Kept for the application.
+    \value WA_Moved Kept for the application.
+    \value WA_TransparentForMouseEvents The mouse does not find the widget or its children: events go to what is behind them.
+    \value WA_DeleteOnClose The widget is deleted when it is closed and accepts the close event.
+    \value WA_ShowModal Kept for the application; use QWidget::setWindowModality().
+    \value WA_NoMousePropagation A mouse event that the widget does not accept is not passed on to its parent.
+    \value WA_Hover The widget is repainted when the mouse enters or leaves it. Nt repaints every widget then, so this changes nothing.
+    \value WA_QuitOnClose The window counts as one of those that keep the application running: closing the last of them quits it. On by default for windows.
+    \value WA_KeyboardFocusChange Kept for the application.
+    \value WA_AcceptDrops Kept for the application; Nt has no drag and drop.
+    \value WA_AlwaysShowToolTips Kept for the application: Nt shows tool tips in windows that are not active too.
+    \value WA_SetStyle The widget has a style of its own. Set by QWidget::setStyle().
+    \value WA_StyledBackground Kept for the application; Nt has no style sheets.
+    \value WA_ShowWithoutActivating Kept for the application: whether a window that is shown becomes active is up to the window system.
+    \value WA_TranslucentBackground Kept for the application; windows of Nt are opaque.
+    \value WA_AcceptTouchEvents Kept for the application; Nt has no touch events.
+    \omitvalue WA_AttributeCount
+
+    \sa QWidget::setAttribute(), QWidget::testAttribute()
+*/
+enum WidgetAttribute {
+    WA_Disabled = 0,
+    WA_UnderMouse = 1,
+    WA_MouseTracking = 2,
+    WA_OpaquePaintEvent = 4,
+    WA_StaticContents = 5,
+    WA_NoSystemBackground = 9,
+    WA_UpdatesDisabled = 10,
+    WA_InputMethodEnabled = 14,
+    WA_SetPalette = 36,
+    WA_SetFont = 37,
+    WA_SetCursor = 38,
+    WA_WindowModified = 41,
+    WA_Resized = 42,
+    WA_Moved = 43,
+    WA_TransparentForMouseEvents = 51,
+    WA_DeleteOnClose = 55,
+    WA_ShowModal = 70,
+    WA_NoMousePropagation = 73,
+    WA_Hover = 74,
+    WA_QuitOnClose = 76,
+    WA_KeyboardFocusChange = 77,
+    WA_AcceptDrops = 78,
+    WA_AlwaysShowToolTips = 84,
+    WA_SetStyle = 86,
+    WA_StyledBackground = 93,
+    WA_ShowWithoutActivating = 98,
+    WA_TranslucentBackground = 120,
+    WA_AcceptTouchEvents = 121,
+    WA_AttributeCount = 132
+};
 
 /*!
     \enum Qt::ToolButtonStyle

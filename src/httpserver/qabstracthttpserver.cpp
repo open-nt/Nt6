@@ -5,8 +5,10 @@
 #include <QtHttpServer/qabstracthttpserver.h>
 #include <QtHttpServer/qhttpserverrequest.h>
 #include <QtHttpServer/qhttpserverresponder.h>
+#ifndef QT_NO_LOCALSERVER
 #include <QtNetwork/qlocalserver.h>
 #include <QtNetwork/qlocalsocket.h>
+#endif
 #include <QtNetwork/qtcpserver.h>
 #include <QtNetwork/qtcpsocket.h>
 #include <QtWebSockets/qwebsocket.h>
@@ -60,6 +62,9 @@
     There is no \c QHttpServerConfiguration (rate limits, keep-alive timeout,
     address filters) and no HTTP/2. WebSocket upgrades are accepted on TCP
     connections only, not on a QLocalServer, and negotiate no subprotocol.
+    On Zephyr there are no local sockets, so \c bind(QLocalServer *) and
+    \c localServers() are absent, and \c QT_NO_LOCALSERVER is defined; see
+    \l{Nt on Zephyr}.
     The size limits above are fixed. All objects must live in the thread of
     the server.
     \enddifferences
@@ -132,6 +137,7 @@ bool QAbstractHttpServer::bind(QTcpServer *server) {
     return true;
 }
 
+#ifndef QT_NO_LOCALSERVER
 /*!
     \overload
 
@@ -155,6 +161,7 @@ bool QAbstractHttpServer::bind(QLocalServer *server) {
     acceptLocal(server);
     return true;
 }
+#endif // QT_NO_LOCALSERVER
 
 /*!
     Returns the TCP servers bound to this server that still exist.
@@ -170,6 +177,7 @@ QList<QTcpServer *> QAbstractHttpServer::servers() const {
     return out;
 }
 
+#ifndef QT_NO_LOCALSERVER
 /*!
     Returns the local socket servers bound to this server that still exist.
 
@@ -183,6 +191,7 @@ QList<QLocalServer *> QAbstractHttpServer::localServers() const {
     }
     return out;
 }
+#endif // QT_NO_LOCALSERVER
 
 void QAbstractHttpServer::acceptTcp(QTcpServer *server) {
     while (server->hasPendingConnections()) {
@@ -198,6 +207,7 @@ void QAbstractHttpServer::acceptTcp(QTcpServer *server) {
     }
 }
 
+#ifndef QT_NO_LOCALSERVER
 void QAbstractHttpServer::acceptLocal(QLocalServer *server) {
     while (server->hasPendingConnections()) {
         QLocalSocket *socket = server->nextPendingConnection();
@@ -206,6 +216,7 @@ void QAbstractHttpServer::acceptLocal(QLocalServer *server) {
         new QHttpServerStream(this, socket, false);
     }
 }
+#endif // QT_NO_LOCALSERVER
 
 /*!
     Returns \c true if accepted WebSocket connections are waiting for

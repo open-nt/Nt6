@@ -159,7 +159,7 @@ QPixmap QPixmap::fromImage(const QImage &image) {
 
 /*!
     Loads the image file \a fileName and returns \c true if it succeeded; otherwise returns \c false and leaves the
-    pixmap null.
+    pixmap null. The \a format is ignored, as in QImage::load().
 
     \sa QImage::load(), save()
 */
@@ -174,7 +174,7 @@ bool QPixmap::load(const QString &fileName, const char *format) {
 }
 
 /*!
-    Loads the pixmap from the \a len bytes at \a data and returns \c true if it succeeded.
+    Loads the pixmap from the \a len bytes at \a data and returns \c true if it succeeded. The \a format is ignored.
 
     \sa QImage::loadFromData()
 */

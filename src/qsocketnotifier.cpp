@@ -30,8 +30,8 @@
     no constructor taking only a type, no \c setSocket(), and the type of
     the \c activated() signal's first argument is always QSocketDescriptor.
 
-    On Zephyr the enabled notifiers of a thread, plus one, must not exceed \c CONFIG_ZVFS_POLL_MAX: beyond
-    that the event loop cannot wait for any of them, and prints a warning. See \l{Nt on Zephyr}.
+    On Zephyr the notifiers of a thread are waited for in one \c poll() if \c CONFIG_ZVFS_POLL_MAX allows,
+    and in groups otherwise, which delays a socket by a few milliseconds per group. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QSocketDescriptor, QEventLoop

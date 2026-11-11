@@ -80,7 +80,8 @@ struct Pass {
     unsigned xStart, yStart, xStep, yStep;
 };
 
-constexpr Pass kAdam7[7] = {{0, 0, 8, 8}, {4, 0, 8, 8}, {0, 4, 4, 8}, {2, 0, 4, 4}, {0, 2, 2, 4}, {1, 0, 2, 2}, {0, 1, 1, 2}};
+constexpr Pass kAdam7[7] = {{0, 0, 8, 8}, {4, 0, 8, 8}, {0, 4, 4, 8}, {2, 0, 4, 4},
+                            {0, 2, 2, 4}, {1, 0, 2, 2}, {0, 1, 1, 2}};
 constexpr Pass kSinglePass = {0, 0, 1, 1};
 
 struct PassSize {
@@ -295,8 +296,10 @@ QImage readPng(const uchar *data, std::size_t size) {
         return QImage();
 
     // Colors that are transparent: a gray or RGB color key, or the alpha of palette entries.
-    const bool colorKey = (h.colorType == 0 && transparency.size() >= 2) || (h.colorType == 2 && transparency.size() >= 6);
-    const bool hasAlpha = h.colorType == 4 || h.colorType == 6 || colorKey || (h.colorType == 3 && !transparency.empty());
+    const bool colorKey =
+        (h.colorType == 0 && transparency.size() >= 2) || (h.colorType == 2 && transparency.size() >= 6);
+    const bool hasAlpha =
+        h.colorType == 4 || h.colorType == 6 || colorKey || (h.colorType == 3 && !transparency.empty());
     unsigned key[3] = {0, 0, 0};
     if (colorKey) {
         const int n = h.colorType == 0 ? 1 : 3;
@@ -382,7 +385,8 @@ QImage readPng(const uchar *data, std::size_t size) {
                     a = scaleTo8(sample(i * 4 + 3), h.depth);
                     break;
                 }
-                line[pass.xStart + i * pass.xStep] = qRgba(static_cast<int>(r), static_cast<int>(g), static_cast<int>(b), static_cast<int>(a));
+                line[pass.xStart + i * pass.xStep] =
+                    qRgba(static_cast<int>(r), static_cast<int>(g), static_cast<int>(b), static_cast<int>(a));
             }
         }
     }
@@ -441,7 +445,8 @@ bool writePng(const QImage &image, QByteArray *out, int quality) {
         level = 9 - (std::min(quality, 100) * 9 + 50) / 100;
     uLongf compressedSize = compressBound(static_cast<uLong>(filtered.size()));
     std::vector<uchar> compressed(compressedSize);
-    if (compress2(compressed.data(), &compressedSize, filtered.data(), static_cast<uLong>(filtered.size()), level) != Z_OK)
+    if (compress2(compressed.data(), &compressedSize, filtered.data(), static_cast<uLong>(filtered.size()), level) !=
+        Z_OK)
         return false;
 
     out->clear();

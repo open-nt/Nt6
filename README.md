@@ -578,7 +578,7 @@ Nt Core and Nt Network cross build as a [Zephyr](https://zephyrproject.org) modu
 west build -b mimxrt1170_evk/mimxrt1176/cm7 examples/zephyr/hello
 ```
 
-[`examples/zephyr/qemu`](examples/zephyr/qemu) is a self-checking application that runs without hardware, with `west build -b mps2/an385 examples/zephyr/qemu -t run`.
+[`examples/zephyr/qemu`](examples/zephyr/qemu) is a self-checking application that runs without hardware, with `west build -b mps2/an385 examples/zephyr/qemu -t run`. It also serves a web page of its results with Nt HTTP Server (`CONFIG_NT_HTTPSERVER`), which QEMU can forward to your browser; the guide shows how.
 
 The port is at an early stage: it runs under QEMU, and has not been run on a real board yet. The guide [Nt on Zephyr](https://open-nt.github.io/Nt6/nt-zephyr.html) lists what is left out and what differs.
 

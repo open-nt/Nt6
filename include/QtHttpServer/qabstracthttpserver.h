@@ -26,9 +26,13 @@ public:
 
     QList<quint16> serverPorts() const;
     bool bind(QTcpServer *server);
+#ifndef QT_NO_LOCALSERVER
     bool bind(QLocalServer *server);
+#endif
     QList<QTcpServer *> servers() const;
+#ifndef QT_NO_LOCALSERVER
     QList<QLocalServer *> localServers() const;
+#endif
 
     bool hasPendingWebSocketConnections() const;
     std::unique_ptr<QWebSocket> nextPendingWebSocketConnection();
@@ -94,7 +98,9 @@ protected:
 private:
     friend class QHttpServerStream;
     void acceptTcp(QTcpServer *server);
+#ifndef QT_NO_LOCALSERVER
     void acceptLocal(QLocalServer *server);
+#endif
     void dispatch(const QHttpServerRequest &request, QHttpServerResponder &responder);
 
     using UpgradeVerifier = std::function<QHttpServerWebSocketUpgradeResponse(const QHttpServerRequest &)>;
@@ -119,6 +125,8 @@ private:
 
     struct WebSocketData;
     QList<QPointer<QTcpServer>> m_servers;
+#ifndef QT_NO_LOCALSERVER
     QList<QPointer<QLocalServer>> m_localServers;
+#endif
     std::unique_ptr<WebSocketData> m_webSockets;
 };

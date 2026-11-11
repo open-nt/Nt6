@@ -9,7 +9,9 @@
 #include <QtHttpServer/qabstracthttpserver.h>
 #include <QtNetwork/qabstractsocket.h>
 #include <QtNetwork/qhostaddress.h>
+#ifndef QT_NO_LOCALSOCKET
 #include <QtNetwork/qlocalsocket.h>
+#endif
 #include <QtNetwork/qnetworkrequest.h>
 #include <QtWebSockets/qwebsocket.h>
 
@@ -158,17 +160,34 @@ QByteArray hostForUrl(const QHostAddress &address, quint16 port) {
 
 } // namespace
 
+namespace {
+
+// The socket as a local socket, if it is one. Systems without local sockets, such as Zephyr, have none.
+QLocalSocket *asLocalSocket(QIODevice *socket) {
+#ifndef QT_NO_LOCALSOCKET
+    return qobject_cast<QLocalSocket *>(socket);
+#else
+    (void)socket;
+    return nullptr;
+#endif
+}
+
+} // namespace
+
 QHttpServerStream::QHttpServerStream(QAbstractHttpServer *server, QIODevice *socket, bool encrypted)
     : QObject(server), m_server(server), m_socket(socket), m_tcpSocket(qobject_cast<QAbstractSocket *>(socket)),
-      m_localSocket(qobject_cast<QLocalSocket *>(socket)), m_encrypted(encrypted) {
+      m_localSocket(asLocalSocket(socket)), m_encrypted(encrypted) {
     socket->setParent(this);
     if (m_tcpSocket) {
         m_tcpSocket->setReadBufferSize(MaxReadAhead);
         QObject::connect(m_tcpSocket, &QAbstractSocket::disconnected, this, [this] { socketDisconnected(); });
-    } else if (m_localSocket) {
+    }
+#ifndef QT_NO_LOCALSOCKET
+    else if (m_localSocket) {
         m_localSocket->setReadBufferSize(MaxReadAhead);
         QObject::connect(m_localSocket, &QLocalSocket::disconnected, this, [this] { socketDisconnected(); });
     }
+#endif
     QObject::connect(socket, &QIODevice::readyRead, this, [this] { process(); });
     QObject::connect(socket, &QIODevice::bytesWritten, this, [this](qint64) {
         if (m_response == Response::Device)
@@ -863,8 +882,10 @@ void QHttpServerStream::closeConnection() {
     // Both close gracefully: the data still queued is written first.
     if (m_tcpSocket)
         m_tcpSocket->disconnectFromHost();
+#ifndef QT_NO_LOCALSOCKET
     else if (m_localSocket)
         m_localSocket->disconnectFromServer();
+#endif
     else
         m_socket->close();
 }

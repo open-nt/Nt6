@@ -20,9 +20,11 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <climits>
 #include <cstring>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 
 namespace QtPrivate {
@@ -31,6 +33,96 @@ namespace {
 
 std::atomic<int> g_nextTimerId{1};
 std::atomic<int> g_nextNotifierId{1};
+
+// How much one poll() can wait for. Zephyr fixes it when the system is configured: CONFIG_ZVFS_POLL_MAX, only 3 by
+// default, counts the events the kernel waits for, and makes poll() fail with more. A descriptor takes one event
+// for each of POLLIN and POLLOUT that it is polled for (the latter for TCP sockets only, so counting it is safe),
+// and the wake-up descriptor takes one. Elsewhere poll() is not limited.
+#if defined(__ZEPHYR__) && defined(CONFIG_ZVFS_POLL_MAX)
+constexpr std::size_t kPollLimit = CONFIG_ZVFS_POLL_MAX > 2 ? CONFIG_ZVFS_POLL_MAX : 3; // wake-up and a socket
+#else
+constexpr std::size_t kPollLimit = static_cast<std::size_t>(-1);
+#endif
+
+// How long a wait on one group of descriptors lasts before the next group is tried, when there are too many
+// descriptors for one poll().
+constexpr int kSliceMs = 10;
+
+std::size_t eventCost(const pollfd &f) { return ((f.events & POLLIN) ? 1u : 0u) + ((f.events & POLLOUT) ? 1u : 0u); }
+
+// poll() for any number of descriptors. `fds[0]` is the descriptor that wakes the loop up. If they fit in one call
+// this is just that. Otherwise the descriptors are polled in groups, each with the wake-up descriptor: first all
+// groups without waiting, then, until something is ready or the time is up, one group at a time for a short slice,
+// so that a descriptor is served within a few slices at worst. Returns the number of descriptors that are ready, or
+// -1 with errno set.
+int pollMany(std::vector<pollfd> &fds, int timeoutMs) {
+    std::size_t total = 0;
+    for (const pollfd &f : fds)
+        total += eventCost(f);
+    if (total <= kPollLimit)
+        return ::poll(fds.data(), static_cast<nfds_t>(fds.size()), timeoutMs);
+
+    // The groups, as indexes into fds. The wake-up descriptor costs one event in each, and a descriptor never
+    // costs more than two, which fits as the limit is at least 3.
+    std::vector<std::vector<std::size_t>> groups;
+    std::size_t used = kPollLimit; // forces the first group to start
+    for (std::size_t i = 1; i < fds.size(); ++i) {
+        const std::size_t cost = eventCost(fds[i]);
+        if (used + cost > kPollLimit) {
+            groups.emplace_back();
+            used = eventCost(fds[0]);
+        }
+        groups.back().push_back(i);
+        used += cost;
+    }
+
+    std::vector<pollfd> group;
+    const auto pollGroup = [&](const std::vector<std::size_t> &members, int wait) {
+        group.assign(1, fds[0]);
+        for (std::size_t index : members)
+            group.push_back(fds[index]);
+        const int r = ::poll(group.data(), static_cast<nfds_t>(group.size()), wait);
+        if (r < 0)
+            return r;
+        fds[0].revents = static_cast<short>(fds[0].revents | group[0].revents);
+        for (std::size_t k = 0; k < members.size(); ++k)
+            fds[members[k]].revents = group[k + 1].revents;
+        return r;
+    };
+    const auto countReady = [&fds] {
+        int n = 0;
+        for (const pollfd &f : fds)
+            n += f.revents != 0 ? 1 : 0;
+        return n;
+    };
+
+    const auto start = std::chrono::steady_clock::now();
+    std::size_t next = 0;
+    for (;;) {
+        for (pollfd &f : fds)
+            f.revents = 0;
+        for (const auto &members : groups) {
+            if (pollGroup(members, 0) < 0)
+                return -1;
+        }
+        if (int n = countReady(); n > 0)
+            return n;
+        int slice = kSliceMs;
+        if (timeoutMs >= 0) {
+            const auto elapsed =
+                std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start).count();
+            if (elapsed >= timeoutMs)
+                return 0;
+            slice = static_cast<int>(std::min<long long>(slice, timeoutMs - elapsed));
+        }
+        // Blocks on one group, and on the wake-up descriptor, for the slice.
+        if (pollGroup(groups[next], slice) < 0)
+            return -1;
+        if (int n = countReady(); n > 0)
+            return n;
+        next = (next + 1) % groups.size();
+    }
+}
 
 } // namespace
 
@@ -175,8 +267,9 @@ int Dispatcher::addNotifier(QSocketNotifier *obj, int fd, int type) {
 
 void Dispatcher::removeNotifier(int id) {
     std::lock_guard<std::mutex> lk(m_);
-    notifiers_.erase(std::remove_if(notifiers_.begin(), notifiers_.end(), [id](const Notifier &n) { return n.id == id; }),
-                     notifiers_.end());
+    notifiers_.erase(
+        std::remove_if(notifiers_.begin(), notifiers_.end(), [id](const Notifier &n) { return n.id == id; }),
+        notifiers_.end());
 }
 
 void Dispatcher::setNotifierEnabled(int id, bool enabled) {
@@ -211,8 +304,9 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
         bool timerDue = false;
         Clock::time_point next{};
         if (!timers_.empty()) {
-            next = std::min_element(timers_.begin(), timers_.end(),
-                                    [](const Timer &a, const Timer &b) { return a.next < b.next; })->next;
+            next = std::min_element(timers_.begin(), timers_.end(), [](const Timer &a, const Timer &b) {
+                       return a.next < b.next;
+                   })->next;
             timerDue = next <= now;
         }
 
@@ -226,15 +320,32 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
             timeout = ms > INT_MAX ? INT_MAX : static_cast<int>(ms);
         }
 
+        // One entry per descriptor, however many notifiers watch it: a socket usually has a notifier for reading
+        // and another for writing, and poll() may take few entries (see kPollLimit).
+        struct Watch {
+            std::size_t slot; // in fds
+            int id;
+            short events;
+        };
         std::vector<pollfd> fds;
-        std::vector<int> ids;
+        std::vector<Watch> watches;
+        std::unordered_map<int, std::size_t> slotOf;
         fds.push_back({wakeRead_, POLLIN, 0});
         for (const Notifier &n : notifiers_) {
             if (!n.enabled)
                 continue;
-            short ev = n.type == 0 ? POLLIN : n.type == 1 ? POLLOUT : POLLPRI;
-            fds.push_back({n.fd, ev, 0});
-            ids.push_back(n.id);
+            const short ev = n.type == 0 ? POLLIN : n.type == 1 ? POLLOUT : POLLPRI;
+            const auto found = slotOf.find(n.fd);
+            std::size_t slot;
+            if (found == slotOf.end()) {
+                slot = fds.size();
+                slotOf.emplace(n.fd, slot);
+                fds.push_back({n.fd, 0, 0});
+            } else {
+                slot = found->second;
+            }
+            fds[slot].events = static_cast<short>(fds[slot].events | ev);
+            watches.push_back({slot, n.id, ev});
         }
 
         const bool needPoll = wait || fds.size() > 1;
@@ -244,12 +355,11 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
             QAbstractEventDispatcher *observer = timeout != 0 ? observer_.load() : nullptr;
             if (observer)
                 observer->aboutToBlock();
-            r = ::poll(fds.data(), static_cast<nfds_t>(fds.size()), timeout);
+            r = pollMany(fds, timeout);
             if (observer)
                 observer->awake();
             if (r < 0 && errno != EINTR) {
-                // No socket is served while this lasts, so say why once: on Zephyr it means more descriptors
-                // than CONFIG_ZVFS_POLL_MAX.
+                // No socket is served while this lasts, so say why once.
                 static std::atomic<bool> reported{false};
                 if (!reported.exchange(true))
                     qWarning("QEventLoop: poll() of %d descriptors failed: %s", static_cast<int>(fds.size()),
@@ -266,10 +376,13 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
 
         ready.clear();
         if (r > 0) {
-            for (std::size_t i = 1; i < fds.size(); ++i) {
-                if (fds[i].revents == 0)
-                    continue;
-                ready.push_back(ids[i - 1]);
+            // An error or a hang-up is for every notifier of the descriptor; otherwise a notifier is told only
+            // about the events that it asked for.
+            constexpr short kProblem = POLLERR | POLLHUP | POLLNVAL;
+            for (const Watch &w : watches) {
+                const short happened = fds[w.slot].revents;
+                if (happened & (w.events | kProblem))
+                    ready.push_back(w.id);
             }
         }
         if (!wait)
@@ -277,8 +390,9 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
         if (!ready.empty() || !queue_.empty())
             break;
         if (!timers_.empty()) {
-            const auto soonest = std::min_element(timers_.begin(), timers_.end(),
-                                                  [](const Timer &a, const Timer &b) { return a.next < b.next; })->next;
+            const auto soonest = std::min_element(timers_.begin(), timers_.end(), [](const Timer &a, const Timer &b) {
+                                     return a.next < b.next;
+                                 })->next;
             if (soonest <= Clock::now())
                 break;
         }

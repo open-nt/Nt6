@@ -404,6 +404,11 @@ target_include_directories(NtDBus
 target_link_libraries(NtDBus PUBLIC NtCore)
 nt_set_compile_options(NtDBus)
 
+endif() # NOT NT_ZEPHYR
+
+# WebSockets and the HTTP server need nothing but Nt Network, so Zephyr builds them when CONFIG_NT_HTTPSERVER asks.
+if(NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER)
+
 add_library(NtWebSockets
     src/websockets/qmaskgenerator.cpp
     src/websockets/qwebsocket.cpp
@@ -448,6 +453,10 @@ target_include_directories(NtHttpServer
 )
 target_link_libraries(NtHttpServer PUBLIC NtNetwork NtWebSockets)
 nt_set_compile_options(NtHttpServer)
+
+endif() # NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER
+
+if(NOT NT_ZEPHYR)
 
 add_library(NtGui
     src/gui/platforms/offscreen/qoffscreenintegration.cpp
@@ -759,12 +768,16 @@ if(NOT NT_ZEPHYR)
 nt_moc_library(NtSerialPort include/QtSerialPort)
 nt_moc_library(NtSql include/QtSql)
 nt_moc_library(NtDBus include/QtDBus)
+endif() # NOT NT_ZEPHYR
+if(NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER)
 if(NOT NT_HAVE_TLS)
     set(NT_MOC_DEFINES -DQT_NO_SSL)
 endif()
 nt_moc_library(NtWebSockets include/QtWebSockets)
 set(NT_MOC_DEFINES)
 nt_moc_library(NtHttpServer include/QtHttpServer)
+endif() # NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER
+if(NOT NT_ZEPHYR)
 nt_moc_library(NtGui include/QtGui src/gui/qpa)
 nt_moc_library(NtWidgets include/QtWidgets)
 nt_moc_library(NtSvg include/QtSvg)

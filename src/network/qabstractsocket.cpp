@@ -53,8 +53,9 @@
     available. Sockets must be used from a single thread.
 
     On Zephyr the number of sockets is bounded by \c CONFIG_ZVFS_OPEN_MAX, \c
-    CONFIG_NET_MAX_CONTEXTS and \c CONFIG_NET_MAX_CONN, and the sockets that
-    one thread serves by \c CONFIG_ZVFS_POLL_MAX. See \l{Nt on Zephyr}.
+    CONFIG_NET_MAX_CONTEXTS and \c CONFIG_NET_MAX_CONN. The more sockets a
+    thread serves, the more groups its event loop polls, which delays them
+    slightly unless \c CONFIG_ZVFS_POLL_MAX is raised. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QTcpSocket, QUdpSocket, QTcpServer

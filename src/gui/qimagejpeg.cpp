@@ -22,9 +22,7 @@ struct ErrorManager {
     std::jmp_buf jump;
 };
 
-void onError(j_common_ptr cinfo) {
-    std::longjmp(reinterpret_cast<ErrorManager *>(cinfo->err)->jump, 1);
-}
+void onError(j_common_ptr cinfo) { std::longjmp(reinterpret_cast<ErrorManager *>(cinfo->err)->jump, 1); }
 
 void onMessage(j_common_ptr, int) {}
 
@@ -113,8 +111,8 @@ bool encode(const QImage &image, int quality, unsigned char **buffer, unsigned l
     jpeg_set_defaults(&cinfo);
     jpeg_set_quality(&cinfo, quality, TRUE);
     jpeg_start_compress(&cinfo, TRUE);
-    JSAMPARRAY row = (*cinfo.mem->alloc_sarray)(reinterpret_cast<j_common_ptr>(&cinfo), JPOOL_IMAGE,
-                                                cinfo.image_width * 3, 1);
+    JSAMPARRAY row =
+        (*cinfo.mem->alloc_sarray)(reinterpret_cast<j_common_ptr>(&cinfo), JPOOL_IMAGE, cinfo.image_width * 3, 1);
     while (cinfo.next_scanline < cinfo.image_height) {
         const QRgb *line = reinterpret_cast<const QRgb *>(image.constScanLine(static_cast<int>(cinfo.next_scanline)));
         for (JDIMENSION x = 0; x < cinfo.image_width; ++x) {

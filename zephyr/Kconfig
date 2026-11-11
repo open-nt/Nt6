@@ -10,6 +10,9 @@ menuconfig NT
 	select EVENTFD
 	select POSIX_FILE_SYSTEM
 	select THREAD_LOCAL_STORAGE
+	# Nt writes a number with decimals through vsnprintf(); without floating point in printf, picolibc prints
+	# "*float*" in its place. This leaves PICOLIBC_IO_FLOAT as the only level of its printf that is available.
+	select REQUIRES_FLOAT_PRINTF
 	select DYNAMIC_THREAD
 	select DYNAMIC_THREAD_ALLOC
 	select POSIX_PRIORITY_SCHEDULING
@@ -43,6 +46,15 @@ config NT_NETWORK
 
 	  QLocalSocket and QLocalServer are not available on Zephyr.
 
+config NT_HTTPSERVER
+	bool "HTTP server and WebSockets"
+	depends on NT_NETWORK
+	help
+	  Builds Nt HTTP Server and Nt WebSockets: QHttpServer with routing, JSON and file responses,
+	  chunked replies and WebSocket upgrades, and QWebSocket and QWebSocketServer. Link the
+	  application with Nt::HttpServer or Nt::WebSockets. With CONFIG_NT_TLS they also serve and
+	  connect over TLS.
+
 config NT_TLS
 	bool "TLS for Nt Network, with Mbed TLS"
 	depends on NT_NETWORK
@@ -71,8 +83,10 @@ config NT_TLS
 
 endif # NT
 
-# The event loop of a thread waits in one poll() for all of its sockets, and Zephyr's default of
-# three descriptors is used up by one connection. Raise it further in prj.conf for an application
-# with many sockets: a poll() with more descriptors than this fails.
+# The event loop of a thread waits in one poll() for all of its sockets. Zephyr counts what poll() waits for (a
+# connected TCP socket takes two events, one for reading and one for writing) and fails above this limit, whose default
+# of 3 is used up by a single connection. Nt copes with any limit of 3 or more, by polling in groups, but each group
+# adds up to 10 ms of delay for the sockets in the others, so a higher limit gives lower latency with many sockets.
+# The kernel keeps this many events on the stack of the thread that polls.
 config ZVFS_POLL_MAX
 	default 16 if NT

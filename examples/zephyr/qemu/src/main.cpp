@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 // Nt on Zephyr under QEMU: exercises the event loop, timers, JSON, a TCP and a TLS connection over the
-// loopback interface and a worker thread, then prints PASS or FAIL.
+// loopback interface and a worker thread, prints PASS or FAIL, and serves a web page with the results from
+// port 8080, which QEMU can forward to the host (see doc/zephyr.h).
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDebug>
 #include <QtCore/QJsonDocument>
@@ -15,14 +16,18 @@
 #include <QtNetwork/QSslSocket>
 #endif
 
+#include "board.h"
+#include "webpage.h"
+
 #include <cstdio>
 
 namespace {
 
 int g_failures = 0;
 
-void check(bool ok, const char *what) {
+void check(bool ok, const char *what, const QString &detail = QString()) {
     std::printf("  %-34s %s\n", what, ok ? "ok" : "FAILED");
+    recordResult(QString::fromUtf8(what), ok, detail);
     if (!ok)
         ++g_failures;
 }
@@ -57,6 +62,15 @@ int main() {
     char *argv[] = {name, nullptr};
     QCoreApplication app(argc, argv);
     std::printf("Nt %s on Zephyr\n", qVersion());
+
+    limitEthernetFrames(); // see board.h
+
+    // The web page comes first, so that it can be opened while the checks run, and shows them as they finish.
+    QString webError;
+    if (startWebServer(8080, &webError))
+        std::printf("  web page on port 8080\n");
+    else
+        std::printf("  no web page: %s\n", qPrintable(webError));
 
     // Strings and JSON, with no event loop involved.
     QJsonObject object;
@@ -105,7 +119,8 @@ int main() {
     serverConfiguration.setPrivateKey(privateKey);
     QSslServer secureServer;
     secureServer.setSslConfiguration(serverConfiguration);
-    secureServer.setHandshakeTimeout(120000); // the emulated processor needs far longer than the default
+    secureServer.setHandshakeTimeout(
+        120000); // a processor with no help for the cryptography may need longer than the default
     QObject::connect(&secureServer, &QSslServer::errorOccurred, [](QSslSocket *socket, QAbstractSocket::SocketError) {
         std::printf("  (server refused a client: %s)\n", socket->errorString().toUtf8().constData());
     });
@@ -166,7 +181,13 @@ int main() {
 #endif
         return echoed == message && workerRan && ticks >= 3;
     };
+    QTimer watcher;
+    bool finished = false;
     const auto finish = [&] {
+        if (finished)
+            return;
+        finished = true;
+        watcher.stop();
         check(ticks >= 3, "QTimer ticks");
         check(echoed == message, "TCP echo over loopback");
         if (echoed != message)
@@ -178,14 +199,17 @@ int main() {
         else
             std::printf("  %s, %s\n", secureClient.sessionCipher().name().toUtf8().constData(),
                         secureClient.sessionCipher().protocolString().toUtf8().constData());
-        check(secureEcho == secret, "TLS echo over loopback");
+        check(secureEcho == secret, "TLS echo over loopback",
+              encrypted ? secureClient.sessionCipher().name() + ", " + secureClient.sessionCipher().protocolString()
+                        : QString());
         check(refused, "untrusted certificate refused");
 #endif
         check(workerRan, "QThread ran");
         check(deliveredOnMainThread, "queued call from the thread");
-        app.quit();
+        recordFinished();
+        std::printf("Nt sample: %s\n", g_failures == 0 ? "PASS" : "FAIL");
+        // The web page goes on being served: there is no reason to leave the event loop.
     };
-    QTimer watcher;
     QObject::connect(&watcher, &QTimer::timeout, [&] {
         if (done())
             finish();
@@ -195,7 +219,5 @@ int main() {
     const int code = app.exec();
     worker->wait();
     delete worker;
-
-    std::printf("Nt sample: %s\n", g_failures == 0 && code == 0 ? "PASS" : "FAIL");
-    return g_failures;
+    return code != 0 ? code : g_failures;
 }

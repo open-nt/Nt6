@@ -52,9 +52,9 @@
 
     \section1 Running in QEMU
 
-    \c examples/zephyr/qemu needs no hardware. It checks JSON, a timer, a TCP connection to
-    itself over the loopback interface and a worker thread that calls back into the main
-    thread, and prints \c PASS or \c FAIL for each. With \c qemu-system-arm installed, for
+    \c examples/zephyr/qemu needs no hardware. It checks JSON, a timer, TCP and TLS connections
+    to itself over the loopback interface and a worker thread that calls back into the main
+    thread, prints \c PASS or \c FAIL for each, and serves a web page with the results. With \c qemu-system-arm installed, for
     example from the host tools of the Zephyr SDK:
 
     \code
@@ -75,6 +75,58 @@
 
     Leave QEMU with Ctrl+A, then X.
 
+    \section2 The Web Page
+
+    The sample starts Nt HTTP Server on port 8080 of the board, ahead of the checks, so the page
+    can be opened while they run and shows each result as it comes in. The board has an
+    Ethernet controller that QEMU connects to its user-mode network, where the board is
+    \c 10.0.2.15 (set in \c prj.conf), and QEMU can forward a port of the host to it. Start QEMU
+    yourself for that, with the image that west built:
+
+    \code
+    qemu-system-arm -cpu cortex-m3 -machine mps2-an385 -display none \
+        -nic user,model=lan9118,hostfwd=tcp:127.0.0.1:8080-:8080 -rtc clock=vm \
+        -serial mon:stdio -kernel build/zephyr/zephyr.elf
+    \endcode
+
+    Then open \c{http://127.0.0.1:8080/} in a browser, or ask for the same data as JSON with
+    \c{curl http://127.0.0.1:8080/api/status}. Leave out \c -icount: it makes the clock of the
+    board run ahead of real time whenever the board is idle, and the page would show it.
+
+    \note Zephyr 4.5's driver for the LAN9118 that QEMU emulates stops receiving for good after the
+    first frame of 1514 bytes, the largest at the usual MTU of 1500: it reads a frame in whole
+    32-bit words, into a packet that Zephyr limits to the MTU plus the Ethernet header, and a
+    frame of that length does not fit. A browser sends such a frame at once, because its request
+    carries its cookies for localhost, and the board then never answers again, while a small
+    request from \c curl works. The sample avoids it by setting the MTU to 1498, whose largest frame
+    is a multiple of four bytes (\c examples/zephyr/qemu/src/board.cpp). An application of your own
+    that serves to a browser through the emulated controller needs the same; a board with another
+    Ethernet controller does not.
+
+    The page also describes the board, as the program finds it out: the processor, the clock, the
+    flash and RAM with how much of each is used, the heaps and stacks, the network buffers, the
+    versions of the software, and the network interfaces, which it lists with QNetworkInterface.
+    The same facts are in the \c hardware object of \c /api/status. The sample sets
+    \c CONFIG_INIT_STACKS so that it can report how much of the main stack was ever used.
+
+    \image zephyr-qemu-page-light.png The page of the sample for QEMU, in the light color scheme, served by the emulated board
+    \image zephyr-qemu-page-dark.png The same page in the dark color scheme
+
+    \section2 Boot Time
+
+    From the reset of the emulated board to the first page takes about 2.6 s on a desktop, and the
+    page itself reports the board's own figure, 2.37 s, as "Reset to serving". Of that, 2.1 s are
+    sleeps in Zephyr's driver for the LAN9118: 100 ms to reset the PHY and 2000 ms that its source
+    calls compulsory. The remaining 0.27 s cover the kernel, the drivers, the cryptography and the
+    network stack, Nt's start-up and the listen, and the first request is answered about 60 ms
+    after that. A board with another Ethernet controller starts without those sleeps. The times
+    are those of the emulated processor on one machine, not of real hardware.
+
+    The code is in \c examples/zephyr/qemu/src/webpage.cpp: four routes on a QHttpServer, bound
+    to a QTcpServer, with the page built from a string. It shows the Nt logo, which the server
+    sends from \c{/logo.svg} unchanged and the page also uses as its icon. The checks stay in the sample's
+    \c main.cpp and report to the page with \c recordResult().
+
     \section1 Configuration
 
     \c CONFIG_NT selects what Nt needs from Zephyr: the full C++ standard library, exceptions,
@@ -82,10 +134,16 @@
     local storage and dynamically created threads. \c CONFIG_NT_NETWORK needs
     \c CONFIG_NETWORKING and \c CONFIG_NET_SOCKETS.
 
-    The event loop of a thread waits in one \c poll() for all of its sockets, so
-    \c CONFIG_ZVFS_POLL_MAX bounds how many a thread can serve; Nt raises Zephyr's default of
-    3 to 16. A \c poll() with more descriptors fails, which the event loop reports once with a
-    warning. \c CONFIG_ZVFS_OPEN_MAX bounds the open descriptors of the whole application, and
+    The event loop of a thread waits for all of its sockets in one \c poll() if it can.
+    Zephyr's \c poll() fails when it has to wait for more events than
+    \c CONFIG_ZVFS_POLL_MAX, and counts one event for reading and another for writing on a
+    connected TCP socket, plus one for the descriptor that wakes the loop up. Its default of 3
+    is used up by a single connection, so Nt raises it to 16. Any limit of 3 or more works: if
+    the sockets of a thread need more events than that, the loop polls them in groups, each
+    with the wake-up descriptor, taking a few milliseconds per group to notice a socket in
+    another group, and the sample for QEMU passes with the limit at 3. A higher limit gives lower
+    latency with many sockets, at the price of that many events on the stack of the polling
+    thread. \c CONFIG_ZVFS_OPEN_MAX bounds the open descriptors of the whole application, and
     \c CONFIG_NET_MAX_CONTEXTS and \c CONFIG_NET_MAX_CONN the sockets of the network stack.
 
     \section1 Host Tools
@@ -130,9 +188,9 @@
             library, in addition to the sizes in \c CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN and
             \c CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN, which can be lowered when the peers use
             small records.
-        \li \b Speed. A handshake computes elliptic curves, which takes seconds on a core with
-            no help from hardware and minutes under QEMU, where the sample therefore waits up
-            to two minutes and gives QSslServer::setHandshakeTimeout() a long time.
+        \li \b Speed. A handshake computes elliptic curves, which takes noticeable time on a core
+            with no help from hardware, a few seconds for the sample under QEMU on a desktop, so
+            the sample gives QSslServer::setHandshakeTimeout() a generous time.
         \li \b Drivers. With \c CONFIG_MBEDTLS_PSA_P256M_DRIVER_ENABLED the handshake of the
             sample failed with the error \c HW_ACCEL_FAILED, so leave it off unless you test it.
     \endlist
@@ -158,6 +216,9 @@
         \li QStorageInfo (\c QT_NO_STORAGEINFO)
         \li QLocalSocket (\c QT_NO_LOCALSOCKET) and QLocalServer (\c QT_NO_LOCALSERVER)
         \li QSslSocket and \c https: (\c QT_NO_SSL), unless \c CONFIG_NT_TLS is set
+        \li Nt HTTP Server and Nt WebSockets, unless \c CONFIG_NT_HTTPSERVER is set; they serve
+            on TCP and, with TLS, QSslServer, but QAbstractHttpServer::bind() takes no
+            QLocalServer there
     \endlist
 
     \section1 Differences on Zephyr
@@ -181,6 +242,9 @@
         \li \b Network. QNetworkInterface lists the interfaces of the Zephyr network stack, with
             their addresses, netmasks and hardware address. Host names are resolved with
             \c getaddrinfo(), which needs \c CONFIG_DNS_RESOLVER.
+        \li \b Numbers. Nt writes a number with decimals through \c vsnprintf(), and the picolibc of
+            Zephyr prints \c{*float*} in its place unless its printf supports floating point.
+            \c CONFIG_NT selects \c CONFIG_REQUIRES_FLOAT_PRINTF for that, which costs some flash.
         \li \b Randomness. QRandomGenerator::system() reads \c getentropy(), which needs
             an entropy driver on the board.
     \endlist

@@ -52,8 +52,8 @@ struct QTcpServer::Private {
     used from a single thread.
 
     On Zephyr the connections that a server can hold are bounded by \c
-    CONFIG_ZVFS_OPEN_MAX, \c CONFIG_NET_MAX_CONTEXTS, \c CONFIG_NET_MAX_CONN
-    and, for one thread, \c CONFIG_ZVFS_POLL_MAX. See \l{Nt on Zephyr}.
+    CONFIG_ZVFS_OPEN_MAX, \c CONFIG_NET_MAX_CONTEXTS and \c
+    CONFIG_NET_MAX_CONN. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QTcpSocket, QAbstractSocket

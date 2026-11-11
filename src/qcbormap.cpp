@@ -531,7 +531,7 @@ QCborMap::Iterator QCborMap::insert(const QCborValue &key, const QCborValue &val
     Adds the pair \a v, or sets the value of its key if the map has the key, and returns an
     iterator to the pair.
 */
-QCborMap::Iterator QCborMap::insert(value_type v) { return insert(v.first, v.second); }
+QCborMap::Iterator QCborMap::insert(const value_type &v) { return insert(v.first, v.second); }
 
 /*!
     Compares this map with \a other: a smaller map comes first, and maps of the same size are

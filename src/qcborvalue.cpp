@@ -390,7 +390,9 @@ QCborValue::Payload &QCborValue::payload() {
     Returns the simple type of the value, or \a defaultValue if it is not a simple type.
 */
 QCborSimpleType QCborValue::toSimpleType(QCborSimpleType defaultValue) const {
-    return isSimpleType() ? static_cast<QCborSimpleType>(t - SimpleType) : defaultValue;
+    // Every value of the underlying type is a simple type, not only those with a name.
+    return isSimpleType() ? static_cast<QCborSimpleType>(t - SimpleType) // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
+                          : defaultValue;
 }
 
 /*!
@@ -1029,8 +1031,8 @@ void QCborValue::toCbor(QCborStreamWriter &writer, EncodingOptions opt) const {
     case Array: {
         const QCborArray array = toArray();
         writer.startArray(static_cast<quint64>(array.size()));
-        for (const QCborValue &element : array)
-            element.toCbor(writer, opt);
+        for (qsizetype i = 0; i < array.size(); ++i)
+            array.at(i).toCbor(writer, opt);
         writer.endArray();
         return;
     }

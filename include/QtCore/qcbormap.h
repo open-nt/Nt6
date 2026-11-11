@@ -44,7 +44,7 @@ public:
         /*!
             Constructs a copy of \a other.
         */
-        Iterator(const Iterator &other) : item(other.item), current(other.current) {}
+        Iterator(const Iterator &other) = default;
         /*!
             Makes this iterator point where \a other does.
         */
@@ -204,7 +204,7 @@ public:
         /*!
             Constructs a copy of \a other.
         */
-        ConstIterator(const ConstIterator &other) : item(other.item), current(other.current) {}
+        ConstIterator(const ConstIterator &other) = default;
         /*!
             Constructs a const iterator that points where \a other does.
         */
@@ -434,7 +434,7 @@ public:
     Iterator insert(QLatin1StringView key, const QCborValue &value);
     Iterator insert(const QString &key, const QCborValue &value);
     Iterator insert(const QCborValue &key, const QCborValue &value);
-    Iterator insert(value_type v);
+    Iterator insert(const value_type &v);
 
     static QCborMap fromVariantMap(const QVariantMap &map);
     static QCborMap fromVariantHash(const QVariantHash &hash);

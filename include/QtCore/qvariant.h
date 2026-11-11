@@ -60,8 +60,7 @@ std::shared_ptr<void> makeValue(const QMetaTypeInterface *type, Args &&...args) 
 }
 
 template <typename T> struct IsQObjectPointer : std::false_type {};
-template <typename T>
-struct IsQObjectPointer<T *> : std::bool_constant<IsComplete<T>::value && std::is_base_of_v<QObject, T>> {};
+template <typename T> struct IsQObjectPointer<T *> : std::conjunction<IsComplete<T>, std::is_base_of<QObject, T>> {};
 
 } // namespace QtPrivate
 

@@ -112,7 +112,7 @@ public:
         existing value is left unchanged. Returns the item and whether it was
         inserted.
 
-        \sa tryInsert(), insertOrAssign(), emplace()
+        \sa tryInsert(), insertOrAssign()
     */
     template <typename... Args> TryEmplaceResult tryEmplace(const K &k, Args &&...args) {
         auto r = this->d.try_emplace(k, std::forward<Args>(args)...);
@@ -133,7 +133,7 @@ public:
         to the item that has that key already. Returns the item and whether it
         was inserted.
 
-        \sa tryInsert(), insert()
+        \sa tryInsert()
     */
     template <typename Value> TryEmplaceResult insertOrAssign(const K &k, Value &&v) {
         auto r = this->d.insert_or_assign(k, std::forward<Value>(v));

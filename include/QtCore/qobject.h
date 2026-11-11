@@ -87,10 +87,15 @@ struct IsSlotInvocable
                          std::is_invocable<Func, Recv *, A...>,
                          std::is_invocable<Func, A...>> {};
 
+// How a slot receives a signal argument of the type T: as a reference to the object that the signal was
+// emitted with, which the slot may change if the signal declares a non-const reference (T &).
+template <typename T>
+using SlotArg = std::conditional_t<std::is_lvalue_reference_v<T> && !std::is_const_v<std::remove_reference_t<T>>,
+                                   std::decay_t<T> &, const std::decay_t<T> &>;
+
 template <typename Func, typename Recv, typename Tuple, std::size_t... I>
 constexpr bool prefixInvocable(std::index_sequence<I...>) {
-    return IsSlotInvocable<Func, Recv,
-                           const std::decay_t<std::tuple_element_t<I, Tuple>> &...>::value;
+    return IsSlotInvocable<Func, Recv, SlotArg<std::tuple_element_t<I, Tuple>>...>::value;
 }
 
 // Largest N such that the slot accepts the first N signal arguments; -1 if none.
@@ -117,7 +122,7 @@ void callSlot(Func &f, Recv *r, A &&...a) {
 template <typename Tuple, typename Callable, std::size_t... I>
 void invokePrefix(Callable &&c, void *const *argv, std::index_sequence<I...>) {
     (void)argv;
-    c(*static_cast<const std::decay_t<std::tuple_element_t<I, Tuple>> *>(argv[I])...);
+    c(*static_cast<std::remove_reference_t<SlotArg<std::tuple_element_t<I, Tuple>>> *>(argv[I])...);
 }
 
 } // namespace QtPrivate
@@ -358,9 +363,8 @@ private:
                       "slot arguments are not compatible with the signal");
 
         auto invoke = [f = F(std::forward<Func>(slot)), receiver](void *const *argv) mutable {
-            QtPrivate::invokePrefix<Args>(
-                [&](const auto &...a) { QtPrivate::callSlot(f, receiver, a...); }, argv,
-                std::make_index_sequence<N>{});
+            QtPrivate::invokePrefix<Args>([&](auto &...a) { QtPrivate::callSlot(f, receiver, a...); }, argv,
+                                          std::make_index_sequence<N>{});
         };
         if constexpr (std::is_member_function_pointer_v<F>) {
             const QtPrivate::SignalId slotId = QtPrivate::SignalId::of(slot);

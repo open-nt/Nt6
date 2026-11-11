@@ -236,7 +236,7 @@
     nt_enable_autorcc(app)                            # ntrcc, for .qrc files
     \endcode
 
-    The package provides \c{Nt6::Core}, \c{Nt6::Network}, \c{Nt6::SerialPort}, \c{Nt6::DBus}, \c{Nt6::HttpServer},
+    The package provides \c{Nt6::Core}, \c{Nt6::Network}, \c{Nt6::SerialPort}, \c{Nt6::Sql}, \c{Nt6::DBus}, \c{Nt6::HttpServer},
     \c{Nt6::WebSockets}, \c{Nt6::Gui}, \c{Nt6::Widgets}, \c{Nt6::Svg}, \c{Nt6::SvgWidgets}, \c{Nt6::Concurrent}, \c{Nt6::Test},
     the tools \c{Nt6::moc}, \c{Nt6::rcc} and \c{Nt6::ndoc}, and the helper functions
     \c nt_enable_automoc(), \c nt_wrap_cpp(), \c nt_enable_autorcc(), \c nt_add_resources()
@@ -249,7 +249,7 @@
     \endcode
 
     The libraries are static, so a program that links \c{Nt6::Network} also needs the OpenSSL
-    development package, and one that links \c{Nt6::Gui} or \c{Nt6::Widgets} needs those of
+    development package, one that links \c{Nt6::Sql} that of SQLite (\c{libsqlite3-dev}), and one that links \c{Nt6::Gui} or \c{Nt6::Widgets} needs those of
     FreeType, fontconfig and XCB (\c{libssl-dev libfreetype-dev libfontconfig-dev libxcb1-dev} on
     Ubuntu). The \c{examples/hello} and \c{examples/widgets} directories are standalone projects to
     start from.

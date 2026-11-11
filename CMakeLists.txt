@@ -258,6 +258,56 @@ target_include_directories(NtSerialPort
 target_link_libraries(NtSerialPort PUBLIC NtCore)
 nt_set_compile_options(NtSerialPort)
 
+add_library(NtSql
+    src/sql/qsqldatabase.cpp
+    src/sql/qsqldriver.cpp
+    src/sql/qsqlerror.cpp
+    src/sql/qsqlfield.cpp
+    src/sql/qsqlquery.cpp
+    src/sql/qsqlquerymodel.cpp
+    src/sql/qsqlrecord.cpp
+    src/sql/qsqlrelationaltablemodel.cpp
+    src/sql/qsqlresult.cpp
+    src/sql/qsqltablemodel.cpp
+)
+add_library(Nt::Sql ALIAS NtSql)
+add_library(Qt6::Sql ALIAS NtSql)
+target_include_directories(NtSql
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSql>
+        $<INSTALL_INTERFACE:include/nt6/QtSql>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/sql
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtSql PUBLIC NtCore)
+# The QSQLITE driver uses the system's SQLite. Without it, Nt SQL has no built-in driver.
+option(NT_USE_SQLITE "Build the QSQLITE driver of Nt SQL with the system SQLite" ON)
+set(NT_HAVE_SQLITE OFF)
+if(NT_USE_SQLITE)
+    find_package(SQLite3 QUIET)
+    if(SQLite3_FOUND)
+        set(NT_HAVE_SQLITE ON)
+    else()
+        message(WARNING "SQLite 3 was not found: building Nt SQL without the QSQLITE driver")
+    endif()
+endif()
+if(NT_HAVE_SQLITE)
+    target_sources(NtSql PRIVATE src/sql/qsqlitedriver.cpp)
+    target_compile_definitions(NtSql PRIVATE NT_HAVE_SQLITE)
+    target_link_libraries(NtSql PRIVATE SQLite::SQLite3)
+    # The table that a column of a query comes from is only known to an SQLite that was built to tell.
+    include(CheckCXXSourceCompiles)
+    set(CMAKE_REQUIRED_LIBRARIES SQLite::SQLite3)
+    check_cxx_source_compiles("#include <sqlite3.h>
+int main() { return sqlite3_column_table_name(nullptr, 0) != nullptr; }" NT_SQLITE_COLUMN_METADATA)
+    unset(CMAKE_REQUIRED_LIBRARIES)
+    if(NT_SQLITE_COLUMN_METADATA)
+        target_compile_definitions(NtSql PRIVATE NT_SQLITE_COLUMN_METADATA)
+    endif()
+endif()
+nt_set_compile_options(NtSql)
+
 add_library(NtDBus
     src/dbus/qdbusabstractadaptor.cpp
     src/dbus/qdbusabstractinterface.cpp
@@ -599,6 +649,7 @@ endif()
 nt_moc_library(NtNetwork include/QtNetwork)
 set(NT_MOC_DEFINES)
 nt_moc_library(NtSerialPort include/QtSerialPort)
+nt_moc_library(NtSql include/QtSql)
 nt_moc_library(NtDBus include/QtDBus)
 if(NOT NT_HAVE_OPENSSL)
     set(NT_MOC_DEFINES -DQT_NO_SSL)
@@ -684,6 +735,11 @@ if(NT_BUILD_TESTS)
     add_executable(nt_network_tests tests/test_network.cpp)
     target_link_libraries(nt_network_tests PRIVATE Nt::Network)
     add_test(NAME nt_network_tests COMMAND nt_network_tests)
+
+    add_executable(nt_sql_tests tests/test_sql.cpp)
+    target_link_libraries(nt_sql_tests PRIVATE Nt::Sql)
+    add_test(NAME nt_sql_tests COMMAND nt_sql_tests)
+    nt_set_compile_options(nt_sql_tests)
 
     # The tests reach the private headers to check what a pseudo terminal hides.
     add_executable(nt_serialport_tests tests/test_serialport.cpp)
@@ -1040,6 +1096,11 @@ if(NT_BUILD_EXAMPLES)
     add_executable(svg_viewer examples/svg/svg_viewer.cpp)
     target_link_libraries(svg_viewer PRIVATE Nt::SvgWidgets)
     nt_set_compile_options(svg_viewer)
+
+    # An address book in an SQLite database; see "Using Nt SQL" in the documentation.
+    add_executable(contacts examples/sql/contacts.cpp)
+    target_link_libraries(contacts PRIVATE Nt::Sql)
+    nt_set_compile_options(contacts)
 
     # A serial terminal; see "Using Nt Serial Port" in the documentation.
     add_executable(serialterm examples/serialport/serialterm.cpp)

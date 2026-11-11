@@ -412,8 +412,7 @@ template <typename T> constexpr unsigned flagsOf() {
 }
 
 template <typename T> struct IsPointerToQObject : std::false_type {};
-template <typename T>
-struct IsPointerToQObject<T *> : std::bool_constant<IsComplete<T>::value && std::is_base_of_v<QObject, T>> {};
+template <typename T> struct IsPointerToQObject<T *> : std::conjunction<IsComplete<T>, std::is_base_of<QObject, T>> {};
 
 template <typename T> struct SequenceInterfaceFor;
 template <typename T> struct AssociativeInterfaceFor;

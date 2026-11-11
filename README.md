@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -100,7 +100,7 @@ Nt Widgets draws its own Fusion-like style, light and dark. This is [`hello_widg
 | [`examples/hello`](examples/hello) | a standalone project that uses an installed Nt |
 | [`examples/signals`](examples/signals), [`examples/moc`](examples/moc) | signals and slots, and `ntmoc` |
 | [`examples/httpserver`](examples/httpserver/hello_server.cpp) | routes, JSON, streaming, delayed answers and WebSockets on one port |
-| [`examples/websockets`](examples/websockets), [`examples/dbus`](examples/dbus), [`examples/serialport`](examples/serialport) | an echo server and client, a clock on the session bus, serial ports |
+| [`examples/websockets`](examples/websockets), [`examples/dbus`](examples/dbus), [`examples/serialport`](examples/serialport), [`examples/sql`](examples/sql) | an echo server and client, a clock on the session bus, serial ports, an address book in SQLite |
 | [`examples/gui`](examples/gui), [`examples/widgets`](examples/widgets), [`examples/svg`](examples/svg) | a painted window, the widget gallery, SVG rendering |
 
 ## Contents
@@ -169,6 +169,24 @@ Differences from Qt: `QAbstractSocket::connectToHost` resolves names synchronous
 ### Nt Network: not implemented yet
 
 `QDnsLookup`, `QNetworkProxy`, DTLS, `QSctpSocket`, `QAuthenticator`, `QNetworkCookie`/`QNetworkCookieJar`, `QHttpMultiPart`, HTTP/2, connection reuse and response compression.
+
+### Nt SQL: implemented
+
+Nt SQL gives access to SQL databases, with a built-in driver for SQLite on the system's `libsqlite3` (without it, the module is built without a driver).
+
+| Class | Notes |
+|---|---|
+| `QSqlDatabase` | named connections that are found from anywhere, a default connection, `cloneDatabase()` for a connection per thread, transactions, `tables()`, `record()`, `primaryIndex()`, drivers of the application with `registerSqlDriver()` |
+| `QSqlQuery` | statements with named (`:id`) and positional (`?`) placeholders, bound values that are never part of the SQL text, moving freely through the rows or forward-only, `execBatch()`, `lastInsertId()`, `finish()` |
+| `QSqlError`, `QSqlRecord`, `QSqlField`, `QSqlIndex` | errors with the message and the code of the database; rows and columns as values |
+| `QSqlDriver`, `QSqlResult`, `QSqlDriverCreator` | the interface for drivers, with the SQL generation that the table model uses |
+| `QSqlQueryModel`, `QSqlTableModel` | a read-only model of any `SELECT`; an editable model of one table with filter, sort order and the three edit strategies, which reads a row again after writing it instead of resetting |
+| `QSqlRelationalTableModel`, `QSqlRelation` | foreign keys shown as a value of the row that they refer to, with inner or left joins |
+| `QSQLITE` driver | files, `:memory:` and temporary databases; the connection options `QSQLITE_BUSY_TIMEOUT`, `QSQLITE_OPEN_READONLY`, `QSQLITE_OPEN_URI`, `QSQLITE_OPEN_NOFOLLOW`, `QSQLITE_ENABLE_SHARED_CACHE`, `QSQLITE_ENABLE_REGEXP` and `QSQLITE_NO_USE_EXTENDED_RESULT_CODES`; notifications when a table changes; the `sqlite3 *` and `sqlite3_stmt *` handles |
+
+Guide: [Using Nt SQL](https://open-nt.github.io/Nt6/nt-sql.html). The [`contacts`](examples/sql/contacts.cpp) example keeps an address book in an SQLite file.
+
+Differences from Qt: SQLite is the only driver and there are no driver plugins; no `QSqlRelationalDelegate`; `QSqlQuery` can be moved but not copied.
 
 ### Nt D-Bus: implemented
 
@@ -420,7 +438,7 @@ Differences from Qt: static documents only (no SMIL or CSS animation); no `image
 | Qt Serial Port | Nt Serial Port | ✔ |
 | Qt Shader Tools | Nt Shader Tools |  |
 | Qt Spatial Audio | Nt Spatial Audio |  |
-| Qt SQL | Nt SQL |  |
+| Qt SQL | Nt SQL | ✔ |
 | Qt State Machine | Nt State Machine |  |
 | Qt SVG | Nt SVG | ✔ (see Status) |
 | Qt TextToSpeech | Nt TextToSpeech |  |

@@ -13,6 +13,7 @@
 #include <functional>
 #include <map>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 static int g_failures = 0;

@@ -50,6 +50,10 @@ struct QTcpServer::Private {
     \c SO_REUSEADDR. \c serverError() and \c errorString() report only the
     errors of listen(), setSocketDescriptor() and accept. Servers must be
     used from a single thread.
+
+    On Zephyr the connections that a server can hold are bounded by \c
+    CONFIG_ZVFS_OPEN_MAX, \c CONFIG_NET_MAX_CONTEXTS, \c CONFIG_NET_MAX_CONN
+    and, for one thread, \c CONFIG_ZVFS_POLL_MAX. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QTcpSocket, QAbstractSocket
@@ -121,8 +125,8 @@ bool QTcpServer::listen(const QHostAddress &address, quint16 port) {
     }
     auto fail = [&](int e) {
         m_errorString = QString::fromUtf8(std::strerror(e));
-        m_error = e == EADDRINUSE ? QAbstractSocket::AddressInUseError
-                  : e == EADDRNOTAVAIL ? QAbstractSocket::SocketAddressNotAvailableError
+        m_error = e == EADDRINUSE               ? QAbstractSocket::AddressInUseError
+                  : e == EADDRNOTAVAIL          ? QAbstractSocket::SocketAddressNotAvailableError
                   : (e == EACCES || e == EPERM) ? QAbstractSocket::SocketAccessError
                                                 : QAbstractSocket::UnknownSocketError;
         if (fd >= 0)

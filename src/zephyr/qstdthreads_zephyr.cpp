@@ -28,8 +28,7 @@ struct k_condvar *asCond(KernelObject &object) noexcept {
 }
 
 // Objects are set up on first use, once, whichever threads get there first.
-template <typename Init>
-void ensure(KernelObject &object, Init init) noexcept {
+template <typename Init> void ensure(KernelObject &object, Init init) noexcept {
     if (object.state.load(std::memory_order_acquire) == Ready)
         return;
     const unsigned int key = irq_lock();

@@ -38,6 +38,10 @@ struct QTimeZonePrivate;
     not localized names such as "Central European Standard Time", and there
     are no Windows zone ID conversions. availableTimeZoneIds() lists the zones
     of \c tzdata.zi or \c zone1970.tab.
+
+    On Zephyr the system time zone is UTC, and zones other than UTC and fixed
+    offsets need a time zone database on a mounted file system, named by \c
+    TZDIR. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QDateTime

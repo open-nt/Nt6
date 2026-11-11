@@ -673,6 +673,8 @@ struct QProcess::Private {
     The poller of an unsupported kernel adds up to 10 ms of delay in
     detecting the end of a child. The finished() signal has no overload
     taking only the exit code.
+
+    The class is not built for Zephyr, where \c QT_NO_PROCESS is defined instead. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QProcessEnvironment, QIODevice

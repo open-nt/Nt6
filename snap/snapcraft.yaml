@@ -54,6 +54,7 @@ parts:
       - g++
       - libfontconfig-dev
       - libfreetype-dev
+      - libjpeg-dev
       - libsqlite3-dev
       - libssl-dev
       - libxcb1-dev

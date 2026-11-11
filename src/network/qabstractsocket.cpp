@@ -51,6 +51,10 @@
     \c pauseMode(), \c setPauseMode(), \c resume(),
     \c setLocalPort() and the other protected peer/local setters are not
     available. Sockets must be used from a single thread.
+
+    On Zephyr the number of sockets is bounded by \c CONFIG_ZVFS_OPEN_MAX, \c
+    CONFIG_NET_MAX_CONTEXTS and \c CONFIG_NET_MAX_CONN, and the sockets that
+    one thread serves by \c CONFIG_ZVFS_POLL_MAX. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QTcpSocket, QUdpSocket, QTcpServer
@@ -172,28 +176,39 @@ using SocketError = QAbstractSocket::SocketError;
 
 static SocketError mapErrno(int e) {
     switch (e) {
-    case ECONNREFUSED: return QAbstractSocket::ConnectionRefusedError;
-    case ETIMEDOUT: return QAbstractSocket::SocketTimeoutError;
-    case EADDRINUSE: return QAbstractSocket::AddressInUseError;
-    case EADDRNOTAVAIL: return QAbstractSocket::SocketAddressNotAvailableError;
+    case ECONNREFUSED:
+        return QAbstractSocket::ConnectionRefusedError;
+    case ETIMEDOUT:
+        return QAbstractSocket::SocketTimeoutError;
+    case EADDRINUSE:
+        return QAbstractSocket::AddressInUseError;
+    case EADDRNOTAVAIL:
+        return QAbstractSocket::SocketAddressNotAvailableError;
     case EACCES:
-    case EPERM: return QAbstractSocket::SocketAccessError;
+    case EPERM:
+        return QAbstractSocket::SocketAccessError;
     case ENETUNREACH:
     case EHOSTUNREACH:
     case ENETDOWN:
-    case EHOSTDOWN: return QAbstractSocket::NetworkError;
+    case EHOSTDOWN:
+        return QAbstractSocket::NetworkError;
     case ECONNRESET:
     case ECONNABORTED:
-    case EPIPE: return QAbstractSocket::RemoteHostClosedError;
+    case EPIPE:
+        return QAbstractSocket::RemoteHostClosedError;
     case EMFILE:
     case ENFILE:
     case ENOBUFS:
-    case ENOMEM: return QAbstractSocket::SocketResourceError;
+    case ENOMEM:
+        return QAbstractSocket::SocketResourceError;
     case EAFNOSUPPORT:
     case EPROTONOSUPPORT:
-    case EOPNOTSUPP: return QAbstractSocket::UnsupportedSocketOperationError;
-    case EMSGSIZE: return QAbstractSocket::DatagramTooLargeError;
-    default: return QAbstractSocket::UnknownSocketError;
+    case EOPNOTSUPP:
+        return QAbstractSocket::UnsupportedSocketOperationError;
+    case EMSGSIZE:
+        return QAbstractSocket::DatagramTooLargeError;
+    default:
+        return QAbstractSocket::UnknownSocketError;
     }
 }
 
@@ -916,8 +931,14 @@ bool QAbstractSocket::bind(quint16 port, BindMode mode) { return bind(QHostAddre
 
 static bool socketOptionLevel(QAbstractSocket::SocketOption o, int family, int *level, int *name) {
     switch (o) {
-    case QAbstractSocket::LowDelayOption: *level = IPPROTO_TCP; *name = TCP_NODELAY; return true;
-    case QAbstractSocket::KeepAliveOption: *level = SOL_SOCKET; *name = SO_KEEPALIVE; return true;
+    case QAbstractSocket::LowDelayOption:
+        *level = IPPROTO_TCP;
+        *name = TCP_NODELAY;
+        return true;
+    case QAbstractSocket::KeepAliveOption:
+        *level = SOL_SOCKET;
+        *name = SO_KEEPALIVE;
+        return true;
     case QAbstractSocket::MulticastTtlOption:
         *level = family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP;
         *name = family == AF_INET6 ? IPV6_MULTICAST_HOPS : IP_MULTICAST_TTL;
@@ -926,10 +947,20 @@ static bool socketOptionLevel(QAbstractSocket::SocketOption o, int family, int *
         *level = family == AF_INET6 ? IPPROTO_IPV6 : IPPROTO_IP;
         *name = family == AF_INET6 ? IPV6_MULTICAST_LOOP : IP_MULTICAST_LOOP;
         return true;
-    case QAbstractSocket::TypeOfServiceOption: *level = IPPROTO_IP; *name = IP_TOS; return true;
-    case QAbstractSocket::SendBufferSizeSocketOption: *level = SOL_SOCKET; *name = SO_SNDBUF; return true;
-    case QAbstractSocket::ReceiveBufferSizeSocketOption: *level = SOL_SOCKET; *name = SO_RCVBUF; return true;
-    default: return false;
+    case QAbstractSocket::TypeOfServiceOption:
+        *level = IPPROTO_IP;
+        *name = IP_TOS;
+        return true;
+    case QAbstractSocket::SendBufferSizeSocketOption:
+        *level = SOL_SOCKET;
+        *name = SO_SNDBUF;
+        return true;
+    case QAbstractSocket::ReceiveBufferSizeSocketOption:
+        *level = SOL_SOCKET;
+        *name = SO_RCVBUF;
+        return true;
+    default:
+        return false;
     }
 }
 

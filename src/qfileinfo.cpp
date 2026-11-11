@@ -68,6 +68,9 @@ QString emptyString() { return QString::fromUtf8(""); }
     isWritable() and isExecutable() use \c access(2), which tests against the
     real rather than the effective user ID. absoluteFilePath() and
     absolutePath() are lexically cleaned without touching the file system.
+
+    On Zephyr there are no symbolic links, users or permissions: nothing is a link, the owner is user 0 with
+    no name, and a file that exists is readable, writable and executable. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QDir, QFile

@@ -654,6 +654,9 @@ struct QSettings::Private {
     are not preserved when it is rewritten. A QSettings object is not thread-safe itself, and
     \c QSettings::value() on a file that another process is replacing sees either the old or the
     new file, never part of both.
+
+    On Zephyr the default locations do not exist, so construct the settings with a file name on a mounted file
+    system. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QVariant, QSaveFile, QLockFile, QStandardPaths

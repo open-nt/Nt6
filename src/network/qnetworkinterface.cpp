@@ -187,8 +187,14 @@ void QNetworkAddressEntry::setBroadcast(const QHostAddress &newBroadcast) { m_br
     for the addresses of all of them.
 
     \differences
-    Linux only for now. Interface data is a snapshot taken when the list is
+    Linux and Zephyr only for now. Interface data is a snapshot taken when the list is
     requested. Type detection covers loopback, Ethernet, Wi-Fi and PPP.
+
+    On Zephyr the list holds the interfaces of the Zephyr network stack, with
+    their index, MTU, hardware address, addresses and IPv4 netmasks. The flags
+    are \c IsUp and \c IsRunning, with \c CanBroadcast and \c CanMulticast for
+    Ethernet; the type is Ethernet, Wi-Fi or unknown, and no broadcast address
+    is given. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QNetworkAddressEntry, QHostAddress

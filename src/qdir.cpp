@@ -292,6 +292,10 @@ QString ntResolveSearchPath(const QString &path) { return resolveSearchPath(path
     and match() is always case-insensitive. LocaleAware is ignored when
     sorting. cd()
     resolves \c .. lexically and never follows symbolic links to do so.
+
+    On Zephyr there is no working directory: currentPath() is \c{/}, setCurrent() fails, and a path has to be
+    absolute and start at a mounted file system. homePath() is the root directory, and tempPath() names a
+    directory that does not exist. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QFileInfo, QStandardPaths

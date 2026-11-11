@@ -45,6 +45,9 @@ QString resolveName(const QString &name) {
     \differences
     Linux and other POSIX systems only, using Unix domain sockets. There is no
     listening backlog setting or \c AbstractNamespaceOption.
+
+    The class is not built for Zephyr, where \c QT_NO_LOCALSERVER is defined
+    instead. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QLocalSocket

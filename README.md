@@ -159,7 +159,7 @@ Known limits: `QDataStream` has no 64-bit container sizes; `QDir` name filters a
 | `QNetworkDatagram` | data, sender, destination, `makeReply` |
 | `QHostInfo` | blocking `fromName`, asynchronous `lookupHost` (functor, with optional context object), `abortHostLookup`, local host and domain names |
 | `QNetworkInterface`, `QNetworkAddressEntry` | list interfaces, flags, type, MTU, hardware address, addresses, netmask, broadcast (Linux) |
-| `QSslSocket`, `QSslServer`, `QSslConfiguration`, `QSslCertificate`, `QSslKey`, `QSslCipher`, `QSslError` | TLS with the system's OpenSSL (built when OpenSSL 1.1.1 or newer is found, `-DNT_USE_OPENSSL=OFF` to leave it out); `https:` in `QNetworkAccessManager`; the ciphers of a connection restricted with `setCiphers()`, and key exchange groups and other OpenSSL settings with `setBackendConfigurationOption()`, where a restriction that cannot be applied fails the handshake |
+| `QSslSocket`, `QSslServer`, `QSslConfiguration`, `QSslCertificate`, `QSslKey`, `QSslCipher`, `QSslError` | TLS with the system's OpenSSL (built when OpenSSL 1.1.1 or newer is found, `-DNT_USE_OPENSSL=OFF` to leave it out), or with Mbed TLS 4 on Zephyr (`CONFIG_NT_TLS`); `https:` in `QNetworkAccessManager`; the ciphers of a connection restricted with `setCiphers()`, and key exchange groups and other OpenSSL settings with `setBackendConfigurationOption()`, where a restriction that cannot be applied fails the handshake |
 | `QLocalSocket`, `QLocalServer` | Unix domain sockets: event-driven and `waitFor*` APIs, access options, stale-socket recovery |
 | `QHttpHeaders` | ordered, case-insensitive header fields; names and values are validated, so CR/LF cannot be injected |
 | `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |
@@ -274,14 +274,14 @@ Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration 
 | `QPaintDeviceWindow`, `QRasterWindow` | windows you paint on with `QPainter`, repainted from the event loop |
 | `QPainter`, `QPaintDevice`, `QPaintEngine` | software raster engine: pen, brush, opacity, clipping, translation, composition modes; rectangles, lines, points, ellipses, images and text, without antialiasing of shapes |
 | `QFont`, `QFontMetrics` | families found with fontconfig, point or pixel size, weight, italic; metrics, `elidedText()`, `drawText()` with alignment, word wrap and clipping; glyphs are anti-aliased by FreeType |
-| `QImage`, `QColor`, `QRgb`, `QPen`, `QBrush`, `QRegion` | 32-bit images (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`) with implicit sharing, colors with `#rgb` and CSS names, solid pens and brushes, rectangle-list regions |
+| `QImage`, `QPixmap`, `QColor`, `QRgb`, `QPen`, `QBrush`, `QRegion` | 32-bit images (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`) with implicit sharing, loading and saving of PNG, BMP and JPEG files, colors with `#rgb` and CSS names, solid pens and brushes, rectangle-list regions |
 | `QAction`, `QActionGroup`, `QKeySequence`, `QActionEvent` | what a user can do, shared by menus and shortcuts: text, check state, enabled and visible, a shortcut (a key with modifiers, from a string or a standard key), exclusive groups, and the events for widgets that show actions. No icons, and one key per sequence |
 | `QMouseEvent`, `QWheelEvent`, `QKeyEvent`, `QFocusEvent`, `QEnterEvent`, `QPaintEvent`, `QExposeEvent`, `QResizeEvent`, `QMoveEvent`, `QShowEvent`, `QHideEvent`, `QCloseEvent` | the event classes, with the `Qt::Key`, `Qt::MouseButton` and `Qt::KeyboardModifier` enums |
 | `QTextDocument`, `QTextLayout`, `QTextLine`, `QTextCharFormat`, `QTextBlockFormat`, `QTextOption` | rich text: a document of paragraphs with character and paragraph formats, read from and written as a subset of HTML (headings, bold/italic/underline, fonts, sizes, colors, links, lists, `pre`, rules, alignment and margins), laid out for a width and drawn with a painter; `anchorAt()` for the link at a point; line breaking, cursor positions and format ranges for one paragraph |
 
 Guide: [Using Nt GUI](https://open-nt.github.io/Nt6/nt-gui.html). The [`hello_window`](examples/gui/hello_window.cpp) example paints a window and follows the mouse.
 
-Not implemented yet: text shaping (HarfBuzz) and font fallback, `QFontDatabase`, editing of a `QTextDocument` (`QTextCursor` over it, tables, images, style sheets), image files (a `QPixmap` is painted in memory, not loaded), `QTransform`, paths and gradients, antialiasing, the clipboard, cursors made of pixmaps and themed cursors (`QCursor` has the standard shapes, from the cursor font of the X server), RandR multi-screen, and Wayland.
+Not implemented yet: text shaping (HarfBuzz) and font fallback, `QFontDatabase`, editing of a `QTextDocument` (`QTextCursor` over it, tables, images, style sheets), other image formats and `QImageReader`/`QImageWriter`, `QTransform`, paths and gradients, antialiasing, the clipboard, cursors made of pixmaps and themed cursors (`QCursor` has the standard shapes, from the cursor font of the X server), RandR multi-screen, and Wayland.
 
 ### Nt Widgets: implemented
 
@@ -578,7 +578,9 @@ Nt Core and Nt Network cross build as a [Zephyr](https://zephyrproject.org) modu
 west build -b mimxrt1170_evk/mimxrt1176/cm7 examples/zephyr/hello
 ```
 
-The port is at an early stage: it builds and links, and has not been run on a board yet. The guide [Nt on Zephyr](https://open-nt.github.io/Nt6/nt-zephyr.html) lists what is left out and what differs.
+[`examples/zephyr/qemu`](examples/zephyr/qemu) is a self-checking application that runs without hardware, with `west build -b mps2/an385 examples/zephyr/qemu -t run`.
+
+The port is at an early stage: it runs under QEMU, and has not been run on a real board yet. The guide [Nt on Zephyr](https://open-nt.github.io/Nt6/nt-zephyr.html) lists what is left out and what differs.
 
 ## Packages
 

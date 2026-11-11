@@ -100,5 +100,14 @@
     QFuture<int> words = QtConcurrent::mappedReduced(files, countWords, [](int &total, int n) { total += n; });
     \endcode
 
-    \sa QThread, QThreadPool, QRunnable, QThreadStorage, QObject, QFuture, QPromise, QtConcurrent, {Signals and Slots}
+    \section1 Threads on Zephyr
+
+    On the Zephyr RTOS, threads are Zephyr threads with a stack of \c CONFIG_NT_THREAD_STACK_SIZE
+    bytes from the kernel heap. The C++ library of the Zephyr SDK is built without thread support,
+    so Nt supplies \c std::mutex and \c std::condition_variable itself, and a \c std::shared_ptr
+    there counts its references without atomic operations. Queued signals between threads work,
+    but sharing other objects between threads is not safe yet. See \l{Nt on Zephyr}.
+
+    \sa QThread, QThreadPool, QRunnable, QThreadStorage, QObject, QFuture, QPromise, QtConcurrent, {Signals and Slots},
+        {Nt on Zephyr}
 */

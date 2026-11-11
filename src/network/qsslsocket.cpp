@@ -5,124 +5,13 @@
 #include <QtNetwork/qsslconfiguration.h>
 #include <QtNetwork/qsslsocket.h>
 
-#include <openssl/bio.h>
-#include <openssl/crypto.h>
-#include <openssl/err.h>
-#include <openssl/pem.h>
-#include <openssl/ssl.h>
-#include <openssl/x509.h>
-#include <openssl/x509v3.h>
+#include "qtlsbackend_p.h"
 
 #include <deque>
 
-namespace {
-
-QSslError::SslError fromVerifyError(int code) {
-    switch (code) {
-    case X509_V_OK:
-        return QSslError::NoError;
-    case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT:
-        return QSslError::UnableToGetIssuerCertificate;
-    case X509_V_ERR_UNABLE_TO_DECRYPT_CERT_SIGNATURE:
-        return QSslError::UnableToDecryptCertificateSignature;
-    case X509_V_ERR_UNABLE_TO_DECODE_ISSUER_PUBLIC_KEY:
-        return QSslError::UnableToDecodeIssuerPublicKey;
-    case X509_V_ERR_CERT_SIGNATURE_FAILURE:
-        return QSslError::CertificateSignatureFailed;
-    case X509_V_ERR_CERT_NOT_YET_VALID:
-        return QSslError::CertificateNotYetValid;
-    case X509_V_ERR_CERT_HAS_EXPIRED:
-        return QSslError::CertificateExpired;
-    case X509_V_ERR_ERROR_IN_CERT_NOT_BEFORE_FIELD:
-        return QSslError::InvalidNotBeforeField;
-    case X509_V_ERR_ERROR_IN_CERT_NOT_AFTER_FIELD:
-        return QSslError::InvalidNotAfterField;
-    case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
-        return QSslError::SelfSignedCertificate;
-    case X509_V_ERR_SELF_SIGNED_CERT_IN_CHAIN:
-        return QSslError::SelfSignedCertificateInChain;
-    case X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY:
-        return QSslError::UnableToGetLocalIssuerCertificate;
-    case X509_V_ERR_UNABLE_TO_VERIFY_LEAF_SIGNATURE:
-        return QSslError::UnableToVerifyFirstCertificate;
-    case X509_V_ERR_CERT_REVOKED:
-        return QSslError::CertificateRevoked;
-    case X509_V_ERR_INVALID_CA:
-        return QSslError::InvalidCaCertificate;
-    case X509_V_ERR_PATH_LENGTH_EXCEEDED:
-        return QSslError::PathLengthExceeded;
-    case X509_V_ERR_INVALID_PURPOSE:
-        return QSslError::InvalidPurpose;
-    case X509_V_ERR_CERT_UNTRUSTED:
-        return QSslError::CertificateUntrusted;
-    case X509_V_ERR_CERT_REJECTED:
-        return QSslError::CertificateRejected;
-    case X509_V_ERR_SUBJECT_ISSUER_MISMATCH:
-        return QSslError::SubjectIssuerMismatch;
-    case X509_V_ERR_AKID_ISSUER_SERIAL_MISMATCH:
-        return QSslError::AuthorityIssuerSerialNumberMismatch;
-    case X509_V_ERR_HOSTNAME_MISMATCH:
-    case X509_V_ERR_IP_ADDRESS_MISMATCH:
-        return QSslError::HostNameMismatch;
-    default:
-        return QSslError::UnspecifiedError;
-    }
-}
-
-QSslCertificate wrapCertificate(X509 *cert) {
-    const int size = cert ? i2d_X509(cert, nullptr) : 0;
-    if (size <= 0)
-        return QSslCertificate();
-    QByteArray der(size, '\0');
-    auto *p = reinterpret_cast<unsigned char *>(der.data());
-    i2d_X509(cert, &p);
-    return QSslCertificate(der, QSsl::Der);
-}
-
-X509 *unwrapCertificate(const QSslCertificate &certificate) {
-    const QByteArray der = certificate.toDer();
-    const auto *p = reinterpret_cast<const unsigned char *>(der.constData());
-    return d2i_X509(nullptr, &p, static_cast<long>(der.size()));
-}
-
-QString lastSslError(const char *fallback) {
-    const unsigned long code = ERR_peek_last_error();
-    ERR_clear_error();
-    if (code == 0)
-        return QString::fromUtf8(fallback);
-    char text[256];
-    ERR_error_string_n(code, text, sizeof text);
-    return QString::fromUtf8(text);
-}
-
-QSsl::SslProtocol protocolFromVersion(int version) {
-    if (version == TLS1_3_VERSION)
-        return QSsl::TlsV1_3;
-    if (version == TLS1_2_VERSION)
-        return QSsl::TlsV1_2;
-    return QSsl::UnknownProtocol;
-}
-
-QByteArray wireProtocols(const QList<QByteArray> &protocols) {
-    QByteArray out;
-    for (const QByteArray &p : protocols) {
-        if (p.isEmpty() || p.size() > 255)
-            continue;
-        out.append(static_cast<char>(p.size()));
-        out.append(p);
-    }
-    return out;
-}
-
-} // namespace
-
 struct QSslSocket::Private {
-    SSL_CTX *ctx = nullptr;
-    SSL *ssl = nullptr;
-    BIO *in = nullptr;  // network to OpenSSL
-    BIO *out = nullptr; // OpenSSL to network
+    std::unique_ptr<QtPrivate::Tls::Session> session; // the TLS connection, while there is one
     QSslConfiguration configuration;
-    QByteArray alpnWire;
     SslMode mode = UnencryptedMode;
     bool encrypted = false;
     bool autoStart = false;
@@ -132,7 +21,6 @@ struct QSslSocket::Private {
     bool closeSent = false;
     QString peerVerifyName;
     QList<QSslError> ignoreList;
-    QList<QSslError> found; // reported by the verify callback
     QList<QSslError> handshakeErrors;
     QByteArray pendingPlain; // written before the handshake finished
     struct Record {
@@ -141,56 +29,7 @@ struct QSslSocket::Private {
     };
     std::deque<Record> records; // maps encrypted bytes back to bytesWritten()
     qint64 encryptedToWrite = 0;
-
-    void release() {
-        if (ssl)
-            SSL_free(ssl); // also frees the BIOs
-        if (ctx)
-            SSL_CTX_free(ctx);
-        ssl = nullptr;
-        ctx = nullptr;
-        in = out = nullptr;
-    }
-    ~Private() { release(); }
 };
-
-namespace {
-
-int exDataIndex() {
-    static const int index = SSL_get_ex_new_index(0, nullptr, nullptr, nullptr, nullptr);
-    return index;
-}
-
-// Records every failure and lets the handshake continue. The decision is made
-// in finishHandshake(), before any application data can flow.
-int verifyCallback(int ok, X509_STORE_CTX *store) {
-    if (!ok) {
-        auto *ssl = static_cast<SSL *>(X509_STORE_CTX_get_ex_data(store, SSL_get_ex_data_X509_STORE_CTX_idx()));
-        auto *found = static_cast<QList<QSslError> *>(SSL_get_ex_data(ssl, exDataIndex()));
-        if (found) {
-            const QSslError error(fromVerifyError(X509_STORE_CTX_get_error(store)),
-                                  wrapCertificate(X509_STORE_CTX_get_current_cert(store)));
-            if (!found->contains(error))
-                found->append(error);
-        }
-    }
-    return 1;
-}
-
-int alpnSelect(SSL *, const unsigned char **selected, unsigned char *selectedLength, const unsigned char *offered,
-               unsigned int offeredLength, void *arg) {
-    const auto *ours = static_cast<const QByteArray *>(arg);
-    unsigned char *result = nullptr;
-    const int rc =
-        SSL_select_next_proto(&result, selectedLength, reinterpret_cast<const unsigned char *>(ours->constData()),
-                              static_cast<unsigned int>(ours->size()), offered, offeredLength);
-    if (rc != OPENSSL_NPN_NEGOTIATED)
-        return SSL_TLSEXT_ERR_NOACK;
-    *selected = result;
-    return SSL_TLSEXT_ERR_OK;
-}
-
-} // namespace
 
 /*!
     \class QSslSocket
@@ -223,14 +62,21 @@ int alpnSelect(SSL *, const unsigned char **selected, unsigned char *selectedLen
     Servers need a certificate and key; see QSslServer.
 
     \differences
-    Requires OpenSSL 1.1.1 or newer; when Nt is built without it, these classes
-    are absent and \c QT_NO_SSL is defined. Only TLS 1.2 and 1.3 are available.
-    \c connectToHostEncrypted() resolves the name synchronously, as
-    QAbstractSocket::connectToHost() does. Only the OpenSSL backend exists, so
-    there are no backend-selection functions, and no \c setCiphers(), PSK,
+    Requires OpenSSL 1.1.1 or newer, or Mbed TLS 4 where Nt is built for Zephyr; when Nt
+    is built without either, these classes are absent and \c QT_NO_SSL is defined. Only
+    TLS 1.2 and 1.3 are available. \c connectToHostEncrypted() resolves the name
+    synchronously, as QAbstractSocket::connectToHost() does. The library is chosen when Nt
+    is built, so there are no backend-selection functions, and no \c setCiphers(), PSK,
     OCSP or session resumption API. A peer that closes without a TLS shutdown
     is reported as an ordinary disconnect, so a protocol that delimits data by
     closing the connection cannot detect truncation from this class.
+
+    On Zephyr the class is built with \c CONFIG_NT_TLS, on Mbed TLS. Mbed TLS has no
+    configuration files, so setBackendConfigurationOption() always fails the handshake there;
+    it takes the system's certificate authorities from no directory, so
+    QSslConfiguration::addCaCertificate() has to name the ones to trust; and its cipher suites
+    are named as Mbed TLS names them, such as \c TLS-ECDHE-RSA-WITH-AES-128-GCM-SHA256. See
+    \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QSslConfiguration, QSslServer, QSslCertificate
@@ -278,7 +124,7 @@ QSslSocket::QSslSocket(QObject *parent) : QTcpSocket(parent), d(std::make_unique
 QSslSocket::~QSslSocket() = default;
 
 void QSslSocket::resetState() {
-    d->release();
+    d->session.reset();
     d->autoStart = false;
     d->ignoreAll = false;
     d->ignoreList.clear();
@@ -339,7 +185,7 @@ void QSslSocket::startClientEncryption() { beginHandshake(SslClientMode); }
 void QSslSocket::startServerEncryption() { beginHandshake(SslServerMode); }
 
 void QSslSocket::beginHandshake(SslMode mode) {
-    if (state() != ConnectedState || d->ssl || d->encrypted)
+    if (state() != ConnectedState || d->session || d->encrypted)
         return;
     const QSslConfiguration &config = d->configuration;
 
@@ -348,190 +194,34 @@ void QSslSocket::beginHandshake(SslMode mode) {
         return;
     }
 
-    ERR_clear_error();
-    d->ctx = SSL_CTX_new(TLS_method());
-    if (!d->ctx) {
-        failHandshake(SslInternalError, lastSslError("Could not create a TLS context"));
-        return;
-    }
-
-    int minimum = TLS1_2_VERSION, maximum = 0;
-    switch (config.protocol()) {
-    case QSsl::TlsV1_2:
-        maximum = TLS1_2_VERSION;
-        break;
-    case QSsl::TlsV1_3:
-        minimum = maximum = TLS1_3_VERSION;
-        break;
-    case QSsl::TlsV1_3OrLater:
-        minimum = TLS1_3_VERSION;
-        break;
-    case QSsl::UnknownProtocol:
-        failHandshake(SslInvalidUserDataError, QString("Unsupported protocol"));
-        return;
-    default:
-        break;
-    }
-    SSL_CTX_set_min_proto_version(d->ctx, minimum);
-    SSL_CTX_set_max_proto_version(d->ctx, maximum);
-    SSL_CTX_set_options(d->ctx, SSL_OP_NO_COMPRESSION | SSL_OP_NO_RENEGOTIATION);
-
     PeerVerifyMode verify = config.peerVerifyMode();
     if (verify == AutoVerifyPeer)
         verify = mode == SslClientMode ? VerifyPeer : VerifyNone;
 
-    if (verify != VerifyNone) {
-        if (config.usesSystemCaCertificates())
-            SSL_CTX_set_default_verify_paths(d->ctx);
-        X509_STORE *store = SSL_CTX_get_cert_store(d->ctx);
-        for (const QSslCertificate &ca : config.caCertificates()) {
-            X509 *x = unwrapCertificate(ca);
-            if (x) {
-                X509_STORE_add_cert(store, x);
-                if (mode == SslServerMode)
-                    SSL_CTX_add_client_CA(d->ctx, x);
-                X509_free(x);
-            }
-        }
-        int flags = SSL_VERIFY_PEER;
-        if (verify == VerifyPeer && mode == SslServerMode)
-            flags |= SSL_VERIFY_FAIL_IF_NO_PEER_CERT;
-        SSL_CTX_set_verify(d->ctx, flags, verifyCallback);
-        if (config.peerVerifyDepth() > 0)
-            SSL_CTX_set_verify_depth(d->ctx, config.peerVerifyDepth());
-    } else {
-        SSL_CTX_set_verify(d->ctx, SSL_VERIFY_NONE, nullptr);
-    }
+    QtPrivate::Tls::SessionSetup setup;
+    setup.server = mode == SslServerMode;
+    setup.protocol = config.protocol();
+    setup.verify = verify;
+    setup.verifyDepth = config.peerVerifyDepth();
+    if (mode == SslClientMode)
+        setup.peerName = d->peerVerifyName.isEmpty() ? peerName() : d->peerVerifyName;
+    setup.localChain = config.localCertificateChain();
+    setup.privateKey = config.privateKey().toDer();
+    setup.caCertificates = config.caCertificates();
+    setup.systemCaCertificates = config.usesSystemCaCertificates();
+    setup.ciphersSet = config.m_ciphersSet;
+    setup.ciphers = config.m_ciphers;
+    setup.nextProtocols = config.allowedNextProtocols();
+    setup.backendOptions = config.m_backend;
 
-    const QList<QSslCertificate> chain = config.localCertificateChain();
-    if (!chain.isEmpty()) {
-        X509 *leaf = unwrapCertificate(chain.first());
-        const QByteArray keyDer = config.privateKey().toDer();
-        const auto *keyBytes = reinterpret_cast<const unsigned char *>(keyDer.constData());
-        EVP_PKEY *key =
-            keyDer.isEmpty() ? nullptr : d2i_AutoPrivateKey(nullptr, &keyBytes, static_cast<long>(keyDer.size()));
-        const bool ok = leaf && key && SSL_CTX_use_certificate(d->ctx, leaf) == 1 &&
-                        SSL_CTX_use_PrivateKey(d->ctx, key) == 1 && SSL_CTX_check_private_key(d->ctx) == 1;
-        X509_free(leaf);
-        EVP_PKEY_free(key);
-        if (!ok) {
-            failHandshake(SslInvalidUserDataError, QString("The private key does not match the certificate"));
-            return;
-        }
-        for (qsizetype i = 1; i < chain.size(); ++i) {
-            X509 *extra = unwrapCertificate(chain.at(i));
-            if (extra && SSL_CTX_add_extra_chain_cert(d->ctx, extra) != 1)
-                X509_free(extra); // the context takes ownership on success
-        }
-    }
-
-    // The ciphers. A restriction that cannot be applied fails the handshake: falling back to the defaults
-    // of OpenSSL would allow what the application ruled out.
-    if (config.m_ciphersSet) {
-        QByteArray older;  // TLS 1.2 and before, as a cipher list
-        QByteArray suites; // TLS 1.3
-        for (const QSslCipher &cipher : config.m_ciphers) {
-            QByteArray &list = cipher.protocol() == QSsl::TlsV1_3 ? suites : older;
-            if (!list.isEmpty())
-                list += ':';
-            list += cipher.name().toLatin1();
-        }
-        if (older.isEmpty() && suites.isEmpty()) {
-            failHandshake(SslInvalidUserDataError, QString("The list of ciphers is empty"));
-            return;
-        }
-        bool ok = SSL_CTX_set_ciphersuites(d->ctx, suites.constData()) == 1;
-        if (older.isEmpty()) {
-            // No cipher of the earlier versions: they are ruled out.
-            ok = ok && SSL_CTX_set_min_proto_version(d->ctx, std::max(minimum, TLS1_3_VERSION)) == 1;
-            if (maximum != 0 && maximum < TLS1_3_VERSION)
-                ok = false;
-        } else {
-            ok = ok && SSL_CTX_set_cipher_list(d->ctx, older.constData()) == 1;
-            if (suites.isEmpty()) {
-                // No cipher of TLS 1.3: that version is ruled out.
-                if (minimum >= TLS1_3_VERSION)
-                    ok = false;
-                else
-                    ok = ok && SSL_CTX_set_max_proto_version(d->ctx, TLS1_2_VERSION) == 1;
-            }
-        }
-        if (!ok) {
-            failHandshake(SslInvalidUserDataError, lastSslError("The ciphers cannot be used with this protocol"));
-            return;
-        }
-    }
-
-    // The options of the TLS library, which come last so that they can override what is set above.
-    if (!config.m_backend.isEmpty()) {
-        SSL_CONF_CTX *conf = SSL_CONF_CTX_new();
-        bool ok = conf != nullptr;
-        QByteArray failed;
-        if (conf) {
-            SSL_CONF_CTX_set_flags(conf, SSL_CONF_FLAG_FILE | SSL_CONF_FLAG_CERTIFICATE | SSL_CONF_FLAG_SHOW_ERRORS |
-                                             (mode == SslServerMode ? SSL_CONF_FLAG_SERVER : SSL_CONF_FLAG_CLIENT));
-            SSL_CONF_CTX_set_ssl_ctx(conf, d->ctx);
-            for (auto it = config.m_backend.constBegin(); ok && it != config.m_backend.constEnd(); ++it) {
-                const QByteArray value = it.value().toByteArray();
-                // 2: the option and its value were used; 1: only the option; anything else is a failure.
-                if (it.key().isEmpty() || SSL_CONF_cmd(conf, it.key().constData(), value.constData()) <= 0) {
-                    ok = false;
-                    failed = it.key();
-                }
-            }
-            ok = ok && SSL_CONF_CTX_finish(conf) == 1;
-            SSL_CONF_CTX_free(conf);
-        }
-        if (!ok) {
-            failHandshake(SslInvalidUserDataError,
-                          lastSslError(QByteArray("The TLS backend option " + failed + " cannot be set").constData()));
-            return;
-        }
-    }
-
-    d->alpnWire = wireProtocols(config.allowedNextProtocols());
-    if (!d->alpnWire.isEmpty() && mode == SslServerMode)
-        SSL_CTX_set_alpn_select_cb(d->ctx, alpnSelect, &d->alpnWire);
-
-    d->ssl = SSL_new(d->ctx);
-    d->in = BIO_new(BIO_s_mem());
-    d->out = BIO_new(BIO_s_mem());
-    if (!d->ssl || !d->in || !d->out) {
-        failHandshake(SslInternalError, lastSslError("Could not create a TLS session"));
+    SocketError error = SslInternalError;
+    QString text;
+    d->session = QtPrivate::Tls::createSession(setup, &error, &text);
+    if (!d->session) {
+        failHandshake(error, text);
         return;
     }
-    SSL_set_bio(d->ssl, d->in, d->out);
-    SSL_set_ex_data(d->ssl, exDataIndex(), &d->found);
-    d->found.clear();
     d->handshakeErrors.clear();
-
-    if (mode == SslClientMode) {
-        SSL_set_connect_state(d->ssl);
-        if (!d->alpnWire.isEmpty())
-            SSL_set_alpn_protos(d->ssl, reinterpret_cast<const unsigned char *>(d->alpnWire.constData()),
-                                static_cast<unsigned int>(d->alpnWire.size()));
-
-        QString name = d->peerVerifyName.isEmpty() ? peerName() : d->peerVerifyName;
-        const QHostAddress literal(name);
-        const QByteArray utf8 = name.toUtf8();
-        if (verify == VerifyPeer && !name.isEmpty()) {
-            SSL_set_hostflags(d->ssl, X509_CHECK_FLAG_NO_PARTIAL_WILDCARDS);
-            // The name goes to the parameters of the verification, as the address does: OpenSSL 4 deprecates
-            // SSL_set1_host(), which took either.
-            X509_VERIFY_PARAM *param = SSL_get0_param(d->ssl);
-            const int ok = literal.isNull() ? X509_VERIFY_PARAM_set1_host(param, utf8.constData(), 0)
-                                            : X509_VERIFY_PARAM_set1_ip_asc(param, utf8.constData());
-            if (ok != 1) {
-                failHandshake(SslInternalError, QString("Could not set the expected host name"));
-                return;
-            }
-        }
-        if (literal.isNull() && !name.isEmpty()) // server name indication takes host names only
-            SSL_ctrl(d->ssl, SSL_CTRL_SET_TLSEXT_HOSTNAME, TLSEXT_NAMETYPE_host_name,
-                     const_cast<char *>(utf8.constData()));
-    } else {
-        SSL_set_accept_state(d->ssl);
-    }
 
     if (d->mode != mode) {
         d->mode = mode;
@@ -546,57 +236,42 @@ void QSslSocket::drive() {
     d->driving = true;
     QPointer<QSslSocket> self(this);
 
-    if (d->ssl && !d->encrypted) {
-        ERR_clear_error();
-        const int rc = SSL_do_handshake(d->ssl);
+    using QtPrivate::Tls::Session;
+    if (d->session && !d->encrypted) {
+        QString text;
+        const Session::Status status = d->session->handshake(&text);
         flushOut(0);
-        if (rc == 1) {
+        if (status == Session::Done) {
             finishHandshake();
             if (!self)
                 return;
-        } else {
-            const int e = SSL_get_error(d->ssl, rc);
-            if (e != SSL_ERROR_WANT_READ && e != SSL_ERROR_WANT_WRITE) {
-                d->driving = false;
-                const QString text = lastSslError("The TLS handshake failed");
-                failHandshake(SslHandshakeFailedError, text);
-                return;
-            }
+        } else if (status == Session::Failed) {
+            d->driving = false;
+            failHandshake(SslHandshakeFailedError, text);
+            return;
         }
     }
 
-    if (d->ssl && d->encrypted) {
+    if (d->session && d->encrypted) {
         QByteArray plain;
-        char chunk[16384];
-        bool peerClosed = false;
-        for (;;) {
-            ERR_clear_error();
-            const int n = SSL_read(d->ssl, chunk, sizeof chunk);
-            if (n > 0) {
-                plain.append(chunk, n);
-                continue;
+        QString text;
+        const Session::Status status = d->session->read(&plain, &text);
+        if (status == Session::Failed) {
+            d->driving = false;
+            if (!plain.isEmpty()) {
+                deliverData(plain.constData(), plain.size());
+                if (!self)
+                    return;
             }
-            const int e = SSL_get_error(d->ssl, n);
-            if (e == SSL_ERROR_ZERO_RETURN)
-                peerClosed = true;
-            else if (e != SSL_ERROR_WANT_READ && e != SSL_ERROR_WANT_WRITE) {
-                d->driving = false;
-                if (!plain.isEmpty()) {
-                    deliverData(plain.constData(), plain.size());
-                    if (!self)
-                        return;
-                }
-                setSocketError(SslInternalError, lastSslError("TLS protocol error"));
-                if (self)
-                    abort();
-                return;
-            }
-            break;
+            setSocketError(SslInternalError, text);
+            if (self)
+                abort();
+            return;
         }
         flushOut(0); // key updates and alerts
-        if (peerClosed && !d->closeSent) {
+        if (status == Session::Closed && !d->closeSent) {
             d->closeSent = true;
-            SSL_shutdown(d->ssl); // answers the peer's close_notify
+            d->session->shutdown(); // answers the peer's close_notify
             flushOut(0);
         }
         d->driving = false;
@@ -608,13 +283,9 @@ void QSslSocket::drive() {
 }
 
 void QSslSocket::flushOut(qint64 plainBytes) {
-    if (!d->out)
+    if (!d->session)
         return;
-    QByteArray cipher;
-    char chunk[16384];
-    int n;
-    while (BIO_ctrl_pending(d->out) > 0 && (n = BIO_read(d->out, chunk, sizeof chunk)) > 0)
-        cipher.append(chunk, n);
+    const QByteArray cipher = d->session->takeOutput();
     if (cipher.isEmpty())
         return;
     d->records.push_back({cipher.size(), plainBytes});
@@ -630,34 +301,15 @@ void QSslSocket::finishHandshake() {
     if (verify == AutoVerifyPeer)
         verify = d->mode == SslClientMode ? VerifyPeer : VerifyNone;
 
-    X509 *peer = SSL_get_peer_certificate(d->ssl);
-    QList<QSslCertificate> chain;
-    if (peer)
-        chain.append(wrapCertificate(peer));
-    if (STACK_OF(X509) *stack = SSL_get_peer_cert_chain(d->ssl)) {
-        for (int i = 0; i < sk_X509_num(stack); ++i) {
-            const QSslCertificate c = wrapCertificate(sk_X509_value(stack, i));
-            if (!chain.contains(c))
-                chain.append(c);
-        }
-    }
-    X509_free(peer);
+    const QList<QSslCertificate> chain = d->session->peerChain();
     config.m_peerChain = chain;
-    config.m_sessionProtocol = protocolFromVersion(SSL_version(d->ssl));
-    if (const SSL_CIPHER *cipher = SSL_get_current_cipher(d->ssl)) {
-        int supported = 0;
-        const int used = SSL_CIPHER_get_bits(cipher, &supported);
-        config.m_cipher = QSslCipher(QString::fromUtf8(SSL_CIPHER_get_name(cipher)), used, supported,
-                                     QString::fromUtf8(SSL_get_version(d->ssl)), config.m_sessionProtocol);
-    }
-    const unsigned char *alpn = nullptr;
-    unsigned int alpnLength = 0;
-    SSL_get0_alpn_selected(d->ssl, &alpn, &alpnLength);
-    config.m_negotiatedAlpn = alpn ? QByteArray(reinterpret_cast<const char *>(alpn), alpnLength) : QByteArray();
+    config.m_sessionProtocol = d->session->protocol();
+    config.m_cipher = d->session->cipher();
+    config.m_negotiatedAlpn = d->session->nextProtocol();
 
     QList<QSslError> errors;
     if (verify == VerifyPeer) {
-        errors = d->found;
+        errors = d->session->verifyErrors();
         if (chain.isEmpty())
             errors.append(QSslError(QSslError::NoPeerCertificate));
         // Without a name to compare, nothing proves who the peer is.
@@ -698,7 +350,7 @@ void QSslSocket::finishHandshake() {
 }
 
 void QSslSocket::encryptPending() {
-    if (d->pendingPlain.isEmpty() || !d->ssl)
+    if (d->pendingPlain.isEmpty() || !d->session)
         return;
     const QByteArray data = d->pendingPlain;
     d->pendingPlain.clear();
@@ -725,19 +377,14 @@ qint64 QSslSocket::writeData(const char *data, qint64 maxSize) {
         d->pendingPlain.append(data, maxSize);
         return maxSize;
     }
-    if (!d->ssl)
+    if (!d->session)
         return -1;
-    qint64 done = 0;
-    while (done < maxSize) {
-        const int chunk = static_cast<int>(qMin<qint64>(maxSize - done, 1 << 24));
-        ERR_clear_error();
-        const int n = SSL_write(d->ssl, data + done, chunk);
-        if (n <= 0) {
-            setSocketError(SslInternalError, lastSslError("Could not encrypt data"));
-            return done > 0 ? done : -1;
-        }
-        done += n;
-    }
+    QString text;
+    const qint64 done = d->session->write(data, maxSize, &text);
+    if (done < maxSize)
+        setSocketError(SslInternalError, text);
+    if (done < 0)
+        return -1;
     flushOut(done);
     return done;
 }
@@ -750,9 +397,9 @@ void QSslSocket::receivedRaw(const char *data, qint64 size) {
         QTcpSocket::receivedRaw(data, size);
         return;
     }
-    if (!d->in) // the handshake starts when the application asks for it
+    if (!d->session) // the handshake starts when the application asks for it
         return;
-    BIO_write(d->in, data, static_cast<int>(size));
+    d->session->feed(data, size);
     drive();
 }
 
@@ -790,7 +437,7 @@ void QSslSocket::socketBytesWritten(qint64 size) {
     \reimp
 */
 void QSslSocket::remoteClosed() {
-    if (d->mode != UnencryptedMode && !d->encrypted && d->ssl) {
+    if (d->mode != UnencryptedMode && !d->encrypted && d->session) {
         QPointer<QSslSocket> self(this);
         setSocketError(SslHandshakeFailedError,
                        QString("The remote host closed the connection during the TLS handshake"));
@@ -805,7 +452,7 @@ void QSslSocket::remoteClosed() {
     \reimp
 */
 void QSslSocket::connectionLost(int error) {
-    if (d->mode != UnencryptedMode && !d->encrypted && d->ssl) {
+    if (d->mode != UnencryptedMode && !d->encrypted && d->session) {
         remoteClosed(); // a reset during the handshake is a failed handshake
         return;
     }
@@ -816,10 +463,9 @@ void QSslSocket::connectionLost(int error) {
     \reimp
 */
 void QSslSocket::disconnectFromHost() {
-    if (d->ssl && d->encrypted && !d->closeSent) {
+    if (d->session && d->encrypted && !d->closeSent) {
         d->closeSent = true;
-        ERR_clear_error();
-        SSL_shutdown(d->ssl);
+        d->session->shutdown();
         flushOut(0);
     }
     QTcpSocket::disconnectFromHost();
@@ -829,10 +475,9 @@ void QSslSocket::disconnectFromHost() {
     \reimp
 */
 void QSslSocket::close() {
-    if (d->ssl && d->encrypted && !d->closeSent) {
+    if (d->session && d->encrypted && !d->closeSent) {
         d->closeSent = true;
-        ERR_clear_error();
-        SSL_shutdown(d->ssl);
+        d->session->shutdown();
         flushOut(0);
         flush();
     }
@@ -1052,36 +697,36 @@ bool QSslSocket::waitForEncrypted(int msecs) {
 }
 
 /*!
-    Returns \c true. QSslSocket exists only in builds with OpenSSL.
+    Returns \c true. QSslSocket exists only in builds with a TLS library: OpenSSL, or Mbed TLS on Zephyr.
 */
 bool QSslSocket::supportsSsl() { return true; }
 
 /*!
-    Returns the version number of the OpenSSL library in use.
+    Returns the version number of the TLS library in use, OpenSSL or Mbed TLS.
 
     \sa sslLibraryVersionString()
 */
-long QSslSocket::sslLibraryVersionNumber() { return static_cast<long>(OpenSSL_version_num()); }
+long QSslSocket::sslLibraryVersionNumber() { return QtPrivate::Tls::libraryVersionNumber(); }
 
 /*!
-    Returns the version of the OpenSSL library in use, as text.
+    Returns the version of the TLS library in use, as text.
 
     \sa sslLibraryVersionNumber()
 */
-QString QSslSocket::sslLibraryVersionString() { return QString::fromUtf8(OpenSSL_version(OPENSSL_VERSION)); }
+QString QSslSocket::sslLibraryVersionString() { return QtPrivate::Tls::libraryVersionString(); }
 
 /*!
-    Returns the version number of the OpenSSL headers Nt was built with.
+    Returns the version number of the headers of the TLS library that Nt was built with.
 
     \sa sslLibraryBuildVersionString()
 */
-long QSslSocket::sslLibraryBuildVersionNumber() { return OPENSSL_VERSION_NUMBER; }
+long QSslSocket::sslLibraryBuildVersionNumber() { return QtPrivate::Tls::libraryBuildVersionNumber(); }
 
 /*!
-    Returns the version of the OpenSSL headers Nt was built with, as text.
+    Returns the version of the headers of the TLS library that Nt was built with, as text.
 
     \sa sslLibraryBuildVersionNumber()
 */
-QString QSslSocket::sslLibraryBuildVersionString() { return QString::fromUtf8(OPENSSL_VERSION_TEXT); }
+QString QSslSocket::sslLibraryBuildVersionString() { return QtPrivate::Tls::libraryBuildVersionString(); }
 
 #include "moc_qsslsocket.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

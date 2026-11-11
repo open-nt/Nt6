@@ -41,6 +41,38 @@ config NT_NETWORK
 	  Builds Nt Network: QTcpSocket, QTcpServer, QUdpSocket, QHostAddress, QHostInfo and
 	  QNetworkAccessManager for http:. Link the application with Nt::Network.
 
-	  TLS, QLocalSocket and QLocalServer are not available on Zephyr.
+	  QLocalSocket and QLocalServer are not available on Zephyr.
+
+config NT_TLS
+	bool "TLS for Nt Network, with Mbed TLS"
+	depends on NT_NETWORK
+	select PSA_CRYPTO
+	select MBEDTLS
+	select MBEDTLS_SSL_PROTO_TLS1_2
+	select MBEDTLS_X509_CRT_PARSE_C
+	select MBEDTLS_PK_PARSE_C
+	select MBEDTLS_PK_WRITE_C
+	select MBEDTLS_PEM_PARSE_C
+	select MBEDTLS_SSL_ALPN
+	select MBEDTLS_SSL_SERVER_NAME_INDICATION
+	imply MBEDTLS_CIPHERSUITE_TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+	imply MBEDTLS_CIPHERSUITE_TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+	imply MBEDTLS_CIPHERSUITE_TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+	imply MBEDTLS_CIPHERSUITE_TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384
+	help
+	  Builds QSslSocket, QSslServer, QSslCertificate, QSslKey and QSslConfiguration on Mbed TLS,
+	  and with them https: in QNetworkAccessManager. Without this option QT_NO_SSL is defined
+	  and the classes are absent.
+
+	  TLS 1.2 is enabled with the ECDHE ciphers of AES-GCM; add other versions and ciphers
+	  with the options of Mbed TLS, such as CONFIG_MBEDTLS_SSL_PROTO_TLS1_3. Mbed TLS takes its
+	  random numbers from PSA, which needs an entropy source on the board, and it checks the
+	  dates of certificates only with CONFIG_MBEDTLS_HAVE_TIME_DATE and a clock that is set.
 
 endif # NT
+
+# The event loop of a thread waits in one poll() for all of its sockets, and Zephyr's default of
+# three descriptors is used up by one connection. Raise it further in prj.conf for an application
+# with many sockets: a poll() with more descriptors than this fails.
+config ZVFS_POLL_MAX
+	default 16 if NT

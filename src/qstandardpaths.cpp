@@ -146,6 +146,10 @@ bool existsAsSpecified(const QString &path, QStandardPaths::LocateOptions option
     application sub-directory is the executable's file name, not the
     organization and application names.
     displayName() returns untranslated English names.
+
+    On Zephyr the locations are still those of a Linux desktop and do not
+    exist; choose paths on a mounted file system yourself. See \l{Nt on
+    Zephyr}.
     \enddifferences
 */
 

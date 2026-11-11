@@ -31,9 +31,10 @@ lives in `src/zephyr/`. Two headers are force-included there instead of scatteri
 `include/QtCore/qstdthreads_zephyr_p.h` (the `std::mutex` family, which the Zephyr SDK's libstdc++
 lacks) and `src/zephyr/ntposix_zephyr_p.h` (POSIX functions Zephyr lacks). Do not use
 `std::thread` or `std::this_thread::get_id()` in Core or Network: neither works there; use
-`QtPrivate::startDetachedThread()` or QThread. `./check.sh` does not build for Zephyr; build
-`examples/zephyr/hello` with west (e.g. `-b mimxrt1170_evk/mimxrt1176/cm7`) after touching
-platform code. A cross build gets `ntmoc`/`ntrcc` from `cmake/NtHostTools.cmake`.
+`QtPrivate::startDetachedThread()` or QThread. `./check.sh` does not build for Zephyr; after touching
+platform code, build `examples/zephyr/hello` with west (e.g. `-b mimxrt1170_evk/mimxrt1176/cm7`)
+and run `examples/zephyr/qemu` (`west build -b mps2/an385 examples/zephyr/qemu -t run`), which
+must print `Nt sample: PASS`. A cross build gets `ntmoc`/`ntrcc` from `cmake/NtHostTools.cmake`.
 
 ## Before every commit: `./check.sh`
 

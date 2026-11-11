@@ -1326,7 +1326,7 @@ qint64 QNetworkReply::writeData(const char *data, qint64 maxSize) {
 
     \differences
     HTTP/1.1 only, over \c http: and \c https: (https needs a build with
-    OpenSSL); \c ftp: and \c file: URLs fail with ProtocolUnknownError. Each
+    OpenSSL, or with Mbed TLS on Zephyr); \c ftp: and \c file: URLs fail with ProtocolUnknownError. Each
     request uses its own
     connection, with no keep-alive pooling. There is no cookie jar, proxy,
     cache, compressed-transfer support or \c authenticationRequired() signal;

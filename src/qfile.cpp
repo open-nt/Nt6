@@ -696,6 +696,10 @@ qint64 QFileDevice::readLineData(char *data, qint64 maxSize) {
     other XDG desktops. Static copy() refuses to overwrite an
     existing file, and rename() does not fall back to copying across
     filesystems. Permissions are not copied.
+
+    On Zephyr a file name has to be absolute and start at a mounted file
+    system. There are no links and no permissions: link() fails, and a file
+    that exists is readable and writable. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QFileDevice, QTextStream, QDataStream, QSaveFile, QTemporaryFile

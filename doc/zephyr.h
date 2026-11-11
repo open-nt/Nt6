@@ -12,9 +12,10 @@
     NXP i.MX RT1170: a 32-bit core with megabytes of flash and RAM. The other modules, the
     tests and the examples for the desktop are left out of such a build.
 
-    The port is at an early stage. The sample below compiles and links for
-    \c mimxrt1170_evk/mimxrt1176/cm7 with Zephyr 4.5 and the Zephyr SDK 1.0.1, at about 920 KB
-    of code; it has not been run on a board yet.
+    The port is at an early stage. With Zephyr 4.5 and the Zephyr SDK 1.0.1, the sample for
+    QEMU below runs and passes on the emulated \c mps2/an385 board, and the other sample compiles
+    and links for \c mimxrt1170_evk/mimxrt1176/cm7, at about 920 KB of code; neither has been run
+    on a real board yet.
 
     \section1 Building
 
@@ -49,10 +50,43 @@
     west build -b mimxrt1170_evk/mimxrt1176/cm7 examples/zephyr/hello
     \endcode
 
+    \section1 Running in QEMU
+
+    \c examples/zephyr/qemu needs no hardware. It checks JSON, a timer, a TCP connection to
+    itself over the loopback interface and a worker thread that calls back into the main
+    thread, and prints \c PASS or \c FAIL for each. With \c qemu-system-arm installed, for
+    example from the host tools of the Zephyr SDK:
+
+    \code
+    west build -b mps2/an385 examples/zephyr/qemu -t run
+    \endcode
+
+    \code
+    *** Booting Zephyr OS build v4.5.0 ***
+    Nt 6.0.0 on Zephyr
+      JSON round trip                    ok
+      QTcpServer::listen                 ok
+      QTimer ticks                       ok
+      TCP echo over loopback             ok
+      QThread ran                        ok
+      queued call from the thread        ok
+    Nt sample: PASS
+    \endcode
+
+    Leave QEMU with Ctrl+A, then X.
+
+    \section1 Configuration
+
     \c CONFIG_NT selects what Nt needs from Zephyr: the full C++ standard library, exceptions,
     run-time type information, the POSIX API with \c eventfd and the file system calls, thread
     local storage and dynamically created threads. \c CONFIG_NT_NETWORK needs
     \c CONFIG_NETWORKING and \c CONFIG_NET_SOCKETS.
+
+    The event loop of a thread waits in one \c poll() for all of its sockets, so
+    \c CONFIG_ZVFS_POLL_MAX bounds how many a thread can serve; Nt raises Zephyr's default of
+    3 to 16. A \c poll() with more descriptors fails, which the event loop reports once with a
+    warning. \c CONFIG_ZVFS_OPEN_MAX bounds the open descriptors of the whole application, and
+    \c CONFIG_NET_MAX_CONTEXTS and \c CONFIG_NET_MAX_CONN the sockets of the network stack.
 
     \section1 Host Tools
 
@@ -61,6 +95,47 @@
     \c nt-host-tools under the build directory. Set \c NT_HOST_CXX_COMPILER to choose that
     compiler, or \c NT_HOST_TOOLS_DIR to use tools that are built already. These tools are
     built without zlib and Zstandard, so resources are stored uncompressed.
+
+    \section1 TLS
+
+    \c CONFIG_NT_TLS builds QSslSocket, QSslServer, QSslCertificate, QSslKey and QSslConfiguration,
+    and \c https: in QNetworkAccessManager, on Mbed TLS 4 and its PSA cryptography, both of which
+    Zephyr provides as a module. It selects TLS 1.2 with the ECDHE ciphers of AES-GCM, X.509
+    certificates and the reading of keys; add TLS 1.3 and other ciphers with the options of
+    Mbed TLS, for example \c CONFIG_MBEDTLS_SSL_PROTO_TLS1_3.
+
+    \code
+    QSslConfiguration configuration;
+    configuration.setCaCertificates(QSslCertificate::fromData(pem));   // the certificates to trust
+    QSslSocket socket;
+    socket.setSslConfiguration(configuration);
+    socket.connectToHostEncrypted(QString("example.com"), 443);
+    \endcode
+
+    The sample for QEMU runs a TLS server and client against each other over the loopback
+    interface, and checks that a client that trusts no certificate refuses the server.
+
+    \list
+        \li \b Trust. Zephyr has no store of certificate authorities, so the certificates to trust
+            have to be named with QSslConfiguration::setCaCertificates() or addCaCertificate(),
+            for example from flash or a resource. Without any, a client verifies nothing and so
+            refuses every server.
+        \li \b Time. Mbed TLS checks the validity dates of a certificate only with
+            \c CONFIG_MBEDTLS_HAVE_TIME_DATE, and then against the time of day, which a board
+            without a battery-backed clock has to be given first, for example from SNTP.
+        \li \b Randomness. The cryptography draws on the entropy driver of the board; the
+            sample uses \c CONFIG_TEST_RANDOM_GENERATOR, which is predictable and must not
+            be used in a product.
+        \li \b Memory. Mbed TLS keeps a connection's keys and buffers in the heap of the C
+            library, in addition to the sizes in \c CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN and
+            \c CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN, which can be lowered when the peers use
+            small records.
+        \li \b Speed. A handshake computes elliptic curves, which takes seconds on a core with
+            no help from hardware and minutes under QEMU, where the sample therefore waits up
+            to two minutes and gives QSslServer::setHandshakeTimeout() a long time.
+        \li \b Drivers. With \c CONFIG_MBEDTLS_PSA_P256M_DRIVER_ENABLED the handshake of the
+            sample failed with the error \c HW_ACCEL_FAILED, so leave it off unless you test it.
+    \endlist
 
     \section1 Memory
 
@@ -82,7 +157,7 @@
         \li QFileSystemWatcher (\c QT_NO_FILESYSTEMWATCHER)
         \li QStorageInfo (\c QT_NO_STORAGEINFO)
         \li QLocalSocket (\c QT_NO_LOCALSOCKET) and QLocalServer (\c QT_NO_LOCALSERVER)
-        \li QSslSocket and \c https: (\c QT_NO_SSL): TLS is built on OpenSSL only
+        \li QSslSocket and \c https: (\c QT_NO_SSL), unless \c CONFIG_NT_TLS is set
     \endlist
 
     \section1 Differences on Zephyr
@@ -93,8 +168,9 @@
             \c k_mutex and \c k_condvar, in a header that the build includes ahead of every
             source file that uses Nt. That library still counts the references of a
             \c std::shared_ptr without atomic operations and keeps one exception state for all
-            threads, so for now use Nt from one thread; QThread and QThreadPool compile, but are
-            not safe yet.
+            threads. A QThread that talks to the rest of the application with queued
+            signals works in the sample for QEMU, but sharing such objects between threads is not
+            safe yet, so keep to one thread where you can.
         \li \b Files. A path has to be absolute and start at a mounted file system: there is no
             working directory. There are no symbolic links, users or permissions, so a file that
             exists is readable, writable and owned by user 0. The locations of QStandardPaths

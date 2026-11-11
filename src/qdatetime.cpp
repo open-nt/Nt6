@@ -931,6 +931,9 @@ QTime QTime::fromString(const QString &string, const QString &format) {
     is chosen. There is no \c fromTime_t() and no TransitionResolution
     argument. Text formats use English text and the format string accepts the
     QDate and QTime expressions plus \c t for the time zone.
+
+    On Zephyr local time is UTC, as the C library has no time zones. See \l{Nt
+    on Zephyr}.
     \enddifferences
 
     \sa QDate, QTime

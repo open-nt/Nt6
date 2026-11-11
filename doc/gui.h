@@ -71,6 +71,22 @@
     painter.drawEllipse(10, 10, 80, 80);
     \endcode
 
+    \section1 Image Files
+
+    QImage and QPixmap load and save PNG, BMP and JPEG files. The format of a file
+    is found from its contents when it is loaded and from the suffix of its name
+    when it is saved (or from the \a format argument):
+
+    \code
+    QImage image("photo.jpg");
+    if (!image.isNull())
+        image.save("photo.png");
+    QPixmap icon(":/icons/open.png");
+    \endcode
+
+    PNG needs zlib and JPEG needs libjpeg; a build without one of them cannot read
+    or write that format. Files are limited to 256 MiB of pixels.
+
     \section1 Drawing Text
 
     A QFont names a family, size and weight. QPainter::drawText() draws a string

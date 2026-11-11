@@ -1,0 +1,11 @@
+Qt code, on an RTOS.
+
+Nt ("Nut"), the small, clean-room implementation of the Qt 6 API under the MIT license, now builds as a Zephyr module. Nt Core and Nt Network are there for headless devices with megabytes of flash and RAM, such as the NXP i.MX RT series.
+
+That means QObject, signals and slots, the event loop, timers, threads, JSON and TCP sockets, with the Qt API you already know. With Zephyr 4.5 the sample for the i.MX RT1170 links at about 920 KB of code.
+
+Over the next four posts: how to turn it on, a run in QEMU, TLS, and what is still missing.
+
+https://github.com/open-nt/Nt6
+
+#zephyr #rtos #embedded #cpp #qt #opensource

@@ -1,0 +1,14 @@
+Turn it on in prj.conf.
+
+Nt is a Zephyr module. Add the repository to your west manifest (or to ZEPHYR_EXTRA_MODULES), then four lines of Kconfig:
+
+CONFIG_CPP=y
+CONFIG_STD_CPP17=y
+CONFIG_NT=y
+CONFIG_NT_NETWORK=y
+
+Link your application with Nt::Core and Nt::Network. The tools that run on the build machine, ntmoc and ntrcc, are compiled for the host as CMake configures a cross build, so there is nothing else to install.
+
+https://github.com/open-nt/Nt6
+
+#zephyr #embedded #cpp #cmake #west

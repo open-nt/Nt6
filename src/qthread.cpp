@@ -62,6 +62,11 @@
     thread does not emit finished(). A thread that has finished keeps its objects, timers and
     posted events; they run again if the thread is restarted. \c currentThreadId() is the
     \c pthread_t cast to a pointer.
+
+    On Zephyr the stack of a thread has \c CONFIG_NT_THREAD_STACK_SIZE bytes, taken from the kernel heap,
+    unless setStackSize() asked for another size, and idealThreadCount() is 1. The C++ library there has no
+    thread support, so objects that are shared between threads are not safe yet; talk to a thread with queued
+    signals. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QObject::moveToThread(), QThreadPool, QThreadStorage, {Thread Support in Nt}, {Signals and Slots}
@@ -117,18 +122,18 @@ void *detachedMain(void *p) {
 } // namespace
 
 bool startDetachedThread(std::function<void()> body) {
-    auto owned = std::make_unique<std::function<void()>>(std::move(body));
+    // Owned by the thread once it has started; detachedMain() deletes it.
+    auto *owned = new std::function<void()>(std::move(body));
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     applyStackSize(&attr, 0);
     pthread_t handle{};
-    const int err = pthread_create(&handle, &attr, &detachedMain, owned.get());
+    const int err = pthread_create(&handle, &attr, &detachedMain, owned);
     pthread_attr_destroy(&attr);
     if (err != 0)
-        return false;
-    (void)owned.release(); // the thread owns it now
-    return true;
+        delete owned;
+    return err == 0;
 }
 } // namespace QtPrivate
 

@@ -6,120 +6,24 @@
 #include <QtNetwork/qsslconfiguration.h>
 #include <QtNetwork/qsslerror.h>
 
-#include <openssl/asn1.h>
-#include <openssl/bio.h>
-#include <openssl/bn.h>
-#include <openssl/err.h>
-#include <openssl/evp.h>
-#include <openssl/pem.h>
-#include <openssl/ssl.h>
-#include <openssl/x509.h>
-#include <openssl/x509v3.h>
+#include "qtlsbackend_p.h"
 
 #include <memory>
 
 namespace {
 
-struct X509Free {
-    void operator()(X509 *p) const { X509_free(p); }
-};
-struct BioFree {
-    void operator()(BIO *p) const { BIO_free(p); }
-};
-struct KeyFree {
-    void operator()(EVP_PKEY *p) const { EVP_PKEY_free(p); }
-};
-using X509Ptr = std::unique_ptr<X509, X509Free>;
-using BioPtr = std::unique_ptr<BIO, BioFree>;
-using KeyPtr = std::unique_ptr<EVP_PKEY, KeyFree>;
+using NameList = QList<std::pair<QSslCertificate::SubjectInfo, QString>>;
 
-BioPtr memoryBio(const QByteArray &data) {
-    return BioPtr(BIO_new_mem_buf(data.constData(), static_cast<int>(data.size())));
-}
-
-X509Ptr parseDer(const QByteArray &der) {
-    if (der.isEmpty())
-        return nullptr;
-    const auto *p = reinterpret_cast<const unsigned char *>(der.constData());
-    return X509Ptr(d2i_X509(nullptr, &p, static_cast<long>(der.size())));
-}
-
-QByteArray toDerBytes(X509 *cert) {
-    const int size = i2d_X509(cert, nullptr);
-    if (size <= 0)
-        return QByteArray();
-    QByteArray out(size, '\0');
-    auto *p = reinterpret_cast<unsigned char *>(out.data());
-    i2d_X509(cert, &p);
-    return out;
-}
-
-QByteArray bioContents(BIO *bio) {
-    char *data = nullptr;
-    const long size = BIO_get_mem_data(bio, &data);
-    return size > 0 ? QByteArray(data, size) : QByteArray();
-}
-
-QString asn1Text(const ASN1_STRING *value) {
-    unsigned char *utf8 = nullptr;
-    const int size = ASN1_STRING_to_UTF8(&utf8, value);
-    if (size < 0)
-        return QString();
-    QString out = QString::fromUtf8(reinterpret_cast<const char *>(utf8), size);
-    OPENSSL_free(utf8);
-    return out;
-}
-
-int infoNid(QSslCertificate::SubjectInfo info) {
-    switch (info) {
-    case QSslCertificate::Organization:
-        return NID_organizationName;
-    case QSslCertificate::CommonName:
-        return NID_commonName;
-    case QSslCertificate::LocalityName:
-        return NID_localityName;
-    case QSslCertificate::OrganizationalUnitName:
-        return NID_organizationalUnitName;
-    case QSslCertificate::CountryName:
-        return NID_countryName;
-    case QSslCertificate::StateOrProvinceName:
-        return NID_stateOrProvinceName;
-    case QSslCertificate::DistinguishedNameQualifier:
-        return NID_dnQualifier;
-    case QSslCertificate::SerialNumber:
-        return NID_serialNumber;
-    case QSslCertificate::EmailAddress:
-        return NID_pkcs9_emailAddress;
-    }
-    return NID_undef;
-}
-
-// The size of a string in bytes. OpenSSL 4.1 deprecates the function that returns it as an int.
-int asn1Size(const ASN1_STRING *value) {
-#if OPENSSL_VERSION_NUMBER >= 0x40100000L
-    return static_cast<int>(ASN1_STRING_get_length(value));
-#else
-    return ASN1_STRING_length(value);
-#endif
-}
-
-// OpenSSL 4 returns the names of a certificate as const; before OpenSSL 3 the functions that read a name took it as
-// non-const.
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-const X509_NAME *readableName(const X509_NAME *name) { return name; }
-#else
-X509_NAME *readableName(const X509_NAME *name) { return const_cast<X509_NAME *>(name); }
-#endif
-
-QStringList nameEntries(const X509_NAME *name, QSslCertificate::SubjectInfo info) {
+QStringList nameEntries(const NameList &name, QSslCertificate::SubjectInfo info) {
     QStringList out;
-    int index = -1;
-    while ((index = X509_NAME_get_index_by_NID(readableName(name), infoNid(info), index)) >= 0)
-        out.append(asn1Text(X509_NAME_ENTRY_get_data(X509_NAME_get_entry(name, index))));
+    for (const auto &entry : name) {
+        if (entry.first == info)
+            out.append(entry.second);
+    }
     return out;
 }
 
-QString displayName(const X509_NAME *name) {
+QString displayName(const NameList &name) {
     for (auto info :
          {QSslCertificate::CommonName, QSslCertificate::Organization, QSslCertificate::OrganizationalUnitName}) {
         const QStringList values = nameEntries(name, info);
@@ -129,21 +33,15 @@ QString displayName(const X509_NAME *name) {
     return QString();
 }
 
-QDateTime asn1Time(const ASN1_TIME *value) {
-    struct tm t = {};
-    if (!value || ASN1_TIME_to_tm(value, &t) != 1)
-        return QDateTime();
-    return QDateTime(QDate(t.tm_year + 1900, t.tm_mon + 1, t.tm_mday), QTime(t.tm_hour, t.tm_min, t.tm_sec), Qt::UTC);
+// What the TLS library reads from a certificate; empty if it is not one.
+QtPrivate::Tls::CertificateInfo certificateInfo(const QByteArray &der) {
+    QtPrivate::Tls::CertificateInfo info;
+    if (!der.isEmpty())
+        (void)QtPrivate::Tls::readCertificate(der, &info);
+    return info;
 }
 
 QByteArray readDevice(QIODevice *device) { return device ? device->readAll() : QByteArray(); }
-
-int passwordCallback(char *buffer, int size, int, void *user) {
-    const auto *pass = static_cast<const QByteArray *>(user);
-    const int n = static_cast<int>(qMin<qsizetype>(pass->size(), size));
-    std::copy(pass->constData(), pass->constData() + n, buffer);
-    return n;
-}
 
 QMutex g_defaultLock;
 QSslConfiguration *g_default = nullptr;
@@ -282,30 +180,20 @@ void QSslCertificate::clear() { m_der.clear(); }
 /*!
     Returns \c true if the certificate is its own issuer.
 */
-bool QSslCertificate::isSelfSigned() const {
-    const X509Ptr x = parseDer(m_der);
-    return x && X509_check_issued(x.get(), x.get()) == X509_V_OK;
-}
+bool QSslCertificate::isSelfSigned() const { return certificateInfo(m_der).selfSigned; }
 
 /*!
     Returns the X.509 version, such as \c 3.
 */
 QByteArray QSslCertificate::version() const {
-    const X509Ptr x = parseDer(m_der);
-    return x ? QByteArray::number(X509_get_version(x.get()) + 1) : QByteArray();
+    const int version = certificateInfo(m_der).version;
+    return version > 0 ? QByteArray::number(version) : QByteArray();
 }
 
 /*!
     Returns the serial number as colon-separated hex.
 */
-QByteArray QSslCertificate::serialNumber() const {
-    const X509Ptr x = parseDer(m_der);
-    if (!x)
-        return QByteArray();
-    const ASN1_INTEGER *serial = X509_get0_serialNumber(x.get());
-    const QByteArray raw(reinterpret_cast<const char *>(ASN1_STRING_get0_data(serial)), asn1Size(serial));
-    return raw.toHex(':');
-}
+QByteArray QSslCertificate::serialNumber() const { return certificateInfo(m_der).serialNumber.toHex(':'); }
 
 /*!
     Returns the hash of the certificate, computed with \a algorithm.
@@ -320,8 +208,7 @@ QByteArray QSslCertificate::digest(QCryptographicHash::Algorithm algorithm) cons
     \sa subjectInfo()
 */
 QStringList QSslCertificate::issuerInfo(SubjectInfo info) const {
-    const X509Ptr x = parseDer(m_der);
-    return x ? nameEntries(X509_get_issuer_name(x.get()), info) : QStringList();
+    return nameEntries(certificateInfo(m_der).issuer, info);
 }
 
 /*!
@@ -330,8 +217,7 @@ QStringList QSslCertificate::issuerInfo(SubjectInfo info) const {
     \sa issuerInfo()
 */
 QStringList QSslCertificate::subjectInfo(SubjectInfo info) const {
-    const X509Ptr x = parseDer(m_der);
-    return x ? nameEntries(X509_get_subject_name(x.get()), info) : QStringList();
+    return nameEntries(certificateInfo(m_der).subject, info);
 }
 
 /*!
@@ -339,50 +225,20 @@ QStringList QSslCertificate::subjectInfo(SubjectInfo info) const {
 
     \sa subjectDisplayName()
 */
-QString QSslCertificate::issuerDisplayName() const {
-    const X509Ptr x = parseDer(m_der);
-    return x ? displayName(X509_get_issuer_name(x.get())) : QString();
-}
+QString QSslCertificate::issuerDisplayName() const { return displayName(certificateInfo(m_der).issuer); }
 
 /*!
     Returns a name for showing the subject.
 
     \sa issuerDisplayName()
 */
-QString QSslCertificate::subjectDisplayName() const {
-    const X509Ptr x = parseDer(m_der);
-    return x ? displayName(X509_get_subject_name(x.get())) : QString();
-}
+QString QSslCertificate::subjectDisplayName() const { return displayName(certificateInfo(m_der).subject); }
 
 /*!
     Returns the alternative names the certificate is valid for.
 */
 QMultiMap<QSsl::AlternativeNameEntryType, QString> QSslCertificate::subjectAlternativeNames() const {
-    QMultiMap<QSsl::AlternativeNameEntryType, QString> out;
-    const X509Ptr x = parseDer(m_der);
-    if (!x)
-        return out;
-    auto *names = static_cast<GENERAL_NAMES *>(X509_get_ext_d2i(x.get(), NID_subject_alt_name, nullptr, nullptr));
-    for (int i = 0; names && i < sk_GENERAL_NAME_num(names); ++i) {
-        const GENERAL_NAME *n = sk_GENERAL_NAME_value(names, i);
-        if (n->type == GEN_DNS) {
-            out.insert(QSsl::DnsEntry, asn1Text(n->d.dNSName));
-        } else if (n->type == GEN_EMAIL) {
-            out.insert(QSsl::EmailEntry, asn1Text(n->d.rfc822Name));
-        } else if (n->type == GEN_IPADD) {
-            const int size = asn1Size(n->d.iPAddress);
-            const unsigned char *data = ASN1_STRING_get0_data(n->d.iPAddress);
-            if (size == 4)
-                out.insert(QSsl::IpAddressEntry, QHostAddress(quint32(data[0]) << 24 | quint32(data[1]) << 16 |
-                                                              quint32(data[2]) << 8 | data[3])
-                                                     .toString());
-            else if (size == 16)
-                out.insert(QSsl::IpAddressEntry, QHostAddress(data).toString());
-        }
-    }
-    if (names)
-        GENERAL_NAMES_free(names);
-    return out;
+    return certificateInfo(m_der).alternativeNames;
 }
 
 /*!
@@ -390,20 +246,14 @@ QMultiMap<QSsl::AlternativeNameEntryType, QString> QSslCertificate::subjectAlter
 
     \sa expiryDate()
 */
-QDateTime QSslCertificate::effectiveDate() const {
-    const X509Ptr x = parseDer(m_der);
-    return x ? asn1Time(X509_get0_notBefore(x.get())) : QDateTime();
-}
+QDateTime QSslCertificate::effectiveDate() const { return certificateInfo(m_der).notBefore; }
 
 /*!
     Returns the time at which the certificate stops being valid, in UTC.
 
     \sa effectiveDate()
 */
-QDateTime QSslCertificate::expiryDate() const {
-    const X509Ptr x = parseDer(m_der);
-    return x ? asn1Time(X509_get0_notAfter(x.get())) : QDateTime();
-}
+QDateTime QSslCertificate::expiryDate() const { return certificateInfo(m_der).notAfter; }
 
 /*!
     Returns the certificate in PEM format.
@@ -411,12 +261,7 @@ QDateTime QSslCertificate::expiryDate() const {
     \sa toDer()
 */
 QByteArray QSslCertificate::toPem() const {
-    const X509Ptr x = parseDer(m_der);
-    if (!x)
-        return QByteArray();
-    const BioPtr bio(BIO_new(BIO_s_mem()));
-    PEM_write_bio_X509(bio.get(), x.get());
-    return bioContents(bio.get());
+    return m_der.isEmpty() ? QByteArray() : QtPrivate::Tls::certificateToPem(m_der);
 }
 
 /*!
@@ -446,21 +291,18 @@ QList<QSslCertificate> QSslCertificate::fromData(const QByteArray &data, QSsl::E
     QList<QSslCertificate> out;
     if (data.isEmpty())
         return out;
+    QList<QByteArray> encodings;
     if (format == QSsl::Der) {
-        if (parseDer(data)) {
-            QSslCertificate c;
-            c.m_der = data;
-            out.append(c);
-        }
-        return out;
+        if (QtPrivate::Tls::readCertificate(data, nullptr))
+            encodings.append(data);
+    } else {
+        encodings = QtPrivate::Tls::certificatesFromPem(data);
     }
-    const BioPtr bio = memoryBio(data);
-    while (X509Ptr x = X509Ptr(PEM_read_bio_X509(bio.get(), nullptr, nullptr, nullptr))) {
+    for (const QByteArray &der : encodings) {
         QSslCertificate c;
-        c.m_der = toDerBytes(x.get());
+        c.m_der = der;
         out.append(c);
     }
-    ERR_clear_error();
     return out;
 }
 
@@ -488,7 +330,11 @@ std::size_t qHash(const QSslCertificate &certificate, std::size_t seed) noexcept
 
     \differences
     toPem() and toDer() have no pass phrase argument, and the key is held
-    unencrypted in memory after it is loaded. There is no \c handle().
+    unencrypted in memory after it is loaded. There is no \c handle(). On
+    Zephyr, with Mbed TLS, a private key is held in the form of its algorithm
+    (PKCS #1 for RSA, SEC 1 for an elliptic curve) and not as PKCS #8, so
+    toDer() and toPem() give that form, and only RSA and elliptic curve keys
+    are read.
     \enddifferences
 
     \sa QSslCertificate, QSslConfiguration
@@ -509,51 +355,15 @@ std::size_t qHash(const QSslCertificate &certificate, std::size_t seed) noexcept
 */
 QSslKey::QSslKey(const QByteArray &encoded, QSsl::KeyAlgorithm algorithm, QSsl::EncodingFormat format,
                  QSsl::KeyType type, const QByteArray &passPhrase) {
-    const BioPtr bio = memoryBio(encoded);
-    if (!bio || encoded.isEmpty())
+    QtPrivate::Tls::KeyInfo info;
+    if (encoded.isEmpty() || !QtPrivate::Tls::readKey(encoded, format, type, passPhrase, &info))
         return;
-    QByteArray pass = passPhrase;
-    KeyPtr key;
-    if (format == QSsl::Pem) {
-        key.reset(type == QSsl::PrivateKey ? PEM_read_bio_PrivateKey(bio.get(), nullptr, passwordCallback, &pass)
-                                           : PEM_read_bio_PUBKEY(bio.get(), nullptr, nullptr, nullptr));
-    } else {
-        key.reset(type == QSsl::PrivateKey ? d2i_PrivateKey_bio(bio.get(), nullptr)
-                                           : d2i_PUBKEY_bio(bio.get(), nullptr));
-    }
-    ERR_clear_error();
-    if (!key)
+    if (algorithm != QSsl::Opaque && algorithm != info.algorithm)
         return;
-
-    QSsl::KeyAlgorithm actual = QSsl::Opaque;
-    switch (EVP_PKEY_base_id(key.get())) {
-    case EVP_PKEY_RSA:
-        actual = QSsl::Rsa;
-        break;
-    case EVP_PKEY_DSA:
-        actual = QSsl::Dsa;
-        break;
-    case EVP_PKEY_EC:
-        actual = QSsl::Ec;
-        break;
-    case EVP_PKEY_DH:
-        actual = QSsl::Dh;
-        break;
-    default:
-        break;
-    }
-    if (algorithm != QSsl::Opaque && algorithm != actual)
-        return;
-
-    const BioPtr out(BIO_new(BIO_s_mem()));
-    const int ok = type == QSsl::PrivateKey ? i2d_PKCS8PrivateKeyInfo_bio(out.get(), key.get())
-                                            : i2d_PUBKEY_bio(out.get(), key.get());
-    if (ok != 1)
-        return;
-    m_der = bioContents(out.get());
+    m_der = info.der;
     m_type = type;
-    m_algorithm = actual;
-    m_length = EVP_PKEY_bits(key.get());
+    m_algorithm = info.algorithm;
+    m_length = info.length;
 }
 
 /*!
@@ -596,15 +406,7 @@ QSsl::KeyAlgorithm QSslKey::algorithm() const { return m_algorithm; }
 
     \sa toDer()
 */
-QByteArray QSslKey::toPem() const {
-    if (isNull())
-        return QByteArray();
-    const char *label = m_type == QSsl::PrivateKey ? "PRIVATE KEY" : "PUBLIC KEY";
-    const BioPtr out(BIO_new(BIO_s_mem()));
-    PEM_write_bio(out.get(), label, "", reinterpret_cast<const unsigned char *>(m_der.constData()),
-                  static_cast<long>(m_der.size()));
-    return bioContents(out.get());
-}
+QByteArray QSslKey::toPem() const { return isNull() ? QByteArray() : QtPrivate::Tls::keyToPem(m_der, m_type); }
 
 /*!
     Returns the key in DER format, unencrypted.
@@ -852,7 +654,9 @@ QSsl::SslProtocol QSslCipher::protocol() const { return m_protocol; }
     backend option that OpenSSL does not accept makes the handshake fail,
     where Qt warns and goes on. The elliptic curves are set as the backend
     option \c Groups; \c setEllipticCurves() is absent, as are session
-    tickets, OCSP, Diffie-Hellman parameters and DTLS settings.
+    tickets, OCSP, Diffie-Hellman parameters and DTLS settings. With Mbed TLS,
+    on Zephyr, no backend option is accepted, and the system's certificate
+    authorities are not used.
     \enddifferences
 
     \sa QSslSocket
@@ -1042,42 +846,6 @@ QList<QSslCertificate> QSslConfiguration::peerCertificateChain() const { return 
 */
 QSslCipher QSslConfiguration::sessionCipher() const { return m_cipher; }
 
-namespace {
-
-QSsl::SslProtocol cipherProtocol(const SSL_CIPHER *cipher) {
-    const char *version = SSL_CIPHER_get_version(cipher);
-    const QByteArray v(version ? version : "");
-    if (v == "TLSv1.3")
-        return QSsl::TlsV1_3;
-    if (v == "TLSv1.2")
-        return QSsl::TlsV1_2;
-    return QSsl::UnknownProtocol; // older suites, which TLS 1.2 can still negotiate
-}
-
-// The ciphers that a new context of OpenSSL has after its cipher list was set to list; all of TLS 1.3 come
-// with every list.
-QList<QSslCipher> listCiphers(const char *list) {
-    QList<QSslCipher> result;
-    SSL_CTX *ctx = SSL_CTX_new(TLS_method());
-    if (!ctx)
-        return result;
-    if (!list || SSL_CTX_set_cipher_list(ctx, list) == 1) {
-        const STACK_OF(SSL_CIPHER) *stack = SSL_CTX_get_ciphers(ctx);
-        for (int i = 0; stack && i < sk_SSL_CIPHER_num(stack); ++i) {
-            const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(stack, i);
-            int supported = 0;
-            const int used = SSL_CIPHER_get_bits(cipher, &supported);
-            const char *version = SSL_CIPHER_get_version(cipher);
-            result.append(QSslCipher(QString::fromUtf8(SSL_CIPHER_get_name(cipher)), used, supported,
-                                     QString::fromUtf8(version ? version : ""), cipherProtocol(cipher)));
-        }
-    }
-    SSL_CTX_free(ctx);
-    return result;
-}
-
-} // namespace
-
 /*!
     Returns the ciphers that a connection with this configuration offers
     and accepts, in the order of preference: those given to setCiphers(),
@@ -1085,7 +853,9 @@ QList<QSslCipher> listCiphers(const char *list) {
 
     \sa setCiphers(), supportedCiphers()
 */
-QList<QSslCipher> QSslConfiguration::ciphers() const { return m_ciphersSet ? m_ciphers : listCiphers(nullptr); }
+QList<QSslCipher> QSslConfiguration::ciphers() const {
+    return m_ciphersSet ? m_ciphers : QtPrivate::Tls::defaultCiphers();
+}
 
 /*!
     Restricts the connection to the ciphers in \a ciphers, in that order of
@@ -1100,8 +870,8 @@ QList<QSslCipher> QSslConfiguration::ciphers() const { return m_ciphersSet ? m_c
     \sa ciphers(), supportedCiphers()
 */
 void QSslConfiguration::setCiphers(const QList<QSslCipher> &ciphers) {
-    // Only what OpenSSL itself lists goes in, under its own name and protocol: the names are later given
-    // to OpenSSL as a cipher list, where a made-up name such as "ALL" would select many ciphers.
+    // Only what the TLS library itself lists goes in, under its own name and protocol: the names are later
+    // given to the library, where a made-up name such as "ALL" could select many ciphers.
     const QList<QSslCipher> supported = supportedCiphers();
     m_ciphers.clear();
     for (const QSslCipher &cipher : ciphers) {
@@ -1141,7 +911,7 @@ void QSslConfiguration::setCiphers(const QString &ciphers) {
 
     \sa setCiphers()
 */
-QList<QSslCipher> QSslConfiguration::supportedCiphers() { return listCiphers("ALL:@SECLEVEL=0"); }
+QList<QSslCipher> QSslConfiguration::supportedCiphers() { return QtPrivate::Tls::supportedCiphers(); }
 
 /*!
     Returns the options that were set for the TLS library with

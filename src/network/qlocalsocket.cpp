@@ -35,6 +35,9 @@
     Connecting either succeeds or fails before connectToServer() returns, so
     the socket never stays in ConnectingState. Linux and other POSIX systems
     only, using Unix domain sockets.
+
+    The class is not built for Zephyr, where \c QT_NO_LOCALSOCKET is defined
+    instead. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QLocalServer

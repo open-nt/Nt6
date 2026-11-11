@@ -15,11 +15,13 @@
 
 #include <QtCore/qabstracteventdispatcher.h>
 #include <QtCore/qcoreapplication.h>
+#include <QtCore/qlogging.h>
 #include <QtCore/qsocketnotifier.h>
 
 #include <algorithm>
 #include <cerrno>
 #include <climits>
+#include <cstring>
 #include <memory>
 #include <unordered_set>
 
@@ -245,6 +247,14 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
             r = ::poll(fds.data(), static_cast<nfds_t>(fds.size()), timeout);
             if (observer)
                 observer->awake();
+            if (r < 0 && errno != EINTR) {
+                // No socket is served while this lasts, so say why once: on Zephyr it means more descriptors
+                // than CONFIG_ZVFS_POLL_MAX.
+                static std::atomic<bool> reported{false};
+                if (!reported.exchange(true))
+                    qWarning("QEventLoop: poll() of %d descriptors failed: %s", static_cast<int>(fds.size()),
+                             std::strerror(errno));
+            }
             if (r > 0 && (fds[0].revents & POLLIN)) {
                 std::uint64_t buf[8];
                 // The wake descriptor is non-blocking and the lock is released above.

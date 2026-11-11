@@ -1,0 +1,13 @@
+Try it in QEMU. No board needed.
+
+The sample in examples/zephyr/qemu checks JSON, a timer, a TCP connection to itself over loopback and a worker thread that calls back into the main thread. On the emulated mps2/an385 it prints:
+
+Nt sample: PASS
+
+To run it, with qemu-system-arm installed (the Zephyr SDK host tools have it):
+
+west build -b mps2/an385 examples/zephyr/qemu -t run
+
+https://github.com/open-nt/Nt6
+
+#zephyr #qemu #embedded #cpp #testing

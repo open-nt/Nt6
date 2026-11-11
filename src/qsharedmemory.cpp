@@ -47,6 +47,8 @@
     elsewhere: with the file lock, lock() needs the object to be attached, and the lock of a
     process that dies is released. create(), attach() and detach() do not take the lock
     themselves.
+
+    The class is not built for Zephyr, where \c QT_NO_SHAREDMEMORY is defined instead. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QSystemSemaphore

@@ -63,6 +63,9 @@ std::mutex g_globalLock;
     A seeded generator uses \c std::mt19937. system() reads from
     \c getrandom(2), and global() is guarded by a mutex rather than being
     thread-local.
+
+    On Zephyr system() reads \c getentropy(), which needs an entropy driver on the board. See \l{Nt on
+    Zephyr}.
     \enddifferences
 
     \sa QUuid

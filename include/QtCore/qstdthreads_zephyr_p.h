@@ -42,8 +42,7 @@ void condInit(KernelObject &object) noexcept;
 bool condWait(KernelObject &cond, KernelObject &mutex, long long timeoutNs) noexcept;
 void condNotify(KernelObject &cond, bool all) noexcept;
 
-template <typename Rep, typename Period>
-long long toTimeout(const std::chrono::duration<Rep, Period> &time) {
+template <typename Rep, typename Period> long long toTimeout(const std::chrono::duration<Rep, Period> &time) {
     const auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(time).count();
     return ns < 0 ? 0 : static_cast<long long>(ns);
 }
@@ -59,8 +58,7 @@ public:
     bool try_lock() noexcept { return mutexLock(m_object, 0); }
     void unlock() { mutexUnlock(m_object); }
 
-    template <typename Rep, typename Period>
-    bool try_lock_for(const std::chrono::duration<Rep, Period> &time) {
+    template <typename Rep, typename Period> bool try_lock_for(const std::chrono::duration<Rep, Period> &time) {
         return mutexLock(m_object, toTimeout(time));
     }
     template <typename Clock, typename Duration>
@@ -95,19 +93,16 @@ public:
     void notify_one() noexcept { QtPrivate::ZephyrStd::condNotify(m_object, false); }
     void notify_all() noexcept { QtPrivate::ZephyrStd::condNotify(m_object, true); }
 
-    void wait(unique_lock<mutex> &lock) {
-        (void)QtPrivate::ZephyrStd::condWait(m_object, lock.mutex()->object(), -1);
-    }
-    template <typename Predicate>
-    void wait(unique_lock<mutex> &lock, Predicate pred) {
+    void wait(unique_lock<mutex> &lock) { (void)QtPrivate::ZephyrStd::condWait(m_object, lock.mutex()->object(), -1); }
+    template <typename Predicate> void wait(unique_lock<mutex> &lock, Predicate pred) {
         while (!pred())
             wait(lock);
     }
 
     template <typename Rep, typename Period>
     cv_status wait_for(unique_lock<mutex> &lock, const chrono::duration<Rep, Period> &time) {
-        const bool woken = QtPrivate::ZephyrStd::condWait(m_object, lock.mutex()->object(),
-                                                          QtPrivate::ZephyrStd::toTimeout(time));
+        const bool woken =
+            QtPrivate::ZephyrStd::condWait(m_object, lock.mutex()->object(), QtPrivate::ZephyrStd::toTimeout(time));
         return woken ? cv_status::no_timeout : cv_status::timeout;
     }
     template <typename Rep, typename Period, typename Predicate>
@@ -150,16 +145,14 @@ public:
         m_cond.notify_all();
     }
 
-    template <typename Lock>
-    void wait(Lock &lock) {
+    template <typename Lock> void wait(Lock &lock) {
         unique_lock<mutex> inner(m_mutex);
         const Relock<Lock> relock(lock);
         // Declared last so that the inner mutex is released before the caller's lock is taken again.
         unique_lock<mutex> waiting(std::move(inner));
         m_cond.wait(waiting);
     }
-    template <typename Lock, typename Predicate>
-    void wait(Lock &lock, Predicate pred) {
+    template <typename Lock, typename Predicate> void wait(Lock &lock, Predicate pred) {
         while (!pred())
             wait(lock);
     }
@@ -190,8 +183,7 @@ public:
     }
 
 private:
-    template <typename Lock>
-    struct Relock {
+    template <typename Lock> struct Relock {
         explicit Relock(Lock &l) : lock(l) { lock.unlock(); }
         ~Relock() { lock.lock(); }
         Relock(const Relock &) = delete;

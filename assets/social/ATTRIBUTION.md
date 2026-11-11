@@ -33,8 +33,15 @@ clear space. Every tile says that Nt is not affiliated with The Qt Company, or i
 | 6 | A web service in six lines |
 | 7 | Widgets, the Qt way (the first tab of `hello_widgets`) |
 | 8 | Trust it, improve it (the Nt Development logo, as for contributor material) |
+| 9 | Qt APIs, now on Zephyr (`make_zephyr_tiles.py`) |
+| 10 | From QObject to firmware: the QEMU sample (`make_zephyr_tiles.py`) |
 
 ## Third-party material
+
+- `zephyr-logo-dark.svg` is the Zephyr logo (`doc/_static/images/logo-readme-dark.svg` of the Zephyr project), used in tiles 9 and 10
+  and in the five "Nt on Zephyr" posts in `linkedin/` (`make_linkedin_zephyr.py`, with a `.txt` caption beside each image) to
+  say that Nt runs on that RTOS. Zephyr is licensed under Apache-2.0; the Zephyr name and logo are trademarks of The Linux
+  Foundation, and their use here does not imply endorsement.
 
 - `github-fontawesome.svg` is the **GitHub** icon from [Font Awesome Free](https://fontawesome.com) 6.7.2,
   Copyright 2024 Fonticons, Inc., licensed under

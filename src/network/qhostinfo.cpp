@@ -78,6 +78,11 @@ private:
     There is no string-based \c SLOT() overload of lookupHost(). Each lookup
     uses its own thread rather than a shared pool, and abortHostLookup() only
     discards the result: the system resolver call itself runs to completion.
+
+    On Zephyr a lookup needs \c CONFIG_DNS_RESOLVER and runs in a thread with
+    a stack of \c CONFIG_NT_THREAD_STACK_SIZE bytes; if that thread cannot be
+    started, lookupHost() resolves the name before it returns. See \l{Nt on
+    Zephyr}.
     \enddifferences
 
     \sa QHostAddress

@@ -38,6 +38,9 @@
     removed from the system when the object that created it is destroyed: processes that have it
     open keep using it, but a process that opens the key afterwards gets a new one. There is no
     \c QNativeIpcKey, and so no constructor that takes one and no \c nativeIpcKey().
+
+    The class is not built for Zephyr, where \c QT_NO_SYSTEMSEMAPHORE is defined instead. See \l{Nt on
+    Zephyr}.
     \enddifferences
 
     \sa QSharedMemory, QSemaphore

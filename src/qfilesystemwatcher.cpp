@@ -328,6 +328,9 @@ struct QFileSystemWatcher::Private {
     object name \c{_qt_autotest_force_engine_poller} before adding paths, as
     in Qt's tests. Paths are watched as written: two spellings of the same
     file are two watches. There is no signal parameter \c QPrivateSignal.
+
+    The class is not built for Zephyr, where \c QT_NO_FILESYSTEMWATCHER is defined instead. See \l{Nt on
+    Zephyr}.
     \enddifferences
 
     \sa QFile, QDir

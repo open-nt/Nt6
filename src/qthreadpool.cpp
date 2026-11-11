@@ -37,6 +37,9 @@
     thread count of 0 or less is accepted but at least one thread is always used. The pool's
     threads are QThread objects, so \c QThread::currentThread() works in a task and
     \c contains() recognises it.
+
+    On Zephyr each thread of a pool takes a stack of \c CONFIG_NT_THREAD_STACK_SIZE bytes from the kernel
+    heap, and the default maximum is one thread. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QRunnable, QThread

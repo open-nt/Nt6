@@ -46,6 +46,10 @@
     was requested; only the \c Append, \c Truncate, \c Text and \c Unbuffered
     flags are honored. createNativeFile() copies resources only; a file that
     is reached through a custom file engine does not exist in Nt.
+
+    On Zephyr the default directory, \c{/tmp}, does not exist, so give a
+    template with an absolute path on a mounted file system. See \l{Nt on
+    Zephyr}.
     \enddifferences
 
     \sa QTemporaryDir, QFile, QSaveFile

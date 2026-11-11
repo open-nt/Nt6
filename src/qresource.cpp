@@ -398,6 +398,10 @@ struct QResource::Private {
     mapped. The data of a resource stays valid
     while the QResource exists or the tree is registered. The
     \c MapPrivateOption of registerResource() does not exist.
+
+    A cross build, such as one for Zephyr, runs an \c ntrcc that stores
+    resources uncompressed, as the target has neither zlib nor Zstandard. See
+    \l{Nt on Zephyr}.
     \enddifferences
 
     \sa {The Nt Resource System}, QFile, QDir

@@ -40,6 +40,8 @@
     \c proc, \c sysfs and the control groups, and of several volumes mounted on one directory only
     the one on top. name() is the label that udev lists in \c /dev/disk/by-label. subvolume() is the
     path of the mounted subvolume on Btrfs and empty for other file systems.
+
+    The class is not built for Zephyr, where \c QT_NO_STORAGEINFO is defined instead. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QDir, QFileInfo

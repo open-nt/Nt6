@@ -1,0 +1,9 @@
+Sockets and TLS, the Qt way.
+
+On Zephyr, Nt Network gives you QTcpSocket, QTcpServer, QUdpSocket and QNetworkAccessManager. Turn on CONFIG_NT_TLS and QSslSocket, QSslServer and https: arrive too, on Mbed TLS 4 and PSA cryptography (TLS 1.2 to start with).
+
+Three things to know on a device: Zephyr has no store of certificate authorities, so name the certificates to trust; a board with no battery-backed clock needs the time of day (SNTP, for example) before dates can be checked; and a handshake takes seconds on a core with no crypto hardware.
+
+https://github.com/open-nt/Nt6
+
+#zephyr #tls #mbedtls #embedded #iot #cpp

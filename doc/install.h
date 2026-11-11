@@ -250,12 +250,15 @@
 
     The libraries are static, so a program that links \c{Nt6::Network} also needs the OpenSSL
     development package, one that links \c{Nt6::Sql} that of SQLite (\c{libsqlite3-dev}), and one that links \c{Nt6::Gui} or \c{Nt6::Widgets} needs those of
-    FreeType, fontconfig and XCB (\c{libssl-dev libfreetype-dev libfontconfig-dev libxcb1-dev} on
+    FreeType, fontconfig, libjpeg (optional, for JPEG images) and XCB (\c{libssl-dev libfreetype-dev libfontconfig-dev libjpeg-dev libxcb1-dev} on
     Ubuntu). The \c{examples/hello} and \c{examples/widgets} directories are standalone projects to
     start from.
 
     Coming from Qt, read \l{The Nt Resource System} for how \c{.qrc} files are compiled with \c ntrcc, and
     \l{Using Nt Widgets} for user interfaces.
+
+    For a device without an operating system of this kind, Nt Core and Nt Network cross build
+    as a module of the Zephyr RTOS; see \l{Nt on Zephyr}.
 
     See \l{Nt Brand Guide} for the logo and the way to write Nt's name.
 

@@ -1,0 +1,11 @@
+Early days. Help shape it.
+
+An honest status for Nt on Zephyr: the sample runs and passes in QEMU, and another builds for the i.MX RT1170, but neither has run on a real board yet.
+
+Left out, because Zephyr has one process and no desktop: QProcess, QLibrary, QSharedMemory, QSystemSemaphore, QFileSystemWatcher, QStorageInfo and local sockets. Keep to one thread where you can, as sharing objects between threads is not safe yet. Files need absolute paths, and local time is UTC.
+
+If you have a board, try it and tell us what breaks. Issues and pull requests are welcome.
+
+https://github.com/open-nt/Nt6
+
+#zephyr #embedded #opensource #cpp #qt

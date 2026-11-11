@@ -29,6 +29,9 @@
     only POSIX descriptors are supported, and the \c Exception type watches for \c POLLPRI. There is
     no constructor taking only a type, no \c setSocket(), and the type of
     the \c activated() signal's first argument is always QSocketDescriptor.
+
+    On Zephyr the enabled notifiers of a thread, plus one, must not exceed \c CONFIG_ZVFS_POLL_MAX: beyond
+    that the event loop cannot wait for any of them, and prints a warning. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QSocketDescriptor, QEventLoop

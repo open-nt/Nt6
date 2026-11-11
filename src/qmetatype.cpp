@@ -1,4 +1,7 @@
 // MIT License - see LICENSE
+#include <QtCore/qcborarray.h>
+#include <QtCore/qcbormap.h>
+#include <QtCore/qcborvalue.h>
 #include <QtCore/qdatastream.h>
 #include <QtCore/qdatetime.h>
 #include <QtCore/qdebug.h>
@@ -189,6 +192,10 @@ const std::array<const QMetaTypeInterface *, kBuiltinCount> &builtinTable() {
         NT_ENTRY(QJsonDocument)
         NT_ENTRY(QByteArrayList)
         NT_ENTRY(std::nullptr_t)
+        NT_ENTRY(QCborSimpleType)
+        NT_ENTRY(QCborValue)
+        NT_ENTRY(QCborArray)
+        NT_ENTRY(QCborMap)
         NT_ENTRY(char16_t)
         NT_ENTRY(char32_t)
         NT_ENTRY(QList<QVariant>)

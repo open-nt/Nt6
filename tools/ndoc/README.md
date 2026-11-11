@@ -84,6 +84,10 @@ The syntax is a subset of QDoc's, so a comment reads the same as it would in Qt.
 
 Class names, `Class::member` and `function()` are linked automatically when they resolve.
 
+## Search
+
+Every page has a search box in its header, so the generated site needs no server-side search. It runs entirely in the browser, also from pages opened as `file://`. ndoc writes `search-index.js`, listing every module, page, class, member and enum value with its one-line summary (the `\brief`, or else the first sentence of the comment), and `script/ndoc-search.js`, which loads the index the first time the box is focused. Press `/` or Ctrl+K to focus the box, then use the arrow keys and Enter to open a result. Matches on the name rank first, with a leading `Q` optional, so `timer` finds `QTimer`. A query of several words matches entries whose name or summary contains all of them. Without JavaScript the box is hidden.
+
 ## Configuration
 
 Paths are relative to the config file.

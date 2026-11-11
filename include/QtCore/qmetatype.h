@@ -53,6 +53,10 @@ class QPersistentModelIndex;
 class QPartialOrdering;
 class QJsonValue;
 class QJsonObject;
+class QCborValue;
+class QCborArray;
+class QCborMap;
+enum class QCborSimpleType : quint8;
 class QJsonArray;
 class QJsonDocument;
 template <typename T> class QSet;
@@ -186,6 +190,10 @@ NT_BUILTIN_METATYPE(QJsonDocument, 48)
 NT_BUILTIN_METATYPE(QByteArrayList, 49)
 NT_BUILTIN_METATYPE(QPersistentModelIndex, 50)
 NT_BUILTIN_METATYPE(std::nullptr_t, 51)
+NT_BUILTIN_METATYPE(QCborSimpleType, 52)
+NT_BUILTIN_METATYPE(QCborValue, 53)
+NT_BUILTIN_METATYPE(QCborArray, 54)
+NT_BUILTIN_METATYPE(QCborMap, 55)
 NT_BUILTIN_METATYPE(char16_t, 56)
 NT_BUILTIN_METATYPE(char32_t, 57)
 NT_BUILTIN_METATYPE(QList<QVariant>, 9)
@@ -551,10 +559,10 @@ public:
         \value QJsonObject QJsonObject.
         \value QJsonArray QJsonArray.
         \value QJsonDocument QJsonDocument.
-        \value QCborSimpleType Reserved; Nt has no QCborSimpleType.
-        \value QCborValue Reserved; Nt has no QCborValue.
-        \value QCborArray Reserved; Nt has no QCborArray.
-        \value QCborMap Reserved; Nt has no QCborMap.
+        \value QCborSimpleType QCborSimpleType.
+        \value QCborValue QCborValue.
+        \value QCborArray QCborArray.
+        \value QCborMap QCborMap.
         \value QVariantMap \c{QMap<QString, QVariant>}.
         \value QVariantList \c{QList<QVariant>}.
         \value QVariantHash \c{QHash<QString, QVariant>}.

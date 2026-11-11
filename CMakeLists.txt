@@ -48,6 +48,12 @@ add_library(NtCore
     src/qbitarray.cpp
     src/qbuffer.cpp
     src/qbytearray.cpp
+    src/qcborarray.cpp
+    src/qcborcommon.cpp
+    src/qcbormap.cpp
+    src/qcborstreamreader.cpp
+    src/qcborstreamwriter.cpp
+    src/qcborvalue.cpp
     src/qcalendar.cpp
     src/qchar.cpp
     src/qchronotimer.cpp
@@ -837,7 +843,7 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_core_tests PRIVATE Nt::Core)
     add_test(NAME nt_core_tests COMMAND nt_core_tests)
 
-    foreach(suite animation coreapi coremore datetime filesystem globals models storage streams text types xmlstream)
+    foreach(suite animation cbor coreapi coremore datetime filesystem globals models storage streams text types xmlstream)
         add_executable(nt_${suite}_tests tests/test_${suite}.cpp)
         target_link_libraries(nt_${suite}_tests PRIVATE Nt::Core)
         add_test(NAME nt_${suite}_tests COMMAND nt_${suite}_tests)
@@ -1174,7 +1180,7 @@ if(NT_BUILD_TESTS)
 
     nt_set_compile_options(nt_tests nt_core_tests nt_core_value_tests nt_network_tests nt_moc_tests nt_ipc_tests
                            nt_test_tests)
-    foreach(suite animation coreapi coremore datetime filesystem globals models storage streams text types xmlstream)
+    foreach(suite animation cbor coreapi coremore datetime filesystem globals models storage streams text types xmlstream)
         nt_set_compile_options(nt_${suite}_tests)
     endforeach()
 endif()

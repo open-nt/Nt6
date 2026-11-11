@@ -4,7 +4,9 @@
 #include <QtCore/qglobal.h>
 #include <QtCore/qnamespace.h>
 
+#include <algorithm>
 #include <functional>
+#include <iterator>
 #include <string>
 
 class QByteArray;
@@ -235,6 +237,186 @@ public:
     const char *cbegin() const noexcept { return begin(); }
     /*! Returns a const iterator pointing just after the last byte in the array. */
     const char *cend() const noexcept { return end(); }
+    /*!
+        A mutable random-access iterator over the bytes of the array. It is a plain \c{char *}.
+    */
+    using iterator = char *;
+    /*!
+        A read-only random-access iterator over the bytes of the array. It is a plain \c{const char *}.
+    */
+    using const_iterator = const char *;
+    /*!
+        The reverse iterator type, for STL compatibility.
+    */
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    /*!
+        The const reverse iterator type, for STL compatibility.
+    */
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    /*!
+        Returns a const iterator pointing to the first byte in the array.
+
+        \sa constEnd(), begin()
+    */
+    const_iterator constBegin() const noexcept { return begin(); }
+    /*!
+        Returns a const iterator pointing just after the last byte in the array.
+
+        \sa constBegin(), end()
+    */
+    const_iterator constEnd() const noexcept { return end(); }
+    /*!
+        Returns a reverse iterator pointing to the last byte in the array.
+
+        \sa rend(), crbegin()
+    */
+    reverse_iterator rbegin() { return reverse_iterator(end()); }
+    /*!
+        \overload
+    */
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    /*!
+        Returns a reverse iterator pointing just before the first byte in the array.
+
+        \sa rbegin(), crend()
+    */
+    reverse_iterator rend() { return reverse_iterator(begin()); }
+    /*!
+        \overload
+    */
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    /*!
+        Returns a const reverse iterator pointing to the last byte in the array.
+
+        \sa rbegin(), crend()
+    */
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+    /*!
+        Returns a const reverse iterator pointing just before the first byte in the array.
+
+        \sa rend(), crbegin()
+    */
+    const_reverse_iterator crend() const noexcept { return rend(); }
+    /*!
+        \since 6.1
+        Removes the bytes from \a first up to, but not including, \a last.
+        Returns an iterator to the byte that followed the last removed one.
+
+        \sa remove()
+    */
+    iterator erase(const_iterator first, const_iterator last) {
+        const qsizetype start = first - constBegin();
+        d.erase(static_cast<std::size_t>(start), static_cast<std::size_t>(last - first));
+        return begin() + start;
+    }
+    /*!
+        \overload
+        \since 6.5
+        Removes the byte that \a it points to and returns an iterator to the
+        byte after it.
+    */
+    iterator erase(const_iterator it) { return erase(it, it + 1); }
+    /*!
+        \since 6.5
+        Removes the byte at index position \a pos and returns a reference to
+        this array. Nothing happens if \a pos is out of range.
+
+        \sa remove(), removeFirst(), removeLast()
+    */
+    QByteArray &removeAt(qsizetype pos) { return remove(pos, 1); }
+    /*!
+        \since 6.5
+        Removes the first byte and returns a reference to this array. Nothing
+        happens if the array is empty.
+
+        \sa removeLast(), removeAt()
+    */
+    QByteArray &removeFirst() { return remove(0, 1); }
+    /*!
+        \since 6.5
+        Removes the last byte and returns a reference to this array. Nothing
+        happens if the array is empty.
+
+        \sa removeFirst(), chop()
+    */
+    QByteArray &removeLast() { return remove(size() - 1, 1); }
+    /*!
+        \since 6.1
+        Removes every byte for which \a pred returns \c true and returns a
+        reference to this array. \a pred is called with a \c char.
+
+        \sa remove()
+    */
+    template <typename Predicate> QByteArray &removeIf(Predicate pred) {
+        d.erase(std::remove_if(d.begin(), d.end(), pred), d.end());
+        return *this;
+    }
+    /*!
+        \since 6.6
+        Replaces the contents with \a n copies of \a c and returns a reference
+        to this array.
+    */
+    QByteArray &assign(qsizetype n, char c) {
+        d.assign(static_cast<std::size_t>(n < 0 ? 0 : n), c);
+        m_null = false;
+        return *this;
+    }
+    /*!
+        \overload
+        \since 6.6
+        Replaces the contents with the bytes in the range [\a first, \a last)
+        and returns a reference to this array.
+    */
+    template <typename InputIterator, typename = typename std::iterator_traits<InputIterator>::iterator_category>
+    QByteArray &assign(InputIterator first, InputIterator last) {
+        d.assign(first, last);
+        m_null = false;
+        return *this;
+    }
+    /*!
+        Replaces the contents with a copy of the \a size bytes at \a data and
+        returns a reference to this array. Unlike in Qt, the data is copied.
+
+        \sa fromRawData()
+    */
+    QByteArray &setRawData(const char *data, qsizetype size) {
+        d.assign(data, static_cast<std::size_t>(data && size > 0 ? size : 0));
+        m_null = data == nullptr;
+        return *this;
+    }
+    /*!
+        Inserts \a c at the beginning of the array. Provided for compatibility
+        with the standard library.
+
+        \sa prepend(), push_back()
+    */
+    void push_front(char c) { prepend(c); }
+    /*!
+        \overload
+        Inserts \a a at the beginning of the array.
+    */
+    void push_front(const QByteArray &a) { prepend(a); }
+    /*!
+        Releases memory that is not needed to hold the bytes. Provided for
+        compatibility with the standard library.
+
+        \sa squeeze()
+    */
+    void shrink_to_fit() { squeeze(); }
+    /*!
+        \since 6.8
+        Returns the largest number of bytes an array can theoretically hold.
+
+        \sa maxSize()
+    */
+    qsizetype max_size() const noexcept { return maxSize(); }
+    /*!
+        \since 6.8
+        Returns the largest number of bytes an array can theoretically hold.
+
+        \sa max_size()
+    */
+    static constexpr qsizetype maxSize() noexcept { return static_cast<qsizetype>(~std::size_t(0) >> 1) - 1; }
 
     /*!
         Appends the byte array \a a to this byte array and returns a
@@ -737,6 +919,42 @@ inline char *qstrdup(const char *src) {
     char *copy = new char[size];
     std::char_traits<char>::copy(copy, src, size);
     return copy;
+}
+
+// The C string functions of Qt: like those of the C library, except that a null pointer is an empty string.
+inline std::size_t qstrlen(const char *str) { return str ? std::char_traits<char>::length(str) : 0; }
+inline std::size_t qstrnlen(const char *str, std::size_t maxlen) {
+    std::size_t n = 0;
+    while (str && n < maxlen && str[n] != '\0')
+        ++n;
+    return n;
+}
+// Copies src and its terminating '\0' to dst and returns dst, or nullptr if src is null.
+char *qstrcpy(char *dst, const char *src);
+// Copies at most len bytes of src to dst, always ending dst with '\0' when len is positive.
+char *qstrncpy(char *dst, const char *src, std::size_t len);
+// Compare byte by byte; a null pointer sorts before every string that is not null.
+int qstrcmp(const char *str1, const char *str2);
+int qstrcmp(const QByteArray &str1, const QByteArray &str2);
+int qstrcmp(const QByteArray &str1, const char *str2);
+inline int qstrcmp(const char *str1, const QByteArray &str2) { return -qstrcmp(str2, str1); }
+int qstrncmp(const char *str1, const char *str2, std::size_t len);
+// The same, ignoring the case of the ASCII letters.
+int qstricmp(const char *str1, const char *str2);
+int qstrnicmp(const char *str1, const char *str2, std::size_t len);
+// Like qstrnicmp() for two strings with a length each; a length of -1 reads str2 up to its '\0'.
+int qstrnicmp(const char *str1, qsizetype len1, const char *str2, qsizetype len2 = -1);
+
+// zlib compression in Qt's format: the size of the data as a big-endian quint32, then the zlib stream.
+// compressionLevel is 0 to 9, or -1 for the default of zlib. Both return an empty array on failure, and
+// when Nt was built without zlib.
+QByteArray qCompress(const uchar *data, qsizetype nbytes, int compressionLevel = -1);
+QByteArray qUncompress(const uchar *data, qsizetype nbytes);
+inline QByteArray qCompress(const QByteArray &data, int compressionLevel = -1) {
+    return qCompress(reinterpret_cast<const uchar *>(data.constData()), data.size(), compressionLevel);
+}
+inline QByteArray qUncompress(const QByteArray &data) {
+    return qUncompress(reinterpret_cast<const uchar *>(data.constData()), data.size());
 }
 
 inline QByteArray operator""_ba(const char *s, std::size_t n) { return QByteArray(s, static_cast<qsizetype>(n)); }

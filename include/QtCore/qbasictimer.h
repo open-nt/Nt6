@@ -65,6 +65,14 @@ public:
     */
     int timerId() const noexcept { return m_id; }
     /*!
+        \since 6.8
+        Returns the identifier of the timer as a Qt::TimerId, or
+        \c Qt::TimerId::Invalid if it is not running.
+
+        \sa timerId()
+    */
+    Qt::TimerId id() const noexcept { return static_cast<Qt::TimerId>(m_id); }
+    /*!
         Starts the timer with a timeout of \a msec milliseconds. \a object
         receives a QTimerEvent each time the timer fires. A running timer is
         stopped first. If \a msec is negative or \a object is \c nullptr the

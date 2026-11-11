@@ -174,6 +174,18 @@ public:
     */
     const T *data() const { return d; }
     /*!
+        \since 6.0
+        Returns a pointer to the data, detaching first if it is shared. This
+        is the same as data().
+    */
+    T *get() { return data(); }
+    /*!
+        \overload
+        \since 6.0
+        Returns a const pointer to the data without detaching.
+    */
+    const T *get() const noexcept { return d; }
+    /*!
         Returns a const pointer to the data without detaching.
 
         \sa data()
@@ -321,6 +333,12 @@ public:
         Returns a pointer to the data without detaching.
     */
     T *data() const noexcept { return d; }
+    /*!
+        \since 6.0
+        Returns a pointer to the data without detaching. This is the same as
+        data().
+    */
+    T *get() const noexcept { return d; }
     /*!
         Returns \c true if the pointer is not null; otherwise returns
         \c false.

@@ -26,6 +26,7 @@
 
     \sa QRectF, QPoint, QSize, QMargins
 */
+class QRectF;
 class QRect {
 public:
     /*!
@@ -572,6 +573,22 @@ public:
     friend constexpr QRect operator+(const QRect &r, const QMargins &m) noexcept { return r.marginsAdded(m); }
     friend constexpr QRect operator+(const QMargins &m, const QRect &r) noexcept { return r.marginsAdded(m); }
     friend constexpr QRect operator-(const QRect &r, const QMargins &m) noexcept { return r.marginsRemoved(m); }
+    /*!
+        \since 6.4
+        Returns this rectangle as a rectangle with floating point accuracy.
+
+        \sa QRectF::toRect()
+    */
+    constexpr QRectF toRectF() const noexcept;
+    /*!
+        \since 6.0
+        Returns a rectangle that spans the two points \a p1 and \a p2,
+        including both points.
+    */
+    static constexpr QRect span(const QPoint &p1, const QPoint &p2) noexcept {
+        return QRect(QPoint(std::min(p1.x(), p2.x()), std::min(p1.y(), p2.y())),
+                     QPoint(std::max(p1.x(), p2.x()), std::max(p1.y(), p2.y())));
+    }
 
 private:
     int x1 = 0, y1 = 0, x2 = -1, y2 = -1;
@@ -1173,3 +1190,5 @@ public:
 private:
     double xp = 0, yp = 0, w = 0, h = 0;
 };
+
+constexpr QRectF QRect::toRectF() const noexcept { return QRectF(*this); }

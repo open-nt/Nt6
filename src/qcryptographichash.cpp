@@ -649,6 +649,27 @@ QByteArray QCryptographicHash::hash(QByteArrayView data, Algorithm method) {
 }
 
 /*!
+    \since 6.8
+    Computes the digest of \a data with \a method and writes it to
+    \a buffer. Returns a view of the digest inside \a buffer, or a null view
+    if \a buffer is smaller than hashLength() of \a method or the digest
+    could not be computed.
+
+    \sa hash(), hashLength()
+*/
+QByteArrayView QCryptographicHash::hashInto(QSpan<char> buffer, QByteArrayView data, Algorithm method) noexcept {
+    try {
+        const QByteArray digest = hash(data, method);
+        if (digest.isEmpty() || buffer.size() < digest.size())
+            return QByteArrayView();
+        std::memcpy(buffer.data(), digest.constData(), static_cast<std::size_t>(digest.size()));
+        return QByteArrayView(buffer.data(), digest.size());
+    } catch (...) {
+        return QByteArrayView();
+    }
+}
+
+/*!
     Returns the size in bytes of the digest that \a method produces, or 0 if
     \a method is not supported.
 
@@ -778,4 +799,25 @@ QByteArray QMessageAuthenticationCode::hash(QByteArrayView message, QByteArrayVi
     QMessageAuthenticationCode mac(method, key);
     mac.addData(message);
     return mac.result();
+}
+
+/*!
+    \since 6.8
+    Computes the HMAC of \a message with the secret \a key and the algorithm
+    \a method, and writes it to \a buffer. Returns a view of the code inside
+    \a buffer, or a null view if \a buffer is too small for it.
+
+    \sa hash(), QCryptographicHash::hashLength()
+*/
+QByteArrayView QMessageAuthenticationCode::hashInto(QSpan<char> buffer, QByteArrayView message, QByteArrayView key,
+                                                    QCryptographicHash::Algorithm method) noexcept {
+    try {
+        const QByteArray code = hash(message, key, method);
+        if (code.isEmpty() || buffer.size() < code.size())
+            return QByteArrayView();
+        std::memcpy(buffer.data(), code.constData(), static_cast<std::size_t>(code.size()));
+        return QByteArrayView(buffer.data(), code.size());
+    } catch (...) {
+        return QByteArrayView();
+    }
 }

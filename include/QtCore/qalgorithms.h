@@ -6,6 +6,14 @@
 #include <limits>
 #include <type_traits>
 
+// Deletes the objects that the pointers in [begin, end) point to. The pointers themselves stay where they are.
+template <typename ForwardIterator> void qDeleteAll(ForwardIterator begin, ForwardIterator end) {
+    for (; begin != end; ++begin)
+        delete *begin;
+}
+// Deletes the objects that the pointers in the container c point to. The container keeps its (dangling) items.
+template <typename Container> void qDeleteAll(const Container &c) { qDeleteAll(c.begin(), c.end()); }
+
 namespace QtPrivate {
 
 // The number of bits that are set, counted in parallel: pairs, then nibbles, then the bytes are summed.

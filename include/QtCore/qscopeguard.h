@@ -121,6 +121,14 @@ public:
         \sa reblock()
     */
     void unblock() noexcept { if (obj) obj->blockSignals(previous); }
+    /*!
+        \since 6.7
+        Makes the blocker forget its object: the destructor then leaves the
+        object's signal-blocking state as it is.
+
+        \sa unblock()
+    */
+    void dismiss() noexcept { obj = nullptr; }
 
 private:
     QObject *obj;

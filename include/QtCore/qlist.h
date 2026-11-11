@@ -178,6 +178,15 @@ public:
         return static_cast<qsizetype>(n < limit ? n : limit);
     }
     /*!
+        \since 6.8
+        Returns the largest number of items a list can theoretically hold.
+
+        \sa max_size()
+    */
+    static constexpr qsizetype maxSize() noexcept {
+        return static_cast<qsizetype>(std::numeric_limits<qsizetype>::max() / static_cast<qsizetype>(sizeof(T)));
+    }
+    /*!
         Sets the size of the list to \a n. If \a n is larger than the current
         size, the new items are default-constructed; if it is smaller, items
         are removed from the end.
@@ -368,6 +377,17 @@ public:
     /*! Same as emplaceBack(\a args). This function is provided for STL compatibility. */
     template <typename... Args>
     T &emplace_back(Args &&...args) { return emplaceBack(std::forward<Args>(args)...); }
+    /*!
+        Constructs a new item at the beginning of the list from \a args and
+        returns a reference to it.
+
+        \sa emplaceBack(), prepend()
+    */
+    template <typename... Args> T &emplaceFront(Args &&...args) {
+        return *d.emplace(d.begin(), std::forward<Args>(args)...);
+    }
+    /*! Same as emplaceFront(\a args). This function is provided for STL compatibility. */
+    template <typename... Args> T &emplace_front(Args &&...args) { return emplaceFront(std::forward<Args>(args)...); }
     /*!
         Inserts \a t at index position \a i and returns an iterator to the
         inserted item. \a i must be between 0 and size().

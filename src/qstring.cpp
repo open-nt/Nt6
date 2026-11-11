@@ -1365,17 +1365,32 @@ int QString::compare(const QString &o, Qt::CaseSensitivity cs) const {
     following arguments. \a fmt is interpreted as UTF-8, and the output of
     \c vsnprintf() is decoded as UTF-8.
 
-    \sa arg()
+    \sa vasprintf(), arg()
 */
 QString QString::asprintf(const char *fmt, ...) {
-    va_list ap, ap2;
+    va_list ap;
     va_start(ap, fmt);
-    va_copy(ap2, ap);
-    const int n = std::vsnprintf(nullptr, 0, fmt, ap);
+    QString result = vasprintf(fmt, ap);
     va_end(ap);
-    std::string buf(static_cast<std::size_t>(n < 0 ? 0 : n), '\0');
-    if (n > 0)
-        std::vsnprintf(buf.data(), buf.size() + 1, fmt, ap2);
+    return result;
+}
+
+/*!
+    Returns a string built from the \c printf()-style format \a fmt and the
+    argument list \a ap, like asprintf(). \a ap is left unchanged.
+
+    \sa asprintf()
+*/
+QString QString::vasprintf(const char *fmt, va_list ap) {
+    va_list ap2;
+    va_copy(ap2, ap);
+    const int n = std::vsnprintf(nullptr, 0, fmt, ap2);
     va_end(ap2);
+    std::string buf(static_cast<std::size_t>(n < 0 ? 0 : n), '\0');
+    if (n > 0) {
+        va_copy(ap2, ap);
+        std::vsnprintf(buf.data(), buf.size() + 1, fmt, ap2);
+        va_end(ap2);
+    }
     return fromUtf8(buf.data(), static_cast<qsizetype>(buf.size()));
 }

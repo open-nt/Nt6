@@ -65,6 +65,102 @@ public:
         \sa capacity()
     */
     void squeeze() { this->d.rehash(0); }
+    /*!
+        Returns the number of buckets in the hash table. Provided for
+        compatibility with the standard library.
+
+        \sa capacity(), load_factor()
+    */
+    std::size_t bucket_count() const noexcept { return this->d.bucket_count(); }
+    /*!
+        Returns the largest number of buckets the hash table can have.
+
+        \sa bucket_count()
+    */
+    std::size_t max_bucket_count() const noexcept { return this->d.max_bucket_count(); }
+    /*!
+        Returns the average number of items per bucket.
+
+        \sa max_load_factor(), bucket_count()
+    */
+    float load_factor() const noexcept { return this->d.load_factor(); }
+    /*!
+        Returns the load factor above which the hash table grows.
+
+        \sa load_factor()
+    */
+    float max_load_factor() const noexcept { return this->d.max_load_factor(); }
+    /*!
+        \class QHash::TryEmplaceResult
+        \since 6.9
+        \brief The QHash::TryEmplaceResult struct is the result of QHash::tryEmplace() and its relatives.
+
+        \differences
+        None.
+        \enddifferences
+    */
+    struct TryEmplaceResult {
+        /*! The item with the key, whether it was inserted or was there already. */
+        typename Base::iterator iterator;
+        /*! \c true if a new item was inserted; \c false if the key was there already. */
+        bool inserted = false;
+    };
+    /*!
+        \since 6.9
+        Inserts an item with the key \a k and a value constructed from
+        \a args, unless the hash has an item with that key already; an
+        existing value is left unchanged. Returns the item and whether it was
+        inserted.
+
+        \sa tryInsert(), insertOrAssign(), emplace()
+    */
+    template <typename... Args> TryEmplaceResult tryEmplace(const K &k, Args &&...args) {
+        auto r = this->d.try_emplace(k, std::forward<Args>(args)...);
+        return {typename Base::iterator(r.first), r.second};
+    }
+    /*!
+        \since 6.9
+        Inserts an item with the key \a k and the value \a v, unless the hash
+        has an item with that key already; an existing value is left
+        unchanged. Returns the item and whether it was inserted.
+
+        \sa tryEmplace(), insertOrAssign()
+    */
+    TryEmplaceResult tryInsert(const K &k, const V &v) { return tryEmplace(k, v); }
+    /*!
+        \since 6.9
+        Inserts an item with the key \a k and the value \a v, or assigns \a v
+        to the item that has that key already. Returns the item and whether it
+        was inserted.
+
+        \sa tryInsert(), insert()
+    */
+    template <typename Value> TryEmplaceResult insertOrAssign(const K &k, Value &&v) {
+        auto r = this->d.insert_or_assign(k, std::forward<Value>(v));
+        return {typename Base::iterator(r.first), r.second};
+    }
+    /*!
+        \since 6.9
+        Does the same as tryEmplace() with the key \a k and \a args, and
+        returns the item and whether it was inserted as a \c std::pair.
+        Provided for compatibility with the standard library.
+    */
+    template <typename... Args>
+    std::pair<typename Base::key_value_iterator, bool> try_emplace(const K &k, Args &&...args) {
+        auto r = tryEmplace(k, std::forward<Args>(args)...);
+        return {typename Base::key_value_iterator(r.iterator), r.inserted};
+    }
+    /*!
+        \since 6.9
+        Does the same as insertOrAssign() with the key \a k and the value
+        \a v, and returns the item and whether it was inserted as a
+        \c std::pair. Provided for compatibility with the standard library.
+    */
+    template <typename Value>
+    std::pair<typename Base::key_value_iterator, bool> insert_or_assign(const K &k, Value &&v) {
+        auto r = insertOrAssign(k, std::forward<Value>(v));
+        return {typename Base::key_value_iterator(r.iterator), r.inserted};
+    }
 };
 
 /*!
@@ -116,6 +212,31 @@ public:
         \sa capacity()
     */
     void squeeze() { this->d.rehash(0); }
+    /*!
+        Returns the number of buckets in the hash table. Provided for
+        compatibility with the standard library.
+
+        \sa capacity(), load_factor()
+    */
+    std::size_t bucket_count() const noexcept { return this->d.bucket_count(); }
+    /*!
+        Returns the largest number of buckets the hash table can have.
+
+        \sa bucket_count()
+    */
+    std::size_t max_bucket_count() const noexcept { return this->d.max_bucket_count(); }
+    /*!
+        Returns the average number of items per bucket.
+
+        \sa max_load_factor(), bucket_count()
+    */
+    float load_factor() const noexcept { return this->d.load_factor(); }
+    /*!
+        Returns the load factor above which the hash table grows.
+
+        \sa load_factor()
+    */
+    float max_load_factor() const noexcept { return this->d.max_load_factor(); }
     /*!
         Returns the keys of the hash, each key listed once even if it has
         several values. The order of the keys is unspecified.
@@ -213,6 +334,13 @@ public:
         \sa size()
     */
     bool isEmpty() const noexcept { return d.empty(); }
+    /*!
+        Returns \c true if the set has no values. Provided for compatibility
+        with the standard library.
+
+        \sa isEmpty()
+    */
+    bool empty() const noexcept { return d.empty(); }
     /*!
         Removes all values from the set.
 

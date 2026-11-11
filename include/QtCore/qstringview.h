@@ -619,6 +619,12 @@ public:
     static constexpr qsizetype max_size() noexcept {
         return static_cast<qsizetype>((~std::size_t(0) >> 1) / sizeof(char16_t));
     }
+    /*!
+        \since 6.8
+        Returns the largest number of characters a view can refer to. This is
+        the same as max_size().
+    */
+    static constexpr qsizetype maxSize() noexcept { return max_size(); }
 
     /*!
         \since 6.8

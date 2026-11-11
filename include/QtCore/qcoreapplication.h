@@ -15,6 +15,9 @@ public:
     ~QCoreApplication() override;
 
     static QCoreApplication *instance();
+    static bool instanceExists() noexcept;
+    static bool startingUp();
+    static bool closingDown();
     static QAbstractEventDispatcher *eventDispatcher();
 
     // The command line as passed to the constructor, decoded as UTF-8.
@@ -77,6 +80,8 @@ using QtCleanUpFunction = void (*)();
 void qAddPreRoutine(QtStartUpFunction function);
 // Calls the function when the application object is destroyed; the routines run last added, first called.
 void qAddPostRoutine(QtCleanUpFunction function);
+// The name of the application: QCoreApplication::applicationName().
+QString qAppName();
 void qRemovePostRoutine(QtCleanUpFunction function);
 // Registers a function of the file to run when the application object is constructed.
 #define Q_COREAPP_STARTUP_FUNCTION(AFUNC)                                                                              \

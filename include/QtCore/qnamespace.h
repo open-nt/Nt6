@@ -142,6 +142,20 @@ enum SplitBehaviorFlags {
 Q_DECLARE_FLAGS(SplitBehavior, SplitBehaviorFlags)
 
 /*!
+    \enum Qt::TimerId
+    \since 6.8
+
+    The type of a timer identifier, as returned by QTimer::id() and
+    QBasicTimer::id(). The value is the \c int identifier that
+    QObject::startTimer() returns.
+
+    \value Invalid The identifier of a timer that is not running.
+
+    \sa QTimer::id(), QBasicTimer::id(), QTimerEvent::id()
+*/
+enum class TimerId { Invalid = 0 };
+
+/*!
     \enum Qt::TimerType
 
     This enum describes the accuracy a timer should have.

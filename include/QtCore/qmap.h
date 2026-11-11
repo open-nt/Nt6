@@ -112,6 +112,16 @@ public:
         \sa first()
     */
     V takeFirst() { return this->take(firstKey()); }
+    /*!
+        Returns a \c std::map with the items of the map.
+    */
+    std::map<K, V> toStdMap() const & { return this->d; }
+    /*!
+        \overload
+        \since 6.0
+        Moves the items out of the map.
+    */
+    std::map<K, V> toStdMap() && { return std::move(this->d); }
 };
 
 /*!
@@ -227,4 +237,14 @@ public:
         \overload
     */
     const V &last() const { return std::prev(this->d.end())->second; }
+    /*!
+        Returns a \c std::multimap with the items of the map.
+    */
+    std::multimap<K, V> toStdMultiMap() const & { return this->d; }
+    /*!
+        \overload
+        \since 6.0
+        Moves the items out of the map.
+    */
+    std::multimap<K, V> toStdMultiMap() && { return std::move(this->d); }
 };

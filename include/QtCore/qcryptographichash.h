@@ -3,7 +3,9 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qbytearrayview.h>
+#include <QtCore/qspan.h>
 
+#include <cstddef>
 #include <memory>
 #include <utility>
 
@@ -74,6 +76,25 @@ public:
     QByteArrayView resultView() const noexcept;
 
     static QByteArray hash(QByteArrayView data, Algorithm method);
+    static QByteArrayView hashInto(QSpan<char> buffer, QByteArrayView data, Algorithm method) noexcept;
+    /*!
+        \overload
+        \since 6.8
+        Writes the digest into \a buffer, a span of \c{unsigned char}; the
+        result is computed over \a data with \a method.
+    */
+    static QByteArrayView hashInto(QSpan<unsigned char> buffer, QByteArrayView data, Algorithm method) noexcept {
+        return hashInto(QSpan<char>(reinterpret_cast<char *>(buffer.data()), buffer.size()), data, method);
+    }
+    /*!
+        \overload
+        \since 6.8
+        Writes the digest into \a buffer, a span of \c{std::byte}; the result
+        is computed over \a data with \a method.
+    */
+    static QByteArrayView hashInto(QSpan<std::byte> buffer, QByteArrayView data, Algorithm method) noexcept {
+        return hashInto(QSpan<char>(reinterpret_cast<char *>(buffer.data()), buffer.size()), data, method);
+    }
     static int hashLength(Algorithm method);
     static bool supportsAlgorithm(Algorithm method);
 
@@ -102,6 +123,8 @@ public:
     QByteArrayView resultView() const;
 
     static QByteArray hash(QByteArrayView message, QByteArrayView key, QCryptographicHash::Algorithm method);
+    static QByteArrayView hashInto(QSpan<char> buffer, QByteArrayView message, QByteArrayView key,
+                                   QCryptographicHash::Algorithm method) noexcept;
 
 private:
     QCryptographicHash::Algorithm m_method;

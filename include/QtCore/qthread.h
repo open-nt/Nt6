@@ -54,6 +54,7 @@ public:
     static int idealThreadCount() noexcept;
     static void yieldCurrentThread();
     static bool isMainThread();
+    bool isCurrentThread() const noexcept;
 
     void setPriority(Priority priority);
     Priority priority() const;

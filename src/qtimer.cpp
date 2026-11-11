@@ -55,6 +55,15 @@ bool QTimer::isActive() const { return m_id != 0; }
 int QTimer::timerId() const { return m_id; }
 
 /*!
+    \since 6.8
+    Returns the identifier of the running timer as a Qt::TimerId, or
+    \c Qt::TimerId::Invalid if it is not running.
+
+    \sa timerId()
+*/
+Qt::TimerId QTimer::id() const { return static_cast<Qt::TimerId>(m_id); }
+
+/*!
     Sets the timeout interval to \a msec milliseconds.
 
     If the timer is running it restarts, so the next timeout is a full

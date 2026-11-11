@@ -487,6 +487,12 @@ public:
     static constexpr qsizetype max_size() noexcept {
         return static_cast<qsizetype>(std::numeric_limits<qsizetype>::max() / static_cast<qsizetype>(sizeof(T)));
     }
+    /*!
+        \since 6.8
+        Returns the largest number of items the array can theoretically hold.
+        This is the same as max_size().
+    */
+    static constexpr qsizetype maxSize() noexcept { return max_size(); }
     /*! Same as squeeze(). This function is provided for STL compatibility. */
     void shrink_to_fit() { squeeze(); }
     /*!

@@ -194,6 +194,73 @@ public:
     const_iterator constBegin() const { return begin(); }
     const_iterator constEnd() const { return end(); }
 
+    bool empty() const noexcept { return d.empty(); }
+    std::pair<iterator, iterator> equal_range(const K &k) {
+        auto r = d.equal_range(k);
+        return {iterator(r.first), iterator(r.second)};
+    }
+    std::pair<const_iterator, const_iterator> equal_range(const K &k) const {
+        auto r = d.equal_range(k);
+        return {const_iterator(r.first), const_iterator(r.second)};
+    }
+
+    // Iterates over the keys: `*it` is the key of the item.
+    class key_iterator {
+    public:
+        using iterator_category = typename const_iterator::iterator_category;
+        using value_type = K;
+        using difference_type = std::ptrdiff_t;
+        using pointer = const K *;
+        using reference = const K &;
+
+        key_iterator() = default;
+        explicit key_iterator(const_iterator i) : it(i) {}
+        const K &operator*() const { return it.key(); }
+        const K *operator->() const { return &it.key(); }
+        key_iterator &operator++() {
+            ++it;
+            return *this;
+        }
+        key_iterator operator++(int) {
+            auto t = *this;
+            ++it;
+            return t;
+        }
+        key_iterator &operator--() {
+            --it;
+            return *this;
+        }
+        key_iterator operator--(int) {
+            auto t = *this;
+            --it;
+            return t;
+        }
+        friend bool operator==(const key_iterator &a, const key_iterator &b) { return a.it == b.it; }
+        friend bool operator!=(const key_iterator &a, const key_iterator &b) { return a.it != b.it; }
+        const_iterator base() const { return it; }
+
+    private:
+        const_iterator it{};
+    };
+    key_iterator keyBegin() const { return key_iterator(begin()); }
+    key_iterator keyEnd() const { return key_iterator(end()); }
+
+    template <bool M = Multi, typename = std::enable_if_t<M>> AssocContainer &unite(const AssocContainer &other) {
+        if (&other == this) {
+            const Container copy = other.d;
+            for (const auto &p : copy)
+                d.emplace(p.first, p.second);
+        } else {
+            for (const auto &p : other.d)
+                d.emplace(p.first, p.second);
+        }
+        return *this;
+    }
+    template <typename... Args, bool M = Multi, typename = std::enable_if_t<M>>
+    iterator emplaceReplace(const K &k, Args &&...args) {
+        return replace(k, V(std::forward<Args>(args)...));
+    }
+
     using key_value_iterator = QKeyValueIterator<const K &, V &, iterator>;
     using const_key_value_iterator = QKeyValueIterator<const K &, const V &, const_iterator>;
     key_value_iterator keyValueBegin() { return key_value_iterator(begin()); }

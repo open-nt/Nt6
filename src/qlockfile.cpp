@@ -8,11 +8,13 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <atomic>
 #include <cerrno>
 #include <chrono>
 #include <climits>
 #include <csignal>
+#include <limits>
 #include <cstdlib>
 #include <cstring>
 #include <thread>
@@ -396,6 +398,44 @@ void QLockFile::setStaleLockTime(int staleLockTime) { d->staleTime = staleLockTi
     \sa setStaleLockTime()
 */
 int QLockFile::staleLockTime() const { return d->staleTime; }
+
+/*!
+    \overload
+    \since 6.2
+    Sets the time after which a lock file is considered stale to \a value.
+
+    \sa staleLockTimeAsDuration()
+*/
+void QLockFile::setStaleLockTime(std::chrono::milliseconds value) {
+    const auto limit = static_cast<std::chrono::milliseconds::rep>(std::numeric_limits<int>::max());
+    setStaleLockTime(static_cast<int>(std::min(value.count(), limit)));
+}
+
+/*!
+    \since 6.2
+    Returns the time after which a lock file is considered stale, as a
+    duration.
+
+    \sa staleLockTime(), setStaleLockTime()
+*/
+std::chrono::milliseconds QLockFile::staleLockTimeAsDuration() const { return std::chrono::milliseconds(d->staleTime); }
+
+/*!
+    \since 6.6
+    Returns the name of the lock file, as given to the constructor.
+*/
+QString QLockFile::fileName() const { return d->fileName; }
+
+/*!
+    \overload
+    \since 6.2
+    Tries to create the lock file like tryLock(int), waiting for at most
+    \a timeout. A negative \a timeout waits for as long as it takes.
+*/
+bool QLockFile::tryLock(std::chrono::milliseconds timeout) {
+    const auto limit = static_cast<std::chrono::milliseconds::rep>(std::numeric_limits<int>::max());
+    return tryLock(timeout.count() < 0 ? -1 : static_cast<int>(std::min(timeout.count(), limit)));
+}
 
 /*!
     Returns \c true if the lock was acquired by this QLockFile instance,

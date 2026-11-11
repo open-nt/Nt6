@@ -87,6 +87,45 @@ public:
     */
     QDebug &noquote() { s->quote = false; return *this; }
     /*!
+        \since 6.10
+        Returns \c true if strings, characters and byte arrays are written in
+        quotes; otherwise returns \c false.
+
+        \sa setQuoteStrings(), quote(), noquote()
+    */
+    bool quoteStrings() const noexcept { return s->quote; }
+    /*!
+        \since 6.10
+        Turns the quoting of strings, characters and byte arrays on if \a b
+        is \c true and off otherwise.
+
+        \sa quoteStrings(), quote(), noquote()
+    */
+    void setQuoteStrings(bool b) { s->quote = b; }
+    /*!
+        \since 6.0
+        Returns \a object written to a debug stream, as a string. The stream
+        does not insert spaces, so the result is what \c{qDebug().nospace()}
+        would print.
+
+        \sa toBytes()
+    */
+    template <typename T> static QString toString(const T &object) {
+        QString buffer;
+        {
+            QDebug stream(&buffer);
+            stream.nospace() << object;
+        }
+        return buffer;
+    }
+    /*!
+        \since 6.9
+        Returns \a object written to a debug stream, as UTF-8 encoded bytes.
+
+        \sa toString()
+    */
+    template <typename T> static QByteArray toBytes(const T &object) { return toString(object).toUtf8(); }
+    /*!
         Writes the character \a c to the stream if quoting is enabled, and
         returns a reference to the stream.
 

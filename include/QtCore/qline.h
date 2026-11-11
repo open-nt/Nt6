@@ -17,6 +17,7 @@
 
     \sa QLineF, QPoint
 */
+class QLineF;
 class QLine {
 public:
     /*!
@@ -153,6 +154,13 @@ public:
 
     friend constexpr bool operator==(const QLine &l, const QLine &r) noexcept { return l.a == r.a && l.b == r.b; }
     friend constexpr bool operator!=(const QLine &l, const QLine &r) noexcept { return !(l == r); }
+    /*!
+        \since 6.4
+        Returns this line as a line with floating point accuracy.
+
+        \sa QLineF::toLine()
+    */
+    constexpr QLineF toLineF() const noexcept;
 
 private:
     QPoint a, b;
@@ -459,3 +467,5 @@ public:
 private:
     QPointF a, b;
 };
+
+constexpr QLineF QLine::toLineF() const noexcept { return QLineF(*this); }

@@ -194,6 +194,42 @@ public:
     */
     QAnyStringView chopped(qsizetype count) const { return slice(0, n - count); }
     /*!
+        Returns a view of the first \a count code units, or the whole view if
+        \a count is negative or larger than size().
+
+        \sa first(), right(), mid()
+    */
+    QAnyStringView left(qsizetype count) const { return slice(0, count < 0 || count > n ? n : count); }
+    /*!
+        Returns a view of the last \a count code units, or the whole view if
+        \a count is negative or larger than size().
+
+        \sa last(), left(), mid()
+    */
+    QAnyStringView right(qsizetype count) const {
+        const qsizetype c = count < 0 || count > n ? n : count;
+        return slice(n - c, c);
+    }
+    /*!
+        Returns a view of \a count code units from index \a pos, or of the
+        code units from \a pos to the end if \a count is negative or reaches
+        past the end. Returns an empty view if \a pos is out of range.
+
+        \sa sliced(), left(), right()
+    */
+    QAnyStringView mid(qsizetype pos, qsizetype count = -1) const {
+        if (pos < 0 || pos > n)
+            return slice(0, 0);
+        if (count < 0 || count > n - pos)
+            count = n - pos;
+        return slice(pos, count);
+    }
+    /*!
+        \since 6.8
+        Returns the largest number of code units a view can refer to.
+    */
+    static constexpr qsizetype max_size() noexcept { return static_cast<qsizetype>(~std::size_t(0) >> 3); }
+    /*!
         \since 6.5
         Shortens the view to \a count code units.
     */

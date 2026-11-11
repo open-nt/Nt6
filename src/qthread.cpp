@@ -277,6 +277,14 @@ bool QThread::isMainThread() {
 }
 
 /*!
+    Returns \c true if this object stands for the calling thread; otherwise returns \c false.
+
+    \since 6.8
+    \sa currentThread()
+*/
+bool QThread::isCurrentThread() const noexcept { return QThread::currentThread() == this; }
+
+/*!
     Sets the priority of the running thread to \a priority. It does nothing and prints a
     warning if the thread is not running, and \c InheritPriority is ignored.
 

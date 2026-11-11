@@ -328,6 +328,32 @@ public:
         \sa first(), last()
     */
     constexpr QSpan<T> chopped(qsizetype c) const { return first(n - c); }
+    /*!
+        \since 6.9
+        Removes the last \a c elements from the span.
+
+        \sa chopped(), slice()
+    */
+    constexpr void chop(qsizetype c) { n -= c; }
+    /*!
+        \since 6.9
+        Removes the elements before index \a pos from the span.
+
+        \sa sliced(), chop()
+    */
+    constexpr void slice(qsizetype pos) {
+        p += pos;
+        n -= pos;
+    }
+    /*!
+        \overload
+        \since 6.9
+        Makes the span refer to \a c elements starting at index \a pos.
+    */
+    constexpr void slice(qsizetype pos, qsizetype c) {
+        p += pos;
+        n = c;
+    }
 
 private:
     T *p = nullptr;

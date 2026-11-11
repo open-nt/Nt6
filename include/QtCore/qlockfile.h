@@ -3,6 +3,7 @@
 
 #include <QtCore/qstring.h>
 
+#include <chrono>
 #include <memory>
 
 class QLockFile {
@@ -27,9 +28,13 @@ public:
 
     bool lock();
     bool tryLock(int timeout = 0);
+    bool tryLock(std::chrono::milliseconds timeout);
     void unlock();
     void setStaleLockTime(int staleLockTime);
     int staleLockTime() const;
+    void setStaleLockTime(std::chrono::milliseconds value);
+    std::chrono::milliseconds staleLockTimeAsDuration() const;
+    QString fileName() const;
     bool isLocked() const;
     bool getLockInfo(qint64 *pid, QString *hostname, QString *appname) const;
     bool removeStaleLockFile();

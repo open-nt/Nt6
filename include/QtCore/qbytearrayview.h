@@ -387,6 +387,12 @@ public:
         Returns the largest number of bytes a view can refer to.
     */
     static constexpr qsizetype max_size() noexcept { return static_cast<qsizetype>(~std::size_t(0) >> 1); }
+    /*!
+        \since 6.8
+        Returns the largest number of bytes a view can refer to. This is the
+        same as max_size().
+    */
+    static constexpr qsizetype maxSize() noexcept { return max_size(); }
 
     /*!
         Returns the number of occurrences of \a s in the view, which may

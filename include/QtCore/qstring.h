@@ -8,6 +8,7 @@
 #include <QtCore/qnamespace.h>
 
 #include <algorithm>
+#include <cstdarg>
 #include <functional>
 #include <iterator>
 #include <string>
@@ -224,6 +225,10 @@ public:
     constexpr const char *cend() const noexcept { return p + n; }
 
     /*!
+        A read-only iterator over the characters of the view. It is a plain \c{const char *}.
+    */
+    using const_iterator = const char *;
+    /*!
         A read-only reverse iterator over the characters of the view.
     */
     using const_reverse_iterator = std::reverse_iterator<const char *>;
@@ -284,6 +289,24 @@ public:
         Returns the largest number of characters a view can refer to.
     */
     static constexpr qsizetype max_size() noexcept { return static_cast<qsizetype>(~std::size_t(0) >> 1); }
+    /*!
+        \since 6.8
+        Returns the largest number of characters a view can refer to. This is
+        the same as max_size().
+    */
+    static constexpr qsizetype maxSize() noexcept { return max_size(); }
+    /*!
+        Returns a const iterator pointing to the first character of the view. This is the same as begin().
+    */
+    constexpr const_iterator constBegin() const noexcept { return begin(); }
+    /*!
+        Returns a const iterator pointing just after the last character of the view. This is the same as end().
+    */
+    constexpr const_iterator constEnd() const noexcept { return end(); }
+    /*!
+        Returns a pointer to the Latin-1 characters of the view. This is the same as data().
+    */
+    constexpr const char *constData() const noexcept { return p; }
 
     /*!
         \since 6.8
@@ -476,6 +499,14 @@ public:
         A read-only random-access iterator over the characters of the string. It is a plain \c{const QChar *}.
     */
     using const_iterator = const QChar *;
+    /*!
+        The reverse iterator type, for STL compatibility.
+    */
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    /*!
+        The const reverse iterator type, for STL compatibility.
+    */
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
     /*!
         The element type of the string, for STL compatibility.
     */
@@ -1359,6 +1390,124 @@ public:
         d.erase(std::remove_if(d.begin(), d.end(), [&pred](char16_t u) { return pred(QChar(u)); }), d.end());
         return *this;
     }
+    /*!
+        \since 6.5
+        Removes the character at index position \a pos and returns a
+        reference to this string. Nothing happens if \a pos is out of range.
+
+        \sa remove(), removeFirst(), removeLast()
+    */
+    QString &removeAt(qsizetype pos) { return remove(pos, 1); }
+    /*!
+        \since 6.5
+        Removes the first character and returns a reference to this string.
+        Nothing happens if the string is empty.
+
+        \sa removeLast(), removeAt()
+    */
+    QString &removeFirst() { return remove(0, 1); }
+    /*!
+        \since 6.5
+        Removes the last character and returns a reference to this string.
+        Nothing happens if the string is empty.
+
+        \sa removeFirst(), chop()
+    */
+    QString &removeLast() { return remove(size() - 1, 1); }
+    /*!
+        \since 6.1
+        Removes the characters from \a first up to, but not including,
+        \a last. Returns an iterator to the character that followed the last
+        removed one.
+
+        \sa remove()
+    */
+    iterator erase(const_iterator first, const_iterator last) {
+        const qsizetype start = first - constBegin();
+        remove(start, last - first);
+        return begin() + start;
+    }
+    /*!
+        \overload
+        \since 6.5
+        Removes the character that \a it points to and returns an iterator to
+        the character after it.
+    */
+    iterator erase(const_iterator it) { return erase(it, it + 1); }
+    /*!
+        Inserts \a c at the beginning of the string. Provided for
+        compatibility with the standard library.
+
+        \sa prepend(), push_back()
+    */
+    void push_front(QChar c) { prepend(c); }
+    /*!
+        \overload
+        Inserts \a s at the beginning of the string.
+    */
+    void push_front(const QString &s) { prepend(s); }
+    /*!
+        Releases memory that is not needed to hold the characters. Provided
+        for compatibility with the standard library.
+
+        \sa squeeze()
+    */
+    void shrink_to_fit() { squeeze(); }
+    /*!
+        \since 6.8
+        Returns the largest number of characters a string can theoretically
+        hold.
+
+        \sa maxSize()
+    */
+    qsizetype max_size() const noexcept { return maxSize(); }
+    /*!
+        \since 6.8
+        Returns the largest number of characters a string can theoretically
+        hold.
+
+        \sa max_size()
+    */
+    static constexpr qsizetype maxSize() noexcept {
+        return static_cast<qsizetype>((~std::size_t(0) >> 1) / sizeof(char16_t)) - 1;
+    }
+    /*!
+        Returns a reverse iterator pointing to the last character of the
+        string.
+
+        \sa rend(), crbegin()
+    */
+    reverse_iterator rbegin() { return reverse_iterator(end()); }
+    /*!
+        \overload
+    */
+    const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+    /*!
+        Returns a reverse iterator pointing just before the first character
+        of the string.
+
+        \sa rbegin(), crend()
+    */
+    reverse_iterator rend() { return reverse_iterator(begin()); }
+    /*!
+        \overload
+    */
+    const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
+    /*!
+        Returns a const reverse iterator pointing to the last character of
+        the string.
+
+        \sa rbegin(), crend()
+    */
+    const_reverse_iterator crbegin() const { return rbegin(); }
+    /*!
+        Returns a const reverse iterator pointing just before the first
+        character of the string.
+
+        \sa rend(), crbegin()
+    */
+    const_reverse_iterator crend() const { return rend(); }
+    static QString vasprintf(const char *fmt, va_list ap) __attribute__((format(printf, 1, 0)));
     QString &assign(const QAnyStringView &v);
     /*!
         \since 6.6

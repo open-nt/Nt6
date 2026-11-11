@@ -25,6 +25,7 @@ public:
 
     bool isActive() const;
     int timerId() const;
+    Qt::TimerId id() const;
 
     void setInterval(int msec);
     void setInterval(std::chrono::milliseconds interval);

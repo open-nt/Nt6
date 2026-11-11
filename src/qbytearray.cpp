@@ -5,8 +5,16 @@
 
 #include <QtCore/qlist.h>
 
+#ifdef NT_HAVE_ZLIB
+#include <zlib.h>
+#endif
+
 #include <algorithm>
 #include <climits>
+#include <cstdio>
+#include <cstring>
+#include <limits>
+#include <new>
 
 static char lowerAscii(char c) { return (c >= 'A' && c <= 'Z') ? static_cast<char>(c + 32) : c; }
 static bool isSpaceAscii(char c) { return c == ' ' || (c >= '\t' && c <= '\r'); }
@@ -857,4 +865,165 @@ int QByteArray::compare(const QByteArray &o, Qt::CaseSensitivity cs) const {
     if (cs == Qt::CaseSensitive)
         return d.compare(o.d);
     return toLower().d.compare(o.toLower().d);
+}
+
+char *qstrcpy(char *dst, const char *src) {
+    if (!src)
+        return nullptr;
+    std::memcpy(dst, src, std::strlen(src) + 1);
+    return dst;
+}
+
+char *qstrncpy(char *dst, const char *src, std::size_t len) {
+    if (!dst || !src)
+        return nullptr;
+    if (len > 0) {
+        const std::size_t n = qstrnlen(src, len - 1);
+        std::memcpy(dst, src, n);
+        std::memset(dst + n, 0, len - n);
+    }
+    return dst;
+}
+
+int qstrcmp(const char *str1, const char *str2) {
+    if (str1 && str2)
+        return std::strcmp(str1, str2);
+    return str1 ? 1 : (str2 ? -1 : 0);
+}
+
+int qstrcmp(const QByteArray &str1, const QByteArray &str2) {
+    const int r = str1.stdString().compare(str2.stdString());
+    return r < 0 ? -1 : (r > 0 ? 1 : 0);
+}
+
+int qstrcmp(const QByteArray &str1, const char *str2) {
+    if (!str2)
+        return str1.isEmpty() ? 0 : 1;
+    const int r = str1.stdString().compare(str2);
+    return r < 0 ? -1 : (r > 0 ? 1 : 0);
+}
+
+int qstrncmp(const char *str1, const char *str2, std::size_t len) {
+    if (str1 && str2)
+        return std::strncmp(str1, str2, len);
+    return str1 ? 1 : (str2 ? -1 : 0);
+}
+
+namespace {
+constexpr int asciiLower(char c) noexcept {
+    const auto u = static_cast<unsigned char>(c);
+    return u >= 'A' && u <= 'Z' ? u + ('a' - 'A') : u;
+}
+} // namespace
+
+int qstricmp(const char *str1, const char *str2) {
+    if (!str1 || !str2)
+        return str1 ? 1 : (str2 ? -1 : 0);
+    for (;; ++str1, ++str2) {
+        const int d = asciiLower(*str1) - asciiLower(*str2);
+        if (d != 0 || *str1 == '\0')
+            return d;
+    }
+}
+
+int qstrnicmp(const char *str1, const char *str2, std::size_t len) {
+    if (!str1 || !str2)
+        return str1 ? 1 : (str2 ? -1 : 0);
+    for (; len > 0; ++str1, ++str2, --len) {
+        const int d = asciiLower(*str1) - asciiLower(*str2);
+        if (d != 0 || *str1 == '\0')
+            return d;
+    }
+    return 0;
+}
+
+int qstrnicmp(const char *str1, qsizetype len1, const char *str2, qsizetype len2) {
+    if (!str1 || len1 <= 0) {
+        const bool empty2 = !str2 || len2 == 0 || (len2 < 0 && *str2 == '\0');
+        return empty2 ? 0 : -1;
+    }
+    if (!str2)
+        return 1;
+    if (len2 < 0)
+        len2 = static_cast<qsizetype>(std::strlen(str2));
+    const qsizetype common = std::min(len1, len2);
+    for (qsizetype i = 0; i < common; ++i) {
+        const int d = asciiLower(str1[i]) - asciiLower(str2[i]);
+        if (d != 0)
+            return d;
+    }
+    return len1 == len2 ? 0 : (len1 < len2 ? -1 : 1);
+}
+
+QByteArray qCompress(const uchar *data, qsizetype nbytes, int compressionLevel) {
+#ifdef NT_HAVE_ZLIB
+    if (!data || nbytes < 0 || static_cast<quint64>(nbytes) > 0xffffffffULL)
+        return QByteArray();
+    if (compressionLevel < -1 || compressionLevel > 9)
+        compressionLevel = -1;
+    uLongf length = ::compressBound(static_cast<uLong>(nbytes));
+    QByteArray out(static_cast<qsizetype>(length) + 4, '\0');
+    if (::compress2(reinterpret_cast<Bytef *>(out.data()) + 4, &length, data, static_cast<uLong>(nbytes),
+                    compressionLevel) != Z_OK)
+        return QByteArray();
+    out.resize(static_cast<qsizetype>(length) + 4);
+    const auto size = static_cast<quint32>(nbytes);
+    out[0] = static_cast<char>(size >> 24);
+    out[1] = static_cast<char>((size >> 16) & 0xff);
+    out[2] = static_cast<char>((size >> 8) & 0xff);
+    out[3] = static_cast<char>(size & 0xff);
+    return out;
+#else
+    static_cast<void>(data);
+    static_cast<void>(nbytes);
+    static_cast<void>(compressionLevel);
+    std::fputs("qCompress: Nt was built without zlib\n", stderr);
+    return QByteArray();
+#endif
+}
+
+QByteArray qUncompress(const uchar *data, qsizetype nbytes) {
+#ifdef NT_HAVE_ZLIB
+    if (!data || nbytes < 4) {
+        if (data && nbytes > 0)
+            std::fputs("qUncompress: Input data is corrupted\n", stderr);
+        return QByteArray();
+    }
+    const quint32 expected = (static_cast<quint32>(data[0]) << 24) | (static_cast<quint32>(data[1]) << 16) |
+                             (static_cast<quint32>(data[2]) << 8) | static_cast<quint32>(data[3]);
+    // The size in the header is a hint that may be wrong, so inflate in pieces instead of trusting it.
+    z_stream stream{};
+    if (::inflateInit(&stream) != Z_OK)
+        return QByteArray();
+    stream.next_in = const_cast<Bytef *>(data + 4);
+    stream.avail_in = static_cast<uInt>(std::min<qsizetype>(nbytes - 4, std::numeric_limits<uInt>::max()));
+    QByteArray out;
+    std::size_t capacity = std::min<std::size_t>(std::max<std::size_t>(expected, 64), std::size_t(1) << 20);
+    int status = Z_OK;
+    try {
+        while (status == Z_OK) {
+            const auto used = static_cast<std::size_t>(out.size());
+            out.resize(static_cast<qsizetype>(used + capacity));
+            stream.next_out = reinterpret_cast<Bytef *>(out.data()) + used;
+            stream.avail_out = static_cast<uInt>(capacity);
+            status = ::inflate(&stream, Z_NO_FLUSH);
+            out.resize(static_cast<qsizetype>(used + capacity - stream.avail_out));
+            if (status == Z_OK && stream.avail_in == 0 && stream.avail_out != 0)
+                status = Z_DATA_ERROR; // the stream ends before its end marker
+        }
+    } catch (const std::bad_alloc &) {
+        status = Z_MEM_ERROR;
+    }
+    ::inflateEnd(&stream);
+    if (status != Z_STREAM_END) {
+        std::fputs("qUncompress: Input data is corrupted\n", stderr);
+        return QByteArray();
+    }
+    return out.isNull() ? QByteArray("", 0) : out;
+#else
+    static_cast<void>(data);
+    static_cast<void>(nbytes);
+    std::fputs("qUncompress: Nt was built without zlib\n", stderr);
+    return QByteArray();
+#endif
 }

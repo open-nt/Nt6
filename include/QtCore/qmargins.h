@@ -21,6 +21,7 @@
 
     \sa QMarginsF, QRect
 */
+class QMarginsF;
 class QMargins {
 public:
     /*!
@@ -170,6 +171,13 @@ public:
     friend constexpr QMargins operator&(const QMargins &m1, const QMargins &m2) noexcept {
         return QMargins(std::min(m1.l, m2.l), std::min(m1.t, m2.t), std::min(m1.r, m2.r), std::min(m1.b, m2.b));
     }
+    /*!
+        \since 6.4
+        Returns these margins as margins with floating point accuracy.
+
+        \sa QMarginsF::toMargins()
+    */
+    constexpr QMarginsF toMarginsF() const noexcept;
 
 private:
     int l = 0, t = 0, r = 0, b = 0;
@@ -340,3 +348,5 @@ public:
 private:
     double l = 0, t = 0, r = 0, b = 0;
 };
+
+constexpr QMarginsF QMargins::toMarginsF() const noexcept { return QMarginsF(*this); }

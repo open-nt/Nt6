@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtCore/qcoreevent.h>
 
+#include <QtCore/qbasictimer.h>
+
 #include <atomic>
 #include <mutex>
 #include <set>
@@ -147,6 +149,8 @@ QChildEvent::~QChildEvent() = default;
     Destroys the timer event.
 */
 QTimerEvent::~QTimerEvent() = default;
+
+bool QTimerEvent::matches(const QBasicTimer &timer) const noexcept { return m_id != 0 && m_id == timer.timerId(); }
 
 /*!
     Destroys the event.

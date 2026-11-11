@@ -162,6 +162,90 @@ public:
     */
     constexpr QUtf8StringView chopped(qsizetype count) const { return QUtf8StringView(p, n - count); }
     /*!
+        Returns a view of the first \a count bytes, or the whole view if
+        \a count is negative or larger than size().
+
+        \sa first(), right(), mid()
+    */
+    constexpr QUtf8StringView left(qsizetype count) const {
+        return QUtf8StringView(p, count < 0 || count > n ? n : count);
+    }
+    /*!
+        Returns a view of the last \a count bytes, or the whole view if
+        \a count is negative or larger than size().
+
+        \sa last(), left(), mid()
+    */
+    constexpr QUtf8StringView right(qsizetype count) const {
+        const qsizetype c = count < 0 || count > n ? n : count;
+        return QUtf8StringView(p + n - c, c);
+    }
+    /*!
+        Returns a view of \a count bytes from index \a pos, or of the bytes
+        from \a pos to the end if \a count is negative or reaches past the
+        end. Returns an empty view if \a pos is past the end.
+
+        \sa sliced(), left(), right()
+    */
+    constexpr QUtf8StringView mid(qsizetype pos, qsizetype count = -1) const {
+        if (pos > n)
+            return QUtf8StringView();
+        if (pos < 0) {
+            if (count >= 0)
+                count += pos;
+            pos = 0;
+            if (count < 0 && count != -1 - pos)
+                count = -1;
+        }
+        if (count < 0 || count > n - pos)
+            count = n - pos;
+        return QUtf8StringView(p + pos, count);
+    }
+    /*!
+        \since 6.8
+        Removes the bytes before index \a pos from the view and returns a
+        reference to it.
+
+        \sa sliced()
+    */
+    constexpr QUtf8StringView &slice(qsizetype pos) {
+        p += pos;
+        n -= pos;
+        return *this;
+    }
+    /*!
+        \overload
+        \since 6.8
+        Makes the view refer to \a count bytes from index \a pos and returns
+        a reference to it.
+    */
+    constexpr QUtf8StringView &slice(qsizetype pos, qsizetype count) {
+        p += pos;
+        n = count;
+        return *this;
+    }
+    /*!
+        \since 6.8
+        Returns the largest number of bytes a view can refer to.
+
+        \sa maxSize()
+    */
+    static constexpr qsizetype max_size() noexcept { return maxSize(); }
+    /*!
+        \since 6.8
+        Returns the largest number of bytes a view can refer to.
+
+        \sa max_size()
+    */
+    static constexpr qsizetype maxSize() noexcept { return static_cast<qsizetype>(~std::size_t(0) >> 1); }
+    /*!
+        Returns a view of the whole character array \a str, including a
+        trailing \c{'\0'} if it has one.
+    */
+    template <std::size_t Size> static constexpr QUtf8StringView fromArray(const char (&str)[Size]) noexcept {
+        return QUtf8StringView(str, static_cast<qsizetype>(Size));
+    }
+    /*!
         Shortens the view to \a count bytes.
     */
     constexpr void truncate(qsizetype count) { n = count; }
@@ -198,6 +282,20 @@ public:
     constexpr const_iterator cbegin() const noexcept { return p; }
     /*! Same as end(). */
     constexpr const_iterator cend() const noexcept { return p + n; }
+    /*! \typedef QUtf8StringView::const_reverse_iterator
+        The reverse iterator type, for STL compatibility. */
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+    /*! \typedef QUtf8StringView::reverse_iterator
+        Same as const_reverse_iterator; the view is read-only. */
+    using reverse_iterator = const_reverse_iterator;
+    /*! Returns a reverse iterator to the last byte. */
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    /*! Returns a reverse iterator just before the first byte. */
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    /*! Same as rbegin(). */
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+    /*! Same as rend(). */
+    const_reverse_iterator crend() const noexcept { return rend(); }
 
     friend bool operator==(QUtf8StringView a, QUtf8StringView b) noexcept { return a.compare(b) == 0; }
     friend bool operator!=(QUtf8StringView a, QUtf8StringView b) noexcept { return a.compare(b) != 0; }

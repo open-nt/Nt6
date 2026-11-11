@@ -178,26 +178,41 @@ private:
     bool accepted = true;
 };
 
+class QBasicTimer;
+
 class QTimerEvent : public QEvent {
 public:
     /*!
         Constructs a timer event for the timer with the identifier
         \a timerId.
     */
-    explicit QTimerEvent(int timerId) : QEvent(Timer), id(timerId) {}
+    explicit QTimerEvent(int timerId) : QEvent(Timer), m_id(timerId) {}
     ~QTimerEvent() override;
     /*!
         Returns the identifier of the timer that fired, as returned by
         QObject::startTimer().
     */
-    int timerId() const { return id; }
+    int timerId() const { return m_id; }
+    /*!
+        \since 6.8
+        Returns the identifier of the timer that fired as a Qt::TimerId.
+
+        \sa timerId(), matches()
+    */
+    Qt::TimerId id() const { return static_cast<Qt::TimerId>(m_id); }
+    /*!
+        \since 6.9
+        Returns \c true if this event comes from \a timer; otherwise returns
+        \c false.
+    */
+    bool matches(const QBasicTimer &timer) const noexcept;
     /*!
         \reimp
     */
     QTimerEvent *clone() const override { return new QTimerEvent(*this); }
 
 private:
-    int id;
+    int m_id;
 };
 
 class QDynamicPropertyChangeEvent : public QEvent {

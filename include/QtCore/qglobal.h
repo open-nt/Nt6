@@ -188,6 +188,18 @@ inline void qSwap(T &a, T &b) { using std::swap; swap(a, b); }
 inline int qRound(double d) { return static_cast<int>(d >= 0.0 ? d + 0.5 : d - 0.5); }
 inline qint64 qRound64(double d) { return static_cast<qint64>(d >= 0.0 ? d + 0.5 : d - 0.5); }
 inline bool qFuzzyIsNull(double d) { return std::fabs(d) <= 0.000000000001; }
+// True if the value is exactly +0.0 or -0.0.
+inline bool qIsNull(double d) noexcept { return d == 0.0; }
+inline bool qIsNull(float f) noexcept { return f == 0.0f; }
+// The value of an enumerator as its underlying integer type.
+template <typename Enum> constexpr std::underlying_type_t<Enum> qToUnderlying(Enum e) noexcept {
+    return static_cast<std::underlying_type_t<Enum>>(e);
+}
+// Makes a std::pair, as QPair is in Qt 6.
+template <typename T1, typename T2>
+constexpr std::pair<std::decay_t<T1>, std::decay_t<T2>> qMakePair(T1 &&value1, T2 &&value2) {
+    return std::make_pair(std::forward<T1>(value1), std::forward<T2>(value2));
+}
 inline bool qFuzzyCompare(double p1, double p2) {
     return std::fabs(p1 - p2) * 1000000000000. <= std::fmin(std::fabs(p1), std::fabs(p2));
 }

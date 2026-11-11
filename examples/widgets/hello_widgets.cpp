@@ -39,6 +39,7 @@
 #include <QTabWidget>
 #include <QTableWidget>
 #include <QToolButton>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 #include <QWidget>
 
@@ -194,6 +195,24 @@ static QWidget *showcasePage(QLabel *status) {
     layout->addLayout(row("QTableWidget", table, page, names));
     QObject::connect(table, &QTableWidget::cellClicked, [=](int r, int c) {
         status->setText(QString("Cell %1, %2: %3").arg(r).arg(c).arg(table->item(r, c)->text()));
+    });
+
+    // A tree with columns: the branches open and close, and a click on the header sorts the items.
+    auto *tree = new QTreeWidget(page);
+    tree->setColumnCount(2);
+    tree->setHeaderLabels({"Item", "Kind"});
+    tree->setSortingEnabled(true);
+    auto *core = new QTreeWidgetItem(tree, QStringList{"NtCore", "Module"});
+    for (const char *name : {"QObject", "QString", "QList"})
+        new QTreeWidgetItem(core, QStringList{name, "Class"});
+    auto *widgets = new QTreeWidgetItem(tree, QStringList{"NtWidgets", "Module"});
+    for (const char *name : {"QTreeWidget", "QTableWidget"})
+        new QTreeWidgetItem(widgets, QStringList{name, "Class"});
+    core->setExpanded(true);
+    tree->setFixedHeight(96);
+    layout->addLayout(row("QTreeWidget", tree, page, names));
+    QObject::connect(tree, &QTreeWidget::itemClicked, [=](QTreeWidgetItem *item, int column) {
+        status->setText(QString("Tree: %1 (%2)").arg(item->text(0), item->text(column == 0 ? 1 : column)));
     });
 
     auto *area = new QScrollArea(page);
@@ -452,11 +471,37 @@ static QWidget *viewsPage(QLabel *status) {
     list->setCurrentRow(1);
     QObject::connect(list, &QListWidget::itemSelectionChanged,
                      [=] { status->setText(QString("%1 teams selected.").arg(list->selectedItems().size())); });
-    // A splitter lets the user share the room between the list and the form.
+    // A tree of the modules and their classes. A double click edits an item, and the header sorts them.
+    auto *modules = new QTreeWidget(page);
+    modules->setHeaderLabels({"Module", "Classes"});
+    modules->setSortingEnabled(true);
+    modules->setEditTriggers(QAbstractItemView::DoubleClicked | QAbstractItemView::EditKeyPressed);
+    const struct {
+        const char *module;
+        const char *classes[3];
+    } contents[] = {{"NtCore", {"QObject", "QString", "QDateTime"}},
+                    {"NtNetwork", {"QTcpSocket", "QUdpSocket", "QSslSocket"}},
+                    {"NtWidgets", {"QTreeView", "QLabel", "QSplitter"}},
+                    {"NtSql", {"QSqlDatabase", "QSqlQuery", "QSqlTableModel"}}};
+    for (const auto &entry : contents) {
+        auto *module = new QTreeWidgetItem(modules, QStringList{entry.module, "3"});
+        for (const char *name : entry.classes) {
+            auto *item = new QTreeWidgetItem(module, QStringList{name, ""});
+            item->setFlags(item->flags() | Qt::ItemIsEditable);
+        }
+    }
+    modules->expandAll();
+    modules->sortByColumn(0, Qt::AscendingOrder);
+    QObject::connect(modules, &QTreeWidget::currentItemChanged, [=](QTreeWidgetItem *item, QTreeWidgetItem *) {
+        if (item)
+            status->setText("Tree: " + item->text(0));
+    });
+    // A splitter lets the user share the room between the list, the tree and the form.
     auto *split = new QSplitter(Qt::Horizontal, page);
     split->addWidget(list);
+    split->addWidget(modules);
     split->addWidget(area);
-    split->setSizes({120, 300});
+    split->setSizes({100, 170, 230});
     layout->addWidget(split, 2);
     return page;
 }

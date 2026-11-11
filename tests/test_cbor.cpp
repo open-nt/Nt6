@@ -97,7 +97,8 @@ static void testRfcExamples() {
         {"a201020304", "{1: 2, 3: 4}"},
         {"a26161016162820203", "{\"a\": 1, \"b\": [2, 3]}"},
         {"826161a161626163", "[\"a\", {\"b\": \"c\"}]"},
-        {"a56161614161626142616361436164614461656145", "{\"a\": \"A\", \"b\": \"B\", \"c\": \"C\", \"d\": \"D\", \"e\": \"E\"}"},
+        {"a56161614161626142616361436164614461656145",
+         "{\"a\": \"A\", \"b\": \"B\", \"c\": \"C\", \"d\": \"D\", \"e\": \"E\"}"},
         {"5f42010243030405ff", "h'0102030405'"},
         {"7f657374726561646d696e67ff", "\"streaming\""},
         {"9fff", "[]"},
@@ -118,13 +119,33 @@ static void testRfcExamples() {
         const bool ok = error.error == QCborError::NoError && got == QString::fromUtf8(example.diagnostic);
         CHECK(ok);
         if (!ok)
-            std::printf("  %s: %s (%s)\n", example.hex, got.toUtf8().constData(), error.errorString().toUtf8().constData());
+            std::printf("  %s: %s (%s)\n", example.hex, got.toUtf8().constData(),
+                        error.errorString().toUtf8().constData());
     }
 
     // What encodes with the shortest head, encodes as the RFC shows
-    for (const char *h : {"00", "17", "1818", "1903e8", "1a000f4240", "1b000000e8d4a51000", "20", "3903e7", "f4", "f5", "f6",
-                          "f7", "f0", "f8ff", "40", "4401020304", "6449455446", "83010203", "8301820203820405",
-                          "a26161016162820203", "d74401020304", "fb3ff199999999999a"}) {
+    for (const char *h : {"00",
+                          "17",
+                          "1818",
+                          "1903e8",
+                          "1a000f4240",
+                          "1b000000e8d4a51000",
+                          "20",
+                          "3903e7",
+                          "f4",
+                          "f5",
+                          "f6",
+                          "f7",
+                          "f0",
+                          "f8ff",
+                          "40",
+                          "4401020304",
+                          "6449455446",
+                          "83010203",
+                          "8301820203820405",
+                          "a26161016162820203",
+                          "d74401020304",
+                          "fb3ff199999999999a"}) {
         const QByteArray bytes = hex(h);
         const QByteArray again = V::fromCbor(bytes).toCbor();
         CHECK(again == bytes);
@@ -138,10 +159,13 @@ static void testValues() {
     CHECK(undefinedValue.isUndefined() && undefinedValue.type() == V::Undefined && undefinedValue.isSimpleType());
     CHECK(undefinedValue.toSimpleType() == QCborSimpleType::Undefined && !undefinedValue.isNull());
 
-    CHECK(V(nullptr).isNull() && V(true).isTrue() && V(false).isFalse() && V(true).isBool() && V(false).toBool(true) == false);
+    CHECK(V(nullptr).isNull() && V(true).isTrue() && V(false).isFalse() && V(true).isBool() &&
+          V(false).toBool(true) == false);
     CHECK(V(true).toBool() && V(1).toBool(true) == true && V(1).toBool() == false);
-    CHECK(V(QCborSimpleType::Null).isNull() && V(QCborSimpleType(5)).isSimpleType() && V(QCborSimpleType(5)).toSimpleType() == QCborSimpleType(5));
-    CHECK(V(QCborSimpleType(5)).isSimpleType(QCborSimpleType(5)) && !V(QCborSimpleType(5)).isSimpleType(QCborSimpleType(6)));
+    CHECK(V(QCborSimpleType::Null).isNull() && V(QCborSimpleType(5)).isSimpleType() &&
+          V(QCborSimpleType(5)).toSimpleType() == QCborSimpleType(5));
+    CHECK(V(QCborSimpleType(5)).isSimpleType(QCborSimpleType(5)) &&
+          !V(QCborSimpleType(5)).isSimpleType(QCborSimpleType(6)));
 
     // Integers
     CHECK(V(42).isInteger() && V(42).toInteger() == 42 && V(42u).toInteger() == 42 && V(qint64(-7)).toInteger() == -7);
@@ -151,9 +175,11 @@ static void testValues() {
     CHECK(V(1.5).isDouble() && V(1.5).toDouble() == 1.5 && V(u"x"_s).toDouble(9) == 9);
 
     // Strings and byte arrays
-    CHECK(V(u"text"_s).isString() && V(u"text"_s).toString() == u"text"_s && V("utf8 \xc3\xa4").toString() == QString::fromUtf8("utf8 \xc3\xa4"));
+    CHECK(V(u"text"_s).isString() && V(u"text"_s).toString() == u"text"_s &&
+          V("utf8 \xc3\xa4").toString() == QString::fromUtf8("utf8 \xc3\xa4"));
     CHECK(V(QStringView(u"view")).toString() == u"view"_s && V(QLatin1StringView("latin")).toString() == u"latin"_s);
-    CHECK(V(QByteArray("\x01\x02", 2)).isByteArray() && V(QByteArray("\x01\x02", 2)).toByteArray() == QByteArray("\x01\x02", 2));
+    CHECK(V(QByteArray("\x01\x02", 2)).isByteArray() &&
+          V(QByteArray("\x01\x02", 2)).toByteArray() == QByteArray("\x01\x02", 2));
     CHECK(V(1).toString(u"default"_s) == u"default"_s && V(1).toByteArray("d") == QByteArray("d"));
     CHECK(V(QString()).isString() && V(QString()).toString().isEmpty());
 
@@ -164,7 +190,8 @@ static void testValues() {
 
     // Tags and the extended types
     const V tagged(QCborTag(1234), V(u"inside"_s));
-    CHECK(tagged.isTag() && tagged.type() == V::Tag && tagged.tag() == QCborTag(1234) && tagged.taggedValue() == V(u"inside"_s));
+    CHECK(tagged.isTag() && tagged.type() == V::Tag && tagged.tag() == QCborTag(1234) &&
+          tagged.taggedValue() == V(u"inside"_s));
     CHECK(V(1).tag() == QCborTag(~0ULL) && V(1).taggedValue(V(7)) == V(7));
     const QDateTime when(QDate(2026, 11, 12), QTime(10, 20, 30, 456), Qt::UTC);
     const V date(when);
@@ -199,21 +226,27 @@ static void testCompare() {
     CHECK(V(-5) < V(3) && V(1.5) < V(2.5) && V(qQNaN()) == V(qQNaN()) && V(1e300) < V(qQNaN()));
     CHECK(V(u"b"_s) < V(u"aa"_s)); // shorter first
     CHECK(V(u"a"_s) < V(u"b"_s) && V(QByteArray("ab")) < V(QByteArray("abc")));
-    CHECK(V(1) < V(QByteArray()) && V(QByteArray()) < V(u""_s) && V(u""_s) < V(QCborArray()) && V(QCborArray()) < V(QCborMap()));
-    CHECK(V(QCborMap()) < V(QCborTag(0), V()) && V(QCborTag(0), V()) < V(false) && V(false) < V(true) && V(nullptr) == V(nullptr));
+    CHECK(V(1) < V(QByteArray()) && V(QByteArray()) < V(u""_s) && V(u""_s) < V(QCborArray()) &&
+          V(QCborArray()) < V(QCborMap()));
+    CHECK(V(QCborMap()) < V(QCborTag(0), V()) && V(QCborTag(0), V()) < V(false) && V(false) < V(true) &&
+          V(nullptr) == V(nullptr));
     CHECK(V(QCborTag(1), V(1)) < V(QCborTag(2), V(0)) && V(QCborTag(1), V(1)) < V(QCborTag(1), V(2)));
-    CHECK((QCborArray{1, 2} < QCborArray{1, 3}) && (QCborArray{5} < QCborArray{1, 1}) && (QCborArray{1, 2} == QCborArray{1, 2}));
-    CHECK((QCborMap{{1, 2}} == QCborMap{{1, 2}}) && (QCborMap{{1, 2}} != QCborMap{{1, 3}}) && (QCborMap{{1, 2}} < QCborMap{{1, 3}}));
+    CHECK((QCborArray{1, 2} < QCborArray{1, 3}) && (QCborArray{5} < QCborArray{1, 1}) &&
+          (QCborArray{1, 2} == QCborArray{1, 2}));
+    CHECK((QCborMap{{1, 2}} == QCborMap{{1, 2}}) && (QCborMap{{1, 2}} != QCborMap{{1, 3}}) &&
+          (QCborMap{{1, 2}} < QCborMap{{1, 3}}));
     CHECK(V(QCborArray{1, u"x"_s}) == V(QCborArray{1, u"x"_s}));
 }
 
 static void testArray() {
     QCborArray array;
-    CHECK(array.isEmpty() && array.empty() && array.size() == 0 && array.at(0).isUndefined() && std::as_const(array).first().isUndefined());
+    CHECK(array.isEmpty() && array.empty() && array.size() == 0 && array.at(0).isUndefined() &&
+          std::as_const(array).first().isUndefined());
     array.append(1);
     array << u"two"_s << 3.0;
     array.prepend(true);
-    CHECK(array.size() == 4 && array.at(0).isTrue() && array[1] == V(1) && array.last() == V(3.0) && array.first() == V(true));
+    CHECK(array.size() == 4 && array.at(0).isTrue() && array[1] == V(1) && array.last() == V(3.0) &&
+          array.first() == V(true));
     CHECK(array.contains(V(u"two"_s)) && !array.contains(V(2)));
     array.insert(2, V(nullptr));
     CHECK(array.at(2).isNull() && array.size() == 5);
@@ -259,7 +292,8 @@ static void testArray() {
     CHECK(numbers == (QCborArray{10, 20, 35, 40}) && it->toInteger() == 35);
     CHECK(numbers.extract(numbers.begin()) == V(10) && numbers.size() == 3);
     QCborArray::ConstIterator cit = numbers.constBegin();
-    CHECK((*cit).toInteger() == 20 && cit != numbers.constEnd() && cit == numbers.cbegin() && numbers.cend() - cit == 3);
+    CHECK((*cit).toInteger() == 20 && cit != numbers.constEnd() && cit == numbers.cbegin() &&
+          numbers.cend() - cit == 3);
     QCborArray::ConstIterator fromMutable = numbers.begin();
     CHECK(fromMutable == numbers.constBegin() && numbers.begin() == numbers.constBegin());
     numbers.pop_front();
@@ -305,7 +339,8 @@ static void testMap() {
     CHECK(map.size() == 4 && map.value(u"name"_s) == V(u"Nt"_s) && map.value(1).isTrue());
     CHECK(map.value(QLatin1StringView("name")) == V(u"Nt"_s) && map[QLatin1StringView("latin")] == V(2.5));
     CHECK(map.value(V(QByteArray("bytes"))).isNull() && map.contains(V(QByteArray("bytes"))));
-    CHECK(map.contains(u"name"_s) && map.contains(QLatin1StringView("latin")) && !map.contains(2) && !map.contains(V(1.0)));
+    CHECK(map.contains(u"name"_s) && map.contains(QLatin1StringView("latin")) && !map.contains(2) &&
+          !map.contains(V(1.0)));
     CHECK(map.keys() == (QList<QCborValue>{V(u"name"_s), V(1), V(u"latin"_s), V(QByteArray("bytes"))}));
 
     // operator[] adds, insert replaces
@@ -324,7 +359,8 @@ static void testMap() {
     map.remove(V(QByteArray("bytes")));
     map.remove(QLatin1StringView("latin"));
     map.remove(u"missing"_s);
-    CHECK(map.size() == 2 && map.take(1).isFalse() && map.take(QLatin1StringView("name")) == V(u"Nt6"_s) && map.isEmpty());
+    CHECK(map.size() == 2 && map.take(1).isFalse() && map.take(QLatin1StringView("name")) == V(u"Nt6"_s) &&
+          map.isEmpty());
 
     // Iterators: pairs, keys and values
     QCborMap scores{{u"a"_s, 1}, {u"b"_s, 2}, {u"c"_s, 3}};
@@ -346,7 +382,8 @@ static void testMap() {
     CHECK(scores.constFind(QLatin1StringView("a")).value() == V(2) && scores.find(V(u"c"_s)).value() == V(6));
     const QCborMap &constScores = scores;
     CHECK(constScores.find(u"a"_s).key() == V(u"a"_s) && constScores.find(1) == constScores.end());
-    CHECK(scores.end() - scores.begin() == 3 && (scores.begin() + 2).key() == V(u"c"_s) && scores.begin()[1].first == V(u"b"_s));
+    CHECK(scores.end() - scores.begin() == 3 && (scores.begin() + 2).key() == V(u"c"_s) &&
+          scores.begin()[1].first == V(u"b"_s));
     it = scores.erase(scores.find(u"a"_s));
     CHECK(scores.size() == 2 && it.key() == V(u"b"_s));
     CHECK(scores.extract(scores.find(u"b"_s)) == V(5) && scores.size() == 1);
@@ -385,7 +422,8 @@ static void testMap() {
     CHECK(QCborMap::fromVariantHash(QVariantHash{{u"k"_s, true}}).value(u"k"_s).isTrue());
     const QCborMap mixed{{1, 2}, {u"s"_s, QByteArray("\xff")}, {QByteArray("\x01"), 3}, {V(true), 4}};
     const QVariantMap asVariants = mixed.toVariantMap();
-    CHECK(asVariants.value(u"1"_s) == QVariant(qlonglong(2)) && asVariants.value(u"s"_s) == QVariant(QByteArray("\xff")));
+    CHECK(asVariants.value(u"1"_s) == QVariant(qlonglong(2)) &&
+          asVariants.value(u"s"_s) == QVariant(QByteArray("\xff")));
     CHECK(asVariants.value(u"AQ"_s) == QVariant(qlonglong(3)) && asVariants.value(u"true"_s) == QVariant(qlonglong(4)));
     CHECK(mixed.toVariantHash().size() == 4);
     const QJsonObject json = mixed.toJsonObject();
@@ -409,19 +447,20 @@ static void testEncoding() {
     CHECK(encode(V(V::Invalid)) == hex("f7"));
     // Sorted keys: by the encoded key, shorter first
     const QCborMap unsorted{{u"bb"_s, 1}, {100, 2}, {u"a"_s, 3}, {-1, 4}, {QCborArray{}, 5}};
-    CHECK(encode(V(unsorted)) == hex("a5626262011864026161032004" "8005"));
+    CHECK(encode(V(unsorted)) == hex("a5626262011864026161032004"
+                                     "8005"));
     CHECK(encode(V(unsorted), V::SortKeysInMaps) == hex("a52004800518640261610362626201"));
     // Every value goes through the encoding and back
     const V everything(QCborMap{{u"int"_s, -123456789},
-                               {u"double"_s, 3.25},
-                               {u"text"_s, u"h\xe4llo"_s},
-                               {u"bytes"_s, QByteArray("\x00\xff", 2)},
-                               {u"list"_s, QCborArray{true, false, nullptr, V(), QCborArray{}, QCborMap{}}},
-                               {u"date"_s, V(QDateTime(QDate(2020, 1, 2), QTime(3, 4, 5), Qt::UTC))},
-                               {u"url"_s, V(QUrl(u"http://x.example/"_s))},
-                               {u"uuid"_s, V(QUuid::createUuid())},
-                               {u"tag"_s, V(QCborTag(99), V(1))},
-                               {7, V(QCborSimpleType(99))}});
+                                {u"double"_s, 3.25},
+                                {u"text"_s, u"h\xe4llo"_s},
+                                {u"bytes"_s, QByteArray("\x00\xff", 2)},
+                                {u"list"_s, QCborArray{true, false, nullptr, V(), QCborArray{}, QCborMap{}}},
+                                {u"date"_s, V(QDateTime(QDate(2020, 1, 2), QTime(3, 4, 5), Qt::UTC))},
+                                {u"url"_s, V(QUrl(u"http://x.example/"_s))},
+                                {u"uuid"_s, V(QUuid::createUuid())},
+                                {u"tag"_s, V(QCborTag(99), V(1))},
+                                {7, V(QCborSimpleType(99))}});
     for (V::EncodingOptions opt : {V::EncodingOptions(V::NoTransformation), V::EncodingOptions(V::SortKeysInMaps),
                                    V::EncodingOptions(V::UseFloat16)}) {
         QCborParserError error;
@@ -493,9 +532,9 @@ static void testParsingErrors() {
     CHECK(error.error == QCborError::NoError);
 
     CHECK(QCborError{QCborError::EndOfFile}.toString().contains(u"end of input"_s));
-    for (QCborError::Code code : {QCborError::UnknownError, QCborError::AdvancePastEnd, QCborError::InputOutputError,
-                                  QCborError::UnexpectedBreak, QCborError::UnknownType, QCborError::DataTooLarge,
-                                  QCborError::UnsupportedType})
+    for (QCborError::Code code :
+         {QCborError::UnknownError, QCborError::AdvancePastEnd, QCborError::InputOutputError,
+          QCborError::UnexpectedBreak, QCborError::UnknownType, QCborError::DataTooLarge, QCborError::UnsupportedType})
         CHECK(!QCborError{code}.toString().isEmpty());
     CHECK(QCborError{QCborError::IllegalType}.code() == QCborError::IllegalType);
 }
@@ -512,7 +551,12 @@ static void testWriter() {
     writer.append(u"neg"_s);
     writer.append(QCborNegativeInteger(0));
     CHECK(writer.endMap());
-    CHECK(out == hex("a3647465787468" "6c6174696e20c3a4" "01" "1bffffffffffffffff" "636e6567" "3bffffffffffffffff"));
+    CHECK(out == hex("a3647465787468"
+                     "6c6174696e20c3a4"
+                     "01"
+                     "1bffffffffffffffff"
+                     "636e6567"
+                     "3bffffffffffffffff"));
 
     out.clear();
     writer.startArray();
@@ -533,7 +577,21 @@ static void testWriter() {
     writer.append(QStringView(u"v"));
     writer.append("xyz", 2);
     CHECK(writer.endArray());
-    CHECK(out == hex("9f" "f5f4f6f7" "f820" "f93e00" "fa3fc00000" "d825" "420102" "626162" "417a" "20" "07" "3901f3" "6176" "627879" "ff"));
+    CHECK(out == hex("9f"
+                     "f5f4f6f7"
+                     "f820"
+                     "f93e00"
+                     "fa3fc00000"
+                     "d825"
+                     "420102"
+                     "626162"
+                     "417a"
+                     "20"
+                     "07"
+                     "3901f3"
+                     "6176"
+                     "627879"
+                     "ff"));
 
     // Counts that do not match
     out.clear();
@@ -563,8 +621,16 @@ static void testWriter() {
 
 static void testReader() {
     // A walk through a document with every kind of item
-    const QByteArray data = hex("a4" "646e616d65" "624e74" "6474616773" "9f01f93e00fa3fc00000fb3ff8000000000000ff" "6162"
-                                "5f4201024103ff" "c1" "1a514b67b0" "f6");
+    const QByteArray data = hex("a4"
+                                "646e616d65"
+                                "624e74"
+                                "6474616773"
+                                "9f01f93e00fa3fc00000fb3ff8000000000000ff"
+                                "6162"
+                                "5f4201024103ff"
+                                "c1"
+                                "1a514b67b0"
+                                "f6");
     R reader(data);
     CHECK(reader.isValid() && reader.isMap() && reader.isContainer() && reader.isLengthKnown() && reader.length() == 4);
     CHECK(reader.containerDepth() == 0 && reader.parentContainerType() == R::Invalid && reader.currentOffset() == 0);
@@ -577,7 +643,8 @@ static void testReader() {
     CHECK(chunk.status == R::EndOfString && reader.isString());
     CHECK(reader.readAllUtf8String() == QByteArray("tags"));
     CHECK(reader.isArray() && !reader.isLengthKnown() && reader.length() == 0 && reader.enterContainer());
-    CHECK(reader.hasNext() && reader.isUnsignedInteger() && reader.isInteger() && reader.toUnsignedInteger() == 1 && reader.toInteger() == 1);
+    CHECK(reader.hasNext() && reader.isUnsignedInteger() && reader.isInteger() && reader.toUnsignedInteger() == 1 &&
+          reader.toInteger() == 1);
     CHECK(reader.next() && reader.isFloat16() && float(reader.toFloat16()) == 1.5f && reader.type() == R::HalfFloat);
     CHECK(reader.next() && reader.isFloat() && reader.toFloat() == 1.5f);
     CHECK(reader.next() && reader.isDouble() && reader.toDouble() == 1.5);
@@ -613,17 +680,28 @@ static void testReader() {
     CHECK(bytes.readByteArray().status == R::Error); // not at a byte string any more
 
     // Integers, simple types and the wrong accessors
-    R numbers(hex("3bffffffffffffffff" "20" "f4f5f6f7f0"));
+    R numbers(hex("3bffffffffffffffff"
+                  "20"
+                  "f4f5f6f7f0"));
     CHECK(numbers.isNegativeInteger() && numbers.toNegativeInteger() == QCborNegativeInteger(0) && numbers.next());
-    CHECK(numbers.toNegativeInteger() == QCborNegativeInteger(1) && numbers.toInteger() == -1 && numbers.toUnsignedInteger() == 0);
+    CHECK(numbers.toNegativeInteger() == QCborNegativeInteger(1) && numbers.toInteger() == -1 &&
+          numbers.toUnsignedInteger() == 0);
     CHECK(numbers.next() && numbers.isFalse() && numbers.isBool() && !numbers.toBool() && numbers.next());
-    CHECK(numbers.isTrue() && numbers.toBool() && numbers.next() && numbers.isNull() && numbers.next() && numbers.isUndefined());
+    CHECK(numbers.isTrue() && numbers.toBool() && numbers.next() && numbers.isNull() && numbers.next() &&
+          numbers.isUndefined());
     CHECK(numbers.next() && numbers.isSimpleType(QCborSimpleType(16)) && numbers.toSimpleType() == QCborSimpleType(16));
-    CHECK(numbers.toDouble() == 0 && numbers.toFloat() == 0 && numbers.toTag() == QCborTag(0) && numbers.readAllString().isNull());
-    CHECK(numbers.readAllByteArray().isNull() && numbers.readUtf8String().status == R::Error && !numbers.enterContainer());
+    CHECK(numbers.toDouble() == 0 && numbers.toFloat() == 0 && numbers.toTag() == QCborTag(0) &&
+          numbers.readAllString().isNull());
+    CHECK(numbers.readAllByteArray().isNull() && numbers.readUtf8String().status == R::Error &&
+          !numbers.enterContainer());
 
     // Pieces of data
-    const QByteArray whole = hex("a2" "6161" "83010203" "6162" "781a" "6162636465666768696a6b6c6d6e6f707172737475767778797a");
+    const QByteArray whole = hex("a2"
+                                 "6161"
+                                 "83010203"
+                                 "6162"
+                                 "781a"
+                                 "6162636465666768696a6b6c6d6e6f707172737475767778797a");
     R incremental;
     CHECK(!incremental.isValid() && incremental.lastError() == QCborError::EndOfFile);
     QCborValue result;
@@ -684,14 +762,19 @@ static void testReader() {
 static void testConversions() {
     // To and from QVariant
     CHECK(V::fromVariant(QVariant()).isUndefined() && V::fromVariant(QVariant(nullptr)).isNull());
-    CHECK(V::fromVariant(QVariant(true)).isTrue() && V::fromVariant(QVariant(42)) == V(42) && V::fromVariant(QVariant(2.5)) == V(2.5));
+    CHECK(V::fromVariant(QVariant(true)).isTrue() && V::fromVariant(QVariant(42)) == V(42) &&
+          V::fromVariant(QVariant(2.5)) == V(2.5));
     CHECK(V::fromVariant(QVariant::fromValue(qulonglong(18446744073709551615ULL))).isDouble());
-    CHECK(V::fromVariant(QVariant::fromValue(short(-3))) == V(-3) && V::fromVariant(QVariant::fromValue(1.5f)) == V(1.5));
-    CHECK(V::fromVariant(QVariant(u"s"_s)) == V(u"s"_s) && V::fromVariant(QVariant(QByteArray("b"))) == V(QByteArray("b")));
+    CHECK(V::fromVariant(QVariant::fromValue(short(-3))) == V(-3) &&
+          V::fromVariant(QVariant::fromValue(1.5f)) == V(1.5));
+    CHECK(V::fromVariant(QVariant(u"s"_s)) == V(u"s"_s) &&
+          V::fromVariant(QVariant(QByteArray("b"))) == V(QByteArray("b")));
     CHECK(V::fromVariant(QVariant(QStringList{u"a"_s})) == V(QCborArray{u"a"_s}));
     const QDateTime when(QDate(2021, 5, 6), QTime(7, 8, 9), Qt::UTC);
-    CHECK(V::fromVariant(QVariant(when)).toDateTime() == when && V::fromVariant(QVariant(QUrl(u"http://a/"_s))).isUrl());
-    CHECK(V::fromVariant(QVariant(QUuid::createUuid())).isUuid() && V::fromVariant(QVariant(QRegularExpression(u"x"_s))).isRegularExpression());
+    CHECK(V::fromVariant(QVariant(when)).toDateTime() == when &&
+          V::fromVariant(QVariant(QUrl(u"http://a/"_s))).isUrl());
+    CHECK(V::fromVariant(QVariant(QUuid::createUuid())).isUuid() &&
+          V::fromVariant(QVariant(QRegularExpression(u"x"_s))).isRegularExpression());
     CHECK(V::fromVariant(QVariant(QVariantList{1, u"x"_s})) == V(QCborArray{1, u"x"_s}));
     CHECK(V::fromVariant(QVariant(QVariantMap{{u"k"_s, 1}})) == V(QCborMap{{u"k"_s, 1}}));
     CHECK(V::fromVariant(QVariant(QVariantHash{{u"k"_s, 1}})) == V(QCborMap{{u"k"_s, 1}}));
@@ -710,19 +793,23 @@ static void testConversions() {
     CHECK(tagVariant.typeId() == QMetaType::QCborValue && tagVariant.value<QCborValue>() == V(QCborTag(77), V(1)));
     CHECK(V::fromVariant(tagVariant) == V(QCborTag(77), V(1)));
     const QVariant simpleVariant = V(QCborSimpleType(40)).toVariant();
-    CHECK(simpleVariant.typeId() == QMetaType::QCborSimpleType && V::fromVariant(simpleVariant) == V(QCborSimpleType(40)));
+    CHECK(simpleVariant.typeId() == QMetaType::QCborSimpleType &&
+          V::fromVariant(simpleVariant) == V(QCborSimpleType(40)));
     CHECK(QVariant::fromValue(QCborArray{1}).typeId() == QMetaType::QCborArray);
     CHECK(V::fromVariant(QVariant::fromValue(QCborArray{1})) == V(QCborArray{1}));
     CHECK(V::fromVariant(QVariant::fromValue(QCborMap{{1, 2}})) == V(QCborMap{{1, 2}}));
     CHECK(QMetaType(QMetaType::QCborValue).name() == QByteArray("QCborValue"));
 
     // To and from JSON
-    CHECK(V::fromJsonValue(QJsonValue()) == V(nullptr) && V::fromJsonValue(QJsonValue(QJsonValue::Undefined)).isUndefined());
-    CHECK(V::fromJsonValue(QJsonValue(3.0)) == V(3) && V::fromJsonValue(QJsonValue(3.5)) == V(3.5) && V::fromJsonValue(QJsonValue(1e300)).isDouble());
+    CHECK(V::fromJsonValue(QJsonValue()) == V(nullptr) &&
+          V::fromJsonValue(QJsonValue(QJsonValue::Undefined)).isUndefined());
+    CHECK(V::fromJsonValue(QJsonValue(3.0)) == V(3) && V::fromJsonValue(QJsonValue(3.5)) == V(3.5) &&
+          V::fromJsonValue(QJsonValue(1e300)).isDouble());
     CHECK(V::fromJsonValue(QJsonValue(true)).isTrue() && V::fromJsonValue(QJsonValue(u"s"_s)) == V(u"s"_s));
     CHECK(V::fromJsonValue(QJsonValue(QJsonArray{1})) == V(QCborArray{1}));
     CHECK(V::fromJsonValue(QJsonValue(QJsonObject{{u"k"_s, 1}})) == V(QCborMap{{u"k"_s, 1}}));
-    CHECK(V(5).toJsonValue() == QJsonValue(5) && V(2.5).toJsonValue() == QJsonValue(2.5) && V(false).toJsonValue() == QJsonValue(false));
+    CHECK(V(5).toJsonValue() == QJsonValue(5) && V(2.5).toJsonValue() == QJsonValue(2.5) &&
+          V(false).toJsonValue() == QJsonValue(false));
     CHECK(V(qInf()).toJsonValue().isNull() && V(qQNaN()).toJsonValue().isNull() && V().toJsonValue().isNull());
     CHECK(V(nullptr).toJsonValue().isNull() && V(V::Invalid).toJsonValue().isNull());
     CHECK(V(QByteArray("\xfb\xff")).toJsonValue() == QJsonValue(u"-_8"_s));
@@ -740,21 +827,24 @@ static void testConversions() {
 
 static void testDiagnosticNotation() {
     CHECK(V(QCborArray{1, u"two"_s, QByteArray("\x03")}).toDiagnosticNotation() == u"[1, \"two\", h'03']"_s);
-    CHECK(V(2.0).toDiagnosticNotation() == u"2.0"_s && V(0.1).toDiagnosticNotation() == u"0.1"_s && V(-1e-10).toDiagnosticNotation() == u"-1e-10"_s);
+    CHECK(V(2.0).toDiagnosticNotation() == u"2.0"_s && V(0.1).toDiagnosticNotation() == u"0.1"_s &&
+          V(-1e-10).toDiagnosticNotation() == u"-1e-10"_s);
     CHECK(V(1.5).toDiagnosticNotation(V::ExtendedFormat) == u"1.5_3"_s);
     CHECK(V(u"q\"\\\n\t\x01"_s).toDiagnosticNotation() == u"\"q\\\"\\\\\\n\\t\\u0001\""_s);
     CHECK(V(QCborTag(42), V(QCborMap{{1, V(QCborSimpleType(99))}})).toDiagnosticNotation() == u"42({1: simple(99)})"_s);
     CHECK(V(V::Invalid).toDiagnosticNotation() == u"<invalid>"_s && V().toDiagnosticNotation() == u"undefined"_s);
     const V nested(QCborMap{{u"a"_s, QCborArray{1, 2}}, {u"b"_s, QCborMap{}}});
     CHECK(nested.toDiagnosticNotation() == u"{\"a\": [1, 2], \"b\": {}}"_s);
-    CHECK(nested.toDiagnosticNotation(V::LineWrapped) == u"{\n    \"a\": [\n        1,\n        2\n    ],\n    \"b\": {}\n}"_s);
+    CHECK(nested.toDiagnosticNotation(V::LineWrapped) ==
+          u"{\n    \"a\": [\n        1,\n        2\n    ],\n    \"b\": {}\n}"_s);
     CHECK(diag(hex("c074323031332d30332d32315432303a30343a30305a")) == u"0(\"2013-03-21T20:04:00Z\")"_s);
 }
 
 static void testRefs() {
     QCborArray array{QCborMap{{u"k"_s, 1}}, QCborArray{1, 2}, u"s"_s};
     QCborValueRef map = array[0];
-    CHECK(map.isMap() && map.isContainer() && map[u"k"_s] == V(1) && map[QLatin1StringView("k")] == V(1) && map.toMap().size() == 1);
+    CHECK(map.isMap() && map.isContainer() && map[u"k"_s] == V(1) && map[QLatin1StringView("k")] == V(1) &&
+          map.toMap().size() == 1);
     map[u"k"_s] = 2;
     map[QLatin1StringView("l")] = 3;
     CHECK(array.at(0).toMap().value(u"k"_s) == V(2) && array.at(0).toMap().value(u"l"_s) == V(3));
@@ -762,20 +852,26 @@ static void testRefs() {
     inner[0] = 10;
     CHECK(array.at(1) == V(QCborArray{10, 2}) && inner[1] == V(2) && inner.toArray().size() == 2);
     const QCborValueConstRef constRef = *array.constBegin();
-    CHECK(constRef.isMap() && constRef.concrete().isMap() && constRef[u"k"_s] == V(2) && constRef[qint64(0)].isUndefined());
+    CHECK(constRef.isMap() && constRef.concrete().isMap() && constRef[u"k"_s] == V(2) &&
+          constRef[qint64(0)].isUndefined());
     CHECK(constRef.toCbor().size() > 0 && !constRef.toDiagnosticNotation().isEmpty() && constRef.toVariant().isValid());
-    CHECK(constRef.toJsonValue().isObject() && constRef.compare(V(1)) > 0 && constRef != V(1) && constRef.toMap(QCborMap()).size() == 2);
+    CHECK(constRef.toJsonValue().isObject() && constRef.compare(V(1)) > 0 && constRef != V(1) &&
+          constRef.toMap(QCborMap()).size() == 2);
     QByteArray out;
     QCborStreamWriter writer(&out);
     constRef.toCbor(writer);
     CHECK(out == constRef.toCbor());
     const QCborValueRef s = array[2];
     CHECK(s.isString() && s.toString() == u"s"_s && !s.isByteArray() && !s.isInteger() && !s.isArray() && !s.isTag());
-    CHECK(!s.isFalse() && !s.isTrue() && !s.isBool() && !s.isNull() && !s.isUndefined() && !s.isDouble() && !s.isDateTime());
-    CHECK(!s.isUrl() && !s.isRegularExpression() && !s.isUuid() && !s.isInvalid() && !s.isSimpleType() && !s.isSimpleType(QCborSimpleType::Null));
-    CHECK(s.toInteger(3) == 3 && s.toBool(true) && s.toDouble(2) == 2 && s.toSimpleType() == QCborSimpleType::Undefined);
+    CHECK(!s.isFalse() && !s.isTrue() && !s.isBool() && !s.isNull() && !s.isUndefined() && !s.isDouble() &&
+          !s.isDateTime());
+    CHECK(!s.isUrl() && !s.isRegularExpression() && !s.isUuid() && !s.isInvalid() && !s.isSimpleType() &&
+          !s.isSimpleType(QCborSimpleType::Null));
+    CHECK(s.toInteger(3) == 3 && s.toBool(true) && s.toDouble(2) == 2 &&
+          s.toSimpleType() == QCborSimpleType::Undefined);
     CHECK(s.tag() == QCborTag(~0ULL) && s.taggedValue().isUndefined() && s.toByteArray("x") == QByteArray("x"));
-    CHECK(!s.toDateTime().isValid() && s.toUrl().isEmpty() && s.toUuid().isNull() && s.toRegularExpression().pattern().isEmpty());
+    CHECK(!s.toDateTime().isValid() && s.toUrl().isEmpty() && s.toUuid().isNull() &&
+          s.toRegularExpression().pattern().isEmpty());
     CHECK(s.toArray().isEmpty() && s.toArray(QCborArray{1}).size() == 1 && s.toMap().isEmpty());
     CHECK(s < V(u"t"_s) && s == V(u"s"_s));
 }

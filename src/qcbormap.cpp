@@ -181,33 +181,25 @@ QCborValue QCborMap::value(const QCborValue &key) const {
 /*!
     Returns the value of \a key, or \c undefined if the map has no such key.
 */
-const QCborValue QCborMap::operator[](qint64 key) const {
-    return value(key);
-}
+const QCborValue QCborMap::operator[](qint64 key) const { return value(key); }
 
 /*!
     \overload
     Returns the value of \a key, or \c undefined.
 */
-const QCborValue QCborMap::operator[](QLatin1StringView key) const {
-    return value(key);
-}
+const QCborValue QCborMap::operator[](QLatin1StringView key) const { return value(key); }
 
 /*!
     \overload
     Returns the value of \a key, or \c undefined.
 */
-const QCborValue QCborMap::operator[](const QString &key) const {
-    return value(key);
-}
+const QCborValue QCborMap::operator[](const QString &key) const { return value(key); }
 
 /*!
     \overload
     Returns the value of \a key, or \c undefined.
 */
-const QCborValue QCborMap::operator[](const QCborValue &key) const {
-    return value(key);
-}
+const QCborValue QCborMap::operator[](const QCborValue &key) const { return value(key); }
 
 /*!
     Returns a reference to the value of \a key. If the map has no such key, it is added with an \c undefined value.
@@ -357,33 +349,25 @@ void QCborMap::remove(const QCborValue &key) {
 /*!
     Returns \c true if the map has \a key.
 */
-bool QCborMap::contains(qint64 key) const {
-    return indexOf(QCborValue(key)) >= 0;
-}
+bool QCborMap::contains(qint64 key) const { return indexOf(QCborValue(key)) >= 0; }
 
 /*!
     \overload
     Returns \c true if the map has \a key.
 */
-bool QCborMap::contains(QLatin1StringView key) const {
-    return indexOf(QCborValue(key)) >= 0;
-}
+bool QCborMap::contains(QLatin1StringView key) const { return indexOf(QCborValue(key)) >= 0; }
 
 /*!
     \overload
     Returns \c true if the map has \a key.
 */
-bool QCborMap::contains(const QString &key) const {
-    return indexOf(QCborValue(key)) >= 0;
-}
+bool QCborMap::contains(const QString &key) const { return indexOf(QCborValue(key)) >= 0; }
 
 /*!
     \overload
     Returns \c true if the map has \a key.
 */
-bool QCborMap::contains(const QCborValue &key) const {
-    return indexOf(key) >= 0;
-}
+bool QCborMap::contains(const QCborValue &key) const { return indexOf(key) >= 0; }
 
 /*!
     Returns an iterator to the pair of \a key, or end() if the map has no such key.
@@ -424,33 +408,25 @@ QCborMap::Iterator QCborMap::find(const QCborValue &key) {
     \overload
     Returns a const iterator to the pair of \a key, or end().
 */
-QCborMap::ConstIterator QCborMap::find(qint64 key) const {
-    return constFind(key);
-}
+QCborMap::ConstIterator QCborMap::find(qint64 key) const { return constFind(key); }
 
 /*!
     \overload
     Returns a const iterator to the pair of \a key, or end().
 */
-QCborMap::ConstIterator QCborMap::find(QLatin1StringView key) const {
-    return constFind(key);
-}
+QCborMap::ConstIterator QCborMap::find(QLatin1StringView key) const { return constFind(key); }
 
 /*!
     \overload
     Returns a const iterator to the pair of \a key, or end().
 */
-QCborMap::ConstIterator QCborMap::find(const QString &key) const {
-    return constFind(key);
-}
+QCborMap::ConstIterator QCborMap::find(const QString &key) const { return constFind(key); }
 
 /*!
     \overload
     Returns a const iterator to the pair of \a key, or end().
 */
-QCborMap::ConstIterator QCborMap::find(const QCborValue &key) const {
-    return constFind(key);
-}
+QCborMap::ConstIterator QCborMap::find(const QCborValue &key) const { return constFind(key); }
 
 /*!
     Returns a const iterator to the pair of \a key, or constEnd() if the map has no such key.
@@ -563,7 +539,9 @@ QCborMap::ConstIterator QCborMap::begin() const { return constBegin(); }
 /*!
     Returns a const iterator to the first pair.
 */
-QCborMap::ConstIterator QCborMap::constBegin() const { return ConstIterator(const_cast<QCborValue *>(m_items.constData())); }
+QCborMap::ConstIterator QCborMap::constBegin() const {
+    return ConstIterator(const_cast<QCborValue *>(m_items.constData()));
+}
 
 /*!
     Returns an iterator past the last pair.
@@ -663,7 +641,8 @@ QString keyText(const QCborValue &key) {
     if (key.isInteger())
         return QString::number(key.toInteger());
     if (key.isByteArray())
-        return QString::fromLatin1(key.toByteArray().toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
+        return QString::fromLatin1(
+            key.toByteArray().toBase64(QByteArray::Base64UrlEncoding | QByteArray::OmitTrailingEquals));
     return key.toDiagnosticNotation();
 }
 

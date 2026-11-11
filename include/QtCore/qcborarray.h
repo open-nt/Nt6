@@ -59,42 +59,60 @@ public:
         /*!
             Returns a reference to the element \a j places on.
         */
-        QCborValueRef operator[](qsizetype j) const { return QtPrivate::CborRefAccess::ref(QtPrivate::CborRefAccess::pointer(item) + j); }
+        QCborValueRef operator[](qsizetype j) const {
+            return QtPrivate::CborRefAccess::ref(QtPrivate::CborRefAccess::pointer(item) + j);
+        }
 
         /*!
             Returns \c true if \a other points to the same element.
         */
-        bool operator==(const Iterator &other) const { return QtPrivate::CborRefAccess::pointer(item) == QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator==(const Iterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) == QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if \a other points to another element.
         */
-        bool operator!=(const Iterator &other) const { return QtPrivate::CborRefAccess::pointer(item) != QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator!=(const Iterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) != QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if this iterator points before \a other.
         */
-        bool operator<(const Iterator &other) const { return QtPrivate::CborRefAccess::pointer(item) < QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator<(const Iterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) < QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if this iterator points before \a other or to the same element.
         */
-        bool operator<=(const Iterator &other) const { return QtPrivate::CborRefAccess::pointer(item) <= QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator<=(const Iterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) <= QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if this iterator points after \a other.
         */
-        bool operator>(const Iterator &other) const { return QtPrivate::CborRefAccess::pointer(item) > QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator>(const Iterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) > QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if this iterator points after \a other or to the same element.
         */
-        bool operator>=(const Iterator &other) const { return QtPrivate::CborRefAccess::pointer(item) >= QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator>=(const Iterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) >= QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             \overload
             Returns \c true if \a other points to the same element.
         */
-        bool operator==(const ConstIterator &other) const { return QtPrivate::CborRefAccess::pointer(item) == QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator==(const ConstIterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) == QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             \overload
             Returns \c true if \a other points to another element.
         */
-        bool operator!=(const ConstIterator &other) const { return QtPrivate::CborRefAccess::pointer(item) != QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator!=(const ConstIterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) != QtPrivate::CborRefAccess::pointer(other.item);
+        }
 
         /*!
             Moves to the next element and returns this iterator.
@@ -151,7 +169,9 @@ public:
         /*!
             Returns the number of elements from \a j to this iterator.
         */
-        qsizetype operator-(Iterator j) const { return QtPrivate::CborRefAccess::pointer(item) - QtPrivate::CborRefAccess::pointer(j.item); }
+        qsizetype operator-(Iterator j) const {
+            return QtPrivate::CborRefAccess::pointer(item) - QtPrivate::CborRefAccess::pointer(j.item);
+        }
 
     private:
         friend class QCborArray;
@@ -184,7 +204,8 @@ public:
         /*!
             Constructs a const iterator that points where \a other does.
         */
-        ConstIterator(const Iterator &other) : item(QtPrivate::CborRefAccess::constRef(QtPrivate::CborRefAccess::pointer(other.item))) {}
+        ConstIterator(const Iterator &other)
+            : item(QtPrivate::CborRefAccess::constRef(QtPrivate::CborRefAccess::pointer(other.item))) {}
         /*!
             Makes this iterator point where \a other does.
         */
@@ -204,32 +225,46 @@ public:
         /*!
             Returns a reference to the element \a j places on.
         */
-        QCborValueConstRef operator[](qsizetype j) const { return QtPrivate::CborRefAccess::constRef(QtPrivate::CborRefAccess::pointer(item) + j); }
+        QCborValueConstRef operator[](qsizetype j) const {
+            return QtPrivate::CborRefAccess::constRef(QtPrivate::CborRefAccess::pointer(item) + j);
+        }
 
         /*!
             Returns \c true if \a other points to the same element.
         */
-        bool operator==(const ConstIterator &other) const { return QtPrivate::CborRefAccess::pointer(item) == QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator==(const ConstIterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) == QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if \a other points to another element.
         */
-        bool operator!=(const ConstIterator &other) const { return QtPrivate::CborRefAccess::pointer(item) != QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator!=(const ConstIterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) != QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if this iterator points before \a other.
         */
-        bool operator<(const ConstIterator &other) const { return QtPrivate::CborRefAccess::pointer(item) < QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator<(const ConstIterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) < QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if this iterator points before \a other or to the same element.
         */
-        bool operator<=(const ConstIterator &other) const { return QtPrivate::CborRefAccess::pointer(item) <= QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator<=(const ConstIterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) <= QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if this iterator points after \a other.
         */
-        bool operator>(const ConstIterator &other) const { return QtPrivate::CborRefAccess::pointer(item) > QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator>(const ConstIterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) > QtPrivate::CborRefAccess::pointer(other.item);
+        }
         /*!
             Returns \c true if this iterator points after \a other or to the same element.
         */
-        bool operator>=(const ConstIterator &other) const { return QtPrivate::CborRefAccess::pointer(item) >= QtPrivate::CborRefAccess::pointer(other.item); }
+        bool operator>=(const ConstIterator &other) const {
+            return QtPrivate::CborRefAccess::pointer(item) >= QtPrivate::CborRefAccess::pointer(other.item);
+        }
 
         /*!
             Moves to the next element and returns this iterator.
@@ -278,15 +313,21 @@ public:
         /*!
             Returns an iterator \a j elements on.
         */
-        ConstIterator operator+(qsizetype j) const { return ConstIterator(QtPrivate::CborRefAccess::pointer(item) + j); }
+        ConstIterator operator+(qsizetype j) const {
+            return ConstIterator(QtPrivate::CborRefAccess::pointer(item) + j);
+        }
         /*!
             Returns an iterator \a j elements back.
         */
-        ConstIterator operator-(qsizetype j) const { return ConstIterator(QtPrivate::CborRefAccess::pointer(item) - j); }
+        ConstIterator operator-(qsizetype j) const {
+            return ConstIterator(QtPrivate::CborRefAccess::pointer(item) - j);
+        }
         /*!
             Returns the number of elements from \a j to this iterator.
         */
-        qsizetype operator-(ConstIterator j) const { return QtPrivate::CborRefAccess::pointer(item) - QtPrivate::CborRefAccess::pointer(j.item); }
+        qsizetype operator-(ConstIterator j) const {
+            return QtPrivate::CborRefAccess::pointer(item) - QtPrivate::CborRefAccess::pointer(j.item);
+        }
 
     private:
         friend class QCborArray;

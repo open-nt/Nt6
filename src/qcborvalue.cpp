@@ -391,8 +391,9 @@ QCborValue::Payload &QCborValue::payload() {
 */
 QCborSimpleType QCborValue::toSimpleType(QCborSimpleType defaultValue) const {
     // Every value of the underlying type is a simple type, not only those with a name.
-    return isSimpleType() ? static_cast<QCborSimpleType>(t - SimpleType) // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
-                          : defaultValue;
+    return isSimpleType()
+               ? static_cast<QCborSimpleType>(t - SimpleType) // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
+               : defaultValue;
 }
 
 /*!
@@ -426,7 +427,9 @@ double QCborValue::toDouble(double defaultValue) const {
 
     \sa taggedValue(), isTag()
 */
-QCborTag QCborValue::tag(QCborTag defaultValue) const { return isTag() ? QCborTag(static_cast<quint64>(n)) : defaultValue; }
+QCborTag QCborValue::tag(QCborTag defaultValue) const {
+    return isTag() ? QCborTag(static_cast<quint64>(n)) : defaultValue;
+}
 
 /*!
     Returns the value that the tag applies to, or \a defaultValue if this is not a tag. For an
@@ -1045,9 +1048,8 @@ void QCborValue::toCbor(QCborStreamWriter &writer, EncodingOptions opt) const {
             qsizetype i = 0;
             for (auto it = map.constBegin(); it != map.constEnd(); ++it, ++i)
                 keys.emplace_back(it.key().toCbor(opt), i);
-            std::stable_sort(keys.begin(), keys.end(), [](const auto &a, const auto &b) {
-                return compareBytes(a.first, b.first) < 0;
-            });
+            std::stable_sort(keys.begin(), keys.end(),
+                             [](const auto &a, const auto &b) { return compareBytes(a.first, b.first) < 0; });
             for (const auto &key : keys) {
                 const auto it = map.constBegin() + key.second;
                 it.key().toCbor(writer, opt);
@@ -1301,7 +1303,9 @@ bool QCborValueConstRef::isSimpleType(QCborSimpleType st) const { return v->isSi
 /*!
     Returns the simple type of the value, or \a defaultValue if it is not a simple type.
 */
-QCborSimpleType QCborValueConstRef::toSimpleType(QCborSimpleType defaultValue) const { return v->toSimpleType(defaultValue); }
+QCborSimpleType QCborValueConstRef::toSimpleType(QCborSimpleType defaultValue) const {
+    return v->toSimpleType(defaultValue);
+}
 
 /*!
     Returns the integer of the value, or \a defaultValue if it is not an integer.
@@ -1326,12 +1330,16 @@ QCborTag QCborValueConstRef::tag(QCborTag defaultValue) const { return v->tag(de
 /*!
     Returns the value that the tag of the value applies to, or \a defaultValue if it is not a tag.
 */
-QCborValue QCborValueConstRef::taggedValue(const QCborValue &defaultValue) const { return v->taggedValue(defaultValue); }
+QCborValue QCborValueConstRef::taggedValue(const QCborValue &defaultValue) const {
+    return v->taggedValue(defaultValue);
+}
 
 /*!
     Returns the byte array of the value, or \a defaultValue if it is not a byte array.
 */
-QByteArray QCborValueConstRef::toByteArray(const QByteArray &defaultValue) const { return v->toByteArray(defaultValue); }
+QByteArray QCborValueConstRef::toByteArray(const QByteArray &defaultValue) const {
+    return v->toByteArray(defaultValue);
+}
 
 /*!
     Returns the string of the value, or \a defaultValue if it is not a string.
@@ -1351,7 +1359,9 @@ QUrl QCborValueConstRef::toUrl(const QUrl &defaultValue) const { return v->toUrl
 /*!
     Returns the regular expression of the value, or \a defaultValue if it is not one.
 */
-QRegularExpression QCborValueConstRef::toRegularExpression(const QRegularExpression &defaultValue) const { return v->toRegularExpression(defaultValue); }
+QRegularExpression QCborValueConstRef::toRegularExpression(const QRegularExpression &defaultValue) const {
+    return v->toRegularExpression(defaultValue);
+}
 
 /*!
     Returns the UUID of the value, or \a defaultValue if it is not a UUID.
@@ -1399,12 +1409,16 @@ QByteArray QCborValueConstRef::toCbor(QCborValue::EncodingOptions opt) const { r
     \overload
     Writes the value to \a writer with the options \a opt.
 */
-void QCborValueConstRef::toCbor(QCborStreamWriter &writer, QCborValue::EncodingOptions opt) const { return v->toCbor(writer, opt); }
+void QCborValueConstRef::toCbor(QCborStreamWriter &writer, QCborValue::EncodingOptions opt) const {
+    return v->toCbor(writer, opt);
+}
 
 /*!
     Returns the value in the diagnostic notation of CBOR, with the options \a opt.
 */
-QString QCborValueConstRef::toDiagnosticNotation(QCborValue::DiagnosticNotationOptions opt) const { return v->toDiagnosticNotation(opt); }
+QString QCborValueConstRef::toDiagnosticNotation(QCborValue::DiagnosticNotationOptions opt) const {
+    return v->toDiagnosticNotation(opt);
+}
 
 /*!
     Compares the value with \a other; see QCborValue::compare().
@@ -1414,7 +1428,9 @@ int QCborValueConstRef::compare(const QCborValue &other) const { return v->compa
 /*!
     Returns the value of \a key in the map that the reference refers to, or \c undefined.
 */
-const QCborValue QCborValueConstRef::operator[](const QString &key) const { return static_cast<const QCborValue &>(*v)[key]; }
+const QCborValue QCborValueConstRef::operator[](const QString &key) const {
+    return static_cast<const QCborValue &>(*v)[key];
+}
 
 /*!
     \overload

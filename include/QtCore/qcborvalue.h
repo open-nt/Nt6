@@ -340,8 +340,8 @@ private:
     const Payload *constPayload() const { return d.get(); }
 
     Type t = Undefined;
-    qint64 n = 0;     // the integer, or the number of a tag
-    double dbl = 0;   // the floating-point number
+    qint64 n = 0;               // the integer, or the number of a tag
+    double dbl = 0;             // the floating-point number
     std::shared_ptr<Payload> d; // the bytes, string, container or tagged value; shared until it is changed
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS(QCborValue::EncodingOptions)

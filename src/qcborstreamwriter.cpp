@@ -122,7 +122,8 @@ struct QCborStreamWriter::Private {
 
     bool end(bool map) {
         if (levels.empty() || levels.back().map != map) {
-            qWarning(map ? "QCborStreamWriter::endMap called without a map" : "QCborStreamWriter::endArray called without an array");
+            qWarning(map ? "QCborStreamWriter::endMap called without a map"
+                         : "QCborStreamWriter::endArray called without an array");
             return false;
         }
         const Level level = levels.back();

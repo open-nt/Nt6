@@ -340,7 +340,7 @@ QImage readPng(const uchar *data, std::size_t size) {
                     return (static_cast<unsigned>(row[2 * index]) << 8) | row[2 * index + 1];
                 const std::size_t bit = index * depth;
                 const unsigned shift = static_cast<unsigned>(8 - depth - (bit & 7));
-                return (row[bit >> 3] >> shift) & ((1u << depth) - 1);
+                return (static_cast<unsigned>(row[bit >> 3]) >> shift) & ((1u << depth) - 1);
             };
             for (std::size_t i = 0; i < ps.width; ++i) {
                 unsigned r = 0, g = 0, b = 0, a = 255;

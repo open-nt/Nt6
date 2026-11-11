@@ -31,6 +31,131 @@ protected:
 template <> struct QListSpecialMethods<QByteArray>;
 template <> struct QListSpecialMethods<QString>;
 
+namespace QtPrivate {
+
+// What QList<bool> keeps its items in: std::vector<bool> packs its items into bits, so it has no bool &
+// to give and no array of bool behind it. This has the part of the interface of std::vector that QList
+// uses, over one byte for each item.
+class BoolVector {
+    static_assert(sizeof(bool) == 1 && alignof(bool) == 1, "a bool is expected to be one byte");
+    using Cell = unsigned char; // always 0 or 1
+    static constexpr Cell cell(bool v) noexcept { return v ? Cell(1) : Cell(0); }
+
+public:
+    using value_type = bool;
+    using size_type = std::size_t;
+    using difference_type = std::ptrdiff_t;
+    using reference = bool &;
+    using const_reference = const bool &;
+    using pointer = bool *;
+    using const_pointer = const bool *;
+    using iterator = bool *;
+    using const_iterator = const bool *;
+    using reverse_iterator = std::reverse_iterator<iterator>;
+    using const_reverse_iterator = std::reverse_iterator<const_iterator>;
+
+    BoolVector() = default;
+    explicit BoolVector(size_type n) : s(n, Cell(0)) {}
+    BoolVector(size_type n, bool v) : s(n, cell(v)) {}
+    BoolVector(std::initializer_list<bool> list) { assign(list.begin(), list.end()); }
+    template <typename It, typename = typename std::iterator_traits<It>::iterator_category>
+    BoolVector(It first, It last) {
+        assign(first, last);
+    }
+
+    // The bytes are only ever written as bool, through these pointers or as 0 and 1.
+    bool *data() noexcept { return reinterpret_cast<bool *>(s.data()); }
+    const bool *data() const noexcept { return reinterpret_cast<const bool *>(s.data()); }
+    size_type size() const noexcept { return s.size(); }
+    size_type capacity() const noexcept { return s.capacity(); }
+    size_type max_size() const noexcept { return s.max_size(); }
+    bool empty() const noexcept { return s.empty(); }
+    void reserve(size_type n) { s.reserve(n); }
+    void shrink_to_fit() { s.shrink_to_fit(); }
+    void clear() noexcept { s.clear(); }
+    void resize(size_type n) { s.resize(n, Cell(0)); }
+    void resize(size_type n, bool v) { s.resize(n, cell(v)); }
+    void swap(BoolVector &other) noexcept { s.swap(other.s); }
+
+    iterator begin() noexcept { return data(); }
+    iterator end() noexcept { return data() + size(); }
+    const_iterator begin() const noexcept { return data(); }
+    const_iterator end() const noexcept { return data() + size(); }
+    const_iterator cbegin() const noexcept { return begin(); }
+    const_iterator cend() const noexcept { return end(); }
+    reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
+    reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
+    const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
+    const_reverse_iterator rend() const noexcept { return const_reverse_iterator(begin()); }
+    const_reverse_iterator crbegin() const noexcept { return rbegin(); }
+    const_reverse_iterator crend() const noexcept { return rend(); }
+
+    bool &operator[](size_type i) { return data()[i]; }
+    const bool &operator[](size_type i) const { return data()[i]; }
+    bool &front() { return data()[0]; }
+    const bool &front() const { return data()[0]; }
+    bool &back() { return data()[size() - 1]; }
+    const bool &back() const { return data()[size() - 1]; }
+
+    void assign(size_type n, bool v) { s.assign(n, cell(v)); }
+    void assign(std::initializer_list<bool> list) { assign(list.begin(), list.end()); }
+    template <typename It, typename = typename std::iterator_traits<It>::iterator_category>
+    void assign(It first, It last) {
+        s = cells(first, last);
+    }
+    void push_back(bool v) { s.push_back(cell(v)); }
+    void pop_back() { s.pop_back(); }
+    template <typename... Args> bool &emplace_back(Args &&...args) {
+        s.push_back(cell(bool(std::forward<Args>(args)...)));
+        return back();
+    }
+    template <typename... Args> iterator emplace(const_iterator pos, Args &&...args) {
+        return insert(pos, bool(std::forward<Args>(args)...));
+    }
+    iterator insert(const_iterator pos, bool v) { return insert(pos, size_type(1), v); }
+    iterator insert(const_iterator pos, size_type n, bool v) {
+        const difference_type at = pos - cbegin();
+        s.insert(s.begin() + at, n, cell(v));
+        return begin() + at;
+    }
+    template <typename It, typename = typename std::iterator_traits<It>::iterator_category>
+    iterator insert(const_iterator pos, It first, It last) {
+        const difference_type at = pos - cbegin();
+        // Copied first: the range may be in this vector.
+        const std::vector<Cell> items = cells(first, last);
+        s.insert(s.begin() + at, items.begin(), items.end());
+        return begin() + at;
+    }
+    iterator erase(const_iterator pos) { return erase(pos, pos + 1); }
+    iterator erase(const_iterator first, const_iterator last) {
+        const difference_type at = first - cbegin();
+        s.erase(s.begin() + at, s.begin() + (last - cbegin()));
+        return begin() + at;
+    }
+
+    // The bytes are 0 and 1, so they compare as the items do.
+    friend bool operator==(const BoolVector &a, const BoolVector &b) { return a.s == b.s; }
+    friend bool operator!=(const BoolVector &a, const BoolVector &b) { return a.s != b.s; }
+    friend bool operator<(const BoolVector &a, const BoolVector &b) { return a.s < b.s; }
+    friend bool operator<=(const BoolVector &a, const BoolVector &b) { return a.s <= b.s; }
+    friend bool operator>(const BoolVector &a, const BoolVector &b) { return a.s > b.s; }
+    friend bool operator>=(const BoolVector &a, const BoolVector &b) { return a.s >= b.s; }
+
+    operator std::vector<bool>() const { return std::vector<bool>(begin(), end()); }
+
+private:
+    template <typename It> static std::vector<Cell> cells(It first, It last) {
+        std::vector<Cell> items;
+        for (; first != last; ++first)
+            items.push_back(cell(static_cast<bool>(*first)));
+        return items;
+    }
+
+    std::vector<Cell> s;
+};
+
+} // namespace QtPrivate
+
 /*!
     \class QList
     \brief The QList class is a template class that provides a dynamic array.
@@ -50,8 +175,8 @@ template <> struct QListSpecialMethods<QString>;
     The list is a thin wrapper over \c std::vector, so copies are deep and it
     is not implicitly shared. contains(), indexOf(), lastIndexOf(), count(),
     removeOne() and removeAll() take a value of any type that can be compared
-    with the items, as in Qt. \c QList<bool> is rejected with a
-    \c static_assert. The \c Qt::Uninitialized constructor and
+    with the items, as in Qt. A \c QList<bool> keeps a byte for each item,
+    as Qt does, and not a bit as \c{std::vector<bool>} does. The \c Qt::Uninitialized constructor and
     resizeForOverwrite() value-initialize the new items. Indexes are not range-checked except by value().
     \c QVector is an alias of QList, so toList(), toVector(), fromList()
     and fromVector() return a copy of the same type.
@@ -60,16 +185,16 @@ template <> struct QListSpecialMethods<QString>;
     \sa QQueue, QStack, QVarLengthArray
 */
 template <typename T> class QList : public QListSpecialMethods<T> {
-    static_assert(!std::is_same_v<T, bool>, "QList<bool> is not supported yet");
-
 public:
     using QListSpecialMethods<T>::contains;
     using QListSpecialMethods<T>::indexOf;
     using QListSpecialMethods<T>::lastIndexOf;
     /*! \typedef QList::Container
 
-        The underlying \c{std::vector<T>} that stores the items. */
-    using Container = std::vector<T>;
+        The container that stores the items: \c{std::vector<T>}, except
+        for a list of \c bool, which has a container of its own, as
+        \c{std::vector<bool>} is not an array of \c bool. */
+    using Container = std::conditional_t<std::is_same_v<T, bool>, QtPrivate::BoolVector, std::vector<T>>;
     /*! \typedef QList::iterator
 
         The non-const iterator type, a random access iterator over \c T. */
@@ -719,8 +844,14 @@ public:
     void chop(qsizetype n) { d.resize(d.size() - static_cast<std::size_t>(n)); }
     /*! Reverses the order of the items in the list in place. */
     void reverse() { std::reverse(d.begin(), d.end()); }
-    /*! Returns a const reference to the underlying \c{std::vector<T>}. */
-    const std::vector<T> &toStdVector() const { return d; }
+    /*!
+        Returns the items as a \c{std::vector<T>}: a const reference to the
+        vector that the list keeps them in, or, for a list of \c bool, a new
+        \c{std::vector<bool>} with a copy of them.
+    */
+    std::conditional_t<std::is_same_v<T, bool>, std::vector<bool>, const std::vector<T> &> toStdVector() const {
+        return d;
+    }
     /*! Returns a copy of this list. Provided for compatibility with code that converts between QList and QVector. */
     QList toList() const { return *this; }
     /*! Returns a copy of this list. Provided for compatibility with code that converts between QList and QVector. */

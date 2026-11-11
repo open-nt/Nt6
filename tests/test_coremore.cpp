@@ -4,11 +4,13 @@
 #include <QPair>
 #include <QtEndian>
 
+#include <algorithm>
 #include <array>
 #include <cstdarg>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
@@ -475,6 +477,84 @@ static void testCompress() {
     CHECK(qCompress(static_cast<const uchar *>(nullptr), 0).isEmpty());
 }
 
+static void testBoolList() {
+    QList<bool> flags{true, false, true};
+    CHECK(flags.size() == 3 && flags.at(0) && !flags.at(1) && flags[2] && flags.first() && flags.last());
+    // The items are real bools: references, pointers and an array behind them.
+    bool &second = flags[1];
+    second = true;
+    bool *raw = flags.data();
+    CHECK(flags.at(1) && raw[1] && raw + 3 == flags.data() + flags.size() && flags.constData() == raw);
+    raw[1] = false;
+    for (bool &flag : flags)
+        flag = !flag;
+    CHECK(flags == QList<bool>({false, true, false}));
+    QSpan<const bool> span(flags.constData(), flags.size());
+    CHECK(span.size() == 3 && span[1]);
+
+    flags.append(true);
+    flags << false << true;
+    flags.prepend(true);
+    flags.insert(1, 2, false);
+    CHECK(flags == QList<bool>({true, false, false, false, true, false, true, false, true}));
+    CHECK(flags.count(true) == 4 && flags.contains(false) && flags.indexOf(true, 1) == 4 && flags.lastIndexOf(false) == 7);
+    CHECK(flags.removeAll(false) == 5 && flags == QList<bool>(4, true) && !flags.contains(false));
+    flags.resize(6);
+    CHECK(flags.size() == 6 && !flags.at(5) && flags.takeLast() == false && flags.takeFirst() == true);
+    flags.removeAt(0);
+    flags.remove(0, 2);
+    CHECK(flags == QList<bool>{false} && !flags.isEmpty());
+    flags.emplaceBack(true);
+    flags.emplaceFront(true);
+    flags.insert(flags.begin() + 1, true);
+    flags.replace(1, false);
+    flags.move(0, 3);
+    flags.swapItemsAt(0, 1);
+    CHECK(flags == QList<bool>({false, false, true, true}));
+    // Appending a list to itself, and inserting its own items.
+    flags.append(flags);
+    CHECK(flags.size() == 8 && flags.mid(4) == flags.mid(0, 4) && flags.first(2) == QList<bool>(2, false));
+    flags.erase(flags.begin(), flags.begin() + 6);
+    flags.fill(true, 3);
+    CHECK(flags == QList<bool>(3, true));
+    flags.assign({false, true});
+    CHECK(flags.sliced(1) == QList<bool>{true} && flags.value(9, true) && !flags.value(0, true));
+    flags.reserve(100);
+    CHECK(flags.capacity() >= 100);
+    flags.squeeze();
+    std::sort(flags.begin(), flags.end(), std::greater<bool>());
+    CHECK(flags == QList<bool>({true, false}) && std::count(flags.cbegin(), flags.cend(), true) == 1);
+    CHECK(std::vector<bool>(flags.rbegin(), flags.rend()) == std::vector<bool>({false, true}));
+    CHECK(flags.toStdVector() == std::vector<bool>({true, false}));
+    CHECK((QList<bool>{false, true} < QList<bool>{true} && QList<bool>{true} != QList<bool>{true, true}));
+    const std::vector<bool> packed{true, true, false};
+    const QList<bool> fromPacked(packed.begin(), packed.end());
+    CHECK(fromPacked.size() == 3 && fromPacked.at(1) && !fromPacked.at(2) && QList<bool>(2).count(false) == 2);
+    QList<bool> other{true};
+    other.swap(flags);
+    CHECK(flags == QList<bool>{true} && other.size() == 2);
+    flags.clear();
+    CHECK(flags.isEmpty());
+
+    // In the containers and the types that are built on lists.
+    const QVariant variant = QVariant::fromValue(QList<bool>{true, false});
+    CHECK(variant.value<QList<bool>>() == QList<bool>({true, false}));
+    QByteArray wire;
+    {
+        QDataStream out(&wire, QIODevice::WriteOnly);
+        out << QList<bool>{true, false, true};
+    }
+    QList<bool> read;
+    QDataStream in(wire);
+    in >> read;
+    CHECK(read == QList<bool>({true, false, true}));
+    QMap<QString, QList<bool>> map;
+    map[QStringLiteral("k")] << true;
+    CHECK(map.value(QStringLiteral("k")).size() == 1 && QStack<bool>().isEmpty() && QQueue<bool>().isEmpty());
+    QVector<bool> vector(3, true);
+    CHECK(vector.size() == 3 && QDebug::toString(vector).contains(QStringLiteral("true")));
+}
+
 // What a project written for Qt 6 expects of the basic types.
 
 static_assert(std::is_same_v<QStringList, QList<QString>>, "QStringList is QList<QString>");
@@ -703,6 +783,7 @@ int main(int argc, char **argv) {
         testCompress();
         QTemporaryDir dir;
         CHECK(dir.isValid());
+        testBoolList();
         testQtCompatibility(dir.path());
     }
     CHECK(QCoreApplication::closingDown() && !QCoreApplication::instanceExists() && !QCoreApplication::startingUp());

@@ -722,3 +722,6 @@ private:
     const QChar *p = nullptr;
     qsizetype n = 0;
 };
+
+// tokenize() returns auto, so its definition has to be seen by everyone who sees the declaration.
+#include <QtCore/qstringtokenizer.h>

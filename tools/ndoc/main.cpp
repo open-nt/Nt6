@@ -958,6 +958,22 @@ private:
         return nullptr;
     }
 
+    // The \class comment that stands right before the declaration that starts at token i, if any.
+    std::shared_ptr<Doc> classTopicBefore(std::size_t i) const {
+        if (i >= L.tokens.size())
+            return nullptr;
+        const std::size_t pos = L.tokens[i].pos;
+        const std::size_t prevEnd = i == 0 ? 0 : L.tokens[i - 1].end;
+        for (auto it = L.comments.rbegin(); it != L.comments.rend(); ++it) {
+            if (it->end > pos)
+                continue;
+            if (it->begin < prevEnd || it->doc->topic != "class")
+                return nullptr;
+            return it->doc;
+        }
+        return nullptr;
+    }
+
     ClassDoc &namespaceRecord(const std::string &qual, const std::string &name) {
         auto &slot = M.classes[qual];
         if (!slot) {
@@ -1240,7 +1256,20 @@ private:
         const std::size_t close = matchBrace(k);
         const std::size_t after = skipDeclaration(close + 1, end);
 
-        // Source-local classes, specialisations and private details are not API.
+        // A specialisation that has a \class comment right above it is the class of that name: this is
+        // how a type that is an alias of a specialised template, such as QStringList, gets its page.
+        std::string ownTmpl = tmpl;
+        if (specialization != 0 && m_header && !cls) {
+            if (const std::shared_ptr<Doc> topic = classTopicBefore(declStart)) {
+                name = topic->topicArg;
+                scope.clear();
+                ownTmpl.clear();
+                bases.clear();
+                specialization = 0;
+            }
+        }
+
+        // Source-local classes, other specialisations and private details are not API.
         if (!m_header || specialization != 0 || name.empty() || access == Access::Private)
             return after;
 
@@ -1256,7 +1285,7 @@ private:
         rec->qualName = qual;
         rec->name = name;
         rec->word = T(b);
-        rec->tmpl = tmpl;
+        rec->tmpl = ownTmpl;
         rec->parent = cls ? cls->qualName : (scope.empty() ? std::string() : outer);
         rec->bases = std::move(bases);
         rec->file = m_file;

@@ -289,6 +289,31 @@ public:
     /*!
         \overload
 
+        Reads a 64-bit integer from the stream into \a v, a \c long, which
+        is how operator<<(long) writes one on every platform. An Nt addition:
+        Qt has no operators for \c long.
+    */
+    QDataStream &operator>>(long &v) {
+        qint64 wide = 0;
+        *this >> wide;
+        v = static_cast<long>(wide);
+        return *this;
+    }
+    /*!
+        \overload
+
+        Reads a 64-bit integer from the stream into \a v, an
+        \c{unsigned long}. An Nt addition.
+    */
+    QDataStream &operator>>(unsigned long &v) {
+        qint64 wide = 0;
+        *this >> wide;
+        v = static_cast<unsigned long>(wide);
+        return *this;
+    }
+    /*!
+        \overload
+
         Reads a byte from the stream into the character \a v.
     */
     QDataStream &operator>>(char &v) { return *this >> reinterpret_cast<qint8 &>(v); }
@@ -398,6 +423,22 @@ public:
         stream's byte order.
     */
     QDataStream &operator<<(quint64 v) { return *this << static_cast<qint64>(v); }
+    /*!
+        \overload
+
+        Writes the \c long \a v to the stream as a signed 64-bit integer,
+        whatever the size of \c long is on the platform. An Nt addition: Qt
+        has no operators for \c long, so that a \c{std::size_t} cannot be
+        written there without a cast.
+    */
+    QDataStream &operator<<(long v) { return *this << static_cast<qint64>(v); }
+    /*!
+        \overload
+
+        Writes the \c{unsigned long} \a v to the stream as a 64-bit integer.
+        An Nt addition.
+    */
+    QDataStream &operator<<(unsigned long v) { return *this << static_cast<qint64>(v); }
     /*!
         \overload
 

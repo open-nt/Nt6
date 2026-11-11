@@ -7,6 +7,8 @@
 class QSslCipher {
 public:
     QSslCipher() = default;
+    explicit QSslCipher(const QString &name);
+    QSslCipher(const QString &name, QSsl::SslProtocol protocol);
     QSslCipher(const QString &name, int usedBits, int supportedBits, const QString &protocolString,
                QSsl::SslProtocol protocol);
 

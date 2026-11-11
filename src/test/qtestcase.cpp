@@ -3,6 +3,7 @@
 
 #include <QtCore/qeventloop.h>
 #include <QtCore/qmetaobject.h>
+#include <QtCore/qregularexpression.h>
 #include <QtCore/qtimer.h>
 
 #include "qtestlog_p.h"
@@ -14,6 +15,7 @@
 #include <cstring>
 #include <exception>
 #include <filesystem>
+#include <memory>
 #include <mutex>
 #include <set>
 #include <string>
@@ -279,7 +281,8 @@ struct ExpectedFailure {
 
 struct IgnoredMessage {
     QtMsgType type;
-    std::string text;
+    std::string text;                            // the whole message, or the pattern, for reports
+    std::shared_ptr<QRegularExpression> pattern; // set if the message is matched with a pattern
 };
 
 struct Selection {
@@ -303,6 +306,7 @@ public:
     void skip(const std::string &message, const char *file, int line);
     bool expectFail(const char *tag, const char *comment, QTest::TestFailMode mode, const char *file, int line);
     void ignoreMessage(QtMsgType type, const char *text);
+    void ignoreMessage(QtMsgType type, const QRegularExpression &pattern);
     void handleMessage(QtMsgType type, const std::string &text);
 
     const void *fetch(const char *name, const std::type_info &type, bool global) const;
@@ -711,14 +715,24 @@ bool Run::expectFail(const char *tag, const char *comment, QTest::TestFailMode m
 
 void Run::ignoreMessage(QtMsgType type, const char *text) {
     const std::lock_guard<std::recursive_mutex> lock(m_logMutex);
-    m_ignored.push_back({type, text});
+    m_ignored.push_back({type, text, nullptr});
+}
+
+void Run::ignoreMessage(QtMsgType type, const QRegularExpression &pattern) {
+    const std::lock_guard<std::recursive_mutex> lock(m_logMutex);
+    m_ignored.push_back({type, pattern.pattern().toStdString(), std::make_shared<QRegularExpression>(pattern)});
 }
 
 void Run::handleMessage(QtMsgType type, const std::string &text) {
     {
         const std::lock_guard<std::recursive_mutex> lock(m_logMutex);
-        const auto ignored = std::find_if(m_ignored.begin(), m_ignored.end(),
-                                          [&](const IgnoredMessage &m) { return m.type == type && m.text == text; });
+        const auto ignored = std::find_if(m_ignored.begin(), m_ignored.end(), [&](const IgnoredMessage &m) {
+            if (m.type != type)
+                return false;
+            if (!m.pattern)
+                return m.text == text;
+            return m.pattern->match(QString::fromStdString(text)).hasMatch();
+        });
         if (ignored != m_ignored.end()) {
             m_ignored.erase(ignored);
             return;
@@ -945,6 +959,10 @@ bool currentTestFailed() { return g_run && g_run->rowFailed(); }
 
 void ignoreMessage(QtMsgType type, const char *message) {
     QTestPrivate::currentRun("QTest::ignoreMessage()").ignoreMessage(type, message);
+}
+
+void ignoreMessage(QtMsgType type, const QRegularExpression &messagePattern) {
+    QTestPrivate::currentRun("QTest::ignoreMessage()").ignoreMessage(type, messagePattern);
 }
 
 void qSleep(int ms) { std::this_thread::sleep_for(std::chrono::milliseconds(ms)); }

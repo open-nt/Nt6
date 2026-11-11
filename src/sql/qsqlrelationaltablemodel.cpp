@@ -136,8 +136,8 @@ const QHash<QString, QVariant> &QSqlRelationalTableModel::dictionary(int column)
 }
 
 /*!
-    Returns the value of the item at \a item for the display role or the
-    edit role. In a column with a relation this is the display value of the
+    Returns the value of the item at \a item for \a role, the display role
+    or the edit role. In a column with a relation this is the display value of the
     relation: the one that the row has in the database, or, for an item that
     was given another key with setData(), the one that goes with that key.
 
@@ -148,12 +148,14 @@ QVariant QSqlRelationalTableModel::data(const QModelIndex &item, int role) const
         const auto it = m_cache.constFind(item.row());
         if (it != m_cache.constEnd() && it.value().rec.isGenerated(item.column())) {
             // The row holds the key that was set, which has not been written yet.
-            const QVariant key = it.value().rec.value(item.column());
+            QVariant key = it.value().rec.value(item.column());
             if (key.isNull())
                 return key;
             const QHash<QString, QVariant> &display = dictionary(item.column());
             const auto found = display.constFind(key.toString());
-            return found != display.constEnd() ? found.value() : key;
+            if (found != display.constEnd())
+                return found.value();
+            return key;
         }
     }
     return QSqlTableModel::data(item, role);
@@ -161,7 +163,8 @@ QVariant QSqlRelationalTableModel::data(const QModelIndex &item, int role) const
 
 /*!
     Sets the value of the item at \a item to \a value and returns \c true
-    on success, as QSqlTableModel::setData() does. For a column with a
+    on success, as QSqlTableModel::setData() does; \a role has to be
+    Qt::EditRole. For a column with a
     relation, \a value is a key: a value of the index column of the
     relation. It is refused, and \c false returned, if the other table has
     no row with that key; a null value is accepted.

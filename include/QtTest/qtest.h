@@ -245,6 +245,15 @@ bool currentTestFailed();
 void ignoreMessage(QtMsgType type, const char *message);
 
 /*!
+    \overload
+
+    Expects the next message of the given \a type to match the regular
+    expression \a messagePattern, anywhere in its text, and keeps it out of
+    the log. Anchor the pattern to match the whole text.
+*/
+void ignoreMessage(QtMsgType type, const QRegularExpression &messagePattern);
+
+/*!
     Blocks for \a ms milliseconds without processing events.
 
     \sa qWait()

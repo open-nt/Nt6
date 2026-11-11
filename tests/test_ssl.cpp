@@ -931,12 +931,196 @@ static void testHttps() {
     delete r;
 }
 
+struct Shake {
+    bool encrypted = false;
+    QString cipher;
+    QSsl::SslProtocol protocol = QSsl::UnknownProtocol;
+    QAbstractSocket::SocketError error = QAbstractSocket::UnknownSocketError;
+    int available = 0; // QTcpServer::pendingConnectionAvailable()
+    int accepted = 0;
+};
+
+// One connection between a server and a client with the given configurations.
+static Shake shake(const QSslConfiguration &serverSide, const QSslConfiguration &clientSide) {
+    Shake r;
+    EchoServer server(serverSide);
+    QObject::connect(&server.server, &QTcpServer::pendingConnectionAvailable, [&] { ++r.available; });
+    QSslSocket client;
+    client.setSslConfiguration(clientSide);
+    QEventLoop loop;
+    QObject::connect(&client, &QSslSocket::encrypted, [&] {
+        r.encrypted = true;
+        r.cipher = client.sessionCipher().name();
+        r.protocol = client.sessionProtocol();
+    });
+    QObject::connect(&client, &QAbstractSocket::errorOccurred, [&](QAbstractSocket::SocketError e) {
+        if (r.error == QAbstractSocket::UnknownSocketError)
+            r.error = e;
+        loop.quit();
+    });
+    QObject::connect(&client, &QIODevice::readyRead, [&] { loop.quit(); });
+    client.connectToHostEncrypted("127.0.0.1", server.port(), "127.0.0.1");
+    client.write("x");
+    runLoop(loop);
+    QEventLoop settle;
+    QTimer::singleShot(30, [&] { settle.quit(); });
+    settle.exec();
+    r.accepted = server.accepted;
+    return r;
+}
+
+static bool hasCipher(const QList<QSslCipher> &list, const char *name) {
+    for (const QSslCipher &c : list)
+        if (c.name() == QString::fromLatin1(name))
+            return true;
+    return false;
+}
+
+static void testCiphers() {
+    const QSslConfiguration serverDefault = serverConfig(f->good);
+    const QSslConfiguration clientDefault = clientConfig();
+    const char *aes256 = "TLS_AES_256_GCM_SHA384";
+    const char *chacha = "TLS_CHACHA20_POLY1305_SHA256";
+
+    // What OpenSSL can do, and what it does by default.
+    const QList<QSslCipher> supported = QSslConfiguration::supportedCiphers();
+    CHECK(supported.size() > 10 && hasCipher(supported, aes256));
+    const QList<QSslCipher> defaults = clientDefault.ciphers();
+    CHECK(!defaults.isEmpty() && defaults.size() <= supported.size() && hasCipher(defaults, aes256));
+    for (const QSslCipher &c : defaults)
+        CHECK(supported.contains(c));
+    const QSslCipher strong{QString::fromLatin1(aes256)};
+    CHECK(!strong.isNull() && strong.protocol() == QSsl::TlsV1_3 && strong.usedBits() == 256);
+    CHECK(strong.protocolString() == QString("TLSv1.3"));
+    CHECK(QSslCipher(QString("NO-SUCH-CIPHER")).isNull());
+    CHECK(QSslCipher(QString::fromLatin1(aes256), QSsl::TlsV1_2).isNull());
+    CHECK(!QSslCipher(QString::fromLatin1(aes256), QSsl::TlsV1_3).isNull());
+
+    // Without restrictions, and what TLS 1.2 picks, to have a cipher of the earlier versions that works here.
+    Shake plain = shake(serverDefault, clientDefault);
+    CHECK(plain.encrypted && plain.protocol == QSsl::TlsV1_3 && plain.available == 1 && plain.accepted == 1);
+    QSslConfiguration tls12 = clientDefault;
+    tls12.setProtocol(QSsl::TlsV1_2);
+    const Shake older = shake(serverDefault, tls12);
+    CHECK(older.encrypted && older.protocol == QSsl::TlsV1_2);
+    const QSslCipher legacy{older.cipher};
+    CHECK(!legacy.isNull() && legacy.protocol() == QSsl::TlsV1_2 &&
+          hasCipher(supported, legacy.name().toLatin1().constData()));
+
+    // The server allows one cipher: that is the one.
+    QSslConfiguration one = serverDefault;
+    CHECK(one == serverDefault);
+    one.setCiphers(QList<QSslCipher>{strong});
+    CHECK(one != serverDefault && one.ciphers() == QList<QSslCipher>{strong});
+    Shake r = shake(one, clientDefault);
+    CHECK(r.encrypted && r.cipher == QString::fromLatin1(aes256) && r.protocol == QSsl::TlsV1_3);
+
+    // By name. The client's choice counts too.
+    if (hasCipher(supported, chacha)) {
+        QSslConfiguration named = clientDefault;
+        named.setCiphers(QString::fromLatin1(chacha) + QString(":NOT-A-CIPHER"));
+        CHECK(named.ciphers().size() == 1 && named.ciphers().first().name() == QString::fromLatin1(chacha));
+        r = shake(serverDefault, named);
+        CHECK(r.encrypted && r.cipher == QString::fromLatin1(chacha));
+        // No cipher in common: no connection.
+        r = shake(one, named);
+        CHECK(!r.encrypted && r.error != QAbstractSocket::UnknownSocketError && r.accepted == 0 && r.available == 0);
+    }
+
+    // Only a cipher of TLS 1.2: TLS 1.3 is out, though both sides have it.
+    QSslConfiguration legacyOnly = clientDefault;
+    legacyOnly.setCiphers(QList<QSslCipher>{legacy});
+    r = shake(serverDefault, legacyOnly);
+    CHECK(r.encrypted && r.protocol == QSsl::TlsV1_2 && r.cipher == legacy.name());
+    // ... and it does not meet a server that has only a cipher of TLS 1.3,
+    r = shake(one, legacyOnly);
+    CHECK(!r.encrypted && r.accepted == 0);
+    // nor does a cipher of TLS 1.3 fit a configuration for TLS 1.2, or the other way round.
+    QSslConfiguration clash = clientDefault;
+    clash.setProtocol(QSsl::TlsV1_2);
+    clash.setCiphers(QList<QSslCipher>{strong});
+    r = shake(serverDefault, clash);
+    CHECK(!r.encrypted && r.error == QAbstractSocket::SslInvalidUserDataError && r.accepted == 0);
+    clash.setProtocol(QSsl::TlsV1_3);
+    clash.setCiphers(QList<QSslCipher>{legacy});
+    r = shake(serverDefault, clash);
+    CHECK(!r.encrypted && r.error == QAbstractSocket::SslInvalidUserDataError);
+
+    // A list that comes out empty allows nothing; it does not fall back to the defaults.
+    QSslConfiguration nothing = clientDefault;
+    nothing.setCiphers(QString("NOT-A-CIPHER:NEITHER"));
+    CHECK(nothing.ciphers().isEmpty() && nothing != clientDefault);
+    r = shake(serverDefault, nothing);
+    CHECK(!r.encrypted && r.error == QAbstractSocket::SslInvalidUserDataError && r.accepted == 0);
+    nothing.setCiphers(QList<QSslCipher>());
+    r = shake(serverDefault, nothing);
+    CHECK(!r.encrypted && r.error == QAbstractSocket::SslInvalidUserDataError);
+    // A cipher that is made up, with a name that OpenSSL would read as "everything", is not taken.
+    QSslConfiguration sneaky = clientDefault;
+    sneaky.setCiphers(
+        QList<QSslCipher>{QSslCipher(QString("ALL"), 256, 256, QString("TLSv1.2"), QSsl::TlsV1_2),
+                          QSslCipher(QString("DEFAULT:@SECLEVEL=0"), 256, 256, QString("TLSv1.2"), QSsl::TlsV1_2)});
+    CHECK(sneaky.ciphers().isEmpty());
+    r = shake(serverDefault, sneaky);
+    CHECK(!r.encrypted);
+    // A made-up cipher with a real name is replaced by the real one.
+    sneaky.setCiphers(QList<QSslCipher>{QSslCipher(QString::fromLatin1(aes256), 1, 1, QString("x"), QSsl::TlsV1_2)});
+    CHECK(sneaky.ciphers() == QList<QSslCipher>{strong});
+
+    // Options of OpenSSL: the groups of the key exchange.
+    QSslConfiguration p384 = clientDefault;
+    CHECK(p384.backendConfiguration().isEmpty());
+    p384.setBackendConfigurationOption("Groups", "P-384");
+    CHECK(p384.backendConfiguration().value("Groups").toByteArray() == "P-384" && p384 != clientDefault);
+    r = shake(serverDefault, p384);
+    CHECK(r.encrypted && r.protocol == QSsl::TlsV1_3);
+    QSslConfiguration p521 = serverDefault;
+    p521.setBackendConfigurationOption("Groups", QByteArray("P-521"));
+    r = shake(p521, p384);
+    CHECK(!r.encrypted && r.accepted == 0);
+    p384.setBackendConfigurationOption("Groups", "P-384:P-521");
+    r = shake(p521, p384);
+    CHECK(r.encrypted);
+    // Several options; one of them overrides the protocol of the configuration.
+    QSslConfiguration strict = clientDefault;
+    strict.setBackendConfigurationOption("MinProtocol", "TLSv1.3");
+    strict.setBackendConfigurationOption("Groups", "P-384");
+    QSslConfiguration oldServer = serverDefault;
+    oldServer.setProtocol(QSsl::TlsV1_2);
+    r = shake(oldServer, strict);
+    CHECK(!r.encrypted);
+    r = shake(serverDefault, strict);
+    CHECK(r.encrypted && r.protocol == QSsl::TlsV1_3);
+    // An option that cannot be applied stops the handshake: on the client,
+    QSslConfiguration bad = clientDefault;
+    bad.setBackendConfigurationOption("Groups", "not-a-group");
+    r = shake(serverDefault, bad);
+    CHECK(!r.encrypted && r.error == QAbstractSocket::SslInvalidUserDataError && r.accepted == 0);
+    bad.setBackendConfiguration();
+    CHECK(bad.backendConfiguration().isEmpty() && bad == clientDefault);
+    bad.setBackendConfigurationOption("NoSuchOption", "1");
+    r = shake(serverDefault, bad);
+    CHECK(!r.encrypted && r.error == QAbstractSocket::SslInvalidUserDataError);
+    bad.setBackendConfiguration({{QByteArray(), QVariant(1)}});
+    r = shake(serverDefault, bad);
+    CHECK(!r.encrypted && r.error == QAbstractSocket::SslInvalidUserDataError);
+    // and on the server, which then accepts nobody.
+    QSslConfiguration badServer = serverDefault;
+    badServer.setBackendConfigurationOption("Groups", "not-a-group");
+    r = shake(badServer, clientDefault);
+    CHECK(!r.encrypted && r.accepted == 0 && r.available == 0);
+    bad.setBackendConfiguration();
+    r = shake(serverDefault, bad);
+    CHECK(r.encrypted && r.available == 1);
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     Fixture fixture;
     f = &fixture;
     testCertificates();
     testHandshake();
+    testCiphers();
     testRejections();
     testServer();
     testStartTls();

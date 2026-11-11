@@ -110,7 +110,7 @@ module NtCore = ../include/QtCore
 ## Limitations
 
 - Global functions, global typedefs and macros cannot be documented yet.
-- Template specialisations are skipped.
+- Template specialisations are skipped, except one that has a `\class Name` comment right above it, which is documented as the class `Name` (for an alias of a specialised template, such as `QStringList`).
 - Both branches of an `#if` are read.
 - Output is HTML only.
 - `\fn` signatures must fit on one line.

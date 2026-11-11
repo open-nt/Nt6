@@ -425,6 +425,70 @@ void QSslSocket::beginHandshake(SslMode mode) {
         }
     }
 
+    // The ciphers. A restriction that cannot be applied fails the handshake: falling back to the defaults
+    // of OpenSSL would allow what the application ruled out.
+    if (config.m_ciphersSet) {
+        QByteArray older;  // TLS 1.2 and before, as a cipher list
+        QByteArray suites; // TLS 1.3
+        for (const QSslCipher &cipher : config.m_ciphers) {
+            QByteArray &list = cipher.protocol() == QSsl::TlsV1_3 ? suites : older;
+            if (!list.isEmpty())
+                list += ':';
+            list += cipher.name().toLatin1();
+        }
+        if (older.isEmpty() && suites.isEmpty()) {
+            failHandshake(SslInvalidUserDataError, QString("The list of ciphers is empty"));
+            return;
+        }
+        bool ok = SSL_CTX_set_ciphersuites(d->ctx, suites.constData()) == 1;
+        if (older.isEmpty()) {
+            // No cipher of the earlier versions: they are ruled out.
+            ok = ok && SSL_CTX_set_min_proto_version(d->ctx, std::max(minimum, TLS1_3_VERSION)) == 1;
+            if (maximum != 0 && maximum < TLS1_3_VERSION)
+                ok = false;
+        } else {
+            ok = ok && SSL_CTX_set_cipher_list(d->ctx, older.constData()) == 1;
+            if (suites.isEmpty()) {
+                // No cipher of TLS 1.3: that version is ruled out.
+                if (minimum >= TLS1_3_VERSION)
+                    ok = false;
+                else
+                    ok = ok && SSL_CTX_set_max_proto_version(d->ctx, TLS1_2_VERSION) == 1;
+            }
+        }
+        if (!ok) {
+            failHandshake(SslInvalidUserDataError, lastSslError("The ciphers cannot be used with this protocol"));
+            return;
+        }
+    }
+
+    // The options of the TLS library, which come last so that they can override what is set above.
+    if (!config.m_backend.isEmpty()) {
+        SSL_CONF_CTX *conf = SSL_CONF_CTX_new();
+        bool ok = conf != nullptr;
+        QByteArray failed;
+        if (conf) {
+            SSL_CONF_CTX_set_flags(conf, SSL_CONF_FLAG_FILE | SSL_CONF_FLAG_CERTIFICATE | SSL_CONF_FLAG_SHOW_ERRORS |
+                                             (mode == SslServerMode ? SSL_CONF_FLAG_SERVER : SSL_CONF_FLAG_CLIENT));
+            SSL_CONF_CTX_set_ssl_ctx(conf, d->ctx);
+            for (auto it = config.m_backend.constBegin(); ok && it != config.m_backend.constEnd(); ++it) {
+                const QByteArray value = it.value().toByteArray();
+                // 2: the option and its value were used; 1: only the option; anything else is a failure.
+                if (it.key().isEmpty() || SSL_CONF_cmd(conf, it.key().constData(), value.constData()) <= 0) {
+                    ok = false;
+                    failed = it.key();
+                }
+            }
+            ok = ok && SSL_CONF_CTX_finish(conf) == 1;
+            SSL_CONF_CTX_free(conf);
+        }
+        if (!ok) {
+            failHandshake(SslInvalidUserDataError,
+                          lastSslError(QByteArray("The TLS backend option " + failed + " cannot be set").constData()));
+            return;
+        }
+    }
+
     d->alpnWire = wireProtocols(config.allowedNextProtocols());
     if (!d->alpnWire.isEmpty() && mode == SslServerMode)
         SSL_CTX_set_alpn_select_cb(d->ctx, alpnSelect, &d->alpnWire);

@@ -177,6 +177,7 @@ protected:
     qint64 writeData(const char *data, qint64 maxSize) override;
     qint64 readLineData(char *data, qint64 maxSize) override;
     bool openPath(const QString &path, OpenMode mode);
+    bool openPath(const QString &path, OpenMode mode, Permissions createPermissions);
     bool openHandle(int fd, std::FILE *fh, OpenMode mode, FileHandleFlags handleFlags);
     void setFileError(FileError e, const QString &text);
 
@@ -217,6 +218,7 @@ public:
     */
     void setFileName(const QString &name) { if (!isOpen()) m_name = name; }
     bool open(OpenMode mode) override;
+    bool open(OpenMode mode, Permissions permissions);
     bool open(std::FILE *fh, OpenMode mode, FileHandleFlags handleFlags = DontCloseHandle);
     bool open(int fd, OpenMode mode, FileHandleFlags handleFlags = DontCloseHandle);
     /*!

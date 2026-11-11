@@ -1,1 +1,2 @@
-#include "qbytearray.h"
+#include "qbytearraylist.h"
+#include "qbytearrayview.h"

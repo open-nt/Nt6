@@ -10,6 +10,7 @@
 #include <string>
 
 class QByteArray;
+class QByteArrayView;
 class QString;
 template <typename T>
 class QList;
@@ -65,6 +66,16 @@ public:
     */
     QByteArray() noexcept {}
     QByteArray(const char *data, qsizetype size = -1);
+    /*!
+        \overload
+        \since 6.8
+
+        Constructs a byte array with a copy of the bytes that the view \a v
+        refers to. It is null if \a v is null. As the view converts from a
+        QLatin1StringView, a \c{std::string} and other containers of
+        \c char, this is also how a byte array is made of those.
+    */
+    explicit QByteArray(QByteArrayView v);
     /*!
         Constructs a byte array of \a size bytes, each set to \a ch. A
         negative \a size is treated as 0.
@@ -403,6 +414,19 @@ public:
         \sa squeeze()
     */
     void shrink_to_fit() { squeeze(); }
+    /*!
+        Does nothing: a byte array in Nt never shares its data with another
+        one. Provided so that code written for Qt compiles.
+
+        \sa isDetached()
+    */
+    void detach() {}
+    /*!
+        Returns \c true, as a byte array in Nt never shares its data.
+
+        \sa detach()
+    */
+    bool isDetached() const { return true; }
     /*!
         \since 6.8
         Returns the largest number of bytes an array can theoretically hold.
@@ -961,5 +985,7 @@ inline QByteArray operator""_ba(const char *s, std::size_t n) { return QByteArra
 #define QByteArrayLiteral(str) QByteArray(str, static_cast<qsizetype>(sizeof(str) - 1))
 
 #include <QtCore/qlist.h>
+// QByteArrayList is QList<QByteArray>, which needs what it adds to QList.
+#include <QtCore/qbytearraylist.h>
 // qgetenv() and the other functions of the environment come with the byte array, as they do with Qt's qglobal.h.
 #include <QtCore/qtenvironmentvariables.h>

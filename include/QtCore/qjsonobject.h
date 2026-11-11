@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qjsonvalue.h>
+#include <QtCore/qkeyvalueiterator.h>
 #include <QtCore/qhash.h>
 #include <QtCore/qmap.h>
 #include <QtCore/qstringlist.h>
@@ -236,6 +237,79 @@ public:
     const_iterator cend() const { return end(); }
     const_iterator constBegin() const { return begin(); }
     const_iterator constEnd() const { return end(); }
+    /*! \typedef QJsonObject::key_value_iterator
+        \since 6.10
+
+        An iterator over the members as pairs of a key and a reference to the
+        value; see QKeyValueIterator. */
+    using key_value_iterator = QKeyValueIterator<QString, QJsonValueRef, iterator>;
+    /*! \typedef QJsonObject::const_key_value_iterator
+        \since 6.10
+
+        A const iterator over the members as pairs of a key and a value. */
+    using const_key_value_iterator = QKeyValueIterator<QString, QJsonValueConstRef, const_iterator>;
+    /*!
+        \since 6.10
+        Returns an iterator to the first member, as a pair of key and value.
+
+        \sa keyValueEnd(), asKeyValueRange()
+    */
+    key_value_iterator keyValueBegin() { return key_value_iterator(begin()); }
+    /*!
+        \since 6.10
+        Returns an iterator just past the last member.
+
+        \sa keyValueBegin()
+    */
+    key_value_iterator keyValueEnd() { return key_value_iterator(end()); }
+    /*!
+        \overload
+        \since 6.10
+    */
+    const_key_value_iterator keyValueBegin() const { return const_key_value_iterator(begin()); }
+    /*!
+        \overload
+        \since 6.10
+    */
+    const_key_value_iterator keyValueEnd() const { return const_key_value_iterator(end()); }
+    /*!
+        \since 6.10
+        Returns a const iterator to the first member, as a pair of key and value.
+    */
+    const_key_value_iterator constKeyValueBegin() const { return keyValueBegin(); }
+    /*!
+        \since 6.10
+        Returns a const iterator just past the last member.
+    */
+    const_key_value_iterator constKeyValueEnd() const { return keyValueEnd(); }
+    /*!
+        \since 6.10
+        Returns a range over the members as pairs of key and value, for a
+        range-based \c for loop with structured bindings:
+
+        \code
+        for (auto [key, value] : object.asKeyValueRange())
+            qDebug() << key << value.toString();
+        \endcode
+
+        The value of a pair from an object that is not const is a reference
+        that can be assigned to.
+    */
+    auto asKeyValueRange() & { return QtPrivate::KeyValueRange<QJsonObject &, key_value_iterator>(*this); }
+    /*!
+        \overload
+        \since 6.10
+    */
+    auto asKeyValueRange() const & {
+        return QtPrivate::KeyValueRange<const QJsonObject &, const_key_value_iterator>(*this);
+    }
+    /*!
+        \overload
+        \since 6.10
+
+        Keeps the object, a temporary, alive for as long as the range.
+    */
+    auto asKeyValueRange() && { return QtPrivate::KeyValueRange<QJsonObject, key_value_iterator>(std::move(*this)); }
     reverse_iterator rbegin() { return reverse_iterator(end()); }
     reverse_iterator rend() { return reverse_iterator(begin()); }
     const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }

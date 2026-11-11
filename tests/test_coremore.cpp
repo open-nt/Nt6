@@ -1,5 +1,8 @@
 // MIT License - see LICENSE
 #include <QtCore>
+#include <QtCore/qbytearrayalgorithms.h>
+#include <QPair>
+#include <QtEndian>
 
 #include <array>
 #include <cstdarg>
@@ -472,6 +475,219 @@ static void testCompress() {
     CHECK(qCompress(static_cast<const uchar *>(nullptr), 0).isEmpty());
 }
 
+// What a project written for Qt 6 expects of the basic types.
+
+static_assert(std::is_same_v<QStringList, QList<QString>>, "QStringList is QList<QString>");
+static_assert(std::is_same_v<QByteArrayList, QList<QByteArray>>, "QByteArrayList is QList<QByteArray>");
+static_assert(std::is_same_v<qint64, long long> && std::is_same_v<quint64, unsigned long long>, "qint64 is long long");
+static_assert(std::is_same_v<QPair<int, QString>, std::pair<int, QString>>, "QPair is std::pair");
+static_assert(sizeof(void *) != 8 || (std::is_same_v<qsizetype, qint64> && std::is_same_v<qptrdiff, qint64> &&
+                                      std::is_same_v<qintptr, qint64> && std::is_same_v<quintptr, quint64>),
+              "the integers for sizes and pointers are qint64 and quint64 on a 64-bit platform");
+static_assert(sizeof(qsizetype) == sizeof(std::size_t) && sizeof(quintptr) == sizeof(void *), "as wide as a size");
+static_assert(!std::is_convertible_v<QString, QStringList>, "a string is not a list of strings");
+static constexpr QByteArrayView g_constantView("abc");
+static_assert(g_constantView.size() == 3, "a view of a literal is a constant expression");
+
+static int takesList(const QList<QString> &list) { return static_cast<int>(list.size()); }
+static QList<QString> givesList() { return {QStringLiteral("x"), QStringLiteral("y")}; }
+
+static void testQtCompatibility(const QString &dir) {
+    using namespace Qt::StringLiterals;
+    const QString a = QStringLiteral("alpha");
+    const QString b = QStringLiteral("beta");
+
+    // A row of strings appended to a table of rows: one row, not two.
+    QList<QStringList> rows;
+    rows.append({a, b});
+    rows.append({a});
+    rows << QStringList{b, a, b};
+    CHECK(rows.size() == 3 && rows.at(0).size() == 2 && rows.at(1).size() == 1 && rows.at(2).size() == 3);
+    QList<QList<QString>> same = rows;
+    CHECK(same == rows);
+    const QStringList fromFunction = givesList();
+    CHECK(takesList(fromFunction) == 2 && takesList(QStringList{a}) == 1);
+    CHECK(QStringList(a) == QStringList{a} && QStringList("literal").first() == QStringLiteral("literal"));
+    CHECK(QStringList(a).size() == 1 && QList<QString>(3).size() == 3);
+
+    // The string functions are those of every QList<QString>.
+    QList<QString> list{QStringLiteral("b"), QStringLiteral("A"), QStringLiteral("c"), QStringLiteral("b")};
+    CHECK(list.join(QChar(',')) == QStringLiteral("b,A,c,b") && list.join(QStringLiteral("--")).size() == 10);
+    CHECK(list.join(u"+"_s) == QStringLiteral("b+A+c+b") && list.join(QStringView(u"")) == QStringLiteral("bAcb"));
+    CHECK(list.contains(QStringLiteral("A")) && !list.contains(QStringLiteral("a")));
+    CHECK(list.contains(QStringLiteral("a"), Qt::CaseInsensitive) && list.contains("c") && !list.contains("d"));
+    CHECK(list.contains(QLatin1StringView("b")) && list.contains(QStringView(u"c")) &&
+          list.contains(u"a"_s, Qt::CaseInsensitive));
+    CHECK(list.contains(QLatin1StringView("B"), Qt::CaseInsensitive) && !list.contains(QLatin1StringView("B")));
+    CHECK(list.indexOf(QStringLiteral("b")) == 0 && list.indexOf(QStringLiteral("b"), 1) == 3 &&
+          list.indexOf("zz") == -1);
+    CHECK(list.indexOf(QStringLiteral("a"), 0, Qt::CaseInsensitive) == 1 && list.indexOf(QLatin1StringView("c")) == 2);
+    CHECK(list.lastIndexOf(QStringLiteral("b")) == 3 && list.lastIndexOf(QStringLiteral("b"), 2) == 0);
+    CHECK(list.lastIndexOf(QStringLiteral("B"), -1, Qt::CaseInsensitive) == 3 && list.count(QStringLiteral("b")) == 2);
+    CHECK(list.indexOf(QRegularExpression(QStringLiteral("[A-Z]"))) == 1);
+    CHECK(list.filter(QStringLiteral("b")).size() == 2 &&
+          list.filter(QRegularExpression(QStringLiteral("^[ac]$"))).size() == 1);
+    QStringList sorted = list;
+    sorted.sort();
+    CHECK(sorted == QStringList({QStringLiteral("A"), QStringLiteral("b"), QStringLiteral("b"), QStringLiteral("c")}));
+    sorted.sort(Qt::CaseInsensitive);
+    CHECK(sorted.first() == QStringLiteral("A") && sorted.removeDuplicates() == 1 && sorted.size() == 3);
+    CHECK(sorted.replaceInStrings(QStringLiteral("b"), QStringLiteral("bee")).at(1) == QStringLiteral("bee"));
+    CHECK(&sorted.replaceInStrings(QStringLiteral("x"), QStringLiteral("y")) == &sorted);
+    QVariant variant(list);
+    CHECK(variant.typeId() == QMetaType::QStringList && variant.toStringList() == list);
+    CHECK(variant.value<QList<QString>>() == list && QVariant::fromValue(list).typeId() == QMetaType::QStringList);
+
+    // Comparing with a value of another type.
+    const QList<QLatin1StringView> names{"get"_L1, "set"_L1, "get"_L1};
+    const QString method = QStringLiteral("set");
+    CHECK(names.contains(method) && !names.contains(QStringLiteral("put")) && names.indexOf(method) == 1);
+    CHECK(names.lastIndexOf(QStringLiteral("get")) == 2 && names.count(QStringLiteral("get")) == 2);
+    QList<QLatin1StringView> fewer = names;
+    CHECK(fewer.removeAll(QStringLiteral("get")) == 2 && fewer.size() == 1 && !fewer.removeOne(QStringLiteral("get")));
+    CHECK(fewer.removeOne(method) && fewer.isEmpty());
+    QList<int> numbers{1, 2, 1, 3};
+    CHECK(numbers.contains(2L) && numbers.indexOf(3LL) == 3 && numbers.contains({}) == false);
+    // An item of the list itself, as what to remove.
+    CHECK(numbers.removeAll(numbers.first()) == 2 && numbers == QList<int>({2, 3}));
+    QStringList words{a, b, a};
+    CHECK(words.removeAll(words.at(0)) == 2 && words == QStringList{b});
+
+    // Lists of byte arrays.
+    const QByteArrayList parts{"a", "bc", ""};
+    CHECK(parts.join() == "abc" && parts.join(',') == "a,bc," && parts.join(QByteArrayView("--")) == "a--bc--");
+    CHECK(parts.join(QByteArray("::")) == "a::bc::" && parts.join("+") == "a+bc+" &&
+          QByteArrayList().join(',').isEmpty());
+    CHECK(QByteArrayList{"one"}.join(',') == "one" && parts.contains("bc") && parts.indexOf("bc") == 1);
+    CHECK(QByteArray("x,y").split(',').join(';') == "x;y");
+
+    // Views of bytes.
+    const QByteArray bytes("mid");
+    CHECK(QByteArrayView("pre-") + bytes == "pre-mid" && bytes + QByteArrayView("-post") == "mid-post");
+    CHECK("pre-" + bytes == "pre-mid" && bytes + "-post" == "mid-post"); // as before
+    CHECK(QByteArray("abc"_L1) == "abc" && QByteArray(QLatin1StringView()).isNull());
+    CHECK(QByteArray(QByteArrayView("xyz", 2)) == "xy" && QByteArray(QByteArrayView()).isNull());
+    const std::string stdString = "std";
+    const std::vector<char> vector{'v', 'e', 'c'};
+    const std::array<char, 2> array{'a', 'r'};
+    CHECK(QByteArrayView(stdString) == QByteArrayView("std") && QByteArrayView(vector).size() == 3);
+    CHECK(QByteArrayView(array).toByteArray() == "ar" && QByteArrayView("abc"_L1).size() == 3);
+    CHECK(QByteArray(QByteArrayView(vector)) == "vec");
+    const std::string_view stdView = "caf\xe9";
+    CHECK(QString::fromLatin1(stdView) == QString(QChar('c')) + QChar('a') + QChar('f') + QChar(0xe9));
+    CHECK(QString::fromLatin1(QByteArrayView("ab")) == QStringLiteral("ab") &&
+          QString::fromLatin1(QByteArrayView()).isEmpty());
+    QByteArray detached("d");
+    detached.detach();
+    CHECK(detached == "d" && detached.isDetached());
+
+    // tokenize() needs no other header than that of the string or the view.
+    QStringList tokens;
+    for (QStringView token : QStringView(u"a.b..c").tokenize(u'.'))
+        tokens.append(token.toString());
+    CHECK(tokens.size() == 4 && tokens.join(QChar('|')) == QStringLiteral("a|b||c"));
+    int count = 0;
+    for (QStringView token : a.tokenize(u"l"_s, Qt::SkipEmptyParts))
+        count += static_cast<int>(token.size());
+    CHECK(count == 4);
+
+    // qint64 is long long.
+    char text[64];
+    const qint64 big = Q_INT64_C(-9007199254740993);
+    const quint64 ubig = Q_UINT64_C(18446744073709551615);
+    std::snprintf(text, sizeof(text), "%lld/%llu", big, ubig);
+    CHECK(std::strcmp(text, "-9007199254740993/18446744073709551615") == 0);
+    CHECK(QString::number(big) == QStringLiteral("-9007199254740993") && QVariant(big).typeId() == QMetaType::LongLong);
+    QByteArray wire;
+    {
+        QDataStream out(&wire, QIODevice::WriteOnly);
+        out << big << ubig << qint64(1) << quint64(2);
+    }
+    QDataStream in(wire);
+    qint64 readBig = 0;
+    quint64 readUbig = 0;
+    in >> readBig >> readUbig;
+    CHECK(wire.size() == 32 && readBig == big && readUbig == ubig);
+
+    // QPair, and the headers of the endian and byte array functions.
+    const QPair<int, QString> pair = qMakePair(7, a);
+    CHECK(pair.first == 7 && pair.second == a);
+    CHECK(qToBigEndian<quint16>(0x1234) == (QSysInfo::ByteOrder == QSysInfo::LittleEndian ? 0x3412 : 0x1234));
+    CHECK(qstrlen("four") == 4);
+
+    // A size is a qint64, so it goes where a qint64 goes: into JSON, a variant or a format string.
+    const QStringList sized{a, b};
+    QJsonObject counts;
+    counts[QStringLiteral("n")] = sized.size();
+    QJsonArray sizes;
+    sizes.append(sized.size());
+    sizes.append(a.size());
+    CHECK(QJsonValue(sized.size()).toInteger() == 2 && counts.value(QStringLiteral("n")).toInt() == 2);
+    CHECK(sizes.at(1).toInt() == 5 && QVariant(sized.size()).typeId() == QMetaType::LongLong);
+    std::snprintf(text, sizeof(text), "%lld", sized.size());
+    CHECK(std::strcmp(text, "2") == 0 && QString::number(sized.size()) == QStringLiteral("2"));
+
+    // The members of a JSON object, as pairs.
+    QJsonObject object{{QStringLiteral("one"), 1}, {QStringLiteral("two"), 2}};
+    int sum = 0;
+    QStringList keys;
+    for (auto [key, value] : object.asKeyValueRange()) {
+        keys.append(key);
+        sum += value.toInt();
+        value = value.toInt() * 10;
+    }
+    CHECK(sum == 3 && keys == QStringList({QStringLiteral("one"), QStringLiteral("two")}));
+    const QJsonObject &constObject = object;
+    sum = 0;
+    for (auto [key, value] : constObject.asKeyValueRange())
+        sum += value.toInt() + static_cast<int>(key.size());
+    CHECK(sum == 36);
+    sum = 0;
+    for (auto [key, value] : QJsonObject{{QStringLiteral("k"), 5}}.asKeyValueRange())
+        sum += value.toInt();
+    CHECK(sum == 5 && std::distance(constObject.constKeyValueBegin(), constObject.constKeyValueEnd()) == 2);
+    CHECK((*object.keyValueBegin()).first == QStringLiteral("one") && object.keyValueBegin() != object.keyValueEnd());
+    QMap<QString, int> map{{a, 1}};
+    QHash<QString, int> hash{{b, 2}};
+    for (auto [key, value] : map.asKeyValueRange())
+        CHECK(key == a && value == 1);
+    for (auto [key, value] : hash.asKeyValueRange())
+        CHECK(key == b && value == 2);
+
+    // A file that is created with its permissions: never readable by others, not even for a moment.
+    const QString secret = dir + QStringLiteral("/secret.key");
+    {
+        QFile file(secret);
+        CHECK(file.open(QIODevice::WriteOnly | QIODevice::NewOnly, QFileDevice::ReadOwner | QFileDevice::WriteOwner));
+        CHECK(file.write("key") == 3);
+        CHECK(!(file.permissions() & (QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ReadOther |
+                                      QFileDevice::WriteOther | QFileDevice::ExeOwner)));
+        CHECK((file.permissions() & QFileDevice::ReadOwner) && (file.permissions() & QFileDevice::WriteOwner));
+    }
+    const QFileDevice::Permissions others = QFileDevice::ReadGroup | QFileDevice::WriteGroup | QFileDevice::ExeGroup |
+                                            QFileDevice::ReadOther | QFileDevice::WriteOther | QFileDevice::ExeOther;
+    CHECK(!(QFile::permissions(secret) & others));
+    {
+        // A file that exists keeps the permissions that it has.
+        QFile file(secret);
+        CHECK(file.open(QIODevice::WriteOnly | QIODevice::Append, QFileDevice::ReadOwner | QFileDevice::ReadOther));
+        CHECK(!(file.permissions() & others) && (file.permissions() & QFileDevice::WriteOwner));
+        CHECK(!file.open(QIODevice::ReadOnly, QFileDevice::ReadOwner)); // already open
+    }
+    {
+        QFile readOnly(dir + QStringLiteral("/readonly.txt"));
+        CHECK(readOnly.open(QIODevice::WriteOnly, QFileDevice::ReadOwner));
+        CHECK(readOnly.write("once") == 4 && !(readOnly.permissions() & QFileDevice::WriteOwner));
+        QFile nameless;
+        CHECK(!nameless.open(QIODevice::WriteOnly, QFileDevice::ReadOwner) &&
+              nameless.error() == QFileDevice::OpenError);
+        QFile missing(dir + QStringLiteral("/no/such/dir/file"));
+        CHECK(!missing.open(QIODevice::WriteOnly, QFileDevice::ReadOwner));
+        QFile existing(dir + QStringLiteral("/nothing-here"));
+        CHECK(!existing.open(QIODevice::ReadOnly | QIODevice::ExistingOnly, QFileDevice::ReadOwner));
+    }
+}
+
 int main(int argc, char **argv) {
     CHECK(QCoreApplication::startingUp() && !QCoreApplication::instanceExists() && !QCoreApplication::closingDown());
     {
@@ -485,6 +701,9 @@ int main(int argc, char **argv) {
         testHashInto();
         testGlobals();
         testCompress();
+        QTemporaryDir dir;
+        CHECK(dir.isValid());
+        testQtCompatibility(dir.path());
     }
     CHECK(QCoreApplication::closingDown() && !QCoreApplication::instanceExists() && !QCoreApplication::startingUp());
 

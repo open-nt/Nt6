@@ -12,6 +12,7 @@
 #include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <openssl/ssl.h>
 #include <openssl/x509.h>
 #include <openssl/x509v3.h>
 
@@ -767,6 +768,39 @@ QSslCipher::QSslCipher(const QString &name, int usedBits, int supportedBits, con
       m_protocol(protocol) {}
 
 /*!
+    \overload
+
+    Constructs the cipher called \a name, as OpenSSL names it, such as
+    \c TLS_AES_256_GCM_SHA384 or \c ECDHE-RSA-AES256-GCM-SHA384. The cipher
+    is null if this build of OpenSSL has none of that name.
+
+    \sa QSslConfiguration::supportedCiphers()
+*/
+QSslCipher::QSslCipher(const QString &name) {
+    for (const QSslCipher &cipher : QSslConfiguration::supportedCiphers()) {
+        if (cipher.name() == name) {
+            *this = cipher;
+            return;
+        }
+    }
+}
+
+/*!
+    \overload
+
+    Constructs the cipher called \a name of the protocol \a protocol. The
+    cipher is null if there is no such cipher for that protocol.
+*/
+QSslCipher::QSslCipher(const QString &name, QSsl::SslProtocol protocol) {
+    for (const QSslCipher &cipher : QSslConfiguration::supportedCiphers()) {
+        if (cipher.name() == name && cipher.protocol() == protocol) {
+            *this = cipher;
+            return;
+        }
+    }
+}
+
+/*!
     Returns \c true if this object describes no cipher.
 */
 bool QSslCipher::isNull() const { return m_name.isEmpty(); }
@@ -814,8 +848,11 @@ QSsl::SslProtocol QSslCipher::protocol() const { return m_protocol; }
     \differences
     caCertificates() lists only certificates you added: system ones are used by
     OpenSSL directly and are not enumerated, so \c systemCaCertificates() does
-    not exist. usesSystemCaCertificates() is an Nt addition. Cipher selection,
-    session tickets, OCSP and DTLS settings are absent.
+    not exist. usesSystemCaCertificates() is an Nt addition. A cipher or a
+    backend option that OpenSSL does not accept makes the handshake fail,
+    where Qt warns and goes on. The elliptic curves are set as the backend
+    option \c Groups; \c setEllipticCurves() is absent, as are session
+    tickets, OCSP, Diffie-Hellman parameters and DTLS settings.
     \enddifferences
 
     \sa QSslSocket
@@ -1005,6 +1042,148 @@ QList<QSslCertificate> QSslConfiguration::peerCertificateChain() const { return 
 */
 QSslCipher QSslConfiguration::sessionCipher() const { return m_cipher; }
 
+namespace {
+
+QSsl::SslProtocol cipherProtocol(const SSL_CIPHER *cipher) {
+    const char *version = SSL_CIPHER_get_version(cipher);
+    const QByteArray v(version ? version : "");
+    if (v == "TLSv1.3")
+        return QSsl::TlsV1_3;
+    if (v == "TLSv1.2")
+        return QSsl::TlsV1_2;
+    return QSsl::UnknownProtocol; // older suites, which TLS 1.2 can still negotiate
+}
+
+// The ciphers that a new context of OpenSSL has after its cipher list was set to list; all of TLS 1.3 come
+// with every list.
+QList<QSslCipher> listCiphers(const char *list) {
+    QList<QSslCipher> result;
+    SSL_CTX *ctx = SSL_CTX_new(TLS_method());
+    if (!ctx)
+        return result;
+    if (!list || SSL_CTX_set_cipher_list(ctx, list) == 1) {
+        const STACK_OF(SSL_CIPHER) *stack = SSL_CTX_get_ciphers(ctx);
+        for (int i = 0; stack && i < sk_SSL_CIPHER_num(stack); ++i) {
+            const SSL_CIPHER *cipher = sk_SSL_CIPHER_value(stack, i);
+            int supported = 0;
+            const int used = SSL_CIPHER_get_bits(cipher, &supported);
+            const char *version = SSL_CIPHER_get_version(cipher);
+            result.append(QSslCipher(QString::fromUtf8(SSL_CIPHER_get_name(cipher)), used, supported,
+                                     QString::fromUtf8(version ? version : ""), cipherProtocol(cipher)));
+        }
+    }
+    SSL_CTX_free(ctx);
+    return result;
+}
+
+} // namespace
+
+/*!
+    Returns the ciphers that a connection with this configuration offers
+    and accepts, in the order of preference: those given to setCiphers(),
+    or, if it was never called, the ones that OpenSSL enables by default.
+
+    \sa setCiphers(), supportedCiphers()
+*/
+QList<QSslCipher> QSslConfiguration::ciphers() const { return m_ciphersSet ? m_ciphers : listCiphers(nullptr); }
+
+/*!
+    Restricts the connection to the ciphers in \a ciphers, in that order of
+    preference. Ciphers that are not among supportedCiphers() are left out.
+    Only these ciphers are
+    offered and accepted: a handshake with a peer that has none of them
+    fails, and so does one with an empty list. TLS 1.3 and the earlier
+    versions have separate sets of ciphers, so a list without any cipher of
+    TLS 1.3 rules that version out, and a list with only such ciphers rules
+    out the earlier ones.
+
+    \sa ciphers(), supportedCiphers()
+*/
+void QSslConfiguration::setCiphers(const QList<QSslCipher> &ciphers) {
+    // Only what OpenSSL itself lists goes in, under its own name and protocol: the names are later given
+    // to OpenSSL as a cipher list, where a made-up name such as "ALL" would select many ciphers.
+    const QList<QSslCipher> supported = supportedCiphers();
+    m_ciphers.clear();
+    for (const QSslCipher &cipher : ciphers) {
+        for (const QSslCipher &known : supported) {
+            if (known.name() == cipher.name() && !m_ciphers.contains(known))
+                m_ciphers.append(known);
+        }
+    }
+    m_ciphersSet = true;
+}
+
+/*!
+    \overload
+
+    Restricts the connection to the ciphers named in \a ciphers, a list of
+    names separated by colons, as in
+    \c{"TLS_AES_256_GCM_SHA384:ECDHE-RSA-AES256-GCM-SHA384"}. A name that
+    this build of OpenSSL does not know is left out, which makes the list
+    shorter, never wider; if no name is known, every handshake fails.
+*/
+void QSslConfiguration::setCiphers(const QString &ciphers) {
+    const QList<QSslCipher> supported = supportedCiphers();
+    QList<QSslCipher> list;
+    for (const QString &name : ciphers.split(QChar(':'), Qt::SkipEmptyParts)) {
+        for (const QSslCipher &cipher : supported) {
+            if (cipher.name() == name.trimmed())
+                list.append(cipher);
+        }
+    }
+    setCiphers(list);
+}
+
+/*!
+    Returns the ciphers that this build of OpenSSL can use: every cipher
+    with encryption and authentication, of TLS 1.3 and of the earlier
+    versions. Many of them are not enabled by default; see ciphers().
+
+    \sa setCiphers()
+*/
+QList<QSslCipher> QSslConfiguration::supportedCiphers() { return listCiphers("ALL:@SECLEVEL=0"); }
+
+/*!
+    Returns the options that were set for the TLS library with
+    setBackendConfigurationOption().
+
+    \sa setBackendConfiguration()
+*/
+QMap<QByteArray, QVariant> QSslConfiguration::backendConfiguration() const { return m_backend; }
+
+/*!
+    Sets the option \a name of the TLS library to \a value. The options are
+    those of OpenSSL's configuration files, as \c SSL_CONF_cmd() documents
+    them: \c Groups (or \c Curves) for the key exchange groups,
+    \c SignatureAlgorithms, \c MinProtocol, \c MaxProtocol, \c Options and
+    others. \a value is given to OpenSSL as text.
+
+    \code
+    config.setBackendConfigurationOption("Groups", "P-384:P-521");
+    \endcode
+
+    The options are applied when a handshake starts, in the order of their
+    names and after the other settings of the configuration, which they can
+    therefore override. If OpenSSL does not accept an option or its value,
+    the handshake fails with \c SslInvalidUserDataError: a restriction that
+    cannot be applied is never silently dropped.
+
+    \sa backendConfiguration(), setBackendConfiguration()
+*/
+void QSslConfiguration::setBackendConfigurationOption(const QByteArray &name, const QVariant &value) {
+    m_backend.insert(name, value);
+}
+
+/*!
+    Replaces all options of the TLS library with \a backendConfiguration.
+    Without an argument, the options are removed.
+
+    \sa setBackendConfigurationOption()
+*/
+void QSslConfiguration::setBackendConfiguration(const QMap<QByteArray, QVariant> &backendConfiguration) {
+    m_backend = backendConfiguration;
+}
+
 /*!
     Returns the TLS version in use. This is set on the configuration returned
     by QSslSocket::sslConfiguration().
@@ -1037,5 +1216,6 @@ void QSslConfiguration::setDefaultConfiguration(const QSslConfiguration &configu
 bool operator==(const QSslConfiguration &a, const QSslConfiguration &b) {
     return a.m_protocol == b.m_protocol && a.m_verifyMode == b.m_verifyMode && a.m_verifyDepth == b.m_verifyDepth &&
            a.m_localChain == b.m_localChain && a.m_key == b.m_key && a.m_caCertificates == b.m_caCertificates &&
-           a.m_useSystemCas == b.m_useSystemCas && a.m_alpn == b.m_alpn;
+           a.m_useSystemCas == b.m_useSystemCas && a.m_alpn == b.m_alpn && a.m_ciphersSet == b.m_ciphersSet &&
+           a.m_ciphers == b.m_ciphers && a.m_backend == b.m_backend;
 }

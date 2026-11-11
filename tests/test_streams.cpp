@@ -79,7 +79,7 @@ static void testDataStreamIntegers() {
 
     QByteArray more;
     QDataStream mo(&more, QIODevice::WriteOnly);
-    mo << 5LL << 7ULL << 'x' << static_cast<unsigned long>(9);
+    mo << 5LL << 7ULL << 'x' << static_cast<quint64>(9);
     CHECK(hexOf(more) == "00 00 00 00 00 00 00 05 00 00 00 00 00 00 00 07 78 00 00 00 00 00 00 00 09");
 }
 

@@ -270,6 +270,7 @@ void QTcpServer::addPendingConnection(QTcpSocket *socket) {
         auto &p = d->pending;
         p.erase(std::remove(p.begin(), p.end(), socket), p.end());
     });
+    pendingConnectionAvailable();
 }
 
 /*!

@@ -4,6 +4,7 @@
 // fixtures fail or skip on purpose, so main() runs them with QTest::qExec() and checks the logs.
 #include <QCoreApplication>
 #include <QFile>
+#include <QRegularExpression>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QTest>
@@ -263,6 +264,15 @@ private slots:
         qWarning("first");
     }
 
+    void messagePatterns() {
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("^retry [0-9]+ of 3$"));
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("timed out"));
+        QTest::ignoreMessage(QtDebugMsg, "exact");
+        qWarning("retry 2 of 3");
+        qDebug("exact");
+        qWarning("the request timed out after 5 s");
+    }
+
     void deferredDelete() {
         // Deleted between rows; ASan reports a leak if it never is.
         (new QObject(nullptr))->deleteLater();
@@ -347,6 +357,10 @@ private slots:
     void unexpectedException() { QVERIFY_THROWS_NO_EXCEPTION(throw 1); }
     void timedOut() { QTRY_VERIFY_WITH_TIMEOUT(false, 5); }
     void missingMessage() { QTest::ignoreMessage(QtWarningMsg, "never sent"); }
+    void missingPattern() {
+        QTest::ignoreMessage(QtWarningMsg, QRegularExpression("^retry [0-9]+$"));
+        qWarning("retry x");
+    }
     void wrongMessageType() {
         QTest::ignoreMessage(QtWarningMsg, "typed");
         qDebug("typed");
@@ -609,7 +623,7 @@ static void testGood() {
 static void testFailures() {
     Failing failing;
     const int failures = run(&failing);
-    CHECK(failures == 20);
+    CHECK(failures == 21);
     CHECK(failing.reached == 1);
     CHECK(logged("FAIL!  : Failing::verifyStops() '1 == 2' returned FALSE. ()\n   Loc: ["));
     CHECK(logged("test_qtest.cpp("));
@@ -635,9 +649,11 @@ static void testFailures() {
     CHECK(logged("FAIL!  : Failing::timedOut() 'false' returned FALSE."));
     CHECK(logged("FAIL!  : Failing::missingMessage() Did not receive the message: \"never sent\""));
     CHECK(logged("QDEBUG : Failing::wrongMessageType() typed"));
+    CHECK(logged("FAIL!  : Failing::missingPattern() Did not receive the message: \"^retry [0-9]+$\""));
+    CHECK(logged("QWARN  : Failing::missingPattern() retry x"));
     CHECK(logged("PASS   : Failing::rows(passes)"));
     CHECK(logged("FAIL!  : Failing::rows(fails) Compared values are not the same"));
-    CHECK(logged("Totals: 3 passed, 20 failed, 0 skipped"));
+    CHECK(logged("Totals: 3 passed, 21 failed, 0 skipped"));
 }
 
 static void testExpectedFailures() {

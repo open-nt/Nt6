@@ -5,6 +5,8 @@
 
 #include <iterator>
 #include <string_view>
+#include <type_traits>
+#include <utility>
 
 // A read-only, non-owning view of bytes.
 /*!
@@ -50,6 +52,21 @@ public:
         \sa isNull()
     */
     constexpr QByteArrayView() noexcept = default;
+
+private:
+    template <typename C, typename = void> struct HasCharData : std::false_type {};
+    template <typename C>
+    struct HasCharData<
+        C, std::void_t<decltype(std::declval<const C &>().data()), decltype(std::declval<const C &>().size())>>
+        : std::is_same<std::remove_cv_t<std::remove_pointer_t<decltype(std::declval<const C &>().data())>>, char> {};
+    // QByteArray and std::string_view have constructors of their own; an array is not a container.
+    template <typename C>
+    using if_compatible_container = std::enable_if_t<HasCharData<C>::value && !std::is_same_v<C, QByteArray> &&
+                                                         !std::is_same_v<C, QByteArrayView> &&
+                                                         !std::is_same_v<C, std::string_view> && !std::is_array_v<C>,
+                                                     int>;
+
+public:
     /*!
         \overload
 
@@ -68,7 +85,8 @@ public:
         Constructs a view of the null-terminated string \a data, not including
         the terminator. The view is null if \a data is \c nullptr.
     */
-    QByteArrayView(const char *data) noexcept : p(data), n(data ? static_cast<qsizetype>(std::char_traits<char>::length(data)) : 0) {}
+    constexpr QByteArrayView(const char *data) noexcept
+        : p(data), n(data ? static_cast<qsizetype>(std::char_traits<char>::length(data)) : 0) {}
     /*!
         \overload
 
@@ -82,7 +100,18 @@ public:
 
         Constructs a view of the characters of the string view \a s.
     */
-    QByteArrayView(std::string_view s) noexcept : p(s.data()), n(static_cast<qsizetype>(s.size())) {}
+    constexpr QByteArrayView(std::string_view s) noexcept : p(s.data()), n(static_cast<qsizetype>(s.size())) {}
+    /*!
+        \overload
+
+        Constructs a view of the bytes of the container \a c: anything that
+        has \c data() returning a pointer to \c char and \c size(), such as
+        a QLatin1StringView, a \c{std::string}, a \c{std::vector<char>} or a
+        \c{std::array<char, N>}. The view is invalidated when \a c is
+        modified or destroyed.
+    */
+    template <typename Container, if_compatible_container<Container> = 0>
+    constexpr QByteArrayView(const Container &c) noexcept : p(c.data()), n(static_cast<qsizetype>(c.size())) {}
 
     /*!
         Returns a copy of the viewed bytes as a QByteArray. The result is null
@@ -584,3 +613,34 @@ private:
     const char *p = nullptr;
     qsizetype n = 0;
 };
+
+// A byte array made of a copy of the bytes that a view refers to; null for a null view.
+inline QByteArray::QByteArray(QByteArrayView v) : QByteArray(v.data(), v.size()) {}
+
+// A byte array and a view, joined. These are templates so that they take a QByteArrayView only, and not
+// everything that converts to one: "text" + byteArray keeps meaning what it meant.
+template <typename View, std::enable_if_t<std::is_same_v<View, QByteArrayView>, int> = 0>
+QByteArray operator+(const QByteArray &a, View b) {
+    QByteArray r(a);
+    r.append(b.data(), b.size());
+    return r;
+}
+template <typename View, std::enable_if_t<std::is_same_v<View, QByteArrayView>, int> = 0>
+QByteArray operator+(View a, const QByteArray &b) {
+    QByteArray r(a.data(), a.size());
+    r.append(b);
+    return r;
+}
+
+// QByteArrayList::join() with a separator, which needs the view to be complete.
+inline QByteArray QListSpecialMethods<QByteArray>::join(QByteArrayView sep) const {
+    QByteArray r;
+    bool first = true;
+    for (const QByteArray &a : self()) {
+        if (!first)
+            r.append(sep.data(), sep.size());
+        r += a;
+        first = false;
+    }
+    return r;
+}

@@ -159,7 +159,7 @@ Known limits: `QDataStream` has no 64-bit container sizes; `QDir` name filters a
 | `QNetworkDatagram` | data, sender, destination, `makeReply` |
 | `QHostInfo` | blocking `fromName`, asynchronous `lookupHost` (functor, with optional context object), `abortHostLookup`, local host and domain names |
 | `QNetworkInterface`, `QNetworkAddressEntry` | list interfaces, flags, type, MTU, hardware address, addresses, netmask, broadcast (Linux) |
-| `QSslSocket`, `QSslServer`, `QSslConfiguration`, `QSslCertificate`, `QSslKey`, `QSslCipher`, `QSslError` | TLS with the system's OpenSSL (built when OpenSSL 1.1.1 or newer is found, `-DNT_USE_OPENSSL=OFF` to leave it out); `https:` in `QNetworkAccessManager` |
+| `QSslSocket`, `QSslServer`, `QSslConfiguration`, `QSslCertificate`, `QSslKey`, `QSslCipher`, `QSslError` | TLS with the system's OpenSSL (built when OpenSSL 1.1.1 or newer is found, `-DNT_USE_OPENSSL=OFF` to leave it out); `https:` in `QNetworkAccessManager`; the ciphers of a connection restricted with `setCiphers()`, and key exchange groups and other OpenSSL settings with `setBackendConfigurationOption()`, where a restriction that cannot be applied fails the handshake |
 | `QLocalSocket`, `QLocalServer` | Unix domain sockets: event-driven and `waitFor*` APIs, access options, stale-socket recovery |
 | `QHttpHeaders` | ordered, case-insensitive header fields; names and values are validated, so CR/LF cannot be injected |
 | `QNetworkAccessManager`, `QNetworkRequest`, `QNetworkReply` | HTTP/1.1 client: `GET`/`HEAD`/`POST`/`PUT`/`DELETE`/custom verbs, chunked and fixed-length bodies, redirects with policies, inactivity timeouts, Basic auth from the URL |

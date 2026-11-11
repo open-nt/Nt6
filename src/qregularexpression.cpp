@@ -2783,63 +2783,38 @@ qsizetype QStringView::lastIndexOf(const QRegularExpression &re, qsizetype from,
 */
 qsizetype QStringView::count(const QRegularExpression &re) const { return toString().count(re); }
 
-/*!
-    \since 5.0
-    Returns the strings of the list that \a re matches somewhere.
-
-    \sa QString::contains()
-*/
-QStringList QStringList::filter(const QRegularExpression &re) const {
+QList<QString> QListSpecialMethods<QString>::filter(const QRegularExpression &re) const {
     QStringList r;
-    for (const QString &s : *this)
+    for (const QString &s : self())
         if (s.contains(re))
             r.append(s);
     return r;
 }
 
-/*!
-    \overload
-    \since 5.0
-    Returns the index of the first string in the list, searching forward from
-    \a from, that \a re matches exactly (the whole string), or -1.
-*/
-qsizetype QStringList::indexOf(const QRegularExpression &re, qsizetype from) const {
+qsizetype QListSpecialMethods<QString>::indexOf(const QRegularExpression &re, qsizetype from) const {
     const QRegularExpression exact(QRegularExpression::anchoredPattern(re.pattern()), re.patternOptions());
     if (from < 0)
-        from = std::max<qsizetype>(from + size(), 0);
-    for (qsizetype k = from; k < size(); ++k)
-        if (exact.match(at(k)).hasMatch())
+        from = std::max<qsizetype>(from + self().size(), 0);
+    for (qsizetype k = from; k < self().size(); ++k)
+        if (exact.match(self().at(k)).hasMatch())
             return k;
     return -1;
 }
 
-/*!
-    \overload
-    \since 5.0
-    Returns the index of the last string in the list, searching backward from
-    \a from, that \a re matches exactly, or -1. A negative \a from counts from
-    the end of the list.
-*/
-qsizetype QStringList::lastIndexOf(const QRegularExpression &re, qsizetype from) const {
+qsizetype QListSpecialMethods<QString>::lastIndexOf(const QRegularExpression &re, qsizetype from) const {
     const QRegularExpression exact(QRegularExpression::anchoredPattern(re.pattern()), re.patternOptions());
     if (from < 0)
-        from += size();
-    else if (from >= size())
-        from = size() - 1;
+        from += self().size();
+    else if (from >= self().size())
+        from = self().size() - 1;
     for (qsizetype k = from; k >= 0; --k)
-        if (exact.match(at(k)).hasMatch())
+        if (exact.match(self().at(k)).hasMatch())
             return k;
     return -1;
 }
 
-/*!
-    \overload
-    \since 5.0
-    Replaces every match of \a re with \a after in each string of the list,
-    as QString::replace() does, and returns a reference to the list.
-*/
-QStringList &QStringList::replaceInStrings(const QRegularExpression &re, const QString &after) {
-    for (QString &s : *this)
+QList<QString> &QListSpecialMethods<QString>::replaceInStrings(const QRegularExpression &re, const QString &after) {
+    for (QString &s : self())
         s.replace(re, after);
-    return *this;
+    return self();
 }

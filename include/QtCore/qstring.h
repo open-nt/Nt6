@@ -16,8 +16,8 @@
 
 class QAnyStringView;
 class QString;
-class QStringList;
 template <typename T> class QList;
+using QStringList = QList<QString>;
 class QRegularExpression;
 class QRegularExpressionMatch;
 template <typename Haystack, typename Needle> class QStringTokenizer;
@@ -1226,6 +1226,14 @@ public:
     */
     static QString fromLatin1(const QByteArray &b) { return fromLatin1(b.constData(), b.size()); }
     /*!
+        \overload
+        \since 6.0
+
+        Returns a string decoded from the Latin-1 data that the view \a b
+        refers to. A \c{std::string_view} converts to such a view.
+    */
+    static QString fromLatin1(QByteArrayView b) { return fromLatin1(b.data(), b.size()); }
+    /*!
         Returns a string decoded from the first \a size bytes of \a s, which
         is interpreted as UTF-8. If \a size is negative, \a s must be
         null-terminated. Nt always uses UTF-8 as the local 8-bit encoding.
@@ -1691,7 +1699,7 @@ template <typename T> QString argText(const T &a) {
 template <typename A1, typename A2, typename... Rest, typename>
 QString QString::arg(const A1 &a1, const A2 &a2, const Rest &...rest) const {
     const QString texts[] = {QtPrivate::argText(a1), QtPrivate::argText(a2), QtPrivate::argText(rest)...};
-    return QtPrivate::multiArg(*this, texts, static_cast<qsizetype>(2 + sizeof...(Rest)));
+    return QtPrivate::multiArg(*this, texts, qsizetype(2) + static_cast<qsizetype>(sizeof...(Rest)));
 }
 
 template <typename A, typename... Rest> QString QLatin1StringView::arg(const A &a, const Rest &...rest) const {
@@ -1727,3 +1735,5 @@ inline QChar operator""_L1(char c) { return QChar(c); }
 } // namespace Qt
 
 #include <QtCore/qstringlist.h>
+// The views come with the string, as they do with Qt's <QString>: tokenize() returns a QStringTokenizer.
+#include <QtCore/qstringview.h>

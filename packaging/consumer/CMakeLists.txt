@@ -15,3 +15,8 @@ find_package(Nt6 6 REQUIRED)
 add_executable(consumer main.cpp counter.h)
 target_link_libraries(consumer PRIVATE Nt6::Network)
 nt_enable_automoc(consumer)
+
+# The same program under the names that a project written for Qt 6 uses.
+add_executable(consumer_qt6 main.cpp counter.h)
+target_link_libraries(consumer_qt6 PRIVATE Qt6::Network Qt6::Core)
+nt_enable_automoc(consumer_qt6)

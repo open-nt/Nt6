@@ -1003,7 +1003,7 @@ QByteArray qUncompress(const uchar *data, qsizetype nbytes) {
     try {
         while (status == Z_OK) {
             const auto used = static_cast<std::size_t>(out.size());
-            out.resize(static_cast<qsizetype>(used + capacity));
+            out.resize(static_cast<qsizetype>(used) + static_cast<qsizetype>(capacity));
             stream.next_out = reinterpret_cast<Bytef *>(out.data()) + used;
             stream.avail_out = static_cast<uInt>(capacity);
             status = ::inflate(&stream, Z_NO_FLUSH);

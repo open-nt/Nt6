@@ -12,6 +12,25 @@
 #include <utility>
 #include <vector>
 
+class QByteArray;
+class QString;
+
+/*!
+    \internal
+    The functions that QList<T> has for one item type only: join() and its relatives for strings and
+    byte arrays. The specializations are QStringList and QByteArrayList.
+*/
+template <typename T> struct QListSpecialMethods {
+protected:
+    ~QListSpecialMethods() = default;
+    // Never called: QList brings these names into its scope, where the specializations add overloads.
+    void contains() const = delete;
+    void indexOf() const = delete;
+    void lastIndexOf() const = delete;
+};
+template <> struct QListSpecialMethods<QByteArray>;
+template <> struct QListSpecialMethods<QString>;
+
 /*!
     \class QList
     \brief The QList class is a template class that provides a dynamic array.
@@ -29,7 +48,9 @@
 
     \differences
     The list is a thin wrapper over \c std::vector, so copies are deep and it
-    is not implicitly shared. \c QList<bool> is rejected with a
+    is not implicitly shared. contains(), indexOf(), lastIndexOf(), count(),
+    removeOne() and removeAll() take a value of any type that can be compared
+    with the items, as in Qt. \c QList<bool> is rejected with a
     \c static_assert. The \c Qt::Uninitialized constructor and
     resizeForOverwrite() value-initialize the new items. Indexes are not range-checked except by value().
     \c QVector is an alias of QList, so toList(), toVector(), fromList()
@@ -38,11 +59,13 @@
 
     \sa QQueue, QStack, QVarLengthArray
 */
-template <typename T>
-class QList {
+template <typename T> class QList : public QListSpecialMethods<T> {
     static_assert(!std::is_same_v<T, bool>, "QList<bool> is not supported yet");
 
 public:
+    using QListSpecialMethods<T>::contains;
+    using QListSpecialMethods<T>::indexOf;
+    using QListSpecialMethods<T>::lastIndexOf;
     /*! \typedef QList::Container
 
         The underlying \c{std::vector<T>} that stores the items. */
@@ -118,6 +141,18 @@ public:
     QList(qsizetype size, Qt::Initialization) : d(static_cast<std::size_t>(size)) {}
     /*! Constructs a list from the items in the initializer list \a args. */
     QList(std::initializer_list<T> args) : d(args) {}
+    /*!
+        \overload
+
+        Constructs a list with the single string \a str, which is a QString
+        or converts to one. This constructor exists for a list of strings
+        only, as \c{QStringList(str)}.
+    */
+    template <typename String = QString,
+              typename = std::enable_if_t<std::is_same_v<T, QString> && std::is_convertible_v<const String &, QString>>>
+    explicit QList(const String &str) {
+        d.emplace_back(str);
+    }
     /*! Constructs a list with a copy of the items in the range [\a first, \a last). */
     template <typename It, typename = typename std::iterator_traits<It>::iterator_category>
     QList(It first, It last) : d(first, last) {}
@@ -519,7 +554,7 @@ public:
 
         \sa removeAll(), removeAt()
     */
-    bool removeOne(const T &t) {
+    template <typename AT = T> bool removeOne(const AT &t) {
         auto it = std::find(d.begin(), d.end(), t);
         if (it == d.end())
             return false;
@@ -532,9 +567,11 @@ public:
 
         \sa removeOne(), removeIf()
     */
-    qsizetype removeAll(const T &t) {
+    template <typename AT = T> qsizetype removeAll(const AT &t) {
         const auto before = d.size();
-        d.erase(std::remove(d.begin(), d.end(), t), d.end());
+        // t may be an item of the list, which the removal would overwrite.
+        const AT copy = t; // NOLINT(performance-unnecessary-copy-initialization): see above
+        d.erase(std::remove(d.begin(), d.end(), copy), d.end());
         return static_cast<qsizetype>(before - d.size());
     }
     /*!
@@ -578,7 +615,7 @@ public:
 
         \sa indexOf(), count()
     */
-    bool contains(const T &t) const { return std::find(d.begin(), d.end(), t) != d.end(); }
+    template <typename AT = T> bool contains(const AT &t) const { return std::find(d.begin(), d.end(), t) != d.end(); }
     /*!
         Returns the index position of the first item equal to \a t, searching
         forward from index position \a from. A negative \a from counts from
@@ -586,7 +623,7 @@ public:
 
         \sa lastIndexOf(), contains()
     */
-    qsizetype indexOf(const T &t, qsizetype from = 0) const {
+    template <typename AT = T> qsizetype indexOf(const AT &t, qsizetype from = 0) const {
         if (from < 0)
             from = qMax<qsizetype>(0, from + size());
         for (qsizetype i = from; i < size(); ++i)
@@ -602,7 +639,7 @@ public:
 
         \sa indexOf(), contains()
     */
-    qsizetype lastIndexOf(const T &t, qsizetype from = -1) const {
+    template <typename AT = T> qsizetype lastIndexOf(const AT &t, qsizetype from = -1) const {
         qsizetype i = (from < 0) ? size() + from : qMin(from, size() - 1);
         for (; i >= 0; --i)
             if (d[static_cast<std::size_t>(i)] == t)
@@ -616,7 +653,9 @@ public:
 
         \sa contains(), indexOf()
     */
-    qsizetype count(const T &t) const { return static_cast<qsizetype>(std::count(d.begin(), d.end(), t)); }
+    template <typename AT = T> qsizetype count(const AT &t) const {
+        return static_cast<qsizetype>(std::count(d.begin(), d.end(), t));
+    }
     /*!
         Returns \c true if the list is not empty and its first item is equal
         to \a t; otherwise returns \c false.

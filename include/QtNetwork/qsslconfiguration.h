@@ -3,6 +3,8 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qlist.h>
+#include <QtCore/qmap.h>
+#include <QtCore/qvariant.h>
 #include <QtNetwork/qssl.h>
 #include <QtNetwork/qsslcertificate.h>
 #include <QtNetwork/qsslcipher.h>
@@ -37,6 +39,15 @@ public:
     QSslCertificate peerCertificate() const;
     QList<QSslCertificate> peerCertificateChain() const;
     QSslCipher sessionCipher() const;
+
+    QList<QSslCipher> ciphers() const;
+    void setCiphers(const QList<QSslCipher> &ciphers);
+    void setCiphers(const QString &ciphers);
+    static QList<QSslCipher> supportedCiphers();
+
+    QMap<QByteArray, QVariant> backendConfiguration() const;
+    void setBackendConfigurationOption(const QByteArray &name, const QVariant &value);
+    void setBackendConfiguration(const QMap<QByteArray, QVariant> &backendConfiguration = QMap<QByteArray, QVariant>());
     QSsl::SslProtocol sessionProtocol() const;
 
     static QSslConfiguration defaultConfiguration();
@@ -56,6 +67,9 @@ private:
     QList<QSslCertificate> m_caCertificates;
     bool m_useSystemCas = true;
     QList<QByteArray> m_alpn;
+    QList<QSslCipher> m_ciphers;
+    bool m_ciphersSet = false; // setCiphers() was called: only m_ciphers may be used, even if it is empty
+    QMap<QByteArray, QVariant> m_backend;
     QByteArray m_negotiatedAlpn;
     QList<QSslCertificate> m_peerChain;
     QSslCipher m_cipher;

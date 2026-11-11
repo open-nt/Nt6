@@ -21,14 +21,30 @@ using qint16 = std::int16_t;
 using quint16 = std::uint16_t;
 using qint32 = std::int32_t;
 using quint32 = std::uint32_t;
-using qint64 = std::int64_t;
-using quint64 = std::uint64_t;
+// long long, as in Qt, whatever std::int64_t is: "%lld" then formats a qint64 on every platform.
+using qint64 = long long;
+using quint64 = unsigned long long;
 using qlonglong = long long;
 using qulonglong = unsigned long long;
-using qsizetype = std::ptrdiff_t;
-using qptrdiff = std::ptrdiff_t;
-using qintptr = std::intptr_t;
-using quintptr = std::uintptr_t;
+namespace QtPrivate {
+// The integers of Qt that are as wide as a size or a pointer.
+template <std::size_t Bytes> struct IntegerForSize;
+template <> struct IntegerForSize<4> {
+    using Signed = qint32;
+    using Unsigned = quint32;
+};
+template <> struct IntegerForSize<8> {
+    using Signed = qint64;
+    using Unsigned = quint64;
+};
+} // namespace QtPrivate
+// As in Qt, these are qint64 and quint64 on a 64-bit platform (and qint32 and quint32 on a 32-bit one), and
+// not the types that the C++ library uses for sizes, which may be long: a size then converts to what a
+// qint64 converts to, and is formatted with "%lld".
+using qsizetype = QtPrivate::IntegerForSize<sizeof(std::size_t)>::Signed;
+using qptrdiff = QtPrivate::IntegerForSize<sizeof(void *)>::Signed;
+using qintptr = QtPrivate::IntegerForSize<sizeof(void *)>::Signed;
+using quintptr = QtPrivate::IntegerForSize<sizeof(void *)>::Unsigned;
 using qreal = double;
 // A pointer to a function of any type, as QLibrary::resolve() returns it; cast it before the call.
 using QFunctionPointer = void (*)();

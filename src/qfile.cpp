@@ -29,6 +29,8 @@ struct QFileDevice::ResourceData {
 
 namespace {
 
+mode_t toMode(QFileDevice::Permissions p);
+
 QString resourceError(const char *text) { return QString::fromUtf8(text); }
 
 constexpr mode_t kResourceMode = 0444; // resources are readable by everyone and never writable
@@ -108,6 +110,18 @@ void QFileDevice::setFileError(FileError e, const QString &text) {
     \sa close()
 */
 bool QFileDevice::openPath(const QString &path, OpenMode mode) {
+    return openPath(path, mode, ReadOwner | WriteOwner | ReadGroup | WriteGroup | ReadOther | WriteOther);
+}
+
+/*!
+    \overload
+    \since 6.3
+    Opens the file at \a path in the given \a mode like the other overload.
+    If this creates the file, it is created with the access permissions
+    \a createPermissions, less what the umask of the process takes away; the
+    permissions of a file that exists already are left alone.
+*/
+bool QFileDevice::openPath(const QString &path, OpenMode mode, Permissions createPermissions) {
     const QString resolved = ntResolveSearchPath(path);
     if (mode & (Append | Truncate))
         mode |= WriteOnly;
@@ -151,7 +165,7 @@ bool QFileDevice::openPath(const QString &path, OpenMode mode) {
             flags |= O_TRUNC;
     }
     const std::string p = resolved.toUtf8().toStdString();
-    const int fd = ::open(p.c_str(), flags | O_CLOEXEC, 0666);
+    const int fd = ::open(p.c_str(), flags | O_CLOEXEC, toMode(createPermissions));
     if (fd < 0) {
         setFileError(OpenError, QString::fromUtf8(std::strerror(errno)));
         return false;
@@ -734,6 +748,33 @@ bool QFile::open(OpenMode mode) {
         return false;
     }
     return openPath(m_name, mode);
+}
+
+/*!
+    \overload
+    \since 6.3
+    Opens the file named by fileName() using the given \a mode, and returns
+    \c true if successful. If the file does not exist and \a mode creates
+    it, it is created with the access permissions \a permissions, less what
+    the umask of the process takes away. The file never exists with wider
+    permissions, as it would for a moment if it were created first and
+    restricted with setPermissions() afterwards. A file that exists already
+    keeps the permissions that it has.
+
+    \code
+    QFile key("server.key");
+    if (key.open(QIODevice::WriteOnly | QIODevice::NewOnly, QFileDevice::ReadOwner | QFileDevice::WriteOwner))
+        key.write(secret);
+    \endcode
+
+    \sa setPermissions()
+*/
+bool QFile::open(OpenMode mode, Permissions permissions) {
+    if (m_name.isEmpty()) {
+        setFileError(OpenError, QString::fromUtf8("no file name specified"));
+        return false;
+    }
+    return openPath(m_name, mode, permissions);
 }
 
 /*!

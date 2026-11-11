@@ -79,6 +79,16 @@ signals:
     */
     void newConnection() { emitSignal(&QTcpServer::newConnection); }
     /*!
+        \since 6.4
+        This signal is emitted every time a connection has been added to the
+        pending connections, by addPendingConnection(). For a QTcpServer
+        that is when newConnection() is emitted; a QSslServer emits it once
+        the handshake of the connection is done.
+
+        \sa hasPendingConnections(), nextPendingConnection()
+    */
+    void pendingConnectionAvailable() { emitSignal(&QTcpServer::pendingConnectionAvailable); }
+    /*!
         This signal is emitted when accepting a new connection results in an
         error. The \a socketError parameter describes the type of error.
 

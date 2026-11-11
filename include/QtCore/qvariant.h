@@ -113,7 +113,7 @@ template <typename T> struct IsQObjectPointer<T *> : std::conjunction<IsComplete
     There are no CBOR conversions, since Nt has no CBOR classes. Constructors
     for \c long and \c{unsigned long} exist because Nt's \c qint64 is
     \c long on Linux; they store a \c qlonglong or \c qulonglong. A
-    \c QVariantPair is a \c std::pair, as Nt has no QPair. \c get() and
+    \c QVariantPair is a \c std::pair, which is what QPair is. \c get() and
     \c get_if() are function templates in the global namespace, not hidden
     friends, so they are found without a \c using declaration. The
     \c QVariant::Private layout is not provided. Copies of a variant share

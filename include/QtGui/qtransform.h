@@ -12,7 +12,14 @@ class QPolygonF;
 
 class QTransform {
 public:
-    enum TransformationType { TxNone = 0x00, TxTranslate = 0x01, TxScale = 0x02, TxRotate = 0x04, TxShear = 0x08, TxProject = 0x10 };
+    enum TransformationType {
+        TxNone = 0x00,
+        TxTranslate = 0x01,
+        TxScale = 0x02,
+        TxRotate = 0x04,
+        TxShear = 0x08,
+        TxProject = 0x10
+    };
 
     QTransform() = default;
     QTransform(qreal h11, qreal h12, qreal h21, qreal h22, qreal dx, qreal dy);

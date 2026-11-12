@@ -256,17 +256,17 @@ static void testPainting() {
         p.setPen(QPen(QColor(0, 0, 0), 10, Qt::SolidLine, Qt::RoundCap));
         p.drawArc(QRectF(10, 10, 100, 100), 0, 90 * 16);
     });
-    CHECK(color(arc.pixel(110, 60), 0, 0, 0, 10));              // the start, at 3 o'clock
-    CHECK(color(arc.pixel(60, 10), 0, 0, 0, 10));               // the end, at 12 o'clock
-    CHECK(color(arc.pixel(56, 10), 0, 0, 0, 30));               // the round cap past the end
+    CHECK(color(arc.pixel(110, 60), 0, 0, 0, 10));                // the start, at 3 o'clock
+    CHECK(color(arc.pixel(60, 10), 0, 0, 0, 10));                 // the end, at 12 o'clock
+    CHECK(color(arc.pixel(56, 10), 0, 0, 0, 30));                 // the round cap past the end
     CHECK(white(arc.pixel(60, 110)) && white(arc.pixel(10, 60))); // the rest of the circle
-    CHECK(white(arc.pixel(60, 60)));                             // the brush is not used
+    CHECK(white(arc.pixel(60, 60)));                              // the brush is not used
     const QImage flat = paint(120, 120, [](QPainter &p) {
         p.setRenderHint(QPainter::Antialiasing);
         p.setPen(QPen(QColor(0, 0, 0), 10, Qt::SolidLine, Qt::FlatCap));
         p.drawArc(QRectF(10, 10, 100, 100), 0, 90 * 16);
     });
-    CHECK(qRed(flat.pixel(55, 10)) > 200);                       // no cap
+    CHECK(qRed(flat.pixel(55, 10)) > 200); // no cap
 
     // Dashes leave gaps along the line.
     const QImage dashed = paint(100, 10, [](QPainter &p) {
@@ -350,8 +350,8 @@ static void testPainting() {
         p.setPen(QColor(0, 0, 0));
         p.drawRect(0, 0, 10, 10);
     });
-    CHECK(color(exact.pixel(2, 2), 0, 0, 0, 0) && color(exact.pixel(12, 12), 0, 0, 0, 0) &&
-          white(exact.pixel(3, 3)) && white(exact.pixel(13, 13)));
+    CHECK(color(exact.pixel(2, 2), 0, 0, 0, 0) && color(exact.pixel(12, 12), 0, 0, 0, 0) && white(exact.pixel(3, 3)) &&
+          white(exact.pixel(13, 13)));
     // The painter keeps the transformation through save() and restore().
     QImage scratch(10, 10, QImage::Format_RGB32);
     QPainter p(&scratch);

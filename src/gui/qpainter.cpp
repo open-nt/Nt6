@@ -76,8 +76,8 @@ struct QPainter::Data {
     }
     void updateTranslation() {
         const QTransform t = user();
-        state.translation = simple() ? baseOffset + QPoint(static_cast<int>(t.dx()), static_cast<int>(t.dy()))
-                                     : baseOffset;
+        state.translation =
+            simple() ? baseOffset + QPoint(static_cast<int>(t.dx()), static_cast<int>(t.dy())) : baseOffset;
     }
     QTransform toDevice() const {
         return user() * QTransform::fromTranslate(baseOffset.x(), baseOffset.y()) * QTransform::fromScale(scale, scale);
@@ -503,9 +503,7 @@ void QPainter::shear(qreal sh, qreal sv) {
 /*!
     Returns the translation of the transformation, rounded to whole pixels.
 */
-QPoint QPainter::translation() const {
-    return QPoint(qRound(d->state.world.dx()), qRound(d->state.world.dy()));
-}
+QPoint QPainter::translation() const { return QPoint(qRound(d->state.world.dx()), qRound(d->state.world.dy())); }
 
 /*!
     Makes the transformation the identity.

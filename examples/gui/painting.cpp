@@ -158,14 +158,16 @@ protected:
         const QSizeF cell(width() / static_cast<double>(cols), height() / static_cast<double>(rows));
         for (std::size_t i = 0; i < list.size(); ++i) {
             painter.save();
-            painter.translate(cell.width() * static_cast<double>(i % cols), cell.height() * static_cast<double>(i / cols));
+            painter.translate(cell.width() * static_cast<double>(i % cols),
+                              cell.height() * static_cast<double>(i / cols));
             painter.setClipRect(QRect(0, 0, static_cast<int>(cell.width()), static_cast<int>(cell.height())));
             list[i].draw(painter, cell, phase);
             painter.restore();
         }
         ++m_frames;
         if (m_second.elapsed() >= 1000) {
-            setTitle(QStringLiteral("Nt painting - %1 frames per second").arg(m_frames * 1000.0 / static_cast<double>(m_second.restart()), 0, 'f', 1));
+            setTitle(QStringLiteral("Nt painting - %1 frames per second")
+                         .arg(m_frames * 1000.0 / static_cast<double>(m_second.restart()), 0, 'f', 1));
             m_frames = 0;
         }
     }
@@ -190,7 +192,9 @@ int main(int argc, char *argv[]) {
         QDir().mkpath(dir);
         bool ok = true;
         for (const Scene &s : scenes())
-            ok = render(s, QSize(360, 240), 30).save(dir + u'/' + QString::fromLatin1(s.name) + QStringLiteral(".png")) && ok;
+            ok = render(s, QSize(360, 240), 30)
+                     .save(dir + u'/' + QString::fromLatin1(s.name) + QStringLiteral(".png")) &&
+                 ok;
         return ok ? 0 : 1;
     }
     if (argc >= 2 && std::strcmp(argv[1], "--bench") == 0) {

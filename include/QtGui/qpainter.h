@@ -138,14 +138,20 @@ public:
     void drawEllipse(const QPointF &center, qreal rx, qreal ry) {
         drawEllipse(QRectF(center.x() - rx, center.y() - ry, 2 * rx, 2 * ry));
     }
-    void drawEllipse(const QPoint &center, int rx, int ry) { drawEllipse(QRect(center.x() - rx, center.y() - ry, 2 * rx, 2 * ry)); }
+    void drawEllipse(const QPoint &center, int rx, int ry) {
+        drawEllipse(QRect(center.x() - rx, center.y() - ry, 2 * rx, 2 * ry));
+    }
     void drawArc(const QRectF &rectangle, int startAngle, int spanAngle);
-    void drawArc(const QRect &rectangle, int startAngle, int spanAngle) { drawArc(QRectF(rectangle), startAngle, spanAngle); }
+    void drawArc(const QRect &rectangle, int startAngle, int spanAngle) {
+        drawArc(QRectF(rectangle), startAngle, spanAngle);
+    }
     void drawArc(int x, int y, int width, int height, int startAngle, int spanAngle) {
         drawArc(QRectF(x, y, width, height), startAngle, spanAngle);
     }
     void drawPie(const QRectF &rectangle, int startAngle, int spanAngle);
-    void drawPie(const QRect &rectangle, int startAngle, int spanAngle) { drawPie(QRectF(rectangle), startAngle, spanAngle); }
+    void drawPie(const QRect &rectangle, int startAngle, int spanAngle) {
+        drawPie(QRectF(rectangle), startAngle, spanAngle);
+    }
     void drawPie(int x, int y, int width, int height, int startAngle, int spanAngle) {
         drawPie(QRectF(x, y, width, height), startAngle, spanAngle);
     }
@@ -158,8 +164,12 @@ public:
     }
     void drawPolyline(const QPointF *points, int pointCount);
     void drawPolyline(const QPoint *points, int pointCount);
-    void drawPolyline(const QPolygonF &polyline) { drawPolyline(polyline.constData(), static_cast<int>(polyline.size())); }
-    void drawPolyline(const QPolygon &polyline) { drawPolyline(polyline.constData(), static_cast<int>(polyline.size())); }
+    void drawPolyline(const QPolygonF &polyline) {
+        drawPolyline(polyline.constData(), static_cast<int>(polyline.size()));
+    }
+    void drawPolyline(const QPolygon &polyline) {
+        drawPolyline(polyline.constData(), static_cast<int>(polyline.size()));
+    }
     void drawPolygon(const QPointF *points, int pointCount, Qt::FillRule fillRule = Qt::OddEvenFill);
     void drawPolygon(const QPoint *points, int pointCount, Qt::FillRule fillRule = Qt::OddEvenFill);
     void drawPolygon(const QPolygonF &points, Qt::FillRule fillRule = Qt::OddEvenFill) {

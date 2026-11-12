@@ -47,17 +47,47 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Snap Store sometimes times out from the hosted runners ("unable to contact snap store"),
+      # and snapcore/action-build installs LXD and Snapcraft from it without retrying. Install them
+      # first, retrying with a growing pause; the action then only refreshes them.
+      - name: Install LXD and Snapcraft from the Snap Store
+        run: |
+          install() {
+            for attempt in 1 2 3 4 5; do
+              sudo snap install "$@" && return 0
+              echo "::warning::snap install $* failed (attempt $attempt of 5)"
+              sleep $((attempt * 30))
+            done
+            return 1
+          }
+          install lxd
+          install snapcraft --classic --channel stable
+
       - name: Build the snap
         id: build
+        continue-on-error: true
+        uses: snapcore/action-build@v1
+
+      # The build also fetches its base snap from the store: one more attempt after a pause, so that a
+      # store timeout does not fail the job. A failure of this attempt fails the job.
+      - name: Wait for the Snap Store
+        if: steps.build.outcome == 'failure'
+        run: sleep 60
+
+      - name: Build the snap (second attempt)
+        id: retry
+        if: steps.build.outcome == 'failure'
         uses: snapcore/action-build@v1
 
       - name: Install the snap and run the tools
+        env:
+          SNAP_FILE: ${{ steps.build.outputs.snap || steps.retry.outputs.snap }}
         run: |
-          case "${{ steps.build.outputs.snap }}" in
+          case "$SNAP_FILE" in
           *_${{ matrix.arch }}.snap) ;;
-          *) echo "::error::Expected a snap for ${{ matrix.arch }}, got ${{ steps.build.outputs.snap }}"; exit 1 ;;
+          *) echo "::error::Expected a snap for ${{ matrix.arch }}, got $SNAP_FILE"; exit 1 ;;
           esac
-          sudo snap install --dangerous "${{ steps.build.outputs.snap }}"
+          sudo snap install --dangerous "$SNAP_FILE"
           open-nt6.ntmoc --version
           open-nt6.ntrcc --version
           open-nt6.ndoc --version
@@ -67,5 +97,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact }}
-          path: ${{ steps.build.outputs.snap }}
+          path: ${{ steps.build.outputs.snap || steps.retry.outputs.snap }}
           if-no-files-found: error

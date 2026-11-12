@@ -142,7 +142,7 @@ public:
         request.config.flags = input ? flags | GPIO_V2_LINE_FLAG_EDGE_RISING | GPIO_V2_LINE_FLAG_EDGE_FALLING : flags;
         int result = ::ioctl(chip, GPIO_V2_GET_LINE_IOCTL, &request);
         m_edges = input && result == 0;
-        if (result < 0 && input && (errno == ENXIO || errno == EINVAL || errno == ENOTSUP || errno == EOPNOTSUPP)) {
+        if (result < 0 && input && (errno == ENXIO || errno == EINVAL || errno == EOPNOTSUPP)) {
             // The chip cannot interrupt on this line: request it without edges, to be polled.
             request.config.flags = flags;
             result = ::ioctl(chip, GPIO_V2_GET_LINE_IOCTL, &request);

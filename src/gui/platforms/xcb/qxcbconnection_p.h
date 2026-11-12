@@ -81,6 +81,8 @@ public:
     void processEvents();
     // Makes sure processEvents() runs soon, for events that a round trip pulled into XCB's queue.
     void scheduleProcessing();
+    // Schedules processing if XCB's queue holds an event that no socket notification will report.
+    void checkQueue();
     bool event(QEvent *e) override;
 
     // Keyboard
@@ -100,6 +102,14 @@ private:
     void handleConfigure(xcb_generic_event_t *event);
     void handleClientMessage(xcb_generic_event_t *event);
     xcb_generic_event_t *nextEvent();
+    // The cursor of the user's theme for a shape, or XCB_NONE without libxcb-cursor or a theme that has it.
+    xcb_cursor_t themeCursor(Qt::CursorShape shape);
+    struct CursorLibrary {
+        int (*contextNew)(xcb_connection_t *, xcb_screen_t *, void **);
+        xcb_cursor_t (*loadCursor)(void *, const char *);
+        void (*contextFree)(void *);
+    };
+    static const CursorLibrary &cursorLibrary();
 
     xcb_connection_t *m_connection;
     xcb_screen_t *m_screen = nullptr;
@@ -108,6 +118,9 @@ private:
     std::unordered_map<xcb_window_t, QXcbWindow *> m_windows;
     std::unordered_map<int, xcb_cursor_t> m_cursors;
     xcb_font_t m_cursorFont = XCB_NONE;
+    // The xcb_cursor_context_t of libxcb-cursor, which loads the cursors of the theme, or null without it.
+    void *m_cursorContext = nullptr;
+    bool m_cursorContextTried = false;
     std::unordered_map<std::string, xcb_atom_t> m_atoms;
     xcb_atom_t m_wmProtocols = 0;
     xcb_atom_t m_wmDeleteWindow = 0;

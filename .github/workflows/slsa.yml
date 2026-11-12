@@ -69,6 +69,18 @@ jobs:
             exit 1
           fi
 
+      # snapcore/action-publish installs Snapcraft from the Snap Store without retrying, and the
+      # store sometimes times out from the hosted runners (HTTP 408). Install it first, retrying
+      # with a growing pause; the action then finds it installed.
+      - name: Install Snapcraft from the Snap Store
+        run: |
+          for attempt in 1 2 3 4 5; do
+            sudo snap install snapcraft --classic --channel stable && exit 0
+            echo "::warning::snap install snapcraft failed (attempt $attempt of 5)"
+            sleep $((attempt * 30))
+          done
+          exit 1
+
       - uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}

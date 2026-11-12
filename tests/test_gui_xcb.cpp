@@ -11,6 +11,7 @@
 #include <QtGui/qscreen.h>
 
 #include "qpa/qplatformintegration_p.h"
+#include "qwindow_p.h"
 #include "xcb_test_helpers.h"
 
 #include <xcb/xcb.h>
@@ -167,6 +168,32 @@ int main(int argc, char **argv) {
         sendKey(c, id, escape, 0, XCB_KEY_PRESS);
         CHECK(waitFor([&] { return w.log.count("key") == 4; }));
         CHECK(w.lastKey == Qt::Key_Escape);
+    }
+
+    // A key that another user of Nt's connection reads into XCB's queue, as Mesa does while an EGL window
+    // renders, is still delivered, though the socket has nothing more to report.
+    if (keyA != 0) {
+        auto *own = static_cast<xcb_connection_t *>(QtPrivate::GuiAccess::integration()->eglPlatform().display);
+        CHECK(own != nullptr);
+        if (own) {
+            const qsizetype keysBefore = w.log.count("key");
+            sendKey(c, id, keyA, 0, XCB_KEY_PRESS);
+            std::free(xcb_get_input_focus_reply(c, xcb_get_input_focus(c), nullptr));     // the server has sent it
+            std::free(xcb_get_input_focus_reply(own, xcb_get_input_focus(own), nullptr)); // queued by XCB
+            CHECK(waitFor([&] { return w.log.count("key") == keysBefore + 1; }, 1000));
+        }
+    }
+
+    // Cursors come from the cursor theme when libxcb-cursor is there, and from the X font otherwise; either way
+    // the server accepts them and the connection keeps working.
+    for (Qt::CursorShape shape : {Qt::ArrowCursor, Qt::PointingHandCursor, Qt::IBeamCursor, Qt::SizeFDiagCursor,
+                                  Qt::ForbiddenCursor, Qt::BlankCursor, Qt::ArrowCursor})
+        w.setCursor(shape);
+    w.unsetCursor();
+    if (keyA != 0) {
+        const qsizetype keysBefore = w.log.count("key");
+        sendKey(c, id, keyA, 0, XCB_KEY_PRESS);
+        CHECK(waitFor([&] { return w.log.count("key") == keysBefore + 1; }));
     }
 
     // Mouse: press, release, a fast second press counts as a double click, wheel and move.

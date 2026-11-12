@@ -5,13 +5,16 @@
 #include "qwindow_p.h"
 #include "qxcbwindow_p.h"
 
+#include <QtCore/qabstracteventdispatcher.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
+#include <QtCore/qlibrary.h>
 #include <QtCore/qsocketnotifier.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qwindow.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -295,10 +298,17 @@ QXcbConnection::QXcbConnection(xcb_connection_t *connection, int screenNumber)
 
     m_notifier = new QSocketNotifier(xcb_get_file_descriptor(connection), QSocketNotifier::Read, this);
     QObject::connect(m_notifier, &QSocketNotifier::activated, this, [this] { processEvents(); });
+    // Other users of the connection, such as Mesa while an EGL window renders, read events into XCB's queue
+    // without a flush() here, so the queue is looked at before the thread waits.
+    if (QAbstractEventDispatcher *dispatcher = QAbstractEventDispatcher::instance())
+        QObject::connect(dispatcher, &QAbstractEventDispatcher::aboutToBlock, this, &QXcbConnection::checkQueue,
+                         Qt::DirectConnection);
     scheduleProcessing();
 }
 
 QXcbConnection::~QXcbConnection() {
+    if (m_cursorContext && cursorLibrary().contextFree)
+        cursorLibrary().contextFree(m_cursorContext);
     if (m_pending)
         std::free(m_pending);
     xcb_disconnect(m_connection);
@@ -335,6 +345,15 @@ void QXcbConnection::scheduleProcessing() {
         return;
     m_processScheduled = true;
     QCoreApplication::postEvent(this, new QEvent(processEventType()));
+}
+
+void QXcbConnection::checkQueue() {
+    if (m_processing)
+        return;
+    if (!m_pending)
+        m_pending = xcb_poll_for_queued_event(m_connection);
+    if (m_pending)
+        scheduleProcessing();
 }
 
 bool QXcbConnection::event(QEvent *e) {
@@ -475,7 +494,96 @@ int cursorGlyph(Qt::CursorShape shape) {
     }
 }
 
+// The names of a shape in cursor themes, most specific first, as the freedesktop.org cursor specification
+// and the older X names have them.
+// Unused entries are null.
+std::array<const char *, 3> cursorNames(Qt::CursorShape shape) {
+    switch (shape) {
+    case Qt::UpArrowCursor:
+        return {"up-arrow", "up_arrow", "center_ptr"};
+    case Qt::CrossCursor:
+        return {"crosshair", "cross"};
+    case Qt::WaitCursor:
+        return {"wait", "watch"};
+    case Qt::BusyCursor:
+        return {"progress", "left_ptr_watch", "watch"};
+    case Qt::IBeamCursor:
+        return {"text", "xterm", "ibeam"};
+    case Qt::SizeVerCursor:
+        return {"ns-resize", "size_ver", "sb_v_double_arrow"};
+    case Qt::SizeHorCursor:
+        return {"ew-resize", "size_hor", "sb_h_double_arrow"};
+    case Qt::SizeBDiagCursor:
+        return {"nesw-resize", "size_bdiag", "fd_double_arrow"};
+    case Qt::SizeFDiagCursor:
+        return {"nwse-resize", "size_fdiag", "bd_double_arrow"};
+    case Qt::SizeAllCursor:
+        return {"all-scroll", "size_all", "fleur"};
+    case Qt::SplitVCursor:
+        return {"row-resize", "split_v", "sb_v_double_arrow"};
+    case Qt::SplitHCursor:
+        return {"col-resize", "split_h", "sb_h_double_arrow"};
+    case Qt::PointingHandCursor:
+        return {"pointer", "pointing_hand", "hand2"};
+    case Qt::ForbiddenCursor:
+        return {"not-allowed", "forbidden", "crossed_circle"};
+    case Qt::WhatsThisCursor:
+        return {"help", "whats_this", "question_arrow"};
+    case Qt::OpenHandCursor:
+        return {"grab", "openhand", "fleur"};
+    case Qt::ClosedHandCursor:
+        return {"grabbing", "closedhand", "fleur"};
+    case Qt::DragCopyCursor:
+        return {"copy", "dnd-copy"};
+    case Qt::DragMoveCursor:
+        return {"move", "dnd-move"};
+    case Qt::DragLinkCursor:
+        return {"alias", "dnd-link"};
+    default:
+        return {"default", "left_ptr"};
+    }
+}
+
 } // namespace
+
+// libxcb-cursor is loaded when the first cursor is made, so that Nt neither needs it to build nor to run: the
+// cursors of the X font are used without it.
+const QXcbConnection::CursorLibrary &QXcbConnection::cursorLibrary() {
+    static const CursorLibrary lib = [] {
+        CursorLibrary l{};
+        static QLibrary library(QStringLiteral("xcb-cursor"), 0); // kept loaded for the process
+        if (!library.load())
+            return l;
+        // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast): the functions come from dlsym().
+        l.contextNew = reinterpret_cast<decltype(l.contextNew)>(library.resolve("xcb_cursor_context_new"));
+        l.loadCursor = reinterpret_cast<decltype(l.loadCursor)>(library.resolve("xcb_cursor_load_cursor"));
+        l.contextFree = reinterpret_cast<decltype(l.contextFree)>(library.resolve("xcb_cursor_context_free"));
+        // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+        if (!l.contextNew || !l.loadCursor || !l.contextFree)
+            l = CursorLibrary{};
+        return l;
+    }();
+    return lib;
+}
+
+xcb_cursor_t QXcbConnection::themeCursor(Qt::CursorShape shape) {
+    const CursorLibrary &lib = cursorLibrary();
+    if (!m_cursorContextTried) {
+        m_cursorContextTried = true;
+        if (lib.contextNew && lib.contextNew(m_connection, m_screen, &m_cursorContext) < 0)
+            m_cursorContext = nullptr;
+    }
+    if (!m_cursorContext || !lib.loadCursor)
+        return XCB_NONE;
+    for (const char *name : cursorNames(shape)) {
+        if (!name)
+            break;
+        const xcb_cursor_t c = lib.loadCursor(m_cursorContext, name);
+        if (c != XCB_NONE)
+            return c;
+    }
+    return XCB_NONE;
+}
 
 xcb_cursor_t QXcbConnection::cursor(Qt::CursorShape shape) {
     const auto known = m_cursors.find(static_cast<int>(shape));
@@ -496,6 +604,9 @@ xcb_cursor_t QXcbConnection::cursor(Qt::CursorShape shape) {
         xcb_free_gc(m_connection, gc);
         xcb_free_pixmap(m_connection, pixmap);
     } else {
+        cursor = themeCursor(shape);
+    }
+    if (cursor == XCB_NONE && shape != Qt::BlankCursor) {
         if (m_cursorFont == XCB_NONE) {
             m_cursorFont = xcb_generate_id(m_connection);
             xcb_open_font(m_connection, m_cursorFont, 6, "cursor");

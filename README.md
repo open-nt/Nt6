@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -101,7 +101,7 @@ Nt Widgets draws its own Fusion-like style, light and dark. This is [`hello_widg
 | [`examples/signals`](examples/signals), [`examples/moc`](examples/moc) | signals and slots, and `ntmoc` |
 | [`examples/httpserver`](examples/httpserver/hello_server.cpp) | routes, JSON, streaming, delayed answers and WebSockets on one port |
 | [`examples/websockets`](examples/websockets), [`examples/dbus`](examples/dbus), [`examples/serialport`](examples/serialport), [`examples/sql`](examples/sql) | an echo server and client, a clock on the session bus, serial ports, an address book in SQLite |
-| [`examples/gui`](examples/gui), [`examples/widgets`](examples/widgets), [`examples/svg`](examples/svg) | a painted window, the widget gallery, SVG rendering |
+| [`examples/gui`](examples/gui), [`examples/widgets`](examples/widgets), [`examples/svg`](examples/svg), [`examples/charts`](examples/charts) | a painted window, the widget gallery, SVG rendering, a live chart dashboard |
 
 ## Contents
 
@@ -330,7 +330,7 @@ Not implemented yet: editing of rich text and the clipboard, model-based list an
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -380,6 +380,27 @@ renderer.render(&painter);
 ```
 
 Differences from Qt: static documents only (no SMIL or CSS animation); no `image`, `mask`, `pattern`, `marker`, filters or `textPath`; text is drawn upright in one color with system fonts, following position and scale but not rotation; `preserveAspectRatio` is not read (use `setAspectRatioMode()`); no `load(QXmlStreamReader *)`, `transformForElement()` or `QGraphicsSvgItem`. `QSvgGenerator` writes text as an image of its glyphs, not as `text` elements.
+
+### Nt Charts: implemented
+
+Nt Charts has the API of Qt Charts: line, spline, scatter, area, bar (grouped, stacked, percent, vertical and horizontal) and pie or donut charts, with value, logarithmic, date-time and category axes, a legend, eight themes, zooming and mouse signals. Shapes are drawn antialiased by the rasterizer of Nt SVG. Link with `Nt::Charts`.
+
+<p align="center"><img src="doc/images/charts/qlineseries.png" alt="A line chart" width="320"> <img src="doc/images/charts/qbarseries.png" alt="A bar chart" width="320"> <img src="doc/images/charts/qpieseries.png" alt="A pie chart" width="320"></p>
+
+| Class | Notes |
+|---|---|
+| `QChart` | series, axes, title, legend, themes, margins, plot area, `createDefaultAxes()`, `zoomIn()`, `zoom()`, `scroll()`, `zoomReset()`, `mapToValue()`, `mapToPosition()`, `paint()` to any painter |
+| `QChartView` | shows a chart; rubber band zooming; mouse events reach the series |
+| `QLineSeries`, `QSplineSeries`, `QScatterSeries` | points, markers, point labels; `replace()` for live data |
+| `QAreaSeries` | between two line series, or down to zero |
+| `QBarSet`, `QBarSeries`, `QStackedBarSeries`, `QPercentBarSeries`, and the horizontal ones | value labels and their positions, bar width |
+| `QPieSeries`, `QPieSlice` | holes, partial circles, exploded slices, labels outside or inside |
+| `QValueAxis`, `QLogValueAxis`, `QDateTimeAxis`, `QBarCategoryAxis` | fixed or dynamic ticks, minor grid lines, shades, printf-style label formats, reversed axes |
+| `QLegend` | four sides, rectangle, circle or series markers |
+
+Guide: [Using Nt Charts](https://open-nt.github.io/Nt6/nt-charts.html), with pictures of each kind of chart and theme. The [`chart_dashboard`](examples/charts/dashboard.cpp) example shows four charts, one of them live.
+
+Differences from Qt: `QChart` is a `QObject` and `QChartView` a `QWidget`, with no graphics scene; no animations, polar charts, box plots, candlesticks, `QCategoryAxis`, `QColorAxis`, model mappers or `QLegendMarker`; labels are drawn upright; a series has at most one axis of each orientation.
 
 ### Essentials
 
@@ -471,7 +492,7 @@ Differences from Qt: static documents only (no SMIL or CSS animation); no `image
 | Qt module | Nt library | Done |
 |---|---|---|
 | Qt 3D | Nt 3D |  |
-| Qt Charts | Nt Charts |  |
+| Qt Charts | Nt Charts | ✔ (see Status) |
 | Qt Data Visualization | Nt Data Visualization |  |
 
 ### Extension modules

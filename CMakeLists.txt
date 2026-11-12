@@ -721,6 +721,36 @@ target_include_directories(NtSvgWidgets
 target_link_libraries(NtSvgWidgets PUBLIC NtSvg NtWidgets)
 nt_set_compile_options(NtSvgWidgets)
 
+# Nt Charts draws its shapes with the rasterizer of Nt SVG, through its private header.
+add_library(NtCharts
+    src/charts/qabstractaxis.cpp
+    src/charts/qabstractbarseries.cpp
+    src/charts/qabstractseries.cpp
+    src/charts/qareaseries.cpp
+    src/charts/qbarcategoryaxis.cpp
+    src/charts/qbarset.cpp
+    src/charts/qchart.cpp
+    src/charts/qchartengine.cpp
+    src/charts/qchartview.cpp
+    src/charts/qdatetimeaxis.cpp
+    src/charts/qlegend.cpp
+    src/charts/qpieseries.cpp
+    src/charts/qvalueaxis.cpp
+    src/charts/qxyseries.cpp
+)
+add_library(Nt::Charts ALIAS NtCharts)
+add_library(Qt6::Charts ALIAS NtCharts)
+target_include_directories(NtCharts
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtCharts>
+        $<INSTALL_INTERFACE:include/nt6/QtCharts>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/charts
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/svg
+)
+target_link_libraries(NtCharts PUBLIC NtWidgets PRIVATE NtSvg)
+nt_set_compile_options(NtCharts)
+
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
 )
@@ -791,6 +821,7 @@ nt_moc_library(NtGui include/QtGui src/gui/qpa)
 nt_moc_library(NtWidgets include/QtWidgets)
 nt_moc_library(NtSvg include/QtSvg)
 nt_moc_library(NtSvgWidgets include/QtSvgWidgets)
+nt_moc_library(NtCharts include/QtCharts)
 endif() # NOT NT_ZEPHYR
 
 # Resource compiler and its CMake helpers.
@@ -1154,6 +1185,14 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_svg_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_svg_tests)
 
+    # Nt Charts: the model, axes and ticks, drawing through pixels, the mouse and zooming, offscreen.
+    add_executable(nt_charts_tests tests/test_charts.cpp)
+    target_include_directories(nt_charts_tests PRIVATE src/charts src/svg)
+    target_link_libraries(nt_charts_tests PRIVATE Nt::Charts)
+    add_test(NAME nt_charts_tests COMMAND nt_charts_tests)
+    set_tests_properties(nt_charts_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_charts_tests)
+
     # The xcb tests need an X server (or XWayland); they report a skip without one.
     if(NT_HAVE_XCB)
         add_executable(nt_gui_xcb_tests tests/test_gui_xcb.cpp)
@@ -1257,6 +1296,21 @@ if(NT_BUILD_EXAMPLES)
             BUILD_ALWAYS ON
             INSTALL_COMMAND "")
     endif()
+
+    # A live dashboard of charts; see "Using Nt Charts" in the documentation.
+    add_executable(chart_dashboard examples/charts/dashboard.cpp)
+    target_link_libraries(chart_dashboard PRIVATE Nt::Charts)
+    nt_set_compile_options(chart_dashboard)
+
+    # Renders each kind of chart to doc/images/charts, the pictures of the reference documentation:
+    #   cmake --build build --target chart_images
+    add_executable(render_charts examples/charts/render_charts.cpp)
+    target_link_libraries(render_charts PRIVATE Nt::Charts)
+    nt_set_compile_options(render_charts)
+    add_custom_target(chart_images
+        COMMAND render_charts "${CMAKE_CURRENT_SOURCE_DIR}/doc/images"
+        COMMENT "Rendering the charts to doc/images/charts"
+        VERBATIM)
 
     # Shows an SVG file in a window, or converts what it draws; see "Using Nt SVG" in the documentation.
     add_executable(svg_viewer examples/svg/svg_viewer.cpp)

@@ -1,0 +1,167 @@
+// MIT License - see LICENSE
+#include <QtCharts/qabstractseries.h>
+
+#include "qchartengine_p.h"
+
+#include <algorithm>
+
+using QtChartsPrivate::ChartEngine;
+
+/*!
+    \class QAbstractSeries
+    \brief The QAbstractSeries class is the base class of the data series of a chart.
+
+    A series holds data and the way it is drawn. Add it to a chart with QChart::addSeries(); the chart then
+    owns it. A series is drawn against the axes attached to it with attachAxis(), or, with none, against a
+    scale that fits its data.
+
+    \differences
+    The series is drawn by the chart; there is no OpenGL acceleration, and useOpenGL() is kept but has no
+    effect. A series has at most one axis of each orientation: attaching a second one detaches the first.
+    \enddifferences
+
+    \sa QChart, QXYSeries, QAbstractBarSeries, QPieSeries, QAreaSeries
+*/
+
+/*!
+    \enum QAbstractSeries::SeriesType
+
+    The type of a series.
+
+    \value SeriesTypeLine A QLineSeries.
+    \value SeriesTypeArea A QAreaSeries.
+    \value SeriesTypeBar A QBarSeries.
+    \value SeriesTypeStackedBar A QStackedBarSeries.
+    \value SeriesTypePercentBar A QPercentBarSeries.
+    \value SeriesTypePie A QPieSeries.
+    \value SeriesTypeScatter A QScatterSeries.
+    \value SeriesTypeSpline A QSplineSeries.
+    \value SeriesTypeHorizontalBar A QHorizontalBarSeries.
+    \value SeriesTypeHorizontalStackedBar A QHorizontalStackedBarSeries.
+    \value SeriesTypeHorizontalPercentBar A QHorizontalPercentBarSeries.
+    \value SeriesTypeBoxPlot A box plot series; Nt has none.
+    \value SeriesTypeCandlestick A candlestick series; Nt has none.
+*/
+
+/*!
+    Constructs a series with the given \a parent.
+*/
+QAbstractSeries::QAbstractSeries(QObject *parent) : QObject(parent) {}
+
+/*!
+    Destroys the series and removes it from its chart.
+*/
+QAbstractSeries::~QAbstractSeries() { ChartEngine::seriesDestroyed(this); }
+
+/*!
+    \fn QAbstractSeries::SeriesType QAbstractSeries::type() const
+
+    Returns the type of the series.
+*/
+
+/*!
+    Tells the chart that the series must be drawn again.
+*/
+void QAbstractSeries::markChanged() { ChartEngine::changed(this); }
+
+/*!
+    Sets the name of the series to \a name. The legend shows it.
+*/
+void QAbstractSeries::setName(const QString &name) {
+    if (name == m_name)
+        return;
+    m_name = name;
+    markChanged();
+    emit nameChanged();
+}
+
+/*!
+    Returns the name of the series.
+*/
+QString QAbstractSeries::name() const { return m_name; }
+
+/*!
+    Shows the series if \a visible is \c true and hides it otherwise.
+*/
+void QAbstractSeries::setVisible(bool visible) {
+    if (visible == m_visible)
+        return;
+    m_visible = visible;
+    markChanged();
+    emit visibleChanged();
+}
+
+/*!
+    Returns \c true if the series is drawn; otherwise returns \c false.
+*/
+bool QAbstractSeries::isVisible() const { return m_visible; }
+
+/*!
+    Returns the opacity of the series, from 0.0 (transparent) to 1.0 (opaque).
+*/
+qreal QAbstractSeries::opacity() const { return m_opacity; }
+
+/*!
+    Sets the opacity of the series to \a opacity, from 0.0 (transparent) to 1.0 (opaque).
+*/
+void QAbstractSeries::setOpacity(qreal opacity) {
+    opacity = std::clamp(opacity, 0.0, 1.0);
+    if (opacity == m_opacity)
+        return;
+    m_opacity = opacity;
+    markChanged();
+    emit opacityChanged();
+}
+
+/*!
+    Sets whether the series asks for OpenGL to \a enable. Nt draws every series the same way, so this has
+    no effect.
+*/
+void QAbstractSeries::setUseOpenGL(bool enable) {
+    if (enable == m_useOpenGL)
+        return;
+    m_useOpenGL = enable;
+    emit useOpenGLChanged();
+}
+
+/*!
+    Returns \c true if setUseOpenGL() was set; otherwise returns \c false.
+*/
+bool QAbstractSeries::useOpenGL() const { return m_useOpenGL; }
+
+/*!
+    Returns the chart the series is in, or \c nullptr if it is in none.
+*/
+QChart *QAbstractSeries::chart() const { return m_chart; }
+
+/*!
+    Attaches \a axis to the series, so that the series is drawn against it. Both must be in the same chart.
+    An axis of the same orientation that was attached before is detached. Returns \c true on success.
+
+    If the range of \a axis was not set, it becomes the extent of the data of its series.
+
+    \sa detachAxis(), QChart::addAxis()
+*/
+bool QAbstractSeries::attachAxis(QAbstractAxis *axis) { return ChartEngine::attach(this, axis); }
+
+/*!
+    Detaches \a axis from the series. Returns \c true on success.
+*/
+bool QAbstractSeries::detachAxis(QAbstractAxis *axis) { return ChartEngine::detach(this, axis); }
+
+/*!
+    Returns the axes attached to the series.
+*/
+QList<QAbstractAxis *> QAbstractSeries::attachedAxes() { return m_axes; }
+
+/*!
+    Shows the series.
+*/
+void QAbstractSeries::show() { setVisible(true); }
+
+/*!
+    Hides the series.
+*/
+void QAbstractSeries::hide() { setVisible(false); }
+
+#include "moc_qabstractseries.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

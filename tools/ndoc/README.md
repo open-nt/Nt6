@@ -92,6 +92,8 @@ Every page has a search box in its header, so the generated site needs no server
 
 Paths are relative to the config file.
 
+`social_image` is copied to `images/` and named in the Open Graph and Twitter card tags of every page, so a shared link shows it as a preview (1200x630 PNG works everywhere). Crawlers need an absolute address, so set `url` to where the site is published; without it the image is given relative to the page. Every page also gets `og:title` and, from `description`, `og:description`.
+
 `github` adds a *Source* link with the GitHub logo (from Font Awesome Free, CC BY 4.0) to the header of every page.
 
 ```ini
@@ -101,6 +103,8 @@ version_file = ../VERSION
 description = One line for the landing page.
 footer = Text for every page.
 logo = ../assets/nt-logo.svg
+social_image = ../assets/social/card-1200x630.png
+url = https://example.org/docs/
 github = https://github.com/open-nt/Nt6
 output = html
 sources = ../include ../src

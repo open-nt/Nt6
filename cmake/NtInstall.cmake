@@ -19,6 +19,7 @@ set_target_properties(NtNetwork PROPERTIES EXPORT_NAME Network)
 set_target_properties(NtTest PROPERTIES EXPORT_NAME Test)
 set_target_properties(NtConcurrent PROPERTIES EXPORT_NAME Concurrent)
 set_target_properties(NtSerialPort PROPERTIES EXPORT_NAME SerialPort)
+set_target_properties(NtGpio PROPERTIES EXPORT_NAME Gpio)
 set_target_properties(NtSql PROPERTIES EXPORT_NAME Sql)
 set_target_properties(NtDBus PROPERTIES EXPORT_NAME DBus)
 set_target_properties(NtHttpServer PROPERTIES EXPORT_NAME HttpServer)
@@ -28,11 +29,12 @@ set_target_properties(NtWidgets PROPERTIES EXPORT_NAME Widgets)
 set_target_properties(NtSvg PROPERTIES EXPORT_NAME Svg)
 set_target_properties(NtSvgWidgets PROPERTIES EXPORT_NAME SvgWidgets)
 set_target_properties(NtCharts PROPERTIES EXPORT_NAME Charts)
+set_target_properties(NtQml PROPERTIES EXPORT_NAME Qml)
 set_target_properties(ntmoc PROPERTIES EXPORT_NAME moc)
 set_target_properties(ndoc PROPERTIES EXPORT_NAME ndoc)
 set_target_properties(ntrcc PROPERTIES EXPORT_NAME rcc)
 
-install(TARGETS NtCore NtNetwork NtSerialPort NtSql NtDBus NtWebSockets NtHttpServer NtGui NtWidgets NtSvg NtSvgWidgets NtCharts NtConcurrent NtTest
+install(TARGETS NtCore NtNetwork NtGpio NtSerialPort NtSql NtDBus NtWebSockets NtHttpServer NtGui NtWidgets NtSvg NtSvgWidgets NtCharts NtQml NtConcurrent NtTest
     EXPORT Nt6Targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
@@ -40,7 +42,7 @@ install(TARGETS ntmoc ntrcc ndoc
     EXPORT Nt6Targets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 
-install(DIRECTORY include/QtCore include/QtNetwork include/QtSerialPort include/QtSql include/QtDBus include/QtHttpServer include/QtWebSockets include/QtGui include/QtWidgets include/QtSvg include/QtSvgWidgets include/QtCharts include/QtConcurrent include/QtTest
+install(DIRECTORY include/QtCore include/QtNetwork include/QtGpio include/QtSerialPort include/QtSql include/QtDBus include/QtHttpServer include/QtWebSockets include/QtGui include/QtWidgets include/QtSvg include/QtSvgWidgets include/QtCharts include/QtQml include/QtConcurrent include/QtTest
     DESTINATION ${NT_INSTALL_INCLUDEDIR}
     COMPONENT Development
     PATTERN "*_p.h" EXCLUDE)

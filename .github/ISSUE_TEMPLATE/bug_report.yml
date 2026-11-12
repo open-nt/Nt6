@@ -37,6 +37,7 @@ body:
         - Nt Widgets
         - Nt SVG
         - Nt Charts
+        - Nt Qml
         - Nt Concurrent
         - Nt Test
         - ntmoc

@@ -306,6 +306,28 @@ else()
 endif()
 nt_set_compile_options(NtNetwork)
 
+# Nt GPIO: on Linux through the GPIO character device, and on Zephyr when CONFIG_NT_GPIO is set.
+if(NOT NT_ZEPHYR OR CONFIG_NT_GPIO)
+add_library(NtGpio src/gpio/qgpioline.cpp)
+add_library(Nt::Gpio ALIAS NtGpio)
+target_include_directories(NtGpio
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtGpio>
+        $<INSTALL_INTERFACE:include/nt6/QtGpio>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gpio
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtGpio PUBLIC NtCore)
+if(NT_ZEPHYR)
+    target_compile_options(NtGpio PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+    target_sources(NtGpio PRIVATE src/zephyr/qgpiobackend_zephyr.cpp)
+else()
+    target_sources(NtGpio PRIVATE src/gpio/qgpiobackend_linux.cpp)
+endif()
+nt_set_compile_options(NtGpio)
+endif() # NOT NT_ZEPHYR OR CONFIG_NT_GPIO
+
 # The other modules need a hosted system. This block ends after Nt Test.
 if(NOT NT_ZEPHYR)
 
@@ -751,6 +773,35 @@ target_include_directories(NtCharts
 target_link_libraries(NtCharts PUBLIC NtWidgets PRIVATE NtSvg)
 nt_set_compile_options(NtCharts)
 
+# Nt Qml: the JavaScript engine and, later, the QML engine. The interpreter reports script errors as C++
+# exceptions internally, which never leave the library.
+add_library(NtQml
+    src/qml/qjsbuiltins.cpp
+    src/qml/qjsdate.cpp
+    src/qml/qjsengine.cpp
+    src/qml/qjsinterp.cpp
+    src/qml/qjsparser.cpp
+    src/qml/qjsqobject.cpp
+    src/qml/qjsruntime.cpp
+    src/qml/qjsstring.cpp
+    src/qml/qjsvalue.cpp
+    src/qml/qqmlcomponent.cpp
+    src/qml/qqmlcreator.cpp
+    src/qml/qqmlengine.cpp
+    src/qml/qqmltypes.cpp
+)
+add_library(Nt::Qml ALIAS NtQml)
+add_library(Qt6::Qml ALIAS NtQml)
+target_include_directories(NtQml
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtQml>
+        $<INSTALL_INTERFACE:include/nt6/QtQml>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/qml
+)
+target_link_libraries(NtQml PUBLIC NtCore)
+nt_set_compile_options(NtQml)
+
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
 )
@@ -803,6 +854,9 @@ if(NOT NT_HAVE_TLS)
 endif()
 nt_moc_library(NtNetwork include/QtNetwork)
 set(NT_MOC_DEFINES)
+if(NOT NT_ZEPHYR OR CONFIG_NT_GPIO)
+nt_moc_library(NtGpio include/QtGpio)
+endif()
 if(NOT NT_ZEPHYR)
 nt_moc_library(NtSerialPort include/QtSerialPort)
 nt_moc_library(NtSql include/QtSql)
@@ -822,6 +876,7 @@ nt_moc_library(NtWidgets include/QtWidgets)
 nt_moc_library(NtSvg include/QtSvg)
 nt_moc_library(NtSvgWidgets include/QtSvgWidgets)
 nt_moc_library(NtCharts include/QtCharts)
+nt_moc_library(NtQml include/QtQml src/qml)
 endif() # NOT NT_ZEPHYR
 
 # Resource compiler and its CMake helpers.
@@ -916,6 +971,13 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_serialport_tests PRIVATE Nt::SerialPort)
     add_test(NAME nt_serialport_tests COMMAND nt_serialport_tests)
     nt_set_compile_options(nt_serialport_tests)
+
+    # The GPIO tests replace the platform backend with one of their own.
+    add_executable(nt_gpio_tests tests/test_gpio.cpp)
+    target_include_directories(nt_gpio_tests PRIVATE src/gpio)
+    target_link_libraries(nt_gpio_tests PRIVATE Nt::Gpio)
+    add_test(NAME nt_gpio_tests COMMAND nt_gpio_tests)
+    nt_set_compile_options(nt_gpio_tests)
 
     # The QProcess tests start a helper program built next to them.
     add_executable(nt_process_helper tests/process_helper.cpp)
@@ -1193,6 +1255,20 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_charts_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_charts_tests)
 
+    # Nt Qml: the JavaScript language, its library, QJSValue and QObjects in scripts.
+    add_executable(nt_jsengine_tests tests/test_jsengine.cpp tests/jsengine_classes.h)
+    target_link_libraries(nt_jsengine_tests PRIVATE Nt::Qml)
+    nt_enable_automoc(nt_jsengine_tests)
+    add_test(NAME nt_jsengine_tests COMMAND nt_jsengine_tests)
+    nt_set_compile_options(nt_jsengine_tests)
+
+    # The QML engine: documents, bindings, components, modules and the QtQml types.
+    add_executable(nt_qml_tests tests/test_qml.cpp tests/qml_classes.h)
+    target_link_libraries(nt_qml_tests PRIVATE Nt::Qml)
+    nt_enable_automoc(nt_qml_tests)
+    add_test(NAME nt_qml_tests COMMAND nt_qml_tests)
+    nt_set_compile_options(nt_qml_tests)
+
     # The xcb tests need an X server (or XWayland); they report a skip without one.
     if(NT_HAVE_XCB)
         add_executable(nt_gui_xcb_tests tests/test_gui_xcb.cpp)
@@ -1302,6 +1378,18 @@ if(NT_BUILD_EXAMPLES)
     target_link_libraries(chart_dashboard PRIVATE Nt::Charts)
     nt_set_compile_options(chart_dashboard)
 
+    # Scripting with QJSEngine; see "Using Nt Qml" in the documentation.
+    add_executable(js_scripting examples/qml/scripting.cpp)
+    target_link_libraries(js_scripting PRIVATE Nt::Qml)
+    nt_enable_automoc(js_scripting)
+    nt_set_compile_options(js_scripting)
+
+    # A QML document with a C++ type; see "Using Nt QML" in the documentation.
+    add_executable(hello_qml examples/qml/hello_qml.cpp)
+    target_link_libraries(hello_qml PRIVATE Nt::Qml)
+    nt_enable_automoc(hello_qml)
+    nt_set_compile_options(hello_qml)
+
     # Renders each kind of chart to doc/images/charts, the pictures of the reference documentation:
     #   cmake --build build --target chart_images
     add_executable(render_charts examples/charts/render_charts.cpp)
@@ -1326,6 +1414,11 @@ if(NT_BUILD_EXAMPLES)
     add_executable(serialterm examples/serialport/serialterm.cpp)
     target_link_libraries(serialterm PRIVATE Nt::SerialPort)
     nt_set_compile_options(serialterm)
+
+    # A push-to-talk switch; see "Using Nt GPIO" in the documentation.
+    add_executable(ptt examples/gpio/ptt.cpp)
+    target_link_libraries(ptt PRIVATE Nt::Gpio)
+    nt_set_compile_options(ptt)
 
     # An echo server and client; see "Using Nt WebSockets" in the documentation.
     add_executable(websocket_echo examples/websockets/echo.cpp)

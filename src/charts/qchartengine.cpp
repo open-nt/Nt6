@@ -992,8 +992,11 @@ void ChartEngine::createDefaultAxes(QChart *chart) {
     }
     if (!any)
         return;
+    // New axes are in no chart yet, so addAxis() takes them: the chart owns them.
     QAbstractAxis *x = categoryX ? static_cast<QAbstractAxis *>(new QBarCategoryAxis) : new QValueAxis;
     QAbstractAxis *y = categoryY ? static_cast<QAbstractAxis *>(new QBarCategoryAxis) : new QValueAxis;
+    x->m_chart = nullptr;
+    y->m_chart = nullptr;
     addAxis(chart, x, Qt::AlignBottom);
     addAxis(chart, y, Qt::AlignLeft);
     for (QAbstractSeries *series : std::as_const(chart->m_series)) {

@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt Qml`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -330,7 +330,7 @@ Not implemented yet: editing of rich text and the clipboard, model-based list an
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::Qml`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -402,6 +402,22 @@ Guide: [Using Nt Charts](https://open-nt.github.io/Nt6/nt-charts.html), with pic
 
 Differences from Qt: `QChart` is a `QObject` and `QChartView` a `QWidget`, with no graphics scene; no animations, polar charts, box plots, candlesticks, `QCategoryAxis`, `QColorAxis`, model mappers or `QLegendMarker`; labels are drawn upright; a series has at most one axis of each orientation.
 
+### Nt Qml: JavaScript and the QML engine
+
+Nt Qml runs JavaScript and QML documents. The JavaScript engine is Nt's own interpreter of ECMAScript 2017 without classes, generators, async functions and destructuring; QObjects take part in scripts with their properties, methods and signals. The QML engine makes objects from documents, with bindings that follow their dependencies, signal handlers, declared properties, signals, functions, aliases and enumerations, C++ types registered with `qmlRegisterType()`, types written in QML (directories, `qmldir` modules, inline components), singletons, and the QtQml types. Link with `Nt::Qml`.
+
+| Class | Notes |
+|---|---|
+| `QJSEngine`, `QJSValue`, `QJSValueIterator` | evaluate, call, objects and arrays, QObjects with signals connectable from scripts, errors with file and line, `throwError()`, interruption, console and translation extensions, garbage collection |
+| `QQmlEngine`, `QQmlContext`, `QQmlComponent` | documents from files, resources or data; contexts and context properties; `beginCreate()`/`completeCreate()`, initial properties; warnings with locations |
+| `QQmlApplicationEngine` | loads the main document; `Qt.quit()` and `Qt.exit()` |
+| `qmlRegisterType()` and the rest of `<qqml.h>`, `QQmlListProperty`, `QQmlParserStatus` | C++ types, singletons, uncreatable types, QML files as types, default and list properties |
+| `QtObject`, `Timer`, `Connections`, `Component` | the QtQml module, and the `Qt` object |
+
+Guides: [Using Nt Qml](https://open-nt.github.io/Nt6/nt-qml.html) (JavaScript) and [Using Nt QML](https://open-nt.github.io/Nt6/nt-qml-language.html) (documents). The [`js_scripting`](examples/qml/scripting.cpp) and [`hello_qml`](examples/qml/hello_qml.cpp) examples show both.
+
+Differences from Qt: interpreted, not compiled; no Qt Quick (visual types) yet; no attached properties other than `Component.onCompleted`/`onDestruction`, no `Behavior`, `Binding`, `Loader`, `Repeater` or models; no JavaScript modules or `.js` imports; no network URLs; `QML_ELEMENT` macros compile but types are registered with `qmlRegisterType()`.
+
 ### Essentials
 
 | Qt module | Nt library | Done |
@@ -410,7 +426,7 @@ Differences from Qt: `QChart` is a `QObject` and `QChartView` a `QWidget`, with 
 | Qt D-Bus | Nt D-Bus | ✔ (see Status) |
 | Qt GUI | Nt GUI | ✔ (partial, see Status) |
 | Qt Network | Nt Network | ✔ (partial, see Status) |
-| Qt Qml | Nt Qml |  |
+| Qt Qml | Nt Qml | ✔ (partial, see Status) |
 | Qt Qml Core | Nt Qml Core |  |
 | Qt Qml WorkerScript | Nt Qml WorkerScript |  |
 | Qt Qml Models | Nt Qml Models |  |

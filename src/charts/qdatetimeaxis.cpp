@@ -54,7 +54,7 @@ QAbstractAxis::AxisType QDateTimeAxis::type() const { return AxisTypeDateTime; }
 /*!
     Sets the minimum of the axis to \a min. The maximum grows to \a min if it is earlier.
 */
-void QDateTimeAxis::setMin(QDateTime min) {
+void QDateTimeAxis::setMin(const QDateTime &min) {
     if (!min.isValid())
         return;
     const qreal lo = static_cast<qreal>(min.toMSecsSinceEpoch());
@@ -70,7 +70,7 @@ QDateTime QDateTimeAxis::min() const { return QDateTime::fromMSecsSinceEpoch(std
 /*!
     Sets the maximum of the axis to \a max. The minimum shrinks to \a max if it is later.
 */
-void QDateTimeAxis::setMax(QDateTime max) {
+void QDateTimeAxis::setMax(const QDateTime &max) {
     if (!max.isValid())
         return;
     const qreal hi = static_cast<qreal>(max.toMSecsSinceEpoch());
@@ -86,7 +86,7 @@ QDateTime QDateTimeAxis::max() const { return QDateTime::fromMSecsSinceEpoch(std
 /*!
     Sets the range of the axis to \a min and \a max. A range that ends before it starts is ignored.
 */
-void QDateTimeAxis::setRange(QDateTime min, QDateTime max) {
+void QDateTimeAxis::setRange(const QDateTime &min, const QDateTime &max) {
     if (!min.isValid() || !max.isValid() || max < min)
         return;
     ChartEngine::rangeSetByUser(this);

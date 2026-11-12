@@ -16,11 +16,11 @@ public:
 
     AxisType type() const override;
 
-    void setMin(QDateTime min);
+    void setMin(const QDateTime &min);
     QDateTime min() const;
-    void setMax(QDateTime max);
+    void setMax(const QDateTime &max);
     QDateTime max() const;
-    void setRange(QDateTime min, QDateTime max);
+    void setRange(const QDateTime &min, const QDateTime &max);
 
     void setFormat(const QString &format);
     QString format() const;

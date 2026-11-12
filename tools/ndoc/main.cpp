@@ -1715,6 +1715,8 @@ struct Config {
     std::string description;
     std::string footer;
     fs::path logo;
+    fs::path socialImage;
+    std::string url;
     std::string github;
     fs::path output = "html";
     std::vector<fs::path> sources;
@@ -1763,6 +1765,12 @@ bool loadConfig(const fs::path &path, Config &cfg) {
             cfg.footer = value;
         } else if (key == "logo") {
             cfg.logo = resolve(value);
+        } else if (key == "social_image") {
+            cfg.socialImage = resolve(value);
+        } else if (key == "url") {
+            cfg.url = value;
+            if (!cfg.url.empty() && cfg.url.back() != '/')
+                cfg.url += '/';
         } else if (key == "github") {
             cfg.github = value;
         } else if (key == "output") {
@@ -2959,6 +2967,14 @@ public:
             if (ec)
                 m_diag.warn(S.cfg.logo.string(), 0, "can't copy logo: " + ec.message());
         }
+        if (!S.cfg.socialImage.empty()) {
+            fs::create_directories(S.cfg.output / "images");
+            std::error_code ec;
+            fs::copy_file(S.cfg.socialImage, S.cfg.output / "images" / S.cfg.socialImage.filename(),
+                          fs::copy_options::overwrite_existing, ec);
+            if (ec)
+                m_diag.warn(S.cfg.socialImage.string(), 0, "can't copy social image: " + ec.message());
+        }
 
         for (const fs::path &dir : S.cfg.images) {
             fs::create_directories(S.cfg.output / "images");
@@ -3056,6 +3072,28 @@ private:
         return nullptr;
     }
 
+    // Open Graph and Twitter card tags, so a shared link shows a preview. Crawlers need an absolute image
+    // address, so the image is given relative to `url` when that is set.
+    std::string socialMeta(const std::string &title) const {
+        const Config &cfg = S.cfg;
+        const std::string pageTitle = escapeHtml(title + " | " + cfg.project);
+        std::string meta = "<meta property=\"og:type\" content=\"website\">\n";
+        meta += "<meta property=\"og:site_name\" content=\"" + escapeHtml(cfg.project) + "\">\n";
+        meta += "<meta property=\"og:title\" content=\"" + pageTitle + "\">\n";
+        if (!cfg.description.empty()) {
+            meta += "<meta name=\"description\" content=\"" + escapeHtml(cfg.description) + "\">\n";
+            meta += "<meta property=\"og:description\" content=\"" + escapeHtml(cfg.description) + "\">\n";
+        }
+        if (cfg.socialImage.empty())
+            return meta + "<meta name=\"twitter:card\" content=\"summary\">\n";
+        const std::string image = escapeHtml(cfg.url + "images/" + cfg.socialImage.filename().string());
+        meta += "<meta property=\"og:image\" content=\"" + image + "\">\n";
+        meta += "<meta property=\"og:image:alt\" content=\"" + escapeHtml(cfg.project) + " documentation\">\n";
+        meta += "<meta name=\"twitter:card\" content=\"summary_large_image\">\n";
+        meta += "<meta name=\"twitter:image\" content=\"" + image + "\">\n";
+        return meta;
+    }
+
     std::string layout(const std::string &title, const Crumbs &crumbs, const TocEntries &toc,
                        const std::string &body) const {
         const Config &cfg = S.cfg;
@@ -3063,6 +3101,7 @@ private:
                            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n";
         html += "<title>" + escapeHtml(title) + " | " + escapeHtml(cfg.project) + " " +
                 escapeHtml(cfg.version) + "</title>\n";
+        html += socialMeta(title);
         html += "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n"
                 "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
                 "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Source+Code+Pro"

@@ -46,6 +46,14 @@ config NT_NETWORK
 
 	  QLocalSocket and QLocalServer are not available on Zephyr.
 
+config NT_GPIO
+	bool "Nt GPIO"
+	depends on GPIO
+	help
+	  Builds Nt GPIO: QGpioLine, which reads and drives GPIO pins, such as a push-to-talk
+	  switch or an LED, from the event loop. Pins are named "<device>:<pin>", with the device
+	  name that device_get_binding() takes. Link the application with Nt::Gpio.
+
 config NT_HTTPSERVER
 	bool "HTTP server and WebSockets"
 	depends on NT_NETWORK

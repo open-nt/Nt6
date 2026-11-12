@@ -10,9 +10,12 @@
 #include <QtGui/qcolor.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qimage.h>
+#include <QtGui/qpainterpath.h>
 #include <QtGui/qpen.h>
 #include <QtGui/qpixmap.h>
+#include <QtGui/qpolygon.h>
 #include <QtGui/qregion.h>
+#include <QtGui/qtransform.h>
 
 #include <memory>
 
@@ -58,9 +61,21 @@ public:
     void save();
     void restore();
     void translate(const QPoint &offset);
-    void translate(int dx, int dy) { translate(QPoint(dx, dy)); }
+    void translate(const QPointF &offset);
+    void translate(qreal dx, qreal dy) { translate(QPointF(dx, dy)); }
+    void scale(qreal sx, qreal sy);
+    void rotate(qreal angle);
+    void shear(qreal sh, qreal sv);
     QPoint translation() const;
     void resetTransform();
+    void setTransform(const QTransform &transform, bool combine = false);
+    const QTransform &transform() const;
+    void setWorldTransform(const QTransform &matrix, bool combine = false) { setTransform(matrix, combine); }
+    const QTransform &worldTransform() const { return transform(); }
+    QTransform deviceTransform() const;
+    QTransform combinedTransform() const { return transform(); }
+    void setWorldMatrixEnabled(bool enabled);
+    bool worldMatrixEnabled() const;
 
     void setClipRect(const QRect &rect);
     void setClipRect(int x, int y, int width, int height) { setClipRect(QRect(x, y, width, height)); }
@@ -86,6 +101,85 @@ public:
         fillRect(QRect(x, y, width, height), style);
     }
     void eraseRect(const QRect &rect);
+    void fillRect(const QRectF &rect, const QBrush &brush);
+    void fillRect(const QRectF &rect, const QColor &color) { fillRect(rect, QBrush(color)); }
+    void fillRect(const QRectF &rect, Qt::GlobalColor color) { fillRect(rect, QBrush(color)); }
+    void eraseRect(const QRectF &rect);
+
+    void drawPath(const QPainterPath &path);
+    void fillPath(const QPainterPath &path, const QBrush &brush);
+    void strokePath(const QPainterPath &path, const QPen &pen);
+
+    void drawPoint(const QPointF &point);
+    void drawPoints(const QPointF *points, int pointCount);
+    void drawPoints(const QPoint *points, int pointCount);
+    void drawPoints(const QPolygonF &points) { drawPoints(points.constData(), static_cast<int>(points.size())); }
+    void drawPoints(const QPolygon &points) { drawPoints(points.constData(), static_cast<int>(points.size())); }
+    void drawLine(const QLineF &line);
+    void drawLine(const QPointF &p1, const QPointF &p2) { drawLine(QLineF(p1, p2)); }
+    void drawLines(const QLineF *lines, int lineCount);
+    void drawLines(const QLine *lines, int lineCount);
+    void drawLines(const QList<QLineF> &lines) { drawLines(lines.constData(), static_cast<int>(lines.size())); }
+    void drawLines(const QList<QLine> &lines) { drawLines(lines.constData(), static_cast<int>(lines.size())); }
+    void drawRect(const QRectF &rect);
+    void drawRects(const QRectF *rects, int rectCount);
+    void drawRects(const QRect *rects, int rectCount);
+    void drawRects(const QList<QRectF> &rects) { drawRects(rects.constData(), static_cast<int>(rects.size())); }
+    void drawRects(const QList<QRect> &rects) { drawRects(rects.constData(), static_cast<int>(rects.size())); }
+    void drawRoundedRect(const QRectF &rect, qreal xRadius, qreal yRadius, Qt::SizeMode mode = Qt::AbsoluteSize);
+    void drawRoundedRect(int x, int y, int w, int h, qreal xRadius, qreal yRadius,
+                         Qt::SizeMode mode = Qt::AbsoluteSize) {
+        drawRoundedRect(QRectF(x, y, w, h), xRadius, yRadius, mode);
+    }
+    void drawRoundedRect(const QRect &rect, qreal xRadius, qreal yRadius, Qt::SizeMode mode = Qt::AbsoluteSize) {
+        drawRoundedRect(QRectF(rect), xRadius, yRadius, mode);
+    }
+    void drawEllipse(const QRectF &rect);
+    void drawEllipse(const QPointF &center, qreal rx, qreal ry) {
+        drawEllipse(QRectF(center.x() - rx, center.y() - ry, 2 * rx, 2 * ry));
+    }
+    void drawEllipse(const QPoint &center, int rx, int ry) { drawEllipse(QRect(center.x() - rx, center.y() - ry, 2 * rx, 2 * ry)); }
+    void drawArc(const QRectF &rectangle, int startAngle, int spanAngle);
+    void drawArc(const QRect &rectangle, int startAngle, int spanAngle) { drawArc(QRectF(rectangle), startAngle, spanAngle); }
+    void drawArc(int x, int y, int width, int height, int startAngle, int spanAngle) {
+        drawArc(QRectF(x, y, width, height), startAngle, spanAngle);
+    }
+    void drawPie(const QRectF &rectangle, int startAngle, int spanAngle);
+    void drawPie(const QRect &rectangle, int startAngle, int spanAngle) { drawPie(QRectF(rectangle), startAngle, spanAngle); }
+    void drawPie(int x, int y, int width, int height, int startAngle, int spanAngle) {
+        drawPie(QRectF(x, y, width, height), startAngle, spanAngle);
+    }
+    void drawChord(const QRectF &rectangle, int startAngle, int spanAngle);
+    void drawChord(const QRect &rectangle, int startAngle, int spanAngle) {
+        drawChord(QRectF(rectangle), startAngle, spanAngle);
+    }
+    void drawChord(int x, int y, int width, int height, int startAngle, int spanAngle) {
+        drawChord(QRectF(x, y, width, height), startAngle, spanAngle);
+    }
+    void drawPolyline(const QPointF *points, int pointCount);
+    void drawPolyline(const QPoint *points, int pointCount);
+    void drawPolyline(const QPolygonF &polyline) { drawPolyline(polyline.constData(), static_cast<int>(polyline.size())); }
+    void drawPolyline(const QPolygon &polyline) { drawPolyline(polyline.constData(), static_cast<int>(polyline.size())); }
+    void drawPolygon(const QPointF *points, int pointCount, Qt::FillRule fillRule = Qt::OddEvenFill);
+    void drawPolygon(const QPoint *points, int pointCount, Qt::FillRule fillRule = Qt::OddEvenFill);
+    void drawPolygon(const QPolygonF &points, Qt::FillRule fillRule = Qt::OddEvenFill) {
+        drawPolygon(points.constData(), static_cast<int>(points.size()), fillRule);
+    }
+    void drawPolygon(const QPolygon &points, Qt::FillRule fillRule = Qt::OddEvenFill) {
+        drawPolygon(points.constData(), static_cast<int>(points.size()), fillRule);
+    }
+    void drawConvexPolygon(const QPointF *points, int pointCount) { drawPolygon(points, pointCount, Qt::WindingFill); }
+    void drawConvexPolygon(const QPoint *points, int pointCount) { drawPolygon(points, pointCount, Qt::WindingFill); }
+    void drawConvexPolygon(const QPolygonF &polygon) { drawPolygon(polygon, Qt::WindingFill); }
+    void drawConvexPolygon(const QPolygon &polygon) { drawPolygon(polygon, Qt::WindingFill); }
+    void drawImage(const QPointF &point, const QImage &image);
+    void drawImage(const QRectF &target, const QImage &image, const QRectF &source = QRectF());
+    void drawPixmap(const QPointF &point, const QPixmap &pixmap) { drawImage(point, pixmap.toImage()); }
+    void drawPixmap(const QRectF &target, const QPixmap &pixmap, const QRectF &source) {
+        drawImage(target, pixmap.toImage(), source);
+    }
+    void drawText(const QPointF &position, const QString &text);
+    void drawText(const QRectF &rectangle, int flags, const QString &text, QRectF *boundingRect = nullptr);
 
     void drawPoint(const QPoint &point);
     void drawPoint(int x, int y) { drawPoint(QPoint(x, y)); }

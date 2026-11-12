@@ -23,6 +23,8 @@ struct QPainter::Data {
         CompositionMode mode = CompositionMode_SourceOver;
         RenderHints hints;
         QFont font;
+        QTransform world; // the transformation of the painter's coordinates, translations included
+        bool worldEnabled = true;
     };
 
     QPaintDevice *device = nullptr;
@@ -65,6 +67,35 @@ struct QPainter::Data {
     }
     int devPenWidth(int width) const { return scale == 1.0 || width <= 0 ? width : std::max(1, qRound(width * scale)); }
 
+    QTransform user() const { return state.worldEnabled ? state.world : QTransform(); }
+    // True if the coordinates are only moved by whole pixels: integer drawing can keep its exact path.
+    bool simple() const {
+        const QTransform t = user();
+        return t.type() <= QTransform::TxTranslate && t.dx() == std::floor(t.dx()) && t.dy() == std::floor(t.dy()) &&
+               std::fabs(t.dx()) < 1e9 && std::fabs(t.dy()) < 1e9;
+    }
+    void updateTranslation() {
+        const QTransform t = user();
+        state.translation = simple() ? baseOffset + QPoint(static_cast<int>(t.dx()), static_cast<int>(t.dy()))
+                                     : baseOffset;
+    }
+    QTransform toDevice() const {
+        return user() * QTransform::fromTranslate(baseOffset.x(), baseOffset.y()) * QTransform::fromScale(scale, scale);
+    }
+    static bool fancy(const QBrush &brush) { return brush.gradient() != nullptr; }
+    static bool dashed(const QPen &pen) { return pen.style() != Qt::NoPen && pen.style() != Qt::SolidLine; }
+
+    // Draws `path`, in the painter's coordinates, with `pen` and `brush`.
+    void drawPath(const QPainterPath &path, const QPen &pen, const QBrush &brush) {
+        const State before = state;
+        state.pen = pen;
+        state.brush = brush;
+        sync();
+        engine->drawPath(path);
+        state = before;
+        sync();
+    }
+
     // Fills `deviceRect` (in device pixels) with `brush`, whatever the current pen is.
     void fillDevice(const QRect &deviceRect, const QBrush &brush, CompositionMode mode, qreal opacity) {
         const State before = state;
@@ -92,6 +123,9 @@ struct QPainter::Data {
         }
         s.m_opacity = state.opacity;
         s.m_mode = state.mode;
+        s.m_transform = toDevice();
+        s.m_hints = state.hints;
+        engine->m_lastState = s;
         engine->updateState(s);
     }
 };
@@ -116,11 +150,27 @@ struct QPainter::Data {
     called, and ends in the destructor or at end(). Only one painter can
     paint on a device at a time.
 
+    \section1 Paths, Transformations and Antialiasing
+
+    Shapes with real coordinates, paths, polygons, arcs, pies and chords are drawn through the
+    transformation of the painter (translate(), scale(), rotate(), shear(), setTransform()), with the cap,
+    join and dash styles of the pen and the gradients of the brush. With the Antialiasing render hint their
+    edges are smooth:
+
+    \snippet gui/painting.cpp flower
+
+    \image painter/flower.png A flower of Bezier petals, rotated around a center
+
+    Shapes with integer coordinates, drawn without antialiasing and with no transformation other than a
+    translation by whole pixels, are drawn on whole pixels as before: a rectangle of width 10 with a pen of
+    width 1 covers 11 pixels.
+
     \differences
-    The painter has no antialiasing, no transformation matrix beyond
-    translate(), no paths, polygons or gradients, and no viewport or
-    window. Text is drawn by drawText() without kerning or shaping, in the color of the pen. setRenderHint() is accepted but changes nothing. Coordinates are
-    integers. The composition modes are SourceOver, Source and Clear.
+    There is no viewport or window. Text and images follow the transformation in position, not in rotation:
+    text is drawn upright at the size of its font, and an image under a rotation fills the bounding
+    rectangle of its transformed target. Clipping is by rectangles of the device: a clip under a rotation is
+    its bounding rectangle. Text is drawn without kerning or shaping, in the color of the pen. The
+    composition modes are SourceOver, Source and Clear. Pens draw with the color of their brush.
     \enddifferences
 
     \sa QPaintDevice, QPaintEngine, QPen, QBrush, QImage
@@ -130,12 +180,11 @@ struct QPainter::Data {
     \enum QPainter::RenderHint
 
     This enum describes optional drawing quality settings. The RenderHints type
-    is a typedef for \c{QFlags<RenderHint>}. The hints are stored but have no
-    effect.
+    is a typedef for \c{QFlags<RenderHint>}.
 
-    \value Antialiasing Smooth the edges of shapes.
-    \value TextAntialiasing Smooth the edges of text.
-    \value SmoothPixmapTransform Use bilinear filtering when scaling images.
+    \value Antialiasing Smooth the edges of paths and of shapes with real coordinates or a transformation.
+    \value TextAntialiasing Smooth the edges of text; glyphs are always smooth in Nt.
+    \value SmoothPixmapTransform Use bilinear filtering when scaling images; Nt picks the nearest pixel.
 */
 
 /*!
@@ -400,24 +449,129 @@ void QPainter::restore() {
 
     \sa translation(), resetTransform()
 */
-void QPainter::translate(const QPoint &offset) { d->state.translation += offset; }
+void QPainter::translate(const QPoint &offset) { translate(QPointF(offset)); }
 
 /*!
-    \fn void QPainter::translate(int dx, int dy)
+    \overload
+
+    Moves the origin of the coordinate system by \a offset.
+*/
+void QPainter::translate(const QPointF &offset) {
+    d->state.world.translate(offset.x(), offset.y());
+    d->updateTranslation();
+    if (d->active)
+        d->sync();
+}
+
+/*!
+    \fn void QPainter::translate(qreal dx, qreal dy)
     \overload
 
     Moves the origin by \a dx and \a dy.
 */
 
 /*!
-    Returns the offset of the origin that translate() has built up.
+    Scales the coordinate system by \a sx horizontally and \a sy vertically.
 */
-QPoint QPainter::translation() const { return d->state.translation - d->baseOffset; }
+void QPainter::scale(qreal sx, qreal sy) {
+    d->state.world.scale(sx, sy);
+    d->updateTranslation();
+    if (d->active)
+        d->sync();
+}
 
 /*!
-    Resets the translation to (0, 0).
+    Rotates the coordinate system clockwise by \a angle degrees.
 */
-void QPainter::resetTransform() { d->state.translation = d->baseOffset; }
+void QPainter::rotate(qreal angle) {
+    d->state.world.rotate(angle);
+    d->updateTranslation();
+    if (d->active)
+        d->sync();
+}
+
+/*!
+    Shears the coordinate system by \a sh horizontally and \a sv vertically.
+*/
+void QPainter::shear(qreal sh, qreal sv) {
+    d->state.world.shear(sh, sv);
+    d->updateTranslation();
+    if (d->active)
+        d->sync();
+}
+
+/*!
+    Returns the translation of the transformation, rounded to whole pixels.
+*/
+QPoint QPainter::translation() const {
+    return QPoint(qRound(d->state.world.dx()), qRound(d->state.world.dy()));
+}
+
+/*!
+    Makes the transformation the identity.
+*/
+void QPainter::resetTransform() {
+    d->state.world = QTransform();
+    d->updateTranslation();
+    if (d->active)
+        d->sync();
+}
+
+/*!
+    Sets the transformation of the coordinate system to \a transform, or to \a transform followed by the
+    current one if \a combine is \c true.
+*/
+void QPainter::setTransform(const QTransform &transform, bool combine) {
+    d->state.world = combine ? transform * d->state.world : transform;
+    d->updateTranslation();
+    if (d->active)
+        d->sync();
+}
+
+/*!
+    Returns the transformation of the coordinate system.
+*/
+const QTransform &QPainter::transform() const { return d->state.world; }
+
+/*!
+    \fn void QPainter::setWorldTransform(const QTransform &matrix, bool combine)
+
+    Sets the transformation to \a matrix, combined with the current one if \a combine is \c true, as
+    setTransform() does.
+*/
+
+/*!
+    \fn const QTransform &QPainter::worldTransform() const
+
+    Returns the transformation of the coordinate system.
+*/
+
+/*!
+    \fn QTransform QPainter::combinedTransform() const
+
+    Returns the transformation of the coordinate system; there is no window or viewport in Nt.
+*/
+
+/*!
+    Returns the transformation from the painter's coordinates to device pixels: the transformation of the
+    coordinate system, the redirection of the device, and its device pixel ratio.
+*/
+QTransform QPainter::deviceTransform() const { return d->toDevice(); }
+
+/*!
+    Uses the transformation if \a enabled is \c true, the default, and ignores it otherwise.
+*/
+void QPainter::setWorldMatrixEnabled(bool enabled) {
+    d->state.worldEnabled = enabled;
+    d->updateTranslation();
+    if (d->active)
+        d->sync();
+}
+
+/*!
+    Returns \c true if the transformation is used; otherwise returns \c false.
+*/
+bool QPainter::worldMatrixEnabled() const { return d->state.worldEnabled; }
 
 /*!
     Sets the clip to \a rect, given in the current coordinate system, and turns
@@ -442,7 +596,16 @@ void QPainter::setClipRect(const QRect &rect) { setClipRegion(QRegion(rect)); }
     \sa setClipRect(), clipRegion()
 */
 void QPainter::setClipRegion(const QRegion &region) {
-    d->state.clip = region.translated(d->state.translation);
+    if (d->simple()) {
+        d->state.clip = region.translated(d->state.translation);
+    } else {
+        // Clipping is by rectangles of the device: a rotated clip is clipped to its bounding rectangles.
+        const QTransform t = d->user() * QTransform::fromTranslate(d->baseOffset.x(), d->baseOffset.y());
+        QRegion mapped;
+        for (const QRect &r : region.rects())
+            mapped += t.mapRect(QRectF(r)).toAlignedRect();
+        d->state.clip = mapped;
+    }
     d->state.clipping = true;
     if (d->active)
         d->sync();
@@ -483,6 +646,10 @@ bool QPainter::hasClipping() const { return d->state.clipping; }
 void QPainter::fillRect(const QRect &rect, const QBrush &brush) {
     if (!d->active || brush.style() == Qt::NoBrush)
         return;
+    if (!d->simple() || Data::fancy(brush)) {
+        fillRect(QRectF(rect), brush);
+        return;
+    }
     d->fillDevice(d->devRect(rect.translated(d->state.translation)), brush, d->state.mode, d->state.opacity);
 }
 
@@ -544,6 +711,10 @@ void QPainter::fillRect(const QRect &rect, Qt::BrushStyle style) { fillRect(rect
 void QPainter::eraseRect(const QRect &rect) {
     if (!d->active)
         return;
+    if (!d->simple()) {
+        eraseRect(QRectF(rect));
+        return;
+    }
     d->fillDevice(d->devRect(rect.translated(d->state.translation)), QBrush(Qt::black), CompositionMode_Clear, 1.0);
 }
 
@@ -553,6 +724,10 @@ void QPainter::eraseRect(const QRect &rect) {
 void QPainter::drawPoint(const QPoint &point) {
     if (!d->active)
         return;
+    if (!d->simple()) {
+        drawPoint(QPointF(point));
+        return;
+    }
     const QPoint p = point + d->state.translation;
     if (d->scale == 1.0) {
         d->engine->drawPoints(&p, 1);
@@ -579,6 +754,11 @@ void QPainter::drawPoint(const QPoint &point) {
 void QPainter::drawLine(const QLine &line) {
     if (!d->active)
         return;
+    if (!d->simple() || (d->state.hints & Antialiasing) || Data::dashed(d->state.pen) ||
+        d->state.pen.capStyle() == Qt::RoundCap) {
+        drawLine(QLineF(line));
+        return;
+    }
     const QLine l = line.translated(d->state.translation);
     if (d->scale == 1.0) {
         d->engine->drawLines(&l, 1);
@@ -628,6 +808,11 @@ void QPainter::drawLine(const QLine &line) {
 void QPainter::drawRect(const QRect &rect) {
     if (!d->active)
         return;
+    if (!d->simple() || Data::fancy(d->state.brush) || (d->state.hints & Antialiasing) || Data::dashed(d->state.pen) ||
+        d->state.pen.joinStyle() == Qt::RoundJoin) {
+        drawRect(QRectF(rect));
+        return;
+    }
     const QRect r = rect.translated(d->state.translation);
     if (d->scale == 1.0 || d->state.pen.style() == Qt::NoPen) {
         const QRect device = d->devRect(r);
@@ -659,6 +844,10 @@ void QPainter::drawRect(const QRect &rect) {
 void QPainter::drawEllipse(const QRect &rect) {
     if (!d->active)
         return;
+    if (!d->simple() || Data::fancy(d->state.brush) || (d->state.hints & Antialiasing) || Data::dashed(d->state.pen)) {
+        drawEllipse(QRectF(rect));
+        return;
+    }
     d->engine->drawEllipse(d->devRect(rect.translated(d->state.translation)));
 }
 
@@ -721,6 +910,10 @@ void QPainter::drawImage(const QPoint &point, const QImage &image) { drawImage(p
 void QPainter::drawImage(const QRect &target, const QImage &image, const QRect &source) {
     if (!d->active || image.isNull())
         return;
+    if (!d->simple()) {
+        drawImage(QRectF(target), image, QRectF(source));
+        return;
+    }
     d->engine->drawImage(d->devRect(target.translated(d->state.translation)), image, source);
 }
 
@@ -767,6 +960,10 @@ void drawLineOfText(QPaintEngine *engine, QFontEngine &font, const QtPrivate::Pl
 void QPainter::drawText(const QPoint &position, const QString &text) {
     if (!d->active || text.isEmpty())
         return;
+    if (!d->simple()) {
+        drawText(QPointF(position), text);
+        return;
+    }
     const std::shared_ptr<QFontEngine> font = QFontEngine::create(d->state.font, d->scale);
     const QtPrivate::TextBlock block =
         QtPrivate::layoutAtPoint(*font, d->devPoint(position + d->state.translation), text);
@@ -794,6 +991,20 @@ void QPainter::drawText(const QPoint &position, const QString &text) {
 void QPainter::drawText(const QRect &rectangle, int flags, const QString &text, QRect *boundingRect) {
     if (!d->active)
         return;
+    if (!d->simple()) {
+        // Text is laid out in the bounding rectangle of the transformed one, upright.
+        const QTransform t = d->user();
+        const QRect mapped = t.mapRect(QRectF(rectangle)).toAlignedRect();
+        const QTransform saved = d->state.world;
+        d->state.world = QTransform();
+        d->updateTranslation();
+        drawText(mapped, flags, text, boundingRect);
+        d->state.world = saved;
+        d->updateTranslation();
+        if (boundingRect)
+            *boundingRect = t.inverted().mapRect(QRectF(*boundingRect)).toAlignedRect();
+        return;
+    }
     const std::shared_ptr<QFontEngine> font = QFontEngine::create(d->state.font, d->scale);
     const QRect target = rectangle.translated(d->state.translation);
     const QtPrivate::TextBlock block = QtPrivate::layoutText(*font, d->devRect(target), flags, text);
@@ -836,3 +1047,535 @@ QRect QPainter::boundingRect(const QRect &rectangle, int flags, const QString &t
     Returns the rectangle that drawText() covers for \a text in the rectangle at (\a x, \a y) of
     \a w by \a h.
 */
+
+// ---- Floating-point coordinates, paths and transformations ----
+
+/*!
+    \overload
+
+    Fills \a rect with \a brush, leaving the pen and the current brush alone.
+*/
+void QPainter::fillRect(const QRectF &rect, const QBrush &brush) {
+    if (!d->active || brush.style() == Qt::NoBrush)
+        return;
+    QPainterPath path;
+    path.addRect(rect);
+    d->drawPath(path, QPen(Qt::NoPen), brush);
+}
+
+/*!
+    \fn void QPainter::fillRect(const QRectF &rect, const QColor &color)
+    \overload
+
+    Fills \a rect with \a color.
+*/
+
+/*!
+    \fn void QPainter::fillRect(const QRectF &rect, Qt::GlobalColor color)
+    \overload
+
+    Fills \a rect with \a color.
+*/
+
+/*!
+    \overload
+
+    Erases \a rect: it becomes transparent, or black on an image without alpha.
+*/
+void QPainter::eraseRect(const QRectF &rect) {
+    if (!d->active)
+        return;
+    const CompositionMode mode = d->state.mode;
+    d->state.mode = CompositionMode_Clear;
+    fillRect(rect, QBrush(Qt::black));
+    d->state.mode = mode;
+    d->sync();
+}
+
+/*!
+    Fills \a path with the current brush and strokes it with the current pen, through the transformation.
+    With the Antialiasing render hint, edges are smooth.
+
+    \sa fillPath(), strokePath(), setRenderHint()
+*/
+void QPainter::drawPath(const QPainterPath &path) {
+    if (d->active)
+        d->drawPath(path, d->state.pen, d->state.brush);
+}
+
+/*!
+    Fills \a path with \a brush, without an outline.
+*/
+void QPainter::fillPath(const QPainterPath &path, const QBrush &brush) {
+    if (d->active && brush.style() != Qt::NoBrush)
+        d->drawPath(path, QPen(Qt::NoPen), brush);
+}
+
+/*!
+    Draws the outline of \a path with \a pen, without filling it.
+*/
+void QPainter::strokePath(const QPainterPath &path, const QPen &pen) {
+    if (d->active && pen.style() != Qt::NoPen)
+        d->drawPath(path, pen, QBrush());
+}
+
+/*!
+    \overload
+
+    Draws \a point as a dot the width of the pen: round with Qt::RoundCap, square otherwise.
+*/
+void QPainter::drawPoint(const QPointF &point) { drawPoints(&point, 1); }
+
+/*!
+    Draws the \a pointCount points in \a points.
+*/
+void QPainter::drawPoints(const QPointF *points, int pointCount) {
+    if (!d->active || !points || pointCount <= 0)
+        return;
+    const QPen &pen = d->state.pen;
+    if (pen.style() == Qt::NoPen)
+        return;
+    const qreal w = pen.widthF() > 0 ? pen.widthF() : 1.0;
+    // Aliased points cover the pixel whose top left corner is the point, as integer drawing does.
+    const qreal shift = (d->state.hints & Antialiasing) ? 0.0 : 0.5;
+    QPainterPath path;
+    path.setFillRule(Qt::WindingFill);
+    for (int i = 0; i < pointCount; ++i) {
+        const QPointF c = points[i] + QPointF(shift, shift);
+        if (pen.capStyle() == Qt::RoundCap)
+            path.addEllipse(c, w / 2.0, w / 2.0);
+        else
+            path.addRect(QRectF(c.x() - w / 2.0, c.y() - w / 2.0, w, w));
+    }
+    d->drawPath(path, QPen(Qt::NoPen), pen.brush());
+}
+
+/*!
+    \overload
+
+    Draws the \a pointCount points in \a points.
+*/
+void QPainter::drawPoints(const QPoint *points, int pointCount) {
+    if (!points || pointCount <= 0)
+        return;
+    if (d->simple()) {
+        for (int i = 0; i < pointCount; ++i)
+            drawPoint(points[i]);
+        return;
+    }
+    QPolygonF p;
+    for (int i = 0; i < pointCount; ++i)
+        p.append(QPointF(points[i]));
+    drawPoints(p.constData(), pointCount);
+}
+
+/*!
+    \fn void QPainter::drawPoints(const QPolygonF &points)
+    \overload
+    Draws \a points.
+*/
+
+/*!
+    \fn void QPainter::drawPoints(const QPolygon &points)
+    \overload
+    Draws \a points.
+*/
+
+/*!
+    \overload
+
+    Draws \a line with the current pen, through the transformation.
+*/
+void QPainter::drawLine(const QLineF &line) { drawLines(&line, 1); }
+
+/*!
+    \fn void QPainter::drawLine(const QPointF &p1, const QPointF &p2)
+    \overload
+    Draws a line from \a p1 to \a p2.
+*/
+
+/*!
+    Draws the \a lineCount lines in \a lines.
+*/
+void QPainter::drawLines(const QLineF *lines, int lineCount) {
+    if (!d->active || !lines || lineCount <= 0 || d->state.pen.style() == Qt::NoPen)
+        return;
+    QPainterPath path;
+    for (int i = 0; i < lineCount; ++i) {
+        path.moveTo(lines[i].p1());
+        path.lineTo(lines[i].p2());
+    }
+    d->drawPath(path, d->state.pen, QBrush());
+}
+
+/*!
+    \overload
+
+    Draws the \a lineCount lines in \a lines.
+*/
+void QPainter::drawLines(const QLine *lines, int lineCount) {
+    if (!lines)
+        return;
+    for (int i = 0; i < lineCount; ++i)
+        drawLine(lines[i]);
+}
+
+/*!
+    \fn void QPainter::drawLines(const QList<QLineF> &lines)
+    \overload
+    Draws \a lines.
+*/
+
+/*!
+    \fn void QPainter::drawLines(const QList<QLine> &lines)
+    \overload
+    Draws \a lines.
+*/
+
+/*!
+    \overload
+
+    Draws \a rect, filled with the brush and outlined with the pen, through the transformation.
+*/
+void QPainter::drawRect(const QRectF &rect) { drawRects(&rect, 1); }
+
+/*!
+    Draws the \a rectCount rectangles in \a rects.
+*/
+void QPainter::drawRects(const QRectF *rects, int rectCount) {
+    if (!d->active || !rects || rectCount <= 0)
+        return;
+    QPainterPath path;
+    for (int i = 0; i < rectCount; ++i)
+        path.addRect(rects[i]);
+    d->drawPath(path, d->state.pen, d->state.brush);
+}
+
+/*!
+    \overload
+
+    Draws the \a rectCount rectangles in \a rects.
+*/
+void QPainter::drawRects(const QRect *rects, int rectCount) {
+    if (!rects)
+        return;
+    for (int i = 0; i < rectCount; ++i)
+        drawRect(rects[i]);
+}
+
+/*!
+    \fn void QPainter::drawRects(const QList<QRectF> &rects)
+    \overload
+    Draws \a rects.
+*/
+
+/*!
+    \fn void QPainter::drawRects(const QList<QRect> &rects)
+    \overload
+    Draws \a rects.
+*/
+
+/*!
+    Draws \a rect with corners rounded by \a xRadius and \a yRadius, in units or, with \a mode
+    Qt::RelativeSize, in percent of half the width and height.
+*/
+void QPainter::drawRoundedRect(const QRectF &rect, qreal xRadius, qreal yRadius, Qt::SizeMode mode) {
+    if (!d->active)
+        return;
+    QPainterPath path;
+    path.addRoundedRect(rect, xRadius, yRadius, mode);
+    d->drawPath(path, d->state.pen, d->state.brush);
+}
+
+/*!
+    \fn void QPainter::drawRoundedRect(int x, int y, int w, int h, qreal xRadius, qreal yRadius, Qt::SizeMode mode)
+    \overload
+    Draws the rectangle at (\a x, \a y) of \a w by \a h with corners rounded by \a xRadius and \a yRadius
+    in the given \a mode.
+*/
+
+/*!
+    \fn void QPainter::drawRoundedRect(const QRect &rect, qreal xRadius, qreal yRadius, Qt::SizeMode mode)
+    \overload
+    Draws \a rect with corners rounded by \a xRadius and \a yRadius in the given \a mode.
+*/
+
+/*!
+    \overload
+
+    Draws the ellipse that fits in \a rect, through the transformation.
+*/
+void QPainter::drawEllipse(const QRectF &rect) {
+    if (!d->active)
+        return;
+    QPainterPath path;
+    path.addEllipse(rect);
+    d->drawPath(path, d->state.pen, d->state.brush);
+}
+
+/*!
+    \fn void QPainter::drawEllipse(const QPointF &center, qreal rx, qreal ry)
+    \overload
+    Draws the ellipse at \a center with the radii \a rx and \a ry.
+*/
+
+/*!
+    \fn void QPainter::drawEllipse(const QPoint &center, int rx, int ry)
+    \overload
+    Draws the ellipse at \a center with the radii \a rx and \a ry.
+*/
+
+/*!
+    Draws the arc of the ellipse that fits in \a rectangle, from \a startAngle for \a spanAngle, both in
+    sixteenths of a degree, counterclockwise from 3 o'clock. The pen draws it; the brush is not used.
+*/
+void QPainter::drawArc(const QRectF &rectangle, int startAngle, int spanAngle) {
+    if (!d->active)
+        return;
+    QPainterPath path;
+    path.arcMoveTo(rectangle, startAngle / 16.0);
+    path.arcTo(rectangle, startAngle / 16.0, spanAngle / 16.0);
+    d->drawPath(path, d->state.pen, QBrush());
+}
+
+/*!
+    \fn void QPainter::drawArc(const QRect &rectangle, int startAngle, int spanAngle)
+    \overload
+    Draws the arc of the ellipse in \a rectangle from \a startAngle for \a spanAngle sixteenths of a degree.
+*/
+
+/*!
+    \fn void QPainter::drawArc(int x, int y, int width, int height, int startAngle, int spanAngle)
+    \overload
+    Draws the arc of the ellipse in the rectangle at (\a x, \a y) of \a width by \a height, from
+    \a startAngle for \a spanAngle sixteenths of a degree.
+*/
+
+/*!
+    Draws the pie of the ellipse that fits in \a rectangle, from \a startAngle for \a spanAngle, in
+    sixteenths of a degree: the arc and the lines to the center, filled with the brush.
+*/
+void QPainter::drawPie(const QRectF &rectangle, int startAngle, int spanAngle) {
+    if (!d->active)
+        return;
+    QPainterPath path;
+    path.moveTo(rectangle.center());
+    path.arcTo(rectangle, startAngle / 16.0, spanAngle / 16.0);
+    path.closeSubpath();
+    d->drawPath(path, d->state.pen, d->state.brush);
+}
+
+/*!
+    \fn void QPainter::drawPie(const QRect &rectangle, int startAngle, int spanAngle)
+    \overload
+    Draws the pie of the ellipse in \a rectangle from \a startAngle for \a spanAngle.
+*/
+
+/*!
+    \fn void QPainter::drawPie(int x, int y, int width, int height, int startAngle, int spanAngle)
+    \overload
+    Draws the pie of the ellipse in the rectangle at (\a x, \a y) of \a width by \a height, from
+    \a startAngle for \a spanAngle.
+*/
+
+/*!
+    Draws the chord of the ellipse that fits in \a rectangle, from \a startAngle for \a spanAngle, in
+    sixteenths of a degree: the arc closed by a straight line, filled with the brush.
+*/
+void QPainter::drawChord(const QRectF &rectangle, int startAngle, int spanAngle) {
+    if (!d->active)
+        return;
+    QPainterPath path;
+    path.arcMoveTo(rectangle, startAngle / 16.0);
+    path.arcTo(rectangle, startAngle / 16.0, spanAngle / 16.0);
+    path.closeSubpath();
+    d->drawPath(path, d->state.pen, d->state.brush);
+}
+
+/*!
+    \fn void QPainter::drawChord(const QRect &rectangle, int startAngle, int spanAngle)
+    \overload
+    Draws the chord of the ellipse in \a rectangle from \a startAngle for \a spanAngle.
+*/
+
+/*!
+    \fn void QPainter::drawChord(int x, int y, int width, int height, int startAngle, int spanAngle)
+    \overload
+    Draws the chord of the ellipse in the rectangle at (\a x, \a y) of \a width by \a height, from
+    \a startAngle for \a spanAngle.
+*/
+
+/*!
+    Draws the open line through the \a pointCount points in \a points.
+*/
+void QPainter::drawPolyline(const QPointF *points, int pointCount) {
+    if (!d->active || !points || pointCount < 2)
+        return;
+    QPainterPath path;
+    path.moveTo(points[0]);
+    for (int i = 1; i < pointCount; ++i)
+        path.lineTo(points[i]);
+    d->drawPath(path, d->state.pen, QBrush());
+}
+
+/*!
+    \overload
+
+    Draws the open line through the \a pointCount points in \a points.
+*/
+void QPainter::drawPolyline(const QPoint *points, int pointCount) {
+    if (!points || pointCount < 2)
+        return;
+    QPolygonF p;
+    for (int i = 0; i < pointCount; ++i)
+        p.append(QPointF(points[i]));
+    drawPolyline(p.constData(), pointCount);
+}
+
+/*!
+    \fn void QPainter::drawPolyline(const QPolygonF &polyline)
+    \overload
+    Draws \a polyline.
+*/
+
+/*!
+    \fn void QPainter::drawPolyline(const QPolygon &polyline)
+    \overload
+    Draws \a polyline.
+*/
+
+/*!
+    Draws the polygon of the \a pointCount points in \a points, closed, filled with the brush by
+    \a fillRule and outlined with the pen.
+*/
+void QPainter::drawPolygon(const QPointF *points, int pointCount, Qt::FillRule fillRule) {
+    if (!d->active || !points || pointCount < 2)
+        return;
+    QPainterPath path;
+    path.setFillRule(fillRule);
+    path.moveTo(points[0]);
+    for (int i = 1; i < pointCount; ++i)
+        path.lineTo(points[i]);
+    path.closeSubpath();
+    d->drawPath(path, d->state.pen, d->state.brush);
+}
+
+/*!
+    \overload
+
+    Draws the polygon of the \a pointCount points in \a points, filled by \a fillRule.
+*/
+void QPainter::drawPolygon(const QPoint *points, int pointCount, Qt::FillRule fillRule) {
+    if (!points || pointCount < 2)
+        return;
+    QPolygonF p;
+    for (int i = 0; i < pointCount; ++i)
+        p.append(QPointF(points[i]));
+    drawPolygon(p.constData(), pointCount, fillRule);
+}
+
+/*!
+    \fn void QPainter::drawPolygon(const QPolygonF &points, Qt::FillRule fillRule)
+    \overload
+    Draws the polygon \a points, filled by \a fillRule.
+*/
+
+/*!
+    \fn void QPainter::drawPolygon(const QPolygon &points, Qt::FillRule fillRule)
+    \overload
+    Draws the polygon \a points, filled by \a fillRule.
+*/
+
+/*!
+    \fn void QPainter::drawConvexPolygon(const QPointF *points, int pointCount)
+    Draws the convex polygon of the \a pointCount points in \a points.
+*/
+
+/*!
+    \fn void QPainter::drawConvexPolygon(const QPoint *points, int pointCount)
+    \overload
+    Draws the convex polygon of the \a pointCount points in \a points.
+*/
+
+/*!
+    \fn void QPainter::drawConvexPolygon(const QPolygonF &polygon)
+    \overload
+    Draws the convex \a polygon.
+*/
+
+/*!
+    \fn void QPainter::drawConvexPolygon(const QPolygon &polygon)
+    \overload
+    Draws the convex \a polygon.
+*/
+
+/*!
+    \overload
+
+    Draws \a image with its top left at \a point, through the transformation.
+*/
+void QPainter::drawImage(const QPointF &point, const QImage &image) {
+    const qreal ratio = image.devicePixelRatio() > 0 ? image.devicePixelRatio() : 1.0;
+    drawImage(QRectF(point, QSizeF(image.width() / ratio, image.height() / ratio)), image, QRectF());
+}
+
+/*!
+    \overload
+
+    Draws the part \a source of \a image, or all of it if \a source is null, scaled to fill \a target.
+    Under a transformation that rotates or shears, the image fills the bounding rectangle of the
+    transformed target.
+*/
+void QPainter::drawImage(const QRectF &target, const QImage &image, const QRectF &source) {
+    if (!d->active || image.isNull())
+        return;
+    const QRect src = source.isNull() ? image.rect() : source.toAlignedRect();
+    const QRect device = d->toDevice().mapRect(target).toRect();
+    if (device.isEmpty())
+        return;
+    d->engine->drawImage(device, image, src);
+}
+
+/*!
+    \fn void QPainter::drawPixmap(const QPointF &point, const QPixmap &pixmap)
+    \overload
+    Draws \a pixmap with its top left at \a point.
+*/
+
+/*!
+    \fn void QPainter::drawPixmap(const QRectF &target, const QPixmap &pixmap, const QRectF &source)
+    \overload
+    Draws the part \a source of \a pixmap scaled to fill \a target.
+*/
+
+/*!
+    \overload
+
+    Draws \a text with the left end of its baseline at \a position, mapped by the transformation. The
+    glyphs are drawn upright at the size of the font: the transformation moves the text but does not rotate
+    or scale it.
+*/
+void QPainter::drawText(const QPointF &position, const QString &text) {
+    if (!d->active || text.isEmpty())
+        return;
+    const QPointF p = d->user().map(position);
+    const QTransform saved = d->state.world;
+    d->state.world = QTransform();
+    d->updateTranslation();
+    drawText(QPoint(qRound(p.x()), qRound(p.y())), text);
+    d->state.world = saved;
+    d->updateTranslation();
+}
+
+/*!
+    \overload
+
+    Draws \a text in \a rectangle with \a flags, as the QRect version does. If \a boundingRect is not
+    \c nullptr, it receives the rectangle that the text covers.
+*/
+void QPainter::drawText(const QRectF &rectangle, int flags, const QString &text, QRectF *boundingRect) {
+    QRect covered;
+    drawText(rectangle.toAlignedRect(), flags, text, boundingRect ? &covered : nullptr);
+    if (boundingRect)
+        *boundingRect = QRectF(covered);
+}

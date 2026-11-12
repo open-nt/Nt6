@@ -14,10 +14,17 @@
     painter.drawLine(0, 0, 100, 100);
     \endcode
 
+    \image painter/pens.png Lines with flat, square and round caps and dashes, and arcs of a gauge
+
+    \snippet gui/painting.cpp pens
+
+    Paths, transformed shapes and floating-point coordinates are drawn with the cap and join styles,
+    dashes and miter limit of the pen; drawing with integer coordinates and no transformation other than
+    a translation draws plain lines and outlines of whole pixels.
+
     \differences
-    The only styles are Qt::NoPen and Qt::SolidLine. There are no dashes, cap
-    or join styles, miter limits or cosmetic pens. A width of 0 or 1 draws a
-    one pixel line.
+    A pen draws with the color of its brush; gradients are used for filling, not for pens. A width of 0
+    draws a cosmetic line one pixel wide.
     \enddifferences
 
     \sa QBrush, QPainter
@@ -44,7 +51,7 @@
 */
 
 /*!
-    \fn QPen::QPen(const QBrush &brush, qreal width, Qt::PenStyle style)
+    \fn QPen::QPen(const QBrush &brush, qreal width, Qt::PenStyle style, Qt::PenCapStyle cap, Qt::PenJoinStyle join)
     \overload
 
     Constructs a pen with the given \a brush, \a width and \a style.
@@ -128,4 +135,103 @@
     Sets the pen width to \a width.
 
     \sa widthF()
+*/
+
+/*!
+    \fn Qt::PenCapStyle QPen::capStyle() const
+
+    Returns how the ends of lines are drawn; Qt::SquareCap by default.
+*/
+
+/*!
+    \fn void QPen::setCapStyle(Qt::PenCapStyle style)
+
+    Sets how the ends of lines are drawn to \a style.
+*/
+
+/*!
+    \fn Qt::PenJoinStyle QPen::joinStyle() const
+
+    Returns how the segments of lines meet; Qt::BevelJoin by default.
+*/
+
+/*!
+    \fn void QPen::setJoinStyle(Qt::PenJoinStyle style)
+
+    Sets how the segments of lines meet to \a style.
+*/
+
+/*!
+    \fn qreal QPen::miterLimit() const
+
+    Returns how far a miter join may reach, in units of the pen width; 2 by default.
+*/
+
+/*!
+    \fn void QPen::setMiterLimit(qreal limit)
+
+    Sets how far a miter join may reach to \a limit pen widths.
+*/
+
+/*!
+    Returns the dashes and gaps of the pen, in units of its width: the pattern of its style, or the one set
+    with setDashPattern().
+*/
+QList<qreal> QPen::dashPattern() const {
+    switch (m_style) {
+    case Qt::DashLine:
+        return {4, 2};
+    case Qt::DotLine:
+        return {1, 2};
+    case Qt::DashDotLine:
+        return {4, 2, 1, 2};
+    case Qt::DashDotDotLine:
+        return {4, 2, 1, 2, 1, 2};
+    case Qt::CustomDashLine:
+        return m_dashes;
+    default:
+        return {};
+    }
+}
+
+/*!
+    Sets the dashes and gaps of the pen to \a pattern, alternating, in units of its width, and makes its
+    style Qt::CustomDashLine. A pattern with an odd number of entries is ignored.
+*/
+void QPen::setDashPattern(const QList<qreal> &pattern) {
+    if (pattern.isEmpty() || pattern.size() % 2 != 0)
+        return;
+    m_dashes = pattern;
+    m_style = Qt::CustomDashLine;
+}
+
+/*!
+    \fn qreal QPen::dashOffset() const
+
+    Returns where in the dash pattern lines start, in units of the pen width.
+*/
+
+/*!
+    \fn void QPen::setDashOffset(qreal offset)
+
+    Sets where in the dash pattern lines start to \a offset.
+*/
+
+/*!
+    \fn bool QPen::isCosmetic() const
+
+    Returns \c true if the width of the pen is in device pixels, not affected by transformations: if it was
+    set cosmetic or has a width of 0. Otherwise returns \c false.
+*/
+
+/*!
+    \fn void QPen::setCosmetic(bool cosmetic)
+
+    Makes the width of the pen in device pixels if \a cosmetic is \c true.
+*/
+
+/*!
+    \fn bool QPen::isSolid() const
+
+    Returns \c true if the style is Qt::SolidLine; otherwise returns \c false.
 */

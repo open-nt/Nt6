@@ -1,5 +1,5 @@
 // MIT License - see LICENSE
-#include "qsvgraster_p.h"
+#include "qrasterizer_p.h"
 
 #include <algorithm>
 #include <cctype>
@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <initializer_list>
 
-namespace QtSvgPrivate {
+namespace QtRasterPrivate {
 
 namespace {
 
@@ -752,6 +752,13 @@ std::uint32_t Shader::at(double x, double y) const {
         return 0u;
     const Pt p = toGradient.map({x, y});
     double t = 0.0;
+    if (conical) {
+        // Counterclockwise on the screen, where y grows downwards.
+        const double degrees = std::atan2(-(p.y - p1.y), p.x - p1.x) * 180.0 / kPi;
+        t = std::fmod(degrees - angle + 720.0, 360.0) / 360.0;
+        const int last = static_cast<int>(table.size()) - 1;
+        return table[static_cast<std::size_t>(clampInt(t * last + 0.5, 0, last))];
+    }
     if (!radial) {
         const double vx = p2.x - p1.x, vy = p2.y - p1.y;
         const double len2 = vx * vx + vy * vy;
@@ -939,4 +946,4 @@ void Surface::composite(const Surface &layer, double opacity, const Surface *mas
     }
 }
 
-} // namespace QtSvgPrivate
+} // namespace QtRasterPrivate

@@ -388,6 +388,101 @@ private:
         m_clipRects.clear();
     }
 
+    void drawPath(const QPainterPath &path) override {
+        const QPen pen = m_state.pen();
+        const QBrush brush = m_state.brush();
+        const bool stroked = pen.style() != Qt::NoPen;
+        const bool filled = brush.style() != Qt::NoBrush;
+        if (path.isEmpty() || (!stroked && !filled))
+            return;
+        std::string d;
+        for (int i = 0; i < path.elementCount(); ++i) {
+            const QPainterPath::Element e = path.elementAt(i);
+            if (e.type == QPainterPath::MoveToElement) {
+                d += "M" + number(e.x) + " " + number(e.y);
+            } else if (e.type == QPainterPath::LineToElement) {
+                d += "L" + number(e.x) + " " + number(e.y);
+            } else if (e.type == QPainterPath::CurveToElement && i + 2 < path.elementCount()) {
+                const QPainterPath::Element c2 = path.elementAt(i + 1), end = path.elementAt(i + 2);
+                d += "C" + number(e.x) + " " + number(e.y) + " " + number(c2.x) + " " + number(c2.y) + " " +
+                     number(end.x) + " " + number(end.y);
+                i += 2;
+            }
+        }
+        std::string out;
+        std::string fillAttribute = " fill=\"none\"";
+        if (filled) {
+            const QGradient *g = brush.gradient();
+            if (g && (g->type() == QGradient::LinearGradient || g->type() == QGradient::RadialGradient)) {
+                const std::string id = "gradient" + std::to_string(++m_gradientCount);
+                const char *spread = g->spread() == QGradient::ReflectSpread  ? "reflect"
+                                     : g->spread() == QGradient::RepeatSpread ? "repeat"
+                                                                              : "pad";
+                if (g->type() == QGradient::LinearGradient) {
+                    const auto *l = static_cast<const QLinearGradient *>(g);
+                    out += "<linearGradient id=\"" + id + "\" gradientUnits=\"userSpaceOnUse\" x1=\"" +
+                           number(l->start().x()) + "\" y1=\"" + number(l->start().y()) + "\" x2=\"" +
+                           number(l->finalStop().x()) + "\" y2=\"" + number(l->finalStop().y()) + "\"";
+                } else {
+                    const auto *r = static_cast<const QRadialGradient *>(g);
+                    out += "<radialGradient id=\"" + id + "\" gradientUnits=\"userSpaceOnUse\" cx=\"" +
+                           number(r->center().x()) + "\" cy=\"" + number(r->center().y()) + "\" r=\"" +
+                           number(r->radius()) + "\" fx=\"" + number(r->focalPoint().x()) + "\" fy=\"" +
+                           number(r->focalPoint().y()) + "\"";
+                }
+                const QTransform bt = brush.transform();
+                if (!bt.isIdentity())
+                    out += " gradientTransform=\"matrix(" + number(bt.m11()) + " " + number(bt.m12()) + " " +
+                           number(bt.m21()) + " " + number(bt.m22()) + " " + number(bt.dx()) + " " + number(bt.dy()) +
+                           ")\"";
+                out += std::string(" spreadMethod=\"") + spread + "\">";
+                for (const QGradientStop &stop : g->stops()) {
+                    out += "<stop offset=\"" + number(stop.first) + "\" stop-color=\"" +
+                           stop.second.name().toUtf8().toStdString() + "\"";
+                    if (stop.second.alpha() < 255)
+                        out += " stop-opacity=\"" + number(stop.second.alphaF()) + "\"";
+                    out += "/>";
+                }
+                out += g->type() == QGradient::LinearGradient ? "</linearGradient>\n" : "</radialGradient>\n";
+                fillAttribute = " fill=\"url(#" + id + ")\"";
+                if (m_state.opacity() < 1.0)
+                    fillAttribute += " fill-opacity=\"" + number(m_state.opacity()) + "\"";
+            } else {
+                // Conical gradients have no SVG form; they are filled with their first color.
+                fillAttribute = fill(g ? g->stops().first().second : brush.color());
+            }
+            if (path.fillRule() == Qt::OddEvenFill)
+                fillAttribute += " fill-rule=\"evenodd\"";
+        }
+        out += "<path d=\"" + d + "\"" + fillAttribute;
+        if (stroked) {
+            out += paint("stroke", pen.color()) + " stroke-width=\"" + number(pen.widthF() > 0 ? pen.widthF() : 1.0) +
+                   "\"";
+            out += pen.capStyle() == Qt::RoundCap    ? " stroke-linecap=\"round\""
+                   : pen.capStyle() == Qt::SquareCap ? " stroke-linecap=\"square\""
+                                                     : "";
+            out += pen.joinStyle() == Qt::RoundJoin   ? " stroke-linejoin=\"round\""
+                   : pen.joinStyle() == Qt::BevelJoin ? " stroke-linejoin=\"bevel\""
+                                                      : "";
+            const QList<qreal> dashes = pen.dashPattern();
+            if (!dashes.isEmpty()) {
+                const double unit = std::max(1.0, pen.widthF());
+                out += " stroke-dasharray=\"";
+                for (qsizetype i = 0; i < dashes.size(); ++i)
+                    out += (i ? "," : "") + number(dashes.at(i) * unit);
+                out += "\"";
+            }
+            if (pen.isCosmetic())
+                out += " vector-effect=\"non-scaling-stroke\"";
+        }
+        const QTransform t = m_state.transform();
+        if (!t.isIdentity())
+            out += " transform=\"matrix(" + number(t.m11()) + " " + number(t.m12()) + " " + number(t.m21()) + " " +
+                   number(t.m22()) + " " + number(t.dx()) + " " + number(t.dy()) + ")\"";
+        out += "/>\n";
+        write(out);
+    }
+
     static std::string box(double x, double y, double w, double h) {
         return " x=\"" + number(x) + "\" y=\"" + number(y) + "\" width=\"" + number(w) + "\" height=\"" + number(h) +
                "\"";
@@ -428,6 +523,7 @@ private:
     bool m_clipOpen = false;
     int m_clipCount = 0;
     std::vector<QRect> m_clipRects;
+    int m_gradientCount = 0;
 };
 
 } // namespace

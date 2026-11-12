@@ -487,8 +487,39 @@ enum Key {
 
     \value NoPen No line is drawn.
     \value SolidLine A plain line.
+    \value DashLine Dashes separated by gaps.
+    \value DotLine Dots separated by gaps.
+    \value DashDotLine Dashes and dots, alternating.
+    \value DashDotDotLine A dash and two dots, repeating.
+    \value CustomDashLine The dashes of QPen::dashPattern().
+    \omitvalue MPenStyle
 */
-enum PenStyle { NoPen, SolidLine };
+enum PenStyle { NoPen, SolidLine, DashLine, DotLine, DashDotLine, DashDotDotLine, CustomDashLine, MPenStyle = 0x0f };
+
+/*!
+    \enum Qt::PenCapStyle
+
+    This enum describes how the ends of lines are drawn.
+
+    \value FlatCap The line stops at its end point.
+    \value SquareCap The line goes on for half its width past its end point, squarely.
+    \value RoundCap The line ends in a half circle around its end point.
+    \omitvalue MPenCapStyle
+*/
+enum PenCapStyle { FlatCap = 0x00, SquareCap = 0x10, RoundCap = 0x20, MPenCapStyle = 0x30 };
+
+/*!
+    \enum Qt::PenJoinStyle
+
+    This enum describes how the segments of a line meet.
+
+    \value MiterJoin The outer edges are extended to meet, up to the miter limit of the pen.
+    \value BevelJoin The corner is cut off.
+    \value RoundJoin The corner is rounded.
+    \value SvgMiterJoin As MiterJoin; a corner beyond the miter limit is beveled.
+    \omitvalue MPenJoinStyle
+*/
+enum PenJoinStyle { MiterJoin = 0x00, BevelJoin = 0x40, RoundJoin = 0x80, SvgMiterJoin = 0x100, MPenJoinStyle = 0x1c0 };
 
 /*!
     \enum Qt::BrushStyle
@@ -497,8 +528,43 @@ enum PenStyle { NoPen, SolidLine };
 
     \value NoBrush No fill.
     \value SolidPattern A uniform fill.
+    \value LinearGradientPattern A QLinearGradient.
+    \value RadialGradientPattern A QRadialGradient.
+    \value ConicalGradientPattern A QConicalGradient.
 */
-enum BrushStyle { NoBrush, SolidPattern };
+enum BrushStyle { NoBrush, SolidPattern, LinearGradientPattern = 15, RadialGradientPattern = 16, ConicalGradientPattern = 17 };
+
+/*!
+    \enum Qt::FillRule
+
+    This enum describes which points are inside a shape whose outline crosses itself.
+
+    \value OddEvenFill A point is inside if a ray from it crosses the outline an odd number of times.
+    \value WindingFill A point is inside if the outline winds around it: the windings in each direction do not
+           cancel out.
+*/
+enum FillRule { OddEvenFill, WindingFill };
+
+/*!
+    \enum Qt::Axis
+
+    This enum names the axes of a rotation.
+
+    \value XAxis The x axis.
+    \value YAxis The y axis.
+    \value ZAxis The z axis, out of the screen: rotations in the plane.
+*/
+enum Axis { XAxis, YAxis, ZAxis };
+
+/*!
+    \enum Qt::SizeMode
+
+    This enum describes how the radii of rounded rectangles are given.
+
+    \value AbsoluteSize In the units of the painter.
+    \value RelativeSize As percentages of half the width and half the height of the rectangle.
+*/
+enum SizeMode { AbsoluteSize, RelativeSize };
 
 /*!
     \enum Qt::AlignmentFlag

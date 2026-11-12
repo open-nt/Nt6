@@ -514,9 +514,11 @@ add_library(NtGui
     src/gui/qpaintdevicewindow.cpp
     src/gui/qpaintengine.cpp
     src/gui/qpainter.cpp
+    src/gui/qpainterpath.cpp
     src/gui/qpalette.cpp
     src/gui/qpen.cpp
     src/gui/qplatform.cpp
+    src/gui/qrasterizer.cpp
     src/gui/qrasterpaintengine.cpp
     src/gui/qrasterwindow.cpp
     src/gui/qregion.cpp
@@ -526,6 +528,7 @@ add_library(NtGui
     src/gui/qtextformat.cpp
     src/gui/qtextlayout.cpp
     src/gui/qtextlayout_api.cpp
+    src/gui/qtransform.cpp
     src/gui/qwindow.cpp
     src/gui/qwindowsysteminterface.cpp
 )
@@ -714,7 +717,6 @@ nt_set_compile_options(NtWidgets)
 add_library(NtSvg
     src/svg/qsvgdocument.cpp
     src/svg/qsvggenerator.cpp
-    src/svg/qsvgraster.cpp
     src/svg/qsvgrenderer.cpp
     src/svg/qsvgxml.cpp
 )
@@ -726,6 +728,7 @@ target_include_directories(NtSvg
         $<INSTALL_INTERFACE:include/nt6/QtSvg>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/svg
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
 )
 target_link_libraries(NtSvg PUBLIC NtGui)
 nt_set_compile_options(NtSvg)
@@ -743,7 +746,7 @@ target_include_directories(NtSvgWidgets
 target_link_libraries(NtSvgWidgets PUBLIC NtSvg NtWidgets)
 nt_set_compile_options(NtSvgWidgets)
 
-# Nt Charts draws its shapes with the rasterizer of Nt SVG, through its private header.
+# Nt Charts draws its shapes with the rasterizer of Nt GUI, through its private header.
 add_library(NtCharts
     src/charts/qabstractaxis.cpp
     src/charts/qabstractbarseries.cpp
@@ -768,9 +771,9 @@ target_include_directories(NtCharts
         $<INSTALL_INTERFACE:include/nt6/QtCharts>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/charts
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/svg
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
 )
-target_link_libraries(NtCharts PUBLIC NtWidgets PRIVATE NtSvg)
+target_link_libraries(NtCharts PUBLIC NtWidgets)
 nt_set_compile_options(NtCharts)
 
 # Nt Qml: the JavaScript engine and, later, the QML engine. The interpreter reports script errors as C++
@@ -1239,9 +1242,16 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_gui_scale_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gui_scale_tests)
 
+    # Vector drawing: QTransform, QPainterPath, gradients, pens, and QPainter drawing them, through pixels.
+    add_executable(nt_painter_tests tests/test_painter.cpp)
+    target_link_libraries(nt_painter_tests PRIVATE Nt::Svg)
+    add_test(NAME nt_painter_tests COMMAND nt_painter_tests)
+    set_tests_properties(nt_painter_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_painter_tests)
+
     # Nt SVG: the reader, the rasterizer, the generator and the widget, on the offscreen platform.
     add_executable(nt_svg_tests tests/test_svg.cpp)
-    target_include_directories(nt_svg_tests PRIVATE src/svg)
+    target_include_directories(nt_svg_tests PRIVATE src/svg src/gui)
     target_link_libraries(nt_svg_tests PRIVATE Nt::SvgWidgets)
     add_test(NAME nt_svg_tests COMMAND nt_svg_tests)
     set_tests_properties(nt_svg_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -1249,7 +1259,7 @@ if(NT_BUILD_TESTS)
 
     # Nt Charts: the model, axes and ticks, drawing through pixels, the mouse and zooming, offscreen.
     add_executable(nt_charts_tests tests/test_charts.cpp)
-    target_include_directories(nt_charts_tests PRIVATE src/charts src/svg)
+    target_include_directories(nt_charts_tests PRIVATE src/charts src/gui)
     target_link_libraries(nt_charts_tests PRIVATE Nt::Charts)
     add_test(NAME nt_charts_tests COMMAND nt_charts_tests)
     set_tests_properties(nt_charts_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -1337,6 +1347,16 @@ if(NT_BUILD_EXAMPLES)
     add_executable(hello_window examples/gui/hello_window.cpp)
     target_link_libraries(hello_window PRIVATE Nt::Gui)
     nt_set_compile_options(hello_window)
+
+    # Paths, gradients, pens and transformations, antialiased; also renders the pictures of the
+    # documentation (cmake --build build --target painter_images) and times the scenes (painting --bench).
+    add_executable(painting examples/gui/painting.cpp)
+    target_link_libraries(painting PRIVATE Nt::Gui)
+    nt_set_compile_options(painting)
+    add_custom_target(painter_images
+        COMMAND painting --write "${CMAKE_CURRENT_SOURCE_DIR}/doc/images"
+        COMMENT "Rendering the painter pictures to doc/images/painter"
+        VERBATIM)
 
     # A form made of widgets and layouts, with the Nt logo as an SVG resource; see "Using Nt Widgets" in the
     # documentation.

@@ -5,8 +5,9 @@
 
 #include <vector>
 
-// Software engine that paints on a QImage in one of its 32-bit formats. No antialiasing and no
-// transforms: the painter hands over device coordinates.
+// Software engine that paints on a QImage in one of its 32-bit formats. Rectangles, lines, points and
+// ellipses come in device coordinates and are drawn on whole pixels; paths come with a transformation and are
+// rasterized, antialiased if the painter asks for it.
 class QRasterPaintEngine : public QPaintEngine {
 public:
     QRasterPaintEngine() = default;
@@ -21,6 +22,7 @@ public:
     void drawEllipse(const QRect &rect) override;
     void drawImage(const QRect &rect, const QImage &image, const QRect &sourceRect) override;
     void drawAlphaMask(const QPoint &topLeft, const uchar *mask, int width, int height, qsizetype stride) override;
+    void drawPath(const QPainterPath &path) override;
     Type type() const override { return Raster; }
 
 private:
@@ -31,6 +33,8 @@ private:
     void blend(uint *dst, QRgb premult) const;
     void strokeSquare(int cx, int cy, int width, QRgb premult);
     void strokeRect(const QRect &rect, int width, QRgb premult);
+    // Paints the polygons, in device coordinates, with the brush (or the color of the pen if `pen` is set).
+    void paintCoverage(const void *polygons, bool evenOdd, const QBrush &brush, bool pen, const QTransform &toDevice);
 
     QImage *m_image = nullptr;
     QPaintEngineState m_state;

@@ -11,7 +11,7 @@
 
     \differences
     There are no dirty flags: an engine receives the whole state each time.
-    There is no transform, font or background state.
+    There is no font or background state.
     \enddifferences
 
     \sa QPaintEngine, QPainter
@@ -55,6 +55,19 @@
 */
 
 /*!
+    \fn QTransform QPaintEngineState::transform() const
+
+    Returns the transformation from the coordinates of paths given to QPaintEngine::drawPath() to device
+    pixels. The other drawing functions receive device coordinates.
+*/
+
+/*!
+    \fn QPainter::RenderHints QPaintEngineState::renderHints() const
+
+    Returns the render hints of the painter.
+*/
+
+/*!
     \class QPaintEngine
     \brief The QPaintEngine class defines how a QPainter draws on a particular kind of paint device.
 
@@ -64,9 +77,9 @@
     to device coordinates before it calls an engine.
 
     \differences
-    The engine interface is far smaller than Qt's: shapes are rectangles, lines,
-    points, ellipses and images, plus coverage masks for glyphs, with no paths,
-    polygons, pixmaps or text runs.
+    The engine interface is smaller than Qt's: rectangles, lines, points, ellipses and images in device
+    coordinates, coverage masks for glyphs, and paths with the transformation of the state. There are no
+    polygons, pixmaps or text runs: QPainter draws polygons as paths.
     \enddifferences
 
     \sa QPainter, QPaintDevice
@@ -180,3 +193,25 @@ QPaintEngine::~QPaintEngine() = default;
 
     Constructs an engine.
 */
+
+/*!
+    \fn const QPaintEngineState &QPaintEngine::state() const
+
+    Returns the state that the painter set last.
+*/
+
+/*!
+    Fills \a path with the brush and strokes it with the pen of the state, through its transformation. The
+    raster engine draws it antialiased if the Antialiasing render hint is set. The default implementation
+    draws the outline as lines in device coordinates.
+*/
+void QPaintEngine::drawPath(const QPainterPath &path) {
+    const QTransform t = state().transform();
+    for (const QPolygonF &poly : path.toSubpathPolygons(t)) {
+        std::vector<QLine> lines;
+        for (qsizetype i = 1; i < poly.size(); ++i)
+            lines.emplace_back(poly.at(i - 1).toPoint(), poly.at(i).toPoint());
+        if (!lines.empty())
+            drawLines(lines.data(), static_cast<int>(lines.size()));
+    }
+}

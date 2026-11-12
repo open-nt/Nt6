@@ -1,8 +1,11 @@
 // MIT License - see LICENSE
 #include "qrasterpaintengine_p.h"
 
+#include "qrasterizer_p.h"
+
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 
 namespace {
 
@@ -342,6 +345,204 @@ void QRasterPaintEngine::drawAlphaMask(const QPoint &topLeft, const uchar *mask,
                 const int c = coverage[x];
                 if (c != 0)
                     blend(line + x, c == 255 ? color : scaleChannels(color, c));
+            }
+        }
+    }
+}
+
+// ---- Paths ----
+
+namespace {
+
+namespace raster = QtRasterPrivate;
+
+raster::Mat toMat(const QTransform &t) { return {t.m11(), t.m12(), t.m21(), t.m22(), t.dx(), t.dy()}; }
+
+raster::Path toRasterPath(const QPainterPath &path) {
+    raster::Path out;
+    QPointF start;
+    bool open = false;
+    for (int i = 0; i < path.elementCount(); ++i) {
+        const QPainterPath::Element e = path.elementAt(i);
+        switch (e.type) {
+        case QPainterPath::MoveToElement:
+            out.moveTo({e.x, e.y});
+            start = QPointF(e.x, e.y);
+            open = true;
+            break;
+        case QPainterPath::LineToElement:
+            // A line back to the start that ends the subpath closes it, so that its corner gets a join.
+            if (open && QPointF(e.x, e.y) == start &&
+                (i + 1 == path.elementCount() || path.elementAt(i + 1).type == QPainterPath::MoveToElement)) {
+                out.close();
+                open = false;
+            } else {
+                out.lineTo({e.x, e.y});
+            }
+            break;
+        case QPainterPath::CurveToElement:
+            if (i + 2 < path.elementCount()) {
+                const QPainterPath::Element c2 = path.elementAt(i + 1), end = path.elementAt(i + 2);
+                out.cubicTo({e.x, e.y}, {c2.x, c2.y}, {end.x, end.y});
+                i += 2;
+            }
+            break;
+        case QPainterPath::CurveToDataElement:
+            break;
+        }
+    }
+    return out;
+}
+
+} // namespace
+
+void QRasterPaintEngine::drawPath(const QPainterPath &path) {
+    if (!m_image || path.isEmpty())
+        return;
+    const QTransform t = m_state.transform();
+    const raster::Mat m = toMat(t);
+    const double scale = std::max(1e-9, m.scale());
+    const double tolerance = 0.2 / scale;
+    const raster::Path p = toRasterPath(path);
+    const std::vector<raster::Path::Contour> contours = p.flatten(tolerance);
+    if (contours.empty())
+        return;
+    if (m_state.brush().style() != Qt::NoBrush) {
+        raster::Polygons polygons;
+        raster::fillContours(contours, m, &polygons);
+        paintCoverage(&polygons, path.fillRule() == Qt::OddEvenFill, m_state.brush(), false, t);
+    }
+    const QPen pen = m_state.pen();
+    if (pen.style() == Qt::NoPen || pen.color().alpha() == 0)
+        return;
+    raster::StrokeStyle style;
+    const double width = pen.widthF() > 0.0 ? pen.widthF() : 1.0;
+    style.width = pen.isCosmetic() ? width / scale : width;
+    style.cap = pen.capStyle() == Qt::RoundCap    ? raster::LineCap::Round
+                : pen.capStyle() == Qt::SquareCap ? raster::LineCap::Square
+                                                  : raster::LineCap::Butt;
+    style.join = pen.joinStyle() == Qt::RoundJoin   ? raster::LineJoin::Round
+                 : pen.joinStyle() == Qt::BevelJoin ? raster::LineJoin::Bevel
+                                                    : raster::LineJoin::Miter;
+    style.miterLimit = pen.miterLimit();
+    const QList<qreal> dashes = pen.dashPattern();
+    const double unit = std::max(1.0, pen.isCosmetic() ? width : width);
+    for (const qreal d : dashes)
+        style.dashes.push_back(std::max(1e-3, d) * (pen.isCosmetic() ? unit / scale : unit));
+    style.dashOffset = pen.dashOffset() * (pen.isCosmetic() ? unit / scale : unit);
+    raster::Polygons polygons;
+    raster::strokeContours(contours, style, m, tolerance, &polygons);
+    // Aliased strokes are moved half a pixel, so that a line on whole coordinates covers whole pixels.
+    if (!(m_state.renderHints() & QPainter::Antialiasing))
+        for (raster::Pt &pt : polygons.points) {
+            pt.x += 0.5;
+            pt.y += 0.5;
+        }
+    paintCoverage(&polygons, false, pen.brush(), true, t);
+}
+
+void QRasterPaintEngine::paintCoverage(const void *polygonData, bool evenOdd, const QBrush &brush, bool pen,
+                                       const QTransform &toDevice) {
+    const auto &polygons = *static_cast<const raster::Polygons *>(polygonData);
+    if (polygons.points.empty())
+        return;
+    // The pixels the polygons can touch, within the image and the clip.
+    double x0 = polygons.points.front().x, x1 = x0, y0 = polygons.points.front().y, y1 = y0;
+    for (const raster::Pt &pt : polygons.points) {
+        if (!std::isfinite(pt.x) || !std::isfinite(pt.y))
+            return;
+        x0 = std::min(x0, pt.x);
+        x1 = std::max(x1, pt.x);
+        y0 = std::min(y0, pt.y);
+        y1 = std::max(y1, pt.y);
+    }
+    QRect clipBounds;
+    for (const QRect &c : m_clip)
+        clipBounds = clipBounds.united(c);
+    const double limit = 1e7;
+    const QRect box = QRect(QPoint(static_cast<int>(std::floor(std::max(x0, -limit))),
+                                   static_cast<int>(std::floor(std::max(y0, -limit)))),
+                            QPoint(static_cast<int>(std::ceil(std::min(x1, limit))),
+                                   static_cast<int>(std::ceil(std::min(y1, limit)))))
+                          .intersected(clipBounds);
+    if (box.isEmpty())
+        return;
+    // The coverage of each pixel, as the alpha of a white fill.
+    raster::Surface coverage(box.width(), box.height());
+    raster::Polygons shifted = polygons;
+    for (raster::Pt &pt : shifted.points) {
+        pt.x -= box.x();
+        pt.y -= box.y();
+    }
+    raster::Shader white;
+    white.color = 0xffffffffu;
+    coverage.fill(shifted, evenOdd ? raster::FillRule::EvenOdd : raster::FillRule::NonZero, white);
+
+    // The color of each pixel: one color, or the gradient of the brush.
+    const QGradient *gradient = pen ? nullptr : brush.gradient();
+    raster::Shader shader;
+    const QRgb solid = premultiplied(gradient ? QColor(Qt::black) : brush.color());
+    if (gradient) {
+        shader.gradient = true;
+        std::vector<raster::GradientStop> stops;
+        for (const QGradientStop &s : gradient->stops())
+            stops.push_back({s.first, s.second.redF(), s.second.greenF(), s.second.blueF(), s.second.alphaF()});
+        shader.setStops(stops, m_state.opacity());
+        bool invertible = false;
+        const QTransform toGradient = (brush.transform() * toDevice).inverted(&invertible);
+        if (!invertible)
+            return;
+        shader.toGradient = toMat(toGradient);
+        shader.spread = gradient->spread() == QGradient::RepeatSpread    ? raster::Spread::Repeat
+                        : gradient->spread() == QGradient::ReflectSpread ? raster::Spread::Reflect
+                                                                         : raster::Spread::Pad;
+        if (gradient->type() == QGradient::LinearGradient) {
+            const auto *g = static_cast<const QLinearGradient *>(gradient);
+            shader.p1 = {g->start().x(), g->start().y()};
+            shader.p2 = {g->finalStop().x(), g->finalStop().y()};
+        } else if (gradient->type() == QGradient::RadialGradient) {
+            const auto *g = static_cast<const QRadialGradient *>(gradient);
+            shader.radial = true;
+            shader.p1 = {g->center().x(), g->center().y()};
+            shader.p2 = {g->focalPoint().x(), g->focalPoint().y()};
+            shader.radius = g->radius();
+        } else {
+            const auto *g = static_cast<const QConicalGradient *>(gradient);
+            shader.conical = true;
+            shader.p1 = {g->center().x(), g->center().y()};
+            shader.angle = g->angle();
+        }
+    }
+    const bool antialias = m_state.renderHints() & QPainter::Antialiasing;
+    const QPainter::CompositionMode mode = m_state.compositionMode();
+    const QImage::Format f = m_image->format();
+    for (const QRect &clip : m_clip) {
+        const QRect r = clip.intersected(box);
+        for (int y = r.top(); y <= r.bottom(); ++y) {
+            uint *line = asPixels(m_image->scanLine(y));
+            const std::uint32_t *cov =
+                coverage.pixels.data() + static_cast<std::size_t>(y - box.y()) * static_cast<std::size_t>(box.width());
+            for (int x = r.left(); x <= r.right(); ++x) {
+                unsigned c = cov[x - box.x()] >> 24u;
+                if (!antialias)
+                    c = c >= 128u ? 255u : 0u;
+                if (c == 0u)
+                    continue;
+                const QRgb color = gradient ? shader.at(x + 0.5, y + 0.5) : solid;
+                if (mode == QPainter::CompositionMode_SourceOver) {
+                    blend(line + x, c == 255u ? color : scaleChannels(color, static_cast<int>(c)));
+                    continue;
+                }
+                // Source and Clear replace the destination where the shape covers it.
+                const QRgb src = mode == QPainter::CompositionMode_Clear ? 0u : color;
+                const QRgb dst = toPremultiplied(line[x], f);
+                const int k = static_cast<int>(c), ik = 255 - k;
+                const auto mix = [k, ik](int s, int d) { return (s * k + d * ik + 127) / 255; };
+                QRgb out = qRgba(mix(qRed(src), qRed(dst)), mix(qGreen(src), qGreen(dst)), mix(qBlue(src), qBlue(dst)),
+                                 mix(qAlpha(src), qAlpha(dst)));
+                if (f == QImage::Format_RGB32)
+                    out |= 0xff000000u;
+                line[x] = fromPremultiplied(out, f);
             }
         }
     }

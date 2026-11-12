@@ -22,14 +22,14 @@
 #include <QtWidgets/qwidget.h>
 
 #include "qchartengine_p.h"
-#include "qsvgraster_p.h"
+#include "qrasterizer_p.h"
 
 #include <algorithm>
 #include <cmath>
 #include <initializer_list>
 #include <limits>
 
-namespace svg = QtSvgPrivate;
+namespace svg = QtRasterPrivate;
 
 namespace QtChartsPrivate {
 

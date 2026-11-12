@@ -71,6 +71,25 @@
     painter.drawEllipse(10, 10, 80, 80);
     \endcode
 
+    \section1 Paths, Gradients and Transformations
+
+    QPainter draws paths of lines and Bezier curves (QPainterPath), polygons, arcs, pies and chords, with
+    real coordinates, through a transformation (translate(), scale(), rotate(), shear(), QTransform). Pens
+    have cap and join styles and dashes; brushes have linear, radial and conical gradients. With the
+    Antialiasing render hint the edges are smooth:
+
+    \snippet gui/painting.cpp flower
+
+    \image painter/flower.png A flower of Bezier petals with radial gradients
+
+    The rasterizer is software: shapes become polygons, whose coverage of each pixel is computed exactly
+    from their edges. Integer shapes drawn without antialiasing or a transformation stay on whole pixels,
+    as before.
+
+    The \c painting example shows the scenes of these pages in a window, animated, with the frame rate in
+    its title. \c{painting --bench} draws each scene on an 800 by 600 image and prints the time per frame,
+    and \c{painting --write dir} writes the pictures.
+
     \section1 Image Files
 
     QImage and QPixmap load and save PNG, BMP and JPEG files. The format of a file
@@ -149,9 +168,9 @@
 
     \section1 What Is Not There Yet
 
-    Shapes are drawn without antialiasing, and text is drawn glyph by glyph
-    without shaping, kerning or font fallback, so complex scripts and emoji do
-    not display. Widgets and layouts are in \l{Using Nt Widgets}{Nt Widgets}. There is no clipboard,
+    Drawing is done in software: there is no OpenGL, Vulkan or other GPU back end, and no control of
+    vertical synchronization. Text is drawn glyph by glyph, upright, without shaping, kerning or font
+    fallback, so complex scripts and emoji do not display. Widgets and layouts are in \l{Using Nt Widgets}{Nt Widgets}. There is no clipboard,
     drag and drop or input methods; a QCursor has one of the standard shapes. The \c xcb platform shows one screen,
     the whole X desktop, and copies the window contents to the server with
     \c PutImage. Each class lists its own limits in its \e Differences from Qt

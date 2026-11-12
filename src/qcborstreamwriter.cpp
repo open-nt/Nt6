@@ -64,24 +64,25 @@ struct QCborStreamWriter::Private {
     void head(quint8 major, quint64 value) {
         char bytes[9];
         qsizetype size = 1;
+        const auto first = [major](unsigned info) { return static_cast<char>((unsigned{major} << 5u) | info); };
         const auto put = [&](int count) {
             for (int i = 0; i < count; ++i)
-                bytes[1 + i] = static_cast<char>((value >> (8 * (count - 1 - i))) & 0xff);
+                bytes[1 + i] = static_cast<char>((value >> static_cast<unsigned>(8 * (count - 1 - i))) & 0xffu);
             size = 1 + count;
         };
         if (value < 24) {
-            bytes[0] = static_cast<char>((major << 5) | value);
+            bytes[0] = first(static_cast<unsigned>(value));
         } else if (value <= 0xff) {
-            bytes[0] = static_cast<char>((major << 5) | 24);
+            bytes[0] = first(24);
             put(1);
         } else if (value <= 0xffff) {
-            bytes[0] = static_cast<char>((major << 5) | 25);
+            bytes[0] = first(25);
             put(2);
         } else if (value <= 0xffffffffULL) {
-            bytes[0] = static_cast<char>((major << 5) | 26);
+            bytes[0] = first(26);
             put(4);
         } else {
-            bytes[0] = static_cast<char>((major << 5) | 27);
+            bytes[0] = first(27);
             put(8);
         }
         write(bytes, size);
@@ -254,7 +255,7 @@ void QCborStreamWriter::append(std::nullptr_t) { appendNull(); }
 void QCborStreamWriter::append(qfloat16 f) {
     d->counted();
     const quint16 bits = QtPrivate::floatToHalfBits(static_cast<float>(f));
-    const char bytes[3] = {static_cast<char>(0xf9), static_cast<char>(bits >> 8), static_cast<char>(bits & 0xff)};
+    const char bytes[3] = {static_cast<char>(0xf9), static_cast<char>(bits >> 8u), static_cast<char>(bits & 0xffu)};
     d->write(bytes, 3);
 }
 
@@ -268,7 +269,7 @@ void QCborStreamWriter::append(float f) {
     std::memcpy(&bits, &f, sizeof bits);
     char bytes[5] = {static_cast<char>(0xfa)};
     for (int i = 0; i < 4; ++i)
-        bytes[1 + i] = static_cast<char>((bits >> (8 * (3 - i))) & 0xff);
+        bytes[1 + i] = static_cast<char>((bits >> static_cast<unsigned>(8 * (3 - i))) & 0xffu);
     d->write(bytes, 5);
 }
 
@@ -282,7 +283,7 @@ void QCborStreamWriter::append(double value) {
     std::memcpy(&bits, &value, sizeof bits);
     char bytes[9] = {static_cast<char>(0xfb)};
     for (int i = 0; i < 8; ++i)
-        bytes[1 + i] = static_cast<char>((bits >> (8 * (7 - i))) & 0xff);
+        bytes[1 + i] = static_cast<char>((bits >> static_cast<unsigned>(8 * (7 - i))) & 0xffu);
     d->write(bytes, 9);
 }
 

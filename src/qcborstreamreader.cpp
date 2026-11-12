@@ -91,7 +91,7 @@ struct QCborStreamReader::Private {
     quint64 bigEndian(qsizetype at, int size) const {
         quint64 result = 0;
         for (int i = 0; i < size; ++i)
-            result = (result << 8) | byteAt(at + i);
+            result = (result << 8u) | quint64{byteAt(at + i)};
         return result;
     }
 

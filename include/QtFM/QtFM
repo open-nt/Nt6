@@ -1,0 +1,4 @@
+#include "qfmglobal.h"
+#include "qfmpatch.h"
+#include "qfmaudiooutput.h"
+#include "qfmengine.h"

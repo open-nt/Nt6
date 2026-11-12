@@ -805,6 +805,29 @@ target_include_directories(NtQml
 target_link_libraries(NtQml PUBLIC NtCore)
 nt_set_compile_options(NtQml)
 
+# Nt FM: an FM synthesiser for game sound effects. The default sound output on Linux loads ALSA at run time,
+# so the module needs no audio headers to build.
+add_library(NtFM
+    src/fm/qfmengine.cpp
+    src/fm/qfmpatch.cpp
+    src/fm/qfmsynth.cpp
+)
+add_library(Nt::FM ALIAS NtFM)
+target_include_directories(NtFM
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtFM>
+        $<INSTALL_INTERFACE:include/nt6/QtFM>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/fm
+)
+target_link_libraries(NtFM PUBLIC NtCore)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(NtFM PRIVATE src/fm/qfmoutput_alsa.cpp)
+else()
+    target_sources(NtFM PRIVATE src/fm/qfmoutput_null.cpp)
+endif()
+nt_set_compile_options(NtFM)
+
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
 )
@@ -880,6 +903,7 @@ nt_moc_library(NtSvg include/QtSvg)
 nt_moc_library(NtSvgWidgets include/QtSvgWidgets)
 nt_moc_library(NtCharts include/QtCharts)
 nt_moc_library(NtQml include/QtQml src/qml)
+nt_moc_library(NtFM include/QtFM)
 endif() # NOT NT_ZEPHYR
 
 # Resource compiler and its CMake helpers.
@@ -1279,6 +1303,13 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_qml_tests COMMAND nt_qml_tests)
     nt_set_compile_options(nt_qml_tests)
 
+    # Nt FM: patches, the synthesiser rendered offline, the real-time command path and a fake output.
+    add_executable(nt_fm_tests tests/test_fm.cpp)
+    target_include_directories(nt_fm_tests PRIVATE src/fm)
+    target_link_libraries(nt_fm_tests PRIVATE Nt::FM)
+    add_test(NAME nt_fm_tests COMMAND nt_fm_tests)
+    nt_set_compile_options(nt_fm_tests)
+
     # The xcb tests need an X server (or XWayland); they report a skip without one.
     if(NT_HAVE_XCB)
         add_executable(nt_gui_xcb_tests tests/test_gui_xcb.cpp)
@@ -1439,6 +1470,11 @@ if(NT_BUILD_EXAMPLES)
     add_executable(ptt examples/gpio/ptt.cpp)
     target_link_libraries(ptt PRIVATE Nt::Gpio)
     nt_set_compile_options(ptt)
+
+    # Plays or renders FM sound effects; see "Using Nt FM" in the documentation.
+    add_executable(fmplay examples/fm/fmplay.cpp)
+    target_link_libraries(fmplay PRIVATE Nt::FM)
+    nt_set_compile_options(fmplay)
 
     # An echo server and client; see "Using Nt WebSockets" in the documentation.
     add_executable(websocket_echo examples/websockets/echo.cpp)

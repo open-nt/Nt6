@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt Qml`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt Qml`, `Nt FM`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -102,6 +102,7 @@ Nt Widgets draws its own Fusion-like style, light and dark. This is [`hello_widg
 | [`examples/httpserver`](examples/httpserver/hello_server.cpp) | routes, JSON, streaming, delayed answers and WebSockets on one port |
 | [`examples/websockets`](examples/websockets), [`examples/dbus`](examples/dbus), [`examples/serialport`](examples/serialport), [`examples/sql`](examples/sql) | an echo server and client, a clock on the session bus, serial ports, an address book in SQLite |
 | [`examples/gui`](examples/gui), [`examples/widgets`](examples/widgets), [`examples/svg`](examples/svg), [`examples/charts`](examples/charts) | a painted window, the widget gallery, SVG rendering, a live chart dashboard |
+| [`examples/fm`](examples/fm/fmplay.cpp) | game sound effects synthesised with FM: generated, played live and rendered to WAV |
 
 ## Contents
 
@@ -417,6 +418,23 @@ Nt Qml runs JavaScript and QML documents. The JavaScript engine is Nt's own inte
 Guides: [Using Nt Qml](https://open-nt.github.io/Nt6/nt-qml.html) (JavaScript) and [Using Nt QML](https://open-nt.github.io/Nt6/nt-qml-language.html) (documents). The [`js_scripting`](examples/qml/scripting.cpp) and [`hello_qml`](examples/qml/hello_qml.cpp) examples show both.
 
 Differences from Qt: interpreted, not compiled; no Qt Quick (visual types) yet; no attached properties other than `Component.onCompleted`/`onDestruction`, no `Behavior`, `Binding`, `Loader`, `Repeater` or models; no JavaScript modules or `.js` imports; no network URLs; `QML_ELEMENT` macros compile but types are registered with `qmlRegisterType()`.
+
+### Nt FM: FM synthesis for game audio
+
+Nt FM has no Qt counterpart. It synthesises game sound effects in real time with four-operator FM, so a game ships JSON patches of a few hundred bytes instead of WAV files, and each play can vary in pitch and texture. Link with `Nt::FM`; it needs only Nt Core.
+
+| Class | Notes |
+|---|---|
+| `QtFM::Engine` | real-time voices with stealing by priority, level and age; lock-free, allocation-free audio thread; sample-accurate delayed starts; buses and master gain with a soft-clip limiter; `render()` for pull mode; `renderToWav()` |
+| `QtFM::Patch` | JSON and CBOR, seeded random variance per play, generators for nine categories (native or within a chip's limits), mutation, `fitsChip()`, AdLib SBI import |
+| `QtFM::VoiceHandle` | weak handle: stop, and smoothed pitch, gain, pan, filter, LFO and modulation index |
+| `QtFM::AudioOutput` | backend interface; ALSA (loaded at run time) is the default on Linux |
+
+The synthesiser: eight OPN/OPM algorithms or the two OPL connections, the OPL2 waveforms plus square, saw and triangle, DAHDSR envelopes with curvature, pitch envelope, slide and arpeggio, one LFO, white and NES-style LFSR noise, a state-variable filter with sweep, and a bit crusher.
+
+Guide: [Using Nt FM](https://open-nt.github.io/Nt6/nt-fm.html), with the patch format. The [`fmplay`](examples/fm/fmplay.cpp) example plays, generates, renders and benchmarks sounds.
+
+Not yet: chip emulation (OPL2/OPL3/OPLL/OPN2/OPM), VGM/IMF/DRO/RAD music, sequences, QML types, the fixed-point path and Zephyr build, oversampling, and backends other than ALSA.
 
 ### Essentials
 

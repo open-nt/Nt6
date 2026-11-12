@@ -89,6 +89,8 @@
 #include "qmargins.h"
 #include "qmetaobject.h"
 #include "qmetatype.h"
+#include "qmimedatabase.h"
+#include "qmimetype.h"
 #include "qmimedata.h"
 #include "qmutex.h"
 #include "qnamespace.h"

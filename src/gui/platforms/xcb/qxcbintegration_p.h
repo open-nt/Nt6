@@ -21,6 +21,7 @@ public:
     Qt::ColorScheme colorScheme() const override;
     QPoint cursorPosition() const override;
     void setCursorPosition(const QPoint &pos) override;
+    QEglNativePlatform eglPlatform() const override;
 
 private:
     explicit QXcbIntegration(std::unique_ptr<QXcbConnection> connection);

@@ -66,6 +66,7 @@ public:
     void initialize() override;
     QPlatformWindow *createPlatformWindow(QWindow *window) const override;
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
+    QEglNativePlatform eglPlatform() const override;
 
 private:
     QOffscreenScreen *m_screen;

@@ -2,12 +2,16 @@
 #pragma once
 
 #include <QtCore/qbytearray.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qobject.h>
 #include <QtFM/qfmaudiooutput.h>
+#include <QtFM/qfmchip.h>
 #include <QtFM/qfmglobal.h>
 #include <QtFM/qfmpatch.h>
+#include <QtFM/qfmsequence.h>
 
 #include <memory>
+#include <vector>
 
 namespace QtFM {
 
@@ -23,6 +27,7 @@ struct EngineConfig {
     SampleFormat format = SampleFormat::Float32;
     quint32 seed = 0;
     int queueCapacity = 1024;
+    QList<ChipType> chips;
 };
 
 struct PlayOptions {
@@ -51,6 +56,7 @@ public:
     void setGain(float dB);
     void setPan(float pan);
     void setParameter(ParamId id, float value);
+    void setParameterAt(ParamId id, float value, quint64 frame);
 
 private:
     friend class Engine;
@@ -72,7 +78,13 @@ public:
     bool isStarted() const;
 
     VoiceHandle play(const Patch &patch, const PlayOptions &options = {});
+    QList<VoiceHandle> play(const Sequence &sequence, const PlayOptions &options = {});
+    VoiceHandle playAt(const Patch &patch, const PlayOptions &options, quint64 frame);
+    quint64 frame() const;
     void stopAll(bool immediate = false);
+
+    Chip *chip(ChipType type) const;
+    MusicPlayer *music() const;
 
     int render(float *interleaved, int frames);
     int render(qint16 *interleaved, int frames);
@@ -88,11 +100,14 @@ public:
 signals:
     void voiceFinished(quint32 voiceId);
     void underrun();
+    void musicFinished();
 
 private:
     friend class AudioOutput;
     void dispatchEvents();
     std::shared_ptr<Private::EngineCore> m_core;
+    std::vector<std::unique_ptr<Chip>> m_chips;
+    std::unique_ptr<MusicPlayer> m_music;
     AudioOutput *m_output = nullptr;
     std::unique_ptr<AudioOutput> m_ownedOutput;
 };

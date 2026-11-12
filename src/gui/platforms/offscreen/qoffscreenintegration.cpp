@@ -104,3 +104,11 @@ QPlatformWindow *QOffscreenIntegration::createPlatformWindow(QWindow *window) co
 QPlatformBackingStore *QOffscreenIntegration::createPlatformBackingStore(QWindow *window) const {
     return new QOffscreenBackingStore(window);
 }
+
+// OpenGL without a window system: a display without surfaces (or of the first device), where each window renders
+// into a framebuffer object.
+QEglNativePlatform QOffscreenIntegration::eglPlatform() const {
+    QEglNativePlatform native;
+    native.platform = 0x31DD; // EGL_PLATFORM_SURFACELESS_MESA
+    return native;
+}

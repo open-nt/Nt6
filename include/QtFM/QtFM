@@ -1,4 +1,8 @@
 #include "qfmglobal.h"
 #include "qfmpatch.h"
+#include "qfmbank.h"
+#include "qfmsequence.h"
+#include "qfmchip.h"
 #include "qfmaudiooutput.h"
 #include "qfmengine.h"
+#include "qfmmidi.h"

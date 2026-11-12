@@ -39,7 +39,7 @@ private:
 
 class QPaintEngine {
 public:
-    enum Type { Raster = 10, User = 50, MaxUser = 100 };
+    enum Type { Raster = 10, OpenGL2 = 14, User = 50, MaxUser = 100 };
 
     virtual ~QPaintEngine();
 

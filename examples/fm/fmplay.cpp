@@ -6,8 +6,14 @@
 //   fmplay coin.json                 play a patch file
 //   fmplay explosion -o boom.wav     render to a WAV file instead
 //   fmplay pickup --chip opl2 --seed 7 --save pickup.json
-//   fmplay --demo                    a short tour: effects, a delayed jingle and an engine loop
+//   fmplay --demo                    a short tour: effects, a jingle, an engine loop and the OPL2
 //   fmplay --bench 32                render 32 voices as fast as possible and report the CPU load
+//   fmplay level1.vgz                play OPL2 or OPL3 music: VGM, VGZ, DRO or IMF
+//   fmplay level1.vgz -o level1.wav  render music to a WAV file
+//   fmplay piano.sbi                 play an AdLib instrument on the emulated OPL2
+//   fmplay song.mid                  play a MIDI file with the General MIDI FM instruments
+//   fmplay song.mid -o song.wav      render a MIDI file to a WAV file
+//   fmplay song.mid --chip opl3      play a MIDI file on the emulated OPL3, as a Sound Blaster would
 #include <QtCore>
 #include <QtFM>
 
@@ -132,14 +138,24 @@ int demo(QCoreApplication &app) {
     //! [engine]
 
     //! [generate]
-    // A jingle: four coins a fifth apart, each starting on its own sample.
-    for (int i = 0; i < 4; ++i) {
-        PlayOptions options;
-        options.delay = 0.6f + 0.12f * float(i);
-        options.pitch = 7.0f * float(i % 2);
-        engine.play(Patch::generate(Category::Pickup, 11), options);
-    }
+    const Patch blip = Patch::generate(Category::Blip, 8);
     //! [generate]
+
+    //! [sequence]
+    // A jingle: four notes, each starting on its own sample.
+    Sequence jingle;
+    jingle.setTempo(150);
+    const Patch pickup = Patch::generate(Category::Pickup, 11);
+    jingle.addNote(0, pickup);
+    jingle.addNote(0.5f, pickup, 4);
+    jingle.addNote(1, pickup, 7);
+    jingle.addNote(1.5f, pickup, 12);
+    PlayOptions later;
+    later.delay = 0.6f;
+    engine.play(jingle, later);
+    //! [sequence]
+    later.delay = 0.3f;
+    engine.play(blip, later);
 
     const Patch laser = Patch::fromJson(laserJson);
     for (int i = 0; i < 3; ++i) {
@@ -167,7 +183,153 @@ int demo(QCoreApplication &app) {
     PlayOptions boom;
     boom.delay = 5.5f;
     engine.play(Patch::generate(Category::Explosion, 5), boom);
-    QTimer::singleShot(7500, &app, &QCoreApplication::quit);
+
+    // The same kind of sounds on the emulated AdLib.
+    PlayOptions onChip;
+    onChip.delay = 6.8f;
+    engine.play(Patch::generate(Category::Laser, 4, ChipType::OPL2), onChip);
+    QTimer::singleShot(8500, &app, &QCoreApplication::quit);
+    return app.exec();
+}
+
+int chipDemo(QCoreApplication &app) {
+    //! [chip]
+    EngineConfig config;
+    config.chips = {ChipType::OPL2};
+    Engine engine(config);
+    Chip *opl = engine.chip(ChipType::OPL2);
+    // An organ-like tone on channel 0, as an AdLib driver would set it up.
+    const quint8 setup[][2] = {{0x20, 0x01}, {0x40, 0x10}, {0x60, 0xf0}, {0x80, 0x77},
+                               {0x23, 0x01}, {0x43, 0x00}, {0x63, 0xf0}, {0x83, 0x77}};
+    for (const auto &w : setup)
+        opl->writeRegister(w[0], w[1]);
+    // A C major arpeggio: frequency number 0x157 is C in block 4; key on, then off.
+    const int fnums[] = {0x157, 0x1b0, 0x202, 0x2ae};
+    for (int i = 0; i < 4; ++i) {
+        const float t = 0.25f * float(i);
+        opl->writeRegister(0xa0, quint8(fnums[i] & 0xff), t);
+        opl->writeRegister(0xb0, quint8(0x20 | (4 << 2) | (fnums[i] >> 8)), t);
+        opl->writeRegister(0xb0, quint8((4 << 2) | (fnums[i] >> 8)), t + 0.2f);
+    }
+    //! [chip]
+    if (!engine.start())
+        return 1;
+    QTimer::singleShot(1500, &app, &QCoreApplication::quit);
+    return app.exec();
+}
+
+// Writes stereo 16-bit samples as a WAV file.
+QByteArray wav(const std::vector<qint16> &pcm, int rate) {
+    QByteArray out;
+    QDataStream s(&out, QIODevice::WriteOnly);
+    s.setByteOrder(QDataStream::LittleEndian);
+    const auto bytes = quint32(pcm.size() * 2);
+    s.writeRawData("RIFF", 4);
+    s << quint32(36 + bytes);
+    s.writeRawData("WAVEfmt ", 8);
+    s << quint32(16) << quint16(1) << quint16(2) << quint32(rate) << quint32(rate * 4) << quint16(4) << quint16(16);
+    s.writeRawData("data", 4);
+    s << bytes;
+    for (qint16 v : pcm)
+        s << v;
+    return out;
+}
+
+enum class FileKind { Patch, Instrument, Midi, Music, Unknown };
+
+// Recognises a file by its header; IMF music has none, so it goes by its extension.
+FileKind kindOf(const QByteArray &data, const QString &suffix) {
+    if (data.startsWith("MThd") || (data.startsWith("RIFF") && data.mid(8, 4) == "RMID"))
+        return FileKind::Midi;
+    if (data.startsWith("Vgm ") || data.startsWith("\x1f\x8b") || data.startsWith("DBRAWOPL"))
+        return FileKind::Music;
+    if (data.startsWith("SBI\x1a"))
+        return FileKind::Instrument;
+    if (data.trimmed().startsWith('{'))
+        return FileKind::Patch;
+    if (suffix == QLatin1String("imf") || suffix == QLatin1String("wlf"))
+        return FileKind::Music;
+    return FileKind::Unknown;
+}
+
+int midi(QCoreApplication &app, const QByteArray &data, const QString &output, int rate, ChipType chip) {
+    //! [midi]
+    QString error;
+    const MidiFile song = MidiFile::fromData(data, &error);
+    if (!song.isValid()) {
+        std::fprintf(stderr, "fmplay: %s\n", qPrintable(error));
+        return 1;
+    }
+    EngineConfig config;
+    config.sampleRate = rate;
+    config.maxVoices = 64; // one voice per sounding note
+    if (chip == ChipType::OPL2 || chip == ChipType::OPL3)
+        config.chips = {ChipType::OPL3}; // eighteen channels, like a Sound Blaster 16
+    Engine engine(config);
+    MidiPlayer player(&engine);
+    player.setInstruments(PatchBank::generalMidi(chip)); // the native bank for ChipType::None
+    player.setFile(song);
+    //! [midi]
+    if (Chip *opl = engine.chip(ChipType::OPL3))
+        opl->setGain(6); // the chip's channels are quieter than native voices
+    std::printf("MIDI format %d, %d track(s), %lld notes, %.1f s\n", song.format(), song.trackCount(),
+                static_cast<long long>(song.notes().size()), song.duration());
+    if (!output.isEmpty()) {
+        // Offline: feed the player before each block, and pull the engine.
+        std::vector<qint16> pcm;
+        std::vector<qint16> block(2 * 1024);
+        player.play();
+        while (player.isPlaying()) {
+            player.schedule(engine.frame() + 1024);
+            engine.render(block.data(), 1024);
+            pcm.insert(pcm.end(), block.begin(), block.end());
+        }
+        QFile file(output);
+        return file.open(QIODevice::WriteOnly) && file.write(wav(pcm, rate)) > 0 ? 0 : 1;
+    }
+    if (!engine.start()) {
+        std::fprintf(stderr, "fmplay: no sound output; use -o to render to a file\n");
+        return 1;
+    }
+    QObject::connect(&player, &MidiPlayer::finished, &app, &QCoreApplication::quit);
+    player.play();
+    return app.exec();
+}
+
+int music(QCoreApplication &app, const QByteArray &data, const QString &output, int rate) {
+    //! [music]
+    EngineConfig config;
+    config.sampleRate = rate;
+    Engine engine(config);
+    QString error;
+    if (!engine.music()->load(data, MusicFormat::Auto, &error)) {
+        std::fprintf(stderr, "fmplay: %s\n", qPrintable(error));
+        return 1;
+    }
+    engine.music()->setLoops(false);
+    engine.music()->play();
+    //! [music]
+    std::printf("%s music, %.1f s\n", engine.music()->chip() == ChipType::OPL3 ? "OPL3" : "OPL2",
+                engine.music()->duration());
+    if (!output.isEmpty()) {
+        // Pull the engine until the music ends: rendering offline, as fast as the CPU allows.
+        std::vector<qint16> pcm;
+        std::vector<qint16> block(2 * 1024);
+        const auto limit = qint64((engine.music()->duration() + 2) * rate);
+        qint64 frames = 0;
+        do {
+            engine.render(block.data(), 1024);
+            pcm.insert(pcm.end(), block.begin(), block.end());
+            frames += 1024;
+        } while (engine.music()->isPlaying() && frames < limit);
+        QFile file(output);
+        return file.open(QIODevice::WriteOnly) && file.write(wav(pcm, rate)) > 0 ? 0 : 1;
+    }
+    if (!engine.start()) {
+        std::fprintf(stderr, "fmplay: no sound output; use -o to render to a file\n");
+        return 1;
+    }
+    QObject::connect(&engine, &Engine::musicFinished, &app, &QCoreApplication::quit);
     return app.exec();
 }
 
@@ -214,21 +376,27 @@ int main(int argc, char **argv) {
     const QCommandLineOption pitchOption(QStringLiteral("pitch"), QStringLiteral("Semitones to transpose by."),
                                          QStringLiteral("semitones"), QStringLiteral("0"));
     const QCommandLineOption chipOption(
-        QStringLiteral("chip"), QStringLiteral("Generate within a chip's limits: opl2, opl3, opll, opn2 or opm."),
+        QStringLiteral("chip"),
+        QStringLiteral("Generate within a chip's limits (opl2, opl3, opll, opn2 or opm), or play MIDI "
+                       "on the OPL3 (opl2 or opl3)."),
         QStringLiteral("chip"));
     const QCommandLineOption saveOption(QStringLiteral("save"), QStringLiteral("Write the patch as JSON."),
                                         QStringLiteral("file"));
     const QCommandLineOption demoOption(QStringLiteral("demo"), QStringLiteral("Play a short tour."));
+    const QCommandLineOption chipDemoOption(QStringLiteral("chip-demo"),
+                                            QStringLiteral("Play an arpeggio by writing OPL2 registers."));
     const QCommandLineOption benchOption(QStringLiteral("bench"), QStringLiteral("Measure the CPU load of n voices."),
                                          QStringLiteral("n"));
-    parser.addOptions(
-        {outOption, seedOption, rateOption, pitchOption, chipOption, saveOption, demoOption, benchOption});
+    parser.addOptions({outOption, seedOption, rateOption, pitchOption, chipOption, saveOption, demoOption,
+                       chipDemoOption, benchOption});
     parser.process(app);
 
     if (parser.isSet(benchOption))
         return bench(std::max(1, parser.value(benchOption).toInt()));
     if (parser.isSet(demoOption))
         return demo(app);
+    if (parser.isSet(chipDemoOption))
+        return chipDemo(app);
     if (parser.positionalArguments().size() != 1)
         parser.showHelp(1);
 
@@ -246,8 +414,22 @@ int main(int argc, char **argv) {
         }
         QString error;
         const QByteArray data = file.readAll();
-        patch = data.startsWith("SBI\x1a") ? Patch::fromChipInstrument(data, InstrumentFormat::Sbi, &error)
-                                           : Patch::fromJson(data, &error);
+        const int rate = parser.value(rateOption).toInt();
+        switch (kindOf(data, QFileInfo(sound).suffix().toLower())) {
+        case FileKind::Midi:
+            return midi(app, data, parser.value(outOption), rate, chipNamed(parser.value(chipOption)));
+        case FileKind::Music:
+            return music(app, data, parser.value(outOption), rate);
+        case FileKind::Instrument:
+            patch = Patch::fromChipInstrument(data, InstrumentFormat::Sbi, &error);
+            break;
+        case FileKind::Patch:
+            patch = Patch::fromJson(data, &error);
+            break;
+        case FileKind::Unknown:
+            std::fprintf(stderr, "fmplay: %s: not a patch, instrument, MIDI or music file\n", qPrintable(sound));
+            return 1;
+        }
         if (!patch.isValid()) {
             std::fprintf(stderr, "fmplay: %s: %s\n", qPrintable(sound), qPrintable(error));
             return 1;
@@ -275,6 +457,7 @@ int main(int argc, char **argv) {
 
     EngineConfig config;
     config.sampleRate = rate;
+    config.chips = {ChipType::OPL2}; // patches made for the OPL2 play on the emulated chip
     Engine engine(config);
     if (!engine.start()) {
         std::fprintf(stderr, "fmplay: no sound output; use -o to render to a file\n");

@@ -498,6 +498,7 @@ add_library(NtGui
     src/gui/qcolor.cpp
     src/gui/qcursor.cpp
     src/gui/qdesktopportal.cpp
+    src/gui/qegl.cpp
     src/gui/qevent.cpp
     src/gui/qfont.cpp
     src/gui/qfontengine.cpp
@@ -508,8 +509,10 @@ add_library(NtGui
     src/gui/qimageio.cpp
     src/gui/qimagejpeg.cpp
     src/gui/qimagepng.cpp
-    src/gui/qpixmap.cpp
     src/gui/qkeysequence.cpp
+    src/gui/qoffscreensurface.cpp
+    src/gui/qopenglcontext.cpp
+    src/gui/qopenglfunctions.cpp
     src/gui/qpaintdevice.cpp
     src/gui/qpaintdevicewindow.cpp
     src/gui/qpaintengine.cpp
@@ -517,6 +520,7 @@ add_library(NtGui
     src/gui/qpainterpath.cpp
     src/gui/qpalette.cpp
     src/gui/qpen.cpp
+    src/gui/qpixmap.cpp
     src/gui/qplatform.cpp
     src/gui/qrasterizer.cpp
     src/gui/qrasterpaintengine.cpp
@@ -524,6 +528,8 @@ add_library(NtGui
     src/gui/qregion.cpp
     src/gui/qscreen.cpp
     src/gui/qstylehints.cpp
+    src/gui/qsurface.cpp
+    src/gui/qsurfaceformat.cpp
     src/gui/qtextdocument.cpp
     src/gui/qtextformat.cpp
     src/gui/qtextlayout.cpp
@@ -776,6 +782,28 @@ target_include_directories(NtCharts
 target_link_libraries(NtCharts PUBLIC NtWidgets)
 nt_set_compile_options(NtCharts)
 
+# Nt OpenGL: QOpenGLWindow, QOpenGLPaintDevice and its paint engine, and framebuffer objects. The engine flattens and
+# strokes paths with the rasterizer of Nt GUI, through its private headers. OpenGL itself is loaded at run time.
+add_library(NtOpenGL
+    src/opengl/qopenglframebufferobject.cpp
+    src/opengl/qopenglhelpers.cpp
+    src/opengl/qopenglpaintdevice.cpp
+    src/opengl/qopenglpaintengine.cpp
+    src/opengl/qopenglwindow.cpp
+)
+add_library(Nt::OpenGL ALIAS NtOpenGL)
+add_library(Qt6::OpenGL ALIAS NtOpenGL)
+target_include_directories(NtOpenGL
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtOpenGL>
+        $<INSTALL_INTERFACE:include/nt6/QtOpenGL>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/opengl
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+)
+target_link_libraries(NtOpenGL PUBLIC NtGui)
+nt_set_compile_options(NtOpenGL)
+
 # Nt Qml: the JavaScript engine and, later, the QML engine. The interpreter reports script errors as C++
 # exceptions internally, which never leave the library.
 add_library(NtQml
@@ -808,7 +836,11 @@ nt_set_compile_options(NtQml)
 # Nt FM: an FM synthesiser for game sound effects. The default sound output on Linux loads ALSA at run time,
 # so the module needs no audio headers to build.
 add_library(NtFM
+    src/fm/qfmbank.cpp
     src/fm/qfmengine.cpp
+    src/fm/qfmmidi.cpp
+    src/fm/qfmmusic.cpp
+    src/fm/qfmopl.cpp
     src/fm/qfmpatch.cpp
     src/fm/qfmsynth.cpp
 )
@@ -821,12 +853,30 @@ target_include_directories(NtFM
         ${CMAKE_CURRENT_SOURCE_DIR}/src/fm
 )
 target_link_libraries(NtFM PUBLIC NtCore)
+# VGZ music is gzipped VGM.
+if(NT_HAVE_ZLIB)
+    target_compile_definitions(NtFM PRIVATE NT_HAVE_ZLIB)
+    target_link_libraries(NtFM PRIVATE ZLIB::ZLIB)
+endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(NtFM PRIVATE src/fm/qfmoutput_alsa.cpp)
 else()
     target_sources(NtFM PRIVATE src/fm/qfmoutput_null.cpp)
 endif()
 nt_set_compile_options(NtFM)
+
+# Nt FM QML types: FmSound, FmMusic and the rest, through Nt Qml.
+add_library(NtFMQml src/fmqml/qfmqml.cpp)
+add_library(Nt::FMQml ALIAS NtFMQml)
+target_include_directories(NtFMQml
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtFMQml>
+        $<INSTALL_INTERFACE:include/nt6/QtFMQml>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/fm
+)
+target_link_libraries(NtFMQml PUBLIC NtFM NtQml)
+nt_set_compile_options(NtFMQml)
 
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
@@ -904,6 +954,8 @@ nt_moc_library(NtSvgWidgets include/QtSvgWidgets)
 nt_moc_library(NtCharts include/QtCharts)
 nt_moc_library(NtQml include/QtQml src/qml)
 nt_moc_library(NtFM include/QtFM)
+nt_moc_library(NtFMQml include/QtFMQml)
+nt_moc_library(NtOpenGL include/QtOpenGL)
 endif() # NOT NT_ZEPHYR
 
 # Resource compiler and its CMake helpers.
@@ -1273,6 +1325,14 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_painter_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_painter_tests)
 
+    # Nt OpenGL: contexts, framebuffer objects, QPainter through OpenGL against the raster engine, and QOpenGLWindow,
+    # on the offscreen platform. The tests report a skip where there is no OpenGL.
+    add_executable(nt_opengl_tests tests/test_opengl.cpp)
+    target_link_libraries(nt_opengl_tests PRIVATE Nt::OpenGL)
+    add_test(NAME nt_opengl_tests COMMAND nt_opengl_tests)
+    set_tests_properties(nt_opengl_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_opengl_tests)
+
     # Nt SVG: the reader, the rasterizer, the generator and the widget, on the offscreen platform.
     add_executable(nt_svg_tests tests/test_svg.cpp)
     target_include_directories(nt_svg_tests PRIVATE src/svg src/gui)
@@ -1307,7 +1367,17 @@ if(NT_BUILD_TESTS)
     add_executable(nt_fm_tests tests/test_fm.cpp)
     target_include_directories(nt_fm_tests PRIVATE src/fm)
     target_link_libraries(nt_fm_tests PRIVATE Nt::FM)
+    if(NT_HAVE_ZLIB)
+        target_compile_definitions(nt_fm_tests PRIVATE NT_HAVE_ZLIB)
+        target_link_libraries(nt_fm_tests PRIVATE ZLIB::ZLIB)
+    endif()
     add_test(NAME nt_fm_tests COMMAND nt_fm_tests)
+
+    # The QML types of Nt FM, through documents run offline.
+    add_executable(nt_fmqml_tests tests/test_fmqml.cpp)
+    target_link_libraries(nt_fmqml_tests PRIVATE Nt::FMQml)
+    add_test(NAME nt_fmqml_tests COMMAND nt_fmqml_tests)
+    nt_set_compile_options(nt_fmqml_tests)
     nt_set_compile_options(nt_fm_tests)
 
     # The xcb tests need an X server (or XWayland); they report a skip without one.
@@ -1379,15 +1449,21 @@ if(NT_BUILD_EXAMPLES)
     target_link_libraries(hello_window PRIVATE Nt::Gui)
     nt_set_compile_options(hello_window)
 
-    # Paths, gradients, pens and transformations, antialiased; also renders the pictures of the
-    # documentation (cmake --build build --target painter_images) and times the scenes (painting --bench).
+    # Paths, gradients, pens and transformations, antialiased, in software or with OpenGL (painting --gl); also renders
+    # the pictures of the documentation (cmake --build build --target painter_images) and times the scenes in both
+    # (painting --bench).
     add_executable(painting examples/gui/painting.cpp)
-    target_link_libraries(painting PRIVATE Nt::Gui)
+    target_link_libraries(painting PRIVATE Nt::OpenGL)
     nt_set_compile_options(painting)
     add_custom_target(painter_images
         COMMAND painting --write "${CMAKE_CURRENT_SOURCE_DIR}/doc/images"
         COMMENT "Rendering the painter pictures to doc/images/painter"
         VERBATIM)
+
+    # An OpenGL window painted with OpenGL and QPainter, with or without vsync; see QOpenGLWindow.
+    add_executable(glwindow examples/opengl/glwindow.cpp)
+    target_link_libraries(glwindow PRIVATE Nt::OpenGL)
+    nt_set_compile_options(glwindow)
 
     # A form made of widgets and layouts, with the Nt logo as an SVG resource; see "Using Nt Widgets" in the
     # documentation.
@@ -1475,6 +1551,11 @@ if(NT_BUILD_EXAMPLES)
     add_executable(fmplay examples/fm/fmplay.cpp)
     target_link_libraries(fmplay PRIVATE Nt::FM)
     nt_set_compile_options(fmplay)
+
+    # Sound effects and music from a QML document; see "Using Nt FM" in the documentation.
+    add_executable(fmqml examples/fm/fmqml.cpp)
+    target_link_libraries(fmqml PRIVATE Nt::FMQml)
+    nt_set_compile_options(fmqml)
 
     # An echo server and client; see "Using Nt WebSockets" in the documentation.
     add_executable(websocket_echo examples/websockets/echo.cpp)

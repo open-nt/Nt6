@@ -11,7 +11,9 @@ enum class ChipType { None, OPL2, OPL3, OPLL, OPN2, OPM };
 
 enum class Category { Pickup, Laser, Explosion, PowerUp, Hit, Jump, Blip, Alarm, Engine };
 
-enum class InstrumentFormat { Sbi };
+enum class InstrumentFormat { Sbi, Ibk };
+
+enum class MusicFormat { Auto, Vgm, Dro, Imf };
 
 enum class Waveform { Sine, HalfSine, AbsSine, QuarterSine, Square, Saw, Triangle };
 

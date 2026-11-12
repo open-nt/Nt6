@@ -8,6 +8,9 @@
 
 #include "qfmsynth_p.h"
 
+#include "qfmmusic_p.h"
+#include "qfmopl_p.h"
+
 #include <QtCore/qendian.h>
 
 #include <algorithm>
@@ -397,12 +400,43 @@ Renderer::Renderer(int sampleRate, int maxVoices, int pendingCapacity, ReleaseFn
         1.0f - std::exp(-static_cast<float>(kControlInterval) / (kSmoothTime * static_cast<float>(m_sampleRate)));
 }
 
-Renderer::~Renderer() = default;
+Renderer::~Renderer() {
+    // The audio thread has stopped: music still held here is freed on this thread.
+    delete m_music;
+    for (int i = 0; i < m_pendingCount; ++i) {
+        if (m_pending[static_cast<std::size_t>(i)].type == Command::MusicLoad)
+            delete m_pending[static_cast<std::size_t>(i)].music;
+    }
+}
+
+// Removes a pending command, keeping the others in order: writes to a chip at the same frame
+// must reach it in the order they were sent.
+void Renderer::removePending(int index) {
+    for (int i = index; i + 1 < m_pendingCount; ++i)
+        m_pending[static_cast<std::size_t>(i)] = m_pending[static_cast<std::size_t>(i) + 1];
+    --m_pendingCount;
+}
+
+void Renderer::addChip(ChipCore *core, OplCore *opl) {
+    if (m_chipCount == kMaxChips || !core)
+        return;
+    ChipStream &stream = m_chips[m_chipCount];
+    stream.core = core;
+    stream.step = double(core->nativeRate()) / m_sampleRate;
+    m_opl[m_chipCount] = opl;
+    if (opl)
+        opl->write(0x01, 0x20); // voices use the OPL2 waveforms
+    ++m_chipCount;
+}
 
 int Renderer::activeVoices() const {
     int n = 0;
     for (int i = 0; i < m_maxVoices; ++i)
         n += m_voices[static_cast<std::size_t>(i)].program ? 1 : 0;
+    for (int c = 0; c < m_chipCount; ++c) {
+        for (const ChipChannel &channel : m_channels[c])
+            n += channel.program ? 1 : 0;
+    }
     return n;
 }
 
@@ -422,9 +456,12 @@ void Renderer::finishVoice(Voice &voice) {
 }
 
 void Renderer::command(const Command &command) {
-    if (command.type == Command::Play && command.frame > m_frame) {
+    if (command.frame > m_frame) {
         if (m_pendingCount == m_pendingCapacity) {
-            finishProgram(command.program);
+            if (command.type == Command::Play)
+                finishProgram(command.program);
+            else if (command.type == Command::MusicLoad && releaseMusic)
+                releaseMusic(m_context, command.music);
             return;
         }
         m_pending[static_cast<std::size_t>(m_pendingCount++)] = command;
@@ -436,17 +473,56 @@ void Renderer::command(const Command &command) {
 void Renderer::apply(const Command &command) {
     switch (command.type) {
     case Command::Play:
-        startProgram(command.program);
+        if (command.program->chip >= 0)
+            startChipVoice(command.program);
+        else
+            startProgram(command.program);
+        return;
+    case Command::ChipWrite:
+    case Command::ChipReset:
+    case Command::ChipGain:
+        chipCommand(command);
+        return;
+    case Command::MusicLoad:
+    case Command::MusicPlay:
+    case Command::MusicPause:
+    case Command::MusicStop:
+    case Command::MusicLoops:
+    case Command::MusicGain:
+        musicCommand(command);
         return;
     case Command::Stop:
     case Command::StopAll: {
         const bool all = command.type == Command::StopAll;
         for (int i = 0; i < m_pendingCount;) {
-            if (all || m_pending[static_cast<std::size_t>(i)].program->id == command.voiceId) {
-                finishProgram(m_pending[static_cast<std::size_t>(i)].program);
-                m_pending[static_cast<std::size_t>(i)] = m_pending[static_cast<std::size_t>(--m_pendingCount)];
+            const Command &pending = m_pending[static_cast<std::size_t>(i)];
+            if (pending.type == Command::Play && (all || pending.program->id == command.voiceId)) {
+                finishProgram(pending.program);
+                removePending(i);
             } else {
                 ++i;
+            }
+        }
+        for (int c = 0; c < m_chipCount; ++c) {
+            OplCore *core = m_opl[c];
+            if (!core)
+                continue;
+            for (int ch = 0; ch < core->channelCount(); ++ch) {
+                ChipChannel &channel = m_channels[c][ch];
+                if (!channel.program || (!all && channel.program->id != command.voiceId))
+                    continue;
+                const int bank = (ch / 9) << 8;
+                const int local = ch % 9;
+                if (command.immediate) {
+                    // The fastest release on both operators, then key off.
+                    const int off = (local / 3) * 8 + local % 3;
+                    for (int op = 0; op < 2; ++op) {
+                        const quint8 sr = channel.program->opl[6 + op];
+                        core->write(static_cast<quint16>(bank | (0x80 + off + 3 * op)), static_cast<quint8>(sr | 0x0f));
+                    }
+                }
+                writeChannelFrequency(core, ch, channel.program->hz, false);
+                channel.released = true;
             }
         }
         for (int i = 0; i < m_maxVoices; ++i) {
@@ -472,6 +548,16 @@ void Renderer::apply(const Command &command) {
         return;
     }
     case Command::SetParam:
+        if (static_cast<ParamId>(command.param) == ParamId::Pitch) {
+            for (int c = 0; c < m_chipCount; ++c) {
+                for (int ch = 0; m_opl[c] && ch < m_opl[c]->channelCount(); ++ch) {
+                    ChipChannel &channel = m_channels[c][ch];
+                    if (channel.program && channel.program->id == command.voiceId)
+                        writeChannelFrequency(m_opl[c], ch, channel.program->hz * std::exp2(command.value / 12.0f),
+                                              !channel.released);
+                }
+            }
+        }
         for (int i = 0; i < m_maxVoices; ++i) {
             Voice &v = m_voices[static_cast<std::size_t>(i)];
             if (!v.program || v.program->id != command.voiceId)
@@ -796,8 +882,11 @@ void Renderer::render(float *out, int frames) {
         for (int i = 0; i < m_pendingCount;) {
             if (m_pending[static_cast<std::size_t>(i)].frame <= m_frame) {
                 const Command c = m_pending[static_cast<std::size_t>(i)];
-                m_pending[static_cast<std::size_t>(i)] = m_pending[static_cast<std::size_t>(--m_pendingCount)];
+                removePending(i);
                 apply(c);
+                // A stop may have removed other pending commands: scan again from the start.
+                i = 0;
+                next = m_frame + static_cast<quint64>(frames - pos);
             } else {
                 next = std::min(next, m_pending[static_cast<std::size_t>(i)].frame);
                 ++i;
@@ -812,6 +901,11 @@ void Renderer::render(float *out, int frames) {
             while (v.program && done < n)
                 done += renderVoice(v, out + 2 * (pos + done), n - done);
         }
+        for (int c = 0; c < m_chipCount; ++c)
+            mixStream(m_chips[c], out + 2 * pos, n, false);
+        if (m_music && m_musicPlaying)
+            mixStream(m_musicStream, out + 2 * pos, n, true);
+        updateChipVoices(n);
         m_frame += static_cast<quint64>(n);
         pos += n;
     }
@@ -825,26 +919,232 @@ void Renderer::render(float *out, int frames) {
     m_master = masterGain;
 }
 
+void Renderer::writeChannelFrequency(OplCore *core, int channel, float hz, bool key) {
+    int fnum = 0;
+    int block = 0;
+    if (!oplFrequency(hz, &fnum, &block)) {
+        fnum = 1023;
+        block = 7;
+    }
+    const int bank = (channel / 9) << 8;
+    const int local = channel % 9;
+    core->write(static_cast<quint16>(bank | (0xa0 + local)), static_cast<quint8>(fnum & 0xff));
+    core->write(static_cast<quint16>(bank | (0xb0 + local)),
+                static_cast<quint8>((key ? 0x20 : 0) | (block << 2) | (fnum >> 8)));
+}
+
+void Renderer::startChipVoice(Program *program) {
+    const int c = program->chip;
+    OplCore *core = c >= 0 && c < m_chipCount ? m_opl[c] : nullptr;
+    if (!core) {
+        finishProgram(program);
+        return;
+    }
+    // A free channel, else the oldest of no higher priority.
+    int chosen = -1;
+    for (int ch = 0; ch < core->channelCount() && chosen < 0; ++ch) {
+        if (!m_channels[c][ch].program)
+            chosen = ch;
+    }
+    if (chosen < 0) {
+        qint64 oldest = -1;
+        for (int ch = 0; ch < core->channelCount(); ++ch) {
+            const ChipChannel &channel = m_channels[c][ch];
+            if (channel.program->priority <= program->priority && channel.elapsed > oldest) {
+                oldest = channel.elapsed;
+                chosen = ch;
+            }
+        }
+        if (chosen < 0) {
+            finishProgram(program);
+            return;
+        }
+        finishProgram(m_channels[c][chosen].program);
+    }
+    ChipChannel &channel = m_channels[c][chosen];
+    channel.program = program;
+    channel.elapsed = 0;
+    channel.released = false;
+    const int bank = (chosen / 9) << 8;
+    const int local = chosen % 9;
+    const int off = (local / 3) * 8 + local % 3;
+    writeChannelFrequency(core, chosen, program->hz, false);
+    static const int bases[5] = {0x20, 0x40, 0x60, 0x80, 0xe0};
+    for (int r = 0; r < 5; ++r) {
+        for (int op = 0; op < 2; ++op)
+            core->write(static_cast<quint16>(bank | (bases[r] + off + 3 * op)), program->opl[2 * r + op]);
+    }
+    core->write(static_cast<quint16>(bank | (0xc0 + local)), static_cast<quint8>(program->opl[10] | 0x30));
+    writeChannelFrequency(core, chosen, program->hz, true);
+    program->state.store(Playing, std::memory_order_release);
+}
+
+// Releases chip voices at their note-off, and frees the channels whose carriers have gone silent.
+void Renderer::updateChipVoices(int frames) {
+    for (int c = 0; c < m_chipCount; ++c) {
+        OplCore *core = m_opl[c];
+        for (int ch = 0; core && ch < core->channelCount(); ++ch) {
+            ChipChannel &channel = m_channels[c][ch];
+            if (!channel.program)
+                continue;
+            channel.elapsed += frames;
+            const Program &p = *channel.program;
+            if (!channel.released && p.noteOff >= 0 && channel.elapsed >= p.noteOff) {
+                writeChannelFrequency(core, ch, p.hz, false);
+                channel.released = true;
+            }
+            // A one-shot note keeps its key down: its percussive envelope decays on its own.
+            if (channel.elapsed > m_sampleRate / 50 && core->channelSilent(ch)) {
+                if (!channel.released)
+                    writeChannelFrequency(core, ch, p.hz, false);
+                finishProgram(channel.program);
+                channel.program = nullptr;
+            }
+        }
+    }
+}
+
+void Renderer::chipCommand(const Command &command) {
+    const int c = command.param;
+    if (c >= m_chipCount)
+        return;
+    switch (command.type) {
+    case Command::ChipWrite:
+        m_chips[c].core->write(static_cast<quint16>(command.voiceId & 0x1ff),
+                               static_cast<quint8>(command.voiceId >> 16));
+        break;
+    case Command::ChipReset:
+        m_chips[c].core->reset();
+        if (m_opl[c])
+            m_opl[c]->write(0x01, 0x20);
+        for (ChipChannel &channel : m_channels[c]) {
+            if (channel.program)
+                finishProgram(channel.program);
+            channel = ChipChannel();
+        }
+        break;
+    case Command::ChipGain:
+        m_chips[c].gain = command.value;
+        break;
+    default:
+        break;
+    }
+}
+
+void Renderer::musicCommand(const Command &command) {
+    switch (command.type) {
+    case Command::MusicLoad:
+        if (m_music && releaseMusic)
+            releaseMusic(m_context, m_music);
+        m_music = command.music;
+        m_musicStream = ChipStream();
+        m_musicStream.core = m_music->core.get();
+        m_musicStream.step = double(m_music->core->nativeRate()) / m_sampleRate;
+        m_musicStream.gain = command.value;
+        m_musicIndex = 0;
+        m_musicTime = 0;
+        m_musicPlaying = false;
+        m_musicFinished = false;
+        break;
+    case Command::MusicPlay:
+        if (m_music)
+            m_musicPlaying = true;
+        break;
+    case Command::MusicPause:
+        m_musicPlaying = false;
+        break;
+    case Command::MusicStop:
+        if (m_music) {
+            m_music->core->reset();
+            m_musicIndex = 0;
+            m_musicTime = 0;
+            m_musicStream.prev[0] = m_musicStream.prev[1] = m_musicStream.next[0] = m_musicStream.next[1] = 0;
+        }
+        m_musicPlaying = false;
+        break;
+    case Command::MusicLoops:
+        m_musicLoops = command.immediate;
+        break;
+    case Command::MusicGain:
+        m_musicStream.gain = command.value;
+        break;
+    default:
+        break;
+    }
+}
+
+// Adds frames of a chip to out. The chip runs at its own rate: before each of its samples, the
+// music's writes that are due are applied, so music keeps the timing of the chip's clock.
+void Renderer::mixStream(ChipStream &stream, float *out, int frames, bool music) {
+    constexpr float scale = 1.0f / 32768.0f;
+    const double tick = music ? 1.0 / stream.core->nativeRate() : 0.0;
+    for (int i = 0; i < frames; ++i) {
+        while (stream.frac >= 1.0) {
+            stream.frac -= 1.0;
+            if (music) {
+                const std::vector<MusicEvent> &events = m_music->events;
+                while (m_musicIndex < events.size() && events[m_musicIndex].time <= m_musicTime) {
+                    stream.core->write(events[m_musicIndex].reg, events[m_musicIndex].value);
+                    ++m_musicIndex;
+                }
+                if (m_musicIndex >= events.size() && m_musicTime >= m_music->duration) {
+                    if (m_musicLoops && m_music->loopTime >= 0) {
+                        m_musicIndex = m_music->loopIndex;
+                        m_musicTime = m_music->loopTime;
+                    } else if (m_musicLoops) {
+                        m_musicIndex = 0;
+                        m_musicTime = 0;
+                    } else {
+                        m_musicPlaying = false;
+                        m_musicFinished = true;
+                        return;
+                    }
+                }
+                m_musicTime += tick;
+            }
+            qint32 s[2];
+            stream.core->generate(s, 1);
+            stream.prev[0] = stream.next[0];
+            stream.prev[1] = stream.next[1];
+            stream.next[0] = static_cast<float>(s[0]) * scale;
+            stream.next[1] = static_cast<float>(s[1]) * scale;
+        }
+        const auto f = static_cast<float>(stream.frac);
+        out[2 * i] += (stream.prev[0] + (stream.next[0] - stream.prev[0]) * f) * stream.gain;
+        out[2 * i + 1] += (stream.prev[1] + (stream.next[1] - stream.prev[1]) * f) * stream.gain;
+        stream.frac += stream.step;
+    }
+}
+
 QByteArray wavFile(const qint16 *samples, qsizetype frames, int sampleRate) {
     const auto dataBytes = static_cast<quint32>(frames * 4);
-    QByteArray wav(44, '\0');
-    char *h = wav.data();
-    std::memcpy(h, "RIFF", 4);
-    qToLittleEndian<quint32>(36 + dataBytes, h + 4);
-    std::memcpy(h + 8, "WAVEfmt ", 8);
-    qToLittleEndian<quint32>(16, h + 16);
-    qToLittleEndian<quint16>(1, h + 20);
-    qToLittleEndian<quint16>(2, h + 22);
-    qToLittleEndian<quint32>(static_cast<quint32>(sampleRate), h + 24);
-    qToLittleEndian<quint32>(static_cast<quint32>(sampleRate) * 4, h + 28);
-    qToLittleEndian<quint16>(4, h + 32);
-    qToLittleEndian<quint16>(16, h + 34);
-    std::memcpy(h + 36, "data", 4);
-    qToLittleEndian<quint32>(dataBytes, h + 40);
-    QByteArray data(static_cast<qsizetype>(dataBytes), '\0');
+    const auto rate = static_cast<quint32>(sampleRate);
+    QByteArray wav;
+    wav.reserve(44 + static_cast<qsizetype>(dataBytes));
+    auto u32 = [&wav](quint32 v) {
+        char b[4];
+        qToLittleEndian<quint32>(v, b);
+        wav.append(b, 4);
+    };
+    auto u16 = [&wav](quint16 v) {
+        char b[2];
+        qToLittleEndian<quint16>(v, b);
+        wav.append(b, 2);
+    };
+    wav.append("RIFF");
+    u32(36 + dataBytes);
+    wav.append("WAVEfmt ");
+    u32(16);
+    u16(1); // PCM
+    u16(2); // stereo
+    u32(rate);
+    u32(rate * 4);
+    u16(4);
+    u16(16);
+    wav.append("data");
+    u32(dataBytes);
     for (qsizetype i = 0; i < frames * 2; ++i)
-        qToLittleEndian<qint16>(samples[i], data.data() + 2 * i);
-    wav.append(data);
+        u16(static_cast<quint16>(samples[i]));
     return wav;
 }
 

@@ -27,6 +27,7 @@ public:
 
     QByteArray toJson() const;
     QByteArray toCbor() const;
+    QByteArray toChipInstrument(InstrumentFormat format, QString *error = nullptr) const;
 
     Patch mutated(float amount, quint32 seed) const;
     bool fitsChip(ChipType chip, QStringList *violations = nullptr) const;
@@ -46,6 +47,7 @@ public:
     const PatchData *data() const { return d.constData(); }
 
 private:
+    friend class PatchBank;
     explicit Patch(PatchData *data);
     QSharedDataPointer<PatchData> d;
 };

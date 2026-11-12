@@ -542,7 +542,7 @@ template <typename T> T QVariant::value() const {
                 return dynamic_cast<U>(*static_cast<QObject *const *>(constData()));
         }
         U result{};
-        if (isValid() && convertInto(target, &result))
+        if (isValid() && convertInto(target, static_cast<void *>(&result)))
             return result;
         return U();
     }

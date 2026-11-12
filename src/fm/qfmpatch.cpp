@@ -2,6 +2,8 @@
 
 #include "qfmpatch_p.h"
 
+#include "qfmopl_p.h"
+
 #include <QtCore/qcborvalue.h>
 #include <QtCore/qjsonarray.h>
 #include <QtCore/qjsondocument.h>
@@ -578,6 +580,18 @@ void PatchData::randomise(quint32 &seed) {
     A file format of chip instruments that Patch::fromChipInstrument() reads.
 
     \value Sbi The Sound Blaster Instrument format of OPL2 instruments (52 bytes).
+    \value Ibk A bank of 128 SBI-like instruments with names, as PatchBank::fromChipBank() reads.
+*/
+
+/*!
+    \enum QtFM::MusicFormat
+
+    A file format of chip music that MusicPlayer::load() reads.
+
+    \value Auto Recognised by its header: VGM, VGZ, DRO, and otherwise IMF.
+    \value Vgm Video Game Music logs, gzipped (VGZ) or not, with an OPL2 or OPL3 part.
+    \value Dro DOSBox Raw OPL captures, versions 0.1 and 2.0.
+    \value Imf id Software Music Format, types 0 and 1, at MusicPlayer::imfRate().
 */
 
 /*!
@@ -870,7 +884,11 @@ bool Patch::fitsChip(ChipType chip, QStringList *violations) const {
             found.append(QStringLiteral("crush"));
         if (!(p.index == FmSweep{1, 1, 0, 0}))
             found.append(QStringLiteral("index"));
-        if (opl && (p.lfoPitch != 0.0f || p.lfoAmp != 0.0f || p.lfoIndex != 0.0f || p.lfoCutoff != 0.0f))
+        // The OPL chips have a fixed vibrato (7 or 14 cents) and tremolo (1 or 4.8 dB), and no other LFO.
+        const bool oplLfo = (p.lfoPitch == 0.0f || p.lfoPitch == 0.07f || p.lfoPitch == 0.14f) &&
+                            (p.lfoAmp == 0.0f || p.lfoAmp == 0.11f || p.lfoAmp == 0.55f) && p.lfoIndex == 0.0f &&
+                            p.lfoCutoff == 0.0f;
+        if (opl && !oplLfo)
             found.append(QStringLiteral("lfo"));
     }
     if (violations)
@@ -887,16 +905,49 @@ bool Patch::fitsChip(ChipType chip, QStringList *violations) const {
 Patch Patch::fromChipInstrument(const QByteArray &data, InstrumentFormat format, QString *error) {
     if (format != InstrumentFormat::Sbi || data.size() < 47 || !data.startsWith("SBI\x1a")) {
         if (error)
-            *error = QStringLiteral("not an SBI instrument");
+            *error = format == InstrumentFormat::Sbi ? QStringLiteral("not an SBI instrument")
+                                                     : QStringLiteral("a bank format: use PatchBank::fromChipBank()");
         return Patch();
     }
-    const auto *b = reinterpret_cast<const quint8 *>(data.constData());
+    const QByteArray name = data.mid(4, 32);
+    return Patch(Private::patchFromOpl(
+        reinterpret_cast<const quint8 *>(data.constData()) + 36,
+        QString::fromLatin1(name.constData(), static_cast<qsizetype>(qstrnlen(name.constData(), 32))).trimmed()));
+}
+
+/*!
+    Returns the patch as a chip instrument in \a format, or an empty array, with the reason in
+    \a error, if the patch cannot be expressed in it. Only InstrumentFormat::Sbi is a single
+    instrument; it needs a patch of two operators, and maps it to the nearest OPL2 values.
+
+    \sa fitsChip(), QtFM::PatchBank::toChipBank()
+*/
+QByteArray Patch::toChipInstrument(InstrumentFormat format, QString *error) const {
+    quint8 regs[11];
+    if (format != InstrumentFormat::Sbi || !d || !Private::oplInstrument(*d, regs)) {
+        if (error)
+            *error = format != InstrumentFormat::Sbi
+                         ? QStringLiteral("not a single-instrument format")
+                         : QStringLiteral("an SBI instrument needs a patch of two operators");
+        return QByteArray();
+    }
+    QByteArray sbi("SBI\x1a", 4);
+    QByteArray name = d->name.toLatin1().left(31);
+    name.resize(32, '\0');
+    sbi += name;
+    sbi.append(reinterpret_cast<const char *>(regs), 11);
+    sbi.append(QByteArray(5, '\0'));
+    return sbi;
+}
+
+namespace Private {
+
+PatchData *patchFromOpl(const quint8 *r, const QString &name) {
     auto *p = new PatchData;
-    p->name = QString::fromLatin1(data.mid(4, 32).constData()).trimmed();
+    p->name = name;
     p->chip = ChipType::OPL2;
     p->category = QStringLiteral("instrument");
     p->opCount = 2;
-    const quint8 *r = b + 36;
     // Times of the OPL2 envelope at rate 1, for 0 to 100% (attack) and 0 to -96 dB (decay), halving
     // with each step of the rate.
     auto attackTime = [](int rate) { return rate == 0 ? 10.0f : rate == 15 ? 0.0f : 2.826f / float(1 << (rate - 1)); };
@@ -908,18 +959,18 @@ Patch Patch::fromChipInstrument(const QByteArray &data, InstrumentFormat format,
         const quint8 ad = r[4 + op];
         const quint8 sr = r[6 + op];
         const quint8 wave = r[8 + op];
-        o.ratio = Private::oplMultiples[chr & 0x0f];
+        o.ratio = oplMultiples[chr & 0x0f];
         o.keyScaleRate = (chr & 0x10) ? 0.5f : 0.0f;
         static const float kslDb[] = {0.0f, 3.0f, 1.5f, 6.0f};
         o.keyScaleLevel = kslDb[ksl >> 6];
-        o.level = std::pow(10.0f, -0.75f * float(ksl & 0x3f) / 20.0f);
+        o.level = (ksl & 0x3f) == 63 ? 0.0f : std::pow(10.0f, -0.75f * float(ksl & 0x3f) / 20.0f);
         o.wave = static_cast<Waveform>(wave & 0x03);
         const int sl = sr >> 4;
         o.env.attack = attackTime(ad >> 4);
         const float sustainDb = sl == 15 ? 93.0f : 3.0f * float(sl);
-        o.env.sustain = sustainDb >= 93.0f ? 0.0f : std::pow(10.0f, -sustainDb / 20.0f);
+        o.env.sustain = sl == 15 ? 0.0f : std::pow(10.0f, -sustainDb / 20.0f);
         // The decay rate is for the whole 96 dB range; the decay stage only falls to the sustain level.
-        o.env.decay = decayTime(ad & 0x0f) * std::min(sustainDb, 96.0f) / 96.0f;
+        o.env.decay = (ad & 0x0f) == 15 ? 0.0f : decayTime(ad & 0x0f) * std::min(sustainDb, 96.0f) / 96.0f;
         o.env.release = decayTime(sr & 0x0f);
         o.env.curve = -4.6f;
         if (chr & 0x80)
@@ -935,8 +986,10 @@ Patch Patch::fromChipInstrument(const QByteArray &data, InstrumentFormat format,
     // reaches the sustain level, as a one-shot patch does.
     p->loop = (r[1] & 0x20) != 0;
     p->normalise();
-    return Patch(p);
+    return p;
 }
+
+} // namespace Private
 
 /*!
     Returns a random but plausible patch of \a category, drawn from \a seed: the same seed always

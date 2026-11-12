@@ -91,6 +91,7 @@
     This enum identifies the kind of an engine.
 
     \value Raster The software raster engine.
+    \value OpenGL2 The OpenGL engine of QOpenGLPaintDevice, in the Nt OpenGL module.
     \value User The first value for engines that applications define.
     \value MaxUser The last value for engines that applications define.
 */

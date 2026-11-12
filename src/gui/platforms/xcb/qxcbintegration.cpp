@@ -37,6 +37,17 @@ QPoint QXcbIntegration::cursorPosition() const { return m_connection->pointerPos
 
 void QXcbIntegration::setCursorPosition(const QPoint &pos) { m_connection->warpPointer(pos); }
 
+// OpenGL on X11 through the XCB platform of EGL; windows are created with the root visual.
+QEglNativePlatform QXcbIntegration::eglPlatform() const {
+    QEglNativePlatform native;
+    native.platform = 0x31DC; // EGL_PLATFORM_XCB_EXT
+    native.display = m_connection->xcb();
+    native.screen = m_connection->screenNumber();
+    native.windowSurfaces = true;
+    native.visualId = m_connection->visual();
+    return native;
+}
+
 QPlatformWindow *QXcbIntegration::createPlatformWindow(QWindow *window) const {
     return new QXcbWindow(window, m_connection.get());
 }

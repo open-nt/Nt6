@@ -150,7 +150,7 @@ check_cmake_sources() {
 }
 
 check_headers() {
-    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtGpio -Iinclude/QtSerialPort -Iinclude/QtSql -Iinclude/QtDBus -Iinclude/QtHttpServer -Iinclude/QtWebSockets -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtSvg -Iinclude/QtSvgWidgets -Iinclude/QtCharts -Iinclude/QtQml -Iinclude/QtFM -Iinclude/QtConcurrent -Iinclude/QtTest -I$build_root/release/generated" out
+    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtGpio -Iinclude/QtSerialPort -Iinclude/QtSql -Iinclude/QtDBus -Iinclude/QtHttpServer -Iinclude/QtWebSockets -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtSvg -Iinclude/QtSvgWidgets -Iinclude/QtCharts -Iinclude/QtOpenGL -Iinclude/QtQml -Iinclude/QtFM -Iinclude/QtFMQml -Iinclude/QtConcurrent -Iinclude/QtTest -I$build_root/release/generated" out
     need "$cxx" || return $?
     export cxx dirs
     # Each public header must compile when it is the only thing included.
@@ -221,7 +221,7 @@ check_cppcheck() {
     need cppcheck || return $?
     cppcheck --enable=warning,performance,portability --std=c++17 --inline-suppr \
         --suppressions-list=.cppcheck-suppressions --error-exitcode=1 --quiet \
-        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtGpio -Iinclude/QtSerialPort -Iinclude/QtSql -Iinclude/QtDBus -Iinclude/QtHttpServer -Iinclude/QtWebSockets -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtSvg -Iinclude/QtSvgWidgets -Iinclude/QtCharts -Iinclude/QtQml -Iinclude/QtFM -Iinclude/QtConcurrent -Iinclude/QtTest -I"$build_root/release/generated" -Isrc \
+        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtGpio -Iinclude/QtSerialPort -Iinclude/QtSql -Iinclude/QtDBus -Iinclude/QtHttpServer -Iinclude/QtWebSockets -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtSvg -Iinclude/QtSvgWidgets -Iinclude/QtCharts -Iinclude/QtOpenGL -Iinclude/QtQml -Iinclude/QtFM -Iinclude/QtFMQml -Iinclude/QtConcurrent -Iinclude/QtTest -I"$build_root/release/generated" -Isrc \
         -j "$jobs" src tools
 }
 

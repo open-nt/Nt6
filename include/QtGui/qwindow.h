@@ -7,6 +7,8 @@
 #include <QtCore/qsize.h>
 #include <QtCore/qstring.h>
 #include <QtGui/qcursor.h>
+#include <QtGui/qsurface.h>
+#include <QtGui/qsurfaceformat.h>
 
 #include <memory>
 
@@ -28,7 +30,7 @@ namespace QtPrivate {
 struct GuiAccess;
 }
 
-class QWindow : public QObject {
+class QWindow : public QObject, public QSurface {
     Q_OBJECT
     Q_PROPERTY(QString title READ title WRITE setTitle NOTIFY titleChanged)
     Q_PROPERTY(bool visible READ isVisible WRITE setVisible NOTIFY visibleChanged)
@@ -61,7 +63,7 @@ public:
     QPoint position() const { return geometry().topLeft(); }
     void setPosition(const QPoint &pt);
     void setPosition(int x, int y) { setPosition(QPoint(x, y)); }
-    QSize size() const { return geometry().size(); }
+    QSize size() const override { return geometry().size(); }
     void resize(const QSize &newSize);
     void resize(int w, int h) { resize(QSize(w, h)); }
     int x() const { return geometry().x(); }
@@ -76,6 +78,12 @@ public:
     QPoint mapFromGlobal(const QPoint &pos) const { return pos - position(); }
 
     QPlatformWindow *handle() const;
+
+    void setSurfaceType(QSurface::SurfaceType surfaceType);
+    QSurface::SurfaceType surfaceType() const override;
+    void setFormat(const QSurfaceFormat &format);
+    QSurfaceFormat requestedFormat() const;
+    QSurfaceFormat format() const override;
 
     QCursor cursor() const;
     void setCursor(const QCursor &cursor);

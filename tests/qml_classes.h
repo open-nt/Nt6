@@ -6,6 +6,7 @@
 
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
+#include <QtQml/qjsengine.h>
 #include <QtQml/qqml.h>
 #include <QtQml/qqmllist.h>
 
@@ -74,6 +75,24 @@ private:
     QString m_label;
     Gauge *m_next = nullptr;
     Unit m_unit = Celsius;
+};
+
+// A factory whose objects belong to the script that receives them.
+class Spawner : public QObject {
+    Q_OBJECT
+public:
+    static inline int alive = 0;
+    Q_INVOKABLE QObject *spawn() const {
+        auto *o = new QObject;
+        ++alive;
+        QObject::connect(o, &QObject::destroyed, [] { --alive; });
+        return o;
+    }
+    Q_INVOKABLE QObject *spawnKept() const {
+        QObject *o = spawn();
+        QJSEngine::setObjectOwnership(o, QJSEngine::CppOwnership);
+        return o;
+    }
 };
 
 class Settings : public QObject {

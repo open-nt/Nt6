@@ -273,7 +273,8 @@ std::unique_ptr<QXcbConnection> QXcbConnection::create(QString *error) {
     return connection;
 }
 
-QXcbConnection::QXcbConnection(xcb_connection_t *connection, int screenNumber) : m_connection(connection) {
+QXcbConnection::QXcbConnection(xcb_connection_t *connection, int screenNumber)
+    : m_connection(connection), m_screenNumber(screenNumber) {
     const xcb_setup_t *setup = xcb_get_setup(connection);
     xcb_screen_iterator_t it = xcb_setup_roots_iterator(setup);
     for (int i = 0; i < screenNumber && it.rem; ++i)

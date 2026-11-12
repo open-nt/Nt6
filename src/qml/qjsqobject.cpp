@@ -6,6 +6,7 @@
 #include "qjsbuiltins_p.h"
 
 #include <QtCore/qdatetime.h>
+#include <QtQml/qjsengine.h>
 #include <QtCore/qline.h>
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qobject.h>
@@ -126,6 +127,16 @@ Value invokeMethod(Runtime &runtime, QObject *object, const QList<QMetaMethod> &
     }
     if (!result.isValid())
         return Value();
+    if (returnType.flags() & QMetaType::PointerToQObject) {
+        // As in Qt, a QObject without a parent returned to a script belongs to the script engine,
+        // unless its ownership was set: the engine deletes it once no script can reach it.
+        QObject *o = *static_cast<QObject *const *>(result.constData());
+        if (o && !o->parent()) {
+            const QVariant explicitOwnership = o->property("_q_ntJSOwnership");
+            if (!explicitOwnership.isValid() || explicitOwnership.toInt() == QJSEngine::JavaScriptOwnership)
+                runtime.scriptOwned.insert(o, true);
+        }
+    }
     if (returnType.id() == QMetaType::QVariant)
         return runtime.fromVariant(*static_cast<const QVariant *>(result.constData()));
     return runtime.fromVariant(result);
@@ -171,8 +182,20 @@ bool QObjectWrapper::getOwn(Runtime &runtime, const QString &name, const Value &
         return true;
     }
     const QList<QMetaMethod> overloads = methodsNamed(o->metaObject(), name);
-    if (overloads.isEmpty())
+    if (overloads.isEmpty()) {
+        // The keys of the object's Q_ENUMs, as Qt gives them on singletons: Singleton.Key.
+        const QMetaObject *mo = o->metaObject();
+        const QByteArray enumKey = name.toUtf8();
+        for (int i = 0; i < mo->enumeratorCount(); ++i) {
+            bool ok = false;
+            const int value = mo->enumerator(i).keyToValue(enumKey.constData(), &ok);
+            if (ok) {
+                *out = Value::number(value);
+                return true;
+            }
+        }
         return false;
+    }
     QPointer<QObject> guard = o;
     Function *f = runtime.newNative(name, overloads.first().parameterCount(),
                                     [guard, overloads, name](Runtime &rt, const Value &, const Values &args, Object *) {

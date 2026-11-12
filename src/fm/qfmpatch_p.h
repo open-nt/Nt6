@@ -126,6 +126,8 @@ inline float randomRange(quint32 &state, float lo, float hi) {
 }
 // The ratio of each value of an OPL multiplier register, 0..15.
 extern const float oplMultiples[16];
+// Returns the native patch of the 11 OPL2 instrument registers at r, in the SBI order.
+PatchData *patchFromOpl(const quint8 *r, const QString &name);
 } // namespace Private
 
 } // namespace QtFM

@@ -160,66 +160,67 @@ void QRasterPaintEngine::fillSpan(int y, int x0, int x1, QRgb premult) {
         fillRect(QRect(x0, y, x1 - x0, 1), premult);
 }
 
-void QRasterPaintEngine::strokeSquare(int cx, int cy, int width, QRgb premult) {
+namespace {
+
+void squareAt(int cx, int cy, int width, const QtRasterPrivate::RectSink &sink, bool pen) {
     const int half = (width - 1) / 2;
-    fillRect(QRect(cx - half, cy - half, width, width), premult);
+    sink(QRect(cx - half, cy - half, width, width), pen);
 }
 
-void QRasterPaintEngine::strokeRect(const QRect &rect, int width, QRgb premult) {
+void outlineRect(const QRect &rect, int width, const QtRasterPrivate::RectSink &sink) {
     const int half = (width - 1) / 2;
     const QRect outer(rect.x() - half, rect.y() - half, rect.width() + width, rect.height() + width);
     if (outer.width() <= 2 * width || outer.height() <= 2 * width) {
-        fillRect(outer, premult);
+        sink(outer, true);
         return;
     }
-    fillRect(QRect(outer.x(), outer.y(), outer.width(), width), premult);
-    fillRect(QRect(outer.x(), outer.bottom() - width + 1, outer.width(), width), premult);
-    fillRect(QRect(outer.x(), outer.y() + width, width, outer.height() - 2 * width), premult);
-    fillRect(QRect(outer.right() - width + 1, outer.y() + width, width, outer.height() - 2 * width), premult);
+    sink(QRect(outer.x(), outer.y(), outer.width(), width), true);
+    sink(QRect(outer.x(), outer.bottom() - width + 1, outer.width(), width), true);
+    sink(QRect(outer.x(), outer.y() + width, width, outer.height() - 2 * width), true);
+    sink(QRect(outer.right() - width + 1, outer.y() + width, width, outer.height() - 2 * width), true);
 }
 
-void QRasterPaintEngine::drawRects(const QRect *rects, int rectCount) {
-    const QPen pen = m_state.pen();
-    const QBrush brush = m_state.brush();
+} // namespace
+
+void QtRasterPrivate::rectsOfRects(const QRect *rects, int rectCount, const QPen &pen, bool fill,
+                                   const RectSink &sink) {
     const bool stroke = pen.style() != Qt::NoPen;
     const int pw = std::max(1, pen.width());
     for (int i = 0; i < rectCount; ++i) {
         const QRect r = rects[i].normalized();
-        if (brush.style() != Qt::NoBrush) {
+        if (fill) {
             QRect fillArea = r;
             if (stroke)
                 fillArea = QRect(r.x() - (pw - 1) / 2 + pw, r.y() - (pw - 1) / 2 + pw, r.width() + pw - 2 * pw,
                                  r.height() + pw - 2 * pw);
-            fillRect(fillArea, premultiplied(brush.color()));
+            sink(fillArea, false);
         }
         if (stroke)
-            strokeRect(r, pw, premultiplied(pen.color()));
+            outlineRect(r, pw, sink);
     }
 }
 
-void QRasterPaintEngine::drawLines(const QLine *lines, int lineCount) {
-    const QPen pen = m_state.pen();
+void QtRasterPrivate::rectsOfLines(const QLine *lines, int lineCount, const QPen &pen, const RectSink &sink) {
     if (pen.style() == Qt::NoPen)
         return;
     const int pw = std::max(1, pen.width());
     const int half = (pw - 1) / 2;
-    const QRgb color = premultiplied(pen.color());
     for (int i = 0; i < lineCount; ++i) {
         int x0 = lines[i].x1(), y0 = lines[i].y1();
         const int x1 = lines[i].x2(), y1 = lines[i].y2();
         if (y0 == y1) {
-            fillRect(QRect(std::min(x0, x1) - half, y0 - half, std::abs(x1 - x0) + pw, pw), color);
+            sink(QRect(std::min(x0, x1) - half, y0 - half, std::abs(x1 - x0) + pw, pw), true);
             continue;
         }
         if (x0 == x1) {
-            fillRect(QRect(x0 - half, std::min(y0, y1) - half, pw, std::abs(y1 - y0) + pw), color);
+            sink(QRect(x0 - half, std::min(y0, y1) - half, pw, std::abs(y1 - y0) + pw), true);
             continue;
         }
         const int dx = std::abs(x1 - x0), dy = -std::abs(y1 - y0);
         const int sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
         int err = dx + dy;
         for (;;) {
-            strokeSquare(x0, y0, pw, color);
+            squareAt(x0, y0, pw, sink, true);
             if (x0 == x1 && y0 == y1)
                 break;
             const int e2 = 2 * err;
@@ -235,34 +236,31 @@ void QRasterPaintEngine::drawLines(const QLine *lines, int lineCount) {
     }
 }
 
-void QRasterPaintEngine::drawPoints(const QPoint *points, int pointCount) {
-    const QPen pen = m_state.pen();
+void QtRasterPrivate::rectsOfPoints(const QPoint *points, int pointCount, const QPen &pen, const RectSink &sink) {
     if (pen.style() == Qt::NoPen)
         return;
-    const QRgb color = premultiplied(pen.color());
     for (int i = 0; i < pointCount; ++i)
-        strokeSquare(points[i].x(), points[i].y(), std::max(1, pen.width()), color);
+        squareAt(points[i].x(), points[i].y(), std::max(1, pen.width()), sink, true);
 }
 
-void QRasterPaintEngine::drawEllipse(const QRect &rectIn) {
+void QtRasterPrivate::rectsOfEllipse(const QRect &rectIn, const QPen &pen, bool fill, const RectSink &sink) {
     const QRect rect = rectIn.normalized();
     if (rect.isEmpty())
         return;
-    const QPen pen = m_state.pen();
-    const QBrush brush = m_state.brush();
     const bool stroke = pen.style() != Qt::NoPen;
-    const bool fill = brush.style() != Qt::NoBrush;
     if (!stroke && !fill)
         return;
     const int pw = std::max(1, pen.width());
-    const QRgb penColor = premultiplied(pen.color());
-    const QRgb brushColor = premultiplied(brush.color());
     const double cx = rect.x() + rect.width() / 2.0;
     const double cy = rect.y() + rect.height() / 2.0;
     const double rx = rect.width() / 2.0;
     const double ry = rect.height() / 2.0;
     const double irx = stroke ? rx - pw : rx;
     const double iry = stroke ? ry - pw : ry;
+    const auto span = [&sink](int y, int x0, int x1, bool withPen) {
+        if (x1 > x0)
+            sink(QRect(x0, y, x1 - x0, 1), withPen);
+    };
     for (int y = rect.top(); y <= rect.bottom(); ++y) {
         const double dy = y + 0.5 - cy;
         const double t = 1.0 - (dy * dy) / (ry * ry);
@@ -283,17 +281,42 @@ void QRasterPaintEngine::drawEllipse(const QRect &rectIn) {
         }
         if (stroke) {
             if (hasInner) {
-                fillSpan(y, oL, iL, penColor);
-                fillSpan(y, iR, oR, penColor);
+                span(y, oL, iL, true);
+                span(y, iR, oR, true);
                 if (fill)
-                    fillSpan(y, iL, iR, brushColor);
+                    span(y, iL, iR, false);
             } else {
-                fillSpan(y, oL, oR, penColor);
+                span(y, oL, oR, true);
             }
         } else {
-            fillSpan(y, oL, oR, brushColor);
+            span(y, oL, oR, false);
         }
     }
+}
+
+void QRasterPaintEngine::drawRects(const QRect *rects, int rectCount) {
+    const QRgb penColor = premultiplied(m_state.pen().color());
+    const QRgb brushColor = premultiplied(m_state.brush().color());
+    QtRasterPrivate::rectsOfRects(rects, rectCount, m_state.pen(), m_state.brush().style() != Qt::NoBrush,
+                                  [&](const QRect &r, bool pen) { fillRect(r, pen ? penColor : brushColor); });
+}
+
+void QRasterPaintEngine::drawLines(const QLine *lines, int lineCount) {
+    const QRgb color = premultiplied(m_state.pen().color());
+    QtRasterPrivate::rectsOfLines(lines, lineCount, m_state.pen(), [&](const QRect &r, bool) { fillRect(r, color); });
+}
+
+void QRasterPaintEngine::drawPoints(const QPoint *points, int pointCount) {
+    const QRgb color = premultiplied(m_state.pen().color());
+    QtRasterPrivate::rectsOfPoints(points, pointCount, m_state.pen(),
+                                   [&](const QRect &r, bool) { fillRect(r, color); });
+}
+
+void QRasterPaintEngine::drawEllipse(const QRect &rect) {
+    const QRgb penColor = premultiplied(m_state.pen().color());
+    const QRgb brushColor = premultiplied(m_state.brush().color());
+    QtRasterPrivate::rectsOfEllipse(rect, m_state.pen(), m_state.brush().style() != Qt::NoBrush,
+                                    [&](const QRect &r, bool pen) { fillRect(r, pen ? penColor : brushColor); });
 }
 
 void QRasterPaintEngine::drawImage(const QRect &rect, const QImage &image, const QRect &sourceRect) {
@@ -396,25 +419,24 @@ raster::Path toRasterPath(const QPainterPath &path) {
 
 } // namespace
 
-void QRasterPaintEngine::drawPath(const QPainterPath &path) {
-    if (!m_image || path.isEmpty())
-        return;
-    const QTransform t = m_state.transform();
-    const raster::Mat m = toMat(t);
+bool QtRasterPrivate::pathGeometry(const QPainterPath &path, const QTransform &toDevice, bool fill, const QPen &pen,
+                                   bool antialias, PathGeometry *out) {
+    out->fill.clear();
+    out->stroke.clear();
+    out->evenOdd = path.fillRule() == Qt::OddEvenFill;
+    if (path.isEmpty())
+        return false;
+    const raster::Mat m = toMat(toDevice);
     const double scale = std::max(1e-9, m.scale());
     const double tolerance = 0.2 / scale;
     const raster::Path p = toRasterPath(path);
     const std::vector<raster::Path::Contour> contours = p.flatten(tolerance);
     if (contours.empty())
-        return;
-    if (m_state.brush().style() != Qt::NoBrush) {
-        raster::Polygons polygons;
-        raster::fillContours(contours, m, &polygons);
-        paintCoverage(&polygons, path.fillRule() == Qt::OddEvenFill, m_state.brush(), false, t);
-    }
-    const QPen pen = m_state.pen();
+        return false;
+    if (fill)
+        raster::fillContours(contours, m, &out->fill);
     if (pen.style() == Qt::NoPen || pen.color().alpha() == 0)
-        return;
+        return true;
     raster::StrokeStyle style;
     const double width = pen.widthF() > 0.0 ? pen.widthF() : 1.0;
     style.width = pen.isCosmetic() ? width / scale : width;
@@ -430,15 +452,64 @@ void QRasterPaintEngine::drawPath(const QPainterPath &path) {
     for (const qreal d : dashes)
         style.dashes.push_back(std::max(1e-3, d) * (pen.isCosmetic() ? unit / scale : unit));
     style.dashOffset = pen.dashOffset() * (pen.isCosmetic() ? unit / scale : unit);
-    raster::Polygons polygons;
-    raster::strokeContours(contours, style, m, tolerance, &polygons);
+    raster::strokeContours(contours, style, m, tolerance, &out->stroke);
     // Aliased strokes are moved half a pixel, so that a line on whole coordinates covers whole pixels.
-    if (!(m_state.renderHints() & QPainter::Antialiasing))
-        for (raster::Pt &pt : polygons.points) {
+    if (!antialias)
+        for (raster::Pt &pt : out->stroke.points) {
             pt.x += 0.5;
             pt.y += 0.5;
         }
-    paintCoverage(&polygons, false, pen.brush(), true, t);
+    return true;
+}
+
+bool QtRasterPrivate::gradientShader(const QBrush &brush, const QTransform &toDevice, double opacity, Shader *shader) {
+    const QGradient *gradient = brush.gradient();
+    if (!gradient)
+        return false;
+    shader->gradient = true;
+    std::vector<raster::GradientStop> stops;
+    for (const QGradientStop &s : gradient->stops())
+        stops.push_back({s.first, s.second.redF(), s.second.greenF(), s.second.blueF(), s.second.alphaF()});
+    shader->setStops(stops, opacity);
+    bool invertible = false;
+    const QTransform toGradient = (brush.transform() * toDevice).inverted(&invertible);
+    if (!invertible)
+        return false;
+    shader->toGradient = toMat(toGradient);
+    shader->spread = gradient->spread() == QGradient::RepeatSpread    ? raster::Spread::Repeat
+                     : gradient->spread() == QGradient::ReflectSpread ? raster::Spread::Reflect
+                                                                      : raster::Spread::Pad;
+    if (gradient->type() == QGradient::LinearGradient) {
+        const auto *g = static_cast<const QLinearGradient *>(gradient);
+        shader->p1 = {g->start().x(), g->start().y()};
+        shader->p2 = {g->finalStop().x(), g->finalStop().y()};
+    } else if (gradient->type() == QGradient::RadialGradient) {
+        const auto *g = static_cast<const QRadialGradient *>(gradient);
+        shader->radial = true;
+        shader->p1 = {g->center().x(), g->center().y()};
+        shader->p2 = {g->focalPoint().x(), g->focalPoint().y()};
+        shader->radius = g->radius();
+    } else {
+        const auto *g = static_cast<const QConicalGradient *>(gradient);
+        shader->conical = true;
+        shader->p1 = {g->center().x(), g->center().y()};
+        shader->angle = g->angle();
+    }
+    return true;
+}
+
+void QRasterPaintEngine::drawPath(const QPainterPath &path) {
+    if (!m_image || path.isEmpty())
+        return;
+    const QTransform t = m_state.transform();
+    raster::PathGeometry geometry;
+    const bool fill = m_state.brush().style() != Qt::NoBrush;
+    if (!raster::pathGeometry(path, t, fill, m_state.pen(), m_state.renderHints() & QPainter::Antialiasing, &geometry))
+        return;
+    if (fill)
+        paintCoverage(&geometry.fill, geometry.evenOdd, m_state.brush(), false, t);
+    if (!geometry.stroke.points.empty())
+        paintCoverage(&geometry.stroke, false, m_state.pen().brush(), true, t);
 }
 
 void QRasterPaintEngine::paintCoverage(const void *polygonData, bool evenOdd, const QBrush &brush, bool pen,
@@ -482,37 +553,8 @@ void QRasterPaintEngine::paintCoverage(const void *polygonData, bool evenOdd, co
     const QGradient *gradient = pen ? nullptr : brush.gradient();
     raster::Shader shader;
     const QRgb solid = premultiplied(gradient ? QColor(Qt::black) : brush.color());
-    if (gradient) {
-        shader.gradient = true;
-        std::vector<raster::GradientStop> stops;
-        for (const QGradientStop &s : gradient->stops())
-            stops.push_back({s.first, s.second.redF(), s.second.greenF(), s.second.blueF(), s.second.alphaF()});
-        shader.setStops(stops, m_state.opacity());
-        bool invertible = false;
-        const QTransform toGradient = (brush.transform() * toDevice).inverted(&invertible);
-        if (!invertible)
-            return;
-        shader.toGradient = toMat(toGradient);
-        shader.spread = gradient->spread() == QGradient::RepeatSpread    ? raster::Spread::Repeat
-                        : gradient->spread() == QGradient::ReflectSpread ? raster::Spread::Reflect
-                                                                         : raster::Spread::Pad;
-        if (gradient->type() == QGradient::LinearGradient) {
-            const auto *g = static_cast<const QLinearGradient *>(gradient);
-            shader.p1 = {g->start().x(), g->start().y()};
-            shader.p2 = {g->finalStop().x(), g->finalStop().y()};
-        } else if (gradient->type() == QGradient::RadialGradient) {
-            const auto *g = static_cast<const QRadialGradient *>(gradient);
-            shader.radial = true;
-            shader.p1 = {g->center().x(), g->center().y()};
-            shader.p2 = {g->focalPoint().x(), g->focalPoint().y()};
-            shader.radius = g->radius();
-        } else {
-            const auto *g = static_cast<const QConicalGradient *>(gradient);
-            shader.conical = true;
-            shader.p1 = {g->center().x(), g->center().y()};
-            shader.angle = g->angle();
-        }
-    }
+    if (gradient && !raster::gradientShader(brush, toDevice, m_state.opacity(), &shader))
+        return;
     const bool antialias = m_state.renderHints() & QPainter::Antialiasing;
     const QPainter::CompositionMode mode = m_state.compositionMode();
     const QImage::Format f = m_image->format();

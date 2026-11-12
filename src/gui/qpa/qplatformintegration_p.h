@@ -7,6 +7,15 @@
 #include <QtCore/qstringlist.h>
 
 class QPlatformBackingStore;
+
+// How OpenGL reaches the window system of a platform through EGL.
+struct QEglNativePlatform {
+    unsigned platform = 0;       // an EGL_PLATFORM_* value; 0 if the platform has no OpenGL
+    void *display = nullptr;     // the native display for eglGetPlatformDisplay()
+    int screen = -1;             // the screen attribute of the X11 and XCB platforms, or -1
+    bool windowSurfaces = false; // windows get EGL window surfaces; otherwise each renders into a framebuffer object
+    unsigned visualId = 0;       // the native visual of the windows, which the EGL config must match; 0 for any
+};
 class QPlatformWindow;
 class QWindow;
 
@@ -29,6 +38,8 @@ public:
     virtual QPoint cursorPosition() const;
     // Moves the mouse cursor. The default only remembers the position.
     virtual void setCursorPosition(const QPoint &pos);
+    // How OpenGL contexts reach the window system. The default has no OpenGL.
+    virtual QEglNativePlatform eglPlatform() const { return {}; }
 };
 
 namespace QtPrivate {

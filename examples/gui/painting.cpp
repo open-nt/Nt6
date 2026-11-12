@@ -4,12 +4,21 @@
 // transformations, antialiased.
 //
 //   painting                    shows the scenes in a window, animated, with the frame rate in the title
+//   painting --gl               the same with OpenGL (QOpenGLWindow, 4x multisampling), not waiting for vsync
+//   painting --gl-vsync         the same, synchronized with the display
 //   painting --write <dir>      writes the pictures of the documentation to <dir>/painter/*.png
-//   painting --bench [frames]   draws each scene on an 800 by 600 image and prints the time per frame
+//   painting --bench [frames]   draws each scene at 800 by 600, in software into an image and with OpenGL into a
+//                               multisampled framebuffer object, and prints the time per frame of each
 #include <QDir>
 #include <QElapsedTimer>
 #include <QGuiApplication>
 #include <QImage>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
+#include <QOpenGLFramebufferObject>
+#include <QOpenGLFunctions>
+#include <QOpenGLPaintDevice>
+#include <QOpenGLWindow>
 #include <QPainter>
 #include <QPainterPath>
 #include <QRasterWindow>
@@ -139,6 +148,40 @@ QImage render(const Scene &scene, QSize size, double phase) {
     return image;
 }
 
+// Draws every scene in a grid of cells; `phase` animates them.
+void drawGrid(QPainter &painter, int width, int height, double phase) {
+    painter.fillRect(QRect(0, 0, width, height), Qt::white);
+    const auto &list = scenes();
+    const int cols = 3, rows = 2;
+    const QSizeF cell(width / static_cast<double>(cols), height / static_cast<double>(rows));
+    for (std::size_t i = 0; i < list.size(); ++i) {
+        painter.save();
+        painter.translate(cell.width() * static_cast<double>(i % cols), cell.height() * static_cast<double>(i / cols));
+        painter.setClipRect(QRect(0, 0, static_cast<int>(cell.width()), static_cast<int>(cell.height())));
+        list[i].draw(painter, cell, phase);
+        painter.restore();
+    }
+}
+
+// Counts frames and shows the rate in the title of `window` once a second.
+class FrameCounter {
+public:
+    FrameCounter() { m_second.start(); }
+    void frame(QWindow *window, const char *what) {
+        ++m_frames;
+        if (m_second.elapsed() >= 1000) {
+            window->setTitle(QStringLiteral("Nt painting (%1) - %2 frames per second")
+                                 .arg(QString::fromLatin1(what))
+                                 .arg(m_frames * 1000.0 / static_cast<double>(m_second.restart()), 0, 'f', 1));
+            m_frames = 0;
+        }
+    }
+
+private:
+    QElapsedTimer m_second;
+    int m_frames = 0;
+};
+
 class Window : public QRasterWindow {
 public:
     Window() {
@@ -151,37 +194,74 @@ public:
 protected:
     void paintEvent(QPaintEvent *) override {
         QPainter painter(this);
-        painter.fillRect(QRect(0, 0, width(), height()), Qt::white);
-        const double phase = static_cast<double>(m_clock.elapsed()) / 20.0;
-        const auto &list = scenes();
-        const int cols = 3, rows = 2;
-        const QSizeF cell(width() / static_cast<double>(cols), height() / static_cast<double>(rows));
-        for (std::size_t i = 0; i < list.size(); ++i) {
-            painter.save();
-            painter.translate(cell.width() * static_cast<double>(i % cols),
-                              cell.height() * static_cast<double>(i / cols));
-            painter.setClipRect(QRect(0, 0, static_cast<int>(cell.width()), static_cast<int>(cell.height())));
-            list[i].draw(painter, cell, phase);
-            painter.restore();
-        }
-        ++m_frames;
-        if (m_second.elapsed() >= 1000) {
-            setTitle(QStringLiteral("Nt painting - %1 frames per second")
-                         .arg(m_frames * 1000.0 / static_cast<double>(m_second.restart()), 0, 'f', 1));
-            m_frames = 0;
-        }
+        drawGrid(painter, width(), height(), static_cast<double>(m_clock.elapsed()) / 20.0);
+        m_counter.frame(this, "raster");
     }
 
 private:
     QTimer m_timer;
     QElapsedTimer m_clock;
-    QElapsedTimer m_second = [] {
-        QElapsedTimer t;
-        t.start();
-        return t;
-    }();
-    int m_frames = 0;
+    FrameCounter m_counter;
 };
+
+// The same scenes with OpenGL: each swapped frame asks for the next.
+class GLWindow : public QOpenGLWindow {
+public:
+    explicit GLWindow(bool vsync) {
+        QSurfaceFormat format;
+        format.setSamples(4);
+        format.setSwapInterval(vsync ? 1 : 0);
+        setFormat(format);
+        resize(900, 600);
+        connect(this, &QOpenGLWindow::frameSwapped, this, [this] { update(); });
+        m_clock.start();
+    }
+
+protected:
+    void paintGL() override {
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        drawGrid(painter, width(), height(), static_cast<double>(m_clock.elapsed()) / 20.0);
+        painter.end();
+        m_counter.frame(this, "OpenGL");
+    }
+
+private:
+    QElapsedTimer m_clock;
+    FrameCounter m_counter;
+};
+
+// Times `frames` frames of `scene` with OpenGL into a 4x multisampled framebuffer object, waiting for each to
+// finish; returns milliseconds per frame, or a negative number without OpenGL.
+double benchOpenGL(const Scene &scene, int frames) {
+    static QOffscreenSurface *surface = nullptr;
+    static QOpenGLContext *context = nullptr;
+    if (!context) {
+        surface = new QOffscreenSurface;
+        surface->create();
+        context = new QOpenGLContext;
+        if (!surface->isValid() || !context->create() || !context->makeCurrent(surface))
+            return -1.0;
+    }
+    QOpenGLFramebufferObjectFormat format;
+    format.setSamples(4);
+    format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
+    QOpenGLFramebufferObject fbo(QSize(800, 600), format);
+    QOpenGLPaintDevice device(fbo.size());
+    fbo.bind();
+    QElapsedTimer timer;
+    timer.start();
+    for (int f = 0; f < frames; ++f) {
+        QPainter painter(&device);
+        painter.fillRect(QRect(0, 0, 800, 600), Qt::white);
+        scene.draw(painter, QSizeF(800, 600), f);
+        painter.end();
+        context->functions()->glFinish();
+    }
+    const double ms = static_cast<double>(timer.nsecsElapsed()) / 1e6 / frames;
+    fbo.release();
+    return ms;
+}
 
 } // namespace
 
@@ -199,7 +279,7 @@ int main(int argc, char *argv[]) {
     }
     if (argc >= 2 && std::strcmp(argv[1], "--bench") == 0) {
         const int frames = argc >= 3 ? std::max(1, std::atoi(argv[2])) : 100;
-        std::printf("%-12s %10s %10s\n", "scene", "ms/frame", "frames/s");
+        std::printf("%-12s %12s %12s %12s %12s\n", "scene", "raster ms", "raster fps", "OpenGL ms", "OpenGL fps");
         for (const Scene &s : scenes()) {
             QImage image(800, 600, QImage::Format_ARGB32_Premultiplied);
             QElapsedTimer timer;
@@ -210,9 +290,18 @@ int main(int argc, char *argv[]) {
                 s.draw(painter, QSizeF(800, 600), f);
             }
             const double ms = static_cast<double>(timer.nsecsElapsed()) / 1e6 / frames;
-            std::printf("%-12s %10.3f %10.1f\n", s.name, ms, 1000.0 / ms);
+            const double gl = benchOpenGL(s, frames);
+            if (gl < 0)
+                std::printf("%-12s %12.3f %12.1f %12s %12s\n", s.name, ms, 1000.0 / ms, "-", "-");
+            else
+                std::printf("%-12s %12.3f %12.1f %12.3f %12.1f\n", s.name, ms, 1000.0 / ms, gl, 1000.0 / gl);
         }
         return 0;
+    }
+    if (argc >= 2 && (std::strcmp(argv[1], "--gl") == 0 || std::strcmp(argv[1], "--gl-vsync") == 0)) {
+        GLWindow window(std::strcmp(argv[1], "--gl-vsync") == 0);
+        window.show();
+        return app.exec();
     }
     Window window;
     window.show();

@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt Qml`, `Nt FM`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt Qml`, `Nt FM`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -101,12 +101,13 @@ Nt Widgets draws its own Fusion-like style, light and dark. This is [`hello_widg
 | [`examples/signals`](examples/signals), [`examples/moc`](examples/moc) | signals and slots, and `ntmoc` |
 | [`examples/httpserver`](examples/httpserver/hello_server.cpp) | routes, JSON, streaming, delayed answers and WebSockets on one port |
 | [`examples/websockets`](examples/websockets), [`examples/dbus`](examples/dbus), [`examples/serialport`](examples/serialport), [`examples/sql`](examples/sql) | an echo server and client, a clock on the session bus, serial ports, an address book in SQLite |
-| [`examples/gui`](examples/gui), [`examples/widgets`](examples/widgets), [`examples/svg`](examples/svg), [`examples/charts`](examples/charts) | a painted window, the widget gallery, SVG rendering, a live chart dashboard |
-| [`examples/fm`](examples/fm/fmplay.cpp) | game sound effects synthesised with FM: generated, played live and rendered to WAV |
+| [`examples/gui`](examples/gui), [`examples/widgets`](examples/widgets), [`examples/svg`](examples/svg), [`examples/charts`](examples/charts), [`examples/opengl`](examples/opengl) | a painted window, the widget gallery, SVG rendering, a live chart dashboard, a window rendered with OpenGL |
+| [`examples/fm`](examples/fm) | game sound effects synthesised with FM, chip music and the QML types: [`fmplay`](examples/fm/fmplay.cpp) and [`fmqml`](examples/fm/fmqml.cpp) |
 
 ## Contents
 
 - [Status](#status): what each module implements, and what it does not yet
+- [Nt Only](#nt-only): modules, functions and platforms that Qt does not have
 - [Qt 6 modules and their Nt names](#qt-6-modules-and-their-nt-names)
 - [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator): the tools
 - [Build](#build) and [Packages](#packages)
@@ -272,7 +273,9 @@ Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration 
 | `QGuiApplication`, `QScreen` | platform selection, screens, focus window, keyboard modifiers and mouse buttons, `quitOnLastWindowClosed` |
 | `QWindow`, `QBackingStore` | top-level windows: geometry, title, show/hide/close, expose, `requestUpdate`, mouse, wheel, key, focus, enter/leave, move, resize and close events |
 | `QPaintDeviceWindow`, `QRasterWindow` | windows you paint on with `QPainter`, repainted from the event loop |
-| `QPainter`, `QPaintDevice`, `QPaintEngine` | software raster engine: pen, brush, opacity, clipping, translation, composition modes; rectangles, lines, points, ellipses, images and text, without antialiasing of shapes |
+| `QPainter`, `QPaintDevice`, `QPaintEngine` | software raster engine, or OpenGL through Nt OpenGL: pen, brush, opacity, clipping, transformations, composition modes; rectangles, lines, points, ellipses, arcs, polygons, paths, images and text, with integer and floating-point coordinates, antialiased on request |
+| `QPainterPath`, `QTransform`, `QPolygon`, `QPolygonF`, `QLinearGradient`, `QRadialGradient`, `QConicalGradient` | Bezier paths with both fill rules, affine transformations, gradients with spread modes; pens with caps, joins and dashes |
+| `QOpenGLContext`, `QOpenGLFunctions`, `QSurfaceFormat`, `QSurface`, `QOffscreenSurface` | OpenGL through EGL, loaded at run time: desktop OpenGL or OpenGL ES contexts, sharing, the OpenGL ES 2.0 functions, swap interval (vsync on or off), multisampling; windows of the `offscreen` platform render into framebuffer objects |
 | `QFont`, `QFontMetrics` | families found with fontconfig, point or pixel size, weight, italic; metrics, `elidedText()`, `drawText()` with alignment, word wrap and clipping; glyphs are anti-aliased by FreeType |
 | `QImage`, `QPixmap`, `QColor`, `QRgb`, `QPen`, `QBrush`, `QRegion` | 32-bit images (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`) with implicit sharing, loading and saving of PNG, BMP and JPEG files, colors with `#rgb` and CSS names, solid pens and brushes, rectangle-list regions |
 | `QAction`, `QActionGroup`, `QKeySequence`, `QActionEvent` | what a user can do, shared by menus and shortcuts: text, check state, enabled and visible, a shortcut (a key with modifiers, from a string or a standard key), exclusive groups, and the events for widgets that show actions. No icons, and one key per sequence |
@@ -281,7 +284,7 @@ Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration 
 
 Guide: [Using Nt GUI](https://open-nt.github.io/Nt6/nt-gui.html). The [`hello_window`](examples/gui/hello_window.cpp) example paints a window and follows the mouse.
 
-Not implemented yet: text shaping (HarfBuzz) and font fallback, `QFontDatabase`, editing of a `QTextDocument` (`QTextCursor` over it, tables, images, style sheets), other image formats and `QImageReader`/`QImageWriter`, `QTransform`, paths and gradients, antialiasing, the clipboard, cursors made of pixmaps and themed cursors (`QCursor` has the standard shapes, from the cursor font of the X server), RandR multi-screen, and Wayland.
+Not implemented yet: text shaping (HarfBuzz) and font fallback, `QFontDatabase`, editing of a `QTextDocument` (`QTextCursor` over it, tables, images, style sheets), other image formats and `QImageReader`/`QImageWriter`, the clipboard, cursors made of pixmaps and themed cursors (`QCursor` has the standard shapes, from the cursor font of the X server), RandR multi-screen, and Wayland.
 
 ### Nt Widgets: implemented
 
@@ -329,9 +332,34 @@ The examples follow the desktop: it uses twice as many pixels on a high-resoluti
 
 Not implemented yet: editing of rich text and the clipboard, model-based list and table views (`QListView`, `QTableView`; `QTreeView` shows a model without hierarchy as a table of rows), `QItemDelegate` and persistent editors, native dialogs, dragging tool bars and dock widgets, drag and drop, style sheets.
 
+## Nt Only
+
+Nt follows Qt's API, but it also has a few things Qt does not. Code that uses them builds only against Nt, not against Qt. The reference documentation marks each one in the class's *Differences from Qt* section.
+
+### Modules
+
+| Module | CMake target | What it does |
+|---|---|---|
+| Nt FM | `Nt::FM` | FM synthesis of game sound effects from small JSON patches; see [Nt FM](#nt-fm-fm-synthesis-for-game-audio) and the [`fmplay`](examples/fm/fmplay.cpp) example |
+| Nt FM QML | `Nt::FMQml` | the QML types of Nt FM (`import QtFM`); see the [`fmqml`](examples/fm/fmqml.cpp) example |
+| Nt GPIO | `Nt::Gpio` | `QGpioLine`: one GPIO line, as input with `valueChanged()`, debounce and bias, or as output. Uses the Linux GPIO character device (v2, Linux 5.10 or later) or Zephyr. Guide: [Using Nt GPIO](https://open-nt.github.io/Nt6/nt-gpio.html); example: [`ptt`](examples/gpio/ptt.cpp) |
+
+### Additions to Qt classes
+
+| Class | Addition |
+|---|---|
+| `QByteArray` | `toStdString()` and `stdString()` |
+| `QDataStream` | `operator<<` and `operator>>` for `long` and `unsigned long`, written as 64-bit integers on every platform |
+| `QSslConfiguration` | `usesSystemCaCertificates()` |
+
+### Platforms and tools
+
+- **Zephyr.** Nt Core, Nt Network and Nt HTTP Server build as a Zephyr module for microcontrollers, headless; see [Zephyr](#zephyr-embedded-headless).
+- **MIT tools.** `ntmoc`, `ntrcc` and `ndoc` replace moc, rcc and qdoc. Their command lines and CMake functions match Qt's, but the `.rcc` format is Nt's own; see [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator).
+
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::Qml`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::Qml`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -403,6 +431,22 @@ Guide: [Using Nt Charts](https://open-nt.github.io/Nt6/nt-charts.html), with pic
 
 Differences from Qt: `QChart` is a `QObject` and `QChartView` a `QWidget`, with no graphics scene; no animations, polar charts, box plots, candlesticks, `QCategoryAxis`, `QColorAxis`, model mappers or `QLegendMarker`; labels are drawn upright; a series has at most one axis of each orientation.
 
+### Nt OpenGL: implemented
+
+Nt OpenGL renders with OpenGL in windows and offscreen, and lets `QPainter` draw with OpenGL. Contexts come from EGL, which Nt loads at run time, so neither building nor running Nt needs an OpenGL library unless a program uses one. Link with `Nt::OpenGL`.
+
+| Class | Notes |
+|---|---|
+| `QOpenGLWindow` | `initializeGL()`, `resizeGL()`, `paintGL()`, `paintUnderGL()`/`paintOverGL()`, `frameSwapped()`, partial updates (blit and blend), `grabFramebuffer()`; a `QPainter` on the window draws with OpenGL |
+| `QOpenGLPaintDevice` | `QPainter` through OpenGL into the bound framebuffer: paths (stencil, then cover, both fill rules), pens, gradients, transformations, images, text and clip regions, drawn with the same geometry as the raster engine; antialiased by multisampling |
+| `QOpenGLFramebufferObject`, `QOpenGLFramebufferObjectFormat` | texture or multisampled targets with depth and stencil, `toImage()`, `blitFramebuffer()` |
+
+On an NVIDIA RTX 5070 Ti, `painting --bench` draws the flower scene of the QPainter documentation (800×600, 4× multisampling) in 1.5 ms with OpenGL against 9.4 ms in software, and gradients in 0.09 ms against 7.5 ms. With `QSurfaceFormat::setSwapInterval(0)` frames are not held to the display's refresh rate.
+
+Guide: [Using Nt OpenGL](https://open-nt.github.io/Nt6/nt-opengl.html). The [`glwindow`](examples/opengl/glwindow.cpp) example renders with OpenGL and QPainter and prints its frame rate, with or without vsync; [`painting --gl`](examples/gui/painting.cpp) shows the painter scenes in a `QOpenGLWindow`.
+
+Differences from Qt: EGL only (X11 through XCB, and headless), so no GLX, WGL or CGL yet; no `QOpenGLWidget`, `QOpenGLShaderProgram`, `QOpenGLBuffer`, `QOpenGLTexture`, `QOpenGLVertexArrayObject` or `QOpenGLExtraFunctions`; no `QPainter::beginNativePainting()`; antialiasing needs multisampling.
+
 ### Nt Qml: JavaScript and the QML engine
 
 Nt Qml runs JavaScript and QML documents. The JavaScript engine is Nt's own interpreter of ECMAScript 2017 without classes, generators, async functions and destructuring; QObjects take part in scripts with their properties, methods and signals. The QML engine makes objects from documents, with bindings that follow their dependencies, signal handlers, declared properties, signals, functions, aliases and enumerations, C++ types registered with `qmlRegisterType()`, types written in QML (directories, `qmldir` modules, inline components), singletons, and the QtQml types. Link with `Nt::Qml`.
@@ -429,12 +473,17 @@ Nt FM has no Qt counterpart. It synthesises game sound effects in real time with
 | `QtFM::Patch` | JSON and CBOR, seeded random variance per play, generators for nine categories (native or within a chip's limits), mutation, `fitsChip()`, AdLib SBI import |
 | `QtFM::VoiceHandle` | weak handle: stop, and smoothed pitch, gain, pan, filter, LFO and modulation index |
 | `QtFM::AudioOutput` | backend interface; ALSA (loaded at run time) is the default on Linux |
+| `QtFM::ChipCore`, `QtFM::Chip` | Nt FM's own clean-room OPL2 and OPL3 emulation, run in the engine's render; sample-accurate register writes; OPL patches play on chip channels through `play()` |
+| `QtFM::MusicPlayer` | VGM/VGZ, DRO and IMF music on OPL2/OPL3 cores of its own, with loop points |
+| `FmSound`, `FmSoundBank`, `FmSequence`, `FmMusic`, `FmPatch`, `FmEngine` (QML, `Nt::FMQml`) | `import QtFM`: a sound is one element, with pitch, gain and pan bound live, random pitch per play and an instance cap |
+| `QtFM::MidiFile`, `QtFM::MidiPlayer` | Standard MIDI Files (formats 0-2, tempo maps, sustain pedal, volume, pan, bend) played with a built-in General MIDI bank of FM instruments and drums, or on the emulated OPL3 as a Sound Blaster would; controller changes reach sounding notes; streamed sample-accurately |
+| `QtFM::PatchBank`, `QtFM::Sequence` | named sets of patches in JSON or CBOR, AdLib IBK banks and SBI export, C headers for targets without files; notes on a tempo grid, each starting on its exact sample |
 
 The synthesiser: eight OPN/OPM algorithms or the two OPL connections, the OPL2 waveforms plus square, saw and triangle, DAHDSR envelopes with curvature, pitch envelope, slide and arpeggio, one LFO, white and NES-style LFSR noise, a state-variable filter with sweep, and a bit crusher.
 
-Guide: [Using Nt FM](https://open-nt.github.io/Nt6/nt-fm.html), with the patch format. The [`fmplay`](examples/fm/fmplay.cpp) example plays, generates, renders and benchmarks sounds.
+Guide: [Using Nt FM](https://open-nt.github.io/Nt6/nt-fm.html), with the patch format. The [`fmplay`](examples/fm/fmplay.cpp) example plays, generates, renders and benchmarks sounds and music; [`fmqml`](examples/fm/fmqml.cpp) does it from a QML document.
 
-Not yet: chip emulation (OPL2/OPL3/OPLL/OPN2/OPM), VGM/IMF/DRO/RAD music, sequences, QML types, the fixed-point path and Zephyr build, oversampling, and backends other than ALSA.
+Not yet: OPLL, OPN2, OPM and SN76489 emulation (so no Mega Drive or MSX music), RAD files, the fixed-point path and Zephyr build, oversampling, and backends other than ALSA.
 
 ### Essentials
 
@@ -465,6 +514,8 @@ Not yet: chip emulation (OPL2/OPL3/OPLL/OPN2/OPM), VGM/IMF/DRO/RAD music, sequen
 | Qt Canvas Painter | Nt Canvas Painter |  |
 | Qt CoAP | Nt CoAP |  |
 | Qt Concurrent | Nt Concurrent | ✔ |
+| (none, [Nt Only](#nt-only)) | Nt FM | ✔ (see Status) |
+| (none, [Nt Only](#nt-only)) | Nt GPIO | ✔ |
 | Qt Graphs | Nt Graphs |  |
 | Qt GRPC | Nt GRPC |  |
 | Qt Help | Nt Help |  |
@@ -476,7 +527,7 @@ Not yet: chip emulation (OPL2/OPL3/OPLL/OPN2/OPM), VGM/IMF/DRO/RAD music, sequen
 | Qt Network Authorization | Nt Network Authorization |  |
 | Qt NFC | Nt NFC |  |
 | Qt OPC UA | Nt OPC UA |  |
-| Qt OpenGL | Nt OpenGL |  |
+| Qt OpenGL | Nt OpenGL | ✔ (see Status) |
 | Qt Positioning | Nt Positioning |  |
 | Qt Print Support | Nt Print Support |  |
 | Qt Protobuf | Nt Protobuf |  |

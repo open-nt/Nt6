@@ -315,6 +315,48 @@ static void testComponentsTimersConnections() {
     CHECK(prop(o, "heard").toInt() == 2);
 }
 
+// The enumerations of a C++ singleton are read through its name, as in Qt.
+static void testSingletonEnums() {
+    Gauge *instance = new Gauge;
+    qmlRegisterSingletonInstance("Test.Singletons", 1, 0, "TheGauge", instance);
+    QQmlEngine engine;
+    std::unique_ptr<QObject> root(make(engine, R"QML(
+        import QtQml
+        import Test.Singletons
+        QtObject {
+            property int unit: TheGauge.Fahrenheit
+            property bool missing: TheGauge.NoSuchKey === undefined
+        }
+    )QML"));
+    CHECK(root && prop(root.get(), "unit").toInt() == Gauge::Fahrenheit);
+    CHECK(root && prop(root.get(), "missing").toBool());
+    delete instance;
+}
+
+// A QObject without a parent that an invokable returns belongs to the engine, as in Qt.
+static void testReturnedObjectOwnership() {
+    qmlRegisterType<Spawner>("Test.Spawner", 1, 0, "Spawner");
+    QObject *kept = nullptr;
+    {
+        QQmlEngine engine;
+        std::unique_ptr<QObject> root(make(engine, R"QML(
+            import QtQml
+            import Test.Spawner
+            QtObject {
+                property Spawner spawner: Spawner {}
+                property bool made: spawner.spawn() !== null && spawner.spawn() !== null
+                property QtObject kept: spawner.spawnKept()
+            }
+        )QML"));
+        CHECK(root && prop(root.get(), "made").toBool());
+        CHECK(Spawner::alive == 3);
+        kept = prop(root.get(), "kept").value<QObject *>();
+    }
+    CHECK(Spawner::alive == 1); // the engine deleted the two it owned
+    delete kept;
+    CHECK(Spawner::alive == 0);
+}
+
 static void testContextsAndErrors() {
     QQmlEngine engine;
     engine.setOutputWarningsToStandardError(false);
@@ -381,6 +423,8 @@ int main(int argc, char *argv[]) {
     testCppTypes();
     testDocumentsAndModules();
     testComponentsTimersConnections();
+    testSingletonEnums();
+    testReturnedObjectOwnership();
     testContextsAndErrors();
     if (g_failures)
         std::printf("%d failure(s)\n", g_failures);

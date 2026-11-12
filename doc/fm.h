@@ -141,21 +141,90 @@
 
     Patch::toCbor() and Patch::fromCbor() store the same fields as CBOR, which is smaller.
 
+    \section1 Banks and Sequences
+
+    A QtFM::PatchBank holds all the sounds of a game in one JSON or CBOR file, by name. For a target
+    without a file system, PatchBank::toCHeader() writes the bank as a C array to compile in.
+
+    A QtFM::Sequence places notes on beats at a tempo. Engine::play() starts all of them at once,
+    each on its exact sample, for jingles and short cues:
+
+    \snippet fm/fmplay.cpp sequence
+
     \section1 AdLib and Yamaha Chips
 
-    Patch::fromChipInstrument() imports an AdLib instrument in the SBI format into a native
-    two-operator patch, keeping its multipliers, waveforms, levels, feedback, connection and
-    envelopes. Patch::generate() with a chip target keeps to that chip's limits, and
-    Patch::fitsChip() lists the fields that a patch would have to change to fit one.
+    Nt FM has its own emulation of the OPL2 of the AdLib and Sound Blaster and of the OPL3 of later
+    Sound Blasters, written from the chips' published behaviour: log-sine and exponent tables, the
+    rate-driven envelope generator, key scaling, tremolo and vibrato, rhythm mode and the OPL3's
+    four-operator connections. Name the chips in EngineConfig::chips, and the engine runs them in
+    its render, resampled from their 49716 Hz.
 
-    Nt FM does not emulate the chips yet: chip patches play on the native engine, close to the
-    original but without the chips' quantisation. Emulation cores, register-level access and
-    playback of VGM, IMF, DRO and RAD music are planned.
+    There are two ways to use a chip. At register level, Engine::chip() writes registers, as a DOS
+    game or tracker would, each at an exact sample if delayed:
+
+    \snippet fm/fmplay.cpp chip
+
+    At voice level, a patch made for the chip (Patch::chip() is ChipType::OPL2 or ChipType::OPL3)
+    plays on a free channel of it through the same Engine::play() call as native patches. Such
+    patches come from Patch::generate() with a chip target, from AdLib instruments
+    (Patch::fromChipInstrument() for SBI, PatchBank::fromChipBank() for IBK banks), or from JSON with
+    a \c chip field. Without the chip in the engine, the same patch plays on the native engine,
+    close to the original but without the chip's quantisation. Patch::toChipInstrument() and
+    PatchBank::toChipBank() export patches that fit; Patch::fitsChip() lists the fields that do not.
+
+    \section1 Chip Music
+
+    Engine::music() plays the register logs of OPL music: VGM and VGZ files with an OPL2 or OPL3
+    part, as trackers such as Furnace and DefleMask export them, DOSBox captures (DRO) and the IMF
+    music of id Software's games. The music gets a chip of its own, so it never takes channels from
+    the sound effects, and its writes reach the chip on the chip's clock:
+
+    \snippet fm/fmplay.cpp music
+
+    \section1 MIDI
+
+    QtFM::MidiFile reads Standard MIDI Files, and QtFM::MidiPlayer plays them on an engine with FM
+    instruments: by default PatchBank::generalMidi(), one patch for each General MIDI instrument family
+    and a drum kit. A bank of the game's own can replace any program (\c program-26) or drum
+    (\c drum-36). The player streams the notes a fraction of a second ahead, each placed on its
+    sample, so the timing does not depend on the event loop:
+
+    \snippet fm/fmplay.cpp midi
+
+    Changes of a channel's volume, expression, pan and pitch bend reach the notes already sounding,
+    each on its sample. PatchBank::generalMidi(ChipType::OPL3) gives the instruments of an FM sound
+    card instead: with an OPL3 in EngineConfig::chips, the notes play on the emulated chip, with
+    their velocity as its total level, as a Sound Blaster MIDI driver plays them.
+
+    \section1 QML
+
+    Nt FM QML (\c Nt::FMQml) makes a sound one declarative element. Register the types once, then
+    \c{import QtFM}:
+
+    \snippet fm/fmqml.cpp register
+
+    FmSound plays a patch from a file or from the FmPatch factory; its pitch, gain and pan can be
+    bound to the game, and are smoothed on the audio thread:
+
+    \snippet fm/fmqml.cpp sound
+
+    FmSoundBank loads a bank and names its sounds, FmSequence plays notes from it on a tempo grid,
+    and FmMusic plays chip music:
+
+    \snippet fm/fmqml.cpp sequence
+
+    \snippet fm/fmqml.cpp music
+
+    The FmEngine singleton is the one engine they all play through. It is made, with the chips that
+    the sounds ask for, and started the first time a sound plays.
 
     \section1 Limits
 
     \list
-    \li The native engine only: no chip emulation, music player, sequences or QML types yet.
+    \li Only the OPL2 and OPL3 are emulated; the OPLL, OPN2, OPM and SN76489 are not, so the music
+        of the Mega Drive or the MSX does not play. RAD files are not read.
+    \li A voice on a chip channel follows its note, length and pitch changes only.
+    \li The QML types run on Nt Qml, which has no Qt Quick: documents are rooted in \c QtObject.
     \li Floating point only; the \c qint16 output is converted from it. There is no fixed-point
         path for microcontrollers, and Nt FM is not built for Zephyr.
     \li No oversampling: square and saw waves, and high feedback, alias at high pitches.

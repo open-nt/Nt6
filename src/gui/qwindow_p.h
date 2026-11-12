@@ -4,6 +4,8 @@
 #include <QtCore/qrect.h>
 #include <QtGui/qwindow.h>
 
+class QOpenGLContext;
+struct QOpenGLFunctionsPrivate;
 class QPlatformWindow;
 class QPlatformIntegration;
 class QPlatformScreen;
@@ -39,6 +41,12 @@ struct GuiAccess {
     // Gives the platform window of `window` the cursor that it has to show now: the override cursor of the
     // application, or its own.
     static void applyCursor(QWindow *window);
+    // The format of the buffers of an OpenGL surface, which QWindow::format() returns from then on.
+    static void setActualFormat(QWindow *window, const QSurfaceFormat &format);
+    // The functions of `context`, resolved the first time they are asked for.
+    static QOpenGLFunctionsPrivate *openGLFunctions(QOpenGLContext *context);
+    // Called before the platform window of `surface` goes away: drops what OpenGL made for it.
+    static void surfaceAboutToBeDestroyed(QSurface *surface);
     // Deletes the platform integration; the application object calls it as it goes away.
     static void shutdown();
 };

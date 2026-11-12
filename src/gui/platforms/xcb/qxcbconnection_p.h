@@ -47,6 +47,7 @@ public:
     xcb_screen_t *screen() const { return m_screen; }
     QXcbScreen *platformScreen() const { return m_platformScreen.get(); }
     xcb_visualid_t visual() const { return m_screen->root_visual; }
+    int screenNumber() const { return m_screenNumber; }
     uint8_t depth() const { return m_screen->root_depth; }
     size_t maxRequestBytes() const;
     // Native pixels of the X server per unit of window coordinates.
@@ -102,6 +103,7 @@ private:
 
     xcb_connection_t *m_connection;
     xcb_screen_t *m_screen = nullptr;
+    int m_screenNumber = 0;
     std::unique_ptr<QXcbScreen> m_platformScreen;
     std::unordered_map<xcb_window_t, QXcbWindow *> m_windows;
     std::unordered_map<int, xcb_cursor_t> m_cursors;

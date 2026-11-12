@@ -426,7 +426,7 @@ void QRasterPaintEngine::drawPath(const QPainterPath &path) {
                                                     : raster::LineJoin::Miter;
     style.miterLimit = pen.miterLimit();
     const QList<qreal> dashes = pen.dashPattern();
-    const double unit = std::max(1.0, pen.isCosmetic() ? width : width);
+    const double unit = std::max(1.0, width);
     for (const qreal d : dashes)
         style.dashes.push_back(std::max(1e-3, d) * (pen.isCosmetic() ? unit / scale : unit));
     style.dashOffset = pen.dashOffset() * (pen.isCosmetic() ? unit / scale : unit);

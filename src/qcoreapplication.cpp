@@ -107,7 +107,8 @@ bool g_appNameSet = false;
     stopped. Unlike Qt, they do not make later calls to \c exec() return at once.
     postEvent() may be called from any thread; processEvents() and
     sendPostedEvents() work on the calling thread's queue. \c qApp is defined as
-    \c QCoreApplication::instance().
+    \c QCoreApplication::instance(). The platforms that Nt supports have no
+    permission prompts: checkPermission() grants every valid permission.
     \enddifferences
 
     \sa QEventLoop, QObject, QCommandLineParser
@@ -212,6 +213,31 @@ bool QCoreApplication::closingDown() { return g_closingDown.load(); }
 QAbstractEventDispatcher *QCoreApplication::eventDispatcher() {
     QCoreApplication *app = g_self.load();
     return app ? QAbstractEventDispatcher::instance(app->thread()) : nullptr;
+}
+
+/*!
+    \since 5.0
+    Installs \a filterObj on the event dispatcher of the main thread, so that it sees the native events
+    that the platform reads there, such as the events of the window system. The filter that was installed last
+    is called first.
+
+    \sa removeNativeEventFilter(), QAbstractEventDispatcher::installNativeEventFilter()
+*/
+void QCoreApplication::installNativeEventFilter(QAbstractNativeEventFilter *filterObj) {
+    if (QAbstractEventDispatcher *dispatcher = QAbstractEventDispatcher::instance(thread()))
+        dispatcher->installNativeEventFilter(filterObj);
+}
+
+/*!
+    \since 5.0
+    Removes \a filterObj from the event dispatcher of the main thread. Nothing happens if it is not installed.
+    A filter is also removed when it is destroyed.
+
+    \sa installNativeEventFilter()
+*/
+void QCoreApplication::removeNativeEventFilter(QAbstractNativeEventFilter *filterObj) {
+    if (QAbstractEventDispatcher *dispatcher = QAbstractEventDispatcher::instance(thread()))
+        dispatcher->removeNativeEventFilter(filterObj);
 }
 
 /*!

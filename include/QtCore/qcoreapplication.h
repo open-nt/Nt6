@@ -2,10 +2,17 @@
 #pragma once
 
 #include <QtCore/qeventloop.h>
+#include <QtCore/qnamespace.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qstringlist.h>
 
+#include <functional>
+#include <type_traits>
+#include <utility>
+
 class QAbstractEventDispatcher;
+class QAbstractNativeEventFilter;
+class QPermission;
 class QTranslator;
 
 class QCoreApplication : public QObject {
@@ -59,6 +66,29 @@ public:
     static bool removeTranslator(QTranslator *translationFile);
     static QString translate(const char *context, const char *sourceText, const char *disambiguation = nullptr, int n = -1);
 
+    void installNativeEventFilter(QAbstractNativeEventFilter *filterObj);
+    void removeNativeEventFilter(QAbstractNativeEventFilter *filterObj);
+
+    Qt::PermissionStatus checkPermission(const QPermission &permission);
+    template <typename Functor>
+    void requestPermission(const QPermission &permission,
+                           const typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type *context,
+                           Functor &&func) {
+        using Context = typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type;
+        if constexpr (std::is_member_function_pointer_v<std::decay_t<Functor>>) {
+            auto *object = const_cast<Context *>(context); // NOLINT(cppcoreguidelines-pro-type-const-cast): as Qt
+            requestPermissionImpl(permission, context,
+                                  [object, f = std::forward<Functor>(func)](const QPermission &p) { (object->*f)(p); });
+        } else {
+            requestPermissionImpl(permission, context,
+                                  [f = std::forward<Functor>(func)](const QPermission &p) mutable { f(p); });
+        }
+    }
+    template <typename Functor> void requestPermission(const QPermission &permission, Functor &&func) {
+        requestPermissionImpl(permission, nullptr,
+                              [f = std::forward<Functor>(func)](const QPermission &p) mutable { f(p); });
+    }
+
 public slots:
     static void quit();
 
@@ -70,6 +100,10 @@ signals:
         \sa quit()
     */
     void aboutToQuit() { emitSignal(&QCoreApplication::aboutToQuit); }
+
+private:
+    void requestPermissionImpl(const QPermission &permission, const QObject *context,
+                               std::function<void(const QPermission &)> callback);
 };
 
 #define qApp QCoreApplication::instance()

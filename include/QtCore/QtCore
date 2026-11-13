@@ -6,6 +6,7 @@
 #include "qsequentialanimationgroup.h"
 #include "qvariantanimation.h"
 #include "qabstracteventdispatcher.h"
+#include "qabstractnativeeventfilter.h"
 #include "qabstractitemmodel.h"
 #include "qabstractproxymodel.h"
 #include "qanystringview.h"
@@ -157,3 +158,5 @@
 #include "qvarlengtharray.h"
 #include "qversionnumber.h"
 #include "qxmlstream.h"
+#include "qpermissions.h"
+#include "qyieldcpu.h"

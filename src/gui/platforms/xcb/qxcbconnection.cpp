@@ -6,6 +6,7 @@
 #include "qxcbwindow_p.h"
 
 #include <QtCore/qabstracteventdispatcher.h>
+#include <QtCore/qbytearray.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qlibrary.h>
@@ -378,9 +379,13 @@ void QXcbConnection::processEvents() {
     if (m_processing)
         return;
     m_processing = true;
+    static const QByteArray eventType = QByteArrayLiteral("xcb_generic_event_t");
+    QAbstractEventDispatcher *dispatcher = QAbstractEventDispatcher::instance();
     for (;;) {
         while (xcb_generic_event_t *e = nextEvent()) {
-            handleEvent(e);
+            qintptr result = 0;
+            if (!dispatcher || !dispatcher->filterNativeEvent(eventType, e, &result))
+                handleEvent(e);
             std::free(e);
         }
         // Flushing the requests that the handlers made can bring in more events.

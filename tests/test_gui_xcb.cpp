@@ -80,6 +80,16 @@ protected:
 
 using namespace xcbtest;
 
+// Counts the events that the xcb platform passes to the native event filters.
+struct XcbEventCounter : QAbstractNativeEventFilter {
+    bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *) override {
+        if (eventType == "xcb_generic_event_t" && message)
+            ++events;
+        return false;
+    }
+    int events = 0;
+};
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "xcb", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -106,12 +116,16 @@ int main(int argc, char **argv) {
     CHECK(screen->depth() == root->root_depth);
     CHECK(screen->logicalDotsPerInch() > 0);
 
+    XcbEventCounter counter;
+    app.installNativeEventFilter(&counter);
+
     TestWindow w;
     w.setTitle("Nt xcb test \xc3\xa4");
     w.resize(200, 120);
     w.show();
     CHECK(w.winId() != 0);
     CHECK(waitFor([&] { return w.isExposed() && w.paints > 0; }));
+    CHECK(counter.events > 0); // the expose event at least went through the filter
     const xcb_window_t id = static_cast<xcb_window_t>(w.winId());
 
     // The window has the size we asked for and the pixels we painted.

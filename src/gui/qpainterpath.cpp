@@ -60,8 +60,9 @@ bool segmentsCross(QPointF a, QPointF b, QPointF c, QPointF d) {
     \brief The QPolygon class is a list of points with integer coordinates.
 
     \differences
-    There are no \c setPoints() and \c putPoints() taking variadic coordinates, and no united(),
-    intersected() or subtracted().
+    There are no \c setPoints() and \c putPoints() taking variadic coordinates. united(), intersected()
+    and subtracted() return polygons that are closed by repeating their first point, and several separate
+    areas one after the other.
     \enddifferences
 
     \sa QPolygonF, QPainter::drawPolygon()
@@ -184,7 +185,8 @@ QPolygonF QPolygon::toPolygonF() const { return QPolygonF(*this); }
     \brief The QPolygonF class is a list of points with real coordinates.
 
     \differences
-    There are no united(), intersected() or subtracted().
+    united(), intersected() and subtracted() return several separate areas one after the other in one
+    polygon, each closed by repeating its first point.
     \enddifferences
 
     \sa QPolygon, QPainter::drawPolygon(), QPainterPath::addPolygon()
@@ -328,13 +330,17 @@ QPolygon QPolygonF::toPolygon() const {
 
     The fill rule decides which parts of a path that crosses itself are inside.
 
+    Paths can be combined as areas with united(), intersected() and subtracted(), or the operators
+    \c |, \c & and \c -. QPainterPathStroker turns the stroke of a path into a path to fill.
+
     \differences
-    There are no united(), intersected(), subtracted(), simplified(), toReversed(), addText(),
-    addRegion() or QPainterPathStroker. Lengths and points along the path are measured on its curves
-    divided into short lines.
+    There are no toReversed(), addText() or addRegion(). Lengths and points along the path are measured on
+    its curves divided into short lines. united(), intersected(), subtracted() and simplified() divide
+    curves into lines too; intersects() and contains() taking a path compare areas, so paths that only touch
+    do not intersect.
     \enddifferences
 
-    \sa QPainter::drawPath(), QPainter::fillPath()
+    \sa QPainter::drawPath(), QPainter::fillPath(), QPainterPathStroker
 */
 
 /*!
@@ -943,23 +949,6 @@ qreal QPainterPath::slopeAtPercent(qreal t) const {
     const QPointF a = pointAtPercent(std::max(0.0, t - 0.001)), b = pointAtPercent(std::min(1.0, t + 0.001));
     const qreal dx = b.x() - a.x();
     return dx == 0.0 ? std::numeric_limits<qreal>::infinity() : (b.y() - a.y()) / dx;
-}
-
-/*!
-    Returns this path with the subpaths of \a other added.
-*/
-QPainterPath QPainterPath::operator+(const QPainterPath &other) const {
-    QPainterPath p = *this;
-    p.addPath(other);
-    return p;
-}
-
-/*!
-    Adds the subpaths of \a other and returns a reference to this path.
-*/
-QPainterPath &QPainterPath::operator+=(const QPainterPath &other) {
-    addPath(other);
-    return *this;
 }
 
 /*!

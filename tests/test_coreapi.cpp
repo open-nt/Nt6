@@ -18,6 +18,7 @@
 #include <QList>
 #include <QLocale>
 #include <QMetaType>
+#include <QPermission>
 #include <QPersistentModelIndex>
 #include <QRegularExpression>
 #include <QSet>
@@ -28,12 +29,18 @@
 #include <QStringTokenizer>
 #include <QStringView>
 #include <QSysInfo>
+#include <QTimer>
 #include <QTemporaryDir>
 #include <QUrl>
 #include <QUtf8StringView>
 #include <QUuid>
 #include <QVariant>
 #include <QVersionNumber>
+#include <QtCore/qyieldcpu.h>
+
+#include <atomic>
+#include <optional>
+#include <thread>
 
 #include <cstddef>
 #include <cstdio>
@@ -674,6 +681,98 @@ static void testStringListAndUninitialized() {
     CHECK(strings.size() == 2 && strings.at(0).isEmpty());
 }
 
+namespace {
+
+class PermissionReceiver : public QObject {
+public:
+    void answer(const QPermission &permission) { answers.push_back(permission.status()); }
+    std::vector<Qt::PermissionStatus> answers;
+};
+
+} // namespace
+
+static void testPermissions() {
+    // The permission classes keep their settings and can be copied, moved and swapped.
+    QLocationPermission location;
+    CHECK(location.accuracy() == QLocationPermission::Approximate);
+    CHECK(location.availability() == QLocationPermission::WhenInUse);
+    location.setAccuracy(QLocationPermission::Precise);
+    location.setAvailability(QLocationPermission::Always);
+    QLocationPermission copy = location;
+    CHECK(copy.accuracy() == QLocationPermission::Precise && copy.availability() == QLocationPermission::Always);
+    QLocationPermission other;
+    other.swap(copy);
+    CHECK(other.accuracy() == QLocationPermission::Precise && copy.accuracy() == QLocationPermission::Approximate);
+
+    QCalendarPermission calendar;
+    CHECK(calendar.accessMode() == QCalendarPermission::ReadOnly);
+    calendar.setAccessMode(QCalendarPermission::ReadWrite);
+    CHECK(calendar.accessMode() == QCalendarPermission::ReadWrite);
+    QContactsPermission contacts;
+    contacts.setAccessMode(QContactsPermission::ReadWrite);
+    CHECK(contacts.accessMode() == QContactsPermission::ReadWrite);
+
+    QBluetoothPermission bluetooth;
+    CHECK(bluetooth.communicationModes() == QBluetoothPermission::Default);
+    bluetooth.setCommunicationModes(QBluetoothPermission::Access);
+    CHECK(bluetooth.communicationModes() == QBluetoothPermission::Access);
+    bluetooth.setCommunicationModes({});
+    CHECK(bluetooth.communicationModes() == QBluetoothPermission::Default);
+
+    // QPermission holds a copy of one of them, with its type.
+    const QPermission invalid;
+    CHECK(!invalid.type().isValid() && invalid.status() == Qt::PermissionStatus::Undetermined);
+    CHECK(!invalid.value<QCameraPermission>().has_value());
+    const QPermission held = location;
+    CHECK(held.type() == QMetaType::fromType<QLocationPermission>());
+    CHECK(held.status() == Qt::PermissionStatus::Undetermined);
+    const std::optional<QLocationPermission> back = held.value<QLocationPermission>();
+    CHECK(back.has_value() && back->accuracy() == QLocationPermission::Precise);
+    CHECK(!held.value<QCameraPermission>().has_value());
+    location.setAccuracy(QLocationPermission::Approximate);
+    CHECK(held.value<QLocationPermission>()->accuracy() == QLocationPermission::Precise);
+
+    // There are no permission prompts: every valid permission is granted.
+    CHECK(qApp->checkPermission(QCameraPermission()) == Qt::PermissionStatus::Granted);
+    CHECK(qApp->checkPermission(QMicrophonePermission()) == Qt::PermissionStatus::Granted);
+    CHECK(qApp->checkPermission(held) == Qt::PermissionStatus::Granted);
+    CHECK(qApp->checkPermission(invalid) == Qt::PermissionStatus::Denied);
+
+    // requestPermission() answers from the event loop, with a functor, a member function or no context.
+    PermissionReceiver receiver;
+    std::vector<Qt::PermissionStatus> answers;
+    QMetaType answeredType;
+    qApp->requestPermission(QMicrophonePermission(), &receiver, [&](const QPermission &p) {
+        answers.push_back(p.status());
+        answeredType = p.type();
+    });
+    qApp->requestPermission(QCameraPermission(), &receiver, &PermissionReceiver::answer);
+    qApp->requestPermission(invalid, [&](const QPermission &p) { answers.push_back(p.status()); });
+    CHECK(answers.empty() && receiver.answers.empty());
+    QCoreApplication::processEvents();
+    CHECK((answers == std::vector<Qt::PermissionStatus>{Qt::PermissionStatus::Granted, Qt::PermissionStatus::Denied}));
+    CHECK(answeredType == QMetaType::fromType<QMicrophonePermission>());
+    CHECK((receiver.answers == std::vector<Qt::PermissionStatus>{Qt::PermissionStatus::Granted}));
+
+    // The callback is not called once its context is gone.
+    bool called = false;
+    {
+        QObject context;
+        qApp->requestPermission(QCameraPermission(), &context, [&](const QPermission &) { called = true; });
+    }
+    QCoreApplication::processEvents();
+    CHECK(!called);
+}
+
+static void testYieldCpu() {
+    std::atomic<bool> ready{false};
+    std::thread setter([&] { ready.store(true, std::memory_order_release); });
+    while (!ready.load(std::memory_order_acquire))
+        qYieldCpu();
+    setter.join();
+    CHECK(ready.load());
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testByteArrayView();
@@ -689,6 +788,8 @@ int main(int argc, char **argv) {
     testIoChannels();
     testVersionAndUuid();
     testStringListAndUninitialized();
+    testPermissions();
+    testYieldCpu();
     if (g_failures == 0)
         std::printf("all core API tests passed\n");
     return g_failures == 0 ? 0 : 1;

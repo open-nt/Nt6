@@ -29,6 +29,10 @@ public:
     QPolygon translated(int dx, int dy) const;
     QPolygon translated(const QPoint &offset) const { return translated(offset.x(), offset.y()); }
     bool containsPoint(const QPoint &point, Qt::FillRule fillRule) const;
+    QPolygon united(const QPolygon &r) const;
+    QPolygon intersected(const QPolygon &r) const;
+    QPolygon subtracted(const QPolygon &r) const;
+    bool intersects(const QPolygon &p) const;
     QPolygonF toPolygonF() const;
 };
 
@@ -48,5 +52,9 @@ public:
     QPolygonF translated(qreal dx, qreal dy) const;
     QPolygonF translated(const QPointF &offset) const { return translated(offset.x(), offset.y()); }
     bool containsPoint(const QPointF &point, Qt::FillRule fillRule) const;
+    QPolygonF united(const QPolygonF &r) const;
+    QPolygonF intersected(const QPolygonF &r) const;
+    QPolygonF subtracted(const QPolygonF &r) const;
+    bool intersects(const QPolygonF &p) const;
     QPolygon toPolygon() const;
 };

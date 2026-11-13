@@ -1,11 +1,14 @@
 // MIT License - see LICENSE
 #include <QAbstractEventDispatcher>
+#include <QAbstractNativeEventFilter>
+#include <QByteArray>
 #include <QCoreApplication>
 #include <QEventLoop>
 #include <QEventLoopLocker>
 #include <QException>
 #include <QFuture>
 #include <QFutureSynchronizer>
+#include <QFutureIterator>
 #include <QFutureWatcher>
 #include <QMutex>
 #include <QObject>
@@ -24,6 +27,7 @@
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -1690,6 +1694,170 @@ static void testAbstractEventDispatcher() {
 }
 
 // Set NT_TEST_VERBOSE=1 to see which test is running, for example when one hangs.
+static void testFutureIterator() {
+    {
+        // A finished future: forward, backward, peeking and searching.
+        QFuture<int> f = QtFuture::makeReadyRangeFuture(QList<int>{1, 2, 3, 2});
+        QFutureIterator<int> it(f);
+        CHECK(!it.hasPrevious() && it.hasNext());
+        CHECK(it.peekNext() == 1);
+        CHECK(it.next() == 1 && it.next() == 2);
+        CHECK(it.hasPrevious() && it.peekPrevious() == 2);
+        CHECK(it.findNext(2) && it.peekPrevious() == 2 && !it.hasNext());
+        CHECK(!it.findNext(9) && !it.hasNext());
+        it.toFront();
+        CHECK(!it.hasPrevious() && it.peekNext() == 1);
+        it.toBack();
+        CHECK(!it.hasNext() && it.hasPrevious());
+        CHECK(it.previous() == 2 && it.previous() == 3);
+        CHECK(it.findPrevious(1) && !it.hasPrevious() && it.peekNext() == 1);
+        CHECK(!it.findPrevious(7));
+        it = QtFuture::makeReadyRangeFuture(QList<int>{8});
+        CHECK(it.hasNext() && it.next() == 8 && !it.hasNext());
+    }
+    {
+        // An empty finished future has nothing on either side.
+        QPromise<QString> p;
+        QFuture<QString> f = p.future();
+        p.start();
+        p.finish();
+        QFutureIterator<QString> it(f);
+        CHECK(!it.hasNext() && !it.hasPrevious());
+        it.toBack();
+        CHECK(!it.hasNext() && !it.hasPrevious());
+    }
+    {
+        // hasNext() waits for results that another thread reports, and for the end.
+        QPromise<QString> p;
+        QFuture<QString> f = p.future();
+        p.start();
+        QThread *producer = QThread::create([&p] {
+            for (int i = 0; i < 50; ++i)
+                p.addResult(QString::number(i));
+            p.finish();
+        });
+        producer->start();
+        QFutureIterator<QString> it(f);
+        int n = 0;
+        bool inOrder = true;
+        while (it.hasNext()) {
+            inOrder = inOrder && it.next() == QString::number(n);
+            ++n;
+        }
+        producer->wait();
+        delete producer;
+        CHECK(n == 50 && inOrder);
+        CHECK(it.hasPrevious() && it.peekPrevious() == QStringLiteral("49"));
+    }
+}
+
+namespace {
+
+struct RecordingFilter : QAbstractNativeEventFilter {
+    RecordingFilter(std::vector<int> *calls, int filterId) : log(calls), id(filterId) {}
+    bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result) override {
+        log->push_back(id);
+        lastType = eventType;
+        lastMessage = message;
+        if (result)
+            *result = id;
+        if (onFilter)
+            onFilter();
+        return stop;
+    }
+    std::vector<int> *log;
+    int id;
+    bool stop = false;
+    QByteArray lastType;
+    void *lastMessage = nullptr;
+    std::function<void()> onFilter;
+};
+
+} // namespace
+
+static void testNativeEventFilters() {
+    QAbstractEventDispatcher *d = QAbstractEventDispatcher::instance();
+    std::vector<int> log;
+    int message = 0;
+    qintptr result = 0;
+    CHECK(!d->filterNativeEvent("test_event", &message, &result));
+
+    RecordingFilter first(&log, 1), second(&log, 2);
+    d->installNativeEventFilter(&first);
+    d->installNativeEventFilter(&second);
+    d->installNativeEventFilter(nullptr);
+    // The filter installed last is called first; nothing stops the event.
+    CHECK(!d->filterNativeEvent("test_event", &message, &result));
+    CHECK((log == std::vector<int>{2, 1}));
+    CHECK(first.lastType == "test_event" && first.lastMessage == &message && result == 1);
+
+    // Installing again moves a filter to the front; a filter that returns true stops the event.
+    log.clear();
+    d->installNativeEventFilter(&first);
+    first.stop = true;
+    CHECK(d->filterNativeEvent("test_event", &message, &result));
+    CHECK((log == std::vector<int>{1}));
+    first.stop = false;
+
+    // Removed filters are not called; removing one that is not installed does nothing.
+    log.clear();
+    d->removeNativeEventFilter(&first);
+    d->removeNativeEventFilter(&first);
+    CHECK(!d->filterNativeEvent("test_event", &message, nullptr));
+    CHECK((log == std::vector<int>{2}));
+
+    // A filter can remove a later one while it filters, and the removed one is skipped.
+    log.clear();
+    d->installNativeEventFilter(&first);
+    first.onFilter = [&] { d->removeNativeEventFilter(&second); };
+    CHECK(!d->filterNativeEvent("test_event", &message, nullptr));
+    CHECK((log == std::vector<int>{1}));
+    first.onFilter = nullptr;
+
+    // A destroyed filter removes itself, and QCoreApplication installs on the main thread's dispatcher.
+    log.clear();
+    {
+        RecordingFilter temporary(&log, 3);
+        qApp->installNativeEventFilter(&temporary);
+        CHECK(!d->filterNativeEvent("test_event", &message, nullptr));
+        CHECK((log == std::vector<int>{3, 1}));
+    }
+    log.clear();
+    CHECK(!d->filterNativeEvent("test_event", &message, nullptr));
+    CHECK((log == std::vector<int>{1}));
+    qApp->removeNativeEventFilter(&first);
+    log.clear();
+    CHECK(!d->filterNativeEvent("test_event", &message, nullptr));
+    CHECK(log.empty());
+
+    // Filters belong to the thread of the dispatcher: another thread's filters do not see this thread's events,
+    // and a filter can be installed from another thread.
+    std::vector<int> theirLog;
+    RecordingFilter theirs(&theirLog, 4);
+    QThread worker;
+    QAbstractEventDispatcher *wd = worker.eventDispatcher();
+    QThread *installer = QThread::create([&] { wd->installNativeEventFilter(&theirs); });
+    installer->start();
+    installer->wait();
+    delete installer;
+    CHECK(!d->filterNativeEvent("test_event", &message, nullptr));
+    CHECK(theirLog.empty());
+    CHECK(!wd->filterNativeEvent("test_event", &message, nullptr));
+    CHECK((theirLog == std::vector<int>{4}));
+    d->installNativeEventFilter(&theirs);
+    // Destroying the filter removes it from both threads.
+    {
+        RecordingFilter both(&theirLog, 5);
+        d->installNativeEventFilter(&both);
+        wd->installNativeEventFilter(&both);
+    }
+    theirLog.clear();
+    CHECK(!d->filterNativeEvent("test_event", &message, nullptr) && !wd->filterNativeEvent("x", nullptr, nullptr));
+    CHECK((theirLog == std::vector<int>{4, 4}));
+    d->removeNativeEventFilter(&theirs);
+    wd->removeNativeEventFilter(&theirs);
+}
+
 #define RUN(fn)                                                                                                        \
     do {                                                                                                               \
         if (std::getenv("NT_TEST_VERBOSE"))                                                                            \
@@ -1729,6 +1897,8 @@ int main(int argc, char **argv) {
     RUN(testWhenAllAny);
     RUN(testEventLoopLocker);
     RUN(testAbstractEventDispatcher);
+    RUN(testFutureIterator);
+    RUN(testNativeEventFilters);
 
     if (g_failures == 0)
         std::puts("all future tests passed");

@@ -560,11 +560,13 @@ struct FutureConstIterator {
         return r;
     }
     FutureConstIterator &operator--() {
+        fromEnd();
         --index;
         return *this;
     }
     FutureConstIterator operator--(int) {
         auto r = *this;
+        fromEnd();
         --index;
         return r;
     }
@@ -573,11 +575,16 @@ struct FutureConstIterator {
         return *this;
     }
     FutureConstIterator &operator-=(int n) {
+        fromEnd();
         index -= n;
         return *this;
     }
     FutureConstIterator operator+(int n) const { return FutureConstIterator(future, index + n); }
-    FutureConstIterator operator-(int n) const { return FutureConstIterator(future, index - n); }
+    FutureConstIterator operator-(int n) const {
+        FutureConstIterator r = *this;
+        r -= n;
+        return r;
+    }
     bool operator==(const FutureConstIterator &o) const {
         if (index == o.index)
             return true;
@@ -590,6 +597,14 @@ struct FutureConstIterator {
     bool operator!=(const FutureConstIterator &o) const { return !(*this == o); }
 
 private:
+    // The end iterator stands after the last result, which is known once the computation is done; moving back
+    // from it starts there.
+    void fromEnd() {
+        if (index < 0) {
+            future->d.waitForFinished();
+            index = future->d.resultCount();
+        }
+    }
     // Waits until the result at the position is there, or the computation is done without it.
     bool atEnd() const {
         future->d.waitForResult(index);
@@ -601,6 +616,144 @@ private:
 };
 
 } // namespace QtPrivate
+
+/*!
+    \class QFutureIterator
+    \since 4.4
+    \brief The QFutureIterator class provides a Java-style const iterator for QFuture.
+
+    QFutureIterator<T> goes through the results of a QFuture<T>. Like the other Java-style iterators, it points
+    between results: next() returns the result that it jumps over. hasNext() waits until the next result is
+    reported or the computation finishes without it, so the loop below handles each result as it comes:
+
+    \code
+    QFuture<QString> future = QtConcurrent::run(readLines, path);
+    QFutureIterator<QString> it(future);
+    while (it.hasNext())
+        process(it.next());
+    \endcode
+
+    The iterator keeps a copy of the future, so the results that it returns stay valid while it exists.
+
+    \differences
+    None.
+    \enddifferences
+
+    \sa QFuture::const_iterator, QListIterator
+*/
+template <typename T> class QFutureIterator {
+    using const_iterator = typename QFuture<T>::const_iterator;
+
+public:
+    /*!
+        Constructs an iterator over the results of \a container, before the first result.
+    */
+    explicit QFutureIterator(const QFuture<T> &container) : c(container), i(c.constBegin()) {}
+
+    /*!
+        Makes the iterator go over the results of \a container, before the first result, and returns a
+        reference to it.
+    */
+    QFutureIterator &operator=(const QFuture<T> &container) {
+        c = container;
+        i = c.constBegin();
+        return *this;
+    }
+
+    /*!
+        Moves the iterator before the first result.
+
+        \sa toBack()
+    */
+    void toFront() { i = c.constBegin(); }
+    /*!
+        Moves the iterator after the last result.
+
+        \sa toFront()
+    */
+    void toBack() { i = c.constEnd(); }
+
+    /*!
+        Returns \c true if there is a result after the iterator, waiting until it is reported or the computation
+        finishes; otherwise returns \c false.
+
+        \sa next(), hasPrevious()
+    */
+    bool hasNext() const { return i != c.constEnd(); }
+    /*!
+        Returns the next result and moves the iterator past it. There must be one; see hasNext().
+
+        \sa peekNext(), previous()
+    */
+    const T &next() {
+        const T &r = *i.operator->();
+        ++i;
+        return r;
+    }
+    /*!
+        Returns the next result without moving the iterator. There must be one; see hasNext().
+
+        \sa next()
+    */
+    const T &peekNext() const { return *i.operator->(); }
+
+    /*!
+        Returns \c true if there is a result before the iterator; otherwise returns \c false.
+
+        \sa previous(), hasNext()
+    */
+    bool hasPrevious() const { return i != c.constBegin(); }
+    /*!
+        Returns the previous result and moves the iterator before it. There must be one; see hasPrevious().
+
+        \sa peekPrevious(), next()
+    */
+    const T &previous() {
+        --i;
+        return *i.operator->();
+    }
+    /*!
+        Returns the previous result without moving the iterator. There must be one; see hasPrevious().
+
+        \sa previous()
+    */
+    const T &peekPrevious() const {
+        const_iterator p = i;
+        --p;
+        return *p.operator->();
+    }
+
+    /*!
+        Searches forward from the iterator for \a value. Returns \c true and leaves the iterator just after the
+        result if it is found; otherwise returns \c false and leaves the iterator at the back.
+
+        \sa findPrevious()
+    */
+    bool findNext(const T &value) {
+        while (hasNext()) {
+            if (next() == value)
+                return true;
+        }
+        return false;
+    }
+    /*!
+        Searches backward from the iterator for \a value. Returns \c true and leaves the iterator just before
+        the result if it is found; otherwise returns \c false and leaves the iterator at the front.
+
+        \sa findNext()
+    */
+    bool findPrevious(const T &value) {
+        while (hasPrevious()) {
+            if (previous() == value)
+                return true;
+        }
+        return false;
+    }
+
+private:
+    QFuture<T> c;
+    const_iterator i;
+};
 
 template <typename T>
 QFuture<T> QFutureInterface<T>::future() {

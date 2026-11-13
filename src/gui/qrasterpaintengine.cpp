@@ -381,7 +381,9 @@ namespace raster = QtRasterPrivate;
 
 raster::Mat toMat(const QTransform &t) { return {t.m11(), t.m12(), t.m21(), t.m22(), t.dx(), t.dy()}; }
 
-raster::Path toRasterPath(const QPainterPath &path) {
+} // namespace
+
+raster::Path QtRasterPrivate::toRasterPath(const QPainterPath &path) {
     raster::Path out;
     QPointF start;
     bool open = false;
@@ -416,8 +418,6 @@ raster::Path toRasterPath(const QPainterPath &path) {
     }
     return out;
 }
-
-} // namespace
 
 bool QtRasterPrivate::pathGeometry(const QPainterPath &path, const QTransform &toDevice, bool fill, const QPen &pen,
                                    bool antialias, PathGeometry *out) {

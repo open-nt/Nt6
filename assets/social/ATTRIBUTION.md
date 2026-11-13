@@ -12,6 +12,8 @@
 | `nt-social-6-card-1200x630.png` | 1200 x 630 | link previews (Open Graph, X card, LinkedIn) |
 | `nt-social-7-banner-1500x500.png` | 1500 x 500 | profile banners (X, LinkedIn) |
 | `nt-social-8-github-1280x640.png` | 1280 x 640 | the GitHub repository's social preview (Settings, Social preview) |
+| `nt-social-12-linkedin-cover-1584x396.png` | 1584 x 396 | LinkedIn profile or group cover (`make_linkedin_cover.py`) |
+| `nt-social-13-linkedin-page-1128x191.png` | 1128 x 191 | LinkedIn company or showcase page cover (`make_linkedin_cover.py`) |
 
 They follow the [Nt Brand Guide](../../doc/brand.h): Nut Teal, Nut Neon and Pine, Titillium Web, and the Nt mark with its
 clear space. Every tile says that Nt is not affiliated with The Qt Company, or is a card too small for it, as the guide asks.

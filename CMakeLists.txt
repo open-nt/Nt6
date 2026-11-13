@@ -105,6 +105,7 @@ add_library(NtCore
     src/qobjectcleanuphandler.cpp
     src/qparallelanimationgroup.cpp
     src/qpauseanimation.cpp
+    src/qpermissions.cpp
     src/qpropertyanimation.cpp
     src/qrandom.cpp
     src/qregularexpression.cpp
@@ -518,6 +519,7 @@ add_library(NtGui
     src/gui/qpaintengine.cpp
     src/gui/qpainter.cpp
     src/gui/qpainterpath.cpp
+    src/gui/qpathclipper.cpp
     src/gui/qpalette.cpp
     src/gui/qpen.cpp
     src/gui/qpixmap.cpp

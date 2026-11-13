@@ -51,6 +51,9 @@ struct PathGeometry {
     bool evenOdd = false;
 };
 
+// The lines and curves of `path`. A line back to the start of a subpath that ends it closes the subpath, so that
+// its last corner gets a join when it is stroked.
+Path toRasterPath(const QPainterPath &path);
 // Flattens `path`, transformed by `toDevice`, into its fill (if `fill` is set) and the stroke of `pen`. Aliased
 // strokes are moved half a pixel, as the raster engine draws them. Returns false if nothing would be drawn.
 bool pathGeometry(const QPainterPath &path, const QTransform &toDevice, bool fill, const QPen &pen, bool antialias,

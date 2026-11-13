@@ -799,6 +799,19 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(DropActions)
 enum class ColorScheme { Unknown, Light, Dark };
 
 /*!
+    \enum Qt::PermissionStatus
+    \since 6.5
+    This enum describes whether the application may use a feature that needs the user's permission.
+
+    \value Undetermined The user has not been asked yet; QCoreApplication::requestPermission() asks.
+    \value Granted The application may use the feature.
+    \value Denied The application may not use the feature.
+
+    \sa QPermission, QCoreApplication::checkPermission()
+*/
+enum class PermissionStatus { Undetermined, Granted, Denied };
+
+/*!
     \enum Qt::FocusPolicy
 
     This enum says how a widget gets the keyboard focus.

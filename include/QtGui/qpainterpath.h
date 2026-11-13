@@ -8,6 +8,8 @@
 #include <QtGui/qpolygon.h>
 #include <QtGui/qtransform.h>
 
+class QPen;
+
 class QPainterPath {
 public:
     enum ElementType { MoveToElement, LineToElement, CurveToElement, CurveToDataElement };
@@ -82,6 +84,13 @@ public:
     bool contains(const QPointF &point) const;
     bool contains(const QRectF &rectangle) const;
     bool intersects(const QRectF &rectangle) const;
+    bool contains(const QPainterPath &p) const;
+    bool intersects(const QPainterPath &p) const;
+
+    QPainterPath united(const QPainterPath &p) const;
+    QPainterPath intersected(const QPainterPath &p) const;
+    QPainterPath subtracted(const QPainterPath &p) const;
+    QPainterPath simplified() const;
 
     void translate(qreal dx, qreal dy);
     void translate(const QPointF &offset) { translate(offset.x(), offset.y()); }
@@ -104,8 +113,14 @@ public:
         std::swap(m_closed, other.m_closed);
     }
 
-    QPainterPath operator+(const QPainterPath &other) const;
-    QPainterPath &operator+=(const QPainterPath &other);
+    QPainterPath operator&(const QPainterPath &other) const { return intersected(other); }
+    QPainterPath operator|(const QPainterPath &other) const { return united(other); }
+    QPainterPath operator+(const QPainterPath &other) const { return united(other); }
+    QPainterPath operator-(const QPainterPath &other) const { return subtracted(other); }
+    QPainterPath &operator&=(const QPainterPath &other) { return *this = intersected(other); }
+    QPainterPath &operator|=(const QPainterPath &other) { return *this = united(other); }
+    QPainterPath &operator+=(const QPainterPath &other) { return *this = united(other); }
+    QPainterPath &operator-=(const QPainterPath &other) { return *this = subtracted(other); }
     bool operator==(const QPainterPath &path) const;
     bool operator!=(const QPainterPath &path) const { return !(*this == path); }
 
@@ -115,4 +130,37 @@ private:
     QList<Element> m_elements;
     Qt::FillRule m_fillRule = Qt::OddEvenFill;
     bool m_closed = false; // the last subpath is closed: the next segment starts a new one at its start
+};
+
+class QPainterPathStroker {
+public:
+    QPainterPathStroker() = default;
+    explicit QPainterPathStroker(const QPen &pen);
+
+    void setWidth(qreal width) { m_width = width > 0.0 ? width : 1.0; }
+    qreal width() const { return m_width; }
+    void setCapStyle(Qt::PenCapStyle style) { m_cap = style; }
+    Qt::PenCapStyle capStyle() const { return m_cap; }
+    void setJoinStyle(Qt::PenJoinStyle style) { m_join = style; }
+    Qt::PenJoinStyle joinStyle() const { return m_join; }
+    void setMiterLimit(qreal limit) { m_miterLimit = limit; }
+    qreal miterLimit() const { return m_miterLimit; }
+    void setCurveThreshold(qreal threshold) { m_curveThreshold = threshold; }
+    qreal curveThreshold() const { return m_curveThreshold; }
+    void setDashPattern(Qt::PenStyle style);
+    void setDashPattern(const QList<qreal> &dashPattern);
+    QList<qreal> dashPattern() const { return m_dashes; }
+    void setDashOffset(qreal offset) { m_dashOffset = offset; }
+    qreal dashOffset() const { return m_dashOffset; }
+
+    QPainterPath createStroke(const QPainterPath &path) const;
+
+private:
+    qreal m_width = 1.0;
+    Qt::PenCapStyle m_cap = Qt::SquareCap;
+    Qt::PenJoinStyle m_join = Qt::BevelJoin;
+    qreal m_miterLimit = 2.0;
+    qreal m_curveThreshold = 0.25;
+    QList<qreal> m_dashes;
+    qreal m_dashOffset = 0.0;
 };

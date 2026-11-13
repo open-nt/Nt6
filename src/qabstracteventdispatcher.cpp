@@ -5,6 +5,8 @@
 #include "qobject_p.h"
 #include "threaddata_p.h"
 
+#include <QtCore/qabstractnativeeventfilter.h>
+#include <QtCore/qbytearray.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qsocketnotifier.h>
 #include <QtCore/qthread.h>
@@ -12,12 +14,45 @@
 #include <algorithm>
 #include <climits>
 #include <mutex>
+#include <vector>
 
 namespace {
 
 std::mutex &viewLock() {
     static std::mutex *m = new std::mutex;
     return *m;
+}
+
+// The native event filters of all threads, the most recently installed first. One list for all threads lets a
+// filter remove itself from every dispatcher when it is destroyed.
+struct NativeFilter {
+    QtPrivate::ThreadData *thread;
+    QAbstractNativeEventFilter *filter;
+};
+
+std::mutex &filterLock() {
+    static std::mutex *m = new std::mutex;
+    return *m;
+}
+
+std::vector<NativeFilter> &nativeFilters() {
+    static auto *list = new std::vector<NativeFilter>;
+    return *list;
+}
+
+// Removes the entries that match; a null argument matches everything. Must be called with filterLock() held.
+void eraseNativeFilters(const QtPrivate::ThreadData *td, const QAbstractNativeEventFilter *filter) {
+    std::vector<NativeFilter> &list = nativeFilters();
+    list.erase(std::remove_if(
+                   list.begin(), list.end(),
+                   [&](const NativeFilter &f) { return (!td || f.thread == td) && (!filter || f.filter == filter); }),
+               list.end());
+}
+
+bool isNativeFilterInstalled(const QtPrivate::ThreadData *td, const QAbstractNativeEventFilter *filter) {
+    const std::vector<NativeFilter> &list = nativeFilters();
+    return std::any_of(list.begin(), list.end(),
+                       [&](const NativeFilter &f) { return f.thread == td && f.filter == filter; });
 }
 
 } // namespace
@@ -35,9 +70,69 @@ void destroyEventDispatcher(ThreadData *td) {
         }
     }
     delete view;
+    std::lock_guard<std::mutex> lk(filterLock());
+    eraseNativeFilters(td, nullptr);
 }
 
 } // namespace QtPrivate
+
+/*!
+    \class QAbstractNativeEventFilter
+    \brief The QAbstractNativeEventFilter class provides an interface for receiving native events, such as
+    the events of the window system.
+
+    Reimplement nativeEventFilter() and install the filter with QCoreApplication::installNativeEventFilter()
+    or QAbstractEventDispatcher::installNativeEventFilter(). The filter then sees each native event before Nt
+    handles it, and can stop it:
+
+    \code
+    class XcbFilter : public QAbstractNativeEventFilter {
+    public:
+        bool nativeEventFilter(const QByteArray &eventType, void *message, qintptr *) override {
+            if (eventType == "xcb_generic_event_t") {
+                auto *event = static_cast<xcb_generic_event_t *>(message);
+                // ...
+            }
+            return false;
+        }
+    };
+    \endcode
+
+    The \c xcb platform of Nt GUI passes every event that it reads from the X server, with the type
+    \c "xcb_generic_event_t" and an \c{xcb_generic_event_t *} as the message.
+
+    \differences
+    Destroying a filter removes it from the dispatchers of all threads, not only of the current one.
+    \enddifferences
+
+    \sa QAbstractEventDispatcher::filterNativeEvent()
+*/
+
+/*!
+    Constructs a native event filter. It does nothing until it is installed.
+*/
+QAbstractNativeEventFilter::QAbstractNativeEventFilter() = default;
+
+/*!
+    Destroys the native event filter and removes it from every event dispatcher that it is installed in.
+*/
+QAbstractNativeEventFilter::~QAbstractNativeEventFilter() {
+    std::lock_guard<std::mutex> lk(filterLock());
+    eraseNativeFilters(nullptr, this);
+}
+
+/*!
+    \fn bool QAbstractNativeEventFilter::nativeEventFilter(const QByteArray &eventType, void *message, qintptr *result)
+
+    This function is called for each native event, with the type of the event in \a eventType and the event
+    itself in \a message. Return \c true to stop the event, so that Nt does not handle it, or \c false to
+    let it through. A platform that returns a value for its events reads it from \a result.
+
+    What \a message points to depends on \a eventType: the \c xcb platform passes an
+    \c{xcb_generic_event_t *} with the type \c "xcb_generic_event_t".
+
+    \sa QAbstractEventDispatcher::filterNativeEvent()
+*/
 
 /*!
     \class QAbstractEventDispatcher
@@ -61,8 +156,8 @@ void destroyEventDispatcher(ThreadData *td) {
     work on the dispatcher of the thread that the handle lives in. Timer types are accepted and ignored,
     as are all timers of millisecond precision, and registeredTimers() reports \c Qt::CoarseTimer.
     registerSocketNotifier() and unregisterSocketNotifier() enable and disable a notifier, since a
-    QSocketNotifier registers itself, and must be called from the thread of the dispatcher. There are
-    no native event filters, and flush() does nothing.
+    QSocketNotifier registers itself, and must be called from the thread of the dispatcher. flush() does
+    nothing.
     \enddifferences
 
     \sa QEventLoop, QTimer, QSocketNotifier, QThread
@@ -282,6 +377,71 @@ void QAbstractEventDispatcher::interrupt() { QtPrivate::objectThreadData(this)->
     Does nothing. It exists because other dispatchers flush buffered output here.
 */
 void QAbstractEventDispatcher::flush() {}
+
+/*!
+    \since 5.0
+    Installs \a filterObj, so that filterNativeEvent() passes it the native events of this dispatcher's thread.
+    The filter that was installed last is called first. Installing a filter again moves it to the front.
+
+    A filter can be installed and removed from any thread, and can remove itself while it filters.
+
+    \sa removeNativeEventFilter(), QCoreApplication::installNativeEventFilter()
+*/
+void QAbstractEventDispatcher::installNativeEventFilter(QAbstractNativeEventFilter *filterObj) {
+    if (!filterObj)
+        return;
+    QtPrivate::ThreadData *td = QtPrivate::objectThreadData(this);
+    std::lock_guard<std::mutex> lk(filterLock());
+    eraseNativeFilters(td, filterObj);
+    nativeFilters().insert(nativeFilters().begin(), NativeFilter{td, filterObj});
+}
+
+/*!
+    \since 5.0
+    Removes \a filterObj from this dispatcher's thread. Nothing happens if it is not installed there.
+
+    \sa installNativeEventFilter()
+*/
+void QAbstractEventDispatcher::removeNativeEventFilter(QAbstractNativeEventFilter *filterObj) {
+    if (!filterObj)
+        return;
+    QtPrivate::ThreadData *td = QtPrivate::objectThreadData(this);
+    std::lock_guard<std::mutex> lk(filterLock());
+    eraseNativeFilters(td, filterObj);
+}
+
+/*!
+    \since 5.0
+    Passes the native event \a message, of the type \a eventType, to the native event filters of this
+    dispatcher's thread, the most recently installed first, until one of them returns \c true. Returns
+    \c true if a filter stopped the event; otherwise returns \c false. \a result is handed to each filter.
+
+    Platform code calls this for each native event before it handles it.
+
+    \sa installNativeEventFilter(), QAbstractNativeEventFilter::nativeEventFilter()
+*/
+bool QAbstractEventDispatcher::filterNativeEvent(const QByteArray &eventType, void *message, qintptr *result) {
+    QtPrivate::ThreadData *td = QtPrivate::objectThreadData(this);
+    std::vector<QAbstractNativeEventFilter *> filters;
+    {
+        std::lock_guard<std::mutex> lk(filterLock());
+        for (const NativeFilter &f : nativeFilters()) {
+            if (f.thread == td)
+                filters.push_back(f.filter);
+        }
+    }
+    for (QAbstractNativeEventFilter *filter : filters) {
+        {
+            // An earlier filter may have removed or destroyed this one.
+            std::lock_guard<std::mutex> lk(filterLock());
+            if (!isNativeFilterInstalled(td, filter))
+                continue;
+        }
+        if (filter->nativeEventFilter(eventType, message, result))
+            return true;
+    }
+    return false;
+}
 
 /*!
     Returns a timer identifier that is not in use. The identifiers are unique across all threads.

@@ -6,6 +6,8 @@
 #include <QtCore/qnamespace.h>
 #include <QtCore/qobject.h>
 
+class QAbstractNativeEventFilter;
+class QByteArray;
 class QSocketNotifier;
 class QThread;
 
@@ -44,6 +46,10 @@ public:
     void wakeUp();
     void interrupt();
     void flush();
+
+    void installNativeEventFilter(QAbstractNativeEventFilter *filterObj);
+    void removeNativeEventFilter(QAbstractNativeEventFilter *filterObj);
+    bool filterNativeEvent(const QByteArray &eventType, void *message, qintptr *result);
 
     static int allocateTimerId();
     static void releaseTimerId(int timerId);

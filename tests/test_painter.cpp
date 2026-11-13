@@ -1,8 +1,8 @@
 // MIT License - see LICENSE
 //
-// Tests for the vector drawing of Nt GUI: QTransform, QPainterPath, QPolygon, gradients, pens with caps,
-// joins and dashes, and QPainter drawing them with floating-point coordinates, transformations and
-// antialiasing, checked through pixels. The SVG generator writes paths too.
+// Tests for the vector drawing of Nt GUI: QTransform, QPainterPath and its set operations, QPainterPathStroker,
+// QPolygon, gradients, pens with caps, joins and dashes, and QPainter drawing them with floating-point
+// coordinates, transformations and antialiasing, checked through pixels. The SVG generator writes paths too.
 #include <QtCore/qbuffer.h>
 #include <QtGui/QtGui>
 #include <QtGui/qguiapplication.h>
@@ -129,7 +129,9 @@ static void testPaths() {
     CHECK(!rounded.contains(QPointF(1, 1)) && rounded.contains(QPointF(20, 10)));
     QPainterPath moved = rect.translated(5, 5);
     CHECK(moved.boundingRect() == QRectF(15, 15, 20, 10));
-    CHECK((rect + moved).elementCount() == rect.elementCount() + moved.elementCount());
+    QPainterPath added = rect;
+    added.addPath(moved);
+    CHECK(added.elementCount() == rect.elementCount() + moved.elementCount());
     CHECK(QTransform::fromScale(2, 2).map(rect).boundingRect() == QRectF(20, 20, 40, 20));
     const QList<QPolygonF> polys = circle.toSubpathPolygons();
     CHECK(polys.size() == 1 && polys.first().size() > 16);
@@ -389,10 +391,199 @@ static void testSvgPaths() {
     CHECK(svg.contains("transform=\"matrix(1 0 0 1 5 5)\""));
 }
 
+// The area of a path whose subpaths neither cross nor overlap, holes wound the other way.
+static qreal areaOf(const QPainterPath &path) {
+    qreal area = 0.0;
+    for (const QPolygonF &poly : path.toFillPolygons())
+        for (qsizetype i = 0; i + 1 < poly.size(); ++i)
+            area += poly.at(i).x() * poly.at(i + 1).y() - poly.at(i + 1).x() * poly.at(i).y();
+    return std::fabs(area) / 2.0;
+}
+
+static void testStroker() {
+    QPainterPathStroker stroker;
+    CHECK(near(stroker.width(), 1.0) && stroker.capStyle() == Qt::SquareCap && stroker.joinStyle() == Qt::BevelJoin);
+    CHECK(near(stroker.miterLimit(), 2.0) && near(stroker.curveThreshold(), 0.25) && stroker.dashPattern().isEmpty());
+    stroker.setWidth(-3);
+    CHECK(near(stroker.width(), 1.0));
+    stroker.setDashPattern(Qt::DashLine);
+    CHECK(stroker.dashPattern() == QList<qreal>({4, 2}));
+    stroker.setDashPattern(Qt::SolidLine);
+    CHECK(stroker.dashPattern().isEmpty());
+
+    QPen pen(QColor(0, 0, 0), 10, Qt::DotLine, Qt::RoundCap, Qt::MiterJoin);
+    pen.setMiterLimit(3);
+    pen.setDashOffset(0.5);
+    const QPainterPathStroker fromPen(pen);
+    CHECK(near(fromPen.width(), 10) && fromPen.capStyle() == Qt::RoundCap && fromPen.joinStyle() == Qt::MiterJoin);
+    CHECK(near(fromPen.miterLimit(), 3) && near(fromPen.dashOffset(), 0.5) &&
+          fromPen.dashPattern() == QList<qreal>({1, 2}));
+
+    QPainterPath line;
+    line.moveTo(0, 0);
+    line.lineTo(100, 0);
+    stroker = QPainterPathStroker();
+    stroker.setWidth(10);
+    stroker.setCapStyle(Qt::FlatCap);
+    const QPainterPath flat = stroker.createStroke(line);
+    CHECK(flat.fillRule() == Qt::WindingFill);
+    CHECK(flat.contains(QPointF(50, 4)) && !flat.contains(QPointF(50, 6)) && !flat.contains(QPointF(-2, 0)));
+    CHECK(flat.boundingRect() == QRectF(0, -5, 100, 10));
+    stroker.setCapStyle(Qt::SquareCap);
+    CHECK(stroker.createStroke(line).contains(QPointF(-4, 4)));
+    stroker.setCapStyle(Qt::RoundCap);
+    const QPainterPath round = stroker.createStroke(line);
+    CHECK(round.contains(QPointF(-4, 0)) && !round.contains(QPointF(-4, 4)));
+    CHECK(QPainterPathStroker().createStroke(QPainterPath()).isEmpty());
+
+    // Dashes are in units of the width: ten on, ten off.
+    stroker.setCapStyle(Qt::FlatCap);
+    stroker.setDashPattern({1, 1});
+    const QPainterPath dashed = stroker.createStroke(line);
+    CHECK(dashed.contains(QPointF(5, 0)) && !dashed.contains(QPointF(15, 0)) && dashed.contains(QPointF(25, 0)));
+    stroker.setDashOffset(1);
+    CHECK(stroker.createStroke(line).contains(QPointF(15, 0)));
+
+    // A corner: the miter reaches the outer corner, the bevel cuts it off.
+    QPainterPath corner;
+    corner.moveTo(0, 0);
+    corner.lineTo(50, 0);
+    corner.lineTo(50, 50);
+    stroker = QPainterPathStroker();
+    stroker.setWidth(10);
+    stroker.setJoinStyle(Qt::MiterJoin);
+    CHECK(stroker.createStroke(corner).contains(QPointF(54, -4)));
+    stroker.setJoinStyle(Qt::BevelJoin);
+    CHECK(!stroker.createStroke(corner).contains(QPointF(54, -4)));
+
+    // The stroke of a curve follows it, and merges into one outline.
+    QPainterPath curve;
+    curve.moveTo(0, 0);
+    curve.cubicTo(30, -40, 70, 40, 100, 0);
+    stroker = QPainterPathStroker(QPen(QColor(0, 0, 0), 4, Qt::SolidLine, Qt::FlatCap));
+    const QPainterPath outline = stroker.createStroke(curve);
+    CHECK(outline.contains(curve.pointAtPercent(0.3)) && !outline.contains(curve.pointAtPercent(0.3) + QPointF(0, 6)));
+    const QPainterPath merged = outline.simplified();
+    CHECK(merged.fillRule() == Qt::OddEvenFill && merged.toFillPolygons().size() == 1);
+    CHECK(near(areaOf(merged), curve.length() * 4, curve.length() * 4 * 0.02));
+}
+
+static void testPathSetOperations() {
+    QPainterPath a, b;
+    a.addRect(0, 0, 20, 20);
+    b.addRect(10, 10, 20, 20);
+
+    const QPainterPath both = a.united(b);
+    CHECK(near(areaOf(both), 700, 1e-6) && both.fillRule() == Qt::OddEvenFill);
+    CHECK(both.contains(QPointF(5, 5)) && both.contains(QPointF(15, 15)) && both.contains(QPointF(25, 25)));
+    CHECK(!both.contains(QPointF(25, 5)) && !both.contains(QPointF(5, 25)));
+    // One outline of eight corners, closed: nine points.
+    CHECK(both.toFillPolygons().size() == 1 && both.elementCount() == 9);
+
+    const QPainterPath common = a.intersected(b);
+    CHECK(near(areaOf(common), 100, 1e-6) && common.boundingRect() == QRectF(10, 10, 10, 10));
+    const QPainterPath rest = a.subtracted(b);
+    CHECK(near(areaOf(rest), 300, 1e-6) && rest.contains(QPointF(5, 5)) && !rest.contains(QPointF(15, 15)));
+
+    // The operators.
+    CHECK((a | b) == both && (a + b) == both && (a & b) == common && (a - b) == rest);
+    QPainterPath c = a;
+    c |= b;
+    CHECK(c == both);
+    c = a;
+    c &= b;
+    CHECK(c == common);
+    c = a;
+    c -= b;
+    CHECK(c == rest);
+    c = a;
+    c += b;
+    CHECK(c == both);
+
+    // Rectangles that share an edge make one rectangle.
+    QPainterPath left, right;
+    left.addRect(0, 0, 10, 10);
+    right.addRect(10, 0, 10, 10);
+    const QPainterPath wide = left.united(right);
+    CHECK(wide.elementCount() == 5 && wide.boundingRect() == QRectF(0, 0, 20, 10) && near(areaOf(wide), 200, 1e-6));
+    CHECK(left.intersected(right).isEmpty() && !left.intersects(right));
+    CHECK(near(areaOf(left.subtracted(right)), 100, 1e-6));
+
+    // A path minus itself is empty; with itself it is itself.
+    CHECK(a.subtracted(a).isEmpty() && near(areaOf(a.intersected(a)), 400, 1e-6));
+    CHECK(near(areaOf(a.united(a)), 400, 1e-6));
+
+    // Apart: the union keeps both paths as they are, the difference keeps this one, the intersection is empty.
+    QPainterPath far;
+    far.addEllipse(100, 100, 10, 10);
+    CHECK(a.subtracted(far) == a && a.intersected(far).isEmpty() && a.united(far) == a + far);
+    CHECK(a.united(far).elementCount() == a.elementCount() + far.elementCount());
+    CHECK(a.united(QPainterPath()) == a && QPainterPath().united(a) == a && QPainterPath().subtracted(a).isEmpty());
+
+    // A ring of two circles, with a hole.
+    QPainterPath outer, inner;
+    outer.addEllipse(QPointF(50, 50), 40, 40);
+    inner.addEllipse(QPointF(50, 50), 20, 20);
+    const QPainterPath ring = outer - inner;
+    CHECK(ring.contains(QPointF(50, 80)) && !ring.contains(QPointF(50, 50)) && !ring.contains(QPointF(0, 0)));
+    CHECK(ring.toFillPolygons().size() == 2);
+    const qreal pi = 3.14159265358979323846;
+    CHECK(near(areaOf(ring), pi * (40 * 40 - 20 * 20), pi * (40 * 40 - 20 * 20) * 0.01));
+    CHECK(outer.contains(inner) && !inner.contains(outer) && outer.intersects(inner));
+    CHECK(!ring.contains(inner) && !ring.intersects(inner) && ring.intersects(outer));
+
+    // Shapes that touch at a corner stay two loops.
+    QPainterPath touch;
+    touch.addRect(20, 20, 10, 10);
+    const QPainterPath pair = a.united(touch);
+    CHECK(pair.toFillPolygons().size() == 2 && near(areaOf(pair), 500, 1e-6));
+
+    // simplified() follows the fill rule of the path.
+    QPainterPath overlapping = a;
+    overlapping.addRect(10, 10, 20, 20);
+    const QPainterPath evenOdd = overlapping.simplified();
+    CHECK(evenOdd.contains(QPointF(5, 5)) && !evenOdd.contains(QPointF(15, 15)) && near(areaOf(evenOdd), 600, 1e-6));
+    overlapping.setFillRule(Qt::WindingFill);
+    CHECK(near(areaOf(overlapping.simplified()), 700, 1e-6));
+    // A star that crosses itself: with the winding rule its middle is inside.
+    QPainterPath star;
+    star.setFillRule(Qt::WindingFill);
+    for (int i = 0; i < 5; ++i) {
+        const qreal angle = (90 + i * 144) * pi / 180;
+        const QPointF p(50 + 40 * std::cos(angle), 50 - 40 * std::sin(angle));
+        if (i == 0)
+            star.moveTo(p);
+        else
+            star.lineTo(p);
+    }
+    star.closeSubpath();
+    const QPainterPath solid = star.simplified();
+    CHECK(solid.contains(QPointF(50, 50)) && solid.toFillPolygons().size() == 1 && solid.elementCount() == 11);
+    star.setFillRule(Qt::OddEvenFill);
+    CHECK(!star.simplified().contains(QPointF(50, 50)) && star.simplified().toFillPolygons().size() == 5);
+
+    // Polygons.
+    const QPolygonF square(QRectF(0, 0, 20, 20)), shifted(QRectF(10, 10, 20, 20));
+    const QPolygonF joined = square.united(shifted);
+    CHECK(joined.isClosed() && joined.size() == 9 && joined.containsPoint(QPointF(25, 25), Qt::OddEvenFill));
+    CHECK(square.intersected(shifted).boundingRect() == QRectF(10, 10, 10, 10));
+    CHECK(!square.subtracted(shifted).containsPoint(QPointF(15, 15), Qt::OddEvenFill));
+    CHECK(square.intersects(shifted) && !square.intersects(QPolygonF(QRectF(50, 50, 5, 5))));
+    const QPolygon isquare(QRect(0, 0, 21, 21), true), ishifted(QRect(10, 10, 21, 21), true);
+    CHECK(isquare.intersected(ishifted).boundingRect() == QRect(10, 10, 11, 11) && isquare.intersects(ishifted));
+    CHECK(isquare.united(ishifted).size() == 9 && isquare.subtracted(ishifted).size() == 7);
+
+    // Painted: the ring has its hole.
+    const QImage painted = paint(100, 100, [&](QPainter &p) { p.fillPath(ring, QColor(0, 0, 200)); });
+    CHECK(color(painted.pixel(50, 85), 0, 0, 200) && white(painted.pixel(50, 50)) && white(painted.pixel(2, 2)));
+}
+
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     testTransform();
     testPaths();
+    testStroker();
+    testPathSetOperations();
     testPensAndBrushes();
     testPainting();
     testSvgPaths();

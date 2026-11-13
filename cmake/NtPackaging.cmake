@@ -55,7 +55,10 @@ set(CPACK_PACKAGE_NAME nt6)
 # spells it its own way, so the release sorts before 6.0.0: dpkg and rpm use a tilde,
 # and pacman, which forbids hyphens in pkgver, an underscore.
 set(CPACK_PACKAGE_VERSION ${NT_VERSION})
-string(REPLACE "-" "~" CPACK_DEBIAN_PACKAGE_VERSION "${NT_VERSION}")
+# Only the first hyphen after MAJOR.MINOR.PATCH becomes a tilde (6.0.0-rc.4 -> 6.0.0~rc.4):
+# dpkg would read the hyphen as the start of the Debian revision and sort the pre-release
+# above 6.0.0. Git tags, release and asset names keep the SemVer spelling.
+string(REGEX REPLACE "^([0-9]+\\.[0-9]+\\.[0-9]+)-" "\\1~" CPACK_DEBIAN_PACKAGE_VERSION "${NT_VERSION}")
 string(REPLACE "-" "~" CPACK_RPM_PACKAGE_VERSION "${NT_VERSION}")
 string(REPLACE "-" "_" CPACK_NT_PACMAN_VERSION "${NT_VERSION}")
 set(CPACK_PACKAGE_VENDOR "Nt contributors")

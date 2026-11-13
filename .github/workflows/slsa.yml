@@ -96,11 +96,16 @@ jobs:
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           pattern: packages-*
           merge-multiple: true
           path: dist
+
+      - name: Use the SemVer spelling in the .deb names
+        run: packaging/semver-assets.sh dist
 
       - name: Hash
         id: hash
@@ -129,11 +134,16 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           pattern: packages-*
           merge-multiple: true
           path: dist
+
+      - name: Use the SemVer spelling in the .deb names
+        run: packaging/semver-assets.sh dist
 
       - name: Upload to the release
         env:

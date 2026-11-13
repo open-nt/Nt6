@@ -63,6 +63,17 @@ it narrow (`// NOLINT(<check>)` with a reason, or an entry with a comment in
 `.cppcheck-suppressions`) and never disable a warning globally to get green.
 New public API needs ndoc comments and tests in the same change.
 
+## Versions
+
+The project follows semver.org: the `VERSION` file, git tags, release names, release asset names and
+CI artifact names all use the SemVer spelling (`6.0.0-rc.4`). Only the dpkg `Version:` field, the
+`.deb` file names and any inter-package `Depends: pkg (>= <ver>)` use a tilde (`6.0.0~rc.4`), because
+dpkg reads the hyphen as a Debian revision and would sort the pre-release above `6.0.0`. Convert only
+the first hyphen after MAJOR.MINOR.PATCH: in CMake `string(REGEX REPLACE "^([0-9]+\\.[0-9]+\\.[0-9]+)-" "\\1~" ...)`
+(see `cmake/NtPackaging.cmake`), in bash `${VER/-/\~}` and always escape the tilde, since `${VER/-/~}`
+expands to `$HOME`. `packaging/semver-assets.sh` restores the SemVer spelling in the `.deb` names when
+they are attached to a release.
+
 ## Build options
 
 - `-DNT_WARNINGS_AS_ERRORS=ON` makes warnings errors (off by default so a newer

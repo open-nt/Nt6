@@ -878,6 +878,25 @@ target_include_directories(NtFMQml
 target_link_libraries(NtFMQml PUBLIC NtFM NtQml)
 nt_set_compile_options(NtFMQml)
 
+# Nt Gamepad: the API of Qt Gamepad from Qt 5, on evdev. Key navigation sends key events through Nt GUI.
+add_library(NtGamepad
+    src/gamepad/qgamepad.cpp
+    src/gamepad/qgamepadkeynavigation.cpp
+    src/gamepad/qgamepadmanager.cpp
+    src/gamepad/qgamepadmapping.cpp
+    src/gamepad/qgamepadbackend_linux.cpp
+)
+add_library(Nt::Gamepad ALIAS NtGamepad)
+target_include_directories(NtGamepad
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtGamepad>
+        $<INSTALL_INTERFACE:include/nt6/QtGamepad>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gamepad
+)
+target_link_libraries(NtGamepad PUBLIC NtCore PRIVATE NtGui)
+nt_set_compile_options(NtGamepad)
+
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
 )
@@ -955,6 +974,7 @@ nt_moc_library(NtCharts include/QtCharts)
 nt_moc_library(NtQml include/QtQml src/qml)
 nt_moc_library(NtFM include/QtFM)
 nt_moc_library(NtFMQml include/QtFMQml)
+nt_moc_library(NtGamepad include/QtGamepad)
 nt_moc_library(NtOpenGL include/QtOpenGL)
 endif() # NOT NT_ZEPHYR
 
@@ -1026,6 +1046,11 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_json_tests PRIVATE Nt::Core)
     nt_set_compile_options(nt_json_tests)
     add_test(NAME nt_json_tests COMMAND nt_json_tests)
+
+    add_executable(nt_transitive_include_tests tests/test_transitive_includes.cpp)
+    target_link_libraries(nt_transitive_include_tests PRIVATE Nt::Core)
+    nt_set_compile_options(nt_transitive_include_tests)
+    add_test(NAME nt_transitive_include_tests COMMAND nt_transitive_include_tests)
 
     if(NT_HAVE_OPENSSL)
         add_executable(nt_ssl_tests tests/test_ssl.cpp)
@@ -1378,6 +1403,15 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_fmqml_tests PRIVATE Nt::FMQml)
     add_test(NAME nt_fmqml_tests COMMAND nt_fmqml_tests)
     nt_set_compile_options(nt_fmqml_tests)
+
+    # The gamepad tests replace the evdev platform with one of their own, and send key events to an
+    # offscreen window.
+    add_executable(nt_gamepad_tests tests/test_gamepad.cpp)
+    target_include_directories(nt_gamepad_tests PRIVATE src/gamepad)
+    target_link_libraries(nt_gamepad_tests PRIVATE Nt::Gamepad Nt::Gui)
+    add_test(NAME nt_gamepad_tests COMMAND nt_gamepad_tests)
+    set_tests_properties(nt_gamepad_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_gamepad_tests)
     nt_set_compile_options(nt_fm_tests)
 
     # The xcb tests need an X server (or XWayland); they report a skip without one.
@@ -1546,6 +1580,11 @@ if(NT_BUILD_EXAMPLES)
     add_executable(ptt examples/gpio/ptt.cpp)
     target_link_libraries(ptt PRIVATE Nt::Gpio)
     nt_set_compile_options(ptt)
+
+    # Prints what the gamepads do; see "Using Nt Gamepad" in the documentation.
+    add_executable(gamepadinfo examples/gamepad/gamepadinfo.cpp)
+    target_link_libraries(gamepadinfo PRIVATE Nt::Gamepad)
+    nt_set_compile_options(gamepadinfo)
 
     # Plays or renders FM sound effects; see "Using Nt FM" in the documentation.
     add_executable(fmplay examples/fm/fmplay.cpp)

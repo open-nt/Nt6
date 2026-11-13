@@ -1,0 +1,3 @@
+#include "qgamepad.h"
+#include "qgamepadkeynavigation.h"
+#include "qgamepadmanager.h"

@@ -387,6 +387,7 @@ enum Modifier {
     \value Key_Y The Y key.
     \value Key_Z The Z key.
     \value Key_Menu The Menu key, which opens a context menu.
+    \value Key_Back The Back key of a browser, remote control or gamepad.
     \value Key_Plus The + key.
     \value Key_Comma The , key.
     \value Key_Minus The - key.
@@ -434,6 +435,7 @@ enum Key {
     Key_F11 = 0x0100003a,
     Key_F12 = 0x0100003b,
     Key_Menu = 0x01000055,
+    Key_Back = 0x01000061,
     Key_Space = 0x20,
     Key_Plus = 0x2b,
     Key_Comma = 0x2c,

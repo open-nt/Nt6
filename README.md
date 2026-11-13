@@ -342,6 +342,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 |---|---|---|
 | Nt FM | `Nt::FM` | FM synthesis of game sound effects from small JSON patches; see [Nt FM](#nt-fm-fm-synthesis-for-game-audio) and the [`fmplay`](examples/fm/fmplay.cpp) example |
 | Nt FM QML | `Nt::FMQml` | the QML types of Nt FM (`import QtFM`); see the [`fmqml`](examples/fm/fmqml.cpp) example |
+| Nt Gamepad | `Nt::Gamepad` | Qt Gamepad from Qt 5, brought back: `QGamepad`, `QGamepadManager` and `QGamepadKeyNavigation`, plus SDL GameControllerDB mappings, stable ids across replugging, generic button and axis signals, dead zones and rumble. Reads evdev on Linux, event-driven, with hot plugging. Guide: [Using Nt Gamepad](https://open-nt.github.io/Nt6/nt-gamepad.html); example: [`gamepadinfo`](examples/gamepad/gamepadinfo.cpp) |
 | Nt GPIO | `Nt::Gpio` | `QGpioLine`: one GPIO line, as input with `valueChanged()`, debounce and bias, or as output. Uses the Linux GPIO character device (v2, Linux 5.10 or later) or Zephyr. Guide: [Using Nt GPIO](https://open-nt.github.io/Nt6/nt-gpio.html); example: [`ptt`](examples/gpio/ptt.cpp) |
 
 ### Additions to Qt classes
@@ -515,6 +516,7 @@ Not yet: OPLL, OPN2, OPM and SN76489 emulation (so no Mega Drive or MSX music), 
 | Qt CoAP | Nt CoAP |  |
 | Qt Concurrent | Nt Concurrent | ✔ |
 | (none, [Nt Only](#nt-only)) | Nt FM | ✔ (see Status) |
+| Qt Gamepad (Qt 5 only, [Nt Only](#nt-only)) | Nt Gamepad | ✔ (Linux) |
 | (none, [Nt Only](#nt-only)) | Nt GPIO | ✔ |
 | Qt Graphs | Nt Graphs |  |
 | Qt GRPC | Nt GRPC |  |

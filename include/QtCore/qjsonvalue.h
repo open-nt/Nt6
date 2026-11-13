@@ -184,3 +184,7 @@ inline void QJsonValue::swap(QJsonValue &other) noexcept {
     other = std::move(*this);
     *this = std::move(tmp);
 }
+
+// As in Qt 6, every JSON header makes QJsonDocument complete. It is included last so that
+// QJsonValue is defined first whichever JSON header a translation unit includes.
+#include <QtCore/qjsondocument.h>

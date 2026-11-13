@@ -3,6 +3,7 @@
 
 #include <QtCore/qglobal.h>
 #include <QtCore/qnamespace.h>
+#include <QtCore/qpair.h>
 
 #include <algorithm>
 #include <initializer_list>

@@ -150,6 +150,65 @@ void testPrimitives() {
     CHECK(image.pixel(3, 10) == kWhite && image.pixel(10, 3) == kWhite);
 }
 
+// The height of the ink in the column x of the device pixels.
+int inkHeight(const QImage &image, int x) {
+    int n = 0;
+    for (int y = 0; y < image.height(); ++y)
+        n += image.pixel(x, y) != kWhite ? 1 : 0;
+    return n;
+}
+
+void testPathPens() {
+    // A wide pen on a path is as wide as the painter's coordinates say, which is twice as many device pixels; it
+    // used to be scaled by the ratio twice.
+    for (const bool antialias : {false, true}) {
+        QImage image = scaledImage(20, 20);
+        {
+            QPainter p(&image);
+            p.setRenderHint(QPainter::Antialiasing, antialias);
+            QPen pen(Qt::red, 4.0);
+            pen.setCapStyle(Qt::FlatCap);
+            p.setPen(pen);
+            QPainterPath path;
+            path.moveTo(2, 10);
+            path.lineTo(18, 10);
+            p.drawPath(path);
+        }
+        const int height = inkHeight(image, 20);
+        std::printf("4-unit pen at ratio 2%s: %d device pixels\n", antialias ? ", antialiased" : "", height);
+        CHECK(antialias ? height >= 8 && height <= 9 : height == 8);
+    }
+    // A diagonal line, which takes the path route, gets the same width as a straight one.
+    {
+        QImage image = scaledImage(20, 20);
+        {
+            QPainter p(&image);
+            p.setPen(QPen(Qt::red, 3.0, Qt::SolidLine, Qt::FlatCap));
+            p.drawLine(QLineF(2, 2, 18, 18));
+        }
+        // Across a 45 degree line of 6 device pixels, a column holds about 6 * sqrt(2) of them.
+        const int height = inkHeight(image, 20);
+        CHECK(height >= 7 && height <= 10);
+    }
+    // A cosmetic pen keeps its width in device-independent pixels too: 1 becomes 2 device pixels.
+    {
+        QImage image = scaledImage(20, 20);
+        {
+            QPainter p(&image);
+            QPen pen(Qt::red, 1.0);
+            pen.setCosmetic(true);
+            pen.setCapStyle(Qt::FlatCap);
+            p.setPen(pen);
+            p.scale(2, 2); // ignored by a cosmetic pen
+            QPainterPath path;
+            path.moveTo(1, 5);
+            path.lineTo(9, 5);
+            p.drawPath(path);
+        }
+        CHECK(inkHeight(image, 20) == 2);
+    }
+}
+
 void testImages() {
     QImage source(2, 2, QImage::Format_ARGB32_Premultiplied);
     source.fill(Qt::red);
@@ -248,6 +307,7 @@ int main(int argc, char **argv) {
     testScreen();
     testImage();
     testPrimitives();
+    testPathPens();
     testImages();
     testText();
     testWindow();

@@ -2,10 +2,13 @@
 #include <QtGui/qopenglcontext.h>
 
 #include "qegl_p.h"
+#include "qpa/qplatformintegration_p.h"
 #include "qpa/qplatformwindow_p.h"
 #include "qwindow_p.h"
 
+#include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
+#include <QtCore/qthread.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qoffscreensurface.h>
 #include <QtGui/qopenglfunctions.h>
@@ -21,6 +24,20 @@
 #include <vector>
 
 namespace egl = QtPrivate::Egl;
+
+namespace {
+
+// Lets the platform handle the events that EGL may have read from the connection to the window system. Only on the
+// thread of the application object, which owns that connection; a context of another thread leaves them to it.
+void checkQueuedEvents() {
+    QCoreApplication *app = QCoreApplication::instance();
+    if (!app || QThread::currentThread() != app->thread())
+        return;
+    if (QPlatformIntegration *integration = QtPrivate::GuiAccess::integration())
+        integration->checkQueuedEvents();
+}
+
+} // namespace
 
 namespace {
 
@@ -511,6 +528,7 @@ bool QOpenGLContext::makeCurrent(QSurface *surface) {
         actual.setSwapInterval(interval);
         QtPrivate::GuiAccess::setActualFormat(window, actual);
     }
+    checkQueuedEvents();
     return true;
 }
 
@@ -555,10 +573,12 @@ void QOpenGLContext::swapBuffers(QSurface *surface) {
             eglSurface = it->second;
     }
     const egl::Display &d = egl::display();
-    if (eglSurface)
+    if (eglSurface) {
         d.egl->SwapBuffers(d.display, eglSurface);
-    else if (m_d->functions)
+        checkQueuedEvents();
+    } else if (m_d->functions) {
         m_d->functions->glFlush();
+    }
 }
 
 /*!

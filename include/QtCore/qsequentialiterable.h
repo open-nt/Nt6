@@ -182,6 +182,7 @@ public:
     const_iterator constEnd() const { return end(); }
     QMetaType valueMetaType() const;
     bool canReverseIterate() const;
+    QMetaSequence metaContainer() const;
 
 private:
     QVariant m_variant;

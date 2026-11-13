@@ -51,6 +51,7 @@ public:
     virtual void drawPoints(const QPoint *points, int pointCount) = 0;
     virtual void drawEllipse(const QRect &rect) = 0;
     virtual void drawImage(const QRect &rect, const QImage &image, const QRect &sourceRect) = 0;
+    virtual void drawTransformedImage(const QRectF &rect, const QImage &image, const QRectF &sourceRect);
     // Paints the color of the pen where `mask`, a width by height array of 8-bit coverage values, is set; text uses it.
     virtual void drawAlphaMask(const QPoint &topLeft, const uchar *mask, int width, int height, qsizetype stride) = 0;
     virtual void drawPath(const QPainterPath &path);

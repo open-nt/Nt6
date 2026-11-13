@@ -31,6 +31,7 @@ public:
     void drawPoints(const QPoint *points, int pointCount) override;
     void drawEllipse(const QRect &rect) override;
     void drawImage(const QRect &rect, const QImage &image, const QRect &sourceRect) override;
+    void drawTransformedImage(const QRectF &rect, const QImage &image, const QRectF &sourceRect) override;
     void drawAlphaMask(const QPoint &topLeft, const uchar *mask, int width, int height, qsizetype stride) override;
     void drawPath(const QPainterPath &path) override;
     Type type() const override { return OpenGL2; }
@@ -54,6 +55,11 @@ private:
     void fillRects(const std::vector<QRect> &rects);
     void drawVertices(GLenum mode, const std::vector<GLfloat> &xy, const std::vector<GLfloat> *uv = nullptr);
     void uploadTexture(GLuint texture, int width, int height, const std::vector<unsigned char> &rgba, bool smooth);
+    // Draws the part `source` of `image` onto the quadrilateral `corners` (top left, top right, bottom right, bottom
+    // left, in device pixels), from the texture cache when the image fits in it.
+    void drawImageQuad(const QImage &image, const QRectF &source, const QPointF (&corners)[4]);
+    // Binds the cached texture of `image`, uploading it if needed; returns false if it is too large to cache.
+    bool bindCachedImage(const QImage &image);
 
     QOpenGLContext *m_context = nullptr;
     QOpenGLFunctions *m_f = nullptr;

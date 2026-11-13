@@ -76,6 +76,12 @@ struct AssociativeInterface;
 
 } // namespace QtPrivate
 
+// The interfaces of QMetaSequence and QMetaAssociation, in <QtCore/qmetacontainer.h>.
+namespace QtMetaContainerPrivate {
+struct QMetaSequenceInterface;
+struct QMetaAssociationInterface;
+} // namespace QtMetaContainerPrivate
+
 /*!
     \class QMetaTypeInterface
     \internal
@@ -865,6 +871,7 @@ struct SequenceInterface {
     void (*valueAt)(const void *, qsizetype, void *); // copy-constructs the element at the second argument
     bool (*append)(void *, const void *);             // null if the container cannot grow
     void (*clear)(void *);                            // null if the container cannot be cleared
+    const QtMetaContainerPrivate::QMetaSequenceInterface *(*metaSequence)(); // defined in qmetacontainer.h
 };
 
 struct AssociativeInterface {
@@ -876,6 +883,7 @@ struct AssociativeInterface {
     qsizetype (*find)(const void *, const void *);     // position of a key, or -1
     bool (*insert)(void *, const void *, const void *);
     void (*clear)(void *);
+    const QtMetaContainerPrivate::QMetaAssociationInterface *(*metaAssociation)(); // defined in qmetacontainer.h
 };
 
 template <typename C> struct SequenceTraits {
@@ -965,8 +973,9 @@ template <typename C> struct SequenceInterfaceFor {
         return true;
     }
     static void clear(void *c) { static_cast<C *>(c)->clear(); }
+    static const QtMetaContainerPrivate::QMetaSequenceInterface *metaSequence();
 
-    static inline constexpr SequenceInterface value = {&valueType, &size, &valueAt, &append, &clear};
+    static inline constexpr SequenceInterface value = {&valueType, &size, &valueAt, &append, &clear, &metaSequence};
 };
 
 template <typename C, typename K, typename M, typename = void> struct HasInsertOrAssign : std::false_type {};
@@ -1028,9 +1037,10 @@ template <typename C> struct AssociativeInterfaceFor {
         return true;
     }
     static void clear(void *c) { static_cast<C *>(c)->clear(); }
+    static const QtMetaContainerPrivate::QMetaAssociationInterface *metaAssociation();
 
-    static inline constexpr AssociativeInterface value = {&keyType,  &mappedType, &size,   &keyAt,
-                                                          &mappedAt, &find,       &insert, &clear};
+    static inline constexpr AssociativeInterface value = {&keyType, &mappedType, &size,  &keyAt,          &mappedAt,
+                                                          &find,    &insert,     &clear, &metaAssociation};
 };
 
 template <typename C, typename = void> struct SequenceCopyable : std::false_type {};
@@ -1057,3 +1067,6 @@ template <typename T> constexpr const AssociativeInterface *associativeOf() {
 }
 
 } // namespace QtPrivate
+
+// The definitions of SequenceInterfaceFor<C>::metaSequence() and AssociativeInterfaceFor<C>::metaAssociation().
+#include <QtCore/qmetacontainer.h>

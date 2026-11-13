@@ -38,6 +38,11 @@ QPoint QXcbIntegration::cursorPosition() const { return m_connection->pointerPos
 void QXcbIntegration::setCursorPosition(const QPoint &pos) { m_connection->warpPointer(pos); }
 
 // OpenGL on X11 through the XCB platform of EGL; windows are created with the root visual.
+// Mesa's EGL reads the replies it waits for from the connection, and with them the events in front of them, which
+// then sit in XCB's queue: the socket is not readable for them. Without this, a resize could wait until the event
+// loop next sleeps, which a fast repaint timer can put off for seconds.
+void QXcbIntegration::checkQueuedEvents() { m_connection->checkQueue(); }
+
 QEglNativePlatform QXcbIntegration::eglPlatform() const {
     QEglNativePlatform native;
     native.platform = 0x31DC; // EGL_PLATFORM_XCB_EXT

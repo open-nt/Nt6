@@ -17,6 +17,10 @@
 #include <QLatin1StringView>
 #include <QList>
 #include <QLocale>
+#include <QAssociativeIterable>
+#include <QMetaAssociation>
+#include <QMetaSequence>
+#include <QSequentialIterable>
 #include <QMetaType>
 #include <QPermission>
 #include <QPersistentModelIndex>
@@ -46,6 +50,10 @@
 #include <cstdio>
 #include <cmath>
 #include <limits>
+#include <unordered_map>
+#include <set>
+#include <map>
+#include <list>
 #include <string>
 #include <variant>
 #include <vector>
@@ -773,6 +781,250 @@ static void testYieldCpu() {
     CHECK(ready.load());
 }
 
+namespace {
+
+// Walks the container with const iterators and collects its values.
+template <typename V> QList<V> valuesOf(const QMetaSequence &meta, const void *container) {
+    QList<V> out;
+    void *it = meta.constBegin(container);
+    void *end = meta.constEnd(container);
+    V value{};
+    for (; !meta.compareConstIterator(it, end); meta.advanceConstIterator(it, 1)) {
+        meta.valueAtConstIterator(it, &value);
+        out.append(value);
+    }
+    meta.destroyConstIterator(it);
+    meta.destroyConstIterator(end);
+    return out;
+}
+
+// Can be copied, but not assigned or default-constructed.
+struct Fixed {
+    explicit Fixed(int v) : value(v) {}
+    const int value;
+    bool operator==(const Fixed &o) const { return value == o.value; }
+    bool operator<(const Fixed &o) const { return value < o.value; }
+};
+
+} // namespace
+
+static void testMetaSequence() {
+    // A QList can do everything.
+    const QMetaSequence list = QMetaSequence::fromContainer<QList<int>>();
+    CHECK(list == QMetaSequence::fromContainer<QList<int>>() && list != QMetaSequence::fromContainer<QList<double>>());
+    CHECK(list.valueMetaType() == QMetaType::fromType<int>());
+    CHECK(list.hasInputIterator() && list.hasForwardIterator() && list.hasBidirectionalIterator() &&
+          list.hasRandomAccessIterator());
+    CHECK(list.hasSize() && list.canClear() && list.hasIterator() && list.hasConstIterator() && list.isSortable());
+    CHECK(list.canAddValueAtBegin() && list.canAddValueAtEnd() && list.canRemoveValueAtBegin() &&
+          list.canRemoveValueAtEnd());
+    CHECK(list.canGetValueAtIndex() && list.canSetValueAtIndex() && list.canInsertValueAtIterator() &&
+          list.canEraseValueAtIterator() && list.canEraseRangeAtIterator());
+    QList<int> values = {1, 2, 3};
+    CHECK(list.size(&values) == 3);
+    int v = 0;
+    list.valueAtIndex(&values, 1, &v);
+    CHECK(v == 2);
+    v = 20;
+    list.setValueAtIndex(&values, 1, &v);
+    v = 0;
+    list.addValueAtBegin(&values, &v);
+    v = 4;
+    list.addValueAtEnd(&values, &v);
+    v = 5;
+    list.addValue(&values, &v);
+    CHECK((values == QList<int>{0, 1, 20, 3, 4, 5}));
+    list.removeValueAtBegin(&values);
+    list.removeValueAtEnd(&values);
+    list.removeValue(&values);
+    CHECK((values == QList<int>{1, 20, 3}));
+    CHECK((valuesOf<int>(list, &values) == QList<int>{1, 20, 3}));
+
+    // Iterators: advance, compare, copy, difference, read, write, insert and erase.
+    void *begin = list.begin(&values);
+    void *it = list.begin(&values);
+    void *end = list.end(&values);
+    CHECK(list.diffIterator(end, begin) == 3);
+    list.advanceIterator(it, 2);
+    CHECK(list.diffIterator(it, begin) == 2 && !list.compareIterator(it, begin));
+    list.valueAtIterator(it, &v);
+    CHECK(v == 3);
+    v = 30;
+    list.setValueAtIterator(it, &v);
+    list.advanceIterator(it, -1);
+    list.valueAtIterator(it, &v);
+    CHECK(v == 20);
+    list.copyIterator(it, begin);
+    CHECK(list.compareIterator(it, begin));
+    list.destroyIterator(it);
+    list.destroyIterator(begin);
+    list.destroyIterator(end);
+    CHECK((values == QList<int>{1, 20, 30}));
+    it = list.begin(&values);
+    list.advanceIterator(it, 1);
+    v = 15;
+    list.insertValueAtIterator(&values, it, &v); // invalidates the iterator
+    list.destroyIterator(it);
+    CHECK((values == QList<int>{1, 15, 20, 30}));
+    it = list.begin(&values);
+    list.eraseValueAtIterator(&values, it);
+    list.destroyIterator(it);
+    CHECK((values == QList<int>{15, 20, 30}));
+    void *from = list.begin(&values);
+    void *to = list.begin(&values);
+    list.advanceIterator(to, 2);
+    list.eraseRangeAtIterator(&values, from, to);
+    list.destroyIterator(from);
+    list.destroyIterator(to);
+    CHECK((values == QList<int>{30}));
+    list.clear(&values);
+    CHECK(values.isEmpty());
+
+    // A std::list has no random access, a std::vector cannot add at the front, a set cannot replace values.
+    const QMetaSequence stdList = QMetaSequence::fromContainer<std::list<QString>>();
+    CHECK(stdList.hasBidirectionalIterator() && !stdList.hasRandomAccessIterator() && !stdList.isSortable());
+    CHECK(!stdList.canGetValueAtIndex() && stdList.canAddValueAtBegin() && stdList.canSetValueAtIterator());
+    std::list<QString> names = {QStringLiteral("b")};
+    const QString a = QStringLiteral("a");
+    stdList.addValueAtBegin(&names, &a);
+    CHECK((valuesOf<QString>(stdList, &names) == QList<QString>{QStringLiteral("a"), QStringLiteral("b")}));
+
+    const QMetaSequence vector = QMetaSequence::fromContainer<std::vector<double>>();
+    CHECK(!vector.canAddValueAtBegin() && vector.canAddValueAtEnd() && vector.canRemoveValueAtEnd() &&
+          !vector.canRemoveValueAtBegin() && vector.canRemoveValue());
+    std::vector<double> numbers;
+    const double half = 0.5;
+    vector.addValue(&numbers, &half);
+    vector.addValueAtBegin(&numbers, &half); // not possible: nothing happens
+    CHECK(numbers.size() == 1 && numbers[0] == 0.5);
+
+    for (const QMetaSequence set :
+         {QMetaSequence::fromContainer<QSet<int>>(), QMetaSequence::fromContainer<std::set<int>>()}) {
+        CHECK(set.canAddValue() && !set.canAddValueAtEnd() && !set.canAddValueAtBegin());
+        CHECK(!set.canSetValueAtIterator() && set.canGetValueAtIterator() && set.canEraseValueAtIterator());
+        CHECK(!set.canRemoveValue() && set.hasSize());
+    }
+    QSet<int> set;
+    const QMetaSequence qset = QMetaSequence::fromContainer<QSet<int>>();
+    for (int i : {3, 1, 3})
+        qset.addValue(&set, &i);
+    CHECK(set.size() == 2 && set.contains(1) && set.contains(3));
+
+    const QMetaSequence strings = QMetaSequence::fromContainer<QStringList>();
+    CHECK(strings.valueMetaType() == QMetaType::fromType<QString>());
+
+    // Values that cannot be assigned can still be counted, iterated and added, but not read out; a vector of them
+    // cannot insert or erase in the middle, which moves values by assignment, but a list can.
+    const QMetaSequence fixed = QMetaSequence::fromContainer<std::vector<Fixed>>();
+    CHECK(fixed.hasSize() && fixed.canAddValueAtEnd() && !fixed.canEraseValueAtIterator());
+    CHECK(!fixed.canGetValueAtIndex() && !fixed.canGetValueAtIterator() && !fixed.canSetValueAtIterator());
+    CHECK(QMetaSequence::fromContainer<std::list<Fixed>>().canEraseValueAtIterator());
+    std::vector<Fixed> fixedValues;
+    const Fixed seven(7);
+    fixed.addValueAtEnd(&fixedValues, &seven);
+    CHECK(fixed.size(&fixedValues) == 1);
+
+    // A meta-sequence of no type does nothing.
+    const QMetaSequence none;
+    CHECK(!none.hasSize() && !none.hasIterator() && !none.valueMetaType().isValid() && none.size(&values) == -1);
+    CHECK(none.begin(&values) == nullptr);
+}
+
+static void testMetaAssociation() {
+    const QMetaAssociation map = QMetaAssociation::fromContainer<QMap<QString, int>>();
+    CHECK(map.keyMetaType() == QMetaType::fromType<QString>() && map.mappedMetaType() == QMetaType::fromType<int>());
+    CHECK(map.canInsertKey() && map.canRemoveKey() && map.canContainsKey() && map.canGetMappedAtKey() &&
+          map.canSetMappedAtKey());
+    CHECK(map.canGetKeyAtIterator() && map.canGetKeyAtConstIterator() && map.canGetMappedAtIterator() &&
+          map.canGetMappedAtConstIterator() && map.canSetMappedAtIterator());
+    CHECK(map.canCreateIteratorAtKey() && map.canCreateConstIteratorAtKey() && map.hasBidirectionalIterator());
+    QMap<QString, int> ages;
+    const QString ada = QStringLiteral("Ada"), alan = QStringLiteral("Alan"), nobody = QStringLiteral("Nobody");
+    int age = 36;
+    map.setMappedAtKey(&ages, &ada, &age);
+    map.insertKey(&ages, &alan);
+    CHECK(ages.size() == 2 && ages.value(ada) == 36 && ages.contains(alan) && ages.value(alan) == 0);
+    map.insertKey(&ages, &ada); // there already: unchanged
+    CHECK(ages.value(ada) == 36);
+    CHECK(map.containsKey(&ages, &ada) && !map.containsKey(&ages, &nobody));
+    int found = -1;
+    map.mappedAtKey(&ages, &ada, &found);
+    CHECK(found == 36);
+    map.mappedAtKey(&ages, &nobody, &found);
+    CHECK(found == 0);
+
+    void *it = map.createIteratorAtKey(&ages, &alan);
+    QString key;
+    map.keyAtIterator(it, &key);
+    CHECK(key == alan);
+    age = 41;
+    map.setMappedAtIterator(it, &age);
+    map.mappedAtIterator(it, &found);
+    CHECK(found == 41 && ages.value(alan) == 41);
+    map.destroyIterator(it);
+    void *missing = map.createConstIteratorAtKey(&ages, &nobody);
+    void *end = map.constEnd(&ages);
+    CHECK(map.compareConstIterator(missing, end));
+    map.destroyConstIterator(missing);
+    map.destroyConstIterator(end);
+
+    // Keys in order, through const iterators.
+    QStringList keys;
+    void *ci = map.constBegin(&ages);
+    void *ce = map.constEnd(&ages);
+    for (; !map.compareConstIterator(ci, ce); map.advanceConstIterator(ci, 1)) {
+        map.keyAtConstIterator(ci, &key);
+        keys.append(key);
+    }
+    map.destroyConstIterator(ci);
+    map.destroyConstIterator(ce);
+    CHECK((keys == QStringList{ada, alan}));
+
+    map.removeKey(&ages, &ada);
+    CHECK(ages.size() == 1 && !ages.contains(ada));
+
+    // The same operations on the other associative containers.
+    const QMetaAssociation hash = QMetaAssociation::fromContainer<QHash<int, QString>>();
+    const QMetaAssociation stdMap = QMetaAssociation::fromContainer<std::map<int, QString>>();
+    const QMetaAssociation unordered = QMetaAssociation::fromContainer<std::unordered_map<int, QString>>();
+    CHECK(!unordered.hasBidirectionalIterator() && unordered.hasForwardIterator());
+    QHash<int, QString> h;
+    std::map<int, QString> m;
+    std::unordered_map<int, QString> u;
+    const int one = 1, two = 2;
+    for (const auto &[meta, container] :
+         {std::pair<QMetaAssociation, void *>{hash, &h}, {stdMap, &m}, {unordered, &u}}) {
+        CHECK(meta.keyMetaType() == QMetaType::fromType<int>());
+        meta.setMappedAtKey(container, &one, &ada);
+        meta.insertKey(container, &two);
+        CHECK(meta.size(container) == 2 && meta.containsKey(container, &one));
+        QString mapped;
+        meta.mappedAtKey(container, &one, &mapped);
+        CHECK(mapped == ada);
+        meta.removeKey(container, &two);
+        CHECK(meta.size(container) == 1 && !meta.containsKey(container, &two));
+        meta.clear(container);
+        CHECK(meta.size(container) == 0);
+    }
+
+    // Mapped values that cannot be default-constructed cannot be read by key or inserted alone.
+    const QMetaAssociation fixed = QMetaAssociation::fromContainer<std::map<int, Fixed>>();
+    CHECK(fixed.canContainsKey() && fixed.canRemoveKey() && !fixed.canInsertKey() && !fixed.canGetMappedAtKey());
+    CHECK(!QMetaAssociation().canInsertKey() && !QMetaAssociation().keyMetaType().isValid());
+
+    // The iterables of a QVariant hand out the meta-container of the type it holds.
+    const QVariant list = QVariant::fromValue(QList<int>{4, 5});
+    const QSequentialIterable seq = list.value<QSequentialIterable>();
+    CHECK(seq.metaContainer() == QMetaSequence::fromContainer<QList<int>>());
+    CHECK(seq.metaContainer().size(list.constData()) == 2);
+    const QVariant hashVariant = QVariant::fromValue(QHash<int, QString>{{1, ada}});
+    const QAssociativeIterable assoc = hashVariant.value<QAssociativeIterable>();
+    CHECK(assoc.metaContainer() == hash);
+    CHECK(assoc.metaContainer().containsKey(hashVariant.constData(), &one));
+    CHECK(QSequentialIterable(QVariant(42)).metaContainer() == QMetaSequence());
+    CHECK(QAssociativeIterable(QVariant(42)).metaContainer() == QMetaAssociation());
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testByteArrayView();
@@ -790,6 +1042,8 @@ int main(int argc, char **argv) {
     testStringListAndUninitialized();
     testPermissions();
     testYieldCpu();
+    testMetaSequence();
+    testMetaAssociation();
     if (g_failures == 0)
         std::printf("all core API tests passed\n");
     return g_failures == 0 ? 0 : 1;

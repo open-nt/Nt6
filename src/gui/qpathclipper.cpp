@@ -20,8 +20,10 @@
 
 #include <algorithm>
 #include <cmath>
-#include <map>
+#include <functional>
 #include <numeric>
+#include <tuple>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -107,6 +109,7 @@ private:
 struct Piece {
     QPointF a, b;
     bool second = false; // an edge of the second path
+    bool changed = true; // new, or moved, since crossings were last looked for
     std::vector<QPointF> cuts;
     double x0 = 0.0, x1 = 0.0, y0 = 0.0, y1 = 0.0;
 };
@@ -209,25 +212,19 @@ QPainterPath clip(const QPainterPath &a, const QPainterPath &b, Op op) {
             p.a = e.a;
             p.b = e.b;
             p.second = area == &areaB;
-            p.x0 = std::min(e.a.x(), e.b.x()) - 2.0 * grid;
-            p.x1 = std::max(e.a.x(), e.b.x()) + 2.0 * grid;
-            p.y0 = std::min(e.a.y(), e.b.y()) - 2.0 * grid;
-            p.y1 = std::max(e.a.y(), e.b.y()) + 2.0 * grid;
             pieces.push_back(std::move(p));
         }
     if (pieces.empty())
         return result;
 
-    // Every pair of edges whose boxes overlap, found by sweeping across x.
-    std::sort(pieces.begin(), pieces.end(), [](const Piece &l, const Piece &r) { return l.x0 < r.x0; });
-    for (std::size_t i = 0; i < pieces.size(); ++i)
-        for (std::size_t j = i + 1; j < pieces.size() && pieces[j].x0 <= pieces[i].x1; ++j)
-            if (pieces[j].y0 <= pieces[i].y1 && pieces[i].y0 <= pieces[j].y1)
-                cutAtCrossing(pieces[i], pieces[j], grid);
-
     // Crossings are worked out pair by pair, so where three edges meet the points can come out a grid step or two
     // apart. Points that close are made one, the ends of the edges first, so that they stay where they are.
-    std::map<std::pair<long long, long long>, std::vector<QPointF>> buckets;
+    struct BucketHash {
+        std::size_t operator()(const std::pair<long long, long long> &k) const {
+            return std::hash<long long>()(k.first) ^ (std::hash<long long>()(k.second) * 0x9e3779b97f4a7c15ULL);
+        }
+    };
+    std::unordered_map<std::pair<long long, long long>, std::vector<QPointF>, BucketHash> buckets;
     const double bucketSize = 8.0 * grid, together = 4.0 * grid;
     const auto merged = [&](const QPointF &p) {
         const long long bx = std::llround(std::floor(p.x() / bucketSize));
@@ -244,9 +241,57 @@ QPainterPath clip(const QPainterPath &a, const QPainterPath &b, Op op) {
         buckets[{bx, by}].push_back(p);
         return p;
     };
-    for (Piece &p : pieces) {
-        p.a = merged(p.a);
-        p.b = merged(p.b);
+
+    // The edges are cut where they cross or touch, into pieces that meet only at their ends. Points are moved a
+    // little by snapping and merging, which can make pieces cross that did not; those that changed are looked at
+    // again until none do.
+    for (int round = 0; round < 8; ++round) {
+        for (Piece &p : pieces) {
+            p.x0 = std::min(p.a.x(), p.b.x()) - 2.0 * grid;
+            p.x1 = std::max(p.a.x(), p.b.x()) + 2.0 * grid;
+            p.y0 = std::min(p.a.y(), p.b.y()) - 2.0 * grid;
+            p.y1 = std::max(p.a.y(), p.b.y()) + 2.0 * grid;
+        }
+        // Every pair whose boxes overlap, found by sweeping across x.
+        std::sort(pieces.begin(), pieces.end(), [](const Piece &l, const Piece &r) { return l.x0 < r.x0; });
+        for (std::size_t i = 0; i < pieces.size(); ++i)
+            for (std::size_t j = i + 1; j < pieces.size() && pieces[j].x0 <= pieces[i].x1; ++j)
+                if ((pieces[i].changed || pieces[j].changed) && pieces[j].y0 <= pieces[i].y1 &&
+                    pieces[i].y0 <= pieces[j].y1)
+                    cutAtCrossing(pieces[i], pieces[j], grid);
+        for (Piece &p : pieces) {
+            const QPointF from = merged(p.a), to = merged(p.b);
+            p.changed = from != p.a || to != p.b;
+            p.a = from;
+            p.b = to;
+        }
+        std::vector<Piece> cut;
+        cut.reserve(pieces.size());
+        bool changed = false;
+        for (Piece &p : pieces) {
+            const QPointF d = p.b - p.a;
+            std::sort(p.cuts.begin(), p.cuts.end(),
+                      [&](const QPointF &l, const QPointF &r) { return dot(l - p.a, d) < dot(r - p.a, d); });
+            p.cuts.push_back(p.b);
+            const bool split = p.cuts.size() > 1;
+            QPointF from = p.a;
+            for (const QPointF &c : p.cuts) {
+                const QPointF to = merged(c);
+                if (to == from)
+                    continue;
+                Piece piece;
+                piece.a = from;
+                piece.b = to;
+                piece.second = p.second;
+                piece.changed = p.changed || split;
+                changed = changed || piece.changed;
+                cut.push_back(std::move(piece));
+                from = to;
+            }
+        }
+        pieces.swap(cut);
+        if (!changed)
+            break;
     }
 
     // The segments, each once whichever way it goes, with how much the winding numbers of the two paths go up from
@@ -256,20 +301,11 @@ QPainterPath clip(const QPainterPath &a, const QPainterPath &b, Op op) {
         int a = 0, b = 0;
     };
     std::vector<Segment> segments;
-    for (Piece &p : pieces) {
-        const QPointF d = p.b - p.a;
-        std::sort(p.cuts.begin(), p.cuts.end(),
-                  [&](const QPointF &l, const QPointF &r) { return dot(l - p.a, d) < dot(r - p.a, d); });
-        p.cuts.push_back(p.b);
-        Key from = keyOf(p.a);
-        for (const QPointF &cut : p.cuts) {
-            const Key to = keyOf(merged(cut));
-            if (to == from)
-                continue;
-            const int sign = from < to ? 1 : -1;
-            segments.push_back(Segment{std::min(from, to), std::max(from, to), p.second ? 0 : sign, p.second ? sign : 0});
-            from = to;
-        }
+    segments.reserve(pieces.size());
+    for (const Piece &p : pieces) {
+        const Key from = keyOf(p.a), to = keyOf(p.b);
+        const int sign = from < to ? 1 : -1;
+        segments.push_back(Segment{std::min(from, to), std::max(from, to), p.second ? 0 : sign, p.second ? sign : 0});
     }
     std::sort(segments.begin(), segments.end(),
               [](const Segment &l, const Segment &r) { return std::tie(l.from, l.to) < std::tie(r.from, r.to); });
@@ -469,7 +505,7 @@ QPainterPath pathOf(const QPolygonF &polygon) {
     painter.fillPath(a.united(b), Qt::blue);
     \endcode
 
-    \sa intersected(), subtracted(), simplified(), operator|()
+    \sa intersected(), subtracted(), simplified()
 */
 QPainterPath QPainterPath::united(const QPainterPath &p) const {
     if (p.isEmpty())
@@ -490,7 +526,7 @@ QPainterPath QPainterPath::united(const QPainterPath &p) const {
     Returns a path of the area that is inside both this path and \a p, as closed polygons using
     Qt::OddEvenFill. The result is empty if the paths do not overlap.
 
-    \sa united(), subtracted(), intersects(), operator&()
+    \sa united(), subtracted(), intersects()
 */
 QPainterPath QPainterPath::intersected(const QPainterPath &p) const {
     if (isEmpty() || p.isEmpty() || apart(*this, p))
@@ -504,7 +540,7 @@ QPainterPath QPainterPath::intersected(const QPainterPath &p) const {
     Returns a path of the area that is inside this path but not inside \a p, as closed polygons using
     Qt::OddEvenFill. If the paths do not overlap, the result is this path.
 
-    \sa united(), intersected(), operator-()
+    \sa united(), intersected()
 */
 QPainterPath QPainterPath::subtracted(const QPainterPath &p) const {
     if (isEmpty())

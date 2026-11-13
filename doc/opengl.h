@@ -56,6 +56,9 @@
     QOpenGLFramebufferObject. Everything QPainter draws on a QImage works: paths with both fill rules, pens with
     caps, joins and dashes, linear, radial and conical gradients, transformations, images, text and clipping.
     Paths are flattened and stroked by the same code as in the raster engine, so the pictures match.
+    Images are kept as textures, by QImage::cacheKey(), so drawing the same image again does not upload its
+    pixels again; an image that has been written to since is uploaded anew. The textures of a context hold up to
+    64 MiB, and the least recently drawn images make room for new ones.
 
     \code
     QOpenGLFramebufferObjectFormat format;

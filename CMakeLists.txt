@@ -96,6 +96,7 @@ add_library(NtCore
     src/qmimedatabase.cpp
     src/qmimetype.cpp
     src/qloggingcategory.cpp
+    src/qmetacontainer.cpp
     src/qmetaobject.cpp
     src/qmetatype.cpp
     src/qmetatype_convert.cpp
@@ -511,6 +512,7 @@ add_library(NtGui
     src/gui/qimagejpeg.cpp
     src/gui/qimagepng.cpp
     src/gui/qkeysequence.cpp
+    src/gui/qmatrix4x4.cpp
     src/gui/qoffscreensurface.cpp
     src/gui/qopenglcontext.cpp
     src/gui/qopenglfunctions.cpp
@@ -523,6 +525,7 @@ add_library(NtGui
     src/gui/qpalette.cpp
     src/gui/qpen.cpp
     src/gui/qpixmap.cpp
+    src/gui/qquaternion.cpp
     src/gui/qplatform.cpp
     src/gui/qrasterizer.cpp
     src/gui/qrasterpaintengine.cpp
@@ -537,6 +540,7 @@ add_library(NtGui
     src/gui/qtextlayout.cpp
     src/gui/qtextlayout_api.cpp
     src/gui/qtransform.cpp
+    src/gui/qvectornd.cpp
     src/gui/qwindow.cpp
     src/gui/qwindowsysteminterface.cpp
 )
@@ -1344,6 +1348,12 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_gui_scale_tests COMMAND nt_gui_scale_tests)
     set_tests_properties(nt_gui_scale_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gui_scale_tests)
+
+    # 3D math: QVector2D/3D/4D, QQuaternion and QMatrix4x4.
+    add_executable(nt_math3d_tests tests/test_math3d.cpp)
+    target_link_libraries(nt_math3d_tests PRIVATE Nt::Gui)
+    add_test(NAME nt_math3d_tests COMMAND nt_math3d_tests)
+    nt_set_compile_options(nt_math3d_tests)
 
     # Vector drawing: QTransform, QPainterPath, gradients, pens, and QPainter drawing them, through pixels.
     add_executable(nt_painter_tests tests/test_painter.cpp)

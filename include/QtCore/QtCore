@@ -160,3 +160,4 @@
 #include "qxmlstream.h"
 #include "qpermissions.h"
 #include "qyieldcpu.h"
+#include "qmetacontainer.h"

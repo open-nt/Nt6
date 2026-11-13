@@ -350,6 +350,101 @@ void QRasterPaintEngine::drawImage(const QRect &rect, const QImage &image, const
     }
 }
 
+namespace {
+
+// Bilinear interpolation of four premultiplied pixels, with the weights fx and fy (0 to 256) of the right and lower
+// pixels.
+QRgb bilinear(QRgb tl, QRgb tr, QRgb bl, QRgb br, int fx, int fy) {
+    auto lerp = [](int a, int b, int f) { return a + (((b - a) * f) >> 8); };
+    auto channel = [&](int shift) {
+        const int top = lerp(static_cast<int>((tl >> shift) & 0xffu), static_cast<int>((tr >> shift) & 0xffu), fx);
+        const int bottom = lerp(static_cast<int>((bl >> shift) & 0xffu), static_cast<int>((br >> shift) & 0xffu), fx);
+        return static_cast<uint>(std::clamp(lerp(top, bottom, fy), 0, 255)) << shift;
+    };
+    return channel(24) | channel(16) | channel(8) | channel(0);
+}
+
+} // namespace
+
+// Maps each device pixel back through the transformation into the image. The edge of the image is antialiased
+// with four samples per pixel when the painter antialiases; the pixels are the nearest one, or a bilinear mix of
+// four with SmoothPixmapTransform.
+void QRasterPaintEngine::drawTransformedImage(const QRectF &rect, const QImage &image, const QRectF &sourceRect) {
+    if (!m_image || image.isNull())
+        return;
+    const QRectF sr = sourceRect.normalized().intersected(QRectF(image.rect()));
+    const QRectF target = rect.normalized();
+    if (sr.isEmpty() || target.isEmpty())
+        return;
+    const QTransform &toDevice = m_state.transform();
+    bool invertible = false;
+    const QTransform toUser = toDevice.inverted(&invertible);
+    if (!invertible)
+        return;
+    const QRect bounds = toDevice.mapRect(target).toAlignedRect();
+    // The mirrored axes of the target rectangle, which normalized() undid.
+    const double scaleX = sr.width() / target.width() * (rect.width() < 0 ? -1.0 : 1.0);
+    const double scaleY = sr.height() / target.height() * (rect.height() < 0 ? -1.0 : 1.0);
+    const double originX = rect.width() < 0 ? target.right() : target.left();
+    const double originY = rect.height() < 0 ? target.bottom() : target.top();
+    const int opacity = std::clamp(qRound(m_state.opacity() * 255.0), 0, 255);
+    const bool smooth = m_state.renderHints() & QPainter::SmoothPixmapTransform;
+    const bool antialias = m_state.renderHints() & QPainter::Antialiasing;
+    const QImage::Format srcFormat = image.format();
+    const int left = static_cast<int>(std::floor(sr.left())), top = static_cast<int>(std::floor(sr.top()));
+    const int right = std::max(left, static_cast<int>(std::ceil(sr.right())) - 1);
+    const int bottom = std::max(top, static_cast<int>(std::ceil(sr.bottom())) - 1);
+    auto pixelAt = [&](int x, int y) {
+        x = std::clamp(x, left, right);
+        y = std::clamp(y, top, bottom);
+        return toPremultiplied(asPixels(image.constScanLine(y))[x], srcFormat);
+    };
+    // The position in the image of the device point (x, y).
+    auto toImage = [&](double x, double y) {
+        const QPointF user = toUser.map(QPointF(x, y));
+        return QPointF((user.x() - originX) * scaleX + sr.left(), (user.y() - originY) * scaleY + sr.top());
+    };
+    auto inside = [&](const QPointF &p) {
+        return p.x() >= sr.left() && p.x() < sr.right() && p.y() >= sr.top() && p.y() < sr.bottom();
+    };
+    for (const QRect &clip : m_clip) {
+        const QRect r = bounds.intersected(clip);
+        if (r.isEmpty())
+            continue;
+        for (int y = r.top(); y <= r.bottom(); ++y) {
+            uint *dstLine = asPixels(m_image->scanLine(y));
+            for (int x = r.left(); x <= r.right(); ++x) {
+                const QPointF center = toImage(x + 0.5, y + 0.5);
+                int coverage = 255;
+                if (antialias) {
+                    int samples = 0;
+                    for (const double dy : {0.25, 0.75}) {
+                        for (const double dx : {0.25, 0.75})
+                            samples += inside(toImage(x + dx, y + dy)) ? 1 : 0;
+                    }
+                    if (samples == 0)
+                        continue;
+                    coverage = samples * 255 / 4;
+                } else if (!inside(center)) {
+                    continue;
+                }
+                QRgb p;
+                if (smooth) {
+                    const double u = center.x() - 0.5, v = center.y() - 0.5;
+                    const int ix = static_cast<int>(std::floor(u)), iy = static_cast<int>(std::floor(v));
+                    const int fx = static_cast<int>((u - ix) * 256.0), fy = static_cast<int>((v - iy) * 256.0);
+                    p = bilinear(pixelAt(ix, iy), pixelAt(ix + 1, iy), pixelAt(ix, iy + 1), pixelAt(ix + 1, iy + 1), fx,
+                                 fy);
+                } else {
+                    p = pixelAt(static_cast<int>(std::floor(center.x())), static_cast<int>(std::floor(center.y())));
+                }
+                p = scaleChannels(p, coverage * opacity / 255);
+                blend(dstLine + x, p);
+            }
+        }
+    }
+}
+
 void QRasterPaintEngine::drawAlphaMask(const QPoint &topLeft, const uchar *mask, int width, int height,
                                        qsizetype stride) {
     if (!m_image || width <= 0 || height <= 0)
@@ -453,12 +548,17 @@ bool QtRasterPrivate::pathGeometry(const QPainterPath &path, const QTransform &t
         style.dashes.push_back(std::max(1e-3, d) * (pen.isCosmetic() ? unit / scale : unit));
     style.dashOffset = pen.dashOffset() * (pen.isCosmetic() ? unit / scale : unit);
     raster::strokeContours(contours, style, m, tolerance, &out->stroke);
-    // Aliased strokes are moved half a pixel, so that a line on whole coordinates covers whole pixels.
-    if (!antialias)
+    // An aliased stroke of an odd number of device pixels is moved half a pixel, so that a line on whole coordinates
+    // covers whole pixels; one of an even number does so already. Aliased pixels are those covered at least half, so
+    // every stroke is also moved by 1/64 of a pixel, so that an edge through the middle of a pixel takes it on one
+    // side only and the stroke is as many pixels wide as the pen, wherever it lies.
+    if (!antialias) {
+        const double shift = (std::lround(style.width * scale) % 2 != 0 ? 0.5 : 0.0) + 1.0 / 64.0;
         for (raster::Pt &pt : out->stroke.points) {
-            pt.x += 0.5;
-            pt.y += 0.5;
+            pt.x += shift;
+            pt.y += shift;
         }
+    }
     return true;
 }
 

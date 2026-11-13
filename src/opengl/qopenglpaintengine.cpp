@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <cmath>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <mutex>
 
@@ -134,6 +135,18 @@ struct QOpenGL2PaintEngine::Resources {
     GLuint vao = 0;
     GLuint lut = 0;
     GLuint texture = 0;
+    GLint maxTextureSize = 0;
+    // Images drawn before, as textures, by QImage::cacheKey(); the least recently used go first once the cache
+    // holds more than kImageCacheBytes.
+    struct CachedImage {
+        GLuint texture = 0;
+        std::size_t bytes = 0;
+        quint64 lastUse = 0;
+    };
+    std::unordered_map<qint64, CachedImage> images;
+    std::size_t imageBytes = 0;
+    quint64 useCounter = 0;
+    static constexpr std::size_t kImageCacheBytes = std::size_t{64} << 20;
     GLint uSize = -1, uFlip = -1, uMode = -1, uColor = -1, uToGradient = -1, uP1 = -1, uP2 = -1, uRadius = -1,
           uAngle = -1, uSpread = -1, uOpacity = -1, uTex = -1;
     BindVertexArray bindVertexArray = nullptr;
@@ -197,6 +210,7 @@ bool QOpenGL2PaintEngine::Resources::create(QOpenGLContext *context) {
     f->glGenBuffers(1, &uvbo);
     f->glGenTextures(1, &lut);
     f->glGenTextures(1, &texture);
+    f->glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTextureSize);
     // A core profile draws only with a vertex array object bound.
     if (!context->isOpenGLES() && format.profile() == QSurfaceFormat::CoreProfile) {
         auto gen = reinterpret_cast<GenVertexArrays>( // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -610,22 +624,18 @@ void QOpenGL2PaintEngine::drawEllipse(const QRect &rect) {
     }
 }
 
-void QOpenGL2PaintEngine::drawImage(const QRect &rect, const QImage &image, const QRect &sourceRect) {
-    if (image.isNull() || !prepare())
-        return;
-    const QRect sr = sourceRect.isNull() ? image.rect() : sourceRect.normalized().intersected(image.rect());
-    if (sr.isEmpty())
-        return;
-    const QRect target = rect.isNull() ? QRect(rect.topLeft(), sr.size()) : rect.normalized();
-    if (target.isEmpty())
-        return;
-    std::vector<unsigned char> rgba(static_cast<std::size_t>(sr.width()) * static_cast<std::size_t>(sr.height()) * 4);
+namespace {
+
+// Converts the part `source` of `image` to premultiplied RGBA bytes, as the textures of the engine hold them.
+std::vector<unsigned char> imageToRgba(const QImage &image, const QRect &source) {
+    std::vector<unsigned char> rgba(static_cast<std::size_t>(source.width()) *
+                                    static_cast<std::size_t>(source.height()) * 4);
     unsigned char *out = rgba.data();
     const QImage::Format format = image.format();
-    for (int y = sr.top(); y <= sr.bottom(); ++y) {
+    for (int y = source.top(); y <= source.bottom(); ++y) {
         const auto *line = reinterpret_cast<const QRgb *>( // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             image.constScanLine(y));
-        for (int x = sr.left(); x <= sr.right(); ++x, out += 4) {
+        for (int x = source.left(); x <= source.right(); ++x, out += 4) {
             QRgb p = line[x];
             if (format == QImage::Format_RGB32)
                 p |= 0xff000000u;
@@ -634,15 +644,66 @@ void QOpenGL2PaintEngine::drawImage(const QRect &rect, const QImage &image, cons
             toRgba(p, out);
         }
     }
-    uploadTexture(m_res->texture, sr.width(), sr.height(), rgba,
-                  m_state.renderHints() & QPainter::SmoothPixmapTransform);
+    return rgba;
+}
+
+} // namespace
+
+bool QOpenGL2PaintEngine::bindCachedImage(const QImage &image) {
+    const qint64 key = image.cacheKey();
+    const std::size_t bytes = static_cast<std::size_t>(image.width()) * static_cast<std::size_t>(image.height()) * 4;
+    if (image.width() > m_res->maxTextureSize || image.height() > m_res->maxTextureSize ||
+        bytes > Resources::kImageCacheBytes / 2)
+        return false;
+    const quint64 use = ++m_res->useCounter;
+    auto it = m_res->images.find(key);
+    if (it != m_res->images.end()) {
+        it->second.lastUse = use;
+        m_f->glBindTexture(GL_TEXTURE_2D, it->second.texture);
+        return true;
+    }
+    while (!m_res->images.empty() && m_res->imageBytes + bytes > Resources::kImageCacheBytes) {
+        auto oldest = std::min_element(m_res->images.begin(), m_res->images.end(), [](const auto &a, const auto &b) {
+            return a.second.lastUse < b.second.lastUse;
+        });
+        m_f->glDeleteTextures(1, &oldest->second.texture);
+        m_res->imageBytes -= oldest->second.bytes;
+        m_res->images.erase(oldest);
+    }
+    Resources::CachedImage entry;
+    entry.bytes = bytes;
+    entry.lastUse = use;
+    m_f->glGenTextures(1, &entry.texture);
+    uploadTexture(entry.texture, image.width(), image.height(), imageToRgba(image, image.rect()), false);
+    m_res->imageBytes += bytes;
+    m_res->images.emplace(key, entry);
+    return true;
+}
+
+void QOpenGL2PaintEngine::drawImageQuad(const QImage &image, const QRectF &source, const QPointF (&corners)[4]) {
+    const GLint filter = (m_state.renderHints() & QPainter::SmoothPixmapTransform) ? GL_LINEAR : GL_NEAREST;
+    GLfloat u0 = 0, v0 = 0, u1 = 1, v1 = 1;
+    if (bindCachedImage(image)) {
+        m_f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filter);
+        m_f->glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filter);
+        const auto w = static_cast<GLfloat>(image.width()), h = static_cast<GLfloat>(image.height());
+        u0 = static_cast<GLfloat>(source.left()) / w;
+        v0 = static_cast<GLfloat>(source.top()) / h;
+        u1 = static_cast<GLfloat>(source.right()) / w;
+        v1 = static_cast<GLfloat>(source.bottom()) / h;
+    } else {
+        // Too large for the cache, or for one texture: only the part that is drawn is uploaded, each time.
+        const QRect part = source.toAlignedRect().intersected(image.rect());
+        if (part.isEmpty())
+            return;
+        uploadTexture(m_res->texture, part.width(), part.height(), imageToRgba(image, part), filter == GL_LINEAR);
+    }
     m_f->glUniform1i(m_res->uMode, Image);
     m_f->glUniform1f(m_res->uOpacity, static_cast<GLfloat>(std::clamp(m_state.opacity(), 0.0, 1.0)));
-    const auto x0 = static_cast<GLfloat>(target.x()), y0 = static_cast<GLfloat>(target.y());
-    const auto x1 = static_cast<GLfloat>(target.x() + target.width()),
-               y1 = static_cast<GLfloat>(target.y() + target.height());
-    const std::vector<GLfloat> xy = {x0, y0, x1, y0, x1, y1, x0, y0, x1, y1, x0, y1};
-    const std::vector<GLfloat> uv = {0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1};
+    auto x = [&](int i) { return static_cast<GLfloat>(corners[i].x()); };
+    auto y = [&](int i) { return static_cast<GLfloat>(corners[i].y()); };
+    const std::vector<GLfloat> xy = {x(0), y(0), x(1), y(1), x(2), y(2), x(0), y(0), x(2), y(2), x(3), y(3)};
+    const std::vector<GLfloat> uv = {u0, v0, u1, v0, u1, v1, u0, v0, u1, v1, u0, v1};
     if (m_clip == Clip::Stencil) {
         m_f->glEnable(GL_STENCIL_TEST);
         m_f->glStencilMask(0);
@@ -652,6 +713,32 @@ void QOpenGL2PaintEngine::drawImage(const QRect &rect, const QImage &image, cons
     drawVertices(GL_TRIANGLES, xy, &uv);
     if (m_clip == Clip::Stencil)
         m_f->glDisable(GL_STENCIL_TEST);
+}
+
+void QOpenGL2PaintEngine::drawImage(const QRect &rect, const QImage &image, const QRect &sourceRect) {
+    if (image.isNull() || !prepare())
+        return;
+    const QRect sr = sourceRect.isNull() ? image.rect() : sourceRect.normalized().intersected(image.rect());
+    if (sr.isEmpty())
+        return;
+    const QRect target = rect.isNull() ? QRect(rect.topLeft(), sr.size()) : rect.normalized();
+    if (target.isEmpty())
+        return;
+    const QRectF t(target);
+    const QPointF corners[4] = {t.topLeft(), t.topRight(), t.bottomRight(), t.bottomLeft()};
+    drawImageQuad(image, QRectF(sr), corners);
+}
+
+void QOpenGL2PaintEngine::drawTransformedImage(const QRectF &rect, const QImage &image, const QRectF &sourceRect) {
+    if (image.isNull() || rect.isEmpty() || !prepare())
+        return;
+    const QRectF sr = sourceRect.normalized().intersected(QRectF(image.rect()));
+    if (sr.isEmpty())
+        return;
+    const QTransform &t = m_state.transform();
+    const QPointF corners[4] = {t.map(rect.topLeft()), t.map(rect.topRight()), t.map(rect.bottomRight()),
+                                t.map(rect.bottomLeft())};
+    drawImageQuad(image, sr, corners);
 }
 
 void QOpenGL2PaintEngine::drawAlphaMask(const QPoint &topLeft, const uchar *mask, int width, int height,

@@ -320,6 +320,83 @@ static void testFillRules() {
     fbo.release();
 }
 
+// Draws with OpenGL into a 40 by 40 framebuffer and returns the pixels.
+static QImage glPaint(const std::function<void(QPainter &)> &draw) {
+    QOpenGLFramebufferObject fbo(QSize(40, 40), QOpenGLFramebufferObject::CombinedDepthStencil);
+    fbo.bind();
+    QOpenGLPaintDevice device(fbo.size());
+    {
+        QPainter p(&device);
+        p.fillRect(QRect(0, 0, 40, 40), Qt::white);
+        draw(p);
+    }
+    QImage image = fbo.toImage();
+    fbo.release();
+    return image;
+}
+
+static void testImages() {
+    // Four quadrants: red, green, blue and black.
+    QImage source(20, 20, QImage::Format_ARGB32);
+    for (int y = 0; y < 20; ++y)
+        for (int x = 0; x < 20; ++x)
+            source.setPixel(x, y,
+                            y < 10 ? (x < 10 ? qRgb(255, 0, 0) : qRgb(0, 255, 0))
+                                   : (x < 10 ? qRgb(0, 0, 255) : qRgb(0, 0, 0)));
+
+    // Rotated by 90 degrees, as the raster engine draws it.
+    auto rotated = [&](QPainter &p) {
+        p.translate(20, 20);
+        p.rotate(90);
+        p.drawImage(QPointF(-10, -10), source);
+    };
+    const QImage gl = glPaint(rotated);
+    CHECK(color(gl.pixel(25, 15), 255, 0, 0));
+    CHECK(color(gl.pixel(25, 25), 0, 255, 0));
+    CHECK(color(gl.pixel(15, 15), 0, 0, 255));
+    CHECK(color(gl.pixel(15, 25), 0, 0, 0));
+    QImage raster(40, 40, QImage::Format_ARGB32_Premultiplied);
+    raster.fill(Qt::white);
+    {
+        QPainter p(&raster);
+        rotated(p);
+    }
+    CHECK(difference(raster, gl) < 0.02);
+
+    // A part of the image, mirrored.
+    const QImage mirrored = glPaint([&](QPainter &p) {
+        p.translate(40, 0);
+        p.scale(-1, 1);
+        p.drawImage(QRectF(0, 0, 20, 20), source, QRectF(0, 0, 20, 10)); // the red and green half
+    });
+    CHECK(color(mirrored.pixel(35, 5), 255, 0, 0) && color(mirrored.pixel(25, 5), 0, 255, 0));
+
+    // The same image is drawn from its cached texture, and an image that changed is uploaded again.
+    QImage changing(10, 10, QImage::Format_RGB32);
+    changing.fill(Qt::red);
+    const QImage first = glPaint([&](QPainter &p) {
+        p.drawImage(QPoint(0, 0), changing);
+        p.drawImage(QPoint(20, 0), changing);
+    });
+    CHECK(color(first.pixel(5, 5), 255, 0, 0) && color(first.pixel(25, 5), 255, 0, 0));
+    changing.fill(Qt::blue);
+    const QImage second = glPaint([&](QPainter &p) { p.drawImage(QPoint(0, 0), changing); });
+    CHECK(color(second.pixel(5, 5), 0, 0, 255));
+    changing.setPixel(5, 5, qRgb(0, 255, 0));
+    const QImage third = glPaint([&](QPainter &p) { p.drawImage(QPoint(0, 0), changing); });
+    CHECK(color(third.pixel(5, 5), 0, 255, 0) && color(third.pixel(2, 2), 0, 0, 255));
+
+    // More images than the cache holds are all drawn right: the least recently used textures make room.
+    const QImage many = glPaint([&](QPainter &p) {
+        for (int i = 0; i < 20; ++i) { // 80 MiB in all
+            QImage big(1024, 1024, QImage::Format_RGB32);
+            big.fill(QColor(i * 12, 255 - i * 12, 0));
+            p.drawImage(QRect(i * 2, 30, 2, 2), big);
+        }
+    });
+    CHECK(color(many.pixel(0, 30), 0, 255, 0) && color(many.pixel(39, 31), 228, 27, 0));
+}
+
 class GLWindow : public QOpenGLWindow {
 public:
     using QOpenGLWindow::QOpenGLWindow;
@@ -437,6 +514,7 @@ int main(int argc, char *argv[]) {
     testFramebuffer(context);
     testPainting();
     testFillRules();
+    testImages();
     context.doneCurrent();
     testWindow();
 

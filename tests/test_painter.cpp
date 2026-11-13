@@ -562,6 +562,41 @@ static void testPathSetOperations() {
     star.setFillRule(Qt::OddEvenFill);
     CHECK(!star.simplified().contains(QPointF(50, 50)) && star.simplified().toFillPolygons().size() == 5);
 
+    // Shapes on a grid, whose edges go back over each other, meet at their vertices and end on other edges: what
+    // each operation says is inside agrees with the two paths, point by point, at several scales.
+    QPainterPath grid1, grid2;
+    grid1.moveTo(100, 40);
+    for (const QPointF &p : {QPointF(40, 90), QPointF(60, 30), QPointF(90, 20), QPointF(100, 40)})
+        grid1.lineTo(p);
+    grid1.moveTo(90, 20);
+    for (const QPointF &p : {QPointF(100, 80), QPointF(70, 20), QPointF(70, 50), QPointF(40, 30), QPointF(80, 30),
+                             QPointF(30, 20), QPointF(80, 60), QPointF(30, 60), QPointF(90, 20)})
+        grid1.lineTo(p);
+    grid2.moveTo(70, 40);
+    for (const QPointF &p : {QPointF(70, 70), QPointF(50, 80), QPointF(20, 50), QPointF(90, 70), QPointF(70, 50),
+                             QPointF(70, 90), QPointF(50, 60), QPointF(60, 90), QPointF(70, 40)})
+        grid2.lineTo(p);
+    grid2.moveTo(10, 60);
+    for (const QPointF &p : {QPointF(90, 50), QPointF(80, 50), QPointF(30, 0), QPointF(60, 50), QPointF(40, 70),
+                             QPointF(70, 30), QPointF(10, 60)})
+        grid2.lineTo(p);
+    grid2.setFillRule(Qt::WindingFill);
+    for (const qreal scale : {1.0, 0.001, 0.37}) {
+        const QTransform t = QTransform::fromScale(scale, scale);
+        const QPainterPath p = t.map(grid1), q = t.map(grid2);
+        const QPainterPath ops[4] = {p.united(q), p.intersected(q), p.subtracted(q), q.simplified()};
+        int wrong = 0;
+        for (int y = 0; y < 100; ++y)
+            for (int x = 0; x < 100; ++x) {
+                const QPointF at = QPointF(x + 0.37, y + 0.71) * scale;
+                const bool inP = p.contains(at), inQ = q.contains(at);
+                const bool expected[4] = {inP || inQ, inP && inQ, inP && !inQ, inQ};
+                for (int k = 0; k < 4; ++k)
+                    wrong += ops[k].contains(at) != expected[k] ? 1 : 0;
+            }
+        CHECK(wrong == 0);
+    }
+
     // Polygons.
     const QPolygonF square(QRectF(0, 0, 20, 20)), shifted(QRectF(10, 10, 20, 20));
     const QPolygonF joined = square.united(shifted);
@@ -578,6 +613,117 @@ static void testPathSetOperations() {
     CHECK(color(painted.pixel(50, 85), 0, 0, 200) && white(painted.pixel(50, 50)) && white(painted.pixel(2, 2)));
 }
 
+// A 20 by 20 image of four colored quadrants: red at the top left, green at the top right, blue at the bottom left
+// and black at the bottom right.
+static QImage quadrants() {
+    QImage image(20, 20, QImage::Format_ARGB32);
+    for (int y = 0; y < 20; ++y) {
+        for (int x = 0; x < 20; ++x) {
+            const QRgb c =
+                y < 10 ? (x < 10 ? qRgb(255, 0, 0) : qRgb(0, 255, 0)) : (x < 10 ? qRgb(0, 0, 255) : qRgb(0, 0, 0));
+            image.setPixel(x, y, c);
+        }
+    }
+    return image;
+}
+
+static void testTransformedImages() {
+    const QImage source = quadrants();
+    // Rotated by 90 degrees about the center of the image: red moves to the top right, green to the bottom right.
+    for (const bool smooth : {false, true}) {
+        const QImage out = paint(40, 40, [&](QPainter &p) {
+            p.setRenderHint(QPainter::SmoothPixmapTransform, smooth);
+            p.translate(20, 20);
+            p.rotate(90);
+            p.drawImage(QPointF(-10, -10), source);
+        });
+        CHECK(color(out.pixel(25, 15), 255, 0, 0)); // red
+        CHECK(color(out.pixel(25, 25), 0, 255, 0)); // green
+        CHECK(color(out.pixel(15, 15), 0, 0, 255)); // blue
+        CHECK(color(out.pixel(15, 25), 0, 0, 0));   // black
+        CHECK(white(out.pixel(5, 20)) && white(out.pixel(35, 20)) && white(out.pixel(20, 5)));
+    }
+    // Rotated by 45 degrees, the image is a diamond: the corners of its bounding box stay white.
+    {
+        const QImage out = paint(60, 60, [&](QPainter &p) {
+            p.translate(30, 30);
+            p.rotate(45);
+            p.drawImage(QRectF(-10, -10, 20, 20), source);
+        });
+        CHECK(white(out.pixel(17, 17)) && white(out.pixel(42, 17)) && white(out.pixel(17, 42)) &&
+              white(out.pixel(42, 42)));
+        CHECK(color(out.pixel(30, 22), 255, 0, 0)); // the top corner of the diamond was the top left
+        CHECK(color(out.pixel(38, 30), 0, 255, 0));
+        CHECK(color(out.pixel(22, 30), 0, 0, 255));
+        CHECK(color(out.pixel(30, 38), 0, 0, 0));
+    }
+    // With antialiasing, the edges of a rotated image are partly covered.
+    {
+        const QImage out = paint(60, 60, [&](QPainter &p) {
+            p.setRenderHint(QPainter::Antialiasing);
+            p.translate(30, 30);
+            p.rotate(30);
+            p.drawImage(QRectF(-10, -10, 20, 20), source);
+        });
+        int partial = 0;
+        for (int y = 0; y < 60; ++y) {
+            for (int x = 0; x < 60; ++x) {
+                const QRgb c = out.pixel(x, y);
+                if (qRed(c) > 30 && qRed(c) < 225 && qGreen(c) > 30 && qGreen(c) < 225 && qBlue(c) > 30 &&
+                    qBlue(c) < 225)
+                    ++partial;
+            }
+        }
+        CHECK(partial > 10);
+    }
+    // Mirrored by a negative scale: red moves to the top right.
+    {
+        const QImage out = paint(20, 20, [&](QPainter &p) {
+            p.translate(20, 0);
+            p.scale(-1, 1);
+            p.drawImage(QPointF(0, 0), source);
+        });
+        CHECK(color(out.pixel(15, 5), 255, 0, 0) && color(out.pixel(5, 5), 0, 255, 0));
+        CHECK(color(out.pixel(15, 15), 0, 0, 255) && color(out.pixel(5, 15), 0, 0, 0));
+    }
+    // A source rectangle and opacity apply under rotation too: only the green quadrant, at half opacity.
+    {
+        const QImage out = paint(40, 40, [&](QPainter &p) {
+            p.setOpacity(0.5);
+            p.translate(20, 20);
+            p.rotate(180);
+            p.drawImage(QRectF(-10, -10, 20, 20), source, QRectF(10, 0, 10, 10));
+        });
+        CHECK(color(out.pixel(20, 20), 127, 255, 127, 4));
+        CHECK(white(out.pixel(5, 5)));
+    }
+}
+
+static void testImageCacheKey() {
+    QImage a(8, 8, QImage::Format_ARGB32_Premultiplied);
+    CHECK(QImage().cacheKey() == 0 && a.cacheKey() != 0);
+    a.fill(Qt::red);
+    const qint64 filled = a.cacheKey();
+    QImage b = a;
+    CHECK(b.cacheKey() == filled); // copies share the key
+    (void)b.constBits();
+    (void)b.constScanLine(0);
+    CHECK(b.cacheKey() == filled && a.cacheKey() == filled); // reading does not change it
+    b.setPixel(0, 0, qRgb(0, 0, 255));
+    CHECK(b.cacheKey() != filled && a.cacheKey() == filled); // writing to a copy gives it its own key
+    const qint64 written = b.cacheKey();
+    b.fill(Qt::green);
+    CHECK(b.cacheKey() != written);
+    const qint64 green = b.cacheKey();
+    {
+        QPainter p(&b);
+        p.fillRect(0, 0, 2, 2, Qt::black);
+    }
+    CHECK(b.cacheKey() != green); // painting changes it
+    QImage c(8, 8, QImage::Format_ARGB32_Premultiplied);
+    CHECK(c.cacheKey() != a.cacheKey() && c.cacheKey() != b.cacheKey());
+}
+
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     testTransform();
@@ -587,6 +733,8 @@ int main(int argc, char *argv[]) {
     testPensAndBrushes();
     testPainting();
     testSvgPaths();
+    testTransformedImages();
+    testImageCacheKey();
     if (g_failures)
         std::printf("%d failure(s)\n", g_failures);
     else

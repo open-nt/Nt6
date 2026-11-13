@@ -24,6 +24,7 @@ public:
     void drawPoints(const QPoint *points, int pointCount) override;
     void drawEllipse(const QRect &rect) override;
     void drawImage(const QRect &rect, const QImage &image, const QRect &sourceRect) override;
+    void drawTransformedImage(const QRectF &rect, const QImage &image, const QRectF &sourceRect) override;
     void drawAlphaMask(const QPoint &topLeft, const uchar *mask, int width, int height, qsizetype stride) override;
     void drawPath(const QPainterPath &path) override;
     Type type() const override { return Raster; }

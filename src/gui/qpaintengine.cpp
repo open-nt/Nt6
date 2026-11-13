@@ -78,7 +78,7 @@
 
     \differences
     The engine interface is smaller than Qt's: rectangles, lines, points, ellipses and images in device
-    coordinates, coverage masks for glyphs, and paths with the transformation of the state. There are no
+    coordinates, coverage masks for glyphs, and paths and rotated images with the transformation of the state. There are no
     polygons, pixmaps or text runs: QPainter draws polygons as paths.
     \enddifferences
 
@@ -149,6 +149,21 @@ QPaintEngine::~QPaintEngine() = default;
 
     Draws \a sourceRect of \a image scaled into \a rect.
 */
+
+/*!
+    Draws the part \a sourceRect of \a image scaled to fill \a rect, where \a rect is in the coordinates of
+    paths: the transformation of state() maps it to device pixels. QPainter calls this instead of drawImage()
+    when the transformation rotates or shears, so that the image is drawn rotated.
+
+    The default implementation draws the image upright into the bounding rectangle of the transformed \a rect
+    with drawImage(). Both engines of Nt reimplement it. This function is an Nt addition; Qt's engines take
+    every image in the coordinates of the transformation.
+*/
+void QPaintEngine::drawTransformedImage(const QRectF &rect, const QImage &image, const QRectF &sourceRect) {
+    const QRect device = state().transform().mapRect(rect).toRect();
+    if (!device.isEmpty())
+        drawImage(device, image, sourceRect.toAlignedRect());
+}
 
 /*!
     \fn void QPaintEngine::drawAlphaMask(const QPoint &topLeft, const uchar *mask, int width, int height, qsizetype stride)

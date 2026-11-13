@@ -41,8 +41,8 @@ template <typename Fill> QVariant variantFrom(const QMetaType &type, Fill fill) 
 
     \differences
     The iterable works on a copy of the variant, so it is read-only: there is
-    no \c addValue(), \c removeValue() or \c mutableBegin(). There is no
-    \c metaContainer(), and \c canReverseIterate() is always \c true.
+    no \c addValue(), \c removeValue() or \c mutableBegin(); metaContainer() gives the operations that change
+    a container. canReverseIterate() is always \c true, since elements are read by their position.
     \enddifferences
 
     \sa QAssociativeIterable, QVariant, QMetaType
@@ -113,6 +113,17 @@ QMetaType QSequentialIterable::valueMetaType() const { return m_iface ? QMetaTyp
 bool QSequentialIterable::canReverseIterate() const { return m_iface != nullptr; }
 
 /*!
+    \since 6.0
+    Returns the QMetaSequence of the container type, which gives access to all of its operations, or a
+    meta-sequence of no type if the iterable is not valid.
+
+    \sa QMetaSequence::fromContainer()
+*/
+QMetaSequence QSequentialIterable::metaContainer() const {
+    return m_iface && m_iface->metaSequence ? QMetaSequence(m_iface->metaSequence()) : QMetaSequence();
+}
+
+/*!
     Returns the element that the iterator refers to.
 */
 QVariant QSequentialIterable::const_iterator::operator*() const { return m_owner ? m_owner->at(m_index) : QVariant(); }
@@ -134,7 +145,7 @@ QVariant QSequentialIterable::const_iterator::operator*() const { return m_owner
 
     \differences
     The iterable works on a copy of the variant, so it is read-only: there is
-    no \c insert() or \c remove(). There is no \c metaContainer() and no
+    no \c insert() or \c remove(); metaContainer() gives the operations that change a container. There is no
     \c operator[]; use value().
     \enddifferences
 
@@ -234,6 +245,17 @@ QMetaType QAssociativeIterable::keyMetaType() const { return m_iface ? QMetaType
 */
 QMetaType QAssociativeIterable::mappedMetaType() const {
     return m_iface ? QMetaType(m_iface->mappedType()) : QMetaType();
+}
+
+/*!
+    \since 6.0
+    Returns the QMetaAssociation of the container type, which gives access to all of its operations, or a
+    meta-association of no type if the iterable is not valid.
+
+    \sa QMetaAssociation::fromContainer()
+*/
+QMetaAssociation QAssociativeIterable::metaContainer() const {
+    return m_iface && m_iface->metaAssociation ? QMetaAssociation(m_iface->metaAssociation()) : QMetaAssociation();
 }
 
 /*!

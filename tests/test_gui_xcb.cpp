@@ -6,6 +6,7 @@
 #include <QtCore>
 #include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
+#include <QtGui/qopenglcontext.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qrasterwindow.h>
 #include <QtGui/qscreen.h>
@@ -195,6 +196,46 @@ int main(int argc, char **argv) {
             std::free(xcb_get_input_focus_reply(c, xcb_get_input_focus(c), nullptr));     // the server has sent it
             std::free(xcb_get_input_focus_reply(own, xcb_get_input_focus(own), nullptr)); // queued by XCB
             CHECK(waitFor([&] { return w.log.count("key") == keysBefore + 1; }, 1000));
+
+            // When a timer that is always due keeps the event loop from sleeping, the queue is not looked at before
+            // waiting. OpenGL, which is what reads events into the queue, has the platform look at it after a swap.
+            QTimer busy;
+            busy.start(0);
+            QWindow glWindow;
+            glWindow.setSurfaceType(QSurface::OpenGLSurface);
+            glWindow.resize(64, 64);
+            glWindow.show();
+            QOpenGLContext context;
+            const bool gl =
+                waitFor([&] { return glWindow.isExposed(); }) && context.create() && context.makeCurrent(&glWindow);
+            if (gl)
+                context.swapBuffers(&glWindow);
+            // Sends a key and reads it into XCB's queue; returns whether it is still there after a while.
+            auto queueKey = [&] {
+                (void)waitFor([] { return false; }, 300); // the events of the window come in first
+                const qsizetype before = w.log.count("key");
+                sendKey(c, id, keyA, 0, XCB_KEY_PRESS);
+                std::free(xcb_get_input_focus_reply(c, xcb_get_input_focus(c), nullptr));
+                std::free(xcb_get_input_focus_reply(own, xcb_get_input_focus(own), nullptr));
+                (void)waitFor([&] { return w.log.count("key") > before; }, 200);
+                return before;
+            };
+            // The next passes of the event loop handle the key, not whenever other traffic comes by.
+            auto handledSoon = [&](qsizetype before) {
+                for (int pass = 0; pass < 3 && w.log.count("key") == before; ++pass)
+                    QCoreApplication::processEvents();
+                return w.log.count("key") == before + 1;
+            };
+            const qsizetype before = queueKey();
+            CHECK(w.log.count("key") == before); // stuck in the queue
+            QtPrivate::GuiAccess::integration()->checkQueuedEvents();
+            CHECK(handledSoon(before));
+            if (gl) {
+                const qsizetype beforeSwap = queueKey();
+                context.swapBuffers(&glWindow);
+                CHECK(handledSoon(beforeSwap));
+                context.doneCurrent();
+            }
         }
     }
 

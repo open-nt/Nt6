@@ -90,7 +90,7 @@ struct QPainter::Data {
         const State before = state;
         state.pen = pen;
         state.brush = brush;
-        sync();
+        sync(true);
         engine->drawPath(path);
         state = before;
         sync();
@@ -109,11 +109,18 @@ struct QPainter::Data {
         sync();
     }
 
-    void sync() {
+    // Hands the state to the engine. For a path, which the engine strokes through the transformation that holds the
+    // device pixel ratio already, the pen keeps its width, except for a cosmetic pen; the other drawing functions
+    // take device coordinates and get the width in device pixels.
+    void sync(bool forPath = false) {
         QPaintEngineState s;
         s.m_pen = state.pen;
-        if (scale != 1.0)
-            s.m_pen.setWidth(devPenWidth(state.pen.width()));
+        if (scale != 1.0) {
+            if (!forPath)
+                s.m_pen.setWidth(devPenWidth(state.pen.width()));
+            else if (state.pen.isCosmetic() && state.pen.widthF() > 0.0)
+                s.m_pen.setWidthF(state.pen.widthF() * scale);
+        }
         s.m_brush = state.brush;
         s.m_clip = devRegion(state.clip);
         s.m_clipping = state.clipping;
@@ -166,10 +173,9 @@ struct QPainter::Data {
     width 1 covers 11 pixels.
 
     \differences
-    There is no viewport or window. Text and images follow the transformation in position, not in rotation:
-    text is drawn upright at the size of its font, and an image under a rotation fills the bounding
-    rectangle of its transformed target. Clipping is by rectangles of the device: a clip under a rotation is
-    its bounding rectangle. Text is drawn without kerning or shaping, in the color of the pen. The
+    There is no viewport or window. Text follows the transformation in position, not in rotation: it is drawn
+    upright at the size of its font. Images are rotated, sheared and mirrored with the transformation. Clipping
+    is by rectangles of the device: a clip under a rotation is its bounding rectangle. Text is drawn without kerning or shaping, in the color of the pen. The
     composition modes are SourceOver, Source and Clear. Pens draw with the color of their brush.
     \enddifferences
 
@@ -1521,14 +1527,19 @@ void QPainter::drawImage(const QPointF &point, const QImage &image) {
     \overload
 
     Draws the part \a source of \a image, or all of it if \a source is null, scaled to fill \a target.
-    Under a transformation that rotates or shears, the image fills the bounding rectangle of the
-    transformed target.
+    Under a transformation that rotates, shears or mirrors, the image is transformed with it.
 */
 void QPainter::drawImage(const QRectF &target, const QImage &image, const QRectF &source) {
-    if (!d->active || image.isNull())
+    if (!d->active || image.isNull() || target.isEmpty())
         return;
+    const QTransform toDevice = d->toDevice();
+    // Rotated, sheared and mirrored images need the transformation; mapRect() would draw them upright.
+    if (toDevice.type() > QTransform::TxScale || toDevice.m11() < 0 || toDevice.m22() < 0) {
+        d->engine->drawTransformedImage(target, image, source.isNull() ? QRectF(image.rect()) : source);
+        return;
+    }
     const QRect src = source.isNull() ? image.rect() : source.toAlignedRect();
-    const QRect device = d->toDevice().mapRect(target).toRect();
+    const QRect device = toDevice.mapRect(target).toRect();
     if (device.isEmpty())
         return;
     d->engine->drawImage(device, image, src);

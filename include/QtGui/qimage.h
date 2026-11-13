@@ -75,6 +75,7 @@ public:
     void detach();
     void setDevicePixelRatio(qreal ratio);
     bool isDetached() const noexcept;
+    qint64 cacheKey() const;
 
     QPaintEngine *paintEngine() const override;
 

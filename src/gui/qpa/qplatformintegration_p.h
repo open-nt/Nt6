@@ -40,6 +40,10 @@ public:
     virtual void setCursorPosition(const QPoint &pos);
     // How OpenGL contexts reach the window system. The default has no OpenGL.
     virtual QEglNativePlatform eglPlatform() const { return {}; }
+    // Called on the thread of the application object after OpenGL used the connection to the window system, as a
+    // swap of buffers does. The EGL library can read events from the connection into the platform's own queue,
+    // where no socket notifier sees them; the platform makes sure that they are handled.
+    virtual void checkQueuedEvents() {}
 };
 
 namespace QtPrivate {

@@ -142,6 +142,7 @@ public:
     QVariant value(const QVariant &key) const;
     QMetaType keyMetaType() const;
     QMetaType mappedMetaType() const;
+    QMetaAssociation metaContainer() const;
 
 private:
     QVariant m_variant;

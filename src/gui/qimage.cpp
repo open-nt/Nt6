@@ -6,6 +6,7 @@
 #include <QtGui/qpaintengine.h>
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <limits>
 #include <vector>
@@ -47,6 +48,15 @@ struct QImage::Data {
     uchar *ptr = nullptr;
     bool readOnly = false; // wraps const external memory
     qreal devicePixelRatio = 1.0;
+    // cacheKey(): the serial number tells the pixels apart from those of other images, and the write count goes up
+    // each time someone may write to them.
+    quint32 serial = nextSerial();
+    std::atomic<quint32> writes{0};
+
+    static quint32 nextSerial() {
+        static std::atomic<quint32> counter{0};
+        return counter.fetch_add(1, std::memory_order_relaxed) + 1;
+    }
 
     uchar *row(int y) const { return ptr + static_cast<qsizetype>(y) * bytesPerLine; }
 };
@@ -498,8 +508,12 @@ QImage QImage::convertToFormat(Format format) const {
     \sa isDetached()
 */
 void QImage::detach() {
-    if (!d || (d.use_count() == 1 && !d->readOnly))
+    if (!d)
         return;
+    if (d.use_count() == 1 && !d->readOnly) {
+        d->writes.fetch_add(1, std::memory_order_relaxed); // the caller is about to write
+        return;
+    }
     auto copy = std::make_shared<Data>();
     copy->width = d->width;
     copy->height = d->height;
@@ -537,6 +551,22 @@ void QImage::setDevicePixelRatio(qreal ratio) {
     \sa detach()
 */
 bool QImage::isDetached() const noexcept { return !d || (d.use_count() == 1 && !d->readOnly); }
+
+/*!
+    \since 4.0
+    Returns a number that identifies the pixels of the image: two images with the same key have the same pixels.
+    Copies share the key until one of them is written to, and writing to an image, through bits(), scanLine(),
+    fill(), setPixel() or a QPainter, changes it. A null image returns 0.
+
+    Caches of converted images, such as the textures of the OpenGL paint engine, are keyed on it.
+
+    \sa detach()
+*/
+qint64 QImage::cacheKey() const {
+    if (!d)
+        return 0;
+    return static_cast<qint64>((static_cast<quint64>(d->serial) << 32) | d->writes.load(std::memory_order_relaxed));
+}
 
 /*!
     Returns the paint engine of the image: a raster engine. Returns

@@ -98,6 +98,10 @@ reject(classes.html "Detail")
 expect(index.html "Fixture Core Classes")
 expect(index.html "Guide Page")
 
+# Every page links the favicon.
+expect(index.html "<link rel=\"icon\" href=\"images/pic.svg\" type=\"image/svg+xml\">")
+expect(widget.html "<link rel=\"icon\" href=\"images/pic.svg\" type=\"image/svg+xml\">")
+
 # Without a logo the header writes out the project name.
 expect(index.html "<a class=\"name\" href=\"index.html\">")
 

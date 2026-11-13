@@ -60,6 +60,9 @@ trap cleanup EXIT
 # json_string TEXT: TEXT as a JSON string; versions and tags need no escaping beyond quotes.
 json_string() { printf '"%s"' "${1//\"/\\\"}"; }
 
+# Releases made before ndoc had a favicon key get the icons too; every release has them in assets/.
+favicon='favicon=../assets/nt-logo.svg ../assets/nt-logo.png'
+
 entries=$(printf '{"name": "dev", "path": "dev/"}')
 latest=
 
@@ -80,7 +83,7 @@ for tag in "${tags[@]}"; do
     esac
     rm -rf "${output:?}/$version"
     if ! "$ndoc" -o "$output/$version" --doc-version "$version" --set "url=${url}${version}/" --set "versions=${url}versions.json" \
-        "$tree/doc/ndoc.conf"; then
+        --set "$favicon" "$tree/doc/ndoc.conf"; then
         echo "::warning::docs-site.sh: the docs of $tag failed to build; leaving them out"
         rm -rf "${output:?}/$version"
         continue
@@ -88,7 +91,8 @@ for tag in "${tags[@]}"; do
     entries+=", {\"name\": $(json_string "$version"), \"path\": $(json_string "$version/")}"
     if [ -z "$latest" ]; then
         latest=$version
-        "$ndoc" -o "$work/root" --doc-version "$version" --set "url=$url" --set "versions=${url}versions.json" "$tree/doc/ndoc.conf"
+        "$ndoc" -o "$work/root" --doc-version "$version" --set "url=$url" --set "versions=${url}versions.json" \
+            --set "$favicon" "$tree/doc/ndoc.conf"
         cp -R "$work/root/." "$output/"
     fi
 done

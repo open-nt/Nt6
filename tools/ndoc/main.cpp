@@ -1716,6 +1716,7 @@ struct Config {
     std::string footer;
     fs::path logo;
     fs::path socialImage;
+    std::vector<fs::path> favicons;
     std::string url;
     std::string versions;
     std::string github;
@@ -1749,6 +1750,10 @@ bool applySetting(Config &cfg, const std::string &key, const std::string &value,
         cfg.logo = resolve(value);
     } else if (key == "social_image") {
         cfg.socialImage = resolve(value);
+    } else if (key == "favicon") {
+        cfg.favicons.clear();
+        for (const std::string &w : splitWords(value))
+            cfg.favicons.push_back(resolve(w));
     } else if (key == "url") {
         cfg.url = value;
         if (!cfg.url.empty() && cfg.url.back() != '/')
@@ -3042,6 +3047,13 @@ public:
             if (ec)
                 m_diag.warn(S.cfg.logo.string(), 0, "can't copy logo: " + ec.message());
         }
+        for (const fs::path &icon : S.cfg.favicons) {
+            fs::create_directories(S.cfg.output / "images");
+            std::error_code ec;
+            fs::copy_file(icon, S.cfg.output / "images" / icon.filename(), fs::copy_options::overwrite_existing, ec);
+            if (ec)
+                m_diag.warn(icon.string(), 0, "can't copy favicon: " + ec.message());
+        }
         if (!S.cfg.socialImage.empty()) {
             fs::create_directories(S.cfg.output / "images");
             std::error_code ec;
@@ -3171,6 +3183,29 @@ private:
         return meta;
     }
 
+    // The <link> tags of the favicons: an SVG for browsers that take one, a PNG for the rest and for
+    // the home screen of iOS, and an ICO for old browsers.
+    std::string faviconLinks() const {
+        std::string links;
+        for (const fs::path &icon : S.cfg.favicons) {
+            std::string ext = icon.extension().string();
+            for (char &c : ext)
+                c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+            const std::string href = "images/" + escapeHtml(icon.filename().string());
+            if (ext == ".svg") {
+                links += "<link rel=\"icon\" href=\"" + href + "\" type=\"image/svg+xml\">\n";
+            } else if (ext == ".png") {
+                links += "<link rel=\"icon\" href=\"" + href + "\" type=\"image/png\">\n";
+                links += "<link rel=\"apple-touch-icon\" href=\"" + href + "\">\n";
+            } else if (ext == ".ico") {
+                links += "<link rel=\"icon\" href=\"" + href + "\" sizes=\"any\">\n";
+            } else {
+                links += "<link rel=\"icon\" href=\"" + href + "\">\n";
+            }
+        }
+        return links;
+    }
+
     std::string layout(const std::string &title, const Crumbs &crumbs, const TocEntries &toc,
                        const std::string &body) const {
         const Config &cfg = S.cfg;
@@ -3179,6 +3214,7 @@ private:
         html += "<title>" + escapeHtml(title) + " | " + escapeHtml(cfg.project) + " " +
                 escapeHtml(cfg.version) + "</title>\n";
         html += socialMeta(title);
+        html += faviconLinks();
         html += "<link rel=\"preconnect\" href=\"https://fonts.googleapis.com\">\n"
                 "<link rel=\"preconnect\" href=\"https://fonts.gstatic.com\" crossorigin>\n"
                 "<link rel=\"stylesheet\" href=\"https://fonts.googleapis.com/css2?family=Source+Code+Pro"

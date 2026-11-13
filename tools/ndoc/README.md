@@ -94,6 +94,8 @@ Every page has a search box in its header, so the generated site needs no server
 
 Paths are relative to the config file.
 
+`favicon` lists one or more icons, which are copied to `images/` and linked from every page: an SVG as the scalable icon, a PNG as the fallback and the iOS home screen icon (`apple-touch-icon`), an ICO for old browsers. Give the SVG first.
+
 `social_image` is copied to `images/` and named in the Open Graph and Twitter card tags of every page, so a shared link shows it as a preview (1200x630 PNG works everywhere). Crawlers need an absolute address, so set `url` to where the site is published; without it the image is given relative to the page. Every page also gets `og:title` and, from `description`, `og:description`.
 
 `versions` is the address of a `versions.json` that lists the published versions of the docs. When it is set, every page gets a version switcher in its header (script/ndoc-versions.js), which opens the same page in the chosen version, or that version's landing page if it has no such page. Paths in the file are relative to it, and `latest` names the version whose copy is also served from the directory that holds the file:

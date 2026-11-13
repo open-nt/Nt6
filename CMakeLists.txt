@@ -921,6 +921,7 @@ add_library(NtMultimedia
     src/multimedia/qmediacapturesession.cpp
     src/multimedia/qmediadevices.cpp
     src/multimedia/qmediaformat.cpp
+    src/multimedia/qmediametadata.cpp
     src/multimedia/qmediaplayer.cpp
     src/multimedia/qmediarecorder.cpp
     src/multimedia/qsoundeffect.cpp
@@ -946,6 +947,20 @@ else()
     target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_null.cpp src/multimedia/qvideobackend_null.cpp)
 endif()
 nt_set_compile_options(NtMultimedia)
+
+# Nt Multimedia Widgets: QVideoWidget, which draws video frames with QPainter.
+add_library(NtMultimediaWidgets
+    src/multimediawidgets/qvideowidget.cpp
+)
+add_library(Nt::MultimediaWidgets ALIAS NtMultimediaWidgets)
+add_library(Qt6::MultimediaWidgets ALIAS NtMultimediaWidgets)
+target_include_directories(NtMultimediaWidgets
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtMultimediaWidgets>
+        $<INSTALL_INTERFACE:include/nt6/QtMultimediaWidgets>
+)
+target_link_libraries(NtMultimediaWidgets PUBLIC NtMultimedia NtWidgets)
+nt_set_compile_options(NtMultimediaWidgets)
 
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
@@ -1026,6 +1041,7 @@ nt_moc_library(NtFM include/QtFM)
 nt_moc_library(NtFMQml include/QtFMQml)
 nt_moc_library(NtGamepad include/QtGamepad)
 nt_moc_library(NtMultimedia include/QtMultimedia)
+nt_moc_library(NtMultimediaWidgets include/QtMultimediaWidgets)
 nt_moc_library(NtOpenGL include/QtOpenGL)
 endif() # NOT NT_ZEPHYR
 
@@ -1473,6 +1489,12 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_multimedia_capture_tests PRIVATE Nt::Multimedia)
     add_test(NAME nt_multimedia_capture_tests COMMAND nt_multimedia_capture_tests)
     nt_set_compile_options(nt_multimedia_capture_tests)
+    # QVideoWidget on the offscreen platform.
+    add_executable(nt_multimediawidgets_tests tests/test_multimediawidgets.cpp)
+    target_link_libraries(nt_multimediawidgets_tests PRIVATE Nt::MultimediaWidgets)
+    add_test(NAME nt_multimediawidgets_tests COMMAND nt_multimediawidgets_tests)
+    set_tests_properties(nt_multimediawidgets_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_multimediawidgets_tests)
 
     # The gamepad tests replace the evdev platform with one of their own, and send key events to an
     # offscreen window.
@@ -1673,6 +1695,9 @@ if(NT_BUILD_EXAMPLES)
     add_executable(decoder examples/multimedia/decoder.cpp)
     target_link_libraries(decoder PRIVATE Nt::Multimedia)
     nt_set_compile_options(decoder)
+    add_executable(viewfinder examples/multimedia/viewfinder.cpp)
+    target_link_libraries(viewfinder PRIVATE Nt::MultimediaWidgets)
+    nt_set_compile_options(viewfinder)
 
     add_executable(fmplay examples/fm/fmplay.cpp)
     target_link_libraries(fmplay PRIVATE Nt::FM)

@@ -661,6 +661,41 @@ void testRecorder(const QTemporaryDir &dir) {
     CHECK(qFromLittleEndian<quint16>(header.constData() + 22) == 1);
     CHECK(qFromLittleEndian<quint32>(header.constData() + 24) == 16000);
 
+    // Metadata goes into the file's LIST/INFO chunk, and comes back through QMediaPlayer.
+    QMediaMetaData tags;
+    tags.insert(QMediaMetaData::Title, QStringLiteral("Take two"));
+    tags.insert(QMediaMetaData::Date, QDate(2026, 11, 13));
+    int metaChanges = 0;
+    QObject::connect(&recorder, &QMediaRecorder::metaDataChanged, [&] { ++metaChanges; });
+    recorder.setMetaData(tags);
+    QMediaMetaData more;
+    more.insert(QMediaMetaData::Author, QStringLiteral("Nt"));
+    more.insert(QMediaMetaData::TrackNumber, 2);
+    recorder.addMetaData(more);
+    CHECK(metaChanges == 2);
+    CHECK(recorder.metaData().value(QMediaMetaData::Title).toString() == QStringLiteral("Take two"));
+    CHECK(recorder.metaData().value(QMediaMetaData::TrackNumber).toInt() == 2);
+    recorder.setOutputLocation(QUrl::fromLocalFile(dir.filePath(QStringLiteral("tagged.wav"))));
+    recorder.record();
+    CHECK(waitFor([&] { return recorder.duration() >= 100; }));
+    recorder.stop();
+    QMediaPlayer player;
+    player.setSource(QUrl::fromLocalFile(dir.filePath(QStringLiteral("tagged.wav"))));
+    CHECK(player.mediaStatus() == QMediaPlayer::LoadedMedia);
+    const QMediaMetaData back = player.metaData();
+    CHECK(back.value(QMediaMetaData::Title).toString() == QStringLiteral("Take two"));
+    CHECK(back.value(QMediaMetaData::Date).toDate() == QDate(2026, 11, 13));
+    CHECK(back.value(QMediaMetaData::ContributingArtist).toString() == QStringLiteral("Nt")); // Author, as IART
+    CHECK(back.value(QMediaMetaData::TrackNumber).toInt() == 2);
+    CHECK(std::abs(player.duration() - recorder.duration()) <= 1);
+    {
+        QFile tagged(dir.filePath(QStringLiteral("tagged.wav")));
+        CHECK(tagged.open(QIODevice::ReadOnly));
+        const QByteArray bytes = tagged.readAll();
+        CHECK(qFromLittleEndian<quint32>(bytes.constData() + 4) == quint32(bytes.size() - 8));
+    }
+    recorder.setMetaData(QMediaMetaData());
+
     // Taking the recorder out of the session stops it.
     recorder.record();
     CHECK(recorder.recorderState() == QMediaRecorder::RecordingState);

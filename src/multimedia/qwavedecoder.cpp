@@ -1,9 +1,11 @@
 // MIT License - see LICENSE
 #include "qwavedecoder_p.h"
 
+#include <QtCore/qdatetime.h>
 #include <QtCore/qendian.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 
 namespace QtMultimediaPrivate {
@@ -36,6 +38,78 @@ bool skip(QIODevice *device, qint64 size) {
     return true;
 }
 
+// The WAV INFO tags Nt reads and writes, and their keys.
+struct InfoTag {
+    const char *id;
+    QMediaMetaData::Key key;
+};
+constexpr InfoTag kInfoTags[] = {
+    {"INAM", QMediaMetaData::Title},      {"IART", QMediaMetaData::ContributingArtist},
+    {"ICMT", QMediaMetaData::Comment},    {"ISBJ", QMediaMetaData::Description},
+    {"IGNR", QMediaMetaData::Genre},      {"ICRD", QMediaMetaData::Date},
+    {"ILNG", QMediaMetaData::Language},   {"ICOP", QMediaMetaData::Copyright},
+    {"IPRD", QMediaMetaData::AlbumTitle}, {"ITRK", QMediaMetaData::TrackNumber},
+    {"IMUS", QMediaMetaData::Composer},
+};
+
+void parseInfo(const QByteArray &list, QMediaMetaData *metaData) {
+    qsizetype at = 4; // after "INFO"
+    while (at + 8 <= list.size()) {
+        const QByteArray id = list.mid(at, 4);
+        const auto size = qsizetype(qFromLittleEndian<quint32>(list.constData() + at + 4));
+        at += 8;
+        if (size < 0 || at + size > list.size())
+            break;
+        QByteArray text = list.mid(at, size);
+        const qsizetype nul = text.indexOf('\0');
+        if (nul >= 0)
+            text.truncate(nul);
+        at += size + size % 2;
+        const QString value = QString::fromUtf8(text).trimmed();
+        if (value.isEmpty())
+            continue;
+        for (const InfoTag &tag : kInfoTags) {
+            if (id != tag.id)
+                continue;
+            if (tag.key == QMediaMetaData::Date) {
+                const QDate date = QDate::fromString(value.left(10), Qt::ISODate);
+                metaData->insert(tag.key, date.isValid() ? QVariant(date) : QVariant(value));
+            } else if (tag.key == QMediaMetaData::TrackNumber) {
+                bool ok = false;
+                const int track = value.toInt(&ok);
+                metaData->insert(tag.key, ok ? QVariant(track) : QVariant(value));
+            } else {
+                metaData->insert(tag.key, value);
+            }
+        }
+    }
+}
+
+QByteArray infoChunk(const QMediaMetaData &metaData) {
+    QByteArray body("INFO");
+    for (const InfoTag &tag : kInfoTags) {
+        QVariant v = metaData.value(tag.key);
+        if (!v.isValid() && tag.key == QMediaMetaData::ContributingArtist)
+            v = metaData.value(QMediaMetaData::Author);
+        if (!v.isValid())
+            continue;
+        const QByteArray text =
+            (v.typeId() == QMetaType::QDate ? v.toDate().toString(Qt::ISODate) : v.toString()).toUtf8() + '\0';
+        char header[8];
+        std::copy_n(tag.id, 4, header);
+        qToLittleEndian<quint32>(quint32(text.size()), header + 4);
+        body.append(header, 8).append(text);
+        if (text.size() % 2)
+            body.append('\0');
+    }
+    if (body.size() == 4)
+        return QByteArray();
+    char header[8];
+    std::copy_n("LIST", 4, header);
+    qToLittleEndian<quint32>(quint32(body.size()), header + 4);
+    return QByteArray(header, 8) + body;
+}
+
 } // namespace
 
 bool parseWave(QIODevice *device, WaveInfo *info, QString *error) {
@@ -43,6 +117,7 @@ bool parseWave(QIODevice *device, WaveInfo *info, QString *error) {
         *error = QString::fromUtf8(message);
         return false;
     };
+    info->metaData.clear();
     char riff[12];
     if (!readExactly(device, riff, 12) || std::memcmp(riff, "RIFF", 4) != 0 || std::memcmp(riff + 8, "WAVE", 4) != 0)
         return fail("not a WAV file");
@@ -78,6 +153,13 @@ bool parseWave(QIODevice *device, WaveInfo *info, QString *error) {
                 return fail("the WAV file is truncated");
             offset += size + size % 2;
             haveFormat = true;
+        } else if (std::memcmp(header, "LIST", 4) == 0 && size >= 4 && size < (1u << 20)) {
+            QByteArray list(qsizetype(size), '\0');
+            if (!readExactly(device, list.data(), size) || (size % 2 && !skip(device, 1)))
+                return fail("the WAV file is truncated");
+            if (list.startsWith("INFO"))
+                parseInfo(list, &info->metaData);
+            offset += qint64(size) + size % 2;
         } else if (std::memcmp(header, "data", 4) == 0) {
             if (!haveFormat)
                 return fail("the WAV file has no format chunk");
@@ -125,10 +207,11 @@ bool parseWave(QIODevice *device, WaveInfo *info, QString *error) {
     return true;
 }
 
-QByteArray waveHeader(const QAudioFormat &format, qint64 dataBytes) {
+QByteArray waveHeader(const QAudioFormat &format, qint64 dataBytes, const QMediaMetaData &metaData) {
+    const QByteArray info = infoChunk(metaData);
     QByteArray h(44, '\0');
     char *p = h.data();
-    const auto size = quint32(std::min<qint64>(dataBytes, 0xFFFFFFFFLL - 36));
+    const auto size = quint32(std::min<qint64>(dataBytes, 0xFFFFFFFFLL - 36 - info.size()));
     const auto bits = quint16(format.bytesPerSample() * 8);
     std::copy_n("RIFF", 4, p);
     qToLittleEndian<quint32>(36 + size, p + 4);
@@ -142,7 +225,8 @@ QByteArray waveHeader(const QAudioFormat &format, qint64 dataBytes) {
     qToLittleEndian<quint16>(bits, p + 34);
     std::copy_n("data", 4, p + 36);
     qToLittleEndian<quint32>(size, p + 40);
-    return h;
+    qToLittleEndian<quint32>(quint32(36 + info.size()) + size, p + 4);
+    return h.left(36) + info + h.mid(36);
 }
 
 void convertWaveFrames(const WaveInfo &info, const char *in, char *out, qint64 frames) {
@@ -166,6 +250,86 @@ void convertWaveFrames(const WaveInfo &info, const char *in, char *out, qint64 f
             std::memcpy(out + i * 4, &f, 4);
         }
     }
+}
+
+void writeNormalizedSample(const QAudioFormat &format, char *out, float value) {
+    value = std::clamp(value, -1.0f, 1.0f);
+    switch (format.sampleFormat()) {
+    case QAudioFormat::UInt8:
+        *reinterpret_cast<unsigned char *>(out) = static_cast<unsigned char>(std::lround(value * 127.0f + 128.0f));
+        break;
+    case QAudioFormat::Int16: {
+        const auto s = static_cast<qint16>(std::lround(value * 32767.0f));
+        std::memcpy(out, &s, 2);
+        break;
+    }
+    case QAudioFormat::Int32: {
+        const auto s = static_cast<qint32>(std::llround(double(value) * 2147483647.0));
+        std::memcpy(out, &s, 4);
+        break;
+    }
+    case QAudioFormat::Float:
+        std::memcpy(out, &value, 4);
+        break;
+    case QAudioFormat::Unknown:
+    case QAudioFormat::NSampleFormats:
+        break;
+    }
+}
+
+bool RateReader::fill() {
+    const int frame = m_format.bytesPerFrame();
+    if (frame <= 0)
+        return false;
+    m_chunk.resize(4096 * frame);
+    const qint64 n = m_source->read(m_chunk.data(), m_chunk.size());
+    if (n <= 0)
+        return false;
+    const qint64 samples = n / m_format.bytesPerSample();
+    const int bytes = m_format.bytesPerSample();
+    for (qint64 i = 0; i < samples; ++i)
+        m_frames.push_back(m_format.normalizedSampleValue(m_chunk.constData() + i * bytes));
+    return true;
+}
+
+bool RateReader::atEnd() const {
+    const auto have = qint64(m_frames.size()) / std::max(m_format.channelCount(), 1);
+    return m_source->atEnd() && m_t + 1.0 >= double(have);
+}
+
+qint64 RateReader::bytesAvailable() const {
+    return QIODevice::bytesAvailable() + (atEnd() ? 0 : m_format.bytesPerFrame());
+}
+
+qint64 RateReader::readData(char *data, qint64 maxSize) {
+    const int ch = m_format.channelCount();
+    const int frame = m_format.bytesPerFrame();
+    const int sample = m_format.bytesPerSample();
+    if (ch <= 0 || frame <= 0)
+        return -1;
+    qint64 done = 0;
+    while (maxSize - done >= frame) {
+        auto have = qint64(m_frames.size()) / ch;
+        if (m_t + 1.0 >= double(have)) {
+            // Keep only the frame the next output needs, then read more.
+            const auto keep = std::min<qint64>(qint64(m_t), have);
+            m_frames.erase(m_frames.begin(), m_frames.begin() + std::ptrdiff_t(keep * ch));
+            m_t -= double(keep);
+            if (!fill())
+                break;
+            continue;
+        }
+        const auto i = qint64(m_t);
+        const auto frac = float(m_t - double(i));
+        for (int c = 0; c < ch; ++c) {
+            const float a = m_frames[std::size_t(i * ch + c)];
+            const float b = m_frames[std::size_t((i + 1) * ch + c)];
+            writeNormalizedSample(m_format, data + done + c * sample, a + (b - a) * frac);
+        }
+        done += frame;
+        m_t += m_rate;
+    }
+    return done;
 }
 
 qint64 WaveReader::bytesAvailable() const {

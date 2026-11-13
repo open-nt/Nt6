@@ -5,6 +5,7 @@
 #include <QtCore/qobject.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qurl.h>
+#include <QtMultimedia/qmediametadata.h>
 
 #include <memory>
 
@@ -29,6 +30,7 @@ class QMediaPlayer : public QObject {
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorChanged)
     Q_PROPERTY(QAudioOutput *audioOutput READ audioOutput WRITE setAudioOutput NOTIFY audioOutputChanged)
     Q_PROPERTY(QObject *videoOutput READ videoOutput WRITE setVideoOutput NOTIFY videoOutputChanged)
+    Q_PROPERTY(QMediaMetaData metaData READ metaData NOTIFY metaDataChanged)
 public:
     enum PlaybackState { StoppedState, PlayingState, PausedState };
     Q_ENUM(PlaybackState)
@@ -82,6 +84,7 @@ public:
     QString errorString() const;
 
     bool isAvailable() const;
+    QMediaMetaData metaData() const;
 
 public slots:
     void play();
@@ -165,6 +168,10 @@ signals:
         This signal is emitted when the video output changes.
     */
     void videoOutputChanged() { emitSignal(&QMediaPlayer::videoOutputChanged); }
+    /*!
+        This signal is emitted when the metadata changes, as a source is loaded or unloaded.
+    */
+    void metaDataChanged() { emitSignal(&QMediaPlayer::metaDataChanged); }
 
 private:
     friend class QMediaPlayerPrivate;

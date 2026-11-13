@@ -12,6 +12,7 @@
 #include "qmediacapturesession.h"
 #include "qmediadevices.h"
 #include "qmediaformat.h"
+#include "qmediametadata.h"
 #include "qmediaplayer.h"
 #include "qmediarecorder.h"
 #include "qsoundeffect.h"

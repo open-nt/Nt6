@@ -15,6 +15,42 @@ void QMediaCaptureSessionPrivate::cameraActiveChanged() {
         imageCapture->d->updateReady();
 }
 
+void QMediaCaptureSessionPrivate::updateMonitor() {
+    monitorSource.reset();
+    monitorSink.reset();
+    if (!audioInput || !audioOutput || audioInput->device().isNull() || audioOutput->device().isNull())
+        return;
+    QAudioFormat format = audioInput->device().preferredFormat();
+    if (format.sampleRate() <= 0)
+        format.setSampleRate(48000);
+    if (format.channelCount() <= 0)
+        format.setChannelCount(1);
+    format.setSampleFormat(QAudioFormat::Int16);
+    // Small buffers, so that what is heard follows what is said closely.
+    auto sink = std::make_unique<QAudioSink>(audioOutput->device(), format);
+    sink->setBufferSize(format.bytesForDuration(60000));
+    QIODevice *out = sink->start();
+    auto source = std::make_unique<QAudioSource>(audioInput->device(), format);
+    source->setBufferSize(format.bytesForDuration(40000));
+    QIODevice *in = source->start();
+    if (!out || !in)
+        return;
+    QObject::connect(in, &QIODevice::readyRead, sink.get(), [in, out] {
+        const QByteArray samples = in->readAll();
+        out->write(samples); // what does not fit is dropped, rather than adding delay
+    });
+    monitorSource = std::move(source);
+    monitorSink = std::move(sink);
+    applyMonitorVolume();
+}
+
+void QMediaCaptureSessionPrivate::applyMonitorVolume() {
+    if (monitorSource && audioInput)
+        monitorSource->setVolume(audioInput->isMuted() ? 0.0 : qreal(audioInput->volume()));
+    if (monitorSink && audioOutput)
+        monitorSink->setVolume(audioOutput->isMuted() ? 0.0 : qreal(audioOutput->volume()));
+}
+
 /*!
     \class QMediaCaptureSession
     \inmodule NtMultimedia
@@ -30,9 +66,8 @@ void QMediaCaptureSessionPrivate::cameraActiveChanged() {
     out of the first. The session does not own them.
 
     \differences
-    Only QVideoSink works as a video output; setVideoOutput() accepts other objects but sends them no
-    frames. setAudioOutput() is stored, but the input is not played back. The recorder records audio
-    only.
+    setVideoOutput() sends frames to a QVideoSink, or to the QVideoSink child of an object such as
+    QVideoWidget; there is no QML video item. The recorder records audio only.
     \enddifferences
 
     \sa QCamera, QImageCapture, QMediaRecorder, QAudioInput, QVideoSink
@@ -64,13 +99,26 @@ QMediaCaptureSession::~QMediaCaptureSession() {
 QAudioInput *QMediaCaptureSession::audioInput() const { return d->audioInput.data(); }
 
 /*!
-    Sets the audio input that the recorder records to \a input. It takes effect at the next
-    QMediaRecorder::record().
+    Sets the audio input that the recorder records, and that is played back on the audio output, to
+    \a input. The recorder uses it from its next QMediaRecorder::record().
 */
 void QMediaCaptureSession::setAudioInput(QAudioInput *input) {
     if (input == d->audioInput)
         return;
+    if (d->audioInput)
+        disconnect(d->audioInput.data(), nullptr, this, nullptr);
     d->audioInput = input;
+    if (input) {
+        connect(input, &QAudioInput::deviceChanged, this, [this] { d->updateMonitor(); });
+        connect(input, &QAudioInput::volumeChanged, this, [this](float) { d->applyMonitorVolume(); });
+        connect(input, &QAudioInput::mutedChanged, this, [this](bool) { d->applyMonitorVolume(); });
+        connect(input, &QObject::destroyed, this, [this] {
+            d->audioInput = nullptr; // the QAudioInput part is already gone
+            d->updateMonitor();
+            emit audioInputChanged();
+        });
+    }
+    d->updateMonitor();
     emit audioInputChanged();
 }
 
@@ -148,8 +196,8 @@ void QMediaCaptureSession::setRecorder(QMediaRecorder *recorder) {
 }
 
 /*!
-    Sets the object that shows the camera's frames to \a output. A QVideoSink receives them; other
-    objects are stored but receive nothing.
+    Sets the object that shows the camera's frames to \a output: a QVideoSink, or an object that has
+    one as a direct child, such as QVideoWidget. Other objects are stored but receive nothing.
 
     \sa setVideoSink()
 */
@@ -157,7 +205,10 @@ void QMediaCaptureSession::setVideoOutput(QObject *output) {
     if (output == d->videoOutput)
         return;
     d->videoOutput = output;
-    d->videoSink = qobject_cast<QVideoSink *>(output);
+    QVideoSink *sink = qobject_cast<QVideoSink *>(output);
+    if (!sink && output) // a QVideoWidget, or any object that keeps its sink as a child
+        sink = output->findChild<QVideoSink *>(QString(), Qt::FindDirectChildrenOnly);
+    d->videoSink = sink;
     emit videoOutputChanged();
 }
 
@@ -183,12 +234,27 @@ void QMediaCaptureSession::setVideoSink(QVideoSink *sink) {
 QVideoSink *QMediaCaptureSession::videoSink() const { return d->videoSink.data(); }
 
 /*!
-    Sets the audio output to \a output. Nt stores it but does not play the input back.
+    Sets the output that the audio input is played back on to \a output. While the session has both
+    an input and an output, what the input records is heard on the output, with the volume and mute
+    of each, about 100 ms later.
 */
 void QMediaCaptureSession::setAudioOutput(QAudioOutput *output) {
     if (output == d->audioOutput)
         return;
+    if (d->audioOutput)
+        disconnect(d->audioOutput.data(), nullptr, this, nullptr);
     d->audioOutput = output;
+    if (output) {
+        connect(output, &QAudioOutput::deviceChanged, this, [this] { d->updateMonitor(); });
+        connect(output, &QAudioOutput::volumeChanged, this, [this](float) { d->applyMonitorVolume(); });
+        connect(output, &QAudioOutput::mutedChanged, this, [this](bool) { d->applyMonitorVolume(); });
+        connect(output, &QObject::destroyed, this, [this] {
+            d->audioOutput = nullptr;
+            d->updateMonitor();
+            emit audioOutputChanged();
+        });
+    }
+    d->updateMonitor();
     emit audioOutputChanged();
 }
 

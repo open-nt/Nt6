@@ -21,31 +21,6 @@ namespace {
 constexpr int kFramesPerBuffer = 4096;
 constexpr std::size_t kQueuedBuffers = 4;
 
-void writeSample(const QAudioFormat &format, char *out, float v) {
-    v = std::clamp(v, -1.0f, 1.0f);
-    switch (format.sampleFormat()) {
-    case QAudioFormat::UInt8:
-        *reinterpret_cast<unsigned char *>(out) = static_cast<unsigned char>(std::lround(v * 127.0f + 128.0f));
-        break;
-    case QAudioFormat::Int16: {
-        const auto s = static_cast<qint16>(std::lround(v * 32767.0f));
-        std::memcpy(out, &s, 2);
-        break;
-    }
-    case QAudioFormat::Int32: {
-        const auto s = static_cast<qint32>(std::llround(double(v) * 2147483647.0));
-        std::memcpy(out, &s, 4);
-        break;
-    }
-    case QAudioFormat::Float:
-        std::memcpy(out, &v, 4);
-        break;
-    case QAudioFormat::Unknown:
-    case QAudioFormat::NSampleFormats:
-        break;
-    }
-}
-
 // Converts blocks of frames from one format to another: the sample format, the channels (mono is
 // spread to every channel, and everything is averaged down to mono) and, by linear interpolation,
 // the sample rate. The last frame of each block is carried over, so blocks join without a seam.
@@ -87,7 +62,8 @@ public:
         if (m_from.sampleRate() == m_to.sampleRate()) {
             out.resize(total * m_to.bytesPerFrame());
             for (qsizetype i = 0; i < total * ch; ++i)
-                writeSample(m_to, out.data() + i * m_to.bytesPerSample(), f[std::size_t(i)]);
+                QtMultimediaPrivate::writeNormalizedSample(m_to, out.data() + i * m_to.bytesPerSample(),
+                                                           f[std::size_t(i)]);
             m_carry.clear();
             return out;
         }
@@ -99,7 +75,7 @@ public:
             for (int c = 0; c < ch; ++c) {
                 const float a = f[std::size_t(i * ch + c)];
                 const float b = f[std::size_t((i + 1) * ch + c)];
-                writeSample(m_to, sample.data(), a + (b - a) * frac);
+                QtMultimediaPrivate::writeNormalizedSample(m_to, sample.data(), a + (b - a) * frac);
                 out.append(sample.data(), qsizetype(sample.size()));
             }
             m_t += step;

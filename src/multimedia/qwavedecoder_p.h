@@ -8,8 +8,10 @@
 #include <QtCore/qiodevice.h>
 #include <QtCore/qstring.h>
 #include <QtMultimedia/qaudioformat.h>
+#include <QtMultimedia/qmediametadata.h>
 
 #include <functional>
+#include <vector>
 
 namespace QtMultimediaPrivate {
 
@@ -19,6 +21,7 @@ struct WaveInfo {
     bool sourceFloat = false;
     qint64 dataOffset = 0; // where the samples start in the file
     qint64 frames = 0;
+    QMediaMetaData metaData; // from the LIST/INFO chunk before the samples
 
     int sourceBytesPerFrame() const { return sourceBytesPerSample * format.channelCount(); }
     qint64 durationMs() const { return format.sampleRate() > 0 ? frames * 1000 / format.sampleRate() : 0; }
@@ -28,8 +31,9 @@ struct WaveInfo {
 // the first sample. Returns false and sets error if it is not a WAV file Nt can play.
 bool parseWave(QIODevice *device, WaveInfo *info, QString *error);
 
-// The 44-byte header of a WAV file of dataBytes bytes of samples in format.
-QByteArray waveHeader(const QAudioFormat &format, qint64 dataBytes);
+// The header of a WAV file of dataBytes bytes of samples in format, with the text tags of metaData
+// in a LIST/INFO chunk: 44 bytes without tags.
+QByteArray waveHeader(const QAudioFormat &format, qint64 dataBytes, const QMediaMetaData &metaData = {});
 
 // Converts frames frames from the file's layout at in to info.format at out.
 void convertWaveFrames(const WaveInfo &info, const char *in, char *out, qint64 frames);
@@ -64,6 +68,38 @@ private:
     bool m_needSeek = true;
     QByteArray m_scratch;
     std::function<void()> m_onLoop;
+};
+
+// Writes value, from -1.0 to 1.0, as one sample in format at out.
+void writeNormalizedSample(const QAudioFormat &format, char *out, float value);
+
+// Plays what a source reads at rate times its speed, by linear interpolation, so the pitch changes
+// with the speed; the device a sink pulls from when the playback rate is not 1.
+class RateReader : public QIODevice {
+public:
+    RateReader(QIODevice *source, const QAudioFormat &format, double rate)
+        : m_source(source), m_format(format), m_rate(rate) {
+        setOpenMode(ReadOnly);
+    }
+
+    bool isSequential() const override { return true; }
+    bool atEnd() const override;
+    qint64 bytesAvailable() const override;
+
+protected:
+    qint64 readData(char *data, qint64 maxSize) override;
+    qint64 writeData(const char *, qint64) override { return -1; }
+
+private:
+    // Reads more of the source into m_frames; returns false at its end.
+    bool fill();
+
+    QIODevice *m_source;
+    QAudioFormat m_format;
+    double m_rate;
+    std::vector<float> m_frames; // the source as samples, from frame m_base on
+    double m_t = 0.0;            // the next output frame, in source frames after m_base
+    QByteArray m_chunk;
 };
 
 } // namespace QtMultimediaPrivate

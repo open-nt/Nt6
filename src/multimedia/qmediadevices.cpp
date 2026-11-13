@@ -53,6 +53,8 @@
 
     \snippet multimedia/audioplayer.cpp player
 
+    QMediaPlayer::setPlaybackRate() plays faster or slower; the pitch changes with the speed.
+
     \section1 Raw Audio
 
     QAudioSink plays samples in a QAudioFormat. In pull mode it reads them from a QIODevice; in push
@@ -78,6 +80,12 @@
     QMediaDevices::videoInputs() lists the cameras and QCameraDevice::videoFormats() what each can
     stream; QCamera::setCameraFormat() chooses one.
 
+    \section1 Showing Video
+
+    QVideoWidget, in Nt Multimedia Widgets (\c Nt::MultimediaWidgets), shows the frames in a window:
+
+    \snippet multimedia/viewfinder.cpp viewfinder
+
     \section1 Taking Pictures
 
     A QImageCapture in the same session takes the next frame as a picture, and can save it as a JPEG
@@ -91,6 +99,16 @@
 
     \snippet multimedia/recorder.cpp record
 
+    QMediaRecorder::setMetaData() writes a title, artist, date and other text tags into the file;
+    QMediaPlayer::metaData() reads them back.
+
+    \section1 Hearing the Microphone
+
+    A session with both a QAudioInput and a QAudioOutput plays the input back on the output, with
+    about a tenth of a second of delay:
+
+    \snippet multimedia/viewfinder.cpp monitor
+
     \section1 Decoding Audio
 
     QAudioDecoder reads a WAV file into QAudioBuffer blocks, converted to the sample format and
@@ -102,8 +120,8 @@
 
     Nt reads and writes only WAV audio, and encodes and decodes no video: QMediaPlayer, QSoundEffect
     and QAudioDecoder play WAV files, QMediaRecorder records audio to WAV, and video can only be
-    captured from a camera, not played or recorded. There is no QVideoWidget or QML video item; draw
-    QVideoFrame::toImage() with QPainter. Cameras have no focus, zoom or exposure controls. Only Linux
+    captured from a camera, not played or recorded. QVideoWidget draws frames without the GPU, and
+    there is no QML video item. Cameras have no focus, zoom or exposure controls. Only Linux
     has a backend (ALSA and Video4Linux2); on other platforms there are no devices.
 */
 

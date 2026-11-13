@@ -220,20 +220,38 @@ int main(int argc, char **argv) {
                 (void)waitFor([&] { return w.log.count("key") > before; }, 200);
                 return before;
             };
+            // Any other traffic on the socket, such as late events of a window or keys typed on the real display
+            // while a test window has focus, lets the event loop read the queue and deliver the key early. That
+            // is correct, but leaves nothing to test, so try again until a key is stuck; returns -1 if none was.
+            auto queueStuckKey = [&] {
+                for (int attempt = 0; attempt < 5; ++attempt) {
+                    const qsizetype before = queueKey();
+                    if (w.log.count("key") == before)
+                        return before;
+                }
+                return qsizetype(-1);
+            };
             // The next passes of the event loop handle the key, not whenever other traffic comes by.
             auto handledSoon = [&](qsizetype before) {
                 for (int pass = 0; pass < 3 && w.log.count("key") == before; ++pass)
                     QCoreApplication::processEvents();
                 return w.log.count("key") == before + 1;
             };
-            const qsizetype before = queueKey();
-            CHECK(w.log.count("key") == before); // stuck in the queue
-            QtPrivate::GuiAccess::integration()->checkQueuedEvents();
-            CHECK(handledSoon(before));
+            const qsizetype before = queueStuckKey();
+            if (before >= 0) {
+                QtPrivate::GuiAccess::integration()->checkQueuedEvents();
+                CHECK(handledSoon(before));
+            } else {
+                std::printf("SKIP queued key: other X traffic kept delivering it\n");
+            }
             if (gl) {
-                const qsizetype beforeSwap = queueKey();
-                context.swapBuffers(&glWindow);
-                CHECK(handledSoon(beforeSwap));
+                const qsizetype beforeSwap = queueStuckKey();
+                if (beforeSwap >= 0) {
+                    context.swapBuffers(&glWindow);
+                    CHECK(handledSoon(beforeSwap));
+                } else {
+                    std::printf("SKIP queued key after a swap: other X traffic kept delivering it\n");
+                }
                 context.doneCurrent();
             }
         }

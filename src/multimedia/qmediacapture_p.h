@@ -11,6 +11,7 @@
 #include <QtCore/qtimer.h>
 #include <QtMultimedia/qaudioinput.h>
 #include <QtMultimedia/qaudiooutput.h>
+#include <QtMultimedia/qaudiosink.h>
 #include <QtMultimedia/qaudiosource.h>
 #include <QtMultimedia/qcamera.h>
 #include <QtMultimedia/qimagecapture.h>
@@ -32,6 +33,9 @@ public:
     void deliverFrame(const QVideoFrame &frame);
     // Called when the camera starts or stops.
     void cameraActiveChanged();
+    // Plays the audio input on the audio output while the session has both.
+    void updateMonitor();
+    void applyMonitorVolume();
 
     QMediaCaptureSession *q;
     QPointer<QAudioInput> audioInput;
@@ -41,6 +45,9 @@ public:
     QPointer<QMediaRecorder> recorder;
     QPointer<QObject> videoOutput;
     QPointer<QVideoSink> videoSink;
+
+    std::unique_ptr<QAudioSource> monitorSource;
+    std::unique_ptr<QAudioSink> monitorSink;
 };
 
 class QCameraPrivate {
@@ -124,6 +131,9 @@ public:
     int audioChannelCount = -1;
     int audioSampleRate = -1;
 
+    QMediaMetaData metaData;
+    QMediaMetaData recordingMetaData; // what the header of the file being recorded holds
+    qint64 headerSize = 44;
     std::unique_ptr<QFile> file;
     std::unique_ptr<QAudioSource> source;
     QAudioFormat format;

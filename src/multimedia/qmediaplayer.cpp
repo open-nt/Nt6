@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtMultimedia/qaudiooutput.h>
 #include <QtMultimedia/qaudiosink.h>
+#include <QtMultimedia/qmediaformat.h>
 #include <QtMultimedia/qmediaplayer.h>
 
 #include "qwavedecoder_p.h"
@@ -66,15 +67,23 @@ public:
             s->reset();
             s->deleteLater(); // this may be inside the sink's own signal
         }
+        rateReader.reset();
         reader.reset();
         clockRunning = false;
     }
+
+    // The rate playback runs at: the requested one, within what sounds useful.
+    double effectiveRate() const { return std::clamp(double(rate), 0.125, 8.0); }
+
+    // True when the device the sink pulls from has nothing more.
+    bool sourceAtEnd() const { return rateReader ? rateReader->atEnd() : reader && reader->atEnd(); }
 
     void unload() {
         teardown();
         const bool hadAudio = loaded;
         const qint64 oldDuration = info.durationMs();
         const bool wasSeekable = seekable;
+        const bool hadMetaData = loaded;
         loaded = false;
         seekable = false;
         info = WaveInfo();
@@ -90,6 +99,8 @@ public:
         }
         if (wasSeekable)
             emit q->seekableChanged(false);
+        if (hadMetaData)
+            emit q->metaDataChanged();
     }
 
     void load() {
@@ -116,6 +127,7 @@ public:
         emit q->bufferProgressChanged(1.0f);
         if (seekable)
             emit q->seekableChanged(true);
+        emit q->metaDataChanged();
         setStatus(QMediaPlayer::LoadedMedia);
     }
 
@@ -125,10 +137,10 @@ public:
     // The frames played since playback started at startFrame, counting loops.
     qint64 playedFrames() const {
         if (sink)
-            return sink->processedUSecs() * info.format.sampleRate() / 1000000;
+            return qint64(double(sink->processedUSecs()) * playingRate * info.format.sampleRate() / 1000000.0);
         if (clockRunning || clockAccumulated > 0) {
             const qint64 ms = clockAccumulated + (clockRunning ? clock.elapsed() : 0);
-            return msToFrames(ms);
+            return qint64(double(msToFrames(ms)) * playingRate);
         }
         return 0;
     }
@@ -153,6 +165,7 @@ public:
         teardown();
         startFrame = std::clamp<qint64>(msToFrames(ms), 0, info.frames);
         clockAccumulated = 0;
+        playingRate = effectiveRate();
         if (output) {
             if (seekable && !media()->seek(info.dataOffset))
                 return false;
@@ -162,7 +175,9 @@ public:
             sink = std::make_unique<QAudioSink>(output->device(), info.format);
             applyVolume();
             QObject::connect(sink.get(), &QAudioSink::stateChanged, q, [this](QtAudio::State s) { sinkState(s); });
-            sink->start(reader.get());
+            if (playingRate != 1.0)
+                rateReader = std::make_unique<QtMultimediaPrivate::RateReader>(reader.get(), info.format, playingRate);
+            sink->start(rateReader ? static_cast<QIODevice *>(rateReader.get()) : reader.get());
             if (sink->state() == QtAudio::StoppedState) {
                 teardown();
                 setError(QMediaPlayer::ResourceError, QStringLiteral("the audio device cannot be opened"));
@@ -184,10 +199,10 @@ public:
     void sinkState(QtAudio::State s) {
         if (!sink)
             return;
-        if (s == QtAudio::IdleState && sink->error() == QtAudio::NoError && reader && reader->atEnd()) {
+        if (s == QtAudio::IdleState && sink->error() == QtAudio::NoError && sourceAtEnd()) {
             // Not from inside the sink's signal, which may come from inside start().
             QTimer::singleShot(0, q, [this, which = QPointer<QAudioSink>(sink.get())] {
-                if (which && which == sink.get() && sink->state() == QtAudio::IdleState && reader && reader->atEnd())
+                if (which && which == sink.get() && sink->state() == QtAudio::IdleState && sourceAtEnd())
                     endOfMedia();
             });
         } else if (s == QtAudio::StoppedState && sink->error() != QtAudio::NoError) {
@@ -222,12 +237,13 @@ public:
         setPositionValue(livePosition());
     }
 
-    // Restarts playback where it is, after the output changed.
-    void restart() {
+    // Restarts playback at, or where it is, after the output or the rate changed.
+    void restart(qint64 at = -1) {
         if (state == QMediaPlayer::StoppedState)
             return;
         const bool paused = state == QMediaPlayer::PausedState;
-        const qint64 at = paused ? position : livePosition();
+        if (at < 0)
+            at = paused ? position : livePosition();
         if (!startPlayback(at)) {
             setState(QMediaPlayer::StoppedState);
             return;
@@ -278,6 +294,8 @@ public:
     int loops = QMediaPlayer::Once;
     qint64 startFrame = 0;
     std::unique_ptr<WaveReader> reader;
+    std::unique_ptr<QtMultimediaPrivate::RateReader> rateReader;
+    double playingRate = 1.0;
     std::unique_ptr<QAudioSink> sink;
     QElapsedTimer clock;
     bool clockRunning = false;
@@ -303,8 +321,8 @@ public:
     \differences
     Only WAV files can be played: 8, 16, 24 or 32-bit integer samples or 32 or 64-bit floating point
     samples, up to 8 channels. Other formats give FormatError. There is no video: setVideoOutput()
-    stores the object but nothing is drawn, and hasVideo() is always \c false. The playback rate is
-    stored but playback always runs at normal speed. There are no metadata, tracks,
+    stores the object but nothing is drawn, and hasVideo() is always \c false. The playback rate
+    changes the pitch with the speed, as a tape does. There are no tracks,
     \c bufferedTimeRange() or \c setActiveAudioTrack(). Local files, resources (\c{qrc:/} or
     \c{:/}) and devices given to setSourceDevice() can be played, not network URLs.
     \enddifferences
@@ -496,6 +514,21 @@ QString QMediaPlayer::errorString() const { return d->errorString; }
 bool QMediaPlayer::isAvailable() const { return true; }
 
 /*!
+    Returns the metadata of the source: the text tags of a WAV file's \c LIST/INFO chunk, and its
+    duration, file format, audio codec and audio bit rate. It is empty when no source is loaded.
+*/
+QMediaMetaData QMediaPlayer::metaData() const {
+    if (!d->loaded)
+        return QMediaMetaData();
+    QMediaMetaData data = d->info.metaData;
+    data.insert(QMediaMetaData::Duration, duration());
+    data.insert(QMediaMetaData::FileFormat, QVariant::fromValue(QMediaFormat::Wave));
+    data.insert(QMediaMetaData::AudioCodec, QVariant::fromValue(QMediaFormat::AudioCodec::Wave));
+    data.insert(QMediaMetaData::AudioBitRate, d->info.format.sampleRate() * d->info.sourceBytesPerFrame() * 8);
+    return data;
+}
+
+/*!
     Starts or resumes playing. After the end, playing starts again from the beginning.
 */
 void QMediaPlayer::play() {
@@ -572,12 +605,16 @@ void QMediaPlayer::setPosition(qint64 position) {
 }
 
 /*!
-    Sets the playback rate to \a rate. Nt stores it, but always plays at normal speed.
+    Sets the playback rate to \a rate: 2.0 plays twice as fast, 0.5 half as fast. The pitch changes
+    with the speed. Playback runs at rates from 0.125 to 8.0; other rates, zero and negative ones
+    among them, are stored but played at the nearest of those.
 */
 void QMediaPlayer::setPlaybackRate(qreal rate) {
     if (rate == d->rate)
         return;
+    const qint64 at = position();
     d->rate = rate;
+    d->restart(at);
     emit playbackRateChanged(rate);
 }
 

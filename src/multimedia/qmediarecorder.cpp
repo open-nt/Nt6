@@ -69,12 +69,12 @@ void QMediaRecorderPrivate::finish() {
     }
     if (file) {
         file->flush();
-        const qint64 bytes = std::max<qint64>(file->size() - 44, 0);
+        const qint64 bytes = std::max<qint64>(file->size() - headerSize, 0);
         duration = format.isValid() && format.bytesPerFrame() > 0
                        ? bytes / format.bytesPerFrame() * 1000 / format.sampleRate()
                        : 0;
         file->seek(0);
-        file->write(QtMultimediaPrivate::waveHeader(format, bytes));
+        file->write(QtMultimediaPrivate::waveHeader(format, bytes, recordingMetaData));
         file->close();
         file.reset();
     }
@@ -95,7 +95,7 @@ void QMediaRecorderPrivate::finish() {
     \differences
     Only audio is recorded, to WAV files with 16-bit samples; a camera in the session is not
     recorded. The video settings, bit rates, quality and encoding mode are stored but have no
-    effect. There is no metadata.
+    effect. Only text metadata is written.
     \enddifferences
 
     \sa QMediaCaptureSession, QAudioInput, QMediaFormat
@@ -355,6 +355,33 @@ void QMediaRecorder::setAudioSampleRate(int sampleRate) {
 }
 
 /*!
+    Returns the metadata to write into the next recording.
+*/
+QMediaMetaData QMediaRecorder::metaData() const { return d->metaData; }
+
+/*!
+    Sets the metadata to write into the recording to \a metaData. The text tags (title, artist,
+    comment, description, genre, date, language, copyright, album, track number and composer) are
+    written into the WAV file's \c LIST/INFO chunk when recording starts.
+*/
+void QMediaRecorder::setMetaData(const QMediaMetaData &metaData) {
+    if (metaData == d->metaData)
+        return;
+    d->metaData = metaData;
+    emit metaDataChanged();
+}
+
+/*!
+    Adds the values of \a metaData to the metadata to write, replacing those of the same keys.
+*/
+void QMediaRecorder::addMetaData(const QMediaMetaData &metaData) {
+    QMediaMetaData merged = d->metaData;
+    for (QMediaMetaData::Key key : metaData.keys())
+        merged.insert(key, metaData.value(key));
+    setMetaData(merged);
+}
+
+/*!
     Returns the session the recorder is in, or \c nullptr.
 */
 QMediaCaptureSession *QMediaRecorder::captureSession() const { return d->session; }
@@ -403,7 +430,10 @@ void QMediaRecorder::record() {
     if (format.channelCount() <= 0)
         format.setChannelCount(1);
     format.setSampleFormat(QAudioFormat::Int16);
-    file->write(QtMultimediaPrivate::waveHeader(format, 0));
+    d->recordingMetaData = d->metaData;
+    const QByteArray header = QtMultimediaPrivate::waveHeader(format, 0, d->recordingMetaData);
+    d->headerSize = header.size();
+    file->write(header);
 
     auto source = std::make_unique<QAudioSource>(input->device(), format);
     d->format = format;

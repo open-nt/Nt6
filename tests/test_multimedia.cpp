@@ -808,6 +808,162 @@ void testAudioOutput() {
     g_world->secondOutput = false;
 }
 
+void testPlaybackRate(const QTemporaryDir &dir) {
+    g_world->takePlayed();
+    const QByteArray pcm = stereoPattern(4000); // 500 ms
+    const QString path = writeFile(dir, QStringLiteral("rate.wav"), wavFile(1, 2, 8000, 16, pcm));
+    QMediaPlayer player;
+    QAudioOutput output;
+    player.setAudioOutput(&output);
+    player.setSource(QUrl::fromLocalFile(path));
+
+    // Twice as fast: half as many frames, every other one of the source.
+    QList<qreal> rates;
+    QObject::connect(&player, &QMediaPlayer::playbackRateChanged, [&](qreal r) { rates.append(r); });
+    player.setPlaybackRate(2.0);
+    CHECK(player.playbackRate() == 2.0);
+    QElapsedTimer clock;
+    clock.start();
+    player.play();
+    CHECK(waitFor([&] { return player.mediaStatus() == QMediaPlayer::EndOfMedia; }));
+    CHECK(player.position() == 500);
+    const QByteArray fast = g_world->takePlayed();
+    CHECK(std::abs(fast.size() / 4 - 2000) <= 2);
+    qint16 left = 0;
+    std::memcpy(&left, fast.constData() + 100 * 4, 2);
+    CHECK(left == 200);
+    std::memcpy(&left, fast.constData() + 100 * 4 + 2, 2);
+    CHECK(left == -200);
+
+    // Half speed: twice as many frames, interpolated between those of the source.
+    player.setPlaybackRate(0.5);
+    player.play();
+    CHECK(waitFor([&] { return player.mediaStatus() == QMediaPlayer::EndOfMedia; }));
+    const QByteArray slow = g_world->takePlayed();
+    CHECK(std::abs(slow.size() / 4 - 8000) <= 4);
+    std::memcpy(&left, slow.constData() + 201 * 4, 2);
+    CHECK(left == 100 || left == 101); // halfway between frames 100 and 101
+
+    // Changing the rate while playing goes on from the same position.
+    player.setPlaybackRate(1.0);
+    player.play();
+    CHECK(waitFor([&] { return player.position() >= 100; }));
+    player.setPlaybackRate(4.0);
+    CHECK(player.isPlaying());
+    CHECK(player.position() >= 100 && player.position() < 400);
+    CHECK(waitFor([&] { return player.mediaStatus() == QMediaPlayer::EndOfMedia; }));
+    CHECK(rates == (QList<qreal>{2.0, 0.5, 1.0, 4.0}));
+
+    // Without an output, the clock runs at the rate too.
+    player.setAudioOutput(nullptr);
+    player.setPlaybackRate(8.0);
+    clock.restart();
+    player.play();
+    CHECK(waitFor([&] { return player.mediaStatus() == QMediaPlayer::EndOfMedia; }));
+    CHECK(clock.elapsed() < 400);
+    player.setPlaybackRate(-1.0); // stored, played at 0.125
+    CHECK(player.playbackRate() == -1.0);
+    g_world->takePlayed();
+}
+
+void testMetaData(const QTemporaryDir &dir) {
+    // A LIST/INFO chunk before the samples.
+    QByteArray info("INFO");
+    auto tag = [&info](const char *id, const QByteArray &text) {
+        info.append(id);
+        put32(info, quint32(text.size() + 1));
+        info.append(text).append('\0');
+        if ((text.size() + 1) % 2)
+            info.append('\0');
+    };
+    tag("INAM", "Morning briefing");
+    tag("IART", "The Crew");
+    tag("ICRD", "2026-11-13");
+    tag("ITRK", "7");
+    tag("ICMT", "odd");
+    QByteArray file = wavFile(1, 1, 8000, 16, QByteArray(1600, '\0'));
+    QByteArray list("LIST");
+    put32(list, quint32(info.size()));
+    file.insert(36, list + info);
+    const QString path = writeFile(dir, QStringLiteral("tagged.wav"), file);
+
+    QMediaPlayer player;
+    int changes = 0;
+    QObject::connect(&player, &QMediaPlayer::metaDataChanged, [&] { ++changes; });
+    CHECK(player.metaData().isEmpty());
+    player.setSource(QUrl::fromLocalFile(path));
+    CHECK(changes == 1);
+    CHECK(player.duration() == 100);
+    const QMediaMetaData meta = player.metaData();
+    CHECK(meta.value(QMediaMetaData::Title).toString() == QStringLiteral("Morning briefing"));
+    CHECK(meta.stringValue(QMediaMetaData::ContributingArtist) == QStringLiteral("The Crew"));
+    CHECK(meta.value(QMediaMetaData::Date).toDate() == QDate(2026, 11, 13));
+    CHECK(meta.stringValue(QMediaMetaData::Date) == QStringLiteral("2026-11-13"));
+    CHECK(meta.value(QMediaMetaData::TrackNumber).toInt() == 7);
+    CHECK(meta.value(QMediaMetaData::Comment).toString() == QStringLiteral("odd"));
+    CHECK(meta.value(QMediaMetaData::Duration).toLongLong() == 100);
+    CHECK(meta.value(QMediaMetaData::FileFormat).value<QMediaFormat::FileFormat>() == QMediaFormat::Wave);
+    CHECK(meta.stringValue(QMediaMetaData::FileFormat) == QStringLiteral("Wave"));
+    CHECK(meta.stringValue(QMediaMetaData::AudioCodec) == QStringLiteral("Wave"));
+    CHECK(meta.value(QMediaMetaData::AudioBitRate).toInt() == 128000);
+    CHECK(!meta.keys().contains(QMediaMetaData::Genre));
+    player.setSource(QUrl());
+    CHECK(changes == 2 && player.metaData().isEmpty());
+
+    QMediaMetaData m;
+    CHECK(m.isEmpty());
+    m[QMediaMetaData::Genre] = QStringLiteral("News");
+    m.insert(QMediaMetaData::Title, QStringLiteral("x"));
+    CHECK(m.keys() == (QList<QMediaMetaData::Key>{QMediaMetaData::Title, QMediaMetaData::Genre}));
+    QMediaMetaData copy = m;
+    CHECK(copy == m);
+    copy.remove(QMediaMetaData::Genre);
+    CHECK(copy != m);
+    m.clear();
+    CHECK(m.isEmpty() && !m.value(QMediaMetaData::Title).isValid());
+    CHECK(QMediaMetaData::metaDataKeyToString(QMediaMetaData::AlbumTitle) == QStringLiteral("Album title"));
+}
+
+void testMonitor() {
+    g_world->takePlayed();
+    QMediaCaptureSession session;
+    QAudioInput input;
+    QAudioOutput output;
+    session.setAudioInput(&input);
+    spinEvents(50);
+    CHECK(g_world->playedSize() == 0); // no output yet
+    session.setAudioOutput(&output);
+    CHECK(session.audioOutput() == &output);
+    CHECK(waitFor([&] { return g_world->playedSize() >= 2000; }));
+    // The input's counting pattern reaches the output.
+    const QByteArray heard = g_world->takePlayed();
+    bool counting = true;
+    for (qsizetype i = 1; counting && i < heard.size(); ++i)
+        counting = heard.at(i) == char((heard.at(i - 1) + 1) & 0x7f) || heard.at(i) == 0;
+    CHECK(counting);
+    output.setMuted(true);
+    spinEvents(80);
+    g_world->takePlayed();
+    CHECK(waitFor([&] { return g_world->playedSize() >= 400; }));
+    const QByteArray muted = g_world->takePlayed();
+    CHECK(muted.count('\0') == muted.size());
+    session.setAudioOutput(nullptr);
+    spinEvents(50);
+    g_world->takePlayed();
+    spinEvents(80);
+    CHECK(g_world->playedSize() == 0);
+    // An input that goes away stops the monitor.
+    auto *temporary = new QAudioOutput;
+    session.setAudioOutput(temporary);
+    CHECK(waitFor([&] { return g_world->playedSize() > 0; }));
+    delete temporary;
+    CHECK(session.audioOutput() == nullptr);
+    spinEvents(50);
+    g_world->takePlayed();
+    spinEvents(50);
+    CHECK(g_world->playedSize() == 0);
+}
+
 void testAlsa() {
     // The real backend lists devices, or none where ALSA is missing, without failing.
     auto alsa = createPlatformAudioBackend();
@@ -841,6 +997,9 @@ int main(int argc, char **argv) {
     testSoundEffect(dir);
     testAudioOutput();
     testPlayer(dir);
+    testPlaybackRate(dir);
+    testMetaData(dir);
+    testMonitor();
 
     spinEvents(50); // let detached drains finish
     if (g_failures) {

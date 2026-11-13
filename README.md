@@ -361,7 +361,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::Qml`, `Nt::Multimedia`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::Qml`, `Nt::Multimedia`, `Nt::MultimediaWidgets`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -497,16 +497,17 @@ Nt Multimedia has the audio and camera parts of Qt Multimedia. Link with `Nt::Mu
 | `QMediaDevices`, `QAudioDevice`, `QCameraDevice`, `QCameraFormat` | the audio inputs and outputs and the cameras, the default ones first, with each camera's formats, sizes and frame rates; `audioInputsChanged`/`audioOutputsChanged`/`videoInputsChanged` when a device is plugged in or out |
 | `QAudioSink`, `QAudioSource` | raw samples played or recorded in pull mode (from or to a `QIODevice`) or push mode, with suspend and resume, buffer size, volume, processed and elapsed time; a worker thread does the blocking I/O |
 | `QSoundEffect` | a WAV file held in memory and played with low latency, with loops (or `Infinite`), volume and mute |
-| `QMediaPlayer`, `QAudioOutput` | WAV files played from disk, a resource or a `QIODevice`: play, pause, stop, seeking, loops, position and duration, status and errors; the output sets the device, volume and mute |
+| `QMediaPlayer`, `QAudioOutput` | WAV files played from disk, a resource or a `QIODevice`: play, pause, stop, seeking, loops, playback rate (pitch follows speed), position and duration, metadata, status and errors; the output sets the device, volume and mute |
 | `QAudioDecoder`, `QAudioBuffer`, `QAudioFrame` | WAV files decoded into buffers, converted to another sample format, channel count or (by linear interpolation) sample rate; buffers that share their samples, read as typed frames (`S16S`, `F32M`, ...) |
-| `QMediaCaptureSession`, `QCamera`, `QVideoSink` | a camera streaming to a sink from a thread of its own, in a chosen or automatic format, with errors when it fails or is unplugged |
+| `QMediaCaptureSession`, `QCamera`, `QVideoSink` | a camera streaming to a sink from a thread of its own, in a chosen or automatic format, with errors when it fails or is unplugged; the microphone played back on an audio output |
+| `QVideoWidget` (`Nt::MultimediaWidgets`) | a widget that shows a camera, scaled with the aspect ratio kept, stretched or cropped, drawn with `QPainter`; full screen |
 | `QVideoFrame`, `QVideoFrameFormat` | frames in memory that share their pixels: mapping, planes, start and end times, rotation and mirroring; `toImage()` from packed RGB, YUYV, UYVY, NV12, NV21, P010, YUV420P, YV12, YUV422P, grey and JPEG, in BT.601 or BT.709 and video or full range |
 | `QImageCapture` | pictures taken from the camera's stream, scaled to a resolution if set, as a `QImage` or saved as JPEG or PNG |
-| `QMediaRecorder`, `QAudioInput`, `QMediaFormat` | the microphone recorded to a WAV file, with pause, duration and numbered files in a folder; the input sets the device, gain and mute |
+| `QMediaRecorder`, `QAudioInput`, `QMediaFormat`, `QMediaMetaData` | the microphone recorded to a WAV file, with pause, duration, numbered files in a folder and text tags (title, artist, date, ...) in its `LIST/INFO` chunk; the input sets the device, gain and mute |
 
-WAV files with 8, 16, 24 or 32-bit integer or 32 or 64-bit floating-point samples, up to 8 channels, can be played and decoded. Guide: [Using Nt Multimedia](https://open-nt.github.io/Nt6/nt-multimedia.html). Examples: [`audiodevices`](examples/multimedia/audiodevices.cpp) lists the devices and plays a tone, [`audioplayer`](examples/multimedia/audioplayer.cpp) plays a WAV file, [`camera`](examples/multimedia/camera.cpp) lists the cameras, streams and saves a picture, [`recorder`](examples/multimedia/recorder.cpp) records the microphone, and [`decoder`](examples/multimedia/decoder.cpp) decodes a file to 16 kHz mono.
+WAV files with 8, 16, 24 or 32-bit integer or 32 or 64-bit floating-point samples, up to 8 channels, can be played and decoded. Guide: [Using Nt Multimedia](https://open-nt.github.io/Nt6/nt-multimedia.html). Examples: [`audiodevices`](examples/multimedia/audiodevices.cpp) lists the devices and plays a tone, [`audioplayer`](examples/multimedia/audioplayer.cpp) plays a WAV file, [`camera`](examples/multimedia/camera.cpp) lists the cameras, streams and saves a picture, [`viewfinder`](examples/multimedia/viewfinder.cpp) shows a camera in a window, [`recorder`](examples/multimedia/recorder.cpp) records the microphone, and [`decoder`](examples/multimedia/decoder.cpp) decodes a file to 16 kHz mono.
 
-Not yet: video playback and recording (no video codecs), compressed audio (MP3, AAC, Ogg, FLAC), `QVideoWidget` and a QML video item, camera controls (focus, zoom, exposure), playback rates other than 1.0, monitoring of the input through `QMediaCaptureSession::setAudioOutput()`, and backends other than ALSA and Video4Linux2.
+Not yet: video playback and recording (no video codecs), compressed audio (MP3, AAC, Ogg, FLAC), a QML video item and GPU drawing of video, camera controls (focus, zoom, exposure), pitch-preserving playback rates, and backends other than ALSA and Video4Linux2.
 
 ### Essentials
 

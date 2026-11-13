@@ -34,12 +34,13 @@ set_target_properties(NtFM PROPERTIES EXPORT_NAME FM)
 set_target_properties(NtFMQml PROPERTIES EXPORT_NAME FMQml)
 set_target_properties(NtGamepad PROPERTIES EXPORT_NAME Gamepad)
 set_target_properties(NtMultimedia PROPERTIES EXPORT_NAME Multimedia)
+set_target_properties(NtMultimediaWidgets PROPERTIES EXPORT_NAME MultimediaWidgets)
 set_target_properties(NtOpenGL PROPERTIES EXPORT_NAME OpenGL)
 set_target_properties(ntmoc PROPERTIES EXPORT_NAME moc)
 set_target_properties(ndoc PROPERTIES EXPORT_NAME ndoc)
 set_target_properties(ntrcc PROPERTIES EXPORT_NAME rcc)
 
-install(TARGETS NtCore NtNetwork NtGpio NtSerialPort NtSql NtDBus NtWebSockets NtHttpServer NtGui NtWidgets NtSvg NtSvgWidgets NtCharts NtOpenGL NtQml NtFM NtFMQml NtGamepad NtMultimedia NtConcurrent NtTest
+install(TARGETS NtCore NtNetwork NtGpio NtSerialPort NtSql NtDBus NtWebSockets NtHttpServer NtGui NtWidgets NtSvg NtSvgWidgets NtCharts NtOpenGL NtQml NtFM NtFMQml NtGamepad NtMultimedia NtMultimediaWidgets NtConcurrent NtTest
     EXPORT Nt6Targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
@@ -47,7 +48,7 @@ install(TARGETS ntmoc ntrcc ndoc
     EXPORT Nt6Targets
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 
-install(DIRECTORY include/QtCore include/QtNetwork include/QtGpio include/QtSerialPort include/QtSql include/QtDBus include/QtHttpServer include/QtWebSockets include/QtGui include/QtWidgets include/QtSvg include/QtSvgWidgets include/QtCharts include/QtOpenGL include/QtQml include/QtFM include/QtFMQml include/QtGamepad include/QtMultimedia include/QtConcurrent include/QtTest
+install(DIRECTORY include/QtCore include/QtNetwork include/QtGpio include/QtSerialPort include/QtSql include/QtDBus include/QtHttpServer include/QtWebSockets include/QtGui include/QtWidgets include/QtSvg include/QtSvgWidgets include/QtCharts include/QtOpenGL include/QtQml include/QtFM include/QtFMQml include/QtGamepad include/QtMultimedia include/QtMultimediaWidgets include/QtConcurrent include/QtTest
     DESTINATION ${NT_INSTALL_INCLUDEDIR}
     COMPONENT Development
     PATTERN "*_p.h" EXCLUDE)

@@ -6,6 +6,7 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qurl.h>
 #include <QtMultimedia/qmediaformat.h>
+#include <QtMultimedia/qmediametadata.h>
 
 #include <memory>
 
@@ -29,6 +30,7 @@ class QMediaRecorder : public QObject {
     Q_PROPERTY(int audioBitRate READ audioBitRate WRITE setAudioBitRate NOTIFY audioBitRateChanged)
     Q_PROPERTY(int audioChannelCount READ audioChannelCount WRITE setAudioChannelCount NOTIFY audioChannelCountChanged)
     Q_PROPERTY(int audioSampleRate READ audioSampleRate WRITE setAudioSampleRate NOTIFY audioSampleRateChanged)
+    Q_PROPERTY(QMediaMetaData metaData READ metaData WRITE setMetaData NOTIFY metaDataChanged)
 public:
     enum Quality { VeryLowQuality, LowQuality, NormalQuality, HighQuality, VeryHighQuality };
     Q_ENUM(Quality)
@@ -83,6 +85,10 @@ public:
 
     int audioSampleRate() const;
     void setAudioSampleRate(int sampleRate);
+
+    QMediaMetaData metaData() const;
+    void setMetaData(const QMediaMetaData &metaData);
+    void addMetaData(const QMediaMetaData &metaData);
 
     QMediaCaptureSession *captureSession() const;
 
@@ -157,6 +163,10 @@ signals:
         This signal is emitted when the audio sample rate changes.
     */
     void audioSampleRateChanged() { emitSignal(&QMediaRecorder::audioSampleRateChanged); }
+    /*!
+        This signal is emitted when the metadata changes.
+    */
+    void metaDataChanged() { emitSignal(&QMediaRecorder::metaDataChanged); }
 
 private:
     friend class QMediaCaptureSession;

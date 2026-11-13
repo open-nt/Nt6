@@ -150,7 +150,7 @@ check_cmake_sources() {
 }
 
 check_headers() {
-    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtGpio -Iinclude/QtSerialPort -Iinclude/QtSql -Iinclude/QtDBus -Iinclude/QtHttpServer -Iinclude/QtWebSockets -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtSvg -Iinclude/QtSvgWidgets -Iinclude/QtCharts -Iinclude/QtOpenGL -Iinclude/QtQml -Iinclude/QtFM -Iinclude/QtFMQml -Iinclude/QtGamepad -Iinclude/QtConcurrent -Iinclude/QtTest -I$build_root/release/generated" out
+    local cxx=${CXX:-c++} dirs="-Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtGpio -Iinclude/QtSerialPort -Iinclude/QtSql -Iinclude/QtDBus -Iinclude/QtHttpServer -Iinclude/QtWebSockets -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtSvg -Iinclude/QtSvgWidgets -Iinclude/QtCharts -Iinclude/QtOpenGL -Iinclude/QtQml -Iinclude/QtFM -Iinclude/QtFMQml -Iinclude/QtGamepad -Iinclude/QtMultimedia -Iinclude/QtConcurrent -Iinclude/QtTest -I$build_root/release/generated" out
     need "$cxx" || return $?
     export cxx dirs
     # Each public header must compile when it is the only thing included.
@@ -221,7 +221,7 @@ check_cppcheck() {
     need cppcheck || return $?
     cppcheck --enable=warning,performance,portability --std=c++17 --inline-suppr \
         --suppressions-list=.cppcheck-suppressions --error-exitcode=1 --quiet \
-        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtGpio -Iinclude/QtSerialPort -Iinclude/QtSql -Iinclude/QtDBus -Iinclude/QtHttpServer -Iinclude/QtWebSockets -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtSvg -Iinclude/QtSvgWidgets -Iinclude/QtCharts -Iinclude/QtOpenGL -Iinclude/QtQml -Iinclude/QtFM -Iinclude/QtFMQml -Iinclude/QtGamepad -Iinclude/QtConcurrent -Iinclude/QtTest -I"$build_root/release/generated" -Isrc \
+        -Iinclude -Iinclude/QtCore -Iinclude/QtNetwork -Iinclude/QtGpio -Iinclude/QtSerialPort -Iinclude/QtSql -Iinclude/QtDBus -Iinclude/QtHttpServer -Iinclude/QtWebSockets -Iinclude/QtGui -Iinclude/QtWidgets -Iinclude/QtSvg -Iinclude/QtSvgWidgets -Iinclude/QtCharts -Iinclude/QtOpenGL -Iinclude/QtQml -Iinclude/QtFM -Iinclude/QtFMQml -Iinclude/QtGamepad -Iinclude/QtMultimedia -Iinclude/QtConcurrent -Iinclude/QtTest -I"$build_root/release/generated" -Isrc \
         -j "$jobs" src tools
 }
 
@@ -259,8 +259,8 @@ check_tsan() {
     fi
     configure "$build_root/tsan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF \
         -DNT_BUILD_EXAMPLES=OFF -DNT_SANITIZE=thread && \
-        cmake --build "$build_root/tsan" -j "$jobs" --target nt_thread_tests nt_future_tests nt_concurrent_tests nt_fm_tests && \
-        TSAN_OPTIONS=halt_on_error=1 ctest --test-dir "$build_root/tsan" -R '^nt_(thread|future|concurrent|fm)_tests$' --output-on-failure
+        cmake --build "$build_root/tsan" -j "$jobs" --target nt_thread_tests nt_future_tests nt_concurrent_tests nt_fm_tests nt_multimedia_tests && \
+        TSAN_OPTIONS=halt_on_error=1 ctest --test-dir "$build_root/tsan" -R '^nt_(thread|future|concurrent|fm|multimedia)_tests$' --output-on-failure
 }
 
 check_sanitizers() {

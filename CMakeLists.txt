@@ -903,6 +903,38 @@ target_include_directories(NtGamepad
 target_link_libraries(NtGamepad PUBLIC NtCore PRIVATE NtGui)
 nt_set_compile_options(NtGamepad)
 
+# Nt Multimedia: the audio part of Qt Multimedia. Linux uses ALSA, loaded at run time, so the library
+# builds without its headers; other platforms have no devices yet.
+add_library(NtMultimedia
+    src/multimedia/qaudiodevice.cpp
+    src/multimedia/qaudioformat.cpp
+    src/multimedia/qaudiooutput.cpp
+    src/multimedia/qaudiosink.cpp
+    src/multimedia/qaudiosource.cpp
+    src/multimedia/qaudiostream.cpp
+    src/multimedia/qmediadevices.cpp
+    src/multimedia/qmediaplayer.cpp
+    src/multimedia/qsoundeffect.cpp
+    src/multimedia/qtaudio.cpp
+    src/multimedia/qwavedecoder.cpp
+)
+add_library(Nt::Multimedia ALIAS NtMultimedia)
+add_library(Qt6::Multimedia ALIAS NtMultimedia)
+target_include_directories(NtMultimedia
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtMultimedia>
+        $<INSTALL_INTERFACE:include/nt6/QtMultimedia>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/multimedia
+)
+target_link_libraries(NtMultimedia PUBLIC NtCore)
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_alsa.cpp)
+else()
+    target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_null.cpp)
+endif()
+nt_set_compile_options(NtMultimedia)
+
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
 )
@@ -981,6 +1013,7 @@ nt_moc_library(NtQml include/QtQml src/qml)
 nt_moc_library(NtFM include/QtFM)
 nt_moc_library(NtFMQml include/QtFMQml)
 nt_moc_library(NtGamepad include/QtGamepad)
+nt_moc_library(NtMultimedia include/QtMultimedia)
 nt_moc_library(NtOpenGL include/QtOpenGL)
 endif() # NOT NT_ZEPHYR
 
@@ -1416,6 +1449,13 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_fmqml_tests COMMAND nt_fmqml_tests)
     nt_set_compile_options(nt_fmqml_tests)
 
+    # Nt Multimedia against a fake audio backend: streams, sound effects, the media player and WAV decoding.
+    add_executable(nt_multimedia_tests tests/test_multimedia.cpp)
+    target_include_directories(nt_multimedia_tests PRIVATE src/multimedia)
+    target_link_libraries(nt_multimedia_tests PRIVATE Nt::Multimedia)
+    add_test(NAME nt_multimedia_tests COMMAND nt_multimedia_tests)
+    nt_set_compile_options(nt_multimedia_tests)
+
     # The gamepad tests replace the evdev platform with one of their own, and send key events to an
     # offscreen window.
     add_executable(nt_gamepad_tests tests/test_gamepad.cpp)
@@ -1599,6 +1639,14 @@ if(NT_BUILD_EXAMPLES)
     nt_set_compile_options(gamepadinfo)
 
     # Plays or renders FM sound effects; see "Using Nt FM" in the documentation.
+    # Lists audio devices and plays a tone; plays WAV files. See "Using Nt Multimedia" in the documentation.
+    add_executable(audiodevices examples/multimedia/audiodevices.cpp)
+    target_link_libraries(audiodevices PRIVATE Nt::Multimedia)
+    nt_set_compile_options(audiodevices)
+    add_executable(audioplayer examples/multimedia/audioplayer.cpp)
+    target_link_libraries(audioplayer PRIVATE Nt::Multimedia)
+    nt_set_compile_options(audioplayer)
+
     add_executable(fmplay examples/fm/fmplay.cpp)
     target_link_libraries(fmplay PRIVATE Nt::FM)
     nt_set_compile_options(fmplay)

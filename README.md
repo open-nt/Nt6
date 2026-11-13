@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt Qml`, `Nt FM`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt Qml`, `Nt Multimedia` (audio), `Nt FM`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -361,7 +361,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::Qml`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::Qml`, `Nt::Multimedia`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -487,6 +487,22 @@ Guide: [Using Nt FM](https://open-nt.github.io/Nt6/nt-fm.html), with the patch f
 
 Not yet: OPLL, OPN2, OPM and SN76489 emulation (so no Mega Drive or MSX music), RAD files, the fixed-point path and Zephyr build, oversampling, and backends other than ALSA.
 
+### Nt Multimedia: audio
+
+Nt Multimedia has the audio part of Qt Multimedia. Link with `Nt::Multimedia` (or `Qt6::Multimedia`); it needs only Nt Core. On Linux it uses ALSA, loaded at run time, so it builds without ALSA's headers and reaches PipeWire and PulseAudio through ALSA's `default` device.
+
+| Class | Notes |
+|---|---|
+| `QAudioFormat`, `QtAudio` (`QAudio`) | sample rate, channel count or configuration, `UInt8`/`Int16`/`Int32`/`Float` samples, byte, frame and duration conversions; the state and error enums and `convertVolume()` |
+| `QMediaDevices`, `QAudioDevice` | the inputs and outputs, the default ones first, with `audioInputsChanged`/`audioOutputsChanged` when a device is plugged in or out |
+| `QAudioSink`, `QAudioSource` | raw samples played or recorded in pull mode (from or to a `QIODevice`) or push mode, with suspend and resume, buffer size, volume, processed and elapsed time; a worker thread does the blocking I/O |
+| `QSoundEffect` | a WAV file held in memory and played with low latency, with loops (or `Infinite`), volume and mute |
+| `QMediaPlayer`, `QAudioOutput` | WAV files played from disk, a resource or a `QIODevice`: play, pause, stop, seeking, loops, position and duration, status and errors; the output sets the device, volume and mute |
+
+WAV files with 8, 16, 24 or 32-bit integer or 32 or 64-bit floating-point samples, up to 8 channels, can be played. Guide: [Using Nt Multimedia](https://open-nt.github.io/Nt6/nt-multimedia.html). The [`audiodevices`](examples/multimedia/audiodevices.cpp) example lists the devices and plays a tone; [`audioplayer`](examples/multimedia/audioplayer.cpp) plays a WAV file with `QMediaPlayer` or `QSoundEffect`.
+
+Not yet: video (`QCamera`, `QVideoSink`, `QVideoFrame`, `QMediaCaptureSession`, `QMediaRecorder`, `QImageCapture`), compressed formats (MP3, AAC, Ogg, FLAC), `QAudioDecoder` and `QAudioBuffer`, playback rates other than 1.0, and backends other than ALSA.
+
 ### Essentials
 
 | Qt module | Nt library | Done |
@@ -526,7 +542,7 @@ Not yet: OPLL, OPN2, OPM and SN76489 emulation (so no Mega Drive or MSX music), 
 | Qt Image Formats | Nt Image Formats |  |
 | Qt Lottie Animation | Nt Lottie Animation |  |
 | Qt MQTT | Nt MQTT |  |
-| Qt Multimedia | Nt Multimedia |  |
+| Qt Multimedia | Nt Multimedia | ✔ (audio, Linux; see Status) |
 | Qt Network Authorization | Nt Network Authorization |  |
 | Qt NFC | Nt NFC |  |
 | Qt OPC UA | Nt OPC UA |  |

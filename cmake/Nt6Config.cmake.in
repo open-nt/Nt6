@@ -1,6 +1,6 @@
 @PACKAGE_INIT@
 
-# Nt 6: provides Nt6::Core, Nt6::Network, Nt6::Gpio, Nt6::SerialPort, Nt6::Sql, Nt6::DBus, Nt6::HttpServer, Nt6::WebSockets, Nt6::Gui, Nt6::Widgets, Nt6::Svg, Nt6::SvgWidgets, Nt6::Charts, Nt6::OpenGL, Nt6::Qml, Nt6::FM, Nt6::FMQml, Nt6::Gamepad, Nt6::Concurrent, Nt6::Test, and the tools Nt6::moc, Nt6::rcc and Nt6::ndoc.
+# Nt 6: provides Nt6::Core, Nt6::Network, Nt6::Gpio, Nt6::SerialPort, Nt6::Sql, Nt6::DBus, Nt6::HttpServer, Nt6::WebSockets, Nt6::Gui, Nt6::Widgets, Nt6::Svg, Nt6::SvgWidgets, Nt6::Charts, Nt6::OpenGL, Nt6::Qml, Nt6::FM, Nt6::FMQml, Nt6::Gamepad, Nt6::Multimedia, Nt6::Concurrent, Nt6::Test, and the tools Nt6::moc, Nt6::rcc and Nt6::ndoc.
 # Nt::Core and friends, and Qt6::Core and friends, are aliases, so code written against a build tree or
 # against Qt 6 works unchanged.
 
@@ -22,7 +22,7 @@ endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/Nt6Targets.cmake")
 
-foreach(module Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL Qml FM FMQml Gamepad Concurrent Test)
+foreach(module Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL Qml FM FMQml Gamepad Multimedia Concurrent Test)
     if(NOT TARGET Nt::${module})
         add_library(Nt::${module} ALIAS Nt6::${module})
     endif()

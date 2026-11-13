@@ -297,8 +297,10 @@ public:
         returns a reference to this pointer.
     */
     QExplicitlySharedDataPointer &operator=(const QExplicitlySharedDataPointer &o) noexcept {
-        QExplicitlySharedDataPointer tmp(o);
-        std::swap(d, tmp.d);
+        if (this != &o) {
+            QExplicitlySharedDataPointer tmp(o);
+            std::swap(d, tmp.d);
+        }
         return *this;
     }
     /*!

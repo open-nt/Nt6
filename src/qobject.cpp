@@ -204,6 +204,7 @@
 #include <QtCore/qobject.h>
 
 #include "dispatcher.h"
+#include "qabstracteventdispatcher_p.h"
 #include "ntnormalize_p.h"
 #include "qobject_p.h"
 #include "threaddata_p.h"
@@ -548,9 +549,9 @@ QObject::~QObject() {
     }
     dead.clear();
 
-    auto &disp = QtPrivate::objectThreadData(this)->dispatcher;
-    disp.killTimers(this);
-    disp.removePosted(this, 0);
+    QtPrivate::ThreadData *ownTd = QtPrivate::objectThreadData(this);
+    QtPrivate::killTimers(ownTd, this);
+    ownTd->dispatcher.removePosted(this, 0);
 
     // Each child detaches itself from d.children in its own destructor.
     while (!d.children.empty())
@@ -691,7 +692,7 @@ int QObject::startTimer(std::chrono::milliseconds interval) {
         qWarning("QObject::startTimer: Timers cannot be started from another thread");
         return 0;
     }
-    return td->dispatcher.startTimer(this, interval);
+    return QtPrivate::startTimer(td, this, interval);
 }
 
 /*!
@@ -705,7 +706,7 @@ void QObject::killTimer(int id) {
         qWarning("QObject::killTimer: Timers cannot be stopped from another thread");
         return;
     }
-    td->dispatcher.killTimer(id);
+    QtPrivate::killTimer(td, id);
 }
 
 /*!

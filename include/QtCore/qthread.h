@@ -85,6 +85,7 @@ public:
     int loopLevel() const;
 
     QAbstractEventDispatcher *eventDispatcher() const;
+    void setEventDispatcher(QAbstractEventDispatcher *eventDispatcher);
 
     /*!
         Creates a thread that calls \a f with \a args, copied into the thread, instead of running

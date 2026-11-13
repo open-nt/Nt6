@@ -2,6 +2,7 @@
 #include <QtCore/qeventloop.h>
 
 #include "dispatcher.h"
+#include "qabstracteventdispatcher_p.h"
 #include "threaddata_p.h"
 
 #include <QtCore/qcoreapplication.h>
@@ -35,8 +36,8 @@ struct QEventLoop::Data {
 
     \differences
     \c ExcludeUserInputEvents and \c ExcludeSocketNotifiers are accepted but
-    ignored. A loop always runs the event dispatcher of the thread that calls
-    exec() or processEvents(), and that dispatcher cannot be replaced.
+    ignored by Nt's own event dispatcher. A loop always runs the event
+    dispatcher of the thread that calls exec() or processEvents().
     \enddifferences
 
     \sa QCoreApplication, QTimer, QSocketNotifier
@@ -60,8 +61,7 @@ QEventLoop::~QEventLoop() = default;
     \sa exec()
 */
 bool QEventLoop::processEvents(ProcessEventsFlags flags) {
-    const bool wait = flags.testFlag(WaitForMoreEvents);
-    return QtPrivate::ThreadData::current()->dispatcher.process(wait, m_d->running ? &m_d->exitFlag : nullptr);
+    return QtPrivate::processEvents(QtPrivate::ThreadData::current(), flags, m_d->running ? &m_d->exitFlag : nullptr);
 }
 
 /*!
@@ -89,13 +89,13 @@ void QEventLoop::processEvents(ProcessEventsFlags flags, QDeadlineTimer deadline
 
 /*!
     Enters the event loop and runs it until exit() or quit() is called, then
-    returns the code passed to exit(). \a flags is accepted for
-    compatibility and ignored. Returns -1 immediately if the loop is already
-    running.
+    returns the code passed to exit(). The loop calls the thread's event
+    dispatcher with \a flags, \c WaitForMoreEvents and \c EventLoopExec.
+    Returns -1 immediately if the loop is already running.
 
     \sa exit(), quit(), isRunning()
 */
-int QEventLoop::exec(ProcessEventsFlags) {
+int QEventLoop::exec(ProcessEventsFlags flags) {
     if (m_d->running.exchange(true))
         return -1;
 
@@ -127,21 +127,26 @@ int QEventLoop::exec(ProcessEventsFlags) {
     // so an exit request cannot slip between the two.
     if (td->quitNow.load())
         return -1;
+    flags |= ProcessEventsFlags(WaitForMoreEvents) | EventLoopExec;
     while (!m_d->exitFlag.load())
-        td->dispatcher.process(true, &m_d->exitFlag);
+        QtPrivate::processEvents(td, flags, &m_d->exitFlag);
     return m_d->code.load();
 }
 
 /*!
     Tells the event loop to exit with the return code \a returnCode, which
-    exec() then returns. It is safe to call from any thread.
+    exec() then returns. It is safe to call from any thread. If the loop is
+    running, the thread's event dispatcher is interrupted, so that its
+    QAbstractEventDispatcher::processEvents() returns.
 
     \sa quit(), exec()
 */
 void QEventLoop::exit(int returnCode) {
     m_d->code = returnCode;
     m_d->exitFlag = true;
-    wakeUp();
+    std::lock_guard<std::mutex> lk(m_d->mutex);
+    if (m_d->td)
+        m_d->td->dispatcher.interruptLoop();
 }
 
 /*!

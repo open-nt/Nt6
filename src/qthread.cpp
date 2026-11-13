@@ -6,6 +6,7 @@
 
 #include <QtCore/qthread.h>
 
+#include "qabstracteventdispatcher_p.h"
 #include "qobject_p.h"
 #include "threaddata_p.h"
 
@@ -55,14 +56,14 @@
     \differences
     terminate() cancels the thread at its next cancellation point (a sleep, a wait or a blocking read), as Qt
     does on Linux; destructors run as the stack unwinds. serviceLevel() is stored but has no effect on Linux.
-    There is no \c setEventDispatcher():
-    the dispatcher of a thread cannot be replaced, and eventDispatcher() returns a handle onto it
-    even before the thread has started. Priorities are stored and
+    eventDispatcher() returns a handle onto Nt's own dispatcher, even before the thread has started, unless
+    setEventDispatcher() installed another one. Priorities are stored and
     returned by priority(), but are applied only for \c IdlePriority (as \c SCHED_IDLE) and,
     if the process has a real-time scheduling policy, as a scaled real-time priority. The
     \c started() and \c finished() signals have no \c QPrivateSignal argument, and an adopted
     thread does not emit finished(). A thread that has finished keeps its objects, timers and
-    posted events; they run again if the thread is restarted. \c currentThreadId() is the
+    posted events; they run again if the thread is restarted, except the timers and socket notifiers that an
+    installed event dispatcher held, which end with it. \c currentThreadId() is the
     \c pthread_t cast to a pointer.
 
     On Zephyr the stack of a thread has \c CONFIG_NT_THREAD_STACK_SIZE bytes, taken from the kernel heap,
@@ -197,6 +198,7 @@ void *ThreadAccess::threadMain(void *p) {
             self->finished();
             // Objects scheduled with deleteLater() die with the thread.
             td->dispatcher.sendPosted(nullptr, QEvent::DeferredDelete);
+            eventDispatcherFinished(td);
             td->clearStorage();
             ThreadData::bindCurrent(nullptr);
             {
@@ -209,6 +211,7 @@ void *ThreadAccess::threadMain(void *p) {
         }
     } finish{self, d, td};
 
+    eventDispatcherStarting(td);
     self->started();
     self->run();
     return nullptr;
@@ -490,14 +493,35 @@ uint QThread::stackSize() const {
 int QThread::loopLevel() const { return m_d->td->dispatcher.loopLevel(); }
 
 /*!
-    Returns the event dispatcher of the thread. It is created on first use and lives as long
-    as the thread data does, so it can be asked for before the thread is started.
+    Returns the event dispatcher of the thread: the one that setEventDispatcher() installed, or else a handle onto
+    Nt's own dispatcher, which is created on first use and lives as long as the thread data does, so it can be
+    asked for before the thread is started.
 
     \since 6.0
     \sa QAbstractEventDispatcher::instance()
 */
 QAbstractEventDispatcher *QThread::eventDispatcher() const {
     return QAbstractEventDispatcher::instance(const_cast<QThread *>(this));
+}
+
+/*!
+    \since 5.0
+    Installs \a eventDispatcher as the event dispatcher of the thread, which then owns it. It is only installed
+    while the thread is not running and has no event dispatcher yet, such as one that eventDispatcher() created;
+    the dispatcher is moved to the thread, so it must not have a parent.
+
+    The thread calls its QAbstractEventDispatcher::startingUp() when it starts, and its
+    QAbstractEventDispatcher::closingDown() when it finishes, before it deletes it. A thread that is started
+    again uses Nt's own event dispatcher unless another one is installed.
+
+    \sa eventDispatcher(), QCoreApplication::setEventDispatcher()
+*/
+void QThread::setEventDispatcher(QAbstractEventDispatcher *eventDispatcher) {
+    if (isRunning()) {
+        qWarning("QThread::setEventDispatcher: An event dispatcher has already been created for this thread");
+        return;
+    }
+    QtPrivate::installEventDispatcher(this, m_d->td, eventDispatcher, "QThread::setEventDispatcher");
 }
 
 QThread *QThread::createImpl(std::function<void()> body) { return new FunctorThread(std::move(body)); }

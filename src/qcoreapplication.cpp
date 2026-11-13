@@ -2,6 +2,7 @@
 #include <QtCore/qcoreapplication.h>
 
 #include "dispatcher.h"
+#include "qabstracteventdispatcher_p.h"
 #include "qobject_p.h"
 #include "threaddata_p.h"
 
@@ -140,6 +141,7 @@ QCoreApplication::QCoreApplication(int &argc, char **argv) {
     g_arguments.clear();
     for (int i = 0; argv && i < argc; ++i)
         g_arguments.append(QString::fromUtf8(argv[i]));
+    QtPrivate::eventDispatcherStarting(QtPrivate::objectThreadData(this));
     callPreRoutines();
 }
 
@@ -152,6 +154,7 @@ QCoreApplication::~QCoreApplication() {
     callPostRoutines();
     // Like Qt, wait for the global thread pool so that its tasks cannot outlive the application.
     QtPrivate::waitForGlobalThreadPool();
+    QtPrivate::eventDispatcherFinished(QtPrivate::objectThreadData(this));
     QCoreApplication *expected = this;
     g_self.compare_exchange_strong(expected, nullptr);
 }
@@ -214,13 +217,38 @@ bool QCoreApplication::closingDown() { return g_closingDown.load(); }
 
 /*!
     Returns the event dispatcher of the thread that the application object lives in, which is
-    the main thread, or \c nullptr if there is no application object.
+    the main thread, or \c nullptr if there is no application object. It is the one that setEventDispatcher()
+    installed, if any.
 
     \sa QAbstractEventDispatcher::instance(), QThread::eventDispatcher()
 */
 QAbstractEventDispatcher *QCoreApplication::eventDispatcher() {
     QCoreApplication *app = g_self.load();
     return app ? QAbstractEventDispatcher::instance(app->thread()) : nullptr;
+}
+
+/*!
+    \since 5.0
+    Installs \a eventDispatcher as the event dispatcher of the main thread, which then owns it. Call it before the
+    application object is made, from the main thread; it is not installed if the application object exists or
+    the main thread already has an event dispatcher, such as one that eventDispatcher() or
+    QAbstractEventDispatcher::instance() created.
+
+    The application object calls its QAbstractEventDispatcher::startingUp() when it is made, and its
+    QAbstractEventDispatcher::closingDown() when it is destroyed, before it deletes it.
+
+    \sa eventDispatcher(), QThread::setEventDispatcher()
+*/
+void QCoreApplication::setEventDispatcher(QAbstractEventDispatcher *eventDispatcher) {
+    if (g_self.load()) {
+        qWarning("QCoreApplication::setEventDispatcher: An event dispatcher has already been created for the main "
+                 "thread");
+        return;
+    }
+    QtPrivate::ThreadData *td = QtPrivate::ThreadData::mainThread();
+    if (!td)
+        td = QtPrivate::ThreadData::current();
+    QtPrivate::installEventDispatcher(td->thread.load(), td, eventDispatcher, "QCoreApplication::setEventDispatcher");
 }
 
 /*!
@@ -527,7 +555,7 @@ QString QCoreApplication::applicationVersion() { return g_appVersion; }
 */
 int QCoreApplication::exec() {
     QEventLoop loop;
-    const int code = loop.exec();
+    const int code = loop.exec(QEventLoop::ApplicationExec);
     if (QCoreApplication *app = g_self.load())
         app->aboutToQuit();
     return code;
@@ -583,7 +611,7 @@ bool QCoreApplication::isQuitLockEnabled() { return g_quitLockEnabled.load(); }
     \sa QEventLoop::processEvents()
 */
 void QCoreApplication::processEvents(QEventLoop::ProcessEventsFlags flags) {
-    QtPrivate::ThreadData::current()->dispatcher.process(flags.testFlag(QEventLoop::WaitForMoreEvents), nullptr);
+    QtPrivate::processEvents(QtPrivate::ThreadData::current(), flags, nullptr);
 }
 
 /*!
@@ -603,9 +631,9 @@ void QCoreApplication::processEvents(QEventLoop::ProcessEventsFlags flags, int m
     expires or there are none left. \a flags is accepted for compatibility.
 */
 void QCoreApplication::processEvents(QEventLoop::ProcessEventsFlags flags, QDeadlineTimer deadline) {
-    Q_UNUSED(flags)
-    auto &dispatcher = QtPrivate::ThreadData::current()->dispatcher;
-    while (dispatcher.process(false, nullptr) && !deadline.hasExpired()) {
+    flags &= ~QEventLoop::ProcessEventsFlags(QEventLoop::WaitForMoreEvents);
+    QtPrivate::ThreadData *td = QtPrivate::ThreadData::current();
+    while (QtPrivate::processEvents(td, flags, nullptr) && !deadline.hasExpired()) {
     }
 }
 

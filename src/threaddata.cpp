@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include "threaddata_p.h"
 
+#include "qabstracteventdispatcher_p.h"
 #include "qobject_p.h"
 
 #include <QtCore/qcoreapplication.h>
@@ -208,5 +209,5 @@ void QObject::moveToThread(QThread *targetThread) {
     }
     for (std::size_t i = 0; i < owned; ++i)
         from->release();
-    from->dispatcher.migrate(to->dispatcher, objs);
+    migrateEvents(from, to, objs);
 }

@@ -106,5 +106,4 @@ private:
     qintptr m_fd;
     Type m_type;
     bool m_enabled = true;
-    int m_id = 0;
 };

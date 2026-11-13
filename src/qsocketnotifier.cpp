@@ -2,6 +2,7 @@
 #include <QtCore/qsocketnotifier.h>
 
 #include "dispatcher.h"
+#include "qabstracteventdispatcher_p.h"
 #include "threaddata_p.h"
 
 #include <QtCore/qdebug.h>
@@ -26,8 +27,7 @@
     The notifier is serviced by the event loop of the thread it lives in, and
     moves with the object in QObject::moveToThread(). It can be enabled and
     disabled only from that thread. Descriptors are watched with \c poll(), so
-    only POSIX descriptors are supported, and the \c Exception type watches for \c POLLPRI. There is
-    no constructor taking only a type, no \c setSocket(), and the type of
+    only POSIX descriptors are supported, and the \c Exception type watches for \c POLLPRI. The type of
     the \c activated() signal's first argument is always QSocketDescriptor.
 
     On Zephyr the notifiers of a thread are waited for in one \c poll() if \c CONFIG_ZVFS_POLL_MAX allows,
@@ -43,8 +43,8 @@
 */
 QSocketNotifier::QSocketNotifier(qintptr socket, Type type, QObject *parent)
     : QObject(parent), m_fd(socket), m_type(type) {
-    m_id = QtPrivate::objectThreadData(this)->dispatcher.addNotifier(this, static_cast<int>(socket),
-                                                                     static_cast<int>(type));
+    if (isValid())
+        QtPrivate::updateNotifier(QtPrivate::objectThreadData(this), this, true);
 }
 
 /*!
@@ -70,28 +70,30 @@ void QSocketNotifier::setSocket(qintptr socket) {
         qWarning("QSocketNotifier: Socket notifiers cannot be changed from another thread");
         return;
     }
-    if (m_id != 0)
-        td->dispatcher.removeNotifier(m_id);
-    m_id = 0;
+    if (m_enabled && isValid())
+        QtPrivate::updateNotifier(td, this, false);
+    QtPrivate::removeNotifier(td, this);
     m_fd = socket;
     m_enabled = false;
-    if (socket >= 0) {
-        m_id = td->dispatcher.addNotifier(this, static_cast<int>(socket), static_cast<int>(m_type));
-        td->dispatcher.setNotifierEnabled(m_id, false);
-    }
 }
 
 /*!
     Destroys the notifier and stops watching the descriptor. The descriptor
     is not closed.
 */
-QSocketNotifier::~QSocketNotifier() { QtPrivate::objectThreadData(this)->dispatcher.removeNotifier(m_id); }
+QSocketNotifier::~QSocketNotifier() {
+    auto *td = QtPrivate::objectThreadData(this);
+    if (m_enabled && isValid())
+        QtPrivate::updateNotifier(td, this, false);
+    QtPrivate::removeNotifier(td, this);
+}
 
 /*!
     Enables the notifier if \a enable is \c true; otherwise disables it. A
-    disabled notifier does not emit activated().
+    disabled notifier does not emit activated(). The notifier registers itself with the event dispatcher of its
+    thread while it is enabled and has a socket.
 
-    \sa isEnabled()
+    \sa isEnabled(), QAbstractEventDispatcher::registerSocketNotifier()
 */
 void QSocketNotifier::setEnabled(bool enable) {
     if (m_enabled == enable)
@@ -102,8 +104,8 @@ void QSocketNotifier::setEnabled(bool enable) {
         return;
     }
     m_enabled = enable;
-    if (m_id != 0)
-        td->dispatcher.setNotifierEnabled(m_id, enable);
+    if (isValid())
+        QtPrivate::updateNotifier(td, this, enable);
 }
 
 /*!

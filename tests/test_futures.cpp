@@ -1679,8 +1679,9 @@ static void testAbstractEventDispatcher() {
             const ssize_t n = ::read(fds[0], &c, 1);
             (void)n;
         });
+        // Unregistering stops the notifier without changing isEnabled(), as in Qt.
         d->unregisterSocketNotifier(&notifier);
-        CHECK(!notifier.isEnabled());
+        CHECK(notifier.isEnabled());
         const char byte = 1;
         const ssize_t n = ::write(fds[1], &byte, 1);
         (void)n;

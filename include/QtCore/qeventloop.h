@@ -22,12 +22,21 @@ public:
         \value ExcludeUserInputEvents Accepted for compatibility; it has no effect because Nt has no user input events.
         \value ExcludeSocketNotifiers Accepted for compatibility; it has no effect, socket notifiers are always processed.
         \value WaitForMoreEvents Block until an event is available instead of returning immediately.
+        \value X11ExcludeTimers Accepted for compatibility; it has no effect, timers are always processed.
+        \value EventLoopExec Set by QEventLoop::exec() when it calls QAbstractEventDispatcher::processEvents(), so
+        that a custom event dispatcher can tell the calls of a running loop from other calls.
+        \value DialogExec Accepted for compatibility; Nt does not set it.
+        \value ApplicationExec Set, with \c EventLoopExec, by the loop that QCoreApplication::exec() runs.
     */
     enum ProcessEventsFlag {
         AllEvents = 0x00,
         ExcludeUserInputEvents = 0x01,
         ExcludeSocketNotifiers = 0x02,
-        WaitForMoreEvents = 0x04
+        WaitForMoreEvents = 0x04,
+        X11ExcludeTimers = 0x08,
+        EventLoopExec = 0x20,
+        DialogExec = 0x40,
+        ApplicationExec = 0x80
     };
     Q_DECLARE_FLAGS(ProcessEventsFlags, ProcessEventsFlag)
 

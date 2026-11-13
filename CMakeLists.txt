@@ -1263,6 +1263,11 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_future_tests COMMAND nt_future_tests)
     nt_set_compile_options(nt_future_tests)
 
+    add_executable(nt_eventdispatcher_tests tests/test_eventdispatcher.cpp)
+    target_link_libraries(nt_eventdispatcher_tests PRIVATE Nt::Core)
+    add_test(NAME nt_eventdispatcher_tests COMMAND nt_eventdispatcher_tests)
+    nt_set_compile_options(nt_eventdispatcher_tests)
+
     add_executable(nt_concurrent_tests tests/test_concurrent.cpp)
     target_link_libraries(nt_concurrent_tests PRIVATE Nt::Concurrent)
     add_test(NAME nt_concurrent_tests COMMAND nt_concurrent_tests)

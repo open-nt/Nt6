@@ -49,17 +49,29 @@ public:
     // Milliseconds until the timer fires; -1 if there is no such timer.
     long long remainingTime(int id);
 
-    // type: 0 read, 1 write, 2 exception (QSocketNotifier::Type).
-    int addNotifier(QSocketNotifier *obj, int fd, int type);
-    void removeNotifier(int id);
-    void setNotifierEnabled(int id, bool enabled);
+    // type: 0 read, 1 write, 2 exception (QSocketNotifier::Type). One entry per notifier object: registering it
+    // again updates the descriptor and enables it, unregistering disables it, and removing drops it.
+    void registerNotifier(QSocketNotifier *obj, int fd, int type);
+    void unregisterNotifier(QSocketNotifier *obj);
+    void removeNotifier(QSocketNotifier *obj);
 
-    // One pass over fd activity, due timers and queued events; with `wait`, blocks until there is work or `*stop`.
-    bool process(bool wait, const std::atomic<bool> *stop);
+    // One pass over fd activity, due timers and queued events; with `wait`, blocks until there is work, `*stop` or
+    // `until`.
+    bool process(bool wait, const std::atomic<bool> *stop, Clock::time_point until = Clock::time_point::max());
     // Delivers the queued events of `receiver` (every receiver if null) that match `type` (0 matches all),
     // including DeferredDelete.
     void sendPosted(QObject *receiver, int type);
+    // Wakes the built-in wait, and the installed event dispatcher if there is one.
     void wakeUp();
+    // Wakes the built-in wait only.
+    void wakeBuiltin();
+    // The QAbstractEventDispatcher subclass that QThread::setEventDispatcher() installed, or null. Its wakeUp() is
+    // called from wakeUp(), so it can be woken from any thread; setCustom(nullptr) waits for such calls to end.
+    void setCustom(QAbstractEventDispatcher *custom);
+    QAbstractEventDispatcher *custom() const { return custom_.load(std::memory_order_acquire); }
+    // Tells the thread's loop that it should look at its exit flag: calls interrupt() on the installed dispatcher,
+    // or wakes the built-in wait. QEventLoop::exit() calls this, from any thread.
+    void interruptLoop();
     // Makes the blocking process() that runs, or the next one, return without waiting for work.
     void interrupt();
     // The object that reports aboutToBlock() and awake(); it must outlive the dispatcher's use.
@@ -103,6 +115,8 @@ private:
     std::uint64_t seq_ = 0;
     std::atomic<bool> interrupted_{false};
     std::atomic<QAbstractEventDispatcher *> observer_{nullptr};
+    std::atomic<QAbstractEventDispatcher *> custom_{nullptr};
+    std::recursive_mutex customMutex_; // the installed dispatcher may call back, as its interrupt() may
     int wakeRead_ = -1;
     int wakeWrite_ = -1;
 };

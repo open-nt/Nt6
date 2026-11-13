@@ -259,8 +259,8 @@ check_tsan() {
     fi
     configure "$build_root/tsan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF \
         -DNT_BUILD_EXAMPLES=OFF -DNT_SANITIZE=thread && \
-        cmake --build "$build_root/tsan" -j "$jobs" --target nt_thread_tests nt_future_tests nt_concurrent_tests nt_fm_tests nt_multimedia_tests nt_multimedia_capture_tests && \
-        TSAN_OPTIONS=halt_on_error=1 ctest --test-dir "$build_root/tsan" -R '^nt_(thread|future|concurrent|fm|multimedia|multimedia_capture)_tests$' --output-on-failure
+        cmake --build "$build_root/tsan" -j "$jobs" --target nt_thread_tests nt_future_tests nt_eventdispatcher_tests nt_concurrent_tests nt_fm_tests nt_multimedia_tests nt_multimedia_capture_tests && \
+        TSAN_OPTIONS=halt_on_error=1 ctest --test-dir "$build_root/tsan" -R '^nt_(thread|future|eventdispatcher|concurrent|fm|multimedia|multimedia_capture)_tests$' --output-on-failure
 }
 
 check_sanitizers() {

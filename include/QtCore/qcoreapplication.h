@@ -33,6 +33,7 @@ public:
     static bool startingUp();
     static bool closingDown();
     static QAbstractEventDispatcher *eventDispatcher();
+    static void setEventDispatcher(QAbstractEventDispatcher *eventDispatcher);
 
     // The command line as passed to the constructor, decoded as UTF-8.
     static QStringList arguments();

@@ -153,6 +153,31 @@ Dispatcher::~Dispatcher() {
 }
 
 void Dispatcher::wakeUp() {
+    wakeBuiltin();
+    if (custom_.load(std::memory_order_acquire)) {
+        std::lock_guard<std::recursive_mutex> lk(customMutex_);
+        if (QAbstractEventDispatcher *c = custom_.load(std::memory_order_acquire))
+            c->wakeUp();
+    }
+}
+
+void Dispatcher::interruptLoop() {
+    if (custom_.load(std::memory_order_acquire)) {
+        std::lock_guard<std::recursive_mutex> lk(customMutex_);
+        if (QAbstractEventDispatcher *c = custom_.load(std::memory_order_acquire)) {
+            c->interrupt();
+            return;
+        }
+    }
+    wakeBuiltin();
+}
+
+void Dispatcher::setCustom(QAbstractEventDispatcher *custom) {
+    std::lock_guard<std::recursive_mutex> lk(customMutex_);
+    custom_.store(custom, std::memory_order_release);
+}
+
+void Dispatcher::wakeBuiltin() {
 #if defined(__linux__) || defined(__ZEPHYR__)
     const std::uint64_t one = 1;
     const void *buf = &one;
@@ -255,31 +280,34 @@ void Dispatcher::interrupt() {
     wakeUp();
 }
 
-int Dispatcher::addNotifier(QSocketNotifier *obj, int fd, int type) {
-    const int id = g_nextNotifierId.fetch_add(1);
+void Dispatcher::registerNotifier(QSocketNotifier *obj, int fd, int type) {
     {
         std::lock_guard<std::mutex> lk(m_);
-        notifiers_.push_back({id, obj, fd, type, true});
+        const auto it =
+            std::find_if(notifiers_.begin(), notifiers_.end(), [obj](const Notifier &n) { return n.obj == obj; });
+        if (it == notifiers_.end()) {
+            notifiers_.push_back({g_nextNotifierId.fetch_add(1), obj, fd, type, true});
+        } else {
+            it->fd = fd;
+            it->type = type;
+            it->enabled = true;
+        }
     }
-    wakeUp();
-    return id;
+    wakeBuiltin();
 }
 
-void Dispatcher::removeNotifier(int id) {
+void Dispatcher::unregisterNotifier(QSocketNotifier *obj) {
+    std::lock_guard<std::mutex> lk(m_);
+    for (Notifier &n : notifiers_)
+        if (n.obj == obj)
+            n.enabled = false;
+}
+
+void Dispatcher::removeNotifier(QSocketNotifier *obj) {
     std::lock_guard<std::mutex> lk(m_);
     notifiers_.erase(
-        std::remove_if(notifiers_.begin(), notifiers_.end(), [id](const Notifier &n) { return n.id == id; }),
+        std::remove_if(notifiers_.begin(), notifiers_.end(), [obj](const Notifier &n) { return n.obj == obj; }),
         notifiers_.end());
-}
-
-void Dispatcher::setNotifierEnabled(int id, bool enabled) {
-    {
-        std::lock_guard<std::mutex> lk(m_);
-        for (Notifier &n : notifiers_)
-            if (n.id == id)
-                n.enabled = enabled;
-    }
-    wakeUp();
 }
 
 void Dispatcher::deliver(const Posted &p) {
@@ -290,7 +318,7 @@ void Dispatcher::deliver(const Posted &p) {
         QCoreApplication::sendEvent(p.receiver, p.event);
 }
 
-bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
+bool Dispatcher::process(bool wait, const std::atomic<bool> *stop, Clock::time_point until) {
     std::unique_lock<std::mutex> lk(m_);
     std::vector<int> ready; // notifier ids with fd activity
 
@@ -310,14 +338,21 @@ bool Dispatcher::process(bool wait, const std::atomic<bool> *stop) {
             timerDue = next <= now;
         }
 
+        if (wait && now >= until)
+            wait = false;
         int timeout;
         if (!wait || !queue_.empty() || timerDue)
             timeout = 0;
-        else if (timers_.empty())
-            timeout = -1;
         else {
-            const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(next - now).count() + 1;
-            timeout = ms > INT_MAX ? INT_MAX : static_cast<int>(ms);
+            Clock::time_point wakeAt = until;
+            if (!timers_.empty() && next < wakeAt)
+                wakeAt = next;
+            if (wakeAt == Clock::time_point::max()) {
+                timeout = -1;
+            } else {
+                const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(wakeAt - now).count() + 1;
+                timeout = ms > INT_MAX ? INT_MAX : static_cast<int>(ms);
+            }
         }
 
         // One entry per descriptor, however many notifiers watch it: a socket usually has a notifier for reading

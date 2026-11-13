@@ -125,6 +125,26 @@ bool parseWave(QIODevice *device, WaveInfo *info, QString *error) {
     return true;
 }
 
+QByteArray waveHeader(const QAudioFormat &format, qint64 dataBytes) {
+    QByteArray h(44, '\0');
+    char *p = h.data();
+    const auto size = quint32(std::min<qint64>(dataBytes, 0xFFFFFFFFLL - 36));
+    const auto bits = quint16(format.bytesPerSample() * 8);
+    std::copy_n("RIFF", 4, p);
+    qToLittleEndian<quint32>(36 + size, p + 4);
+    std::copy_n("WAVEfmt ", 8, p + 8);
+    qToLittleEndian<quint32>(16, p + 16);
+    qToLittleEndian<quint16>(format.sampleFormat() == QAudioFormat::Float ? kFormatFloat : kFormatPcm, p + 20);
+    qToLittleEndian<quint16>(quint16(format.channelCount()), p + 22);
+    qToLittleEndian<quint32>(quint32(format.sampleRate()), p + 24);
+    qToLittleEndian<quint32>(quint32(format.sampleRate() * format.bytesPerFrame()), p + 28);
+    qToLittleEndian<quint16>(quint16(format.bytesPerFrame()), p + 32);
+    qToLittleEndian<quint16>(bits, p + 34);
+    std::copy_n("data", 4, p + 36);
+    qToLittleEndian<quint32>(size, p + 40);
+    return h;
+}
+
 void convertWaveFrames(const WaveInfo &info, const char *in, char *out, qint64 frames) {
     const qint64 samples = frames * info.format.channelCount();
     const int from = info.sourceBytesPerSample;

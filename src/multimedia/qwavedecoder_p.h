@@ -28,6 +28,9 @@ struct WaveInfo {
 // the first sample. Returns false and sets error if it is not a WAV file Nt can play.
 bool parseWave(QIODevice *device, WaveInfo *info, QString *error);
 
+// The 44-byte header of a WAV file of dataBytes bytes of samples in format.
+QByteArray waveHeader(const QAudioFormat &format, qint64 dataBytes);
+
 // Converts frames frames from the file's layout at in to info.format at out.
 void convertWaveFrames(const WaveInfo &info, const char *in, char *out, qint64 frames);
 

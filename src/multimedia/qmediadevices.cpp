@@ -2,6 +2,7 @@
 #include <QtMultimedia/qmediadevices.h>
 
 #include "qaudiobackend_p.h"
+#include "qvideobackend_p.h"
 
 #include <QtCore/qfilesystemwatcher.h>
 #include <QtCore/qtimer.h>
@@ -9,13 +10,15 @@
 /*!
     \module NtMultimedia
     \title Nt Multimedia C++ Classes
-    \brief Classes for playing and recording audio.
+    \brief Classes for audio and cameras.
     \cmaketarget Nt::Multimedia
 
-    Nt Multimedia has the audio part of Qt Multimedia: QMediaDevices lists the devices,
+    Nt Multimedia has the audio and camera parts of Qt Multimedia: QMediaDevices lists the devices,
     QAudioSink and QAudioSource stream raw samples, QSoundEffect plays short sounds with low
-    latency, and QMediaPlayer with QAudioOutput plays files. On Linux it uses ALSA, loaded at run
-    time, which reaches PipeWire and PulseAudio through ALSA's \c default device.
+    latency, QMediaPlayer with QAudioOutput plays files, QAudioDecoder decodes them, and
+    QMediaCaptureSession connects a QCamera, a QAudioInput, a QVideoSink, a QImageCapture and a
+    QMediaRecorder. On Linux it uses ALSA, loaded at run time, which reaches PipeWire and PulseAudio
+    through ALSA's \c default device, and Video4Linux2 for cameras.
 
     See \l{Using Nt Multimedia} for a walk through.
 */
@@ -23,7 +26,7 @@
 /*!
     \page nt-multimedia.html
     \title Using Nt Multimedia
-    \brief Playing sound effects and WAV files, streaming raw audio in and out, and choosing devices.
+    \brief Playing and recording WAV files, sound effects, raw audio, cameras and pictures, and choosing devices.
 
     Link \c Nt::Multimedia (or \c Nt6::Multimedia, or \c Qt6::Multimedia, from an installed package)
     and include the classes you use:
@@ -63,12 +66,45 @@
 
     \snippet multimedia/audiodevices.cpp list
 
+    \section1 Cameras
+
+    A QCamera in a QMediaCaptureSession streams frames to a QVideoSink. Each QVideoFrame can be mapped
+    to read its planes, or turned into a QImage:
+
+    \snippet multimedia/camera.cpp camera
+
+    \snippet multimedia/camera.cpp frames
+
+    QMediaDevices::videoInputs() lists the cameras and QCameraDevice::videoFormats() what each can
+    stream; QCamera::setCameraFormat() chooses one.
+
+    \section1 Taking Pictures
+
+    A QImageCapture in the same session takes the next frame as a picture, and can save it as a JPEG
+    or PNG file:
+
+    \snippet multimedia/camera.cpp capture
+
+    \section1 Recording Audio
+
+    A QMediaRecorder records the session's QAudioInput to a WAV file:
+
+    \snippet multimedia/recorder.cpp record
+
+    \section1 Decoding Audio
+
+    QAudioDecoder reads a WAV file into QAudioBuffer blocks, converted to the sample format and
+    channel count asked for:
+
+    \snippet multimedia/decoder.cpp decode
+
     \section1 What Is Missing
 
-    Nt Multimedia has no video: there is no QCamera, QVideoSink, QVideoFrame, QMediaCaptureSession,
-    QMediaRecorder or QImageCapture. QMediaPlayer and QSoundEffect read only WAV files (PCM and
-    floating point), and there is no QAudioDecoder or QAudioBuffer. Only Linux has a backend; on
-    other platforms there are no devices.
+    Nt reads and writes only WAV audio, and encodes and decodes no video: QMediaPlayer, QSoundEffect
+    and QAudioDecoder play WAV files, QMediaRecorder records audio to WAV, and video can only be
+    captured from a camera, not played or recorded. There is no QVideoWidget or QML video item; draw
+    QVideoFrame::toImage() with QPainter. Cameras have no focus, zoom or exposure controls. Only Linux
+    has a backend (ALSA and Video4Linux2); on other platforms there are no devices.
 */
 
 class QMediaDevicesPrivate {
@@ -76,16 +112,25 @@ public:
     explicit QMediaDevicesPrivate(QMediaDevices *owner) : q(owner) {
         inputs = ids(QAudioDevice::Input);
         outputs = ids(QAudioDevice::Output);
-        const QString dir = QtMultimediaPrivate::audioBackend()->deviceDirectory();
-        if (!dir.isEmpty()) {
-            watcher.addPath(dir);
-            // Devices settle a moment after their node appears.
-            settle.setSingleShot(true);
-            settle.setInterval(200);
-            QObject::connect(&watcher, &QFileSystemWatcher::directoryChanged, &settle,
-                             [this](const QString &) { settle.start(); });
-            QObject::connect(&settle, &QTimer::timeout, &settle, [this] { check(); });
+        cameras = cameraIds();
+        // Devices settle a moment after their node appears.
+        settle.setSingleShot(true);
+        settle.setInterval(200);
+        QObject::connect(&watcher, &QFileSystemWatcher::directoryChanged, &settle,
+                         [this](const QString &) { settle.start(); });
+        QObject::connect(&settle, &QTimer::timeout, &settle, [this] { check(); });
+        for (const QString &dir : {QtMultimediaPrivate::audioBackend()->deviceDirectory(),
+                                   QtMultimediaPrivate::videoBackend()->deviceDirectory()}) {
+            if (!dir.isEmpty() && !watcher.directories().contains(dir))
+                watcher.addPath(dir);
         }
+    }
+
+    static QList<QByteArray> cameraIds() {
+        QList<QByteArray> list;
+        for (const QCameraDevice &device : QtMultimediaPrivate::videoBackend()->videoInputs())
+            list.append(device.id());
+        return list;
     }
 
     static QList<QByteArray> ids(QAudioDevice::Mode mode) {
@@ -98,19 +143,25 @@ public:
     void check() {
         const QList<QByteArray> newInputs = ids(QAudioDevice::Input);
         const QList<QByteArray> newOutputs = ids(QAudioDevice::Output);
+        const QList<QByteArray> newCameras = cameraIds();
         const bool inputsChanged = newInputs != inputs;
         const bool outputsChanged = newOutputs != outputs;
+        const bool camerasChanged = newCameras != cameras;
         inputs = newInputs;
         outputs = newOutputs;
+        cameras = newCameras;
         if (inputsChanged)
             emit q->audioInputsChanged();
         if (outputsChanged)
             emit q->audioOutputsChanged();
+        if (camerasChanged)
+            emit q->videoInputsChanged();
     }
 
     QMediaDevices *q;
     QList<QByteArray> inputs;
     QList<QByteArray> outputs;
+    QList<QByteArray> cameras;
     QFileSystemWatcher watcher;
     QTimer settle;
 };
@@ -118,18 +169,17 @@ public:
 /*!
     \class QMediaDevices
     \inmodule NtMultimedia
-    \brief The QMediaDevices class lists the audio devices and reports when they change.
+    \brief The QMediaDevices class lists the audio devices and cameras, and reports when they change.
 
     The static functions list the devices at the time of the call. An instance also emits
-    audioInputsChanged() and audioOutputsChanged() when a device is plugged in or removed:
+    audioInputsChanged(), audioOutputsChanged() and videoInputsChanged() when a device is plugged in
+    or removed:
 
     \snippet multimedia/audiodevices.cpp list
 
     \differences
-    There are no video inputs: no \c videoInputs(), \c defaultVideoInput() or
-    \c videoInputsChanged(), since there is no QCameraDevice. On Linux changes are noticed by
-    watching \c{/dev/snd}, so a change of the default device inside PipeWire or PulseAudio is not
-    reported.
+    On Linux changes are noticed by watching \c{/dev/snd} and \c{/dev}, so a change of the default
+    device inside PipeWire or PulseAudio is not reported.
     \enddifferences
 
     \sa QAudioDevice
@@ -179,5 +229,21 @@ QAudioDevice QMediaDevices::defaultAudioInput() { return defaultOf(audioInputs()
     Returns the default audio output, or a null device if there is none.
 */
 QAudioDevice QMediaDevices::defaultAudioOutput() { return defaultOf(audioOutputs()); }
+
+/*!
+    Returns the cameras, the default one first.
+*/
+QList<QCameraDevice> QMediaDevices::videoInputs() { return QtMultimediaPrivate::videoBackend()->videoInputs(); }
+
+/*!
+    Returns the default camera, or a null device if there is none.
+*/
+QCameraDevice QMediaDevices::defaultVideoInput() {
+    const QList<QCameraDevice> cameras = videoInputs();
+    for (const QCameraDevice &camera : cameras)
+        if (camera.isDefault())
+            return camera;
+    return cameras.isEmpty() ? QCameraDevice() : cameras.first();
+}
 
 #include "moc_qmediadevices.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

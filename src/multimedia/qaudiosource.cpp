@@ -224,11 +224,14 @@ QIODevice *QAudioSource::start() {
 }
 
 /*!
-    Stops recording and closes the device. The state becomes StoppedState and error() NoError.
+    Stops recording and closes the device. In pull mode, what has been recorded is written to the
+    device first. The state becomes StoppedState and error() NoError.
 */
 void QAudioSource::stop() {
     if (d->state == QtAudio::StoppedState)
         return;
+    if (d->sink && d->state == QtAudio::ActiveState)
+        d->tick(); // hand over what has been recorded
     d->close();
     d->setState(QtAudio::StoppedState, QtAudio::NoError);
 }

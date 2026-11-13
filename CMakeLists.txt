@@ -903,19 +903,31 @@ target_include_directories(NtGamepad
 target_link_libraries(NtGamepad PUBLIC NtCore PRIVATE NtGui)
 nt_set_compile_options(NtGamepad)
 
-# Nt Multimedia: the audio part of Qt Multimedia. Linux uses ALSA, loaded at run time, so the library
-# builds without its headers; other platforms have no devices yet.
+# Nt Multimedia: the audio and camera parts of Qt Multimedia. Linux uses ALSA, loaded at run time, so the
+# library builds without its headers, and Video4Linux2 for cameras; other platforms have no devices yet.
 add_library(NtMultimedia
+    src/multimedia/qaudiobuffer.cpp
+    src/multimedia/qaudiodecoder.cpp
     src/multimedia/qaudiodevice.cpp
     src/multimedia/qaudioformat.cpp
+    src/multimedia/qaudioinput.cpp
     src/multimedia/qaudiooutput.cpp
     src/multimedia/qaudiosink.cpp
     src/multimedia/qaudiosource.cpp
     src/multimedia/qaudiostream.cpp
+    src/multimedia/qcamera.cpp
+    src/multimedia/qcameradevice.cpp
+    src/multimedia/qimagecapture.cpp
+    src/multimedia/qmediacapturesession.cpp
     src/multimedia/qmediadevices.cpp
+    src/multimedia/qmediaformat.cpp
     src/multimedia/qmediaplayer.cpp
+    src/multimedia/qmediarecorder.cpp
     src/multimedia/qsoundeffect.cpp
     src/multimedia/qtaudio.cpp
+    src/multimedia/qvideoframe.cpp
+    src/multimedia/qvideoframeformat.cpp
+    src/multimedia/qvideosink.cpp
     src/multimedia/qwavedecoder.cpp
 )
 add_library(Nt::Multimedia ALIAS NtMultimedia)
@@ -927,11 +939,11 @@ target_include_directories(NtMultimedia
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/multimedia
 )
-target_link_libraries(NtMultimedia PUBLIC NtCore)
+target_link_libraries(NtMultimedia PUBLIC NtCore NtGui)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_alsa.cpp)
+    target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_alsa.cpp src/multimedia/qvideobackend_v4l2.cpp)
 else()
-    target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_null.cpp)
+    target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_null.cpp src/multimedia/qvideobackend_null.cpp)
 endif()
 nt_set_compile_options(NtMultimedia)
 
@@ -1455,6 +1467,12 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_multimedia_tests PRIVATE Nt::Multimedia)
     add_test(NAME nt_multimedia_tests COMMAND nt_multimedia_tests)
     nt_set_compile_options(nt_multimedia_tests)
+    # Cameras, video frames, image capture, recording and decoding, against fake backends.
+    add_executable(nt_multimedia_capture_tests tests/test_multimedia_capture.cpp)
+    target_include_directories(nt_multimedia_capture_tests PRIVATE src/multimedia)
+    target_link_libraries(nt_multimedia_capture_tests PRIVATE Nt::Multimedia)
+    add_test(NAME nt_multimedia_capture_tests COMMAND nt_multimedia_capture_tests)
+    nt_set_compile_options(nt_multimedia_capture_tests)
 
     # The gamepad tests replace the evdev platform with one of their own, and send key events to an
     # offscreen window.
@@ -1646,6 +1664,15 @@ if(NT_BUILD_EXAMPLES)
     add_executable(audioplayer examples/multimedia/audioplayer.cpp)
     target_link_libraries(audioplayer PRIVATE Nt::Multimedia)
     nt_set_compile_options(audioplayer)
+    add_executable(camera examples/multimedia/camera.cpp)
+    target_link_libraries(camera PRIVATE Nt::Multimedia)
+    nt_set_compile_options(camera)
+    add_executable(recorder examples/multimedia/recorder.cpp)
+    target_link_libraries(recorder PRIVATE Nt::Multimedia)
+    nt_set_compile_options(recorder)
+    add_executable(decoder examples/multimedia/decoder.cpp)
+    target_link_libraries(decoder PRIVATE Nt::Multimedia)
+    nt_set_compile_options(decoder)
 
     add_executable(fmplay examples/fm/fmplay.cpp)
     target_link_libraries(fmplay PRIVATE Nt::FM)

@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt Qml`, `Nt Multimedia` (audio), `Nt FM`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt FM`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -487,21 +487,26 @@ Guide: [Using Nt FM](https://open-nt.github.io/Nt6/nt-fm.html), with the patch f
 
 Not yet: OPLL, OPN2, OPM and SN76489 emulation (so no Mega Drive or MSX music), RAD files, the fixed-point path and Zephyr build, oversampling, and backends other than ALSA.
 
-### Nt Multimedia: audio
+### Nt Multimedia: audio and cameras
 
-Nt Multimedia has the audio part of Qt Multimedia. Link with `Nt::Multimedia` (or `Qt6::Multimedia`); it needs only Nt Core. On Linux it uses ALSA, loaded at run time, so it builds without ALSA's headers and reaches PipeWire and PulseAudio through ALSA's `default` device.
+Nt Multimedia has the audio and camera parts of Qt Multimedia. Link with `Nt::Multimedia` (or `Qt6::Multimedia`); it needs Nt Core and Nt GUI. On Linux it uses ALSA, loaded at run time, so it builds without ALSA's headers and reaches PipeWire and PulseAudio through ALSA's `default` device, and Video4Linux2 for cameras.
 
 | Class | Notes |
 |---|---|
 | `QAudioFormat`, `QtAudio` (`QAudio`) | sample rate, channel count or configuration, `UInt8`/`Int16`/`Int32`/`Float` samples, byte, frame and duration conversions; the state and error enums and `convertVolume()` |
-| `QMediaDevices`, `QAudioDevice` | the inputs and outputs, the default ones first, with `audioInputsChanged`/`audioOutputsChanged` when a device is plugged in or out |
+| `QMediaDevices`, `QAudioDevice`, `QCameraDevice`, `QCameraFormat` | the audio inputs and outputs and the cameras, the default ones first, with each camera's formats, sizes and frame rates; `audioInputsChanged`/`audioOutputsChanged`/`videoInputsChanged` when a device is plugged in or out |
 | `QAudioSink`, `QAudioSource` | raw samples played or recorded in pull mode (from or to a `QIODevice`) or push mode, with suspend and resume, buffer size, volume, processed and elapsed time; a worker thread does the blocking I/O |
 | `QSoundEffect` | a WAV file held in memory and played with low latency, with loops (or `Infinite`), volume and mute |
 | `QMediaPlayer`, `QAudioOutput` | WAV files played from disk, a resource or a `QIODevice`: play, pause, stop, seeking, loops, position and duration, status and errors; the output sets the device, volume and mute |
+| `QAudioDecoder`, `QAudioBuffer`, `QAudioFrame` | WAV files decoded into buffers, converted to another sample format, channel count or (by linear interpolation) sample rate; buffers that share their samples, read as typed frames (`S16S`, `F32M`, ...) |
+| `QMediaCaptureSession`, `QCamera`, `QVideoSink` | a camera streaming to a sink from a thread of its own, in a chosen or automatic format, with errors when it fails or is unplugged |
+| `QVideoFrame`, `QVideoFrameFormat` | frames in memory that share their pixels: mapping, planes, start and end times, rotation and mirroring; `toImage()` from packed RGB, YUYV, UYVY, NV12, NV21, P010, YUV420P, YV12, YUV422P, grey and JPEG, in BT.601 or BT.709 and video or full range |
+| `QImageCapture` | pictures taken from the camera's stream, scaled to a resolution if set, as a `QImage` or saved as JPEG or PNG |
+| `QMediaRecorder`, `QAudioInput`, `QMediaFormat` | the microphone recorded to a WAV file, with pause, duration and numbered files in a folder; the input sets the device, gain and mute |
 
-WAV files with 8, 16, 24 or 32-bit integer or 32 or 64-bit floating-point samples, up to 8 channels, can be played. Guide: [Using Nt Multimedia](https://open-nt.github.io/Nt6/nt-multimedia.html). The [`audiodevices`](examples/multimedia/audiodevices.cpp) example lists the devices and plays a tone; [`audioplayer`](examples/multimedia/audioplayer.cpp) plays a WAV file with `QMediaPlayer` or `QSoundEffect`.
+WAV files with 8, 16, 24 or 32-bit integer or 32 or 64-bit floating-point samples, up to 8 channels, can be played and decoded. Guide: [Using Nt Multimedia](https://open-nt.github.io/Nt6/nt-multimedia.html). Examples: [`audiodevices`](examples/multimedia/audiodevices.cpp) lists the devices and plays a tone, [`audioplayer`](examples/multimedia/audioplayer.cpp) plays a WAV file, [`camera`](examples/multimedia/camera.cpp) lists the cameras, streams and saves a picture, [`recorder`](examples/multimedia/recorder.cpp) records the microphone, and [`decoder`](examples/multimedia/decoder.cpp) decodes a file to 16 kHz mono.
 
-Not yet: video (`QCamera`, `QVideoSink`, `QVideoFrame`, `QMediaCaptureSession`, `QMediaRecorder`, `QImageCapture`), compressed formats (MP3, AAC, Ogg, FLAC), `QAudioDecoder` and `QAudioBuffer`, playback rates other than 1.0, and backends other than ALSA.
+Not yet: video playback and recording (no video codecs), compressed audio (MP3, AAC, Ogg, FLAC), `QVideoWidget` and a QML video item, camera controls (focus, zoom, exposure), playback rates other than 1.0, monitoring of the input through `QMediaCaptureSession::setAudioOutput()`, and backends other than ALSA and Video4Linux2.
 
 ### Essentials
 
@@ -542,7 +547,7 @@ Not yet: video (`QCamera`, `QVideoSink`, `QVideoFrame`, `QMediaCaptureSession`, 
 | Qt Image Formats | Nt Image Formats |  |
 | Qt Lottie Animation | Nt Lottie Animation |  |
 | Qt MQTT | Nt MQTT |  |
-| Qt Multimedia | Nt Multimedia | ✔ (audio, Linux; see Status) |
+| Qt Multimedia | Nt Multimedia | ✔ (audio and cameras, Linux; see Status) |
 | Qt Network Authorization | Nt Network Authorization |  |
 | Qt NFC | Nt NFC |  |
 | Qt OPC UA | Nt OPC UA |  |

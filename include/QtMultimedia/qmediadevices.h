@@ -4,6 +4,7 @@
 #include <QtCore/qlist.h>
 #include <QtCore/qobject.h>
 #include <QtMultimedia/qaudiodevice.h>
+#include <QtMultimedia/qcameradevice.h>
 
 #include <memory>
 
@@ -15,6 +16,7 @@ class QMediaDevices : public QObject {
     Q_PROPERTY(QList<QAudioDevice> audioOutputs READ audioOutputs NOTIFY audioOutputsChanged)
     Q_PROPERTY(QAudioDevice defaultAudioInput READ defaultAudioInput NOTIFY audioInputsChanged)
     Q_PROPERTY(QAudioDevice defaultAudioOutput READ defaultAudioOutput NOTIFY audioOutputsChanged)
+    Q_PROPERTY(QList<QCameraDevice> videoInputs READ videoInputs NOTIFY videoInputsChanged)
 public:
     explicit QMediaDevices(QObject *parent = nullptr);
     ~QMediaDevices() override;
@@ -23,6 +25,8 @@ public:
     static QList<QAudioDevice> audioOutputs();
     static QAudioDevice defaultAudioInput();
     static QAudioDevice defaultAudioOutput();
+    static QList<QCameraDevice> videoInputs();
+    static QCameraDevice defaultVideoInput();
 
 signals:
     /*!
@@ -33,6 +37,10 @@ signals:
         This signal is emitted when an audio output is added or removed, or the default one changes.
     */
     void audioOutputsChanged() { emitSignal(&QMediaDevices::audioOutputsChanged); }
+    /*!
+        This signal is emitted when a camera is added or removed.
+    */
+    void videoInputsChanged() { emitSignal(&QMediaDevices::videoInputsChanged); }
 
 private:
     friend class QMediaDevicesPrivate;

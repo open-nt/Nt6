@@ -1,5 +1,7 @@
 # Builds the documentation with NDoc and publishes it to GitHub Pages, together
 # with the apt repository (/apt) made from the .deb packages of every release.
+# packaging/docs-site.sh writes one copy of the docs per release (/<version>/),
+# main as /dev/, and the latest release again at the root.
 #
 # A Pages deployment replaces the whole site, so the apt repository is rebuilt
 # from the release assets each time; it also runs after slsa.yml, which attaches
@@ -24,6 +26,7 @@ on:
 
 permissions:
   contents: read
+  pages: read
 
 concurrency:
   group: pages-${{ github.ref }}
@@ -34,11 +37,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the release tags, whose docs are built too
 
       - name: Generate documentation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: |
           cmake -S . -B build -DNT_BUILD_TESTS=OFF -DNT_BUILD_EXAMPLES=OFF
-          cmake --build build --target docs
+          cmake --build build --target ndoc
+          # Pull requests only check the docs of main; the releases are unchanged.
+          tags=()
+          url=
+          if [ "${{ github.event_name }}" != pull_request ]; then
+            # Newest first, so the first tag is the latest release.
+            mapfile -t tags < <(gh release list --limit 100 --exclude-drafts --json tagName --jq '.[].tagName')
+            # Follows a custom domain once one is set.
+            url=$(gh api "repos/$GH_REPO/pages" --jq .html_url)
+          fi
+          packaging/docs-site.sh --ndoc build/ndoc --output build/doc/html ${url:+--url "$url"} "${tags[@]}"
 
       - name: Build the apt repository
         if: github.event_name != 'pull_request'

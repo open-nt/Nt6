@@ -3,12 +3,14 @@
 NDoc generates Qt-style HTML reference documentation from comments written next to the code. It is a single C++17 file with no dependencies, and like `ntmoc` it is a text scanner rather than a C++ parser.
 
 ```sh
-ndoc [-o outdir] [--strict] [--require-complete] doc/ndoc.conf
+ndoc [-o outdir] [--doc-version version] [--set key=value]... [--strict] [--require-complete] doc/ndoc.conf
 ```
 
 | Option | Effect |
 |---|---|
 | `-o <dir>` | Output directory, overriding `output` in the config |
+| `--doc-version <version>` | Version shown on every page, overriding `version` and `version_file` |
+| `--set <key>=<value>` | Sets any config key, overriding the config file; may be repeated |
 | `--strict` | Exit 1 on any warning, other than a missing comment |
 | `--require-complete` | Exit 1 if any public API is undocumented |
 
@@ -94,6 +96,14 @@ Paths are relative to the config file.
 
 `social_image` is copied to `images/` and named in the Open Graph and Twitter card tags of every page, so a shared link shows it as a preview (1200x630 PNG works everywhere). Crawlers need an absolute address, so set `url` to where the site is published; without it the image is given relative to the page. Every page also gets `og:title` and, from `description`, `og:description`.
 
+`versions` is the address of a `versions.json` that lists the published versions of the docs. When it is set, every page gets a version switcher in its header (script/ndoc-versions.js), which opens the same page in the chosen version, or that version's landing page if it has no such page. Paths in the file are relative to it, and `latest` names the version whose copy is also served from the directory that holds the file:
+
+```json
+{"latest": "1.1.0", "versions": [{"name": "dev", "path": "dev/"}, {"name": "1.1.0", "path": "1.1.0/"}]}
+```
+
+The switcher stays hidden until the file has loaded, so pages opened from `file://` show the plain version. Each version is built with its own `url`, normally from the command line: `ndoc --doc-version 1.1.0 --set url=https://example.org/docs/1.1.0/ --set versions=https://example.org/docs/versions.json doc/ndoc.conf`. Nt's `packaging/docs-site.sh` builds a site like this from the release tags.
+
 `github` adds a *Source* link with the GitHub logo (from Font Awesome Free, CC BY 4.0) to the header of every page.
 
 ```ini
@@ -105,6 +115,7 @@ footer = Text for every page.
 logo = ../assets/nt-logo.svg
 social_image = ../assets/social/card-1200x630.png
 url = https://example.org/docs/
+versions = https://example.org/docs/versions.json
 github = https://github.com/open-nt/Nt6
 output = html
 sources = ../include ../src

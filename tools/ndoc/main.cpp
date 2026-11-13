@@ -1717,6 +1717,7 @@ struct Config {
     fs::path logo;
     fs::path socialImage;
     std::string url;
+    std::string versions;
     std::string github;
     fs::path output = "html";
     std::vector<fs::path> sources;
@@ -1725,6 +1726,70 @@ struct Config {
     std::vector<std::pair<std::string, std::vector<fs::path>>> modules;
 };
 
+// Applies one `key = value` setting; \a where prefixes any error message. Paths are relative to the
+// config file.
+bool applySetting(Config &cfg, const std::string &key, const std::string &value, const std::string &where) {
+    const auto resolve = [&](const std::string &p) { return (cfg.baseDir / p).lexically_normal(); };
+    if (key == "project") {
+        cfg.project = value;
+    } else if (key == "version") {
+        cfg.version = value;
+    } else if (key == "version_file") {
+        std::string versionText;
+        if (!readFile(resolve(value), versionText)) {
+            std::cerr << where << ": cannot read " << value << '\n';
+            return false;
+        }
+        cfg.version = trim(versionText);
+    } else if (key == "description") {
+        cfg.description = value;
+    } else if (key == "footer") {
+        cfg.footer = value;
+    } else if (key == "logo") {
+        cfg.logo = resolve(value);
+    } else if (key == "social_image") {
+        cfg.socialImage = resolve(value);
+    } else if (key == "url") {
+        cfg.url = value;
+        if (!cfg.url.empty() && cfg.url.back() != '/')
+            cfg.url += '/';
+    } else if (key == "versions") {
+        cfg.versions = value;
+    } else if (key == "github") {
+        cfg.github = value;
+    } else if (key == "output") {
+        cfg.output = resolve(value);
+    } else if (key == "sources") {
+        for (const std::string &w : splitWords(value))
+            cfg.sources.push_back(resolve(w));
+    } else if (key == "snippets") {
+        for (const std::string &w : splitWords(value))
+            cfg.snippets.push_back(resolve(w));
+    } else if (key == "images") {
+        for (const std::string &w : splitWords(value))
+            cfg.images.push_back(resolve(w));
+    } else if (startsWith(key, "module ")) {
+        std::vector<fs::path> dirs;
+        for (const std::string &w : splitWords(value))
+            dirs.push_back(resolve(w));
+        cfg.modules.emplace_back(trim(key.substr(7)), std::move(dirs));
+    } else {
+        std::cerr << where << ": unknown key '" << key << "'\n";
+        return false;
+    }
+    return true;
+}
+
+// Applies a `key=value` override from the command line, after the config file has been read.
+bool applyOverride(Config &cfg, const std::string &setting) {
+    const std::size_t eq = setting.find('=');
+    if (eq == npos) {
+        std::cerr << "ndoc: --set expects key=value, not '" << setting << "'\n";
+        return false;
+    }
+    return applySetting(cfg, trim(setting.substr(0, eq)), trim(setting.substr(eq + 1)), "ndoc: --set");
+}
+
 bool loadConfig(const fs::path &path, Config &cfg) {
     std::string text;
     if (!readFile(path, text)) {
@@ -1732,7 +1797,6 @@ bool loadConfig(const fs::path &path, Config &cfg) {
         return false;
     }
     cfg.baseDir = fs::absolute(path).parent_path();
-    const auto resolve = [&](const std::string &p) { return (cfg.baseDir / p).lexically_normal(); };
 
     std::istringstream in(text);
     int number = 0;
@@ -1741,58 +1805,14 @@ bool loadConfig(const fs::path &path, Config &cfg) {
         const std::string t = trim(line);
         if (t.empty() || t[0] == '#')
             continue;
+        const std::string where = path.string() + ':' + std::to_string(number);
         const std::size_t eq = t.find('=');
         if (eq == npos) {
-            std::cerr << path.string() << ':' << number << ": expected key = value\n";
+            std::cerr << where << ": expected key = value\n";
             return false;
         }
-        const std::string key = trim(t.substr(0, eq));
-        const std::string value = trim(t.substr(eq + 1));
-        if (key == "project") {
-            cfg.project = value;
-        } else if (key == "version") {
-            cfg.version = value;
-        } else if (key == "version_file") {
-            std::string versionText;
-            if (!readFile(resolve(value), versionText)) {
-                std::cerr << path.string() << ':' << number << ": cannot read " << value << '\n';
-                return false;
-            }
-            cfg.version = trim(versionText);
-        } else if (key == "description") {
-            cfg.description = value;
-        } else if (key == "footer") {
-            cfg.footer = value;
-        } else if (key == "logo") {
-            cfg.logo = resolve(value);
-        } else if (key == "social_image") {
-            cfg.socialImage = resolve(value);
-        } else if (key == "url") {
-            cfg.url = value;
-            if (!cfg.url.empty() && cfg.url.back() != '/')
-                cfg.url += '/';
-        } else if (key == "github") {
-            cfg.github = value;
-        } else if (key == "output") {
-            cfg.output = resolve(value);
-        } else if (key == "sources") {
-            for (const std::string &w : splitWords(value))
-                cfg.sources.push_back(resolve(w));
-        } else if (key == "snippets") {
-            for (const std::string &w : splitWords(value))
-                cfg.snippets.push_back(resolve(w));
-        } else if (key == "images") {
-            for (const std::string &w : splitWords(value))
-                cfg.images.push_back(resolve(w));
-        } else if (startsWith(key, "module ")) {
-            std::vector<fs::path> dirs;
-            for (const std::string &w : splitWords(value))
-                dirs.push_back(resolve(w));
-            cfg.modules.emplace_back(trim(key.substr(7)), std::move(dirs));
-        } else {
-            std::cerr << path.string() << ':' << number << ": unknown key '" << key << "'\n";
+        if (!applySetting(cfg, trim(t.substr(0, eq)), trim(t.substr(eq + 1)), where))
             return false;
-        }
     }
     return true;
 }
@@ -2595,6 +2615,9 @@ header.site .logo { display: flex; }
 header.site .logo img { display: block; height: 48px; width: 48px; }
 header.site .name { font-weight: 600; color: var(--text); font-size: 1.1em; }
 header.site .version { color: var(--muted); font-size: 0.95em; line-height: 1; }
+header.site .versions { font: inherit; font-size: 0.875em; color: var(--muted); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; }
+header.site .versions:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
 header.site .source { display: flex; align-items: center; gap: 6px;
   color: var(--muted); font-size: 0.875em; }
 header.site .source svg { height: 20px; width: auto; fill: currentColor; }
@@ -2851,6 +2874,58 @@ constexpr const char *kSearchScript = R"js(// Generated by ndoc.
 })();
 )js";
 
+// The version switcher in each page header, shown when `versions` names a versions.json:
+//   {"latest": "1.1.0", "versions": [{"name": "dev", "path": "dev/"}, {"name": "1.1.0", "path": "1.1.0/"}]}
+// Each path is relative to versions.json. Choosing a version opens the same page there, or that
+// version's landing page if it has no such page.
+constexpr const char *kVersionsScript = R"js(// Generated by ndoc.
+(function () {
+  'use strict';
+  var select = document.getElementById('ndoc-versions');
+  var label = document.querySelector('header.site .version');
+  if (!select || !window.fetch || !window.URL) return;
+  var source;
+  try {
+    source = new URL(select.getAttribute('data-versions'), location.href);
+  } catch (e) {
+    return;
+  }
+  var page = location.pathname.split('/').pop() || 'index.html';
+  fetch(source.href).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function (data) {
+    var here = location.href, current = null;
+    var versions = (data.versions || []).map(function (v) {
+      return { name: String(v.name), url: new URL(v.path, source).href };
+    });
+    versions.forEach(function (v) {
+      if (here.indexOf(v.url) === 0 && (!current || v.url.length > current.url.length)) current = v;
+    });
+    // Pages outside every version directory are the copy of the latest release at the root.
+    if (!current) versions.forEach(function (v) { if (v.name === data.latest) current = v; });
+    if (!current || versions.length < 2) return;
+    versions.forEach(function (v) {
+      var option = document.createElement('option');
+      option.value = v.url;
+      option.textContent = v.name === data.latest ? v.name + ' (latest)' : v.name;
+      if (v === current) option.setAttribute('selected', '');
+      select.appendChild(option);
+    });
+    select.addEventListener('change', function () {
+      var root = select.value, target = root + page;
+      fetch(target, { method: 'HEAD' }).then(function (r) {
+        location.href = r.ok ? target : root;
+      }, function () {
+        location.href = root;
+      });
+    });
+    if (label) label.hidden = true;
+    select.hidden = false;
+  }).catch(function () {});
+})();
+)js";
+
 // Quotes text as a JSON (and JavaScript) string literal.
 std::string jsonString(const std::string &s) {
     std::string out = "\"";
@@ -3012,6 +3087,8 @@ private:
         fs::create_directories(S.cfg.output / "script");
         if (!write("script/ndoc-search.js", kSearchScript))
             return false;
+        if (!S.cfg.versions.empty() && !write("script/ndoc-versions.js", kVersionsScript))
+            return false;
 
         std::string index = "/* Generated by ndoc. */\nwindow.ndocSearchIndex = [\n";
         std::set<std::string> seen;
@@ -3115,6 +3192,10 @@ private:
         else
             html += "<a class=\"name\" href=\"index.html\">" + escapeHtml(cfg.project) + "</a>";
         html += "<span class=\"version\">" + escapeHtml(cfg.version) + "</span>";
+        // Replaced by the version list from `versions` once script/ndoc-versions.js has loaded it.
+        if (!cfg.versions.empty())
+            html += "<select class=\"versions\" id=\"ndoc-versions\" data-versions=\"" + escapeHtml(cfg.versions) +
+                    "\" aria-label=\"Documentation version\" hidden></select>";
         // Hidden until script/ndoc-search.js runs, so a browser without JavaScript shows no dead box.
         html += "<div class=\"search\" role=\"search\" hidden><input id=\"ndoc-search\" type=\"search\" "
                 "placeholder=\"Search (press /)\" aria-label=\"Search the documentation\" autocomplete=\"off\" "
@@ -3141,7 +3222,10 @@ private:
         }
         html += "<main>\n" + body + "</main>\n</div>\n";
         html += "<footer class=\"site\">" + escapeHtml(cfg.footer) + "</footer>\n";
-        html += "<script src=\"script/ndoc-search.js\" defer></script>\n</body>\n</html>\n";
+        html += "<script src=\"script/ndoc-search.js\" defer></script>\n";
+        if (!cfg.versions.empty())
+            html += "<script src=\"script/ndoc-versions.js\" defer></script>\n";
+        html += "</body>\n</html>\n";
         return html;
     }
 
@@ -3710,6 +3794,8 @@ int usage(std::ostream &out, int code) {
            "  -o <dir>             Output directory, overriding the config file\n"
            "  --strict             Exit non-zero on any warning (not missing comments)\n"
            "  --require-complete   Exit non-zero if any public API is undocumented\n"
+           "  --doc-version <ver>  Version shown in the docs, overriding version/version_file\n"
+           "  --set <key>=<value>  Set a config key, overriding the config file\n"
            "  -v, --version        Print the version\n"
            "  -h, --help           Print this help\n";
     return code;
@@ -3719,6 +3805,7 @@ int usage(std::ostream &out, int code) {
 
 int main(int argc, char **argv) {
     std::string configPath, outputDir;
+    std::vector<std::string> overrides;
     bool strict = false, requireComplete = false;
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -3734,6 +3821,10 @@ int main(int argc, char **argv) {
             requireComplete = true;
         } else if (arg == "-o" && i + 1 < argc) {
             outputDir = argv[++i];
+        } else if (arg == "--doc-version" && i + 1 < argc) {
+            overrides.emplace_back(std::string("version=") + argv[++i]);
+        } else if (arg == "--set" && i + 1 < argc) {
+            overrides.emplace_back(argv[++i]);
         } else if (!arg.empty() && arg[0] != '-' && configPath.empty()) {
             configPath = arg;
         } else {
@@ -3746,6 +3837,9 @@ int main(int argc, char **argv) {
     Config cfg;
     if (!loadConfig(configPath, cfg))
         return 2;
+    for (const std::string &setting : overrides)
+        if (!applyOverride(cfg, setting))
+            return 2;
     cfg.output = outputDir.empty() ? fs::absolute(cfg.output) : fs::absolute(outputDir);
 
     Model model;

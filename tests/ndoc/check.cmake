@@ -170,3 +170,40 @@ foreach(text "can't link to 'No Such Page'" "unknown parameter 'wrong'"
         message(SEND_ERROR "missing diagnostic: ${text}\n${err}")
     endif()
 endforeach()
+
+# --doc-version replaces the configured version; --set overrides any key, and `versions` adds the
+# version switcher and its script. Without `versions` the page has neither.
+reject(widget.html "ndoc-versions")
+execute_process(COMMAND "${NDOC}" -o "${OUTPUT_DIR}/versioned" --doc-version 9.8.7
+                        --set "url=https://example.org/docs/9.8.7"
+                        --set "versions=https://example.org/docs/versions.json" "${SOURCE_DIR}/ndoc.conf"
+                RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
+if(NOT result EQUAL 0)
+    message(SEND_ERROR "ndoc failed with --doc-version and --set")
+endif()
+set(versioned "${OUTPUT_DIR}/versioned")
+foreach(check "widget.html|<span class=\"version\">9.8.7</span>"
+              "widget.html|<select class=\"versions\" id=\"ndoc-versions\" data-versions=\"https://example.org/docs/versions.json\""
+              "widget.html|<script src=\"script/ndoc-versions.js\" defer></script>"
+              "script/ndoc-versions.js|getElementById('ndoc-versions')")
+    string(REPLACE "|" ";" check "${check}")
+    list(GET check 0 file)
+    list(GET check 1 text)
+    file(READ "${versioned}/${file}" content)
+    string(FIND "${content}" "${text}" at)
+    if(at EQUAL -1)
+        message(SEND_ERROR "versioned ${file}: missing: ${text}")
+    endif()
+endforeach()
+file(READ "${versioned}/widget.html" content)
+string(FIND "${content}" "1.2.3" at)
+if(NOT at EQUAL -1)
+    message(SEND_ERROR "versioned widget.html still shows the configured version 1.2.3")
+endif()
+foreach(bad "--set;novalue" "--set;nosuchkey=1")
+    execute_process(COMMAND "${NDOC}" ${bad} -o "${OUTPUT_DIR}/bad" "${SOURCE_DIR}/ndoc.conf"
+                    RESULT_VARIABLE result OUTPUT_QUIET ERROR_QUIET)
+    if(result EQUAL 0)
+        message(SEND_ERROR "ndoc accepted ${bad}")
+    endif()
+endforeach()

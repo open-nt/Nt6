@@ -19,6 +19,7 @@ class QMetaMethod;
 class QMetaEnum;
 class QMetaProperty;
 class QMetaClassInfo;
+class QMetaType;
 struct QMetaObject;
 
 namespace QtPrivate {
@@ -90,7 +91,7 @@ struct MetaMethodData {
     unsigned char paramCount;
     unsigned char type;   // QMetaMethod::MethodType
     unsigned char access; // QMetaMethod::Access
-    unsigned char flags;  // 1: cloned, 2: scriptable
+    unsigned char flags;  // 1: cloned, 2: scriptable, 4: const
     int revision;
     const char *tag;
     SignalId (*signalId)(); // signals only
@@ -145,6 +146,7 @@ enum PropertyFlag : unsigned {
     PropFinal = 0x10,
     PropRequired = 0x20,
     PropMember = 0x40,
+    PropAlias = 0x80, // a property that stands for another; QML sets it, ntmoc never does
     // Two bits each: 0 false, 1 true, 2 asks the object.
     PropDesignableShift = 8,
     PropScriptableShift = 10,
@@ -432,6 +434,7 @@ struct QMetaObject {
     using StaticMetacallFunction = void (*)(QObject *, Call, int, void **);
 
     const char *className() const;
+    QMetaType metaType() const;
     const QMetaObject *superClass() const;
     bool inherits(const QMetaObject *metaObject) const noexcept;
     QObject *cast(QObject *obj) const;
@@ -471,6 +474,7 @@ struct QMetaObject {
     static bool connect(const QObject *sender, int signal_index, const QObject *receiver, int method_index,
                         int type = 0, int *types = nullptr);
     static bool disconnect(const QObject *sender, int signal_index, const QObject *receiver, int method_index);
+    static bool disconnectOne(const QObject *sender, int signal_index, const QObject *receiver, int method_index);
     static void connectSlotsByName(QObject *o);
     static void activate(QObject *sender, int signal_index, void **argv);
     static void activate(QObject *sender, const QMetaObject *mo, int local_signal_index, void **argv);

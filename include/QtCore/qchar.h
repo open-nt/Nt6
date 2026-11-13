@@ -219,6 +219,18 @@ public:
     */
     constexpr uchar row() const noexcept { return static_cast<uchar>(ucs >> 8); }
     /*!
+        Sets the low byte of the code unit to \a acell.
+
+        \sa cell(), setRow()
+    */
+    constexpr void setCell(uchar acell) noexcept { ucs = static_cast<char16_t>((ucs & 0xff00) | acell); }
+    /*!
+        Sets the high byte of the code unit to \a arow.
+
+        \sa row(), setCell()
+    */
+    constexpr void setRow(uchar arow) noexcept { ucs = static_cast<char16_t>((ucs & 0x00ff) | (arow << 8)); }
+    /*!
         Returns \c true if this is the null character (U+0000); otherwise
         returns \c false.
     */
@@ -236,6 +248,13 @@ public:
         \sa toLatin1()
     */
     static constexpr QChar fromLatin1(char c) noexcept { return QChar(static_cast<unsigned char>(c)); }
+    /*!
+        \since 6.0
+        Returns the character with the UTF-16 code unit \a c.
+
+        \sa fromLatin1(), fromUcs4()
+    */
+    static constexpr QChar fromUcs2(char16_t c) noexcept { return QChar(c); }
 
     /*!
         \enum QChar::Category

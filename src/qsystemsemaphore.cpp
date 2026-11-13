@@ -122,7 +122,7 @@ struct QSystemSemaphore::Private {
     void open(int initialValue, AccessMode mode) {
         error = NoError;
         errorString.clear();
-        if (key.isEmpty()) {
+        if (name.isEmpty()) {
             error = KeyError;
             errorString = QString("QSystemSemaphore::handle: the key is empty");
             return;
@@ -176,6 +176,66 @@ void QSystemSemaphore::setKey(const QString &key, int initialValue, AccessMode m
     d->key = key;
     d->name = QtPrivate::ipcName("qipc_systemsem_", key);
     d->open(initialValue, mode);
+}
+
+/*!
+    \since 6.6
+    Constructs a semaphore for the native key \a key, with \a initialValue and \a mode as for the constructor
+    that takes a key.
+
+    \sa setNativeKey()
+*/
+QSystemSemaphore::QSystemSemaphore(const QNativeIpcKey &key, int initialValue, AccessMode mode)
+    : d(std::make_unique<Private>()) {
+    setNativeKey(key, initialValue, mode);
+}
+
+/*!
+    \since 6.6
+    Makes the object the semaphore of the system named by the native key \a key, with \a initialValue and
+    \a mode as for setKey(). A name without a leading slash gets one. A key of a type other than
+    \c Type::PosixRealtime is a key error.
+
+    \sa nativeIpcKey(), platformSafeKey()
+*/
+void QSystemSemaphore::setNativeKey(const QNativeIpcKey &key, int initialValue, AccessMode mode) {
+    d->close();
+    d->key.clear();
+    d->name.clear();
+    if (isKeyTypeSupported(key.type()) && !key.isEmpty()) {
+        d->name = key.nativeKey().toUtf8();
+        if (!d->name.startsWith('/'))
+            d->name.prepend('/');
+    }
+    d->open(initialValue, mode);
+    if (!isKeyTypeSupported(key.type()))
+        d->errorString = QStringLiteral("QSystemSemaphore::setNativeKey: the type of the key is not supported");
+}
+
+/*!
+    \since 6.6
+    Returns the name of the semaphore of the system as a QNativeIpcKey of the type \c Type::PosixRealtime.
+*/
+QNativeIpcKey QSystemSemaphore::nativeIpcKey() const {
+    return QNativeIpcKey(QString::fromUtf8(d->name), QNativeIpcKey::Type::PosixRealtime);
+}
+
+/*!
+    \since 6.6
+    Returns the native key that setKey() would use for \a key, of the type \a type.
+
+    \sa legacyNativeKey()
+*/
+QNativeIpcKey QSystemSemaphore::platformSafeKey(const QString &key, QNativeIpcKey::Type type) {
+    return QNativeIpcKey(QString::fromLatin1(QtPrivate::ipcName("qipc_systemsem_", key)), type);
+}
+
+/*!
+    \since 6.6
+    Returns the native key that setKey() gives \a key, of the type \a type: the same as platformSafeKey().
+*/
+QNativeIpcKey QSystemSemaphore::legacyNativeKey(const QString &key, QNativeIpcKey::Type type) {
+    return platformSafeKey(key, type);
 }
 
 /*!

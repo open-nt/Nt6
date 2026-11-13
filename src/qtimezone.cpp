@@ -849,6 +849,59 @@ Qt::TimeSpec QTimeZone::timeSpec() const noexcept {
 }
 
 /*!
+    \since 6.8
+    Returns \c true if \a alias is another name of this zone, such as \c{"Asia/Calcutta"} for
+    \c{"Asia/Kolkata"}: the name itself, or a name that the time zone database links to the same zone.
+
+    \sa id()
+*/
+bool QTimeZone::hasAlternativeName(QByteArrayView alias) const {
+    if (!isValid() || alias.isEmpty())
+        return false;
+    const QByteArray name = alias.toByteArray();
+    if (name == id())
+        return true;
+    const QTimeZone other(name);
+    if (!other.isValid())
+        return false;
+    if (d->kind == QTimeZonePrivate::Kind::Tzif && other.d->kind == QTimeZonePrivate::Kind::Tzif) {
+        // Aliases are links to the same file, or copies of it.
+        const QString dir = QTimeZonePrivate::zoneDirectory() + QLatin1Char('/');
+        const QFileInfo a(dir + QString::fromUtf8(id())), b(dir + QString::fromUtf8(name));
+        if (a.exists() && b.exists() && a.canonicalFilePath() == b.canonicalFilePath())
+            return true;
+        QFile fa(a.filePath()), fb(b.filePath());
+        return fa.open(QIODevice::ReadOnly) && fb.open(QIODevice::ReadOnly) && fa.size() == fb.size() &&
+               fa.readAll() == fb.readAll();
+    }
+    return other.id() == id();
+}
+
+/*!
+    \since 6.6
+    Returns a time zone, with the time specification Qt::TimeZone, that stands for the same times as this time
+    representation: the system's zone for local time, and a zone with a fixed offset for UTC or a fixed offset.
+    A zone that has that time specification already is returned as it is.
+
+    \sa timeSpec(), systemTimeZone()
+*/
+QTimeZone QTimeZone::asBackendZone() const {
+    switch (timeSpec()) {
+    case Qt::LocalTime:
+        return systemTimeZone();
+    case Qt::UTC:
+        return QTimeZone(QByteArray("UTC"), 0, QStringLiteral("UTC"), QStringLiteral("UTC"));
+    case Qt::OffsetFromUTC: {
+        const QString name = QString::fromLatin1(id());
+        return QTimeZone(id(), fixedSecondsAheadOfUtc(), name, name);
+    }
+    case Qt::TimeZone:
+        break;
+    }
+    return *this;
+}
+
+/*!
     \since 6.5
     Returns the offset of a UTC or fixed-offset zone, or 0 for other zones.
 */

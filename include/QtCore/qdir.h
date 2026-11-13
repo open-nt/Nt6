@@ -52,6 +52,55 @@ public:
 
     explicit QDir(const QString &path = QString());
     QDir(const QString &path, const QString &nameFilter, SortFlags sort = SortFlags(SortFlag(Name | IgnoreCase)), Filters filter = AllEntries);
+#ifdef NT_HAS_STD_FILESYSTEM
+    /*!
+        \since 6.0
+        Constructs a QDir for the directory \a path.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true>
+    explicit QDir(const T &path) : QDir(QtPrivate::fromFilesystemPath(path)) {}
+    /*!
+        \since 6.0
+        Constructs a QDir for the directory \a path, with the name filters \a nameFilter, the sort order \a sort
+        and the filters \a filter.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true>
+    QDir(const T &path, const QString &nameFilter, SortFlags sort = SortFlags(Name) | IgnoreCase,
+         Filters filter = AllEntries)
+        : QDir(QtPrivate::fromFilesystemPath(path), nameFilter, sort, filter) {}
+    /*!
+        \since 6.0
+        \overload
+        Sets the path of the directory to \a path.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true> void setPath(const T &path) {
+        setPath(QtPrivate::fromFilesystemPath(path));
+    }
+    /*!
+        \since 6.0
+        Returns path() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemPath() const { return QtPrivate::toFilesystemPath(path()); }
+    /*!
+        \since 6.0
+        Returns absolutePath() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemAbsolutePath() const { return QtPrivate::toFilesystemPath(absolutePath()); }
+    /*!
+        \since 6.0
+        Returns canonicalPath() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemCanonicalPath() const { return QtPrivate::toFilesystemPath(canonicalPath()); }
+    /*!
+        \since 6.0
+        \overload
+        Adds \a path to the search paths of \a prefix.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true>
+    static void addSearchPath(const QString &prefix, const T &path) {
+        addSearchPath(prefix, QtPrivate::fromFilesystemPath(path));
+    }
+#endif
 
     void setPath(const QString &path);
     /*!

@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <utility>
+
 #include <QtCore/qdatetime.h>
 #include <QtCore/qfile.h>
 #include <QtCore/qfileinfo.h>
@@ -38,6 +40,11 @@ public:
     QDirListing(QDirListing &&other) noexcept;
     QDirListing &operator=(QDirListing &&other) noexcept;
     ~QDirListing();
+    /*!
+        \since 6.8
+        Exchanges this listing with \a other.
+    */
+    void swap(QDirListing &other) noexcept { d.swap(other.d); }
     QDirListing(const QDirListing &) = delete;
     QDirListing &operator=(const QDirListing &) = delete;
 

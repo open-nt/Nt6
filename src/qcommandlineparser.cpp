@@ -497,6 +497,30 @@ QString QCommandLineParser::helpText() const {
 }
 
 /*!
+    \since 6.9
+    Writes \a message, followed by a line feed if it has none, to standard output for an \c Information message
+    or to standard error for an \c Error as \a type says, and exits the process with \a exitCode. Programs use it to
+    report what is wrong with their arguments in the way that showHelp() and showVersion() do.
+
+    \code
+    if (parser.positionalArguments().isEmpty())
+        QCommandLineParser::showMessageAndExit(QCommandLineParser::MessageType::Error,
+                                               QStringLiteral("No file given."), EXIT_FAILURE);
+    \endcode
+
+    \sa showHelp()
+*/
+void QCommandLineParser::showMessageAndExit(MessageType type, const QString &message, int exitCode) {
+    QString text = message;
+    if (!text.endsWith(QChar(u'\n')))
+        text.append(QChar(u'\n'));
+    std::FILE *out = type == MessageType::Information ? stdout : stderr;
+    std::fputs(text.toUtf8().constData(), out);
+    std::fflush(out);
+    std::exit(exitCode);
+}
+
+/*!
     Prints the application name and version to standard output and exits
     the process with a success status. This function does not return.
 

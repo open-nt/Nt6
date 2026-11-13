@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qnativeipckey.h>
 #include <QtCore/qstring.h>
 
 #include <memory>
@@ -19,12 +20,24 @@ public:
     };
 
     explicit QSystemSemaphore(const QString &key, int initialValue = 0, AccessMode mode = Open);
+    explicit QSystemSemaphore(const QNativeIpcKey &key, int initialValue = 0, AccessMode mode = Open);
     ~QSystemSemaphore();
     QSystemSemaphore(const QSystemSemaphore &) = delete;
     QSystemSemaphore &operator=(const QSystemSemaphore &) = delete;
 
     void setKey(const QString &key, int initialValue = 0, AccessMode mode = Open);
     QString key() const;
+    void setNativeKey(const QNativeIpcKey &key, int initialValue = 0, AccessMode mode = Open);
+    QNativeIpcKey nativeIpcKey() const;
+    static QNativeIpcKey platformSafeKey(const QString &key,
+                                         QNativeIpcKey::Type type = QNativeIpcKey::DefaultTypeForOs);
+    static QNativeIpcKey legacyNativeKey(const QString &key,
+                                         QNativeIpcKey::Type type = QNativeIpcKey::legacyDefaultTypeForOs());
+    /*!
+        \since 6.6
+        Returns \c true if keys of the type \a type work on this system; only \c Type::PosixRealtime does in Nt.
+    */
+    static bool isKeyTypeSupported(QNativeIpcKey::Type type) { return type == QNativeIpcKey::Type::PosixRealtime; }
 
     bool acquire();
     bool release(int n = 1);

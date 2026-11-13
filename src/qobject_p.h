@@ -69,7 +69,7 @@ private:
 
 // Disconnecting by signal, receiver and receiving method; a null argument matches everything.
 bool disconnectConnections(const QObject *sender, const SignalId *id, const QObject *receiver,
-                           const std::string *method);
+                           const std::string *method, bool onlyOne = false);
 void setConnectionMethod(const std::shared_ptr<ConnectionData> &c, const std::string &method);
 // Removes a single-shot connection after its slot was called.
 void finishSingleShot(const std::shared_ptr<ConnectionData> &c);

@@ -13,6 +13,9 @@
 #include <QtCore/qeasingcurve.h>
 #include <QtCore/qlocale.h>
 #include <QtCore/qmetatype.h>
+
+#include <QtCore/qassociativeiterable.h>
+#include <QtCore/qsequentialiterable.h>
 #include <QtCore/qregularexpression.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qrect.h>
@@ -38,6 +41,7 @@ struct Registry {
     std::deque<std::string> names;                  // primary names, parallel to custom
     std::unordered_map<std::string, int> byName;    // every registered name and alias
     std::map<std::pair<int, int>, QMetaType::ConverterFunction> converters;
+    std::map<std::pair<int, int>, QMetaType::MutableViewFunction> views;
 };
 
 // Never destroyed: variants in static objects may use the registry while the program exits.
@@ -868,4 +872,171 @@ void QMetaType::unregisterConverterFunction(QMetaType from, QMetaType to) {
     Registry &r = registry();
     std::lock_guard<std::mutex> lock(r.mutex);
     r.converters.erase({a, b});
+}
+
+/*!
+    \since 5.2
+    Returns \c true if a conversion from \a fromType to \a toType was registered with registerConverter() or
+    registerConverterFunction(); otherwise returns \c false. The conversions that Nt knows itself do not count.
+
+    \sa canConvert()
+*/
+bool QMetaType::hasRegisteredConverterFunction(QMetaType fromType, QMetaType toType) {
+    return static_cast<bool>(QtPrivate::findRegisteredConverter(fromType, toType));
+}
+
+namespace {
+
+QMetaType::MutableViewFunction findRegisteredView(QMetaType from, QMetaType to) {
+    Registry &r = registry();
+    const int a = from.id();
+    const int b = to.id();
+    std::lock_guard<std::mutex> lock(r.mutex);
+    const auto it = r.views.find({a, b});
+    return it == r.views.end() ? QMetaType::MutableViewFunction() : it->second;
+}
+
+} // namespace
+
+/*!
+    \since 6.0
+    Makes \a to, a constructed value of the type \a toType, a view of the value of the type \a fromType at
+    \a from, through which that value can be changed. Returns \c true on success.
+
+    Every sequential container has a view as a QSequentialIterable, and every associative container one as a
+    QAssociativeIterable. Other views are registered with registerMutableView().
+
+    \sa canView(), QVariant::view()
+*/
+bool QMetaType::view(QMetaType fromType, void *from, QMetaType toType, void *to) {
+    if (!fromType.isValid() || !toType.isValid() || !from || !to)
+        return false;
+    if (toType == QMetaType::fromType<QSequentialIterable>() && fromType.iface()->sequence &&
+        fromType.iface()->sequence->metaSequence) {
+        *static_cast<QSequentialIterable *>(to) =
+            QSequentialIterable(QMetaSequence(fromType.iface()->sequence->metaSequence()), fromType, from);
+        return true;
+    }
+    if (toType == QMetaType::fromType<QAssociativeIterable>() && fromType.iface()->associative &&
+        fromType.iface()->associative->metaAssociation) {
+        *static_cast<QAssociativeIterable *>(to) =
+            QAssociativeIterable(QMetaAssociation(fromType.iface()->associative->metaAssociation()), fromType, from);
+        return true;
+    }
+    if (const MutableViewFunction f = findRegisteredView(fromType, toType))
+        return f(from, to);
+    return false;
+}
+
+/*!
+    \since 6.0
+    Returns \c true if view() can make a view of a value of the type \a fromType as \a toType; otherwise returns
+    \c false.
+
+    \sa view()
+*/
+bool QMetaType::canView(QMetaType fromType, QMetaType toType) {
+    if (!fromType.isValid() || !toType.isValid())
+        return false;
+    if (toType == QMetaType::fromType<QSequentialIterable>())
+        return fromType.iface()->sequence != nullptr;
+    if (toType == QMetaType::fromType<QAssociativeIterable>())
+        return fromType.iface()->associative != nullptr;
+    return hasRegisteredMutableViewFunction(fromType, toType);
+}
+
+/*!
+    \since 6.0
+    Registers \a function as the view from the type \a from to the type \a to, replacing an earlier one. Returns
+    \c true, or \c false if a type is not valid.
+
+    \sa registerMutableView(), view()
+*/
+bool QMetaType::registerMutableViewFunction(const MutableViewFunction &function, QMetaType from, QMetaType to) {
+    const int a = from.id();
+    const int b = to.id();
+    if (!a || !b)
+        return false;
+    Registry &r = registry();
+    std::lock_guard<std::mutex> lock(r.mutex);
+    r.views[{a, b}] = function;
+    return true;
+}
+
+/*!
+    \since 6.0
+    Removes the view registered from the type \a from to the type \a to, if any.
+
+    \sa registerMutableViewFunction()
+*/
+void QMetaType::unregisterMutableViewFunction(QMetaType from, QMetaType to) {
+    const int a = from.id();
+    const int b = to.id();
+    Registry &r = registry();
+    std::lock_guard<std::mutex> lock(r.mutex);
+    r.views.erase({a, b});
+}
+
+/*!
+    \since 6.0
+    Returns \c true if a view from \a fromType to \a toType was registered; otherwise returns \c false. The views
+    onto QSequentialIterable and QAssociativeIterable that every container has do not count.
+
+    \sa canView()
+*/
+bool QMetaType::hasRegisteredMutableViewFunction(QMetaType fromType, QMetaType toType) {
+    return static_cast<bool>(findRegisteredView(fromType, toType));
+}
+
+/*!
+    \since 6.0
+    Registers the type, so that it can be found by its name with fromName(). A type gets registered anyway the
+    first time its id() is needed.
+
+    \sa id(), fromName()
+*/
+void QMetaType::registerType() const { (void)id(); }
+
+/*!
+    \since 6.6
+    Returns the type of the integers that stand for the values of an enumeration, of the same size and
+    signedness, or an invalid QMetaType if this type is not an enumeration.
+*/
+QMetaType QMetaType::underlyingType() const {
+    if (!d_ptr || !(d_ptr->flags & QtPrivate::kFlagIsEnumeration))
+        return QMetaType();
+    const bool isUnsigned = (d_ptr->flags & QtPrivate::kFlagIsUnsignedEnumeration) != 0;
+    switch (d_ptr->size) {
+    case 1:
+        return isUnsigned ? QMetaType::fromType<quint8>() : QMetaType::fromType<qint8>();
+    case 2:
+        return isUnsigned ? QMetaType::fromType<quint16>() : QMetaType::fromType<qint16>();
+    case 4:
+        return isUnsigned ? QMetaType::fromType<quint32>() : QMetaType::fromType<qint32>();
+    case 8:
+        return isUnsigned ? QMetaType::fromType<quint64>() : QMetaType::fromType<qint64>();
+    default:
+        return QMetaType();
+    }
+}
+
+/*!
+    \since 6.0
+    Forgets the names under which the user type \a type was registered, and its conversions and views, so that
+    fromName() no longer finds it. Built-in types are not changed.
+
+    \sa registerType()
+*/
+void QMetaType::unregisterMetaType(QMetaType type) {
+    const int id = type.isValid() ? type.id() : 0;
+    if (id < QMetaType::User)
+        return;
+    Registry &r = registry();
+    std::lock_guard<std::mutex> lock(r.mutex);
+    for (auto it = r.byName.begin(); it != r.byName.end();)
+        it = it->second == id ? r.byName.erase(it) : std::next(it);
+    for (auto it = r.converters.begin(); it != r.converters.end();)
+        it = (it->first.first == id || it->first.second == id) ? r.converters.erase(it) : std::next(it);
+    for (auto it = r.views.begin(); it != r.views.end();)
+        it = (it->first.first == id || it->first.second == id) ? r.views.erase(it) : std::next(it);
 }

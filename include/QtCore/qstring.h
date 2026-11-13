@@ -36,7 +36,8 @@ template <typename Haystack, typename Needle> class QStringTokenizer;
     view to a QString first, so they allocate, and so do the number
     conversions. arg() takes strings and characters only. first(), last(),
     sliced(), chopped(), slice(), truncate() and chop() do not check their
-    arguments.
+    arguments. tokenize() converts the text to a QString that the tokenizer keeps, and gives the tokens as
+    QStringView objects.
     \enddifferences
 
     \sa QString, QLatin1Char
@@ -407,6 +408,21 @@ public:
     template <typename A, typename... Rest> QString arg(const A &a, const Rest &...rest) const;
 
     QString toString() const;
+    /*!
+        \since 6.0
+        Returns the text in UTF-8.
+
+        \sa toString()
+    */
+    QByteArray toUtf8() const;
+    /*!
+        \since 6.0
+        Returns a tokenizer that splits the text at each occurrence of \a needle. \a flags may hold a
+        Qt::SplitBehavior and a Qt::CaseSensitivity. Include \c{<QStringTokenizer>} to use this function.
+
+        \sa QStringTokenizer
+    */
+    template <typename Needle, typename... Flags> auto tokenize(Needle &&needle, Flags... flags) const;
     bool startsWith(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     bool startsWith(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     bool endsWith(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
@@ -1580,6 +1596,7 @@ private:
     Returns the view as a QString.
 */
 inline QString QLatin1StringView::toString() const { return QString(*this); }
+inline QByteArray QLatin1StringView::toUtf8() const { return QString(*this).toUtf8(); }
 inline short QLatin1StringView::toShort(bool *ok, int base) const { return toString().toShort(ok, base); }
 inline ushort QLatin1StringView::toUShort(bool *ok, int base) const { return toString().toUShort(ok, base); }
 inline int QLatin1StringView::toInt(bool *ok, int base) const { return toString().toInt(ok, base); }

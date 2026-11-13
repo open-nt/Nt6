@@ -499,8 +499,8 @@ template <typename T> struct MetaTypeInterfaceFor {
     \c QMetaType::QVersionNumber
     does not exist; QVersionNumber, QMargins and QMarginsF get an id at the
     first registration like any user type. There is no
-    \c registerType(), \c registerComparators(), \c registerMutableView(),
-    \c QMetaType::view() or support for smart-pointer metatypes. A type with
+    \c registerComparators() or support for smart-pointer metatypes. unregisterMetaType() forgets the names of a
+    type but keeps its id reserved. A type with
     no \c operator== compares equal in a QVariant only when both variants
     share the same stored value.
     \enddifferences
@@ -740,6 +740,69 @@ public:
     static bool canConvert(QMetaType fromType, QMetaType toType);
     static bool registerConverterFunction(const ConverterFunction &function, QMetaType from, QMetaType to);
     static void unregisterConverterFunction(QMetaType from, QMetaType to);
+    static bool hasRegisteredConverterFunction(QMetaType fromType, QMetaType toType);
+    /*!
+        \since 5.2
+        \overload
+        Returns \c true if a conversion from \c From to \c To was registered; otherwise returns \c false.
+    */
+    template <typename From, typename To> static bool hasRegisteredConverterFunction() {
+        return hasRegisteredConverterFunction(fromType<From>(), fromType<To>());
+    }
+
+    /*!
+        \since 6.0
+        The type of a function that makes a view of a value: it receives the value at its first argument, which it
+        may change, and fills the already constructed view at its second argument. It returns \c false if it
+        cannot.
+    */
+    using MutableViewFunction = std::function<bool(void *, void *)>;
+
+    static bool view(QMetaType fromType, void *from, QMetaType toType, void *to);
+    static bool canView(QMetaType fromType, QMetaType toType);
+    static bool registerMutableViewFunction(const MutableViewFunction &function, QMetaType from, QMetaType to);
+    static void unregisterMutableViewFunction(QMetaType from, QMetaType to);
+    static bool hasRegisteredMutableViewFunction(QMetaType fromType, QMetaType toType);
+    /*!
+        \since 6.0
+        \overload
+        Returns \c true if a view from \c From to \c To was registered; otherwise returns \c false.
+    */
+    template <typename From, typename To> static bool hasRegisteredMutableViewFunction() {
+        return hasRegisteredMutableViewFunction(fromType<From>(), fromType<To>());
+    }
+    /*!
+        \since 6.0
+        Registers the member function \a function of \c From, which returns a view of the value as a \c To, as the
+        view from \c From to \c To. Returns \c true if the registration succeeded.
+    */
+    template <typename From, typename To> static bool registerMutableView(To (From::*function)()) {
+        return registerMutableViewFunction(
+            [function](void *src, void *dst) -> bool {
+                *static_cast<std::remove_cv_t<std::remove_reference_t<To>> *>(dst) =
+                    (static_cast<From *>(src)->*function)();
+                return true;
+            },
+            fromType<From>(), fromType<To>());
+    }
+    /*!
+        \since 6.0
+        \overload
+        Registers \a function, a callable that takes a \c{From &} and returns a \c To, as the view.
+    */
+    template <typename From, typename To, typename UnaryFunction>
+    static bool registerMutableView(UnaryFunction function) {
+        return registerMutableViewFunction(
+            [function](void *src, void *dst) -> bool {
+                *static_cast<To *>(dst) = function(*static_cast<From *>(src));
+                return true;
+            },
+            fromType<From>(), fromType<To>());
+    }
+
+    void registerType() const;
+    QMetaType underlyingType() const;
+    static void unregisterMetaType(QMetaType type);
 
     /*!
         Registers the implicit conversion from \c From to \c To, so that a QVariant that holds a

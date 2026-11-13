@@ -86,6 +86,7 @@ public:
 
     QByteArray methodSignature() const;
     QByteArray name() const;
+    QByteArrayView nameView() const;
     const char *typeName() const;
     int returnType() const;
     QMetaType returnMetaType() const;
@@ -94,7 +95,9 @@ public:
     QMetaType parameterMetaType(int param) const;
     void getParameterTypes(int *types) const;
     QList<QByteArray> parameterTypes() const;
+    QByteArray parameterTypeName(int param) const;
     QList<QByteArray> parameterNames() const;
+    bool isConst() const;
     const char *tag() const;
     int attributes() const;
     Access access() const;
@@ -264,6 +267,8 @@ public:
     int keyToValue(const char *key, bool *ok = nullptr) const;
     const char *valueToKey(int value) const;
     int keysToValue(const char *keys, bool *ok = nullptr) const;
+    std::optional<quint64> keysToValue64(const char *keys) const;
+    QMetaType metaType() const;
     /*!
         \since 6.9
         Returns \c false: the enumerations that \c ntmoc records have \c int
@@ -378,6 +383,7 @@ public:
     bool isConstant() const;
     bool isFinal() const;
     bool isRequired() const;
+    bool isAlias() const;
     bool isFlagType() const;
     bool isEnumType() const;
     bool isBindable() const;

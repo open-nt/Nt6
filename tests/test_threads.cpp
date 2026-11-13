@@ -1515,6 +1515,88 @@ static void testDeadlineLocking() {
     }
 }
 
+namespace {
+
+// Sleeps until it is terminated; counts the destructors that the unwinding runs.
+class Sleeper : public QThread {
+public:
+    std::atomic<int> unwound{0};
+    std::atomic<bool> sleeping{false};
+    std::atomic<bool> protectedPartDone{false};
+    bool protect = false;
+
+protected:
+    void run() override {
+        struct Guard {
+            std::atomic<int> &count;
+            ~Guard() { ++count; }
+        } guard{unwound};
+        if (protect) {
+            setTerminationEnabled(false);
+            sleeping = true;
+            QThread::msleep(100); // terminate() waits for this
+            protectedPartDone = true;
+            setTerminationEnabled(true);
+        }
+        sleeping = true;
+        for (;;)
+            QThread::msleep(10);
+    }
+};
+
+} // namespace
+
+static void testTerminate() {
+#if defined(__SANITIZE_THREAD__)
+    // ThreadSanitizer does not support pthread_cancel(): unwinding out of an intercepted call such as nanosleep()
+    // leaves its bookkeeping for the thread broken, and it then reports races on accesses that hold a mutex.
+    std::puts("testTerminate: skipped under ThreadSanitizer");
+    return;
+#endif
+    {
+        Sleeper t;
+        std::atomic<int> finished{0};
+        QObject::connect(&t, &QThread::finished, [&] { ++finished; });
+        t.start();
+        while (!t.sleeping)
+            QThread::msleep(1);
+        t.terminate();
+        CHECK(t.wait(5000));
+        CHECK(t.isFinished() && !t.isRunning());
+        CHECK(t.unwound == 1 && finished == 1);
+        t.terminate(); // finished: nothing
+    }
+    {
+        // While termination is disabled, the thread runs on until it enables it again.
+        Sleeper t;
+        t.protect = true;
+        t.start();
+        while (!t.sleeping)
+            QThread::msleep(1);
+        t.terminate();
+        CHECK(t.wait(5000));
+        CHECK(t.protectedPartDone && t.unwound == 1);
+    }
+    QThread idle;
+    idle.terminate(); // not started: nothing
+    CHECK(!idle.isRunning());
+}
+
+static void testServiceLevel() {
+    QThread t;
+    CHECK(t.serviceLevel() == QThread::QualityOfService::Auto);
+    t.setServiceLevel(QThread::QualityOfService::Eco);
+    CHECK(t.serviceLevel() == QThread::QualityOfService::Eco);
+    QThreadPool pool;
+    CHECK(pool.serviceLevel() == QThread::QualityOfService::Auto);
+    pool.setServiceLevel(QThread::QualityOfService::High);
+    CHECK(pool.serviceLevel() == QThread::QualityOfService::High);
+    std::atomic<int> level{-1};
+    pool.start([&] { level = static_cast<int>(QThread::currentThread()->serviceLevel()); });
+    CHECK(pool.waitForDone(5000));
+    CHECK(level == static_cast<int>(QThread::QualityOfService::High));
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
 
@@ -1545,6 +1627,8 @@ int main(int argc, char **argv) {
     RUN(testManyThreads);
     RUN(testSelfWait);
     RUN(testDeadlineLocking);
+    RUN(testTerminate);
+    RUN(testServiceLevel);
 
     if (g_failures == 0)
         std::puts("all thread tests passed");

@@ -91,7 +91,26 @@ public:
         return true;
     }
 
+    // Parses one value of any type, with nothing after it but white space.
+    bool parseAny(QJsonValue *root) {
+        anyValue = true;
+        eatBOM();
+        if (!eatSpace()) {
+            lastError = QJsonParseError::IllegalValue;
+            return false;
+        }
+        if (!parseValue(root))
+            return false;
+        eatSpace();
+        if (json < end) {
+            lastError = QJsonParseError::GarbageAtEnd;
+            return false;
+        }
+        return true;
+    }
+
     QJsonParseError::ParseError lastError = QJsonParseError::NoError;
+    bool anyValue = false; // parsing a value of any type rather than a document
     qsizetype offset() const { return json - head; }
 
 private:
@@ -309,7 +328,8 @@ private:
             while (json < end && *json >= '0' && *json <= '9')
                 ++json;
         }
-        if (json >= end) {
+        // In a document the number must be followed by the rest of its container; a value on its own may end here.
+        if (json >= end && !(anyValue && nesting == 0)) {
             lastError = QJsonParseError::TerminationByNumber;
             return false;
         }
@@ -494,7 +514,7 @@ private:
 
 namespace QJsonPrivate {
 
-QJsonValue parse(const QByteArray &json, QJsonParseError *error) {
+QJsonValue parse(const QByteArray &json, QJsonParseError *error, bool anyValue) {
     if (error) {
         error->error = QJsonParseError::NoError;
         error->offset = 0;
@@ -506,7 +526,7 @@ QJsonValue parse(const QByteArray &json, QJsonParseError *error) {
     }
     Parser parser(json.constData(), json.constData() + json.size());
     QJsonValue root;
-    if (parser.parse(&root))
+    if (anyValue ? parser.parseAny(&root) : parser.parse(&root))
         return root;
     if (error) {
         error->error = parser.lastError;

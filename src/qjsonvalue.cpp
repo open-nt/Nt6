@@ -350,6 +350,50 @@ QString QJsonValue::toString(const QString &defaultValue) const {
 }
 
 /*!
+    \since 6.10
+    Returns a view of the string of the value, or \a defaultValue if the value is not a string. The view stays
+    valid as long as the string is not changed or destroyed, in this value or in a copy that shares it.
+
+    \sa toString()
+*/
+QAnyStringView QJsonValue::toStringView(QAnyStringView defaultValue) const {
+    return m_type == String ? QAnyStringView(QJsonPrivateAccess::string(*this)) : defaultValue;
+}
+
+/*!
+    \since 6.9
+    Parses \a json, the text of one JSON value of any type (not only an array or an object), and returns the
+    value. On failure, returns a null value and, if \a error is not null, sets it to what went wrong and where.
+
+    \code
+    QJsonValue::fromJson("[1, 2]").toArray().size(); // 2
+    QJsonValue::fromJson("\"text\"").toString();     // "text"
+    \endcode
+
+    \sa toJson(), QJsonDocument::fromJson()
+*/
+QJsonValue QJsonValue::fromJson(QByteArrayView json, QJsonParseError *error) {
+    return QJsonPrivate::parse(json.toByteArray(), error, true);
+}
+
+/*!
+    \since 6.9
+    Returns the value as JSON text in UTF-8, laid out as \a format says. An undefined value gives an empty
+    byte array.
+
+    \sa fromJson(), QJsonDocument::toJson()
+*/
+QByteArray QJsonValue::toJson(JsonFormat format) const {
+    if (m_type == Undefined)
+        return QByteArray();
+    const std::string text = QJsonPrivate::write(*this, format == JsonFormat::Compact);
+    QByteArray out(text.data(), static_cast<qsizetype>(text.size()));
+    if (format == JsonFormat::Indented && (m_type == Array || m_type == Object))
+        out.append('\n');
+    return out;
+}
+
+/*!
     Returns the array the value holds, or an empty array if the value is not
     an array.
 */
@@ -694,6 +738,23 @@ QString QJsonValueConstRef::toString() const { return concrete().toString(); }
     Returns the element as a string, or \a defaultValue if it is not one.
 */
 QString QJsonValueConstRef::toString(const QString &defaultValue) const { return concrete().toString(defaultValue); }
+
+/*!
+    \since 6.10
+    Returns a view of the string of the element, or \a defaultValue if it is not a string. The view stays valid as
+    long as the element is not changed or removed.
+*/
+QAnyStringView QJsonValueConstRef::toStringView(QAnyStringView defaultValue) const {
+    // The copy shares the string of the element, so the view points into the element.
+    return concrete().toStringView(defaultValue);
+}
+
+/*!
+    Returns the element as a QVariant.
+
+    \sa QJsonValue::toVariant()
+*/
+QVariant QJsonValueConstRef::toVariant() const { return concrete().toVariant(); }
 
 /*!
     Returns the element as an array, or an empty array if it is not one.

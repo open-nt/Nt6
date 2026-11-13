@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qanystringview.h>
+#include <QtCore/qbytearrayview.h>
 #include <QtCore/qglobal.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringview.h>
@@ -9,6 +11,7 @@
 #include <type_traits>
 
 class QDebug;
+struct QJsonParseError;
 class QVariant;
 class QJsonArray;
 class QJsonObject;
@@ -77,6 +80,18 @@ public:
     double toDouble(double defaultValue = 0) const;
     QString toString() const;
     QString toString(const QString &defaultValue) const;
+    QAnyStringView toStringView(QAnyStringView defaultValue = {}) const;
+    /*!
+        \enum QJsonValue::JsonFormat
+        \since 6.9
+        This enum says how toJson() lays out the text.
+
+        \value Indented Over several lines, indented by four spaces for each level.
+        \value Compact On one line, without spaces.
+    */
+    enum class JsonFormat { Indented, Compact };
+    static QJsonValue fromJson(QByteArrayView json, QJsonParseError *error = nullptr);
+    QByteArray toJson(JsonFormat format = JsonFormat::Indented) const;
     QJsonArray toArray() const;
     QJsonArray toArray(const QJsonArray &defaultValue) const;
     QJsonObject toObject() const;
@@ -129,6 +144,8 @@ public:
     double toDouble(double defaultValue = 0) const;
     QString toString() const;
     QString toString(const QString &defaultValue) const;
+    QAnyStringView toStringView(QAnyStringView defaultValue = {}) const;
+    QVariant toVariant() const;
     QJsonArray toArray() const;
     QJsonArray toArray(const QJsonArray &defaultValue) const;
     QJsonObject toObject() const;

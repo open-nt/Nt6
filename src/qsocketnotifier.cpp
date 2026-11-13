@@ -48,6 +48,40 @@ QSocketNotifier::QSocketNotifier(qintptr socket, Type type, QObject *parent)
 }
 
 /*!
+    \since 6.1
+    Constructs a notifier of the type \a type with the given \a parent and no socket. It is not valid and does
+    nothing until setSocket() gives it one and setEnabled() enables it.
+
+    \sa setSocket(), isValid()
+*/
+QSocketNotifier::QSocketNotifier(Type type, QObject *parent)
+    : QObject(parent), m_fd(-1), m_type(type), m_enabled(false) {}
+
+/*!
+    \since 6.1
+    Makes the notifier watch \a socket instead of its current one. The notifier is disabled as a side effect;
+    enable it with setEnabled(). Call it from the thread that the notifier lives in.
+
+    \sa socket(), isValid()
+*/
+void QSocketNotifier::setSocket(qintptr socket) {
+    auto *td = QtPrivate::objectThreadData(this);
+    if (td != QtPrivate::ThreadData::current()) {
+        qWarning("QSocketNotifier: Socket notifiers cannot be changed from another thread");
+        return;
+    }
+    if (m_id != 0)
+        td->dispatcher.removeNotifier(m_id);
+    m_id = 0;
+    m_fd = socket;
+    m_enabled = false;
+    if (socket >= 0) {
+        m_id = td->dispatcher.addNotifier(this, static_cast<int>(socket), static_cast<int>(m_type));
+        td->dispatcher.setNotifierEnabled(m_id, false);
+    }
+}
+
+/*!
     Destroys the notifier and stops watching the descriptor. The descriptor
     is not closed.
 */
@@ -68,7 +102,8 @@ void QSocketNotifier::setEnabled(bool enable) {
         return;
     }
     m_enabled = enable;
-    td->dispatcher.setNotifierEnabled(m_id, enable);
+    if (m_id != 0)
+        td->dispatcher.setNotifierEnabled(m_id, enable);
 }
 
 /*!

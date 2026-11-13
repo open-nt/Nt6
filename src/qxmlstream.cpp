@@ -48,7 +48,8 @@
     parameter entities are not expanded. External entities are never fetched, and
     QXmlStreamEntityResolver::resolveEntity() is not called. Where the text of an entity is put
     into the document, lineNumber() and columnNumber() count its characters too. After the end of
-    the document, readNext() returns \c Invalid without an error. The names of elements are
+    the document, readNext() returns \c Invalid without an error. readRawInnerData() writes the content
+    out again from its tokens, so entity references come back expanded and attributes in double quotes. The names of elements are
     checked against a simplified set of the characters that XML allows in a name.
     \enddifferences
 
@@ -121,8 +122,8 @@
     \differences
     The functions take a \c{const QString &}; there are no QAnyStringView overloads. Output to a
     device or a byte array is always UTF-8. A namespace that is declared with writeNamespace()
-    before the element it is meant for is declared in that element when it starts. There is no
-    \c stopWritingOnError property and no \c error(): hasError() reports a failed write.
+    before the element it is meant for is declared in that element when it starts. Every piece of output is
+    checked for characters that XML does not allow, names included.
     \enddifferences
 
     \sa QXmlStreamReader
@@ -1780,6 +1781,42 @@ qint64 QXmlStreamReader::columnNumber() const { return d->column; }
 qint64 QXmlStreamReader::characterOffset() const { return d->offset; }
 
 /*!
+    \since 6.10
+    Reads the content of the current element, which must be a start element, and returns it as XML: the text
+    and the child elements between its start and end tags. Afterwards the current token is the end of the element.
+    Returns an empty string, and raises an error, if the current token is not a start element.
+
+    \code
+    // <note>Call <b>now</b>!</note>
+    if (xml.readNextStartElement() && xml.name() == u"note")
+        html = xml.readRawInnerData(); // "Call <b>now</b>!"
+    \endcode
+
+    \sa readElementText()
+*/
+QString QXmlStreamReader::readRawInnerData() {
+    if (d->type != StartElement) {
+        raiseError(QStringLiteral("Expected a start element."));
+        return QString();
+    }
+    QString out;
+    QXmlStreamWriter writer(&out);
+    int depth = 1;
+    while (!atEnd()) {
+        const TokenType t = readNext();
+        if (t == StartElement) {
+            ++depth;
+        } else if (t == EndElement && --depth == 0) {
+            break;
+        } else if (t == Invalid) {
+            return QString();
+        }
+        writer.writeCurrentToken(*this);
+    }
+    return out;
+}
+
+/*!
     Returns the attributes of the current start element, without its namespace declarations.
 
     \sa namespaceDeclarations()
@@ -2046,7 +2083,9 @@ struct QXmlStreamWriter::Private {
     QString *string = nullptr;
     bool autoFormatting = false;
     int indent = 4;
-    bool error = false;
+    Error error = Error::None;
+    QString errorString;
+    bool stopOnError = false;
     bool wroteSomething = false;
     bool inStartTag = false;
     bool inEmptyTag = false;
@@ -2056,8 +2095,41 @@ struct QXmlStreamWriter::Private {
     std::vector<Binding> unwritten; // declared before the element they belong to has started
     int generated = 0;
 
+    // Records the first error; later ones keep it.
+    void raise(Error e, const QString &message) {
+        if (error != Error::None)
+            return;
+        error = e;
+        errorString = message;
+    }
+
+    // Checks that `s` holds only characters that XML 1.0 allows and that UTF-8 can encode.
+    void check(const QString &s) {
+        const char16_t *p = s.utf16();
+        const qsizetype n = s.size();
+        for (qsizetype i = 0; i < n; ++i) {
+            const char16_t c = p[i];
+            if (c >= 0xd800 && c <= 0xdbff && i + 1 < n && p[i + 1] >= 0xdc00 && p[i + 1] <= 0xdfff) {
+                ++i;
+                continue;
+            }
+            if (c >= 0xd800 && c <= 0xdfff) {
+                raise(Error::Encoding, QStringLiteral("Encountered an invalid UTF-16 sequence."));
+                return;
+            }
+            if ((c < 0x20 && c != 0x9 && c != 0xa && c != 0xd) || c == 0xfffe || c == 0xffff) {
+                raise(Error::InvalidCharacter, QStringLiteral("Encountered an invalid XML 1.0 character: U+%1.")
+                                                   .arg(QString::number(c, 16).toUpper().rightJustified(4, u'0')));
+                return;
+            }
+        }
+    }
+
     void write(const QString &s) {
-        if (s.isEmpty())
+        if (s.isEmpty() || (stopOnError && error != Error::None))
+            return;
+        check(s);
+        if (stopOnError && error != Error::None)
             return;
         wroteSomething = true;
         if (string) {
@@ -2067,9 +2139,9 @@ struct QXmlStreamWriter::Private {
         } else if (device) {
             const QByteArray bytes = s.toUtf8();
             if (device->write(bytes) != bytes.size())
-                error = true;
+                raise(Error::IO, QStringLiteral("Writing to the device failed."));
         } else {
-            error = true;
+            raise(Error::IO, QStringLiteral("There is no device to write to."));
         }
     }
     void write(const char *s) { write(QString::fromLatin1(s)); }
@@ -2660,4 +2732,46 @@ void QXmlStreamWriter::writeCurrentToken(const QXmlStreamReader &reader) {
     Returns \c true if writing to the device has failed, or the writer has nothing to write to.
     What is written after an error is lost.
 */
-bool QXmlStreamWriter::hasError() const { return d->error; }
+bool QXmlStreamWriter::hasError() const { return d->error != Error::None; }
+
+/*!
+    \since 6.10
+    Returns what went wrong first, or \c Error::None.
+
+    \sa errorString(), hasError()
+*/
+QXmlStreamWriter::Error QXmlStreamWriter::error() const { return d->error; }
+
+/*!
+    \since 6.10
+    Returns a description of the first error, or an empty string if there was none.
+
+    \sa error()
+*/
+QString QXmlStreamWriter::errorString() const { return d->errorString; }
+
+/*!
+    \since 6.10
+    Records a custom error with the description \a message, unless an error was recorded already. The program can
+    use it to stop writing a document it finds wrong.
+
+    \sa error(), setStopWritingOnError()
+*/
+void QXmlStreamWriter::raiseError(const QString &message) { d->raise(Error::Custom, message); }
+
+/*!
+    \since 6.10
+    Makes the writer stop writing at the first error if \a stop is \c true, so that what it wrote ends where the
+    document stopped being valid. By default it goes on.
+
+    \sa stopWritingOnError(), error()
+*/
+void QXmlStreamWriter::setStopWritingOnError(bool stop) { d->stopOnError = stop; }
+
+/*!
+    \since 6.10
+    Returns \c true if the writer stops writing at the first error; otherwise returns \c false.
+
+    \sa setStopWritingOnError()
+*/
+bool QXmlStreamWriter::stopWritingOnError() const { return d->stopOnError; }

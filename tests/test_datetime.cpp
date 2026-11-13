@@ -419,6 +419,112 @@ static void testTimeLine() {
     CHECK(line.duration() == 120);
 }
 
+static void testTransitionResolution() {
+    using R = QDateTime::TransitionResolution;
+    const QTimeZone berlin("Test/Berlin");
+    const QDate spring(2024, 3, 31), autumn(2024, 10, 27);
+    // 02:30 on 31 March does not exist (02:00 CET becomes 03:00 CEST): 00:30 or 01:00 UTC.
+    // 02:30 on 27 October exists twice (03:00 CEST becomes 02:00 CET): 00:30 and 01:30 UTC.
+    const qint64 gapEarlier = utc(2024, 3, 31, 0, 30).toMSecsSinceEpoch();
+    const qint64 gapLater = utc(2024, 3, 31, 1, 30).toMSecsSinceEpoch();
+    const qint64 foldFirst = utc(2024, 10, 27, 0, 30).toMSecsSinceEpoch();
+    const qint64 foldSecond = utc(2024, 10, 27, 1, 30).toMSecsSinceEpoch();
+    for (const bool local : {false, true}) {
+        auto make = [&](QDate d, R r) {
+            if (!local)
+                return QDateTime(d, QTime(2, 30), berlin, r);
+            QDateTime dt(d, QTime(0, 0));
+            dt.setTime(QTime(2, 30), r);
+            return dt;
+        };
+        // The default moves a time in a gap forward and takes the first occurrence in a fold.
+        CHECK(make(spring, R::LegacyBehavior).toMSecsSinceEpoch() == gapLater);
+        CHECK(make(spring, R::LegacyBehavior).time() == QTime(3, 30));
+        CHECK(make(autumn, R::LegacyBehavior).toMSecsSinceEpoch() == foldFirst);
+        CHECK(make(spring, R::RelativeToAfter).toMSecsSinceEpoch() == gapEarlier);
+        CHECK(make(spring, R::RelativeToAfter).time() == QTime(1, 30));
+        CHECK(make(autumn, R::RelativeToAfter).toMSecsSinceEpoch() == foldSecond);
+        CHECK(make(spring, R::PreferBefore).toMSecsSinceEpoch() == gapEarlier);
+        CHECK(make(spring, R::PreferAfter).toMSecsSinceEpoch() == gapLater);
+        CHECK(make(autumn, R::PreferBefore).toMSecsSinceEpoch() == foldFirst);
+        CHECK(make(autumn, R::PreferAfter).toMSecsSinceEpoch() == foldSecond);
+        CHECK(make(autumn, R::PreferStandard).toMSecsSinceEpoch() == foldSecond);
+        CHECK(make(autumn, R::PreferDaylightSaving).toMSecsSinceEpoch() == foldFirst);
+        CHECK(make(spring, R::PreferStandard).toMSecsSinceEpoch() == gapEarlier);
+        CHECK(make(spring, R::PreferDaylightSaving).toMSecsSinceEpoch() == gapLater);
+        CHECK(!make(spring, R::Reject).isValid() && !make(autumn, R::Reject).isValid());
+        // The second occurrence keeps its offset through copies and comparisons.
+        const QDateTime second = make(autumn, R::PreferAfter);
+        CHECK(second.offsetFromUtc() == 3600 && second.time() == QTime(2, 30));
+        const QDateTime copy = second;
+        CHECK(copy == second && copy.toMSecsSinceEpoch() == foldSecond);
+        // An unambiguous time is not changed by any resolution.
+        CHECK(make(QDate(2024, 7, 1), R::Reject).toMSecsSinceEpoch() == utc(2024, 7, 1, 0, 30).toMSecsSinceEpoch());
+    }
+    // setDate() and setTimeZone() take a resolution too.
+    QDateTime dt(QDate(2024, 1, 1), QTime(2, 30), berlin);
+    dt.setDate(autumn, R::PreferAfter);
+    CHECK(dt.toMSecsSinceEpoch() == foldSecond);
+    QDateTime moved(spring, QTime(2, 30), Qt::UTC);
+    moved.setTimeZone(berlin, R::Reject);
+    CHECK(!moved.isValid());
+    CHECK(QDateTime(spring, QTime(2, 30), Qt::UTC).timeRepresentation() == QTimeZone::utc());
+    CHECK(QDateTime(spring, QTime(2, 30), berlin).timeRepresentation() == berlin);
+}
+
+static void testDateTimeChrono() {
+    using namespace std::chrono;
+    const QDateTime start = utc(2024, 1, 1, 12, 0);
+    CHECK(start.addDuration(hours(2)) == utc(2024, 1, 1, 14, 0));
+    CHECK(start + minutes(30) == utc(2024, 1, 1, 12, 30) && minutes(30) + start == start + minutes(30));
+    CHECK(start - hours(12) == utc(2024, 1, 1, 0, 0));
+    CHECK(utc(2024, 1, 2, 12, 0) - start == hours(24));
+    QDateTime t = start;
+    t += seconds(90);
+    t -= milliseconds(30000);
+    CHECK(t == start.addSecs(60));
+    const auto point = system_clock::time_point(milliseconds(start.toMSecsSinceEpoch()));
+    CHECK(QDateTime::fromStdTimePoint(point) == start && QDateTime::fromStdTimePoint(point).timeSpec() == Qt::UTC);
+    CHECK(QDateTime::fromStdTimePoint(time_point_cast<seconds>(point)) == start);
+    CHECK(start.toStdSysMilliseconds().time_since_epoch().count() == start.toMSecsSinceEpoch());
+    CHECK(static_cast<qint64>(QDateTime::YearRange::First) < 0 && static_cast<qint64>(QDateTime::YearRange::Last) > 0);
+}
+
+static void testZoneAndCalendarAdditions() {
+    CHECK(QTimeZone::fromDurationAheadOfUtc(std::chrono::hours(2)) == QTimeZone::fromSecondsAheadOfUtc(7200));
+    const QTimeZone berlin("Test/Berlin");
+    CHECK(berlin.hasAlternativeName("Test/Berlin") && !berlin.hasAlternativeName("Test/Kolkata"));
+    CHECK(berlin.hasAlternativeName("Test/Alias")); // the same zone under another name
+    CHECK(!berlin.hasAlternativeName("Nope/Nope") && !QTimeZone().hasAlternativeName("Test/Berlin"));
+
+    // Backend zones stand for the same times with Qt::TimeZone as their specification.
+    const QTimeZone utcBackend = QTimeZone::utc().asBackendZone();
+    CHECK(utcBackend.timeSpec() == Qt::TimeZone && utcBackend.offsetFromUtc(QDateTime::currentDateTimeUtc()) == 0);
+    const QTimeZone offsetBackend = QTimeZone::fromSecondsAheadOfUtc(3600).asBackendZone();
+    CHECK(offsetBackend.timeSpec() == Qt::TimeZone &&
+          offsetBackend.offsetFromUtc(QDateTime::currentDateTimeUtc()) == 3600);
+    CHECK(QTimeZone(QTimeZone::LocalTime).asBackendZone() == QTimeZone::systemTimeZone());
+    CHECK(berlin.asBackendZone() == berlin);
+
+    // Formatting in another calendar, and finding the century of a weekday.
+    const QCalendar julian(QCalendar::System::Julian);
+    const QDate date(2024, 3, 1); // 17 February 2024 in the Julian calendar
+    const QLocale c = QLocale::c();
+    CHECK(julian.dateTimeToString(u"yyyy-MM-dd", QDateTime(), date, QTime(), c) == QStringLiteral("2024-02-17"));
+    CHECK(QCalendar().dateTimeToString(u"yyyy-MM-dd", QDateTime(), date, QTime(), c) == QStringLiteral("2024-03-01"));
+    CHECK(julian.dateTimeToString(u"d MMMM yyyy hh:mm", QDateTime(date, QTime(9, 5), Qt::UTC), QDate(), QTime(), c) ==
+          QStringLiteral("17 February 2024 09:05"));
+    CHECK(julian.dateTimeToString(u"hh:mm", QDateTime(), QDate(), QTime(7, 30), c) == QStringLiteral("07:30"));
+    const QCalendar gregorian;
+    // 1 January 2025 is a Wednesday; a Thursday 1 January in a year ending in 25 is in another century.
+    const QDate wednesday = gregorian.matchCenturyToWeekday({2025, 1, 1}, 3);
+    CHECK(wednesday == QDate(2025, 1, 1));
+    const QDate thursday = gregorian.matchCenturyToWeekday({2025, 1, 1}, 4);
+    CHECK(thursday.isValid() && thursday.dayOfWeek() == 4 && thursday.month() == 1 && thursday.day() == 1 &&
+          (thursday.year() - 2025) % 100 == 0);
+    CHECK(!gregorian.matchCenturyToWeekday({2025, 1, 1}, 8).isValid());
+}
+
 int main(int argc, char **argv) {
     QTemporaryDir tzdir;
     if (!tzdir.isValid())
@@ -439,6 +545,9 @@ int main(int argc, char **argv) {
     testTimeZoneBasics();
     testFixedAndSpecialZones();
     testDateTimeWithZones();
+    testTransitionResolution();
+    testDateTimeChrono();
+    testZoneAndCalendarAdditions();
     testCalendar();
     testEasingCurve();
     testChronoTimer();

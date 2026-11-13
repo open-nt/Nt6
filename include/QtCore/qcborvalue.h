@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qanystringview.h>
 #include <QtCore/qbytearray.h>
 #include <QtCore/qcborcommon.h>
 #include <QtCore/qdatetime.h>
@@ -272,6 +273,7 @@ public:
     QCborValue taggedValue(const QCborValue &defaultValue = QCborValue()) const;
     QByteArray toByteArray(const QByteArray &defaultValue = {}) const;
     QString toString(const QString &defaultValue = {}) const;
+    QAnyStringView toStringView(QAnyStringView defaultValue = {}) const;
     QDateTime toDateTime(const QDateTime &defaultValue = {}) const;
     QUrl toUrl(const QUrl &defaultValue = {}) const;
     QRegularExpression toRegularExpression(const QRegularExpression &defaultValue = {}) const;
@@ -395,6 +397,7 @@ public:
     QCborValue taggedValue(const QCborValue &defaultValue = QCborValue()) const;
     QByteArray toByteArray(const QByteArray &defaultValue = {}) const;
     QString toString(const QString &defaultValue = {}) const;
+    QAnyStringView toStringView(QAnyStringView defaultValue = {}) const;
     QDateTime toDateTime(const QDateTime &defaultValue = {}) const;
     QUrl toUrl(const QUrl &defaultValue = {}) const;
     QRegularExpression toRegularExpression(const QRegularExpression &defaultValue = {}) const;

@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <utility>
+
 #include <QtCore/qglobal.h>
 
 #include <exception>
@@ -57,6 +59,11 @@ public:
         : m_exception(std::move(exception)) {}
     QUnhandledException(const QUnhandledException &other) noexcept;
     ~QUnhandledException() noexcept override;
+    /*!
+        \since 6.0
+        Exchanges this exception with \a other.
+    */
+    void swap(QUnhandledException &other) noexcept { std::swap(m_exception, other.m_exception); }
     void raise() const override;
     QUnhandledException *clone() const override;
     /*!

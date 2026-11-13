@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <utility>
+
 #include <QtCore/qstring.h>
 
 class QTemporaryDir {
@@ -10,6 +12,15 @@ public:
     QTemporaryDir(QTemporaryDir &&other) noexcept;
     QTemporaryDir &operator=(QTemporaryDir &&other) noexcept;
     ~QTemporaryDir();
+    /*!
+        \since 6.4
+        Exchanges this temporary directory with \a other.
+    */
+    void swap(QTemporaryDir &other) noexcept {
+        m_path.swap(other.m_path);
+        m_error.swap(other.m_error);
+        std::swap(m_autoRemove, other.m_autoRemove);
+    }
     QTemporaryDir(const QTemporaryDir &) = delete;
     QTemporaryDir &operator=(const QTemporaryDir &) = delete;
 

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qcborvalue.h>
+#include <QtCore/qkeyvalueiterator.h>
 #include <QtCore/qlist.h>
 #include <QtCore/qvariant.h>
 
@@ -457,6 +458,75 @@ public:
         Same as constEnd().
     */
     ConstIterator cend() const { return constEnd(); }
+
+    /*!
+        \typedef QCborMap::key_value_iterator
+        \since 6.4
+        An iterator over the entries that gives each one as a pair of its key and its value.
+    */
+    using key_value_iterator = QKeyValueIterator<QCborValueConstRef, QCborValueRef, Iterator>;
+    /*!
+        \typedef QCborMap::const_key_value_iterator
+        \since 6.4
+        A const iterator over the entries that gives each one as a pair of its key and its value.
+    */
+    using const_key_value_iterator = QKeyValueIterator<QCborValueConstRef, QCborValueConstRef, ConstIterator>;
+    /*!
+        \since 6.4
+        Returns an iterator over the pairs of keys and values, at the first entry.
+
+        \sa keyValueEnd(), asKeyValueRange()
+    */
+    key_value_iterator keyValueBegin() { return key_value_iterator(begin()); }
+    /*!
+        \since 6.4
+        Returns an iterator over the pairs of keys and values, past the last entry.
+    */
+    key_value_iterator keyValueEnd() { return key_value_iterator(end()); }
+    /*!
+        \since 6.4
+        \overload
+    */
+    const_key_value_iterator keyValueBegin() const { return const_key_value_iterator(begin()); }
+    /*!
+        \since 6.4
+        \overload
+    */
+    const_key_value_iterator keyValueEnd() const { return const_key_value_iterator(end()); }
+    /*!
+        \since 6.4
+        Returns a const iterator over the pairs of keys and values, at the first entry.
+    */
+    const_key_value_iterator constKeyValueBegin() const { return keyValueBegin(); }
+    /*!
+        \since 6.4
+        Returns a const iterator over the pairs of keys and values, past the last entry.
+    */
+    const_key_value_iterator constKeyValueEnd() const { return keyValueEnd(); }
+    /*!
+        \since 6.4
+        Returns a range for a range-based \c for loop over the pairs of keys and values, which can be taken apart
+        with a structured binding:
+
+        \code
+        for (auto [key, value] : map.asKeyValueRange())
+            qDebug() << key.toString() << value.toInteger();
+        \endcode
+    */
+    auto asKeyValueRange() & { return QtPrivate::KeyValueRange<QCborMap &, key_value_iterator>(*this); }
+    /*!
+        \since 6.4
+        \overload
+    */
+    auto asKeyValueRange() const & {
+        return QtPrivate::KeyValueRange<const QCborMap &, const_key_value_iterator>(*this);
+    }
+    /*!
+        \since 6.4
+        \overload
+    */
+    auto asKeyValueRange() && { return QtPrivate::KeyValueRange<QCborMap, key_value_iterator>(std::move(*this)); }
+
     Iterator erase(Iterator it);
     Iterator erase(ConstIterator it);
     QCborValue extract(Iterator it);

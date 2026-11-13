@@ -254,6 +254,20 @@ const QMetaObject *findMetaObjectOf(const QObject *object) {
 const char *QMetaObject::className() const { return d.data->className; }
 
 /*!
+    \since 6.0
+    Returns the QMetaType of the class: of the class itself for a gadget, and of a pointer to it for a QObject
+    subclass, as QMetaType::fromType() would. Returns an invalid QMetaType if the type has not been registered.
+
+    \sa className()
+*/
+QMetaType QMetaObject::metaType() const {
+    const QMetaType gadget = QMetaType::fromName(className());
+    if (gadget.isValid() && !inherits(&QObject::staticMetaObject))
+        return gadget;
+    return QMetaType::fromName(QByteArray(className()) + '*');
+}
+
+/*!
     Returns the meta-object of the base class, or \c nullptr if there is none.
 
     \sa inherits()
@@ -695,6 +709,28 @@ bool QMetaObject::connect(const QObject *sender, int signal_index, const QObject
 }
 
 /*!
+    \since 4.7
+    Removes one connection from the signal at \a signal_index of \a sender to the method at \a method_index of
+    \a receiver, the oldest, rather than all of them as disconnect() does. Returns \c true if a connection was
+    removed.
+
+    \sa disconnect()
+*/
+bool QMetaObject::disconnectOne(const QObject *sender, int signal_index, const QObject *receiver, int method_index) {
+    if (!sender || signal_index < 0)
+        return false;
+    const QMetaMethod s = sender->metaObject()->method(signal_index);
+    if (!s.isValid() || s.methodType() != QMetaMethod::Signal || !s.data().signalId)
+        return false;
+    const QMetaMethod m = method_index < 0 || !receiver ? QMetaMethod() : receiver->metaObject()->method(method_index);
+    if (method_index >= 0 && !m.isValid())
+        return false;
+    const QtPrivate::SignalId id = s.data().signalId();
+    const std::string sig = m.isValid() ? std::string(m.methodSignature().constData()) : std::string();
+    return QtPrivate::disconnectConnections(sender, &id, receiver, m.isValid() ? &sig : nullptr, true);
+}
+
+/*!
     Removes the connections from the signal with the index \a signal_index of \a sender to the
     method with the index \a method_index of \a receiver. A negative \a signal_index or
     \a method_index matches any signal or any method. Returns \c true if a connection was
@@ -932,6 +968,21 @@ QByteArray QMetaMethod::methodSignature() const {
 QByteArray QMetaMethod::name() const { return isValid() ? QByteArray(data().name) : QByteArray(); }
 
 /*!
+    \since 6.9
+    Returns the name of the method as a view of the meta-object's own text, which stays valid as long as the
+    program runs. Returns an empty view for an invalid method.
+
+    \sa name()
+*/
+QByteArrayView QMetaMethod::nameView() const { return isValid() ? QByteArrayView(data().name) : QByteArrayView(); }
+
+/*!
+    \since 6.0
+    Returns \c true if the method is a \c const member function; otherwise returns \c false.
+*/
+bool QMetaMethod::isConst() const { return isValid() && (data().flags & 4) != 0; }
+
+/*!
     Returns the name of the return type of the method, \c{"void"} for a method that returns
     nothing, or an empty string for a constructor.
 
@@ -1006,6 +1057,19 @@ QMetaType QMetaMethod::parameterMetaType(int param) const {
 void QMetaMethod::getParameterTypes(int *types) const {
     for (int i = 0; i < parameterCount(); ++i)
         types[i] = parameterType(i);
+}
+
+/*!
+    \since 6.0
+    Returns the name of the type of the parameter at \a param, or an empty byte array if there is no such
+    parameter.
+
+    \sa parameterTypes(), parameterMetaType()
+*/
+QByteArray QMetaMethod::parameterTypeName(int param) const {
+    if (!isValid() || param < 0 || param >= parameterCount())
+        return QByteArray();
+    return QByteArray(data().paramTypes[param]);
 }
 
 /*!
@@ -1408,6 +1472,35 @@ const char *QMetaEnum::valueToKey(int value) const {
 }
 
 /*!
+    \since 6.9
+    Returns the combined value of the keys in \a keys, which are separated by \c{|}, or \c std::nullopt if a key is
+    unknown.
+
+    \sa keysToValue()
+*/
+std::optional<quint64> QMetaEnum::keysToValue64(const char *keys) const {
+    bool ok = false;
+    const int v = keysToValue(keys, &ok);
+    if (!ok)
+        return std::nullopt;
+    return static_cast<quint64>(static_cast<uint>(v));
+}
+
+/*!
+    \since 6.6
+    Returns the QMetaType of the enumeration, found by its qualified name, or an invalid QMetaType if the type has
+    not been registered, as it is the first time QMetaType::fromType() is used for it.
+
+    \sa name(), scope()
+*/
+QMetaType QMetaEnum::metaType() const {
+    if (!isValid())
+        return QMetaType();
+    const QByteArray qualified = QByteArray(scope()) + "::" + name();
+    return QMetaType::fromName(qualified);
+}
+
+/*!
     Returns the combined value of the keys in \a keys, which are separated by \c{|}, such as
     \c{"Read|Write"}. Returns -1 and sets \a ok to \c false if a key is unknown; otherwise sets
     \a ok to \c true if it is not \c nullptr.
@@ -1656,6 +1749,13 @@ bool QMetaProperty::isFinal() const { return isValid() && (data().flags & QtPriv
     \sa isConstant()
 */
 bool QMetaProperty::isRequired() const { return isValid() && (data().flags & QtPrivate::PropRequired); }
+
+/*!
+    \since 6.6
+    Returns \c true if the property is an alias of another property, as QML makes them; otherwise returns
+    \c false. Properties that \c ntmoc records are never aliases.
+*/
+bool QMetaProperty::isAlias() const { return isValid() && (data().flags & QtPrivate::PropAlias); }
 
 /*!
     Returns \c true if the type of the property is an enumeration declared with \c Q_FLAG().

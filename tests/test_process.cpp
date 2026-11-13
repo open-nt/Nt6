@@ -1233,6 +1233,94 @@ static void runAll() {
     run("testInThreads", testInThreads);
 }
 
+// Runs a shell command with `setup` applied to the process and returns its standard output, trimmed.
+static QByteArray shellOutput(const QString &command, const std::function<void(QProcess &)> &setup = {}) {
+    QProcess p;
+    if (setup)
+        setup(p);
+    p.start(QStringLiteral("/bin/sh"), {QStringLiteral("-c"), command});
+    if (!p.waitForFinished(30000))
+        return QByteArray("<timeout>");
+    return p.readAllStandardOutput().trimmed();
+}
+
+static void testUnixProcessParameters() {
+    // The environment as a list of NAME=VALUE strings.
+    QProcess env;
+    CHECK(env.environment().isEmpty());
+    env.setEnvironment({QStringLiteral("NT_A=1"), QStringLiteral("NT_B=x=y"), QStringLiteral("broken")});
+    CHECK(env.processEnvironment().value(QStringLiteral("NT_B")) == QStringLiteral("x=y"));
+    CHECK(env.environment().contains(QStringLiteral("NT_A=1")) && env.environment().size() == 2);
+    CHECK(shellOutput(QStringLiteral("echo $NT_B"), [](QProcess &p) {
+              p.setEnvironment({QStringLiteral("NT_B=x=y"), QStringLiteral("PATH=/usr/bin:/bin")});
+          }) == "x=y");
+
+    // The modifier can be read back, and it can make the start fail with a reason.
+    QProcess failing;
+    CHECK(!failing.childProcessModifier());
+    failing.setChildProcessModifier([] { QProcess::failChildProcessModifier("no jail", ENOENT); });
+    CHECK(static_cast<bool>(failing.childProcessModifier()));
+    failing.start(helper(), {"exit", "0"});
+    CHECK(!failing.waitForStarted(30000));
+    CHECK(failing.error() == QProcess::FailedToStart);
+    CHECK(failing.errorString().contains(QStringLiteral("no jail")) &&
+          failing.errorString().contains(QString::fromUtf8(std::strerror(ENOENT))));
+    QProcess failingQuietly;
+    failingQuietly.setChildProcessModifier([] { QProcess::failChildProcessModifier("plain"); });
+    failingQuietly.start(helper(), {"exit", "0"});
+    CHECK(!failingQuietly.waitForStarted(30000) && failingQuietly.errorString().endsWith(QStringLiteral("plain")));
+
+    // The parameters are kept, and the flags-only overload resets the rest.
+    QProcess params;
+    CHECK(params.unixProcessParameters().flags == QProcess::UnixProcessFlags());
+    QProcess::UnixProcessParameters up;
+    up.flags = QProcess::UnixProcessFlag::CloseFileDescriptors;
+    up.lowestFileDescriptorToClose = 40;
+    params.setUnixProcessParameters(up);
+    CHECK(params.unixProcessParameters().lowestFileDescriptorToClose == 40);
+    params.setUnixProcessParameters(QProcess::UnixProcessFlag::IgnoreSigPipe);
+    CHECK(params.unixProcessParameters().flags == QProcess::UnixProcessFlag::IgnoreSigPipe &&
+          params.unixProcessParameters().lowestFileDescriptorToClose == 0);
+
+    // A descriptor that is not close-on-exec is inherited, unless CloseFileDescriptors closes it.
+    const int fd = ::open("/dev/null", O_RDONLY);
+    const int leaked = ::fcntl(fd, F_DUPFD, 50);
+    ::close(fd);
+    CHECK(leaked >= 50);
+    const QString check = QStringLiteral("test -e /proc/self/fd/%1 && echo open || echo closed").arg(leaked);
+    CHECK(shellOutput(check) == "open");
+    CHECK(shellOutput(check, [](QProcess &p) {
+              p.setUnixProcessParameters(QProcess::UnixProcessFlag::CloseFileDescriptors);
+          }) == "closed");
+    CHECK(shellOutput(check, [leaked](QProcess &p) {
+              QProcess::UnixProcessParameters keepLow;
+              keepLow.flags = QProcess::UnixProcessFlag::CloseFileDescriptors;
+              keepLow.lowestFileDescriptorToClose = leaked + 1;
+              p.setUnixProcessParameters(keepLow);
+          }) == "open");
+    ::close(leaked);
+
+    // SIGPIPE ignored (bit 13 of SigIgn), a new session, no core dumps.
+    const QString sigIgn = QStringLiteral("grep SigIgn /proc/self/status | cut -f2");
+    auto ignoresPipe = [](const QByteArray &mask) { return (mask.toULongLong(nullptr, 16) & (1ULL << 12)) != 0; };
+    CHECK(!ignoresPipe(shellOutput(sigIgn)));
+    CHECK(ignoresPipe(shellOutput(
+        sigIgn, [](QProcess &p) { p.setUnixProcessParameters(QProcess::UnixProcessFlag::IgnoreSigPipe); })));
+    const QString session = QStringLiteral("echo $$ $(cut -d' ' -f6 /proc/$$/stat)");
+    const QList<QByteArray> fresh =
+        shellOutput(session, [](QProcess &p) {
+            p.setUnixProcessParameters(QProcess::UnixProcessFlag::CreateNewSession |
+                                       QProcess::UnixProcessFlag::DisconnectControllingTerminal);
+        }).split(' ');
+    CHECK(fresh.size() == 2 && fresh[0] == fresh[1]);
+    const QList<QByteArray> inherited = shellOutput(session).split(' ');
+    CHECK(inherited.size() == 2 && inherited[0] != inherited[1]);
+    CHECK(shellOutput(QStringLiteral("ulimit -c"), [](QProcess &p) {
+              p.setUnixProcessParameters(QProcess::UnixProcessFlag::DisableCoreDumps |
+                                         QProcess::UnixProcessFlag::ResetIds);
+          }) == "0");
+}
+
 int main() {
     testEnvironment();
     testSplitCommand();
@@ -1243,6 +1331,7 @@ int main() {
     testGrandchildHoldingPipe();
     testDetached();
     testStartCommandAndOpen();
+    testUnixProcessParameters();
 
     // The same again with a kernel that has no pidfd: children are polled with waitpid().
     g_modeName = "poll";

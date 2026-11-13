@@ -56,8 +56,22 @@ public:
     static bool isMainThread();
     bool isCurrentThread() const noexcept;
 
+    /*!
+        \enum QThread::QualityOfService
+        \since 6.9
+        This enum tells the system what a thread is for, so that it can pick the cores to run it on.
+
+        \value Auto The system decides.
+        \value High The thread does work that the user waits for.
+        \value Eco The thread does background work that can run slower to save power.
+    */
+    enum class QualityOfService { Auto, High, Eco };
+    Q_ENUM(QualityOfService)
+
     void setPriority(Priority priority);
     Priority priority() const;
+    void setServiceLevel(QualityOfService serviceLevel);
+    QualityOfService serviceLevel() const;
 
     bool isFinished() const;
     bool isRunning() const;
@@ -94,8 +108,13 @@ public:
     static void usleep(unsigned long usecs);
     static void sleep(std::chrono::nanoseconds nsecs);
 
+protected:
+    static void setTerminationEnabled(bool enabled = true);
+
+public:
 public slots:
     void start(Priority priority = InheritPriority);
+    void terminate();
     void exit(int retcode = 0);
     void quit();
 

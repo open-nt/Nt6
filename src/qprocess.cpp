@@ -11,6 +11,8 @@
 #include <poll.h>
 #include <pthread.h>
 #include <signal.h>
+#include <sys/ioctl.h>
+#include <sys/resource.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
@@ -21,6 +23,8 @@
 #include <atomic>
 #include <cerrno>
 #include <chrono>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <vector>
 
@@ -218,15 +222,72 @@ struct ChildSpec {
     int err;
     int reportFd;
     const std::function<void()> *modifier;
+    QProcess::UnixProcessParameters params;
 };
+
+// What a child that could not start writes to the report pipe, in one write that is smaller than PIPE_BUF.
+struct ChildReport {
+    int error = 0;
+    int fromModifier = 0; // set by QProcess::failChildProcessModifier()
+    char description[248] = {};
+};
+
+// The report pipe of the child that is being set up; only the forked child sets it.
+int g_childReportFd = -1;
+
+[[noreturn]] void reportChildFailure(int reportFd, int error, const char *description) {
+    ChildReport report;
+    report.error = error;
+    if (description) {
+        report.fromModifier = 1;
+        std::size_t i = 0;
+        for (; description[i] && i + 1 < sizeof report.description; ++i)
+            report.description[i] = description[i];
+        report.description[i] = '\0';
+    }
+    [[maybe_unused]] const ssize_t r = ::write(reportFd, &report, sizeof report);
+    ::_exit(127);
+}
+
+// Closes the descriptors from `lowest` on, except `keep`.
+void closeDescriptorsFrom(int lowest, int keep) {
+    struct rlimit limit;
+    int max = 65536;
+    if (::getrlimit(RLIMIT_NOFILE, &limit) == 0 && limit.rlim_cur != RLIM_INFINITY)
+        max = static_cast<int>(std::min<rlim_t>(limit.rlim_cur, 1 << 20));
+#ifdef SYS_close_range
+    // One call for each side of the descriptor that is kept; fall back to the loop on older kernels.
+    if (keep < lowest || keep >= max) {
+        if (::syscall(SYS_close_range, lowest, ~0U, 0) == 0)
+            return;
+    } else if ((keep == lowest || ::syscall(SYS_close_range, lowest, keep - 1, 0) == 0) &&
+               ::syscall(SYS_close_range, keep + 1, ~0U, 0) == 0) {
+        return;
+    }
+#endif
+    for (int fd = lowest; fd < max; ++fd) {
+        if (fd != keep)
+            ::close(fd);
+    }
+}
+
+// The error text for a child that could not start.
+QString childFailureText(const ChildReport &report) {
+    if (report.fromModifier) {
+        const QString what = QString::fromUtf8(report.description);
+        return report.error ? QString::fromUtf8("Child process modifier reported error: %1: %2")
+                                  .arg(what, errnoString(report.error))
+                            : QString::fromUtf8("Child process modifier reported error: %1").arg(what);
+    }
+    return QString::fromUtf8("Process failed to start: %1").arg(errnoString(report.error));
+}
 
 // Runs in the forked child; only async-signal-safe calls are made besides the user's modifier.
 [[noreturn]] void childMain(const ChildSpec &c) {
-    auto fail = [&c]() {
-        const int e = errno;
-        [[maybe_unused]] const ssize_t r = ::write(c.reportFd, &e, sizeof e);
-        ::_exit(127);
-    };
+    g_childReportFd = c.reportFd;
+    auto fail = [&c]() { reportChildFailure(c.reportFd, errno, nullptr); };
+    using Flag = QProcess::UnixProcessFlag;
+    const QProcess::UnixProcessFlags flags = c.params.flags;
     for (int sig = 1; sig < 65; ++sig) {
         struct sigaction sa;
         if (::sigaction(sig, nullptr, &sa) != 0)
@@ -237,7 +298,7 @@ struct ChildSpec {
         sa.sa_handler = SIG_DFL;
         ::sigaction(sig, &sa, nullptr);
     }
-    ::signal(SIGPIPE, SIG_DFL);
+    ::signal(SIGPIPE, flags.testFlag(Flag::IgnoreSigPipe) ? SIG_IGN : SIG_DFL);
     if (c.in >= 0 && ::dup2(c.in, 0) < 0)
         fail();
     if (c.out >= 0 && ::dup2(c.out, 1) < 0)
@@ -250,6 +311,26 @@ struct ChildSpec {
     }
     if (c.cwd && ::chdir(c.cwd) != 0)
         fail();
+    if (flags.testFlag(Flag::CloseFileDescriptors))
+        closeDescriptorsFrom(std::max(3, c.params.lowestFileDescriptorToClose), c.reportFd);
+    if (flags.testFlag(Flag::CreateNewSession) && ::setsid() < 0)
+        fail();
+    if (flags.testFlag(Flag::DisconnectControllingTerminal)) {
+        const int tty = ::open("/dev/tty", O_RDONLY | O_NOCTTY | O_CLOEXEC);
+        if (tty >= 0) {
+            ::ioctl(tty, TIOCNOTTY);
+            ::close(tty);
+        }
+    }
+    if (flags.testFlag(Flag::ResetIds)) {
+        if (::setgid(::getgid()) != 0 || ::setuid(::getuid()) != 0)
+            fail();
+    }
+    if (flags.testFlag(Flag::DisableCoreDumps)) {
+        struct rlimit none = {0, 0};
+        if (::setrlimit(RLIMIT_CORE, &none) != 0)
+            fail();
+    }
     sigset_t none;
     sigemptyset(&none);
     ::sigprocmask(SIG_SETMASK, &none, nullptr);
@@ -489,6 +570,7 @@ struct QProcess::Private {
     QPointer<QProcess> stdinSource;
     int chain[2] = {-1, -1};
     std::function<void()> childModifier;
+    QProcess::UnixProcessParameters unixParams;
 
     ProcessState state = NotRunning;
     ProcessError lastError = UnknownError;
@@ -667,9 +749,8 @@ struct QProcess::Private {
     \differences
     The platform is POSIX only. The write buffer is unbounded and there is no
     setReadBufferSize(). A crashed child reports an exitCode() of 0 and
-    exitStatus() \c CrashExit. There is no deprecated setEnvironment() or
-    environment(), no UnixProcessParameters and no \c
-    setCreateProcessArgumentsModifier().
+    exitStatus() \c CrashExit. There is no \c setCreateProcessArgumentsModifier(), and
+    \c UnixProcessFlag::UseVFork is ignored.
     The poller of an unsupported kernel adds up to 10 ms of delay in
     detecting the end of a child. The finished() signal has no overload
     taking only the exit code.
@@ -1055,6 +1136,91 @@ void QProcess::setStandardOutputProcess(QProcess *destination) {
     \sa start()
 */
 void QProcess::setChildProcessModifier(const std::function<void()> &modifier) { d->childModifier = modifier; }
+
+/*!
+    \since 6.0
+    Returns the modifier set with setChildProcessModifier(), or an empty function if there is none.
+*/
+std::function<void()> QProcess::childProcessModifier() const { return d->childModifier; }
+
+/*!
+    \since 6.7
+    Reports from a child process modifier that the child cannot go on, and ends the child. The QProcess fails to
+    start with \c FailedToStart, and errorString() holds \a description and, if \a error is not 0, the text of
+    that \c errno value. Only call it from the modifier; it is async-signal-safe.
+
+    \code
+    process.setChildProcessModifier([] {
+        if (::chroot("/srv/jail") != 0)
+            QProcess::failChildProcessModifier("chroot", errno);
+    });
+    \endcode
+
+    \sa setChildProcessModifier()
+*/
+void QProcess::failChildProcessModifier(const char *description, int error) noexcept {
+    if (g_childReportFd < 0) {
+        std::fputs("QProcess::failChildProcessModifier() called outside a child process modifier\n", stderr);
+        std::abort();
+    }
+    reportChildFailure(g_childReportFd, error, description ? description : "");
+}
+
+/*!
+    \since 6.6
+    Returns what the child process does to itself before it runs the program.
+
+    \sa setUnixProcessParameters()
+*/
+QProcess::UnixProcessParameters QProcess::unixProcessParameters() const noexcept { return d->unixParams; }
+
+/*!
+    \since 6.6
+    Sets what the child process does to itself before it runs the program, and before the child process
+    modifier, to \a params.
+
+    \code
+    QProcess process;
+    process.setUnixProcessParameters(QProcess::UnixProcessFlag::CloseFileDescriptors |
+                                     QProcess::UnixProcessFlag::ResetIds);
+    \endcode
+
+    \sa unixProcessParameters(), setChildProcessModifier()
+*/
+void QProcess::setUnixProcessParameters(const UnixProcessParameters &params) { d->unixParams = params; }
+
+/*!
+    \since 6.6
+    \overload
+    Sets the flags of the parameters to \a flagsOnly and the other members to their defaults.
+*/
+void QProcess::setUnixProcessParameters(UnixProcessFlags flagsOnly) {
+    d->unixParams = UnixProcessParameters();
+    d->unixParams.flags = flagsOnly;
+}
+
+/*!
+    Returns the environment of the child as a list of \c{NAME=VALUE} strings, or an empty list if none was set
+    and the child inherits the environment of this process.
+
+    \sa setEnvironment(), processEnvironment()
+*/
+QStringList QProcess::environment() const { return d->environment.toStringList(); }
+
+/*!
+    Sets the environment of the child to \a environment, a list of \c{NAME=VALUE} strings.
+
+    \sa environment(), setProcessEnvironment()
+*/
+void QProcess::setEnvironment(const QStringList &environment) {
+    QProcessEnvironment env;
+    for (const QString &entry : environment) {
+        const qsizetype eq = entry.indexOf(QLatin1Char('='), 1);
+        if (eq > 0)
+            env.insert(entry.left(eq), entry.mid(eq + 1));
+    }
+    setProcessEnvironment(env);
+}
 
 /*!
     Returns the type of error that occurred last, or \c UnknownError if none
@@ -1489,7 +1655,8 @@ bool QProcess::Private::launch(OpenMode mode, QString *err) {
                          ch.out,
                          ch.err,
                          report[1],
-                         &modifier};
+                         &modifier,
+                         unixParams};
     pid_t child;
     {
         SignalBlock block;
@@ -1579,7 +1746,8 @@ bool QProcess::Private::launchDetached(qint64 *pidOut) {
                              ch.out,
                              ch.err,
                              report[1],
-                             &modifier};
+                             &modifier,
+                             unixParams};
         pid_t first;
         {
             SignalBlock block;
@@ -1609,12 +1777,12 @@ bool QProcess::Private::launchDetached(qint64 *pidOut) {
             if (n != static_cast<ssize_t>(sizeof grandchild) || grandchild < 0) {
                 err = QString::fromUtf8("Resource error (fork failure): %1").arg(errnoString(EAGAIN));
             } else {
-                int childErrno = 0;
+                ChildReport childReport;
                 do {
-                    n = ::read(report[0], &childErrno, sizeof childErrno);
+                    n = ::read(report[0], &childReport, sizeof childReport);
                 } while (n < 0 && errno == EINTR);
-                if (n == static_cast<ssize_t>(sizeof childErrno)) {
-                    err = QString::fromUtf8("Process failed to start: %1").arg(errnoString(childErrno));
+                if (n == static_cast<ssize_t>(sizeof childReport)) {
+                    err = childFailureText(childReport);
                 } else {
                     if (pidOut)
                         *pidOut = grandchild;
@@ -1695,19 +1863,19 @@ void QProcess::Private::failStart(const QString &text) {
 bool QProcess::Private::onStartup() {
     if (startFd < 0 || state != Starting)
         return state != Starting;
-    int e = 0;
+    ChildReport report;
     ssize_t n;
     do {
-        n = ::read(startFd, &e, sizeof e);
+        n = ::read(startFd, &report, sizeof report);
     } while (n < 0 && errno == EINTR);
     if (n < 0 && (errno == EAGAIN || errno == EWOULDBLOCK))
         return false;
     dropNotifier(startNotifier);
     closeFd(startFd);
-    if (n == static_cast<ssize_t>(sizeof e)) {
+    if (n == static_cast<ssize_t>(sizeof report)) {
         if (pid > 0)
             waitPid(pid, nullptr, 0);
-        failStart(QString::fromUtf8("Process failed to start: %1").arg(errnoString(e)));
+        failStart(childFailureText(report));
         return true;
     }
     QPointer<QProcess> guard(q);

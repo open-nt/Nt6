@@ -948,6 +948,83 @@ static void testStandardPathsTestMode() {
     CHECK(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation) != home + "/.qttest/share");
 }
 
+static void testFilesystemPaths() {
+    const QString dirPath = g_root + "/fs";
+    CHECK(QDir().mkpath(dirPath));
+    const QString filePath = dirPath + QString::fromUtf8("/caf\xc3\xa9.txt");
+    CHECK(writeFile(filePath, "data"));
+#ifdef NT_HAS_STD_FILESYSTEM
+    // QString and std::filesystem::path convert both ways, non-ASCII names included.
+    const std::filesystem::path fsFile = std::filesystem::u8path(filePath.toStdString());
+    QFileInfo info(fsFile);
+    CHECK(info.exists() && info.isFile() && info.filePath() == filePath);
+    CHECK(info.filesystemFilePath() == fsFile);
+    CHECK(info.filesystemPath() == std::filesystem::u8path(dirPath.toStdString()));
+    CHECK(info.filesystemAbsoluteFilePath().is_absolute());
+    CHECK(QtPrivate::fromFilesystemPath(info.filesystemCanonicalFilePath()) == info.canonicalFilePath());
+    CHECK(QtPrivate::fromFilesystemPath(info.filesystemAbsolutePath()) == info.absolutePath());
+    CHECK(QtPrivate::fromFilesystemPath(info.filesystemCanonicalPath()) == info.canonicalPath());
+    QFileInfo other;
+    other.setFile(fsFile);
+    CHECK(other == info);
+
+    QDir dir(std::filesystem::u8path(dirPath.toStdString()));
+    CHECK(dir.exists() && dir.path() == dirPath &&
+          dir.filesystemPath() == std::filesystem::u8path(dirPath.toStdString()));
+    CHECK(QtPrivate::fromFilesystemPath(dir.filesystemAbsolutePath()) == dir.absolutePath());
+    CHECK(QtPrivate::fromFilesystemPath(dir.filesystemCanonicalPath()) == dir.canonicalPath());
+    QDir filtered(std::filesystem::path(dirPath.toStdString()), QStringLiteral("*.txt"));
+    CHECK(filtered.entryList(QDir::Files).size() == 1);
+    QDir moved;
+    moved.setPath(std::filesystem::path(dirPath.toStdString()));
+    CHECK(moved.path() == dirPath);
+    QDir::addSearchPath(QStringLiteral("fstest"), std::filesystem::path(dirPath.toStdString()));
+    CHECK(QDir::searchPaths(QStringLiteral("fstest")).contains(dirPath));
+
+    QFile file(fsFile);
+    CHECK(file.fileName() == filePath && file.filesystemFileName() == fsFile && file.exists());
+    CHECK(QFile::exists(fsFile));
+    const std::filesystem::path copyPath = std::filesystem::path(dirPath.toStdString()) / "copy.txt";
+    CHECK(file.copy(copyPath) && QFile::exists(copyPath));
+    const std::filesystem::path linkPath = std::filesystem::path(dirPath.toStdString()) / "link.txt";
+    CHECK(file.link(linkPath));
+    QFile link;
+    link.setFileName(linkPath);
+    CHECK(link.filesystemSymLinkTarget() == fsFile);
+    CHECK(QFile::filesystemSymLinkTarget(linkPath) == fsFile);
+    QFile renamed(copyPath, nullptr);
+    CHECK(renamed.rename(std::filesystem::path(dirPath.toStdString()) / "renamed.txt"));
+    CHECK(QFile::exists(dirPath + "/renamed.txt"));
+#endif
+
+    // readSymLink() keeps the link's own text; symLinkTarget() makes it absolute.
+    CHECK(::symlink("caf\xc3\xa9.txt", (dirPath + "/relative").toUtf8().constData()) == 0);
+    const QFileInfo relative(dirPath + "/relative");
+    CHECK(relative.isSymLink() && relative.readSymLink() == QString::fromUtf8("caf\xc3\xa9.txt"));
+    CHECK(relative.symLinkTarget() == filePath);
+    CHECK(QFileInfo(filePath).readSymLink().isEmpty());
+#ifdef NT_HAS_STD_FILESYSTEM
+    CHECK(relative.filesystemReadSymLink() == std::filesystem::u8path("caf\xc3\xa9.txt"));
+    CHECK(relative.filesystemSymLinkTarget() == fsFile);
+#endif
+
+    // isOther(): a FIFO is neither a file nor a directory; nor is a link to one.
+    const QString fifo = dirPath + "/fifo";
+    CHECK(::mkfifo(fifo.toUtf8().constData(), 0600) == 0);
+    CHECK(QFileInfo(fifo).isOther() && !QFileInfo(fifo).isFile() && !QFileInfo(fifo).isDir());
+    CHECK(::symlink("fifo", (dirPath + "/fifolink").toUtf8().constData()) == 0);
+    CHECK(QFileInfo(dirPath + "/fifolink").isOther());
+    CHECK(!QFileInfo(filePath).isOther() && !QFileInfo(dirPath).isOther() && !QFileInfo(dirPath + "/none").isOther());
+
+    // stat() reads the file again now, even with caching on.
+    QFileInfo cached(filePath);
+    CHECK(cached.size() == 4);
+    CHECK(writeFile(filePath, "longer data"));
+    CHECK(cached.size() == 4); // still the cached size
+    cached.stat();
+    CHECK(cached.size() == 11);
+}
+
 int main() {
     const char *tmp = std::getenv("TMPDIR");
     const QString tmpBase = tmp && *tmp ? QDir::cleanPath(QString::fromUtf8(tmp)) : QString::fromUtf8("/tmp");
@@ -975,6 +1052,7 @@ int main() {
     testFileExtras();
     testFileMappingAndHandles();
     testStandardPathsTestMode();
+    testFilesystemPaths();
 
     // Restore permissions that could block cleanup, then remove the sandbox.
     ::chmod((g_root + "/rodir").toUtf8().constData(), 0755);

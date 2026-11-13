@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QByteArray>
 #include <QDebug>
+#include <QCborArray>
+#include <QCborValue>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -1370,6 +1372,42 @@ static void testVariantMetaTypes() {
     CHECK(QMetaType::typeName(QMetaType::QJsonArray) == std::string("QJsonArray"));
 }
 
+static void testValueText() {
+    // fromJson() reads a value of any type.
+    CHECK(QJsonValue::fromJson("42").toInteger() == 42);
+    CHECK(QJsonValue::fromJson("  \"hi\"  ").toString() == QStringLiteral("hi"));
+    CHECK(QJsonValue::fromJson("true").toBool() && QJsonValue::fromJson("null").isNull());
+    CHECK(QJsonValue::fromJson("[1, 2]").toArray().size() == 2);
+    CHECK(QJsonValue::fromJson("{\"a\": 1}").toObject().value(QStringLiteral("a")).toInt() == 1);
+    QJsonParseError error;
+    CHECK(QJsonValue::fromJson("1 2", &error).isNull() && error.error == QJsonParseError::GarbageAtEnd);
+    CHECK(QJsonValue::fromJson("", &error).isNull() && error.error != QJsonParseError::NoError);
+    CHECK(QJsonValue::fromJson("\"open", &error).isNull() && error.error != QJsonParseError::NoError);
+    CHECK(!QJsonValue::fromJson("7", &error).isNull() && error.error == QJsonParseError::NoError);
+
+    // toJson() writes a value of any type.
+    CHECK(QJsonValue(1.5).toJson() == "1.5" && QJsonValue(QStringLiteral("a\"b")).toJson() == "\"a\\\"b\"");
+    CHECK(QJsonValue().toJson() == "null" && QJsonValue(QJsonValue::Undefined).toJson().isEmpty());
+    const QJsonValue array(QJsonArray{1, QJsonObject{{QStringLiteral("k"), true}}});
+    CHECK(array.toJson(QJsonValue::JsonFormat::Compact) == "[1,{\"k\":true}]");
+    CHECK(array.toJson() == QJsonDocument(array.toArray()).toJson());
+    CHECK(QJsonValue::fromJson(array.toJson()) == array);
+
+    // toStringView() views the stored string, also through references.
+    const QJsonValue text(QStringLiteral("view"));
+    CHECK(text.toStringView() == QStringLiteral("view") && QJsonValue(3).toStringView(u"def") == QStringLiteral("def"));
+    QJsonArray list{QStringLiteral("x"), 2};
+    CHECK(list[0].toStringView() == QStringLiteral("x") && std::as_const(list)[1].toStringView().isNull());
+    CHECK(list[1].toVariant().toInt() == 2 && std::as_const(list)[0].toVariant().toString() == QStringLiteral("x"));
+    const QJsonObject object{{QStringLiteral("name"), QStringLiteral("Nt")}};
+    CHECK(object[QStringLiteral("name")].toStringView() == QStringLiteral("Nt"));
+
+    const QCborValue cbor(QStringLiteral("cbor"));
+    CHECK(cbor.toStringView() == QStringLiteral("cbor") && QCborValue(1).toStringView(u"no") == QStringLiteral("no"));
+    QCborArray cborList{QStringLiteral("y")};
+    CHECK(cborList[0].toStringView() == QStringLiteral("y"));
+}
+
 int main() {
     testValueBasics();
     testValueComparison();
@@ -1397,6 +1435,7 @@ int main() {
     testVariantRoundTrip();
     testVariantDocument();
     testVariantMetaTypes();
+    testValueText();
     if (g_failures) {
         std::printf("%d failure(s)\n", g_failures);
         return 1;

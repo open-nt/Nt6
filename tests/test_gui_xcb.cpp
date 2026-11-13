@@ -21,6 +21,20 @@
 #include <cstdlib>
 #include <cstring>
 
+// Under AddressSanitizer: one check makes an OpenGL context, and the OpenGL drivers keep their EGL displays,
+// dispatch tables and compiled code to the end of the process (see test_opengl.cpp). These defaults apply to this
+// test alone; the leaks of Nt are still reported.
+#if defined(__SANITIZE_ADDRESS__)
+// The sanitizer runtime looks these up by name; declared first for -Wmissing-declarations.
+extern "C" const char *__asan_default_options();
+extern "C" const char *__lsan_default_suppressions();
+extern "C" const char *__asan_default_options() { return "fast_unwind_on_malloc=0"; }
+extern "C" const char *__lsan_default_suppressions() {
+    return "leak:libEGL_mesa\nleak:libgallium\nleak:libGLX_mesa\nleak:libEGL_nvidia\nleak:libnvidia-\n"
+           "leak:libGLdispatch\nleak:libdrm\nleak:libdbus-1\nleak:libxcb\nleak:libX11\n";
+}
+#endif
+
 static int g_failures = 0;
 #define CHECK(cond)                                                                                                    \
     do {                                                                                                               \

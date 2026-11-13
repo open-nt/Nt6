@@ -108,6 +108,17 @@ class QMessageAuthenticationCode {
 public:
     explicit QMessageAuthenticationCode(QCryptographicHash::Algorithm method, QByteArrayView key = {});
     ~QMessageAuthenticationCode();
+    /*!
+        \since 6.6
+        Exchanges this object with \a other.
+    */
+    void swap(QMessageAuthenticationCode &other) noexcept {
+        std::swap(m_method, other.m_method);
+        m_outerPad.swap(other.m_outerPad);
+        m_innerPad.swap(other.m_innerPad);
+        m_inner.swap(other.m_inner);
+        m_resultCache.swap(other.m_resultCache);
+    }
 
     void reset();
     void setKey(QByteArrayView key);

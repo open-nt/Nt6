@@ -876,6 +876,67 @@ static void testRefs() {
     CHECK(s < V(u"t"_s) && s == V(u"s"_s));
 }
 
+static void testStringChunks() {
+    // ["abc" "de" in chunks, h'78797a'] as one indefinite text string and one byte string.
+    const QByteArray bytes = QByteArray::fromHex("827f63616263626465ff4378797a");
+    {
+        QCborStreamReader r(bytes);
+        CHECK(r.enterContainer());
+        CHECK(r.isString() && r.currentStringChunkSize() == 3);
+        char buf[8] = {};
+        auto c = r.readStringChunk(buf, sizeof buf);
+        CHECK(c.status == QCborStreamReader::Ok && c.data == 3 && QByteArray(buf, 3) == "abc");
+        CHECK(r.currentStringChunkSize() == 2);
+        c = r.readStringChunk(nullptr, 0); // skipped
+        CHECK(c.status == QCborStreamReader::Ok && c.data == 2);
+        CHECK(r.currentStringChunkSize() == -1);
+        c = r.readStringChunk(buf, sizeof buf);
+        CHECK(c.status == QCborStreamReader::EndOfString);
+        CHECK(r.isByteArray() && r.currentStringChunkSize() == 3);
+        c = r.readStringChunk(buf, 2); // cut at the buffer
+        CHECK(c.status == QCborStreamReader::Ok && c.data == 2 && QByteArray(buf, 2) == "xy");
+        CHECK(r.readStringChunk(buf, 2).status == QCborStreamReader::EndOfString);
+        CHECK(!r.hasNext() && r.leaveContainer());
+        CHECK(r.currentStringChunkSize() == -1);
+    }
+    {
+        // Appending whole strings to what is there.
+        QCborStreamReader r(bytes);
+        r.enterContainer();
+        QString text = QStringLiteral(">");
+        CHECK(r.readAndAppendToString(text) && text == QStringLiteral(">abcde"));
+        QByteArray blob("<");
+        CHECK(r.readAndAppendToByteArray(blob) && blob == "<xyz");
+        QCborStreamReader again(bytes);
+        again.enterContainer();
+        QByteArray utf8;
+        CHECK(again.readAndAppendToUtf8String(utf8) && utf8 == "abcde");
+        QByteArray wrong;
+        CHECK(!again.readAndAppendToUtf8String(wrong)); // a byte string is not text
+    }
+}
+
+static void testMapKeyValues() {
+    QCborMap map{{QStringLiteral("a"), 1}, {QStringLiteral("b"), 2}};
+    QStringList keys;
+    qint64 sum = 0;
+    for (auto [key, value] : std::as_const(map).asKeyValueRange()) {
+        keys.append(key.toString());
+        sum += value.toInteger();
+    }
+    CHECK((keys == QStringList{QStringLiteral("a"), QStringLiteral("b")}) && sum == 3);
+    for (auto [key, value] : map.asKeyValueRange())
+        value = value.toInteger() * 10;
+    CHECK(map.value(QStringLiteral("a")).toInteger() == 10 && map.value(QStringLiteral("b")).toInteger() == 20);
+    auto it = map.keyValueBegin();
+    CHECK((*it).first.toString() == QStringLiteral("a") && it->second.toInteger() == 10);
+    CHECK(std::distance(map.constKeyValueBegin(), map.constKeyValueEnd()) == 2);
+    int n = 0;
+    for (auto entry : QCborMap{{1, 2}}.asKeyValueRange())
+        n += static_cast<int>(entry.first.toInteger() + entry.second.toInteger());
+    CHECK(n == 3);
+}
+
 int main() {
     testRfcExamples();
     testValues();
@@ -889,6 +950,8 @@ int main() {
     testConversions();
     testDiagnosticNotation();
     testRefs();
+    testStringChunks();
+    testMapKeyValues();
 
     if (g_failures) {
         std::printf("%d CBOR test check(s) failed\n", g_failures);

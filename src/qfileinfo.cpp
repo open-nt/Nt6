@@ -363,8 +363,24 @@ QDir QFileInfo::absoluteDir() const { return QDir(absolutePath()); }
     \sa isSymLink()
 */
 QString QFileInfo::symLinkTarget() const {
+    const QString target = readSymLink();
+    if (target.isEmpty())
+        return QString();
+    if (QDir::isAbsolutePath(target))
+        return QDir::cleanPath(target);
+    return QDir::cleanPath(absolutePath() + QChar(u'/') + target);
+}
+
+/*!
+    \since 6.6
+    Returns the path that the symbolic link holds, as it is written in the link: a relative path stays relative to
+    the directory of the link. Returns an empty string if the file is not a symbolic link.
+
+    \sa symLinkTarget(), isSymLink()
+*/
+QString QFileInfo::readSymLink() const {
     const QString file = ntResolveSearchPath(m_file);
-    if (file.isEmpty())
+    if (file.isEmpty() || NtResource::isResourcePath(file))
         return QString();
     std::vector<char> buf(256);
     const QByteArray path = file.toUtf8();
@@ -372,12 +388,8 @@ QString QFileInfo::symLinkTarget() const {
         const ssize_t n = ::readlink(path.constData(), buf.data(), buf.size());
         if (n < 0)
             return QString();
-        if (static_cast<std::size_t>(n) < buf.size()) {
-            const QString target = QString::fromUtf8(buf.data(), static_cast<qsizetype>(n));
-            if (QDir::isAbsolutePath(target))
-                return QDir::cleanPath(target);
-            return QDir::cleanPath(absolutePath() + QChar(u'/') + target);
-        }
+        if (static_cast<std::size_t>(n) < buf.size())
+            return QString::fromUtf8(buf.data(), static_cast<qsizetype>(n));
         buf.resize(buf.size() * 2);
     }
 }
@@ -525,6 +537,30 @@ bool QFileInfo::isFile() const {
 bool QFileInfo::isDir() const {
     const Stat &s = info();
     return s.exists && S_ISDIR(s.mode);
+}
+
+/*!
+    \since 6.10
+    Returns \c true if the file exists and is neither a regular file nor a directory: a device, a FIFO or a socket,
+    or a symbolic link to one; otherwise returns \c false.
+
+    \sa isFile(), isDir()
+*/
+bool QFileInfo::isOther() const {
+    const Stat &s = info();
+    return s.exists && !S_ISREG(s.mode) && !S_ISDIR(s.mode);
+}
+
+/*!
+    \since 6.0
+    Reads all the information about the file from the file system now, so that the next queries do not have to,
+    as long as caching() is on.
+
+    \sa refresh()
+*/
+void QFileInfo::stat() {
+    m_cached = false;
+    (void)info();
 }
 
 /*!

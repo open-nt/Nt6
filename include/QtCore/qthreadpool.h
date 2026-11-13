@@ -70,6 +70,8 @@ public:
 
     void setStackSize(uint stackSize);
     uint stackSize() const;
+    void setServiceLevel(QThread::QualityOfService serviceLevel);
+    QThread::QualityOfService serviceLevel() const;
 
     void setThreadPriority(QThread::Priority priority);
     QThread::Priority threadPriority() const;

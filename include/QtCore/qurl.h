@@ -99,6 +99,8 @@ public:
                               UserInputResolutionOptions options = DefaultResolution);
     static QByteArray toAce(const QString &domain, AceProcessingOptions options = {});
     static QString fromAce(const QByteArray &domain, AceProcessingOptions options = {});
+    static QStringList idnWhitelist();
+    static void setIdnWhitelist(const QStringList &list);
     static QStringList toStringList(const QList<QUrl> &urls, FormattingOptions options = None);
     static QList<QUrl> fromStringList(const QStringList &urls, ParsingMode mode = TolerantMode);
 

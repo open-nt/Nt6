@@ -63,6 +63,7 @@ struct Method {
     bool isStatic = false;
     bool hasBody = false;
     bool scriptable = false; // declared with Q_SCRIPTABLE
+    bool isConst = false;    // a const member function
     std::string tag;         // a tag macro in front of the return type, such as Q_NOREPLY
     int revision = 0;
 
@@ -826,6 +827,7 @@ std::size_t Scanner::parseMember(std::size_t i, Scope &cur) {
     m.name = name;
     m.revision = revision;
     m.scriptable = scriptable;
+    m.isConst = close + 1 < j && at(close + 1) == "const";
     std::string ret;
     std::size_t lead = b;
     bool isStatic = false;
@@ -1323,8 +1325,9 @@ void generateMeta(std::ostringstream &o, const ClassData &c, const std::map<std:
             o << "        {" << cString(m.name) << ", " << cString(ret) << ", "
               << (np ? prefix + std::to_string(i) + "_t" : "nullptr") << ", "
               << (np ? prefix + std::to_string(i) + "_n" : "nullptr") << ", " << np << ", " << static_cast<int>(m.kind)
-              << ", " << static_cast<int>(m.access) << ", " << ((entries[i].cloned ? 1 : 0) | (m.scriptable ? 2 : 0))
-              << ", " << m.revision << ", " << (m.tag.empty() ? std::string("nullptr") : cString(m.tag)) << ", ";
+              << ", " << static_cast<int>(m.access) << ", "
+              << ((entries[i].cloned ? 1 : 0) | (m.scriptable ? 2 : 0) | (m.isConst ? 4 : 0)) << ", " << m.revision
+              << ", " << (m.tag.empty() ? std::string("nullptr") : cString(m.tag)) << ", ";
             if (m.kind == KindSignal) {
                 o << "[]() { return QtPrivate::SignalId::of(static_cast<void (" << cn << "::*)("
                   << joinTypes(m.params, m.params.size()) << ")>(&" << cn << "::" << m.name << ")); }";

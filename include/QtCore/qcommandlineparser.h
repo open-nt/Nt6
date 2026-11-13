@@ -130,6 +130,17 @@ public:
     [[noreturn]] void showVersion();
     [[noreturn]] void showHelp(int exitCode = 0);
 
+    /*!
+        \enum QCommandLineParser::MessageType
+        \since 6.9
+        This enum says what kind of message showMessageAndExit() shows.
+
+        \value Information A message for the user, written to standard output.
+        \value Error An error, written to standard error.
+    */
+    enum class MessageType { Information, Error };
+    [[noreturn]] static void showMessageAndExit(MessageType type, const QString &message, int exitCode = 0);
+
 private:
     struct Positional {
         QString name, description, syntax;

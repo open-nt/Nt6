@@ -42,6 +42,22 @@ public:
     constexpr QTypeRevision() = default;
 
     /*!
+        \since 6.0
+        Returns \c true if \a segment can be the major or minor version of a revision: it is not negative and
+        fits in SegmentType without being the value that stands for an unknown version.
+    */
+    template <typename Integer,
+              typename = std::enable_if_t<std::is_integral_v<Integer> && !std::is_same_v<Integer, bool>>>
+    static constexpr bool isValidSegment(Integer segment) {
+        if constexpr (std::is_signed_v<Integer>) {
+            if (segment < 0)
+                return false;
+        }
+        return static_cast<std::make_unsigned_t<Integer>>(segment) <
+               static_cast<std::make_unsigned_t<Integer>>(kUnspecified);
+    }
+
+    /*!
         Returns the revision with the segments \a majorVersion and \a minorVersion.
     */
     template <typename Integer, typename = std::enable_if_t<std::is_integral_v<Integer>>>

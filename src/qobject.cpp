@@ -380,7 +380,7 @@ void finishSingleShot(const std::shared_ptr<ConnectionData> &c) {
 
 // Removes the connections from `sender` that match; a null argument matches every connection.
 bool disconnectConnections(const QObject *sender, const SignalId *id, const QObject *receiver,
-                           const std::string *method) {
+                           const std::string *method, bool onlyOne) {
     if (!sender)
         return false;
     bool any = false;
@@ -395,8 +395,12 @@ bool disconnectConnections(const QObject *sender, const SignalId *id, const QObj
                 continue;
             if (method && c->method != *method)
                 continue;
+            if (!c->alive)
+                continue;
             unlinkConn(c, dead);
             any = true;
+            if (onlyOne)
+                break;
         }
     }
     notifyDisconnected(dead);

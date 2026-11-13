@@ -62,7 +62,16 @@ public:
     bool moveColumns(const QModelIndex &sourceParent, int sourceColumn, int count, const QModelIndex &destinationParent,
                      int destinationChild) override;
 
+    bool handleSourceDataChanges() const;
+    bool handleSourceLayoutChanges() const;
+
+protected:
+    void setHandleSourceDataChanges(bool b);
+    void setHandleSourceLayoutChanges(bool b);
+
 private:
     QList<QMetaObject::Connection> m_connections;
+    bool m_handleData = true;
+    bool m_handleLayout = true;
     std::shared_ptr<QList<std::pair<QPersistentModelIndex, QPersistentModelIndex>>> m_layoutSaved;
 };

@@ -4,6 +4,8 @@
 #include <QPair>
 #include <QtEndian>
 
+#include <sys/wait.h>
+#include <unistd.h>
 #include <algorithm>
 #include <array>
 #include <cstdarg>
@@ -772,6 +774,152 @@ static void testQtCompatibility(const QString &dir) {
     }
 }
 
+namespace {
+
+class Flagged : public QIdentityProxyModel {
+public:
+    using QIdentityProxyModel::QIdentityProxyModel;
+    using QIdentityProxyModel::setHandleSourceDataChanges;
+    using QIdentityProxyModel::setHandleSourceLayoutChanges;
+};
+
+} // namespace
+
+static void testSmallAdditions() {
+    // QChar
+    QChar c = QChar::fromUcs2(u'ሴ');
+    CHECK(c.unicode() == 0x1234);
+    c.setCell(0xcd);
+    c.setRow(0xab);
+    CHECK(c.unicode() == 0xabcd && c.cell() == 0xcd && c.row() == 0xab);
+
+    // QAnyStringView
+    QAnyStringView v(u"hello world");
+    v.slice(6);
+    CHECK(v == QStringLiteral("world"));
+    v.slice(1, 3);
+    CHECK(v == QStringLiteral("orl"));
+    CHECK(QAnyStringView::fromArray("abc").size() == 3 && QAnyStringView::fromArray(u"ab").size() == 2);
+    const char raw[3] = {'x', 'y', 'z'};
+    CHECK(QAnyStringView::fromArray(raw).size() == 3);
+    CHECK(QAnyStringView(u"%1 and %2").arg(QStringLiteral("a"), QStringLiteral("b")) == QStringLiteral("a and b"));
+
+    // QLatin1StringView
+    CHECK(QLatin1StringView("caf\xe9").toUtf8() == QByteArray("caf\xc3\xa9"));
+    QStringList parts;
+    for (QStringView part : QLatin1StringView("a,b,,c").tokenize(u',', Qt::SkipEmptyParts))
+        parts.append(part.toString());
+    CHECK((parts == QStringList{QStringLiteral("a"), QStringLiteral("b"), QStringLiteral("c")}));
+
+    // swap()
+    QTemporaryDir one, two;
+    const QString pathOne = one.path(), pathTwo = two.path();
+    one.swap(two);
+    CHECK(one.path() == pathTwo && two.path() == pathOne);
+    QUnhandledException a, b(std::make_exception_ptr(1));
+    a.swap(b);
+    CHECK(a.exception() && !b.exception());
+    QMessageAuthenticationCode m1(QCryptographicHash::Sha256, "k1"), m2(QCryptographicHash::Sha256, "k2");
+    m1.addData("x");
+    const QByteArray r1 = QMessageAuthenticationCode::hash("x", "k1", QCryptographicHash::Sha256);
+    m1.swap(m2);
+    CHECK(m2.result() == r1);
+    QBasicTimer t1, t2;
+    QObject timerTarget;
+    t1.start(1000, &timerTarget);
+    t1.swap(t2);
+    CHECK(!t1.isActive() && t2.isActive());
+    t2.stop();
+    QDirListing l1(pathOne), l2(pathTwo);
+    l1.swap(l2);
+    QEventLoopLocker k1, k2;
+    k1.swap(k2);
+
+    // QLibraryInfo
+    const QString prefix = QLibraryInfo::path(QLibraryInfo::PrefixPath);
+    CHECK(!prefix.isEmpty() && QLibraryInfo::path(QLibraryInfo::LibrariesPath).startsWith(prefix));
+    CHECK(QLibraryInfo::path(QLibraryInfo::Qml2ImportsPath) == QLibraryInfo::path(QLibraryInfo::QmlImportsPath));
+    CHECK(QLibraryInfo::paths(QLibraryInfo::DataPath) == QStringList{QLibraryInfo::path(QLibraryInfo::DataPath)});
+    CHECK(QLibraryInfo::platformPluginArguments(QStringLiteral("xcb")).isEmpty());
+
+    // QSocketNotifier without a socket at first
+    QSocketNotifier notifier(QSocketNotifier::Read);
+    CHECK(!notifier.isValid() && !notifier.isEnabled() && notifier.socket() == -1);
+    int fds[2];
+    CHECK(::pipe(fds) == 0);
+    notifier.setSocket(fds[0]);
+    CHECK(notifier.isValid() && notifier.socket() == fds[0] && !notifier.isEnabled());
+    int fired = 0;
+    QObject::connect(&notifier, &QSocketNotifier::activated, [&] { ++fired; });
+    CHECK(::write(fds[1], "x", 1) == 1);
+    QCoreApplication::processEvents();
+    CHECK(fired == 0); // disabled
+    notifier.setEnabled(true);
+    for (int i = 0; i < 20 && fired == 0; ++i)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    CHECK(fired > 0);
+    notifier.setSocket(-1);
+    CHECK(!notifier.isValid());
+    ::close(fds[0]);
+    ::close(fds[1]);
+
+    // QUrl's IDN whitelist
+    const QByteArray ace = QUrl::toAce(QString::fromUtf8("b\xc3\xbc"
+                                                         "cher.de"));
+    CHECK(QUrl::idnWhitelist().isEmpty() && QUrl::fromAce(ace) == QString::fromUtf8("b\xc3\xbc"
+                                                                                    "cher.de"));
+    QUrl::setIdnWhitelist({QStringLiteral("jp")});
+    CHECK(QUrl::fromAce(ace) == QString::fromLatin1(ace));
+    CHECK(QUrl::fromAce(ace, QUrl::IgnoreIDNWhitelist) == QString::fromUtf8("b\xc3\xbc"
+                                                                            "cher.de"));
+    QUrl::setIdnWhitelist({QStringLiteral("de")});
+    CHECK(QUrl::fromAce(ace) == QString::fromUtf8("b\xc3\xbc"
+                                                  "cher.de"));
+    QUrl::setIdnWhitelist({});
+
+    // QTypeRevision
+    CHECK(QTypeRevision::isValidSegment(0) && QTypeRevision::isValidSegment(254) &&
+          !QTypeRevision::isValidSegment(255));
+    CHECK(!QTypeRevision::isValidSegment(-1) && !QTypeRevision::isValidSegment(1000));
+
+    // QIdentityProxyModel that handles data and layout changes itself
+    QStringListModel source({QStringLiteral("x"), QStringLiteral("y")});
+    Flagged proxy;
+    proxy.setSourceModel(&source);
+    CHECK(proxy.handleSourceDataChanges() && proxy.handleSourceLayoutChanges());
+    int dataSignals = 0, layoutSignals = 0;
+    QObject::connect(&proxy, &QAbstractItemModel::dataChanged, [&] { ++dataSignals; });
+    QObject::connect(&proxy, &QAbstractItemModel::layoutChanged, [&] { ++layoutSignals; });
+    source.setData(source.index(0), QStringLiteral("z"));
+    source.sort(0);
+    CHECK(dataSignals == 1 && layoutSignals == 1);
+    proxy.setHandleSourceDataChanges(false);
+    proxy.setHandleSourceLayoutChanges(false);
+    CHECK(!proxy.handleSourceDataChanges() && !proxy.handleSourceLayoutChanges());
+    source.setData(source.index(0), QStringLiteral("a"));
+    source.sort(0, Qt::DescendingOrder);
+    CHECK(dataSignals == 1 && layoutSignals == 1);
+}
+
+static void testShowMessageAndExit() {
+    // In a child process, as it ends the process.
+    int out[2];
+    CHECK(::pipe(out) == 0);
+    const pid_t child = ::fork();
+    if (child == 0) {
+        ::dup2(out[1], 2);
+        QCommandLineParser::showMessageAndExit(QCommandLineParser::MessageType::Error, QStringLiteral("bad input"), 3);
+    }
+    ::close(out[1]);
+    char buf[64] = {};
+    const ssize_t n = ::read(out[0], buf, sizeof buf - 1);
+    ::close(out[0]);
+    int status = 0;
+    ::waitpid(child, &status, 0);
+    CHECK(n > 0 && QByteArray(buf, static_cast<int>(n)) == "bad input\n");
+    CHECK(WIFEXITED(status) && WEXITSTATUS(status) == 3);
+}
+
 int main(int argc, char **argv) {
     CHECK(QCoreApplication::startingUp() && !QCoreApplication::instanceExists() && !QCoreApplication::closingDown());
     {
@@ -789,6 +937,8 @@ int main(int argc, char **argv) {
         CHECK(dir.isValid());
         testBoolList();
         testQtCompatibility(dir.path());
+        testSmallAdditions();
+        testShowMessageAndExit();
     }
     CHECK(QCoreApplication::closingDown() && !QCoreApplication::instanceExists() && !QCoreApplication::startingUp());
 

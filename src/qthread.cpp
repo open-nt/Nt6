@@ -53,7 +53,9 @@
     main thread, get one when they first use Nt; currentThread() returns it.
 
     \differences
-    There is no \c terminate() or \c setTerminationEnabled(), and no \c setEventDispatcher():
+    terminate() cancels the thread at its next cancellation point (a sleep, a wait or a blocking read), as Qt
+    does on Linux; destructors run as the stack unwinds. serviceLevel() is stored but has no effect on Linux.
+    There is no \c setEventDispatcher():
     the dispatcher of a thread cannot be replaced, and eventDispatcher() returns a handle onto it
     even before the thread has started. Priorities are stored and
     returned by priority(), but are applied only for \c IdlePriority (as \c SCHED_IDLE) and,
@@ -148,6 +150,7 @@ struct QThread::Data {
     bool adopted = false;
     int returnCode = 0;
     Priority priority = InheritPriority;
+    std::atomic<QualityOfService> serviceLevel{QualityOfService::Auto};
     uint stackSize = 0;
     std::atomic<bool> interruption{false};
     pthread_t handle{};
@@ -180,25 +183,34 @@ void *ThreadAccess::threadMain(void *p) {
     ThreadData::bindCurrent(td);
     applyPriority(pthread_self(), d->priority);
 
+    // Finishes the thread when run() returns, and also when terminate() cancels it: the C++ library unwinds the
+    // stack of a cancelled thread, which runs this destructor.
+    struct Finish {
+        QThread *self;
+        const std::shared_ptr<QThread::Data> &d;
+        ThreadData *td;
+        ~Finish() {
+            {
+                std::lock_guard<std::mutex> lk(d->mutex);
+                d->inFinish = true;
+            }
+            self->finished();
+            // Objects scheduled with deleteLater() die with the thread.
+            td->dispatcher.sendPosted(nullptr, QEvent::DeferredDelete);
+            td->clearStorage();
+            ThreadData::bindCurrent(nullptr);
+            {
+                std::lock_guard<std::mutex> lk(d->mutex);
+                d->running = false;
+                d->finished = true;
+                d->inFinish = false;
+            }
+            d->cond.notify_all();
+        }
+    } finish{self, d, td};
+
     self->started();
     self->run();
-
-    {
-        std::lock_guard<std::mutex> lk(d->mutex);
-        d->inFinish = true;
-    }
-    self->finished();
-    // Objects scheduled with deleteLater() die with the thread.
-    td->dispatcher.sendPosted(nullptr, QEvent::DeferredDelete);
-    td->clearStorage();
-    ThreadData::bindCurrent(nullptr);
-    {
-        std::lock_guard<std::mutex> lk(d->mutex);
-        d->running = false;
-        d->finished = true;
-        d->inFinish = false;
-    }
-    d->cond.notify_all();
     return nullptr;
 }
 
@@ -354,6 +366,54 @@ void QThread::setPriority(Priority priority) {
 QThread::Priority QThread::priority() const {
     std::lock_guard<std::mutex> lk(m_d->mutex);
     return m_d->priority;
+}
+
+/*!
+    \since 6.9
+    Sets the service level of the thread to \a serviceLevel, which tells the system what the thread is for.
+
+    \sa serviceLevel()
+*/
+void QThread::setServiceLevel(QualityOfService serviceLevel) { m_d->serviceLevel.store(serviceLevel); }
+
+/*!
+    \since 6.9
+    Returns the service level of the thread, \c QualityOfService::Auto unless setServiceLevel() changed it.
+*/
+QThread::QualityOfService QThread::serviceLevel() const { return m_d->serviceLevel.load(); }
+
+/*!
+    Ends the thread at once, or at its next cancellation point if termination is enabled: a sleep, a wait on a
+    condition or a blocking read. The thread does not get to finish its work, so locks may stay locked and data
+    half written; use it only when nothing else works, and prefer requestInterruption() or quit(). Call wait()
+    afterward. A thread that was not started by QThread is not ended.
+
+    \sa setTerminationEnabled(), wait()
+*/
+void QThread::terminate() {
+#ifdef __ZEPHYR__
+    qWarning("QThread::terminate: not supported on Zephyr");
+#else
+    std::lock_guard<std::mutex> lk(m_d->mutex);
+    if (!m_d->running || m_d->adopted || m_d->inFinish)
+        return;
+    pthread_cancel(m_d->handle);
+#endif
+}
+
+/*!
+    Enables or disables terminate() for the calling thread as \a enabled says. While it is disabled, a request to
+    terminate waits until it is enabled again. Call it from the thread itself, around work that must not be cut
+    short.
+
+    \sa terminate()
+*/
+void QThread::setTerminationEnabled(bool enabled) {
+#ifndef __ZEPHYR__
+    pthread_setcancelstate(enabled ? PTHREAD_CANCEL_ENABLE : PTHREAD_CANCEL_DISABLE, nullptr);
+#else
+    (void)enabled;
+#endif
 }
 
 /*!

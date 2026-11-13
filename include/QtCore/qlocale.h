@@ -422,6 +422,8 @@ public:
     QString toString(QDate date, const QString &format) const;
     QString toString(QTime time, const QString &format) const;
     QString toString(const QDateTime &dateTime, const QString &format) const;
+    QString toString(QDate date, const QString &format, QCalendar cal) const;
+    QString toString(const QDateTime &dateTime, const QString &format, QCalendar cal) const;
     QString toString(QDate date, FormatType format = LongFormat) const;
     QString toString(QTime time, FormatType format = LongFormat) const;
     QString toString(const QDateTime &dateTime, FormatType format = LongFormat) const;

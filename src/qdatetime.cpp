@@ -928,8 +928,7 @@ QTime QTime::fromString(const QString &string, const QString &format) {
     Local time follows the system's rules through \c mktime(); zones given as
     a QTimeZone use Nt's reader of the time zone database. A time that falls
     in a daylight-saving gap is moved forward, and in a fold the earlier time
-    is chosen. There is no \c fromTime_t() and no TransitionResolution
-    argument. Text formats use English text and the format string accepts the
+    is chosen, unless a TransitionResolution says otherwise. There is no \c fromTime_t(). Text formats use English text and the format string accepts the
     QDate and QTime expressions plus \c t for the time zone.
 
     On Zephyr local time is UTC, as the C library has no time zones. See \l{Nt
@@ -981,6 +980,12 @@ qint64 QDateTime::toMSecsSinceEpoch() const {
     }
     if (m_spec == Qt::OffsetFromUTC)
         return fields - qint64(m_offset) * 1000;
+    if (m_localOffset != kNoOffsetHint) {
+        // The occurrence of a local time in a fold that was chosen, while it is still a valid reading.
+        const qint64 local = floorDiv(fields, 1000);
+        if (systemOffsetAt(static_cast<time_t>(local - m_localOffset)) == m_localOffset)
+            return (local - m_localOffset) * 1000 + floorMod(fields, 1000);
+    }
     struct tm t = {};
     t.tm_year = m_date.year() - 1900;
     t.tm_mon = m_date.month() - 1;
@@ -1043,8 +1048,10 @@ void QDateTime::setMSecsSinceEpoch(qint64 msecs) {
     else if (m_spec == Qt::TimeZone && m_zone) {
         m_offset = m_zone->offsetsAt(floorDiv(msecs, 1000)).offset;
         local += qint64(m_offset) * 1000;
-    } else if (m_spec == Qt::LocalTime)
-        local += qint64(systemOffsetAt(static_cast<time_t>(floorDiv(msecs, 1000)))) * 1000;
+    } else if (m_spec == Qt::LocalTime) {
+        m_localOffset = systemOffsetAt(static_cast<time_t>(floorDiv(msecs, 1000)));
+        local += qint64(m_localOffset) * 1000;
+    }
     m_date = QDate::fromJulianDay(kEpochJd + floorDiv(local, kMsPerDay));
     m_time = QTime::fromMSecsSinceStartOfDay(static_cast<int>(floorMod(local, kMsPerDay)));
 }
@@ -1336,17 +1343,96 @@ QDateTime QDateTime::fromString(const QString &string, const QString &format) {
     Constructs a datetime from \a date and \a time in \a timeZone. A zone for
     local time, UTC or a fixed offset gives the matching time specification;
     any other zone gives Qt::TimeZone. The datetime is invalid if the zone is
-    invalid. A time that does not exist in the zone, because of a
-    daylight-saving gap, is moved forward by the length of the gap.
+    invalid. A local time that a daylight-saving transition makes ambiguous is resolved as \a resolve says: by
+    default, a time in a gap is moved forward by the length of the gap, and in a fold the first occurrence is
+    taken.
 
     \sa timeZone(), toTimeZone()
 */
-QDateTime::QDateTime(QDate date, QTime time, const QTimeZone &timeZone) : QDateTime(date, time) {
-    setTimeZone(timeZone);
+QDateTime::QDateTime(QDate date, QTime time, const QTimeZone &timeZone, TransitionResolution resolve)
+    : QDateTime(date, time) {
+    setTimeZone(timeZone, resolve);
     if (!timeZone.isValid())
         m_date = QDate();
-    else if (m_spec == Qt::TimeZone && isValid())
-        setMSecsSinceEpoch(toMSecsSinceEpoch()); // moves a time in a gap forward
+}
+
+namespace {
+
+struct OffsetAt {
+    int offset = 0;
+    bool dst = false;
+};
+
+} // namespace
+
+void QDateTime::resolveTransition(TransitionResolution resolve) {
+    if (!isValid() || (m_spec != Qt::LocalTime && !(m_spec == Qt::TimeZone && m_zone)))
+        return;
+    auto offsetAt = [this](qint64 utc) {
+        OffsetAt o;
+        if (m_spec == Qt::TimeZone) {
+            const auto z = m_zone->offsetsAt(utc);
+            o.offset = z.offset;
+            o.dst = z.dst;
+        } else {
+#ifndef __ZEPHYR__
+            const time_t secs = static_cast<time_t>(utc);
+            struct tm t = {};
+            localtime_r(&secs, &t);
+            o.offset = static_cast<int>(t.tm_gmtoff);
+            o.dst = t.tm_isdst > 0;
+#endif
+        }
+        return o;
+    };
+    const qint64 local = (m_date.toJulianDay() - kEpochJd) * 86400 + m_time.msecsSinceStartOfDay() / 1000;
+    const int msPart = m_time.msec();
+    // The offsets a day either side; a transition between them makes the local time a gap or a fold.
+    const OffsetAt before = offsetAt(local - 86400);
+    const OffsetAt after = offsetAt(local + 86400);
+    qint64 chosen = 0;
+    if (before.offset == after.offset) {
+        chosen = local - before.offset;
+    } else {
+        const qint64 first = local - before.offset; // read with the offset before the transition
+        const qint64 second = local - after.offset; // and with the one after it
+        const bool firstValid = offsetAt(first).offset == before.offset;
+        const bool secondValid = offsetAt(second).offset == after.offset;
+        if (firstValid != secondValid) {
+            chosen = firstValid ? first : second;
+        } else {
+            // A fold (both readings exist) or a gap (neither does).
+            if (resolve == TransitionResolution::Reject) {
+                m_date = QDate();
+                m_time = QTime();
+                return;
+            }
+            const qint64 earlier = std::min(first, second), later = std::max(first, second);
+            switch (resolve) {
+            case TransitionResolution::RelativeToBefore:
+                chosen = first;
+                break;
+            case TransitionResolution::RelativeToAfter:
+                chosen = second;
+                break;
+            case TransitionResolution::PreferBefore:
+                chosen = earlier;
+                break;
+            case TransitionResolution::PreferAfter:
+                chosen = later;
+                break;
+            case TransitionResolution::PreferStandard:
+                chosen = !offsetAt(earlier).dst ? earlier : later;
+                break;
+            case TransitionResolution::PreferDaylightSaving:
+                chosen = offsetAt(earlier).dst ? earlier : later;
+                break;
+            case TransitionResolution::Reject:
+                break;
+            }
+        }
+    }
+    setMSecsSinceEpoch(chosen * 1000 + msPart);
 }
 
 /*!
@@ -1373,14 +1459,23 @@ QTimeZone QDateTime::timeZone() const {
 }
 
 /*!
+    \since 6.5
+    Returns the time representation of the datetime as a QTimeZone: its zone, or a zone for local time, UTC or its
+    fixed offset. This is the same as timeZone().
+*/
+QTimeZone QDateTime::timeRepresentation() const { return timeZone(); }
+
+/*!
     \since 5.2
     Sets the time zone of the datetime to \a toZone, keeping the date and time
-    fields, so the datetime then refers to a different instant.
+    fields, so the datetime then refers to a different instant. A local time that a daylight-saving transition
+    makes ambiguous in the new zone is resolved as \a resolve says.
 
     \sa timeZone(), toTimeZone()
 */
-void QDateTime::setTimeZone(const QTimeZone &toZone) {
+void QDateTime::setTimeZone(const QTimeZone &toZone, TransitionResolution resolve) {
     m_offset = 0;
+    m_localOffset = kNoOffsetHint;
     m_zone.reset();
     switch (toZone.timeSpec()) {
     case Qt::UTC:
@@ -1399,6 +1494,7 @@ void QDateTime::setTimeZone(const QTimeZone &toZone) {
         m_offset = kNoOffsetHint;
         break;
     }
+    resolveTransition(resolve);
 }
 
 /*!

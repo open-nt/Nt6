@@ -1,7 +1,10 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <chrono>
+
 #include <QtCore/qbytearray.h>
+#include <QtCore/qbytearrayview.h>
 #include <QtCore/qdatetime.h>
 #include <QtCore/qlist.h>
 #include <QtCore/qlocale.h>
@@ -166,6 +169,15 @@ public:
     bool isUtcOrFixedOffset() const noexcept;
 
     static QTimeZone fromSecondsAheadOfUtc(int offset);
+    /*!
+        \since 6.5
+        Returns a time representation with the fixed offset \a offset from UTC; see fromSecondsAheadOfUtc().
+    */
+    static QTimeZone fromDurationAheadOfUtc(std::chrono::seconds offset) {
+        return fromSecondsAheadOfUtc(static_cast<int>(offset.count()));
+    }
+    bool hasAlternativeName(QByteArrayView alias) const;
+    QTimeZone asBackendZone() const;
     static QTimeZone utc();
     static QTimeZone systemTimeZone();
     static QByteArray systemTimeZoneId();

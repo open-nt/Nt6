@@ -69,6 +69,7 @@ struct QThreadPool::Data {
     int reserved = 0;
     int activeTasks = 0;
     uint stackSize = 0;
+    QThread::QualityOfService serviceLevel = QThread::QualityOfService::Auto;
     QThread::Priority priority = QThread::InheritPriority;
     bool stopping = false;
 
@@ -156,6 +157,7 @@ bool QThreadPool::Data::dispatchLocked(QRunnable *r) {
     auto *w = new Worker(this, r);
     if (stackSize > 0)
         w->setStackSize(stackSize);
+    w->setServiceLevel(serviceLevel);
     w->start(priority);
     if (!w->isRunning()) {
         --activeTasks;
@@ -373,6 +375,26 @@ void QThreadPool::setMaxThreadCount(int maxThreadCount) {
 int QThreadPool::activeThreadCount() const {
     std::lock_guard<std::mutex> lk(m_d->m);
     return m_d->active();
+}
+
+/*!
+    \since 6.9
+    Sets the service level of the threads of the pool to \a serviceLevel, for the threads that start afterward.
+
+    \sa serviceLevel(), QThread::setServiceLevel()
+*/
+void QThreadPool::setServiceLevel(QThread::QualityOfService serviceLevel) {
+    std::lock_guard<std::mutex> lk(m_d->m);
+    m_d->serviceLevel = serviceLevel;
+}
+
+/*!
+    \since 6.9
+    Returns the service level of the threads of the pool.
+*/
+QThread::QualityOfService QThreadPool::serviceLevel() const {
+    std::lock_guard<std::mutex> lk(m_d->m);
+    return m_d->serviceLevel;
 }
 
 /*!

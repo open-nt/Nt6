@@ -1273,6 +1273,160 @@ static void testMetaTypeStreams() {
     CHECK(!QMetaType().save(in, &i) || true);
 }
 
+namespace {
+
+struct Wallet {
+    Money balance;
+    Money &money() { return balance; }
+};
+
+enum class Small : quint8 { A = 1 };
+enum class Wide : qint64 { B = -1 };
+
+} // namespace
+
+Q_DECLARE_METATYPE(Wallet)
+
+static void testMutableIterables() {
+    // A view of a variant changes the container it holds.
+    QVariant list = QVariant::fromValue(QList<int>{1, 2});
+    CHECK((list.canView<QSequentialIterable>() && !list.canView<QAssociativeIterable>()));
+    QSequentialIterable seq = list.view<QSequentialIterable>();
+    CHECK((seq.isValid() && seq.canModify() && seq.size() == 2));
+    seq.addValue(3);
+    seq.addValue(QString("0"), QSequentialIterable::AtBegin); // converted to int
+    seq.addValue(4, QSequentialIterable::AtEnd);
+    CHECK((list.value<QList<int>>() == QList<int>{0, 1, 2, 3, 4}));
+    seq.removeValue(QSequentialIterable::AtBegin);
+    seq.removeValue();
+    CHECK((list.value<QList<int>>() == QList<int>{1, 2, 3}));
+    seq.set(1, 20);
+    seq.set(7, 99);                 // out of range: nothing
+    seq.set(0, QVariant("no int")); // does not convert: nothing
+    CHECK((list.value<QList<int>>() == QList<int>{1, 20, 3}));
+    for (auto it = seq.mutableBegin(); it != seq.mutableEnd(); ++it)
+        *it = QVariant(QVariant(*it).toInt() * 10);
+    CHECK((list.value<QList<int>>() == QList<int>{10, 200, 30}));
+    CHECK((seq.mutableEnd() - seq.mutableBegin() == 3));
+
+    // A std::vector cannot add at the front; a set adds anywhere and cannot replace values.
+    QVariant vec = QVariant::fromValue(std::vector<QString>{QStringLiteral("b")});
+    QSequentialIterable vseq = vec.view<QSequentialIterable>();
+    vseq.addValue(QStringLiteral("a"), QSequentialIterable::AtBegin);
+    vseq.addValue(QStringLiteral("c"));
+    CHECK((vec.value<std::vector<QString>>() == std::vector<QString>{QStringLiteral("b"), QStringLiteral("c")}));
+    QVariant set = QVariant::fromValue(QSet<int>{1});
+    QSequentialIterable sseq = set.view<QSequentialIterable>();
+    sseq.addValue(5);
+    sseq.set(0, 9);
+    CHECK((set.value<QSet<int>>() == QSet<int>{1, 5}));
+
+    // An iterable made with value() reads a copy and changes nothing.
+    const QVariant constant = QVariant::fromValue(QList<int>{1});
+    QSequentialIterable copy = constant.value<QSequentialIterable>();
+    CHECK((!copy.canModify()));
+    copy.addValue(2);
+    *copy.mutableBegin() = 5;
+    CHECK(((constant.value<QList<int>>() == QList<int>{1}) && copy.size() == 1));
+
+    // From a pointer to a container, with its meta-sequence.
+    std::list<int> numbers = {7};
+    QSequentialIterable direct(QMetaSequence::fromContainer<std::list<int>>(), QMetaType::fromType<std::list<int>>(),
+                               static_cast<void *>(&numbers));
+    CHECK((direct.isValid() && direct.canModify()));
+    direct.addValue(6, QSequentialIterable::AtBegin);
+    CHECK(((numbers == std::list<int>{6, 7}) && direct.at(1).toInt() == 7));
+    const QSequentialIterable readOnly(QMetaSequence::fromContainer<std::list<int>>(),
+                                       QMetaType::fromType<std::list<int>>(), static_cast<const void *>(&numbers));
+    CHECK((readOnly.isValid() && !readOnly.canModify() && readOnly.size() == 2));
+    const QSequentialIterable mismatched(QMetaSequence::fromContainer<QList<int>>(),
+                                         QMetaType::fromType<std::list<int>>(), static_cast<void *>(&numbers));
+    CHECK((!mismatched.isValid()));
+    CHECK((!QSequentialIterable().isValid()));
+
+    // Associative containers: insert, remove, set and mutable iterators.
+    QVariant map = QVariant::fromValue(QMap<QString, int>{{QStringLiteral("a"), 1}});
+    CHECK((map.canView<QAssociativeIterable>() && !map.canView<QSequentialIterable>()));
+    QAssociativeIterable assoc = map.view<QAssociativeIterable>();
+    CHECK((assoc.canModify()));
+    assoc.insertKey(QStringLiteral("b"));
+    assoc.setValue(QStringLiteral("c"), QString("3"));
+    assoc.insertKey(QStringLiteral("a")); // there already: unchanged
+    auto m = map.value<QMap<QString, int>>();
+    CHECK((m.size() == 3 && m.value("a") == 1 && m.value("b") == 0 && m.value("c") == 3));
+    auto found = assoc.mutableFind(QStringLiteral("b"));
+    CHECK((found != assoc.mutableEnd() && found.key().toString() == QStringLiteral("b")));
+    *found = 2;
+    CHECK((map.value<QMap<QString, int>>().value("b") == 2));
+    CHECK((assoc.mutableFind(QStringLiteral("none")) == assoc.mutableEnd()));
+    for (auto it = assoc.mutableBegin(); it != assoc.mutableEnd(); ++it)
+        it.value() = QVariant(QVariant(it.value()).toInt() + 100);
+    m = map.value<QMap<QString, int>>();
+    CHECK((m.value("a") == 101 && m.value("b") == 102 && m.value("c") == 103));
+    assoc.removeKey(QStringLiteral("a"));
+    CHECK((map.value<QMap<QString, int>>().size() == 2 && !map.value<QMap<QString, int>>().contains("a")));
+
+    QVariant hash = QVariant::fromValue(QHash<int, QString>{});
+    QAssociativeIterable hassoc = hash.view<QAssociativeIterable>();
+    hassoc.setValue(1, QStringLiteral("one"));
+    CHECK((hash.value<QHash<int, QString>>().value(1) == QStringLiteral("one")));
+    const QVariant constMap = QVariant::fromValue(QMap<int, int>{{1, 1}});
+    QAssociativeIterable readMap = constMap.value<QAssociativeIterable>();
+    readMap.setValue(2, 2);
+    CHECK((!readMap.canModify() && constMap.value<QMap<int, int>>().size() == 1));
+    std::map<int, int> stdMap;
+    QAssociativeIterable directMap(QMetaAssociation::fromContainer<std::map<int, int>>(),
+                                   QMetaType::fromType<std::map<int, int>>(), static_cast<void *>(&stdMap));
+    directMap.setValue(4, 16);
+    CHECK((stdMap.size() == 1 && stdMap[4] == 16));
+
+    // A view of something that has none is empty.
+    QVariant number(5);
+    CHECK((!number.canView<QSequentialIterable>() && !number.view<QSequentialIterable>().isValid()));
+    CHECK((!QVariant().view<QAssociativeIterable>().isValid()));
+}
+
+static void testMetaTypeRegistry() {
+    // Registered conversions and views are told apart from the built-in ones.
+    CHECK((!QMetaType::hasRegisteredConverterFunction<Celsius, Fahrenheit>())); // unregistered above
+    CHECK((QMetaType::registerConverter<Celsius, Fahrenheit>([](const Celsius &c) { return Fahrenheit{c.deg}; })));
+    CHECK((QMetaType::hasRegisteredConverterFunction<Celsius, Fahrenheit>()));
+    QMetaType::unregisterConverterFunction(QMetaType::fromType<Celsius>(), QMetaType::fromType<Fahrenheit>());
+    CHECK((!QMetaType::hasRegisteredConverterFunction<int, double>() &&
+           QMetaType::canConvert(QMetaType::fromType<int>(), QMetaType::fromType<double>())));
+
+    CHECK((!QMetaType::canView(QMetaType::fromType<Wallet>(), QMetaType::fromType<Money>())));
+    CHECK((QMetaType::registerMutableView(&Wallet::money)));
+    CHECK((QMetaType::hasRegisteredMutableViewFunction<Wallet, Money>()));
+    CHECK((QMetaType::canView(QMetaType::fromType<Wallet>(), QMetaType::fromType<Money>())));
+    QVariant wallet = QVariant::fromValue(Wallet{Money{250}});
+    CHECK((wallet.canView<Money>()));
+    CHECK((wallet.view<Money>().cents == 250));
+    Wallet w{Money{7}};
+    Money viewed;
+    CHECK((QMetaType::view(QMetaType::fromType<Wallet>(), &w, QMetaType::fromType<Money>(), &viewed) &&
+           viewed.cents == 7));
+    QMetaType::unregisterMutableViewFunction(QMetaType::fromType<Wallet>(), QMetaType::fromType<Money>());
+    CHECK((!wallet.canView<Money>() && !QMetaType::hasRegisteredMutableViewFunction<Wallet, Money>()));
+    CHECK((QMetaType::registerMutableView<Wallet, Money>([](Wallet &x) { return x.balance; })));
+    CHECK((wallet.view<Money>().cents == 250));
+
+    // The integer type of an enumeration.
+    CHECK((QMetaType::fromType<Small>().underlyingType() == QMetaType::fromType<quint8>()));
+    CHECK((QMetaType::fromType<Wide>().underlyingType() == QMetaType::fromType<qint64>()));
+    CHECK((!QMetaType::fromType<int>().underlyingType().isValid()));
+
+    // registerType() makes a type known by name; unregisterMetaType() forgets the name.
+    struct Local {};
+    const QMetaType local = QMetaType::fromType<Local>();
+    local.registerType();
+    CHECK((QMetaType::fromName(local.name()) == local));
+    QMetaType::unregisterMetaType(local);
+    CHECK((!QMetaType::fromName(local.name()).isValid()));
+    QMetaType::unregisterMetaType(QMetaType::fromType<int>()); // built-in: unchanged
+    CHECK((QMetaType::fromName("int") == QMetaType::fromType<int>()));
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testBuiltinIds();
@@ -1299,6 +1453,8 @@ int main(int argc, char **argv) {
     testValueStreaming();
     testDebug();
     testMetaTypeStreams();
+    testMutableIterables();
+    testMetaTypeRegistry();
     if (g_failures == 0)
         std::printf("variant: all tests passed\n");
     return g_failures == 0 ? 0 : 1;

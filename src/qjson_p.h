@@ -49,9 +49,9 @@ public:
 
 namespace QJsonPrivate {
 
-// Parses a document and returns its root, an array or an object. On failure returns a Null value and sets
-// *error when it is not null.
-QJsonValue parse(const QByteArray &json, QJsonParseError *error);
+// Parses a document and returns its root, an array or an object, or with `anyValue` a value of any type. On
+// failure returns a Null value and sets *error when it is not null.
+QJsonValue parse(const QByteArray &json, QJsonParseError *error, bool anyValue = false);
 
 // Writes the value as JSON text without a trailing line feed.
 std::string write(const QJsonValue &root, bool compact);

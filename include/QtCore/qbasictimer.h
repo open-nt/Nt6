@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <utility>
+
 #include <QtCore/qobject.h>
 #include <QtCore/qpointer.h>
 
@@ -30,6 +32,14 @@ public:
         Destroys the timer, stopping it if it is running.
     */
     ~QBasicTimer() { stop(); }
+    /*!
+        \since 5.14
+        Exchanges the timer of this object with that of \a other.
+    */
+    void swap(QBasicTimer &other) noexcept {
+        m_object.swap(other.m_object);
+        std::swap(m_id, other.m_id);
+    }
     /*!
         Move-constructs a timer from \a o, taking over its running timer and
         leaving \a o stopped.

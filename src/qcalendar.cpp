@@ -1,5 +1,7 @@
 // MIT License - see LICENSE
 #include <QtCore/qcalendar.h>
+#include <QtCore/qdatetime.h>
+#include <QtCore/qlocale.h>
 
 #include <algorithm>
 
@@ -512,4 +514,48 @@ QDate QDate::addYears(int years, QCalendar cal) const {
         return QDate();
     const int year = fromAstronomical(astronomical(p.year) + years);
     return cal.dateFromParts(year, p.month, std::min(p.day, cal.daysInMonth(p.month, year)));
+}
+
+/*!
+    \since 5.14
+    Returns \a datetime as text in the format \a format of QLocale::toString(), with the year, month and day of
+    this calendar and the names of \a locale. If \a datetime is not valid, \a dateOnly is formatted, or else
+    \a timeOnly, and the expressions of the part that is missing give nothing.
+
+    \sa QLocale::toString()
+*/
+QString QCalendar::dateTimeToString(QStringView format, const QDateTime &datetime, QDate dateOnly, QTime timeOnly,
+                                    const QLocale &locale) const {
+    const QString f = format.toString();
+    if (datetime.isValid())
+        return locale.toString(datetime, f, *this);
+    if (dateOnly.isValid())
+        return locale.toString(dateOnly, f, *this);
+    return locale.toString(timeOnly, f);
+}
+
+/*!
+    \since 6.7
+    Returns the date with the month and day of \a parts, on the day of the week \a dow (1 for Monday to 7 for
+    Sunday), in the year of \a parts or in the nearest year that differs from it by whole centuries, such as 1925
+    or 2125 for 2025. Returns an invalid date if no such year within 4800 years has the day on that weekday.
+
+    This finds the century of a date whose year was written with two digits but whose weekday is known.
+
+    \sa dayOfWeek()
+*/
+QDate QCalendar::matchCenturyToWeekday(const YearMonthDay &parts, int dow) const {
+    if (dow < 1 || dow > 7 || !parts.isValid())
+        return QDate();
+    for (int k = 0; k <= 48; ++k) {
+        for (const int sign : {1, -1}) {
+            if (k == 0 && sign < 0)
+                continue;
+            const int year = parts.year + sign * k * 100;
+            const QDate date = dateFromParts(YearMonthDay(year, parts.month, parts.day));
+            if (date.isValid() && dayOfWeek(date) == dow)
+                return date;
+        }
+    }
+    return QDate();
 }

@@ -102,6 +102,7 @@ add_library(NtCore
     src/qmetatype_convert.cpp
     src/qmetatype_streams.cpp
     src/qmimedata.cpp
+    src/qnativeipckey.cpp
     src/qobject.cpp
     src/qobjectcleanuphandler.cpp
     src/qparallelanimationgroup.cpp
@@ -1080,6 +1081,12 @@ if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
         VERBATIM)
     add_dependencies(docs badge)
 endif()
+
+# QLibraryInfo::path() reports the directories of the installation.
+include(GNUInstallDirs)
+set(NT_LIBRARYINFO_SOURCE src/qlibraryinfo)
+set_source_files_properties(${NT_LIBRARYINFO_SOURCE}.cpp PROPERTIES COMPILE_DEFINITIONS
+    "NT_INSTALL_PREFIX=\"${CMAKE_INSTALL_PREFIX}\";NT_INSTALL_LIBDIR=\"${CMAKE_INSTALL_LIBDIR}\";NT_INSTALL_BINDIR=\"${CMAKE_INSTALL_BINDIR}\";NT_INSTALL_LIBEXECDIR=\"${CMAKE_INSTALL_LIBEXECDIR}\";NT_INSTALL_INCLUDEDIR=\"${CMAKE_INSTALL_INCLUDEDIR}\";NT_INSTALL_DATADIR=\"${CMAKE_INSTALL_DATADIR}\";NT_INSTALL_SYSCONFDIR=\"${CMAKE_INSTALL_SYSCONFDIR}\"")
 
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtInstall.cmake)

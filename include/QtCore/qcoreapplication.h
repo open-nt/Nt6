@@ -17,6 +17,13 @@ class QTranslator;
 
 class QCoreApplication : public QObject {
     Q_OBJECT
+    Q_PROPERTY(QString applicationName READ applicationName WRITE setApplicationName NOTIFY applicationNameChanged)
+    Q_PROPERTY(
+        QString applicationVersion READ applicationVersion WRITE setApplicationVersion NOTIFY applicationVersionChanged)
+    Q_PROPERTY(QString organizationName READ organizationName WRITE setOrganizationName NOTIFY organizationNameChanged)
+    Q_PROPERTY(
+        QString organizationDomain READ organizationDomain WRITE setOrganizationDomain NOTIFY organizationDomainChanged)
+    Q_PROPERTY(bool quitLockEnabled READ isQuitLockEnabled WRITE setQuitLockEnabled)
 public:
     QCoreApplication(int &argc, char **argv);
     ~QCoreApplication() override;
@@ -66,6 +73,11 @@ public:
     static bool removeTranslator(QTranslator *translationFile);
     static QString translate(const char *context, const char *sourceText, const char *disambiguation = nullptr, int n = -1);
 
+    static void setAttribute(Qt::ApplicationAttribute attribute, bool on = true);
+    static bool testAttribute(Qt::ApplicationAttribute attribute);
+    static void setSetuidAllowed(bool allow);
+    static bool isSetuidAllowed();
+
     void installNativeEventFilter(QAbstractNativeEventFilter *filterObj);
     void removeNativeEventFilter(QAbstractNativeEventFilter *filterObj);
 
@@ -100,6 +112,26 @@ signals:
         \sa quit()
     */
     void aboutToQuit() { emitSignal(&QCoreApplication::aboutToQuit); }
+    /*!
+        \since 4.0
+        This signal is emitted when setApplicationName() changes the application name.
+    */
+    void applicationNameChanged() { emitSignal(&QCoreApplication::applicationNameChanged); }
+    /*!
+        \since 4.0
+        This signal is emitted when setApplicationVersion() changes the application version.
+    */
+    void applicationVersionChanged() { emitSignal(&QCoreApplication::applicationVersionChanged); }
+    /*!
+        \since 4.0
+        This signal is emitted when setOrganizationName() changes the name of the organization.
+    */
+    void organizationNameChanged() { emitSignal(&QCoreApplication::organizationNameChanged); }
+    /*!
+        \since 4.0
+        This signal is emitted when setOrganizationDomain() changes the domain of the organization.
+    */
+    void organizationDomainChanged() { emitSignal(&QCoreApplication::organizationDomainChanged); }
 
 private:
     void requestPermissionImpl(const QPermission &permission, const QObject *context,

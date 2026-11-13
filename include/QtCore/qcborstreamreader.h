@@ -201,6 +201,11 @@ public:
     StringResult<QString> readString();
     StringResult<QByteArray> readUtf8String();
     StringResult<QByteArray> readByteArray();
+    qsizetype currentStringChunkSize() const;
+    StringResult<qsizetype> readStringChunk(char *ptr, qsizetype maxlen);
+    bool readAndAppendToString(QString &dst);
+    bool readAndAppendToUtf8String(QByteArray &dst);
+    bool readAndAppendToByteArray(QByteArray &dst);
     QString readAllString();
     QByteArray readAllUtf8String();
     QByteArray readAllByteArray();

@@ -9,6 +9,25 @@
 #include <type_traits>
 #include <utility>
 
+// The std::filesystem overloads of QFileInfo, QDir and QFile. Zephyr has no file system library.
+#if __has_include(<filesystem>) && !defined(__ZEPHYR__)
+#include <filesystem>
+#define NT_HAS_STD_FILESYSTEM 1
+
+namespace QtPrivate {
+// True for std::filesystem::path only, so that the overloads that take one do not catch strings.
+template <typename T> using IsFilesystemPath = std::is_same<T, std::filesystem::path>;
+template <typename T> using ForFilesystemPath = std::enable_if_t<IsFilesystemPath<T>::value, bool>;
+
+inline std::filesystem::path toFilesystemPath(const QString &path) {
+    return std::filesystem::path(path.toStdU16String());
+}
+inline QString fromFilesystemPath(const std::filesystem::path &path) {
+    return QString::fromStdU16String(path.u16string());
+}
+} // namespace QtPrivate
+#endif
+
 class QDir;
 class QFile;
 
@@ -34,6 +53,14 @@ public:
         \sa setFile()
     */
     explicit QFileInfo(const QString &file) : m_file(file) {}
+#ifdef NT_HAS_STD_FILESYSTEM
+    /*!
+        \since 6.0
+        Constructs a QFileInfo for the file at \a file.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true>
+    explicit QFileInfo(const T &file) : m_file(QtPrivate::fromFilesystemPath(file)) {}
+#endif
     explicit QFileInfo(const QFile &file);
     QFileInfo(const QDir &dir, const QString &file);
 
@@ -43,6 +70,16 @@ public:
         \sa refresh()
     */
     void setFile(const QString &file) { m_file = file; m_cached = false; }
+#ifdef NT_HAS_STD_FILESYSTEM
+    /*!
+        \since 6.0
+        \overload
+        Makes the QFileInfo refer to \a file.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true> void setFile(const T &file) {
+        setFile(QtPrivate::fromFilesystemPath(file));
+    }
+#endif
     void setFile(const QFile &file);
     void setFile(const QDir &dir, const QString &file);
     /*!
@@ -52,6 +89,7 @@ public:
         \sa setCaching()
     */
     void refresh() { m_cached = false; }
+    void stat();
     /*!
         Enables or disables caching of file information according to
         \a enable, and clears what is cached. Caching is on by default. With
@@ -95,6 +133,51 @@ public:
     QDir dir() const;
     QDir absoluteDir() const;
     QString symLinkTarget() const;
+    QString readSymLink() const;
+#ifdef NT_HAS_STD_FILESYSTEM
+    /*!
+        \since 6.0
+        Returns filePath() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemFilePath() const { return QtPrivate::toFilesystemPath(filePath()); }
+    /*!
+        \since 6.0
+        Returns absoluteFilePath() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemAbsoluteFilePath() const { return QtPrivate::toFilesystemPath(absoluteFilePath()); }
+    /*!
+        \since 6.0
+        Returns canonicalFilePath() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemCanonicalFilePath() const {
+        return QtPrivate::toFilesystemPath(canonicalFilePath());
+    }
+    /*!
+        \since 6.0
+        Returns path() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemPath() const { return QtPrivate::toFilesystemPath(path()); }
+    /*!
+        \since 6.0
+        Returns absolutePath() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemAbsolutePath() const { return QtPrivate::toFilesystemPath(absolutePath()); }
+    /*!
+        \since 6.0
+        Returns canonicalPath() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemCanonicalPath() const { return QtPrivate::toFilesystemPath(canonicalPath()); }
+    /*!
+        \since 6.0
+        Returns symLinkTarget() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemSymLinkTarget() const { return QtPrivate::toFilesystemPath(symLinkTarget()); }
+    /*!
+        \since 6.6
+        Returns readSymLink() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemReadSymLink() const { return QtPrivate::toFilesystemPath(readSymLink()); }
+#endif
     QString owner() const;
     QString group() const;
     uint ownerId() const;
@@ -129,6 +212,7 @@ public:
     bool isAbsolute() const { return m_file.startsWith(QChar(u'/')) || m_file.startsWith(QChar(u':')); }
     bool isFile() const;
     bool isDir() const;
+    bool isOther() const;
     bool isSymLink() const;
     /*!
         \since 6.4

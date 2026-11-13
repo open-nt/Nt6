@@ -812,6 +812,72 @@ enum class ColorScheme { Unknown, Light, Dark };
 enum class PermissionStatus { Undetermined, Granted, Denied };
 
 /*!
+    \enum Qt::ApplicationAttribute
+    \since 4.4
+    This enum describes attributes that change how the whole application behaves. Set them with
+    QCoreApplication::setAttribute(), before the application object is made for most of them.
+
+    \value AA_QtQuickUseDefaultSizePolicy Qt Quick layouts use the size policies of their items.
+    \value AA_DontShowIconsInMenus Menus do not show the icons of their actions.
+    \value AA_NativeWindows Widgets get native windows.
+    \value AA_DontCreateNativeWidgetSiblings The siblings of native widgets stay alien.
+    \value AA_PluginApplication The application is a plugin of another program and does not own the process.
+    \value AA_DontUseNativeMenuBar Menu bars are not given to the desktop.
+    \value AA_MacDontSwapCtrlAndMeta The Control and Meta keys are not swapped (macOS only).
+    \value AA_Use96Dpi Fonts are laid out for 96 dots per inch, whatever the screen.
+    \value AA_DisableNativeVirtualKeyboard No virtual keyboard of the platform is shown.
+    \value AA_SynthesizeTouchForUnhandledMouseEvents Mouse events that nobody accepts come again as touch events.
+    \value AA_SynthesizeMouseForUnhandledTouchEvents Touch events that nobody accepts come again as mouse events.
+    \value AA_ForceRasterWidgets Widgets are painted in software.
+    \value AA_UseDesktopOpenGL OpenGL contexts use desktop OpenGL.
+    \value AA_UseOpenGLES OpenGL contexts use OpenGL ES.
+    \value AA_UseSoftwareOpenGL OpenGL contexts use a software renderer.
+    \value AA_ShareOpenGLContexts OpenGL contexts share their resources with each other.
+    \value AA_SetPalette Set by the application when it set a palette.
+    \value AA_UseStyleSheetPropagationInWidgetStyles Style sheets pass fonts and palettes on to child widgets.
+    \value AA_DontUseNativeDialogs File and color dialogs of the desktop are not used.
+    \value AA_SynthesizeMouseForUnhandledTabletEvents Tablet events that nobody accepts come again as mouse events.
+    \value AA_CompressHighFrequencyEvents Mouse moves and similar events are merged while the application is busy.
+    \value AA_DontCheckOpenGLContextThreadAffinity OpenGL contexts may be used from any thread.
+    \value AA_DisableShaderDiskCache Compiled shaders are not cached on disk.
+    \value AA_DontShowShortcutsInContextMenus Context menus do not show the shortcuts of their actions.
+    \value AA_CompressTabletEvents Tablet events are merged while the application is busy.
+    \value AA_DisableSessionManager The application does not talk to the session manager of the desktop.
+    \value AA_AttributeCount The number of attributes.
+
+    \sa QCoreApplication::setAttribute(), QCoreApplication::testAttribute()
+*/
+enum ApplicationAttribute {
+    AA_QtQuickUseDefaultSizePolicy = 1,
+    AA_DontShowIconsInMenus = 2,
+    AA_NativeWindows = 3,
+    AA_DontCreateNativeWidgetSiblings = 4,
+    AA_PluginApplication = 5,
+    AA_DontUseNativeMenuBar = 6,
+    AA_MacDontSwapCtrlAndMeta = 7,
+    AA_Use96Dpi = 8,
+    AA_DisableNativeVirtualKeyboard = 9,
+    AA_SynthesizeTouchForUnhandledMouseEvents = 11,
+    AA_SynthesizeMouseForUnhandledTouchEvents = 12,
+    AA_ForceRasterWidgets = 14,
+    AA_UseDesktopOpenGL = 15,
+    AA_UseOpenGLES = 16,
+    AA_UseSoftwareOpenGL = 17,
+    AA_ShareOpenGLContexts = 18,
+    AA_SetPalette = 19,
+    AA_UseStyleSheetPropagationInWidgetStyles = 22,
+    AA_DontUseNativeDialogs = 23,
+    AA_SynthesizeMouseForUnhandledTabletEvents = 24,
+    AA_CompressHighFrequencyEvents = 25,
+    AA_DontCheckOpenGLContextThreadAffinity = 26,
+    AA_DisableShaderDiskCache = 27,
+    AA_DontShowShortcutsInContextMenus = 28,
+    AA_CompressTabletEvents = 29,
+    AA_DisableSessionManager = 31,
+    AA_AttributeCount
+};
+
+/*!
     \enum Qt::FocusPolicy
 
     This enum says how a widget gets the keyboard focus.

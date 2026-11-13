@@ -59,6 +59,29 @@ public:
     */
     constexpr QFlags &operator|=(QFlags o) noexcept { i |= o.i; return *this; }
     /*!
+        \since 6.2
+        Returns \c true if \a lhs holds exactly the flag \a rhs and no other; otherwise returns \c false. This also
+        works for a scoped enumeration, whose values do not convert to integers.
+    */
+    friend constexpr bool operator==(QFlags lhs, Enum rhs) noexcept { return lhs.i == static_cast<Int>(rhs); }
+    /*!
+        \since 6.2
+        \overload
+        Returns \c true if \a rhs holds exactly the flag \a lhs and no other; otherwise returns \c false.
+    */
+    friend constexpr bool operator==(Enum lhs, QFlags rhs) noexcept { return rhs == lhs; }
+    /*!
+        \since 6.2
+        Returns \c true if \a lhs does not hold exactly the flag \a rhs; otherwise returns \c false.
+    */
+    friend constexpr bool operator!=(QFlags lhs, Enum rhs) noexcept { return !(lhs == rhs); }
+    /*!
+        \since 6.2
+        \overload
+        Returns \c true if \a rhs does not hold exactly the flag \a lhs; otherwise returns \c false.
+    */
+    friend constexpr bool operator!=(Enum lhs, QFlags rhs) noexcept { return !(rhs == lhs); }
+    /*!
         \overload
 
         Sets the flag \a f and returns a reference to this object.

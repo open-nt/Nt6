@@ -118,6 +118,43 @@ public:
     }
 
     /*!
+        \since 6.8
+        Makes this view start at \a pos and returns a reference to it.
+
+        \sa sliced()
+    */
+    QAnyStringView &slice(qsizetype pos) {
+        *this = sliced(pos);
+        return *this;
+    }
+    /*!
+        \since 6.8
+        \overload
+        Makes this view the \a count characters from \a pos and returns a reference to it.
+    */
+    QAnyStringView &slice(qsizetype pos, qsizetype count) {
+        *this = sliced(pos, count);
+        return *this;
+    }
+    /*!
+        \since 6.2
+        Returns a view of the string literal \a string, without the terminating null character if there is one.
+    */
+    template <typename Char, std::size_t Size> static QAnyStringView fromArray(const Char (&string)[Size]) noexcept {
+        qsizetype len = static_cast<qsizetype>(Size);
+        if (len > 0 && string[len - 1] == Char(0))
+            --len;
+        return QAnyStringView(string, len);
+    }
+    /*!
+        \since 6.5
+        Returns a copy of this string with the lowest-numbered place-markers replaced by \a a and \a rest, as
+        QString::arg() does with several arguments.
+    */
+    template <typename A, typename... Rest> QString arg(const A &a, const Rest &...rest) const {
+        return toString().arg(a, rest...);
+    }
+    /*!
         Returns the viewed text converted to a QString.
     */
     QString toString() const {
@@ -171,35 +208,35 @@ public:
         \since 6.5
         Returns a view of the first \a count code units.
     */
-    QAnyStringView first(qsizetype count) const { return slice(0, count); }
+    QAnyStringView first(qsizetype count) const { return subview(0, count); }
     /*!
         \since 6.5
         Returns a view of the last \a count code units.
     */
-    QAnyStringView last(qsizetype count) const { return slice(n - count, count); }
+    QAnyStringView last(qsizetype count) const { return subview(n - count, count); }
     /*!
         \since 6.5
         Returns a view of the code units from \a pos to the end.
     */
-    QAnyStringView sliced(qsizetype pos) const { return slice(pos, n - pos); }
+    QAnyStringView sliced(qsizetype pos) const { return subview(pos, n - pos); }
     /*!
         \overload
         \since 6.5
         Returns a view of \a count code units from \a pos.
     */
-    QAnyStringView sliced(qsizetype pos, qsizetype count) const { return slice(pos, count); }
+    QAnyStringView sliced(qsizetype pos, qsizetype count) const { return subview(pos, count); }
     /*!
         \since 6.5
         Returns a view without the last \a count code units.
     */
-    QAnyStringView chopped(qsizetype count) const { return slice(0, n - count); }
+    QAnyStringView chopped(qsizetype count) const { return subview(0, n - count); }
     /*!
         Returns a view of the first \a count code units, or the whole view if
         \a count is negative or larger than size().
 
         \sa first(), right(), mid()
     */
-    QAnyStringView left(qsizetype count) const { return slice(0, count < 0 || count > n ? n : count); }
+    QAnyStringView left(qsizetype count) const { return subview(0, count < 0 || count > n ? n : count); }
     /*!
         Returns a view of the last \a count code units, or the whole view if
         \a count is negative or larger than size().
@@ -208,7 +245,7 @@ public:
     */
     QAnyStringView right(qsizetype count) const {
         const qsizetype c = count < 0 || count > n ? n : count;
-        return slice(n - c, c);
+        return subview(n - c, c);
     }
     /*!
         Returns a view of \a count code units from index \a pos, or of the
@@ -219,10 +256,10 @@ public:
     */
     QAnyStringView mid(qsizetype pos, qsizetype count = -1) const {
         if (pos < 0 || pos > n)
-            return slice(0, 0);
+            return subview(0, 0);
         if (count < 0 || count > n - pos)
             count = n - pos;
-        return slice(pos, count);
+        return subview(pos, count);
     }
     /*!
         \since 6.8
@@ -271,7 +308,7 @@ public:
 
 private:
     enum Tag : unsigned char { Utf8, Latin1, Utf16 };
-    QAnyStringView slice(qsizetype pos, qsizetype count) const {
+    QAnyStringView subview(qsizetype pos, qsizetype count) const {
         QAnyStringView r = *this;
         r.p = tag == Utf16 ? static_cast<const void *>(static_cast<const QChar *>(p) + pos) : static_cast<const void *>(static_cast<const char *>(p) + pos);
         r.n = count;

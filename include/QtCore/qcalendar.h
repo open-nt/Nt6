@@ -120,6 +120,9 @@ public:
     QDate dateFromParts(const YearMonthDay &parts) const;
     YearMonthDay partsFromDate(QDate date) const;
     int dayOfWeek(QDate date) const;
+    QString dateTimeToString(QStringView format, const QDateTime &datetime, QDate dateOnly, QTime timeOnly,
+                             const QLocale &locale) const;
+    QDate matchCenturyToWeekday(const YearMonthDay &parts, int dow) const;
 
     QString monthName(const QLocale &locale, int month, int year = Unspecified,
                       QLocale::FormatType format = QLocale::LongFormat) const;

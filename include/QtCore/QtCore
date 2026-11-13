@@ -161,3 +161,4 @@
 #include "qpermissions.h"
 #include "qyieldcpu.h"
 #include "qmetacontainer.h"
+#include "qnativeipckey.h"

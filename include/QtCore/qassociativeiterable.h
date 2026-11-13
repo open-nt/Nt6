@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qmetacontainer.h>
 #include <QtCore/qmetatype.h>
 #include <QtCore/qvariant.h>
 
@@ -101,7 +102,97 @@ public:
         qsizetype m_index = 0;
     };
 
+    /*!
+        \class QAssociativeIterable::iterator
+        \since 6.0
+        \brief The iterator class is an iterator over a QAssociativeIterable that can change the mapped values.
+
+        key() returns the key of the current entry; value() and dereferencing give a reference to its mapped value
+        that converts to a QVariant and can be assigned a new value.
+
+        \differences
+        The mapped value is a QAssociativeIterable::iterator::reference rather than a \c QVariantRef.
+        \enddifferences
+    */
+    class iterator {
+    public:
+        /*!
+            \class QAssociativeIterable::iterator::reference
+            \brief The reference class refers to one mapped value of a container through a QAssociativeIterable.
+        */
+        class reference {
+        public:
+            /*!
+                Returns the mapped value as a QVariant.
+            */
+            operator QVariant() const { return m_owner ? m_owner->value(m_key) : QVariant(); }
+            /*!
+                Replaces the mapped value with \a value, converted to the mapped type, and returns a reference to
+                this reference.
+            */
+            reference &operator=(const QVariant &value) {
+                if (m_owner)
+                    m_owner->setValue(m_key, value);
+                return *this;
+            }
+
+        private:
+            friend class iterator;
+            reference(QAssociativeIterable *owner, const QVariant &key) : m_owner(owner), m_key(key) {}
+            QAssociativeIterable *m_owner;
+            QVariant m_key;
+        };
+
+        /*!
+            Constructs an iterator that does not refer to a container.
+        */
+        iterator() = default;
+        QVariant key() const;
+        /*!
+            Returns a reference to the mapped value of the current entry.
+        */
+        reference value() const { return reference(m_owner, key()); }
+        /*!
+            Returns a reference to the mapped value of the current entry. This is the same as value().
+        */
+        reference operator*() const { return value(); }
+        /*!
+            Returns \c true if \a o refers to the same entry of the same container.
+        */
+        bool operator==(const iterator &o) const { return m_owner == o.m_owner && m_index == o.m_index; }
+        /*!
+            Returns \c true if \a o refers to a different entry or container.
+        */
+        bool operator!=(const iterator &o) const { return !(*this == o); }
+        /*!
+            Advances the iterator by one entry and returns a reference to it.
+        */
+        iterator &operator++() {
+            ++m_index;
+            return *this;
+        }
+        /*!
+            Moves the iterator back by one entry and returns a reference to it.
+        */
+        iterator &operator--() {
+            --m_index;
+            return *this;
+        }
+
+    private:
+        friend class QAssociativeIterable;
+        QAssociativeIterable *m_owner = nullptr;
+        qsizetype m_index = 0;
+    };
+
+    /*!
+        \since 6.0
+        Constructs an iterable that refers to no container.
+    */
+    QAssociativeIterable() = default;
     explicit QAssociativeIterable(const QVariant &variant);
+    QAssociativeIterable(const QMetaAssociation &metaAssociation, QMetaType metaType, void *iterable);
+    QAssociativeIterable(const QMetaAssociation &metaAssociation, QMetaType metaType, const void *iterable);
     /*!
         Constructs a copy of \a other.
     */
@@ -144,7 +235,24 @@ public:
     QMetaType mappedMetaType() const;
     QMetaAssociation metaContainer() const;
 
+    void insertKey(const QVariant &key);
+    void removeKey(const QVariant &key);
+    void setValue(const QVariant &key, const QVariant &mapped);
+    iterator mutableBegin();
+    iterator mutableEnd();
+    iterator mutableFind(const QVariant &key);
+    /*!
+        \since 6.0
+        Returns \c true if the iterable can change the container: it was made by QVariant::view() or from a
+        pointer to a container that is not const; otherwise returns \c false.
+    */
+    bool canModify() const { return m_data != nullptr; }
+
 private:
+    const void *container() const { return m_data ? m_data : m_constData ? m_constData : m_variant.constData(); }
+
     QVariant m_variant;
     const QtPrivate::AssociativeInterface *m_iface = nullptr;
+    void *m_data = nullptr;
+    const void *m_constData = nullptr;
 };

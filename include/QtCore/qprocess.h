@@ -159,6 +159,68 @@ public:
     void setStandardErrorFile(const QString &fileName, OpenMode mode = Truncate);
     void setStandardOutputProcess(QProcess *destination);
     void setChildProcessModifier(const std::function<void()> &modifier);
+    std::function<void()> childProcessModifier() const;
+    [[noreturn]] static void failChildProcessModifier(const char *description, int error = 0) noexcept;
+
+    /*!
+        \enum QProcess::UnixProcessFlag
+        \since 6.6
+        This enum describes what the child process does to itself before it runs the program.
+
+        \value ResetSignalHandlers Signal handlers are reset to their defaults. Nt always does this.
+        \value IgnoreSigPipe \c SIGPIPE is ignored rather than reset, so that writing to a closed pipe fails with
+            \c EPIPE instead of ending the program.
+        \value CloseFileDescriptors The file descriptors from UnixProcessParameters::lowestFileDescriptorToClose
+            on (and at least 3) are closed, so that the program does not inherit them.
+        \value UseVFork Accepted and ignored: Nt always forks.
+        \value CreateNewSession The child starts a new session with \c setsid().
+        \value DisconnectControllingTerminal The child leaves the controlling terminal of the parent.
+        \value ResetIds The effective user and group ids are set to the real ones, dropping setuid privileges.
+        \value DisableCoreDumps The child cannot write core dumps.
+    */
+    enum class UnixProcessFlag : quint32 {
+        ResetSignalHandlers = 0x0001,
+        IgnoreSigPipe = 0x0002,
+        CloseFileDescriptors = 0x0010,
+        UseVFork = 0x0020,
+        CreateNewSession = 0x0040,
+        DisconnectControllingTerminal = 0x0080,
+        ResetIds = 0x0100,
+        DisableCoreDumps = 0x0200,
+    };
+    Q_DECLARE_FLAGS(UnixProcessFlags, UnixProcessFlag)
+
+    /*!
+        \class QProcess::UnixProcessParameters
+        \since 6.6
+        \brief The UnixProcessParameters struct holds what the child process does to itself before it runs the
+        program.
+
+        \sa QProcess::setUnixProcessParameters()
+    */
+    struct UnixProcessParameters {
+        /*!
+            \variable QProcess::UnixProcessParameters::flags
+            What the child does.
+        */
+        UnixProcessFlags flags = {};
+        /*!
+            \variable QProcess::UnixProcessParameters::lowestFileDescriptorToClose
+            With \c CloseFileDescriptors, the lowest descriptor that is closed; values below 3 count as 3.
+        */
+        int lowestFileDescriptorToClose = 0;
+        /*!
+            \variable QProcess::UnixProcessParameters::_reserved
+            \internal
+        */
+        quint32 _reserved[6]{};
+    };
+    UnixProcessParameters unixProcessParameters() const noexcept;
+    void setUnixProcessParameters(const UnixProcessParameters &params);
+    void setUnixProcessParameters(UnixProcessFlags flagsOnly);
+
+    QStringList environment() const;
+    void setEnvironment(const QStringList &environment);
 
     ProcessError error() const;
     ProcessState state() const;
@@ -245,3 +307,4 @@ private:
     struct Private;
     std::unique_ptr<Private> d;
 };
+Q_DECLARE_OPERATORS_FOR_FLAGS(QProcess::UnixProcessFlags)

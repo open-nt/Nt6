@@ -315,6 +315,7 @@ public:
 
     QXmlStreamAttributes attributes() const;
     QString readElementText(ReadElementTextBehaviour behaviour = ErrorOnUnexpectedElement);
+    QString readRawInnerData();
 
     QStringView name() const;
     QStringView namespaceUri() const;
@@ -356,6 +357,19 @@ private:
 
 class QXmlStreamWriter {
 public:
+    /*!
+        \enum QXmlStreamWriter::Error
+        \since 6.10
+        This enum describes what went wrong while writing.
+
+        \value None Nothing went wrong.
+        \value IO The device could not be written to, or the writer has nothing to write to.
+        \value Encoding The text has a lone UTF-16 surrogate, which UTF-8 cannot encode.
+        \value InvalidCharacter The text has a character that XML does not allow, such as a control character.
+        \value Custom raiseError() was called.
+    */
+    enum class Error { None, IO, Encoding, InvalidCharacter, Custom };
+
     QXmlStreamWriter();
     explicit QXmlStreamWriter(QIODevice *device);
     explicit QXmlStreamWriter(QByteArray *array);
@@ -404,6 +418,11 @@ public:
     void writeCurrentToken(const QXmlStreamReader &reader);
 
     bool hasError() const;
+    Error error() const;
+    QString errorString() const;
+    void raiseError(const QString &message);
+    void setStopWritingOnError(bool stop);
+    bool stopWritingOnError() const;
 
 private:
     struct Private;

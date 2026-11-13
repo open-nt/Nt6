@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <utility>
+
 #include <QtCore/qflags.h>
 #include <QtCore/qelapsedtimer.h>
 #include <QtCore/qobject.h>
@@ -58,6 +60,15 @@ public:
     explicit QEventLoopLocker(QEventLoop *loop);
     explicit QEventLoopLocker(QThread *thread);
     ~QEventLoopLocker();
+    /*!
+        \since 6.7
+        Exchanges what this locker keeps running with what \a other does.
+    */
+    void swap(QEventLoopLocker &other) noexcept {
+        std::swap(m_kind, other.m_kind);
+        m_target.swap(other.m_target);
+        std::swap(m_key, other.m_key);
+    }
     Q_DISABLE_COPY(QEventLoopLocker)
 
 private:

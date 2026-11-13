@@ -291,6 +291,11 @@ template <typename Needle, typename... Flags> auto QString::tokenize(Needle &&ne
     return Tokenizer(QStringView(*this), QtPrivate::Tok::NeedleType<Needle>(std::forward<Needle>(needle)), flags...);
 }
 
+template <typename Needle, typename... Flags> auto QLatin1StringView::tokenize(Needle &&needle, Flags... flags) const {
+    using Tokenizer = QStringTokenizer<QString, QtPrivate::Tok::NeedleType<Needle>>;
+    return Tokenizer(toString(), QtPrivate::Tok::NeedleType<Needle>(std::forward<Needle>(needle)), flags...);
+}
+
 template <typename Needle, typename... Flags> auto QString::tokenize(Needle &&needle, Flags... flags) && {
     using Tokenizer = QStringTokenizer<QString, QtPrivate::Tok::NeedleType<Needle>>;
     return Tokenizer(std::move(*this), QtPrivate::Tok::NeedleType<Needle>(std::forward<Needle>(needle)), flags...);

@@ -184,6 +184,14 @@ QSharedMemory::QSharedMemory(QObject *parent) : QObject(parent), d(std::make_uni
 QSharedMemory::QSharedMemory(const QString &key, QObject *parent) : QSharedMemory(parent) { setKey(key); }
 
 /*!
+    \since 6.6
+    Constructs a shared memory object for the native key \a key, with the given \a parent.
+
+    \sa setNativeKey()
+*/
+QSharedMemory::QSharedMemory(const QNativeIpcKey &key, QObject *parent) : QSharedMemory(parent) { setNativeKey(key); }
+
+/*!
     Destroys the object, after it has detached from the segment. The segment is removed from the
     system if no other object is attached to it.
 */
@@ -226,6 +234,49 @@ void QSharedMemory::setNativeKey(const QString &key) {
     detach();
     d->setNames(QString(), key);
     d->succeed();
+}
+
+/*!
+    \since 6.6
+    \overload
+    Sets the native key to \a key. A key of a type other than \c Type::PosixRealtime is a key error.
+
+    \sa nativeIpcKey(), platformSafeKey()
+*/
+void QSharedMemory::setNativeKey(const QNativeIpcKey &key) {
+    setNativeKey(isKeyTypeSupported(key.type()) ? key.nativeKey() : QString());
+    if (!isKeyTypeSupported(key.type()))
+        d->fail(KeyError, "setNativeKey", QStringLiteral("the type of the key is not supported"));
+}
+
+/*!
+    \since 6.6
+    Returns the native key as a QNativeIpcKey of the type \c Type::PosixRealtime.
+
+    \sa nativeKey()
+*/
+QNativeIpcKey QSharedMemory::nativeIpcKey() const {
+    return QNativeIpcKey(nativeKey(), QNativeIpcKey::Type::PosixRealtime);
+}
+
+/*!
+    \since 6.6
+    Returns the native key that setKey() would use for \a key: a name that the system accepts, made from the
+    letters and digits of \a key and a hash of it, of the type \a type.
+
+    \sa legacyNativeKey()
+*/
+QNativeIpcKey QSharedMemory::platformSafeKey(const QString &key, QNativeIpcKey::Type type) {
+    return QNativeIpcKey(QString::fromLatin1(QtPrivate::ipcName("qipc_sharedmemory_", key)), type);
+}
+
+/*!
+    \since 6.6
+    Returns the native key that setKey() gives \a key, of the type \a type. Nt makes the same names as
+    platformSafeKey() for every key, so this returns the same name.
+*/
+QNativeIpcKey QSharedMemory::legacyNativeKey(const QString &key, QNativeIpcKey::Type type) {
+    return platformSafeKey(key, type);
 }
 
 /*!

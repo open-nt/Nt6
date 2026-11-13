@@ -5,6 +5,7 @@
 #include <QtCore/qurlquery.h>
 
 #include <algorithm>
+#include <mutex>
 #include <cstring>
 #include <limits>
 #include <vector>
@@ -443,7 +444,8 @@ std::vector<char32_t> codePoints(const QString &s) {
 
     Options for toAce() and fromAce().
 
-    \value IgnoreIDNWhitelist Accepted for compatibility; Nt has no IDN whitelist.
+    \value IgnoreIDNWhitelist fromAce() shows labels in Unicode under every top-level domain, whatever
+           setIdnWhitelist() set.
     \value AceTransitionalProcessing Maps \c ß to \c ss and final sigma to sigma, and removes
            zero-width joiners, as registries did before IDNA 2008.
 */
@@ -1127,6 +1129,53 @@ QByteArray QUrl::toAce(const QString &domain, AceProcessingOptions options) {
     return result;
 }
 
+namespace {
+
+std::mutex &whitelistLock() {
+    static std::mutex *m = new std::mutex;
+    return *m;
+}
+
+QStringList &whitelist() {
+    static auto *list = new QStringList;
+    return *list;
+}
+
+// True if the labels of a domain under the top-level domain `tld`, in the form that fromAce() gives it, may be
+// shown in Unicode.
+bool whitelisted(const QString &tld) {
+    std::lock_guard<std::mutex> lock(whitelistLock());
+    return whitelist().isEmpty() || whitelist().contains(tld, Qt::CaseInsensitive);
+}
+
+} // namespace
+
+/*!
+    \since 4.2
+    Returns the top-level domains under which fromAce() shows internationalized labels in Unicode, as
+    setIdnWhitelist() set them. An empty list, the default, allows every domain.
+
+    \sa setIdnWhitelist()
+*/
+QStringList QUrl::idnWhitelist() {
+    std::lock_guard<std::mutex> lock(whitelistLock());
+    return whitelist();
+}
+
+/*!
+    \since 4.2
+    Sets the top-level domains under which fromAce() shows internationalized labels in Unicode to \a list, such as
+    \c{{"de", "jp"}}. Under other domains, which may allow labels that look like others, the ACE form is kept.
+    Registries publish which domains have rules against such look-alike names. An empty list allows every domain.
+    The option \c IgnoreIDNWhitelist of fromAce() ignores the list.
+
+    \sa idnWhitelist(), fromAce()
+*/
+void QUrl::setIdnWhitelist(const QStringList &list) {
+    std::lock_guard<std::mutex> lock(whitelistLock());
+    whitelist() = list;
+}
+
 /*!
     Returns the Unicode form of the ACE-encoded \a domain: each label that starts with
     \c{xn--} and is valid Punycode is decoded, and every other label is kept, in lower case.
@@ -1140,9 +1189,18 @@ QByteArray QUrl::toAce(const QString &domain, AceProcessingOptions options) {
     \sa toAce()
 */
 QString QUrl::fromAce(const QByteArray &domain, AceProcessingOptions options) {
-    Q_UNUSED(options)
     QString result;
     const QList<QByteArray> labels = domain.toLower().split('.');
+    if (!(options & IgnoreIDNWhitelist) && !labels.isEmpty()) {
+        // The top-level domain is the last label that is not empty, in its Unicode form.
+        qsizetype last = labels.size() - 1;
+        while (last > 0 && labels.at(last).isEmpty())
+            --last;
+        const QString tld = labels.at(last).startsWith("xn--") ? fromAce(labels.at(last), IgnoreIDNWhitelist)
+                                                               : QString::fromLatin1(labels.at(last));
+        if (!whitelisted(tld))
+            return QString::fromLatin1(domain.toLower());
+    }
     for (qsizetype i = 0; i < labels.size(); ++i) {
         const QByteArray &label = labels.at(i);
         if (i > 0)

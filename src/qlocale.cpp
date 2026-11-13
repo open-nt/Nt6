@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtCore/qlocale.h>
+#include <QtCore/qcalendar.h>
 
 #include <QtCore/qhash.h>
 
@@ -472,7 +473,12 @@ QString zoneText(const QDateTime *dt, QTime time) {
     return QDateTime(QDate::currentDate(), time.isValid() ? time : QTime(0, 0)).toString(QString(u"t"));
 }
 
-QString formatDateTime(const QLocale &loc, const QLocaleData *d, const QString &format, QDate date, QTime time, const QDateTime *dt) {
+QString formatDateTime(const QLocale &loc, const QLocaleData *d, const QString &format, QDate date, QTime time,
+                       const QDateTime *dt, const QCalendar *cal = nullptr) {
+    // The year, month and day in the calendar; Gregorian unless one is given.
+    const QCalendar::YearMonthDay parts = cal && date.isValid()
+                                              ? cal->partsFromDate(date)
+                                              : QCalendar::YearMonthDay(date.year(), date.month(), date.day());
     const QList<Token> tokens = tokenize(format);
     const bool ampm = hasAmPm(tokens);
     QString out;
@@ -492,21 +498,24 @@ QString formatDateTime(const QLocale &loc, const QLocaleData *d, const QString &
         switch (l) {
         case u'd':
             if (t.count <= 2)
-                out.append(pad(date.day(), t.count));
+                out.append(pad(parts.day, t.count));
             else
                 out.append(loc.dayName(date.dayOfWeek(), t.count == 3 ? QLocale::ShortFormat : QLocale::LongFormat));
             break;
         case u'M':
             if (t.count <= 2)
-                out.append(pad(date.month(), t.count));
+                out.append(pad(parts.month, t.count));
+            else if (cal)
+                out.append(cal->monthName(loc, parts.month, parts.year,
+                                          t.count == 3 ? QLocale::ShortFormat : QLocale::LongFormat));
             else
-                out.append(loc.monthName(date.month(), t.count == 3 ? QLocale::ShortFormat : QLocale::LongFormat));
+                out.append(loc.monthName(parts.month, t.count == 3 ? QLocale::ShortFormat : QLocale::LongFormat));
             break;
         case u'y':
             if (t.count == 2)
-                out.append(pad(((date.year() % 100) + 100) % 100, 2));
+                out.append(pad(((parts.year % 100) + 100) % 100, 2));
             else
-                out.append(pad(date.year(), 4));
+                out.append(pad(parts.year, 4));
             break;
         case u'h': {
             int h = time.hour();
@@ -925,6 +934,24 @@ QString QLocale::toString(double f, char format, int precision) const {
     \c MMMM, \c yy, \c yyyy and quoted text.
 */
 QString QLocale::toString(QDate date, const QString &format) const { return formatDateTime(*this, d, format, date, QTime(), nullptr); }
+
+/*!
+    \since 5.14
+    \overload
+    Returns \a date as text in the format \a format, with the year, month and day of the calendar \a cal.
+*/
+QString QLocale::toString(QDate date, const QString &format, QCalendar cal) const {
+    return formatDateTime(*this, d, format, date, QTime(), nullptr, &cal);
+}
+
+/*!
+    \since 5.14
+    \overload
+    Returns \a dateTime as text in the format \a format, with the year, month and day of the calendar \a cal.
+*/
+QString QLocale::toString(const QDateTime &dateTime, const QString &format, QCalendar cal) const {
+    return formatDateTime(*this, d, format, dateTime.date(), dateTime.time(), &dateTime, &cal);
+}
 
 /*!
     \overload

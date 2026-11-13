@@ -1575,6 +1575,57 @@ static void testNotifyAndChildren() {
     CHECK(g_debugLines.contains("  SIGNALS OUT") && g_debugLines.contains("        signal: pong()"));
 }
 
+static void testMetaAdditions() {
+    using meta::Point3;
+    using meta::Receiver;
+    using meta::Shape;
+    // Methods: constness, the name as a view, the names of the parameter types.
+    const QMetaObject &gm = Point3::staticMetaObject;
+    const QMetaMethod sum = gm.method(gm.indexOfMethod("sum()"));
+    const QMetaMethod move = gm.method(gm.indexOfMethod("move(int,int)"));
+    CHECK(sum.isValid() && sum.isConst() && !move.isConst());
+    CHECK(sum.nameView() == "sum" && QMetaMethod().nameView().isEmpty());
+    const QMetaMethod multi =
+        Shape::staticMetaObject.method(Shape::staticMetaObject.indexOfSignal("multi(int,QString,double)"));
+    CHECK(multi.parameterTypeName(1) == "QString" && multi.parameterTypeName(2) == "double");
+    CHECK(multi.parameterTypeName(3).isEmpty() && multi.parameterTypeName(-1).isEmpty() && !multi.isConst());
+
+    // Enumerations: several keys at once, and the type.
+    const QMetaEnum features = QMetaEnum::fromType<Shape::Features>();
+    CHECK((features.keysToValue64("Filled|Shadowed") == std::optional<quint64>(5)));
+    CHECK(!features.keysToValue64("Filled|Nope").has_value());
+    CHECK(QMetaEnum::fromType<Shape::Kind>().metaType() == QMetaType::fromType<Shape::Kind>());
+
+    // Properties are not aliases; the class has a meta type.
+    const QMetaObject &sm = Shape::staticMetaObject;
+    CHECK(!sm.property(sm.indexOfProperty("sides")).isAlias());
+    const QMetaType pointType = QMetaType::fromType<Point3>(); // registers it, so that it is found by name
+    const QMetaType shapeType = QMetaType::fromType<Shape *>();
+    pointType.registerType();
+    shapeType.registerType();
+    CHECK(gm.metaType() == pointType && sm.metaType() == shapeType);
+
+    // disconnectOne() removes one of two equal connections.
+    Shape shape;
+    Receiver receiver;
+    const int signal = sm.indexOfSignal("sidesChanged(int)");
+    const int slot = receiver.metaObject()->indexOfSlot("onSides(int)");
+    CHECK(QMetaObject::connect(&shape, signal, &receiver, slot) &&
+          QMetaObject::connect(&shape, signal, &receiver, slot));
+    receiver.log.clear();
+    emit shape.sidesChanged(3);
+    const QString twice = receiver.log;
+    CHECK(QMetaObject::disconnectOne(&shape, signal, &receiver, slot));
+    receiver.log.clear();
+    emit shape.sidesChanged(3);
+    CHECK(!receiver.log.isEmpty() && receiver.log.size() * 2 == twice.size());
+    CHECK(QMetaObject::disconnectOne(&shape, signal, &receiver, slot));
+    CHECK(!QMetaObject::disconnectOne(&shape, signal, &receiver, slot));
+    receiver.log.clear();
+    emit shape.sidesChanged(3);
+    CHECK(receiver.log.isEmpty());
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testEnum64();
@@ -1603,6 +1654,7 @@ int main(int argc, char **argv) {
     testLibraryClasses();
     testConditionals();
     testThreads();
+    testMetaAdditions();
     if (g_failures == 0)
         std::printf("meta: all tests passed\n");
     return g_failures == 0 ? 0 : 1;

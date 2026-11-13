@@ -208,6 +208,78 @@ public:
     explicit QFile(const QString &name);
     explicit QFile(QObject *parent);
     QFile(const QString &name, QObject *parent);
+#ifdef NT_HAS_STD_FILESYSTEM
+    /*!
+        \since 6.0
+        Constructs a QFile for the file \a name.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true>
+    explicit QFile(const T &name) : QFile(QtPrivate::fromFilesystemPath(name)) {}
+    /*!
+        \since 6.0
+        Constructs a QFile for the file \a name, with the given \a parent.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true>
+    QFile(const T &name, QObject *parent) : QFile(QtPrivate::fromFilesystemPath(name), parent) {}
+    /*!
+        \since 6.0
+        \overload
+        Sets the name of the file to \a name. Does nothing if the file is open.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true> void setFileName(const T &name) {
+        setFileName(QtPrivate::fromFilesystemPath(name));
+    }
+    /*!
+        \since 6.0
+        Returns fileName() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemFileName() const { return QtPrivate::toFilesystemPath(fileName()); }
+    /*!
+        \since 6.0
+        Returns symLinkTarget() as a \c std::filesystem::path.
+    */
+    std::filesystem::path filesystemSymLinkTarget() const { return QtPrivate::toFilesystemPath(symLinkTarget()); }
+    /*!
+        \since 6.0
+        Returns symLinkTarget(\a fileName) as a \c std::filesystem::path.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true>
+    static std::filesystem::path filesystemSymLinkTarget(const T &fileName) {
+        return QtPrivate::toFilesystemPath(symLinkTarget(QtPrivate::fromFilesystemPath(fileName)));
+    }
+    /*!
+        \since 6.0
+        \overload
+        Returns \c true if the file \a fileName exists; otherwise returns \c false.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true> static bool exists(const T &fileName) {
+        return exists(QtPrivate::fromFilesystemPath(fileName));
+    }
+    /*!
+        \since 6.0
+        \overload
+        Renames the file to \a newName. Returns \c true on success.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true> bool rename(const T &newName) {
+        return rename(QtPrivate::fromFilesystemPath(newName));
+    }
+    /*!
+        \since 6.0
+        \overload
+        Copies the file to \a newName. Returns \c true on success.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true> bool copy(const T &newName) {
+        return copy(QtPrivate::fromFilesystemPath(newName));
+    }
+    /*!
+        \since 6.0
+        \overload
+        Makes a symbolic link \a newName to the file. Returns \c true on success.
+    */
+    template <typename T, QtPrivate::ForFilesystemPath<T> = true> bool link(const T &newName) {
+        return link(QtPrivate::fromFilesystemPath(newName));
+    }
+#endif
     ~QFile() override;
 
     /*!

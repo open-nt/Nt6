@@ -56,7 +56,16 @@ public:
     */
     enum Type { Read, Write, Exception };
 
+    explicit QSocketNotifier(Type type, QObject *parent = nullptr);
     QSocketNotifier(qintptr socket, Type type, QObject *parent = nullptr);
+    void setSocket(qintptr socket);
+    /*!
+        \since 6.1
+        Returns \c true if the notifier has a socket to watch; otherwise returns \c false.
+
+        \sa setSocket()
+    */
+    bool isValid() const { return m_fd >= 0; }
     ~QSocketNotifier() override;
 
     /*!

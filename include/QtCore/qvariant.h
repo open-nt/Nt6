@@ -456,6 +456,35 @@ public:
     template <typename T> bool canConvert() const;
 
     /*!
+        \since 6.0
+        Returns \c true if view() can give a view of the value as a \c T, such as a QSequentialIterable of a list;
+        otherwise returns \c false.
+
+        \sa view(), QMetaType::canView()
+    */
+    template <typename T> bool canView() const { return QMetaType::canView(metaType(), QMetaType::fromType<T>()); }
+    /*!
+        \since 6.0
+        Returns a view of the value as a \c T, through which the value in this variant can be changed, or a
+        default-constructed \c T if there is none. The variant is detached first, and the view refers to its
+        value: it must not outlive the variant or be used after the variant changes.
+
+        \code
+        QVariant v = QVariant::fromValue(QList<int>{1, 2});
+        QSequentialIterable list = v.view<QSequentialIterable>();
+        list.addValue(3); // v now holds {1, 2, 3}
+        \endcode
+
+        \sa canView(), QMetaType::view()
+    */
+    template <typename T> T view() {
+        T t{};
+        if (isValid())
+            QMetaType::view(metaType(), data(), QMetaType::fromType<T>(), &t);
+        return t;
+    }
+
+    /*!
         \overload
         Returns \c true if the variant can be converted to the type with the id \a targetTypeId.
     */

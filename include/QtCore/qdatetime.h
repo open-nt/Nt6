@@ -4,6 +4,7 @@
 #include <QtCore/qnamespace.h>
 #include <QtCore/qstring.h>
 
+#include <chrono>
 #include <memory>
 
 class QDateTime;
@@ -175,13 +176,52 @@ private:
 class QDateTime {
 public:
     /*!
+        \enum QDateTime::TransitionResolution
+        \since 6.7
+        This enum says what a local date and time means when a change of the offset from UTC, such as the start or
+        end of daylight-saving time, makes it ambiguous: in a gap it does not exist, and in a fold it exists twice.
+
+        \value Reject The datetime becomes invalid in a gap or a fold.
+        \value RelativeToBefore The time is read with the offset in effect before the transition: in a gap it moves
+            forward by the length of the gap, and in a fold it is the first occurrence.
+        \value RelativeToAfter The time is read with the offset in effect after the transition: in a gap it moves
+            back, and in a fold it is the second occurrence.
+        \value PreferBefore The instant before the transition.
+        \value PreferAfter The instant after the transition.
+        \value PreferStandard The instant at which standard time is in effect.
+        \value PreferDaylightSaving The instant at which daylight-saving time is in effect.
+        \value LegacyBehavior Same as \c RelativeToBefore, what Nt and Qt do when no resolution is given.
+    */
+    enum class TransitionResolution {
+        Reject = 0,
+        RelativeToBefore,
+        RelativeToAfter,
+        PreferBefore,
+        PreferAfter,
+        PreferStandard,
+        PreferDaylightSaving,
+        LegacyBehavior = RelativeToBefore,
+    };
+
+    /*!
+        \enum QDateTime::YearRange
+        \since 5.14
+        The range of years that a QDateTime can stand for, which milliseconds since the epoch in a \c qint64 allow.
+
+        \value First The earliest year.
+        \value Last The latest year.
+    */
+    enum class YearRange : qint32 { First = -292275056, Last = +292278994 };
+
+    /*!
         Constructs a null datetime, which is invalid.
 
         \sa isNull(), isValid()
     */
     QDateTime() = default;
     QDateTime(QDate date, QTime time, Qt::TimeSpec spec = Qt::LocalTime, int offsetSeconds = 0);
-    QDateTime(QDate date, QTime time, const QTimeZone &timeZone);
+    QDateTime(QDate date, QTime time, const QTimeZone &timeZone,
+              TransitionResolution resolve = TransitionResolution::LegacyBehavior);
 
     /*!
         Returns \c true if both the date and the time are null; otherwise
@@ -228,8 +268,17 @@ public:
         m_date = date;
         if (!m_time.isValid())
             m_time = QTime(0, 0);
-        if (m_spec == Qt::TimeZone)
-            m_offset = kNoOffsetHint;
+        clearOffsetHint();
+    }
+    /*!
+        \since 6.7
+        \overload
+        Sets the date part to \a date, resolving a local time that a daylight-saving transition makes ambiguous as
+        \a resolve says.
+    */
+    void setDate(QDate date, TransitionResolution resolve) {
+        setDate(date);
+        resolveTransition(resolve);
     }
     /*!
         Sets the time part to \a time.
@@ -238,8 +287,17 @@ public:
     */
     void setTime(QTime time) {
         m_time = time;
-        if (m_spec == Qt::TimeZone)
-            m_offset = kNoOffsetHint;
+        clearOffsetHint();
+    }
+    /*!
+        \since 6.7
+        \overload
+        Sets the time part to \a time, resolving a local time that a daylight-saving transition makes ambiguous as
+        \a resolve says.
+    */
+    void setTime(QTime time, TransitionResolution resolve) {
+        setTime(time);
+        resolveTransition(resolve);
     }
     /*!
         Sets the time specification to \a spec, keeping the date and time
@@ -249,6 +307,7 @@ public:
         \sa timeSpec(), toTimeSpec()
     */
     void setTimeSpec(Qt::TimeSpec spec) {
+        m_localOffset = kNoOffsetHint;
         m_spec = spec == Qt::TimeZone ? Qt::LocalTime : spec;
         if (spec != Qt::OffsetFromUTC)
             m_offset = 0;
@@ -256,7 +315,8 @@ public:
     }
     void setOffsetFromUtc(int offsetSeconds);
     QTimeZone timeZone() const;
-    void setTimeZone(const QTimeZone &toZone);
+    QTimeZone timeRepresentation() const;
+    void setTimeZone(const QTimeZone &toZone, TransitionResolution resolve = TransitionResolution::LegacyBehavior);
     QDateTime toTimeZone(const QTimeZone &toZone) const;
     bool isDaylightTime() const;
     QString timeZoneAbbreviation() const;
@@ -269,6 +329,7 @@ public:
         std::swap(m_time, other.m_time);
         std::swap(m_spec, other.m_spec);
         std::swap(m_offset, other.m_offset);
+        std::swap(m_localOffset, other.m_localOffset);
         m_zone.swap(other.m_zone);
     }
     void setMSecsSinceEpoch(qint64 msecs);
@@ -291,6 +352,75 @@ public:
     */
     QDateTime addSecs(qint64 secs) const { return addMSecs(secs * 1000); }
     QDateTime addMSecs(qint64 msecs) const;
+    /*!
+        \since 6.4
+        Returns a QDateTime that is \a msecs after this one, or before it if \a msecs is negative. This is
+        addMSecs() with a \c std::chrono duration.
+
+        \sa addMSecs()
+    */
+    QDateTime addDuration(std::chrono::milliseconds msecs) const { return addMSecs(msecs.count()); }
+    /*!
+        \since 6.4
+        Moves this datetime \a duration later and returns a reference to it.
+    */
+    QDateTime &operator+=(std::chrono::milliseconds duration) {
+        *this = addDuration(duration);
+        return *this;
+    }
+    /*!
+        \since 6.4
+        Moves this datetime \a duration earlier and returns a reference to it.
+    */
+    QDateTime &operator-=(std::chrono::milliseconds duration) {
+        *this = addDuration(-duration);
+        return *this;
+    }
+    /*!
+        \since 6.4
+        Returns \a dateTime moved \a duration later.
+    */
+    friend QDateTime operator+(const QDateTime &dateTime, std::chrono::milliseconds duration) {
+        return dateTime.addDuration(duration);
+    }
+    /*!
+        \since 6.4
+        Returns \a dateTime moved \a duration later.
+    */
+    friend QDateTime operator+(std::chrono::milliseconds duration, const QDateTime &dateTime) {
+        return dateTime.addDuration(duration);
+    }
+    /*!
+        \since 6.4
+        Returns \a dateTime moved \a duration earlier.
+    */
+    friend QDateTime operator-(const QDateTime &dateTime, std::chrono::milliseconds duration) {
+        return dateTime.addDuration(-duration);
+    }
+    /*!
+        \since 6.4
+        Returns the time from \a rhs to \a lhs.
+    */
+    friend std::chrono::milliseconds operator-(const QDateTime &lhs, const QDateTime &rhs) {
+        return std::chrono::milliseconds(rhs.msecsTo(lhs));
+    }
+    /*!
+        \since 6.4
+        Returns the time point \a time as a datetime in UTC.
+    */
+    template <typename Duration>
+    static QDateTime fromStdTimePoint(std::chrono::time_point<std::chrono::system_clock, Duration> time) {
+        const auto ms = std::chrono::floor<std::chrono::milliseconds>(time).time_since_epoch();
+        return fromMSecsSinceEpoch(ms.count(), Qt::UTC);
+    }
+    /*!
+        \since 6.4
+        Returns the datetime as a time point of the system clock, or the epoch if the datetime is invalid.
+    */
+    std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds> toStdSysMilliseconds() const {
+        return std::chrono::time_point<std::chrono::system_clock, std::chrono::milliseconds>(
+            std::chrono::milliseconds(toMSecsSinceEpoch()));
+    }
     /*!
         Returns the number of days from this datetime's date to the date of
         \a o, which is negative if \a o is earlier. The times are not taken
@@ -354,6 +484,13 @@ public:
     friend bool operator>=(const QDateTime &a, const QDateTime &b) { return !(a < b); }
 
 private:
+    void clearOffsetHint() {
+        if (m_spec == Qt::TimeZone)
+            m_offset = kNoOffsetHint;
+        m_localOffset = kNoOffsetHint;
+    }
+    void resolveTransition(TransitionResolution resolve);
+
     QDate m_date;
     QTime m_time;
     Qt::TimeSpec m_spec = Qt::LocalTime;
@@ -362,4 +499,6 @@ private:
     int m_offset = 0;
     static constexpr int kNoOffsetHint = std::numeric_limits<int>::min();
     std::shared_ptr<const QTimeZonePrivate> m_zone; // for Qt::TimeZone
+    // For Qt::LocalTime the offset of the occurrence of the local time that was chosen in a fold, or kNoOffsetHint.
+    int m_localOffset = kNoOffsetHint;
 };

@@ -454,6 +454,19 @@ QByteArray QCborValue::toByteArray(const QByteArray &defaultValue) const {
 QString QCborValue::toString(const QString &defaultValue) const { return t == String && d ? d->text : defaultValue; }
 
 /*!
+    \since 6.10
+    Returns a view of the string of the value, or \a defaultValue if it is not a string. The view stays valid as
+    long as the string is not changed or destroyed, in this value or in a copy that shares it.
+
+    \sa toString()
+*/
+QAnyStringView QCborValue::toStringView(QAnyStringView defaultValue) const {
+    if (t != String)
+        return defaultValue;
+    return d ? QAnyStringView(d->text) : QAnyStringView(u"");
+}
+
+/*!
     Returns the date and time of the value, or \a defaultValue if it is not a date and time.
 */
 QDateTime QCborValue::toDateTime(const QDateTime &defaultValue) const {
@@ -1345,6 +1358,15 @@ QByteArray QCborValueConstRef::toByteArray(const QByteArray &defaultValue) const
     Returns the string of the value, or \a defaultValue if it is not a string.
 */
 QString QCborValueConstRef::toString(const QString &defaultValue) const { return v->toString(defaultValue); }
+
+/*!
+    \since 6.10
+    Returns a view of the string of the element, or \a defaultValue if it is not a string. The view stays valid as
+    long as the element is not changed or removed.
+*/
+QAnyStringView QCborValueConstRef::toStringView(QAnyStringView defaultValue) const {
+    return v->toStringView(defaultValue);
+}
 
 /*!
     Returns the date and time of the value, or \a defaultValue if it is not a date and time.

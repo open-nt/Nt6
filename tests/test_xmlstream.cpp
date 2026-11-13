@@ -955,6 +955,72 @@ static void testCopy() {
     CHECK(!back.hasError());
 }
 
+static void testWriterErrors() {
+    // A document without errors.
+    QString out;
+    QXmlStreamWriter ok(&out);
+    ok.writeTextElement(QStringLiteral("a"), QStringLiteral("tab\tand\nnewline"));
+    CHECK(!ok.hasError() && ok.error() == QXmlStreamWriter::Error::None && ok.errorString().isEmpty());
+    CHECK(!ok.stopWritingOnError());
+
+    // Characters that XML does not allow, and lone surrogates.
+    QString bad;
+    QXmlStreamWriter control(&bad);
+    control.writeTextElement(QStringLiteral("a"), QString(QChar(0x1)));
+    CHECK(control.hasError() && control.error() == QXmlStreamWriter::Error::InvalidCharacter);
+    CHECK(control.errorString().contains(QStringLiteral("U+0001")));
+    control.writeTextElement(QStringLiteral("b"), QString(QChar(0xd800))); // the first error is kept
+    CHECK(control.error() == QXmlStreamWriter::Error::InvalidCharacter);
+    CHECK(bad.contains(QStringLiteral("<b>"))); // it goes on writing by default
+
+    QString surrogate;
+    QXmlStreamWriter encoding(&surrogate);
+    encoding.writeCharacters(QString(QChar(0xdc00)));
+    CHECK(encoding.error() == QXmlStreamWriter::Error::Encoding);
+    QString pair;
+    QXmlStreamWriter fine(&pair);
+    fine.writeCharacters(QString::fromUtf8("\xf0\x9f\x98\x80")); // a surrogate pair is fine
+    CHECK(!fine.hasError());
+
+    // Stopping at the first error.
+    QString stopped;
+    QXmlStreamWriter stopping(&stopped);
+    stopping.setStopWritingOnError(true);
+    CHECK(stopping.stopWritingOnError());
+    stopping.writeStartElement(QStringLiteral("root"));
+    stopping.writeCharacters(QString(QChar(0xffff)));
+    stopping.writeEndElement();
+    CHECK(stopping.error() == QXmlStreamWriter::Error::InvalidCharacter && stopped == QStringLiteral("<root>"));
+
+    // Custom errors, and writing to nothing.
+    QString custom;
+    QXmlStreamWriter raising(&custom);
+    raising.raiseError(QStringLiteral("not allowed here"));
+    CHECK(raising.error() == QXmlStreamWriter::Error::Custom &&
+          raising.errorString() == QStringLiteral("not allowed here"));
+    QXmlStreamWriter nowhere;
+    nowhere.writeStartElement(QStringLiteral("x"));
+    CHECK(nowhere.error() == QXmlStreamWriter::Error::IO);
+    QBuffer closed;
+    QXmlStreamWriter unopened(&closed);
+    unopened.writeTextElement(QStringLiteral("x"), QStringLiteral("y"));
+    CHECK(unopened.error() == QXmlStreamWriter::Error::IO && !unopened.errorString().isEmpty());
+}
+
+static void testRawInnerData() {
+    QXmlStreamReader xml(QStringLiteral("<doc><note a='1'>Call <b>now</b>! &amp; <!--c--><i/></note><after/></doc>"));
+    CHECK(xml.readNextStartElement() && xml.name() == QStringLiteral("doc"));
+    CHECK(xml.readNextStartElement() && xml.name() == QStringLiteral("note"));
+    CHECK(xml.readRawInnerData() == QStringLiteral("Call <b>now</b>! &amp; <!--c--><i/>"));
+    CHECK(xml.tokenType() == QXmlStreamReader::EndElement && xml.name() == QStringLiteral("note"));
+    CHECK(xml.readNextStartElement() && xml.name() == QStringLiteral("after"));
+    CHECK(xml.readRawInnerData().isEmpty() && !xml.hasError());
+    // Not at a start element: an error.
+    QXmlStreamReader text(QStringLiteral("<a>x</a>"));
+    text.readNext();
+    CHECK(text.readRawInnerData().isEmpty() && text.hasError());
+}
+
 int main() {
     testTokens();
     testNamespaces();
@@ -969,6 +1035,8 @@ int main() {
     testDtd();
     testWriter();
     testCopy();
+    testWriterErrors();
+    testRawInnerData();
 
     if (g_failures) {
         std::printf("%d XML stream test check(s) failed\n", g_failures);

@@ -399,11 +399,61 @@ static void testSharedMemory() {
     CHECK((new QSharedMemory(&parent))->parent() == &parent);
 }
 
+static void testNativeIpcKeys() {
+    // The key class.
+    const QNativeIpcKey empty;
+    CHECK(empty.isEmpty() && empty.isValid() && empty.type() == QNativeIpcKey::DefaultTypeForOs);
+    QNativeIpcKey key(QStringLiteral("/nt-test-key"));
+    CHECK(key.nativeKey() == QStringLiteral("/nt-test-key") && key.type() == QNativeIpcKey::Type::PosixRealtime);
+    const QNativeIpcKey back = QNativeIpcKey::fromString(key.toString());
+    CHECK(back == key && qHash(back) == qHash(key));
+    CHECK(!QNativeIpcKey::fromString(QStringLiteral("nonsense")).isValid());
+    QNativeIpcKey other(QNativeIpcKey::Type::SystemV);
+    other.swap(key);
+    CHECK(other.nativeKey() == QStringLiteral("/nt-test-key") && key.type() == QNativeIpcKey::Type::SystemV);
+    CHECK(QNativeIpcKey::legacyDefaultTypeForOs() == QNativeIpcKey::Type::SystemV);
+
+    // Shared memory by native key: two objects meet at the same name, which setKey() would give too.
+    const QString name = QStringLiteral("/nt-test-shm-%1").arg(::getpid());
+    QSharedMemory writer{QNativeIpcKey(name)};
+    CHECK(writer.key().isEmpty() && writer.nativeIpcKey() == QNativeIpcKey(name));
+    CHECK(writer.create(64));
+    std::memcpy(writer.data(), "native", 7);
+    QSharedMemory reader;
+    reader.setNativeKey(QNativeIpcKey(name));
+    CHECK(reader.attach(QSharedMemory::ReadOnly) &&
+          std::strcmp(static_cast<const char *>(reader.constData()), "native") == 0);
+    reader.detach();
+    writer.detach();
+    QSharedMemory byKey(QStringLiteral("some key"));
+    CHECK(byKey.nativeIpcKey() == QSharedMemory::platformSafeKey(QStringLiteral("some key")));
+    CHECK(QSharedMemory::legacyNativeKey(QStringLiteral("some key")).nativeKey() == byKey.nativeKey());
+    CHECK(QSharedMemory::isKeyTypeSupported(QNativeIpcKey::Type::PosixRealtime) &&
+          !QSharedMemory::isKeyTypeSupported(QNativeIpcKey::Type::SystemV));
+    QSharedMemory systemV(QNativeIpcKey(QStringLiteral("x"), QNativeIpcKey::Type::SystemV));
+    CHECK(!systemV.create(16) && systemV.error() == QSharedMemory::KeyError);
+
+    // Semaphores by native key.
+    const QString semName = QStringLiteral("nt-test-sem-%1").arg(::getpid()); // without the leading slash
+    QSystemSemaphore first(QNativeIpcKey(semName), 1, QSystemSemaphore::Create);
+    CHECK(first.error() == QSystemSemaphore::NoError && first.key().isEmpty());
+    CHECK(first.nativeIpcKey().nativeKey() == QLatin1Char('/') + semName);
+    QSystemSemaphore second(QNativeIpcKey(QLatin1Char('/') + semName));
+    CHECK(second.error() == QSystemSemaphore::NoError && second.acquire() && second.release());
+    CHECK(QSystemSemaphore::platformSafeKey(QStringLiteral("k")).nativeKey() ==
+          QSystemSemaphore::legacyNativeKey(QStringLiteral("k")).nativeKey());
+    QSystemSemaphore bad(QNativeIpcKey(QStringLiteral("x"), QNativeIpcKey::Type::Windows));
+    CHECK(bad.error() == QSystemSemaphore::KeyError);
+    QSystemSemaphore byText(QStringLiteral("text key"), 0, QSystemSemaphore::Create);
+    CHECK(byText.nativeIpcKey() == QSystemSemaphore::platformSafeKey(QStringLiteral("text key")));
+}
+
 int main() {
     ::alarm(120); // a semaphore that is never released would wait for ever
     testLibrary();
     testSystemSemaphore();
     testSharedMemory();
+    testNativeIpcKeys();
 
     if (g_failures) {
         std::printf("%d IPC test check(s) failed\n", g_failures);

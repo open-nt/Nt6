@@ -5,6 +5,7 @@
 
 #include "qcborutf8_p.h"
 
+#include <algorithm>
 #include <cstring>
 #include <limits>
 #include <vector>
@@ -43,8 +44,7 @@
 
     \differences
     The reader keeps all the data it has read from a device, so that it can go back to an item
-    that was cut short. There is no \c currentStringChunkSize() or \c readStringChunk(), and no
-    \c readAndAppendToString() family. A tag counts as an item of its own, as in Qt: next()
+    that was cut short. readStringChunk() cuts a chunk that does not fit at the size of the buffer. A tag counts as an item of its own, as in Qt: next()
     moves from the tag to the item that it applies to.
     \enddifferences
 
@@ -266,6 +266,32 @@ struct QCborStreamReader::Private {
         stringPos = end;
         result.status = Ok;
         return result;
+    }
+
+    // The size of the chunk that readChunk() would return next, or -1 at the end of the string or without the data.
+    qsizetype peekChunkSize() const {
+        if (type != ByteString && type != TextString)
+            return -1;
+        if (stringState == NotStarted && lengthKnown)
+            return static_cast<qsizetype>(value);
+        if (stringState == Done)
+            return -1;
+        const qsizetype at = stringState == NotStarted ? pos + headerSize : stringPos;
+        if (at >= data.size())
+            return -1;
+        const quint8 first = byteAt(at);
+        const quint8 info = first & 0x1f;
+        if (first == 0xff || info == 31 || info > 27)
+            return -1;
+        if (info < 24)
+            return info;
+        const int size = 1 << (info - 24);
+        if (at + 1 + size > data.size())
+            return -1;
+        const quint64 length = bigEndian(at + 1, size);
+        return length > static_cast<quint64>(std::numeric_limits<qsizetype>::max() / 2)
+                   ? -1
+                   : static_cast<qsizetype>(length);
     }
 
     // A text string must be valid UTF-8 in each chunk.
@@ -571,6 +597,104 @@ QCborStreamReader::StringResult<QByteArray> QCborStreamReader::readByteArray() {
     if (!isByteArray())
         return {};
     return d->readChunk();
+}
+
+/*!
+    Returns the size in bytes of the chunk of the current string that the next read returns, or -1 if the
+    current item is not a string, the string has no more chunks, or the data of the chunk has not arrived yet.
+
+    \sa readStringChunk()
+*/
+qsizetype QCborStreamReader::currentStringChunkSize() const { return d->peekChunkSize(); }
+
+/*!
+    Reads the next chunk of the current string, text or bytes, into the buffer \a ptr of \a maxlen bytes, and
+    returns its size in the data of the result. A chunk that does not fit is cut at \a maxlen bytes; check its size
+    with currentStringChunkSize() first. If \a ptr is null, the chunk is skipped. At the end of the string, the
+    status is \c EndOfString and the reader is at the next item.
+
+    \code
+    std::vector<char> buffer;
+    for (;;) {
+        const qsizetype size = reader.currentStringChunkSize();
+        if (size >= 0)
+            buffer.resize(buffer.size() + size);
+        const auto r = reader.readStringChunk(buffer.data() + buffer.size() - std::max<qsizetype>(size, 0), size);
+        if (r.status != QCborStreamReader::Ok)
+            break;
+    }
+    \endcode
+
+    \sa currentStringChunkSize(), readString()
+*/
+QCborStreamReader::StringResult<qsizetype> QCborStreamReader::readStringChunk(char *ptr, qsizetype maxlen) {
+    StringResult<qsizetype> result;
+    if (!isString() && !isByteArray())
+        return result;
+    const StringResult<QByteArray> chunk = isString() ? d->readTextChunk() : d->readChunk();
+    result.status = chunk.status;
+    if (chunk.status == Ok) {
+        const qsizetype n = std::min(chunk.data.size(), std::max<qsizetype>(maxlen, 0));
+        if (ptr && n > 0)
+            std::memcpy(ptr, chunk.data.constData(), static_cast<std::size_t>(n));
+        result.data = ptr ? n : chunk.data.size();
+    }
+    return result;
+}
+
+/*!
+    \since 6.7
+    Reads the whole current text string, appends it to \a dst and moves to the next item. Returns \c true on
+    success; on an error, returns \c false, and \a dst may hold part of the string.
+
+    \sa readAllString()
+*/
+bool QCborStreamReader::readAndAppendToString(QString &dst) {
+    QByteArray utf8;
+    if (!readAndAppendToUtf8String(utf8))
+        return false;
+    dst.append(QString::fromUtf8(utf8));
+    return true;
+}
+
+/*!
+    \since 6.7
+    Reads the whole current text string in UTF-8, appends it to \a dst and moves to the next item. Returns
+    \c true on success.
+
+    \sa readAllUtf8String()
+*/
+bool QCborStreamReader::readAndAppendToUtf8String(QByteArray &dst) {
+    if (!isString())
+        return false;
+    for (;;) {
+        const StringResult<QByteArray> chunk = d->readTextChunk();
+        if (chunk.status == EndOfString)
+            return true;
+        if (chunk.status == Error)
+            return false;
+        dst.append(chunk.data);
+    }
+}
+
+/*!
+    \since 6.7
+    Reads the whole current byte string, appends it to \a dst and moves to the next item. Returns \c true on
+    success.
+
+    \sa readAllByteArray()
+*/
+bool QCborStreamReader::readAndAppendToByteArray(QByteArray &dst) {
+    if (!isByteArray())
+        return false;
+    for (;;) {
+        const StringResult<QByteArray> chunk = d->readChunk();
+        if (chunk.status == EndOfString)
+            return true;
+        if (chunk.status == Error)
+            return false;
+        dst.append(chunk.data);
+    }
 }
 
 /*!

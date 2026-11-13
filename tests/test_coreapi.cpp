@@ -1025,6 +1025,43 @@ static void testMetaAssociation() {
     CHECK(QAssociativeIterable(QVariant(42)).metaContainer() == QMetaAssociation());
 }
 
+static void testApplicationSettings() {
+    // Attributes are flags that stay set until cleared.
+    CHECK(!QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts));
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
+    QCoreApplication::setAttribute(Qt::AA_DisableSessionManager, true);
+    CHECK(QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts) &&
+          QCoreApplication::testAttribute(Qt::AA_DisableSessionManager));
+    QCoreApplication::setAttribute(Qt::AA_ShareOpenGLContexts, false);
+    CHECK(!QCoreApplication::testAttribute(Qt::AA_ShareOpenGLContexts) &&
+          QCoreApplication::testAttribute(Qt::AA_DisableSessionManager));
+    QCoreApplication::setAttribute(Qt::AA_DisableSessionManager, false);
+
+    CHECK(!QCoreApplication::isSetuidAllowed());
+    QCoreApplication::setSetuidAllowed(true);
+    CHECK(QCoreApplication::isSetuidAllowed());
+    QCoreApplication::setSetuidAllowed(false);
+
+    // The setters emit a change signal when the value changes, and only then.
+    int names = 0, versions = 0, orgs = 0, domains = 0;
+    QObject::connect(qApp, &QCoreApplication::applicationNameChanged, [&] { ++names; });
+    QObject::connect(qApp, &QCoreApplication::applicationVersionChanged, [&] { ++versions; });
+    QObject::connect(qApp, &QCoreApplication::organizationNameChanged, [&] { ++orgs; });
+    QObject::connect(qApp, &QCoreApplication::organizationDomainChanged, [&] { ++domains; });
+    QCoreApplication::setApplicationName(QStringLiteral("probe"));
+    QCoreApplication::setApplicationName(QStringLiteral("probe"));
+    QCoreApplication::setApplicationVersion(QStringLiteral("1.2"));
+    QCoreApplication::setOrganizationName(QStringLiteral("Org"));
+    QCoreApplication::setOrganizationDomain(QStringLiteral("org.example"));
+    QCoreApplication::setOrganizationDomain(QStringLiteral("org.example"));
+    CHECK(names == 1 && versions == 1 && orgs == 1 && domains == 1);
+
+    // They are properties too.
+    CHECK(qApp->property("applicationName").toString() == QStringLiteral("probe"));
+    CHECK(qApp->setProperty("organizationName", QStringLiteral("Other")) && orgs == 2);
+    CHECK(QCoreApplication::organizationName() == QStringLiteral("Other"));
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testByteArrayView();
@@ -1044,6 +1081,7 @@ int main(int argc, char **argv) {
     testYieldCpu();
     testMetaSequence();
     testMetaAssociation();
+    testApplicationSettings();
     if (g_failures == 0)
         std::printf("all core API tests passed\n");
     return g_failures == 0 ? 0 : 1;

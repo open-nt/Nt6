@@ -33,6 +33,8 @@
 
 namespace {
 std::atomic<QCoreApplication *> g_self{nullptr};
+std::atomic<quint64> g_attributes{0};
+std::atomic<bool> g_setuidAllowed{false};
 
 // The routines of qAddPreRoutine() and qAddPostRoutine(). They are registered from static initializers too, so the
 // lists are made on first use.
@@ -128,6 +130,12 @@ QCoreApplication::QCoreApplication(int &argc, char **argv) {
         std::fputs("QCoreApplication: there should be only one application object\n", stderr);
         std::abort();
     }
+#ifndef __ZEPHYR__
+    if (!g_setuidAllowed.load() && (::getuid() != ::geteuid() || ::getgid() != ::getegid())) {
+        std::fputs("FATAL: The application binary appears to be running setuid, this is a security hole.\n", stderr);
+        std::abort();
+    }
+#endif
     g_closingDown.store(false);
     g_arguments.clear();
     for (int i = 0; argv && i < argc; ++i)
@@ -214,6 +222,54 @@ QAbstractEventDispatcher *QCoreApplication::eventDispatcher() {
     QCoreApplication *app = g_self.load();
     return app ? QAbstractEventDispatcher::instance(app->thread()) : nullptr;
 }
+
+/*!
+    \since 4.4
+    Sets the application attribute \a attribute if \a on is \c true; otherwise clears it. Most attributes are read
+    when the application object or the first window is made, so set them before that.
+
+    \sa testAttribute()
+*/
+void QCoreApplication::setAttribute(Qt::ApplicationAttribute attribute, bool on) {
+    const int bit = static_cast<int>(attribute);
+    if (bit < 0 || bit >= 64)
+        return;
+    const quint64 mask = quint64{1} << bit;
+    if (on)
+        g_attributes.fetch_or(mask);
+    else
+        g_attributes.fetch_and(~mask);
+}
+
+/*!
+    \since 4.4
+    Returns \c true if the application attribute \a attribute is set; otherwise returns \c false.
+
+    \sa setAttribute()
+*/
+bool QCoreApplication::testAttribute(Qt::ApplicationAttribute attribute) {
+    const int bit = static_cast<int>(attribute);
+    return bit >= 0 && bit < 64 && (g_attributes.load() & (quint64{1} << bit)) != 0;
+}
+
+/*!
+    \since 5.3
+    Allows the application to run setuid or setgid if \a allow is \c true. Without it, the constructor of the
+    application object stops a program whose effective user or group differs from the real one, since a library
+    as large as Nt is not written to be safe with the privileges of another user. Call it before the
+    application object is made.
+
+    \sa isSetuidAllowed()
+*/
+void QCoreApplication::setSetuidAllowed(bool allow) { g_setuidAllowed.store(allow); }
+
+/*!
+    \since 5.3
+    Returns \c true if the application may run setuid or setgid; otherwise returns \c false.
+
+    \sa setSetuidAllowed()
+*/
+bool QCoreApplication::isSetuidAllowed() { return g_setuidAllowed.load(); }
 
 /*!
     \since 5.0
@@ -376,8 +432,11 @@ void QCoreApplication::removeLibraryPath(const QString &path) {
     \sa applicationName()
 */
 void QCoreApplication::setApplicationName(const QString &name) {
+    const QString before = applicationName();
     g_appName = name;
     g_appNameSet = true;
+    if (QCoreApplication *app = g_self.load(); app && applicationName() != before)
+        emit app->applicationNameChanged();
 }
 
 /*!
@@ -402,7 +461,13 @@ QString QCoreApplication::applicationName() {
 
     \sa organizationName(), setOrganizationDomain(), QSettings
 */
-void QCoreApplication::setOrganizationName(const QString &orgName) { g_orgName = orgName; }
+void QCoreApplication::setOrganizationName(const QString &orgName) {
+    if (g_orgName == orgName)
+        return;
+    g_orgName = orgName;
+    if (QCoreApplication *app = g_self.load())
+        emit app->organizationNameChanged();
+}
 
 /*!
     Returns the name of the organization, which is empty unless it was set with
@@ -417,7 +482,13 @@ QString QCoreApplication::organizationName() { return g_orgName; }
 
     \sa organizationDomain(), setOrganizationName()
 */
-void QCoreApplication::setOrganizationDomain(const QString &orgDomain) { g_orgDomain = orgDomain; }
+void QCoreApplication::setOrganizationDomain(const QString &orgDomain) {
+    if (g_orgDomain == orgDomain)
+        return;
+    g_orgDomain = orgDomain;
+    if (QCoreApplication *app = g_self.load())
+        emit app->organizationDomainChanged();
+}
 
 /*!
     Returns the Internet domain of the organization, which is empty unless it
@@ -432,7 +503,13 @@ QString QCoreApplication::organizationDomain() { return g_orgDomain; }
 
     \sa applicationVersion(), QCommandLineParser::addVersionOption()
 */
-void QCoreApplication::setApplicationVersion(const QString &version) { g_appVersion = version; }
+void QCoreApplication::setApplicationVersion(const QString &version) {
+    if (g_appVersion == version)
+        return;
+    g_appVersion = version;
+    if (QCoreApplication *app = g_self.load())
+        emit app->applicationVersionChanged();
+}
 
 /*!
     Returns the application version, which is empty unless it was set with

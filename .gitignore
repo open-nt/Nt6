@@ -6,3 +6,6 @@ html/
 
 # Local secrets, such as the apt signing key
 .env
+
+# Python byte-code from the asset scripts
+__pycache__/

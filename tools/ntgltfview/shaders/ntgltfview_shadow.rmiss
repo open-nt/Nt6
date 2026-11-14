@@ -1,0 +1,9 @@
+// MIT License - see LICENSE
+//
+// Shadow miss: the ray reached the light without hitting anything.
+#version 460
+#extension GL_EXT_ray_tracing : require
+
+layout(location = 1) rayPayloadInEXT float visibility;
+
+void main() { visibility = 1.0; }

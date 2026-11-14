@@ -48,6 +48,7 @@ public:
     QXcbScreen *platformScreen() const { return m_platformScreen.get(); }
     xcb_visualid_t visual() const { return m_screen->root_visual; }
     int screenNumber() const { return m_screenNumber; }
+    xcb_window_t rootWindow() const { return m_screen->root; }
     uint8_t depth() const { return m_screen->root_depth; }
     size_t maxRequestBytes() const;
     // Native pixels of the X server per unit of window coordinates.

@@ -92,10 +92,13 @@ public:
     QCursor cursor() const;
     void setCursor(const QCursor &cursor);
     void unsetCursor();
+    bool isFullScreen() const;
 
 public slots:
     void setVisible(bool visible);
     void show();
+    void showFullScreen();
+    void showNormal();
     void hide();
     bool close();
     void raise();
@@ -159,6 +162,7 @@ protected:
     bool event(QEvent *event) override;
 
 private:
+    void setFullScreen(bool fullScreen);
     friend struct QtPrivate::GuiAccess;
     struct Data;
     std::unique_ptr<Data> m_d;

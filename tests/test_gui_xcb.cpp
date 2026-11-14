@@ -229,6 +229,33 @@ int main(int argc, char **argv) {
         }
     }
 
+    // A window shown with showFullScreen() asks the window manager for full screen through _NET_WM_STATE, and
+    // showNormal() leaves it.
+    {
+        TestWindow full;
+        full.showFullScreen();
+        CHECK(full.isFullScreen());
+        CHECK(waitFor([&] { return full.isExposed(); }));
+        const xcb_atom_t netWmState = internAtom(c, "_NET_WM_STATE");
+        const xcb_atom_t fullScreenAtom = internAtom(c, "_NET_WM_STATE_FULLSCREEN");
+        const auto hasFullScreenState = [&] {
+            xcb_get_property_reply_t *r = xcb_get_property_reply(
+                c, xcb_get_property(c, 0, static_cast<xcb_window_t>(full.winId()), netWmState, XCB_ATOM_ATOM, 0, 32),
+                nullptr);
+            bool found = false;
+            if (r) {
+                const auto *atoms = static_cast<const xcb_atom_t *>(xcb_get_property_value(r));
+                for (int i = 0; i < xcb_get_property_value_length(r) / 4; ++i)
+                    found = found || atoms[i] == fullScreenAtom;
+                std::free(r);
+            }
+            return found;
+        };
+        CHECK(hasFullScreenState());
+        full.showNormal();
+        CHECK(!full.isFullScreen());
+    }
+
     // Keys
     const xcb_keycode_t keyA = keycodeFor(c, 'a');
     CHECK(keyA != 0);

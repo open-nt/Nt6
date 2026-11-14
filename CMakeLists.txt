@@ -128,6 +128,7 @@ add_library(NtCore
     src/qpermissions.cpp
     src/qpropertyanimation.cpp
     src/qrandom.cpp
+    src/qrangemodel.cpp
     src/qregularexpression.cpp
     src/qresource.cpp
     src/qrunnable.cpp
@@ -930,6 +931,19 @@ target_include_directories(NtGamepad
 target_link_libraries(NtGamepad PUBLIC NtCore PRIVATE NtGui)
 nt_set_compile_options(NtGamepad)
 
+# Nt glTF: loads glTF 2.0 scenes (.gltf and .glb) into decoded meshes, materials, cameras and lights.
+add_library(NtGltf src/gltf/qgltfdocument.cpp)
+add_library(Nt::Gltf ALIAS NtGltf)
+target_include_directories(NtGltf
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtGltf>
+        $<INSTALL_INTERFACE:include/nt6/QtGltf>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gltf
+)
+target_link_libraries(NtGltf PUBLIC NtCore NtGui)
+nt_set_compile_options(NtGltf)
+
 # Nt Multimedia: the audio and camera parts of Qt Multimedia. Linux uses ALSA, loaded at run time, so the
 # library builds without its headers, and Video4Linux2 for cameras; other platforms have no devices yet.
 add_library(NtMultimedia
@@ -1093,6 +1107,30 @@ add_executable(ndoc tools/ndoc/main.cpp)
 add_executable(Nt::ndoc ALIAS ndoc)
 target_compile_definitions(ndoc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
 nt_set_compile_options(ndoc)
+# ntgltfview: shows a glTF 2.0 scene with hardware ray tracing in a QVulkanWindow, to check what Nt glTF loaded. The
+# SPIR-V shaders are checked in (tools/ntgltfview/shaders/compile.sh rebuilds them with glslc).
+if(NT_HAVE_VULKAN)
+    nt_add_resources(ntgltfview_resources tools/ntgltfview/shaders/ntgltfview.qrc)
+    add_executable(ntgltfview tools/ntgltfview/main.cpp tools/ntgltfview/dlss.cpp ${ntgltfview_resources})
+    target_link_libraries(ntgltfview PRIVATE Nt::Gltf Nt::Gui Nt::Gamepad)
+    nt_set_compile_options(ntgltfview)
+    # DLSS Super Resolution is opt-in: NVIDIA's SDK is proprietary (its licence applies, and its libraries must not be
+    # redistributed), so Nt neither bundles nor finds it. Pass a checkout of github.com/NVIDIA/DLSS to build it in.
+    set(NT_DLSS_SDK_DIR "" CACHE PATH "A checkout of NVIDIA's DLSS SDK, to build ntgltfview with DLSS Super Resolution")
+    set(_nt_dlss_library_dir "")
+    if(NT_DLSS_SDK_DIR AND EXISTS "${NT_DLSS_SDK_DIR}/include/nvsdk_ngx_helpers_vk.h"
+       AND EXISTS "${NT_DLSS_SDK_DIR}/lib/Linux_x86_64/libnvsdk_ngx.a")
+        set(_nt_dlss_library_dir "${NT_DLSS_SDK_DIR}/lib/Linux_x86_64/rel")
+        target_compile_definitions(ntgltfview PRIVATE NT_HAVE_DLSS)
+        target_include_directories(ntgltfview SYSTEM PRIVATE "${NT_DLSS_SDK_DIR}/include")
+        target_link_libraries(ntgltfview PRIVATE "${NT_DLSS_SDK_DIR}/lib/Linux_x86_64/libnvsdk_ngx.a" ${CMAKE_DL_LIBS})
+        message(STATUS "ntgltfview: DLSS Super Resolution from ${NT_DLSS_SDK_DIR}")
+    elseif(NT_DLSS_SDK_DIR)
+        message(WARNING "NT_DLSS_SDK_DIR=${NT_DLSS_SDK_DIR} lacks include/nvsdk_ngx_helpers_vk.h or lib/Linux_x86_64/libnvsdk_ngx.a")
+    endif()
+    target_compile_definitions(ntgltfview PRIVATE NT_DLSS_LIBRARY_DIR="${_nt_dlss_library_dir}")
+endif()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtDoc.cmake)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nt_add_docs(docs CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/doc/ndoc.conf STRICT REQUIRE_COMPLETE)
@@ -1285,6 +1323,13 @@ if(NT_BUILD_TESTS)
     add_dependencies(nt_plugin_tests nt_test_echoplugin nt_test_plugin)
     add_test(NAME nt_plugin_tests COMMAND nt_plugin_tests)
     nt_set_compile_options(nt_plugin_tests)
+
+    # QRangeModel over the gadget, object and tree row types in tests/rangemodel_types.h.
+    nt_wrap_cpp(rangemodel_test_sources tests/rangemodel_types.h)
+    add_executable(nt_rangemodel_tests tests/test_rangemodel.cpp ${rangemodel_test_sources})
+    target_link_libraries(nt_rangemodel_tests PRIVATE Nt::Core Nt::Test)
+    add_test(NAME nt_rangemodel_tests COMMAND nt_rangemodel_tests)
+    nt_set_compile_options(nt_rangemodel_tests)
     if(NT_HAVE_ZLIB)
         target_compile_definitions(nt_resource_tests PRIVATE NT_HAVE_ZLIB)
     endif()
@@ -1580,6 +1625,13 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_gamepad_tests COMMAND nt_gamepad_tests)
     set_tests_properties(nt_gamepad_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gamepad_tests)
+
+    # Nt glTF: documents built in memory (JSON with data URIs, GLB, external buffers in a temporary directory).
+    add_executable(nt_gltf_tests tests/test_gltf.cpp)
+    target_link_libraries(nt_gltf_tests PRIVATE Nt::Gltf)
+    add_test(NAME nt_gltf_tests COMMAND nt_gltf_tests)
+    set_tests_properties(nt_gltf_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_gltf_tests)
     nt_set_compile_options(nt_fm_tests)
 
     # The xcb tests need an X server (or XWayland); they report a skip without one.
@@ -1762,6 +1814,11 @@ if(NT_BUILD_EXAMPLES)
     add_executable(gamepadinfo examples/gamepad/gamepadinfo.cpp)
     target_link_libraries(gamepadinfo PRIVATE Nt::Gamepad)
     nt_set_compile_options(gamepadinfo)
+
+    # Prints what a glTF file holds; see "Using Nt glTF" in the documentation.
+    add_executable(gltfinfo examples/gltf/gltfinfo.cpp)
+    target_link_libraries(gltfinfo PRIVATE Nt::Gltf)
+    nt_set_compile_options(gltfinfo)
 
     # Plays or renders FM sound effects; see "Using Nt FM" in the documentation.
     # Lists audio devices and plays a tone; plays WAV files. See "Using Nt Multimedia" in the documentation.

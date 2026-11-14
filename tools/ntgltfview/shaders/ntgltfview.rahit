@@ -1,0 +1,34 @@
+// MIT License - see LICENSE
+//
+// Any hit, for the primitives whose material is not opaque: a hit where the alpha is under the cutoff is ignored, so
+// the ray goes on through the cut-out. A blended material is treated as a mask at one half, or, with the traced
+// effects, at almost nothing. It uses no payload, so it serves the shadow rays as well, which glass does not stop.
+#version 460
+#extension GL_EXT_ray_tracing : require
+#extension GL_EXT_buffer_reference : require
+#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+#extension GL_EXT_nonuniform_qualifier : require
+
+#include "ntgltfview_common.glsl"
+
+layout(set = 0, binding = 0) uniform accelerationStructureEXT scene;
+
+#include "ntgltfview_camera.glsl"
+
+hitAttributeEXT vec2 barycentrics;
+
+void main() {
+    const Primitive p = primitives.records[gl_InstanceCustomIndexEXT + gl_GeometryIndexEXT];
+    const int mode = int(p.params.z);
+    // Shadow rays skip the closest hit shader. Glass passes the light on to what is behind it.
+    const bool shadowRay = (gl_IncomingRayFlagsEXT & gl_RayFlagsSkipClosestHitShaderEXT) != 0u;
+    const bool traced = (camera.flags & kFlagTraceEffects) != 0u;
+    if (shadowRay && traced && p.transmission.x > 0.0)
+        ignoreIntersectionEXT;
+    if (mode == 0)
+        return;
+    // With the traced effects a blended surface is kept, for the closest hit shader to blend, where it is not clear.
+    const float cutoff = mode == 1 ? p.params.w : (traced && !shadowRay ? 0.02 : 0.5);
+    if (alphaAt(p, uint(gl_PrimitiveID), barycentrics) < cutoff)
+        ignoreIntersectionEXT;
+}

@@ -42,6 +42,9 @@ expect(base.html "The Base class is documented from a source file.")
 expect(base.html "Handles <i>code</i>.")
 expect(fx.html "Selects a mode.")
 expect(fx.html "<code>Fx::Fast</code>")
+# A namespace that declares only classes still gets its page.
+expect(gx.html "The Gx namespace holds only a struct.")
+expect(gx-point.html "The Point struct is the only declaration of its namespace.")
 
 # Qt's page structure.
 foreach(section "Public Types" "Public Functions" "Public Slots" "Signals"

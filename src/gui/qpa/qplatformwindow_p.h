@@ -25,6 +25,8 @@ public:
     virtual void requestActivateWindow() {}
     // Keeps the window above `parent`, as a dialog, or makes it a normal window again if `parent` is null.
     virtual void setTransientParent(const QPlatformWindow *parent) { (void)parent; }
+    // Makes the window cover the whole screen, or normal again. Called before the window is shown, too.
+    virtual void setFullScreen(bool fullScreen) { (void)fullScreen; }
     virtual quintptr winId() const { return 0; }
     // Shows the mouse cursor with this shape while it is over the window.
     virtual void setCursor(Qt::CursorShape shape) { (void)shape; }

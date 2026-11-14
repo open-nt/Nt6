@@ -76,6 +76,7 @@ QRect QXcbWindow::toNative(const QRect &logical) const {
 }
 
 void QXcbWindow::setVisible(bool visible) {
+    m_mapped = visible;
     if (visible)
         xcb_map_window(m_connection->xcb(), m_id);
     else
@@ -95,6 +96,32 @@ void QXcbWindow::setTransientParent(const QPlatformWindow *parent) {
     } else {
         xcb_delete_property(c, m_id, XCB_ATOM_WM_TRANSIENT_FOR);
         xcb_delete_property(c, m_id, windowType);
+    }
+    m_connection->flush();
+}
+
+// A window that is not mapped yet gets the state as a property, as the window manager reads it when it maps the
+// window; a mapped one asks the window manager through the root window.
+void QXcbWindow::setFullScreen(bool fullScreen) {
+    xcb_connection_t *c = m_connection->xcb();
+    const xcb_atom_t state = m_connection->atom("_NET_WM_STATE");
+    const xcb_atom_t fullScreenAtom = m_connection->atom("_NET_WM_STATE_FULLSCREEN");
+    if (m_mapped) {
+        xcb_client_message_event_t event{};
+        event.response_type = XCB_CLIENT_MESSAGE;
+        event.format = 32;
+        event.window = m_id;
+        event.type = state;
+        event.data.data32[0] = fullScreen ? 1 : 0; // _NET_WM_STATE_ADD or _NET_WM_STATE_REMOVE
+        event.data.data32[1] = fullScreenAtom;
+        event.data.data32[3] = 1; // sent by an application
+        xcb_send_event(c, 0, m_connection->rootWindow(),
+                       XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
+                       reinterpret_cast<const char *>(&event));
+    } else if (fullScreen) {
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, state, XCB_ATOM_ATOM, 32, 1, &fullScreenAtom);
+    } else {
+        xcb_delete_property(c, m_id, state);
     }
     m_connection->flush();
 }

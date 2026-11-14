@@ -1721,7 +1721,7 @@ QString QString::arg(const A1 &a1, const A2 &a2, const Rest &...rest) const {
 
 template <typename A, typename... Rest> QString QLatin1StringView::arg(const A &a, const Rest &...rest) const {
     const QString texts[] = {QtPrivate::argText(a), QtPrivate::argText(rest)...};
-    return QtPrivate::multiArg(toString(), texts, static_cast<qsizetype>(1 + sizeof...(Rest)));
+    return QtPrivate::multiArg(toString(), texts, qsizetype(1) + static_cast<qsizetype>(sizeof...(Rest)));
 }
 
 template <>

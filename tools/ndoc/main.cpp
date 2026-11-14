@@ -1658,6 +1658,14 @@ void bindTopicToMember(Model &M, const std::shared_ptr<Doc> &doc, Kind kind, Dia
     diag.warn(doc->file, doc->line, "\\" + doc->topic + " names unknown '" + arg + "'");
 }
 
+// Returns true if a class of the model is declared directly or indirectly in namespace ns.
+bool namespaceHoldsClasses(const Model &M, const std::string &ns) {
+    const std::string prefix = ns + "::";
+    return std::any_of(M.classes.begin(), M.classes.end(), [&](const auto &entry) {
+        return entry.second && entry.second->word != "namespace" && entry.first.compare(0, prefix.size(), prefix) == 0;
+    });
+}
+
 void bindTopics(Model &M, Diagnostics &diag) {
     for (const std::shared_ptr<Doc> &doc : M.topics) {
         const std::string &topic = doc->topic;
@@ -1667,6 +1675,17 @@ void bindTopics(Model &M, Diagnostics &diag) {
                 if (cls->doc)
                     diag.warn(doc->file, doc->line, "'" + arg + "' is already documented");
                 cls->doc = doc;
+            } else if (topic == "namespace" && namespaceHoldsClasses(M, arg)) {
+                // A namespace that declares only classes has no record yet; the scanner makes one
+                // only for free functions and enums.
+                auto &slot = M.classes[arg];
+                slot = std::make_unique<ClassDoc>();
+                slot->qualName = arg;
+                const std::size_t sep = arg.rfind("::");
+                slot->name = sep == npos ? arg : arg.substr(sep + 2);
+                slot->word = "namespace";
+                slot->file = doc->file;
+                slot->doc = doc;
             } else {
                 diag.warn(doc->file, doc->line, "\\" + topic + " names unknown '" + arg + "'");
             }

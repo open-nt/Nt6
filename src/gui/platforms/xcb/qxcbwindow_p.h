@@ -21,6 +21,7 @@ public:
     void setWindowTitle(const QString &title) override;
     void requestActivateWindow() override;
     void setTransientParent(const QPlatformWindow *parent) override;
+    void setFullScreen(bool fullScreen) override;
     quintptr winId() const override { return m_id; }
     void setCursor(Qt::CursorShape shape) override;
 
@@ -34,6 +35,7 @@ private:
     QXcbConnection *m_connection;
     xcb_window_t m_id;
     QRect m_geometry;
+    bool m_mapped = false;
 };
 
 class QXcbBackingStore : public QPlatformBackingStore {

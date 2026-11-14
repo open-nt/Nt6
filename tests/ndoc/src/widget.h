@@ -22,6 +22,26 @@ enum Mode { Fast, Slow = 4 };
 } // namespace Fx
 
 /*!
+    \namespace Gx
+    \brief The Gx namespace holds only a struct.
+*/
+namespace Gx {
+
+/*!
+    \class Gx::Point
+    \brief The Point struct is the only declaration of its namespace.
+*/
+struct Point {
+    /*!
+        \variable Gx::Point::x
+        The x coordinate.
+    */
+    int x = 0;
+};
+
+} // namespace Gx
+
+/*!
     \class Widget
     \brief The Widget class is documented entirely in its header.
     \since 1.1

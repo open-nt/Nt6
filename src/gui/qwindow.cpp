@@ -25,6 +25,7 @@ struct QWindow::Data {
     bool visible = false;
     bool exposed = false;
     bool active = false;
+    bool fullScreen = false;
     bool updateRequested = false;
     QCursor cursor;
     bool quitOnClose = true;
@@ -62,8 +63,9 @@ struct QWindow::Data {
 
     \differences
     Only top-level windows exist: there is no parent window, no window flags
-    or modality, no \c setMinimumSize(), cursor, icon or opacity, no window
-    states and no Vulkan, Metal or Direct3D surface. OpenGL surfaces work
+    or modality, no \c setMinimumSize(), icon or opacity, no window states
+    other than full screen (see showFullScreen()) and no Metal or Direct3D
+    surface. OpenGL surfaces work
     through EGL; see QOpenGLContext. \c close() destroys the platform
     window; showing the window again creates it anew. There is no
     \c requestUpdate() throttling to the display refresh rate.
@@ -121,6 +123,8 @@ void QWindow::create() {
         m_d->platform->setWindowTitle(m_d->title);
     if (m_d->transientParent && m_d->transientParent->m_d->platform)
         m_d->platform->setTransientParent(m_d->transientParent->m_d->platform);
+    if (m_d->fullScreen)
+        m_d->platform->setFullScreen(true);
     QtPrivate::GuiAccess::applyCursor(this);
 }
 
@@ -506,6 +510,46 @@ void QWindow::setVisible(bool visible) {
     emit visibleChanged(m_d->visible);
     if (!visible)
         QtPrivate::GuiAccess::maybeQuitOnLastWindowClosed(this);
+}
+
+/*!
+    Shows the window so that it covers the whole screen, without a frame. The platform window is created
+    if needed. Where the platform has no full screen mode, the window is shown as it is.
+
+    \since 6.0
+
+    \sa showNormal(), isFullScreen()
+*/
+void QWindow::showFullScreen() {
+    setFullScreen(true);
+    show();
+}
+
+/*!
+    Shows the window in its normal state, leaving full screen if it was in it.
+
+    \since 6.0
+
+    \sa showFullScreen()
+*/
+void QWindow::showNormal() {
+    setFullScreen(false);
+    show();
+}
+
+/*!
+    Returns \c true if the window was asked to cover the whole screen, and has not been shown normally since.
+
+    \since 6.0
+
+    \sa showFullScreen(), showNormal()
+*/
+bool QWindow::isFullScreen() const { return m_d->fullScreen; }
+
+void QWindow::setFullScreen(bool fullScreen) {
+    m_d->fullScreen = fullScreen;
+    if (m_d->platform)
+        m_d->platform->setFullScreen(fullScreen);
 }
 
 /*!

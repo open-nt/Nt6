@@ -1,0 +1,9 @@
+<RCC>
+    <qresource prefix="/shaders">
+        <file>ntgltfview.rgen.spv</file>
+        <file>ntgltfview.rmiss.spv</file>
+        <file>ntgltfview_shadow.rmiss.spv</file>
+        <file>ntgltfview.rchit.spv</file>
+        <file>ntgltfview.rahit.spv</file>
+    </qresource>
+</RCC>

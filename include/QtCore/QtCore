@@ -107,6 +107,7 @@
 #include "qprocess.h"
 #include "qpromise.h"
 #include "qrandom.h"
+#include "qrangemodel.h"
 #include "qrect.h"
 #include "qregularexpression.h"
 #include "qresource.h"

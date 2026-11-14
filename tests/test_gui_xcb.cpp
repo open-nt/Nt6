@@ -34,7 +34,7 @@ extern "C" const char *__asan_default_options() { return "fast_unwind_on_malloc=
 extern "C" const char *__lsan_default_suppressions() {
     return "leak:libEGL_mesa\nleak:libgallium\nleak:libGLX_mesa\nleak:libEGL_nvidia\nleak:libnvidia-\n"
            "leak:libGLdispatch\nleak:libdrm\nleak:libdbus-1\nleak:libxcb\nleak:libX11\n"
-           "leak:libvulkan\nleak:libLLVM\n";
+           "leak:libvulkan\nleak:libVkLayer\nleak:libLLVM\n";
 }
 #endif
 
@@ -153,6 +153,11 @@ struct XcbEventCounter : QAbstractNativeEventFilter {
 
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "xcb", 1);
+#if defined(__SANITIZE_ADDRESS__)
+    // The Vulkan loader unloads the drivers and layers with the last instance, and leaks in them would then be
+    // reported from an unknown module, which no suppression matches; keep them loaded.
+    ::setenv("VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING", "1", 1);
+#endif
     ::setenv("QT_SCALE_FACTOR", "1", 1);
     {
         int n = 0;

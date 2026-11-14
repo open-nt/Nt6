@@ -25,7 +25,7 @@ extern "C" const char *__asan_default_options();
 extern "C" const char *__lsan_default_suppressions();
 extern "C" const char *__asan_default_options() { return "fast_unwind_on_malloc=0"; }
 extern "C" const char *__lsan_default_suppressions() {
-    return "leak:libvulkan\nleak:libvulkan_lvp\nleak:libvulkan_intel\nleak:libvulkan_radeon\nleak:libnvidia-\n"
+    return "leak:libvulkan\nleak:libvulkan_lvp\nleak:libvulkan_intel\nleak:libvulkan_radeon\nleak:libnvidia-\nleak:libVkLayer\n"
            "leak:libgallium\nleak:libLLVM\nleak:libdrm\nleak:libdbus-1\nleak:libxcb\nleak:libX11\n";
 }
 #endif
@@ -808,6 +808,11 @@ private:
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     testInfoVector();
+#if defined(__SANITIZE_ADDRESS__)
+    // The Vulkan loader unloads the drivers and layers with the last instance, and leaks in them would then be
+    // reported from an unknown module, which no suppression matches; keep them loaded.
+    ::setenv("VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING", "1", 1);
+#endif
 
     QVulkanInstance inst;
     inst.setApiVersion(QVersionNumber(1, 2));

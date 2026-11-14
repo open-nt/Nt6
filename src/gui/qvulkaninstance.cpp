@@ -670,7 +670,7 @@ VkSurfaceKHR QVulkanInstance::surfaceForWindow(QWindow *window) {
 bool QVulkanInstance::supportsPresent(VkPhysicalDevice physicalDevice, uint32_t queueFamilyIndex, QWindow *window) {
     if (!m_d->getPhysicalDeviceSurfaceSupport)
         return false;
-    const VkSurfaceKHR surface = surfaceForWindow(window);
+    VkSurfaceKHR surface = surfaceForWindow(window);
     if (!surface)
         return false;
     VkBool32 supported = VK_FALSE;

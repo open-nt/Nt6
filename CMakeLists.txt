@@ -126,6 +126,7 @@ add_library(NtCore
     src/qparallelanimationgroup.cpp
     src/qpauseanimation.cpp
     src/qpermissions.cpp
+    src/qproperty.cpp
     src/qpropertyanimation.cpp
     src/qrandom.cpp
     src/qrangemodel.cpp
@@ -1330,6 +1331,13 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_rangemodel_tests PRIVATE Nt::Core Nt::Test)
     add_test(NAME nt_rangemodel_tests COMMAND nt_rangemodel_tests)
     nt_set_compile_options(nt_rangemodel_tests)
+
+    # Bindable properties, with a QObject whose Q_PROPERTYs have BINDABLE functions in tests/property_classes.h.
+    nt_wrap_cpp(property_test_sources tests/property_classes.h)
+    add_executable(nt_property_tests tests/test_property.cpp ${property_test_sources})
+    target_link_libraries(nt_property_tests PRIVATE Nt::Core)
+    add_test(NAME nt_property_tests COMMAND nt_property_tests)
+    nt_set_compile_options(nt_property_tests)
     if(NT_HAVE_ZLIB)
         target_compile_definitions(nt_resource_tests PRIVATE NT_HAVE_ZLIB)
     endif()

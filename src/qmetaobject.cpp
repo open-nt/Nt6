@@ -76,6 +76,7 @@
 #include <QtCore/qdebug.h>
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qobject.h>
+#include <QtCore/qproperty.h>
 #include <QtCore/qvariant.h>
 
 #include "ntnormalize_p.h"
@@ -1772,9 +1773,28 @@ bool QMetaProperty::isFlagType() const { return enumerator().isFlag(); }
 bool QMetaProperty::isEnumType() const { return enumerator().isValid(); }
 
 /*!
-    Returns \c false: bindable properties are not supported.
+    \since 6.0
+    Returns \c true if the property has a \c BINDABLE function, so that bindable() returns a handle onto it.
+
+    \sa bindable()
 */
-bool QMetaProperty::isBindable() const { return false; }
+bool QMetaProperty::isBindable() const { return isValid() && (data().flags & QtPrivate::PropBindable); }
+
+/*!
+    \since 6.0
+    Returns a handle onto the bindable property of \a object, through which bindings are installed and the value
+    is read and written, or an invalid handle if the property is not bindable.
+
+    \sa isBindable(), QBindable
+*/
+QUntypedBindable QMetaProperty::bindable(QObject *object) const {
+    if (!object || !isBindable() || !mobj->d.static_metacall)
+        return QUntypedBindable();
+    QUntypedBindable handle;
+    void *args[] = {&handle};
+    mobj->d.static_metacall(object, QMetaObject::BindableProperty, index, args);
+    return handle;
+}
 
 /*!
     Returns the enumerator that describes the type of the property, or an invalid QMetaEnum if

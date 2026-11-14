@@ -15,6 +15,8 @@ namespace QtPrivate {
 struct Access;
 } // namespace QtPrivate
 
+class QUntypedBindable;
+
 /*!
     \class QMetaMethod
     \brief The QMetaMethod class provides meta-data about a member function.
@@ -348,8 +350,7 @@ private:
     the property first, and fails if it cannot be converted.
 
     \differences
-    Bindable properties are not supported, so \c isBindable() is always
-    \c false and there is no \c bindable() or \c isQProperty(). The
+    There is no \c isQProperty(). The
     \c DESIGNABLE, \c SCRIPTABLE, \c STORED and \c USER attributes are
     evaluated, but \c EDITABLE and \c isEditable() are not available. Property
     types that are not registered with QMetaType cannot be read or written.
@@ -387,6 +388,7 @@ public:
     bool isFlagType() const;
     bool isEnumType() const;
     bool isBindable() const;
+    QUntypedBindable bindable(QObject *object) const;
     QMetaEnum enumerator() const;
     bool hasNotifySignal() const;
     QMetaMethod notifySignal() const;

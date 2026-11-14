@@ -9,7 +9,8 @@
 //            void valueChanged(int value);
 //
 //  * the class's staticMetaObject: its name, base class, signals, slots, Q_INVOKABLE methods and
-//    constructors, Q_PROPERTY properties, Q_ENUM/Q_FLAG enumerations and Q_CLASSINFO entries;
+//    constructors, Q_PROPERTY properties (with BINDABLE reached through QMetaProperty::bindable()),
+//    Q_ENUM/Q_FLAG enumerations and Q_CLASSINFO entries;
 //  * qt_static_metacall(), through which the run time invokes methods and reads and writes
 //    properties.
 //  * for a class with Q_PLUGIN_METADATA, the functions that QPluginLoader looks up, with the IID, the
@@ -76,7 +77,7 @@ struct Method {
 struct Property {
     std::string name;
     std::string type;
-    std::string read, write, reset, notify, member;
+    std::string read, write, reset, notify, member, bindable;
     bool constant = false, final_ = false, required = false;
     std::string designable = "true", scriptable = "true", stored = "true", user = "false";
     int revision = 0;
@@ -661,6 +662,8 @@ std::size_t Scanner::parseProperty(std::size_t open, std::size_t close, Scope &c
             p.notify = v;
         else if (k == "MEMBER")
             p.member = v;
+        else if (k == "BINDABLE")
+            p.bindable = v;
         else if (k == "CONSTANT") {
             p.constant = true;
             next = i + 1;
@@ -682,8 +685,7 @@ std::size_t Scanner::parseProperty(std::size_t open, std::size_t close, Scope &c
             } else if (!v.empty() && std::isdigit(static_cast<unsigned char>(v[0]))) {
                 p.revision = (255 << 8) | std::stoi(v);
             }
-        } else if (k == "DESIGNABLE" || k == "SCRIPTABLE" || k == "STORED" || k == "USER" || k == "BINDABLE" ||
-                   k == "EDITABLE") {
+        } else if (k == "DESIGNABLE" || k == "SCRIPTABLE" || k == "STORED" || k == "USER" || k == "EDITABLE") {
             std::string value = v;
             if (at(i + 2) == "(") {
                 const std::size_t c = matching(t, i + 2);
@@ -835,7 +837,6 @@ std::size_t Scanner::parseMember(std::size_t i, Scope &cur) {
 
     const MethodKind kind = cur.section == 1 || signalMark ? KindSignal
                             : cur.section == 2 || slotMark ? KindSlot
-                            : invokable                    ? KindMethod
                                                            : KindMethod;
     const bool wanted = cur.section != 0 || signalMark || slotMark || invokable;
     if (!wanted)
@@ -1146,7 +1147,7 @@ void generateSignalBodies(std::ostringstream &o, const ClassData &c) {
 int flagsOf(const Property &p) {
     int f = 0;
     const bool member = !p.member.empty();
-    if (!p.read.empty() || member)
+    if (!p.read.empty() || member || !p.bindable.empty())
         f |= 0x1;
     if (!p.write.empty() || (member && !p.constant))
         f |= 0x2;
@@ -1158,6 +1159,8 @@ int flagsOf(const Property &p) {
         f |= 0x10;
     if (p.required)
         f |= 0x20;
+    if (!p.bindable.empty())
+        f |= 0x10000; // PropBindable
     if (member)
         f |= 0x40;
     return f;
@@ -1270,6 +1273,9 @@ void generateMeta(std::ostringstream &o, const ClassData &c, const std::map<std:
                 else if (!p.member.empty())
                     o << "        case " << i << ": *reinterpret_cast<" << p.type << " *>(_a[0]) = _t->" << p.member
                       << "; break;\n";
+                else if (!p.bindable.empty())
+                    o << "        case " << i << ": *reinterpret_cast<" << p.type << " *>(_a[0]) = _t->" << p.bindable
+                      << "().value(); break;\n";
             }
             o << "        default: break;\n        }\n        break;\n";
 
@@ -1303,6 +1309,14 @@ void generateMeta(std::ostringstream &o, const ClassData &c, const std::map<std:
             for (std::size_t i = 0; i < c.props.size(); ++i)
                 if (!c.props[i].reset.empty())
                     o << "        case " << i << ": _t->" << c.props[i].reset << "(); break;\n";
+            o << "        default: break;\n        }\n        break;\n";
+
+            // The BINDABLE function returns a QBindable<T>, which the handle takes as a QUntypedBindable.
+            o << "    case QMetaObject::BindableProperty:\n        switch (_id) {\n";
+            for (std::size_t i = 0; i < c.props.size(); ++i)
+                if (!c.props[i].bindable.empty())
+                    o << "        case " << i << ": *reinterpret_cast<QUntypedBindable *>(_a[0]) = _t->"
+                      << c.props[i].bindable << "(); break;\n";
             o << "        default: break;\n        }\n        break;\n";
 
             const char *names[4] = {"QueryPropertyDesignable", "QueryPropertyScriptable", "QueryPropertyStored",
@@ -1447,6 +1461,14 @@ std::string generate(const std::vector<ClassData> &classes, const std::map<std::
             break;
         }
     }
+    for (const ClassData &c : classes) {
+        const bool bindable =
+            std::any_of(c.props.begin(), c.props.end(), [](const Property &p) { return !p.bindable.empty(); });
+        if (bindable) {
+            o << "#include <QtCore/qproperty.h>\n";
+            break;
+        }
+    }
     o << "\n#include <type_traits>\n#include <typeinfo>\n#include <utility>\n";
     for (const ClassData &c : classes) {
         o << "\n";
@@ -1491,9 +1513,19 @@ int main(int argc, char **argv) {
     std::vector<std::string> includeDirs;
     bool depFile = false, noInclude = false;
     // Options that consume a value (separate or attached) and are otherwise ignored.
-    const std::vector<std::string> valued = {"-I", "-D", "-U", "-F", "-f", "-p", "-b", "-M",
-                                              "--include", "--dep-file-path", "--dep-file-rule-name",
-                                              "--output-json", "-X"};
+    const std::vector<std::string> valued = {"-I",
+                                             "-D",
+                                             "-U",
+                                             "-F",
+                                             "-f",
+                                             "-p",
+                                             "-b",
+                                             "-M",
+                                             "--include",
+                                             "--dep-file-path",
+                                             "--dep-file-rule-name",
+                                             "--output-json",
+                                             "-X"};
 
     for (std::size_t i = 0; i < args.size(); ++i) {
         const std::string &a = args[i];
@@ -1519,8 +1551,8 @@ int main(int argc, char **argv) {
             noInclude = true;
         } else if (a == "--output-dep-file") {
             depFile = true;
-        } else if (a == "-E" || a == "-n" || a.rfind("-n", 0) == 0 || a == "--no-warnings" ||
-                   a == "--no-notes" || a == "--debug-includes" || a == "--collect-includes") {
+        } else if (a == "-E" || a == "-n" || a.rfind("-n", 0) == 0 || a == "--no-warnings" || a == "--no-notes" ||
+                   a == "--debug-includes" || a == "--collect-includes") {
             // ignored
         } else if (!a.empty() && a[0] == '-' && a.size() > 1) {
             bool matched = false;

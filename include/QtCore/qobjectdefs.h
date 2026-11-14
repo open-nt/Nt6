@@ -151,7 +151,8 @@ enum PropertyFlag : unsigned {
     PropDesignableShift = 8,
     PropScriptableShift = 10,
     PropStoredShift = 12,
-    PropUserShift = 14
+    PropUserShift = 14,
+    PropBindable = 0x10000 // BINDABLE: QMetaProperty::bindable() returns the property's QBindable
 };
 
 } // namespace QtPrivate

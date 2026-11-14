@@ -106,6 +106,7 @@
 #include "qpoint.h"
 #include "qprocess.h"
 #include "qpromise.h"
+#include "qproperty.h"
 #include "qrandom.h"
 #include "qrangemodel.h"
 #include "qrect.h"

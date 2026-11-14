@@ -3,6 +3,10 @@
 
 #include <QtCore/qconfig.h>
 
+// QT_CONFIG(feature) is true when the optional feature was built in; qconfig.h defines each QT_FEATURE_<feature> as 1
+// or -1, so an unknown feature fails to compile instead of reading as absent.
+#define QT_CONFIG(feature) (1 / QT_FEATURE_##feature == 1)
+
 #include <algorithm>
 #include <cassert>
 #include <cmath>
@@ -180,6 +184,7 @@ inline void qt_noop() {}
 #define Q_REVISION(...)
 #define Q_INTERFACES(...)
 #define Q_MOC_INCLUDE(...)
+#define Q_PLUGIN_METADATA(...)
 
 #ifndef QT_NO_KEYWORDS
 #  define signals public

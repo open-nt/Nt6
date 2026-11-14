@@ -24,6 +24,7 @@ class QPlatformWindow;
 class QResizeEvent;
 class QScreen;
 class QShowEvent;
+class QVulkanInstance;
 class QWheelEvent;
 
 namespace QtPrivate {
@@ -84,6 +85,9 @@ public:
     void setFormat(const QSurfaceFormat &format);
     QSurfaceFormat requestedFormat() const;
     QSurfaceFormat format() const override;
+
+    void setVulkanInstance(QVulkanInstance *instance);
+    QVulkanInstance *vulkanInstance() const;
 
     QCursor cursor() const;
     void setCursor(const QCursor &cursor);

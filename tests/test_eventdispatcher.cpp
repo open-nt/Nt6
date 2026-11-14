@@ -489,10 +489,12 @@ static void testV2() {
         [&] {
             auto *timer = new QTimer(&context);
             QObject::connect(timer, &QTimer::timeout, [&, timer] {
-                if (++ticks == 2) {
+                // listed is set before ticks reaches 2, which the main thread waits for.
+                if (ticks.load() == 1) {
                     listed = static_cast<int>(dispatcher->timersForObject(timer).size());
                     timer->stop();
                 }
+                ++ticks;
             });
             timer->start(7);
         },

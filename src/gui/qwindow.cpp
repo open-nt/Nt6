@@ -32,6 +32,7 @@ struct QWindow::Data {
     QSurfaceFormat requestedFormat = QSurfaceFormat::defaultFormat();
     QSurfaceFormat format; // what the window has, once an OpenGL context was made current on it
     bool hasFormat = false;
+    QVulkanInstance *vulkanInstance = nullptr;
 };
 
 /*!
@@ -161,6 +162,11 @@ void QWindow::destroy() {
         return;
     setVisible(false);
     QtPrivate::GuiAccess::surfaceAboutToBeDestroyed(this);
+    if (m_d->platform->destroyVulkanSurface) { // before the native window the surface was made for
+        m_d->platform->destroyVulkanSurface();
+        m_d->platform->destroyVulkanSurface = nullptr;
+        m_d->platform->vulkanSurface = 0;
+    }
     delete m_d->platform;
     m_d->platform = nullptr;
     m_d->exposed = false;
@@ -425,6 +431,22 @@ void QWindow::setSurfaceType(QSurface::SurfaceType surfaceType) { m_d->surfaceTy
     \sa setSurfaceType()
 */
 QSurface::SurfaceType QWindow::surfaceType() const { return m_d->surfaceType; }
+
+/*!
+    Sets the Vulkan instance that the window presents through to \a instance. Set it, with a surface type of
+    QSurface::VulkanSurface, before QVulkanInstance::surfaceForWindow() is asked for the window's surface.
+    QVulkanWindow needs it before the window is first shown.
+
+    \sa vulkanInstance(), QVulkanInstance::surfaceForWindow()
+*/
+void QWindow::setVulkanInstance(QVulkanInstance *instance) { m_d->vulkanInstance = instance; }
+
+/*!
+    Returns the Vulkan instance of the window, or \c nullptr if none was set.
+
+    \sa setVulkanInstance()
+*/
+QVulkanInstance *QWindow::vulkanInstance() const { return m_d->vulkanInstance; }
 
 /*!
     \since 6.0

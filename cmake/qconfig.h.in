@@ -6,3 +6,6 @@
 #define QT_VERSION_MINOR @PROJECT_VERSION_MINOR@
 #define QT_VERSION_PATCH @PROJECT_VERSION_PATCH@
 #define QT_VERSION_STR "@PROJECT_VERSION@"
+
+// Optional features, 1 when built in and -1 when not; test them with QT_CONFIG(feature).
+#define QT_FEATURE_vulkan @NT_FEATURE_VULKAN@

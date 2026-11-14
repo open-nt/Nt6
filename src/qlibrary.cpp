@@ -43,7 +43,7 @@
     \differences
     Libraries are loaded with \c dlopen(), so the class works on Linux, Android and macOS; on
     macOS the suffixes \c .dylib and \c .bundle are not added to a name. \c LoadArchiveMemberHint
-    is ignored: it is for AIX. There is no QPluginLoader yet.
+    is ignored: it is for AIX.
 
     The class is not built for Zephyr, where \c QT_NO_LIBRARY is defined instead. See \l{Nt on Zephyr}.
     \enddifferences

@@ -210,7 +210,7 @@
 
     \list
         \li QProcess (\c QT_NO_PROCESS)
-        \li QLibrary (\c QT_NO_LIBRARY)
+        \li QLibrary and QPluginLoader (\c QT_NO_LIBRARY), and static plugins
         \li QSharedMemory (\c QT_NO_SHAREDMEMORY) and QSystemSemaphore (\c QT_NO_SYSTEMSEMAPHORE)
         \li QFileSystemWatcher (\c QT_NO_FILESYSTEMWATCHER)
         \li QStorageInfo (\c QT_NO_STORAGEINFO)

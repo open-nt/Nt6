@@ -168,13 +168,14 @@
 
     \section1 What Is Not There Yet
 
-    Windows paint in software unless they render with OpenGL, through EGL (see \l{Using Nt OpenGL}); there is
-    no Vulkan, Metal, Direct3D or QRhi back end. Text is drawn glyph by glyph, upright, without shaping, kerning or font
+    Windows paint in software unless they render with OpenGL, through EGL (see \l{Using Nt OpenGL}), or with
+    Vulkan in a QVulkanWindow (see \l{Using Nt Vulkan}); there is no Metal, Direct3D or QRhi back end. Text is drawn glyph by glyph, upright, without shaping, kerning or font
     fallback, so complex scripts and emoji do not display. Widgets and layouts are in \l{Using Nt Widgets}{Nt Widgets}. There is no clipboard,
     drag and drop or input methods; a QCursor has one of the standard shapes. The \c xcb platform shows one screen,
     the whole X desktop, and copies the window contents to the server with
     \c PutImage. Each class lists its own limits in its \e Differences from Qt
     section.
 
-    \sa QGuiApplication, QWindow, QRasterWindow, QPainter, QImage, QStyleHints, QScreen, {Using Nt OpenGL}
+    \sa QGuiApplication, QWindow, QRasterWindow, QPainter, QImage, QStyleHints, QScreen, {Using Nt OpenGL},
+        {Using Nt Vulkan}
 */

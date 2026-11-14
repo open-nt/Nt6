@@ -19,6 +19,11 @@ struct QEglNativePlatform {
 class QPlatformWindow;
 class QWindow;
 
+// The types of vkGetInstanceProcAddr without the Vulkan headers, which this header does not include: a platform casts
+// the pointer back to PFN_vkGetInstanceProcAddr before calling it.
+using QVulkanVoidFunction = void (*)();
+using QVulkanGetInstanceProcAddr = QVulkanVoidFunction (*)(void *instance, const char *name);
+
 // Entry point of a platform plugin ("offscreen", "xcb"). QGuiApplication creates one and asks it
 // for the pieces of the window system.
 class QPlatformIntegration {
@@ -44,6 +49,14 @@ public:
     // swap of buffers does. The EGL library can read events from the connection into the platform's own queue,
     // where no socket notifier sees them; the platform makes sure that they are handled.
     virtual void checkQueuedEvents() {}
+    // The instance extension that Vulkan surfaces of the platform's windows need ("VK_KHR_xcb_surface"); null when the
+    // platform cannot present with Vulkan.
+    virtual const char *vulkanSurfaceExtension() const { return nullptr; }
+    // Creates the VkSurfaceKHR of `window` in `instance` (a VkInstance) with the functions that `getInstanceProcAddr`
+    // resolves, and stores it in the platform window, which destroys it as it goes away. Returns the handle as an
+    // integer (see QtPrivate::Vulkan::handleFromU64()), or 0 when the platform cannot make one.
+    virtual quint64 createVulkanSurface(QWindow *window, void *instance,
+                                        QVulkanGetInstanceProcAddr getInstanceProcAddr) const;
 };
 
 namespace QtPrivate {

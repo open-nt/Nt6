@@ -28,6 +28,14 @@ QPoint QPlatformIntegration::cursorPosition() const { return QtPrivate::GuiAcces
 
 void QPlatformIntegration::setCursorPosition(const QPoint &pos) { QtPrivate::GuiAccess::setCursorPosition(pos); }
 
+quint64 QPlatformIntegration::createVulkanSurface(QWindow *window, void *instance,
+                                                  QVulkanGetInstanceProcAddr getInstanceProcAddr) const {
+    (void)window;
+    (void)instance;
+    (void)getInstanceProcAddr;
+    return 0;
+}
+
 namespace QtPrivate {
 
 QStringList availablePlatforms() {

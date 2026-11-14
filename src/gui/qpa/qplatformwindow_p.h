@@ -5,6 +5,8 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
 
+#include <functional>
+
 class QWindow;
 
 // The platform's side of a QWindow: created by QPlatformIntegration when the window is created.
@@ -26,6 +28,11 @@ public:
     virtual quintptr winId() const { return 0; }
     // Shows the mouse cursor with this shape while it is over the window.
     virtual void setCursor(Qt::CursorShape shape) { (void)shape; }
+
+    // The Vulkan surface of the window (a VkSurfaceKHR as an integer; 0 until QVulkanInstance::surfaceForWindow()
+    // asks for it) and what destroys it, which QWindow::destroy() calls before the native window goes away.
+    quint64 vulkanSurface = 0;
+    std::function<void()> destroyVulkanSurface;
 
 private:
     QWindow *m_window;

@@ -1,0 +1,418 @@
+// MIT License - see LICENSE
+#pragma once
+
+// Generated from the Vulkan registry (vk.xml) by vkgen.py; do not edit. QVulkanFunctions and
+// QVulkanDeviceFunctions call the core Vulkan 1.0 to 1.3 functions of an instance or a device through the function
+// pointers that the loader hands out, so programs need not link with a Vulkan library.
+
+#include <QtCore/qglobal.h>
+
+#if QT_CONFIG(vulkan) || defined(Q_QDOC)
+
+#ifndef VK_NO_PROTOTYPES
+#define VK_NO_PROTOTYPES
+#endif
+#include <vulkan/vulkan.h>
+
+#include <memory>
+
+class QVulkanInstance;
+
+class QVulkanFunctions {
+public:
+    ~QVulkanFunctions();
+
+    // Vulkan 1.0
+    void vkDestroyInstance(VkInstance instance, const VkAllocationCallbacks *pAllocator);
+    VkResult vkEnumeratePhysicalDevices(VkInstance instance, uint32_t *pPhysicalDeviceCount,
+                                        VkPhysicalDevice *pPhysicalDevices);
+    void vkGetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures *pFeatures);
+    void vkGetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice, VkFormat format,
+                                             VkFormatProperties *pFormatProperties);
+    VkResult vkGetPhysicalDeviceImageFormatProperties(VkPhysicalDevice physicalDevice, VkFormat format,
+                                                      VkImageType type, VkImageTiling tiling, VkImageUsageFlags usage,
+                                                      VkImageCreateFlags flags,
+                                                      VkImageFormatProperties *pImageFormatProperties);
+    void vkGetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice, VkPhysicalDeviceProperties *pProperties);
+    void vkGetPhysicalDeviceQueueFamilyProperties(VkPhysicalDevice physicalDevice, uint32_t *pQueueFamilyPropertyCount,
+                                                  VkQueueFamilyProperties *pQueueFamilyProperties);
+    void vkGetPhysicalDeviceMemoryProperties(VkPhysicalDevice physicalDevice,
+                                             VkPhysicalDeviceMemoryProperties *pMemoryProperties);
+    PFN_vkVoidFunction vkGetDeviceProcAddr(VkDevice device, const char *pName);
+    VkResult vkCreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCreateInfo,
+                            const VkAllocationCallbacks *pAllocator, VkDevice *pDevice);
+    VkResult vkEnumerateDeviceExtensionProperties(VkPhysicalDevice physicalDevice, const char *pLayerName,
+                                                  uint32_t *pPropertyCount, VkExtensionProperties *pProperties);
+    VkResult vkEnumerateDeviceLayerProperties(VkPhysicalDevice physicalDevice, uint32_t *pPropertyCount,
+                                              VkLayerProperties *pProperties);
+    void vkGetPhysicalDeviceSparseImageFormatProperties(VkPhysicalDevice physicalDevice, VkFormat format,
+                                                        VkImageType type, VkSampleCountFlagBits samples,
+                                                        VkImageUsageFlags usage, VkImageTiling tiling,
+                                                        uint32_t *pPropertyCount,
+                                                        VkSparseImageFormatProperties *pProperties);
+
+    // Vulkan 1.1
+    VkResult vkEnumeratePhysicalDeviceGroups(VkInstance instance, uint32_t *pPhysicalDeviceGroupCount,
+                                             VkPhysicalDeviceGroupProperties *pPhysicalDeviceGroupProperties);
+    void vkGetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice, VkPhysicalDeviceFeatures2 *pFeatures);
+    void vkGetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice, VkPhysicalDeviceProperties2 *pProperties);
+    void vkGetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice, VkFormat format,
+                                              VkFormatProperties2 *pFormatProperties);
+    VkResult vkGetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
+                                                       const VkPhysicalDeviceImageFormatInfo2 *pImageFormatInfo,
+                                                       VkImageFormatProperties2 *pImageFormatProperties);
+    void vkGetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, uint32_t *pQueueFamilyPropertyCount,
+                                                   VkQueueFamilyProperties2 *pQueueFamilyProperties);
+    void vkGetPhysicalDeviceMemoryProperties2(VkPhysicalDevice physicalDevice,
+                                              VkPhysicalDeviceMemoryProperties2 *pMemoryProperties);
+    void vkGetPhysicalDeviceSparseImageFormatProperties2(VkPhysicalDevice physicalDevice,
+                                                         const VkPhysicalDeviceSparseImageFormatInfo2 *pFormatInfo,
+                                                         uint32_t *pPropertyCount,
+                                                         VkSparseImageFormatProperties2 *pProperties);
+    void vkGetPhysicalDeviceExternalBufferProperties(VkPhysicalDevice physicalDevice,
+                                                     const VkPhysicalDeviceExternalBufferInfo *pExternalBufferInfo,
+                                                     VkExternalBufferProperties *pExternalBufferProperties);
+    void vkGetPhysicalDeviceExternalFenceProperties(VkPhysicalDevice physicalDevice,
+                                                    const VkPhysicalDeviceExternalFenceInfo *pExternalFenceInfo,
+                                                    VkExternalFenceProperties *pExternalFenceProperties);
+    void
+    vkGetPhysicalDeviceExternalSemaphoreProperties(VkPhysicalDevice physicalDevice,
+                                                   const VkPhysicalDeviceExternalSemaphoreInfo *pExternalSemaphoreInfo,
+                                                   VkExternalSemaphoreProperties *pExternalSemaphoreProperties);
+
+    // Vulkan 1.3
+    VkResult vkGetPhysicalDeviceToolProperties(VkPhysicalDevice physicalDevice, uint32_t *pToolCount,
+                                               VkPhysicalDeviceToolProperties *pToolProperties);
+
+private:
+    Q_DISABLE_COPY(QVulkanFunctions)
+    friend class QVulkanInstance;
+    QVulkanFunctions(PFN_vkGetInstanceProcAddr getProcAddr, VkInstance instance);
+    struct Private;
+    std::unique_ptr<Private> m_d;
+};
+
+class QVulkanDeviceFunctions {
+public:
+    ~QVulkanDeviceFunctions();
+
+    // Vulkan 1.0
+    void vkDestroyDevice(VkDevice device, const VkAllocationCallbacks *pAllocator);
+    void vkGetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uint32_t queueIndex, VkQueue *pQueue);
+    VkResult vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkSubmitInfo *pSubmits, VkFence fence);
+    VkResult vkQueueWaitIdle(VkQueue queue);
+    VkResult vkDeviceWaitIdle(VkDevice device);
+    VkResult vkAllocateMemory(VkDevice device, const VkMemoryAllocateInfo *pAllocateInfo,
+                              const VkAllocationCallbacks *pAllocator, VkDeviceMemory *pMemory);
+    void vkFreeMemory(VkDevice device, VkDeviceMemory memory, const VkAllocationCallbacks *pAllocator);
+    VkResult vkMapMemory(VkDevice device, VkDeviceMemory memory, VkDeviceSize offset, VkDeviceSize size,
+                         VkMemoryMapFlags flags, void **ppData);
+    void vkUnmapMemory(VkDevice device, VkDeviceMemory memory);
+    VkResult vkFlushMappedMemoryRanges(VkDevice device, uint32_t memoryRangeCount,
+                                       const VkMappedMemoryRange *pMemoryRanges);
+    VkResult vkInvalidateMappedMemoryRanges(VkDevice device, uint32_t memoryRangeCount,
+                                            const VkMappedMemoryRange *pMemoryRanges);
+    void vkGetDeviceMemoryCommitment(VkDevice device, VkDeviceMemory memory, VkDeviceSize *pCommittedMemoryInBytes);
+    VkResult vkBindBufferMemory(VkDevice device, VkBuffer buffer, VkDeviceMemory memory, VkDeviceSize memoryOffset);
+    VkResult vkBindImageMemory(VkDevice device, VkImage image, VkDeviceMemory memory, VkDeviceSize memoryOffset);
+    void vkGetBufferMemoryRequirements(VkDevice device, VkBuffer buffer, VkMemoryRequirements *pMemoryRequirements);
+    void vkGetImageMemoryRequirements(VkDevice device, VkImage image, VkMemoryRequirements *pMemoryRequirements);
+    void vkGetImageSparseMemoryRequirements(VkDevice device, VkImage image, uint32_t *pSparseMemoryRequirementCount,
+                                            VkSparseImageMemoryRequirements *pSparseMemoryRequirements);
+    VkResult vkQueueBindSparse(VkQueue queue, uint32_t bindInfoCount, const VkBindSparseInfo *pBindInfo, VkFence fence);
+    VkResult vkCreateFence(VkDevice device, const VkFenceCreateInfo *pCreateInfo,
+                           const VkAllocationCallbacks *pAllocator, VkFence *pFence);
+    void vkDestroyFence(VkDevice device, VkFence fence, const VkAllocationCallbacks *pAllocator);
+    VkResult vkResetFences(VkDevice device, uint32_t fenceCount, const VkFence *pFences);
+    VkResult vkGetFenceStatus(VkDevice device, VkFence fence);
+    VkResult vkWaitForFences(VkDevice device, uint32_t fenceCount, const VkFence *pFences, VkBool32 waitAll,
+                             uint64_t timeout);
+    VkResult vkCreateSemaphore(VkDevice device, const VkSemaphoreCreateInfo *pCreateInfo,
+                               const VkAllocationCallbacks *pAllocator, VkSemaphore *pSemaphore);
+    void vkDestroySemaphore(VkDevice device, VkSemaphore semaphore, const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreateQueryPool(VkDevice device, const VkQueryPoolCreateInfo *pCreateInfo,
+                               const VkAllocationCallbacks *pAllocator, VkQueryPool *pQueryPool);
+    void vkDestroyQueryPool(VkDevice device, VkQueryPool queryPool, const VkAllocationCallbacks *pAllocator);
+    VkResult vkGetQueryPoolResults(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount,
+                                   size_t dataSize, void *pData, VkDeviceSize stride, VkQueryResultFlags flags);
+    VkResult vkCreateBuffer(VkDevice device, const VkBufferCreateInfo *pCreateInfo,
+                            const VkAllocationCallbacks *pAllocator, VkBuffer *pBuffer);
+    void vkDestroyBuffer(VkDevice device, VkBuffer buffer, const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo,
+                           const VkAllocationCallbacks *pAllocator, VkImage *pImage);
+    void vkDestroyImage(VkDevice device, VkImage image, const VkAllocationCallbacks *pAllocator);
+    void vkGetImageSubresourceLayout(VkDevice device, VkImage image, const VkImageSubresource *pSubresource,
+                                     VkSubresourceLayout *pLayout);
+    VkResult vkCreateImageView(VkDevice device, const VkImageViewCreateInfo *pCreateInfo,
+                               const VkAllocationCallbacks *pAllocator, VkImageView *pView);
+    void vkDestroyImageView(VkDevice device, VkImageView imageView, const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreateCommandPool(VkDevice device, const VkCommandPoolCreateInfo *pCreateInfo,
+                                 const VkAllocationCallbacks *pAllocator, VkCommandPool *pCommandPool);
+    void vkDestroyCommandPool(VkDevice device, VkCommandPool commandPool, const VkAllocationCallbacks *pAllocator);
+    VkResult vkResetCommandPool(VkDevice device, VkCommandPool commandPool, VkCommandPoolResetFlags flags);
+    VkResult vkAllocateCommandBuffers(VkDevice device, const VkCommandBufferAllocateInfo *pAllocateInfo,
+                                      VkCommandBuffer *pCommandBuffers);
+    void vkFreeCommandBuffers(VkDevice device, VkCommandPool commandPool, uint32_t commandBufferCount,
+                              const VkCommandBuffer *pCommandBuffers);
+    VkResult vkBeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBeginInfo *pBeginInfo);
+    VkResult vkEndCommandBuffer(VkCommandBuffer commandBuffer);
+    VkResult vkResetCommandBuffer(VkCommandBuffer commandBuffer, VkCommandBufferResetFlags flags);
+    void vkCmdCopyBuffer(VkCommandBuffer commandBuffer, VkBuffer srcBuffer, VkBuffer dstBuffer, uint32_t regionCount,
+                         const VkBufferCopy *pRegions);
+    void vkCmdCopyImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage,
+                        VkImageLayout dstImageLayout, uint32_t regionCount, const VkImageCopy *pRegions);
+    void vkCmdCopyBufferToImage(VkCommandBuffer commandBuffer, VkBuffer srcBuffer, VkImage dstImage,
+                                VkImageLayout dstImageLayout, uint32_t regionCount, const VkBufferImageCopy *pRegions);
+    void vkCmdCopyImageToBuffer(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout,
+                                VkBuffer dstBuffer, uint32_t regionCount, const VkBufferImageCopy *pRegions);
+    void vkCmdUpdateBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffer, VkDeviceSize dstOffset,
+                           VkDeviceSize dataSize, const void *pData);
+    void vkCmdFillBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize size,
+                         uint32_t data);
+    void vkCmdPipelineBarrier(VkCommandBuffer commandBuffer, VkPipelineStageFlags srcStageMask,
+                              VkPipelineStageFlags dstStageMask, VkDependencyFlags dependencyFlags,
+                              uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
+                              uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers,
+                              uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers);
+    void vkCmdBeginQuery(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query,
+                         VkQueryControlFlags flags);
+    void vkCmdEndQuery(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t query);
+    void vkCmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t firstQuery,
+                             uint32_t queryCount);
+    void vkCmdWriteTimestamp(VkCommandBuffer commandBuffer, VkPipelineStageFlagBits pipelineStage,
+                             VkQueryPool queryPool, uint32_t query);
+    void vkCmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uint32_t firstQuery,
+                                   uint32_t queryCount, VkBuffer dstBuffer, VkDeviceSize dstOffset, VkDeviceSize stride,
+                                   VkQueryResultFlags flags);
+    void vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCount,
+                              const VkCommandBuffer *pCommandBuffers);
+    VkResult vkCreateEvent(VkDevice device, const VkEventCreateInfo *pCreateInfo,
+                           const VkAllocationCallbacks *pAllocator, VkEvent *pEvent);
+    void vkDestroyEvent(VkDevice device, VkEvent event, const VkAllocationCallbacks *pAllocator);
+    VkResult vkGetEventStatus(VkDevice device, VkEvent event);
+    VkResult vkSetEvent(VkDevice device, VkEvent event);
+    VkResult vkResetEvent(VkDevice device, VkEvent event);
+    VkResult vkCreateBufferView(VkDevice device, const VkBufferViewCreateInfo *pCreateInfo,
+                                const VkAllocationCallbacks *pAllocator, VkBufferView *pView);
+    void vkDestroyBufferView(VkDevice device, VkBufferView bufferView, const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreateShaderModule(VkDevice device, const VkShaderModuleCreateInfo *pCreateInfo,
+                                  const VkAllocationCallbacks *pAllocator, VkShaderModule *pShaderModule);
+    void vkDestroyShaderModule(VkDevice device, VkShaderModule shaderModule, const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreatePipelineCache(VkDevice device, const VkPipelineCacheCreateInfo *pCreateInfo,
+                                   const VkAllocationCallbacks *pAllocator, VkPipelineCache *pPipelineCache);
+    void vkDestroyPipelineCache(VkDevice device, VkPipelineCache pipelineCache,
+                                const VkAllocationCallbacks *pAllocator);
+    VkResult vkGetPipelineCacheData(VkDevice device, VkPipelineCache pipelineCache, size_t *pDataSize, void *pData);
+    VkResult vkMergePipelineCaches(VkDevice device, VkPipelineCache dstCache, uint32_t srcCacheCount,
+                                   const VkPipelineCache *pSrcCaches);
+    VkResult vkCreateComputePipelines(VkDevice device, VkPipelineCache pipelineCache, uint32_t createInfoCount,
+                                      const VkComputePipelineCreateInfo *pCreateInfos,
+                                      const VkAllocationCallbacks *pAllocator, VkPipeline *pPipelines);
+    void vkDestroyPipeline(VkDevice device, VkPipeline pipeline, const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreatePipelineLayout(VkDevice device, const VkPipelineLayoutCreateInfo *pCreateInfo,
+                                    const VkAllocationCallbacks *pAllocator, VkPipelineLayout *pPipelineLayout);
+    void vkDestroyPipelineLayout(VkDevice device, VkPipelineLayout pipelineLayout,
+                                 const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreateSampler(VkDevice device, const VkSamplerCreateInfo *pCreateInfo,
+                             const VkAllocationCallbacks *pAllocator, VkSampler *pSampler);
+    void vkDestroySampler(VkDevice device, VkSampler sampler, const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreateDescriptorSetLayout(VkDevice device, const VkDescriptorSetLayoutCreateInfo *pCreateInfo,
+                                         const VkAllocationCallbacks *pAllocator, VkDescriptorSetLayout *pSetLayout);
+    void vkDestroyDescriptorSetLayout(VkDevice device, VkDescriptorSetLayout descriptorSetLayout,
+                                      const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreateDescriptorPool(VkDevice device, const VkDescriptorPoolCreateInfo *pCreateInfo,
+                                    const VkAllocationCallbacks *pAllocator, VkDescriptorPool *pDescriptorPool);
+    void vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool,
+                                 const VkAllocationCallbacks *pAllocator);
+    VkResult vkResetDescriptorPool(VkDevice device, VkDescriptorPool descriptorPool, VkDescriptorPoolResetFlags flags);
+    VkResult vkAllocateDescriptorSets(VkDevice device, const VkDescriptorSetAllocateInfo *pAllocateInfo,
+                                      VkDescriptorSet *pDescriptorSets);
+    VkResult vkFreeDescriptorSets(VkDevice device, VkDescriptorPool descriptorPool, uint32_t descriptorSetCount,
+                                  const VkDescriptorSet *pDescriptorSets);
+    void vkUpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount,
+                                const VkWriteDescriptorSet *pDescriptorWrites, uint32_t descriptorCopyCount,
+                                const VkCopyDescriptorSet *pDescriptorCopies);
+    void vkCmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint, VkPipeline pipeline);
+    void vkCmdBindDescriptorSets(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipelineBindPoint,
+                                 VkPipelineLayout layout, uint32_t firstSet, uint32_t descriptorSetCount,
+                                 const VkDescriptorSet *pDescriptorSets, uint32_t dynamicOffsetCount,
+                                 const uint32_t *pDynamicOffsets);
+    void vkCmdClearColorImage(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout imageLayout,
+                              const VkClearColorValue *pColor, uint32_t rangeCount,
+                              const VkImageSubresourceRange *pRanges);
+    void vkCmdDispatch(VkCommandBuffer commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ);
+    void vkCmdDispatchIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset);
+    void vkCmdSetEvent(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags stageMask);
+    void vkCmdResetEvent(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags stageMask);
+    void vkCmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents,
+                         VkPipelineStageFlags srcStageMask, VkPipelineStageFlags dstStageMask,
+                         uint32_t memoryBarrierCount, const VkMemoryBarrier *pMemoryBarriers,
+                         uint32_t bufferMemoryBarrierCount, const VkBufferMemoryBarrier *pBufferMemoryBarriers,
+                         uint32_t imageMemoryBarrierCount, const VkImageMemoryBarrier *pImageMemoryBarriers);
+    void vkCmdPushConstants(VkCommandBuffer commandBuffer, VkPipelineLayout layout, VkShaderStageFlags stageFlags,
+                            uint32_t offset, uint32_t size, const void *pValues);
+    VkResult vkCreateGraphicsPipelines(VkDevice device, VkPipelineCache pipelineCache, uint32_t createInfoCount,
+                                       const VkGraphicsPipelineCreateInfo *pCreateInfos,
+                                       const VkAllocationCallbacks *pAllocator, VkPipeline *pPipelines);
+    VkResult vkCreateFramebuffer(VkDevice device, const VkFramebufferCreateInfo *pCreateInfo,
+                                 const VkAllocationCallbacks *pAllocator, VkFramebuffer *pFramebuffer);
+    void vkDestroyFramebuffer(VkDevice device, VkFramebuffer framebuffer, const VkAllocationCallbacks *pAllocator);
+    VkResult vkCreateRenderPass(VkDevice device, const VkRenderPassCreateInfo *pCreateInfo,
+                                const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass);
+    void vkDestroyRenderPass(VkDevice device, VkRenderPass renderPass, const VkAllocationCallbacks *pAllocator);
+    void vkGetRenderAreaGranularity(VkDevice device, VkRenderPass renderPass, VkExtent2D *pGranularity);
+    void vkCmdSetViewport(VkCommandBuffer commandBuffer, uint32_t firstViewport, uint32_t viewportCount,
+                          const VkViewport *pViewports);
+    void vkCmdSetScissor(VkCommandBuffer commandBuffer, uint32_t firstScissor, uint32_t scissorCount,
+                         const VkRect2D *pScissors);
+    void vkCmdSetLineWidth(VkCommandBuffer commandBuffer, float lineWidth);
+    void vkCmdSetDepthBias(VkCommandBuffer commandBuffer, float depthBiasConstantFactor, float depthBiasClamp,
+                           float depthBiasSlopeFactor);
+    void vkCmdSetBlendConstants(VkCommandBuffer commandBuffer, const float *blendConstants);
+    void vkCmdSetDepthBounds(VkCommandBuffer commandBuffer, float minDepthBounds, float maxDepthBounds);
+    void vkCmdSetStencilCompareMask(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, uint32_t compareMask);
+    void vkCmdSetStencilWriteMask(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, uint32_t writeMask);
+    void vkCmdSetStencilReference(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, uint32_t reference);
+    void vkCmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+                              VkIndexType indexType);
+    void vkCmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount,
+                                const VkBuffer *pBuffers, const VkDeviceSize *pOffsets);
+    void vkCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex,
+                   uint32_t firstInstance);
+    void vkCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCount, uint32_t instanceCount,
+                          uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+    void vkCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset, uint32_t drawCount,
+                           uint32_t stride);
+    void vkCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+                                  uint32_t drawCount, uint32_t stride);
+    void vkCmdBlitImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout, VkImage dstImage,
+                        VkImageLayout dstImageLayout, uint32_t regionCount, const VkImageBlit *pRegions,
+                        VkFilter filter);
+    void vkCmdClearDepthStencilImage(VkCommandBuffer commandBuffer, VkImage image, VkImageLayout imageLayout,
+                                     const VkClearDepthStencilValue *pDepthStencil, uint32_t rangeCount,
+                                     const VkImageSubresourceRange *pRanges);
+    void vkCmdClearAttachments(VkCommandBuffer commandBuffer, uint32_t attachmentCount,
+                               const VkClearAttachment *pAttachments, uint32_t rectCount, const VkClearRect *pRects);
+    void vkCmdResolveImage(VkCommandBuffer commandBuffer, VkImage srcImage, VkImageLayout srcImageLayout,
+                           VkImage dstImage, VkImageLayout dstImageLayout, uint32_t regionCount,
+                           const VkImageResolve *pRegions);
+    void vkCmdBeginRenderPass(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo *pRenderPassBegin,
+                              VkSubpassContents contents);
+    void vkCmdNextSubpass(VkCommandBuffer commandBuffer, VkSubpassContents contents);
+    void vkCmdEndRenderPass(VkCommandBuffer commandBuffer);
+
+    // Vulkan 1.1
+    VkResult vkBindBufferMemory2(VkDevice device, uint32_t bindInfoCount, const VkBindBufferMemoryInfo *pBindInfos);
+    VkResult vkBindImageMemory2(VkDevice device, uint32_t bindInfoCount, const VkBindImageMemoryInfo *pBindInfos);
+    void vkGetDeviceGroupPeerMemoryFeatures(VkDevice device, uint32_t heapIndex, uint32_t localDeviceIndex,
+                                            uint32_t remoteDeviceIndex, VkPeerMemoryFeatureFlags *pPeerMemoryFeatures);
+    void vkCmdSetDeviceMask(VkCommandBuffer commandBuffer, uint32_t deviceMask);
+    void vkGetImageMemoryRequirements2(VkDevice device, const VkImageMemoryRequirementsInfo2 *pInfo,
+                                       VkMemoryRequirements2 *pMemoryRequirements);
+    void vkGetBufferMemoryRequirements2(VkDevice device, const VkBufferMemoryRequirementsInfo2 *pInfo,
+                                        VkMemoryRequirements2 *pMemoryRequirements);
+    void vkGetImageSparseMemoryRequirements2(VkDevice device, const VkImageSparseMemoryRequirementsInfo2 *pInfo,
+                                             uint32_t *pSparseMemoryRequirementCount,
+                                             VkSparseImageMemoryRequirements2 *pSparseMemoryRequirements);
+    void vkTrimCommandPool(VkDevice device, VkCommandPool commandPool, VkCommandPoolTrimFlags flags);
+    void vkGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2 *pQueueInfo, VkQueue *pQueue);
+    void vkCmdDispatchBase(VkCommandBuffer commandBuffer, uint32_t baseGroupX, uint32_t baseGroupY, uint32_t baseGroupZ,
+                           uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ);
+    VkResult vkCreateDescriptorUpdateTemplate(VkDevice device, const VkDescriptorUpdateTemplateCreateInfo *pCreateInfo,
+                                              const VkAllocationCallbacks *pAllocator,
+                                              VkDescriptorUpdateTemplate *pDescriptorUpdateTemplate);
+    void vkDestroyDescriptorUpdateTemplate(VkDevice device, VkDescriptorUpdateTemplate descriptorUpdateTemplate,
+                                           const VkAllocationCallbacks *pAllocator);
+    void vkUpdateDescriptorSetWithTemplate(VkDevice device, VkDescriptorSet descriptorSet,
+                                           VkDescriptorUpdateTemplate descriptorUpdateTemplate, const void *pData);
+    void vkGetDescriptorSetLayoutSupport(VkDevice device, const VkDescriptorSetLayoutCreateInfo *pCreateInfo,
+                                         VkDescriptorSetLayoutSupport *pSupport);
+    VkResult vkCreateSamplerYcbcrConversion(VkDevice device, const VkSamplerYcbcrConversionCreateInfo *pCreateInfo,
+                                            const VkAllocationCallbacks *pAllocator,
+                                            VkSamplerYcbcrConversion *pYcbcrConversion);
+    void vkDestroySamplerYcbcrConversion(VkDevice device, VkSamplerYcbcrConversion ycbcrConversion,
+                                         const VkAllocationCallbacks *pAllocator);
+
+    // Vulkan 1.2
+    void vkResetQueryPool(VkDevice device, VkQueryPool queryPool, uint32_t firstQuery, uint32_t queryCount);
+    VkResult vkGetSemaphoreCounterValue(VkDevice device, VkSemaphore semaphore, uint64_t *pValue);
+    VkResult vkWaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo *pWaitInfo, uint64_t timeout);
+    VkResult vkSignalSemaphore(VkDevice device, const VkSemaphoreSignalInfo *pSignalInfo);
+    VkDeviceAddress vkGetBufferDeviceAddress(VkDevice device, const VkBufferDeviceAddressInfo *pInfo);
+    uint64_t vkGetBufferOpaqueCaptureAddress(VkDevice device, const VkBufferDeviceAddressInfo *pInfo);
+    uint64_t vkGetDeviceMemoryOpaqueCaptureAddress(VkDevice device,
+                                                   const VkDeviceMemoryOpaqueCaptureAddressInfo *pInfo);
+    void vkCmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+                                VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount,
+                                uint32_t stride);
+    void vkCmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkBuffer buffer, VkDeviceSize offset,
+                                       VkBuffer countBuffer, VkDeviceSize countBufferOffset, uint32_t maxDrawCount,
+                                       uint32_t stride);
+    VkResult vkCreateRenderPass2(VkDevice device, const VkRenderPassCreateInfo2 *pCreateInfo,
+                                 const VkAllocationCallbacks *pAllocator, VkRenderPass *pRenderPass);
+    void vkCmdBeginRenderPass2(VkCommandBuffer commandBuffer, const VkRenderPassBeginInfo *pRenderPassBegin,
+                               const VkSubpassBeginInfo *pSubpassBeginInfo);
+    void vkCmdNextSubpass2(VkCommandBuffer commandBuffer, const VkSubpassBeginInfo *pSubpassBeginInfo,
+                           const VkSubpassEndInfo *pSubpassEndInfo);
+    void vkCmdEndRenderPass2(VkCommandBuffer commandBuffer, const VkSubpassEndInfo *pSubpassEndInfo);
+
+    // Vulkan 1.3
+    VkResult vkCreatePrivateDataSlot(VkDevice device, const VkPrivateDataSlotCreateInfo *pCreateInfo,
+                                     const VkAllocationCallbacks *pAllocator, VkPrivateDataSlot *pPrivateDataSlot);
+    void vkDestroyPrivateDataSlot(VkDevice device, VkPrivateDataSlot privateDataSlot,
+                                  const VkAllocationCallbacks *pAllocator);
+    VkResult vkSetPrivateData(VkDevice device, VkObjectType objectType, uint64_t objectHandle,
+                              VkPrivateDataSlot privateDataSlot, uint64_t data);
+    void vkGetPrivateData(VkDevice device, VkObjectType objectType, uint64_t objectHandle,
+                          VkPrivateDataSlot privateDataSlot, uint64_t *pData);
+    void vkCmdPipelineBarrier2(VkCommandBuffer commandBuffer, const VkDependencyInfo *pDependencyInfo);
+    void vkCmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 stage, VkQueryPool queryPool,
+                              uint32_t query);
+    VkResult vkQueueSubmit2(VkQueue queue, uint32_t submitCount, const VkSubmitInfo2 *pSubmits, VkFence fence);
+    void vkCmdCopyBuffer2(VkCommandBuffer commandBuffer, const VkCopyBufferInfo2 *pCopyBufferInfo);
+    void vkCmdCopyImage2(VkCommandBuffer commandBuffer, const VkCopyImageInfo2 *pCopyImageInfo);
+    void vkCmdCopyBufferToImage2(VkCommandBuffer commandBuffer, const VkCopyBufferToImageInfo2 *pCopyBufferToImageInfo);
+    void vkCmdCopyImageToBuffer2(VkCommandBuffer commandBuffer, const VkCopyImageToBufferInfo2 *pCopyImageToBufferInfo);
+    void vkGetDeviceBufferMemoryRequirements(VkDevice device, const VkDeviceBufferMemoryRequirements *pInfo,
+                                             VkMemoryRequirements2 *pMemoryRequirements);
+    void vkGetDeviceImageMemoryRequirements(VkDevice device, const VkDeviceImageMemoryRequirements *pInfo,
+                                            VkMemoryRequirements2 *pMemoryRequirements);
+    void vkGetDeviceImageSparseMemoryRequirements(VkDevice device, const VkDeviceImageMemoryRequirements *pInfo,
+                                                  uint32_t *pSparseMemoryRequirementCount,
+                                                  VkSparseImageMemoryRequirements2 *pSparseMemoryRequirements);
+    void vkCmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent event, const VkDependencyInfo *pDependencyInfo);
+    void vkCmdResetEvent2(VkCommandBuffer commandBuffer, VkEvent event, VkPipelineStageFlags2 stageMask);
+    void vkCmdWaitEvents2(VkCommandBuffer commandBuffer, uint32_t eventCount, const VkEvent *pEvents,
+                          const VkDependencyInfo *pDependencyInfos);
+    void vkCmdBlitImage2(VkCommandBuffer commandBuffer, const VkBlitImageInfo2 *pBlitImageInfo);
+    void vkCmdResolveImage2(VkCommandBuffer commandBuffer, const VkResolveImageInfo2 *pResolveImageInfo);
+    void vkCmdBeginRendering(VkCommandBuffer commandBuffer, const VkRenderingInfo *pRenderingInfo);
+    void vkCmdEndRendering(VkCommandBuffer commandBuffer);
+    void vkCmdSetCullMode(VkCommandBuffer commandBuffer, VkCullModeFlags cullMode);
+    void vkCmdSetFrontFace(VkCommandBuffer commandBuffer, VkFrontFace frontFace);
+    void vkCmdSetPrimitiveTopology(VkCommandBuffer commandBuffer, VkPrimitiveTopology primitiveTopology);
+    void vkCmdSetViewportWithCount(VkCommandBuffer commandBuffer, uint32_t viewportCount, const VkViewport *pViewports);
+    void vkCmdSetScissorWithCount(VkCommandBuffer commandBuffer, uint32_t scissorCount, const VkRect2D *pScissors);
+    void vkCmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firstBinding, uint32_t bindingCount,
+                                 const VkBuffer *pBuffers, const VkDeviceSize *pOffsets, const VkDeviceSize *pSizes,
+                                 const VkDeviceSize *pStrides);
+    void vkCmdSetDepthTestEnable(VkCommandBuffer commandBuffer, VkBool32 depthTestEnable);
+    void vkCmdSetDepthWriteEnable(VkCommandBuffer commandBuffer, VkBool32 depthWriteEnable);
+    void vkCmdSetDepthCompareOp(VkCommandBuffer commandBuffer, VkCompareOp depthCompareOp);
+    void vkCmdSetDepthBoundsTestEnable(VkCommandBuffer commandBuffer, VkBool32 depthBoundsTestEnable);
+    void vkCmdSetStencilTestEnable(VkCommandBuffer commandBuffer, VkBool32 stencilTestEnable);
+    void vkCmdSetStencilOp(VkCommandBuffer commandBuffer, VkStencilFaceFlags faceMask, VkStencilOp failOp,
+                           VkStencilOp passOp, VkStencilOp depthFailOp, VkCompareOp compareOp);
+    void vkCmdSetRasterizerDiscardEnable(VkCommandBuffer commandBuffer, VkBool32 rasterizerDiscardEnable);
+    void vkCmdSetDepthBiasEnable(VkCommandBuffer commandBuffer, VkBool32 depthBiasEnable);
+    void vkCmdSetPrimitiveRestartEnable(VkCommandBuffer commandBuffer, VkBool32 primitiveRestartEnable);
+
+private:
+    Q_DISABLE_COPY(QVulkanDeviceFunctions)
+    friend class QVulkanInstance;
+    QVulkanDeviceFunctions(PFN_vkGetDeviceProcAddr getProcAddr, VkDevice device);
+    struct Private;
+    std::unique_ptr<Private> m_d;
+};
+
+#endif // QT_CONFIG(vulkan)

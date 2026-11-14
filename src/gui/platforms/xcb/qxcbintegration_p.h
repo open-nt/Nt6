@@ -22,6 +22,9 @@ public:
     QPoint cursorPosition() const override;
     void setCursorPosition(const QPoint &pos) override;
     QEglNativePlatform eglPlatform() const override;
+    const char *vulkanSurfaceExtension() const override { return "VK_KHR_xcb_surface"; }
+    quint64 createVulkanSurface(QWindow *window, void *instance,
+                                QVulkanGetInstanceProcAddr getInstanceProcAddr) const override;
     void checkQueuedEvents() override;
 
 private:

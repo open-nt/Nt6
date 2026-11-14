@@ -242,8 +242,10 @@ void migrateEvents(ThreadData *from, ThreadData *to, const std::vector<QObject *
         auto restore = [object = m.object, timers = m.timers, notifier = m.notifier] {
             for (const auto &t : timers)
                 restoreTimer(object, t.timerId, t.interval, t.timerType);
+            if (!notifier)
+                return;
             auto *n = static_cast<QSocketNotifier *>(object);
-            if (notifier && n->isEnabled() && n->isValid())
+            if (n->isEnabled() && n->isValid())
                 updateNotifier(objectThreadData(object), n, true);
         };
         if (target)

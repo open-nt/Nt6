@@ -10,6 +10,8 @@
 #include <QtGui/qpainter.h>
 #include <QtGui/qrasterwindow.h>
 #include <QtGui/qscreen.h>
+#include <QtGui/qvulkaninstance.h>
+#include <QtGui/qvulkanwindow.h>
 
 #include "qpa/qplatformintegration_p.h"
 #include "qwindow_p.h"
@@ -31,7 +33,8 @@ extern "C" const char *__lsan_default_suppressions();
 extern "C" const char *__asan_default_options() { return "fast_unwind_on_malloc=0"; }
 extern "C" const char *__lsan_default_suppressions() {
     return "leak:libEGL_mesa\nleak:libgallium\nleak:libGLX_mesa\nleak:libEGL_nvidia\nleak:libnvidia-\n"
-           "leak:libGLdispatch\nleak:libdrm\nleak:libdbus-1\nleak:libxcb\nleak:libX11\n";
+           "leak:libGLdispatch\nleak:libdrm\nleak:libdbus-1\nleak:libxcb\nleak:libX11\n"
+           "leak:libvulkan\nleak:libLLVM\n";
 }
 #endif
 
@@ -90,6 +93,49 @@ protected:
         lastWheel = e->angleDelta();
     }
 };
+
+#if QT_CONFIG(vulkan)
+// A renderer that clears the window to orange through the default render pass, and counts its frames.
+class ClearRenderer : public QVulkanWindowRenderer {
+public:
+    explicit ClearRenderer(QVulkanWindow *window) : m_window(window) {}
+    void initResources() override { ++inits; }
+    void releaseResources() override { ++releases; }
+    void startNextFrame() override {
+        QVulkanDeviceFunctions *df = m_window->vulkanInstance()->deviceFunctions(m_window->device());
+        VkClearValue clearValues[2]{};
+        clearValues[0].color = {{1.0f, 0.5f, 0.0f, 1.0f}};
+        clearValues[1].depthStencil = {1.0f, 0};
+        VkRenderPassBeginInfo info{};
+        info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        info.renderPass = m_window->defaultRenderPass();
+        info.framebuffer = m_window->currentFramebuffer();
+        info.renderArea.extent.width = static_cast<uint32_t>(m_window->swapChainImageSize().width());
+        info.renderArea.extent.height = static_cast<uint32_t>(m_window->swapChainImageSize().height());
+        info.clearValueCount = 2;
+        info.pClearValues = clearValues;
+        df->vkCmdBeginRenderPass(m_window->currentCommandBuffer(), &info, VK_SUBPASS_CONTENTS_INLINE);
+        df->vkCmdEndRenderPass(m_window->currentCommandBuffer());
+        m_window->frameReady();
+        ++frames;
+    }
+    int frames = 0;
+    int inits = 0;
+    int releases = 0;
+
+private:
+    QVulkanWindow *m_window;
+};
+
+class ClearWindow : public QVulkanWindow {
+public:
+    QVulkanWindowRenderer *createRenderer() override {
+        renderer = new ClearRenderer(this);
+        return renderer;
+    }
+    ClearRenderer *renderer = nullptr;
+};
+#endif
 
 } // namespace
 
@@ -326,6 +372,66 @@ int main(int argc, char **argv) {
     // A move is reported with the position on the screen.
     w.setPosition(120, 90);
     CHECK(waitFor([&] { return w.position() == QPoint(120, 90); }));
+
+#if QT_CONFIG(vulkan)
+    // A QVulkanWindow presents through VK_KHR_xcb_surface: it gets a device and a swapchain of the window's size, a
+    // frame clears it, grab() reads the color back, a resize makes a new swapchain, and hiding releases everything.
+    {
+        QVulkanInstance inst;
+        if (!inst.create()) {
+            std::puts("SKIP: no Vulkan for QVulkanWindow");
+        } else {
+            const bool quitOnLastWindowClosed = app.quitOnLastWindowClosed();
+            app.setQuitOnLastWindowClosed(false); // hiding the window below must not end the application
+            CHECK(inst.extensions().contains("VK_KHR_xcb_surface"));
+            ClearWindow vw;
+            vw.setVulkanInstance(&inst);
+            vw.resize(160, 120);
+            vw.show();
+            CHECK(waitFor([&] { return vw.isValid() && vw.renderer && vw.renderer->frames > 0; }));
+            if (vw.isValid()) {
+                CHECK(QVulkanInstance::surfaceForWindow(&vw) != VK_NULL_HANDLE);
+                CHECK(inst.supportsPresent(vw.physicalDevice(), vw.graphicsQueueFamilyIndex(), &vw));
+                CHECK(vw.swapChainImageSize() == QSize(160, 120));
+                CHECK(vw.swapChainImageCount() >= 2);
+                CHECK(vw.currentSwapChainImageIndex() >= 0 &&
+                      vw.currentSwapChainImageIndex() < vw.swapChainImageCount());
+                CHECK(vw.device() != VK_NULL_HANDLE && vw.graphicsQueue() != VK_NULL_HANDLE);
+                CHECK(vw.defaultRenderPass() != VK_NULL_HANDLE && vw.graphicsCommandPool() != VK_NULL_HANDLE);
+                CHECK(vw.physicalDeviceProperties() != nullptr);
+                CHECK(vw.depthStencilImage() != VK_NULL_HANDLE && vw.depthStencilImageView() != VK_NULL_HANDLE);
+                CHECK(vw.swapChainImage(0) != VK_NULL_HANDLE && vw.swapChainImageView(0) != VK_NULL_HANDLE);
+                CHECK(vw.msaaColorImage(0) == VK_NULL_HANDLE);
+                CHECK(vw.colorFormat() != VK_FORMAT_UNDEFINED && vw.depthStencilFormat() != VK_FORMAT_UNDEFINED);
+                CHECK(vw.renderer->inits == 1);
+                if (vw.supportsGrab()) {
+                    int grabbed = 0;
+                    QObject::connect(&vw, &QVulkanWindow::frameGrabbed, [&](const QImage &) { ++grabbed; });
+                    const QImage image = vw.grab();
+                    CHECK(image.size() == vw.swapChainImageSize());
+                    CHECK(image.format() == QImage::Format_RGB32);
+                    if (!image.isNull()) {
+                        const QRgb p = image.pixel(80, 60);
+                        CHECK(std::abs(qRed(p) - 255) <= 2 && std::abs(qGreen(p) - 128) <= 2 && qBlue(p) <= 2);
+                    }
+                    CHECK(grabbed == 1);
+                }
+                vw.resize(200, 150);
+                CHECK(waitFor([&] { return vw.swapChainImageSize() == QSize(200, 150); }));
+                const int frames = vw.renderer->frames;
+                vw.requestUpdate();
+                CHECK(waitFor([&] { return vw.renderer->frames > frames; }));
+                vw.hide();
+                CHECK(waitFor([&] { return !vw.isValid(); }));
+                CHECK(vw.renderer->releases == 1);
+                vw.show();
+                CHECK(waitFor([&] { return vw.isValid(); }));
+                CHECK(vw.renderer->inits == 2);
+            }
+            app.setQuitOnLastWindowClosed(quitOnLastWindowClosed);
+        }
+    }
+#endif
 
     // The window manager's close request closes the window and ends the application.
     const xcb_atom_t wmProtocols = internAtom(c, "WM_PROTOCOLS");

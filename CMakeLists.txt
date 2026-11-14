@@ -35,6 +35,24 @@ if(NOT NT_ZEPHYR)
     find_package(Threads REQUIRED)
 endif()
 
+# Vulkan in Nt GUI (QVulkanInstance, QVulkanFunctions, QVulkanWindow) needs only the Vulkan headers to build; the
+# loader library is opened at run time. QT_FEATURE_vulkan in qconfig.h tells programs whether the classes are there.
+option(NT_USE_VULKAN "Build Vulkan support of Nt GUI (QVulkanInstance, QVulkanWindow)" ON)
+set(NT_HAVE_VULKAN OFF)
+if(NT_USE_VULKAN AND NOT NT_ZEPHYR)
+    find_path(NT_VULKAN_INCLUDE_DIR vulkan/vulkan.h)
+    if(NT_VULKAN_INCLUDE_DIR)
+        set(NT_HAVE_VULKAN ON)
+    else()
+        message(WARNING "The Vulkan headers (vulkan/vulkan.h) were not found: building Nt GUI without Vulkan")
+    endif()
+endif()
+if(NT_HAVE_VULKAN)
+    set(NT_FEATURE_VULKAN 1)
+else()
+    set(NT_FEATURE_VULKAN -1)
+endif()
+
 # The version macros come from the VERSION file.
 configure_file(cmake/qconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/generated/QtCore/qconfig.h @ONLY)
 
@@ -151,6 +169,7 @@ if(NOT NT_ZEPHYR)
     target_sources(NtCore PRIVATE
         src/qfilesystemwatcher.cpp
         src/qlibrary.cpp
+        src/qpluginloader.cpp
         src/qprocess.cpp
         src/qsharedmemory.cpp
         src/qstorageinfo.cpp
@@ -542,6 +561,9 @@ add_library(NtGui
     src/gui/qtextlayout_api.cpp
     src/gui/qtransform.cpp
     src/gui/qvectornd.cpp
+    src/gui/qvulkanfunctions.cpp
+    src/gui/qvulkaninstance.cpp
+    src/gui/qvulkanwindow.cpp
     src/gui/qwindow.cpp
     src/gui/qwindowsysteminterface.cpp
 )
@@ -556,6 +578,10 @@ target_include_directories(NtGui
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtGui PUBLIC NtCore PRIVATE NtDBus)
+if(NT_HAVE_VULKAN)
+    # Programs include <vulkan/vulkan.h> through the Nt headers; the library itself is loaded at run time.
+    target_include_directories(NtGui SYSTEM PUBLIC ${NT_VULKAN_INCLUDE_DIR})
+endif()
 
 # Text is rasterized with FreeType and the fonts are found with fontconfig. Without them the
 # library still builds, but fonts have fixed metrics and draw nothing.
@@ -1236,6 +1262,29 @@ if(NT_BUILD_TESTS)
     target_compile_definitions(nt_ipc_tests PRIVATE NT_TEST_PLUGIN_DIR="${CMAKE_CURRENT_BINARY_DIR}/test_plugins")
     add_dependencies(nt_ipc_tests nt_test_plugin)
     add_test(NAME nt_ipc_tests COMMAND nt_ipc_tests)
+
+    # QPluginLoader: a plugin built as a module next to the library above, and a static plugin. Nt Core is a
+    # static library here, so the module does not link it: the test exports its symbols, and the module uses the
+    # test's copy. A second copy in the module would initialize the test's meta-objects again on loading.
+    nt_wrap_cpp(echo_plugin_moc tests/plugins/echoplugin.h)
+    add_library(nt_test_echoplugin MODULE ${echo_plugin_moc})
+    target_include_directories(nt_test_echoplugin PRIVATE tests/plugins
+        $<TARGET_PROPERTY:NtCore,INTERFACE_INCLUDE_DIRECTORIES>)
+    target_compile_definitions(nt_test_echoplugin PRIVATE $<TARGET_PROPERTY:NtCore,INTERFACE_COMPILE_DEFINITIONS>)
+    set_target_properties(nt_test_echoplugin PROPERTIES PREFIX "lib" SUFFIX ".so"
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/test_plugins)
+    nt_wrap_cpp(static_plugin_moc tests/plugins/staticplugin.h)
+    add_library(nt_test_staticplugin STATIC ${static_plugin_moc})
+    target_link_libraries(nt_test_staticplugin PRIVATE Nt::Core)
+    target_include_directories(nt_test_staticplugin PRIVATE tests/plugins)
+    target_compile_definitions(nt_test_staticplugin PRIVATE QT_STATICPLUGIN)
+    add_executable(nt_plugin_tests tests/test_plugins.cpp)
+    target_link_libraries(nt_plugin_tests PRIVATE Nt::Core nt_test_staticplugin)
+    set_target_properties(nt_plugin_tests PROPERTIES ENABLE_EXPORTS ON)
+    target_compile_definitions(nt_plugin_tests PRIVATE NT_TEST_PLUGIN_DIR="${CMAKE_CURRENT_BINARY_DIR}/test_plugins")
+    add_dependencies(nt_plugin_tests nt_test_echoplugin nt_test_plugin)
+    add_test(NAME nt_plugin_tests COMMAND nt_plugin_tests)
+    nt_set_compile_options(nt_plugin_tests)
     if(NT_HAVE_ZLIB)
         target_compile_definitions(nt_resource_tests PRIVATE NT_HAVE_ZLIB)
     endif()
@@ -1443,6 +1492,21 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_opengl_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_opengl_tests)
 
+    # Vulkan in Nt GUI: the instance and its functions, a device, QVulkanWindow without a surface, and a triangle
+    # traced with VK_KHR_ray_tracing_pipeline into an image, headless, on the offscreen platform. The tests report a skip
+    # where there is no Vulkan loader, and the ray tracing part where no device traces rays (Mesa's lavapipe does).
+    if(NT_HAVE_VULKAN)
+        add_executable(nt_vulkan_tests tests/test_vulkan.cpp)
+        nt_add_resources(nt_vulkan_tests shaders PREFIX /shaders BASE examples/vulkan/shaders FILES
+            examples/vulkan/shaders/rtriangle.rgen.spv
+            examples/vulkan/shaders/rtriangle.rmiss.spv
+            examples/vulkan/shaders/rtriangle.rchit.spv)
+        target_link_libraries(nt_vulkan_tests PRIVATE Nt::Gui)
+        add_test(NAME nt_vulkan_tests COMMAND nt_vulkan_tests)
+        set_tests_properties(nt_vulkan_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        nt_set_compile_options(nt_vulkan_tests)
+    endif()
+
     # Nt SVG: the reader, the rasterizer, the generator and the widget, on the offscreen platform.
     add_executable(nt_svg_tests tests/test_svg.cpp)
     target_include_directories(nt_svg_tests PRIVATE src/svg src/gui)
@@ -1602,6 +1666,15 @@ if(NT_BUILD_EXAMPLES)
     add_executable(glwindow examples/opengl/glwindow.cpp)
     target_link_libraries(glwindow PRIVATE Nt::OpenGL)
     nt_set_compile_options(glwindow)
+
+    # A triangle rendered with hardware ray tracing in a QVulkanWindow; see "Using Nt Vulkan" in the documentation. The
+    # SPIR-V shaders are checked in (examples/vulkan/shaders/compile.sh rebuilds them with glslc).
+    if(NT_HAVE_VULKAN)
+        nt_add_resources(rtriangle_resources examples/vulkan/shaders/rtriangle.qrc)
+        add_executable(rtriangle examples/vulkan/rtriangle.cpp ${rtriangle_resources})
+        target_link_libraries(rtriangle PRIVATE Nt::Gui)
+        nt_set_compile_options(rtriangle)
+    endif()
 
     # A form made of widgets and layouts, with the Nt logo as an SVG resource; see "Using Nt Widgets" in the
     # documentation.

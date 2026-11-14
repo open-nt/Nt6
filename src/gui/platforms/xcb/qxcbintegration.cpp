@@ -6,6 +6,15 @@
 #include "qxcbconnection_p.h"
 #include "qxcbwindow_p.h"
 
+#include <QtCore/qdebug.h>
+#include <QtGui/qwindow.h>
+
+#if QT_CONFIG(vulkan)
+#include "qvulkan_p.h"
+
+#include <vulkan/vulkan_xcb.h>
+#endif
+
 #include <cstdio>
 
 QXcbIntegration *QXcbIntegration::create() {
@@ -59,4 +68,42 @@ QPlatformWindow *QXcbIntegration::createPlatformWindow(QWindow *window) const {
 
 QPlatformBackingStore *QXcbIntegration::createPlatformBackingStore(QWindow *window) const {
     return new QXcbBackingStore(window, m_connection.get());
+}
+
+// Vulkan presents to X windows through VK_KHR_xcb_surface, with the connection of the platform. The surface is owned by
+// the platform window and destroyed before the X window, by QWindow::destroy().
+quint64 QXcbIntegration::createVulkanSurface(QWindow *window, void *instance,
+                                             QVulkanGetInstanceProcAddr getInstanceProcAddr) const {
+#if QT_CONFIG(vulkan)
+    auto *platformWindow = static_cast<QXcbWindow *>(window->handle());
+    if (!platformWindow || !instance || !getInstanceProcAddr)
+        return 0;
+    if (platformWindow->vulkanSurface)
+        return platformWindow->vulkanSurface;
+    auto *vkInstance = static_cast<VkInstance>(instance);
+    auto getProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(getInstanceProcAddr);
+    auto createSurface = reinterpret_cast<PFN_vkCreateXcbSurfaceKHR>(getProcAddr(vkInstance, "vkCreateXcbSurfaceKHR"));
+    auto destroySurface = reinterpret_cast<PFN_vkDestroySurfaceKHR>(getProcAddr(vkInstance, "vkDestroySurfaceKHR"));
+    if (!createSurface || !destroySurface) {
+        qWarning("Nt GUI (xcb): the Vulkan instance has no VK_KHR_xcb_surface");
+        return 0;
+    }
+    VkXcbSurfaceCreateInfoKHR info{};
+    info.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+    info.connection = m_connection->xcb();
+    info.window = platformWindow->id();
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    const VkResult result = createSurface(vkInstance, &info, nullptr, &surface);
+    if (result != VK_SUCCESS) {
+        qWarning("Nt GUI (xcb): vkCreateXcbSurfaceKHR failed: %d", static_cast<int>(result));
+        return 0;
+    }
+    platformWindow->vulkanSurface = QtPrivate::Vulkan::handleToU64(surface);
+    platformWindow->destroyVulkanSurface = [vkInstance, destroySurface, surface] {
+        destroySurface(vkInstance, surface, nullptr);
+    };
+    return platformWindow->vulkanSurface;
+#else
+    return QPlatformIntegration::createVulkanSurface(window, instance, getInstanceProcAddr);
+#endif
 }

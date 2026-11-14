@@ -23,7 +23,8 @@ jobs:
         run: |
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates git cmake ninja-build g++ \
-              pkg-config zlib1g-dev libjpeg-dev libzstd-dev libsqlite3-dev clang-format clang-tidy clang-tools cppcheck shellcheck
+              pkg-config zlib1g-dev libjpeg-dev libzstd-dev libsqlite3-dev libvulkan-dev mesa-vulkan-drivers \
+              clang-format clang-tidy clang-tools cppcheck shellcheck
 
       - uses: actions/checkout@v4
         with:

@@ -32,4 +32,8 @@ public:
                                  const QPoint &angleDelta, Qt::KeyboardModifiers modifiers);
     static void handleKeyEvent(QWindow *window, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers,
                                const QString &text = QString(), bool autorep = false);
+    // The same with the codes of the platform's keyboard, which QKeyEvent::nativeScanCode() and the others return.
+    static void handleExtendedKeyEvent(QWindow *window, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers,
+                                       quint32 nativeScanCode, quint32 nativeVirtualKey, quint32 nativeModifiers,
+                                       const QString &text = QString(), bool autorep = false);
 };

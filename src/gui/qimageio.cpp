@@ -48,7 +48,14 @@ QImage decode(const uchar *data, std::size_t size) {
     }
 }
 
-bool encode(const QImage &image, Kind kind, int quality, QByteArray *out) {
+bool encode(const QImage &source, Kind kind, int quality, QByteArray *out) {
+    // The writers read the ARGB formats; the byte-ordered ones are converted first.
+    const QImage::Format f = source.format();
+    const bool native =
+        f == QImage::Format_RGB32 || f == QImage::Format_ARGB32 || f == QImage::Format_ARGB32_Premultiplied;
+    const QImage image =
+        native ? source
+               : source.convertToFormat(source.hasAlphaChannel() ? QImage::Format_ARGB32 : QImage::Format_RGB32);
     switch (kind) {
     case Kind::Png:
         return NtImageCodecs::writePng(image, out, quality);
@@ -62,6 +69,21 @@ bool encode(const QImage &image, Kind kind, int quality, QByteArray *out) {
 }
 
 } // namespace
+
+const char *NtImageCodecs::formatOf(const uchar *data, std::size_t size) {
+    switch (sniff(data, size)) {
+    case Kind::Png:
+        return "png";
+    case Kind::Jpeg:
+        return "jpeg";
+    case Kind::Bmp:
+        return "bmp";
+    default:
+        return nullptr;
+    }
+}
+
+QImage NtImageCodecs::decodeAny(const uchar *data, std::size_t size) { return decode(data, size); }
 
 /*!
     Constructs an image from the file \a fileName. If the file cannot be read or is not an image that Nt knows, the

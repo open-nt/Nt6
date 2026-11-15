@@ -240,8 +240,9 @@ static void testMethods() {
            QStringList{"describe(int)", "describe()", "add(int,int)", "setLabel(QString)", "ping()", "ping(int)",
                        "byRef(QString&)", "many(int,int,int,int,int,int,int,int,int,int)", "protectedSlot()",
                        "secret()"}));
-    CHECK((signatures(mo, QMetaMethod::Method) == QStringList{"twice(int)", "kindName(Kind)", "fireMulti()",
-                                                              "firePrivate()", "fireNameless()", "bumpCounter()"}));
+    CHECK((signatures(mo, QMetaMethod::Method) == QStringList{"twice(int)", "attributed()", "callback()",
+                                                              "kindName(Kind)", "fireMulti()", "firePrivate()",
+                                                              "fireNameless()", "bumpCounter()"}));
 
     CHECK(mo->methodOffset() == QObject::staticMetaObject.methodCount());
     CHECK(QObject::staticMetaObject.methodOffset() == 0);
@@ -725,6 +726,9 @@ static void testInvokeMethod() {
     int twice = 0;
     CHECK(QMetaObject::invokeMethod(&shape, "twice", Q_RETURN_ARG(int, twice), Q_ARG(int, 21)));
     CHECK(twice == 42);
+    QString attributed;
+    CHECK(QMetaObject::invokeMethod(&shape, "attributed", Q_RETURN_ARG(QString, attributed)));
+    CHECK(attributed == "attr");
     QString kindName;
     CHECK(QMetaObject::invokeMethod(&shape, "kindName", Q_RETURN_ARG(QString, kindName),
                                     Q_ARG(Shape::Kind, Shape::Circle)));

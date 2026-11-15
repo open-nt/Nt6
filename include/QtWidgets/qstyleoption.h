@@ -11,6 +11,7 @@
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qpalette.h>
 #include <QtGui/qpixmap.h>
+#include <QtGui/qtransform.h>
 #include <QtWidgets/qstyle.h>
 
 class QStyleOption {
@@ -27,7 +28,8 @@ public:
         SO_GroupBox,
         SO_Header,
         SO_MenuItem,
-        SO_ViewItem
+        SO_ViewItem,
+        SO_GraphicsItem
     };
 
     explicit QStyleOption(int optionType = SO_Default) : type(optionType), fontMetrics(QFont()) {}
@@ -228,3 +230,12 @@ public:
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStyleOptionViewItem::ViewItemFeatures)
+
+class QStyleOptionGraphicsItem : public QStyleOption {
+public:
+    /*! Constructs an option for a graphics item, with the type \c SO_GraphicsItem. */
+    QStyleOptionGraphicsItem() : QStyleOption(SO_GraphicsItem) {}
+    static qreal levelOfDetailFromTransform(const QTransform &worldTransform);
+    /*! The part of the item that needs painting, in item coordinates. */
+    QRectF exposedRect;
+};

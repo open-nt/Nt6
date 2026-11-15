@@ -15,6 +15,8 @@ namespace QtPrivate {
 // Reaches the private parts of QWindow, QScreen and QGuiApplication for the platform layer.
 struct GuiAccess {
     static QPlatformWindow *platformWindow(const QWindow *window);
+    // Makes the window full screen, or normal, when it is next shown (or now if it shows).
+    static void setFullScreen(QWindow *window, bool fullScreen);
     // Applies a geometry the platform reports and sends the move and resize events for it.
     static void applyGeometry(QWindow *window, const QRect &rect);
     static void setExposed(QWindow *window, bool exposed);

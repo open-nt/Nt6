@@ -42,6 +42,7 @@ struct Registry {
     std::unordered_map<std::string, int> byName;    // every registered name and alias
     std::map<std::pair<int, int>, QMetaType::ConverterFunction> converters;
     std::map<std::pair<int, int>, QMetaType::MutableViewFunction> views;
+    std::unordered_map<int, const QMetaTypeInterface *> fixed; // the GUI types with fixed ids, once used
 };
 
 // Never destroyed: variants in static objects may use the registry while the program exits.
@@ -120,6 +121,32 @@ const BuiltinName kBuiltinNames[] = {
     {QMetaType::Char16, "char16_t"},
     {QMetaType::Char32, "char32_t"},
     {QMetaType::QVariantPair, "QVariantPair"},
+    // The types of Nt GUI and Nt Widgets keep Qt's fixed ids, so that a switch over QMetaType::Type works. Their
+    // interfaces are recorded when the types are first used (see registerInterface()).
+    {QMetaType::QFont, "QFont"},
+    {QMetaType::QPixmap, "QPixmap"},
+    {QMetaType::QBrush, "QBrush"},
+    {QMetaType::QColor, "QColor"},
+    {QMetaType::QPalette, "QPalette"},
+    {QMetaType::QIcon, "QIcon"},
+    {QMetaType::QImage, "QImage"},
+    {QMetaType::QPolygon, "QPolygon"},
+    {QMetaType::QRegion, "QRegion"},
+    {QMetaType::QBitmap, "QBitmap"},
+    {QMetaType::QCursor, "QCursor"},
+    {QMetaType::QKeySequence, "QKeySequence"},
+    {QMetaType::QPen, "QPen"},
+    {QMetaType::QTextLength, "QTextLength"},
+    {QMetaType::QTextFormat, "QTextFormat"},
+    {QMetaType::QTransform, "QTransform"},
+    {QMetaType::QMatrix4x4, "QMatrix4x4"},
+    {QMetaType::QVector2D, "QVector2D"},
+    {QMetaType::QVector3D, "QVector3D"},
+    {QMetaType::QVector4D, "QVector4D"},
+    {QMetaType::QQuaternion, "QQuaternion"},
+    {QMetaType::QPolygonF, "QPolygonF"},
+    {QMetaType::QColorSpace, "QColorSpace"},
+    {QMetaType::QSizePolicy, "QSizePolicy"},
 };
 
 // Other spellings of the built-in types.
@@ -245,8 +272,13 @@ int registerInterface(const QMetaTypeInterface *iface, const char *name) {
     std::string normalized = name ? NtMeta::normalizeType(name) : std::string(iface->nameFn ? iface->nameFn() : "");
     if (normalized.empty())
         return 0;
-    if (const int builtin = builtinIdForName(normalized))
+    if (const int builtin = builtinIdForName(normalized)) {
+        if (builtin >= kBuiltinCount) {
+            iface->typeId.store(builtin, std::memory_order_release);
+            r.fixed.emplace(builtin, iface);
+        }
         return builtin;
+    }
     if (const auto it = r.byName.find(normalized); it != r.byName.end()) {
         iface->typeId.store(it->second, std::memory_order_release);
         return it->second;
@@ -322,8 +354,14 @@ QMetaType::QMetaType(int typeId) {
     if (typeId <= 0)
         return;
     if (typeId < User) {
-        if (typeId < kBuiltinCount)
+        if (typeId < kBuiltinCount) {
             d_ptr = builtinTable()[static_cast<std::size_t>(typeId)];
+        } else {
+            Registry &r = registry();
+            std::lock_guard<std::mutex> lock(r.mutex);
+            if (const auto it = r.fixed.find(typeId); it != r.fixed.end())
+                d_ptr = it->second;
+        }
         return;
     }
     Registry &r = registry();

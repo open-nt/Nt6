@@ -145,6 +145,62 @@ static void testFormat() {
     CHECK(window.requestedFormat() == f && window.format() == f);
 }
 
+// Shaders and programs need a current context; without one they fail cleanly.
+static void testShadersWithoutContext() {
+    QOpenGLShaderProgram program;
+    CHECK(!program.addShaderFromSourceCode(QOpenGLShader::Vertex, "void main() { gl_Position = vec4(0.0); }"));
+    CHECK(!program.link() && !program.isLinked() && !program.bind());
+    CHECK(program.uniformLocation("u") == -1 && program.attributeLocation("a") == -1);
+    program.setUniformValue(0, 1.0f); // ignored
+    QOpenGLShader shader(QOpenGLShader::Fragment);
+    CHECK(!shader.compileSourceCode("void main() {}") && !shader.log().isEmpty());
+    CHECK(shader.shaderType() == QOpenGLShader::ShaderType(QOpenGLShader::Fragment));
+}
+
+// Draws a full-screen triangle pair with a program that takes a color uniform and a matrix, and reads it back.
+static void testShaderProgram(QOpenGLContext &context) {
+    CHECK(QOpenGLShaderProgram::hasOpenGLShaderPrograms());
+    CHECK(QOpenGLShader::hasOpenGLShaders(QOpenGLShader::Vertex | QOpenGLShader::Fragment));
+    CHECK(!QOpenGLShader::hasOpenGLShaders(QOpenGLShader::Geometry));
+    QOpenGLFramebufferObject fbo(QSize(8, 8));
+    CHECK(fbo.bind());
+    QOpenGLFunctions *f = context.functions();
+    f->glViewport(0, 0, 8, 8);
+    f->glClearColor(0, 0, 0, 1);
+    f->glClear(GL_COLOR_BUFFER_BIT);
+
+    QOpenGLShaderProgram program;
+    CHECK(!program.addShaderFromSourceCode(QOpenGLShader::Vertex, "this is not glsl"));
+    CHECK(!program.log().isEmpty());
+    CHECK(program.addShaderFromSourceCode(QOpenGLShader::Vertex,
+                                          "attribute highp vec2 aPos;\n"
+                                          "uniform mediump mat4 uMatrix;\n"
+                                          "void main() { gl_Position = uMatrix * vec4(aPos, 0.0, 1.0); }\n"));
+    CHECK(program.addShaderFromSourceCode(QOpenGLShader::Fragment, "uniform lowp vec4 uColor;\n"
+                                                                   "void main() { gl_FragColor = uColor; }\n"));
+    CHECK(program.shaders().size() == 2);
+    program.bindAttributeLocation("aPos", 0);
+    CHECK(program.link() && program.isLinked() && program.programId() != 0);
+    CHECK(program.bind());
+    CHECK(program.attributeLocation("aPos") == 0);
+    CHECK(program.uniformLocation("uColor") >= 0 && program.uniformLocation("missing") == -1);
+    program.setUniformValue("uColor", QColor(0, 255, 0));
+    QMatrix4x4 matrix;
+    matrix.scale(2.0f); // the quad covers -0.5..0.5, scaled to the whole viewport
+    program.setUniformValue("uMatrix", matrix);
+    const GLfloat quad[] = {-0.5f, -0.5f, 0.5f, -0.5f, -0.5f, 0.5f, 0.5f, 0.5f};
+    program.enableAttributeArray(0);
+    f->glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, quad);
+    f->glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    program.disableAttributeArray(0);
+    program.release();
+    const QImage image = fbo.toImage();
+    CHECK(color(image.pixel(1, 1), 0, 255, 0) && color(image.pixel(6, 6), 0, 255, 0));
+    program.removeAllShaders();
+    CHECK(program.shaders().isEmpty());
+    fbo.release();
+}
+
 static void testContext(QOffscreenSurface &surface, QOpenGLContext &context) {
     CHECK(context.isValid());
     CHECK(QOpenGLContext::currentContext() == nullptr);
@@ -501,6 +557,7 @@ static void testWithFormat(const char *name, const QSurfaceFormat &format, QOffs
 int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     testFormat();
+    testShadersWithoutContext();
 
     QOffscreenSurface surface;
     surface.create();
@@ -511,6 +568,7 @@ int main(int argc, char *argv[]) {
         return g_failures ? 1 : 0;
     }
     testContext(surface, context);
+    testShaderProgram(context);
     testFramebuffer(context);
     testPainting();
     testFillRules();

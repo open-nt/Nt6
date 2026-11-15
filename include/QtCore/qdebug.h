@@ -20,6 +20,8 @@
 #include <utility>
 #include <vector>
 
+class QObject; // qobject.h includes this header (through qvariant.h) before it declares QObject
+
 class QIODevice;
 
 class QDebug {
@@ -397,8 +399,18 @@ private:
     std::shared_ptr<State> s;
 };
 
+namespace QtPrivate {
+// Whether `QDebug << value` compiles for a T; the container operators below exist only for streamable elements, so
+// QMetaType does not take a QList of an unstreamable type (or a class derived from one) for streamable.
+template <typename T, typename = void> struct IsDebugStreamable : std::false_type {};
 template <typename T>
-QDebug operator<<(QDebug d, const QList<T> &l) {
+struct IsDebugStreamable<T, std::void_t<decltype(std::declval<QDebug &>() << std::declval<const T &>())>>
+    : std::true_type {};
+template <typename... T>
+using EnableIfDebugStreamable = std::enable_if_t<std::conjunction_v<IsDebugStreamable<T>...>, int>;
+} // namespace QtPrivate
+
+template <typename T, QtPrivate::EnableIfDebugStreamable<T> = 0> QDebug operator<<(QDebug d, const QList<T> &l) {
     const bool spaces = d.autoInsertSpaces();
     d.nospace() << "(";
     for (qsizetype i = 0; i < l.size(); ++i) {
@@ -435,30 +447,35 @@ template <typename Map> QDebug printAssociative(QDebug d, const char *name, cons
 }
 } // namespace QtPrivate
 
-template <typename T> QDebug operator<<(QDebug d, const QSet<T> &set) {
+template <typename T, QtPrivate::EnableIfDebugStreamable<T> = 0> QDebug operator<<(QDebug d, const QSet<T> &set) {
     return QtPrivate::printSequence(d, "QSet", set.cbegin(), set.cend());
 }
 
-template <typename T, typename Alloc> QDebug operator<<(QDebug d, const std::vector<T, Alloc> &v) {
+template <typename T, typename Alloc, QtPrivate::EnableIfDebugStreamable<T> = 0>
+QDebug operator<<(QDebug d, const std::vector<T, Alloc> &v) {
     return QtPrivate::printSequence(d, "std::vector", v.cbegin(), v.cend());
 }
 
-template <typename T, typename Alloc> QDebug operator<<(QDebug d, const std::list<T, Alloc> &l) {
+template <typename T, typename Alloc, QtPrivate::EnableIfDebugStreamable<T> = 0>
+QDebug operator<<(QDebug d, const std::list<T, Alloc> &l) {
     return QtPrivate::printSequence(d, "std::list", l.cbegin(), l.cend());
 }
 
-template <typename T1, typename T2> QDebug operator<<(QDebug d, const std::pair<T1, T2> &pair) {
+template <typename T1, typename T2, QtPrivate::EnableIfDebugStreamable<T1, T2> = 0>
+QDebug operator<<(QDebug d, const std::pair<T1, T2> &pair) {
     const bool spaces = d.autoInsertSpaces();
     d.nospace() << "std::pair(" << pair.first << ", " << pair.second << ")";
     d.setAutoInsertSpaces(spaces);
     return d.maybeSpace();
 }
 
-template <typename K, typename V> QDebug operator<<(QDebug d, const QMultiMap<K, V> &m) {
+template <typename K, typename V, QtPrivate::EnableIfDebugStreamable<K, V> = 0>
+QDebug operator<<(QDebug d, const QMultiMap<K, V> &m) {
     return QtPrivate::printAssociative(d, "QMultiMap", m);
 }
 
-template <typename K, typename V> QDebug operator<<(QDebug d, const QMultiHash<K, V> &m) {
+template <typename K, typename V, QtPrivate::EnableIfDebugStreamable<K, V> = 0>
+QDebug operator<<(QDebug d, const QMultiHash<K, V> &m) {
     return QtPrivate::printAssociative(d, "QMultiHash", m);
 }
 
@@ -484,7 +501,7 @@ template <typename Enum> QDebug operator<<(QDebug d, QFlags<Enum> flags) {
     return d.maybeSpace();
 }
 
-template <typename K, typename V>
+template <typename K, typename V, QtPrivate::EnableIfDebugStreamable<K, V> = 0>
 QDebug operator<<(QDebug d, const QMap<K, V> &m) {
     const bool spaces = d.autoInsertSpaces();
     d.nospace() << "QMap(";
@@ -495,7 +512,7 @@ QDebug operator<<(QDebug d, const QMap<K, V> &m) {
     return d.maybeSpace();
 }
 
-template <typename K, typename V>
+template <typename K, typename V, QtPrivate::EnableIfDebugStreamable<K, V> = 0>
 QDebug operator<<(QDebug d, const QHash<K, V> &m) {
     const bool spaces = d.autoInsertSpaces();
     d.nospace() << "QHash(";

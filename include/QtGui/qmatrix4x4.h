@@ -3,6 +3,7 @@
 
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
+#include <QtGui/qgenericmatrix.h>
 #include <QtGui/qquaternion.h>
 #include <QtGui/qvectornd.h>
 
@@ -34,6 +35,7 @@ public:
     double determinant() const;
     QMatrix4x4 inverted(bool *invertible = nullptr) const;
     QMatrix4x4 transposed() const;
+    QMatrix3x3 normalMatrix() const;
 
     QMatrix4x4 &operator+=(const QMatrix4x4 &other);
     QMatrix4x4 &operator-=(const QMatrix4x4 &other);

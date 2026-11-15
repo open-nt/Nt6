@@ -180,8 +180,9 @@ QWheelEvent::~QWheelEvent() = default;
     a Latin-1 character, and text() holds the text that the key produces, if any.
 
     \differences
-    There is no native scan code or virtual key, no \c matches() and no
-    \c keyCombination(). key() reports only the keys of Qt::Key.
+    There is no \c matches() and no \c keyCombination(). key() reports only
+    the keys of Qt::Key. The native codes are those of X11 on the \c xcb
+    platform and 0 elsewhere.
     \enddifferences
 
     \sa QWindow::keyPressEvent()
@@ -196,6 +197,15 @@ QWheelEvent::~QWheelEvent() = default;
 QKeyEvent::QKeyEvent(Type type, int key, Qt::KeyboardModifiers modifiers, const QString &text, bool autorep,
                      ushort count)
     : QInputEvent(type, modifiers), m_key(key), m_text(text), m_autorep(autorep), m_count(count) {}
+
+/*!
+    Constructs a key event as the other constructor does, with \a type, \a key, \a modifiers, \a text, \a autorep
+    and \a count, and the codes of the platform: \a nativeScanCode, \a nativeVirtualKey and \a nativeModifiers.
+*/
+QKeyEvent::QKeyEvent(Type type, int key, Qt::KeyboardModifiers modifiers, quint32 nativeScanCode,
+                     quint32 nativeVirtualKey, quint32 nativeModifiers, const QString &text, bool autorep, ushort count)
+    : QInputEvent(type, modifiers), m_key(key), m_text(text), m_autorep(autorep), m_count(count),
+      m_nativeScanCode(nativeScanCode), m_nativeVirtualKey(nativeVirtualKey), m_nativeModifiers(nativeModifiers) {}
 
 QKeyEvent::~QKeyEvent() = default;
 
@@ -567,3 +577,63 @@ QHideEvent::~QHideEvent() = default;
 */
 
 QCloseEvent::~QCloseEvent() = default;
+
+/*!
+    \class QEventPoint
+    \brief The QEventPoint class is one finger of a touch event.
+
+    \differences
+    There is no device, velocity, ellipse diameters, rotation or time stamp.
+    \enddifferences
+*/
+
+/*!
+    \enum QEventPoint::State
+
+    What a touch point did.
+
+    \value Unknown Nothing is known.
+    \value Stationary It stayed where it was.
+    \value Pressed It went down.
+    \value Updated It moved.
+    \value Released It came up.
+*/
+
+/*!
+    Constructs a point with the identifier \a pointId in \a state at \a scenePosition (also its position and press
+    position) and \a globalPosition.
+*/
+QEventPoint::QEventPoint(int pointId, State state, const QPointF &scenePosition, const QPointF &globalPosition)
+    : m_id(pointId), m_state(state), m_position(scenePosition), m_scenePosition(scenePosition),
+      m_globalPosition(globalPosition), m_pressPosition(scenePosition) {}
+
+/*!
+    \class QTouchEvent
+    \brief The QTouchEvent class describes the fingers on a touch screen.
+
+    \differences
+    The platforms of Nt deliver no touch input yet, so these events come only from the application itself. There is
+    no device(), target() or QPointerEvent base.
+    \enddifferences
+*/
+
+/*!
+    Constructs a touch event of \a eventType with \a modifiers and \a touchPoints.
+*/
+QTouchEvent::QTouchEvent(Type eventType, Qt::KeyboardModifiers modifiers, const QList<QEventPoint> &touchPoints)
+    : QInputEvent(eventType, modifiers), m_points(touchPoints) {}
+
+/*!
+    Destroys the event.
+*/
+QTouchEvent::~QTouchEvent() = default;
+
+/*!
+    Returns the states of all the points, combined.
+*/
+Qt::TouchPointStates QTouchEvent::touchPointStates() const {
+    Qt::TouchPointStates states;
+    for (const QEventPoint &p : m_points)
+        states |= static_cast<Qt::TouchPointState>(p.state());
+    return states;
+}

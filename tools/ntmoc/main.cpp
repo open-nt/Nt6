@@ -842,9 +842,17 @@ std::size_t Scanner::parseMember(std::size_t i, Scope &cur) {
     if (!wanted)
         return std::max(after, i + 1);
 
+    // The parameter list starts at the first "(" outside template arguments, so that a return type
+    // such as std::function<void()> is not taken for it.
     std::size_t p = b;
-    while (p < j && at(p) != "(")
+    int angle = 0;
+    while (p < j && (angle > 0 || at(p) != "(")) {
+        if (at(p) == "<")
+            ++angle;
+        else if (at(p) == ">" && angle > 0)
+            --angle;
         ++p;
+    }
     if (p >= j || p == b || !isIdentStart(at(p - 1)[0]))
         return std::max(after, i + 1);
     const std::size_t close = matching(t, p);
@@ -865,8 +873,17 @@ std::size_t Scanner::parseMember(std::size_t i, Scope &cur) {
     while (lead < p - 1) {
         const std::string &w = at(lead);
         if (w == "virtual" || w == "inline" || w == "explicit" || w == "constexpr" || w == "friend" || w == "extern" ||
-            w == "Q_INVOKABLE" || w == "Q_SIGNAL" || w == "Q_SLOT") {
+            w == "Q_INVOKABLE" || w == "Q_SIGNAL" || w == "Q_SLOT" || w == "Q_REQUIRED_RESULT" ||
+            w == "Q_DECL_NODISCARD") {
             ++lead;
+        } else if (w == "[" && lead + 1 < p - 1 && at(lead + 1) == "[") {
+            // An attribute such as [[nodiscard]] is not part of the return type.
+            std::size_t end = lead + 2;
+            while (end + 1 < p - 1 && !(at(end) == "]" && at(end + 1) == "]"))
+                ++end;
+            if (end + 1 >= p - 1)
+                break;
+            lead = end + 2;
         } else if (w == "Q_SCRIPTABLE") {
             m.scriptable = true;
             ++lead;

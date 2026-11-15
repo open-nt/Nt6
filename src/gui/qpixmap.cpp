@@ -25,11 +25,37 @@
 
     \differences
     A pixmap is a QImage in memory, not a resource of the window system. Files load and save through QImage, so they
-    are PNG, BMP and JPEG, and the format is found from the contents of the file. There is no \c scaled(),
+    are PNG, BMP and JPEG, and the format is found from the contents of the file. There is no
     \c transformed(), \c mask(), \c QPixmapCache or device pixel ratio.
     \enddifferences
 
     \sa QImage, QPainter
+*/
+
+/*!
+    \fn QPixmap QPixmap::scaled(int width, int height, Qt::AspectRatioMode aspectMode, Qt::TransformationMode mode) const
+
+    Returns a copy of the pixmap scaled to \a width by \a height pixels with \a aspectMode and \a mode; see
+    QImage::scaled().
+*/
+
+/*!
+    \fn QPixmap QPixmap::scaled(const QSize &size, Qt::AspectRatioMode aspectMode, Qt::TransformationMode mode) const
+    \overload
+
+    Returns a copy of the pixmap scaled to \a size with \a aspectMode and \a mode.
+*/
+
+/*!
+    \fn QPixmap QPixmap::scaledToWidth(int width, Qt::TransformationMode mode) const
+
+    Returns a copy of the pixmap scaled to \a width pixels wide, keeping its proportions, with \a mode.
+*/
+
+/*!
+    \fn QPixmap QPixmap::scaledToHeight(int height, Qt::TransformationMode mode) const
+
+    Returns a copy of the pixmap scaled to \a height pixels high, keeping its proportions, with \a mode.
 */
 
 /*!

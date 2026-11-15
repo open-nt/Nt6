@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include "qrasterpaintengine_p.h"
 
+#include "qimageformat_p.h"
 #include "qrasterizer_p.h"
 
 #include <algorithm>
@@ -12,27 +13,8 @@ namespace {
 uint *asPixels(uchar *p) { return reinterpret_cast<uint *>(p); }
 const uint *asPixels(const uchar *p) { return reinterpret_cast<const uint *>(p); }
 
-QRgb fromPremultiplied(QRgb p, QImage::Format f) {
-    switch (f) {
-    case QImage::Format_RGB32:
-        return qUnpremultiply(p) | 0xff000000u;
-    case QImage::Format_ARGB32:
-        return qUnpremultiply(p);
-    default:
-        return p;
-    }
-}
-
-QRgb toPremultiplied(QRgb stored, QImage::Format f) {
-    switch (f) {
-    case QImage::Format_RGB32:
-        return stored | 0xff000000u;
-    case QImage::Format_ARGB32:
-        return qPremultiply(stored);
-    default:
-        return stored;
-    }
-}
+using QtImageFormat::fromPremultiplied;
+using QtImageFormat::toPremultiplied;
 
 QRgb scaleChannels(QRgb p, int factor255) {
     if (factor255 >= 255)
@@ -116,7 +98,7 @@ void QRasterPaintEngine::blend(uint *dst, QRgb src) const {
     const QImage::Format f = m_image->format();
     const QPainter::CompositionMode mode = m_state.compositionMode();
     if (mode == QPainter::CompositionMode_Clear) {
-        *dst = f == QImage::Format_RGB32 ? 0xff000000u : 0u;
+        *dst = QtImageFormat::clearValue(f);
         return;
     }
     const uint sa = static_cast<uint>(qAlpha(src));
@@ -682,7 +664,7 @@ void QRasterPaintEngine::paintCoverage(const void *polygonData, bool evenOdd, co
                 const auto mix = [k, ik](int s, int d) { return (s * k + d * ik + 127) / 255; };
                 QRgb out = qRgba(mix(qRed(src), qRed(dst)), mix(qGreen(src), qGreen(dst)), mix(qBlue(src), qBlue(dst)),
                                  mix(qAlpha(src), qAlpha(dst)));
-                if (f == QImage::Format_RGB32)
+                if (QtImageFormat::isOpaque(f))
                     out |= 0xff000000u;
                 line[x] = fromPremultiplied(out, f);
             }

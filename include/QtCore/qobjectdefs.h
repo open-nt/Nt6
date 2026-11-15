@@ -384,7 +384,14 @@ struct QMetaObject {
             Constructs an invalid connection handle.
         */
         Connection() = default;
-        explicit operator bool() const noexcept;
+
+    private:
+        // As in Qt, the handle converts to a pointer-to-member type rather than to bool, so it can initialize a
+        // bool (bool ok = connect(...)) but takes part in no arithmetic.
+        using RestrictedBool = std::weak_ptr<QtPrivate::ConnectionData> Connection::*;
+
+    public:
+        operator RestrictedBool() const noexcept;
 
     private:
         friend class QObject;

@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qstyleoption.h>
+#include <cmath>
 
 #include <QtWidgets/qwidget.h>
 
@@ -34,6 +35,7 @@
     \value SO_Header A QStyleOptionHeader.
     \value SO_MenuItem A QStyleOptionMenuItem.
     \value SO_ViewItem A QStyleOptionViewItem.
+    \value SO_GraphicsItem A QStyleOptionGraphicsItem.
 */
 
 /*!
@@ -463,3 +465,26 @@ void QStyleOption::initFrom(const QWidget *widget) {
     The width of the widest shortcut of the entries before this one in the menu, which a style adds to the width of an
     entry that has a shortcut.
 */
+
+/*!
+    \class QStyleOptionGraphicsItem
+    \brief The QStyleOptionGraphicsItem class describes what a QGraphicsItem paints.
+
+    QGraphicsScene passes it to QGraphicsItem::paint(): rect is the bounding rectangle, state says whether the item
+    is enabled, selected, focused or under the mouse, and exposedRect is the part that needs painting.
+
+    \differences
+    The palette is that of the view's viewport. There is no \c matrix or \c levelOfDetail member.
+    \enddifferences
+*/
+
+/*!
+    Returns how many device pixels one unit of item coordinates covers under \a worldTransform: the square root of
+    the area a unit square maps to. Items draw less detail when it is small.
+*/
+qreal QStyleOptionGraphicsItem::levelOfDetailFromTransform(const QTransform &worldTransform) {
+    if (worldTransform.type() <= QTransform::TxTranslate)
+        return 1.0;
+    const QRectF unit = worldTransform.mapRect(QRectF(0, 0, 1, 1));
+    return std::sqrt(unit.width() * unit.height());
+}

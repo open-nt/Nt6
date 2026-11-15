@@ -42,3 +42,8 @@
 #include "qvulkaninstance.h"
 #include "qvulkanwindow.h"
 #include "qwindow.h"
+#include "qfontdatabase.h"
+#include "qimagereader.h"
+#include "qshortcut.h"
+#include "qgenericmatrix.h"
+#include "qwindowdefs.h"

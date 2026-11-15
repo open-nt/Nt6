@@ -72,6 +72,7 @@
 #include "qhash.h"
 #include "qidentityproxymodel.h"
 #include "qiodevice.h"
+#include "qiodevicebase.h"
 #include "qitemselectionmodel.h"
 #include "qiterator.h"
 #include "qjsonarray.h"

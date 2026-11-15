@@ -511,9 +511,9 @@ int Access::connectionCount(const QObject *sender, const SignalId *id) {
     \c false. A connection becomes invalid when it is disconnected or when
     its sender or receiver is destroyed.
 */
-QMetaObject::Connection::operator bool() const noexcept {
+QMetaObject::Connection::operator RestrictedBool() const noexcept {
     auto p = d.lock();
-    return p && p->alive;
+    return p && p->alive ? &Connection::d : nullptr;
 }
 
 namespace QtPrivate {

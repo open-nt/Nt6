@@ -202,6 +202,29 @@ template <typename T>
 constexpr const T &qMax(const T &a, const T &b) { return (a < b) ? b : a; }
 template <typename T>
 constexpr const T &qBound(const T &lo, const T &v, const T &hi) { return qMax(lo, qMin(hi, v)); }
+// The same for arithmetic types that differ, such as int and qsizetype, compared in their common type as Qt 6 does.
+template <typename T, typename U,
+          typename = std::enable_if_t<!std::is_same_v<T, U> && std::is_arithmetic_v<T> && std::is_arithmetic_v<U>>>
+constexpr std::common_type_t<T, U> qMin(const T &a, const U &b) {
+    using R = std::common_type_t<T, U>;
+    return static_cast<R>(b) < static_cast<R>(a) ? static_cast<R>(b) : static_cast<R>(a);
+}
+template <typename T, typename U,
+          typename = std::enable_if_t<!std::is_same_v<T, U> && std::is_arithmetic_v<T> && std::is_arithmetic_v<U>>>
+constexpr std::common_type_t<T, U> qMax(const T &a, const U &b) {
+    using R = std::common_type_t<T, U>;
+    return static_cast<R>(a) < static_cast<R>(b) ? static_cast<R>(b) : static_cast<R>(a);
+}
+template <typename T, typename U, typename V,
+          typename = std::enable_if_t<!(std::is_same_v<T, U> && std::is_same_v<U, V>) && std::is_arithmetic_v<T> &&
+                                      std::is_arithmetic_v<U> && std::is_arithmetic_v<V>>>
+constexpr std::common_type_t<T, U, V> qBound(const T &lo, const U &v, const V &hi) {
+    using R = std::common_type_t<T, U, V>;
+    const R low = static_cast<R>(lo);
+    const R high = static_cast<R>(hi);
+    const R value = static_cast<R>(v);
+    return value < low ? low : (high < value ? high : value);
+}
 template <typename T>
 constexpr T qAbs(const T &t) { return t >= 0 ? t : -t; }
 template <typename T>
@@ -280,6 +303,25 @@ struct QOverload {
     */
     template <typename R, typename T>
     constexpr auto operator()(R (T::*ptr)(Args...) const) const noexcept -> decltype(ptr) { return ptr; }
+    /*!
+        Returns \a ptr, the member function pointer of the overload taking \c Args, as
+        \c{QOverload<Args...>::of(&Class::function)}.
+    */
+    template <typename R, typename T> static constexpr auto of(R (T::*ptr)(Args...)) noexcept -> decltype(ptr) {
+        return ptr;
+    }
+    /*!
+        \overload
+        Returns \a ptr, the const member function pointer of the overload taking \c Args.
+    */
+    template <typename R, typename T> static constexpr auto of(R (T::*ptr)(Args...) const) noexcept -> decltype(ptr) {
+        return ptr;
+    }
+    /*!
+        \overload
+        Returns \a ptr, the pointer to the free function taking \c Args.
+    */
+    template <typename R> static constexpr auto of(R (*ptr)(Args...)) noexcept -> decltype(ptr) { return ptr; }
 };
 template <typename... Args>
 inline constexpr QOverload<Args...> qOverload = {};
@@ -302,3 +344,6 @@ template <typename... Args> struct QNonConstOverload {
 template <typename... Args> inline constexpr QtPrivate::QConstOverload<Args...> qConstOverload = {};
 // Selects the non-const overload of a member function taking Args.
 template <typename... Args> inline constexpr QtPrivate::QNonConstOverload<Args...> qNonConstOverload = {};
+
+// As in Qt, qglobal.h makes qDebug(), qWarning() and the other logging functions available.
+#include <QtCore/qlogging.h>

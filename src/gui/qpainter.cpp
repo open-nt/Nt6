@@ -472,6 +472,13 @@ void QPainter::restore() {
 }
 
 /*!
+    Returns the metrics of the painter's current font.
+
+    \sa font(), setFont()
+*/
+QFontMetrics QPainter::fontMetrics() const { return QFontMetrics(font()); }
+
+/*!
     Moves the origin of the coordinate system by \a offset.
 
     \sa translation(), resetTransform()
@@ -613,6 +620,30 @@ void QPainter::setClipRect(const QRect &rect) { setClipRegion(QRegion(rect)); }
     Sets the clip to the rectangle at (\a x, \a y) that is \a width by
     \a height pixels.
 */
+
+/*!
+    \overload
+
+    Sets the clip to \a rect, rounded out to whole pixels, combined with the current clip as \a operation says.
+*/
+void QPainter::setClipRect(const QRectF &rect, Qt::ClipOperation operation) {
+    if (operation == Qt::NoClip) {
+        setClipping(false);
+        return;
+    }
+    QRegion region(rect.toAlignedRect());
+    if (operation == Qt::IntersectClip && hasClipping())
+        region = clipRegion().intersected(region);
+    setClipRegion(region);
+}
+
+/*!
+    Sets the clip to \a path, combined with the current clip as \a operation says. Nt clips by rectangles, so the
+    clip is the bounding rectangle of the path.
+*/
+void QPainter::setClipPath(const QPainterPath &path, Qt::ClipOperation operation) {
+    setClipRect(path.boundingRect(), operation);
+}
 
 /*!
     Sets the clip to \a region, given in the current coordinate system, and

@@ -13,6 +13,7 @@
 #include <QtGui/qpaintdevice.h>
 #include <QtGui/qpalette.h>
 #include <QtGui/qregion.h>
+#include <QtGui/qwindowdefs.h>
 #include <QtWidgets/qsizepolicy.h>
 
 #include <memory>
@@ -33,6 +34,7 @@ class QShowEvent;
 class QStyle;
 class QWheelEvent;
 class QWidgetWindow;
+class QScreen;
 class QWindow;
 
 namespace QtPrivate {
@@ -99,7 +101,9 @@ public:
     void adjustSize();
     void updateGeometry();
     QPoint mapToGlobal(const QPoint &pos) const;
+    QPointF mapToGlobal(const QPointF &pos) const;
     QPoint mapFromGlobal(const QPoint &pos) const;
+    QPointF mapFromGlobal(const QPointF &pos) const;
     QPoint mapToParent(const QPoint &pos) const { return pos + this->pos(); }
     QPoint mapFromParent(const QPoint &pos) const { return pos - this->pos(); }
     QPoint mapTo(const QWidget *parent, const QPoint &pos) const;
@@ -112,14 +116,22 @@ public:
     void setParent(QWidget *parent);
     void setParent(QWidget *parent, Qt::WindowFlags f);
     bool isWindow() const;
+    bool isAncestorOf(const QWidget *child) const;
     Qt::WindowFlags windowFlags() const;
     void setWindowFlags(Qt::WindowFlags type);
+    void setWindowFlag(Qt::WindowType flag, bool on = true);
     Qt::WindowType windowType() const;
     Qt::WindowModality windowModality() const;
     void setWindowModality(Qt::WindowModality windowModality);
     bool isModal() const { return windowModality() != Qt::NonModal; }
     QWidget *window() const;
     QWindow *windowHandle() const;
+    WId winId() const;
+    QScreen *screen() const;
+    void setScreen(QScreen *screen);
+    bool isFullScreen() const;
+    void showFullScreen();
+    void showNormal();
     QString windowTitle() const;
     bool isActiveWindow() const;
     void activateWindow();
@@ -154,6 +166,8 @@ public:
     bool focusPreviousChild() { return focusNextPrevChild(false); }
     void setMouseTracking(bool enable);
     QCursor cursor() const;
+    QString styleSheet() const;
+    void setStyleSheet(const QString &styleSheet);
     void setCursor(const QCursor &cursor);
     void unsetCursor();
     bool hasMouseTracking() const;

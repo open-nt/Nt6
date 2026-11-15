@@ -16,7 +16,16 @@ class QIODevice;
 
 class QImage : public QPaintDevice {
 public:
-    enum Format { Format_Invalid = 0, Format_RGB32 = 4, Format_ARGB32 = 5, Format_ARGB32_Premultiplied = 6 };
+    enum Format {
+        Format_Invalid = 0,
+        Format_RGB32 = 4,
+        Format_ARGB32 = 5,
+        Format_ARGB32_Premultiplied = 6,
+        Format_RGB888 = 13,
+        Format_RGBX8888 = 16,
+        Format_RGBA8888 = 17,
+        Format_RGBA8888_Premultiplied = 18
+    };
 
     QImage() noexcept;
     QImage(const QSize &size, Format format);
@@ -72,6 +81,12 @@ public:
     QImage copy(const QRect &rect = QRect()) const;
     QImage copy(int x, int y, int w, int h) const { return copy(QRect(x, y, w, h)); }
     QImage convertToFormat(Format format) const;
+    QImage scaled(int width, int height, Qt::AspectRatioMode aspectMode = Qt::IgnoreAspectRatio,
+                  Qt::TransformationMode mode = Qt::FastTransformation) const;
+    QImage scaled(const QSize &size, Qt::AspectRatioMode aspectMode = Qt::IgnoreAspectRatio,
+                  Qt::TransformationMode mode = Qt::FastTransformation) const;
+    QImage scaledToWidth(int width, Qt::TransformationMode mode = Qt::FastTransformation) const;
+    QImage scaledToHeight(int height, Qt::TransformationMode mode = Qt::FastTransformation) const;
     void detach();
     void setDevicePixelRatio(qreal ratio);
     bool isDetached() const noexcept;

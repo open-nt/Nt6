@@ -57,6 +57,8 @@ public:
     int hue() const noexcept;
     int saturation() const noexcept;
     int value() const noexcept;
+    int lightness() const noexcept;
+    qreal lightnessF() const noexcept;
     static QColor fromHsv(int h, int s, int v, int a = 255);
 
     QColor lighter(int factor = 150) const;

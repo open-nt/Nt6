@@ -2,6 +2,9 @@
 #include <QtGui/qpainterpath.h>
 #include <QtGui/qpolygon.h>
 
+#include "qfontengine_p.h"
+#include "qtextlayout_p.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -622,6 +625,34 @@ void QPainterPath::addRoundedRect(const QRectF &rect, qreal xRadius, qreal yRadi
     \overload
     Adds the rectangle at (\a x, \a y) of \a w by \a h with corners rounded by \a xRadius and \a yRadius in
     the given \a mode.
+*/
+
+/*!
+    Adds the outlines of \a text, drawn with \a font on one line, to the path, with the left end of its baseline at
+    \a point. Each glyph is closed subpaths in the coordinates of the path. Nothing is added when Nt was built
+    without FreeType.
+
+    \sa addPath()
+*/
+void QPainterPath::addText(const QPointF &point, const QFont &font, const QString &text) {
+    const std::shared_ptr<QFontEngine> engine = QFontEngine::create(font);
+    double x = point.x();
+    QtPrivate::forEachCodePoint(text, [&](char32_t cp) {
+        if (cp == '\t') {
+            x += QtPrivate::advance64(*engine, cp) / 64.0;
+            return;
+        }
+        if (cp < 0x20)
+            return;
+        x += engine->spacedAdvance64(cp, engine->addOutline(cp, x, point.y(), this)) / 64.0;
+    });
+}
+
+/*!
+    \fn void QPainterPath::addText(qreal x, qreal y, const QFont &font, const QString &text)
+    \overload
+
+    Adds the outlines of \a text in \a font with the baseline starting at (\a x, \a y).
 */
 
 /*!

@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qfont.h>
+
 #include <QtCore/qlist.h>
 #include <QtCore/qnamespace.h>
 #include <QtCore/qpoint.h>
@@ -64,6 +66,8 @@ public:
         addRoundedRect(QRectF(x, y, w, h), xRadius, yRadius, mode);
     }
     void addPolygon(const QPolygonF &polygon);
+    void addText(const QPointF &point, const QFont &font, const QString &text);
+    void addText(qreal x, qreal y, const QFont &font, const QString &text) { addText(QPointF(x, y), font, text); }
     void addPath(const QPainterPath &path);
     void connectPath(const QPainterPath &path);
 

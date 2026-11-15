@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qtextformat.h>
+#include <QtGui/qtextdocument.h>
 #include <QtCore/qpointer.h>
 #include <QtCore/qstring.h>
 
@@ -35,6 +37,7 @@ public:
     enum SelectionType { WordUnderCursor, LineUnderCursor, BlockUnderCursor, Document };
 
     QTextCursor() = default;
+    explicit QTextCursor(QTextDocument *document);
 
     bool isNull() const { return m_edit.isNull(); }
     int position() const { return m_position; }
@@ -62,6 +65,9 @@ public:
     void deleteChar();
     void deletePreviousChar();
     void beginEditBlock();
+    void mergeBlockFormat(const QTextBlockFormat &modifier);
+    void setBlockFormat(const QTextBlockFormat &format);
+    QTextDocument *document() const;
     void endEditBlock();
 
     bool operator==(const QTextCursor &other) const {
@@ -74,6 +80,7 @@ private:
     QTextCursor(QPlainTextEdit *edit, int position, int anchor);
 
     QPointer<QObject> m_edit;
+    QPointer<QTextDocument> m_document;
     int m_position = 0;
     int m_anchor = 0;
 };

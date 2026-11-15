@@ -764,8 +764,10 @@ void QXcbConnection::handleKey(xcb_generic_event_t *event, bool autoRepeat) {
     const size_t base = static_cast<size_t>(e->detail - m_minKeycode) * static_cast<size_t>(m_keysymsPerKeycode);
     if (e->detail >= m_minKeycode && base < m_keysyms.size() && isKeypadKeysym(m_keysyms[base]))
         modifiers |= Qt::KeypadModifier;
-    QWindowSystemInterface::handleKeyEvent(w->window(), press ? QEvent::KeyPress : QEvent::KeyRelease, key.qtKey,
-                                           modifiers, key.text, autoRepeat);
+    const xcb_keysym_t keysym = e->detail >= m_minKeycode && base < m_keysyms.size() ? m_keysyms[base] : 0;
+    QWindowSystemInterface::handleExtendedKeyEvent(w->window(), press ? QEvent::KeyPress : QEvent::KeyRelease,
+                                                   key.qtKey, modifiers, e->detail, keysym, e->state, key.text,
+                                                   autoRepeat);
 }
 
 void QXcbConnection::handleButton(xcb_generic_event_t *event) {

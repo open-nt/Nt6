@@ -8,15 +8,21 @@
 # Writes the docs of the working tree (strict, as the docs target does) to
 # DIR/dev, the docs of each TAG to DIR/<version>, where <version> is the tag's
 # VERSION file, and the newest TAG (the first one given) again to DIR itself, so
-# links to the root keep working and show the latest release. With no TAG, DIR
-# redirects to dev/. DIR/versions.json lists the versions for the switcher in
-# each page header, and DIR/badges holds the README badge of the working tree.
+# links to the root keep working and show the latest release. DIR/versions.json
+# lists the versions for the switcher in each page header, and DIR/badges holds
+# the README badge of the working tree.
 #
 # Each tag is built from a temporary git worktree with the given NDOC, so old
 # releases get the current look; a tag whose docs fail to build is skipped with
-# a warning. URL is where DIR is published (default: the url in doc/ndoc.conf);
-# it gives every page its absolute address and the location of versions.json.
-# docs.yml publishes the result to GitHub Pages, next to the apt repository.
+# a warning.
+#
+# DIR/index.html is the landing page, site/index.html of the working tree, in
+# place of the start page of the docs: each @DOCS@ link goes to the latest
+# release's docs when they have the page and to dev/ otherwise, and @VERSION@
+# becomes the latest release (or dev). URL is where DIR is published (default:
+# the url in doc/ndoc.conf); it gives every page its absolute address and the
+# location of versions.json. docs.yml publishes the result to GitHub Pages, next
+# to the apt repository.
 set -euo pipefail
 
 ndoc=
@@ -29,7 +35,7 @@ while [ $# -gt 0 ]; do
     --ndoc) ndoc=$2; shift 2 ;;
     --output) output=$2; shift 2 ;;
     --url) url=$2; shift 2 ;;
-    -h | --help) sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "docs-site.sh: unknown option $1" >&2; exit 2 ;;
     *) tags+=("$1"); shift ;;
     esac
@@ -97,15 +103,21 @@ for tag in "${tags[@]}"; do
     fi
 done
 
-if [ -z "$latest" ]; then
-    cat > "$output/index.html" <<'EOF'
-<!doctype html>
-<meta charset="utf-8">
-<meta http-equiv="refresh" content="0; url=dev/">
-<link rel="canonical" href="dev/">
-<a href="dev/">Documentation</a>
-EOF
-fi
+# The landing page: a link to @DOCS@<page> goes to the latest release's copy of the page if it has
+# one and to dev/ otherwise, and a bare @DOCS@ to the start page of the latest docs.
+docs=dev/
+[ -n "$latest" ] && docs=$latest/
+landing=$(cat "$root/site/index.html")
+for page in $(grep -o '@DOCS@[A-Za-z0-9._-]*\.html' <<< "$landing" | sort -u); do
+    page=${page#@DOCS@}
+    dir=dev/
+    [ -n "$latest" ] && [ -f "$output/$latest/$page" ] && dir=$latest/
+    [ -f "$output/$dir$page" ] || echo "::warning::docs-site.sh: the landing page links to $page, which no docs have"
+    landing=${landing//@DOCS@$page/$dir$page}
+done
+landing=${landing//@DOCS@/$docs}
+landing=${landing//@VERSION@/${latest:-dev}}
+printf '%s\n' "$landing" > "$output/index.html"
 
 printf '{"latest": %s, "versions": [%s]}\n' "$(json_string "${latest:-dev}")" "$entries" > "$output/versions.json"
 

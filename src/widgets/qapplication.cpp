@@ -1,5 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qstylefactory.h>
+
+#include "gui/qshortcut_p.h"
 #include <QtWidgets/qapplication.h>
 
 #include "qfusionstyle_p.h"
@@ -118,11 +120,55 @@ bool WidgetAccess::blockedByModal(const QWidget *top) {
     \sa QGuiApplication, QWidget
 */
 
+namespace {
+
+// When a QShortcut of a widget is active: the widget is shown, enabled and not blocked by a modal window, and the
+// context relates it to the window the key was pressed in.
+bool widgetShortcutMatcher(QObject *parent, Qt::ShortcutContext context, QWindow *window) {
+    QWidget *widget = nullptr;
+    for (QObject *o = parent; o && !widget; o = o->parent())
+        widget = qobject_cast<QWidget *>(o);
+    if (!widget) {
+        if (context == Qt::ApplicationShortcut)
+            return true;
+        for (QObject *o = parent; o; o = o->parent()) {
+            if (auto *w = qobject_cast<QWindow *>(o))
+                return w == window;
+        }
+        return false;
+    }
+    if (!widget->isVisible() || !widget->isEnabled())
+        return false;
+    QWidget *top = widget->window();
+    if (QtPrivate::WidgetAccess::blockedByModal(top))
+        return false;
+    switch (context) {
+    case Qt::ApplicationShortcut:
+        return true;
+    case Qt::WindowShortcut:
+        return top->windowHandle() == window;
+    case Qt::WidgetShortcut:
+        return top->windowHandle() == window && QApplication::focusWidget() == widget;
+    case Qt::WidgetWithChildrenShortcut:
+        if (top->windowHandle() != window)
+            return false;
+        for (QWidget *f = QApplication::focusWidget(); f; f = f->parentWidget()) {
+            if (f == widget)
+                return true;
+        }
+        return false;
+    }
+    return false;
+}
+
+} // namespace
+
 /*!
     Constructs a widget application from \a argc and \a argv, as QGuiApplication does.
 */
 QApplication::QApplication(int &argc, char **argv) : QGuiApplication(argc, argv) {
     g_app = this;
+    QtPrivate::setShortcutContextMatcher(widgetShortcutMatcher);
     // The default palette follows the color scheme, unless the application set its own.
     QObject::connect(styleHints(), &QStyleHints::colorSchemeChanged, this, [] {
         if (!g_palette)
@@ -134,6 +180,7 @@ QApplication::QApplication(int &argc, char **argv) : QGuiApplication(argc, argv)
     Destroys the application object and the style.
 */
 QApplication::~QApplication() {
+    QtPrivate::setShortcutContextMatcher(nullptr);
     g_app = nullptr;
     g_style.reset();
     delete g_palette;

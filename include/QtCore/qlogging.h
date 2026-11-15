@@ -2,7 +2,6 @@
 #pragma once
 
 #include <QtCore/qglobal.h>
-#include <QtCore/qstring.h>
 
 #include <cstdarg>
 
@@ -18,6 +17,7 @@
 
 class QDebug;
 class QLoggingCategory;
+class QString; // qglobal.h includes this header, so it cannot include qstring.h
 
 enum QtMsgType { QtDebugMsg, QtWarningMsg, QtCriticalMsg, QtFatalMsg, QtInfoMsg, QtSystemMsg = QtCriticalMsg };
 

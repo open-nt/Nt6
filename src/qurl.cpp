@@ -880,6 +880,21 @@ void QUrl::setQuery(const QString &query, ParsingMode mode) {
 }
 
 /*!
+    \overload
+
+    Sets the query to the items of \a query, encoded as a URL needs them.
+
+    \sa QUrlQuery
+*/
+void QUrl::setQuery(const QUrlQuery &query) {
+    if (query.isEmpty()) {
+        setQuery(QString(), TolerantMode);
+        return;
+    }
+    setQuery(query.query(QUrl::FullyEncoded), StrictMode);
+}
+
+/*!
     Returns the query, formatted according to \a options.
 
     \sa setQuery(), hasQuery()

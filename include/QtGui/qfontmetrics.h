@@ -8,6 +8,7 @@
 #include <QtGui/qfont.h>
 
 #include <memory>
+#include <utility>
 
 class QFontEngine;
 
@@ -36,6 +37,37 @@ public:
     }
     QSize size(int flags, const QString &text) const;
     QString elidedText(const QString &text, Qt::TextElideMode mode, int width, int flags = 0) const;
+
+private:
+    friend class QFontMetricsF;
+    explicit QFontMetrics(std::shared_ptr<QFontEngine> engine) : m_engine(std::move(engine)) {}
+    std::shared_ptr<QFontEngine> m_engine;
+};
+
+class QFontMetricsF {
+public:
+    explicit QFontMetricsF(const QFont &font);
+    QFontMetricsF(const QFontMetrics &other);
+    QFontMetricsF(const QFontMetricsF &other);
+    QFontMetricsF &operator=(const QFontMetricsF &other);
+    QFontMetricsF &operator=(const QFontMetrics &other);
+    ~QFontMetricsF();
+
+    qreal ascent() const;
+    qreal descent() const;
+    qreal height() const;
+    qreal leading() const;
+    qreal lineSpacing() const;
+    qreal xHeight() const;
+    qreal averageCharWidth() const;
+    bool inFont(QChar ch) const;
+
+    qreal horizontalAdvance(const QString &text, int length = -1) const;
+    qreal horizontalAdvance(QChar ch) const;
+    QRectF boundingRect(const QString &text) const;
+    QRectF boundingRect(const QRectF &rect, int flags, const QString &text) const;
+    QSizeF size(int flags, const QString &text) const;
+    QString elidedText(const QString &text, Qt::TextElideMode mode, qreal width, int flags = 0) const;
 
 private:
     std::shared_ptr<QFontEngine> m_engine;

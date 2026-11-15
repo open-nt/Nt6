@@ -1,1 +1,2 @@
 #include "qvideowidget.h"
+#include "qgraphicsvideoitem.h"

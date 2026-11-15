@@ -27,6 +27,7 @@ struct QWindow::Data {
     bool active = false;
     bool fullScreen = false;
     bool updateRequested = false;
+    Qt::WindowFlags flags = Qt::Window;
     QCursor cursor;
     bool quitOnClose = true;
     QSurface::SurfaceType surfaceType = QSurface::RasterSurface;
@@ -100,7 +101,7 @@ QWindow::~QWindow() {
 
     \sa create()
 */
-quintptr QWindow::winId() const { return m_d->platform ? m_d->platform->winId() : 0; }
+WId QWindow::winId() const { return m_d->platform ? m_d->platform->winId() : 0; }
 
 /*!
     Creates the platform window. show() does this when needed, so calling
@@ -125,6 +126,8 @@ void QWindow::create() {
         m_d->platform->setTransientParent(m_d->transientParent->m_d->platform);
     if (m_d->fullScreen)
         m_d->platform->setFullScreen(true);
+    if (m_d->flags != Qt::WindowFlags(Qt::Window))
+        m_d->platform->setWindowFlags(m_d->flags);
     QtPrivate::GuiAccess::applyCursor(this);
 }
 
@@ -252,6 +255,67 @@ bool QWindow::isActive() const { return m_d->active; }
     Returns the screen the window is on.
 */
 QScreen *QWindow::screen() const { return m_d->screen; }
+
+/*!
+    Moves the window to \a screen, keeping its position relative to the top left of the screen, and emits
+    screenChanged(). A null \a screen means the primary screen.
+
+    \sa screen()
+*/
+void QWindow::setScreen(QScreen *screen) {
+    if (!screen)
+        screen = QGuiApplication::primaryScreen();
+    if (screen == m_d->screen)
+        return;
+    QScreen *old = m_d->screen;
+    m_d->screen = screen;
+    if (old && screen) {
+        const QPoint offset = m_d->geometry.topLeft() - old->geometry().topLeft();
+        setPosition(screen->geometry().topLeft() + offset);
+    }
+    emit screenChanged(screen);
+}
+
+/*!
+    Returns the window flags: the type of the window and its hints. They are Qt::Window unless setFlags()
+    changed them.
+
+    \sa setFlags(), type()
+*/
+Qt::WindowFlags QWindow::flags() const { return m_d->flags; }
+
+/*!
+    Sets the window flags to \a flags. The window system applies the frame (Qt::FramelessWindowHint), the
+    stacking hints (Qt::WindowStaysOnTopHint, Qt::WindowStaysOnBottomHint), Qt::WindowDoesNotAcceptFocus and
+    Qt::BypassWindowManagerHint; the others are stored.
+
+    \sa flags(), setFlag()
+*/
+void QWindow::setFlags(Qt::WindowFlags flags) {
+    if (!(flags & Qt::WindowType_Mask))
+        flags |= Qt::Window;
+    if (flags == m_d->flags)
+        return;
+    m_d->flags = flags;
+    if (m_d->platform)
+        m_d->platform->setWindowFlags(flags);
+}
+
+/*!
+    Turns the window \a flag on if \a on is \c true, or off, keeping the other flags.
+
+    \sa setFlags()
+*/
+void QWindow::setFlag(Qt::WindowType flag, bool on) {
+    setFlags(on ? m_d->flags | flag : m_d->flags & ~Qt::WindowFlags(flag));
+}
+
+/*!
+    Returns the type of the window, the part of flags() under Qt::WindowType_Mask.
+*/
+Qt::WindowType QWindow::type() const {
+    return static_cast<Qt::WindowType>(static_cast<int>(m_d->flags & Qt::WindowType_Mask));
+}
 
 /*!
     Returns the number of pixels of the screen that one unit of the window's coordinates
@@ -588,10 +652,22 @@ bool QWindow::close() {
 
 /*!
     Asks the window system to put the window in front of the others.
+
+    \sa lower()
 */
 void QWindow::raise() {
     if (m_d->platform && m_d->visible)
-        m_d->platform->requestActivateWindow();
+        m_d->platform->raise();
+}
+
+/*!
+    Asks the window system to put the window behind the others.
+
+    \sa raise()
+*/
+void QWindow::lower() {
+    if (m_d->platform && m_d->visible)
+        m_d->platform->lower();
 }
 
 /*!
@@ -774,6 +850,8 @@ void QWindow::wheelEvent(QWheelEvent *event) { event->ignore(); }
 namespace QtPrivate {
 
 QPlatformWindow *GuiAccess::platformWindow(const QWindow *window) { return window->m_d->platform; }
+
+void GuiAccess::setFullScreen(QWindow *window, bool fullScreen) { window->setFullScreen(fullScreen); }
 
 void GuiAccess::setQuitOnClose(QWindow *window, bool quit) { window->m_d->quitOnClose = quit; }
 

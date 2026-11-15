@@ -267,6 +267,32 @@ QMatrix4x4 QMatrix4x4::inverted(bool *invertible) const {
 }
 
 /*!
+    Returns the matrix that transforms normals: the inverse of the upper-left 3 by 3 part, transposed. Returns the
+    identity if that part cannot be inverted.
+*/
+QMatrix3x3 QMatrix4x4::normalMatrix() const {
+    QMatrix3x3 inv;
+    const double a = m[0][0], b = m[1][0], c = m[2][0];
+    const double d = m[0][1], e = m[1][1], f = m[2][1];
+    const double g = m[0][2], h = m[1][2], i = m[2][2];
+    const double det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
+    if (det == 0.0)
+        return inv;
+    const double s = 1.0 / det;
+    // The inverse is the adjugate over the determinant; the normal matrix is its transpose.
+    inv(0, 0) = static_cast<float>((e * i - f * h) * s);
+    inv(1, 0) = static_cast<float>(-(b * i - c * h) * s);
+    inv(2, 0) = static_cast<float>((b * f - c * e) * s);
+    inv(0, 1) = static_cast<float>(-(d * i - f * g) * s);
+    inv(1, 1) = static_cast<float>((a * i - c * g) * s);
+    inv(2, 1) = static_cast<float>(-(a * f - c * d) * s);
+    inv(0, 2) = static_cast<float>((d * h - e * g) * s);
+    inv(1, 2) = static_cast<float>(-(a * h - b * g) * s);
+    inv(2, 2) = static_cast<float>((a * e - b * d) * s);
+    return inv;
+}
+
+/*!
     Returns the transpose of the matrix, with rows and columns swapped.
 */
 QMatrix4x4 QMatrix4x4::transposed() const {

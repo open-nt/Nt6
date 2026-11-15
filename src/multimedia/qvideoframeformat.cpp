@@ -288,6 +288,12 @@ QVideoFrameFormat::PixelFormat QVideoFrameFormat::pixelFormatFromImageFormat(QIm
         return little ? Format_BGRA8888 : Format_ARGB8888;
     case QImage::Format_ARGB32_Premultiplied:
         return little ? Format_BGRA8888_Premultiplied : Format_ARGB8888_Premultiplied;
+    case QImage::Format_RGBX8888:
+        return Format_RGBX8888;
+    case QImage::Format_RGBA8888:
+        return Format_RGBA8888;
+    case QImage::Format_RGBA8888_Premultiplied:
+    case QImage::Format_RGB888:
     case QImage::Format_Invalid:
         break;
     }
@@ -313,6 +319,10 @@ QImage::Format QVideoFrameFormat::imageFormatFromPixelFormat(PixelFormat format)
         return little ? QImage::Format_Invalid : QImage::Format_ARGB32;
     case Format_ARGB8888_Premultiplied:
         return little ? QImage::Format_Invalid : QImage::Format_ARGB32_Premultiplied;
+    case Format_RGBX8888:
+        return QImage::Format_RGBX8888;
+    case Format_RGBA8888:
+        return QImage::Format_RGBA8888;
     default:
         return QImage::Format_Invalid;
     }

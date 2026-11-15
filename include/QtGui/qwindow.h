@@ -9,6 +9,7 @@
 #include <QtGui/qcursor.h>
 #include <QtGui/qsurface.h>
 #include <QtGui/qsurfaceformat.h>
+#include <QtGui/qwindowdefs.h>
 
 #include <memory>
 
@@ -43,7 +44,7 @@ public:
     explicit QWindow(QScreen *screen = nullptr);
     ~QWindow() override;
 
-    quintptr winId() const;
+    WId winId() const;
     void create();
     void destroy();
     bool isTopLevel() const { return true; }
@@ -56,7 +57,13 @@ public:
     bool isExposed() const;
     bool isActive() const;
     QScreen *screen() const;
+    void setScreen(QScreen *screen);
     qreal devicePixelRatio() const;
+
+    Qt::WindowFlags flags() const;
+    void setFlags(Qt::WindowFlags flags);
+    void setFlag(Qt::WindowType flag, bool on = true);
+    Qt::WindowType type() const;
 
     QRect geometry() const;
     void setGeometry(const QRect &rect);
@@ -102,6 +109,7 @@ public slots:
     void hide();
     bool close();
     void raise();
+    void lower();
     void requestActivate();
     void requestUpdate();
 
@@ -111,6 +119,10 @@ signals:
         the new visibility.
     */
     void visibleChanged(bool arg) { emitSignal(&QWindow::visibleChanged, arg); }
+    /*!
+        This signal is emitted when the window moves to the screen \a screen.
+    */
+    void screenChanged(QScreen *screen) { emitSignal(&QWindow::screenChanged, screen); }
     /*!
         This signal is emitted when the title changes to \a title.
     */

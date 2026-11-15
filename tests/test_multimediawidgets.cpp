@@ -110,6 +110,41 @@ int main(int argc, char **argv) {
     CHECK(widget.geometry() == normal);
     CHECK(full == (QList<bool>{true, false}));
 
+    // QGraphicsVideoItem draws frames inside its video area and reports their size.
+    {
+        QGraphicsScene scene(0, 0, 100, 50);
+        auto *item = new QGraphicsVideoItem;
+        CHECK(item->type() == QGraphicsVideoItem::Type);
+        CHECK(item->videoSink() && item->videoSink()->parent() == item);
+        CHECK(item->size() == QSizeF(320, 240) && item->nativeSize().isEmpty());
+        item->setSize(QSizeF(100, 50));
+        CHECK(item->boundingRect() == QRectF(0, 0, 100, 50));
+        scene.addItem(item);
+        QList<QSizeF> sizes;
+        QObject::connect(item, &QGraphicsVideoItem::nativeSizeChanged, [&](const QSizeF &s) { sizes.append(s); });
+        item->videoSink()->setVideoFrame(redFrame(QSize(20, 20)));
+        CHECK(sizes == (QList<QSizeF>{QSizeF(20, 20)}));
+        CHECK(item->nativeSize() == QSizeF(20, 20));
+
+        auto draw = [&scene] {
+            QImage out(100, 50, QImage::Format_RGB32);
+            out.fill(Qt::white);
+            QPainter painter(&out);
+            scene.render(&painter, QRectF(0, 0, 100, 50), QRectF(0, 0, 100, 50));
+            return out;
+        };
+        QImage out = draw(); // kept square and centred: x 25 to 75
+        CHECK(isColor(pixel(out, 50, 25), 255, 0, 0));
+        CHECK(isColor(pixel(out, 10, 25), 255, 255, 255));
+        item->setAspectRatioMode(Qt::IgnoreAspectRatio);
+        out = draw();
+        CHECK(isColor(pixel(out, 10, 25), 255, 0, 0));
+
+        QMediaCaptureSession videoSession;
+        videoSession.setVideoOutput(item);
+        CHECK(videoSession.videoSink() == item->videoSink());
+    }
+
     if (g_failures) {
         std::printf("%d failure(s)\n", g_failures);
         return 1;

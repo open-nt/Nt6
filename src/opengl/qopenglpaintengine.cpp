@@ -1,4 +1,5 @@
 // MIT License - see LICENSE
+#include "qimageformat_p.h"
 #include "qopenglpaintengine_p.h"
 
 #include "qrasterpaintengine_p.h"
@@ -636,12 +637,7 @@ std::vector<unsigned char> imageToRgba(const QImage &image, const QRect &source)
         const auto *line = reinterpret_cast<const QRgb *>( // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
             image.constScanLine(y));
         for (int x = source.left(); x <= source.right(); ++x, out += 4) {
-            QRgb p = line[x];
-            if (format == QImage::Format_RGB32)
-                p |= 0xff000000u;
-            else if (format == QImage::Format_ARGB32)
-                p = qPremultiply(p);
-            toRgba(p, out);
+            toRgba(QtImageFormat::toPremultiplied(line[x], format), out);
         }
     }
     return rgba;

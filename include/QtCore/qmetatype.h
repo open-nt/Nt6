@@ -573,6 +573,30 @@ public:
         \value QVariantList \c{QList<QVariant>}.
         \value QVariantHash \c{QHash<QString, QVariant>}.
         \value QVariantPair \c{std::pair<QVariant, QVariant>}.
+        \value QFont A QFont (Nt GUI).
+        \value QPixmap A QPixmap (Nt GUI).
+        \value QBrush A QBrush (Nt GUI).
+        \value QColor A QColor (Nt GUI).
+        \value QPalette A QPalette (Nt GUI).
+        \value QIcon A QIcon; Nt has none.
+        \value QImage A QImage (Nt GUI).
+        \value QPolygon A QPolygon (Nt GUI).
+        \value QRegion A QRegion (Nt GUI).
+        \value QBitmap A QBitmap; Nt has none.
+        \value QCursor A QCursor (Nt GUI).
+        \value QKeySequence A QKeySequence (Nt GUI).
+        \value QPen A QPen (Nt GUI).
+        \value QTextLength A QTextLength; Nt has none.
+        \value QTextFormat A QTextFormat (Nt GUI).
+        \value QTransform A QTransform (Nt GUI).
+        \value QMatrix4x4 A QMatrix4x4 (Nt GUI).
+        \value QVector2D A QVector2D (Nt GUI).
+        \value QVector3D A QVector3D (Nt GUI).
+        \value QVector4D A QVector4D (Nt GUI).
+        \value QQuaternion A QQuaternion (Nt GUI).
+        \value QPolygonF A QPolygonF (Nt GUI).
+        \value QColorSpace A QColorSpace; Nt has none.
+        \value QSizePolicy A QSizePolicy (Nt Widgets).
         \value User The first id of a type registered at run time.
     */
     enum Type {
@@ -634,6 +658,30 @@ public:
         Char16 = 56,
         Char32 = 57,
         QVariantPair = 58,
+        QFont = 0x1000,
+        QPixmap = 0x1001,
+        QBrush = 0x1002,
+        QColor = 0x1003,
+        QPalette = 0x1004,
+        QIcon = 0x1005,
+        QImage = 0x1006,
+        QPolygon = 0x1007,
+        QRegion = 0x1008,
+        QBitmap = 0x1009,
+        QCursor = 0x100a,
+        QKeySequence = 0x100b,
+        QPen = 0x100c,
+        QTextLength = 0x100d,
+        QTextFormat = 0x100e,
+        QTransform = 0x1010,
+        QMatrix4x4 = 0x1011,
+        QVector2D = 0x1012,
+        QVector3D = 0x1013,
+        QVector4D = 0x1014,
+        QQuaternion = 0x1015,
+        QPolygonF = 0x1016,
+        QColorSpace = 0x1017,
+        QSizePolicy = 0x2000,
         User = 65536
     };
 

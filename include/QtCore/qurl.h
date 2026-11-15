@@ -9,6 +9,8 @@
 
 #include <utility>
 
+class QUrlQuery;
+
 class QUrl {
 public:
     enum ParsingMode { TolerantMode, StrictMode, DecodedMode };
@@ -81,6 +83,7 @@ public:
     QString fileName(ComponentFormattingOptions options = FullyDecoded) const;
     bool hasQuery() const { return m_hasQuery; }
     void setQuery(const QString &query, ParsingMode mode = TolerantMode);
+    void setQuery(const QUrlQuery &query);
     QString query(ComponentFormattingOptions options = PrettyDecoded) const;
     bool hasFragment() const { return m_hasFragment; }
     void setFragment(const QString &fragment, ParsingMode mode = TolerantMode);

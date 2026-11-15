@@ -11,6 +11,8 @@
 #include <QtGui/qimage.h>
 #include <QtGui/qpaintengine.h>
 #include <QtGui/qpainter.h>
+#include <QtSvgWidgets/qgraphicssvgitem.h>
+#include <QtWidgets/qgraphicsscene.h>
 #include <QtGui/qstylehints.h>
 #include <QtSvg/QSvgGenerator>
 #include <QtSvg/QSvgRenderer>
@@ -1357,6 +1359,42 @@ static void testWidget() {
     CHECK(child->inherits("QSvgWidget") && child->inherits("QWidget"));
 }
 
+static void testGraphicsItem() {
+    const QByteArray contents =
+        doc("width='30' height='20'", "<rect id='left' width='10' height='20' fill='red'/>"
+                                      "<rect id='right' x='10' width='20' height='20' fill='blue'/>");
+    QGraphicsScene scene(0, 0, 60, 20);
+    auto *whole = new QGraphicsSvgItem;
+    CHECK(whole->type() == QGraphicsSvgItem::Type && whole->renderer() && whole->boundingRect().isEmpty());
+    whole->renderer()->load(contents); // a reload updates the bounds through repaintNeeded()
+    CHECK(whole->boundingRect() == QRectF(0, 0, 30, 20));
+    scene.addItem(whole);
+
+    auto *part = new QGraphicsSvgItem;
+    part->setSharedRenderer(whole->renderer());
+    part->setElementId(QStringLiteral("right"));
+    CHECK(part->elementId() == QLatin1String("right"));
+    CHECK(part->boundingRect() == QRectF(0, 0, 20, 20));
+    part->setPos(35, 0);
+    scene.addItem(part);
+    part->setMaximumCacheSize(QSize(64, 64));
+    CHECK(part->maximumCacheSize() == QSize(64, 64));
+
+    QImage image(60, 20, QImage::Format_RGB32);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        scene.render(&painter, QRectF(0, 0, 60, 20), QRectF(0, 0, 60, 20));
+    }
+    CHECK(rgb(image.pixel(5, 10), 255, 0, 0) && rgb(image.pixel(20, 10), 0, 0, 255));
+    CHECK(rgb(image.pixel(45, 10), 0, 0, 255) && rgb(image.pixel(32, 10), 255, 255, 255));
+
+    // The shared renderer outlives the item that does not own it.
+    QSvgRenderer *shared = whole->renderer();
+    delete part;
+    CHECK(shared->isValid());
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -1378,6 +1416,7 @@ int main(int argc, char **argv) {
     testRobustness();
     testGenerator();
     testWidget();
+    testGraphicsItem();
     if (g_failures == 0)
         std::puts("all svg tests passed");
     return g_failures == 0 ? 0 : 1;

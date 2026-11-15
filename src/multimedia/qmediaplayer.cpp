@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtMultimedia/qaudiooutput.h>
+#include <QtMultimedia/qvideosink.h>
 #include <QtMultimedia/qaudiosink.h>
 #include <QtMultimedia/qmediaformat.h>
 #include <QtMultimedia/qmediaplayer.h>
@@ -446,6 +447,18 @@ void QMediaPlayer::setVideoOutput(QObject *output) {
     d->videoOutput = output;
     emit videoOutputChanged();
 }
+
+/*!
+    Makes \a sink the video output; the same as setVideoOutput() with a QVideoSink.
+
+    \sa videoSink()
+*/
+void QMediaPlayer::setVideoSink(QVideoSink *sink) { setVideoOutput(sink); }
+
+/*!
+    Returns the video output if it is a QVideoSink, or \c nullptr.
+*/
+QVideoSink *QMediaPlayer::videoSink() const { return qobject_cast<QVideoSink *>(videoOutput()); }
 
 /*!
     Returns whether the player is stopped, playing or paused.

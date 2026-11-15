@@ -35,6 +35,8 @@ public:
     int logicalDpiX() const { return metric(PdmDpiX); }
     int logicalDpiY() const { return metric(PdmDpiY); }
     qreal devicePixelRatio() const { return metric(PdmDevicePixelRatioScaled) / 65536.0; }
+    /*! Returns the device pixel ratio, the same as devicePixelRatio(). */
+    qreal devicePixelRatioF() const { return devicePixelRatio(); }
     bool paintingActive() const { return m_active; }
 
 protected:

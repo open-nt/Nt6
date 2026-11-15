@@ -20,7 +20,7 @@
     \endcode
 
     \differences
-    There is no QFontMetricsF, \c tightBoundingRect(), \c leftBearing(),
+    There is no \c tightBoundingRect(), \c leftBearing(),
     \c maxWidth(), \c underlinePos() or \c capHeight(). Text is measured as a
     run of characters without shaping or kerning, so complex scripts such as Arabic
     are measured wrongly. The metrics are those of the font at 96 dots per inch, not of
@@ -204,4 +204,140 @@ QString QFontMetrics::elidedText(const QString &text, Qt::TextElideMode mode, in
             break;
     }
     return text.left(left) + ellipsis + text.right(right);
+}
+
+/*!
+    \class QFontMetricsF
+    \brief The QFontMetricsF class measures text in fractional pixels.
+
+    The vertical metrics are those of QFontMetrics; the widths are the sum of the glyph advances in 64ths of a
+    pixel, so a run of narrow characters measures the same as the painter draws it.
+
+    \differences
+    The bounding rectangles and sizes are those of QFontMetrics converted to \c qreal, since the layout places
+    glyphs on whole pixels. There is no \c tightBoundingRect(), \c leftBearing(), \c rightBearing(),
+    \c minLeftBearing(), \c minRightBearing(), \c maxWidth(), \c underlinePos(), \c overlinePos(),
+    \c strikeOutPos(), \c lineWidth(), \c capHeight(), \c fontDpi() or \c swap(), and no shaping or kerning.
+    \enddifferences
+
+    \sa QFontMetrics
+*/
+
+/*!
+    Constructs font metrics for \a font.
+*/
+QFontMetricsF::QFontMetricsF(const QFont &font) : m_engine(QFontEngine::create(font)) {}
+
+/*!
+    Constructs fractional metrics for the font of \a other.
+*/
+QFontMetricsF::QFontMetricsF(const QFontMetrics &other) : m_engine(other.m_engine) {}
+
+/*!
+    Constructs a copy of \a other.
+*/
+QFontMetricsF::QFontMetricsF(const QFontMetricsF &other) = default;
+
+/*!
+    Assigns \a other to these metrics.
+*/
+QFontMetricsF &QFontMetricsF::operator=(const QFontMetricsF &other) = default;
+
+/*!
+    \overload
+
+    Takes the font of \a other.
+*/
+QFontMetricsF &QFontMetricsF::operator=(const QFontMetrics &other) {
+    m_engine = other.m_engine;
+    return *this;
+}
+
+/*!
+    Destroys the metrics.
+*/
+QFontMetricsF::~QFontMetricsF() = default;
+
+/*!
+    Returns the distance from the baseline to the top of the tallest character.
+*/
+qreal QFontMetricsF::ascent() const { return m_engine->ascent(); }
+
+/*!
+    Returns the distance from the baseline to the bottom of the lowest character.
+*/
+qreal QFontMetricsF::descent() const { return m_engine->descent(); }
+
+/*!
+    Returns the height of a line of text: the ascent plus the descent.
+*/
+qreal QFontMetricsF::height() const { return m_engine->ascent() + m_engine->descent(); }
+
+/*!
+    Returns the gap between the descent of one line and the ascent of the next.
+*/
+qreal QFontMetricsF::leading() const { return m_engine->leading(); }
+
+/*!
+    Returns the distance between the baselines of two lines of text: the height plus the leading.
+*/
+qreal QFontMetricsF::lineSpacing() const { return height() + leading(); }
+
+/*!
+    Returns the height of the lower case letter x.
+*/
+qreal QFontMetricsF::xHeight() const { return m_engine->xHeight(); }
+
+/*!
+    Returns the width of a digit, which is a fair guess at the average width of a character.
+*/
+qreal QFontMetricsF::averageCharWidth() const { return m_engine->averageCharWidth(); }
+
+/*!
+    Returns \c true if the font has a glyph for \a ch.
+*/
+bool QFontMetricsF::inFont(QChar ch) const { return m_engine->hasGlyph(ch.unicode()); }
+
+/*!
+    Returns the width of the first \a length characters of \a text, or of all of it if \a length is negative, drawn
+    on one line, in fractional pixels.
+*/
+qreal QFontMetricsF::horizontalAdvance(const QString &text, int length) const {
+    return QtPrivate::textWidthF(*m_engine, length < 0 ? text : text.left(length));
+}
+
+/*!
+    Returns the width of the character \a ch in fractional pixels.
+*/
+qreal QFontMetricsF::horizontalAdvance(QChar ch) const { return QtPrivate::textWidthF(*m_engine, QString(ch)); }
+
+/*!
+    Returns the rectangle that \a text covers when it is drawn at the origin with
+    QPainter::drawText(QPointF, QString).
+*/
+QRectF QFontMetricsF::boundingRect(const QString &text) const {
+    return QRectF(QtPrivate::layoutAtPoint(*m_engine, QPoint(0, 0), text).bounds);
+}
+
+/*!
+    Returns the rectangle that \a text covers when it is drawn with QPainter::drawText() in \a rect with the given
+    \a flags, which are Qt::AlignmentFlag and Qt::TextFlag values.
+*/
+QRectF QFontMetricsF::boundingRect(const QRectF &rect, int flags, const QString &text) const {
+    return QRectF(QtPrivate::layoutText(*m_engine, rect.toAlignedRect(), flags, text).bounds);
+}
+
+/*!
+    Returns the size of \a text when it is drawn with the given \a flags.
+*/
+QSizeF QFontMetricsF::size(int flags, const QString &text) const {
+    return QSizeF(QtPrivate::layoutText(*m_engine, QRect(0, 0, 0, 0), flags, text).bounds.size());
+}
+
+/*!
+    Returns \a text shortened to fit in \a width pixels, with an ellipsis where \a mode says, as
+    QFontMetrics::elidedText() does; the \a flags are accepted for compatibility.
+*/
+QString QFontMetricsF::elidedText(const QString &text, Qt::TextElideMode mode, qreal width, int flags) const {
+    return QFontMetrics(m_engine).elidedText(text, mode, static_cast<int>(width), flags);
 }

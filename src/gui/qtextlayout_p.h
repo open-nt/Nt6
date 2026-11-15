@@ -30,6 +30,8 @@ template <typename F> void forEachCodePoint(const QString &text, F f) {
 int advance64(QFontEngine &engine, char32_t codePoint);
 // Width of `text` in pixels, on one line.
 int textWidth(QFontEngine &engine, const QString &text);
+// Width of `text` in fractional pixels, on one line.
+double textWidthF(QFontEngine &engine, const QString &text);
 
 struct PlacedLine {
     QString text;

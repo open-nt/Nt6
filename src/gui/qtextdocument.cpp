@@ -1174,6 +1174,42 @@ QTextBlock QTextBlock::previous() const {
 }
 
 /*!
+    \class QAbstractTextDocumentLayout::PaintContext
+    \brief The PaintContext struct says how a text document is drawn.
+
+    \differences
+    There are no selections. cursorPosition is kept but no cursor is drawn.
+    \enddifferences
+*/
+
+/*!
+    \variable QAbstractTextDocumentLayout::PaintContext::cursorPosition
+    \brief The position of the cursor, or -1 for none.
+*/
+
+/*!
+    \variable QAbstractTextDocumentLayout::PaintContext::palette
+    \brief The palette; its QPalette::Text color is the color of text without one of its own.
+*/
+
+/*!
+    \variable QAbstractTextDocumentLayout::PaintContext::clip
+    \brief The rectangle to draw, in document coordinates; all of the document if null.
+*/
+
+/*!
+    Draws the document with \a painter as \a context says.
+*/
+void QAbstractTextDocumentLayout::draw(QPainter *painter, const PaintContext &context) {
+    if (!painter || !m_document)
+        return;
+    painter->save();
+    painter->setPen(context.palette.color(QPalette::Text));
+    m_document->drawContents(painter, context.clip);
+    painter->restore();
+}
+
+/*!
     Returns the target of the link at the position \a pos of the
     document, or an empty string if there is no link there.
 

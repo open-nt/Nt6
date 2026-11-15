@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qbytearray.h>
 #include <QtCore/qstringlist.h>
 #include <QtGui/qfont.h>
 
@@ -44,8 +45,21 @@ public:
 
     // Pixel size that a QFont stands for.
     static double pixelSizeOf(const QFont &font);
-    // The font families that fontconfig knows, sorted; empty without fontconfig.
+    // The font families that fontconfig knows and the application fonts add, sorted; empty without fontconfig.
     static QStringList families();
+    // Registers the TrueType or OpenType font in `data` as an application font, whose families create() then finds
+    // ahead of fontconfig's. Returns its id, or -1 if the data is not a font or there is no FreeType.
+    static int addApplicationFont(const QByteArray &data);
+    static QStringList applicationFontFamilies(int id);
+    static bool removeApplicationFont(int id);
+    static bool removeAllApplicationFonts();
+    // Whether every glyph of the font has the same advance.
+    bool isFixedPitch() const { return m_fixedPitch; }
+    // Appends the outline of `codePoint`, with its pen position at `origin` (y down), to `path`. Returns the advance
+    // in 26.6 pixels. Without FreeType nothing is appended.
+    int addOutline(char32_t codePoint, double originX, double originY, class QPainterPath *path);
+    // The advance of `glyph`, the glyph of `codePoint`, with the letter and word spacing of the font, in 26.6 pixels.
+    int spacedAdvance64(char32_t codePoint, int glyphAdvance64) const;
 
 private:
     QFontEngine(void *face, double pixelSize);
@@ -59,5 +73,9 @@ private:
     int m_leading = 0;
     int m_xHeight = 0;
     int m_averageCharWidth = 0;
+    bool m_fixedPitch = false;
+    double m_letterPercent = 100.0; // QFont::PercentageSpacing
+    int m_letterExtra64 = 0;        // QFont::AbsoluteSpacing, 26.6 pixels
+    int m_wordExtra64 = 0;          // added to spaces, 26.6 pixels
     std::unordered_map<char32_t, QGlyph> m_glyphs;
 };

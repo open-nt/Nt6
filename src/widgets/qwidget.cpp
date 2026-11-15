@@ -271,6 +271,23 @@ void WidgetAccess::activateLayout(QWidget *w) {
 
 using QtPrivate::WidgetAccess;
 
+namespace {
+
+// Makes the QWindow of the window `w`, if it has none, with the title, flags and screen of the widget.
+void ensureWindow(QWidget *w) {
+    auto &d = WidgetAccess::data(w);
+    if (d.window)
+        return;
+    d.window = std::make_unique<QWidgetWindow>(w);
+    d.window->setTitle(WidgetAccess::shownTitle(w));
+    d.window->setFlags(d.windowFlags);
+    if (d.screen)
+        d.window->setScreen(d.screen);
+    QtPrivate::GuiAccess::setQuitOnClose(d.window.get(), w->testAttribute(Qt::WA_QuitOnClose));
+}
+
+} // namespace
+
 /*!
     \class QWidget
     \brief The QWidget class is the base class of all user interface objects.
@@ -298,7 +315,7 @@ using QtPrivate::WidgetAccess;
     \differences
     The widget has no window flags (\c Qt::Window, \c Qt::Dialog, \c Qt::Tool and so on), no widget
     attributes (\c setAttribute()), no \c windowIcon(), cursor, tool tip, context menu, actions,
-    shortcuts, \c grab(), \c setFocusProxy(), \c toolTipDuration(), \c statusTip(), \c whatsThis(), \c setTabOrder(), \c stackUnder(),
+    style sheets (setStyleSheet() only keeps the text), shortcuts, \c grab(), \c setFocusProxy(), \c toolTipDuration(), \c statusTip(), \c whatsThis(), \c setTabOrder(), \c stackUnder(),
     \c setWindowOpacity() or transparent windows. Only top-level widgets are native windows, and
     a widget that is a window has its geometry set on the QWindow without a window frame, so
     \c frameGeometry() is not provided. \c raise() and \c lower() reorder the children of a parent, and
@@ -823,6 +840,22 @@ QPoint QWidget::mapFromGlobal(const QPoint &pos) const {
 }
 
 /*!
+    \overload
+*/
+QPointF QWidget::mapToGlobal(const QPointF &pos) const {
+    const QWidget *top = window();
+    return pos + QPointF(WidgetAccess::windowOffset(this) + top->pos());
+}
+
+/*!
+    \overload
+*/
+QPointF QWidget::mapFromGlobal(const QPointF &pos) const {
+    const QWidget *top = window();
+    return pos - QPointF(WidgetAccess::windowOffset(this) + top->pos());
+}
+
+/*!
     \fn QPoint QWidget::mapToParent(const QPoint &pos) const
 
     Returns \a pos, a point in the widget, as a point in its parent.
@@ -946,12 +979,37 @@ QWidget *QWidget::window() const {
 bool QWidget::isWindow() const { return !parentWidget() || (m_d->windowFlags & Qt::Window); }
 
 /*!
+    Returns \c true if \a child is a descendant of this widget within the same window; otherwise returns
+    \c false. A widget is not its own ancestor.
+*/
+bool QWidget::isAncestorOf(const QWidget *child) const {
+    while (child) {
+        if (child->isWindow())
+            return false;
+        child = child->parentWidget();
+        if (child == this)
+            return true;
+    }
+    return false;
+}
+
+/*!
     Returns the window flags of the widget: the kind of window it is and the hints for its decoration. A widget has
     none, Qt::Widget, unless they were given to the constructor, setParent() or setWindowFlags().
 
     \sa setWindowFlags(), windowType()
 */
 Qt::WindowFlags QWidget::windowFlags() const { return m_d->windowFlags; }
+
+/*!
+    Turns the window \a flag on if \a on is \c true, or off, keeping the other flags; see setWindowFlags().
+
+    \sa windowFlags()
+*/
+void QWidget::setWindowFlag(Qt::WindowType flag, bool on) {
+    const Qt::WindowFlags flags = windowFlags();
+    setWindowFlags(on ? flags | flag : flags & ~Qt::WindowFlags(flag));
+}
 
 /*!
     Sets the window flags of the widget to \a type. Making a child widget a window, or a window with a parent a
@@ -965,6 +1023,30 @@ void QWidget::setWindowFlags(Qt::WindowFlags type) {
         return;
     }
     m_d->windowFlags = type;
+    if (m_d->window)
+        m_d->window->setFlags(type);
+}
+
+/*!
+    Returns the style sheet set with setStyleSheet().
+
+    \sa setStyleSheet()
+*/
+QString QWidget::styleSheet() const { return m_d->styleSheet; }
+
+/*!
+    Sets the style sheet of the widget to \a styleSheet. Nt has no style sheets: the text is kept and returned by
+    styleSheet(), and a StyleChange event is sent, but the widget does not change how it looks. Set the palette, the
+    font or the properties of the widget instead.
+
+    \sa styleSheet()
+*/
+void QWidget::setStyleSheet(const QString &styleSheet) {
+    if (m_d->styleSheet == styleSheet)
+        return;
+    m_d->styleSheet = styleSheet;
+    QEvent event(QEvent::StyleChange);
+    QCoreApplication::sendEvent(this, &event);
 }
 
 /*!
@@ -1013,6 +1095,77 @@ void QWidget::setWindowModality(Qt::WindowModality windowModality) {
     Returns the QWindow of the window that contains the widget, or \c nullptr if it has not been shown yet.
 */
 QWindow *QWidget::windowHandle() const { return window()->m_d->window.get(); }
+
+/*!
+    Returns the native handle of the widget's window, making the native window if it has none yet. Nt has no
+    native child widgets, so a child returns the handle of its window. Returns 0 without a window system.
+
+    \sa windowHandle()
+*/
+WId QWidget::winId() const {
+    QWidget *top = window();
+    if (top->m_d->proxyUpdate)
+        return 0;
+    ensureWindow(top);
+    top->m_d->window->create();
+    return top->m_d->window->winId();
+}
+
+/*!
+    Returns the screen the widget is on: the one set with setScreen(), or the screen of its window, or the
+    primary screen.
+
+    \sa setScreen()
+*/
+QScreen *QWidget::screen() const {
+    const QWidget *top = window();
+    if (top->m_d->window)
+        return top->m_d->window->screen();
+    return top->m_d->screen ? top->m_d->screen : QGuiApplication::primaryScreen();
+}
+
+/*!
+    Puts the window of the widget on \a screen. For a window that is not shown yet, it is shown there.
+
+    \sa screen()
+*/
+void QWidget::setScreen(QScreen *screen) {
+    QWidget *top = window();
+    top->m_d->screen = screen;
+    if (top->m_d->window)
+        top->m_d->window->setScreen(screen);
+}
+
+/*!
+    Returns \c true if the widget is a window that showFullScreen() made cover its screen.
+
+    \sa showFullScreen(), showNormal()
+*/
+bool QWidget::isFullScreen() const { return isWindow() && m_d->window && m_d->window->isFullScreen(); }
+
+/*!
+    Shows the widget, a window, covering its screen. A child widget is just shown.
+
+    \sa showNormal(), isFullScreen()
+*/
+void QWidget::showFullScreen() {
+    if (isWindow() && !m_d->proxyUpdate) {
+        ensureWindow(this);
+        QtPrivate::GuiAccess::setFullScreen(m_d->window.get(), true);
+    }
+    show();
+}
+
+/*!
+    Shows the widget, leaving full screen if it was in it.
+
+    \sa showFullScreen()
+*/
+void QWidget::showNormal() {
+    if (isWindow() && m_d->window)
+        QtPrivate::GuiAccess::setFullScreen(m_d->window.get(), false);
+    show();
+}
 
 /*!
     Returns the window title of the widget, which is only used when the widget is a window.
@@ -1064,8 +1217,11 @@ void QWidget::activateWindow() {
     \sa isHidden(), setVisible()
 */
 bool QWidget::isVisible() const {
-    if (isWindow())
+    if (isWindow()) {
+        if (m_d->proxyUpdate)
+            return !m_d->hiddenExplicitly;
         return m_d->window && m_d->window->isVisible();
+    }
     return !m_d->hiddenExplicitly && !m_d->pendingShow && parentWidget()->isVisible();
 }
 
@@ -1076,6 +1232,8 @@ bool QWidget::isVisible() const {
     \sa isVisible()
 */
 bool QWidget::isHidden() const {
+    if (isWindow() && m_d->proxyUpdate)
+        return m_d->hiddenExplicitly;
     if (isWindow())
         return !(m_d->window && m_d->window->isVisible());
     return m_d->hiddenExplicitly || m_d->pendingShow;
@@ -1087,15 +1245,22 @@ bool QWidget::isHidden() const {
 
     \sa show(), hide()
 */
+
 void QWidget::setVisible(bool visible) {
+    if (isWindow() && m_d->proxyUpdate) {
+        const bool was = !m_d->hiddenExplicitly;
+        m_d->hiddenExplicitly = !visible;
+        if (visible && !was) {
+            WidgetAccess::activateLayout(this);
+            WidgetAccess::sendShowEvents(this);
+        }
+        m_d->proxyUpdate(QRegion(rect()));
+        return;
+    }
     if (isWindow()) {
         if (visible) {
             m_d->hiddenExplicitly = false;
-            if (!m_d->window) {
-                m_d->window = std::make_unique<QWidgetWindow>(this);
-                m_d->window->setTitle(WidgetAccess::shownTitle(this));
-                QtPrivate::GuiAccess::setQuitOnClose(m_d->window.get(), testAttribute(Qt::WA_QuitOnClose));
-            }
+            ensureWindow(this);
             // A window with a parent, such as a dialog, is kept above the window of its parent.
             if (QWidget *p = parentWidget())
                 m_d->window->setTransientParent(p->window()->windowHandle());
@@ -1750,10 +1915,15 @@ void QWidget::update(const QRegion &region) {
     if (!isVisible() || WidgetAccess::updatesBlocked(this))
         return;
     QWidget *top = window();
-    if (!top->m_d->window)
-        return;
     const QRegion mapped =
         region.translated(WidgetAccess::windowOffset(this)).intersected(WidgetAccess::visibleRect(this));
+    if (top->m_d->proxyUpdate) {
+        if (!mapped.isEmpty())
+            top->m_d->proxyUpdate(mapped);
+        return;
+    }
+    if (!top->m_d->window)
+        return;
     if (!mapped.isEmpty())
         top->m_d->window->update(mapped);
 }

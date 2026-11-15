@@ -5,6 +5,7 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qsize.h>
 #include <QtCore/qstring.h>
+#include <QtGui/qpalette.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qtextformat.h>
 #include <QtGui/qtextlayout.h>
@@ -65,6 +66,13 @@ private:
 
 class QAbstractTextDocumentLayout {
 public:
+    struct PaintContext {
+        int cursorPosition = -1;
+        QPalette palette;
+        QRectF clip;
+    };
+
+    void draw(QPainter *painter, const PaintContext &context);
     QString anchorAt(const QPointF &pos) const;
     QSizeF documentSize() const;
     QRectF blockBoundingRect(const QTextBlock &block) const;

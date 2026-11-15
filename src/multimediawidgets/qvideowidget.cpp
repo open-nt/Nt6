@@ -40,8 +40,7 @@
     \differences
     Frames are converted with QVideoFrame::toImage() and drawn with QPainter, without the GPU.
     setFullScreen() resizes a window to cover its screen and back, as Nt windows have no full screen
-    state; a widget inside a window does not leave it. There is no QGraphicsVideoItem, as Nt Widgets
-    has no graphics view.
+    state; a widget inside a window does not leave it.
     \enddifferences
 
     \sa QVideoSink, QMediaCaptureSession, QCamera

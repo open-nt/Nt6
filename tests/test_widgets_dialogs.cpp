@@ -95,12 +95,26 @@ void testWindowsWithParents() {
     auto *tool = new QWidget(&main, Qt::Window);
     CHECK(tool->isWindow() && tool->parentWidget() == &main && tool->window() == tool);
     CHECK(tool->windowType() == Qt::Window && tool->windowFlags() == Qt::WindowFlags(Qt::Window));
+    tool->setWindowFlag(Qt::FramelessWindowHint);
+    CHECK(tool->windowFlags() == (Qt::Window | Qt::FramelessWindowHint));
+    tool->setWindowFlag(Qt::FramelessWindowHint, false);
+    CHECK(tool->windowFlags() == Qt::WindowFlags(Qt::Window));
+    CHECK(tool->mapToGlobal(QPointF(1.5, 2.5)) == QPointF(tool->mapToGlobal(QPoint(0, 0))) + QPointF(1.5, 2.5));
+    CHECK(tool->mapFromGlobal(tool->mapToGlobal(QPointF(3.25, 4))) == QPointF(3.25, 4));
+    CHECK(tool->screen() == QGuiApplication::primaryScreen());
+    tool->setScreen(QGuiApplication::primaryScreen());
+    CHECK(!tool->isFullScreen());
     CHECK(!tool->isVisible()); // not shown with its parent
     tool->resize(120, 80);
     tool->show();
     settle(tool);
     CHECK(tool->isVisible() && tool->windowHandle() != nullptr && tool->windowHandle() != main.windowHandle());
     CHECK(tool->windowHandle()->transientParent() == main.windowHandle());
+    CHECK(tool->winId() == tool->windowHandle()->winId() && tool->winId() != 0);
+    tool->showFullScreen();
+    CHECK(tool->isFullScreen() && tool->windowHandle()->isFullScreen());
+    tool->showNormal();
+    CHECK(!tool->isFullScreen() && tool->isVisible());
     CHECK(!QApplication::topLevelWidgets().isEmpty() && QApplication::topLevelWidgets().contains(tool));
 
     // A child of the window is in the window, not in the parent of the window

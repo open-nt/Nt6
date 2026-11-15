@@ -2,7 +2,7 @@
 #pragma once
 
 #include <QtCore/qbytearray.h>
-#include <QtCore/qiodevice.h>
+#include <QtCore/qiodevicebase.h>
 #include <QtCore/qlocale.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringconverter.h>
@@ -12,6 +12,8 @@
 #include <limits>
 #include <memory>
 #include <type_traits>
+
+class QIODevice;
 
 // Text is UTF-8 on devices and byte arrays, until QStringConverter exists.
 class QTextStream {

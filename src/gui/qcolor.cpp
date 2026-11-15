@@ -529,6 +529,25 @@ int QColor::saturation() const noexcept { return toHsv(m_r, m_g, m_b).s; }
 int QColor::value() const noexcept { return toHsv(m_r, m_g, m_b).v; }
 
 /*!
+    Returns the lightness of the color in the HSL model, from 0 (black) to 255 (white): the mean of its largest and
+    smallest component.
+
+    \sa lightnessF(), value()
+*/
+int QColor::lightness() const noexcept {
+    const int hi = std::max({m_r, m_g, m_b});
+    const int lo = std::min({m_r, m_g, m_b});
+    return (hi + lo) / 2;
+}
+
+/*!
+    Returns the lightness from 0.0 to 1.0.
+
+    \sa lightness()
+*/
+qreal QColor::lightnessF() const noexcept { return lightness() / 255.0; }
+
+/*!
     Returns the color with hue \a h (0 to 359), saturation \a s, value \a v
     and alpha \a a (each 0 to 255). A negative \a h gives a gray.
 */

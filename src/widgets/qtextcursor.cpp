@@ -376,3 +376,31 @@ void QTextCursor::endEditBlock() {
 
     Returns \c true if this cursor and \a other are not equal.
 */
+
+/*!
+    Constructs a cursor at the start of \a document. Only mergeBlockFormat() and setBlockFormat() act on such a
+    cursor, and they apply to the whole document; the other functions need a cursor of a QPlainTextEdit.
+*/
+QTextCursor::QTextCursor(QTextDocument *document) : m_document(document) {}
+
+/*!
+    Merges \a modifier into the format of the paragraphs. Nt applies its alignment to the whole document, through
+    its default text option; the other properties are ignored.
+*/
+void QTextCursor::mergeBlockFormat(const QTextBlockFormat &modifier) {
+    if (!m_document || !modifier.hasProperty(QTextFormat::BlockAlignment))
+        return;
+    QTextOption option = m_document->defaultTextOption();
+    option.setAlignment(modifier.alignment());
+    m_document->setDefaultTextOption(option);
+}
+
+/*!
+    Sets the format of the paragraphs to \a format; in Nt, the same as mergeBlockFormat().
+*/
+void QTextCursor::setBlockFormat(const QTextBlockFormat &format) { mergeBlockFormat(format); }
+
+/*!
+    Returns the document of a cursor made from one, or \c nullptr.
+*/
+QTextDocument *QTextCursor::document() const { return m_document; }

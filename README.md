@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`, `ntgltfview`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt FM`, `Nt Concurrent` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -361,7 +361,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::Qml`, `Nt::Multimedia`, `Nt::MultimediaWidgets`, `Nt::Concurrent` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::Qml`, `Nt::Multimedia`, `Nt::MultimediaWidgets`, `Nt::Concurrent`, `Nt::Xml` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -385,6 +385,35 @@ int words = QtConcurrent::blockingMappedReduced(files, countWords, [](int &total
 ```
 
 Differences from Qt: items are handed out in blocks of a fixed size rather than an adaptive one; waiting for a non-blocking map from a thread of a saturated pool does not lend that thread to the pool (the `blocking` functions do work there); results of type `bool` cannot be read from a `QFuture`.
+
+### Nt XML: implemented
+
+Nt XML is the document object model: a whole XML document in memory as a tree that a program walks, searches, changes and writes out again. It reads with `QXmlStreamReader` of Nt Core and needs nothing else. `Nt::Xml` (or `Qt6::Xml`); include `<QtXml>`.
+
+| Class | Notes |
+|---|---|
+| `QDomDocument` | `setContent()` from bytes, text, a `QIODevice` or a `QXmlStreamReader`, returning a `ParseResult` with the message, line and column of an error (and the older forms with a `bool` and `QString *errorMsg`), with `UseNamespaceProcessing` and `PreserveSpacingOnlyNodes`; `createElement()`, `createElementNS()` and the other factories, `importNode()`, `elementsByTagName()`, `toString()`, `toByteArray()` |
+| `QDomNode` | the handle that the others derive from: the whole tree API (`insertBefore()`, `insertAfter()`, `replaceChild()`, `removeChild()`, `appendChild()`, `prependChild()`, `cloneNode()`, `normalize()`, the siblings and the `firstChildElement()` family), `save()` with indentation and encoding policy, line and column of what was read |
+| `QDomElement`, `QDomAttr` | attributes by name or by namespace and local name, as strings, numbers or nodes; `text()`; live `elementsByTagName()` and `elementsByTagNameNS()` |
+| `QDomText`, `QDomCDATASection`, `QDomComment`, `QDomCharacterData` | the string functions of the DOM, `splitText()` |
+| `QDomProcessingInstruction`, `QDomEntityReference`, `QDomDocumentFragment` | the XML declaration is the first processing instruction of a document; a fragment gives its children when it is inserted |
+| `QDomDocumentType`, `QDomEntity`, `QDomNotation`, `QDomImplementation` | the document type with its identifiers, internal subset, unparsed entities and notations; documents made without a document, and the policy for invalid data (`AcceptInvalidData`, `DropInvalidData`, `ReturnNullNode`) |
+| `QDomNodeList`, `QDomNamedNodeMap` | live views of the children, of the elements with a tag name and of the attributes |
+
+```cpp
+QDomDocument document;
+if (const auto result = document.setContent(&file); !result) {
+    qWarning() << result.errorMessage << "at line" << result.errorLine;
+    return;
+}
+for (QDomElement e = document.documentElement().firstChildElement("book"); !e.isNull();
+     e = e.nextSiblingElement("book"))
+    qDebug() << e.attribute("isbn") << e.text();
+```
+
+Guide: [Using Nt XML](https://open-nt.github.io/Nt6/nt-xml.html).
+
+Differences from Qt: the attributes of an element keep the order in which they were added; a document that fails to read is left empty; elements nested more than 1024 deep are an error; the nodes of a document that was destroyed go on as trees of their own; a node that is inserted into a tree of another document becomes a node of that document; `QDomDocument::elementById()` returns a null element; the entities of a document type are the unparsed ones; the SAX classes (`QXmlSimpleReader` and the rest), which Qt 6 moved to `Core5Compat`, are not implemented.
 
 ### Nt SVG: implemented
 
@@ -583,7 +612,7 @@ Not yet: video playback and recording (no video codecs), compressed audio (MP3, 
 | Qt WebChannel | Nt WebChannel |  |
 | Qt WebSockets | Nt WebSockets | ✔ (see Status) |
 | Qt WebView | Nt WebView |  |
-| Qt XML | Nt XML |  |
+| Qt XML | Nt XML | ✔ (see Status) |
 | Qt 5 Compatibility APIs: Graphical Effects | Nt 5 Compatibility APIs: Graphical Effects |  |
 | Qt 5 Core Compatibility APIs | Nt 5 Core Compatibility APIs |  |
 

@@ -8,6 +8,8 @@
 
 #include <xcb/xcb.h>
 
+#include <vector>
+
 class QXcbConnection;
 
 class QXcbWindow : public QPlatformWindow {
@@ -22,6 +24,9 @@ public:
     void requestActivateWindow() override;
     void setTransientParent(const QPlatformWindow *parent) override;
     void setFullScreen(bool fullScreen) override;
+    void setWindowFlags(Qt::WindowFlags flags) override;
+    void raise() override;
+    void lower() override;
     quintptr winId() const override { return m_id; }
     void setCursor(Qt::CursorShape shape) override;
 
@@ -36,6 +41,10 @@ private:
     xcb_window_t m_id;
     QRect m_geometry;
     bool m_mapped = false;
+    std::vector<xcb_atom_t> m_netWmState; // the _NET_WM_STATE atoms asked for, read by the window manager on map
+
+    void setNetWmState(xcb_atom_t atom, bool on);
+    void restack(uint32_t mode);
 };
 
 class QXcbBackingStore : public QPlatformBackingStore {

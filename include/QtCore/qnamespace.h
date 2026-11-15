@@ -678,6 +678,90 @@ enum ArrowType { NoArrow, UpArrow, DownArrow, LeftArrow, RightArrow };
 enum SortOrder { AscendingOrder, DescendingOrder };
 
 /*!
+    \enum Qt::ItemSelectionMode
+
+    How items are matched against a point, rectangle or path.
+
+    \value ContainsItemShape The area contains the whole shape of the item.
+    \value IntersectsItemShape The area touches the shape of the item.
+    \value ContainsItemBoundingRect The area contains the whole bounding rectangle of the item.
+    \value IntersectsItemBoundingRect The area touches the bounding rectangle of the item.
+*/
+enum ItemSelectionMode {
+    ContainsItemShape = 0x0,
+    IntersectsItemShape = 0x1,
+    ContainsItemBoundingRect = 0x2,
+    IntersectsItemBoundingRect = 0x3
+};
+
+/*!
+    \enum Qt::FocusReason
+
+    Why the keyboard focus moved.
+
+    \value MouseFocusReason A mouse click.
+    \value TabFocusReason The Tab key.
+    \value BacktabFocusReason Shift and Tab.
+    \value ActiveWindowFocusReason Another window became active.
+    \value PopupFocusReason A popup opened or closed.
+    \value ShortcutFocusReason A shortcut.
+    \value MenuBarFocusReason The menu bar.
+    \value OtherFocusReason Anything else.
+    \value NoFocusReason No reason.
+*/
+enum FocusReason {
+    MouseFocusReason,
+    TabFocusReason,
+    BacktabFocusReason,
+    ActiveWindowFocusReason,
+    PopupFocusReason,
+    ShortcutFocusReason,
+    MenuBarFocusReason,
+    OtherFocusReason,
+    NoFocusReason
+};
+
+/*!
+    \enum Qt::TextInteractionFlag
+
+    How the user may interact with displayed text.
+
+    \value NoTextInteraction Not at all.
+    \value TextSelectableByMouse Text can be selected with the mouse.
+    \value TextSelectableByKeyboard Text can be selected with the keyboard.
+    \value LinksAccessibleByMouse Links can be followed with the mouse.
+    \value LinksAccessibleByKeyboard Links can be followed with the keyboard.
+    \value TextEditable Text can be edited.
+    \value TextEditorInteraction The flags of a text editor.
+    \value TextBrowserInteraction The flags of a text browser.
+
+    The TextInteractionFlags type is a typedef for \c{QFlags<TextInteractionFlag>}.
+*/
+enum TextInteractionFlag {
+    NoTextInteraction = 0,
+    TextSelectableByMouse = 1,
+    TextSelectableByKeyboard = 2,
+    LinksAccessibleByMouse = 4,
+    LinksAccessibleByKeyboard = 8,
+    TextEditable = 16,
+    TextEditorInteraction = TextSelectableByMouse | TextSelectableByKeyboard | TextEditable,
+    TextBrowserInteraction = TextSelectableByMouse | LinksAccessibleByMouse | LinksAccessibleByKeyboard
+};
+Q_DECLARE_FLAGS(TextInteractionFlags, TextInteractionFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(TextInteractionFlags)
+
+/*!
+    \enum Qt::ClipOperation
+
+    How a new clip combines with the current one.
+
+    \value NoClip Clipping is turned off.
+    \value ReplaceClip The new clip replaces the current one.
+    \value IntersectClip The clip becomes the intersection of the two.
+*/
+enum ClipOperation { NoClip, ReplaceClip, IntersectClip };
+
+/*!
     \enum Qt::ItemFlag
 
     This enum describes what the user can do with an item of a table.
@@ -911,6 +995,90 @@ Q_DECLARE_FLAGS(Orientations, Orientation)
 Q_DECLARE_OPERATORS_FOR_FLAGS(Orientations)
 
 /*!
+    \enum Qt::TransformationMode
+
+    This enum says how an image is resampled when it is scaled.
+
+    \value FastTransformation The nearest pixel, quickly.
+    \value SmoothTransformation A bilinear blend of the four nearest pixels.
+*/
+enum TransformationMode { FastTransformation, SmoothTransformation };
+
+/*!
+    \enum Qt::ShortcutContext
+
+    This enum says where a QShortcut is active.
+
+    \value WidgetShortcut While its parent widget has the focus.
+    \value WindowShortcut While its parent is in the active window.
+    \value ApplicationShortcut While any window of the application is active.
+    \value WidgetWithChildrenShortcut While its parent widget or one of its children has the focus.
+*/
+enum ShortcutContext { WidgetShortcut, WindowShortcut, ApplicationShortcut, WidgetWithChildrenShortcut };
+
+/*!
+    \enum Qt::Edge
+
+    This enum names the edges of a rectangle.
+
+    \value TopEdge The top edge.
+    \value LeftEdge The left edge.
+    \value RightEdge The right edge.
+    \value BottomEdge The bottom edge.
+
+    The Edges type is a typedef for \c{QFlags<Edge>}.
+*/
+enum Edge { TopEdge = 0x00001, LeftEdge = 0x00002, RightEdge = 0x00004, BottomEdge = 0x00008 };
+Q_DECLARE_FLAGS(Edges, Edge)
+Q_DECLARE_OPERATORS_FOR_FLAGS(Edges)
+
+/*!
+    \enum Qt::ScreenOrientation
+
+    This enum describes the orientation of a screen or of content.
+
+    \value PrimaryOrientation The orientation the screen has by nature.
+    \value PortraitOrientation Taller than wide, with the top up.
+    \value LandscapeOrientation Wider than tall, rotated 90 degrees from portrait.
+    \value InvertedPortraitOrientation Portrait turned upside down.
+    \value InvertedLandscapeOrientation Landscape turned upside down.
+
+    The ScreenOrientations type is a typedef for \c{QFlags<ScreenOrientation>}.
+*/
+enum ScreenOrientation {
+    PrimaryOrientation = 0x0,
+    PortraitOrientation = 0x1,
+    LandscapeOrientation = 0x2,
+    InvertedPortraitOrientation = 0x4,
+    InvertedLandscapeOrientation = 0x8
+};
+Q_DECLARE_FLAGS(ScreenOrientations, ScreenOrientation)
+Q_DECLARE_OPERATORS_FOR_FLAGS(ScreenOrientations)
+
+/*!
+    \enum Qt::TouchPointState
+
+    This enum describes what a touch point did.
+
+    \value TouchPointUnknownState Nothing is known about the point.
+    \value TouchPointPressed The point went down.
+    \value TouchPointMoved The point moved.
+    \value TouchPointStationary The point stayed where it was.
+    \value TouchPointReleased The point came up.
+
+    The TouchPointStates type is a typedef for \c{QFlags<TouchPointState>}.
+*/
+enum TouchPointState {
+    TouchPointUnknownState = 0x00,
+    TouchPointPressed = 0x01,
+    TouchPointMoved = 0x02,
+    TouchPointStationary = 0x04,
+    TouchPointReleased = 0x08
+};
+Q_DECLARE_FLAGS(TouchPointStates, TouchPointState)
+Q_DECLARE_OPERATORS_FOR_FLAGS(TouchPointStates)
+
+/*!
     \enum Qt::WindowType
 
     This enum gives the kind of window a widget is, and hints for how the window system decorates it. The
@@ -926,8 +1094,12 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(Orientations)
     \value ToolTip A tool tip.
     \value SplashScreen A splash screen.
     \value SubWindow A child window inside another widget.
+    \value Desktop The desktop; accepted for compatibility.
     \value WindowType_Mask The bits of the flags that hold the kind of window.
     \value MSWindowsFixedSizeDialogHint Accepted for compatibility; it does nothing.
+    \value X11BypassWindowManagerHint A window the window manager does not manage: no frame, no focus handling,
+           stacked as the application says. On X11 it takes effect when the window is next shown.
+    \value BypassWindowManagerHint The same as X11BypassWindowManagerHint.
     \value FramelessWindowHint A window without a frame or a title bar.
     \value WindowTitleHint A window with a title bar.
     \value WindowSystemMenuHint A window with a window menu.
@@ -936,6 +1108,11 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(Orientations)
     \value WindowMinMaxButtonsHint Both of the above.
     \value WindowContextHelpButtonHint A window with a help button.
     \value WindowStaysOnTopHint A window that is kept above the others.
+    \value WindowTransparentForInput A window that input passes through; accepted for compatibility, Nt does not
+           apply it yet.
+    \value WindowDoesNotAcceptFocus A window that does not take the keyboard focus.
+    \value WindowStaysOnBottomHint A window that is kept below the others.
+    \value NoDropShadowWindowHint A window without a shadow; accepted for compatibility.
     \value WindowCloseButtonHint A window with a close button.
     \value CustomizeWindowHint The decoration hints replace the ones the window system would choose.
 */
@@ -950,8 +1127,11 @@ enum WindowType {
     ToolTip = Popup | Sheet,
     SplashScreen = ToolTip | Dialog,
     SubWindow = 0x00000012,
+    Desktop = 0x00000010 | Window,
     WindowType_Mask = 0x000000ff,
     MSWindowsFixedSizeDialogHint = 0x00000100,
+    X11BypassWindowManagerHint = 0x00000400,
+    BypassWindowManagerHint = X11BypassWindowManagerHint,
     FramelessWindowHint = 0x00000800,
     WindowTitleHint = 0x00001000,
     WindowSystemMenuHint = 0x00002000,
@@ -960,8 +1140,12 @@ enum WindowType {
     WindowMinMaxButtonsHint = WindowMinimizeButtonHint | WindowMaximizeButtonHint,
     WindowContextHelpButtonHint = 0x00010000,
     WindowStaysOnTopHint = 0x00040000,
+    WindowTransparentForInput = 0x00080000,
+    WindowDoesNotAcceptFocus = 0x00200000,
     CustomizeWindowHint = 0x02000000,
-    WindowCloseButtonHint = 0x08000000
+    WindowStaysOnBottomHint = 0x04000000,
+    WindowCloseButtonHint = 0x08000000,
+    NoDropShadowWindowHint = 0x40000000
 };
 Q_DECLARE_FLAGS(WindowFlags, WindowType)
 Q_DECLARE_OPERATORS_FOR_FLAGS(WindowFlags)

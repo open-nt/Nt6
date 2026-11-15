@@ -11,6 +11,7 @@
 
 class QAudioOutput;
 class QMediaPlayerPrivate;
+class QVideoSink;
 
 class QMediaPlayer : public QObject {
     Q_OBJECT
@@ -62,6 +63,8 @@ public:
     QAudioOutput *audioOutput() const;
     void setAudioOutput(QAudioOutput *output);
     QObject *videoOutput() const;
+    void setVideoSink(QVideoSink *sink);
+    QVideoSink *videoSink() const;
     void setVideoOutput(QObject *output);
 
     PlaybackState playbackState() const;

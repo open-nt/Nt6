@@ -1,7 +1,8 @@
 # Builds the documentation with NDoc and publishes it to GitHub Pages, together
 # with the apt repository (/apt) made from the .deb packages of every release.
 # packaging/docs-site.sh writes one copy of the docs per release (/<version>/),
-# main as /dev/, and the latest release again at the root.
+# main as /dev/, and the latest release again at the root, whose index.html is
+# the landing page in site/index.html.
 #
 # A Pages deployment replaces the whole site, so the apt repository is rebuilt
 # from the release assets each time; it also runs after slsa.yml, which attaches

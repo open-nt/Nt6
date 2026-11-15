@@ -1,0 +1,623 @@
+<!doctype html>
+<!-- MIT License - see LICENSE
+     The landing page at the root of the documentation site, written there by
+     packaging/docs-site.sh, which fills in the at-sign placeholders: the docs directory of
+     each link (the latest release, or dev/) and the version of the latest release. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nt 6</title>
+<meta name="description" content="Nt is an MIT-licensed, clean-room implementation of the Qt 6 API for embedded Linux, Arm and Zephyr microcontrollers, with static linking, Vulkan ray tracing and Nt-only modules.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700&family=Source+Sans+3:wght@400;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-width bands (pine hero, light sections, pine CTA, footer), each with a 1180px inner column. */
+:root {
+  --teal: #13977F;      /* Nut Teal: logo, links, primary buttons */
+  --neon: #3FD9B4;      /* Nut Neon: accents on pine */
+  --pine: #0B2E27;      /* Pine: hero and CTA bands */
+  --pine-2: #0F3A31;
+  --pine-line: #1E5247;
+  --on-pine: #E6F4F0;
+  --on-pine-muted: #9CC3B8;
+  --bg: #FFFFFF;
+  --bg-alt: #F1F6F4;
+  --fg: #10201C;
+  --fg-muted: #4A5E58;
+  --line: #D6E3DF;
+  --card: #FFFFFF;
+  --link: #0E7F6A;
+  --code-bg: #071F1A;
+  --code-fg: #D8EEE8;
+  --code-key: #3FD9B4;
+  --code-str: #F2C46D;
+  --code-com: #6F9A8F;
+  --font-display: "Titillium Web", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --col: 1180px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0A1714; --bg-alt: #0F211D; --fg: #E3EFEB; --fg-muted: #9DB5AE;
+    --line: #1F3A33; --card: #10251F; --link: #3FD9B4; --pine: #071F1A; --pine-2: #0B2A23;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0A1714; --bg-alt: #0F211D; --fg: #E3EFEB; --fg-muted: #9DB5AE;
+  --line: #1F3A33; --card: #10251F; --link: #3FD9B4; --pine: #071F1A; --pine-2: #0B2A23;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.6 var(--font-body); }
+a { color: var(--link); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--neon); outline-offset: 3px; border-radius: 4px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 600; line-height: 1.12; text-wrap: balance; margin: 0; }
+h2 { font-size: clamp(30px, 4vw, 44px); }
+h3 { font-size: 21px; }
+p { margin: 0; }
+code, pre { font-family: var(--font-mono); }
+
+.wrap { max-width: var(--col); margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.band { padding-block: 88px; }
+.band.alt { background: var(--bg-alt); }
+.eyebrow { font: 600 13px/1 var(--font-display); letter-spacing: .14em; text-transform: uppercase; color: var(--teal); }
+.dark .eyebrow { color: var(--neon); }
+.lede { font-size: 19px; color: var(--fg-muted); max-width: 62ch; }
+.section-head { display: grid; gap: 14px; margin-bottom: 48px; max-width: 760px; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 6px;
+  font: 600 16px/1 var(--font-display); text-decoration: none; border: 2px solid transparent; transition: background .15s, color .15s, border-color .15s; }
+.btn svg { width: 18px; height: 18px; fill: currentColor; }
+.btn-primary { background: var(--teal); color: #fff; }
+.btn-primary:hover { background: #0F7F6B; }
+.btn-ghost { border-color: var(--on-pine-muted); color: var(--on-pine); }
+.btn-ghost:hover { border-color: var(--neon); color: var(--neon); }
+.btn-line { border-color: var(--teal); color: var(--link); }
+.btn-line:hover { background: var(--teal); color: #fff; }
+
+/* Header */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--pine); }
+header.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 9; background: var(--pine); border-bottom: 1px solid var(--pine-line); }
+.top .wrap { display: flex; align-items: center; gap: 28px; height: 68px; }
+.brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--on-pine); font: 600 22px/1 var(--font-display); }
+.brand svg { width: 40px; height: 40px; }
+.brand small { font: 400 13px/1 var(--font-body); color: var(--on-pine-muted); padding: 4px 8px; border: 1px solid var(--pine-line); border-radius: 99px; }
+nav.links { display: flex; gap: 24px; margin-left: auto; }
+nav.links a { color: var(--on-pine); text-decoration: none; font: 600 15px/1 var(--font-display); opacity: .85; }
+nav.links a:hover { color: var(--neon); opacity: 1; }
+.top .btn { padding: 10px 16px; font-size: 15px; }
+@media (max-width: 900px) { nav.links { display: none; } .top .btn { margin-left: auto; } }
+
+/* Hero */
+.hero { background: var(--pine); color: var(--on-pine); position: relative; overflow: hidden; }
+.hero::after { content: ""; position: absolute; right: -180px; top: -120px; width: 720px; height: 720px; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(63,217,180,.16), transparent 70%); }
+.hero .wrap { display: grid; grid-template-columns: 1.05fr 1fr; gap: 56px; align-items: center; padding-block: 88px 96px; position: relative; z-index: 1; }
+.hero h1 { font-size: clamp(40px, 6vw, 68px); font-weight: 700; letter-spacing: -.01em; }
+.hero h1 em { font-style: normal; color: var(--neon); }
+.hero .lede { color: var(--on-pine-muted); margin-top: 22px; }
+.hero .cta { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 34px; }
+.hero .facts { display: flex; flex-wrap: wrap; gap: 10px 22px; margin-top: 30px; padding: 0; list-style: none; color: var(--on-pine-muted); font-size: 15px; }
+.hero .facts li { display: flex; align-items: center; gap: 8px; }
+.hero .facts li::before { content: ""; width: 8px; height: 8px; background: var(--neon); clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+@media (max-width: 960px) { .hero .wrap { grid-template-columns: 1fr; padding-block: 56px 64px; } }
+
+/* Code window */
+.code { background: var(--code-bg); border: 1px solid var(--pine-line); border-radius: 10px; overflow: hidden; min-width: 0;
+  box-shadow: 0 30px 60px -30px rgba(0,0,0,.6); }
+.code .bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--pine-line);
+  font: 500 12px/1 var(--font-mono); color: var(--code-com); }
+.code .bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--pine-line); }
+.code pre { margin: 0; padding: 18px 20px; overflow-x: auto; font-size: 13.5px; line-height: 1.65; color: var(--code-fg); }
+.k { color: var(--code-key); } .s { color: var(--code-str); } .c { color: var(--code-com); }
+
+/* Stat strip */
+.stats { background: var(--pine-2); color: var(--on-pine); border-top: 1px solid var(--pine-line); }
+.stats .wrap { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; padding-block: 30px; }
+.stat b { display: block; font: 700 30px/1.1 var(--font-display); color: var(--neon); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 15px; color: var(--on-pine-muted); }
+@media (max-width: 760px) { .stats .wrap { grid-template-columns: repeat(2, 1fr); } }
+
+/* Reasons */
+.reasons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.reason { background: var(--card); padding: 30px 28px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.reason .ico { width: 44px; height: 44px; }
+.reason p { color: var(--fg-muted); font-size: 16px; }
+.reason a { font-weight: 600; text-decoration: none; font-size: 15px; }
+.reason a:hover { text-decoration: underline; }
+@media (max-width: 960px) { .reasons { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 620px) { .reasons { grid-template-columns: 1fr; } }
+
+/* Split feature rows */
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 56px; align-items: center; }
+.split > * { min-width: 0; }
+.split .copy { display: grid; gap: 18px; }
+.checks { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.checks li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; color: var(--fg-muted); }
+.checks li b { color: var(--fg); font-weight: 600; }
+.checks li::before { content: ""; width: 14px; height: 14px; margin-top: 5px; background: var(--teal);
+  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+@media (max-width: 900px) { .split { grid-template-columns: 1fr; gap: 36px; } .split.flip .visual { order: 2; } }
+
+/* Board diagram */
+.board { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 26px; display: grid; gap: 14px; }
+.layer { border-radius: 6px; padding: 14px 16px; font: 600 15px/1.3 var(--font-display); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.layer span { font: 400 13px/1.3 var(--font-mono); opacity: .8; }
+.layer.app { background: var(--bg-alt); border: 1px dashed var(--line); color: var(--fg); }
+.layer.nt { background: var(--teal); color: #fff; }
+.layer.rtos { background: var(--pine); color: var(--on-pine); }
+.layer.hw { background: transparent; border: 1px solid var(--line); color: var(--fg-muted); }
+.board .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.board .note { font-size: 14px; color: var(--fg-muted); }
+
+/* Nt Only modules */
+.mods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+.mod { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 26px 24px; display: grid; gap: 12px; align-content: start; min-width: 0;
+  transition: border-color .15s, transform .15s; text-decoration: none; color: inherit; }
+.mod:hover { border-color: var(--teal); transform: translateY(-2px); }
+@media (prefers-reduced-motion: reduce) { .mod, .mod:hover { transition: none; transform: none; } }
+.mod code { font-size: 13px; color: var(--link); }
+.mod p { color: var(--fg-muted); font-size: 15.5px; }
+.tag { justify-self: start; font: 600 11px/1 var(--font-display); letter-spacing: .12em; text-transform: uppercase; padding: 5px 8px; border-radius: 4px; background: var(--bg-alt); color: var(--fg-muted); border: 1px solid var(--line); }
+@media (max-width: 1000px) { .mods { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .mods { grid-template-columns: 1fr; } }
+
+/* Graphics band */
+.gfx { background: var(--pine); color: var(--on-pine); }
+.gfx .lede, .gfx .checks li { color: var(--on-pine-muted); }
+.gfx .checks li b { color: var(--on-pine); }
+.gfx .checks li::before { background: var(--neon); }
+.gfx a { color: var(--neon); }
+.shot { margin: 0; display: grid; gap: 12px; }
+.shot img { width: 100%; max-width: 100%; height: auto; aspect-ratio: 16 / 9; display: block; border-radius: 10px; border: 1px solid var(--pine-line); background: #04140F;
+  box-shadow: 0 30px 60px -30px rgba(0,0,0,.6); }
+.shot figcaption { font-size: 14px; color: var(--on-pine-muted); }
+.fine { font-size: 14px; color: var(--on-pine-muted); }
+
+/* Modules list */
+.chips { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { font: 500 14px/1 var(--font-mono); padding: 9px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); }
+.chip.only { border-color: var(--teal); color: var(--link); }
+
+/* Install tabs */
+.install { display: grid; grid-template-columns: 1fr 1.2fr; gap: 48px; align-items: start; }
+.install > * { min-width: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; border-bottom: 1px solid var(--pine-line); padding: 8px 8px 0; background: var(--code-bg); }
+.tabs button { font: 600 14px/1 var(--font-display); background: none; border: 0; color: var(--code-com); padding: 10px 14px; cursor: pointer; border-bottom: 2px solid transparent; }
+.tabs button[aria-selected="true"] { color: var(--neon); border-bottom-color: var(--neon); }
+.tabs button:hover { color: var(--code-fg); }
+.panel-note { padding: 0 20px 18px; color: var(--code-com); font-size: 14px; }
+.panel-note a { color: var(--neon); }
+@media (max-width: 900px) { .install { grid-template-columns: 1fr; } }
+
+/* CTA band */
+.cta-band { background: var(--teal); color: #fff; }
+.cta-band .wrap { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 24px; padding-block: 56px; }
+.cta-band h2 { font-size: clamp(26px, 3.4vw, 36px); }
+.cta-band p { opacity: .9; margin-top: 8px; }
+.cta-band .row { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn-white { background: #fff; color: #0B5E4F; }
+.btn-white:hover { background: var(--on-pine); }
+.btn-outline-white { border-color: rgba(255,255,255,.7); color: #fff; }
+.btn-outline-white:hover { border-color: #fff; background: rgba(255,255,255,.1); }
+
+/* Footer */
+footer { background: var(--pine); color: var(--on-pine-muted); font-size: 15px; }
+footer .wrap { display: grid; grid-template-columns: 1.4fr repeat(3, 1fr); gap: 36px; padding-block: 56px 28px; }
+footer h4 { font: 600 14px/1 var(--font-display); letter-spacing: .1em; text-transform: uppercase; color: var(--on-pine); margin: 0 0 14px; }
+footer ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 9px; }
+footer a { color: var(--on-pine-muted); text-decoration: none; }
+footer a:hover { color: var(--neon); }
+footer .about { display: grid; gap: 16px; align-content: start; }
+.social { display: flex; flex-wrap: wrap; gap: 12px; }
+.social a { display: inline-flex; align-items: center; gap: 8px; padding: 9px 13px; border: 1px solid var(--pine-line); border-radius: 6px; color: var(--on-pine); }
+.social a:hover { border-color: var(--neon); }
+.social svg { width: 18px; height: 18px; fill: currentColor; }
+.legal { grid-column: 1 / -1; border-top: 1px solid var(--pine-line); padding-top: 22px; font-size: 13.5px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+@media (max-width: 860px) { footer .wrap { grid-template-columns: 1fr 1fr; } footer .about { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <mask id="nt-cut" maskUnits="userSpaceOnUse" x="0" y="0" width="256" height="256"><rect width="256" height="256" fill="#fff"/><path fill="#000" d="M57.05 179.38V76.62H86.15L117.35 164.68H119.6V76.62H136.25V179.38H107.75L75.8 91.17H73.7V179.38ZM198.35 118.33H177.65V151.32Q177.65 160.47 179 163.47Q180.35 166.47 185.9 166.47L198.2 166.03L198.95 179.07Q188.9 181.03 183.65 181.03Q170.9 181.03 166.18 175.18Q161.45 169.32 161.45 153.12V118.33H151.85V104.38H161.45V82.62H177.65V104.38H198.35Z"/></mask>
+    <symbol id="nt-logo" viewBox="0 0 256 256"><g mask="url(#nt-cut)"><polygon points="128,24 218,76 218,180 128,232 38,180 38,76" fill="#13977F" stroke="#13977F" stroke-width="24" stroke-linejoin="round"/></g></symbol>
+    <symbol id="i-github" viewBox="0 0 24 24"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.68 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.58.23 2.75.11 3.04.74.81 1.19 1.83 1.19 3.09 0 4.41-2.7 5.38-5.27 5.67.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></symbol>
+    <symbol id="i-linkedin" viewBox="0 0 24 24"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.35V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28ZM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13ZM7.12 20.45H3.56V9h3.56v11.45ZM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0Z"/></symbol>
+    <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 7-5 5 5 5M16 7l5 5-5 5M14 4l-4 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 2h9l5 5v15H6zM14 3.5V8h4.5M9 12h8M9 15.5h8M9 19h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Nt home">
+      <svg role="img" aria-label="Nt logo"><use href="#nt-logo"/></svg>
+      Nt 6 <small>@VERSION@</small>
+    </a>
+    <nav class="links" aria-label="Main">
+      <a href="#why">Why Nt</a>
+      <a href="#embedded">Embedded</a>
+      <a href="#nt-only">Nt Only</a>
+      <a href="#graphics">Graphics</a>
+      <a href="@DOCS@">Documentation</a>
+      <a href="https://github.com/open-nt/nt6-examples">Examples</a>
+    </nav>
+    <a class="btn btn-primary" href="#get-nt">Get Nt</a>
+  </div>
+</header>
+
+<main id="top">
+
+<section class="hero dark">
+  <div class="wrap">
+    <div>
+      <p class="eyebrow">MIT-licensed &middot; Qt 6 API &middot; Linux, Arm and Zephyr</p>
+      <h1 style="margin-top:18px">The Qt 6 API you can <em>ship anywhere</em>, under MIT.</h1>
+      <p class="lede">Nt is a small, clean-room implementation of the Qt 6 API. Keep your QObjects, signals and slots, CMake and tests. Link everything statically into one binary, from an arm64 board to a Cortex-M microcontroller, with no copyleft obligations.</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="#get-nt">Get started</a>
+        <a class="btn btn-ghost" href="@DOCS@"><svg><use href="#i-doc"/></svg>Documentation</a>
+        <a class="btn btn-ghost" href="https://github.com/open-nt/Nt6"><svg><use href="#i-github"/></svg>Source code</a>
+        <a class="btn btn-ghost" href="https://github.com/open-nt/nt6-examples"><svg><use href="#i-code"/></svg>Examples</a>
+      </div>
+      <ul class="facts">
+        <li>Static libraries</li>
+        <li>amd64 and arm64</li>
+        <li>Snap, apt, RPM, Arch</li>
+        <li>Zephyr module</li>
+      </ul>
+    </div>
+    <div class="code" role="figure" aria-label="A Qt-style program built against Nt">
+      <div class="bar"><i></i><i></i><i></i>&nbsp; main.cpp</div>
+<pre><span class="k">#include</span> <span class="s">&lt;QCoreApplication&gt;</span>
+<span class="k">#include</span> <span class="s">&lt;QTcpServer&gt;</span>
+<span class="k">#include</span> <span class="s">&lt;QTimer&gt;</span>
+
+<span class="k">int</span> main(<span class="k">int</span> argc, <span class="k">char</span> *argv[])
+{
+    QCoreApplication app(argc, argv);
+
+    QTcpServer server;
+    server.listen(QHostAddress::Any, <span class="s">7</span>);  <span class="c">// echo</span>
+
+    QTimer heartbeat;
+    QObject::connect(&amp;heartbeat, &amp;QTimer::timeout,
+                     [] { qInfo() &lt;&lt; <span class="s">"alive"</span>; });
+    heartbeat.start(<span class="s">1000</span>);
+
+    <span class="k">return</span> app.exec();
+}
+
+<span class="c"># CMakeLists.txt: same code on Linux or Zephyr</span>
+find_package(Nt6 REQUIRED)
+target_link_libraries(app PRIVATE Nt::Core Nt::Network)</pre>
+    </div>
+  </div>
+</section>
+
+<section class="stats" aria-label="Nt at a glance">
+  <div class="wrap">
+    <div class="stat"><b>MIT</b><span>License for the libraries and tools</span></div>
+    <div class="stat"><b>25</b><span>Modules, from Core to Wayland Compositor</span></div>
+    <div class="stat"><b>~920&nbsp;KB</b><span>Core + Network on an i.MX RT1170</span></div>
+    <div class="stat"><b>0</b><span>Runtime dependencies on Qt</span></div>
+  </div>
+</section>
+
+<section class="band" id="why">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Why Nt</p>
+      <h2>Reasons teams choose Nt</h2>
+      <p class="lede">Nt keeps the API your developers already know and removes the licensing and footprint questions that come with putting it in a product.</p>
+    </div>
+    <div class="reasons">
+      <div class="reason">
+        <svg class="ico" viewBox="0 0 44 44" aria-hidden="true"><path d="M22 4 38 13v18L22 40 6 31V13Z" fill="none" stroke="#13977F" stroke-width="2.5" stroke-linejoin="round"/><path d="M15 22h14M22 15v14" stroke="#13977F" stroke-width="2.5"/></svg>
+        <h3>MIT license, statically linked</h3>
+        <p>Every library is a static archive under the MIT license. Link it into closed firmware, ship one binary and keep the license notice. There is no relinking clause and no commercial seat to buy.</p>
+        <a href="https://github.com/open-nt/Nt6/blob/main/LICENSE">Read the license &rarr;</a>
+      </div>
+      <div class="reason">
+        <svg class="ico" viewBox="0 0 44 44" aria-hidden="true"><rect x="6" y="9" width="32" height="26" rx="3" fill="none" stroke="#13977F" stroke-width="2.5"/><path d="m14 19 4 3-4 3M22 26h8" stroke="#13977F" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h3>The Qt 6 API you know</h3>
+        <p>Classes keep Qt's names and headers: <code>QObject</code>, <code>QTimer</code>, <code>QTcpSocket</code>, <code>QWidget</code>. Existing Qt code ports with a CMake change, and the docs list every difference from Qt.</p>
+        <a href="@DOCS@">Browse the API &rarr;</a>
+      </div>
+      <div class="reason">
+        <svg class="ico" viewBox="0 0 44 44" aria-hidden="true"><rect x="12" y="12" width="20" height="20" rx="2" fill="none" stroke="#13977F" stroke-width="2.5"/><path d="M17 12V6M22 12V6M27 12V6M17 38v-6M22 38v-6M27 38v-6M12 17H6M12 22H6M12 27H6M38 17h-6M38 22h-6M38 27h-6" stroke="#13977F" stroke-width="2.5"/></svg>
+        <h3>Microcontrollers with Zephyr</h3>
+        <p>Nt Core and Nt Network build as a Zephyr module for Cortex-M class boards. The same event loop, timers, TCP and TLS run headless on an RTOS.</p>
+        <a href="@DOCS@nt-zephyr.html">Nt on Zephyr &rarr;</a>
+      </div>
+      <div class="reason">
+        <svg class="ico" viewBox="0 0 44 44" aria-hidden="true"><path d="M8 34 22 8l14 26Z" fill="none" stroke="#13977F" stroke-width="2.5" stroke-linejoin="round"/><path d="M15 34l7-13 7 13" fill="none" stroke="#13977F" stroke-width="2.5" stroke-linejoin="round"/></svg>
+        <h3>Arm from day one</h3>
+        <p>Release packages and the snap are built for amd64 and arm64, so the libraries and tools run on Raspberry Pi class boards, Jetson modules and Arm servers.</p>
+        <a href="@DOCS@install.html">Install on Arm &rarr;</a>
+      </div>
+      <div class="reason">
+        <svg class="ico" viewBox="0 0 44 44" aria-hidden="true"><path d="M8 30c6-14 22-14 28 0" fill="none" stroke="#13977F" stroke-width="2.5"/><circle cx="22" cy="30" r="4" fill="none" stroke="#13977F" stroke-width="2.5"/><path d="M22 8v6M10 14l4 4M34 14l-4 4" stroke="#13977F" stroke-width="2.5" stroke-linecap="round"/></svg>
+        <h3>Modules Qt does not have</h3>
+        <p>Nt Gamepad, Nt FM synthesis, Nt glTF and Nt GPIO extend the Qt API with what devices, games and kiosks need, in the same style and under the same license.</p>
+        <a href="#nt-only">See Nt Only &rarr;</a>
+      </div>
+      <div class="reason">
+        <svg class="ico" viewBox="0 0 44 44" aria-hidden="true"><path d="M10 10h24v24H10z" fill="none" stroke="#13977F" stroke-width="2.5"/><path d="M10 18h24M18 18v16" stroke="#13977F" stroke-width="2.5"/></svg>
+        <h3>Your own tools, also MIT</h3>
+        <p><code>ntmoc</code>, <code>ntrcc</code> and <code>ndoc</code> replace moc, rcc and qdoc with matching command lines and CMake functions, so a build needs nothing from Qt.</p>
+        <a href="https://github.com/open-nt/Nt6#ntmoc-mit-moc-replacement">About the tools &rarr;</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band alt" id="embedded">
+  <div class="wrap split">
+    <div class="copy">
+      <p class="eyebrow">Embedded</p>
+      <h2>From embedded Linux to a Cortex-M on Zephyr</h2>
+      <p class="lede">Nt was built for devices. Static archives, no plugins to deploy and an MIT license make it simple to put the Qt API inside a product you sell.</p>
+      <ul class="checks">
+        <li><span><b>Zephyr RTOS module.</b> Turn on <code>CONFIG_NT</code> and link <code>Nt::Core</code> and <code>Nt::Network</code>. The QEMU sample on <code>mps2/an385</code> passes JSON, timer, TCP, TLS and threading checks.</span></li>
+        <li><span><b>Small footprint.</b> Core and Network link at about 920&nbsp;KB of code for the NXP i.MX RT1170.</span></li>
+        <li><span><b>Static linking.</b> One self-contained binary per target, with no shared Qt libraries to install or update on the device.</span></li>
+        <li><span><b>Hardware close at hand.</b> Nt GPIO drives lines on the Linux GPIO character device or Zephyr; Nt Serial Port, Nt DBus and Nt Http Server cover the rest of a device's I/O.</span></li>
+      </ul>
+      <div class="cta" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:6px">
+        <a class="btn btn-line" href="@DOCS@nt-zephyr.html">Zephyr guide</a>
+        <a class="btn btn-line" href="@DOCS@nt-gpio.html">Nt GPIO guide</a>
+        <a class="btn btn-line" href="https://github.com/open-nt/nt6-examples/tree/main/zephyr">Zephyr samples</a>
+      </div>
+    </div>
+    <div class="visual">
+      <div class="board" role="figure" aria-label="Software stack of Nt on a microcontroller">
+        <div class="layer app">Your application <span>main.cpp</span></div>
+        <div class="row2">
+          <div class="layer nt">Nt Core <span>Nt::Core</span></div>
+          <div class="layer nt">Nt Network <span>Nt::Network</span></div>
+        </div>
+        <div class="layer rtos">Zephyr RTOS <span>CONFIG_NT=y</span></div>
+        <div class="layer hw">NXP i.MX RT1170 &middot; Cortex-M7 <span>mimxrt1170_evk</span></div>
+        <p class="note">The same sources build for embedded Linux on arm64, where every Nt module is available.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="nt-only">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Nt Only</p>
+      <h2>Modules you won't find in Qt 6</h2>
+      <p class="lede">Nt adds libraries in the Qt style for games, media and hardware. They follow the same naming, signals and documentation as the rest of the API.</p>
+    </div>
+    <div class="mods">
+      <a class="mod" href="@DOCS@nt-gamepad.html">
+        <span class="tag">Input</span>
+        <h3>Nt Gamepad</h3>
+        <code>Nt::Gamepad</code>
+        <p>Qt Gamepad from Qt 5, brought back: SDL GameControllerDB mappings, stable ids across replugging, dead zones, rumble and hot plugging.</p>
+      </a>
+      <a class="mod" href="@DOCS@nt-fm.html">
+        <span class="tag">Audio</span>
+        <h3>Nt FM</h3>
+        <code>Nt::FM</code>
+        <p>Four-operator FM synthesis of game sound effects from patches of a few hundred bytes. Lock-free audio thread, with QML types in <code>Nt::FMQml</code>.</p>
+      </a>
+      <a class="mod" href="@DOCS@nt-gltf.html">
+        <span class="tag">3D</span>
+        <h3>Nt glTF</h3>
+        <code>Nt::Gltf</code>
+        <p>Loads glTF 2.0 scenes into meshes, PBR materials, textures, cameras and lights, ready for a Vulkan renderer or ray tracer.</p>
+      </a>
+      <a class="mod" href="@DOCS@nt-gpio.html">
+        <span class="tag">Hardware</span>
+        <h3>Nt GPIO</h3>
+        <code>Nt::Gpio</code>
+        <p><code>QGpioLine</code> reads inputs with debounce and bias and drives outputs, on Linux 5.10 or later and on Zephyr.</p>
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="band gfx dark" id="graphics">
+  <div class="wrap split flip">
+    <div class="visual">
+      <figure class="shot">
+        <a href="https://github.com/open-nt/nt6-examples/tree/main/raytracing"><img src="https://github.com/open-nt/nt6-examples/raw/main/raytracing/pathtracer.png" width="1280" height="720" loading="lazy" decoding="async"
+          alt="Path traced scene rendered with Nt Vulkan: mirror and glass spheres, glowing balls and coloured boxes on a checkered floor under a bright sun"></a>
+        <figcaption>Rendered on the GPU by the <a href="https://github.com/open-nt/nt6-examples/tree/main/raytracing">path tracer example</a> with <code>QVulkanWindow</code> and <code>VK_KHR_ray_tracing_pipeline</code>.</figcaption>
+      </figure>
+    </div>
+    <div class="copy">
+      <p class="eyebrow">Graphics</p>
+      <h2>Vulkan, hardware ray tracing and NVIDIA DLSS</h2>
+      <p class="lede">Nt GUI includes Qt's Vulkan classes, and the samples show how to drive the ray tracing pipeline from them.</p>
+      <ul class="checks">
+        <li><span><b>Vulkan 1.0 to 1.3.</b> <code>QVulkanInstance</code>, <code>QVulkanWindow</code> and the instance and device function tables. The loader is opened at run time, so programs still start where there is no Vulkan.</span></li>
+        <li><span><b>Ray tracing.</b> Trace rays with <code>VK_KHR_ray_tracing_pipeline</code> from a <code>QVulkanWindowRenderer</code>.</span></li>
+        <li><span><b>ntgltfview.</b> Shows a glTF 2.0 scene with ray traced shadows, reflections and glass, an HDR environment, and a camera you fly with the mouse, keyboard or an Nt Gamepad.</span></li>
+        <li><span><b>NVIDIA DLSS.</b> ntgltfview can upscale with DLSS Super Resolution, from DLAA down to Performance mode.</span></li>
+      </ul>
+      <p class="fine">DLSS uses NVIDIA's proprietary NGX SDK, which is not part of Nt. Configure ntgltfview with <code>-DNT_DLSS_SDK_DIR</code> to build it in; without it everything else works unchanged.</p>
+      <p style="display:flex;flex-wrap:wrap;gap:8px 24px"><a href="@DOCS@nt-vulkan.html">Using Nt Vulkan &rarr;</a><a href="https://github.com/open-nt/nt6-examples/tree/main/raytracing">Ray tracing examples &rarr;</a></p>
+    </div>
+  </div>
+</section>
+
+<section class="band alt" id="modules">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Modules</p>
+      <h2>One framework, from the event loop to the window</h2>
+      <p class="lede">Link only what you use. Modules in teal are Nt Only.</p>
+    </div>
+    <div class="chips">
+      <span class="chip">Nt Core</span><span class="chip">Nt Network</span><span class="chip">Nt Concurrent</span><span class="chip">Nt Test</span>
+      <span class="chip">Nt Gui</span><span class="chip">Nt Widgets</span><span class="chip">Nt OpenGL</span><span class="chip">Nt Svg</span>
+      <span class="chip">Nt Svg Widgets</span><span class="chip">Nt Charts</span><span class="chip">Nt Qml</span><span class="chip">Nt Multimedia</span>
+      <span class="chip">Nt Multimedia Widgets</span><span class="chip">Nt Sql</span><span class="chip">Nt Xml</span><span class="chip">Nt DBus</span>
+      <span class="chip">Nt Serial Port</span><span class="chip">Nt WebSockets</span><span class="chip">Nt Http Server</span><span class="chip">Nt Wayland Compositor</span>
+      <span class="chip only">Nt Gamepad</span><span class="chip only">Nt FM</span><span class="chip only">Nt FM QML</span><span class="chip only">Nt glTF</span><span class="chip only">Nt GPIO</span>
+    </div>
+  </div>
+</section>
+
+<section class="band" id="get-nt">
+  <div class="wrap install">
+    <div class="section-head" style="margin-bottom:0">
+      <p class="eyebrow">Get Nt</p>
+      <h2>Install in one command</h2>
+      <p class="lede">Nt is on the Snap Store for amd64 and arm64, in a signed apt repository for Ubuntu, and on the releases page as RPM and Arch packages. Or build it from source with CMake.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px">
+        <a class="btn btn-primary" href="https://snapcraft.io/open-nt6">Get it from the Snap Store</a>
+        <a class="btn btn-line" href="@DOCS@install.html">Install guide</a>
+      </div>
+    </div>
+    <div class="code">
+      <div class="tabs" role="tablist" aria-label="Install method">
+        <button role="tab" id="t-snap" aria-selected="true" aria-controls="p-snap">Snap</button>
+        <button role="tab" id="t-apt" aria-selected="false" aria-controls="p-apt" tabindex="-1">Ubuntu apt</button>
+        <button role="tab" id="t-src" aria-selected="false" aria-controls="p-src" tabindex="-1">Source</button>
+        <button role="tab" id="t-zephyr" aria-selected="false" aria-controls="p-zephyr" tabindex="-1">Zephyr</button>
+      </div>
+      <div role="tabpanel" id="p-snap" aria-labelledby="t-snap">
+<pre><span class="c"># amd64 and arm64, any Linux with snapd</span>
+sudo snap install open-nt6 --channel=candidate
+
+<span class="c"># build against it</span>
+cmake -S . -B build \
+  -DCMAKE_PREFIX_PATH=/snap/open-nt6/current/usr</pre>
+        <p class="panel-note">Includes ntmoc, ntrcc, ndoc, the headers, static libraries and CMake package. <a href="https://snapcraft.io/open-nt6">snapcraft.io/open-nt6</a></p>
+      </div>
+      <div role="tabpanel" id="p-apt" aria-labelledby="t-apt" hidden>
+<pre><span class="c"># Ubuntu 22.04, 24.04 and 26.04</span>
+<span class="c"># add the signed repository (see the install guide), then:</span>
+sudo apt update
+sudo apt install g++ cmake libnt6-dev nt6-tools</pre>
+        <p class="panel-note">Headers go to <code>/usr/include/nt6</code>, so Nt can sit next to Qt. <a href="@DOCS@install.html">Add the repository</a></p>
+      </div>
+      <div role="tabpanel" id="p-src" aria-labelledby="t-src" hidden>
+<pre>git clone https://github.com/open-nt/Nt6.git
+cd Nt6
+cmake -S . -B build
+cmake --build build
+sudo cmake --install build
+
+<span class="c"># or vendor it: add_subdirectory(Nt6)</span></pre>
+        <p class="panel-note">A build without <code>CMAKE_BUILD_TYPE</code> is a Release build with hardening flags on.</p>
+      </div>
+      <div role="tabpanel" id="p-zephyr" aria-labelledby="t-zephyr" hidden>
+<pre><span class="c"># prj.conf</span>
+CONFIG_CPP=y
+CONFIG_STD_CPP17=y
+CONFIG_NT=y
+CONFIG_NT_NETWORK=y
+
+<span class="c"># CMakeLists.txt</span>
+target_link_libraries(app PRIVATE Nt::Core Nt::Network)</pre>
+        <p class="panel-note">Add Nt to your west manifest or <code>ZEPHYR_EXTRA_MODULES</code>. <a href="@DOCS@nt-zephyr.html">Zephyr guide</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap">
+    <div>
+      <h2>Build your next device on Nt 6</h2>
+      <p>Read the reference, try the examples and tell us what you are building.</p>
+    </div>
+    <div class="row">
+      <a class="btn btn-white" href="@DOCS@"><svg><use href="#i-doc"/></svg>Read the docs</a>
+      <a class="btn btn-outline-white" href="https://github.com/open-nt/Nt6"><svg><use href="#i-github"/></svg>Star on GitHub</a>
+      <a class="btn btn-outline-white" href="https://github.com/open-nt/nt6-examples"><svg><use href="#i-code"/></svg>Browse examples</a>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="about">
+      <a class="brand" href="#top" aria-label="Nt home"><svg role="img" aria-label="Nt logo"><use href="#nt-logo"/></svg>Nt 6</a>
+      <p>An MIT-licensed, clean-room implementation of the Qt 6 API for Linux, Arm and Zephyr.</p>
+      <div class="social">
+        <a href="https://github.com/open-nt/Nt6"><svg aria-hidden="true"><use href="#i-github"/></svg>GitHub</a>
+        <a href="https://github.com/open-nt/nt6-examples"><svg aria-hidden="true"><use href="#i-code"/></svg>Examples</a>
+        <a href="https://www.linkedin.com/company/open-nt"><svg aria-hidden="true"><use href="#i-linkedin"/></svg>LinkedIn</a>
+      </div>
+    </div>
+    <div>
+      <h4>Learn</h4>
+      <ul>
+        <li><a href="@DOCS@">Documentation</a></li>
+        <li><a href="@DOCS@install.html">Install guide</a></li>
+        <li><a href="@DOCS@nt-zephyr.html">Nt on Zephyr</a></li>
+        <li><a href="@DOCS@nt-vulkan.html">Vulkan and ray tracing</a></li>
+        <li><a href="https://github.com/open-nt/nt6-examples">Examples</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Get</h4>
+      <ul>
+        <li><a href="https://snapcraft.io/open-nt6">Snap Store</a></li>
+        <li><a href="https://github.com/open-nt/Nt6/releases">Releases</a></li>
+        <li><a href="@DOCS@install.html">apt repository</a></li>
+        <li><a href="https://github.com/open-nt/Nt6">Source code</a></li>
+      </ul>
+    </div>
+    <div>
+      <h4>Project</h4>
+      <ul>
+        <li><a href="https://github.com/open-nt/Nt6/blob/main/LICENSE">MIT License</a></li>
+        <li><a href="https://github.com/open-nt/Nt6/blob/main/CONTRIBUTING.md">Contributing</a></li>
+        <li><a href="https://github.com/open-nt/Nt6/issues">Issues</a></li>
+        <li><a href="@DOCS@brand.html">Brand guide</a></li>
+        <li><a href="https://www.linkedin.com/company/open-nt">LinkedIn</a></li>
+      </ul>
+    </div>
+    <div class="legal">
+      <span>&copy; 2026 The Nt project. Released under the MIT License.</span>
+      <span>Nt is not affiliated with The Qt Company. Qt is a trademark of The Qt Company Ltd.</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"]'));
+  function select(tab) {
+    tabs.forEach(function (t) {
+      var on = t === tab;
+      t.setAttribute('aria-selected', on ? 'true' : 'false');
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById(t.getAttribute('aria-controls')).hidden = !on;
+    });
+  }
+  tabs.forEach(function (tab, i) {
+    tab.addEventListener('click', function () { select(tab); });
+    tab.addEventListener('keydown', function (e) {
+      var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+      if (!d) return;
+      var next = tabs[(i + d + tabs.length) % tabs.length];
+      select(next); next.focus(); e.preventDefault();
+    });
+  });
+})();
+</script>
+</body>
+</html>

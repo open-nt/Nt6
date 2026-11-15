@@ -39,6 +39,7 @@ body:
         - Nt Charts
         - Nt Qml
         - Nt Concurrent
+        - Nt XML
         - Nt Test
         - ntmoc
         - ntrcc

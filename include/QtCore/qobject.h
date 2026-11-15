@@ -270,6 +270,20 @@ public:
         const QtPrivate::SignalId id = QtPrivate::SignalId::of(signal);
         return disconnectImpl(sender, &id, receiver);
     }
+    /*!
+        \overload
+
+        Disconnects \a signal of \a sender from the member function \a slot of \a receiver. Nt does not tell the
+        slots of one receiver apart: every connection from \a signal to \a receiver is removed.
+    */
+    template <typename SenderT, typename SignalClass, typename... SArgs, typename ReceiverT, typename SlotClass,
+              typename SlotReturn, typename... RArgs>
+    static bool disconnect(const SenderT *sender, void (SignalClass::*signal)(SArgs...), const ReceiverT *receiver,
+                           SlotReturn (SlotClass::*slot)(RArgs...)) {
+        (void)slot;
+        const QtPrivate::SignalId id = QtPrivate::SignalId::of(signal);
+        return disconnectImpl(sender, &id, receiver);
+    }
 
     static QMetaObject::Connection connect(const QObject *sender, const char *signal, const QObject *receiver,
                                            const char *member, Qt::ConnectionType type = Qt::AutoConnection);

@@ -397,6 +397,18 @@ evdev (4.4) and keymap (4.5) have no existing counterpart.
 - 5.10: the stacking, damage and focus tests go on `offscreen` through the
   helper from the new Phase 1 item 4.
 
+### Phase 5b (new): Nest as a Wayland host
+
+Added 2026-11-15 for the gva-hmi port: the display extensions are separate
+processes whose windows the HMI must stack, clip and route input to, and a
+Wayland client under GNOME cannot do that. `NtWaylandCompositor`, with the
+API of Qt Wayland Compositor, lets the Nest application be the display
+server instead. The first increment speaks the core protocol and xdg-shell
+over Nt's own wire implementation (no libwayland) and is tested against
+libwayland-client. Later: subsurfaces, dmabuf buffers, xdg-decoration, and a
+`QWaylandSurface` item for Graphics View so client windows composite inside
+the HMI scene.
+
 ### Phase 6: unchanged
 
 Memory modes depend on 2.4 (16-bit formats) and on `QPlatformBackingStore`

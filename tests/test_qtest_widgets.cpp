@@ -7,6 +7,7 @@
 
 #include <QtGui/qevent.h>
 #include <QtGui/qkeysequence.h>
+#include <QtGui/qshortcut.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qlineedit.h>
@@ -73,6 +74,8 @@ private slots:
     void wheel();
     void defaults();
     void nullTargets();
+    void shortcutOnWidget();
+    void styleSheetIsKept();
 };
 
 void TestQtestWidgets::waitForWindow() {
@@ -306,6 +309,72 @@ void TestQtestWidgets::nullTargets() {
     QWidget unshown;
     QTest::ignoreMessage(QtWarningMsg, "QTest::mouseEvent(): the widget has no window; show it first");
     QTest::mouseClick(&unshown, Qt::LeftButton);
+}
+
+void TestQtestWidgets::shortcutOnWidget() {
+    QWidget top;
+    top.resize(200, 100);
+    QLineEdit edit(&top);
+    edit.setGeometry(10, 10, 100, 30);
+    QWidget panel(&top);
+    panel.setGeometry(10, 50, 100, 30);
+    top.show();
+    QVERIFY(QTest::qWaitForWindowActive(top.windowHandle()));
+
+    QShortcut windowWide(QKeySequence(Qt::Key_F2), &panel);
+    QShortcut focused(QKeySequence(Qt::Key_F3), &edit, nullptr, nullptr, Qt::WidgetShortcut);
+    QSignalSpy windowSpy(&windowWide, &QShortcut::activated);
+    QSignalSpy focusSpy(&focused, &QShortcut::activated);
+
+    QTest::keyClick(&top, Qt::Key_F2);
+    QCOMPARE(windowSpy.size(), 1);
+    panel.setFocusPolicy(Qt::StrongFocus);
+    panel.setFocus();
+    QTest::keyClick(&top, Qt::Key_F3); // the edit does not have the focus
+    QCOMPARE(focusSpy.size(), 0);
+    edit.setFocus();
+    QTest::keyClick(&top, Qt::Key_F3);
+    QCOMPARE(focusSpy.size(), 1);
+
+    // A hidden or disabled parent turns the shortcut off, and the key reaches the widget instead.
+    panel.hide();
+    QTest::keyClick(&top, Qt::Key_F2);
+    QCOMPARE(windowSpy.size(), 1);
+    panel.show();
+    panel.setEnabled(false);
+    QTest::keyClick(&top, Qt::Key_F2);
+    QCOMPARE(windowSpy.size(), 1);
+    panel.setEnabled(true);
+    QTest::keyClick(&top, Qt::Key_F2);
+    QCOMPARE(windowSpy.size(), 2);
+
+    // A shortcut takes the key: the line edit does not see the letter.
+    QShortcut letter(QKeySequence(Qt::Key_Q), &top);
+    QSignalSpy letterSpy(&letter, &QShortcut::activated);
+    QTest::keyClick(&edit, 'q');
+    QCOMPARE(letterSpy.size(), 1);
+    QVERIFY(edit.text().isEmpty());
+}
+
+void TestQtestWidgets::styleSheetIsKept() {
+    class Watcher : public QWidget {
+    public:
+        int styleChanges = 0;
+
+    protected:
+        void changeEvent(QEvent *e) override {
+            if (e->type() == QEvent::StyleChange)
+                ++styleChanges;
+            QWidget::changeEvent(e);
+        }
+    } w;
+    QVERIFY(w.styleSheet().isEmpty());
+    const QString css = QString::fromLatin1("QLabel { color: red; }");
+    w.setStyleSheet(css);
+    QCOMPARE(w.styleSheet(), css);
+    QCOMPARE(w.styleChanges, 1);
+    w.setStyleSheet(css); // unchanged: no event
+    QCOMPARE(w.styleChanges, 1);
 }
 
 QTEST_MAIN(TestQtestWidgets)

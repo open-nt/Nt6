@@ -2,6 +2,7 @@
 #include "qpa/qwindowsysteminterface_p.h"
 
 #include "qwindow_p.h"
+#include "qshortcut_p.h"
 
 #include <QtCore/qcoreapplication.h>
 #include <QtGui/qevent.h>
@@ -68,7 +69,17 @@ void QWindowSystemInterface::handleWheelEvent(QWindow *window, const QPointF &lo
 
 void QWindowSystemInterface::handleKeyEvent(QWindow *window, QEvent::Type type, int key,
                                             Qt::KeyboardModifiers modifiers, const QString &text, bool autorep) {
+    handleExtendedKeyEvent(window, type, key, modifiers, 0, 0, 0, text, autorep);
+}
+
+void QWindowSystemInterface::handleExtendedKeyEvent(QWindow *window, QEvent::Type type, int key,
+                                                    Qt::KeyboardModifiers modifiers, quint32 nativeScanCode,
+                                                    quint32 nativeVirtualKey, quint32 nativeModifiers,
+                                                    const QString &text, bool autorep) {
     QtPrivate::GuiAccess::setInput(QGuiApplication::mouseButtons(), modifiers);
-    QKeyEvent event(type, key, modifiers, text, autorep);
+    // A QShortcut takes the key press before the window sees it.
+    if (type == QEvent::KeyPress && QtPrivate::tryShortcut(window, key, modifiers, autorep))
+        return;
+    QKeyEvent event(type, key, modifiers, nativeScanCode, nativeVirtualKey, nativeModifiers, text, autorep);
     QCoreApplication::sendEvent(window, &event);
 }

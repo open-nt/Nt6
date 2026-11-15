@@ -148,7 +148,24 @@ struct Payload : QSharedData {
     int v = 0;
 };
 
+// A QPointer member may name a class that is only declared, as in Qt.
+class LaterDefined;
+struct HoldsLater {
+    QPointer<LaterDefined> later;
+};
+class LaterDefined : public QObject {};
+
 static void testPointers() {
+    {
+        HoldsLater holder;
+        CHECK(holder.later.isNull());
+        auto *object = new LaterDefined;
+        holder.later = object;
+        CHECK(holder.later.data() == object);
+        QList<QObject *> owned{object, new QObject};
+        qDeleteAll(owned); // from <QList>, as Qt code expects
+        CHECK(holder.later.isNull());
+    }
     QPointer<Tracked> p;
     {
         auto *t = new Tracked;
@@ -338,6 +355,9 @@ static void testConnectionFlags() {
     const QMetaObject::Connection second =
         QObject::connect(&source, &QTimer::timeout, &counter, &Counter::hit, Qt::UniqueConnection);
     CHECK(bool(first) && !bool(second));
+    const bool connected = first; // initializes a bool as in Qt, through the restricted conversion
+    const bool duplicate = second;
+    CHECK(connected && !duplicate);
     source.timeout();
     CHECK(counter.hits == 1);
     // Without the flag a duplicate is allowed.

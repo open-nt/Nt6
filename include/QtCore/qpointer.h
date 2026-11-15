@@ -9,7 +9,8 @@
 
     A QPointer\<T\> behaves like a normal \c{T *} but becomes \c nullptr
     automatically when the QObject it points to is destroyed. \c T must
-    derive from QObject.
+    derive from QObject. A member QPointer may name a class that is only declared; the class must be complete
+    where the pointer is set or read.
 
     \code
     QPointer<QTimer> timer = new QTimer;
@@ -26,10 +27,7 @@
 
     \sa QObject, QSharedPointer
 */
-template <typename T>
-class QPointer {
-    static_assert(std::is_base_of_v<QObject, T>, "QPointer requires a QObject type");
-
+template <typename T> class QPointer {
 public:
     /*!
         Constructs a null guarded pointer.
@@ -72,7 +70,10 @@ public:
         Returns the guarded object, or \c nullptr if it has been destroyed or
         the pointer is null.
     */
-    T *data() const { return d ? static_cast<T *>(d->obj.load()) : nullptr; }
+    T *data() const {
+        static_assert(std::is_base_of_v<QObject, T>, "QPointer requires a QObject type");
+        return d ? static_cast<T *>(d->obj.load()) : nullptr;
+    }
     /*!
         Returns the guarded object. This is the same as data().
     */
@@ -104,7 +105,10 @@ public:
 private:
     template <typename X> friend class QPointer;
 
+    // The QObject check sits here and in data(), not in the class, so that a QPointer of a type that is only
+    // declared can be a member, as in Qt; the type must be complete where the pointer is used.
     void assign(T *p) {
+        static_assert(std::is_base_of_v<QObject, T>, "QPointer requires a QObject type");
         if (p)
             d = QtPrivate::Access::guard(p);
         else

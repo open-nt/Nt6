@@ -33,9 +33,17 @@ public:
     void setCursor(Qt::CursorShape shape) override { m_cursor = shape; }
     // The cursor that `window` shows, for tests: its own, or the override cursor of the application.
     static Qt::CursorShape cursorOf(const QWindow *window);
+    void setWindowFlags(Qt::WindowFlags flags) override { m_flags = flags; }
+    void raise() override { m_stacking = 1; }
+    void lower() override { m_stacking = -1; }
+    // What reached the platform, for tests: the flags, and 1 or -1 after the last raise() or lower().
+    Qt::WindowFlags flags() const { return m_flags; }
+    int stacking() const { return m_stacking; }
 
 private:
     Qt::CursorShape m_cursor = Qt::ArrowCursor;
+    Qt::WindowFlags m_flags = Qt::Window;
+    int m_stacking = 0;
     bool m_visible = false;
     quintptr m_id = nextId();
     static quintptr nextId();

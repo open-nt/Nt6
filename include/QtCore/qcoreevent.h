@@ -57,6 +57,20 @@ public:
         \value ActionAdded An action has been added to a widget; delivered as a QActionEvent.
         \value ActionRemoved An action has been removed from a widget; delivered as a QActionEvent.
         \value Expose Part of a window became visible and needs painting; delivered as a QExposeEvent.
+        \value GraphicsSceneMouseMove The mouse moved over a scene; delivered as a QGraphicsSceneMouseEvent.
+        \value GraphicsSceneMousePress A mouse button was pressed in a scene; delivered as a QGraphicsSceneMouseEvent.
+        \value GraphicsSceneMouseRelease A mouse button was released in a scene; delivered as a
+            QGraphicsSceneMouseEvent.
+        \value GraphicsSceneMouseDoubleClick A mouse button was double-clicked in a scene; delivered as a
+            QGraphicsSceneMouseEvent.
+        \value GraphicsSceneHoverEnter The mouse entered an item; delivered as a QGraphicsSceneHoverEvent.
+        \value GraphicsSceneHoverMove The mouse moved over an item; delivered as a QGraphicsSceneHoverEvent.
+        \value GraphicsSceneHoverLeave The mouse left an item; delivered as a QGraphicsSceneHoverEvent.
+        \value GraphicsSceneWheel The mouse wheel turned over a scene; delivered as a QGraphicsSceneWheelEvent.
+        \value TouchBegin A touch sequence began; delivered as a QTouchEvent.
+        \value TouchUpdate Touch points moved; delivered as a QTouchEvent.
+        \value TouchEnd A touch sequence ended; delivered as a QTouchEvent.
+        \value TouchCancel A touch sequence was cancelled; delivered as a QTouchEvent.
         \value ChildAdded An object gained a child; delivered as a QChildEvent.
         \value ChildPolished A widget child was polished; delivered as a QChildEvent.
         \value ChildRemoved An object lost a child; delivered as a QChildEvent.
@@ -108,6 +122,18 @@ public:
         ActionAdded = 114,
         ActionRemoved = 115,
         Expose = 206,
+        GraphicsSceneMouseMove = 155,
+        GraphicsSceneMousePress = 156,
+        GraphicsSceneMouseRelease = 157,
+        GraphicsSceneMouseDoubleClick = 158,
+        GraphicsSceneHoverEnter = 160,
+        GraphicsSceneHoverMove = 161,
+        GraphicsSceneHoverLeave = 162,
+        GraphicsSceneWheel = 168,
+        TouchBegin = 194,
+        TouchUpdate = 195,
+        TouchEnd = 196,
+        TouchCancel = 209,
         ChildAdded = 68,
         ChildPolished = 69,
         ChildRemoved = 71,

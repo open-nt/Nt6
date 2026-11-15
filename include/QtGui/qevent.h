@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qcoreevent.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qnamespace.h>
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
@@ -81,6 +82,8 @@ class QKeyEvent : public QInputEvent {
 public:
     QKeyEvent(Type type, int key, Qt::KeyboardModifiers modifiers, const QString &text = QString(),
               bool autorep = false, ushort count = 1);
+    QKeyEvent(Type type, int key, Qt::KeyboardModifiers modifiers, quint32 nativeScanCode, quint32 nativeVirtualKey,
+              quint32 nativeModifiers, const QString &text = QString(), bool autorep = false, ushort count = 1);
     ~QKeyEvent() override;
     /*!
         \reimp
@@ -91,12 +94,27 @@ public:
     QString text() const { return m_text; }
     bool isAutoRepeat() const { return m_autorep; }
     int count() const { return m_count; }
+    /*!
+        Returns the scan code of the key on the platform: the X11 key code on \c xcb, 0 if the platform gave none.
+    */
+    quint32 nativeScanCode() const { return m_nativeScanCode; }
+    /*!
+        Returns the virtual key of the platform: the X11 keysym on \c xcb, 0 if the platform gave none.
+    */
+    quint32 nativeVirtualKey() const { return m_nativeVirtualKey; }
+    /*!
+        Returns the modifier state of the platform: the X11 key state mask on \c xcb, 0 if the platform gave none.
+    */
+    quint32 nativeModifiers() const { return m_nativeModifiers; }
 
 private:
     int m_key;
     QString m_text;
     bool m_autorep;
     ushort m_count;
+    quint32 m_nativeScanCode = 0;
+    quint32 m_nativeVirtualKey = 0;
+    quint32 m_nativeModifiers = 0;
 };
 
 class QActionEvent : public QEvent {
@@ -264,4 +282,76 @@ public:
         \reimp
     */
     QCloseEvent *clone() const override { return new QCloseEvent(*this); }
+};
+
+class QEventPoint {
+public:
+    enum State : quint8 {
+        Unknown = Qt::TouchPointUnknownState,
+        Stationary = Qt::TouchPointStationary,
+        Pressed = Qt::TouchPointPressed,
+        Updated = Qt::TouchPointMoved,
+        Released = Qt::TouchPointReleased
+    };
+
+    /*! Constructs a point with identifier -1 in the Unknown state at the origin. */
+    QEventPoint() = default;
+    QEventPoint(int pointId, State state, const QPointF &scenePosition, const QPointF &globalPosition);
+
+    /*! Returns the identifier of the touch point, the same for the whole sequence. */
+    int id() const { return m_id; }
+    /*! Returns what the point did. */
+    State state() const { return m_state; }
+    /*! Returns the position in the coordinates of the receiver. */
+    QPointF position() const { return m_position; }
+    /*! Sets the position in the coordinates of the receiver to \a position. */
+    void setPosition(const QPointF &position) { m_position = position; }
+    /*! Returns the position in scene or window coordinates. */
+    QPointF scenePosition() const { return m_scenePosition; }
+    /*! Returns the position on the screen. */
+    QPointF globalPosition() const { return m_globalPosition; }
+    /*! Returns where the point went down, in the coordinates of the receiver. */
+    QPointF pressPosition() const { return m_pressPosition; }
+    /*! Sets where the point went down to \a position. */
+    void setPressPosition(const QPointF &position) { m_pressPosition = position; }
+    /*! Returns the pressure from 0.0 to 1.0; 1.0 if the device does not tell. */
+    qreal pressure() const { return m_pressure; }
+    /*! Sets the pressure to \a pressure. */
+    void setPressure(qreal pressure) { m_pressure = pressure; }
+    /*! Returns \c true if the point is valid. */
+    bool isAccepted() const { return m_accepted; }
+    /*! Sets whether the receiver took the point to \a accepted. */
+    void setAccepted(bool accepted = true) { m_accepted = accepted; }
+
+private:
+    int m_id = -1;
+    State m_state = Unknown;
+    QPointF m_position;
+    QPointF m_scenePosition;
+    QPointF m_globalPosition;
+    QPointF m_pressPosition;
+    qreal m_pressure = 1.0;
+    bool m_accepted = false;
+};
+
+class QTouchEvent : public QInputEvent {
+public:
+    explicit QTouchEvent(Type eventType, Qt::KeyboardModifiers modifiers = Qt::NoModifier,
+                         const QList<QEventPoint> &touchPoints = {});
+    ~QTouchEvent() override;
+    /*!
+        \reimp
+    */
+    QTouchEvent *clone() const override { return new QTouchEvent(*this); }
+
+    /*! Returns the touch points. */
+    const QList<QEventPoint> &points() const { return m_points; }
+    /*! Returns the number of touch points. */
+    qsizetype pointCount() const { return m_points.size(); }
+    /*! Returns the touch point at \a i. */
+    QEventPoint &point(qsizetype i) { return m_points[i]; }
+    Qt::TouchPointStates touchPointStates() const;
+
+private:
+    QList<QEventPoint> m_points;
 };

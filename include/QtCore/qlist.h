@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qalgorithms.h> // qDeleteAll(), which Qt code reaches through its containers
 #include <QtCore/qglobal.h>
 #include <QtCore/qnamespace.h>
 #include <QtCore/qpair.h>

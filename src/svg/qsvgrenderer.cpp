@@ -86,8 +86,8 @@ using namespace QtSvgPrivate;
     are supported.
 
     \differences
-    Documents are static: no SMIL or CSS animation, so animated() is \c false and repaintNeeded() is never
-    emitted. Not drawn: \c image, \c mask, \c pattern, \c marker, filters, \c foreignObject, \c textPath and
+    Documents are static: no SMIL or CSS animation, so animated() is \c false and repaintNeeded() is
+    emitted only by load(). Not drawn: \c image, \c mask, \c pattern, \c marker, filters, \c foreignObject, \c textPath and
     fonts in the document. Text is drawn upright with the fonts of the system: it follows the position and
     scale of its transformation but not rotation or shear, takes one color and has no stroke.
     \c preserveAspectRatio of the document is not read; use setAspectRatioMode(). CSS selectors with
@@ -102,8 +102,8 @@ using namespace QtSvgPrivate;
 /*!
     \fn void QSvgRenderer::repaintNeeded()
 
-    This signal is emitted when the document must be drawn again, because an animation moved on. Nt SVG has no
-    animations and never emits it.
+    This signal is emitted when the document must be drawn again: after load(). Nt SVG has no animations, so
+    it is not emitted otherwise.
 */
 
 struct QSvgRenderer::Data {
@@ -382,6 +382,7 @@ bool QSvgRenderer::load(const QString &filename) {
 bool QSvgRenderer::load(const QByteArray &contents) {
     d->customViewBox = false;
     d->valid = d->document.parse(contents);
+    emit repaintNeeded();
     return d->valid;
 }
 

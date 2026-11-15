@@ -9,8 +9,17 @@ namespace QtPrivate {
 
 int advance64(QFontEngine &engine, char32_t codePoint) {
     if (codePoint == '\t')
-        return 8 * engine.glyph(' ').advance64;
-    return engine.glyph(codePoint).advance64;
+        return 8 * engine.spacedAdvance64(' ', engine.glyph(' ').advance64);
+    return engine.spacedAdvance64(codePoint, engine.glyph(codePoint).advance64);
+}
+
+double textWidthF(QFontEngine &engine, const QString &text) {
+    long long total = 0;
+    forEachCodePoint(text, [&](char32_t cp) {
+        if (cp >= 0x20 || cp == '\t')
+            total += advance64(engine, cp);
+    });
+    return static_cast<double>(total) / 64.0;
 }
 
 int textWidth(QFontEngine &engine, const QString &text) {

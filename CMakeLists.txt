@@ -523,6 +523,7 @@ add_library(NtGui
     src/gui/qegl.cpp
     src/gui/qevent.cpp
     src/gui/qfont.cpp
+    src/gui/qfontdatabase.cpp
     src/gui/qfontengine.cpp
     src/gui/qfontmetrics.cpp
     src/gui/qguiapplication.cpp
@@ -531,6 +532,7 @@ add_library(NtGui
     src/gui/qimageio.cpp
     src/gui/qimagejpeg.cpp
     src/gui/qimagepng.cpp
+    src/gui/qimagereader.cpp
     src/gui/qkeysequence.cpp
     src/gui/qmatrix4x4.cpp
     src/gui/qoffscreensurface.cpp
@@ -552,6 +554,7 @@ add_library(NtGui
     src/gui/qrasterwindow.cpp
     src/gui/qregion.cpp
     src/gui/qscreen.cpp
+    src/gui/qshortcut.cpp
     src/gui/qstylehints.cpp
     src/gui/qsurface.cpp
     src/gui/qsurfaceformat.cpp
@@ -688,6 +691,13 @@ add_library(NtWidgets
     src/widgets/qformlayout.cpp
     src/widgets/qframe.cpp
     src/widgets/qfusionstyle.cpp
+    src/widgets/qgraphicsitem.cpp
+    src/widgets/qgraphicsitems.cpp
+    src/widgets/qgraphicsscene.cpp
+    src/widgets/qgraphicseffect.cpp
+    src/widgets/qgraphicsproxywidget.cpp
+    src/widgets/qgraphicssceneevent.cpp
+    src/widgets/qgraphicsview.cpp
     src/widgets/qgridlayout.cpp
     src/widgets/qgroupbox.cpp
     src/widgets/qheaderview.cpp
@@ -777,6 +787,7 @@ target_link_libraries(NtSvg PUBLIC NtGui)
 nt_set_compile_options(NtSvg)
 
 add_library(NtSvgWidgets
+    src/svgwidgets/qgraphicssvgitem.cpp
     src/svgwidgets/qsvgwidget.cpp
 )
 add_library(Nt::SvgWidgets ALIAS NtSvgWidgets)
@@ -826,6 +837,7 @@ add_library(NtOpenGL
     src/opengl/qopenglhelpers.cpp
     src/opengl/qopenglpaintdevice.cpp
     src/opengl/qopenglpaintengine.cpp
+    src/opengl/qopenglshaderprogram.cpp
     src/opengl/qopenglwindow.cpp
 )
 add_library(Nt::OpenGL ALIAS NtOpenGL)
@@ -840,6 +852,56 @@ target_include_directories(NtOpenGL
 )
 target_link_libraries(NtOpenGL PUBLIC NtGui)
 nt_set_compile_options(NtOpenGL)
+
+# Nt Wayland Compositor: a Wayland display server with the API of Qt Wayland Compositor. It speaks the protocol
+# itself over Unix sockets, so it needs no libwayland; xkbcommon, when found, builds the keymaps that clients get.
+option(NT_USE_WAYLAND "Build Nt Wayland Compositor (Linux)" ON)
+set(NT_HAVE_WAYLAND OFF)
+if(NT_USE_WAYLAND AND CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(NT_HAVE_WAYLAND ON)
+endif()
+if(NT_HAVE_WAYLAND)
+    add_library(NtWaylandCompositor
+        src/waylandcompositor/qwaylandclient.cpp
+        src/waylandcompositor/qwaylandcompositor.cpp
+        src/waylandcompositor/qwaylandcompositorextension.cpp
+        src/waylandcompositor/qwaylandoutput.cpp
+        src/waylandcompositor/qwaylandprotocol.cpp
+        src/waylandcompositor/qwaylandseat.cpp
+        src/waylandcompositor/qwaylandsurface.cpp
+        src/waylandcompositor/qwaylandwire.cpp
+        src/waylandcompositor/qwaylandxdgshell.cpp
+    )
+    add_library(Nt::WaylandCompositor ALIAS NtWaylandCompositor)
+    add_library(Qt6::WaylandCompositor ALIAS NtWaylandCompositor)
+    target_include_directories(NtWaylandCompositor
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtWaylandCompositor>
+            $<INSTALL_INTERFACE:include/nt6/QtWaylandCompositor>
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/waylandcompositor
+    )
+    target_link_libraries(NtWaylandCompositor PUBLIC NtGui)
+    option(NT_USE_XKBCOMMON "Build the keymaps of Nt Wayland Compositor with xkbcommon" ON)
+    set(NT_HAVE_XKBCOMMON OFF)
+    if(NT_USE_XKBCOMMON)
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(NT_XKB QUIET xkbcommon)
+        endif()
+        if(NT_XKB_FOUND)
+            set(NT_HAVE_XKBCOMMON ON)
+        else()
+            message(STATUS "xkbcommon was not found: Nt Wayland Compositor sends clients no keymap")
+        endif()
+    endif()
+    if(NT_HAVE_XKBCOMMON)
+        target_compile_definitions(NtWaylandCompositor PRIVATE NT_HAVE_XKBCOMMON)
+        target_include_directories(NtWaylandCompositor PRIVATE ${NT_XKB_INCLUDE_DIRS})
+        target_link_libraries(NtWaylandCompositor PRIVATE ${NT_XKB_LIBRARIES})
+    endif()
+    nt_set_compile_options(NtWaylandCompositor)
+endif()
 
 # Nt Qml: the JavaScript engine and, later, the QML engine. The interpreter reports script errors as C++
 # exceptions internally, which never leave the library.
@@ -994,6 +1056,7 @@ nt_set_compile_options(NtMultimedia)
 
 # Nt Multimedia Widgets: QVideoWidget, which draws video frames with QPainter.
 add_library(NtMultimediaWidgets
+    src/multimediawidgets/qgraphicsvideoitem.cpp
     src/multimediawidgets/qvideowidget.cpp
 )
 add_library(Nt::MultimediaWidgets ALIAS NtMultimediaWidgets)
@@ -1018,6 +1081,23 @@ target_include_directories(NtConcurrent
 )
 target_link_libraries(NtConcurrent PUBLIC NtCore)
 nt_set_compile_options(NtConcurrent)
+
+add_library(NtXml
+    src/xml/qdom.cpp
+    src/xml/qdom_p.cpp
+    src/xml/qdomparser.cpp
+)
+add_library(Nt::Xml ALIAS NtXml)
+add_library(Qt6::Xml ALIAS NtXml)
+target_include_directories(NtXml
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtXml>
+        $<INSTALL_INTERFACE:include/nt6/QtXml>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/xml
+)
+target_link_libraries(NtXml PUBLIC NtCore)
+nt_set_compile_options(NtXml)
 
 add_library(NtTest
     src/test/qsignalspy.cpp
@@ -1087,6 +1167,9 @@ nt_moc_library(NtGamepad include/QtGamepad)
 nt_moc_library(NtMultimedia include/QtMultimedia)
 nt_moc_library(NtMultimediaWidgets include/QtMultimediaWidgets)
 nt_moc_library(NtOpenGL include/QtOpenGL)
+if(NT_HAVE_WAYLAND)
+nt_moc_library(NtWaylandCompositor include/QtWaylandCompositor)
+endif()
 endif() # NOT NT_ZEPHYR
 
 # Resource compiler and its CMake helpers.
@@ -1377,6 +1460,11 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_concurrent_tests COMMAND nt_concurrent_tests)
     nt_set_compile_options(nt_concurrent_tests)
 
+    add_executable(nt_dom_tests tests/test_dom.cpp)
+    target_link_libraries(nt_dom_tests PRIVATE Nt::Xml)
+    add_test(NAME nt_dom_tests COMMAND nt_dom_tests)
+    nt_set_compile_options(nt_dom_tests)
+
     nt_wrap_cpp(meta_test_sources tests/meta_classes.h)
     add_executable(nt_meta_tests tests/test_meta.cpp ${meta_test_sources})
     target_include_directories(nt_meta_tests PRIVATE tests)
@@ -1401,6 +1489,43 @@ if(NT_BUILD_TESTS)
     endif()
     add_test(NAME nt_dbus_tests COMMAND nt_dbus_tests)
     nt_set_compile_options(nt_dbus_tests)
+
+    # Nt Wayland Compositor against libwayland-client, with the xdg-shell client code that wayland-scanner
+    # generates from wayland-protocols. Skipped when any of the three is missing.
+    if(NT_HAVE_WAYLAND)
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(NT_WL_CLIENT QUIET wayland-client)
+            pkg_check_modules(NT_WL_PROTOCOLS QUIET wayland-protocols)
+            pkg_check_modules(NT_WL_SCANNER QUIET wayland-scanner)
+        endif()
+        if(NT_WL_CLIENT_FOUND AND NT_WL_PROTOCOLS_FOUND AND NT_WL_SCANNER_FOUND)
+            pkg_get_variable(NT_WL_PROTOCOLS_DIR wayland-protocols pkgdatadir)
+            pkg_get_variable(NT_WL_SCANNER_EXECUTABLE wayland-scanner wayland_scanner)
+            enable_language(C) # the generated protocol code is C
+            set(_nt_xdg_xml ${NT_WL_PROTOCOLS_DIR}/stable/xdg-shell/xdg-shell.xml)
+            set(_nt_xdg_dir ${CMAKE_CURRENT_BINARY_DIR}/generated/wayland-test)
+            file(MAKE_DIRECTORY ${_nt_xdg_dir})
+            add_custom_command(
+                OUTPUT ${_nt_xdg_dir}/xdg-shell-client-protocol.h ${_nt_xdg_dir}/xdg-shell-protocol.c
+                COMMAND ${NT_WL_SCANNER_EXECUTABLE} client-header ${_nt_xdg_xml} ${_nt_xdg_dir}/xdg-shell-client-protocol.h
+                COMMAND ${NT_WL_SCANNER_EXECUTABLE} private-code ${_nt_xdg_xml} ${_nt_xdg_dir}/xdg-shell-protocol.c
+                DEPENDS ${_nt_xdg_xml}
+                COMMENT "Generating the xdg-shell client code for the Wayland tests")
+            # The generated C code in a library of its own, so that the C++ warning flags do not reach it.
+            add_library(nt_xdg_shell_client STATIC ${_nt_xdg_dir}/xdg-shell-protocol.c)
+            target_include_directories(nt_xdg_shell_client PUBLIC ${_nt_xdg_dir} ${NT_WL_CLIENT_INCLUDE_DIRS})
+            target_link_libraries(nt_xdg_shell_client PUBLIC ${NT_WL_CLIENT_LIBRARIES})
+            add_executable(nt_waylandcompositor_tests tests/test_waylandcompositor.cpp)
+            target_link_libraries(nt_waylandcompositor_tests PRIVATE Nt::WaylandCompositor Nt::Test nt_xdg_shell_client)
+            nt_enable_automoc(nt_waylandcompositor_tests)
+            add_test(NAME nt_waylandcompositor_tests COMMAND nt_waylandcompositor_tests)
+            set_tests_properties(nt_waylandcompositor_tests PROPERTIES TIMEOUT 120)
+            nt_set_compile_options(nt_waylandcompositor_tests)
+        else()
+            message(STATUS "wayland-client, wayland-protocols or wayland-scanner not found: skipping the Wayland compositor tests")
+        endif()
+    endif()
 
     add_executable(nt_websockets_tests tests/test_websockets.cpp)
     target_link_libraries(nt_websockets_tests PRIVATE Nt::WebSockets)
@@ -1451,6 +1576,24 @@ if(NT_BUILD_TESTS)
 
     # The mouse, keyboard and wheel functions of Nt Test (QTest::mouseClick() and friends) driving widgets on the
     # offscreen platform, through the public API only.
+    # Graphics View: items, scene and view on the offscreen platform.
+    add_executable(nt_graphicsview_tests tests/test_graphicsview.cpp)
+    target_include_directories(nt_graphicsview_tests PRIVATE src/gui)
+    target_link_libraries(nt_graphicsview_tests PRIVATE Nt::Test Nt::Widgets)
+    nt_enable_automoc(nt_graphicsview_tests)
+    add_test(NAME nt_graphicsview_tests COMMAND nt_graphicsview_tests)
+    set_tests_properties(nt_graphicsview_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_graphicsview_tests)
+
+    # The Nt GUI functions added for gva-widgets: fonts, scaled images, text outlines, the image reader, shortcuts.
+    add_executable(nt_gui_additions_tests tests/test_gui_additions.cpp)
+    target_include_directories(nt_gui_additions_tests PRIVATE src/gui)
+    target_link_libraries(nt_gui_additions_tests PRIVATE Nt::Test Nt::Gui)
+    nt_enable_automoc(nt_gui_additions_tests)
+    add_test(NAME nt_gui_additions_tests COMMAND nt_gui_additions_tests)
+    set_tests_properties(nt_gui_additions_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_gui_additions_tests)
+
     add_executable(nt_test_widgets_tests tests/test_qtest_widgets.cpp)
     target_link_libraries(nt_test_widgets_tests PRIVATE Nt::Test Nt::Widgets)
     nt_enable_automoc(nt_test_widgets_tests)

@@ -25,3 +25,7 @@ passedByValue:src/qcalendar.cpp
 passedByValue:include/QtCore/quuid.h
 passedByValue:src/quuid.cpp
 passedByValue:src/qversionnumber.cpp
+// QFlags takes its Enum by value; a static_assert makes it an enumeration. cppcheck cannot resolve the
+// Flags::enum_type of Q_DECLARE_OPERATORS_FOR_FLAGS to that enum in some translation units (qpathclipper.cpp)
+// and takes it for a class.
+passedByValue:include/QtCore/qflags.h

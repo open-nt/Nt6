@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <functional>
+
 #include <QtCore>
 
 #include <string>
@@ -115,6 +117,10 @@ signals:
 
 public:
     Q_INVOKABLE static int twice(int x) { return 2 * x; }
+    Q_INVOKABLE [[nodiscard]] static QString attributed() { return QStringLiteral("attr"); }
+    Q_INVOKABLE std::function<void()> callback() const {
+        return [] {};
+    }
     Q_INVOKABLE QString kindName(Kind k) const { return QMetaEnum::fromType<Kind>().valueToKey(k); }
     Q_INVOKABLE void fireMulti() { emit multi(7, QStringLiteral("seven"), 7.5); }
     Q_INVOKABLE void firePrivate() { emit withPrivate(9, QPrivateSignal()); }

@@ -7,6 +7,7 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
 #include <QtGui/qbrush.h>
+#include <QtGui/qfontmetrics.h>
 #include <QtGui/qcolor.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qimage.h>
@@ -56,6 +57,7 @@ public:
     RenderHints renderHints() const;
 
     void setFont(const QFont &font);
+    QFontMetrics fontMetrics() const;
     const QFont &font() const;
 
     void save();
@@ -78,6 +80,8 @@ public:
     bool worldMatrixEnabled() const;
 
     void setClipRect(const QRect &rect);
+    void setClipRect(const QRectF &rect, Qt::ClipOperation operation = Qt::ReplaceClip);
+    void setClipPath(const QPainterPath &path, Qt::ClipOperation operation = Qt::ReplaceClip);
     void setClipRect(int x, int y, int width, int height) { setClipRect(QRect(x, y, width, height)); }
     void setClipRegion(const QRegion &region);
     QRegion clipRegion() const;

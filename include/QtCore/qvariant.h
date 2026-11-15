@@ -610,3 +610,6 @@ template <typename T> T &get(QVariant &v) { return *get_if<T>(&v); }
 template <typename T> const T &get(const QVariant &v) { return *get_if<T>(&v); }
 template <typename T> T &&get(QVariant &&v) { return std::move(*get_if<T>(&v)); }
 template <typename T> const T &&get(const QVariant &&v) { return std::move(*get_if<T>(&v)); }
+
+// As in Qt, qvariant.h makes QDebug available, so qDebug() << works wherever QVariant does.
+#include <QtCore/qdebug.h>

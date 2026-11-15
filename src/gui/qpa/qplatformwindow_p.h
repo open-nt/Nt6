@@ -28,6 +28,11 @@ public:
     // Makes the window cover the whole screen, or normal again. Called before the window is shown, too.
     virtual void setFullScreen(bool fullScreen) { (void)fullScreen; }
     virtual quintptr winId() const { return 0; }
+    // Applies the window flags: frame, stacking hints, focus and input. Called before the window is shown, too.
+    virtual void setWindowFlags(Qt::WindowFlags flags) { (void)flags; }
+    // Puts the window above, or below, the other windows.
+    virtual void raise() {}
+    virtual void lower() {}
     // Shows the mouse cursor with this shape while it is over the window.
     virtual void setCursor(Qt::CursorShape shape) { (void)shape; }
 

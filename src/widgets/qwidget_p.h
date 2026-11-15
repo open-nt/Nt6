@@ -36,6 +36,11 @@ struct QWidget::Data {
     bool disabled = false;         // setEnabled(false) on this widget
     QString title;
     Qt::WindowFlags windowFlags;
+    QScreen *screen = nullptr; // set with setScreen(); the window's screen otherwise
+    QString styleSheet;
+    // Set while a QGraphicsProxyWidget shows this window in a scene: the window counts as shown without a native
+    // window, and its updates go to the proxy.
+    std::function<void(const QRegion &)> proxyUpdate;
     Qt::WindowModality modality = Qt::NonModal;
     QPalette palette;
     bool paletteSet = false;

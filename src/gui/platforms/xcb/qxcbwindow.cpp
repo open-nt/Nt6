@@ -100,31 +100,72 @@ void QXcbWindow::setTransientParent(const QPlatformWindow *parent) {
     m_connection->flush();
 }
 
-// A window that is not mapped yet gets the state as a property, as the window manager reads it when it maps the
+// A window that is not mapped yet gets its states as a property, as the window manager reads it when it maps the
 // window; a mapped one asks the window manager through the root window.
-void QXcbWindow::setFullScreen(bool fullScreen) {
+void QXcbWindow::setNetWmState(xcb_atom_t atom, bool on) {
+    const auto it = std::find(m_netWmState.begin(), m_netWmState.end(), atom);
+    if (on && it == m_netWmState.end())
+        m_netWmState.push_back(atom);
+    else if (!on && it != m_netWmState.end())
+        m_netWmState.erase(it);
     xcb_connection_t *c = m_connection->xcb();
     const xcb_atom_t state = m_connection->atom("_NET_WM_STATE");
-    const xcb_atom_t fullScreenAtom = m_connection->atom("_NET_WM_STATE_FULLSCREEN");
     if (m_mapped) {
         xcb_client_message_event_t event{};
         event.response_type = XCB_CLIENT_MESSAGE;
         event.format = 32;
         event.window = m_id;
         event.type = state;
-        event.data.data32[0] = fullScreen ? 1 : 0; // _NET_WM_STATE_ADD or _NET_WM_STATE_REMOVE
-        event.data.data32[1] = fullScreenAtom;
+        event.data.data32[0] = on ? 1 : 0; // _NET_WM_STATE_ADD or _NET_WM_STATE_REMOVE
+        event.data.data32[1] = atom;
         event.data.data32[3] = 1; // sent by an application
         xcb_send_event(c, 0, m_connection->rootWindow(),
                        XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
                        reinterpret_cast<const char *>(&event));
-    } else if (fullScreen) {
-        xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, state, XCB_ATOM_ATOM, 32, 1, &fullScreenAtom);
+    } else if (!m_netWmState.empty()) {
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, state, XCB_ATOM_ATOM, 32,
+                            static_cast<uint32_t>(m_netWmState.size()), m_netWmState.data());
     } else {
         xcb_delete_property(c, m_id, state);
     }
     m_connection->flush();
 }
+
+void QXcbWindow::setFullScreen(bool fullScreen) {
+    setNetWmState(m_connection->atom("_NET_WM_STATE_FULLSCREEN"), fullScreen);
+}
+
+void QXcbWindow::setWindowFlags(Qt::WindowFlags flags) {
+    xcb_connection_t *c = m_connection->xcb();
+    // Frameless: the Motif hints, which window managers read for decorations (flags = decorations given).
+    const xcb_atom_t motif = m_connection->atom("_MOTIF_WM_HINTS");
+    if (flags & Qt::FramelessWindowHint) {
+        const uint32_t hints[5] = {2u, 0u, 0u, 0u, 0u};
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, motif, motif, 32, 5, hints);
+    } else {
+        xcb_delete_property(c, m_id, motif);
+    }
+    // No focus: WM_HINTS with the input field false.
+    uint32_t wmHints[9] = {};
+    wmHints[0] = 1u; // InputHint: the second field says whether the window takes the keyboard focus
+    wmHints[1] = (flags & Qt::WindowDoesNotAcceptFocus) ? 0u : 1u;
+    xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, XCB_ATOM_WM_HINTS, XCB_ATOM_WM_HINTS, 32, 9, wmHints);
+    // Bypassing the window manager needs override-redirect, which takes effect at the next map.
+    const uint32_t overrideRedirect = (flags & Qt::BypassWindowManagerHint) ? 1u : 0u;
+    xcb_change_window_attributes(c, m_id, XCB_CW_OVERRIDE_REDIRECT, &overrideRedirect);
+    setNetWmState(m_connection->atom("_NET_WM_STATE_ABOVE"), flags.testFlag(Qt::WindowStaysOnTopHint));
+    setNetWmState(m_connection->atom("_NET_WM_STATE_BELOW"), flags.testFlag(Qt::WindowStaysOnBottomHint));
+    m_connection->flush();
+}
+
+void QXcbWindow::restack(uint32_t mode) {
+    xcb_configure_window(m_connection->xcb(), m_id, XCB_CONFIG_WINDOW_STACK_MODE, &mode);
+    m_connection->flush();
+}
+
+void QXcbWindow::raise() { restack(XCB_STACK_MODE_ABOVE); }
+
+void QXcbWindow::lower() { restack(XCB_STACK_MODE_BELOW); }
 
 void QXcbWindow::setWindowTitle(const QString &title) {
     const QByteArray utf8 = title.toUtf8();

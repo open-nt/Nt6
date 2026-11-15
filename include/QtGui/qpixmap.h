@@ -30,6 +30,20 @@ public:
     bool hasAlphaChannel() const { return m_image.hasAlphaChannel(); }
     void fill(const QColor &color = Qt::white);
     QPixmap copy(const QRect &rect = QRect()) const;
+    QPixmap scaled(int width, int height, Qt::AspectRatioMode aspectMode = Qt::IgnoreAspectRatio,
+                   Qt::TransformationMode mode = Qt::FastTransformation) const {
+        return fromImage(m_image.scaled(width, height, aspectMode, mode));
+    }
+    QPixmap scaled(const QSize &size, Qt::AspectRatioMode aspectMode = Qt::IgnoreAspectRatio,
+                   Qt::TransformationMode mode = Qt::FastTransformation) const {
+        return fromImage(m_image.scaled(size, aspectMode, mode));
+    }
+    QPixmap scaledToWidth(int width, Qt::TransformationMode mode = Qt::FastTransformation) const {
+        return fromImage(m_image.scaledToWidth(width, mode));
+    }
+    QPixmap scaledToHeight(int height, Qt::TransformationMode mode = Qt::FastTransformation) const {
+        return fromImage(m_image.scaledToHeight(height, mode));
+    }
     QImage toImage() const { return m_image; }
     static QPixmap fromImage(const QImage &image);
     bool load(const QString &fileName, const char *format = nullptr);

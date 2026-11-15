@@ -1,1 +1,2 @@
 #include "qsvgwidget.h"
+#include "qgraphicssvgitem.h"

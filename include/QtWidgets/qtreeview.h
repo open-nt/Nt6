@@ -98,6 +98,7 @@ protected:
     int rowHeight(const QModelIndex &index) const;
     virtual void drawRow(QPainter *painter, const QStyleOptionViewItem &options, const QModelIndex &index) const;
     virtual void drawBranches(QPainter *painter, const QRect &rect, const QModelIndex &index) const;
+    void updateGeometries() override;
 
 private:
     struct Row {
@@ -110,7 +111,6 @@ private:
     void appendRows(const QModelIndex &parent, int level, const QSet<QModelIndex> &open);
     bool isOpen(const QModelIndex &first) const;
     bool close(const QModelIndex &first);
-    void updateGeometries();
     void syncHeader();
     int rowOf(const QModelIndex &index) const;
     int rowAtY(int y) const;

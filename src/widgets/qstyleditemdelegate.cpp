@@ -2,6 +2,7 @@
 #include <QtWidgets/qstyleditemdelegate.h>
 
 #include <QtCore/qdatetime.h>
+#include <QtCore/qmetaobject.h>
 #include <QtGui/qcolor.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qimage.h>
@@ -97,23 +98,57 @@ QSize decorationSizeOf(const QStyleOptionViewItem &option) {
     return option.decoration.isNull() ? QSize(16, 16) : option.decoration.size();
 }
 
-// Where the check box, the decoration and the text of an item are, from left to right in its rectangle.
+// Where the check box, the decoration and the text of an item are in its rectangle: the check box on the left, and the
+// decoration on the side of the text that decorationPosition says.
 Parts layoutParts(const QStyleOptionViewItem &option) {
     Parts parts;
-    const QRect r = option.rect;
-    int x = r.left() + kMargin;
+    QRect r = option.rect.adjusted(kMargin, 0, -kMargin, 0);
     if (option.features & QStyleOptionViewItem::HasCheckIndicator) {
         const int size = indicatorSize(option);
-        parts.check = QRect(x, r.top() + (r.height() - size) / 2, size, size);
-        x += size + kSpacing;
+        parts.check = QRect(r.left(), r.top() + (r.height() - size) / 2, size, size);
+        r.setLeft(r.left() + size + kSpacing);
     }
     const QSize decoration = decorationSizeOf(option);
-    if (!decoration.isEmpty()) {
-        parts.decoration = QRect(x, r.top() + (r.height() - decoration.height()) / 2, decoration.width(),
-                                 decoration.height());
-        x += decoration.width() + kSpacing;
+    if (decoration.isEmpty()) {
+        parts.text = QRect(r.left(), r.top(), std::max(0, r.width()), r.height());
+        return parts;
     }
-    parts.text = QRect(x, r.top(), std::max(0, r.right() - kMargin - x + 1), r.height());
+    // The decoration in `room`, aligned as decorationAlignment says.
+    const auto place = [&option, decoration](const QRect &room) {
+        const Qt::Alignment a = option.decorationAlignment;
+        int x = room.left() + (room.width() - decoration.width()) / 2;
+        if (a & Qt::AlignLeft)
+            x = room.left();
+        else if (a & Qt::AlignRight)
+            x = room.right() + 1 - decoration.width();
+        int y = room.top() + (room.height() - decoration.height()) / 2;
+        if (a & Qt::AlignTop)
+            y = room.top();
+        else if (a & Qt::AlignBottom)
+            y = room.bottom() + 1 - decoration.height();
+        return QRect(QPoint(x, y), decoration);
+    };
+    switch (option.decorationPosition) {
+    case QStyleOptionViewItem::Left:
+        parts.decoration = place(QRect(r.left(), r.top(), decoration.width(), r.height()));
+        r.setLeft(r.left() + decoration.width() + kSpacing);
+        break;
+    case QStyleOptionViewItem::Right:
+        parts.decoration = place(QRect(r.right() + 1 - decoration.width(), r.top(), decoration.width(), r.height()));
+        r.setRight(r.right() - decoration.width() - kSpacing);
+        break;
+    case QStyleOptionViewItem::Top:
+        r.adjust(0, kMargin, 0, -kMargin);
+        parts.decoration = place(QRect(r.left(), r.top(), r.width(), decoration.height()));
+        r.setTop(r.top() + decoration.height() + kSpacing);
+        break;
+    case QStyleOptionViewItem::Bottom:
+        r.adjust(0, kMargin, 0, -kMargin);
+        parts.decoration = place(QRect(r.left(), r.bottom() + 1 - decoration.height(), r.width(), decoration.height()));
+        r.setBottom(r.bottom() - decoration.height() - kSpacing);
+        break;
+    }
+    parts.text = QRect(r.left(), r.top(), std::max(0, r.width()), std::max(0, r.height()));
     return parts;
 }
 
@@ -302,11 +337,18 @@ QSize QStyledItemDelegate::sizeHint(const QStyleOptionViewItem &option, const QM
         height = std::max(height, size);
     }
     const QSize decoration = decorationSizeOf(opt);
+    const int text = opt.fontMetrics.horizontalAdvance(opt.text);
+    if (!decoration.isEmpty() && (opt.decorationPosition == QStyleOptionViewItem::Top ||
+                                  opt.decorationPosition == QStyleOptionViewItem::Bottom)) {
+        // The decoration above or below the text: as wide as the wider of the two, as high as both.
+        width += std::max(decoration.width(), text);
+        return QSize(width, height + decoration.height() + kSpacing + 4 * kMargin);
+    }
     if (!decoration.isEmpty()) {
         width += decoration.width() + kSpacing;
         height = std::max(height, decoration.height());
     }
-    width += opt.fontMetrics.horizontalAdvance(opt.text);
+    width += text;
     return QSize(width, height + 2 * kMargin);
 }
 
@@ -358,7 +400,9 @@ QWidget *QStyledItemDelegate::createEditor(QWidget *parent, const QStyleOptionVi
     \reimp
 
     Shows the value that the model returns for Qt::EditRole of the item
-    \a index in \a editor, one of the editors of createEditor().
+    \a index in \a editor: one of the editors of createEditor(), or any
+    widget through its user property (the property declared \c{USER true},
+    such as QLineEdit::text or QAbstractButton::checked).
 */
 void QStyledItemDelegate::setEditorData(QWidget *editor, const QModelIndex &index) const {
     const QVariant value = index.data(Qt::EditRole);
@@ -379,6 +423,11 @@ void QStyledItemDelegate::setEditorData(QWidget *editor, const QModelIndex &inde
     } else if (auto *line = qobject_cast<QLineEdit *>(editor)) {
         line->setText(value.toString());
         line->selectAll();
+    } else if (editor) {
+        // Any other widget: its user property, the one that holds what the user enters.
+        const QMetaProperty user = editor->metaObject()->userProperty();
+        if (user.isValid() && user.isWritable())
+            user.write(editor, value);
     }
 }
 
@@ -386,7 +435,9 @@ void QStyledItemDelegate::setEditorData(QWidget *editor, const QModelIndex &inde
     \reimp
 
     Writes what \a editor shows to Qt::EditRole of the item \a index of
-    \a model, as a value of the type that the item had.
+    \a model, as a value of the type that the item had. A widget that is
+    not one of the editors of createEditor() is read through its user
+    property.
 */
 void QStyledItemDelegate::setModelData(QWidget *editor, QAbstractItemModel *model, const QModelIndex &index) const {
     if (!model || !index.isValid())
@@ -407,6 +458,9 @@ void QStyledItemDelegate::setModelData(QWidget *editor, QAbstractItemModel *mode
         value = dateTime->dateTime();
     } else if (auto *line = qobject_cast<QLineEdit *>(editor)) {
         value = line->text();
+    } else if (const QMetaProperty user = editor ? editor->metaObject()->userProperty() : QMetaProperty();
+               user.isValid()) {
+        value = user.read(editor);
     } else {
         return;
     }

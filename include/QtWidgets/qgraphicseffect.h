@@ -4,6 +4,7 @@
 #include <QtCore/qobject.h>
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
+#include <QtGui/qbrush.h>
 #include <QtGui/qcolor.h>
 
 class QGraphicsEffect : public QObject {
@@ -80,4 +81,91 @@ private:
     QPointF m_offset{8, 8};
     qreal m_blurRadius = 1.0;
     QColor m_color{63, 63, 63, 180};
+};
+
+class QGraphicsBlurEffect : public QGraphicsEffect {
+    Q_OBJECT
+    Q_PROPERTY(qreal blurRadius READ blurRadius WRITE setBlurRadius NOTIFY blurRadiusChanged)
+    Q_PROPERTY(BlurHints blurHints READ blurHints WRITE setBlurHints NOTIFY blurHintsChanged)
+public:
+    enum BlurHint { PerformanceHint = 0x00, QualityHint = 0x01, AnimationHint = 0x02 };
+    Q_DECLARE_FLAGS(BlurHints, BlurHint)
+    Q_FLAG(BlurHints)
+
+    explicit QGraphicsBlurEffect(QObject *parent = nullptr);
+    ~QGraphicsBlurEffect() override;
+
+    QRectF boundingRectFor(const QRectF &rect) const override;
+    qreal blurRadius() const { return m_blurRadius; }
+    BlurHints blurHints() const { return m_hints; }
+
+public slots:
+    void setBlurRadius(qreal blurRadius);
+    void setBlurHints(QGraphicsBlurEffect::BlurHints hints);
+
+signals:
+    /*! This signal is emitted when the blur radius changes to \a blurRadius. */
+    void blurRadiusChanged(qreal blurRadius) { emitSignal(&QGraphicsBlurEffect::blurRadiusChanged, blurRadius); }
+    /*! This signal is emitted when the blur hints change to \a hints. */
+    void blurHintsChanged(QGraphicsBlurEffect::BlurHints hints) {
+        emitSignal(&QGraphicsBlurEffect::blurHintsChanged, hints);
+    }
+
+private:
+    qreal m_blurRadius = 5.0;
+    BlurHints m_hints = PerformanceHint;
+};
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(QGraphicsBlurEffect::BlurHints)
+
+class QGraphicsColorizeEffect : public QGraphicsEffect {
+    Q_OBJECT
+    Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
+    Q_PROPERTY(qreal strength READ strength WRITE setStrength NOTIFY strengthChanged)
+public:
+    explicit QGraphicsColorizeEffect(QObject *parent = nullptr);
+    ~QGraphicsColorizeEffect() override;
+
+    QColor color() const { return m_color; }
+    qreal strength() const { return m_strength; }
+
+public slots:
+    void setColor(const QColor &c);
+    void setStrength(qreal strength);
+
+signals:
+    /*! This signal is emitted when the color changes to \a color. */
+    void colorChanged(const QColor &color) { emitSignal(&QGraphicsColorizeEffect::colorChanged, color); }
+    /*! This signal is emitted when the strength changes to \a strength. */
+    void strengthChanged(qreal strength) { emitSignal(&QGraphicsColorizeEffect::strengthChanged, strength); }
+
+private:
+    QColor m_color{0, 0, 192};
+    qreal m_strength = 1.0;
+};
+
+class QGraphicsOpacityEffect : public QGraphicsEffect {
+    Q_OBJECT
+    Q_PROPERTY(qreal opacity READ opacity WRITE setOpacity NOTIFY opacityChanged)
+    Q_PROPERTY(QBrush opacityMask READ opacityMask WRITE setOpacityMask NOTIFY opacityMaskChanged)
+public:
+    explicit QGraphicsOpacityEffect(QObject *parent = nullptr);
+    ~QGraphicsOpacityEffect() override;
+
+    qreal opacity() const { return m_opacity; }
+    QBrush opacityMask() const { return m_mask; }
+
+public slots:
+    void setOpacity(qreal opacity);
+    void setOpacityMask(const QBrush &mask);
+
+signals:
+    /*! This signal is emitted when the opacity changes to \a opacity. */
+    void opacityChanged(qreal opacity) { emitSignal(&QGraphicsOpacityEffect::opacityChanged, opacity); }
+    /*! This signal is emitted when the opacity mask changes to \a mask. */
+    void opacityMaskChanged(const QBrush &mask) { emitSignal(&QGraphicsOpacityEffect::opacityMaskChanged, mask); }
+
+private:
+    qreal m_opacity = 0.7;
+    QBrush m_mask;
 };

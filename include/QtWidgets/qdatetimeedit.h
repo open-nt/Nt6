@@ -10,7 +10,7 @@
 
 class QDateTimeEdit : public QAbstractSpinBox {
     Q_OBJECT
-    Q_PROPERTY(QDateTime dateTime READ dateTime WRITE setDateTime NOTIFY dateTimeChanged)
+    Q_PROPERTY(QDateTime dateTime READ dateTime WRITE setDateTime NOTIFY dateTimeChanged USER true)
     Q_PROPERTY(QDate date READ date WRITE setDate NOTIFY dateChanged)
     Q_PROPERTY(QTime time READ time WRITE setTime NOTIFY timeChanged)
     Q_PROPERTY(QDateTime maximumDateTime READ maximumDateTime WRITE setMaximumDateTime)
@@ -155,6 +155,7 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(QDateTimeEdit::Sections)
 
 class QDateEdit : public QDateTimeEdit {
     Q_OBJECT
+    Q_PROPERTY(QDate date READ date WRITE setDate NOTIFY dateChanged USER true)
 public:
     explicit QDateEdit(QWidget *parent = nullptr);
     explicit QDateEdit(QDate date, QWidget *parent = nullptr);
@@ -163,6 +164,7 @@ public:
 
 class QTimeEdit : public QDateTimeEdit {
     Q_OBJECT
+    Q_PROPERTY(QTime time READ time WRITE setTime NOTIFY timeChanged USER true)
 public:
     explicit QTimeEdit(QWidget *parent = nullptr);
     explicit QTimeEdit(QTime time, QWidget *parent = nullptr);

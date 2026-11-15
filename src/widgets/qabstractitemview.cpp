@@ -27,8 +27,8 @@
     (selectionMode() and selectionBehavior()), when they are edited (editTriggers()), and the signals for what
     the user does with an item: pressed(), clicked(), doubleClicked() and activated(). A subclass lays the
     items out: it implements visualRect(), indexAt(), scrollTo() and moveCursor(), and draws the items on
-    viewport(). QTreeView is the view of Nt Widgets that does; QListWidget and QTableWidget derive from this
-    class too, but keep their own items and use none of what has to do with a model.
+    viewport(). QListView, QTableView and QTreeView are the views of Nt Widgets that do; QListWidget and
+    QTableWidget derive from this class too, but keep their own items and use none of what has to do with a model.
 
     \section1 Editing
 
@@ -43,7 +43,7 @@
     so that QListWidget and QTableWidget, which have no model, need not implement them.
     \enddifferences
 
-    \sa QTreeView, QTreeWidget, QStyledItemDelegate, QItemSelectionModel
+    \sa QListView, QTableView, QTreeView, QStyledItemDelegate, QItemSelectionModel
 */
 
 /*!
@@ -440,6 +440,30 @@ void QAbstractItemView::setTextElideMode(Qt::TextElideMode mode) {
 }
 
 /*!
+    \fn QSize QAbstractItemView::iconSize() const
+
+    Returns the size that the decorations of the items are drawn in. It is invalid by default, and then each
+    decoration has its own size; the icon mode of QListView makes it 32 by 32 pixels.
+
+    \sa setIconSize()
+*/
+
+/*!
+    Sets the size that the decorations of the items are drawn in to \a size, lays the items out again and emits
+    iconSizeChanged(). An invalid \a size draws each decoration in its own size.
+
+    \sa iconSize()
+*/
+void QAbstractItemView::setIconSize(const QSize &size) {
+    if (m_iconSize == size)
+        return;
+    m_iconSize = size;
+    updateGeometries();
+    viewport()->update();
+    emit iconSizeChanged(size);
+}
+
+/*!
     Returns the current item: the one that the keyboard works on. It is invalid if there is none.
 
     \sa setCurrentIndex(), QItemSelectionModel::currentIndex()
@@ -612,6 +636,8 @@ void QAbstractItemView::initViewItemOption(QStyleOptionViewItem *option) const {
     option->font = font();
     option->fontMetrics = QFontMetrics(font());
     option->textElideMode = m_elide;
+    if (m_iconSize.isValid())
+        option->decorationSize = m_iconSize;
     option->widget = this;
 }
 
@@ -619,6 +645,12 @@ void QAbstractItemView::initViewItemOption(QStyleOptionViewItem *option) const {
     Returns \c EditingState while an editor is open.
 */
 QAbstractItemView::State QAbstractItemView::state() const { return m_editor ? EditingState : NoState; }
+
+/*!
+    Lays out the parts of the view around its items again: its headers and the ranges of its scroll bars. A
+    subclass reimplements this; the default does nothing.
+*/
+void QAbstractItemView::updateGeometries() {}
 
 /*!
     Places the editor of the view over its item again. A subclass calls this when it has scrolled or laid its

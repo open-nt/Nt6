@@ -32,6 +32,9 @@ public:
     void resizeSection(int logicalIndex, int size);
     int sectionPosition(int logicalIndex) const;
     int logicalIndexAt(int position) const;
+    bool isSectionHidden(int logicalIndex) const;
+    void setSectionHidden(int logicalIndex, bool hide);
+    int hiddenSectionCount() const;
     bool stretchLastSection() const { return m_stretchLast; }
     void setStretchLastSection(bool stretch);
     bool sectionsClickable() const { return m_clickable; }
@@ -43,6 +46,10 @@ public:
     Qt::SortOrder sortIndicatorOrder() const { return m_sortOrder; }
 
     QSize sizeHint() const override;
+
+public slots:
+    void hideSection(int logicalIndex) { setSectionHidden(logicalIndex, true); }
+    void showSection(int logicalIndex) { setSectionHidden(logicalIndex, false); }
 
 signals:
     /*!
@@ -74,6 +81,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
+    friend class QTableView;
     friend class QTableWidget;
     friend class QTreeView;
     void setCount(int count);
@@ -82,10 +90,12 @@ private:
     void setLabels(const QStringList &labels);
     QString labelAt(int logicalIndex) const;
     int storedSize(int logicalIndex) const;
+    int lastVisible() const;
     int edgeAt(const QPoint &pos) const;
 
     Qt::Orientation m_orientation;
     std::vector<int> m_sizes;
+    std::vector<char> m_hidden; // parallel to m_sizes
     QStringList m_labels;
     int m_offset = 0;
     int m_defaultSize = 100;

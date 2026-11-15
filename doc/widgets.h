@@ -719,8 +719,9 @@
     \li QLineEdit
     \li One line of text to type, with selection, a placeholder and a password mode.
     \row
-    \li QListWidget
-    \li Items in rows to select, with the mouse or the keys; one, several or none at a time.
+    \li QListWidget, QListView
+    \li Items in rows to select, with the mouse or the keys; one, several or none at a time. QListWidget keeps its own
+        items, and QListView shows a column of any model, as a list or as large icons in rows that wrap.
     \row
     \li QTreeView, QTreeWidget
     \li A tree with columns and a header: QTreeView shows any model of Nt Core, and QTreeWidget keeps its own
@@ -769,9 +770,10 @@
     \li QScrollBar, QScrollArea
     \li A bar to scroll with, and a view of a larger widget with scroll bars.
     \row
-    \li QTableWidget, QHeaderView
-    \li Rows and columns of items with row and column headers, which scrolls. Items have text, colors, an alignment
-    and a tool tip.
+    \li QTableWidget, QTableView, QHeaderView
+    \li Rows and columns of items with row and column headers, which scrolls. QTableWidget keeps its own items, with
+    text, colors, an alignment and a tool tip; QTableView shows any model of Nt Core, with hidden rows and columns,
+    sorting from the header and editing in place.
     \row
     \li QToolTip
     \li A text that explains a widget, shown when the mouse rests on it: set it with QWidget::setToolTip().

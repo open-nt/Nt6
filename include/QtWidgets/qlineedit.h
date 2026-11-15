@@ -7,7 +7,7 @@
 
 class QLineEdit : public QWidget {
     Q_OBJECT
-    Q_PROPERTY(QString text READ text WRITE setText NOTIFY textChanged)
+    Q_PROPERTY(QString text READ text WRITE setText NOTIFY textChanged USER true)
     Q_PROPERTY(QString placeholderText READ placeholderText WRITE setPlaceholderText)
     Q_PROPERTY(int maxLength READ maxLength WRITE setMaxLength)
     Q_PROPERTY(bool readOnly READ isReadOnly WRITE setReadOnly)

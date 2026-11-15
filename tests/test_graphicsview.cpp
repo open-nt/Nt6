@@ -112,6 +112,7 @@ private slots:
     void groupKeepsScenePositions();
     void proxyWidget();
     void dropShadowEffect();
+    void blurColorizeOpacityEffects();
     void touchEvent();
 };
 
@@ -568,6 +569,84 @@ void TestGraphicsView::dropShadowEffect() {
     QVERIFY(QTest::qWaitFor([&] { return grab(view).pixel(63, 62) == qRgb(255, 255, 255); }));
     delete probe;
     QVERIFY(guard.isNull());
+}
+
+void TestGraphicsView::blurColorizeOpacityEffects() {
+    // The properties and their signals.
+    auto *blur = new QGraphicsBlurEffect;
+    QCOMPARE(blur->blurRadius(), 5.0);
+    QCOMPARE(blur->blurHints(), QGraphicsBlurEffect::BlurHints(QGraphicsBlurEffect::PerformanceHint));
+    QSignalSpy radii(blur, &QGraphicsBlurEffect::blurRadiusChanged);
+    QSignalSpy hints(blur, &QGraphicsBlurEffect::blurHintsChanged);
+    blur->setBlurRadius(6);
+    blur->setBlurRadius(6);
+    blur->setBlurHints(QGraphicsBlurEffect::QualityHint | QGraphicsBlurEffect::AnimationHint);
+    QCOMPARE(radii.count(), 1);
+    QCOMPARE(hints.count(), 1);
+    QCOMPARE(blur->boundingRectFor(QRectF(0, 0, 10, 10)), QRectF(-6, -6, 22, 22));
+    blur->setBlurRadius(-3);
+    QCOMPARE(blur->blurRadius(), 0.0);
+    blur->setBlurRadius(6);
+
+    auto *colorize = new QGraphicsColorizeEffect;
+    QCOMPARE(colorize->color(), QColor(0, 0, 192));
+    QCOMPARE(colorize->strength(), 1.0);
+    QSignalSpy strengths(colorize, &QGraphicsColorizeEffect::strengthChanged);
+    colorize->setStrength(2);
+    QCOMPARE(colorize->strength(), 1.0);
+    QCOMPARE(strengths.count(), 0);
+
+    auto *opacity = new QGraphicsOpacityEffect;
+    QCOMPARE(opacity->opacity(), 0.7);
+    QCOMPARE(opacity->opacityMask().style(), Qt::NoBrush);
+    QSignalSpy opacities(opacity, &QGraphicsOpacityEffect::opacityChanged);
+    opacity->setOpacity(0.5);
+    QCOMPARE(opacities.count(), 1);
+
+    QGraphicsScene scene(0, 0, 200, 100);
+    scene.setBackgroundBrush(Qt::white);
+    auto *probe = new Probe(QRectF(0, 0, 40, 40));
+    probe->setPos(20, 20);
+    scene.addItem(probe);
+    QGraphicsView view(&scene);
+    view.setFrameShape(QFrame::NoFrame);
+    view.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    view.resize(200, 100);
+    view.show();
+    QVERIFY(QTest::qWaitForWindowExposed(view.windowHandle()));
+    QVERIFY(QTest::qWaitFor([&] { return grab(view).pixel(40, 40) == qRgb(255, 0, 0); }));
+
+    // A blur keeps the middle, softens the edge and spreads past it.
+    probe->setGraphicsEffect(blur);
+    QVERIFY(QTest::qWaitFor([&] { return grab(view).pixel(20, 40) != qRgb(255, 0, 0); }));
+    QImage image = grab(view);
+    QCOMPARE(image.pixel(40, 40), qRgb(255, 0, 0));
+    QVERIFY(image.pixel(20, 40) != qRgb(255, 255, 255));
+    QVERIFY(qGreen(image.pixel(16, 40)) < 255);
+    QCOMPARE(image.pixel(5, 40), qRgb(255, 255, 255));
+
+    // Colorize: the gray of the red, screened with the color.
+    QPointer<QGraphicsBlurEffect> oldBlur(blur);
+    probe->setGraphicsEffect(colorize); // the item deletes the effect it had
+    QVERIFY(oldBlur.isNull());
+    QVERIFY(QTest::qWaitFor([&] { return grab(view).pixel(40, 40) != qRgb(255, 0, 0); }));
+    const QRgb tinted = grab(view).pixel(40, 40);
+    QVERIFY(qAbs(qRed(tinted) - 87) <= 2 && qAbs(qGreen(tinted) - 87) <= 2 && qAbs(qBlue(tinted) - 214) <= 2);
+    QCOMPARE(grab(view).pixel(90, 90), qRgb(255, 255, 255));
+    colorize->setStrength(0);
+    QVERIFY(QTest::qWaitFor([&] { return grab(view).pixel(40, 40) == qRgb(255, 0, 0); }));
+
+    // Opacity: red over white at one half; a transparent mask hides the item.
+    probe->setGraphicsEffect(opacity);
+    QVERIFY(QTest::qWaitFor([&] { return grab(view).pixel(40, 40) != qRgb(255, 0, 0); }));
+    const QRgb half = grab(view).pixel(40, 40);
+    QVERIFY(qRed(half) == 255 && qAbs(qGreen(half) - 128) <= 3 && qAbs(qBlue(half) - 128) <= 3);
+    opacity->setOpacity(1);
+    opacity->setOpacityMask(QBrush(QColor(0, 0, 0, 0)));
+    QVERIFY(QTest::qWaitFor([&] { return grab(view).pixel(40, 40) == qRgb(255, 255, 255); }));
+    opacity->setOpacityMask(QBrush(QColor(0, 0, 0)));
+    QVERIFY(QTest::qWaitFor([&] { return grab(view).pixel(40, 40) == qRgb(255, 0, 0); }));
 }
 
 void TestGraphicsView::touchEvent() {

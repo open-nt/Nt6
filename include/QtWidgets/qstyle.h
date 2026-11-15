@@ -7,7 +7,9 @@
 #include <QtCore/qsize.h>
 #include <QtGui/qpalette.h>
 
+class QFontMetrics;
 class QPainter;
+class QPixmap;
 class QStyleOption;
 class QWidget;
 
@@ -142,8 +144,31 @@ public:
                                    const QWidget *widget = nullptr) const = 0;
     virtual QPalette standardPalette() const;
 
+    virtual QRect itemTextRect(const QFontMetrics &metrics, const QRect &rectangle, int alignment, bool enabled,
+                               const QString &text) const;
+    virtual QRect itemPixmapRect(const QRect &rectangle, int alignment, const QPixmap &pixmap) const;
+    virtual void drawItemText(QPainter *painter, const QRect &rectangle, int alignment, const QPalette &palette,
+                              bool enabled, const QString &text, QPalette::ColorRole textRole = QPalette::NoRole) const;
+    virtual void drawItemPixmap(QPainter *painter, const QRect &rectangle, int alignment, const QPixmap &pixmap) const;
+
+    const QStyle *proxy() const;
+
+    static QRect visualRect(Qt::LayoutDirection direction, const QRect &boundingRectangle,
+                            const QRect &logicalRectangle);
+    static QPoint visualPos(Qt::LayoutDirection direction, const QRect &boundingRectangle,
+                            const QPoint &logicalPosition);
+    static Qt::Alignment visualAlignment(Qt::LayoutDirection direction, Qt::Alignment alignment);
+    static QRect alignedRect(Qt::LayoutDirection direction, Qt::Alignment alignment, const QSize &size,
+                             const QRect &rectangle);
+    static int sliderPositionFromValue(int min, int max, int logicalValue, int span, bool upsideDown = false);
+    static int sliderValueFromPosition(int min, int max, int position, int span, bool upsideDown = false);
+
 protected:
     QStyle() = default;
+
+private:
+    friend class QProxyStyle;
+    QStyle *m_proxy = nullptr; // the QProxyStyle that this style is the base of
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStyle::State)

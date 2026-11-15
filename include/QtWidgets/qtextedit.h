@@ -10,7 +10,7 @@ class QTextDocument;
 class QTextEdit : public QPlainTextEdit {
     Q_OBJECT
     Q_PROPERTY(bool acceptRichText READ acceptRichText WRITE setAcceptRichText)
-    Q_PROPERTY(QString html READ toHtml WRITE setHtml)
+    Q_PROPERTY(QString html READ toHtml WRITE setHtml USER true)
 public:
     explicit QTextEdit(QWidget *parent = nullptr);
     explicit QTextEdit(const QString &text, QWidget *parent = nullptr);

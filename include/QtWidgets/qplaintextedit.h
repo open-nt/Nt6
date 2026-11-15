@@ -8,7 +8,7 @@
 
 class QPlainTextEdit : public QAbstractScrollArea {
     Q_OBJECT
-    Q_PROPERTY(QString plainText READ toPlainText WRITE setPlainText NOTIFY textChanged)
+    Q_PROPERTY(QString plainText READ toPlainText WRITE setPlainText NOTIFY textChanged USER true)
     Q_PROPERTY(QString placeholderText READ placeholderText WRITE setPlaceholderText)
     Q_PROPERTY(bool readOnly READ isReadOnly WRITE setReadOnly)
     Q_PROPERTY(LineWrapMode lineWrapMode READ lineWrapMode WRITE setLineWrapMode)

@@ -16,6 +16,7 @@ class QAbstractItemView : public QAbstractScrollArea {
     Q_PROPERTY(SelectionBehavior selectionBehavior READ selectionBehavior WRITE setSelectionBehavior)
     Q_PROPERTY(bool alternatingRowColors READ alternatingRowColors WRITE setAlternatingRowColors)
     Q_PROPERTY(EditTriggers editTriggers READ editTriggers WRITE setEditTriggers)
+    Q_PROPERTY(QSize iconSize READ iconSize WRITE setIconSize NOTIFY iconSizeChanged)
 public:
     enum SelectionMode { NoSelection, SingleSelection, MultiSelection, ExtendedSelection, ContiguousSelection };
     Q_ENUM(SelectionMode)
@@ -61,6 +62,8 @@ public:
     void setEditTriggers(EditTriggers triggers);
     Qt::TextElideMode textElideMode() const { return m_elide; }
     void setTextElideMode(Qt::TextElideMode mode);
+    QSize iconSize() const { return m_iconSize; }
+    void setIconSize(const QSize &size);
 
     QModelIndex currentIndex() const;
     QModelIndex rootIndex() const;
@@ -99,6 +102,12 @@ signals:
         Return or Enter while it is the current item.
     */
     void activated(const QModelIndex &index) { emitSignal(&QAbstractItemView::activated, index); }
+    /*!
+        This signal is emitted when the size of the decorations of the items changes to \a size.
+
+        \sa setIconSize()
+    */
+    void iconSizeChanged(const QSize &size) { emitSignal(&QAbstractItemView::iconSizeChanged, size); }
 
 protected:
     enum CursorAction {
@@ -121,6 +130,7 @@ protected:
     virtual void initViewItemOption(QStyleOptionViewItem *option) const;
     State state() const;
     void updateEditorGeometries();
+    virtual void updateGeometries();
     using QWidget::update;
 
 protected slots:
@@ -141,6 +151,7 @@ private:
     SelectionBehavior m_selectionBehavior = SelectItems;
     EditTriggers m_triggers = EditTriggers(DoubleClicked) | EditKeyPressed | AnyKeyPressed;
     Qt::TextElideMode m_elide = Qt::ElideRight;
+    QSize m_iconSize;
     bool m_alternating = false;
     QPointer<QAbstractItemModel> m_model;
     QPointer<QItemSelectionModel> m_selection;

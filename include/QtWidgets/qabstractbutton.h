@@ -9,7 +9,7 @@ class QAbstractButton : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QString text READ text WRITE setText)
     Q_PROPERTY(bool checkable READ isCheckable WRITE setCheckable)
-    Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled)
+    Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled USER true)
     Q_PROPERTY(bool down READ isDown WRITE setDown)
     Q_PROPERTY(bool autoExclusive READ autoExclusive WRITE setAutoExclusive)
 public:

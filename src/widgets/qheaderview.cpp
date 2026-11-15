@@ -16,9 +16,10 @@
     vertical, for its rows. The user drags the edge between two sections to resize the one before it, and clicks
     a section if the header has clickable sections.
 
-    A QTableWidget has both headers, and gives them their sections and labels: use QTableWidget::horizontalHeader() and
-    QTableWidget::verticalHeader() to reach them. The sizes of the sections of the headers are the widths of the columns
-    and the heights of the rows.
+    A QTableWidget or QTableView has both headers, and gives them their sections and labels: use
+    QTableView::horizontalHeader() and QTableView::verticalHeader() to reach them. The sizes of the sections of the
+    headers are the widths of the columns and the heights of the rows; a hidden section is a hidden row or column (see
+    hideSection()). QTreeView has a horizontal header for its columns.
 
     \code
     table->horizontalHeader()->setStretchLastSection(true);
@@ -32,12 +33,12 @@
 
     \differences
     There is no model: the sections and their labels come from the table that owns the header, so the count and the
-    labels cannot be set on a header on its own. Sections cannot be moved, hidden, sorted or selected, and there are
+    labels cannot be set on a header on its own. Sections cannot be moved, sorted or selected, and there are
     no resize modes (\c setSectionResizeMode()); every section but the last can be resized by the user, and the last
     one can be stretched. There are no logical and visual indexes: they are the same.
     \enddifferences
 
-    \sa QTableWidget
+    \sa QTableView, QTableWidget, QTreeView
 */
 
 /*!
@@ -69,20 +70,30 @@ QHeaderView::~QHeaderView() = default;
     Returns the number of sections.
 */
 
-// The size that the section has as set; a stretched last section may be shown larger.
+// The size that the section has as set; a stretched last section may be shown larger, a hidden one is not shown.
 int QHeaderView::storedSize(int logicalIndex) const { return m_sizes[static_cast<std::size_t>(logicalIndex)]; }
+
+// The last section that is not hidden, which is the one that stretchLastSection() stretches; -1 if there is none.
+int QHeaderView::lastVisible() const {
+    for (int i = count() - 1; i >= 0; --i) {
+        if (!m_hidden[static_cast<std::size_t>(i)])
+            return i;
+    }
+    return -1;
+}
 
 /*!
     Returns the size of the section \a logicalIndex: its width in a horizontal header, its height in a vertical one. A
-    last section that is stretched can be larger than it was set. The size of a section that does not exist is 0.
+    last section that is stretched can be larger than it was set. The size of a section that is hidden or does not
+    exist is 0.
 
     \sa resizeSection(), stretchLastSection()
 */
 int QHeaderView::sectionSize(int logicalIndex) const {
-    if (logicalIndex < 0 || logicalIndex >= count())
+    if (logicalIndex < 0 || logicalIndex >= count() || m_hidden[static_cast<std::size_t>(logicalIndex)])
         return 0;
     const int size = storedSize(logicalIndex);
-    if (m_stretchLast && logicalIndex == count() - 1) {
+    if (m_stretchLast && logicalIndex == lastVisible()) {
         const int available = (m_orientation == Qt::Horizontal ? width() : height()) - sectionPosition(logicalIndex);
         return std::max(size, available);
     }
@@ -97,8 +108,10 @@ int QHeaderView::sectionSize(int logicalIndex) const {
 */
 int QHeaderView::sectionPosition(int logicalIndex) const {
     int position = 0;
-    for (int i = 0; i < std::min(logicalIndex, count()); ++i)
-        position += storedSize(i);
+    for (int i = 0; i < std::min(logicalIndex, count()); ++i) {
+        if (!m_hidden[static_cast<std::size_t>(i)])
+            position += storedSize(i);
+    }
     return position;
 }
 
@@ -133,7 +146,7 @@ int QHeaderView::logicalIndexAt(int position) const {
 
 /*!
     Resizes the section \a logicalIndex to \a size pixels, or to minimumSectionSize() if that is more. Emits
-    sectionResized().
+    sectionResized(). A hidden section keeps the size for when it is shown again.
 
     \sa sectionSize()
 */
@@ -145,6 +158,8 @@ void QHeaderView::resizeSection(int logicalIndex, int size) {
     if (old == size)
         return;
     m_sizes[static_cast<std::size_t>(logicalIndex)] = size;
+    if (m_hidden[static_cast<std::size_t>(logicalIndex)])
+        return; // it has that size when it is shown again
     updateGeometry();
     update();
     emit sectionResized(logicalIndex, old, size);
@@ -238,9 +253,60 @@ void QHeaderView::setStretchLastSection(bool stretch) {
 */
 void QHeaderView::setSectionsClickable(bool clickable) { m_clickable = clickable; }
 
+/*!
+    Returns \c true if the section \a logicalIndex is hidden; otherwise returns \c false.
+
+    \sa setSectionHidden(), hiddenSectionCount()
+*/
+bool QHeaderView::isSectionHidden(int logicalIndex) const {
+    return logicalIndex >= 0 && logicalIndex < count() && m_hidden[static_cast<std::size_t>(logicalIndex)];
+}
+
+/*!
+    Hides the section \a logicalIndex if \a hide is \c true, and shows it again otherwise. A hidden section takes no
+    room; it keeps its size for when it is shown. sectionResized() reports the change, from or to a size of 0.
+
+    \sa hideSection(), showSection(), isSectionHidden()
+*/
+void QHeaderView::setSectionHidden(int logicalIndex, bool hide) {
+    if (logicalIndex < 0 || logicalIndex >= count() || isSectionHidden(logicalIndex) == hide)
+        return;
+    const int size = storedSize(logicalIndex);
+    m_hidden[static_cast<std::size_t>(logicalIndex)] = hide ? 1 : 0;
+    updateGeometry();
+    update();
+    emit sectionResized(logicalIndex, hide ? size : 0, hide ? 0 : size);
+}
+
+/*!
+    \fn void QHeaderView::hideSection(int logicalIndex)
+
+    Hides the section \a logicalIndex.
+
+    \sa showSection(), setSectionHidden()
+*/
+
+/*!
+    \fn void QHeaderView::showSection(int logicalIndex)
+
+    Shows the section \a logicalIndex again.
+
+    \sa hideSection(), setSectionHidden()
+*/
+
+/*!
+    Returns the number of sections that are hidden.
+
+    \sa isSectionHidden()
+*/
+int QHeaderView::hiddenSectionCount() const {
+    return static_cast<int>(std::count(m_hidden.begin(), m_hidden.end(), static_cast<char>(1)));
+}
+
 void QHeaderView::setCount(int newCount) {
     newCount = std::max(0, newCount);
     m_sizes.resize(static_cast<std::size_t>(newCount), m_defaultSize);
+    m_hidden.resize(static_cast<std::size_t>(newCount), 0);
     updateGeometry();
     update();
 }
@@ -248,6 +314,7 @@ void QHeaderView::setCount(int newCount) {
 void QHeaderView::insertSections(int logicalIndex, int number) {
     logicalIndex = std::clamp(logicalIndex, 0, count());
     m_sizes.insert(m_sizes.begin() + logicalIndex, static_cast<std::size_t>(number), m_defaultSize);
+    m_hidden.insert(m_hidden.begin() + logicalIndex, static_cast<std::size_t>(number), 0);
     if (logicalIndex < m_labels.size())
         m_labels.insert(logicalIndex, number, QString());
     updateGeometry();
@@ -258,6 +325,7 @@ void QHeaderView::removeSections(int logicalIndex, int number) {
     logicalIndex = std::clamp(logicalIndex, 0, count());
     number = std::min(number, count() - logicalIndex);
     m_sizes.erase(m_sizes.begin() + logicalIndex, m_sizes.begin() + logicalIndex + number);
+    m_hidden.erase(m_hidden.begin() + logicalIndex, m_hidden.begin() + logicalIndex + number);
     if (logicalIndex < m_labels.size())
         m_labels.remove(logicalIndex, std::min<qsizetype>(number, m_labels.size() - logicalIndex));
     updateGeometry();
@@ -296,9 +364,12 @@ int QHeaderView::edgeAt(const QPoint &pos) const {
     const bool horizontal = m_orientation == Qt::Horizontal;
     const int along = horizontal ? pos.x() : pos.y();
     int end = -m_offset;
+    const int last = lastVisible();
     for (int i = 0; i < count(); ++i) {
+        if (isSectionHidden(i))
+            continue;
         end += sectionSize(i);
-        if (m_stretchLast && i == count() - 1)
+        if (m_stretchLast && i == last)
             break;
         if (std::abs(along - end) <= 2)
             return i;
@@ -321,7 +392,7 @@ void QHeaderView::paintEvent(QPaintEvent *event) {
     int start = -m_offset;
     for (int i = 0; i < count() && start < extent; ++i) {
         const int size = sectionSize(i);
-        if (start + size > 0) {
+        if (size > 0 && start + size > 0) {
             option.rect = horizontal ? QRect(start, 0, size, height()) : QRect(0, start, width(), size);
             option.text = labelAt(i);
             option.lastSection = false;

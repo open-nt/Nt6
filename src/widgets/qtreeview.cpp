@@ -71,7 +71,7 @@ QTreeView::QTreeView(QWidget *parent) : QAbstractItemView(parent), m_header(new 
         if (m_sorting && model() && section >= 0)
             model()->sort(section, order);
     });
-    updateGeometries();
+    QTreeView::updateGeometries(); // not virtually: the object is still being made
 }
 
 /*!
@@ -314,7 +314,18 @@ void QTreeView::setColumnWidth(int column, int width) { m_header->resizeSection(
 
     \sa columnViewportPosition()
 */
-int QTreeView::columnAt(int x) const { return m_header->logicalIndexAt(x + horizontalScrollBar()->value()); }
+int QTreeView::columnAt(int x) const {
+    // The header is scrolled with the columns: its offset is the value of the horizontal scroll bar.
+    const int position = x + horizontalScrollBar()->value();
+    int start = 0;
+    for (int c = 0; c < m_header->count(); ++c) {
+        const int end = start + m_header->sectionSize(c);
+        if (position >= start && position < end)
+            return c;
+        start = end;
+    }
+    return -1;
+}
 
 /*!
     Returns \c true if the item \a index is expanded, so that its children show; otherwise returns \c false.
@@ -602,6 +613,11 @@ void QTreeView::syncHeader() {
     m_header->update();
 }
 
+/*!
+    \reimp
+
+    Places the header above the viewport and sets the ranges of the scroll bars for the rows that are laid out.
+*/
 void QTreeView::updateGeometries() {
     if (m_inLayout) {
         m_layoutAgain = true;

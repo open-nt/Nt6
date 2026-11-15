@@ -677,6 +677,7 @@ add_library(NtWidgets
     src/widgets/qcolordialog.cpp
     src/widgets/qcommandlinkbutton.cpp
     src/widgets/qcompleter.cpp
+    src/widgets/qdatawidgetmapper.cpp
     src/widgets/qdatetimeedit.cpp
     src/widgets/qcombobox.cpp
     src/widgets/qdial.cpp
@@ -702,12 +703,14 @@ add_library(NtWidgets
     src/widgets/qgroupbox.cpp
     src/widgets/qheaderview.cpp
     src/widgets/qinputdialog.cpp
+    src/widgets/qitemdelegate.cpp
     src/widgets/qkeysequenceedit.cpp
     src/widgets/qlabel.cpp
     src/widgets/qlayout.cpp
     src/widgets/qlayoutitem.cpp
     src/widgets/qlcdnumber.cpp
     src/widgets/qlineedit.cpp
+    src/widgets/qlistview.cpp
     src/widgets/qlistwidget.cpp
     src/widgets/qmainwindow.cpp
     src/widgets/qmdiarea.cpp
@@ -718,6 +721,7 @@ add_library(NtWidgets
     src/widgets/qprogressbar.cpp
     src/widgets/qprogressdialog.cpp
     src/widgets/qplaintextedit.cpp
+    src/widgets/qproxystyle.cpp
     src/widgets/qpushbutton.cpp
     src/widgets/qradiobutton.cpp
     src/widgets/qrubberband.cpp
@@ -736,7 +740,9 @@ add_library(NtWidgets
     src/widgets/qstyleditemdelegate.cpp
     src/widgets/qstylefactory.cpp
     src/widgets/qstyleoption.cpp
+    src/widgets/qstylepainter.cpp
     src/widgets/qtabbar.cpp
+    src/widgets/qtableview.cpp
     src/widgets/qtablewidget.cpp
     src/widgets/qtextcursor.cpp
     src/widgets/qtextedit.cpp

@@ -17,10 +17,12 @@
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qlayout.h>
+#include <QtWidgets/qproxystyle.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qsizepolicy.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstylefactory.h>
+#include <QtWidgets/qstylepainter.h>
 #include <QtGui/qcursor.h>
 #include <QtGui/qguiapplication.h>
 #include <QtWidgets/qstyleoption.h>
@@ -2622,6 +2624,134 @@ static void testStyleFactory() {
     CHECK(QApplication::style() != nullptr);
 }
 
+// A proxy style that makes check boxes larger and draws every push button as one red panel.
+class BigIndicators : public QProxyStyle {
+public:
+    using QProxyStyle::QProxyStyle;
+    int pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const override {
+        if (metric == PM_IndicatorWidth || metric == PM_IndicatorHeight)
+            return 30;
+        return QProxyStyle::pixelMetric(metric, option, widget);
+    }
+    void drawControl(ControlElement element, const QStyleOption *option, QPainter *painter,
+                     const QWidget *widget) const override {
+        if (element == CE_PushButton) {
+            painter->fillRect(option->rect, QColor(255, 0, 0));
+            return;
+        }
+        QProxyStyle::drawControl(element, option, painter, widget);
+    }
+};
+
+// A widget that draws a push button with a QStylePainter.
+class StylePainted : public QWidget {
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QStylePainter painter(this);
+        painterStyle = painter.style();
+        QStyleOptionButton option;
+        option.initFrom(this);
+        option.rect = QRect(0, 0, 20, 20);
+        painter.drawControl(QStyle::CE_PushButton, option);
+        painter.drawItemText(QRect(30, 0, 60, 20), Qt::AlignLeft | Qt::AlignVCenter, palette(), true, "hi");
+        QPixmap swatch(4, 4);
+        swatch.fill(QColor(0, 0, 255));
+        painter.drawItemPixmap(QRect(100, 0, 20, 20), Qt::AlignCenter, swatch);
+    }
+
+public:
+    QStyle *painterStyle = nullptr;
+};
+
+static void testProxyStyle() {
+    // A proxy passes everything on to its base style, which it owns and which draws through it.
+    auto *plain = new QProxyStyle;
+    QStyle *fusion = QStyleFactory::create("Fusion");
+    CHECK(plain->baseStyle() != nullptr && plain->baseStyle()->parent() == plain);
+    CHECK(fusion->proxy() == fusion && plain->baseStyle()->proxy() == plain && plain->proxy() == plain);
+    CHECK(plain->pixelMetric(QStyle::PM_IndicatorWidth) == fusion->pixelMetric(QStyle::PM_IndicatorWidth));
+    CHECK(plain->standardPalette() == fusion->standardPalette());
+    QPointer<QStyle> base = plain->baseStyle();
+    plain->setBaseStyle(fusion); // the old base goes, the new one is owned
+    CHECK(base.isNull() && plain->baseStyle() == fusion && fusion->parent() == plain && fusion->proxy() == plain);
+    QPointer<QStyle> owned = fusion;
+    delete plain;
+    CHECK(owned.isNull());
+    QProxyStyle byName(QStringLiteral("fusion"));
+    QProxyStyle unknown(QStringLiteral("NoSuchStyle"));
+    CHECK(byName.baseStyle() != nullptr && unknown.baseStyle() != nullptr);
+
+    // What a subclass changes reaches the base style: its check boxes get the larger indicator.
+    auto *big = new BigIndicators;
+    QCheckBox box("Check");
+    const int before = box.sizeHint().height();
+    QApplication::setStyle(big);
+    CHECK(QApplication::style() == big && big->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, nullptr) == 30);
+    CHECK(box.sizeHint().height() >= 30 && box.sizeHint().height() > before);
+    QStyleOptionButton option;
+    option.initFrom(&box);
+    option.rect = QRect(0, 0, 100, 40);
+    CHECK(big->subElementRect(QStyle::SE_CheckBoxIndicator, &option, &box).width() == 30);
+
+    // QStylePainter draws with the style of its widget.
+    StylePainted painted;
+    painted.resize(130, 20);
+    painted.show();
+    for (int i = 0; i < 3; ++i)
+        QCoreApplication::sendPostedEvents();
+    const QImage image = QOffscreenBackingStore::imageOf(painted.windowHandle());
+    CHECK(painted.painterStyle == big && image.pixelColor(10, 10) == QColor(255, 0, 0));
+    CHECK(image.pixelColor(110, 10) == QColor(0, 0, 255));
+    QApplication::setStyle(nullptr);
+}
+
+static void testStyleHelpers() {
+    const QRect box(10, 20, 100, 50);
+    CHECK(QStyle::alignedRect(Qt::LeftToRight, Qt::AlignRight | Qt::AlignBottom, QSize(10, 8), box) ==
+          QRect(100, 62, 10, 8));
+    CHECK(QStyle::alignedRect(Qt::LeftToRight, Qt::AlignCenter, QSize(10, 10), box) == QRect(55, 40, 10, 10));
+    CHECK(QStyle::alignedRect(Qt::RightToLeft, Qt::AlignLeft | Qt::AlignTop, QSize(10, 10), box) ==
+          QRect(100, 20, 10, 10));
+    CHECK(QStyle::visualRect(Qt::RightToLeft, box, QRect(10, 20, 30, 5)) == QRect(80, 20, 30, 5));
+    CHECK(QStyle::visualRect(Qt::LeftToRight, box, QRect(10, 20, 30, 5)) == QRect(10, 20, 30, 5));
+    CHECK(QStyle::visualPos(Qt::RightToLeft, box, QPoint(10, 30)) == QPoint(109, 30));
+    CHECK(QStyle::visualAlignment(Qt::RightToLeft, Qt::AlignLeft | Qt::AlignTop) == (Qt::AlignRight | Qt::AlignTop));
+    CHECK(QStyle::visualAlignment(Qt::RightToLeft, Qt::AlignHCenter) == Qt::AlignHCenter);
+    CHECK(QStyle::sliderPositionFromValue(0, 100, 50, 200) == 100);
+    CHECK(QStyle::sliderPositionFromValue(0, 100, 50, 200, true) == 100);
+    CHECK(QStyle::sliderPositionFromValue(0, 100, 25, 200, true) == 150);
+    CHECK(QStyle::sliderPositionFromValue(0, 100, 150, 200) == 200 &&
+          QStyle::sliderPositionFromValue(0, 100, -5, 200) == 0);
+    CHECK(QStyle::sliderValueFromPosition(0, 100, 100, 200) == 50 &&
+          QStyle::sliderValueFromPosition(0, 100, 101, 200) == 51);
+    CHECK(QStyle::sliderValueFromPosition(0, 100, 300, 200) == 100 &&
+          QStyle::sliderValueFromPosition(0, 100, -1, 200) == 0);
+    CHECK(QStyle::sliderValueFromPosition(0, 100, 50, 200, true) == 75);
+    CHECK(QStyle::sliderValueFromPosition(-10, 10, 0, 0) == -10);
+
+    QStyle *style = QApplication::style();
+    QPixmap pixmap(8, 6);
+    CHECK(style->itemPixmapRect(box, Qt::AlignRight, pixmap) == QRect(102, 42, 8, 6));
+    CHECK(style->itemPixmapRect(box, 0, pixmap) == QRect(56, 42, 8, 6));
+    const QFontMetrics metrics(QApplication::font());
+    const QRect text = style->itemTextRect(metrics, box, Qt::AlignLeft | Qt::AlignTop, true, "Nt");
+    CHECK(text.topLeft() == box.topLeft() && text.width() == metrics.horizontalAdvance("Nt"));
+    QImage image(40, 20, QImage::Format_ARGB32);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        QPalette palette;
+        palette.setColor(QPalette::Active, QPalette::WindowText, QColor(0, 0, 0));
+        style->drawItemText(&painter, image.rect(), Qt::AlignCenter, palette, true, "WW", QPalette::WindowText);
+        style->drawItemPixmap(&painter, QRect(0, 0, 4, 4), Qt::AlignCenter, QPixmap());
+    }
+    bool dark = false;
+    for (int y = 0; y < 20 && !dark; ++y)
+        for (int x = 0; x < 40 && !dark; ++x)
+            dark = image.pixelColor(x, y).red() < 100;
+    CHECK(dark);
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -2639,6 +2769,8 @@ int main(int argc, char **argv) {
     testCursors();
     testAttributes();
     testStyleFactory();
+    testProxyStyle();
+    testStyleHelpers();
     testKeysAndFocus();
     testLayouts();
     testGridLayout();

@@ -9,7 +9,7 @@
 #include <QtWidgets/qgraphicsscene.h>
 #include <QtWidgets/qgraphicsview.h>
 
-class QGraphicsDropShadowEffect;
+class QGraphicsEffect;
 class QGraphicsSceneMouseEvent;
 class QStyleOptionGraphicsItem;
 
@@ -118,8 +118,9 @@ struct QGraphicsScene::Private {
     void drawItems(QPainter *painter, const QTransform &viewTransform, const QRectF &exposed, QWidget *widget);
     void drawItem(QPainter *painter, QGraphicsItem *item, const QTransform &viewTransform, const QRectF &exposed,
                   QWidget *widget, qreal parentOpacity, bool parentPropagates, const QRect &clip, bool clipped);
-    void drawWithShadow(QPainter *painter, QGraphicsItem *item, QGraphicsDropShadowEffect *shadow,
-                        const QTransform &toDevice, const QStyleOptionGraphicsItem &option, QWidget *widget);
+    // Draws `item` through its graphics `effect`: painted into an image of its device rectangle first.
+    void drawWithEffect(QPainter *painter, QGraphicsItem *item, QGraphicsEffect *effect, const QTransform &toDevice,
+                        const QStyleOptionGraphicsItem &option, QWidget *widget);
     // The item, or its first ancestor, that takes the focus when it is clicked.
     static QGraphicsItem *focusableAncestor(QGraphicsItem *item);
     // Called when an item leaves the scene or becomes invisible or disabled.

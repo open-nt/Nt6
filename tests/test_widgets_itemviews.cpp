@@ -1,26 +1,33 @@
 // MIT License - see LICENSE
 //
-// Tests for the model/view classes of Nt Widgets on the offscreen platform: QTreeView with models of Nt Core,
-// the delegates and their editors, sorting from the header, and QTreeWidget. The tests play the window system
+// Tests for the model/view classes of Nt Widgets on the offscreen platform: QTreeView, QListView and QTableView
+// with models of Nt Core, the delegates and their editors, sorting from the header, and QTreeWidget. The tests play the window system
 // through QWindowSystemInterface.
 #include <QtCore>
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
+#include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qcombobox.h>
+#include <QtWidgets/qdatawidgetmapper.h>
 #include <QtWidgets/qdatetimeedit.h>
 #include <QtWidgets/qheaderview.h>
+#include <QtWidgets/qitemdelegate.h>
 #include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qlistview.h>
 #include <QtWidgets/qscrollbar.h>
+#include <QtWidgets/qplaintextedit.h>
 #include <QtWidgets/qspinbox.h>
 #include <QtWidgets/qstyleditemdelegate.h>
+#include <QtWidgets/qtableview.h>
 #include <QtWidgets/qtreeview.h>
 #include <QtWidgets/qtreewidget.h>
 
 #include "platforms/offscreen/qoffscreenintegration_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <memory>
 #include <vector>
@@ -229,7 +236,828 @@ QStringList selectedNames(const QAbstractItemView &view) {
 
 template <typename T> T *editorOf(QAbstractItemView &view) { return view.viewport()->findChild<T *>(); }
 
+// A table of strings, "r00c0" and so on, that can be edited, sorted by a column, and grow and shrink.
+class GridModel : public QAbstractTableModel {
+public:
+    GridModel(int rows, int columns) {
+        for (int r = 0; r < rows; ++r)
+            cells.push_back(makeRow(r, columns));
+        for (int c = 0; c < columns; ++c)
+            headers << QString("C%1").arg(c);
+    }
+    static std::vector<QString> makeRow(int r, int columns) {
+        std::vector<QString> row;
+        for (int c = 0; c < columns; ++c)
+            row.push_back(QString("r%1c%2").arg(r, 2, 10, QChar('0')).arg(c));
+        return row;
+    }
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override {
+        return parent.isValid() ? 0 : static_cast<int>(cells.size());
+    }
+    int columnCount(const QModelIndex &parent = QModelIndex()) const override {
+        return parent.isValid() ? 0 : static_cast<int>(headers.size());
+    }
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override {
+        if (!index.isValid())
+            return QVariant();
+        const QString &cell = cells[static_cast<std::size_t>(index.row())][static_cast<std::size_t>(index.column())];
+        if (role == Qt::DisplayRole || role == Qt::EditRole)
+            return cell;
+        if (role == Qt::ToolTipRole)
+            return "tip " + cell;
+        return QVariant();
+    }
+    bool setData(const QModelIndex &index, const QVariant &value, int role = Qt::EditRole) override {
+        if (!index.isValid() || role != Qt::EditRole)
+            return false;
+        cells[static_cast<std::size_t>(index.row())][static_cast<std::size_t>(index.column())] = value.toString();
+        emit dataChanged(index, index, {role});
+        return true;
+    }
+    Qt::ItemFlags flags(const QModelIndex &index) const override {
+        return index.isValid() ? Qt::ItemIsSelectable | Qt::ItemIsEnabled | Qt::ItemIsEditable : Qt::ItemFlags();
+    }
+    QVariant headerData(int section, Qt::Orientation orientation, int role = Qt::DisplayRole) const override {
+        if (orientation == Qt::Horizontal && role == Qt::DisplayRole && section >= 0 && section < headers.size())
+            return headers.at(section);
+        return QVariant();
+    }
+    void sort(int column, Qt::SortOrder order) override {
+        emit layoutAboutToBeChanged();
+        const auto c = static_cast<std::size_t>(column);
+        std::stable_sort(cells.begin(), cells.end(), [c, order](const auto &a, const auto &b) {
+            return order == Qt::AscendingOrder ? a[c] < b[c] : b[c] < a[c];
+        });
+        ++sorts;
+        emit layoutChanged();
+    }
+    void addRow(int at, const QString &prefix) {
+        beginInsertRows(QModelIndex(), at, at);
+        std::vector<QString> row;
+        for (int c = 0; c < headers.size(); ++c)
+            row.push_back(prefix + QString::number(c));
+        cells.insert(cells.begin() + at, row);
+        endInsertRows();
+    }
+    void removeRow(int at) {
+        beginRemoveRows(QModelIndex(), at, at);
+        cells.erase(cells.begin() + at);
+        endRemoveRows();
+    }
+    void addColumn(int at, const QString &name) {
+        beginInsertColumns(QModelIndex(), at, at);
+        headers.insert(at, name);
+        for (auto &row : cells)
+            row.insert(row.begin() + at, name);
+        endInsertColumns();
+    }
+
+    std::vector<std::vector<QString>> cells;
+    QStringList headers;
+    int sorts = 0;
+};
+
+// A list of items with a red square as their decoration.
+class IconModel : public QAbstractListModel {
+public:
+    explicit IconModel(int count) : m_count(count) {
+        m_icon = QPixmap(16, 16);
+        m_icon.fill(QColor(255, 0, 0));
+    }
+    int rowCount(const QModelIndex &parent = QModelIndex()) const override { return parent.isValid() ? 0 : m_count; }
+    QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override {
+        if (!index.isValid())
+            return QVariant();
+        if (role == Qt::DisplayRole)
+            return QString("icon %1").arg(index.row());
+        if (role == Qt::DecorationRole)
+            return QVariant::fromValue(m_icon);
+        return QVariant();
+    }
+
+private:
+    int m_count;
+    QPixmap m_icon;
+};
+
+// A delegate that remembers the options that the view drew its items with.
+class ProbeDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        last = option;
+        QStyledItemDelegate::paint(painter, option, index);
+    }
+    mutable QStyleOptionViewItem last;
+};
+
+QList<int> rowsOf(const QModelIndexList &indexes) {
+    QList<int> rows;
+    for (const QModelIndex &i : indexes)
+        rows << i.row();
+    std::sort(rows.begin(), rows.end());
+    return rows;
+}
+
+void drag(QWidget *w, QPoint from, QPoint to) {
+    mouse(w, QEvent::MouseButtonPress, from);
+    mouse(w, QEvent::MouseMove, (from + to) / 2, Qt::NoButton, Qt::LeftButton);
+    mouse(w, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+    mouse(w, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+}
+
 } // namespace
+
+static void testListView() {
+    QStringListModel model;
+    QStringList words;
+    for (int i = 0; i < 50; ++i)
+        words << QString("item %1").arg(i, 2, 10, QChar('0'));
+    model.setStringList(words);
+
+    QListView view;
+    CHECK(view.viewMode() == QListView::ListMode && view.flow() == QListView::TopToBottom && !view.isWrapping());
+    CHECK(view.movement() == QListView::Static && view.spacing() == 0 && view.modelColumn() == 0 &&
+          !view.gridSize().isValid());
+    CHECK(view.resizeMode() == QListView::Fixed && view.layoutMode() == QListView::SinglePass &&
+          view.batchSize() == 100);
+    CHECK(!view.uniformItemSizes() && !view.wordWrap() && !view.isSelectionRectVisible() && !view.iconSize().isValid());
+    CHECK(!view.indexAt(QPoint(5, 5)).isValid() && view.selectionMode() == QAbstractItemView::SingleSelection);
+    view.resize(220, 160);
+    view.setModel(&model);
+    view.show();
+    settle(&view);
+    ViewSignals spy(&view);
+
+    // One item under the other, as wide as the viewport.
+    const QRect r0 = view.visualRect(model.index(0));
+    const QRect r1 = view.visualRect(model.index(1));
+    CHECK(r0.topLeft() == QPoint(0, 0) && r0.height() >= 10 && r0.width() == view.viewport()->width());
+    CHECK(r1.top() == r0.bottom() + 1 && r1.height() == r0.height());
+    CHECK(view.indexAt(r1.center()) == model.index(1) && !view.indexAt(QPoint(5, 50 * r0.height() + 5)).isValid());
+    CHECK(view.verticalScrollBar()->maximum() == 50 * r0.height() - view.viewport()->height());
+    CHECK(view.horizontalScrollBar()->maximum() == 0);
+
+    click(view.viewport(), r1.center());
+    CHECK(view.currentIndex() == model.index(1) && rowsOf(view.selectionModel()->selectedIndexes()) == QList<int>{1});
+    CHECK(spy.log == QStringList({"pressed:item 01", "clicked:item 01"}));
+    spy.log.clear();
+
+    // The keyboard.
+    view.setFocus();
+    key(&view, Qt::Key_Down);
+    CHECK(view.currentIndex().row() == 2);
+    key(&view, Qt::Key_Right); // nothing to the right in a list
+    CHECK(view.currentIndex().row() == 2);
+    key(&view, Qt::Key_End);
+    CHECK(view.currentIndex().row() == 49 && view.verticalScrollBar()->value() == view.verticalScrollBar()->maximum());
+    CHECK(view.viewport()->rect().contains(view.visualRect(view.currentIndex())));
+    key(&view, Qt::Key_PageUp);
+    const int page = 49 - view.currentIndex().row();
+    CHECK(page >= 3 && page <= view.viewport()->height() / r0.height());
+    key(&view, Qt::Key_Home);
+    CHECK(view.currentIndex().row() == 0 && view.verticalScrollBar()->value() == 0);
+    key(&view, Qt::Key_PageDown);
+    CHECK(view.currentIndex().row() == page);
+    key(&view, Qt::Key_Return);
+    CHECK(spy.log == QStringList{"activated:" + words.at(page)});
+    spy.log.clear();
+
+    // scrollTo().
+    view.scrollTo(model.index(30), QAbstractItemView::PositionAtTop);
+    CHECK(view.visualRect(model.index(30)).top() == 0);
+    view.scrollTo(model.index(30), QAbstractItemView::PositionAtBottom);
+    CHECK(view.visualRect(model.index(30)).bottom() == view.viewport()->height() - 1);
+    view.scrollToTop();
+
+    // Spacing around each item.
+    view.setSpacing(4);
+    CHECK(view.visualRect(model.index(0)).topLeft() == QPoint(4, 4));
+    CHECK(view.visualRect(model.index(1)).top() == view.visualRect(model.index(0)).bottom() + 1 + 4);
+    CHECK(view.visualRect(model.index(0)).width() == view.viewport()->width() - 8);
+    view.setSpacing(0);
+
+    // Hidden rows.
+    view.setRowHidden(1, true);
+    CHECK(view.isRowHidden(1) && !view.isRowHidden(2) && view.visualRect(model.index(1)).isEmpty());
+    CHECK(view.visualRect(model.index(2)).top() == r0.bottom() + 1);
+    view.setCurrentIndex(model.index(0));
+    key(&view, Qt::Key_Down);
+    CHECK(view.currentIndex().row() == 2);
+    model.insertRows(0, 1); // the hidden row moves with its item
+    CHECK(view.isRowHidden(2) && !view.isRowHidden(1));
+    model.removeRows(0, 1);
+    CHECK(view.isRowHidden(1));
+    view.clearPropertyFlags();
+    CHECK(!view.isRowHidden(1) && view.visualRect(model.index(1)) == r1);
+
+    // Selection: Shift, Control, dragging and everything.
+    view.setSelectionMode(QAbstractItemView::ExtendedSelection);
+    click(view.viewport(), view.visualRect(model.index(1)).center());
+    click(view.viewport(), view.visualRect(model.index(4)).center(), Qt::ShiftModifier);
+    CHECK(rowsOf(view.selectionModel()->selectedIndexes()) == QList<int>({1, 2, 3, 4}));
+    click(view.viewport(), view.visualRect(model.index(2)).center(), Qt::ControlModifier);
+    CHECK(rowsOf(view.selectionModel()->selectedIndexes()) == QList<int>({1, 3, 4}));
+    drag(view.viewport(), view.visualRect(model.index(5)).center(), view.visualRect(model.index(2)).center());
+    CHECK(rowsOf(view.selectionModel()->selectedIndexes()) == QList<int>({2, 3, 4, 5}) &&
+          view.currentIndex().row() == 2);
+    key(&view, Qt::Key_A, "a", Qt::ControlModifier);
+    CHECK(view.selectionModel()->selectedIndexes().size() == 50);
+    view.setRowHidden(3, true);
+    view.selectAll();
+    CHECK(view.selectionModel()->selectedIndexes().size() == 49 && !view.selectionModel()->isSelected(model.index(3)));
+    view.clearPropertyFlags();
+    click(view.viewport(), QPoint(5, view.viewport()->height() + 100)); // outside the viewport: nothing
+    view.setSelectionMode(QAbstractItemView::SingleSelection);
+
+    // The model changes under the view.
+    view.setCurrentIndex(model.index(10));
+    model.removeRows(10, 1);
+    CHECK(view.currentIndex().row() == 10 && view.currentIndex().data().toString() == "item 11");
+    model.insertRows(0, 2);
+    CHECK(model.rowCount() == 51 && view.visualRect(model.index(50)).isValid());
+    CHECK(view.visualRect(model.index(2)).top() == 2 * r0.height() - view.verticalScrollBar()->value());
+
+    // Editing in place.
+    view.scrollToTop();
+    doubleClick(view.viewport(), view.visualRect(model.index(2)).center());
+    QLineEdit *editor = editorOf<QLineEdit>(view);
+    CHECK(editor != nullptr && editor && editor->text() == "item 00");
+    if (editor) {
+        editor->selectAll();
+        type(editor, "hazel");
+        key(editor, Qt::Key_Return);
+    }
+    CHECK(model.index(2).data().toString() == "hazel");
+
+    // From left to right, without wrapping: a row that scrolls sideways.
+    view.setFlow(QListView::LeftToRight);
+    const QRect h0 = view.visualRect(model.index(0)), h1 = view.visualRect(model.index(1));
+    CHECK(h0.topLeft() == QPoint(0, 0) && h1.left() == h0.right() + 1 && h1.top() == 0);
+    CHECK(view.horizontalScrollBar()->maximum() > 0 && view.verticalScrollBar()->maximum() == 0);
+    view.setCurrentIndex(model.index(0));
+    key(&view, Qt::Key_Right);
+    CHECK(view.currentIndex().row() == 1);
+    key(&view, Qt::Key_Down);
+    CHECK(view.currentIndex().row() == 1);
+    view.setFlow(QListView::TopToBottom);
+
+    // Another column of a model.
+    NodeModel nodes;
+    nodes.add(nullptr, "walnut", 12);
+    nodes.add(nullptr, "pecan", 7);
+    view.setModel(&nodes);
+    view.setModelColumn(1);
+    CHECK(view.modelColumn() == 1 && view.visualRect(nodes.index(1, 1)).isValid() &&
+          view.visualRect(nodes.index(1, 0)).isEmpty());
+    CHECK(view.indexAt(view.visualRect(nodes.index(1, 1)).center()) == nodes.index(1, 1));
+    view.setModelColumn(5); // no such column: nothing shows
+    CHECK(!view.indexAt(QPoint(5, 5)).isValid());
+    view.setModelColumn(0);
+    view.setModel(nullptr);
+    CHECK(view.model() == nullptr && !view.indexAt(QPoint(5, 5)).isValid());
+    key(&view, Qt::Key_Down);
+    grab(&view);
+}
+
+static void testIconMode() {
+    IconModel model(30);
+    QListView view;
+    auto *probe = new ProbeDelegate(&view);
+    view.setItemDelegate(probe);
+    view.resize(260, 200);
+    view.setModel(&model);
+    view.setViewMode(QListView::IconMode);
+    CHECK(view.viewMode() == QListView::IconMode && view.flow() == QListView::LeftToRight && view.isWrapping());
+    CHECK(view.movement() == QListView::Free);
+    view.setGridSize(QSize(60, 70));
+    view.show();
+    settle(&view);
+
+    // Cells of the grid, in rows that wrap at the width of the viewport.
+    const int perRow = view.viewport()->width() / 60;
+    CHECK(perRow >= 2 && view.visualRect(model.index(0)) == QRect(0, 0, 60, 70));
+    CHECK(view.visualRect(model.index(1)) == QRect(60, 0, 60, 70));
+    CHECK(view.visualRect(model.index(perRow)) == QRect(0, 70, 60, 70));
+    CHECK(view.horizontalScrollBar()->maximum() == 0 && view.verticalScrollBar()->maximum() > 0);
+    CHECK(view.indexAt(QPoint(65, 75)) == model.index(perRow + 1));
+
+    // The arrow keys go to the neighbours.
+    view.setFocus();
+    view.setCurrentIndex(model.index(0));
+    key(&view, Qt::Key_Right);
+    CHECK(view.currentIndex().row() == 1);
+    key(&view, Qt::Key_Down);
+    CHECK(view.currentIndex().row() == perRow + 1);
+    key(&view, Qt::Key_Left);
+    CHECK(view.currentIndex().row() == perRow);
+    key(&view, Qt::Key_Up);
+    CHECK(view.currentIndex().row() == 0);
+    key(&view, Qt::Key_Up);
+    CHECK(view.currentIndex().row() == 0);
+    key(&view, Qt::Key_End);
+    CHECK(view.currentIndex().row() == 29 && view.viewport()->rect().contains(view.visualRect(view.currentIndex())));
+
+    // The decoration goes above the text, in the icon size.
+    grab(&view);
+    CHECK(probe->last.decorationPosition == QStyleOptionViewItem::Top && probe->last.decorationSize == QSize(32, 32));
+    CHECK(probe->last.displayAlignment == (Qt::AlignHCenter | Qt::AlignTop));
+    QList<QSize> sizes;
+    QObject::connect(&view, &QAbstractItemView::iconSizeChanged, [&sizes](const QSize &s) { sizes << s; });
+    view.setIconSize(QSize(48, 48));
+    view.setIconSize(QSize(48, 48));
+    CHECK(view.iconSize() == QSize(48, 48) && sizes == QList<QSize>{QSize(48, 48)});
+    view.scrollToTop();
+    view.viewport()->update();
+    grab(&view);
+    CHECK(probe->last.decorationSize == QSize(48, 48));
+
+    // Without a grid, each item has the size the delegate wants: room for the icon above the text.
+    view.setGridSize(QSize());
+    const QRect item = view.visualRect(model.index(0));
+    CHECK(item.height() > 48 + view.fontMetrics().height() && item.width() >= 48);
+    // The icon is drawn above the text, in the middle.
+    view.setIconSize(QSize(16, 16));
+    view.scrollToTop();
+    view.setCurrentIndex(QModelIndex());
+    view.clearSelection();
+    const QImage image = grab(&view);
+    const QRect first = view.visualRect(model.index(0));
+    const QPoint iconCenter = view.viewport()->mapTo(&view, QPoint(first.center().x(), first.top() + 3 + 8));
+    CHECK(colorAt(image, view.mapTo(view.window(), iconCenter)) == QColor(255, 0, 0));
+
+    // Back to a list: the decoration is on the left.
+    view.setViewMode(QListView::ListMode);
+    CHECK(view.flow() == QListView::TopToBottom && !view.isWrapping() && view.movement() == QListView::Static);
+    view.setIconSize(QSize());
+    grab(&view);
+    CHECK(probe->last.decorationPosition == QStyleOptionViewItem::Left);
+}
+
+static void testTableView() {
+    GridModel model(40, 5);
+    QTableView view;
+    CHECK(view.showGrid() && view.gridStyle() == Qt::SolidLine && !view.isSortingEnabled() && view.wordWrap());
+    CHECK(view.isCornerButtonEnabled() && view.horizontalHeader() && view.verticalHeader());
+    CHECK(view.selectionBehavior() == QAbstractItemView::SelectItems && view.horizontalHeader()->count() == 0);
+    view.resize(420, 300);
+    view.setModel(&model);
+    view.show();
+    settle(&view);
+    ViewSignals spy(&view);
+    QHeaderView *columns = view.horizontalHeader(), *rows = view.verticalHeader();
+    CHECK(columns->count() == 5 && rows->count() == 40 && columns->hiddenSectionCount() == 0);
+    const int w = view.columnWidth(0), h = view.rowHeight(0);
+    CHECK(w == 100 && h == 30);
+
+    // Cells in rows and columns, below and right of the headers.
+    CHECK(view.visualRect(model.index(0, 0)) == QRect(0, 0, w, h));
+    CHECK(view.visualRect(model.index(1, 2)) == QRect(2 * w, h, w, h));
+    CHECK(view.indexAt(QPoint(2 * w + 10, h + 10)) == model.index(1, 2) && view.rowAt(h + 10) == 1 &&
+          view.columnAt(2 * w + 10) == 2);
+    CHECK(view.rowViewportPosition(3) == 3 * h && view.columnViewportPosition(4) == 4 * w);
+    CHECK(view.viewport()->x() >= rows->width() && view.viewport()->y() >= columns->height() && rows->width() > 0);
+    CHECK(view.verticalScrollBar()->maximum() == 40 * h - view.viewport()->height());
+    CHECK(view.horizontalScrollBar()->maximum() == 5 * w - view.viewport()->width());
+
+    click(view.viewport(), QPoint(2 * w + 10, h + 10));
+    CHECK(view.currentIndex() == model.index(1, 2) &&
+          view.selectionModel()->selectedIndexes() == QModelIndexList{model.index(1, 2)});
+    CHECK(spy.log == QStringList({"pressed:r01c2", "clicked:r01c2"}));
+
+    // The keyboard.
+    view.setFocus();
+    key(&view, Qt::Key_Right);
+    CHECK(view.currentIndex() == model.index(1, 3));
+    key(&view, Qt::Key_Down);
+    CHECK(view.currentIndex() == model.index(2, 3));
+    key(&view, Qt::Key_Home);
+    CHECK(view.currentIndex() == model.index(2, 0));
+    key(&view, Qt::Key_End);
+    CHECK(view.currentIndex() == model.index(2, 4) &&
+          view.horizontalScrollBar()->value() == view.horizontalScrollBar()->maximum());
+    key(&view, Qt::Key_End, QString(), Qt::ControlModifier);
+    CHECK(view.currentIndex() == model.index(39, 4) &&
+          view.viewport()->rect().contains(view.visualRect(view.currentIndex())));
+    CHECK(view.selectionModel()->selectedIndexes() == QModelIndexList{model.index(39, 4)});
+    key(&view, Qt::Key_PageUp);
+    CHECK(view.currentIndex().row() < 39 && view.currentIndex().row() >= 39 - view.viewport()->height() / h);
+    key(&view, Qt::Key_Home, QString(), Qt::ControlModifier);
+    CHECK(view.currentIndex() == model.index(0, 0) && view.verticalScrollBar()->value() == 0 &&
+          view.horizontalScrollBar()->value() == 0);
+
+    // A block of cells, with Shift and by dragging.
+    view.setSelectionMode(QAbstractItemView::ExtendedSelection);
+    click(view.viewport(), view.visualRect(model.index(1, 1)).center());
+    click(view.viewport(), view.visualRect(model.index(3, 2)).center(), Qt::ShiftModifier);
+    CHECK(view.selectionModel()->selectedIndexes().size() == 6 && view.selectionModel()->isSelected(model.index(2, 2)));
+    click(view.viewport(), view.visualRect(model.index(0, 3)).center(), Qt::ControlModifier);
+    CHECK(view.selectionModel()->selectedIndexes().size() == 7);
+    drag(view.viewport(), view.visualRect(model.index(0, 0)).center(), view.visualRect(model.index(2, 1)).center());
+    CHECK(view.selectionModel()->selectedIndexes().size() == 6 && view.currentIndex() == model.index(2, 1));
+    key(&view, Qt::Key_Down, QString(), Qt::ShiftModifier);
+    CHECK(view.selectionModel()->selectedIndexes().size() == 8);
+
+    // Rows and columns.
+    view.selectRow(5);
+    CHECK(view.selectionModel()->isRowSelected(5, QModelIndex()) &&
+          view.selectionModel()->selectedIndexes().size() == 5);
+    CHECK(view.currentIndex().row() == 5);
+    view.selectColumn(2);
+    CHECK(view.selectionModel()->isColumnSelected(2, QModelIndex()) &&
+          view.selectionModel()->selectedIndexes().size() == 40);
+    click(rows, QPoint(5, 2 * h + 10));
+    CHECK(view.selectionModel()->isRowSelected(2, QModelIndex()) &&
+          view.selectionModel()->selectedIndexes().size() == 5);
+    click(columns, QPoint(w + 10, 5));
+    CHECK(view.selectionModel()->isColumnSelected(1, QModelIndex()));
+    key(&view, Qt::Key_A, "a", Qt::ControlModifier);
+    CHECK(view.selectionModel()->selectedIndexes().size() == 200);
+    view.clearSelection();
+    click(&view, QPoint(view.frameWidth() + 2, view.frameWidth() + 2)); // the corner button
+    CHECK(view.selectionModel()->selectedIndexes().size() == 200);
+    view.clearSelection();
+    view.setCornerButtonEnabled(false);
+    click(&view, QPoint(view.frameWidth() + 2, view.frameWidth() + 2));
+    CHECK(view.selectionModel()->selectedIndexes().isEmpty());
+    view.setSelectionMode(QAbstractItemView::SingleSelection);
+    view.clearSelection();
+    view.selectColumn(1); // one item at a time: no columns
+    CHECK(view.selectionModel()->selectedIndexes().isEmpty());
+    view.setSelectionBehavior(QAbstractItemView::SelectRows);
+    click(view.viewport(), view.visualRect(model.index(4, 3)).center());
+    CHECK(view.selectionModel()->isRowSelected(4, QModelIndex()) &&
+          view.selectionModel()->selectedIndexes().size() == 5);
+    view.setSelectionBehavior(QAbstractItemView::SelectItems);
+
+    // Hidden rows and columns.
+    view.horizontalScrollBar()->setValue(0);
+    view.hideColumn(1);
+    CHECK(view.isColumnHidden(1) && columns->isSectionHidden(1) && columns->hiddenSectionCount() == 1 &&
+          view.columnWidth(1) == 0);
+    CHECK(view.visualRect(model.index(0, 1)).isEmpty() && view.visualRect(model.index(0, 2)).left() == w);
+    CHECK(view.columnAt(w + 10) == 2 &&
+          view.horizontalScrollBar()->maximum() == std::max(0, 4 * w - view.viewport()->width()));
+    view.setCurrentIndex(model.index(0, 0));
+    key(&view, Qt::Key_Right);
+    CHECK(view.currentIndex() == model.index(0, 2));
+    view.hideRow(1);
+    key(&view, Qt::Key_Down);
+    CHECK(view.currentIndex() == model.index(2, 2) && view.isRowHidden(1) &&
+          view.visualRect(model.index(2, 2)).top() == h);
+    model.addColumn(0, "new"); // the hidden column moves with its column
+    CHECK(columns->count() == 6 && view.isColumnHidden(2) && !view.isColumnHidden(1));
+    model.addRow(0, "first"); // and the hidden row with its row
+    CHECK(rows->count() == 41 && view.isRowHidden(2) && !view.isRowHidden(1));
+    model.removeRow(0);
+    CHECK(rows->count() == 40 && view.isRowHidden(1));
+    view.showRow(1);
+    view.showColumn(2);
+    CHECK(!view.isRowHidden(1) && columns->hiddenSectionCount() == 0 && view.columnWidth(2) == w);
+
+    // Sizes.
+    view.setColumnWidth(0, 60);
+    view.setRowHeight(0, 40);
+    CHECK(view.visualRect(model.index(0, 1)) == QRect(60, 0, w, 40) && view.visualRect(model.index(1, 0)).top() == 40);
+    view.resizeColumnToContents(1);
+    CHECK(view.columnWidth(1) >= view.fontMetrics().horizontalAdvance("r00c0") && view.columnWidth(1) < w);
+    view.resizeRowsToContents();
+    CHECK(view.rowHeight(0) >= view.fontMetrics().height() && view.rowHeight(0) <= 40);
+
+    // Sorting from the header.
+    view.setSortingEnabled(true);
+    CHECK(view.isSortingEnabled() && columns->isSortIndicatorShown());
+    view.clearSelection();
+    click(columns, QPoint(view.columnViewportPosition(2) + 10, 5));
+    CHECK(model.sorts == 1 && columns->sortIndicatorSection() == 2 &&
+          columns->sortIndicatorOrder() == Qt::AscendingOrder);
+    CHECK(view.selectionModel()->selectedIndexes().isEmpty()); // a click sorts instead of selecting
+    click(columns, QPoint(view.columnViewportPosition(2) + 10, 5));
+    // Column 2 holds what was column 1 before the column "new" came in at 0.
+    CHECK(columns->sortIndicatorOrder() == Qt::DescendingOrder && model.index(0, 2).data().toString() == "r39c1");
+    view.sortByColumn(1, Qt::AscendingOrder);
+    CHECK(model.index(0, 1).data().toString() == "r00c0" && columns->sortIndicatorSection() == 1);
+    view.setSortingEnabled(false);
+
+    // Editing in place.
+    view.scrollToTop();
+    doubleClick(view.viewport(), view.visualRect(model.index(1, 1)).center());
+    QLineEdit *editor = editorOf<QLineEdit>(view);
+    CHECK(editor != nullptr);
+    if (editor) {
+        editor->selectAll();
+        type(editor, "cashew");
+        key(editor, Qt::Key_Return);
+    }
+    CHECK(model.index(1, 1).data().toString() == "cashew");
+
+    // The grid between the cells.
+    view.setCurrentIndex(QModelIndex());
+    view.clearSelection();
+    view.setColumnWidth(0, w);
+    view.scrollToTop();
+    const QRect cell = view.visualRect(model.index(5, 0));
+    const auto at = [&view](QPoint p) { return view.viewport()->mapTo(view.window(), p); };
+    QImage image = grab(&view);
+    const QColor inside = colorAt(image, at(cell.center() + QPoint(30, 0)));
+    CHECK(colorAt(image, at(QPoint(cell.right(), cell.center().y()))) != inside);
+    CHECK(colorAt(image, at(QPoint(cell.center().x() + 30, cell.bottom()))) != inside);
+    view.setShowGrid(false);
+    image = grab(&view);
+    CHECK(colorAt(image, at(QPoint(cell.right(), cell.center().y()))) == inside);
+    view.setShowGrid(true);
+    view.setGridStyle(Qt::DotLine);
+    grab(&view);
+
+    // The rows of the model come and go; a reset forgets the sizes.
+    view.setCurrentIndex(model.index(3, 1));
+    model.removeRow(3);
+    CHECK(view.currentIndex().row() == 3 && view.currentIndex().data().toString() == "r04c0");
+    view.setColumnWidth(4, 30);
+    view.reset();
+    CHECK(view.columnWidth(4) == w && rows->count() == 39);
+    view.setModel(nullptr);
+    CHECK(columns->count() == 0 && rows->count() == 0 && !view.indexAt(QPoint(5, 5)).isValid());
+    key(&view, Qt::Key_Down);
+    grab(&view);
+}
+
+static void testDataWidgetMapper() {
+    GridModel model(5, 3);
+    QWidget form;
+    auto *name = new QLineEdit(&form);
+    auto *other = new QLineEdit(&form);
+    auto *notes = new QPlainTextEdit(&form);
+    name->setGeometry(0, 0, 100, 24);
+    other->setGeometry(0, 30, 100, 24);
+    notes->setGeometry(0, 60, 100, 60);
+    form.resize(120, 130);
+    form.show();
+    settle(&form);
+
+    QDataWidgetMapper mapper;
+    CHECK(mapper.model() == nullptr && mapper.currentIndex() == -1 && mapper.orientation() == Qt::Horizontal);
+    CHECK(mapper.submitPolicy() == QDataWidgetMapper::AutoSubmit && mapper.itemDelegate() != nullptr);
+    QList<int> moves;
+    QObject::connect(&mapper, &QDataWidgetMapper::currentIndexChanged, [&moves](int i) { moves << i; });
+    mapper.setModel(&model);
+    mapper.addMapping(name, 0);
+    mapper.addMapping(other, 1);
+    mapper.addMapping(notes, 2, "plainText");
+    CHECK(mapper.mappedSection(name) == 0 && mapper.mappedSection(notes) == 2 && mapper.mappedSection(&form) == -1);
+    CHECK(mapper.mappedWidgetAt(1) == other && mapper.mappedWidgetAt(7) == nullptr);
+    CHECK(mapper.mappedPropertyName(name) == "text" && mapper.mappedPropertyName(notes) == "plainText");
+    CHECK(name->text().isEmpty()); // nothing is current yet
+
+    // Going through the rows fills the widgets.
+    mapper.toFirst();
+    CHECK(mapper.currentIndex() == 0 && name->text() == "r00c0" && other->text() == "r00c1" &&
+          notes->toPlainText() == "r00c2");
+    mapper.toNext();
+    mapper.toNext();
+    CHECK(mapper.currentIndex() == 2 && name->text() == "r02c0");
+    mapper.toLast();
+    mapper.toNext(); // past the end: nothing
+    CHECK(mapper.currentIndex() == 4 && other->text() == "r04c1");
+    mapper.toPrevious();
+    mapper.setCurrentIndex(9);
+    CHECK(mapper.currentIndex() == 3 && moves == QList<int>({0, 1, 2, 4, 3}));
+    mapper.setCurrentModelIndex(model.index(1, 2));
+    CHECK(mapper.currentIndex() == 1 && name->text() == "r01c0");
+
+    // A change of the model shows at once.
+    model.setData(model.index(1, 1), "walnut");
+    CHECK(other->text() == "walnut");
+
+    // Auto submit: leaving a widget writes it, Return too, and Escape brings the model's value back.
+    name->setFocus();
+    name->setText("hazel");
+    other->setFocus();
+    CHECK(model.cells[1][0] == "hazel");
+    other->setText("pecan");
+    key(other, Qt::Key_Return);
+    CHECK(model.cells[1][1] == "pecan");
+    other->setText("typo");
+    key(other, Qt::Key_Escape);
+    CHECK(other->text() == "pecan" && model.cells[1][1] == "pecan");
+
+    // Manual submit: nothing reaches the model until submit().
+    mapper.setSubmitPolicy(QDataWidgetMapper::ManualSubmit);
+    name->setFocus();
+    name->setText("almond");
+    notes->setPlainText("crunchy");
+    other->setFocus();
+    CHECK(model.cells[1][0] == "hazel");
+    mapper.revert();
+    CHECK(name->text() == "hazel" && notes->toPlainText() == "r01c2");
+    name->setText("almond");
+    notes->setPlainText("crunchy");
+    CHECK(mapper.submit() && model.cells[1][0] == "almond" && model.cells[1][2] == "crunchy");
+
+    // Any widget, through its user property.
+    auto *box = new QCheckBox(&form);
+    GridModel flags(2, 2);
+    flags.cells[0][1] = "true";
+    QDataWidgetMapper boxes;
+    boxes.setModel(&flags);
+    boxes.addMapping(box, 1);
+    boxes.toFirst();
+    CHECK(box->isChecked() && boxes.mappedPropertyName(box) == "checked");
+    box->setChecked(false);
+    CHECK(boxes.submit() && flags.cells[0][1] == "false");
+
+    // The vertical orientation goes through the columns.
+    QDataWidgetMapper columns;
+    columns.setOrientation(Qt::Vertical);
+    columns.setModel(&model);
+    auto *cell = new QLineEdit(&form);
+    columns.addMapping(cell, 3);
+    columns.toLast();
+    CHECK(columns.currentIndex() == 2 && cell->text() == "r03c2");
+
+    // Mappings go away.
+    mapper.removeMapping(other);
+    CHECK(mapper.mappedSection(other) == -1 && mapper.mappedWidgetAt(1) == nullptr);
+    mapper.toFirst();
+    CHECK(other->text() == "pecan" && name->text() == "r00c0");
+    mapper.clearMapping();
+    mapper.toNext();
+    CHECK(name->text() == "r00c0" && mapper.currentIndex() == 1);
+    mapper.setModel(nullptr);
+    CHECK(mapper.currentIndex() == -1 && !mapper.submit());
+}
+
+// A QItemDelegate that writes down what it is asked to draw, and where.
+class LoggingItemDelegate : public QItemDelegate {
+public:
+    using QItemDelegate::doLayout;
+    using QItemDelegate::QItemDelegate;
+    using QItemDelegate::rect;
+    mutable QStringList texts;
+    mutable QRect lastText, lastCheck, lastDecoration;
+    mutable int checks = 0, focus = 0;
+
+protected:
+    void drawDisplay(QPainter *painter, const QStyleOptionViewItem &option, const QRect &r,
+                     const QString &text) const override {
+        texts << text;
+        lastText = r;
+        QItemDelegate::drawDisplay(painter, option, r, text);
+    }
+    void drawCheck(QPainter *painter, const QStyleOptionViewItem &option, const QRect &r,
+                   Qt::CheckState state) const override {
+        ++checks;
+        lastCheck = r;
+        QItemDelegate::drawCheck(painter, option, r, state);
+    }
+    void drawDecoration(QPainter *painter, const QStyleOptionViewItem &option, const QRect &r,
+                        const QPixmap &pixmap) const override {
+        if (!pixmap.isNull())
+            lastDecoration = r;
+        QItemDelegate::drawDecoration(painter, option, r, pixmap);
+    }
+    void drawFocus(QPainter *painter, const QStyleOptionViewItem &option, const QRect &r) const override {
+        if (option.state & QStyle::State_HasFocus)
+            ++focus;
+        QItemDelegate::drawFocus(painter, option, r);
+    }
+};
+
+static void testItemDelegate() {
+    // The parts of an item, as doLayout() places them.
+    IconModel icons(1);
+    LoggingItemDelegate delegate;
+    CHECK(delegate.hasClipping());
+    delegate.setClipping(false);
+    CHECK(!delegate.hasClipping());
+    delegate.setClipping(true);
+    QStyleOptionViewItem option;
+    option.rect = QRect(0, 0, 200, 60);
+    option.font = QApplication::font();
+    option.fontMetrics = QFontMetrics(option.font);
+    option.state = QStyle::State_Enabled;
+    const QModelIndex icon = icons.index(0);
+    CHECK(delegate.rect(option, icon, Qt::DecorationRole).size() == QSize(16, 16));
+    CHECK(delegate.rect(option, icon, Qt::CheckStateRole).isEmpty());
+    CHECK(delegate.rect(option, icon, Qt::DisplayRole).width() > option.fontMetrics.horizontalAdvance("icon 0"));
+    QImage image(200, 60, QImage::Format_ARGB32);
+    image.fill(Qt::white);
+    {
+        QPainter painter(&image);
+        delegate.paint(&painter, option, icon);
+    }
+    CHECK(delegate.texts == QStringList{"icon 0"} && delegate.lastDecoration.left() < delegate.lastText.left());
+    CHECK(delegate.lastDecoration.top() == 22 && delegate.lastDecoration.height() == 16 && delegate.checks == 0);
+    CHECK(image.pixelColor(delegate.lastDecoration.center().x(), delegate.lastDecoration.center().y()) ==
+          QColor(255, 0, 0));
+    const QSize beside = delegate.sizeHint(option, icon);
+    CHECK(beside.width() >= 16 + option.fontMetrics.horizontalAdvance("icon 0") && beside.height() >= 16);
+    option.decorationPosition = QStyleOptionViewItem::Top;
+    const QSize above = delegate.sizeHint(option, icon);
+    CHECK(above.height() > beside.height() && above.width() < beside.width());
+    {
+        QPainter painter(&image);
+        delegate.paint(&painter, option, icon);
+    }
+    CHECK(delegate.lastDecoration.bottom() < delegate.lastText.top());
+    option.decorationPosition = QStyleOptionViewItem::Right;
+    {
+        QPainter painter(&image);
+        delegate.paint(&painter, option, icon);
+    }
+    CHECK(delegate.lastDecoration.left() > delegate.lastText.right() - 1 && delegate.lastDecoration.right() <= 199);
+
+    // In a view: check boxes, focus, and editing in place.
+    NodeModel model;
+    NodeModel::Node *a = model.add(nullptr, "acorn", 3);
+    a->check = Qt::Unchecked;
+    model.add(nullptr, "beech", 4);
+    QTreeView view;
+    view.setRootIsDecorated(false);
+    auto *logging = new LoggingItemDelegate(&view);
+    view.setItemDelegate(logging);
+    view.resize(300, 150);
+    view.setModel(&model);
+    view.show();
+    settle(&view);
+    view.setFocus();
+    view.setCurrentIndex(model.index(0, 0));
+    grab(&view);
+    CHECK(logging->texts.contains("acorn") && logging->texts.contains("4") && logging->checks >= 1 &&
+          logging->focus >= 1);
+    const QRect check = logging->lastCheck;
+    CHECK(check.isValid() && view.visualRect(model.index(0, 0)).contains(check));
+    click(view.viewport(), check.center());
+    CHECK(a->check == Qt::Checked);
+    key(&view, Qt::Key_Space, " ");
+    CHECK(a->check == Qt::Unchecked);
+    doubleClick(view.viewport(), view.visualRect(model.index(1, 0)).center());
+    QLineEdit *editor = editorOf<QLineEdit>(view);
+    CHECK(editor != nullptr && editor && editor->text() == "beech" &&
+          editor->x() >= view.visualRect(model.index(1, 0)).left());
+    if (editor) {
+        editor->selectAll();
+        type(editor, "birch");
+        key(editor, Qt::Key_Return);
+    }
+    settle(&view); // the editor is deleted later
+    CHECK(model.index(1, 0).data().toString() == "birch" && editorOf<QLineEdit>(view) == nullptr);
+    doubleClick(view.viewport(), view.visualRect(model.index(1, 0)).center());
+    if (QLineEdit *again = editorOf<QLineEdit>(view)) {
+        again->setText("gone");
+        key(again, Qt::Key_Escape);
+    }
+    CHECK(model.index(1, 0).data().toString() == "birch");
+}
+
+// The tree finds the column under the mouse while it is scrolled sideways.
+static void testTreeScrolledColumns() {
+    NodeModel model;
+    model.add(nullptr, "almond", 1);
+    QTreeView view;
+    view.setRootIsDecorated(false);
+    view.resize(220, 120);
+    view.setModel(&model);
+    view.header()->setStretchLastSection(false);
+    view.setColumnWidth(0, 300);
+    view.setColumnWidth(1, 300);
+    view.show();
+    settle(&view);
+    view.horizontalScrollBar()->setValue(250);
+    CHECK(view.horizontalScrollBar()->value() == 250);
+    CHECK(view.columnAt(10) == 0 && view.columnAt(60) == 1 && view.columnViewportPosition(1) == 50);
+    CHECK(view.indexAt(QPoint(60, 5)) == model.index(0, 1));
+}
+
+// Where the delegate puts the decoration of an item.
+static void testDecorationPosition() {
+    IconModel model(1);
+    QStyledItemDelegate delegate;
+    QStyleOptionViewItem option;
+    option.rect = QRect(0, 0, 120, 80);
+    option.font = QApplication::font();
+    option.fontMetrics = QFontMetrics(option.font);
+    option.state = QStyle::State_Enabled;
+    const QModelIndex index = model.index(0);
+    const QSize left = delegate.sizeHint(option, index);
+    option.decorationPosition = QStyleOptionViewItem::Top;
+    const QSize top = delegate.sizeHint(option, index);
+    CHECK(top.height() > left.height() && top.width() < left.width());
+    const auto redAt = [&](QStyleOptionViewItem::Position position, QPoint p) {
+        QImage image(120, 80, QImage::Format_ARGB32);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        QStyleOptionViewItem o = option;
+        o.decorationPosition = position;
+        delegate.paint(&painter, o, index);
+        painter.end();
+        return image.pixelColor(p.x(), p.y()) == QColor(255, 0, 0);
+    };
+    CHECK(redAt(QStyleOptionViewItem::Top, QPoint(60, 10)) && !redAt(QStyleOptionViewItem::Top, QPoint(10, 40)));
+    CHECK(redAt(QStyleOptionViewItem::Bottom, QPoint(60, 70)) && !redAt(QStyleOptionViewItem::Bottom, QPoint(60, 10)));
+    CHECK(redAt(QStyleOptionViewItem::Left, QPoint(10, 40)) && !redAt(QStyleOptionViewItem::Left, QPoint(110, 40)));
+    CHECK(redAt(QStyleOptionViewItem::Right, QPoint(110, 40)) && !redAt(QStyleOptionViewItem::Right, QPoint(10, 40)));
+}
 
 static void testFlatModel() {
     QStringListModel model;
@@ -1092,6 +1920,13 @@ int main(int argc, char **argv) {
     testEditing();
     testSorting();
     testTreeWidget();
+    testListView();
+    testIconMode();
+    testTableView();
+    testTreeScrolledColumns();
+    testDecorationPosition();
+    testDataWidgetMapper();
+    testItemDelegate();
     if (g_failures == 0)
         std::puts("all item view tests passed");
     return g_failures == 0 ? 0 : 1;

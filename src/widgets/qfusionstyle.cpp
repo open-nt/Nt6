@@ -250,14 +250,14 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
     const QPalette::ColorGroup group = groupOf(option);
     switch (element) {
     case CE_PushButton: {
-        drawControl(CE_PushButtonBevel, option, painter, widget);
+        proxy()->drawControl(CE_PushButtonBevel, option, painter, widget);
         QStyleOptionButton inner = *static_cast<const QStyleOptionButton *>(option);
-        inner.rect = subElementRect(SE_PushButtonContents, option, widget);
-        drawControl(CE_PushButtonLabel, &inner, painter, widget);
+        inner.rect = proxy()->subElementRect(SE_PushButtonContents, option, widget);
+        proxy()->drawControl(CE_PushButtonLabel, &inner, painter, widget);
         break;
     }
     case CE_PushButtonBevel:
-        drawPrimitive(PE_PanelButtonCommand, option, painter, widget);
+        proxy()->drawPrimitive(PE_PanelButtonCommand, option, painter, widget);
         break;
     case CE_PushButtonLabel: {
         const auto *button = static_cast<const QStyleOptionButton *>(option);
@@ -272,11 +272,11 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
     }
     case CE_CheckBox: {
         QStyleOptionButton indicator = *static_cast<const QStyleOptionButton *>(option);
-        indicator.rect = subElementRect(SE_CheckBoxIndicator, option, widget);
-        drawPrimitive(PE_IndicatorCheckBox, &indicator, painter, widget);
+        indicator.rect = proxy()->subElementRect(SE_CheckBoxIndicator, option, widget);
+        proxy()->drawPrimitive(PE_IndicatorCheckBox, &indicator, painter, widget);
         QStyleOptionButton label = *static_cast<const QStyleOptionButton *>(option);
-        label.rect = subElementRect(SE_CheckBoxContents, option, widget);
-        drawControl(CE_CheckBoxLabel, &label, painter, widget);
+        label.rect = proxy()->subElementRect(SE_CheckBoxContents, option, widget);
+        proxy()->drawControl(CE_CheckBoxLabel, &label, painter, widget);
         break;
     }
     case CE_CheckBoxLabel: {
@@ -302,20 +302,20 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
     }
     case CE_RadioButton: {
         QStyleOptionButton indicator = *static_cast<const QStyleOptionButton *>(option);
-        indicator.rect = subElementRect(SE_RadioButtonIndicator, option, widget);
-        drawPrimitive(PE_IndicatorRadioButton, &indicator, painter, widget);
+        indicator.rect = proxy()->subElementRect(SE_RadioButtonIndicator, option, widget);
+        proxy()->drawPrimitive(PE_IndicatorRadioButton, &indicator, painter, widget);
         QStyleOptionButton label = *static_cast<const QStyleOptionButton *>(option);
-        label.rect = subElementRect(SE_RadioButtonContents, option, widget);
-        drawControl(CE_RadioButtonLabel, &label, painter, widget);
+        label.rect = proxy()->subElementRect(SE_RadioButtonContents, option, widget);
+        proxy()->drawControl(CE_RadioButtonLabel, &label, painter, widget);
         break;
     }
     case CE_RadioButtonLabel:
-        drawControl(CE_CheckBoxLabel, option, painter, widget);
+        proxy()->drawControl(CE_CheckBoxLabel, option, painter, widget);
         break;
     case CE_Slider: {
         const auto *slider = static_cast<const QStyleOptionSlider *>(option);
-        const QRect groove = subElementRect(SE_SliderGroove, option, widget);
-        const QRect handle = subElementRect(SE_SliderHandle, option, widget);
+        const QRect groove = proxy()->subElementRect(SE_SliderGroove, option, widget);
+        const QRect handle = proxy()->subElementRect(SE_SliderHandle, option, widget);
         const bool horizontal = slider->orientation == Qt::Horizontal;
         const QColor window = option->palette.color(group, QPalette::Window);
         const QColor highlight = option->palette.color(group, QPalette::Highlight);
@@ -348,7 +348,7 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         const QColor window = option->palette.color(group, QPalette::Window);
         painter->save();
         drawBox(painter, r, option->palette.color(group, QPalette::Base), outlineOf(option), window);
-        const QRect inner = subElementRect(SE_ProgressBarContents, option, widget);
+        const QRect inner = proxy()->subElementRect(SE_ProgressBarContents, option, widget);
         const qint64 span = static_cast<qint64>(bar->maximum) - bar->minimum;
         QRect filled;
         if (span > 0 && bar->progress > bar->minimum) {
@@ -407,7 +407,7 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
             box.state = (item->state & State_Enabled) | (item->checked ? State_On : State_Off);
             box.palette = item->palette;
             box.rect = QRect(r.left() + 8, r.top() + (r.height() - 14) / 2, 14, 14);
-            drawPrimitive(PE_IndicatorCheckBox, &box, painter, widget);
+            proxy()->drawPrimitive(PE_IndicatorCheckBox, &box, painter, widget);
         }
         painter->setPen(text);
         const qsizetype tab = item->text.indexOf('\t');
@@ -514,7 +514,7 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         else
             painter->drawLine(r.left(), r.top(), r.left(), r.bottom());
         if (bar->maximum > bar->minimum) {
-            const QRect handle = subElementRect(SE_ScrollBarSlider, option, widget);
+            const QRect handle = proxy()->subElementRect(SE_ScrollBarSlider, option, widget);
             QColor fill = option->palette.color(group, QPalette::Button);
             if (option->state & State_Sunken)
                 fill = fill.darker(112);
@@ -553,7 +553,7 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
             if (!header->lastSection)
                 painter->drawLine(r.left() + 3, r.bottom(), r.right() - 3, r.bottom());
         }
-        const int margin = pixelMetric(PM_HeaderMargin, option, widget);
+        const int margin = proxy()->pixelMetric(PM_HeaderMargin, option, widget);
         QRect text = r.adjusted(margin, 0, -margin, -1);
         if (header->sortIndicator != QStyleOptionHeader::None && horizontal) {
             // The arrow of the sort order, at the right end of the section; the text stops before it.
@@ -604,11 +604,11 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         QStyleOption bevel = *option;
         if (option->state & State_On)
             bevel.state |= State_Sunken;
-        drawPrimitive(PE_PanelButtonCommand, &bevel, painter, widget);
-        const QRect arrow = subElementRect(SE_ComboBoxArrow, option, widget);
+        proxy()->drawPrimitive(PE_PanelButtonCommand, &bevel, painter, widget);
+        const QRect arrow = proxy()->subElementRect(SE_ComboBoxArrow, option, widget);
         QStyleOption arrowOption = *option;
         arrowOption.rect = arrow;
-        drawPrimitive(PE_IndicatorArrowDown, &arrowOption, painter, widget);
+        proxy()->drawPrimitive(PE_IndicatorArrowDown, &arrowOption, painter, widget);
         painter->save();
         painter->setClipRect(option->rect.adjusted(1, 1, -arrow.width(), -1));
         painter->setPen(option->palette.color(group, QPalette::ButtonText));
@@ -620,16 +620,17 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
     case CE_SpinBox: {
         const auto *spin = static_cast<const QStyleOptionSpinBox *>(option);
         QStyleOption frame = *option;
-        drawPrimitive(PE_PanelLineEdit, &frame, painter, widget);
-        drawPrimitive(PE_FrameLineEdit, &frame, painter, widget);
+        proxy()->drawPrimitive(PE_PanelLineEdit, &frame, painter, widget);
+        proxy()->drawPrimitive(PE_FrameLineEdit, &frame, painter, widget);
         const QColor window = option->palette.color(group, QPalette::Window);
         const struct {
             QRect rect;
             bool up;
             bool enabled;
             bool pressed;
-        } buttons[] = {{subElementRect(SE_SpinBoxUp, option, widget), true, spin->upEnabled, spin->upPressed},
-                       {subElementRect(SE_SpinBoxDown, option, widget), false, spin->downEnabled, spin->downPressed}};
+        } buttons[] = {
+            {proxy()->subElementRect(SE_SpinBoxUp, option, widget), true, spin->upEnabled, spin->upPressed},
+            {proxy()->subElementRect(SE_SpinBoxDown, option, widget), false, spin->downEnabled, spin->downPressed}};
         for (const auto &b : buttons) {
             QColor fill = option->palette.color(group, QPalette::Button);
             if (b.pressed)
@@ -641,7 +642,7 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
             arrow.rect = b.rect;
             if (!b.enabled)
                 arrow.state &= ~State(State_Enabled);
-            drawPrimitive(b.up ? PE_IndicatorArrowUp : PE_IndicatorArrowDown, &arrow, painter, widget);
+            proxy()->drawPrimitive(b.up ? PE_IndicatorArrowUp : PE_IndicatorArrowDown, &arrow, painter, widget);
         }
         painter->setPen(mix(outlineOf(option), window, 60));
         painter->drawLine(buttons[1].rect.left(), buttons[1].rect.top(), buttons[1].rect.right(),
@@ -650,19 +651,19 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
     }
     case CE_GroupBox: {
         const auto *box = static_cast<const QStyleOptionGroupBox *>(option);
-        const QRect title = subElementRect(SE_GroupBoxTitle, option, widget);
+        const QRect title = proxy()->subElementRect(SE_GroupBoxTitle, option, widget);
         QStyleOption frame = *option;
         frame.rect = QRect(option->rect.left(), title.bottom() + 3, option->rect.width(),
                            option->rect.bottom() - title.bottom() - 2);
-        drawPrimitive(PE_FrameGroupBox, &frame, painter, widget);
+        proxy()->drawPrimitive(PE_FrameGroupBox, &frame, painter, widget);
         painter->save();
         QRect text = title;
         if (box->checkable) {
             QStyleOptionButton indicator;
             indicator.state = option->state;
             indicator.palette = option->palette;
-            indicator.rect = subElementRect(SE_GroupBoxIndicator, option, widget);
-            drawPrimitive(PE_IndicatorCheckBox, &indicator, painter, widget);
+            indicator.rect = proxy()->subElementRect(SE_GroupBoxIndicator, option, widget);
+            proxy()->drawPrimitive(PE_IndicatorCheckBox, &indicator, painter, widget);
             text.setLeft(title.left() + 14 + 4);
         }
         painter->setPen(option->palette.color(group, QPalette::WindowText));
@@ -677,31 +678,31 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
     const QRect r = option->rect;
     switch (element) {
     case SE_CheckBoxIndicator: {
-        const int size = pixelMetric(PM_IndicatorWidth, option, widget);
+        const int size = proxy()->pixelMetric(PM_IndicatorWidth, option, widget);
         return QRect(r.left(), r.top() + (r.height() - size) / 2, size, size);
     }
     case SE_CheckBoxContents: {
-        const int offset =
-            pixelMetric(PM_IndicatorWidth, option, widget) + pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
+        const int offset = proxy()->pixelMetric(PM_IndicatorWidth, option, widget) +
+                           proxy()->pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
         return QRect(r.left() + offset, r.top(), std::max(0, r.width() - offset), r.height());
     }
     case SE_PushButtonContents: {
-        const int m = pixelMetric(PM_ButtonMargin, option, widget);
+        const int m = proxy()->pixelMetric(PM_ButtonMargin, option, widget);
         return r.adjusted(m, m / 2, -m, -m / 2);
     }
     case SE_RadioButtonIndicator: {
-        const int size = pixelMetric(PM_ExclusiveIndicatorWidth, option, widget);
+        const int size = proxy()->pixelMetric(PM_ExclusiveIndicatorWidth, option, widget);
         return QRect(r.left(), r.top() + (r.height() - size) / 2, size, size);
     }
     case SE_RadioButtonContents: {
-        const int offset = pixelMetric(PM_ExclusiveIndicatorWidth, option, widget) +
-                           pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
+        const int offset = proxy()->pixelMetric(PM_ExclusiveIndicatorWidth, option, widget) +
+                           proxy()->pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
         return QRect(r.left() + offset, r.top(), std::max(0, r.width() - offset), r.height());
     }
     case SE_LineEditContents: {
         const int frame = option->type == QStyleOption::SO_Frame
                               ? static_cast<const QStyleOptionFrame *>(option)->lineWidth
-                              : pixelMetric(PM_DefaultFrameWidth, option, widget);
+                              : proxy()->pixelMetric(PM_DefaultFrameWidth, option, widget);
         return r.adjusted(frame + 3, frame + 2, -(frame + 3), -(frame + 2));
     }
     case SE_SliderGroove: {
@@ -713,8 +714,8 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
     }
     case SE_SliderHandle: {
         const auto *slider = static_cast<const QStyleOptionSlider *>(option);
-        const int length = pixelMetric(PM_SliderLength, option, widget);
-        const int thickness = pixelMetric(PM_SliderThickness, option, widget);
+        const int length = proxy()->pixelMetric(PM_SliderLength, option, widget);
+        const int thickness = proxy()->pixelMetric(PM_SliderThickness, option, widget);
         const qint64 range = static_cast<qint64>(slider->maximum) - slider->minimum;
         const qint64 done = std::clamp<qint64>(static_cast<qint64>(slider->sliderPosition) - slider->minimum, 0, range);
         if (slider->orientation == Qt::Horizontal) {
@@ -737,8 +738,9 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
         if (range <= 0)
             return groove;
         const qint64 total = range + std::max(1, bar->pageStep);
-        const int handle = std::clamp(static_cast<int>(length * std::max(1, bar->pageStep) / total),
-                                      std::min(length, pixelMetric(PM_ScrollBarSliderMin, option, widget)), length);
+        const int handle =
+            std::clamp(static_cast<int>(length * std::max(1, bar->pageStep) / total),
+                       std::min(length, proxy()->pixelMetric(PM_ScrollBarSliderMin, option, widget)), length);
         const qint64 done = std::clamp<qint64>(static_cast<qint64>(bar->sliderPosition) - bar->minimum, 0, range);
         const int offset = static_cast<int>((length - handle) * done / range);
         if (horizontal)
@@ -748,17 +750,17 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
     case SE_ProgressBarContents:
         return r.adjusted(1, 1, -1, -1);
     case SE_ComboBoxArrow: {
-        const int width = pixelMetric(PM_ComboBoxArrowWidth, option, widget);
+        const int width = proxy()->pixelMetric(PM_ComboBoxArrowWidth, option, widget);
         return QRect(r.right() - width + 1, r.top(), width, r.height());
     }
     case SE_SpinBoxEditField:
-        return r.adjusted(1, 1, -(pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 1), -1);
+        return r.adjusted(1, 1, -(proxy()->pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 1), -1);
     case SE_SpinBoxUp: {
-        const int width = pixelMetric(PM_SpinBoxButtonWidth, option, widget);
+        const int width = proxy()->pixelMetric(PM_SpinBoxButtonWidth, option, widget);
         return QRect(r.right() - width, r.top() + 1, width, (r.height() - 2) / 2);
     }
     case SE_SpinBoxDown: {
-        const int width = pixelMetric(PM_SpinBoxButtonWidth, option, widget);
+        const int width = proxy()->pixelMetric(PM_SpinBoxButtonWidth, option, widget);
         const int upHeight = (r.height() - 2) / 2;
         return QRect(r.right() - width, r.top() + 1 + upHeight, width, r.height() - 2 - upHeight);
     }
@@ -835,8 +837,8 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
                                      const QWidget *widget) const {
     switch (type) {
     case CT_PushButton: {
-        const int m = pixelMetric(PM_ButtonMargin, option, widget);
-        const int frame = 2 * pixelMetric(PM_DefaultFrameWidth, option, widget);
+        const int m = proxy()->pixelMetric(PM_ButtonMargin, option, widget);
+        const int frame = 2 * proxy()->pixelMetric(PM_DefaultFrameWidth, option, widget);
         const auto *button = option && option->type == QStyleOption::SO_Button
                                  ? static_cast<const QStyleOptionButton *>(option)
                                  : nullptr;
@@ -845,19 +847,19 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
         return QSize(hasText ? std::max(80, width) : width, contentsSize.height() + m + frame);
     }
     case CT_CheckBox: {
-        const int indicator = pixelMetric(PM_IndicatorWidth, option, widget);
-        const int spacing = pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
+        const int indicator = proxy()->pixelMetric(PM_IndicatorWidth, option, widget);
+        const int spacing = proxy()->pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
         // The label has 4 pixels of margin besides the spacing; the height is one more than the contents need.
         return QSize(indicator + (contentsSize.width() > 0 ? 4 + spacing + contentsSize.width() : 0),
                      std::max(indicator, contentsSize.height() + 4) + 1);
     }
     case CT_LineEdit: {
-        const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
+        const int frame = proxy()->pixelMetric(PM_DefaultFrameWidth, option, widget);
         return QSize(contentsSize.width() + 2 * (frame + 3), contentsSize.height() + 2 * (frame + 3));
     }
     case CT_RadioButton: {
-        const int indicator = pixelMetric(PM_ExclusiveIndicatorWidth, option, widget);
-        const int spacing = pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
+        const int indicator = proxy()->pixelMetric(PM_ExclusiveIndicatorWidth, option, widget);
+        const int spacing = proxy()->pixelMetric(PM_CheckBoxLabelSpacing, option, widget);
         return QSize(indicator + (contentsSize.width() > 0 ? 4 + spacing + contentsSize.width() : 0),
                      std::max(indicator, contentsSize.height() + 4) + 1);
     }
@@ -866,9 +868,9 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
     case CT_TabBarTab:
         return QSize(contentsSize.width() + 20, contentsSize.height() + 10);
     case CT_ComboBox: {
-        const int m = pixelMetric(PM_ButtonMargin, option, widget);
-        return QSize(contentsSize.width() + 8 + pixelMetric(PM_ComboBoxArrowWidth, option, widget),
-                     contentsSize.height() + m + 2 * pixelMetric(PM_DefaultFrameWidth, option, widget));
+        const int m = proxy()->pixelMetric(PM_ButtonMargin, option, widget);
+        return QSize(contentsSize.width() + 8 + proxy()->pixelMetric(PM_ComboBoxArrowWidth, option, widget),
+                     contentsSize.height() + m + 2 * proxy()->pixelMetric(PM_DefaultFrameWidth, option, widget));
     }
     case CT_ToolButton:
         return QSize(contentsSize.width() + 14, contentsSize.height() + 7);
@@ -886,8 +888,9 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
     case CT_MenuBarItem:
         return QSize(contentsSize.width() + 9, contentsSize.height() + 5);
     case CT_SpinBox: {
-        const int frame = pixelMetric(PM_DefaultFrameWidth, option, widget);
-        return QSize(contentsSize.width() + 2 * (frame + 3) + pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 3,
+        const int frame = proxy()->pixelMetric(PM_DefaultFrameWidth, option, widget);
+        return QSize(contentsSize.width() + 2 * (frame + 3) +
+                         proxy()->pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 3,
                      contentsSize.height() + 2 * (frame + 2) + 3);
     }
     }

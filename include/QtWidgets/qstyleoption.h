@@ -168,8 +168,7 @@ public:
 
     \differences
     The decoration is a QPixmap in \c decoration, where Qt has a QIcon in
-    \c icon, as Nt has no QIcon. There is no \c viewItemPosition and no
-    \c decorationPosition: the decoration is on the left.
+    \c icon, as Nt has no QIcon. There is no \c viewItemPosition.
     \enddifferences
 
     \sa QStyledItemDelegate, QAbstractItemView
@@ -198,6 +197,18 @@ public:
     };
     Q_DECLARE_FLAGS(ViewItemFeatures, ViewItemFeature)
 
+    /*!
+        \enum QStyleOptionViewItem::Position
+
+        Where the decoration of an item is, next to its text.
+
+        \value Left Left of the text, as in a list or a table.
+        \value Right Right of the text.
+        \value Top Above the text, as in the icon mode of QListView.
+        \value Bottom Below the text.
+    */
+    enum Position { Left, Right, Top, Bottom };
+
     /*! Constructs an option for an item, with the type \c SO_ViewItem. */
     QStyleOptionViewItem() : QStyleOption(SO_ViewItem) {}
 
@@ -207,6 +218,10 @@ public:
     Qt::TextElideMode textElideMode = Qt::ElideRight;
     /*! The size that the decoration is drawn in; the size of \c decoration if it is empty. */
     QSize decorationSize;
+    /*! Where the decoration is, next to the text; on the left by default. */
+    Position decorationPosition = Left;
+    /*! How the decoration is aligned in its part of the item; centered by default. */
+    Qt::Alignment decorationAlignment = Qt::AlignCenter;
     /*! The font of the text. */
     QFont font;
     /*! Whether the decoration is part of what shows the selection. */
@@ -221,7 +236,7 @@ public:
     QModelIndex index;
     /*! The check state of the item, if it has a check box. */
     Qt::CheckState checkState = Qt::Unchecked;
-    /*! The decoration of the item, drawn left of its text; null if it has none. */
+    /*! The decoration of the item, drawn next to its text where \c decorationPosition says; null if it has none. */
     QPixmap decoration;
     /*! The text of the item. */
     QString text;

@@ -326,9 +326,8 @@ void QGraphicsScene::Private::drawItem(QPainter *painter, QGraphicsItem *item, c
                 option.state |= QStyle::State_MouseOver;
             if (widget)
                 option.palette = widget->palette();
-            auto *shadow = qobject_cast<QGraphicsDropShadowEffect *>(id->effect);
-            if (shadow && shadow->isEnabled())
-                drawWithShadow(painter, item, shadow, toDevice, option, widget);
+            if (id->effect && id->effect->isEnabled())
+                drawWithEffect(painter, item, id->effect, toDevice, option, widget);
             else
                 item->paint(painter, &option, widget);
             painter->restore();
@@ -341,14 +340,95 @@ void QGraphicsScene::Private::drawItem(QPainter *painter, QGraphicsItem *item, c
     }
 }
 
-void QGraphicsScene::Private::drawWithShadow(QPainter *painter, QGraphicsItem *item, QGraphicsDropShadowEffect *shadow,
+namespace {
+
+// Blurs the premultiplied pixels of `image` in place with three passes of a box blur of `radius` each way,
+// which is close to a Gaussian blur. The image keeps its size: what spreads past its edges is lost, so leave
+// room for it.
+void blurImage(QImage &image, int radius) {
+    if (radius <= 0 || image.isNull())
+        return;
+    const int w = image.width(), h = image.height();
+    // Three boxes of about a third of the radius each spread as far as one of the whole radius.
+    const int box = std::max(1, (radius + 1) / 2);
+    const int n = 2 * box + 1;
+    std::vector<QRgb> line(static_cast<std::size_t>(std::max(w, h)));
+    for (int pass = 0; pass < 3; ++pass) {
+        for (int y = 0; y < h; ++y) {
+            auto *row = reinterpret_cast<QRgb *>(image.scanLine(y));
+            std::copy(row, row + w, line.begin());
+            for (int x = 0; x < w; ++x) {
+                int r = 0, g = 0, b = 0, a = 0;
+                for (int k = -box; k <= box; ++k) {
+                    const QRgb p = line[static_cast<std::size_t>(std::clamp(x + k, 0, w - 1))];
+                    r += qRed(p);
+                    g += qGreen(p);
+                    b += qBlue(p);
+                    a += qAlpha(p);
+                }
+                row[x] = qRgba(r / n, g / n, b / n, a / n);
+            }
+        }
+        for (int x = 0; x < w; ++x) {
+            for (int y = 0; y < h; ++y)
+                line[static_cast<std::size_t>(y)] = reinterpret_cast<const QRgb *>(image.constScanLine(y))[x];
+            for (int y = 0; y < h; ++y) {
+                int r = 0, g = 0, b = 0, a = 0;
+                for (int k = -box; k <= box; ++k) {
+                    const QRgb p = line[static_cast<std::size_t>(std::clamp(y + k, 0, h - 1))];
+                    r += qRed(p);
+                    g += qGreen(p);
+                    b += qBlue(p);
+                    a += qAlpha(p);
+                }
+                reinterpret_cast<QRgb *>(image.scanLine(y))[x] = qRgba(r / n, g / n, b / n, a / n);
+            }
+        }
+    }
+}
+
+// Turns the premultiplied pixels of `image` into gray tinted with `color` (the gray, screened with the color),
+// mixed with the pixels as they are by `strength`.
+void colorizeImage(QImage &image, const QColor &color, qreal strength) {
+    const int s = static_cast<int>(std::lround(std::clamp<qreal>(strength, 0, 1) * 256));
+    for (int y = 0; y < image.height(); ++y) {
+        auto *row = reinterpret_cast<QRgb *>(image.scanLine(y));
+        for (int x = 0; x < image.width(); ++x) {
+            const QRgb p = row[x];
+            const int a = qAlpha(p);
+            if (a == 0)
+                continue;
+            // Work on the color without the alpha, and premultiply again.
+            const int r = qRed(p) * 255 / a, g = qGreen(p) * 255 / a, b = qBlue(p) * 255 / a;
+            const int gray = (r * 11 + g * 16 + b * 5) / 32;
+            const auto screen = [gray](int c) { return 255 - (255 - gray) * (255 - c) / 255; };
+            const auto mix = [s](int from, int to) { return from + (to - from) * s / 256; };
+            const int cr = mix(r, screen(color.red())), cg = mix(g, screen(color.green())),
+                      cb = mix(b, screen(color.blue()));
+            row[x] = qRgba(cr * a / 255, cg * a / 255, cb * a / 255, a);
+        }
+    }
+}
+
+} // namespace
+
+void QGraphicsScene::Private::drawWithEffect(QPainter *painter, QGraphicsItem *item, QGraphicsEffect *effect,
                                              const QTransform &toDevice, const QStyleOptionGraphicsItem &option,
                                              QWidget *widget) {
-    // The item is painted into an image of its device rectangle; the shadow is that image's alpha, in the shadow
-    // color, blurred and offset, drawn first.
+    auto *shadow = qobject_cast<QGraphicsDropShadowEffect *>(effect);
+    auto *blur = qobject_cast<QGraphicsBlurEffect *>(effect);
+    auto *colorize = qobject_cast<QGraphicsColorizeEffect *>(effect);
+    auto *opacity = qobject_cast<QGraphicsOpacityEffect *>(effect);
+    if (!shadow && !blur && !colorize && !opacity) {
+        item->paint(painter, &option, widget); // an effect of the application's own is not drawn
+        return;
+    }
     const qreal scale = std::sqrt(std::abs(toDevice.determinant()));
-    const int blur = static_cast<int>(std::ceil(shadow->blurRadius()));
-    const QRect area = toDevice.mapRect(item->boundingRect()).toAlignedRect().adjusted(-1, -1, 1, 1);
+    // The blur of a blur effect spreads past the item: the image leaves room for it.
+    const int spread = blur ? static_cast<int>(std::ceil(blur->blurRadius() * scale)) : 0;
+    const QRect area = toDevice.mapRect(item->boundingRect())
+                           .toAlignedRect()
+                           .adjusted(-1 - spread, -1 - spread, 1 + spread, 1 + spread);
     if (area.isEmpty())
         return;
     QImage content(area.size(), QImage::Format_ARGB32_Premultiplied);
@@ -363,58 +443,50 @@ void QGraphicsScene::Private::drawWithShadow(QPainter *painter, QGraphicsItem *i
             p.setFont(widget->font());
         item->paint(&p, &option, widget);
     }
-    QImage mask(area.width() + 2 * blur, area.height() + 2 * blur, QImage::Format_ARGB32_Premultiplied);
-    mask.fill(Qt::transparent);
-    const QColor c = shadow->color();
-    for (int y = 0; y < area.height(); ++y) {
-        const auto *src = reinterpret_cast<const QRgb *>(content.constScanLine(y));
-        auto *dst = reinterpret_cast<QRgb *>(mask.scanLine(y + blur)) + blur;
-        for (int x = 0; x < area.width(); ++x) {
-            const int a = qAlpha(src[x]) * c.alpha() / 255;
-            dst[x] = qRgba(c.red() * a / 255, c.green() * a / 255, c.blue() * a / 255, a);
-        }
-    }
-    if (blur > 0) {
-        // A separable box blur of the premultiplied pixels.
-        const int w = mask.width();
-        const int h = mask.height();
-        QImage tmp = mask;
-        const int n = 2 * blur + 1;
-        for (int y = 0; y < h; ++y) {
-            const auto *src = reinterpret_cast<const QRgb *>(mask.constScanLine(y));
-            auto *dst = reinterpret_cast<QRgb *>(tmp.scanLine(y));
-            for (int x = 0; x < w; ++x) {
-                int r = 0, g = 0, b = 0, a = 0;
-                for (int k = -blur; k <= blur; ++k) {
-                    const int xx = std::clamp(x + k, 0, w - 1);
-                    r += qRed(src[xx]);
-                    g += qGreen(src[xx]);
-                    b += qBlue(src[xx]);
-                    a += qAlpha(src[xx]);
-                }
-                dst[x] = qRgba(r / n, g / n, b / n, a / n);
-            }
-        }
-        for (int y = 0; y < h; ++y) {
-            auto *dst = reinterpret_cast<QRgb *>(mask.scanLine(y));
-            for (int x = 0; x < w; ++x) {
-                int r = 0, g = 0, b = 0, a = 0;
-                for (int k = -blur; k <= blur; ++k) {
-                    const int yy = std::clamp(y + k, 0, h - 1);
-                    const QRgb p = reinterpret_cast<const QRgb *>(tmp.constScanLine(yy))[x];
-                    r += qRed(p);
-                    g += qGreen(p);
-                    b += qBlue(p);
-                    a += qAlpha(p);
-                }
-                dst[x] = qRgba(r / n, g / n, b / n, a / n);
-            }
-        }
-    }
     painter->save();
     painter->resetTransform();
-    const QPointF offset = shadow->offset() * scale;
-    painter->drawImage(QPointF(area.left() - blur + offset.x(), area.top() - blur + offset.y()), mask);
+    if (blur) {
+        blurImage(content, spread);
+    } else if (colorize) {
+        colorizeImage(content, colorize->color(), colorize->strength());
+    } else if (opacity) {
+        painter->setOpacity(painter->opacity() * opacity->opacity());
+        if (opacity->opacityMask().style() != Qt::NoBrush) {
+            // Each pixel keeps as much of itself as the mask has alpha there.
+            QImage mask(content.size(), QImage::Format_ARGB32_Premultiplied);
+            mask.fill(Qt::transparent);
+            {
+                QPainter p(&mask);
+                p.fillRect(mask.rect(), opacity->opacityMask());
+            }
+            for (int y = 0; y < content.height(); ++y) {
+                auto *row = reinterpret_cast<QRgb *>(content.scanLine(y));
+                const auto *alpha = reinterpret_cast<const QRgb *>(mask.constScanLine(y));
+                for (int x = 0; x < content.width(); ++x) {
+                    const int m = qAlpha(alpha[x]);
+                    const QRgb c = row[x];
+                    row[x] = qRgba(qRed(c) * m / 255, qGreen(c) * m / 255, qBlue(c) * m / 255, qAlpha(c) * m / 255);
+                }
+            }
+        }
+    } else if (shadow) {
+        // The shadow is the alpha of the item, in the shadow color, blurred and offset, drawn first.
+        const int radius = static_cast<int>(std::ceil(shadow->blurRadius()));
+        QImage mask(area.width() + 2 * radius, area.height() + 2 * radius, QImage::Format_ARGB32_Premultiplied);
+        mask.fill(Qt::transparent);
+        const QColor c = shadow->color();
+        for (int y = 0; y < area.height(); ++y) {
+            const auto *src = reinterpret_cast<const QRgb *>(content.constScanLine(y));
+            auto *dst = reinterpret_cast<QRgb *>(mask.scanLine(y + radius)) + radius;
+            for (int x = 0; x < area.width(); ++x) {
+                const int a = qAlpha(src[x]) * c.alpha() / 255;
+                dst[x] = qRgba(c.red() * a / 255, c.green() * a / 255, c.blue() * a / 255, a);
+            }
+        }
+        blurImage(mask, radius);
+        const QPointF offset = shadow->offset() * scale;
+        painter->drawImage(QPointF(area.left() - radius + offset.x(), area.top() - radius + offset.y()), mask);
+    }
     painter->drawImage(QPointF(area.topLeft()), content);
     painter->restore();
 }

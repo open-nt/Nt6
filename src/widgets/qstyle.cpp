@@ -1,6 +1,17 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qstyle.h>
 
+#include <QtGui/qfontmetrics.h>
+#include <QtGui/qpainter.h>
+#include <QtGui/qpixmap.h>
+
+#include <algorithm>
+
+namespace {
+constexpr Qt::Alignment kHorizontal = Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter;
+constexpr Qt::Alignment kVertical = Qt::AlignTop | Qt::AlignBottom | Qt::AlignVCenter;
+} // namespace
+
 /*!
     \class QStyle
     \brief The QStyle class is an abstract base class that encapsulates the look and feel of a GUI.
@@ -22,7 +33,7 @@
     tabs, combo boxes, spin boxes and group boxes. There are no complex controls (\c drawComplexControl() and
     \c QStyle::ComplexControl), so the slider, combo box, spin box and group box are drawn as control elements with a
     \c QStyleOption subclass of their own, and no \c polish(), \c standardIcon(), \c styleHint(),
-    \c hitTestComplexControl(), style sheets or \c QStyleFactory.
+    \c hitTestComplexControl() or style sheets. drawItemText() does not draw mnemonics.
     \enddifferences
 
     \sa QStyleOption, QApplication::setStyle(), QWidget::setStyle()
@@ -215,6 +226,174 @@ QStyle::~QStyle() = default;
     \sa QApplication::palette(), QStyleHints::colorScheme()
 */
 QPalette QStyle::standardPalette() const { return QPalette(); }
+
+/*!
+    Returns the style that the style calls for its own elements and metrics: the QProxyStyle that it is the base
+    of, or the style itself. A style draws through proxy(), so that what a proxy style changes also changes how
+    the base style draws.
+
+    \sa QProxyStyle
+*/
+const QStyle *QStyle::proxy() const { return m_proxy ? m_proxy : this; }
+
+/*!
+    Returns the rectangle that \a text takes when it is drawn with drawItemText() in \a rectangle, aligned as
+    \a alignment says, with the font of \a metrics. \a enabled is not used.
+
+    \sa drawItemText()
+*/
+QRect QStyle::itemTextRect(const QFontMetrics &metrics, const QRect &rectangle, int alignment, bool enabled,
+                           const QString &text) const {
+    static_cast<void>(enabled);
+    return metrics.boundingRect(rectangle, alignment, text).intersected(rectangle);
+}
+
+/*!
+    Returns the rectangle that \a pixmap takes when it is drawn with drawItemPixmap() in \a rectangle, aligned
+    as \a alignment says. A pixmap of a high-resolution screen takes its size in device-independent pixels.
+
+    \sa drawItemPixmap()
+*/
+QRect QStyle::itemPixmapRect(const QRect &rectangle, int alignment, const QPixmap &pixmap) const {
+    const qreal ratio = pixmap.devicePixelRatio() > 0 ? pixmap.devicePixelRatio() : 1.0;
+    const QSize size(static_cast<int>(pixmap.width() / ratio), static_cast<int>(pixmap.height() / ratio));
+    Qt::Alignment a(static_cast<Qt::AlignmentFlag>(alignment));
+    if (!(a & kHorizontal))
+        a |= Qt::AlignHCenter;
+    if (!(a & kVertical))
+        a |= Qt::AlignVCenter;
+    return alignedRect(Qt::LeftToRight, a, size, rectangle);
+}
+
+/*!
+    Draws \a text with \a painter in \a rectangle, aligned as \a alignment says, in the color of the role
+    \a textRole of \a palette, or in the pen of \a painter if \a textRole is QPalette::NoRole. If \a enabled
+    is \c false, the color is taken from the disabled group of \a palette.
+
+    \sa drawItemPixmap(), itemTextRect()
+*/
+void QStyle::drawItemText(QPainter *painter, const QRect &rectangle, int alignment, const QPalette &palette,
+                          bool enabled, const QString &text, QPalette::ColorRole textRole) const {
+    if (!painter || text.isEmpty())
+        return;
+    painter->save();
+    if (textRole != QPalette::NoRole)
+        painter->setPen(palette.color(enabled ? QPalette::Active : QPalette::Disabled, textRole));
+    painter->drawText(rectangle, alignment, text);
+    painter->restore();
+}
+
+/*!
+    Draws \a pixmap with \a painter in \a rectangle, aligned as \a alignment says.
+
+    \sa drawItemText(), itemPixmapRect()
+*/
+void QStyle::drawItemPixmap(QPainter *painter, const QRect &rectangle, int alignment, const QPixmap &pixmap) const {
+    if (!painter || pixmap.isNull())
+        return;
+    painter->drawPixmap(itemPixmapRect(rectangle, alignment, pixmap), pixmap);
+}
+
+/*!
+    Returns \a logicalRectangle, a rectangle in \a boundingRectangle, mirrored if \a direction is
+    Qt::RightToLeft, so that what is on the left in a left-to-right layout is on the right.
+
+    \sa visualPos(), visualAlignment()
+*/
+QRect QStyle::visualRect(Qt::LayoutDirection direction, const QRect &boundingRectangle, const QRect &logicalRectangle) {
+    if (direction != Qt::RightToLeft)
+        return logicalRectangle;
+    QRect mirrored = logicalRectangle;
+    mirrored.moveLeft(boundingRectangle.right() - logicalRectangle.right() + boundingRectangle.left());
+    return mirrored;
+}
+
+/*!
+    Returns \a logicalPosition, a point in \a boundingRectangle, mirrored if \a direction is Qt::RightToLeft.
+
+    \sa visualRect()
+*/
+QPoint QStyle::visualPos(Qt::LayoutDirection direction, const QRect &boundingRectangle, const QPoint &logicalPosition) {
+    if (direction != Qt::RightToLeft)
+        return logicalPosition;
+    return QPoint(boundingRectangle.right() - logicalPosition.x() + boundingRectangle.left(), logicalPosition.y());
+}
+
+/*!
+    Returns \a alignment with Qt::AlignLeft and Qt::AlignRight swapped if \a direction is Qt::RightToLeft.
+
+    \sa visualRect()
+*/
+Qt::Alignment QStyle::visualAlignment(Qt::LayoutDirection direction, Qt::Alignment alignment) {
+    if (direction != Qt::RightToLeft || (alignment & Qt::AlignHCenter))
+        return alignment;
+    const Qt::Alignment rest = alignment & ~kHorizontal;
+    if (alignment & Qt::AlignRight)
+        return rest | Qt::AlignLeft;
+    if (alignment & Qt::AlignLeft)
+        return rest | Qt::AlignRight;
+    return alignment;
+}
+
+/*!
+    Returns a rectangle of \a size in \a rectangle, aligned as \a alignment says, for the layout direction
+    \a direction.
+
+    \code
+    const QRect icon = QStyle::alignedRect(Qt::LeftToRight, Qt::AlignRight | Qt::AlignVCenter, QSize(16, 16), rect());
+    \endcode
+*/
+QRect QStyle::alignedRect(Qt::LayoutDirection direction, Qt::Alignment alignment, const QSize &size,
+                          const QRect &rectangle) {
+    const Qt::Alignment a = visualAlignment(direction, alignment);
+    int x = rectangle.x(), y = rectangle.y();
+    const int w = size.width(), h = size.height();
+    if (a & Qt::AlignVCenter)
+        y += rectangle.height() / 2 - h / 2;
+    else if (a & Qt::AlignBottom)
+        y += rectangle.height() - h;
+    if (a & Qt::AlignRight)
+        x += rectangle.width() - w;
+    else if (a & Qt::AlignHCenter)
+        x += rectangle.width() / 2 - w / 2;
+    return QRect(x, y, w, h);
+}
+
+/*!
+    Returns the position, from 0 to \a span, of the value \a logicalValue of the range from \a min to \a max:
+    where the handle of a slider of \a span pixels is. With \a upsideDown the position counts from the other end.
+
+    \sa sliderValueFromPosition()
+*/
+int QStyle::sliderPositionFromValue(int min, int max, int logicalValue, int span, bool upsideDown) {
+    if (span <= 0 || logicalValue < min || max <= min)
+        return 0;
+    if (logicalValue > max)
+        return upsideDown ? 0 : span;
+    const auto range = static_cast<long long>(max) - min;
+    const auto position = (static_cast<long long>(logicalValue) - min) * span / range;
+    const int p = static_cast<int>(std::clamp<long long>(position, 0, span));
+    return upsideDown ? span - p : p;
+}
+
+/*!
+    Returns the value of the range from \a min to \a max at the position \a position, from 0 to \a span: the
+    value of a slider of \a span pixels whose handle is there. With \a upsideDown the position counts from the
+    other end. The value is rounded to the nearest.
+
+    \sa sliderPositionFromValue()
+*/
+int QStyle::sliderValueFromPosition(int min, int max, int position, int span, bool upsideDown) {
+    if (span <= 0 || position <= 0)
+        return upsideDown ? max : min;
+    if (position >= span)
+        return upsideDown ? min : max;
+    const auto range = static_cast<long long>(max) - min;
+    long long value = (range * position + span / 2) / span;
+    if (upsideDown)
+        value = range - value;
+    return static_cast<int>(min + value);
+}
 
 /*!
     \fn QStyle::QStyle()

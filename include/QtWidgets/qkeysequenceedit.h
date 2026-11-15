@@ -9,7 +9,7 @@ class QLineEdit;
 
 class QKeySequenceEdit : public QWidget {
     Q_OBJECT
-    Q_PROPERTY(QKeySequence keySequence READ keySequence WRITE setKeySequence NOTIFY keySequenceChanged)
+    Q_PROPERTY(QKeySequence keySequence READ keySequence WRITE setKeySequence NOTIFY keySequenceChanged USER true)
     Q_PROPERTY(bool clearButtonEnabled READ isClearButtonEnabled WRITE setClearButtonEnabled)
 public:
     explicit QKeySequenceEdit(QWidget *parent = nullptr);

@@ -18,8 +18,9 @@
 #
 # DIR/index.html is the landing page, site/index.html of the working tree, in
 # place of the start page of the docs: each @DOCS@ link goes to the latest
-# release's docs when they have the page and to dev/ otherwise, and @VERSION@
-# becomes the latest release (or dev). URL is where DIR is published (default:
+# release's docs when they have the page and to dev/ otherwise, @VERSION@
+# becomes the latest release (or dev) and @URL@ the URL below, where its link
+# preview image is copied too. URL is where DIR is published (default:
 # the url in doc/ndoc.conf); it gives every page its absolute address and the
 # location of versions.json. docs.yml publishes the result to GitHub Pages, next
 # to the apt repository.
@@ -35,7 +36,7 @@ while [ $# -gt 0 ]; do
     --ndoc) ndoc=$2; shift 2 ;;
     --output) output=$2; shift 2 ;;
     --url) url=$2; shift 2 ;;
-    -h | --help) sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "docs-site.sh: unknown option $1" >&2; exit 2 ;;
     *) tags+=("$1"); shift ;;
     esac
@@ -117,7 +118,10 @@ for page in $(grep -o '@DOCS@[A-Za-z0-9._-]*\.html' <<< "$landing" | sort -u); d
 done
 landing=${landing//@DOCS@/$docs}
 landing=${landing//@VERSION@/${latest:-dev}}
+landing=${landing//@URL@/$url}
 printf '%s\n' "$landing" > "$output/index.html"
+# Its link preview (Open Graph and Twitter card), made by assets/social/make_landing_card.py.
+cp "$root/assets/social/nt-social-14-landing-1200x630.png" "$output/"
 
 printf '{"latest": %s, "versions": [%s]}\n' "$(json_string "${latest:-dev}")" "$entries" > "$output/versions.json"
 

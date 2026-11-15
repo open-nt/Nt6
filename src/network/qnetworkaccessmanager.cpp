@@ -1,5 +1,9 @@
 // MIT License - see LICENSE
+#include <QtCore/qcryptographichash.h>
+#include <QtCore/qdatetime.h>
+#include <QtCore/qhash.h>
 #include <QtCore/qpointer.h>
+#include <QtCore/qstringlist.h>
 #include <QtCore/qtimer.h>
 #include <QtNetwork/qhostinfo.h>
 #include <QtNetwork/qnetworkaccessmanager.h>
@@ -9,7 +13,9 @@
 #include <QtNetwork/qsslsocket.h>
 #endif
 
+#include <cstdio>
 #include <cstring>
+#include <random>
 
 namespace {
 
@@ -119,6 +125,188 @@ bool supportedScheme(const QUrl &u) {
         return true;
 #endif
     return u.scheme() == QString("http");
+}
+
+const char *const kDays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+const char *const kMonths[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+
+// An HTTP date (RFC 9110, IMF-fixdate): "Sun, 06 Nov 1994 08:49:37 GMT".
+QByteArray httpDate(const QDateTime &dateTime) {
+    const QDateTime utc = dateTime.toTimeSpec(Qt::UTC);
+    const QDate d = utc.date();
+    const QTime t = utc.time();
+    char buffer[40];
+    std::snprintf(buffer, sizeof(buffer), "%s, %02d %s %04d %02d:%02d:%02d GMT", kDays[d.dayOfWeek() - 1], d.day(),
+                  kMonths[d.month() - 1], d.year(), t.hour(), t.minute(), t.second());
+    return QByteArray(buffer);
+}
+
+int monthOf(const QByteArray &name) {
+    for (int i = 0; i < 12; ++i) {
+        if (name.compare(kMonths[i], Qt::CaseInsensitive) == 0)
+            return i + 1;
+    }
+    return 0;
+}
+
+// Parses an HTTP date in any of the three forms that RFC 9110 asks a recipient to accept: IMF-fixdate, the obsolete
+// RFC 850 form and asctime(). Returns an invalid date for anything else.
+QDateTime parseHttpDate(const QByteArray &text) {
+    QList<QByteArray> parts;
+    for (const QByteArray &p : text.simplified().replace(',', ' ').split(' ')) {
+        if (!p.isEmpty())
+            parts.append(p);
+    }
+    int day = 0, month = 0, year = 0;
+    QByteArray clock;
+    if (parts.size() >= 5 && monthOf(parts.at(2))) { // Sun, 06 Nov 1994 08:49:37 GMT
+        day = parts.at(1).toInt();
+        month = monthOf(parts.at(2));
+        year = parts.at(3).toInt();
+        clock = parts.at(4);
+    } else if (parts.size() >= 3 && parts.at(1).count('-') == 2) { // Sunday, 06-Nov-94 08:49:37 GMT
+        const QList<QByteArray> date = parts.at(1).split('-');
+        day = date.at(0).toInt();
+        month = monthOf(date.at(1));
+        year = date.at(2).toInt();
+        if (date.at(2).size() == 2)
+            year += year < 70 ? 2000 : 1900;
+        clock = parts.at(2);
+    } else if (parts.size() >= 5 && monthOf(parts.at(1))) { // Sun Nov  6 08:49:37 1994
+        month = monthOf(parts.at(1));
+        day = parts.at(2).toInt();
+        clock = parts.at(3);
+        year = parts.at(4).toInt();
+    }
+    const QList<QByteArray> hms = clock.split(':');
+    if (month == 0 || hms.size() != 3)
+        return QDateTime();
+    const QDate date(year, month, day);
+    const QTime time(hms.at(0).toInt(), hms.at(1).toInt(), hms.at(2).toInt());
+    if (!date.isValid() || !time.isValid())
+        return QDateTime();
+    return QDateTime(date, time, Qt::UTC);
+}
+
+// The value of a known header as Qt 6 types it: text as QString, lengths as qint64, locations as QUrl, dates as
+// QDateTime and the entity tags of If-Match as a QStringList. Cookies stay a QByteArray: Nt has no QNetworkCookie.
+QVariant headerValue(QNetworkRequest::KnownHeaders header, const QByteArray &raw) {
+    switch (header) {
+    case QNetworkRequest::ContentLengthHeader: {
+        qint64 length = 0;
+        return parseLength(raw, &length) ? QVariant(length) : QVariant();
+    }
+    case QNetworkRequest::LocationHeader:
+        return QVariant::fromValue(QUrl(QString::fromUtf8(raw)));
+    case QNetworkRequest::LastModifiedHeader:
+    case QNetworkRequest::IfModifiedSinceHeader: {
+        const QDateTime date = parseHttpDate(raw);
+        return date.isValid() ? QVariant(date) : QVariant();
+    }
+    case QNetworkRequest::IfMatchHeader:
+    case QNetworkRequest::IfNoneMatchHeader: {
+        QStringList tags;
+        for (const QByteArray &tag : raw.split(','))
+            tags.append(QString::fromLatin1(tag.trimmed()));
+        return tags;
+    }
+    case QNetworkRequest::CookieHeader:
+    case QNetworkRequest::SetCookieHeader:
+        return raw;
+    case QNetworkRequest::ContentTypeHeader:
+    case QNetworkRequest::ContentDispositionHeader:
+    case QNetworkRequest::UserAgentHeader:
+    case QNetworkRequest::ServerHeader:
+    case QNetworkRequest::ETagHeader:
+        break;
+    }
+    return QString::fromLatin1(raw);
+}
+
+// The bytes of a known header for a value of the types that headerValue() returns, or of any type that converts to
+// a string.
+QByteArray headerBytes(QNetworkRequest::KnownHeaders header, const QVariant &value) {
+    if (!value.isValid())
+        return QByteArray();
+    switch (value.typeId()) {
+    case QMetaType::QUrl:
+        return value.toUrl().toEncoded();
+    case QMetaType::QDateTime:
+        return httpDate(value.toDateTime());
+    case QMetaType::QStringList:
+        return value.toStringList().join(QStringLiteral(", ")).toLatin1();
+    case QMetaType::QByteArray:
+        return value.toByteArray();
+    default:
+        break;
+    }
+    if (header == QNetworkRequest::ContentLengthHeader)
+        return QByteArray::number(value.toLongLong());
+    return value.toString().toUtf8();
+}
+
+// One challenge of a WWW-Authenticate header: the scheme, in lower case, and its parameters.
+struct Challenge {
+    QByteArray scheme;
+    QHash<QByteArray, QByteArray> params;
+};
+
+// Parses `Digest realm="cam", nonce="abc", qop="auth"`: the scheme, then name=value pairs, values quoted or not.
+Challenge parseChallenge(const QByteArray &header) {
+    Challenge c;
+    const QByteArray text = header.trimmed();
+    qsizetype i = text.indexOf(' ');
+    c.scheme = (i < 0 ? text : text.left(i)).toLower();
+    if (i < 0)
+        return c;
+    const qsizetype n = text.size();
+    while (i < n) {
+        while (i < n && (text[i] == ' ' || text[i] == ','))
+            ++i;
+        const qsizetype eq = text.indexOf('=', i);
+        if (eq < 0)
+            break;
+        const QByteArray name = text.mid(i, eq - i).trimmed().toLower();
+        i = eq + 1;
+        QByteArray value;
+        if (i < n && text[i] == '"') {
+            for (++i; i < n && text[i] != '"'; ++i) {
+                if (text[i] == '\\' && i + 1 < n)
+                    ++i;
+                value += text[i];
+            }
+            ++i; // the closing quote
+        } else {
+            const qsizetype comma = text.indexOf(',', i);
+            value = text.mid(i, (comma < 0 ? n : comma) - i).trimmed();
+            i = comma < 0 ? n : comma;
+        }
+        c.params.insert(name, value);
+    }
+    return c;
+}
+
+QByteArray md5Hex(const QByteArray &data) { return QCryptographicHash::hash(data, QCryptographicHash::Md5).toHex(); }
+
+// A client nonce for Digest: 16 random bytes in hex.
+QByteArray clientNonce() {
+    std::random_device device;
+    QByteArray bytes;
+    for (int i = 0; i < 4; ++i) {
+        const quint32 v = device();
+        bytes.append(reinterpret_cast<const char *>(&v), sizeof(v));
+    }
+    return bytes.toHex();
+}
+
+QByteArray quoted(const QByteArray &value) {
+    QByteArray out = "\"";
+    for (char c : value) {
+        if (c == '"' || c == '\\')
+            out += '\\';
+        out += c;
+    }
+    return out + '"';
 }
 
 QNetworkReply::NetworkError errorForStatus(int status) {
@@ -296,11 +484,7 @@ private:
     }
 
     void sendRequest() {
-        QByteArray target = m_url.path(QUrl::FullyEncoded).toUtf8();
-        if (target.isEmpty())
-            target = "/";
-        if (m_url.hasQuery())
-            target += '?' + m_url.query(QUrl::FullyEncoded).toUtf8();
+        const QByteArray target = requestTarget();
 
         QByteArray host = m_url.host(QUrl::FullyEncoded).toUtf8();
         if (m_url.port() >= 0 && m_url.port() != defaultPort(m_url))
@@ -575,6 +759,8 @@ private:
 
         if (followsRedirect())
             return redirect();
+        if (m_status == 401 && authenticate())
+            return false;
 
         QPointer<QNetworkReply> guard(this);
         metaDataChanged();
@@ -644,6 +830,148 @@ private:
             m_request.setRawHeader("Content-Type", QByteArray());
         }
         m_url = target;
+        QPointer<QNetworkReply> guard(this);
+        redirected(target);
+        if (guard && !m_finished)
+            restart();
+        return false;
+    }
+
+    // The request target of the URL: its path and query.
+    QByteArray requestTarget() const {
+        QByteArray target = m_url.path(QUrl::FullyEncoded).toUtf8();
+        if (target.isEmpty())
+            target = "/";
+        if (m_url.hasQuery())
+            target += '?' + m_url.query(QUrl::FullyEncoded).toUtf8();
+        return target;
+    }
+
+    // The value of the Authorization header that answers `challenge` with `user` and `password`.
+    QByteArray authorization(const Challenge &challenge, const QString &user, const QString &password) const {
+        if (challenge.scheme == "basic")
+            return "Basic " + (user + QChar(u':') + password).toUtf8().toBase64();
+        const QByteArray realm = challenge.params.value("realm");
+        const QByteArray nonce = challenge.params.value("nonce");
+        const QByteArray uri = requestTarget();
+        const QByteArray cnonce = clientNonce();
+        const QByteArray nc = "00000001";
+        QByteArray ha1 = md5Hex(user.toUtf8() + ':' + realm + ':' + password.toUtf8());
+        if (challenge.params.value("algorithm").toLower() == "md5-sess")
+            ha1 = md5Hex(ha1 + ':' + nonce + ':' + cnonce);
+        const QByteArray ha2 = md5Hex(m_verb + ':' + uri);
+        bool qopAuth = false;
+        for (const QByteArray &q : challenge.params.value("qop").split(','))
+            qopAuth = qopAuth || q.trimmed().toLower() == "auth";
+        const QByteArray response = qopAuth ? md5Hex(ha1 + ':' + nonce + ':' + nc + ':' + cnonce + ":auth:" + ha2)
+                                            : md5Hex(ha1 + ':' + nonce + ':' + ha2);
+        QByteArray header = "Digest username=" + quoted(user.toUtf8()) + ", realm=" + quoted(realm) +
+                            ", nonce=" + quoted(nonce) + ", uri=" + quoted(uri) + ", response=" + quoted(response);
+        if (challenge.params.contains("algorithm"))
+            header += ", algorithm=" + challenge.params.value("algorithm");
+        if (qopAuth)
+            header += ", qop=auth, nc=" + nc + ", cnonce=" + quoted(cnonce);
+        if (challenge.params.contains("opaque"))
+            header += ", opaque=" + quoted(challenge.params.value("opaque"));
+        return header;
+    }
+
+    // The challenge to answer: Digest with MD5 if the server offers it, else Basic. False if there is neither.
+    bool pickChallenge(Challenge *picked) const {
+        bool found = false;
+        for (const auto &h : m_headers) {
+            if (!sameName(h.first, "WWW-Authenticate"))
+                continue;
+            const Challenge c = parseChallenge(h.second);
+            const QByteArray algorithm = c.params.value("algorithm").toLower();
+            const bool digest =
+                c.scheme == "digest" && (algorithm.isEmpty() || algorithm == "md5" || algorithm == "md5-sess");
+            if (digest) {
+                *picked = c;
+                return true;
+            }
+            if (c.scheme == "basic" && !found) {
+                *picked = c;
+                found = true;
+            }
+        }
+        return found;
+    }
+
+    // Answers a 401: finds credentials (those of the URL, those that worked before, or those that a slot of
+    // authenticationRequired() gives) and sends the request again with them. Returns false if there are none, and
+    // the 401 response is the result.
+    bool authenticate() {
+        Challenge challenge;
+        if (!pickChallenge(&challenge) || ++m_authAttempts > 8)
+            return false;
+        const QString realm = QString::fromUtf8(challenge.params.value("realm"));
+        const QString origin = originOf(m_url);
+        QString user, password;
+        bool have = false;
+        // The credentials of the URL went out with the first request as Basic; Digest still needs them.
+        if (!m_triedUrl && !m_url.userName().isEmpty()) {
+            m_triedUrl = true;
+            if (challenge.scheme == "digest") {
+                user = m_url.userName();
+                password = m_url.password();
+                have = true;
+            }
+        }
+        if (!have && !m_triedCache && m_manager) {
+            m_triedCache = true;
+            for (const auto &c : m_manager->m_credentials) {
+                if (c.origin == origin && c.realm == realm) {
+                    user = c.user;
+                    password = c.password;
+                    have = true;
+                    break;
+                }
+            }
+        }
+        if (!have) {
+            QAuthenticator authenticator;
+            authenticator.setRealm(realm);
+            for (auto it = challenge.params.cbegin(); it != challenge.params.cend(); ++it)
+                authenticator.setOption(QString::fromLatin1(it.key()), QString::fromUtf8(it.value()));
+            QPointer<QNetworkReply> guard(this);
+            if (m_manager)
+                m_manager->authenticationRequired(this, &authenticator);
+            if (!guard)
+                return true; // deleted by a slot: nothing more to do
+            if (m_finished || authenticator.user().isEmpty())
+                return false;
+            if (m_asked && authenticator.user() == m_authUser && authenticator.password() == m_authPassword)
+                return false; // the same credentials failed already
+            m_asked = true;
+            user = authenticator.user();
+            password = authenticator.password();
+        }
+        m_authUser = user;
+        m_authPassword = password;
+        m_authRealm = realm;
+        m_request.setRawHeader("Authorization", authorization(challenge, user, password));
+        restart();
+        return true;
+    }
+
+    // Remembers credentials that worked, for the next request to the same server and realm.
+    void rememberCredentials() {
+        if (!m_manager || m_authUser.isEmpty())
+            return;
+        const QString origin = originOf(m_url);
+        for (auto &c : m_manager->m_credentials) {
+            if (c.origin == origin && c.realm == m_authRealm) {
+                c.user = m_authUser;
+                c.password = m_authPassword;
+                return;
+            }
+        }
+        m_manager->m_credentials.append({origin, m_authRealm, m_authUser, m_authPassword});
+    }
+
+    // Sends the request again on a new connection: after a redirect, or with credentials.
+    void restart() {
         m_in.clear();
         m_inPos = 0;
         m_phase = StatusLine;
@@ -651,11 +979,10 @@ private:
         m_headers.clear();
         m_receivedAny = false;
         dropSocket();
-        QPointer<QNetworkReply> guard(this);
-        redirected(target);
-        if (guard && !m_finished)
-            QTimer::singleShot(0, this, [this] { begin(); });
-        return false;
+        QTimer::singleShot(0, this, [this] {
+            if (!m_finished)
+                begin();
+        });
     }
 
     void deliver(qint64 n) {
@@ -675,6 +1002,8 @@ private:
 
     void complete() {
         m_phase = Done;
+        if (m_status != 401)
+            rememberCredentials();
         const NetworkError e = errorForStatus(m_status);
         finish(e, e == NoError ? QString() : QString("Server replied: ") + QString::fromUtf8(m_reason));
     }
@@ -726,6 +1055,13 @@ private:
     qint64 m_headerBytesLeft = 0;
     qint64 m_headerTotal = 0;
     bool m_receivedAny = false;
+    int m_authAttempts = 0;
+    bool m_triedUrl = false;
+    bool m_triedCache = false;
+    bool m_asked = false;
+    QString m_authUser;
+    QString m_authPassword;
+    QString m_authRealm;
     NetworkError m_lastConnectError = ConnectionRefusedError;
     QString m_lastConnectText = QString("Could not connect");
 #ifndef QT_NO_SSL
@@ -745,8 +1081,9 @@ private:
     Attributes are stored and returned, but none of them changes how the
     request is sent; setRedirectPolicy(),
     setMaximumRedirectsAllowed() and setTransferTimeout() cover the common
-    settings. Known headers are read and written as QByteArray rather than
-    QVariant. There is no priority or HTTP/2 setting, and no
+    settings. There is no cache, so every request goes to the network whatever
+    \c CacheLoadControlAttribute says. Cookie headers are a QByteArray, as Nt has
+    no \c QNetworkCookie. There is no priority or HTTP/2 setting, and no
     \c UserVerifiedRedirectPolicy.
     \enddifferences
 
@@ -771,6 +1108,28 @@ private:
     \value ETagHeader \c ETag
     \value IfMatchHeader \c If-Match
     \value IfNoneMatchHeader \c If-None-Match
+*/
+
+/*!
+    \enum QNetworkRequest::CacheLoadControl
+
+    The values of \c CacheLoadControlAttribute: whether a response may come from the cache. Nt has no cache, so
+    every request goes to the network.
+
+    \value AlwaysNetwork Always from the network.
+    \value PreferNetwork From the network, or from the cache if it is fresh; the default in Qt.
+    \value PreferCache From the cache if it has the response, else from the network.
+    \value AlwaysCache Only from the cache.
+*/
+
+/*!
+    \enum QNetworkRequest::LoadControl
+
+    The values of \c CookieLoadControlAttribute, \c CookieSaveControlAttribute and
+    \c AuthenticationReuseAttribute.
+
+    \value Automatic What the manager does by default.
+    \value Manual Only what the application sets.
 */
 
 /*!
@@ -809,19 +1168,25 @@ QUrl QNetworkRequest::url() const { return m_url; }
 void QNetworkRequest::setUrl(const QUrl &url) { m_url = url; }
 
 /*!
-    Returns the value of the known \a header, or an empty array if it is unset.
+    Returns the value of the known \a header, typed as in Qt: a QString for text such as the content type, a
+    \c qint64 for the content length, a QUrl for the location, a QDateTime for dates and a QStringList for the entity
+    tags of \c If-Match. It is an invalid QVariant if the header is unset or cannot be read as that type.
 
-    \sa setHeader()
+    \sa setHeader(), rawHeader()
 */
-QByteArray QNetworkRequest::header(KnownHeaders header) const { return rawHeader(headerName(header)); }
+QVariant QNetworkRequest::header(KnownHeaders header) const {
+    const QByteArray name = headerName(header);
+    return hasRawHeader(name) ? headerValue(header, rawHeader(name)) : QVariant();
+}
 
 /*!
-    Sets the known \a header to \a value.
+    Sets the known \a header to \a value, written as HTTP writes it: a QDateTime as an HTTP date, a QUrl encoded, a
+    number as digits and anything else as text. An invalid \a value removes the header.
 
     \sa header()
 */
-void QNetworkRequest::setHeader(KnownHeaders header, const QByteArray &value) {
-    setRawHeader(headerName(header), value);
+void QNetworkRequest::setHeader(KnownHeaders header, const QVariant &value) {
+    setRawHeader(headerName(header), headerBytes(header, value));
 }
 
 /*!
@@ -1148,7 +1513,7 @@ QVariant QNetworkReply::attribute(QNetworkRequest::Attribute code) const {
     case QNetworkRequest::HttpReasonPhraseAttribute:
         return answered ? QVariant(m_reason) : QVariant();
     case QNetworkRequest::RedirectionTargetAttribute: {
-        const QByteArray location = header(QNetworkRequest::LocationHeader);
+        const QByteArray location = rawHeader("Location");
         const bool redirect = m_status == 301 || m_status == 302 || m_status == 303 || m_status == 305 ||
                               m_status == 307 || m_status == 308;
         return redirect && !location.isEmpty() ? QVariant::fromValue(QUrl(QString::fromUtf8(location))) : QVariant();
@@ -1165,11 +1530,15 @@ QVariant QNetworkReply::attribute(QNetworkRequest::Attribute code) const {
 }
 
 /*!
-    Returns the value of the known \a header.
+    Returns the value of the known \a header, typed as QNetworkRequest::header() types it, or an invalid QVariant if
+    the response does not have it.
 
     \sa rawHeader()
 */
-QByteArray QNetworkReply::header(QNetworkRequest::KnownHeaders header) const { return rawHeader(headerName(header)); }
+QVariant QNetworkReply::header(QNetworkRequest::KnownHeaders header) const {
+    const QByteArray name = headerName(header);
+    return hasRawHeader(name) ? headerValue(header, rawHeader(name)) : QVariant();
+}
 
 /*!
     Returns \c true if the response has the header \a headerName. Names are not
@@ -1324,13 +1693,19 @@ qint64 QNetworkReply::writeData(const char *data, qint64 maxSize) {
     different origin. A response cut short reports RemoteHostClosedError rather
     than appearing to succeed.
 
+    A server that asks for credentials (HTTP 401) is answered with Digest or
+    Basic authentication: with the credentials in the URL, with those that
+    worked before for the server and realm, or with those that a slot of
+    authenticationRequired() gives.
+
     \differences
     HTTP/1.1 only, over \c http: and \c https: (https needs a build with
     OpenSSL, or with Mbed TLS on Zephyr); \c ftp: and \c file: URLs fail with ProtocolUnknownError. Each
     request uses its own
     connection, with no keep-alive pooling. There is no cookie jar, proxy,
-    cache, compressed-transfer support or \c authenticationRequired() signal;
-    credentials in the URL are sent as HTTP Basic. A QIODevice body is read in
+    cache or compressed-transfer support, and no NTLM or Negotiate
+    authentication; Digest is MD5 only. Credentials in the URL are sent as
+    HTTP Basic with the first request. A QIODevice body is read in
     full before the request starts, so uploads are not streamed.
     \enddifferences
 

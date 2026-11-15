@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include "qoffscreenintegration_p.h"
 
+#include <QtGui/qscreen.h>
+
 #include "qpa/qwindowsysteminterface_p.h"
 #include "qwindow_p.h"
 
@@ -29,6 +31,26 @@ void QOffscreenWindow::setGeometry(const QRect &rect) {
     QPlatformWindow::setGeometry(rect);
     if (m_visible)
         QWindowSystemInterface::handleExposeEvent(window(), QRegion(QRect(QPoint(0, 0), rect.size())));
+}
+
+void QOffscreenWindow::setWindowStates(Qt::WindowStates states) {
+    const bool fill = states & (Qt::WindowMaximized | Qt::WindowFullScreen);
+    if (fill == m_filling)
+        return;
+    QScreen *screen = window()->screen();
+    if (fill && !screen)
+        return;
+    if (fill) {
+        m_normalGeometry = geometry();
+        m_filling = true;
+        const QRect target = states.testFlag(Qt::WindowFullScreen) ? screen->geometry() : screen->availableGeometry();
+        setGeometry(target);
+        QWindowSystemInterface::handleGeometryChange(window(), target);
+    } else {
+        m_filling = false;
+        setGeometry(m_normalGeometry);
+        QWindowSystemInterface::handleGeometryChange(window(), m_normalGeometry);
+    }
 }
 
 Qt::CursorShape QOffscreenWindow::cursorOf(const QWindow *window) {

@@ -17,6 +17,8 @@ struct GuiAccess {
     static QPlatformWindow *platformWindow(const QWindow *window);
     // Makes the window full screen, or normal, when it is next shown (or now if it shows).
     static void setFullScreen(QWindow *window, bool fullScreen);
+    // Sets the state of the window, applied when it is next shown (or now if it shows).
+    static void setWindowStates(QWindow *window, Qt::WindowStates states);
     // Applies a geometry the platform reports and sends the move and resize events for it.
     static void applyGeometry(QWindow *window, const QRect &rect);
     static void setExposed(QWindow *window, bool exposed);

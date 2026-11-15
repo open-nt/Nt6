@@ -11,8 +11,17 @@
     An option carries the rectangle to draw in, the state, the palette and the font metrics. Use
     initFrom() to set them from a widget. Subclasses add the data that an element needs, such as a text.
 
+    \c{qstyleoption_cast<T>()} casts an option to the subclass \c T if its type is that of \c T, and returns
+    \c nullptr otherwise, as a style does with the option it is given; a cast to QStyleOptionComplex succeeds for
+    every complex option:
+
+    \code
+    if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option))
+        drawTicks(painter, slider);
+    \endcode
+
     \differences
-    The members are plain data and there is no \c version, \c direction, \c styleObject or \c operator=.
+    initFrom() leaves \c direction left to right, as Nt has no right-to-left layout of widgets.
     \enddifferences
 
     \sa QStyle, QStyleOptionButton
@@ -24,6 +33,19 @@
     This enum identifies the kind of an option.
 
     \value SO_Default A plain option.
+    \value SO_FocusRect A QStyleOptionFocusRect.
+    \value SO_ToolBox A QStyleOptionToolBox.
+    \value SO_DockWidget A QStyleOptionDockWidget.
+    \value SO_TabWidgetFrame A QStyleOptionTabWidgetFrame.
+    \value SO_TabBarBase A QStyleOptionTabBarBase.
+    \value SO_RubberBand A QStyleOptionRubberBand.
+    \value SO_ToolBar A QStyleOptionToolBar.
+    \value SO_Complex A QStyleOptionComplex; the types of the complex options come after it.
+    \value SO_ToolButton A QStyleOptionToolButton.
+    \value SO_TitleBar A QStyleOptionTitleBar.
+    \value SO_SizeGrip A QStyleOptionSizeGrip.
+    \value SO_CustomBase The first type of an option of the application's own.
+    \value SO_ComplexCustomBase The first type of a complex option of the application's own.
     \value SO_Button A QStyleOptionButton.
     \value SO_Frame A QStyleOptionFrame.
     \value SO_Slider A QStyleOptionSlider.
@@ -65,6 +87,9 @@ void QStyleOption::initFrom(const QWidget *widget) {
     rect = widget->rect();
     palette = widget->palette();
     fontMetrics = widget->fontMetrics();
+    // Nt has no right-to-left layout of widgets yet.
+    direction = Qt::LeftToRight;
+    styleObject = const_cast<QWidget *>(widget); // NOLINT(cppcoreguidelines-pro-type-const-cast): Qt's member
 }
 
 /*!
@@ -112,7 +137,10 @@ void QStyleOption::initFrom(const QWidget *widget) {
 
     \value None No special feature.
     \value Flat The button has no bevel until it is pressed.
+    \value HasMenu The button has a menu.
     \value DefaultButton The button is the default button.
+    \value AutoDefaultButton The button becomes the default button when it has the focus.
+    \value CommandLinkButton The button is a command link button.
 */
 
 /*!
@@ -203,7 +231,7 @@ void QStyleOption::initFrom(const QWidget *widget) {
 */
 
 /*!
-    \variable QStyleOptionSlider::wrapping
+    \variable QStyleOptionSlider::dialWrapping
 
     Whether a dial goes all the way round, so that its smallest and largest value are at the same place. A slider does
     not use it.
@@ -408,8 +436,13 @@ void QStyleOption::initFrom(const QWidget *widget) {
     This enum says what kind of entry a menu has.
 
     \value Normal An entry that triggers an action.
+    \value DefaultItem The default entry of the menu.
     \value Separator A line between groups of entries.
     \value SubMenu An entry that opens another menu.
+    \value Scroller The scroller of a menu that is too high.
+    \value TearOff The tear-off entry.
+    \value Margin The margin of the menu.
+    \value EmptyArea The area of the menu that has no entries.
 */
 
 /*!
@@ -460,10 +493,974 @@ void QStyleOption::initFrom(const QWidget *widget) {
 */
 
 /*!
-    \variable QStyleOptionMenuItem::tabWidth
+    \variable QStyleOptionMenuItem::reservedShortcutWidth
 
     The width of the widest shortcut of the entries before this one in the menu, which a style adds to the width of an
     entry that has a shortcut.
+*/
+
+/*!
+    \enum QStyleOption::StyleOptionType
+
+    \value Type The type of the option, \c SO_Default. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \enum QStyleOption::StyleOptionVersion
+
+    The version of the options.
+
+    \value Version The version, 1.
+*/
+
+/*!
+    \fn QStyleOption::QStyleOption(int optionVersion, int optionType)
+
+    Constructs an option of the type \a optionType and the version \a optionVersion.
+*/
+/*!
+    \fn QStyleOption::QStyleOption(const QStyleOption &other)
+
+    Constructs a copy of \a other.
+*/
+/*!
+    \fn QStyleOption &QStyleOption::operator=(const QStyleOption &other)
+
+    Makes the option a copy of \a other and returns it.
+*/
+
+/*!
+    \variable QStyleOption::version
+
+    The version of the option, 1.
+*/
+
+/*!
+    \variable QStyleOption::direction
+
+    The layout direction of the widget; left to right.
+*/
+
+/*!
+    \variable QStyleOption::styleObject
+
+    The widget that the option was made for by initFrom(), or \c nullptr.
+*/
+
+/*!
+    \class QStyleOptionFocusRect
+    \brief The QStyleOptionFocusRect class describes the parameters for drawing a focus rectangle.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionFocusRect::StyleOptionType
+
+    \value Type The type of the option, \c SO_FocusRect. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \fn QStyleOptionFocusRect::QStyleOptionFocusRect()
+
+    Constructs an option for a focus rectangle.
+*/
+
+/*!
+    \variable QStyleOptionFocusRect::backgroundColor
+
+    The color behind the focus rectangle.
+*/
+
+/*!
+    \enum QStyleOptionButton::StyleOptionType
+
+    \value Type The type of the option, \c SO_Button. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \variable QStyleOptionButton::iconSize
+
+    The size of the icon of the button.
+*/
+
+/*!
+    \enum QStyleOptionFrame::StyleOptionType
+
+    \value Type The type of the option, \c SO_Frame. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \enum QStyleOptionFrame::FrameFeature
+
+    This enum describes how a frame is drawn. The FrameFeatures type is a typedef for \c{QFlags<FrameFeature>}.
+
+    \value None A plain frame.
+    \value Flat A flat frame.
+    \value Rounded A frame with rounded corners.
+*/
+
+/*!
+    \variable QStyleOptionFrame::midLineWidth
+
+    The width of the line in the middle of the frame, 0 by default.
+*/
+
+/*!
+    \variable QStyleOptionFrame::features
+
+    How the frame is drawn.
+*/
+
+/*!
+    \variable QStyleOptionFrame::frameShape
+
+    The shape of the frame, a QFrame::Shape.
+*/
+
+/*!
+    \class QStyleOptionTabWidgetFrame
+    \brief The QStyleOptionTabWidgetFrame class describes the parameters for drawing the frame around the pages of a tab widget.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionTabWidgetFrame::StyleOptionType
+
+    \value Type The type of the option, \c SO_TabWidgetFrame. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \fn QStyleOptionTabWidgetFrame::QStyleOptionTabWidgetFrame()
+
+    Constructs an option for the frame of a tab widget.
+*/
+
+/*!
+    \variable QStyleOptionTabWidgetFrame::lineWidth
+
+    The width of the frame line.
+*/
+
+/*!
+    \variable QStyleOptionTabWidgetFrame::midLineWidth
+
+    The width of the line in the middle of the frame.
+*/
+
+/*!
+    \variable QStyleOptionTabWidgetFrame::shape
+
+    The shape of the tabs, a QTabBar::Shape.
+*/
+
+/*!
+    \variable QStyleOptionTabWidgetFrame::tabBarSize
+
+    The size of the tab bar.
+*/
+
+/*!
+    \variable QStyleOptionTabWidgetFrame::rightCornerWidgetSize
+
+    The size of the right corner widget.
+*/
+
+/*!
+    \variable QStyleOptionTabWidgetFrame::leftCornerWidgetSize
+
+    The size of the left corner widget.
+*/
+
+/*!
+    \variable QStyleOptionTabWidgetFrame::tabBarRect
+
+    The rectangle of the tab bar.
+*/
+
+/*!
+    \variable QStyleOptionTabWidgetFrame::selectedTabRect
+
+    The rectangle of the selected tab.
+*/
+
+/*!
+    \class QStyleOptionTabBarBase
+    \brief The QStyleOptionTabBarBase class describes the base of a tab bar, the line under its tabs.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionTabBarBase::StyleOptionType
+
+    \value Type The type of the option, \c SO_TabBarBase. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \fn QStyleOptionTabBarBase::QStyleOptionTabBarBase()
+
+    Constructs an option for the base of a tab bar.
+*/
+
+/*!
+    \variable QStyleOptionTabBarBase::shape
+
+    The shape of the tabs, a QTabBar::Shape.
+*/
+
+/*!
+    \variable QStyleOptionTabBarBase::tabBarRect
+
+    The rectangle of the tab bar.
+*/
+
+/*!
+    \variable QStyleOptionTabBarBase::selectedTabRect
+
+    The rectangle of the selected tab.
+*/
+
+/*!
+    \variable QStyleOptionTabBarBase::documentMode
+
+    Whether the tab bar is in document mode.
+*/
+
+/*!
+    \class QStyleOptionComplex
+    \brief The QStyleOptionComplex class is the base of the options of complex controls.
+
+    A complex control, such as a slider or a spin box, has parts that QStyle::subControlRect() finds and
+    QStyle::hitTestComplexControl() tells apart.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionComplex::StyleOptionType
+
+    \value Type The type of the option, \c SO_Complex. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \fn QStyleOptionComplex::QStyleOptionComplex(int optionType)
+
+    Constructs a complex option of the type \a optionType.
+*/
+
+/*!
+    \variable QStyleOptionComplex::subControls
+
+    The parts of the control that are drawn; all of them by default.
+*/
+
+/*!
+    \variable QStyleOptionComplex::activeSubControls
+
+    The parts of the control that are pressed or under the mouse; none by default.
+*/
+
+/*!
+    \enum QStyleOptionSlider::StyleOptionType
+
+    \value Type The type of the option, \c SO_Slider. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \variable QStyleOptionSlider::tickPosition
+
+    Where the tick marks of a slider are, a QSlider::TickPosition.
+*/
+
+/*!
+    \variable QStyleOptionSlider::tickInterval
+
+    The distance between two tick marks, in values; 0 lets the style choose.
+*/
+
+/*!
+    \variable QStyleOptionSlider::upsideDown
+
+    Whether the smallest value is at the right or the bottom.
+*/
+
+/*!
+    \variable QStyleOptionSlider::sliderValue
+
+    The value of the slider, which can differ from sliderPosition while the handle is dragged.
+*/
+
+/*!
+    \variable QStyleOptionSlider::singleStep
+
+    The step of the arrow keys.
+*/
+
+/*!
+    \variable QStyleOptionSlider::notchTarget
+
+    The distance between the notches of a dial that the style aims for, in pixels.
+*/
+
+/*!
+    \variable QStyleOptionSlider::keyboardModifiers
+
+    The modifier keys that are held.
+*/
+
+/*!
+    \enum QStyleOptionProgressBar::StyleOptionType
+
+    \value Type The type of the option, \c SO_ProgressBar. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \variable QStyleOptionProgressBar::textAlignment
+
+    How the text of the bar is aligned.
+*/
+
+/*!
+    \variable QStyleOptionProgressBar::invertedAppearance
+
+    Whether the bar grows from the other end.
+*/
+
+/*!
+    \variable QStyleOptionProgressBar::bottomToTop
+
+    Whether the text of a vertical bar reads from the bottom up.
+*/
+
+/*!
+    \enum QStyleOptionTab::StyleOptionType
+
+    \value Type The type of the option, \c SO_Tab. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \enum QStyleOptionTab::TabPosition
+
+    Where a tab is in its tab bar.
+
+    \value Beginning The first tab.
+    \value Middle A tab between others.
+    \value End The last tab.
+    \value OnlyOneTab The only tab.
+    \value Moving A tab that is being dragged.
+*/
+
+/*!
+    \enum QStyleOptionTab::SelectedPosition
+
+    Whether a tab is next to the selected one.
+
+    \value NotAdjacent Neither neighbour is selected.
+    \value NextIsSelected The next tab is selected.
+    \value PreviousIsSelected The previous tab is selected.
+*/
+
+/*!
+    \enum QStyleOptionTab::CornerWidget
+
+    Which corner widgets the tab widget has. The CornerWidgets type is a typedef for \c{QFlags<CornerWidget>}.
+
+    \value NoCornerWidgets None.
+    \value LeftCornerWidget One on the left.
+    \value RightCornerWidget One on the right.
+*/
+
+/*!
+    \enum QStyleOptionTab::TabFeature
+
+    What a tab has. The TabFeatures type is a typedef for \c{QFlags<TabFeature>}.
+
+    \value None Nothing special.
+    \value HasFrame The tab has a frame.
+    \value MinimumSizeHint The size is asked for the minimum size hint.
+*/
+
+/*!
+    \variable QStyleOptionTab::shape
+
+    The shape of the tab, a QTabBar::Shape.
+*/
+
+/*!
+    \variable QStyleOptionTab::row
+
+    The row of the tab.
+*/
+
+/*!
+    \variable QStyleOptionTab::position
+
+    Where the tab is in its tab bar.
+*/
+
+/*!
+    \variable QStyleOptionTab::selectedPosition
+
+    Whether the tab is next to the selected one.
+*/
+
+/*!
+    \variable QStyleOptionTab::cornerWidgets
+
+    Which corner widgets the tab widget has.
+*/
+
+/*!
+    \variable QStyleOptionTab::iconSize
+
+    The size of the icon of the tab.
+*/
+
+/*!
+    \variable QStyleOptionTab::documentMode
+
+    Whether the tab bar is in document mode.
+*/
+
+/*!
+    \variable QStyleOptionTab::leftButtonSize
+
+    The size of the widget on the left of the tab.
+*/
+
+/*!
+    \variable QStyleOptionTab::rightButtonSize
+
+    The size of the widget on the right of the tab.
+*/
+
+/*!
+    \variable QStyleOptionTab::features
+
+    What the tab has.
+*/
+
+/*!
+    \variable QStyleOptionTab::tabIndex
+
+    The index of the tab, or -1.
+*/
+
+/*!
+    \class QStyleOptionToolBar
+    \brief The QStyleOptionToolBar class describes the parameters for drawing a tool bar.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionToolBar::StyleOptionType
+
+    \value Type The type of the option, \c SO_ToolBar. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \enum QStyleOptionToolBar::ToolBarPosition
+
+    Where a tool bar is among the others.
+
+    \value Beginning The first.
+    \value Middle Between others.
+    \value End The last.
+    \value OnlyOne The only one.
+*/
+
+/*!
+    \enum QStyleOptionToolBar::ToolBarFeature
+
+    What a tool bar can do. The ToolBarFeatures type is a typedef for \c{QFlags<ToolBarFeature>}.
+
+    \value None Nothing special.
+    \value Movable It can be moved.
+*/
+
+/*!
+    \fn QStyleOptionToolBar::QStyleOptionToolBar()
+
+    Constructs an option for a tool bar.
+*/
+
+/*!
+    \variable QStyleOptionToolBar::positionOfLine
+
+    Where the line of the tool bar is among the lines of tool bars.
+*/
+
+/*!
+    \variable QStyleOptionToolBar::positionWithinLine
+
+    Where the tool bar is in its line.
+*/
+
+/*!
+    \variable QStyleOptionToolBar::toolBarArea
+
+    The area of the main window that the tool bar is in.
+*/
+
+/*!
+    \variable QStyleOptionToolBar::features
+
+    What the tool bar can do.
+*/
+
+/*!
+    \variable QStyleOptionToolBar::lineWidth
+
+    The width of the frame line.
+*/
+
+/*!
+    \variable QStyleOptionToolBar::midLineWidth
+
+    The width of the line in the middle of the frame.
+*/
+
+/*!
+    \class QStyleOptionToolBox
+    \brief The QStyleOptionToolBox class describes the parameters for drawing the title of a page of a tool box.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionToolBox::StyleOptionType
+
+    \value Type The type of the option, \c SO_ToolBox. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \enum QStyleOptionToolBox::TabPosition
+
+    Where a title is among the others.
+
+    \value Beginning The first.
+    \value Middle Between others.
+    \value End The last.
+    \value OnlyOneTab The only one.
+*/
+
+/*!
+    \enum QStyleOptionToolBox::SelectedPosition
+
+    Whether a title is next to the open page.
+
+    \value NotAdjacent It is not.
+    \value NextIsSelected The next page is open.
+    \value PreviousIsSelected The previous page is open.
+*/
+
+/*!
+    \fn QStyleOptionToolBox::QStyleOptionToolBox()
+
+    Constructs an option for the title of a page of a tool box.
+*/
+
+/*!
+    \variable QStyleOptionToolBox::text
+
+    The title.
+*/
+
+/*!
+    \variable QStyleOptionToolBox::position
+
+    Where the title is among the others.
+*/
+
+/*!
+    \variable QStyleOptionToolBox::selectedPosition
+
+    Whether the title is next to the open page.
+*/
+
+/*!
+    \class QStyleOptionDockWidget
+    \brief The QStyleOptionDockWidget class describes the parameters for drawing the title bar of a dock widget.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionDockWidget::StyleOptionType
+
+    \value Type The type of the option, \c SO_DockWidget. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \fn QStyleOptionDockWidget::QStyleOptionDockWidget()
+
+    Constructs an option for a dock widget.
+*/
+
+/*!
+    \variable QStyleOptionDockWidget::title
+
+    The title of the dock widget.
+*/
+
+/*!
+    \variable QStyleOptionDockWidget::closable
+
+    Whether it can be closed.
+*/
+
+/*!
+    \variable QStyleOptionDockWidget::movable
+
+    Whether it can be moved.
+*/
+
+/*!
+    \variable QStyleOptionDockWidget::floatable
+
+    Whether it can float.
+*/
+
+/*!
+    \variable QStyleOptionDockWidget::verticalTitleBar
+
+    Whether its title bar is vertical.
+*/
+
+/*!
+    \class QStyleOptionRubberBand
+    \brief The QStyleOptionRubberBand class describes the parameters for drawing a rubber band.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionRubberBand::StyleOptionType
+
+    \value Type The type of the option, \c SO_RubberBand. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \fn QStyleOptionRubberBand::QStyleOptionRubberBand()
+
+    Constructs an option for a rubber band.
+*/
+
+/*!
+    \variable QStyleOptionRubberBand::shape
+
+    The shape of the rubber band, a QRubberBand::Shape.
+*/
+
+/*!
+    \variable QStyleOptionRubberBand::opaque
+
+    Whether the rubber band is opaque.
+*/
+
+/*!
+    \enum QStyleOptionComboBox::StyleOptionType
+
+    \value Type The type of the option, \c SO_ComboBox. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \variable QStyleOptionComboBox::editable
+
+    Whether the combo box can be edited.
+*/
+
+/*!
+    \variable QStyleOptionComboBox::popupRect
+
+    Where the popup opens.
+*/
+
+/*!
+    \variable QStyleOptionComboBox::frame
+
+    Whether the combo box has a frame.
+*/
+
+/*!
+    \variable QStyleOptionComboBox::iconSize
+
+    The size of the icon of the current item.
+*/
+
+/*!
+    \variable QStyleOptionComboBox::textAlignment
+
+    How the text is aligned.
+*/
+
+/*!
+    \enum QStyleOptionSpinBox::StyleOptionType
+
+    \value Type The type of the option, \c SO_SpinBox. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \variable QStyleOptionSpinBox::buttonSymbols
+
+    The symbols on the buttons, a QAbstractSpinBox::ButtonSymbols.
+*/
+
+/*!
+    \variable QStyleOptionSpinBox::frame
+
+    Whether the spin box has a frame.
+*/
+
+/*!
+    \class QStyleOptionToolButton
+    \brief The QStyleOptionToolButton class describes the parameters for drawing a tool button.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionToolButton::StyleOptionType
+
+    \value Type The type of the option, \c SO_ToolButton. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \enum QStyleOptionToolButton::ToolButtonFeature
+
+    What a tool button has. The ToolButtonFeatures type is a typedef for \c{QFlags<ToolButtonFeature>}.
+
+    \value None Nothing special.
+    \value Arrow An arrow instead of text.
+    \value Menu A menu button beside it.
+    \value MenuButtonPopup The same as Menu.
+    \value PopupDelay A menu that opens after the button is held.
+    \value HasMenu A menu.
+*/
+
+/*!
+    \fn QStyleOptionToolButton::QStyleOptionToolButton()
+
+    Constructs an option for a tool button.
+*/
+
+/*!
+    \variable QStyleOptionToolButton::features
+
+    What the tool button has.
+*/
+
+/*!
+    \variable QStyleOptionToolButton::text
+
+    The text of the button.
+*/
+
+/*!
+    \variable QStyleOptionToolButton::iconSize
+
+    The size of the icon.
+*/
+
+/*!
+    \variable QStyleOptionToolButton::font
+
+    The font of the text.
+*/
+
+/*!
+    \variable QStyleOptionToolButton::arrowType
+
+    Which way the arrow points, for a button with an arrow.
+*/
+
+/*!
+    \variable QStyleOptionToolButton::toolButtonStyle
+
+    Whether the button shows its icon, its text or both.
+*/
+
+/*!
+    \variable QStyleOptionToolButton::pos
+
+    The position of the button.
+*/
+
+/*!
+    \class QStyleOptionTitleBar
+    \brief The QStyleOptionTitleBar class describes the parameters for drawing a title bar.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionTitleBar::StyleOptionType
+
+    \value Type The type of the option, \c SO_TitleBar. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \fn QStyleOptionTitleBar::QStyleOptionTitleBar()
+
+    Constructs an option for a title bar.
+*/
+
+/*!
+    \variable QStyleOptionTitleBar::text
+
+    The title.
+*/
+
+/*!
+    \variable QStyleOptionTitleBar::titleBarState
+
+    The state of the window, a Qt::WindowStates.
+*/
+
+/*!
+    \variable QStyleOptionTitleBar::titleBarFlags
+
+    The flags of the window, which say which buttons it has.
+*/
+
+/*!
+    \enum QStyleOptionGroupBox::StyleOptionType
+
+    \value Type The type of the option, \c SO_GroupBox. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \variable QStyleOptionGroupBox::features
+
+    How the frame is drawn.
+*/
+
+/*!
+    \variable QStyleOptionGroupBox::textAlignment
+
+    How the title is aligned.
+*/
+
+/*!
+    \variable QStyleOptionGroupBox::textColor
+
+    The color of the title.
+*/
+
+/*!
+    \variable QStyleOptionGroupBox::lineWidth
+
+    The width of the frame line.
+*/
+
+/*!
+    \variable QStyleOptionGroupBox::midLineWidth
+
+    The width of the line in the middle of the frame.
+*/
+
+/*!
+    \class QStyleOptionSizeGrip
+    \brief The QStyleOptionSizeGrip class describes the parameters for drawing a size grip.
+
+    \sa QStyleOption, QStyle
+*/
+
+/*!
+    \enum QStyleOptionSizeGrip::StyleOptionType
+
+    \value Type The type of the option, \c SO_SizeGrip. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \fn QStyleOptionSizeGrip::QStyleOptionSizeGrip()
+
+    Constructs an option for a size grip.
+*/
+
+/*!
+    \variable QStyleOptionSizeGrip::corner
+
+    The corner that the grip is in, a Qt::Corner; the bottom right one by default.
+*/
+
+/*!
+    \enum QStyleOptionHeader::StyleOptionType
+
+    \value Type The type of the option, \c SO_Header. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \enum QStyleOptionHeader::SectionPosition
+
+    Where a section is in its header.
+
+    \value Beginning The first section.
+    \value Middle A section between others.
+    \value End The last section.
+    \value OnlyOneSection The only section.
+*/
+
+/*!
+    \enum QStyleOptionHeader::SelectedPosition
+
+    Whether a section is next to one that is selected.
+
+    \value NotAdjacent Neither neighbour is selected.
+    \value NextIsSelected The next section is selected.
+    \value PreviousIsSelected The previous section is selected.
+    \value NextAndPreviousAreSelected Both neighbours are selected.
+*/
+
+/*!
+    \variable QStyleOptionHeader::section
+
+    The logical index of the section.
+*/
+
+/*!
+    \variable QStyleOptionHeader::iconAlignment
+
+    How the icon of the section is aligned.
+*/
+
+/*!
+    \variable QStyleOptionHeader::position
+
+    Where the section is in its header.
+*/
+
+/*!
+    \variable QStyleOptionHeader::selectedPosition
+
+    Whether the section is next to one that is selected.
+*/
+
+/*!
+    \enum QStyleOptionMenuItem::StyleOptionType
+
+    \value Type The type of the option, \c SO_MenuItem. qstyleoption_cast() compares it.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::menuHasCheckableItems
+
+    Whether the menu has entries with check boxes.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::menuRect
+
+    The rectangle of the whole menu.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::maxIconWidth
+
+    The width of the widest icon of the menu.
 */
 
 /*!

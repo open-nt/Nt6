@@ -199,8 +199,10 @@ QApplication *QApplication::instance() { return g_app; }
     \sa setStyle(), QWidget::style()
 */
 QStyle *QApplication::style() {
-    if (!g_style)
+    if (!g_style) {
         g_style = std::make_unique<QFusionStyle>();
+        g_style->polish(qobject_cast<QApplication *>(QCoreApplication::instance()));
+    }
     return g_style.get();
 }
 
@@ -213,10 +215,25 @@ QStyle *QApplication::style() {
 void QApplication::setStyle(QStyle *style) {
     if (style && style == g_style.get())
         return;
+    // The widgets that the old style polished are unpolished by it, and polished by the new one.
+    const QList<QWidget *> widgets = allWidgets();
+    const auto usesApplicationStyle = [](QWidget *w) { return w->style() == g_style.get(); };
+    if (g_style) {
+        for (QWidget *w : widgets) {
+            if (QtPrivate::WidgetAccess::data(w).polished && usesApplicationStyle(w))
+                g_style->unpolish(w);
+        }
+        g_style->unpolish(qobject_cast<QApplication *>(QCoreApplication::instance()));
+    }
     if (style)
         g_style.reset(style);
     else
         g_style = std::make_unique<QFusionStyle>();
+    g_style->polish(qobject_cast<QApplication *>(QCoreApplication::instance()));
+    for (QWidget *w : widgets) {
+        if (QtPrivate::WidgetAccess::data(w).polished && usesApplicationStyle(w))
+            g_style->polish(w);
+    }
     for (QWidget *w : allWidgets()) {
         QEvent change(QEvent::StyleChange);
         QCoreApplication::sendEvent(w, &change);
@@ -248,7 +265,13 @@ QStyle *QApplication::setStyle(const QString &style) {
 
     \sa setPalette(), QStyle::standardPalette(), QStyleHints::colorScheme()
 */
-QPalette QApplication::palette() { return g_palette ? *g_palette : style()->standardPalette(); }
+QPalette QApplication::palette() {
+    if (g_palette)
+        return *g_palette;
+    QPalette standard = style()->standardPalette();
+    style()->polish(standard);
+    return standard;
+}
 
 /*!
     Sets the default palette to \a palette. Widgets that have no palette of their own are painted again.

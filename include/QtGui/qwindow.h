@@ -100,12 +100,18 @@ public:
     void setCursor(const QCursor &cursor);
     void unsetCursor();
     bool isFullScreen() const;
+    Qt::WindowState windowState() const;
+    Qt::WindowStates windowStates() const;
+    void setWindowState(Qt::WindowState state);
+    void setWindowStates(Qt::WindowStates states);
 
 public slots:
     void setVisible(bool visible);
     void show();
     void showFullScreen();
     void showNormal();
+    void showMaximized();
+    void showMinimized();
     void hide();
     bool close();
     void raise();
@@ -119,6 +125,12 @@ signals:
         the new visibility.
     */
     void visibleChanged(bool arg) { emitSignal(&QWindow::visibleChanged, arg); }
+    /*!
+        This signal is emitted when the state of the window changes to \a windowState.
+
+        \sa setWindowStates()
+    */
+    void windowStateChanged(Qt::WindowState windowState) { emitSignal(&QWindow::windowStateChanged, windowState); }
     /*!
         This signal is emitted when the window moves to the screen \a screen.
     */

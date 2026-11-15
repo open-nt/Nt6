@@ -4,7 +4,9 @@
 // spin boxes, combo boxes, group boxes and tab widgets. The tests play the window system through
 // QWindowSystemInterface.
 #include <QtCore>
+#include <QtGui/qaction.h>
 #include <QtGui/qevent.h>
+#include <QtGui/qscreen.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qstylehints.h>
 #include <QtGui/qwindow.h>
@@ -2022,6 +2024,162 @@ static void testStatusBar() {
     bar.clearMessage();
 }
 
+// What mediax's RTSP player asks of the widgets: item data, a clear button, shortcut contexts, window states.
+static void testComboBoxData() {
+    QComboBox combo;
+    combo.addItem("rtsp", 554);
+    combo.addItem("http", QString("mjpeg"));
+    combo.addItem("none");
+    CHECK(combo.currentData() == QVariant(554) && combo.itemData(1) == QVariant(QString("mjpeg")));
+    CHECK(!combo.itemData(2).isValid() && !combo.itemData(7).isValid());
+    CHECK(combo.itemData(0, Qt::DisplayRole) == QVariant(QString("rtsp")) &&
+          !combo.currentData(Qt::ToolTipRole).isValid());
+    combo.setCurrentIndex(1);
+    CHECK(combo.currentData().toString() == "mjpeg");
+    combo.setItemData(0, 8554);
+    combo.setItemData(0, QString("tip"), Qt::ToolTipRole);
+    CHECK(combo.itemData(0) == QVariant(8554) && combo.itemData(0, Qt::ToolTipRole).toString() == "tip");
+    CHECK(combo.findData(8554) == 0 && combo.findData(99) == -1);
+    CHECK(combo.findData("MJPEG", Qt::UserRole, Qt::MatchFixedString) == 1);
+    CHECK(combo.findData("MJPEG") == -1 && combo.findData("jp", Qt::UserRole, Qt::MatchContains) == 1);
+    CHECK(combo.findData("tip", Qt::ToolTipRole) == 0 &&
+          combo.findData("non", Qt::DisplayRole, Qt::MatchStartsWith) == 2);
+    combo.insertItem(0, "first", 1);
+    CHECK(combo.itemData(0) == QVariant(1) && combo.itemData(1) == QVariant(8554) &&
+          combo.currentData().toString() == "mjpeg");
+    combo.removeItem(0);
+    CHECK(combo.itemData(0) == QVariant(8554));
+    combo.setItemData(0, QVariant());
+    CHECK(!combo.itemData(0).isValid());
+    combo.setItemData(0, QString("RTSP"), Qt::DisplayRole);
+    CHECK(combo.itemText(0) == "RTSP");
+    combo.setItemData(9, 1); // no such item: nothing happens
+    combo.clear();
+    CHECK(!combo.currentData().isValid() && combo.count() == 0);
+}
+
+static void testLineEditClearButton() {
+    QLineEdit edit;
+    CHECK(!edit.isClearButtonEnabled());
+    edit.resize(160, 28);
+    edit.show();
+    settle(&edit);
+    const QImage plain = grab(&edit);
+    edit.setClearButtonEnabled(true);
+    CHECK(edit.isClearButtonEnabled());
+    QStringList edits;
+    QObject::connect(&edit, &QLineEdit::textEdited, [&](const QString &t) { edits << t; });
+    const QPoint button(edit.width() - 10, edit.height() / 2);
+    click(&edit, button); // no text: no button
+    CHECK(edit.text().isEmpty() && edits.isEmpty());
+    edit.setText("rtsp://camera");
+    const QImage withText = grab(&edit);
+    bool drawn = false; // the cross, somewhere around the button
+    for (int y = button.y() - 8; y <= button.y() + 8 && !drawn; ++y)
+        for (int x = button.x() - 8; x <= button.x() + 8 && !drawn; ++x)
+            drawn = withText.pixel(x, y) != plain.pixel(x, y);
+    CHECK(drawn);
+    // The text keeps out of the button: a click there does not move the cursor into the text.
+    click(&edit, button);
+    CHECK(edit.text().isEmpty() && edits == QStringList{QString()});
+    // Read-only and disabled line edits have no button.
+    edit.setText("keep");
+    edit.setReadOnly(true);
+    click(&edit, button);
+    CHECK(edit.text() == "keep");
+    edit.setReadOnly(false);
+    edit.setEnabled(false);
+    click(&edit, button);
+    CHECK(edit.text() == "keep");
+    edit.setEnabled(true);
+    edit.setClearButtonEnabled(false);
+    click(&edit, button);
+    CHECK(edit.text() == "keep");
+}
+
+static void testShortcutContexts() {
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *panel = new QWidget(&window);
+    auto *inPanel = new QLineEdit(panel);
+    auto *other = new QLineEdit(&window);
+    layout->addWidget(panel);
+    layout->addWidget(other);
+    window.show();
+    settle(&window);
+    int widgetHits = 0, childrenHits = 0, windowHits = 0, appHits = 0;
+    QAction widgetOnly("w", &window), withChildren("c", &window), anywhere("a", &window);
+    widgetOnly.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_K));
+    widgetOnly.setShortcutContext(Qt::WidgetShortcut);
+    CHECK(widgetOnly.shortcutContext() == Qt::WidgetShortcut && anywhere.shortcutContext() == Qt::WindowShortcut);
+    inPanel->addAction(&widgetOnly);
+    withChildren.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_J));
+    withChildren.setShortcutContext(Qt::WidgetWithChildrenShortcut);
+    panel->addAction(&withChildren);
+    anywhere.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_L));
+    other->addAction(&anywhere);
+    QObject::connect(&widgetOnly, &QAction::triggered, [&] { ++widgetHits; });
+    QObject::connect(&withChildren, &QAction::triggered, [&] { ++childrenHits; });
+    QObject::connect(&anywhere, &QAction::triggered, [&] { ++windowHits; });
+
+    other->setFocus();
+    key(other, Qt::Key_K, QString(), Qt::ControlModifier);
+    key(other, Qt::Key_J, QString(), Qt::ControlModifier);
+    key(other, Qt::Key_L, QString(), Qt::ControlModifier);
+    CHECK(widgetHits == 0 && childrenHits == 0 && windowHits == 1);
+    inPanel->setFocus();
+    key(inPanel, Qt::Key_K, QString(), Qt::ControlModifier);
+    key(inPanel, Qt::Key_J, QString(), Qt::ControlModifier);
+    key(inPanel, Qt::Key_L, QString(), Qt::ControlModifier);
+    CHECK(widgetHits == 1 && childrenHits == 1 && windowHits == 2);
+
+    // A shortcut of the whole application works from another window; one of a window does not.
+    QWidget second;
+    QAction global("g", &second), local("l", &second);
+    global.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_G));
+    global.setShortcutContext(Qt::ApplicationShortcut);
+    local.setShortcut(QKeySequence(Qt::CTRL | Qt::Key_H));
+    second.addAction(&global);
+    second.addAction(&local);
+    int localHits = 0;
+    QObject::connect(&global, &QAction::triggered, [&] { ++appHits; });
+    QObject::connect(&local, &QAction::triggered, [&] { ++localHits; });
+    second.show();
+    settle(&second);
+    key(other, Qt::Key_G, QString(), Qt::ControlModifier);
+    key(other, Qt::Key_H, QString(), Qt::ControlModifier);
+    CHECK(appHits == 1 && localHits == 0);
+}
+
+static void testWindowStates() {
+    QWidget top;
+    top.resize(120, 90);
+    CHECK(top.windowState() == Qt::WindowNoState && !top.isMaximized());
+    top.showMaximized();
+    settle(&top);
+    const QRect available = top.windowHandle()->screen()->availableGeometry();
+    CHECK(top.isMaximized() && top.windowState() == Qt::WindowMaximized && top.size() == available.size());
+    CHECK(top.windowHandle()->windowState() == Qt::WindowMaximized);
+    top.showNormal();
+    settle(&top);
+    CHECK(!top.isMaximized() && top.size() == QSize(120, 90));
+    top.showMinimized();
+    CHECK(top.isMinimized() && !top.isMaximized());
+    top.setWindowState(Qt::WindowFullScreen);
+    CHECK(top.isFullScreen() && !top.isMinimized());
+    top.setWindowState(Qt::WindowNoState);
+    settle(&top);
+    CHECK(top.windowState() == Qt::WindowNoState && top.size() == QSize(120, 90));
+    QList<Qt::WindowState> states;
+    QObject::connect(top.windowHandle(), &QWindow::windowStateChanged, [&](Qt::WindowState s) { states << s; });
+    top.showMaximized();
+    top.showMaximized();
+    CHECK(states == QList<Qt::WindowState>{Qt::WindowMaximized});
+    QWidget child(&top);
+    child.showMaximized(); // a child has no state
+    CHECK(!child.isMaximized() && child.windowState() == Qt::WindowNoState);
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -2044,6 +2202,10 @@ int main(int argc, char **argv) {
     testStatusBar();
     testHideTakesFocus();
     testEverythingPaints();
+    testComboBoxData();
+    testLineEditClearButton();
+    testShortcutContexts();
+    testWindowStates();
     if (g_failures == 0)
         std::puts("all control tests passed");
     return g_failures == 0 ? 0 : 1;

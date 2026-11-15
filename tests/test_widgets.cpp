@@ -15,6 +15,9 @@
 #include <QtWidgets/qstackedlayout.h>
 #include <QtWidgets/qstackedwidget.h>
 #include <QtWidgets/qcheckbox.h>
+#include <QtWidgets/qcommonstyle.h>
+#include <QtWidgets/qslider.h>
+#include <QtWidgets/qspinbox.h>
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qlayout.h>
 #include <QtWidgets/qproxystyle.h>
@@ -2749,7 +2752,249 @@ static void testStyleHelpers() {
     for (int y = 0; y < 20 && !dark; ++y)
         for (int x = 0; x < 40 && !dark; ++x)
             dark = image.pixelColor(x, y).red() < 100;
-    CHECK(dark);
+    CHECK(dark || !haveRealFonts());
+}
+
+// A style that counts what it polishes and makes the application palette's window color its own.
+class PolishingStyle : public QProxyStyle {
+public:
+    using QProxyStyle::polish;
+    using QProxyStyle::unpolish;
+    QList<QWidget *> polished, unpolished;
+    int applications = 0;
+    void polish(QWidget *w) override { polished << w; }
+    void unpolish(QWidget *w) override { unpolished << w; }
+    void polish(QApplication *) override { ++applications; }
+    void polish(QPalette &palette) override { palette.setColor(QPalette::Window, QColor(1, 2, 3)); }
+};
+
+class PolishProbe : public QWidget {
+public:
+    using QWidget::QWidget;
+    int polishEvents = 0;
+
+protected:
+    bool event(QEvent *e) override {
+        if (e->type() == QEvent::Polish)
+            ++polishEvents;
+        return QWidget::event(e);
+    }
+};
+
+// A common style that draws push buttons as one green panel.
+class GreenButtons : public QCommonStyle {
+public:
+    void drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter,
+                       const QWidget *widget) const override {
+        if (element == PE_PanelButtonCommand) {
+            painter->fillRect(option->rect, QColor(0, 200, 0));
+            return;
+        }
+        QCommonStyle::drawPrimitive(element, option, painter, widget);
+    }
+    int pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const override {
+        return metric == PM_IndicatorWidth ? 25 : QCommonStyle::pixelMetric(metric, option, widget);
+    }
+};
+
+static void testStyleHintsAndComplexControls() {
+    QStyle *style = QApplication::style();
+    CHECK(style->name() == "Fusion" || style->name().isEmpty());
+    QStyle *made = QStyleFactory::create("fusion");
+    CHECK(made->name() == "Fusion");
+    delete made;
+
+    // Style hints.
+    CHECK(style->styleHint(QStyle::SH_LineEdit_PasswordCharacter) == 0x25CF);
+    CHECK(style->styleHint(QStyle::SH_Button_FocusPolicy) == Qt::StrongFocus);
+    CHECK(style->styleHint(QStyle::SH_Menu_SubMenuPopupDelay) == 225 &&
+          style->styleHint(QStyle::SH_Widget_Animate) == 0);
+    CHECK(style->styleHint(QStyle::SH_TabBar_ElideMode) == Qt::ElideNone);
+    CHECK(style->styleHint(QStyle::SH_CustomBase) == 0);
+    QStyleOption plain;
+    plain.palette.setColor(QPalette::Base, QColor(255, 255, 255));
+    plain.palette.setColor(QPalette::WindowText, QColor(10, 20, 30));
+    CHECK(QColor::fromRgba(static_cast<QRgb>(style->styleHint(QStyle::SH_Table_GridLineColor, &plain))).red() < 255);
+    CHECK(QColor::fromRgba(static_cast<QRgb>(style->styleHint(QStyle::SH_GroupBox_TextLabelColor, &plain))) ==
+          QColor(10, 20, 30));
+
+    // The new metrics have answers.
+    CHECK(style->pixelMetric(QStyle::PM_SmallIconSize) == 16 && style->pixelMetric(QStyle::PM_LargeIconSize) == 32);
+    CHECK(style->pixelMetric(QStyle::PM_ToolBarIconSize) == 24 &&
+          style->pixelMetric(QStyle::PM_TreeViewIndentation) == 20);
+    CHECK(style->pixelMetric(QStyle::PM_SliderControlThickness) == style->pixelMetric(QStyle::PM_SliderThickness));
+    CHECK(style->pixelMetric(QStyle::PM_CustomBase) == 0);
+
+    // Complex controls: the parts of a slider, and what is under a point.
+    QStyleOptionSlider slider;
+    slider.rect = QRect(0, 0, 200, 24);
+    slider.minimum = 0;
+    slider.maximum = 100;
+    slider.sliderPosition = 50;
+    const QRect handle = style->subControlRect(QStyle::CC_Slider, &slider, QStyle::SC_SliderHandle);
+    const QRect groove = style->subControlRect(QStyle::CC_Slider, &slider, QStyle::SC_SliderGroove);
+    CHECK(handle.isValid() && groove.contains(handle.center()) && qAbs(handle.center().x() - 100) < 20);
+    CHECK(style->hitTestComplexControl(QStyle::CC_Slider, &slider, handle.center()) == QStyle::SC_SliderHandle);
+    CHECK(style->hitTestComplexControl(QStyle::CC_Slider, &slider, QPoint(500, 500)) == QStyle::SC_None);
+    slider.subControls = QStyle::SC_SliderGroove;
+    CHECK(style->hitTestComplexControl(QStyle::CC_Slider, &slider, handle.center()) == QStyle::SC_SliderGroove);
+    QStyleOptionSlider bar;
+    bar.rect = QRect(0, 0, 16, 200);
+    bar.orientation = Qt::Vertical;
+    bar.maximum = 100;
+    bar.pageStep = 20;
+    bar.sliderPosition = 50;
+    const QRect thumb = style->subControlRect(QStyle::CC_ScrollBar, &bar, QStyle::SC_ScrollBarSlider);
+    const QRect above = style->subControlRect(QStyle::CC_ScrollBar, &bar, QStyle::SC_ScrollBarSubPage);
+    const QRect below = style->subControlRect(QStyle::CC_ScrollBar, &bar, QStyle::SC_ScrollBarAddPage);
+    CHECK(thumb.isValid() && above.bottom() + 1 == thumb.top() && below.top() == thumb.bottom() + 1 &&
+          above.top() == 0);
+    CHECK(style->hitTestComplexControl(QStyle::CC_ScrollBar, &bar, QPoint(8, 2)) == QStyle::SC_ScrollBarSubPage);
+    QStyleOptionSpinBox spin;
+    spin.rect = QRect(0, 0, 100, 26);
+    const QRect up = style->subControlRect(QStyle::CC_SpinBox, &spin, QStyle::SC_SpinBoxUp);
+    CHECK(up.isValid() && style->hitTestComplexControl(QStyle::CC_SpinBox, &spin, up.center()) == QStyle::SC_SpinBoxUp);
+    QStyleOptionComboBox combo;
+    combo.rect = QRect(0, 0, 120, 26);
+    const QRect field = style->subControlRect(QStyle::CC_ComboBox, &combo, QStyle::SC_ComboBoxEditField);
+    const QRect arrow = style->subControlRect(QStyle::CC_ComboBox, &combo, QStyle::SC_ComboBoxArrow);
+    CHECK(field.isValid() && arrow.isValid() && field.right() < arrow.left());
+    QStyleOptionToolButton tool;
+    tool.rect = QRect(0, 0, 40, 24);
+    tool.features = QStyleOptionToolButton::MenuButtonPopup;
+    const QRect menu = style->subControlRect(QStyle::CC_ToolButton, &tool, QStyle::SC_ToolButtonMenu);
+    CHECK(menu.width() == style->pixelMetric(QStyle::PM_MenuButtonIndicator) && menu.right() == 39);
+    CHECK(style->hitTestComplexControl(QStyle::CC_ToolButton, &tool, QPoint(5, 5)) == QStyle::SC_ToolButton);
+    QStyleOptionTitleBar title;
+    title.rect = QRect(0, 0, 200, 24);
+    title.text = "Window";
+    title.titleBarFlags = Qt::WindowCloseButtonHint | Qt::WindowMinimizeButtonHint;
+    const QRect close = style->subControlRect(QStyle::CC_TitleBar, &title, QStyle::SC_TitleBarCloseButton);
+    const QRect label = style->subControlRect(QStyle::CC_TitleBar, &title, QStyle::SC_TitleBarLabel);
+    CHECK(close.isValid() && close.right() < 200 && label.right() < close.left() &&
+          style->subControlRect(QStyle::CC_TitleBar, &title, QStyle::SC_TitleBarMaxButton).isEmpty());
+
+    // Drawing them: a complex control draws like its control element.
+    QImage a(200, 30, QImage::Format_ARGB32), b(200, 30, QImage::Format_ARGB32);
+    a.fill(Qt::white);
+    b.fill(Qt::white);
+    slider.subControls = QStyle::SC_All;
+    {
+        QPainter pa(&a);
+        style->drawComplexControl(QStyle::CC_Slider, &slider, &pa);
+        QPainter pb(&b);
+        style->drawControl(QStyle::CE_Slider, &slider, &pb);
+    }
+    CHECK(a == b && a.pixelColor(handle.center().x(), handle.center().y()) != QColor(Qt::white));
+    a.fill(Qt::white);
+    {
+        QPainter pa(&a);
+        style->drawComplexControl(QStyle::CC_TitleBar, &title, &pa);
+        tool.text = "Go";
+        tool.state = QStyle::State_Enabled | QStyle::State_Sunken;
+        style->drawComplexControl(QStyle::CC_ToolButton, &tool, &pa);
+    }
+    CHECK(a.pixelColor(100, 5) != QColor(Qt::white));
+
+    // The new elements are drawn with others, or not at all, without failing.
+    QStyleOptionViewItem item;
+    item.rect = QRect(0, 0, 100, 20);
+    item.text = "row";
+    item.features = QStyleOptionViewItem::HasDisplay | QStyleOptionViewItem::HasCheckIndicator;
+    item.font = QApplication::font();
+    item.state = QStyle::State_Enabled | QStyle::State_Selected;
+    item.palette.setColor(QPalette::Highlight, QColor(0, 0, 255));
+    const QRect check = style->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, &item);
+    const QRect text = style->subElementRect(QStyle::SE_ItemViewItemText, &item);
+    CHECK(check.isValid() && text.left() > check.right() && text.right() <= 100);
+    a.fill(Qt::white);
+    {
+        QPainter pa(&a);
+        style->drawControl(QStyle::CE_ItemViewItem, &item, &pa);
+        style->drawPrimitive(QStyle::PE_IndicatorBranch, &item, &pa);
+        style->drawControl(QStyle::CE_ColumnViewGrip, &item, &pa);
+    }
+    CHECK(a.pixelColor(95, 2) == QColor(0, 0, 255));
+    CHECK(style->sizeFromContents(QStyle::CT_ItemViewItem, &item, QSize(10, 10)).width() > 10);
+
+    // Standard pixmaps.
+    const QPixmap info = style->standardPixmap(QStyle::SP_MessageBoxInformation);
+    CHECK(info.width() == style->pixelMetric(QStyle::PM_MessageBoxIconSize));
+    CHECK(!style->standardPixmap(QStyle::SP_ArrowUp).isNull() &&
+          !style->standardPixmap(QStyle::SP_TitleBarCloseButton).isNull());
+    CHECK(style->standardPixmap(QStyle::SP_DriveCDIcon).isNull());
+
+    // qstyleoption_cast.
+    const QStyleOption *asBase = &slider;
+    CHECK(qstyleoption_cast<const QStyleOptionSlider *>(asBase) == &slider);
+    CHECK(qstyleoption_cast<const QStyleOptionComplex *>(asBase) == &slider);
+    CHECK(qstyleoption_cast<const QStyleOptionSpinBox *>(asBase) == nullptr);
+    CHECK(qstyleoption_cast<const QStyleOptionComplex *>(&item) == nullptr);
+    CHECK(qstyleoption_cast<const QStyleOption *>(&item) == &item);
+    CHECK(qstyleoption_cast<const QStyleOptionSlider *>(static_cast<const QStyleOption *>(nullptr)) == nullptr);
+    QStyleOption *mutableBase = &spin;
+    CHECK(qstyleoption_cast<QStyleOptionSpinBox *>(mutableBase) == &spin);
+    QWidget w;
+    QStyleOption from;
+    from.initFrom(&w);
+    CHECK(from.styleObject == &w && from.direction == Qt::LeftToRight && from.version == 1);
+}
+
+static void testPolishAndCommonStyle() {
+    // A widget is polished once, before it is first shown, with a Polish event.
+    auto *polishing = new PolishingStyle;
+    QApplication::setStyle(polishing);
+    CHECK(polishing->applications == 1);
+    CHECK(QApplication::palette().color(QPalette::Window) == QColor(1, 2, 3));
+    PolishProbe top;
+    auto *child = new PolishProbe(&top);
+    CHECK(polishing->polished.isEmpty());
+    top.ensurePolished();
+    CHECK(polishing->polished == QList<QWidget *>({&top, child}) && top.polishEvents == 1 && child->polishEvents == 1);
+    top.show();
+    top.ensurePolished();
+    CHECK(polishing->polished.size() == 2 && top.polishEvents == 1);
+    auto *late = new PolishProbe(&top);
+    late->show();
+    CHECK(polishing->polished.size() == 3 && late->polishEvents == 1);
+
+    // A style of a widget's own unpolishes and polishes it.
+    QCommonStyle own;
+    child->setStyle(&own);
+    CHECK(polishing->unpolished == QList<QWidget *>{child});
+    child->setStyle(nullptr);
+    CHECK(polishing->polished.count(child) == 2);
+
+    // A new application style takes over the polished widgets.
+    polishing->unpolished.clear();
+    auto *next = new PolishingStyle;
+    QApplication::setStyle(next); // deletes the first one
+    CHECK(next->applications == 1 && next->polished.size() == 3);
+    QApplication::setStyle(nullptr);
+
+    // A common style draws everything; a subclass changes a part, and the rest follows its metrics.
+    QCommonStyle common;
+    QStyle *fusion = QStyleFactory::create("Fusion");
+    CHECK(common.pixelMetric(QStyle::PM_IndicatorWidth) == fusion->pixelMetric(QStyle::PM_IndicatorWidth));
+    CHECK(common.standardPalette() == fusion->standardPalette() && common.proxy() == &common);
+    delete fusion;
+    auto *green = new GreenButtons;
+    QApplication::setStyle(green);
+    QPushButton button("ok");
+    button.resize(80, 30);
+    button.show();
+    for (int i = 0; i < 3; ++i)
+        QCoreApplication::sendPostedEvents();
+    const QImage shot = QOffscreenBackingStore::imageOf(button.windowHandle());
+    CHECK(shot.pixelColor(40, 3) == QColor(0, 200, 0));
+    QStyleOptionButton box;
+    box.rect = QRect(0, 0, 100, 40);
+    CHECK(green->subElementRect(QStyle::SE_CheckBoxIndicator, &box).width() == 25);
+    // Behind a proxy style the common style's parts still come from the outermost style.
+    auto *wrapped = new BigIndicators(new GreenButtons);
+    QApplication::setStyle(wrapped);
+    CHECK(wrapped->baseStyle()->subElementRect(QStyle::SE_CheckBoxIndicator, &box).width() == 30);
+    QApplication::setStyle(nullptr);
 }
 
 int main(int argc, char **argv) {
@@ -2771,6 +3016,8 @@ int main(int argc, char **argv) {
     testStyleFactory();
     testProxyStyle();
     testStyleHelpers();
+    testStyleHintsAndComplexControls();
+    testPolishAndCommonStyle();
     testKeysAndFocus();
     testLayouts();
     testGridLayout();

@@ -32,6 +32,21 @@ public:
     void drawItemText(QPainter *painter, const QRect &rectangle, int alignment, const QPalette &palette, bool enabled,
                       const QString &text, QPalette::ColorRole textRole = QPalette::NoRole) const override;
     void drawItemPixmap(QPainter *painter, const QRect &rectangle, int alignment, const QPixmap &pixmap) const override;
+    void drawComplexControl(ComplexControl control, const QStyleOptionComplex *option, QPainter *painter,
+                            const QWidget *widget = nullptr) const override;
+    SubControl hitTestComplexControl(ComplexControl control, const QStyleOptionComplex *option, const QPoint &position,
+                                     const QWidget *widget = nullptr) const override;
+    QRect subControlRect(ComplexControl control, const QStyleOptionComplex *option, SubControl subControl,
+                         const QWidget *widget = nullptr) const override;
+    int styleHint(StyleHint hint, const QStyleOption *option = nullptr, const QWidget *widget = nullptr,
+                  QStyleHintReturn *returnData = nullptr) const override;
+    QPixmap standardPixmap(StandardPixmap standardPixmap, const QStyleOption *option = nullptr,
+                           const QWidget *widget = nullptr) const override;
+    void polish(QWidget *widget) override;
+    void unpolish(QWidget *widget) override;
+    void polish(QApplication *application) override;
+    void unpolish(QApplication *application) override;
+    void polish(QPalette &palette) override;
 
 private:
     QPointer<QStyle> m_base;

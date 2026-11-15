@@ -130,8 +130,14 @@ public:
     QScreen *screen() const;
     void setScreen(QScreen *screen);
     bool isFullScreen() const;
+    bool isMaximized() const;
+    bool isMinimized() const;
+    Qt::WindowStates windowState() const;
+    void setWindowState(Qt::WindowStates state);
     void showFullScreen();
     void showNormal();
+    void showMaximized();
+    void showMinimized();
     QString windowTitle() const;
     bool isActiveWindow() const;
     void activateWindow();
@@ -194,6 +200,7 @@ public:
 
 public slots:
     virtual void setVisible(bool visible);
+    void ensurePolished() const;
     void show();
     void hide();
     bool close();

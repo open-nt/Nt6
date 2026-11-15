@@ -262,6 +262,7 @@ nt_set_compile_options(NtCore)
 
 add_library(NtNetwork
     src/network/qabstractsocket.cpp
+    src/network/qauthenticator.cpp
     src/network/qhostaddress.cpp
     src/network/qhostinfo.cpp
     src/network/qhttpheaders.cpp
@@ -564,6 +565,8 @@ add_library(NtGui
     src/gui/qtextlayout.cpp
     src/gui/qtextlayout_api.cpp
     src/gui/qtransform.cpp
+    src/gui/qundogroup.cpp
+    src/gui/qundostack.cpp
     src/gui/qvectornd.cpp
     src/gui/qvulkanfunctions.cpp
     src/gui/qvulkaninstance.cpp
@@ -676,6 +679,7 @@ add_library(NtWidgets
     src/widgets/qcheckbox.cpp
     src/widgets/qcolordialog.cpp
     src/widgets/qcommandlinkbutton.cpp
+    src/widgets/qcommonstyle.cpp
     src/widgets/qcompleter.cpp
     src/widgets/qdatawidgetmapper.cpp
     src/widgets/qdatetimeedit.cpp
@@ -754,6 +758,7 @@ add_library(NtWidgets
     src/widgets/qtooltip.cpp
     src/widgets/qtreeview.cpp
     src/widgets/qtreewidget.cpp
+    src/widgets/qundoview.cpp
     src/widgets/qwidget.cpp
     src/widgets/qwidgetaction.cpp
     src/widgets/qwidgetwindow.cpp
@@ -1353,9 +1358,12 @@ if(NT_BUILD_TESTS)
                  -DOUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR}/badge_tests
                  -P ${CMAKE_CURRENT_SOURCE_DIR}/tests/badge/check.cmake)
 
-    nt_wrap_cpp(moc_test_sources tests/moc_classes.h)
+    set(NT_MOC_DEFINES -DNT_MOC_TEST_DEFINE)
+    nt_wrap_cpp(moc_test_sources tests/moc_classes.h tests/moc_preprocessor.h)
+    set(NT_MOC_DEFINES)
     add_executable(nt_moc_tests tests/test_moc.cpp ${moc_test_sources})
     target_include_directories(nt_moc_tests PRIVATE tests)
+    target_compile_definitions(nt_moc_tests PRIVATE NT_MOC_TEST_DEFINE)
     target_link_libraries(nt_moc_tests PRIVATE Nt::Core)
     add_test(NAME nt_moc_tests COMMAND nt_moc_tests)
 

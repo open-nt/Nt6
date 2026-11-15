@@ -1157,14 +1157,72 @@ void QWidget::showFullScreen() {
 }
 
 /*!
-    Shows the widget, leaving full screen if it was in it.
+    Shows the widget, leaving full screen, maximized or minimized if it was in one of them.
 
-    \sa showFullScreen()
+    \sa showFullScreen(), showMaximized()
 */
 void QWidget::showNormal() {
     if (isWindow() && m_d->window)
-        QtPrivate::GuiAccess::setFullScreen(m_d->window.get(), false);
+        QtPrivate::GuiAccess::setWindowStates(m_d->window.get(), Qt::WindowNoState);
     show();
+}
+
+/*!
+    Shows the widget, a window, maximized: taking the room of its screen that the panels of the desktop leave. A
+    child widget is just shown.
+
+    \sa showNormal(), isMaximized()
+*/
+void QWidget::showMaximized() {
+    setWindowState(Qt::WindowMaximized);
+    show();
+}
+
+/*!
+    Shows the widget, a window, minimized, where the platform can minimize windows. A child widget is just shown.
+
+    \sa showNormal(), isMinimized()
+*/
+void QWidget::showMinimized() {
+    setWindowState(Qt::WindowMinimized);
+    show();
+}
+
+/*!
+    Returns \c true if the widget is a window that is maximized.
+
+    \sa showMaximized(), windowState()
+*/
+bool QWidget::isMaximized() const { return windowState().testFlag(Qt::WindowMaximized); }
+
+/*!
+    Returns \c true if the widget is a window that is minimized.
+
+    \sa showMinimized(), windowState()
+*/
+bool QWidget::isMinimized() const { return windowState().testFlag(Qt::WindowMinimized); }
+
+/*!
+    Returns the state of the widget's window: minimized, maximized or full screen, or Qt::WindowNoState. A child
+    widget has no state.
+
+    \sa setWindowState()
+*/
+Qt::WindowStates QWidget::windowState() const {
+    return isWindow() && m_d->window ? m_d->window->windowStates() : Qt::WindowStates(Qt::WindowNoState);
+}
+
+/*!
+    Sets the state of the widget, a window, to \a state, which takes effect now if it is shown and otherwise when it
+    is shown. A child widget has no state.
+
+    \sa windowState(), showMaximized()
+*/
+void QWidget::setWindowState(Qt::WindowStates state) {
+    if (!isWindow() || m_d->proxyUpdate)
+        return;
+    ensureWindow(this);
+    QtPrivate::GuiAccess::setWindowStates(m_d->window.get(), state);
 }
 
 /*!
@@ -1240,6 +1298,27 @@ bool QWidget::isHidden() const {
 }
 
 /*!
+    Makes sure that the style has polished the widget and its children: calls QStyle::polish() for each of them that
+    it has not polished yet and sends it a QEvent::Polish. The widget does this itself before it is first shown, so
+    call it only to see the polished widget earlier, for example to read its size hint.
+
+    \sa QStyle::polish()
+*/
+void QWidget::ensurePolished() const {
+    auto *self = const_cast<QWidget *>(this); // NOLINT(cppcoreguidelines-pro-type-const-cast): Qt's signature
+    if (!m_d->polished) {
+        m_d->polished = true;
+        style()->polish(self);
+        QEvent polish(QEvent::Polish);
+        QCoreApplication::sendEvent(self, &polish);
+    }
+    for (QObject *child : children()) {
+        if (auto *w = qobject_cast<QWidget *>(child); w && !w->isWindow())
+            w->ensurePolished();
+    }
+}
+
+/*!
     Shows the widget if \a visible is \c true, and hides it otherwise. Showing a window creates the native
     window the first time and gives it its size hint as the size if no size was set.
 
@@ -1247,6 +1326,8 @@ bool QWidget::isHidden() const {
 */
 
 void QWidget::setVisible(bool visible) {
+    if (visible)
+        ensurePolished();
     if (isWindow() && m_d->proxyUpdate) {
         const bool was = !m_d->hiddenExplicitly;
         m_d->hiddenExplicitly = !visible;
@@ -1500,7 +1581,12 @@ QStyle *QWidget::style() const { return m_d->style ? m_d->style : QApplication::
     \sa style()
 */
 void QWidget::setStyle(QStyle *style) {
+    QStyle *old = this->style();
+    if (m_d->polished)
+        old->unpolish(this);
     m_d->style = style;
+    if (m_d->polished)
+        this->style()->polish(this);
     QEvent change(QEvent::StyleChange);
     QCoreApplication::sendEvent(this, &change);
 }

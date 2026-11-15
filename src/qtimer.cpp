@@ -157,6 +157,51 @@ void QTimer::setSingleShot(bool singleShot) { m_single = singleShot; }
 bool QTimer::isSingleShot() const { return m_single; }
 
 /*!
+    \overload
+
+    Calls the slot \a member of \a receiver once, \a msec milliseconds from now, unless \a receiver is destroyed
+    first. \a member is given with the \c SLOT() macro:
+
+    \code
+    QTimer::singleShot(200, this, SLOT(sendNextPacket()));
+    \endcode
+*/
+void QTimer::singleShot(int msec, const QObject *receiver, const char *member) {
+    singleShot(msec, Qt::CoarseTimer, receiver, member);
+}
+
+/*!
+    \overload
+
+    Calls the slot \a member of \a receiver once, \a msec milliseconds from now, with a timer of the type
+    \a timerType, unless \a receiver is destroyed first.
+*/
+void QTimer::singleShot(int msec, Qt::TimerType timerType, const QObject *receiver, const char *member) {
+    if (!receiver || !member)
+        return;
+    auto *t = new QTimer;
+    t->setSingleShot(true);
+    t->setTimerType(timerType);
+    if (!QObject::connect(t, SIGNAL(timeout()), receiver, member)) {
+        delete t;
+        return;
+    }
+    QObject::connect(t, &QTimer::timeout, t, &QObject::deleteLater);
+    t->start(msec);
+    QtPrivate::placeSingleShotTimer(t,
+                                    const_cast<QObject *>(receiver)); // NOLINT(cppcoreguidelines-pro-type-const-cast)
+}
+
+/*!
+    \overload
+
+    Calls the slot \a member of \a receiver once, after \a interval, unless \a receiver is destroyed first.
+*/
+void QTimer::singleShot(std::chrono::milliseconds interval, const QObject *receiver, const char *member) {
+    singleShot(static_cast<int>(interval.count()), Qt::CoarseTimer, receiver, member);
+}
+
+/*!
     Starts the timer with the current interval, or restarts it if it is already
     running. With a negative interval the timer does not start.
 

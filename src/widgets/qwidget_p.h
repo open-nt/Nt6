@@ -32,6 +32,7 @@ struct QWidget::Data {
     QSize maximumSize{QLAYOUTSIZE_MAX, QLAYOUTSIZE_MAX};
     QSizePolicy sizePolicy;
     bool hiddenExplicitly = false; // hide() was called
+    bool polished = false;         // the style polished it (ensurePolished())
     bool pendingShow = false;      // created below a visible parent, not shown yet
     bool disabled = false;         // setEnabled(false) on this widget
     QString title;

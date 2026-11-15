@@ -23,6 +23,9 @@
 #include <QtWidgets/qtableview.h>
 #include <QtWidgets/qtreeview.h>
 #include <QtWidgets/qtreewidget.h>
+#include <QtWidgets/qundoview.h>
+#include <QtGui/qundogroup.h>
+#include <QtGui/qundostack.h>
 
 #include "platforms/offscreen/qoffscreenintegration_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
@@ -1010,6 +1013,83 @@ static void testItemDelegate() {
     CHECK(model.index(1, 0).data().toString() == "birch");
 }
 
+// A command that sets a number and puts the old one back.
+class SetNumber : public QUndoCommand {
+public:
+    SetNumber(int *number, int value) : QUndoCommand(QString("set %1").arg(value)), m_number(number), m_value(value) {}
+    void redo() override {
+        m_old = *m_number;
+        *m_number = m_value;
+    }
+    void undo() override { *m_number = m_old; }
+
+private:
+    int *m_number;
+    int m_value;
+    int m_old = 0;
+};
+
+static void testUndoView() {
+    int number = 0;
+    QUndoStack stack;
+    stack.push(new SetNumber(&number, 1));
+    stack.push(new SetNumber(&number, 2));
+    stack.push(new SetNumber(&number, 3));
+    stack.setIndex(2);
+    stack.setClean();
+
+    QUndoView view(&stack);
+    CHECK(view.stack() == &stack && view.group() == nullptr && view.emptyLabel() == "<empty>");
+    view.setEmptyLabel("start");
+    view.resize(200, 200);
+    view.show();
+    settle(&view);
+    QAbstractItemModel *model = view.model();
+    CHECK(model->rowCount() == 4 && model->index(0, 0).data().toString() == "start");
+    CHECK(model->index(3, 0).data().toString() == "set 3" && view.currentIndex().row() == 2);
+    CHECK(!model->index(2, 0).data(Qt::DecorationRole).isValid());
+    QPixmap disk(8, 8);
+    disk.fill(QColor(0, 128, 0));
+    view.setCleanIcon(disk);
+    CHECK(!view.cleanIcon().isNull() && model->index(2, 0).data(Qt::DecorationRole).isValid());
+    CHECK(!model->index(1, 0).data(Qt::DecorationRole).isValid());
+
+    // Clicking an entry moves the stack there; the stack moving moves the selection.
+    click(view.viewport(), view.visualRect(model->index(0, 0)).center());
+    CHECK(stack.index() == 0 && number == 0);
+    click(view.viewport(), view.visualRect(model->index(3, 0)).center());
+    CHECK(stack.index() == 3 && number == 3);
+    stack.undo();
+    CHECK(view.currentIndex().row() == 2 && number == 2);
+    stack.push(new SetNumber(&number, 9));
+    CHECK(model->rowCount() == 4 && model->index(3, 0).data().toString() == "set 9" && view.currentIndex().row() == 3);
+
+    // A group: the view follows its active stack.
+    int other = 0;
+    QUndoStack second;
+    second.push(new SetNumber(&other, 5));
+    QUndoGroup group;
+    group.addStack(&stack);
+    group.addStack(&second);
+    view.setGroup(&group);
+    CHECK(view.group() == &group && view.stack() == nullptr && model->rowCount() == 0);
+    second.setActive();
+    CHECK(view.stack() == &second && model->rowCount() == 2 && view.currentIndex().row() == 1);
+    stack.setActive();
+    CHECK(view.stack() == &stack && model->rowCount() == 4);
+    view.setStack(&second); // a stack of its own: the group is left
+    CHECK(view.group() == nullptr && view.stack() == &second);
+    {
+        QUndoStack gone;
+        view.setStack(&gone);
+    }
+    CHECK(view.stack() == nullptr && model->rowCount() == 0);
+    QUndoView empty;
+    CHECK(empty.stack() == nullptr && empty.model()->rowCount() == 0);
+    QUndoView grouped(&group);
+    CHECK(grouped.group() == &group && grouped.stack() == &stack);
+}
+
 // The tree finds the column under the mouse while it is scrolled sideways.
 static void testTreeScrolledColumns() {
     NodeModel model;
@@ -1927,6 +2007,7 @@ int main(int argc, char **argv) {
     testDecorationPosition();
     testDataWidgetMapper();
     testItemDelegate();
+    testUndoView();
     if (g_failures == 0)
         std::puts("all item view tests passed");
     return g_failures == 0 ? 0 : 1;

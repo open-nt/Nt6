@@ -18,11 +18,12 @@
 //    static plugin function for Q_IMPORT_PLUGIN when the output is compiled with QT_STATICPLUGIN.
 //
 // It is a text scanner, not a C++ parser. It understands namespaces, nested classes,
-// access/signals/slots labels, overloaded signals and default arguments. Preprocessor
-// conditionals are not evaluated, so a slot inside `#if 0` is seen. The command line follows the
-// subset of Qt's moc that CMake's AUTOMOC uses.
+// access/signals/slots labels, overloaded signals and default arguments. Preprocessor conditionals
+// are evaluated as moc does (see preprocessor_p.h), so a slot inside `#ifdef FEATURE` is seen only
+// when FEATURE is defined. The command line follows the subset of Qt's moc that CMake's AUTOMOC uses.
 
 #include "../../src/ntnormalize_p.h"
+#include "preprocessor_p.h"
 
 #include <algorithm>
 #include <cctype>
@@ -118,131 +119,8 @@ struct ClassData {
 bool isIdentStart(char c) { return std::isalpha(static_cast<unsigned char>(c)) || c == '_'; }
 bool isIdentChar(char c) { return std::isalnum(static_cast<unsigned char>(c)) || c == '_'; }
 
-// Macros given with -D, and the ones given with -U.
-std::map<std::string, std::string> &definedMacros() {
-    static std::map<std::string, std::string> macros;
-    return macros;
-}
-
-enum class Cond { False, True, Unknown };
-
-// Evaluates the conditions that matter for the headers: 0, 1, NAME, !NAME, defined(NAME) and
-// !defined(NAME), where only the macros given with -D are known. Everything else is Unknown and
-// keeps both branches.
-Cond evalCondition(const std::string &directive, std::string rest) {
-    const auto &macros = definedMacros();
-    const auto known = [&](const std::string &name) { return macros.find(name) != macros.end(); };
-    const auto trim = [](std::string &x) {
-        const std::size_t first = x.find_first_not_of(" \t");
-        x = first == std::string::npos ? std::string() : x.substr(first);
-        while (!x.empty() && std::isspace(static_cast<unsigned char>(x.back())))
-            x.pop_back();
-    };
-    trim(rest);
-    if (directive == "ifdef")
-        return known(rest) ? Cond::True : Cond::Unknown;
-    if (directive == "ifndef")
-        return known(rest) ? Cond::False : Cond::Unknown;
-    bool negate = false;
-    if (!rest.empty() && rest[0] == '!') {
-        negate = true;
-        rest = rest.substr(1);
-        trim(rest);
-    }
-    Cond result = Cond::Unknown;
-    if (rest == "0" || rest == "false") {
-        result = Cond::False;
-    } else if (rest == "1" || rest == "true") {
-        result = Cond::True;
-    } else {
-        std::string name = rest;
-        if (name.rfind("defined", 0) == 0) {
-            name = name.substr(7);
-            trim(name);
-            if (!name.empty() && name.front() == '(' && name.back() == ')') {
-                name = name.substr(1, name.size() - 2);
-                trim(name);
-            }
-            if (known(name))
-                result = Cond::True;
-        } else if (known(name)) {
-            const std::string &value = macros.at(name);
-            result = value == "0" ? Cond::False : Cond::True;
-        }
-        const bool simple = !name.empty() && std::all_of(name.begin(), name.end(), [](char c) {
-            return std::isalnum(static_cast<unsigned char>(c)) || c == '_';
-        });
-        if (!simple)
-            return Cond::Unknown;
-    }
-    if (negate && result != Cond::Unknown)
-        return result == Cond::True ? Cond::False : Cond::True;
-    return negate ? Cond::Unknown : result;
-}
-
-// Blanks the lines of conditional blocks that are known to be disabled (`#if 0`, and tests of the
-// macros given with -D), keeping offsets and newlines. Other conditions are not evaluated: all of
-// their branches are kept.
-std::string blankDisabledBlocks(const std::string &s) {
-    struct Frame {
-        bool parentActive;
-        bool active;
-        bool taken; // a branch with a known true condition was seen
-    };
-    std::string out = s;
-    std::vector<Frame> stack;
-    bool active = true;
-    std::size_t pos = 0;
-    while (pos < s.size()) {
-        std::size_t end = s.find('\n', pos);
-        if (end == std::string::npos)
-            end = s.size();
-        std::size_t k = pos;
-        while (k < end && (s[k] == ' ' || s[k] == '\t'))
-            ++k;
-        if (k < end && s[k] == '#') {
-            ++k;
-            while (k < end && (s[k] == ' ' || s[k] == '\t'))
-                ++k;
-            std::size_t w = k;
-            while (w < end && std::isalnum(static_cast<unsigned char>(s[w])))
-                ++w;
-            const std::string directive = s.substr(k, w - k);
-            const std::string rest = s.substr(w, end - w);
-            if (directive == "if" || directive == "ifdef" || directive == "ifndef") {
-                const Cond c = evalCondition(directive, rest);
-                stack.push_back({active, active && c != Cond::False, c == Cond::True});
-                active = stack.back().active;
-            } else if (directive == "elif" && !stack.empty()) {
-                Frame &f = stack.back();
-                if (f.taken) {
-                    f.active = false;
-                } else {
-                    const Cond c = evalCondition("if", rest);
-                    f.active = f.parentActive && c != Cond::False;
-                    f.taken = c == Cond::True;
-                }
-                active = f.active;
-            } else if (directive == "else" && !stack.empty()) {
-                Frame &f = stack.back();
-                f.active = f.parentActive && !f.taken;
-                active = f.active;
-            } else if (directive == "endif" && !stack.empty()) {
-                active = stack.back().parentActive;
-                stack.pop_back();
-            }
-        }
-        if (!active)
-            for (std::size_t i = pos; i < end; ++i)
-                out[i] = ' ';
-        pos = end + 1;
-    }
-    return out;
-}
-
 // Blanks comments, literals and preprocessor lines, keeping offsets and newlines.
-std::string stripSource(const std::string &input) {
-    const std::string s = blankDisabledBlocks(input);
+std::string stripSource(const std::string &s) {
     std::string out = s;
     const std::size_t n = s.size();
     auto blank = [&](std::size_t from, std::size_t to) {
@@ -1465,12 +1343,52 @@ void generateMeta(std::ostringstream &o, const ClassData &c, const std::map<std:
     o << "}();\n";
 }
 
+// Returns the headers named by Q_MOC_INCLUDE("file.h") or Q_MOC_INCLUDE(<file.h>) in \a source, which has
+// had its disabled branches blanked, as they are spelt.
+std::vector<std::string> mocIncludes(const std::string &source) {
+    std::vector<std::string> headers;
+    const std::string code = stripSource(source);
+    const std::string key = "Q_MOC_INCLUDE";
+    for (std::size_t at = code.find(key); at != std::string::npos; at = code.find(key, at + key.size())) {
+        if ((at > 0 && isIdentChar(code[at - 1])) ||
+            (at + key.size() < code.size() && isIdentChar(code[at + key.size()])))
+            continue;
+        std::size_t open = at + key.size();
+        while (open < code.size() && std::isspace(static_cast<unsigned char>(code[open])))
+            ++open;
+        if (open >= code.size() || code[open] != '(')
+            continue;
+        const std::size_t close = code.find(')', open);
+        if (close == std::string::npos)
+            break;
+        // The literals are blanked in code, so read the arguments from the source.
+        std::string arg;
+        for (std::size_t k = open + 1; k <= close; ++k) {
+            if (k == close || source[k] == ',') {
+                const std::size_t a = arg.find_first_not_of(" \t\r\n");
+                const std::size_t b = arg.find_last_not_of(" \t\r\n");
+                if (a != std::string::npos) {
+                    const std::string h = arg.substr(a, b - a + 1);
+                    if (h.size() > 2 && ((h.front() == '"' && h.back() == '"') || (h.front() == '<' && h.back() == '>')))
+                        headers.push_back(h);
+                }
+                arg.clear();
+            } else {
+                arg += source[k];
+            }
+        }
+    }
+    return headers;
+}
+
 std::string generate(const std::vector<ClassData> &classes, const std::map<std::string, EnumInfo> &allEnums,
-                     const std::string &includePath) {
+                     const std::string &includePath, const std::vector<std::string> &extraIncludes) {
     std::ostringstream o;
     o << "// Generated by ntmoc. Do not edit.\n";
     if (!includePath.empty())
         o << "#include \"" << includePath << "\"\n";
+    for (const std::string &header : extraIncludes)
+        o << "#include " << header << "\n";
     o << "#include <QtCore/qmetaobject.h>\n#include <QtCore/qobject.h>\n";
     for (const ClassData &c : classes) {
         if (c.plugin) {
@@ -1528,6 +1446,8 @@ int main(int argc, char **argv) {
 
     std::string output, input;
     std::vector<std::string> includeDirs;
+    std::vector<std::string> preIncludes;                   // --include files, read for their macros
+    std::vector<std::pair<bool, std::string>> macroOptions; // -D (true) and -U (false), in order
     bool depFile = false, noInclude = false;
     // Options that consume a value (separate or attached) and are otherwise ignored.
     const std::vector<std::string> valued = {"-I",
@@ -1580,11 +1500,11 @@ int main(int argc, char **argv) {
                     includeDirs.push_back(dir);
             }
             if (defineArg) {
-                const std::string def = a.size() > 2 ? a.substr(2) : (i + 1 < args.size() ? args[i + 1] : "");
-                const std::size_t eq = def.find('=');
-                definedMacros()[def.substr(0, eq)] = eq == std::string::npos ? "1" : def.substr(eq + 1);
+                macroOptions.emplace_back(true, a.size() > 2 ? a.substr(2) : (i + 1 < args.size() ? args[i + 1] : ""));
             } else if (a.rfind("-U", 0) == 0) {
-                definedMacros().erase(a.size() > 2 ? a.substr(2) : (i + 1 < args.size() ? args[i + 1] : ""));
+                macroOptions.emplace_back(false, a.size() > 2 ? a.substr(2) : (i + 1 < args.size() ? args[i + 1] : ""));
+            } else if (a == "--include" && i + 1 < args.size()) {
+                preIncludes.push_back(args[i + 1]);
             }
             for (const std::string &v : valued) {
                 if (a == v) {
@@ -1620,7 +1540,22 @@ int main(int argc, char **argv) {
     const std::size_t dot = input.rfind('.');
     const std::string ext = dot == std::string::npos ? "" : input.substr(dot);
     const bool isHeader = ext == ".h" || ext == ".hpp" || ext == ".hh" || ext == ".hxx" || ext == ".H";
-    const std::string source = buf.str();
+    // Evaluate the conditionals: macros from --include files (CMake's moc_predefs.h), then -D and -U,
+    // then the input and the headers it includes.
+    ntmoc::Preprocessor pp;
+    pp.includeDirs = includeDirs;
+    for (const std::string &file : preIncludes)
+        if (!pp.includeFile(file))
+            std::cerr << "ntmoc: warning: cannot read " << file << "\n";
+    for (const auto &[isDefine, macro] : macroOptions) {
+        if (macro.empty())
+            continue;
+        if (isDefine)
+            pp.define(macro);
+        else
+            pp.undefine(macro);
+    }
+    const std::string source = pp.run(buf.str(), input);
     Scanner scanner(source);
     scanner.run();
 
@@ -1665,7 +1600,7 @@ int main(int argc, char **argv) {
             return 1;
         }
     }
-    const std::string text = generate(scanner.classes, scanner.allEnums, (isHeader && !noInclude) ? input : "");
+    const std::string text = generate(scanner.classes, scanner.allEnums, (isHeader && !noInclude) ? input : "", mocIncludes(source));
 
     if (output.empty()) {
         std::cout << text;
@@ -1684,6 +1619,16 @@ int main(int argc, char **argv) {
         dep << output << ": " << input;
         for (const std::string &path : extraDeps)
             dep << " " << path;
+        for (const std::string &path : pp.dependencies)
+        {
+            std::string escaped;
+            for (const char c : path) {
+                if (c == ' ' || c == '#')
+                    escaped += '\\';
+                escaped += c;
+            }
+            dep << " \\\n  " << escaped;
+        }
         dep << "\n";
     }
     return 0;

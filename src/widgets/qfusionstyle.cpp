@@ -114,6 +114,68 @@ void QFusionStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *o
     const QRect r = option->rect;
     painter->save();
     switch (element) {
+    // Elements that the default style draws with others, or not at all.
+    case PE_PanelButtonTool:
+    case PE_PanelButtonBevel:
+        if (!(option->state & State_AutoRaise) || (option->state & (State_Sunken | State_On | State_MouseOver)))
+            proxy()->drawPrimitive(PE_PanelButtonCommand, option, painter, widget);
+        break;
+    case PE_IndicatorSpinUp:
+    case PE_IndicatorSpinPlus:
+        proxy()->drawPrimitive(PE_IndicatorArrowUp, option, painter, widget);
+        break;
+    case PE_IndicatorSpinDown:
+    case PE_IndicatorSpinMinus:
+        proxy()->drawPrimitive(PE_IndicatorArrowDown, option, painter, widget);
+        break;
+    case PE_IndicatorHeaderArrow: {
+        const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option);
+        proxy()->drawPrimitive(header && header->sortIndicator == QStyleOptionHeader::SortUp ? PE_IndicatorArrowUp
+                                                                                             : PE_IndicatorArrowDown,
+                               option, painter, widget);
+        break;
+    }
+    case PE_IndicatorItemViewItemCheck:
+    case PE_IndicatorMenuCheckMark:
+        proxy()->drawPrimitive(PE_IndicatorCheckBox, option, painter, widget);
+        break;
+    case PE_IndicatorBranch:
+        if (option->state & State_Children)
+            proxy()->drawPrimitive(option->state & State_Open ? PE_IndicatorArrowDown : PE_IndicatorArrowRight, option,
+                                   painter, widget);
+        break;
+    case PE_FrameMenu:
+        proxy()->drawPrimitive(PE_PanelMenu, option, painter, widget);
+        break;
+    case PE_FrameStatusBarItem:
+    case PE_FrameDockWidget:
+    case PE_FrameWindow:
+        proxy()->drawPrimitive(PE_Frame, option, painter, widget);
+        break;
+    case PE_PanelItemViewItem:
+    case PE_PanelItemViewRow:
+        if (option->state & State_Selected)
+            painter->fillRect(r, option->palette.color(group, QPalette::Highlight));
+        else if (const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option);
+                 item && item->backgroundBrush.style() != Qt::NoBrush)
+            painter->fillRect(r, item->backgroundBrush);
+        break;
+    case PE_PanelScrollAreaCorner:
+        painter->fillRect(r, option->palette.color(group, QPalette::Window));
+        break;
+    case PE_IndicatorProgressChunk:
+        painter->fillRect(r, option->palette.color(group, QPalette::Highlight));
+        break;
+    case PE_IndicatorTabClose: {
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(QPen(option->palette.color(group, QPalette::WindowText), 1.5));
+        const QRectF x = QRectF(r).adjusted(r.width() * 0.3, r.height() * 0.3, -r.width() * 0.3, -r.height() * 0.3);
+        painter->drawLine(x.topLeft(), x.bottomRight());
+        painter->drawLine(x.topRight(), x.bottomLeft());
+        break;
+    }
+    default:
+        break;
     case PE_PanelButtonCommand: {
         const auto *button =
             option->type == QStyleOption::SO_Button ? static_cast<const QStyleOptionButton *>(option) : nullptr;
@@ -249,6 +311,108 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
                                const QWidget *widget) const {
     const QPalette::ColorGroup group = groupOf(option);
     switch (element) {
+    // Elements that the default style draws with others, or not at all.
+    case CE_HeaderSection:
+    case CE_HeaderEmptyArea:
+        if (const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option)) {
+            QStyleOptionHeader section = *header;
+            section.text.clear();
+            section.sortIndicator = QStyleOptionHeader::None;
+            section.lastSection = element == CE_HeaderEmptyArea || header->lastSection;
+            proxy()->drawControl(CE_Header, &section, painter, widget);
+        }
+        break;
+    case CE_HeaderLabel:
+        if (const auto *header = qstyleoption_cast<const QStyleOptionHeader *>(option))
+            proxy()->drawItemText(painter, header->rect, static_cast<int>(header->textAlignment), header->palette,
+                                  header->state & State_Enabled, header->text, QPalette::ButtonText);
+        break;
+    case CE_ProgressBarGroove:
+        proxy()->drawControl(CE_ProgressBar, option, painter, widget);
+        break;
+    case CE_TabBarTabShape:
+        if (const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option)) {
+            QStyleOptionTab shape = *tab;
+            shape.text.clear();
+            proxy()->drawControl(CE_TabBarTab, &shape, painter, widget);
+        }
+        break;
+    case CE_TabBarTabLabel:
+        if (const auto *tab = qstyleoption_cast<const QStyleOptionTab *>(option))
+            proxy()->drawItemText(painter, tab->rect, Qt::AlignCenter, tab->palette, tab->state & State_Enabled,
+                                  tab->text, QPalette::WindowText);
+        break;
+    case CE_ComboBoxLabel:
+        if (const auto *combo = qstyleoption_cast<const QStyleOptionComboBox *>(option)) {
+            const QRect field = proxy()->subControlRect(CC_ComboBox, combo, SC_ComboBoxEditField, widget);
+            proxy()->drawItemText(painter, field, static_cast<int>(combo->textAlignment), combo->palette,
+                                  combo->state & State_Enabled, combo->currentText, QPalette::ButtonText);
+        }
+        break;
+    case CE_ToolButtonLabel:
+        if (const auto *tool = qstyleoption_cast<const QStyleOptionToolButton *>(option))
+            proxy()->drawItemText(painter, tool->rect, Qt::AlignCenter, tool->palette, tool->state & State_Enabled,
+                                  tool->text, QPalette::ButtonText);
+        break;
+    case CE_FocusFrame:
+        proxy()->drawPrimitive(PE_FrameFocusRect, option, painter, widget);
+        break;
+    case CE_ShapedFrame:
+        proxy()->drawPrimitive(PE_Frame, option, painter, widget);
+        break;
+    case CE_RubberBand: {
+        QColor fill = option->palette.color(group, QPalette::Highlight);
+        painter->save();
+        painter->setPen(fill);
+        fill.setAlpha(60);
+        painter->setBrush(fill);
+        painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
+        painter->restore();
+        break;
+    }
+    case CE_DockWidgetTitle:
+        if (const auto *dock = qstyleoption_cast<const QStyleOptionDockWidget *>(option)) {
+            painter->fillRect(dock->rect, dock->palette.color(group, QPalette::Window));
+            proxy()->drawItemText(painter, dock->rect.adjusted(4, 0, -4, 0), Qt::AlignLeft | Qt::AlignVCenter,
+                                  dock->palette, dock->state & State_Enabled, dock->title, QPalette::WindowText);
+        }
+        break;
+    case CE_ItemViewItem:
+        if (const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option)) {
+            painter->save();
+            painter->setClipRect(item->rect);
+            proxy()->drawPrimitive(PE_PanelItemViewItem, option, painter, widget);
+            if (item->features & QStyleOptionViewItem::HasCheckIndicator) {
+                QStyleOptionButton check;
+                check.rect = proxy()->subElementRect(SE_ItemViewItemCheckIndicator, option, widget);
+                check.palette = item->palette;
+                check.state = (item->state & ~QStyle::State(State_Selected | State_HasFocus)) |
+                              (item->checkState == Qt::Unchecked ? State_Off : State_On);
+                proxy()->drawPrimitive(PE_IndicatorItemViewItemCheck, &check, painter, widget);
+            }
+            if ((item->features & QStyleOptionViewItem::HasDecoration) && !item->decoration.isNull())
+                painter->drawPixmap(proxy()->subElementRect(SE_ItemViewItemDecoration, option, widget),
+                                    item->decoration);
+            if (item->features & QStyleOptionViewItem::HasDisplay) {
+                const QRect text = proxy()->subElementRect(SE_ItemViewItemText, option, widget);
+                painter->setFont(item->font);
+                painter->setPen(item->palette.color(group, item->state & State_Selected ? QPalette::HighlightedText
+                                                                                        : QPalette::Text));
+                painter->drawText(text, static_cast<int>(item->displayAlignment) | Qt::TextSingleLine,
+                                  QFontMetrics(item->font).elidedText(item->text, item->textElideMode, text.width()));
+            }
+            if (item->state & State_HasFocus) {
+                QStyleOptionFocusRect focus;
+                focus.rect = item->rect;
+                focus.palette = item->palette;
+                focus.state = item->state;
+                proxy()->drawPrimitive(PE_FrameFocusRect, &focus, painter, widget);
+            }
+            painter->restore();
+        }
+        break;
+    default:
+        break;
     case CE_PushButton: {
         proxy()->drawControl(CE_PushButtonBevel, option, painter, widget);
         QStyleOptionButton inner = *static_cast<const QStyleOptionButton *>(option);
@@ -466,7 +630,7 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
                 : 0;
         // A dial that does not wrap spans 270 degrees from the bottom left to the bottom right, one that wraps the full circle
         // from the bottom.
-        const qreal span = dial->wrapping ? 360.0 : 270.0, start = dial->wrapping ? 270.0 : 225.0;
+        const qreal span = dial->dialWrapping ? 360.0 : 270.0, start = dial->dialWrapping ? 270.0 : 225.0;
         auto point = [&](qreal degrees, qreal radius) {
             const qreal rad = degrees * pi / 180.0;
             return QPoint(center.x() + static_cast<int>(std::lround(radius * std::cos(rad))),
@@ -475,9 +639,9 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         const int outer = std::max(2, size / 2 - 3 - (dial->tickMarks ? 4 : 0));
         if (dial->tickMarks) {
             painter->setPen(mix(outlineOf(option), window, 80));
-            const int notches = dial->wrapping ? 12 : 10;
+            const int notches = dial->dialWrapping ? 12 : 10;
             for (int i = 0; i <= notches; ++i) {
-                if (dial->wrapping && i == notches)
+                if (dial->dialWrapping && i == notches)
                     break;
                 const qreal a = start - span * i / notches;
                 const int rim = size / 2 - 1;
@@ -677,6 +841,74 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
 QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *option, const QWidget *widget) const {
     const QRect r = option->rect;
     switch (element) {
+    // Parts that the default style finds from others.
+    case SE_PushButtonFocusRect:
+        return proxy()->subElementRect(SE_PushButtonContents, option, widget);
+    case SE_CheckBoxFocusRect:
+        return proxy()->subElementRect(SE_CheckBoxContents, option, widget);
+    case SE_RadioButtonFocusRect:
+        return proxy()->subElementRect(SE_RadioButtonContents, option, widget);
+    case SE_ProgressBarGroove:
+    case SE_ProgressBarLabel:
+        return proxy()->subElementRect(SE_ProgressBarContents, option, widget);
+    case SE_ComboBoxFocusRect:
+    case SE_SliderFocusRect:
+        return r.adjusted(2, 2, -2, -2);
+    case SE_FrameContents:
+    case SE_ShapedFrameContents: {
+        const int frame = proxy()->pixelMetric(PM_DefaultFrameWidth, option, widget);
+        return r.adjusted(frame, frame, -frame, -frame);
+    }
+    case SE_ItemViewItemCheckIndicator:
+    case SE_ItemViewItemDecoration:
+    case SE_ItemViewItemText:
+    case SE_ItemViewItemFocusRect: {
+        // A check box on the left, then the decoration, then the text, as QStyledItemDelegate places them.
+        const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option);
+        if (!item || element == SE_ItemViewItemFocusRect)
+            return r;
+        int x = r.left() + 3;
+        QRect check, decoration;
+        if (item->features & QStyleOptionViewItem::HasCheckIndicator) {
+            const int size = proxy()->pixelMetric(PM_IndicatorWidth, option, widget);
+            check = QRect(x, r.top() + (r.height() - size) / 2, size, size);
+            x += size + 4;
+        }
+        if (item->features & QStyleOptionViewItem::HasDecoration) {
+            const QSize size = item->decorationSize.isValid() && !item->decorationSize.isEmpty()
+                                   ? item->decorationSize
+                                   : (item->decoration.isNull() ? QSize(16, 16) : item->decoration.size());
+            decoration = QRect(QPoint(x, r.top() + (r.height() - size.height()) / 2), size);
+            x += size.width() + 4;
+        }
+        if (element == SE_ItemViewItemCheckIndicator)
+            return check;
+        if (element == SE_ItemViewItemDecoration)
+            return decoration;
+        return QRect(x, r.top(), std::max(0, r.right() - 3 - x + 1), r.height());
+    }
+    case SE_CheckBoxClickRect:
+    case SE_RadioButtonClickRect:
+    case SE_PushButtonBevel:
+    case SE_CheckBoxLayoutItem:
+    case SE_ComboBoxLayoutItem:
+    case SE_DateTimeEditLayoutItem:
+    case SE_LabelLayoutItem:
+    case SE_ProgressBarLayoutItem:
+    case SE_PushButtonLayoutItem:
+    case SE_RadioButtonLayoutItem:
+    case SE_SliderLayoutItem:
+    case SE_SpinBoxLayoutItem:
+    case SE_ToolButtonLayoutItem:
+    case SE_FrameLayoutItem:
+    case SE_GroupBoxLayoutItem:
+    case SE_TabWidgetLayoutItem:
+    case SE_HeaderLabel:
+    case SE_TabWidgetTabPane:
+    case SE_TabBarTabText:
+        return r;
+    default:
+        break;
     case SE_CheckBoxIndicator: {
         const int size = proxy()->pixelMetric(PM_IndicatorWidth, option, widget);
         return QRect(r.left(), r.top() + (r.height() - size) / 2, size, size);
@@ -782,14 +1014,31 @@ int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, co
     (void)option;
     switch (metric) {
     case PM_ButtonMargin:
+    case PM_CheckBoxLabelSpacing:
+    case PM_LayoutHorizontalSpacing:
+    case PM_LayoutVerticalSpacing:
+    case PM_MenuBarItemSpacing:
+    case PM_DialogButtonsSeparator:
+    case PM_ToolBarSeparatorExtent:
+    case PM_RadioButtonLabelSpacing:
         return 6;
     case PM_DefaultFrameWidth:
+    case PM_DockWidgetSeparatorExtent:
+    case PM_DockWidgetFrameWidth:
+    case PM_MenuPanelWidth:
+    case PM_ToolBarFrameWidth:
+    case PM_ToolBarItemSpacing:
+    case PM_DockWidgetTitleMargin:
+    case PM_TabBar_ScrollButtonOverlap:
+    case PM_TextCursorWidth:
         return 1;
     case PM_IndicatorWidth:
     case PM_IndicatorHeight:
+    case PM_ExclusiveIndicatorWidth:
+    case PM_ExclusiveIndicatorHeight:
+    case PM_ScrollBarExtent:
+    case PM_TabBarTabHSpace:
         return 14;
-    case PM_CheckBoxLabelSpacing:
-        return 6;
     case PM_LayoutTopMargin:
         // The title of a group box is above the layout inside it.
         if (dynamic_cast<const QGroupBox *>(widget))
@@ -802,33 +1051,82 @@ int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, co
         if (dynamic_cast<const QGroupBox *>(widget))
             return 12;
         return widget && widget->isWindow() ? 11 : 9;
-    case PM_LayoutHorizontalSpacing:
-    case PM_LayoutVerticalSpacing:
-        return 6;
-    case PM_ExclusiveIndicatorWidth:
-    case PM_ExclusiveIndicatorHeight:
-        return 14;
     case PM_SliderLength:
     case PM_SpinBoxButtonWidth:
+    case PM_TabBarScrollButtonWidth:
+    case PM_ListViewIconSize:
+    case PM_SmallIconSize:
+    case PM_TabBarIconSize:
+    case PM_ButtonIconSize:
+    case PM_TabCloseIndicatorWidth:
+    case PM_TabCloseIndicatorHeight:
+    case PM_TitleBarButtonIconSize:
+    case PM_LineEditIconSize:
         return 16;
     case PM_SliderThickness:
         return 15;
     case PM_ComboBoxArrowWidth:
+    case PM_TreeViewIndentation:
         return 20;
-    case PM_ScrollBarExtent:
-        return 14;
     case PM_ScrollBarSliderMin:
         return 26;
     case PM_HeaderMargin:
+    case PM_SplitterWidth:
+    case PM_SliderTickmarkOffset:
+    case PM_MdiSubWindowFrameWidth:
+    case PM_HeaderGripMargin:
+    case PM_LineEditIconMargin:
         return 4;
     case PM_HeaderDefaultSectionSizeHorizontal:
         return 100;
     case PM_HeaderDefaultSectionSizeVertical:
+    case PM_DialogButtonsButtonHeight:
         return 30;
-    case PM_MenuBarItemSpacing:
-        return 6;
-    case PM_SplitterWidth:
-        return 4;
+    case PM_SliderControlThickness:
+        return proxy()->pixelMetric(PM_SliderThickness, option, widget);
+    case PM_MenuButtonIndicator:
+    case PM_ToolBarExtensionExtent:
+        return 12;
+    case PM_SpinBoxFrameWidth:
+        return 3;
+    case PM_ComboBoxFrameWidth:
+    case PM_ToolBarItemMargin:
+    case PM_SpinBoxSliderHeight:
+    case PM_FocusFrameVMargin:
+    case PM_FocusFrameHMargin:
+    case PM_ToolTipLabelFrameWidth:
+    case PM_DockWidgetTitleBarButtonMargin:
+        return 2;
+    case PM_MaximumDragDistance:
+    case PM_SubMenuOverlap:
+        return -1;
+    case PM_DockWidgetHandleExtent:
+    case PM_TabBarTabVSpace:
+        return 8;
+    case PM_ProgressBarChunkWidth:
+    case PM_HeaderMarkSize:
+    case PM_ToolBarHandleExtent:
+        return 9;
+    case PM_TitleBarHeight:
+    case PM_ToolBarIconSize:
+        return 24;
+    case PM_MenuScrollerHeight:
+    case PM_MenuTearoffHeight:
+        return 10;
+    case PM_DialogButtonsButtonWidth:
+        return 80;
+    case PM_MdiSubWindowMinimizedWidth:
+        return 196;
+    case PM_IconViewIconSize:
+    case PM_LargeIconSize:
+    case PM_MessageBoxIconSize:
+        return 32;
+    case PM_SizeGripSize:
+        return 13;
+    case PM_TitleBarButtonSize:
+        return 19;
+    default:
+        break;
     }
     return 0;
 }
@@ -836,6 +1134,11 @@ int QFusionStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, co
 QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize,
                                      const QWidget *widget) const {
     switch (type) {
+    case CT_ItemViewItem:
+    case CT_HeaderSection:
+        return contentsSize + QSize(8, 6);
+    default:
+        break;
     case CT_PushButton: {
         const int m = proxy()->pixelMetric(PM_ButtonMargin, option, widget);
         const int frame = 2 * proxy()->pixelMetric(PM_DefaultFrameWidth, option, widget);
@@ -880,7 +1183,7 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
             return QSize(120, 2);
         int width = contentsSize.width() + 51;
         if (item->text.contains('\t'))
-            width += item->tabWidth;
+            width += item->reservedShortcutWidth;
         if (item->menuItemType == QStyleOptionMenuItem::SubMenu)
             width += 12;
         return QSize(std::max(width, 120), contentsSize.height() + 8);

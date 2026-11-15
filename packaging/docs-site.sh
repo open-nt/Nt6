@@ -73,7 +73,7 @@ favicon='favicon=../assets/nt-logo.svg ../assets/nt-logo.png'
 entries=$(printf '{"name": "dev", "path": "dev/"}')
 latest=
 
-rm -rf "$output/dev"
+rm -rf "${output:?}/dev"
 "$ndoc" --strict --require-complete -o "$output/dev" \
     --doc-version dev --set "url=${url}dev/" --set "versions=${url}versions.json" \
     "$root/doc/ndoc.conf"

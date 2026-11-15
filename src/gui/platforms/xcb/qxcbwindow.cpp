@@ -135,6 +135,27 @@ void QXcbWindow::setFullScreen(bool fullScreen) {
     setNetWmState(m_connection->atom("_NET_WM_STATE_FULLSCREEN"), fullScreen);
 }
 
+void QXcbWindow::setWindowStates(Qt::WindowStates states) {
+    setFullScreen(states.testFlag(Qt::WindowFullScreen));
+    const bool maximized = states.testFlag(Qt::WindowMaximized);
+    setNetWmState(m_connection->atom("_NET_WM_STATE_MAXIMIZED_VERT"), maximized);
+    setNetWmState(m_connection->atom("_NET_WM_STATE_MAXIMIZED_HORZ"), maximized);
+    if (states.testFlag(Qt::WindowMinimized)) {
+        // ICCCM 4.1.4: a WM_CHANGE_STATE message with IconicState asks the window manager to iconify the window.
+        xcb_client_message_event_t event = {};
+        event.response_type = XCB_CLIENT_MESSAGE;
+        event.format = 32;
+        event.window = m_id;
+        event.type = m_connection->atom("WM_CHANGE_STATE");
+        event.data.data32[0] = 3; // IconicState
+        const xcb_window_t root = m_connection->rootWindow();
+        xcb_send_event(m_connection->xcb(), 0, root,
+                       XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT | XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY,
+                       reinterpret_cast<const char *>(&event));
+        m_connection->flush();
+    }
+}
+
 void QXcbWindow::setWindowFlags(Qt::WindowFlags flags) {
     xcb_connection_t *c = m_connection->xcb();
     // Frameless: the Motif hints, which window managers read for decorations (flags = decorations given).

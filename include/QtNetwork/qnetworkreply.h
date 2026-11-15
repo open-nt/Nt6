@@ -58,7 +58,7 @@ public:
     int httpStatusCode() const;
     QByteArray httpReasonPhrase() const;
     QVariant attribute(QNetworkRequest::Attribute code) const;
-    QByteArray header(QNetworkRequest::KnownHeaders header) const;
+    QVariant header(QNetworkRequest::KnownHeaders header) const;
     bool hasRawHeader(const QByteArray &headerName) const;
     QList<QByteArray> rawHeaderList() const;
     QByteArray rawHeader(const QByteArray &headerName) const;

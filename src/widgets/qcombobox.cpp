@@ -187,7 +187,7 @@ private:
     \image widgets/qcombobox.png QComboBox in the light color scheme
 
     \differences
-    The items are plain texts: there are no icons, no item data (\c setItemData(), \c currentData()), no model or
+    The items are texts with data for any role (itemData(), currentData()): there are no icons, no model or
     delegate, and no \c QComboBox::InsertPolicy. A combo box cannot be edited (\c setEditable()), and has no
     \c setPlaceholderText(), \c setMinimumContentsLength() or \c setSizeAdjustPolicy(). Typing does not jump to an item.
     \enddifferences
@@ -285,11 +285,81 @@ void QComboBox::setMaxVisibleItems(int count) { m_maxVisible = std::max(1, count
 bool QComboBox::isPopupVisible() const { return m_popup && !m_popup->isHidden(); }
 
 /*!
-    Adds an item with \a text at the end.
+    Adds an item with \a text at the end, with \a userData as its data for Qt::UserRole.
 
-    \sa insertItem()
+    \sa insertItem(), itemData()
 */
-void QComboBox::addItem(const QString &text) { insertItem(count(), text); }
+void QComboBox::addItem(const QString &text, const QVariant &userData) { insertItem(count(), text, userData); }
+
+/*!
+    Returns the data of the item at \a index for \a role: Qt::UserRole by default, the data given to addItem(). For
+    Qt::DisplayRole and Qt::EditRole it is the text. It is an invalid QVariant if there is no such item or data.
+
+    \sa setItemData(), currentData()
+*/
+QVariant QComboBox::itemData(int index, int role) const {
+    if (index < 0 || index >= count())
+        return QVariant();
+    if (role == Qt::DisplayRole || role == Qt::EditRole)
+        return m_items.at(index);
+    return m_data.at(index).value(role);
+}
+
+/*!
+    Sets the data of the item at \a index for \a role to \a value; for Qt::DisplayRole and Qt::EditRole that is its
+    text. Nothing happens if there is no such item.
+
+    \sa itemData()
+*/
+void QComboBox::setItemData(int index, const QVariant &value, int role) {
+    if (index < 0 || index >= count())
+        return;
+    if (role == Qt::DisplayRole || role == Qt::EditRole) {
+        setItemText(index, value.toString());
+        return;
+    }
+    if (value.isValid())
+        m_data[static_cast<qsizetype>(index)].insert(role, value);
+    else
+        m_data[static_cast<qsizetype>(index)].remove(role);
+}
+
+/*!
+    \fn QVariant QComboBox::currentData(int role) const
+
+    Returns the data of the current item for \a role, Qt::UserRole by default, or an invalid QVariant if there is no
+    current item.
+
+    \sa itemData(), currentIndex()
+*/
+
+/*!
+    Returns the index of the first item whose data for \a role is \a data, or -1 if there is none. With the default
+    \a flags, Qt::MatchExactly, the values must be equal; Qt::MatchFixedString compares them as strings without
+    case, and Qt::MatchContains and Qt::MatchStartsWith look for the text in them.
+
+    \sa itemData(), findText()
+*/
+int QComboBox::findData(const QVariant &data, int role, Qt::MatchFlags flags) const {
+    const Qt::CaseSensitivity cs = flags & Qt::MatchCaseSensitive ? Qt::CaseSensitive : Qt::CaseInsensitive;
+    const QString wanted = data.toString();
+    for (int i = 0; i < count(); ++i) {
+        const QVariant value = itemData(i, role);
+        if (flags & Qt::MatchContains) {
+            if (value.toString().contains(wanted, cs))
+                return i;
+        } else if (flags & Qt::MatchStartsWith) {
+            if (value.toString().startsWith(wanted, cs))
+                return i;
+        } else if (flags & Qt::MatchFixedString) {
+            if (value.toString().compare(wanted, cs) == 0)
+                return i;
+        } else if (value == data) {
+            return i;
+        }
+    }
+    return -1;
+}
 
 /*!
     Adds an item for each of \a texts at the end.
@@ -302,14 +372,18 @@ void QComboBox::addItems(const QStringList &texts) {
 }
 
 /*!
-    Inserts an item with \a text at \a index, which is brought into the range of the items. The current item stays
-    the same, except that the first item that is added becomes the current one.
+    Inserts an item with \a text and, for Qt::UserRole, \a userData at \a index, which is brought into the range of
+    the items. The current item stays the same, except that the first item that is added becomes the current one.
 
     \sa addItem(), removeItem()
 */
-void QComboBox::insertItem(int index, const QString &text) {
+void QComboBox::insertItem(int index, const QString &text, const QVariant &userData) {
     const int at = std::clamp(index, 0, count());
     m_items.insert(at, text);
+    QMap<int, QVariant> data;
+    if (userData.isValid())
+        data.insert(Qt::UserRole, userData);
+    m_data.insert(at, data);
     updateGeometry();
     update();
     if (m_current < 0) {
@@ -330,6 +404,7 @@ void QComboBox::removeItem(int index) {
     if (index < 0 || index >= count())
         return;
     m_items.removeAt(index);
+    m_data.removeAt(index);
     updateGeometry();
     update();
     if (index < m_current) {
@@ -351,6 +426,7 @@ void QComboBox::clear() {
     if (m_items.isEmpty())
         return;
     m_items.clear();
+    m_data.clear();
     m_current = -1;
     updateGeometry();
     update();

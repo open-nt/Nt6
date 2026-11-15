@@ -14,6 +14,9 @@
 #include <QtGui/qfontdatabase.h>
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qimage.h>
+#include <QtGui/qaction.h>
+#include <QtGui/qundogroup.h>
+#include <QtGui/qundostack.h>
 #include <QtGui/qimagereader.h>
 #include <QtGui/qmatrix4x4.h>
 #include <QtGui/qpainter.h>
@@ -35,6 +38,28 @@ const char *const kDejaVu = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf";
 
 } // namespace
 
+// Appends text to a document; consecutive appends merge, and an append of nothing is obsolete.
+class Append : public QUndoCommand {
+public:
+    Append(QString *document, const QString &text, QUndoCommand *parent = nullptr)
+        : QUndoCommand("append " + text + "\nAppend", parent), m_document(document), m_text(text) {
+        setObsolete(text.isEmpty());
+    }
+    void redo() override { m_document->append(m_text); }
+    void undo() override { m_document->chop(m_text.size()); }
+    int id() const override { return merging ? 1 : -1; }
+    bool mergeWith(const QUndoCommand *other) override {
+        m_text += static_cast<const Append *>(other)->m_text;
+        setText("append " + m_text + "\nAppend");
+        return true;
+    }
+    static inline bool merging = false;
+
+private:
+    QString *m_document;
+    QString m_text;
+};
+
 class TestGuiAdditions : public QObject {
     Q_OBJECT
 private slots:
@@ -55,7 +80,213 @@ private slots:
     void shortcutOnWindow();
     void shortcutContexts();
     void keyEventNativeCodes();
+    void undoStack();
+    void undoMacrosAndLimit();
+    void undoGroup();
 };
+
+void TestGuiAdditions::undoStack() {
+    QString doc;
+    QUndoStack stack;
+    QCOMPARE(stack.count(), 0);
+    QVERIFY(stack.isClean() && stack.isActive() && !stack.canUndo() && !stack.canRedo());
+    QSignalSpy indexes(&stack, &QUndoStack::indexChanged);
+    QSignalSpy cleans(&stack, &QUndoStack::cleanChanged);
+    QSignalSpy undoTexts(&stack, &QUndoStack::undoTextChanged);
+
+    stack.push(new Append(&doc, "hazel"));
+    stack.push(new Append(&doc, "nut"));
+    QCOMPARE(doc, QString("hazelnut"));
+    QCOMPARE(stack.count(), 2);
+    QCOMPARE(stack.index(), 2);
+    QCOMPARE(stack.text(1), QString("append nut"));
+    QCOMPARE(stack.undoText(), QString("Append"));
+    QCOMPARE(stack.command(0)->text(), QString("append hazel"));
+    QVERIFY(stack.command(5) == nullptr && stack.text(-1).isEmpty());
+    QVERIFY(!stack.isClean() && stack.canUndo() && !stack.canRedo());
+    QCOMPARE(indexes.count(), 2);
+    QCOMPARE(cleans.count(), 1);
+
+    stack.undo();
+    QCOMPARE(doc, QString("hazel"));
+    QVERIFY(stack.canRedo() && stack.redoText() == "Append");
+    stack.redo();
+    QCOMPARE(doc, QString("hazelnut"));
+    stack.setIndex(0);
+    QVERIFY(doc.isEmpty() && stack.isClean());
+    stack.setIndex(99);
+    QCOMPARE(doc, QString("hazelnut"));
+
+    // The clean state.
+    stack.setClean();
+    QVERIFY(stack.isClean() && stack.cleanIndex() == 2);
+    stack.undo();
+    QVERIFY(!stack.isClean());
+    stack.redo();
+    QVERIFY(stack.isClean());
+    stack.resetClean();
+    QVERIFY(!stack.isClean() && stack.cleanIndex() == -1);
+
+    // A push throws away what could be redone.
+    stack.undo();
+    stack.push(new Append(&doc, "s"));
+    QCOMPARE(doc, QString("hazels"));
+    QCOMPARE(stack.count(), 2);
+    QVERIFY(!stack.canRedo());
+
+    // Merging, and obsolete commands.
+    Append::merging = true;
+    stack.push(new Append(&doc, "o"));
+    stack.push(new Append(&doc, "me"));
+    QCOMPARE(doc, QString("hazelsome"));
+    QCOMPARE(stack.count(), 2);
+    QCOMPARE(stack.text(1), QString("append some"));
+    stack.undo();
+    QCOMPARE(doc, QString("hazel"));
+    stack.setClean();
+    stack.redo();
+    stack.push(new Append(&doc, "x")); // the top is not where the stack is clean: merges
+    QCOMPARE(stack.count(), 2);
+    stack.setIndex(1);
+    stack.setClean();
+    stack.push(new Append(&doc, "y")); // the stack is clean at the top: does not merge
+    QCOMPARE(stack.count(), 2);
+    QCOMPARE(stack.text(1), QString("append y"));
+    Append::merging = false;
+    const int before = stack.count();
+    stack.push(new Append(&doc, QString()));
+    QCOMPARE(stack.count(), before);
+
+    // The actions follow the stack.
+    QObject owner;
+    QAction *undo = stack.createUndoAction(&owner);
+    QAction *redo = stack.createRedoAction(&owner, "Do again");
+    QVERIFY(undo->parent() == &owner && undo->isEnabled() && !redo->isEnabled());
+    QCOMPARE(undo->text(), QString("Undo Append"));
+    QCOMPARE(redo->text(), QString("Do again"));
+    QCOMPARE(undo->shortcut(), QKeySequence(QKeySequence::Undo));
+    undo->trigger();
+    QVERIFY(redo->isEnabled() && redo->text() == "Do again Append");
+    QCOMPARE(doc, QString("hazel"));
+    redo->trigger();
+    QCOMPARE(doc, QString("hazely"));
+    QVERIFY(undoTexts.count() > 0);
+
+    stack.clear();
+    QVERIFY(stack.count() == 0 && stack.isClean() && !undo->isEnabled() && undo->text() == "Undo");
+}
+
+void TestGuiAdditions::undoMacrosAndLimit() {
+    QString doc;
+    QUndoStack stack;
+
+    // A macro is one step; nothing can be undone while it is open.
+    stack.beginMacro("type");
+    stack.push(new Append(&doc, "pe"));
+    QVERIFY(!stack.canUndo() && stack.index() == 0);
+    stack.beginMacro("inner");
+    stack.push(new Append(&doc, "ca"));
+    stack.endMacro();
+    stack.push(new Append(&doc, "n"));
+    stack.endMacro();
+    QCOMPARE(doc, QString("pecan"));
+    QCOMPARE(stack.count(), 1);
+    QCOMPARE(stack.index(), 1);
+    QCOMPARE(stack.command(0)->childCount(), 3);
+    QCOMPARE(stack.command(0)->child(1)->childCount(), 1);
+    QVERIFY(stack.command(0)->child(9) == nullptr);
+    stack.undo();
+    QVERIFY(doc.isEmpty());
+    stack.redo();
+    QCOMPARE(doc, QString("pecan"));
+
+    // A command with children does and undoes them.
+    auto *parent = new QUndoCommand("both");
+    new Append(&doc, "1", parent);
+    new Append(&doc, "2", parent);
+    stack.push(parent);
+    QCOMPARE(doc, QString("pecan12"));
+    stack.undo();
+    QCOMPARE(doc, QString("pecan"));
+    stack.clear();
+    doc.clear();
+
+    // The undo limit keeps the newest commands.
+    stack.setUndoLimit(2);
+    QCOMPARE(stack.undoLimit(), 2);
+    stack.setClean();
+    for (const char *t : {"a", "b", "c"})
+        stack.push(new Append(&doc, t));
+    QCOMPARE(stack.count(), 2);
+    QCOMPARE(stack.text(0), QString("append b"));
+    QCOMPARE(stack.cleanIndex(), -1);
+    stack.setIndex(0);
+    QCOMPARE(doc, QString("a"));
+    QTest::ignoreMessage(QtWarningMsg,
+                         "QUndoStack::setUndoLimit(): an undo limit can only be set when the stack is empty");
+    stack.setUndoLimit(5); // not while there are commands
+    QCOMPARE(stack.undoLimit(), 2);
+
+    // A text with a newline gives two texts.
+    QUndoCommand plain("only");
+    QCOMPARE(plain.actionText(), QString("only"));
+    plain.setText("Move item\nMove");
+    QCOMPARE(plain.text(), QString("Move item"));
+    QCOMPARE(plain.actionText(), QString("Move"));
+    QCOMPARE(plain.id(), -1);
+}
+
+void TestGuiAdditions::undoGroup() {
+    QString a, b;
+    QUndoGroup group;
+    QVERIFY(group.activeStack() == nullptr && !group.canUndo() && group.isClean());
+    auto *first = new QUndoStack(&group);
+    auto *second = new QUndoStack(&group);
+    group.addStack(first);
+    group.addStack(second);
+    group.addStack(first);
+    QCOMPARE(group.stacks().size(), 2);
+    QVERIFY(!first->isActive());
+    QSignalSpy actives(&group, &QUndoGroup::activeStackChanged);
+    QSignalSpy canUndos(&group, &QUndoGroup::canUndoChanged);
+
+    QObject owner;
+    QAction *undo = group.createUndoAction(&owner);
+    QVERIFY(!undo->isEnabled() && undo->text() == "Undo");
+    first->push(new Append(&a, "almond"));
+    QVERIFY(!undo->isEnabled()); // the stack is not active
+    first->setActive();
+    QVERIFY(group.activeStack() == first && first->isActive() && undo->isEnabled());
+    QCOMPARE(undo->text(), QString("Undo Append"));
+    QCOMPARE(actives.count(), 1);
+    undo->trigger();
+    QVERIFY(a.isEmpty() && group.canRedo() && group.redoText() == "Append");
+    group.redo();
+    QCOMPARE(a, QString("almond"));
+
+    group.setActiveStack(second);
+    QVERIFY(!undo->isEnabled() && !first->isActive());
+    second->push(new Append(&b, "brazil"));
+    QVERIFY(undo->isEnabled() && group.undoText() == "Append");
+    group.undo();
+    QVERIFY(b.isEmpty() && a == "almond");
+    QVERIFY(canUndos.count() > 0);
+
+    // A stack that leaves, or is deleted, is no longer active.
+    group.removeStack(second);
+    QVERIFY(group.activeStack() == nullptr && group.stacks() == QList<QUndoStack *>{first});
+    QVERIFY(second->isActive()); // in no group
+    first->setActive();
+    delete first;
+    QVERIFY(group.activeStack() == nullptr && group.stacks().isEmpty());
+    QUndoGroup other;
+    other.addStack(second);
+    QUndoGroup third;
+    third.addStack(second); // moves from one group to another
+    QVERIFY(other.stacks().isEmpty() && third.stacks() == QList<QUndoStack *>{second});
+    second->setActive(false);
+    QVERIFY(third.activeStack() == nullptr);
+}
 
 void TestGuiAdditions::fontFamiliesHintsStretch() {
     QFont font(QString::fromLatin1("Noto Sans"), 12);
@@ -96,7 +327,7 @@ void TestGuiAdditions::fontMetricsF() {
     const QString text = QString::fromLatin1("Hello, Nt");
     QVERIFY(std::abs(fmf.horizontalAdvance(text) - fm.horizontalAdvance(text)) <= 1.0);
     QVERIFY(fmf.horizontalAdvance(QChar(u'W')) > fmf.horizontalAdvance(QChar(u'i')) ||
-            fmf.horizontalAdvance(text) == 0);
+            !fmf.inFont(QChar(u'W')));
     QCOMPARE(fmf.horizontalAdvance(text, 0), qreal(0));
     QCOMPARE(QFontMetricsF(fm).ascent(), fmf.ascent());
     QFontMetricsF assigned(QFont(QString::fromLatin1("DejaVu Serif")));
@@ -113,8 +344,13 @@ void TestGuiAdditions::styleHintChoosesGenericFamily() {
     font.setPixelSize(16);
     font.setStyleHint(QFont::Monospace);
     const QFontMetricsF fm(font);
-    if (fm.horizontalAdvance(QString::fromLatin1("M")) == 0)
+    if (fm.horizontalAdvance(QString::fromLatin1("M")) == 0 || !fm.inFont(QChar(u'M')))
         QSKIP("no fonts available");
+    QFont generic(QString::fromLatin1("monospace"));
+    generic.setPixelSize(16);
+    const QFontMetricsF gm(generic);
+    if (gm.horizontalAdvance(QString::fromLatin1("iiii")) != gm.horizontalAdvance(QString::fromLatin1("MMMM")))
+        QSKIP("no monospace font is installed");
     QCOMPARE(fm.horizontalAdvance(QString::fromLatin1("iiii")), fm.horizontalAdvance(QString::fromLatin1("MMMM")));
 }
 

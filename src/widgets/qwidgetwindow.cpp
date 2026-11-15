@@ -7,6 +7,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtGui/qaction.h>
 #include <QtGui/qevent.h>
+#include <QtWidgets/qapplication.h>
 #include <QtWidgets/qtooltip.h>
 #include <QtWidgets/qwidget.h>
 
@@ -37,24 +38,51 @@ int normalizedShortcut(int code) {
     return symbol ? code & ~static_cast<int>(Qt::SHIFT) : code;
 }
 
-// Finds the enabled action with the shortcut among the actions of `w`, of the menus of those, and of the children.
-QAction *findShortcut(QWidget *w, int code, std::vector<const QWidget *> &seen, bool checkHidden) {
+// Whether the shortcut of `action`, which was added to `owner`, works while `focus` has the focus. With
+// `applicationOnly`, only shortcuts of the whole application do: the search is in another window.
+bool inContext(const QAction *action, const QWidget *owner, const QWidget *focus, bool applicationOnly) {
+    switch (action->shortcutContext()) {
+    case Qt::ApplicationShortcut:
+        return true;
+    case Qt::WindowShortcut:
+        return !applicationOnly;
+    case Qt::WidgetShortcut:
+        return !applicationOnly && focus == owner;
+    case Qt::WidgetWithChildrenShortcut:
+        if (applicationOnly)
+            return false;
+        for (const QWidget *w = focus; w; w = w->parentWidget()) {
+            if (w == owner)
+                return true;
+            if (w->isWindow())
+                break;
+        }
+        return false;
+    }
+    return false;
+}
+
+// Finds the enabled action with the shortcut among the actions of `w`, of the menus of those, and of the children,
+// whose shortcut works while `focus` has the focus.
+QAction *findShortcut(QWidget *w, int code, std::vector<const QWidget *> &seen, bool checkHidden, const QWidget *focus,
+                      bool applicationOnly) {
     if (std::find(seen.begin(), seen.end(), w) != seen.end())
         return nullptr;
     seen.push_back(w);
     if (checkHidden && (w->isHidden() || !w->isEnabled()))
         return nullptr;
     for (QAction *action : w->actions()) {
-        if (action->isEnabled() && !action->shortcut().isEmpty() && normalizedShortcut(action->shortcut()[0]) == code)
+        if (action->isEnabled() && !action->shortcut().isEmpty() && normalizedShortcut(action->shortcut()[0]) == code &&
+            inContext(action, w, focus, applicationOnly))
             return action;
         if (QWidget *menu = action->menu<QWidget *>())
-            if (QAction *found = findShortcut(menu, code, seen, false))
+            if (QAction *found = findShortcut(menu, code, seen, false, focus, applicationOnly))
                 return found;
     }
     for (QObject *child : w->children())
         if (auto *widget = dynamic_cast<QWidget *>(child))
             if (!widget->isWindow())
-                if (QAction *found = findShortcut(widget, code, seen, true))
+                if (QAction *found = findShortcut(widget, code, seen, true, focus, applicationOnly))
                     return found;
     return nullptr;
 }
@@ -348,12 +376,22 @@ void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
     if (!m_popup && !event->isAutoRepeat()) {
         std::vector<const QWidget *> seen;
         const int code = normalizedShortcut(shortcutCode(event->key(), event->modifiers()));
-        if ((event->modifiers() & ~Qt::ShiftModifier) != Qt::NoModifier || event->key() >= 0x01000000)
-            if (QAction *action = findShortcut(m_widget, code, seen, true)) {
+        if ((event->modifiers() & ~Qt::ShiftModifier) != Qt::NoModifier || event->key() >= 0x01000000) {
+            const QWidget *focus = WidgetAccess::focusWidgetOf(m_widget);
+            QAction *action = findShortcut(m_widget, code, seen, true, focus, false);
+            // The shortcuts of the whole application work in the other windows too.
+            for (QWidget *top : QApplication::topLevelWidgets()) {
+                if (action)
+                    break;
+                if (top != m_widget && !top->isHidden())
+                    action = findShortcut(top, code, seen, true, focus, true);
+            }
+            if (action) {
                 action->trigger();
                 event->accept();
                 return;
             }
+        }
     }
     QWidget *target = WidgetAccess::focusWidgetOf(m_widget);
     if (!target)

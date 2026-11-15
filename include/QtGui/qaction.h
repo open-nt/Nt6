@@ -18,6 +18,7 @@ class QAction : public QObject {
     Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled)
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged)
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY changed)
+    Q_PROPERTY(Qt::ShortcutContext shortcutContext READ shortcutContext WRITE setShortcutContext NOTIFY changed)
     Q_PROPERTY(QString toolTip READ toolTip WRITE setToolTip NOTIFY changed)
     Q_PROPERTY(QString statusTip READ statusTip WRITE setStatusTip NOTIFY changed)
     Q_PROPERTY(bool visible READ isVisible WRITE setVisible NOTIFY visibleChanged)
@@ -39,6 +40,8 @@ public:
     void setFont(const QFont &font);
     QKeySequence shortcut() const { return m_shortcut; }
     void setShortcut(const QKeySequence &shortcut);
+    Qt::ShortcutContext shortcutContext() const { return m_shortcutContext; }
+    void setShortcutContext(Qt::ShortcutContext context);
     QVariant data() const { return m_data; }
     void setData(const QVariant &data) { m_data = data; }
 
@@ -110,6 +113,7 @@ private:
     QString m_statusTip;
     QFont m_font;
     QKeySequence m_shortcut;
+    Qt::ShortcutContext m_shortcutContext = Qt::WindowShortcut;
     QVariant m_data;
     QPointer<QObject> m_menu;
     QActionGroup *m_group = nullptr;

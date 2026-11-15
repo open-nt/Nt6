@@ -34,6 +34,8 @@ public:
     // The cursor that `window` shows, for tests: its own, or the override cursor of the application.
     static Qt::CursorShape cursorOf(const QWindow *window);
     void setWindowFlags(Qt::WindowFlags flags) override { m_flags = flags; }
+    // A maximized or full screen window takes the geometry of its screen, and gets its own back when it is normal.
+    void setWindowStates(Qt::WindowStates states) override;
     void raise() override { m_stacking = 1; }
     void lower() override { m_stacking = -1; }
     // What reached the platform, for tests: the flags, and 1 or -1 after the last raise() or lower().
@@ -44,6 +46,8 @@ private:
     Qt::CursorShape m_cursor = Qt::ArrowCursor;
     Qt::WindowFlags m_flags = Qt::Window;
     int m_stacking = 0;
+    QRect m_normalGeometry;
+    bool m_filling = false; // the window has the geometry of its screen
     bool m_visible = false;
     quintptr m_id = nextId();
     static quintptr nextId();

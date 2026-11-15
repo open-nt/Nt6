@@ -3,6 +3,7 @@
 #include <QtNetwork>
 
 #include <cstdio>
+#include <functional>
 #include <memory>
 
 static int g_failures = 0;
@@ -452,6 +453,8 @@ public:
     QTcpServer server;
     QHash<QByteArray, QList<QByteArray>> script;
     QList<QByteArray> requests;
+    // Answers a whole request, for responses that depend on its headers; the script is used without it.
+    std::function<QList<QByteArray>(const QByteArray &request)> handler;
 
 private:
     void accept() {
@@ -471,7 +474,7 @@ private:
             const QByteArray line = buffer->left(buffer->indexOf('\r'));
             const QByteArray path = line.mid(line.indexOf(' ') + 1, line.lastIndexOf(' ') - line.indexOf(' ') - 1);
             buffer->clear();
-            respond(s, script.value(path), 0);
+            respond(s, handler ? handler(requests.last()) : script.value(path), 0);
         });
     }
     void respond(QTcpSocket *s, QList<QByteArray> parts, int index) {
@@ -726,7 +729,7 @@ static void testHttp() {
     manual.setRedirectPolicy(QNetworkRequest::ManualRedirectPolicy);
     r = manager.get(manual);
     CHECK(fetch(r, &e) == "old" && e == R::NoError && r->httpStatusCode() == 302);
-    CHECK(r->header(QNetworkRequest::LocationHeader) == "r2?x=1");
+    CHECK(r->header(QNetworkRequest::LocationHeader).toUrl() == QUrl("r2?x=1"));
     r->deleteLater();
 
     // Credentials stay on their origin.
@@ -890,6 +893,184 @@ static void testHttp() {
     CHECK(self == nullptr);
 }
 
+// The parameters of `Digest a="b", c=d`.
+static QHash<QByteArray, QByteArray> digestParams(const QByteArray &header) {
+    QHash<QByteArray, QByteArray> params;
+    const QByteArray text = header.mid(header.indexOf(' ') + 1);
+    qsizetype i = 0;
+    while (i < text.size()) {
+        while (i < text.size() && (text[i] == ' ' || text[i] == ','))
+            ++i;
+        const qsizetype eq = text.indexOf('=', i);
+        if (eq < 0)
+            break;
+        const QByteArray name = text.mid(i, eq - i).trimmed();
+        i = eq + 1;
+        QByteArray value;
+        if (i < text.size() && text[i] == '"') {
+            const qsizetype close = text.indexOf('"', i + 1);
+            value = text.mid(i + 1, close - i - 1);
+            i = close + 1;
+        } else {
+            const qsizetype comma = text.indexOf(',', i);
+            value = text.mid(i, (comma < 0 ? text.size() : comma) - i).trimmed();
+            i = comma < 0 ? text.size() : comma;
+        }
+        params.insert(name, value);
+    }
+    return params;
+}
+
+static QByteArray headerOf(const QByteArray &request, const QByteArray &name) {
+    for (const QByteArray &line : request.split('\n')) {
+        if (line.toLower().startsWith(name.toLower() + ':'))
+            return line.mid(name.size() + 1).trimmed();
+    }
+    return QByteArray();
+}
+
+static QByteArray md5(const QByteArray &data) {
+    return QCryptographicHash::hash(data, QCryptographicHash::Md5).toHex();
+}
+
+// A camera that wants Basic or Digest credentials for admin:secret, as mediax's MJPEG streams do.
+static void testHttpAuthentication() {
+    using R = QNetworkReply;
+    TestHttpServer http;
+    R::NetworkError e = R::NoError;
+    const QByteArray unauthorized = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"cam\"\r\n"
+                                    "Content-Length: 4\r\n\r\nnope";
+    int basicTries = 0;
+    http.handler = [&](const QByteArray &request) -> QList<QByteArray> {
+        const QByteArray authorization = headerOf(request, "Authorization");
+        if (request.startsWith("GET /digest")) {
+            const QByteArray challenge =
+                "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"cam\"\r\n"
+                "WWW-Authenticate: Digest realm=\"cam\", nonce=\"n0nce\", qop=\"auth,auth-int\", "
+                "opaque=\"op\"\r\nContent-Length: 0\r\n\r\n";
+            if (!authorization.startsWith("Digest "))
+                return {challenge};
+            const auto p = digestParams(authorization);
+            const QByteArray ha1 = md5("admin:cam:secret"), ha2 = md5("GET:" + p.value("uri"));
+            const QByteArray expected = md5(ha1 + ":n0nce:" + p.value("nc") + ':' + p.value("cnonce") + ":auth:" + ha2);
+            const bool ok = p.value("username") == "admin" && p.value("realm") == "cam" && p.value("opaque") == "op" &&
+                            p.value("qop") == "auth" && p.value("uri") == "/digest?x=1" &&
+                            p.value("response") == expected;
+            return {ok ? QByteArray("HTTP/1.1 200 OK\r\nContent-Length: 9\r\n\r\ndigest ok") : challenge};
+        }
+        ++basicTries;
+        if (authorization == "Basic " + QByteArray("admin:secret").toBase64())
+            return {"HTTP/1.1 200 OK\r\nContent-Type: image/jpeg\r\nContent-Length: 2\r\n"
+                    "Last-Modified: Sun, 06 Nov 1994 08:49:37 GMT\r\n\r\nok"};
+        return {unauthorized};
+    };
+
+    // Basic: the slot gives the credentials, and the request is sent again with them.
+    QNetworkAccessManager manager;
+    QStringList realms;
+    QNetworkReply *asking = nullptr;
+    QObject::connect(&manager, &QNetworkAccessManager::authenticationRequired,
+                     [&](QNetworkReply *reply, QAuthenticator *authenticator) {
+                         asking = reply;
+                         realms << authenticator->realm();
+                         CHECK(authenticator->option("realm").toString() == "cam" && authenticator->user().isEmpty());
+                         authenticator->setUser("admin");
+                         authenticator->setPassword("secret");
+                     });
+    R *r = manager.get(QNetworkRequest(QUrl(http.url("/stream"))));
+    CHECK(fetch(r, &e) == "ok" && e == R::NoError && r->httpStatusCode() == 200 && asking == r);
+    CHECK(realms == QStringList{"cam"} && basicTries == 2);
+    CHECK(r->header(QNetworkRequest::ContentTypeHeader).toString() == "image/jpeg");
+    CHECK(r->header(QNetworkRequest::ContentLengthHeader).toLongLong() == 2);
+    CHECK(r->header(QNetworkRequest::LastModifiedHeader).toDateTime() ==
+          QDateTime(QDate(1994, 11, 6), QTime(8, 49, 37), Qt::UTC));
+    CHECK(!r->header(QNetworkRequest::LocationHeader).isValid());
+    r->deleteLater();
+    // The credentials that worked are sent again without asking, after the server asks.
+    r = manager.get(QNetworkRequest(QUrl(http.url("/stream"))));
+    CHECK(fetch(r, &e) == "ok" && e == R::NoError && realms.size() == 1);
+    r->deleteLater();
+
+    // Digest, preferred to Basic, with MD5 and qop=auth.
+    r = manager.get(QNetworkRequest(QUrl(http.url("/digest?x=1"))));
+    CHECK(fetch(r, &e) == "digest ok" && e == R::NoError);
+    r->deleteLater();
+    // The credentials in the URL answer Digest without asking.
+    QNetworkAccessManager fresh;
+    int freshAsks = 0;
+    QObject::connect(&fresh, &QNetworkAccessManager::authenticationRequired, [&] { ++freshAsks; });
+    QUrl withUser(http.url("/digest?x=1"));
+    withUser.setUserName("admin");
+    withUser.setPassword("secret");
+    r = fresh.get(QNetworkRequest(withUser));
+    CHECK(fetch(r, &e) == "digest ok" && e == R::NoError && freshAsks == 0);
+    r->deleteLater();
+
+    // Wrong credentials are asked for again; the same ones again end it with the 401.
+    QNetworkAccessManager wrong;
+    int wrongAsks = 0;
+    QObject::connect(&wrong, &QNetworkAccessManager::authenticationRequired, [&](QNetworkReply *, QAuthenticator *a) {
+        ++wrongAsks;
+        a->setUser("admin");
+        a->setPassword("guess");
+    });
+    r = wrong.get(QNetworkRequest(QUrl(http.url("/stream"))));
+    CHECK(fetch(r, &e) == "nope" && e == R::AuthenticationRequiredError && r->httpStatusCode() == 401 &&
+          wrongAsks == 2);
+    r->deleteLater();
+    // No credentials: the 401 is the answer.
+    QNetworkAccessManager none;
+    int noneAsks = 0;
+    QObject::connect(&none, &QNetworkAccessManager::authenticationRequired, [&] { ++noneAsks; });
+    r = none.get(QNetworkRequest(QUrl(http.url("/stream"))));
+    CHECK(fetch(r, &e) == "nope" && e == R::AuthenticationRequiredError && noneAsks == 1);
+    r->deleteLater();
+
+    // QAuthenticator itself.
+    QAuthenticator a, b;
+    CHECK(a.isNull() && a == b);
+    a.setUser("u");
+    a.setOption("nonce", "x");
+    CHECK(!a.isNull() && a != b && a.option("nonce").toString() == "x" && a.options().size() == 1);
+    b = a;
+    CHECK(a == b);
+}
+
+static void testTypedHeaders() {
+    QNetworkRequest request;
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QString("text/plain"));
+    CHECK(request.header(QNetworkRequest::ContentTypeHeader) == QVariant(QString("text/plain")));
+    CHECK(request.rawHeader("Content-Type") == "text/plain");
+    request.setHeader(QNetworkRequest::ContentLengthHeader, 42);
+    CHECK(request.rawHeader("Content-Length") == "42" &&
+          request.header(QNetworkRequest::ContentLengthHeader).toLongLong() == 42);
+    const QDateTime when(QDate(1994, 11, 6), QTime(8, 49, 37), Qt::UTC);
+    request.setHeader(QNetworkRequest::LastModifiedHeader, when);
+    CHECK(request.rawHeader("Last-Modified") == "Sun, 06 Nov 1994 08:49:37 GMT");
+    CHECK(request.header(QNetworkRequest::LastModifiedHeader).toDateTime() == when);
+    request.setRawHeader("If-Modified-Since", "Sunday, 06-Nov-94 08:49:37 GMT");
+    CHECK(request.header(QNetworkRequest::IfModifiedSinceHeader).toDateTime() == when);
+    request.setRawHeader("If-Modified-Since", "Sun Nov  6 08:49:37 1994");
+    CHECK(request.header(QNetworkRequest::IfModifiedSinceHeader).toDateTime() == when);
+    request.setRawHeader("If-Modified-Since", "yesterday");
+    CHECK(!request.header(QNetworkRequest::IfModifiedSinceHeader).isValid());
+    request.setHeader(QNetworkRequest::LocationHeader, QUrl("http://host/a b"));
+    CHECK(request.rawHeader("Location") == "http://host/a%20b");
+    CHECK(request.header(QNetworkRequest::LocationHeader).toUrl() == QUrl("http://host/a b"));
+    request.setHeader(QNetworkRequest::IfMatchHeader, QStringList{"\"a\"", "\"b\""});
+    CHECK(request.rawHeader("If-Match") == "\"a\", \"b\"");
+    CHECK(request.header(QNetworkRequest::IfMatchHeader).toStringList() == QStringList({"\"a\"", "\"b\""}));
+    request.setHeader(QNetworkRequest::ContentTypeHeader, QVariant());
+    CHECK(!request.hasRawHeader("Content-Type") && !request.header(QNetworkRequest::ContentTypeHeader).isValid());
+    request.setRawHeader("Content-Length", "-3");
+    CHECK(!request.header(QNetworkRequest::ContentLengthHeader).isValid());
+
+    // Nt has no cache: the cache attribute is kept, and every request goes to the network.
+    request.setAttribute(QNetworkRequest::CacheLoadControlAttribute, QNetworkRequest::AlwaysNetwork);
+    CHECK(request.attribute(QNetworkRequest::CacheLoadControlAttribute).toInt() == QNetworkRequest::AlwaysNetwork);
+    CHECK(QNetworkRequest::PreferNetwork != QNetworkRequest::AlwaysNetwork && QNetworkRequest::Manual == 1);
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testHostAddress();
@@ -905,6 +1086,8 @@ int main(int argc, char **argv) {
     testLocalSockets();
     testHttpHeaders();
     testHttp();
+    testTypedHeaders();
+    testHttpAuthentication();
     if (g_failures == 0)
         std::puts("all network tests passed");
     return g_failures == 0 ? 0 : 1;

@@ -73,6 +73,8 @@ public:
         \value TouchCancel A touch sequence was cancelled; delivered as a QTouchEvent.
         \value ChildAdded An object gained a child; delivered as a QChildEvent.
         \value ChildPolished A widget child was polished; delivered as a QChildEvent.
+        \value Polish A widget was polished by its style, before it is shown for the first time.
+        \value PolishRequest A widget should be polished.
         \value ChildRemoved An object lost a child; delivered as a QChildEvent.
         \value User The first value available for application-defined events.
         \value MaxUser The last value available for application-defined events.
@@ -89,6 +91,8 @@ public:
         DeferredDelete = 52,
         UpdateRequest = 77,
         LayoutRequest = 76,
+        Polish = 75,
+        PolishRequest = 74,
         EnabledChange = 98,
         FontChange = 97,
         PaletteChange = 39,

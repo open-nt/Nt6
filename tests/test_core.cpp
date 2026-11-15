@@ -428,6 +428,25 @@ static void testTimerExtras() {
     });
     loop.exec();
     CHECK(chronoShot);
+
+    // A slot named with SLOT(), as code written for Qt 5 calls it.
+    QPointer<QObject> doomed = new QObject;
+    QTimer::singleShot(2, doomed.data(), SLOT(deleteLater()));
+    QTimer::singleShot(30, &loop, SLOT(quit()));
+    loop.exec();
+    CHECK(doomed.isNull());
+    QTimer target;
+    target.setInterval(100000);
+    QTimer::singleShot(1, Qt::PreciseTimer, &target, SLOT(start()));
+    QTimer::singleShot(std::chrono::milliseconds(20), &loop, SLOT(quit()));
+    loop.exec();
+    CHECK(target.isActive());
+    {
+        QObject gone; // destroyed before its timer fires: nothing is called
+        QTimer::singleShot(1, &gone, SLOT(deleteLater()));
+    }
+    QTimer::singleShot(10, &loop, SLOT(quit()));
+    loop.exec();
 }
 
 static void testApplicationInfo() {

@@ -37,6 +37,8 @@
 #include "qtextlayout.h"
 #include "qtextoption.h"
 #include "qtransform.h"
+#include "qundogroup.h"
+#include "qundostack.h"
 #include "qvectornd.h"
 #include "qvulkanfunctions.h"
 #include "qvulkaninstance.h"

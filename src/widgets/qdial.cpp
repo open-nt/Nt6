@@ -134,7 +134,7 @@ void QDial::paintEvent(QPaintEvent *event) {
     option.maximum = maximum();
     option.sliderPosition = sliderPosition();
     option.tickMarks = m_notches;
-    option.wrapping = wrapping();
+    option.dialWrapping = wrapping();
     if (isSliderDown())
         option.state |= QStyle::State_Sunken;
     style()->drawControl(QStyle::CE_Dial, &option, &painter, this);

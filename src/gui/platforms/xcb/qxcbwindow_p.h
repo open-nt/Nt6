@@ -24,6 +24,7 @@ public:
     void requestActivateWindow() override;
     void setTransientParent(const QPlatformWindow *parent) override;
     void setFullScreen(bool fullScreen) override;
+    void setWindowStates(Qt::WindowStates states) override;
     void setWindowFlags(Qt::WindowFlags flags) override;
     void raise() override;
     void lower() override;

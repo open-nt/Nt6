@@ -31,7 +31,7 @@
 
     \differences
     There is no clipboard (cut, copy, paste), undo and redo, drag and drop, context menu, input mask,
-    \c QValidator, \c QCompleter, alignment, \c setClearButtonEnabled() or \c inputMethodHints(). The cursor does not
+    \c QValidator, \c QCompleter, alignment or \c inputMethodHints(). The cursor does not
     blink, and there are no \c PasswordEchoOnEdit and no \c cursorMoveStyle(). Text is edited one code unit at a time, so
     characters outside the Basic Multilingual Plane count twice.
     \enddifferences
@@ -176,6 +176,30 @@ void QLineEdit::setReadOnly(bool readOnly) {
     if (m_readOnly == readOnly)
         return;
     m_readOnly = readOnly;
+    update();
+}
+
+/*!
+    \fn bool QLineEdit::isClearButtonEnabled() const
+
+    Returns whether the line edit has a button that clears its text. The default is \c false.
+
+    \sa setClearButtonEnabled()
+*/
+
+/*!
+    Gives the line edit a button at its right end that clears the text if \a enable is \c true, or takes it away.
+    The button shows while there is text and the line edit can be edited; a click on it clears the text and emits
+    textEdited().
+
+    \sa isClearButtonEnabled(), clear()
+*/
+void QLineEdit::setClearButtonEnabled(bool enable) {
+    if (m_clearButton == enable)
+        return;
+    m_clearButton = enable;
+    m_clearPressed = false;
+    scrollToCursor();
     update();
 }
 
@@ -397,8 +421,25 @@ QRect QLineEdit::contentsRect() const {
     QStyleOptionFrame option;
     option.initFrom(this);
     option.lineWidth = m_frame ? style()->pixelMetric(QStyle::PM_DefaultFrameWidth, nullptr, this) : 0;
-    return style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
+    QRect contents = style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
+    if (m_clearButton)
+        contents.setRight(contents.right() - clearButtonRect().width());
+    return contents;
 }
+
+// Where the clear button is: a square at the right end of the text area, which the text leaves free.
+QRect QLineEdit::clearButtonRect() const {
+    QStyleOptionFrame option;
+    option.initFrom(this);
+    option.lineWidth = m_frame ? style()->pixelMetric(QStyle::PM_DefaultFrameWidth, nullptr, this) : 0;
+    const QRect text = style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
+    const int icon = style()->pixelMetric(QStyle::PM_LineEditIconSize, &option, this);
+    const int margin = style()->pixelMetric(QStyle::PM_LineEditIconMargin, &option, this);
+    const int width = std::min(icon + margin, std::max(0, text.width() / 2));
+    return QRect(text.right() + 1 - width, text.top(), width, text.height());
+}
+
+bool QLineEdit::clearButtonShown() const { return m_clearButton && !m_text.isEmpty() && !m_readOnly && isEnabled(); }
 
 int QLineEdit::xOf(int position) const { return fontMetrics().horizontalAdvance(displayText().left(position)); }
 
@@ -518,6 +559,13 @@ void QLineEdit::paintEvent(QPaintEvent *event) {
         painter.fillRect(contents.left() - m_scroll + xOf(m_cursor), top, 1, fm.height(),
                          palette().color(group, QPalette::Text));
     }
+    if (clearButtonShown()) {
+        painter.setClipping(false);
+        QStyleOption iconOption;
+        iconOption.initFrom(this);
+        const QPixmap cross = style()->standardPixmap(QStyle::SP_LineEditClearButton, &iconOption, this);
+        style()->drawItemPixmap(&painter, clearButtonRect(), Qt::AlignCenter, cross);
+    }
 }
 
 /*!
@@ -526,6 +574,11 @@ void QLineEdit::paintEvent(QPaintEvent *event) {
 void QLineEdit::mousePressEvent(QMouseEvent *event) {
     if (event->button() != Qt::LeftButton) {
         event->ignore();
+        return;
+    }
+    if (clearButtonShown() && clearButtonRect().contains(event->pos())) {
+        m_clearPressed = true;
+        event->accept();
         return;
     }
     m_dragging = true;
@@ -550,6 +603,12 @@ void QLineEdit::mouseMoveEvent(QMouseEvent *event) {
 */
 void QLineEdit::mouseReleaseEvent(QMouseEvent *event) {
     m_dragging = false;
+    // A click on the clear button clears the text as if the user had deleted it.
+    if (m_clearPressed) {
+        m_clearPressed = false;
+        if (event->button() == Qt::LeftButton && clearButtonShown() && clearButtonRect().contains(event->pos()))
+            changeText(QString(), 0, true);
+    }
     event->accept();
 }
 

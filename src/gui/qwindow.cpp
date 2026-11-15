@@ -25,7 +25,7 @@ struct QWindow::Data {
     bool visible = false;
     bool exposed = false;
     bool active = false;
-    bool fullScreen = false;
+    Qt::WindowStates states = Qt::WindowNoState;
     bool updateRequested = false;
     Qt::WindowFlags flags = Qt::Window;
     QCursor cursor;
@@ -64,9 +64,9 @@ struct QWindow::Data {
 
     \differences
     Only top-level windows exist: there is no parent window, no window flags
-    or modality, no \c setMinimumSize(), icon or opacity, no window states
-    other than full screen (see showFullScreen()) and no Metal or Direct3D
-    surface. OpenGL surfaces work
+    or modality, no \c setMinimumSize(), icon or opacity, and no Metal or Direct3D surface. Minimizing needs a window manager that
+    honors the ICCCM; the \c offscreen platform resizes a maximized or full
+    screen window to its screen. OpenGL surfaces work
     through EGL; see QOpenGLContext. \c close() destroys the platform
     window; showing the window again creates it anew. There is no
     \c requestUpdate() throttling to the display refresh rate.
@@ -124,8 +124,8 @@ void QWindow::create() {
         m_d->platform->setWindowTitle(m_d->title);
     if (m_d->transientParent && m_d->transientParent->m_d->platform)
         m_d->platform->setTransientParent(m_d->transientParent->m_d->platform);
-    if (m_d->fullScreen)
-        m_d->platform->setFullScreen(true);
+    if (m_d->states != Qt::WindowStates(Qt::WindowNoState))
+        m_d->platform->setWindowStates(m_d->states);
     if (m_d->flags != Qt::WindowFlags(Qt::Window))
         m_d->platform->setWindowFlags(m_d->flags);
     QtPrivate::GuiAccess::applyCursor(this);
@@ -585,7 +585,7 @@ void QWindow::setVisible(bool visible) {
     \sa showNormal(), isFullScreen()
 */
 void QWindow::showFullScreen() {
-    setFullScreen(true);
+    setWindowStates(Qt::WindowFullScreen);
     show();
 }
 
@@ -597,8 +597,74 @@ void QWindow::showFullScreen() {
     \sa showFullScreen()
 */
 void QWindow::showNormal() {
-    setFullScreen(false);
+    setWindowStates(Qt::WindowNoState);
     show();
+}
+
+/*!
+    Shows the window maximized: taking all the room of its screen that the panels of the desktop leave, with its
+    frame. Where the platform cannot maximize windows, the window is shown as it is.
+
+    \sa showNormal(), windowState()
+*/
+void QWindow::showMaximized() {
+    setWindowStates(Qt::WindowMaximized);
+    show();
+}
+
+/*!
+    Shows the window minimized, as an icon or in the task bar, where the platform can minimize windows.
+
+    \sa showNormal(), windowState()
+*/
+void QWindow::showMinimized() {
+    setWindowStates(Qt::WindowMinimized);
+    show();
+}
+
+/*!
+    Returns the state of the window: the most visible of minimized, full screen and maximized, or Qt::WindowNoState.
+
+    \sa windowStates(), setWindowState()
+*/
+Qt::WindowState QWindow::windowState() const {
+    if (m_d->states & Qt::WindowMinimized)
+        return Qt::WindowMinimized;
+    if (m_d->states & Qt::WindowFullScreen)
+        return Qt::WindowFullScreen;
+    if (m_d->states & Qt::WindowMaximized)
+        return Qt::WindowMaximized;
+    return Qt::WindowNoState;
+}
+
+/*!
+    Returns the states of the window, which can combine minimized with maximized or full screen.
+
+    \sa setWindowStates()
+*/
+Qt::WindowStates QWindow::windowStates() const { return m_d->states; }
+
+/*!
+    Sets the state of the window to \a state.
+
+    \sa setWindowStates()
+*/
+void QWindow::setWindowState(Qt::WindowState state) { setWindowStates(state); }
+
+/*!
+    Sets the states of the window to \a states and emits windowStateChanged() if they change. Qt::WindowActive is
+    ignored; the window becomes active with requestActivate().
+
+    \sa windowStates(), showMaximized(), showFullScreen()
+*/
+void QWindow::setWindowStates(Qt::WindowStates states) {
+    states &= ~Qt::WindowStates(Qt::WindowActive);
+    if (m_d->states == states)
+        return;
+    m_d->states = states;
+    if (m_d->platform)
+        m_d->platform->setWindowStates(states);
+    emit windowStateChanged(windowState());
 }
 
 /*!
@@ -608,12 +674,12 @@ void QWindow::showNormal() {
 
     \sa showFullScreen(), showNormal()
 */
-bool QWindow::isFullScreen() const { return m_d->fullScreen; }
+bool QWindow::isFullScreen() const { return m_d->states.testFlag(Qt::WindowFullScreen); }
 
 void QWindow::setFullScreen(bool fullScreen) {
-    m_d->fullScreen = fullScreen;
-    if (m_d->platform)
-        m_d->platform->setFullScreen(fullScreen);
+    Qt::WindowStates states = m_d->states;
+    states.setFlag(Qt::WindowFullScreen, fullScreen);
+    setWindowStates(states);
 }
 
 /*!
@@ -852,6 +918,8 @@ namespace QtPrivate {
 QPlatformWindow *GuiAccess::platformWindow(const QWindow *window) { return window->m_d->platform; }
 
 void GuiAccess::setFullScreen(QWindow *window, bool fullScreen) { window->setFullScreen(fullScreen); }
+
+void GuiAccess::setWindowStates(QWindow *window, Qt::WindowStates states) { window->setWindowStates(states); }
 
 void GuiAccess::setQuitOnClose(QWindow *window, bool quit) { window->m_d->quitOnClose = quit; }
 

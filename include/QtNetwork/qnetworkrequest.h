@@ -29,6 +29,8 @@ public:
         IfNoneMatchHeader
     };
     enum RedirectPolicy { ManualRedirectPolicy, NoLessSafeRedirectPolicy, SameOriginRedirectPolicy };
+    enum CacheLoadControl { AlwaysNetwork, PreferNetwork, PreferCache, AlwaysCache };
+    enum LoadControl { Automatic = 0, Manual };
     enum Attribute {
         HttpStatusCodeAttribute,
         HttpReasonPhraseAttribute,
@@ -68,8 +70,8 @@ public:
 
     QUrl url() const;
     void setUrl(const QUrl &url);
-    QByteArray header(KnownHeaders header) const;
-    void setHeader(KnownHeaders header, const QByteArray &value);
+    QVariant header(KnownHeaders header) const;
+    void setHeader(KnownHeaders header, const QVariant &value);
     bool hasRawHeader(const QByteArray &headerName) const;
     QList<QByteArray> rawHeaderList() const;
     QByteArray rawHeader(const QByteArray &headerName) const;

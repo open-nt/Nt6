@@ -278,7 +278,7 @@ void QMenu::layoutItems() const {
         QStyleOptionMenuItem option;
         option.text = textWithShortcut(action);
         option.font = action->font() == QFont() ? font() : action->font();
-        option.tabWidth = tab;
+        option.reservedShortcutWidth = tab;
         QSize size;
         if (action->isSeparator()) {
             option.menuItemType = QStyleOptionMenuItem::Separator;

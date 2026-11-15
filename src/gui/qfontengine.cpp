@@ -53,6 +53,8 @@ AppFonts &appFonts() {
 // resolves to another face.
 std::atomic<int> g_appFontGeneration{0};
 
+#ifdef NT_HAVE_FREETYPE
+
 // The generic fontconfig family a style hint stands for, or an empty string.
 const char *genericFamily(QFont::StyleHint hint) {
     switch (hint) {
@@ -74,8 +76,6 @@ const char *genericFamily(QFont::StyleHint hint) {
     }
     return "";
 }
-
-#ifdef NT_HAVE_FREETYPE
 
 // FreeType and fontconfig are not thread-safe; one lock covers every call into them.
 std::mutex &libraryMutex() {

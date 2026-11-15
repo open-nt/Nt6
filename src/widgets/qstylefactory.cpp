@@ -43,7 +43,10 @@ QStringList QStyleFactory::keys() { return QStringList{QStringLiteral("Fusion")}
     \sa keys()
 */
 QStyle *QStyleFactory::create(const QString &key) {
-    if (key.compare(QStringLiteral("Fusion"), Qt::CaseInsensitive) == 0)
-        return new QFusionStyle;
+    if (key.compare(QStringLiteral("Fusion"), Qt::CaseInsensitive) == 0) {
+        auto *style = new QFusionStyle;
+        style->m_name = QStringLiteral("Fusion");
+        return style;
+    }
     return nullptr;
 }

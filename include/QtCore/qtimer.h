@@ -4,6 +4,7 @@
 #include <QtCore/qobject.h>
 
 #include <chrono>
+#include <type_traits>
 
 class QTimer;
 
@@ -80,7 +81,7 @@ public:
         Calls \a functor once, after \a interval, unless \a context is destroyed
         first.
     */
-    template <typename RecvT, typename Func>
+    template <typename RecvT, typename Func, typename = std::enable_if_t<!std::is_convertible_v<Func, const char *>>>
     static void singleShot(std::chrono::milliseconds interval, const RecvT *context, Func &&functor) {
         singleShot(static_cast<int>(interval.count()), context, std::forward<Func>(functor));
     }
@@ -111,7 +112,7 @@ public:
         in, so this also runs it in another thread, as long as that thread has an
         event loop.
     */
-    template <typename RecvT, typename Func>
+    template <typename RecvT, typename Func, typename = std::enable_if_t<!std::is_convertible_v<Func, const char *>>>
     static void singleShot(int msec, const RecvT *context, Func &&functor) {
         auto *t = new QTimer;
         t->setSingleShot(true);
@@ -120,6 +121,10 @@ public:
         t->start(msec);
         QtPrivate::placeSingleShotTimer(t, const_cast<RecvT *>(context));
     }
+
+    static void singleShot(int msec, const QObject *receiver, const char *member);
+    static void singleShot(int msec, Qt::TimerType timerType, const QObject *receiver, const char *member);
+    static void singleShot(std::chrono::milliseconds interval, const QObject *receiver, const char *member);
 
 public slots:
     void start();

@@ -12,6 +12,7 @@ class QLineEdit : public QWidget {
     Q_PROPERTY(int maxLength READ maxLength WRITE setMaxLength)
     Q_PROPERTY(bool readOnly READ isReadOnly WRITE setReadOnly)
     Q_PROPERTY(bool frame READ hasFrame WRITE setFrame)
+    Q_PROPERTY(bool clearButtonEnabled READ isClearButtonEnabled WRITE setClearButtonEnabled)
     Q_PROPERTY(int cursorPosition READ cursorPosition WRITE setCursorPosition)
 public:
     enum EchoMode { Normal, NoEcho, Password };
@@ -30,6 +31,8 @@ public:
     void setMaxLength(int length);
     bool isReadOnly() const { return m_readOnly; }
     void setReadOnly(bool readOnly);
+    bool isClearButtonEnabled() const { return m_clearButton; }
+    void setClearButtonEnabled(bool enable);
     bool hasFrame() const { return m_frame; }
     void setFrame(bool frame);
     EchoMode echoMode() const { return m_echoMode; }
@@ -100,6 +103,8 @@ protected:
 
 private:
     QRect contentsRect() const;
+    QRect clearButtonRect() const;
+    bool clearButtonShown() const;
     int xOf(int position) const;
     void moveCursor(int position, bool mark);
     void changeText(const QString &text, int cursor, bool userEdit);
@@ -114,6 +119,8 @@ private:
     bool m_readOnly = false;
     bool m_frame = true;
     bool m_dragging = false;
+    bool m_clearButton = false;
+    bool m_clearPressed = false;
     EchoMode m_echoMode = Normal;
     QPointer<QCompleter> m_completer;
     bool m_deleting = false; // the key being handled deletes text

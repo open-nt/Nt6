@@ -27,6 +27,9 @@ public:
     virtual void setTransientParent(const QPlatformWindow *parent) { (void)parent; }
     // Makes the window cover the whole screen, or normal again. Called before the window is shown, too.
     virtual void setFullScreen(bool fullScreen) { (void)fullScreen; }
+    // Applies the state of the window: minimized, maximized, full screen or none of them. Called before the window
+    // is shown, too. The default handles full screen only.
+    virtual void setWindowStates(Qt::WindowStates states) { setFullScreen(states.testFlag(Qt::WindowFullScreen)); }
     virtual quintptr winId() const { return 0; }
     // Applies the window flags: frame, stacking hints, focus and input. Called before the window is shown, too.
     virtual void setWindowFlags(Qt::WindowFlags flags) { (void)flags; }

@@ -25,8 +25,7 @@
     it has been added to a widget of the window that has the focus, with QWidget::addAction() or to a menu.
 
     \differences
-    There are no icons (\c icon(), \c setIcon()), no \c menuRole(), \c priority(), \c shortcuts() (only one), \c
-    shortcutContext() (the shortcut works in the window of the widget that has the action), \c autoRepeat(), \c
+    There are no icons (\c icon(), \c setIcon()), no \c menuRole(), \c priority(), \c shortcuts() (only one), \c autoRepeat(), \c
     whatsThis() or \c iconVisibleInMenu(). \c menu() is a template that takes the pointer type to cast to, as in Qt 6,
     and setMenu() takes a \c QObject so that QtGui does not depend on QtWidgets.
     \enddifferences
@@ -178,6 +177,28 @@ void QAction::setShortcut(const QKeySequence &shortcut) {
     if (m_shortcut == shortcut)
         return;
     m_shortcut = shortcut;
+    emit changed();
+}
+
+/*!
+    \fn Qt::ShortcutContext QAction::shortcutContext() const
+
+    Returns where the shortcut of the action works. The default is Qt::WindowShortcut.
+
+    \sa setShortcutContext()
+*/
+
+/*!
+    Sets where the shortcut of the action works to \a context: Qt::WindowShortcut, in the window of a widget the action
+    was added to; Qt::WidgetShortcut, while that widget has the focus; Qt::WidgetWithChildrenShortcut, while it or a
+    child of it has the focus; Qt::ApplicationShortcut, in any window of the application.
+
+    \sa shortcutContext(), setShortcut()
+*/
+void QAction::setShortcutContext(Qt::ShortcutContext context) {
+    if (m_shortcutContext == context)
+        return;
+    m_shortcutContext = context;
     emit changed();
 }
 

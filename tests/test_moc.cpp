@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include "moc_classes.h"
+#include "moc_preprocessor.h"
 
 #include <QCoreApplication>
 
@@ -74,6 +75,20 @@ int main(int argc, char **argv) {
     QObject::connect(&nested, &outer::Plain::Nested::nestedSignal, [&] { ++nestedHits; });
     emit nested.nestedSignal();
     CHECK(nestedHits == 1);
+
+    // ntmoc evaluates the conditionals: only the signals the compiler sees are in the meta-object.
+    const QMetaObject *pm = &PreprocessorEmitter::staticMetaObject;
+    for (const char *present : {"notUndefinedMacro()", "fromInclude()", "functionMacro()", "pasted()", "commandLine()",
+                                "popped()", "localDefine()", "continuedLine()", "hasInclude()"})
+        CHECK(pm->indexOfSignal(present) >= 0);
+    for (const char *absent : {"undefinedMacro()", "elifAfterTaken()", "elseAfterTaken()", "notCommandLine()",
+                               "undefined()", "disabled()"})
+        CHECK(pm->indexOfSignal(absent) < 0);
+    PreprocessorEmitter pe;
+    int pasted = 0;
+    QObject::connect(&pe, &PreprocessorEmitter::pasted, [&] { ++pasted; });
+    emit pe.pasted();
+    CHECK(pasted == 1);
 
     if (g_failures == 0)
         std::puts("all moc tests passed");

@@ -2,7 +2,9 @@
 #pragma once
 
 #include <QtCore/qpointer.h>
+#include <QtCore/qmap.h>
 #include <QtCore/qstringlist.h>
+#include <QtCore/qvariant.h>
 #include <QtWidgets/qwidget.h>
 
 class QComboPopup;
@@ -23,13 +25,18 @@ public:
     int currentIndex() const { return m_current; }
     QString currentText() const { return itemText(m_current); }
     int findText(const QString &text) const;
+    int findData(const QVariant &data, int role = Qt::UserRole,
+                 Qt::MatchFlags flags = Qt::MatchFlags(Qt::MatchExactly | Qt::MatchCaseSensitive)) const;
+    QVariant itemData(int index, int role = Qt::UserRole) const;
+    void setItemData(int index, const QVariant &value, int role = Qt::UserRole);
+    QVariant currentData(int role = Qt::UserRole) const { return itemData(m_current, role); }
     int maxVisibleItems() const { return m_maxVisible; }
     void setMaxVisibleItems(int count);
     bool isPopupVisible() const;
 
-    void addItem(const QString &text);
+    void addItem(const QString &text, const QVariant &userData = QVariant());
     void addItems(const QStringList &texts);
-    void insertItem(int index, const QString &text);
+    void insertItem(int index, const QString &text, const QVariant &userData = QVariant());
     void removeItem(int index);
 
     QSize sizeHint() const override;
@@ -74,6 +81,7 @@ private:
     void choose(int index);
 
     QStringList m_items;
+    QList<QMap<int, QVariant>> m_data; // the roles other than the text, item by item
     int m_current = -1;
     int m_maxVisible = 10;
     bool m_down = false;

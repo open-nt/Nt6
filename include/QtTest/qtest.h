@@ -3,6 +3,11 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qcoreapplication.h>
+#if defined(QT_WIDGETS_LIB)
+#include <QtWidgets/qapplication.h>
+#elif defined(QT_GUI_LIB)
+#include <QtGui/qguiapplication.h>
+#endif
 #include <QtCore/qdatetime.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qlist.h>
@@ -717,5 +722,23 @@ bool compareOp(const T1 &lhs, const T2 &rhs, const char *lhsText, const char *rh
         return QTest::qExec(&testObject, argc, argv);                                                                  \
     }
 
-// Nt has no GUI module yet, so this is the same as QTEST_GUILESS_MAIN.
+// A QApplication for a program that links Nt Widgets, a QGuiApplication for one that links Nt GUI, and otherwise a
+// QCoreApplication, as in Qt. Nt::Widgets defines QT_WIDGETS_LIB and Nt::Gui defines QT_GUI_LIB for the targets
+// that link them.
+#if defined(QT_WIDGETS_LIB)
+#define QTEST_MAIN(TestObject)                                                                                         \
+    int main(int argc, char *argv[]) {                                                                                 \
+        QApplication app(argc, argv);                                                                                  \
+        TestObject testObject;                                                                                         \
+        return QTest::qExec(&testObject, argc, argv);                                                                  \
+    }
+#elif defined(QT_GUI_LIB)
+#define QTEST_MAIN(TestObject)                                                                                         \
+    int main(int argc, char *argv[]) {                                                                                 \
+        QGuiApplication app(argc, argv);                                                                               \
+        TestObject testObject;                                                                                         \
+        return QTest::qExec(&testObject, argc, argv);                                                                  \
+    }
+#else
 #define QTEST_MAIN(TestObject) QTEST_GUILESS_MAIN(TestObject)
+#endif

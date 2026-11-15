@@ -2,3 +2,9 @@
 #include "qsignalspy.h"
 #include "qtest.h"
 #include "qtesteventloop.h"
+#ifdef QT_GUI_LIB
+#include "qtest_gui.h"
+#endif
+#ifdef QT_WIDGETS_LIB
+#include "qtest_widgets.h"
+#endif

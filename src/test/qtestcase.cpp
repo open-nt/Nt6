@@ -212,7 +212,9 @@
     \brief The QTest namespace holds the functions behind Nt Test.
 
     \differences
-    There are no GUI event functions, no benchmarks (\c QBENCHMARK), no
+    The mouse, keyboard and wheel functions (see \c <QtTest/qtest_gui.h>) simulate a window system through the
+    platform of Nt GUI; the \c Shortcut key action is the same as \c Click, and there are no touch events
+    (\c QTouchEventSequence). There are no benchmarks (\c QBENCHMARK), no
     \c failOnWarning() and no \c QTest::Throw. Regular expressions are not
     accepted by ignoreMessage(), since Nt has no \c QRegularExpression. Test
     classes must have gone through \c ntmoc, and must be outside anonymous

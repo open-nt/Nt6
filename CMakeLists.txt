@@ -555,6 +555,7 @@ add_library(NtGui
     src/gui/qstylehints.cpp
     src/gui/qsurface.cpp
     src/gui/qsurfaceformat.cpp
+    src/gui/qtestsupport_gui.cpp
     src/gui/qtextdocument.cpp
     src/gui/qtextformat.cpp
     src/gui/qtextlayout.cpp
@@ -578,6 +579,8 @@ target_include_directories(NtGui
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtGui PUBLIC NtCore PRIVATE NtDBus)
+# As Qt does, so that <QtTest> brings in the GUI test functions for a target that links Nt GUI.
+target_compile_definitions(NtGui PUBLIC QT_GUI_LIB)
 if(NT_HAVE_VULKAN)
     # Programs include <vulkan/vulkan.h> through the Nt headers; the library itself is loaded at run time.
     target_include_directories(NtGui SYSTEM PUBLIC ${NT_VULKAN_INCLUDE_DIR})
@@ -751,6 +754,7 @@ target_include_directories(NtWidgets
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtWidgets PUBLIC NtGui)
+target_compile_definitions(NtWidgets PUBLIC QT_WIDGETS_LIB)
 nt_set_compile_options(NtWidgets)
 
 add_library(NtSvg
@@ -1444,6 +1448,15 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_widgets_tests COMMAND nt_widgets_tests)
     set_tests_properties(nt_widgets_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_widgets_tests)
+
+    # The mouse, keyboard and wheel functions of Nt Test (QTest::mouseClick() and friends) driving widgets on the
+    # offscreen platform, through the public API only.
+    add_executable(nt_test_widgets_tests tests/test_qtest_widgets.cpp)
+    target_link_libraries(nt_test_widgets_tests PRIVATE Nt::Test Nt::Widgets)
+    nt_enable_automoc(nt_test_widgets_tests)
+    add_test(NAME nt_test_widgets_tests COMMAND nt_test_widgets_tests)
+    set_tests_properties(nt_test_widgets_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_test_widgets_tests)
 
     # The controls (radio buttons, line edits, sliders, spin boxes, combo boxes, tabs) on the offscreen platform.
     add_executable(nt_widgets_itemviews_tests tests/test_widgets_itemviews.cpp)

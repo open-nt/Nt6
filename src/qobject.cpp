@@ -11,11 +11,11 @@
     not know who is listening, so classes stay independent and can be reused and tested alone.
 
     This page builds up the pattern step by step with the \c signals example in
-    \c{examples/signals}, which checks each step when it runs. Build it on its own against an
+    the \l{Nt Examples}{examples repository}, which checks each step when it runs. Build it on its own against an
     installed Nt:
 
     \code
-    cmake -S examples/signals -B build-signals
+    cmake -S signals -B build-signals
     cmake --build build-signals
     build-signals/signals
     \endcode
@@ -26,7 +26,37 @@
     \c signals: section. Signals are only declared; \c ntmoc writes their bodies. Slots are
     ordinary member functions:
 
-    \snippet signals/thermostat.h class
+    \code
+    // A class with signals and slots derives from QObject and starts with Q_OBJECT. ntmoc reads the
+    // header and writes the code behind the signals; nt_enable_automoc() in CMake runs it.
+    class Thermostat : public QObject {
+        Q_OBJECT
+    public:
+        explicit Thermostat(QObject *parent = nullptr) : QObject(parent) {}
+
+        double temperature() const { return m_temperature; }
+
+    public slots:
+        // A slot is an ordinary member function. Putting it under "slots" also lets it be connected
+        // by name with SLOT() and called with QMetaObject::invokeMethod().
+        void setTemperature(double celsius) {
+            if (celsius == m_temperature)
+                return; // emit only on a real change, so connected objects cannot loop forever
+            m_temperature = celsius;
+            emit temperatureChanged(celsius);
+            if (celsius > 30.0)
+                emit overheated();
+        }
+
+    signals:
+        // Signals are declared, never defined: ntmoc writes their bodies.
+        void temperatureChanged(double celsius);
+        void overheated();
+
+    private:
+        double m_temperature = 20.0;
+    };
+    \endcode
 
     \c emit is an empty word that marks the call as a signal for the reader. Emit a signal only
     when something really changed, as setTemperature() does: when two objects are connected to
@@ -35,7 +65,16 @@
     The receiving class is a QObject too, so that Nt can remove its connections when it is
     destroyed:
 
-    \snippet signals/thermostat.h receiver
+    \code
+    class Display : public QObject {
+        Q_OBJECT
+    public:
+        QString text;
+
+    public slots:
+        void show(double celsius) { text = QString::number(celsius) + " C"; }
+    };
+    \endcode
 
     \section2 Building with ntmoc
 
@@ -58,7 +97,14 @@
     QObject::connect() takes the sender, a pointer to the signal, the receiver and a pointer to the
     slot. The compiler checks that the slot can take the signal's arguments:
 
-    \snippet signals/main.cpp connect
+    \code
+    Thermostat thermostat;
+    Display display;
+    // Sender, &Class::signal, receiver, &Class::slot.
+    QObject::connect(&thermostat, &Thermostat::temperatureChanged, &display, &Display::show);
+    thermostat.setTemperature(21.5);
+    // display.text is now "21.5 C": the slot ran inside setTemperature().
+    \endcode
 
     By default the slot runs at once, inside the \c emit, before setTemperature() returns. A
     signal can be connected to many slots, which run in the order they were connected, and a slot
@@ -70,7 +116,13 @@
     QObject. Pass a context object before the lambda: the connection lives only as long as the
     context, and with threads, the lambda runs in the context's thread:
 
-    \snippet signals/main.cpp lambda
+    \code
+    int alarms = 0;
+    // A lambda needs no receiver. Give it a context object anyway (here &display) when it uses
+    // something that can be destroyed: the connection is removed together with the context.
+    QObject::connect(&thermostat, &Thermostat::overheated, &display, [&alarms] { ++alarms; });
+    thermostat.setTemperature(35.0);
+    \endcode
 
     \warning A lambda that captures \c this, or a reference to a local variable, must not outlive
     what it captures. Connecting it with \c this, or the object it uses, as the context object
@@ -81,7 +133,11 @@
     A slot may take fewer arguments than the signal; the trailing ones are dropped. The types must
     match or convert implicitly:
 
-    \snippet signals/main.cpp fewer-arguments
+    \code
+    // A slot may ignore the trailing arguments of the signal.
+    int changes = 0;
+    QObject::connect(&thermostat, &Thermostat::temperatureChanged, [&changes] { ++changes; });
+    \endcode
 
     When a signal is overloaded, name the overload with \c qOverload, for example
     \c{qOverload<int>(&QSpinBox::valueChanged)}.
@@ -91,12 +147,24 @@
     When the sender or the receiver is destroyed, its connections are removed, so a slot is never
     called on a deleted object:
 
-    \snippet signals/main.cpp context
+    \code
+    {
+        auto window = std::make_unique<Display>();
+        QObject::connect(&thermostat, &Thermostat::temperatureChanged, window.get(), &Display::show);
+    } // the Display is destroyed here, and so is its connection
+    thermostat.setTemperature(19.0); // safe: nothing calls into the destroyed object
+    \endcode
 
     To stop listening earlier, keep the QMetaObject::Connection that connect() returns, or
     disconnect by sender, signal and receiver:
 
-    \snippet signals/main.cpp disconnect
+    \code
+    const QMetaObject::Connection logging =
+        QObject::connect(&thermostat, &Thermostat::temperatureChanged, [](double c) { std::printf("%.1f\n", c); });
+    QObject::disconnect(logging); // remove just this connection
+    // ...or every connection from a signal to one receiver:
+    QObject::disconnect(&thermostat, &Thermostat::temperatureChanged, &display, nullptr);
+    \endcode
 
     Inside a slot, sender() returns the object that emitted the signal. Do not delete the sender
     from its own signal; call \c deleteLater() on it instead, which deletes it once control
@@ -107,7 +175,16 @@
     Two flags change how often a slot runs. Combine them with a connection type with \c{|} and a
     cast to \c Qt::ConnectionType:
 
-    \snippet signals/main.cpp flags
+    \code
+    // Called once, then disconnected automatically.
+    int firstReading = 0;
+    QObject::connect(
+        &thermostat, &Thermostat::temperatureChanged, &display, [&firstReading] { ++firstReading; },
+        Qt::SingleShotConnection);
+    // Not connected twice, however often this line runs.
+    QObject::connect(&thermostat, &Thermostat::temperatureChanged, &display, &Display::show, Qt::UniqueConnection);
+    QObject::connect(&thermostat, &Thermostat::temperatureChanged, &display, &Display::show, Qt::UniqueConnection);
+    \endcode
 
     \c Qt::UniqueConnection recognizes member function slots and slots named with \c SLOT();
     every lambda is a new slot.
@@ -118,7 +195,18 @@
     receiver's thread. Connections between threads are queued automatically. Nothing is delivered
     until the event loop runs, which QCoreApplication::exec() does:
 
-    \snippet signals/main.cpp queued
+    \code
+    // A queued connection runs the slot later, from the event loop, as connections to objects in
+    // other threads do. Nothing happens until the loop runs.
+    double queued = 0;
+    QObject::connect(
+        &thermostat, &Thermostat::temperatureChanged, &display, [&queued](double c) { queued = c; },
+        Qt::QueuedConnection);
+    thermostat.setTemperature(22.0);
+    // queued is still 0 here.
+    QTimer::singleShot(0, &app, &QCoreApplication::quit);
+    app.exec(); // the slot runs now: queued becomes 22
+    \endcode
 
     The arguments of a queued signal must be copyable types that the meta-type system knows:
     built-in types, Nt's value classes, and your own types registered with

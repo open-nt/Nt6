@@ -20,7 +20,63 @@
     paints on the window itself. Call update() to ask for a repaint; the
     request is coalesced and delivered from the event loop.
 
-    \snippet gui/hello_window.cpp window
+    \code
+    class HelloWindow : public QRasterWindow {
+    public:
+        HelloWindow() {
+            setTitle("Hello, Nt GUI");
+            resize(480, 320);
+        }
+
+    protected:
+        void paintEvent(QPaintEvent *) override {
+            QPainter painter(this);
+            painter.fillRect(0, 0, width(), height(), QColor("#f4f1ea"));
+
+            painter.setPen(QColor("#d8d2c4"));
+            for (int x = 0; x < width(); x += 40)
+                painter.drawLine(x, 0, x, height());
+            for (int y = 0; y < height(); y += 40)
+                painter.drawLine(0, y, width(), y);
+
+            painter.setPen(QPen(QBrush(QColor("#2b2b2b")), 3));
+            painter.setBrush(m_colors[m_color]);
+            painter.drawEllipse(m_mouse.x() - 40, m_mouse.y() - 40, 80, 80);
+
+            QFont font("Sans Serif", 14);
+            font.setBold(true);
+            painter.setFont(font);
+            painter.setPen(QColor("#2b2b2b"));
+            painter.drawText(QRect(0, 12, width(), 30), Qt::AlignHCenter, "Hello, Nt GUI");
+            font.setBold(false);
+            font.setPointSize(10);
+            painter.setFont(font);
+            painter.drawText(QRect(12, 0, width() - 24, height() - 10), Qt::AlignLeft | Qt::AlignBottom,
+                             "Move the mouse, click to change the color, press Escape to quit.");
+        }
+
+        void mouseMoveEvent(QMouseEvent *event) override {
+            m_mouse = event->pos();
+            update();
+        }
+
+        void mousePressEvent(QMouseEvent *event) override {
+            m_mouse = event->pos();
+            m_color = (m_color + 1) % 3;
+            update();
+        }
+
+        void keyPressEvent(QKeyEvent *event) override {
+            if (event->key() == Qt::Key_Escape)
+                close();
+        }
+
+    private:
+        QPoint m_mouse{240, 160};
+        int m_color = 0;
+        const QColor m_colors[3] = {QColor("#e4572e"), QColor("#29a35a"), QColor("#3a7bd5")};
+    };
+    \endcode
 
     The \c main() function creates the application object, then the window:
 
@@ -78,7 +134,28 @@
     have cap and join styles and dashes; brushes have linear, radial and conical gradients. With the
     Antialiasing render hint the edges are smooth:
 
-    \snippet gui/painting.cpp flower
+    \code
+    QPainterPath petal;
+    petal.moveTo(0, 0);
+    petal.cubicTo(30, -40, 90, -40, 120, 0);
+    petal.cubicTo(90, 40, 30, 40, 0, 0);
+
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.translate(size.width() / 2, size.height() / 2);
+    painter.scale(size.height() / 300, size.height() / 300);
+    painter.rotate(phase);
+    for (int i = 0; i < 12; ++i) {
+        QRadialGradient shade(QPointF(60, 0), 60);
+        shade.setColorAt(0, QColor::fromHsv(i * 30, 160, 255));
+        shade.setColorAt(1, QColor::fromHsv(i * 30, 255, 170));
+        painter.setPen(QPen(QColor(60, 30, 60), 1.5));
+        painter.setBrush(shade);
+        painter.drawPath(petal);
+        painter.rotate(30);
+    }
+    painter.setBrush(QColor(250, 210, 60));
+    painter.drawEllipse(QPointF(0, 0), 22, 22);
+    \endcode
 
     \image painter/flower.png A flower of Bezier petals with radial gradients
 

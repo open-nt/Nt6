@@ -60,7 +60,36 @@ struct QOpenGLWindow::Data {
     and swaps the buffers after paintGL(), emitting frameSwapped(). Call
     update() to have another frame painted:
 
-    \snippet opengl/glwindow.cpp window
+    \code
+    class Window : public QOpenGLWindow, protected QOpenGLFunctions {
+    public:
+        Window() {
+            connect(this, &QOpenGLWindow::frameSwapped, this, [this] {
+                ++m_frames;
+                update(); // the next frame
+            });
+        }
+
+    protected:
+        void initializeGL() override {
+            initializeOpenGLFunctions();
+            m_clock.start();
+        }
+
+        void paintGL() override {
+            const float t = static_cast<float>(m_clock.elapsed()) / 1000.0f;
+            glClearColor(0.1f, 0.12f, 0.2f + 0.1f * std::sin(t), 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT);
+
+            QPainter painter(this);
+            painter.setRenderHint(QPainter::Antialiasing);
+            painter.translate(width() / 2.0, height() / 2.0);
+            painter.rotate(static_cast<double>(t) * 45.0);
+            painter.setPen(QPen(QColor(250, 210, 60), 6, Qt::SolidLine, Qt::RoundCap));
+            painter.setBrush(QColor(60, 140, 220, 160));
+            painter.drawRoundedRect(QRectF(-80, -50, 160, 100), 16, 16);
+        }
+    \endcode
 
     Inside paintGL(), a QPainter on the window draws with OpenGL; see
     QOpenGLPaintDevice. Ask for samples in the format to have it antialias.

@@ -53,7 +53,19 @@ using namespace QtSvgPrivate;
 
     Load a document from a file, a resource or a byte array, and draw it on any paint device:
 
-    \snippet svg/svg_viewer.cpp render
+    \code
+    static QImage renderToImage(const QByteArray &svg, const QSize &size) {
+        QSvgRenderer renderer(svg);
+        QImage image(size, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        if (renderer.isValid()) {
+            renderer.setAspectRatioMode(Qt::KeepAspectRatio);
+            QPainter painter(&image);
+            renderer.render(&painter);
+        }
+        return image;
+    }
+    \endcode
 
     The document is drawn into a rectangle: all of the device with render(QPainter *), or the bounds given.
     The view box of the document is stretched to fill the rectangle unless aspectRatioMode() says otherwise.

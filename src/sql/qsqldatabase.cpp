@@ -27,7 +27,7 @@
     takes drivers of the application for other databases.
 
     See \l{Using Nt SQL} for a walk through, and
-    \c{examples/sql/contacts.cpp} for a complete program.
+    \c{sql/contacts.cpp} in the \l{Nt Examples}{examples repository} for a complete program.
 */
 
 /*!

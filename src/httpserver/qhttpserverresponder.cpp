@@ -18,7 +18,36 @@
     call writeBeginChunked(), then writeChunk() as often as needed, and
     finally writeEndChunked().
 
-    \snippet httpserver/hello_server.cpp responder
+    \code
+    // Counts to five, one line per piece of the body.
+    server.route("/count", [](QHttpServerResponder &responder) {
+        responder.writeBeginChunked("text/plain");
+        for (int i = 1; i <= 5; ++i)
+            responder.writeChunk(QByteArray::number(i) + "\n");
+        responder.writeEndChunked("done\n");
+    });
+
+    // Streams a file next to this one from disk; the responder deletes the QFile when it is sent.
+    server.route("/files/<arg>", [](const QString &name, QHttpServerResponder &responder) {
+        if (name.contains("..")) {
+            responder.write(QHttpServerResponder::StatusCode::Forbidden);
+            return;
+        }
+        auto *file = new QFile(QFileInfo(QStringLiteral(__FILE__)).absolutePath() + "/" + name);
+        if (!file->open(QIODevice::ReadOnly)) {
+            delete file;
+            responder.write(QHttpServerResponder::StatusCode::NotFound);
+            return;
+        }
+        responder.write(file, "text/plain");
+    });
+
+    // Answers a second later. The responder is moved out of the handler, which returns at once.
+    server.route("/later", [&app](QHttpServerResponder &responder) {
+        auto later = std::make_shared<QHttpServerResponder>(std::move(responder));
+        QTimer::singleShot(1000, &app, [later] { later->write("sorry for the wait\n", "text/plain"); });
+    });
+    \endcode
 
     A responder can be moved, for example into a lambda, to answer later.
     The connection reads no further request until the response is complete.

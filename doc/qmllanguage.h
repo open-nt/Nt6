@@ -44,12 +44,31 @@
 
     QQmlComponent reads a document and makes its objects:
 
-    \snippet qml/hello_qml.cpp component
+    \code
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty("greeting", QStringLiteral("hello"));
+    QObject::connect(&engine, &QQmlEngine::quit, &app, &QCoreApplication::quit);
+
+    QQmlComponent component(&engine);
+    component.setData(document, QUrl(QStringLiteral("file:///home.qml")));
+    QObject *home = component.create();
+    if (!home) {
+        qWarning().noquote() << component.errorString();
+        return 1;
+    }
+    \endcode
 
     QQmlApplicationEngine loads the main document of an application, and quits it when the document calls
     \c{Qt.quit()}:
 
-    \snippet qml/hello_qml.cpp application
+    \code
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("greeting", QStringLiteral("hello"));
+    engine.load(QString::fromLocal8Bit(argv[1]));
+    if (engine.rootObjects().isEmpty())
+        return 1;
+    return app.exec();
+    \endcode
 
     \section1 Bindings
 
@@ -65,7 +84,9 @@
 
     qmlRegisterType() makes a QObject class a QML type of a module:
 
-    \snippet qml/hello_qml.cpp register
+    \code
+    qmlRegisterType<Thermostat>("Home", 1, 0, "Thermostat");
+    \endcode
 
     Documents see its Q_PROPERTYs, signals, slots, Q_INVOKABLE methods and Q_ENUMs (as
     \c{Thermostat.SomeValue}). \c{Q_CLASSINFO("DefaultProperty", "name")} names the property that child

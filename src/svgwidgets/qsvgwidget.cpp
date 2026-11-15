@@ -23,7 +23,28 @@
     The widget draws a document scaled to its own size, so it stays sharp at any size and on screens of any
     resolution:
 
-    \snippet svg/svg_viewer.cpp widget
+    \code
+    QSvgWidget widget;
+    widget.renderer()->setAspectRatioMode(Qt::KeepAspectRatio);
+    if (argc > 1) {
+        widget.load(QString::fromLocal8Bit(argv[1]));
+    } else {
+        // No file: show what the generator writes, straight from memory.
+        QBuffer buffer;
+        QSvgGenerator generator;
+        generator.setOutputDevice(&buffer);
+        generator.setSize(QSize(240, 160));
+        paintPicture(&generator);
+        widget.load(buffer.data());
+    }
+    if (!widget.renderer()->isValid()) {
+        std::fprintf(stderr, "svg_viewer: not an SVG document\n");
+        return 1;
+    }
+    widget.setWindowTitle("Nt SVG");
+    widget.resize(widget.sizeHint());
+    widget.show();
+    \endcode
 
     Its size hint is the default size of the document. The widget does not keep the proportions of the
     document by itself; to do so, set the aspect ratio mode of its renderer():

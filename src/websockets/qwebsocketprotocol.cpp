@@ -13,7 +13,7 @@
     WebSocket upgrades on its own port.
 
     See \l{Using Nt WebSockets} for a walk through, and
-    \c{examples/websockets/echo.cpp} for a complete program.
+    \c{websockets/echo.cpp} in the \l{Nt Examples}{examples repository} for a complete program.
 */
 
 /*!
@@ -36,7 +36,21 @@
     client that has completed the opening handshake. Take the socket with
     nextPendingConnection() and connect to its signals:
 
-    \snippet websockets/echo.cpp server
+    \code
+    QWebSocketServer server(QStringLiteral("Nt echo"), QWebSocketServer::NonSecureMode);
+    if (!server.listen(QHostAddress::LocalHost, port)) {
+        std::fprintf(stderr, "cannot listen: %s\n", qPrintable(server.errorString()));
+        return 1;
+    }
+    QObject::connect(&server, &QWebSocketServer::newConnection, [&server] {
+        QWebSocket *socket = server.nextPendingConnection();
+        QObject::connect(socket, &QWebSocket::textMessageReceived, socket,
+                         [socket](const QString &message) { socket->sendTextMessage(message); });
+        QObject::connect(socket, &QWebSocket::binaryMessageReceived, socket,
+                         [socket](const QByteArray &message) { socket->sendBinaryMessage(message); });
+        QObject::connect(socket, &QWebSocket::disconnected, socket, &QObject::deleteLater);
+    });
+    \endcode
 
     The sockets are children of the server. Delete each one when it
     disconnects, as above, so that a long-running server does not collect
@@ -47,7 +61,22 @@
     QWebSocket::open() connects to a \c ws: or \c wss: URL. Messages can be
     sent once connected() has been emitted:
 
-    \snippet websockets/echo.cpp client
+    \code
+    QWebSocket socket;
+    QObject::connect(&socket, &QWebSocket::connected, [&] {
+        std::printf("connected, subprotocol \"%s\"\n", qPrintable(socket.subprotocol()));
+        socket.sendTextMessage(text);
+    });
+    QObject::connect(&socket, &QWebSocket::textMessageReceived, [&](const QString &message) {
+        std::printf("received: %s\n", qPrintable(message));
+        socket.close();
+    });
+    QObject::connect(&socket, &QWebSocket::disconnected, &app, &QCoreApplication::quit);
+    QObject::connect(&socket, &QWebSocket::errorOccurred, [&](QAbstractSocket::SocketError) {
+        std::fprintf(stderr, "error: %s\n", qPrintable(socket.errorString()));
+        app.exit(1);
+    });
+    \endcode
 
     errorOccurred() reports a connection that cannot be made, and an opening
     handshake that the server refuses; errorString() says why.
@@ -72,7 +101,9 @@
     A client can ask for an application protocol by name, and the server
     picks the first one it supports:
 
-    \snippet websockets/echo.cpp subprotocols
+    \code
+    server.setSupportedSubprotocols({QStringLiteral("echo.v2"), QStringLiteral("echo.v1")});
+    \endcode
 
     \section1 Closing
 
@@ -109,7 +140,20 @@
     Add a verifier that accepts the requests you want, and take the sockets
     when newWebSocketConnection() is emitted:
 
-    \snippet httpserver/hello_server.cpp websocket
+    \code
+    // WebSocket upgrades of /ws are accepted on the same port; the sockets echo what they receive.
+    server.addWebSocketUpgradeVerifier(&server, [](const QHttpServerRequest &request) {
+        if (request.url().path() == "/ws")
+            return QHttpServerWebSocketUpgradeResponse::accept();
+        return QHttpServerWebSocketUpgradeResponse::passToNext();
+    });
+    QObject::connect(&server, &QHttpServer::newWebSocketConnection, [&server] {
+        QWebSocket *socket = server.nextPendingWebSocketConnection().release();
+        QObject::connect(socket, &QWebSocket::textMessageReceived, socket,
+                         [socket](const QString &message) { socket->sendTextMessage(message); });
+        QObject::connect(socket, &QWebSocket::disconnected, socket, &QObject::deleteLater);
+    });
+    \endcode
 
     \section1 Origins
 

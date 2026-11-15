@@ -17,7 +17,7 @@
     board, on Linux and on Zephyr. Qt has no such module; the class follows the conventions of
     the other Nt classes so that it fits into an Nt or Qt program.
 
-    See \l{Using Nt GPIO} for a walk through, and \c{examples/gpio/ptt.cpp} for a complete
+    See \l{Using Nt GPIO} for a walk through, and \c{gpio/ptt.cpp} in the \l{Nt Examples}{examples repository} for a complete
     program.
 */
 
@@ -70,12 +70,28 @@
     A new line is an input. Set whether it is active low, its bias and its debounce interval
     before open(). For a push-to-talk switch that pulls the line to ground:
 
-    \snippet gpio/ptt.cpp input
+    \code
+    QGpioLine ptt(parser.positionalArguments().constFirst());
+    ptt.setActiveLow(true);         // pressed pulls the line low
+    ptt.setBias(QGpioLine::PullUp); // released floats high
+    ptt.setDebounceInterval(20);    // ignore contact bounce
+    if (!ptt.open()) {
+        std::fprintf(stderr, "ptt: %s\n", qPrintable(ptt.errorString()));
+        return 1;
+    }
+    \endcode
 
     value() is then the logical value, \c true while the switch is held, and valueChanged() is
     emitted each time it changes:
 
-    \snippet gpio/ptt.cpp connect
+    \code
+    QObject::connect(&ptt, &QGpioLine::valueChanged, [&](bool pressed) {
+        std::printf("TX %s\n", pressed ? "on" : "off");
+        std::fflush(stdout);
+        if (led.isOpen())
+            led.setValue(pressed);
+    });
+    \endcode
 
     The line is watched for edges where the hardware can, and polled every pollInterval()
     milliseconds where it cannot; isEventDriven() tells which. With a debounce interval, a
@@ -87,7 +103,14 @@
     An output line is opened with the value set by setValue() beforehand, \c false unless
     changed, and changed with setValue():
 
-    \snippet gpio/ptt.cpp output
+    \code
+    QGpioLine led(parser.value(ledOption));
+    led.setDirection(QGpioLine::Output);
+    if (parser.isSet(ledOption) && !led.open()) {
+        std::fprintf(stderr, "ptt: %s\n", qPrintable(led.errorString()));
+        return 1;
+    }
+    \endcode
 
     \section1 Handling Errors
 
@@ -96,7 +119,14 @@
     \c ResourceError while the line is open means it went away, for example because a USB GPIO
     adapter was unplugged; the line is closed, and must be opened again:
 
-    \snippet gpio/ptt.cpp errors
+    \code
+    QObject::connect(&ptt, &QGpioLine::errorOccurred, [&](QGpioLine::GpioError error) {
+        if (error == QGpioLine::ResourceError) { // the chip went away
+            std::fprintf(stderr, "ptt: %s\n", qPrintable(ptt.errorString()));
+            app.exit(1);
+        }
+    });
+    \endcode
 
     \section1 Permission on Linux
 

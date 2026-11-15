@@ -320,7 +320,19 @@ QVideoFrame makeVideoFrame(const QVideoFrameFormat &format, const QByteArray &da
     A camera delivers frames to a QVideoSink. Map a frame to read its planes, or turn it into a
     QImage:
 
-    \snippet multimedia/camera.cpp frames
+    \code
+    int frames = 0;
+    QObject::connect(&sink, &QVideoSink::videoFrameChanged, [&frames](const QVideoFrame &frame) {
+        if (frames++ == 0) {
+            QVideoFrame mapped = frame;
+            mapped.map(QVideoFrame::ReadOnly);
+            std::printf("first frame: %dx%d %s, %d plane(s), %d bytes a line\n", frame.width(), frame.height(),
+                        qPrintable(QVideoFrameFormat::pixelFormatToString(frame.pixelFormat())), mapped.planeCount(),
+                        mapped.bytesPerLine(0));
+            mapped.unmap();
+        }
+    });
+    \endcode
 
     Copies share their pixels; mapping for writing makes a copy of its own first.
 

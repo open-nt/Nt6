@@ -87,7 +87,19 @@ void QMediaRecorderPrivate::finish() {
 
     Put a recorder and a QAudioInput in a session, choose where to write, and record():
 
-    \snippet multimedia/recorder.cpp record
+    \code
+    QMediaCaptureSession session;
+    QAudioInput input;
+    QMediaRecorder recorder;
+    session.setAudioInput(&input);
+    session.setRecorder(&recorder);
+    recorder.setOutputLocation(QUrl::fromLocalFile(args.at(1)));
+    QObject::connect(&recorder, &QMediaRecorder::durationChanged, [](qint64 ms) {
+        std::printf("\r%lld ms", static_cast<long long>(ms));
+        std::fflush(stdout);
+    });
+    recorder.record();
+    \endcode
 
     Without an output location, the recorder writes \c{record_0001.wav} and onwards in the music
     folder. actualLocation() is the file it writes.

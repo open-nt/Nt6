@@ -9,7 +9,19 @@
     \inmodule NtMultimedia
     \brief The QAudioInput class sets the device and volume a QMediaCaptureSession records from.
 
-    \snippet multimedia/recorder.cpp record
+    \code
+    QMediaCaptureSession session;
+    QAudioInput input;
+    QMediaRecorder recorder;
+    session.setAudioInput(&input);
+    session.setRecorder(&recorder);
+    recorder.setOutputLocation(QUrl::fromLocalFile(args.at(1)));
+    QObject::connect(&recorder, &QMediaRecorder::durationChanged, [](qint64 ms) {
+        std::printf("\r%lld ms", static_cast<long long>(ms));
+        std::fflush(stdout);
+    });
+    recorder.record();
+    \endcode
 
     \differences
     None.

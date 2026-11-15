@@ -26,7 +26,21 @@
     of each client, and hands out a connected QWebSocket for each one through
     newConnection() and nextPendingConnection():
 
-    \snippet websockets/echo.cpp server
+    \code
+    QWebSocketServer server(QStringLiteral("Nt echo"), QWebSocketServer::NonSecureMode);
+    if (!server.listen(QHostAddress::LocalHost, port)) {
+        std::fprintf(stderr, "cannot listen: %s\n", qPrintable(server.errorString()));
+        return 1;
+    }
+    QObject::connect(&server, &QWebSocketServer::newConnection, [&server] {
+        QWebSocket *socket = server.nextPendingConnection();
+        QObject::connect(socket, &QWebSocket::textMessageReceived, socket,
+                         [socket](const QString &message) { socket->sendTextMessage(message); });
+        QObject::connect(socket, &QWebSocket::binaryMessageReceived, socket,
+                         [socket](const QByteArray &message) { socket->sendBinaryMessage(message); });
+        QObject::connect(socket, &QWebSocket::disconnected, socket, &QObject::deleteLater);
+    });
+    \endcode
 
     In SecureMode, the server speaks TLS (\c wss:) with the configuration set
     by setSslConfiguration(), which must hold a certificate and a private key.

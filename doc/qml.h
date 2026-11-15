@@ -22,7 +22,20 @@
     evaluate() runs a program and returns the value of its last statement. Functions come back as values
     that C++ can call:
 
-    \snippet qml/scripting.cpp evaluate
+    \code
+    QJSEngine engine;
+    engine.installExtensions(QJSEngine::ConsoleExtension);
+
+    QJSValue result = engine.evaluate("[1, 2, 3].map(x => x * x).join(' + ')");
+    qDebug() << result.toString(); // "1 + 4 + 9"
+
+    QJSValue square = engine.evaluate("(function(x) { return x * x; })");
+    qDebug() << square.call({12}).toInt(); // 144
+
+    QJSValue error = engine.evaluate("undefinedFunction()", "inline.js");
+    if (error.isError())
+        qDebug() << "line" << error.property("lineNumber").toInt() << error.toString();
+    \endcode
 
     Errors do not escape as C++ exceptions: evaluate() and QJSValue::call() return the error, an object
     with \c name, \c message, \c fileName, \c lineNumber and \c stack.
@@ -33,7 +46,16 @@
     Q_INVOKABLE methods, emit its signals by calling them, and connect them to functions with
     \c{signal.connect(f)} or \c{signal.connect(thisObject, f)}:
 
-    \snippet qml/scripting.cpp qobject
+    \code
+    Counter counter;
+    engine.globalObject().setProperty("counter", engine.newQObject(&counter));
+    engine.evaluate(R"(
+        counter.valueChanged.connect(v => console.log("counter is now", v));
+        counter.value = 10;
+        counter.add(5);
+    )");
+    qDebug() << counter.value(); // 15
+    \endcode
 
     Enumeration properties take their keys as strings, \c{"Heating"}, or their values. Overloaded methods are
     chosen by the number and types of the arguments. Properties that scripts add to a QObject are kept on

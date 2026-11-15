@@ -33,12 +33,34 @@ using QtJSPrivate::Value;
 
     An engine has a global object, and evaluate() runs programs in it:
 
-    \snippet qml/scripting.cpp evaluate
+    \code
+    QJSEngine engine;
+    engine.installExtensions(QJSEngine::ConsoleExtension);
+
+    QJSValue result = engine.evaluate("[1, 2, 3].map(x => x * x).join(' + ')");
+    qDebug() << result.toString(); // "1 + 4 + 9"
+
+    QJSValue square = engine.evaluate("(function(x) { return x * x; })");
+    qDebug() << square.call({12}).toInt(); // 144
+
+    QJSValue error = engine.evaluate("undefinedFunction()", "inline.js");
+    if (error.isError())
+        qDebug() << "line" << error.property("lineNumber").toInt() << error.toString();
+    \endcode
 
     Values go both ways as QJSValue. A QObject passed to newQObject() is seen by scripts with its
     properties, its slots and Q_INVOKABLE methods, and its signals, which scripts connect to functions:
 
-    \snippet qml/scripting.cpp qobject
+    \code
+    Counter counter;
+    engine.globalObject().setProperty("counter", engine.newQObject(&counter));
+    engine.evaluate(R"(
+        counter.valueChanged.connect(v => console.log("counter is now", v));
+        counter.value = 10;
+        counter.add(5);
+    )");
+    qDebug() << counter.value(); // 15
+    \endcode
 
     A script that throws makes evaluate() return the error; QJSValue::isError() tells. A C++ method that
     scripts call can throw a JavaScript error with throwError().
@@ -147,7 +169,20 @@ QJSValue QJSEngine::globalObject() const {
     statement. If the program throws, returns the error, and if \a exceptionStackTrace is not \c nullptr,
     stores the functions that were running, innermost first, as \c{name@file:line}.
 
-    \snippet qml/scripting.cpp evaluate
+    \code
+    QJSEngine engine;
+    engine.installExtensions(QJSEngine::ConsoleExtension);
+
+    QJSValue result = engine.evaluate("[1, 2, 3].map(x => x * x).join(' + ')");
+    qDebug() << result.toString(); // "1 + 4 + 9"
+
+    QJSValue square = engine.evaluate("(function(x) { return x * x; })");
+    qDebug() << square.call({12}).toInt(); // 144
+
+    QJSValue error = engine.evaluate("undefinedFunction()", "inline.js");
+    if (error.isError())
+        qDebug() << "line" << error.property("lineNumber").toInt() << error.toString();
+    \endcode
 */
 QJSValue QJSEngine::evaluate(const QString &program, const QString &fileName, int lineNumber,
                              QStringList *exceptionStackTrace) {

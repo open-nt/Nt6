@@ -15,7 +15,18 @@ using QtChartsPrivate::ChartEngine;
     The area is bounded by the points of an upper QLineSeries and of a lower one. Without a lower series it
     reaches down to zero, or to the edge of the plot area if zero is not shown.
 
-    \snippet charts/dashboard.cpp area
+    \code
+    auto *upper = new QLineSeries;
+    for (int t = 0; t < 24; ++t)
+        upper->append(t, 2.0 + std::sin(t / 4.0));
+
+    auto *series = new QAreaSeries(upper);
+    series->setName("Memory");
+
+    auto *chart = new QChart;
+    chart->addSeries(series);
+    chart->createDefaultAxes();
+    \endcode
 
     The line series are not added to the chart themselves. The area series watches them: changing their
     points redraws it. A line series without a parent becomes a child of the area series.

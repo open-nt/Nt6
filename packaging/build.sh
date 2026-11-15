@@ -46,8 +46,7 @@ build_dir=$(realpath -m "$build_dir")
 rm -rf "$build_dir"
 cmake -S "$source_dir" -B "$build_dir" \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_INSTALL_PREFIX=/usr \
-    -DNT_BUILD_EXAMPLES=OFF
+    -DCMAKE_INSTALL_PREFIX=/usr
 cmake --build "$build_dir" -j"$(nproc)"
 if [ "$run_tests" = 1 ]; then
     ctest --test-dir "$build_dir" --output-on-failure

@@ -19,7 +19,7 @@
     event loop, and a way to list the ports of the machine.
 
     See \l{Using Nt Serial Port} for a walk through, and
-    \c{examples/serialport/serialterm.cpp} for a complete program.
+    \c{serialport/serialterm.cpp} in the \l{Nt Examples}{examples repository} for a complete program.
 */
 
 /*!
@@ -42,7 +42,16 @@
     with a description, the manufacturer, the serial number and, for USB
     devices, the vendor and product identifiers:
 
-    \snippet serialport/serialterm.cpp list
+    \code
+    const QList<QSerialPortInfo> ports = QSerialPortInfo::availablePorts();
+    for (const QSerialPortInfo &info : ports) {
+        QString line = info.portName() + "\t" + info.systemLocation() + "\t" + info.description();
+        if (info.hasVendorIdentifier() && info.hasProductIdentifier())
+            line += "\t" + QString::number(info.vendorIdentifier(), 16).rightJustified(4, QChar(u'0')) + ":" +
+                    QString::number(info.productIdentifier(), 16).rightJustified(4, QChar(u'0'));
+        std::printf("%s\n", qPrintable(line));
+    }
+    \endcode
 
     A QSerialPort can be made from a QSerialPortInfo, from a name such as
     \c ttyUSB0, or from a full path such as \c /dev/ttyS0.
@@ -53,7 +62,47 @@
     ends of the line must agree. A new port uses 9600 baud, 8 data bits, no
     parity, one stop bit and no flow control.
 
-    \snippet serialport/serialterm.cpp settings
+    \code
+    QSerialPort port(positional.first());
+
+    bool ok = false;
+    const qint32 baud = parser.value("baud").toInt(&ok);
+    if (!ok || baud <= 0) {
+        std::fprintf(stderr, "serialterm: --baud must be a positive number\n");
+        return 2;
+    }
+    QSerialPort::DataBits dataBits{};
+    QSerialPort::Parity parity{};
+    QSerialPort::StopBits stopBits{};
+    QSerialPort::FlowControl flow{};
+    if (!choose<QSerialPort::DataBits>("data-bits", parser.value("data-bits"),
+                                       {{"5", QSerialPort::Data5},
+                                        {"6", QSerialPort::Data6},
+                                        {"7", QSerialPort::Data7},
+                                        {"8", QSerialPort::Data8}},
+                                       &dataBits) ||
+        !choose<QSerialPort::Parity>("parity", parser.value("parity"),
+                                     {{"none", QSerialPort::NoParity},
+                                      {"even", QSerialPort::EvenParity},
+                                      {"odd", QSerialPort::OddParity},
+                                      {"space", QSerialPort::SpaceParity},
+                                      {"mark", QSerialPort::MarkParity}},
+                                     &parity) ||
+        !choose<QSerialPort::StopBits>("stop-bits", parser.value("stop-bits"),
+                                       {{"1", QSerialPort::OneStop}, {"2", QSerialPort::TwoStop}}, &stopBits) ||
+        !choose<QSerialPort::FlowControl>("flow", parser.value("flow"),
+                                          {{"none", QSerialPort::NoFlowControl},
+                                           {"hardware", QSerialPort::HardwareControl},
+                                           {"software", QSerialPort::SoftwareControl}},
+                                          &flow))
+        return 2;
+
+    port.setBaudRate(baud);
+    port.setDataBits(dataBits);
+    port.setParity(parity);
+    port.setStopBits(stopBits);
+    port.setFlowControl(flow);
+    \endcode
 
     Settings made before open() take effect when the port opens, and settings
     made later take effect at once. If the driver refuses a value while the
@@ -68,7 +117,13 @@
     open() fails if the device cannot be opened. errorString() says why, and
     error() gives the reason as a code:
 
-    \snippet serialport/serialterm.cpp open
+    \code
+    if (!port.open(QIODevice::ReadWrite)) {
+        std::fprintf(stderr, "serialterm: cannot open %s: %s\n", qPrintable(port.portName()),
+                     qPrintable(port.errorString()));
+        return 1;
+    }
+    \endcode
 
     \table
     \header
@@ -96,9 +151,28 @@
     queues the data and readyRead() is emitted when data has arrived, so a
     program with an event loop needs only to connect to it:
 
-    \snippet serialport/serialterm.cpp read
+    \code
+    QObject::connect(&port, &QIODevice::readyRead, [&port] {
+        const QByteArray data = port.readAll();
+        std::fwrite(data.constData(), 1, static_cast<std::size_t>(data.size()), stdout);
+        std::fflush(stdout);
+    });
+    \endcode
 
-    \snippet serialport/serialterm.cpp write
+    \code
+    QSocketNotifier input(STDIN_FILENO, QSocketNotifier::Read);
+    QObject::connect(&input, &QSocketNotifier::activated, [&] {
+        char buffer[512];
+        const ssize_t n = ::read(STDIN_FILENO, buffer, sizeof buffer);
+        if (n > 0) {
+            port.write(buffer, n);
+            return;
+        }
+        input.setEnabled(false);
+        if (!quitTimer.isActive())
+            quitTimer.start(500);
+    });
+    \endcode
 
     A program without an event loop can wait instead, with waitForReadyRead()
     and waitForBytesWritten(). Both run the port's own I/O while they wait.
@@ -115,7 +189,16 @@
     Errors are reported by errorOccurred(). It is emitted for every error,
     including the ones that make a function return \c false.
 
-    \snippet serialport/serialterm.cpp errors
+    \code
+    QObject::connect(&port, &QSerialPort::errorOccurred, [&](QSerialPort::SerialPortError error) {
+        std::fprintf(stderr, "serialterm: %s\n", qPrintable(port.errorString()));
+        // A device that disappears, for example an unplugged USB adapter, cannot recover.
+        if (error == QSerialPort::ResourceError) {
+            exitCode = 1;
+            QCoreApplication::quit();
+        }
+    });
+    \endcode
 
     \c ResourceError needs special care. It means the device went away, for
     example because a USB adapter was unplugged. The port stays open but idle;
@@ -161,7 +244,7 @@
 
     \section1 The serialterm Example
 
-    \c{examples/serialport/serialterm.cpp} is a small terminal built from the
+    \c{serialport/serialterm.cpp} in the \l{Nt Examples}{examples repository} is a small terminal built from the
     snippets above. It is built with the other examples, and takes the same
     settings as options:
 

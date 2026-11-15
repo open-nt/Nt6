@@ -14,7 +14,22 @@
     callWithArgumentList() or asyncCall(), and signals that the class declares are emitted when
     the remote object emits the D-Bus signal of the same name:
 
-    \snippet dbus/clock.cpp proxy
+    \code
+    class ClockInterface : public QDBusAbstractInterface {
+        Q_OBJECT
+    public:
+        explicit ClockInterface(const QDBusConnection &connection, QObject *parent = nullptr)
+            : QDBusAbstractInterface("org.example.Clock", "/clock", "org.example.Clock", connection, parent) {}
+
+        QDBusPendingReply<QString> Now() { return asyncCall("Now"); }
+        QDBusPendingReply<> SetAlarm(int seconds, const QString &message) {
+            return asyncCall("SetAlarm", seconds, message);
+        }
+
+    signals:
+        void alarm(const QString &message); // emitted when the remote clock emits it
+    };
+    \endcode
 
     QDBusInterface is a ready-made subclass for interfaces known only at run time.
 

@@ -17,7 +17,19 @@ using QtQmlPrivate::EngineData;
 
     A component reads a document once and makes objects from it as often as needed:
 
-    \snippet qml/hello_qml.cpp component
+    \code
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty("greeting", QStringLiteral("hello"));
+    QObject::connect(&engine, &QQmlEngine::quit, &app, &QCoreApplication::quit);
+
+    QQmlComponent component(&engine);
+    component.setData(document, QUrl(QStringLiteral("file:///home.qml")));
+    QObject *home = component.create();
+    if (!home) {
+        qWarning().noquote() << component.errorString();
+        return 1;
+    }
+    \endcode
 
     create() makes the objects of the document in a new context, sets their bindings and completes them.
     beginCreate() and completeCreate() split this in two, to set properties in between. The caller owns
@@ -362,7 +374,14 @@ QObject *QQmlComponent::createObject(QObject *parent, const QVariantMap &propert
 
     The engine loads a document, makes its root object, and keeps it until the engine is destroyed:
 
-    \snippet qml/hello_qml.cpp application
+    \code
+    QQmlApplicationEngine engine;
+    engine.rootContext()->setContextProperty("greeting", QStringLiteral("hello"));
+    engine.load(QString::fromLocal8Bit(argv[1]));
+    if (engine.rootObjects().isEmpty())
+        return 1;
+    return app.exec();
+    \endcode
 
     \c{Qt.quit()} and \c{Qt.exit()} in documents quit the application.
 

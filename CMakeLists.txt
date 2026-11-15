@@ -26,8 +26,6 @@ else()
 endif()
 
 option(NT_BUILD_TESTS "Build tests" ${_nt_hosted})
-option(NT_BUILD_EXAMPLES "Build examples" ${_nt_hosted})
-option(NT_EXAMPLES_QT "Also build the widget examples against Qt 6 (the qt_examples target), to compare them with Nt" OFF)
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtCompilerOptions.cmake)
 
@@ -1098,7 +1096,7 @@ add_executable(Nt::rcc ALIAS ntrcc)
 add_executable(Qt6::rcc ALIAS ntrcc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtRcc.cmake)
 
-# The rest is the documentation, the packages, the tests and the examples, none of which is cross built.
+# The rest is the documentation, the packages and the tests, none of which is cross built.
 if(CMAKE_CROSSCOMPILING)
     return()
 endif()
@@ -1550,10 +1548,10 @@ if(NT_BUILD_TESTS)
     # where there is no Vulkan loader, and the ray tracing part where no device traces rays (Mesa's lavapipe does).
     if(NT_HAVE_VULKAN)
         add_executable(nt_vulkan_tests tests/test_vulkan.cpp)
-        nt_add_resources(nt_vulkan_tests shaders PREFIX /shaders BASE examples/vulkan/shaders FILES
-            examples/vulkan/shaders/rtriangle.rgen.spv
-            examples/vulkan/shaders/rtriangle.rmiss.spv
-            examples/vulkan/shaders/rtriangle.rchit.spv)
+        nt_add_resources(nt_vulkan_tests shaders PREFIX /shaders BASE tests/vulkan/shaders FILES
+            tests/vulkan/shaders/rtriangle.rgen.spv
+            tests/vulkan/shaders/rtriangle.rmiss.spv
+            tests/vulkan/shaders/rtriangle.rchit.spv)
         target_link_libraries(nt_vulkan_tests PRIVATE Nt::Gui)
         add_test(NAME nt_vulkan_tests COMMAND nt_vulkan_tests)
         set_tests_properties(nt_vulkan_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
@@ -1676,201 +1674,3 @@ if(NT_BUILD_TESTS)
     endforeach()
 endif()
 
-if(NT_BUILD_EXAMPLES)
-    # examples/hello/CMakeLists.txt is the standalone version of this target.
-    add_executable(hello examples/hello/hello.cpp)
-    target_link_libraries(hello PRIVATE Nt::Core)
-
-    # Same flow as a Qt project using CMAKE_AUTOMOC.
-    add_executable(moc_example examples/moc/main.cpp examples/moc/shape.h)
-    target_link_libraries(moc_example PRIVATE Nt::Core)
-    nt_enable_automoc(moc_example)
-    nt_set_compile_options(hello moc_example)
-
-    # examples/signals: the patterns of the "Signals and Slots" guide; it checks itself.
-    add_executable(signals_example examples/signals/main.cpp examples/signals/thermostat.h)
-    target_link_libraries(signals_example PRIVATE Nt::Core)
-    nt_enable_automoc(signals_example)
-    nt_set_compile_options(signals_example)
-
-    if(NT_BUILD_TESTS)
-        add_test(NAME signals_example COMMAND signals_example)
-    endif()
-
-    # A test written the way a Qt project writes one, with the .moc file included.
-    add_executable(tst_counter examples/test/tst_counter.cpp)
-    target_link_libraries(tst_counter PRIVATE Nt::Test)
-    nt_enable_automoc(tst_counter)
-    nt_set_compile_options(tst_counter)
-    if(NT_BUILD_TESTS)
-        add_test(NAME tst_counter COMMAND tst_counter)
-    endif()
-
-    # A window that is painted with QPainter; see "Using Nt GUI" in the documentation.
-    add_executable(hello_window examples/gui/hello_window.cpp)
-    target_link_libraries(hello_window PRIVATE Nt::Gui)
-    nt_set_compile_options(hello_window)
-
-    # Paths, gradients, pens and transformations, antialiased, in software or with OpenGL (painting --gl); also renders
-    # the pictures of the documentation (cmake --build build --target painter_images) and times the scenes in both
-    # (painting --bench).
-    add_executable(painting examples/gui/painting.cpp)
-    target_link_libraries(painting PRIVATE Nt::OpenGL)
-    nt_set_compile_options(painting)
-    add_custom_target(painter_images
-        COMMAND painting --write "${CMAKE_CURRENT_SOURCE_DIR}/doc/images"
-        COMMENT "Rendering the painter pictures to doc/images/painter"
-        VERBATIM)
-
-    # An OpenGL window painted with OpenGL and QPainter, with or without vsync; see QOpenGLWindow.
-    add_executable(glwindow examples/opengl/glwindow.cpp)
-    target_link_libraries(glwindow PRIVATE Nt::OpenGL)
-    nt_set_compile_options(glwindow)
-
-    # A triangle rendered with hardware ray tracing in a QVulkanWindow; see "Using Nt Vulkan" in the documentation. The
-    # SPIR-V shaders are checked in (examples/vulkan/shaders/compile.sh rebuilds them with glslc).
-    if(NT_HAVE_VULKAN)
-        nt_add_resources(rtriangle_resources examples/vulkan/shaders/rtriangle.qrc)
-        add_executable(rtriangle examples/vulkan/rtriangle.cpp ${rtriangle_resources})
-        target_link_libraries(rtriangle PRIVATE Nt::Gui)
-        nt_set_compile_options(rtriangle)
-    endif()
-
-    # A form made of widgets and layouts, with the Nt logo as an SVG resource; see "Using Nt Widgets" in the
-    # documentation.
-    nt_add_resources(hello_widgets_resources examples/widgets/hello_widgets.qrc)
-    add_executable(hello_widgets examples/widgets/hello_widgets.cpp ${hello_widgets_resources})
-    target_link_libraries(hello_widgets PRIVATE Nt::SvgWidgets)
-    nt_set_compile_options(hello_widgets)
-
-    # A tour of the widgets: layouts, controls, custom widgets, a dark theme.
-    nt_add_resources(gallery_resources examples/widgets/gallery.qrc)
-    add_executable(gallery examples/widgets/gallery.cpp ${gallery_resources})
-    target_link_libraries(gallery PRIVATE Nt::SvgWidgets)
-    nt_set_compile_options(gallery)
-
-    # Renders each widget in its states to doc/images/widgets, the pictures of the reference documentation:
-    #   cmake --build build --target widget_images
-    add_executable(render_widgets examples/widgets/render_widgets.cpp)
-    target_link_libraries(render_widgets PRIVATE Nt::Widgets)
-    nt_set_compile_options(render_widgets)
-    add_custom_target(widget_images
-        COMMAND render_widgets "${CMAKE_CURRENT_SOURCE_DIR}/doc/images"
-        COMMENT "Rendering the widgets to doc/images/widgets"
-        VERBATIM)
-
-    # The same widget examples against Qt 6, as hello_widgets_qt and gallery_qt in qt-examples/. They are built
-    # by a project of their own, because Nt provides the Qt6:: names itself.
-    if(NT_EXAMPLES_QT)
-        include(ExternalProject)
-        ExternalProject_Add(qt_examples
-            SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/examples/qt"
-            BINARY_DIR "${CMAKE_BINARY_DIR}/qt-examples"
-            CMAKE_ARGS -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-            BUILD_ALWAYS ON
-            INSTALL_COMMAND "")
-    endif()
-
-    # A live dashboard of charts; see "Using Nt Charts" in the documentation.
-    add_executable(chart_dashboard examples/charts/dashboard.cpp)
-    target_link_libraries(chart_dashboard PRIVATE Nt::Charts)
-    nt_set_compile_options(chart_dashboard)
-
-    # Scripting with QJSEngine; see "Using Nt Qml" in the documentation.
-    add_executable(js_scripting examples/qml/scripting.cpp)
-    target_link_libraries(js_scripting PRIVATE Nt::Qml)
-    nt_enable_automoc(js_scripting)
-    nt_set_compile_options(js_scripting)
-
-    # A QML document with a C++ type; see "Using Nt QML" in the documentation.
-    add_executable(hello_qml examples/qml/hello_qml.cpp)
-    target_link_libraries(hello_qml PRIVATE Nt::Qml)
-    nt_enable_automoc(hello_qml)
-    nt_set_compile_options(hello_qml)
-
-    # Renders each kind of chart to doc/images/charts, the pictures of the reference documentation:
-    #   cmake --build build --target chart_images
-    add_executable(render_charts examples/charts/render_charts.cpp)
-    target_link_libraries(render_charts PRIVATE Nt::Charts)
-    nt_set_compile_options(render_charts)
-    add_custom_target(chart_images
-        COMMAND render_charts "${CMAKE_CURRENT_SOURCE_DIR}/doc/images"
-        COMMENT "Rendering the charts to doc/images/charts"
-        VERBATIM)
-
-    # Shows an SVG file in a window, or converts what it draws; see "Using Nt SVG" in the documentation.
-    add_executable(svg_viewer examples/svg/svg_viewer.cpp)
-    target_link_libraries(svg_viewer PRIVATE Nt::SvgWidgets)
-    nt_set_compile_options(svg_viewer)
-
-    # An address book in an SQLite database; see "Using Nt SQL" in the documentation.
-    add_executable(contacts examples/sql/contacts.cpp)
-    target_link_libraries(contacts PRIVATE Nt::Sql)
-    nt_set_compile_options(contacts)
-
-    # A serial terminal; see "Using Nt Serial Port" in the documentation.
-    add_executable(serialterm examples/serialport/serialterm.cpp)
-    target_link_libraries(serialterm PRIVATE Nt::SerialPort)
-    nt_set_compile_options(serialterm)
-
-    # A push-to-talk switch; see "Using Nt GPIO" in the documentation.
-    add_executable(ptt examples/gpio/ptt.cpp)
-    target_link_libraries(ptt PRIVATE Nt::Gpio)
-    nt_set_compile_options(ptt)
-
-    # Prints what the gamepads do; see "Using Nt Gamepad" in the documentation.
-    add_executable(gamepadinfo examples/gamepad/gamepadinfo.cpp)
-    target_link_libraries(gamepadinfo PRIVATE Nt::Gamepad)
-    nt_set_compile_options(gamepadinfo)
-
-    # Prints what a glTF file holds; see "Using Nt glTF" in the documentation.
-    add_executable(gltfinfo examples/gltf/gltfinfo.cpp)
-    target_link_libraries(gltfinfo PRIVATE Nt::Gltf)
-    nt_set_compile_options(gltfinfo)
-
-    # Plays or renders FM sound effects; see "Using Nt FM" in the documentation.
-    # Lists audio devices and plays a tone; plays WAV files. See "Using Nt Multimedia" in the documentation.
-    add_executable(audiodevices examples/multimedia/audiodevices.cpp)
-    target_link_libraries(audiodevices PRIVATE Nt::Multimedia)
-    nt_set_compile_options(audiodevices)
-    add_executable(audioplayer examples/multimedia/audioplayer.cpp)
-    target_link_libraries(audioplayer PRIVATE Nt::Multimedia)
-    nt_set_compile_options(audioplayer)
-    add_executable(camera examples/multimedia/camera.cpp)
-    target_link_libraries(camera PRIVATE Nt::Multimedia)
-    nt_set_compile_options(camera)
-    add_executable(recorder examples/multimedia/recorder.cpp)
-    target_link_libraries(recorder PRIVATE Nt::Multimedia)
-    nt_set_compile_options(recorder)
-    add_executable(decoder examples/multimedia/decoder.cpp)
-    target_link_libraries(decoder PRIVATE Nt::Multimedia)
-    nt_set_compile_options(decoder)
-    add_executable(viewfinder examples/multimedia/viewfinder.cpp)
-    target_link_libraries(viewfinder PRIVATE Nt::MultimediaWidgets)
-    nt_set_compile_options(viewfinder)
-
-    add_executable(fmplay examples/fm/fmplay.cpp)
-    target_link_libraries(fmplay PRIVATE Nt::FM)
-    nt_set_compile_options(fmplay)
-
-    # Sound effects and music from a QML document; see "Using Nt FM" in the documentation.
-    add_executable(fmqml examples/fm/fmqml.cpp)
-    target_link_libraries(fmqml PRIVATE Nt::FMQml)
-    nt_set_compile_options(fmqml)
-
-    # An echo server and client; see "Using Nt WebSockets" in the documentation.
-    add_executable(websocket_echo examples/websockets/echo.cpp)
-    target_link_libraries(websocket_echo PRIVATE Nt::WebSockets)
-    nt_set_compile_options(websocket_echo)
-
-    # A small web service; see "Using Nt HTTP Server" in the documentation.
-    add_executable(hello_server examples/httpserver/hello_server.cpp)
-    target_link_libraries(hello_server PRIVATE Nt::HttpServer)
-    nt_set_compile_options(hello_server)
-
-    # A clock on the session bus; see "Using Nt D-Bus" in the documentation.
-    add_executable(dbus_clock examples/dbus/clock.cpp)
-    target_link_libraries(dbus_clock PRIVATE Nt::DBus)
-    nt_enable_automoc(dbus_clock)
-    nt_set_compile_options(dbus_clock)
-endif()

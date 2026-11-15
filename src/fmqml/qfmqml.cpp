@@ -77,7 +77,9 @@ Patch withOverrides(const Patch &patch, bool setLoop, bool loop, ChipType chip) 
     Nt FM QML makes FM sound effects and chip music declarative. Register the types once, then
     import \c QtFM in a document:
 
-    \snippet fm/fmqml.cpp register
+    \code
+    QtFM::registerQmlTypes(); // "import QtFM" in documents
+    \endcode
 
     See \l{Using Nt FM} for the sounds themselves.
 */
@@ -523,7 +525,22 @@ void FmEngine::poll() {
     then call play(). Each play() starts another voice; maxInstances caps how many run at once.
     pitch, gain and pan apply to the voices that play, smoothed, so they can be bound to the game:
 
-    \snippet fm/fmqml.cpp sound
+    \code
+    property FmSound coin: FmSound {
+        patch: FmPatch.generate(FmPatch.Pickup, 3)
+        pitchVariance: 1            // +/- semitones per play
+        maxInstances: 4
+    }
+    property FmSound engineHum: FmSound {
+        patch: FmPatch.generate(FmPatch.Engine, 42)
+        loop: true
+        pitch: game.speed / 10      // bound live, smoothed on the audio thread
+    }
+    property FmSound laser: FmSound {
+        patch: FmPatch.generate(FmPatch.Laser, 4, FmChip.OPL2)
+        chip: FmChip.OPL2           // played on the emulated AdLib
+    }
+    \endcode
 
     Setting chip to FmChip.OPL2 or FmChip.OPL3 plays the sound on the emulated chip; FmChip.None,
     the default, on the native engine.
@@ -949,7 +966,10 @@ void FmSound::updatePlaying() {
     \inmodule NtFMQml
     \brief The FmSoundBank type loads a bank of patches, by name.
 
-    \snippet fm/fmqml.cpp bank
+    \code
+    property FmSoundBank bank: FmSoundBank { source: "sfx.json" }
+    property FmSound blip: FmSound { patch: game.bank.sound("blip") }
+    \endcode
 
     \differences
     Banks load from JSON files only: CBOR and IBK banks are read from C++ with QtFM::PatchBank.
@@ -1040,7 +1060,18 @@ FmPatchValue *FmSoundBank::sound(const QString &name) const { return new FmPatch
     \c patch from FmPatch, and optionally \c pitch (semitones), \c length (beats) and \c gain (dB).
     Every note starts on its exact sample.
 
-    \snippet fm/fmqml.cpp sequence
+    \code
+    property FmSequence jingle: FmSequence {
+        bank: game.bank
+        tempo: 160
+        notes: [
+            { beat: 0, sound: "coin" },
+            { beat: 0.5, sound: "coin", pitch: 4 },
+            { beat: 1, sound: "coin", pitch: 7 },
+            { beat: 1.5, sound: "coin", pitch: 12, gain: -3 }
+        ]
+    }
+    \endcode
 
     \differences
     A looping sequence is restarted by a timer, so its repeats are not sample-accurate.
@@ -1231,7 +1262,12 @@ void FmSequence::stop() {
     \inmodule NtFMQml
     \brief The FmMusic type plays chip music: VGM, VGZ, DRO and IMF files.
 
-    \snippet fm/fmqml.cpp music
+    \code
+    property FmMusic music: FmMusic {
+        source: Qt.application.arguments.length > 1 ? Qt.application.arguments[1] : ""
+        loops: false
+    }
+    \endcode
 
     \differences
     The engine has one music player: playing an FmMusic stops any other.

@@ -688,7 +688,23 @@ PatchBank PatchBank::generalMidi(ChipType chip) {
     \e n, the patch named \c{program-n} if the bank has one, else the patch of its General MIDI
     family; on channel 10, \c{drum-k} for key \e k, else the kit's drum for that key.
 
-    \snippet fm/fmplay.cpp midi
+    \code
+    QString error;
+    const MidiFile song = MidiFile::fromData(data, &error);
+    if (!song.isValid()) {
+        std::fprintf(stderr, "fmplay: %s\n", qPrintable(error));
+        return 1;
+    }
+    EngineConfig config;
+    config.sampleRate = rate;
+    config.maxVoices = 64; // one voice per sounding note
+    if (chip == ChipType::OPL2 || chip == ChipType::OPL3)
+        config.chips = {ChipType::OPL3}; // eighteen channels, like a Sound Blaster 16
+    Engine engine(config);
+    MidiPlayer player(&engine);
+    player.setInstruments(PatchBank::generalMidi(chip)); // the native bank for ChipType::None
+    player.setFile(song);
+    \endcode
 
     For an engine that is not started, call schedule() before each Engine::render().
 

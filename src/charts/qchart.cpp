@@ -26,7 +26,18 @@ using QtChartsPrivate::ChartEngine;
 
     Add series to a chart, give them axes, and show the chart in a QChartView:
 
-    \snippet charts/dashboard.cpp line
+    \code
+    auto *series = new QLineSeries;
+    series->setName("CPU");
+    for (int t = 0; t < 60; ++t)
+        series->append(t, sample(t));
+
+    auto *chart = new QChart;
+    chart->setTitle("Load");
+    chart->addSeries(series);
+    chart->createDefaultAxes();
+    chart->axes(Qt::Vertical).first()->setRange(0, 100);
+    \endcode
 
     The chart owns its series and axes. A series without axes is drawn against a scale that fits its data;
     createDefaultAxes() makes a pair of axes that fit all series, and addAxis() with
@@ -522,7 +533,15 @@ QSizeF QChart::size() const { return m_geometry.size(); }
     Draws the chart with \a painter, at its geometry(). This draws a chart on an image or a printer without
     a view:
 
-    \snippet charts/dashboard.cpp image
+    \code
+    chart->resize(QSizeF(640, 400));
+    QImage image(640, 400, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    QPainter painter(&image);
+    chart->paint(&painter);
+    painter.end();
+    image.save(argv[2]);
+    \endcode
 */
 void QChart::paint(QPainter *painter) { ChartEngine::paint(this, painter); }
 

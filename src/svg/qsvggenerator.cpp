@@ -20,7 +20,32 @@
     Set where the document goes and how large the drawing is, then paint on the generator as on any other
     device. The document is complete when the painter ends:
 
-    \snippet svg/svg_viewer.cpp generate
+    \code
+    static bool paintPicture(QPaintDevice *device) {
+        QPainter painter(device);
+        if (!painter.isActive())
+            return false;
+        painter.fillRect(0, 0, 240, 160, QColor(250, 250, 245));
+        painter.setPen(QPen(QColor(40, 60, 90), 3));
+        painter.setBrush(QColor(120, 170, 220));
+        painter.drawRect(20, 20, 120, 80);
+        painter.setBrush(QColor(240, 180, 60));
+        painter.drawEllipse(110, 60, 100, 80);
+        painter.setPen(QColor(40, 60, 90));
+        painter.drawLine(20, 140, 100, 140);
+        return true;
+    }
+
+    static bool writePicture(const QString &fileName) {
+        QSvgGenerator generator;
+        generator.setFileName(fileName);
+        generator.setSize(QSize(240, 160));
+        generator.setViewBox(QRect(0, 0, 240, 160));
+        generator.setTitle("A picture");
+        generator.setDescription("Painted with QPainter on a QSvgGenerator.");
+        return paintPicture(&generator); // the document is complete when the painter is destroyed
+    }
+    \endcode
 
     Rectangles, lines, points and ellipses are written as the SVG elements of the same names, with the
     coordinates and pen widths in pixels that the painter gives them, so that the document looks like the

@@ -179,7 +179,34 @@ public:
 
     Set a source and start(); read() each buffer as bufferReady() announces it:
 
-    \snippet multimedia/decoder.cpp decode
+    \code
+    QAudioDecoder decoder;
+    QAudioFormat format;
+    format.setSampleRate(16000);
+    format.setChannelCount(1);
+    format.setSampleFormat(QAudioFormat::Float);
+    decoder.setAudioFormat(format);
+    decoder.setSource(QUrl::fromLocalFile(app.arguments().at(1)));
+    float peak = 0.0f;
+    qint64 frames = 0;
+    QObject::connect(&decoder, &QAudioDecoder::bufferReady, [&] {
+        const QAudioBuffer buffer = decoder.read();
+        const auto *samples = buffer.constData<QAudioBuffer::F32M>();
+        for (qsizetype i = 0; i < buffer.frameCount(); ++i)
+            peak = std::max(peak, std::fabs(samples[i].channels[0]));
+        frames += buffer.frameCount();
+    });
+    QObject::connect(&decoder, &QAudioDecoder::finished, [&] {
+        std::printf("%lld frames, %lld ms, peak %.3f\n", static_cast<long long>(frames),
+                    static_cast<long long>(decoder.duration()), double(peak));
+        QCoreApplication::quit();
+    });
+    QObject::connect(&decoder, qOverload<QAudioDecoder::Error>(&QAudioDecoder::error), [&](QAudioDecoder::Error) {
+        std::printf("cannot decode: %s\n", qPrintable(decoder.errorString()));
+        QCoreApplication::exit(1);
+    });
+    decoder.start();
+    \endcode
 
     The decoder works from the event loop, keeping a few buffers ahead of what has been read.
 

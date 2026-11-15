@@ -247,7 +247,25 @@ public:
         Adds a rule for \a pathPattern that accepts any known method and calls
         \a handler:
 
-        \snippet httpserver/hello_server.cpp routes
+        \code
+        // A fixed path.
+        server.route("/", [] { return "Hello from Nt HTTP Server\n"; });
+
+        // <arg> becomes the parameter: a QString takes one path segment.
+        server.route("/hello/<arg>", [](const QString &name) { return QString("Hello, %1!\n").arg(name); });
+
+        // A number must fit the type, so /square/abc and /square/99999999999 do not match.
+        server.route("/square/<arg>", [](int n) { return QJsonObject{{"n", n}, {"square", qint64(n) * n}}; });
+
+        // Only POST, with access to the request.
+        server.route("/add", QHttpServerRequest::Method::Post, [](const QHttpServerRequest &request) {
+            const QJsonObject in = QJsonDocument::fromJson(request.body()).object();
+            if (!in.contains("a") || !in.contains("b"))
+                return QHttpServerResponse("expected {\"a\": number, \"b\": number}\n",
+                                           QHttpServerResponse::StatusCode::BadRequest);
+            return QHttpServerResponse(QJsonObject{{"sum", in.value("a").toDouble() + in.value("b").toDouble()}});
+        });
+        \endcode
     */
     template <typename Functor> QHttpServerRouterRule *route(const QString &pathPattern, Functor &&handler) {
         static_assert(!std::is_member_function_pointer_v<std::decay_t<Functor>>,
@@ -268,7 +286,13 @@ public:
         Responses that a handler writes through a QHttpServerResponder do not
         pass through these handlers.
 
-        \snippet httpserver/hello_server.cpp after
+        \code
+        server.addAfterRequestHandler(&server, [](const QHttpServerRequest &, QHttpServerResponse &response) {
+            QHttpHeaders headers = response.headers();
+            headers.append(QHttpHeaders::WellKnownHeader::Server, "hello_server (Nt)");
+            response.setHeaders(std::move(headers));
+        });
+        \endcode
     */
     template <typename Functor> void addAfterRequestHandler(const QObject *context, Functor &&slot) {
         using F = std::decay_t<Functor>;

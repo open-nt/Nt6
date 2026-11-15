@@ -116,7 +116,15 @@ QList<quint16> QAbstractHttpServer::serverPorts() const {
     A server without a parent becomes a child of this object. Several
     servers can be bound, for example one for HTTP and one for HTTPS.
 
-    \snippet httpserver/hello_server.cpp bind
+    \code
+    auto *tcpServer = new QTcpServer;
+    if (!tcpServer->listen(QHostAddress::LocalHost, port) || !server.bind(tcpServer)) {
+        std::fprintf(stderr, "cannot listen on port %u: %s\n", port, qPrintable(tcpServer->errorString()));
+        delete tcpServer;
+        return 1;
+    }
+    std::printf("listening on http://127.0.0.1:%u/\n", tcpServer->serverPort());
+    \endcode
 
     \sa servers(), serverPorts()
 */

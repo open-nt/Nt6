@@ -43,22 +43,22 @@
     target_link_libraries(app PRIVATE Nt::Core Nt::Network)
     \endcode
 
-    \c examples/zephyr/hello is a complete application, a timer and a TCP echo server on one
-    event loop:
+    \c zephyr/hello in the \l{Nt Examples}{examples repository} is a complete application, a timer and a TCP echo
+    server on one event loop. The examples repository is not a west workspace, so name a checkout of Nt as a module:
 
     \code
-    west build -b mimxrt1170_evk/mimxrt1176/cm7 examples/zephyr/hello
+    west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/hello -- -DNT_ROOT=/path/to/Nt
     \endcode
 
     \section1 Running in QEMU
 
-    \c examples/zephyr/qemu needs no hardware. It checks JSON, a timer, TCP and TLS connections
+    \c zephyr/qemu in the examples repository needs no hardware. It checks JSON, a timer, TCP and TLS connections
     to itself over the loopback interface and a worker thread that calls back into the main
     thread, prints \c PASS or \c FAIL for each, and serves a web page with the results. With \c qemu-system-arm installed, for
     example from the host tools of the Zephyr SDK:
 
     \code
-    west build -b mps2/an385 examples/zephyr/qemu -t run
+    west build -b mps2/an385 zephyr/qemu -t run -- -DNT_ROOT=/path/to/Nt
     \endcode
 
     \code
@@ -99,7 +99,7 @@
     frame of that length does not fit. A browser sends such a frame at once, because its request
     carries its cookies for localhost, and the board then never answers again, while a small
     request from \c curl works. The sample avoids it by setting the MTU to 1498, whose largest frame
-    is a multiple of four bytes (\c examples/zephyr/qemu/src/board.cpp). An application of your own
+    is a multiple of four bytes (\c zephyr/qemu/src/board.cpp in the examples repository). An application of your own
     that serves to a browser through the emulated controller needs the same; a board with another
     Ethernet controller does not.
 
@@ -122,7 +122,7 @@
     after that. A board with another Ethernet controller starts without those sleeps. The times
     are those of the emulated processor on one machine, not of real hardware.
 
-    The code is in \c examples/zephyr/qemu/src/webpage.cpp: four routes on a QHttpServer, bound
+    The code is in \c zephyr/qemu/src/webpage.cpp: four routes on a QHttpServer, bound
     to a QTcpServer, with the page built from a string. It shows the Nt logo, which the server
     sends from \c{/logo.svg} unchanged and the page also uses as its icon. The checks stay in the sample's
     \c main.cpp and report to the page with \c recordResult().

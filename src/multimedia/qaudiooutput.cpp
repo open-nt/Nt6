@@ -9,7 +9,22 @@
     \inmodule NtMultimedia
     \brief The QAudioOutput class sets the device and volume a QMediaPlayer plays on.
 
-    \snippet multimedia/audioplayer.cpp player
+    \code
+    auto *player = new QMediaPlayer(qApp);
+    auto *output = new QAudioOutput(qApp);
+    output->setVolume(0.5f);
+    player->setAudioOutput(output);
+    QObject::connect(player, &QMediaPlayer::positionChanged, [player](qint64 position) {
+        std::printf("\r%lld / %lld ms", static_cast<long long>(position), static_cast<long long>(player->duration()));
+        std::fflush(stdout);
+    });
+    QObject::connect(player, &QMediaPlayer::mediaStatusChanged, [](QMediaPlayer::MediaStatus status) {
+        if (status == QMediaPlayer::EndOfMedia)
+            QCoreApplication::quit();
+    });
+    player->setSource(QUrl::fromLocalFile(file));
+    player->play();
+    \endcode
 
     \differences
     None.

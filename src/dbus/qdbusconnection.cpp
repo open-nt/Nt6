@@ -26,7 +26,7 @@
     and system buses and to peers, exporting objects, calling remote objects and receiving
     their signals.
 
-    See \l{Using Nt D-Bus} for a walk through, and \c{examples/dbus/clock.cpp} for a complete
+    See \l{Using Nt D-Bus} for a walk through, and \c{dbus/clock.cpp} in the \l{Nt Examples}{examples repository} for a complete
     program.
 */
 
@@ -54,7 +54,20 @@
     \c DBUS_SESSION_BUS_ADDRESS, or \c{$XDG_RUNTIME_DIR/bus}. Check the connection before using
     it:
 
-    \snippet dbus/clock.cpp server
+    \code
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected()) {
+        std::fprintf(stderr, "No session bus: %s\n", qPrintable(bus.lastError().message()));
+        return 1;
+    }
+    auto *clock = new Clock;
+    new ClockAdaptor(clock);
+    bus.registerObject("/clock", clock);
+    if (!bus.registerService("org.example.Clock")) {
+        std::fprintf(stderr, "org.example.Clock is taken: %s\n", qPrintable(bus.lastError().message()));
+        return 1;
+    }
+    \endcode
 
     Nt starts one thread that reads and writes the sockets of all connections. Replies and
     signals are delivered to objects through the event loops of the threads they live in, so
@@ -65,7 +78,40 @@
     An adaptor is a small class that a QObject owns. Its public slots, signals and properties
     form one D-Bus interface, named by the \c{"D-Bus Interface"} class information:
 
-    \snippet dbus/clock.cpp adaptor
+    \code
+    class Clock : public QObject {
+        Q_OBJECT
+    public:
+        QString now() const { return QDateTime::currentDateTime().toString(Qt::ISODate); }
+    signals:
+        void alarm(const QString &message);
+    };
+
+    class ClockAdaptor : public QDBusAbstractAdaptor {
+        Q_OBJECT
+        Q_CLASSINFO("D-Bus Interface", "org.example.Clock")
+        Q_PROPERTY(int volume READ volume WRITE setVolume)
+    public:
+        explicit ClockAdaptor(Clock *clock) : QDBusAbstractAdaptor(clock), m_clock(clock) {
+            setAutoRelaySignals(true); // Clock::alarm() is emitted as ClockAdaptor::alarm()
+        }
+        int volume() const { return m_volume; }
+        void setVolume(int volume) { m_volume = volume; }
+
+    public slots:
+        QString Now() { return m_clock->now(); }
+        void SetAlarm(int seconds, const QString &message) {
+            QTimer::singleShot(seconds * 1000, m_clock, [this, message] { emit m_clock->alarm(message); });
+        }
+
+    signals:
+        void alarm(const QString &message);
+
+    private:
+        Clock *m_clock;
+        int m_volume = 5;
+    };
+    \endcode
 
     Register the object with QDBusConnection::registerObject() and claim a name with
     QDBusConnection::registerService(). The bus then routes calls to the object, and the
@@ -80,12 +126,36 @@
 
     QDBusInterface calls methods by name, and reads and writes properties:
 
-    \snippet dbus/clock.cpp client
+    \code
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    QDBusInterface clock("org.example.Clock", "/clock", "org.example.Clock", bus);
+    QDBusReply<QString> now = clock.call("Now");
+    if (!now.isValid()) {
+        std::fprintf(stderr, "Cannot reach the clock: %s\n", qPrintable(now.error().message()));
+        return 1;
+    }
+    std::printf("It is %s, volume %d\n", qPrintable(now.value()), clock.property("volume").toInt());
+    \endcode
 
     For an interface used often, a subclass of QDBusAbstractInterface gives typed methods, and
     its signals are emitted when the remote object emits them:
 
-    \snippet dbus/clock.cpp proxy
+    \code
+    class ClockInterface : public QDBusAbstractInterface {
+        Q_OBJECT
+    public:
+        explicit ClockInterface(const QDBusConnection &connection, QObject *parent = nullptr)
+            : QDBusAbstractInterface("org.example.Clock", "/clock", "org.example.Clock", connection, parent) {}
+
+        QDBusPendingReply<QString> Now() { return asyncCall("Now"); }
+        QDBusPendingReply<> SetAlarm(int seconds, const QString &message) {
+            return asyncCall("SetAlarm", seconds, message);
+        }
+
+    signals:
+        void alarm(const QString &message); // emitted when the remote clock emits it
+    };
+    \endcode
 
     \c call() blocks; \c asyncCall() returns a QDBusPendingCall, which a
     QDBusPendingCallWatcher reports on. QDBusReply and QDBusPendingReply convert the reply to
@@ -131,11 +201,33 @@
     peer. Through it a program calls methods of remote objects, exports objects of its own,
     claims service names and receives signals:
 
-    \snippet dbus/clock.cpp server
+    \code
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    if (!bus.isConnected()) {
+        std::fprintf(stderr, "No session bus: %s\n", qPrintable(bus.lastError().message()));
+        return 1;
+    }
+    auto *clock = new Clock;
+    new ClockAdaptor(clock);
+    bus.registerObject("/clock", clock);
+    if (!bus.registerService("org.example.Clock")) {
+        std::fprintf(stderr, "org.example.Clock is taken: %s\n", qPrintable(bus.lastError().message()));
+        return 1;
+    }
+    \endcode
 
     A client calls the exported object:
 
-    \snippet dbus/clock.cpp client
+    \code
+    QDBusConnection bus = QDBusConnection::sessionBus();
+    QDBusInterface clock("org.example.Clock", "/clock", "org.example.Clock", bus);
+    QDBusReply<QString> now = clock.call("Now");
+    if (!now.isValid()) {
+        std::fprintf(stderr, "Cannot reach the clock: %s\n", qPrintable(now.error().message()));
+        return 1;
+    }
+    std::printf("It is %s, volume %d\n", qPrintable(now.value()), clock.property("volume").toInt());
+    \endcode
 
     QDBusConnection is a handle to a shared connection: copies refer to the same one, and it can
     be used from any thread. Connections to a bus are identified by a name, so

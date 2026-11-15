@@ -1045,7 +1045,19 @@ using QtQmlPrivate::EngineData;
     in which components are made. Make objects with QQmlComponent, or use QQmlApplicationEngine, which
     loads a document and keeps its objects:
 
-    \snippet qml/hello_qml.cpp component
+    \code
+    QQmlEngine engine;
+    engine.rootContext()->setContextProperty("greeting", QStringLiteral("hello"));
+    QObject::connect(&engine, &QQmlEngine::quit, &app, &QCoreApplication::quit);
+
+    QQmlComponent component(&engine);
+    component.setData(document, QUrl(QStringLiteral("file:///home.qml")));
+    QObject *home = component.create();
+    if (!home) {
+        qWarning().noquote() << component.errorString();
+        return 1;
+    }
+    \endcode
 
     The engine is a QJSEngine whose global object has \c console, \c print(), \c qsTr() and the \c Qt
     object: \c{Qt.binding()}, \c{Qt.callLater()}, \c{Qt.quit()}, \c{Qt.point()}, \c{Qt.size()},

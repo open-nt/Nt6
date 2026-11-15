@@ -17,7 +17,11 @@ using QtChartsPrivate::ChartEngine;
 
     The view draws its chart over its whole area, and resizes the chart with it. It owns the chart.
 
-    \snippet charts/dashboard.cpp view
+    \code
+    auto *view = new QChartView(lineChart(&live));
+    view->setRubberBand(QChartView::HorizontalRubberBand);
+    grid->addWidget(view, 0, 0);
+    \endcode
 
     The mouse reaches the series: clicking a bar emits QBarSet::clicked(), hovering over a slice emits
     QPieSlice::hovered(), and so on. With setRubberBand(), dragging with the left button zooms into the

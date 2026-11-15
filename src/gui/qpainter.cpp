@@ -164,7 +164,28 @@ struct QPainter::Data {
     join and dash styles of the pen and the gradients of the brush. With the Antialiasing render hint their
     edges are smooth:
 
-    \snippet gui/painting.cpp flower
+    \code
+    QPainterPath petal;
+    petal.moveTo(0, 0);
+    petal.cubicTo(30, -40, 90, -40, 120, 0);
+    petal.cubicTo(90, 40, 30, 40, 0, 0);
+
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.translate(size.width() / 2, size.height() / 2);
+    painter.scale(size.height() / 300, size.height() / 300);
+    painter.rotate(phase);
+    for (int i = 0; i < 12; ++i) {
+        QRadialGradient shade(QPointF(60, 0), 60);
+        shade.setColorAt(0, QColor::fromHsv(i * 30, 160, 255));
+        shade.setColorAt(1, QColor::fromHsv(i * 30, 255, 170));
+        painter.setPen(QPen(QColor(60, 30, 60), 1.5));
+        painter.setBrush(shade);
+        painter.drawPath(petal);
+        painter.rotate(30);
+    }
+    painter.setBrush(QColor(250, 210, 60));
+    painter.drawEllipse(QPointF(0, 0), 22, 22);
+    \endcode
 
     \image painter/flower.png A flower of Bezier petals, rotated around a center
 

@@ -142,7 +142,17 @@ bool QCameraFormat::operator==(const QCameraFormat &other) const {
 
     QMediaDevices::videoInputs() lists the cameras:
 
-    \snippet multimedia/camera.cpp devices
+    \code
+    for (const QCameraDevice &device : QMediaDevices::videoInputs()) {
+        std::printf("%s%s: %s\n", device.isDefault() ? "(default) " : "", device.id().constData(),
+                    qPrintable(device.description()));
+        for (const QCameraFormat &format : device.videoFormats())
+            std::printf("    %s %dx%d %.0f-%.0f fps\n",
+                        qPrintable(QVideoFrameFormat::pixelFormatToString(format.pixelFormat())),
+                        format.resolution().width(), format.resolution().height(), double(format.minFrameRate()),
+                        double(format.maxFrameRate()));
+    }
+    \endcode
 
     \differences
     Linux cameras report no position, so position() is UnspecifiedPosition. photoResolutions() lists

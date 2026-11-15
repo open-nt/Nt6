@@ -13,7 +13,15 @@
     opens the connection in the \c Origin header, so a server that only
     serves its own pages can refuse the others:
 
-    \snippet websockets/echo.cpp origin
+    \code
+    // Browsers send the origin of the page; refuse pages from other sites.
+    QObject::connect(&server, &QWebSocketServer::originAuthenticationRequired,
+                     [](QWebSocketCorsAuthenticator *authenticator) {
+                         const QString origin = authenticator->origin();
+                         authenticator->setAllowed(origin.isEmpty() || origin.startsWith("http://127.0.0.1") ||
+                                                   origin.startsWith("http://localhost"));
+                     });
+    \endcode
 
     \differences
     None.

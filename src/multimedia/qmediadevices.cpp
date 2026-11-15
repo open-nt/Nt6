@@ -44,14 +44,39 @@
 
     QSoundEffect loads a WAV file once and plays it with little latency, as often as it is asked to:
 
-    \snippet multimedia/audioplayer.cpp effect
+    \code
+    auto *effect = new QSoundEffect(qApp);
+    effect->setSource(QUrl::fromLocalFile(file));
+    effect->setLoopCount(times);
+    effect->setVolume(0.8f);
+    QObject::connect(effect, &QSoundEffect::playingChanged, effect, [effect] {
+        if (!effect->isPlaying())
+            QCoreApplication::quit();
+    });
+    effect->play();
+    \endcode
 
     \section1 Playing Files
 
     QMediaPlayer plays a file through a QAudioOutput, which sets the device and volume, and reports
     its position and state:
 
-    \snippet multimedia/audioplayer.cpp player
+    \code
+    auto *player = new QMediaPlayer(qApp);
+    auto *output = new QAudioOutput(qApp);
+    output->setVolume(0.5f);
+    player->setAudioOutput(output);
+    QObject::connect(player, &QMediaPlayer::positionChanged, [player](qint64 position) {
+        std::printf("\r%lld / %lld ms", static_cast<long long>(position), static_cast<long long>(player->duration()));
+        std::fflush(stdout);
+    });
+    QObject::connect(player, &QMediaPlayer::mediaStatusChanged, [](QMediaPlayer::MediaStatus status) {
+        if (status == QMediaPlayer::EndOfMedia)
+            QCoreApplication::quit();
+    });
+    player->setSource(QUrl::fromLocalFile(file));
+    player->play();
+    \endcode
 
     QMediaPlayer::setPlaybackRate() plays faster or slower; the pitch changes with the speed.
 
@@ -60,22 +85,78 @@
     QAudioSink plays samples in a QAudioFormat. In pull mode it reads them from a QIODevice; in push
     mode start() returns a device to write them to. QAudioSource records the same way:
 
-    \snippet multimedia/audiodevices.cpp tone
+    \code
+    QAudioFormat format;
+    format.setSampleRate(48000);
+    format.setChannelCount(1);
+    format.setSampleFormat(QAudioFormat::Int16);
+
+    QByteArray samples(format.bytesForDuration(1000000), Qt::Uninitialized);
+    auto *data = reinterpret_cast<qint16 *>(samples.data());
+    for (int i = 0; i < format.sampleRate(); ++i)
+        data[i] = qint16(8000 * std::sin(2 * M_PI * 440 * i / format.sampleRate()));
+
+    QBuffer buffer(&samples);
+    buffer.open(QIODevice::ReadOnly);
+    QAudioSink sink(format);
+    QObject::connect(&sink, &QAudioSink::stateChanged, [&](QtAudio::State state) {
+        if (state == QtAudio::IdleState) { // played to the end
+            sink.stop();
+            if (!watch)
+                QCoreApplication::quit();
+        }
+    });
+    sink.start(&buffer);
+    \endcode
 
     \section1 Devices
 
     QMediaDevices lists the inputs and outputs, and tells when they change:
 
-    \snippet multimedia/audiodevices.cpp list
+    \code
+    for (const QAudioDevice &device : QMediaDevices::audioOutputs()) {
+        std::printf("output %s%s: %s\n", device.isDefault() ? "(default) " : "", device.id().constData(),
+                    qPrintable(device.description()));
+    }
+    for (const QAudioDevice &device : QMediaDevices::audioInputs()) {
+        std::printf("input  %s%s: %s\n", device.isDefault() ? "(default) " : "", device.id().constData(),
+                    qPrintable(device.description()));
+    }
+    \endcode
 
     \section1 Cameras
 
     A QCamera in a QMediaCaptureSession streams frames to a QVideoSink. Each QVideoFrame can be mapped
     to read its planes, or turned into a QImage:
 
-    \snippet multimedia/camera.cpp camera
+    \code
+    QMediaCaptureSession session;
+    QCamera camera;
+    QVideoSink sink;
+    QImageCapture imageCapture;
+    session.setCamera(&camera);
+    session.setVideoSink(&sink);
+    session.setImageCapture(&imageCapture);
+    QObject::connect(&camera, &QCamera::errorOccurred, [](QCamera::Error, const QString &message) {
+        std::printf("camera error: %s\n", qPrintable(message));
+        QCoreApplication::exit(1);
+    });
+    camera.start();
+    \endcode
 
-    \snippet multimedia/camera.cpp frames
+    \code
+    int frames = 0;
+    QObject::connect(&sink, &QVideoSink::videoFrameChanged, [&frames](const QVideoFrame &frame) {
+        if (frames++ == 0) {
+            QVideoFrame mapped = frame;
+            mapped.map(QVideoFrame::ReadOnly);
+            std::printf("first frame: %dx%d %s, %d plane(s), %d bytes a line\n", frame.width(), frame.height(),
+                        qPrintable(QVideoFrameFormat::pixelFormatToString(frame.pixelFormat())), mapped.planeCount(),
+                        mapped.bytesPerLine(0));
+            mapped.unmap();
+        }
+    });
+    \endcode
 
     QMediaDevices::videoInputs() lists the cameras and QCameraDevice::videoFormats() what each can
     stream; QCamera::setCameraFormat() chooses one.
@@ -84,20 +165,44 @@
 
     QVideoWidget, in Nt Multimedia Widgets (\c Nt::MultimediaWidgets), shows the frames in a window:
 
-    \snippet multimedia/viewfinder.cpp viewfinder
+    \code
+    auto *video = new QVideoWidget;
+    QMediaCaptureSession session;
+    QCamera camera;
+    session.setCamera(&camera);
+    session.setVideoOutput(video);
+    camera.start();
+    \endcode
 
     \section1 Taking Pictures
 
     A QImageCapture in the same session takes the next frame as a picture, and can save it as a JPEG
     or PNG file:
 
-    \snippet multimedia/camera.cpp capture
+    \code
+    QObject::connect(&imageCapture, &QImageCapture::imageSaved,
+                     [](int, const QString &fileName) { std::printf("saved %s\n", qPrintable(fileName)); });
+    QTimer::singleShot(seconds * 1000, &imageCapture,
+                       [&imageCapture] { imageCapture.captureToFile(QDir::currentPath()); });
+    \endcode
 
     \section1 Recording Audio
 
     A QMediaRecorder records the session's QAudioInput to a WAV file:
 
-    \snippet multimedia/recorder.cpp record
+    \code
+    QMediaCaptureSession session;
+    QAudioInput input;
+    QMediaRecorder recorder;
+    session.setAudioInput(&input);
+    session.setRecorder(&recorder);
+    recorder.setOutputLocation(QUrl::fromLocalFile(args.at(1)));
+    QObject::connect(&recorder, &QMediaRecorder::durationChanged, [](qint64 ms) {
+        std::printf("\r%lld ms", static_cast<long long>(ms));
+        std::fflush(stdout);
+    });
+    recorder.record();
+    \endcode
 
     QMediaRecorder::setMetaData() writes a title, artist, date and other text tags into the file;
     QMediaPlayer::metaData() reads them back.
@@ -107,14 +212,49 @@
     A session with both a QAudioInput and a QAudioOutput plays the input back on the output, with
     about a tenth of a second of delay:
 
-    \snippet multimedia/viewfinder.cpp monitor
+    \code
+    QAudioInput microphone;
+    QAudioOutput speakers;
+    auto *monitor = new QCheckBox(QStringLiteral("Hear the microphone"));
+    QObject::connect(monitor, &QCheckBox::toggled, &session, [&](bool on) {
+        session.setAudioInput(on ? &microphone : nullptr);
+        session.setAudioOutput(on ? &speakers : nullptr);
+    });
+    \endcode
 
     \section1 Decoding Audio
 
     QAudioDecoder reads a WAV file into QAudioBuffer blocks, converted to the sample format and
     channel count asked for:
 
-    \snippet multimedia/decoder.cpp decode
+    \code
+    QAudioDecoder decoder;
+    QAudioFormat format;
+    format.setSampleRate(16000);
+    format.setChannelCount(1);
+    format.setSampleFormat(QAudioFormat::Float);
+    decoder.setAudioFormat(format);
+    decoder.setSource(QUrl::fromLocalFile(app.arguments().at(1)));
+    float peak = 0.0f;
+    qint64 frames = 0;
+    QObject::connect(&decoder, &QAudioDecoder::bufferReady, [&] {
+        const QAudioBuffer buffer = decoder.read();
+        const auto *samples = buffer.constData<QAudioBuffer::F32M>();
+        for (qsizetype i = 0; i < buffer.frameCount(); ++i)
+            peak = std::max(peak, std::fabs(samples[i].channels[0]));
+        frames += buffer.frameCount();
+    });
+    QObject::connect(&decoder, &QAudioDecoder::finished, [&] {
+        std::printf("%lld frames, %lld ms, peak %.3f\n", static_cast<long long>(frames),
+                    static_cast<long long>(decoder.duration()), double(peak));
+        QCoreApplication::quit();
+    });
+    QObject::connect(&decoder, qOverload<QAudioDecoder::Error>(&QAudioDecoder::error), [&](QAudioDecoder::Error) {
+        std::printf("cannot decode: %s\n", qPrintable(decoder.errorString()));
+        QCoreApplication::exit(1);
+    });
+    decoder.start();
+    \endcode
 
     \section1 What Is Missing
 
@@ -193,7 +333,16 @@ public:
     audioInputsChanged(), audioOutputsChanged() and videoInputsChanged() when a device is plugged in
     or removed:
 
-    \snippet multimedia/audiodevices.cpp list
+    \code
+    for (const QAudioDevice &device : QMediaDevices::audioOutputs()) {
+        std::printf("output %s%s: %s\n", device.isDefault() ? "(default) " : "", device.id().constData(),
+                    qPrintable(device.description()));
+    }
+    for (const QAudioDevice &device : QMediaDevices::audioInputs()) {
+        std::printf("input  %s%s: %s\n", device.isDefault() ? "(default) " : "", device.id().constData(),
+                    qPrintable(device.description()));
+    }
+    \endcode
 
     \differences
     On Linux changes are noticed by watching \c{/dev/snd} and \c{/dev}, so a change of the default

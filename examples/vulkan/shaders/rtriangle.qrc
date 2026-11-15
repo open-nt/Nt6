@@ -1,7 +1,0 @@
-<RCC>
-    <qresource prefix="/shaders">
-        <file>rtriangle.rgen.spv</file>
-        <file>rtriangle.rmiss.spv</file>
-        <file>rtriangle.rchit.spv</file>
-    </qresource>
-</RCC>

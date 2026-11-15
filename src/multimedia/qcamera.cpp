@@ -123,7 +123,20 @@ void QCameraPrivate::deliver() {
     Put a camera in a QMediaCaptureSession with a QVideoSink to get its frames, or a QImageCapture to
     take pictures, then start it:
 
-    \snippet multimedia/camera.cpp camera
+    \code
+    QMediaCaptureSession session;
+    QCamera camera;
+    QVideoSink sink;
+    QImageCapture imageCapture;
+    session.setCamera(&camera);
+    session.setVideoSink(&sink);
+    session.setImageCapture(&imageCapture);
+    QObject::connect(&camera, &QCamera::errorOccurred, [](QCamera::Error, const QString &message) {
+        std::printf("camera error: %s\n", qPrintable(message));
+        QCoreApplication::exit(1);
+    });
+    camera.start();
+    \endcode
 
     Without a format set, the camera streams the largest picture up to 1080p that it can send at
     24 frames a second or more.

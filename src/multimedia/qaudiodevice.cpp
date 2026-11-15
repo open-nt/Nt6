@@ -11,7 +11,16 @@
     QMediaDevices lists the devices; pass one to QAudioSink, QAudioSource, QSoundEffect or
     QAudioOutput to use it instead of the default:
 
-    \snippet multimedia/audiodevices.cpp list
+    \code
+    for (const QAudioDevice &device : QMediaDevices::audioOutputs()) {
+        std::printf("output %s%s: %s\n", device.isDefault() ? "(default) " : "", device.id().constData(),
+                    qPrintable(device.description()));
+    }
+    for (const QAudioDevice &device : QMediaDevices::audioInputs()) {
+        std::printf("input  %s%s: %s\n", device.isDefault() ? "(default) " : "", device.id().constData(),
+                    qPrintable(device.description()));
+    }
+    \endcode
 
     A default-constructed QAudioDevice is null. Copies share their data.
 

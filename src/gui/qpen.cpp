@@ -16,7 +16,25 @@
 
     \image painter/pens.png Lines with flat, square and round caps and dashes, and arcs of a gauge
 
-    \snippet gui/painting.cpp pens
+    \code
+    painter.setRenderHint(QPainter::Antialiasing);
+    const Qt::PenCapStyle caps[3] = {Qt::FlatCap, Qt::SquareCap, Qt::RoundCap};
+    const Qt::PenStyle styles[3] = {Qt::SolidLine, Qt::DashLine, Qt::DashDotLine};
+    for (int i = 0; i < 3; ++i) {
+        QPen pen(QColor(30, 30, 80), 14, styles[i], caps[i], Qt::RoundJoin);
+        pen.setDashOffset(phase / 10);
+        painter.setPen(pen);
+        const qreal y = size.height() * (i + 1) / 5.0;
+        painter.drawLine(QPointF(30, y), QPointF(size.width() / 2 - 20, y));
+    }
+    // Arcs of a gauge, with round caps.
+    const qreal side = std::min(size.height() - 60, size.width() / 2 - 60);
+    const QRectF dial(size.width() * 0.75 - side / 2, (size.height() - side) / 2, side, side);
+    painter.setPen(QPen(QColor(220, 220, 230), 18, Qt::SolidLine, Qt::RoundCap));
+    painter.drawArc(dial, -45 * 16, 270 * 16);
+    painter.setPen(QPen(QColor(40, 170, 110), 18, Qt::SolidLine, Qt::RoundCap));
+    painter.drawArc(dial, 225 * 16, -static_cast<int>(std::fmod(phase, 270.0) * 16));
+    \endcode
 
     Paths, transformed shapes and floating-point coordinates are drawn with the cap and join styles,
     dashes and miter limit of the pen; drawing with integer coordinates and no transformation other than

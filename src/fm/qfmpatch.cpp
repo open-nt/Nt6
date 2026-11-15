@@ -532,7 +532,7 @@ void PatchData::randomise(quint32 &seed) {
     FM, from JSON patches instead of sample files. QtFM::Engine plays QtFM::Patch values in real time
     or renders them offline; QtFM::AudioOutput connects it to a sound device. Qt has no such module.
 
-    See \l{Using Nt FM} for a walk through and the patch format, and \c{examples/fm/fmplay.cpp}
+    See \l{Using Nt FM} for a walk through and the patch format, and \c{fm/fmplay.cpp} in the \l{Nt Examples}{examples repository}
     for a complete program.
 */
 
@@ -632,7 +632,22 @@ void PatchData::randomise(quint32 &seed) {
     a filter, a bit crusher and a block of random variance. It plays at any pitch and length, and
     is stored as JSON of a few hundred bytes:
 
-    \snippet fm/fmplay.cpp patch
+    \code
+    const char *laserJson = R"({
+      "format": "qtfm-patch", "version": 1, "name": "laser-small", "category": "laser",
+      "algorithm": 5, "feedback": 3,
+      "operators": [
+        { "ratio": 1.0, "level": 1.0, "env": { "a": 0, "d": 0.12, "s": 0, "r": 0.05 } },
+        { "ratio": 3.5, "level": 0.6, "env": { "a": 0, "d": 0.08, "s": 0, "r": 0.02 } },
+        { "ratio": 1.0, "level": 0.8, "env": { "a": 0, "d": 0.15, "s": 0, "r": 0.05 } },
+        { "ratio": 7.0, "level": 0.3, "env": { "a": 0, "d": 0.05, "s": 0, "r": 0.02 } }
+      ],
+      "pitch": { "base": "A5", "env": { "start": 12, "end": -24, "time": 0.18, "curve": -2 } },
+      "filter": { "type": "lowpass", "cutoff": 8000, "resonance": 0.2 },
+      "random": { "pitch.base": 2, "operators.1.ratio": 0.25 },
+      "gain": -6
+    })";
+    \endcode
 
     Patch is a value type and implicitly shared. A default-constructed patch is invalid; make one
     with fromJson(), fromCbor(), fromChipInstrument() or generate(). Unknown JSON keys are ignored,
@@ -997,7 +1012,9 @@ PatchData *patchFromOpl(const quint8 *r, const QString &name) {
     operators and the OPL waveforms for ChipType::OPL2, no noise or filter), for authentic chip
     sounds.
 
-    \snippet fm/fmplay.cpp generate
+    \code
+    const Patch blip = Patch::generate(Category::Blip, 8);
+    \endcode
 */
 Patch Patch::generate(Category category, quint32 seed, ChipType target) {
     quint32 s = seed ? seed : 1;

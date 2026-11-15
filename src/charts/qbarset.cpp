@@ -13,7 +13,33 @@ using QtChartsPrivate::ChartEngine;
     them side by side (QBarSeries), stacked (QStackedBarSeries) or as shares of the total
     (QPercentBarSeries), and the legend shows one entry per set, with its label().
 
-    \snippet charts/dashboard.cpp bars
+    \code
+    auto *done = new QBarSet("Done");
+    *done << 12 << 18 << 9 << 15;
+    auto *open = new QBarSet("Open");
+    *open << 4 << 6 << 3 << 8;
+
+    auto *series = new QBarSeries;
+    series->append(done);
+    series->append(open);
+    series->setLabelsVisible(true);
+    QObject::connect(series, &QBarSeries::clicked, [](int index, QBarSet *set) {
+        std::printf("%s: %g\n", set->label().toUtf8().constData(), set->at(index));
+    });
+
+    auto *axisX = new QBarCategoryAxis;
+    axisX->append({"Core", "GUI", "Network", "Charts"});
+    auto *axisY = new QValueAxis;
+    axisY->setRange(0, 20);
+
+    auto *chart = new QChart;
+    chart->setTitle("Tickets");
+    chart->addSeries(series);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisX);
+    series->attachAxis(axisY);
+    \endcode
 
     \differences
     The set is not drawn with a gradient or a texture: only the color of its brush is used.

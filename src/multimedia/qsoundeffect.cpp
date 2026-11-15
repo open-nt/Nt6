@@ -136,7 +136,17 @@ public:
     play() starts at once. It suits interface sounds and game effects; use QMediaPlayer for music
     and long recordings.
 
-    \snippet multimedia/audioplayer.cpp effect
+    \code
+    auto *effect = new QSoundEffect(qApp);
+    effect->setSource(QUrl::fromLocalFile(file));
+    effect->setLoopCount(times);
+    effect->setVolume(0.8f);
+    QObject::connect(effect, &QSoundEffect::playingChanged, effect, [effect] {
+        if (!effect->isPlaying())
+            QCoreApplication::quit();
+    });
+    effect->play();
+    \endcode
 
     WAV files with 8, 16, 24 or 32-bit integer samples or 32 or 64-bit floating point samples, and
     up to 8 channels, can be played.

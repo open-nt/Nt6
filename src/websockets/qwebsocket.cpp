@@ -25,7 +25,22 @@
     A QWebSocketServer, or a QAbstractHttpServer that accepts an upgrade,
     hands out sockets that are already connected.
 
-    \snippet websockets/echo.cpp client
+    \code
+    QWebSocket socket;
+    QObject::connect(&socket, &QWebSocket::connected, [&] {
+        std::printf("connected, subprotocol \"%s\"\n", qPrintable(socket.subprotocol()));
+        socket.sendTextMessage(text);
+    });
+    QObject::connect(&socket, &QWebSocket::textMessageReceived, [&](const QString &message) {
+        std::printf("received: %s\n", qPrintable(message));
+        socket.close();
+    });
+    QObject::connect(&socket, &QWebSocket::disconnected, &app, &QCoreApplication::quit);
+    QObject::connect(&socket, &QWebSocket::errorOccurred, [&](QAbstractSocket::SocketError) {
+        std::fprintf(stderr, "error: %s\n", qPrintable(socket.errorString()));
+        app.exit(1);
+    });
+    \endcode
 
     Messages are text (a QString, sent as UTF-8) or binary (a QByteArray).
     They arrive whole through textMessageReceived() and

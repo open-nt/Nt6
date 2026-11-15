@@ -25,7 +25,14 @@
 
     Give the widget to a QMediaCaptureSession as its video output, and it shows the camera:
 
-    \snippet multimedia/viewfinder.cpp viewfinder
+    \code
+    auto *video = new QVideoWidget;
+    QMediaCaptureSession session;
+    QCamera camera;
+    session.setCamera(&camera);
+    session.setVideoOutput(video);
+    camera.start();
+    \endcode
 
     Frames arrive at the widget's videoSink(), and are drawn scaled to the widget, keeping their
     proportions by default, on black.

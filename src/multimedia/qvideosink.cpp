@@ -8,7 +8,19 @@
 
     Give a sink to a QMediaCaptureSession, and connect to videoFrameChanged() to get each frame:
 
-    \snippet multimedia/camera.cpp frames
+    \code
+    int frames = 0;
+    QObject::connect(&sink, &QVideoSink::videoFrameChanged, [&frames](const QVideoFrame &frame) {
+        if (frames++ == 0) {
+            QVideoFrame mapped = frame;
+            mapped.map(QVideoFrame::ReadOnly);
+            std::printf("first frame: %dx%d %s, %d plane(s), %d bytes a line\n", frame.width(), frame.height(),
+                        qPrintable(QVideoFrameFormat::pixelFormatToString(frame.pixelFormat())), mapped.planeCount(),
+                        mapped.bytesPerLine(0));
+            mapped.unmap();
+        }
+    });
+    \endcode
 
     \differences
     There is no \c rhi(): frames are always in memory. Nt has no QVideoWidget or video item to draw

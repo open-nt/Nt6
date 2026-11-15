@@ -16,7 +16,11 @@ public:
     QAudioDecoder delivers decoded audio in buffers. Read the samples as frames of the buffer's
     format:
 
-    \snippet multimedia/decoder.cpp buffer
+    \code
+    const auto *samples = buffer.constData<QAudioBuffer::F32M>();
+    for (qsizetype i = 0; i < buffer.frameCount(); ++i)
+        peak = std::max(peak, std::fabs(samples[i].channels[0]));
+    \endcode
 
     Copies share their samples; data() makes a copy of its own first.
 

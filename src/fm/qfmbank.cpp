@@ -314,7 +314,19 @@ bool PatchBank::operator==(const PatchBank &other) const {
 
     Notes are placed on beats; Engine::play() starts all of them at once, each on its exact sample.
 
-    \snippet fm/fmplay.cpp sequence
+    \code
+    // A jingle: four notes, each starting on its own sample.
+    Sequence jingle;
+    jingle.setTempo(150);
+    const Patch pickup = Patch::generate(Category::Pickup, 11);
+    jingle.addNote(0, pickup);
+    jingle.addNote(0.5f, pickup, 4);
+    jingle.addNote(1, pickup, 7);
+    jingle.addNote(1.5f, pickup, 12);
+    PlayOptions later;
+    later.delay = 0.6f;
+    engine.play(jingle, later);
+    \endcode
 
     \differences
     Notes cannot be added while the sequence plays, and there is no looping or swing.

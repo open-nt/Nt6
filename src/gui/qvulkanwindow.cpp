@@ -147,7 +147,66 @@ struct QVulkanWindow::Data {
     The frame ends when the renderer calls QVulkanWindow::frameReady(); to render continuously, it calls
     QWindow::requestUpdate() too:
 
-    \snippet vulkan/rtriangle.cpp frame
+    \code
+    void startNextFrame() override {
+        VkCommandBuffer cmd = m_window->currentCommandBuffer();
+        const QSize size = m_window->swapChainImageSize();
+        const auto width = static_cast<uint32_t>(size.width());
+        const auto height = static_cast<uint32_t>(size.height());
+        VkImage target = m_window->swapChainImage(m_window->currentSwapChainImageIndex());
+
+        if (!m_supported) {
+            // No ray tracing: the default render pass clears the window to the background color.
+            VkClearValue clearValues[2]{};
+            clearValues[0].color = {{0.1f, 0.12f, 0.2f, 1.0f}};
+            clearValues[1].depthStencil = {1.0f, 0};
+            auto pass = make<VkRenderPassBeginInfo>(VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO);
+            pass.renderPass = m_window->defaultRenderPass();
+            pass.framebuffer = m_window->currentFramebuffer();
+            pass.renderArea.extent = {width, height};
+            pass.clearValueCount = 2;
+            pass.pClearValues = clearValues;
+            m_df->vkCmdBeginRenderPass(cmd, &pass, VK_SUBPASS_CONTENTS_INLINE);
+            m_df->vkCmdEndRenderPass(cmd);
+        } else {
+            // The triangle turns: write its transform into this frame's instance buffer and rebuild the top level.
+            updateInstance(m_window->currentFrame());
+            buildTopLevel(cmd, m_window->currentFrame());
+
+            // Trace one ray per pixel into the storage image.
+            imageBarrier(cmd, m_image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0,
+                         VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                         VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+            m_df->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
+            m_df->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipelineLayout, 0, 1,
+                                          &m_descriptorSet, 0, nullptr);
+            m_df->vkCmdPushConstants(cmd, m_pipelineLayout, VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(uint32_t),
+                                     &m_swapRedBlue);
+            m_cmdTraceRays(cmd, &m_rgenRegion, &m_missRegion, &m_hitRegion, &m_callableRegion, width, height, 1);
+
+            // Copy it to the swapchain image, which must end in the present layout.
+            imageBarrier(cmd, m_image, VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_TRANSFER_READ_BIT,
+                         VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT);
+            imageBarrier(cmd, target, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 0,
+                         VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                         VK_PIPELINE_STAGE_TRANSFER_BIT);
+            VkImageCopy copy{};
+            copy.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            copy.dstSubresource = copy.srcSubresource;
+            copy.extent = {width, height, 1};
+            m_df->vkCmdCopyImage(cmd, m_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, target,
+                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy);
+            imageBarrier(cmd, target, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+                         VK_ACCESS_TRANSFER_WRITE_BIT, 0, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+        }
+
+        m_window->frameReady();
+        m_window->requestUpdate(); // render continuously, at the display's rate with vsync
+        countFrame();
+    }
+    \endcode
 
     \differences
     None.
@@ -222,11 +281,32 @@ void QVulkanWindowRenderer::logicalDeviceLost() {}
     frame, and recreates the swapchain when the window is resized. The program draws through a
     QVulkanWindowRenderer that createRenderer() returns:
 
-    \snippet vulkan/rtriangle.cpp window
+    \code
+    class Window : public QVulkanWindow {
+    public:
+        explicit Window(int frameLimit) : m_frameLimit(frameLimit) {}
+        QVulkanWindowRenderer *createRenderer() override { return new RayTracer(this, m_frameLimit); }
+
+    private:
+        int m_frameLimit;
+    };
+    \endcode
 
     The window needs a QVulkanInstance before it is shown:
 
-    \snippet vulkan/rtriangle.cpp main
+    \code
+    QVulkanInstance inst;
+    inst.setApiVersion(QVersionNumber(1, 2)); // buffer device addresses and SPIR-V 1.4 are core from 1.2
+    if (validate)
+        inst.setLayers({"VK_LAYER_KHRONOS_validation"});
+    if (!inst.create()) {
+        std::fprintf(stderr, "rtriangle: no Vulkan (error %d)\n", static_cast<int>(inst.errorCode()));
+        return 1;
+    }
+
+    Window window(frameLimit);
+    window.setVulkanInstance(&inst);
+    \endcode
 
     Each frame, the renderer records into currentCommandBuffer(). A rasterizing renderer begins
     defaultRenderPass() on currentFramebuffer(), whose color attachment is the swapchain image and whose
@@ -435,7 +515,37 @@ void QVulkanWindow::setEnabledFeaturesModifier(const EnabledFeaturesModifier &mo
     Sets \a modifier, which decides the \c VkPhysicalDeviceFeatures2 the device is created with, extension
     features included:
 
-    \snippet vulkan/rtriangle.cpp features
+    \code
+    // Before the device is made: ask for the ray tracing extensions and their features.
+    void preInitResources() override {
+        const QVulkanInfoVector<QVulkanExtension> extensions = m_window->supportedDeviceExtensions();
+        m_supported = extensions.contains("VK_KHR_acceleration_structure") &&
+                      extensions.contains("VK_KHR_ray_tracing_pipeline") &&
+                      extensions.contains("VK_KHR_deferred_host_operations");
+        if (!m_supported) {
+            std::puts("rtriangle: the device has no ray tracing extensions; showing the background only");
+            return;
+        }
+        m_window->setDeviceExtensions(
+            {"VK_KHR_acceleration_structure", "VK_KHR_ray_tracing_pipeline", "VK_KHR_deferred_host_operations"});
+        // The features of the extensions live in their own structures, chained to VkPhysicalDeviceFeatures2; the
+        // structures must live until the device is created, so they are members.
+        m_window->setEnabledFeaturesModifier([this](VkPhysicalDeviceFeatures2 &features) {
+            m_addressFeatures = make<VkPhysicalDeviceBufferDeviceAddressFeatures>(
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_BUFFER_DEVICE_ADDRESS_FEATURES);
+            m_addressFeatures.bufferDeviceAddress = VK_TRUE;
+            m_asFeatures = make<VkPhysicalDeviceAccelerationStructureFeaturesKHR>(
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR);
+            m_asFeatures.accelerationStructure = VK_TRUE;
+            m_asFeatures.pNext = &m_addressFeatures;
+            m_rtFeatures = make<VkPhysicalDeviceRayTracingPipelineFeaturesKHR>(
+                VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR);
+            m_rtFeatures.rayTracingPipeline = VK_TRUE;
+            m_rtFeatures.pNext = &m_asFeatures;
+            features.pNext = &m_rtFeatures;
+        });
+    }
+    \endcode
 */
 void QVulkanWindow::setEnabledFeaturesModifier(EnabledFeatures2Modifier modifier) {
     m_d->features2Modifier = std::move(modifier);

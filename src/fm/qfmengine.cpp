@@ -237,7 +237,21 @@ float dbToGain(float db) { return std::pow(10.0f, std::clamp(db, -120.0f, 24.0f)
     A handle is weak: it stays safe to use after the voice ends, and after the engine is destroyed,
     when its calls do nothing. Every call is thread-safe and non-blocking.
 
-    \snippet fm/fmplay.cpp loop
+    \code
+    PlayOptions engineOptions;
+    engineOptions.delay = 2.3f;
+    VoiceHandle hum = engine.play(Patch::generate(Category::Engine, 42), engineOptions);
+    auto *rev = new QTimer(&app);
+    QElapsedTimer clock;
+    clock.start();
+    QObject::connect(rev, &QTimer::timeout, &app, [hum, &clock]() mutable {
+        const float t = float(clock.elapsed()) / 1000.0f - 2.3f;
+        hum.setPitch(std::clamp(t * 6.0f, 0.0f, 14.0f)); // smoothed on the audio thread
+        if (t > 3.0f)
+            hum.stop();
+    });
+    rev->start(20);
+    \endcode
 
     \differences
     Commands sent while the engine's queue is full are dropped.
@@ -350,7 +364,15 @@ void VoiceHandle::setParameterAt(ParamId id, float value, quint64 frame) {
     VoiceHandle; when every voice is busy, the voice of lowest priority, then the quietest, then
     the oldest fades out in 2 ms to make room.
 
-    \snippet fm/fmplay.cpp engine
+    \code
+    Engine engine;
+    if (!engine.start()) {
+        std::fprintf(stderr, "fmplay: no sound output\n");
+        return 1;
+    }
+    const Patch coin = Patch::generate(Category::Pickup, 3);
+    engine.play(coin);
+    \endcode
 
     start() connects the engine to a sound output, which renders on its own audio thread. Without
     start(), call render() to pull samples, for example into a mixer of the application's own or
@@ -734,7 +756,12 @@ void Engine::dispatchEvents() {
     without a duration is released after 2 seconds. A seed of 0 in \a options means 1, so the
     same patch always gives the same file.
 
-    \snippet fm/fmplay.cpp wav
+    \code
+    const QByteArray wav = Engine::renderToWav(patch, rate, options);
+    QFile file(parser.value(outOption));
+    if (!file.open(QIODevice::WriteOnly) || file.write(wav) != wav.size())
+        return 1;
+    \endcode
 */
 QByteArray Engine::renderToWav(const Patch &patch, int sampleRate, const PlayOptions &options) {
     if (!patch.isValid())
@@ -777,7 +804,37 @@ QByteArray Engine::renderToWav(const Patch &patch, int sampleRate, const PlayOpt
     from its audio thread to fill each buffer; close() stops it and must not return until the
     audio thread has stopped calling pull().
 
-    \snippet fm/fmplay.cpp output
+    \code
+    // An output with no device: a thread that pulls blocks as fast as it can, to measure the engine.
+    class BenchmarkOutput : public AudioOutput {
+    public:
+        bool open(int sampleRate, int channels, SampleFormat format) override {
+            Q_UNUSED(format);
+            m_rate = sampleRate;
+            m_buffer.assign(static_cast<std::size_t>(256 * channels), 0.0f);
+            m_running = true;
+            m_thread = std::thread([this] {
+                while (m_running.load())
+                    m_frames += pull(m_buffer.data(), 256);
+            });
+            return true;
+        }
+        void close() override {
+            m_running = false;
+            if (m_thread.joinable())
+                m_thread.join();
+        }
+        qint64 frames() const { return m_frames.load(); }
+        int rate() const { return m_rate; }
+
+    private:
+        std::vector<float> m_buffer;
+        std::atomic<bool> m_running{false};
+        std::atomic<qint64> m_frames{0};
+        std::thread m_thread;
+        int m_rate = 0;
+    };
+    \endcode
 
     \differences
     There is no Qt Multimedia backend. Nt FM has ALSA on Linux as the default output.
@@ -917,7 +974,25 @@ void AudioOutput::reportUnderrun() {
     audio thread like every other command, so they are thread-safe and never block, and a delay
     places a write on an exact sample:
 
-    \snippet fm/fmplay.cpp chip
+    \code
+    EngineConfig config;
+    config.chips = {ChipType::OPL2};
+    Engine engine(config);
+    Chip *opl = engine.chip(ChipType::OPL2);
+    // An organ-like tone on channel 0, as an AdLib driver would set it up.
+    const quint8 setup[][2] = {{0x20, 0x01}, {0x40, 0x10}, {0x60, 0xf0}, {0x80, 0x77},
+                               {0x23, 0x01}, {0x43, 0x00}, {0x63, 0xf0}, {0x83, 0x77}};
+    for (const auto &w : setup)
+        opl->writeRegister(w[0], w[1]);
+    // A C major arpeggio: frequency number 0x157 is C in block 4; key on, then off.
+    const int fnums[] = {0x157, 0x1b0, 0x202, 0x2ae};
+    for (int i = 0; i < 4; ++i) {
+        const float t = 0.25f * float(i);
+        opl->writeRegister(0xa0, quint8(fnums[i] & 0xff), t);
+        opl->writeRegister(0xb0, quint8(0x20 | (4 << 2) | (fnums[i] >> 8)), t);
+        opl->writeRegister(0xb0, quint8((4 << 2) | (fnums[i] >> 8)), t + 0.2f);
+    }
+    \endcode
 
     Voices that Engine::play() starts on the chip use its channels too: a game that writes
     registers itself should not also play patches for that chip.
@@ -983,7 +1058,18 @@ void Chip::setGain(float dB) {
     engine's sound effects. Writes reach the chip on the chip's own clock, so the timing is exact,
     and VGM loop points are honoured.
 
-    \snippet fm/fmplay.cpp music
+    \code
+    EngineConfig config;
+    config.sampleRate = rate;
+    Engine engine(config);
+    QString error;
+    if (!engine.music()->load(data, MusicFormat::Auto, &error)) {
+        std::fprintf(stderr, "fmplay: %s\n", qPrintable(error));
+        return 1;
+    }
+    engine.music()->setLoops(false);
+    engine.music()->play();
+    \endcode
 
     \differences
     RAD files and chips other than the OPL2 and OPL3 (the YM2612 and SN76489 parts of a Mega Drive

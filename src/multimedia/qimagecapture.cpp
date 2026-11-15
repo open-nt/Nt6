@@ -155,7 +155,12 @@ void QImageCapturePrivate::onFrame(const QVideoFrame &frame) {
     Put it in a QMediaCaptureSession with a QCamera. Once the camera streams, isReadyForCapture() is
     \c true, and capture() takes the next frame as a QImage, or captureToFile() saves it:
 
-    \snippet multimedia/camera.cpp capture
+    \code
+    QObject::connect(&imageCapture, &QImageCapture::imageSaved,
+                     [](int, const QString &fileName) { std::printf("saved %s\n", qPrintable(fileName)); });
+    QTimer::singleShot(seconds * 1000, &imageCapture,
+                       [&imageCapture] { imageCapture.captureToFile(QDir::currentPath()); });
+    \endcode
 
     \differences
     Pictures are frames of the video stream, at its resolution, scaled to resolution() if one is

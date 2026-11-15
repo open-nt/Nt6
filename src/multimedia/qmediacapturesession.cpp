@@ -60,7 +60,20 @@ void QMediaCaptureSessionPrivate::applyMonitorVolume() {
     A session ties a QCamera to a QVideoSink that receives its frames and a QImageCapture that takes
     pictures, and a QAudioInput to a QMediaRecorder that records it:
 
-    \snippet multimedia/camera.cpp camera
+    \code
+    QMediaCaptureSession session;
+    QCamera camera;
+    QVideoSink sink;
+    QImageCapture imageCapture;
+    session.setCamera(&camera);
+    session.setVideoSink(&sink);
+    session.setImageCapture(&imageCapture);
+    QObject::connect(&camera, &QCamera::errorOccurred, [](QCamera::Error, const QString &message) {
+        std::printf("camera error: %s\n", qPrintable(message));
+        QCoreApplication::exit(1);
+    });
+    camera.start();
+    \endcode
 
     A camera, image capture or recorder is in one session at a time; putting it in another takes it
     out of the first. The session does not own them.

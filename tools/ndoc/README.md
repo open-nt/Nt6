@@ -121,7 +121,7 @@ versions = https://example.org/docs/versions.json
 github = https://github.com/open-nt/Nt6
 output = html
 sources = ../include ../src
-snippets = ../examples
+snippets = ../doc/snippets
 images = ../assets/brand
 module NtCore = ../include/QtCore
 ```

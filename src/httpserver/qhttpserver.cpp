@@ -17,7 +17,7 @@
     another way.
 
     See \l{Using Nt HTTP Server} for a walk through, and
-    \c{examples/httpserver/hello_server.cpp} for a complete program.
+    \c{httpserver/hello_server.cpp} in the \l{Nt Examples}{examples repository} for a complete program.
 */
 
 /*!
@@ -39,7 +39,15 @@
     A QHttpServer does not listen by itself. Create a QTcpServer, make it
     listen, and bind it. Port 0 picks a free port:
 
-    \snippet httpserver/hello_server.cpp bind
+    \code
+    auto *tcpServer = new QTcpServer;
+    if (!tcpServer->listen(QHostAddress::LocalHost, port) || !server.bind(tcpServer)) {
+        std::fprintf(stderr, "cannot listen on port %u: %s\n", port, qPrintable(tcpServer->errorString()));
+        delete tcpServer;
+        return 1;
+    }
+    std::printf("listening on http://127.0.0.1:%u/\n", tcpServer->serverPort());
+    \endcode
 
     The server runs from the event loop, so the program must call
     QCoreApplication::exec(). One QHttpServer can serve several QTcpServer
@@ -52,7 +60,25 @@
     handler parameter. The handler may also take the request, and the
     responder as its last parameter:
 
-    \snippet httpserver/hello_server.cpp routes
+    \code
+    // A fixed path.
+    server.route("/", [] { return "Hello from Nt HTTP Server\n"; });
+
+    // <arg> becomes the parameter: a QString takes one path segment.
+    server.route("/hello/<arg>", [](const QString &name) { return QString("Hello, %1!\n").arg(name); });
+
+    // A number must fit the type, so /square/abc and /square/99999999999 do not match.
+    server.route("/square/<arg>", [](int n) { return QJsonObject{{"n", n}, {"square", qint64(n) * n}}; });
+
+    // Only POST, with access to the request.
+    server.route("/add", QHttpServerRequest::Method::Post, [](const QHttpServerRequest &request) {
+        const QJsonObject in = QJsonDocument::fromJson(request.body()).object();
+        if (!in.contains("a") || !in.contains("b"))
+            return QHttpServerResponse("expected {\"a\": number, \"b\": number}\n",
+                                       QHttpServerResponse::StatusCode::BadRequest);
+        return QHttpServerResponse(QJsonObject{{"sum", in.value("a").toDouble() + in.value("b").toDouble()}});
+    });
+    \endcode
 
     A path argument can be any integer type, \c float, \c double, QString,
     QByteArray or QUrl. A number must be written in decimal and fit the type;
@@ -79,12 +105,23 @@
 
     A handler returns a QHttpServerResponse, or a value that converts to one:
 
-    \snippet httpserver/hello_server.cpp responses
+    \code
+    server.route("/teapot", [] { return QHttpServerResponse::StatusCode::ImATeapot; });
+    server.route("/version", [] { return QJsonObject{{"version", QT_VERSION_STR}}; });
+    server.route("/robots.txt", [] { return QHttpServerResponse("text/plain", "User-agent: *\nDisallow: /\n"); });
+    server.route("/source", [] { return QHttpServerResponse::fromFile(QStringLiteral(__FILE__)); });
+    \endcode
 
     To change every response, for example to add a header, use
     QHttpServer::addAfterRequestHandler():
 
-    \snippet httpserver/hello_server.cpp after
+    \code
+    server.addAfterRequestHandler(&server, [](const QHttpServerRequest &, QHttpServerResponse &response) {
+        QHttpHeaders headers = response.headers();
+        headers.append(QHttpHeaders::WellKnownHeader::Server, "hello_server (Nt)");
+        response.setHeaders(std::move(headers));
+    });
+    \endcode
 
     \section1 Writing the Response Yourself
 
@@ -92,7 +129,36 @@
     it, and returns nothing. This is the way to stream a body in pieces, to
     send a file without loading it into memory, or to answer later:
 
-    \snippet httpserver/hello_server.cpp responder
+    \code
+    // Counts to five, one line per piece of the body.
+    server.route("/count", [](QHttpServerResponder &responder) {
+        responder.writeBeginChunked("text/plain");
+        for (int i = 1; i <= 5; ++i)
+            responder.writeChunk(QByteArray::number(i) + "\n");
+        responder.writeEndChunked("done\n");
+    });
+
+    // Streams a file next to this one from disk; the responder deletes the QFile when it is sent.
+    server.route("/files/<arg>", [](const QString &name, QHttpServerResponder &responder) {
+        if (name.contains("..")) {
+            responder.write(QHttpServerResponder::StatusCode::Forbidden);
+            return;
+        }
+        auto *file = new QFile(QFileInfo(QStringLiteral(__FILE__)).absolutePath() + "/" + name);
+        if (!file->open(QIODevice::ReadOnly)) {
+            delete file;
+            responder.write(QHttpServerResponder::StatusCode::NotFound);
+            return;
+        }
+        responder.write(file, "text/plain");
+    });
+
+    // Answers a second later. The responder is moved out of the handler, which returns at once.
+    server.route("/later", [&app](QHttpServerResponder &responder) {
+        auto later = std::make_shared<QHttpServerResponder>(std::move(responder));
+        QTimer::singleShot(1000, &app, [later] { later->write("sorry for the wait\n", "text/plain"); });
+    });
+    \endcode
 
     A responder can be moved into a lambda or a member to answer later. The
     connection waits for that answer before it reads the next request.
@@ -144,7 +210,13 @@
     Add rules with route(), bind a listening QTcpServer, and run the event
     loop:
 
-    \snippet httpserver/hello_server.cpp main
+    \code
+    int main(int argc, char **argv) {
+        QCoreApplication app(argc, argv);
+        const quint16 port = argc > 1 ? static_cast<quint16>(QString::fromLocal8Bit(argv[1]).toUInt()) : 8080;
+
+        QHttpServer server;
+    \endcode
 
     See \l{Using Nt HTTP Server} for the path patterns and the handler
     signatures.

@@ -1,7 +1,7 @@
 #!/bin/sh
 # MIT License - see LICENSE
 #
-# Compiles the ray tracing shaders of the rtriangle example to SPIR-V with glslc (from shaderc, in the Vulkan SDK or
+# Compiles the ray tracing shaders of nt_vulkan_tests (the rtriangle example's) to SPIR-V with glslc (from shaderc, in the Vulkan SDK or
 # the glslc package). The .spv files are checked in, so building Nt needs no shader compiler.
 set -e
 cd "$(dirname "$0")"

@@ -20,7 +20,21 @@ using QtChartsPrivate::ChartEngine;
     the values of the series. A slice can be exploded, moved out of the pie, and its label can be shown
     outside the pie, joined to it by an arm, or inside it.
 
-    \snippet charts/dashboard.cpp pie
+    \code
+    auto *series = new QPieSeries;
+    series->setHoleSize(0.4);
+    series->append("Passed", 182);
+    series->append("Skipped", 11);
+    QPieSlice *failed = series->append("Failed", 7);
+    failed->setExploded(true);
+    failed->setLabelVisible(true);
+    QObject::connect(series, &QPieSeries::hovered, [](QPieSlice *slice, bool state) { slice->setExploded(state); });
+
+    auto *chart = new QChart;
+    chart->setTitle("Tests");
+    chart->addSeries(series);
+    chart->legend()->setAlignment(Qt::AlignRight);
+    \endcode
 
     \differences
     The label is drawn upright for every LabelPosition: LabelInsideTangential and LabelInsideNormal are
@@ -341,7 +355,21 @@ QPieSeries *QPieSlice::series() const { return m_series; }
     donut, and setPieStartAngle() and setPieEndAngle() draw part of a circle, such as a half-circle
     gauge. The series owns its slices.
 
-    \snippet charts/dashboard.cpp pie
+    \code
+    auto *series = new QPieSeries;
+    series->setHoleSize(0.4);
+    series->append("Passed", 182);
+    series->append("Skipped", 11);
+    QPieSlice *failed = series->append("Failed", 7);
+    failed->setExploded(true);
+    failed->setLabelVisible(true);
+    QObject::connect(series, &QPieSeries::hovered, [](QPieSlice *slice, bool state) { slice->setExploded(state); });
+
+    auto *chart = new QChart;
+    chart->setTitle("Tests");
+    chart->addSeries(series);
+    chart->legend()->setAlignment(Qt::AlignRight);
+    \endcode
 
     \image charts/donut.png A donut: a pie series with a hole
 

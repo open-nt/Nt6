@@ -10,7 +10,9 @@
     \c Sec-WebSocket-Protocol header, in order of preference; the server
     chooses one of them, and QWebSocket::subprotocol() returns it.
 
-    \snippet websockets/echo.cpp subprotocols
+    \code
+    server.setSupportedSubprotocols({QStringLiteral("echo.v2"), QStringLiteral("echo.v1")});
+    \endcode
 
     \differences
     None.

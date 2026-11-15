@@ -154,7 +154,23 @@ bool QBrush::isOpaque() const {
 
     \image painter/gradients.png A linear, a radial and a conical gradient
 
-    \snippet gui/painting.cpp gradients
+    \code
+    const qreal w = size.width() / 3, h = size.height();
+    QLinearGradient linear(0, 0, w, h);
+    linear.setColorAt(0, QColor(40, 90, 200));
+    linear.setColorAt(1, QColor(230, 240, 255));
+    painter.fillRect(QRectF(0, 0, w, h), linear);
+
+    QRadialGradient radial(QPointF(w * 1.5, h / 2), w / 2, QPointF(w * 1.35, h * 0.35));
+    radial.setColorAt(0, Qt::white);
+    radial.setColorAt(1, QColor(200, 40, 60));
+    painter.fillRect(QRectF(w, 0, w, h), radial);
+
+    QConicalGradient conical(QPointF(w * 2.5, h / 2), phase);
+    for (int i = 0; i <= 6; ++i)
+        conical.setColorAt(i / 6.0, QColor::fromHsv((i * 60) % 360, 220, 240));
+    painter.fillRect(QRectF(2 * w, 0, w, h), conical);
+    \endcode
 
     A shorter example:
 

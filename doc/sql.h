@@ -33,7 +33,19 @@
     A connection is added once and then found by name from anywhere; the one without a name is the default
     connection, which queries and models use when they are given none:
 
-    \snippet sql/contacts.cpp open
+    \code
+    static bool openDatabase(const QString &file) {
+        QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+        db.setDatabaseName(file);
+        if (!db.open()) {
+            std::fprintf(stderr, "cannot open %s: %s\n", qPrintable(file), qPrintable(db.lastError().text()));
+            return false;
+        }
+        QSqlQuery query;
+        return query.exec("CREATE TABLE IF NOT EXISTS contacts ("
+                          "id INTEGER PRIMARY KEY, name TEXT NOT NULL UNIQUE, email TEXT)");
+    }
+    \endcode
 
     For \c QSQLITE the database name is the path of the file, which is created if it does not exist,
     \c{:memory:} for a database that lives in memory and is gone when the connection is closed, or an empty
@@ -61,13 +73,34 @@
     QSqlQuery::exec() runs a statement. A statement that takes values is prepared with placeholders, and
     the values are bound to them:
 
-    \snippet sql/contacts.cpp insert
+    \code
+    static bool addContact(const QString &name, const QString &email) {
+        QSqlQuery query;
+        query.prepare("INSERT INTO contacts (name, email) VALUES (:name, :email)");
+        query.bindValue(":name", name);
+        query.bindValue(":email", email);
+        if (!query.exec()) {
+            std::fprintf(stderr, "cannot add %s: %s\n", qPrintable(name), qPrintable(query.lastError().text()));
+            return false;
+        }
+        return true;
+    }
+    \endcode
 
     Bind values, do not paste them into the text of the statement: a bound value is data whatever
     characters it has, so a name with a quote in it, or one written to break the statement, does no harm.
     Placeholders have names, as above, or are written \c{?} and bound in order:
 
-    \snippet sql/contacts.cpp select
+    \code
+    static void listContacts(const QString &filter) {
+        QSqlQuery query;
+        query.prepare("SELECT name, email FROM contacts WHERE name LIKE ? ORDER BY name");
+        query.addBindValue("%" + filter + "%");
+        query.exec();
+        while (query.next())
+            std::printf("%-20s %s\n", qPrintable(query.value(0).toString()), qPrintable(query.value(1).toString()));
+    }
+    \endcode
 
     After exec() a \c SELECT is positioned before its first row. QSqlQuery::next() moves through the rows
     and QSqlQuery::value() reads a field of the current one, as a QVariant of the type that the database
@@ -103,7 +136,22 @@
     changes back: items that are set, rows that are inserted and rows that are removed, at once or when
     QSqlTableModel::submitAll() is called, as its edit strategy says:
 
-    \snippet sql/contacts.cpp model
+    \code
+    static bool removeContact(const QString &name) {
+        QSqlTableModel model;
+        model.setTable("contacts");
+        model.setEditStrategy(QSqlTableModel::OnManualSubmit);
+        model.select();
+        const int nameColumn = model.fieldIndex("name");
+        for (int row = 0; row < model.rowCount(); ++row) {
+            if (model.data(model.index(row, nameColumn)).toString() == name) {
+                model.removeRows(row, 1);
+                return model.submitAll();
+            }
+        }
+        return false;
+    }
+    \endcode
 
     Both are item models like any other, so they fit the views of Nt Widgets and the proxy models of Nt
     Core, such as QSortFilterProxyModel. With SQLite they read their rows in steps of 255, as a view asks

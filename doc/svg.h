@@ -24,7 +24,19 @@
     device: an image, a window or a widget. The document has no pixels of its own, so it is drawn at the
     size it is given, and stays sharp:
 
-    \snippet svg/svg_viewer.cpp render
+    \code
+    static QImage renderToImage(const QByteArray &svg, const QSize &size) {
+        QSvgRenderer renderer(svg);
+        QImage image(size, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        if (renderer.isValid()) {
+            renderer.setAspectRatioMode(Qt::KeepAspectRatio);
+            QPainter painter(&image);
+            renderer.render(&painter);
+        }
+        return image;
+    }
+    \endcode
 
     render() stretches the view box of the document over the whole device, or over the rectangle passed to
     it. QSvgRenderer::setAspectRatioMode() keeps the proportions instead, and QSvgRenderer::defaultSize()
@@ -53,14 +65,60 @@
     QSvgWidget shows a document scaled to the size of the widget; its size hint is the default size of
     the document. Its renderer() gives access to the QSvgRenderer:
 
-    \snippet svg/svg_viewer.cpp widget
+    \code
+    QSvgWidget widget;
+    widget.renderer()->setAspectRatioMode(Qt::KeepAspectRatio);
+    if (argc > 1) {
+        widget.load(QString::fromLocal8Bit(argv[1]));
+    } else {
+        // No file: show what the generator writes, straight from memory.
+        QBuffer buffer;
+        QSvgGenerator generator;
+        generator.setOutputDevice(&buffer);
+        generator.setSize(QSize(240, 160));
+        paintPicture(&generator);
+        widget.load(buffer.data());
+    }
+    if (!widget.renderer()->isValid()) {
+        std::fprintf(stderr, "svg_viewer: not an SVG document\n");
+        return 1;
+    }
+    widget.setWindowTitle("Nt SVG");
+    widget.resize(widget.sizeHint());
+    widget.show();
+    \endcode
 
     \section1 Writing SVG
 
     QSvgGenerator is a paint device. What a QPainter draws on it is written as an SVG document, to a file
     or to any QIODevice, when the painter ends:
 
-    \snippet svg/svg_viewer.cpp generate
+    \code
+    static bool paintPicture(QPaintDevice *device) {
+        QPainter painter(device);
+        if (!painter.isActive())
+            return false;
+        painter.fillRect(0, 0, 240, 160, QColor(250, 250, 245));
+        painter.setPen(QPen(QColor(40, 60, 90), 3));
+        painter.setBrush(QColor(120, 170, 220));
+        painter.drawRect(20, 20, 120, 80);
+        painter.setBrush(QColor(240, 180, 60));
+        painter.drawEllipse(110, 60, 100, 80);
+        painter.setPen(QColor(40, 60, 90));
+        painter.drawLine(20, 140, 100, 140);
+        return true;
+    }
+
+    static bool writePicture(const QString &fileName) {
+        QSvgGenerator generator;
+        generator.setFileName(fileName);
+        generator.setSize(QSize(240, 160));
+        generator.setViewBox(QRect(0, 0, 240, 160));
+        generator.setTitle("A picture");
+        generator.setDescription("Painted with QPainter on a QSvgGenerator.");
+        return paintPicture(&generator); // the document is complete when the painter is destroyed
+    }
+    \endcode
 
     A document that the generator writes is drawn by the renderer as the same painting looks on a QImage.
     Text and images are written as embedded PNG images, which the renderer does not draw; see

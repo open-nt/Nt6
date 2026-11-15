@@ -26,7 +26,7 @@
     missing: SDL's GameControllerDB mappings, ids that stay with a pad when it is plugged in
     again, generic button and axis signals, dead zones and rumble.
 
-    See \l{Using Nt Gamepad} for a walk through, and \c{examples/gamepad/gamepadinfo.cpp} for a
+    See \l{Using Nt Gamepad} for a walk through, and \c{gamepad/gamepadinfo.cpp} in the \l{Nt Examples}{examples repository} for a
     complete program.
 */
 
@@ -52,12 +52,32 @@
     A QGamepad follows one pad, the first one plugged in unless given another id. Its properties
     hold the state of each button and stick, and each has a signal for when it changes:
 
-    \snippet gamepad/gamepadinfo.cpp properties
+    \code
+    QObject::connect(&gamepad, &QGamepad::buttonAChanged, [](bool pressed) {
+        std::printf("A %s\n", pressed ? "pressed" : "released");
+        std::fflush(stdout);
+    });
+    QObject::connect(&gamepad, &QGamepad::axisLeftXChanged, [&](double x) {
+        std::printf("left stick %.2f, %.2f\n", x, gamepad.axisLeftY());
+        std::fflush(stdout);
+    });
+    \endcode
 
     To handle every control in one place, as an input table of a game does, use the generic
     signals and buttonValue() and axisValue() instead:
 
-    \snippet gamepad/gamepadinfo.cpp generic
+    \code
+    const QMetaEnum buttons = QMetaEnum::fromType<QGamepadManager::GamepadButton>();
+    QObject::connect(&gamepad, &QGamepad::buttonValueChanged, [&](QGamepadManager::GamepadButton button, double value) {
+        std::printf("%s %.2f\n", buttons.valueToKey(button), value);
+        std::fflush(stdout);
+    });
+    const QMetaEnum axes = QMetaEnum::fromType<QGamepadManager::GamepadAxis>();
+    QObject::connect(&gamepad, &QGamepad::axisValueChanged, [&](QGamepadManager::GamepadAxis axis, double value) {
+        std::printf("%s %.2f\n", axes.valueToKey(axis), value);
+        std::fflush(stdout);
+    });
+    \endcode
 
     Sticks go from -1.0 to 1.0, with up and left negative. The triggers, buttonL2 and buttonR2,
     go from 0.0 to 1.0; the other buttons are \c true or \c false.
@@ -73,7 +93,13 @@
     not given to another pad: when a pad is unplugged and plugged in again it gets its old id
     back, so a QGamepad that followed it carries on by itself:
 
-    \snippet gamepad/gamepadinfo.cpp hotplug
+    \code
+    QObject::connect(&gamepad, &QGamepad::connectedChanged, [&](bool connected) {
+        std::printf("Pad %d %s %s\n", gamepad.deviceId(), connected ? "connected:" : "disconnected",
+                    qPrintable(gamepad.name()));
+        std::fflush(stdout);
+    });
+    \endcode
 
     While a pad is away, its QGamepad reports \c connected as \c false and every control at rest.
 
@@ -84,7 +110,16 @@
     \l{https://github.com/mdqinc/SDL_GameControllerDB}{GameControllerDB}, either as text or as the
     whole \c gamecontrollerdb.txt:
 
-    \snippet gamepad/gamepadinfo.cpp mappings
+    \code
+    if (parser.isSet(mappingsOption)) {
+        const int added = manager->addMappingsFromFile(parser.value(mappingsOption));
+        if (added < 0) {
+            std::fprintf(stderr, "gamepadinfo: cannot read %s\n", qPrintable(parser.value(mappingsOption)));
+            return 1;
+        }
+        std::printf("%d mappings added\n", added);
+    }
+    \endcode
 
     Mappings in \c SDL_GAMECONTROLLERCONFIG, and in the file named by
     \c SDL_GAMECONTROLLERCONFIG_FILE, are added when the manager starts, as SDL does.
@@ -114,7 +149,12 @@
 
     \section1 Rumble
 
-    \snippet gamepad/gamepadinfo.cpp rumble
+    \code
+    QObject::connect(&gamepad, &QGamepad::buttonAChanged, [&](bool pressed) {
+        if (pressed && gamepad.canRumble())
+            gamepad.rumble(0.8, 0.4, 200); // strong motor, weak motor, milliseconds
+    });
+    \endcode
 
     rumble() runs the strong (low frequency) and weak (high frequency) motors for the given
     number of milliseconds. canRumble() is \c false for a pad without motors, and on Linux when

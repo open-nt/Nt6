@@ -251,8 +251,8 @@
     The libraries are static, so a program that links \c{Nt6::Network} also needs the OpenSSL
     development package, one that links \c{Nt6::Sql} that of SQLite (\c{libsqlite3-dev}), and one that links \c{Nt6::Gui} or \c{Nt6::Widgets} needs those of
     FreeType, fontconfig, libjpeg (optional, for JPEG images) and XCB (\c{libssl-dev libfreetype-dev libfontconfig-dev libjpeg-dev libxcb1-dev} on
-    Ubuntu). The \c{examples/hello} and \c{examples/widgets} directories are standalone projects to
-    start from.
+    Ubuntu). The \c hello and \c widgets directories of the \l{Nt Examples}{examples repository} are standalone projects
+    to start from.
 
     Coming from Qt, read \l{The Nt Resource System} for how \c{.qrc} files are compiled with \c ntrcc, and
     \l{Using Nt Widgets} for user interfaces.

@@ -26,7 +26,22 @@
     follow the glTF specification, with the same indices: a node refers to a mesh by its index in
     meshes(), a primitive to a material by its index in materials(), and so on.
 
-    \snippet gltf/gltfinfo.cpp load
+    \code
+    QtGltf::Document document;
+    if (!document.load(parser.positionalArguments().first())) {
+        std::fprintf(stderr, "gltfinfo: %s\n", qPrintable(document.errorString()));
+        return 1;
+    }
+    for (const QtGltf::Mesh &mesh : document.meshes()) {
+        for (const QtGltf::Primitive &primitive : mesh.primitives) {
+            if (primitive.mode != QtGltf::Primitive::Triangles)
+                continue;
+            // positions, normals, texCoords0 and indices are ready to copy into vertex and index buffers.
+            const qsizetype triangles = primitive.indices.size() / 3;
+            Q_UNUSED(triangles);
+        }
+    }
+    \endcode
 
     Loading checks every index, byte range and value, and either succeeds completely or leaves the
     document empty, with errorString() naming the object at fault (\c{"node 3: mesh is not a valid
@@ -49,7 +64,18 @@
     acceleration structure per mesh and adds one top-level instance for each node that draws a
     mesh:
 
-    \snippet gltf/gltfinfo.cpp instances
+    \code
+    const QList<QtGltf::Instance> instances = document.instances();
+    qsizetype meshInstances = 0;
+    for (const QtGltf::Instance &instance : instances) {
+        const QtGltf::Node &node = document.nodes().at(instance.node);
+        if (node.mesh < 0)
+            continue;
+        // One top-level acceleration structure instance: node.mesh's geometry, placed by
+        // instance.transform.
+        ++meshInstances;
+    }
+    \endcode
 
     worldTransform() gives the same matrix for a single node, and parentNode() walks up the tree.
     Cameras and lights are placed by their nodes the same way; both look down the node's negative
@@ -71,7 +97,7 @@
     mesh with every PBR texture) and \e Sponza (an atrium with many materials). NVIDIA's Open
     Research Content Archive has \e{Amazon Lumberyard Bistro}, a scene of about three million
     triangles that is commonly used to test ray tracing and upscaling. Check the license of each
-    model before you ship it. \c{examples/gltf/gltfinfo.cpp} prints what a file holds:
+    model before you ship it. \c{gltf/gltfinfo.cpp} in the \l{Nt Examples}{examples repository} prints what a file holds:
 
     \code
     gltfinfo DamagedHelmet.glb

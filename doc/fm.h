@@ -24,14 +24,24 @@
     A QtFM::Engine owns the voices. start() opens the default sound output (ALSA on Linux), and
     play() starts a patch:
 
-    \snippet fm/fmplay.cpp engine
+    \code
+    Engine engine;
+    if (!engine.start()) {
+        std::fprintf(stderr, "fmplay: no sound output\n");
+        return 1;
+    }
+    const Patch coin = Patch::generate(Category::Pickup, 3);
+    engine.play(coin);
+    \endcode
 
     play() returns at once, from any thread. The patch is compiled on the calling thread and handed
     to the audio thread through a lock-free queue; the audio thread never locks or allocates.
     PlayOptions transpose, pan, delay, lengthen or prioritise a play. A delay starts the voice on
     an exact sample, which keeps rhythmic effects and jingles in time:
 
-    \snippet fm/fmplay.cpp generate
+    \code
+    const Patch blip = Patch::generate(Category::Blip, 8);
+    \endcode
 
     Patch::generate() above makes a random but plausible patch of a category from a seed, in the
     spirit of sfxr. Patch::mutated() makes variations of an existing one.
@@ -42,19 +52,68 @@
     returns changes its pitch, gain, pan, filter or LFO while it plays, smoothed over about 5 ms so
     nothing clicks:
 
-    \snippet fm/fmplay.cpp loop
+    \code
+    PlayOptions engineOptions;
+    engineOptions.delay = 2.3f;
+    VoiceHandle hum = engine.play(Patch::generate(Category::Engine, 42), engineOptions);
+    auto *rev = new QTimer(&app);
+    QElapsedTimer clock;
+    clock.start();
+    QObject::connect(rev, &QTimer::timeout, &app, [hum, &clock]() mutable {
+        const float t = float(clock.elapsed()) / 1000.0f - 2.3f;
+        hum.setPitch(std::clamp(t * 6.0f, 0.0f, 14.0f)); // smoothed on the audio thread
+        if (t > 3.0f)
+            hum.stop();
+    });
+    rev->start(20);
+    \endcode
 
     \section1 Rendering Offline
 
     Engine::renderToWav() renders a patch to a WAV file, for tools, tests and pre-baking. With a
     fixed seed the same patch always gives the same file:
 
-    \snippet fm/fmplay.cpp wav
+    \code
+    const QByteArray wav = Engine::renderToWav(patch, rate, options);
+    QFile file(parser.value(outOption));
+    if (!file.open(QIODevice::WriteOnly) || file.write(wav) != wav.size())
+        return 1;
+    \endcode
 
     Without start(), Engine::render() pulls samples, into a mixer of the game's own for example.
     To feed another sound API, subclass QtFM::AudioOutput:
 
-    \snippet fm/fmplay.cpp output
+    \code
+    // An output with no device: a thread that pulls blocks as fast as it can, to measure the engine.
+    class BenchmarkOutput : public AudioOutput {
+    public:
+        bool open(int sampleRate, int channels, SampleFormat format) override {
+            Q_UNUSED(format);
+            m_rate = sampleRate;
+            m_buffer.assign(static_cast<std::size_t>(256 * channels), 0.0f);
+            m_running = true;
+            m_thread = std::thread([this] {
+                while (m_running.load())
+                    m_frames += pull(m_buffer.data(), 256);
+            });
+            return true;
+        }
+        void close() override {
+            m_running = false;
+            if (m_thread.joinable())
+                m_thread.join();
+        }
+        qint64 frames() const { return m_frames.load(); }
+        int rate() const { return m_rate; }
+
+    private:
+        std::vector<float> m_buffer;
+        std::atomic<bool> m_running{false};
+        std::atomic<qint64> m_frames{0};
+        std::thread m_thread;
+        int m_rate = 0;
+    };
+    \endcode
 
     \section1 The Synthesiser
 
@@ -102,7 +161,22 @@
     out-of-range values are clamped. Patch::toJson() writes every field; a patch written by hand
     names only what it changes:
 
-    \snippet fm/fmplay.cpp patch
+    \code
+    const char *laserJson = R"({
+      "format": "qtfm-patch", "version": 1, "name": "laser-small", "category": "laser",
+      "algorithm": 5, "feedback": 3,
+      "operators": [
+        { "ratio": 1.0, "level": 1.0, "env": { "a": 0, "d": 0.12, "s": 0, "r": 0.05 } },
+        { "ratio": 3.5, "level": 0.6, "env": { "a": 0, "d": 0.08, "s": 0, "r": 0.02 } },
+        { "ratio": 1.0, "level": 0.8, "env": { "a": 0, "d": 0.15, "s": 0, "r": 0.05 } },
+        { "ratio": 7.0, "level": 0.3, "env": { "a": 0, "d": 0.05, "s": 0, "r": 0.02 } }
+      ],
+      "pitch": { "base": "A5", "env": { "start": 12, "end": -24, "time": 0.18, "curve": -2 } },
+      "filter": { "type": "lowpass", "cutoff": 8000, "resonance": 0.2 },
+      "random": { "pitch.base": 2, "operators.1.ratio": 0.25 },
+      "gain": -6
+    })";
+    \endcode
 
     \table
     \header \li Key \li Meaning
@@ -149,7 +223,19 @@
     A QtFM::Sequence places notes on beats at a tempo. Engine::play() starts all of them at once,
     each on its exact sample, for jingles and short cues:
 
-    \snippet fm/fmplay.cpp sequence
+    \code
+    // A jingle: four notes, each starting on its own sample.
+    Sequence jingle;
+    jingle.setTempo(150);
+    const Patch pickup = Patch::generate(Category::Pickup, 11);
+    jingle.addNote(0, pickup);
+    jingle.addNote(0.5f, pickup, 4);
+    jingle.addNote(1, pickup, 7);
+    jingle.addNote(1.5f, pickup, 12);
+    PlayOptions later;
+    later.delay = 0.6f;
+    engine.play(jingle, later);
+    \endcode
 
     \section1 AdLib and Yamaha Chips
 
@@ -162,7 +248,25 @@
     There are two ways to use a chip. At register level, Engine::chip() writes registers, as a DOS
     game or tracker would, each at an exact sample if delayed:
 
-    \snippet fm/fmplay.cpp chip
+    \code
+    EngineConfig config;
+    config.chips = {ChipType::OPL2};
+    Engine engine(config);
+    Chip *opl = engine.chip(ChipType::OPL2);
+    // An organ-like tone on channel 0, as an AdLib driver would set it up.
+    const quint8 setup[][2] = {{0x20, 0x01}, {0x40, 0x10}, {0x60, 0xf0}, {0x80, 0x77},
+                               {0x23, 0x01}, {0x43, 0x00}, {0x63, 0xf0}, {0x83, 0x77}};
+    for (const auto &w : setup)
+        opl->writeRegister(w[0], w[1]);
+    // A C major arpeggio: frequency number 0x157 is C in block 4; key on, then off.
+    const int fnums[] = {0x157, 0x1b0, 0x202, 0x2ae};
+    for (int i = 0; i < 4; ++i) {
+        const float t = 0.25f * float(i);
+        opl->writeRegister(0xa0, quint8(fnums[i] & 0xff), t);
+        opl->writeRegister(0xb0, quint8(0x20 | (4 << 2) | (fnums[i] >> 8)), t);
+        opl->writeRegister(0xb0, quint8((4 << 2) | (fnums[i] >> 8)), t + 0.2f);
+    }
+    \endcode
 
     At voice level, a patch made for the chip (Patch::chip() is ChipType::OPL2 or ChipType::OPL3)
     plays on a free channel of it through the same Engine::play() call as native patches. Such
@@ -179,7 +283,18 @@
     music of id Software's games. The music gets a chip of its own, so it never takes channels from
     the sound effects, and its writes reach the chip on the chip's clock:
 
-    \snippet fm/fmplay.cpp music
+    \code
+    EngineConfig config;
+    config.sampleRate = rate;
+    Engine engine(config);
+    QString error;
+    if (!engine.music()->load(data, MusicFormat::Auto, &error)) {
+        std::fprintf(stderr, "fmplay: %s\n", qPrintable(error));
+        return 1;
+    }
+    engine.music()->setLoops(false);
+    engine.music()->play();
+    \endcode
 
     \section1 MIDI
 
@@ -189,7 +304,23 @@
     (\c drum-36). The player streams the notes a fraction of a second ahead, each placed on its
     sample, so the timing does not depend on the event loop:
 
-    \snippet fm/fmplay.cpp midi
+    \code
+    QString error;
+    const MidiFile song = MidiFile::fromData(data, &error);
+    if (!song.isValid()) {
+        std::fprintf(stderr, "fmplay: %s\n", qPrintable(error));
+        return 1;
+    }
+    EngineConfig config;
+    config.sampleRate = rate;
+    config.maxVoices = 64; // one voice per sounding note
+    if (chip == ChipType::OPL2 || chip == ChipType::OPL3)
+        config.chips = {ChipType::OPL3}; // eighteen channels, like a Sound Blaster 16
+    Engine engine(config);
+    MidiPlayer player(&engine);
+    player.setInstruments(PatchBank::generalMidi(chip)); // the native bank for ChipType::None
+    player.setFile(song);
+    \endcode
 
     Changes of a channel's volume, expression, pan and pitch bend reach the notes already sounding,
     each on its sample. PatchBank::generalMidi(ChipType::OPL3) gives the instruments of an FM sound
@@ -201,19 +332,52 @@
     Nt FM QML (\c Nt::FMQml) makes a sound one declarative element. Register the types once, then
     \c{import QtFM}:
 
-    \snippet fm/fmqml.cpp register
+    \code
+    QtFM::registerQmlTypes(); // "import QtFM" in documents
+    \endcode
 
     FmSound plays a patch from a file or from the FmPatch factory; its pitch, gain and pan can be
     bound to the game, and are smoothed on the audio thread:
 
-    \snippet fm/fmqml.cpp sound
+    \code
+    property FmSound coin: FmSound {
+        patch: FmPatch.generate(FmPatch.Pickup, 3)
+        pitchVariance: 1            // +/- semitones per play
+        maxInstances: 4
+    }
+    property FmSound engineHum: FmSound {
+        patch: FmPatch.generate(FmPatch.Engine, 42)
+        loop: true
+        pitch: game.speed / 10      // bound live, smoothed on the audio thread
+    }
+    property FmSound laser: FmSound {
+        patch: FmPatch.generate(FmPatch.Laser, 4, FmChip.OPL2)
+        chip: FmChip.OPL2           // played on the emulated AdLib
+    }
+    \endcode
 
     FmSoundBank loads a bank and names its sounds, FmSequence plays notes from it on a tempo grid,
     and FmMusic plays chip music:
 
-    \snippet fm/fmqml.cpp sequence
+    \code
+    property FmSequence jingle: FmSequence {
+        bank: game.bank
+        tempo: 160
+        notes: [
+            { beat: 0, sound: "coin" },
+            { beat: 0.5, sound: "coin", pitch: 4 },
+            { beat: 1, sound: "coin", pitch: 7 },
+            { beat: 1.5, sound: "coin", pitch: 12, gain: -3 }
+        ]
+    }
+    \endcode
 
-    \snippet fm/fmqml.cpp music
+    \code
+    property FmMusic music: FmMusic {
+        source: Qt.application.arguments.length > 1 ? Qt.application.arguments[1] : ""
+        loops: false
+    }
+    \endcode
 
     The FmEngine singleton is the one engine they all play through. It is made, with the chips that
     the sounds ask for, and started the first time a sound plays.

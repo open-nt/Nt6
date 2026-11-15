@@ -89,20 +89,22 @@ Or use Nt without installing it: `add_subdirectory(Nt6)` in your project and lin
 
 ### Widgets
 
-Nt Widgets draws its own Fusion-like style, light and dark. This is [`hello_widgets`](examples/widgets/hello_widgets.cpp), one of every widget:
+Nt Widgets draws its own Fusion-like style, light and dark. This is [`hello_widgets`](https://github.com/open-nt/nt6-examples/blob/main/widgets/hello_widgets.cpp), one of every widget:
 
 <p align="center"><img src="doc/images/hello-widgets-window.png" alt="The hello_widgets example, dark and light" width="720"></p>
 
 ### More examples
 
+The example programs live in [nt6-examples](https://github.com/open-nt/nt6-examples), built with CMake against an installed Nt, the way your own project would be; the [Nt Examples](https://open-nt.github.io/Nt6/examples.html) page describes them.
+
 | Example | Shows |
 |---|---|
-| [`examples/hello`](examples/hello) | a standalone project that uses an installed Nt |
-| [`examples/signals`](examples/signals), [`examples/moc`](examples/moc) | signals and slots, and `ntmoc` |
-| [`examples/httpserver`](examples/httpserver/hello_server.cpp) | routes, JSON, streaming, delayed answers and WebSockets on one port |
-| [`examples/websockets`](examples/websockets), [`examples/dbus`](examples/dbus), [`examples/serialport`](examples/serialport), [`examples/sql`](examples/sql) | an echo server and client, a clock on the session bus, serial ports, an address book in SQLite |
-| [`examples/gui`](examples/gui), [`examples/widgets`](examples/widgets), [`examples/svg`](examples/svg), [`examples/charts`](examples/charts), [`examples/opengl`](examples/opengl), [`examples/vulkan`](examples/vulkan) | a painted window, the widget gallery, SVG rendering, a live chart dashboard, a window rendered with OpenGL, a triangle ray traced with Vulkan |
-| [`examples/fm`](examples/fm) | game sound effects synthesised with FM, chip music and the QML types: [`fmplay`](examples/fm/fmplay.cpp) and [`fmqml`](examples/fm/fmqml.cpp) |
+| [`hello`](https://github.com/open-nt/nt6-examples/tree/main/hello) | a standalone project that uses an installed Nt |
+| [`signals`](https://github.com/open-nt/nt6-examples/tree/main/signals), [`moc`](https://github.com/open-nt/nt6-examples/tree/main/moc) | signals and slots, and `ntmoc` |
+| [`httpserver`](https://github.com/open-nt/nt6-examples/blob/main/httpserver/hello_server.cpp) | routes, JSON, streaming, delayed answers and WebSockets on one port |
+| [`websockets`](https://github.com/open-nt/nt6-examples/tree/main/websockets), [`dbus`](https://github.com/open-nt/nt6-examples/tree/main/dbus), [`serialport`](https://github.com/open-nt/nt6-examples/tree/main/serialport), [`sql`](https://github.com/open-nt/nt6-examples/tree/main/sql) | an echo server and client, a clock on the session bus, serial ports, an address book in SQLite |
+| [`gui`](https://github.com/open-nt/nt6-examples/tree/main/gui), [`widgets`](https://github.com/open-nt/nt6-examples/tree/main/widgets), [`svg`](https://github.com/open-nt/nt6-examples/tree/main/svg), [`charts`](https://github.com/open-nt/nt6-examples/tree/main/charts), [`opengl`](https://github.com/open-nt/nt6-examples/tree/main/opengl), [`vulkan`](https://github.com/open-nt/nt6-examples/tree/main/vulkan) | a painted window, the widget gallery, SVG rendering, a live chart dashboard, a window rendered with OpenGL, a triangle ray traced with Vulkan |
+| [`fm`](https://github.com/open-nt/nt6-examples/tree/main/fm) | game sound effects synthesised with FM, chip music and the QML types: [`fmplay`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmplay.cpp) and [`fmqml`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmqml.cpp) |
 
 ## Contents
 
@@ -181,7 +183,7 @@ Nt SQL gives access to SQL databases, with a built-in driver for SQLite on the s
 | `QSqlRelationalTableModel`, `QSqlRelation` | foreign keys shown as a value of the row that they refer to, with inner or left joins |
 | `QSQLITE` driver | files, `:memory:` and temporary databases; the connection options `QSQLITE_BUSY_TIMEOUT`, `QSQLITE_OPEN_READONLY`, `QSQLITE_OPEN_URI`, `QSQLITE_OPEN_NOFOLLOW`, `QSQLITE_ENABLE_SHARED_CACHE`, `QSQLITE_ENABLE_REGEXP` and `QSQLITE_NO_USE_EXTENDED_RESULT_CODES`; notifications when a table changes; the `sqlite3 *` and `sqlite3_stmt *` handles |
 
-Guide: [Using Nt SQL](https://open-nt.github.io/Nt6/nt-sql.html). The [`contacts`](examples/sql/contacts.cpp) example keeps an address book in an SQLite file.
+Guide: [Using Nt SQL](https://open-nt.github.io/Nt6/nt-sql.html). The [`contacts`](https://github.com/open-nt/nt6-examples/blob/main/sql/contacts.cpp) example keeps an address book in an SQLite file.
 
 Differences from Qt: SQLite is the only driver and there are no driver plugins; no `QSqlRelationalDelegate`; `QSqlQuery` can be moved but not copied.
 
@@ -198,7 +200,7 @@ Nt D-Bus implements the D-Bus wire protocol itself (no libdbus) and works with `
 | `QDBusReply`, `QDBusPendingCall`, `QDBusPendingCallWatcher`, `QDBusPendingReply` | typed replies with signature checks; `QDBusPendingReply` is variadic |
 | `QDBusServer`, `QDBusServiceWatcher` | a peer-to-peer server (`EXTERNAL`, optional `ANONYMOUS`), watching names including `org.example.*` wildcards |
 
-Guide: [Using Nt D-Bus](https://open-nt.github.io/Nt6/nt-dbus.html). The [`dbus_clock`](examples/dbus/clock.cpp) example exports a clock on the session bus (`dbus_clock server`) and calls it (`dbus_clock client`).
+Guide: [Using Nt D-Bus](https://open-nt.github.io/Nt6/nt-dbus.html). The [`dbus_clock`](https://github.com/open-nt/nt6-examples/blob/main/dbus/clock.cpp) example exports a clock on the session bus (`dbus_clock server`) and calls it (`dbus_clock client`).
 
 Differences from Qt: only `unix:` addresses (no `tcp:`, `nonce-tcp:` or `autolaunch:`), and no `DBUS_COOKIE_SHA1` authentication; `QDBusInterface` has no meta-object built from introspection, so connect to remote signals with `QDBusConnection::connect()`; no `qdbusxml2cpp`, `qdbuscpp2xml`, `qdbus` or `qdbusviewer` tools.
 
@@ -214,7 +216,7 @@ Nt HTTP Server is an HTTP/1.1 server for embedding in an application, on top of 
 | `QHttpServerRouterRule` | the rule a route returns |
 | `QHttpServerWebSocketUpgradeResponse` | WebSocket upgrades on the server's own port: verifiers accept, deny or pass each upgrade request, and accepted connections arrive through `newWebSocketConnection()` as `QWebSocket`s |
 
-Guide: [Using Nt HTTP Server](https://open-nt.github.io/Nt6/nt-httpserver.html). The [`hello_server`](examples/httpserver/hello_server.cpp) example is a small web service with JSON, streaming and delayed answers.
+Guide: [Using Nt HTTP Server](https://open-nt.github.io/Nt6/nt-httpserver.html). The [`hello_server`](https://github.com/open-nt/nt6-examples/blob/main/httpserver/hello_server.cpp) example is a small web service with JSON, streaming and delayed answers.
 
 ```cpp
 QHttpServer server;
@@ -238,7 +240,7 @@ Nt WebSockets implements the WebSocket protocol (RFC 6455) itself, on top of Nt 
 
 Every frame from the peer is validated: masking, reserved bits and opcodes, control-frame rules, fragmentation, UTF-8 of text (also across frames) and close codes; a peer that breaks the protocol is sent the matching close code and disconnected. Nt HTTP Server can also accept upgrades on its own port.
 
-Guide: [Using Nt WebSockets](https://open-nt.github.io/Nt6/nt-websockets.html). The [`websocket_echo`](examples/websockets/echo.cpp) example is an echo server (`websocket_echo server`) and a client for it (`websocket_echo client ws://127.0.0.1:1234 hello`).
+Guide: [Using Nt WebSockets](https://open-nt.github.io/Nt6/nt-websockets.html). The [`websocket_echo`](https://github.com/open-nt/nt6-examples/blob/main/websockets/echo.cpp) example is an echo server (`websocket_echo server`) and a client for it (`websocket_echo client ws://127.0.0.1:1234 hello`).
 
 ```cpp
 QWebSocket socket;
@@ -273,14 +275,14 @@ Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration 
 | `QPainterPath`, `QTransform`, `QPolygon`, `QPolygonF`, `QLinearGradient`, `QRadialGradient`, `QConicalGradient` | Bezier paths with both fill rules, affine transformations, gradients with spread modes; pens with caps, joins and dashes |
 | `QVector2D`, `QVector3D`, `QVector4D`, `QQuaternion`, `QMatrix4x4` | 3D math in `float`: dot and cross products, normals, distances, `project()`/`unproject()`; axis-angle, Euler, `slerp()`; translate/rotate/scale, `perspective()`, `ortho()`, `frustum()`, `lookAt()`, inverse, column-major `data()` for OpenGL. No `QMatrix3x3` or `QGenericMatrix` |
 | `QOpenGLContext`, `QOpenGLFunctions`, `QSurfaceFormat`, `QSurface`, `QOffscreenSurface` | OpenGL through EGL, loaded at run time: desktop OpenGL or OpenGL ES contexts, sharing, the OpenGL ES 2.0 functions, swap interval (vsync on or off), multisampling; windows of the `offscreen` platform render into framebuffer objects |
-| `QVulkanInstance`, `QVulkanFunctions`, `QVulkanDeviceFunctions`, `QVulkanWindow`, `QVulkanWindowRenderer` | Vulkan through the loader, opened at run time: layers, extensions and the API version (1.3 by default), the core 1.0 to 1.3 functions of an instance and a device, validation output through `qWarning()` with filters, `surfaceForWindow()` on `xcb`; a window with device and queue selection, swapchain, depth-stencil, default render pass, multisampling, per-frame synchronization, `grab()` and swapchain recreation on resize. The [`rtriangle`](examples/vulkan/rtriangle.cpp) example traces rays with `VK_KHR_ray_tracing_pipeline` (see [Using Nt Vulkan](https://open-nt.github.io/Nt6/nt-vulkan.html)); needs `vulkan/vulkan.h` to build, `QT_CONFIG(vulkan)` tells |
+| `QVulkanInstance`, `QVulkanFunctions`, `QVulkanDeviceFunctions`, `QVulkanWindow`, `QVulkanWindowRenderer` | Vulkan through the loader, opened at run time: layers, extensions and the API version (1.3 by default), the core 1.0 to 1.3 functions of an instance and a device, validation output through `qWarning()` with filters, `surfaceForWindow()` on `xcb`; a window with device and queue selection, swapchain, depth-stencil, default render pass, multisampling, per-frame synchronization, `grab()` and swapchain recreation on resize. The [`rtriangle`](https://github.com/open-nt/nt6-examples/blob/main/vulkan/rtriangle.cpp) example traces rays with `VK_KHR_ray_tracing_pipeline` (see [Using Nt Vulkan](https://open-nt.github.io/Nt6/nt-vulkan.html)); needs `vulkan/vulkan.h` to build, `QT_CONFIG(vulkan)` tells |
 | `QFont`, `QFontMetrics` | families found with fontconfig, point or pixel size, weight, italic; metrics, `elidedText()`, `drawText()` with alignment, word wrap and clipping; glyphs are anti-aliased by FreeType |
 | `QImage`, `QPixmap`, `QColor`, `QRgb`, `QPen`, `QBrush`, `QRegion` | 32-bit images (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`) with implicit sharing, loading and saving of PNG, BMP and JPEG files, colors with `#rgb` and CSS names, solid pens and brushes, rectangle-list regions |
 | `QAction`, `QActionGroup`, `QKeySequence`, `QActionEvent` | what a user can do, shared by menus and shortcuts: text, check state, enabled and visible, a shortcut (a key with modifiers, from a string or a standard key), exclusive groups, and the events for widgets that show actions. No icons, and one key per sequence |
 | `QMouseEvent`, `QWheelEvent`, `QKeyEvent`, `QFocusEvent`, `QEnterEvent`, `QPaintEvent`, `QExposeEvent`, `QResizeEvent`, `QMoveEvent`, `QShowEvent`, `QHideEvent`, `QCloseEvent` | the event classes, with the `Qt::Key`, `Qt::MouseButton` and `Qt::KeyboardModifier` enums |
 | `QTextDocument`, `QTextLayout`, `QTextLine`, `QTextCharFormat`, `QTextBlockFormat`, `QTextOption` | rich text: a document of paragraphs with character and paragraph formats, read from and written as a subset of HTML (headings, bold/italic/underline, fonts, sizes, colors, links, lists, `pre`, rules, alignment and margins), laid out for a width and drawn with a painter; `anchorAt()` for the link at a point; line breaking, cursor positions and format ranges for one paragraph |
 
-Guides: [Using Nt GUI](https://open-nt.github.io/Nt6/nt-gui.html) and [Using Nt Vulkan](https://open-nt.github.io/Nt6/nt-vulkan.html). The [`hello_window`](examples/gui/hello_window.cpp) example paints a window and follows the mouse; [`rtriangle`](examples/vulkan/rtriangle.cpp) renders a turning triangle with hardware ray tracing in a `QVulkanWindow`, on an RTX, RDNA 2 or Arc GPU or Mesa's lavapipe in software.
+Guides: [Using Nt GUI](https://open-nt.github.io/Nt6/nt-gui.html) and [Using Nt Vulkan](https://open-nt.github.io/Nt6/nt-vulkan.html). The [`hello_window`](https://github.com/open-nt/nt6-examples/blob/main/gui/hello_window.cpp) example paints a window and follows the mouse; [`rtriangle`](https://github.com/open-nt/nt6-examples/blob/main/vulkan/rtriangle.cpp) renders a turning triangle with hardware ray tracing in a `QVulkanWindow`, on an RTX, RDNA 2 or Arc GPU or Mesa's lavapipe in software.
 
 Not implemented yet: QRhi, `QVulkanWindow` on platforms other than `xcb` (the `offscreen` platform has `QVulkanInstance` for headless rendering and compute), text shaping (HarfBuzz) and font fallback, `QFontDatabase`, editing of a `QTextDocument` (`QTextCursor` over it, tables, images, style sheets), other image formats and `QImageReader`/`QImageWriter`, the clipboard, cursors made of pixmaps and themed cursors (`QCursor` has the standard shapes, from the cursor font of the X server), RandR multi-screen, and Wayland.
 
@@ -321,12 +323,12 @@ Nt Widgets builds on Nt GUI. The widgets of a window are painted into the backin
 | `QToolTip`, `QHelpEvent`, `QWidget::setToolTip()` | tool tips that appear after the mouse rests, follow the widget under the mouse, and show the text of the nearest widget that has one; `QEvent::ToolTip` for tool tips that depend on the position |
 | `QStyle`, `QStyleOption` and its subclasses, `QPalette` | a Fusion-like default style behind `QStyle`, with a light and a dark palette, replaceable with `QApplication::setStyle()` |
 
-Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](examples/widgets/hello_widgets.cpp) example has the Nt logo, an SVG resource shown by a `QSvgWidget`, and one of every widget on the pages of a tab widget (its first page, *Nt*, is a showcase of all the widgets, live, and the *Views* page has a table and a scroll area), and [`gallery`](examples/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the same logo.
+Guide: [Using Nt Widgets](https://open-nt.github.io/Nt6/nt-widgets.html). The [`hello_widgets`](https://github.com/open-nt/nt6-examples/blob/main/widgets/hello_widgets.cpp) example has the Nt logo, an SVG resource shown by a `QSvgWidget`, and one of every widget on the pages of a tab widget (its first page, *Nt*, is a showcase of all the widgets, live, and the *Views* page has a table and a scroll area), and [`gallery`](https://github.com/open-nt/nt6-examples/blob/main/widgets/gallery.cpp) shows more: custom widgets, a dark theme, enabling groups of controls, and the same logo.
 
 <p align="center"><img src="doc/images/hello-widgets-nt.png" alt="The Nt page of hello_widgets, which shows every widget" width="360"> <img src="doc/images/hello-widgets-light.png" alt="The pages of hello_widgets, light, with the open list of a combo box" width="360"> <img src="doc/images/hello-widgets-dark.png" alt="The pages of hello_widgets, dark" width="360"></p>
 <p align="center"><img src="doc/images/widgets-gallery-light.png" alt="The gallery example, light" width="320"> <img src="doc/images/widgets-gallery-dark.png" alt="The gallery example, dark" width="320"></p>
 
-The examples follow the desktop: it uses twice as many pixels on a high-resolution screen (`QScreen::devicePixelRatio()`, from `Xft.dpi` or `QT_SCALE_FACTOR`) and the dark or light colors of the desktop (`QStyleHints::colorScheme()`, read from the desktop portal). The widget examples use only API that Qt has too, so `-DNT_EXAMPLES_QT=ON` also builds them against Qt 6 (`hello_widgets_qt`, `gallery_qt` in `qt-examples/`) to compare the two side by side.
+The examples follow the desktop: it uses twice as many pixels on a high-resolution screen (`QScreen::devicePixelRatio()`, from `Xft.dpi` or `QT_SCALE_FACTOR`) and the dark or light colors of the desktop (`QStyleHints::colorScheme()`, read from the desktop portal). The widget examples use only API that Qt has too, so the `qt` directory of [nt6-examples](https://github.com/open-nt/nt6-examples) builds them against Qt 6 as well (`hello_widgets_qt`, `gallery_qt` in `qt-examples/`) to compare the two side by side.
 
 Not implemented yet: editing of rich text and the clipboard, model-based list and table views (`QListView`, `QTableView`; `QTreeView` shows a model without hierarchy as a table of rows), `QItemDelegate` and persistent editors, native dialogs, dragging tool bars and dock widgets, drag and drop, style sheets.
 
@@ -338,11 +340,11 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 | Module | CMake target | What it does |
 |---|---|---|
-| Nt FM | `Nt::FM` | FM synthesis of game sound effects from small JSON patches; see [Nt FM](#nt-fm-fm-synthesis-for-game-audio) and the [`fmplay`](examples/fm/fmplay.cpp) example |
-| Nt FM QML | `Nt::FMQml` | the QML types of Nt FM (`import QtFM`); see the [`fmqml`](examples/fm/fmqml.cpp) example |
-| Nt Gamepad | `Nt::Gamepad` | Qt Gamepad from Qt 5, brought back: `QGamepad`, `QGamepadManager` and `QGamepadKeyNavigation`, plus SDL GameControllerDB mappings, stable ids across replugging, generic button and axis signals, dead zones and rumble. Reads evdev on Linux, event-driven, with hot plugging. Guide: [Using Nt Gamepad](https://open-nt.github.io/Nt6/nt-gamepad.html); example: [`gamepadinfo`](examples/gamepad/gamepadinfo.cpp) |
-| Nt glTF | `Nt::Gltf` | `QtGltf::Document`: loads glTF 2.0 scenes (`.gltf` and `.glb`) into meshes with decoded float vertex data and plain index lists, PBR materials, textures (decoded on demand), cameras, `KHR_lights_punctual` lights and world-space instances, ready for a Vulkan renderer or ray tracer. Guide: [Using Nt glTF](https://open-nt.github.io/Nt6/nt-gltf.html); example: [`gltfinfo`](examples/gltf/gltfinfo.cpp) |
-| Nt GPIO | `Nt::Gpio` | `QGpioLine`: one GPIO line, as input with `valueChanged()`, debounce and bias, or as output. Uses the Linux GPIO character device (v2, Linux 5.10 or later) or Zephyr. Guide: [Using Nt GPIO](https://open-nt.github.io/Nt6/nt-gpio.html); example: [`ptt`](examples/gpio/ptt.cpp) |
+| Nt FM | `Nt::FM` | FM synthesis of game sound effects from small JSON patches; see [Nt FM](#nt-fm-fm-synthesis-for-game-audio) and the [`fmplay`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmplay.cpp) example |
+| Nt FM QML | `Nt::FMQml` | the QML types of Nt FM (`import QtFM`); see the [`fmqml`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmqml.cpp) example |
+| Nt Gamepad | `Nt::Gamepad` | Qt Gamepad from Qt 5, brought back: `QGamepad`, `QGamepadManager` and `QGamepadKeyNavigation`, plus SDL GameControllerDB mappings, stable ids across replugging, generic button and axis signals, dead zones and rumble. Reads evdev on Linux, event-driven, with hot plugging. Guide: [Using Nt Gamepad](https://open-nt.github.io/Nt6/nt-gamepad.html); example: [`gamepadinfo`](https://github.com/open-nt/nt6-examples/blob/main/gamepad/gamepadinfo.cpp) |
+| Nt glTF | `Nt::Gltf` | `QtGltf::Document`: loads glTF 2.0 scenes (`.gltf` and `.glb`) into meshes with decoded float vertex data and plain index lists, PBR materials, textures (decoded on demand), cameras, `KHR_lights_punctual` lights and world-space instances, ready for a Vulkan renderer or ray tracer. Guide: [Using Nt glTF](https://open-nt.github.io/Nt6/nt-gltf.html); example: [`gltfinfo`](https://github.com/open-nt/nt6-examples/blob/main/gltf/gltfinfo.cpp) |
+| Nt GPIO | `Nt::Gpio` | `QGpioLine`: one GPIO line, as input with `valueChanged()`, debounce and bias, or as output. Uses the Linux GPIO character device (v2, Linux 5.10 or later) or Zephyr. Guide: [Using Nt GPIO](https://open-nt.github.io/Nt6/nt-gpio.html); example: [`ptt`](https://github.com/open-nt/nt6-examples/blob/main/gpio/ptt.cpp) |
 
 ### Additions to Qt classes
 
@@ -398,7 +400,7 @@ Drawn: `svg`, `g`, `defs`, `symbol`, `use`, `a`, `switch`; `path` (all commands,
 
 Documents are treated as untrusted input: loading reads only the bytes it is given, nesting and references have a fixed depth, and one drawing visits a bounded number of elements (`QtSvg::AssumeTrustedSource` lifts that limit).
 
-Guide: [Using Nt SVG](https://open-nt.github.io/Nt6/nt-svg.html). The [`svg_viewer`](examples/svg/svg_viewer.cpp) example shows a file in a window and writes one with `QSvgGenerator`.
+Guide: [Using Nt SVG](https://open-nt.github.io/Nt6/nt-svg.html). The [`svg_viewer`](https://github.com/open-nt/nt6-examples/blob/main/svg/svg_viewer.cpp) example shows a file in a window and writes one with `QSvgGenerator`.
 
 ```cpp
 QSvgRenderer renderer(QString(":/logo.svg"));
@@ -427,7 +429,7 @@ Nt Charts has the API of Qt Charts: line, spline, scatter, area, bar (grouped, s
 | `QValueAxis`, `QLogValueAxis`, `QDateTimeAxis`, `QBarCategoryAxis` | fixed or dynamic ticks, minor grid lines, shades, printf-style label formats, reversed axes |
 | `QLegend` | four sides, rectangle, circle or series markers |
 
-Guide: [Using Nt Charts](https://open-nt.github.io/Nt6/nt-charts.html), with pictures of each kind of chart and theme. The [`chart_dashboard`](examples/charts/dashboard.cpp) example shows four charts, one of them live.
+Guide: [Using Nt Charts](https://open-nt.github.io/Nt6/nt-charts.html), with pictures of each kind of chart and theme. The [`chart_dashboard`](https://github.com/open-nt/nt6-examples/blob/main/charts/dashboard.cpp) example shows four charts, one of them live.
 
 Differences from Qt: `QChart` is a `QObject` and `QChartView` a `QWidget`, with no graphics scene; no animations, polar charts, box plots, candlesticks, `QCategoryAxis`, `QColorAxis`, model mappers or `QLegendMarker`; labels are drawn upright; a series has at most one axis of each orientation.
 
@@ -443,7 +445,7 @@ Nt OpenGL renders with OpenGL in windows and offscreen, and lets `QPainter` draw
 
 On an NVIDIA RTX 5070 Ti, `painting --bench` draws the flower scene of the QPainter documentation (800×600, 4× multisampling) in 1.5 ms with OpenGL against 9.4 ms in software, and gradients in 0.09 ms against 7.5 ms. With `QSurfaceFormat::setSwapInterval(0)` frames are not held to the display's refresh rate.
 
-Guide: [Using Nt OpenGL](https://open-nt.github.io/Nt6/nt-opengl.html). The [`glwindow`](examples/opengl/glwindow.cpp) example renders with OpenGL and QPainter and prints its frame rate, with or without vsync; [`painting --gl`](examples/gui/painting.cpp) shows the painter scenes in a `QOpenGLWindow`.
+Guide: [Using Nt OpenGL](https://open-nt.github.io/Nt6/nt-opengl.html). The [`glwindow`](https://github.com/open-nt/nt6-examples/blob/main/opengl/glwindow.cpp) example renders with OpenGL and QPainter and prints its frame rate, with or without vsync; [`painting --gl`](https://github.com/open-nt/nt6-examples/blob/main/gui/painting.cpp) shows the painter scenes in a `QOpenGLWindow`.
 
 Differences from Qt: EGL only (X11 through XCB, and headless), so no GLX, WGL or CGL yet; no `QOpenGLWidget`, `QOpenGLShaderProgram`, `QOpenGLBuffer`, `QOpenGLTexture`, `QOpenGLVertexArrayObject` or `QOpenGLExtraFunctions`; no `QPainter::beginNativePainting()`; antialiasing needs multisampling.
 
@@ -459,7 +461,7 @@ Nt Qml runs JavaScript and QML documents. The JavaScript engine is Nt's own inte
 | `qmlRegisterType()` and the rest of `<qqml.h>`, `QQmlListProperty`, `QQmlParserStatus` | C++ types, singletons, uncreatable types, QML files as types, default and list properties |
 | `QtObject`, `Timer`, `Connections`, `Component` | the QtQml module, and the `Qt` object |
 
-Guides: [Using Nt Qml](https://open-nt.github.io/Nt6/nt-qml.html) (JavaScript) and [Using Nt QML](https://open-nt.github.io/Nt6/nt-qml-language.html) (documents). The [`js_scripting`](examples/qml/scripting.cpp) and [`hello_qml`](examples/qml/hello_qml.cpp) examples show both.
+Guides: [Using Nt Qml](https://open-nt.github.io/Nt6/nt-qml.html) (JavaScript) and [Using Nt QML](https://open-nt.github.io/Nt6/nt-qml-language.html) (documents). The [`js_scripting`](https://github.com/open-nt/nt6-examples/blob/main/qml/scripting.cpp) and [`hello_qml`](https://github.com/open-nt/nt6-examples/blob/main/qml/hello_qml.cpp) examples show both.
 
 Differences from Qt: interpreted, not compiled; no Qt Quick (visual types) yet; no attached properties other than `Component.onCompleted`/`onDestruction`, no `Behavior`, `Binding`, `Loader`, `Repeater` or models; no JavaScript modules or `.js` imports; no network URLs; `QML_ELEMENT` macros compile but types are registered with `qmlRegisterType()`.
 
@@ -481,7 +483,7 @@ Nt FM has no Qt counterpart. It synthesises game sound effects in real time with
 
 The synthesiser: eight OPN/OPM algorithms or the two OPL connections, the OPL2 waveforms plus square, saw and triangle, DAHDSR envelopes with curvature, pitch envelope, slide and arpeggio, one LFO, white and NES-style LFSR noise, a state-variable filter with sweep, and a bit crusher.
 
-Guide: [Using Nt FM](https://open-nt.github.io/Nt6/nt-fm.html), with the patch format. The [`fmplay`](examples/fm/fmplay.cpp) example plays, generates, renders and benchmarks sounds and music; [`fmqml`](examples/fm/fmqml.cpp) does it from a QML document.
+Guide: [Using Nt FM](https://open-nt.github.io/Nt6/nt-fm.html), with the patch format. The [`fmplay`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmplay.cpp) example plays, generates, renders and benchmarks sounds and music; [`fmqml`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmqml.cpp) does it from a QML document.
 
 Not yet: OPLL, OPN2, OPM and SN76489 emulation (so no Mega Drive or MSX music), RAD files, the fixed-point path and Zephyr build, oversampling, and backends other than ALSA.
 
@@ -503,7 +505,7 @@ Nt Multimedia has the audio and camera parts of Qt Multimedia. Link with `Nt::Mu
 | `QImageCapture` | pictures taken from the camera's stream, scaled to a resolution if set, as a `QImage` or saved as JPEG or PNG |
 | `QMediaRecorder`, `QAudioInput`, `QMediaFormat`, `QMediaMetaData` | the microphone recorded to a WAV file, with pause, duration, numbered files in a folder and text tags (title, artist, date, ...) in its `LIST/INFO` chunk; the input sets the device, gain and mute |
 
-WAV files with 8, 16, 24 or 32-bit integer or 32 or 64-bit floating-point samples, up to 8 channels, can be played and decoded. Guide: [Using Nt Multimedia](https://open-nt.github.io/Nt6/nt-multimedia.html). Examples: [`audiodevices`](examples/multimedia/audiodevices.cpp) lists the devices and plays a tone, [`audioplayer`](examples/multimedia/audioplayer.cpp) plays a WAV file, [`camera`](examples/multimedia/camera.cpp) lists the cameras, streams and saves a picture, [`viewfinder`](examples/multimedia/viewfinder.cpp) shows a camera in a window, [`recorder`](examples/multimedia/recorder.cpp) records the microphone, and [`decoder`](examples/multimedia/decoder.cpp) decodes a file to 16 kHz mono.
+WAV files with 8, 16, 24 or 32-bit integer or 32 or 64-bit floating-point samples, up to 8 channels, can be played and decoded. Guide: [Using Nt Multimedia](https://open-nt.github.io/Nt6/nt-multimedia.html). Examples: [`audiodevices`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/audiodevices.cpp) lists the devices and plays a tone, [`audioplayer`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/audioplayer.cpp) plays a WAV file, [`camera`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/camera.cpp) lists the cameras, streams and saves a picture, [`viewfinder`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/viewfinder.cpp) shows a camera in a window, [`recorder`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/recorder.cpp) records the microphone, and [`decoder`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/decoder.cpp) decodes a file to 16 kHz mono.
 
 Not yet: video playback and recording (no video codecs), compressed audio (MP3, AAC, Ogg, FLAC), a QML video item and GPU drawing of video, camera controls (focus, zoom, exposure), pitch-preserving playback rates, and backends other than ALSA and Video4Linux2.
 
@@ -635,7 +637,7 @@ It handles namespaces, nested classes, overloaded signals (use `qOverload`), def
 
 ### CMake
 
-AUTOMOC, driven by ntmoc (see `examples/moc`):
+AUTOMOC, driven by ntmoc (see [`moc`](https://github.com/open-nt/nt6-examples/tree/main/moc) in nt6-examples):
 
 ```cmake
 add_subdirectory(Nt6)                      # or include Nt's CMakeLists.txt
@@ -688,7 +690,7 @@ cmake --build build --target docs      # writes build/doc/html
 
 The documentation is published to <https://open-nt.github.io/Nt6/> on every push to `main`.
 
-The class pages of the widgets show how each widget is drawn, in its states, in the light color scheme. The pictures in `doc/images/widgets` come from the real widgets: `cmake --build build --target widget_images` renders them with `QWidget::render()` on the offscreen platform (no display needed), so run it again after changing how a widget or the style draws, and commit the result. The `docs` target fails on any broken link or bad parameter name. `coverage.txt` in the output lists public API that has no documentation yet. See [tools/ndoc/README.md](tools/ndoc/README.md) for the comment syntax. Write documentation from Nt's behaviour: Qt's documentation text is not MIT licensed, so it must not be copied or reworded.
+The class pages of the widgets show how each widget is drawn, in its states, in the light color scheme. The pictures in `doc/images/widgets` come from the real widgets: `render_widgets doc/images`, from [nt6-examples](https://github.com/open-nt/nt6-examples), renders them with `QWidget::render()` on the offscreen platform (no display needed), so run it again after changing how a widget or the style draws, and commit the result; `render_charts doc/images` and `painting --write doc/images` do the same for the charts and the painter pictures. The `docs` target fails on any broken link or bad parameter name. `coverage.txt` in the output lists public API that has no documentation yet. See [tools/ndoc/README.md](tools/ndoc/README.md) for the comment syntax. Write documentation from Nt's behaviour: Qt's documentation text is not MIT licensed, so it must not be copied or reworded.
 
 ## Build
 
@@ -700,13 +702,13 @@ Requires C++17 and a POSIX system. Link with the modules you use, such as `Nt::C
 
 ### Zephyr (embedded, headless)
 
-Nt Core and Nt Network cross build as a [Zephyr](https://zephyrproject.org) module for boards in the class of the NXP i.MX RT1170. Set `CONFIG_NT=y` (and `CONFIG_NT_NETWORK=y`) in `prj.conf`, link the application with `Nt::Core` and `Nt::Network`, and build with west; [`examples/zephyr/hello`](examples/zephyr/hello) is a complete application:
+Nt Core and Nt Network cross build as a [Zephyr](https://zephyrproject.org) module for boards in the class of the NXP i.MX RT1170. Set `CONFIG_NT=y` (and `CONFIG_NT_NETWORK=y`) in `prj.conf`, link the application with `Nt::Core` and `Nt::Network`, and build with west; [`zephyr/hello`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/hello) in nt6-examples is a complete application; the examples repository is not a west workspace, so name a checkout of Nt as a module:
 
 ```sh
-west build -b mimxrt1170_evk/mimxrt1176/cm7 examples/zephyr/hello
+west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/hello -- -DNT_ROOT=/path/to/Nt
 ```
 
-[`examples/zephyr/qemu`](examples/zephyr/qemu) is a self-checking application that runs without hardware, with `west build -b mps2/an385 examples/zephyr/qemu -t run`. It also serves a web page of its results with Nt HTTP Server (`CONFIG_NT_HTTPSERVER`), which QEMU can forward to your browser; the guide shows how.
+[`zephyr/qemu`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/qemu) is a self-checking application that runs without hardware, with `west build -b mps2/an385 zephyr/qemu -t run -- -DNT_ROOT=/path/to/Nt`. It also serves a web page of its results with Nt HTTP Server (`CONFIG_NT_HTTPSERVER`), which QEMU can forward to your browser; the guide shows how.
 
 The port is at an early stage: it runs under QEMU, and has not been run on a real board yet. The guide [Nt on Zephyr](https://open-nt.github.io/Nt6/nt-zephyr.html) lists what is left out and what differs.
 

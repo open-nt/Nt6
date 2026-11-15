@@ -24,7 +24,33 @@ using QtChartsPrivate::ChartEngine;
     differ in how they put the sets together: side by side, stacked, or as percentages, with vertical or
     horizontal bars. The series owns its sets.
 
-    \snippet charts/dashboard.cpp bars
+    \code
+    auto *done = new QBarSet("Done");
+    *done << 12 << 18 << 9 << 15;
+    auto *open = new QBarSet("Open");
+    *open << 4 << 6 << 3 << 8;
+
+    auto *series = new QBarSeries;
+    series->append(done);
+    series->append(open);
+    series->setLabelsVisible(true);
+    QObject::connect(series, &QBarSeries::clicked, [](int index, QBarSet *set) {
+        std::printf("%s: %g\n", set->label().toUtf8().constData(), set->at(index));
+    });
+
+    auto *axisX = new QBarCategoryAxis;
+    axisX->append({"Core", "GUI", "Network", "Charts"});
+    auto *axisY = new QValueAxis;
+    axisY->setRange(0, 20);
+
+    auto *chart = new QChart;
+    chart->setTitle("Tickets");
+    chart->addSeries(series);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisX);
+    series->attachAxis(axisY);
+    \endcode
 
     With setLabelsVisible(), each bar has a label with its value, written with labelsFormat().
 

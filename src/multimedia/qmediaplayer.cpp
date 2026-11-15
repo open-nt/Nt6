@@ -310,7 +310,22 @@ public:
 
     Set a source and an audio output, then play():
 
-    \snippet multimedia/audioplayer.cpp player
+    \code
+    auto *player = new QMediaPlayer(qApp);
+    auto *output = new QAudioOutput(qApp);
+    output->setVolume(0.5f);
+    player->setAudioOutput(output);
+    QObject::connect(player, &QMediaPlayer::positionChanged, [player](qint64 position) {
+        std::printf("\r%lld / %lld ms", static_cast<long long>(position), static_cast<long long>(player->duration()));
+        std::fflush(stdout);
+    });
+    QObject::connect(player, &QMediaPlayer::mediaStatusChanged, [](QMediaPlayer::MediaStatus status) {
+        if (status == QMediaPlayer::EndOfMedia)
+            QCoreApplication::quit();
+    });
+    player->setSource(QUrl::fromLocalFile(file));
+    player->play();
+    \endcode
 
     The player reads the file as it plays, so long files take little memory. position() moves
     while it plays, and positionChanged() reports it about every 50 ms. At the end the playback

@@ -390,7 +390,18 @@ qreal QXYSeries::markerSize() const { return m_markerSize; }
 
     \image charts/qlineseries.png Three line series with value axes
 
-    \snippet charts/dashboard.cpp line
+    \code
+    auto *series = new QLineSeries;
+    series->setName("CPU");
+    for (int t = 0; t < 60; ++t)
+        series->append(t, sample(t));
+
+    auto *chart = new QChart;
+    chart->setTitle("Load");
+    chart->addSeries(series);
+    chart->createDefaultAxes();
+    chart->axes(Qt::Vertical).first()->setRange(0, 100);
+    \endcode
 
     The points are joined in the order they are in, which need not be the order of their x values.
 
@@ -455,7 +466,18 @@ QAbstractSeries::SeriesType QSplineSeries::type() const { return SeriesTypeSplin
 
     \image charts/qscatterseries.png Two scatter series with circle and diamond markers
 
-    \snippet charts/dashboard.cpp scatter
+    \code
+    auto *series = new QScatterSeries;
+    series->setName("Requests");
+    series->setMarkerSize(9);
+    for (int i = 0; i < 50; ++i)
+        series->append(i * 37 % 100, 20 + (i * 37 % 100) * 0.7 + 10 * std::sin(i));
+
+    auto *chart = new QChart;
+    chart->setTitle("Latency");
+    chart->addSeries(series);
+    chart->createDefaultAxes();
+    \endcode
 
     The markers are filled with brush() and outlined with pen(); markerSize() is their diameter.
 

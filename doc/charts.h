@@ -21,15 +21,56 @@
 
     Make a series, add it to a chart, give the chart axes, and show it in a view:
 
-    \snippet charts/dashboard.cpp line
+    \code
+    auto *series = new QLineSeries;
+    series->setName("CPU");
+    for (int t = 0; t < 60; ++t)
+        series->append(t, sample(t));
 
-    \snippet charts/dashboard.cpp view
+    auto *chart = new QChart;
+    chart->setTitle("Load");
+    chart->addSeries(series);
+    chart->createDefaultAxes();
+    chart->axes(Qt::Vertical).first()->setRange(0, 100);
+    \endcode
+
+    \code
+    auto *view = new QChartView(lineChart(&live));
+    view->setRubberBand(QChartView::HorizontalRubberBand);
+    grid->addWidget(view, 0, 0);
+    \endcode
 
     The chart owns its series and axes, and the view owns the chart. createDefaultAxes() makes a pair of
     axes that fit the data of all series. For more control, make the axes yourself, add them with
     QChart::addAxis() and attach them to the series with QAbstractSeries::attachAxis():
 
-    \snippet charts/dashboard.cpp bars
+    \code
+    auto *done = new QBarSet("Done");
+    *done << 12 << 18 << 9 << 15;
+    auto *open = new QBarSet("Open");
+    *open << 4 << 6 << 3 << 8;
+
+    auto *series = new QBarSeries;
+    series->append(done);
+    series->append(open);
+    series->setLabelsVisible(true);
+    QObject::connect(series, &QBarSeries::clicked, [](int index, QBarSet *set) {
+        std::printf("%s: %g\n", set->label().toUtf8().constData(), set->at(index));
+    });
+
+    auto *axisX = new QBarCategoryAxis;
+    axisX->append({"Core", "GUI", "Network", "Charts"});
+    auto *axisY = new QValueAxis;
+    axisY->setRange(0, 20);
+
+    auto *chart = new QChart;
+    chart->setTitle("Tickets");
+    chart->addSeries(series);
+    chart->addAxis(axisX, Qt::AlignBottom);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    series->attachAxis(axisX);
+    series->attachAxis(axisY);
+    \endcode
 
     \section1 The Kinds of Charts
 
@@ -141,7 +182,21 @@
     Series emit signals when they are clicked or hovered: QBarSet::clicked(), QPieSlice::hovered(),
     QXYSeries::clicked() and so on.
 
-    \snippet charts/dashboard.cpp pie
+    \code
+    auto *series = new QPieSeries;
+    series->setHoleSize(0.4);
+    series->append("Passed", 182);
+    series->append("Skipped", 11);
+    QPieSlice *failed = series->append("Failed", 7);
+    failed->setExploded(true);
+    failed->setLabelVisible(true);
+    QObject::connect(series, &QPieSeries::hovered, [](QPieSlice *slice, bool state) { slice->setExploded(state); });
+
+    auto *chart = new QChart;
+    chart->setTitle("Tests");
+    chart->addSeries(series);
+    chart->legend()->setAlignment(Qt::AlignRight);
+    \endcode
 
     With QChartView::setRubberBand(), dragging over the plot area zooms into it, and a right click zooms
     out. QChart::zoomIn(), QChart::zoom(), QChart::scroll() and QChart::zoomReset() do the same from code.
@@ -150,10 +205,19 @@
 
     QChart::paint() draws a chart on any painter, so a chart can be written to an image or printed:
 
-    \snippet charts/dashboard.cpp image
+    \code
+    chart->resize(QSizeF(640, 400));
+    QImage image(640, 400, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    QPainter painter(&image);
+    chart->paint(&painter);
+    painter.end();
+    image.save(argv[2]);
+    \endcode
 
     The \c chart_dashboard example shows four charts that update live. The pictures on this page are
-    drawn by \c render_charts; \c{cmake --build build --target chart_images} draws them again.
+    drawn by \c render_charts, also in the examples repository: \c{render_charts doc/images} in a checkout of Nt
+    draws them again.
 
     \section1 Differences from Qt Charts
 

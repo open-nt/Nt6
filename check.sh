@@ -168,7 +168,7 @@ configure() { # <dir> [cmake args...]
     local dir=$1; shift
     local gen=()
     command -v ninja > /dev/null 2>&1 && gen=(-G Ninja)
-    cmake -S . -B "$dir" "${gen[@]}" -DNT_WARNINGS_AS_ERRORS=ON -DNT_BUILD_EXAMPLES=ON \
+    cmake -S . -B "$dir" "${gen[@]}" -DNT_WARNINGS_AS_ERRORS=ON \
         -DCMAKE_EXPORT_COMPILE_COMMANDS=ON "$@"
 }
 
@@ -257,16 +257,14 @@ check_tsan() {
         skipped+=("tsan")
         return 0
     fi
-    configure "$build_root/tsan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF \
-        -DNT_BUILD_EXAMPLES=OFF -DNT_SANITIZE=thread && \
+    configure "$build_root/tsan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF -DNT_SANITIZE=thread && \
         cmake --build "$build_root/tsan" -j "$jobs" --target nt_thread_tests nt_future_tests nt_eventdispatcher_tests nt_concurrent_tests nt_fm_tests nt_multimedia_tests nt_multimedia_capture_tests && \
         TSAN_OPTIONS=halt_on_error=1 ctest --test-dir "$build_root/tsan" -R '^nt_(thread|future|eventdispatcher|concurrent|fm|multimedia|multimedia_capture)_tests$' --output-on-failure
 }
 
 check_sanitizers() {
     need cmake || return $?
-    configure "$build_root/asan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF \
-        -DNT_BUILD_EXAMPLES=OFF "-DNT_SANITIZE=address;undefined" && \
+    configure "$build_root/asan" -DCMAKE_BUILD_TYPE=RelWithDebInfo -DNT_HARDENING=OFF "-DNT_SANITIZE=address;undefined" && \
         cmake --build "$build_root/asan" -j "$jobs" && \
         ASAN_OPTIONS=detect_leaks=1:abort_on_error=0 UBSAN_OPTIONS=print_stacktrace=1 \
         LSAN_OPTIONS="suppressions=$root/.lsan-suppressions" \

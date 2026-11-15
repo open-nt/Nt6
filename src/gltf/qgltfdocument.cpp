@@ -1087,7 +1087,7 @@ bool Parser::parse(const QByteArray &data) {
     structures from them. Qt has no such module (Qt Quick 3D loads glTF only into its own scene
     graph).
 
-    See \l{Using Nt glTF} for a walk through and \c{examples/gltf/gltfinfo.cpp} for a complete
+    See \l{Using Nt glTF} for a walk through and \c{gltf/gltfinfo.cpp} in the \l{Nt Examples}{examples repository} for a complete
     program.
 */
 
@@ -1742,12 +1742,38 @@ QImage Image::toImage() const { return QImage::fromData(encodedData()); }
     either from memory. The lists then hold the scene as the glTF specification describes it, with
     the same indices:
 
-    \snippet gltf/gltfinfo.cpp load
+    \code
+    QtGltf::Document document;
+    if (!document.load(parser.positionalArguments().first())) {
+        std::fprintf(stderr, "gltfinfo: %s\n", qPrintable(document.errorString()));
+        return 1;
+    }
+    for (const QtGltf::Mesh &mesh : document.meshes()) {
+        for (const QtGltf::Primitive &primitive : mesh.primitives) {
+            if (primitive.mode != QtGltf::Primitive::Triangles)
+                continue;
+            // positions, normals, texCoords0 and indices are ready to copy into vertex and index buffers.
+            const qsizetype triangles = primitive.indices.size() / 3;
+            Q_UNUSED(triangles);
+        }
+    }
+    \endcode
 
     instances() walks a scene and gives each node with its transform to world space, which is
     what a ray tracer needs for its top-level acceleration structure:
 
-    \snippet gltf/gltfinfo.cpp instances
+    \code
+    const QList<QtGltf::Instance> instances = document.instances();
+    qsizetype meshInstances = 0;
+    for (const QtGltf::Instance &instance : instances) {
+        const QtGltf::Node &node = document.nodes().at(instance.node);
+        if (node.mesh < 0)
+            continue;
+        // One top-level acceleration structure instance: node.mesh's geometry, placed by
+        // instance.transform.
+        ++meshInstances;
+    }
+    \endcode
 
     Document is a value type and implicitly shared. Loading checks every index and byte range, so
     a document that loaded can be used without further checks; on failure the document is empty and

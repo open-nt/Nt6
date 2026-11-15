@@ -29,7 +29,20 @@
 
     QPainter has the same functions, and saves and restores its transformation with save() and restore():
 
-    \snippet gui/painting.cpp transforms
+    \code
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.translate(size.width() / 2, size.height() / 2);
+    for (int i = 0; i < 24; ++i) {
+        painter.save();
+        painter.rotate(i * 15 + phase);
+        painter.translate(size.height() / 3, 0);
+        painter.scale(1.0 + 0.5 * std::sin((i + phase / 10) * kPi / 6), 1.0);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(QColor::fromHsv(i * 15, 200, 230, 200));
+        painter.drawRoundedRect(QRectF(-20, -8, 40, 16), 6, 6);
+        painter.restore();
+    }
+    \endcode
 
     \image painter/transforms.png Rounded rectangles rotated and scaled around a center
 

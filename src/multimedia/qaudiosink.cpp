@@ -156,7 +156,29 @@ public:
     A sink plays samples in the QAudioFormat it was constructed with. In pull mode, start() takes a
     QIODevice to read them from, such as a QFile or a QBuffer, and reads as the device needs more:
 
-    \snippet multimedia/audiodevices.cpp tone
+    \code
+    QAudioFormat format;
+    format.setSampleRate(48000);
+    format.setChannelCount(1);
+    format.setSampleFormat(QAudioFormat::Int16);
+
+    QByteArray samples(format.bytesForDuration(1000000), Qt::Uninitialized);
+    auto *data = reinterpret_cast<qint16 *>(samples.data());
+    for (int i = 0; i < format.sampleRate(); ++i)
+        data[i] = qint16(8000 * std::sin(2 * M_PI * 440 * i / format.sampleRate()));
+
+    QBuffer buffer(&samples);
+    buffer.open(QIODevice::ReadOnly);
+    QAudioSink sink(format);
+    QObject::connect(&sink, &QAudioSink::stateChanged, [&](QtAudio::State state) {
+        if (state == QtAudio::IdleState) { // played to the end
+            sink.stop();
+            if (!watch)
+                QCoreApplication::quit();
+        }
+    });
+    sink.start(&buffer);
+    \endcode
 
     In push mode, start() returns a QIODevice to write samples to; bytesFree() is how much fits now.
 

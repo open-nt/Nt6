@@ -32,9 +32,9 @@ lives in `src/zephyr/`. Two headers are force-included there instead of scatteri
 lacks) and `src/zephyr/ntposix_zephyr_p.h` (POSIX functions Zephyr lacks). Do not use
 `std::thread` or `std::this_thread::get_id()` in Core or Network: neither works there; use
 `QtPrivate::startDetachedThread()` or QThread. `./check.sh` does not build for Zephyr; after touching
-platform code, build `examples/zephyr/hello` with west (e.g. `-b mimxrt1170_evk/mimxrt1176/cm7`)
-and run `examples/zephyr/qemu` (`west build -b mps2/an385 examples/zephyr/qemu -t run`), which
-must print `Nt sample: PASS`. A cross build gets `ntmoc`/`ntrcc` from `cmake/NtHostTools.cmake`.
+platform code, build `zephyr/hello` of the examples repository (github.com/open-nt/nt6-examples, checked out
+next to Nt) with west (e.g. `-b mimxrt1170_evk/mimxrt1176/cm7`) and run `zephyr/qemu`
+(`west build -b mps2/an385 zephyr/qemu -t run -- -DNT_ROOT=$PWD/../Nt`), which must print `Nt sample: PASS`. A cross build gets `ntmoc`/`ntrcc` from `cmake/NtHostTools.cmake`.
 
 ## Before every commit: `./check.sh`
 
@@ -128,8 +128,8 @@ write comments as you would in Qt.
   differs from Qt (missing functions, narrower types, threading limits).
 - Every enum `\value` must be described or `\omitvalue`d.
 - Keep `\fn` signatures on one line. `*_p.h` files are not scanned.
-- Examples go in `examples/` between `//! [tag]` markers and are included
-  with `\snippet file tag`.
+- Code in the documentation goes in `\code` ... `\endcode` blocks. The example programs live in
+  github.com/open-nt/nt6-examples, not in this repository, so nothing is quoted from them with `\snippet`.
 
 ### Example
 

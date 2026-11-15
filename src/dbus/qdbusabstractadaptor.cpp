@@ -11,7 +11,40 @@
     become methods, its signals D-Bus signals and its properties D-Bus properties; the class
     information \c{"D-Bus Interface"} names the interface:
 
-    \snippet dbus/clock.cpp adaptor
+    \code
+    class Clock : public QObject {
+        Q_OBJECT
+    public:
+        QString now() const { return QDateTime::currentDateTime().toString(Qt::ISODate); }
+    signals:
+        void alarm(const QString &message);
+    };
+
+    class ClockAdaptor : public QDBusAbstractAdaptor {
+        Q_OBJECT
+        Q_CLASSINFO("D-Bus Interface", "org.example.Clock")
+        Q_PROPERTY(int volume READ volume WRITE setVolume)
+    public:
+        explicit ClockAdaptor(Clock *clock) : QDBusAbstractAdaptor(clock), m_clock(clock) {
+            setAutoRelaySignals(true); // Clock::alarm() is emitted as ClockAdaptor::alarm()
+        }
+        int volume() const { return m_volume; }
+        void setVolume(int volume) { m_volume = volume; }
+
+    public slots:
+        QString Now() { return m_clock->now(); }
+        void SetAlarm(int seconds, const QString &message) {
+            QTimer::singleShot(seconds * 1000, m_clock, [this, message] { emit m_clock->alarm(message); });
+        }
+
+    signals:
+        void alarm(const QString &message);
+
+    private:
+        Clock *m_clock;
+        int m_volume = 5;
+    };
+    \endcode
 
     Create the adaptor with the object as its parent, then register the object with
     QDBusConnection::registerObject(). The adaptor is destroyed with the object.

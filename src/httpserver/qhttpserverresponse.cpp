@@ -16,7 +16,12 @@
     status code. The server adds the \c Content-Length header and the
     framing when it sends the response.
 
-    \snippet httpserver/hello_server.cpp responses
+    \code
+    server.route("/teapot", [] { return QHttpServerResponse::StatusCode::ImATeapot; });
+    server.route("/version", [] { return QJsonObject{{"version", QT_VERSION_STR}}; });
+    server.route("/robots.txt", [] { return QHttpServerResponse("text/plain", "User-agent: *\nDisallow: /\n"); });
+    server.route("/source", [] { return QHttpServerResponse::fromFile(QStringLiteral(__FILE__)); });
+    \endcode
 
     Each constructor sets the \c Content-Type header from the kind of data:
 

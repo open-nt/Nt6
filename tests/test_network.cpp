@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <functional>
+#include <limits>
 #include <memory>
 
 static int g_failures = 0;
@@ -860,12 +861,29 @@ static void testHttp() {
     // Timeouts and aborts, each finishing exactly once.
     sc["/hang"] = {"HTTP/1.1 200 OK\r\nContent-Length: 10\r\n\r\nab", "HANG"};
     QNetworkRequest slow(QUrl(http.url("/hang")));
-    slow.setTransferTimeout(50);
+    CHECK(slow.transferTimeoutAsDuration() == std::chrono::milliseconds(0));
+    slow.setTransferTimeout();
+    CHECK(slow.transferTimeoutAsDuration() == QNetworkRequest::DefaultTransferTimeout);
+    CHECK(slow.transferTimeout() == QNetworkRequest::DefaultTransferTimeoutConstant);
+    slow.setTransferTimeout(std::chrono::hours(24 * 365 * 100)); // saturates at INT_MAX milliseconds
+    CHECK(slow.transferTimeout() == std::numeric_limits<int>::max());
+    slow.setTransferTimeout(std::chrono::milliseconds(50));
+    CHECK(slow.transferTimeout() == 50 && slow.transferTimeoutAsDuration() == std::chrono::milliseconds(50));
     r = manager.get(slow);
     int finishes = 0;
     QObject::connect(r, &R::finished, [&] { ++finishes; });
     CHECK(fetch(r, &e) == "ab" && e == R::TimeoutError && finishes == 1);
     r->deleteLater();
+    // The manager's timeout, set as a duration, applies to a request without its own.
+    CHECK(manager.transferTimeoutAsDuration() == std::chrono::milliseconds(0));
+    manager.setTransferTimeout();
+    CHECK(manager.transferTimeout() == QNetworkRequest::DefaultTransferTimeoutConstant);
+    manager.setTransferTimeout(std::chrono::milliseconds(50));
+    CHECK(manager.transferTimeout() == 50 && manager.transferTimeoutAsDuration() == std::chrono::milliseconds(50));
+    r = manager.get(QNetworkRequest(QUrl(http.url("/hang"))));
+    CHECK(fetch(r, &e) == "ab" && e == R::TimeoutError);
+    r->deleteLater();
+    manager.setTransferTimeout(std::chrono::milliseconds(0));
     r = manager.get(QNetworkRequest(QUrl(http.url("/hang"))));
     QObject::connect(r, &R::metaDataChanged, r, [r] { r->abort(); });
     fetch(r, &e);

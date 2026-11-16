@@ -9,6 +9,7 @@
 #include <QtNetwork/qsslconfiguration.h>
 #endif
 
+#include <chrono>
 #include <utility>
 
 class QNetworkRequest {
@@ -31,6 +32,9 @@ public:
     enum RedirectPolicy { ManualRedirectPolicy, NoLessSafeRedirectPolicy, SameOriginRedirectPolicy };
     enum CacheLoadControl { AlwaysNetwork, PreferNetwork, PreferCache, AlwaysCache };
     enum LoadControl { Automatic = 0, Manual };
+    enum TransferTimeoutConstant { DefaultTransferTimeoutConstant = 30000 };
+    static constexpr std::chrono::milliseconds DefaultTransferTimeout =
+        std::chrono::milliseconds(DefaultTransferTimeoutConstant);
     enum Attribute {
         HttpStatusCodeAttribute,
         HttpReasonPhraseAttribute,
@@ -84,6 +88,8 @@ public:
     void setMaximumRedirectsAllowed(int maximumRedirectsAllowed);
     int transferTimeout() const;
     void setTransferTimeout(int timeout);
+    std::chrono::milliseconds transferTimeoutAsDuration() const;
+    void setTransferTimeout(std::chrono::milliseconds duration = DefaultTransferTimeout);
 #ifndef QT_NO_SSL
     QSslConfiguration sslConfiguration() const;
     void setSslConfiguration(const QSslConfiguration &configuration);

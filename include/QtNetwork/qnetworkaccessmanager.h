@@ -38,6 +38,8 @@ public:
 
     int transferTimeout() const;
     void setTransferTimeout(int timeout);
+    std::chrono::milliseconds transferTimeoutAsDuration() const;
+    void setTransferTimeout(std::chrono::milliseconds duration = QNetworkRequest::DefaultTransferTimeout);
 
 signals:
     /*!

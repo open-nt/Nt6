@@ -51,7 +51,9 @@ public:
                 connect(stack, &QUndoStack::indexChanged, this, [changed](int) { changed(); }),
                 connect(stack, &QUndoStack::cleanChanged, this, [changed](bool) { changed(); }),
                 connect(stack, &QUndoStack::undoTextChanged, this, [changed](const QString &) { changed(); }),
-                connect(stack, &QObject::destroyed, this, [this] { setStack(nullptr); }),
+                // By destroyed() the stack is only a QObject, so it must not be read as a QUndoStack
+                // through m_stack: forget it without the comparison in setStack().
+                connect(stack, &QObject::destroyed, this, [this] { forgetStack(); }),
             };
         }
         endResetModel();
@@ -89,6 +91,13 @@ public:
 private:
     void refresh() {
         beginResetModel();
+        endResetModel();
+        emit selectionWanted();
+    }
+    void forgetStack() {
+        beginResetModel();
+        disconnectStack();
+        m_stack = nullptr;
         endResetModel();
         emit selectionWanted();
     }

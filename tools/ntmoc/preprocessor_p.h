@@ -650,8 +650,17 @@ private:
                     a = {0, true};
                     continue;
                 }
-                a = combine(a, b,
-                            left ? static_cast<long long>(static_cast<unsigned long long>(a.v) << b.v) : a.v >> b.v);
+                // Shift the bits as unsigned; a negative value shifted right keeps its sign (~(~x >> n)),
+                // without the implementation-defined right shift of a negative signed value.
+                const auto bits = static_cast<unsigned long long>(a.v);
+                unsigned long long r = 0;
+                if (left)
+                    r = bits << b.v;
+                else if (a.v < 0)
+                    r = ~(~bits >> b.v);
+                else
+                    r = bits >> b.v;
+                a = combine(a, b, static_cast<long long>(r));
             }
         }
         Value relational() {

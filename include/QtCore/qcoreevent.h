@@ -41,6 +41,19 @@ public:
         \value MouseMove The mouse moved; delivered as a QMouseEvent.
         \value KeyPress A key was pressed; delivered as a QKeyEvent.
         \value KeyRelease A key was released; delivered as a QKeyEvent.
+        \value ContextMenu The user asked for a context menu; delivered as a QContextMenuEvent.
+        \value DragEnter A drag entered a widget; delivered as a QDragEnterEvent.
+        \value DragMove A drag moved over a widget; delivered as a QDragMoveEvent.
+        \value DragLeave A drag left a widget; delivered as a QDragLeaveEvent.
+        \value Drop A drag was dropped on a widget; delivered as a QDropEvent.
+        \value GraphicsSceneDragEnter A drag entered an item; delivered as a QGraphicsSceneDragDropEvent.
+        \value GraphicsSceneDragMove A drag moved over an item; delivered as a QGraphicsSceneDragDropEvent.
+        \value GraphicsSceneDragLeave A drag left an item; delivered as a QGraphicsSceneDragDropEvent.
+        \value GraphicsSceneDrop A drag was dropped on an item; delivered as a QGraphicsSceneDragDropEvent.
+        \value GraphicsSceneContextMenu The user asked for a context menu over a scene; delivered as a
+               QGraphicsSceneContextMenuEvent.
+        \value ShortcutOverride A key is about to activate a shortcut; delivered as a QKeyEvent to the widget with the
+               focus first, which accepts it to get the key press itself instead.
         \value FocusIn A window gained the keyboard focus; delivered as a QFocusEvent.
         \value FocusOut A window lost the keyboard focus; delivered as a QFocusEvent.
         \value Enter The mouse entered a window; delivered as a QEnterEvent.
@@ -110,6 +123,17 @@ public:
         MouseMove = 5,
         KeyPress = 6,
         KeyRelease = 7,
+        ShortcutOverride = 51,
+        ContextMenu = 82,
+        DragEnter = 60,
+        DragMove = 61,
+        DragLeave = 62,
+        Drop = 63,
+        GraphicsSceneDragEnter = 164,
+        GraphicsSceneDragMove = 165,
+        GraphicsSceneDragLeave = 166,
+        GraphicsSceneDrop = 167,
+        GraphicsSceneContextMenu = 159,
         FocusIn = 8,
         FocusOut = 9,
         Enter = 10,

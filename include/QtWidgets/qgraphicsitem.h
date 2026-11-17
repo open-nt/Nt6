@@ -23,6 +23,8 @@ class QGraphicsEffect;
 class QGraphicsItemGroup;
 class QGraphicsObject;
 class QGraphicsScene;
+class QGraphicsSceneContextMenuEvent;
+class QGraphicsSceneDragDropEvent;
 class QGraphicsSceneHoverEvent;
 class QGraphicsSceneMouseEvent;
 class QGraphicsSceneWheelEvent;
@@ -157,8 +159,12 @@ public:
 
     Qt::MouseButtons acceptedMouseButtons() const;
     void setAcceptedMouseButtons(Qt::MouseButtons buttons);
+    bool acceptDrops() const;
+    void setAcceptDrops(bool on);
     bool acceptHoverEvents() const;
     void setAcceptHoverEvents(bool enabled);
+    bool handlesChildEvents() const;
+    void setHandlesChildEvents(bool enabled);
     bool acceptTouchEvents() const;
     void setAcceptTouchEvents(bool enabled);
     bool isUnderMouse() const;
@@ -284,6 +290,11 @@ protected:
     virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
     virtual void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event);
     virtual void wheelEvent(QGraphicsSceneWheelEvent *event);
+    virtual void contextMenuEvent(QGraphicsSceneContextMenuEvent *event);
+    virtual void dragEnterEvent(QGraphicsSceneDragDropEvent *event);
+    virtual void dragMoveEvent(QGraphicsSceneDragDropEvent *event);
+    virtual void dragLeaveEvent(QGraphicsSceneDragDropEvent *event);
+    virtual void dropEvent(QGraphicsSceneDragDropEvent *event);
     virtual QVariant itemChange(GraphicsItemChange change, const QVariant &value);
 
     void prepareGeometryChange();

@@ -16,6 +16,7 @@
 class QPainter;
 class QTextDocument;
 class QTextDocumentPrivate;
+class QTextFrame;
 
 namespace Qt {
 bool mightBeRichText(const QString &text);
@@ -101,6 +102,36 @@ public:
     */
     enum MetaInformation { DocumentTitle, DocumentUrl };
 
+    /*!
+        \enum QTextDocument::FindFlag
+        \since 6.0
+
+        How text is looked for, by QPlainTextEdit::find().
+
+        \value FindBackward Towards the start of the document.
+        \value FindCaseSensitively With the case of the letters as given.
+        \value FindWholeWords Only as whole words.
+    */
+    enum FindFlag { FindBackward = 0x00001, FindCaseSensitively = 0x00002, FindWholeWords = 0x00004 };
+    Q_DECLARE_FLAGS(FindFlags, FindFlag)
+
+    /*!
+        \enum QTextDocument::MarkdownFeature
+        \since 6.0
+
+        The dialects of Markdown.
+
+        \value MarkdownNoHTML HTML in the Markdown is shown as text.
+        \value MarkdownDialectCommonMark CommonMark.
+        \value MarkdownDialectGitHub GitHub Flavored Markdown, with tables, strikethrough and task lists.
+    */
+    enum MarkdownFeature {
+        MarkdownNoHTML = 0x0020 | 0x0040,
+        MarkdownDialectCommonMark = 0,
+        MarkdownDialectGitHub = 0x0004 | 0x0008 | 0x0400 | 0x0100 | 0x0200 | 0x0800 | 0x4000 | 0x100000
+    };
+    Q_DECLARE_FLAGS(MarkdownFeatures, MarkdownFeature)
+
     explicit QTextDocument(QObject *parent = nullptr);
     explicit QTextDocument(const QString &text, QObject *parent = nullptr);
     ~QTextDocument() override;
@@ -112,6 +143,9 @@ public:
     QString toPlainText() const;
     void setHtml(const QString &html);
     QString toHtml() const;
+    void setMarkdown(const QString &markdown, MarkdownFeatures features = MarkdownDialectGitHub);
+    QString toMarkdown(MarkdownFeatures features = MarkdownDialectGitHub) const;
+    QTextFrame *rootFrame() const;
 
     void setMetaInformation(MetaInformation info, const QString &string);
     QString metaInformation(MetaInformation info) const;
@@ -155,3 +189,5 @@ private:
     friend class QTextDocumentPrivate;
     std::unique_ptr<QTextDocumentPrivate> d;
 };
+Q_DECLARE_OPERATORS_FOR_FLAGS(QTextDocument::FindFlags)
+Q_DECLARE_OPERATORS_FOR_FLAGS(QTextDocument::MarkdownFeatures)

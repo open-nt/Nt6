@@ -4,12 +4,15 @@
 #include "qxcbconnection_p.h"
 
 #include <QtCore/qcoreapplication.h>
+#include <QtGui/qicon.h>
+#include <QtGui/qimage.h>
 #include <QtGui/qwindow.h>
 
 #include <unistd.h>
 
 #include <algorithm>
 #include <cstdlib>
+#include <vector>
 #include <cstring>
 #include <vector>
 
@@ -195,6 +198,32 @@ void QXcbWindow::setWindowTitle(const QString &title) {
                         static_cast<uint32_t>(utf8.size()), utf8.constData());
     xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, XCB_ATOM_WM_NAME, m_connection->utf8String(), 8,
                         static_cast<uint32_t>(utf8.size()), utf8.constData());
+    m_connection->flush();
+}
+
+// _NET_WM_ICON is a list of images, each its width, its height and then its pixels as 0xAARRGGBB.
+void QXcbWindow::setWindowIcon(const QIcon &icon) {
+    xcb_connection_t *c = m_connection->xcb();
+    const xcb_atom_t netWmIcon = m_connection->atom("_NET_WM_ICON");
+    if (icon.isNull()) {
+        xcb_delete_property(c, m_id, netWmIcon);
+        m_connection->flush();
+        return;
+    }
+    std::vector<uint32_t> data;
+    for (int extent : {16, 24, 32, 48, 64, 128}) {
+        const QImage image = icon.pixmap(QSize(extent, extent)).toImage().convertToFormat(QImage::Format_ARGB32);
+        if (image.isNull())
+            continue;
+        data.push_back(static_cast<uint32_t>(image.width()));
+        data.push_back(static_cast<uint32_t>(image.height()));
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                data.push_back(image.pixel(x, y));
+    }
+    if (!data.empty())
+        xcb_change_property(c, XCB_PROP_MODE_REPLACE, m_id, netWmIcon, XCB_ATOM_CARDINAL, 32,
+                            static_cast<uint32_t>(data.size()), data.data());
     m_connection->flush();
 }
 

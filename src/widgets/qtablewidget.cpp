@@ -3,13 +3,16 @@
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qapplication.h>
 #include <QtWidgets/qheaderview.h>
+#include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qscrollbar.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtooltip.h>
 
 #include <algorithm>
+#include <functional>
 
 namespace {
 
@@ -106,8 +109,143 @@ QTableWidgetItem::~QTableWidgetItem() {
 
 // Tells the table that the item looks different.
 void QTableWidgetItem::changed() {
-    if (m_table)
-        m_table->itemChanged(this);
+    if (!m_table)
+        return;
+    if (m_isHeader)
+        m_table->headerItemChanged(this);
+    else
+        m_table->refreshItem(this);
+}
+
+/*!
+    \since 6.0
+
+    Constructs an item with \a icon and \a text.
+*/
+QTableWidgetItem::QTableWidgetItem(const QIcon &icon, const QString &text) : QTableWidgetItem(text) { m_icon = icon; }
+
+/*!
+    \fn QIcon QTableWidgetItem::icon() const
+    \since 6.0
+
+    Returns the icon of the item, shown before its text; a null icon if it has none.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the icon of the item to \a icon, which the table shows in its icon size.
+*/
+void QTableWidgetItem::setIcon(const QIcon &icon) {
+    m_icon = icon;
+    changed();
+}
+
+/*!
+    \since 6.0
+
+    Returns the check state of the item: Qt::Unchecked for an item that has no check box.
+
+    \sa setCheckState()
+*/
+Qt::CheckState QTableWidgetItem::checkState() const {
+    return m_checkState < 0 ? Qt::Unchecked : static_cast<Qt::CheckState>(m_checkState);
+}
+
+/*!
+    \since 6.0
+
+    Sets the check state of the item to \a state, which gives it a check box before its text. With
+    Qt::ItemIsUserCheckable in its flags, a click on the box, or Space while it is the current item, toggles it.
+
+    \sa checkState()
+*/
+void QTableWidgetItem::setCheckState(Qt::CheckState state) {
+    if (m_checkState == static_cast<int>(state))
+        return;
+    m_checkState = static_cast<int>(state);
+    changed();
+}
+
+/*!
+    \since 6.0
+
+    Returns the data of the item for \a role: the text for Qt::DisplayRole and Qt::EditRole, the check state, tool
+    tip, alignment, brushes and font for their roles, and what setData() stored for the other roles. Returns an
+    invalid QVariant for a role that has nothing.
+
+    \sa setData()
+*/
+QVariant QTableWidgetItem::data(int role) const {
+    switch (role) {
+    case Qt::DisplayRole:
+    case Qt::EditRole:
+        return m_text;
+    case Qt::CheckStateRole:
+        return m_checkState < 0 ? QVariant() : QVariant(m_checkState);
+    case Qt::DecorationRole:
+        return m_icon.isNull() ? QVariant() : QVariant::fromValue(m_icon);
+    case Qt::ToolTipRole:
+        return m_toolTip.isEmpty() ? QVariant() : QVariant(m_toolTip);
+    case Qt::TextAlignmentRole:
+        return QVariant(static_cast<int>(m_alignment));
+    case Qt::ForegroundRole:
+        return m_foreground.style() == Qt::NoBrush ? QVariant() : QVariant::fromValue(m_foreground);
+    case Qt::BackgroundRole:
+        return m_background.style() == Qt::NoBrush ? QVariant() : QVariant::fromValue(m_background);
+    case Qt::FontRole:
+        return m_hasFont ? QVariant::fromValue(m_font) : QVariant();
+    default:
+        return m_data.value(role);
+    }
+}
+
+/*!
+    \since 6.0
+
+    Sets the data of the item for \a role to \a value. The roles that the item shows change it; the other roles,
+    such as Qt::UserRole, are stored for data() to return. The table emits itemChanged().
+*/
+void QTableWidgetItem::setData(int role, const QVariant &value) {
+    switch (role) {
+    case Qt::DisplayRole:
+    case Qt::EditRole:
+        setText(value.toString());
+        return;
+    case Qt::CheckStateRole:
+        if (value.isValid()) {
+            setCheckState(static_cast<Qt::CheckState>(value.toInt()));
+        } else if (m_checkState >= 0) {
+            m_checkState = -1;
+            changed();
+        }
+        return;
+    case Qt::ToolTipRole:
+        m_toolTip = value.toString();
+        changed();
+        return;
+    case Qt::DecorationRole:
+        setIcon(value.value<QIcon>());
+        return;
+    case Qt::TextAlignmentRole:
+        setTextAlignment(Qt::Alignment::fromInt(value.toInt()));
+        return;
+    case Qt::ForegroundRole:
+        setForeground(value.value<QBrush>());
+        return;
+    case Qt::BackgroundRole:
+        setBackground(value.value<QBrush>());
+        return;
+    case Qt::FontRole:
+        setFont(value.value<QFont>());
+        return;
+    default:
+        if (value.isValid())
+            m_data.insert(role, value);
+        else
+            m_data.remove(role);
+        changed();
+    }
 }
 
 /*!
@@ -335,6 +473,14 @@ void QTableWidget::init(int rows, int columns) {
     Destroys the table, and the items in it.
 */
 QTableWidget::~QTableWidget() {
+    m_editing = nullptr;
+    for (std::vector<QTableWidgetItem *> *items : {&m_hItems, &m_vItems})
+        for (QTableWidgetItem *&item : *items) {
+            if (item)
+                item->m_table = nullptr;
+            delete item;
+            item = nullptr;
+        }
     for (auto &row : m_cells)
         for (QTableWidgetItem *&item : row) {
             if (item)
@@ -400,6 +546,8 @@ void QTableWidget::setRowCount(int rows) {
             delete item;
         }
     m_cells.resize(static_cast<std::size_t>(rows), std::vector<QTableWidgetItem *>(static_cast<std::size_t>(m_columns)));
+    if (rows < m_rows)
+        shiftCellWidgets(true, rows, -(m_rows - rows));
     m_rows = rows;
     m_vheader->setCount(rows);
     if (m_currentRow >= rows)
@@ -426,6 +574,8 @@ void QTableWidget::setColumnCount(int columns) {
         }
         row.resize(static_cast<std::size_t>(columns), nullptr);
     }
+    if (columns < m_columns)
+        shiftCellWidgets(false, columns, -(m_columns - columns));
     m_columns = columns;
     m_hheader->setCount(columns);
     if (m_currentColumn >= columns)
@@ -445,6 +595,9 @@ void QTableWidget::insertRow(int row) {
     m_cells.insert(m_cells.begin() + row, std::vector<QTableWidgetItem *>(static_cast<std::size_t>(m_columns)));
     ++m_rows;
     m_vheader->insertSections(row, 1);
+    shiftCellWidgets(true, row, 1);
+    if (static_cast<std::size_t>(row) < m_vItems.size())
+        m_vItems.insert(m_vItems.begin() + row, nullptr);
     reindex();
     if (m_currentRow >= row) {
         ++m_currentRow;
@@ -470,6 +623,11 @@ void QTableWidget::removeRow(int row) {
     m_cells.erase(m_cells.begin() + row);
     --m_rows;
     m_vheader->removeSections(row, 1);
+    shiftCellWidgets(true, row, -1);
+    if (static_cast<std::size_t>(row) < m_vItems.size()) {
+        delete m_vItems[static_cast<std::size_t>(row)];
+        m_vItems.erase(m_vItems.begin() + row);
+    }
     reindex();
     if (m_currentRow == row) {
         moveCurrent(-1, -1);
@@ -493,6 +651,9 @@ void QTableWidget::insertColumn(int column) {
         row.insert(row.begin() + column, nullptr);
     ++m_columns;
     m_hheader->insertSections(column, 1);
+    shiftCellWidgets(false, column, 1);
+    if (static_cast<std::size_t>(column) < m_hItems.size())
+        m_hItems.insert(m_hItems.begin() + column, nullptr);
     reindex();
     if (m_currentColumn >= column) {
         ++m_currentColumn;
@@ -519,6 +680,11 @@ void QTableWidget::removeColumn(int column) {
     }
     --m_columns;
     m_hheader->removeSections(column, 1);
+    shiftCellWidgets(false, column, -1);
+    if (static_cast<std::size_t>(column) < m_hItems.size()) {
+        delete m_hItems[static_cast<std::size_t>(column)];
+        m_hItems.erase(m_hItems.begin() + column);
+    }
     reindex();
     if (m_currentColumn == column) {
         moveCurrent(-1, -1);
@@ -586,6 +752,14 @@ QTableWidgetItem *QTableWidget::takeItem(int row, int column) {
 
 // Takes the item out of its cell without deleting it.
 void QTableWidget::forget(QTableWidgetItem *item) {
+    if (item->m_isHeader) {
+        for (std::vector<QTableWidgetItem *> *items : {&m_hItems, &m_vItems})
+            std::replace(items->begin(), items->end(), item, static_cast<QTableWidgetItem *>(nullptr));
+        item->m_table = nullptr;
+        return;
+    }
+    if (item == m_editing)
+        closeItemEditor(false);
     const int row = item->m_row, column = item->m_column;
     if (row >= 0 && row < m_rows && column >= 0 && column < m_columns &&
         m_cells[static_cast<std::size_t>(row)][static_cast<std::size_t>(column)] == item) {
@@ -596,7 +770,11 @@ void QTableWidget::forget(QTableWidgetItem *item) {
     item->m_row = item->m_column = -1;
 }
 
-void QTableWidget::itemChanged(QTableWidgetItem *item) { viewport()->update(cellRect(item->m_row, item->m_column)); }
+void QTableWidget::refreshItem(QTableWidgetItem *item) {
+    viewport()->update(cellRect(item->m_row, item->m_column));
+    emit itemChanged(item);
+    emit cellChanged(item->m_row, item->m_column);
+}
 
 /*!
     Removes and deletes every item, and the labels of the headers, and clears the selection. The size of the table and
@@ -638,6 +816,9 @@ void QTableWidget::setHorizontalHeaderLabels(const QStringList &labels) {
     if (labels.size() > m_columns)
         setColumnCount(static_cast<int>(labels.size()));
     m_hheader->setLabels(labels);
+    for (qsizetype i = 0; i < labels.size() && i < static_cast<qsizetype>(m_hItems.size()); ++i)
+        if (QTableWidgetItem *it = m_hItems[static_cast<std::size_t>(i)])
+            it->m_text = labels.at(i);
 }
 
 /*!
@@ -650,6 +831,9 @@ void QTableWidget::setVerticalHeaderLabels(const QStringList &labels) {
     if (labels.size() > m_rows)
         setRowCount(static_cast<int>(labels.size()));
     m_vheader->setLabels(labels);
+    for (qsizetype i = 0; i < labels.size() && i < static_cast<qsizetype>(m_vItems.size()); ++i)
+        if (QTableWidgetItem *it = m_vItems[static_cast<std::size_t>(i)])
+            it->m_text = labels.at(i);
     updateLayout();
 }
 
@@ -900,6 +1084,8 @@ void QTableWidget::updateLayout() {
         return;
     }
     m_inLayout = true;
+    for (int column : m_hheader->contentsSections())
+        resizeColumnToContents(column);
     QScrollBar *hbar = horizontalScrollBar(), *vbar = verticalScrollBar();
     for (int pass = 0; pass < 6; ++pass) {
         m_layoutAgain = false;
@@ -922,6 +1108,7 @@ void QTableWidget::updateLayout() {
             break;
     }
     m_inLayout = false;
+    placeCellWidgets();
 }
 
 /*!
@@ -952,6 +1139,9 @@ void QTableWidget::scrollContentsBy(int dx, int dy) {
     (void)dy;
     m_hheader->setOffset(horizontalScrollBar()->value());
     m_vheader->setOffset(verticalScrollBar()->value());
+    placeCellWidgets();
+    if (m_editor && m_editing)
+        m_editor->setGeometry(cellRect(m_editing->m_row, m_editing->m_column));
     viewport()->update();
 }
 
@@ -1015,6 +1205,26 @@ void QTableWidget::paintEvent(QPaintEvent *event) {
                 painter.drawLine(cell.right(), cell.top(), cell.right(), cell.bottom());
                 painter.drawLine(cell.left(), cell.bottom(), cell.right(), cell.bottom());
             }
+            int checkWidth = 0;
+            if (it && it->m_checkState >= 0) {
+                QStyleOptionButton box;
+                box.rect = checkRect(r, c);
+                box.palette = pal;
+                box.state = QStyle::State_None;
+                if (isEnabled() && (it->flags() & Qt::ItemIsEnabled))
+                    box.state |= QStyle::State_Enabled;
+                box.state |= it->checkState() == Qt::Unchecked ? QStyle::State_Off : QStyle::State_On;
+                style()->drawPrimitive(QStyle::PE_IndicatorCheckBox, &box, &painter, this);
+                checkWidth = box.rect.right() + 1 - cell.left();
+            }
+            if (it && !it->icon().isNull()) {
+                const QSize size = iconSize().isValid() ? iconSize() : QSize(16, 16);
+                const bool on = isEnabled() && (it->flags() & Qt::ItemIsEnabled);
+                const QRect iconRect(cell.left() + std::max(textMargin, checkWidth + textMargin / 2), cell.top(),
+                                     size.width(), cell.height());
+                it->icon().paint(&painter, iconRect, Qt::AlignCenter, on ? QIcon::Normal : QIcon::Disabled);
+                checkWidth = iconRect.right() + 1 - cell.left();
+            }
             if (it && !it->text().isEmpty()) {
                 const bool enabled = isEnabled() && (it->flags() & Qt::ItemIsEnabled);
                 QColor color = pal.color(enabled ? QPalette::Active : QPalette::Disabled, QPalette::Text);
@@ -1023,7 +1233,8 @@ void QTableWidget::paintEvent(QPaintEvent *event) {
                 else if (it->foreground().style() != Qt::NoBrush && enabled)
                     color = it->foreground().color();
                 const int grid = m_showGrid ? 1 : 0;
-                const QRect textRect = cell.adjusted(textMargin, 0, -textMargin - grid, -grid);
+                const QRect textRect =
+                    cell.adjusted(std::max(textMargin, checkWidth + textMargin / 2), 0, -textMargin - grid, -grid);
                 const QFont font = it->font();
                 painter.setFont(font);
                 painter.setPen(color);
@@ -1088,6 +1299,10 @@ void QTableWidget::mouseReleaseEvent(QMouseEvent *event) {
     const bool clicked = row >= 0 && column >= 0 && row == m_pressedRow && column == m_pressedColumn;
     m_pressedRow = m_pressedColumn = -1;
     if (clicked) {
+        QTableWidgetItem *hit = item(row, column);
+        if (hit && hit->m_checkState >= 0 && (hit->flags() & Qt::ItemIsUserCheckable) &&
+            (hit->flags() & Qt::ItemIsEnabled) && checkRect(row, column).adjusted(-2, -2, 2, 2).contains(event->pos()))
+            hit->setCheckState(hit->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
         emit cellClicked(row, column);
         if (QTableWidgetItem *it = item(row, column))
             emit itemClicked(it);
@@ -1108,6 +1323,10 @@ void QTableWidget::mouseDoubleClickEvent(QMouseEvent *event) {
         if (selectable(row, column))
             moveCurrent(row, column);
         emit cellDoubleClicked(row, column);
+        QTableWidgetItem *it = item(row, column);
+        if (it && (it->flags() & Qt::ItemIsEditable) && (it->flags() & Qt::ItemIsEnabled) &&
+            !checkRect(row, column).adjusted(-2, -2, 2, 2).contains(event->pos()))
+            editItem(it);
     }
     event->accept();
 }
@@ -1128,6 +1347,18 @@ void QTableWidget::keyPressEvent(QKeyEvent *event) {
     int targetRow = m_currentRow, targetColumn = m_currentColumn;
     const bool control = event->modifiers() & Qt::ControlModifier;
     const int pageRows = std::max(1, viewport()->height() / std::max(1, m_vheader->defaultSectionSize()) - 1);
+    if (QTableWidgetItem *it = currentItem(); it && (it->flags() & Qt::ItemIsEnabled)) {
+        if (event->key() == Qt::Key_F2 && (it->flags() & Qt::ItemIsEditable)) {
+            editItem(it);
+            event->accept();
+            return;
+        }
+        if (event->key() == Qt::Key_Space && it->m_checkState >= 0 && (it->flags() & Qt::ItemIsUserCheckable)) {
+            it->setCheckState(it->checkState() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
+            event->accept();
+            return;
+        }
+    }
     switch (event->key()) {
     case Qt::Key_Up:
         dRow = -1;
@@ -1194,6 +1425,253 @@ void QTableWidget::focusInEvent(QFocusEvent *event) {
 void QTableWidget::focusOutEvent(QFocusEvent *event) {
     (void)event;
     viewport()->update();
+}
+
+namespace {
+
+// Closes the editor of a table without keeping its text when Escape is pressed in it.
+class EscapeFilter : public QObject {
+public:
+    explicit EscapeFilter(std::function<void()> cancel, QObject *parent)
+        : QObject(parent), m_cancel(std::move(cancel)) {}
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+            m_cancel();
+            return true;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::function<void()> m_cancel;
+};
+
+} // namespace
+
+/*!
+    \since 6.0
+
+    Returns the item that labels column \a column, or \c nullptr if there is none. setHorizontalHeaderLabels() gives
+    each labelled column one, made when it is first asked for; change its text or tool tip to change the header.
+
+    \sa setHorizontalHeaderItem(), verticalHeaderItem()
+*/
+QTableWidgetItem *QTableWidget::horizontalHeaderItem(int column) const { return headerItem(Qt::Horizontal, column); }
+
+/*!
+    \since 6.0
+
+    Makes \a item label column \a column, and takes ownership of it. The item it replaces is deleted.
+*/
+void QTableWidget::setHorizontalHeaderItem(int column, QTableWidgetItem *item) {
+    setHeaderItem(Qt::Horizontal, column, item);
+}
+
+/*!
+    \since 6.0
+
+    Returns the item that labels row \a row, or \c nullptr if there is none.
+
+    \sa setVerticalHeaderItem(), horizontalHeaderItem()
+*/
+QTableWidgetItem *QTableWidget::verticalHeaderItem(int row) const { return headerItem(Qt::Vertical, row); }
+
+/*!
+    \since 6.0
+
+    Makes \a item label row \a row, and takes ownership of it. The item it replaces is deleted.
+*/
+void QTableWidget::setVerticalHeaderItem(int row, QTableWidgetItem *item) { setHeaderItem(Qt::Vertical, row, item); }
+
+std::vector<QTableWidgetItem *> &QTableWidget::headerItems(Qt::Orientation orientation) {
+    return orientation == Qt::Horizontal ? m_hItems : m_vItems;
+}
+
+QTableWidgetItem *QTableWidget::headerItem(Qt::Orientation orientation, int section) const {
+    const bool horizontal = orientation == Qt::Horizontal;
+    QHeaderView *header = horizontal ? m_hheader : m_vheader;
+    if (section < 0 || section >= header->count())
+        return nullptr;
+    auto *self = const_cast<QTableWidget *>(this);
+    std::vector<QTableWidgetItem *> &items = self->headerItems(orientation);
+    if (static_cast<std::size_t>(section) < items.size() && items[static_cast<std::size_t>(section)])
+        return items[static_cast<std::size_t>(section)];
+    // A section with a label has an item, as setHorizontalHeaderLabels() makes them in Qt.
+    if (section >= header->m_labels.size() || header->m_labels.at(section).isEmpty())
+        return nullptr;
+    auto *item = new QTableWidgetItem(header->m_labels.at(section));
+    self->setHeaderItem(orientation, section, item);
+    return item;
+}
+
+void QTableWidget::setHeaderItem(Qt::Orientation orientation, int section, QTableWidgetItem *item) {
+    QHeaderView *header = orientation == Qt::Horizontal ? m_hheader : m_vheader;
+    if (section < 0 || section >= header->count())
+        return;
+    std::vector<QTableWidgetItem *> &items = headerItems(orientation);
+    if (items.size() < static_cast<std::size_t>(header->count()))
+        items.resize(static_cast<std::size_t>(header->count()), nullptr);
+    QTableWidgetItem *&slot = items[static_cast<std::size_t>(section)];
+    if (slot == item)
+        return;
+    if (slot) {
+        slot->m_table = nullptr;
+        delete slot;
+    }
+    slot = item;
+    if (item) {
+        if (item->m_table && item->m_table != this)
+            item->m_table->forget(item);
+        item->m_table = this;
+        item->m_isHeader = true;
+        item->m_header = orientation;
+        item->m_row = orientation == Qt::Vertical ? section : -1;
+        item->m_column = orientation == Qt::Horizontal ? section : -1;
+        headerItemChanged(item);
+    }
+}
+
+void QTableWidget::headerItemChanged(QTableWidgetItem *item) {
+    QHeaderView *header = item->m_header == Qt::Horizontal ? m_hheader : m_vheader;
+    const int section = item->m_header == Qt::Horizontal ? item->m_column : item->m_row;
+    if (section < 0)
+        return;
+    QStringList labels = header->m_labels;
+    while (labels.size() <= section)
+        labels.append(QString());
+    labels[section] = item->text();
+    header->setLabels(labels);
+    while (header->m_toolTips.size() <= section)
+        header->m_toolTips.append(QString());
+    header->m_toolTips[section] = item->toolTip();
+    updateLayout();
+}
+
+/*!
+    \fn void QTableWidget::removeCellWidget(int row, int column)
+    \since 6.0
+
+    Removes and deletes the widget shown in the cell at \a row and \a column.
+*/
+
+/*!
+    \fn void QTableWidget::openPersistentEditor(QTableWidgetItem *item)
+    \since 6.0
+
+    Opens an editor over \a item, as editItem() does.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the widget shown in the cell at \a row and \a column, or \c nullptr if it has none.
+
+    \sa setCellWidget()
+*/
+QWidget *QTableWidget::cellWidget(int row, int column) const {
+    for (const CellWidget &w : m_cellWidgets)
+        if (w.row == row && w.column == column)
+            return w.widget.data();
+    return nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Shows \a widget in the cell at \a row and \a column, over the item there, and takes ownership of it. A widget
+    the cell had before is deleted. The widget stays in its cell when rows and columns are inserted or removed, and
+    is deleted with its row or column. A \c nullptr \a widget removes the one the cell has.
+
+    \sa cellWidget(), removeCellWidget()
+*/
+void QTableWidget::setCellWidget(int row, int column, QWidget *widget) {
+    if (row < 0 || row >= m_rows || column < 0 || column >= m_columns)
+        return;
+    for (auto it = m_cellWidgets.begin(); it != m_cellWidgets.end(); ++it) {
+        if (it->row == row && it->column == column) {
+            if (it->widget && it->widget != widget)
+                it->widget->deleteLater();
+            m_cellWidgets.erase(it);
+            break;
+        }
+    }
+    if (!widget)
+        return;
+    widget->setParent(viewport());
+    m_cellWidgets.push_back({row, column, widget});
+    placeCellWidgets();
+}
+
+void QTableWidget::shiftCellWidgets(bool rows, int from, int delta) {
+    for (auto it = m_cellWidgets.begin(); it != m_cellWidgets.end();) {
+        int &at = rows ? it->row : it->column;
+        if (delta < 0 && at >= from && at < from - delta) {
+            if (it->widget)
+                it->widget->deleteLater();
+            it = m_cellWidgets.erase(it);
+            continue;
+        }
+        if (at >= from)
+            at += delta;
+        ++it;
+    }
+    placeCellWidgets();
+}
+
+void QTableWidget::placeCellWidgets() {
+    for (const CellWidget &w : m_cellWidgets) {
+        if (!w.widget)
+            continue;
+        w.widget->setGeometry(cellRect(w.row, w.column).adjusted(0, 0, m_showGrid ? -1 : 0, m_showGrid ? -1 : 0));
+        w.widget->show();
+    }
+}
+
+QRect QTableWidget::checkRect(int row, int column) const {
+    const QRect cell = cellRect(row, column);
+    const int size = std::min(style()->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, this), cell.height() - 2);
+    return QRect(cell.left() + textMargin, cell.top() + (cell.height() - size) / 2, size, size);
+}
+
+/*!
+    \since 6.0
+
+    Opens an editor over \a item, if it is in this table: a line edit with its text, which the item gets when
+    Return is pressed or the editor loses the focus. Escape closes the editor without changing the item. A double
+    click on an item with Qt::ItemIsEditable, or F2 on the current one, opens the editor too.
+*/
+void QTableWidget::editItem(QTableWidgetItem *item) {
+    if (!item || item->m_table != this || item->m_isHeader)
+        return;
+    closeItemEditor(true);
+    scrollToItem(item);
+    auto *editor = new QLineEdit(viewport());
+    editor->setText(item->text());
+    editor->setFrame(false);
+    editor->setGeometry(cellRect(item->m_row, item->m_column));
+    editor->installEventFilter(new EscapeFilter([this] { closeItemEditor(false); }, editor));
+    QObject::connect(editor, &QLineEdit::editingFinished, this, [this] { closeItemEditor(true); });
+    m_editor = editor;
+    m_editing = item;
+    editor->show();
+    editor->selectAll();
+    editor->setFocus();
+}
+
+void QTableWidget::closeItemEditor(bool commit) {
+    QPointer<QWidget> editor = m_editor;
+    QTableWidgetItem *item = m_editing;
+    m_editor = nullptr;
+    m_editing = nullptr;
+    if (!editor)
+        return;
+    if (commit && item)
+        if (auto *line = qobject_cast<QLineEdit *>(editor.data()))
+            item->setText(line->text());
+    editor->hide();
+    editor->deleteLater();
+    if (hasFocus() || !QApplication::focusWidget() || QApplication::focusWidget() == editor)
+        setFocus();
 }
 
 #include "moc_qtablewidget.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

@@ -26,8 +26,8 @@
     \image widgets/qtoolbutton.png QToolButton in the light color scheme
 
     \differences
-    There is no icon, so there is no \c setIcon() or \c setIconSize(), and toolButtonStyle() changes nothing; a button
-    shows a text, or an arrow if \c arrowType() is not \c Qt::NoArrow. There is no menu (\c setMenu(),
+    Qt::ToolButtonFollowStyle shows the icon only, as Qt::ToolButtonIconOnly. A button without an icon shows its
+    text whatever the style, or an arrow if \c arrowType() is not \c Qt::NoArrow. There is no menu (\c setMenu(),
     \c setPopupMode()) and no auto-repeat. The button can be reached with the Tab key, but does not take the focus when
     clicked, as in Qt.
     \enddifferences
@@ -136,6 +136,7 @@ void QToolButton::syncAction() {
     if (!action)
         return;
     setText(action->iconText());
+    setIcon(action->icon());
     setToolTip(action->toolTip());
     setCheckable(action->isCheckable());
     if (action->isCheckable() && isChecked() != action->isChecked()) {
@@ -180,8 +181,18 @@ void QToolButton::setArrowType(Qt::ArrowType type) {
 QSize QToolButton::sizeHint() const {
     QStyleOptionButton option;
     option.initFrom(this);
-    const QSize contents =
+    QSize contents =
         m_arrow != Qt::NoArrow ? QSize(10, 16) : QSize(fontMetrics().horizontalAdvance(text()), fontMetrics().height());
+    if (m_arrow == Qt::NoArrow && showsIcon()) {
+        const QSize icon = iconSize();
+        const QSize text = showsText() ? contents : QSize(0, 0);
+        if (m_style == Qt::ToolButtonTextUnderIcon)
+            contents =
+                QSize(std::max(icon.width(), text.width()), icon.height() + (showsText() ? text.height() + 2 : 0));
+        else
+            contents =
+                QSize(icon.width() + (showsText() ? text.width() + 4 : 0), std::max(icon.height(), text.height()));
+    }
     return style()->sizeFromContents(QStyle::CT_ToolButton, &option, contents, this);
 }
 
@@ -224,6 +235,28 @@ void QToolButton::paintEvent(QPaintEvent *event) {
             break;
         }
         style()->drawPrimitive(element, &arrow, &painter, this);
+    } else if (showsIcon()) {
+        const QSize size = iconSize();
+        const QIcon::Mode mode = !isEnabled() ? QIcon::Disabled : QIcon::Normal;
+        const QIcon::State state = isChecked() ? QIcon::On : QIcon::Off;
+        painter.setPen(palette().color(group, QPalette::ButtonText));
+        const int textWidth = showsText() ? fontMetrics().horizontalAdvance(text()) : 0;
+        if (!showsText()) {
+            icon().paint(&painter, content, Qt::AlignCenter, mode, state);
+        } else if (m_style == Qt::ToolButtonTextUnderIcon) {
+            const int total = size.height() + 2 + fontMetrics().height();
+            const QRect iconRect(content.left(), content.top() + (content.height() - total) / 2, content.width(),
+                                 size.height());
+            icon().paint(&painter, iconRect, Qt::AlignCenter, mode, state);
+            painter.drawText(QRect(content.left(), iconRect.bottom() + 3, content.width(), fontMetrics().height()),
+                             Qt::AlignCenter | Qt::TextSingleLine, text());
+        } else {
+            const int left = content.left() + (content.width() - size.width() - 4 - textWidth) / 2;
+            icon().paint(&painter, QRect(left, content.top(), size.width(), content.height()), Qt::AlignCenter, mode,
+                         state);
+            painter.drawText(QRect(left + size.width() + 4, content.top(), textWidth + 1, content.height()),
+                             Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, text());
+        }
     } else if (!text().isEmpty()) {
         painter.setPen(palette().color(group, QPalette::ButtonText));
         painter.drawText(content, Qt::AlignCenter | Qt::TextSingleLine, text());

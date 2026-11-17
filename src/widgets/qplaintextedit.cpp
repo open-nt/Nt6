@@ -38,7 +38,7 @@ bool isWordChar(QChar c) { return c.isLetterOrNumber() || c == QChar('_'); }
     \differences
     The text has no formatting, no fonts or colors of parts of it, and there is no \c QTextDocument: the text is one
     string, and positions are the number of characters from its start, a new line counting as one. The clipboard is not there
-    yet, so there are no \c cut(), \c copy() or \c paste(), and no drag and drop. There is no \c find(), no
+    yet, so there are no \c cut(), \c copy() or \c paste(), and no drag and drop. There is no
     \c maximumBlockCount, no \c setCursorWidth(), and no context menu. The cursor does not blink. A selection that has several
     lines returns them separated by a new line from QTextCursor::selectedText(), where Qt uses the paragraph separator.
     \enddifferences
@@ -263,6 +263,100 @@ void QPlainTextEdit::setUndoRedoEnabled(bool enable) {
     Returns the number of blocks: lines that are separated by a new line character. There is at least one.
 */
 int QPlainTextEdit::blockCount() const { return m_blocks; }
+
+/*!
+    \since 6.0
+
+    Looks for \a exp from the cursor on, or back from it with QTextDocument::FindBackward in \a options, and selects
+    it if it is found. Returns \c true if it was found; the cursor stays where it was otherwise.
+    QTextDocument::FindCaseSensitively and QTextDocument::FindWholeWords narrow the search.
+
+    \code
+    if (!help->find(text)) {
+        help->moveCursor(QTextCursor::Start); // from the top again
+        help->find(text);
+    }
+    \endcode
+*/
+bool QPlainTextEdit::find(const QString &exp, QTextDocument::FindFlags options) {
+    if (exp.isEmpty())
+        return false;
+    const Qt::CaseSensitivity cs =
+        options & QTextDocument::FindCaseSensitively ? Qt::CaseSensitive : Qt::CaseInsensitive;
+    const bool backward = options & QTextDocument::FindBackward;
+    const bool whole = options & QTextDocument::FindWholeWords;
+    const qsizetype size = m_text.size();
+    const auto isWord = [&](qsizetype at) {
+        const bool before = at > 0 && m_text.at(at - 1).isLetterOrNumber();
+        const bool after = at + exp.size() < size && m_text.at(at + exp.size()).isLetterOrNumber();
+        return !before && !after;
+    };
+    qsizetype at = backward ? std::min(m_position, m_anchor) - 1 : std::max(m_position, m_anchor);
+    while (at >= 0 && at <= size) {
+        at = backward ? m_text.lastIndexOf(exp, at, cs) : m_text.indexOf(exp, at, cs);
+        if (at < 0)
+            return false;
+        if (!whole || isWord(at)) {
+            QTextCursor cursor = textCursor();
+            cursor.setPosition(static_cast<int>(at));
+            cursor.setPosition(static_cast<int>(at + exp.size()), QTextCursor::KeepAnchor);
+            setTextCursor(cursor);
+            return true;
+        }
+        at += backward ? -1 : 1;
+    }
+    return false;
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Looks for a match of the regular expression \a exp, as the other overload does with \a options. The case
+    sensitivity is that of \a exp, unless QTextDocument::FindCaseSensitively is given.
+*/
+bool QPlainTextEdit::find(const QRegularExpression &exp, QTextDocument::FindFlags options) {
+    if (!exp.isValid() || exp.pattern().isEmpty())
+        return false;
+    QRegularExpression re = exp;
+    if (options & QTextDocument::FindCaseSensitively)
+        re.setPatternOptions(re.patternOptions() & ~QRegularExpression::CaseInsensitiveOption);
+    const bool backward = options & QTextDocument::FindBackward;
+    const bool whole = options & QTextDocument::FindWholeWords;
+    const int from = backward ? std::min(m_position, m_anchor) : std::max(m_position, m_anchor);
+    qsizetype bestStart = -1, bestLength = 0;
+    QRegularExpressionMatchIterator it = re.globalMatch(m_text);
+    while (it.hasNext()) {
+        const QRegularExpressionMatch match = it.next();
+        const qsizetype start = match.capturedStart(0);
+        const qsizetype length = match.capturedLength(0);
+        if (length == 0)
+            continue;
+        if (whole) {
+            const bool before = start > 0 && m_text.at(start - 1).isLetterOrNumber();
+            const bool after = start + length < m_text.size() && m_text.at(start + length).isLetterOrNumber();
+            if (before || after)
+                continue;
+        }
+        if (backward) {
+            if (start + length <= from) {
+                bestStart = start;
+                bestLength = length;
+            }
+        } else if (start >= from) {
+            bestStart = start;
+            bestLength = length;
+            break;
+        }
+    }
+    if (bestStart < 0)
+        return false;
+    QTextCursor cursor = textCursor();
+    cursor.setPosition(static_cast<int>(bestStart));
+    cursor.setPosition(static_cast<int>(bestStart + bestLength), QTextCursor::KeepAnchor);
+    setTextCursor(cursor);
+    return true;
+}
 
 /*!
     Returns a cursor at the position of the editor's own cursor, and with its selection. A change to the cursor that

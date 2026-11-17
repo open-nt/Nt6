@@ -23,6 +23,7 @@ class QMouseEvent;
 class QMoveEvent;
 class QPlatformWindow;
 class QResizeEvent;
+class QIcon;
 class QScreen;
 class QShowEvent;
 class QVulkanInstance;
@@ -51,6 +52,8 @@ public:
 
     QString title() const;
     void setTitle(const QString &title);
+    QIcon icon() const;
+    void setIcon(const QIcon &icon);
     QWindow *transientParent() const;
     void setTransientParent(QWindow *parent);
     bool isVisible() const;

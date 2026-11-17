@@ -12,6 +12,8 @@
 class QTextBlockFormat;
 class QTextCharFormat;
 class QTextListFormat;
+class QTextFrameFormat;
+class QTextTableFormat;
 
 class QTextFormat {
 public:
@@ -24,9 +26,17 @@ public:
         \value BlockFormat The format of a paragraph; see QTextBlockFormat.
         \value CharFormat The format of characters; see QTextCharFormat.
         \value ListFormat The format of a list; see QTextListFormat.
+        \value FrameFormat The format of a frame or a table; see QTextFrameFormat and QTextTableFormat.
         \value UserFormat The first number for formats of an application.
     */
-    enum FormatType { InvalidFormat = -1, BlockFormat = 1, CharFormat = 2, ListFormat = 3, UserFormat = 100 };
+    enum FormatType {
+        InvalidFormat = -1,
+        BlockFormat = 1,
+        CharFormat = 2,
+        ListFormat = 3,
+        FrameFormat = 5,
+        UserFormat = 100
+    };
 
     /*!
         \enum QTextFormat::Property
@@ -55,6 +65,19 @@ public:
         \value AnchorHref The target of the link.
         \value ListStyle The style of a list; see QTextListFormat::Style.
         \value ListIndent The number of steps that a list is indented by.
+        \value ObjectType The kind of object that a frame format is for; see ObjectTypes.
+        \value FrameBorder The width of the border of a frame, in pixels.
+        \value FrameMargin The space around a frame.
+        \value FramePadding The space inside the border of a frame.
+        \value FrameWidth The width of a frame.
+        \value FrameHeight The height of a frame.
+        \value FrameBorderBrush The brush that the border of a frame is drawn with.
+        \value FrameBorderStyle The style of the border of a frame.
+        \value TableColumns The number of columns of a table.
+        \value TableCellSpacing The space between the cells of a table.
+        \value TableCellPadding The space inside the cells of a table.
+        \value TableHeaderRowCount The number of rows at the top of a table that are its header.
+        \value TableBorderCollapse Whether the borders of the cells of a table are drawn as one line.
         \value UserProperty The first number for properties of an application.
     */
     enum Property {
@@ -79,6 +102,19 @@ public:
         AnchorHref = 0x2031,
         ListStyle = 0x3000,
         ListIndent = 0x3001,
+        ObjectType = 0x2f00,
+        FrameBorder = 0x4000,
+        FrameMargin = 0x4001,
+        FramePadding = 0x4002,
+        FrameWidth = 0x4003,
+        FrameHeight = 0x4004,
+        FrameBorderBrush = 0x4009,
+        FrameBorderStyle = 0x4010,
+        TableColumns = 0x4100,
+        TableCellSpacing = 0x4102,
+        TableCellPadding = 0x4103,
+        TableHeaderRowCount = 0x4104,
+        TableBorderCollapse = 0x4105,
         UserProperty = 0x100000
     };
 
@@ -105,10 +141,29 @@ public:
     bool isCharFormat() const { return m_type == CharFormat; }
     bool isBlockFormat() const { return m_type == BlockFormat; }
     bool isListFormat() const { return m_type == ListFormat; }
+    bool isFrameFormat() const { return m_type == FrameFormat; }
+    bool isTableFormat() const { return m_type == FrameFormat && intProperty(ObjectType) == TableObject; }
+
+    /*!
+        \enum QTextFormat::ObjectTypes
+
+        The kinds of objects that a frame format is for.
+
+        \value NoObject A plain frame.
+        \value ImageObject An image; Nt has none.
+        \value TableObject A table.
+        \value TableCellObject A cell of a table; Nt has none.
+        \value UserObject The first number for objects of an application.
+    */
+    enum ObjectTypes { NoObject, ImageObject, TableObject, TableCellObject, UserObject = 0x1000 };
+    void setObjectType(int type) { setProperty(ObjectType, type); }
+    int objectType() const { return intProperty(ObjectType); }
 
     QTextBlockFormat toBlockFormat() const;
     QTextCharFormat toCharFormat() const;
     QTextListFormat toListFormat() const;
+    QTextFrameFormat toFrameFormat() const;
+    QTextTableFormat toTableFormat() const;
 
     void setBackground(const QBrush &brush) { setProperty(BackgroundBrush, QVariant::fromValue(brush)); }
     QBrush background() const { return brushProperty(BackgroundBrush); }
@@ -210,4 +265,73 @@ public:
     Style style() const { return static_cast<Style>(intProperty(ListStyle)); }
     void setIndent(int indent) { setProperty(ListIndent, indent); }
     int indent() const { return intProperty(ListIndent); }
+};
+
+class QTextFrameFormat : public QTextFormat {
+public:
+    /*!
+        \enum QTextFrameFormat::BorderStyle
+
+        How the border of a frame is drawn. Nt draws every style as a solid line.
+
+        \value BorderStyle_None No border.
+        \value BorderStyle_Dotted Dots.
+        \value BorderStyle_Dashed Dashes.
+        \value BorderStyle_Solid A line.
+        \value BorderStyle_Double Two lines.
+        \value BorderStyle_DotDash Dots and dashes.
+        \value BorderStyle_DotDotDash Two dots and a dash.
+        \value BorderStyle_Groove A groove.
+        \value BorderStyle_Ridge A ridge.
+        \value BorderStyle_Inset Sunken.
+        \value BorderStyle_Outset Raised.
+    */
+    enum BorderStyle {
+        BorderStyle_None,
+        BorderStyle_Dotted,
+        BorderStyle_Dashed,
+        BorderStyle_Solid,
+        BorderStyle_Double,
+        BorderStyle_DotDash,
+        BorderStyle_DotDotDash,
+        BorderStyle_Groove,
+        BorderStyle_Ridge,
+        BorderStyle_Inset,
+        BorderStyle_Outset
+    };
+
+    QTextFrameFormat();
+
+    bool isValid() const { return isFrameFormat(); }
+    void setBorder(qreal border) { setProperty(FrameBorder, border); }
+    qreal border() const { return doubleProperty(FrameBorder); }
+    void setBorderBrush(const QBrush &brush) { setProperty(FrameBorderBrush, QVariant::fromValue(brush)); }
+    QBrush borderBrush() const { return brushProperty(FrameBorderBrush); }
+    void setBorderStyle(BorderStyle style) { setProperty(FrameBorderStyle, static_cast<int>(style)); }
+    BorderStyle borderStyle() const { return static_cast<BorderStyle>(intProperty(FrameBorderStyle)); }
+    void setMargin(qreal margin) { setProperty(FrameMargin, margin); }
+    qreal margin() const { return doubleProperty(FrameMargin); }
+    void setPadding(qreal padding) { setProperty(FramePadding, padding); }
+    qreal padding() const { return doubleProperty(FramePadding); }
+    void setWidth(qreal width) { setProperty(FrameWidth, width); }
+    void setHeight(qreal height) { setProperty(FrameHeight, height); }
+};
+
+class QTextTableFormat : public QTextFrameFormat {
+public:
+    QTextTableFormat();
+
+    bool isValid() const { return isTableFormat(); }
+    int columns() const { return intProperty(TableColumns); }
+    void setColumns(int columns) { setProperty(TableColumns, columns); }
+    qreal cellSpacing() const { return doubleProperty(TableCellSpacing); }
+    void setCellSpacing(qreal spacing) { setProperty(TableCellSpacing, spacing); }
+    qreal cellPadding() const { return doubleProperty(TableCellPadding); }
+    void setCellPadding(qreal padding) { setProperty(TableCellPadding, padding); }
+    void setAlignment(Qt::Alignment alignment) { setProperty(BlockAlignment, static_cast<int>(alignment)); }
+    Qt::Alignment alignment() const { return Qt::Alignment::fromInt(intProperty(BlockAlignment)); }
+    void setHeaderRowCount(int count) { setProperty(TableHeaderRowCount, count); }
+    int headerRowCount() const { return intProperty(TableHeaderRowCount); }
+    void setBorderCollapse(bool borderCollapse) { setProperty(TableBorderCollapse, borderCollapse); }
+    bool borderCollapse() const { return boolProperty(TableBorderCollapse); }
 };

@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qicon.h>
+
 #include <QtCore/qnamespace.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
@@ -22,6 +24,8 @@ public:
     virtual void setGeometry(const QRect &rect) { m_geometry = rect; }
     virtual void setVisible(bool visible) = 0;
     virtual void setWindowTitle(const QString &title) { (void)title; }
+    // The icon that the window system shows for the window, in its task bar and title bar.
+    virtual void setWindowIcon(const QIcon &icon) { (void)icon; }
     virtual void requestActivateWindow() {}
     // Keeps the window above `parent`, as a dialog, or makes it a normal window again if `parent` is null.
     virtual void setTransientParent(const QPlatformWindow *parent) { (void)parent; }

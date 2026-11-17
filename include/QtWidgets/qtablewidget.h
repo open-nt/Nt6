@@ -1,6 +1,13 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qvariant.h>
+
+#include <QtCore/qpointer.h>
+
+#include <QtCore/qmap.h>
+#include <QtGui/qicon.h>
+
 #include <QtCore/qlist.h>
 #include <QtCore/qstringlist.h>
 #include <QtGui/qbrush.h>
@@ -16,6 +23,7 @@ class QTableWidgetItem {
 public:
     QTableWidgetItem();
     explicit QTableWidgetItem(const QString &text);
+    QTableWidgetItem(const QIcon &icon, const QString &text);
     QTableWidgetItem(const QTableWidgetItem &) = delete;
     QTableWidgetItem &operator=(const QTableWidgetItem &) = delete;
     virtual ~QTableWidgetItem();
@@ -39,6 +47,12 @@ public:
     void setFlags(Qt::ItemFlags flags);
     bool isSelected() const;
     void setSelected(bool select);
+    QIcon icon() const { return m_icon; }
+    void setIcon(const QIcon &icon);
+    Qt::CheckState checkState() const;
+    void setCheckState(Qt::CheckState state);
+    virtual QVariant data(int role) const;
+    virtual void setData(int role, const QVariant &value);
 
 private:
     friend class QTableWidget;
@@ -54,7 +68,12 @@ private:
     QBrush m_background;
     QFont m_font;
     bool m_hasFont = false;
-    Qt::ItemFlags m_flags = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+    Qt::ItemFlags m_flags = Qt::ItemIsSelectable | Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsEditable;
+    int m_checkState = -1;      // a Qt::CheckState once one is set; -1 for an item without a check box
+    QMap<int, QVariant> m_data; // the roles that have no member of their own
+    QIcon m_icon;
+    Qt::Orientation m_header = {}; // for a header item: the header it labels
+    bool m_isHeader = false;
 };
 
 class QTableWidget : public QAbstractItemView {
@@ -87,6 +106,15 @@ public:
 
     void setHorizontalHeaderLabels(const QStringList &labels);
     void setVerticalHeaderLabels(const QStringList &labels);
+    QTableWidgetItem *horizontalHeaderItem(int column) const;
+    void setHorizontalHeaderItem(int column, QTableWidgetItem *item);
+    QTableWidgetItem *verticalHeaderItem(int row) const;
+    void setVerticalHeaderItem(int row, QTableWidgetItem *item);
+    QWidget *cellWidget(int row, int column) const;
+    void setCellWidget(int row, int column, QWidget *widget);
+    void removeCellWidget(int row, int column) { setCellWidget(row, column, nullptr); }
+    void editItem(QTableWidgetItem *item);
+    void openPersistentEditor(QTableWidgetItem *item) { editItem(item); }
     QHeaderView *horizontalHeader() const { return m_hheader; }
     QHeaderView *verticalHeader() const { return m_vheader; }
     int rowHeight(int row) const;
@@ -135,6 +163,16 @@ signals:
         This signal is emitted when the selection changes.
     */
     void itemSelectionChanged() { emitSignal(&QTableWidget::itemSelectionChanged); }
+    /*!
+        \since 6.0
+        This signal is emitted when the data of \a item changes: its text, its check state, or another role.
+    */
+    void itemChanged(QTableWidgetItem *item) { emitSignal(&QTableWidget::itemChanged, item); }
+    /*!
+        \since 6.0
+        This signal is emitted when the data of the item in the cell at \a row and \a column changes.
+    */
+    void cellChanged(int row, int column) { emitSignal(&QTableWidget::cellChanged, row, column); }
 
 protected:
     bool viewportEvent(QEvent *event) override;
@@ -158,8 +196,22 @@ private:
     void reindex();
     void updateLayout();
     void updateScrollBars();
-    void itemChanged(QTableWidgetItem *item);
+    void refreshItem(QTableWidgetItem *item);
     void forget(QTableWidgetItem *item);
+    // Cell widgets keep their cell when rows or columns are inserted or removed before them.
+    struct CellWidget {
+        int row;
+        int column;
+        QPointer<QWidget> widget;
+    };
+    void shiftCellWidgets(bool rows, int from, int delta);
+    void placeCellWidgets();
+    std::vector<QTableWidgetItem *> &headerItems(Qt::Orientation orientation);
+    QTableWidgetItem *headerItem(Qt::Orientation orientation, int section) const;
+    void setHeaderItem(Qt::Orientation orientation, int section, QTableWidgetItem *item);
+    void headerItemChanged(QTableWidgetItem *item);
+    QRect checkRect(int row, int column) const;
+    void closeItemEditor(bool commit);
     void moveCurrent(int row, int column);
     bool selectable(int row, int column) const;
     void scrollToCell(int row, int column);
@@ -180,4 +232,9 @@ private:
     bool m_showGrid = true;
     bool m_inLayout = false;
     bool m_layoutAgain = false;
+    std::vector<CellWidget> m_cellWidgets;
+    std::vector<QTableWidgetItem *> m_hItems; // header items, owned; null for sections without one
+    std::vector<QTableWidgetItem *> m_vItems;
+    QPointer<QWidget> m_editor;
+    QTableWidgetItem *m_editing = nullptr;
 };

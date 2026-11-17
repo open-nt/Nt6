@@ -7,6 +7,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtGui/qaction.h>
 #include <QtGui/qevent.h>
+#include <QtWidgets/qabstractscrollarea.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qtooltip.h>
 #include <QtWidgets/qwidget.h>
@@ -72,8 +73,11 @@ QAction *findShortcut(QWidget *w, int code, std::vector<const QWidget *> &seen, 
     if (checkHidden && (w->isHidden() || !w->isEnabled()))
         return nullptr;
     for (QAction *action : w->actions()) {
-        if (action->isEnabled() && !action->shortcut().isEmpty() && normalizedShortcut(action->shortcut()[0]) == code &&
-            inContext(action, w, focus, applicationOnly))
+        bool keyMatches = false;
+        if (action->isEnabled())
+            for (const QKeySequence &key : action->shortcuts())
+                keyMatches = keyMatches || normalizedShortcut(key[0]) == code;
+        if (keyMatches && inContext(action, w, focus, applicationOnly))
             return action;
         if (QWidget *menu = action->menu<QWidget *>())
             if (QAction *found = findShortcut(menu, code, seen, false, focus, applicationOnly))
@@ -213,6 +217,22 @@ template <typename Make> bool propagate(QWidget *target, const QPointF &startPos
     return false;
 }
 
+// Asks the widget with the focus, then its parents, whether one of them wants `event` as a key press rather than
+// have it activate a shortcut: a widget that does accepts the QEvent::ShortcutOverride event.
+bool shortcutOverridden(QWidget *focus, const QKeyEvent *event) {
+    for (QWidget *w = focus; w; w = WidgetAccess::up(w)) {
+        if (!w->isEnabled())
+            return false;
+        QKeyEvent ask(QEvent::ShortcutOverride, event->key(), event->modifiers(), event->text(), event->isAutoRepeat(),
+                      static_cast<ushort>(event->count()));
+        ask.ignore();
+        QCoreApplication::sendEvent(w, &ask);
+        if (ask.isAccepted())
+            return true;
+    }
+    return false;
+}
+
 } // namespace
 
 void QWidgetWindow::updateUnderMouse(QWidget *target, const QPointF &local, const QPointF &global) {
@@ -282,6 +302,9 @@ void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
             return;
         }
     }
+    // A grab with no other button held is left from a press whose release went elsewhere, as to a drag.
+    if (m_grab && (event->buttons() & ~event->button()) == Qt::NoButton)
+        m_grab = nullptr;
     QWidget *target = m_grab ? m_grab.data() : WidgetAccess::widgetAt(m_widget, event->pos());
     if (!m_grab) {
         m_grab = target;
@@ -290,6 +313,14 @@ void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
             target->setFocus();
     }
     deliverMouse(event, target);
+    // The right button asks for a context menu, after the widget has had the press.
+    if (event->button() == Qt::RightButton && target && !m_popup) {
+        const QPointF local = event->position() - QPointF(target->mapTo(m_widget, QPoint(0, 0)));
+        propagate(target, local, [&](const QPointF &pos) {
+            return QContextMenuEvent(QContextMenuEvent::Mouse, pos.toPoint(), event->globalPosition().toPoint(),
+                                     event->modifiers());
+        });
+    }
 }
 
 void QWidgetWindow::mouseDoubleClickEvent(QMouseEvent *event) {
@@ -386,6 +417,8 @@ void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
                 if (top != m_widget && !top->isHidden())
                     action = findShortcut(top, code, seen, true, focus, true);
             }
+            if (action && shortcutOverridden(WidgetAccess::focusWidgetOf(m_widget), event))
+                action = nullptr;
             if (action) {
                 action->trigger();
                 event->accept();
@@ -401,6 +434,16 @@ void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
                          static_cast<ushort>(event->count()));
     });
     event->setAccepted(handled);
+    // The Menu key, or Shift+F10, asks the widget with the focus for its context menu, at its middle.
+    const bool menuKey =
+        event->key() == Qt::Key_Menu || (event->key() == Qt::Key_F10 && event->modifiers() == Qt::ShiftModifier);
+    if (menuKey && !event->isAutoRepeat() && !m_popup) {
+        const QPoint at = target->rect().center();
+        propagate(target, QPointF(at), [&](const QPointF &pos) {
+            return QContextMenuEvent(QContextMenuEvent::Keyboard, pos.toPoint(), target->mapToGlobal(at),
+                                     event->modifiers());
+        });
+    }
 }
 
 void QWidgetWindow::keyReleaseEvent(QKeyEvent *event) {
@@ -420,7 +463,113 @@ void QWidgetWindow::keyReleaseEvent(QKeyEvent *event) {
     event->setAccepted(handled);
 }
 
+namespace {
+
+// The widget at `pos` of `root` that takes drops: one that accepts them, or the viewport of a scroll area that does.
+QWidget *dropTargetAt(QWidget *root, const QPoint &pos) {
+    for (QWidget *w = WidgetAccess::widgetAt(root, pos); w; w = WidgetAccess::up(w)) {
+        if (!w->isEnabled())
+            continue;
+        if (w->acceptDrops())
+            return w;
+        auto *area = qobject_cast<QAbstractScrollArea *>(w->parentWidget());
+        if (area && area->viewport() == w && area->acceptDrops() && area->isEnabled())
+            return w;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+// A drag of this program is over the window: the widget under it that takes drops gets the enter, move, leave and
+// drop events, in its own coordinates.
+void QWidgetWindow::handleDrag(QEvent *event) {
+    if (event->type() == QEvent::DragLeave || !m_widget || WidgetAccess::blockedByModal(m_widget)) {
+        if (m_dropTarget) {
+            QDragLeaveEvent leave;
+            QCoreApplication::sendEvent(m_dropTarget.data(), &leave);
+        }
+        m_dropTarget = nullptr;
+        m_dropAccepted = false;
+        event->ignore();
+        return;
+    }
+    auto *e = static_cast<QDropEvent *>(event);
+    const QPoint pos = e->position().toPoint();
+    QWidget *target = dropTargetAt(m_widget, pos);
+    const QPoint local = target ? pos - target->mapTo(m_widget, QPoint(0, 0)) : QPoint();
+    const auto copy = [&](QDropEvent &out) {
+        out.setSource(e->source());
+        out.setProposedAction(e->proposedAction());
+        out.setDropAction(e->dropAction());
+    };
+    if (event->type() == QEvent::Drop) {
+        if (!target || target != m_dropTarget || !m_dropAccepted) {
+            e->ignore();
+        } else {
+            QDropEvent drop(QPointF(local), e->possibleActions(), e->mimeData(), e->buttons(), e->modifiers());
+            copy(drop);
+            QCoreApplication::sendEvent(target, &drop);
+            e->setDropAction(drop.dropAction());
+            e->setAccepted(drop.isAccepted());
+        }
+        m_dropTarget = nullptr;
+        m_dropAccepted = false;
+        return;
+    }
+    if (target != m_dropTarget) {
+        if (m_dropTarget) {
+            QDragLeaveEvent leave;
+            QCoreApplication::sendEvent(m_dropTarget.data(), &leave);
+        }
+        m_dropTarget = target;
+        m_dropAccepted = false;
+        if (target) {
+            QDragEnterEvent enter(local, e->possibleActions(), e->mimeData(), e->buttons(), e->modifiers());
+            copy(enter);
+            QCoreApplication::sendEvent(target, &enter);
+            m_dropAccepted = enter.isAccepted();
+            e->setDropAction(enter.dropAction());
+            // Qt sends a move right after an accepted enter, so the widget can refuse the spot.
+            if (m_dropAccepted) {
+                QDragMoveEvent move(local, e->possibleActions(), e->mimeData(), e->buttons(), e->modifiers());
+                copy(move);
+                move.setDropAction(enter.dropAction());
+                move.accept();
+                QCoreApplication::sendEvent(target, &move);
+                m_dropAccepted = move.isAccepted();
+                e->setDropAction(move.dropAction());
+            }
+        }
+    } else if (target && m_dropAccepted) {
+        QDragMoveEvent move(local, e->possibleActions(), e->mimeData(), e->buttons(), e->modifiers());
+        copy(move);
+        move.accept();
+        QCoreApplication::sendEvent(target, &move);
+        m_dropAccepted = move.isAccepted();
+        e->setDropAction(move.dropAction());
+    }
+    // The window keeps the drag while any widget in it might take it, so that moves keep coming.
+    e->setAccepted(target != nullptr && m_dropAccepted);
+}
+
 bool QWidgetWindow::event(QEvent *event) {
+    switch (event->type()) {
+    case QEvent::DragEnter:
+    case QEvent::DragMove:
+    case QEvent::DragLeave:
+    case QEvent::Drop:
+        handleDrag(event);
+        return true;
+    default:
+        break;
+    }
+    if (event->type() == QEvent::ShortcutOverride && m_widget) {
+        // A QShortcut is about to take the key: the widget with the focus may want it instead.
+        event->setAccepted(!WidgetAccess::blockedByModal(m_widget) &&
+                           shortcutOverridden(WidgetAccess::focusWidgetOf(m_widget), static_cast<QKeyEvent *>(event)));
+        return true;
+    }
     if (event->type() == QEvent::Enter && m_widget) {
         auto *e = static_cast<QEnterEvent *>(event);
         QWidget *under = WidgetAccess::widgetAt(m_widget, e->pos());

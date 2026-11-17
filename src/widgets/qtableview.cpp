@@ -567,6 +567,10 @@ void QTableView::updateGeometries() {
         return;
     }
     m_inLayout = true;
+    for (int column : m_hheader->contentsSections())
+        resizeColumnToContents(column);
+    for (int row : m_vheader->contentsSections())
+        resizeRowToContents(row);
     QScrollBar *hbar = horizontalScrollBar(), *vbar = verticalScrollBar();
     for (int pass = 0; pass < 6; ++pass) {
         m_layoutAgain = false;

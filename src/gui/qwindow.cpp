@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtGui/qwindow.h>
+#include <QtGui/qicon.h>
 
 #include "qpa/qplatformintegration_p.h"
 #include "qpa/qplatformwindow_p.h"
@@ -20,6 +21,7 @@ struct QWindow::Data {
     QScreen *screen = nullptr;
     QPlatformWindow *platform = nullptr;
     QString title;
+    QIcon icon;
     QPointer<QWindow> transientParent;
     QRect geometry;
     bool visible = false;
@@ -122,6 +124,8 @@ void QWindow::create() {
     m_d->platform->setGeometry(m_d->geometry);
     if (!m_d->title.isEmpty())
         m_d->platform->setWindowTitle(m_d->title);
+    if (const QIcon icon = m_d->icon.isNull() ? QGuiApplication::windowIcon() : m_d->icon; !icon.isNull())
+        m_d->platform->setWindowIcon(icon);
     if (m_d->transientParent && m_d->transientParent->m_d->platform)
         m_d->platform->setTransientParent(m_d->transientParent->m_d->platform);
     if (m_d->states != Qt::WindowStates(Qt::WindowNoState))
@@ -191,6 +195,27 @@ void QWindow::destroy() {
     \sa setTitle()
 */
 QString QWindow::title() const { return m_d->title; }
+
+/*!
+    \since 6.0
+
+    Returns the icon of the window; a null icon if it has none, and then the window system shows that of the
+    application.
+
+    \sa setIcon(), QGuiApplication::windowIcon()
+*/
+QIcon QWindow::icon() const { return m_d->icon; }
+
+/*!
+    \since 6.0
+
+    Sets the icon that the window system shows for the window, in its task bar and title bar, to \a icon.
+*/
+void QWindow::setIcon(const QIcon &icon) {
+    m_d->icon = icon;
+    if (m_d->platform)
+        m_d->platform->setWindowIcon(icon.isNull() ? QGuiApplication::windowIcon() : icon);
+}
 
 /*!
     Sets the window title to \a title.

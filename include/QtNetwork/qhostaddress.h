@@ -4,6 +4,10 @@
 #include <QtCore/qstring.h>
 #include <QtNetwork/qabstractsocket.h>
 
+#include <utility>
+
+class QDebug;
+
 /*!
     \class QIPv6Address
     \brief The QIPv6Address class stores an IPv6 address in a 16-byte array.
@@ -99,6 +103,11 @@ public:
     bool isLinkLocal() const;
     bool isGlobal() const;
     bool isEqual(const QHostAddress &other, ConversionMode mode = TolerantConversion) const;
+    bool isInSubnet(const QHostAddress &subnet, int netmask) const;
+    bool isInSubnet(const std::pair<QHostAddress, int> &subnet) const {
+        return isInSubnet(subnet.first, subnet.second);
+    }
+    static std::pair<QHostAddress, int> parseSubnet(const QString &subnet);
 
     bool operator==(const QHostAddress &o) const noexcept;
     /*!
@@ -143,3 +152,5 @@ inline std::size_t qHash(const QHostAddress &a, std::size_t seed = 0) noexcept {
         h = h * 131 + a.bytes()[i];
     return h;
 }
+
+QDebug operator<<(QDebug debug, const QHostAddress &address);

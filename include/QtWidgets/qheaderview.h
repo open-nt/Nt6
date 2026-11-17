@@ -16,6 +16,9 @@ class QHeaderView : public QWidget {
     Q_PROPERTY(bool sectionsClickable READ sectionsClickable WRITE setSectionsClickable)
     Q_PROPERTY(bool showSortIndicator READ isSortIndicatorShown WRITE setSortIndicatorShown)
 public:
+    enum ResizeMode { Interactive, Stretch, Custom, ResizeToContents, Fixed = Custom };
+    Q_ENUM(ResizeMode)
+
     explicit QHeaderView(Qt::Orientation orientation, QWidget *parent = nullptr);
     ~QHeaderView() override;
 
@@ -37,6 +40,10 @@ public:
     int hiddenSectionCount() const;
     bool stretchLastSection() const { return m_stretchLast; }
     void setStretchLastSection(bool stretch);
+    void setSectionResizeMode(QHeaderView::ResizeMode mode);
+    void setSectionResizeMode(int logicalIndex, QHeaderView::ResizeMode mode);
+    QHeaderView::ResizeMode sectionResizeMode(int logicalIndex) const;
+    int stretchSectionCount() const;
     bool sectionsClickable() const { return m_clickable; }
     void setSectionsClickable(bool clickable);
     bool isSortIndicatorShown() const { return m_sortShown; }
@@ -79,6 +86,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    bool event(QEvent *event) override;
 
 private:
     friend class QTableView;
@@ -92,11 +100,18 @@ private:
     int storedSize(int logicalIndex) const;
     int lastVisible() const;
     int edgeAt(const QPoint &pos) const;
+    // The sizes of all sections, the stretched ones included; 0 for hidden sections.
+    std::vector<int> effectiveSizes() const;
+    // The sections whose size follows their contents, which the view sizes when it lays its items out.
+    std::vector<int> contentsSections() const;
 
     Qt::Orientation m_orientation;
     std::vector<int> m_sizes;
     std::vector<char> m_hidden; // parallel to m_sizes
+    std::vector<char> m_modes;  // parallel to m_sizes: a ResizeMode each
+    ResizeMode m_defaultMode = Interactive;
     QStringList m_labels;
+    QStringList m_toolTips; // set by QTableWidget from its header items
     int m_offset = 0;
     int m_defaultSize = 100;
     int m_minimumSize = 20;

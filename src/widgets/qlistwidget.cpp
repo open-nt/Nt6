@@ -83,6 +83,42 @@ void QListWidgetItem::changed() {
 */
 
 /*!
+    \since 6.0
+
+    Constructs an item with \a icon and \a text, and adds it to the end of \a listWidget if it is not
+    \c nullptr.
+*/
+QListWidgetItem::QListWidgetItem(const QIcon &icon, const QString &text, QListWidget *listWidget)
+    : QListWidgetItem(text) {
+    m_icon = icon;
+    if (listWidget)
+        listWidget->addItem(this);
+}
+
+/*!
+    \fn QIcon QListWidgetItem::icon() const
+    \since 6.0
+
+    Returns the icon of the item, shown before its text; a null icon if it has none.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the icon of the item to \a icon, which the list shows in its icon size.
+
+    \sa QAbstractItemView::setIconSize()
+*/
+void QListWidgetItem::setIcon(const QIcon &icon) {
+    m_icon = icon;
+    if (m_list) {
+        m_list->updateScrollBars();
+        m_list->placeItemWidgets();
+    }
+    changed();
+}
+
+/*!
     Sets the text of the item to \a text.
 
     \sa text()
@@ -231,6 +267,107 @@ void QListWidgetItem::setSelected(bool select) {
 }
 
 /*!
+    \fn QSize QListWidgetItem::sizeHint() const
+    \since 6.0
+
+    Returns the size hint of the item; an invalid size if none was set.
+
+    \sa setSizeHint()
+*/
+
+/*!
+    \since 6.0
+
+    Sets the size hint of the item to \a size. A row is as high as the height of the hint if that is more than the
+    height of a line of text, which makes room for an item widget.
+
+    \sa QListWidget::setItemWidget()
+*/
+void QListWidgetItem::setSizeHint(const QSize &size) {
+    m_sizeHint = size;
+    if (m_list) {
+        m_list->updateScrollBars();
+        m_list->placeItemWidgets();
+        m_list->viewport()->update();
+    }
+}
+
+/*!
+    \since 6.0
+
+    Returns the data of the item for \a role: the text for Qt::DisplayRole and Qt::EditRole, the tool tip, the
+    alignment, the brushes, the font and the size hint for their roles, and what setData() stored for the other
+    roles. Returns an invalid QVariant for a role that has nothing.
+
+    \sa setData()
+*/
+QVariant QListWidgetItem::data(int role) const {
+    switch (role) {
+    case Qt::DisplayRole:
+    case Qt::EditRole:
+        return m_text;
+    case Qt::ToolTipRole:
+        return m_toolTip.isEmpty() ? QVariant() : QVariant(m_toolTip);
+    case Qt::TextAlignmentRole:
+        return QVariant(static_cast<int>(m_alignment));
+    case Qt::ForegroundRole:
+        return m_foreground.style() == Qt::NoBrush ? QVariant() : QVariant::fromValue(m_foreground);
+    case Qt::BackgroundRole:
+        return m_background.style() == Qt::NoBrush ? QVariant() : QVariant::fromValue(m_background);
+    case Qt::FontRole:
+        return m_hasFont ? QVariant::fromValue(m_font) : QVariant();
+    case Qt::SizeHintRole:
+        return m_sizeHint.isValid() ? QVariant(m_sizeHint) : QVariant();
+    case Qt::DecorationRole:
+        return m_icon.isNull() ? QVariant() : QVariant::fromValue(m_icon);
+    default:
+        return m_data.value(role);
+    }
+}
+
+/*!
+    \since 6.0
+
+    Sets the data of the item for \a role to \a value. The roles that the item shows, such as Qt::DisplayRole,
+    change it; the other roles, such as Qt::UserRole, are stored for data() to return.
+*/
+void QListWidgetItem::setData(int role, const QVariant &value) {
+    switch (role) {
+    case Qt::DisplayRole:
+    case Qt::EditRole:
+        setText(value.toString());
+        return;
+    case Qt::ToolTipRole:
+        setToolTip(value.toString());
+        return;
+    case Qt::TextAlignmentRole:
+        setTextAlignment(Qt::Alignment::fromInt(value.toInt()));
+        return;
+    case Qt::ForegroundRole:
+        setForeground(value.value<QBrush>());
+        return;
+    case Qt::BackgroundRole:
+        setBackground(value.value<QBrush>());
+        return;
+    case Qt::FontRole:
+        setFont(value.value<QFont>());
+        return;
+    case Qt::SizeHintRole:
+        setSizeHint(value.toSize());
+        return;
+    case Qt::DecorationRole:
+        setIcon(value.value<QIcon>());
+        return;
+    default:
+        if (value.isValid())
+            m_data.insert(role, value);
+        else
+            m_data.remove(role);
+        changed();
+    }
+}
+
+/*!
     \class QListWidget
     \brief The QListWidget class provides a list of items, one on each row.
 
@@ -285,9 +422,19 @@ QListWidget::~QListWidget() {
 }
 
 /*!
-    Returns the height of every row: that of a line of text in the font of the list.
+    Returns the height of a row: that of a line of text in the font of the list, or of an icon in iconSize() if an
+    item has one.
 */
-int QListWidget::rowHeight() const { return fontMetrics().height(); }
+int QListWidget::rowHeight() const {
+    int height = fontMetrics().height();
+    for (const QListWidgetItem *item : m_items) {
+        if (!item->m_icon.isNull()) {
+            height = std::max(height, (iconSize().isValid() ? iconSize().height() : 16) + 2);
+            break;
+        }
+    }
+    return height;
+}
 
 /*!
     \fn int QListWidget::count() const
@@ -367,6 +514,7 @@ void QListWidget::insertItem(int row, QListWidgetItem *item) {
         finishSelection();
     }
     updateScrollBars();
+    placeItemWidgets();
     viewport()->update();
     if (m_current < 0 && count() == 1)
         moveCurrent(0);
@@ -401,6 +549,10 @@ QListWidgetItem *QListWidget::takeItem(int row) {
     const bool wasSelected = item->m_selected;
     const bool wasCurrent = row == m_current;
     m_items.erase(m_items.begin() + row);
+    if (item->m_widget) {
+        item->m_widget->deleteLater();
+        item->m_widget = nullptr;
+    }
     item->m_list = nullptr;
     item->m_selected = false;
     if (m_anchor == row)
@@ -419,6 +571,7 @@ QListWidgetItem *QListWidget::takeItem(int row) {
         --m_current;
     }
     updateScrollBars();
+    placeItemWidgets();
     viewport()->update();
     return item;
 }
@@ -437,6 +590,8 @@ void QListWidget::itemChanged(QListWidgetItem *item) {
 void QListWidget::clear() {
     const bool hadSelection = !selectedItems().isEmpty();
     for (QListWidgetItem *&item : m_items) {
+        if (item->m_widget)
+            item->m_widget->deleteLater();
         item->m_list = nullptr;
         delete item;
     }
@@ -468,6 +623,7 @@ void QListWidget::sortItems(Qt::SortOrder order) {
     });
     m_current = current ? row(current) : -1;
     m_anchor = anchor ? row(anchor) : -1;
+    placeItemWidgets();
     viewport()->update();
 }
 
@@ -665,9 +821,91 @@ QListWidgetItem *QListWidget::itemAt(const QPoint &pos) const {
 */
 
 int QListWidget::rowAtY(int y) const {
-    const int h = std::max(1, rowHeight());
-    const int row = (y + verticalScrollBar()->value()) / h;
-    return y + verticalScrollBar()->value() >= 0 && row < count() ? row : -1;
+    const int at = y + verticalScrollBar()->value();
+    if (at < 0)
+        return -1;
+    if (uniformRows()) {
+        const int row = at / std::max(1, rowHeight());
+        return row < count() ? row : -1;
+    }
+    int top = 0;
+    for (int r = 0; r < count(); ++r) {
+        top += heightOf(r);
+        if (at < top)
+            return r;
+    }
+    return -1;
+}
+
+bool QListWidget::uniformRows() const {
+    for (const QListWidgetItem *item : m_items)
+        if (item->m_sizeHint.height() > 0)
+            return false;
+    return true;
+}
+
+int QListWidget::heightOf(int row) const {
+    const QListWidgetItem *it = item(row);
+    return std::max(std::max(1, rowHeight()), it ? it->m_sizeHint.height() : 0);
+}
+
+int QListWidget::topOf(int row) const {
+    if (uniformRows())
+        return row * std::max(1, rowHeight());
+    int top = 0;
+    for (int r = 0; r < row && r < count(); ++r)
+        top += heightOf(r);
+    return top;
+}
+
+int QListWidget::contentHeight() const { return topOf(count()); }
+
+void QListWidget::placeItemWidgets() {
+    for (QListWidgetItem *item : m_items) {
+        if (!item->m_widget)
+            continue;
+        item->m_widget->setGeometry(visualItemRect(item));
+        item->m_widget->show();
+    }
+}
+
+/*!
+    \fn void QListWidget::removeItemWidget(QListWidgetItem *item)
+    \since 6.0
+
+    Removes and deletes the widget shown over \a item.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the widget shown over \a item, or \c nullptr if it has none.
+
+    \sa setItemWidget()
+*/
+QWidget *QListWidget::itemWidget(QListWidgetItem *item) const { return item ? item->m_widget.data() : nullptr; }
+
+/*!
+    \since 6.0
+
+    Shows \a widget over \a item, in place of how the item is drawn, and takes ownership of it. A widget the item
+    had before is deleted. The widget follows the item when the list scrolls and is deleted with it. Give the item a
+    size hint as high as the widget so the row fits it. A \c nullptr \a widget removes the one the item has.
+
+    \sa itemWidget(), QListWidgetItem::setSizeHint()
+*/
+void QListWidget::setItemWidget(QListWidgetItem *item, QWidget *widget) {
+    if (!item || item->m_list != this)
+        return;
+    if (item->m_widget && item->m_widget != widget)
+        item->m_widget->deleteLater();
+    item->m_widget = widget;
+    if (widget) {
+        widget->setParent(viewport());
+        widget->setGeometry(visualItemRect(item));
+        widget->show();
+    }
+    viewport()->update();
 }
 
 /*!
@@ -680,8 +918,7 @@ QRect QListWidget::visualItemRect(const QListWidgetItem *item) const {
     const int r = row(item);
     if (r < 0)
         return QRect();
-    const int h = rowHeight();
-    return QRect(0, r * h - verticalScrollBar()->value(), viewport()->width(), h);
+    return QRect(0, topOf(r) - verticalScrollBar()->value(), viewport()->width(), heightOf(r));
 }
 
 /*!
@@ -701,8 +938,7 @@ void QListWidget::scrollToRow(int row) {
     }
     m_scrollRow = -1;
     QScrollBar *bar = verticalScrollBar();
-    const int h = rowHeight();
-    const int top = row * h, bottom = top + h;
+    const int top = topOf(row), bottom = top + heightOf(row);
     if (top < bar->value())
         bar->setValue(top);
     else if (bottom > bar->value() + viewport()->height())
@@ -723,7 +959,7 @@ void QListWidget::updateScrollBars() {
         const int h = rowHeight();
         bar->setSingleStep(h);
         bar->setPageStep(std::max(1, viewport()->height()));
-        bar->setRange(0, std::max(0, count() * h - viewport()->height()));
+        bar->setRange(0, std::max(0, contentHeight() - viewport()->height()));
         if (!m_updateAgain)
             break;
     }
@@ -736,6 +972,7 @@ void QListWidget::updateScrollBars() {
 void QListWidget::resizeEvent(QResizeEvent *event) {
     (void)event;
     updateScrollBars();
+    placeItemWidgets();
     if (m_scrollRow >= 0 && isVisible())
         scrollToRow(m_scrollRow);
 }
@@ -756,6 +993,7 @@ void QListWidget::showEvent(QShowEvent *event) {
 void QListWidget::scrollContentsBy(int dx, int dy) {
     (void)dx;
     (void)dy;
+    placeItemWidgets();
     viewport()->update();
 }
 
@@ -794,11 +1032,11 @@ void QListWidget::paintEvent(QPaintEvent *event) {
     const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
     const QRect all = viewport()->rect();
     painter.fillRect(all, pal.color(group, QPalette::Base));
-    const int h = std::max(1, rowHeight());
     const int offset = verticalScrollBar()->value();
     const QColor highlight = pal.color(group, QPalette::Highlight);
-    for (int r = std::max(0, offset / h); r < count(); ++r) {
-        const QRect rect(0, r * h - offset, all.width(), h);
+    const int first = std::max(0, rowAtY(0));
+    for (int r = first, top = topOf(first) - offset; r < count(); top += heightOf(r), ++r) {
+        const QRect rect(0, top, all.width(), heightOf(r));
         if (rect.top() > all.bottom())
             break;
         const QListWidgetItem *it = m_items[static_cast<std::size_t>(r)];
@@ -809,6 +1047,17 @@ void QListWidget::paintEvent(QPaintEvent *event) {
             painter.fillRect(rect, it->background().color());
         else if (alternatingRowColors() && (r & 1))
             painter.fillRect(rect, pal.color(group, QPalette::AlternateBase));
+        int iconWidth = 0;
+        if (!it->icon().isNull()) {
+            const QSize size = iconSize().isValid() ? iconSize() : QSize(16, 16);
+            const bool on = isEnabled() && (it->flags() & Qt::ItemIsEnabled);
+            it->icon().paint(&painter, QRect(rect.left() + textMargin, rect.top(), size.width(), rect.height()),
+                             Qt::AlignCenter,
+                             !on        ? QIcon::Disabled
+                             : selected ? QIcon::Selected
+                                        : QIcon::Normal);
+            iconWidth = size.width() + textMargin;
+        }
         if (!it->text().isEmpty()) {
             const bool on = isEnabled() && (it->flags() & Qt::ItemIsEnabled);
             QColor color = pal.color(on ? QPalette::Active : QPalette::Disabled, QPalette::Text);
@@ -817,7 +1066,7 @@ void QListWidget::paintEvent(QPaintEvent *event) {
             else if (it->foreground().style() != Qt::NoBrush && on)
                 color = it->foreground().color();
             const QFont font = it->font();
-            const QRect textRect = rect.adjusted(textMargin, 0, -textMargin, 0);
+            const QRect textRect = rect.adjusted(textMargin + iconWidth, 0, -textMargin, 0);
             painter.setFont(font);
             painter.setPen(color);
             painter.setClipRect(rect);

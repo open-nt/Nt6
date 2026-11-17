@@ -17,7 +17,14 @@ class QAbstractItemView : public QAbstractScrollArea {
     Q_PROPERTY(bool alternatingRowColors READ alternatingRowColors WRITE setAlternatingRowColors)
     Q_PROPERTY(EditTriggers editTriggers READ editTriggers WRITE setEditTriggers)
     Q_PROPERTY(QSize iconSize READ iconSize WRITE setIconSize NOTIFY iconSizeChanged)
+    Q_PROPERTY(bool dragEnabled READ dragEnabled WRITE setDragEnabled)
+    Q_PROPERTY(DragDropMode dragDropMode READ dragDropMode WRITE setDragDropMode)
+    Q_PROPERTY(Qt::DropAction defaultDropAction READ defaultDropAction WRITE setDefaultDropAction)
 public:
+    enum DragDropMode { NoDragDrop, DragOnly, DropOnly, DragDrop, InternalMove };
+    Q_ENUM(DragDropMode)
+    enum ScrollMode { ScrollPerItem, ScrollPerPixel };
+    Q_ENUM(ScrollMode)
     enum SelectionMode { NoSelection, SingleSelection, MultiSelection, ExtendedSelection, ContiguousSelection };
     Q_ENUM(SelectionMode)
     enum SelectionBehavior { SelectItems, SelectRows, SelectColumns };
@@ -64,6 +71,18 @@ public:
     void setTextElideMode(Qt::TextElideMode mode);
     QSize iconSize() const { return m_iconSize; }
     void setIconSize(const QSize &size);
+    bool dragEnabled() const { return m_dragEnabled; }
+    void setDragEnabled(bool enable) { m_dragEnabled = enable; }
+    DragDropMode dragDropMode() const;
+    void setVerticalScrollMode(ScrollMode mode) { m_verticalScrollMode = mode; }
+    ScrollMode verticalScrollMode() const { return m_verticalScrollMode; }
+    void setHorizontalScrollMode(ScrollMode mode) { m_horizontalScrollMode = mode; }
+    ScrollMode horizontalScrollMode() const { return m_horizontalScrollMode; }
+    void setDragDropMode(DragDropMode behavior);
+    Qt::DropAction defaultDropAction() const { return m_defaultDropAction; }
+    void setDefaultDropAction(Qt::DropAction dropAction) { m_defaultDropAction = dropAction; }
+    bool showDropIndicator() const { return m_dropIndicator; }
+    void setDropIndicatorShown(bool enable) { m_dropIndicator = enable; }
 
     QModelIndex currentIndex() const;
     QModelIndex rootIndex() const;
@@ -75,6 +94,7 @@ public:
 
 public slots:
     virtual void reset();
+    virtual void doItemsLayout();
     virtual void setRootIndex(const QModelIndex &index);
     virtual void selectAll();
     void edit(const QModelIndex &index);
@@ -125,6 +145,13 @@ protected:
     enum State { NoState, EditingState };
 
     virtual void selectionModeChanged();
+    virtual void startDrag(Qt::DropActions supportedActions);
+    // Called by the subclasses: a left press at `pos` may start a drag when the mouse then moves far enough.
+    void setDragStart(const QPoint &pos, bool onItem);
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void dragEnterEvent(QDragEnterEvent *event) override;
+    void dragMoveEvent(QDragMoveEvent *event) override;
+    void dropEvent(QDropEvent *event) override;
     virtual QModelIndex moveCursor(CursorAction cursorAction, Qt::KeyboardModifiers modifiers);
     virtual bool edit(const QModelIndex &index, EditTrigger trigger, QEvent *event);
     virtual void initViewItemOption(QStyleOptionViewItem *option) const;
@@ -153,6 +180,14 @@ private:
     Qt::TextElideMode m_elide = Qt::ElideRight;
     QSize m_iconSize;
     bool m_alternating = false;
+    bool m_dragEnabled = false;
+    bool m_dropIndicator = true;
+    DragDropMode m_dragDropMode = NoDragDrop;
+    ScrollMode m_verticalScrollMode = ScrollPerPixel;
+    ScrollMode m_horizontalScrollMode = ScrollPerPixel;
+    Qt::DropAction m_defaultDropAction = Qt::IgnoreAction;
+    QPoint m_dragStart;       // where the left button went down on an item
+    bool m_dragArmed = false; // a drag may start from m_dragStart
     QPointer<QAbstractItemModel> m_model;
     QPointer<QItemSelectionModel> m_selection;
     mutable QPointer<QAbstractItemDelegate> m_delegate;

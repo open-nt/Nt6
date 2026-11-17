@@ -44,5 +44,9 @@ private:
     Qt::ArrowType m_arrow = Qt::NoArrow;
     Qt::ToolButtonStyle m_style = Qt::ToolButtonIconOnly;
     QPointer<QAction> m_defaultAction;
+    // Whether the button shows its icon and its text, from its tool button style: a button without an icon shows
+    // its text whatever the style.
+    bool showsIcon() const { return !icon().isNull() && m_style != Qt::ToolButtonTextOnly; }
+    bool showsText() const { return !text().isEmpty() && (!showsIcon() || m_style != Qt::ToolButtonIconOnly); }
     QMetaObject::Connection m_triggered;
 };

@@ -11,6 +11,7 @@
 #include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qmenu.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
@@ -60,7 +61,7 @@ QRect WidgetAccess::visibleRect(const QWidget *w) {
 
 bool WidgetAccess::shownSelf(const QWidget *w) {
     if (w->isWindow())
-        return w->m_d->window && w->m_d->window->isVisible();
+        return w->m_d->shownOffscreen || (w->m_d->window && w->m_d->window->isVisible());
     return !w->m_d->hiddenExplicitly && !w->m_d->pendingShow;
 }
 
@@ -280,6 +281,8 @@ void ensureWindow(QWidget *w) {
         return;
     d.window = std::make_unique<QWidgetWindow>(w);
     d.window->setTitle(WidgetAccess::shownTitle(w));
+    if (!d.icon.isNull())
+        d.window->setIcon(d.icon);
     d.window->setFlags(d.windowFlags);
     if (d.screen)
         d.window->setScreen(d.screen);
@@ -467,6 +470,42 @@ QString QWidget::toolTip() const { return m_d->toolTip; }
     \sa toolTip(), QHelpEvent
 */
 void QWidget::setToolTip(const QString &text) { m_d->toolTip = text; }
+
+/*!
+    \enum QWidget::RenderFlag
+    \since 6.0
+
+    This enum tells render() what to draw.
+
+    \value DrawWindowBackground The background of the window or of a widget that fills it is drawn.
+    \value DrawChildren The children of the widget are drawn.
+    \value IgnoreMask Kept for Qt code: Nt widgets have no masks.
+*/
+
+/*!
+    \overload
+    \since 6.0
+
+    Renders the widget, as render() does on a device, with \a painter: through its transformation, at
+    \a targetOffset, the part \a sourceRegion of the widget or all of it if that is empty. The widget is
+    painted into an image first, at the device pixel ratio of the painter's device, which the painter then draws.
+    The \a renderFlags are not used.
+*/
+void QWidget::render(QPainter *painter, const QPoint &targetOffset, const QRegion &sourceRegion,
+                     RenderFlags renderFlags) {
+    (void)renderFlags;
+    if (!painter || !painter->isActive() || size().isEmpty())
+        return;
+    const QPaintDevice *device = painter->device();
+    const qreal ratio = device && device->devicePixelRatio() > 0 ? device->devicePixelRatio() : 1.0;
+    QImage image(QSize(qRound(width() * ratio), qRound(height() * ratio)), QImage::Format_ARGB32_Premultiplied);
+    if (image.isNull())
+        return;
+    image.setDevicePixelRatio(ratio);
+    image.fill(Qt::transparent);
+    render(&image, QPoint(), sourceRegion);
+    painter->drawImage(QPointF(targetOffset), image);
+}
 
 /*!
     Paints the widget and its visible children on \a target, with the top left corner of the widget at
@@ -1226,6 +1265,32 @@ void QWidget::setWindowState(Qt::WindowStates state) {
 }
 
 /*!
+    \since 6.0
+
+    Returns the icon of the window of the widget: the one setWindowIcon() set on it, or else the icon of the
+    application.
+
+    \sa setWindowIcon(), QGuiApplication::windowIcon()
+*/
+QIcon QWidget::windowIcon() const {
+    const QWidget *top = window();
+    return top->m_d->icon.isNull() ? QGuiApplication::windowIcon() : top->m_d->icon;
+}
+
+/*!
+    \since 6.0
+
+    Sets the icon of the window of the widget to \a icon, which the window system shows in the task bar and title
+    bar.
+*/
+void QWidget::setWindowIcon(const QIcon &icon) {
+    QWidget *top = window();
+    top->m_d->icon = icon;
+    if (top->m_d->window)
+        top->m_d->window->setIcon(icon);
+}
+
+/*!
     Returns the window title of the widget, which is only used when the widget is a window.
 
     \sa setWindowTitle()
@@ -1278,9 +1343,32 @@ bool QWidget::isVisible() const {
     if (isWindow()) {
         if (m_d->proxyUpdate)
             return !m_d->hiddenExplicitly;
+        if (m_d->shownOffscreen)
+            return true;
         return m_d->window && m_d->window->isVisible();
     }
     return !m_d->hiddenExplicitly && !m_d->pendingShow && parentWidget()->isVisible();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the widget would show when \a ancestor shows: no widget between it and \a ancestor is
+    hidden. A widget that is not inside \a ancestor returns \c false; with a \c nullptr \a ancestor, the widget
+    asks about its window.
+
+    \sa isVisible(), isHidden()
+*/
+bool QWidget::isVisibleTo(const QWidget *ancestor) const {
+    for (const QWidget *w = this; w; w = w->parentWidget()) {
+        if (w == ancestor)
+            return true;
+        if (w->isHidden())
+            return false;
+        if (w->isWindow())
+            return ancestor == nullptr;
+    }
+    return ancestor == nullptr;
 }
 
 /*!
@@ -1336,6 +1424,22 @@ void QWidget::setVisible(bool visible) {
             WidgetAccess::sendShowEvents(this);
         }
         m_d->proxyUpdate(QRegion(rect()));
+        return;
+    }
+    if (isWindow() && (m_d->shownOffscreen || (visible && testAttribute(Qt::WA_DontShowOnScreen)))) {
+        // Shown to the application only: show events and layout, but no window on the screen.
+        m_d->hiddenExplicitly = !visible;
+        if (visible == m_d->shownOffscreen)
+            return;
+        m_d->shownOffscreen = visible;
+        if (visible) {
+            if (!m_d->geometrySet)
+                adjustSize();
+            WidgetAccess::activateLayout(this);
+            WidgetAccess::sendShowEvents(this);
+        } else {
+            WidgetAccess::sendHideEvents(this);
+        }
         return;
     }
     if (isWindow()) {
@@ -2055,6 +2159,48 @@ bool QWidget::event(QEvent *e) {
     case QEvent::Hide:
         hideEvent(static_cast<QHideEvent *>(e));
         return true;
+    case QEvent::DragEnter:
+        dragEnterEvent(static_cast<QDragEnterEvent *>(e));
+        return true;
+    case QEvent::DragMove:
+        dragMoveEvent(static_cast<QDragMoveEvent *>(e));
+        return true;
+    case QEvent::DragLeave:
+        dragLeaveEvent(static_cast<QDragLeaveEvent *>(e));
+        return true;
+    case QEvent::Drop:
+        dropEvent(static_cast<QDropEvent *>(e));
+        return true;
+    case QEvent::ContextMenu: {
+        auto *menu = static_cast<QContextMenuEvent *>(e);
+        switch (m_d->contextMenuPolicy) {
+        case Qt::DefaultContextMenu:
+            contextMenuEvent(menu);
+            break;
+        case Qt::CustomContextMenu:
+            emit customContextMenuRequested(menu->pos());
+            menu->accept();
+            break;
+        case Qt::ActionsContextMenu:
+            if (!actions().isEmpty()) {
+                auto *popup = new QMenu(this);
+                popup->setAttribute(Qt::WA_DeleteOnClose);
+                popup->addActions(actions());
+                popup->popup(menu->globalPos());
+                menu->accept();
+            } else {
+                menu->ignore();
+            }
+            break;
+        case Qt::PreventContextMenu:
+            menu->accept();
+            break;
+        case Qt::NoContextMenu:
+            menu->ignore();
+            break;
+        }
+        return true;
+    }
     case QEvent::ActionAdded:
     case QEvent::ActionRemoved:
     case QEvent::ActionChanged:
@@ -2175,6 +2321,84 @@ void QWidget::showEvent(QShowEvent *event) { (void)event; }
     Handles the hide \a event: the widget has been hidden. The default does nothing.
 */
 void QWidget::hideEvent(QHideEvent *event) { (void)event; }
+
+/*!
+    \since 6.0
+
+    Handles a drag that comes over the widget, \a event. A widget that accepts drops reimplements it to accept the
+    event if it can take the data; the default ignores it.
+
+    \sa setAcceptDrops(), dropEvent(), QDrag
+*/
+void QWidget::dragEnterEvent(QDragEnterEvent *event) { event->ignore(); }
+
+/*!
+    \since 6.0
+
+    Handles a drag that moves over the widget after it accepted it in dragEnterEvent(), \a event. Accept or ignore
+    it to say whether a drop at its position is taken. The default leaves it as it is.
+*/
+void QWidget::dragMoveEvent(QDragMoveEvent *event) { (void)event; }
+
+/*!
+    \since 6.0
+
+    Handles a drag that left the widget, \a event. The default does nothing.
+*/
+void QWidget::dragLeaveEvent(QDragLeaveEvent *event) { (void)event; }
+
+/*!
+    \since 6.0
+
+    Handles the drop of a drag on the widget, \a event: read QDropEvent::mimeData() and accept the event. The default
+    ignores it.
+*/
+void QWidget::dropEvent(QDropEvent *event) { event->ignore(); }
+
+/*!
+    \since 6.0
+
+    Returns \c true if drags can be dropped on the widget: Qt::WA_AcceptDrops is set.
+
+    \sa setAcceptDrops()
+*/
+bool QWidget::acceptDrops() const { return testAttribute(Qt::WA_AcceptDrops); }
+
+/*!
+    \since 6.0
+
+    Lets drags be dropped on the widget if \a on is \c true: it then gets dragEnterEvent() and the events that
+    follow. For a scroll area, such as an item view, the drags come over its viewport and go to its handlers.
+*/
+void QWidget::setAcceptDrops(bool on) { setAttribute(Qt::WA_AcceptDrops, on); }
+
+/*!
+    \since 6.0
+
+    Handles a request for a context menu, \a event, for a widget whose contextMenuPolicy() is
+    Qt::DefaultContextMenu. Reimplement it to open a menu at QContextMenuEvent::globalPos(); the default ignores the
+    event, which then goes to the parent.
+
+    \sa setContextMenuPolicy(), QMenu::popup()
+*/
+void QWidget::contextMenuEvent(QContextMenuEvent *event) { event->ignore(); }
+
+/*!
+    \since 6.0
+
+    Returns what the widget does when the user asks for a context menu. The default is Qt::DefaultContextMenu.
+
+    \sa setContextMenuPolicy(), contextMenuEvent(), customContextMenuRequested()
+*/
+Qt::ContextMenuPolicy QWidget::contextMenuPolicy() const { return m_d->contextMenuPolicy; }
+
+/*!
+    \since 6.0
+
+    Sets what the widget does when the user asks for a context menu, with the right mouse button or the Menu key,
+    to \a policy.
+*/
+void QWidget::setContextMenuPolicy(Qt::ContextMenuPolicy policy) { m_d->contextMenuPolicy = policy; }
 
 /*!
     Handles the action \a event: an action of the widget has been added, removed or changed. The default does nothing;

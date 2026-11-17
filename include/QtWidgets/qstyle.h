@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qicon.h>
+
 #include <QtCore/qflags.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qrect.h>
@@ -649,6 +651,8 @@ public:
                           QStyleHintReturn *returnData = nullptr) const;
     virtual QPixmap standardPixmap(StandardPixmap standardPixmap, const QStyleOption *option = nullptr,
                                    const QWidget *widget = nullptr) const;
+    virtual QIcon standardIcon(StandardPixmap standardIcon, const QStyleOption *option = nullptr,
+                               const QWidget *widget = nullptr) const;
     virtual void polish(QWidget *widget);
     virtual void unpolish(QWidget *widget);
     virtual void polish(QApplication *application);

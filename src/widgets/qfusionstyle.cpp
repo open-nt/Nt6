@@ -430,7 +430,22 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         QRect textRect = button->rect;
         if (option->state & State_Sunken)
             textRect.translate(0, 1);
-        painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, button->text);
+        if (!button->icon.isNull()) {
+            // The icon and the text are centered together, the icon first.
+            const QSize iconSize = button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
+            const int textWidth = button->text.isEmpty() ? 0 : painter->fontMetrics().horizontalAdvance(button->text);
+            const int gap = button->text.isEmpty() ? 0 : 4;
+            const int left = textRect.left() + (textRect.width() - iconSize.width() - gap - textWidth) / 2;
+            const QRect iconRect(left, textRect.top() + (textRect.height() - iconSize.height()) / 2, iconSize.width(),
+                                 iconSize.height());
+            const QIcon::Mode mode = !(option->state & State_Enabled) ? QIcon::Disabled : QIcon::Normal;
+            button->icon.paint(painter, iconRect, Qt::AlignCenter, mode,
+                               (option->state & State_On) ? QIcon::On : QIcon::Off);
+            textRect.setLeft(iconRect.right() + 1 + gap);
+            painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
+        } else {
+            painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, button->text);
+        }
         painter->restore();
         break;
     }
@@ -566,7 +581,11 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         if (selected)
             painter->fillRect(r, item->palette.color(group, QPalette::Highlight));
         const QColor text = item->palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text);
-        if (item->checkType != QStyleOptionMenuItem::NotCheckable) {
+        if (!item->icon.isNull() && (item->checkType == QStyleOptionMenuItem::NotCheckable || !item->checked)) {
+            const QIcon::Mode mode = !enabled ? QIcon::Disabled : selected ? QIcon::Selected : QIcon::Normal;
+            item->icon.paint(painter, QRect(r.left() + 6, r.top() + (r.height() - 16) / 2, 16, 16), Qt::AlignCenter,
+                             mode);
+        } else if (item->checkType != QStyleOptionMenuItem::NotCheckable) {
             QStyleOption box;
             box.state = (item->state & State_Enabled) | (item->checked ? State_On : State_Off);
             box.palette = item->palette;
@@ -776,7 +795,15 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         painter->save();
         painter->setClipRect(option->rect.adjusted(1, 1, -arrow.width(), -1));
         painter->setPen(option->palette.color(group, QPalette::ButtonText));
-        painter->drawText(option->rect.adjusted(8, 0, -arrow.width(), 0),
+        int left = 8;
+        if (!combo->currentIcon.isNull()) {
+            const QSize size = combo->iconSize.isValid() ? combo->iconSize : QSize(16, 16);
+            combo->currentIcon.paint(
+                painter, QRect(option->rect.left() + left, option->rect.top(), size.width(), option->rect.height()),
+                Qt::AlignCenter, (option->state & State_Enabled) ? QIcon::Normal : QIcon::Disabled);
+            left += size.width() + 4;
+        }
+        painter->drawText(option->rect.adjusted(left, 0, -arrow.width(), 0),
                           Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, combo->currentText);
         painter->restore();
         break;
@@ -1146,8 +1173,14 @@ QSize QFusionStyle::sizeFromContents(ContentsType type, const QStyleOption *opti
                                  ? static_cast<const QStyleOptionButton *>(option)
                                  : nullptr;
         const bool hasText = button && !button->text.isEmpty();
-        const int width = contentsSize.width() + m + frame + 6;
-        return QSize(hasText ? std::max(80, width) : width, contentsSize.height() + m + frame);
+        QSize contents = contentsSize;
+        if (button && !button->icon.isNull()) {
+            const QSize icon = button->iconSize.isValid() ? button->iconSize : QSize(16, 16);
+            contents.setWidth(contents.width() + icon.width() + (hasText ? 4 : 0));
+            contents.setHeight(std::max(contents.height(), icon.height()));
+        }
+        const int width = contents.width() + m + frame + 6;
+        return QSize(hasText ? std::max(80, width) : width, contents.height() + m + frame);
     }
     case CT_CheckBox: {
         const int indicator = proxy()->pixelMetric(PM_IndicatorWidth, option, widget);

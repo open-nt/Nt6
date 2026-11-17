@@ -80,6 +80,22 @@ bool readBlocks(QDataStream &in, quint32 len, QByteArray &out) {
 } // namespace
 
 /*!
+    Constructs a data stream that uses the I/O device \a d. The stream
+    does not take ownership of the device.
+
+    \sa setDevice(), device()
+*/
+QDataStream::QDataStream(QIODevice *d) : dev(d) {}
+
+/*!
+    Returns \c true if the I/O device has reached the end position, or if
+    there is no device set; otherwise returns \c false.
+
+    \sa QIODevice::atEnd()
+*/
+bool QDataStream::atEnd() const { return !dev || dev->atEnd(); }
+
+/*!
     Constructs a data stream that operates on the byte array \a array, which
     must outlive the stream. The stream owns an internal QBuffer opened with
     the given \a mode (QIODevice::ReadOnly, QIODevice::WriteOnly or

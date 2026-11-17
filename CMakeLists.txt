@@ -528,6 +528,12 @@ add_library(NtGui
     src/gui/qfontengine.cpp
     src/gui/qfontmetrics.cpp
     src/gui/qguiapplication.cpp
+    src/gui/qclipboard.cpp
+    src/gui/qstandarditemmodel.cpp
+    src/gui/qdesktopservices.cpp
+    src/gui/qvalidator.cpp
+    src/gui/qdrag.cpp
+    src/gui/qicon.cpp
     src/gui/qimage.cpp
     src/gui/qimagebmp.cpp
     src/gui/qimageio.cpp
@@ -538,13 +544,19 @@ add_library(NtGui
     src/gui/qmatrix4x4.cpp
     src/gui/qoffscreensurface.cpp
     src/gui/qopenglcontext.cpp
+    src/gui/qopenglextrafunctions.cpp
     src/gui/qopenglfunctions.cpp
+    src/gui/qpagedpaintdevice.cpp
+    src/gui/qpagelayout.cpp
+    src/gui/qpagesize.cpp
     src/gui/qpaintdevice.cpp
     src/gui/qpaintdevicewindow.cpp
     src/gui/qpaintengine.cpp
     src/gui/qpainter.cpp
     src/gui/qpainterpath.cpp
     src/gui/qpathclipper.cpp
+    src/gui/qpdfengine.cpp
+    src/gui/qpdfwriter.cpp
     src/gui/qpalette.cpp
     src/gui/qpen.cpp
     src/gui/qpixmap.cpp
@@ -562,6 +574,7 @@ add_library(NtGui
     src/gui/qtestsupport_gui.cpp
     src/gui/qtextdocument.cpp
     src/gui/qtextformat.cpp
+    src/gui/qtextmarkdown.cpp
     src/gui/qtextlayout.cpp
     src/gui/qtextlayout_api.cpp
     src/gui/qtransform.cpp
@@ -655,6 +668,7 @@ if(NT_USE_XCB)
 endif()
 if(NT_HAVE_XCB)
     target_sources(NtGui PRIVATE
+        src/gui/platforms/xcb/qxcbclipboard.cpp
         src/gui/platforms/xcb/qxcbconnection.cpp
         src/gui/platforms/xcb/qxcbintegration.cpp
         src/gui/platforms/xcb/qxcbwindow.cpp)
@@ -701,6 +715,7 @@ add_library(NtWidgets
     src/widgets/qgraphicsscene.cpp
     src/widgets/qgraphicseffect.cpp
     src/widgets/qgraphicsproxywidget.cpp
+    src/widgets/qgraphicswidget.cpp
     src/widgets/qgraphicssceneevent.cpp
     src/widgets/qgraphicsview.cpp
     src/widgets/qgridlayout.cpp
@@ -731,6 +746,7 @@ add_library(NtWidgets
     src/widgets/qrubberband.cpp
     src/widgets/qscrollarea.cpp
     src/widgets/qscrollbar.cpp
+    src/widgets/qscroller.cpp
     src/widgets/qsizepolicy.cpp
     src/widgets/qsplashscreen.cpp
     src/widgets/qsizegrip.cpp
@@ -781,6 +797,7 @@ nt_set_compile_options(NtWidgets)
 add_library(NtSvg
     src/svg/qsvgdocument.cpp
     src/svg/qsvggenerator.cpp
+    src/svg/qsvgiconrenderer.cpp
     src/svg/qsvgrenderer.cpp
     src/svg/qsvgxml.cpp
 )
@@ -796,6 +813,11 @@ target_include_directories(NtSvg
 )
 target_link_libraries(NtSvg PUBLIC NtGui)
 nt_set_compile_options(NtSvg)
+# QIcon draws SVG files through Nt SVG: keep the file that installs the renderer in a static link, where nothing
+# else refers to it.
+if(NOT BUILD_SHARED_LIBS AND NOT MSVC AND NOT APPLE)
+    target_link_options(NtSvg INTERFACE "LINKER:--undefined=nt_svg_icon_renderer")
+endif()
 
 add_library(NtSvgWidgets
     src/svgwidgets/qgraphicssvgitem.cpp
@@ -841,14 +863,16 @@ target_include_directories(NtCharts
 target_link_libraries(NtCharts PUBLIC NtWidgets)
 nt_set_compile_options(NtCharts)
 
-# Nt OpenGL: QOpenGLWindow, QOpenGLPaintDevice and its paint engine, and framebuffer objects. The engine flattens and
+# Nt OpenGL: QOpenGLWindow, QOpenGLPaintDevice and its paint engine, framebuffer objects, buffers and vertex arrays. The engine flattens and
 # strokes paths with the rasterizer of Nt GUI, through its private headers. OpenGL itself is loaded at run time.
 add_library(NtOpenGL
+    src/opengl/qopenglbuffer.cpp
     src/opengl/qopenglframebufferobject.cpp
     src/opengl/qopenglhelpers.cpp
     src/opengl/qopenglpaintdevice.cpp
     src/opengl/qopenglpaintengine.cpp
     src/opengl/qopenglshaderprogram.cpp
+    src/opengl/qopenglvertexarrayobject.cpp
     src/opengl/qopenglwindow.cpp
 )
 add_library(Nt::OpenGL ALIAS NtOpenGL)
@@ -863,6 +887,20 @@ target_include_directories(NtOpenGL
 )
 target_link_libraries(NtOpenGL PUBLIC NtGui)
 nt_set_compile_options(NtOpenGL)
+
+# Nt OpenGL Widgets: QOpenGLWidget, which renders into a framebuffer object and puts each frame on the widget.
+add_library(NtOpenGLWidgets
+    src/openglwidgets/qopenglwidget.cpp
+)
+add_library(Nt::OpenGLWidgets ALIAS NtOpenGLWidgets)
+add_library(Qt6::OpenGLWidgets ALIAS NtOpenGLWidgets)
+target_include_directories(NtOpenGLWidgets
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtOpenGLWidgets>
+        $<INSTALL_INTERFACE:include/nt6/QtOpenGLWidgets>
+)
+target_link_libraries(NtOpenGLWidgets PUBLIC NtOpenGL NtWidgets)
+nt_set_compile_options(NtOpenGLWidgets)
 
 # Nt Wayland Compositor: a Wayland display server with the API of Qt Wayland Compositor. It speaks the protocol
 # itself over Unix sockets, so it needs no libwayland; xkbcommon, when found, builds the keymaps that clients get.
@@ -1178,6 +1216,7 @@ nt_moc_library(NtGamepad include/QtGamepad)
 nt_moc_library(NtMultimedia include/QtMultimedia)
 nt_moc_library(NtMultimediaWidgets include/QtMultimediaWidgets)
 nt_moc_library(NtOpenGL include/QtOpenGL)
+nt_moc_library(NtOpenGLWidgets include/QtOpenGLWidgets)
 if(NT_HAVE_WAYLAND)
 nt_moc_library(NtWaylandCompositor include/QtWaylandCompositor)
 endif()
@@ -1600,6 +1639,26 @@ if(NT_BUILD_TESTS)
     nt_set_compile_options(nt_graphicsview_tests)
 
     # The Nt GUI functions added for gva-widgets: fonts, scaled images, text outlines, the image reader, shortcuts.
+    # The Qt APIs that the ldm programs needed: widgets, item views, icons, context menus, keys and more.
+    add_executable(nt_ldm_gaps_tests tests/test_ldm_gaps.cpp)
+    target_include_directories(nt_ldm_gaps_tests PRIVATE src/gui)
+    target_link_libraries(nt_ldm_gaps_tests PRIVATE Nt::Widgets Nt::Network Nt::Svg Nt::Test)
+    add_test(NAME nt_ldm_gaps_tests COMMAND nt_ldm_gaps_tests)
+    set_tests_properties(nt_ldm_gaps_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_ldm_gaps_tests)
+    nt_enable_automoc(nt_ldm_gaps_tests)
+
+    # QPageSize, QPageLayout and QPdfWriter; the PDF is rendered with poppler's pdftoppm where it is installed.
+    add_executable(nt_pdfwriter_tests tests/test_pdfwriter.cpp)
+    target_link_libraries(nt_pdfwriter_tests PRIVATE Nt::Gui)
+    if(NT_HAVE_ZLIB)
+        target_compile_definitions(nt_pdfwriter_tests PRIVATE NT_HAVE_ZLIB)
+        target_link_libraries(nt_pdfwriter_tests PRIVATE ZLIB::ZLIB)
+    endif()
+    add_test(NAME nt_pdfwriter_tests COMMAND nt_pdfwriter_tests)
+    set_tests_properties(nt_pdfwriter_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_pdfwriter_tests)
+
     add_executable(nt_gui_additions_tests tests/test_gui_additions.cpp)
     target_include_directories(nt_gui_additions_tests PRIVATE src/gui)
     target_link_libraries(nt_gui_additions_tests PRIVATE Nt::Test Nt::Gui)
@@ -1712,6 +1771,13 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_opengl_tests COMMAND nt_opengl_tests)
     set_tests_properties(nt_opengl_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_opengl_tests)
+
+    # Nt OpenGL Widgets: QOpenGLWidget on the offscreen platform, skipped where there is no OpenGL.
+    add_executable(nt_openglwidgets_tests tests/test_openglwidgets.cpp)
+    target_link_libraries(nt_openglwidgets_tests PRIVATE Nt::OpenGLWidgets)
+    add_test(NAME nt_openglwidgets_tests COMMAND nt_openglwidgets_tests)
+    set_tests_properties(nt_openglwidgets_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_openglwidgets_tests)
 
     # Vulkan in Nt GUI: the instance and its functions, a device, QVulkanWindow without a surface, and a triangle
     # traced with VK_KHR_ray_tracing_pipeline into an image, headless, on the offscreen platform. The tests report a skip

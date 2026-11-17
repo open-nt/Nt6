@@ -1,14 +1,17 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qcombobox.h>
+#include <QtWidgets/qlineedit.h>
 
 #include "qwidget_p.h"
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtGui/qstandarditemmodel.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 
 #include <algorithm>
+#include <cstdlib>
 
 // The list that drops down from a combo box. It is a child of the window of the combo box, above its other
 // children, and not a window of its own.
@@ -63,11 +66,24 @@ protected:
         for (int row = 0; row < visibleItems(); ++row) {
             const int index = m_top + row;
             const QRect item(1, 1 + row * h, width() - 2, h);
-            const bool hot = index == m_hover;
+            const bool enabled = m_combo->isItemEnabled(index);
+            const bool hot = index == m_hover && enabled;
             if (hot)
                 painter.fillRect(item, palette().color(group, QPalette::Highlight));
-            painter.setPen(palette().color(group, hot ? QPalette::HighlightedText : QPalette::Text));
-            painter.drawText(item.adjusted(7, 0, -4, 0), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+            painter.setPen(enabled ? palette().color(group, hot ? QPalette::HighlightedText : QPalette::Text)
+                                   : palette().color(QPalette::Disabled, QPalette::Text));
+            int left = 7;
+            const QIcon icon = m_combo->itemIcon(index);
+            if (!icon.isNull()) {
+                const QSize size = m_combo->iconSize();
+                icon.paint(&painter, QRect(item.left() + left, item.top(), size.width(), item.height()),
+                           Qt::AlignCenter,
+                           !enabled ? QIcon::Disabled
+                           : hot    ? QIcon::Selected
+                                    : QIcon::Normal);
+                left += size.width() + 4;
+            }
+            painter.drawText(item.adjusted(left, 0, -4, 0), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                              m_combo->itemText(index));
         }
     }
@@ -78,7 +94,7 @@ protected:
     }
     void mouseReleaseEvent(QMouseEvent *event) override {
         const int index = indexAt(event->pos());
-        if (index >= 0 && rect().contains(event->pos()))
+        if (index >= 0 && rect().contains(event->pos()) && m_combo->isItemEnabled(index))
             commit(index);
         event->accept();
     }
@@ -92,27 +108,27 @@ protected:
         const int count = m_combo->count();
         switch (event->key()) {
         case Qt::Key_Down:
-            hover(std::min(count - 1, m_hover + 1));
+            hover(m_combo->nextEnabled(m_hover + 1, 1));
             break;
         case Qt::Key_Up:
-            hover(std::max(0, m_hover - 1));
+            hover(m_combo->nextEnabled(m_hover - 1, -1));
             break;
         case Qt::Key_PageDown:
-            hover(std::min(count - 1, m_hover + visibleItems()));
+            hover(m_combo->nextEnabled(std::min(count - 1, m_hover + visibleItems()), -1));
             break;
         case Qt::Key_PageUp:
-            hover(std::max(0, m_hover - visibleItems()));
+            hover(m_combo->nextEnabled(std::max(0, m_hover - visibleItems()), 1));
             break;
         case Qt::Key_Home:
-            hover(0);
+            hover(m_combo->nextEnabled(0, 1));
             break;
         case Qt::Key_End:
-            hover(count - 1);
+            hover(m_combo->nextEnabled(count - 1, -1));
             break;
         case Qt::Key_Return:
         case Qt::Key_Enter:
         case Qt::Key_Space:
-            if (m_hover >= 0)
+            if (m_hover >= 0 && m_combo->isItemEnabled(m_hover))
                 commit(m_hover);
             break;
         case Qt::Key_Escape:
@@ -147,7 +163,7 @@ private:
             m_top = index - visibleItems() + 1;
     }
     void hover(int index) {
-        if (index < 0 || index == m_hover)
+        if (index < 0 || index == m_hover || !m_combo->isItemEnabled(index))
             return;
         m_hover = index;
         ensureVisible(index);
@@ -187,9 +203,11 @@ private:
     \image widgets/qcombobox.png QComboBox in the light color scheme
 
     \differences
-    The items are texts with data for any role (itemData(), currentData()): there are no icons, no model or
-    delegate, and no \c QComboBox::InsertPolicy. A combo box cannot be edited (\c setEditable()), and has no
-    \c setPlaceholderText(), \c setMinimumContentsLength() or \c setSizeAdjustPolicy(). Typing does not jump to an item.
+    The items are rows of a model, a QStandardItemModel unless setModel() sets another: disabled items are shown
+    grey and cannot be chosen. There is no view or delegate (\c setView(), \c setItemDelegate()) and no
+    \c setRootModelIndex(). An editable combo box has no completer or validator, and \c setLineEdit() is missing. There is no
+    \c setPlaceholderText(), \c setMinimumContentsLength() or \c setSizeAdjustPolicy(). Typing does not jump to an
+    item of a combo box that is not editable.
     \enddifferences
 
     \sa QSpinBox, QRadioButton
@@ -201,25 +219,194 @@ private:
 QComboBox::QComboBox(QWidget *parent) : QWidget(parent) {
     setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+    m_model = new QStandardItemModel(0, 1, this);
+    connectModel();
 }
 
 /*!
     Destroys the combo box.
 */
-QComboBox::~QComboBox() { delete m_popup.data(); }
+QComboBox::~QComboBox() {
+    for (const QMetaObject::Connection &connection : std::as_const(m_modelConnections))
+        QObject::disconnect(connection);
+    delete m_popup.data();
+}
 
 /*!
-    \fn int QComboBox::count() const
-
     Returns the number of items.
 */
+int QComboBox::count() const { return m_model ? m_model->rowCount() : 0; }
+
+QModelIndex QComboBox::itemIndex(int row) const { return m_model ? m_model->index(row, m_modelColumn) : QModelIndex(); }
+
+bool QComboBox::isItemEnabled(int row) const {
+    const QModelIndex index = itemIndex(row);
+    return index.isValid() && (m_model->flags(index) & Qt::ItemIsEnabled);
+}
+
+int QComboBox::nextEnabled(int from, int step) const {
+    for (int row = from; row >= 0 && row < count(); row += step)
+        if (isItemEnabled(row))
+            return row;
+    return -1;
+}
+
+void QComboBox::connectModel() {
+    for (const QMetaObject::Connection &connection : std::as_const(m_modelConnections))
+        QObject::disconnect(connection);
+    m_modelConnections.clear();
+    if (!m_model)
+        return;
+    m_modelConnections = {
+        QObject::connect(m_model, &QAbstractItemModel::rowsInserted, this,
+                         [this](const QModelIndex &parent, int first, int last) { rowsInserted(parent, first, last); }),
+        QObject::connect(m_model, &QAbstractItemModel::rowsRemoved, this,
+                         [this](const QModelIndex &parent, int first, int last) { rowsRemoved(parent, first, last); }),
+        QObject::connect(
+            m_model, &QAbstractItemModel::dataChanged, this,
+            [this](const QModelIndex &topLeft, const QModelIndex &bottomRight) { itemsChanged(topLeft, bottomRight); }),
+        QObject::connect(m_model, &QAbstractItemModel::modelReset, this, [this] { modelWasReset(); }),
+        QObject::connect(m_model, &QAbstractItemModel::layoutChanged, this, [this] { modelWasReset(); }),
+        QObject::connect(m_model, &QObject::destroyed, this,
+                         [this] {
+                             m_model = nullptr;
+                             m_modelConnections.clear();
+                             modelWasReset();
+                         }),
+    };
+}
+
+void QComboBox::announceCurrent() {
+    if (m_edit && m_current >= 0)
+        m_edit->setText(itemText(m_current));
+    updateGeometry();
+    update();
+    emit currentIndexChanged(m_current);
+    m_announcedText = currentText();
+    emit currentTextChanged(m_announcedText);
+}
+
+void QComboBox::rowsInserted(const QModelIndex &parent, int first, int last) {
+    if (parent.isValid())
+        return;
+    updateGeometry();
+    update();
+    const int added = last - first + 1;
+    if (m_current < 0 && added == count()) {
+        // The first items of an empty combo box: the first one becomes current.
+        m_current = 0;
+        announceCurrent();
+    } else if (m_current >= first) {
+        m_current += added;
+    }
+}
+
+void QComboBox::rowsRemoved(const QModelIndex &parent, int first, int last) {
+    if (parent.isValid())
+        return;
+    updateGeometry();
+    update();
+    if (m_current > last) {
+        m_current -= last - first + 1;
+    } else if (m_current >= first) {
+        // The current item went: the one that takes its place becomes current.
+        m_current = count() > 0 ? std::min(first, count() - 1) : -1;
+        if (count() == 0)
+            hidePopup();
+        announceCurrent();
+    }
+}
+
+void QComboBox::itemsChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight) {
+    if (topLeft.parent().isValid())
+        return;
+    updateGeometry();
+    update();
+    if (m_popup)
+        m_popup->update();
+    if (!m_edit && m_current >= topLeft.row() && m_current <= bottomRight.row() && currentText() != m_announcedText) {
+        m_announcedText = currentText();
+        emit currentTextChanged(m_announcedText);
+    }
+}
+
+void QComboBox::modelWasReset() {
+    hidePopup();
+    const int current = m_current < count() ? m_current : (count() > 0 ? 0 : -1);
+    const bool changed = current != m_current || currentText() != m_announcedText;
+    m_current = current;
+    updateGeometry();
+    update();
+    if (changed)
+        announceCurrent();
+}
+
+/*!
+    \fn QAbstractItemModel *QComboBox::model() const
+    \since 6.0
+
+    Returns the model that holds the items. Unless setModel() set another, it is a QStandardItemModel of the combo
+    box, so that its items can be changed as QStandardItem objects:
+
+    \code
+    auto *model = qobject_cast<QStandardItemModel *>(combo->model());
+    model->item(1)->setEnabled(false); // shown grey; it cannot be chosen
+    \endcode
+*/
+
+/*!
+    \since 6.0
+
+    Sets the model that holds the items to \a model, which the combo box does not take ownership of. The items are
+    the rows of the modelColumn(); the first one becomes current. The model the combo box made is deleted when its
+    parent is.
+
+    \sa model()
+*/
+void QComboBox::setModel(QAbstractItemModel *model) {
+    if (!model || model == m_model)
+        return;
+    hidePopup();
+    m_model = model;
+    connectModel();
+    m_current = -1;
+    modelWasReset();
+    if (m_current < 0 && count() > 0) {
+        m_current = 0;
+        announceCurrent();
+    }
+}
+
+/*!
+    \fn int QComboBox::modelColumn() const
+    \since 6.0
+
+    Returns the column of the model whose items the combo box shows, 0 by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the column of the model whose items the combo box shows to \a visibleColumn.
+*/
+void QComboBox::setModelColumn(int visibleColumn) {
+    if (visibleColumn == m_modelColumn || visibleColumn < 0)
+        return;
+    m_modelColumn = visibleColumn;
+    updateGeometry();
+    update();
+    if (currentText() != m_announcedText) {
+        m_announcedText = currentText();
+        emit currentTextChanged(m_announcedText);
+    }
+}
 
 /*!
     Returns the text of the item at \a index, or an empty string if there is no such item.
 
     \sa setItemText()
 */
-QString QComboBox::itemText(int index) const { return index >= 0 && index < count() ? m_items.at(index) : QString(); }
+QString QComboBox::itemText(int index) const { return itemData(index, Qt::DisplayRole).toString(); }
 
 /*!
     Sets the text of the item at \a index to \a text. Nothing happens if there is no such item.
@@ -227,13 +414,8 @@ QString QComboBox::itemText(int index) const { return index >= 0 && index < coun
     \sa itemText()
 */
 void QComboBox::setItemText(int index, const QString &text) {
-    if (index < 0 || index >= count() || m_items.at(index) == text)
-        return;
-    m_items[static_cast<qsizetype>(index)] = text;
-    updateGeometry();
-    update();
-    if (index == m_current)
-        emit currentTextChanged(text);
+    if (index >= 0 && index < count() && itemText(index) != text)
+        m_model->setData(itemIndex(index), text, Qt::DisplayRole);
 }
 
 /*!
@@ -245,19 +427,11 @@ void QComboBox::setItemText(int index, const QString &text) {
 */
 
 /*!
-    \fn QString QComboBox::currentText() const
-
-    Returns the text of the current item, or an empty string if there is none.
-
-    \sa setCurrentText()
-*/
-
-/*!
     Returns the index of the first item whose text is \a text, or -1 if there is none.
 */
 int QComboBox::findText(const QString &text) const {
     for (int i = 0; i < count(); ++i)
-        if (m_items.at(i) == text)
+        if (itemText(i) == text)
             return i;
     return -1;
 }
@@ -298,11 +472,8 @@ void QComboBox::addItem(const QString &text, const QVariant &userData) { insertI
     \sa setItemData(), currentData()
 */
 QVariant QComboBox::itemData(int index, int role) const {
-    if (index < 0 || index >= count())
-        return QVariant();
-    if (role == Qt::DisplayRole || role == Qt::EditRole)
-        return m_items.at(index);
-    return m_data.at(index).value(role);
+    const QModelIndex item = itemIndex(index);
+    return item.isValid() ? m_model->data(item, role) : QVariant();
 }
 
 /*!
@@ -312,16 +483,9 @@ QVariant QComboBox::itemData(int index, int role) const {
     \sa itemData()
 */
 void QComboBox::setItemData(int index, const QVariant &value, int role) {
-    if (index < 0 || index >= count())
-        return;
-    if (role == Qt::DisplayRole || role == Qt::EditRole) {
-        setItemText(index, value.toString());
-        return;
-    }
-    if (value.isValid())
-        m_data[static_cast<qsizetype>(index)].insert(role, value);
-    else
-        m_data[static_cast<qsizetype>(index)].remove(role);
+    const QModelIndex item = itemIndex(index);
+    if (item.isValid())
+        m_model->setData(item, value, role);
 }
 
 /*!
@@ -372,27 +536,94 @@ void QComboBox::addItems(const QStringList &texts) {
 }
 
 /*!
+    \overload
+    \since 6.0
+
+    Adds an item with \a icon and \a text to the end, with \a userData as its data for Qt::UserRole.
+*/
+void QComboBox::addItem(const QIcon &icon, const QString &text, const QVariant &userData) {
+    insertItem(count(), icon, text, userData);
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Inserts an item with \a icon and \a text at \a index, with \a userData as its data for Qt::UserRole.
+*/
+void QComboBox::insertItem(int index, const QIcon &icon, const QString &text, const QVariant &userData) {
+    const int at = std::clamp(index, 0, count());
+    insertItem(at, text, userData);
+    setItemIcon(at, icon);
+}
+
+/*!
+    \since 6.0
+
+    Returns the icon of the item at \a index; a null icon if it has none.
+*/
+QIcon QComboBox::itemIcon(int index) const { return itemData(index, Qt::DecorationRole).value<QIcon>(); }
+
+/*!
+    \since 6.0
+
+    Sets the icon of the item at \a index to \a icon, shown before its text in iconSize().
+*/
+void QComboBox::setItemIcon(int index, const QIcon &icon) {
+    setItemData(index, icon.isNull() ? QVariant() : QVariant::fromValue(icon), Qt::DecorationRole);
+    updateGeometry();
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the size the icons of the items are shown in: what setIconSize() set, or the small icon size of the
+    style.
+*/
+QSize QComboBox::iconSize() const {
+    if (m_iconSize.isValid())
+        return m_iconSize;
+    const int extent = style()->pixelMetric(QStyle::PM_SmallIconSize, nullptr, this);
+    return QSize(extent > 0 ? extent : 16, extent > 0 ? extent : 16);
+}
+
+/*!
+    \since 6.0
+
+    Sets the size the icons of the items are shown in to \a size.
+*/
+void QComboBox::setIconSize(const QSize &size) {
+    m_iconSize = size;
+    updateGeometry();
+    update();
+}
+
+/*!
     Inserts an item with \a text and, for Qt::UserRole, \a userData at \a index, which is brought into the range of
     the items. The current item stays the same, except that the first item that is added becomes the current one.
 
     \sa addItem(), removeItem()
 */
 void QComboBox::insertItem(int index, const QString &text, const QVariant &userData) {
+    if (!m_model)
+        return;
     const int at = std::clamp(index, 0, count());
-    m_items.insert(at, text);
-    QMap<int, QVariant> data;
-    if (userData.isValid())
-        data.insert(Qt::UserRole, userData);
-    m_data.insert(at, data);
-    updateGeometry();
-    update();
-    if (m_current < 0) {
-        m_current = 0;
-        emit currentIndexChanged(0);
-        emit currentTextChanged(currentText());
-    } else if (at <= m_current) {
-        ++m_current;
+    if (auto *standard = qobject_cast<QStandardItemModel *>(m_model)) {
+        // The item has its data before the row appears, so that currentTextChanged() has the text.
+        auto *item = new QStandardItem(text);
+        if (userData.isValid())
+            item->setData(userData, Qt::UserRole);
+        QList<QStandardItem *> row(m_modelColumn + 1, nullptr);
+        row.back() = item;
+        standard->insertRow(at, row);
+        return;
     }
+    if (!m_model->insertRows(at, 1))
+        return;
+    m_model->setData(itemIndex(at), text, Qt::DisplayRole);
+    if (userData.isValid())
+        m_model->setData(itemIndex(at), userData, Qt::UserRole);
 }
 
 /*!
@@ -401,19 +632,8 @@ void QComboBox::insertItem(int index, const QString &text, const QVariant &userD
     \sa clear(), insertItem()
 */
 void QComboBox::removeItem(int index) {
-    if (index < 0 || index >= count())
-        return;
-    m_items.removeAt(index);
-    m_data.removeAt(index);
-    updateGeometry();
-    update();
-    if (index < m_current) {
-        --m_current;
-    } else if (index == m_current) {
-        m_current = count() > 0 ? std::min(index, count() - 1) : -1;
-        emit currentIndexChanged(m_current);
-        emit currentTextChanged(currentText());
-    }
+    if (index >= 0 && index < count())
+        m_model->removeRows(index, 1);
 }
 
 /*!
@@ -423,15 +643,8 @@ void QComboBox::removeItem(int index) {
 */
 void QComboBox::clear() {
     hidePopup();
-    if (m_items.isEmpty())
-        return;
-    m_items.clear();
-    m_data.clear();
-    m_current = -1;
-    updateGeometry();
-    update();
-    emit currentIndexChanged(-1);
-    emit currentTextChanged(QString());
+    if (count() > 0)
+        m_model->removeRows(0, count());
 }
 
 /*!
@@ -445,9 +658,7 @@ void QComboBox::setCurrentIndex(int index) {
     if (target == m_current)
         return;
     m_current = target;
-    update();
-    emit currentIndexChanged(target);
-    emit currentTextChanged(currentText());
+    announceCurrent();
 }
 
 /*!
@@ -456,9 +667,175 @@ void QComboBox::setCurrentIndex(int index) {
     \sa currentText(), findText()
 */
 void QComboBox::setCurrentText(const QString &text) {
+    if (m_edit) {
+        setEditText(text);
+        return;
+    }
     const int index = findText(text);
     if (index >= 0)
         setCurrentIndex(index);
+}
+
+/*!
+    Returns the text of the current item, or, in an editable combo box, the text of its line edit.
+
+    \sa setCurrentText(), currentIndex()
+*/
+QString QComboBox::currentText() const { return m_edit ? m_edit->text() : itemText(m_current); }
+
+/*!
+    \since 6.0
+
+    Makes the combo box editable if \a editable is \c true: a line edit takes the place of the text, where the user
+    can type text that is not one of the items. Return adds the text as an item, as insertPolicy() says, and makes it
+    the current one. A combo box that is not editable, the default, only offers its items.
+
+    \sa isEditable(), lineEdit(), editTextChanged()
+*/
+void QComboBox::setEditable(bool editable) {
+    if (editable == isEditable())
+        return;
+    if (!editable) {
+        delete m_edit;
+        m_edit = nullptr;
+        update();
+        return;
+    }
+    m_edit = new QLineEdit(this);
+    m_edit->setFrame(false);
+    m_edit->setText(itemText(m_current));
+    m_edit->setGeometry(editRect());
+    QObject::connect(m_edit, &QLineEdit::textChanged, this, [this](const QString &text) {
+        emit editTextChanged(text);
+        emit currentTextChanged(text);
+    });
+    QObject::connect(m_edit, &QLineEdit::returnPressed, this, [this] { commitEdit(); });
+    if (isVisible())
+        m_edit->show();
+    update();
+}
+
+/*!
+    \fn bool QComboBox::isEditable() const
+    \since 6.0
+
+    Returns \c true if the user can type in the combo box.
+
+    \sa setEditable()
+*/
+
+/*!
+    \fn QLineEdit *QComboBox::lineEdit() const
+    \since 6.0
+
+    Returns the line edit of an editable combo box, or \c nullptr if it is not editable.
+*/
+
+/*!
+    \enum QComboBox::InsertPolicy
+    \since 6.0
+
+    This enum tells where the text that the user types in an editable combo box goes when Return is pressed.
+
+    \value NoInsert It is not added.
+    \value InsertAtTop It is added as the first item.
+    \value InsertAtCurrent It replaces the text of the current item.
+    \value InsertAtBottom It is added as the last item. This is the default.
+    \value InsertAfterCurrent It is added after the current item.
+    \value InsertBeforeCurrent It is added before the current item.
+    \value InsertAlphabetically It is added where it sorts among the items.
+*/
+
+/*!
+    \fn QComboBox::InsertPolicy QComboBox::insertPolicy() const
+    \since 6.0
+
+    Returns where typed text goes when Return is pressed. The default is InsertAtBottom.
+*/
+
+/*!
+    \fn void QComboBox::setInsertPolicy(InsertPolicy policy)
+    \since 6.0
+
+    Sets where typed text goes when Return is pressed to \a policy.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the text of the line edit of an editable combo box to \a text, without choosing an item. Does nothing for a
+    combo box that is not editable.
+
+    \sa clearEditText(), currentText()
+*/
+void QComboBox::setEditText(const QString &text) {
+    if (m_edit)
+        m_edit->setText(text);
+}
+
+/*!
+    \fn void QComboBox::clearEditText()
+    \since 6.0
+
+    Clears the line edit of an editable combo box.
+*/
+
+QRect QComboBox::editRect() const {
+    QStyleOption option;
+    option.initFrom(this);
+    const QRect arrow = style()->subElementRect(QStyle::SE_ComboBoxArrow, &option, this);
+    return rect().adjusted(3, 3, -std::max(arrow.width(), 16) - 1, -3);
+}
+
+// Return in the line edit: the text becomes an item, as the insert policy says, and the current one.
+void QComboBox::commitEdit() {
+    const QString text = m_edit->text();
+    if (text.isEmpty())
+        return;
+    int index = findText(text);
+    if (index < 0) {
+        switch (m_insertPolicy) {
+        case NoInsert:
+            break;
+        case InsertAtTop:
+            index = 0;
+            break;
+        case InsertAtCurrent:
+            if (m_current >= 0) {
+                setItemText(m_current, text);
+                index = m_current;
+            }
+            break;
+        case InsertAtBottom:
+            index = count();
+            break;
+        case InsertAfterCurrent:
+            index = m_current + 1;
+            break;
+        case InsertBeforeCurrent:
+            index = std::max(0, m_current);
+            break;
+        case InsertAlphabetically:
+            index = 0;
+            while (index < count() && itemText(index) < text)
+                ++index;
+            break;
+        }
+        if (index >= 0 && m_insertPolicy != InsertAtCurrent)
+            insertItem(index, text);
+    }
+    if (index >= 0)
+        choose(index);
+}
+
+/*!
+    \reimp
+    \since 6.0
+*/
+void QComboBox::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    if (m_edit)
+        m_edit->setGeometry(editRect());
 }
 
 /*!
@@ -495,12 +872,20 @@ void QComboBox::choose(int index) {
 */
 QSize QComboBox::sizeHint() const {
     const QFontMetrics fm = fontMetrics();
-    int width = m_items.isEmpty() ? fm.horizontalAdvance(QString(7, QChar('x'))) : 0;
-    for (const QString &item : m_items)
-        width = std::max(width, fm.horizontalAdvance(item));
+    int width = count() == 0 ? fm.horizontalAdvance(QString(7, QChar('x'))) : 0;
+    for (int i = 0; i < count(); ++i)
+        width = std::max(width, fm.horizontalAdvance(itemText(i)));
+    int height = fm.height();
+    for (int i = 0; i < count(); ++i) {
+        if (!itemIcon(i).isNull()) {
+            width += iconSize().width() + 4;
+            height = std::max(height, iconSize().height());
+            break;
+        }
+    }
     QStyleOptionComboBox option;
     option.initFrom(this);
-    return style()->sizeFromContents(QStyle::CT_ComboBox, &option, QSize(width, fm.height()), this);
+    return style()->sizeFromContents(QStyle::CT_ComboBox, &option, QSize(width, height), this);
 }
 
 /*!
@@ -517,7 +902,10 @@ void QComboBox::paintEvent(QPaintEvent *event) {
     painter.setFont(font());
     QStyleOptionComboBox option;
     option.initFrom(this);
-    option.currentText = currentText();
+    option.currentText = m_edit ? QString() : currentText();
+    option.currentIcon = m_edit ? QIcon() : itemIcon(m_current);
+    option.iconSize = iconSize();
+    option.editable = m_edit != nullptr;
     option.state |= m_down ? QStyle::State_Sunken : QStyle::State_Raised;
     if (isPopupVisible())
         option.state |= QStyle::State_On;
@@ -561,8 +949,14 @@ void QComboBox::wheelEvent(QWheelEvent *event) {
         event->ignore();
         return;
     }
-    const int index = std::clamp(m_current - notches, 0, count() - 1);
-    if (index != m_current)
+    int index = m_current;
+    for (int step = notches > 0 ? -1 : 1, left = std::abs(notches); left > 0; --left) {
+        const int next = nextEnabled(index + step, step);
+        if (next < 0)
+            break;
+        index = next;
+    }
+    if (index != m_current && index >= 0)
         choose(index);
     event->accept();
 }
@@ -580,16 +974,16 @@ void QComboBox::keyPressEvent(QKeyEvent *event) {
     }
     switch (key) {
     case Qt::Key_Up:
-        target = m_current - 1;
+        target = nextEnabled(m_current - 1, -1);
         break;
     case Qt::Key_Down:
-        target = m_current + 1;
+        target = nextEnabled(m_current + 1, 1);
         break;
     case Qt::Key_Home:
-        target = 0;
+        target = nextEnabled(0, 1);
         break;
     case Qt::Key_End:
-        target = count() - 1;
+        target = nextEnabled(count() - 1, -1);
         break;
     case Qt::Key_F4:
     case Qt::Key_Space:

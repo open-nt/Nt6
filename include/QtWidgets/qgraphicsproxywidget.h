@@ -5,9 +5,10 @@
 #include <QtCore/qsize.h>
 #include <QtGui/qimage.h>
 #include <QtWidgets/qgraphicsitem.h>
+#include <QtWidgets/qgraphicswidget.h>
 #include <QtWidgets/qwidget.h>
 
-class QGraphicsProxyWidget : public QGraphicsObject {
+class QGraphicsProxyWidget : public QGraphicsWidget {
     Q_OBJECT
 public:
     enum { Type = 12 };
@@ -19,18 +20,14 @@ public:
     QWidget *widget() const;
     QRectF subWidgetRect(const QWidget *widget) const;
 
-    void resize(const QSizeF &size);
-    /*! \overload Resizes the proxy and its widget to \a w by \a h. */
-    void resize(qreal w, qreal h) { resize(QSizeF(w, h)); }
-    QSizeF size() const;
-    QRectF geometry() const;
-    void setGeometry(const QRectF &rect);
+    void setGeometry(const QRectF &rect) override;
+    using QGraphicsWidget::setGeometry;
 
-    QRectF boundingRect() const override;
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
     int type() const override;
 
 protected:
+    QSizeF sizeHint(Qt::SizeHint which, const QSizeF &constraint = QSizeF()) const override;
     bool sceneEvent(QEvent *event) override;
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
@@ -47,7 +44,6 @@ private:
     void widgetDirty(const QRegion &region);
     QPointer<QWidget> m_widget;
     QPointer<QWidget> m_grab;
-    QSizeF m_size;
     QImage m_cache;
     bool m_cacheValid = false;
 };

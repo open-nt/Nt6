@@ -17,6 +17,7 @@ struct QLayout::Data {
     bool marginsSet = false;
     QMargins margins;
     bool pending = false;
+    QLayout::SizeConstraint constraint = QLayout::SetDefaultConstraint;
 };
 
 /*!
@@ -261,6 +262,38 @@ void QLayout::reparentChildWidgets() {
 }
 
 /*!
+    \enum QLayout::SizeConstraint
+    \since 6.0
+
+    This enum tells how a layout constrains the size of the widget it manages.
+
+    \value SetDefaultConstraint A window grows to the minimum size of the layout; other widgets are not constrained.
+    \value SetNoConstraint The widget is not constrained.
+    \value SetMinimumSize The minimum size of the widget is the minimum size of the layout.
+    \value SetFixedSize The widget has the size hint of the layout, and cannot be resized.
+    \value SetMaximumSize The maximum size of the widget is the maximum size of the layout.
+    \value SetMinMaxSize Both the minimum and the maximum size of the widget follow the layout.
+*/
+
+/*!
+    \since 6.0
+
+    Returns how the layout constrains the size of its widget. The default is SetDefaultConstraint.
+*/
+QLayout::SizeConstraint QLayout::sizeConstraint() const { return m_d->constraint; }
+
+/*!
+    \since 6.0
+
+    Sets how the layout constrains the size of its widget to \a constraint. Only the top-level layout of a
+    widget constrains it.
+*/
+void QLayout::setSizeConstraint(SizeConstraint constraint) {
+    m_d->constraint = constraint;
+    invalidate();
+}
+
+/*!
     Does the layout now: places the items in the geometry of the widget that the layout manages. A window grows if it is smaller than the
     minimum size of its layout. Returns \c false if there is no widget.
 
@@ -273,8 +306,26 @@ bool QLayout::activate() {
     QWidget *w = top->parentWidget();
     if (!w)
         return false;
+    switch (top->m_d->constraint) {
+    case SetMinimumSize:
+        w->setMinimumSize(top->minimumSize());
+        break;
+    case SetFixedSize:
+        w->setFixedSize(top->sizeHint());
+        break;
+    case SetMaximumSize:
+        w->setMaximumSize(top->maximumSize());
+        break;
+    case SetMinMaxSize:
+        w->setMinimumSize(top->minimumSize());
+        w->setMaximumSize(top->maximumSize());
+        break;
+    case SetDefaultConstraint:
+    case SetNoConstraint:
+        break;
+    }
     top->setGeometry(w->rect());
-    if (w->isWindow()) {
+    if (w->isWindow() && top->m_d->constraint == SetDefaultConstraint) {
         const QSize minimum = top->minimumSize();
         const QSize current = w->size();
         if (current.width() < minimum.width() || current.height() < minimum.height())

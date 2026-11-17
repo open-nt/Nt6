@@ -10,10 +10,12 @@
 #include <QtGui/qcolor.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qfontmetrics.h>
+#include <QtGui/qicon.h>
 #include <QtGui/qpalette.h>
 #include <QtGui/qpixmap.h>
 #include <QtGui/qtransform.h>
 #include <QtWidgets/qstyle.h>
+#include <QtWidgets/qtabbar.h> // as in Qt, which code that reaches QTabBar through QTabWidget relies on
 
 #include <type_traits>
 
@@ -92,6 +94,7 @@ public:
 
     ButtonFeatures features;
     QString text;
+    QIcon icon; // drawn before the text, in iconSize
     QSize iconSize;
 };
 
@@ -266,6 +269,7 @@ public:
     QRect popupRect;
     bool frame = true;
     QString currentText;
+    QIcon currentIcon;
     QSize iconSize;
     Qt::Alignment textAlignment = Qt::AlignLeft | Qt::AlignVCenter;
 };
@@ -391,6 +395,7 @@ public:
     bool menuHasCheckableItems = true;
     QRect menuRect;
     QString text;
+    QIcon icon;
     int maxIconWidth = 0;
     int reservedShortcutWidth = 0;
     QFont font;

@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+class QDebug;
+
 #include <QtCore/qglobal.h>
 #include <QtCore/qpoint.h>
 
@@ -323,3 +325,7 @@ constexpr QVector3D QVector2D::toVector3D() const noexcept { return QVector3D(v[
 constexpr QVector4D QVector2D::toVector4D() const noexcept { return QVector4D(v[0], v[1], 0.0f, 0.0f); }
 constexpr QVector3D::QVector3D(QVector4D vector) noexcept : v{vector.v[0], vector.v[1], vector.v[2]} {}
 constexpr QVector4D QVector3D::toVector4D() const noexcept { return QVector4D(v[0], v[1], v[2], 0.0f); }
+
+QDebug operator<<(QDebug debug, const QVector2D &vector);
+QDebug operator<<(QDebug debug, const QVector3D &vector);
+QDebug operator<<(QDebug debug, const QVector4D &vector);

@@ -9,6 +9,8 @@ class QDesktopPortalSettings;
 class QXcbConnection;
 
 // The X11 platform: talks to an X server, or XWayland, with XCB.
+class QXcbClipboard;
+
 class QXcbIntegration : public QPlatformIntegration {
 public:
     // Returns null, after printing the reason, if there is no display to connect to.
@@ -26,9 +28,11 @@ public:
     quint64 createVulkanSurface(QWindow *window, void *instance,
                                 QVulkanGetInstanceProcAddr getInstanceProcAddr) const override;
     void checkQueuedEvents() override;
+    QPlatformClipboard *clipboard() const override;
 
 private:
     explicit QXcbIntegration(std::unique_ptr<QXcbConnection> connection);
     std::unique_ptr<QXcbConnection> m_connection;
     std::unique_ptr<QDesktopPortalSettings> m_portal;
+    mutable std::unique_ptr<QXcbClipboard> m_clipboard;
 };

@@ -162,6 +162,13 @@ void QStyleOption::initFrom(const QWidget *widget) {
 */
 
 /*!
+    \variable QStyleOptionButton::icon
+    \since 6.0
+
+    The icon of the button, drawn before the text in iconSize.
+*/
+
+/*!
     \class QStyleOptionFrame
     \brief The QStyleOptionFrame class describes the parameters for drawing a frame.
 
@@ -320,6 +327,13 @@ void QStyleOption::initFrom(const QWidget *widget) {
     \variable QStyleOptionComboBox::currentText
 
     The text of the current item.
+*/
+
+/*!
+    \variable QStyleOptionComboBox::currentIcon
+    \since 6.0
+
+    The icon of the current item, drawn before its text in iconSize.
 */
 
 /*!
@@ -484,6 +498,13 @@ void QStyleOption::initFrom(const QWidget *widget) {
 
     The text of the entry. A \c{&} marks the mnemonic, and a tab separates the text from the shortcut that is shown
     at the right.
+*/
+
+/*!
+    \variable QStyleOptionMenuItem::icon
+    \since 6.0
+
+    The icon of the entry, drawn in the column of the check box when the entry is not checked.
 */
 
 /*!

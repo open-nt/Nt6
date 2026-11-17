@@ -158,6 +158,50 @@ QAction *QMenu::addAction(const QString &text) {
 }
 
 /*!
+    \overload
+    \since 6.0
+
+    Adds an action with \a icon and \a text to the end of the menu, and returns it.
+*/
+QAction *QMenu::addAction(const QIcon &icon, const QString &text) {
+    QAction *action = addAction(text);
+    action->setIcon(icon);
+    return action;
+}
+
+/*!
+    \fn template <typename Functor> QAction *QMenu::addAction(const QIcon &icon, const QString &text, Functor functor)
+    \overload
+    \since 6.0
+
+    Adds an action with \a icon and \a text, connects its triggered() signal to \a functor, and returns it.
+*/
+
+/*!
+    \overload
+    \since 6.0
+
+    Adds an action with \a text and the \a shortcut, and connects its triggered() signal to the slot \a member of
+    \a receiver, written with SLOT(). Returns the action.
+*/
+QAction *QMenu::addAction(const QString &text, const QObject *receiver, const char *member,
+                          const QKeySequence &shortcut) {
+    QAction *action = addAction(text);
+    action->setShortcut(shortcut);
+    QObject::connect(action, SIGNAL(triggered(bool)), receiver, member);
+    return action;
+}
+
+/*!
+    \fn template <typename Receiver, typename Functor, typename> QAction *QMenu::addAction(const QString &text, const Receiver *receiver, Functor functor, const QKeySequence &shortcut)
+    \overload
+    \since 6.0
+
+    Adds an action with \a text and the \a shortcut, and connects its triggered() signal to \a functor, a slot of
+    \a receiver or a callable that runs while \a receiver exists. Returns the action.
+*/
+
+/*!
     \fn template <typename Functor> QAction *QMenu::addAction(const QString &text, Functor functor)
 
     Creates an action with the given \a text, connects its triggered() signal to \a functor, adds the action to the
@@ -277,6 +321,7 @@ void QMenu::layoutItems() const {
     for (QAction *action : visible) {
         QStyleOptionMenuItem option;
         option.text = textWithShortcut(action);
+        option.icon = action->icon();
         option.font = action->font() == QFont() ? font() : action->font();
         option.reservedShortcutWidth = tab;
         QSize size;
@@ -608,6 +653,7 @@ void QMenu::paintEvent(QPaintEvent *event) {
         option.initFrom(this);
         option.rect = item.rect;
         option.text = textWithShortcut(action);
+        option.icon = action->icon();
         option.font = action->font() == QFont() ? font() : action->font();
         option.state = QStyle::State();
         if (action->isEnabled() && isEnabled())

@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qicon.h>
+
 #include "qwidgetwindow_p.h"
 
 #include <QtCore/qpointer.h>
@@ -34,6 +36,7 @@ struct QWidget::Data {
     bool hiddenExplicitly = false; // hide() was called
     bool polished = false;         // the style polished it (ensurePolished())
     bool pendingShow = false;      // created below a visible parent, not shown yet
+    bool shownOffscreen = false;   // a window shown with Qt::WA_DontShowOnScreen, which has no platform window
     bool disabled = false;         // setEnabled(false) on this widget
     QString title;
     Qt::WindowFlags windowFlags;
@@ -51,6 +54,8 @@ struct QWidget::Data {
     bool autoFill = false;
     bool mouseTracking = false;
     QString toolTip;
+    Qt::ContextMenuPolicy contextMenuPolicy = Qt::DefaultContextMenu;
+    QIcon icon;                    // of a window
     bool mouseTransparent = false; // not found by the mouse: the tool tip
     bool underMouse = false;
     QCursor cursor;

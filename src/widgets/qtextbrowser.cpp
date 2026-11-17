@@ -29,7 +29,7 @@
     browser then shows the target, if it is a local file or a relative name.
 
     \differences
-    The HTML is what QTextDocument reads; there are no images and no Markdown. A link to somewhere else than a
+    The HTML and Markdown (a source that ends in \c .md) are what QTextDocument reads; there are no images. A link to somewhere else than a
     file (\c http, \c mailto) is never opened: \c openExternalLinks() is recorded only, and anchorClicked() tells
     about the click. loadResource() reads local files; the fragment of a source is ignored, so a link does not
     scroll to a place in a document. Links are not reached with the keys.
@@ -255,8 +255,10 @@ void QTextBrowser::showSource(const QUrl &url) {
     const QString contents = text.isValid() ? text.toString() : QString();
     const QString path = file.path().toLower();
     m_pressedLink.clear();
-    if (path.endsWith(QStringLiteral(".html")) || path.endsWith(QStringLiteral(".htm")) ||
-        Qt::mightBeRichText(contents))
+    if (path.endsWith(QStringLiteral(".md")) || path.endsWith(QStringLiteral(".markdown")))
+        setMarkdown(contents);
+    else if (path.endsWith(QStringLiteral(".html")) || path.endsWith(QStringLiteral(".htm")) ||
+             Qt::mightBeRichText(contents))
         setHtml(contents);
     else
         setPlainText(contents);

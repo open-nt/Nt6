@@ -1,4 +1,6 @@
+#include "qopenglbuffer.h"
 #include "qopenglframebufferobject.h"
 #include "qopenglpaintdevice.h"
-#include "qopenglwindow.h"
 #include "qopenglshaderprogram.h"
+#include "qopenglvertexarrayobject.h"
+#include "qopenglwindow.h"

@@ -17,6 +17,7 @@ class QToolBar : public QWidget {
     Q_PROPERTY(Qt::Orientation orientation READ orientation WRITE setOrientation NOTIFY orientationChanged)
     Q_PROPERTY(
         Qt::ToolButtonStyle toolButtonStyle READ toolButtonStyle WRITE setToolButtonStyle NOTIFY toolButtonStyleChanged)
+    Q_PROPERTY(QSize iconSize READ iconSize WRITE setIconSize NOTIFY iconSizeChanged)
     Q_PROPERTY(bool floating READ isFloating)
     Q_PROPERTY(bool floatable READ isFloatable WRITE setFloatable)
 public:
@@ -40,6 +41,14 @@ public:
         QObject::connect(action, &QAction::triggered, action, std::move(functor));
         return action;
     }
+    QAction *addAction(const QIcon &icon, const QString &text);
+    template <typename Functor> QAction *addAction(const QIcon &icon, const QString &text, Functor functor) {
+        QAction *action = addAction(icon, text);
+        QObject::connect(action, &QAction::triggered, action, std::move(functor));
+        return action;
+    }
+    QSize iconSize() const;
+    void setIconSize(const QSize &iconSize);
     QAction *addSeparator();
     QAction *insertSeparator(QAction *before);
     QAction *addWidget(QWidget *widget);
@@ -87,6 +96,11 @@ signals:
         emitSignal(&QToolBar::toolButtonStyleChanged, toolButtonStyle);
     }
     /*!
+        \since 6.0
+        This signal is emitted when the size of the icons changes to \a iconSize.
+    */
+    void iconSizeChanged(const QSize &iconSize) { emitSignal(&QToolBar::iconSizeChanged, iconSize); }
+    /*!
         This signal is emitted when the tool bar starts or stops floating; \a topLevel says which. Tool bars do not
         float in Nt, so it is never emitted.
     */
@@ -123,6 +137,7 @@ private:
     Qt::ToolBarAreas m_allowedAreas = Qt::AllToolBarAreas;
     Qt::Orientation m_orientation = Qt::Horizontal;
     Qt::ToolButtonStyle m_style = Qt::ToolButtonIconOnly;
+    QSize m_iconSize; // invalid: the tool bar icon size of the style
     bool m_movable = true;
     bool m_floatable = true;
 };

@@ -3,6 +3,7 @@
 // An end-to-end test of widgets on a real X server (or XWayland): a second XCB connection sends
 // mouse and key events to the window and reads its pixels back. The test is skipped when there is no X display.
 #include <QtCore>
+#include <QtGui/qclipboard.h>
 #include <QtGui/qstylehints.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
@@ -23,6 +24,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 
 static int g_failures = 0;
 #define CHECK(cond)                                                                                                    \
@@ -45,6 +47,20 @@ int main(int argc, char **argv) {
             std::puts("SKIP: no X display");
             return 0;
         }
+    }
+    // `--clipboard-owner TEXT`: put TEXT, and a format of its own, on the clipboard and the selection, and stay
+    // for a few seconds so that the test that started this process can read them.
+    if (argc == 3 && std::strcmp(argv[1], "--clipboard-owner") == 0) {
+        QApplication owner(argc, argv);
+        auto *data = new QMimeData;
+        data->setText(QString::fromUtf8(argv[2]));
+        data->setData(QStringLiteral("application/x-nt-test"), QByteArray("shape:42"));
+        QGuiApplication::clipboard()->setMimeData(data);
+        QGuiApplication::clipboard()->setText(QStringLiteral("selected"), QClipboard::Selection);
+        std::puts("ready");
+        std::fflush(stdout);
+        QTimer::singleShot(4000, &owner, &QCoreApplication::quit);
+        return owner.exec();
     }
     QApplication app(argc, argv);
     // The tests look for the colors of the light palette, whatever the desktop uses.
@@ -233,6 +249,27 @@ int main(int argc, char **argv) {
     xcb_send_event(c, 0, id, XCB_EVENT_MASK_NO_EVENT, reinterpret_cast<const char *>(&close));
     xcb_flush(c);
     CHECK(waitFor([&] { return !window.isVisible(); }));
+
+    // The clipboard of another program: this test reads what a second copy of itself put there.
+    {
+        QProcess owner;
+        owner.start(QCoreApplication::applicationFilePath(),
+                    {QStringLiteral("--clipboard-owner"), QStringLiteral("from another program \u00e9")});
+        CHECK(owner.waitForReadyRead(5000));
+        QClipboard *clipboard = QGuiApplication::clipboard();
+        CHECK(clipboard->supportsSelection() && !clipboard->ownsClipboard());
+        CHECK(clipboard->text() == QStringLiteral("from another program \u00e9"));
+        const QMimeData *data = clipboard->mimeData();
+        CHECK(data && data->hasFormat(QStringLiteral("application/x-nt-test")));
+        if (data)
+            CHECK(data->data(QStringLiteral("application/x-nt-test")) == "shape:42");
+        CHECK(clipboard->text(QClipboard::Selection) == QLatin1String("selected"));
+        // Taking the clipboard over tells the other program, and this one owns it.
+        clipboard->setText(QStringLiteral("mine"));
+        CHECK(clipboard->ownsClipboard() && clipboard->text() == QLatin1String("mine"));
+        owner.kill();
+        owner.waitForFinished(2000);
+    }
 
     xcb_disconnect(c);
     if (g_failures == 0)

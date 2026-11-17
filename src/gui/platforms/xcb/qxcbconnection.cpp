@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include "qxcbconnection_p.h"
 
+#include "qxcbclipboard_p.h"
+
 #include "qpa/qwindowsysteminterface_p.h"
 #include "qwindow_p.h"
 #include "qxcbwindow_p.h"
@@ -312,6 +314,8 @@ QXcbConnection::~QXcbConnection() {
         cursorLibrary().contextFree(m_cursorContext);
     if (m_pending)
         std::free(m_pending);
+    for (xcb_generic_event_t *e : m_deferred)
+        std::free(e);
     xcb_disconnect(m_connection);
 }
 
@@ -366,7 +370,17 @@ bool QXcbConnection::event(QEvent *e) {
     return QObject::event(e);
 }
 
+void QXcbConnection::defer(xcb_generic_event_t *event) {
+    m_deferred.push_back(event);
+    scheduleProcessing();
+}
+
 xcb_generic_event_t *QXcbConnection::nextEvent() {
+    if (!m_deferred.empty()) {
+        xcb_generic_event_t *e = m_deferred.front();
+        m_deferred.pop_front();
+        return e;
+    }
     if (m_pending) {
         xcb_generic_event_t *e = m_pending;
         m_pending = nullptr;
@@ -652,6 +666,8 @@ QRect QXcbConnection::toLogicalCovering(const QRect &native) const {
 }
 
 void QXcbConnection::handleEvent(xcb_generic_event_t *event) {
+    if (m_clipboard && m_clipboard->handleEvent(event))
+        return;
     const int type = event->response_type & ~0x80;
     switch (type) {
     case XCB_KEY_PRESS:

@@ -7,6 +7,8 @@
 #include <QtCore/qstring.h>
 #include <QtGui/qfont.h>
 
+class QClipboard;
+class QIcon;
 class QScreen;
 class QStyleHints;
 class QWindow;
@@ -23,6 +25,12 @@ public:
     static QString platformName();
     static QScreen *primaryScreen();
     static QList<QScreen *> screens();
+    static QScreen *screenAt(const QPoint &point);
+    static void setDesktopFileName(const QString &name);
+    static QClipboard *clipboard();
+    static QIcon windowIcon();
+    static void setWindowIcon(const QIcon &icon);
+    static QString desktopFileName();
     static QList<QWindow *> allWindows();
     static QList<QWindow *> topLevelWindows();
     static QWindow *focusWindow();

@@ -824,7 +824,8 @@ static void testTableWidget() {
     auto *name = new QTableWidgetItem("Ada");
     table.setItem(1, 0, name);
     CHECK(table.item(1, 0) == name && name->tableWidget() == &table && name->row() == 1 && name->column() == 0);
-    CHECK(name->text() == "Ada" && name->flags() == (Qt::ItemIsSelectable | Qt::ItemIsEnabled) &&
+    CHECK(name->text() == "Ada" &&
+          name->flags() == (Qt::ItemIsSelectable | Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsEditable) &&
           name->textAlignment() == (Qt::AlignLeft | Qt::AlignVCenter) && name->toolTip().isEmpty());
     name->setText("Ada Lovelace");
     CHECK(name->text() == "Ada Lovelace");

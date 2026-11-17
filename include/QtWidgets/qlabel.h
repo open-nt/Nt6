@@ -17,6 +17,7 @@ class QLabel : public QWidget {
     Q_PROPERTY(bool scaledContents READ hasScaledContents WRITE setScaledContents)
     Q_PROPERTY(Qt::TextFormat textFormat READ textFormat WRITE setTextFormat)
     Q_PROPERTY(bool openExternalLinks READ openExternalLinks WRITE setOpenExternalLinks)
+    Q_PROPERTY(Qt::TextInteractionFlags textInteractionFlags READ textInteractionFlags WRITE setTextInteractionFlags)
 public:
     explicit QLabel(QWidget *parent = nullptr);
     explicit QLabel(const QString &text, QWidget *parent = nullptr);
@@ -36,6 +37,8 @@ public:
     void setTextFormat(Qt::TextFormat format);
     bool openExternalLinks() const { return m_openExternal; }
     void setOpenExternalLinks(bool open) { m_openExternal = open; }
+    Qt::TextInteractionFlags textInteractionFlags() const { return m_interaction; }
+    void setTextInteractionFlags(Qt::TextInteractionFlags flags) { m_interaction = flags; }
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
@@ -84,6 +87,7 @@ private:
     bool m_scaled = false;
     Qt::TextFormat m_format = Qt::AutoText;
     bool m_openExternal = false;
+    Qt::TextInteractionFlags m_interaction = Qt::LinksAccessibleByMouse;
     std::unique_ptr<QTextDocument> m_document; // of a text that is rich text
     QString m_hovered;
     QString m_pressed;

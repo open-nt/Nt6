@@ -46,7 +46,7 @@ QString keyName(int key) {
     for (const KeyName &entry : kNames)
         if (entry.key == key)
             return QString::fromLatin1(entry.name);
-    if (key >= Qt::Key_F1 && key <= Qt::Key_F12)
+    if (key >= Qt::Key_F1 && key <= Qt::Key_F35)
         return QString("F%1").arg(key - Qt::Key_F1 + 1);
     if (key > Qt::Key_Space && key < 0x7f)
         return QString(QChar(static_cast<char16_t>(key)));
@@ -60,7 +60,7 @@ int keyFromName(const QString &name) {
     if (name.size() >= 2 && (name.at(0) == 'F' || name.at(0) == 'f')) {
         bool ok = false;
         const int number = name.mid(1).toInt(&ok);
-        if (ok && number >= 1 && number <= 12)
+        if (ok && number >= 1 && number <= 35)
             return Qt::Key_F1 + number - 1;
     }
     if (name.size() == 1) {
@@ -169,6 +169,13 @@ QKeySequence::QKeySequence(const QString &key, SequenceFormat format) { *this = 
     Constructs a key sequence from \a k1, a key with its modifiers, as in \c{Qt::CTRL | Qt::Key_O}.
 */
 QKeySequence::QKeySequence(int k1) : m_key(k1 == Qt::Key_unknown ? 0 : k1) {}
+
+/*!
+    \fn QKeySequence::QKeySequence(QKeyCombination k1)
+    \since 6.0
+
+    Constructs a key sequence of the combination \a k1.
+*/
 
 /*!
     Constructs the key sequence that the platform has for the standard key \a key; it is empty for \c UnknownKey.
@@ -372,7 +379,7 @@ QKeySequence QKeySequence::mnemonic(const QString &text) {
 }
 
 /*!
-    \fn int QKeySequence::operator[](uint index) const
+    \fn QKeyCombination QKeySequence::operator[](uint index) const
 
     Returns the key with its modifiers at \a index, which is 0 for the one key that there is; 0 for any other index.
 */

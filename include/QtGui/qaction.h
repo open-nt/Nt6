@@ -7,6 +7,7 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qvariant.h>
 #include <QtGui/qfont.h>
+#include <QtGui/qicon.h>
 #include <QtGui/qkeysequence.h>
 
 class QActionGroup;
@@ -27,6 +28,7 @@ public:
 
     explicit QAction(QObject *parent = nullptr);
     explicit QAction(const QString &text, QObject *parent = nullptr);
+    QAction(const QIcon &icon, const QString &text, QObject *parent = nullptr);
     ~QAction() override;
 
     QString text() const { return m_text; }
@@ -38,8 +40,13 @@ public:
     void setStatusTip(const QString &tip);
     QFont font() const { return m_font; }
     void setFont(const QFont &font);
+    QIcon icon() const { return m_icon; }
+    void setIcon(const QIcon &icon);
     QKeySequence shortcut() const { return m_shortcut; }
     void setShortcut(const QKeySequence &shortcut);
+    QList<QKeySequence> shortcuts() const;
+    void setShortcuts(const QList<QKeySequence> &shortcuts);
+    void setShortcuts(QKeySequence::StandardKey key);
     Qt::ShortcutContext shortcutContext() const { return m_shortcutContext; }
     void setShortcutContext(Qt::ShortcutContext context);
     QVariant data() const { return m_data; }
@@ -113,6 +120,8 @@ private:
     QString m_statusTip;
     QFont m_font;
     QKeySequence m_shortcut;
+    QIcon m_icon;
+    QList<QKeySequence> m_moreShortcuts; // after the first, which is m_shortcut
     Qt::ShortcutContext m_shortcutContext = Qt::WindowShortcut;
     QVariant m_data;
     QPointer<QObject> m_menu;

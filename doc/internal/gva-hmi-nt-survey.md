@@ -69,9 +69,10 @@ a `QPainter` inside `paint()`.
 
 `Vehicle3DWidget` is a `QOpenGLWidget` with legacy `glBegin()` calls,
 `QOpenGLTexture` and Assimp, embedded in the scene through a proxy widget.
-Nt has `QOpenGLWindow` and `QOpenGLPaintDevice` only. The CMake already
-treats OpenGLWidgets as optional, so the viewer can be left out of a first
-build.
+Nt has `QOpenGLWidget` (Nt OpenGL Widgets) since 6.0.5, with `QOpenGLBuffer`,
+`QOpenGLVertexArrayObject` and `QOpenGLExtraFunctions`; it has no `QOpenGLTexture`
+or legacy `glBegin()` calls, which the viewer has since stopped using. The CMake already treats OpenGLWidgets as
+optional, so the viewer can be left out of a first build.
 
 ### 3. X11 specifics
 
@@ -136,7 +137,7 @@ The workable route, in order:
    window flags with a translucent top level (Nest Phase 1).
 3. Build gva-widgets against Nt behind a CMake switch, then gva-hmi with the
    3D viewer and XShape left out.
-4. `QOpenGLWidget` for the vehicle viewer as a later, separate task.
+4. `QOpenGLWidget` for the vehicle viewer (done in 6.0.5).
 
 Graphics View also suits the Nest plan: a scene is a natural unit for a
 single-process compositor, and this HMI, a frameless full-screen window at

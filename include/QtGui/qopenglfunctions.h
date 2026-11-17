@@ -3,8 +3,7 @@
 
 #include <QtCore/qflags.h>
 #include <QtGui/qopengl.h>
-
-class QOpenGLContext;
+#include <QtGui/qopenglcontext.h> // as in Qt, so that code with the functions can use the context
 
 // The OpenGL ES 2.0 functions of one context, resolved when the context is made current for the first time.
 struct QOpenGLFunctionsPrivate {

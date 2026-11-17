@@ -4,6 +4,7 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qstring.h>
 
+#include <algorithm>
 #include <string_view>
 
 // A read-only, non-owning view of UTF-16 text.
@@ -718,7 +719,83 @@ public:
     friend bool operator<=(QStringView a, QStringView b) noexcept { return !(b < a); }
     friend bool operator>=(QStringView a, QStringView b) noexcept { return !(a < b); }
 
+    /*!
+        \since 6.0
+        Returns \c true if \a a holds the same characters as the Latin-1 string \a b.
+    */
+    friend bool operator==(QStringView a, QLatin1StringView b) noexcept {
+        return a.n == b.size() && compareLatin1(a, b) == 0;
+    }
+    /*!
+        \since 6.0
+        Returns \c true if \a a and the Latin-1 string \a b differ.
+    */
+    friend bool operator!=(QStringView a, QLatin1StringView b) noexcept { return !(a == b); }
+    /*!
+        \since 6.0
+        Returns \c true if \a a sorts before the Latin-1 string \a b by character value.
+    */
+    friend bool operator<(QStringView a, QLatin1StringView b) noexcept { return compareLatin1(a, b) < 0; }
+    /*!
+        \since 6.0
+        Returns \c true if \a a sorts before the Latin-1 string \a b or equals it.
+    */
+    friend bool operator<=(QStringView a, QLatin1StringView b) noexcept { return compareLatin1(a, b) <= 0; }
+    /*!
+        \since 6.0
+        Returns \c true if \a a sorts after the Latin-1 string \a b.
+    */
+    friend bool operator>(QStringView a, QLatin1StringView b) noexcept { return compareLatin1(a, b) > 0; }
+    /*!
+        \since 6.0
+        Returns \c true if \a a sorts after the Latin-1 string \a b or equals it.
+    */
+    friend bool operator>=(QStringView a, QLatin1StringView b) noexcept { return compareLatin1(a, b) >= 0; }
+    /*!
+        \since 6.0
+        Returns \c true if the Latin-1 string \a a holds the same characters as \a b.
+    */
+    friend bool operator==(QLatin1StringView a, QStringView b) noexcept { return b == a; }
+    /*!
+        \since 6.0
+        Returns \c true if the Latin-1 string \a a and \a b differ.
+    */
+    friend bool operator!=(QLatin1StringView a, QStringView b) noexcept { return !(b == a); }
+    /*!
+        \since 6.0
+        Returns \c true if the Latin-1 string \a a sorts before \a b.
+    */
+    friend bool operator<(QLatin1StringView a, QStringView b) noexcept { return compareLatin1(b, a) > 0; }
+    /*!
+        \since 6.0
+        Returns \c true if the Latin-1 string \a a sorts before \a b or equals it.
+    */
+    friend bool operator<=(QLatin1StringView a, QStringView b) noexcept { return compareLatin1(b, a) >= 0; }
+    /*!
+        \since 6.0
+        Returns \c true if the Latin-1 string \a a sorts after \a b.
+    */
+    friend bool operator>(QLatin1StringView a, QStringView b) noexcept { return compareLatin1(b, a) < 0; }
+    /*!
+        \since 6.0
+        Returns \c true if the Latin-1 string \a a sorts after \a b or equals it.
+    */
+    friend bool operator>=(QLatin1StringView a, QStringView b) noexcept { return compareLatin1(b, a) <= 0; }
+
 private:
+    // Compares `a` with the Latin-1 string `b` by UTF-16 code unit, without converting either.
+    static int compareLatin1(QStringView a, QLatin1StringView b) noexcept {
+        const qsizetype common = std::min(a.n, b.size());
+        const char16_t *left = a.utf16();
+        const char *right = b.data();
+        for (qsizetype i = 0; i < common; ++i) {
+            const auto r = static_cast<char16_t>(static_cast<unsigned char>(right[i]));
+            if (left[i] != r)
+                return left[i] < r ? -1 : 1;
+        }
+        return a.n == b.size() ? 0 : (a.n < b.size() ? -1 : 1);
+    }
+
     const QChar *p = nullptr;
     qsizetype n = 0;
 };

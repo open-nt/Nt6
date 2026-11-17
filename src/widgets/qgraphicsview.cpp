@@ -110,6 +110,7 @@ void QGraphicsView::Private::sceneDirty(const QRectF &rect) {
 QGraphicsView::QGraphicsView(QWidget *parent) : QAbstractScrollArea(parent), d(std::make_unique<Private>()) {
     d->q = this;
     setFocusPolicy(Qt::StrongFocus);
+    setAcceptDrops(true);
     viewport()->setMouseTracking(true);
     QObject::connect(horizontalScrollBar(), &QScrollBar::valueChanged, this, [this] { viewport()->update(); });
     QObject::connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this] { viewport()->update(); });
@@ -810,6 +811,108 @@ void QGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
 */
 void QGraphicsView::mouseDoubleClickEvent(QMouseEvent *event) {
     sendMouse(event, QEvent::GraphicsSceneMouseDoubleClick);
+}
+
+namespace {
+
+// Turns a drag event of the viewport, `event` at `pos`, into one of `type` for the scene, and sends it.
+void sendSceneDrag(QGraphicsView *view, QDropEvent *event, QEvent::Type type) {
+    QGraphicsSceneDragDropEvent e(type);
+    e.setWidget(view->viewport());
+    e.setScenePos(view->mapToScene(event->position().toPoint()));
+    e.setScreenPos(QPointF(view->viewport()->mapToGlobal(event->position().toPoint())));
+    e.setButtons(event->buttons());
+    e.setModifiers(event->modifiers());
+    e.setPossibleActions(event->possibleActions());
+    e.setProposedAction(event->proposedAction());
+    e.setDropAction(event->dropAction());
+    e.setSource(qobject_cast<QWidget *>(event->source()));
+    e.setMimeData(event->mimeData());
+    QCoreApplication::sendEvent(view->scene(), &e);
+    event->setDropAction(e.dropAction());
+    event->setAccepted(e.isAccepted());
+}
+
+} // namespace
+
+/*!
+    \reimp
+    \since 6.0
+
+    Gives the drag \a event to the scene, as a QGraphicsSceneDragDropEvent. A view takes drops by default, so the
+    scene and its items decide.
+*/
+void QGraphicsView::dragEnterEvent(QDragEnterEvent *event) {
+    if (!scene() || !isInteractive()) {
+        event->ignore();
+        return;
+    }
+    sendSceneDrag(this, event, QEvent::GraphicsSceneDragEnter);
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Gives the drag \a event to the scene.
+*/
+void QGraphicsView::dragMoveEvent(QDragMoveEvent *event) {
+    if (!scene() || !isInteractive()) {
+        event->ignore();
+        return;
+    }
+    sendSceneDrag(this, event, QEvent::GraphicsSceneDragMove);
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Tells the scene that the drag, \a event, left the view.
+*/
+void QGraphicsView::dragLeaveEvent(QDragLeaveEvent *event) {
+    (void)event;
+    if (!scene())
+        return;
+    QGraphicsSceneDragDropEvent e(QEvent::GraphicsSceneDragLeave);
+    e.setWidget(viewport());
+    QCoreApplication::sendEvent(scene(), &e);
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Gives the drop \a event to the scene.
+*/
+void QGraphicsView::dropEvent(QDropEvent *event) {
+    if (!scene() || !isInteractive()) {
+        event->ignore();
+        return;
+    }
+    sendSceneDrag(this, event, QEvent::GraphicsSceneDrop);
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Gives the request for a context menu, \a event, to the scene as a QGraphicsSceneContextMenuEvent, which goes to
+    the items under it. The event is accepted if an item accepted it.
+*/
+void QGraphicsView::contextMenuEvent(QContextMenuEvent *event) {
+    if (!scene() || !isInteractive()) {
+        event->ignore();
+        return;
+    }
+    QGraphicsSceneContextMenuEvent sceneEvent(QEvent::GraphicsSceneContextMenu);
+    sceneEvent.setWidget(viewport());
+    sceneEvent.setScenePos(mapToScene(event->pos()));
+    sceneEvent.setScreenPos(event->globalPos());
+    sceneEvent.setModifiers(event->modifiers());
+    sceneEvent.setReason(static_cast<QGraphicsSceneContextMenuEvent::Reason>(event->reason()));
+    QCoreApplication::sendEvent(scene(), &sceneEvent);
+    event->setAccepted(sceneEvent.isAccepted());
 }
 
 /*!

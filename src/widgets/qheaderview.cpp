@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qheaderview.h>
 
+#include <QtWidgets/qtooltip.h>
+
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qstyle.h>
@@ -92,6 +94,8 @@ int QHeaderView::lastVisible() const {
 int QHeaderView::sectionSize(int logicalIndex) const {
     if (logicalIndex < 0 || logicalIndex >= count() || m_hidden[static_cast<std::size_t>(logicalIndex)])
         return 0;
+    if (stretchSectionCount() > 0)
+        return effectiveSizes()[static_cast<std::size_t>(logicalIndex)];
     const int size = storedSize(logicalIndex);
     if (m_stretchLast && logicalIndex == lastVisible()) {
         const int available = (m_orientation == Qt::Horizontal ? width() : height()) - sectionPosition(logicalIndex);
@@ -108,6 +112,12 @@ int QHeaderView::sectionSize(int logicalIndex) const {
 */
 int QHeaderView::sectionPosition(int logicalIndex) const {
     int position = 0;
+    if (stretchSectionCount() > 0) {
+        const std::vector<int> sizes = effectiveSizes();
+        for (int i = 0; i < std::min(logicalIndex, count()); ++i)
+            position += sizes[static_cast<std::size_t>(i)];
+        return position;
+    }
     for (int i = 0; i < std::min(logicalIndex, count()); ++i) {
         if (!m_hidden[static_cast<std::size_t>(i)])
             position += storedSize(i);
@@ -303,10 +313,113 @@ int QHeaderView::hiddenSectionCount() const {
     return static_cast<int>(std::count(m_hidden.begin(), m_hidden.end(), static_cast<char>(1)));
 }
 
+/*!
+    \enum QHeaderView::ResizeMode
+    \since 6.0
+
+    This enum tells how the size of a section is decided.
+
+    \value Interactive The user resizes the section by dragging its edge, and resizeSection() sets its size. This is
+           the default.
+    \value Stretch The sections in this mode share the space that the other sections leave, and the user cannot
+           resize them.
+    \value Custom The size is set with resizeSection(); the user cannot resize the section.
+    \value ResizeToContents The section is as large as the contents of its column or row need, measured when the
+           view lays its items out; the user cannot resize it.
+    \value Fixed The same as Custom.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the resize mode of every section, and of the sections added later, to \a mode.
+
+    \sa sectionResizeMode()
+*/
+void QHeaderView::setSectionResizeMode(QHeaderView::ResizeMode mode) {
+    m_defaultMode = mode;
+    std::fill(m_modes.begin(), m_modes.end(), static_cast<char>(mode));
+    updateGeometry();
+    update();
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Sets the resize mode of the section \a logicalIndex to \a mode.
+*/
+void QHeaderView::setSectionResizeMode(int logicalIndex, QHeaderView::ResizeMode mode) {
+    if (logicalIndex < 0 || logicalIndex >= count())
+        return;
+    m_modes[static_cast<std::size_t>(logicalIndex)] = static_cast<char>(mode);
+    updateGeometry();
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the resize mode of the section \a logicalIndex; Interactive for a section that does not exist.
+
+    \sa setSectionResizeMode()
+*/
+QHeaderView::ResizeMode QHeaderView::sectionResizeMode(int logicalIndex) const {
+    if (logicalIndex < 0 || logicalIndex >= count())
+        return Interactive;
+    return static_cast<ResizeMode>(m_modes[static_cast<std::size_t>(logicalIndex)]);
+}
+
+/*!
+    \since 6.0
+
+    Returns the number of sections that are shown in Stretch mode.
+*/
+int QHeaderView::stretchSectionCount() const {
+    int n = 0;
+    for (std::size_t i = 0; i < m_modes.size(); ++i)
+        n += m_modes[i] == static_cast<char>(Stretch) && !m_hidden[i] ? 1 : 0;
+    return n;
+}
+
+std::vector<int> QHeaderView::effectiveSizes() const {
+    std::vector<int> sizes(m_sizes.size(), 0);
+    int fixed = 0, stretch = 0;
+    for (std::size_t i = 0; i < m_sizes.size(); ++i) {
+        if (m_hidden[i])
+            continue;
+        if (m_modes[i] == static_cast<char>(Stretch)) {
+            ++stretch;
+        } else {
+            sizes[i] = m_sizes[i];
+            fixed += m_sizes[i];
+        }
+    }
+    const int available = (m_orientation == Qt::Horizontal ? width() : height()) - fixed;
+    int share = stretch > 0 ? std::max(m_minimumSize, available / stretch) : 0;
+    int left = stretch > 0 ? std::max(available, share * stretch) - share * stretch : 0; // spread the remainder
+    for (std::size_t i = 0; i < m_sizes.size(); ++i) {
+        if (m_hidden[i] || m_modes[i] != static_cast<char>(Stretch))
+            continue;
+        sizes[i] = share + (left > 0 ? 1 : 0);
+        left = std::max(0, left - 1);
+    }
+    return sizes;
+}
+
+std::vector<int> QHeaderView::contentsSections() const {
+    std::vector<int> out;
+    for (std::size_t i = 0; i < m_modes.size(); ++i)
+        if (m_modes[i] == static_cast<char>(ResizeToContents) && !m_hidden[i])
+            out.push_back(static_cast<int>(i));
+    return out;
+}
+
 void QHeaderView::setCount(int newCount) {
     newCount = std::max(0, newCount);
     m_sizes.resize(static_cast<std::size_t>(newCount), m_defaultSize);
     m_hidden.resize(static_cast<std::size_t>(newCount), 0);
+    m_modes.resize(static_cast<std::size_t>(newCount), static_cast<char>(m_defaultMode));
     updateGeometry();
     update();
 }
@@ -315,6 +428,7 @@ void QHeaderView::insertSections(int logicalIndex, int number) {
     logicalIndex = std::clamp(logicalIndex, 0, count());
     m_sizes.insert(m_sizes.begin() + logicalIndex, static_cast<std::size_t>(number), m_defaultSize);
     m_hidden.insert(m_hidden.begin() + logicalIndex, static_cast<std::size_t>(number), 0);
+    m_modes.insert(m_modes.begin() + logicalIndex, static_cast<std::size_t>(number), static_cast<char>(m_defaultMode));
     if (logicalIndex < m_labels.size())
         m_labels.insert(logicalIndex, number, QString());
     updateGeometry();
@@ -326,6 +440,7 @@ void QHeaderView::removeSections(int logicalIndex, int number) {
     number = std::min(number, count() - logicalIndex);
     m_sizes.erase(m_sizes.begin() + logicalIndex, m_sizes.begin() + logicalIndex + number);
     m_hidden.erase(m_hidden.begin() + logicalIndex, m_hidden.begin() + logicalIndex + number);
+    m_modes.erase(m_modes.begin() + logicalIndex, m_modes.begin() + logicalIndex + number);
     if (logicalIndex < m_labels.size())
         m_labels.remove(logicalIndex, std::min<qsizetype>(number, m_labels.size() - logicalIndex));
     updateGeometry();
@@ -371,7 +486,7 @@ int QHeaderView::edgeAt(const QPoint &pos) const {
         end += sectionSize(i);
         if (m_stretchLast && i == last)
             break;
-        if (std::abs(along - end) <= 2)
+        if (std::abs(along - end) <= 2 && sectionResizeMode(i) == Interactive)
             return i;
     }
     return -1;
@@ -535,8 +650,30 @@ void QHeaderView::setSortIndicator(int logicalIndex, Qt::SortOrder order) {
 */
 void QHeaderView::resizeEvent(QResizeEvent *event) {
     (void)event;
-    if (m_stretchLast)
+    if (m_stretchLast || stretchSectionCount() > 0)
         update();
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Shows the tool tip of the section under the mouse for a QEvent::ToolTip \a event: the tool tip of the header
+    item of a QTableWidget. Other events go to the base class.
+*/
+bool QHeaderView::event(QEvent *event) {
+    if (event->type() == QEvent::ToolTip) {
+        auto *help = static_cast<QHelpEvent *>(event);
+        const int section = logicalIndexAt(m_orientation == Qt::Horizontal ? help->pos().x() : help->pos().y());
+        if (section >= 0 && section < m_toolTips.size() && !m_toolTips.at(section).isEmpty()) {
+            QToolTip::showText(help->globalPos(), m_toolTips.at(section), this);
+            return true;
+        }
+        QToolTip::hideText();
+        event->ignore();
+        return true;
+    }
+    return QWidget::event(event);
 }
 
 #include "moc_qheaderview.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

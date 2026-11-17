@@ -24,7 +24,8 @@ public:
         Format_RGB888 = 13,
         Format_RGBX8888 = 16,
         Format_RGBA8888 = 17,
-        Format_RGBA8888_Premultiplied = 18
+        Format_RGBA8888_Premultiplied = 18,
+        Format_Grayscale8 = 24
     };
 
     QImage() noexcept;

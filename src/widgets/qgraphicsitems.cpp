@@ -1080,14 +1080,17 @@ QTextCursor QGraphicsTextItem::textCursor() const { return QTextCursor(); }
     \brief The QGraphicsItemGroup class moves, transforms and shows a set of items as one.
 
     \differences
-    The group does not take the events of its items.
+    None. As in Qt, the group takes the mouse events of its items; setHandlesChildEvents(false) gives them back.
     \enddifferences
 */
 
 /*!
     Constructs an empty group with the given \a parent.
 */
-QGraphicsItemGroup::QGraphicsItemGroup(QGraphicsItem *parent) : QGraphicsItem(parent) { setFlag(ItemHasNoContents); }
+QGraphicsItemGroup::QGraphicsItemGroup(QGraphicsItem *parent) : QGraphicsItem(parent) {
+    setFlag(ItemHasNoContents);
+    setHandlesChildEvents(true);
+}
 
 /*!
     Destroys the group and its items.

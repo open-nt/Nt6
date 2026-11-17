@@ -35,6 +35,8 @@ struct QGraphicsItem::Private {
     bool explicitlyDisabled = false;
     bool selected = false;
     bool acceptHover = false;
+    bool handlesChildEvents = false; // the item takes the mouse events of its descendants
+    bool acceptDrops = false;
     bool acceptTouch = false;
     bool underMouse = false;
     bool wantsFocus = false; // setFocus() before the item was in a scene
@@ -85,6 +87,7 @@ struct QGraphicsScene::Private {
     ItemIndexMethod indexMethod = BspTreeIndex;
     QGraphicsItem *focusItem = nullptr;
     QGraphicsItem *grabber = nullptr;
+    QGraphicsItem *dropItem = nullptr; // the item a drag is over, which accepted it
     QGraphicsItem *keyboardGrabber = nullptr;
     QList<QGraphicsItem *> hoverItems; // from the outermost to the innermost
     QList<QGraphicsView *> views;

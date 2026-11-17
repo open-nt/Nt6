@@ -208,6 +208,17 @@ int QProxyStyle::styleHint(StyleHint hint, const QStyleOption *option, const QWi
 
 /*!
     \reimp
+    \since 6.0
+
+    Returns the standard icon \a standardIcon of the base style for \a option and \a widget.
+*/
+QIcon QProxyStyle::standardIcon(StandardPixmap standardIcon, const QStyleOption *option, const QWidget *widget) const {
+    return m_base ? m_base->standardIcon(standardIcon, option, widget)
+                  : QStyle::standardIcon(standardIcon, option, widget);
+}
+
+/*!
+    \reimp
 */
 QPixmap QProxyStyle::standardPixmap(StandardPixmap standardPixmap, const QStyleOption *option,
                                     const QWidget *widget) const {

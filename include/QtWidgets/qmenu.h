@@ -6,6 +6,7 @@
 #include <QtGui/qaction.h>
 #include <QtWidgets/qwidget.h>
 
+#include <type_traits>
 #include <vector>
 
 class QMenuBar;
@@ -23,6 +24,24 @@ public:
     template <typename Functor> QAction *addAction(const QString &text, Functor functor) {
         QAction *action = addAction(text);
         QObject::connect(action, &QAction::triggered, action, std::move(functor));
+        return action;
+    }
+    QAction *addAction(const QIcon &icon, const QString &text);
+    template <typename Functor> QAction *addAction(const QIcon &icon, const QString &text, Functor functor) {
+        QAction *action = addAction(icon, text);
+        QObject::connect(action, &QAction::triggered, action, std::move(functor));
+        return action;
+    }
+    QAction *addAction(const QString &text, const QObject *receiver, const char *member,
+                       const QKeySequence &shortcut = QKeySequence());
+    template <typename Receiver, typename Functor,
+              typename = std::enable_if_t<std::is_base_of_v<QObject, Receiver> &&
+                                          !std::is_convertible_v<Functor, const char *>>>
+    QAction *addAction(const QString &text, const Receiver *receiver, Functor functor,
+                       const QKeySequence &shortcut = QKeySequence()) {
+        QAction *action = addAction(text);
+        action->setShortcut(shortcut);
+        QObject::connect(action, &QAction::triggered, receiver, std::move(functor));
         return action;
     }
     QAction *addMenu(QMenu *menu);

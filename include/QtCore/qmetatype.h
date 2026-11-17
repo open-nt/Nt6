@@ -1181,3 +1181,5 @@ template <typename T> constexpr const AssociativeInterface *associativeOf() {
 
 // The definitions of SequenceInterfaceFor<C>::metaSequence() and AssociativeInterfaceFor<C>::metaAssociation().
 #include <QtCore/qmetacontainer.h>
+// QDataStream, which Qt's qmetatype.h brings in for the stream operators of the meta-type system.
+#include <QtCore/qdatastream.h> // NOLINT(misc-header-include-cycle)

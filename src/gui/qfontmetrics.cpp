@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtGui/qfontmetrics.h>
+#include <QtGui/qpaintdevice.h>
 
 #include "qfontengine_p.h"
 #include "qtextlayout_p.h"
@@ -34,6 +35,24 @@
     Constructs font metrics for \a font.
 */
 QFontMetrics::QFontMetrics(const QFont &font) : m_engine(QFontEngine::create(font)) {}
+
+namespace {
+// Font sizes on `device` are in its pixels: a point is device->logicalDpiY() / 72 of them.
+double dpiScale(const QPaintDevice *device) {
+    const int dpi = device ? device->logicalDpiY() : 96;
+    return dpi > 0 ? dpi / 96.0 : 1.0;
+}
+} // namespace
+
+/*!
+    \since 6.0
+
+    Constructs metrics for \a font on \a paintdevice, in its pixels: on a
+    QPdfWriter of 300 dots per inch, a 12 point font is 50 pixels high. A
+    null \a paintdevice gives the metrics of the screen.
+*/
+QFontMetrics::QFontMetrics(const QFont &font, const QPaintDevice *paintdevice)
+    : m_engine(QFontEngine::create(font, dpiScale(paintdevice))) {}
 
 /*!
     Constructs a copy of \a other.
@@ -227,6 +246,15 @@ QString QFontMetrics::elidedText(const QString &text, Qt::TextElideMode mode, in
     Constructs font metrics for \a font.
 */
 QFontMetricsF::QFontMetricsF(const QFont &font) : m_engine(QFontEngine::create(font)) {}
+
+/*!
+    \since 6.0
+
+    Constructs fractional metrics for \a font on \a paintdevice, in its
+    pixels. A null \a paintdevice gives the metrics of the screen.
+*/
+QFontMetricsF::QFontMetricsF(const QFont &font, const QPaintDevice *paintdevice)
+    : m_engine(QFontEngine::create(font, dpiScale(paintdevice))) {}
 
 /*!
     Constructs fractional metrics for the font of \a other.

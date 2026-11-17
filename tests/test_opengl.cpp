@@ -1,8 +1,8 @@
 // MIT License - see LICENSE
 //
 // Tests for OpenGL in Nt: QSurfaceFormat, QOpenGLContext with QOffscreenSurface, QOpenGLFunctions, framebuffer
-// objects, QPainter through QOpenGLPaintDevice compared with the raster engine, and QOpenGLWindow on the offscreen
-// platform. Everything after the format tests is skipped when there is no OpenGL (no EGL, or no driver).
+// objects, buffers, vertex array objects and QOpenGLExtraFunctions, QPainter through QOpenGLPaintDevice compared with
+// the raster engine, and QOpenGLWindow on the offscreen platform. Everything after the format tests is skipped when there is no OpenGL (no EGL, or no driver).
 #include <QtCore/qelapsedtimer.h>
 #include <QtGui/QtGui>
 #include <QtOpenGL/QtOpenGL>
@@ -284,6 +284,184 @@ static void testFramebuffer(QOpenGLContext &context) {
     }
 }
 
+// A quad from a vertex buffer and an index buffer, set up in a vertex array object, drawn in green.
+static void testBuffersAndVertexArrays(QOpenGLContext &context) {
+    QOpenGLFunctions *f = context.functions();
+    QOpenGLBuffer unset;
+    CHECK(unset.type() == QOpenGLBuffer::VertexBuffer);
+    CHECK(unset.usagePattern() == QOpenGLBuffer::StaticDraw);
+    CHECK(!unset.isCreated() && unset.bufferId() == 0 && unset.size() == -1);
+
+    QOpenGLBuffer vertices(QOpenGLBuffer::VertexBuffer);
+    QOpenGLBuffer indices(QOpenGLBuffer::IndexBuffer);
+    CHECK(indices.type() == QOpenGLBuffer::IndexBuffer);
+    QOpenGLVertexArrayObject vao;
+    CHECK(!vao.isCreated() && vao.objectId() == 0);
+    CHECK(vao.create());
+    CHECK(vao.isCreated() && vao.objectId() != 0);
+    const GLfloat quad[] = {-1.0f, -1.0f, 1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 1.0f};
+    const GLushort order[] = {0, 1, 2, 0, 2, 3};
+    {
+        QOpenGLVertexArrayObject::Binder binder(&vao);
+        GLint bound = 0;
+        f->glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &bound);
+        CHECK(static_cast<GLuint>(bound) == vao.objectId());
+        CHECK(vertices.create() && vertices.isCreated() && vertices.bufferId() != 0);
+        CHECK(vertices.bind());
+        vertices.allocate(quad, static_cast<int>(sizeof quad));
+        CHECK(vertices.size() == static_cast<int>(sizeof quad));
+        f->glEnableVertexAttribArray(0);
+        f->glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
+        CHECK(indices.create() && indices.bind());
+        indices.allocate(order, static_cast<int>(sizeof order));
+    }
+    GLint bound = -1;
+    f->glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &bound);
+    CHECK(bound == 0);
+    QOpenGLBuffer::release(QOpenGLBuffer::VertexBuffer);
+
+    QOpenGLFramebufferObject fbo(QSize(8, 8));
+    CHECK(fbo.bind());
+    f->glViewport(0, 0, 8, 8);
+    f->glClearColor(0, 0, 0, 1);
+    f->glClear(GL_COLOR_BUFFER_BIT);
+    QOpenGLShaderProgram program;
+    CHECK(program.addShaderFromSourceCode(QOpenGLShader::Vertex,
+                                          "attribute highp vec2 aPos;\n"
+                                          "void main() { gl_Position = vec4(aPos, 0.0, 1.0); }\n"));
+    CHECK(program.addShaderFromSourceCode(QOpenGLShader::Fragment,
+                                          "void main() { gl_FragColor = vec4(0.0, 1.0, 0.0, 1.0); }\n"));
+    program.bindAttributeLocation("aPos", 0);
+    CHECK(program.link() && program.bind());
+    {
+        QOpenGLVertexArrayObject::Binder binder(&vao);
+        f->glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_SHORT, nullptr);
+    }
+    program.release();
+    const QImage image = fbo.toImage();
+    CHECK(color(image.pixel(1, 1), 0, 255, 0) && color(image.pixel(6, 6), 0, 255, 0));
+    fbo.release();
+
+    // Reading, writing and mapping.
+    CHECK(vertices.bind());
+    GLfloat back[8] = {};
+    CHECK(vertices.read(0, back, static_cast<int>(sizeof back)));
+    CHECK(back[0] == -1.0f && back[5] == 1.0f);
+    const GLfloat replacement[2] = {0.25f, 0.5f};
+    vertices.write(2 * static_cast<int>(sizeof(GLfloat)), replacement, static_cast<int>(sizeof replacement));
+    CHECK(vertices.read(0, back, static_cast<int>(sizeof back)));
+    CHECK(back[2] == 0.25f && back[3] == 0.5f && back[4] == 1.0f);
+    if (auto *mapped = static_cast<GLfloat *>(vertices.map(QOpenGLBuffer::ReadWrite))) {
+        CHECK(mapped[2] == 0.25f);
+        mapped[7] = 4.0f;
+        CHECK(vertices.unmap());
+        CHECK(vertices.read(0, back, static_cast<int>(sizeof back)) && back[7] == 4.0f);
+    } else {
+        CHECK(context.isOpenGLES()); // desktop OpenGL always maps
+    }
+    if (context.format().majorVersion() >= 3) {
+        auto *range = static_cast<GLfloat *>(
+            vertices.mapRange(0, 2 * static_cast<int>(sizeof(GLfloat)), QOpenGLBuffer::RangeWrite));
+        CHECK(range != nullptr);
+        if (range) {
+            range[0] = 9.0f;
+            CHECK(vertices.unmap());
+            CHECK(vertices.read(0, back, static_cast<int>(sizeof back)) && back[0] == 9.0f);
+        }
+    }
+    vertices.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+    CHECK(vertices.usagePattern() == QOpenGLBuffer::DynamicDraw);
+    vertices.allocate(64);
+    CHECK(vertices.size() == 64);
+    vertices.release();
+
+    // Copies share the OpenGL buffer, and the last one deletes it.
+    QOpenGLBuffer copy = vertices;
+    CHECK(copy.bufferId() == vertices.bufferId());
+    const GLuint name = vertices.bufferId();
+    vertices = QOpenGLBuffer();
+    CHECK(copy.isCreated() && f->glIsBuffer(name));
+    copy.destroy();
+    CHECK(!copy.isCreated() && !f->glIsBuffer(name));
+
+    // Without the context current, the objects make it current to delete what they hold.
+    GLuint orphan = 0;
+    GLuint orphanVao = 0;
+    QSurface *surface = context.surface();
+    {
+        QOpenGLBuffer buffer;
+        CHECK(buffer.create() && buffer.bind());
+        buffer.allocate(16);
+        buffer.release();
+        orphan = buffer.bufferId();
+        QOpenGLVertexArrayObject array;
+        CHECK(array.create());
+        orphanVao = array.objectId();
+        context.doneCurrent();
+        CHECK(QOpenGLContext::currentContext() == nullptr);
+    }
+    CHECK(QOpenGLContext::currentContext() == nullptr);
+    CHECK(context.makeCurrent(surface));
+    CHECK(!f->glIsBuffer(orphan));
+    CHECK(context.extraFunctions()->glIsVertexArray(orphanVao) == GL_FALSE);
+    vao.destroy();
+    CHECK(!vao.isCreated());
+}
+
+class ExtraUser : protected QOpenGLExtraFunctions {
+public:
+    bool run() {
+        initializeOpenGLFunctions();
+        GLuint vao = 0;
+        glGenVertexArrays(1, &vao);
+        glBindVertexArray(vao);
+        const bool ok = vao != 0 && glIsVertexArray(vao) == GL_TRUE;
+        glBindVertexArray(0);
+        glDeleteVertexArrays(1, &vao);
+        glClearColor(0, 0, 0, 1); // a function of OpenGL ES 2.0, through the base class
+        return ok && glGetError() == GL_NO_ERROR;
+    }
+};
+
+static void testExtraFunctions(QOpenGLContext &context) {
+    QOpenGLExtraFunctions *e = context.extraFunctions();
+    CHECK(e != nullptr);
+    CHECK(context.extraFunctions() == e);
+    if (context.format().majorVersion() < 3) {
+        std::puts("SKIP: QOpenGLExtraFunctions needs OpenGL 3");
+        return;
+    }
+    CHECK(e->glGetStringi(GL_EXTENSIONS, 0) != nullptr);
+    GLint64 maxSize = 0;
+    e->glGetInteger64v(GL_MAX_TEXTURE_SIZE, &maxSize);
+    CHECK(maxSize >= 1024);
+    ExtraUser user;
+    CHECK(user.run());
+
+    // Blit from one framebuffer object to another, and clear one with glClearBufferfv().
+    QOpenGLFramebufferObject source(QSize(8, 8));
+    QOpenGLFramebufferObject target(QSize(8, 8));
+    CHECK(source.bind());
+    const GLfloat red[] = {1.0f, 0.0f, 0.0f, 1.0f};
+    e->glClearBufferfv(GL_COLOR, 0, red);
+    e->glBindFramebuffer(GL_READ_FRAMEBUFFER, source.handle());
+    e->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, target.handle());
+    e->glBlitFramebuffer(0, 0, 8, 8, 0, 0, 8, 8, GL_COLOR_BUFFER_BIT, GL_NEAREST);
+    CHECK(target.bind());
+    CHECK(color(target.toImage().pixel(4, 4), 255, 0, 0));
+    const GLenum attachments[] = {GL_COLOR_ATTACHMENT0};
+    e->glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, attachments);
+
+    // A fence that the finished work has signalled.
+    GLsync sync = e->glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+    CHECK(sync != nullptr && e->glIsSync(sync));
+    const GLenum waited = e->glClientWaitSync(sync, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000);
+    CHECK(waited == GL_ALREADY_SIGNALED || waited == GL_CONDITION_SATISFIED);
+    e->glDeleteSync(sync);
+    target.release();
+    CHECK(e->glGetError() == GL_NO_ERROR);
+}
+
 // Paints the scene through OpenGL into a framebuffer object with `samples` and returns it.
 static QImage glScene(int samples, bool antialias) {
     QOpenGLFramebufferObjectFormat format;
@@ -548,6 +726,15 @@ static void testWithFormat(const char *name, const QSurfaceFormat &format, QOffs
         return;
     }
     std::printf("%s: %s\n", name, reinterpret_cast<const char *>(context.functions()->glGetString(GL_VERSION)));
+    QOpenGLVertexArrayObject vao;
+    CHECK(vao.create() || context.format().majorVersion() < 3);
+    if (vao.isCreated()) {
+        QOpenGLVertexArrayObject::Binder binder(&vao);
+        GLint bound = 0;
+        context.functions()->glGetIntegerv(GL_VERTEX_ARRAY_BINDING, &bound);
+        CHECK(static_cast<GLuint>(bound) == vao.objectId());
+    }
+    testExtraFunctions(context);
     const double diff = difference(rasterScene(), glScene(0, false));
     std::printf("%s against raster: %.2f%% of the pixels differ\n", name, diff * 100);
     CHECK(diff < 0.02);
@@ -570,6 +757,8 @@ int main(int argc, char *argv[]) {
     testContext(surface, context);
     testShaderProgram(context);
     testFramebuffer(context);
+    testBuffersAndVertexArrays(context);
+    testExtraFunctions(context);
     testPainting();
     testFillRules();
     testImages();

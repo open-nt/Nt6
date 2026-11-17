@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qabstractbutton.h>
+#include <QtWidgets/qstyle.h>
 
 #include <QtCore/qpointer.h>
 #include <QtGui/qevent.h>
@@ -20,8 +21,7 @@
     \endcode
 
     \differences
-    There are no icons, shortcuts (\c setShortcut()), auto-repeat, \c animateClick(), \c setIcon() or
-    \c setIconSize().
+    There are no shortcuts (\c setShortcut()), auto-repeat or \c animateClick().
     \enddifferences
 
     \sa QPushButton, QCheckBox
@@ -57,6 +57,52 @@ void QAbstractButton::setText(const QString &text) {
     if (m_text == text)
         return;
     m_text = text;
+    updateGeometry();
+    update();
+}
+
+/*!
+    \fn QIcon QAbstractButton::icon() const
+    \since 6.0
+
+    Returns the icon of the button; a null icon if it has none.
+
+    \sa setIcon(), iconSize()
+*/
+
+/*!
+    \since 6.0
+
+    Sets the icon of the button to \a icon, which is shown before its text, in iconSize().
+*/
+void QAbstractButton::setIcon(const QIcon &icon) {
+    m_icon = icon;
+    updateGeometry();
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the size the icon is shown in: what setIconSize() set, or the button icon size of the style, 16 by 16
+    pixels in Nt's styles.
+*/
+QSize QAbstractButton::iconSize() const {
+    if (m_iconSize.isValid())
+        return m_iconSize;
+    const int extent = style()->pixelMetric(QStyle::PM_ButtonIconSize, nullptr, this);
+    return QSize(extent > 0 ? extent : 16, extent > 0 ? extent : 16);
+}
+
+/*!
+    \since 6.0
+
+    Sets the size the icon is shown in to \a size; the icon is scaled down to fit, never up.
+*/
+void QAbstractButton::setIconSize(const QSize &size) {
+    if (m_iconSize == size)
+        return;
+    m_iconSize = size;
     updateGeometry();
     update();
 }

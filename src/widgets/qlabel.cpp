@@ -38,8 +38,8 @@
 
     \differences
     The label shows plain text, rich text or a pixmap: no movies, Markdown, selection of the text, links
-    reached with the keys, or buddies. It has no frame (it is not a QFrame), \c indent(),
-    \c textInteractionFlags() or \c setBuddy(). Nothing opens a link for openExternalLinks(): a click emits
+    reached with the keys, or buddies. It has no frame (it is not a QFrame), \c indent() or \c setBuddy().
+    Of the textInteractionFlags(), only Qt::LinksAccessibleByMouse has an effect. Nothing opens a link for openExternalLinks(): a click emits
     linkActivated() with or without it. Rich text is placed as a whole by the alignment of the label; its
     paragraphs are aligned by their own HTML. A word-wrapped label has no height-for-width, so its size
     hint is that of the text with the lines that it has without the wrapping.
@@ -108,6 +108,23 @@ void QLabel::setTextFormat(Qt::TextFormat format) {
     updateGeometry();
     update();
 }
+
+/*!
+    \fn Qt::TextInteractionFlags QLabel::textInteractionFlags() const
+    \since 6.0
+
+    Returns how the user can interact with the text. The default is Qt::LinksAccessibleByMouse.
+
+    \sa setTextInteractionFlags()
+*/
+
+/*!
+    \fn void QLabel::setTextInteractionFlags(Qt::TextInteractionFlags flags)
+    \since 6.0
+
+    Sets how the user can interact with the text to \a flags. Without Qt::LinksAccessibleByMouse, clicking a
+    link emits nothing. Selecting and editing the text are not supported.
+*/
 
 /*!
     \fn bool QLabel::openExternalLinks() const
@@ -378,7 +395,8 @@ void QLabel::changeEvent(QEvent *event) {
     A press on a link is the start of a click on it.
 */
 void QLabel::mousePressEvent(QMouseEvent *event) {
-    m_pressed = event->button() == Qt::LeftButton ? linkAt(event->pos()) : QString();
+    m_pressed = event->button() == Qt::LeftButton && (m_interaction & Qt::LinksAccessibleByMouse) ? linkAt(event->pos())
+                                                                                                  : QString();
     if (m_pressed.isEmpty())
         event->ignore();
     else

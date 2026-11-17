@@ -16,6 +16,7 @@
 #include <QtGui/qpixmap.h>
 #include <QtGui/qpolygon.h>
 #include <QtGui/qregion.h>
+#include <QtGui/qtextoption.h>
 #include <QtGui/qtransform.h>
 
 #include <memory>
@@ -75,7 +76,15 @@ public:
     void setWorldTransform(const QTransform &matrix, bool combine = false) { setTransform(matrix, combine); }
     const QTransform &worldTransform() const { return transform(); }
     QTransform deviceTransform() const;
-    QTransform combinedTransform() const { return transform(); }
+    QTransform combinedTransform() const;
+    QRect window() const;
+    void setWindow(const QRect &window);
+    void setWindow(int x, int y, int w, int h) { setWindow(QRect(x, y, w, h)); }
+    QRect viewport() const;
+    void setViewport(const QRect &viewport);
+    void setViewport(int x, int y, int w, int h) { setViewport(QRect(x, y, w, h)); }
+    void setViewTransformEnabled(bool enable);
+    bool viewTransformEnabled() const;
     void setWorldMatrixEnabled(bool enabled);
     bool worldMatrixEnabled() const;
 
@@ -194,6 +203,7 @@ public:
     }
     void drawText(const QPointF &position, const QString &text);
     void drawText(const QRectF &rectangle, int flags, const QString &text, QRectF *boundingRect = nullptr);
+    void drawText(const QRectF &rectangle, const QString &text, const QTextOption &option = QTextOption());
 
     void drawPoint(const QPoint &point);
     void drawPoint(int x, int y) { drawPoint(QPoint(x, y)); }

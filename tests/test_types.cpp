@@ -1731,6 +1731,19 @@ static void testRectF() {
 
 static void testStringView() {
     CHECK(QStringView().isNull() && QStringView().isEmpty() && QStringView().size() == 0);
+    // Against Latin-1 strings, as QXmlStreamReader code compares name() with QLatin1String.
+    {
+        const QString name = QStringLiteral("IClass");
+        const QStringView v(name);
+        CHECK(v == QLatin1String("IClass") && QLatin1String("IClass") == v);
+        CHECK(v != QLatin1String("IClas") && v != QLatin1String("IClassX") && QLatin1String("IType") != v);
+        CHECK(v < QLatin1String("IType") && QLatin1String("IType") > v && v <= QLatin1String("IClass"));
+        CHECK(v >= QLatin1String("IClass") && QLatin1String("IClas") < v && QLatin1String("IClas") <= v);
+        CHECK(QStringView(u"\u00e9") == QLatin1String("\xe9")); // Latin-1 e acute
+        CHECK(QStringView(u"\u0100") > QLatin1String("\xff"));
+        CHECK(QStringView() == QLatin1String("") && QStringView(u"a") > QLatin1String(""));
+        CHECK(name == QLatin1String("IClass")); // QString still compares as before
+    }
     CHECK(QStringView(nullptr).isNull());
     CHECK(QStringView(u"").isEmpty() && !QStringView(u"").isNull());
     const QString s("Hello, World");
@@ -2714,6 +2727,16 @@ static void testMoreCoreApi() {
         CHECK(o.testAnyFlag(Opt::C) && !o.testAnyFlag(Opt::B) && !o.testAnyFlag(Opt::None));
         CHECK(o.testAnyFlags(Opts(Opt::B) | Opt::C) && !o.testAnyFlags(Opt::B));
         CHECK(Opts().testFlags(Opts()) && !o.testFlags(Opts()));
+    }
+    // Masks given as integers, as QStyle code writes "state &= ~QStyle::State_Selected" for an unscoped enum.
+    {
+        enum Plain { P1 = 0x1, P2 = 0x2, P4 = 0x4 };
+        QFlags<Plain> f = QFlags<Plain>(P1) | P2 | P4;
+        f &= ~P2;
+        CHECK(f.toInt() == 5);
+        CHECK((f & 0x4).toInt() == 4 && (f & 0x2u).toInt() == 0);
+        f &= 0x1u;
+        CHECK(f.toInt() == 1);
     }
     // QSharedPointer and QWeakPointer
     {

@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtGui/qcursor.h>
 #include <QtGui/qguiapplication.h>
+#include <QtGui/qicon.h>
 
 #include "qfont_p.h"
 #include "qpa/qplatformintegration_p.h"
@@ -214,6 +215,80 @@ QWindow *QGuiApplication::focusWindow() { return g_state ? g_state->focus : null
 Qt::KeyboardModifiers QGuiApplication::keyboardModifiers() {
     return g_state ? g_state->modifiers : Qt::KeyboardModifiers();
 }
+
+/*!
+    \since 6.0
+
+    Returns the screen whose geometry contains \a point, in virtual desktop coordinates, or \c nullptr if no
+    screen does.
+
+    \sa screens(), QScreen::geometry()
+*/
+QScreen *QGuiApplication::screenAt(const QPoint &point) {
+    for (QScreen *screen : screens())
+        if (screen->geometry().contains(point))
+            return screen;
+    return nullptr;
+}
+
+namespace {
+QString &desktopFile() {
+    static QString name;
+    return name;
+}
+} // namespace
+
+namespace {
+QIcon &applicationIcon() {
+    static QIcon *icon = new QIcon; // never destroyed: windows can be made during static destruction
+    return *icon;
+}
+} // namespace
+
+/*!
+    \since 6.0
+
+    Returns the icon of the application, which windows without an icon of their own show; a null icon until
+    setWindowIcon() sets it.
+*/
+QIcon QGuiApplication::windowIcon() { return applicationIcon(); }
+
+/*!
+    \since 6.0
+
+    Sets the icon of the application to \a icon. The windows that have no icon of their own show it in the task bar
+    and title bar.
+
+    \sa QWindow::setIcon()
+*/
+void QGuiApplication::setWindowIcon(const QIcon &icon) {
+    applicationIcon() = icon;
+    for (QWindow *window : allWindows())
+        if (window->icon().isNull())
+            window->setIcon(QIcon()); // shows the icon of the application
+}
+
+/*!
+    \since 6.0
+
+    Sets the name of the desktop entry of the application, such as \c org.example.App, without the
+    \c .desktop suffix, to \a name. Desktop environments use it to find the icon and name of the application.
+
+    \sa desktopFileName()
+*/
+void QGuiApplication::setDesktopFileName(const QString &name) {
+    QString n = name;
+    if (n.endsWith(QLatin1String(".desktop")))
+        n.chop(8);
+    desktopFile() = n;
+}
+
+/*!
+    \since 6.0
+
+    Returns the name of the desktop entry of the application, empty until setDesktopFileName() sets it.
+*/
+QString QGuiApplication::desktopFileName() { return desktopFile(); }
 
 /*!
     Returns the mouse buttons that were down at the last mouse event.

@@ -4,6 +4,8 @@
 #include <QtNetwork/qabstractsocket.h>
 #include <QtNetwork/qnetworkdatagram.h>
 
+class QNetworkInterface;
+
 class QUdpSocket : public QAbstractSocket {
     Q_OBJECT
 public:
@@ -26,7 +28,9 @@ public:
     qint64 writeDatagram(const QNetworkDatagram &datagram);
 
     bool joinMulticastGroup(const QHostAddress &groupAddress);
+    bool joinMulticastGroup(const QHostAddress &groupAddress, const QNetworkInterface &iface);
     bool leaveMulticastGroup(const QHostAddress &groupAddress);
+    bool leaveMulticastGroup(const QHostAddress &groupAddress, const QNetworkInterface &iface);
 
     /*!
         \reimp

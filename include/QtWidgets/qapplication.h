@@ -26,6 +26,11 @@ public:
     static QWidget *activeModalWidget();
     static QWidget *focusWidget();
     static QWidget *widgetAt(const QPoint &point);
+    static void alert(QWidget *widget, int msec = 0);
+    static int startDragDistance();
+    static void setStartDragDistance(int l);
+    static int startDragTime();
+    static void setStartDragTime(int ms);
 
 public slots:
     static void closeAllWindows();

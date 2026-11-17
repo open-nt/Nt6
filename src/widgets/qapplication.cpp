@@ -356,6 +356,47 @@ QWidget *QApplication::widgetAt(const QPoint &point) {
 }
 
 /*!
+    \since 6.0
+
+    Returns how many pixels the mouse must move with a button held before a drag starts.
+
+    \sa QStyleHints::startDragDistance()
+*/
+int QApplication::startDragDistance() { return styleHints()->startDragDistance(); }
+
+/*!
+    \since 6.0
+
+    Sets how many pixels the mouse must move before a drag starts to \a l.
+*/
+void QApplication::setStartDragDistance(int l) { styleHints()->setStartDragDistance(l); }
+
+/*!
+    \since 6.0
+
+    Returns how many milliseconds a button must be held before a drag starts without moving.
+*/
+int QApplication::startDragTime() { return styleHints()->startDragTime(); }
+
+/*!
+    \since 6.0
+
+    Sets how long a button must be held before a drag starts to \a ms milliseconds.
+*/
+void QApplication::setStartDragTime(int ms) { styleHints()->setStartDragTime(ms); }
+
+/*!
+    \since 6.0
+
+    Asks for the user's attention to the window of \a widget, for \a msec milliseconds or until it is activated if
+    \a msec is 0. Nt has no window system call for it yet, so nothing visible happens; the window is not raised.
+*/
+void QApplication::alert(QWidget *widget, int msec) {
+    (void)widget;
+    (void)msec;
+}
+
+/*!
     Closes all top-level windows. The application quits if the last one closed and
     QGuiApplication::quitOnLastWindowClosed() is \c true.
 

@@ -9,6 +9,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <atomic>
 #include <mutex>
 
 namespace QtPrivate::Egl {
@@ -124,12 +125,7 @@ void *openXlibDisplay() {
 }
 
 void initialize(Display *d) {
-    QPlatformIntegration *integration = QtPrivate::GuiAccess::integration();
-    if (!integration) {
-        d->error = QStringLiteral("OpenGL needs a QGuiApplication");
-        return;
-    }
-    const QEglNativePlatform native = integration->eglPlatform();
+    const QEglNativePlatform native = QtPrivate::GuiAccess::integration()->eglPlatform();
     if (native.platform == 0) {
         d->error = QStringLiteral("the platform has no OpenGL");
         return;
@@ -201,7 +197,22 @@ QFunctionPointer Display::procAddress(const char *name, bool desktop) const {
 const Display &display() {
     static Display d;
     static std::once_flag once;
-    std::call_once(once, [] { initialize(&d); });
+    static std::atomic<bool> initialized{false};
+    // Before the application exists there is no platform to ask: answer without a display, and initialize it once
+    // there is one, so that a call made before QGuiApplication (to choose a default format) is not final. After
+    // that the display stays, also while contexts are destroyed after the application.
+    if (!initialized.load(std::memory_order_acquire) && !QtPrivate::GuiAccess::integration()) {
+        static const Display none = [] {
+            Display n;
+            n.error = QStringLiteral("OpenGL needs a QGuiApplication");
+            return n;
+        }();
+        return none;
+    }
+    std::call_once(once, [] {
+        initialize(&d);
+        initialized.store(true, std::memory_order_release);
+    });
     return d;
 }
 

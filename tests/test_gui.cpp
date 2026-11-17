@@ -32,6 +32,7 @@
 
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <vector>
 
 static int g_failures = 0;
@@ -1311,7 +1312,7 @@ static void testKeySequence() {
           QKeySequence("PgDown").toString() == "PgDown" && QKeySequence("Space").toString() == "Space");
     CHECK(QKeySequence("Ctrl++")[0] == (Qt::CTRL | Qt::Key_Plus) && QKeySequence("Ctrl+-").toString() == "Ctrl+-");
     CHECK(QKeySequence("").isEmpty() && QKeySequence("Ctrl+").isEmpty() && QKeySequence("Nonsense").isEmpty() &&
-          QKeySequence("F13").isEmpty());
+          QKeySequence("F36").isEmpty() && QKeySequence("F13")[0] == Qt::Key_F13);
     CHECK(QKeySequence::fromString("Ctrl+O") == QKeySequence::Open);
     CHECK(save.matches(QKeySequence("Ctrl+S")) == QKeySequence::ExactMatch &&
           save.matches(QKeySequence("Ctrl+D")) == QKeySequence::NoMatch &&
@@ -1678,6 +1679,32 @@ static void testFontMetrics() {
     CHECK(fm.elidedText(name, Qt::ElideRight, 2).isEmpty());
 }
 
+// drawText() with a QTextOption draws as the flags it stands for do: the alignment, and word wrap.
+static void testDrawTextOption() {
+    const QString text = QStringLiteral("several words that wrap in a narrow box");
+    const QRectF box(5, 5, 90, 110);
+    const auto draw = [&](const std::function<void(QPainter &)> &paint) {
+        QImage img(100, 120, QImage::Format_ARGB32_Premultiplied);
+        img.fill(Qt::white);
+        QPainter p(&img);
+        p.setPen(Qt::black);
+        p.setFont(QFont("sans-serif", 10));
+        paint(p);
+        return img;
+    };
+    QTextOption wrapped;
+    wrapped.setWrapMode(QTextOption::WordWrap);
+    wrapped.setAlignment(Qt::AlignHCenter);
+    CHECK(draw([&](QPainter &p) { p.drawText(box, text, wrapped); }) ==
+          draw([&](QPainter &p) { p.drawText(box, Qt::AlignHCenter | Qt::TextWordWrap, text); }));
+    QTextOption single(Qt::AlignRight);
+    single.setWrapMode(QTextOption::NoWrap);
+    CHECK(draw([&](QPainter &p) { p.drawText(box, text, single); }) ==
+          draw([&](QPainter &p) { p.drawText(box, Qt::AlignRight, text); }));
+    CHECK(draw([&](QPainter &p) { p.drawText(box, text); }) !=
+          draw([&](QPainter &p) { p.drawText(box, Qt::AlignLeft, text); })); // the default option wraps
+}
+
 static void testDrawText() {
     const QFont font("sans-serif", 12);
     const QFontMetrics fm(font);
@@ -1905,6 +1932,7 @@ int main(int argc, char **argv) {
         testFontValues();
         testFontMetrics();
         testDrawText();
+        testDrawTextOption();
     } else {
         std::puts("SKIP: no fonts for the text tests");
     }

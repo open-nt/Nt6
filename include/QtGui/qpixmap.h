@@ -45,6 +45,8 @@ public:
         return fromImage(m_image.scaledToHeight(height, mode));
     }
     QImage toImage() const { return m_image; }
+    void setDevicePixelRatio(qreal scaleFactor) { m_image.setDevicePixelRatio(scaleFactor); }
+    QSizeF deviceIndependentSize() const;
     static QPixmap fromImage(const QImage &image);
     bool load(const QString &fileName, const char *format = nullptr);
     bool loadFromData(const uchar *data, uint len, const char *format = nullptr);

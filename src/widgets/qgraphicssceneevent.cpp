@@ -104,6 +104,53 @@ QGraphicsSceneHoverEvent::QGraphicsSceneHoverEvent(Type type) : QGraphicsSceneEv
 QGraphicsSceneHoverEvent::~QGraphicsSceneHoverEvent() = default;
 
 /*!
+    \class QGraphicsSceneContextMenuEvent
+    \since 6.0
+    \brief The QGraphicsSceneContextMenuEvent class provides context menu events in the graphics view framework.
+
+    A QGraphicsView turns a request for a context menu over it into this event for its scene, which gives it to the
+    items under the mouse, the topmost first, until one accepts it in QGraphicsItem::contextMenuEvent().
+
+    \differences
+    None.
+    \enddifferences
+*/
+
+/*!
+    Constructs a context menu event of \a type.
+*/
+QGraphicsSceneContextMenuEvent::QGraphicsSceneContextMenuEvent(Type type) : QGraphicsSceneEvent(type) {}
+
+/*!
+    Destroys the event.
+*/
+QGraphicsSceneContextMenuEvent::~QGraphicsSceneContextMenuEvent() = default;
+
+/*!
+    \class QGraphicsSceneDragDropEvent
+    \since 6.0
+    \brief The QGraphicsSceneDragDropEvent class provides events for drag and drop in the graphics view framework.
+
+    A QGraphicsView turns the drags over it into these events for its scene. QGraphicsScene::dragEnterEvent() and
+    the other handlers give them to the items under the drag that accept drops; a scene that handles drops itself
+    reimplements them.
+
+    \differences
+    Drags work within one program, as QDrag says.
+    \enddifferences
+*/
+
+/*!
+    Constructs a drag and drop event of \a type.
+*/
+QGraphicsSceneDragDropEvent::QGraphicsSceneDragDropEvent(Type type) : QGraphicsSceneEvent(type) {}
+
+/*!
+    Destroys the event.
+*/
+QGraphicsSceneDragDropEvent::~QGraphicsSceneDragDropEvent() = default;
+
+/*!
     \class QGraphicsSceneWheelEvent
     \brief The QGraphicsSceneWheelEvent class describes a turn of the mouse wheel over an item.
 

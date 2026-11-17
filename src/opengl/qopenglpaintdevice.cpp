@@ -163,8 +163,10 @@ int QOpenGLPaintDevice::metric(QPaintDevice::PaintDeviceMetric metric) const {
     case PdmHeightMM:
         return qRound(m_d->size.height() * 1000 / m_d->dpmy);
     case PdmDpiX:
+    case PdmPhysicalDpiX:
         return qRound(m_d->dpmx * 0.0254);
     case PdmDpiY:
+    case PdmPhysicalDpiY:
         return qRound(m_d->dpmy * 0.0254);
     case PdmDevicePixelRatio:
         return static_cast<int>(m_d->devicePixelRatio);

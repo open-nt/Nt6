@@ -5,6 +5,8 @@
 #include <QtGui/qimage.h>
 #include <QtGui/qopengl.h>
 
+#include <functional>
+
 class QOpenGLContext;
 
 namespace QtOpenGLPrivate {
@@ -22,5 +24,9 @@ void renderbufferStorage(QOpenGLContext *context, GLuint renderbuffer, int sampl
 // Reads the colors of `fbo` (0 for the default framebuffer) into a premultiplied image, resolving a multisampled
 // framebuffer first. The binding of the framebuffer is kept.
 QImage readFramebuffer(QOpenGLContext *context, GLuint fbo, const QSize &size, bool multisampled, bool flipped);
+// Runs `f` with a context that can use the objects of `owner` current in this thread: the current context if it is
+// `owner` (or, with `shared`, shares with it), otherwise `owner`, made current on an offscreen surface for the time.
+// Returns false, without running `f`, if neither is possible.
+bool runInContext(QOpenGLContext *owner, bool shared, const std::function<void(QOpenGLContext *)> &f);
 
 } // namespace QtOpenGLPrivate

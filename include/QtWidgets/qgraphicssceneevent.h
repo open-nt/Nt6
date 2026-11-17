@@ -137,6 +137,117 @@ private:
     Qt::KeyboardModifiers m_modifiers;
 };
 
+class QGraphicsSceneContextMenuEvent : public QGraphicsSceneEvent {
+public:
+    /*!
+        \enum QGraphicsSceneContextMenuEvent::Reason
+
+        This enum tells how the user asked for the menu.
+
+        \value Mouse With the right mouse button.
+        \value Keyboard With the Menu key.
+        \value Other Some other way.
+    */
+    enum Reason { Mouse, Keyboard, Other };
+
+    explicit QGraphicsSceneContextMenuEvent(Type type = None);
+    ~QGraphicsSceneContextMenuEvent() override;
+
+    /*! Returns where the menu was asked for, in item coordinates. */
+    QPointF pos() const { return m_pos; }
+    /*! Sets the position in item coordinates to \a pos. */
+    void setPos(const QPointF &pos) { m_pos = pos; }
+    /*! Returns where the menu was asked for, in scene coordinates. */
+    QPointF scenePos() const { return m_scenePos; }
+    /*! Sets the position in scene coordinates to \a pos. */
+    void setScenePos(const QPointF &pos) { m_scenePos = pos; }
+    /*! Returns where the menu was asked for, on the screen. */
+    QPoint screenPos() const { return m_screenPos; }
+    /*! Sets the position on the screen to \a pos. */
+    void setScreenPos(const QPoint &pos) { m_screenPos = pos; }
+    /*! Returns the keyboard modifiers that were held. */
+    Qt::KeyboardModifiers modifiers() const { return m_modifiers; }
+    /*! Sets the keyboard modifiers to \a modifiers. */
+    void setModifiers(Qt::KeyboardModifiers modifiers) { m_modifiers = modifiers; }
+    /*! Returns how the user asked for the menu. */
+    Reason reason() const { return m_reason; }
+    /*! Sets how the user asked for the menu to \a reason. */
+    void setReason(Reason reason) { m_reason = reason; }
+
+private:
+    QPointF m_pos;
+    QPointF m_scenePos;
+    QPoint m_screenPos;
+    Qt::KeyboardModifiers m_modifiers;
+    Reason m_reason = Mouse;
+};
+
+class QMimeData;
+
+class QGraphicsSceneDragDropEvent : public QGraphicsSceneEvent {
+public:
+    explicit QGraphicsSceneDragDropEvent(Type type = None);
+    ~QGraphicsSceneDragDropEvent() override;
+
+    /*! Returns where the drag is, in item coordinates. */
+    QPointF pos() const { return m_pos; }
+    /*! Sets the position in item coordinates to \a pos. */
+    void setPos(const QPointF &pos) { m_pos = pos; }
+    /*! Returns where the drag is, in scene coordinates. */
+    QPointF scenePos() const { return m_scenePos; }
+    /*! Sets the position in scene coordinates to \a pos. */
+    void setScenePos(const QPointF &pos) { m_scenePos = pos; }
+    /*! Returns where the drag is, on the screen. */
+    QPointF screenPos() const { return m_screenPos; }
+    /*! Sets the position on the screen to \a pos. */
+    void setScreenPos(const QPointF &pos) { m_screenPos = pos; }
+    /*! Returns the mouse buttons held during the drag. */
+    Qt::MouseButtons buttons() const { return m_buttons; }
+    /*! Sets the buttons to \a buttons. */
+    void setButtons(Qt::MouseButtons buttons) { m_buttons = buttons; }
+    /*! Returns the keyboard modifiers held during the drag. */
+    Qt::KeyboardModifiers modifiers() const { return m_modifiers; }
+    /*! Sets the modifiers to \a modifiers. */
+    void setModifiers(Qt::KeyboardModifiers modifiers) { m_modifiers = modifiers; }
+    /*! Returns the actions the source of the drag allows. */
+    Qt::DropActions possibleActions() const { return m_actions; }
+    /*! Sets the possible actions to \a actions. */
+    void setPossibleActions(Qt::DropActions actions) { m_actions = actions; }
+    /*! Returns the action the source proposes. */
+    Qt::DropAction proposedAction() const { return m_proposed; }
+    /*! Sets the proposed action to \a action. */
+    void setProposedAction(Qt::DropAction action) { m_proposed = action; }
+    /*! Accepts the event with the proposed action. */
+    void acceptProposedAction() {
+        m_action = m_proposed;
+        accept();
+    }
+    /*! Returns the action the receiver takes. */
+    Qt::DropAction dropAction() const { return m_action; }
+    /*! Sets the action the receiver takes to \a action. */
+    void setDropAction(Qt::DropAction action) { m_action = action; }
+    /*! Returns the widget that started the drag, if it is in this program. */
+    QWidget *source() const { return m_source; }
+    /*! Sets the source of the drag to \a source. */
+    void setSource(QWidget *source) { m_source = source; }
+    /*! Returns the data of the drag. */
+    const QMimeData *mimeData() const { return m_data; }
+    /*! Sets the data of the drag to \a data. */
+    void setMimeData(const QMimeData *data) { m_data = data; }
+
+private:
+    QPointF m_pos;
+    QPointF m_scenePos;
+    QPointF m_screenPos;
+    Qt::MouseButtons m_buttons;
+    Qt::KeyboardModifiers m_modifiers;
+    Qt::DropActions m_actions;
+    Qt::DropAction m_proposed = Qt::IgnoreAction;
+    Qt::DropAction m_action = Qt::IgnoreAction;
+    QWidget *m_source = nullptr;
+    const QMimeData *m_data = nullptr;
+};
+
 class QGraphicsSceneWheelEvent : public QGraphicsSceneEvent {
 public:
     explicit QGraphicsSceneWheelEvent(Type type = None);

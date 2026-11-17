@@ -2,10 +2,13 @@
 #pragma once
 
 #include <QtCore/qrect.h>
+#include <functional>
 #include <QtGui/qwindow.h>
 
 class QOpenGLContext;
+struct QOpenGLExtraFunctionsPrivate;
 struct QOpenGLFunctionsPrivate;
+class QPaintDeviceWindow;
 class QPlatformWindow;
 class QPlatformIntegration;
 class QPlatformScreen;
@@ -47,8 +50,13 @@ struct GuiAccess {
     static void applyCursor(QWindow *window);
     // The format of the buffers of an OpenGL surface, which QWindow::format() returns from then on.
     static void setActualFormat(QWindow *window, const QSurfaceFormat &format);
+    // Lets `present` paint and show the whole of a paint device window instead of its
+    // backing store; see QPaintDeviceWindow::m_present. An empty function removes it.
+    static void setPresentHook(QPaintDeviceWindow *window, std::function<bool()> present);
     // The functions of `context`, resolved the first time they are asked for.
     static QOpenGLFunctionsPrivate *openGLFunctions(QOpenGLContext *context);
+    // The OpenGL ES 3.0 functions of `context`, resolved the first time they are asked for.
+    static QOpenGLExtraFunctionsPrivate *openGLExtraFunctions(QOpenGLContext *context);
     // Called before the platform window of `surface` goes away: drops what OpenGL made for it.
     static void surfaceAboutToBeDestroyed(QSurface *surface);
     // Deletes the platform integration; the application object calls it as it goes away.

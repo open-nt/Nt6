@@ -17,6 +17,10 @@ public:
     Qt::ColorScheme colorScheme() const;
     void setColorScheme(Qt::ColorScheme scheme);
     void unsetColorScheme();
+    int startDragDistance() const { return m_dragDistance; }
+    void setStartDragDistance(int startDragDistance) { m_dragDistance = startDragDistance; }
+    int startDragTime() const { return m_dragTime; }
+    void setStartDragTime(int startDragTime) { m_dragTime = startDragTime; }
 
 signals:
     /*!
@@ -34,4 +38,6 @@ private:
 
     Qt::ColorScheme m_platform = Qt::ColorScheme::Unknown;
     Qt::ColorScheme m_override = Qt::ColorScheme::Unknown;
+    int m_dragDistance = 10;
+    int m_dragTime = 500;
 };

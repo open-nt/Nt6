@@ -4,6 +4,9 @@
 
 #include <QtNetwork/qhostaddress.h>
 
+#include <QtCore/qdebug.h>
+#include <QtCore/qstringlist.h>
+
 #include <cstring>
 
 namespace {
@@ -315,6 +318,134 @@ bool QHostAddress::isGlobal() const {
 */
 bool QHostAddress::operator==(const QHostAddress &o) const noexcept {
     return m_kind == o.m_kind && std::memcmp(m_bytes, o.m_bytes, 16) == 0;
+}
+
+namespace {
+
+// The address as 16 bytes in network order: IPv4 as an IPv4-mapped IPv6 address, so both compare bit by bit.
+bool bitsOf(const QHostAddress &a, quint8 out[16], bool *v4) {
+    if (a.protocol() == QAbstractSocket::IPv4Protocol) {
+        const quint32 ip = a.toIPv4Address();
+        std::memset(out, 0, 16);
+        out[10] = out[11] = 0xff;
+        out[12] = static_cast<quint8>(ip >> 24);
+        out[13] = static_cast<quint8>(ip >> 16);
+        out[14] = static_cast<quint8>(ip >> 8);
+        out[15] = static_cast<quint8>(ip);
+        *v4 = true;
+        return true;
+    }
+    if (a.protocol() == QAbstractSocket::IPv6Protocol) {
+        const Q_IPV6ADDR ip = a.toIPv6Address();
+        for (int i = 0; i < 16; ++i)
+            out[i] = ip[i];
+        static const quint8 mapped[12] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff};
+        *v4 = std::memcmp(out, mapped, 12) == 0;
+        return true;
+    }
+    return false;
+}
+
+// Whether the first `bits` bits of `a` and `b` are equal.
+bool samePrefix(const quint8 a[16], const quint8 b[16], int bits) {
+    int i = 0;
+    for (; bits >= 8; bits -= 8, ++i)
+        if (a[i] != b[i])
+            return false;
+    if (bits == 0)
+        return true;
+    const auto mask = static_cast<quint8>(0xffu << (8 - bits));
+    return (a[i] & mask) == (b[i] & mask);
+}
+
+} // namespace
+
+/*!
+    \since 6.0
+
+    Returns \c true if this address is in the subnet \a subnet with \a netmask bits of prefix, such as
+    \c{192.168.1.0} with 24. An IPv4 address and the IPv4-mapped IPv6 form of it are in the same subnets.
+
+    \sa parseSubnet()
+*/
+bool QHostAddress::isInSubnet(const QHostAddress &subnet, int netmask) const {
+    quint8 mine[16], theirs[16];
+    bool mineV4 = false, theirsV4 = false;
+    if (!bitsOf(*this, mine, &mineV4) || !bitsOf(subnet, theirs, &theirsV4))
+        return false;
+    const bool v4 = subnet.protocol() == QAbstractSocket::IPv4Protocol;
+    if (v4 != mineV4 && v4)
+        return false;
+    const int maximum = v4 ? 32 : 128;
+    if (netmask < 0 || netmask > maximum)
+        return false;
+    return samePrefix(mine, theirs, v4 ? netmask + 96 : netmask);
+}
+
+/*!
+    \fn bool QHostAddress::isInSubnet(const std::pair<QHostAddress, int> &subnet) const
+    \overload
+    \since 6.0
+
+    Returns \c true if this address is in \a subnet, an address and a prefix length as parseSubnet() returns them.
+*/
+
+/*!
+    \since 6.0
+
+    Parses \a subnet, an address and a prefix length such as \c{10.1.0.0/16} or \c{fe80::/10}, or for IPv4 an
+    address and a netmask such as \c{10.1.0.0/255.255.0.0}, and returns the network address with the bits outside
+    the prefix cleared, and the prefix length. An address alone is a subnet of one address. Returns a null address
+    and -1 if \a subnet cannot be parsed.
+*/
+std::pair<QHostAddress, int> QHostAddress::parseSubnet(const QString &subnet) {
+    const std::pair<QHostAddress, int> invalid(QHostAddress(), -1);
+    const QStringList parts = subnet.trimmed().split(QLatin1Char('/'));
+    if (parts.size() > 2)
+        return invalid;
+    QHostAddress address;
+    if (!address.setAddress(parts.at(0)))
+        return invalid;
+    const bool v4 = address.protocol() == QAbstractSocket::IPv4Protocol;
+    const int maximum = v4 ? 32 : 128;
+    int length = maximum;
+    if (parts.size() == 2) {
+        bool ok = false;
+        length = parts.at(1).toInt(&ok);
+        if (!ok) {
+            QHostAddress mask;
+            if (!v4 || !mask.setAddress(parts.at(1)) || mask.protocol() != QAbstractSocket::IPv4Protocol)
+                return invalid;
+            const quint32 bits = mask.toIPv4Address();
+            length = 0;
+            while (length < 32 && (bits & (0x80000000u >> static_cast<unsigned>(length))))
+                ++length;
+            if (length < 32 && (bits << static_cast<unsigned>(length)) != 0)
+                return invalid; // not contiguous
+        } else if (length < 0 || length > maximum) {
+            return invalid;
+        }
+    }
+    if (v4) {
+        const quint32 mask = length == 0 ? 0u : 0xffffffffu << static_cast<unsigned>(32 - length);
+        return {QHostAddress(address.toIPv4Address() & mask), length};
+    }
+    Q_IPV6ADDR ip = address.toIPv6Address();
+    for (int bit = length; bit < 128; ++bit)
+        ip[bit / 8] = static_cast<quint8>(ip[bit / 8] & ~(0x80u >> static_cast<unsigned>(bit % 8)));
+    return {QHostAddress(ip), length};
+}
+
+// Writes `address` to `debug` as QHostAddress("192.168.1.1").
+QDebug operator<<(QDebug debug, const QHostAddress &address) {
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "QHostAddress(";
+    if (address.isNull())
+        debug << "QHostAddress::Null";
+    else
+        debug << address.toString();
+    debug << ")";
+    return debug;
 }
 
 /*!

@@ -1,7 +1,10 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qabstractitemview.h>
+#include <QtGui/qdrag.h>
+#include <QtCore/qmimedata.h>
 
 #include <QtGui/qevent.h>
+#include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qscrollbar.h>
 #include <QtWidgets/qstyleditemdelegate.h>
@@ -522,6 +525,266 @@ QSize QAbstractItemView::sizeHintForIndex(const QModelIndex &index) const {
     QStyleOptionViewItem option;
     initViewItemOption(&option);
     return itemDelegateForIndex(index)->sizeHint(option, index);
+}
+
+/*!
+    \enum QAbstractItemView::DragDropMode
+    \since 6.0
+
+    This enum tells what drags the view starts and takes.
+
+    \value NoDragDrop None. This is the default.
+    \value DragOnly The items can be dragged from the view.
+    \value DropOnly Drags can be dropped on the view.
+    \value DragDrop Both.
+    \value InternalMove Items are moved within the view only.
+*/
+
+/*!
+    \enum QAbstractItemView::ScrollMode
+    \since 6.0
+
+    This enum tells how the scroll bars of a view move.
+
+    \value ScrollPerItem An item at a time.
+    \value ScrollPerPixel A pixel at a time.
+*/
+
+/*!
+    \fn void QAbstractItemView::setVerticalScrollMode(ScrollMode mode)
+    \since 6.0
+
+    Sets how the view scrolls down to \a mode. Nt views always scroll by pixels; the mode is kept for
+    verticalScrollMode().
+*/
+
+/*!
+    \fn QAbstractItemView::ScrollMode QAbstractItemView::verticalScrollMode() const
+    \since 6.0
+
+    Returns how the view scrolls down; ScrollPerPixel by default.
+*/
+
+/*!
+    \fn void QAbstractItemView::setHorizontalScrollMode(ScrollMode mode)
+    \since 6.0
+
+    Sets how the view scrolls across to \a mode. Nt views always scroll by pixels; the mode is kept for
+    horizontalScrollMode().
+*/
+
+/*!
+    \fn QAbstractItemView::ScrollMode QAbstractItemView::horizontalScrollMode() const
+    \since 6.0
+
+    Returns how the view scrolls across; ScrollPerPixel by default.
+*/
+
+/*!
+    \fn bool QAbstractItemView::dragEnabled() const
+    \since 6.0
+
+    Returns \c true if the selected items can be dragged from the view.
+
+    \sa setDragEnabled(), startDrag()
+*/
+
+/*!
+    \fn void QAbstractItemView::setDragEnabled(bool enable)
+    \since 6.0
+
+    Lets the selected items be dragged from the view if \a enable is \c true.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the drag and drop mode of the view, from what was set with setDragDropMode(), or from dragEnabled() and
+    acceptDrops().
+*/
+QAbstractItemView::DragDropMode QAbstractItemView::dragDropMode() const {
+    if (m_dragDropMode == InternalMove)
+        return InternalMove;
+    if (m_dragEnabled && acceptDrops())
+        return DragDrop;
+    if (m_dragEnabled)
+        return DragOnly;
+    if (acceptDrops())
+        return DropOnly;
+    return NoDragDrop;
+}
+
+/*!
+    \since 6.0
+
+    Sets the drag and drop mode of the view to \a behavior, which sets dragEnabled() and acceptDrops() to match.
+*/
+void QAbstractItemView::setDragDropMode(DragDropMode behavior) {
+    m_dragDropMode = behavior;
+    setDragEnabled(behavior == DragOnly || behavior == DragDrop || behavior == InternalMove);
+    setAcceptDrops(behavior == DropOnly || behavior == DragDrop || behavior == InternalMove);
+}
+
+/*!
+    \fn Qt::DropAction QAbstractItemView::defaultDropAction() const
+    \since 6.0
+
+    Returns the action a drag from the view proposes when no key asks for another; Qt::IgnoreAction, the default,
+    lets the drag choose.
+*/
+
+/*!
+    \fn void QAbstractItemView::setDefaultDropAction(Qt::DropAction dropAction)
+    \since 6.0
+
+    Sets the action a drag from the view proposes to \a dropAction.
+*/
+
+/*!
+    \fn bool QAbstractItemView::showDropIndicator() const
+    \since 6.0
+
+    Returns \c true if a drop indicator is to be shown; Nt keeps the setting but draws none.
+*/
+
+/*!
+    \fn void QAbstractItemView::setDropIndicatorShown(bool enable)
+    \since 6.0
+
+    Sets whether a drop indicator is shown to \a enable.
+*/
+
+/*!
+    \since 6.0
+
+    Starts a drag of the selected items that can be dragged, with the data that the model makes for them in
+    QAbstractItemModel::mimeData(), allowing \a supportedActions. If the items are moved to another place, they are
+    removed from the model.
+*/
+void QAbstractItemView::startDrag(Qt::DropActions supportedActions) {
+    if (!model() || !selectionModel())
+        return;
+    QModelIndexList indexes;
+    for (const QModelIndex &index : selectionModel()->selectedIndexes())
+        if (model()->flags(index) & Qt::ItemIsDragEnabled)
+            indexes.append(index);
+    if (indexes.isEmpty())
+        return;
+    QMimeData *data = model()->mimeData(indexes);
+    if (!data)
+        return;
+    auto *drag = new QDrag(this);
+    drag->setMimeData(data);
+    const Qt::DropAction result = drag->exec(supportedActions, m_defaultDropAction);
+    if (result == Qt::MoveAction && dragDropMode() != InternalMove && drag->target() != window()->windowHandle()) {
+        // Rows from the bottom up, so the indexes of the others stay valid.
+        QList<QPersistentModelIndex> rows;
+        for (const QModelIndex &index : indexes)
+            if (index.column() == 0)
+                rows.append(QPersistentModelIndex(index));
+        for (qsizetype i = rows.size() - 1; i >= 0; --i)
+            if (rows.at(i).isValid())
+                model()->removeRow(rows.at(i).row(), rows.at(i).parent());
+    }
+    drag->deleteLater();
+}
+
+/*!
+    \since 6.0
+
+    Records that the left button went down at \a pos in the viewport, on an item if \a onItem is \c true, where a
+    drag may start once the mouse moves far enough. The views call it from their mouse press handlers.
+*/
+void QAbstractItemView::setDragStart(const QPoint &pos, bool onItem) {
+    m_dragStart = pos;
+    m_dragArmed = onItem && m_dragEnabled;
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Starts a drag of the selected items once the mouse has moved startDragDistance() with the left button held from
+    an item, if dragEnabled() is \c true; \a event is otherwise ignored.
+*/
+void QAbstractItemView::mouseMoveEvent(QMouseEvent *event) {
+    if (m_dragArmed && (event->buttons() & Qt::LeftButton) && model() &&
+        (event->pos() - m_dragStart).manhattanLength() >= QApplication::startDragDistance()) {
+        m_dragArmed = false;
+        startDrag(model()->supportedDragActions());
+        event->accept();
+        return;
+    }
+    if (!(event->buttons() & Qt::LeftButton))
+        m_dragArmed = false;
+    event->ignore();
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Accepts a drag that the model can take, for a view that accepts drops: one whose formats are among
+    QAbstractItemModel::mimeTypes(). \a event is ignored otherwise.
+*/
+void QAbstractItemView::dragEnterEvent(QDragEnterEvent *event) {
+    if (!model() || !acceptDrops()) {
+        event->ignore();
+        return;
+    }
+    for (const QString &type : model()->mimeTypes()) {
+        if (event->mimeData()->hasFormat(type)) {
+            event->acceptProposedAction();
+            return;
+        }
+    }
+    event->ignore();
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Accepts the drag \a event where the model can take it: on the item under it, or after the last item.
+*/
+void QAbstractItemView::dragMoveEvent(QDragMoveEvent *event) {
+    if (!model()) {
+        event->ignore();
+        return;
+    }
+    const QModelIndex index = indexAt(event->position().toPoint());
+    const bool can = model()->canDropMimeData(event->mimeData(), event->dropAction(), -1, -1, index);
+    event->setAccepted(can);
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Gives the data of the drop \a event to the model, with QAbstractItemModel::dropMimeData(), on the item under it
+    or after the last item; accepts the event if the model took the data.
+*/
+void QAbstractItemView::dropEvent(QDropEvent *event) {
+    if (!model()) {
+        event->ignore();
+        return;
+    }
+    const QModelIndex index = indexAt(event->position().toPoint());
+    if (model()->dropMimeData(event->mimeData(), event->dropAction(), -1, -1, index))
+        event->accept();
+    else
+        event->ignore();
+}
+
+/*!
+    \since 6.0
+
+    Lays the items out again at once, rather than from the event loop. The default updates the geometries and
+    repaints the viewport.
+*/
+void QAbstractItemView::doItemsLayout() {
+    updateGeometries();
+    viewport()->update();
 }
 
 /*!

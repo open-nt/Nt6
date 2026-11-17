@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtGui/qmatrix4x4.h>
+#include <QtCore/qdebug.h>
 #include <QtGui/qtransform.h>
 
 #include "qmath3d_p.h"
@@ -699,4 +700,17 @@ QRectF QMatrix4x4::mapRect(const QRectF &rect) const {
         bottom = std::max(bottom, p.y());
     }
     return QRectF(QPointF(left, top), QPointF(right, bottom));
+}
+
+// Writes `matrix` to `debug` row by row, as Qt does.
+QDebug operator<<(QDebug debug, const QMatrix4x4 &matrix) {
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "QMatrix4x4(";
+    for (int row = 0; row < 4; ++row) {
+        debug << "\n";
+        for (int column = 0; column < 4; ++column)
+            debug << " " << matrix(row, column);
+    }
+    debug << ")";
+    return debug;
 }

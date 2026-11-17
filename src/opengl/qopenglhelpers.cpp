@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include "qopenglhelpers_p.h"
 
+#include <QtGui/qoffscreensurface.h>
 #include <QtGui/qopenglcontext.h>
 #include <QtGui/qopenglfunctions.h>
 
@@ -86,6 +87,30 @@ QImage readFramebuffer(QOpenGLContext *context, GLuint fbo, const QSize &size, b
         f->glDeleteRenderbuffers(1, &resolveRb);
     }
     return image;
+}
+
+bool runInContext(QOpenGLContext *owner, bool shared, const std::function<void(QOpenGLContext *)> &f) {
+    QOpenGLContext *current = QOpenGLContext::currentContext();
+    if (current && (current == owner || (shared && owner && QOpenGLContext::areSharing(current, owner)))) {
+        f(current);
+        return true;
+    }
+    if (!owner || !owner->isValid())
+        return false;
+    QSurface *previousSurface = current ? current->surface() : nullptr;
+    QOffscreenSurface offscreen;
+    offscreen.setFormat(owner->format());
+    offscreen.create();
+    if (!offscreen.isValid() || !owner->makeCurrent(&offscreen)) {
+        if (current && previousSurface)
+            current->makeCurrent(previousSurface);
+        return false;
+    }
+    f(owner);
+    owner->doneCurrent();
+    if (current && previousSurface)
+        current->makeCurrent(previousSurface);
+    return true;
 }
 
 } // namespace QtOpenGLPrivate

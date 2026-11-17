@@ -50,6 +50,13 @@ public:
         NoFontMerging = 0x8000
     };
 
+    enum HintingPreference {
+        PreferDefaultHinting = 0,
+        PreferNoHinting = 1,
+        PreferVerticalHinting = 2,
+        PreferFullHinting = 3
+    };
+
     enum Stretch {
         AnyStretch = 0,
         UltraCondensed = 50,
@@ -79,6 +86,8 @@ public:
     StyleStrategy styleStrategy() const { return static_cast<StyleStrategy>(m_styleStrategy); }
     void setStyleHint(StyleHint hint, StyleStrategy strategy = PreferDefault);
     void setStyleStrategy(StyleStrategy strategy) { m_styleStrategy = static_cast<int>(strategy); }
+    HintingPreference hintingPreference() const { return static_cast<HintingPreference>(m_hinting); }
+    void setHintingPreference(HintingPreference hintingPreference) { m_hinting = static_cast<int>(hintingPreference); }
     int stretch() const { return m_stretch; }
     void setStretch(int factor);
     bool fixedPitch() const;
@@ -108,7 +117,7 @@ public:
                a.m_pixelSize == b.m_pixelSize && a.m_weight == b.m_weight && a.m_italic == b.m_italic &&
                a.m_styleHint == b.m_styleHint && a.m_styleStrategy == b.m_styleStrategy && a.m_stretch == b.m_stretch &&
                a.m_letterSpacingType == b.m_letterSpacingType && a.m_letterSpacing == b.m_letterSpacing &&
-               a.m_wordSpacing == b.m_wordSpacing;
+               a.m_wordSpacing == b.m_wordSpacing && a.m_hinting == b.m_hinting;
     }
     friend bool operator!=(const QFont &a, const QFont &b) noexcept { return !(a == b); }
 
@@ -125,4 +134,5 @@ private:
     int m_letterSpacingType = PercentageSpacing;
     qreal m_letterSpacing = 100.0; // percent of the advance, or pixels added to it
     qreal m_wordSpacing = 0.0;     // pixels added to the advance of a space
+    int m_hinting = PreferDefaultHinting;
 };

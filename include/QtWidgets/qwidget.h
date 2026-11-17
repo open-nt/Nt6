@@ -20,6 +20,12 @@
 
 class QAction;
 class QActionEvent;
+class QIcon;
+class QContextMenuEvent;
+class QDragEnterEvent;
+class QDragLeaveEvent;
+class QDragMoveEvent;
+class QDropEvent;
 class QCloseEvent;
 class QEnterEvent;
 class QFocusEvent;
@@ -54,6 +60,7 @@ class QWidget : public QObject, public QPaintDevice {
     Q_PROPERTY(bool autoFillBackground READ autoFillBackground WRITE setAutoFillBackground)
     Q_PROPERTY(bool mouseTracking READ hasMouseTracking WRITE setMouseTracking)
     Q_PROPERTY(QString toolTip READ toolTip WRITE setToolTip)
+    Q_PROPERTY(Qt::ContextMenuPolicy contextMenuPolicy READ contextMenuPolicy WRITE setContextMenuPolicy)
     Q_PROPERTY(bool windowModified READ isWindowModified WRITE setWindowModified)
     Q_PROPERTY(bool updatesEnabled READ updatesEnabled WRITE setUpdatesEnabled)
 public:
@@ -139,12 +146,19 @@ public:
     void showMaximized();
     void showMinimized();
     QString windowTitle() const;
+    QIcon windowIcon() const;
+    void setWindowIcon(const QIcon &icon);
     bool isActiveWindow() const;
     void activateWindow();
 
     // State
     bool isVisible() const;
     bool isHidden() const;
+    bool isVisibleTo(const QWidget *ancestor) const;
+    bool acceptDrops() const;
+    void setAcceptDrops(bool on);
+    Qt::ContextMenuPolicy contextMenuPolicy() const;
+    void setContextMenuPolicy(Qt::ContextMenuPolicy policy);
     bool isEnabled() const;
     void setAttribute(Qt::WidgetAttribute attribute, bool on = true);
     bool testAttribute(Qt::WidgetAttribute attribute) const;
@@ -193,6 +207,10 @@ public:
 
     // Rendering
     void render(QPaintDevice *target, const QPoint &targetOffset = QPoint(), const QRegion &sourceRegion = QRegion());
+    enum RenderFlag { DrawWindowBackground = 0x1, DrawChildren = 0x2, IgnoreMask = 0x4 };
+    Q_DECLARE_FLAGS(RenderFlags, RenderFlag)
+    void render(QPainter *painter, const QPoint &targetOffset = QPoint(), const QRegion &sourceRegion = QRegion(),
+                RenderFlags renderFlags = RenderFlags(DrawWindowBackground) | DrawChildren);
 
     // Layout
     QLayout *layout() const;
@@ -225,6 +243,13 @@ signals:
         This signal is emitted when the window title changes to \a title.
     */
     void windowTitleChanged(const QString &title) { emitSignal(&QWidget::windowTitleChanged, title); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user asks for a context menu of a widget whose context menu policy is
+        Qt::CustomContextMenu. \a pos is where, in the widget, or in the viewport of a scroll area such as an item
+        view; map it with mapToGlobal() to open a menu there.
+    */
+    void customContextMenuRequested(const QPoint &pos) { emitSignal(&QWidget::customContextMenuRequested, pos); }
 
 protected:
     bool event(QEvent *event) override;
@@ -247,6 +272,11 @@ protected:
     virtual void leaveEvent(QEvent *event);
     virtual void changeEvent(QEvent *event);
     virtual void actionEvent(QActionEvent *event);
+    virtual void contextMenuEvent(QContextMenuEvent *event);
+    virtual void dragEnterEvent(QDragEnterEvent *event);
+    virtual void dragMoveEvent(QDragMoveEvent *event);
+    virtual void dragLeaveEvent(QDragLeaveEvent *event);
+    virtual void dropEvent(QDropEvent *event);
     virtual bool focusNextPrevChild(bool next);
     int metric(PaintDeviceMetric metric) const override;
     QPaintDevice *redirected(QPoint *offset) const override;
@@ -260,3 +290,5 @@ private:
     struct Data;
     std::unique_ptr<Data> m_d;
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(QWidget::RenderFlags)

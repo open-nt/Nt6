@@ -120,10 +120,17 @@ QStyleOptionViewItem QItemDelegate::setOptions(const QModelIndex &index, const Q
 }
 
 /*!
-    Returns the pixmap that \a variant, the decoration of an item, is drawn as: a QPixmap as it is, a QImage
-    made into one, and a QColor as a square of that color in the decoration size of \a option.
+    Returns the pixmap that \a variant, the decoration of an item, is drawn as: a QIcon in the decoration size of
+    \a option, a QPixmap as it is, a QImage made into one, and a QColor as a square of that color in the decoration
+    size.
 */
 QPixmap QItemDelegate::decoration(const QStyleOptionViewItem &option, const QVariant &variant) const {
+    if (holds<QIcon>(variant)) {
+        const QSize size =
+            option.decorationSize.isValid() && !option.decorationSize.isEmpty() ? option.decorationSize : QSize(16, 16);
+        return variant.value<QIcon>().pixmap(size,
+                                             (option.state & QStyle::State_Enabled) ? QIcon::Normal : QIcon::Disabled);
+    }
     if (holds<QPixmap>(variant))
         return variant.value<QPixmap>();
     if (holds<QImage>(variant))

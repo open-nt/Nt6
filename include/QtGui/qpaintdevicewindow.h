@@ -6,6 +6,7 @@
 #include <QtGui/qregion.h>
 #include <QtGui/qwindow.h>
 
+#include <functional>
 #include <memory>
 
 class QBackingStore;
@@ -40,4 +41,9 @@ private:
     void doFlush();
     std::unique_ptr<QBackingStore> m_store;
     QRegion m_dirty;
+    // Set by a widget that shows the whole window with OpenGL itself (QOpenGLWidget
+    // as a top-level window): it presents the frame and returns true, and the
+    // backing store is not painted or flushed. False falls back to the store.
+    std::function<bool()> m_present;
+    friend struct QtPrivate::GuiAccess;
 };

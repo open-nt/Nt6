@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+class QDebug;
+
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
 #include <QtGui/qgenericmatrix.h>
@@ -103,3 +105,5 @@ public:
 private:
     float m[4][4]; // m[column][row], the layout OpenGL expects
 };
+
+QDebug operator<<(QDebug debug, const QMatrix4x4 &matrix);

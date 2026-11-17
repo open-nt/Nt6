@@ -67,7 +67,7 @@ int fromLegacyWeight(int weight) {
     with setPixelSize().
 
     \differences
-    There is no underline, strike-out, hinting preference or \c resolve(). Letter and word spacing are applied
+    There is no underline, strike-out or \c resolve(); the hinting preference is remembered but not used. Letter and word spacing are applied
     to the advances of single characters, not to shaped clusters. The style hint only chooses a generic fontconfig
     family (\c monospace, \c serif, \c sans-serif, \c cursive, \c fantasy)
     that is tried after the families of the font, and the style strategy is
@@ -202,6 +202,35 @@ void QFont::setStyleHint(StyleHint hint, StyleStrategy strategy) {
     Sets the style strategy to \a strategy.
 
     \sa styleStrategy()
+*/
+
+/*!
+    \enum QFont::HintingPreference
+    \since 6.0
+
+    This enum describes how much the glyphs of a font are fitted to the pixel grid.
+
+    \value PreferDefaultHinting The default of the platform.
+    \value PreferNoHinting No hinting: the glyphs keep their designed shapes.
+    \value PreferVerticalHinting Hinting in the vertical direction only.
+    \value PreferFullHinting Hinting in both directions.
+*/
+
+/*!
+    \fn QFont::HintingPreference QFont::hintingPreference() const
+    \since 6.0
+
+    Returns the hinting preference of the font, PreferDefaultHinting by default.
+
+    \sa setHintingPreference()
+*/
+
+/*!
+    \fn void QFont::setHintingPreference(HintingPreference hintingPreference)
+    \since 6.0
+
+    Sets the hinting preference of the font to \a hintingPreference. Nt keeps it, but FreeType hints every
+    font in the same way.
 */
 
 /*!

@@ -349,6 +349,29 @@ enum Modifier {
     \value Key_F10 The F10 key.
     \value Key_F11 The F11 key.
     \value Key_F12 The F12 key.
+    \value Key_F13 The F13 key.
+    \value Key_F14 The F14 key.
+    \value Key_F15 The F15 key.
+    \value Key_F16 The F16 key.
+    \value Key_F17 The F17 key.
+    \value Key_F18 The F18 key.
+    \value Key_F19 The F19 key.
+    \value Key_F20 The F20 key.
+    \value Key_F21 The F21 key.
+    \value Key_F22 The F22 key.
+    \value Key_F23 The F23 key.
+    \value Key_F24 The F24 key.
+    \value Key_F25 The F25 key.
+    \value Key_F26 The F26 key.
+    \value Key_F27 The F27 key.
+    \value Key_F28 The F28 key.
+    \value Key_F29 The F29 key.
+    \value Key_F30 The F30 key.
+    \value Key_F31 The F31 key.
+    \value Key_F32 The F32 key.
+    \value Key_F33 The F33 key.
+    \value Key_F34 The F34 key.
+    \value Key_F35 The F35 key.
     \value Key_Space The space bar.
     \value Key_0 The 0 key.
     \value Key_1 The 1 key.
@@ -434,6 +457,29 @@ enum Key {
     Key_F10 = 0x01000039,
     Key_F11 = 0x0100003a,
     Key_F12 = 0x0100003b,
+    Key_F13 = 0x0100003c,
+    Key_F14 = 0x0100003d,
+    Key_F15 = 0x0100003e,
+    Key_F16 = 0x0100003f,
+    Key_F17 = 0x01000040,
+    Key_F18 = 0x01000041,
+    Key_F19 = 0x01000042,
+    Key_F20 = 0x01000043,
+    Key_F21 = 0x01000044,
+    Key_F22 = 0x01000045,
+    Key_F23 = 0x01000046,
+    Key_F24 = 0x01000047,
+    Key_F25 = 0x01000048,
+    Key_F26 = 0x01000049,
+    Key_F27 = 0x0100004a,
+    Key_F28 = 0x0100004b,
+    Key_F29 = 0x0100004c,
+    Key_F30 = 0x0100004d,
+    Key_F31 = 0x0100004e,
+    Key_F32 = 0x0100004f,
+    Key_F33 = 0x01000050,
+    Key_F34 = 0x01000051,
+    Key_F35 = 0x01000052,
     Key_Menu = 0x01000055,
     Key_Back = 0x01000061,
     Key_Space = 0x20,
@@ -719,6 +765,59 @@ enum FocusReason {
     MenuBarFocusReason,
     OtherFocusReason,
     NoFocusReason
+};
+
+/*!
+    \enum Qt::ContextMenuPolicy
+    \since 6.0
+
+    This enum tells what a widget does when the user asks for a context menu, with the right mouse button or the
+    Menu key.
+
+    \value NoContextMenu The widget has none; the request goes to its parent.
+    \value DefaultContextMenu QWidget::contextMenuEvent() is called. This is the default.
+    \value ActionsContextMenu A menu of the actions of the widget opens.
+    \value CustomContextMenu The widget emits QWidget::customContextMenuRequested().
+    \value PreventContextMenu The widget has none, and the request goes no further.
+*/
+enum ContextMenuPolicy { NoContextMenu, DefaultContextMenu, ActionsContextMenu, CustomContextMenu, PreventContextMenu };
+
+/*!
+    \enum Qt::SizeHint
+    \since 6.0
+
+    This enum names the size hints of a QGraphicsLayoutItem.
+
+    \value MinimumSize The smallest size.
+    \value PreferredSize The best size.
+    \value MaximumSize The largest size.
+    \value MinimumDescent The smallest descent of text below its baseline; Nt does not use it.
+    \omitvalue NSizeHints
+*/
+enum SizeHint { MinimumSize, PreferredSize, MaximumSize, MinimumDescent, NSizeHints };
+
+/*!
+    \enum Qt::GestureType
+    \since 6.0
+
+    This enum names gestures. Nt has no gesture framework; QScroller::grabGesture() returns a value of it.
+
+    \value TapGesture A tap.
+    \value TapAndHoldGesture A tap and hold, a long press.
+    \value PanGesture A pan, a drag with one or more fingers.
+    \value PinchGesture A pinch.
+    \value SwipeGesture A swipe.
+    \value CustomGesture The first value of a gesture of the application, also the one of a QScroller.
+    \omitvalue LastGestureType
+*/
+enum GestureType : unsigned {
+    TapGesture = 1,
+    TapAndHoldGesture = 2,
+    PanGesture = 3,
+    PinchGesture = 4,
+    SwipeGesture = 5,
+    CustomGesture = 0x0100,
+    LastGestureType = ~0u
 };
 
 /*!
@@ -1278,6 +1377,8 @@ enum CursorShape {
     \value WA_SetStyle The widget has a style of its own. Set by QWidget::setStyle().
     \value WA_StyledBackground Kept for the application; Nt has no style sheets.
     \value WA_ShowWithoutActivating Kept for the application: whether a window that is shown becomes active is up to the window system.
+    \value WA_DontShowOnScreen A window that is shown is visible to the application, with its show events and
+           layout, but gets no window on the screen: for rendering it with QWidget::render() or QWidget::grab().
     \value WA_TranslucentBackground Kept for the application; windows of Nt are opaque.
     \value WA_AcceptTouchEvents Kept for the application; Nt has no touch events.
     \omitvalue WA_AttributeCount
@@ -1311,6 +1412,7 @@ enum WidgetAttribute {
     WA_SetStyle = 86,
     WA_StyledBackground = 93,
     WA_ShowWithoutActivating = 98,
+    WA_DontShowOnScreen = 103,
     WA_TranslucentBackground = 120,
     WA_AcceptTouchEvents = 121,
     WA_AttributeCount = 132

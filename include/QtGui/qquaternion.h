@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+class QDebug;
+
 #include <QtGui/qvectornd.h>
 
 class QQuaternion {
@@ -126,3 +128,5 @@ public:
 private:
     float wp, xp, yp, zp;
 };
+
+QDebug operator<<(QDebug debug, const QQuaternion &quaternion);

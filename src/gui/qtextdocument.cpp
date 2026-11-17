@@ -5,6 +5,10 @@
 #include <QtGui/qcolor.h>
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qpainter.h>
+#include <QtGui/qtextobject.h>
+#include <QtGui/qtexttable.h>
+
+#include "qtextmarkdown_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -46,8 +50,9 @@
         and \c del, \c tt, \c code and \c kbd, \c big and \c small,
         \c font with \c color, \c face and \c size, \c span, and \c a with
         \c href for a link.
-    \li Tables are read as text: a row is a paragraph, with tabs between
-        its cells.
+    \li Tables become QTextTable frames: a row is a paragraph, with tabs
+        between its cells, laid out in columns. \c border, \c cellpadding
+        and \c cellspacing set the format of the table.
     \li An \c img is shown as its \c alt text.
     \endlist
 
@@ -60,8 +65,8 @@
     \differences
     The document is made as a whole, with setPlainText() or setHtml(): it
     has no QTextCursor, no undo and redo, and its contents are not edited
-    in place. There are no tables, frames, images, style sheets, resources,
-    Markdown, printing, searching (\c find()) or page sizes. The layout is
+    in place. Tables are simple (see QTextTable), and there are no images,
+    style sheets, resources, printing, \c find() (QPlainTextEdit::find() searches) or page sizes. The layout is
     the one of the document: \c setDocumentLayout() is not there, and
     QAbstractTextDocumentLayout is a small class that answers questions
     about it. The HTML that toHtml() writes is simpler than that of Qt.
@@ -128,10 +133,26 @@ struct Block {
     int listLevel = 0; // the depth of the lists that the block is in
     bool rule = false; // a horizontal line
     bool collapsed = false; // while reading HTML: the text ends with a space that stands for white space
+    int table = -1;         // the table that the block is a row of
     std::unique_ptr<QTextLayout> layout;
     qreal y = 0;
     qreal left = 0;
     qreal height = 0;
+};
+
+// A table of the document: its rows are the blocks from `first` to `last`, its cells parted by tabs.
+struct TableInfo {
+    int first = -1;
+    int last = -1;
+    int rows = 0;
+    int columns = 0;
+    int column = 0; // while reading HTML: the cells of the current row so far
+    QTextTableFormat format;
+    // As laid out:
+    qreal x = 0;    // the left edge
+    qreal cell = 0; // the width of a column
+    qreal bottom = 0;
+    std::vector<qreal> rowTops;
 };
 
 QString marker(const Block &block) {
@@ -170,16 +191,52 @@ public:
     QAbstractTextDocumentLayout layoutObject;
     bool laidOut = false;
     QSizeF laidOutSize;
+    std::vector<TableInfo> tables;
+    std::vector<TableInfo> parsedTables;    // the tables of the HTML being read, for setBlocks()
+    QTextFrame *root = nullptr;             // a child of the document
+    std::vector<QTextTable *> tableObjects; // children of the root frame, one for each of the tables
 
     void setBlocks(std::vector<Block> &&fresh) {
         blocks = std::move(fresh);
         if (blocks.empty())
             blocks.emplace_back(); // a document always has a block
+        tables = std::move(parsedTables);
+        parsedTables.clear();
+        rebuildFrames();
+        laidOut = false;
+        emit q->contentsChanged();
+    }
+    QTextFrame *rootFrame() {
+        if (!root)
+            root = new QTextFrame(q);
+        return root;
+    }
+    void rebuildFrames() {
+        for (QTextTable *table : tableObjects)
+            delete table;
+        tableObjects.clear();
+        for (const TableInfo &info : tables) {
+            auto *table = new QTextTable(q);
+            table->setParent(rootFrame());
+            table->m_rows = info.rows;
+            table->m_columns = info.columns;
+            table->m_firstBlock = info.first;
+            table->m_lastBlock = info.last;
+            table->m_format = info.format;
+            tableObjects.push_back(table);
+        }
+    }
+    void tableFormatChanged(const QTextTable *table) {
+        const auto it = std::find(tableObjects.begin(), tableObjects.end(), table);
+        if (it == tableObjects.end())
+            return;
+        tables[static_cast<std::size_t>(it - tableObjects.begin())].format = table->format();
         laidOut = false;
         emit q->contentsChanged();
     }
     void ensureLayout();
     void parseHtml(const QString &html);
+    QString markdown() const;
     QString blockHtml(const Block &block) const;
     static QTextDocumentPrivate *get(const QTextDocument *document) { return document->d.get(); }
 };
@@ -193,9 +250,31 @@ void QTextDocumentPrivate::ensureLayout() {
     const qreal available = wraps ? std::max<qreal>(1, textWidth - 2 * margin) : 1e7;
     qreal y = margin;
     qreal widest = 0;
-    for (Block &block : blocks) {
+    // The columns of a table are as wide as its widest cell.
+    QFont bold = font;
+    bold.setBold(true);
+    const QFontMetricsF boldMetrics(bold);
+    for (TableInfo &table : tables) {
+        qreal cell = 0;
+        for (int b = table.first; b <= table.last; ++b)
+            for (const QString &text : blocks[static_cast<std::size_t>(b)].text.split(QChar('\t')))
+                cell = std::max(cell, boldMetrics.horizontalAdvance(text));
+        const qreal padding = table.format.cellPadding() + table.format.cellSpacing() / 2;
+        table.cell = std::ceil(cell + 2 * padding + table.format.border());
+        table.rowTops.clear();
+    }
+    for (std::size_t index = 0; index < blocks.size(); ++index) {
+        Block &block = blocks[index];
         const QTextBlockFormat &format = block.format;
-        const qreal left = margin + format.leftMargin() + (format.indent() + block.listLevel) * kIndentStep;
+        TableInfo *table = block.table >= 0 ? &tables[static_cast<std::size_t>(block.table)] : nullptr;
+        qreal left = margin + format.leftMargin() + (format.indent() + block.listLevel) * kIndentStep;
+        qreal cellInset = 0; // the border and the padding of a cell
+        if (table) {
+            cellInset = table->format.border() + table->format.cellPadding() + table->format.cellSpacing() / 2;
+            table->x = left;
+            table->rowTops.push_back(y);
+            left += cellInset;
+        }
         const qreal width = std::max<qreal>(1, available - (left - margin) - format.rightMargin());
         y += format.topMargin();
         if (!block.layout)
@@ -207,9 +286,12 @@ void QTextDocumentPrivate::ensureLayout() {
         layout.setFormats(block.formats);
         QTextOption blockOption = option;
         blockOption.setAlignment(format.alignment());
-        if (!wraps)
+        if (!wraps || table)
             blockOption.setWrapMode(QTextOption::NoWrap);
+        if (table)
+            blockOption.setTabStopDistance(table->cell);
         layout.setTextOption(blockOption);
+        y += cellInset;
         layout.setPosition(QPointF(left, y));
         layout.beginLayout();
         qreal dy = 0;
@@ -230,6 +312,13 @@ void QTextDocumentPrivate::ensureLayout() {
         block.left = left;
         block.height = dy;
         y += dy + format.bottomMargin();
+        if (table) {
+            y += cellInset - table->format.border();
+            table->bottom = y;
+            widest = std::max(widest, table->x - margin + table->cell * table->columns);
+            if (static_cast<int>(index) == table->last)
+                y += table->format.border();
+        }
     }
     laidOutSize = QSizeF(wraps ? textWidth : std::ceil(widest) + 2 * margin, std::ceil(y + margin));
 }
@@ -488,6 +577,8 @@ void QTextDocumentPrivate::parseHtml(const QString &html) {
     const qreal baseSize = font.pointSizeF() > 0 ? font.pointSizeF() : 10.0;
 
     std::vector<Scope> scopes(1);
+    std::vector<std::size_t> openTables; // the tables being read, innermost last
+    parsedTables.clear();
     Block current;
     bool blockOpen = false;    // current is the block of an element that was opened
     int counters[16] = {0};
@@ -647,6 +738,10 @@ void QTextDocumentPrivate::parseHtml(const QString &html) {
                         if (isBlockElement(name))
                             flushBlock(false);
                         scopes.resize(static_cast<std::size_t>(match));
+                        if (name == QStringLiteral("table") && !openTables.empty()) {
+                            parsedTables[openTables.back()].last = static_cast<int>(out.size()) - 1;
+                            openTables.pop_back();
+                        }
                     }
                     continue;
                 }
@@ -702,6 +797,25 @@ void QTextDocumentPrivate::parseHtml(const QString &html) {
                     scope.blockFormat.clearProperty(QTextFormat::BlockTopMargin);
                     scope.blockFormat.clearProperty(QTextFormat::BlockBottomMargin);
                     scope.blockFormat.clearProperty(QTextFormat::HeadingLevel);
+                }
+                if (name == QStringLiteral("table")) {
+                    TableInfo info;
+                    info.first = static_cast<int>(out.size());
+                    bool ok = false;
+                    const qreal border = tag.attributes.value(QStringLiteral("border")).toDouble(&ok);
+                    info.format.setBorder(ok ? border : 0); // HTML tables have no border unless they say so
+                    const qreal padding = tag.attributes.value(QStringLiteral("cellpadding")).toDouble(&ok);
+                    if (ok)
+                        info.format.setCellPadding(padding);
+                    const qreal spacing = tag.attributes.value(QStringLiteral("cellspacing")).toDouble(&ok);
+                    if (ok)
+                        info.format.setCellSpacing(spacing);
+                    openTables.push_back(parsedTables.size());
+                    parsedTables.push_back(info);
+                } else if (name == QStringLiteral("tr") && !openTables.empty()) {
+                    TableInfo &info = parsedTables[openTables.back()];
+                    ++info.rows;
+                    info.column = 0;
                 }
                 if (name == QStringLiteral("b") || name == QStringLiteral("strong") || name == QStringLiteral("th")) {
                     scope.charFormat.setFontWeight(QFont::Bold);
@@ -791,7 +905,14 @@ void QTextDocumentPrivate::parseHtml(const QString &html) {
                     scope.skip = true;
                 } else if (name == QStringLiteral("title")) {
                     scope.title = true;
-                } else if (name == QStringLiteral("td") || name == QStringLiteral("th")) {
+                }
+                if (name == QStringLiteral("td") || name == QStringLiteral("th")) {
+                    if (!openTables.empty()) {
+                        TableInfo &info = parsedTables[openTables.back()];
+                        info.columns = std::max(info.columns, ++info.column);
+                        if (name == QStringLiteral("th") && info.rows <= 1)
+                            info.format.setHeaderRowCount(1);
+                    }
                     // The cells of a row are parted by tabs.
                     trimSpace();
                     if (blockOpen && !current.text.isEmpty())
@@ -874,6 +995,19 @@ void QTextDocumentPrivate::parseHtml(const QString &html) {
         flushWord();
     }
     flushBlock(false);
+    for (std::size_t open : openTables) // tables that were not closed end with the document
+        parsedTables[open].last = static_cast<int>(out.size()) - 1;
+    // A table without rows is dropped; the rows of the others know their table.
+    std::vector<TableInfo> kept;
+    for (TableInfo &info : parsedTables) {
+        if (info.last < info.first || info.rows == 0)
+            continue;
+        info.format.setColumns(info.columns);
+        for (int b = info.first; b <= info.last; ++b)
+            out[static_cast<std::size_t>(b)].table = static_cast<int>(kept.size());
+        kept.push_back(info);
+    }
+    parsedTables = std::move(kept);
     setBlocks(std::move(out));
 }
 
@@ -1358,6 +1492,49 @@ QString QTextDocument::toPlainText() const {
 void QTextDocument::setHtml(const QString &html) { d->parseHtml(html); }
 
 /*!
+    \since 6.0
+
+    Makes the Markdown in \a markdown the contents of the document. With the default \a features, GitHub
+    Flavored Markdown, tables, strikethrough and task lists are read as well.
+
+    \code
+    browser->document()->setMarkdown("# Help\n\n| Key | Action |\n|-----|--------|\n| F1  | Help   |\n");
+    \endcode
+
+    The Markdown becomes HTML, which is read as setHtml() reads it: headings, paragraphs, emphasis, code spans and
+    blocks, block quotes, lists, links, images (as their text), rules and tables.
+
+    \sa toMarkdown(), setHtml()
+*/
+void QTextDocument::setMarkdown(const QString &markdown, MarkdownFeatures features) {
+    const bool github = (features & MarkdownDialectGitHub) == MarkdownDialectGitHub;
+    const bool noHtml = (features & MarkdownNoHTML) == MarkdownNoHTML;
+    d->parseHtml(QtPrivate::markdownToHtml(markdown, github, noHtml));
+}
+
+/*!
+    \since 6.0
+
+    Returns the contents of the document as Markdown: headings, lists, tables, bold, italic, code and links.
+    \a features is accepted for compatibility.
+
+    \sa setMarkdown()
+*/
+QString QTextDocument::toMarkdown(MarkdownFeatures features) const {
+    (void)features;
+    return d->markdown();
+}
+
+/*!
+    \since 6.0
+
+    Returns the frame of the whole document. The tables of the document are its child frames.
+
+    \sa QTextFrame::childFrames()
+*/
+QTextFrame *QTextDocument::rootFrame() const { return d->rootFrame(); }
+
+/*!
     Returns the contents of the document as HTML that setHtml() reads
     back to the same text and formats.
 
@@ -1698,6 +1875,22 @@ void QTextDocument::drawContents(QPainter *painter, const QRectF &rect) {
         }
         block.layout->draw(painter, QPointF(0, 0), QList<QTextLayout::FormatRange>(), rect);
     }
+    // The borders of the tables: around them, between the rows and between the columns.
+    for (const TableInfo &table : d->tables) {
+        const qreal border = table.format.border();
+        if (border <= 0 || table.rowTops.empty())
+            continue;
+        const QBrush brush = table.format.borderBrush();
+        painter->setPen(QPen(brush.style() != Qt::NoBrush ? brush.color() : QColor(128, 128, 128), border));
+        painter->setBrush(Qt::NoBrush);
+        const qreal top = table.rowTops.front();
+        const qreal width = table.cell * table.columns;
+        painter->drawRect(QRectF(table.x, top, width, table.bottom - top));
+        for (std::size_t i = 1; i < table.rowTops.size(); ++i)
+            painter->drawLine(QPointF(table.x, table.rowTops[i]), QPointF(table.x + width, table.rowTops[i]));
+        for (int c = 1; c < table.columns; ++c)
+            painter->drawLine(QPointF(table.x + c * table.cell, top), QPointF(table.x + c * table.cell, table.bottom));
+    }
     painter->restore();
 }
 
@@ -1707,4 +1900,281 @@ void QTextDocument::drawContents(QPainter *painter, const QRectF &rect) {
 */
 QAbstractTextDocumentLayout *QTextDocument::documentLayout() const { return &d->layoutObject; }
 
+// ---------------------------------------------------------------------------------------------------------
+// Markdown out.
+
+QString QTextDocumentPrivate::markdown() const {
+    // The text of a block with its bold, italic, code and link formats as Markdown.
+    const auto inlineMarkdown = [](const Block &block) {
+        const int n = static_cast<int>(block.text.size());
+        std::vector<int> cuts{0, n};
+        for (const QTextLayout::FormatRange &range : block.formats) {
+            cuts.push_back(std::clamp(range.start, 0, n));
+            cuts.push_back(std::clamp(range.start + range.length, 0, n));
+        }
+        std::sort(cuts.begin(), cuts.end());
+        cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+        QString out;
+        for (std::size_t i = 0; i + 1 < cuts.size(); ++i) {
+            QTextCharFormat format;
+            for (const QTextLayout::FormatRange &range : block.formats)
+                if (range.start <= cuts[i] && range.start + range.length >= cuts[i + 1])
+                    format.merge(range.format);
+            QString text = block.text.mid(cuts[i], cuts[i + 1] - cuts[i]);
+            text.replace(QChar(0x2028), QStringLiteral("  \n"));
+            if (format.fontFixedPitch())
+                text = QChar('`') + text + QChar('`');
+            if (format.fontItalic())
+                text = QChar('*') + text + QChar('*');
+            if (format.fontWeight() >= QFont::Bold && block.format.headingLevel() == 0 && block.table < 0)
+                text = QStringLiteral("**") + text + QStringLiteral("**");
+            if (format.fontStrikeOut())
+                text = QStringLiteral("~~") + text + QStringLiteral("~~");
+            if (format.isAnchor())
+                text = QChar('[') + text + QStringLiteral("](") + format.anchorHref() + QChar(')');
+            out += text;
+        }
+        return out;
+    };
+    QString md;
+    for (std::size_t i = 0; i < blocks.size(); ++i) {
+        const Block &block = blocks[i];
+        if (block.rule) {
+            md += QStringLiteral("- - -\n\n");
+            continue;
+        }
+        if (block.table >= 0) {
+            const TableInfo &table = tables[static_cast<std::size_t>(block.table)];
+            QStringList cells = inlineMarkdown(block).split(QChar('\t'));
+            while (cells.size() < table.columns)
+                cells.append(QString());
+            md += QStringLiteral("|") + cells.join(QChar('|')) + QStringLiteral("|\n");
+            if (static_cast<int>(i) == table.first)
+                md += QStringLiteral("|") + QStringList(table.columns, QStringLiteral("---")).join(QChar('|')) +
+                      QStringLiteral("|\n");
+            if (static_cast<int>(i) == table.last)
+                md += QChar('\n');
+            continue;
+        }
+        const int heading = block.format.headingLevel();
+        QString prefix = heading > 0 ? QString(heading, QChar('#')) + QChar(' ') : QString();
+        if (block.listStyle != 0) {
+            prefix = QString((block.listLevel - 1) * 2, QChar(' ')) +
+                     (block.listStyle == QTextListFormat::ListDecimal ? QString::number(block.listNumber) + QChar('.')
+                                                                      : QStringLiteral("-")) +
+                     QChar(' ');
+        }
+        md += prefix + inlineMarkdown(block) + QChar('\n');
+        // Items of one list follow each other; anything else is a paragraph of its own.
+        const bool nextInList = block.listStyle != 0 && i + 1 < blocks.size() && blocks[i + 1].listStyle != 0;
+        if (!nextInList)
+            md += QChar('\n');
+    }
+    return md;
+}
+
+// ---------------------------------------------------------------------------------------------------------
+// Frames and tables.
+
+/*!
+    \class QTextObject
+    \inmodule NtGui
+    \since 6.0
+    \brief The QTextObject class is the base of the objects of a QTextDocument, its frames.
+
+    \differences
+    The frames are the only text objects: there are no lists as objects (\c QTextList) and no \c QTextBlockGroup.
+    formatIndex() and objectIndex() return -1.
+    \enddifferences
+
+    \sa QTextFrame
+*/
+
+/*!
+    Constructs an object of the document \a doc, which is its parent.
+*/
+QTextObject::QTextObject(QTextDocument *doc) : QObject(doc), m_document(doc) {}
+
+/*!
+    Destroys the object.
+*/
+QTextObject::~QTextObject() = default;
+
+/*!
+    \fn QTextFormat QTextObject::format() const
+
+    Returns the format of the object.
+*/
+
+/*!
+    \fn int QTextObject::formatIndex() const
+
+    Returns -1: Nt keeps no table of formats.
+*/
+
+/*!
+    \fn QTextDocument *QTextObject::document() const
+
+    Returns the document of the object.
+*/
+
+/*!
+    \fn int QTextObject::objectIndex() const
+
+    Returns -1: Nt numbers no objects.
+*/
+
+/*!
+    Sets the format of the object to \a format.
+*/
+void QTextObject::setFormat(const QTextFormat &format) { m_format = format; }
+
+/*!
+    \class QTextFrame
+    \inmodule NtGui
+    \since 6.0
+    \brief The QTextFrame class is a part of a QTextDocument: the whole document, or a table in it.
+
+    QTextDocument::rootFrame() is the frame of the whole document, and its child frames are its tables:
+
+    \code
+    for (QTextFrame *child : document->rootFrame()->childFrames()) {
+        if (auto *table = qobject_cast<QTextTable *>(child))
+            qDebug() << table->rows() << table->columns();
+    }
+    \endcode
+
+    \differences
+    A frame cannot be made by a program into a document (there is no QTextCursor::insertFrame()), and the frames
+    are made again when the contents of the document are set. There are no frame iterators (\c begin(),
+    \c end()) and no \c layoutData(). Tables in tables are child frames of the root frame too.
+    \enddifferences
+
+    \sa QTextTable, QTextDocument::rootFrame()
+*/
+
+/*!
+    Constructs a frame of the document \a doc.
+*/
+QTextFrame::QTextFrame(QTextDocument *doc) : QTextObject(doc) { setFormat(QTextFrameFormat()); }
+
+/*!
+    Destroys the frame.
+*/
+QTextFrame::~QTextFrame() = default;
+
+/*!
+    \fn void QTextFrame::setFrameFormat(const QTextFrameFormat &format)
+
+    Sets the format of the frame to \a format.
+*/
+
+/*!
+    \fn QTextFrameFormat QTextFrame::frameFormat() const
+
+    Returns the format of the frame.
+*/
+
+/*!
+    Returns the position in the document of the first character of the frame.
+*/
+int QTextFrame::firstPosition() const {
+    const QTextDocument *doc = document();
+    return doc ? doc->findBlockByNumber(m_firstBlock).position() : 0;
+}
+
+/*!
+    Returns the position in the document after the last character of the frame.
+*/
+int QTextFrame::lastPosition() const {
+    const QTextDocument *doc = document();
+    if (!doc)
+        return 0;
+    const QTextBlock last = m_lastBlock < 0 ? doc->lastBlock() : doc->findBlockByNumber(m_lastBlock);
+    return last.position() + last.length() - 1;
+}
+
+/*!
+    Returns the frames in this frame, in their order in the document.
+*/
+QList<QTextFrame *> QTextFrame::childFrames() const {
+    QList<QTextFrame *> frames;
+    for (QObject *child : children())
+        if (auto *frame = qobject_cast<QTextFrame *>(child))
+            frames.append(frame);
+    return frames;
+}
+
+/*!
+    Returns the frame that this frame is in, or \c nullptr for the root frame.
+*/
+QTextFrame *QTextFrame::parentFrame() const { return qobject_cast<QTextFrame *>(parent()); }
+
+/*!
+    \class QTextTable
+    \inmodule NtGui
+    \since 6.0
+    \brief The QTextTable class is a table of a QTextDocument.
+
+    A table comes from the HTML or Markdown of the document. Its format sets the border, which is drawn around the
+    table and between its cells, and the padding of the cells:
+
+    \code
+    QTextTableFormat format = table->format();
+    format.setBorder(1);
+    format.setBorderBrush(Qt::gray);
+    format.setCellPadding(5);
+    table->setFormat(format);
+    \endcode
+
+    \differences
+    The cells are not objects: there is no \c cellAt(), and rows and columns cannot be inserted, removed, merged
+    or split. All columns are as wide as the widest cell, cells do not wrap, and a row is one paragraph of the
+    document whose cells are parted by tabs.
+    \enddifferences
+
+    \sa QTextTableFormat, QTextFrame
+*/
+
+/*!
+    Constructs an empty table of the document \a doc.
+*/
+QTextTable::QTextTable(QTextDocument *doc) : QTextFrame(doc) { QTextObject::setFormat(QTextTableFormat()); }
+
+/*!
+    Destroys the table.
+*/
+QTextTable::~QTextTable() = default;
+
+/*!
+    \fn int QTextTable::rows() const
+
+    Returns the number of rows.
+*/
+
+/*!
+    \fn int QTextTable::columns() const
+
+    Returns the number of columns.
+*/
+
+/*!
+    \fn QTextTableFormat QTextTable::format() const
+
+    Returns the format of the table.
+*/
+
+/*!
+    Sets the format of the table to \a format, and lays the document out again with it. The number of columns stays.
+*/
+void QTextTable::setFormat(const QTextTableFormat &format) {
+    QTextTableFormat kept = format;
+    kept.setColumns(m_columns);
+    QTextObject::setFormat(kept);
+    if (QTextDocument *doc = document())
+        QTextDocumentPrivate::get(doc)->tableFormatChanged(this);
+}
+
 #include "moc_qtextdocument.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc
+#include "moc_qtextobject.cpp"   // NOLINT(bugprone-suspicious-include): generated by ntmoc
+#include "moc_qtexttable.cpp"    // NOLINT(bugprone-suspicious-include): generated by ntmoc

@@ -31,7 +31,7 @@
 
     \differences
     There is no clipboard (cut, copy, paste), undo and redo, drag and drop, context menu, input mask,
-    \c QValidator, \c QCompleter, alignment or \c inputMethodHints(). The cursor does not
+    alignment or \c inputMethodHints(). The cursor does not
     blink, and there are no \c PasswordEchoOnEdit and no \c cursorMoveStyle(). Text is edited one code unit at a time, so
     characters outside the Basic Multilingual Plane count twice.
     \enddifferences
@@ -458,7 +458,15 @@ void QLineEdit::moveCursor(int position, bool mark) {
     update();
 }
 
-void QLineEdit::changeText(const QString &text, int cursor, bool userEdit) {
+void QLineEdit::changeText(const QString &newText, int cursor, bool userEdit) {
+    QString text = newText;
+    if (userEdit && m_validator) {
+        // The validator may change the text, for example to upper case, and the cursor.
+        if (m_validator->validate(text, cursor) == QValidator::Invalid) {
+            emit inputRejected();
+            return;
+        }
+    }
     const bool changed = text != m_text;
     const int oldCursor = m_cursor;
     const bool hadSelection = hasSelectedText();
@@ -478,6 +486,49 @@ void QLineEdit::changeText(const QString &text, int cursor, bool userEdit) {
         emit cursorPositionChanged(oldCursor, m_cursor);
     if (hadSelection)
         emit selectionChanged();
+}
+
+bool QLineEdit::finishEditing() {
+    if (hasAcceptableInput())
+        return true;
+    QString fixed = m_text;
+    m_validator->fixup(fixed);
+    if (fixed != m_text)
+        changeText(fixed, static_cast<int>(fixed.size()), true);
+    return hasAcceptableInput();
+}
+
+/*!
+    \since 6.0
+
+    Sets the validator that checks the text the user types to \a validator, or removes it if \a validator is
+    \c nullptr. The line edit does not take ownership of it.
+
+    Edits that make the text QValidator::Invalid are refused, and inputRejected() is emitted. Return emits
+    returnPressed() and editingFinished() only when the text is acceptable, after QValidator::fixup() if it is not.
+    setText() is not checked.
+
+    \sa hasAcceptableInput()
+*/
+void QLineEdit::setValidator(const QValidator *validator) { m_validator = validator; }
+
+/*!
+    \fn const QValidator *QLineEdit::validator() const
+
+    Returns the validator of the line edit, or \c nullptr if it has none.
+*/
+
+/*!
+    \since 6.0
+
+    Returns \c true if the text is acceptable to the validator(), or if there is no validator.
+*/
+bool QLineEdit::hasAcceptableInput() const {
+    if (!m_validator)
+        return true;
+    QString text = m_text;
+    int pos = m_cursor;
+    return m_validator->validate(text, pos) == QValidator::Acceptable;
 }
 
 // Scrolls the text sideways so that the cursor is in view.
@@ -691,8 +742,10 @@ void QLineEdit::keyPressEvent(QKeyEvent *event) {
         break;
     case Qt::Key_Return:
     case Qt::Key_Enter:
-        emit returnPressed();
-        emit editingFinished();
+        if (finishEditing()) {
+            emit returnPressed();
+            emit editingFinished();
+        }
         // As in Qt the key goes on to the parent, so that a dialog can click its default button.
         event->ignore();
         return;
@@ -731,7 +784,8 @@ void QLineEdit::focusOutEvent(QFocusEvent *event) {
     (void)event;
     m_dragging = false;
     update();
-    emit editingFinished();
+    if (finishEditing())
+        emit editingFinished();
 }
 
 /*!

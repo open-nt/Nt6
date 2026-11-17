@@ -599,6 +599,25 @@ void QGraphicsItem::setAcceptedMouseButtons(Qt::MouseButtons buttons) {
 }
 
 /*!
+    \since 6.0
+
+    Returns \c true if the item takes the mouse and hover events of its descendants: \c false by default, \c true
+    for a QGraphicsItemGroup.
+
+    \sa setHandlesChildEvents()
+*/
+bool QGraphicsItem::handlesChildEvents() const { return d_ptr->handlesChildEvents; }
+
+/*!
+    \since 6.0
+
+    Makes the item take the mouse and hover events of all its descendants if \a enabled is \c true: a press on a
+    child goes to this item instead, as if the item covered the child. With \c false, the default except for a
+    QGraphicsItemGroup, the children get their own events.
+*/
+void QGraphicsItem::setHandlesChildEvents(bool enabled) { d_ptr->handlesChildEvents = enabled; }
+
+/*!
     Returns \c true if the item receives hover events; \c false by default.
 */
 bool QGraphicsItem::acceptHoverEvents() const { return d_ptr->acceptHover; }
@@ -1304,6 +1323,59 @@ bool QGraphicsItem::sceneEventFilter(QGraphicsItem *watched, QEvent *event) {
 }
 
 /*!
+    \since 6.0
+
+    Returns \c true if drags can be dropped on the item.
+
+    \sa setAcceptDrops()
+*/
+bool QGraphicsItem::acceptDrops() const { return d_ptr->acceptDrops; }
+
+/*!
+    \since 6.0
+
+    Lets drags be dropped on the item if \a on is \c true: it then gets dragEnterEvent() and the events that
+    follow, from the scene of a QGraphicsView.
+*/
+void QGraphicsItem::setAcceptDrops(bool on) { d_ptr->acceptDrops = on; }
+
+/*!
+    \since 6.0
+
+    Handles a drag that comes over the item, \a event. The default ignores it; an item that takes drops accepts it.
+*/
+void QGraphicsItem::dragEnterEvent(QGraphicsSceneDragDropEvent *event) { event->ignore(); }
+
+/*!
+    \since 6.0
+
+    Handles a drag that moves over the item, \a event, after the item accepted it. The default does nothing.
+*/
+void QGraphicsItem::dragMoveEvent(QGraphicsSceneDragDropEvent *event) { (void)event; }
+
+/*!
+    \since 6.0
+
+    Handles a drag that left the item, \a event. The default does nothing.
+*/
+void QGraphicsItem::dragLeaveEvent(QGraphicsSceneDragDropEvent *event) { (void)event; }
+
+/*!
+    \since 6.0
+
+    Handles the drop of a drag on the item, \a event. The default ignores it.
+*/
+void QGraphicsItem::dropEvent(QGraphicsSceneDragDropEvent *event) { event->ignore(); }
+
+/*!
+    \since 6.0
+
+    Handles a request for a context menu over the item, \a event. Reimplement it to open a menu at
+    QGraphicsSceneContextMenuEvent::screenPos(); the default ignores the event, which then goes to the item below.
+*/
+void QGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent *event) { event->ignore(); }
+
+/*!
     Receives every \a event for the item and passes it to the handler for its type. Returns \c true if the event was
     recognized.
 */
@@ -1332,6 +1404,21 @@ bool QGraphicsItem::sceneEvent(QEvent *event) {
         return true;
     case QEvent::GraphicsSceneWheel:
         wheelEvent(static_cast<QGraphicsSceneWheelEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneContextMenu:
+        contextMenuEvent(static_cast<QGraphicsSceneContextMenuEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneDragEnter:
+        dragEnterEvent(static_cast<QGraphicsSceneDragDropEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneDragMove:
+        dragMoveEvent(static_cast<QGraphicsSceneDragDropEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneDragLeave:
+        dragLeaveEvent(static_cast<QGraphicsSceneDragDropEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneDrop:
+        dropEvent(static_cast<QGraphicsSceneDragDropEvent *>(event));
         return true;
     case QEvent::KeyPress:
         keyPressEvent(static_cast<QKeyEvent *>(event));

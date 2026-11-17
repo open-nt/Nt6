@@ -6,11 +6,14 @@
 /*!
     \page nt-opengl.html
     \title Using Nt OpenGL
-    \brief How to render with OpenGL in a window or offscreen, paint with QPainter through OpenGL, and control vsync.
+    \brief How to render with OpenGL in a window, a widget or offscreen, paint with QPainter through OpenGL, and control vsync.
 
     Nt renders with OpenGL through the same classes as Qt. The contexts and their functions are in Nt GUI
-    (QOpenGLContext, QOpenGLFunctions, QSurfaceFormat, QOffscreenSurface); the window, the QPainter device and
-    framebuffer objects are in Nt OpenGL (QOpenGLWindow, QOpenGLPaintDevice, QOpenGLFramebufferObject):
+    (QOpenGLContext, QOpenGLFunctions, QOpenGLExtraFunctions, QSurfaceFormat, QOffscreenSurface); the window, the
+    QPainter device, framebuffer objects, buffers, vertex array objects and shaders are in Nt OpenGL
+    (QOpenGLWindow, QOpenGLPaintDevice, QOpenGLFramebufferObject, QOpenGLBuffer, QOpenGLVertexArrayObject,
+    QOpenGLShaderProgram); the widget is in Nt OpenGL Widgets (QOpenGLWidget, linked with
+    \c Nt::OpenGLWidgets):
 
     \code
     find_package(Nt6 REQUIRED)
@@ -61,6 +64,50 @@
 
     Each frame ends with QOpenGLWindow::frameSwapped(); asking for the next frame from there renders
     continuously.
+
+    \section1 A Widget That Renders With OpenGL
+
+    QOpenGLWidget puts OpenGL inside a user interface made with Nt Widgets, next to other widgets, in a layout
+    or in a QGraphicsView through a proxy. Reimplement the same three functions; a QPainter on the widget inside
+    paintGL() draws with OpenGL over the scene:
+
+    \code
+    class View : public QOpenGLWidget, protected QOpenGLExtraFunctions {
+    protected:
+        void initializeGL() override {
+            initializeOpenGLFunctions();
+            m_vao.create();
+            QOpenGLVertexArrayObject::Binder binder(&m_vao);
+            m_vertices.create();
+            m_vertices.bind();
+            m_vertices.allocate(kVertices, sizeof kVertices);
+            glEnableVertexAttribArray(0);
+            glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
+        }
+
+        void paintGL() override {
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+            m_program.bind();
+            QOpenGLVertexArrayObject::Binder binder(&m_vao);
+            glDrawArraysInstanced(GL_TRIANGLES, 0, 36, m_instances);
+
+            QPainter hud(this);
+            hud.drawText(rect(), Qt::AlignTop | Qt::AlignRight, tr("%1 boxes").arg(m_instances));
+        }
+
+    private:
+        QOpenGLShaderProgram m_program;
+        QOpenGLVertexArrayObject m_vao;
+        QOpenGLBuffer m_vertices{QOpenGLBuffer::VertexBuffer};
+        int m_instances = 100;
+    };
+    \endcode
+
+    The widget renders into a framebuffer object in a context of its own. A widget that is a window of its own,
+    with no child widgets, shows each frame by blitting it into the window and swapping buffers, as QOpenGLWindow
+    does. Inside a window of other widgets, each frame is read back and copied onto the window instead, so that
+    window does not need OpenGL, at the cost of a read back per frame. QOpenGLWidget::grabFramebuffer() renders a frame and returns it
+    as an image, also for a widget that is not shown: use it for screenshots or to feed a video stream.
 
     \section1 Frame Rate and Vsync
 
@@ -134,9 +181,11 @@
 
     \section1 OpenGL Calls
 
-    QOpenGLContext::functions() gives the OpenGL ES 2.0 API, which desktop OpenGL has too. Derive from
-    QOpenGLFunctions and call initializeOpenGLFunctions() in initializeGL() to call the functions by their
-    names. Other functions, such as those of OpenGL 3, come from QOpenGLContext::getProcAddress().
+    QOpenGLContext::functions() gives the OpenGL ES 2.0 API, which desktop OpenGL has too, and
+    QOpenGLContext::extraFunctions() the OpenGL ES 3.0 API, which desktop OpenGL 3.3 has: vertex array objects,
+    instanced drawing, framebuffer blits, several render targets, uniform buffers and sync objects. Derive from
+    QOpenGLFunctions or QOpenGLExtraFunctions and call initializeOpenGLFunctions() in initializeGL() to call the
+    functions by their names. Other functions come from QOpenGLContext::getProcAddress().
 
     Without a format that asks otherwise, contexts are desktop OpenGL in a compatibility profile where EGL
     offers it, and OpenGL ES otherwise. Ask for a version and profile, or for OpenGL ES, with

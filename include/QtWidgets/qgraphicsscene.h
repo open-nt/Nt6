@@ -21,6 +21,8 @@ class QGraphicsPixmapItem;
 class QGraphicsPolygonItem;
 class QGraphicsProxyWidget;
 class QGraphicsRectItem;
+class QGraphicsSceneContextMenuEvent;
+class QGraphicsSceneDragDropEvent;
 class QGraphicsSceneHoverEvent;
 class QGraphicsSceneMouseEvent;
 class QGraphicsSceneWheelEvent;
@@ -174,6 +176,11 @@ protected:
     virtual void mouseReleaseEvent(QGraphicsSceneMouseEvent *event);
     virtual void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event);
     virtual void wheelEvent(QGraphicsSceneWheelEvent *event);
+    virtual void contextMenuEvent(QGraphicsSceneContextMenuEvent *event);
+    virtual void dragEnterEvent(QGraphicsSceneDragDropEvent *event);
+    virtual void dragMoveEvent(QGraphicsSceneDragDropEvent *event);
+    virtual void dragLeaveEvent(QGraphicsSceneDragDropEvent *event);
+    virtual void dropEvent(QGraphicsSceneDragDropEvent *event);
     virtual void drawBackground(QPainter *painter, const QRectF &rect);
     virtual void drawForeground(QPainter *painter, const QRectF &rect);
 

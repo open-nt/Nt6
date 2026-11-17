@@ -1,16 +1,16 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qtextdocument.h>
 #include <QtWidgets/qplaintextedit.h>
 
 #include <memory>
-
-class QTextDocument;
 
 class QTextEdit : public QPlainTextEdit {
     Q_OBJECT
     Q_PROPERTY(bool acceptRichText READ acceptRichText WRITE setAcceptRichText)
     Q_PROPERTY(QString html READ toHtml WRITE setHtml USER true)
+    Q_PROPERTY(QString markdown READ toMarkdown WRITE setMarkdown)
 public:
     explicit QTextEdit(QWidget *parent = nullptr);
     explicit QTextEdit(const QString &text, QWidget *parent = nullptr);
@@ -19,6 +19,7 @@ public:
     bool acceptRichText() const { return m_acceptRichText; }
     void setAcceptRichText(bool accept) { m_acceptRichText = accept; }
     QString toHtml() const;
+    QString toMarkdown(QTextDocument::MarkdownFeatures features = QTextDocument::MarkdownDialectGitHub) const;
     QTextDocument *document() const;
     QString documentTitle() const;
     void setDocumentTitle(const QString &title);
@@ -27,6 +28,7 @@ public:
 public slots:
     void setText(const QString &text);
     void setHtml(const QString &text);
+    void setMarkdown(const QString &markdown);
     void append(const QString &text);
 
 protected:

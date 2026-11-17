@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qmainwindow.h>
+#include <QtWidgets/qstyle.h>
 
 #include "qwidget_p.h"
 
@@ -476,6 +477,8 @@ void QMainWindow::addToolBar(Qt::ToolBarArea area, QToolBar *toolbar) {
     m_pendingBreaks.setFlag(area, false);
     toolbar->setOrientation(isHorizontal(area) ? Qt::Horizontal : Qt::Vertical);
     toolbar->setToolButtonStyle(m_toolButtonStyle);
+    if (m_iconSize.isValid())
+        toolbar->setIconSize(m_iconSize);
     manage(toolbar);
     relayout();
 }
@@ -517,6 +520,8 @@ void QMainWindow::insertToolBar(QToolBar *before, QToolBar *toolbar) {
     m_toolBars.insert(at, {toolbar, area, false});
     toolbar->setOrientation(isHorizontal(area) ? Qt::Horizontal : Qt::Vertical);
     toolbar->setToolButtonStyle(m_toolButtonStyle);
+    if (m_iconSize.isValid())
+        toolbar->setIconSize(m_iconSize);
     manage(toolbar);
     relayout();
 }
@@ -685,6 +690,34 @@ void QMainWindow::setToolButtonStyle(Qt::ToolButtonStyle toolButtonStyle) {
     for (const ToolBarEntry &entry : m_toolBars)
         static_cast<QToolBar *>(entry.bar.data())->setToolButtonStyle(toolButtonStyle);
     emit toolButtonStyleChanged(toolButtonStyle);
+}
+
+/*!
+    \since 6.0
+
+    Returns the size of the icons of the tool bars of the window: what setIconSize() set, or the tool bar icon size
+    of the style.
+*/
+QSize QMainWindow::iconSize() const {
+    if (m_iconSize.isValid())
+        return m_iconSize;
+    const int extent = style()->pixelMetric(QStyle::PM_ToolBarIconSize, nullptr, this);
+    return QSize(extent > 0 ? extent : 24, extent > 0 ? extent : 24);
+}
+
+/*!
+    \since 6.0
+
+    Sets the size of the icons of the tool bars of the window to \a iconSize, for those it has and those added later.
+*/
+void QMainWindow::setIconSize(const QSize &iconSize) {
+    if (m_iconSize == iconSize)
+        return;
+    m_iconSize = iconSize;
+    prune();
+    for (const ToolBarEntry &entry : m_toolBars)
+        static_cast<QToolBar *>(entry.bar.data())->setIconSize(iconSize);
+    emit iconSizeChanged(this->iconSize());
 }
 
 /*!

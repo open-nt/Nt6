@@ -30,6 +30,8 @@
     \value PdmDepth The bit depth of a pixel.
     \value PdmDpiX The horizontal resolution in dots per inch.
     \value PdmDpiY The vertical resolution in dots per inch.
+    \value PdmPhysicalDpiX The horizontal resolution of the device itself in dots per inch.
+    \value PdmPhysicalDpiY The vertical resolution of the device itself in dots per inch.
     \value PdmDevicePixelRatio The device pixel ratio, rounded down.
     \value PdmDevicePixelRatioScaled The device pixel ratio multiplied by 65536.
 */
@@ -58,6 +60,8 @@ int QPaintDevice::metric(PaintDeviceMetric metric) const {
         return 16777216;
     case PdmDpiX:
     case PdmDpiY:
+    case PdmPhysicalDpiX:
+    case PdmPhysicalDpiY:
         return 96;
     case PdmDevicePixelRatio:
         return 1;

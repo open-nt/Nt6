@@ -48,8 +48,7 @@ template <typename MakeEvent> QWidget *deliver(QWidget *target, QWidget *root, c
     \endcode
 
     \differences
-    QGraphicsProxyWidget derives from QGraphicsObject, as Nt has no QGraphicsWidget, and has only resize(), size(),
-    geometry() and setGeometry() of its geometry API. The widget is painted into an image that the proxy draws, so it
+    The size hints are those of the widget, and its size policy is not taken over. The widget is painted into an image that the proxy draws, so it
     scales with the view but is resampled. Popups of the widget, such as the list of a combo box, open inside the
     widget. Drag and drop, context menus, tool tips and input methods are not passed on, and there is no
     \c createProxyForChildWidget().
@@ -59,8 +58,8 @@ template <typename MakeEvent> QWidget *deliver(QWidget *target, QWidget *root, c
 /*!
     Constructs a proxy without a widget, with the given \a parent. \a wFlags is accepted for compatibility.
 */
-QGraphicsProxyWidget::QGraphicsProxyWidget(QGraphicsItem *parent, Qt::WindowFlags wFlags) : QGraphicsObject(parent) {
-    (void)wFlags;
+QGraphicsProxyWidget::QGraphicsProxyWidget(QGraphicsItem *parent, Qt::WindowFlags wFlags)
+    : QGraphicsWidget(parent, wFlags) {
     setFlag(ItemIsFocusable);
     setAcceptHoverEvents(true);
 }
@@ -96,12 +95,13 @@ void QGraphicsProxyWidget::setWidget(QWidget *widget) {
         widget->setParent(nullptr);
     }
     WidgetAccess::data(widget).proxyUpdate = [this](const QRegion &region) { widgetDirty(region); };
-    if (m_size.isEmpty()) {
+    if (size().isEmpty()) {
         const QSize hint = widget->size().isEmpty() ? widget->sizeHint() : widget->size();
-        m_size = QSizeF(hint);
+        resize(QSizeF(hint));
     }
-    widget->resize(m_size.toSize());
+    widget->resize(size().toSize());
     widget->show();
+    updateGeometry();
     update();
 }
 
@@ -117,48 +117,52 @@ QRectF QGraphicsProxyWidget::subWidgetRect(const QWidget *widget) const {
     if (!m_widget || !widget)
         return QRectF();
     if (widget == m_widget)
-        return QRectF(QPointF(0, 0), m_size);
+        return rect();
     if (!m_widget->isAncestorOf(widget))
         return QRectF();
     return QRectF(QRect(widget->mapTo(m_widget.data(), QPoint(0, 0)), widget->size()));
 }
 
 /*!
-    Resizes the proxy and its widget to \a size.
+    \reimp
+
+    Moves and resizes the proxy to \a rect, in parent coordinates, and resizes its widget to the same size.
 */
-void QGraphicsProxyWidget::resize(const QSizeF &size) {
-    if (size == m_size)
+void QGraphicsProxyWidget::setGeometry(const QRectF &rect) {
+    const QSizeF old = size();
+    QGraphicsWidget::setGeometry(rect);
+    if (size() == old)
         return;
-    prepareGeometryChange();
-    m_size = size;
     m_cacheValid = false;
     if (m_widget)
-        m_widget->resize(size.toSize());
+        m_widget->resize(size().toSize());
     update();
 }
 
 /*!
-    Returns the size of the proxy.
-*/
-QSizeF QGraphicsProxyWidget::size() const { return m_size; }
-
-/*!
-    Returns the position and size of the proxy in parent coordinates.
-*/
-QRectF QGraphicsProxyWidget::geometry() const { return QRectF(pos(), m_size); }
-
-/*!
-    Moves and resizes the proxy to \a rect, in parent coordinates.
-*/
-void QGraphicsProxyWidget::setGeometry(const QRectF &rect) {
-    setPos(rect.topLeft());
-    resize(rect.size());
-}
-
-/*!
     \reimp
+
+    Returns the size hints of the widget: its minimum size hint and minimum size, its size hint, and its maximum
+    size. Without a widget the proxy has no size of its own.
 */
-QRectF QGraphicsProxyWidget::boundingRect() const { return QRectF(QPointF(0, 0), m_size); }
+QSizeF QGraphicsProxyWidget::sizeHint(Qt::SizeHint which, const QSizeF &constraint) const {
+    if (!m_widget)
+        return QGraphicsWidget::sizeHint(which, constraint);
+    switch (which) {
+    case Qt::MinimumSize: {
+        const QSize hint = m_widget->minimumSizeHint().isValid() ? m_widget->minimumSizeHint() : QSize(0, 0);
+        return QSizeF(hint.expandedTo(m_widget->minimumSize()).boundedTo(m_widget->maximumSize()));
+    }
+    case Qt::PreferredSize: {
+        const QSize hint = m_widget->sizeHint().isValid() ? m_widget->sizeHint() : m_widget->size();
+        return QSizeF(hint.expandedTo(m_widget->minimumSize()).boundedTo(m_widget->maximumSize()));
+    }
+    case Qt::MaximumSize:
+        return QSizeF(m_widget->maximumSize());
+    default:
+        return QSizeF(-1, -1);
+    }
+}
 
 /*!
     \reimp
@@ -196,7 +200,7 @@ void QGraphicsProxyWidget::widgetDirty(const QRegion &region) {
 /*!
     \reimp
 */
-bool QGraphicsProxyWidget::sceneEvent(QEvent *event) { return QGraphicsObject::sceneEvent(event); }
+bool QGraphicsProxyWidget::sceneEvent(QEvent *event) { return QGraphicsWidget::sceneEvent(event); }
 
 void QGraphicsProxyWidget::sendMouse(QGraphicsSceneMouseEvent *event, QEvent::Type type) {
     if (!m_widget) {
@@ -321,7 +325,7 @@ void QGraphicsProxyWidget::keyReleaseEvent(QKeyEvent *event) {
     \reimp
 */
 void QGraphicsProxyWidget::focusInEvent(QFocusEvent *event) {
-    QGraphicsObject::focusInEvent(event);
+    QGraphicsWidget::focusInEvent(event);
     if (m_widget && !WidgetAccess::focusWidgetOf(m_widget.data()))
         m_widget->setFocus();
 }

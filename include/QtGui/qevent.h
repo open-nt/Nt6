@@ -8,6 +8,7 @@
 #include <QtCore/qrect.h>
 #include <QtCore/qsize.h>
 #include <QtCore/qstring.h>
+#include <QtGui/qkeysequence.h>
 #include <QtGui/qregion.h>
 
 class QAction;
@@ -26,6 +27,156 @@ public:
 
 private:
     Qt::KeyboardModifiers m_modifiers;
+};
+
+class QContextMenuEvent : public QInputEvent {
+public:
+    /*!
+        \enum QContextMenuEvent::Reason
+
+        This enum tells how the user asked for the menu.
+
+        \value Mouse With the right mouse button.
+        \value Keyboard With the Menu key, or Shift+F10.
+        \value Other Some other way.
+    */
+    enum Reason { Mouse, Keyboard, Other };
+
+    QContextMenuEvent(Reason reason, const QPoint &pos, const QPoint &globalPos,
+                      Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+    QContextMenuEvent(Reason reason, const QPoint &pos);
+    ~QContextMenuEvent() override;
+    /*!
+        \reimp
+    */
+    QContextMenuEvent *clone() const override { return new QContextMenuEvent(*this); }
+
+    /*! Returns where the menu was asked for, in the widget. */
+    const QPoint &pos() const { return m_pos; }
+    /*! Returns where the menu was asked for, on the screen. */
+    const QPoint &globalPos() const { return m_globalPos; }
+    /*! Returns the x coordinate of pos(). */
+    int x() const { return m_pos.x(); }
+    /*! Returns the y coordinate of pos(). */
+    int y() const { return m_pos.y(); }
+    /*! Returns the x coordinate of globalPos(). */
+    int globalX() const { return m_globalPos.x(); }
+    /*! Returns the y coordinate of globalPos(). */
+    int globalY() const { return m_globalPos.y(); }
+    /*! Returns how the user asked for the menu. */
+    Reason reason() const { return m_reason; }
+
+private:
+    QPoint m_pos;
+    QPoint m_globalPos;
+    Reason m_reason;
+};
+
+class QMimeData;
+
+class QDropEvent : public QEvent {
+public:
+    QDropEvent(const QPointF &pos, Qt::DropActions actions, const QMimeData *data, Qt::MouseButtons buttons,
+               Qt::KeyboardModifiers modifiers, Type type = Drop);
+    ~QDropEvent() override;
+    /*!
+        \reimp
+    */
+    QDropEvent *clone() const override { return new QDropEvent(*this); }
+
+    /*! Returns where the drag is, in the receiving widget. */
+    QPointF position() const { return m_pos; }
+    /*! Returns where the drag is, in whole pixels of the receiving widget. */
+    QPoint pos() const { return m_pos.toPoint(); }
+    /*! Returns the mouse buttons held during the drag. */
+    Qt::MouseButtons buttons() const { return m_buttons; }
+    /*! Returns the keyboard modifiers held during the drag. */
+    Qt::KeyboardModifiers modifiers() const { return m_modifiers; }
+    /*! Returns the actions that the source of the drag allows. */
+    Qt::DropActions possibleActions() const { return m_actions; }
+    /*! Returns the action that the source proposes. */
+    Qt::DropAction proposedAction() const { return m_proposed; }
+    /*! Sets the proposed action to \a action. */
+    void setProposedAction(Qt::DropAction action) { m_proposed = action; }
+    /*! Accepts the event with the proposed action. */
+    void acceptProposedAction() {
+        m_action = m_proposed;
+        accept();
+    }
+    /*! Returns the action the receiver takes; the proposed one until setDropAction() changes it. */
+    Qt::DropAction dropAction() const { return m_action; }
+    /*! Sets the action the receiver takes to \a action, one of possibleActions(). */
+    void setDropAction(Qt::DropAction action) { m_action = action; }
+    /*! Returns the object that started the drag, if it is in this program. */
+    QObject *source() const { return m_source; }
+    /*! Returns the data of the drag. */
+    const QMimeData *mimeData() const { return m_data; }
+
+    /*!
+        \internal
+        Sets the source of the drag to \a source.
+    */
+    void setSource(QObject *source) { m_source = source; }
+
+private:
+    QPointF m_pos;
+    Qt::DropActions m_actions;
+    Qt::DropAction m_proposed = Qt::IgnoreAction;
+    Qt::DropAction m_action = Qt::IgnoreAction;
+    const QMimeData *m_data;
+    Qt::MouseButtons m_buttons;
+    Qt::KeyboardModifiers m_modifiers;
+    QObject *m_source = nullptr;
+};
+
+class QDragMoveEvent : public QDropEvent {
+public:
+    QDragMoveEvent(const QPoint &pos, Qt::DropActions actions, const QMimeData *data, Qt::MouseButtons buttons,
+                   Qt::KeyboardModifiers modifiers, Type type = DragMove);
+    ~QDragMoveEvent() override;
+    /*!
+        \reimp
+    */
+    QDragMoveEvent *clone() const override { return new QDragMoveEvent(*this); }
+
+    /*! Returns the rectangle in which moving the drag gives the same answer; the point of the drag in Nt. */
+    QRect answerRect() const { return m_rect; }
+    using QDropEvent::accept;
+    using QDropEvent::ignore;
+    /*! Accepts the drag while it is in \a rectangle. */
+    void accept(const QRect &rectangle) {
+        m_rect = rectangle;
+        accept();
+    }
+    /*! Refuses the drag while it is in \a rectangle. */
+    void ignore(const QRect &rectangle) {
+        m_rect = rectangle;
+        ignore();
+    }
+
+private:
+    QRect m_rect;
+};
+
+class QDragEnterEvent : public QDragMoveEvent {
+public:
+    QDragEnterEvent(const QPoint &pos, Qt::DropActions actions, const QMimeData *data, Qt::MouseButtons buttons,
+                    Qt::KeyboardModifiers modifiers);
+    ~QDragEnterEvent() override;
+    /*!
+        \reimp
+    */
+    QDragEnterEvent *clone() const override { return new QDragEnterEvent(*this); }
+};
+
+class QDragLeaveEvent : public QEvent {
+public:
+    QDragLeaveEvent();
+    ~QDragLeaveEvent() override;
+    /*!
+        \reimp
+    */
+    QDragLeaveEvent *clone() const override { return new QDragLeaveEvent(*this); }
 };
 
 class QMouseEvent : public QInputEvent {
@@ -94,6 +245,12 @@ public:
     QString text() const { return m_text; }
     bool isAutoRepeat() const { return m_autorep; }
     int count() const { return m_count; }
+    bool matches(QKeySequence::StandardKey key) const;
+    /*!
+        \since 6.0
+        Returns the key and the modifiers of the event as one combination.
+    */
+    QKeyCombination keyCombination() const { return QKeyCombination(modifiers(), static_cast<Qt::Key>(m_key)); }
     /*!
         Returns the scan code of the key on the platform: the X11 key code on \c xcb, 0 if the platform gave none.
     */

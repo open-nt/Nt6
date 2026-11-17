@@ -19,6 +19,14 @@ namespace {
 
 uint *asPixels(uchar *p) { return reinterpret_cast<uint *>(p); }
 
+using QtImageFormat::bytesPerPixel;
+using QtImageFormat::isGray;
+
+// Lines start on 32-bit boundaries, as in Qt.
+qsizetype alignedLine(int width, QImage::Format format) {
+    return (static_cast<qsizetype>(width) * bytesPerPixel(format) + 3) / 4 * 4;
+}
+
 using QtImageFormat::fromArgb;
 using QtImageFormat::toArgb;
 
@@ -69,11 +77,12 @@ struct QImage::Data {
     image and all of its copies, and changing the image changes the memory.
 
     The width(), height() and depth() of an image come from QPaintDevice. The
-    depth is 32, or 0 for a null image.
+    depth is 32 (8 for Format_Grayscale8), or 0 for a null image.
 
     \differences
-    Only the 32-bit formats exist: Format_RGB32, Format_ARGB32, Format_ARGB32_Premultiplied and the
-    byte-ordered Format_RGBX8888, Format_RGBA8888 and Format_RGBA8888_Premultiplied; Format_RGB888 data is
+    The formats are the 32-bit Format_RGB32, Format_ARGB32, Format_ARGB32_Premultiplied and the byte-ordered
+    Format_RGBX8888, Format_RGBA8888 and Format_RGBA8888_Premultiplied, and the 8-bit Format_Grayscale8, which
+    a QPainter cannot paint on; Format_RGB888 data is
     converted to Format_RGB32 when an image is made from it; files with other pixel formats are
     converted when they load. Image files are PNG, BMP and JPEG (JPEG only if Nt
     was built with libjpeg), found by their contents; there is no QImageWriter and no
@@ -90,8 +99,8 @@ struct QImage::Data {
 /*!
     \enum QImage::Format
 
-    This enum describes how the pixels of an image are stored. Every format has
-    32 bits per pixel. The ARGB formats are written in the byte order of the machine as 0xAARRGGBB;
+    This enum describes how the pixels of an image are stored. Every format but
+    Format_Grayscale8 has 32 bits per pixel. The ARGB formats are written in the byte order of the machine as 0xAARRGGBB;
     the RGBA8888 formats are the bytes R, G, B, A in that order, the layout OpenGL reads as
     \c GL_RGBA with \c GL_UNSIGNED_BYTE.
 
@@ -104,6 +113,9 @@ struct QImage::Data {
     \value Format_RGBX8888 The bytes R, G, B, X; the fourth byte reads as 0xff.
     \value Format_RGBA8888 The bytes R, G, B, A with a straight alpha.
     \value Format_RGBA8888_Premultiplied The bytes R, G, B, A with the colors multiplied by the alpha.
+    \value Format_Grayscale8 One byte of gray per pixel, the only format that is not 32 bits. It can be read and
+           written pixel by pixel or line by line, converted, scaled, drawn and saved, but a QPainter cannot paint
+           on it.
 */
 
 /*!
@@ -129,8 +141,8 @@ QImage::QImage(int width, int height, Format format) {
     if (width <= 0 || height <= 0 || format == Format_Invalid)
         return;
     if (format == Format_RGB888)
-        format = Format_RGB32; // stored in 32 bits, as every format
-    const qsizetype bpl = static_cast<qsizetype>(width) * 4;
+        format = Format_RGB32; // stored in 32 bits
+    const qsizetype bpl = alignedLine(width, format);
     if (static_cast<std::size_t>(bpl) > std::numeric_limits<std::size_t>::max() / static_cast<std::size_t>(height))
         return;
     auto data = std::make_shared<Data>();
@@ -148,12 +160,12 @@ QImage::QImage(int width, int height, Format format) {
 
     Constructs an image of \a width by \a height pixels in \a format that uses
     the memory at \a data, which must be 32-bit aligned, hold \a height lines of
-    \c{width * 4} bytes (\c{width * 3} rounded up to a multiple of 4 for Format_RGB888), and outlive the image.
+    \c{width * 4} bytes (\c{width * 3} for Format_RGB888 and \c{width} for Format_Grayscale8, rounded up to a
+    multiple of 4), and outlive the image.
 */
 QImage::QImage(uchar *data, int width, int height, Format format)
     : QImage(data, width, height,
-             format == Format_RGB888 ? (static_cast<qsizetype>(width) * 3 + 3) / 4 * 4
-                                     : static_cast<qsizetype>(width) * 4,
+             format == Format_RGB888 ? (static_cast<qsizetype>(width) * 3 + 3) / 4 * 4 : alignedLine(width, format),
              format) {}
 
 /*!
@@ -161,7 +173,7 @@ QImage::QImage(uchar *data, int width, int height, Format format)
 
     Constructs an image on the memory at \a data, which holds \a height lines
     that start \a bytesPerLine bytes apart. \a bytesPerLine must be at least
-    \c{width * 4} and a multiple of 4.
+    \c{width * 4} (\c width for Format_Grayscale8) and a multiple of 4.
 
     Format_RGB888 data, lines of \c{width * 3} bytes or more, is copied into a new Format_RGB32 image instead
     of being used in place.
@@ -183,7 +195,7 @@ QImage::QImage(uchar *data, int width, int height, qsizetype bytesPerLine, Forma
         return;
     }
     if (!data || width <= 0 || height <= 0 || format == Format_Invalid ||
-        bytesPerLine < static_cast<qsizetype>(width) * 4 || bytesPerLine % 4 != 0)
+        bytesPerLine < static_cast<qsizetype>(width) * bytesPerPixel(format) || bytesPerLine % 4 != 0)
         return;
     auto p = std::make_shared<Data>();
     p->width = width;
@@ -386,6 +398,10 @@ void QImage::fill(uint pixel) {
         return;
     detach();
     for (int y = 0; y < d->height; ++y) {
+        if (isGray(d->format)) {
+            std::memset(d->row(y), static_cast<int>(pixel & 0xffu), static_cast<std::size_t>(d->width));
+            continue;
+        }
         uint *line = asPixels(d->row(y));
         std::fill(line, line + d->width, pixel);
     }
@@ -398,7 +414,8 @@ void QImage::fill(uint pixel) {
 */
 void QImage::fill(const QColor &color) {
     if (d)
-        fill(static_cast<uint>(fromArgb(color.rgba(), d->format)));
+        fill(isGray(d->format) ? static_cast<uint>(qGray(color.rgb()))
+                               : static_cast<uint>(fromArgb(color.rgba(), d->format)));
 }
 
 /*!
@@ -417,6 +434,10 @@ void QImage::fill(Qt::GlobalColor color) { fill(QColor(color)); }
 QRgb QImage::pixel(int x, int y) const {
     if (!valid(x, y))
         return 0;
+    if (isGray(d->format)) {
+        const int v = d->row(y)[x];
+        return qRgb(v, v, v);
+    }
     return toArgb(asPixels(d->row(y))[x], d->format);
 }
 
@@ -437,7 +458,10 @@ void QImage::setPixel(int x, int y, uint index_or_rgb) {
     if (!valid(x, y))
         return;
     detach();
-    asPixels(d->row(y))[x] = fromArgb(index_or_rgb, d->format);
+    if (isGray(d->format))
+        d->row(y)[x] = static_cast<uchar>(qGray(index_or_rgb));
+    else
+        asPixels(d->row(y))[x] = fromArgb(index_or_rgb, d->format);
 }
 
 /*!
@@ -482,12 +506,13 @@ QImage QImage::copy(const QRect &rect) const {
     if (out.isNull())
         return out;
     out.d->devicePixelRatio = d->devicePixelRatio;
-    out.fill(QtImageFormat::clearValue(d->format));
+    out.fill(isGray(d->format) ? 0u : QtImageFormat::clearValue(d->format));
     const QRect common = r.intersected(this->rect());
+    const int bpp = bytesPerPixel(d->format);
     for (int y = common.top(); y <= common.bottom(); ++y) {
-        const uint *src = asPixels(d->row(y)) + common.left();
-        uint *dst = asPixels(out.d->row(y - r.top())) + (common.left() - r.left());
-        std::copy(src, src + common.width(), dst);
+        const uchar *src = d->row(y) + static_cast<qsizetype>(common.left()) * bpp;
+        uchar *dst = out.d->row(y - r.top()) + static_cast<qsizetype>(common.left() - r.left()) * bpp;
+        std::memcpy(dst, src, static_cast<std::size_t>(common.width()) * static_cast<std::size_t>(bpp));
     }
     return out;
 }
@@ -502,7 +527,8 @@ QImage QImage::copy(const QRect &rect) const {
 
 /*!
     Returns a copy of the image in the given \a format, or a null image if
-    \a format is invalid. Converting to Format_RGB32 or Format_RGBX8888 drops the alpha channel.
+    \a format is invalid. Converting to Format_RGB32, Format_RGBX8888 or Format_Grayscale8 drops the alpha
+    channel; converting to Format_Grayscale8 keeps the luminance, as qGray() gives it.
 */
 QImage QImage::convertToFormat(Format format) const {
     if (!d || format == Format_Invalid)
@@ -514,10 +540,22 @@ QImage QImage::convertToFormat(Format format) const {
     QImage out(d->width, d->height, format);
     out.d->devicePixelRatio = d->devicePixelRatio;
     for (int y = 0; y < d->height; ++y) {
-        const uint *src = asPixels(d->row(y));
-        uint *dst = asPixels(out.d->row(y));
-        for (int x = 0; x < d->width; ++x)
-            dst[x] = fromArgb(toArgb(src[x], d->format), format);
+        if (isGray(d->format)) {
+            const uchar *src = d->row(y);
+            uint *dst = asPixels(out.d->row(y));
+            for (int x = 0; x < d->width; ++x)
+                dst[x] = fromArgb(qRgb(src[x], src[x], src[x]), format);
+        } else if (isGray(format)) {
+            const uint *src = asPixels(d->row(y));
+            uchar *dst = out.d->row(y);
+            for (int x = 0; x < d->width; ++x)
+                dst[x] = static_cast<uchar>(qGray(toArgb(src[x], d->format)));
+        } else {
+            const uint *src = asPixels(d->row(y));
+            uint *dst = asPixels(out.d->row(y));
+            for (int x = 0; x < d->width; ++x)
+                dst[x] = fromArgb(toArgb(src[x], d->format), format);
+        }
     }
     return out;
 }
@@ -545,6 +583,8 @@ QImage QImage::scaled(const QSize &size, Qt::AspectRatioMode aspectMode, Qt::Tra
         return QImage();
     if (target == this->size())
         return *this;
+    if (isGray(d->format))
+        return convertToFormat(Format_RGB32).scaled(target, Qt::IgnoreAspectRatio, mode).convertToFormat(d->format);
     const bool opaque = QtImageFormat::isOpaque(d->format);
     QImage out(target, opaque ? Format_RGB32 : Format_ARGB32_Premultiplied);
     out.d->devicePixelRatio = d->devicePixelRatio;
@@ -595,11 +635,12 @@ void QImage::detach() {
     copy->height = d->height;
     copy->format = d->format;
     copy->devicePixelRatio = d->devicePixelRatio;
-    copy->bytesPerLine = d->width * 4;
+    copy->bytesPerLine = alignedLine(d->width, d->format);
     copy->storage.resize(static_cast<std::size_t>(copy->bytesPerLine) * static_cast<std::size_t>(d->height));
     copy->ptr = copy->storage.data();
     for (int y = 0; y < d->height; ++y)
-        std::memcpy(copy->row(y), d->row(y), static_cast<std::size_t>(copy->bytesPerLine));
+        std::memcpy(copy->row(y), d->row(y),
+                    static_cast<std::size_t>(d->width) * static_cast<std::size_t>(bytesPerPixel(d->format)));
     d = std::move(copy);
 }
 
@@ -646,11 +687,12 @@ qint64 QImage::cacheKey() const {
 
 /*!
     Returns the paint engine of the image: a raster engine. Returns
-    \c nullptr for a null image.
+    \c nullptr for a null image, and for a Format_Grayscale8 image, which a
+    painter cannot paint on.
 */
 QPaintEngine *QImage::paintEngine() const {
-    if (!d)
-        return nullptr;
+    if (!d || isGray(d->format))
+        return nullptr; // the raster engine paints 32-bit pixels
     if (!m_engine)
         m_engine = std::make_unique<QRasterPaintEngine>();
     return m_engine.get();
@@ -666,7 +708,8 @@ bool QImage::operator==(const QImage &other) const {
     if (!d || !other.d || d->width != other.d->width || d->height != other.d->height || d->format != other.d->format)
         return false;
     for (int y = 0; y < d->height; ++y) {
-        if (std::memcmp(d->row(y), other.d->row(y), static_cast<std::size_t>(d->width) * 4) != 0)
+        if (std::memcmp(d->row(y), other.d->row(y),
+                        static_cast<std::size_t>(d->width) * static_cast<std::size_t>(bytesPerPixel(d->format))) != 0)
             return false;
     }
     return true;
@@ -688,7 +731,7 @@ int QImage::metric(PaintDeviceMetric metric) const {
     case PdmHeight:
         return d ? d->height : 0;
     case PdmDepth:
-        return d ? 32 : 0;
+        return d ? 8 * bytesPerPixel(d->format) : 0;
     case PdmDevicePixelRatio:
         return d ? static_cast<int>(d->devicePixelRatio) : 1;
     case PdmDevicePixelRatioScaled:

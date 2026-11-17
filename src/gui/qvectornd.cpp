@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtGui/qmatrix4x4.h>
+#include <QtCore/qdebug.h>
 #include <QtGui/qvectornd.h>
 
 #include "qmath3d_p.h"
@@ -886,3 +887,23 @@ bool qFuzzyCompare(QVector4D v1, QVector4D v2) noexcept {
 
     \sa toPoint()
 */
+
+// Writes `vector` to `debug` as QVector2D(x, y), as Qt does; the same for the 3D and 4D vectors.
+QDebug operator<<(QDebug debug, const QVector2D &vector) {
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "QVector2D(" << vector.x() << ", " << vector.y() << ")";
+    return debug;
+}
+
+QDebug operator<<(QDebug debug, const QVector3D &vector) {
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "QVector3D(" << vector.x() << ", " << vector.y() << ", " << vector.z() << ")";
+    return debug;
+}
+
+QDebug operator<<(QDebug debug, const QVector4D &vector) {
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "QVector4D(" << vector.x() << ", " << vector.y() << ", " << vector.z() << ", " << vector.w()
+                    << ")";
+    return debug;
+}

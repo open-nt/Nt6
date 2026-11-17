@@ -110,6 +110,32 @@ void QTextEdit::setHtml(const QString &text) {
     adoptDocument();
 }
 
+/*!
+    \since 6.0
+
+    Shows the Markdown in \a markdown, with its formats, as QTextDocument::setMarkdown() reads it.
+
+    \sa toMarkdown(), setHtml()
+*/
+void QTextEdit::setMarkdown(const QString &markdown) {
+    m_adopting = true;
+    m_document->setDefaultFont(font());
+    m_document->setMarkdown(markdown);
+    m_adopting = false;
+    adoptDocument();
+}
+
+/*!
+    \since 6.0
+
+    Returns the text as Markdown, written with \a features.
+
+    \sa setMarkdown(), QTextDocument::toMarkdown()
+*/
+QString QTextEdit::toMarkdown(QTextDocument::MarkdownFeatures features) const {
+    return document()->toMarkdown(features);
+}
+
 // Shows the document as it is now.
 void QTextEdit::adoptDocument() {
     m_adopting = true;

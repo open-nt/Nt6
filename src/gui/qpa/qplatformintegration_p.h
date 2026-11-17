@@ -16,6 +16,7 @@ struct QEglNativePlatform {
     bool windowSurfaces = false; // windows get EGL window surfaces; otherwise each renders into a framebuffer object
     unsigned visualId = 0;       // the native visual of the windows, which the EGL config must match; 0 for any
 };
+class QPlatformClipboard;
 class QPlatformWindow;
 class QWindow;
 
@@ -49,6 +50,8 @@ public:
     // swap of buffers does. The EGL library can read events from the connection into the platform's own queue,
     // where no socket notifier sees them; the platform makes sure that they are handled.
     virtual void checkQueuedEvents() {}
+    // The clipboard of the platform: by default one that keeps the data in the process.
+    virtual QPlatformClipboard *clipboard() const;
     // The instance extension that Vulkan surfaces of the platform's windows need ("VK_KHR_xcb_surface"); null when the
     // platform cannot present with Vulkan.
     virtual const char *vulkanSurfaceExtension() const { return nullptr; }

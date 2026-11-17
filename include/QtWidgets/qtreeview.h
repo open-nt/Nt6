@@ -49,6 +49,10 @@ public:
 
     bool isExpanded(const QModelIndex &index) const;
     void setExpanded(const QModelIndex &index, bool expand);
+    bool isRowHidden(int row, const QModelIndex &parent) const;
+    bool isFirstColumnSpanned(int row, const QModelIndex &parent) const;
+    void setFirstColumnSpanned(int row, const QModelIndex &parent, bool span);
+    void setRowHidden(int row, const QModelIndex &parent, bool hide);
 
     QRect visualRect(const QModelIndex &index) const override;
     void scrollTo(const QModelIndex &index, ScrollHint hint = EnsureVisible) override;
@@ -57,6 +61,7 @@ public:
     QModelIndex indexBelow(const QModelIndex &index) const;
 
     void reset() override;
+    void doItemsLayout() override;
     void selectAll() override;
     void sortByColumn(int column, Qt::SortOrder order);
 
@@ -126,6 +131,8 @@ private:
     std::vector<Row> m_rows; // the items that are laid out, from top to bottom
     // Not a set: a persistent index changes, and with it its hash, when rows move.
     QList<QPersistentModelIndex> m_expanded;
+    QList<QPersistentModelIndex> m_hidden;  // rows that are not laid out, by their index in column 0
+    QList<QPersistentModelIndex> m_spanned; // rows whose first column takes the whole width
     std::vector<QMetaObject::Connection> m_connections;
     QPersistentModelIndex m_anchor;  // where a range selection starts
     QPersistentModelIndex m_pressed; // the item under the press that is going on

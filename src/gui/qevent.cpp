@@ -210,6 +210,175 @@ QKeyEvent::QKeyEvent(Type type, int key, Qt::KeyboardModifiers modifiers, quint3
 QKeyEvent::~QKeyEvent() = default;
 
 /*!
+    \class QContextMenuEvent
+    \inmodule NtGui
+    \since 6.0
+    \brief The QContextMenuEvent class contains parameters that describe a context menu event.
+
+    A widget gets it, as a QEvent::ContextMenu event, when the user presses the right mouse button on it, or the
+    Menu key while it has the focus. QWidget::contextMenuEvent() handles it, as the widget's
+    Qt::ContextMenuPolicy says.
+
+    \differences
+    The event is sent when the right button is pressed, as on Linux and macOS in Qt; there is no setting to send it
+    on the release.
+    \enddifferences
+
+    \sa QWidget::contextMenuEvent(), QWidget::setContextMenuPolicy()
+*/
+
+/*!
+    Constructs an event for a menu asked for by \a reason at \a pos in the widget and \a globalPos on the screen,
+    with the keyboard \a modifiers held.
+*/
+QContextMenuEvent::QContextMenuEvent(Reason reason, const QPoint &pos, const QPoint &globalPos,
+                                     Qt::KeyboardModifiers modifiers)
+    : QInputEvent(ContextMenu, modifiers), m_pos(pos), m_globalPos(globalPos), m_reason(reason) {}
+
+/*!
+    \overload
+
+    Constructs an event for a menu asked for by \a reason at \a pos, which is also used as the global position.
+*/
+QContextMenuEvent::QContextMenuEvent(Reason reason, const QPoint &pos) : QContextMenuEvent(reason, pos, pos) {}
+
+/*!
+    Destroys the event.
+*/
+QContextMenuEvent::~QContextMenuEvent() = default;
+
+/*!
+    \class QDropEvent
+    \inmodule NtGui
+    \since 6.0
+    \brief The QDropEvent class provides an event which is sent when a drag and drop action is completed.
+
+    A widget that accepted the drag in its QWidget::dragEnterEvent() gets this event in QWidget::dropEvent() when the
+    drag is dropped on it. Read the data from mimeData(), take dropAction() or set another of possibleActions() with
+    setDropAction(), and accept the event; QDrag::exec() then returns the action.
+
+    \differences
+    Drags work within one program: a drag cannot leave it for another program, nor come from one. position() is a
+    QPointF, as in Qt 6; there is no \c posF().
+    \enddifferences
+
+    \sa QDrag, QDragEnterEvent, QDragMoveEvent
+*/
+
+/*!
+    Constructs a drop event at \a pos, of the given \a type, for \a data with the allowed \a actions, while
+    \a buttons and \a modifiers are held. The proposed action is the first of \a actions among move, copy and link.
+*/
+QDropEvent::QDropEvent(const QPointF &pos, Qt::DropActions actions, const QMimeData *data, Qt::MouseButtons buttons,
+                       Qt::KeyboardModifiers modifiers, Type type)
+    : QEvent(type), m_pos(pos), m_actions(actions), m_data(data), m_buttons(buttons), m_modifiers(modifiers) {
+    for (Qt::DropAction a : {Qt::MoveAction, Qt::CopyAction, Qt::LinkAction})
+        if (actions & a) {
+            m_proposed = a;
+            break;
+        }
+    m_action = m_proposed;
+    ignore();
+}
+
+/*!
+    Destroys the event.
+*/
+QDropEvent::~QDropEvent() = default;
+
+/*!
+    \class QDragMoveEvent
+    \inmodule NtGui
+    \since 6.0
+    \brief The QDragMoveEvent class provides an event which is sent while a drag and drop action is in progress.
+
+    A widget that accepted the drag gets this event in QWidget::dragMoveEvent() each time the drag moves over it;
+    accepting it, or ignoring it, says whether a drop there would be taken.
+
+    \differences
+    answerRect() is the point of the drag: the events come for every move.
+    \enddifferences
+*/
+
+/*!
+    Constructs a drag move event at \a pos, of the given \a type, for \a data with the allowed \a actions, while
+    \a buttons and \a modifiers are held.
+*/
+QDragMoveEvent::QDragMoveEvent(const QPoint &pos, Qt::DropActions actions, const QMimeData *data,
+                               Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers, Type type)
+    : QDropEvent(QPointF(pos), actions, data, buttons, modifiers, type), m_rect(pos, QSize(1, 1)) {}
+
+/*!
+    Destroys the event.
+*/
+QDragMoveEvent::~QDragMoveEvent() = default;
+
+/*!
+    \class QDragEnterEvent
+    \inmodule NtGui
+    \since 6.0
+    \brief The QDragEnterEvent class provides an event which is sent to a widget when a drag and drop action enters it.
+
+    A widget that accepts drops gets this event in QWidget::dragEnterEvent() when a drag comes over it. It accepts
+    the event, usually after looking at the formats of mimeData(), to get the move and drop events that follow.
+
+    \differences
+    None, apart from those of QDropEvent.
+    \enddifferences
+*/
+
+/*!
+    Constructs a drag enter event at \a pos for \a data with the allowed \a actions, while \a buttons and
+    \a modifiers are held.
+*/
+QDragEnterEvent::QDragEnterEvent(const QPoint &pos, Qt::DropActions actions, const QMimeData *data,
+                                 Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers)
+    : QDragMoveEvent(pos, actions, data, buttons, modifiers, DragEnter) {}
+
+/*!
+    Destroys the event.
+*/
+QDragEnterEvent::~QDragEnterEvent() = default;
+
+/*!
+    \class QDragLeaveEvent
+    \inmodule NtGui
+    \since 6.0
+    \brief The QDragLeaveEvent class provides an event that is sent to a widget when a drag and drop action leaves it.
+
+    \differences
+    None.
+    \enddifferences
+*/
+
+/*!
+    Constructs a drag leave event.
+*/
+QDragLeaveEvent::QDragLeaveEvent() : QEvent(DragLeave) {}
+
+/*!
+    Destroys the event.
+*/
+QDragLeaveEvent::~QDragLeaveEvent() = default;
+
+/*!
+    \since 6.0
+
+    Returns \c true if the key and modifiers of the event are one of the bindings of the standard key \a key,
+    such as QKeySequence::Copy for Ctrl+C.
+
+    \sa QKeySequence::keyBindings()
+*/
+bool QKeyEvent::matches(QKeySequence::StandardKey key) const {
+    const int combination = (m_key | modifiers().toInt()) & ~static_cast<int>(Qt::KeypadModifier);
+    const QList<QKeySequence> bindings = QKeySequence::keyBindings(key);
+    for (const QKeySequence &binding : bindings)
+        if (binding.count() == 1 && binding[0] == combination)
+            return true;
+    return false;
+}
+
+/*!
     \fn int QKeyEvent::key() const
 
     Returns the code of the key that was pressed or released, a value of Qt::Key.

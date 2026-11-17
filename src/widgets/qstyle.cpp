@@ -1416,6 +1416,135 @@ QPixmap arrowIcon(int size, const QColor &color, int degrees) {
 
 } // namespace
 
+namespace {
+
+// The icon theme names of the standard pixmaps, from the freedesktop.org icon naming specification.
+const char *themeNameOf(QStyle::StandardPixmap sp) {
+    switch (sp) {
+    case QStyle::SP_TitleBarCloseButton:
+    case QStyle::SP_DockWidgetCloseButton:
+    case QStyle::SP_DialogCloseButton:
+        return "window-close";
+    case QStyle::SP_TitleBarMinButton:
+        return "window-minimize";
+    case QStyle::SP_TitleBarMaxButton:
+        return "window-maximize";
+    case QStyle::SP_TitleBarNormalButton:
+        return "window-restore";
+    case QStyle::SP_MessageBoxInformation:
+        return "dialog-information";
+    case QStyle::SP_MessageBoxWarning:
+        return "dialog-warning";
+    case QStyle::SP_MessageBoxCritical:
+        return "dialog-error";
+    case QStyle::SP_MessageBoxQuestion:
+        return "dialog-question";
+    case QStyle::SP_DesktopIcon:
+        return "user-desktop";
+    case QStyle::SP_TrashIcon:
+        return "user-trash";
+    case QStyle::SP_ComputerIcon:
+        return "computer";
+    case QStyle::SP_DriveFDIcon:
+        return "media-floppy";
+    case QStyle::SP_DriveHDIcon:
+        return "drive-harddisk";
+    case QStyle::SP_DriveCDIcon:
+    case QStyle::SP_DriveDVDIcon:
+        return "drive-optical";
+    case QStyle::SP_DriveNetIcon:
+        return "network-server";
+    case QStyle::SP_DirOpenIcon:
+    case QStyle::SP_DirLinkOpenIcon:
+        return "folder-open";
+    case QStyle::SP_DirClosedIcon:
+    case QStyle::SP_DirIcon:
+    case QStyle::SP_DirLinkIcon:
+        return "folder";
+    case QStyle::SP_FileIcon:
+    case QStyle::SP_FileLinkIcon:
+        return "text-x-generic";
+    case QStyle::SP_FileDialogNewFolder:
+        return "folder-new";
+    case QStyle::SP_FileDialogToParent:
+    case QStyle::SP_ArrowUp:
+        return "go-up";
+    case QStyle::SP_ArrowDown:
+        return "go-down";
+    case QStyle::SP_ArrowLeft:
+        return "go-previous";
+    case QStyle::SP_ArrowRight:
+        return "go-next";
+    case QStyle::SP_ArrowBack:
+    case QStyle::SP_FileDialogBack:
+        return "go-previous";
+    case QStyle::SP_ArrowForward:
+        return "go-next";
+    case QStyle::SP_DirHomeIcon:
+        return "go-home";
+    case QStyle::SP_DialogOkButton:
+    case QStyle::SP_DialogApplyButton:
+    case QStyle::SP_DialogYesButton:
+        return "dialog-ok";
+    case QStyle::SP_DialogCancelButton:
+    case QStyle::SP_DialogNoButton:
+        return "dialog-cancel";
+    case QStyle::SP_DialogHelpButton:
+        return "help-contents";
+    case QStyle::SP_DialogOpenButton:
+        return "document-open";
+    case QStyle::SP_DialogSaveButton:
+        return "document-save";
+    case QStyle::SP_DialogResetButton:
+        return "edit-clear";
+    case QStyle::SP_DialogDiscardButton:
+        return "edit-delete";
+    case QStyle::SP_BrowserReload:
+        return "view-refresh";
+    case QStyle::SP_BrowserStop:
+        return "process-stop";
+    case QStyle::SP_MediaPlay:
+        return "media-playback-start";
+    case QStyle::SP_MediaStop:
+        return "media-playback-stop";
+    case QStyle::SP_MediaPause:
+        return "media-playback-pause";
+    case QStyle::SP_MediaSkipForward:
+        return "media-skip-forward";
+    case QStyle::SP_MediaSkipBackward:
+        return "media-skip-backward";
+    case QStyle::SP_MediaSeekForward:
+        return "media-seek-forward";
+    case QStyle::SP_MediaSeekBackward:
+        return "media-seek-backward";
+    case QStyle::SP_MediaVolume:
+        return "audio-volume-high";
+    case QStyle::SP_MediaVolumeMuted:
+        return "audio-volume-muted";
+    default:
+        return nullptr;
+    }
+}
+
+} // namespace
+
+/*!
+    \since 6.0
+
+    Returns the standard icon \a standardIcon: the icon of the same meaning in the icon theme, as QIcon::fromTheme()
+    finds it, or else the standardPixmap() of the style; \a option and \a widget may be \c nullptr. Returns a null
+    icon if neither has one.
+*/
+QIcon QStyle::standardIcon(StandardPixmap standardIcon, const QStyleOption *option, const QWidget *widget) const {
+    if (const char *name = themeNameOf(standardIcon)) {
+        const QIcon themed = QIcon::fromTheme(QString::fromLatin1(name));
+        if (!themed.isNull())
+            return themed;
+    }
+    const QPixmap pixmap = proxy()->standardPixmap(standardIcon, option, widget);
+    return pixmap.isNull() ? QIcon() : QIcon(pixmap);
+}
+
 /*!
     Returns the standard pixmap \a standardPixmap of the style, in the size that suits it; \a option and \a widget
     may be \c nullptr. The default draws the message box icons, the arrows, the close, minimize and maximize

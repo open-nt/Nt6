@@ -56,6 +56,8 @@ public:
 
 public slots:
     void setToolButtonStyle(Qt::ToolButtonStyle toolButtonStyle);
+    QSize iconSize() const;
+    void setIconSize(const QSize &iconSize);
 
 signals:
     /*!
@@ -64,6 +66,11 @@ signals:
     void toolButtonStyleChanged(Qt::ToolButtonStyle toolButtonStyle) {
         emitSignal(&QMainWindow::toolButtonStyleChanged, toolButtonStyle);
     }
+    /*!
+        \since 6.0
+        This signal is emitted when the size of the icons of the tool bars changes to \a iconSize.
+    */
+    void iconSizeChanged(const QSize &iconSize) { emitSignal(&QMainWindow::iconSizeChanged, iconSize); }
 
 private:
     friend class QMainWindowLayout;
@@ -90,5 +97,6 @@ private:
     mutable std::vector<ToolBarEntry> m_toolBars;
     mutable std::vector<DockEntry> m_docks;
     Qt::ToolButtonStyle m_toolButtonStyle = Qt::ToolButtonIconOnly;
+    QSize m_iconSize;                 // invalid until set: the tool bars use the size of the style
     Qt::ToolBarAreas m_pendingBreaks; // the next tool bar added to these areas starts a new line
 };

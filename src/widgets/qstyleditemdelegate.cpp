@@ -29,7 +29,7 @@
     \li Qt::DisplayRole: the text. Numbers, dates and times are written
         with displayText().
     \li Qt::CheckStateRole: a check box before the text.
-    \li Qt::DecorationRole: a QPixmap, a QImage or a QColor before the
+    \li Qt::DecorationRole: a QIcon, a QPixmap, a QImage or a QColor before the
         text.
     \li Qt::FontRole, Qt::ForegroundRole, Qt::BackgroundRole and
         Qt::TextAlignmentRole: the font, the colors and the alignment.
@@ -247,7 +247,15 @@ void QStyledItemDelegate::initStyleOption(QStyleOptionViewItem *option, const QM
         option->checkState = static_cast<Qt::CheckState>(value.toInt());
     }
     value = index.data(Qt::DecorationRole);
-    if (holds<QPixmap>(value)) {
+    if (holds<QIcon>(value)) {
+        const QSize size = option->decorationSize.isValid() && !option->decorationSize.isEmpty()
+                               ? option->decorationSize
+                               : QSize(16, 16);
+        const bool enabled = option->state & QStyle::State_Enabled;
+        option->decoration = value.value<QIcon>().pixmap(size, enabled ? QIcon::Normal : QIcon::Disabled);
+        if (!option->decoration.isNull())
+            option->features |= QStyleOptionViewItem::HasDecoration;
+    } else if (holds<QPixmap>(value)) {
         option->decoration = value.value<QPixmap>();
         option->features |= QStyleOptionViewItem::HasDecoration;
     } else if (holds<QImage>(value)) {

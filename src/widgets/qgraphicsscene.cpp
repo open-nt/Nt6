@@ -159,8 +159,15 @@ QList<QGraphicsItem *> QGraphicsScene::Private::itemsAt(const QPointF &pos) cons
         QGraphicsItem *item = *it;
         if (!item->isVisible())
             continue;
-        if (item->contains(item->mapFromScene(pos)) && ItemAccess::passesAncestorClips(item, pos))
-            out.append(item);
+        if (!item->contains(item->mapFromScene(pos)) || !ItemAccess::passesAncestorClips(item, pos))
+            continue;
+        // The outermost ancestor that handles the events of its children takes them in place of the item.
+        QGraphicsItem *target = item;
+        for (QGraphicsItem *a = item->parentItem(); a; a = a->parentItem())
+            if (a->handlesChildEvents())
+                target = a;
+        if (!out.contains(target))
+            out.append(target);
     }
     return out;
 }
@@ -1100,6 +1107,111 @@ void QGraphicsScene::clear() {
     d->growingRect = QRectF();
 }
 
+namespace {
+
+// Sends a drag event of `type` to `item`, made from `event` with the item's position; returns whether it accepted.
+bool sendDrag(QGraphicsScene *scene, QGraphicsItem *item, QGraphicsSceneDragDropEvent *event, QEvent::Type type,
+              bool accepted) {
+    QGraphicsSceneDragDropEvent e(type);
+    e.setScenePos(event->scenePos());
+    e.setScreenPos(event->screenPos());
+    e.setPos(item->mapFromScene(event->scenePos()));
+    e.setButtons(event->buttons());
+    e.setModifiers(event->modifiers());
+    e.setPossibleActions(event->possibleActions());
+    e.setProposedAction(event->proposedAction());
+    e.setDropAction(event->dropAction());
+    e.setSource(event->source());
+    e.setMimeData(event->mimeData());
+    e.setWidget(event->widget());
+    e.setAccepted(accepted);
+    scene->sendEvent(item, &e);
+    event->setDropAction(e.dropAction());
+    return e.isAccepted();
+}
+
+} // namespace
+
+/*!
+    \since 6.0
+
+    Handles a drag that comes over the scene, \a event. The default accepts it, so that the moves that follow go
+    to the items under the drag that accept drops.
+
+    \sa QGraphicsItem::setAcceptDrops()
+*/
+void QGraphicsScene::dragEnterEvent(QGraphicsSceneDragDropEvent *event) {
+    d->dropItem = nullptr;
+    event->accept();
+}
+
+/*!
+    \since 6.0
+
+    Handles a drag that moves over the scene, \a event: the topmost item under it that accepts drops gets a drag
+    enter event, then move events, and the item it leaves gets a leave event. The event is accepted if that item
+    accepted it.
+*/
+void QGraphicsScene::dragMoveEvent(QGraphicsSceneDragDropEvent *event) {
+    QGraphicsItem *target = nullptr;
+    for (QGraphicsItem *item : d->itemsAt(event->scenePos())) {
+        if (item->acceptDrops() && item->isEnabled()) {
+            target = item;
+            break;
+        }
+    }
+    if (target != d->dropItem) {
+        if (d->dropItem)
+            sendDrag(this, d->dropItem, event, QEvent::GraphicsSceneDragLeave, false);
+        d->dropItem = nullptr;
+        if (target && sendDrag(this, target, event, QEvent::GraphicsSceneDragEnter, false))
+            d->dropItem = target;
+    }
+    event->setAccepted(d->dropItem && sendDrag(this, d->dropItem, event, QEvent::GraphicsSceneDragMove, true));
+}
+
+/*!
+    \since 6.0
+
+    Handles a drag that left the scene, \a event: the item it was over gets a leave event.
+*/
+void QGraphicsScene::dragLeaveEvent(QGraphicsSceneDragDropEvent *event) {
+    if (d->dropItem)
+        sendDrag(this, d->dropItem, event, QEvent::GraphicsSceneDragLeave, false);
+    d->dropItem = nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Handles the drop of a drag on the scene, \a event: the item that accepted the drag gets it.
+*/
+void QGraphicsScene::dropEvent(QGraphicsSceneDragDropEvent *event) {
+    QGraphicsItem *target = d->dropItem;
+    d->dropItem = nullptr;
+    event->setAccepted(target && sendDrag(this, target, event, QEvent::GraphicsSceneDrop, false));
+}
+
+/*!
+    \since 6.0
+
+    Gives the request for a context menu, \a event, to the items under it, the topmost first, until one accepts it.
+    The event is ignored if none does.
+*/
+void QGraphicsScene::contextMenuEvent(QGraphicsSceneContextMenuEvent *event) {
+    event->ignore();
+    for (QGraphicsItem *item : d->itemsAt(event->scenePos())) {
+        if (!item->isEnabled())
+            continue;
+        event->setPos(item->mapFromScene(event->scenePos()));
+        event->accept();
+        sendEvent(item, event);
+        if (event->isAccepted())
+            return;
+    }
+    event->ignore();
+}
+
 /*!
     \reimp
 
@@ -1121,6 +1233,21 @@ bool QGraphicsScene::event(QEvent *event) {
         return true;
     case QEvent::GraphicsSceneWheel:
         wheelEvent(static_cast<QGraphicsSceneWheelEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneContextMenu:
+        contextMenuEvent(static_cast<QGraphicsSceneContextMenuEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneDragEnter:
+        dragEnterEvent(static_cast<QGraphicsSceneDragDropEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneDragMove:
+        dragMoveEvent(static_cast<QGraphicsSceneDragDropEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneDragLeave:
+        dragLeaveEvent(static_cast<QGraphicsSceneDragDropEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneDrop:
+        dropEvent(static_cast<QGraphicsSceneDragDropEvent *>(event));
         return true;
     case QEvent::KeyPress:
         keyPressEvent(static_cast<QKeyEvent *>(event));

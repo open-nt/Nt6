@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qpointer.h>
+#include <QtGui/qvalidator.h>
 #include <QtWidgets/qcompleter.h>
 #include <QtWidgets/qwidget.h>
 
@@ -14,6 +15,7 @@ class QLineEdit : public QWidget {
     Q_PROPERTY(bool frame READ hasFrame WRITE setFrame)
     Q_PROPERTY(bool clearButtonEnabled READ isClearButtonEnabled WRITE setClearButtonEnabled)
     Q_PROPERTY(int cursorPosition READ cursorPosition WRITE setCursorPosition)
+    Q_PROPERTY(bool acceptableInput READ hasAcceptableInput)
 public:
     enum EchoMode { Normal, NoEcho, Password };
 
@@ -26,6 +28,9 @@ public:
     QString placeholderText() const { return m_placeholder; }
     void setCompleter(QCompleter *completer);
     QCompleter *completer() const { return m_completer.data(); }
+    void setValidator(const QValidator *validator);
+    const QValidator *validator() const { return m_validator.data(); }
+    bool hasAcceptableInput() const;
     void setPlaceholderText(const QString &text);
     int maxLength() const { return m_maxLength; }
     void setMaxLength(int length);
@@ -88,6 +93,12 @@ signals:
         This signal is emitted when the selection changes.
     */
     void selectionChanged() { emitSignal(&QLineEdit::selectionChanged); }
+    /*!
+        \since 6.0
+
+        This signal is emitted when the validator() rejects a key the user typed, or an edit.
+    */
+    void inputRejected() { emitSignal(&QLineEdit::inputRejected); }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -107,8 +118,9 @@ private:
     bool clearButtonShown() const;
     int xOf(int position) const;
     void moveCursor(int position, bool mark);
-    void changeText(const QString &text, int cursor, bool userEdit);
+    void changeText(const QString &newText, int cursor, bool userEdit);
     void scrollToCursor();
+    bool finishEditing(); // fixes the text up if needed; true if it is acceptable
 
     QString m_text;
     QString m_placeholder;
@@ -123,5 +135,6 @@ private:
     bool m_clearPressed = false;
     EchoMode m_echoMode = Normal;
     QPointer<QCompleter> m_completer;
+    QPointer<const QValidator> m_validator;
     bool m_deleting = false; // the key being handled deletes text
 };

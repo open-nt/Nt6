@@ -9,11 +9,13 @@
 
 #include <xcb/xcb.h>
 
+#include <deque>
 #include <memory>
 #include <unordered_map>
 #include <vector>
 
 class QSocketNotifier;
+class QXcbClipboard;
 class QXcbWindow;
 
 class QXcbScreen : public QPlatformScreen {
@@ -78,6 +80,9 @@ public:
     xcb_atom_t utf8String() const { return m_utf8String; }
 
     void flush();
+    // Keeps `event`, read while waiting for another, to be handled by the next processEvents().
+    void defer(xcb_generic_event_t *event);
+    void setClipboard(QXcbClipboard *clipboard) { m_clipboard = clipboard; }
     // Reads and handles the events that are waiting.
     void processEvents();
     // Makes sure processEvents() runs soon, for events that a round trip pulled into XCB's queue.
@@ -118,6 +123,8 @@ private:
     std::unique_ptr<QXcbScreen> m_platformScreen;
     std::unordered_map<xcb_window_t, QXcbWindow *> m_windows;
     std::unordered_map<int, xcb_cursor_t> m_cursors;
+    std::deque<xcb_generic_event_t *> m_deferred;
+    QXcbClipboard *m_clipboard = nullptr;
     xcb_font_t m_cursorFont = XCB_NONE;
     // The xcb_cursor_context_t of libxcb-cursor, which loads the cursors of the theme, or null without it.
     void *m_cursorContext = nullptr;

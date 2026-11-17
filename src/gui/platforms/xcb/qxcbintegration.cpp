@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include "qxcbintegration_p.h"
 
+#include "qxcbclipboard_p.h"
+
 #include "qpa/qdesktopportal_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
 #include "qxcbconnection_p.h"
@@ -29,7 +31,11 @@ QXcbIntegration *QXcbIntegration::create() {
 
 QXcbIntegration::QXcbIntegration(std::unique_ptr<QXcbConnection> connection) : m_connection(std::move(connection)) {}
 
-QXcbIntegration::~QXcbIntegration() = default;
+QXcbIntegration::~QXcbIntegration() {
+    if (m_clipboard)
+        m_connection->setClipboard(nullptr);
+    m_clipboard.reset();
+}
 
 void QXcbIntegration::initialize() {
     QWindowSystemInterface::handleScreenAdded(m_connection->platformScreen());
@@ -51,6 +57,14 @@ void QXcbIntegration::setCursorPosition(const QPoint &pos) { m_connection->warpP
 // then sit in XCB's queue: the socket is not readable for them. Without this, a resize could wait until the event
 // loop next sleeps, which a fast repaint timer can put off for seconds.
 void QXcbIntegration::checkQueuedEvents() { m_connection->checkQueue(); }
+
+QPlatformClipboard *QXcbIntegration::clipboard() const {
+    if (!m_clipboard) {
+        m_clipboard = std::make_unique<QXcbClipboard>(m_connection.get());
+        m_connection->setClipboard(m_clipboard.get());
+    }
+    return m_clipboard.get();
+}
 
 QEglNativePlatform QXcbIntegration::eglPlatform() const {
     QEglNativePlatform native;

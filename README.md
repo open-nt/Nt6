@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`, `ntgltfview`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -276,7 +276,8 @@ Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration 
 | `QVector2D`, `QVector3D`, `QVector4D`, `QQuaternion`, `QMatrix4x4` | 3D math in `float`: dot and cross products, normals, distances, `project()`/`unproject()`; axis-angle, Euler, `slerp()`; translate/rotate/scale, `perspective()`, `ortho()`, `frustum()`, `lookAt()`, inverse, column-major `data()` for OpenGL. No `QMatrix3x3` or `QGenericMatrix` |
 | `QOpenGLContext`, `QOpenGLFunctions`, `QSurfaceFormat`, `QSurface`, `QOffscreenSurface` | OpenGL through EGL, loaded at run time: desktop OpenGL or OpenGL ES contexts, sharing, the OpenGL ES 2.0 functions, swap interval (vsync on or off), multisampling; windows of the `offscreen` platform render into framebuffer objects |
 | `QVulkanInstance`, `QVulkanFunctions`, `QVulkanDeviceFunctions`, `QVulkanWindow`, `QVulkanWindowRenderer` | Vulkan through the loader, opened at run time: layers, extensions and the API version (1.3 by default), the core 1.0 to 1.3 functions of an instance and a device, validation output through `qWarning()` with filters, `surfaceForWindow()` on `xcb`; a window with device and queue selection, swapchain, depth-stencil, default render pass, multisampling, per-frame synchronization, `grab()` and swapchain recreation on resize. The [`rtriangle`](https://github.com/open-nt/nt6-examples/blob/main/vulkan/rtriangle.cpp) example traces rays with `VK_KHR_ray_tracing_pipeline` (see [Using Nt Vulkan](https://open-nt.github.io/Nt6/nt-vulkan.html)); needs `vulkan/vulkan.h` to build, `QT_CONFIG(vulkan)` tells |
-| `QFont`, `QFontMetrics` | families found with fontconfig, point or pixel size, weight, italic; metrics, `elidedText()`, `drawText()` with alignment, word wrap and clipping; glyphs are anti-aliased by FreeType |
+| `QFont`, `QFontMetrics` | families found with fontconfig, point or pixel size, weight, italic; metrics, also for a paint device's resolution; `elidedText()`, `drawText()` with alignment, word wrap and clipping, or a `QTextOption`; glyphs are anti-aliased by FreeType; a point is a point on devices of other resolutions, such as a `QPdfWriter` |
+| `QPdfWriter`, `QPagedPaintDevice`, `QPageLayout`, `QPageSize` | PDF documents painted with `QPainter`, page by page: paths, pens with caps, joins and dashes, linear and radial gradients as shadings, images with alpha, opacity, clipping; text as glyph outlines (sharp at any zoom, not selectable); A, B and US page sizes, orientation, margins in any unit; title and creator; Flate compression with zlib |
 | `QImage`, `QPixmap`, `QColor`, `QRgb`, `QPen`, `QBrush`, `QRegion` | 32-bit images (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`) with implicit sharing, loading and saving of PNG, BMP and JPEG files, colors with `#rgb` and CSS names, solid pens and brushes, rectangle-list regions |
 | `QUndoCommand`, `QUndoStack`, `QUndoGroup` | undo and redo: commands with children and merging, a stack with a clean state, macros, an undo limit and obsolete commands, undo and redo actions that follow it, and a group of stacks of which one is active |
 | `QAction`, `QActionGroup`, `QKeySequence`, `QActionEvent` | what a user can do, shared by menus and shortcuts: text, check state, enabled and visible, a shortcut (a key with modifiers, from a string or a standard key), exclusive groups, and the events for widgets that show actions. No icons, and one key per sequence |
@@ -369,7 +370,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 ## Qt 6 modules and their Nt names
 
-The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::Qml`, `Nt::Multimedia`, `Nt::MultimediaWidgets`, `Nt::Concurrent`, `Nt::Xml` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
+The library is called **Nt**, not Qt: modules are `Nt Core`, `Nt Network`, and so on, and CMake targets are `Nt::<Module>` (`Nt::Core`, `Nt::Network`, `Nt::SerialPort`, `Nt::DBus`, `Nt::HttpServer`, `Nt::WebSockets`, `Nt::Gui`, `Nt::Widgets`, `Nt::Svg`, `Nt::SvgWidgets`, `Nt::Charts`, `Nt::OpenGL`, `Nt::OpenGLWidgets`, `Nt::Qml`, `Nt::Multimedia`, `Nt::MultimediaWidgets`, `Nt::Concurrent`, `Nt::Xml` and `Nt::Test` today). The C++ API keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`) so Qt code compiles unchanged; `Qt6::Core` remains as an alias of `Nt::Core`.
 
 ✔ = Nt has a version (partial unless noted). Blank = not started. Module list checked against the Qt 6 module overview.
 
@@ -472,19 +473,22 @@ Differences from Qt: `QChart` is a `QObject` and `QChartView` a `QWidget`, with 
 
 ### Nt OpenGL: implemented
 
-Nt OpenGL renders with OpenGL in windows and offscreen, and lets `QPainter` draw with OpenGL. Contexts come from EGL, which Nt loads at run time, so neither building nor running Nt needs an OpenGL library unless a program uses one. Link with `Nt::OpenGL`.
+Nt OpenGL renders with OpenGL in windows, widgets and offscreen, and lets `QPainter` draw with OpenGL. Contexts come from EGL, which Nt loads at run time, so neither building nor running Nt needs an OpenGL library unless a program uses one. Link with `Nt::OpenGL`, or `Nt::OpenGLWidgets` for `QOpenGLWidget`.
 
 | Class | Notes |
 |---|---|
 | `QOpenGLWindow` | `initializeGL()`, `resizeGL()`, `paintGL()`, `paintUnderGL()`/`paintOverGL()`, `frameSwapped()`, partial updates (blit and blend), `grabFramebuffer()`; a `QPainter` on the window draws with OpenGL |
 | `QOpenGLPaintDevice` | `QPainter` through OpenGL into the bound framebuffer: paths (stencil, then cover, both fill rules), pens, gradients, transformations, images, text and clip regions, drawn with the same geometry as the raster engine; antialiased by multisampling |
 | `QOpenGLFramebufferObject`, `QOpenGLFramebufferObjectFormat` | texture or multisampled targets with depth and stencil, `toImage()`, `blitFramebuffer()` |
+| `QOpenGLBuffer`, `QOpenGLVertexArrayObject` | vertex, index and pixel buffers, shared between copies: `allocate()`, `read()`, `write()`, `map()`, `mapRange()`; vertex array objects with `Binder`, also through `GL_OES_vertex_array_object` |
+| `QOpenGLExtraFunctions` (Nt GUI) | the OpenGL ES 3.0 functions on OpenGL ES 3 and desktop OpenGL 3.3: vertex arrays, instancing, blits, multisampled renderbuffers, several render targets, uniform buffers, samplers, queries, syncs, transform feedback |
+| `QOpenGLWidget` (`Nt::OpenGLWidgets`) | `initializeGL()`, `resizeGL()`, `paintGL()` into a (multisampled) framebuffer object that is copied onto the widget, so the window needs no OpenGL; `QPainter` inside `paintGL()` draws with OpenGL; `grabFramebuffer()` also when hidden; `aboutToCompose()`, `frameSwapped()`, `aboutToResize()`, `resized()` |
 
 On an NVIDIA RTX 5070 Ti, `painting --bench` draws the flower scene of the QPainter documentation (800×600, 4× multisampling) in 1.5 ms with OpenGL against 9.4 ms in software, and gradients in 0.09 ms against 7.5 ms. With `QSurfaceFormat::setSwapInterval(0)` frames are not held to the display's refresh rate.
 
 Guide: [Using Nt OpenGL](https://open-nt.github.io/Nt6/nt-opengl.html). The [`glwindow`](https://github.com/open-nt/nt6-examples/blob/main/opengl/glwindow.cpp) example renders with OpenGL and QPainter and prints its frame rate, with or without vsync; [`painting --gl`](https://github.com/open-nt/nt6-examples/blob/main/gui/painting.cpp) shows the painter scenes in a `QOpenGLWindow`.
 
-Differences from Qt: EGL only (X11 through XCB, and headless), so no GLX, WGL or CGL yet; no `QOpenGLWidget`, `QOpenGLShaderProgram`, `QOpenGLBuffer`, `QOpenGLTexture`, `QOpenGLVertexArrayObject` or `QOpenGLExtraFunctions`; no `QPainter::beginNativePainting()`; antialiasing needs multisampling.
+Differences from Qt: EGL only (X11 through XCB, and headless), so no GLX, WGL or CGL yet; no `QOpenGLTexture`; `QOpenGLExtraFunctions` stops at OpenGL ES 3.0; `QOpenGLWidget` reads each frame back with `glReadPixels()` rather than compositing it on the GPU, and its contexts do not share; no `QPainter::beginNativePainting()`; antialiasing needs multisampling.
 
 ### Nt Qml: JavaScript and the QML engine
 
@@ -590,6 +594,7 @@ Not yet: video playback and recording (no video codecs), compressed audio (MP3, 
 | Qt NFC | Nt NFC |  |
 | Qt OPC UA | Nt OPC UA |  |
 | Qt OpenGL | Nt OpenGL | ✔ (see Status) |
+| Qt OpenGL Widgets | Nt OpenGL Widgets | ✔ (`QOpenGLWidget`; see Nt OpenGL in Status) |
 | Qt Positioning | Nt Positioning |  |
 | Qt Print Support | Nt Print Support |  |
 | Qt Protobuf | Nt Protobuf |  |

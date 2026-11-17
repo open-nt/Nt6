@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qicon.h>
 #include <QtWidgets/qwidget.h>
 
 class QButtonGroup;
@@ -8,6 +9,8 @@ class QButtonGroup;
 class QAbstractButton : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QString text READ text WRITE setText)
+    Q_PROPERTY(QIcon icon READ icon WRITE setIcon)
+    Q_PROPERTY(QSize iconSize READ iconSize WRITE setIconSize)
     Q_PROPERTY(bool checkable READ isCheckable WRITE setCheckable)
     Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled USER true)
     Q_PROPERTY(bool down READ isDown WRITE setDown)
@@ -17,6 +20,10 @@ public:
 
     QString text() const { return m_text; }
     void setText(const QString &text);
+    QIcon icon() const { return m_icon; }
+    void setIcon(const QIcon &icon);
+    QSize iconSize() const;
+    void setIconSize(const QSize &size);
     bool isCheckable() const { return m_checkable; }
     void setCheckable(bool checkable);
     bool isChecked() const { return m_checked; }
@@ -75,6 +82,8 @@ private:
     void emitClicked();
 
     QString m_text;
+    QIcon m_icon;
+    QSize m_iconSize; // invalid: the size of the style
     bool m_checkable = false;
     bool m_autoExclusive = false;
     bool m_checked = false;

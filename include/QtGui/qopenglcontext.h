@@ -9,6 +9,7 @@
 
 #include <memory>
 
+class QOpenGLExtraFunctions;
 class QOpenGLFunctions;
 class QScreen;
 class QSurface;
@@ -50,6 +51,7 @@ public:
     static bool areSharing(QOpenGLContext *first, QOpenGLContext *second);
 
     QOpenGLFunctions *functions() const;
+    QOpenGLExtraFunctions *extraFunctions() const;
     QSet<QByteArray> extensions() const;
     bool hasExtension(const QByteArray &extension) const;
     bool isOpenGLES() const;

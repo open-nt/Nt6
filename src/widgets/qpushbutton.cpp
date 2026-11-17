@@ -42,7 +42,7 @@ QDialog *dialogOf(const QWidget *w) { return dynamic_cast<QDialog *>(w->window()
     \image widgets/qpushbutton.png QPushButton in the light color scheme
 
     \differences
-    There are no icons and no menus (\c setMenu()).
+    There are no menus (\c setMenu()).
     \enddifferences
 
     \sa QAbstractButton, QCheckBox
@@ -149,7 +149,10 @@ QSize QPushButton::sizeHint() const {
     QStyleOptionButton option;
     option.initFrom(this);
     option.text = this->text();
-    return style()->sizeFromContents(QStyle::CT_PushButton, &option, text, this);
+    option.icon = icon();
+    option.iconSize = iconSize();
+    return style()->sizeFromContents(QStyle::CT_PushButton, &option,
+                                     this->text().isEmpty() ? QSize(0, fm.height()) : text, this);
 }
 
 /*!
@@ -162,6 +165,8 @@ void QPushButton::paintEvent(QPaintEvent *event) {
     QStyleOptionButton option;
     option.initFrom(this);
     option.text = text();
+    option.icon = icon();
+    option.iconSize = iconSize();
     if (m_flat)
         option.features |= QStyleOptionButton::Flat;
     if (m_default || (autoDefault() && hasFocus()))

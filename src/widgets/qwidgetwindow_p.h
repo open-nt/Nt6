@@ -51,6 +51,9 @@ private:
     QPointer<QWidget> m_grab;
     QPointer<QWidget> m_under;
     QPointer<QWidget> m_popup;
+    QPointer<QWidget> m_dropTarget; // the widget a drag is over, which accepted the enter event or not
+    bool m_dropAccepted = false;
+    void handleDrag(QEvent *event);
     int m_tipTimer = 0;
     QPointer<QWidget> m_tipWidget;
     QPoint m_tipPos;       // in the window

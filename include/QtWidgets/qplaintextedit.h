@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qregularexpression.h>
+#include <QtGui/qtextdocument.h>
 #include <QtWidgets/qabstractscrollarea.h>
 #include <QtWidgets/qtextcursor.h>
 
@@ -45,6 +47,8 @@ public:
     QRect cursorRect(const QTextCursor &cursor) const;
     void moveCursor(QTextCursor::MoveOperation operation, QTextCursor::MoveMode mode = QTextCursor::MoveAnchor);
     void ensureCursorVisible();
+    bool find(const QString &exp, QTextDocument::FindFlags options = QTextDocument::FindFlags());
+    bool find(const QRegularExpression &exp, QTextDocument::FindFlags options = QTextDocument::FindFlags());
 
 public slots:
     void setPlainText(const QString &text);

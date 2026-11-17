@@ -11,6 +11,7 @@
 #include <QtCore/qthread.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qoffscreensurface.h>
+#include <QtGui/qopenglextrafunctions.h>
 #include <QtGui/qopenglfunctions.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qwindow.h>
@@ -83,6 +84,8 @@ struct QOpenGLContext::Data {
     bool versionKnown = false;
     std::unique_ptr<QOpenGLFunctionsPrivate> functionsPrivate;
     std::unique_ptr<QOpenGLFunctions> functions;
+    std::unique_ptr<QOpenGLExtraFunctionsPrivate> extraFunctionsPrivate;
+    std::unique_ptr<QOpenGLExtraFunctions> extraFunctions;
     mutable bool extensionsKnown = false;
     mutable QSet<QByteArray> extensions;
     std::map<QSurface *, Target> targets;
@@ -343,6 +346,8 @@ bool QOpenGLContext::create() {
         m_d->context = nullptr;
         m_d->functions.reset();
         m_d->functionsPrivate.reset();
+        m_d->extraFunctions.reset();
+        m_d->extraFunctionsPrivate.reset();
         m_d->targets.clear();
         m_d->versionKnown = false;
         m_d->extensionsKnown = false;
@@ -635,6 +640,19 @@ QOpenGLFunctions *QOpenGLContext::functions() const {
 }
 
 /*!
+    \since 6.0
+
+    Returns the OpenGL ES 3.0 functions of the context, which include those of
+    functions(). They can be called once the context has been made current,
+    if it is OpenGL ES 3.0 or desktop OpenGL 3.3 or newer.
+*/
+QOpenGLExtraFunctions *QOpenGLContext::extraFunctions() const {
+    if (!m_d->extraFunctions && m_d->context)
+        m_d->extraFunctions = std::make_unique<QOpenGLExtraFunctions>(const_cast<QOpenGLContext *>(this));
+    return m_d->extraFunctions.get();
+}
+
+/*!
     Returns the names of the OpenGL extensions of the context. The context
     must be current.
 
@@ -677,7 +695,9 @@ bool QOpenGLContext::isOpenGLES() const { return m_d->es(); }
 
 /*!
     Returns the kind of OpenGL that contexts use when their format does not
-    ask for one: desktop OpenGL if the EGL display offers it.
+    ask for one: desktop OpenGL if the EGL display offers it. Before the
+    QGuiApplication exists it returns LibGL; it can be called then, to choose
+    the default format, without keeping OpenGL from working later.
 */
 QOpenGLContext::OpenGLModuleType QOpenGLContext::openGLModuleType() {
     const egl::Display &d = egl::display();
@@ -695,6 +715,13 @@ QOpenGLFunctionsPrivate *QtPrivate::GuiAccess::openGLFunctions(QOpenGLContext *c
     if (!d.functionsPrivate && d.context)
         d.functionsPrivate = std::make_unique<QOpenGLFunctionsPrivate>(context);
     return d.functionsPrivate.get();
+}
+
+QOpenGLExtraFunctionsPrivate *QtPrivate::GuiAccess::openGLExtraFunctions(QOpenGLContext *context) {
+    QOpenGLContext::Data &d = *context->m_d;
+    if (!d.extraFunctionsPrivate && d.context)
+        d.extraFunctionsPrivate = std::make_unique<QOpenGLExtraFunctionsPrivate>(context);
+    return d.extraFunctionsPrivate.get();
 }
 
 void QtPrivate::GuiAccess::surfaceAboutToBeDestroyed(QSurface *surface) {

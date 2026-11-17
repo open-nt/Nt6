@@ -403,3 +403,6 @@ private:
 
     std::unique_ptr<QtPrivate::ObjectData> d_ptr;
 };
+
+// QSignalBlocker, which Qt declares here.
+#include <QtCore/qscopeguard.h> // NOLINT(misc-header-include-cycle): it includes this header for QObject

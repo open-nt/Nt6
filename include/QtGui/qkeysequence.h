@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qkeycombination.h>
 #include <QtCore/qlist.h>
 #include <QtCore/qnamespace.h>
 #include <QtCore/qstring.h>
@@ -44,6 +45,7 @@ public:
     QKeySequence() = default;
     QKeySequence(const QString &key, SequenceFormat format = NativeText);
     QKeySequence(int k1);
+    QKeySequence(QKeyCombination k1) : QKeySequence(k1.toCombined()) {}
     QKeySequence(StandardKey key);
 
     int count() const { return m_key != 0 ? 1 : 0; }
@@ -54,7 +56,7 @@ public:
     static QList<QKeySequence> keyBindings(StandardKey key);
     static QKeySequence mnemonic(const QString &text);
 
-    int operator[](uint index) const { return index == 0 ? m_key : 0; }
+    QKeyCombination operator[](uint index) const { return QKeyCombination::fromCombined(index == 0 ? m_key : 0); }
     bool operator==(const QKeySequence &other) const { return m_key == other.m_key; }
     bool operator!=(const QKeySequence &other) const { return m_key != other.m_key; }
     bool operator<(const QKeySequence &other) const { return m_key < other.m_key; }
@@ -62,3 +64,8 @@ public:
 private:
     int m_key = 0;
 };
+
+// The hash of `key`, combined with `seed`, so a key sequence can be a key of QHash and QSet.
+inline std::size_t qHash(const QKeySequence &key, std::size_t seed = 0) noexcept {
+    return seed ^ (static_cast<std::size_t>(static_cast<unsigned>(key[0])) * std::size_t{0x9e3779b9u});
+}

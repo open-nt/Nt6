@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qicon.h>
+
 #include <QtCore/qlist.h>
 #include <QtCore/qmap.h>
 #include <QtCore/qstringlist.h>
@@ -11,6 +13,7 @@
 
 #include <vector>
 
+class QMimeData;
 class QTreeWidget;
 namespace QtPrivate {
 class TreeModel;
@@ -72,6 +75,10 @@ public:
     void setSelected(bool select);
     bool isExpanded() const;
     void setExpanded(bool expand);
+    bool isHidden() const;
+    void setHidden(bool hide);
+    bool isFirstColumnSpanned() const;
+    void setFirstColumnSpanned(bool span);
     ChildIndicatorPolicy childIndicatorPolicy() const { return m_policy; }
     void setChildIndicatorPolicy(ChildIndicatorPolicy policy);
 
@@ -91,6 +98,16 @@ public:
         return static_cast<Qt::CheckState>(data(column, Qt::CheckStateRole).toInt());
     }
     void setCheckState(int column, Qt::CheckState state) { setData(column, Qt::CheckStateRole, static_cast<int>(state)); }
+    /*!
+        \since 6.0
+        Returns the icon of the item in \a column; a null icon if it has none.
+    */
+    QIcon icon(int column) const { return data(column, Qt::DecorationRole).value<QIcon>(); }
+    /*!
+        \since 6.0
+        Sets the icon of the item in \a column to \a icon, shown before its text in the icon size of the tree.
+    */
+    void setIcon(int column, const QIcon &icon) { setData(column, Qt::DecorationRole, QVariant::fromValue(icon)); }
 
     virtual QVariant data(int column, int role) const;
     virtual void setData(int column, int role, const QVariant &value);
@@ -111,7 +128,8 @@ private:
     QTreeWidgetItem *m_parent = nullptr; // the invisible root for a top-level item
     std::vector<QTreeWidgetItem *> m_children;
     std::vector<QMap<int, QVariant>> m_values; // for each column: the data by role
-    Qt::ItemFlags m_flags = Qt::ItemIsSelectable | Qt::ItemIsUserCheckable | Qt::ItemIsEnabled;
+    Qt::ItemFlags m_flags = Qt::ItemIsSelectable | Qt::ItemIsUserCheckable | Qt::ItemIsEnabled | Qt::ItemIsDragEnabled |
+                            Qt::ItemIsDropEnabled;
     ChildIndicatorPolicy m_policy = DontShowIndicatorWhenChildless;
     int m_type;
 };
@@ -216,6 +234,12 @@ signals:
         This signal is emitted when the selection changed; selectedItems() tells what is selected now.
     */
     void itemSelectionChanged() { emitSignal(&QTreeWidget::itemSelectionChanged); }
+
+protected:
+    virtual QStringList mimeTypes() const;
+    virtual QMimeData *mimeData(const QList<QTreeWidgetItem *> &items) const;
+    virtual bool dropMimeData(QTreeWidgetItem *parent, int index, const QMimeData *data, Qt::DropAction action);
+    virtual Qt::DropActions supportedDropActions() const;
 
 private:
     friend class QTreeWidgetItem;

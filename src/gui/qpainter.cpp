@@ -5,6 +5,7 @@
 #include <QtGui/qpaintengine.h>
 
 #include "qfontengine_p.h"
+#include "qpdfengine_p.h"
 #include "qtextlayout_p.h"
 
 #include <algorithm>
@@ -25,6 +26,9 @@ struct QPainter::Data {
         QFont font;
         QTransform world; // the transformation of the painter's coordinates, translations included
         bool worldEnabled = true;
+        QRect window;   // what the view transformation maps onto the viewport
+        QRect viewport; // in the device's coordinates
+        bool viewEnabled = false;
     };
 
     QPaintDevice *device = nullptr;
@@ -36,6 +40,9 @@ struct QPainter::Data {
     QRegion systemClip; // device coordinates; applies when hasSystemClip is set
     bool hasSystemClip = false;
     qreal scale = 1.0; // device pixels per unit of the painter's coordinates
+    // What font sizes are multiplied by: the scale, and the device's dots per inch over 96, so that a point is a
+    // point on a printer or PDF page, as in Qt.
+    qreal fontScale = 1.0;
 
     int dev(int v) const { return scale == 1.0 ? v : qRound(v * scale); }
     QPoint devPoint(const QPoint &p) const { return scale == 1.0 ? p : QPoint(dev(p.x()), dev(p.y())); }
@@ -67,7 +74,40 @@ struct QPainter::Data {
     }
     int devPenWidth(int width) const { return scale == 1.0 || width <= 0 ? width : std::max(1, qRound(width * scale)); }
 
-    QTransform user() const { return state.worldEnabled ? state.world : QTransform(); }
+    // The window to viewport mapping, or the identity while the view transformation is off.
+    QTransform view() const {
+        const State &s = state;
+        if (!s.viewEnabled || s.window.width() == 0 || s.window.height() == 0)
+            return QTransform();
+        const qreal sx = static_cast<qreal>(s.viewport.width()) / s.window.width();
+        const qreal sy = static_cast<qreal>(s.viewport.height()) / s.window.height();
+        return QTransform(sx, 0, 0, sy, s.viewport.x() - s.window.x() * sx, s.viewport.y() - s.window.y() * sy);
+    }
+    QTransform user() const { return (state.worldEnabled ? state.world : QTransform()) * view(); }
+    // Text is drawn upright: under a transformation it is laid out in device space, at the font size scaled by
+    // how much the transformation enlarges. This turns the transformations off for that and restores them.
+    struct Upright {
+        Data &d;
+        State saved;
+        qreal savedFontScale;
+        explicit Upright(Data &data) : d(data), saved(data.state), savedFontScale(data.fontScale) {
+            const QTransform t = d.user();
+            const qreal enlargement = std::sqrt(std::fabs(t.m11() * t.m22() - t.m12() * t.m21()));
+            if (enlargement > 0.0)
+                d.fontScale *= enlargement;
+            d.state.world = QTransform();
+            d.state.viewEnabled = false;
+            d.updateTranslation();
+        }
+        ~Upright() {
+            d.state.world = saved.world;
+            d.state.viewEnabled = saved.viewEnabled;
+            d.fontScale = savedFontScale;
+            d.updateTranslation();
+        }
+        Upright(const Upright &) = delete;
+        Upright &operator=(const Upright &) = delete;
+    };
     // True if the coordinates are only moved by whole pixels: integer drawing can keep its exact path.
     bool simple() const {
         const QTransform t = user();
@@ -276,10 +316,12 @@ bool QPainter::begin(QPaintDevice *device) {
     d->engine = engine;
     d->state = Data::State();
     d->state.translation = redirection;
+    d->state.window = d->state.viewport = QRect(0, 0, device->width(), device->height());
     d->baseOffset = redirection;
     d->systemClip = clip;
     d->hasSystemClip = clipped;
     d->scale = target->devicePixelRatio() > 0 ? target->devicePixelRatio() : 1.0;
+    d->fontScale = d->scale * (target->logicalDpiY() > 0 ? target->logicalDpiY() / 96.0 : 1.0);
     d->saved.clear();
     d->active = true;
     device->m_active = true;
@@ -476,7 +518,9 @@ void QPainter::restore() {
 
     \sa font(), setFont()
 */
-QFontMetrics QPainter::fontMetrics() const { return QFontMetrics(font()); }
+QFontMetrics QPainter::fontMetrics() const {
+    return d->device ? QFontMetrics(font(), d->device) : QFontMetrics(font());
+}
 
 /*!
     Moves the origin of the coordinate system by \a offset.
@@ -579,10 +623,89 @@ const QTransform &QPainter::transform() const { return d->state.world; }
 */
 
 /*!
-    \fn QTransform QPainter::combinedTransform() const
-
-    Returns the transformation of the coordinate system; there is no window or viewport in Nt.
+    Returns the transformation of the coordinate system combined with the view transformation, which maps
+    window() onto viewport().
 */
+QTransform QPainter::combinedTransform() const { return d->user(); }
+
+/*!
+    \since 6.0
+
+    Returns the window: the rectangle in the painter's coordinates that the view transformation maps onto the
+    viewport(). It is the rectangle of the device until setWindow() changes it.
+
+    \sa setWindow(), viewport()
+*/
+QRect QPainter::window() const { return d->state.window; }
+
+/*!
+    \since 6.0
+
+    Sets the window to \a window and turns the view transformation on.
+
+    \sa window(), setViewport()
+*/
+void QPainter::setWindow(const QRect &window) {
+    d->state.window = window;
+    setViewTransformEnabled(true);
+}
+
+/*!
+    \fn void QPainter::setWindow(int x, int y, int w, int h)
+    \overload
+    \since 6.0
+
+    Sets the window to the rectangle at (\a x, \a y) of \a w by \a h.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the viewport: the rectangle of the device that the window() is mapped onto. It is the rectangle of
+    the device, from (0, 0) to its width() and height(), until setViewport() changes it.
+
+    \sa setViewport(), window()
+*/
+QRect QPainter::viewport() const { return d->state.viewport; }
+
+/*!
+    \since 6.0
+
+    Sets the viewport to \a viewport and turns the view transformation on.
+
+    \sa viewport(), setWindow()
+*/
+void QPainter::setViewport(const QRect &viewport) {
+    d->state.viewport = viewport;
+    setViewTransformEnabled(true);
+}
+
+/*!
+    \fn void QPainter::setViewport(int x, int y, int w, int h)
+    \overload
+    \since 6.0
+
+    Sets the viewport to the rectangle at (\a x, \a y) of \a w by \a h.
+*/
+
+/*!
+    \since 6.0
+
+    Turns the view transformation, from window() to viewport(), on if \a enable is \c true and off otherwise.
+*/
+void QPainter::setViewTransformEnabled(bool enable) {
+    d->state.viewEnabled = enable;
+    d->updateTranslation();
+    if (d->active)
+        d->sync();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the view transformation is on. It is off until setWindow() or setViewport() is called.
+*/
+bool QPainter::viewTransformEnabled() const { return d->state.viewEnabled; }
 
 /*!
     Returns the transformation from the painter's coordinates to device pixels: the transformation of the
@@ -966,6 +1089,10 @@ void QPainter::drawImage(const QPoint &point, const QImage &image) { drawImage(p
 void QPainter::drawImage(const QRect &target, const QImage &image, const QRect &source) {
     if (!d->active || image.isNull())
         return;
+    if (image.depth() != 32) { // the engines draw 32-bit pixels
+        drawImage(target, image.convertToFormat(QImage::Format_RGB32), source);
+        return;
+    }
     if (!d->simple()) {
         drawImage(QRectF(target), image, QRectF(source));
         return;
@@ -990,6 +1117,19 @@ namespace {
 
 void drawLineOfText(QPaintEngine *engine, QFontEngine &font, const QtPrivate::PlacedLine &line, const QPoint &offset) {
     int pen64 = 0;
+    if (engine->type() == QPaintEngine::Pdf) {
+        // PDF gets the outlines, at the unrounded pen positions, so the text stays sharp when zoomed.
+        std::vector<QtPrivate::PdfGlyph> glyphs;
+        QtPrivate::forEachCodePoint(line.text, [&](char32_t cp) {
+            if (cp < 0x20 && cp != '\t')
+                return;
+            if (cp != '\t')
+                glyphs.push_back({cp, QPointF(offset.x() + line.x + pen64 / 64.0, offset.y() + line.baseline)});
+            pen64 += QtPrivate::advance64(font, cp);
+        });
+        static_cast<QtPrivate::PdfEngine *>(engine)->drawGlyphs(font, glyphs);
+        return;
+    }
     QtPrivate::forEachCodePoint(line.text, [&](char32_t cp) {
         if (cp < 0x20 && cp != '\t')
             return;
@@ -1020,7 +1160,7 @@ void QPainter::drawText(const QPoint &position, const QString &text) {
         drawText(QPointF(position), text);
         return;
     }
-    const std::shared_ptr<QFontEngine> font = QFontEngine::create(d->state.font, d->scale);
+    const std::shared_ptr<QFontEngine> font = QFontEngine::create(d->state.font, d->fontScale);
     const QtPrivate::TextBlock block =
         QtPrivate::layoutAtPoint(*font, d->devPoint(position + d->state.translation), text);
     for (const QtPrivate::PlacedLine &line : block.lines)
@@ -1051,17 +1191,15 @@ void QPainter::drawText(const QRect &rectangle, int flags, const QString &text, 
         // Text is laid out in the bounding rectangle of the transformed one, upright.
         const QTransform t = d->user();
         const QRect mapped = t.mapRect(QRectF(rectangle)).toAlignedRect();
-        const QTransform saved = d->state.world;
-        d->state.world = QTransform();
-        d->updateTranslation();
-        drawText(mapped, flags, text, boundingRect);
-        d->state.world = saved;
-        d->updateTranslation();
+        {
+            const Data::Upright upright(*d);
+            drawText(mapped, flags, text, boundingRect);
+        }
         if (boundingRect)
             *boundingRect = t.inverted().mapRect(QRectF(*boundingRect)).toAlignedRect();
         return;
     }
-    const std::shared_ptr<QFontEngine> font = QFontEngine::create(d->state.font, d->scale);
+    const std::shared_ptr<QFontEngine> font = QFontEngine::create(d->state.font, d->fontScale);
     const QRect target = rectangle.translated(d->state.translation);
     const QtPrivate::TextBlock block = QtPrivate::layoutText(*font, d->devRect(target), flags, text);
     if (boundingRect)
@@ -1092,7 +1230,7 @@ void QPainter::drawText(const QRect &rectangle, int flags, const QString &text, 
     \a flags, using the current font.
 */
 QRect QPainter::boundingRect(const QRect &rectangle, int flags, const QString &text) {
-    const std::shared_ptr<QFontEngine> font = QFontEngine::create(d->state.font, d->scale);
+    const std::shared_ptr<QFontEngine> font = QFontEngine::create(d->state.font, d->fontScale);
     return d->logicalRect(QtPrivate::layoutText(*font, d->devRect(rectangle), flags, text).bounds);
 }
 
@@ -1584,6 +1722,10 @@ void QPainter::drawImage(const QPointF &point, const QImage &image) {
 void QPainter::drawImage(const QRectF &target, const QImage &image, const QRectF &source) {
     if (!d->active || image.isNull() || target.isEmpty())
         return;
+    if (image.depth() != 32) {
+        drawImage(target, image.convertToFormat(QImage::Format_RGB32), source);
+        return;
+    }
     const QTransform toDevice = d->toDevice();
     // Rotated, sheared and mirrored images need the transformation; mapRect() would draw them upright.
     if (toDevice.type() > QTransform::TxScale || toDevice.m11() < 0 || toDevice.m22() < 0) {
@@ -1613,19 +1755,14 @@ void QPainter::drawImage(const QRectF &target, const QImage &image, const QRectF
     \overload
 
     Draws \a text with the left end of its baseline at \a position, mapped by the transformation. The
-    glyphs are drawn upright at the size of the font: the transformation moves the text but does not rotate
-    or scale it.
+    glyphs are drawn upright: the transformation moves the text and scales its size, but does not rotate it.
 */
 void QPainter::drawText(const QPointF &position, const QString &text) {
     if (!d->active || text.isEmpty())
         return;
     const QPointF p = d->user().map(position);
-    const QTransform saved = d->state.world;
-    d->state.world = QTransform();
-    d->updateTranslation();
+    const Data::Upright upright(*d);
     drawText(QPoint(qRound(p.x()), qRound(p.y())), text);
-    d->state.world = saved;
-    d->updateTranslation();
 }
 
 /*!
@@ -1639,4 +1776,21 @@ void QPainter::drawText(const QRectF &rectangle, int flags, const QString &text,
     drawText(rectangle.toAlignedRect(), flags, text, boundingRect ? &covered : nullptr);
     if (boundingRect)
         *boundingRect = QRectF(covered);
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Draws \a text in \a rectangle with the alignment of \a option, wrapped at
+    word boundaries unless its wrap mode is QTextOption::NoWrap. The text is
+    clipped to the rectangle.
+
+    \sa QTextOption
+*/
+void QPainter::drawText(const QRectF &rectangle, const QString &text, const QTextOption &option) {
+    int flags = static_cast<int>(option.alignment());
+    if (option.wrapMode() != QTextOption::NoWrap)
+        flags |= Qt::TextWordWrap;
+    drawText(rectangle, flags, text);
 }

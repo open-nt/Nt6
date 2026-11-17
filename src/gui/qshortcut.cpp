@@ -3,6 +3,8 @@
 
 #include "qshortcut_p.h"
 
+#include <QtCore/qcoreapplication.h>
+#include <QtGui/qevent.h>
 #include <QtGui/qwindow.h>
 
 #include <algorithm>
@@ -79,6 +81,14 @@ bool QtPrivate::tryShortcut(QWindow *window, int key, Qt::KeyboardModifiers modi
     }
     if (matches.empty())
         return false;
+    // The window, and the widget with the focus in it, may want the key press for itself.
+    if (window) {
+        QKeyEvent ask(QEvent::ShortcutOverride, key, modifiers, QString(), autoRepeat);
+        ask.ignore();
+        QCoreApplication::sendEvent(window, &ask);
+        if (ask.isAccepted())
+            return false;
+    }
     if (matches.size() == 1)
         emit matches.front()->activated();
     else

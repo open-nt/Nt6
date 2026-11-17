@@ -1,6 +1,13 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qvariant.h>
+
+#include <QtCore/qpointer.h>
+
+#include <QtCore/qmap.h>
+#include <QtGui/qicon.h>
+
 #include <QtCore/qlist.h>
 #include <QtCore/qstringlist.h>
 #include <QtGui/qbrush.h>
@@ -16,6 +23,7 @@ public:
     QListWidgetItem();
     explicit QListWidgetItem(const QString &text);
     QListWidgetItem(const QString &text, QListWidget *listWidget);
+    QListWidgetItem(const QIcon &icon, const QString &text, QListWidget *listWidget = nullptr);
     QListWidgetItem(const QListWidgetItem &) = delete;
     QListWidgetItem &operator=(const QListWidgetItem &) = delete;
     virtual ~QListWidgetItem();
@@ -23,6 +31,8 @@ public:
     QListWidget *listWidget() const { return m_list; }
     QString text() const { return m_text; }
     void setText(const QString &text);
+    QIcon icon() const { return m_icon; }
+    void setIcon(const QIcon &icon);
     QString toolTip() const { return m_toolTip; }
     void setToolTip(const QString &toolTip) { m_toolTip = toolTip; }
     Qt::Alignment textAlignment() const { return m_alignment; }
@@ -37,6 +47,10 @@ public:
     void setFlags(Qt::ItemFlags flags);
     bool isSelected() const { return m_selected; }
     void setSelected(bool select);
+    QSize sizeHint() const { return m_sizeHint; }
+    void setSizeHint(const QSize &size);
+    virtual QVariant data(int role) const;
+    virtual void setData(int role, const QVariant &value);
 
 private:
     friend class QListWidget;
@@ -52,6 +66,10 @@ private:
     bool m_hasFont = false;
     bool m_selected = false;
     Qt::ItemFlags m_flags = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+    QSize m_sizeHint;
+    QIcon m_icon;
+    QMap<int, QVariant> m_data; // the roles that have no member of their own
+    QPointer<QWidget> m_widget; // shown over the item, owned by the list
 };
 
 class QListWidget : public QAbstractItemView {
@@ -82,6 +100,9 @@ public:
     QListWidgetItem *itemAt(int x, int y) const { return itemAt(QPoint(x, y)); }
     QRect visualItemRect(const QListWidgetItem *item) const;
     void scrollToItem(const QListWidgetItem *item);
+    QWidget *itemWidget(QListWidgetItem *item) const;
+    void setItemWidget(QListWidgetItem *item, QWidget *widget);
+    void removeItemWidget(QListWidgetItem *item) { setItemWidget(item, nullptr); }
     int rowHeight() const;
 
 public slots:
@@ -153,6 +174,13 @@ private:
     bool clearSelection(int except);
     void scrollToRow(int row);
     int rowAtY(int y) const;
+    // Rows are rowHeight() high, or as high as the size hint of their item if that is larger.
+    int heightOf(int row) const;
+    int topOf(int row) const;
+    int contentHeight() const;
+    bool uniformRows() const;
+    // Puts the item widgets over their items.
+    void placeItemWidgets();
     void navigate(int target, Qt::KeyboardModifiers modifiers);
     void finishSelection();
     void search(const QString &text);

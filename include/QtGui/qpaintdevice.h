@@ -18,6 +18,8 @@ public:
         PdmDepth = 6,
         PdmDpiX = 7,
         PdmDpiY = 8,
+        PdmPhysicalDpiX = 9,
+        PdmPhysicalDpiY = 10,
         PdmDevicePixelRatio = 11,
         PdmDevicePixelRatioScaled = 12
     };
@@ -34,6 +36,10 @@ public:
     int depth() const { return metric(PdmDepth); }
     int logicalDpiX() const { return metric(PdmDpiX); }
     int logicalDpiY() const { return metric(PdmDpiY); }
+    /*! Returns the horizontal resolution of the device in dots per inch. */
+    int physicalDpiX() const { return metric(PdmPhysicalDpiX); }
+    /*! Returns the vertical resolution of the device in dots per inch. */
+    int physicalDpiY() const { return metric(PdmPhysicalDpiY); }
     qreal devicePixelRatio() const { return metric(PdmDevicePixelRatioScaled) / 65536.0; }
     /*! Returns the device pixel ratio, the same as devicePixelRatio(). */
     qreal devicePixelRatioF() const { return devicePixelRatio(); }

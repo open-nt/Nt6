@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qtreewidget.h>
 
+#include <QtCore/qmimedata.h>
+
 #include <QtCore/qregularexpression.h>
 #include <QtWidgets/qheaderview.h>
 
@@ -159,6 +161,36 @@ public:
         return value;
     }
     void sort(int column, Qt::SortOrder order = Qt::AscendingOrder) override { sortBelow(m_view->m_root, column, order); }
+
+    // Drag and drop goes through the virtual functions of the tree widget, as in Qt.
+    QStringList mimeTypes() const override { return m_view->mimeTypes(); }
+    QMimeData *mimeData(const QModelIndexList &indexes) const override {
+        QList<QTreeWidgetItem *> items;
+        for (const QModelIndex &index : indexes)
+            if (index.column() == 0 && !items.contains(item(index)))
+                items.append(item(index));
+        return m_view->mimeData(items);
+    }
+    bool canDropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
+                         const QModelIndex &parent) const override {
+        (void)action;
+        (void)row;
+        (void)column;
+        (void)parent;
+        for (const QString &type : m_view->mimeTypes())
+            if (data && data->hasFormat(type))
+                return true;
+        return false;
+    }
+    bool dropMimeData(const QMimeData *data, Qt::DropAction action, int row, int column,
+                      const QModelIndex &parent) override {
+        (void)column;
+        QTreeWidgetItem *target = parent.isValid() ? item(parent) : m_view->m_root;
+        return m_view->dropMimeData(target, row < 0 ? target->childCount() : row, data, action);
+    }
+    Qt::DropActions supportedDropActions() const override { return m_view->supportedDropActions(); }
+    // The default mimeData() of QAbstractItemModel, for the tree widget's own.
+    QMimeData *baseMimeData(const QModelIndexList &indexes) const { return QAbstractItemModel::mimeData(indexes); }
 
     // Sorts the items below `top`, and keeps the indexes that others hold pointing at their items.
     void sortBelow(QTreeWidgetItem *top, int column, Qt::SortOrder order) {
@@ -555,6 +587,64 @@ void QTreeWidgetItem::setSelected(bool select) {
                                      QItemSelectionModel::SelectionFlags(select ? QItemSelectionModel::Select
                                                                                 : QItemSelectionModel::Deselect) |
                                          QItemSelectionModel::Rows);
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the first column of the item takes the whole width of its row.
+
+    \sa setFirstColumnSpanned()
+*/
+bool QTreeWidgetItem::isFirstColumnSpanned() const {
+    if (!m_view)
+        return false;
+    const QModelIndex index = m_view->indexFromItem(this);
+    return index.isValid() && m_view->isFirstColumnSpanned(index.row(), index.parent());
+}
+
+/*!
+    \since 6.0
+
+    Makes the first column of the item take the whole width of its row if \a span is \c true. Nothing happens for
+    an item that is in no tree.
+*/
+void QTreeWidgetItem::setFirstColumnSpanned(bool span) {
+    if (!m_view)
+        return;
+    const QModelIndex index = m_view->indexFromItem(this);
+    if (index.isValid())
+        m_view->setFirstColumnSpanned(index.row(), index.parent(), span);
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the item is hidden in its tree; otherwise returns \c false.
+
+    \sa setHidden()
+*/
+bool QTreeWidgetItem::isHidden() const {
+    if (!m_view)
+        return false;
+    const QModelIndex index = m_view->indexFromItem(this);
+    return index.isValid() && m_view->isRowHidden(index.row(), index.parent());
+}
+
+/*!
+    \since 6.0
+
+    Hides the item, and its children with it, if \a hide is \c true, and shows it otherwise. Nothing happens for
+    an item that is in no tree.
+
+    \sa isHidden()
+*/
+void QTreeWidgetItem::setHidden(bool hide) {
+    if (!m_view)
+        return;
+    const QModelIndex index = m_view->indexFromItem(this);
+    if (index.isValid())
+        m_view->setRowHidden(index.row(), index.parent(), hide);
 }
 
 /*!
@@ -1192,5 +1282,50 @@ void QTreeWidget::clear() {
     }
     m_model->endReset();
 }
+
+/*!
+    \since 6.0
+
+    Returns the formats that the tree's drags carry and that it takes in drops: those of the model's encoding of
+    items, by default.
+
+    \sa mimeData(), dropMimeData()
+*/
+QStringList QTreeWidget::mimeTypes() const { return m_model->QAbstractItemModel::mimeTypes(); }
+
+/*!
+    \since 6.0
+
+    Returns new data that stands for \a items, for a drag from the tree: by default the encoding of the items of
+    QAbstractItemModel::mimeData(). Reimplement it to drag data of your own; the caller owns the data.
+*/
+QMimeData *QTreeWidget::mimeData(const QList<QTreeWidgetItem *> &items) const {
+    QModelIndexList indexes;
+    for (QTreeWidgetItem *item : items)
+        for (int c = 0; c < std::max(1, columnCount()); ++c)
+            indexes.append(indexFromItem(item, c));
+    return m_model->baseMimeData(indexes);
+}
+
+/*!
+    \since 6.0
+
+    Handles \a data dropped with \a action on \a parent, before its child \a index, and returns \c true if it was
+    taken. The default takes nothing; reimplement it to accept drops.
+*/
+bool QTreeWidget::dropMimeData(QTreeWidgetItem *parent, int index, const QMimeData *data, Qt::DropAction action) {
+    (void)parent;
+    (void)index;
+    (void)data;
+    (void)action;
+    return false;
+}
+
+/*!
+    \since 6.0
+
+    Returns the actions that drops on the tree may take: Qt::CopyAction by default.
+*/
+Qt::DropActions QTreeWidget::supportedDropActions() const { return Qt::CopyAction; }
 
 #include "moc_qtreewidget.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

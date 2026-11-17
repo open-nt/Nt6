@@ -25,8 +25,7 @@
     it has been added to a widget of the window that has the focus, with QWidget::addAction() or to a menu.
 
     \differences
-    There are no icons (\c icon(), \c setIcon()), no \c menuRole(), \c priority(), \c shortcuts() (only one), \c autoRepeat(), \c
-    whatsThis() or \c iconVisibleInMenu(). \c menu() is a template that takes the pointer type to cast to, as in Qt 6,
+    There is no \c menuRole(), \c priority(), \c autoRepeat(), \c whatsThis() or \c iconVisibleInMenu(). \c menu() is a template that takes the pointer type to cast to, as in Qt 6,
     and setMenu() takes a \c QObject so that QtGui does not depend on QtWidgets.
     \enddifferences
 
@@ -52,6 +51,33 @@ QAction::QAction(QObject *parent) : QObject(parent) {}
     menu underlines.
 */
 QAction::QAction(const QString &text, QObject *parent) : QObject(parent), m_text(text) {}
+
+/*!
+    \since 6.0
+
+    Constructs an action with \a icon and \a text, and the given \a parent.
+*/
+QAction::QAction(const QIcon &icon, const QString &text, QObject *parent)
+    : QObject(parent), m_text(text), m_icon(icon) {}
+
+/*!
+    \fn QIcon QAction::icon() const
+    \since 6.0
+
+    Returns the icon of the action, which menus, tool bars and tool buttons show; a null icon if it has none.
+
+    \sa setIcon()
+*/
+
+/*!
+    \since 6.0
+
+    Sets the icon of the action to \a icon.
+*/
+void QAction::setIcon(const QIcon &icon) {
+    m_icon = icon;
+    emit changed();
+}
 
 /*!
     Destroys the action, and removes it from its group.
@@ -174,11 +200,55 @@ void QAction::setFont(const QFont &font) {
     \sa shortcut()
 */
 void QAction::setShortcut(const QKeySequence &shortcut) {
-    if (m_shortcut == shortcut)
+    if (m_shortcut == shortcut && m_moreShortcuts.isEmpty())
         return;
     m_shortcut = shortcut;
+    m_moreShortcuts.clear();
     emit changed();
 }
+
+/*!
+    \since 6.0
+
+    Returns the shortcuts of the action: shortcut() first, then the others that setShortcuts() gave. Empty if the
+    action has no shortcut.
+
+    \sa setShortcuts()
+*/
+QList<QKeySequence> QAction::shortcuts() const {
+    QList<QKeySequence> all;
+    if (!m_shortcut.isEmpty())
+        all.append(m_shortcut);
+    all.append(m_moreShortcuts);
+    return all;
+}
+
+/*!
+    \since 6.0
+
+    Sets the shortcuts of the action to \a shortcuts. The first is the primary one that shortcut() returns and
+    menus show; each of them triggers the action.
+*/
+void QAction::setShortcuts(const QList<QKeySequence> &shortcuts) {
+    QList<QKeySequence> keys;
+    for (const QKeySequence &k : shortcuts)
+        if (!k.isEmpty())
+            keys.append(k);
+    const QKeySequence first = keys.isEmpty() ? QKeySequence() : keys.takeFirst();
+    if (first == m_shortcut && keys == m_moreShortcuts)
+        return;
+    m_shortcut = first;
+    m_moreShortcuts = keys;
+    emit changed();
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Sets the shortcuts of the action to the bindings of the standard key \a key.
+*/
+void QAction::setShortcuts(QKeySequence::StandardKey key) { setShortcuts(QKeySequence::keyBindings(key)); }
 
 /*!
     \fn Qt::ShortcutContext QAction::shortcutContext() const

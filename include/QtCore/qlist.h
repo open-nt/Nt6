@@ -490,6 +490,11 @@ public:
 
         Appends the items of the list \a l to this list. */
     void append(const QList &l) { d.insert(d.end(), l.d.begin(), l.d.end()); }
+    /*! \overload
+        \since 6.0
+
+        Appends the items from \a i1 up to, but not including, \a i2, which are iterators of another list. */
+    void append(const_iterator i1, const_iterator i2) { d.insert(d.end(), i1, i2); }
     /*! Same as append(\a t). This function is provided for STL compatibility. */
     void push_back(const T &t) { d.push_back(t); }
     /*! \overload

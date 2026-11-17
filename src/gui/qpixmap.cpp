@@ -246,6 +246,26 @@ bool QPixmap::save(QIODevice *device, const char *format, int quality) const {
 QPaintEngine *QPixmap::paintEngine() const { return m_image.paintEngine(); }
 
 /*!
+    \fn void QPixmap::setDevicePixelRatio(qreal scaleFactor)
+    \since 6.0
+
+    Sets the number of image pixels per device-independent pixel to \a scaleFactor. A painter draws a pixmap
+    of ratio 2 at half its size in pixels, and a QLabel shows it so.
+
+    \sa deviceIndependentSize()
+*/
+
+/*!
+    \since 6.0
+
+    Returns the size of the pixmap in device-independent pixels: its size divided by its device pixel ratio.
+*/
+QSizeF QPixmap::deviceIndependentSize() const {
+    const qreal ratio = m_image.devicePixelRatio() > 0 ? m_image.devicePixelRatio() : 1.0;
+    return QSizeF(m_image.width() / ratio, m_image.height() / ratio);
+}
+
+/*!
     \reimp
 */
 int QPixmap::metric(PaintDeviceMetric metric) const {
@@ -256,6 +276,10 @@ int QPixmap::metric(PaintDeviceMetric metric) const {
         return m_image.height();
     case PdmDepth:
         return m_image.isNull() ? 0 : 32;
+    case PdmDevicePixelRatio:
+        return static_cast<int>(m_image.devicePixelRatio());
+    case PdmDevicePixelRatioScaled:
+        return qRound(m_image.devicePixelRatio() * 65536.0);
     default:
         return QPaintDevice::metric(metric);
     }

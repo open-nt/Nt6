@@ -563,11 +563,97 @@ bool QTreeView::close(const QModelIndex &first) {
     return false;
 }
 
+/*!
+    \since 6.0
+
+    Returns \c true if row \a row under \a parent is hidden.
+
+    \sa setRowHidden()
+*/
+bool QTreeView::isRowHidden(int row, const QModelIndex &parent) const {
+    if (!model())
+        return false;
+    return m_hidden.contains(QPersistentModelIndex(model()->index(row, 0, parent)));
+}
+
+/*!
+    \since 6.0
+
+    Hides row \a row under \a parent if \a hide is \c true, and shows it otherwise. A hidden row and its
+    children are not laid out.
+
+    \sa isRowHidden()
+*/
+void QTreeView::setRowHidden(int row, const QModelIndex &parent, bool hide) {
+    if (!model())
+        return;
+    const QPersistentModelIndex index(model()->index(row, 0, parent));
+    if (!index.isValid())
+        return;
+    for (qsizetype i = m_hidden.size() - 1; i >= 0; --i)
+        if (!m_hidden.at(i).isValid())
+            m_hidden.removeAt(i);
+    const bool hidden = m_hidden.contains(index);
+    if (hide == hidden)
+        return;
+    if (hide)
+        m_hidden.append(index);
+    else
+        m_hidden.removeAll(index);
+    rebuild();
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the first column of row \a row under \a parent takes the whole width of the row.
+
+    \sa setFirstColumnSpanned()
+*/
+bool QTreeView::isFirstColumnSpanned(int row, const QModelIndex &parent) const {
+    if (!model())
+        return false;
+    return m_spanned.contains(QPersistentModelIndex(model()->index(row, 0, parent)));
+}
+
+/*!
+    \since 6.0
+
+    Makes the first column of row \a row under \a parent take the whole width of the row if \a span is \c true,
+    as for a heading among the rows; the other columns of the row are not drawn.
+*/
+void QTreeView::setFirstColumnSpanned(int row, const QModelIndex &parent, bool span) {
+    if (!model())
+        return;
+    const QPersistentModelIndex index(model()->index(row, 0, parent));
+    if (!index.isValid() || m_spanned.contains(index) == span)
+        return;
+    if (span)
+        m_spanned.append(index);
+    else
+        m_spanned.removeAll(index);
+    viewport()->update();
+}
+
+/*!
+    \reimp
+    \since 6.0
+
+    Lays the rows out again at once.
+*/
+void QTreeView::doItemsLayout() {
+    rebuild();
+    viewport()->update();
+}
+
 void QTreeView::appendRows(const QModelIndex &parent, int level, const QSet<QModelIndex> &open) {
     QAbstractItemModel *m = model();
     const int rows = m->rowCount(parent);
     for (int r = 0; r < rows; ++r) {
         const QModelIndex index = m->index(r, 0, parent);
+        if (!m_hidden.isEmpty() && m_hidden.contains(QPersistentModelIndex(index)))
+            continue;
         Row row;
         row.index = QPersistentModelIndex(index);
         row.level = level;
@@ -624,6 +710,8 @@ void QTreeView::updateGeometries() {
         return;
     }
     m_inLayout = true;
+    for (int column : m_header->contentsSections())
+        resizeColumnToContents(column);
     QScrollBar *hbar = horizontalScrollBar(), *vbar = verticalScrollBar();
     for (int pass = 0; pass < 6; ++pass) {
         m_layoutAgain = false;
@@ -931,8 +1019,11 @@ void QTreeView::drawRow(QPainter *painter, const QStyleOptionViewItem &options, 
     const bool rowSelected =
         selection && selectionBehavior() == SelectRows && selection->isSelected(QModelIndex(r.index));
     const int columns = m_header->count();
-    for (int c = 0; c < columns; ++c) {
-        const int width = m_header->sectionSize(c);
+    const bool spanned = !m_spanned.isEmpty() && m_spanned.contains(r.index);
+    for (int c = 0; c < (spanned ? 1 : columns); ++c) {
+        int width = m_header->sectionSize(c);
+        if (spanned)
+            width = std::max(width, m_header->length() - columnViewportPosition(0) - horizontalScrollBar()->value());
         if (width <= 0)
             continue;
         const int x = columnViewportPosition(c);
@@ -1032,6 +1123,8 @@ void QTreeView::mousePressEvent(QMouseEvent *event) {
     if (!(model()->flags(index) & Qt::ItemIsEnabled))
         return;
     m_pressed = QPersistentModelIndex(index);
+    if (event->button() == Qt::LeftButton)
+        setDragStart(event->pos(), true);
     m_pressedWasSelected = selectionModel() && selectionModel()->isSelected(index) && currentIndex() == index;
     emit pressed(index);
     if (event->button() == Qt::LeftButton || !(selectionModel() && selectionModel()->isSelected(index)))

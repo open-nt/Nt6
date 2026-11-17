@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qtoolbar.h>
+#include <QtWidgets/qstyle.h>
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
@@ -196,6 +197,54 @@ QAction *QToolBar::addAction(const QString &text) {
 }
 
 /*!
+    \overload
+    \since 6.0
+
+    Adds an action with \a icon and \a text, and returns it.
+*/
+QAction *QToolBar::addAction(const QIcon &icon, const QString &text) {
+    auto *action = new QAction(icon, text, this);
+    addAction(action);
+    return action;
+}
+
+/*!
+    \fn template <typename Functor> QAction *QToolBar::addAction(const QIcon &icon, const QString &text, Functor functor)
+    \overload
+    \since 6.0
+
+    Adds an action with \a icon and \a text, connects its triggered() signal to \a functor, and returns it.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the size of the icons of the tool buttons: what setIconSize() set, or the tool bar icon size of the
+    style.
+*/
+QSize QToolBar::iconSize() const {
+    if (m_iconSize.isValid())
+        return m_iconSize;
+    const int extent = style()->pixelMetric(QStyle::PM_ToolBarIconSize, nullptr, this);
+    return QSize(extent > 0 ? extent : 24, extent > 0 ? extent : 24);
+}
+
+/*!
+    \since 6.0
+
+    Sets the size of the icons of the tool buttons to \a iconSize.
+*/
+void QToolBar::setIconSize(const QSize &iconSize) {
+    if (m_iconSize == iconSize)
+        return;
+    m_iconSize = iconSize;
+    for (const Item &item : m_items)
+        if (auto *button = dynamic_cast<QToolButton *>(item.widget); button && item.owned)
+            button->setIconSize(this->iconSize());
+    emit iconSizeChanged(this->iconSize());
+}
+
+/*!
     \fn template <typename Functor> QAction *QToolBar::addAction(const QString &text, Functor functor)
 
     \overload
@@ -350,6 +399,7 @@ QWidget *QToolBar::createItemWidget(QAction *action, bool *fromAction) {
     auto *button = new QToolButton(this);
     button->setAutoRaise(true);
     button->setToolButtonStyle(m_style);
+    button->setIconSize(iconSize());
     button->setDefaultAction(action);
     QObject::connect(button, &QToolButton::triggered, this, [this](QAction *a) { emit actionTriggered(a); });
     return button;

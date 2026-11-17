@@ -11,10 +11,12 @@
 #include <utility>
 
 class QFontEngine;
+class QPaintDevice;
 
 class QFontMetrics {
 public:
     explicit QFontMetrics(const QFont &font);
+    QFontMetrics(const QFont &font, const QPaintDevice *paintdevice);
     QFontMetrics(const QFontMetrics &other);
     QFontMetrics &operator=(const QFontMetrics &other);
     ~QFontMetrics();
@@ -47,6 +49,7 @@ private:
 class QFontMetricsF {
 public:
     explicit QFontMetricsF(const QFont &font);
+    QFontMetricsF(const QFont &font, const QPaintDevice *paintdevice);
     QFontMetricsF(const QFontMetrics &other);
     QFontMetricsF(const QFontMetricsF &other);
     QFontMetricsF &operator=(const QFontMetricsF &other);

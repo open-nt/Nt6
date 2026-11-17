@@ -102,8 +102,12 @@ inline QRgb fromPremultiplied(QRgb premultiplied, QImage::Format format) {
 
 // Returns true if the format has no alpha channel (alpha always reads as 255).
 inline bool isOpaque(QImage::Format format) {
-    return format == QImage::Format_RGB32 || format == QImage::Format_RGBX8888;
+    return format == QImage::Format_RGB32 || format == QImage::Format_RGBX8888 || format == QImage::Format_Grayscale8;
 }
+
+// Format_Grayscale8 stores one byte per pixel; every other format four.
+inline bool isGray(QImage::Format format) { return format == QImage::Format_Grayscale8; }
+inline int bytesPerPixel(QImage::Format format) { return isGray(format) ? 1 : 4; }
 
 // The stored value of an opaque black pixel for opaque formats, or of transparent black for the others.
 inline QRgb clearValue(QImage::Format format) { return isOpaque(format) ? fromArgb(0xff000000u, format) : 0u; }

@@ -21,6 +21,7 @@ public:
     void setGeometry(const QRect &rect) override;
     void setVisible(bool visible) override;
     void setWindowTitle(const QString &title) override;
+    void setWindowIcon(const QIcon &icon) override;
     void requestActivateWindow() override;
     void setTransientParent(const QPlatformWindow *parent) override;
     void setFullScreen(bool fullScreen) override;

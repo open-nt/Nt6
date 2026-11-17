@@ -30,9 +30,16 @@ protected:
         case QEvent::MouseButtonDblClick:
         case QEvent::MouseMove:
         case QEvent::Wheel:
+        case QEvent::ContextMenu:
+        case QEvent::DragEnter:
+        case QEvent::DragMove:
+        case QEvent::DragLeave:
+        case QEvent::Drop:
         case QEvent::ToolTip: {
             const bool handled = m_area->viewportEvent(event);
-            if (event->type() != QEvent::Paint && event->type() != QEvent::Resize && event->type() != QEvent::ToolTip)
+            const QEvent::Type t = event->type();
+            if (t != QEvent::Paint && t != QEvent::Resize && t != QEvent::ToolTip && t != QEvent::ContextMenu &&
+                t != QEvent::DragEnter && t != QEvent::DragMove && t != QEvent::DragLeave && t != QEvent::Drop)
                 event->accept();
             return handled;
         }

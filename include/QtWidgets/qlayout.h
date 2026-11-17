@@ -12,12 +12,25 @@ class QWidget;
 class QLayout : public QObject, public QLayoutItem {
     Q_OBJECT
     Q_PROPERTY(int spacing READ spacing WRITE setSpacing)
+    Q_PROPERTY(SizeConstraint sizeConstraint READ sizeConstraint WRITE setSizeConstraint)
 public:
+    enum SizeConstraint {
+        SetDefaultConstraint,
+        SetNoConstraint,
+        SetMinimumSize,
+        SetFixedSize,
+        SetMaximumSize,
+        SetMinMaxSize
+    };
+    Q_ENUM(SizeConstraint)
+
     explicit QLayout(QWidget *parent = nullptr);
     ~QLayout() override;
 
     int spacing() const;
     void setSpacing(int spacing);
+    SizeConstraint sizeConstraint() const;
+    void setSizeConstraint(SizeConstraint constraint);
     void setContentsMargins(int left, int top, int right, int bottom);
     void setContentsMargins(const QMargins &margins);
     QMargins contentsMargins() const;

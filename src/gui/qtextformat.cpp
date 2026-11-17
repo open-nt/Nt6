@@ -212,6 +212,34 @@ bool QTextFormat::hasProperty(int propertyId) const { return m_properties.contai
 */
 
 /*!
+    \fn bool QTextFormat::isFrameFormat() const
+    \since 6.0
+
+    Returns \c true if this is the format of a frame or a table.
+*/
+
+/*!
+    \fn bool QTextFormat::isTableFormat() const
+    \since 6.0
+
+    Returns \c true if this is the format of a table.
+*/
+
+/*!
+    \fn void QTextFormat::setObjectType(int type)
+    \since 6.0
+
+    Sets the kind of object that the format is for to \a type, one of ObjectTypes.
+*/
+
+/*!
+    \fn int QTextFormat::objectType() const
+    \since 6.0
+
+    Returns the kind of object that the format is for.
+*/
+
+/*!
     Returns the format as a QTextBlockFormat, with its properties, or an
     empty block format if it is not the format of a block.
 */
@@ -240,6 +268,30 @@ QTextCharFormat QTextFormat::toCharFormat() const {
 QTextListFormat QTextFormat::toListFormat() const {
     QTextListFormat format;
     if (isListFormat())
+        format.merge(*this);
+    return format;
+}
+
+/*!
+    \since 6.0
+
+    Returns this format as a frame format; an empty one if it is not a frame format.
+*/
+QTextFrameFormat QTextFormat::toFrameFormat() const {
+    QTextFrameFormat format;
+    if (isFrameFormat())
+        format.merge(*this);
+    return format;
+}
+
+/*!
+    \since 6.0
+
+    Returns this format as a table format; an empty one if it is not a table format.
+*/
+QTextTableFormat QTextFormat::toTableFormat() const {
+    QTextTableFormat format;
+    if (isTableFormat())
         format.merge(*this);
     return format;
 }
@@ -599,4 +651,205 @@ QTextListFormat::QTextListFormat() : QTextFormat(ListFormat) {}
     \fn int QTextListFormat::indent() const
 
     Returns the number of steps that the list is indented by.
+*/
+
+/*!
+    \class QTextFrameFormat
+    \inmodule NtGui
+    \since 6.0
+    \brief The QTextFrameFormat class is the format of a QTextFrame.
+
+    \differences
+    The root frame and tables are the only frames. The border style, margin, padding, width and height are kept
+    but not used.
+    \enddifferences
+
+    \sa QTextFrame, QTextTableFormat
+*/
+
+/*!
+    Constructs a frame format without properties.
+*/
+QTextFrameFormat::QTextFrameFormat() : QTextFormat(FrameFormat) {}
+
+/*!
+    \fn bool QTextFrameFormat::isValid() const
+
+    Returns \c true: the format is a frame format.
+*/
+
+/*!
+    \fn void QTextFrameFormat::setBorder(qreal border)
+
+    Sets the width of the border to \a border pixels.
+*/
+
+/*!
+    \fn qreal QTextFrameFormat::border() const
+
+    Returns the width of the border in pixels.
+*/
+
+/*!
+    \fn void QTextFrameFormat::setBorderBrush(const QBrush &brush)
+
+    Sets the brush of the border to \a brush.
+*/
+
+/*!
+    \fn QBrush QTextFrameFormat::borderBrush() const
+
+    Returns the brush of the border; Qt::NoBrush for the default gray.
+*/
+
+/*!
+    \fn void QTextFrameFormat::setBorderStyle(BorderStyle style)
+
+    Sets the style of the border to \a style.
+*/
+
+/*!
+    \fn QTextFrameFormat::BorderStyle QTextFrameFormat::borderStyle() const
+
+    Returns the style of the border.
+*/
+
+/*!
+    \fn void QTextFrameFormat::setMargin(qreal margin)
+
+    Sets the space around the frame to \a margin.
+*/
+
+/*!
+    \fn qreal QTextFrameFormat::margin() const
+
+    Returns the space around the frame.
+*/
+
+/*!
+    \fn void QTextFrameFormat::setPadding(qreal padding)
+
+    Sets the space inside the border to \a padding.
+*/
+
+/*!
+    \fn qreal QTextFrameFormat::padding() const
+
+    Returns the space inside the border.
+*/
+
+/*!
+    \fn void QTextFrameFormat::setWidth(qreal width)
+
+    Sets the width of the frame to \a width.
+*/
+
+/*!
+    \fn void QTextFrameFormat::setHeight(qreal height)
+
+    Sets the height of the frame to \a height.
+*/
+
+/*!
+    \class QTextTableFormat
+    \inmodule NtGui
+    \since 6.0
+    \brief The QTextTableFormat class is the format of a QTextTable.
+
+    A table has a border of 1 pixel and a cell spacing of 2 by default; the cell padding is the room around the text
+    of a cell.
+
+    \differences
+    The borders of the cells are always drawn as single lines (the cell spacing is not used), and the alignment and
+    column width constraints are not used.
+    \enddifferences
+
+    \sa QTextTable
+*/
+
+/*!
+    Constructs a table format with a border of 1 and a cell spacing of 2.
+*/
+QTextTableFormat::QTextTableFormat() {
+    setObjectType(TableObject);
+    setCellSpacing(2);
+    setBorder(1);
+}
+
+/*!
+    \fn bool QTextTableFormat::isValid() const
+
+    Returns \c true: the format is a table format.
+*/
+
+/*!
+    \fn int QTextTableFormat::columns() const
+
+    Returns the number of columns.
+*/
+
+/*!
+    \fn void QTextTableFormat::setColumns(int columns)
+
+    Sets the number of columns to \a columns.
+*/
+
+/*!
+    \fn qreal QTextTableFormat::cellSpacing() const
+
+    Returns the space between the cells.
+*/
+
+/*!
+    \fn void QTextTableFormat::setCellSpacing(qreal spacing)
+
+    Sets the space between the cells to \a spacing.
+*/
+
+/*!
+    \fn qreal QTextTableFormat::cellPadding() const
+
+    Returns the room around the text of a cell.
+*/
+
+/*!
+    \fn void QTextTableFormat::setCellPadding(qreal padding)
+
+    Sets the room around the text of a cell to \a padding.
+*/
+
+/*!
+    \fn void QTextTableFormat::setAlignment(Qt::Alignment alignment)
+
+    Sets the alignment of the table to \a alignment.
+*/
+
+/*!
+    \fn Qt::Alignment QTextTableFormat::alignment() const
+
+    Returns the alignment of the table.
+*/
+
+/*!
+    \fn void QTextTableFormat::setHeaderRowCount(int count)
+
+    Sets the number of rows at the top that are the header to \a count.
+*/
+
+/*!
+    \fn int QTextTableFormat::headerRowCount() const
+
+    Returns the number of rows at the top that are the header.
+*/
+
+/*!
+    \fn void QTextTableFormat::setBorderCollapse(bool borderCollapse)
+
+    Sets whether the borders of the cells are drawn as one line to \a borderCollapse.
+*/
+
+/*!
+    \fn bool QTextTableFormat::borderCollapse() const
+
+    Returns whether the borders of the cells are drawn as one line.
 */

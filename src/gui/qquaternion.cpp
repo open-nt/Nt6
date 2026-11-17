@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtGui/qquaternion.h>
+#include <QtCore/qdebug.h>
 
 #include "qmath3d_p.h"
 
@@ -541,4 +542,12 @@ QQuaternion QQuaternion::nlerp(const QQuaternion &q1, const QQuaternion &q2, flo
         return q2;
     const QQuaternion q2b = dotProduct(q1, q2) >= 0.0f ? q2 : -q2;
     return (q1 * (1.0f - t) + q2b * t).normalized();
+}
+
+// Writes `quaternion` to `debug` as QQuaternion(scalar:s, vector:(x, y, z)), as Qt does.
+QDebug operator<<(QDebug debug, const QQuaternion &quaternion) {
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "QQuaternion(scalar:" << quaternion.scalar() << ", vector:(" << quaternion.x() << ", "
+                    << quaternion.y() << ", " << quaternion.z() << "))";
+    return debug;
 }

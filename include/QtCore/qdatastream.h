@@ -3,13 +3,15 @@
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qhash.h>
-#include <QtCore/qiodevice.h>
+#include <QtCore/qiodevicebase.h>
 #include <QtCore/qlist.h>
 #include <QtCore/qmap.h>
 #include <QtCore/qstring.h>
 
 #include <memory>
 #include <type_traits>
+
+class QIODevice;
 
 // Binary format compatible with Qt's QDataStream: big-endian by default, QString as UTF-16 code
 // units behind a byte-length prefix, null QString/QByteArray as length 0xFFFFFFFF. Container sizes
@@ -143,13 +145,7 @@ public:
         \sa setDevice()
     */
     QDataStream() = default;
-    /*!
-        Constructs a data stream that uses the I/O device \a d. The stream
-        does not take ownership of the device.
-
-        \sa setDevice(), device()
-    */
-    explicit QDataStream(QIODevice *d) : dev(d) {}
+    explicit QDataStream(QIODevice *d);
     QDataStream(QByteArray *array, QIODeviceBase::OpenMode mode);
     explicit QDataStream(const QByteArray &data);
     ~QDataStream();
@@ -162,13 +158,7 @@ public:
     */
     QIODevice *device() const { return dev; }
     void setDevice(QIODevice *d);
-    /*!
-        Returns \c true if the I/O device has reached the end position, or if
-        there is no device set; otherwise returns \c false.
-
-        \sa QIODevice::atEnd()
-    */
-    bool atEnd() const { return !dev || dev->atEnd(); }
+    bool atEnd() const;
     /*!
         Returns the status of the data stream.
 
@@ -535,7 +525,21 @@ QDataStream &operator>>(QDataStream &in, Enum &e) {
     return in;
 }
 
+namespace QtPrivate {
+// Whether a value of T can be written to, or read from, a QDataStream. The container operators below exist only for
+// elements that can, so that the meta-type system and other detection see a QList<T> of a type without stream
+// operators as not streamable, as in Qt.
+template <typename T, typename = void> struct DataStreamWritable : std::false_type {};
 template <typename T>
+struct DataStreamWritable<T, std::void_t<decltype(std::declval<QDataStream &>() << std::declval<const T &>())>>
+    : std::true_type {};
+template <typename T, typename = void> struct DataStreamReadable : std::false_type {};
+template <typename T>
+struct DataStreamReadable<T, std::void_t<decltype(std::declval<QDataStream &>() >> std::declval<T &>())>>
+    : std::true_type {};
+} // namespace QtPrivate
+
+template <typename T, std::enable_if_t<QtPrivate::DataStreamWritable<T>::value, int> = 0>
 QDataStream &operator<<(QDataStream &out, const QList<T> &l) {
     out << static_cast<quint32>(l.size());
     for (const T &t : l)
@@ -543,7 +547,7 @@ QDataStream &operator<<(QDataStream &out, const QList<T> &l) {
     return out;
 }
 
-template <typename T>
+template <typename T, std::enable_if_t<QtPrivate::DataStreamReadable<T>::value, int> = 0>
 QDataStream &operator>>(QDataStream &in, QList<T> &l) {
     l.clear();
     quint32 n = 0;
@@ -560,7 +564,8 @@ QDataStream &operator>>(QDataStream &in, QList<T> &l) {
     return in;
 }
 
-template <typename K, typename V>
+template <typename K, typename V,
+          std::enable_if_t<QtPrivate::DataStreamWritable<K>::value && QtPrivate::DataStreamWritable<V>::value, int> = 0>
 QDataStream &operator<<(QDataStream &out, const QMap<K, V> &m) {
     out << static_cast<quint32>(m.size());
     for (auto it = m.begin(); it != m.end(); ++it)
@@ -568,7 +573,8 @@ QDataStream &operator<<(QDataStream &out, const QMap<K, V> &m) {
     return out;
 }
 
-template <typename K, typename V>
+template <typename K, typename V,
+          std::enable_if_t<QtPrivate::DataStreamReadable<K>::value && QtPrivate::DataStreamReadable<V>::value, int> = 0>
 QDataStream &operator>>(QDataStream &in, QMap<K, V> &m) {
     m.clear();
     quint32 n = 0;
@@ -586,7 +592,8 @@ QDataStream &operator>>(QDataStream &in, QMap<K, V> &m) {
     return in;
 }
 
-template <typename K, typename V>
+template <typename K, typename V,
+          std::enable_if_t<QtPrivate::DataStreamWritable<K>::value && QtPrivate::DataStreamWritable<V>::value, int> = 0>
 QDataStream &operator<<(QDataStream &out, const QHash<K, V> &m) {
     out << static_cast<quint32>(m.size());
     for (auto it = m.begin(); it != m.end(); ++it)
@@ -594,7 +601,8 @@ QDataStream &operator<<(QDataStream &out, const QHash<K, V> &m) {
     return out;
 }
 
-template <typename K, typename V>
+template <typename K, typename V,
+          std::enable_if_t<QtPrivate::DataStreamReadable<K>::value && QtPrivate::DataStreamReadable<V>::value, int> = 0>
 QDataStream &operator>>(QDataStream &in, QHash<K, V> &m) {
     m.clear();
     quint32 n = 0;

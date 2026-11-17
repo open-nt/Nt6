@@ -99,6 +99,25 @@ public:
     */
     constexpr QFlags &operator&=(Enum f) noexcept { i &= static_cast<Int>(f); return *this; }
     /*!
+        \overload
+
+        Keeps only the flags whose bits are set in \a mask and returns a reference to this object. This is what
+        \c{flags &= ~Flag} uses, as \c ~ turns the flag into an \c int.
+    */
+    constexpr QFlags &operator&=(int mask) noexcept {
+        i &= mask;
+        return *this;
+    }
+    /*!
+        \overload
+
+        Keeps only the flags whose bits are set in \a mask and returns a reference to this object.
+    */
+    constexpr QFlags &operator&=(unsigned int mask) noexcept {
+        i &= static_cast<Int>(mask);
+        return *this;
+    }
+    /*!
         Toggles the flags in \a o and returns a reference to this object.
     */
     constexpr QFlags &operator^=(QFlags o) noexcept { i ^= o.i; return *this; }
@@ -123,6 +142,18 @@ public:
         Returns \a f if it is set in this object; otherwise returns no flags.
     */
     constexpr QFlags operator&(Enum f) const noexcept { return fromInt(i & static_cast<Int>(f)); }
+    /*!
+        \overload
+
+        Returns the flags whose bits are set in \a mask.
+    */
+    constexpr QFlags operator&(int mask) const noexcept { return fromInt(i & mask); }
+    /*!
+        \overload
+
+        Returns the flags whose bits are set in \a mask.
+    */
+    constexpr QFlags operator&(unsigned int mask) const noexcept { return fromInt(i & static_cast<Int>(mask)); }
     /*!
         Returns the flags set in exactly one of this object and \a o.
     */

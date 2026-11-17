@@ -88,6 +88,11 @@ public:
     QList<QGraphicsItem *> selectedItems() const;
     QPainterPath selectionArea() const;
     void setSelectionArea(const QPainterPath &path, const QTransform &deviceTransform = QTransform());
+    void setSelectionArea(const QPainterPath &path, Qt::ItemSelectionMode mode,
+                          const QTransform &deviceTransform = QTransform());
+    void setSelectionArea(const QPainterPath &path, Qt::ItemSelectionOperation selectionOperation,
+                          Qt::ItemSelectionMode mode = Qt::IntersectsItemShape,
+                          const QTransform &deviceTransform = QTransform());
 
     QGraphicsItemGroup *createItemGroup(const QList<QGraphicsItem *> &items);
     void destroyItemGroup(QGraphicsItemGroup *group);

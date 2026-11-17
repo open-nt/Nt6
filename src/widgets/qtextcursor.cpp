@@ -2,6 +2,7 @@
 #include <QtWidgets/qtextcursor.h>
 
 #include <QtWidgets/qplaintextedit.h>
+#include <QtWidgets/qtextedit.h>
 
 #include <algorithm>
 
@@ -25,9 +26,11 @@
     cursor changes the text of the editor at once, and the cursors that are after the change follow the text.
 
     \differences
-    The cursor belongs to a QPlainTextEdit, not to a \c QTextDocument, so it is in QtWidgets. There are no frames, tables,
-    lists or formats (\c charFormat(), \c insertHtml(), \c insertFragment(), \c mergeCharFormat()), no \c joinPreviousEditBlock()
-    and no \c visualNavigation(). \c selectedText() separates blocks with a new line and not with the paragraph separator.
+    A cursor belongs to a QPlainTextEdit, or to a QTextDocument, and it is in QtWidgets. A cursor of a document, or
+    of a QTextEdit that shows rich text, changes the document in place and keeps its formats; insertHtml() adds
+    formatted text. There are no frames or tables to insert, no character formats (\c charFormat(),
+    \c insertFragment(), \c mergeCharFormat()), no \c joinPreviousEditBlock() and no \c visualNavigation(). A cursor
+    of a document moves by blocks where one of an editor moves by lines. \c selectedText() separates blocks with a new line and not with the paragraph separator.
     \enddifferences
 
     \sa QPlainTextEdit
@@ -92,7 +95,48 @@ QTextCursor::QTextCursor(QPlainTextEdit *edit, int position, int anchor)
 
 namespace {
 QPlainTextEdit *editorOf(const QPointer<QObject> &p) { return static_cast<QPlainTextEdit *>(p.data()); }
+
+// The start of the block that `pos` is in, and its end, in a text whose blocks are lines.
+int blockStartIn(const QString &text, int pos) {
+    const qsizetype at = pos > 0 ? text.lastIndexOf(QChar('\n'), pos - 1) : -1;
+    return static_cast<int>(at + 1);
+}
+int blockEndIn(const QString &text, int pos) {
+    const qsizetype at = text.indexOf(QChar('\n'), pos);
+    return static_cast<int>(at < 0 ? text.size() : at);
+}
 } // namespace
+
+QString QTextCursor::text() const {
+    if (const QPlainTextEdit *edit = editorOf(m_edit))
+        return edit->m_text;
+    return m_document ? m_document->toPlainText() : QString();
+}
+
+void QTextCursor::replaceSelection(const QString &fragment, bool isHtml) {
+    const int from = selectionStart(), to = selectionEnd();
+    QPlainTextEdit *edit = editorOf(m_edit);
+    QTextDocument *document = m_document.data();
+    // An editor that shows rich text keeps its formats: the change goes to its document, which it shows again.
+    if (auto *rich = dynamic_cast<QTextEdit *>(edit); rich && (rich->showsRichText() || isHtml))
+        document = rich->document();
+    else if (edit)
+        document = nullptr;
+    if (document) {
+        m_position = m_anchor = document->replaceRange(from, to, fragment, isHtml);
+        return;
+    }
+    if (!edit)
+        return;
+    QString plain = fragment;
+    if (isHtml) {
+        QTextDocument converter;
+        converter.setHtml(fragment);
+        plain = converter.toPlainText();
+    }
+    edit->applyEdit(from, to, plain);
+    m_position = m_anchor = from + static_cast<int>(plain.size());
+}
 
 /*!
     \fn bool QTextCursor::isNull() const
@@ -123,10 +167,9 @@ QPlainTextEdit *editorOf(const QPointer<QObject> &p) { return static_cast<QPlain
     \sa position(), movePosition()
 */
 void QTextCursor::setPosition(int pos, MoveMode mode) {
-    QPlainTextEdit *edit = editorOf(m_edit);
-    if (!edit)
+    if (isNull())
         return;
-    m_position = std::clamp(pos, 0, static_cast<int>(edit->m_text.size()));
+    m_position = std::clamp(pos, 0, static_cast<int>(text().size()));
     if (mode == MoveAnchor)
         m_anchor = m_position;
 }
@@ -139,10 +182,73 @@ void QTextCursor::setPosition(int pos, MoveMode mode) {
 */
 bool QTextCursor::movePosition(MoveOperation operation, MoveMode mode, int n) {
     QPlainTextEdit *edit = editorOf(m_edit);
-    if (!edit)
+    if (!edit && !m_document)
         return false;
-    int goal = -1;
-    const int target = edit->moved(m_position, operation, std::max(1, n), &goal);
+    int target = m_position;
+    if (edit) {
+        int goal = -1;
+        target = edit->moved(m_position, operation, std::max(1, n), &goal);
+    } else {
+        // A cursor of a document moves through its text; lines are blocks, as nothing is laid out.
+        const QString all = text();
+        const int size = static_cast<int>(all.size());
+        for (int i = 0; i < std::max(1, n); ++i) {
+            switch (operation) {
+            case Start:
+                target = 0;
+                break;
+            case End:
+                target = size;
+                break;
+            case StartOfLine:
+            case StartOfBlock:
+                target = blockStartIn(all, target);
+                break;
+            case EndOfLine:
+            case EndOfBlock:
+                target = blockEndIn(all, target);
+                break;
+            case PreviousCharacter:
+            case Left:
+                target = std::max(0, target - 1);
+                break;
+            case NextCharacter:
+            case Right:
+                target = std::min(size, target + 1);
+                break;
+            case Up:
+            case PreviousBlock: {
+                const int start = blockStartIn(all, target);
+                target = start > 0 ? blockStartIn(all, start - 1) : 0;
+                break;
+            }
+            case Down:
+            case NextBlock: {
+                const int end = blockEndIn(all, target);
+                target = end < size ? end + 1 : size;
+                break;
+            }
+            case StartOfWord:
+            case PreviousWord:
+            case WordLeft:
+                while (target > 0 && !all.at(target - 1).isLetterOrNumber())
+                    --target;
+                while (target > 0 && all.at(target - 1).isLetterOrNumber())
+                    --target;
+                break;
+            case EndOfWord:
+            case NextWord:
+            case WordRight:
+                while (target < size && !all.at(target).isLetterOrNumber())
+                    ++target;
+                while (target < size && all.at(target).isLetterOrNumber())
+                    ++target;
+                break;
+            case NoMove:
+                break;
+            }
+        }
+    }
     const bool changed = target != m_position;
     m_position = target;
     if (mode == MoveAnchor)
@@ -158,10 +264,7 @@ bool QTextCursor::atStart() const { return m_position == 0; }
 /*!
     Returns \c true if the cursor is at the end of the text.
 */
-bool QTextCursor::atEnd() const {
-    const QPlainTextEdit *edit = editorOf(m_edit);
-    return edit && m_position == static_cast<int>(edit->m_text.size());
-}
+bool QTextCursor::atEnd() const { return !isNull() && m_position == static_cast<int>(text().size()); }
 
 /*!
     Returns \c true if the cursor is at the start of a block.
@@ -173,7 +276,9 @@ bool QTextCursor::atBlockStart() const { return columnNumber() == 0; }
 */
 bool QTextCursor::atBlockEnd() const {
     const QPlainTextEdit *edit = editorOf(m_edit);
-    return edit && m_position == edit->blockEnd(edit->blockOf(m_position));
+    if (!edit)
+        return m_document && m_position == blockEndIn(text(), m_position);
+    return m_position == edit->blockEnd(edit->blockOf(m_position));
 }
 
 /*!
@@ -183,7 +288,9 @@ bool QTextCursor::atBlockEnd() const {
 */
 int QTextCursor::blockNumber() const {
     const QPlainTextEdit *edit = editorOf(m_edit);
-    return edit ? edit->blockOf(m_position) : 0;
+    if (!edit)
+        return static_cast<int>(text().left(m_position).count(QChar('\n')));
+    return edit->blockOf(m_position);
 }
 
 /*!
@@ -193,7 +300,9 @@ int QTextCursor::blockNumber() const {
 */
 int QTextCursor::columnNumber() const {
     const QPlainTextEdit *edit = editorOf(m_edit);
-    return edit ? m_position - edit->blockStart(edit->blockOf(m_position)) : 0;
+    if (!edit)
+        return m_position - blockStartIn(text(), m_position);
+    return m_position - edit->blockStart(edit->blockOf(m_position));
 }
 
 /*!
@@ -227,10 +336,7 @@ int QTextCursor::columnNumber() const {
 
     \sa hasSelection()
 */
-QString QTextCursor::selectedText() const {
-    const QPlainTextEdit *edit = editorOf(m_edit);
-    return edit ? edit->m_text.mid(selectionStart(), selectionEnd() - selectionStart()) : QString();
-}
+QString QTextCursor::selectedText() const { return text().mid(selectionStart(), selectionEnd() - selectionStart()); }
 
 /*!
     Removes the selection, leaving the cursor where it is.
@@ -276,14 +382,22 @@ void QTextCursor::select(SelectionType selection) {
 
     \sa removeSelectedText()
 */
-void QTextCursor::insertText(const QString &text) {
-    QPlainTextEdit *edit = editorOf(m_edit);
-    if (!edit)
-        return;
-    const int from = selectionStart(), to = selectionEnd();
-    edit->applyEdit(from, to, text);
-    m_position = m_anchor = from + static_cast<int>(text.size());
-}
+void QTextCursor::insertText(const QString &text) { replaceSelection(text, false); }
+
+/*!
+    \since 6.0
+
+    Replaces the selection with the HTML \a html, or inserts it at the cursor, with its formats. The cursor is after
+    it. In a cursor of a QTextDocument, or of a QTextEdit, the text keeps its formats; in a QPlainTextEdit the plain
+    text of \a html is inserted. The HTML is read with the default style sheet of the document.
+
+    \code
+    QTextCursor cursor(edit->document());
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertHtml("<b>Claude:</b> hello");
+    \endcode
+*/
+void QTextCursor::insertHtml(const QString &html) { replaceSelection(html, true); }
 
 /*!
     Starts a new block at the cursor, by inserting a new line.
@@ -298,12 +412,9 @@ void QTextCursor::insertBlock() { insertText(QString("\n")); }
     \sa deleteChar()
 */
 void QTextCursor::removeSelectedText() {
-    QPlainTextEdit *edit = editorOf(m_edit);
-    if (!edit || !hasSelection())
+    if (isNull() || !hasSelection())
         return;
-    const int from = selectionStart(), to = selectionEnd();
-    edit->applyEdit(from, to, QString());
-    m_position = m_anchor = from;
+    replaceSelection(QString(), false);
 }
 
 /*!
@@ -312,15 +423,12 @@ void QTextCursor::removeSelectedText() {
     \sa deletePreviousChar()
 */
 void QTextCursor::deleteChar() {
-    QPlainTextEdit *edit = editorOf(m_edit);
-    if (!edit)
+    if (isNull())
         return;
-    if (hasSelection()) {
+    if (!hasSelection() && m_position < static_cast<int>(text().size()))
+        m_anchor = m_position + 1;
+    if (hasSelection())
         removeSelectedText();
-    } else if (m_position < static_cast<int>(edit->m_text.size())) {
-        edit->applyEdit(m_position, m_position + 1, QString());
-        m_anchor = m_position;
-    }
 }
 
 /*!
@@ -329,15 +437,12 @@ void QTextCursor::deleteChar() {
     \sa deleteChar()
 */
 void QTextCursor::deletePreviousChar() {
-    QPlainTextEdit *edit = editorOf(m_edit);
-    if (!edit)
+    if (isNull())
         return;
-    if (hasSelection()) {
+    if (!hasSelection() && m_position > 0)
+        m_anchor = m_position - 1;
+    if (hasSelection())
         removeSelectedText();
-    } else if (m_position > 0) {
-        edit->applyEdit(m_position - 1, m_position, QString());
-        m_position = m_anchor = m_position - 1;
-    }
 }
 
 /*!
@@ -378,10 +483,18 @@ void QTextCursor::endEditBlock() {
 */
 
 /*!
-    Constructs a cursor at the start of \a document. Only mergeBlockFormat() and setBlockFormat() act on such a
-    cursor, and they apply to the whole document; the other functions need a cursor of a QPlainTextEdit.
+    Constructs a cursor at the start of \a document. The cursor of the document of a QPlainTextEdit is a cursor of
+    the editor. Otherwise it moves through the text of the document and changes it in place, with insertText(), insertHtml() and removeSelectedText(); a QTextEdit that shows the document shows the
+    change. mergeBlockFormat() and setBlockFormat() apply to the whole document.
 */
-QTextCursor::QTextCursor(QTextDocument *document) : m_document(document) {}
+QTextCursor::QTextCursor(QTextDocument *document) : m_document(document) {
+    // The document of a QPlainTextEdit: the cursor works on the editor.
+    if (auto *edit = document ? qobject_cast<QPlainTextEdit *>(document->parent()) : nullptr;
+        edit && edit->m_plainDocument == document) {
+        m_edit = edit;
+        m_document = nullptr;
+    }
+}
 
 /*!
     Merges \a modifier into the format of the paragraphs. Nt applies its alignment to the whole document, through

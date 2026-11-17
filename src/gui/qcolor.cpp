@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtGui/qcolor.h>
 
+#include <QtCore/qvariant.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -620,3 +622,11 @@ QColor QColor::darker(int factor) const {
     out.m_valid = m_valid;
     return out;
 }
+
+/*!
+    \since 6.0
+
+    Returns the color as a QVariant, so that it can be given where a QVariant is taken, as in
+    \c{item->setData(Qt::UserRole, value)}.
+*/
+QColor::operator QVariant() const { return QVariant::fromValue(*this); }

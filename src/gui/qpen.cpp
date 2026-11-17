@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtGui/qpen.h>
 
+#include <QtCore/qvariant.h>
+
 /*!
     \class QPen
     \brief The QPen class defines how QPainter draws lines and outlines.
@@ -253,3 +255,11 @@ void QPen::setDashPattern(const QList<qreal> &pattern) {
 
     Returns \c true if the style is Qt::SolidLine; otherwise returns \c false.
 */
+
+/*!
+    \since 6.0
+
+    Returns the pen as a QVariant, so that it can be given where a QVariant is taken, as in
+    \c{item->setData(Qt::UserRole, value)}.
+*/
+QPen::operator QVariant() const { return QVariant::fromValue(*this); }

@@ -5,8 +5,11 @@
 #include <QtCore/qstring.h>
 #include <QtGui/qrgb.h>
 
+class QVariant;
+
 class QColor {
 public:
+    operator QVariant() const;
     enum Spec { Invalid, Rgb, Hsv };
     enum NameFormat { HexRgb, HexArgb };
 

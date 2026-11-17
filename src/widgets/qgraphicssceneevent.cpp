@@ -73,8 +73,8 @@ void QGraphicsSceneMouseEvent::setButtonDownScenePos(Qt::MouseButton button, con
 /*!
     Returns where \a button was pressed, on the screen.
 */
-QPointF QGraphicsSceneMouseEvent::buttonDownScreenPos(Qt::MouseButton button) const {
-    return m_downScreenPos.value(static_cast<int>(button));
+QPoint QGraphicsSceneMouseEvent::buttonDownScreenPos(Qt::MouseButton button) const {
+    return m_downScreenPos.value(static_cast<int>(button)).toPoint();
 }
 
 /*!

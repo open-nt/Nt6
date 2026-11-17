@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtGui/qbrush.h>
 
+#include <QtCore/qvariant.h>
+
 /*!
     \class QBrush
     \brief The QBrush class defines the fill pattern of shapes drawn by QPainter.
@@ -545,3 +547,11 @@ void QConicalGradient::setCenter(const QPointF &center) {
     \fn void QConicalGradient::setAngle(qreal angle)
     Sets the angle where the gradient starts to \a angle degrees.
 */
+
+/*!
+    \since 6.0
+
+    Returns the brush as a QVariant, so that it can be given where a QVariant is taken, as in
+    \c{item->setData(Qt::UserRole, value)}.
+*/
+QBrush::operator QVariant() const { return QVariant::fromValue(*this); }

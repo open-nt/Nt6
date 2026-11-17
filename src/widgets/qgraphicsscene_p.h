@@ -156,6 +156,12 @@ struct QGraphicsView::Private {
     QPointF lastScenePos;
     QPointF lastScreenPos;
     bool haveLastPos = false;
+    Qt::ItemSelectionMode rubberBandMode = Qt::IntersectsItemShape;
+    bool rubberBanding = false; // a RubberBandDrag is on
+    QPoint rubberOrigin;        // where it started, in the viewport
+    QRect rubberRect;           // the band, in the viewport
+    bool handScrolling = false; // a ScrollHandDrag is on
+    QPoint handLast;            // the last position of the mouse while it is
 
     // Asks the viewport to draw `rect` (scene coordinates) again.
     void sceneDirty(const QRectF &rect);

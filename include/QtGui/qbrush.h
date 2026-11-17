@@ -97,8 +97,11 @@ public:
     void setAngle(qreal angle) { m_data[2] = angle; }
 };
 
+class QVariant;
+
 class QBrush {
 public:
+    operator QVariant() const;
     QBrush() noexcept = default;
     QBrush(Qt::BrushStyle style) noexcept : m_style(style) {}
     QBrush(const QColor &color, Qt::BrushStyle style = Qt::SolidPattern) noexcept : m_color(color), m_style(style) {}

@@ -195,6 +195,12 @@ public:
     std::vector<TableInfo> parsedTables;    // the tables of the HTML being read, for setBlocks()
     QTextFrame *root = nullptr;             // a child of the document
     std::vector<QTextTable *> tableObjects; // children of the root frame, one for each of the tables
+    QString styleSheet;
+    struct StyleRule {
+        QStringList parts; // a selector: its simple selectors, the element itself last
+        QString declarations;
+    };
+    std::vector<StyleRule> styleRules;
 
     void setBlocks(std::vector<Block> &&fresh) {
         blocks = std::move(fresh);
@@ -236,6 +242,11 @@ public:
     }
     void ensureLayout();
     void parseHtml(const QString &html);
+    // The blocks of `html`, with its tables in parsedTables; the title goes to `title`.
+    std::vector<Block> htmlBlocks(const QString &html);
+    // Puts `fragment` in the place of the characters from `from` to `to`; with `isHtml` it is HTML, otherwise
+    // plain text. Returns the position after it.
+    int replace(int from, int to, const QString &fragment, bool isHtml);
     QString markdown() const;
     QString blockHtml(const Block &block) const;
     static QTextDocumentPrivate *get(const QTextDocument *document) { return document->d.get(); }
@@ -567,13 +578,29 @@ struct Scope {
     bool pre = false;
     bool skip = false;  // the text is not part of the document: style, script, head
     bool title = false; // the text is the title
+    QStringList classes;
 };
+
+// Whether a simple selector, such as "pre", ".user" or "code.inline", matches an element.
+bool selectorMatches(const QString &simple, const QString &name, const QStringList &classes) {
+    const QStringList pieces = simple.split(QChar('.'));
+    if (!pieces.first().isEmpty() && pieces.first() != QStringLiteral("*") && pieces.first().toLower() != name)
+        return false;
+    for (qsizetype i = 1; i < pieces.size(); ++i)
+        if (!classes.contains(pieces.at(i)))
+            return false;
+    return true;
+}
 
 } // namespace
 
 void QTextDocumentPrivate::parseHtml(const QString &html) {
-    std::vector<Block> out;
     title.clear();
+    setBlocks(htmlBlocks(html));
+}
+
+std::vector<Block> QTextDocumentPrivate::htmlBlocks(const QString &html) {
+    std::vector<Block> out;
     const qreal baseSize = font.pointSizeF() > 0 ? font.pointSizeF() : 10.0;
 
     std::vector<Scope> scopes(1);
@@ -922,6 +949,23 @@ void QTextDocumentPrivate::parseHtml(const QString &html) {
                 const Qt::Alignment alignment = alignmentOf(tag.attributes.value(QStringLiteral("align")), &alignOk);
                 if (alignOk && block)
                     scope.blockFormat.setAlignment(alignment);
+                scope.classes = tag.attributes.value(QStringLiteral("class")).split(QChar(' '), Qt::SkipEmptyParts);
+                // The rules of the default style sheet whose selector matches, then the style attribute.
+                for (const StyleRule &rule : styleRules) {
+                    if (!selectorMatches(rule.parts.last(), name, scope.classes))
+                        continue;
+                    qsizetype at = static_cast<qsizetype>(scopes.size()) - 1;
+                    bool ok = true;
+                    for (qsizetype p = rule.parts.size() - 2; p >= 0 && ok; --p) {
+                        while (at > 0 && !selectorMatches(rule.parts.at(p), scopes[static_cast<std::size_t>(at)].name,
+                                                          scopes[static_cast<std::size_t>(at)].classes))
+                            --at;
+                        ok = at > 0;
+                        --at;
+                    }
+                    if (ok)
+                        applyStyle(scope, rule.declarations, block);
+                }
                 const QString style = tag.attributes.value(QStringLiteral("style"));
                 if (!style.isEmpty())
                     applyStyle(scope, style, block);
@@ -1008,7 +1052,131 @@ void QTextDocumentPrivate::parseHtml(const QString &html) {
         kept.push_back(info);
     }
     parsedTables = std::move(kept);
-    setBlocks(std::move(out));
+    return out;
+}
+
+int QTextDocumentPrivate::replace(int from, int to, const QString &fragment, bool isHtml) {
+    if (from > to)
+        std::swap(from, to);
+    // The fragment as blocks, with its tables numbered after the tables of the document.
+    std::vector<Block> pieces;
+    std::vector<TableInfo> pieceTables;
+    if (isHtml) {
+        const QString keptTitle = title;
+        pieces = htmlBlocks(fragment);
+        title = keptTitle;
+        pieceTables = std::move(parsedTables);
+        parsedTables.clear();
+        for (Block &b : pieces)
+            if (b.table >= 0)
+                b.table += static_cast<int>(tables.size());
+    } else {
+        QString text = fragment;
+        text.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
+        for (const QString &line : text.split(QChar('\n'))) {
+            Block b;
+            b.text = line;
+            pieces.push_back(std::move(b));
+        }
+    }
+    // Where the range starts and ends: a block and a place in it.
+    const auto locate = [this](int pos, std::size_t *block, int *offset) {
+        int start = 0;
+        for (std::size_t i = 0; i < blocks.size(); ++i) {
+            const int length = static_cast<int>(blocks[i].text.size());
+            if (pos <= start + length || i + 1 == blocks.size()) {
+                *block = i;
+                *offset = std::clamp(pos - start, 0, length);
+                return;
+            }
+            start += length + 1;
+        }
+    };
+    std::size_t first = 0, last = 0;
+    int firstOffset = 0, lastOffset = 0;
+    locate(std::max(0, from), &first, &firstOffset);
+    locate(std::max(0, to), &last, &lastOffset);
+    // The part of a block before or after a place, with its formats.
+    const auto cut = [](const Block &b, int start, int end) {
+        Block part;
+        part.format = b.format;
+        part.listStyle = b.listStyle;
+        part.listNumber = b.listNumber;
+        part.listLevel = b.listLevel;
+        part.table = b.table;
+        part.text = b.text.mid(start, end - start);
+        for (QTextLayout::FormatRange range : b.formats) {
+            const int s0 = std::max(range.start, start), e0 = std::min(range.start + range.length, end);
+            if (e0 <= s0)
+                continue;
+            range.start = s0 - start;
+            range.length = e0 - s0;
+            part.formats.append(range);
+        }
+        return part;
+    };
+    const auto append = [](Block &target, const Block &more) {
+        const int shift = static_cast<int>(target.text.size());
+        target.text += more.text;
+        for (QTextLayout::FormatRange range : more.formats) {
+            range.start += shift;
+            target.formats.append(range);
+        }
+    };
+    Block left = cut(blocks[first], 0, firstOffset);
+    const Block right = cut(blocks[last], lastOffset, static_cast<int>(blocks[last].text.size()));
+    std::vector<Block> middle;
+    if (pieces.empty()) {
+        append(left, right);
+        middle.push_back(std::move(left));
+    } else {
+        // The first piece goes on in the block where the range starts; one that starts an empty block brings its
+        // own paragraph format.
+        const bool startsEmpty = left.text.isEmpty();
+        Block head = startsEmpty ? cut(pieces.front(), 0, 0) : std::move(left);
+        append(head, pieces.front());
+        middle.push_back(std::move(head));
+        for (std::size_t i = 1; i < pieces.size(); ++i)
+            middle.push_back(std::move(pieces[i]));
+        append(middle.back(), right);
+    }
+    int end = 0; // the position after the fragment
+    for (std::size_t i = 0; i < first; ++i)
+        end += static_cast<int>(blocks[i].text.size()) + 1;
+    for (std::size_t i = 0; i + 1 < middle.size(); ++i)
+        end += static_cast<int>(middle[i].text.size()) + 1;
+    end += static_cast<int>(middle.back().text.size() - right.text.size());
+    std::vector<Block> fresh;
+    fresh.reserve(blocks.size() - (last - first + 1) + middle.size());
+    for (std::size_t i = 0; i < first; ++i)
+        fresh.push_back(std::move(blocks[i]));
+    for (Block &b : middle)
+        fresh.push_back(std::move(b));
+    for (std::size_t i = last + 1; i < blocks.size(); ++i)
+        fresh.push_back(std::move(blocks[i]));
+    // The tables that keep rows, numbered again.
+    std::vector<TableInfo> all = tables;
+    all.insert(all.end(), pieceTables.begin(), pieceTables.end());
+    std::vector<int> renumber(all.size(), -1);
+    std::vector<TableInfo> kept;
+    for (std::size_t i = 0; i < fresh.size(); ++i) {
+        const int t = fresh[i].table;
+        if (t < 0 || t >= static_cast<int>(all.size())) {
+            fresh[i].table = -1;
+            continue;
+        }
+        int &n = renumber[static_cast<std::size_t>(t)];
+        if (n < 0) {
+            n = static_cast<int>(kept.size());
+            kept.push_back(all[static_cast<std::size_t>(t)]);
+            kept.back().first = static_cast<int>(i);
+        }
+        kept[static_cast<std::size_t>(n)].last = static_cast<int>(i);
+        fresh[i].table = n;
+    }
+    parsedTables = std::move(kept);
+    setBlocks(std::move(fresh));
+    return end;
 }
 
 // ---------------------------------------------------------------------------------------------------------
@@ -1524,6 +1692,53 @@ QString QTextDocument::toMarkdown(MarkdownFeatures features) const {
     (void)features;
     return d->markdown();
 }
+
+/*!
+    \since 6.0
+
+    Sets the style sheet that the HTML of setHtml(), and of QTextCursor::insertHtml(), is read with to \a sheet. Rules
+    of element names, classes (\c{.user}, \c{div.note}) and descendants (\c{pre code}) set the properties that the
+    \c style attribute can set; the \c style attribute of an element comes after them.
+
+    \code
+    document->setDefaultStyleSheet(".error { color: #ff6b6b; font-style: italic; }");
+    document->setHtml("<p class=\"error\">Not connected</p>");
+    \endcode
+
+    The contents of the document are not read again: set the style sheet before the HTML.
+*/
+void QTextDocument::setDefaultStyleSheet(const QString &sheet) {
+    d->styleSheet = sheet;
+    d->styleRules.clear();
+    QString css = sheet;
+    // No comments.
+    for (qsizetype start = css.indexOf(QStringLiteral("/*")); start >= 0; start = css.indexOf(QStringLiteral("/*"))) {
+        const qsizetype end = css.indexOf(QStringLiteral("*/"), start + 2);
+        css.remove(start, end < 0 ? css.size() - start : end + 2 - start);
+    }
+    for (const QString &rule : css.split(QChar('}'), Qt::SkipEmptyParts)) {
+        const qsizetype brace = rule.indexOf(QChar('{'));
+        if (brace < 0)
+            continue;
+        const QString declarations = rule.mid(brace + 1).trimmed();
+        for (const QString &selector : rule.left(brace).split(QChar(','), Qt::SkipEmptyParts)) {
+            const QStringList parts = selector.simplified().split(QChar(' '), Qt::SkipEmptyParts);
+            if (!parts.isEmpty())
+                d->styleRules.push_back({parts, declarations});
+        }
+    }
+}
+
+int QTextDocument::replaceRange(int from, int to, const QString &fragment, bool isHtml) {
+    return d->replace(from, to, fragment, isHtml);
+}
+
+/*!
+    \since 6.0
+
+    Returns the default style sheet.
+*/
+QString QTextDocument::defaultStyleSheet() const { return d->styleSheet; }
 
 /*!
     \since 6.0

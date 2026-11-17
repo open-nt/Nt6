@@ -59,6 +59,9 @@ public:
     void close() override;
 
     static bool supportsSsl();
+    static QList<QString> availableBackends();
+    static QString activeBackend();
+    static bool setActiveBackend(const QString &backendName);
     static long sslLibraryVersionNumber();
     static QString sslLibraryVersionString();
     static long sslLibraryBuildVersionNumber();

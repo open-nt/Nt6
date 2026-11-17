@@ -3,6 +3,8 @@
 #include <QtGui/qpolygon.h>
 #include <QtGui/qtransform.h>
 
+#include <QtCore/qdebug.h>
+
 #include <cmath>
 
 /*!
@@ -511,3 +513,13 @@ QPoint operator*(const QPoint &point, const QTransform &matrix) { return matrix.
 QLineF operator*(const QLineF &line, const QTransform &matrix) { return matrix.map(line); }
 QPolygonF operator*(const QPolygonF &polygon, const QTransform &matrix) { return matrix.map(polygon); }
 QPainterPath operator*(const QPainterPath &path, const QTransform &matrix) { return matrix.map(path); }
+
+// Writes `matrix` to `debug`, with its nine elements, as Qt does.
+QDebug operator<<(QDebug debug, const QTransform &matrix) {
+    const QDebugStateSaver saver(debug);
+    debug.nospace() << "QTransform(type=" << static_cast<int>(matrix.type()) << ", 11=" << matrix.m11() << " 12=" << matrix.m12()
+                    << " 13=" << matrix.m13() << " 21=" << matrix.m21() << " 22=" << matrix.m22()
+                    << " 23=" << matrix.m23() << " 31=" << matrix.m31() << " 32=" << matrix.m32()
+                    << " 33=" << matrix.m33() << ")";
+    return debug;
+}

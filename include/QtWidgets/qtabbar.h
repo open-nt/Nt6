@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qpointer.h>
+
 #include <QtCore/qvariant.h>
 #include <QtWidgets/qwidget.h>
 
@@ -16,6 +18,8 @@ class QTabBar : public QWidget {
         SelectionBehavior selectionBehaviorOnRemove READ selectionBehaviorOnRemove WRITE setSelectionBehaviorOnRemove)
 public:
     enum SelectionBehavior { SelectLeftTab, SelectRightTab, SelectPreviousTab };
+    enum ButtonPosition { LeftSide, RightSide };
+    Q_ENUM(ButtonPosition)
     Q_ENUM(SelectionBehavior)
 
     explicit QTabBar(QWidget *parent = nullptr);
@@ -46,6 +50,16 @@ public:
     void setMovable(bool movable) { m_movable = movable; }
     SelectionBehavior selectionBehaviorOnRemove() const { return m_onRemove; }
     void setSelectionBehaviorOnRemove(SelectionBehavior behavior) { m_onRemove = behavior; }
+    QWidget *tabButton(int index, ButtonPosition position) const;
+    void setTabButton(int index, ButtonPosition position, QWidget *widget);
+    bool expanding() const { return m_expanding; }
+    void setExpanding(bool enabled) { m_expanding = enabled; }
+    bool drawBase() const { return m_drawBase; }
+    void setDrawBase(bool drawTheBase) { m_drawBase = drawTheBase; }
+    bool documentMode() const { return m_documentMode; }
+    void setDocumentMode(bool set);
+    bool usesScrollButtons() const { return m_scrollButtons; }
+    void setUsesScrollButtons(bool useButtons) { m_scrollButtons = useButtons; }
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -93,6 +107,7 @@ protected:
     void wheelEvent(QWheelEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     struct Tab {
@@ -100,7 +115,10 @@ private:
         QString toolTip;
         QVariant data;
         bool enabled = true;
+        QPointer<QWidget> left;  // tabButton(): owned by the tab bar
+        QPointer<QWidget> right;
     };
+    void placeButtons();
 
     QRect closeRect(int index) const;
     bool valid(int index) const { return index >= 0 && index < count(); }
@@ -117,5 +135,9 @@ private:
     int m_pressX = 0;
     bool m_closable = false;
     bool m_movable = false;
+    bool m_expanding = true;
+    bool m_drawBase = true;
+    bool m_documentMode = false;
+    bool m_scrollButtons = true;
     SelectionBehavior m_onRemove = SelectRightTab;
 };

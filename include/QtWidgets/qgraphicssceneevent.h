@@ -41,7 +41,7 @@ public:
     /*! Sets the position in scene coordinates to \a pos. */
     void setScenePos(const QPointF &pos) { m_scenePos = pos; }
     /*! Returns the position of the mouse on the screen. */
-    QPointF screenPos() const { return m_screenPos; }
+    QPoint screenPos() const { return m_screenPos.toPoint(); }
     /*! Sets the position on the screen to \a pos. */
     void setScreenPos(const QPointF &pos) { m_screenPos = pos; }
 
@@ -49,7 +49,7 @@ public:
     void setButtonDownPos(Qt::MouseButton button, const QPointF &pos);
     QPointF buttonDownScenePos(Qt::MouseButton button) const;
     void setButtonDownScenePos(Qt::MouseButton button, const QPointF &pos);
-    QPointF buttonDownScreenPos(Qt::MouseButton button) const;
+    QPoint buttonDownScreenPos(Qt::MouseButton button) const;
     void setButtonDownScreenPos(Qt::MouseButton button, const QPointF &pos);
 
     /*! Returns the position of the previous mouse event in item coordinates. */
@@ -61,7 +61,7 @@ public:
     /*! Sets the previous position in scene coordinates to \a pos. */
     void setLastScenePos(const QPointF &pos) { m_lastScenePos = pos; }
     /*! Returns the position of the previous mouse event on the screen. */
-    QPointF lastScreenPos() const { return m_lastScreenPos; }
+    QPoint lastScreenPos() const { return m_lastScreenPos.toPoint(); }
     /*! Sets the previous position on the screen to \a pos. */
     void setLastScreenPos(const QPointF &pos) { m_lastScreenPos = pos; }
 
@@ -107,7 +107,7 @@ public:
     /*! Sets the position in scene coordinates to \a pos. */
     void setScenePos(const QPointF &pos) { m_scenePos = pos; }
     /*! Returns the position of the mouse on the screen. */
-    QPointF screenPos() const { return m_screenPos; }
+    QPoint screenPos() const { return m_screenPos.toPoint(); }
     /*! Sets the position on the screen to \a pos. */
     void setScreenPos(const QPointF &pos) { m_screenPos = pos; }
     /*! Returns the previous position in item coordinates. */
@@ -119,7 +119,7 @@ public:
     /*! Sets the previous position in scene coordinates to \a pos. */
     void setLastScenePos(const QPointF &pos) { m_lastScenePos = pos; }
     /*! Returns the previous position on the screen. */
-    QPointF lastScreenPos() const { return m_lastScreenPos; }
+    QPoint lastScreenPos() const { return m_lastScreenPos.toPoint(); }
     /*! Sets the previous position on the screen to \a pos. */
     void setLastScreenPos(const QPointF &pos) { m_lastScreenPos = pos; }
     /*! Returns the keyboard modifiers that were held. */
@@ -198,7 +198,7 @@ public:
     /*! Sets the position in scene coordinates to \a pos. */
     void setScenePos(const QPointF &pos) { m_scenePos = pos; }
     /*! Returns where the drag is, on the screen. */
-    QPointF screenPos() const { return m_screenPos; }
+    QPoint screenPos() const { return m_screenPos.toPoint(); }
     /*! Sets the position on the screen to \a pos. */
     void setScreenPos(const QPointF &pos) { m_screenPos = pos; }
     /*! Returns the mouse buttons held during the drag. */
@@ -262,7 +262,7 @@ public:
     /*! Sets the position in scene coordinates to \a pos. */
     void setScenePos(const QPointF &pos) { m_scenePos = pos; }
     /*! Returns the position of the mouse on the screen. */
-    QPointF screenPos() const { return m_screenPos; }
+    QPoint screenPos() const { return m_screenPos.toPoint(); }
     /*! Sets the position on the screen to \a pos. */
     void setScreenPos(const QPointF &pos) { m_screenPos = pos; }
     /*! Returns the buttons that were down. */

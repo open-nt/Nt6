@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qbytearray.h>
+
 #include <QtCore/qstringlist.h>
 #include <QtWidgets/qwidget.h>
 
@@ -35,6 +37,14 @@ public:
     void resizeSection(int logicalIndex, int size);
     int sectionPosition(int logicalIndex) const;
     int logicalIndexAt(int position) const;
+    int logicalIndex(int visualIndex) const;
+    int visualIndex(int logicalIndex) const;
+    void moveSection(int from, int to);
+    bool sectionsMovable() const { return m_movable; }
+    void setSectionsMovable(bool movable) { m_movable = movable; }
+    bool sectionsMoved() const;
+    QByteArray saveState() const;
+    bool restoreState(const QByteArray &state);
     bool isSectionHidden(int logicalIndex) const;
     void setSectionHidden(int logicalIndex, bool hide);
     int hiddenSectionCount() const;
@@ -63,6 +73,15 @@ signals:
         This signal is emitted when the user clicks the section \a logicalIndex, if the sections are clickable.
     */
     void sectionClicked(int logicalIndex) { emitSignal(&QHeaderView::sectionClicked, logicalIndex); }
+    /*!
+        \since 6.0
+
+        This signal is emitted when the section \a logicalIndex moves from the visual index \a oldVisualIndex to
+        \a newVisualIndex.
+    */
+    void sectionMoved(int logicalIndex, int oldVisualIndex, int newVisualIndex) {
+        emitSignal(&QHeaderView::sectionMoved, logicalIndex, oldVisualIndex, newVisualIndex);
+    }
     /*!
         This signal is emitted when the section that shows the sort indicator, or the order that it shows,
         changes: \a logicalIndex is the section and \a order the order. A view sorts its model by it.
@@ -109,6 +128,10 @@ private:
     std::vector<int> m_sizes;
     std::vector<char> m_hidden; // parallel to m_sizes
     std::vector<char> m_modes;  // parallel to m_sizes: a ResizeMode each
+    std::vector<int> m_order;   // the logical index of each visual index
+    bool m_movable = false;
+    bool m_moving = false; // the pressed section is being dragged to another place
+    int m_pressPosition = 0;
     ResizeMode m_defaultMode = Interactive;
     QStringList m_labels;
     QStringList m_toolTips; // set by QTableWidget from its header items

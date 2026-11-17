@@ -88,6 +88,8 @@ public:
     QModelIndex rootIndex() const;
 
     virtual QRect visualRect(const QModelIndex &index) const;
+    void setIndexWidget(const QModelIndex &index, QWidget *widget);
+    QWidget *indexWidget(const QModelIndex &index) const;
     virtual void scrollTo(const QModelIndex &index, ScrollHint hint = EnsureVisible);
     virtual QModelIndex indexAt(const QPoint &point) const;
     QSize sizeHintForIndex(const QModelIndex &index) const;
@@ -158,6 +160,7 @@ protected:
     State state() const;
     void updateEditorGeometries();
     virtual void updateGeometries();
+    bool viewportEvent(QEvent *event) override;
     using QWidget::update;
 
 protected slots:
@@ -199,6 +202,12 @@ private:
     QPersistentModelIndex m_editIndex;
     std::vector<QMetaObject::Connection> m_modelConnections;
     std::vector<QMetaObject::Connection> m_selectionConnections;
+    struct IndexWidget {
+        QPersistentModelIndex index;
+        QPointer<QWidget> widget; // a child of the viewport
+    };
+    std::vector<IndexWidget> m_indexWidgets;
+    void placeIndexWidgets();
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QAbstractItemView::EditTriggers)

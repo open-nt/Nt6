@@ -822,6 +822,8 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         } buttons[] = {
             {proxy()->subElementRect(SE_SpinBoxUp, option, widget), true, spin->upEnabled, spin->upPressed},
             {proxy()->subElementRect(SE_SpinBoxDown, option, widget), false, spin->downEnabled, spin->downPressed}};
+        if (spin->buttonSymbols == 2) // QAbstractSpinBox::NoButtons
+            break;
         for (const auto &b : buttons) {
             QColor fill = option->palette.color(group, QPalette::Button);
             if (b.pressed)
@@ -833,7 +835,16 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
             arrow.rect = b.rect;
             if (!b.enabled)
                 arrow.state &= ~State(State_Enabled);
-            proxy()->drawPrimitive(b.up ? PE_IndicatorArrowUp : PE_IndicatorArrowDown, &arrow, painter, widget);
+            if (spin->buttonSymbols == 1) { // QAbstractSpinBox::PlusMinus: the signs, drawn as lines
+                const QPoint c = b.rect.center();
+                const int half = std::max(2, std::min(b.rect.width(), b.rect.height()) / 4);
+                painter->setPen(QPen(option->palette.color(b.enabled ? group : QPalette::Disabled, QPalette::ButtonText), 1.5));
+                painter->drawLine(c.x() - half, c.y(), c.x() + half, c.y());
+                if (b.up)
+                    painter->drawLine(c.x(), c.y() - half, c.x(), c.y() + half);
+            } else {
+                proxy()->drawPrimitive(b.up ? PE_IndicatorArrowUp : PE_IndicatorArrowDown, &arrow, painter, widget);
+            }
         }
         painter->setPen(mix(outlineOf(option), window, 60));
         painter->drawLine(buttons[1].rect.left(), buttons[1].rect.top(), buttons[1].rect.right(),
@@ -1013,12 +1024,18 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
         return QRect(r.right() - width + 1, r.top(), width, r.height());
     }
     case SE_SpinBoxEditField:
+        if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option); spin && spin->buttonSymbols == 2)
+            return r.adjusted(1, 1, -1, -1);
         return r.adjusted(1, 1, -(proxy()->pixelMetric(PM_SpinBoxButtonWidth, option, widget) + 1), -1);
     case SE_SpinBoxUp: {
+        if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option); spin && spin->buttonSymbols == 2)
+            return QRect();
         const int width = proxy()->pixelMetric(PM_SpinBoxButtonWidth, option, widget);
         return QRect(r.right() - width, r.top() + 1, width, (r.height() - 2) / 2);
     }
     case SE_SpinBoxDown: {
+        if (const auto *spin = qstyleoption_cast<const QStyleOptionSpinBox *>(option); spin && spin->buttonSymbols == 2)
+            return QRect();
         const int width = proxy()->pixelMetric(PM_SpinBoxButtonWidth, option, widget);
         const int upHeight = (r.height() - 2) / 2;
         return QRect(r.right() - width, r.top() + 1 + upHeight, width, r.height() - 2 - upHeight);

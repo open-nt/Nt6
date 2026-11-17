@@ -170,6 +170,7 @@ public:
     static QRegularExpression fromWildcard(QStringView pattern, Qt::CaseSensitivity cs = Qt::CaseInsensitive,
                                            WildcardConversionOptions options = DefaultWildcardConversion);
     static QString anchoredPattern(QStringView expression);
+    static QString anchoredPattern(const QString &expression) { return anchoredPattern(QStringView(expression)); }
 
     friend bool operator==(const QRegularExpression &a, const QRegularExpression &b) noexcept;
     friend bool operator!=(const QRegularExpression &a, const QRegularExpression &b) noexcept { return !(a == b); }

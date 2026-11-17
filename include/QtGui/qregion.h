@@ -24,6 +24,11 @@ public:
     QRegion united(const QRegion &other) const;
     QRegion intersected(const QRect &rect) const;
     QRegion intersected(const QRegion &other) const;
+    QRegion subtracted(const QRegion &other) const;
+    QRegion xored(const QRegion &other) const;
+    QRegion operator-(const QRegion &other) const { return subtracted(other); }
+    QRegion operator^(const QRegion &other) const { return xored(other); }
+    QRegion &operator-=(const QRegion &other) { return *this = subtracted(other); }
     QRegion translated(int dx, int dy) const;
     QRegion translated(const QPoint &offset) const { return translated(offset.x(), offset.y()); }
     void translate(int dx, int dy);

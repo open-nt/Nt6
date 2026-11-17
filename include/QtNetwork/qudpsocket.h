@@ -31,6 +31,8 @@ public:
     bool joinMulticastGroup(const QHostAddress &groupAddress, const QNetworkInterface &iface);
     bool leaveMulticastGroup(const QHostAddress &groupAddress);
     bool leaveMulticastGroup(const QHostAddress &groupAddress, const QNetworkInterface &iface);
+    QNetworkInterface multicastInterface() const;
+    void setMulticastInterface(const QNetworkInterface &iface);
 
     /*!
         \reimp
@@ -48,4 +50,7 @@ public:
 protected:
     qint64 readData(char *data, qint64 maxSize) override;
     qint64 writeData(const char *data, qint64 maxSize) override;
+
+private:
+    int m_multicastIndex = 0; // the index of the interface that setMulticastInterface() set; 0 for none
 };

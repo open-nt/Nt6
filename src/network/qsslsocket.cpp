@@ -702,6 +702,32 @@ bool QSslSocket::waitForEncrypted(int msecs) {
 bool QSslSocket::supportsSsl() { return true; }
 
 /*!
+    \since 6.0
+
+    Returns the names of the TLS backends: the one that Nt was built with, \c openssl or \c mbedtls.
+
+    \sa activeBackend()
+*/
+QList<QString> QSslSocket::availableBackends() { return {activeBackend()}; }
+
+/*!
+    \since 6.0
+
+    Returns the name of the TLS backend in use.
+*/
+QString QSslSocket::activeBackend() {
+    return sslLibraryVersionString().contains(QStringLiteral("mbed"), Qt::CaseInsensitive) ? QStringLiteral("mbedtls")
+                                                                                            : QStringLiteral("openssl");
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if \a backendName is the backend in use; Nt has one backend and cannot switch to another.
+*/
+bool QSslSocket::setActiveBackend(const QString &backendName) { return backendName == activeBackend(); }
+
+/*!
     Returns the version number of the TLS library in use, OpenSSL or Mbed TLS.
 
     \sa sslLibraryVersionString()

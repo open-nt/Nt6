@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qlist.h>
+#include <QtCore/qmargins.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
@@ -12,13 +13,18 @@
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qpaintdevice.h>
 #include <QtGui/qpalette.h>
+#include <QtGui/qpixmap.h>
 #include <QtGui/qregion.h>
 #include <QtGui/qwindowdefs.h>
 #include <QtWidgets/qsizepolicy.h>
 
 #include <memory>
 
+// The largest width or height of a widget.
+#define QWIDGETSIZE_MAX ((1 << 24) - 1)
+
 class QAction;
+class QGraphicsEffect;
 class QActionEvent;
 class QIcon;
 class QContextMenuEvent;
@@ -96,6 +102,10 @@ public:
     void setMinimumHeight(int minh);
     void setMaximumWidth(int maxw);
     void setMaximumHeight(int maxh);
+    int minimumWidth() const { return minimumSize().width(); }
+    int minimumHeight() const { return minimumSize().height(); }
+    int maximumWidth() const { return maximumSize().width(); }
+    int maximumHeight() const { return maximumSize().height(); }
     void setFixedWidth(int w);
     void setFixedHeight(int h);
     virtual QSize sizeHint() const;
@@ -192,6 +202,15 @@ public:
     void unsetCursor();
     bool hasMouseTracking() const;
     bool underMouse() const;
+    void grabMouse();
+    void grabMouse(const QCursor &cursor);
+    void releaseMouse();
+    void grabKeyboard();
+    void releaseKeyboard();
+    static QWidget *mouseGrabber();
+    static QWidget *keyboardGrabber();
+    Qt::InputMethodHints inputMethodHints() const;
+    void setInputMethodHints(Qt::InputMethodHints hints);
 
     // Actions
     QList<QAction *> actions() const;
@@ -204,6 +223,14 @@ public:
     // Tool tip
     QString toolTip() const;
     void setToolTip(const QString &text);
+    QString statusTip() const;
+    void setStatusTip(const QString &text);
+    QString whatsThis() const;
+    void setWhatsThis(const QString &text);
+    QString accessibleName() const;
+    void setAccessibleName(const QString &name);
+    QString accessibleDescription() const;
+    void setAccessibleDescription(const QString &description);
 
     // Rendering
     void render(QPaintDevice *target, const QPoint &targetOffset = QPoint(), const QRegion &sourceRegion = QRegion());
@@ -212,9 +239,17 @@ public:
     void render(QPainter *painter, const QPoint &targetOffset = QPoint(), const QRegion &sourceRegion = QRegion(),
                 RenderFlags renderFlags = RenderFlags(DrawWindowBackground) | DrawChildren);
 
+    QPixmap grab(const QRect &rectangle = QRect(QPoint(0, 0), QSize(-1, -1)));
+    QGraphicsEffect *graphicsEffect() const;
+    void setGraphicsEffect(QGraphicsEffect *effect);
+
     // Layout
     QLayout *layout() const;
     void setLayout(QLayout *layout);
+    void setContentsMargins(int left, int top, int right, int bottom);
+    void setContentsMargins(const QMargins &margins);
+    QMargins contentsMargins() const;
+    QRect contentsRect() const;
 
 public slots:
     virtual void setVisible(bool visible);

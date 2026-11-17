@@ -419,7 +419,8 @@ public:
     bool remove(const T &t) { return d.erase(t) > 0; }
     /*!
         Removes all values for which \a p returns \c true and returns the number
-        of values removed. The predicate is called with an iterator to the value.
+        of values removed. The predicate is called with the value, as in Qt, or
+        with an iterator to it.
 
         \sa remove()
     */
@@ -427,7 +428,12 @@ public:
     qsizetype removeIf(Pred p) {
         qsizetype n = 0;
         for (auto it = d.begin(); it != d.end();) {
-            if (p(it)) { it = d.erase(it); ++n; } else { ++it; }
+            bool remove = false;
+            if constexpr (std::is_invocable_v<Pred &, const T &>)
+                remove = p(*it);
+            else
+                remove = p(it);
+            if (remove) { it = d.erase(it); ++n; } else { ++it; }
         }
         return n;
     }

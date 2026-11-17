@@ -1,0 +1,208 @@
+# Publishes the package repositories of the final releases (no release candidates or other
+# pre-releases) to a Cloudflare R2 bucket, which serves them with no egress fees:
+#
+#   /                        apt (Ubuntu .deb, amd64 and arm64): dists/, pool/
+#   /rpm/el<N>/<arch>/       dnf (Enterprise Linux 9 and 10 .rpm, x86_64 and aarch64)
+#   /arch/<arch>/            pacman (Arch Linux .pkg.tar.zst, x86_64)
+#   /nt6.gpg, /nt6.asc       the signing key; /nt6.repo, the dnf repository file
+#
+# The repositories are rebuilt from the assets of every final release with
+# packaging/apt-repo.sh, rpm-repo.sh and pacman-repo.sh (each with --releases-only), each
+# on its own system, so they always hold all of them. slsa.yml calls this after it has
+# attached the packages of a final release (a v* tag without a hyphen); run it by hand to
+# republish, for example after setting it up.
+#
+# One-time setup:
+#   1. Create an R2 bucket (default name nt6-packages; set the repository variable
+#      R2_BUCKET for another) used only for this: the sync deletes anything else.
+#   2. Connect a custom domain to it (Bucket > Settings > Custom Domains), by default
+#      packages.open-nt.org; set the repository variable R2_PUBLIC_URL for another. The
+#      r2.dev URL is rate limited and not meant for production.
+#   3. Create an R2 API token with Object Read & Write on that bucket and store it as the
+#      secrets R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY.
+#   4. The repositories are signed with the same APT_SIGNING_KEY (and
+#      APT_SIGNING_PASSPHRASE) as the GitHub Pages apt copy, see the header of docs.yml.
+name: Package repositories on R2
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r2-repos
+  cancel-in-progress: false
+
+env:
+  PUBLIC_URL: ${{ vars.R2_PUBLIC_URL || 'https://packages.open-nt.org' }}
+
+jobs:
+  download:
+    name: Download the packages of the final releases
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the credentials
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          missing=
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY APT_SIGNING_KEY; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing; see the header of r2-repos.yml"
+            exit 1
+          fi
+
+      - name: Download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mkdir -p packages
+          # A hyphen marks a pre-release (v6.0.0-rc4), whether or not GitHub flags it as one.
+          for tag in $(gh release list --limit 100 --exclude-drafts --exclude-pre-releases \
+                         --json tagName --jq '.[].tagName | select(contains("-") | not)'); do
+            if gh release view "$tag" --json assets --jq '.assets[].name' \
+                | grep -qE '\.(deb|rpm|pkg\.tar\.zst)$'; then
+              gh release download "$tag" --dir "packages/$tag" \
+                --pattern '*.deb' --pattern '*.rpm' --pattern '*.pkg.tar.zst'
+            fi
+          done
+          find packages -type f | sort
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: packages
+          retention-days: 1
+
+  # Each repository is built on a system that has its tools, and uploaded as an artifact.
+  build:
+    name: Build the ${{ matrix.format }} repository
+    needs: download
+    runs-on: ubuntu-latest
+    container: ${{ matrix.container }}
+    strategy:
+      matrix:
+        include:
+          - format: apt
+            container: ubuntu:24.04
+            tools: apt-get update && apt-get install -y --no-install-recommends ca-certificates git gnupg
+            script: packaging/apt-repo.sh
+            pattern: '*.deb'
+          - format: rpm
+            container: quay.io/rockylinux/rockylinux:9
+            tools: dnf -y install git tar createrepo_c gnupg2
+            script: packaging/rpm-repo.sh --url "$PUBLIC_URL"
+            pattern: '*.rpm'
+          - format: pacman
+            container: archlinux:latest
+            tools: pacman -Syu --noconfirm git gnupg
+            script: packaging/pacman-repo.sh
+            pattern: '*.pkg.tar.zst'
+    steps:
+      - name: Install the tools
+        run: ${{ matrix.tools }}
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-packages
+          path: packages
+
+      - name: Build
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+          NT_APT_GPG_PASSPHRASE: ${{ secrets.APT_SIGNING_PASSPHRASE }}
+        run: |
+          export GNUPGHOME=$RUNNER_TEMP/gnupg
+          mkdir -m 700 "$GNUPGHOME"
+          printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import
+          key=$(gpg --batch --list-secret-keys --with-colons | awk -F: '$1 == "fpr" { print $10; exit }')
+          mapfile -t files < <(find packages -name '${{ matrix.pattern }}' | sort)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::No final release has ${{ matrix.pattern }} packages"
+            exit 1
+          fi
+          ${{ matrix.script }} --output repo --key "$key" --releases-only "${files[@]}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: repo-${{ matrix.format }}
+          path: repo
+          retention-days: 1
+
+  publish:
+    name: Upload to R2
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      # R2 does not take the checksum headers that newer AWS CLIs send by default.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      BUCKET: ${{ vars.R2_BUCKET || 'nt6-packages' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: repo-apt
+          path: site
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: repo-rpm
+          path: site/rpm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: repo-pacman
+          path: site/arch
+
+      # The key and the dnf repository file live at the root; the copies of the key that
+      # rpm-repo.sh and pacman-repo.sh wrote are the same key.
+      - name: Arrange
+        working-directory: site
+        run: |
+          mv rpm/nt6.repo .
+          rm rpm/nt6.asc arch/nt6.asc
+          find . -type f | sort
+
+      # Uploaded so that no client sees an index naming a file that is not there yet:
+      # the packages first, then the indexes, then the signed files that list them
+      # (apt's Release, dnf's repomd.xml, pacman's database), and only then are the files
+      # of removed releases deleted. The packages never change once published; the
+      # indexes are revalidated on every request, so that the Cloudflare cache in front
+      # of a custom domain cannot pair a new signed index with an old one it lists.
+      - name: Upload
+        working-directory: site
+        run: |
+          s3() { aws s3 --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" --no-progress "$@"; }
+          signed=(--include '*/Release' --include '*/Release.gpg' --include '*/InRelease'
+                  --include '*/repomd.xml' --include '*/repomd.xml.asc'
+                  --include '*/nt6.db*' --include '*/nt6.files*')
+          indexes=(--include 'dists/*' --include '*/repodata/*')
+          s3 sync . "s3://$BUCKET" --size-only --cache-control 'public, max-age=31536000, immutable' \
+            --exclude 'nt6.*' "${indexes[@]/--include/--exclude}" "${signed[@]/--include/--exclude}"
+          s3 sync . "s3://$BUCKET" --cache-control 'no-cache' \
+            --exclude '*' "${indexes[@]}" "${signed[@]/--include/--exclude}"
+          s3 sync . "s3://$BUCKET" --cache-control 'no-cache' --exclude '*' "${signed[@]}"
+          for file in nt6.gpg nt6.asc nt6.repo; do
+            s3 cp "$file" "s3://$BUCKET/$file" --cache-control 'public, max-age=3600'
+          done
+          s3 sync . "s3://$BUCKET" --size-only --delete
+          {
+            echo "### Package repositories published to R2 bucket \`$BUCKET\` ($PUBLIC_URL)"
+            echo "- apt: $(ls dists | tr '\n' ' ')"
+            echo "- dnf: $(cd rpm && ls -d */* | tr '\n' ' ')"
+            echo "- pacman: $(ls arch | tr '\n' ' ')"
+          } >> "$GITHUB_STEP_SUMMARY"

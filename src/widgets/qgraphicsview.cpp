@@ -44,10 +44,10 @@ void QGraphicsView::Private::sceneDirty(const QRectF &rect) {
 
     \differences
     The view draws in software, into the viewport's backing store; there is no OpenGL viewport through
-    \c setViewport(). The drag modes, cache mode, optimization flags and anchors are kept but have no effect: no
-    rubber band or hand dragging, no background cache, and transformations keep the scroll position.
-    MinimalViewportUpdate, SmartViewportUpdate and BoundingRectViewportUpdate all redraw the changed rectangles.
-    There are no context menu, drag and drop, input method or tool tip events.
+    \c setViewport(). The cache mode, optimization flags and anchors are kept but have no effect: there is no
+    background cache, and transformations keep the scroll position. A RubberBandDrag or ScrollHandDrag starts where
+    no item takes the press. MinimalViewportUpdate, SmartViewportUpdate and BoundingRectViewportUpdate all redraw
+    the changed rectangles. There are no input method or tool tip events.
     \enddifferences
 
     \sa QGraphicsScene, QGraphicsItem
@@ -243,9 +243,37 @@ void QGraphicsView::setOptimizationFlags(OptimizationFlags flags) { d->optimizat
 QGraphicsView::DragMode QGraphicsView::dragMode() const { return d->dragMode; }
 
 /*!
-    Sets the drag mode to \a mode. Nt keeps the value.
+    \since 6.0
+
+    Returns how a RubberBandDrag selects items: Qt::IntersectsItemShape by default.
 */
-void QGraphicsView::setDragMode(DragMode mode) { d->dragMode = mode; }
+Qt::ItemSelectionMode QGraphicsView::rubberBandSelectionMode() const { return d->rubberBandMode; }
+
+/*!
+    \since 6.0
+
+    Sets how a RubberBandDrag selects items to \a mode: those the band touches, or only those inside it.
+*/
+void QGraphicsView::setRubberBandSelectionMode(Qt::ItemSelectionMode mode) { d->rubberBandMode = mode; }
+
+/*!
+    \since 6.0
+
+    Returns the rubber band of a RubberBandDrag, in the viewport, or a null rectangle when there is none.
+*/
+QRect QGraphicsView::rubberBandRect() const { return d->rubberBanding ? d->rubberRect : QRect(); }
+
+/*!
+    Sets the drag mode to \a mode. With RubberBandDrag a drag where no item takes the press selects the items in a
+    rubber band; with ScrollHandDrag it scrolls the view.
+*/
+void QGraphicsView::setDragMode(DragMode mode) {
+    d->dragMode = mode;
+    if (mode == ScrollHandDrag)
+        viewport()->setCursor(Qt::OpenHandCursor);
+    else
+        viewport()->unsetCursor();
+}
 
 /*!
     Returns the cache mode.
@@ -716,6 +744,15 @@ void QGraphicsView::paintEvent(QPaintEvent *event) {
         QGraphicsSceneAccess::d(d->scene)->drawItems(&painter, vt, exposed, viewport());
     painter.setWorldTransform(vt);
     drawForeground(&painter, exposed);
+    if (d->rubberBanding && !d->rubberRect.isEmpty()) {
+        // The rubber band: the highlight color, see-through, with an outline.
+        painter.resetTransform();
+        QColor fill = palette().color(QPalette::Highlight);
+        painter.setPen(fill);
+        fill.setAlpha(60);
+        painter.setBrush(fill);
+        painter.drawRect(d->rubberRect.adjusted(0, 0, -1, -1));
+    }
 }
 
 /*!
@@ -782,14 +819,56 @@ void QGraphicsView::sendMouse(QMouseEvent *event, QEvent::Type type) {
 
     Passes the press to the scene as a QGraphicsSceneMouseEvent.
 */
-void QGraphicsView::mousePressEvent(QMouseEvent *event) { sendMouse(event, QEvent::GraphicsSceneMousePress); }
+void QGraphicsView::mousePressEvent(QMouseEvent *event) {
+    sendMouse(event, QEvent::GraphicsSceneMousePress);
+    // A press that no item takes starts the drag of the drag mode.
+    const bool free = !d->scene || !d->scene->mouseGrabberItem();
+    if (event->button() != Qt::LeftButton || !free)
+        return;
+    if (d->dragMode == RubberBandDrag && d->interactive) {
+        d->rubberBanding = true;
+        d->rubberOrigin = event->pos();
+        d->rubberRect = QRect();
+        if (d->scene && !(event->modifiers() & Qt::ControlModifier))
+            d->scene->clearSelection();
+    } else if (d->dragMode == ScrollHandDrag) {
+        d->handScrolling = true;
+        d->handLast = event->pos();
+        viewport()->setCursor(Qt::ClosedHandCursor);
+    }
+}
 
 /*!
     \reimp
 
     Passes the move to the scene as a QGraphicsSceneMouseEvent.
 */
-void QGraphicsView::mouseMoveEvent(QMouseEvent *event) { sendMouse(event, QEvent::GraphicsSceneMouseMove); }
+void QGraphicsView::mouseMoveEvent(QMouseEvent *event) {
+    if (d->handScrolling) {
+        const QPoint delta = event->pos() - d->handLast;
+        d->handLast = event->pos();
+        horizontalScrollBar()->setValue(horizontalScrollBar()->value() - delta.x());
+        verticalScrollBar()->setValue(verticalScrollBar()->value() - delta.y());
+        return;
+    }
+    if (d->rubberBanding) {
+        const QRect old = d->rubberRect;
+        d->rubberRect = QRect(d->rubberOrigin, event->pos()).normalized();
+        viewport()->update(old.united(d->rubberRect).adjusted(-2, -2, 2, 2));
+        if (d->scene) {
+            QPainterPath band;
+            band.addPolygon(mapToScene(d->rubberRect));
+            band.closeSubpath();
+            d->scene->setSelectionArea(band,
+                                       event->modifiers() & Qt::ControlModifier ? Qt::AddToSelection
+                                                                                : Qt::ReplaceSelection,
+                                       d->rubberBandMode, viewportTransform());
+        }
+        emit rubberBandChanged(d->rubberRect, mapToScene(d->rubberOrigin), mapToScene(event->pos()));
+        return;
+    }
+    sendMouse(event, QEvent::GraphicsSceneMouseMove);
+}
 
 /*!
     \reimp
@@ -797,6 +876,16 @@ void QGraphicsView::mouseMoveEvent(QMouseEvent *event) { sendMouse(event, QEvent
     Passes the release to the scene as a QGraphicsSceneMouseEvent.
 */
 void QGraphicsView::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && d->handScrolling) {
+        d->handScrolling = false;
+        viewport()->setCursor(Qt::OpenHandCursor);
+    }
+    if (event->button() == Qt::LeftButton && d->rubberBanding) {
+        d->rubberBanding = false;
+        viewport()->update(d->rubberRect.adjusted(-2, -2, 2, 2));
+        d->rubberRect = QRect();
+        emit rubberBandChanged(QRect(), QPointF(), QPointF());
+    }
     sendMouse(event, QEvent::GraphicsSceneMouseRelease);
     if (event->buttons() == Qt::NoButton) {
         d->downScenePos.clear();

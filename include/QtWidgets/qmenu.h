@@ -44,6 +44,26 @@ public:
         QObject::connect(action, &QAction::triggered, receiver, std::move(functor));
         return action;
     }
+    QAction *addAction(const QString &text, const QKeySequence &shortcut);
+    QAction *addAction(const QIcon &icon, const QString &text, const QKeySequence &shortcut);
+    QAction *addAction(const QString &text, const QKeySequence &shortcut, const QObject *receiver, const char *member,
+                       Qt::ConnectionType type = Qt::AutoConnection);
+    template <typename Receiver, typename Functor,
+              typename = std::enable_if_t<std::is_base_of_v<QObject, Receiver> &&
+                                          !std::is_convertible_v<Functor, const char *>>>
+    QAction *addAction(const QString &text, const QKeySequence &shortcut, const Receiver *receiver, Functor functor,
+                       Qt::ConnectionType type = Qt::AutoConnection) {
+        QAction *action = addAction(text, shortcut);
+        QObject::connect(action, &QAction::triggered, receiver, std::move(functor), type);
+        return action;
+    }
+    template <typename Functor, typename = std::enable_if_t<!std::is_convertible_v<Functor, const char *> &&
+                                                            !std::is_pointer_v<Functor>>>
+    QAction *addAction(const QString &text, const QKeySequence &shortcut, Functor functor) {
+        QAction *action = addAction(text, shortcut);
+        QObject::connect(action, &QAction::triggered, action, std::move(functor));
+        return action;
+    }
     QAction *addMenu(QMenu *menu);
     QMenu *addMenu(const QString &title);
     QAction *addSeparator();

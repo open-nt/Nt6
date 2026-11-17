@@ -8,6 +8,7 @@
 #include <QtGui/qfont.h>
 
 class QClipboard;
+class QInputMethod;
 class QIcon;
 class QScreen;
 class QStyleHints;
@@ -28,6 +29,7 @@ public:
     static QScreen *screenAt(const QPoint &point);
     static void setDesktopFileName(const QString &name);
     static QClipboard *clipboard();
+    static QInputMethod *inputMethod();
     static QIcon windowIcon();
     static void setWindowIcon(const QIcon &icon);
     static QString desktopFileName();

@@ -9,3 +9,10 @@
 
 // Optional features, 1 when built in and -1 when not; test them with QT_CONFIG(feature).
 #define QT_FEATURE_vulkan @NT_FEATURE_VULKAN@
+// Features of the widgets that are always built in; code that uic generates tests them.
+#define QT_FEATURE_tooltip 1
+#define QT_FEATURE_statustip 1
+#define QT_FEATURE_whatsthis 1
+#define QT_FEATURE_accessibility 1
+#define QT_FEATURE_shortcut 1
+#define QT_FEATURE_action 1

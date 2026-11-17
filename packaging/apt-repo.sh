@@ -3,28 +3,33 @@
 #
 # Builds a signed apt repository from the Ubuntu packages made by build.sh.
 #
-#   packaging/apt-repo.sh --output DIR [--key KEY] DEB...
+#   packaging/apt-repo.sh --output DIR [--key KEY] [--releases-only] DEB...
 #
 # Each package goes to the suite of the Ubuntu release it was built for, which
 # comes from the ~ubuntu<release> suffix of its version (jammy, noble, resolute).
 # A suite has two components: main holds final releases only, testing holds
-# pre-releases such as 6.1.0~rc1 as well. Signs with KEY (a gpg key ID, default:
-# gpg's default key); set NT_APT_GPG_PASSPHRASE if the key has a passphrase.
+# pre-releases such as 6.1.0~rc1 as well. With --releases-only, pre-releases
+# are left out and main is the only component. Signs with KEY (a gpg key ID,
+# default: gpg's default key); set NT_APT_GPG_PASSPHRASE if the key has a
+# passphrase.
 # Writes DIR/dists, DIR/pool and the public key as DIR/nt6.gpg and DIR/nt6.asc.
 #
 # Needs only dpkg-deb, gzip, sha256sum and gpg. docs.yml publishes the result
-# to GitHub Pages under /apt; see doc/install.h for the sources line.
+# to GitHub Pages under /apt, and r2-repos.yml publishes a --releases-only copy
+# to Cloudflare R2; see doc/install.h for the sources line.
 set -euo pipefail
 
 output=
 key=
+releases_only=0
 debs=()
 
 while [ $# -gt 0 ]; do
     case "$1" in
     --output) output=$2; shift 2 ;;
     --key) key=$2; shift 2 ;;
-    -h | --help) sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --releases-only) releases_only=1; shift ;;
+    -h | --help) sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     -*) echo "apt-repo.sh: unknown option $1" >&2; exit 2 ;;
     *) debs+=("$1"); shift ;;
     esac
@@ -50,6 +55,9 @@ sign() { # sign <gpg options...>: the passphrase, if any, goes on stdin
     printf '%s' "${NT_APT_GPG_PASSPHRASE:-}" | "${gpg_sign[@]}" "$@"
 }
 
+components="main testing"
+[ "$releases_only" = 0 ] || components=main
+
 rm -rf "$output"
 mkdir -p "$output"
 output=$(cd "$output" && pwd)
@@ -66,6 +74,11 @@ for deb in "${debs[@]}"; do
         echo "apt-repo.sh: $deb: no known Ubuntu release in version $version" >&2
         exit 1
     fi
+    upstream=${version%-*}
+    if [ "$releases_only" = 1 ] && [[ $upstream == *"~"* ]]; then
+        echo "apt-repo.sh: skipping $deb, $version is a pre-release" >&2
+        continue
+    fi
     file=${package}_${version}_${arch}.deb
     if [ -n "${seen[$suite/$file]:-}" ]; then
         echo "apt-repo.sh: skipping $deb, $file is already in $suite" >&2
@@ -74,12 +87,15 @@ for deb in "${debs[@]}"; do
     seen[$suite/$file]=1
     mkdir -p "$output/pool/$suite"
     cp "$deb" "$output/pool/$suite/$file"
-    upstream=${version%-*}
-    printf '%s testing %s pool/%s/%s\n' "$suite" "$arch" "$suite" "$file" >> "$work/index"
+    if [ "$releases_only" = 0 ]; then
+        printf '%s testing %s pool/%s/%s\n' "$suite" "$arch" "$suite" "$file" >> "$work/index"
+    fi
     if [[ $upstream != *"~"* ]]; then
         printf '%s main %s pool/%s/%s\n' "$suite" "$arch" "$suite" "$file" >> "$work/index"
     fi
 done
+
+[ -s "$work/index" ] || { echo "apt-repo.sh: no packages left to publish" >&2; exit 1; }
 
 stanza() { # stanza <pool path>: the Packages entry of one package
     local path=$output/$1
@@ -102,7 +118,7 @@ for suite in $(cut -d' ' -f1 "$work/index" | sort -u); do
     dist=$output/dists/$suite
     archs=$(awk -v s="$suite" '$1 == s { print $3 }' "$work/index" | sort -u | tr '\n' ' ')
     archs=${archs% }
-    for component in main testing; do
+    for component in $components; do
         for arch in $archs; do
             dir=$dist/$component/binary-$arch
             mkdir -p "$dir"
@@ -115,10 +131,11 @@ for suite in $(cut -d' ' -f1 "$work/index" | sort -u); do
     done
     (
         cd "$dist"
-        mapfile -t files < <(find main testing -type f | sort)
+        # shellcheck disable=SC2086
+        mapfile -t files < <(find $components -type f | sort)
         {
             printf 'Origin: Nt\nLabel: Nt\nSuite: %s\nCodename: %s\nDate: %s\n' "$suite" "$suite" "$date"
-            printf 'Architectures: %s\nComponents: main testing\n' "$archs"
+            printf 'Architectures: %s\nComponents: %s\n' "$archs" "$components"
             printf 'Description: Nt, a clean-room implementation of the Qt 6 API\n'
             printf 'MD5Sum:\n'
             checksums md5sum "${files[@]}"

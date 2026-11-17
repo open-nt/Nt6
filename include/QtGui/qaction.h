@@ -25,6 +25,30 @@ class QAction : public QObject {
     Q_PROPERTY(bool visible READ isVisible WRITE setVisible NOTIFY visibleChanged)
 public:
     enum ActionEvent { Trigger, Hover };
+    /*!
+        \enum QAction::MenuRole
+        \since 6.0
+
+        Where the action goes in the application menu of macOS. Nt keeps the role for the application.
+
+        \value NoRole The action stays where it is.
+        \value TextHeuristicRole The text of the action decides.
+        \value ApplicationSpecificRole An action of the application.
+        \value AboutQtRole The "About Qt" action.
+        \value AboutRole The "About" action.
+        \value PreferencesRole The "Preferences" action.
+        \value QuitRole The "Quit" action.
+    */
+    enum MenuRole {
+        NoRole = 0,
+        TextHeuristicRole,
+        ApplicationSpecificRole,
+        AboutQtRole,
+        AboutRole,
+        PreferencesRole,
+        QuitRole
+    };
+    Q_ENUM(MenuRole)
 
     explicit QAction(QObject *parent = nullptr);
     explicit QAction(const QString &text, QObject *parent = nullptr);
@@ -34,6 +58,17 @@ public:
     QString text() const { return m_text; }
     void setText(const QString &text);
     QString iconText() const;
+    void setIconText(const QString &text);
+    QString whatsThis() const { return m_whatsThis; }
+    void setWhatsThis(const QString &what);
+    MenuRole menuRole() const { return m_menuRole; }
+    void setMenuRole(MenuRole menuRole);
+    bool isIconVisibleInMenu() const { return m_iconVisibleInMenu; }
+    void setIconVisibleInMenu(bool visible);
+    bool isShortcutVisibleInContextMenu() const { return m_shortcutVisibleInContextMenu; }
+    void setShortcutVisibleInContextMenu(bool show);
+    bool autoRepeat() const { return m_autoRepeat; }
+    void setAutoRepeat(bool repeat);
     QString toolTip() const;
     void setToolTip(const QString &tip);
     QString statusTip() const { return m_statusTip; }
@@ -118,6 +153,12 @@ private:
     QString m_text;
     QString m_toolTip;
     QString m_statusTip;
+    QString m_iconText; // set with setIconText(); the text without mnemonics otherwise
+    QString m_whatsThis;
+    MenuRole m_menuRole = TextHeuristicRole;
+    bool m_iconVisibleInMenu = true;
+    bool m_shortcutVisibleInContextMenu = true;
+    bool m_autoRepeat = true;
     QFont m_font;
     QKeySequence m_shortcut;
     QIcon m_icon;

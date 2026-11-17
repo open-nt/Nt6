@@ -53,6 +53,7 @@ public:
     void setCheckState(Qt::CheckState state);
     virtual QVariant data(int role) const;
     virtual void setData(int role, const QVariant &value);
+    virtual bool operator<(const QTableWidgetItem &other) const;
 
 private:
     friend class QTableWidget;
@@ -123,6 +124,18 @@ public:
     void setColumnWidth(int column, int width);
     void resizeColumnToContents(int column);
     void resizeColumnsToContents();
+    void resizeRowToContents(int row);
+    void resizeRowsToContents();
+    bool isSortingEnabled() const { return m_sortingEnabled; }
+    void setSortingEnabled(bool enable);
+    void sortItems(int column, Qt::SortOrder order = Qt::AscendingOrder);
+    void sortByColumn(int column, Qt::SortOrder order) { sortItems(column, order); }
+    bool wordWrap() const { return m_wordWrap; }
+    void setWordWrap(bool on);
+    bool isRowHidden(int row) const;
+    void setRowHidden(int row, bool hide);
+    bool isColumnHidden(int column) const;
+    void setColumnHidden(int column, bool hide);
 
     int currentRow() const { return m_currentRow; }
     int currentColumn() const { return m_currentColumn; }
@@ -138,6 +151,12 @@ public:
 public slots:
     void clear();
     void clearContents();
+    void selectRow(int row);
+    void selectColumn(int column);
+    void hideRow(int row) { setRowHidden(row, true); }
+    void showRow(int row) { setRowHidden(row, false); }
+    void hideColumn(int column) { setColumnHidden(column, true); }
+    void showColumn(int column) { setColumnHidden(column, false); }
 
 signals:
     /*!
@@ -230,6 +249,8 @@ private:
     int m_pressedRow = -1;
     int m_pressedColumn = -1;
     bool m_showGrid = true;
+    bool m_sortingEnabled = false;
+    bool m_wordWrap = false;
     bool m_inLayout = false;
     bool m_layoutAgain = false;
     std::vector<CellWidget> m_cellWidgets;

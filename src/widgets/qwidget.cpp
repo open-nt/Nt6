@@ -15,6 +15,7 @@
 #include <QtGui/qscreen.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
+#include <QtWidgets/qgraphicseffect.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qtooltip.h>
 
@@ -84,6 +85,28 @@ void WidgetAccess::paintRecursive(QWidget *w, const QPoint &origin, const QRect 
     if (d.updatesDisabled)
         return;
     const QRegion region = dirty.intersected(visible);
+    // An opacity effect: the widget and its children are painted into an image, which is drawn translucent.
+    if (auto *effect = qobject_cast<QGraphicsOpacityEffect *>(d.graphicsEffect.data());
+        effect && effect->isEnabled() && !w->isWindow()) {
+        if (region.isEmpty())
+            return;
+        const qreal ratio = w->devicePixelRatio() > 0 ? w->devicePixelRatio() : 1.0;
+        QImage image(QSize(qRound(w->width() * ratio), qRound(w->height() * ratio)),
+                     QImage::Format_ARGB32_Premultiplied);
+        image.setDevicePixelRatio(ratio);
+        image.fill(Qt::transparent);
+        w->render(&image);
+        d.painting = true;
+        d.paintClip = region;
+        {
+            QPainter painter(w);
+            painter.setOpacity(effect->opacity());
+            painter.drawImage(QPointF(0, 0), image);
+        }
+        d.painting = false;
+        d.paintClip = QRegion();
+        return;
+    }
     if (!region.isEmpty()) {
         d.painting = true;
         d.paintClip = region;
@@ -472,6 +495,236 @@ QString QWidget::toolTip() const { return m_d->toolTip; }
 void QWidget::setToolTip(const QString &text) { m_d->toolTip = text; }
 
 /*!
+    \since 6.0
+
+    Returns the status tip of the widget.
+*/
+QString QWidget::statusTip() const { return m_d->statusTip; }
+
+/*!
+    \since 6.0
+
+    Sets the status tip of the widget to \a text. Nt keeps it for the application; the status bar does not show it.
+*/
+void QWidget::setStatusTip(const QString &text) { m_d->statusTip = text; }
+
+/*!
+    \since 6.0
+
+    Returns the "What's This?" help of the widget.
+*/
+QString QWidget::whatsThis() const { return m_d->whatsThis; }
+
+/*!
+    \since 6.0
+
+    Sets the "What's This?" help of the widget to \a text. Nt keeps it for the application.
+*/
+void QWidget::setWhatsThis(const QString &text) { m_d->whatsThis = text; }
+
+/*!
+    \since 6.0
+
+    Returns the name of the widget for accessibility tools.
+*/
+QString QWidget::accessibleName() const { return m_d->accessibleName; }
+
+/*!
+    \since 6.0
+
+    Sets the name of the widget for accessibility tools to \a name. Nt has no accessibility support and keeps it.
+*/
+void QWidget::setAccessibleName(const QString &name) { m_d->accessibleName = name; }
+
+/*!
+    \since 6.0
+
+    Returns the description of the widget for accessibility tools.
+*/
+QString QWidget::accessibleDescription() const { return m_d->accessibleDescription; }
+
+/*!
+    \since 6.0
+
+    Sets the description of the widget for accessibility tools to \a description.
+*/
+void QWidget::setAccessibleDescription(const QString &description) { m_d->accessibleDescription = description; }
+
+namespace {
+QPointer<QWidget> g_mouseGrabber;
+QPointer<QWidget> g_keyboardGrabber;
+} // namespace
+
+/*!
+    \since 6.0
+
+    Gives the widget every mouse event of its window, wherever the mouse is, until releaseMouse(). Only one widget
+    grabs the mouse at a time.
+
+    \sa releaseMouse(), mouseGrabber()
+*/
+void QWidget::grabMouse() { g_mouseGrabber = this; }
+
+/*!
+    \overload
+    \since 6.0
+
+    Grabs the mouse and shows \a cursor while it is grabbed.
+*/
+void QWidget::grabMouse(const QCursor &cursor) {
+    setCursor(cursor);
+    grabMouse();
+}
+
+/*!
+    \since 6.0
+
+    Releases the mouse if this widget grabbed it.
+*/
+void QWidget::releaseMouse() {
+    if (g_mouseGrabber == this)
+        g_mouseGrabber = nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Gives the widget every key event of its window, wherever the focus is, until releaseKeyboard().
+*/
+void QWidget::grabKeyboard() { g_keyboardGrabber = this; }
+
+/*!
+    \since 6.0
+
+    Releases the keyboard if this widget grabbed it.
+*/
+void QWidget::releaseKeyboard() {
+    if (g_keyboardGrabber == this)
+        g_keyboardGrabber = nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Returns the widget that grabbed the mouse, or \c nullptr.
+*/
+QWidget *QWidget::mouseGrabber() { return g_mouseGrabber.data(); }
+
+/*!
+    \since 6.0
+
+    Returns the widget that grabbed the keyboard, or \c nullptr.
+*/
+QWidget *QWidget::keyboardGrabber() { return g_keyboardGrabber.data(); }
+
+/*!
+    \since 6.0
+
+    Returns the hints to an input method about the text that the widget takes.
+*/
+Qt::InputMethodHints QWidget::inputMethodHints() const { return m_d->inputMethodHints; }
+
+/*!
+    \since 6.0
+
+    Sets the hints to an input method to \a hints. Nt has no input methods, so they only are kept.
+*/
+void QWidget::setInputMethodHints(Qt::InputMethodHints hints) { m_d->inputMethodHints = hints; }
+
+/*!
+    \since 6.0
+
+    Returns a picture of \a rectangle of the widget, and of its children, as render() paints it; an invalid width or
+    height of \a rectangle reaches to the edge of the widget. The picture has the device pixel ratio of the screen.
+
+    \sa render()
+*/
+QPixmap QWidget::grab(const QRect &rectangle) {
+    QRect r = rectangle;
+    if (r.width() < 0)
+        r.setWidth(width() - r.x());
+    if (r.height() < 0)
+        r.setHeight(height() - r.y());
+    r = r.intersected(rect());
+    if (r.isEmpty())
+        return QPixmap();
+    const qreal ratio = devicePixelRatio() > 0 ? devicePixelRatio() : 1.0;
+    QImage image(QSize(qRound(r.width() * ratio), qRound(r.height() * ratio)), QImage::Format_ARGB32_Premultiplied);
+    image.setDevicePixelRatio(ratio);
+    image.fill(Qt::transparent);
+    render(&image, -r.topLeft(), QRegion(r));
+    return QPixmap::fromImage(image);
+}
+
+/*!
+    \since 6.0
+
+    Returns the graphics effect of the widget, or \c nullptr.
+*/
+QGraphicsEffect *QWidget::graphicsEffect() const { return m_d->graphicsEffect.data(); }
+
+/*!
+    \since 6.0
+
+    Sets the graphics effect of the widget to \a effect, which the widget takes ownership of, and deletes the effect
+    it had. \c nullptr removes it.
+
+    A QGraphicsOpacityEffect makes the widget and its children translucent; the other effects are kept but not
+    drawn on widgets.
+*/
+void QWidget::setGraphicsEffect(QGraphicsEffect *effect) {
+    if (effect == m_d->graphicsEffect)
+        return;
+    delete m_d->graphicsEffect.data();
+    m_d->graphicsEffect = effect;
+    if (effect)
+        effect->setParent(this);
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Sets the margins around the contents of the widget to \a left, \a top, \a right and \a bottom. The layout of the
+    widget lays its items out inside them.
+
+    \sa contentsRect()
+*/
+void QWidget::setContentsMargins(int left, int top, int right, int bottom) {
+    setContentsMargins(QMargins(left, top, right, bottom));
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Sets the margins around the contents of the widget to \a margins.
+*/
+void QWidget::setContentsMargins(const QMargins &margins) {
+    if (margins == m_d->contentsMargins)
+        return;
+    m_d->contentsMargins = margins;
+    if (m_d->layout)
+        m_d->layout->invalidate();
+    updateGeometry();
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the margins around the contents of the widget.
+*/
+QMargins QWidget::contentsMargins() const { return m_d->contentsMargins; }
+
+/*!
+    \since 6.0
+
+    Returns the rectangle of the widget inside its contents margins.
+*/
+QRect QWidget::contentsRect() const { return rect().marginsRemoved(m_d->contentsMargins); }
+
+/*!
     \enum QWidget::RenderFlag
     \since 6.0
 
@@ -770,6 +1023,34 @@ void QWidget::setMinimumHeight(int minh) { setMinimumSize(QSize(minimumSize().wi
 void QWidget::setMaximumWidth(int maxw) { setMaximumSize(QSize(maxw, maximumSize().height())); }
 
 /*!
+    \fn int QWidget::minimumWidth() const
+    \since 6.0
+
+    Returns the smallest width of the widget.
+*/
+
+/*!
+    \fn int QWidget::minimumHeight() const
+    \since 6.0
+
+    Returns the smallest height of the widget.
+*/
+
+/*!
+    \fn int QWidget::maximumWidth() const
+    \since 6.0
+
+    Returns the largest width of the widget.
+*/
+
+/*!
+    \fn int QWidget::maximumHeight() const
+    \since 6.0
+
+    Returns the largest height of the widget.
+*/
+
+/*!
     Sets the maximum height to \a maxh, and keeps the maximum width.
 
     \sa setMaximumSize()
@@ -793,7 +1074,14 @@ void QWidget::setFixedHeight(int h) {
 
     \sa minimumSizeHint(), updateGeometry()
 */
-QSize QWidget::sizeHint() const { return m_d->layout ? m_d->layout->sizeHint() : QSize(-1, -1); }
+QSize QWidget::sizeHint() const {
+    if (!m_d->layout)
+        return QSize(-1, -1);
+    const QMargins &m = m_d->contentsMargins;
+    const QWidget *bar = m_d->layout->menuBar();
+    const int barHeight = bar && !bar->isHidden() ? bar->sizeHint().height() : 0;
+    return m_d->layout->sizeHint() + QSize(m.left() + m.right(), m.top() + m.bottom() + barHeight);
+}
 
 /*!
     Returns the smallest size at which the widget is still usable. The default is the minimum size of
@@ -801,7 +1089,14 @@ QSize QWidget::sizeHint() const { return m_d->layout ? m_d->layout->sizeHint() :
 
     \sa sizeHint()
 */
-QSize QWidget::minimumSizeHint() const { return m_d->layout ? m_d->layout->minimumSize() : QSize(-1, -1); }
+QSize QWidget::minimumSizeHint() const {
+    if (!m_d->layout)
+        return QSize(-1, -1);
+    const QMargins &m = m_d->contentsMargins;
+    const QWidget *bar = m_d->layout->menuBar();
+    const int barHeight = bar && !bar->isHidden() ? bar->sizeHint().height() : 0;
+    return m_d->layout->minimumSize() + QSize(m.left() + m.right(), m.top() + m.bottom() + barHeight);
+}
 
 /*!
     Returns the size policy, which tells layouts how the widget may be resized. The default is

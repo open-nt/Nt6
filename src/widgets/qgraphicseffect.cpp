@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qgraphicseffect.h>
+#include <QtWidgets/qwidget.h>
 
 #include <QtWidgets/qgraphicsitem.h>
 
@@ -62,6 +63,8 @@ void QGraphicsEffect::setEnabled(bool enable) {
 void QGraphicsEffect::update() {
     if (m_item)
         m_item->update(boundingRect());
+    else if (auto *widget = qobject_cast<QWidget *>(parent()))
+        widget->update();
 }
 
 /*!

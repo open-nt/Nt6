@@ -157,6 +157,15 @@ signals:
     */
     void errorOccurred(QAbstractSocket::SocketError error) { emitSignal(&QWebSocket::errorOccurred, error); }
     /*!
+        \since 6.0
+
+        This signal is emitted with errorOccurred(), with the same \a socketError: the name of the signal in Qt
+        before 6.5. Select it with \c{QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error)}.
+    */
+    void error(QAbstractSocket::SocketError socketError) {
+        emitSignal(static_cast<void (QWebSocket::*)(QAbstractSocket::SocketError)>(&QWebSocket::error), socketError);
+    }
+    /*!
         This signal is emitted when a pong arrives, with the \a payload of the
         ping and the round trip \a elapsedTime in milliseconds since the last
         ping() call.

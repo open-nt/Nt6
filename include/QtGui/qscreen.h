@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qlist.h>
+
 #include <QtCore/qobject.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qsize.h>
@@ -35,6 +37,11 @@ public:
     qreal logicalDotsPerInch() const;
     qreal physicalDotsPerInch() const;
     qreal devicePixelRatio() const;
+    QList<QScreen *> virtualSiblings() const;
+    QRect virtualGeometry() const;
+    QSize virtualSize() const { return virtualGeometry().size(); }
+    QRect availableVirtualGeometry() const;
+    QSize availableVirtualSize() const { return availableVirtualGeometry().size(); }
 
 signals:
     /*!
@@ -42,6 +49,18 @@ signals:
         \a geometry.
     */
     void geometryChanged(const QRect &geometry) { emitSignal(&QScreen::geometryChanged, geometry); }
+    /*!
+        \since 6.0
+
+        This signal is emitted when the geometry of the virtual desktop, all screens together, changes to \a rect.
+    */
+    void virtualGeometryChanged(const QRect &rect) { emitSignal(&QScreen::virtualGeometryChanged, rect); }
+    /*!
+        \since 6.0
+
+        This signal is emitted when the available geometry of the screen changes to \a geometry.
+    */
+    void availableGeometryChanged(const QRect &geometry) { emitSignal(&QScreen::availableGeometryChanged, geometry); }
 
 private:
     friend struct QtPrivate::GuiAccess;

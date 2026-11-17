@@ -86,7 +86,8 @@
 
     Every build of the main branch also uploads its packages as artifacts of the
     workflow run, named \c packages-ubuntu-22.04, \c packages-ubuntu-24.04,
-    \c packages-ubuntu-26.04, \c packages-el9, \c packages-el10,
+    \c packages-ubuntu-26.04 (and the same with \c -arm64 for arm64),
+    \c packages-el9, \c packages-el10 (and the same with \c -aarch64),
     \c packages-arch, \c packages-snap and \c packages-snap-arm64.
 
     \note Install the packages built for your system. A package built for another
@@ -96,17 +97,17 @@
 
     \section2 From the apt repository
 
-    The Ubuntu packages of every release are also in a signed apt repository,
-    so that \c{apt upgrade} picks up new releases. Add its key and the sources
-    for your release (the suite is your release's code name: \c jammy,
-    \c noble or \c resolute), then install:
+    The Ubuntu packages of every final release, for amd64 and arm64, are also
+    in a signed apt repository, so that \c{apt upgrade} picks up new releases.
+    Add its key and the sources for your release (the suite is your release's
+    code name: \c jammy, \c noble or \c resolute), then install:
 
     \code
     sudo install -d -m 0755 /etc/apt/keyrings
-    sudo curl -fsSLo /etc/apt/keyrings/nt6.gpg https://open-nt.github.io/Nt6/apt/nt6.gpg
+    sudo curl -fsSLo /etc/apt/keyrings/nt6.gpg https://packages.open-nt.org/nt6.gpg
     sudo tee /etc/apt/sources.list.d/nt6.sources > /dev/null <<EOF
     Types: deb
-    URIs: https://open-nt.github.io/Nt6/apt
+    URIs: https://packages.open-nt.org
     Suites: $(. /etc/os-release && echo "$VERSION_CODENAME")
     Components: main
     Signed-By: /etc/apt/keyrings/nt6.gpg
@@ -115,9 +116,11 @@
     sudo apt install g++ cmake libnt6-dev nt6-tools
     \endcode
 
-    The \c main component has final releases only. For pre-releases such as
-    \c 6.1.0-rc1 as well, use \c{Components: main testing}. Until the first
-    final release, \c testing is the only component with packages.
+    This repository has final releases only. Pre-releases such as \c 6.1.0-rc1
+    are in the \c testing component of a second copy, signed with the same
+    key, at \c https://open-nt.github.io/Nt6/apt; use that URI with
+    \c{Components: main testing} to get them as well. arm64 packages start
+    with the first release after 6.0.4.
 
     \section2 From the downloaded packages
 
@@ -142,9 +145,27 @@
     \section1 Enterprise Linux 9 and 10
 
     This covers RHEL, Rocky Linux and AlmaLinux. The packages are built on Rocky
-    Linux and are binary compatible with the others. Install the compiler and
-    CMake, then the two packages. \c dnf installs a local file when given its
-    path, and resolves the dependencies from the repositories:
+    Linux and are binary compatible with the others.
+
+    \section2 From the dnf repository
+
+    The packages of every final release, for x86_64 and aarch64, are also in a
+    dnf repository with signed metadata, so that \c{dnf upgrade} picks up new
+    releases. Add the repository file, which picks the \c el9 or \c el10 packages
+    for your system, then install:
+
+    \code
+    sudo curl -fsSLo /etc/yum.repos.d/nt6.repo https://packages.open-nt.org/nt6.repo
+    sudo dnf install gcc-c++ cmake nt6-devel nt6-tools
+    \endcode
+
+    \c dnf asks once to import the signing key, the same key as the apt
+    repository's.
+
+    \section2 From the downloaded packages
+
+    Install the compiler and CMake, then the two packages. \c dnf installs a local
+    file when given its path, and resolves the dependencies from the repositories:
 
     \code
     sudo dnf install gcc-c++ cmake
@@ -160,6 +181,28 @@
     The libraries are installed in \c{/usr/lib64}.
 
     \section1 Arch Linux
+
+    \section2 From the pacman repository
+
+    The package of every final release, for x86_64, is also in a signed pacman
+    repository named \c nt6, so that \c{pacman -Syu} picks up new releases. Trust
+    the signing key, the same key as the apt repository's, add the repository to
+    \c{/etc/pacman.conf} and install:
+
+    \code
+    curl -fsSLo /tmp/nt6.asc https://packages.open-nt.org/nt6.asc
+    sudo pacman-key --add /tmp/nt6.asc
+    sudo pacman-key --lsign-key "$(gpg --show-keys --with-colons /tmp/nt6.asc | awk -F: '$1 == "fpr" { print $10; exit }')"
+    sudo tee -a /etc/pacman.conf > /dev/null <<'EOF'
+
+    [nt6]
+    SigLevel = Required
+    Server = https://packages.open-nt.org/arch/$arch
+    EOF
+    sudo pacman -Syu gcc cmake nt6
+    \endcode
+
+    \section2 From the downloaded package
 
     Install the compiler and CMake, then the package. \c{pacman -U} installs a
     local file:
@@ -264,7 +307,7 @@
 
     \section1 Verifying a Download
 
-    Each release has SHA-256 checksum files, \c SHA256SUMS-<system>.txt, next to
+    Each release has SHA-256 checksum files, \c SHA256SUMS-<system>-<arch>.txt, next to
     the packages. Download the one for your system into the same directory and run:
 
     \code

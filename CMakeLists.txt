@@ -529,6 +529,7 @@ add_library(NtGui
     src/gui/qfontmetrics.cpp
     src/gui/qguiapplication.cpp
     src/gui/qclipboard.cpp
+    src/gui/qinputmethod.cpp
     src/gui/qstandarditemmodel.cpp
     src/gui/qdesktopservices.cpp
     src/gui/qvalidator.cpp
@@ -1642,7 +1643,7 @@ if(NT_BUILD_TESTS)
     # The Qt APIs that the ldm programs needed: widgets, item views, icons, context menus, keys and more.
     add_executable(nt_ldm_gaps_tests tests/test_ldm_gaps.cpp)
     target_include_directories(nt_ldm_gaps_tests PRIVATE src/gui)
-    target_link_libraries(nt_ldm_gaps_tests PRIVATE Nt::Widgets Nt::Network Nt::Svg Nt::Test)
+    target_link_libraries(nt_ldm_gaps_tests PRIVATE Nt::Widgets Nt::Network Nt::Svg Nt::Test Nt::WebSockets)
     add_test(NAME nt_ldm_gaps_tests COMMAND nt_ldm_gaps_tests)
     set_tests_properties(nt_ldm_gaps_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_ldm_gaps_tests)

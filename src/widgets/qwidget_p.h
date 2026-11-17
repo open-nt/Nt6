@@ -76,6 +76,13 @@ struct QWidget::Data {
     // While the widget is painted:
     bool painting = false;
     QRegion paintClip;
+    QMargins contentsMargins;
+    QString statusTip;
+    QString whatsThis;
+    QString accessibleName;
+    QString accessibleDescription;
+    Qt::InputMethodHints inputMethodHints;
+    QPointer<QGraphicsEffect> graphicsEffect; // a child of the widget
 };
 
 namespace QtPrivate {

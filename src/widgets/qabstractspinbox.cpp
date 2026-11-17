@@ -75,13 +75,24 @@ private:
     \endcode
 
     \differences
-    There is no \c alignment, \c buttonSymbols, \c accelerated, \c correctionMode, \c frame or
+    There is no \c alignment, \c accelerated, \c correctionMode, \c frame or
     \c showGroupSeparator, and no \c validate() or \c fixup(): the subclasses check what the user types. The buttons
     do not repeat while they are held. A subclass outside Nt can reimplement stepBy() and stepEnabled(), but the text
     is always that of a QSpinBox or a QDoubleSpinBox.
     \enddifferences
 
     \sa QSpinBox, QDoubleSpinBox
+*/
+
+/*!
+    \enum QAbstractSpinBox::ButtonSymbols
+    \since 6.0
+
+    What the buttons of a spin box show.
+
+    \value UpDownArrows Arrows.
+    \value PlusMinus A plus and a minus sign.
+    \value NoButtons There are no buttons.
 */
 
 /*!
@@ -258,6 +269,27 @@ QAbstractSpinBox::StepEnabled QAbstractSpinBox::stepEnabled() const {
     Returns the line edit that shows the text.
 */
 
+/*!
+    \fn QAbstractSpinBox::ButtonSymbols QAbstractSpinBox::buttonSymbols() const
+    \since 6.0
+
+    Returns what the buttons show: arrows by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets what the buttons show to \a bs: arrows, plus and minus signs, or no buttons, which leaves the keys and the
+    wheel to step.
+*/
+void QAbstractSpinBox::setButtonSymbols(ButtonSymbols bs) {
+    if (bs == m_buttonSymbols)
+        return;
+    m_buttonSymbols = bs;
+    layoutEdit();
+    update();
+}
+
 void QAbstractSpinBox::refreshText() {
     m_edit->setText(valueText());
     update();
@@ -266,6 +298,7 @@ void QAbstractSpinBox::refreshText() {
 void QAbstractSpinBox::layoutEdit() {
     QStyleOptionSpinBox option;
     option.initFrom(this);
+    option.buttonSymbols = m_buttonSymbols;
     m_edit->setGeometry(style()->subElementRect(QStyle::SE_SpinBoxEditField, &option, this));
 }
 
@@ -319,6 +352,7 @@ QSize QAbstractSpinBox::sizeHint() const {
         width = std::max(width, fm.horizontalAdvance(text));
     QStyleOptionSpinBox option;
     option.initFrom(this);
+    option.buttonSymbols = m_buttonSymbols;
     return style()->sizeFromContents(QStyle::CT_SpinBox, &option, QSize(width, fm.height()), this);
 }
 
@@ -335,6 +369,7 @@ void QAbstractSpinBox::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
     QStyleOptionSpinBox option;
     option.initFrom(this);
+    option.buttonSymbols = m_buttonSymbols;
     if (m_edit->hasFocus())
         option.state |= QStyle::State_HasFocus;
     const StepEnabled steps = stepEnabled();
@@ -363,6 +398,7 @@ void QAbstractSpinBox::mousePressEvent(QMouseEvent *event) {
     }
     QStyleOptionSpinBox option;
     option.initFrom(this);
+    option.buttonSymbols = m_buttonSymbols;
     m_edit->setFocus();
     const StepEnabled steps = stepEnabled();
     if (style()->subElementRect(QStyle::SE_SpinBoxUp, &option, this).contains(event->pos())) {

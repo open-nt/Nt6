@@ -1,5 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qabstractbutton.h>
+
+#include <QtGui/qaction.h>
 #include <QtWidgets/qstyle.h>
 
 #include <QtCore/qpointer.h>
@@ -21,7 +23,8 @@
     \endcode
 
     \differences
-    There are no shortcuts (\c setShortcut()), auto-repeat or \c animateClick().
+    There is no auto-repeat, and animateClick() clicks at once. The mnemonic of the text is the shortcut with Alt,
+    as in Qt.
     \enddifferences
 
     \sa QPushButton, QCheckBox
@@ -57,6 +60,8 @@ void QAbstractButton::setText(const QString &text) {
     if (m_text == text)
         return;
     m_text = text;
+    if (!m_shortcutSet)
+        updateShortcut(QKeySequence::mnemonic(text));
     updateGeometry();
     update();
 }
@@ -259,6 +264,47 @@ void QAbstractButton::activate() {
         setChecked(!m_checked);
     emitClicked();
 }
+
+/*!
+    \since 6.0
+
+    Returns the shortcut of the button: the one setShortcut() set, or Alt and the mnemonic of the text.
+*/
+QKeySequence QAbstractButton::shortcut() const {
+    return m_shortcutAction ? m_shortcutAction->shortcut() : QKeySequence();
+}
+
+/*!
+    \since 6.0
+
+    Sets the shortcut that clicks the button to \a key. It works anywhere in the window of the button, while the
+    button is visible and enabled.
+*/
+void QAbstractButton::setShortcut(const QKeySequence &key) {
+    m_shortcutSet = true;
+    updateShortcut(key);
+}
+
+void QAbstractButton::updateShortcut(const QKeySequence &key) {
+    if (!m_shortcutAction) {
+        if (key.isEmpty())
+            return;
+        m_shortcutAction = new QAction(this);
+        QObject::connect(m_shortcutAction, &QAction::triggered, this, [this] {
+            if (isEnabled() && isVisible())
+                click();
+        });
+        addAction(m_shortcutAction);
+    }
+    m_shortcutAction->setShortcut(key);
+}
+
+/*!
+    \since 6.0
+
+    Clicks the button, as click() does. Nt does not show the button pressed for a moment first.
+*/
+void QAbstractButton::animateClick() { click(); }
 
 /*!
     Clicks the button as if the user did: it is pressed and released, so pressed(), released() and clicked() are emitted, and

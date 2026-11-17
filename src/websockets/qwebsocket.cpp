@@ -173,6 +173,7 @@ void QWebSocketPrivate::attach(QAbstractSocket *s) {
         error = e;
         errorString = socket ? socket->errorString() : QString();
         q->errorOccurred(e);
+        emit q->error(e);
         if (!m_tcpConnected) {
             // The connection was never made, so there is no disconnected() from the socket.
             setState(QAbstractSocket::UnconnectedState);
@@ -203,6 +204,7 @@ void QWebSocketPrivate::fail(QAbstractSocket::SocketError e, const QString &mess
     m_failed = true;
     QPointer<QWebSocket> guard(q);
     q->errorOccurred(e);
+    emit q->error(e);
     if (!guard)
         return;
     if (socket)
@@ -241,6 +243,7 @@ void QWebSocketPrivate::open(const QNetworkRequest &req, const QWebSocketHandsha
         error = QAbstractSocket::UnsupportedSocketOperationError;
         errorString = QStringLiteral("Invalid WebSocket URL: %1").arg(url.toString());
         q->errorOccurred(error);
+        emit q->error(error);
         return;
     }
     const auto port = static_cast<quint16>(url.port(defaultPort(scheme)));
@@ -260,6 +263,7 @@ void QWebSocketPrivate::open(const QNetworkRequest &req, const QWebSocketHandsha
         error = QAbstractSocket::SslInternalError;
         errorString = QStringLiteral("wss: is not supported: Nt was built without TLS");
         q->errorOccurred(error);
+        emit q->error(error);
         return;
 #endif
     } else {

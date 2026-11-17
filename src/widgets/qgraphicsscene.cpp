@@ -759,9 +759,38 @@ QPainterPath QGraphicsScene::selectionArea() const { return QPainterPath(); }
     compatibility.
 */
 void QGraphicsScene::setSelectionArea(const QPainterPath &path, const QTransform &deviceTransform) {
-    const QList<QGraphicsItem *> inside = items(path, Qt::IntersectsItemShape, Qt::DescendingOrder, deviceTransform);
-    for (QGraphicsItem *item : d->paintOrder())
-        item->setSelected(inside.contains(item));
+    setSelectionArea(path, Qt::ReplaceSelection, Qt::IntersectsItemShape, deviceTransform);
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Selects the items in \a path as \a mode says, and deselects the others; \a deviceTransform is the transform of
+    the view, for items that ignore transformations.
+*/
+void QGraphicsScene::setSelectionArea(const QPainterPath &path, Qt::ItemSelectionMode mode,
+                                      const QTransform &deviceTransform) {
+    setSelectionArea(path, Qt::ReplaceSelection, mode, deviceTransform);
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Selects the items in \a path as \a mode says. With Qt::ReplaceSelection for \a selectionOperation the other items
+    are deselected; with Qt::AddToSelection they keep their selection. \a deviceTransform is the transform of the
+    view.
+*/
+void QGraphicsScene::setSelectionArea(const QPainterPath &path, Qt::ItemSelectionOperation selectionOperation,
+                                      Qt::ItemSelectionMode mode, const QTransform &deviceTransform) {
+    const QList<QGraphicsItem *> inside = items(path, mode, Qt::DescendingOrder, deviceTransform);
+    for (QGraphicsItem *item : d->paintOrder()) {
+        if (inside.contains(item))
+            item->setSelected(true);
+        else if (selectionOperation == Qt::ReplaceSelection)
+            item->setSelected(false);
+    }
 }
 
 /*!

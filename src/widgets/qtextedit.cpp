@@ -136,6 +136,19 @@ QString QTextEdit::toMarkdown(QTextDocument::MarkdownFeatures features) const {
     return document()->toMarkdown(features);
 }
 
+/*!
+    \since 6.0
+
+    Inserts the HTML \a text at the cursor, in place of the selection, with its formats; the cursor is after it.
+
+    \sa QTextCursor::insertHtml()
+*/
+void QTextEdit::insertHtml(const QString &text) {
+    QTextCursor cursor = textCursor();
+    cursor.insertHtml(text);
+    setTextCursor(cursor);
+}
+
 // Shows the document as it is now.
 void QTextEdit::adoptDocument() {
     m_adopting = true;

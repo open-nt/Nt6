@@ -15,6 +15,7 @@
 #include "qguiapplication.h"
 #include "qicon.h"
 #include "qimage.h"
+#include "qinputmethod.h"
 #include "qimagereader.h"
 #include "qkeysequence.h"
 #include "qmatrix4x4.h"

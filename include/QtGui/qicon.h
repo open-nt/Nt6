@@ -13,8 +13,11 @@
 
 class QPainter;
 
+class QVariant;
+
 class QIcon {
 public:
+    operator QVariant() const;
     enum Mode { Normal, Disabled, Active, Selected };
     enum State { On, Off };
 

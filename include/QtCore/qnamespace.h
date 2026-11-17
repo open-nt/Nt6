@@ -372,6 +372,42 @@ enum Modifier {
     \value Key_F33 The F33 key.
     \value Key_F34 The F34 key.
     \value Key_F35 The F35 key.
+    \value Key_Exclam The ! key.
+    \value Key_QuoteDbl The " key.
+    \value Key_NumberSign The # key.
+    \value Key_Dollar The $ key.
+    \value Key_Percent The % key.
+    \value Key_Ampersand The & key.
+    \value Key_Apostrophe The ' key.
+    \value Key_ParenLeft The ( key.
+    \value Key_ParenRight The ) key.
+    \value Key_Asterisk The * key.
+    \value Key_Colon The : key.
+    \value Key_Semicolon The ; key.
+    \value Key_Less The < key.
+    \value Key_Greater The > key.
+    \value Key_Question The ? key.
+    \value Key_At The @ key.
+    \value Key_BracketLeft The [ key.
+    \value Key_Backslash The backslash key.
+    \value Key_BracketRight The ] key.
+    \value Key_AsciiCircum The ^ key.
+    \value Key_Underscore The _ key.
+    \value Key_QuoteLeft The ` key.
+    \value Key_BraceLeft The { key.
+    \value Key_Bar The | key.
+    \value Key_BraceRight The } key.
+    \value Key_AsciiTilde The ~ key.
+    \value Key_Super_L The left Super (Windows) key.
+    \value Key_Super_R The right Super (Windows) key.
+    \value Key_Hyper_L The left Hyper key.
+    \value Key_Hyper_R The right Hyper key.
+    \value Key_Help The Help key.
+    \value Key_Direction_L The left direction key.
+    \value Key_Direction_R The right direction key.
+    \value Key_SysReq The SysRq key.
+    \value Key_Clear The Clear key.
+    \value Key_AltGr The AltGr key.
     \value Key_Space The space bar.
     \value Key_0 The 0 key.
     \value Key_1 The 1 key.
@@ -483,6 +519,42 @@ enum Key {
     Key_Menu = 0x01000055,
     Key_Back = 0x01000061,
     Key_Space = 0x20,
+    Key_Exclam = 0x21,
+    Key_QuoteDbl = 0x22,
+    Key_NumberSign = 0x23,
+    Key_Dollar = 0x24,
+    Key_Percent = 0x25,
+    Key_Ampersand = 0x26,
+    Key_Apostrophe = 0x27,
+    Key_ParenLeft = 0x28,
+    Key_ParenRight = 0x29,
+    Key_Asterisk = 0x2a,
+    Key_Colon = 0x3a,
+    Key_Semicolon = 0x3b,
+    Key_Less = 0x3c,
+    Key_Greater = 0x3e,
+    Key_Question = 0x3f,
+    Key_At = 0x40,
+    Key_BracketLeft = 0x5b,
+    Key_Backslash = 0x5c,
+    Key_BracketRight = 0x5d,
+    Key_AsciiCircum = 0x5e,
+    Key_Underscore = 0x5f,
+    Key_QuoteLeft = 0x60,
+    Key_BraceLeft = 0x7b,
+    Key_Bar = 0x7c,
+    Key_BraceRight = 0x7d,
+    Key_AsciiTilde = 0x7e,
+    Key_Super_L = 0x1000053,
+    Key_Super_R = 0x1000054,
+    Key_Hyper_L = 0x1000056,
+    Key_Hyper_R = 0x1000057,
+    Key_Help = 0x1000058,
+    Key_Direction_L = 0x1000059,
+    Key_Direction_R = 0x1000060,
+    Key_SysReq = 0x1000028,
+    Key_Clear = 0x100000b,
+    Key_AltGr = 0x1001103,
     Key_Plus = 0x2b,
     Key_Comma = 0x2c,
     Key_Minus = 0x2d,
@@ -781,6 +853,129 @@ enum FocusReason {
     \value PreventContextMenu The widget has none, and the request goes no further.
 */
 enum ContextMenuPolicy { NoContextMenu, DefaultContextMenu, ActionsContextMenu, CustomContextMenu, PreventContextMenu };
+
+/*!
+    \enum Qt::ItemSelectionOperation
+    \since 6.0
+
+    How a selection changes the one there is.
+
+    \value ReplaceSelection It takes the place of the selection.
+    \value AddToSelection It is added to the selection.
+*/
+enum ItemSelectionOperation { ReplaceSelection, AddToSelection };
+
+/*!
+    \enum Qt::InputMethodHint
+    \since 6.0
+
+    Hints to an input method, such as an on-screen keyboard, about the text a widget takes. Nt has no input methods
+    and keeps the hints for the application.
+
+    \value ImhNone No hints.
+    \value ImhHiddenText The characters are hidden, as in a password field.
+    \value ImhSensitiveData The text is not to be stored or learnt.
+    \value ImhNoAutoUppercase No upper case at the start of a sentence.
+    \value ImhPreferNumbers Numbers are preferred.
+    \value ImhPreferUppercase Upper case is preferred.
+    \value ImhPreferLowercase Lower case is preferred.
+    \value ImhNoPredictiveText No predicted words.
+    \value ImhDate A date.
+    \value ImhTime A time.
+    \value ImhPreferLatin Latin characters are preferred.
+    \value ImhMultiLine Several lines.
+    \value ImhNoEditMenu No edit menu.
+    \value ImhNoTextHandles No text handles.
+    \value ImhDigitsOnly Only digits.
+    \value ImhFormattedNumbersOnly Only numbers, with a sign and a decimal point.
+    \value ImhUppercaseOnly Only upper case.
+    \value ImhLowercaseOnly Only lower case.
+    \value ImhDialableCharactersOnly Only characters of a telephone number.
+    \value ImhEmailCharactersOnly Only characters of an e-mail address.
+    \value ImhUrlCharactersOnly Only characters of a URL.
+    \value ImhLatinOnly Only Latin characters.
+    \value ImhExclusiveInputMask The mask of the hints that allow only some characters.
+*/
+enum InputMethodHint {
+    ImhNone = 0x0,
+    ImhHiddenText = 0x1,
+    ImhSensitiveData = 0x2,
+    ImhNoAutoUppercase = 0x4,
+    ImhPreferNumbers = 0x8,
+    ImhPreferUppercase = 0x10,
+    ImhPreferLowercase = 0x20,
+    ImhNoPredictiveText = 0x40,
+    ImhDate = 0x80,
+    ImhTime = 0x100,
+    ImhPreferLatin = 0x200,
+    ImhMultiLine = 0x400,
+    ImhNoEditMenu = 0x800,
+    ImhNoTextHandles = 0x1000,
+    ImhDigitsOnly = 0x10000,
+    ImhFormattedNumbersOnly = 0x20000,
+    ImhUppercaseOnly = 0x40000,
+    ImhLowercaseOnly = 0x80000,
+    ImhDialableCharactersOnly = 0x100000,
+    ImhEmailCharactersOnly = 0x200000,
+    ImhUrlCharactersOnly = 0x400000,
+    ImhLatinOnly = 0x800000,
+    ImhExclusiveInputMask = static_cast<int>(0xffff0000)
+};
+Q_DECLARE_FLAGS(InputMethodHints, InputMethodHint)
+Q_DECLARE_OPERATORS_FOR_FLAGS(InputMethodHints)
+
+/*!
+    \enum Qt::InputMethodQuery
+    \since 6.0
+
+    What an input method asks a widget about. Nt has no input methods.
+
+    \value ImEnabled Whether the widget takes input from an input method.
+    \value ImCursorRectangle The rectangle of the cursor.
+    \value ImFont The font of the text.
+    \value ImCursorPosition The position of the cursor in the surrounding text.
+    \value ImSurroundingText The text around the cursor.
+    \value ImCurrentSelection The selected text.
+    \value ImMaximumTextLength The longest text the widget takes.
+    \value ImAnchorPosition The position of the anchor of the selection.
+    \value ImHints The Qt::InputMethodHints of the widget.
+    \value ImPreferredLanguage The language the widget prefers.
+    \value ImAbsolutePosition The position of the cursor in the whole text.
+    \value ImTextBeforeCursor The text before the cursor.
+    \value ImTextAfterCursor The text after the cursor.
+    \value ImEnterKeyType The kind of the Enter key.
+    \value ImAnchorRectangle The rectangle of the anchor.
+    \value ImInputItemClipRectangle The visible part of the widget.
+    \value ImReadOnly Whether the text is read-only.
+    \value ImQueryInput The queries of typing.
+    \value ImQueryAll All queries.
+    \omitvalue ImPlatformData
+*/
+enum InputMethodQuery : unsigned {
+    ImEnabled = 0x1,
+    ImCursorRectangle = 0x2,
+    ImFont = 0x4,
+    ImCursorPosition = 0x8,
+    ImSurroundingText = 0x10,
+    ImCurrentSelection = 0x20,
+    ImMaximumTextLength = 0x40,
+    ImAnchorPosition = 0x80,
+    ImHints = 0x100,
+    ImPreferredLanguage = 0x200,
+    ImAbsolutePosition = 0x400,
+    ImTextBeforeCursor = 0x800,
+    ImTextAfterCursor = 0x1000,
+    ImEnterKeyType = 0x2000,
+    ImAnchorRectangle = 0x4000,
+    ImInputItemClipRectangle = 0x8000,
+    ImReadOnly = 0x10000,
+    ImPlatformData = 0x80000000,
+    ImQueryInput = ImCursorRectangle | ImCursorPosition | ImSurroundingText | ImCurrentSelection | ImAnchorRectangle |
+                   ImAnchorPosition,
+    ImQueryAll = 0xffffffff
+};
+Q_DECLARE_FLAGS(InputMethodQueries, InputMethodQuery)
+Q_DECLARE_OPERATORS_FOR_FLAGS(InputMethodQueries)
 
 /*!
     \enum Qt::SizeHint

@@ -31,6 +31,8 @@ public:
     void setSpacing(int spacing);
     SizeConstraint sizeConstraint() const;
     void setSizeConstraint(SizeConstraint constraint);
+    QWidget *menuBar() const;
+    void setMenuBar(QWidget *widget);
     void setContentsMargins(int left, int top, int right, int bottom);
     void setContentsMargins(const QMargins &margins);
     QMargins contentsMargins() const;

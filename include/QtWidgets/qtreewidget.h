@@ -180,6 +180,9 @@ public:
     QTreeWidgetItem *itemBelow(const QTreeWidgetItem *item) const;
 
     QModelIndex indexFromItem(const QTreeWidgetItem *item, int column = 0) const;
+    QWidget *itemWidget(QTreeWidgetItem *item, int column) const;
+    void setItemWidget(QTreeWidgetItem *item, int column, QWidget *widget);
+    void removeItemWidget(QTreeWidgetItem *item, int column) { setItemWidget(item, column, nullptr); }
     QTreeWidgetItem *itemFromIndex(const QModelIndex &index) const;
 
     void setSelectionModel(QItemSelectionModel *selectionModel) override;
@@ -251,3 +254,62 @@ private:
     QTreeWidgetItem *m_root;       // the parent of the top-level items; it has the column count
     QTreeWidgetItem *m_headerItem; // its texts are the header labels
 };
+
+class QTreeWidgetItemIterator {
+public:
+    enum IteratorFlag {
+        All = 0x00000000,
+        Hidden = 0x00000001,
+        NotHidden = 0x00000002,
+        Selected = 0x00000004,
+        Unselected = 0x00000008,
+        Selectable = 0x00000010,
+        NotSelectable = 0x00000020,
+        DragEnabled = 0x00000040,
+        DragDisabled = 0x00000080,
+        DropEnabled = 0x00000100,
+        DropDisabled = 0x00000200,
+        HasChildren = 0x00000400,
+        NoChildren = 0x00000800,
+        Checked = 0x00001000,
+        NotChecked = 0x00002000,
+        Enabled = 0x00004000,
+        Disabled = 0x00008000,
+        Editable = 0x00010000,
+        NotEditable = 0x00020000,
+        UserFlag = 0x01000000
+    };
+    Q_DECLARE_FLAGS(IteratorFlags, IteratorFlag)
+
+    explicit QTreeWidgetItemIterator(QTreeWidget *widget, IteratorFlags flags = All);
+    explicit QTreeWidgetItemIterator(QTreeWidgetItem *item, IteratorFlags flags = All);
+    QTreeWidgetItemIterator(const QTreeWidgetItemIterator &it) = default;
+    QTreeWidgetItemIterator &operator=(const QTreeWidgetItemIterator &it) = default;
+    ~QTreeWidgetItemIterator() = default;
+
+    QTreeWidgetItem *operator*() const { return m_current; }
+    QTreeWidgetItemIterator &operator++();
+    QTreeWidgetItemIterator operator++(int) {
+        QTreeWidgetItemIterator old = *this;
+        ++*this;
+        return old;
+    }
+    QTreeWidgetItemIterator &operator--();
+    QTreeWidgetItemIterator operator--(int) {
+        QTreeWidgetItemIterator old = *this;
+        --*this;
+        return old;
+    }
+    QTreeWidgetItemIterator &operator+=(int n);
+    QTreeWidgetItemIterator &operator-=(int n);
+
+private:
+    bool matches(const QTreeWidgetItem *item) const;
+    QTreeWidgetItem *next(QTreeWidgetItem *item) const;     // in depth-first order, any item
+    QTreeWidgetItem *previous(QTreeWidgetItem *item) const; // likewise, backwards
+
+    QTreeWidget *m_widget = nullptr;
+    QTreeWidgetItem *m_current = nullptr;
+    IteratorFlags m_flags;
+};
+Q_DECLARE_OPERATORS_FOR_FLAGS(QTreeWidgetItemIterator::IteratorFlags)

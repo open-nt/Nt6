@@ -1,5 +1,7 @@
 // MIT License - see LICENSE
 #include <QtGui/qpixmap.h>
+
+#include <QtCore/qvariant.h>
 #include <QtGui/qpaintengine.h>
 
 #include <QtCore/qiodevice.h>
@@ -297,3 +299,19 @@ QPaintDevice *QPixmap::redirected(QPoint *offset) const {
     m_image.detach();
     return &m_image;
 }
+
+/*!
+    \fn QPixmap QPixmap::copy(int x, int y, int width, int height) const
+    \overload
+    \since 6.0
+
+    Returns a copy of the rectangle at \a x, \a y of \a width by \a height.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the pixmap as a QVariant, so that it can be given where a QVariant is taken, as in
+    \c{item->setData(Qt::UserRole, value)}.
+*/
+QPixmap::operator QVariant() const { return QVariant::fromValue(*this); }

@@ -130,6 +130,26 @@ int keyFromName(const QString &name) {
     \value FullScreen Switch to full screen: F11.
     \value NextChild Go to the next tab or window: Ctrl+Tab.
     \value PreviousChild Go to the previous tab or window: Ctrl+Shift+Backtab.
+    \value Preferences Open the preferences: Ctrl+Comma.
+    \value Bold Bold text: Ctrl+B.
+    \value Italic Italic text: Ctrl+I.
+    \value Underline Underlined text: Ctrl+U.
+    \value MoveToNextWord Move to the next word: Ctrl+Right.
+    \value MoveToPreviousWord Move to the previous word: Ctrl+Left.
+    \value MoveToStartOfLine Move to the start of the line: Home.
+    \value MoveToEndOfLine Move to the end of the line: End.
+    \value MoveToStartOfDocument Move to the start of the document: Ctrl+Home.
+    \value MoveToEndOfDocument Move to the end of the document: Ctrl+End.
+    \value SelectNextWord Select to the next word: Ctrl+Shift+Right.
+    \value SelectPreviousWord Select to the previous word: Ctrl+Shift+Left.
+    \value DeleteStartOfWord Delete to the start of the word: Ctrl+Backspace.
+    \value DeleteEndOfWord Delete to the end of the word: Ctrl+Delete.
+    \value InsertParagraphSeparator Start a new paragraph: Return.
+    \value InsertLineSeparator Start a new line: Shift+Return.
+    \value AddTab Open a new tab: Ctrl+T.
+    \value Deselect Clear the selection: Ctrl+Shift+A.
+    \value DeleteCompleteLine Delete the line; Nt binds no key to it.
+    \value Backspace Delete the character before the cursor: Backspace.
 */
 
 /*!
@@ -348,6 +368,65 @@ QList<QKeySequence> QKeySequence::keyBindings(StandardKey key) {
         break;
     case PreviousChild:
         code = with(Ctrl | Shift, Qt::Key_Backtab);
+        break;
+    case Preferences:
+        code = with(Ctrl, Qt::Key_Comma);
+        break;
+    case Bold:
+        code = with(Ctrl, Qt::Key_B);
+        break;
+    case Italic:
+        code = with(Ctrl, Qt::Key_I);
+        break;
+    case Underline:
+        code = with(Ctrl, Qt::Key_U);
+        break;
+    case MoveToNextWord:
+        code = with(Ctrl, Qt::Key_Right);
+        break;
+    case MoveToPreviousWord:
+        code = with(Ctrl, Qt::Key_Left);
+        break;
+    case MoveToStartOfLine:
+        code = Qt::Key_Home;
+        break;
+    case MoveToEndOfLine:
+        code = Qt::Key_End;
+        break;
+    case MoveToStartOfDocument:
+        code = with(Ctrl, Qt::Key_Home);
+        break;
+    case MoveToEndOfDocument:
+        code = with(Ctrl, Qt::Key_End);
+        break;
+    case SelectNextWord:
+        code = with(Ctrl | Shift, Qt::Key_Right);
+        break;
+    case SelectPreviousWord:
+        code = with(Ctrl | Shift, Qt::Key_Left);
+        break;
+    case DeleteStartOfWord:
+        code = with(Ctrl, Qt::Key_Backspace);
+        break;
+    case DeleteEndOfWord:
+        code = with(Ctrl, Qt::Key_Delete);
+        break;
+    case InsertParagraphSeparator:
+        code = Qt::Key_Return;
+        break;
+    case InsertLineSeparator:
+        code = with(Shift, Qt::Key_Return);
+        break;
+    case AddTab:
+        code = with(Ctrl, Qt::Key_T);
+        break;
+    case Deselect:
+        code = with(Ctrl | Shift, Qt::Key_A);
+        break;
+    case DeleteCompleteLine:
+        break;
+    case Backspace:
+        code = Qt::Key_Backspace;
         break;
     case UnknownKey:
         break;

@@ -1,6 +1,9 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qheaderview.h>
 
+#include <QtCore/qdatastream.h>
+#include <QtCore/qiodevice.h>
+
 #include <QtWidgets/qtooltip.h>
 
 #include <QtGui/qevent.h>
@@ -77,7 +80,8 @@ int QHeaderView::storedSize(int logicalIndex) const { return m_sizes[static_cast
 
 // The last section that is not hidden, which is the one that stretchLastSection() stretches; -1 if there is none.
 int QHeaderView::lastVisible() const {
-    for (int i = count() - 1; i >= 0; --i) {
+    for (int v = count() - 1; v >= 0; --v) {
+        const int i = logicalIndex(v);
         if (!m_hidden[static_cast<std::size_t>(i)])
             return i;
     }
@@ -112,14 +116,13 @@ int QHeaderView::sectionSize(int logicalIndex) const {
 */
 int QHeaderView::sectionPosition(int logicalIndex) const {
     int position = 0;
-    if (stretchSectionCount() > 0) {
-        const std::vector<int> sizes = effectiveSizes();
-        for (int i = 0; i < std::min(logicalIndex, count()); ++i)
+    const int visual = logicalIndex >= 0 && logicalIndex < count() ? visualIndex(logicalIndex) : count();
+    const std::vector<int> sizes = stretchSectionCount() > 0 ? effectiveSizes() : std::vector<int>();
+    for (int v = 0; v < visual; ++v) {
+        const int i = this->logicalIndex(v);
+        if (!sizes.empty())
             position += sizes[static_cast<std::size_t>(i)];
-        return position;
-    }
-    for (int i = 0; i < std::min(logicalIndex, count()); ++i) {
-        if (!m_hidden[static_cast<std::size_t>(i)])
+        else if (!m_hidden[static_cast<std::size_t>(i)])
             position += storedSize(i);
     }
     return position;
@@ -145,13 +148,152 @@ int QHeaderView::length() const {
 */
 int QHeaderView::logicalIndexAt(int position) const {
     int start = -m_offset;
-    for (int i = 0; i < count(); ++i) {
+    for (int v = 0; v < count(); ++v) {
+        const int i = logicalIndex(v);
         const int end = start + sectionSize(i);
         if (position >= start && position < end)
             return i;
         start = end;
     }
     return -1;
+}
+
+/*!
+    \since 6.0
+
+    Returns the section at the visual index \a visualIndex: the one shown at that place, counted from the start of
+    the header. It is -1 if there is none.
+
+    \sa visualIndex(), moveSection()
+*/
+int QHeaderView::logicalIndex(int visualIndex) const {
+    if (visualIndex < 0 || visualIndex >= static_cast<int>(m_order.size()))
+        return -1;
+    return m_order[static_cast<std::size_t>(visualIndex)];
+}
+
+/*!
+    \since 6.0
+
+    Returns the place where the section \a logicalIndex is shown, or -1 if there is no such section. It is the same
+    as \a logicalIndex until sections are moved.
+
+    \sa logicalIndex()
+*/
+int QHeaderView::visualIndex(int logicalIndex) const {
+    const auto it = std::find(m_order.begin(), m_order.end(), logicalIndex);
+    return it == m_order.end() ? -1 : static_cast<int>(it - m_order.begin());
+}
+
+/*!
+    \since 6.0
+
+    Moves the section at the visual index \a from to the visual index \a to, and emits sectionMoved(). The sections
+    keep their logical indexes, so the data of a view does not change; only where it is shown.
+
+    \sa setSectionsMovable()
+*/
+void QHeaderView::moveSection(int from, int to) {
+    const int n = count();
+    if (from < 0 || to < 0 || from >= n || to >= n || from == to)
+        return;
+    const int section = m_order[static_cast<std::size_t>(from)];
+    m_order.erase(m_order.begin() + from);
+    m_order.insert(m_order.begin() + to, section);
+    update();
+    emit sectionMoved(section, from, to);
+    emit sectionResized(section, storedSize(section), storedSize(section)); // the views lay out again
+}
+
+/*!
+    \fn bool QHeaderView::sectionsMovable() const
+    \since 6.0
+
+    Returns \c true if the user can drag the sections to other places; \c false by default.
+*/
+
+/*!
+    \fn void QHeaderView::setSectionsMovable(bool movable)
+    \since 6.0
+
+    Sets whether the user can drag the sections to other places to \a movable.
+*/
+
+/*!
+    \since 6.0
+
+    Returns \c true if a section is shown somewhere else than at its logical index.
+*/
+bool QHeaderView::sectionsMoved() const {
+    for (std::size_t v = 0; v < m_order.size(); ++v)
+        if (m_order[v] != static_cast<int>(v))
+            return true;
+    return false;
+}
+
+/*!
+    \since 6.0
+
+    Returns the order, the sizes, the hidden sections and the sort indicator of the header, for restoreState() to
+    bring back, such as in a later run of the program from QSettings.
+*/
+QByteArray QHeaderView::saveState() const {
+    QByteArray state;
+    QDataStream out(&state, QIODevice::WriteOnly);
+    out << quint32(0x4e744856) << quint32(1) << qint32(m_orientation) << qint32(count());
+    for (int i = 0; i < count(); ++i)
+        out << qint32(m_order[static_cast<std::size_t>(i)]) << qint32(m_sizes[static_cast<std::size_t>(i)])
+            << qint8(m_hidden[static_cast<std::size_t>(i)]) << qint8(m_modes[static_cast<std::size_t>(i)]);
+    out << qint32(m_sortSection) << qint32(m_sortOrder) << m_stretchLast << m_movable;
+    return state;
+}
+
+/*!
+    \since 6.0
+
+    Brings back the state that saveState() returned, \a state. Returns \c false, and changes nothing, if \a state is
+    not one of a header of the same orientation and number of sections.
+*/
+bool QHeaderView::restoreState(const QByteArray &state) {
+    QDataStream in(state);
+    quint32 magic = 0, version = 0;
+    qint32 orientation = 0, n = 0;
+    in >> magic >> version >> orientation >> n;
+    if (magic != 0x4e744856 || version != 1 || orientation != qint32(m_orientation) || n != count())
+        return false;
+    std::vector<int> order, sizes;
+    std::vector<char> hidden, modes;
+    for (int i = 0; i < n; ++i) {
+        qint32 logical = 0, size = 0;
+        qint8 hide = 0, mode = 0;
+        in >> logical >> size >> hide >> mode;
+        order.push_back(logical);
+        sizes.push_back(size);
+        hidden.push_back(static_cast<char>(hide));
+        modes.push_back(static_cast<char>(mode));
+    }
+    qint32 sortSection = -1, sortOrder = 0;
+    bool stretchLast = false, movable = false;
+    in >> sortSection >> sortOrder >> stretchLast >> movable;
+    std::vector<int> check = order;
+    std::sort(check.begin(), check.end());
+    for (int i = 0; i < n; ++i)
+        if (check[static_cast<std::size_t>(i)] != i)
+            return false;
+    if (in.status() != QDataStream::Ok)
+        return false;
+    m_order = order;
+    m_sizes = sizes;
+    m_hidden = hidden;
+    m_modes = modes;
+    m_stretchLast = stretchLast;
+    m_movable = movable;
+    setSortIndicator(sortSection, static_cast<Qt::SortOrder>(sortOrder));
+    updateGeometry();
+    update();
+    if (n > 0)
+        emit sectionResized(0, storedSize(0), storedSize(0)); // the views lay out again
+    return true;
 }
 
 /*!
@@ -417,6 +559,10 @@ std::vector<int> QHeaderView::contentsSections() const {
 
 void QHeaderView::setCount(int newCount) {
     newCount = std::max(0, newCount);
+    m_order.erase(std::remove_if(m_order.begin(), m_order.end(), [newCount](int i) { return i >= newCount; }),
+                  m_order.end());
+    for (int i = count(); i < newCount; ++i)
+        m_order.push_back(i);
     m_sizes.resize(static_cast<std::size_t>(newCount), m_defaultSize);
     m_hidden.resize(static_cast<std::size_t>(newCount), 0);
     m_modes.resize(static_cast<std::size_t>(newCount), static_cast<char>(m_defaultMode));
@@ -426,6 +572,13 @@ void QHeaderView::setCount(int newCount) {
 
 void QHeaderView::insertSections(int logicalIndex, int number) {
     logicalIndex = std::clamp(logicalIndex, 0, count());
+    // The new sections go where the section they are inserted before is shown, or at the end.
+    const int at = logicalIndex < count() ? visualIndex(logicalIndex) : count();
+    for (int &i : m_order)
+        if (i >= logicalIndex)
+            i += number;
+    for (int k = 0; k < number; ++k)
+        m_order.insert(m_order.begin() + at + k, logicalIndex + k);
     m_sizes.insert(m_sizes.begin() + logicalIndex, static_cast<std::size_t>(number), m_defaultSize);
     m_hidden.insert(m_hidden.begin() + logicalIndex, static_cast<std::size_t>(number), 0);
     m_modes.insert(m_modes.begin() + logicalIndex, static_cast<std::size_t>(number), static_cast<char>(m_defaultMode));
@@ -438,6 +591,12 @@ void QHeaderView::insertSections(int logicalIndex, int number) {
 void QHeaderView::removeSections(int logicalIndex, int number) {
     logicalIndex = std::clamp(logicalIndex, 0, count());
     number = std::min(number, count() - logicalIndex);
+    m_order.erase(std::remove_if(m_order.begin(), m_order.end(),
+                                 [&](int i) { return i >= logicalIndex && i < logicalIndex + number; }),
+                  m_order.end());
+    for (int &i : m_order)
+        if (i >= logicalIndex + number)
+            i -= number;
     m_sizes.erase(m_sizes.begin() + logicalIndex, m_sizes.begin() + logicalIndex + number);
     m_hidden.erase(m_hidden.begin() + logicalIndex, m_hidden.begin() + logicalIndex + number);
     m_modes.erase(m_modes.begin() + logicalIndex, m_modes.begin() + logicalIndex + number);
@@ -480,7 +639,8 @@ int QHeaderView::edgeAt(const QPoint &pos) const {
     const int along = horizontal ? pos.x() : pos.y();
     int end = -m_offset;
     const int last = lastVisible();
-    for (int i = 0; i < count(); ++i) {
+    for (int v = 0; v < count(); ++v) {
+        const int i = logicalIndex(v);
         if (isSectionHidden(i))
             continue;
         end += sectionSize(i);
@@ -505,7 +665,8 @@ void QHeaderView::paintEvent(QPaintEvent *event) {
     option.initFrom(this);
     option.orientation = m_orientation;
     int start = -m_offset;
-    for (int i = 0; i < count() && start < extent; ++i) {
+    for (int v = 0; v < count() && start < extent; ++v) {
+        const int i = logicalIndex(v);
         const int size = sectionSize(i);
         if (size > 0 && start + size > 0) {
             option.rect = horizontal ? QRect(start, 0, size, height()) : QRect(0, start, width(), size);
@@ -545,8 +706,10 @@ void QHeaderView::mousePressEvent(QMouseEvent *event) {
         m_resizing = edge;
         m_resizeStart = m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y();
         m_resizeOriginal = storedSize(edge);
-    } else if (m_clickable) {
-        m_pressed = logicalIndexAt(m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y());
+    } else if (m_clickable || m_movable) {
+        m_pressPosition = m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y();
+        m_pressed = logicalIndexAt(m_pressPosition);
+        m_moving = false;
         update();
     }
     event->accept();
@@ -556,6 +719,14 @@ void QHeaderView::mousePressEvent(QMouseEvent *event) {
     \reimp
 */
 void QHeaderView::mouseMoveEvent(QMouseEvent *event) {
+    const int at = m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y();
+    if (m_resizing < 0 && m_movable && m_pressed >= 0 && (event->buttons() & Qt::LeftButton)) {
+        // A pressed section that is dragged far enough is moved where it is released.
+        if (std::abs(at - m_pressPosition) > 4)
+            m_moving = true;
+        event->accept();
+        return;
+    }
     if (m_resizing < 0) {
         event->ignore();
         return;
@@ -574,10 +745,20 @@ void QHeaderView::mouseReleaseEvent(QMouseEvent *event) {
         return;
     }
     const int pressed = m_pressed;
+    const bool moving = m_moving;
     m_pressed = -1;
     m_resizing = -1;
+    m_moving = false;
     update();
-    if (pressed >= 0 &&
+    if (moving && pressed >= 0) {
+        const int at = m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y();
+        const int target = logicalIndexAt(at);
+        const int to = target >= 0 ? visualIndex(target) : (at < 0 ? 0 : count() - 1);
+        moveSection(visualIndex(pressed), to);
+        event->accept();
+        return;
+    }
+    if (pressed >= 0 && m_clickable &&
         pressed == logicalIndexAt(m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y())) {
         // A click on the section that is sorted by turns the order round; on another one, sorts by that one.
         if (m_sortShown && m_clickable) {

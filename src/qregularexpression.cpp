@@ -2239,6 +2239,14 @@ QString QRegularExpression::anchoredPattern(QStringView expression) {
     return QString::fromLatin1("\\A(?:") + expression.toString() + QString::fromLatin1(")\\z");
 }
 
+/*!
+    \fn QString QRegularExpression::anchoredPattern(const QString &expression)
+    \overload
+    \since 6.0
+
+    Returns \a expression wrapped so that it only matches a whole string. A QLatin1String converts to the QString.
+*/
+
 bool operator==(const QRegularExpression &a, const QRegularExpression &b) noexcept {
     return a.d == b.d || (a.d->pattern == b.d->pattern && a.d->options == b.d->options);
 }

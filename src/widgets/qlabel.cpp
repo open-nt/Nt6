@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qlabel.h>
 
+#include <QtGui/qaction.h>
+
 #include <QtGui/qcursor.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
@@ -37,8 +39,8 @@
     \image widgets/qlabel.png QLabel in the light color scheme
 
     \differences
-    The label shows plain text, rich text or a pixmap: no movies, Markdown, selection of the text, links
-    reached with the keys, or buddies. It has no frame (it is not a QFrame), \c indent() or \c setBuddy().
+    The label shows plain text, rich text or a pixmap: no movies, Markdown, selection of the text or links
+    reached with the keys. It has no \c indent().
     Of the textInteractionFlags(), only Qt::LinksAccessibleByMouse has an effect. Nothing opens a link for openExternalLinks(): a click emits
     linkActivated() with or without it. Rich text is placed as a whole by the alignment of the label; its
     paragraphs are aligned by their own HTML. A word-wrapped label has no height-for-width, so its size
@@ -51,12 +53,12 @@
 /*!
     Constructs an empty label with the given \a parent.
 */
-QLabel::QLabel(QWidget *parent) : QWidget(parent) {}
+QLabel::QLabel(QWidget *parent) : QFrame(parent) {}
 
 /*!
     Constructs a label that shows \a text, with the given \a parent.
 */
-QLabel::QLabel(const QString &text, QWidget *parent) : QWidget(parent), m_text(text) { updateDocument(); }
+QLabel::QLabel(const QString &text, QWidget *parent) : QFrame(parent), m_text(text) { updateDocument(); }
 
 /*!
     Destroys the label.
@@ -82,8 +84,47 @@ void QLabel::setText(const QString &text) {
     m_text = text;
     m_pixmap = QPixmap();
     updateDocument();
+    updateBuddyShortcut();
     updateGeometry();
     update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the buddy of the label, or \c nullptr.
+*/
+QWidget *QLabel::buddy() const { return m_buddy.data(); }
+
+/*!
+    \since 6.0
+
+    Sets the buddy of the label to \a buddy: Alt and the mnemonic of the text, as in \c{"&Name:"}, give the buddy
+    the focus.
+
+    \code
+    auto *label = new QLabel("&Port:", this);
+    label->setBuddy(portEdit);
+    \endcode
+*/
+void QLabel::setBuddy(QWidget *buddy) {
+    m_buddy = buddy;
+    updateBuddyShortcut();
+}
+
+void QLabel::updateBuddyShortcut() {
+    const QKeySequence key = m_buddy ? QKeySequence::mnemonic(m_text) : QKeySequence();
+    if (!m_buddyAction) {
+        if (key.isEmpty())
+            return;
+        m_buddyAction = new QAction(this);
+        QObject::connect(m_buddyAction, &QAction::triggered, this, [this] {
+            if (m_buddy && m_buddy->isEnabled())
+                m_buddy->setFocus();
+        });
+        addAction(m_buddyAction);
+    }
+    m_buddyAction->setShortcut(key);
 }
 
 /*!
@@ -164,9 +205,21 @@ void QLabel::updateDocument() {
         setMouseTracking(true);
 }
 
+// The rectangle that the text or the pixmap is placed in: inside the frame, the contents margins and the margin.
+QRect QLabel::labelArea() const {
+    return QFrame::contentsRect().marginsRemoved(contentsMargins()).adjusted(m_margin, m_margin, -m_margin, -m_margin);
+}
+
+// The room around the text or the pixmap: twice the margin, and the frame and the contents margins.
+QSize QLabel::labelExtra() const {
+    const QMargins m = contentsMargins();
+    const int frame = 2 * frameWidth() + 2 * m_margin;
+    return QSize(frame + m.left() + m.right(), frame + m.top() + m.bottom());
+}
+
 // Lays the document out for the label as it is, and returns where it is drawn.
 QRect QLabel::documentRect() const {
-    const QRect area = rect().adjusted(m_margin, m_margin, -m_margin, -m_margin);
+    const QRect area = labelArea();
     m_document->setTextWidth(m_wordWrap ? std::max(1, area.width()) : -1);
     const QSizeF size = m_document->size();
     const int w = static_cast<int>(size.width()), h = static_cast<int>(size.height());
@@ -313,14 +366,13 @@ QSize QLabel::textSize(int width) const {
 */
 QSize QLabel::sizeHint() const {
     if (!m_pixmap.isNull())
-        return QSize(m_pixmap.width() + 2 * m_margin, m_pixmap.height() + 2 * m_margin);
+        return m_pixmap.size() + labelExtra();
     if (m_document) {
         m_document->setTextWidth(-1);
         const QSizeF size = m_document->size();
-        return QSize(static_cast<int>(size.width()) + 2 * m_margin, static_cast<int>(size.height()) + 2 * m_margin);
+        return QSize(static_cast<int>(size.width()), static_cast<int>(size.height())) + labelExtra();
     }
-    const QSize s = textSize(0);
-    return QSize(s.width() + 2 * m_margin, s.height() + 2 * m_margin);
+    return textSize(0) + labelExtra();
 }
 
 /*!
@@ -328,11 +380,9 @@ QSize QLabel::sizeHint() const {
 */
 QSize QLabel::minimumSizeHint() const {
     if (!m_pixmap.isNull())
-        return m_scaled ? QSize(2 * m_margin, 2 * m_margin) : sizeHint();
-    if (m_wordWrap) {
-        const int widest = fontMetrics().averageCharWidth() * 3;
-        return QSize(widest + 2 * m_margin, fontMetrics().height() + 2 * m_margin);
-    }
+        return m_scaled ? labelExtra() : sizeHint();
+    if (m_wordWrap)
+        return QSize(fontMetrics().averageCharWidth() * 3, fontMetrics().height()) + labelExtra();
     return sizeHint();
 }
 
@@ -342,8 +392,9 @@ QSize QLabel::minimumSizeHint() const {
 void QLabel::paintEvent(QPaintEvent *event) {
     (void)event;
     QPainter painter(this);
+    drawFrame(&painter);
     if (!m_pixmap.isNull()) {
-        const QRect area = rect().adjusted(m_margin, m_margin, -m_margin, -m_margin);
+        const QRect area = labelArea();
         if (m_scaled) {
             painter.drawPixmap(area, m_pixmap);
             return;
@@ -373,7 +424,7 @@ void QLabel::paintEvent(QPaintEvent *event) {
     int flags = int(m_alignment);
     if (m_wordWrap)
         flags |= Qt::TextWordWrap;
-    painter.drawText(rect().adjusted(m_margin, m_margin, -m_margin, -m_margin), flags, m_text);
+    painter.drawText(labelArea(), flags, m_text);
 }
 
 /*!
@@ -386,7 +437,7 @@ void QLabel::changeEvent(QEvent *event) {
         m_document->setHtml(m_text);
         updateGeometry();
     }
-    QWidget::changeEvent(event);
+    QFrame::changeEvent(event);
 }
 
 /*!
@@ -442,7 +493,7 @@ void QLabel::mouseReleaseEvent(QMouseEvent *event) {
 */
 void QLabel::leaveEvent(QEvent *event) {
     setHovered(QString());
-    QWidget::leaveEvent(event);
+    QFrame::leaveEvent(event);
 }
 
 #include "moc_qlabel.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

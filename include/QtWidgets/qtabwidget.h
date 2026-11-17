@@ -36,6 +36,8 @@ public:
     bool isMovable() const;
     void setMovable(bool movable);
     QTabBar *tabBar() const { return m_bar; }
+    bool documentMode() const;
+    void setDocumentMode(bool set);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;

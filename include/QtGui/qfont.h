@@ -5,8 +5,11 @@
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
 
+class QVariant;
+
 class QFont {
 public:
+    operator QVariant() const;
     enum Weight {
         Thin = 100,
         ExtraLight = 200,

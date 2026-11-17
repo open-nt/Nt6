@@ -16,6 +16,8 @@ class QAbstractSpinBox : public QWidget {
     Q_PROPERTY(bool keyboardTracking READ keyboardTracking WRITE setKeyboardTracking)
 public:
     enum StepEnabledFlag { StepNone = 0x00, StepUpEnabled = 0x01, StepDownEnabled = 0x02 };
+    enum ButtonSymbols { UpDownArrows, PlusMinus, NoButtons };
+    Q_ENUM(ButtonSymbols)
     Q_DECLARE_FLAGS(StepEnabled, StepEnabledFlag)
 
     explicit QAbstractSpinBox(QWidget *parent = nullptr);
@@ -30,6 +32,8 @@ public:
     void setReadOnly(bool readOnly);
     bool keyboardTracking() const { return m_keyboardTracking; }
     void setKeyboardTracking(bool enable) { m_keyboardTracking = enable; }
+    ButtonSymbols buttonSymbols() const { return m_buttonSymbols; }
+    void setButtonSymbols(ButtonSymbols bs);
     void interpretText();
     virtual void stepBy(int steps);
 
@@ -92,6 +96,7 @@ private:
     bool m_wrapping = false;
     bool m_readOnly = false;
     bool m_keyboardTracking = true;
+    ButtonSymbols m_buttonSymbols = UpDownArrows;
     Button m_pressed = NoButton;
 };
 

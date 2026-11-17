@@ -39,6 +39,9 @@ public:
     bool isUndoRedoEnabled() const { return m_undoEnabled; }
     void setUndoRedoEnabled(bool enable);
     int blockCount() const;
+    int maximumBlockCount() const { return m_maxBlocks; }
+    void setMaximumBlockCount(int maximum);
+    QTextDocument *document() const;
 
     QTextCursor textCursor() const;
     void setTextCursor(const QTextCursor &cursor);
@@ -162,4 +165,9 @@ private:
     int m_scrollPosition = -1;
     bool m_undoAvailable = false;
     bool m_redoAvailable = false;
+    int m_maxBlocks = 0;                    // setMaximumBlockCount(); 0 for no limit
+    mutable QTextDocument *m_plainDocument = nullptr; // document(): a child that follows the text
+    mutable bool m_documentStale = true;
+    bool m_syncing = false;
+    bool trimBlocks(); // drops the first blocks beyond maximumBlockCount(); true if it did
 };

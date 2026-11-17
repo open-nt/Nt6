@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qmath.h>
+
 #include <QtGui/qfont.h>
 
 #include <QtCore/qlist.h>

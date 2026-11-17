@@ -6,8 +6,11 @@
 #include <QtGui/qbrush.h>
 #include <QtGui/qcolor.h>
 
+class QVariant;
+
 class QPen {
 public:
+    operator QVariant() const;
     QPen() noexcept = default;
     QPen(Qt::PenStyle style) noexcept : m_style(style) {}
     QPen(const QColor &color) noexcept : m_brush(color) {}

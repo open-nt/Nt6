@@ -108,9 +108,12 @@ void QAction::setText(const QString &text) {
 }
 
 /*!
-    Returns the text of the action without the mnemonic marks: \c{"&Open"} gives \c{"Open"}.
+    Returns the text of the action without the mnemonic marks: \c{"&Open"} gives \c{"Open"}, unless setIconText() set
+    another one.
 */
 QString QAction::iconText() const {
+    if (!m_iconText.isEmpty())
+        return m_iconText;
     QString plain;
     for (qsizetype i = 0; i < m_text.size(); ++i) {
         if (m_text.at(i) == '&' && i + 1 < m_text.size()) {
@@ -124,6 +127,115 @@ QString QAction::iconText() const {
         plain += m_text.at(i);
     }
     return plain;
+}
+
+/*!
+    \since 6.0
+
+    Sets the short text of the action, as a tool button shows it, to \a text.
+
+    \sa iconText()
+*/
+void QAction::setIconText(const QString &text) {
+    if (text == m_iconText)
+        return;
+    m_iconText = text;
+    emit changed();
+}
+
+/*!
+    \fn QString QAction::whatsThis() const
+    \since 6.0
+
+    Returns the "What's This?" help of the action.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the "What's This?" help of the action to \a what. Nt keeps it for the application.
+*/
+void QAction::setWhatsThis(const QString &what) {
+    if (what == m_whatsThis)
+        return;
+    m_whatsThis = what;
+    emit changed();
+}
+
+/*!
+    \fn QAction::MenuRole QAction::menuRole() const
+    \since 6.0
+
+    Returns where the action goes in the application menu of macOS; TextHeuristicRole by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the role of the action in the application menu of macOS to \a menuRole. Nt keeps it for the application.
+*/
+void QAction::setMenuRole(MenuRole menuRole) {
+    if (menuRole == m_menuRole)
+        return;
+    m_menuRole = menuRole;
+    emit changed();
+}
+
+/*!
+    \fn bool QAction::isIconVisibleInMenu() const
+    \since 6.0
+
+    Returns \c true if a menu shows the icon of the action, which is the default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether a menu shows the icon of the action to \a visible.
+*/
+void QAction::setIconVisibleInMenu(bool visible) {
+    if (visible == m_iconVisibleInMenu)
+        return;
+    m_iconVisibleInMenu = visible;
+    emit changed();
+}
+
+/*!
+    \fn bool QAction::isShortcutVisibleInContextMenu() const
+    \since 6.0
+
+    Returns \c true if a context menu shows the shortcut of the action, which is the default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether a context menu shows the shortcut of the action to \a show.
+*/
+void QAction::setShortcutVisibleInContextMenu(bool show) {
+    if (show == m_shortcutVisibleInContextMenu)
+        return;
+    m_shortcutVisibleInContextMenu = show;
+    emit changed();
+}
+
+/*!
+    \fn bool QAction::autoRepeat() const
+    \since 6.0
+
+    Returns \c true if holding the shortcut down triggers the action again, which is the default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether holding the shortcut down triggers the action again to \a repeat. Nt triggers it once.
+*/
+void QAction::setAutoRepeat(bool repeat) {
+    if (repeat == m_autoRepeat)
+        return;
+    m_autoRepeat = repeat;
+    emit changed();
 }
 
 /*!

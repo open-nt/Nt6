@@ -28,6 +28,12 @@ public:
     constexpr int verticalStretch() const noexcept { return m_verticalStretch; }
     constexpr void setHorizontalStretch(int stretch) noexcept { m_horizontalStretch = stretch; }
     constexpr void setVerticalStretch(int stretch) noexcept { m_verticalStretch = stretch; }
+    constexpr bool hasHeightForWidth() const noexcept { return m_heightForWidth; }
+    constexpr void setHeightForWidth(bool b) noexcept { m_heightForWidth = b; }
+    constexpr bool hasWidthForHeight() const noexcept { return m_widthForHeight; }
+    constexpr void setWidthForHeight(bool b) noexcept { m_widthForHeight = b; }
+    constexpr bool retainSizeWhenHidden() const noexcept { return m_retainSizeWhenHidden; }
+    constexpr void setRetainSizeWhenHidden(bool retainSize) noexcept { m_retainSizeWhenHidden = retainSize; }
     constexpr Qt::Orientations expandingDirections() const noexcept {
         Qt::Orientations o;
         if (m_vertical & ExpandFlag)
@@ -48,4 +54,7 @@ private:
     Policy m_vertical = Preferred;
     int m_horizontalStretch = 0;
     int m_verticalStretch = 0;
+    bool m_heightForWidth = false;
+    bool m_widthForHeight = false;
+    bool m_retainSizeWhenHidden = false;
 };

@@ -37,7 +37,27 @@ public:
         Cancel,
         FullScreen,
         NextChild,
-        PreviousChild
+        PreviousChild,
+        Preferences,
+        Bold,
+        Italic,
+        Underline,
+        MoveToNextWord,
+        MoveToPreviousWord,
+        MoveToStartOfLine,
+        MoveToEndOfLine,
+        MoveToStartOfDocument,
+        MoveToEndOfDocument,
+        SelectNextWord,
+        SelectPreviousWord,
+        DeleteStartOfWord,
+        DeleteEndOfWord,
+        InsertParagraphSeparator,
+        InsertLineSeparator,
+        AddTab,
+        Deselect,
+        DeleteCompleteLine,
+        Backspace
     };
     enum SequenceFormat { NativeText, PortableText };
     enum SequenceMatch { NoMatch, PartialMatch, ExactMatch };

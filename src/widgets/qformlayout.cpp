@@ -264,6 +264,166 @@ void QFormLayout::removeRow(int row) {
     }
 }
 
+namespace {
+
+// Shows or hides the widget of `item`, or the widgets of its layout.
+void showItem(QLayoutItem *item, bool on) {
+    if (!item)
+        return;
+    if (QWidget *widget = item->widget())
+        widget->setVisible(on);
+    if (QLayout *layout = item->layout())
+        for (int i = 0; i < layout->count(); ++i)
+            showItem(layout->itemAt(i), on);
+}
+
+} // namespace
+
+int QFormLayout::rowOf(QWidget *widget) const {
+    int row = -1;
+    ItemRole role = LabelRole;
+    getWidgetPosition(widget, &row, &role);
+    return row;
+}
+
+int QFormLayout::rowOf(QLayout *layout) const {
+    int row = -1;
+    ItemRole role = LabelRole;
+    getLayoutPosition(layout, &row, &role);
+    return row;
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Removes the row that holds \a widget, and deletes its widgets and layouts.
+*/
+void QFormLayout::removeRow(QWidget *widget) { removeRow(rowOf(widget)); }
+
+/*!
+    \overload
+    \since 6.0
+
+    Removes the row that holds \a layout, and deletes its widgets and layouts.
+*/
+void QFormLayout::removeRow(QLayout *layout) { removeRow(rowOf(layout)); }
+
+/*!
+    \class QFormLayout::TakeRowResult
+    \inmodule NtWidgets
+    \since 6.0
+    \brief The QFormLayout::TakeRowResult struct holds the items of a row that takeRow() took out.
+
+    \differences
+    None.
+    \enddifferences
+*/
+
+/*!
+    \variable QFormLayout::TakeRowResult::labelItem
+    \brief The label of the row, or \c nullptr.
+*/
+
+/*!
+    \variable QFormLayout::TakeRowResult::fieldItem
+    \brief The field of the row, or the item that spans it; \c nullptr if there was none.
+*/
+
+/*!
+    \since 6.0
+
+    Removes the row \a row without deleting anything, and returns its items, which the caller owns. The widgets
+    keep their parent. Both items are \c nullptr if there is no such row.
+
+    \code
+    const QFormLayout::TakeRowResult row = form->takeRow(0);
+    delete row.labelItem;
+    delete row.fieldItem;
+    \endcode
+*/
+QFormLayout::TakeRowResult QFormLayout::takeRow(int row) {
+    if (row < 0 || row >= rowCount())
+        return {nullptr, nullptr};
+    const Row r = m_rows[static_cast<std::size_t>(row)];
+    m_rows.erase(m_rows.begin() + row);
+    invalidate();
+    return {r.label, r.field};
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Removes the row that holds \a widget without deleting anything, and returns its items.
+*/
+QFormLayout::TakeRowResult QFormLayout::takeRow(QWidget *widget) { return takeRow(rowOf(widget)); }
+
+/*!
+    \overload
+    \since 6.0
+
+    Removes the row that holds \a layout without deleting anything, and returns its items.
+*/
+QFormLayout::TakeRowResult QFormLayout::takeRow(QLayout *layout) { return takeRow(rowOf(layout)); }
+
+/*!
+    \since 6.0
+
+    Shows the row \a row if \a on is \c true, or hides it: its widgets are shown or hidden, and a hidden row takes no
+    room.
+*/
+void QFormLayout::setRowVisible(int row, bool on) {
+    if (row < 0 || row >= rowCount())
+        return;
+    Row &r = m_rows[static_cast<std::size_t>(row)];
+    r.visible = on;
+    showItem(r.label, on);
+    showItem(r.field, on);
+    invalidate();
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Shows or hides, as \a on says, the row that holds \a widget.
+*/
+void QFormLayout::setRowVisible(QWidget *widget, bool on) { setRowVisible(rowOf(widget), on); }
+
+/*!
+    \overload
+    \since 6.0
+
+    Shows or hides, as \a on says, the row that holds \a layout.
+*/
+void QFormLayout::setRowVisible(QLayout *layout, bool on) { setRowVisible(rowOf(layout), on); }
+
+/*!
+    \since 6.0
+
+    Returns \c true unless setRowVisible() hid the row \a row; \c false for a row that does not exist.
+*/
+bool QFormLayout::isRowVisible(int row) const {
+    return row >= 0 && row < rowCount() && m_rows[static_cast<std::size_t>(row)].visible;
+}
+
+/*!
+    \overload
+    \since 6.0
+
+    Returns whether the row that holds \a widget is visible.
+*/
+bool QFormLayout::isRowVisible(QWidget *widget) const { return isRowVisible(rowOf(widget)); }
+
+/*!
+    \overload
+    \since 6.0
+
+    Returns whether the row that holds \a layout is visible.
+*/
+bool QFormLayout::isRowVisible(QLayout *layout) const { return isRowVisible(rowOf(layout)); }
+
 /*!
     Puts \a widget in the row \a row with the given \a role. The row may be rowCount(), which adds a row. Nothing
     happens if the row is out of range or the role is taken in it.

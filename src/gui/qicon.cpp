@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtGui/qicon.h>
 
+#include <QtCore/qvariant.h>
+
 #include "qicon_p.h"
 
 #include <QtCore/qdir.h>
@@ -381,9 +383,10 @@ QPixmap QIcon::pixmap(const QSize &size, QIcon::Mode mode, QIcon::State state) c
             }
             const QSize b = best->pixmap.size();
             const bool bestCovers = b.width() >= size.width() || b.height() >= size.height();
-            if (covers && (!bestCovers || s.width() * s.height() < b.width() * b.height()))
-                best = e;
-            else if (!covers && !bestCovers && s.width() * s.height() > b.width() * b.height())
+            // The smallest pixmap that covers the size, or else the largest one.
+            const bool smaller = s.width() * s.height() < b.width() * b.height();
+            const bool larger = s.width() * s.height() > b.width() * b.height();
+            if ((covers && (!bestCovers || smaller)) || (!covers && !bestCovers && larger))
                 best = e;
         }
         if (best) {
@@ -631,3 +634,11 @@ void QIcon::setFallbackSearchPaths(const QStringList &paths) {
     std::lock_guard<std::mutex> lock(t.mutex);
     t.fallbackPaths = paths;
 }
+
+/*!
+    \since 6.0
+
+    Returns the icon as a QVariant, so that it can be given where a QVariant is taken, as in
+    \c{item->setData(Qt::UserRole, value)}.
+*/
+QIcon::operator QVariant() const { return QVariant::fromValue(*this); }

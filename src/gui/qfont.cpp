@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtGui/qfont.h>
 
+#include <QtCore/qvariant.h>
+
 #include "qfont_p.h"
 
 #include <QtGui/qguiapplication.h>
@@ -529,3 +531,11 @@ void setApplicationFont(const QFont &font) {
 }
 
 } // namespace QtPrivate
+
+/*!
+    \since 6.0
+
+    Returns the font as a QVariant, so that it can be given where a QVariant is taken, as in
+    \c{item->setData(Qt::UserRole, value)}.
+*/
+QFont::operator QVariant() const { return QVariant::fromValue(*this); }

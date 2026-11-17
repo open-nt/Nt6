@@ -59,9 +59,7 @@ constexpr int textMargin = 3;
     Deleting an item takes it out of its table.
 
     \differences
-    An item holds a text, not a \c QVariant: there is no \c data(), \c setData(), \c setCheckState(), \c setIcon() or
-    \c setSizeHint(), and no \c type() or \c clone(). An item cannot be edited, so there is no \c ItemIsEditable flag.
-    The copy of an item is not allowed.
+    There is no \c setSizeHint(), \c type() or \c clone(), and the copy of an item is not allowed.
     \enddifferences
 
     \sa QTableWidget
@@ -375,6 +373,23 @@ void QTableWidgetItem::setFlags(Qt::ItemFlags flags) {
 }
 
 /*!
+    \since 6.0
+
+    Returns \c true if this item sorts before \a other: by their Qt::DisplayRole data, numbers by value and anything
+    else as text. Reimplement it to sort by something else.
+*/
+bool QTableWidgetItem::operator<(const QTableWidgetItem &other) const {
+    const QVariant a = data(Qt::DisplayRole);
+    const QVariant b = other.data(Qt::DisplayRole);
+    bool okA = false, okB = false;
+    const double x = a.toString().toDouble(&okA);
+    const double y = b.toString().toDouble(&okB);
+    if (okA && okB)
+        return x < y;
+    return QString::localeAwareCompare(a.toString(), b.toString()) < 0;
+}
+
+/*!
     Returns whether the item is selected. A table has one selected cell, its current cell.
 
     \sa setSelected()
@@ -424,12 +439,13 @@ void QTableWidgetItem::setSelected(bool select) {
     \image widgets/qtablewidget.png QTableWidget in the light color scheme
 
     \differences
-    There is no model and no \c QTableView: the table keeps its items itself. There is no editing (\c setEditTriggers(),
-    \c editItem()), no sorting, no drag and drop, no spans, and no cell widgets. A single cell is selected, so
+    There is no model and no \c QTableView: the table keeps its items itself. Editing is with editItem() only (no
+    \c setEditTriggers()), and there is no drag and drop and no spans. A single cell is selected, so
     \c selectedItems() has at most one item: every selection mode but \c NoSelection selects the current cell, and
-    \c ExtendedSelection is the default, as in Qt. There is no \c selectionBehavior, selection model or \c selectRow(). The
-    table scrolls by pixels, and the user cannot move or hide the sections of the headers. Items are not created
-    by the table: put them there with setItem().
+    \c ExtendedSelection is the default, as in Qt; selectRow() makes a cell of the row current. There is no
+    selection model. Sorting happens when it is turned on and when a header is clicked, not when an item changes.
+    The table scrolls by pixels, and the user cannot move the sections of the headers. Items are not created by the
+    table: put them there with setItem().
     \enddifferences
 
     \sa QTableWidgetItem, QHeaderView, QScrollArea
@@ -461,6 +477,11 @@ void QTableWidget::init(int rows, int columns) {
     QObject::connect(m_vheader, &QHeaderView::sectionResized, [this](int, int, int) {
         updateLayout();
         viewport()->update();
+    });
+    // A click on a column header, which turns its sort indicator round, sorts the rows while sorting is on.
+    QObject::connect(m_hheader, &QHeaderView::sortIndicatorChanged, this, [this](int column, Qt::SortOrder order) {
+        if (m_sortingEnabled)
+            sortItems(column, order);
     });
     verticalScrollBar()->setSingleStep(m_vheader->defaultSectionSize());
     horizontalScrollBar()->setSingleStep(20);
@@ -891,6 +912,216 @@ void QTableWidget::resizeColumnsToContents() {
         resizeColumnToContents(c);
 }
 
+/*!
+    \since 6.0
+
+    Makes \a row as high as its highest text: with wordWrap(), the text wrapped to the width of its column.
+
+    \sa resizeRowsToContents()
+*/
+void QTableWidget::resizeRowToContents(int row) {
+    if (row < 0 || row >= m_rows)
+        return;
+    int height = m_vheader->minimumSectionSize();
+    for (int c = 0; c < m_columns; ++c) {
+        const QTableWidgetItem *it = item(row, c);
+        if (!it)
+            continue;
+        const QFontMetrics fm(it->font());
+        const int width = std::max(1, columnWidth(c) - 2 * textMargin);
+        const int textHeight = m_wordWrap ? fm.boundingRect(QRect(0, 0, width, 100000), Qt::TextWordWrap, it->text()).height()
+                                          : fm.height();
+        height = std::max(height, textHeight + 6);
+    }
+    m_vheader->resizeSection(row, height);
+}
+
+/*!
+    \since 6.0
+
+    Makes every row as high as its highest text.
+
+    \sa resizeRowToContents()
+*/
+void QTableWidget::resizeRowsToContents() {
+    for (int r = 0; r < m_rows; ++r)
+        resizeRowToContents(r);
+}
+
+/*!
+    \fn bool QTableWidget::isSortingEnabled() const
+    \since 6.0
+
+    Returns \c true if a click on a column header sorts the rows.
+*/
+
+/*!
+    \since 6.0
+
+    Turns sorting on if \a enable is \c true: the column headers show the sort indicator, the rows are sorted by
+    its column now, and a click on a header sorts them by that column, the other way round on a second click. A
+    change of an item does not sort the rows again.
+*/
+void QTableWidget::setSortingEnabled(bool enable) {
+    m_sortingEnabled = enable;
+    m_hheader->setSortIndicatorShown(enable);
+    if (enable) {
+        m_hheader->setSectionsClickable(true);
+        if (m_hheader->sortIndicatorSection() >= 0)
+            sortItems(m_hheader->sortIndicatorSection(), m_hheader->sortIndicatorOrder());
+    }
+}
+
+/*!
+    \since 6.0
+
+    Sorts the rows by their items in \a column, in \a order, as QTableWidgetItem::operator<() compares them. Rows
+    without an item in the column go last. Cell widgets and the current cell move with their rows.
+
+    \sa setSortingEnabled()
+*/
+void QTableWidget::sortItems(int column, Qt::SortOrder order) {
+    if (column < 0 || column >= m_columns || m_rows < 2)
+        return;
+    closeItemEditor(true);
+    std::vector<int> rows(static_cast<std::size_t>(m_rows));
+    for (int r = 0; r < m_rows; ++r)
+        rows[static_cast<std::size_t>(r)] = r;
+    const auto cellAt = [this, column](int r) { return item(r, column); };
+    std::stable_sort(rows.begin(), rows.end(), [&](int a, int b) {
+        const QTableWidgetItem *x = cellAt(a);
+        const QTableWidgetItem *y = cellAt(b);
+        if (!x || !y)
+            return x != nullptr;
+        return order == Qt::AscendingOrder ? *x < *y : *y < *x;
+    });
+    std::vector<int> newRowOf(static_cast<std::size_t>(m_rows));
+    std::vector<std::vector<QTableWidgetItem *>> cells;
+    cells.reserve(static_cast<std::size_t>(m_rows));
+    for (int k = 0; k < m_rows; ++k) {
+        const int from = rows[static_cast<std::size_t>(k)];
+        cells.push_back(m_cells[static_cast<std::size_t>(from)]);
+        newRowOf[static_cast<std::size_t>(from)] = k;
+    }
+    m_cells = std::move(cells);
+    reindex();
+    for (CellWidget &w : m_cellWidgets)
+        if (w.row >= 0 && w.row < m_rows)
+            w.row = newRowOf[static_cast<std::size_t>(w.row)];
+    if (m_currentRow >= 0 && m_currentRow < m_rows)
+        m_currentRow = newRowOf[static_cast<std::size_t>(m_currentRow)];
+    if (m_hheader->sortIndicatorSection() != column || m_hheader->sortIndicatorOrder() != order) {
+        const bool blocked = m_hheader->blockSignals(true);
+        m_hheader->setSortIndicator(column, order);
+        m_hheader->blockSignals(blocked);
+    }
+    placeCellWidgets();
+    viewport()->update();
+}
+
+/*!
+    \fn void QTableWidget::sortByColumn(int column, Qt::SortOrder order)
+    \since 6.0
+
+    Sorts the rows by \a column in \a order, as sortItems() does.
+*/
+
+/*!
+    \fn bool QTableWidget::wordWrap() const
+    \since 6.0
+
+    Returns whether the texts of the cells wrap; \c false by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether the texts of the cells wrap within their cells to \a on. resizeRowsToContents() makes the rows high
+    enough for them.
+*/
+void QTableWidget::setWordWrap(bool on) {
+    m_wordWrap = on;
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if \a row is hidden.
+*/
+bool QTableWidget::isRowHidden(int row) const { return m_vheader->isSectionHidden(row); }
+
+/*!
+    \since 6.0
+
+    Hides \a row if \a hide is \c true, or shows it.
+*/
+void QTableWidget::setRowHidden(int row, bool hide) {
+    m_vheader->setSectionHidden(row, hide);
+    updateLayout();
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if \a column is hidden.
+*/
+bool QTableWidget::isColumnHidden(int column) const { return m_hheader->isSectionHidden(column); }
+
+/*!
+    \since 6.0
+
+    Hides \a column if \a hide is \c true, or shows it.
+*/
+void QTableWidget::setColumnHidden(int column, bool hide) {
+    m_hheader->setSectionHidden(column, hide);
+    updateLayout();
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Makes a cell of \a row the current, selected cell: the one in the current column, or the first column.
+*/
+void QTableWidget::selectRow(int row) { setCurrentCell(row, std::max(0, m_currentColumn)); }
+
+/*!
+    \since 6.0
+
+    Makes a cell of \a column the current, selected cell: the one in the current row, or the first row.
+*/
+void QTableWidget::selectColumn(int column) { setCurrentCell(std::max(0, m_currentRow), column); }
+
+/*!
+    \fn void QTableWidget::hideRow(int row)
+    \since 6.0
+
+    Hides \a row.
+*/
+
+/*!
+    \fn void QTableWidget::showRow(int row)
+    \since 6.0
+
+    Shows \a row.
+*/
+
+/*!
+    \fn void QTableWidget::hideColumn(int column)
+    \since 6.0
+
+    Hides \a column.
+*/
+
+/*!
+    \fn void QTableWidget::showColumn(int column)
+    \since 6.0
+
+    Shows \a column.
+*/
+
 // The rectangle of a cell in the viewport.
 QRect QTableWidget::cellRect(int row, int column) const {
     if (row < 0 || row >= m_rows || column < 0 || column >= m_columns)
@@ -1239,8 +1470,11 @@ void QTableWidget::paintEvent(QPaintEvent *event) {
                 painter.setFont(font);
                 painter.setPen(color);
                 painter.setClipRect(cell.adjusted(0, 0, -grid, -grid));
-                painter.drawText(textRect, static_cast<int>(it->textAlignment()) | Qt::TextSingleLine,
-                                 QFontMetrics(font).elidedText(it->text(), Qt::ElideRight, textRect.width()));
+                if (m_wordWrap)
+                    painter.drawText(textRect, static_cast<int>(it->textAlignment()) | Qt::TextWordWrap, it->text());
+                else
+                    painter.drawText(textRect, static_cast<int>(it->textAlignment()) | Qt::TextSingleLine,
+                                     QFontMetrics(font).elidedText(it->text(), Qt::ElideRight, textRect.width()));
                 painter.setClipping(false);
             }
             if (isCurrent && hasFocus()) {

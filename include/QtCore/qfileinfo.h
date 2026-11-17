@@ -293,3 +293,6 @@ private:
 Q_DECLARE_OPERATORS_FOR_FLAGS(QFileInfo::Permissions)
 
 using QFileInfoList = QList<QFileInfo>;
+
+// QFileInfo is used with QFile; Qt makes both known together.
+#include <QtCore/qfile.h>

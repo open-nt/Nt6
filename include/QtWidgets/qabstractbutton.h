@@ -1,10 +1,14 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtGui/qkeysequence.h>
+
 #include <QtGui/qicon.h>
 #include <QtWidgets/qwidget.h>
 
 class QButtonGroup;
+
+class QAction;
 
 class QAbstractButton : public QWidget {
     Q_OBJECT
@@ -32,10 +36,13 @@ public:
     bool autoExclusive() const { return m_autoExclusive; }
     void setAutoExclusive(bool exclusive) { m_autoExclusive = exclusive; }
     QButtonGroup *group() const { return m_group; }
+    QKeySequence shortcut() const;
+    void setShortcut(const QKeySequence &key);
 
 public slots:
     void setChecked(bool checked);
     void click();
+    void animateClick();
     void toggle();
 
 signals:
@@ -90,4 +97,7 @@ private:
     bool m_down = false;
     bool m_keyDown = false;
     QButtonGroup *m_group = nullptr;
+    QAction *m_shortcutAction = nullptr; // a child that holds the shortcut, made when one is set
+    bool m_shortcutSet = false;          // setShortcut() was called; otherwise the mnemonic of the text is it
+    void updateShortcut(const QKeySequence &key);
 };

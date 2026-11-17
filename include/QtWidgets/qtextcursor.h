@@ -39,7 +39,7 @@ public:
     QTextCursor() = default;
     explicit QTextCursor(QTextDocument *document);
 
-    bool isNull() const { return m_edit.isNull(); }
+    bool isNull() const { return m_edit.isNull() && m_document.isNull(); }
     int position() const { return m_position; }
     int anchor() const { return m_anchor; }
     void setPosition(int pos, MoveMode mode = MoveAnchor);
@@ -60,6 +60,7 @@ public:
     void select(SelectionType selection);
 
     void insertText(const QString &text);
+    void insertHtml(const QString &html);
     void insertBlock();
     void removeSelectedText();
     void deleteChar();
@@ -78,6 +79,8 @@ public:
 private:
     friend class QPlainTextEdit;
     QTextCursor(QPlainTextEdit *edit, int position, int anchor);
+    QString text() const; // the text of the editor or of the document
+    void replaceSelection(const QString &fragment, bool isHtml);
 
     QPointer<QObject> m_edit;
     QPointer<QTextDocument> m_document;

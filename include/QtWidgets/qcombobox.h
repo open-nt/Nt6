@@ -10,6 +10,8 @@
 #include <QtCore/qvariant.h>
 #include <QtWidgets/qwidget.h>
 
+class QAbstractItemDelegate;
+class QAbstractItemView;
 class QComboPopup;
 
 class QLineEdit;
@@ -48,7 +50,13 @@ public:
     QLineEdit *lineEdit() const { return m_edit; }
     InsertPolicy insertPolicy() const { return m_insertPolicy; }
     void setInsertPolicy(InsertPolicy policy) { m_insertPolicy = policy; }
-    int findText(const QString &text) const;
+    int findText(const QString &text,
+                 Qt::MatchFlags flags = Qt::MatchFlags(Qt::MatchExactly | Qt::MatchCaseSensitive)) const;
+    QString placeholderText() const { return m_placeholder; }
+    void setPlaceholderText(const QString &placeholderText);
+    QAbstractItemView *view() const;
+    QAbstractItemDelegate *itemDelegate() const;
+    void setItemDelegate(QAbstractItemDelegate *delegate);
     int findData(const QVariant &data, int role = Qt::UserRole,
                  Qt::MatchFlags flags = Qt::MatchFlags(Qt::MatchExactly | Qt::MatchCaseSensitive)) const;
     QVariant itemData(int index, int role = Qt::UserRole) const;
@@ -83,8 +91,8 @@ public slots:
     void setEditText(const QString &text);
     void clearEditText() { setEditText(QString()); }
     void clear();
-    void showPopup();
-    void hidePopup();
+    virtual void showPopup();
+    virtual void hidePopup();
 
 signals:
     /*!
@@ -145,4 +153,7 @@ private:
     QLineEdit *m_edit = nullptr; // a child, while the combo box is editable
     InsertPolicy m_insertPolicy = InsertAtBottom;
     QSize m_iconSize; // invalid: the small icon size of the style
+    QString m_placeholder;
+    QPointer<QAbstractItemDelegate> m_delegate;
+    mutable QAbstractItemView *m_view = nullptr; // made by view(): a hidden list view that holds settings
 };

@@ -3,6 +3,8 @@
 #
 # Runs for version tags (v*), where the packages and the provenance are attached
 # to the GitHub release, and on request. The builds are the per-OS workflows.
+# For a final release (a tag without a hyphen, so no release candidate), the apt,
+# dnf and pacman repositories on Cloudflare R2 are then rebuilt by r2-repos.yml.
 #
 # Verify a download with slsa-verifier:
 #   slsa-verifier verify-artifact <package> --provenance-path multiple.intoto.jsonl \
@@ -152,3 +154,10 @@ jobs:
         run: |
           gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --generate-notes
           gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+
+  r2-repos:
+    name: Package repositories on R2
+    if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
+    needs: [release]
+    uses: ./.github/workflows/r2-repos.yml
+    secrets: inherit

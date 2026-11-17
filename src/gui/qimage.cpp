@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtGui/qimage.h>
 
+#include <QtCore/qvariant.h>
+
 #include "qimageformat_p.h"
 #include <QtGui/qpainter.h>
 #include <cmath>
@@ -740,3 +742,11 @@ int QImage::metric(PaintDeviceMetric metric) const {
         return QPaintDevice::metric(metric);
     }
 }
+
+/*!
+    \since 6.0
+
+    Returns the image as a QVariant, so that it can be given where a QVariant is taken, as in
+    \c{item->setData(Qt::UserRole, value)}.
+*/
+QImage::operator QVariant() const { return QVariant::fromValue(*this); }

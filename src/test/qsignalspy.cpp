@@ -1,4 +1,5 @@
 // MIT License - see LICENSE
+#include <algorithm>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -107,6 +108,7 @@ QSignalSpy::QSignalSpy(const QObject *object, const QMetaMethod &method) {
 void QSignalSpy::listen(const QObject *object, const QMetaMethod &method) {
     m_signature = method.methodSignature();
     std::vector<QMetaType> types;
+    types.reserve(static_cast<std::size_t>(std::max(0, method.parameterCount())));
     for (int i = 0; i < method.parameterCount(); ++i)
         types.push_back(method.parameterMetaType(i));
     m_valid =

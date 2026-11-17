@@ -277,6 +277,11 @@ void QWidgetWindow::deliverMouse(QMouseEvent *event, QWidget *target) {
     event->setAccepted(handled);
 }
 
+QWidget *QWidgetWindow::explicitGrab() const {
+    QWidget *grabber = QWidget::mouseGrabber();
+    return grabber && grabber->window() == m_widget ? grabber : nullptr;
+}
+
 void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
     if (!m_widget)
         return;
@@ -305,7 +310,9 @@ void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
     // A grab with no other button held is left from a press whose release went elsewhere, as to a drag.
     if (m_grab && (event->buttons() & ~event->button()) == Qt::NoButton)
         m_grab = nullptr;
-    QWidget *target = m_grab ? m_grab.data() : WidgetAccess::widgetAt(m_widget, event->pos());
+    QWidget *target = explicitGrab() ? explicitGrab()
+                      : m_grab        ? m_grab.data()
+                                      : WidgetAccess::widgetAt(m_widget, event->pos());
     if (!m_grab) {
         m_grab = target;
         updateUnderMouse(target, event->position(), event->globalPosition());
@@ -330,7 +337,9 @@ void QWidgetWindow::mouseDoubleClickEvent(QMouseEvent *event) {
         event->ignore();
         return;
     }
-    QWidget *target = m_grab ? m_grab.data() : WidgetAccess::widgetAt(m_widget, event->pos());
+    QWidget *target = explicitGrab() ? explicitGrab()
+                      : m_grab        ? m_grab.data()
+                                      : WidgetAccess::widgetAt(m_widget, event->pos());
     if (!m_grab)
         m_grab = target;
     deliverMouse(event, target);
@@ -343,7 +352,9 @@ void QWidgetWindow::mouseReleaseEvent(QMouseEvent *event) {
         event->ignore();
         return;
     }
-    QWidget *target = m_grab ? m_grab.data() : WidgetAccess::widgetAt(m_widget, event->pos());
+    QWidget *target = explicitGrab() ? explicitGrab()
+                      : m_grab        ? m_grab.data()
+                                      : WidgetAccess::widgetAt(m_widget, event->pos());
     deliverMouse(event, target);
     if (event->buttons() == Qt::NoButton) {
         m_grab = nullptr;
@@ -360,6 +371,12 @@ void QWidgetWindow::mouseMoveEvent(QMouseEvent *event) {
         cancelToolTip();
         updateUnderMouse(nullptr, QPointF(), QPointF());
         event->ignore();
+        return;
+    }
+    if (QWidget *grabber = explicitGrab()) {
+        // grabMouse(): the grabber gets every move, with a button held or not.
+        cancelToolTip();
+        deliverMouse(event, grabber);
         return;
     }
     if (m_grab && event->buttons() != Qt::NoButton) {
@@ -426,7 +443,8 @@ void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
             }
         }
     }
-    QWidget *target = WidgetAccess::focusWidgetOf(m_widget);
+    QWidget *grabber = QWidget::keyboardGrabber();
+    QWidget *target = grabber && grabber->window() == m_widget ? grabber : WidgetAccess::focusWidgetOf(m_widget);
     if (!target)
         target = m_widget;
     const bool handled = propagate(target, QPointF(), [&](const QPointF &) {
@@ -453,7 +471,8 @@ void QWidgetWindow::keyReleaseEvent(QKeyEvent *event) {
         event->ignore();
         return;
     }
-    QWidget *target = WidgetAccess::focusWidgetOf(m_widget);
+    QWidget *grabber = QWidget::keyboardGrabber();
+    QWidget *target = grabber && grabber->window() == m_widget ? grabber : WidgetAccess::focusWidgetOf(m_widget);
     if (!target)
         target = m_widget;
     const bool handled = propagate(target, QPointF(), [&](const QPointF &) {

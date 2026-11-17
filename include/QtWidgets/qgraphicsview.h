@@ -68,6 +68,9 @@ public:
     void setOptimizationFlags(OptimizationFlags flags);
     DragMode dragMode() const;
     void setDragMode(DragMode mode);
+    Qt::ItemSelectionMode rubberBandSelectionMode() const;
+    void setRubberBandSelectionMode(Qt::ItemSelectionMode mode);
+    QRect rubberBandRect() const;
     CacheMode cacheMode() const;
     void setCacheMode(CacheMode mode);
     void resetCachedContent();
@@ -135,6 +138,17 @@ public:
     void setBackgroundBrush(const QBrush &brush);
     QBrush foregroundBrush() const;
     void setForegroundBrush(const QBrush &brush);
+
+signals:
+    /*!
+        \since 6.0
+
+        This signal is emitted when the rubber band of a RubberBandDrag changes to \a rubberBandRect, in the
+        viewport, between \a fromScenePoint and \a toScenePoint; with a null rectangle when it ends.
+    */
+    void rubberBandChanged(QRect rubberBandRect, QPointF fromScenePoint, QPointF toScenePoint) {
+        emitSignal(&QGraphicsView::rubberBandChanged, rubberBandRect, fromScenePoint, toScenePoint);
+    }
 
 public slots:
     void updateScene(const QList<QRectF> &rects);

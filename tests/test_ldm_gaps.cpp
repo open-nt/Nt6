@@ -9,6 +9,7 @@
 #include <QtSvg/QtSvg>
 #include <QtTest/qsignalspy.h>
 #include <QtWidgets/QtWidgets>
+#include <QtWebSockets/QtWebSockets>
 
 #include "qpa/qwindowsysteminterface_p.h"
 
@@ -1164,6 +1165,421 @@ static void testMarkdownAndTables() {
     CHECK(doc.toPlainText() == "<b>x</b>");
 }
 
+// ---- The tail of the ldm survey: widgets, views, text and the rest ----
+
+class CountingDelegate : public QStyledItemDelegate {
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+    mutable int painted = 0;
+    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override {
+        ++painted;
+        QStyledItemDelegate::paint(painter, option, index);
+    }
+    QSize sizeHint(const QStyleOptionViewItem &, const QModelIndex &) const override { return QSize(100, 40); }
+};
+
+class Clicks : public QObject {
+    Q_OBJECT
+public:
+    int count = 0;
+public slots:
+    void hit() { ++count; }
+};
+
+static void testWidgetTail() {
+    static_assert(QT_CONFIG(tooltip) && QT_CONFIG(shortcut), "uic features");
+    CHECK(QWIDGETSIZE_MAX == QLAYOUTSIZE_MAX);
+    CHECK(Qt::Key_Underscore == 0x5f && Qt::Key_BracketLeft == 0x5b && Qt::Key_Super_L == 0x01000053);
+    CHECK(Qt::ReplaceSelection != Qt::AddToSelection);
+    CHECK(QKeySequence(QKeySequence::Preferences) == QKeySequence(Qt::CTRL | Qt::Key_Comma));
+
+    QWidget window;
+    window.resize(400, 300);
+    auto *layout = new QVBoxLayout(&window);
+    layout->setContentsMargins(0, 0, 0, 0);
+    window.setContentsMargins(10, 20, 30, 40);
+    CHECK(window.contentsMargins() == QMargins(10, 20, 30, 40) && window.contentsRect() == QRect(10, 20, 360, 240));
+    auto *bar = new QMenuBar;
+    bar->addMenu("File");
+    layout->setMenuBar(bar);
+    CHECK(layout->menuBar() == bar && bar->parentWidget() == &window);
+    auto *label = new QLabel("&Name:");
+    auto *edit = new QLineEdit;
+    label->setBuddy(edit);
+    CHECK(label->buddy() == edit);
+    layout->addWidget(label);
+    layout->addWidget(edit);
+    label->setFrameShape(QFrame::Box);
+    CHECK(label->frameShape() == QFrame::Box && label->frameWidth() > 0);
+    label->setStatusTip("tip");
+    label->setWhatsThis("help");
+    label->setAccessibleName("name");
+    CHECK(label->statusTip() == "tip" && label->whatsThis() == "help" && label->accessibleName() == "name");
+    edit->setInputMethodHints(Qt::ImhHiddenText | Qt::ImhSensitiveData);
+    CHECK(edit->inputMethodHints() & Qt::ImhSensitiveData);
+    window.show();
+    settle();
+    CHECK(bar->geometry().top() == 20 && label->geometry().top() >= bar->geometry().bottom());
+    CHECK(label->geometry().left() == 10);
+    sendKey(&window, Qt::Key_N, Qt::AltModifier);
+    settle();
+    CHECK(edit->hasFocus());
+
+    // grab() and an opacity effect.
+    auto *red = new QWidget(&window);
+    red->setAutoFillBackground(true);
+    QPalette palette = red->palette();
+    palette.setColor(QPalette::Window, Qt::red);
+    red->setPalette(palette);
+    red->setGeometry(300, 200, 40, 30);
+    red->show();
+    const QPixmap shot = red->grab();
+    CHECK(shot.size() == QSize(40, 30) && qRed(shot.toImage().pixel(5, 5)) > 200);
+    auto *effect = new QGraphicsOpacityEffect;
+    effect->setOpacity(0.5);
+    red->setGraphicsEffect(effect);
+    CHECK(red->graphicsEffect() == effect && effect->parent() == red);
+    red->setMinimumWidth(10);
+    CHECK(red->minimumWidth() == 10 && red->maximumWidth() == QWIDGETSIZE_MAX);
+
+    // A grab of the mouse sends every move to the grabber.
+    struct Grabber : QWidget {
+        int moves = 0;
+        void mouseMoveEvent(QMouseEvent *) override { ++moves; }
+    };
+    auto *grabber = new Grabber;
+    grabber->setParent(&window);
+    grabber->setGeometry(0, 0, 10, 10);
+    grabber->show();
+    grabber->grabMouse();
+    CHECK(QWidget::mouseGrabber() == grabber);
+    sendMouse(&window, QEvent::MouseMove, QPoint(200, 150), Qt::NoButton);
+    CHECK(grabber->moves == 1);
+    grabber->releaseMouse();
+    CHECK(QWidget::mouseGrabber() == nullptr);
+
+    // Buttons: shortcuts and the mnemonic of the text.
+    auto *button = new QPushButton("&Save", &window);
+    button->show();
+    QSignalSpy clicked(button, &QPushButton::clicked);
+    CHECK(button->shortcut() == QKeySequence(Qt::ALT | Qt::Key_S));
+    sendKey(&window, Qt::Key_S, Qt::AltModifier);
+    settle();
+    CHECK(clicked.count() == 1);
+    button->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_K));
+    sendKey(&window, Qt::Key_K, Qt::ControlModifier);
+    settle();
+    CHECK(clicked.count() == 2);
+
+    QAction action("&Open");
+    action.setIconText("Open it");
+    action.setMenuRole(QAction::PreferencesRole);
+    action.setWhatsThis("Opens");
+    action.setIconVisibleInMenu(false);
+    CHECK(action.iconText() == "Open it" && action.menuRole() == QAction::PreferencesRole);
+    CHECK(action.whatsThis() == "Opens" && !action.isIconVisibleInMenu());
+
+    // Menus with a shortcut and a receiver.
+    QMenu menu;
+    Clicks sink;
+    QAction *a1 = menu.addAction("One", QKeySequence(Qt::CTRL | Qt::Key_1), &sink, &Clicks::hit);
+    QAction *a2 = menu.addAction("Two", QKeySequence::Copy, &sink, [&sink] { sink.count += 10; });
+    QAction *a3 = menu.addAction("Three", QKeySequence::Paste, [&sink] { sink.count += 100; });
+    QAction *a4 = menu.addAction("Four", QKeySequence(Qt::Key_F4), &sink, SLOT(hit()));
+    a1->trigger();
+    a2->trigger();
+    a3->trigger();
+    a4->trigger();
+    CHECK(sink.count == 112 && a2->shortcut() == QKeySequence(QKeySequence::Copy));
+
+    // Spin box buttons, combo box placeholder, view and delegate.
+    QSpinBox spin;
+    spin.resize(120, 30);
+    spin.setButtonSymbols(QAbstractSpinBox::NoButtons);
+    CHECK(spin.buttonSymbols() == QAbstractSpinBox::NoButtons);
+    QComboBox combo(&window);
+    combo.setPlaceholderText("Pick one");
+    CHECK(combo.placeholderText() == "Pick one");
+    combo.addItems({"Alpha", "beta", "Gamma"});
+    CHECK(combo.findText("BETA", Qt::MatchFixedString) == 1 && combo.findText("BETA") == -1);
+    combo.view()->setMinimumWidth(280);
+    CountingDelegate delegate;
+    combo.setItemDelegate(&delegate);
+    CHECK(combo.itemDelegate() == &delegate);
+    combo.setGeometry(10, 10, 100, 25);
+    combo.show();
+    combo.showPopup();
+    settle();
+    window.repaint();
+    settle();
+    CHECK(combo.isPopupVisible() && delegate.painted >= 3);
+    combo.hidePopup();
+
+    // Form rows.
+    QWidget formHost;
+    auto *form = new QFormLayout(&formHost);
+    auto *field = new QLineEdit;
+    form->addRow("Name", field);
+    form->addRow("Port", new QSpinBox);
+    form->setRowVisible(field, false);
+    CHECK(!form->isRowVisible(0) && form->isRowVisible(1) && field->isHidden());
+    form->setRowVisible(0, true);
+    CHECK(!field->isHidden());
+    const QFormLayout::TakeRowResult row = form->takeRow(field);
+    CHECK(row.fieldItem && row.fieldItem->widget() == field && form->rowCount() == 1);
+    delete row.labelItem->widget();
+    delete row.labelItem;
+    delete row.fieldItem;
+    delete field;
+
+    // Dock sizes.
+    QMainWindow main;
+    main.resize(600, 400);
+    auto *dock = new QDockWidget("Properties");
+    dock->setWidget(new QLabel("x"));
+    main.addDockWidget(Qt::LeftDockWidgetArea, dock);
+    main.setCentralWidget(new QWidget);
+    main.resizeDocks({dock}, {150}, Qt::Horizontal);
+    main.show();
+    settle();
+    CHECK(dock->width() == 150);
+
+    // Tab buttons.
+    QTabBar tabs;
+    tabs.addTab("One");
+    tabs.addTab("Two");
+    auto *close = new QToolButton;
+    close->setFixedSize(12, 12);
+    tabs.setTabButton(1, QTabBar::RightSide, close);
+    tabs.setExpanding(false);
+    tabs.setDrawBase(false);
+    tabs.setDocumentMode(true);
+    tabs.resize(tabs.sizeHint());
+    tabs.show();
+    settle();
+    CHECK(tabs.tabButton(1, QTabBar::RightSide) == close && close->parentWidget() == &tabs);
+    CHECK(tabs.tabRect(1).contains(close->geometry()));
+    CHECK(!tabs.expanding() && !tabs.drawBase() && tabs.documentMode());
+}
+
+static void testViewTail() {
+    // QListWidget: hidden items, icon mode, spacing.
+    QListWidget list;
+    list.resize(300, 200);
+    auto *first = new QListWidgetItem(&list);
+    first->setText("first");
+    CHECK(first->listWidget() == &list && first->type() == QListWidgetItem::Type);
+    new QListWidgetItem("second", &list);
+    new QListWidgetItem("third", &list);
+    list.item(1)->setHidden(true);
+    CHECK(list.item(1)->isHidden() && list.isRowHidden(1));
+    list.show();
+    settle();
+    CHECK(list.visualItemRect(list.item(1)).isEmpty());
+    CHECK(list.visualItemRect(list.item(2)).top() == list.visualItemRect(list.item(0)).bottom() + 1);
+    list.setSpacing(4);
+    CHECK(list.visualItemRect(list.item(0)).top() == 4);
+    list.setViewMode(QListView::IconMode);
+    list.setGridSize(QSize(80, 70));
+    list.setMovement(QListView::Static);
+    list.setResizeMode(QListView::Adjust);
+    list.setUniformItemSizes(true);
+    list.setWordWrap(true);
+    const QRect a = list.visualItemRect(list.item(0)), c = list.visualItemRect(list.item(2));
+    CHECK(a.size() == QSize(80, 70) && c.top() == a.top() && c.left() == a.right() + 1 + 4);
+    CHECK(list.itemAt(c.center()) == list.item(2));
+    list.item(0)->setSelected(true);
+    list.clearSelection();
+    CHECK(list.selectedItems().isEmpty());
+
+    // QTableWidget: sorting, hiding, row sizes.
+    QTableWidget table(3, 2);
+    table.setItem(0, 0, new QTableWidgetItem("10"));
+    table.setItem(1, 0, new QTableWidgetItem("9"));
+    table.setItem(2, 0, new QTableWidgetItem("100"));
+    table.setItem(0, 1, new QTableWidgetItem("ten"));
+    table.setCellWidget(1, 1, new QLabel("nine"));
+    table.setCurrentCell(0, 0);
+    table.sortItems(0);
+    CHECK(table.item(0, 0)->text() == "9" && table.item(1, 0)->text() == "10" && table.item(2, 0)->text() == "100");
+    CHECK(table.item(1, 1)->text() == "ten" && table.currentRow() == 1);
+    CHECK(qobject_cast<QLabel *>(table.cellWidget(0, 1)));
+    table.setSortingEnabled(true);
+    table.horizontalHeader()->setSortIndicator(0, Qt::DescendingOrder);
+    CHECK(table.isSortingEnabled() && table.item(0, 0)->text() == "100");
+    table.setRowHidden(1, true);
+    CHECK(table.isRowHidden(1) && table.rowHeight(1) == 0);
+    table.showRow(1);
+    table.setWordWrap(true);
+    table.item(0, 0)->setText("a long text that wraps over a few lines of the cell");
+    table.resizeRowsToContents();
+    CHECK(table.rowHeight(0) > table.rowHeight(2));
+    table.selectRow(2);
+    CHECK(table.currentRow() == 2);
+
+    // QHeaderView: moving sections and saving the state.
+    QHeaderView *header = table.horizontalHeader();
+    header->setSectionsMovable(true);
+    QSignalSpy moved(header, &QHeaderView::sectionMoved);
+    header->moveSection(0, 1);
+    CHECK(moved.count() == 1 && header->logicalIndex(0) == 1 && header->visualIndex(0) == 1);
+    CHECK(header->sectionPosition(1) == 0 && header->sectionsMoved());
+    const QByteArray state = header->saveState();
+    header->moveSection(1, 0);
+    header->resizeSection(1, 33);
+    CHECK(!header->sectionsMoved());
+    CHECK(header->restoreState(state) && header->visualIndex(0) == 1 && header->sectionSize(1) != 33);
+    CHECK(!header->restoreState(QByteArray("junk")));
+
+    // QTreeWidget: item widgets and the item iterator.
+    QTreeWidget tree;
+    tree.setColumnCount(2);
+    auto *top = new QTreeWidgetItem(&tree, QStringList{"top"});
+    auto *child = new QTreeWidgetItem(top, QStringList{"child"});
+    child->setCheckState(0, Qt::Checked);
+    new QTreeWidgetItem(&tree, QStringList{"other"});
+    top->setExpanded(true);
+    auto *progress = new QProgressBar;
+    tree.setItemWidget(child, 1, progress);
+    CHECK(tree.itemWidget(child, 1) == progress && progress->parentWidget() == tree.viewport());
+    tree.resize(300, 200);
+    tree.show();
+    settle();
+    tree.viewport()->repaint();
+    CHECK(progress->isVisible() && progress->geometry() == tree.visualItemRect(child).intersected(
+                                                                 tree.visualRect(tree.indexFromItem(child, 1))));
+    QStringList order;
+    for (QTreeWidgetItemIterator it(&tree); *it; ++it)
+        order << (*it)->text(0);
+    CHECK(order == QStringList({"top", "child", "other"}));
+    QTreeWidgetItemIterator checked(&tree, QTreeWidgetItemIterator::Checked);
+    CHECK(*checked == child && *(++checked) == nullptr);
+    tree.removeItemWidget(child, 1);
+    CHECK(tree.itemWidget(child, 1) == nullptr);
+
+    // QGraphicsView: rubber band selection.
+    QGraphicsScene scene(0, 0, 200, 200);
+    auto *r1 = scene.addRect(10, 10, 20, 20);
+    auto *r2 = scene.addRect(100, 100, 20, 20);
+    r1->setFlag(QGraphicsItem::ItemIsSelectable);
+    r2->setFlag(QGraphicsItem::ItemIsSelectable);
+    QGraphicsView view(&scene);
+    view.resize(260, 260);
+    view.setDragMode(QGraphicsView::RubberBandDrag);
+    view.setRubberBandSelectionMode(Qt::ContainsItemShape);
+    CHECK(view.rubberBandSelectionMode() == Qt::ContainsItemShape);
+    view.show();
+    settle();
+    QSignalSpy band(&view, &QGraphicsView::rubberBandChanged);
+    const QPoint from = view.mapFromScene(QPointF(0, 0)), to = view.mapFromScene(QPointF(50, 50));
+    const auto mouse = [&](QEvent::Type type, QPoint pos) {
+        QMouseEvent e(type, QPointF(pos), QPointF(view.viewport()->mapToGlobal(pos)), Qt::LeftButton,
+                      type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::MouseButtons(Qt::LeftButton),
+                      Qt::NoModifier);
+        QCoreApplication::sendEvent(view.viewport(), &e);
+    };
+    mouse(QEvent::MouseButtonPress, from);
+    mouse(QEvent::MouseMove, to);
+    CHECK(!view.rubberBandRect().isNull() && r1->isSelected() && !r2->isSelected());
+    mouse(QEvent::MouseButtonRelease, to);
+    CHECK(view.rubberBandRect().isNull() && band.count() == 2);
+    QPainterPath path;
+    path.addRect(90, 90, 40, 40);
+    scene.setSelectionArea(path, Qt::AddToSelection, Qt::IntersectsItemShape);
+    CHECK(r1->isSelected() && r2->isSelected());
+}
+
+static void testTextAndCoreTail() {
+    // Editing a document in place, with a style sheet.
+    QTextEdit edit;
+    edit.document()->setDefaultStyleSheet(".error { color: #ff0000; font-weight: bold } pre code { font-style: italic }");
+    CHECK(edit.document()->defaultStyleSheet().contains(".error"));
+    edit.setHtml("<p>Hello</p>");
+    QTextCursor cursor(edit.document());
+    CHECK(!cursor.isNull());
+    cursor.movePosition(QTextCursor::End);
+    // As in Qt, a fragment of one paragraph goes on in the paragraph at the cursor.
+    cursor.insertHtml("<br><span class=\"error\">Oops</span>");
+    CHECK(edit.toPlainText() == "Hello\nOops");
+    CHECK(edit.document()->toHtml().contains("#ff0000"));
+    const int mark = cursor.position();
+    cursor.insertHtml("<b>more</b>");
+    CHECK(edit.toPlainText() == "Hello\nOopsmore");
+    cursor.setPosition(mark);
+    cursor.movePosition(QTextCursor::End, QTextCursor::KeepAnchor);
+    CHECK(cursor.selectedText() == "more");
+    cursor.insertHtml("done");
+    CHECK(edit.toPlainText() == "Hello\nOopsdone");
+    cursor.movePosition(QTextCursor::Start);
+    cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+    cursor.removeSelectedText();
+    CHECK(edit.toPlainText() == "\nOopsdone" && cursor.blockNumber() == 0);
+    // A fragment of several paragraphs makes new paragraphs.
+    cursor.movePosition(QTextCursor::End);
+    cursor.insertHtml("<p>one</p><p>two</p>");
+    CHECK(edit.toPlainText() == "\nOopsdoneone\ntwo" && edit.document()->blockCount() == 2);
+    QTextCursor editCursor = edit.textCursor();
+    editCursor.movePosition(QTextCursor::End);
+    edit.setTextCursor(editCursor);
+    edit.insertHtml("<i>!</i>");
+    CHECK(edit.toPlainText().endsWith("two!") && edit.document()->toHtml().contains("italic"));
+
+    // Core and GUI odds and ends.
+    QSet<QString> set{"a", "bb", "ccc"};
+    CHECK(set.removeIf([](const QString &v) { return v.size() > 1; }) == 2 && set.contains("a"));
+    const QRegion region = QRegion(QRect(0, 0, 10, 10)).subtracted(QRegion(QRect(5, 0, 5, 10)));
+    CHECK(region.boundingRect() == QRect(0, 0, 5, 10));
+    CHECK(QRegion(QRect(0, 0, 10, 10)).xored(QRegion(QRect(5, 0, 10, 10))).boundingRect() == QRect(0, 0, 15, 10));
+    QPixmap pixmap(20, 20);
+    pixmap.fill(Qt::blue);
+    CHECK(pixmap.copy(2, 3, 4, 5).size() == QSize(4, 5));
+    const QVariant colorVariant = QColor(Qt::green);
+    CHECK(colorVariant.value<QColor>() == QColor(Qt::green));
+    QVariant fontVariant = QFont("Sans", 12);
+    CHECK(fontVariant.value<QFont>().pointSize() == 12);
+    QPointer<QObject> pointer = new QLabel;
+    CHECK(qobject_cast<QLabel *>(pointer) != nullptr);
+    delete pointer.data();
+    CHECK(qputenv(QByteArray("NT_LDM_TAIL"), "1") && qgetenv("NT_LDM_TAIL") == "1");
+    qDebug() << QTransform().scale(2, 2);
+    QSizePolicy policy;
+    policy.setHeightForWidth(true);
+    CHECK(policy.hasHeightForWidth());
+    QScreen *screen = QGuiApplication::primaryScreen();
+    CHECK(!screen || screen->virtualGeometry().contains(screen->geometry()));
+    QInputMethod *im = QGuiApplication::inputMethod();
+    QSignalSpy visible(im, &QInputMethod::visibleChanged);
+    im->show();
+    CHECK(im->isVisible() && visible.count() == 1);
+    im->hide();
+    CHECK(QRegularExpression(QRegularExpression::anchoredPattern(QLatin1String("a+"))).match("aaa").hasMatch());
+    QGraphicsSceneMouseEvent sceneEvent(QEvent::GraphicsSceneMousePress);
+    sceneEvent.setScreenPos(QPointF(3.4, 4.6));
+    const QPoint screenPos = sceneEvent.screenPos();
+    CHECK(screenPos == QPoint(3, 5));
+
+    // Network.
+    CHECK(QSslSocket::availableBackends().contains(QSslSocket::activeBackend()));
+    CHECK(QSslSocket::setActiveBackend(QSslSocket::activeBackend()) && !QSslSocket::setActiveBackend("schannel"));
+    QUdpSocket udp;
+    CHECK(udp.bind(QHostAddress::AnyIPv4, 0));
+    const QNetworkInterface loopback = QNetworkInterface::interfaceFromName("lo");
+    if (loopback.isValid()) {
+        udp.setMulticastInterface(loopback);
+        CHECK(udp.multicastInterface().index() == loopback.index());
+    }
+    QWebSocket socket;
+    int errors = 0;
+    QObject::connect(&socket, QOverload<QAbstractSocket::SocketError>::of(&QWebSocket::error),
+                     [&errors](QAbstractSocket::SocketError) { ++errors; });
+    socket.open(QUrl("ws://127.0.0.1:1"));
+    QElapsedTimer clock;
+    clock.start();
+    while (errors == 0 && clock.elapsed() < 3000)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 20);
+    CHECK(errors == 1);
+}
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QTemporaryDir dir;
@@ -1188,6 +1604,9 @@ int main(int argc, char *argv[]) {
     testScroller();
     testGraphicsWidget();
     testMarkdownAndTables();
+    testWidgetTail();
+    testViewTail();
+    testTextAndCoreTail();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

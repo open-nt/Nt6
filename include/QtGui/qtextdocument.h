@@ -146,6 +146,8 @@ public:
     void setMarkdown(const QString &markdown, MarkdownFeatures features = MarkdownDialectGitHub);
     QString toMarkdown(MarkdownFeatures features = MarkdownDialectGitHub) const;
     QTextFrame *rootFrame() const;
+    void setDefaultStyleSheet(const QString &sheet);
+    QString defaultStyleSheet() const;
 
     void setMetaInformation(MetaInformation info, const QString &string);
     QString metaInformation(MetaInformation info) const;
@@ -184,6 +186,10 @@ signals:
     void contentsChanged() { emitSignal(&QTextDocument::contentsChanged); }
 
 private:
+    friend class QTextCursor;
+    // Puts `fragment`, HTML or plain text, in the place of the characters from `from` to `to`, for QTextCursor.
+    // Returns the position after it.
+    int replaceRange(int from, int to, const QString &fragment, bool isHtml);
     friend class QTextBlock;
     friend class QAbstractTextDocumentLayout;
     friend class QTextDocumentPrivate;

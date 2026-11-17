@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qlayout.h>
 
+#include <QtCore/qpointer.h>
+
 #include <QtCore/qdebug.h>
 
 #include "qwidget_p.h"
@@ -18,6 +20,7 @@ struct QLayout::Data {
     QMargins margins;
     bool pending = false;
     QLayout::SizeConstraint constraint = QLayout::SetDefaultConstraint;
+    QPointer<QWidget> menuBar; // setMenuBar(): at the top of the widget, above the items
 };
 
 /*!
@@ -285,6 +288,26 @@ QLayout::SizeConstraint QLayout::sizeConstraint() const { return m_d->constraint
 /*!
     \since 6.0
 
+    Returns the menu bar of the layout, or \c nullptr.
+*/
+QWidget *QLayout::menuBar() const { return m_d->menuBar.data(); }
+
+/*!
+    \since 6.0
+
+    Puts \a widget, usually a QMenuBar, at the top of the widget of the layout, above its items and across its
+    whole width. The widget becomes a child of the widget of the layout.
+*/
+void QLayout::setMenuBar(QWidget *widget) {
+    m_d->menuBar = widget;
+    if (widget && parentWidget() && widget->parentWidget() != parentWidget())
+        widget->setParent(parentWidget());
+    invalidate();
+}
+
+/*!
+    \since 6.0
+
     Sets how the layout constrains the size of its widget to \a constraint. Only the top-level layout of a
     widget constrains it.
 */
@@ -324,7 +347,13 @@ bool QLayout::activate() {
     case SetNoConstraint:
         break;
     }
-    top->setGeometry(w->rect());
+    QRect area = w->QWidget::contentsRect();
+    if (QWidget *bar = top->m_d->menuBar.data(); bar && !bar->isHidden()) {
+        const int height = bar->sizeHint().height();
+        bar->setGeometry(QRect(area.left(), area.top(), area.width(), height));
+        area.setTop(area.top() + height);
+    }
+    top->setGeometry(area);
     if (w->isWindow() && top->m_d->constraint == SetDefaultConstraint) {
         const QSize minimum = top->minimumSize();
         const QSize current = w->size();

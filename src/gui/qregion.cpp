@@ -144,6 +144,71 @@ QRegion QRegion::intersected(const QRegion &other) const {
 }
 
 /*!
+    \since 6.0
+
+    Returns the part of this region that is not in \a other.
+
+    \sa intersected(), xored()
+*/
+QRegion QRegion::subtracted(const QRegion &other) const {
+    std::vector<QRect> parts = m_rects;
+    for (const QRect &cut : other.m_rects) {
+        std::vector<QRect> left;
+        for (const QRect &r : parts) {
+            const QRect i = r.intersected(cut);
+            if (i.isEmpty()) {
+                left.push_back(r);
+                continue;
+            }
+            // What is left of r: the bands above and below the cut, and the pieces beside it.
+            if (i.top() > r.top())
+                left.emplace_back(QPoint(r.left(), r.top()), QPoint(r.right(), i.top() - 1));
+            if (i.bottom() < r.bottom())
+                left.emplace_back(QPoint(r.left(), i.bottom() + 1), QPoint(r.right(), r.bottom()));
+            if (i.left() > r.left())
+                left.emplace_back(QPoint(r.left(), i.top()), QPoint(i.left() - 1, i.bottom()));
+            if (i.right() < r.right())
+                left.emplace_back(QPoint(i.right() + 1, i.top()), QPoint(r.right(), i.bottom()));
+        }
+        parts = std::move(left);
+    }
+    QRegion result;
+    for (const QRect &r : parts)
+        result += r;
+    return result;
+}
+
+/*!
+    \since 6.0
+
+    Returns the parts that are in this region or in \a other, but not in both.
+
+    \sa subtracted()
+*/
+QRegion QRegion::xored(const QRegion &other) const { return subtracted(other).united(other.subtracted(*this)); }
+
+/*!
+    \fn QRegion QRegion::operator-(const QRegion &other) const
+    \since 6.0
+
+    Returns subtracted(\a other).
+*/
+
+/*!
+    \fn QRegion QRegion::operator^(const QRegion &other) const
+    \since 6.0
+
+    Returns xored(\a other).
+*/
+
+/*!
+    \fn QRegion &QRegion::operator-=(const QRegion &other)
+    \since 6.0
+
+    Takes \a other away from the region and returns a reference to it.
+*/
+
+/*!
     Returns a copy of the region moved by \a dx horizontally and \a dy
     vertically.
 

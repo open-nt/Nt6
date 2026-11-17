@@ -7,6 +7,8 @@
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qstandarditemmodel.h>
+#include <QtWidgets/qabstractitemdelegate.h>
+#include <QtWidgets/qlistview.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 
@@ -23,7 +25,17 @@ public:
         hide();
     }
 
-    int itemHeight() const { return fontMetrics().height() + 6; }
+    int itemHeight() const {
+        int height = fontMetrics().height() + 6;
+        // A delegate sizes the items; the list takes the highest.
+        if (QAbstractItemDelegate *delegate = m_combo->itemDelegate()) {
+            QStyleOptionViewItem option;
+            option.initFrom(m_combo);
+            for (int i = 0; i < m_combo->count(); ++i)
+                height = std::max(height, delegate->sizeHint(option, m_combo->itemIndex(i)).height());
+        }
+        return height;
+    }
     int visibleItems() const { return std::min(m_combo->count(), m_visible); }
 
     void open() {
@@ -40,7 +52,9 @@ public:
         const bool downwards = rows * itemHeight() + 2 <= room || room >= above;
         m_visible = std::max(1, std::min(rows, ((downwards ? room : above) - 2) / itemHeight()));
         const int height = m_visible * itemHeight() + 2;
-        setGeometry(QRect(QPoint(below.x(), downwards ? below.y() : above - height), QSize(m_combo->width(), height)));
+        // As wide as the combo box, or as the minimum width given to its view(), within the window.
+        const int width = std::min(top->width() - below.x(), std::max(m_combo->width(), m_combo->view()->minimumWidth()));
+        setGeometry(QRect(QPoint(below.x(), downwards ? below.y() : above - height), QSize(width, height)));
         m_hover = m_combo->currentIndex();
         m_top = 0;
         ensureVisible(m_hover);
@@ -68,6 +82,21 @@ protected:
             const QRect item(1, 1 + row * h, width() - 2, h);
             const bool enabled = m_combo->isItemEnabled(index);
             const bool hot = index == m_hover && enabled;
+            if (QAbstractItemDelegate *delegate = m_combo->itemDelegate()) {
+                QStyleOptionViewItem option;
+                option.initFrom(this);
+                option.rect = item;
+                option.state &= ~QStyle::State_Enabled;
+                if (enabled)
+                    option.state |= QStyle::State_Enabled;
+                if (hot)
+                    option.state |= QStyle::State_Selected | QStyle::State_MouseOver;
+                option.decorationSize = m_combo->iconSize();
+                painter.save();
+                delegate->paint(&painter, option, m_combo->itemIndex(index));
+                painter.restore();
+                continue;
+            }
             if (hot)
                 painter.fillRect(item, palette().color(group, QPalette::Highlight));
             painter.setPen(enabled ? palette().color(group, hot ? QPalette::HighlightedText : QPalette::Text)
@@ -368,6 +397,8 @@ void QComboBox::setModel(QAbstractItemModel *model) {
         return;
     hidePopup();
     m_model = model;
+    if (auto *list = qobject_cast<QListView *>(m_view))
+        list->setModel(model);
     connectModel();
     m_current = -1;
     modelWasReset();
@@ -427,13 +458,67 @@ void QComboBox::setItemText(int index, const QString &text) {
 */
 
 /*!
-    Returns the index of the first item whose text is \a text, or -1 if there is none.
+    Returns the index of the first item whose text matches \a text as \a flags say, or -1 if there is none. By
+    default the text must be the same.
+
+    \sa findData()
 */
-int QComboBox::findText(const QString &text) const {
-    for (int i = 0; i < count(); ++i)
-        if (itemText(i) == text)
-            return i;
-    return -1;
+int QComboBox::findText(const QString &text, Qt::MatchFlags flags) const {
+    return findData(text, Qt::DisplayRole, flags);
+}
+
+/*!
+    \since 6.0
+
+    Sets the text shown while there is no current item to \a placeholderText.
+*/
+void QComboBox::setPlaceholderText(const QString &placeholderText) {
+    m_placeholder = placeholderText;
+    updateGeometry();
+    update();
+}
+
+/*!
+    \fn QString QComboBox::placeholderText() const
+    \since 6.0
+
+    Returns the text shown while there is no current item.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the view of the list. Nt draws the list itself: the view is a hidden QListView of the model, whose
+    minimum width the list takes, so \c{view()->setMinimumWidth(280)} makes the list that wide.
+*/
+QAbstractItemView *QComboBox::view() const {
+    if (!m_view) {
+        auto *self = const_cast<QComboBox *>(this); // NOLINT(cppcoreguidelines-pro-type-const-cast): made on demand
+        auto *list = new QListView(self);
+        list->hide();
+        if (m_model)
+            list->setModel(m_model);
+        m_view = list;
+    }
+    return m_view;
+}
+
+/*!
+    \since 6.0
+
+    Returns the delegate that draws the items of the list, or \c nullptr if the combo box draws them.
+*/
+QAbstractItemDelegate *QComboBox::itemDelegate() const { return m_delegate.data(); }
+
+/*!
+    \since 6.0
+
+    Makes \a delegate draw and size the items of the list. The combo box does not take ownership of it.
+*/
+void QComboBox::setItemDelegate(QAbstractItemDelegate *delegate) {
+    m_delegate = delegate;
+    if (m_popup)
+        m_popup->update();
 }
 
 /*!
@@ -873,6 +958,7 @@ void QComboBox::choose(int index) {
 QSize QComboBox::sizeHint() const {
     const QFontMetrics fm = fontMetrics();
     int width = count() == 0 ? fm.horizontalAdvance(QString(7, QChar('x'))) : 0;
+    width = std::max(width, fm.horizontalAdvance(m_placeholder));
     for (int i = 0; i < count(); ++i)
         width = std::max(width, fm.horizontalAdvance(itemText(i)));
     int height = fm.height();
@@ -903,6 +989,9 @@ void QComboBox::paintEvent(QPaintEvent *event) {
     QStyleOptionComboBox option;
     option.initFrom(this);
     option.currentText = m_edit ? QString() : currentText();
+    const bool placeholder = !m_edit && m_current < 0 && !m_placeholder.isEmpty();
+    if (placeholder)
+        option.currentText = m_placeholder;
     option.currentIcon = m_edit ? QIcon() : itemIcon(m_current);
     option.iconSize = iconSize();
     option.editable = m_edit != nullptr;

@@ -14,8 +14,11 @@
 
 class QIODevice;
 
+class QVariant;
+
 class QImage : public QPaintDevice {
 public:
+    operator QVariant() const;
     enum Format {
         Format_Invalid = 0,
         Format_RGB32 = 4,

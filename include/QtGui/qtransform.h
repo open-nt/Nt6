@@ -10,6 +10,8 @@ class QPainterPath;
 class QPolygon;
 class QPolygonF;
 
+class QDebug;
+
 class QTransform {
 public:
     enum TransformationType {
@@ -100,3 +102,4 @@ QPoint operator*(const QPoint &point, const QTransform &matrix);
 QLineF operator*(const QLineF &line, const QTransform &matrix);
 QPolygonF operator*(const QPolygonF &polygon, const QTransform &matrix);
 QPainterPath operator*(const QPainterPath &path, const QTransform &matrix);
+QDebug operator<<(QDebug debug, const QTransform &matrix);

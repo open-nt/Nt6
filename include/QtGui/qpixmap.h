@@ -11,8 +11,11 @@
 
 class QIODevice;
 
+class QVariant;
+
 class QPixmap : public QPaintDevice {
 public:
+    operator QVariant() const;
     QPixmap();
     QPixmap(int width, int height);
     explicit QPixmap(const QSize &size);
@@ -30,6 +33,7 @@ public:
     bool hasAlphaChannel() const { return m_image.hasAlphaChannel(); }
     void fill(const QColor &color = Qt::white);
     QPixmap copy(const QRect &rect = QRect()) const;
+    QPixmap copy(int x, int y, int width, int height) const { return copy(QRect(x, y, width, height)); }
     QPixmap scaled(int width, int height, Qt::AspectRatioMode aspectMode = Qt::IgnoreAspectRatio,
                    Qt::TransformationMode mode = Qt::FastTransformation) const {
         return fromImage(m_image.scaled(width, height, aspectMode, mode));

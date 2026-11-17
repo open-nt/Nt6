@@ -1,4 +1,5 @@
-# Builds, tests and packages Nt on Enterprise Linux 10 (.rpm); packages are made with CPack.
+# Builds, tests and packages Nt on Enterprise Linux 10 (.rpm) for x86_64 and aarch64 (natively on
+# GitHub's hosted arm64 runner); packages are made with CPack.
 # Also called by slsa.yml, which signs the packages with SLSA provenance.
 name: Enterprise Linux 10
 
@@ -15,8 +16,18 @@ permissions:
 
 jobs:
   build:
-    name: Enterprise Linux 10 (.rpm)
-    runs-on: ubuntu-latest
+    name: Enterprise Linux 10 (.rpm, ${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+            artifact: packages-el10
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            artifact: packages-el10-aarch64
     container: quay.io/rockylinux/rockylinux:10
     steps:
       - name: Install git
@@ -32,6 +43,6 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: packages-el10
+          name: ${{ matrix.artifact }}
           path: dist/*
           if-no-files-found: error

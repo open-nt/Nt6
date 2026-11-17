@@ -31,6 +31,21 @@ public:
     void insertRow(int row, QWidget *widget);
     void insertRow(int row, QLayout *layout);
     void removeRow(int row);
+    void removeRow(QWidget *widget);
+    void removeRow(QLayout *layout);
+    struct TakeRowResult {
+        QLayoutItem *labelItem;
+        QLayoutItem *fieldItem;
+    };
+    TakeRowResult takeRow(int row);
+    TakeRowResult takeRow(QWidget *widget);
+    TakeRowResult takeRow(QLayout *layout);
+    void setRowVisible(int row, bool on);
+    void setRowVisible(QWidget *widget, bool on);
+    void setRowVisible(QLayout *layout, bool on);
+    bool isRowVisible(int row) const;
+    bool isRowVisible(QWidget *widget) const;
+    bool isRowVisible(QLayout *layout) const;
 
     int rowCount() const { return static_cast<int>(m_rows.size()); }
     void setWidget(int row, ItemRole role, QWidget *widget);
@@ -70,7 +85,10 @@ private:
         bool labelOwned = false;
         bool fieldOwned = false;
         bool spanning = false;
+        bool visible = true;
     };
+    int rowOf(QWidget *widget) const;
+    int rowOf(QLayout *layout) const;
     struct Metrics;
     void setItem(int row, ItemRole role, QLayoutItem *item, bool owned);
     int insertEmptyRow(int row);

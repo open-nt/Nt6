@@ -116,3 +116,8 @@ private:
     }
     std::shared_ptr<QtPrivate::PointerData> d;
 };
+
+// qobject_cast() of the object a QPointer points to, as a QPointer converts to a pointer in Qt.
+template <typename T, typename U> inline T qobject_cast(const QPointer<U> &pointer) {
+    return qobject_cast<T>(pointer.data());
+}

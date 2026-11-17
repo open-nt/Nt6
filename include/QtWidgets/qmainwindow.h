@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qpointer.h>
+#include <QtWidgets/qtabwidget.h>
 #include <QtWidgets/qwidget.h>
 
 #include <vector>
@@ -47,6 +48,7 @@ public:
     void removeDockWidget(QDockWidget *dockwidget);
     Qt::DockWidgetArea dockWidgetArea(QDockWidget *dockwidget) const;
     bool restoreDockWidget(QDockWidget *dockwidget);
+    void resizeDocks(const QList<QDockWidget *> &docks, const QList<int> &sizes, Qt::Orientation orientation);
 
     Qt::ToolButtonStyle toolButtonStyle() const { return m_toolButtonStyle; }
     virtual QMenu *createPopupMenu();
@@ -83,6 +85,8 @@ private:
     struct DockEntry {
         QPointer<QWidget> dock; // a QDockWidget
         Qt::DockWidgetArea area;
+        int width = -1; // set by resizeDocks(); -1: the size hint
+        int height = -1;
     };
 
     void manage(QWidget *widget);

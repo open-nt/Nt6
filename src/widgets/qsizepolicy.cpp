@@ -124,6 +124,48 @@
 */
 
 /*!
+    \fn bool QSizePolicy::hasHeightForWidth() const
+    \since 6.0
+
+    Returns \c true if the height of the widget depends on its width. Nt layouts do not use it.
+*/
+
+/*!
+    \fn void QSizePolicy::setHeightForWidth(bool b)
+    \since 6.0
+
+    Sets whether the height of the widget depends on its width to \a b.
+*/
+
+/*!
+    \fn bool QSizePolicy::hasWidthForHeight() const
+    \since 6.0
+
+    Returns \c true if the width of the widget depends on its height. Nt layouts do not use it.
+*/
+
+/*!
+    \fn void QSizePolicy::setWidthForHeight(bool b)
+    \since 6.0
+
+    Sets whether the width of the widget depends on its height to \a b.
+*/
+
+/*!
+    \fn bool QSizePolicy::retainSizeWhenHidden() const
+    \since 6.0
+
+    Returns \c true if a layout keeps the room of the widget while it is hidden. Nt layouts do not use it.
+*/
+
+/*!
+    \fn void QSizePolicy::setRetainSizeWhenHidden(bool retainSize)
+    \since 6.0
+
+    Sets whether a layout keeps the room of the widget while it is hidden to \a retainSize.
+*/
+
+/*!
     \fn Qt::Orientations QSizePolicy::expandingDirections() const
 
     Returns the directions in which the widget wants to expand: those whose policy has the ExpandFlag.

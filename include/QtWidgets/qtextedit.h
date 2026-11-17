@@ -29,6 +29,7 @@ public slots:
     void setText(const QString &text);
     void setHtml(const QString &text);
     void setMarkdown(const QString &markdown);
+    void insertHtml(const QString &text);
     void append(const QString &text);
 
 protected:
@@ -42,6 +43,7 @@ protected:
 
 private:
     friend class QTextBrowser;
+    friend class QTextCursor;
     bool showsRichText() const { return m_rich; }
     void adoptDocument();
     void layoutRichText();

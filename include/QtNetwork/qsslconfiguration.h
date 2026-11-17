@@ -51,6 +51,7 @@ public:
     QSsl::SslProtocol sessionProtocol() const;
 
     static QSslConfiguration defaultConfiguration();
+    static QList<QSslCertificate> systemCaCertificates();
     static void setDefaultConfiguration(const QSslConfiguration &configuration);
 
     friend bool operator==(const QSslConfiguration &a, const QSslConfiguration &b);

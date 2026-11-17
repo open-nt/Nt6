@@ -94,6 +94,6 @@ if [ "$verify_install" = 1 ]; then
     ndoc --version
 fi
 
-(cd "$output" && printf '%s\n' "$packages" | xargs -r -n1 basename | xargs -r sha256sum > "SHA256SUMS-${ID}-${VERSION_ID}.txt")
+(cd "$output" && printf '%s\n' "$packages" | xargs -r -n1 basename | xargs -r sha256sum > "SHA256SUMS-${ID}-${VERSION_ID}-$(uname -m).txt")
 echo "==> packages in $output:"
 ls -l $packages

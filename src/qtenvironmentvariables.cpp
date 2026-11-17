@@ -27,11 +27,19 @@ QByteArray qgetenv(const char *varName) {
 
 QString qEnvironmentVariable(const char *varName) { return qEnvironmentVariable(varName, QString()); }
 
+QString qEnvironmentVariable(const QByteArray &varName) { return qEnvironmentVariable(varName.constData()); }
+
+QString qEnvironmentVariable(const QByteArray &varName, const QString &defaultValue) {
+    return qEnvironmentVariable(varName.constData(), defaultValue);
+}
+
 QString qEnvironmentVariable(const char *varName, const QString &defaultValue) {
     const std::lock_guard<std::mutex> lock(environmentMutex());
     const char *value = std::getenv(varName);
     return value ? QString::fromLocal8Bit(value) : defaultValue;
 }
+
+bool qputenv(const QByteArray &varName, QByteArrayView value) { return qputenv(varName.constData(), value); }
 
 bool qputenv(const char *varName, QByteArrayView value) {
     // The view need not end with a zero.

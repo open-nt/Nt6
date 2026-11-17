@@ -2,14 +2,17 @@
 #pragma once
 
 #include <QtCore/qnamespace.h>
+#include <QtCore/qpointer.h>
 #include <QtGui/qpixmap.h>
-#include <QtWidgets/qwidget.h>
+#include <QtWidgets/qframe.h>
 
 #include <memory>
 
 class QTextDocument;
 
-class QLabel : public QWidget {
+class QAction;
+
+class QLabel : public QFrame {
     Q_OBJECT
     Q_PROPERTY(QString text READ text WRITE setText)
     Q_PROPERTY(bool wordWrap READ wordWrap WRITE setWordWrap)
@@ -31,6 +34,8 @@ public:
     int margin() const { return m_margin; }
     void setMargin(int margin);
     QPixmap pixmap() const { return m_pixmap; }
+    QWidget *buddy() const;
+    void setBuddy(QWidget *buddy);
     bool hasScaledContents() const { return m_scaled; }
     void setScaledContents(bool scaled);
     Qt::TextFormat textFormat() const { return m_format; }
@@ -73,6 +78,8 @@ protected:
     void leaveEvent(QEvent *event) override;
 
 private:
+    QRect labelArea() const;
+    QSize labelExtra() const;
     QSize textSize(int width) const;
     void updateDocument();
     QRect documentRect() const;
@@ -84,6 +91,9 @@ private:
     bool m_wordWrap = false;
     int m_margin = 0;
     QPixmap m_pixmap;
+    QPointer<QWidget> m_buddy;
+    QAction *m_buddyAction = nullptr; // a child with the mnemonic of the text as its shortcut, while there is a buddy
+    void updateBuddyShortcut();
     bool m_scaled = false;
     Qt::TextFormat m_format = Qt::AutoText;
     bool m_openExternal = false;

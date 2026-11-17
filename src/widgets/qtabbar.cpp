@@ -44,6 +44,16 @@ constexpr int kDragDistance = 4;
 */
 
 /*!
+    \enum QTabBar::ButtonPosition
+    \since 6.0
+
+    The side of a tab that setTabButton() puts a widget at.
+
+    \value LeftSide Before the text.
+    \value RightSide After the text.
+*/
+
+/*!
     \enum QTabBar::SelectionBehavior
 
     Which tab becomes current when the current tab is removed.
@@ -106,6 +116,8 @@ void QTabBar::removeTab(int index) {
     if (!valid(index))
         return;
     const bool wasCurrent = index == m_current;
+    delete m_tabs[static_cast<std::size_t>(index)].left.data();
+    delete m_tabs[static_cast<std::size_t>(index)].right.data();
     m_tabs.erase(m_tabs.begin() + index);
     m_history.erase(std::remove(m_history.begin(), m_history.end(), index), m_history.end());
     for (int &h : m_history)
@@ -365,6 +377,17 @@ QSize QTabBar::tabSizeHint(int index) const {
     QSize text = fontMetrics().size(Qt::TextSingleLine, option.text);
     if (m_closable)
         text.setWidth(text.width() + kCloseSize + 4);
+    // Room for the buttons of the tab, which are as high as they like up to the height of the bar.
+    if (valid(index)) {
+        for (const QWidget *button : {m_tabs[static_cast<std::size_t>(index)].left.data(),
+                                      m_tabs[static_cast<std::size_t>(index)].right.data()}) {
+            if (!button)
+                continue;
+            const QSize hint = button->sizeHint().isValid() ? button->sizeHint() : button->size();
+            text.setWidth(text.width() + hint.width() + 4);
+            text.setHeight(std::max(text.height(), hint.height()));
+        }
+    }
     return style()->sizeFromContents(QStyle::CT_TabBarTab, &option, text, this);
 }
 
@@ -386,8 +409,129 @@ void QTabBar::tabLayoutChange() {}
 void QTabBar::changed() {
     tabLayoutChange();
     updateGeometry();
+    placeButtons();
     update();
 }
+
+// Puts the buttons of the tabs at the sides of their tabs, centred down.
+void QTabBar::placeButtons() {
+    for (int i = 0; i < count(); ++i) {
+        const Tab &tab = m_tabs[static_cast<std::size_t>(i)];
+        const QRect rect = tabRect(i).translated(i == m_dragging ? m_dragOffset : 0, 0);
+        if (QWidget *left = tab.left.data()) {
+            const QSize size = left->sizeHint().isValid() ? left->sizeHint() : left->size();
+            left->setGeometry(rect.left() + 4, rect.top() + (rect.height() - size.height()) / 2, size.width(),
+                              size.height());
+            left->show();
+        }
+        if (QWidget *right = tab.right.data()) {
+            const QSize size = right->sizeHint().isValid() ? right->sizeHint() : right->size();
+            const int end = m_closable ? closeRect(i).left() - 2 : rect.right() - 3;
+            right->setGeometry(end - size.width(), rect.top() + (rect.height() - size.height()) / 2, size.width(),
+                               size.height());
+            right->show();
+        }
+    }
+}
+
+/*!
+    \reimp
+*/
+void QTabBar::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    placeButtons();
+}
+
+/*!
+    \since 6.0
+
+    Returns the widget at the side \a position of the tab at \a index, or \c nullptr.
+*/
+QWidget *QTabBar::tabButton(int index, ButtonPosition position) const {
+    if (!valid(index))
+        return nullptr;
+    const Tab &tab = m_tabs[static_cast<std::size_t>(index)];
+    return position == LeftSide ? tab.left.data() : tab.right.data();
+}
+
+/*!
+    \since 6.0
+
+    Puts \a widget, such as a small tool button, at the side \a position of the tab at \a index. The tab bar takes
+    ownership of it and deletes the widget that was there; \c nullptr removes it. The tab grows to hold it.
+*/
+void QTabBar::setTabButton(int index, ButtonPosition position, QWidget *widget) {
+    if (!valid(index))
+        return;
+    QPointer<QWidget> &slot = position == LeftSide ? m_tabs[static_cast<std::size_t>(index)].left
+                                                   : m_tabs[static_cast<std::size_t>(index)].right;
+    if (slot == widget)
+        return;
+    delete slot.data();
+    slot = widget;
+    if (widget)
+        widget->setParent(this);
+    changed();
+}
+
+/*!
+    \fn bool QTabBar::expanding() const
+    \since 6.0
+
+    Returns whether the tabs would stretch to fill the bar. Nt keeps the value; tabs keep their size.
+*/
+
+/*!
+    \fn void QTabBar::setExpanding(bool enabled)
+    \since 6.0
+
+    Sets whether the tabs stretch to fill the bar to \a enabled.
+*/
+
+/*!
+    \fn bool QTabBar::drawBase() const
+    \since 6.0
+
+    Returns whether a base line is drawn under the tabs. Nt keeps the value.
+*/
+
+/*!
+    \fn void QTabBar::setDrawBase(bool drawTheBase)
+    \since 6.0
+
+    Sets whether a base line is drawn under the tabs to \a drawTheBase.
+*/
+
+/*!
+    \fn bool QTabBar::documentMode() const
+    \since 6.0
+
+    Returns whether the tab bar is drawn as for the documents of a main window.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether the tab bar is drawn as for documents to \a set. Nt keeps the value and draws the tabs the same.
+*/
+void QTabBar::setDocumentMode(bool set) {
+    m_documentMode = set;
+    update();
+}
+
+/*!
+    \fn bool QTabBar::usesScrollButtons() const
+    \since 6.0
+
+    Returns whether buttons scroll tabs that do not fit. Nt keeps the value; tabs that do not fit are cut off.
+*/
+
+/*!
+    \fn void QTabBar::setUsesScrollButtons(bool useButtons)
+    \since 6.0
+
+    Sets whether buttons scroll tabs that do not fit to \a useButtons.
+*/
 
 QRect QTabBar::closeRect(int index) const {
     if (!m_closable || !valid(index))
@@ -448,15 +592,21 @@ void QTabBar::paintEvent(QPaintEvent *event) {
         }
         if (i == m_hover)
             option.state |= QStyle::State_MouseOver;
-        if (m_closable) {
-            // The tab without its text, then the text beside the close button.
+        const Tab &tab = m_tabs[static_cast<std::size_t>(i)];
+        if (m_closable || tab.left || tab.right) {
+            // The tab without its text, then the text between the buttons.
+            int leftRoom = 4, rightRoom = m_closable ? kCloseSize + 6 : 4;
+            if (tab.left)
+                leftRoom += tab.left->width() + 4;
+            if (tab.right)
+                rightRoom += tab.right->width() + 4;
             QStyleOptionTab shape = option;
             shape.text.clear();
             style()->drawControl(QStyle::CE_TabBarTab, &shape, &painter, this);
             const QPalette::ColorGroup textGroup =
                 (option.state & QStyle::State_Enabled) ? QPalette::Active : QPalette::Disabled;
             painter.setPen(palette().color(textGroup, QPalette::WindowText));
-            painter.drawText(option.rect.adjusted(4, 0, -(kCloseSize + 6), 0), Qt::AlignCenter | Qt::TextSingleLine,
+            painter.drawText(option.rect.adjusted(leftRoom, 0, -rightRoom, 0), Qt::AlignCenter | Qt::TextSingleLine,
                              option.text);
         } else {
             style()->drawControl(QStyle::CE_TabBarTab, &option, &painter, this);
@@ -507,6 +657,7 @@ void QTabBar::mousePressEvent(QMouseEvent *event) {
         m_dragging = index;
         m_pressX = event->pos().x();
         m_dragOffset = 0;
+        placeButtons();
     }
     event->accept();
 }
@@ -538,6 +689,7 @@ void QTabBar::mouseMoveEvent(QMouseEvent *event) {
             offset += width;
         }
         m_dragOffset = offset;
+        placeButtons();
         update();
         event->accept();
         return;
@@ -570,6 +722,7 @@ void QTabBar::mouseReleaseEvent(QMouseEvent *event) {
     if (m_dragging >= 0) {
         m_dragging = -1;
         m_dragOffset = 0;
+        placeButtons();
         update();
     }
     event->accept();

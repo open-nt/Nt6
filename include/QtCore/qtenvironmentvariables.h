@@ -15,8 +15,13 @@ QByteArray qgetenv(const char *varName);
 // The value of the variable decoded from the local 8-bit encoding, or a null string (or defaultValue) if not set.
 QString qEnvironmentVariable(const char *varName);
 QString qEnvironmentVariable(const char *varName, const QString &defaultValue);
+// Names in a QByteArray, which converts to a const char * in Qt.
+QString qEnvironmentVariable(const QByteArray &varName);
+QString qEnvironmentVariable(const QByteArray &varName, const QString &defaultValue);
 // Sets the variable; an empty value sets it to the empty string. Returns true on success.
 bool qputenv(const char *varName, QByteArrayView value);
+// A name in a QByteArray, which converts to a const char * in Qt.
+bool qputenv(const QByteArray &varName, QByteArrayView value);
 // Removes the variable. Returns true on success.
 bool qunsetenv(const char *varName);
 bool qEnvironmentVariableIsEmpty(const char *varName) noexcept;

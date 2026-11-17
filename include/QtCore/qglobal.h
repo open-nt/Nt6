@@ -347,3 +347,5 @@ template <typename... Args> inline constexpr QtPrivate::QNonConstOverload<Args..
 
 // As in Qt, qglobal.h makes qDebug(), qWarning() and the other logging functions available.
 #include <QtCore/qlogging.h>
+
+#include <QtCore/qtresource.h>

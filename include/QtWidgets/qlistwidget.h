@@ -13,17 +13,20 @@
 #include <QtGui/qbrush.h>
 #include <QtGui/qfont.h>
 #include <QtWidgets/qabstractitemview.h>
+#include <QtWidgets/qlistview.h>
 
 #include <vector>
 
 class QListWidget;
+class QMimeData;
 
 class QListWidgetItem {
 public:
-    QListWidgetItem();
-    explicit QListWidgetItem(const QString &text);
-    QListWidgetItem(const QString &text, QListWidget *listWidget);
-    QListWidgetItem(const QIcon &icon, const QString &text, QListWidget *listWidget = nullptr);
+    enum ItemType { Type = 0, UserType = 1000 };
+
+    explicit QListWidgetItem(QListWidget *listview = nullptr, int type = Type);
+    explicit QListWidgetItem(const QString &text, QListWidget *listview = nullptr, int type = Type);
+    QListWidgetItem(const QIcon &icon, const QString &text, QListWidget *listview = nullptr, int type = Type);
     QListWidgetItem(const QListWidgetItem &) = delete;
     QListWidgetItem &operator=(const QListWidgetItem &) = delete;
     virtual ~QListWidgetItem();
@@ -49,6 +52,9 @@ public:
     void setSelected(bool select);
     QSize sizeHint() const { return m_sizeHint; }
     void setSizeHint(const QSize &size);
+    bool isHidden() const { return m_hidden; }
+    void setHidden(bool hide);
+    int type() const { return m_type; }
     virtual QVariant data(int role) const;
     virtual void setData(int role, const QVariant &value);
 
@@ -68,6 +74,8 @@ private:
     Qt::ItemFlags m_flags = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
     QSize m_sizeHint;
     QIcon m_icon;
+    bool m_hidden = false;
+    int m_type = Type;
     QMap<int, QVariant> m_data; // the roles that have no member of their own
     QPointer<QWidget> m_widget; // shown over the item, owned by the list
 };
@@ -105,10 +113,32 @@ public:
     void removeItemWidget(QListWidgetItem *item) { setItemWidget(item, nullptr); }
     int rowHeight() const;
 
+    QListView::ViewMode viewMode() const { return m_viewMode; }
+    void setViewMode(QListView::ViewMode mode);
+    QListView::Movement movement() const { return m_movement; }
+    void setMovement(QListView::Movement movement) { m_movement = movement; }
+    QListView::ResizeMode resizeMode() const { return m_resizeMode; }
+    void setResizeMode(QListView::ResizeMode mode) { m_resizeMode = mode; }
+    QListView::Flow flow() const { return m_flow; }
+    void setFlow(QListView::Flow flow);
+    bool isWrapping() const { return m_wrapping; }
+    void setWrapping(bool enable);
+    int spacing() const { return m_spacing; }
+    void setSpacing(int space);
+    QSize gridSize() const { return m_gridSize; }
+    void setGridSize(const QSize &size);
+    bool uniformItemSizes() const { return m_uniformItemSizes; }
+    void setUniformItemSizes(bool enable) { m_uniformItemSizes = enable; }
+    bool wordWrap() const { return m_wordWrap; }
+    void setWordWrap(bool on);
+    bool isRowHidden(int row) const;
+    void setRowHidden(int row, bool hide);
+
 public slots:
     void setCurrentRow(int row);
     void clear();
     void selectAll();
+    void clearSelection();
 
 signals:
     /*!
@@ -146,6 +176,10 @@ signals:
     void itemSelectionChanged() { emitSignal(&QListWidget::itemSelectionChanged); }
 
 protected:
+    virtual QStringList mimeTypes() const;
+    virtual QMimeData *mimeData(const QList<QListWidgetItem *> &items) const;
+    virtual bool dropMimeData(int index, const QMimeData *data, Qt::DropAction action);
+    virtual Qt::DropActions supportedDropActions() const;
     bool viewportEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -173,12 +207,14 @@ private:
     void setRowSelected(int row, bool selected);
     bool clearSelection(int except);
     void scrollToRow(int row);
-    int rowAtY(int y) const;
-    // Rows are rowHeight() high, or as high as the size hint of their item if that is larger.
-    int heightOf(int row) const;
-    int topOf(int row) const;
+    // The row at `pos` in the viewport, or -1.
+    int rowAt(const QPoint &pos) const;
+    // Lays the items out, if they changed: their rectangles in the contents, which scroll down.
+    void layoutItems() const;
+    QRect itemRect(int row) const; // in the contents; empty for a hidden item
     int contentHeight() const;
-    bool uniformRows() const;
+    QSize iconCell() const; // the size of an item in icon mode
+    void invalidateLayout();
     // Puts the item widgets over their items.
     void placeItemWidgets();
     void navigate(int target, Qt::KeyboardModifiers modifiers);
@@ -193,4 +229,17 @@ private:
     bool m_selectionDirty = false;
     bool m_updating = false;
     bool m_updateAgain = false;
+    QListView::ViewMode m_viewMode = QListView::ListMode;
+    QListView::Movement m_movement = QListView::Static;
+    QListView::ResizeMode m_resizeMode = QListView::Fixed;
+    QListView::Flow m_flow = QListView::TopToBottom;
+    bool m_wrapping = false;
+    int m_spacing = 0;
+    QSize m_gridSize;
+    bool m_uniformItemSizes = false;
+    bool m_wordWrap = false;
+    mutable std::vector<QRect> m_rects; // of the items, row by row, as layoutItems() placed them
+    mutable int m_contentHeight = 0;
+    mutable bool m_layoutValid = false;
+    mutable int m_layoutWidth = -1;
 };

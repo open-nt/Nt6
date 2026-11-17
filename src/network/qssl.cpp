@@ -4,6 +4,8 @@
 #include <QtCore/qmutex.h>
 #include <QtNetwork/qhostaddress.h>
 #include <QtNetwork/qsslconfiguration.h>
+
+#include <QtCore/qfileinfo.h>
 #include <QtNetwork/qsslerror.h>
 
 #include "qtlsbackend_p.h"
@@ -649,8 +651,8 @@ QSsl::SslProtocol QSslCipher::protocol() const { return m_protocol; }
 
     \differences
     caCertificates() lists only certificates you added: system ones are used by
-    OpenSSL directly and are not enumerated, so \c systemCaCertificates() does
-    not exist. usesSystemCaCertificates() is an Nt addition. A cipher or a
+    OpenSSL directly. systemCaCertificates() reads them from the bundle file of
+    the system. usesSystemCaCertificates() is an Nt addition. A cipher or a
     backend option that OpenSSL does not accept makes the handshake fail,
     where Qt warns and goes on. The elliptic curves are set as the backend
     option \c Groups; \c setEllipticCurves() is absent, as are session
@@ -959,6 +961,22 @@ void QSslConfiguration::setBackendConfiguration(const QMap<QByteArray, QVariant>
     by QSslSocket::sslConfiguration().
 */
 QSsl::SslProtocol QSslConfiguration::sessionProtocol() const { return m_sessionProtocol; }
+
+/*!
+    \since 6.0
+
+    Returns the certificate authorities of the system, read from its bundle file: the one of Debian and Ubuntu,
+    Fedora and Red Hat, openSUSE, or Alpine and macOS, whichever exists. The list is empty if there is none.
+*/
+QList<QSslCertificate> QSslConfiguration::systemCaCertificates() {
+    for (const char *path : {"/etc/ssl/certs/ca-certificates.crt", "/etc/pki/tls/certs/ca-bundle.crt",
+                             "/etc/ssl/ca-bundle.pem", "/etc/ssl/cert.pem"}) {
+        const QString file = QString::fromLatin1(path);
+        if (QFileInfo::exists(file))
+            return QSslCertificate::fromPath(file);
+    }
+    return {};
+}
 
 /*!
     Returns the configuration new sockets start with.

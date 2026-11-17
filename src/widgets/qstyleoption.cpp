@@ -940,6 +940,13 @@ void QStyleOption::initFrom(const QWidget *widget) {
 */
 
 /*!
+    \variable QStyleOptionTab::icon
+    \since 6.0
+
+    The icon of the tab, drawn before its text.
+*/
+
+/*!
     \variable QStyleOptionTab::documentMode
 
     Whether the tab bar is in document mode.
@@ -1506,3 +1513,41 @@ qreal QStyleOptionGraphicsItem::levelOfDetailFromTransform(const QTransform &wor
     const QRectF unit = worldTransform.mapRect(QRectF(0, 0, 1, 1));
     return std::sqrt(unit.width() * unit.height());
 }
+
+/*!
+    \class QStyleHintReturn
+    \inmodule NtWidgets
+    \since 6.0
+    \brief The QStyleHintReturn class is what QStyle::styleHint() gives back beyond its number.
+
+    A style fills it in for the hints that return more than a number, such as a mask. Find out the kind with
+    qstyleoption_cast().
+
+    \differences
+    The styles of Nt fill in none yet.
+    \enddifferences
+
+    \sa QStyleHintReturnMask, QStyleHintReturnVariant
+*/
+
+/*!
+    \class QStyleHintReturnMask
+    \inmodule NtWidgets
+    \since 6.0
+    \brief The QStyleHintReturnMask class is a style hint that gives back a region.
+
+    \differences
+    None.
+    \enddifferences
+*/
+
+/*!
+    \class QStyleHintReturnVariant
+    \inmodule NtWidgets
+    \since 6.0
+    \brief The QStyleHintReturnVariant class is a style hint that gives back a QVariant.
+
+    \differences
+    None.
+    \enddifferences
+*/

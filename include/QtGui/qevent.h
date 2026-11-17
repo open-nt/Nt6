@@ -512,3 +512,21 @@ public:
 private:
     QList<QEventPoint> m_points;
 };
+
+class QShortcutEvent : public QEvent {
+public:
+    QShortcutEvent(const QKeySequence &key, int id, bool ambiguous = false);
+    ~QShortcutEvent() override;
+
+    /*! Returns the key sequence that was pressed. */
+    const QKeySequence &key() const { return m_key; }
+    /*! Returns the id that QWidget::grabShortcut() returned for the shortcut. */
+    int shortcutId() const { return m_id; }
+    /*! Returns \c true if more than one widget has the shortcut; never in Nt. */
+    bool isAmbiguous() const { return m_ambiguous; }
+
+private:
+    QKeySequence m_key;
+    int m_id;
+    bool m_ambiguous;
+};

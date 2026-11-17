@@ -54,6 +54,13 @@ public:
                QGraphicsSceneContextMenuEvent.
         \value ShortcutOverride A key is about to activate a shortcut; delivered as a QKeyEvent to the widget with the
                focus first, which accepts it to get the key press itself instead.
+        \value Shortcut A shortcut that QWidget::grabShortcut() grabbed was pressed; a QShortcutEvent.
+        \value LayoutDirectionChange The layout direction of a widget changed.
+        \value WindowIconChange The icon of a window changed.
+        \value IconTextChange The icon text of a window changed.
+        \value WindowStateChange The state of a window changed: minimized, maximized or full screen.
+        \value ZOrderChange A widget was raised or lowered among its siblings.
+        \value ApplicationLayoutDirectionChange The layout direction of the application changed.
         \value FocusIn A window gained the keyboard focus; delivered as a QFocusEvent.
         \value FocusOut A window lost the keyboard focus; delivered as a QFocusEvent.
         \value Enter The mouse entered a window; delivered as a QEnterEvent.
@@ -80,6 +87,9 @@ public:
         \value GraphicsSceneHoverMove The mouse moved over an item; delivered as a QGraphicsSceneHoverEvent.
         \value GraphicsSceneHoverLeave The mouse left an item; delivered as a QGraphicsSceneHoverEvent.
         \value GraphicsSceneWheel The mouse wheel turned over a scene; delivered as a QGraphicsSceneWheelEvent.
+        \value GraphicsSceneHelp Help, such as a tool tip, was asked for over a scene; a QGraphicsSceneHelpEvent.
+        \value GraphicsSceneResize A QGraphicsWidget was resized; a QGraphicsSceneResizeEvent.
+        \value GraphicsSceneMove A QGraphicsWidget moved; a QGraphicsSceneMoveEvent.
         \value TouchBegin A touch sequence began; delivered as a QTouchEvent.
         \value TouchUpdate Touch points moved; delivered as a QTouchEvent.
         \value TouchEnd A touch sequence ended; delivered as a QTouchEvent.
@@ -124,6 +134,13 @@ public:
         KeyPress = 6,
         KeyRelease = 7,
         ShortcutOverride = 51,
+        Shortcut = 117,
+        LayoutDirectionChange = 90,
+        WindowIconChange = 34,
+        IconTextChange = 101,
+        WindowStateChange = 105,
+        ZOrderChange = 126,
+        ApplicationLayoutDirectionChange = 37,
         ContextMenu = 82,
         DragEnter = 60,
         DragMove = 61,
@@ -158,6 +175,9 @@ public:
         GraphicsSceneHoverMove = 161,
         GraphicsSceneHoverLeave = 162,
         GraphicsSceneWheel = 168,
+        GraphicsSceneHelp = 163,
+        GraphicsSceneResize = 181,
+        GraphicsSceneMove = 182,
         TouchBegin = 194,
         TouchUpdate = 195,
         TouchEnd = 196,

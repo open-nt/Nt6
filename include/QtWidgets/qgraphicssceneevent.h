@@ -5,6 +5,7 @@
 #include <QtCore/qmap.h>
 #include <QtCore/qnamespace.h>
 #include <QtCore/qpoint.h>
+#include <QtCore/qsize.h>
 
 class QWidget;
 
@@ -295,4 +296,61 @@ private:
     int m_delta = 0;
     Qt::Orientation m_orientation = Qt::Vertical;
     QPoint m_pixelDelta;
+};
+
+class QGraphicsSceneHelpEvent : public QGraphicsSceneEvent {
+public:
+    explicit QGraphicsSceneHelpEvent(Type type = None);
+    ~QGraphicsSceneHelpEvent() override;
+
+    /*! Returns where help was asked for, in scene coordinates. */
+    QPointF scenePos() const { return m_scenePos; }
+    /*! Sets where help was asked for, in scene coordinates, to \a pos. */
+    void setScenePos(const QPointF &pos) { m_scenePos = pos; }
+    /*! Returns where help was asked for, on the screen. */
+    QPoint screenPos() const { return m_screenPos; }
+    /*! Sets where help was asked for, on the screen, to \a pos. */
+    void setScreenPos(const QPoint &pos) { m_screenPos = pos; }
+
+private:
+    QPointF m_scenePos;
+    QPoint m_screenPos;
+};
+
+class QGraphicsSceneResizeEvent : public QGraphicsSceneEvent {
+public:
+    QGraphicsSceneResizeEvent();
+    ~QGraphicsSceneResizeEvent() override;
+
+    /*! Returns the size before the resize. */
+    QSizeF oldSize() const { return m_oldSize; }
+    /*! Sets the size before the resize to \a size. */
+    void setOldSize(const QSizeF &size) { m_oldSize = size; }
+    /*! Returns the size after the resize. */
+    QSizeF newSize() const { return m_newSize; }
+    /*! Sets the size after the resize to \a size. */
+    void setNewSize(const QSizeF &size) { m_newSize = size; }
+
+private:
+    QSizeF m_oldSize;
+    QSizeF m_newSize;
+};
+
+class QGraphicsSceneMoveEvent : public QGraphicsSceneEvent {
+public:
+    QGraphicsSceneMoveEvent();
+    ~QGraphicsSceneMoveEvent() override;
+
+    /*! Returns the position before the move, in parent coordinates. */
+    QPointF oldPos() const { return m_oldPos; }
+    /*! Sets the position before the move to \a pos. */
+    void setOldPos(const QPointF &pos) { m_oldPos = pos; }
+    /*! Returns the position after the move, in parent coordinates. */
+    QPointF newPos() const { return m_newPos; }
+    /*! Sets the position after the move to \a pos. */
+    void setNewPos(const QPointF &pos) { m_newPos = pos; }
+
+private:
+    QPointF m_oldPos;
+    QPointF m_newPos;
 };

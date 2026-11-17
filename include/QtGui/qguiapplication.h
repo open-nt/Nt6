@@ -35,6 +35,8 @@ public:
     static QIcon windowIcon();
     static void setWindowIcon(const QIcon &icon);
     static QString desktopFileName();
+    static void setApplicationDisplayName(const QString &name);
+    static QString applicationDisplayName();
     static QList<QWindow *> allWindows();
     static QList<QWindow *> topLevelWindows();
     static QWindow *focusWindow();
@@ -50,6 +52,10 @@ public:
     static void changeOverrideCursor(const QCursor &cursor);
     static void restoreOverrideCursor();
     static QCursor *overrideCursor();
+    static void setLayoutDirection(Qt::LayoutDirection direction);
+    static Qt::LayoutDirection layoutDirection();
+    static bool isLeftToRight() { return layoutDirection() == Qt::LeftToRight; }
+    static bool isRightToLeft() { return layoutDirection() == Qt::RightToLeft; }
 
 signals:
     /*!
@@ -71,6 +77,13 @@ signals:
         changes to \a focusWindow.
     */
     void focusWindowChanged(QWindow *focusWindow) { emitSignal(&QGuiApplication::focusWindowChanged, focusWindow); }
+    /*!
+        \since 6.0
+        This signal is emitted when the layout direction of the application changes to \a direction.
+    */
+    void layoutDirectionChanged(Qt::LayoutDirection direction) {
+        emitSignal(&QGuiApplication::layoutDirectionChanged, direction);
+    }
 };
 
 #define qGuiApp QGuiApplication::instance()

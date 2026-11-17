@@ -8,7 +8,9 @@
 #include <QtWidgets/qlayout.h>
 #include <QtWidgets/qmenu.h>
 #include <QtWidgets/qmenubar.h>
+#include <QtCore/qdatastream.h>
 #include <QtWidgets/qstatusbar.h>
+#include <QtWidgets/qtabbar.h>
 #include <QtWidgets/qtoolbar.h>
 
 #include <algorithm>
@@ -89,14 +91,45 @@ private:
         return out;
     }
 
+    // The dock widgets that take a place in `area`: of the ones tabbed together, only the current one.
     std::vector<QDockWidget *> docks(Qt::DockWidgetArea area) const {
         std::vector<QDockWidget *> out;
+        std::vector<int> groups;
         for (const auto &entry : m_window->m_docks) {
             auto *dock = static_cast<QDockWidget *>(entry.dock.data());
-            if (entry.area == area && shown(dock))
-                out.push_back(dock);
+            if (entry.area != area || !shown(dock))
+                continue;
+            if (entry.group != 0) {
+                if (std::find(groups.begin(), groups.end(), entry.group) != groups.end())
+                    continue;
+                const QMainWindow::DockGroup *group = m_window->groupOf(entry.group);
+                if (group && group->current && group->current != dock && shown(group->current))
+                    continue;
+                groups.push_back(entry.group);
+            }
+            out.push_back(dock);
         }
         return out;
+    }
+
+    // Places `dock` at `rect`, with the tabs of its group under it and the other dock widgets of the group hidden.
+    void placeDock(QDockWidget *dock, const QRect &rect) const {
+        const QMainWindow::DockEntry *entry = m_window->entryOf(dock);
+        const QMainWindow::DockGroup *group = entry ? m_window->groupOf(entry->group) : nullptr;
+        if (!group || !group->bar) {
+            dock->setGeometry(rect);
+            return;
+        }
+        QTabBar *bar = group->bar;
+        const int thick = std::min(bar->sizeHint().height(), rect.height() / 2);
+        const bool above = bar->shape() == QTabBar::RoundedNorth || bar->shape() == QTabBar::TriangularNorth;
+        bar->setGeometry(rect.left(), above ? rect.top() : rect.bottom() + 1 - thick, rect.width(), thick);
+        bar->show();
+        bar->raise();
+        dock->setGeometry(above ? rect.adjusted(0, thick, 0, 0) : rect.adjusted(0, 0, 0, -thick));
+        for (const auto &other : m_window->m_docks)
+            if (other.group == entry->group && other.dock && other.dock != dock)
+                other.dock->setGeometry(QRect(rect.topLeft(), QSize(0, 0)));
     }
 
     // The thickness of each line, and the length of the longest one.
@@ -256,16 +289,16 @@ private:
                 QDockWidget *dock = list[static_cast<std::size_t>(i)];
                 switch (area) {
                 case Qt::TopDockWidgetArea:
-                    dock->setGeometry(a, y0, b - a, thick);
+                    placeDock(dock, QRect(a, y0, b - a, thick));
                     break;
                 case Qt::BottomDockWidgetArea:
-                    dock->setGeometry(a, y1 - thick, b - a, thick);
+                    placeDock(dock, QRect(a, y1 - thick, b - a, thick));
                     break;
                 case Qt::LeftDockWidgetArea:
-                    dock->setGeometry(x0, a, thick, b - a);
+                    placeDock(dock, QRect(x0, a, thick, b - a));
                     break;
                 default:
-                    dock->setGeometry(x1 - thick, a, thick, b - a);
+                    placeDock(dock, QRect(x1 - thick, a, thick, b - a));
                     break;
                 }
             }
@@ -322,14 +355,39 @@ private:
 
     createPopupMenu() returns a menu with the toggle view actions of the dock widgets and tool bars.
 
+    tabifyDockWidget() puts dock widgets in one place with tabs to choose between them, and saveState() and
+    restoreState() keep where the tool bars and dock widgets are between runs of the application:
+
+    \code
+    settings.setValue("state", window.saveState());
+    // next time, after the bars and dock widgets are made:
+    window.restoreState(settings.value("state").toByteArray());
+    \endcode
+
     \differences
     The user cannot drag tool bars or dock widgets to other areas or resize the dock areas. Several dock widgets in
-    one area share it equally, side by side or one above the other; there are no tabbed dock widgets, no
-    \c splitDockWidget(), \c tabifyDockWidget(), \c setCorner(), \c saveState() or \c restoreState(), and no
-    animation. The main window does not show createPopupMenu() on a right click.
+    one area share it equally, side by side or one above the other, whatever the orientation of splitDockWidget().
+    The corners (setCorner()) are kept but do not change the layout, and there is no animation. The tabs of tabbed
+    dock widgets are below them, or above for QTabWidget::North. The state that saveState() writes is Nt's own and
+    is not read by Qt. The main window does not show createPopupMenu() on a right click.
     \enddifferences
 
     \sa QMenuBar, QToolBar, QDockWidget, QStatusBar
+*/
+
+/*!
+    \enum QMainWindow::DockOption
+    \since 6.0
+
+    Options for the dock widgets of a main window, combined in the DockOptions flags. Nt keeps them: dock widgets
+    are not dragged or animated.
+
+    \value AnimatedDocks Dock widgets move with an animation.
+    \value AllowNestedDocks Dock areas may be split in both directions.
+    \value AllowTabbedDocks Dock widgets may be dropped onto each other to be tabbed.
+    \value ForceTabbedDocks Dock widgets in an area are always tabbed.
+    \value VerticalTabs The tabs of tabbed dock widgets run down at the side.
+    \value GroupedDragging A title bar drags all the dock widgets tabbed with it.
 */
 
 /*!
@@ -617,6 +675,7 @@ void QMainWindow::addDockWidget(Qt::DockWidgetArea area, QDockWidget *dockwidget
         area != Qt::BottomDockWidgetArea)
         area = Qt::LeftDockWidgetArea;
     prune();
+    leaveGroup(dockwidget);
     m_docks.erase(std::remove_if(m_docks.begin(), m_docks.end(),
                                  [dockwidget](const DockEntry &e) { return e.dock == dockwidget; }),
                   m_docks.end());
@@ -651,7 +710,9 @@ void QMainWindow::removeDockWidget(QDockWidget *dockwidget) {
         std::find_if(m_docks.begin(), m_docks.end(), [dockwidget](const DockEntry &e) { return e.dock == dockwidget; });
     if (it == m_docks.end())
         return;
-    m_docks.erase(it);
+    leaveGroup(dockwidget);
+    m_docks.erase(std::find_if(m_docks.begin(), m_docks.end(),
+                               [dockwidget](const DockEntry &e) { return e.dock == dockwidget; }));
     unmanage(dockwidget);
     dockwidget->hide();
     relayout();
@@ -781,6 +842,495 @@ void QMainWindow::prune() const {
                      m_toolBars.end());
     m_docks.erase(std::remove_if(m_docks.begin(), m_docks.end(), [](const DockEntry &e) { return !e.dock; }),
                   m_docks.end());
+    // A group of tabbed dock widgets that has fewer than two left is dissolved.
+    for (auto it = m_groups.begin(); it != m_groups.end();) {
+        const int id = it->id;
+        const auto members = std::count_if(m_docks.begin(), m_docks.end(), [id](const DockEntry &e) { return e.group == id; });
+        if (members >= 2) {
+            ++it;
+            continue;
+        }
+        for (DockEntry &e : m_docks)
+            if (e.group == id)
+                e.group = 0;
+        if (it->bar)
+            it->bar->deleteLater();
+        if (it->bar)
+            it->bar->hide();
+        it = m_groups.erase(it);
+    }
+}
+
+QMainWindow::DockEntry *QMainWindow::entryOf(const QWidget *dock) const {
+    for (DockEntry &e : m_docks)
+        if (dock && e.dock == dock)
+            return &e;
+    return nullptr;
+}
+
+QMainWindow::DockGroup *QMainWindow::groupOf(int id) const {
+    for (DockGroup &g : m_groups)
+        if (id != 0 && g.id == id)
+            return &g;
+    return nullptr;
+}
+
+// Takes `dock` out of the tabs it is in; a group left with one dock widget is dissolved.
+void QMainWindow::leaveGroup(const QWidget *dock) const {
+    DockEntry *entry = entryOf(dock);
+    if (!entry || entry->group == 0)
+        return;
+    const int id = entry->group;
+    entry->group = 0;
+    if (DockGroup *group = groupOf(id); group && group->current == dock)
+        group->current = nullptr;
+    prune();
+    if (groupOf(id))
+        const_cast<QMainWindow *>(this)->syncGroup(id); // NOLINT(cppcoreguidelines-pro-type-const-cast): the tabs
+}
+
+// Makes the tabs of the group `id` those of its dock widgets, in their order, with the current one selected.
+void QMainWindow::syncGroup(int id) {
+    DockGroup *group = groupOf(id);
+    if (!group)
+        return;
+    std::vector<QDockWidget *> members;
+    for (const DockEntry &e : m_docks)
+        if (e.group == id && e.dock)
+            members.push_back(static_cast<QDockWidget *>(e.dock.data()));
+    if (!group->current || std::find(members.begin(), members.end(), group->current.data()) == members.end())
+        group->current = members.empty() ? nullptr : members.back();
+    if (!group->bar) {
+        auto *bar = new QTabBar(this);
+        bar->setObjectName(QStringLiteral("qt_dockwidget_tabbar"));
+        bar->setDrawBase(true);
+        bar->setExpanding(false);
+        group->bar = bar;
+        QObject::connect(bar, &QTabBar::currentChanged, this, [this, id](int index) {
+            DockGroup *g = groupOf(id);
+            if (!g || index < 0)
+                return;
+            int n = 0;
+            for (const DockEntry &e : m_docks) {
+                if (e.group != id || !e.dock)
+                    continue;
+                if (n++ == index) {
+                    if (g->current == e.dock)
+                        return;
+                    g->current = e.dock;
+                    relayout();
+                    emit tabifiedDockWidgetActivated(static_cast<QDockWidget *>(e.dock.data()));
+                    return;
+                }
+            }
+        });
+    }
+    QTabBar *bar = group->bar;
+    const QSignalBlocker blocker(bar);
+    while (bar->count() > 0)
+        bar->removeTab(bar->count() - 1);
+    int current = 0;
+    for (std::size_t i = 0; i < members.size(); ++i) {
+        bar->addTab(members[i]->windowTitle());
+        if (members[i] == group->current)
+            current = static_cast<int>(i);
+    }
+    bar->setCurrentIndex(current);
+    bar->setDocumentMode(m_documentMode);
+    const Qt::DockWidgetArea area = members.empty() ? Qt::LeftDockWidgetArea : dockWidgetArea(members.front());
+    const QTabWidget::TabPosition position = tabPosition(area);
+    bar->setShape(static_cast<QTabBar::Shape>((m_tabShape == QTabWidget::Triangular ? 4 : 0) +
+                                              (position == QTabWidget::North ? 0 : 1)));
+    bar->show();
+}
+
+/*!
+    \since 6.0
+
+    Puts \a second in the place of \a first, with tabs under them to choose which of them is shown, and makes
+    \a second the one shown. \a second moves to the area of \a first.
+
+    \sa tabifiedDockWidgets(), splitDockWidget()
+*/
+void QMainWindow::tabifyDockWidget(QDockWidget *first, QDockWidget *second) {
+    if (!first || !second || first == second)
+        return;
+    const Qt::DockWidgetArea area = dockWidgetArea(first);
+    if (area == Qt::NoDockWidgetArea)
+        return;
+    if (dockWidgetArea(second) == Qt::NoDockWidgetArea)
+        addDockWidget(area, second);
+    leaveGroup(second);
+    DockEntry *firstEntry = entryOf(first);
+    if (firstEntry->group == 0) {
+        firstEntry->group = m_nextGroup++;
+        m_groups.push_back({firstEntry->group, nullptr, nullptr});
+    }
+    const int id = firstEntry->group;
+    // `second` goes after the last dock widget of the group.
+    auto from = std::find_if(m_docks.begin(), m_docks.end(), [second](const DockEntry &e) { return e.dock == second; });
+    DockEntry moved = *from;
+    m_docks.erase(from);
+    moved.area = area;
+    moved.group = id;
+    auto last = std::find_if(m_docks.rbegin(), m_docks.rend(), [id](const DockEntry &e) { return e.group == id; });
+    m_docks.insert(last.base(), moved);
+    groupOf(id)->current = second;
+    syncGroup(id);
+    relayout();
+    emit second->dockLocationChanged(area);
+}
+
+/*!
+    \since 6.0
+
+    Returns the dock widgets that are tabbed with \a dockwidget, without it.
+
+    \sa tabifyDockWidget()
+*/
+QList<QDockWidget *> QMainWindow::tabifiedDockWidgets(QDockWidget *dockwidget) const {
+    QList<QDockWidget *> out;
+    const DockEntry *entry = entryOf(dockwidget);
+    if (!entry || entry->group == 0)
+        return out;
+    for (const DockEntry &e : m_docks)
+        if (e.group == entry->group && e.dock && e.dock != dockwidget)
+            out.append(static_cast<QDockWidget *>(e.dock.data()));
+    return out;
+}
+
+/*!
+    \since 6.0
+
+    Moves \a dockwidget to the area of \a after, right after it, out of any tabs. The dock widgets of an area
+    share it in one direction, so \a orientation is accepted for compatibility.
+
+    \sa tabifyDockWidget()
+*/
+void QMainWindow::splitDockWidget(QDockWidget *after, QDockWidget *dockwidget, Qt::Orientation orientation) {
+    (void)orientation;
+    if (!after || !dockwidget || after == dockwidget)
+        return;
+    const Qt::DockWidgetArea area = dockWidgetArea(after);
+    if (area == Qt::NoDockWidgetArea)
+        return;
+    if (dockWidgetArea(dockwidget) == Qt::NoDockWidgetArea)
+        addDockWidget(area, dockwidget);
+    leaveGroup(dockwidget);
+    auto from =
+        std::find_if(m_docks.begin(), m_docks.end(), [dockwidget](const DockEntry &e) { return e.dock == dockwidget; });
+    DockEntry moved = *from;
+    m_docks.erase(from);
+    moved.area = area;
+    auto at = std::find_if(m_docks.begin(), m_docks.end(), [after](const DockEntry &e) { return e.dock == after; });
+    // After the whole group of `after`, if it is tabbed.
+    const int group = at->group;
+    ++at;
+    while (group != 0 && at != m_docks.end() && at->group == group)
+        ++at;
+    m_docks.insert(at, moved);
+    relayout();
+    emit dockwidget->dockLocationChanged(area);
+}
+
+namespace {
+constexpr quint32 StateMagic = 0x4E744D57; // "NtMW"
+} // namespace
+
+/*!
+    \since 6.0
+
+    Returns the state of the tool bars and dock widgets of the window: their areas, order, sizes, visibility and
+    tabs, under \a version, for restoreState(). The tool bars and dock widgets are known by their object names,
+    which must be set and unique.
+
+    \sa restoreState(), QWidget::saveGeometry()
+*/
+QByteArray QMainWindow::saveState(int version) const {
+    prune();
+    QByteArray state;
+    QDataStream out(&state, QIODeviceBase::WriteOnly);
+    out << StateMagic << static_cast<qint32>(version);
+    out << static_cast<quint32>(m_toolBars.size());
+    for (const ToolBarEntry &e : m_toolBars)
+        out << e.bar->objectName() << static_cast<qint32>(e.area) << e.lineBreak << e.bar->isHidden();
+    out << static_cast<quint32>(m_docks.size());
+    for (const DockEntry &e : m_docks) {
+        const DockGroup *group = groupOf(e.group);
+        const bool current = group && group->current == e.dock;
+        out << e.dock->objectName() << static_cast<qint32>(e.area) << static_cast<qint32>(e.width)
+            << static_cast<qint32>(e.height) << e.dock->isHidden() << static_cast<qint32>(e.group) << current;
+    }
+    return state;
+}
+
+/*!
+    \since 6.0
+
+    Restores the state of the tool bars and dock widgets that saveState() returned as \a state under \a version.
+    Returns \c false, changing nothing, if \a state is not such a state or has another version. Tool bars and
+    dock widgets that are not in \a state keep their place, after the others.
+*/
+bool QMainWindow::restoreState(const QByteArray &state, int version) {
+    QDataStream in(state);
+    quint32 magic = 0;
+    qint32 savedVersion = 0;
+    in >> magic >> savedVersion;
+    if (in.status() != QDataStream::Ok || magic != StateMagic || savedVersion != version)
+        return false;
+    struct SavedBar {
+        QString name;
+        qint32 area = 0;
+        bool lineBreak = false;
+        bool hidden = false;
+    };
+    struct SavedDock {
+        QString name;
+        qint32 area = 0;
+        qint32 width = -1;
+        qint32 height = -1;
+        bool hidden = false;
+        qint32 group = 0;
+        bool current = false;
+    };
+    quint32 bars = 0;
+    in >> bars;
+    std::vector<SavedBar> savedBars;
+    for (quint32 i = 0; i < bars && in.status() == QDataStream::Ok; ++i) {
+        SavedBar b;
+        in >> b.name >> b.area >> b.lineBreak >> b.hidden;
+        savedBars.push_back(b);
+    }
+    quint32 docks = 0;
+    in >> docks;
+    std::vector<SavedDock> savedDocks;
+    for (quint32 i = 0; i < docks && in.status() == QDataStream::Ok; ++i) {
+        SavedDock d;
+        in >> d.name >> d.area >> d.width >> d.height >> d.hidden >> d.group >> d.current;
+        savedDocks.push_back(d);
+    }
+    if (in.status() != QDataStream::Ok)
+        return false;
+    prune();
+    // Tool bars: those in the state first, in its order.
+    std::vector<ToolBarEntry> toolBars;
+    for (const SavedBar &b : savedBars) {
+        auto it = std::find_if(m_toolBars.begin(), m_toolBars.end(), [&](const ToolBarEntry &e) {
+            return !b.name.isEmpty() && e.bar->objectName() == b.name;
+        });
+        if (it == m_toolBars.end())
+            continue;
+        ToolBarEntry e = *it;
+        m_toolBars.erase(it);
+        e.area = static_cast<Qt::ToolBarArea>(b.area);
+        e.lineBreak = b.lineBreak;
+        e.bar->setVisible(!b.hidden);
+        toolBars.push_back(e);
+    }
+    toolBars.insert(toolBars.end(), m_toolBars.begin(), m_toolBars.end());
+    m_toolBars = toolBars;
+    // Dock widgets, with their tabs.
+    for (const DockEntry &e : m_docks)
+        leaveGroup(e.dock);
+    std::vector<DockEntry> dockEntries;
+    std::vector<std::pair<qint32, int>> groupIds; // saved id, new id
+    for (const SavedDock &d : savedDocks) {
+        auto it = std::find_if(m_docks.begin(), m_docks.end(), [&](const DockEntry &e) {
+            return !d.name.isEmpty() && e.dock->objectName() == d.name;
+        });
+        if (it == m_docks.end())
+            continue;
+        DockEntry e = *it;
+        m_docks.erase(it);
+        e.area = static_cast<Qt::DockWidgetArea>(d.area);
+        e.width = d.width;
+        e.height = d.height;
+        e.group = 0;
+        if (d.group != 0) {
+            auto known = std::find_if(groupIds.begin(), groupIds.end(), [&](const auto &p) { return p.first == d.group; });
+            if (known == groupIds.end()) {
+                groupIds.emplace_back(d.group, m_nextGroup++);
+                m_groups.push_back({groupIds.back().second, nullptr, nullptr});
+                known = groupIds.end() - 1;
+            }
+            e.group = known->second;
+            if (d.current)
+                groupOf(e.group)->current = e.dock;
+        }
+        e.dock->setVisible(!d.hidden);
+        dockEntries.push_back(e);
+    }
+    dockEntries.insert(dockEntries.end(), m_docks.begin(), m_docks.end());
+    m_docks = dockEntries;
+    prune();
+    for (const auto &[saved, id] : groupIds)
+        syncGroup(id);
+    relayout();
+    return true;
+}
+
+/*!
+    \since 6.0
+
+    Sets the options of the dock widgets to \a options. Nt keeps them: dock widgets are always tabbed with
+    tabifyDockWidget() and never animated.
+
+    \sa dockOptions()
+*/
+void QMainWindow::setDockOptions(DockOptions options) { m_dockOptions = options; }
+
+/*!
+    \fn QMainWindow::DockOptions QMainWindow::dockOptions() const
+    \since 6.0
+
+    Returns the options of the dock widgets, AnimatedDocks | AllowTabbedDocks by default.
+*/
+
+/*!
+    \fn bool QMainWindow::isAnimated() const
+    \since 6.0
+
+    Returns \c true if the AnimatedDocks option is set.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the AnimatedDocks option if \a enabled is \c true, and clears it otherwise.
+*/
+void QMainWindow::setAnimated(bool enabled) { m_dockOptions.setFlag(AnimatedDocks, enabled); }
+
+/*!
+    \fn bool QMainWindow::isDockNestingEnabled() const
+    \since 6.0
+
+    Returns \c true if the AllowNestedDocks option is set.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the AllowNestedDocks option if \a enabled is \c true, and clears it otherwise.
+*/
+void QMainWindow::setDockNestingEnabled(bool enabled) { m_dockOptions.setFlag(AllowNestedDocks, enabled); }
+
+/*!
+    \since 6.0
+
+    Returns the dock area that takes the \a corner of the window.
+*/
+Qt::DockWidgetArea QMainWindow::corner(Qt::Corner corner) const { return m_corners[static_cast<int>(corner) & 3]; }
+
+/*!
+    \since 6.0
+
+    Gives the \a corner of the window to the dock \a area. Nt keeps the value; the top and bottom areas always
+    take the corners.
+*/
+void QMainWindow::setCorner(Qt::Corner corner, Qt::DockWidgetArea area) {
+    m_corners[static_cast<int>(corner) & 3] = area;
+}
+
+/*!
+    \fn bool QMainWindow::documentMode() const
+    \since 6.0
+
+    Returns whether the tabs of tabbed dock widgets are drawn as for documents.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether the tabs of tabbed dock widgets are drawn as for documents to \a enabled.
+*/
+void QMainWindow::setDocumentMode(bool enabled) {
+    m_documentMode = enabled;
+    for (const DockGroup &g : m_groups)
+        syncGroup(g.id);
+}
+
+/*!
+    \fn QTabWidget::TabShape QMainWindow::tabShape() const
+    \since 6.0
+
+    Returns the shape of the tabs of tabbed dock widgets.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the shape of the tabs of tabbed dock widgets to \a tabShape.
+*/
+void QMainWindow::setTabShape(QTabWidget::TabShape tabShape) {
+    m_tabShape = tabShape;
+    for (const DockGroup &g : m_groups)
+        syncGroup(g.id);
+    relayout();
+}
+
+namespace {
+int areaIndex(Qt::DockWidgetArea area) {
+    switch (area) {
+    case Qt::LeftDockWidgetArea:
+        return 0;
+    case Qt::RightDockWidgetArea:
+        return 1;
+    case Qt::TopDockWidgetArea:
+        return 2;
+    default:
+        return 3;
+    }
+}
+} // namespace
+
+/*!
+    \since 6.0
+
+    Returns where the tabs of tabbed dock widgets in \a area are, QTabWidget::South by default.
+*/
+QTabWidget::TabPosition QMainWindow::tabPosition(Qt::DockWidgetArea area) const {
+    return m_tabPositions[areaIndex(area)];
+}
+
+/*!
+    \since 6.0
+
+    Puts the tabs of tabbed dock widgets in \a areas at \a tabPosition. Nt puts them above the dock widgets for
+    QTabWidget::North and below them otherwise.
+*/
+void QMainWindow::setTabPosition(Qt::DockWidgetAreas areas, QTabWidget::TabPosition tabPosition) {
+    for (const Qt::DockWidgetArea area :
+         {Qt::LeftDockWidgetArea, Qt::RightDockWidgetArea, Qt::TopDockWidgetArea, Qt::BottomDockWidgetArea})
+        if (areas & area)
+            m_tabPositions[areaIndex(area)] = tabPosition;
+    for (const DockGroup &g : m_groups)
+        syncGroup(g.id);
+    relayout();
+}
+
+/*!
+    \fn bool QMainWindow::unifiedTitleAndToolBarOnMac() const
+    \since 6.0
+
+    Returns whether the title bar and the top tool bar are drawn as one on macOS. Nt keeps the value.
+*/
+
+/*!
+    \fn void QMainWindow::setUnifiedTitleAndToolBarOnMac(bool set)
+    \since 6.0
+
+    Sets whether the title bar and the top tool bar are drawn as one on macOS to \a set.
+*/
+
+/*!
+    \since 6.0
+
+    Returns \c true if \a pos is on a separator that resizes a dock area. Nt has no such separators, so this
+    returns \c false.
+*/
+bool QMainWindow::isSeparator(const QPoint &pos) const {
+    (void)pos;
+    return false;
 }
 
 /*!

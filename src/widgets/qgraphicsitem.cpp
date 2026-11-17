@@ -12,12 +12,20 @@
 #include <QtWidgets/qgraphicsview.h>
 #include <QtWidgets/qstyleoption.h>
 
+#include <QtWidgets/qgraphicstransform.h>
+
 #include <algorithm>
 
 using Access = QGraphicsItemAccess;
 
 QTransform QGraphicsItem::Private::localTransform() const {
     QTransform t = transform;
+    if (!transformations.isEmpty()) {
+        QMatrix4x4 m;
+        for (const QGraphicsTransform *transformation : transformations)
+            transformation->applyTo(&m);
+        t *= m.toTransform();
+    }
     if (rotation != 0.0 || scale != 1.0) {
         t *= QTransform::fromTranslate(-origin.x(), -origin.y());
         t *= QTransform::fromScale(scale, scale);
@@ -63,6 +71,17 @@ void dirtySubtree(const QGraphicsItem *item) {
 }
 
 } // namespace
+
+void QGraphicsItemAccess::transformationChanged(QGraphicsItem *item) {
+    dirtySubtree(item);
+    item->prepareGeometryChange();
+    dirtySubtree(item);
+}
+
+void QGraphicsItemAccess::forgetTransformation(QGraphicsItem *item, QGraphicsTransform *transformation) {
+    item->d_ptr->transformations.removeAll(transformation);
+    transformationChanged(item);
+}
 
 /*!
     \class QGraphicsItem
@@ -198,6 +217,8 @@ QGraphicsItem::QGraphicsItem(QGraphicsItem *parent) : d_ptr(std::make_unique<Pri
 */
 QGraphicsItem::~QGraphicsItem() {
     d_ptr->destroying = true;
+    for (QGraphicsTransform *transformation : std::as_const(d_ptr->transformations))
+        transformation->m_items.removeAll(this);
     if (QGraphicsEffect *effect = d_ptr->effect) {
         d_ptr->effect = nullptr;
         effect->m_item = nullptr;
@@ -835,6 +856,34 @@ void QGraphicsItem::setTransform(const QTransform &matrix, bool combine) {
     Resets the transformation to the identity.
 */
 void QGraphicsItem::resetTransform() { setTransform(QTransform()); }
+
+/*!
+    \since 6.0
+
+    Returns the transformations of the item, which setTransformations() set.
+*/
+QList<QGraphicsTransform *> QGraphicsItem::transformations() const { return d_ptr->transformations; }
+
+/*!
+    \since 6.0
+
+    Sets the transformations of the item to \a transformations, applied in their order after transform() and before
+    the rotation and the scale of the item. The item does not take ownership of them; one that is deleted leaves the
+    list.
+
+    \sa QGraphicsTransform
+*/
+void QGraphicsItem::setTransformations(const QList<QGraphicsTransform *> &transformations) {
+    for (QGraphicsTransform *transformation : std::as_const(d_ptr->transformations))
+        transformation->m_items.removeAll(this);
+    dirtySubtree(this);
+    prepareGeometryChange();
+    d_ptr->transformations = transformations;
+    for (QGraphicsTransform *transformation : std::as_const(d_ptr->transformations))
+        if (transformation && !transformation->m_items.contains(this))
+            transformation->m_items.append(this);
+    dirtySubtree(this);
+}
 
 /*!
     Rotates the item by \a angle degrees, clockwise, about transformOriginPoint().

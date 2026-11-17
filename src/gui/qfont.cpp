@@ -323,6 +323,62 @@ void QFont::setFixedPitch(bool enable) {
 }
 
 /*!
+    \fn QFont::Style QFont::style() const
+    \since 6.0
+
+    Returns the slant of the font.
+*/
+
+/*!
+    \fn void QFont::setStyle(Style style)
+    \since 6.0
+
+    Sets the slant of the font to \a style.
+*/
+
+/*!
+    \fn bool QFont::underline() const
+    \since 6.0
+
+    Returns \c true if text in the font is underlined.
+*/
+
+/*!
+    \fn void QFont::setUnderline(bool enable)
+    \since 6.0
+
+    Underlines text in the font if \a enable is \c true.
+*/
+
+/*!
+    \fn bool QFont::overline() const
+    \since 6.0
+
+    Returns \c true if text in the font has a line over it.
+*/
+
+/*!
+    \fn void QFont::setOverline(bool enable)
+    \since 6.0
+
+    Draws a line over text in the font if \a enable is \c true.
+*/
+
+/*!
+    \fn bool QFont::strikeOut() const
+    \since 6.0
+
+    Returns \c true if text in the font is struck out.
+*/
+
+/*!
+    \fn void QFont::setStrikeOut(bool enable)
+    \since 6.0
+
+    Strikes text in the font out if \a enable is \c true.
+*/
+
+/*!
     Returns the font as a comma-separated description: family, point size, pixel size, style hint, weight, style
     (0 upright, 1 italic), underline, strike-out and fixed pitch, as Qt writes them. fromString() reads it back.
 

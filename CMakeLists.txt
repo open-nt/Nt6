@@ -524,11 +524,13 @@ add_library(NtGui
     src/gui/qegl.cpp
     src/gui/qevent.cpp
     src/gui/qfont.cpp
+    src/gui/qfontinfo.cpp
     src/gui/qfontdatabase.cpp
     src/gui/qfontengine.cpp
     src/gui/qfontmetrics.cpp
     src/gui/qguiapplication.cpp
     src/gui/qclipboard.cpp
+    src/gui/qabstractfileiconprovider.cpp
     src/gui/qinputmethod.cpp
     src/gui/qstandarditemmodel.cpp
     src/gui/qdesktopservices.cpp
@@ -717,6 +719,16 @@ add_library(NtWidgets
     src/widgets/qgraphicseffect.cpp
     src/widgets/qgraphicsproxywidget.cpp
     src/widgets/qgraphicswidget.cpp
+    src/widgets/qgraphicsitemanimation.cpp
+    src/widgets/qdrawutil.cpp
+    src/widgets/qsystemtrayicon.cpp
+    src/widgets/qcolumnview.cpp
+    src/widgets/qitemeditorfactory.cpp
+    src/widgets/qwhatsthis.cpp
+    src/widgets/qgraphicsgridlayout.cpp
+    src/widgets/qgraphicstransform.cpp
+    src/widgets/qfileiconprovider.cpp
+    src/widgets/qfilesystemmodel.cpp
     src/widgets/qgraphicssceneevent.cpp
     src/widgets/qgraphicsview.cpp
     src/widgets/qgridlayout.cpp
@@ -778,6 +790,7 @@ add_library(NtWidgets
     src/widgets/qundoview.cpp
     src/widgets/qwidget.cpp
     src/widgets/qwidgetaction.cpp
+    src/widgets/qwidgetextras.cpp
     src/widgets/qwidgetwindow.cpp
     src/widgets/qwizard.cpp
 )
@@ -791,7 +804,7 @@ target_include_directories(NtWidgets
         ${CMAKE_CURRENT_SOURCE_DIR}/src/widgets
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
-target_link_libraries(NtWidgets PUBLIC NtGui)
+target_link_libraries(NtWidgets PUBLIC NtGui PRIVATE NtDBus)
 target_compile_definitions(NtWidgets PUBLIC QT_WIDGETS_LIB)
 nt_set_compile_options(NtWidgets)
 
@@ -1640,6 +1653,15 @@ if(NT_BUILD_TESTS)
     nt_set_compile_options(nt_graphicsview_tests)
 
     # The Nt GUI functions added for gva-widgets: fonts, scaled images, text outlines, the image reader, shortcuts.
+    # More of Nt Widgets: the file system model, graphics layouts and transforms, and the smaller classes.
+    add_executable(nt_widgets_more_tests tests/test_widgets_more.cpp)
+    target_include_directories(nt_widgets_more_tests PRIVATE src/gui)
+    target_link_libraries(nt_widgets_more_tests PRIVATE Nt::Widgets Nt::DBus Nt::Test)
+    add_test(NAME nt_widgets_more_tests COMMAND nt_widgets_more_tests)
+    set_tests_properties(nt_widgets_more_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_widgets_more_tests)
+    nt_enable_automoc(nt_widgets_more_tests)
+
     # The Qt APIs that the ldm programs needed: widgets, item views, icons, context menus, keys and more.
     add_executable(nt_ldm_gaps_tests tests/test_ldm_gaps.cpp)
     target_include_directories(nt_ldm_gaps_tests PRIVATE src/gui)

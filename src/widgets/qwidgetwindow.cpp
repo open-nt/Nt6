@@ -421,6 +421,14 @@ void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
         event->accept();
         return;
     }
+    // The shortcuts that widgets grabbed with QWidget::grabShortcut().
+    if (!m_popup && ((event->modifiers() & ~Qt::ShiftModifier) != Qt::NoModifier || event->key() >= 0x01000000) &&
+        WidgetAccess::activateGrabbedShortcut(
+            m_widget, normalizedShortcut(shortcutCode(event->key(), event->modifiers())), event->isAutoRepeat(),
+            normalizedShortcut, [&] { return shortcutOverridden(WidgetAccess::focusWidgetOf(m_widget), event); })) {
+        event->accept();
+        return;
+    }
     if (!m_popup && !event->isAutoRepeat()) {
         std::vector<const QWidget *> seen;
         const int code = normalizedShortcut(shortcutCode(event->key(), event->modifiers()));

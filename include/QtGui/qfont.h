@@ -74,6 +74,17 @@ public:
     };
 
     enum SpacingType { PercentageSpacing, AbsoluteSpacing };
+    /*!
+        \enum QFont::Style
+        \since 6.0
+
+        The slant of a font.
+
+        \value StyleNormal Upright.
+        \value StyleItalic Italic.
+        \value StyleOblique Slanted; Nt draws it italic.
+    */
+    enum Style { StyleNormal, StyleItalic, StyleOblique };
 
     QFont();
     explicit QFont(const QString &family, int pointSize = -1, int weight = -1, bool italic = false);
@@ -114,13 +125,22 @@ public:
     void setBold(bool enable) { m_weight = enable ? Bold : Normal; }
     bool italic() const { return m_italic; }
     void setItalic(bool enable) { m_italic = enable; }
+    Style style() const { return m_italic ? StyleItalic : StyleNormal; }
+    void setStyle(Style style) { m_italic = style != StyleNormal; }
+    bool underline() const { return m_underline; }
+    void setUnderline(bool enable) { m_underline = enable; }
+    bool overline() const { return m_overline; }
+    void setOverline(bool enable) { m_overline = enable; }
+    bool strikeOut() const { return m_strikeOut; }
+    void setStrikeOut(bool enable) { m_strikeOut = enable; }
 
     friend bool operator==(const QFont &a, const QFont &b) noexcept {
         return a.m_family == b.m_family && a.m_families == b.m_families && a.m_pointSize == b.m_pointSize &&
                a.m_pixelSize == b.m_pixelSize && a.m_weight == b.m_weight && a.m_italic == b.m_italic &&
                a.m_styleHint == b.m_styleHint && a.m_styleStrategy == b.m_styleStrategy && a.m_stretch == b.m_stretch &&
                a.m_letterSpacingType == b.m_letterSpacingType && a.m_letterSpacing == b.m_letterSpacing &&
-               a.m_wordSpacing == b.m_wordSpacing && a.m_hinting == b.m_hinting;
+               a.m_wordSpacing == b.m_wordSpacing && a.m_hinting == b.m_hinting && a.m_underline == b.m_underline &&
+               a.m_overline == b.m_overline && a.m_strikeOut == b.m_strikeOut;
     }
     friend bool operator!=(const QFont &a, const QFont &b) noexcept { return !(a == b); }
 
@@ -131,6 +151,9 @@ private:
     int m_pixelSize = -1;
     int m_weight = Normal;
     bool m_italic = false;
+    bool m_underline = false;
+    bool m_overline = false;
+    bool m_strikeOut = false;
     int m_styleHint = AnyStyle;
     int m_styleStrategy = PreferDefault;
     int m_stretch = AnyStretch;

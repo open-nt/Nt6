@@ -4,9 +4,14 @@
 #include <QtCore/qpointer.h>
 
 #include <QtCore/qvariant.h>
+#include <QtGui/qcolor.h>
+#include <QtGui/qicon.h>
+#include <QtGui/qtransform.h>
 #include <QtWidgets/qwidget.h>
 
 #include <vector>
+
+class QStyleOptionTab;
 
 class QTabBar : public QWidget {
     Q_OBJECT
@@ -16,9 +21,29 @@ class QTabBar : public QWidget {
     Q_PROPERTY(bool movable READ isMovable WRITE setMovable)
     Q_PROPERTY(
         SelectionBehavior selectionBehaviorOnRemove READ selectionBehaviorOnRemove WRITE setSelectionBehaviorOnRemove)
+    Q_PROPERTY(Shape shape READ shape WRITE setShape)
+    Q_PROPERTY(QSize iconSize READ iconSize WRITE setIconSize)
+    Q_PROPERTY(Qt::TextElideMode elideMode READ elideMode WRITE setElideMode)
+    Q_PROPERTY(bool usesScrollButtons READ usesScrollButtons WRITE setUsesScrollButtons)
+    Q_PROPERTY(bool documentMode READ documentMode WRITE setDocumentMode)
+    Q_PROPERTY(bool autoHide READ autoHide WRITE setAutoHide)
+    Q_PROPERTY(bool changeCurrentOnDrag READ changeCurrentOnDrag WRITE setChangeCurrentOnDrag)
+    Q_PROPERTY(bool expanding READ expanding WRITE setExpanding)
+    Q_PROPERTY(bool drawBase READ drawBase WRITE setDrawBase)
 public:
+    enum Shape {
+        RoundedNorth,
+        RoundedSouth,
+        RoundedWest,
+        RoundedEast,
+        TriangularNorth,
+        TriangularSouth,
+        TriangularWest,
+        TriangularEast
+    };
     enum SelectionBehavior { SelectLeftTab, SelectRightTab, SelectPreviousTab };
     enum ButtonPosition { LeftSide, RightSide };
+    Q_ENUM(Shape)
     Q_ENUM(ButtonPosition)
     Q_ENUM(SelectionBehavior)
 
@@ -27,6 +52,8 @@ public:
 
     int addTab(const QString &text);
     int insertTab(int index, const QString &text);
+    int addTab(const QIcon &icon, const QString &text);
+    int insertTab(int index, const QIcon &icon, const QString &text);
     void removeTab(int index);
     void moveTab(int from, int to);
 
@@ -38,6 +65,26 @@ public:
     void setTabToolTip(int index, const QString &tip);
     QVariant tabData(int index) const;
     void setTabData(int index, const QVariant &data);
+    QIcon tabIcon(int index) const;
+    void setTabIcon(int index, const QIcon &icon);
+    QColor tabTextColor(int index) const;
+    void setTabTextColor(int index, const QColor &color);
+    QString tabWhatsThis(int index) const;
+    void setTabWhatsThis(int index, const QString &text);
+    QString accessibleTabName(int index) const;
+    void setAccessibleTabName(int index, const QString &name);
+    bool isTabVisible(int index) const;
+    void setTabVisible(int index, bool visible);
+    Shape shape() const { return m_shape; }
+    void setShape(Shape shape);
+    QSize iconSize() const;
+    void setIconSize(const QSize &size);
+    Qt::TextElideMode elideMode() const { return m_elideMode; }
+    void setElideMode(Qt::TextElideMode mode);
+    bool autoHide() const { return m_autoHide; }
+    void setAutoHide(bool hide);
+    bool changeCurrentOnDrag() const { return m_changeCurrentOnDrag; }
+    void setChangeCurrentOnDrag(bool change) { m_changeCurrentOnDrag = change; }
 
     QRect tabRect(int index) const;
     int tabAt(const QPoint &position) const;
@@ -93,6 +140,8 @@ signals:
 
 protected:
     virtual QSize tabSizeHint(int index) const;
+    virtual QSize minimumTabSizeHint(int index) const;
+    void initStyleOption(QStyleOptionTab *option, int tabIndex) const;
     virtual void tabInserted(int index);
     virtual void tabRemoved(int index);
     virtual void tabLayoutChange();
@@ -117,8 +166,21 @@ private:
         bool enabled = true;
         QPointer<QWidget> left;  // tabButton(): owned by the tab bar
         QPointer<QWidget> right;
+        QIcon icon;
+        QColor textColor;
+        QString whatsThis;
+        QString accessibleName;
+        bool visible = true;
     };
     void placeButtons();
+    bool vertical() const;
+    int along(const QPoint &point) const { return vertical() ? point.y() : point.x(); }
+    int lengthOf(const QRect &rect) const { return vertical() ? rect.height() : rect.width(); }
+    std::vector<QRect> layoutTabs() const; // the rectangles of the tabs
+    // The transform from the coordinates of the tab at `rect`, drawn as a tab at the top, to the tab bar.
+    QTransform tabTransform(const QRect &rect) const;
+    QSize horizontalSize(int index, bool minimum) const;
+    void autoHideChanged();
 
     QRect closeRect(int index) const;
     bool valid(int index) const { return index >= 0 && index < count(); }
@@ -140,4 +202,9 @@ private:
     bool m_documentMode = false;
     bool m_scrollButtons = true;
     SelectionBehavior m_onRemove = SelectRightTab;
+    Shape m_shape = RoundedNorth;
+    QSize m_iconSize; // invalid: the size of the style
+    Qt::TextElideMode m_elideMode = Qt::ElideNone;
+    bool m_autoHide = false;
+    bool m_changeCurrentOnDrag = false;
 };

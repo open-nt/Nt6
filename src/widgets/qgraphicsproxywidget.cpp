@@ -70,6 +70,7 @@ QGraphicsProxyWidget::QGraphicsProxyWidget(QGraphicsItem *parent, Qt::WindowFlag
 QGraphicsProxyWidget::~QGraphicsProxyWidget() {
     if (m_widget) {
         WidgetAccess::data(m_widget.data()).proxyUpdate = nullptr;
+        WidgetAccess::data(m_widget.data()).proxy = nullptr;
         delete m_widget.data();
     }
 }
@@ -83,6 +84,7 @@ void QGraphicsProxyWidget::setWidget(QWidget *widget) {
         return;
     if (m_widget) {
         WidgetAccess::data(m_widget.data()).proxyUpdate = nullptr;
+        WidgetAccess::data(m_widget.data()).proxy = nullptr;
         m_widget->hide();
     }
     prepareGeometryChange();
@@ -95,6 +97,7 @@ void QGraphicsProxyWidget::setWidget(QWidget *widget) {
         widget->setParent(nullptr);
     }
     WidgetAccess::data(widget).proxyUpdate = [this](const QRegion &region) { widgetDirty(region); };
+    WidgetAccess::data(widget).proxy = this;
     if (size().isEmpty()) {
         const QSize hint = widget->size().isEmpty() ? widget->sizeHint() : widget->size();
         resize(QSizeF(hint));

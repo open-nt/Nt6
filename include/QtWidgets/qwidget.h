@@ -1,16 +1,22 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qbytearray.h>
 #include <QtCore/qlist.h>
+#include <QtCore/qlocale.h>
 #include <QtCore/qmargins.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qsize.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qvariant.h>
 #include <QtGui/qcursor.h>
 #include <QtGui/qfont.h>
+#include <QtGui/qfontinfo.h>
+#include <QtGui/qicon.h>
 #include <QtGui/qfontmetrics.h>
+#include <QtGui/qkeysequence.h>
 #include <QtGui/qpaintdevice.h>
 #include <QtGui/qpalette.h>
 #include <QtGui/qpixmap.h>
@@ -24,9 +30,11 @@
 #define QWIDGETSIZE_MAX ((1 << 24) - 1)
 
 class QAction;
+class QBackingStore;
+class QGraphicsProxyWidget;
+class QPainter;
 class QGraphicsEffect;
 class QActionEvent;
-class QIcon;
 class QContextMenuEvent;
 class QDragEnterEvent;
 class QDragLeaveEvent;
@@ -69,6 +77,15 @@ class QWidget : public QObject, public QPaintDevice {
     Q_PROPERTY(Qt::ContextMenuPolicy contextMenuPolicy READ contextMenuPolicy WRITE setContextMenuPolicy)
     Q_PROPERTY(bool windowModified READ isWindowModified WRITE setWindowModified)
     Q_PROPERTY(bool updatesEnabled READ updatesEnabled WRITE setUpdatesEnabled)
+    Q_PROPERTY(qreal windowOpacity READ windowOpacity WRITE setWindowOpacity)
+    Q_PROPERTY(QString windowFilePath READ windowFilePath WRITE setWindowFilePath)
+    Q_PROPERTY(QString windowIconText READ windowIconText WRITE setWindowIconText NOTIFY windowIconTextChanged)
+    Q_PROPERTY(QString windowRole READ windowRole WRITE setWindowRole)
+    Q_PROPERTY(int toolTipDuration READ toolTipDuration WRITE setToolTipDuration)
+    Q_PROPERTY(QString accessibleIdentifier READ accessibleIdentifier WRITE setAccessibleIdentifier)
+    Q_PROPERTY(bool tabletTracking READ hasTabletTracking WRITE setTabletTracking)
+    Q_PROPERTY(QSize baseSize READ baseSize WRITE setBaseSize)
+    Q_PROPERTY(QSize sizeIncrement READ sizeIncrement WRITE setSizeIncrement)
 public:
     explicit QWidget(QWidget *parent = nullptr, Qt::WindowFlags f = Qt::WindowFlags());
     ~QWidget() override;
@@ -127,6 +144,27 @@ public:
     QPoint mapFrom(const QWidget *parent, const QPoint &pos) const;
     QWidget *childAt(const QPoint &pos) const;
     QWidget *childAt(int x, int y) const { return childAt(QPoint(x, y)); }
+    QRect frameGeometry() const;
+    QSize frameSize() const { return frameGeometry().size(); }
+    QRect normalGeometry() const;
+    QRect childrenRect() const;
+    QRegion childrenRegion() const;
+    QRegion visibleRegion() const;
+    QSize baseSize() const;
+    void setBaseSize(const QSize &size);
+    void setBaseSize(int basew, int baseh) { setBaseSize(QSize(basew, baseh)); }
+    QSize sizeIncrement() const;
+    void setSizeIncrement(const QSize &size);
+    void setSizeIncrement(int w, int h) { setSizeIncrement(QSize(w, h)); }
+    virtual bool hasHeightForWidth() const;
+    virtual int heightForWidth(int w) const;
+    QByteArray saveGeometry() const;
+    bool restoreGeometry(const QByteArray &geometry);
+    void scroll(int dx, int dy);
+    void scroll(int dx, int dy, const QRect &r);
+    QRegion mask() const;
+    void setMask(const QRegion &region);
+    void clearMask();
 
     // Hierarchy and windows
     QWidget *parentWidget() const;
@@ -142,6 +180,26 @@ public:
     void setWindowModality(Qt::WindowModality windowModality);
     bool isModal() const { return windowModality() != Qt::NonModal; }
     QWidget *window() const;
+    QWidget *topLevelWidget() const { return window(); }
+    QWidget *nativeParentWidget() const;
+    QGraphicsProxyWidget *graphicsProxyWidget() const;
+    void stackUnder(QWidget *w);
+    void overrideWindowFlags(Qt::WindowFlags flags);
+    void overrideWindowState(Qt::WindowStates state);
+    WId effectiveWinId() const;
+    WId internalWinId() const;
+    void createWinId();
+    static QWidget *find(WId id);
+    QBackingStore *backingStore() const;
+    QPainter *sharedPainter() const;
+    qreal windowOpacity() const;
+    void setWindowOpacity(qreal level);
+    QString windowFilePath() const;
+    void setWindowFilePath(const QString &filePath);
+    QString windowIconText() const;
+    void setWindowIconText(const QString &text);
+    QString windowRole() const;
+    void setWindowRole(const QString &role);
     QWindow *windowHandle() const;
     WId winId() const;
     QScreen *screen() const;
@@ -170,6 +228,7 @@ public:
     Qt::ContextMenuPolicy contextMenuPolicy() const;
     void setContextMenuPolicy(Qt::ContextMenuPolicy policy);
     bool isEnabled() const;
+    bool isEnabledTo(const QWidget *ancestor) const;
     void setAttribute(Qt::WidgetAttribute attribute, bool on = true);
     bool testAttribute(Qt::WidgetAttribute attribute) const;
     bool updatesEnabled() const;
@@ -182,6 +241,19 @@ public:
     const QFont &font() const;
     void setFont(const QFont &font);
     QFontMetrics fontMetrics() const { return QFontMetrics(font()); }
+    QFontInfo fontInfo() const { return QFontInfo(font()); }
+    Qt::LayoutDirection layoutDirection() const;
+    void setLayoutDirection(Qt::LayoutDirection direction);
+    void unsetLayoutDirection();
+    bool isLeftToRight() const { return layoutDirection() == Qt::LeftToRight; }
+    bool isRightToLeft() const { return layoutDirection() == Qt::RightToLeft; }
+    QLocale locale() const;
+    void setLocale(const QLocale &locale);
+    void unsetLocale();
+    QPalette::ColorRole backgroundRole() const;
+    void setBackgroundRole(QPalette::ColorRole role);
+    QPalette::ColorRole foregroundRole() const;
+    void setForegroundRole(QPalette::ColorRole role);
     QStyle *style() const;
     void setStyle(QStyle *style);
     bool autoFillBackground() const;
@@ -194,6 +266,20 @@ public:
     QWidget *focusWidget() const;
     bool focusNextChild() { return focusNextPrevChild(true); }
     bool focusPreviousChild() { return focusNextPrevChild(false); }
+    QWidget *focusProxy() const;
+    void setFocusProxy(QWidget *w);
+    static void setTabOrder(QWidget *first, QWidget *second);
+    QWidget *nextInFocusChain() const;
+    QWidget *previousInFocusChain() const;
+    bool hasEditFocus() const;
+    void setEditFocus(bool enable);
+    bool hasTabletTracking() const;
+    void setTabletTracking(bool enable);
+    int grabShortcut(const QKeySequence &key, Qt::ShortcutContext context = Qt::WindowShortcut);
+    void releaseShortcut(int id);
+    void setShortcutEnabled(int id, bool enable = true);
+    void setShortcutAutoRepeat(int id, bool enable = true);
+    virtual QVariant inputMethodQuery(Qt::InputMethodQuery query) const;
     void setMouseTracking(bool enable);
     QCursor cursor() const;
     QString styleSheet() const;
@@ -231,6 +317,10 @@ public:
     void setAccessibleName(const QString &name);
     QString accessibleDescription() const;
     void setAccessibleDescription(const QString &description);
+    QString accessibleIdentifier() const;
+    void setAccessibleIdentifier(const QString &identifier);
+    int toolTipDuration() const;
+    void setToolTipDuration(int msec);
 
     // Rendering
     void render(QPaintDevice *target, const QPoint &targetOffset = QPoint(), const QRegion &sourceRegion = QRegion());
@@ -261,6 +351,7 @@ public slots:
     void lower();
     void setEnabled(bool enabled);
     void setDisabled(bool disable) { setEnabled(!disable); }
+    void setHidden(bool hidden) { setVisible(!hidden); }
     void setWindowTitle(const QString &title);
     void setWindowModified(bool modified);
     void setFocus();
@@ -285,6 +376,16 @@ signals:
         view; map it with mapToGlobal() to open a menu there.
     */
     void customContextMenuRequested(const QPoint &pos) { emitSignal(&QWidget::customContextMenuRequested, pos); }
+    /*!
+        \since 6.0
+        This signal is emitted when the icon of the window changes to \a icon.
+    */
+    void windowIconChanged(const QIcon &icon) { emitSignal(&QWidget::windowIconChanged, icon); }
+    /*!
+        \since 6.0
+        This signal is emitted when the icon text of the window changes to \a iconText.
+    */
+    void windowIconTextChanged(const QString &iconText) { emitSignal(&QWidget::windowIconTextChanged, iconText); }
 
 protected:
     bool event(QEvent *event) override;
@@ -313,6 +414,12 @@ protected:
     virtual void dragLeaveEvent(QDragLeaveEvent *event);
     virtual void dropEvent(QDropEvent *event);
     virtual bool focusNextPrevChild(bool next);
+    virtual bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result);
+
+protected slots:
+    void updateMicroFocus(Qt::InputMethodQuery query = Qt::ImQueryAll);
+
+protected:
     int metric(PaintDeviceMetric metric) const override;
     QPaintDevice *redirected(QPoint *offset) const override;
     bool systemClip(QRegion *region) const override;

@@ -1115,7 +1115,27 @@ void QPainter::drawImage(const QPoint &point, const QImage &image, const QRect &
 
 namespace {
 
-void drawLineOfText(QPaintEngine *engine, QFontEngine &font, const QtPrivate::PlacedLine &line, const QPoint &offset) {
+// Draws the underline, overline and strike-out of `qfont` along a line of text `width` pixels wide, in the color of the
+// pen, as a mask the engine fills.
+void drawDecorations(QPaintEngine *engine, const QFont &qfont, const QFontEngine &font, int x, int baseline, int width,
+                     const QPoint &offset) {
+    if (width <= 0 || !(qfont.underline() || qfont.overline() || qfont.strikeOut()))
+        return;
+    const int thickness = std::max(1, font.ascent() / 14);
+    const std::vector<uchar> mask(static_cast<std::size_t>(width) * static_cast<std::size_t>(thickness), 255);
+    const auto line = [&](int y) {
+        engine->drawAlphaMask(QPoint(x, y) + offset, mask.data(), width, thickness, width);
+    };
+    if (qfont.underline())
+        line(baseline + std::max(1, font.descent() / 3));
+    if (qfont.overline())
+        line(baseline - font.ascent());
+    if (qfont.strikeOut())
+        line(baseline - font.ascent() / 3);
+}
+
+void drawLineOfText(QPaintEngine *engine, QFontEngine &font, const QtPrivate::PlacedLine &line, const QPoint &offset,
+                    const QFont *decorations = nullptr) {
     int pen64 = 0;
     if (engine->type() == QPaintEngine::Pdf) {
         // PDF gets the outlines, at the unrounded pen positions, so the text stays sharp when zoomed.
@@ -1142,6 +1162,8 @@ void drawLineOfText(QPaintEngine *engine, QFontEngine &font, const QtPrivate::Pl
         }
         pen64 += QtPrivate::advance64(font, cp);
     });
+    if (decorations)
+        drawDecorations(engine, *decorations, font, line.x, line.baseline, (pen64 + 32) >> 6, offset);
 }
 
 } // namespace
@@ -1164,7 +1186,7 @@ void QPainter::drawText(const QPoint &position, const QString &text) {
     const QtPrivate::TextBlock block =
         QtPrivate::layoutAtPoint(*font, d->devPoint(position + d->state.translation), text);
     for (const QtPrivate::PlacedLine &line : block.lines)
-        drawLineOfText(d->engine, *font, line, QPoint());
+        drawLineOfText(d->engine, *font, line, QPoint(), &d->state.font);
 }
 
 /*!
@@ -1213,7 +1235,7 @@ void QPainter::drawText(const QRect &rectangle, int flags, const QString &text, 
         d->sync();
     }
     for (const QtPrivate::PlacedLine &line : block.lines)
-        drawLineOfText(d->engine, *font, line, QPoint());
+        drawLineOfText(d->engine, *font, line, QPoint(), &d->state.font);
     d->state = saved;
     d->sync();
 }

@@ -13,6 +13,8 @@ class QGraphicsEffect;
 class QGraphicsSceneMouseEvent;
 class QStyleOptionGraphicsItem;
 
+class QGraphicsTransform;
+
 struct QGraphicsItem::Private {
     QGraphicsItem *q = nullptr;
     QGraphicsScene *scene = nullptr;
@@ -26,6 +28,7 @@ struct QGraphicsItem::Private {
     QTransform transform;
     qreal rotation = 0.0;
     qreal scale = 1.0;
+    QList<QGraphicsTransform *> transformations; // setTransformations(); not owned
     QPointF origin;
     GraphicsItemFlags flags;
     CacheMode cacheMode = NoCache;
@@ -56,6 +59,9 @@ struct QGraphicsItem::Private {
 // Reaches the private parts of items for the scene, the view and the items' own sources.
 struct QGraphicsItemAccess {
     static QGraphicsItem::Private *d(const QGraphicsItem *item) { return item->d_ptr.get(); }
+    // A transformation of the item changed, or was deleted.
+    static void transformationChanged(QGraphicsItem *item);
+    static void forgetTransformation(QGraphicsItem *item, QGraphicsTransform *transformation);
     static bool sceneEvent(QGraphicsItem *item, QEvent *event) { return item->sceneEvent(event); }
     static bool sceneEventFilter(QGraphicsItem *filter, QGraphicsItem *watched, QEvent *event) {
         return filter->sceneEventFilter(watched, event);

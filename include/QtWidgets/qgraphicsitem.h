@@ -28,6 +28,7 @@ class QGraphicsSceneDragDropEvent;
 class QGraphicsSceneHoverEvent;
 class QGraphicsSceneMouseEvent;
 class QGraphicsSceneWheelEvent;
+class QGraphicsTransform;
 class QGraphicsWidget;
 class QKeyEvent;
 class QPainter;
@@ -202,6 +203,8 @@ public:
     QTransform itemTransform(const QGraphicsItem *other, bool *ok = nullptr) const;
     void setTransform(const QTransform &matrix, bool combine = false);
     void resetTransform();
+    QList<QGraphicsTransform *> transformations() const;
+    void setTransformations(const QList<QGraphicsTransform *> &transformations);
     void setRotation(qreal angle);
     qreal rotation() const;
     void setScale(qreal scale);

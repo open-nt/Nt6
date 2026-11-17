@@ -6,11 +6,13 @@
 #include <QtCore/qnamespace.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qvariant.h>
 #include <QtGui/qbrush.h>
 #include <QtGui/qcolor.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qfontmetrics.h>
 #include <QtGui/qicon.h>
+#include <QtGui/qregion.h>
 #include <QtGui/qpalette.h>
 #include <QtGui/qpixmap.h>
 #include <QtGui/qtransform.h>
@@ -206,6 +208,7 @@ public:
     QSize leftButtonSize;
     QSize rightButtonSize;
     TabFeatures features;
+    QIcon icon; // drawn before the text, in iconSize
     int tabIndex = -1;
 };
 
@@ -537,5 +540,81 @@ template <typename T> T qstyleoption_cast(QStyleOption *option) {
     if (option && (int(Option::Type) == QStyleOption::SO_Default || option->type == int(Option::Type) ||
                    (int(Option::Type) == QStyleOption::SO_Complex && option->type > QStyleOption::SO_Complex)))
         return static_cast<T>(option);
+    return nullptr;
+}
+
+class QStyleHintReturn {
+public:
+    /*!
+        \enum QStyleHintReturn::HintReturnType
+
+        The kind of a QStyleHintReturn.
+
+        \value SH_Default A QStyleHintReturn.
+        \value SH_Mask A QStyleHintReturnMask.
+        \value SH_Variant A QStyleHintReturnVariant.
+    */
+    enum HintReturnType { SH_Default = 0xf000, SH_Mask, SH_Variant };
+    /*! \omitvalue Type */
+    enum StyleOptionType { Type = SH_Default };
+    /*! \omitvalue Version */
+    enum StyleOptionVersion { Version = 1 };
+
+    /*! Constructs a hint return of \a hintVersion and \a hintType. */
+    explicit QStyleHintReturn(int hintVersion = QStyleOption::Version, int hintType = SH_Default)
+        : version(hintVersion), type(hintType) {}
+    /*! Destroys the hint return. */
+    virtual ~QStyleHintReturn() = default;
+
+    /*! The version of the hint return. */
+    int version;
+    /*! The kind of the hint return, a HintReturnType. */
+    int type;
+};
+
+class QStyleHintReturnMask : public QStyleHintReturn {
+public:
+    /*! \omitvalue Type */
+    enum StyleOptionType { Type = SH_Mask };
+    /*! \omitvalue Version */
+    enum StyleOptionVersion { Version = 1 };
+
+    /*! Constructs a mask hint return. */
+    QStyleHintReturnMask() : QStyleHintReturn(Version, Type) {}
+    /*! Destroys the hint return. */
+    ~QStyleHintReturnMask() override = default;
+
+    /*! The mask that the style gives, such as the shape of a rounded button. */
+    QRegion region;
+};
+
+class QStyleHintReturnVariant : public QStyleHintReturn {
+public:
+    /*! \omitvalue Type */
+    enum StyleOptionType { Type = SH_Variant };
+    /*! \omitvalue Version */
+    enum StyleOptionVersion { Version = 1 };
+
+    /*! Constructs a variant hint return. */
+    QStyleHintReturnVariant() : QStyleHintReturn(Version, Type) {}
+    /*! Destroys the hint return. */
+    ~QStyleHintReturnVariant() override = default;
+
+    /*! The value that the style gives. */
+    QVariant variant;
+};
+
+// Returns `hint` as T if it is of that kind, as its type tells; otherwise nullptr.
+template <typename T> T qstyleoption_cast(const QStyleHintReturn *hint) {
+    using Hint = std::remove_cv_t<std::remove_pointer_t<T>>;
+    if (hint && (int(Hint::Type) == QStyleHintReturn::SH_Default || hint->type == int(Hint::Type)))
+        return static_cast<T>(hint);
+    return nullptr;
+}
+
+template <typename T> T qstyleoption_cast(QStyleHintReturn *hint) {
+    using Hint = std::remove_cv_t<std::remove_pointer_t<T>>;
+    if (hint && (int(Hint::Type) == QStyleHintReturn::SH_Default || hint->type == int(Hint::Type)))
+        return static_cast<T>(hint);
     return nullptr;
 }

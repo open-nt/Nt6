@@ -7,6 +7,9 @@
 #include <QtWidgets/qgraphicslayout.h>
 #include <QtWidgets/qgraphicslayoutitem.h>
 
+class QGraphicsSceneMoveEvent;
+class QGraphicsSceneResizeEvent;
+
 class QGraphicsWidget : public QGraphicsObject, public QGraphicsLayoutItem {
     Q_OBJECT
     Q_PROPERTY(QSizeF size READ size WRITE resize NOTIFY geometryChanged)
@@ -64,6 +67,8 @@ signals:
 
 protected:
     QSizeF sizeHint(Qt::SizeHint which, const QSizeF &constraint = QSizeF()) const override;
+    virtual void resizeEvent(QGraphicsSceneResizeEvent *event);
+    virtual void moveEvent(QGraphicsSceneMoveEvent *event);
     bool event(QEvent *event) override;
 
 private:
@@ -76,5 +81,7 @@ private:
     QPalette m_palette;
     bool m_autoFill = false;
     bool m_layoutRequested = false;
+    QPointF m_lastPos; // for the move events
+    bool m_settingGeometry = false;
     Qt::WindowFlags m_windowFlags;
 };

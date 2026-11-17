@@ -290,6 +290,79 @@ void QGuiApplication::setDesktopFileName(const QString &name) {
 */
 QString QGuiApplication::desktopFileName() { return desktopFile(); }
 
+namespace {
+Qt::LayoutDirection g_layoutDirection = Qt::LeftToRight;
+} // namespace
+
+/*!
+    \since 6.0
+
+    Sets the layout direction of the application to \a direction. Widgets
+    that have no layout direction of their own follow it.
+
+    \sa layoutDirection()
+*/
+void QGuiApplication::setLayoutDirection(Qt::LayoutDirection direction) {
+    if (direction == Qt::LayoutDirectionAuto)
+        direction = Qt::LeftToRight;
+    if (direction == g_layoutDirection)
+        return;
+    g_layoutDirection = direction;
+    if (QGuiApplication *app = instance()) {
+        emit app->layoutDirectionChanged(direction);
+        QEvent change(QEvent::ApplicationLayoutDirectionChange);
+        QCoreApplication::sendEvent(app, &change);
+    }
+}
+
+/*!
+    \since 6.0
+
+    Returns the layout direction of the application; Qt::LeftToRight unless
+    setLayoutDirection() changed it.
+*/
+Qt::LayoutDirection QGuiApplication::layoutDirection() { return g_layoutDirection; }
+
+/*!
+    \fn bool QGuiApplication::isLeftToRight()
+    \since 6.0
+
+    Returns \c true if the layout direction of the application is Qt::LeftToRight.
+*/
+
+/*!
+    \fn bool QGuiApplication::isRightToLeft()
+    \since 6.0
+
+    Returns \c true if the layout direction of the application is Qt::RightToLeft.
+*/
+
+namespace {
+QString &displayName() {
+    static QString name;
+    return name;
+}
+} // namespace
+
+/*!
+    \since 6.0
+
+    Sets the name of the application that people read, such as in the title of its windows, to \a name.
+
+    \sa applicationDisplayName()
+*/
+void QGuiApplication::setApplicationDisplayName(const QString &name) { displayName() = name; }
+
+/*!
+    \since 6.0
+
+    Returns the name of the application that people read: the one setApplicationDisplayName() set, or
+    QCoreApplication::applicationName().
+*/
+QString QGuiApplication::applicationDisplayName() {
+    return displayName().isEmpty() ? QCoreApplication::applicationName() : displayName();
+}
+
 /*!
     Returns the mouse buttons that were down at the last mouse event.
 */

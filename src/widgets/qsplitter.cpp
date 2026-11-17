@@ -1,6 +1,10 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qsplitter.h>
 
+#include <QtCore/qiodevice.h>
+
+#include <QtCore/qdatastream.h>
+
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qlayoutitem.h>
@@ -8,57 +12,6 @@
 #include <QtWidgets/qstyleoption.h>
 
 #include <algorithm>
-
-namespace QtPrivate {
-
-// The bar between two widgets of a splitter, which the user drags.
-class SplitterHandle : public QWidget {
-public:
-    SplitterHandle(QSplitter *splitter, int index) : QWidget(splitter), m_splitter(splitter), m_index(index) {}
-    void setIndex(int index) { m_index = index; }
-
-protected:
-    void paintEvent(QPaintEvent *event) override {
-        (void)event;
-        QPainter painter(this);
-        QStyleOption option;
-        option.initFrom(this);
-        if (m_splitter->orientation() == Qt::Horizontal)
-            option.state |= QStyle::State_Horizontal;
-        style()->drawControl(QStyle::CE_Splitter, &option, &painter, this);
-    }
-    void mousePressEvent(QMouseEvent *event) override {
-        if (event->button() != Qt::LeftButton) {
-            event->ignore();
-            return;
-        }
-        m_grab = m_splitter->orientation() == Qt::Horizontal ? event->pos().x() : event->pos().y();
-        m_dragging = true;
-        event->accept();
-    }
-    void mouseMoveEvent(QMouseEvent *event) override {
-        if (!m_dragging) {
-            event->ignore();
-            return;
-        }
-        const QPoint p = mapToParent(event->pos());
-        const int along = m_splitter->orientation() == Qt::Horizontal ? p.x() : p.y();
-        m_splitter->moveHandle(m_index, along - m_grab);
-        event->accept();
-    }
-    void mouseReleaseEvent(QMouseEvent *event) override {
-        m_dragging = false;
-        event->accept();
-    }
-
-private:
-    QSplitter *m_splitter;
-    int m_index;
-    int m_grab = 0;
-    bool m_dragging = false;
-};
-
-} // namespace QtPrivate
 
 /*!
     \class QSplitter
@@ -83,9 +36,8 @@ private:
     \image widgets/qsplitter.png QSplitter in the light color scheme
 
     \differences
-    There is no \c QSplitterHandle class and no \c handle(), \c replaceWidget(), \c saveState() or \c restoreState(), and no
-    \c setOpaqueResize(): the widgets always follow the handle. A splitter has no \c refresh(). The cursor does not change
-    over a handle.
+    The widgets always follow the handle: setOpaqueResize() is kept but there is no rubber band. handle(0), the hidden
+    handle before the first widget in Qt, is \c nullptr. saveState() writes a format of Nt's own.
     \enddifferences
 
     \sa QScrollArea, QTabWidget
@@ -143,7 +95,7 @@ void QSplitter::insertWidget(int index, QWidget *widget) {
     widget->show();
     m_items.insert(m_items.begin() + index, Item{widget, 0, 0, -1});
     if (count() > 1) {
-        auto *handle = new QtPrivate::SplitterHandle(this, 0);
+        QSplitterHandle *handle = createHandle();
         handle->show();
         m_handles.push_back(handle);
     }
@@ -218,6 +170,8 @@ void QSplitter::setOrientation(Qt::Orientation orientation) {
     if (m_orientation == orientation)
         return;
     m_orientation = orientation;
+    for (QSplitterHandle *handle : m_handles)
+        handle->setOrientation(orientation);
     m_sized = false;
     updateGeometry();
     layoutChildren();
@@ -423,8 +377,7 @@ void QSplitter::layoutChildren() {
         item.widget->setGeometry(horizontal ? QRect(pos, 0, item.size, height()) : QRect(0, pos, width(), item.size));
         pos += item.size;
         if (i + 1 < m_items.size()) {
-            QtPrivate::SplitterHandle *handle = m_handles[i];
-            handle->setIndex(static_cast<int>(i));
+            QSplitterHandle *handle = m_handles[i];
             handle->setGeometry(horizontal ? QRect(pos, 0, hw, height()) : QRect(0, pos, width(), hw));
             handle->update();
             pos += hw;
@@ -512,6 +465,294 @@ void QSplitter::showEvent(QShowEvent *event) {
 void QSplitter::changeEvent(QEvent *event) {
     layoutChildren();
     QFrame::changeEvent(event);
+}
+
+/*!
+    \since 6.0
+
+    Makes the handle that goes between two widgets. Reimplement it to give the splitter handles of your own, a
+    subclass of QSplitterHandle.
+*/
+QSplitterHandle *QSplitter::createHandle() { return new QSplitterHandle(m_orientation, this); }
+
+/*!
+    \since 6.0
+
+    Returns the handle before the widget at \a index, which the user drags to resize it and the widget before it,
+    or \c nullptr for the first widget, which has none, and for an index out of range.
+*/
+QSplitterHandle *QSplitter::handle(int index) const {
+    if (index < 1 || index >= count())
+        return nullptr;
+    return m_handles[static_cast<std::size_t>(index) - 1];
+}
+
+/*!
+    \since 6.0
+
+    Puts \a widget at \a index in place of the widget there, which is hidden and given back without a parent; the
+    caller owns it. Returns \c nullptr, and does nothing, if \a index is out of range or \a widget is in the
+    splitter already.
+*/
+QWidget *QSplitter::replaceWidget(int index, QWidget *widget) {
+    if (!widget || index < 0 || index >= count() || indexOf(widget) >= 0)
+        return nullptr;
+    Item &item = m_items[static_cast<std::size_t>(index)];
+    QWidget *old = item.widget;
+    // The old widget leaves without taking its handle with it.
+    QObject::disconnect(old, &QObject::destroyed, this, nullptr);
+    old->hide();
+    old->setParent(nullptr);
+    item.widget = widget;
+    widget->setParent(this);
+    widget->show();
+    QObject::connect(widget, &QObject::destroyed, this, [this, alive = m_alive](QObject *w) {
+        if (*alive)
+            removeItem(w);
+    });
+    layoutChildren();
+    return old;
+}
+
+/*!
+    \fn bool QSplitter::opaqueResize() const
+    \since 6.0
+
+    Returns whether the widgets follow the handle while it is dragged; \c true.
+*/
+
+/*!
+    \fn void QSplitter::setOpaqueResize(bool opaque)
+    \since 6.0
+
+    Sets whether the widgets follow the handle while it is dragged to \a opaque. Nt keeps the value; the widgets
+    always follow.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the sizes of the widgets and the settings of the splitter, for restoreState() to bring back, such as from
+    QSettings in a later run.
+
+    \code
+    settings.setValue("split", splitter->saveState());
+    ...
+    splitter->restoreState(settings.value("split").toByteArray());
+    \endcode
+*/
+QByteArray QSplitter::saveState() const {
+    QByteArray state;
+    QDataStream out(&state, QIODevice::WriteOnly);
+    out << quint32(0x4e745350) << quint32(1) << qint32(count());
+    for (const int size : sizes())
+        out << qint32(size);
+    out << qint32(handleWidth()) << m_collapsible << qint32(m_orientation);
+    return state;
+}
+
+/*!
+    \since 6.0
+
+    Brings back the sizes and the settings that saveState() returned, \a state. Returns \c false, and changes
+    nothing, if \a state is not one of a splitter.
+*/
+bool QSplitter::restoreState(const QByteArray &state) {
+    QDataStream in(state);
+    quint32 magic = 0, version = 0;
+    qint32 n = 0;
+    in >> magic >> version >> n;
+    if (magic != 0x4e745350 || version != 1 || n < 0 || n > 10000)
+        return false;
+    QList<int> list;
+    for (qint32 i = 0; i < n; ++i) {
+        qint32 size = 0;
+        in >> size;
+        list.append(size);
+    }
+    qint32 width = -1, orientation = 0;
+    bool collapsible = true;
+    in >> width >> collapsible >> orientation;
+    if (in.status() != QDataStream::Ok)
+        return false;
+    setHandleWidth(width);
+    setChildrenCollapsible(collapsible);
+    setOrientation(static_cast<Qt::Orientation>(orientation));
+    setSizes(list);
+    return true;
+}
+
+/*!
+    \since 6.0
+
+    Lays the widgets out again, as after a change of their size hints.
+*/
+void QSplitter::refresh() {
+    m_sized = false;
+    layoutChildren();
+}
+
+/*!
+    \since 6.0
+
+    Returns the position nearest to \a pos that the handle before the widget at \a index can be moved to.
+*/
+int QSplitter::closestLegalPosition(int pos, int index) {
+    if (index < 1 || index >= count())
+        return pos;
+    const Item &left = m_items[static_cast<std::size_t>(index) - 1];
+    const Item &right = m_items[static_cast<std::size_t>(index)];
+    const int start = startOf(index - 1);
+    const int total = left.size + right.size;
+    const int low = canCollapse(left) ? start : start + std::min(minimumOf(left), total);
+    const int high = canCollapse(right) ? start + total : start + std::max(0, total - minimumOf(right));
+    return std::clamp(pos, low, std::max(low, high));
+}
+
+/*!
+    \since 6.0
+
+    Moves the handle before the widget at \a index to \a pos, as the user does, and emits splitterMoved().
+*/
+void QSplitter::moveSplitter(int pos, int index) { moveHandle(index - 1, pos); }
+
+/*!
+    \class QSplitterHandle
+    \inmodule NtWidgets
+    \since 6.0
+    \brief The QSplitterHandle class is the bar between two widgets of a QSplitter.
+
+    Subclass it, and QSplitter::createHandle(), to draw handles of your own:
+
+    \code
+    class Grip : public QSplitterHandle {
+    public:
+        using QSplitterHandle::QSplitterHandle;
+    protected:
+        void paintEvent(QPaintEvent *) override { QPainter(this).fillRect(rect(), Qt::darkGray); }
+    };
+    \endcode
+
+    \differences
+    The cursor does not change over a handle.
+    \enddifferences
+
+    \sa QSplitter
+*/
+
+/*!
+    Constructs a handle of \a orientation for the splitter \a parent.
+*/
+QSplitterHandle::QSplitterHandle(Qt::Orientation orientation, QSplitter *parent)
+    : QWidget(parent), m_splitter(parent), m_orientation(orientation) {}
+
+/*!
+    Destroys the handle.
+*/
+QSplitterHandle::~QSplitterHandle() = default;
+
+/*!
+    Sets the orientation of the handle to \a orientation; the splitter sets it to its own.
+*/
+void QSplitterHandle::setOrientation(Qt::Orientation orientation) {
+    m_orientation = orientation;
+    update();
+}
+
+/*!
+    \fn Qt::Orientation QSplitterHandle::orientation() const
+
+    Returns the orientation of the handle.
+*/
+
+/*!
+    Returns QSplitter::opaqueResize() of the splitter.
+*/
+bool QSplitterHandle::opaqueResize() const { return m_splitter && m_splitter->opaqueResize(); }
+
+/*!
+    \fn QSplitter *QSplitterHandle::splitter() const
+
+    Returns the splitter of the handle.
+*/
+
+/*!
+    \reimp
+*/
+QSize QSplitterHandle::sizeHint() const {
+    const int width = m_splitter ? m_splitter->handleWidth() : 4;
+    return m_orientation == Qt::Horizontal ? QSize(width, 0) : QSize(0, width);
+}
+
+int QSplitterHandle::index() const {
+    if (!m_splitter)
+        return -1;
+    for (std::size_t i = 0; i < m_splitter->m_handles.size(); ++i)
+        if (m_splitter->m_handles[i] == this)
+            return static_cast<int>(i);
+    return -1;
+}
+
+/*!
+    \reimp
+*/
+void QSplitterHandle::paintEvent(QPaintEvent *event) {
+    (void)event;
+    QPainter painter(this);
+    QStyleOption option;
+    option.initFrom(this);
+    if (m_orientation == Qt::Horizontal)
+        option.state |= QStyle::State_Horizontal;
+    style()->drawControl(QStyle::CE_Splitter, &option, &painter, this);
+}
+
+/*!
+    \reimp
+*/
+void QSplitterHandle::mousePressEvent(QMouseEvent *event) {
+    if (event->button() != Qt::LeftButton) {
+        event->ignore();
+        return;
+    }
+    m_grab = m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y();
+    m_dragging = true;
+    event->accept();
+}
+
+/*!
+    \reimp
+*/
+void QSplitterHandle::mouseMoveEvent(QMouseEvent *event) {
+    if (!m_dragging) {
+        event->ignore();
+        return;
+    }
+    const QPoint p = mapToParent(event->pos());
+    moveSplitter((m_orientation == Qt::Horizontal ? p.x() : p.y()) - m_grab);
+    event->accept();
+}
+
+/*!
+    \reimp
+*/
+void QSplitterHandle::mouseReleaseEvent(QMouseEvent *event) {
+    m_dragging = false;
+    event->accept();
+}
+
+/*!
+    Moves the handle to \a pos in the splitter, as a drag does.
+*/
+void QSplitterHandle::moveSplitter(int pos) {
+    if (m_splitter)
+        m_splitter->moveHandle(index(), pos);
+}
+
+/*!
+    Returns the position nearest to \a pos that the handle can be moved to.
+*/
+int QSplitterHandle::closestLegalPosition(int pos) {
+    return m_splitter ? m_splitter->closestLegalPosition(pos, index() + 1) : pos;
 }
 
 #include "moc_qsplitter.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

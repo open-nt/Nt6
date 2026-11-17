@@ -5,6 +5,7 @@
 
 #include "qwidgetwindow_p.h"
 
+#include <QtCore/qlocale.h>
 #include <QtCore/qpointer.h>
 #include <QtGui/qaction.h>
 #include <QtGui/qpalette.h>
@@ -13,6 +14,7 @@
 
 #include <bitset>
 #include <functional>
+#include <optional>
 #include <memory>
 #include <vector>
 
@@ -83,6 +85,26 @@ struct QWidget::Data {
     QString accessibleDescription;
     Qt::InputMethodHints inputMethodHints;
     QPointer<QGraphicsEffect> graphicsEffect; // a child of the widget
+    QGraphicsProxyWidget *proxy = nullptr;    // the proxy that shows this window in a scene
+    QPointer<QWidget> focusProxy;
+    // Of a window: the pairs that QWidget::setTabOrder() put next to each other, in the order it was called.
+    std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> tabOrder;
+    std::optional<Qt::LayoutDirection> layoutDirection;
+    std::optional<QLocale> locale;
+    QPalette::ColorRole backgroundRole = QPalette::NoRole;
+    QPalette::ColorRole foregroundRole = QPalette::NoRole;
+    QRegion mask;
+    QSize baseSize{0, 0};
+    QSize sizeIncrement{0, 0};
+    QRect normalGeometry; // of a window, before it was maximized or made full screen
+    qreal windowOpacity = 1.0;
+    QString windowFilePath;
+    QString windowIconText;
+    QString windowRole;
+    QString accessibleIdentifier;
+    int toolTipDuration = -1;
+    bool tabletTracking = false;
+    bool editFocus = false;
 };
 
 namespace QtPrivate {
@@ -132,6 +154,13 @@ struct WidgetAccess {
     static void activateLayout(QWidget *w);
     // Makes `popup` the popup of the window of `w`, or removes it if it is null.
     static void setPopup(QWidget *w, QWidget *popup);
+    // The widgets of the window `top` in tab order: those that take the focus by tabbing if `focusableOnly`, else all.
+    static std::vector<QWidget *> focusChain(QWidget *top, bool focusableOnly);
+    // Sends a QShortcutEvent to the widget that grabbed the shortcut `code` (a key and modifiers, as a QKeySequence
+    // holds them) for key presses in `top`, unless `overridden` says the widget with the focus wants the key itself.
+    // Returns true if a widget got the shortcut.
+    static bool activateGrabbedShortcut(QWidget *top, int code, bool autoRepeat, int (*normalize)(int),
+                                        const std::function<bool()> &overridden);
     // Opens the menu of the menu bar under `top` whose title has the mnemonic Alt and `key`; false if there is none.
     static bool activateMnemonic(QWidget *top, int key);
 };

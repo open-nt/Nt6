@@ -114,7 +114,7 @@ void WidgetAccess::paintRecursive(QWidget *w, const QPoint &origin, const QRect 
             !d.attributes.test(Qt::WA_OpaquePaintEvent)) {
             QPainter painter(w);
             painter.fillRect(w->rect(), w->palette().color(w->isEnabled() ? QPalette::Active : QPalette::Disabled,
-                                                           QPalette::Window));
+                                                           w->backgroundRole()));
         }
         QPaintEvent event(region.translated(-origin));
         QCoreApplication::sendEvent(w, &event);
@@ -138,7 +138,7 @@ void WidgetAccess::renderRecursive(QWidget *w, const QPoint &origin, const QRect
             !d.attributes.test(Qt::WA_OpaquePaintEvent)) {
             QPainter painter(w);
             painter.fillRect(w->rect(), w->palette().color(w->isEnabled() ? QPalette::Active : QPalette::Disabled,
-                                                           QPalette::Window));
+                                                           w->backgroundRole()));
         }
         QPaintEvent event(region.translated(-origin));
         QCoreApplication::sendEvent(w, &event);
@@ -173,20 +173,7 @@ bool WidgetAccess::focusable(const QWidget *w) {
     return shownSelf(w) && w->isEnabled() && (w->focusPolicy() & Qt::TabFocus);
 }
 
-static void collectChain(QWidget *w, std::vector<QWidget *> &out) {
-    if (!WidgetAccess::shownSelf(w))
-        return;
-    if (WidgetAccess::focusable(w))
-        out.push_back(w);
-    for (QWidget *child : WidgetAccess::childWidgets(w))
-        collectChain(child, out);
-}
-
-std::vector<QWidget *> WidgetAccess::tabChain(QWidget *top) {
-    std::vector<QWidget *> chain;
-    collectChain(top, chain);
-    return chain;
-}
+std::vector<QWidget *> WidgetAccess::tabChain(QWidget *top) { return focusChain(top, true); }
 
 QWidget *WidgetAccess::focusWidgetOf(QWidget *top) { return top->m_d->focusChild; }
 
@@ -243,6 +230,10 @@ void WidgetAccess::setUnderMouse(QWidget *w, bool under) {
 
 QString WidgetAccess::shownTitle(const QWidget *w) {
     QString title = data(w).title;
+    // Without a title, a window that shows a file is titled with the name of the file.
+    if (title.isEmpty() && !data(w).windowFilePath.isEmpty())
+        title = data(w).windowFilePath.mid(data(w).windowFilePath.lastIndexOf(QLatin1Char('/')) + 1) +
+                QStringLiteral("[*]");
     // "[*]" stands for the mark of unsaved changes; "[*][*]" is a literal "[*]".
     const QString marker = QStringLiteral("[*]");
     QString shown;
@@ -732,7 +723,7 @@ QRect QWidget::contentsRect() const { return rect().marginsRemoved(m_d->contents
 
     \value DrawWindowBackground The background of the window or of a widget that fills it is drawn.
     \value DrawChildren The children of the widget are drawn.
-    \value IgnoreMask Kept for Qt code: Nt widgets have no masks.
+    \value IgnoreMask Kept for Qt code: render() does not clip to the mask().
 */
 
 /*!
@@ -1484,6 +1475,8 @@ bool QWidget::isFullScreen() const { return isWindow() && m_d->window && m_d->wi
 */
 void QWidget::showFullScreen() {
     if (isWindow() && !m_d->proxyUpdate) {
+        if (!(windowState() & (Qt::WindowMaximized | Qt::WindowFullScreen)))
+            m_d->normalGeometry = geometry();
         ensureWindow(this);
         QtPrivate::GuiAccess::setFullScreen(m_d->window.get(), true);
     }
@@ -1555,6 +1548,9 @@ Qt::WindowStates QWidget::windowState() const {
 void QWidget::setWindowState(Qt::WindowStates state) {
     if (!isWindow() || m_d->proxyUpdate)
         return;
+    if (!(windowState() & (Qt::WindowMaximized | Qt::WindowFullScreen)) &&
+        (state & (Qt::WindowMaximized | Qt::WindowFullScreen)))
+        m_d->normalGeometry = geometry();
     ensureWindow(this);
     QtPrivate::GuiAccess::setWindowStates(m_d->window.get(), state);
 }
@@ -1583,6 +1579,9 @@ void QWidget::setWindowIcon(const QIcon &icon) {
     top->m_d->icon = icon;
     if (top->m_d->window)
         top->m_d->window->setIcon(icon);
+    QEvent change(QEvent::WindowIconChange);
+    QCoreApplication::sendEvent(top, &change);
+    emit top->windowIconChanged(icon);
 }
 
 /*!
@@ -2028,8 +2027,11 @@ void QWidget::setFocusPolicy(Qt::FocusPolicy policy) { m_d->focusPolicy = policy
     \sa setFocus()
 */
 bool QWidget::hasFocus() const {
-    const QWidget *top = window();
-    return top->m_d->focusChild == this && top->isActiveWindow();
+    const QWidget *w = this;
+    while (w->m_d->focusProxy)
+        w = w->m_d->focusProxy.data();
+    const QWidget *top = w->window();
+    return top->m_d->focusChild == w && top->isActiveWindow();
 }
 
 /*!
@@ -2043,7 +2045,12 @@ QWidget *QWidget::focusWidget() const { return window()->m_d->focusChild; }
 
     \sa hasFocus(), clearFocus()
 */
-void QWidget::setFocus() { WidgetAccess::setFocusWidget(window(), this); }
+void QWidget::setFocus() {
+    QWidget *w = this;
+    while (w->m_d->focusProxy)
+        w = w->m_d->focusProxy.data();
+    WidgetAccess::setFocusWidget(w->window(), w);
+}
 
 /*!
     Takes the keyboard focus away from the widget, if it has it.
@@ -2578,6 +2585,10 @@ bool QWidget::event(QEvent *e) {
     case QEvent::WindowActivate:
     case QEvent::WindowDeactivate:
     case QEvent::MouseTrackingChange:
+    case QEvent::LayoutDirectionChange:
+    case QEvent::LocaleChange:
+    case QEvent::WindowIconChange:
+    case QEvent::IconTextChange:
         changeEvent(e);
         return true;
     default:
@@ -2881,13 +2892,15 @@ void QWidget::leaveEvent(QEvent *event) {
 
 /*!
     Handles the change \a event, which is of the type EnabledChange, FontChange, PaletteChange, StyleChange,
-    ParentChange, WindowTitleChange, WindowActivate, WindowDeactivate or MouseTrackingChange. The default repaints the
+    ParentChange, WindowTitleChange, WindowActivate, WindowDeactivate, MouseTrackingChange, LayoutDirectionChange,
+    LocaleChange, WindowIconChange or IconTextChange. The default repaints the
     widget, and lays it out again if its size hint may have changed.
 */
 void QWidget::changeEvent(QEvent *event) {
     switch (event->type()) {
     case QEvent::FontChange:
     case QEvent::StyleChange:
+    case QEvent::LayoutDirectionChange:
         updateGeometry();
         update();
         break;

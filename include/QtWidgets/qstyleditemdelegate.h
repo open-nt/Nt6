@@ -5,6 +5,8 @@
 #include <QtCore/qvariant.h>
 #include <QtWidgets/qabstractitemdelegate.h>
 
+class QItemEditorFactory;
+
 class QStyledItemDelegate : public QAbstractItemDelegate {
     Q_OBJECT
 public:
@@ -21,10 +23,15 @@ public:
                               const QModelIndex &index) const override;
 
     virtual QString displayText(const QVariant &value, const QLocale &locale) const;
+    QItemEditorFactory *itemEditorFactory() const { return m_factory; }
+    void setItemEditorFactory(QItemEditorFactory *factory) { m_factory = factory; }
 
 protected:
     virtual void initStyleOption(QStyleOptionViewItem *option, const QModelIndex &index) const;
     bool eventFilter(QObject *object, QEvent *event) override;
     bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option,
                      const QModelIndex &index) override;
+
+private:
+    QItemEditorFactory *m_factory = nullptr; // not owned
 };

@@ -699,6 +699,8 @@ enum SizeMode { AbsoluteSize, RelativeSize };
     \value AlignBottom Aligns with the bottom.
     \value AlignVCenter Centers vertically.
     \value AlignCenter Centers both ways: \c{AlignHCenter | AlignVCenter}.
+    \value AlignJustify Justifies the text; Nt aligns it left.
+    \value AlignAbsolute Left and right are not swapped in right-to-left text; Nt never swaps them.
 */
 enum AlignmentFlag {
     AlignLeft = 0x0001,
@@ -707,10 +709,25 @@ enum AlignmentFlag {
     AlignTop = 0x0020,
     AlignBottom = 0x0040,
     AlignVCenter = 0x0080,
+    AlignJustify = 0x0008,
+    AlignAbsolute = 0x0010,
     AlignCenter = AlignVCenter | AlignHCenter
 };
 Q_DECLARE_FLAGS(Alignment, AlignmentFlag)
 Q_DECLARE_OPERATORS_FOR_FLAGS(Alignment)
+/*!
+    \variable Qt::AlignHorizontal_Mask
+    \since 6.0
+    \brief The bits of the horizontal alignment. Qt has it in AlignmentFlag; in Nt it is a constant.
+*/
+constexpr Alignment AlignHorizontal_Mask = AlignLeft | AlignRight | AlignHCenter | AlignJustify | AlignAbsolute;
+/*!
+    \variable Qt::AlignVertical_Mask
+    \since 6.0
+    \brief The bits of the vertical alignment, with the bit of Qt's \c AlignBaseline, which Nt leaves out of
+    AlignmentFlag as it shares its bit with TextSingleLine.
+*/
+constexpr Alignment AlignVertical_Mask = AlignTop | AlignBottom | AlignVCenter | Alignment::fromInt(0x0100);
 
 /*!
     \enum Qt::TextFlag
@@ -853,6 +870,18 @@ enum FocusReason {
     \value PreventContextMenu The widget has none, and the request goes no further.
 */
 enum ContextMenuPolicy { NoContextMenu, DefaultContextMenu, ActionsContextMenu, CustomContextMenu, PreventContextMenu };
+
+/*!
+    \enum Qt::TileRule
+    \since 6.0
+
+    How qDrawBorderPixmap() fills a part of a frame with a part of a pixmap.
+
+    \value StretchTile It is stretched to fill the part.
+    \value RepeatTile It is repeated, and the last one is cut off.
+    \value RoundTile It is repeated a whole number of times, scaled to fit.
+*/
+enum TileRule { StretchTile, RepeatTile, RoundTile };
 
 /*!
     \enum Qt::HighDpiScaleFactorRoundingPolicy
@@ -1722,6 +1751,30 @@ enum DayOfWeek { Monday = 1, Tuesday = 2, Wednesday = 3, Thursday = 4, Friday = 
     \sa QLocale::textDirection()
 */
 enum LayoutDirection { LeftToRight, RightToLeft, LayoutDirectionAuto };
+
+/*!
+    \enum Qt::CursorMoveStyle
+    \since 6.0
+
+    How the arrow keys move the cursor in text that mixes directions.
+
+    \value LogicalMoveStyle The cursor moves to the next character in the text.
+    \value VisualMoveStyle The cursor moves to the next character on the screen.
+*/
+enum CursorMoveStyle { LogicalMoveStyle, VisualMoveStyle };
+
+/*!
+    \enum Qt::Corner
+    \since 6.0
+
+    A corner of a rectangle.
+
+    \value TopLeftCorner The top left corner.
+    \value TopRightCorner The top right corner.
+    \value BottomLeftCorner The bottom left corner.
+    \value BottomRightCorner The bottom right corner.
+*/
+enum Corner { TopLeftCorner = 0x00000, TopRightCorner = 0x00001, BottomLeftCorner = 0x00002, BottomRightCorner = 0x00003 };
 
 /*!
     \enum Qt::MatchFlag

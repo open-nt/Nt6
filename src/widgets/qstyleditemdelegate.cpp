@@ -10,6 +10,7 @@
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qcombobox.h>
 #include <QtWidgets/qdatetimeedit.h>
+#include <QtWidgets/qitemeditorfactory.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qspinbox.h>
 #include <QtWidgets/qstyle.h>
@@ -153,22 +154,6 @@ Parts layoutParts(const QStyleOptionViewItem &option) {
 }
 
 template <typename T> bool holds(const QVariant &value) { return value.typeId() == QMetaType::fromType<T>().id(); }
-
-bool isInteger(int type) {
-    switch (type) {
-    case QMetaType::Int:
-    case QMetaType::UInt:
-    case QMetaType::Short:
-    case QMetaType::UShort:
-    case QMetaType::Long:
-    case QMetaType::ULong:
-    case QMetaType::LongLong:
-    case QMetaType::ULongLong:
-        return true;
-    default:
-        return false;
-    }
-}
 
 } // namespace
 
@@ -372,37 +357,24 @@ QWidget *QStyledItemDelegate::createEditor(QWidget *parent, const QStyleOptionVi
     static_cast<void>(option);
     if (!index.isValid())
         return nullptr;
-    const QVariant value = index.data(Qt::EditRole);
-    const int type = value.typeId();
-    if (type == QMetaType::Bool) {
-        auto *box = new QComboBox(parent);
-        box->addItem(QStringLiteral("False"));
-        box->addItem(QStringLiteral("True"));
-        return box;
-    }
-    if (isInteger(type)) {
-        auto *box = new QSpinBox(parent);
-        const bool isUnsigned =
-            type == QMetaType::UInt || type == QMetaType::UShort || type == QMetaType::ULong || type == QMetaType::ULongLong;
-        box->setRange(isUnsigned ? 0 : std::numeric_limits<int>::min(), std::numeric_limits<int>::max());
-        return box;
-    }
-    if (type == QMetaType::Double || type == QMetaType::Float) {
-        auto *box = new QDoubleSpinBox(parent);
-        box->setDecimals(6);
-        box->setRange(-std::numeric_limits<double>::max(), std::numeric_limits<double>::max());
-        return box;
-    }
-    if (type == QMetaType::QDate)
-        return new QDateEdit(parent);
-    if (type == QMetaType::QTime)
-        return new QTimeEdit(parent);
-    if (type == QMetaType::QDateTime)
-        return new QDateTimeEdit(parent);
-    auto *edit = new QLineEdit(parent);
-    edit->setFrame(false);
-    return edit;
+    const int type = index.data(Qt::EditRole).typeId();
+    const QItemEditorFactory *factory = m_factory ? m_factory : QItemEditorFactory::defaultFactory();
+    return factory->createEditor(type, parent);
 }
+
+/*!
+    \fn QItemEditorFactory *QStyledItemDelegate::itemEditorFactory() const
+    \since 6.0
+
+    Returns the factory of the editors of the delegate, or \c nullptr if it uses QItemEditorFactory::defaultFactory().
+*/
+
+/*!
+    \fn void QStyledItemDelegate::setItemEditorFactory(QItemEditorFactory *factory)
+    \since 6.0
+
+    Makes \a factory make the editors of the delegate; the delegate does not take ownership of it.
+*/
 
 /*!
     \reimp

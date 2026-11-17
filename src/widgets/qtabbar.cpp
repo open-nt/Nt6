@@ -34,10 +34,14 @@ constexpr int kDragDistance = 4;
     disabled tabs are skipped. With setTabsClosable() each tab has a close button that emits tabCloseRequested(), and a
     movable tab bar lets the user drag the tabs into another order.
 
+    setShape() puts the tabs at another side of what they switch: below it, or at its left or right, where the
+    tabs run down and their text is turned. Tabs that do not fit are shortened if elideMode() allows it, and cut off
+    otherwise.
+
     \differences
-    The tabs are always at the top and rounded: there is no \c setShape(), no icons, no \c setTabButton(),
-    \c setElideMode(), \c setExpanding(), \c setUsesScrollButtons(), \c setDrawBase() or \c setDocumentMode(), and no
-    tab colors. Tabs that do not fit are cut off. The close button is drawn as an "x".
+    Triangular shapes are drawn rounded, and there are no scroll buttons (usesScrollButtons() is only kept).
+    expanding() and drawBase() are only kept. The close button is drawn as an "x". changeCurrentOnDrag() is only
+    kept, as Nt does not drag over tab bars.
     \enddifferences
 
     \sa QTabWidget
@@ -51,6 +55,22 @@ constexpr int kDragDistance = 4;
 
     \value LeftSide Before the text.
     \value RightSide After the text.
+*/
+
+/*!
+    \enum QTabBar::Shape
+    \since 6.0
+
+    The side of the pages that the tabs are at.
+
+    \value RoundedNorth Above them, the default.
+    \value RoundedSouth Below them.
+    \value RoundedWest At their left, running down, with the text turned to read upwards.
+    \value RoundedEast At their right, running down, with the text turned to read downwards.
+    \value TriangularNorth As RoundedNorth.
+    \value TriangularSouth As RoundedSouth.
+    \value TriangularWest As RoundedWest.
+    \value TriangularEast As RoundedEast.
 */
 
 /*!
@@ -85,6 +105,26 @@ QTabBar::~QTabBar() = default;
 int QTabBar::addTab(const QString &text) { return insertTab(count(), text); }
 
 /*!
+    \since 6.0
+    \overload
+
+    Adds a tab with the given \a icon and \a text at the end and returns its index.
+*/
+int QTabBar::addTab(const QIcon &icon, const QString &text) { return insertTab(count(), icon, text); }
+
+/*!
+    \since 6.0
+    \overload
+
+    Inserts a tab with the given \a icon and \a text at \a index and returns its index.
+*/
+int QTabBar::insertTab(int index, const QIcon &icon, const QString &text) {
+    const int at = insertTab(index, text);
+    setTabIcon(at, icon);
+    return at;
+}
+
+/*!
     Inserts a tab with the given \a text at \a index, or at the end if \a index is out of range, and returns its
     index.
 
@@ -104,6 +144,7 @@ int QTabBar::insertTab(int index, const QString &text) {
     if (m_current < 0)
         setCurrentIndex(at);
     changed();
+    autoHideChanged();
     return at;
 }
 
@@ -150,6 +191,7 @@ void QTabBar::removeTab(int index) {
     }
     tabRemoved(index);
     changed();
+    autoHideChanged();
 }
 
 /*!
@@ -248,23 +290,292 @@ void QTabBar::setTabData(int index, const QVariant &data) {
 }
 
 /*!
+    \since 6.0
+
+    Returns the icon of the tab at \a index.
+*/
+QIcon QTabBar::tabIcon(int index) const { return valid(index) ? m_tabs[static_cast<std::size_t>(index)].icon : QIcon(); }
+
+/*!
+    \since 6.0
+
+    Sets the icon of the tab at \a index to \a icon, drawn before its text in iconSize().
+*/
+void QTabBar::setTabIcon(int index, const QIcon &icon) {
+    if (!valid(index))
+        return;
+    m_tabs[static_cast<std::size_t>(index)].icon = icon;
+    changed();
+}
+
+/*!
+    \since 6.0
+
+    Returns the color of the text of the tab at \a index, or an invalid color if it uses the palette.
+*/
+QColor QTabBar::tabTextColor(int index) const {
+    return valid(index) ? m_tabs[static_cast<std::size_t>(index)].textColor : QColor();
+}
+
+/*!
+    \since 6.0
+
+    Sets the color of the text of the tab at \a index to \a color; an invalid color uses the palette.
+*/
+void QTabBar::setTabTextColor(int index, const QColor &color) {
+    if (!valid(index))
+        return;
+    m_tabs[static_cast<std::size_t>(index)].textColor = color;
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the "What's This?" help of the tab at \a index.
+*/
+QString QTabBar::tabWhatsThis(int index) const {
+    return valid(index) ? m_tabs[static_cast<std::size_t>(index)].whatsThis : QString();
+}
+
+/*!
+    \since 6.0
+
+    Sets the "What's This?" help of the tab at \a index to \a text.
+*/
+void QTabBar::setTabWhatsThis(int index, const QString &text) {
+    if (valid(index))
+        m_tabs[static_cast<std::size_t>(index)].whatsThis = text;
+}
+
+/*!
+    \since 6.0
+
+    Returns the name of the tab at \a index for accessibility tools.
+*/
+QString QTabBar::accessibleTabName(int index) const {
+    return valid(index) ? m_tabs[static_cast<std::size_t>(index)].accessibleName : QString();
+}
+
+/*!
+    \since 6.0
+
+    Sets the name of the tab at \a index for accessibility tools to \a name.
+*/
+void QTabBar::setAccessibleTabName(int index, const QString &name) {
+    if (valid(index))
+        m_tabs[static_cast<std::size_t>(index)].accessibleName = name;
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the tab at \a index is shown.
+*/
+bool QTabBar::isTabVisible(int index) const { return valid(index) && m_tabs[static_cast<std::size_t>(index)].visible; }
+
+/*!
+    \since 6.0
+
+    Shows the tab at \a index if \a visible is \c true, and hides it otherwise. A hidden tab takes no room; if it
+    was current, the next visible and enabled tab becomes current.
+*/
+void QTabBar::setTabVisible(int index, bool visible) {
+    if (!valid(index) || m_tabs[static_cast<std::size_t>(index)].visible == visible)
+        return;
+    m_tabs[static_cast<std::size_t>(index)].visible = visible;
+    if (!visible && index == m_current) {
+        for (int i = index + 1; i < count(); ++i)
+            if (isTabVisible(i) && isTabEnabled(i)) {
+                setCurrentIndex(i);
+                break;
+            }
+        if (m_current == index)
+            for (int i = index - 1; i >= 0; --i)
+                if (isTabVisible(i) && isTabEnabled(i)) {
+                    setCurrentIndex(i);
+                    break;
+                }
+    }
+    changed();
+}
+
+/*!
+    \fn QTabBar::Shape QTabBar::shape() const
+    \since 6.0
+
+    Returns the shape of the tabs, RoundedNorth by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the shape of the tabs to \a shape: at which side of the pages they are.
+*/
+void QTabBar::setShape(Shape shape) {
+    if (m_shape == shape)
+        return;
+    const bool wasVertical = vertical();
+    m_shape = shape;
+    if (wasVertical != vertical())
+        setSizePolicy(vertical() ? QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Preferred)
+                                 : QSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed));
+    changed();
+}
+
+/*!
+    \since 6.0
+
+    Returns the size of the icons of the tabs: the one set with setIconSize(), or that of the style.
+*/
+QSize QTabBar::iconSize() const {
+    if (m_iconSize.isValid())
+        return m_iconSize;
+    const int extent = style()->pixelMetric(QStyle::PM_TabBarIconSize, nullptr, this);
+    return extent > 0 ? QSize(extent, extent) : QSize(16, 16);
+}
+
+/*!
+    \since 6.0
+
+    Sets the size of the icons of the tabs to \a size.
+*/
+void QTabBar::setIconSize(const QSize &size) {
+    m_iconSize = size;
+    changed();
+}
+
+/*!
+    \fn Qt::TextElideMode QTabBar::elideMode() const
+    \since 6.0
+
+    Returns how the text of tabs that do not fit is shortened. The default is Qt::ElideNone: the tabs are cut off.
+*/
+
+/*!
+    \since 6.0
+
+    Sets how the text of tabs that do not fit is shortened to \a mode.
+*/
+void QTabBar::setElideMode(Qt::TextElideMode mode) {
+    m_elideMode = mode;
+    changed();
+}
+
+/*!
+    \fn bool QTabBar::autoHide() const
+    \since 6.0
+
+    Returns \c true if the tab bar hides itself while it has fewer than two tabs.
+*/
+
+/*!
+    \since 6.0
+
+    Makes the tab bar hide itself while it has fewer than two tabs if \a hide is \c true.
+*/
+void QTabBar::setAutoHide(bool hide) {
+    if (m_autoHide == hide)
+        return;
+    m_autoHide = hide;
+    if (hide)
+        autoHideChanged();
+    else
+        show();
+}
+
+void QTabBar::autoHideChanged() {
+    if (m_autoHide)
+        setVisible(count() > 1);
+}
+
+/*!
+    \fn bool QTabBar::changeCurrentOnDrag() const
+    \since 6.0
+
+    Returns whether a drag over a tab makes it current. Nt keeps the value.
+*/
+
+/*!
+    \fn void QTabBar::setChangeCurrentOnDrag(bool change)
+    \since 6.0
+
+    Sets whether a drag over a tab makes it current to \a change.
+*/
+
+/*!
     Returns the rectangle of the tab at \a index in the tab bar, or an empty rectangle if there is no such tab.
 */
 QRect QTabBar::tabRect(int index) const {
     if (!valid(index))
         return QRect();
-    int x = 0;
-    for (int i = 0; i < index; ++i)
-        x += tabSizeHint(i).width();
-    return QRect(x, 0, tabSizeHint(index).width(), height());
+    return layoutTabs()[static_cast<std::size_t>(index)];
+}
+
+bool QTabBar::vertical() const {
+    return m_shape == RoundedWest || m_shape == RoundedEast || m_shape == TriangularWest || m_shape == TriangularEast;
+}
+
+std::vector<QRect> QTabBar::layoutTabs() const {
+    const bool vert = vertical();
+    const int room = vert ? height() : width();
+    const int thick = vert ? width() : height();
+    std::vector<int> lengths(m_tabs.size(), 0);
+    long long sum = 0;
+    for (int i = 0; i < count(); ++i) {
+        if (!m_tabs[static_cast<std::size_t>(i)].visible)
+            continue;
+        const QSize s = tabSizeHint(i);
+        lengths[static_cast<std::size_t>(i)] = vert ? s.height() : s.width();
+        sum += lengths[static_cast<std::size_t>(i)];
+    }
+    // Tabs that do not fit are shortened, down to their minimum, when their text may be elided.
+    if (m_elideMode != Qt::ElideNone && room > 0 && sum > room) {
+        for (int i = 0; i < count(); ++i) {
+            int &length = lengths[static_cast<std::size_t>(i)];
+            if (length == 0)
+                continue;
+            const QSize minimum = minimumTabSizeHint(i);
+            length = std::max(vert ? minimum.height() : minimum.width(), static_cast<int>(length * room / sum));
+        }
+    }
+    std::vector<QRect> rects;
+    rects.reserve(m_tabs.size());
+    int at = 0;
+    for (const int length : lengths) {
+        rects.push_back(vert ? QRect(0, at, thick, length) : QRect(at, 0, length, thick));
+        at += length;
+    }
+    return rects;
+}
+
+QTransform QTabBar::tabTransform(const QRect &rect) const {
+    QTransform t;
+    switch (m_shape) {
+    case RoundedWest:
+    case TriangularWest:
+        t.translate(rect.left(), rect.bottom() + 1);
+        t.rotate(-90);
+        break;
+    case RoundedEast:
+    case TriangularEast:
+        t.translate(rect.right() + 1, rect.top());
+        t.rotate(90);
+        break;
+    default:
+        t.translate(rect.left(), rect.top());
+        break;
+    }
+    return t;
 }
 
 /*!
     Returns the index of the tab at \a position, or -1 if there is none.
 */
 int QTabBar::tabAt(const QPoint &position) const {
+    const std::vector<QRect> rects = layoutTabs();
     for (int i = 0; i < count(); ++i)
-        if (tabRect(i).contains(position))
+        if (m_tabs[static_cast<std::size_t>(i)].visible && rects[static_cast<std::size_t>(i)].contains(position))
             return i;
     return -1;
 }
@@ -332,23 +643,28 @@ QSize QTabBar::sizeHint() const {
     int width = 0;
     int height = 0;
     for (int i = 0; i < count(); ++i) {
-        const QSize s = tabSizeHint(i);
+        if (!m_tabs[static_cast<std::size_t>(i)].visible)
+            continue;
+        const QSize s = horizontalSize(i, false);
         width += s.width();
         height = std::max(height, s.height());
     }
-    if (count() == 0) {
+    if (height == 0) {
         QStyleOptionTab option;
         option.initFrom(this);
         height =
             style()->sizeFromContents(QStyle::CT_TabBarTab, &option, QSize(0, fontMetrics().height()), this).height();
     }
-    return QSize(width, height);
+    return vertical() ? QSize(height, width) : QSize(width, height);
 }
 
 /*!
     \reimp
 */
-QSize QTabBar::minimumSizeHint() const { return QSize(0, sizeHint().height()); }
+QSize QTabBar::minimumSizeHint() const {
+    const QSize hint = sizeHint();
+    return vertical() ? QSize(hint.width(), 0) : QSize(0, hint.height());
+}
 
 /*!
     Makes the tab at \a index current and emits currentChanged(), if it is another tab.
@@ -371,10 +687,36 @@ void QTabBar::setCurrentIndex(int index) {
     Returns the size of the tab at \a index. Reimplement it for tabs of another size.
 */
 QSize QTabBar::tabSizeHint(int index) const {
+    const QSize s = horizontalSize(index, false);
+    return vertical() ? s.transposed() : s;
+}
+
+/*!
+    \since 6.0
+
+    Returns the smallest size of the tab at \a index, with its text shortened to three characters and an ellipsis,
+    which a tab is not shortened below when the tabs do not fit.
+
+    \sa elideMode()
+*/
+QSize QTabBar::minimumTabSizeHint(int index) const {
+    const QSize s = horizontalSize(index, true);
+    return vertical() ? s.transposed() : s;
+}
+
+// The size of the tab at `index` as if it were at the top, with its full text or the shortest one.
+QSize QTabBar::horizontalSize(int index, bool minimum) const {
     QStyleOptionTab option;
     option.initFrom(this);
     option.text = tabText(index);
+    if (minimum && option.text.size() > 3)
+        option.text = option.text.left(3) + QChar(0x2026);
     QSize text = fontMetrics().size(Qt::TextSingleLine, option.text);
+    if (valid(index) && !m_tabs[static_cast<std::size_t>(index)].icon.isNull()) {
+        const QSize icon = iconSize();
+        text.setWidth(text.width() + icon.width() + 4);
+        text.setHeight(std::max(text.height(), icon.height()));
+    }
     if (m_closable)
         text.setWidth(text.width() + kCloseSize + 4);
     // Room for the buttons of the tab, which are as high as they like up to the height of the bar.
@@ -415,22 +757,32 @@ void QTabBar::changed() {
 
 // Puts the buttons of the tabs at the sides of their tabs, centred down.
 void QTabBar::placeButtons() {
+    const std::vector<QRect> rects = layoutTabs();
+    const bool vert = vertical();
     for (int i = 0; i < count(); ++i) {
         const Tab &tab = m_tabs[static_cast<std::size_t>(i)];
-        const QRect rect = tabRect(i).translated(i == m_dragging ? m_dragOffset : 0, 0);
-        if (QWidget *left = tab.left.data()) {
-            const QSize size = left->sizeHint().isValid() ? left->sizeHint() : left->size();
-            left->setGeometry(rect.left() + 4, rect.top() + (rect.height() - size.height()) / 2, size.width(),
+        const int offset = i == m_dragging ? m_dragOffset : 0;
+        const QRect rect = rects[static_cast<std::size_t>(i)].translated(vert ? 0 : offset, vert ? offset : 0);
+        // The buttons are placed in the coordinates of the tab drawn at the top, then turned with the tab.
+        const QTransform toBar = tabTransform(rect);
+        const QSize local = vert ? rect.size().transposed() : rect.size();
+        const auto place = [&](QWidget *button, bool atStart) {
+            if (!button)
+                return;
+            if (!tab.visible) {
+                button->hide();
+                return;
+            }
+            const QSize size = button->sizeHint().isValid() ? button->sizeHint() : button->size();
+            const int end = m_closable ? local.width() - kCloseSize - 6 : local.width() - 3;
+            const QRect inTab(atStart ? 4 : end - size.width(), (local.height() - size.height()) / 2, size.width(),
                               size.height());
-            left->show();
-        }
-        if (QWidget *right = tab.right.data()) {
-            const QSize size = right->sizeHint().isValid() ? right->sizeHint() : right->size();
-            const int end = m_closable ? closeRect(i).left() - 2 : rect.right() - 3;
-            right->setGeometry(end - size.width(), rect.top() + (rect.height() - size.height()) / 2, size.width(),
-                               size.height());
-            right->show();
-        }
+            const QPoint center = toBar.map(inTab.center());
+            button->setGeometry(QRect(QPoint(center.x() - size.width() / 2, center.y() - size.height() / 2), size));
+            button->show();
+        };
+        place(tab.left.data(), true);
+        place(tab.right.data(), false);
     }
 }
 
@@ -534,16 +886,18 @@ void QTabBar::setDocumentMode(bool set) {
 */
 
 QRect QTabBar::closeRect(int index) const {
-    if (!m_closable || !valid(index))
+    if (!m_closable || !valid(index) || !m_tabs[static_cast<std::size_t>(index)].visible)
         return QRect();
     const QRect tab = tabRect(index);
-    return QRect(tab.right() - kCloseSize - 4, tab.top() + (tab.height() - kCloseSize) / 2, kCloseSize, kCloseSize);
+    const QSize local = vertical() ? tab.size().transposed() : tab.size();
+    const QRect inTab(local.width() - kCloseSize - 4, (local.height() - kCloseSize) / 2, kCloseSize, kCloseSize);
+    return tabTransform(tab).mapRect(inTab);
 }
 
 // Makes the next enabled tab in `direction` current.
 void QTabBar::step(int direction) {
     for (int i = m_current + direction; valid(i); i += direction) {
-        if (isTabEnabled(i)) {
+        if (isTabEnabled(i) && isTabVisible(i)) {
             setCurrentIndex(i);
             return;
         }
@@ -576,51 +930,70 @@ void QTabBar::paintEvent(QPaintEvent *event) {
     (void)event;
     QPainter painter(this);
     painter.setFont(font());
-    // The current tab, and a tab that is dragged, are drawn last so that they overlap their neighbours.
+    const std::vector<QRect> rects = layoutTabs();
+    const bool vert = vertical();
+    const bool south = m_shape == RoundedSouth || m_shape == TriangularSouth;
+    // The current tab, and a tab that is dragged, are drawn last so that they overlap their neighbours. Each tab is
+    // drawn as a tab at the top, in coordinates that tabTransform() turns to its side.
     const auto drawTab = [&](int i) {
-        QStyleOptionTab option;
-        option.initFrom(this);
-        option.rect = tabRect(i).translated(i == m_dragging ? m_dragOffset : 0, 0);
-        option.text = tabText(i);
-        option.state &= ~(QStyle::State_HasFocus | QStyle::State_MouseOver | QStyle::State_Enabled);
-        if (isTabEnabled(i) && isEnabled())
-            option.state |= QStyle::State_Enabled;
-        if (i == m_current) {
-            option.state |= QStyle::State_Selected;
-            if (hasFocus())
-                option.state |= QStyle::State_HasFocus;
-        }
-        if (i == m_hover)
-            option.state |= QStyle::State_MouseOver;
         const Tab &tab = m_tabs[static_cast<std::size_t>(i)];
-        if (m_closable || tab.left || tab.right) {
-            // The tab without its text, then the text between the buttons.
-            int leftRoom = 4, rightRoom = m_closable ? kCloseSize + 6 : 4;
-            if (tab.left)
-                leftRoom += tab.left->width() + 4;
-            if (tab.right)
-                rightRoom += tab.right->width() + 4;
-            QStyleOptionTab shape = option;
-            shape.text.clear();
-            style()->drawControl(QStyle::CE_TabBarTab, &shape, &painter, this);
-            const QPalette::ColorGroup textGroup =
-                (option.state & QStyle::State_Enabled) ? QPalette::Active : QPalette::Disabled;
-            painter.setPen(palette().color(textGroup, QPalette::WindowText));
-            painter.drawText(option.rect.adjusted(leftRoom, 0, -rightRoom, 0), Qt::AlignCenter | Qt::TextSingleLine,
-                             option.text);
+        if (!tab.visible)
+            return;
+        const int offset = i == m_dragging ? m_dragOffset : 0;
+        const QRect rect = rects[static_cast<std::size_t>(i)].translated(vert ? 0 : offset, vert ? offset : 0);
+        QStyleOptionTab option;
+        initStyleOption(&option, i);
+        option.rect = QRect(QPoint(0, 0), vert ? rect.size().transposed() : rect.size());
+        painter.save();
+        // The shape, without the text; a tab below the pages is drawn upside down.
+        QStyleOptionTab shape = option;
+        shape.text.clear();
+        shape.icon = QIcon();
+        if (south) {
+            QTransform flip;
+            flip.translate(rect.right() + 1, rect.bottom() + 1);
+            flip.rotate(180);
+            painter.setTransform(flip);
         } else {
-            style()->drawControl(QStyle::CE_TabBarTab, &option, &painter, this);
+            painter.setTransform(tabTransform(rect));
         }
+        style()->drawControl(QStyle::CE_TabBarTab, &shape, &painter, this);
+        painter.setTransform(tabTransform(rect));
+        int leftRoom = 4;
+        int rightRoom = m_closable ? kCloseSize + 6 : 4;
+        if (tab.left)
+            leftRoom += tab.left->width() + 4;
+        if (tab.right)
+            rightRoom += tab.right->width() + 4;
+        QRect textRect = option.rect.adjusted(leftRoom, 0, -rightRoom, 0);
+        const QPalette::ColorGroup group =
+            (option.state & QStyle::State_Enabled) ? QPalette::Active : QPalette::Disabled;
+        if (!tab.icon.isNull()) {
+            const QSize icon = iconSize();
+            const int textWidth = fontMetrics().horizontalAdvance(option.text);
+            const int total = icon.width() + 4 + textWidth;
+            const int x = textRect.left() + std::max(0, (textRect.width() - total) / 2);
+            const QPixmap pixmap = tab.icon.pixmap(icon, (option.state & QStyle::State_Enabled) ? QIcon::Normal
+                                                                                                 : QIcon::Disabled);
+            painter.drawPixmap(x, textRect.top() + (textRect.height() - icon.height()) / 2, pixmap);
+            textRect.setLeft(x + icon.width() + 4);
+            textRect.setWidth(std::min(textRect.width(), textWidth));
+        }
+        QString text = option.text;
+        if (m_elideMode != Qt::ElideNone)
+            text = fontMetrics().elidedText(text, m_elideMode, textRect.width());
+        painter.setPen(tab.textColor.isValid() ? tab.textColor : palette().color(group, QPalette::WindowText));
+        painter.drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, text);
         if (m_closable) {
-            const QRect close = closeRect(i).translated(i == m_dragging ? m_dragOffset : 0, 0);
-            const QPalette::ColorGroup group =
-                (option.state & QStyle::State_Enabled) ? QPalette::Active : QPalette::Disabled;
+            const QRect close(option.rect.width() - kCloseSize - 4, (option.rect.height() - kCloseSize) / 2,
+                              kCloseSize, kCloseSize);
             if (i == m_pressedClose)
                 painter.fillRect(close, palette().color(group, QPalette::Mid));
             painter.setPen(palette().color(group, QPalette::ButtonText));
             painter.drawLine(close.left() + 3, close.top() + 3, close.right() - 3, close.bottom() - 3);
             painter.drawLine(close.right() - 3, close.top() + 3, close.left() + 3, close.bottom() - 3);
         }
+        painter.restore();
     };
     for (int i = 0; i < count(); ++i)
         if (i != m_current && i != m_dragging)
@@ -629,6 +1002,41 @@ void QTabBar::paintEvent(QPaintEvent *event) {
         drawTab(m_current);
     if (m_dragging >= 0)
         drawTab(m_dragging);
+}
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the tab at \a tabIndex, for the style to draw it.
+*/
+void QTabBar::initStyleOption(QStyleOptionTab *option, int tabIndex) const {
+    if (!option || !valid(tabIndex))
+        return;
+    option->initFrom(this);
+    option->rect = tabRect(tabIndex);
+    option->text = tabText(tabIndex);
+    option->icon = tabIcon(tabIndex);
+    option->iconSize = iconSize();
+    option->shape = m_shape;
+    option->documentMode = m_documentMode;
+    option->tabIndex = tabIndex;
+    option->position = count() == 1 ? QStyleOptionTab::OnlyOneTab
+                       : tabIndex == 0 ? QStyleOptionTab::Beginning
+                       : tabIndex == count() - 1 ? QStyleOptionTab::End
+                                                 : QStyleOptionTab::Middle;
+    option->state &= ~(QStyle::State_HasFocus | QStyle::State_MouseOver | QStyle::State_Enabled);
+    if (isTabEnabled(tabIndex) && isEnabled())
+        option->state |= QStyle::State_Enabled;
+    if (tabIndex == m_current) {
+        option->state |= QStyle::State_Selected;
+        if (hasFocus())
+            option->state |= QStyle::State_HasFocus;
+    }
+    if (tabIndex == m_hover)
+        option->state |= QStyle::State_MouseOver;
+    const QColor color = m_tabs[static_cast<std::size_t>(tabIndex)].textColor;
+    if (color.isValid())
+        option->palette.setColor(QPalette::WindowText, color);
 }
 
 /*!
@@ -655,7 +1063,7 @@ void QTabBar::mousePressEvent(QMouseEvent *event) {
         setCurrentIndex(index);
     if (m_movable) {
         m_dragging = index;
-        m_pressX = event->pos().x();
+        m_pressX = along(event->pos());
         m_dragOffset = 0;
         placeButtons();
     }
@@ -669,24 +1077,24 @@ void QTabBar::mousePressEvent(QMouseEvent *event) {
 */
 void QTabBar::mouseMoveEvent(QMouseEvent *event) {
     if (m_dragging >= 0 && (event->buttons() & Qt::LeftButton)) {
-        int offset = event->pos().x() - m_pressX;
+        int offset = along(event->pos()) - m_pressX;
         if (std::abs(offset) < kDragDistance && m_dragOffset == 0) {
             event->accept();
             return;
         }
-        while (offset > 0 && valid(m_dragging + 1) && offset > tabRect(m_dragging + 1).width() / 2) {
-            const int width = tabRect(m_dragging + 1).width();
+        while (offset > 0 && valid(m_dragging + 1) && offset > lengthOf(tabRect(m_dragging + 1)) / 2) {
+            const int length = lengthOf(tabRect(m_dragging + 1));
             moveTab(m_dragging, m_dragging + 1);
             ++m_dragging;
-            m_pressX += width;
-            offset -= width;
+            m_pressX += length;
+            offset -= length;
         }
-        while (offset < 0 && valid(m_dragging - 1) && -offset > tabRect(m_dragging - 1).width() / 2) {
-            const int width = tabRect(m_dragging - 1).width();
+        while (offset < 0 && valid(m_dragging - 1) && -offset > lengthOf(tabRect(m_dragging - 1)) / 2) {
+            const int length = lengthOf(tabRect(m_dragging - 1));
             moveTab(m_dragging, m_dragging - 1);
             --m_dragging;
-            m_pressX -= width;
-            offset += width;
+            m_pressX -= length;
+            offset += length;
         }
         m_dragOffset = offset;
         placeButtons();
@@ -748,21 +1156,23 @@ void QTabBar::mouseDoubleClickEvent(QMouseEvent *event) {
 void QTabBar::keyPressEvent(QKeyEvent *event) {
     switch (event->key()) {
     case Qt::Key_Left:
+    case Qt::Key_Up:
         step(-1);
         break;
     case Qt::Key_Right:
+    case Qt::Key_Down:
         step(1);
         break;
     case Qt::Key_Home:
         for (int i = 0; i < count(); ++i)
-            if (isTabEnabled(i)) {
+            if (isTabEnabled(i) && isTabVisible(i)) {
                 setCurrentIndex(i);
                 break;
             }
         break;
     case Qt::Key_End:
         for (int i = count() - 1; i >= 0; --i)
-            if (isTabEnabled(i)) {
+            if (isTabEnabled(i) && isTabVisible(i)) {
                 setCurrentIndex(i);
                 break;
             }

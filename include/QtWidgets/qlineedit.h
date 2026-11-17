@@ -6,6 +6,11 @@
 #include <QtWidgets/qcompleter.h>
 #include <QtWidgets/qwidget.h>
 
+#include <vector>
+
+class QMenu;
+class QStyleOptionFrame;
+
 class QLineEdit : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY textChanged USER true)
@@ -16,6 +21,14 @@ class QLineEdit : public QWidget {
     Q_PROPERTY(bool clearButtonEnabled READ isClearButtonEnabled WRITE setClearButtonEnabled)
     Q_PROPERTY(int cursorPosition READ cursorPosition WRITE setCursorPosition)
     Q_PROPERTY(bool acceptableInput READ hasAcceptableInput)
+    Q_PROPERTY(Qt::Alignment alignment READ alignment WRITE setAlignment)
+    Q_PROPERTY(bool modified READ isModified WRITE setModified)
+    Q_PROPERTY(QString inputMask READ inputMask WRITE setInputMask)
+    Q_PROPERTY(bool dragEnabled READ dragEnabled WRITE setDragEnabled)
+    Q_PROPERTY(bool undoAvailable READ isUndoAvailable)
+    Q_PROPERTY(bool redoAvailable READ isRedoAvailable)
+    Q_PROPERTY(QString selectedText READ selectedText)
+    Q_PROPERTY(QString displayText READ displayText)
 public:
     enum EchoMode { Normal, NoEcho, Password };
 
@@ -23,7 +36,7 @@ public:
     explicit QLineEdit(const QString &text, QWidget *parent = nullptr);
     ~QLineEdit() override;
 
-    QString text() const { return m_text; }
+    QString text() const;
     QString displayText() const;
     QString placeholderText() const { return m_placeholder; }
     void setCompleter(QCompleter *completer);
@@ -50,6 +63,28 @@ public:
     int selectionStart() const;
     int selectionEnd() const;
     void setSelection(int start, int length);
+    int selectionLength() const { return selectionEnd() - selectionStart(); }
+    Qt::Alignment alignment() const { return m_alignment; }
+    void setAlignment(Qt::Alignment flag);
+    bool isModified() const { return m_modified; }
+    void setModified(bool modified) { m_modified = modified; }
+    bool isUndoAvailable() const { return !m_readOnly && !m_undo.empty(); }
+    bool isRedoAvailable() const { return !m_readOnly && !m_redo.empty(); }
+    QString inputMask() const { return m_inputMask; }
+    void setInputMask(const QString &inputMask);
+    bool dragEnabled() const { return m_dragEnabled; }
+    void setDragEnabled(bool b) { m_dragEnabled = b; }
+    Qt::CursorMoveStyle cursorMoveStyle() const { return m_cursorMoveStyle; }
+    void setCursorMoveStyle(Qt::CursorMoveStyle style) { m_cursorMoveStyle = style; }
+    void setTextMargins(int left, int top, int right, int bottom) { setTextMargins(QMargins(left, top, right, bottom)); }
+    void setTextMargins(const QMargins &margins);
+    QMargins textMargins() const { return m_textMargins; }
+    void cursorForward(bool mark, int steps = 1);
+    void cursorBackward(bool mark, int steps = 1);
+    void cursorWordForward(bool mark);
+    void cursorWordBackward(bool mark);
+    QMenu *createStandardContextMenu();
+    QVariant inputMethodQuery(Qt::InputMethodQuery property) const override;
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -64,6 +99,11 @@ public slots:
     void del();
     void home(bool mark = false);
     void end(bool mark = false);
+    void cut();
+    void copy() const;
+    void paste();
+    void undo();
+    void redo();
 
 signals:
     /*!
@@ -101,6 +141,9 @@ signals:
     void inputRejected() { emitSignal(&QLineEdit::inputRejected); }
 
 protected:
+    void initStyleOption(QStyleOptionFrame *option) const;
+    QRect cursorRect() const;
+    void contextMenuEvent(QContextMenuEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -119,6 +162,20 @@ private:
     int xOf(int position) const;
     void moveCursor(int position, bool mark);
     void changeText(const QString &newText, int cursor, bool userEdit);
+    enum ChangeFlag { UserEdit = 1, Validate = 2, Record = 4 };
+    void applyText(const QString &newText, int cursor, int flags);
+    int textOrigin() const; // x of the start of the text, in the widget
+    int wordStart(int from) const;
+    int wordEnd(int from) const;
+    // Input masks
+    struct MaskChar {
+        QChar ch;               // the mask character, or the literal of a separator
+        bool separator = false; // a literal that the user does not type
+        int caseMode = 0;       // 1 upper, 2 lower
+    };
+    QString maskedText(const QString &plain) const;
+    QString strippedText(const QString &shown) const;
+    bool maskAccepts(qsizetype position, QChar c) const;
     void scrollToCursor();
     bool finishEditing(); // fixes the text up if needed; true if it is acceptable
 
@@ -137,4 +194,18 @@ private:
     QPointer<QCompleter> m_completer;
     QPointer<const QValidator> m_validator;
     bool m_deleting = false; // the key being handled deletes text
+    struct Edit {
+        QString text;
+        int cursor = 0;
+    };
+    std::vector<Edit> m_undo;
+    std::vector<Edit> m_redo;
+    bool m_modified = false;
+    bool m_dragEnabled = false;
+    Qt::Alignment m_alignment = Qt::AlignLeft | Qt::AlignVCenter;
+    Qt::CursorMoveStyle m_cursorMoveStyle = Qt::LogicalMoveStyle;
+    QMargins m_textMargins;
+    QString m_inputMask;
+    std::vector<MaskChar> m_mask;
+    QChar m_blank = QLatin1Char(' ');
 };

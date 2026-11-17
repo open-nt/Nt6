@@ -7,6 +7,7 @@
 #include <QtGui/qpainterpath.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qgraphicslinearlayout.h>
+#include <QtWidgets/qgraphicssceneevent.h>
 #include <QtWidgets/qlayoutitem.h>
 #include <QtWidgets/qstyle.h>
 
@@ -969,6 +970,20 @@ void QGraphicsLinearLayout::setGeometry(const QRectF &rect) {
 QGraphicsWidget::QGraphicsWidget(QGraphicsItem *parent, Qt::WindowFlags wFlags)
     : QGraphicsObject(parent), QGraphicsLayoutItem(nullptr, false), m_windowFlags(wFlags) {
     setGraphicsItem(this);
+    // A move, by setPos() or setGeometry(), sends a move event.
+    const auto moved = [this] {
+        if (pos() == m_lastPos)
+            return;
+        QGraphicsSceneMoveEvent move;
+        move.setOldPos(m_lastPos);
+        move.setNewPos(pos());
+        m_lastPos = pos();
+        QCoreApplication::sendEvent(this, &move);
+        if (!m_settingGeometry) // setGeometry() emits it once for the move and the resize
+            emit geometryChanged();
+    };
+    QObject::connect(this, &QGraphicsObject::xChanged, this, moved);
+    QObject::connect(this, &QGraphicsObject::yChanged, this, moved);
     if (qApp) {
         m_font = QApplication::font();
         m_palette = QApplication::palette();
@@ -1071,9 +1086,17 @@ void QGraphicsWidget::setGeometry(const QRectF &rect) {
     if (size != old.size())
         prepareGeometryChange();
     QGraphicsLayoutItem::setGeometry(QRectF(rect.topLeft(), size));
+    m_settingGeometry = true;
     setPos(rect.topLeft());
+    m_settingGeometry = false;
     if (m_layout)
         m_layout->activate();
+    if (size != old.size()) {
+        QGraphicsSceneResizeEvent resize;
+        resize.setOldSize(old.size());
+        resize.setNewSize(size);
+        QCoreApplication::sendEvent(this, &resize);
+    }
     if (geometry() != old) {
         emit geometryChanged();
         if (size.width() != old.width())
@@ -1235,6 +1258,21 @@ QSizeF QGraphicsWidget::sizeHint(Qt::SizeHint which, const QSizeF &constraint) c
     }
 }
 
+/*!
+    \since 6.0
+
+    Is called with \a event when the widget was resized. The default implementation does nothing; the layout is
+    laid out by setGeometry() already.
+*/
+void QGraphicsWidget::resizeEvent(QGraphicsSceneResizeEvent *event) { (void)event; }
+
+/*!
+    \since 6.0
+
+    Is called with \a event when the widget moved. The default implementation does nothing.
+*/
+void QGraphicsWidget::moveEvent(QGraphicsSceneMoveEvent *event) { (void)event; }
+
 void QGraphicsWidget::requestLayout() {
     if (m_layoutRequested)
         return;
@@ -1246,6 +1284,14 @@ void QGraphicsWidget::requestLayout() {
     \reimp
 */
 bool QGraphicsWidget::event(QEvent *event) {
+    if (event->type() == QEvent::GraphicsSceneResize) {
+        resizeEvent(static_cast<QGraphicsSceneResizeEvent *>(event));
+        return true;
+    }
+    if (event->type() == QEvent::GraphicsSceneMove) {
+        moveEvent(static_cast<QGraphicsSceneMoveEvent *>(event));
+        return true;
+    }
     if (event->type() == QEvent::LayoutRequest) {
         m_layoutRequested = false;
         if (m_layout && !m_layout->isActivated())

@@ -33,14 +33,38 @@
 
     \image widgets/qtabwidget.png QTabWidget in the light color scheme
 
+    setTabPosition() puts the tabs below the pages or at their side, and setCornerWidget() puts a widget, such as a
+    button that opens a new tab, at an end of the row of tabs.
+
     \differences
-    The tabs are always above the pages: there is no \c setTabPosition(), \c setTabShape(), \c setDocumentMode(),
-    tab icons, corner widgets (\c setCornerWidget()), \c setTabBar() or \c setUsesScrollButtons(); tabs that do not
-    fit are cut off. Ctrl+Tab does not switch
-    tabs. A change of the size hint of a page does not update the layout the tab widget is in.
+    Corner widgets are placed only while the tabs are above or below the pages. Triangular tabs are drawn rounded,
+    and there are no scroll buttons; tabs that do not fit are cut off or, with elideMode(), shortened. Ctrl+Tab
+    does not switch tabs. A change of the size hint of a page does not update the layout the tab widget is in.
     \enddifferences
 
     \sa QGroupBox, QStyle
+*/
+
+/*!
+    \enum QTabWidget::TabPosition
+    \since 6.0
+
+    Where the tabs are.
+
+    \value North Above the pages, the default.
+    \value South Below the pages.
+    \value West At the left of the pages.
+    \value East At the right of the pages.
+*/
+
+/*!
+    \enum QTabWidget::TabShape
+    \since 6.0
+
+    The shape of the tabs.
+
+    \value Rounded Rounded tabs, the default.
+    \value Triangular Triangular tabs; Nt draws them rounded.
 */
 
 /*!
@@ -50,6 +74,10 @@ QTabWidget::QTabWidget(QWidget *parent) : QWidget(parent) {
     m_bar = new QTabBar(this);
     m_bar->setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    connectBar();
+}
+
+void QTabWidget::connectBar() {
     QObject::connect(m_bar, &QTabBar::currentChanged, this, [this](int index) { select(index); });
     QObject::connect(m_bar, &QTabBar::tabMoved, this, [this](int from, int to) {
         QWidget *page = m_pages[static_cast<std::size_t>(from)];
@@ -80,6 +108,29 @@ QTabWidget::~QTabWidget() {
 int QTabWidget::addTab(QWidget *page, const QString &label) { return insertTab(count(), page, label); }
 
 /*!
+    \since 6.0
+    \overload
+
+    Adds \a page as a tab with the given \a icon and \a label and returns its index.
+*/
+int QTabWidget::addTab(QWidget *page, const QIcon &icon, const QString &label) {
+    return insertTab(count(), page, icon, label);
+}
+
+/*!
+    \since 6.0
+    \overload
+
+    Inserts \a page as a tab with the given \a icon and \a label at \a index and returns its index.
+*/
+int QTabWidget::insertTab(int index, QWidget *page, const QIcon &icon, const QString &label) {
+    const int at = insertTab(index, page, label);
+    if (at >= 0)
+        m_bar->setTabIcon(at, icon);
+    return at;
+}
+
+/*!
     Inserts \a page as a tab with the text \a label at \a index, which is brought into the range of the tabs, and returns the
     index of the new tab. The tab widget becomes the parent of \a page. The current tab stays the same one, except
     that the first tab that is added becomes the current one.
@@ -98,6 +149,7 @@ int QTabWidget::insertTab(int index, QWidget *page, const QString &label) {
     layoutChildren();
     updateGeometry();
     update();
+    tabInserted(at);
     return at;
 }
 
@@ -133,8 +185,10 @@ void QTabWidget::pageGone(QObject *page) {
             continue;
         m_pages.erase(m_pages.begin() + static_cast<std::ptrdiff_t>(i));
         m_bar->removeTab(static_cast<int>(i));
+        layoutChildren();
         updateGeometry();
         update();
+        tabRemoved(static_cast<int>(i));
         return;
     }
 }
@@ -302,13 +356,71 @@ void QTabWidget::setCurrentIndex(int index) { m_bar->setCurrentIndex(index); }
 */
 void QTabWidget::setCurrentWidget(QWidget *page) { setCurrentIndex(indexOf(page)); }
 
+namespace {
+// The size of a corner widget: its size hint, or its size if it has none.
+QSize cornerSize(const QWidget *corner) { return corner->sizeHint().isValid() ? corner->sizeHint() : corner->size(); }
+} // namespace
+
+int QTabWidget::barThickness() const {
+    if (m_bar->isHidden())
+        return 0;
+    const QSize hint = m_bar->sizeHint();
+    int thick = verticalBar() ? hint.width() : hint.height();
+    if (!verticalBar()) {
+        for (const QWidget *corner : {m_leftCorner.data(), m_rightCorner.data()})
+            if (corner && !corner->isHidden())
+                thick = std::max(thick, cornerSize(corner).height());
+    }
+    return thick;
+}
+
+// Where the frame of the pages is: all but the bar, overlapping it by one pixel.
+QRect QTabWidget::frameRect() const {
+    const int thick = barThickness();
+    const int overlap = thick > 0 ? 1 : 0;
+    switch (m_position) {
+    case South:
+        return QRect(0, 0, width(), height() - thick + overlap);
+    case West:
+        return QRect(thick - overlap, 0, width() - thick + overlap, height());
+    case East:
+        return QRect(0, 0, width() - thick + overlap, height());
+    case North:
+        break;
+    }
+    return QRect(0, thick - overlap, width(), height() - thick + overlap);
+}
+
 void QTabWidget::layoutChildren() {
-    const int bar = m_bar->sizeHint().height();
-    m_bar->setGeometry(0, 0, width(), bar);
-    // The frame of the pages is 1 pixel wide, and its top edge is hidden behind the current tab.
-    const QRect pages(1, bar, std::max(0, width() - 2), std::max(0, height() - bar - 1));
+    const int thick = barThickness();
+    const int w = width();
+    const int h = height();
+    if (verticalBar()) {
+        m_bar->setGeometry(m_position == West ? 0 : w - thick, 0, thick, h);
+        for (QWidget *corner : {m_leftCorner.data(), m_rightCorner.data()})
+            if (corner)
+                corner->hide();
+    } else {
+        int left = 0;
+        int right = w;
+        const int y = m_position == North ? 0 : h - thick;
+        if (QWidget *corner = m_leftCorner.data(); corner && !corner->isHidden()) {
+            const int cw = cornerSize(corner).width();
+            corner->setGeometry(0, y, cw, thick);
+            left += cw;
+        }
+        if (QWidget *corner = m_rightCorner.data(); corner && !corner->isHidden()) {
+            const int cw = cornerSize(corner).width();
+            corner->setGeometry(w - cw, y, cw, thick);
+            right -= cw;
+        }
+        const int barHeight = m_bar->sizeHint().height();
+        m_bar->setGeometry(left, m_position == North ? thick - barHeight : y, std::max(0, right - left), barHeight);
+    }
+    // The frame of the pages is 1 pixel wide.
+    const QRect pages = frameRect().adjusted(1, 1, -1, -1);
     for (QWidget *page : m_pages)
-        page->setGeometry(pages);
+        page->setGeometry(QRect(pages.topLeft(), pages.size().expandedTo(QSize(0, 0))));
 }
 
 /*!
@@ -318,8 +430,15 @@ QSize QTabWidget::sizeHint() const {
     QSize pages(0, 0);
     for (QWidget *page : m_pages)
         pages = QtPrivate::expandedTo(pages, page->sizeHint().isValid() ? page->sizeHint() : QSize(0, 0));
-    const QSize bar = m_bar->sizeHint();
-    return QSize(std::max(bar.width(), pages.width()) + 2, bar.height() + pages.height() + 1);
+    const QSize bar = m_bar->isHidden() ? QSize(0, 0) : m_bar->sizeHint();
+    const int thick = barThickness();
+    if (verticalBar())
+        return QSize(thick + pages.width() + 1, std::max(bar.height(), pages.height()) + 2);
+    int corners = 0;
+    for (const QWidget *corner : {m_leftCorner.data(), m_rightCorner.data()})
+        if (corner && !corner->isHidden())
+            corners += cornerSize(corner).width();
+    return QSize(std::max(bar.width() + corners, pages.width()) + 2, thick + pages.height() + 1);
 }
 
 /*!
@@ -331,8 +450,11 @@ QSize QTabWidget::minimumSizeHint() const {
         const QSize min = page->minimumSizeHint();
         pages = QtPrivate::expandedTo(pages, min.isValid() ? min : QSize(0, 0));
     }
-    const QSize bar = m_bar->sizeHint();
-    return QSize(std::max(bar.width(), pages.width()) + 2, bar.height() + pages.height() + 1);
+    const QSize bar = m_bar->isHidden() ? QSize(0, 0) : m_bar->sizeHint();
+    const int thick = barThickness();
+    if (verticalBar())
+        return QSize(thick + pages.width() + 1, std::max(bar.height(), pages.height()) + 2);
+    return QSize(std::max(bar.width(), pages.width()) + 2, thick + pages.height() + 1);
 }
 
 /*!
@@ -341,12 +463,297 @@ QSize QTabWidget::minimumSizeHint() const {
 void QTabWidget::paintEvent(QPaintEvent *event) {
     (void)event;
     QPainter painter(this);
-    QStyleOption option;
-    option.initFrom(this);
-    const int bar = m_bar->sizeHint().height();
-    option.rect = QRect(0, bar - 1, width(), height() - bar + 1);
+    QStyleOptionTabWidgetFrame option;
+    initStyleOption(&option);
     style()->drawPrimitive(QStyle::PE_FrameTabWidget, &option, &painter, this);
 }
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the tab widget, for the style to draw the frame of its pages.
+*/
+void QTabWidget::initStyleOption(QStyleOptionTabWidgetFrame *option) const {
+    if (!option)
+        return;
+    option->initFrom(this);
+    option->rect = frameRect();
+    option->lineWidth = 1;
+    option->shape = m_bar->shape();
+    option->tabBarSize = m_bar->isHidden() ? QSize(0, 0) : m_bar->sizeHint();
+    option->tabBarRect = m_bar->geometry();
+    option->selectedTabRect = m_bar->tabRect(m_bar->currentIndex()).translated(m_bar->pos());
+    option->leftCornerWidgetSize = m_leftCorner ? m_leftCorner->size() : QSize(0, 0);
+    option->rightCornerWidgetSize = m_rightCorner ? m_rightCorner->size() : QSize(0, 0);
+}
+
+/*!
+    \since 6.0
+
+    Returns the icon of the tab at \a index.
+*/
+QIcon QTabWidget::tabIcon(int index) const { return m_bar->tabIcon(index); }
+
+/*!
+    \since 6.0
+
+    Sets the icon of the tab at \a index to \a icon.
+*/
+void QTabWidget::setTabIcon(int index, const QIcon &icon) {
+    m_bar->setTabIcon(index, icon);
+    layoutChildren();
+    updateGeometry();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the tab at \a index is shown.
+*/
+bool QTabWidget::isTabVisible(int index) const { return m_bar->isTabVisible(index); }
+
+/*!
+    \since 6.0
+
+    Shows the tab at \a index if \a visible is \c true, and hides it otherwise. If it was current, another tab
+    becomes current.
+*/
+void QTabWidget::setTabVisible(int index, bool visible) {
+    m_bar->setTabVisible(index, visible);
+    layoutChildren();
+}
+
+/*!
+    \since 6.0
+
+    Returns the "What's This?" help of the tab at \a index.
+*/
+QString QTabWidget::tabWhatsThis(int index) const { return m_bar->tabWhatsThis(index); }
+
+/*!
+    \since 6.0
+
+    Sets the "What's This?" help of the tab at \a index to \a text.
+*/
+void QTabWidget::setTabWhatsThis(int index, const QString &text) { m_bar->setTabWhatsThis(index, text); }
+
+/*!
+    \fn QTabWidget::TabPosition QTabWidget::tabPosition() const
+    \since 6.0
+
+    Returns where the tabs are, North by default.
+*/
+
+/*!
+    \since 6.0
+
+    Puts the tabs at \a position.
+*/
+void QTabWidget::setTabPosition(TabPosition position) {
+    if (m_position == position)
+        return;
+    m_position = position;
+    applyShape();
+}
+
+/*!
+    \fn QTabWidget::TabShape QTabWidget::tabShape() const
+    \since 6.0
+
+    Returns the shape of the tabs.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the shape of the tabs to \a s.
+*/
+void QTabWidget::setTabShape(TabShape s) {
+    if (m_shape == s)
+        return;
+    m_shape = s;
+    applyShape();
+}
+
+void QTabWidget::applyShape() {
+    m_bar->setShape(static_cast<QTabBar::Shape>((m_shape == Triangular ? 4 : 0) + static_cast<int>(m_position)));
+    layoutChildren();
+    updateGeometry();
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the widget at the \a corner of the row of tabs, or \c nullptr.
+*/
+QWidget *QTabWidget::cornerWidget(Qt::Corner corner) const {
+    return (corner == Qt::TopLeftCorner || corner == Qt::BottomLeftCorner) ? m_leftCorner.data()
+                                                                           : m_rightCorner.data();
+}
+
+/*!
+    \since 6.0
+
+    Puts \a widget at the end of the row of tabs that \a corner names: a left corner before the first tab, a
+    right corner after the space of the tabs. The tab widget becomes the parent of \a widget. The widget that was
+    there is not deleted; \c nullptr removes it.
+
+    \code
+    auto *add = new QToolButton;
+    add->setText("+");
+    tabs->setCornerWidget(add, Qt::TopRightCorner);
+    \endcode
+*/
+void QTabWidget::setCornerWidget(QWidget *widget, Qt::Corner corner) {
+    QPointer<QWidget> &slot =
+        (corner == Qt::TopLeftCorner || corner == Qt::BottomLeftCorner) ? m_leftCorner : m_rightCorner;
+    if (slot == widget)
+        return;
+    if (slot)
+        slot->hide();
+    slot = widget;
+    if (widget) {
+        widget->setParent(this);
+        widget->show();
+    }
+    layoutChildren();
+    updateGeometry();
+}
+
+/*!
+    \since 6.0
+
+    Returns the size of the icons of the tabs.
+*/
+QSize QTabWidget::iconSize() const { return m_bar->iconSize(); }
+
+/*!
+    \since 6.0
+
+    Sets the size of the icons of the tabs to \a size.
+*/
+void QTabWidget::setIconSize(const QSize &size) {
+    m_bar->setIconSize(size);
+    layoutChildren();
+    updateGeometry();
+}
+
+/*!
+    \since 6.0
+
+    Returns how the text of tabs that do not fit is shortened.
+*/
+Qt::TextElideMode QTabWidget::elideMode() const { return m_bar->elideMode(); }
+
+/*!
+    \since 6.0
+
+    Sets how the text of tabs that do not fit is shortened to \a mode.
+*/
+void QTabWidget::setElideMode(Qt::TextElideMode mode) { m_bar->setElideMode(mode); }
+
+/*!
+    \since 6.0
+
+    Returns whether buttons would scroll tabs that do not fit; see QTabBar::usesScrollButtons().
+*/
+bool QTabWidget::usesScrollButtons() const { return m_bar->usesScrollButtons(); }
+
+/*!
+    \since 6.0
+
+    Sets whether buttons scroll tabs that do not fit to \a useButtons.
+*/
+void QTabWidget::setUsesScrollButtons(bool useButtons) { m_bar->setUsesScrollButtons(useButtons); }
+
+/*!
+    \since 6.0
+
+    Returns \c true if the tabs are hidden while there are fewer than two.
+*/
+bool QTabWidget::tabBarAutoHide() const { return m_bar->autoHide(); }
+
+/*!
+    \since 6.0
+
+    Hides the tabs while there are fewer than two if \a enabled is \c true.
+*/
+void QTabWidget::setTabBarAutoHide(bool enabled) {
+    m_bar->setAutoHide(enabled);
+    layoutChildren();
+    updateGeometry();
+}
+
+/*!
+    \reimp
+*/
+bool QTabWidget::hasHeightForWidth() const {
+    return std::any_of(m_pages.begin(), m_pages.end(), [](const QWidget *page) { return page->hasHeightForWidth(); });
+}
+
+/*!
+    \reimp
+*/
+int QTabWidget::heightForWidth(int width) const {
+    int pages = -1;
+    const int across = verticalBar() ? width - barThickness() - 1 : width - 2;
+    for (const QWidget *page : m_pages)
+        if (page->hasHeightForWidth())
+            pages = std::max(pages, page->heightForWidth(across));
+    if (pages < 0)
+        return -1;
+    return verticalBar() ? pages + 2 : pages + barThickness() + 1;
+}
+
+/*!
+    \since 6.0
+
+    Replaces the tab bar with \a tb, which takes over the tabs. The tab widget takes ownership of \a tb and deletes
+    the old bar.
+*/
+void QTabWidget::setTabBar(QTabBar *tb) {
+    if (!tb || tb == m_bar)
+        return;
+    QTabBar *old = m_bar;
+    QObject::disconnect(old, nullptr, this, nullptr);
+    while (tb->count() > 0)
+        tb->removeTab(tb->count() - 1);
+    for (int i = 0; i < old->count(); ++i) {
+        tb->addTab(old->tabIcon(i), old->tabText(i));
+        tb->setTabEnabled(i, old->isTabEnabled(i));
+        tb->setTabToolTip(i, old->tabToolTip(i));
+        tb->setTabWhatsThis(i, old->tabWhatsThis(i));
+        tb->setTabVisible(i, old->isTabVisible(i));
+    }
+    tb->setCurrentIndex(old->currentIndex());
+    tb->setTabsClosable(old->tabsClosable());
+    tb->setMovable(old->isMovable());
+    tb->setDocumentMode(old->documentMode());
+    tb->setShape(old->shape());
+    tb->setParent(this);
+    tb->setFocusPolicy(Qt::StrongFocus);
+    m_bar = tb;
+    connectBar();
+    delete old;
+    tb->show();
+    layoutChildren();
+    updateGeometry();
+}
+
+/*!
+    \since 6.0
+
+    Is called after a tab is inserted at \a index. The default does nothing.
+*/
+void QTabWidget::tabInserted(int index) { (void)index; }
+
+/*!
+    \since 6.0
+
+    Is called after the tab at \a index is removed. The default does nothing.
+*/
+void QTabWidget::tabRemoved(int index) { (void)index; }
 
 /*!
     \reimp

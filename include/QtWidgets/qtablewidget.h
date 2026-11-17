@@ -19,6 +19,33 @@
 class QHeaderView;
 class QTableWidget;
 
+class QTableWidgetSelectionRange {
+public:
+    QTableWidgetSelectionRange() = default;
+    QTableWidgetSelectionRange(int top, int left, int bottom, int right)
+        : m_top(top), m_left(left), m_bottom(bottom), m_right(right) {}
+
+    int topRow() const { return m_top; }
+    int bottomRow() const { return m_bottom; }
+    int leftColumn() const { return m_left; }
+    int rightColumn() const { return m_right; }
+    int rowCount() const { return m_top < 0 ? 0 : m_bottom - m_top + 1; }
+    int columnCount() const { return m_left < 0 ? 0 : m_right - m_left + 1; }
+
+    friend bool operator==(const QTableWidgetSelectionRange &a, const QTableWidgetSelectionRange &b) {
+        return a.m_top == b.m_top && a.m_left == b.m_left && a.m_bottom == b.m_bottom && a.m_right == b.m_right;
+    }
+    friend bool operator!=(const QTableWidgetSelectionRange &a, const QTableWidgetSelectionRange &b) {
+        return !(a == b);
+    }
+
+private:
+    int m_top = -1;
+    int m_left = -1;
+    int m_bottom = -2;
+    int m_right = -2;
+};
+
 class QTableWidgetItem {
 public:
     QTableWidgetItem();
@@ -143,6 +170,8 @@ public:
     void setCurrentCell(int row, int column);
     void setCurrentItem(QTableWidgetItem *item);
     QList<QTableWidgetItem *> selectedItems() const;
+    QList<QTableWidgetSelectionRange> selectedRanges() const;
+    void setRangeSelected(const QTableWidgetSelectionRange &range, bool select);
     void scrollToItem(const QTableWidgetItem *item);
 
     bool showGrid() const { return m_showGrid; }

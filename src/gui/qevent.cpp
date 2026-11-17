@@ -806,3 +806,28 @@ Qt::TouchPointStates QTouchEvent::touchPointStates() const {
         states |= static_cast<Qt::TouchPointState>(p.state());
     return states;
 }
+/*!
+    \class QShortcutEvent
+    \inmodule NtGui
+    \since 6.0
+    \brief The QShortcutEvent class tells a widget that a shortcut it grabbed was pressed.
+
+    QWidget::grabShortcut() grabs a key sequence; when it is pressed in the window, the widget gets this event with
+    the id that grabShortcut() returned.
+
+    \differences
+    A shortcut is never ambiguous: the first widget that has it gets it.
+    \enddifferences
+*/
+
+/*!
+    Constructs a shortcut event for \a key and the shortcut \a id; \a ambiguous says whether other widgets have it.
+*/
+QShortcutEvent::QShortcutEvent(const QKeySequence &key, int id, bool ambiguous)
+    : QEvent(QEvent::Shortcut), m_key(key), m_id(id), m_ambiguous(ambiguous) {}
+
+/*!
+    Destroys the event.
+*/
+QShortcutEvent::~QShortcutEvent() = default;
+

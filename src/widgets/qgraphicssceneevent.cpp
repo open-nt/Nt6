@@ -168,3 +168,70 @@ QGraphicsSceneWheelEvent::QGraphicsSceneWheelEvent(Type type) : QGraphicsSceneEv
     Destroys the event.
 */
 QGraphicsSceneWheelEvent::~QGraphicsSceneWheelEvent() = default;
+
+/*!
+    \class QGraphicsSceneHelpEvent
+    \inmodule NtWidgets
+    \since 6.0
+    \brief The QGraphicsSceneHelpEvent class is an event that asks for help, such as a tool tip, over a scene.
+
+    \differences
+    The scene does not send it yet; tool tips of items are not shown.
+    \enddifferences
+*/
+
+/*!
+    Constructs a help event of \a type.
+*/
+QGraphicsSceneHelpEvent::QGraphicsSceneHelpEvent(Type type) : QGraphicsSceneEvent(type) {}
+
+/*!
+    Destroys the event.
+*/
+QGraphicsSceneHelpEvent::~QGraphicsSceneHelpEvent() = default;
+
+/*!
+    \class QGraphicsSceneResizeEvent
+    \inmodule NtWidgets
+    \since 6.0
+    \brief The QGraphicsSceneResizeEvent class tells a QGraphicsWidget that it was resized.
+
+    QGraphicsWidget::resizeEvent() gets it.
+
+    \differences
+    None.
+    \enddifferences
+*/
+
+/*!
+    Constructs a resize event.
+*/
+QGraphicsSceneResizeEvent::QGraphicsSceneResizeEvent() : QGraphicsSceneEvent(QEvent::GraphicsSceneResize) {}
+
+/*!
+    Destroys the event.
+*/
+QGraphicsSceneResizeEvent::~QGraphicsSceneResizeEvent() = default;
+
+/*!
+    \class QGraphicsSceneMoveEvent
+    \inmodule NtWidgets
+    \since 6.0
+    \brief The QGraphicsSceneMoveEvent class tells a QGraphicsWidget that it moved.
+
+    QGraphicsWidget::moveEvent() gets it.
+
+    \differences
+    None.
+    \enddifferences
+*/
+
+/*!
+    Constructs a move event.
+*/
+QGraphicsSceneMoveEvent::QGraphicsSceneMoveEvent() : QGraphicsSceneEvent(QEvent::GraphicsSceneMove) {}
+
+/*!
+    Destroys the event.
+*/
+QGraphicsSceneMoveEvent::~QGraphicsSceneMoveEvent() = default;

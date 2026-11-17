@@ -855,6 +855,21 @@ enum FocusReason {
 enum ContextMenuPolicy { NoContextMenu, DefaultContextMenu, ActionsContextMenu, CustomContextMenu, PreventContextMenu };
 
 /*!
+    \enum Qt::HighDpiScaleFactorRoundingPolicy
+    \since 6.0
+
+    How a scale factor between whole numbers, such as 1.5, is rounded.
+
+    \value Unset Not set.
+    \value Round Rounded to the nearest whole number.
+    \value Ceil Rounded up.
+    \value Floor Rounded down.
+    \value RoundPreferFloor Rounded down from .5, up above it.
+    \value PassThrough Not rounded.
+*/
+enum class HighDpiScaleFactorRoundingPolicy { Unset, Round, Ceil, Floor, RoundPreferFloor, PassThrough };
+
+/*!
     \enum Qt::ItemSelectionOperation
     \since 6.0
 

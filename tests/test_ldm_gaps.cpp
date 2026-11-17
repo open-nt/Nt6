@@ -1558,6 +1558,31 @@ static void testTextAndCoreTail() {
     const QPoint screenPos = sceneEvent.screenPos();
     CHECK(screenPos == QPoint(3, 5));
 
+    // Plain text editors: a document that follows the text, and a limit on the blocks.
+    QPlainTextEdit console;
+    console.setMaximumBlockCount(3);
+    CHECK(console.maximumBlockCount() == 3);
+    for (int i = 1; i <= 5; ++i)
+        console.appendPlainText(QString("line %1").arg(i));
+    CHECK(console.blockCount() == 3 && console.toPlainText().startsWith("line 3"));
+    QTextCursor end(console.document());
+    CHECK(console.document()->toPlainText() == console.toPlainText());
+    end.movePosition(QTextCursor::End);
+    end.insertText("!");
+    console.setTextCursor(end);
+    CHECK(console.toPlainText().endsWith("line 5!") && console.textCursor().position() == end.position());
+    console.document()->setPlainText("reset");
+    CHECK(console.toPlainText() == "reset");
+
+    QMessageBox box;
+    box.setTextFormat(Qt::PlainText);
+    CHECK(box.textFormat() == Qt::PlainText);
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+    CHECK(QGuiApplication::highDpiScaleFactorRoundingPolicy() == Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+    CHECK(qEnvironmentVariable(QByteArray("NT_LDM_TAIL")) == "1");
+    const QList<QSslCertificate> system = QSslConfiguration::systemCaCertificates();
+    CHECK(system.isEmpty() || !system.first().isNull());
+
     // Network.
     CHECK(QSslSocket::availableBackends().contains(QSslSocket::activeBackend()));
     CHECK(QSslSocket::setActiveBackend(QSslSocket::activeBackend()) && !QSslSocket::setActiveBackend("schannel"));

@@ -28,6 +28,8 @@ public:
     static QList<QScreen *> screens();
     static QScreen *screenAt(const QPoint &point);
     static void setDesktopFileName(const QString &name);
+    static void setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy policy);
+    static Qt::HighDpiScaleFactorRoundingPolicy highDpiScaleFactorRoundingPolicy();
     static QClipboard *clipboard();
     static QInputMethod *inputMethod();
     static QIcon windowIcon();

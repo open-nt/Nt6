@@ -90,6 +90,8 @@ public:
 
     QString text() const;
     void setText(const QString &text);
+    Qt::TextFormat textFormat() const;
+    void setTextFormat(Qt::TextFormat format);
     Icon icon() const { return m_icon; }
     void setIcon(Icon icon);
     QString informativeText() const;

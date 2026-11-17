@@ -402,6 +402,20 @@ QString QMessageBox::text() const { return m_label->text(); }
 void QMessageBox::setText(const QString &text) { m_label->setText(text); }
 
 /*!
+    \since 6.0
+
+    Returns the format of the text: Qt::AutoText by default, which shows HTML as rich text.
+*/
+Qt::TextFormat QMessageBox::textFormat() const { return m_label->textFormat(); }
+
+/*!
+    \since 6.0
+
+    Sets the format of the text to \a format.
+*/
+void QMessageBox::setTextFormat(Qt::TextFormat format) { m_label->setTextFormat(format); }
+
+/*!
     \fn QMessageBox::Icon QMessageBox::icon() const
 
     Returns the icon of the message box, NoIcon by default.

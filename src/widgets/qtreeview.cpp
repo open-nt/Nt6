@@ -52,6 +52,25 @@
     \sa QTreeWidget, QAbstractItemView, QHeaderView, QStyledItemDelegate
 */
 
+/*!
+    \fn bool QTreeView::isAnimated() const
+    \since 6.0
+
+    Returns whether expanding and collapsing items is animated. The default is \c false.
+
+    \sa setAnimated()
+*/
+
+/*!
+    \fn void QTreeView::setAnimated(bool enable)
+    \since 6.0
+
+    Sets whether expanding and collapsing items is animated to \a enable. Nt keeps the value; items expand and
+    collapse at once.
+
+    \sa isAnimated()
+*/
+
 namespace {
 constexpr int kMinimumRowHeight = 20;
 }

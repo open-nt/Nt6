@@ -937,6 +937,31 @@ static void testTabsAndMainWindow() {
     CHECK(window.documentMode() && window.tabShape() == QTabWidget::Triangular && !window.isSeparator(QPoint(1, 1)));
 }
 
+static void testMenuBarCornersAndTreeAnimation() {
+    QTreeView tree;
+    CHECK(!tree.isAnimated());
+    tree.setAnimated(true);
+    CHECK(tree.isAnimated() && tree.property("animated").toBool());
+
+    QMenuBar bar;
+    bar.addMenu(QStringLiteral("&File"));
+    const QSize plain = bar.sizeHint();
+    auto *right = new QWidget;
+    right->setFixedSize(40, plain.height() + 10);
+    bar.setCornerWidget(right);
+    CHECK(bar.cornerWidget() == right && bar.cornerWidget(Qt::TopRightCorner) == right && right->parentWidget() == &bar);
+    CHECK(bar.sizeHint() == QSize(plain.width() + 40, plain.height() + 10));
+    auto *left = new QWidget;
+    left->setFixedSize(30, 10);
+    bar.setCornerWidget(left, Qt::TopLeftCorner);
+    CHECK(bar.cornerWidget(Qt::TopLeftCorner) == left && bar.sizeHint().width() == plain.width() + 70);
+    bar.resize(300, bar.sizeHint().height());
+    CHECK(right->geometry().right() == 299 && left->x() == 0);
+    CHECK(bar.actionGeometry(bar.actions().first()).left() >= 30);
+    bar.setCornerWidget(nullptr);
+    CHECK(!bar.cornerWidget() && right->isHidden() && bar.sizeHint().width() == plain.width() + 30);
+}
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     testFileSystemModel();
@@ -949,6 +974,7 @@ int main(int argc, char *argv[]) {
     testFocusExtras();
     testLineEditExtras();
     testTabsAndMainWindow();
+    testMenuBarCornersAndTreeAnimation();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

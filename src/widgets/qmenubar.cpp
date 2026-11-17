@@ -50,11 +50,12 @@ QString plainTitle(const QString &text) {
 
     \image widgets/qmenubar.png QMenuBar in the light color scheme
 
+    setCornerWidget() puts a widget, such as a button or a label, at the left or right end of the bar.
+
     \differences
-    The bar does not become the menu bar of a window by itself, as the bar of a \c QMainWindow does: there is no
-    \c QMainWindow, and no \c QLayout::setMenuBar(), so the bar is added to a layout like a widget. A bar is not a native
-    menu bar, and there is no extension button for titles that do not fit: they are cut off. F10 and Alt alone do not move
-    the focus to the bar, the titles have no icons, and the bar cannot be \c setCornerWidget()ed or \c setDefaultUp().
+    A bar is not a native menu bar, and there is no extension button for titles that do not fit: they are cut off.
+    F10 and Alt alone do not move the focus to the bar, the titles have no icons, and there is no
+    \c setDefaultUp().
     \enddifferences
 
     \sa QMenu, QAction
@@ -147,7 +148,9 @@ void QMenuBar::layoutItems() const {
     m_items.clear();
     const QFontMetrics metrics(font());
     const int spacing = style()->pixelMetric(QStyle::PM_MenuBarItemSpacing, nullptr, this);
-    int x = spacing, height = 0;
+    const int left = m_leftCorner && !m_leftCorner->isHidden() ? cornerSize(m_leftCorner).width() : 0;
+    const int right = m_rightCorner && !m_rightCorner->isHidden() ? cornerSize(m_rightCorner).width() : 0;
+    int x = left + spacing, height = 0;
     for (QAction *action : actions()) {
         if (!action->isVisible() || action->isSeparator())
             continue;
@@ -161,8 +164,87 @@ void QMenuBar::layoutItems() const {
         height = size.height();
         x += size.width() + spacing;
     }
-    m_size = m_items.empty() ? QSize(0, 0) : QSize(x - spacing, height);
+    m_size = m_items.empty() ? QSize(left, 0) : QSize(x - spacing, height);
+    m_size.setWidth(m_size.width() + right);
+    for (const QWidget *corner : {m_leftCorner.data(), m_rightCorner.data()})
+        if (corner && !corner->isHidden())
+            m_size.setHeight(std::max(m_size.height(), cornerSize(corner).height()));
+    // The titles take the height of the bar, so that they line up with the corner widgets.
+    for (Item &item : m_items)
+        item.rect.setHeight(m_size.height());
     m_dirty = false;
+}
+
+// The size of a corner widget: its size hint, or its size if it has none.
+QSize QMenuBar::cornerSize(const QWidget *corner) const {
+    return corner->sizeHint().isValid() ? corner->sizeHint() : corner->size();
+}
+
+// Puts the corner widgets at the ends of the bar, as high as the bar and centred down.
+void QMenuBar::placeCorners() {
+    if (QWidget *corner = m_leftCorner.data()) {
+        const QSize size = cornerSize(corner);
+        const int h = std::min(size.height(), height());
+        corner->setGeometry(0, (height() - h) / 2, size.width(), h);
+    }
+    if (QWidget *corner = m_rightCorner.data()) {
+        const QSize size = cornerSize(corner);
+        const int h = std::min(size.height(), height());
+        corner->setGeometry(width() - size.width(), (height() - h) / 2, size.width(), h);
+    }
+}
+
+/*!
+    \since 6.0
+
+    Returns the widget at the left end of the bar for Qt::TopLeftCorner or Qt::BottomLeftCorner, and at the right
+    end for the other \a corner; \c nullptr if there is none.
+
+    \sa setCornerWidget()
+*/
+QWidget *QMenuBar::cornerWidget(Qt::Corner corner) const {
+    return (corner == Qt::TopLeftCorner || corner == Qt::BottomLeftCorner) ? m_leftCorner.data()
+                                                                           : m_rightCorner.data();
+}
+
+/*!
+    \since 6.0
+
+    Puts \a widget at the left end of the bar for Qt::TopLeftCorner or Qt::BottomLeftCorner, and at the right end
+    for the other \a corner. The bar becomes the parent of \a widget; the widget that was there is hidden, not
+    deleted. \c nullptr removes the corner widget.
+
+    \code
+    auto *status = new QLabel("Connected");
+    menuBar()->setCornerWidget(status, Qt::TopRightCorner);
+    \endcode
+
+    \sa cornerWidget()
+*/
+void QMenuBar::setCornerWidget(QWidget *widget, Qt::Corner corner) {
+    QPointer<QWidget> &slot =
+        (corner == Qt::TopLeftCorner || corner == Qt::BottomLeftCorner) ? m_leftCorner : m_rightCorner;
+    if (slot == widget)
+        return;
+    if (slot && slot->parentWidget() == this)
+        slot->hide();
+    slot = widget;
+    if (widget) {
+        widget->setParent(this);
+        widget->show();
+    }
+    m_dirty = true;
+    updateGeometry();
+    placeCorners();
+    update();
+}
+
+/*!
+    \reimp
+*/
+void QMenuBar::resizeEvent(QResizeEvent *event) {
+    QWidget::resizeEvent(event);
+    placeCorners();
 }
 
 /*!

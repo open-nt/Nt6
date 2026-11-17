@@ -17,6 +17,7 @@ class QTreeView : public QAbstractItemView {
     Q_PROPERTY(bool sortingEnabled READ isSortingEnabled WRITE setSortingEnabled)
     Q_PROPERTY(bool headerHidden READ isHeaderHidden WRITE setHeaderHidden)
     Q_PROPERTY(bool expandsOnDoubleClick READ expandsOnDoubleClick WRITE setExpandsOnDoubleClick)
+    Q_PROPERTY(bool animated READ isAnimated WRITE setAnimated)
 public:
     explicit QTreeView(QWidget *parent = nullptr);
     ~QTreeView() override;
@@ -29,6 +30,8 @@ public:
     int indentation() const { return m_indentation; }
     void setIndentation(int i);
     void resetIndentation();
+    bool isAnimated() const { return m_animated; }
+    void setAnimated(bool enable) { m_animated = enable; }
     bool rootIsDecorated() const { return m_rootDecorated; }
     void setRootIsDecorated(bool show);
     bool uniformRowHeights() const { return m_uniform; }
@@ -137,6 +140,7 @@ private:
     QPersistentModelIndex m_anchor;  // where a range selection starts
     QPersistentModelIndex m_pressed; // the item under the press that is going on
     int m_indentation = 20;
+    bool m_animated = false;
     bool m_rootDecorated = true;
     bool m_uniform = false;
     bool m_expandable = true;

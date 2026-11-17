@@ -31,6 +31,8 @@ public:
     void setActiveAction(QAction *action);
     QAction *actionAt(const QPoint &point) const;
     QRect actionGeometry(QAction *action) const;
+    QWidget *cornerWidget(Qt::Corner corner = Qt::TopRightCorner) const;
+    void setCornerWidget(QWidget *widget, Qt::Corner corner = Qt::TopRightCorner);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -54,6 +56,7 @@ protected:
     void leaveEvent(QEvent *event) override;
     void actionEvent(QActionEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     friend class QMenu;
@@ -64,6 +67,8 @@ private:
     };
 
     void layoutItems() const;
+    void placeCorners();
+    QSize cornerSize(const QWidget *corner) const;
     QMenu *openMenu() const;
     void popupMenu(QAction *action, bool selectFirst);
     void closeMenu();
@@ -76,4 +81,6 @@ private:
     mutable std::vector<Item> m_items;
     mutable QSize m_size;
     mutable bool m_dirty = true;
+    QPointer<QWidget> m_leftCorner;
+    QPointer<QWidget> m_rightCorner;
 };

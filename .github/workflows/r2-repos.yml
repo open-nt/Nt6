@@ -5,6 +5,8 @@
 #   /rpm/el<N>/<arch>/       dnf (Enterprise Linux 9 and 10 .rpm, x86_64 and aarch64)
 #   /arch/<arch>/            pacman (Arch Linux .pkg.tar.zst, x86_64)
 #   /nt6.gpg, /nt6.asc       the signing key; /nt6.repo, the dnf repository file
+#   index.html               in every folder, written by packaging/repo-index.sh, so that
+#                            the tree can be browsed at the public URL
 #
 # The repositories are rebuilt from the assets of every final release with
 # packaging/apt-repo.sh, rpm-repo.sh and pacman-repo.sh (each with --releases-only), each
@@ -22,6 +24,11 @@
 #      secrets R2_ACCOUNT_ID, R2_ACCESS_KEY_ID and R2_SECRET_ACCESS_KEY.
 #   4. The repositories are signed with the same APT_SIGNING_KEY (and
 #      APT_SIGNING_PASSPHRASE) as the GitHub Pages apt copy, see the header of docs.yml.
+#   5. R2 has no directory listings and does not serve index.html for a folder, so add a
+#      URL rewrite on the domain's zone (Rules > Overview > Create rule > URL Rewrite Rule):
+#        when:  (http.host eq "packages.open-nt.org" and ends_with(http.request.uri.path, "/"))
+#        path:  rewrite to Dynamic  concat(http.request.uri.path, "index.html")
+#        query: preserve
 name: Package repositories on R2
 
 on:
@@ -158,6 +165,8 @@ jobs:
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
       BUCKET: ${{ vars.R2_BUCKET || 'nt6-packages' }}
     steps:
+      - uses: actions/checkout@v4
+
       - uses: actions/download-artifact@v4
         with:
           name: repo-apt
@@ -182,6 +191,9 @@ jobs:
           rm rpm/nt6.asc arch/nt6.asc
           find . -type f | sort
 
+      - name: Write the listing pages
+        run: packaging/repo-index.sh --url "$PUBLIC_URL" site
+
       # Uploaded so that no client sees an index naming a file that is not there yet:
       # the packages first, then the indexes, then the signed files that list them
       # (apt's Release, dnf's repomd.xml, pacman's database), and only then are the files
@@ -195,7 +207,7 @@ jobs:
           signed=(--include '*/Release' --include '*/Release.gpg' --include '*/InRelease'
                   --include '*/repomd.xml' --include '*/repomd.xml.asc'
                   --include '*/nt6.db*' --include '*/nt6.files*')
-          indexes=(--include 'dists/*' --include '*/repodata/*')
+          indexes=(--include 'dists/*' --include '*/repodata/*' --include 'index.html' --include '*/index.html')
           s3 sync . "s3://$BUCKET" --size-only --cache-control 'public, max-age=31536000, immutable' \
             --exclude 'nt6.*' "${indexes[@]/--include/--exclude}" "${signed[@]/--include/--exclude}"
           s3 sync . "s3://$BUCKET" --cache-control 'no-cache' \

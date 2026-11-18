@@ -176,7 +176,10 @@ nav.links a:hover { color: var(--neon); opacity: 1; }
 .board .note { font-size: 14px; color: var(--fg-muted); }
 
 /* Nt Only modules */
-.mods { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+/* Five modules: three across the first row, two wider ones under them. */
+.mods { display: grid; grid-template-columns: repeat(6, 1fr); gap: 20px; }
+.mods > .mod { grid-column: span 2; }
+.mods > .mod:nth-child(n+4) { grid-column: span 3; }
 .mod { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 26px 24px; display: grid; gap: 12px; align-content: start; min-width: 0;
   transition: border-color .15s, transform .15s; text-decoration: none; color: inherit; }
 .mod:hover { border-color: var(--teal); transform: translateY(-2px); }
@@ -184,7 +187,11 @@ nav.links a:hover { color: var(--neon); opacity: 1; }
 .mod code { font-size: 13px; color: var(--link); }
 .mod p { color: var(--fg-muted); font-size: 15.5px; }
 .tag { justify-self: start; font: 600 11px/1 var(--font-display); letter-spacing: .12em; text-transform: uppercase; padding: 5px 8px; border-radius: 4px; background: var(--bg-alt); color: var(--fg-muted); border: 1px solid var(--line); }
-@media (max-width: 1000px) { .mods { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 1000px) {
+  .mods { grid-template-columns: repeat(2, 1fr); }
+  .mods > .mod, .mods > .mod:nth-child(n+4) { grid-column: auto; }
+  .mods > .mod:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
 @media (max-width: 560px) { .mods { grid-template-columns: 1fr; } }
 
 /* Graphics band */
@@ -366,7 +373,7 @@ target_link_libraries(app PRIVATE Nt::Core Nt::Network)</pre>
       <div class="reason">
         <svg class="ico" viewBox="0 0 44 44" aria-hidden="true"><path d="M8 30c6-14 22-14 28 0" fill="none" stroke="#13977F" stroke-width="2.5"/><circle cx="22" cy="30" r="4" fill="none" stroke="#13977F" stroke-width="2.5"/><path d="M22 8v6M10 14l4 4M34 14l-4 4" stroke="#13977F" stroke-width="2.5" stroke-linecap="round"/></svg>
         <h3>Modules Qt does not have</h3>
-        <p>Nt Gamepad, Nt FM synthesis, Nt glTF and Nt GPIO extend the Qt API with what devices, games and kiosks need, in the same style and under the same license.</p>
+        <p>Nt Gamepad, Nt FM synthesis, Nt glTF, Nt GPIO and Nt Barcode extend the Qt API with what devices, games and kiosks need, in the same style and under the same license.</p>
         <a href="#nt-only">See Nt Only &rarr;</a>
       </div>
       <div class="reason">
@@ -444,6 +451,12 @@ target_link_libraries(app PRIVATE Nt::Core Nt::Network)</pre>
         <code>Nt::Gpio</code>
         <p><code>QGpioLine</code> reads inputs with debounce and bias and drives outputs, on Linux 5.10 or later and on Zephyr.</p>
       </a>
+      <a class="mod" href="@DOCS@nt-barcode.html">
+        <span class="tag">Labels</span>
+        <h3>Nt Barcode</h3>
+        <code>Nt::Barcode</code>
+        <p><code>QBarcode</code> makes QR Code, Data Matrix, Aztec, Code 128, GS1-128, Code 39, ITF, EAN and UPC symbols as a <code>QImage</code>, SVG or <code>QPainter</code> drawing.</p>
+      </a>
     </div>
   </div>
 </section>
@@ -486,7 +499,7 @@ target_link_libraries(app PRIVATE Nt::Core Nt::Network)</pre>
       <span class="chip">Nt Svg Widgets</span><span class="chip">Nt Charts</span><span class="chip">Nt Qml</span><span class="chip">Nt Multimedia</span>
       <span class="chip">Nt Multimedia Widgets</span><span class="chip">Nt Sql</span><span class="chip">Nt Xml</span><span class="chip">Nt DBus</span>
       <span class="chip">Nt Serial Port</span><span class="chip">Nt WebSockets</span><span class="chip">Nt Http Server</span><span class="chip">Nt Wayland Compositor</span>
-      <span class="chip only">Nt Gamepad</span><span class="chip only">Nt FM</span><span class="chip only">Nt FM QML</span><span class="chip only">Nt glTF</span><span class="chip only">Nt GPIO</span>
+      <span class="chip only">Nt Gamepad</span><span class="chip only">Nt FM</span><span class="chip only">Nt FM QML</span><span class="chip only">Nt glTF</span><span class="chip only">Nt GPIO</span><span class="chip only">Nt Barcode</span>
     </div>
   </div>
 </section>
@@ -505,7 +518,9 @@ target_link_libraries(app PRIVATE Nt::Core Nt::Network)</pre>
     <div class="code">
       <div class="tabs" role="tablist" aria-label="Install method">
         <button role="tab" id="t-snap" aria-selected="true" aria-controls="p-snap">Snap</button>
-        <button role="tab" id="t-apt" aria-selected="false" aria-controls="p-apt" tabindex="-1">Ubuntu apt</button>
+        <button role="tab" id="t-apt" aria-selected="false" aria-controls="p-apt" tabindex="-1">Ubuntu</button>
+        <button role="tab" id="t-dnf" aria-selected="false" aria-controls="p-dnf" tabindex="-1">RHEL</button>
+        <button role="tab" id="t-pacman" aria-selected="false" aria-controls="p-pacman" tabindex="-1">Arch</button>
         <button role="tab" id="t-src" aria-selected="false" aria-controls="p-src" tabindex="-1">Source</button>
         <button role="tab" id="t-zephyr" aria-selected="false" aria-controls="p-zephyr" tabindex="-1">Zephyr</button>
       </div>
@@ -519,11 +534,38 @@ cmake -S . -B build \
         <p class="panel-note">Includes ntmoc, ntrcc, ndoc, the headers, static libraries and CMake package. <a href="https://snapcraft.io/open-nt6">snapcraft.io/open-nt6</a></p>
       </div>
       <div role="tabpanel" id="p-apt" aria-labelledby="t-apt" hidden>
-<pre><span class="c"># Ubuntu 22.04, 24.04 and 26.04</span>
-<span class="c"># add the signed repository (see the install guide), then:</span>
+<pre><span class="c"># Ubuntu 22.04, 24.04 and 26.04, amd64 and arm64</span>
+sudo curl -fsSLo /etc/apt/keyrings/nt6.gpg \
+  https://packages.open-nt.org/nt6.gpg
+echo "deb [signed-by=/etc/apt/keyrings/nt6.gpg] \
+https://packages.open-nt.org \
+$(. /etc/os-release &amp;&amp; echo $VERSION_CODENAME) main" \
+  | sudo tee /etc/apt/sources.list.d/nt6.list
 sudo apt update
 sudo apt install g++ cmake libnt6-dev nt6-tools</pre>
-        <p class="panel-note">Headers go to <code>/usr/include/nt6</code>, so Nt can sit next to Qt. <a href="@DOCS@install.html">Add the repository</a></p>
+        <p class="panel-note">Headers go to <code>/usr/include/nt6</code>, so Nt can sit next to Qt. <code>apt upgrade</code> picks up each release. <a href="https://packages.open-nt.org/">packages.open-nt.org</a></p>
+      </div>
+      <div role="tabpanel" id="p-dnf" aria-labelledby="t-dnf" hidden>
+<pre><span class="c"># RHEL, Rocky Linux and AlmaLinux 9 and 10</span>
+<span class="c"># x86_64 and aarch64</span>
+sudo curl -fsSLo /etc/yum.repos.d/nt6.repo \
+  https://packages.open-nt.org/nt6.repo
+sudo dnf install gcc-c++ cmake nt6-devel nt6-tools</pre>
+        <p class="panel-note">dnf asks once to import the signing key. The libraries go to <code>/usr/lib64</code>. <a href="https://packages.open-nt.org/">packages.open-nt.org</a></p>
+      </div>
+      <div role="tabpanel" id="p-pacman" aria-labelledby="t-pacman" hidden>
+<pre><span class="c"># Arch Linux, x86_64: trust the signing key</span>
+curl -fsSLo /tmp/nt6.asc https://packages.open-nt.org/nt6.asc
+sudo pacman-key --add /tmp/nt6.asc
+sudo pacman-key --lsign-key 6ED26D6AF235012B
+
+<span class="c"># add to /etc/pacman.conf</span>
+[nt6]
+SigLevel = Required
+Server = https://packages.open-nt.org/arch/$arch
+
+sudo pacman -Syu gcc cmake nt6</pre>
+        <p class="panel-note">Packages and the database are signed; pacman checks both. <a href="https://packages.open-nt.org/">packages.open-nt.org</a></p>
       </div>
       <div role="tabpanel" id="p-src" aria-labelledby="t-src" hidden>
 <pre>git clone https://github.com/open-nt/Nt6.git
@@ -592,7 +634,7 @@ target_link_libraries(app PRIVATE Nt::Core Nt::Network)</pre>
       <ul>
         <li><a href="https://snapcraft.io/open-nt6">Snap Store</a></li>
         <li><a href="https://github.com/open-nt/Nt6/releases">Releases</a></li>
-        <li><a href="@DOCS@install.html">apt repository</a></li>
+        <li><a href="https://packages.open-nt.org/">apt, dnf and pacman</a></li>
         <li><a href="https://github.com/open-nt/Nt6">Source code</a></li>
       </ul>
     </div>

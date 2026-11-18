@@ -1,1 +1,6 @@
 #include "qgpioline.h"
+#include "qpwmchannel.h"
+#include "qanaloginput.h"
+#include "qanalogoutput.h"
+#include "qi2cdevice.h"
+#include "qspidevice.h"

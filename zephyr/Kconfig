@@ -54,6 +54,10 @@ config NT_GPIO
 	  switch or an LED, from the event loop. Pins are named "<device>:<pin>", with the device
 	  name that device_get_binding() takes. Link the application with Nt::Gpio.
 
+	  QPwmChannel, QAnalogInput, QAnalogOutput, QI2cDevice and QSpiDevice work when CONFIG_PWM,
+	  CONFIG_ADC, CONFIG_DAC, CONFIG_I2C and CONFIG_SPI are set; without one, that class fails
+	  open() with UnsupportedOperationError.
+
 config NT_HTTPSERVER
 	bool "HTTP server and WebSockets"
 	depends on NT_NETWORK

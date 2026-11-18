@@ -146,6 +146,14 @@
     thread. \c CONFIG_ZVFS_OPEN_MAX bounds the open descriptors of the whole application, and
     \c CONFIG_NET_MAX_CONTEXTS and \c CONFIG_NET_MAX_CONN the sockets of the network stack.
 
+    \section1 GPIO and Peripherals
+
+    \c CONFIG_NT_GPIO builds Nt GPIO, linked as \c Nt::Gpio: QGpioLine, and QPwmChannel,
+    QAnalogInput, QAnalogOutput, QI2cDevice and QSpiDevice for each of \c CONFIG_PWM,
+    \c CONFIG_ADC, \c CONFIG_DAC, \c CONFIG_I2C and \c CONFIG_SPI that is set. Devices are named
+    by the name \c device_get_binding() takes and a pin, channel or chip select number, such as
+    \c i2c@40044000 or \c pwm@40018000:1; see \l{Using PWM, Analog I/O, I2C and SPI}.
+
     \section1 Host Tools
 
     \c ntmoc and \c ntrcc run on the build machine while the libraries are built. A cross build

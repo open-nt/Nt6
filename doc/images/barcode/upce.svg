@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="207" height="291" viewBox="0 0 69 97" shape-rendering="crispEdges">
+<rect width="69" height="97" fill="#ffffff"/>
+<path fill="#000000" d="M9 9h1v69h-1zM11 9h1v69h-1zM14 9h3v69h-3zM18 9h1v69h-1zM21 9h1v69h-1zM24 9h2v69h-2zM27 9h3v69h-3zM32 9h1v69h-1zM35 9h2v69h-2zM38 9h2v69h-2zM41 9h1v69h-1zM43 9h4v69h-4zM49 9h2v69h-2zM53 9h1v69h-1zM55 9h1v69h-1zM57 9h1v69h-1zM59 9h1v69h-1zM9 78h1v5h-1zM11 78h1v5h-1zM55 78h1v5h-1zM57 78h1v5h-1zM59 78h1v5h-1z"/>
+<text x="4" y="85.7" font-size="7" font-family="OCR-B, 'OCR B', monospace" text-anchor="middle" fill="#000000">0</text>
+<text x="15.5" y="85.7" font-size="9" font-family="OCR-B, 'OCR B', monospace" text-anchor="middle" fill="#000000">4</text>
+<text x="22.5" y="85.7" font-size="9" font-family="OCR-B, 'OCR B', monospace" text-anchor="middle" fill="#000000">2</text>
+<text x="29.5" y="85.7" font-size="9" font-family="OCR-B, 'OCR B', monospace" text-anchor="middle" fill="#000000">5</text>
+<text x="36.5" y="85.7" font-size="9" font-family="OCR-B, 'OCR B', monospace" text-anchor="middle" fill="#000000">2</text>
+<text x="43.5" y="85.7" font-size="9" font-family="OCR-B, 'OCR B', monospace" text-anchor="middle" fill="#000000">6</text>
+<text x="50.5" y="85.7" font-size="9" font-family="OCR-B, 'OCR B', monospace" text-anchor="middle" fill="#000000">1</text>
+<text x="65" y="85.7" font-size="7" font-family="OCR-B, 'OCR B', monospace" text-anchor="middle" fill="#000000">4</text>
+</svg>

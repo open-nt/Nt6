@@ -10,15 +10,16 @@
 /*!
     \module NtGpio
     \title Nt GPIO C++ Classes
-    \brief Classes for reading and driving general-purpose I/O lines.
+    \brief Classes for GPIO lines, PWM outputs, analog inputs and outputs, and I2C and SPI devices.
     \cmaketarget Nt::Gpio
 
     Nt GPIO reads switches and drives LEDs, enables and resets through the GPIO lines of the
-    board, on Linux and on Zephyr. Qt has no such module; the class follows the conventions of
-    the other Nt classes so that it fits into an Nt or Qt program.
+    board, drives PWM outputs, reads and sets voltages through ADCs and DACs, and talks to
+    devices on I2C and SPI buses, on Linux and on Zephyr. Qt has no such module; the classes
+    follow the conventions of the other Nt classes so that they fit into an Nt or Qt program.
 
-    See \l{Using Nt GPIO} for a walk through, and \c{gpio/ptt.cpp} in the \l{Nt Examples}{examples repository} for a complete
-    program.
+    See \l{Using Nt GPIO} and \l{Using PWM, Analog I/O, I2C and SPI} for a walk through, and
+    \c{gpio/ptt.cpp} in the \l{Nt Examples}{examples repository} for a complete program.
 */
 
 /*!

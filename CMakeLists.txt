@@ -329,9 +329,17 @@ else()
 endif()
 nt_set_compile_options(NtNetwork)
 
-# Nt GPIO: on Linux through the GPIO character device, and on Zephyr when CONFIG_NT_GPIO is set.
+# Nt GPIO: GPIO lines, PWM, ADC, DAC, I2C and SPI. On Linux through the GPIO character device, sysfs
+# and /dev/i2c-N and /dev/spidevB.C; on Zephyr, when CONFIG_NT_GPIO is set, through its drivers.
 if(NOT NT_ZEPHYR OR CONFIG_NT_GPIO)
-add_library(NtGpio src/gpio/qgpioline.cpp)
+add_library(NtGpio
+    src/gpio/qgpioline.cpp
+    src/gpio/qperipheral.cpp
+    src/gpio/qpwmchannel.cpp
+    src/gpio/qanaloginput.cpp
+    src/gpio/qanalogoutput.cpp
+    src/gpio/qi2cdevice.cpp
+    src/gpio/qspidevice.cpp)
 add_library(Nt::Gpio ALIAS NtGpio)
 target_include_directories(NtGpio
     PUBLIC
@@ -344,9 +352,22 @@ target_include_directories(NtGpio
 target_link_libraries(NtGpio PUBLIC NtCore)
 if(NT_ZEPHYR)
     target_compile_options(NtGpio PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
-    target_sources(NtGpio PRIVATE src/zephyr/qgpiobackend_zephyr.cpp)
+    target_sources(NtGpio PRIVATE
+        src/zephyr/qgpiobackend_zephyr.cpp
+        src/zephyr/qperipheralbackend_zephyr.cpp)
+    # Each peripheral class works when its Zephyr driver class is configured, and fails open()
+    # with UnsupportedOperationError when it is not.
+    foreach(peripheral PWM ADC DAC I2C SPI ADC_CONFIGURABLE_INPUTS)
+        if(CONFIG_${peripheral})
+            target_compile_definitions(NtGpio PRIVATE NT_HAVE_${peripheral}=1)
+        else()
+            target_compile_definitions(NtGpio PRIVATE NT_HAVE_${peripheral}=0)
+        endif()
+    endforeach()
 else()
-    target_sources(NtGpio PRIVATE src/gpio/qgpiobackend_linux.cpp)
+    target_sources(NtGpio PRIVATE
+        src/gpio/qgpiobackend_linux.cpp
+        src/gpio/qperipheralbackend_linux.cpp)
 endif()
 nt_set_compile_options(NtGpio)
 endif() # NOT NT_ZEPHYR OR CONFIG_NT_GPIO
@@ -1072,6 +1093,25 @@ target_include_directories(NtGltf
 target_link_libraries(NtGltf PUBLIC NtCore NtGui)
 nt_set_compile_options(NtGltf)
 
+# Nt Barcode: encodes QR Code, Data Matrix, Aztec and linear barcodes as images, SVG or painter output.
+add_library(NtBarcode
+    src/barcode/qbarcode.cpp
+    src/barcode/qbarcode_aztec.cpp
+    src/barcode/qbarcode_datamatrix.cpp
+    src/barcode/qbarcode_linear.cpp
+    src/barcode/qbarcode_qr.cpp
+)
+add_library(Nt::Barcode ALIAS NtBarcode)
+target_include_directories(NtBarcode
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtBarcode>
+        $<INSTALL_INTERFACE:include/nt6/QtBarcode>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/barcode
+)
+target_link_libraries(NtBarcode PUBLIC NtCore NtGui)
+nt_set_compile_options(NtBarcode)
+
 # Nt Multimedia: the audio and camera parts of Qt Multimedia. Linux uses ALSA, loaded at run time, so the
 # library builds without its headers, and Video4Linux2 for cameras; other platforms have no devices yet.
 add_library(NtMultimedia
@@ -1370,6 +1410,12 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_gpio_tests PRIVATE Nt::Gpio)
     add_test(NAME nt_gpio_tests COMMAND nt_gpio_tests)
     nt_set_compile_options(nt_gpio_tests)
+    # The PWM, ADC, DAC, I2C and SPI tests replace their backends too, and point sysfs at a tree of their own.
+    add_executable(nt_peripheral_tests tests/test_peripherals.cpp)
+    target_include_directories(nt_peripheral_tests PRIVATE src/gpio)
+    target_link_libraries(nt_peripheral_tests PRIVATE Nt::Gpio)
+    add_test(NAME nt_peripheral_tests COMMAND nt_peripheral_tests)
+    nt_set_compile_options(nt_peripheral_tests)
 
     # The QProcess tests start a helper program built next to them.
     add_executable(nt_process_helper tests/process_helper.cpp)
@@ -1897,6 +1943,14 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_gltf_tests COMMAND nt_gltf_tests)
     set_tests_properties(nt_gltf_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gltf_tests)
+
+    # Nt Barcode: QR Codes read back by a small decoder in the test, linear symbols checked bar by bar.
+    add_executable(nt_barcode_tests tests/test_barcode.cpp)
+    target_link_libraries(nt_barcode_tests PRIVATE Nt::Barcode)
+    target_compile_definitions(nt_barcode_tests PRIVATE NT_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+    add_test(NAME nt_barcode_tests COMMAND nt_barcode_tests)
+    set_tests_properties(nt_barcode_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_barcode_tests)
     nt_set_compile_options(nt_fm_tests)
 
     # The xcb tests need an X server (or XWayland); they report a skip without one.

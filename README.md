@@ -349,6 +349,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 | Module | CMake target | What it does |
 |---|---|---|
+| Nt Barcode | `Nt::Barcode` | `QBarcode`: encodes QR Code (versions 1–40, levels L/M/Q/H), Data Matrix ECC 200 (square and rectangular, ASCII/C40/Text/X12/Base 256 mixed for the smallest symbol) and GS1 DataMatrix, Aztec Code (compact and full-range), Code 128, GS1-128, Code 39, Interleaved 2 of 5, ITF-14, EAN-13/EAN-8 and UPC-A/UPC-E with check digits, and draws them as a `QImage`, SVG or with a `QPainter`, with optional human-readable text. Guide: [Using Nt Barcode](https://open-nt.github.io/Nt6/nt-barcode.html) |
 | Nt FM | `Nt::FM` | FM synthesis of game sound effects from small JSON patches; see [Nt FM](#nt-fm-fm-synthesis-for-game-audio) and the [`fmplay`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmplay.cpp) example |
 | Nt FM QML | `Nt::FMQml` | the QML types of Nt FM (`import QtFM`); see the [`fmqml`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmqml.cpp) example |
 | Nt Gamepad | `Nt::Gamepad` | Qt Gamepad from Qt 5, brought back: `QGamepad`, `QGamepadManager` and `QGamepadKeyNavigation`, plus SDL GameControllerDB mappings, stable ids across replugging, generic button and axis signals, dead zones and rumble. Reads evdev on Linux, event-driven, with hot plugging. Guide: [Using Nt Gamepad](https://open-nt.github.io/Nt6/nt-gamepad.html); example: [`gamepadinfo`](https://github.com/open-nt/nt6-examples/blob/main/gamepad/gamepadinfo.cpp) |
@@ -575,6 +576,7 @@ Not yet: video playback and recording (no video codecs), compressed audio (MP3, 
 | Qt module | Nt library | Done |
 |---|---|---|
 | Qt Active Qt | Nt Active Qt |  |
+| (none, [Nt Only](#nt-only)) | Nt Barcode | ✔ |
 | Qt Bluetooth | Nt Bluetooth |  |
 | Qt Canvas Painter | Nt Canvas Painter |  |
 | Qt CoAP | Nt CoAP |  |

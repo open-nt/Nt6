@@ -527,8 +527,9 @@ void QGridLayout::setGeometry(const QRect &rect) {
     for (const Entry &e : m_items) {
         const int right = e.column + e.columnSpan - 1, bottom = e.row + e.rowSpan - 1;
         const int x0 = std::min(x[static_cast<std::size_t>(e.column)], x[static_cast<std::size_t>(right)]);
-        const int x1 = std::max(x[static_cast<std::size_t>(e.column)] + columns[static_cast<std::size_t>(e.column)].size,
-                                x[static_cast<std::size_t>(right)] + columns[static_cast<std::size_t>(right)].size);
+        const int x1 =
+            std::max(x[static_cast<std::size_t>(e.column)] + columns[static_cast<std::size_t>(e.column)].size,
+                     x[static_cast<std::size_t>(right)] + columns[static_cast<std::size_t>(right)].size);
         const int y0 = std::min(y[static_cast<std::size_t>(e.row)], y[static_cast<std::size_t>(bottom)]);
         const int y1 = std::max(y[static_cast<std::size_t>(e.row)] + rows[static_cast<std::size_t>(e.row)].size,
                                 y[static_cast<std::size_t>(bottom)] + rows[static_cast<std::size_t>(bottom)].size);

@@ -349,8 +349,8 @@ void QProgressDialog::setCancelButton(QPushButton *cancelButton) {
     QBoxLayout *row = nullptr;
     int at = -1;
     for (int i = 0; i < layout()->count(); ++i) {
-        if (auto *inner = qobject_cast<QBoxLayout *>(layout()->itemAt(i)->layout()); inner && m_cancel &&
-                                                                                    inner->indexOf(m_cancel) >= 0) {
+        if (auto *inner = qobject_cast<QBoxLayout *>(layout()->itemAt(i)->layout());
+            inner && m_cancel && inner->indexOf(m_cancel) >= 0) {
             row = inner;
             at = inner->indexOf(m_cancel);
         }

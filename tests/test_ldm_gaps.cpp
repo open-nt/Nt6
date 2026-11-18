@@ -1580,12 +1580,16 @@ static void testTextAndCoreTail() {
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     CHECK(QGuiApplication::highDpiScaleFactorRoundingPolicy() == Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
     CHECK(qEnvironmentVariable(QByteArray("NT_LDM_TAIL")) == "1");
+#ifndef QT_NO_SSL
     const QList<QSslCertificate> system = QSslConfiguration::systemCaCertificates();
     CHECK(system.isEmpty() || !system.first().isNull());
+#endif
 
     // Network.
+#ifndef QT_NO_SSL
     CHECK(QSslSocket::availableBackends().contains(QSslSocket::activeBackend()));
     CHECK(QSslSocket::setActiveBackend(QSslSocket::activeBackend()) && !QSslSocket::setActiveBackend("schannel"));
+#endif
     QUdpSocket udp;
     CHECK(udp.bind(QHostAddress::AnyIPv4, 0));
     const QNetworkInterface loopback = QNetworkInterface::interfaceFromName("lo");

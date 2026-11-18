@@ -349,12 +349,15 @@ void QToolButton::showMenu() {
     m_popupTimer.stop();
     setDown(true);
     QPointer<QToolButton> guard(this);
-    QObject::connect(m, &QMenu::aboutToHide, this, [guard] {
-        if (guard)
-            guard->setDown(false);
-    }, Qt::SingleShotConnection);
-    QObject::connect(m, &QMenu::triggered, this, [this](QAction *action) { emit triggered(action); },
-                     Qt::SingleShotConnection);
+    QObject::connect(
+        m, &QMenu::aboutToHide, this,
+        [guard] {
+            if (guard)
+                guard->setDown(false);
+        },
+        Qt::SingleShotConnection);
+    QObject::connect(
+        m, &QMenu::triggered, this, [this](QAction *action) { emit triggered(action); }, Qt::SingleShotConnection);
     m->popup(mapToGlobal(QPoint(0, height())));
 }
 
@@ -366,8 +369,7 @@ void QToolButton::showMenu() {
 */
 void QToolButton::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton && activeMenu()) {
-        if (m_popupMode == InstantPopup ||
-            (m_popupMode == MenuButtonPopup && menuArrowRect().contains(event->pos()))) {
+        if (m_popupMode == InstantPopup || (m_popupMode == MenuButtonPopup && menuArrowRect().contains(event->pos()))) {
             showMenu();
             event->accept();
             return;

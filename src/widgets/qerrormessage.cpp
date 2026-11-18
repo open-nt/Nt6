@@ -122,7 +122,7 @@ void showQtMessage(QtMsgType type, const QMessageLogContext &context, const QStr
         g_previousHandler(type, context, message);
     if (!g_qtHandler || type == QtDebugMsg || type == QtInfoMsg)
         return;
-    const QString kind = type == QtWarningMsg ? QErrorMessage::tr("Warning:")
+    const QString kind = type == QtWarningMsg    ? QErrorMessage::tr("Warning:")
                          : type == QtCriticalMsg ? QErrorMessage::tr("Critical Error:")
                                                  : QErrorMessage::tr("Fatal Error:");
     g_qtHandler->showMessage(kind + QLatin1Char(' ') + message);

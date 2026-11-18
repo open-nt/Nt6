@@ -1548,8 +1548,8 @@ QIcon QStyle::standardIcon(StandardPixmap standardIcon, const QStyleOption *opti
 /*!
     Returns the standard pixmap \a standardPixmap of the style, in the size that suits it; \a option and \a widget
     may be \c nullptr. The default draws the message box icons, the arrows, the close, minimize and maximize
-    buttons and the media symbols in the colors of the palette of \a option, and returns a null pixmap for the
-    others.
+    buttons, the media symbols and plain folder, file and drive icons in the colors of the palette of \a option,
+    and returns a null pixmap for the others.
 */
 QPixmap QStyle::standardPixmap(StandardPixmap standardPixmap, const QStyleOption *option, const QWidget *widget) const {
     const QPalette palette = option ? option->palette : QPalette();
@@ -1610,6 +1610,65 @@ QPixmap QStyle::standardPixmap(StandardPixmap standardPixmap, const QStyleOption
         return drawnPixmap(small, [&](QPainter &p, const QRectF &r) {
             p.fillRect(QRectF(r.width() * 0.28, r.height() * 0.25, r.width() * 0.14, r.height() * 0.5), ink);
             p.fillRect(QRectF(r.width() * 0.58, r.height() * 0.25, r.width() * 0.14, r.height() * 0.5), ink);
+        });
+    case SP_DirIcon:
+    case SP_DirOpenIcon:
+    case SP_DirClosedIcon:
+    case SP_DirLinkIcon:
+    case SP_DirLinkOpenIcon:
+    case SP_DirHomeIcon:
+    case SP_DesktopIcon:
+    case SP_FileDialogNewFolder:
+        return drawnPixmap(small, [&](QPainter &p, const QRectF &r) {
+            // A folder: a tab on the back edge and a body in front.
+            const qreal w = r.width();
+            const qreal h = r.height();
+            p.setPen(QPen(ink, 1.0));
+            p.setBrush(QColor(230, 185, 80));
+            QPainterPath folder;
+            folder.moveTo(w * 0.1, h * 0.25);
+            folder.lineTo(w * 0.4, h * 0.25);
+            folder.lineTo(w * 0.5, h * 0.35);
+            folder.lineTo(w * 0.9, h * 0.35);
+            folder.lineTo(w * 0.9, h * 0.8);
+            folder.lineTo(w * 0.1, h * 0.8);
+            folder.closeSubpath();
+            p.drawPath(folder);
+        });
+    case SP_FileIcon:
+    case SP_FileLinkIcon:
+    case SP_TrashIcon:
+        return drawnPixmap(small, [&](QPainter &p, const QRectF &r) {
+            // A sheet of paper with a folded corner.
+            const qreal w = r.width();
+            const qreal h = r.height();
+            p.setPen(QPen(ink, 1.0));
+            p.setBrush(Qt::white);
+            QPainterPath sheet;
+            sheet.moveTo(w * 0.22, h * 0.1);
+            sheet.lineTo(w * 0.6, h * 0.1);
+            sheet.lineTo(w * 0.8, h * 0.3);
+            sheet.lineTo(w * 0.8, h * 0.9);
+            sheet.lineTo(w * 0.22, h * 0.9);
+            sheet.closeSubpath();
+            p.drawPath(sheet);
+            p.drawLine(QPointF(w * 0.6, h * 0.1), QPointF(w * 0.6, h * 0.3));
+            p.drawLine(QPointF(w * 0.6, h * 0.3), QPointF(w * 0.8, h * 0.3));
+        });
+    case SP_ComputerIcon:
+    case SP_DriveHDIcon:
+    case SP_DriveNetIcon:
+    case SP_DriveCDIcon:
+    case SP_DriveDVDIcon:
+    case SP_DriveFDIcon:
+        return drawnPixmap(small, [&](QPainter &p, const QRectF &r) {
+            // A drive: a flat box with a light.
+            p.setPen(QPen(ink, 1.0));
+            p.setBrush(QColor(190, 190, 195));
+            p.drawRect(QRectF(r.width() * 0.1, r.height() * 0.35, r.width() * 0.8, r.height() * 0.35));
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(60, 170, 80));
+            p.drawEllipse(QRectF(r.width() * 0.7, r.height() * 0.48, r.width() * 0.1, r.height() * 0.1));
         });
     default:
         return QPixmap();

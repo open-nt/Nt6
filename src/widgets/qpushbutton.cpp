@@ -268,10 +268,13 @@ void QPushButton::showMenu() {
         return;
     setDown(true);
     QPointer<QPushButton> guard(this);
-    QObject::connect(m, &QMenu::aboutToHide, this, [guard] {
-        if (guard)
-            guard->setDown(false);
-    }, Qt::SingleShotConnection);
+    QObject::connect(
+        m, &QMenu::aboutToHide, this,
+        [guard] {
+            if (guard)
+                guard->setDown(false);
+        },
+        Qt::SingleShotConnection);
     m->popup(mapToGlobal(QPoint(0, height())));
 }
 

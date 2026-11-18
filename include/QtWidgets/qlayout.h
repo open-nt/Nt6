@@ -40,8 +40,7 @@ public:
     void setEnabled(bool enable);
     void getContentsMargins(int *left, int *top, int *right, int *bottom) const;
     void unsetContentsMargins();
-    QLayoutItem *replaceWidget(QWidget *from, QWidget *to,
-                               Qt::FindChildOptions options = Qt::FindChildrenRecursively);
+    QLayoutItem *replaceWidget(QWidget *from, QWidget *to, Qt::FindChildOptions options = Qt::FindChildrenRecursively);
     QSize totalSizeHint() const;
     QSize totalMinimumSize() const;
     QSize totalMaximumSize() const;

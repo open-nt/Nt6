@@ -893,8 +893,8 @@ void QHeaderView::initStyleOptionForIndex(QStyleOptionHeader *option, int logica
     option->textAlignment = m_alignment;
     option->lastSection = false;
     const int v = visualIndex(logicalIndex);
-    option->position = count() == 1 ? QStyleOptionHeader::OnlyOneSection
-                       : v == 0     ? QStyleOptionHeader::Beginning
+    option->position = count() == 1       ? QStyleOptionHeader::OnlyOneSection
+                       : v == 0           ? QStyleOptionHeader::Beginning
                        : v == count() - 1 ? QStyleOptionHeader::End
                                           : QStyleOptionHeader::Middle;
     option->sortIndicator = !m_sortShown || logicalIndex != m_sortSection ? QStyleOptionHeader::None

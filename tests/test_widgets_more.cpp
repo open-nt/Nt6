@@ -1553,9 +1553,9 @@ static void testButtonExtras() {
 // Reaches the protected parts of QAbstractSlider.
 class RepeatSlider : public QSlider {
 public:
-    using QSlider::QSlider;
     using QAbstractSlider::repeatAction;
     using QAbstractSlider::setRepeatAction;
+    using QSlider::QSlider;
 };
 
 static void testSmallWidgetExtras() {
@@ -2231,7 +2231,8 @@ public:
 
 static void testHeaderViewExtras() {
     QStandardItemModel model(2, 3);
-    model.setHorizontalHeaderLabels({QStringLiteral("Name"), QStringLiteral("A much longer label"), QStringLiteral("C")});
+    model.setHorizontalHeaderLabels(
+        {QStringLiteral("Name"), QStringLiteral("A much longer label"), QStringLiteral("C")});
     OpenHeader header(Qt::Horizontal);
     QSignalSpy counts(&header, &QHeaderView::sectionCountChanged);
     header.setModel(&model);

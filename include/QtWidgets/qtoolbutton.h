@@ -66,7 +66,7 @@ private:
     QMetaObject::Connection m_triggered;
     QPointer<QWidget> m_menu; // a QMenu
     ToolButtonPopupMode m_popupMode = DelayedPopup;
-    QTimer m_popupTimer; // DelayedPopup: the menu opens when the button is held
+    QTimer m_popupTimer;       // DelayedPopup: the menu opens when the button is held
     QMenu *activeMenu() const; // menu(), or the menu of the default action
     QRect menuArrowRect() const;
 };

@@ -614,8 +614,10 @@ QWidgetList QAbstractScrollArea::scrollBarWidgets(Qt::Alignment alignment) {
 QSize QAbstractScrollArea::maximumViewportSize() const {
     const int extent = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this);
     const QRect inner = contentsRect();
-    const int w = inner.width() - m_margins.left() - m_margins.right() - (m_vPolicy == Qt::ScrollBarAlwaysOn ? extent : 0);
-    const int h = inner.height() - m_margins.top() - m_margins.bottom() - (m_hPolicy == Qt::ScrollBarAlwaysOn ? extent : 0);
+    const int w =
+        inner.width() - m_margins.left() - m_margins.right() - (m_vPolicy == Qt::ScrollBarAlwaysOn ? extent : 0);
+    const int h =
+        inner.height() - m_margins.top() - m_margins.bottom() - (m_hPolicy == Qt::ScrollBarAlwaysOn ? extent : 0);
     return QSize(std::max(0, w), std::max(0, h));
 }
 

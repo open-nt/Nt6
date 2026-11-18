@@ -98,8 +98,8 @@ void drawArrow(QPainter *p, const QPoint &center, bool down, const QColor &color
 // The rectangle of the title of a group box in `r`, the check box included.
 QRect groupTitleRect(const QStyleOptionGroupBox *box) {
     const int indicator = box->checkable ? 14 + 4 : 0;
-    const int width = std::min(indicator + box->fontMetrics.horizontalAdvance(box->text) + 6,
-                               std::max(0, box->rect.width()));
+    const int width =
+        std::min(indicator + box->fontMetrics.horizontalAdvance(box->text) + 6, std::max(0, box->rect.width()));
     int left = box->rect.left();
     if (box->textAlignment & Qt::AlignRight)
         left = box->rect.right() + 1 - width;

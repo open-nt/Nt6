@@ -12,8 +12,8 @@ class QKeySequenceEdit : public QWidget {
     Q_PROPERTY(QKeySequence keySequence READ keySequence WRITE setKeySequence NOTIFY keySequenceChanged USER true)
     Q_PROPERTY(bool clearButtonEnabled READ isClearButtonEnabled WRITE setClearButtonEnabled)
     Q_PROPERTY(qsizetype maximumSequenceLength READ maximumSequenceLength WRITE setMaximumSequenceLength)
-    Q_PROPERTY(QList<QKeyCombination> finishingKeyCombinations READ finishingKeyCombinations WRITE
-                   setFinishingKeyCombinations)
+    Q_PROPERTY(
+        QList<QKeyCombination> finishingKeyCombinations READ finishingKeyCombinations WRITE setFinishingKeyCombinations)
 public:
     explicit QKeySequenceEdit(QWidget *parent = nullptr);
     explicit QKeySequenceEdit(const QKeySequence &keySequence, QWidget *parent = nullptr);

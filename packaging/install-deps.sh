@@ -19,7 +19,8 @@ case "$like" in
     dnf -y install cmake gcc-c++ fontconfig-devel freetype-devel libjpeg-turbo-devel libxcb-devel libzstd-devel make mesa-vulkan-drivers openssl-devel pkgconf-pkg-config rpm-build sqlite-devel tar vulkan-headers zlib-devel zstd findutils
     ;;
 *" arch "*)
-    pacman -Syu --noconfirm --needed cmake fontconfig freetype2 gcc libjpeg-turbo libxcb make openssl pkgconf sqlite tar vulkan-headers vulkan-swrast zlib zstd
+    # Arch's fontconfig, unlike Debian's and Fedora's, brings no font; the text tests need one.
+    pacman -Syu --noconfirm --needed cmake fontconfig freetype2 gcc libjpeg-turbo libxcb make openssl pkgconf sqlite tar ttf-dejavu vulkan-headers vulkan-swrast zlib zstd
     ;;
 *)
     echo "install-deps.sh: unsupported distribution: ${PRETTY_NAME:-$ID}" >&2

@@ -12,6 +12,9 @@
 
 class QAbstractItemDelegate;
 class QAbstractItemView;
+class QCompleter;
+class QStyleOptionComboBox;
+class QValidator;
 class QComboPopup;
 
 class QLineEdit;
@@ -25,7 +28,19 @@ class QComboBox : public QWidget {
     Q_PROPERTY(bool editable READ isEditable WRITE setEditable)
     Q_PROPERTY(InsertPolicy insertPolicy READ insertPolicy WRITE setInsertPolicy)
     Q_PROPERTY(int modelColumn READ modelColumn WRITE setModelColumn)
+    Q_PROPERTY(int maxCount READ maxCount WRITE setMaxCount)
+    Q_PROPERTY(bool duplicatesEnabled READ duplicatesEnabled WRITE setDuplicatesEnabled)
+    Q_PROPERTY(bool frame READ hasFrame WRITE setFrame)
+    Q_PROPERTY(int minimumContentsLength READ minimumContentsLength WRITE setMinimumContentsLength)
+    Q_PROPERTY(SizeAdjustPolicy sizeAdjustPolicy READ sizeAdjustPolicy WRITE setSizeAdjustPolicy)
+    Q_PROPERTY(LabelDrawingMode labelDrawingMode READ labelDrawingMode WRITE setLabelDrawingMode)
+    Q_PROPERTY(QString placeholderText READ placeholderText WRITE setPlaceholderText)
+    Q_PROPERTY(QSize iconSize READ iconSize WRITE setIconSize)
 public:
+    enum SizeAdjustPolicy { AdjustToContents, AdjustToContentsOnFirstShow, AdjustToMinimumContentsLengthWithIcon };
+    Q_ENUM(SizeAdjustPolicy)
+    enum LabelDrawingMode { UseStyle, UseDelegate };
+    Q_ENUM(LabelDrawingMode)
     enum InsertPolicy {
         NoInsert,
         InsertAtTop,
@@ -82,6 +97,28 @@ public:
     int modelColumn() const { return m_modelColumn; }
     void setModelColumn(int visibleColumn);
 
+    void insertItems(int index, const QStringList &list);
+    void insertSeparator(int index);
+    int maxCount() const { return m_maxCount; }
+    void setMaxCount(int max);
+    bool duplicatesEnabled() const { return m_duplicates; }
+    void setDuplicatesEnabled(bool enable) { m_duplicates = enable; }
+    bool hasFrame() const { return m_frame; }
+    void setFrame(bool frame);
+    int minimumContentsLength() const { return m_minimumContents; }
+    void setMinimumContentsLength(int characters);
+    SizeAdjustPolicy sizeAdjustPolicy() const { return m_sizePolicy; }
+    void setSizeAdjustPolicy(SizeAdjustPolicy policy);
+    LabelDrawingMode labelDrawingMode() const { return m_labelMode; }
+    void setLabelDrawingMode(LabelDrawingMode labelDrawing);
+    QModelIndex rootModelIndex() const { return m_root; }
+    void setRootModelIndex(const QModelIndex &index);
+    void setView(QAbstractItemView *itemView);
+    void setLineEdit(QLineEdit *edit);
+    QCompleter *completer() const;
+    void setCompleter(QCompleter *c);
+    const QValidator *validator() const;
+    void setValidator(const QValidator *validator);
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
@@ -117,8 +154,19 @@ signals:
         This signal is emitted when the text in the line edit of an editable combo box changes, to \a text.
     */
     void editTextChanged(const QString &text) { emitSignal(&QComboBox::editTextChanged, text); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user chooses an item, with its \a text.
+    */
+    void textActivated(const QString &text) { emitSignal(&QComboBox::textActivated, text); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user moves over an item in the popup, with its \a text.
+    */
+    void textHighlighted(const QString &text) { emitSignal(&QComboBox::textHighlighted, text); }
 
 protected:
+    void initStyleOption(QStyleOptionComboBox *option) const;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -141,6 +189,8 @@ private:
     void rowsRemoved(const QModelIndex &parent, int first, int last);
     void itemsChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight);
     void modelWasReset();
+    bool isSeparator(int row) const;
+    void adoptLineEdit(QLineEdit *edit);
 
     QAbstractItemModel *m_model = nullptr; // a QStandardItemModel of the combo box, or the one setModel() set
     QList<QMetaObject::Connection> m_modelConnections;
@@ -156,4 +206,11 @@ private:
     QString m_placeholder;
     QPointer<QAbstractItemDelegate> m_delegate;
     mutable QAbstractItemView *m_view = nullptr; // made by view(): a hidden list view that holds settings
+    QPersistentModelIndex m_root;
+    int m_maxCount = 2147483647;
+    bool m_duplicates = false;
+    bool m_frame = true;
+    int m_minimumContents = 0;
+    SizeAdjustPolicy m_sizePolicy = AdjustToContentsOnFirstShow;
+    LabelDrawingMode m_labelMode = UseStyle;
 };

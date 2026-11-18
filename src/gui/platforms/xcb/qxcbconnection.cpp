@@ -12,6 +12,8 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qlibrary.h>
+#include <QtGui/qguiapplication.h>
+#include <QtGui/qstylehints.h>
 #include <QtCore/qsocketnotifier.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qwindow.h>
@@ -26,7 +28,6 @@
 
 namespace {
 
-constexpr int kDoubleClickMs = 400;
 constexpr int kDoubleClickDistance = 5;
 
 QEvent::Type processEventType() {
@@ -818,7 +819,9 @@ void QXcbConnection::handleButton(xcb_generic_event_t *event) {
         m_buttons |= button;
         type = QEvent::MouseButtonPress;
         const QPoint pos(e->root_x, e->root_y);
-        if (e->detail == m_lastPressButton && e->time - m_lastPressTime < kDoubleClickMs &&
+        const auto doubleClickMs =
+            static_cast<uint32_t>(std::max(0, QGuiApplication::styleHints()->mouseDoubleClickInterval()));
+        if (e->detail == m_lastPressButton && e->time - m_lastPressTime < doubleClickMs &&
             (pos - m_lastPressPos).manhattanLength() < kDoubleClickDistance) {
             type = QEvent::MouseButtonDblClick;
             m_lastPressTime = 0;

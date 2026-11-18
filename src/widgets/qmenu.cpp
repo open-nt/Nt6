@@ -11,6 +11,7 @@
 #include <QtWidgets/qmenubar.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
+#include <QtWidgets/qtooltip.h>
 
 #include <algorithm>
 #include <climits>
@@ -79,9 +80,9 @@ QString plainLabel(const QString &text) {
     \image widgets/qmenu.png QMenu in the light color scheme
 
     \differences
-    There are no icons, tear-off menus, sections (\c addSection()), scrolling of a menu that is taller than the window,
-    \c setDefaultAction(), \c setSeparatorsCollapsible(), \c setToolTipsVisible() or \c QMenu::exec() with a list of
-    actions, and \c QWidgetAction is not there. The menu is a child of a window, not a window that can reach beyond it:
+    There are no tear-off menus (isTearOffEnabled() is only kept), no scrolling of a menu that is taller than the
+    window, no \c QMenu::exec() with a list of actions, and no platform menu. Sections are drawn as a label in
+    bold, which Qt's Fusion style does not show. The menu is a child of a window, not a window that can reach beyond it:
     popup() reparents the menu to the window of its parent, or to the active window if it has no parent. Shortcuts of the
     actions are shown but are triggered by the window, not by the menu. The menu is not a style-sheet or a platform menu.
     \enddifferences
@@ -303,16 +304,19 @@ void QMenu::layoutItems() const {
     for (QAction *action : actions()) {
         if (!action->isVisible())
             continue;
-        if (action->isSeparator()) {
-            if (afterSeparator)
+        const bool section = action->isSeparator() && !action->text().isEmpty();
+        if (action->isSeparator() && !section) {
+            if (afterSeparator && m_collapsible)
                 continue;
+            afterSeparator = true;
+        } else if (section) {
             afterSeparator = true;
         } else {
             afterSeparator = false;
         }
         visible.push_back(action);
     }
-    while (!visible.empty() && visible.back()->isSeparator())
+    while (m_collapsible && !visible.empty() && visible.back()->isSeparator() && visible.back()->text().isEmpty())
         visible.pop_back();
 
     const QFontMetrics menuMetrics(font());
@@ -325,7 +329,13 @@ void QMenu::layoutItems() const {
         option.font = action->font() == QFont() ? font() : action->font();
         option.reservedShortcutWidth = tab;
         QSize size;
-        if (action->isSeparator()) {
+        if (action->isSeparator() && !action->text().isEmpty()) {
+            QFont bold = option.font;
+            bold.setBold(true);
+            const QFontMetrics metrics(bold);
+            size = style()->sizeFromContents(QStyle::CT_MenuItem, &option,
+                                             QSize(metrics.horizontalAdvance(action->text()), metrics.height()), this);
+        } else if (action->isSeparator()) {
             option.menuItemType = QStyleOptionMenuItem::Separator;
             size = style()->sizeFromContents(QStyle::CT_MenuItem, &option, QSize(0, 2), this);
         } else {
@@ -648,28 +658,9 @@ void QMenu::paintEvent(QPaintEvent *event) {
     style()->drawPrimitive(QStyle::PE_PanelMenu, &panel, &painter, this);
     layoutItems();
     for (const Item &item : m_items) {
-        QAction *action = item.action;
         QStyleOptionMenuItem option;
-        option.initFrom(this);
+        initStyleOption(&option, item.action);
         option.rect = item.rect;
-        option.text = textWithShortcut(action);
-        option.icon = action->isIconVisibleInMenu() ? action->icon() : QIcon();
-        option.font = action->font() == QFont() ? font() : action->font();
-        option.state = QStyle::State();
-        if (action->isEnabled() && isEnabled())
-            option.state |= QStyle::State_Enabled;
-        if (action == m_active.data())
-            option.state |= QStyle::State_Selected;
-        if (action->isSeparator())
-            option.menuItemType = QStyleOptionMenuItem::Separator;
-        else if (isSubMenuAction(action))
-            option.menuItemType = QStyleOptionMenuItem::SubMenu;
-        if (action->isCheckable()) {
-            option.checkType = action->actionGroup() && action->actionGroup()->isExclusive()
-                                   ? QStyleOptionMenuItem::Exclusive
-                                   : QStyleOptionMenuItem::NonExclusive;
-            option.checked = action->isChecked();
-        }
         style()->drawControl(QStyle::CE_MenuItem, &option, &painter, this);
     }
 }
@@ -909,6 +900,229 @@ QAction *QMenu::addAction(const QString &text, const QKeySequence &shortcut, con
     QAction *action = addAction(text, shortcut);
     QObject::connect(action, SIGNAL(triggered(bool)), receiver, member, type);
     return action;
+}
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the entry of \a action, for the style to draw it.
+*/
+void QMenu::initStyleOption(QStyleOptionMenuItem *option, const QAction *action) const {
+    if (!option || !action)
+        return;
+    option->initFrom(this);
+    option->rect = actionGeometry(const_cast<QAction *>(action)); // NOLINT(cppcoreguidelines-pro-type-const-cast)
+    option->text = textWithShortcut(action);
+    option->icon = action->isIconVisibleInMenu() ? action->icon() : QIcon();
+    option->font = action->font() == QFont() ? font() : action->font();
+    option->state = QStyle::State();
+    const bool section = action->isSeparator() && !action->text().isEmpty();
+    if (action->isEnabled() && isEnabled() && !section)
+        option->state |= QStyle::State_Enabled;
+    if (action == m_active.data())
+        option->state |= QStyle::State_Selected;
+    if (section || action == m_default.data())
+        option->font.setBold(true);
+    if (action->isSeparator() && !section)
+        option->menuItemType = QStyleOptionMenuItem::Separator;
+    else if (isSubMenuAction(action))
+        option->menuItemType = QStyleOptionMenuItem::SubMenu;
+    if (action->isCheckable()) {
+        option->checkType = action->actionGroup() && action->actionGroup()->isExclusive()
+                                ? QStyleOptionMenuItem::Exclusive
+                                : QStyleOptionMenuItem::NonExclusive;
+        option->checked = action->isChecked();
+    }
+}
+
+/*!
+    \since 6.0
+
+    Adds a section with the title \a text to the end of the menu and returns its action: a separator that shows
+    the title, to head the entries after it.
+
+    \code
+    menu->addSection(tr("Recent Files"));
+    \endcode
+*/
+QAction *QMenu::addSection(const QString &text) { return insertSection(nullptr, QIcon(), text); }
+
+/*!
+    \since 6.0
+    \overload
+
+    Adds a section with \a icon and the title \a text to the end of the menu and returns its action.
+*/
+QAction *QMenu::addSection(const QIcon &icon, const QString &text) { return insertSection(nullptr, icon, text); }
+
+/*!
+    \since 6.0
+
+    Inserts a section with the title \a text before the action \a before, or at the end if it is \c nullptr, and
+    returns its action.
+*/
+QAction *QMenu::insertSection(QAction *before, const QString &text) { return insertSection(before, QIcon(), text); }
+
+/*!
+    \since 6.0
+    \overload
+
+    Inserts a section with \a icon and the title \a text before the action \a before and returns its action.
+*/
+QAction *QMenu::insertSection(QAction *before, const QIcon &icon, const QString &text) {
+    auto *action = new QAction(icon, text, this);
+    action->setSeparator(true);
+    insertAction(before, action);
+    return action;
+}
+
+/*!
+    \fn QAction *QMenu::defaultAction() const
+    \since 6.0
+
+    Returns the default action of the menu, or \c nullptr.
+*/
+
+/*!
+    \since 6.0
+
+    Makes \a act the default action of the menu, which is drawn in bold.
+*/
+void QMenu::setDefaultAction(QAction *act) {
+    m_default = act;
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the icon of the menu, which its menuAction() has.
+*/
+QIcon QMenu::icon() const { return m_menuAction->icon(); }
+
+/*!
+    \since 6.0
+
+    Sets the icon of the menu, shown where the menu is an entry of another one, to \a icon.
+*/
+void QMenu::setIcon(const QIcon &icon) { m_menuAction->setIcon(icon); }
+
+/*!
+    \fn bool QMenu::separatorsCollapsible() const
+    \since 6.0
+
+    Returns whether consecutive separators show as one, and separators at the ends are not shown. The default is
+    \c true.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether consecutive separators show as one, and separators at the ends are hidden, to \a collapse.
+*/
+void QMenu::setSeparatorsCollapsible(bool collapse) {
+    m_collapsible = collapse;
+    m_dirty = true;
+    update();
+}
+
+/*!
+    \fn bool QMenu::toolTipsVisible() const
+    \since 6.0
+
+    Returns whether the tool tips of the actions show when the mouse rests on them. The default is \c false.
+*/
+
+/*!
+    \fn void QMenu::setToolTipsVisible(bool visible)
+    \since 6.0
+
+    Sets whether the tool tips of the actions show to \a visible.
+*/
+
+/*!
+    \fn bool QMenu::isTearOffEnabled() const
+    \since 6.0
+
+    Returns whether the menu can be torn off. Nt keeps the value.
+*/
+
+/*!
+    \fn void QMenu::setTearOffEnabled(bool enable)
+    \since 6.0
+
+    Sets whether the menu can be torn off to \a enable. Nt has no tear-off menus.
+*/
+
+/*!
+    \fn bool QMenu::isTearOffMenuVisible() const
+    \since 6.0
+
+    Returns \c false: Nt shows no torn-off copy of a menu.
+*/
+
+/*!
+    \since 6.0
+
+    Would show a torn-off copy of the menu. Nt has none, so this does nothing.
+*/
+void QMenu::showTearOffMenu() {}
+
+/*!
+    \since 6.0
+    \overload
+
+    Would show a torn-off copy of the menu at \a pos. Does nothing.
+*/
+void QMenu::showTearOffMenu(const QPoint &pos) { (void)pos; }
+
+/*!
+    \since 6.0
+
+    Would hide the torn-off copy of the menu. Does nothing.
+*/
+void QMenu::hideTearOffMenu() {}
+
+/*!
+    \since 6.0
+
+    Would keep the click that closes the menu from reaching \a widget. A click outside an Nt menu only closes it,
+    so this does nothing.
+*/
+void QMenu::setNoReplayFor(QWidget *widget) { (void)widget; }
+
+/*!
+    \since 6.0
+
+    Returns the menu that \a action opens, or \c nullptr.
+*/
+QMenu *QMenu::menuInAction(const QAction *action) { return action ? action->menu<QMenu *>() : nullptr; }
+
+/*!
+    \fn int QMenu::columnCount() const
+    \since 6.0
+
+    Returns the number of columns of the menu: 1, as an Nt menu does not wrap into columns.
+*/
+
+/*!
+    \reimp
+
+    With toolTipsVisible(), a tool tip event over an entry shows the tool tip of its action.
+*/
+bool QMenu::event(QEvent *event) {
+    if (event->type() == QEvent::ToolTip) {
+        auto *help = static_cast<QHelpEvent *>(event);
+        QAction *action = actionAt(help->pos());
+        if (m_toolTipsVisible && action && !action->isSeparator() && !action->toolTip().isEmpty() &&
+            action->toolTip() != plainLabel(action->text())) {
+            QToolTip::showText(help->globalPos(), action->toolTip(), this, actionGeometry(action));
+        } else {
+            QToolTip::hideText();
+        }
+        return true;
+    }
+    return QWidget::event(event);
 }
 
 #include "moc_qmenu.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

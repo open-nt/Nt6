@@ -560,6 +560,20 @@ void QMessageBox::about(QWidget *parent, const QString &title, const QString &te
 }
 
 /*!
+    \since 6.0
+
+    Shows a message box that tells about Nt, the library that the application is built with, with the given
+    \a parent and window \a title ("About Nt" if it is empty), and waits for the user.
+*/
+void QMessageBox::aboutQt(QWidget *parent, const QString &title) {
+    const QString text =
+        tr("<h3>About Nt</h3><p>This program uses Nt version %1, a clean-room implementation of the Qt 6 API "
+           "under the MIT license.</p><p>See <a href=\"https://open-nt.org/\">open-nt.org</a>.</p>")
+            .arg(QString::fromLatin1(qVersion()));
+    about(parent, title.isEmpty() ? tr("About Nt") : title, text);
+}
+
+/*!
     \reimp
 
     Returns the standard button that was clicked, or the index of a custom button among buttons(), or -1 if no

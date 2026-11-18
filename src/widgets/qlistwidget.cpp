@@ -5,6 +5,12 @@
 
 #include <QtCore/qdebug.h>
 #include <QtGui/qevent.h>
+#include <QtWidgets/qapplication.h>
+#include <QtWidgets/qlineedit.h>
+
+#include "qitemtextmatch_p.h"
+
+#include <functional>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qscrollbar.h>
 #include <QtWidgets/qtooltip.h>
@@ -32,8 +38,8 @@ constexpr int textMargin = 3;
 
     \differences
     An item holds a text, not a \c QVariant: there is no \c data(), \c setData(), \c setIcon(), \c setCheckState() or
-    \c setSizeHint(), no \c setHidden(), and no \c clone(). An item cannot be edited, so there is no \c ItemIsEditable
-    flag. An item cannot be copied.
+    \c setSizeHint(), no \c setHidden(), and no \c clone(). An item with Qt::ItemIsEditable is edited
+    with a line edit, by QListWidget::editItem() or a double click. An item cannot be copied.
     \enddifferences
 
     \sa QListWidget
@@ -116,7 +122,7 @@ QListWidgetItem::~QListWidgetItem() {
 
 void QListWidgetItem::changed() {
     if (m_list)
-        m_list->itemChanged(this);
+        m_list->itemDidChange(this);
 }
 
 /*!
@@ -435,9 +441,9 @@ void QListWidgetItem::setData(int role, const QVariant &value) {
     \image widgets/qlistwidget.png QListWidget in the light color scheme
 
     \differences
-    There is no model and no \c QListView: the list keeps its items itself. There is no editing, no drag and drop, no
-    icons and no icon or grid view mode, no \c setItemWidget(), no sorting while items are added (\c setSortingEnabled()),
-    and no \c findItems(). Dragging does not select a range, and typing a letter looks at one letter at a time. The rows
+    There is no model and no \c QListView: the list keeps its items itself, so indexFromItem() returns an invalid
+    index and items() of MIME data is empty. supportedDragActions() is only kept. Dragging does not select a range,
+    and typing a letter looks at one letter at a time. The rows
     are as wide as the viewport and long text is elided, so the list has no horizontal scroll bar. The list scrolls by
     pixels. The first item added becomes the current item, as in Qt.
     \enddifferences
@@ -562,6 +568,8 @@ void QListWidget::insertItem(int row, QListWidgetItem *item) {
     viewport()->update();
     if (m_current < 0 && count() == 1)
         moveCurrent(0);
+    if (m_sorting)
+        sortItems(Qt::AscendingOrder);
 }
 
 /*!
@@ -622,10 +630,12 @@ QListWidgetItem *QListWidget::takeItem(int row) {
 
 void QListWidget::forget(QListWidgetItem *item) { takeItem(row(item)); }
 
-void QListWidget::itemChanged(QListWidgetItem *item) {
+void QListWidget::itemDidChange(QListWidgetItem *item) {
     const int r = row(item);
     if (r >= 0)
         viewport()->update(visualItemRect(item));
+    if (r >= 0)
+        emit itemChanged(item);
 }
 
 /*!
@@ -1196,6 +1206,18 @@ void QListWidget::paintEvent(QPaintEvent *event) {
     \reimp
 */
 bool QListWidget::viewportEvent(QEvent *event) {
+    if (event->type() == QEvent::MouseMove && (viewport()->hasMouseTracking() || hasMouseTracking())) {
+        const int r = rowAt(static_cast<QMouseEvent *>(event)->pos());
+        if (r != m_hover) {
+            m_hover = r;
+            if (r >= 0)
+                emit itemEntered(item(r));
+            else
+                emit viewportEntered();
+        }
+    } else if (event->type() == QEvent::Leave) {
+        m_hover = -1;
+    }
     if (event->type() == QEvent::ToolTip) {
         auto *help = static_cast<QHelpEvent *>(event);
         const QListWidgetItem *it = itemAt(help->pos());
@@ -1227,6 +1249,7 @@ void QListWidget::mousePressEvent(QMouseEvent *event) {
         moveCurrent(r);
         select(r, event->modifiers());
         scrollToRow(r);
+        emit itemPressed(item(r));
     }
     event->accept();
 }
@@ -1260,6 +1283,8 @@ void QListWidget::mouseDoubleClickEvent(QMouseEvent *event) {
         moveCurrent(r);
         emit itemDoubleClicked(item(r));
         emit itemActivated(item(r));
+        if ((editTriggers() & DoubleClicked) && (item(r)->flags() & Qt::ItemIsEditable))
+            editItem(item(r));
     }
     event->accept();
 }
@@ -1640,5 +1665,145 @@ bool QListWidget::dropMimeData(int index, const QMimeData *data, Qt::DropAction 
     Returns the actions that drops on the list may take: Qt::CopyAction by default.
 */
 Qt::DropActions QListWidget::supportedDropActions() const { return Qt::CopyAction; }
+
+namespace {
+// Closes the editor of an item without storing its text when Escape is pressed in it.
+class ListEscapeFilter : public QObject {
+public:
+    ListEscapeFilter(std::function<void()> cancel, QObject *parent) : QObject(parent), m_cancel(std::move(cancel)) {}
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+            m_cancel();
+            return true;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    std::function<void()> m_cancel;
+};
+} // namespace
+
+/*!
+    \since 6.0
+
+    Turns sorting on if \a enable is \c true: the items are sorted now, in ascending order, and items that are added
+    later take their place in the order.
+
+    \sa sortItems()
+*/
+void QListWidget::setSortingEnabled(bool enable) {
+    m_sorting = enable;
+    if (enable)
+        sortItems(Qt::AscendingOrder);
+}
+
+/*!
+    \fn bool QListWidget::isSortingEnabled() const
+    \since 6.0
+
+    Returns whether the items are kept sorted. The default is \c false.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the items whose text matches \a text the way \a flags says, in the order of the list.
+*/
+QList<QListWidgetItem *> QListWidget::findItems(const QString &text, Qt::MatchFlags flags) const {
+    const QtPrivate::ItemTextMatcher matches(text, flags);
+    QList<QListWidgetItem *> found;
+    for (QListWidgetItem *it : m_items)
+        if (matches(it->text()))
+            found.append(it);
+    return found;
+}
+
+/*!
+    \since 6.0
+
+    Opens a line edit over \a item, if it has Qt::ItemIsEditable, with its text. Return or leaving the editor stores
+    the text and emits itemChanged(); Escape closes it without storing.
+*/
+void QListWidget::editItem(QListWidgetItem *item) {
+    if (!item || item->m_list != this || !(item->flags() & Qt::ItemIsEditable) ||
+        !(item->flags() & Qt::ItemIsEnabled))
+        return;
+    closeItemEditor(true);
+    scrollToItem(item);
+    auto *editor = new QLineEdit(viewport());
+    editor->setText(item->text());
+    editor->setFrame(false);
+    editor->setGeometry(visualItemRect(item));
+    editor->installEventFilter(new ListEscapeFilter([this] { closeItemEditor(false); }, editor));
+    QObject::connect(editor, &QLineEdit::editingFinished, this, [this] { closeItemEditor(true); });
+    m_editor = editor;
+    m_editing = item;
+    editor->show();
+    editor->selectAll();
+    editor->setFocus();
+}
+
+void QListWidget::closeItemEditor(bool commit) {
+    QPointer<QWidget> editor = m_editor;
+    QListWidgetItem *item = m_editing;
+    m_editor = nullptr;
+    m_editing = nullptr;
+    if (!editor)
+        return;
+    if (commit && item && item->m_list == this)
+        if (auto *line = qobject_cast<QLineEdit *>(editor.data()))
+            item->setText(line->text());
+    editor->hide();
+    editor->deleteLater();
+    if (hasFocus() || !QApplication::focusWidget() || QApplication::focusWidget() == editor)
+        setFocus();
+}
+
+/*!
+    \since 6.0
+
+    Returns an invalid index: the list keeps its items without a model, so \a item has no model index.
+*/
+QModelIndex QListWidget::indexFromItem(const QListWidgetItem *item) const {
+    (void)item;
+    return QModelIndex();
+}
+
+/*!
+    \since 6.0
+
+    Returns the item at the row of \a index, or \c nullptr. The list has no model, so only the row of \a index is
+    looked at.
+*/
+QListWidgetItem *QListWidget::itemFromIndex(const QModelIndex &index) const {
+    return index.isValid() ? item(index.row()) : nullptr;
+}
+
+/*!
+    \fn Qt::DropActions QListWidget::supportedDragActions() const
+    \since 6.0
+
+    Returns the actions a drag from the list allows.
+*/
+
+/*!
+    \fn void QListWidget::setSupportedDragActions(Qt::DropActions actions)
+    \since 6.0
+
+    Sets the actions a drag from the list allows to \a actions. Nt keeps the value.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the items of the list that \a data was made from; empty, as the items are not kept in MIME data.
+*/
+QList<QListWidgetItem *> QListWidget::items(const QMimeData *data) const {
+    (void)data;
+    return {};
+}
 
 #include "moc_qlistwidget.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

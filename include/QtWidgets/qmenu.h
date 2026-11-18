@@ -10,10 +10,15 @@
 #include <vector>
 
 class QMenuBar;
+class QStyleOptionMenuItem;
 
 class QMenu : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QString title READ title WRITE setTitle)
+    Q_PROPERTY(QIcon icon READ icon WRITE setIcon)
+    Q_PROPERTY(bool tearOffEnabled READ isTearOffEnabled WRITE setTearOffEnabled)
+    Q_PROPERTY(bool separatorsCollapsible READ separatorsCollapsible WRITE setSeparatorsCollapsible)
+    Q_PROPERTY(bool toolTipsVisible READ toolTipsVisible WRITE setToolTipsVisible)
 public:
     explicit QMenu(QWidget *parent = nullptr);
     explicit QMenu(const QString &title, QWidget *parent = nullptr);
@@ -69,6 +74,26 @@ public:
     QAction *addSeparator();
     QAction *insertMenu(QAction *before, QMenu *menu);
     QAction *insertSeparator(QAction *before);
+    QAction *addSection(const QString &text);
+    QAction *addSection(const QIcon &icon, const QString &text);
+    QAction *insertSection(QAction *before, const QString &text);
+    QAction *insertSection(QAction *before, const QIcon &icon, const QString &text);
+    QAction *defaultAction() const { return m_default.data(); }
+    void setDefaultAction(QAction *act);
+    QIcon icon() const;
+    void setIcon(const QIcon &icon);
+    bool separatorsCollapsible() const { return m_collapsible; }
+    void setSeparatorsCollapsible(bool collapse);
+    bool toolTipsVisible() const { return m_toolTipsVisible; }
+    void setToolTipsVisible(bool visible) { m_toolTipsVisible = visible; }
+    bool isTearOffEnabled() const { return m_tearOff; }
+    void setTearOffEnabled(bool enable) { m_tearOff = enable; }
+    bool isTearOffMenuVisible() const { return false; }
+    void showTearOffMenu();
+    void showTearOffMenu(const QPoint &pos);
+    void hideTearOffMenu();
+    void setNoReplayFor(QWidget *widget);
+    static QMenu *menuInAction(const QAction *action);
     void clear();
     bool isEmpty() const;
     QString title() const { return m_title; }
@@ -107,6 +132,9 @@ signals:
     void aboutToHide() { emitSignal(&QMenu::aboutToHide); }
 
 protected:
+    int columnCount() const { return 1; }
+    void initStyleOption(QStyleOptionMenuItem *option, const QAction *action) const;
+    bool event(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
@@ -153,4 +181,8 @@ private:
     mutable QSize m_size;
     mutable bool m_dirty = true;
     bool m_closing = false;
+    QPointer<QAction> m_default;
+    bool m_collapsible = true;
+    bool m_toolTipsVisible = false;
+    bool m_tearOff = false;
 };

@@ -5,6 +5,7 @@
 #include <QtCore/QtCore>
 #include <QtGui/QtGui>
 #include <QtTest/qsignalspy.h>
+#include <QtTest/qtest.h>
 #include <QtWidgets/QtWidgets>
 #include <QtDBus/QtDBus>
 
@@ -962,6 +963,505 @@ static void testMenuBarCornersAndTreeAnimation() {
     CHECK(!bar.cornerWidget() && right->isHidden() && bar.sizeHint().width() == plain.width() + 30);
 }
 
+// Exposes the protected block geometry of a plain text editor.
+class GutterEdit : public QPlainTextEdit {
+public:
+    using QPlainTextEdit::blockBoundingGeometry;
+    using QPlainTextEdit::blockBoundingRect;
+    using QPlainTextEdit::contentOffset;
+    using QPlainTextEdit::firstVisibleBlock;
+    using QPlainTextEdit::getPaintContext;
+    using QPlainTextEdit::QPlainTextEdit;
+};
+
+static void testTextEditExtras() {
+    GutterEdit edit;
+    edit.resize(300, 200);
+    QSignalSpy copyable(&edit, &QPlainTextEdit::copyAvailable);
+    QSignalSpy modified(&edit, &QPlainTextEdit::modificationChanged);
+    edit.setPlainText(QStringLiteral("alpha beta\ngamma"));
+    CHECK(!edit.document()->isModified() && modified.isEmpty());
+    QTextCursor c = edit.textCursor();
+    c.setPosition(0);
+    c.setPosition(5, QTextCursor::KeepAnchor);
+    edit.setTextCursor(c);
+    CHECK(copyable.count() == 1 && copyable.last().at(0).toBool());
+    edit.copy();
+    CHECK(QGuiApplication::clipboard()->text() == QStringLiteral("alpha") && edit.canPaste());
+    edit.cut();
+    CHECK(edit.toPlainText() == QStringLiteral(" beta\ngamma") && edit.document()->isModified());
+    CHECK(modified.count() == 1 && copyable.last().at(0).toBool() == false);
+    edit.moveCursor(QTextCursor::End);
+    edit.paste();
+    CHECK(edit.toPlainText() == QStringLiteral(" beta\ngammaalpha"));
+    edit.document()->setModified(false);
+    CHECK(modified.count() == 2 && !modified.last().at(0).toBool());
+    edit.setReadOnly(true);
+    CHECK(!edit.canPaste() && !(edit.textInteractionFlags() & Qt::TextEditable));
+    edit.setTextInteractionFlags(Qt::TextEditorInteraction);
+    CHECK(!edit.isReadOnly());
+
+    // Overwrite mode replaces up to the end of the line
+    edit.setPlainText(QStringLiteral("abc\ndef"));
+    edit.setOverwriteMode(true);
+    edit.moveCursor(QTextCursor::Start);
+    edit.moveCursor(QTextCursor::Right);
+    QKeyEvent x(QEvent::KeyPress, Qt::Key_X, Qt::NoModifier, QStringLiteral("XYZ"));
+    QCoreApplication::sendEvent(&edit, &x);
+    CHECK(edit.toPlainText() == QStringLiteral("aXYZ\ndef"));
+    edit.setOverwriteMode(false);
+
+    // Block geometry for a line number area
+    edit.setPlainText(QStringLiteral("one\ntwo\nthree"));
+    QTextBlock block = edit.firstVisibleBlock();
+    CHECK(block.isValid() && block.blockNumber() == 0 && block.isVisible());
+    const QRectF first = edit.blockBoundingGeometry(block);
+    const QRectF second = edit.blockBoundingGeometry(block.next());
+    CHECK(second.top() == first.bottom() && edit.blockBoundingRect(block).topLeft() == QPointF(0, 0));
+    CHECK(edit.contentOffset() == QPointF(0, 0) && edit.getPaintContext().cursorPosition == 0);
+
+    // Wrapping at a fixed width
+    edit.setPlainText(QStringLiteral("aaaa bbbb cccc dddd"));
+    edit.setLineWrapMode(QPlainTextEdit::FixedColumnWidth);
+    edit.setLineWrapColumnOrWidth(5);
+    const QRectF wrapped = edit.blockBoundingGeometry(edit.firstVisibleBlock());
+    CHECK(wrapped.height() >= 3 * edit.fontMetrics().height());
+    edit.setWordWrapMode(QTextOption::NoWrap);
+    CHECK(edit.blockBoundingGeometry(edit.firstVisibleBlock()).height() == edit.fontMetrics().height());
+    edit.setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+    edit.setLineWrapMode(QPlainTextEdit::WidgetWidth);
+
+    // Extra selections, zoom, cursor width, menu
+    QPlainTextEdit::ExtraSelection line;
+    line.format.setBackground(QColor(Qt::yellow));
+    line.format.setProperty(QTextFormat::FullWidthSelection, true);
+    line.cursor = edit.textCursor();
+    edit.setExtraSelections({line});
+    CHECK(edit.extraSelections().size() == 1);
+    edit.show();
+    const QImage shot = edit.grab().toImage();
+    CHECK(shot.pixelColor(edit.viewport()->width() - 5, edit.viewport()->y() + 6) == QColor(Qt::yellow));
+    edit.hide();
+    const qreal size = edit.font().pointSizeF();
+    edit.zoomIn(2);
+    CHECK(edit.font().pointSizeF() == size + 2);
+    edit.zoomOut(2);
+    CHECK(edit.font().pointSizeF() == size);
+    edit.setCursorWidth(3);
+    CHECK(edit.cursorWidth() == 3);
+    QMenu *menu = edit.createStandardContextMenu();
+    CHECK(menu->actions().size() == 9);
+    delete menu;
+    edit.appendHtml(QStringLiteral("<b>bold</b>"));
+    CHECK(edit.toPlainText().endsWith(QStringLiteral("\nbold")));
+    QSignalSpy requests(&edit, &QPlainTextEdit::updateRequest);
+    edit.verticalScrollBar()->setValue(0);
+    edit.show();
+    edit.repaint();
+    CHECK(!requests.isEmpty());
+    edit.hide();
+
+    // QTextEdit keeps a current format
+    QTextEdit rich;
+    QSignalSpy formats(&rich, &QTextEdit::currentCharFormatChanged);
+    rich.setFontWeight(QFont::Bold);
+    rich.setFontItalic(true);
+    rich.setFontPointSize(20);
+    rich.setTextColor(Qt::red);
+    rich.setFontFamily(QStringLiteral("Serif"));
+    CHECK(formats.count() == 5 && rich.fontWeight() == QFont::Bold && rich.fontItalic() && rich.fontPointSize() == 20);
+    CHECK(rich.textColor() == QColor(Qt::red) && rich.fontFamily() == QStringLiteral("Serif"));
+    CHECK(!rich.textBackgroundColor().isValid() && !rich.fontUnderline());
+    rich.setAlignment(Qt::AlignHCenter);
+    CHECK(rich.alignment() == Qt::AlignHCenter);
+    rich.setAutoFormatting(QTextEdit::AutoAll);
+    CHECK(rich.autoFormatting() == QTextEdit::AutoAll);
+    QTextEdit::ExtraSelection viaTextEdit;
+    viaTextEdit.cursor = rich.textCursor();
+    rich.setExtraSelections({viaTextEdit});
+    rich.setPlainText(QStringLiteral("x"));
+    rich.selectAll();
+    rich.cut();
+    CHECK(rich.document()->isModified() && rich.toPlainText().isEmpty());
+}
+
+static void testApplicationAndMenuExtras() {
+    auto *app = qobject_cast<QApplication *>(QCoreApplication::instance());
+    QApplication::setDoubleClickInterval(250);
+    QApplication::setCursorFlashTime(800);
+    QApplication::setKeyboardInputInterval(300);
+    QApplication::setWheelScrollLines(5);
+    CHECK(QApplication::doubleClickInterval() == 250 &&
+          QGuiApplication::styleHints()->mouseDoubleClickInterval() == 250);
+    CHECK(QApplication::cursorFlashTime() == 800 && QApplication::keyboardInputInterval() == 300 &&
+          QApplication::wheelScrollLines() == 5);
+    QApplication::setDoubleClickInterval(400);
+    CHECK(!QApplication::isEffectEnabled(Qt::UI_FadeMenu));
+    QApplication::setEffectEnabled(Qt::UI_FadeMenu);
+    CHECK(QApplication::isEffectEnabled(Qt::UI_FadeMenu) && !QApplication::isEffectEnabled(Qt::UI_AnimateCombo));
+    QApplication::setEffectEnabled(Qt::UI_General);
+    CHECK(QApplication::isEffectEnabled(Qt::UI_AnimateCombo));
+    QApplication::setEffectEnabled(Qt::UI_General, false);
+    QApplication::setNavigationMode(Qt::NavigationModeKeypadTabOrder);
+    CHECK(QApplication::navigationMode() == Qt::NavigationModeKeypadTabOrder);
+    QApplication::setNavigationMode(Qt::NavigationModeNone);
+    app->setStyleSheet(QStringLiteral("QLabel { color: red }"));
+    CHECK(app->styleSheet() == QStringLiteral("QLabel { color: red }") && app->autoSipEnabled());
+    app->setStyleSheet(QString());
+    QApplication::beep();
+
+    // focusChanged follows the focus
+    QWidget top;
+    auto *a = new QLineEdit(&top);
+    auto *b = new QLineEdit(&top);
+    top.setGeometry(50, 60, 200, 100);
+    top.show();
+    settle();
+    top.activateWindow();
+    settle();
+    QSignalSpy focus(app, &QApplication::focusChanged);
+    b->setFocus();
+    CHECK(!focus.isEmpty() && focus.last().at(1).value<QWidget *>() == b);
+    a->setFocus();
+    CHECK(focus.last().at(0).value<QWidget *>() == b && focus.last().at(1).value<QWidget *>() == a);
+    CHECK(QApplication::topLevelAt(top.geometry().center()) == &top && !QApplication::topLevelAt(QPoint(-500, -500)));
+
+    // Menus: sections, default action, icon, collapsing, popups
+    QMenu menu(&top);
+    QAction *open = menu.addAction(QStringLiteral("Open"));
+    QAction *section = menu.addSection(QStringLiteral("Recent"));
+    menu.addAction(QStringLiteral("one.txt"));
+    menu.addSeparator();
+    menu.addSeparator();
+    CHECK(section->isSeparator() && section->text() == QStringLiteral("Recent"));
+    CHECK(menu.actionGeometry(section).height() > menu.actionGeometry(open).height() / 2);
+    const QAction *last = menu.actions().last();
+    CHECK(menu.actionGeometry(const_cast<QAction *>(last)).isEmpty());
+    menu.setSeparatorsCollapsible(false);
+    CHECK(!menu.actionGeometry(const_cast<QAction *>(last)).isEmpty());
+    menu.setDefaultAction(open);
+    CHECK(menu.defaultAction() == open);
+    QPixmap px(8, 8);
+    px.fill(Qt::green);
+    menu.setIcon(QIcon(px));
+    CHECK(!menu.icon().isNull() && !menu.menuAction()->icon().isNull());
+    menu.setToolTipsVisible(true);
+    menu.setTearOffEnabled(true);
+    CHECK(menu.toolTipsVisible() && menu.isTearOffEnabled() && !menu.isTearOffMenuVisible());
+    QMenu *sub = menu.addMenu(QStringLiteral("Sub"));
+    CHECK(QMenu::menuInAction(sub->menuAction()) == sub && !QMenu::menuInAction(open));
+    CHECK(!QApplication::activePopupWidget());
+    menu.popup(top.mapToGlobal(QPoint(5, 5)));
+    settle();
+    CHECK(QApplication::activePopupWidget() == &menu);
+    menu.hide();
+    CHECK(!QApplication::activePopupWidget());
+}
+
+// Reaches the protected parts of QAbstractItemView.
+class OpenView : public QListView {
+public:
+    using QAbstractItemView::executeDelayedItemsLayout;
+    using QAbstractItemView::scheduleDelayedItemsLayout;
+    using QAbstractItemView::selectedIndexes;
+    using QAbstractItemView::selectionCommand;
+    using QAbstractItemView::setState;
+    using QAbstractItemView::State;
+    using QAbstractItemView::state;
+    using QAbstractItemView::visualRegionForSelection;
+    using QListView::QListView;
+    int layouts = 0;
+    void doItemsLayout() override {
+        ++layouts;
+        QListView::doItemsLayout();
+    }
+};
+
+static void testItemViewExtras() {
+    QStandardItemModel model;
+    for (const char *name : {"January", "February", "March", "May", "Mars"})
+        model.appendRow(new QStandardItem(QString::fromLatin1(name)));
+    OpenView view;
+    view.setModel(&model);
+    view.resize(200, 200);
+    view.show();
+    settle();
+
+    // Persistent editors
+    const QModelIndex first = model.index(0, 0);
+    view.openPersistentEditor(first);
+    CHECK(view.isPersistentEditorOpen(first) && !view.isPersistentEditorOpen(model.index(1, 0)));
+    auto *editor = view.viewport()->findChild<QLineEdit *>();
+    CHECK(editor && editor->text() == QStringLiteral("January"));
+    model.setData(first, QStringLiteral("Jan"));
+    CHECK(editor && editor->text() == QStringLiteral("Jan"));
+    view.openPersistentEditor(model.index(2, 0));
+    model.removeRow(2);
+    CHECK(!view.isPersistentEditorOpen(model.index(2, 0)));
+    view.closePersistentEditor(first);
+    settle();
+    CHECK(!view.isPersistentEditorOpen(first));
+
+    // Keyboard search
+    view.setCurrentIndex(first);
+    view.keyboardSearch(QStringLiteral("m"));
+    CHECK(view.currentIndex().data().toString() == QStringLiteral("May"));
+    view.keyboardSearch(QStringLiteral("m"));
+    CHECK(view.currentIndex().data().toString() == QStringLiteral("Mars"));
+    view.keyboardSearch(QString());
+    QTest::qWait(QApplication::keyboardInputInterval() + 50);
+    view.keyboardSearch(QStringLiteral("f"));
+    CHECK(view.currentIndex().data().toString() == QStringLiteral("February"));
+    view.setEditTriggers(QAbstractItemView::NoEditTriggers); // a typed key searches instead of editing
+    QKeyEvent j(QEvent::KeyPress, Qt::Key_J, Qt::NoModifier, QStringLiteral("j"));
+    QTest::qWait(QApplication::keyboardInputInterval() + 50);
+    QCoreApplication::sendEvent(&view, &j);
+    CHECK(view.currentIndex().data().toString() == QStringLiteral("Jan"));
+
+    // Selection helpers
+    view.setSelectionMode(QAbstractItemView::ExtendedSelection);
+    view.clearSelection();
+    view.selectionModel()->select(model.index(1, 0), QItemSelectionModel::Select);
+    CHECK(view.selectedIndexes().size() == 1);
+    QMouseEvent ctrlClick(QEvent::MouseButtonPress, QPointF(1, 1), QPointF(1, 1), Qt::LeftButton, Qt::LeftButton,
+                          Qt::ControlModifier);
+    CHECK(view.selectionCommand(first, &ctrlClick) == QItemSelectionModel::Toggle);
+    view.setSelectionMode(QAbstractItemView::NoSelection);
+    CHECK(view.selectionCommand(first) == QItemSelectionModel::NoUpdate);
+    QItemSelection sel(model.index(0, 0), model.index(1, 0));
+    CHECK(view.visualRegionForSelection(sel).boundingRect() ==
+          view.visualRect(model.index(0, 0)).united(view.visualRect(model.index(1, 0))));
+    CHECK(view.sizeHintForRow(0) > 0 && view.sizeHintForColumn(0) > 0 && view.sizeHintForRow(99) == -1);
+
+    // Properties, state, delayed layout
+    CHECK(view.hasAutoScroll() && view.autoScrollMargin() == 16 && !view.tabKeyNavigation());
+    view.setAutoScrollMargin(8);
+    view.setTabKeyNavigation(true);
+    view.setDragDropOverwriteMode(true);
+    view.setUpdateThreshold(10);
+    CHECK(view.autoScrollMargin() == 8 && view.tabKeyNavigation() && view.dragDropOverwriteMode() &&
+          view.updateThreshold() == 10);
+    view.setVerticalScrollMode(QAbstractItemView::ScrollPerItem);
+    view.resetVerticalScrollMode();
+    CHECK(view.verticalScrollMode() == QAbstractItemView::ScrollPerPixel);
+    view.setState(OpenView::State::DragSelectingState);
+    CHECK(view.state() == OpenView::State::DragSelectingState);
+    view.setState(OpenView::State::NoState);
+    view.layouts = 0;
+    view.scheduleDelayedItemsLayout();
+    view.scheduleDelayedItemsLayout();
+    view.executeDelayedItemsLayout();
+    settle();
+    CHECK(view.layouts == 1);
+
+    // Tab moves the current item with tabKeyNavigation
+    view.setCurrentIndex(first);
+    view.setFocus();
+    QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+    QCoreApplication::sendEvent(&view, &tab);
+    CHECK(view.currentIndex().row() == 1);
+
+    // entered() with mouse tracking
+    view.setMouseTracking(true);
+    QSignalSpy entered(&view, &QAbstractItemView::entered);
+    QMouseEvent move(QEvent::MouseMove, QPointF(view.visualRect(model.index(1, 0)).center()),
+                     QPointF(view.visualRect(model.index(1, 0)).center()), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(view.viewport(), &move);
+    CHECK(entered.count() == 1 && entered.last().at(0).value<QModelIndex>().row() == 1);
+}
+
+static void testTreeMenuBarComboExtras() {
+    // Tree view: hidden columns, tree position, search, header
+    QStandardItemModel model;
+    model.setColumnCount(3);
+    auto *fruit = new QStandardItem(QStringLiteral("Fruit"));
+    fruit->appendRow({new QStandardItem(QStringLiteral("Apple")), new QStandardItem(QStringLiteral("red")),
+                      new QStandardItem(QStringLiteral("1"))});
+    fruit->appendRow({new QStandardItem(QStringLiteral("Banana")), new QStandardItem(QStringLiteral("yellow")),
+                      new QStandardItem(QStringLiteral("2"))});
+    model.appendRow({fruit, new QStandardItem(), new QStandardItem()});
+    QTreeView tree;
+    tree.setModel(&model);
+    tree.resize(300, 200);
+    tree.expandAll();
+    tree.show();
+    settle();
+    CHECK(!tree.isColumnHidden(1));
+    const int before = tree.visualRect(model.index(0, 2)).left();
+    tree.hideColumn(1);
+    CHECK(tree.isColumnHidden(1) && tree.visualRect(model.index(0, 2)).left() < before);
+    tree.showColumn(1);
+    CHECK(!tree.isColumnHidden(1));
+    CHECK(tree.treePosition() == 0);
+    const QModelIndex apple = model.index(0, 0, fruit->index());
+    const int indented = tree.visualRect(apple).left() - tree.columnViewportPosition(0);
+    tree.setTreePosition(1);
+    CHECK(tree.treePosition() == 1 && tree.visualRect(apple).left() == tree.columnViewportPosition(0));
+    CHECK(indented > 0 && tree.visualRect(apple.siblingAtColumn(1)).left() > tree.columnViewportPosition(1));
+    tree.setTreePosition(-1);
+    CHECK(tree.treePosition() == 0);
+    tree.setWordWrap(true);
+    tree.setAllColumnsShowFocus(true);
+    tree.setAutoExpandDelay(300);
+    CHECK(tree.wordWrap() && tree.allColumnsShowFocus() && tree.autoExpandDelay() == 300);
+    tree.keyboardSearch(QStringLiteral("b"));
+    CHECK(tree.currentIndex().data().toString() == QStringLiteral("Banana"));
+    CHECK(tree.sizeHintForColumn(0) > tree.sizeHintForColumn(2));
+    auto *header = new QHeaderView(Qt::Horizontal);
+    tree.setHeader(header);
+    CHECK(tree.header() == header && header->count() == 3);
+
+    // Menu bar
+    QMenuBar bar;
+    bar.addMenu(QStringLiteral("File"));
+    QAction *sep = bar.addSeparator();
+    bar.addMenu(QStringLiteral("Help"));
+    CHECK(sep->isSeparator() && bar.actions().size() == 3 && bar.actionGeometry(sep).isEmpty());
+    CHECK(!bar.isDefaultUp() && !bar.isNativeMenuBar());
+    bar.setDefaultUp(true);
+    bar.setNativeMenuBar(true);
+    CHECK(bar.isDefaultUp() && !bar.isNativeMenuBar());
+
+    // Combo box
+    QComboBox combo;
+    combo.addItems({QStringLiteral("one"), QStringLiteral("two")});
+    combo.insertItems(1, {QStringLiteral("a"), QStringLiteral("b")});
+    CHECK(combo.count() == 4 && combo.itemText(1) == QStringLiteral("a") && combo.itemText(3) == QStringLiteral("two"));
+    combo.insertSeparator(2);
+    CHECK(combo.count() == 5 && !(combo.model()->flags(combo.model()->index(2, 0)) & Qt::ItemIsEnabled));
+    combo.setMaxCount(3);
+    CHECK(combo.count() == 3 && combo.maxCount() == 3);
+    combo.addItem(QStringLiteral("over"));
+    CHECK(combo.count() == 3);
+    QSignalSpy textActivated(&combo, &QComboBox::textActivated);
+    combo.setFrame(false);
+    CHECK(!combo.hasFrame());
+    const int narrow = combo.sizeHint().width();
+    combo.setMinimumContentsLength(40);
+    CHECK(combo.sizeHint().width() > narrow);
+    combo.setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    CHECK(combo.sizeAdjustPolicy() == QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    combo.setLabelDrawingMode(QComboBox::UseDelegate);
+    CHECK(combo.labelDrawingMode() == QComboBox::UseDelegate);
+    // An editable combo box with a line edit, validator and completer of its own
+    combo.setMaxCount(100);
+    auto *edit = new QLineEdit;
+    combo.setLineEdit(edit);
+    CHECK(combo.isEditable() && combo.lineEdit() == edit);
+    QIntValidator digits(0, 99);
+    combo.setValidator(&digits);
+    CHECK(combo.validator() == &digits && edit->validator() == &digits);
+    QCompleter completer(QStringList{QStringLiteral("alpha")});
+    combo.setCompleter(&completer);
+    CHECK(combo.completer() == &completer);
+    combo.setValidator(nullptr);
+    combo.setDuplicatesEnabled(true);
+    const int count = combo.count();
+    edit->setText(combo.itemText(0));
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QCoreApplication::sendEvent(edit, &enter);
+    CHECK(combo.count() == count + 1 && textActivated.count() == 1);
+    // Root model index
+    QStandardItemModel tree2;
+    auto *group = new QStandardItem(QStringLiteral("group"));
+    group->appendRow(new QStandardItem(QStringLiteral("child 1")));
+    group->appendRow(new QStandardItem(QStringLiteral("child 2")));
+    tree2.appendRow(group);
+    QComboBox rooted;
+    rooted.setModel(&tree2);
+    CHECK(rooted.count() == 1);
+    rooted.setRootModelIndex(group->index());
+    CHECK(rooted.rootModelIndex() == group->index() && rooted.count() == 2 &&
+          rooted.currentText() == QStringLiteral("child 1"));
+    rooted.addItem(QStringLiteral("child 3"));
+    CHECK(group->rowCount() == 3);
+    auto *list = new QListView;
+    rooted.setView(list);
+    CHECK(rooted.view() == list && list->rootIndex() == group->index());
+}
+
+static void testItemWidgetExtras() {
+    // List widget
+    QListWidget list;
+    list.addItems({QStringLiteral("pear"), QStringLiteral("apple"), QStringLiteral("Plum")});
+    CHECK(list.findItems(QStringLiteral("p"), Qt::MatchStartsWith).size() == 2);
+    CHECK(list.findItems(QStringLiteral("p"), Qt::MatchStartsWith | Qt::MatchCaseSensitive).size() == 1);
+    CHECK(list.findItems(QStringLiteral("*le"), Qt::MatchWildcard).size() == 1);
+    list.setSortingEnabled(true);
+    CHECK(list.isSortingEnabled() && list.item(0)->text() == QStringLiteral("Plum"));
+    list.addItem(QStringLiteral("banana"));
+    CHECK(list.item(1)->text() == QStringLiteral("apple") && list.item(2)->text() == QStringLiteral("banana"));
+    list.setSortingEnabled(false);
+    QSignalSpy changed(&list, &QListWidget::itemChanged);
+    list.item(0)->setText(QStringLiteral("Plums"));
+    CHECK(changed.count() == 1);
+    list.resize(200, 200);
+    list.show();
+    settle();
+    QListWidgetItem *banana = list.item(2);
+    banana->setFlags(banana->flags() | Qt::ItemIsEditable);
+    list.editItem(banana);
+    auto *editor = list.viewport()->findChild<QLineEdit *>();
+    CHECK(editor && editor->text() == QStringLiteral("banana"));
+    if (editor) {
+        editor->setText(QStringLiteral("cherry"));
+        emit editor->editingFinished();
+    }
+    CHECK(banana->text() == QStringLiteral("cherry"));
+    list.editItem(list.item(1)); // not editable
+    QCoreApplication::processEvents();
+    CHECK(!list.viewport()->findChild<QLineEdit *>() || list.viewport()->findChild<QLineEdit *>()->isHidden());
+    QSignalSpy pressed(&list, &QListWidget::itemPressed);
+    const QPoint at = list.visualItemRect(list.item(1)).center();
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(at), QPointF(at), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(list.viewport(), &press);
+    CHECK(pressed.count() == 1 && pressed.last().at(0).value<QListWidgetItem *>() == list.item(1));
+    list.setMouseTracking(true);
+    QSignalSpy entered(&list, &QListWidget::itemEntered);
+    const QPoint over = list.visualItemRect(list.item(0)).center();
+    QMouseEvent move(QEvent::MouseMove, QPointF(over), QPointF(over), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(list.viewport(), &move);
+    CHECK(entered.count() == 1);
+    CHECK(!list.indexFromItem(list.item(0)).isValid());
+    list.setSupportedDragActions(Qt::MoveAction);
+    CHECK(list.supportedDragActions() == Qt::MoveAction);
+
+    // Table widget
+    QTableWidget table(3, 2);
+    table.setItem(0, 0, new QTableWidgetItem(QStringLiteral("alpha")));
+    table.setItem(2, 1, new QTableWidgetItem(QStringLiteral("beta")));
+    QTableWidgetItem *beta = table.item(2, 1);
+    CHECK(table.row(beta) == 2 && table.column(beta) == 1 && table.row(nullptr) == -1);
+    CHECK(table.visualRow(1) == 1 && table.visualColumn(1) == 1);
+    CHECK(table.findItems(QStringLiteral("a"), Qt::MatchContains).size() == 2);
+    CHECK(table.findItems(QStringLiteral("beta"), Qt::MatchExactly).value(0) == beta);
+    QSignalSpy current(&table, &QTableWidget::currentItemChanged);
+    table.setCurrentCell(2, 1);
+    CHECK(current.count() == 1 && current.last().at(0).value<QTableWidgetItem *>() == beta);
+    QSignalSpy activated(&table, &QTableWidget::cellActivated);
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QCoreApplication::sendEvent(&table, &enter);
+    CHECK(activated.count() == 1 && activated.last().at(0).toInt() == 2);
+    table.setHorizontalHeaderItem(1, new QTableWidgetItem(QStringLiteral("B")));
+    QTableWidgetItem *header = table.takeHorizontalHeaderItem(1);
+    CHECK(header && header->text() == QStringLiteral("B") && !table.horizontalHeaderItem(1));
+    delete header;
+    CHECK(!table.takeVerticalHeaderItem(0));
+    table.setItemPrototype(new QTableWidgetItem(QStringLiteral("proto")));
+    CHECK(table.itemPrototype() && table.itemPrototype()->text() == QStringLiteral("proto"));
+    CHECK(table.itemFromIndex(QModelIndex()) == nullptr);
+    table.resize(300, 200);
+    table.show();
+    settle();
+    QSignalSpy cellPressed(&table, &QTableWidget::cellPressed);
+    const QPoint cell = table.visualItemRect(beta).center();
+    QMouseEvent pressCell(QEvent::MouseButtonPress, QPointF(cell), QPointF(cell), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+    QCoreApplication::sendEvent(table.viewport(), &pressCell);
+    CHECK(cellPressed.count() == 1 && cellPressed.last().at(1).toInt() == 1);
+}
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     testFileSystemModel();
@@ -975,6 +1475,11 @@ int main(int argc, char *argv[]) {
     testLineEditExtras();
     testTabsAndMainWindow();
     testMenuBarCornersAndTreeAnimation();
+    testTextEditExtras();
+    testApplicationAndMenuExtras();
+    testItemViewExtras();
+    testTreeMenuBarComboExtras();
+    testItemWidgetExtras();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

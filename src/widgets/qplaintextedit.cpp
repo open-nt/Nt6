@@ -1,11 +1,17 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qplaintextedit.h>
 
+#include <QtCore/qmimedata.h>
+#include <QtGui/qclipboard.h>
 #include <QtGui/qevent.h>
+#include <QtGui/qguiapplication.h>
+#include <QtGui/qpagedpaintdevice.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qmenu.h>
 #include <QtWidgets/qscrollbar.h>
 
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -36,11 +42,12 @@ bool isWordChar(QChar c) { return c.isLetterOrNumber() || c == QChar('_'); }
     \image widgets/qplaintextedit.png QPlainTextEdit in the light color scheme
 
     \differences
-    The text has no formatting, no fonts or colors of parts of it, and there is no \c QTextDocument: the text is one
-    string, and positions are the number of characters from its start, a new line counting as one. The clipboard is not there
-    yet, so there are no \c cut(), \c copy() or \c paste(), and no drag and drop. There is no
-    \c maximumBlockCount, no \c setCursorWidth(), and no context menu. The cursor does not blink. A selection that has several
-    lines returns them separated by a new line from QTextCursor::selectedText(), where Qt uses the paragraph separator.
+    The text has no formatting: the current character format is kept but typed text does not take it, and extra
+    selections draw only their background. The text is one string, and positions are the number of characters from
+    its start, a new line counting as one. There is no drag and drop, and the cursor does not blink and is not drawn
+    as a block in overwrite mode. A selection that has several lines returns them separated by a new line from
+    QTextCursor::selectedText(), where Qt uses the paragraph separator. centerOnScroll() and backgroundVisible() are
+    only kept. The document of setDocument() cannot be replaced.
     \enddifferences
 
     \sa QTextEdit, QTextCursor, QLineEdit
@@ -53,6 +60,32 @@ bool isWordChar(QChar c) { return c.isLetterOrNumber() || c == QChar('_'); }
 
     \value NoWrap The line goes on, and the editor has a horizontal scroll bar.
     \value WidgetWidth The line is broken at the width of the widget, at a space if there is one.
+    \value FixedPixelWidth The line is broken at lineWrapColumnOrWidth() pixels.
+    \value FixedColumnWidth The line is broken after lineWrapColumnOrWidth() characters of the width of
+           an "x".
+*/
+
+/*!
+    \class QPlainTextEdit::ExtraSelection
+    \brief The ExtraSelection struct is a part of the text drawn with a format of its own.
+
+    setExtraSelections() takes a list of them, for example to highlight the line of the cursor or the matches of a
+    search. In Qt the struct belongs to QTextEdit; here QTextEdit::ExtraSelection is the same struct.
+
+    \differences
+    Only the background of the format is drawn.
+    \enddifferences
+*/
+
+/*!
+    \variable QPlainTextEdit::ExtraSelection::cursor
+    \brief The part of the text: the selection of the cursor, or its line for a format with the
+    QTextFormat::FullWidthSelection property.
+*/
+
+/*!
+    \variable QPlainTextEdit::ExtraSelection::format
+    \brief The format the part is drawn with.
 */
 
 /*!
@@ -100,6 +133,7 @@ void QPlainTextEdit::setPlainText(const QString &text) {
     m_redo.clear();
     trimBlocks();
     m_documentStale = true;
+    setModifiedFlag(false);
     layoutText();
     horizontalScrollBar()->setValue(0);
     verticalScrollBar()->setValue(0);
@@ -375,7 +409,14 @@ QTextCursor QPlainTextEdit::textCursor() const {
 
     \sa textCursor()
 */
-void QPlainTextEdit::setTextCursor(const QTextCursor &cursor) {
+void QPlainTextEdit::setTextCursor(const QTextCursor &cursor) { doSetTextCursor(cursor); }
+
+/*!
+    \since 6.0
+
+    Makes \a cursor the cursor of the editor, for setTextCursor(). Reimplement it to follow changes of the cursor.
+*/
+void QPlainTextEdit::doSetTextCursor(const QTextCursor &cursor) {
     if (cursor.isNull())
         return;
     const int size = static_cast<int>(m_text.size());
@@ -499,14 +540,16 @@ void QPlainTextEdit::layoutText() {
             if (m_text.at(i) == QChar('\n'))
                 m_blockStarts.push_back(i + 1);
         m_lines.clear();
-        const int limit = std::max(1, viewport()->width() - 2 * margin());
+        const int limit = wrapLimit();
+        const bool anywhere = m_wordWrap == QTextOption::WrapAnywhere;
+        const bool noWrap = m_wrap == NoWrap || m_wordWrap == QTextOption::NoWrap;
         int widest = 0;
         for (int b = 0; b < static_cast<int>(m_blockStarts.size()); ++b) {
             const int start = m_blockStarts[static_cast<std::size_t>(b)];
             const int end = b + 1 < static_cast<int>(m_blockStarts.size())
                                 ? m_blockStarts[static_cast<std::size_t>(b) + 1] - 1
                                 : size;
-            if (m_wrap == NoWrap || start == end) {
+            if (noWrap || start == end) {
                 m_lines.push_back(VLine{start, end - start, b});
                 widest = std::max(widest, advance(start, end - start));
                 continue;
@@ -516,7 +559,7 @@ void QPlainTextEdit::layoutText() {
             int lineStart = start, x = 0, i = start;
             while (i < end) {
                 int j = i;
-                while (j < end && m_text.at(j) != QChar(' '))
+                while (j < end && m_text.at(j) != QChar(' ') && !(anywhere && j > i))
                     ++j;
                 const int wordEnd = j;
                 while (j < end && m_text.at(j) == QChar(' '))
@@ -546,7 +589,8 @@ void QPlainTextEdit::layoutText() {
         }
         m_blocks = static_cast<int>(m_blockStarts.size());
         const int contentHeight = static_cast<int>(m_lines.size()) * lh + 2 * margin();
-        const int contentWidth = m_wrap == NoWrap ? widest + 2 * margin() + 1 : 0;
+        const int contentWidth =
+            noWrap || m_wrap == FixedPixelWidth || m_wrap == FixedColumnWidth ? widest + 2 * margin() + 1 : 0;
         QScrollBar *vbar = verticalScrollBar(), *hbar = horizontalScrollBar();
         vbar->setSingleStep(lh);
         vbar->setPageStep(std::max(1, viewport()->height()));
@@ -757,7 +801,7 @@ void QPlainTextEdit::didChange(bool textDidChange, int oldPosition, int oldAncho
         emit cursorPositionChanged();
     if (std::min(m_position, m_anchor) != std::min(oldPosition, oldAnchor) ||
         std::max(m_position, m_anchor) != std::max(oldPosition, oldAnchor))
-        emit selectionChanged();
+        selectionDidChange();
 }
 
 // Replaces the text from `from` to `to` with `text`. `typing` is for text that the user types, which is undone together;
@@ -797,6 +841,7 @@ void QPlainTextEdit::applyEdit(int from, int to, const QString &text, bool typin
     m_goalX = -1;
     layoutText();
     viewport()->update();
+    setModifiedFlag(true);
     emit textChanged();
     if (m_blocks != oldBlocks)
         emit blockCountChanged(m_blocks);
@@ -804,7 +849,7 @@ void QPlainTextEdit::applyEdit(int from, int to, const QString &text, bool typin
         emit cursorPositionChanged();
     if (std::min(m_position, m_anchor) != std::min(oldPosition, oldAnchor) ||
         std::max(m_position, m_anchor) != std::max(oldPosition, oldAnchor))
-        emit selectionChanged();
+        selectionDidChange();
     notifyUndo();
     if (hasFocus())
         ensureCursorVisible();
@@ -841,9 +886,11 @@ void QPlainTextEdit::restore(const Snapshot &snapshot) {
     m_anchor = snapshot.anchor;
     m_lastTypingEnd = -1;
     m_goalX = -1;
+    m_documentStale = true;
     layoutText();
     viewport()->update();
     if (changedText) {
+        setModifiedFlag(true);
         emit textChanged();
         if (m_blocks != oldBlocks)
             emit blockCountChanged(m_blocks);
@@ -852,7 +899,7 @@ void QPlainTextEdit::restore(const Snapshot &snapshot) {
         emit cursorPositionChanged();
     if (std::min(m_position, m_anchor) != std::min(oldPosition, oldAnchor) ||
         std::max(m_position, m_anchor) != std::max(oldPosition, oldAnchor))
-        emit selectionChanged();
+        selectionDidChange();
     ensureCursorVisible();
 }
 
@@ -914,8 +961,8 @@ void QPlainTextEdit::showEvent(QShowEvent *event) {
 */
 void QPlainTextEdit::scrollContentsBy(int dx, int dy) {
     (void)dx;
-    (void)dy;
     viewport()->update();
+    emit updateRequest(viewport()->rect(), dy);
 }
 
 /*!
@@ -958,7 +1005,7 @@ bool QPlainTextEdit::focusNextPrevChild(bool next) {
     \reimp
 */
 void QPlainTextEdit::paintEvent(QPaintEvent *event) {
-    (void)event;
+    emit updateRequest(event ? event->rect() : viewport()->rect(), 0);
     QPainter painter(viewport());
     const QPalette &pal = palette();
     const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
@@ -967,6 +1014,31 @@ void QPlainTextEdit::paintEvent(QPaintEvent *event) {
     painter.setFont(font());
     const int lh = lineHeight();
     const int offsetX = margin() - horizontalScrollBar()->value(), offsetY = margin() - verticalScrollBar()->value();
+    // The extra selections: their backgrounds, under the text.
+    for (const ExtraSelection &extra : m_extraSelections) {
+        const QBrush brush = extra.format.background();
+        if (brush.style() == Qt::NoBrush || extra.cursor.isNull())
+            continue;
+        const bool fullWidth = extra.format.boolProperty(QTextFormat::FullWidthSelection);
+        const int a = extra.cursor.selectionStart(), b = extra.cursor.selectionEnd();
+        if (a == b) {
+            if (fullWidth)
+                painter.fillRect(QRect(0, offsetY + vlineOf(a) * lh, all.width(), lh), brush);
+            continue;
+        }
+        for (int i = vlineOf(a); i <= vlineOf(b) && i < static_cast<int>(m_lines.size()); ++i) {
+            const VLine &line = m_lines[static_cast<std::size_t>(i)];
+            const int y = offsetY + i * lh;
+            if (fullWidth) {
+                painter.fillRect(QRect(0, y, all.width(), lh), brush);
+                continue;
+            }
+            const int from = std::clamp(a, line.start, line.start + line.length) - line.start;
+            const int to = std::clamp(b, line.start, line.start + line.length) - line.start;
+            const int xa = offsetX + advance(line.start, from), xb = offsetX + advance(line.start, to);
+            painter.fillRect(QRect(xa, y, std::max(0, xb - xa), lh), brush);
+        }
+    }
     const int stop = std::max(1, static_cast<int>(m_tabStop));
     const QFontMetrics fm = fontMetrics();
     if (m_text.isEmpty() && !m_placeholder.isEmpty()) {
@@ -1024,7 +1096,8 @@ void QPlainTextEdit::paintEvent(QPaintEvent *event) {
     }
     if (hasFocus() && !m_readOnly && isEnabled()) {
         const QRect caret = cursorRect();
-        painter.fillRect(QRect(caret.x(), caret.y(), 1, caret.height()), pal.color(group, QPalette::Text));
+        painter.fillRect(QRect(caret.x(), caret.y(), std::max(1, m_cursorWidth), caret.height()),
+                         pal.color(group, QPalette::Text));
     }
 }
 
@@ -1110,6 +1183,22 @@ void QPlainTextEdit::keyPressEvent(QKeyEvent *event) {
         setCursor(target, shift);
     };
     event->accept();
+    if (event->matches(QKeySequence::Copy)) {
+        copy();
+        return;
+    }
+    if (!m_readOnly && event->matches(QKeySequence::Cut)) {
+        cut();
+        return;
+    }
+    if (!m_readOnly && event->matches(QKeySequence::Paste)) {
+        paste();
+        return;
+    }
+    if (event->key() == Qt::Key_Insert && mods == Qt::NoModifier && !m_readOnly) {
+        m_overwrite = !m_overwrite;
+        return;
+    }
     switch (event->key()) {
     case Qt::Key_Left:
         if (selStart != selEnd && !shift && !ctrl) {
@@ -1203,7 +1292,13 @@ void QPlainTextEdit::keyPressEvent(QKeyEvent *event) {
     if (!(mods & (Qt::ControlModifier | Qt::AltModifier)) && !event->text().isEmpty() &&
         event->text().at(0).isPrint()) {
         const QString text = event->text();
-        applyEdit(selStart, selEnd, text, true, selStart + static_cast<int>(text.size()));
+        int replaceEnd = selEnd;
+        // In overwrite mode the typed characters take the place of those after the cursor, up to the end of the line.
+        if (m_overwrite && selStart == selEnd) {
+            while (replaceEnd < size && replaceEnd - selStart < text.size() && m_text.at(replaceEnd) != QChar('\n'))
+                ++replaceEnd;
+        }
+        applyEdit(selStart, replaceEnd, text, true, selStart + static_cast<int>(text.size()));
         return;
     }
     event->ignore();
@@ -1272,10 +1367,13 @@ QTextDocument *QPlainTextEdit::document() const {
     auto *self = const_cast<QPlainTextEdit *>(this); // NOLINT(cppcoreguidelines-pro-type-const-cast): made on demand
     if (!m_plainDocument) {
         m_plainDocument = new QTextDocument(self);
+        m_plainDocument->setModified(m_modified);
         QObject::connect(m_plainDocument, &QTextDocument::contentsChanged, self, [self] {
             if (!self->m_syncing && self->m_plainDocument->toPlainText() != self->m_text)
                 self->setPlainText(self->m_plainDocument->toPlainText());
         });
+        QObject::connect(m_plainDocument, &QTextDocument::modificationChanged, self,
+                         [self](bool changed) { self->setModifiedFlag(changed); });
     }
     if (m_documentStale) {
         self->m_syncing = true;
@@ -1284,6 +1382,582 @@ QTextDocument *QPlainTextEdit::document() const {
         m_documentStale = false;
     }
     return m_plainDocument;
+}
+
+void QPlainTextEdit::selectionDidChange() {
+    emit selectionChanged();
+    const bool has = m_position != m_anchor;
+    if (has != m_hadSelection) {
+        m_hadSelection = has;
+        emit copyAvailable(has);
+    }
+}
+
+void QPlainTextEdit::setModifiedFlag(bool modified) {
+    if (m_modified == modified)
+        return;
+    m_modified = modified;
+    if (m_plainDocument)
+        m_plainDocument->setModified(modified);
+    emit modificationChanged(modified);
+}
+
+int QPlainTextEdit::wrapLimit() const {
+    switch (m_wrap) {
+    case FixedPixelWidth:
+        return std::max(1, m_wrapColumnOrWidth);
+    case FixedColumnWidth:
+        return std::max(1, m_wrapColumnOrWidth * fontMetrics().horizontalAdvance(QChar('x')));
+    default:
+        return std::max(1, viewport()->width() - 2 * margin());
+    }
+}
+
+QString QPlainTextEdit::selectedText() const {
+    const int from = std::min(m_position, m_anchor), to = std::max(m_position, m_anchor);
+    return m_text.mid(from, to - from);
+}
+
+/*!
+    \fn bool QPlainTextEdit::overwriteMode() const
+    \since 6.0
+
+    Returns whether typed text takes the place of the text after the cursor. The default is \c false; the Insert
+    key switches it.
+*/
+
+/*!
+    \fn void QPlainTextEdit::setOverwriteMode(bool overwrite)
+    \since 6.0
+
+    Sets whether typed text takes the place of the text after the cursor to \a overwrite. A new line is not
+    overwritten.
+*/
+
+/*!
+    \fn int QPlainTextEdit::cursorWidth() const
+    \since 6.0
+
+    Returns the width of the cursor in pixels, 1 by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the width of the cursor to \a width pixels.
+*/
+void QPlainTextEdit::setCursorWidth(int width) {
+    m_cursorWidth = std::max(1, width);
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Returns how the user can interact with the text: Qt::TextEditorInteraction for an editor, without
+    Qt::TextEditable when it is read-only.
+
+    \sa setTextInteractionFlags()
+*/
+Qt::TextInteractionFlags QPlainTextEdit::textInteractionFlags() const {
+    return m_readOnly ? m_interaction & ~Qt::TextInteractionFlags(Qt::TextEditable) : m_interaction | Qt::TextEditable;
+}
+
+/*!
+    \since 6.0
+
+    Sets how the user can interact with the text to \a flags. Without Qt::TextEditable the editor is read-only;
+    the selection by mouse and keyboard is always possible.
+
+    \sa setReadOnly()
+*/
+void QPlainTextEdit::setTextInteractionFlags(Qt::TextInteractionFlags flags) {
+    m_interaction = flags;
+    setReadOnly(!(flags & Qt::TextEditable));
+}
+
+/*!
+    \fn QTextOption::WrapMode QPlainTextEdit::wordWrapMode() const
+    \since 6.0
+
+    Returns where lines are broken when they wrap.
+*/
+
+/*!
+    \since 6.0
+
+    Sets where lines are broken when they wrap to \a policy: QTextOption::NoWrap does not wrap,
+    QTextOption::WrapAnywhere breaks between any characters, and the other modes break at spaces, and inside a
+    word that is too long.
+
+    \sa setLineWrapMode()
+*/
+void QPlainTextEdit::setWordWrapMode(QTextOption::WrapMode policy) {
+    m_wordWrap = policy;
+    layoutText();
+    viewport()->update();
+}
+
+/*!
+    \fn int QPlainTextEdit::lineWrapColumnOrWidth() const
+    \since 6.0
+
+    Returns the width in pixels or columns at which lines wrap for FixedPixelWidth and FixedColumnWidth.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the width at which lines wrap for FixedPixelWidth and FixedColumnWidth to \a w pixels or columns.
+*/
+void QPlainTextEdit::setLineWrapColumnOrWidth(int w) {
+    m_wrapColumnOrWidth = std::max(0, w);
+    layoutText();
+    viewport()->update();
+}
+
+/*!
+    \fn bool QPlainTextEdit::backgroundVisible() const
+    \since 6.0
+
+    Returns whether the palette background shows outside the text. Nt keeps the value.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether the palette background shows outside the text to \a visible.
+*/
+void QPlainTextEdit::setBackgroundVisible(bool visible) {
+    m_backgroundVisible = visible;
+    viewport()->update();
+}
+
+/*!
+    \fn bool QPlainTextEdit::centerOnScroll() const
+    \since 6.0
+
+    Returns whether the editor may scroll the last line to the middle. Nt keeps the value.
+*/
+
+/*!
+    \fn void QPlainTextEdit::setCenterOnScroll(bool enabled)
+    \since 6.0
+
+    Sets whether the editor may scroll the last line to the middle to \a enabled.
+*/
+
+/*!
+    \fn QString QPlainTextEdit::documentTitle() const
+    \since 6.0
+
+    Returns the title of the text.
+*/
+
+/*!
+    \fn void QPlainTextEdit::setDocumentTitle(const QString &title)
+    \since 6.0
+
+    Sets the title of the text to \a title.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the link at \a pos; plain text has none, so this is an empty string.
+*/
+QString QPlainTextEdit::anchorAt(const QPoint &pos) const {
+    (void)pos;
+    return QString();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the clipboard has text that paste() would insert.
+*/
+bool QPlainTextEdit::canPaste() const {
+    if (m_readOnly)
+        return false;
+    const QClipboard *clipboard = QGuiApplication::clipboard();
+    return clipboard && canInsertFromMimeData(clipboard->mimeData());
+}
+
+/*!
+    \since 6.0
+
+    Copies the selected text to the clipboard and deletes it. Nothing happens if the editor is read-only.
+*/
+void QPlainTextEdit::cut() {
+    if (m_readOnly || m_position == m_anchor)
+        return;
+    copy();
+    const int from = std::min(m_position, m_anchor), to = std::max(m_position, m_anchor);
+    applyEdit(from, to, QString(), false, from);
+}
+
+/*!
+    \since 6.0
+
+    Copies the selected text to the clipboard, as createMimeDataFromSelection() makes it.
+*/
+void QPlainTextEdit::copy() {
+    if (m_position == m_anchor)
+        return;
+    if (QClipboard *clipboard = QGuiApplication::clipboard())
+        clipboard->setMimeData(createMimeDataFromSelection());
+}
+
+/*!
+    \since 6.0
+
+    Inserts what the clipboard holds at the cursor, in place of the selection, through insertFromMimeData().
+*/
+void QPlainTextEdit::paste() {
+    if (m_readOnly)
+        return;
+    const QClipboard *clipboard = QGuiApplication::clipboard();
+    const QMimeData *source = clipboard ? clipboard->mimeData() : nullptr;
+    if (canInsertFromMimeData(source))
+        insertFromMimeData(source);
+}
+
+/*!
+    \since 6.0
+
+    Returns new MIME data with the selected text, for copy() and cut(). The caller owns it.
+*/
+QMimeData *QPlainTextEdit::createMimeDataFromSelection() const {
+    auto *data = new QMimeData;
+    data->setText(selectedText());
+    return data;
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if \a source has text, which insertFromMimeData() can insert.
+*/
+bool QPlainTextEdit::canInsertFromMimeData(const QMimeData *source) const { return source && source->hasText(); }
+
+/*!
+    \since 6.0
+
+    Inserts the text of \a source at the cursor, in place of the selection.
+*/
+void QPlainTextEdit::insertFromMimeData(const QMimeData *source) {
+    if (source && source->hasText())
+        insertPlainText(source->text());
+}
+
+/*!
+    \since 6.0
+
+    Appends a new line with the text of \a html, without its formats, as appendPlainText() does.
+*/
+void QPlainTextEdit::appendHtml(const QString &html) {
+    QTextDocument document;
+    document.setHtml(html);
+    appendPlainText(document.toPlainText());
+}
+
+/*!
+    \since 6.0
+
+    Scrolls the editor so that the cursor is in the middle of the viewport, as far as the text allows.
+*/
+void QPlainTextEdit::centerCursor() {
+    const int lh = lineHeight();
+    const int top = margin() + vlineOf(m_position) * lh;
+    verticalScrollBar()->setValue(top - (viewport()->height() - lh) / 2);
+}
+
+/*!
+    \since 6.0
+
+    Makes the font bigger by \a range points.
+
+    \sa zoomOut()
+*/
+void QPlainTextEdit::zoomIn(int range) { zoomInF(static_cast<float>(range)); }
+
+/*!
+    \since 6.0
+
+    Makes the font smaller by \a range points.
+
+    \sa zoomIn()
+*/
+void QPlainTextEdit::zoomOut(int range) { zoomInF(static_cast<float>(-range)); }
+
+/*!
+    \since 6.0
+
+    Makes the font bigger by \a range points, or smaller for a negative \a range. The font does not go below one
+    point, or one pixel for a font sized in pixels.
+*/
+void QPlainTextEdit::zoomInF(float range) {
+    QFont f = font();
+    if (f.pointSizeF() > 0)
+        f.setPointSizeF(std::max(1.0, f.pointSizeF() + static_cast<qreal>(range)));
+    else
+        f.setPixelSize(std::max(1, f.pixelSize() + static_cast<int>(range)));
+    setFont(f);
+}
+
+/*!
+    \since 6.0
+
+    Returns a new menu with the standard editing actions: Undo, Redo, Cut, Copy, Paste, Delete and Select All, each
+    enabled when it applies. The caller owns the menu.
+*/
+QMenu *QPlainTextEdit::createStandardContextMenu() {
+    auto *menu = new QMenu(this);
+    menu->setObjectName(QStringLiteral("qt_edit_menu"));
+    const bool selected = m_position != m_anchor;
+    const auto add = [&](const QString &text, QKeySequence::StandardKey key, bool enabled, auto slot) {
+        QAction *action = menu->addAction(text);
+        action->setShortcut(QKeySequence(key));
+        action->setEnabled(enabled);
+        QObject::connect(action, &QAction::triggered, this, slot);
+    };
+    if (!m_readOnly) {
+        add(tr("&Undo"), QKeySequence::Undo, m_undoEnabled && !m_undo.empty(), [this] { undo(); });
+        add(tr("&Redo"), QKeySequence::Redo, m_undoEnabled && !m_redo.empty(), [this] { redo(); });
+        menu->addSeparator();
+        add(tr("Cu&t"), QKeySequence::Cut, selected, [this] { cut(); });
+    }
+    add(tr("&Copy"), QKeySequence::Copy, selected, [this] { copy(); });
+    if (!m_readOnly) {
+        add(tr("&Paste"), QKeySequence::Paste, canPaste(), [this] { paste(); });
+        add(tr("Delete"), QKeySequence::Delete, selected, [this] { insertPlainText(QString()); });
+    }
+    menu->addSeparator();
+    add(tr("Select All"), QKeySequence::SelectAll, !m_text.isEmpty(), [this] { selectAll(); });
+    return menu;
+}
+
+/*!
+    \since 6.0
+    \overload
+
+    Returns the standard context menu for a click at \a position in the viewport. The menu is the same wherever
+    the click is.
+*/
+QMenu *QPlainTextEdit::createStandardContextMenu(const QPoint &position) {
+    (void)position;
+    return createStandardContextMenu();
+}
+
+/*!
+    \reimp
+
+    Opens createStandardContextMenu() where the user asked for it.
+*/
+void QPlainTextEdit::contextMenuEvent(QContextMenuEvent *event) {
+    QMenu *menu = createStandardContextMenu(event->pos());
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    menu->popup(event->globalPos());
+    event->accept();
+}
+
+/*!
+    \fn QTextCharFormat QPlainTextEdit::currentCharFormat() const
+    \since 6.0
+
+    Returns the current character format.
+*/
+
+/*!
+    \fn void QPlainTextEdit::setCurrentCharFormat(const QTextCharFormat &format)
+    \since 6.0
+
+    Sets the current character format to \a format. Plain text has no formats, so typed text does not take it.
+*/
+
+/*!
+    \fn void QPlainTextEdit::mergeCurrentCharFormat(const QTextCharFormat &modifier)
+    \since 6.0
+
+    Merges the properties of \a modifier into the current character format.
+*/
+
+/*!
+    \since 6.0
+
+    Draws the background of the format of each of \a selections over its part of the text: its selection, or, with
+    the QTextFormat::FullWidthSelection property, the width of the editor. This is how the line of the cursor is
+    highlighted:
+
+    \code
+    QPlainTextEdit::ExtraSelection line;
+    line.format.setBackground(QColor(Qt::yellow).lighter(160));
+    line.format.setProperty(QTextFormat::FullWidthSelection, true);
+    line.cursor = editor->textCursor();
+    line.cursor.clearSelection();
+    editor->setExtraSelections({line});
+    \endcode
+*/
+void QPlainTextEdit::setExtraSelections(const QList<ExtraSelection> &selections) {
+    m_extraSelections = selections;
+    viewport()->update();
+}
+
+/*!
+    \fn QList<QPlainTextEdit::ExtraSelection> QPlainTextEdit::extraSelections() const
+    \since 6.0
+
+    Returns the extra selections that setExtraSelections() set.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the block of the first line that the viewport shows.
+
+    \sa blockBoundingGeometry()
+*/
+QTextBlock QPlainTextEdit::firstVisibleBlock() const {
+    const int lh = lineHeight();
+    const int index = std::clamp((verticalScrollBar()->value() - margin()) / lh, 0,
+                                 std::max(0, static_cast<int>(m_lines.size()) - 1));
+    const int block = m_lines.empty() ? 0 : m_lines[static_cast<std::size_t>(index)].block;
+    return document()->findBlockByNumber(block);
+}
+
+/*!
+    \since 6.0
+
+    Returns the rectangle that \a block takes in the text, with all its lines. Translated by contentOffset(), it is
+    in the viewport, which is what a line number area at the side of the editor needs:
+
+    \code
+    QTextBlock block = firstVisibleBlock();
+    int top = qRound(blockBoundingGeometry(block).translated(contentOffset()).top());
+    while (block.isValid() && top <= event->rect().bottom()) {
+        painter.drawText(0, top, width, fontMetrics().height(), Qt::AlignRight, QString::number(block.blockNumber() + 1));
+        top += qRound(blockBoundingRect(block).height());
+        block = block.next();
+    }
+    \endcode
+*/
+QRectF QPlainTextEdit::blockBoundingGeometry(const QTextBlock &block) const {
+    const int b = block.blockNumber();
+    int first = -1;
+    int count = 0;
+    for (int i = 0; i < static_cast<int>(m_lines.size()); ++i) {
+        if (m_lines[static_cast<std::size_t>(i)].block != b)
+            continue;
+        if (first < 0)
+            first = i;
+        ++count;
+    }
+    if (first < 0)
+        return QRectF();
+    const int lh = lineHeight();
+    return QRectF(0, margin() + first * lh, viewport()->width(), count * lh);
+}
+
+/*!
+    \since 6.0
+
+    Returns the size of \a block, at the origin.
+
+    \sa blockBoundingGeometry()
+*/
+QRectF QPlainTextEdit::blockBoundingRect(const QTextBlock &block) const {
+    const QRectF geometry = blockBoundingGeometry(block);
+    return QRectF(QPointF(0, 0), geometry.size());
+}
+
+/*!
+    \since 6.0
+
+    Returns where the origin of the text is in the viewport, as the editor is scrolled.
+*/
+QPointF QPlainTextEdit::contentOffset() const {
+    return QPointF(-horizontalScrollBar()->value(), -verticalScrollBar()->value());
+}
+
+/*!
+    \since 6.0
+
+    Returns the state for painting the text: the cursor position, the palette and the viewport.
+*/
+QAbstractTextDocumentLayout::PaintContext QPlainTextEdit::getPaintContext() const {
+    QAbstractTextDocumentLayout::PaintContext context;
+    context.cursorPosition = m_position;
+    context.palette = palette();
+    context.clip = QRectF(viewport()->rect());
+    return context;
+}
+
+/*!
+    \since 6.0
+
+    Returns the resource of \a type at \a name, for an image of rich text. Plain text has none; the default returns
+    an invalid QVariant.
+*/
+QVariant QPlainTextEdit::loadResource(int type, const QUrl &name) {
+    (void)type;
+    (void)name;
+    return QVariant();
+}
+
+/*!
+    \reimp
+*/
+QVariant QPlainTextEdit::inputMethodQuery(Qt::InputMethodQuery property) const {
+    const int block = blockOf(m_position);
+    const int start = blockStart(block);
+    switch (property) {
+    case Qt::ImEnabled:
+        return QVariant(isEnabled() && !m_readOnly);
+    case Qt::ImCursorRectangle:
+        return QVariant(cursorRect());
+    case Qt::ImFont:
+        return QVariant::fromValue(font());
+    case Qt::ImCursorPosition:
+        return QVariant(m_position - start);
+    case Qt::ImAnchorPosition:
+        return QVariant(std::clamp(m_anchor - start, 0, blockEnd(block) - start));
+    case Qt::ImSurroundingText:
+        return QVariant(m_text.mid(start, blockEnd(block) - start));
+    case Qt::ImCurrentSelection:
+        return QVariant(selectedText());
+    default:
+        return QAbstractScrollArea::inputMethodQuery(property);
+    }
+}
+
+/*!
+    \since 6.0
+
+    Prints the text on \a printer, in the font of the editor, over as many pages as it needs.
+*/
+void QPlainTextEdit::print(QPagedPaintDevice *printer) const {
+    if (!printer)
+        return;
+    QTextDocument document;
+    document.setDefaultFont(font());
+    document.setPlainText(m_text);
+    const int pageWidth = printer->width();
+    const int pageHeight = printer->height();
+    if (pageWidth <= 0 || pageHeight <= 0)
+        return;
+    document.setTextWidth(pageWidth);
+    QPainter painter(printer);
+    const qreal total = document.size().height();
+    const int pages = std::max(1, static_cast<int>(std::ceil(total / pageHeight)));
+    for (int page = 0; page < pages; ++page) {
+        const qreal top = static_cast<qreal>(page) * pageHeight;
+        if (page > 0)
+            printer->newPage();
+        painter.save();
+        painter.translate(0, -top);
+        document.drawContents(&painter, QRectF(0, top, pageWidth, pageHeight));
+        painter.restore();
+    }
 }
 
 #include "moc_qplaintextedit.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

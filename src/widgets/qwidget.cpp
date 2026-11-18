@@ -177,6 +177,18 @@ std::vector<QWidget *> WidgetAccess::tabChain(QWidget *top) { return focusChain(
 
 QWidget *WidgetAccess::focusWidgetOf(QWidget *top) { return top->m_d->focusChild; }
 
+// Emits QApplication::focusChanged() if the widget with the focus is another one than when it was last called.
+static void notifyFocusChange() {
+    static QPointer<QWidget> last;
+    QWidget *now = QApplication::focusWidget();
+    if (now == last)
+        return;
+    QWidget *old = last;
+    last = now;
+    if (auto *app = QApplication::instance())
+        emit app->focusChanged(old, now);
+}
+
 void WidgetAccess::setFocusWidget(QWidget *top, QWidget *w) {
     QWidget *old = top->m_d->focusChild;
     if (old == w)
@@ -192,6 +204,7 @@ void WidgetAccess::setFocusWidget(QWidget *top, QWidget *w) {
             QCoreApplication::sendEvent(w, &in);
         }
     }
+    notifyFocusChange();
 }
 
 void WidgetAccess::windowActivated(QWidget *top, bool active) {
@@ -218,6 +231,7 @@ void WidgetAccess::windowActivated(QWidget *top, bool active) {
         QEvent deactivate(QEvent::WindowDeactivate);
         QCoreApplication::sendEvent(top, &deactivate);
     }
+    notifyFocusChange();
     top->update();
 }
 

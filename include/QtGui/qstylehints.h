@@ -21,6 +21,14 @@ public:
     void setStartDragDistance(int startDragDistance) { m_dragDistance = startDragDistance; }
     int startDragTime() const { return m_dragTime; }
     void setStartDragTime(int startDragTime) { m_dragTime = startDragTime; }
+    int cursorFlashTime() const { return m_cursorFlashTime; }
+    void setCursorFlashTime(int cursorFlashTime) { m_cursorFlashTime = cursorFlashTime; }
+    int mouseDoubleClickInterval() const { return m_doubleClickInterval; }
+    void setMouseDoubleClickInterval(int mouseDoubleClickInterval) { m_doubleClickInterval = mouseDoubleClickInterval; }
+    int keyboardInputInterval() const { return m_keyboardInputInterval; }
+    void setKeyboardInputInterval(int keyboardInputInterval) { m_keyboardInputInterval = keyboardInputInterval; }
+    int wheelScrollLines() const { return m_wheelScrollLines; }
+    void setWheelScrollLines(int scrollLines) { m_wheelScrollLines = scrollLines; }
 
 signals:
     /*!
@@ -40,4 +48,8 @@ private:
     Qt::ColorScheme m_override = Qt::ColorScheme::Unknown;
     int m_dragDistance = 10;
     int m_dragTime = 500;
+    int m_cursorFlashTime = 1000;
+    int m_doubleClickInterval = 400;
+    int m_keyboardInputInterval = 400;
+    int m_wheelScrollLines = 3;
 };

@@ -84,6 +84,7 @@ class QListWidget : public QAbstractItemView {
     Q_OBJECT
     Q_PROPERTY(int count READ count)
     Q_PROPERTY(int currentRow READ currentRow WRITE setCurrentRow NOTIFY currentRowChanged)
+    Q_PROPERTY(bool sortingEnabled READ isSortingEnabled WRITE setSortingEnabled)
 public:
     explicit QListWidget(QWidget *parent = nullptr);
     ~QListWidget() override;
@@ -133,6 +134,14 @@ public:
     void setWordWrap(bool on);
     bool isRowHidden(int row) const;
     void setRowHidden(int row, bool hide);
+    bool isSortingEnabled() const { return m_sorting; }
+    void setSortingEnabled(bool enable);
+    QList<QListWidgetItem *> findItems(const QString &text, Qt::MatchFlags flags) const;
+    void editItem(QListWidgetItem *item);
+    QModelIndex indexFromItem(const QListWidgetItem *item) const;
+    QListWidgetItem *itemFromIndex(const QModelIndex &index) const;
+    Qt::DropActions supportedDragActions() const { return m_dragActions; }
+    void setSupportedDragActions(Qt::DropActions actions) { m_dragActions = actions; }
 
 public slots:
     void setCurrentRow(int row);
@@ -174,12 +183,28 @@ signals:
         This signal is emitted when the selection changes.
     */
     void itemSelectionChanged() { emitSignal(&QListWidget::itemSelectionChanged); }
+    /*!
+        \since 6.0
+        This signal is emitted when the data of \a item changes, its text for example.
+    */
+    void itemChanged(QListWidgetItem *item) { emitSignal(&QListWidget::itemChanged, item); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user presses a mouse button on \a item.
+    */
+    void itemPressed(QListWidgetItem *item) { emitSignal(&QListWidget::itemPressed, item); }
+    /*!
+        \since 6.0
+        This signal is emitted when the mouse enters \a item, while mouse tracking is on.
+    */
+    void itemEntered(QListWidgetItem *item) { emitSignal(&QListWidget::itemEntered, item); }
 
 protected:
     virtual QStringList mimeTypes() const;
     virtual QMimeData *mimeData(const QList<QListWidgetItem *> &items) const;
     virtual bool dropMimeData(int index, const QMimeData *data, Qt::DropAction action);
     virtual Qt::DropActions supportedDropActions() const;
+    QList<QListWidgetItem *> items(const QMimeData *data) const;
     bool viewportEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -198,7 +223,8 @@ private:
     friend class QListWidgetItem;
     void adopt(QListWidgetItem *item);
     void updateScrollBars();
-    void itemChanged(QListWidgetItem *item);
+    void itemDidChange(QListWidgetItem *item);
+    void closeItemEditor(bool commit);
     void forget(QListWidgetItem *item);
     bool selectable(int row) const;
     bool enabled(int row) const;
@@ -238,6 +264,11 @@ private:
     QSize m_gridSize;
     bool m_uniformItemSizes = false;
     bool m_wordWrap = false;
+    bool m_sorting = false;
+    Qt::DropActions m_dragActions = Qt::CopyAction;
+    QPointer<QWidget> m_editor;
+    QListWidgetItem *m_editing = nullptr;
+    int m_hover = -1; // the row the mouse is over, for itemEntered()
     mutable std::vector<QRect> m_rects; // of the items, row by row, as layoutItems() placed them
     mutable int m_contentHeight = 0;
     mutable bool m_layoutValid = false;

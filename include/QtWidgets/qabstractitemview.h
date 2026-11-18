@@ -4,7 +4,9 @@
 #include <QtCore/qabstractitemmodel.h>
 #include <QtCore/qitemselectionmodel.h>
 #include <QtCore/qmap.h>
+#include <QtCore/qelapsedtimer.h>
 #include <QtCore/qpointer.h>
+#include <QtCore/qtimer.h>
 #include <QtWidgets/qabstractitemdelegate.h>
 #include <QtWidgets/qabstractscrollarea.h>
 
@@ -20,6 +22,16 @@ class QAbstractItemView : public QAbstractScrollArea {
     Q_PROPERTY(bool dragEnabled READ dragEnabled WRITE setDragEnabled)
     Q_PROPERTY(DragDropMode dragDropMode READ dragDropMode WRITE setDragDropMode)
     Q_PROPERTY(Qt::DropAction defaultDropAction READ defaultDropAction WRITE setDefaultDropAction)
+    Q_PROPERTY(bool autoScroll READ hasAutoScroll WRITE setAutoScroll)
+    Q_PROPERTY(int autoScrollMargin READ autoScrollMargin WRITE setAutoScrollMargin)
+    Q_PROPERTY(bool tabKeyNavigation READ tabKeyNavigation WRITE setTabKeyNavigation)
+    Q_PROPERTY(bool showDropIndicator READ showDropIndicator WRITE setDropIndicatorShown)
+    Q_PROPERTY(bool dragDropOverwriteMode READ dragDropOverwriteMode WRITE setDragDropOverwriteMode)
+    Q_PROPERTY(Qt::TextElideMode textElideMode READ textElideMode WRITE setTextElideMode)
+    Q_PROPERTY(
+        ScrollMode verticalScrollMode READ verticalScrollMode WRITE setVerticalScrollMode RESET resetVerticalScrollMode)
+    Q_PROPERTY(ScrollMode horizontalScrollMode READ horizontalScrollMode WRITE setHorizontalScrollMode RESET
+                   resetHorizontalScrollMode)
 public:
     enum DragDropMode { NoDragDrop, DragOnly, DropOnly, DragDrop, InternalMove };
     Q_ENUM(DragDropMode)
@@ -78,6 +90,24 @@ public:
     ScrollMode verticalScrollMode() const { return m_verticalScrollMode; }
     void setHorizontalScrollMode(ScrollMode mode) { m_horizontalScrollMode = mode; }
     ScrollMode horizontalScrollMode() const { return m_horizontalScrollMode; }
+    void resetVerticalScrollMode() { m_verticalScrollMode = ScrollPerPixel; }
+    void resetHorizontalScrollMode() { m_horizontalScrollMode = ScrollPerPixel; }
+    bool hasAutoScroll() const { return m_autoScroll; }
+    void setAutoScroll(bool enable) { m_autoScroll = enable; }
+    int autoScrollMargin() const { return m_autoScrollMargin; }
+    void setAutoScrollMargin(int margin) { m_autoScrollMargin = margin; }
+    bool tabKeyNavigation() const { return m_tabKeyNavigation; }
+    void setTabKeyNavigation(bool enable) { m_tabKeyNavigation = enable; }
+    bool dragDropOverwriteMode() const { return m_overwrite; }
+    void setDragDropOverwriteMode(bool overwrite) { m_overwrite = overwrite; }
+    void openPersistentEditor(const QModelIndex &index);
+    void closePersistentEditor(const QModelIndex &index);
+    bool isPersistentEditorOpen(const QModelIndex &index) const;
+    virtual void keyboardSearch(const QString &search);
+    virtual int sizeHintForRow(int row) const;
+    virtual int sizeHintForColumn(int column) const;
+    int updateThreshold() const { return m_updateThreshold; }
+    void setUpdateThreshold(int threshold) { m_updateThreshold = threshold; }
     void setDragDropMode(DragDropMode behavior);
     Qt::DropAction defaultDropAction() const { return m_defaultDropAction; }
     void setDefaultDropAction(Qt::DropAction dropAction) { m_defaultDropAction = dropAction; }
@@ -130,6 +160,17 @@ signals:
         \sa setIconSize()
     */
     void iconSizeChanged(const QSize &size) { emitSignal(&QAbstractItemView::iconSizeChanged, size); }
+    /*!
+        \since 6.0
+        This signal is emitted when the mouse enters the item \a index, while mouse tracking is on.
+    */
+    void entered(const QModelIndex &index) { emitSignal(&QAbstractItemView::entered, index); }
+    /*!
+        \since 6.0
+        This signal is emitted when the mouse moves from an item to the empty part of the viewport, while mouse
+        tracking is on.
+    */
+    void viewportEntered() { emitSignal(&QAbstractItemView::viewportEntered); }
 
 protected:
     enum CursorAction {
@@ -144,7 +185,16 @@ protected:
         MoveNext,
         MovePrevious
     };
-    enum State { NoState, EditingState };
+    enum State {
+        NoState,
+        DraggingState,
+        DragSelectingState,
+        EditingState,
+        ExpandingState,
+        CollapsingState,
+        AnimatingState
+    };
+    enum DropIndicatorPosition { OnItem, AboveItem, BelowItem, OnViewport };
 
     virtual void selectionModeChanged();
     virtual void startDrag(Qt::DropActions supportedActions);
@@ -158,6 +208,26 @@ protected:
     virtual bool edit(const QModelIndex &index, EditTrigger trigger, QEvent *event);
     virtual void initViewItemOption(QStyleOptionViewItem *option) const;
     State state() const;
+    void setState(State state) { m_state = state; }
+    virtual QModelIndexList selectedIndexes() const;
+    virtual QItemSelectionModel::SelectionFlags selectionCommand(const QModelIndex &index,
+                                                                 const QEvent *event = nullptr) const;
+    virtual void setSelection(const QRect &rect, QItemSelectionModel::SelectionFlags command);
+    virtual QRegion visualRegionForSelection(const QItemSelection &selection) const;
+    virtual int horizontalOffset() const;
+    virtual int verticalOffset() const;
+    virtual bool isIndexHidden(const QModelIndex &index) const;
+    DropIndicatorPosition dropIndicatorPosition() const { return m_dropIndicatorPosition; }
+    void scheduleDelayedItemsLayout();
+    void executeDelayedItemsLayout();
+    void setDirtyRegion(const QRegion &region);
+    void scrollDirtyRegion(int dx, int dy);
+    QPoint dirtyRegionOffset() const { return QPoint(); }
+    void startAutoScroll();
+    void stopAutoScroll();
+    void doAutoScroll();
+    void keyPressEvent(QKeyEvent *event) override;
+    bool focusNextPrevChild(bool next) override;
     void updateEditorGeometries();
     virtual void updateGeometries();
     bool viewportEvent(QEvent *event) override;
@@ -172,6 +242,12 @@ protected slots:
     virtual void currentChanged(const QModelIndex &current, const QModelIndex &previous);
     virtual void closeEditor(QWidget *editor, QAbstractItemDelegate::EndEditHint hint);
     virtual void commitData(QWidget *editor);
+    virtual void editorDestroyed(QObject *editor);
+    virtual void updateEditorData();
+    virtual void horizontalScrollbarAction(int action);
+    virtual void verticalScrollbarAction(int action);
+    virtual void horizontalScrollbarValueChanged(int value);
+    virtual void verticalScrollbarValueChanged(int value);
 
 private:
     void watchDelegate(QAbstractItemDelegate *delegate);
@@ -208,6 +284,25 @@ private:
     };
     std::vector<IndexWidget> m_indexWidgets;
     void placeIndexWidgets();
+    void placePersistentEditors();
+    QModelIndex persistentIndexOf(const QWidget *editor) const;
+    struct PersistentEditor {
+        QPersistentModelIndex index;
+        QPointer<QWidget> editor;
+    };
+    std::vector<PersistentEditor> m_persistent;
+    bool m_autoScroll = true;
+    int m_autoScrollMargin = 16;
+    bool m_tabKeyNavigation = false;
+    bool m_overwrite = false;
+    int m_updateThreshold = 200;
+    State m_state = NoState;
+    DropIndicatorPosition m_dropIndicatorPosition = OnViewport;
+    bool m_layoutScheduled = false;
+    QTimer m_autoScrollTimer;
+    QString m_search;
+    QElapsedTimer m_searchTimer;
+    QPersistentModelIndex m_hover; // the item the mouse is over, for entered()
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QAbstractItemView::EditTriggers)

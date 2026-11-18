@@ -18,6 +18,9 @@ class QTreeView : public QAbstractItemView {
     Q_PROPERTY(bool headerHidden READ isHeaderHidden WRITE setHeaderHidden)
     Q_PROPERTY(bool expandsOnDoubleClick READ expandsOnDoubleClick WRITE setExpandsOnDoubleClick)
     Q_PROPERTY(bool animated READ isAnimated WRITE setAnimated)
+    Q_PROPERTY(bool allColumnsShowFocus READ allColumnsShowFocus WRITE setAllColumnsShowFocus)
+    Q_PROPERTY(bool wordWrap READ wordWrap WRITE setWordWrap)
+    Q_PROPERTY(int autoExpandDelay READ autoExpandDelay WRITE setAutoExpandDelay)
 public:
     explicit QTreeView(QWidget *parent = nullptr);
     ~QTreeView() override;
@@ -26,6 +29,19 @@ public:
     void setRootIndex(const QModelIndex &index) override;
 
     QHeaderView *header() const { return m_header; }
+    void setHeader(QHeaderView *header);
+    bool isColumnHidden(int column) const;
+    void setColumnHidden(int column, bool hide);
+    int treePosition() const;
+    void setTreePosition(int logicalIndex);
+    bool wordWrap() const { return m_wordWrap; }
+    void setWordWrap(bool on);
+    bool allColumnsShowFocus() const { return m_allColumnsFocus; }
+    void setAllColumnsShowFocus(bool enable);
+    int autoExpandDelay() const { return m_autoExpandDelay; }
+    void setAutoExpandDelay(int delay) { m_autoExpandDelay = delay; }
+    void keyboardSearch(const QString &search) override;
+    int sizeHintForColumn(int column) const override;
 
     int indentation() const { return m_indentation; }
     void setIndentation(int i);
@@ -78,6 +94,8 @@ public slots:
     void expandToDepth(int depth);
     void expandRecursively(const QModelIndex &index, int depth = -1);
     void resizeColumnToContents(int column);
+    void hideColumn(int column) { setColumnHidden(column, true); }
+    void showColumn(int column) { setColumnHidden(column, false); }
 
 signals:
     /*!
@@ -107,7 +125,18 @@ protected:
     virtual void drawRow(QPainter *painter, const QStyleOptionViewItem &options, const QModelIndex &index) const;
     virtual void drawBranches(QPainter *painter, const QRect &rect, const QModelIndex &index) const;
     void updateGeometries() override;
+    bool isIndexHidden(const QModelIndex &index) const override;
+    int indexRowSizeHint(const QModelIndex &index) const;
+    void drawTree(QPainter *painter, const QRegion &region) const;
+    void reexpand();
 
+protected slots:
+    void columnResized(int column, int oldSize, int newSize);
+    void columnCountChanged(int oldCount, int newCount);
+    void columnMoved();
+    void rowsRemoved(const QModelIndex &parent, int first, int last);
+
+protected:
 private:
     struct Row {
         QPersistentModelIndex index; // in column 0
@@ -141,6 +170,15 @@ private:
     QPersistentModelIndex m_pressed; // the item under the press that is going on
     int m_indentation = 20;
     bool m_animated = false;
+    bool m_wordWrap = false;
+    bool m_allColumnsFocus = false;
+    int m_autoExpandDelay = -1;
+    int m_treePosition = 0; // the logical column with the tree
+    QString m_typed;        // keyboardSearch()
+    QElapsedTimer m_typedTimer;
+    std::vector<QMetaObject::Connection> m_headerConnections;
+    void connectHeader();
+    int treeColumn() const;
     bool m_rootDecorated = true;
     bool m_uniform = false;
     bool m_expandable = true;

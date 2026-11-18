@@ -1764,6 +1764,50 @@ enum LayoutDirection { LeftToRight, RightToLeft, LayoutDirectionAuto };
 enum CursorMoveStyle { LogicalMoveStyle, VisualMoveStyle };
 
 /*!
+    \enum Qt::UIEffect
+    \since 6.0
+
+    The animations and fades of the user interface that QApplication::setEffectEnabled() turns on or off.
+
+    \value UI_General All of the effects.
+    \value UI_AnimateMenu Menus slide open.
+    \value UI_FadeMenu Menus fade in.
+    \value UI_AnimateCombo The lists of combo boxes slide open.
+    \value UI_AnimateTooltip Tool tips slide open.
+    \value UI_FadeTooltip Tool tips fade in.
+    \value UI_AnimateToolBox The pages of tool boxes slide.
+*/
+enum UIEffect {
+    UI_General,
+    UI_AnimateMenu,
+    UI_FadeMenu,
+    UI_AnimateCombo,
+    UI_AnimateTooltip,
+    UI_FadeTooltip,
+    UI_AnimateToolBox
+};
+
+/*!
+    \enum Qt::NavigationMode
+    \since 6.0
+
+    How the keys move the focus on a device without a mouse.
+
+    \value NavigationModeNone Only the mouse and the touch screen.
+    \value NavigationModeKeypadTabOrder The keypad moves through the tab order.
+    \value NavigationModeKeypadDirectional The keypad moves in the direction of its keys.
+    \value NavigationModeCursorAuto A mouse cursor is moved with the keys when there is no mouse.
+    \value NavigationModeCursorForceVisible A mouse cursor is always moved with the keys.
+*/
+enum NavigationMode {
+    NavigationModeNone,
+    NavigationModeKeypadTabOrder,
+    NavigationModeKeypadDirectional,
+    NavigationModeCursorAuto,
+    NavigationModeCursorForceVisible
+};
+
+/*!
     \enum Qt::Corner
     \since 6.0
 

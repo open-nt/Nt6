@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qtablewidget.h>
 
+#include <QtCore/qmimedata.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qapplication.h>
@@ -10,6 +11,8 @@
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtooltip.h>
+
+#include "qitemtextmatch_p.h"
 
 #include <algorithm>
 #include <functional>
@@ -495,6 +498,7 @@ void QTableWidget::init(int rows, int columns) {
 */
 QTableWidget::~QTableWidget() {
     m_editing = nullptr;
+    delete m_prototype;
     for (std::vector<QTableWidgetItem *> *items : {&m_hItems, &m_vItems})
         for (QTableWidgetItem *&item : *items) {
             if (item)
@@ -1211,6 +1215,10 @@ void QTableWidget::moveCurrent(int row, int column) {
     m_currentColumn = column;
     viewport()->update(cellRect(row, column));
     emit currentCellChanged(row, column, oldRow, oldColumn);
+    QTableWidgetItem *now = item(row, column);
+    QTableWidgetItem *before = item(oldRow, oldColumn);
+    if (now != before)
+        emit currentItemChanged(now, before);
     emit itemSelectionChanged();
 }
 
@@ -1490,6 +1498,23 @@ void QTableWidget::paintEvent(QPaintEvent *event) {
     \reimp
 */
 bool QTableWidget::viewportEvent(QEvent *event) {
+    if (event->type() == QEvent::MouseMove && (viewport()->hasMouseTracking() || hasMouseTracking())) {
+        const QPoint pos = static_cast<QMouseEvent *>(event)->pos();
+        const int row = rowAt(pos.y()), column = columnAt(pos.x());
+        if (row != m_hoverRow || column != m_hoverColumn) {
+            m_hoverRow = row;
+            m_hoverColumn = column;
+            if (row >= 0 && column >= 0) {
+                emit cellEntered(row, column);
+                if (QTableWidgetItem *it = item(row, column))
+                    emit itemEntered(it);
+            } else {
+                emit viewportEntered();
+            }
+        }
+    } else if (event->type() == QEvent::Leave) {
+        m_hoverRow = m_hoverColumn = -1;
+    }
     if (event->type() == QEvent::ToolTip) {
         auto *help = static_cast<QHelpEvent *>(event);
         const int row = rowAt(help->pos().y()), column = columnAt(help->pos().x());
@@ -1517,6 +1542,11 @@ void QTableWidget::mousePressEvent(QMouseEvent *event) {
     if (selectable(row, column)) {
         moveCurrent(row, column);
         scrollToCell(row, column);
+    }
+    if (row >= 0 && column >= 0) {
+        emit cellPressed(row, column);
+        if (QTableWidgetItem *it = item(row, column))
+            emit itemPressed(it);
     }
     event->accept();
 }
@@ -1558,6 +1588,11 @@ void QTableWidget::mouseDoubleClickEvent(QMouseEvent *event) {
             moveCurrent(row, column);
         emit cellDoubleClicked(row, column);
         QTableWidgetItem *it = item(row, column);
+        if (it)
+            emit itemDoubleClicked(it);
+        emit cellActivated(row, column);
+        if (it)
+            emit itemActivated(it);
         if (it && (it->flags() & Qt::ItemIsEditable) && (it->flags() & Qt::ItemIsEnabled) &&
             !checkRect(row, column).adjusted(-2, -2, 2, 2).contains(event->pos()))
             editItem(it);
@@ -1581,6 +1616,14 @@ void QTableWidget::keyPressEvent(QKeyEvent *event) {
     int targetRow = m_currentRow, targetColumn = m_currentColumn;
     const bool control = event->modifiers() & Qt::ControlModifier;
     const int pageRows = std::max(1, viewport()->height() / std::max(1, m_vheader->defaultSectionSize()) - 1);
+    if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) && m_currentRow >= 0 &&
+        m_currentColumn >= 0 && !m_editor) {
+        emit cellActivated(m_currentRow, m_currentColumn);
+        if (QTableWidgetItem *it = currentItem())
+            emit itemActivated(it);
+        event->ignore(); // as in Qt, so that a dialog can click its default button
+        return;
+    }
     if (QTableWidgetItem *it = currentItem(); it && (it->flags() & Qt::ItemIsEnabled)) {
         if (event->key() == Qt::Key_F2 && (it->flags() & Qt::ItemIsEditable)) {
             editItem(it);
@@ -1996,6 +2039,193 @@ void QTableWidget::setRangeSelected(const QTableWidgetSelectionRange &range, boo
     if (m_currentRow >= range.topRow() && m_currentRow <= range.bottomRow() && m_currentColumn >= range.leftColumn() &&
         m_currentColumn <= range.rightColumn())
         moveCurrent(-1, -1);
+}
+
+/*!
+    \since 6.0
+
+    Returns the row of \a item, or -1 if it is not in the table.
+*/
+int QTableWidget::row(const QTableWidgetItem *item) const {
+    return item && item->m_table == this && !item->m_isHeader ? item->m_row : -1;
+}
+
+/*!
+    \since 6.0
+
+    Returns the column of \a item, or -1 if it is not in the table.
+*/
+int QTableWidget::column(const QTableWidgetItem *item) const {
+    return item && item->m_table == this && !item->m_isHeader ? item->m_column : -1;
+}
+
+/*!
+    \since 6.0
+
+    Returns where the row \a logicalRow is shown, as the vertical header orders the rows.
+*/
+int QTableWidget::visualRow(int logicalRow) const { return m_vheader->visualIndex(logicalRow); }
+
+/*!
+    \since 6.0
+
+    Returns where the column \a logicalColumn is shown, as the horizontal header orders the columns.
+*/
+int QTableWidget::visualColumn(int logicalColumn) const { return m_hheader->visualIndex(logicalColumn); }
+
+/*!
+    \since 6.0
+
+    Returns the items whose text matches \a text the way \a flags says, row by row.
+*/
+QList<QTableWidgetItem *> QTableWidget::findItems(const QString &text, Qt::MatchFlags flags) const {
+    const QtPrivate::ItemTextMatcher matches(text, flags);
+    QList<QTableWidgetItem *> found;
+    for (int r = 0; r < m_rows; ++r)
+        for (int c = 0; c < m_columns; ++c)
+            if (QTableWidgetItem *it = item(r, c); it && matches(it->text()))
+                found.append(it);
+    return found;
+}
+
+/*!
+    \fn const QTableWidgetItem *QTableWidget::itemPrototype() const
+    \since 6.0
+
+    Returns the item that new items are made like, or \c nullptr.
+*/
+
+/*!
+    \since 6.0
+
+    Makes \a item the prototype of new items, and takes ownership of it; the old prototype is deleted. Nt keeps it,
+    as the table does not make items itself.
+*/
+void QTableWidget::setItemPrototype(const QTableWidgetItem *item) {
+    if (item == m_prototype)
+        return;
+    delete m_prototype;
+    m_prototype = item;
+}
+
+QTableWidgetItem *QTableWidget::takeHeaderItem(Qt::Orientation orientation, int section) {
+    std::vector<QTableWidgetItem *> &items = headerItems(orientation);
+    if (section < 0 || static_cast<std::size_t>(section) >= items.size())
+        return nullptr;
+    QTableWidgetItem *item = items[static_cast<std::size_t>(section)];
+    if (!item)
+        return nullptr;
+    items[static_cast<std::size_t>(section)] = nullptr;
+    item->m_table = nullptr;
+    QHeaderView *header = orientation == Qt::Horizontal ? m_hheader : m_vheader;
+    QStringList labels = header->m_labels;
+    if (section < labels.size()) {
+        labels[section] = QString();
+        header->setLabels(labels);
+    }
+    updateLayout();
+    return item;
+}
+
+/*!
+    \since 6.0
+
+    Takes the header item of the column \a column out of the table and returns it, or \c nullptr. The caller owns it.
+*/
+QTableWidgetItem *QTableWidget::takeHorizontalHeaderItem(int column) { return takeHeaderItem(Qt::Horizontal, column); }
+
+/*!
+    \since 6.0
+
+    Takes the header item of the row \a row out of the table and returns it, or \c nullptr. The caller owns it.
+*/
+QTableWidgetItem *QTableWidget::takeVerticalHeaderItem(int row) { return takeHeaderItem(Qt::Vertical, row); }
+
+/*!
+    \since 6.0
+
+    Returns an invalid index: the table keeps its items without a model, so \a item has no model index.
+*/
+QModelIndex QTableWidget::indexFromItem(const QTableWidgetItem *item) const {
+    (void)item;
+    return QModelIndex();
+}
+
+/*!
+    \since 6.0
+
+    Returns the item at the row and column of \a index, or \c nullptr. The table has no model, so only the row and
+    column of \a index are looked at.
+*/
+QTableWidgetItem *QTableWidget::itemFromIndex(const QModelIndex &index) const {
+    return index.isValid() ? item(index.row(), index.column()) : nullptr;
+}
+
+/*!
+    \fn Qt::DropActions QTableWidget::supportedDragActions() const
+    \since 6.0
+
+    Returns the actions a drag from the table allows.
+*/
+
+/*!
+    \fn void QTableWidget::setSupportedDragActions(Qt::DropActions actions)
+    \since 6.0
+
+    Sets the actions a drag from the table allows to \a actions. Nt keeps the value.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the MIME types that mimeData() makes.
+*/
+QStringList QTableWidget::mimeTypes() const { return {QStringLiteral("application/x-qabstractitemmodeldatalist")}; }
+
+/*!
+    \since 6.0
+
+    Returns new data that stands for \a items: their texts, one per line, as plain text. The caller owns it.
+*/
+QMimeData *QTableWidget::mimeData(const QList<QTableWidgetItem *> &items) const {
+    auto *data = new QMimeData;
+    QStringList texts;
+    for (const QTableWidgetItem *it : items)
+        if (it)
+            texts.append(it->text());
+    data->setText(texts.join(QChar('\n')));
+    return data;
+}
+
+/*!
+    \since 6.0
+
+    Handles \a data dropped with \a action on the cell at \a row and \a column, and returns \c true if it was taken.
+    The default takes nothing; reimplement it to accept drops.
+*/
+bool QTableWidget::dropMimeData(int row, int column, const QMimeData *data, Qt::DropAction action) {
+    (void)row;
+    (void)column;
+    (void)data;
+    (void)action;
+    return false;
+}
+
+/*!
+    \since 6.0
+
+    Returns the actions that drops on the table may take: Qt::CopyAction | Qt::MoveAction by default.
+*/
+Qt::DropActions QTableWidget::supportedDropActions() const { return Qt::CopyAction | Qt::MoveAction; }
+
+/*!
+    \since 6.0
+
+    Returns the items of the table that \a data was made from; empty, as the items are not kept in MIME data.
+*/
+QList<QTableWidgetItem *> QTableWidget::items(const QMimeData *data) const {
+    (void)data;
+    return {};
 }
 
 #include "moc_qtablewidget.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

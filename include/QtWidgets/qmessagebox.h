@@ -111,6 +111,7 @@ public:
     static StandardButton critical(QWidget *parent, const QString &title, const QString &text,
                                    StandardButtons buttons = Ok, StandardButton defaultButton = NoButton);
     static void about(QWidget *parent, const QString &title, const QString &text);
+    static void aboutQt(QWidget *parent, const QString &title = QString());
 
 public slots:
     int exec() override;

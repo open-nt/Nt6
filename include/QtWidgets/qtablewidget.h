@@ -173,6 +173,19 @@ public:
     QList<QTableWidgetSelectionRange> selectedRanges() const;
     void setRangeSelected(const QTableWidgetSelectionRange &range, bool select);
     void scrollToItem(const QTableWidgetItem *item);
+    int row(const QTableWidgetItem *item) const;
+    int column(const QTableWidgetItem *item) const;
+    int visualRow(int logicalRow) const;
+    int visualColumn(int logicalColumn) const;
+    QList<QTableWidgetItem *> findItems(const QString &text, Qt::MatchFlags flags) const;
+    const QTableWidgetItem *itemPrototype() const { return m_prototype; }
+    void setItemPrototype(const QTableWidgetItem *item);
+    QTableWidgetItem *takeHorizontalHeaderItem(int column);
+    QTableWidgetItem *takeVerticalHeaderItem(int row);
+    QModelIndex indexFromItem(const QTableWidgetItem *item) const;
+    QTableWidgetItem *itemFromIndex(const QModelIndex &index) const;
+    Qt::DropActions supportedDragActions() const { return m_dragActions; }
+    void setSupportedDragActions(Qt::DropActions actions) { m_dragActions = actions; }
 
     bool showGrid() const { return m_showGrid; }
     void setShowGrid(bool show);
@@ -221,8 +234,57 @@ signals:
         This signal is emitted when the data of the item in the cell at \a row and \a column changes.
     */
     void cellChanged(int row, int column) { emitSignal(&QTableWidget::cellChanged, row, column); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user presses a mouse button on the cell at \a row and \a column.
+    */
+    void cellPressed(int row, int column) { emitSignal(&QTableWidget::cellPressed, row, column); }
+    /*!
+        \since 6.0
+        This signal is emitted when the mouse enters the cell at \a row and \a column, while mouse tracking is on.
+    */
+    void cellEntered(int row, int column) { emitSignal(&QTableWidget::cellEntered, row, column); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user activates the cell at \a row and \a column: double-clicks it, or
+        presses Return or Enter while it is current.
+    */
+    void cellActivated(int row, int column) { emitSignal(&QTableWidget::cellActivated, row, column); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user presses a mouse button on \a item.
+    */
+    void itemPressed(QTableWidgetItem *item) { emitSignal(&QTableWidget::itemPressed, item); }
+    /*!
+        \since 6.0
+        This signal is emitted when the mouse enters \a item, while mouse tracking is on.
+    */
+    void itemEntered(QTableWidgetItem *item) { emitSignal(&QTableWidget::itemEntered, item); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user activates \a item.
+    */
+    void itemActivated(QTableWidgetItem *item) { emitSignal(&QTableWidget::itemActivated, item); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user double-clicks \a item.
+    */
+    void itemDoubleClicked(QTableWidgetItem *item) { emitSignal(&QTableWidget::itemDoubleClicked, item); }
+    /*!
+        \since 6.0
+        This signal is emitted when the current item changes from \a previous to \a current, either of which may be
+        \c nullptr.
+    */
+    void currentItemChanged(QTableWidgetItem *current, QTableWidgetItem *previous) {
+        emitSignal(&QTableWidget::currentItemChanged, current, previous);
+    }
 
 protected:
+    virtual QStringList mimeTypes() const;
+    virtual QMimeData *mimeData(const QList<QTableWidgetItem *> &items) const;
+    virtual bool dropMimeData(int row, int column, const QMimeData *data, Qt::DropAction action);
+    virtual Qt::DropActions supportedDropActions() const;
+    QList<QTableWidgetItem *> items(const QMimeData *data) const;
     bool viewportEvent(QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -287,4 +349,9 @@ private:
     std::vector<QTableWidgetItem *> m_vItems;
     QPointer<QWidget> m_editor;
     QTableWidgetItem *m_editing = nullptr;
+    const QTableWidgetItem *m_prototype = nullptr; // owned
+    Qt::DropActions m_dragActions = Qt::CopyAction;
+    int m_hoverRow = -1; // the cell the mouse is over, for cellEntered()
+    int m_hoverColumn = -1;
+    QTableWidgetItem *takeHeaderItem(Qt::Orientation orientation, int section);
 };

@@ -21,7 +21,7 @@ public:
     QUrl source() const;
     QStringList searchPaths() const { return m_searchPaths; }
     void setSearchPaths(const QStringList &paths) { m_searchPaths = paths; }
-    virtual QVariant loadResource(int type, const QUrl &name);
+    QVariant loadResource(int type, const QUrl &name) override;
     bool isBackwardAvailable() const { return m_position > 0; }
     bool isForwardAvailable() const { return m_position + 1 < static_cast<int>(m_history.size()); }
     void clearHistory();

@@ -1337,6 +1337,41 @@ QString Qt::convertFromPlainText(const QString &plain, Qt::WhiteSpaceMode mode) 
     const Block &block = d->blocks[static_cast<std::size_t>(m_index)]
 
 /*!
+    \fn bool QTextBlock::isVisible() const
+    \since 6.0
+
+    Returns \c true if the block is shown: every valid block is, as Nt does not hide blocks.
+*/
+
+/*!
+    \fn bool QTextDocument::isModified() const
+    \since 6.0
+
+    Returns \c true if the document was modified since setModified(false). An editor such as QPlainTextEdit sets
+    it when the user edits; the document does not set it itself.
+
+    \sa setModified(), modificationChanged()
+*/
+
+/*!
+    \since 6.0
+
+    Marks the document as modified if \a m is \c true, and as saved otherwise, and emits modificationChanged() if
+    that changes.
+
+    \code
+    if (save(editor->toPlainText()))
+        editor->document()->setModified(false);
+    \endcode
+*/
+void QTextDocument::setModified(bool m) {
+    if (m_modified == m)
+        return;
+    m_modified = m;
+    emit modificationChanged(m);
+}
+
+/*!
     Returns \c true if this is a block of a document; otherwise returns
     \c false.
 */

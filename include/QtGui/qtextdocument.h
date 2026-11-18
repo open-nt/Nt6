@@ -31,6 +31,7 @@ public:
     QTextBlock() = default;
 
     bool isValid() const;
+    bool isVisible() const { return isValid(); }
     QString text() const;
     int position() const;
     int length() const;
@@ -178,12 +179,22 @@ public:
 
     void drawContents(QPainter *painter, const QRectF &rect = QRectF());
     QAbstractTextDocumentLayout *documentLayout() const;
+    bool isModified() const { return m_modified; }
+
+public slots:
+    void setModified(bool m = true);
 
 signals:
     /*!
         This signal is emitted when the contents of the document changed.
     */
     void contentsChanged() { emitSignal(&QTextDocument::contentsChanged); }
+    /*!
+        \since 6.0
+        This signal is emitted when the document becomes modified or unmodified, with \a changed \c true for
+        modified.
+    */
+    void modificationChanged(bool changed) { emitSignal(&QTextDocument::modificationChanged, changed); }
 
 private:
     friend class QTextCursor;
@@ -194,6 +205,7 @@ private:
     friend class QAbstractTextDocumentLayout;
     friend class QTextDocumentPrivate;
     std::unique_ptr<QTextDocumentPrivate> d;
+    bool m_modified = false;
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS(QTextDocument::FindFlags)
 Q_DECLARE_OPERATORS_FOR_FLAGS(QTextDocument::MarkdownFeatures)

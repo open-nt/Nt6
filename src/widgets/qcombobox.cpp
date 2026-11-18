@@ -80,6 +80,11 @@ protected:
         for (int row = 0; row < visibleItems(); ++row) {
             const int index = m_top + row;
             const QRect item(1, 1 + row * h, width() - 2, h);
+            if (m_combo->isSeparator(index)) {
+                painter.setPen(palette().color(group, QPalette::Window).darker(130));
+                painter.drawLine(item.left() + 4, item.center().y(), item.right() - 4, item.center().y());
+                continue;
+            }
             const bool enabled = m_combo->isItemEnabled(index);
             const bool hot = index == m_hover && enabled;
             if (QAbstractItemDelegate *delegate = m_combo->itemDelegate()) {
@@ -198,6 +203,7 @@ private:
         ensureVisible(index);
         update();
         emit m_combo->highlighted(index);
+        emit m_combo->textHighlighted(m_combo->itemText(index));
     }
     void commit(int index) {
         close();
@@ -233,10 +239,10 @@ private:
 
     \differences
     The items are rows of a model, a QStandardItemModel unless setModel() sets another: disabled items are shown
-    grey and cannot be chosen. There is no view or delegate (\c setView(), \c setItemDelegate()) and no
-    \c setRootModelIndex(). An editable combo box has no completer or validator, and \c setLineEdit() is missing. There is no
-    \c setPlaceholderText(), \c setMinimumContentsLength() or \c setSizeAdjustPolicy(). Typing does not jump to an
-    item of a combo box that is not editable.
+    grey and cannot be chosen. The list is drawn by the combo box, or by the delegate of setItemDelegate(): a view
+    set with setView() keeps its settings but does not draw the list, and labelDrawingMode() is only kept. The size
+    hint follows sizeAdjustPolicy() and minimumContentsLength(), with AdjustToContentsOnFirstShow sized as
+    AdjustToContents. Typing does not jump to an item of a combo box that is not editable.
     \enddifferences
 
     \sa QSpinBox, QRadioButton
@@ -264,9 +270,11 @@ QComboBox::~QComboBox() {
 /*!
     Returns the number of items.
 */
-int QComboBox::count() const { return m_model ? m_model->rowCount() : 0; }
+int QComboBox::count() const { return m_model ? m_model->rowCount(m_root) : 0; }
 
-QModelIndex QComboBox::itemIndex(int row) const { return m_model ? m_model->index(row, m_modelColumn) : QModelIndex(); }
+QModelIndex QComboBox::itemIndex(int row) const {
+    return m_model ? m_model->index(row, m_modelColumn, m_root) : QModelIndex();
+}
 
 bool QComboBox::isItemEnabled(int row) const {
     const QModelIndex index = itemIndex(row);
@@ -316,7 +324,7 @@ void QComboBox::announceCurrent() {
 }
 
 void QComboBox::rowsInserted(const QModelIndex &parent, int first, int last) {
-    if (parent.isValid())
+    if (parent != QModelIndex(m_root))
         return;
     updateGeometry();
     update();
@@ -331,7 +339,7 @@ void QComboBox::rowsInserted(const QModelIndex &parent, int first, int last) {
 }
 
 void QComboBox::rowsRemoved(const QModelIndex &parent, int first, int last) {
-    if (parent.isValid())
+    if (parent != QModelIndex(m_root))
         return;
     updateGeometry();
     update();
@@ -347,7 +355,7 @@ void QComboBox::rowsRemoved(const QModelIndex &parent, int first, int last) {
 }
 
 void QComboBox::itemsChanged(const QModelIndex &topLeft, const QModelIndex &bottomRight) {
-    if (topLeft.parent().isValid())
+    if (topLeft.parent() != QModelIndex(m_root))
         return;
     updateGeometry();
     update();
@@ -496,8 +504,10 @@ QAbstractItemView *QComboBox::view() const {
         auto *self = const_cast<QComboBox *>(this); // NOLINT(cppcoreguidelines-pro-type-const-cast): made on demand
         auto *list = new QListView(self);
         list->hide();
-        if (m_model)
+        if (m_model) {
             list->setModel(m_model);
+            list->setRootIndex(m_root);
+        }
         m_view = list;
     }
     return m_view;
@@ -691,20 +701,25 @@ void QComboBox::setIconSize(const QSize &size) {
     \sa addItem(), removeItem()
 */
 void QComboBox::insertItem(int index, const QString &text, const QVariant &userData) {
-    if (!m_model)
+    if (!m_model || count() >= m_maxCount)
         return;
     const int at = std::clamp(index, 0, count());
-    if (auto *standard = qobject_cast<QStandardItemModel *>(m_model)) {
+    auto *standard = qobject_cast<QStandardItemModel *>(m_model);
+    QStandardItem *parentItem = standard && m_root.isValid() ? standard->itemFromIndex(m_root) : nullptr;
+    if (standard && (parentItem || !m_root.isValid())) {
         // The item has its data before the row appears, so that currentTextChanged() has the text.
         auto *item = new QStandardItem(text);
         if (userData.isValid())
             item->setData(userData, Qt::UserRole);
         QList<QStandardItem *> row(m_modelColumn + 1, nullptr);
         row.back() = item;
-        standard->insertRow(at, row);
+        if (parentItem)
+            parentItem->insertRow(at, row);
+        else
+            standard->insertRow(at, row);
         return;
     }
-    if (!m_model->insertRows(at, 1))
+    if (!m_model->insertRows(at, 1, m_root))
         return;
     m_model->setData(itemIndex(at), text, Qt::DisplayRole);
     if (userData.isValid())
@@ -718,7 +733,7 @@ void QComboBox::insertItem(int index, const QString &text, const QVariant &userD
 */
 void QComboBox::removeItem(int index) {
     if (index >= 0 && index < count())
-        m_model->removeRows(index, 1);
+        m_model->removeRows(index, 1, m_root);
 }
 
 /*!
@@ -729,7 +744,7 @@ void QComboBox::removeItem(int index) {
 void QComboBox::clear() {
     hidePopup();
     if (count() > 0)
-        m_model->removeRows(0, count());
+        m_model->removeRows(0, count(), m_root);
 }
 
 /*!
@@ -786,7 +801,15 @@ void QComboBox::setEditable(bool editable) {
         update();
         return;
     }
-    m_edit = new QLineEdit(this);
+    adoptLineEdit(new QLineEdit(this));
+}
+
+// Makes `edit` the line edit of the combo box, in place of the one it had.
+void QComboBox::adoptLineEdit(QLineEdit *edit) {
+    if (m_edit && m_edit != edit)
+        delete m_edit;
+    m_edit = edit;
+    m_edit->setParent(this);
     m_edit->setFrame(false);
     m_edit->setText(itemText(m_current));
     m_edit->setGeometry(editRect());
@@ -877,7 +900,7 @@ void QComboBox::commitEdit() {
     const QString text = m_edit->text();
     if (text.isEmpty())
         return;
-    int index = findText(text);
+    int index = m_duplicates ? -1 : findText(text);
     if (index < 0) {
         switch (m_insertPolicy) {
         case NoInsert:
@@ -950,6 +973,7 @@ void QComboBox::hidePopup() {
 void QComboBox::choose(int index) {
     setCurrentIndex(index);
     emit activated(index);
+    emit textActivated(itemText(index));
 }
 
 /*!
@@ -962,15 +986,20 @@ QSize QComboBox::sizeHint() const {
     for (int i = 0; i < count(); ++i)
         width = std::max(width, fm.horizontalAdvance(itemText(i)));
     int height = fm.height();
-    for (int i = 0; i < count(); ++i) {
-        if (!itemIcon(i).isNull()) {
-            width += iconSize().width() + 4;
-            height = std::max(height, iconSize().height());
-            break;
-        }
+    bool icons = false;
+    for (int i = 0; i < count() && !icons; ++i)
+        icons = !itemIcon(i).isNull();
+    const int minimum = m_minimumContents * fm.horizontalAdvance(QChar('x'));
+    if (m_sizePolicy == AdjustToMinimumContentsLengthWithIcon)
+        width = minimum;
+    else
+        width = std::max(width, minimum);
+    if (icons || (m_sizePolicy == AdjustToMinimumContentsLengthWithIcon && m_minimumContents > 0)) {
+        width += iconSize().width() + 4;
+        height = std::max(height, iconSize().height());
     }
     QStyleOptionComboBox option;
-    option.initFrom(this);
+    initStyleOption(&option);
     return style()->sizeFromContents(QStyle::CT_ComboBox, &option, QSize(width, height), this);
 }
 
@@ -987,17 +1016,7 @@ void QComboBox::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
     painter.setFont(font());
     QStyleOptionComboBox option;
-    option.initFrom(this);
-    option.currentText = m_edit ? QString() : currentText();
-    const bool placeholder = !m_edit && m_current < 0 && !m_placeholder.isEmpty();
-    if (placeholder)
-        option.currentText = m_placeholder;
-    option.currentIcon = m_edit ? QIcon() : itemIcon(m_current);
-    option.iconSize = iconSize();
-    option.editable = m_edit != nullptr;
-    option.state |= m_down ? QStyle::State_Sunken : QStyle::State_Raised;
-    if (isPopupVisible())
-        option.state |= QStyle::State_On;
+    initStyleOption(&option);
     style()->drawControl(QStyle::CE_ComboBox, &option, &painter, this);
 }
 
@@ -1098,6 +1117,268 @@ void QComboBox::changeEvent(QEvent *event) {
         updateGeometry();
     update();
     QWidget::changeEvent(event);
+}
+
+/*!
+    \enum QComboBox::SizeAdjustPolicy
+    \since 6.0
+
+    How the size hint of the combo box follows its items.
+
+    \value AdjustToContents It is as wide as the widest item.
+    \value AdjustToContentsOnFirstShow As AdjustToContents; Qt measures only the items there are when it is first
+           shown.
+    \value AdjustToMinimumContentsLengthWithIcon It is as wide as minimumContentsLength() characters and an icon.
+*/
+
+/*!
+    \enum QComboBox::LabelDrawingMode
+    \since 6.0
+
+    What draws the label of the current item.
+
+    \value UseStyle The style.
+    \value UseDelegate The delegate of the list; Nt keeps the value and uses the style.
+*/
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the combo box, for the style to draw it.
+*/
+void QComboBox::initStyleOption(QStyleOptionComboBox *option) const {
+    if (!option)
+        return;
+    option->initFrom(this);
+    option->currentText = m_edit ? QString() : currentText();
+    if (!m_edit && m_current < 0 && !m_placeholder.isEmpty())
+        option->currentText = m_placeholder;
+    option->currentIcon = m_edit ? QIcon() : itemIcon(m_current);
+    option->iconSize = iconSize();
+    option->editable = m_edit != nullptr;
+    option->frame = m_frame;
+    option->state |= m_down ? QStyle::State_Sunken : QStyle::State_Raised;
+    if (isPopupVisible())
+        option->state |= QStyle::State_On;
+}
+
+bool QComboBox::isSeparator(int row) const {
+    return itemData(row, Qt::AccessibleDescriptionRole).toString() == QLatin1String("separator");
+}
+
+/*!
+    \since 6.0
+
+    Inserts an item for each text of \a list, from \a index on.
+*/
+void QComboBox::insertItems(int index, const QStringList &list) {
+    int at = std::clamp(index, 0, count());
+    for (const QString &text : list)
+        insertItem(at++, text);
+}
+
+/*!
+    \since 6.0
+
+    Inserts a separator at \a index: a line in the list that cannot be chosen.
+*/
+void QComboBox::insertSeparator(int index) {
+    const int at = std::clamp(index, 0, count());
+    insertItem(at, QString());
+    setItemData(at, QStringLiteral("separator"), Qt::AccessibleDescriptionRole);
+    if (auto *standard = qobject_cast<QStandardItemModel *>(m_model))
+        if (QStandardItem *item = standard->itemFromIndex(itemIndex(at)))
+            item->setFlags(Qt::NoItemFlags);
+}
+
+/*!
+    \fn int QComboBox::maxCount() const
+    \since 6.0
+
+    Returns the largest number of items the combo box takes. The default is the largest \c int.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the largest number of items to \a max; the items past it are removed.
+*/
+void QComboBox::setMaxCount(int max) {
+    m_maxCount = std::max(0, max);
+    while (count() > m_maxCount)
+        removeItem(count() - 1);
+}
+
+/*!
+    \fn bool QComboBox::duplicatesEnabled() const
+    \since 6.0
+
+    Returns whether a text the user enters is added as a new item when an item has it already. The default is
+    \c false.
+*/
+
+/*!
+    \fn void QComboBox::setDuplicatesEnabled(bool enable)
+    \since 6.0
+
+    Sets whether text the user enters is added again when an item has it to \a enable.
+*/
+
+/*!
+    \fn bool QComboBox::hasFrame() const
+    \since 6.0
+
+    Returns whether the combo box draws a frame. The default is \c true.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether the combo box draws a frame to \a frame.
+*/
+void QComboBox::setFrame(bool frame) {
+    m_frame = frame;
+    update();
+}
+
+/*!
+    \fn int QComboBox::minimumContentsLength() const
+    \since 6.0
+
+    Returns how many characters wide the combo box is at least. The default is 0.
+*/
+
+/*!
+    \since 6.0
+
+    Makes the combo box at least \a characters characters wide.
+*/
+void QComboBox::setMinimumContentsLength(int characters) {
+    m_minimumContents = std::max(0, characters);
+    updateGeometry();
+}
+
+/*!
+    \fn QComboBox::SizeAdjustPolicy QComboBox::sizeAdjustPolicy() const
+    \since 6.0
+
+    Returns how the size hint follows the items.
+*/
+
+/*!
+    \since 6.0
+
+    Sets how the size hint follows the items to \a policy.
+*/
+void QComboBox::setSizeAdjustPolicy(SizeAdjustPolicy policy) {
+    m_sizePolicy = policy;
+    updateGeometry();
+}
+
+/*!
+    \fn QComboBox::LabelDrawingMode QComboBox::labelDrawingMode() const
+    \since 6.0
+
+    Returns what draws the label of the current item.
+*/
+
+/*!
+    \since 6.0
+
+    Sets what draws the label of the current item to \a labelDrawing.
+*/
+void QComboBox::setLabelDrawingMode(LabelDrawingMode labelDrawing) {
+    m_labelMode = labelDrawing;
+    update();
+}
+
+/*!
+    \fn QModelIndex QComboBox::rootModelIndex() const
+    \since 6.0
+
+    Returns the parent in the model of the items, an invalid index for the top level by default.
+*/
+
+/*!
+    \since 6.0
+
+    Makes the children of \a index in the model the items of the combo box; the first one becomes current.
+*/
+void QComboBox::setRootModelIndex(const QModelIndex &index) {
+    if (QModelIndex(m_root) == index)
+        return;
+    m_root = QPersistentModelIndex(index);
+    if (m_view)
+        m_view->setRootIndex(index);
+    m_current = count() > 0 ? 0 : -1;
+    hidePopup();
+    announceCurrent();
+}
+
+/*!
+    \since 6.0
+
+    Replaces the view of the list with \a itemView, which the combo box takes ownership of; the old one is
+    deleted. The view gets the model and keeps settings such as its delegate; the combo box draws the list.
+*/
+void QComboBox::setView(QAbstractItemView *itemView) {
+    if (!itemView || itemView == m_view)
+        return;
+    delete m_view;
+    m_view = itemView;
+    itemView->setParent(this);
+    itemView->hide();
+    if (m_model) {
+        itemView->setModel(m_model);
+        itemView->setRootIndex(m_root);
+    }
+}
+
+/*!
+    \since 6.0
+
+    Makes \a edit the line edit of the combo box, which becomes editable, and takes ownership of it. The line edit
+    that it had is deleted.
+*/
+void QComboBox::setLineEdit(QLineEdit *edit) {
+    if (!edit || edit == m_edit)
+        return;
+    adoptLineEdit(edit);
+}
+
+/*!
+    \since 6.0
+
+    Returns the completer of the line edit, or \c nullptr if the combo box is not editable or has none.
+*/
+QCompleter *QComboBox::completer() const { return m_edit ? m_edit->completer() : nullptr; }
+
+/*!
+    \since 6.0
+
+    Makes \a c complete what the user types in the line edit. Nothing happens if the combo box is not editable.
+*/
+void QComboBox::setCompleter(QCompleter *c) {
+    if (m_edit)
+        m_edit->setCompleter(c);
+}
+
+/*!
+    \since 6.0
+
+    Returns the validator of the line edit, or \c nullptr.
+*/
+const QValidator *QComboBox::validator() const { return m_edit ? m_edit->validator() : nullptr; }
+
+/*!
+    \since 6.0
+
+    Makes \a validator check what the user types in the line edit. Nothing happens if the combo box is not
+    editable.
+*/
+void QComboBox::setValidator(const QValidator *validator) {
+    if (m_edit)
+        m_edit->setValidator(validator);
 }
 
 #include "moc_qcombobox.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

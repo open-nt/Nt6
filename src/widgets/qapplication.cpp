@@ -10,6 +10,7 @@
 #include <QtCore/qcoreapplication.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qstylehints.h>
+#include <QtWidgets/qmessagebox.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qwidget.h>
 
@@ -113,8 +114,9 @@ bool WidgetAccess::blockedByModal(const QWidget *top) {
     The application quits when the last window is closed, as QGuiApplication does.
 
     \differences
-    There are no \c setStyleSheet(), \c setActiveWindow(), \c setFont() for classes, \c beep(), \c alert(),
-    \c setWindowIcon(), cursor overrides, double click interval, \c focusChanged() signal or style factory.
+    The style sheet of setStyleSheet() is kept but does not change how widgets look, the effects of
+    setEffectEnabled() and the navigation mode are only kept, and beep() makes no sound. There are no
+    \c setActiveWindow() and \c setFont() for classes.
     \enddifferences
 
     \sa QGuiApplication, QWidget
@@ -408,5 +410,199 @@ void QApplication::closeAllWindows() {
         if (w->isVisible())
             w->close();
 }
+
+namespace {
+std::vector<bool> &effects() {
+    static auto *list = new std::vector<bool>(7, false);
+    return *list;
+}
+Qt::NavigationMode g_navigationMode = Qt::NavigationModeNone;
+} // namespace
+
+/*!
+    \since 6.0
+
+    Returns how many milliseconds a blink of the text cursor takes; see QStyleHints::cursorFlashTime().
+*/
+int QApplication::cursorFlashTime() { return styleHints()->cursorFlashTime(); }
+
+/*!
+    \since 6.0
+
+    Sets how long a blink of the text cursor takes to \a msecs milliseconds.
+*/
+void QApplication::setCursorFlashTime(int msecs) { styleHints()->setCursorFlashTime(msecs); }
+
+/*!
+    \since 6.0
+
+    Returns how many milliseconds may pass between the clicks of a double click.
+*/
+int QApplication::doubleClickInterval() { return styleHints()->mouseDoubleClickInterval(); }
+
+/*!
+    \since 6.0
+
+    Sets how long may pass between the clicks of a double click to \a ms milliseconds.
+*/
+void QApplication::setDoubleClickInterval(int ms) { styleHints()->setMouseDoubleClickInterval(ms); }
+
+/*!
+    \since 6.0
+
+    Returns how many milliseconds may pass between the key presses of one keyboard search.
+*/
+int QApplication::keyboardInputInterval() { return styleHints()->keyboardInputInterval(); }
+
+/*!
+    \since 6.0
+
+    Sets how long may pass between the key presses of one keyboard search to \a ms milliseconds.
+*/
+void QApplication::setKeyboardInputInterval(int ms) { styleHints()->setKeyboardInputInterval(ms); }
+
+/*!
+    \since 6.0
+
+    Returns how many lines a notch of the mouse wheel scrolls.
+*/
+int QApplication::wheelScrollLines() { return styleHints()->wheelScrollLines(); }
+
+/*!
+    \since 6.0
+
+    Sets how many lines a notch of the mouse wheel scrolls to \a lines.
+*/
+void QApplication::setWheelScrollLines(int lines) { styleHints()->setWheelScrollLines(lines); }
+
+/*!
+    \since 6.0
+
+    Returns \c true if \a effect is enabled. All effects are off by default.
+*/
+bool QApplication::isEffectEnabled(Qt::UIEffect effect) {
+    const auto index = static_cast<std::size_t>(effect);
+    return index < effects().size() && (effects()[0] || effects()[index]);
+}
+
+/*!
+    \since 6.0
+
+    Enables \a effect if \a enable is \c true, and disables it otherwise. Nt keeps the value; menus and tool tips
+    are not animated.
+*/
+void QApplication::setEffectEnabled(Qt::UIEffect effect, bool enable) {
+    const auto index = static_cast<std::size_t>(effect);
+    if (index < effects().size())
+        effects()[index] = enable;
+}
+
+/*!
+    \since 6.0
+
+    Returns how the keys move the focus, Qt::NavigationModeNone by default.
+*/
+Qt::NavigationMode QApplication::navigationMode() { return g_navigationMode; }
+
+/*!
+    \since 6.0
+
+    Sets how the keys move the focus to \a mode. Nt keeps the value; Tab moves the focus whatever it is.
+*/
+void QApplication::setNavigationMode(Qt::NavigationMode mode) { g_navigationMode = mode; }
+
+/*!
+    \since 6.0
+
+    Returns the popup, such as an open menu, of the active window, or else of another window, or \c nullptr if
+    no popup is open.
+*/
+QWidget *QApplication::activePopupWidget() {
+    const auto popupOf = [](QWidget *top) -> QWidget * {
+        const auto &window = QtPrivate::WidgetAccess::data(top).window;
+        QWidget *popup = window ? window->popup() : nullptr;
+        return popup && popup->isVisible() ? popup : nullptr;
+    };
+    if (QWidget *active = activeWindow())
+        if (QWidget *popup = popupOf(active))
+            return popup;
+    for (QWidget *top : topLevelWidgets())
+        if (QWidget *popup = popupOf(top))
+            return popup;
+    return nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Returns the visible window at \a point on the screen, or \c nullptr. Of windows that overlap there, the one
+    shown last is returned.
+*/
+QWidget *QApplication::topLevelAt(const QPoint &point) {
+    const QList<QWidget *> tops = topLevelWidgets();
+    for (auto it = tops.rbegin(); it != tops.rend(); ++it)
+        if ((*it)->isVisible() && (*it)->geometry().contains(point))
+            return *it;
+    return nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Sounds the bell of the system. Nt has no sound, so this does nothing.
+*/
+void QApplication::beep() {}
+
+/*!
+    \since 6.0
+
+    Shows a message box about Nt; see QMessageBox::aboutQt().
+*/
+void QApplication::aboutQt() { QMessageBox::aboutQt(activeWindow()); }
+
+/*!
+    \since 6.0
+
+    Sets the style sheet of the application to \a sheet. Nt keeps it, as QWidget::setStyleSheet() does, and sends
+    a QEvent::StyleChange to the windows; widgets do not change how they look.
+*/
+void QApplication::setStyleSheet(const QString &sheet) {
+    if (m_styleSheet == sheet)
+        return;
+    m_styleSheet = sheet;
+    for (QWidget *top : topLevelWidgets()) {
+        QEvent change(QEvent::StyleChange);
+        QCoreApplication::sendEvent(top, &change);
+    }
+}
+
+/*!
+    \fn QString QApplication::styleSheet() const
+    \since 6.0
+
+    Returns the style sheet of the application.
+*/
+
+/*!
+    \fn bool QApplication::autoSipEnabled() const
+    \since 6.0
+
+    Returns whether a software input panel opens for an editor that gets the focus. Nt keeps the value.
+*/
+
+/*!
+    \fn void QApplication::setAutoSipEnabled(const bool enabled)
+    \since 6.0
+
+    Sets whether a software input panel opens for an editor that gets the focus to \a enabled.
+*/
+
+/*!
+    \fn QWidget *QApplication::topLevelAt(int x, int y)
+    \since 6.0
+    \overload
+
+    Returns the visible window at (\a x, \a y) on the screen.
+*/
 
 #include "moc_qapplication.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

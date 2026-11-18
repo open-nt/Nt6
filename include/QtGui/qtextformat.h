@@ -78,6 +78,8 @@ public:
         \value TableCellPadding The space inside the cells of a table.
         \value TableHeaderRowCount The number of rows at the top of a table that are its header.
         \value TableBorderCollapse Whether the borders of the cells of a table are drawn as one line.
+        \value FullWidthSelection Makes the background of an extra selection of an editor cover the width of the
+               editor; see QPlainTextEdit::setExtraSelections().
         \value UserProperty The first number for properties of an application.
     */
     enum Property {
@@ -115,6 +117,7 @@ public:
         TableCellPadding = 0x4103,
         TableHeaderRowCount = 0x4104,
         TableBorderCollapse = 0x4105,
+        FullWidthSelection = 0x06000,
         UserProperty = 0x100000
     };
 

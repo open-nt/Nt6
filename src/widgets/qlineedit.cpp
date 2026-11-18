@@ -843,13 +843,13 @@ void QLineEdit::keyPressEvent(QKeyEvent *event) {
     const bool shift = event->modifiers() & Qt::ShiftModifier;
     const bool control = event->modifiers() & Qt::ControlModifier;
     const struct {
-        QKeySequence::StandardKey key;
         void (QLineEdit::*edit)();
+        QKeySequence::StandardKey key;
         bool changesText;
     } editKeys[] = {
-        {QKeySequence::Cut, &QLineEdit::cut, true},     {QKeySequence::Paste, &QLineEdit::paste, true},
-        {QKeySequence::Undo, &QLineEdit::undo, true},   {QKeySequence::Redo, &QLineEdit::redo, true},
-        {QKeySequence::SelectAll, &QLineEdit::selectAll, false},
+        {&QLineEdit::cut, QKeySequence::Cut, true},   {&QLineEdit::paste, QKeySequence::Paste, true},
+        {&QLineEdit::undo, QKeySequence::Undo, true}, {&QLineEdit::redo, QKeySequence::Redo, true},
+        {&QLineEdit::selectAll, QKeySequence::SelectAll, false},
     };
     if (event->matches(QKeySequence::Copy)) {
         copy();

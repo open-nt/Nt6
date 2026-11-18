@@ -27,9 +27,10 @@
     \differences
     Rich text is shown, not edited: there is no QTextCursor over the document, and text with formats has no
     selection. When the text is changed in another way than by setHtml(), by typing for one, the editor goes on
-    with the text alone, as a QPlainTextEdit: the formats are gone. \c setMarkdown(), \c insertHtml(),
-    \c setCurrentFont(), \c setTextColor() and the other functions that set the format of text are not there,
-    and \c acceptRichText() does nothing. The document that document() returns is that of the editor only for
+    with the text alone, as a QPlainTextEdit: the formats are gone. setCurrentFont(), setTextColor(),
+    setAlignment() and the other functions that set the format of text keep it as the current format, which
+    their getters return, but typed text does not take it. autoFormatting() and \c acceptRichText() do
+    nothing, and there is no \c scrollToAnchor(). The document that document() returns is that of the editor only for
     reading and for giving it other contents as a whole. A QTextEdit is a QPlainTextEdit here; in Qt the two
     classes are not related.
     \enddifferences
@@ -41,6 +42,11 @@
     Constructs an empty editor with the given \a parent.
 */
 QTextEdit::QTextEdit(QWidget *parent) : QPlainTextEdit(parent), m_document(std::make_unique<QTextDocument>()) {
+    // The document that document() returns is modified when the editor is, and the other way round.
+    connect(m_document.get(), &QTextDocument::modificationChanged, this,
+            [this](bool changed) { setModifiedFlag(changed); });
+    connect(this, &QPlainTextEdit::modificationChanged, this,
+            [this](bool changed) { m_document->setModified(changed); });
     // A change of the text that is not one of the document leaves the plain text to show.
     connect(this, &QPlainTextEdit::textChanged, this, [this] {
         if (m_adopting)
@@ -327,6 +333,224 @@ void QTextEdit::mouseDoubleClickEvent(QMouseEvent *event) {
         return;
     }
     event->accept();
+}
+
+/*!
+    \enum QTextEdit::AutoFormattingFlag
+    \since 6.0
+
+    Formats that the editor would apply as the user types. Nt keeps the value and applies none.
+
+    \value AutoNone No automatic formatting.
+    \value AutoBulletList A line that starts with an asterisk would become a bullet list.
+    \value AutoAll All automatic formatting.
+*/
+
+/*!
+    \fn QTextEdit::AutoFormatting QTextEdit::autoFormatting() const
+    \since 6.0
+
+    Returns the automatic formatting, AutoNone by default.
+*/
+
+/*!
+    \fn void QTextEdit::setAutoFormatting(AutoFormatting features)
+    \since 6.0
+
+    Sets the automatic formatting to \a features, which Nt keeps.
+*/
+
+void QTextEdit::mergeFormat(const QTextCharFormat &modifier) {
+    mergeCurrentCharFormat(modifier);
+    emit currentCharFormatChanged(currentCharFormat());
+}
+
+/*!
+    \fn Qt::Alignment QTextEdit::alignment() const
+    \since 6.0
+
+    Returns the alignment of the current paragraph, Qt::AlignLeft by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the alignment of the current paragraph to \a a. Nt keeps it; the text is shown aligned left.
+*/
+void QTextEdit::setAlignment(Qt::Alignment a) { m_alignment = a; }
+
+/*!
+    \since 6.0
+
+    Returns the font of the current format: the font of the editor with the properties that were set on the format.
+*/
+QFont QTextEdit::currentFont() const {
+    QFont f = font();
+    const QTextCharFormat format = currentCharFormat();
+    if (format.hasProperty(QTextFormat::FontFamilies) && !format.fontFamilies().isEmpty())
+        f.setFamilies(format.fontFamilies());
+    if (format.hasProperty(QTextFormat::FontPointSize) && format.fontPointSize() > 0)
+        f.setPointSizeF(format.fontPointSize());
+    if (format.hasProperty(QTextFormat::FontWeight))
+        f.setWeight(static_cast<QFont::Weight>(format.fontWeight()));
+    if (format.hasProperty(QTextFormat::FontItalic))
+        f.setItalic(format.fontItalic());
+    if (format.hasProperty(QTextFormat::FontUnderline))
+        f.setUnderline(format.fontUnderline());
+    return f;
+}
+
+/*!
+    \since 6.0
+
+    Sets the font of the current format to \a f.
+*/
+void QTextEdit::setCurrentFont(const QFont &f) {
+    QTextCharFormat format;
+    format.setFontFamilies(f.families().isEmpty() ? QStringList{f.family()} : f.families());
+    if (f.pointSizeF() > 0)
+        format.setFontPointSize(f.pointSizeF());
+    format.setFontWeight(static_cast<int>(f.weight()));
+    format.setFontItalic(f.italic());
+    format.setFontUnderline(f.underline());
+    mergeFormat(format);
+}
+
+/*!
+    \since 6.0
+
+    Returns the font family of the current format.
+*/
+QString QTextEdit::fontFamily() const {
+    const QFont f = currentFont();
+    return f.families().value(0, f.family());
+}
+
+/*!
+    \since 6.0
+
+    Sets the font family of the current format to \a fontFamily.
+*/
+void QTextEdit::setFontFamily(const QString &fontFamily) {
+    QTextCharFormat format;
+    format.setFontFamilies({fontFamily});
+    mergeFormat(format);
+}
+
+/*!
+    \since 6.0
+
+    Returns the point size of the font of the current format.
+*/
+qreal QTextEdit::fontPointSize() const { return currentFont().pointSizeF(); }
+
+/*!
+    \since 6.0
+
+    Sets the point size of the current format to \a s; a size of 0 or less is ignored.
+*/
+void QTextEdit::setFontPointSize(qreal s) {
+    if (s <= 0)
+        return;
+    QTextCharFormat format;
+    format.setFontPointSize(s);
+    mergeFormat(format);
+}
+
+/*!
+    \since 6.0
+
+    Returns the weight of the font of the current format, a QFont::Weight.
+*/
+int QTextEdit::fontWeight() const { return static_cast<int>(currentFont().weight()); }
+
+/*!
+    \since 6.0
+
+    Sets the font weight of the current format to \a weight.
+*/
+void QTextEdit::setFontWeight(int weight) {
+    QTextCharFormat format;
+    format.setFontWeight(weight);
+    mergeFormat(format);
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the current format is italic.
+*/
+bool QTextEdit::fontItalic() const { return currentFont().italic(); }
+
+/*!
+    \since 6.0
+
+    Makes the current format italic if \a italic is \c true.
+*/
+void QTextEdit::setFontItalic(bool italic) {
+    QTextCharFormat format;
+    format.setFontItalic(italic);
+    mergeFormat(format);
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the current format is underlined.
+*/
+bool QTextEdit::fontUnderline() const { return currentFont().underline(); }
+
+/*!
+    \since 6.0
+
+    Makes the current format underlined if \a underline is \c true.
+*/
+void QTextEdit::setFontUnderline(bool underline) {
+    QTextCharFormat format;
+    format.setFontUnderline(underline);
+    mergeFormat(format);
+}
+
+/*!
+    \since 6.0
+
+    Returns the text color of the current format, or the Text color of the palette if it has none.
+*/
+QColor QTextEdit::textColor() const {
+    const QBrush brush = currentCharFormat().foreground();
+    return brush.style() != Qt::NoBrush ? brush.color() : palette().color(QPalette::Text);
+}
+
+/*!
+    \since 6.0
+
+    Sets the text color of the current format to \a c.
+*/
+void QTextEdit::setTextColor(const QColor &c) {
+    QTextCharFormat format;
+    format.setForeground(QBrush(c));
+    mergeFormat(format);
+}
+
+/*!
+    \since 6.0
+
+    Returns the background color of the current format, or an invalid color if it has none.
+*/
+QColor QTextEdit::textBackgroundColor() const {
+    const QBrush brush = currentCharFormat().background();
+    return brush.style() != Qt::NoBrush ? brush.color() : QColor();
+}
+
+/*!
+    \since 6.0
+
+    Sets the background color of the current format to \a c.
+*/
+void QTextEdit::setTextBackgroundColor(const QColor &c) {
+    QTextCharFormat format;
+    format.setBackground(QBrush(c));
+    mergeFormat(format);
 }
 
 #include "moc_qtextedit.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

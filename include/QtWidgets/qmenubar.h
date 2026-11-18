@@ -8,9 +8,12 @@
 #include <vector>
 
 class QMenu;
+class QStyleOptionMenuItem;
 
 class QMenuBar : public QWidget {
     Q_OBJECT
+    Q_PROPERTY(bool defaultUp READ isDefaultUp WRITE setDefaultUp)
+    Q_PROPERTY(bool nativeMenuBar READ isNativeMenuBar WRITE setNativeMenuBar)
 public:
     explicit QMenuBar(QWidget *parent = nullptr);
     ~QMenuBar() override;
@@ -25,6 +28,12 @@ public:
     QAction *addMenu(QMenu *menu);
     QMenu *addMenu(const QString &title);
     QAction *insertMenu(QAction *before, QMenu *menu);
+    QAction *addSeparator();
+    QAction *insertSeparator(QAction *before);
+    bool isDefaultUp() const { return m_defaultUp; }
+    void setDefaultUp(bool up) { m_defaultUp = up; }
+    bool isNativeMenuBar() const { return false; }
+    void setNativeMenuBar(bool nativeMenuBar) { (void)nativeMenuBar; }
     void clear();
 
     QAction *activeAction() const { return m_active.data(); }
@@ -50,6 +59,7 @@ signals:
     void hovered(QAction *action) { emitSignal(&QMenuBar::hovered, action); }
 
 protected:
+    void initStyleOption(QStyleOptionMenuItem *option, const QAction *action) const;
     void paintEvent(QPaintEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
@@ -83,4 +93,5 @@ private:
     mutable bool m_dirty = true;
     QPointer<QWidget> m_leftCorner;
     QPointer<QWidget> m_rightCorner;
+    bool m_defaultUp = false;
 };

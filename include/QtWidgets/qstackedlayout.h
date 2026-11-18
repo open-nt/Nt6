@@ -8,7 +8,10 @@
 class QStackedLayout : public QLayout {
     Q_OBJECT
     Q_PROPERTY(int currentIndex READ currentIndex WRITE setCurrentIndex NOTIFY currentChanged)
+    Q_PROPERTY(StackingMode stackingMode READ stackingMode WRITE setStackingMode)
 public:
+    enum StackingMode { StackOne, StackAll };
+    Q_ENUM(StackingMode)
     explicit QStackedLayout(QWidget *parent = nullptr);
     ~QStackedLayout() override;
 
@@ -18,6 +21,8 @@ public:
     QWidget *widget(int index) const;
     QWidget *currentWidget() const;
     int currentIndex() const { return m_current; }
+    StackingMode stackingMode() const { return m_mode; }
+    void setStackingMode(StackingMode stackingMode);
 
     void addItem(QLayoutItem *item) override;
     QLayoutItem *itemAt(int index) const override;
@@ -41,8 +46,15 @@ signals:
         This signal is emitted when the widget that was at \a index is removed from the layout.
     */
     void widgetRemoved(int index) { emitSignal(&QStackedLayout::widgetRemoved, index); }
+    /*!
+        \since 6.0
+        This signal is emitted when a widget is added at \a index.
+    */
+    void widgetAdded(int index) { emitSignal(&QStackedLayout::widgetAdded, index); }
 
 private:
     std::vector<QLayoutItem *> m_items;
     int m_current = -1;
+    StackingMode m_mode = StackOne;
+    QLayoutItem *replaceAt(int index, QLayoutItem *item) override;
 };

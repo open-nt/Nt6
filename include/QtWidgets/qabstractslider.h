@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qtimer.h>
+
 #include <QtWidgets/qwidget.h>
 
 class QAbstractSlider : public QWidget {
@@ -14,6 +16,7 @@ class QAbstractSlider : public QWidget {
     Q_PROPERTY(bool tracking READ hasTracking WRITE setTracking)
     Q_PROPERTY(Qt::Orientation orientation READ orientation WRITE setOrientation)
     Q_PROPERTY(bool invertedControls READ invertedControls WRITE setInvertedControls)
+    Q_PROPERTY(bool invertedAppearance READ invertedAppearance WRITE setInvertedAppearance)
     Q_PROPERTY(bool sliderDown READ isSliderDown WRITE setSliderDown)
 public:
     enum SliderAction {
@@ -49,6 +52,8 @@ public:
     void setSliderPosition(int position);
     bool invertedControls() const { return m_invertedControls; }
     void setInvertedControls(bool invert) { m_invertedControls = invert; }
+    bool invertedAppearance() const { return m_invertedAppearance; }
+    void setInvertedAppearance(bool invert);
     int value() const { return m_value; }
     void triggerAction(SliderAction action);
 
@@ -86,6 +91,8 @@ signals:
     void actionTriggered(int action) { emitSignal(&QAbstractSlider::actionTriggered, action); }
 
 protected:
+    void setRepeatAction(SliderAction action, int thresholdTime = 500, int repeatTime = 50);
+    SliderAction repeatAction() const { return m_repeatAction; }
     enum SliderChange { SliderRangeChange, SliderOrientationChange, SliderStepsChange, SliderValueChange };
 
     virtual void sliderChange(SliderChange change);
@@ -110,4 +117,8 @@ private:
     bool m_down = false;
     bool m_invertedControls = false;
     bool m_wrapSteps = false; // a dial that wraps goes round the ends when it steps
+    bool m_invertedAppearance = false;
+    SliderAction m_repeatAction = SliderNoAction;
+    int m_repeatTime = 50;
+    QTimer *m_repeatTimer = nullptr;
 };

@@ -18,6 +18,7 @@
 
 class QHeaderView;
 class QTableWidget;
+class QDataStream;
 
 class QTableWidgetSelectionRange {
 public:
@@ -48,9 +49,11 @@ private:
 
 class QTableWidgetItem {
 public:
-    QTableWidgetItem();
-    explicit QTableWidgetItem(const QString &text);
-    QTableWidgetItem(const QIcon &icon, const QString &text);
+    enum ItemType { Type = 0, UserType = 1000 };
+
+    explicit QTableWidgetItem(int type = Type);
+    explicit QTableWidgetItem(const QString &text, int type = Type);
+    QTableWidgetItem(const QIcon &icon, const QString &text, int type = Type);
     QTableWidgetItem(const QTableWidgetItem &) = delete;
     QTableWidgetItem &operator=(const QTableWidgetItem &) = delete;
     virtual ~QTableWidgetItem();
@@ -62,6 +65,16 @@ public:
     void setText(const QString &text);
     QString toolTip() const { return m_toolTip; }
     void setToolTip(const QString &toolTip) { m_toolTip = toolTip; }
+    QString statusTip() const { return data(Qt::StatusTipRole).toString(); }
+    void setStatusTip(const QString &statusTip) { setData(Qt::StatusTipRole, statusTip); }
+    QString whatsThis() const { return data(Qt::WhatsThisRole).toString(); }
+    void setWhatsThis(const QString &whatsThis) { setData(Qt::WhatsThisRole, whatsThis); }
+    QSize sizeHint() const { return data(Qt::SizeHintRole).toSize(); }
+    void setSizeHint(const QSize &size) { setData(Qt::SizeHintRole, size); }
+    int type() const { return m_type; }
+    virtual QTableWidgetItem *clone() const;
+    virtual void read(QDataStream &in);
+    virtual void write(QDataStream &out) const;
     Qt::Alignment textAlignment() const { return m_alignment; }
     void setTextAlignment(Qt::Alignment alignment);
     QBrush foreground() const { return m_foreground; }
@@ -87,6 +100,7 @@ private:
     void changed();
 
     QTableWidget *m_table = nullptr;
+    int m_type = Type;
     int m_row = -1;
     int m_column = -1;
     QString m_text;

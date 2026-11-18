@@ -17,11 +17,17 @@ class QMessageBox : public QDialog {
     Q_OBJECT
     Q_PROPERTY(QString text READ text WRITE setText)
     Q_PROPERTY(Icon icon READ icon WRITE setIcon)
+    Q_PROPERTY(QPixmap iconPixmap READ iconPixmap WRITE setIconPixmap)
+    Q_PROPERTY(Qt::TextInteractionFlags textInteractionFlags READ textInteractionFlags WRITE setTextInteractionFlags)
+    Q_PROPERTY(Options options READ options WRITE setOptions)
     Q_PROPERTY(QString informativeText READ informativeText WRITE setInformativeText)
     Q_PROPERTY(QString detailedText READ detailedText WRITE setDetailedText)
 public:
     enum Icon { NoIcon = 0, Information = 1, Warning = 2, Critical = 3, Question = 4 };
     Q_ENUM(Icon)
+    enum class Option { DontUseNativeDialog = 0x00000001 };
+    Q_DECLARE_FLAGS(Options, Option)
+    Q_FLAG(Options)
 
     enum ButtonRole {
         InvalidRole = -1,
@@ -94,6 +100,14 @@ public:
     void setTextFormat(Qt::TextFormat format);
     Icon icon() const { return m_icon; }
     void setIcon(Icon icon);
+    QPixmap iconPixmap() const;
+    void setIconPixmap(const QPixmap &pixmap);
+    Qt::TextInteractionFlags textInteractionFlags() const;
+    void setTextInteractionFlags(Qt::TextInteractionFlags flags);
+    void setOption(Option option, bool on = true);
+    bool testOption(Option option) const { return m_options.testFlag(option); }
+    void setOptions(Options options) { m_options = options; }
+    Options options() const { return m_options; }
     QString informativeText() const;
     void setInformativeText(const QString &text);
     QString detailedText() const;
@@ -146,6 +160,8 @@ private:
     QPointer<QAbstractButton> m_escape;
     QPointer<QAbstractButton> m_clicked;
     Icon m_icon = NoIcon;
+    Options m_options;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QMessageBox::StandardButtons)
+Q_DECLARE_OPERATORS_FOR_FLAGS(QMessageBox::Options)

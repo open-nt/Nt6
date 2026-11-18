@@ -831,3 +831,135 @@ QShortcutEvent::QShortcutEvent(const QKeySequence &key, int id, bool ambiguous)
 */
 QShortcutEvent::~QShortcutEvent() = default;
 
+/*!
+    \class QInputMethodEvent
+    \since 6.0
+    \brief The QInputMethodEvent class carries text from an input method to a widget.
+
+    An input method, such as one for Chinese or a virtual keyboard, sends the text it is composing as the preedit
+    string, and the text the user settled on as the commit string, which may replace text before the cursor.
+    QWidget::inputMethodEvent() receives it.
+
+    \code
+    void Editor::inputMethodEvent(QInputMethodEvent *event)
+    {
+        insert(event->commitString());
+        event->accept();
+    }
+    \endcode
+
+    \differences
+    Nt has no input method of the platform that sends these events; an application or a test sends them.
+    \enddifferences
+*/
+
+/*!
+    \enum QInputMethodEvent::AttributeType
+
+    What an attribute of the preedit string says.
+
+    \value TextFormat The format of a part of it.
+    \value Cursor Where the cursor is, and whether it is shown.
+    \value Language The language of a part of it.
+    \value Ruby A ruby annotation.
+    \value Selection A selection to make in the text of the widget.
+    \value MimeData Data for a part of it.
+*/
+
+/*!
+    \class QInputMethodEvent::Attribute
+    \brief The Attribute class is something an input method says about its preedit string.
+
+    \differences
+    The attributes are kept for the widget; Nt editors do not draw preedit strings.
+    \enddifferences
+*/
+
+/*!
+    \fn QInputMethodEvent::Attribute::Attribute(AttributeType typ, int s, int l, QVariant val)
+
+    Constructs an attribute of type \a typ for the \a l characters from \a s, with the value \a val.
+*/
+
+/*!
+    \fn QInputMethodEvent::Attribute::Attribute(AttributeType typ, int s, int l)
+    \overload
+
+    Constructs an attribute of type \a typ for the \a l characters from \a s, without a value.
+*/
+
+/*!
+    \variable QInputMethodEvent::Attribute::type
+    \brief What the attribute says.
+*/
+
+/*!
+    \variable QInputMethodEvent::Attribute::start
+    \brief Where in the preedit string the attribute starts.
+*/
+
+/*!
+    \variable QInputMethodEvent::Attribute::length
+    \brief How many characters the attribute covers.
+*/
+
+/*!
+    \variable QInputMethodEvent::Attribute::value
+    \brief The value of the attribute, such as a QTextCharFormat.
+*/
+
+/*!
+    Constructs an event with no preedit string and no commit string.
+*/
+QInputMethodEvent::QInputMethodEvent() : QEvent(QEvent::InputMethod) {}
+
+/*!
+    Constructs an event with the preedit string \a preeditText and its \a attributes.
+*/
+QInputMethodEvent::QInputMethodEvent(const QString &preeditText, const QList<Attribute> &attributes)
+    : QEvent(QEvent::InputMethod), m_preedit(preeditText), m_attributes(attributes) {}
+
+/*!
+    Destroys the event.
+*/
+QInputMethodEvent::~QInputMethodEvent() = default;
+
+/*!
+    Sets the text to insert to \a commitString, in the place of the \a replaceLength characters that start
+    \a replaceFrom characters from the cursor; \a replaceFrom may be negative.
+*/
+void QInputMethodEvent::setCommitString(const QString &commitString, int replaceFrom, int replaceLength) {
+    m_commit = commitString;
+    m_replaceFrom = replaceFrom;
+    m_replaceLength = replaceLength;
+}
+
+/*!
+    \fn const QList<QInputMethodEvent::Attribute> &QInputMethodEvent::attributes() const
+
+    Returns the attributes of the preedit string.
+*/
+
+/*!
+    \fn const QString &QInputMethodEvent::preeditString() const
+
+    Returns the text the input method is composing.
+*/
+
+/*!
+    \fn const QString &QInputMethodEvent::commitString() const
+
+    Returns the text to insert.
+*/
+
+/*!
+    \fn int QInputMethodEvent::replacementStart() const
+
+    Returns where the text to replace starts, relative to the cursor.
+*/
+
+/*!
+    \fn int QInputMethodEvent::replacementLength() const
+
+    Returns how many characters of the text the commit string replaces.
+*/

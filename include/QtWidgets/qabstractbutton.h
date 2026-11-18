@@ -4,6 +4,7 @@
 #include <QtGui/qkeysequence.h>
 
 #include <QtGui/qicon.h>
+#include <QtCore/qtimer.h>
 #include <QtWidgets/qwidget.h>
 
 class QButtonGroup;
@@ -19,6 +20,9 @@ class QAbstractButton : public QWidget {
     Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled USER true)
     Q_PROPERTY(bool down READ isDown WRITE setDown)
     Q_PROPERTY(bool autoExclusive READ autoExclusive WRITE setAutoExclusive)
+    Q_PROPERTY(bool autoRepeat READ autoRepeat WRITE setAutoRepeat)
+    Q_PROPERTY(int autoRepeatDelay READ autoRepeatDelay WRITE setAutoRepeatDelay)
+    Q_PROPERTY(int autoRepeatInterval READ autoRepeatInterval WRITE setAutoRepeatInterval)
 public:
     ~QAbstractButton() override;
 
@@ -36,6 +40,12 @@ public:
     bool autoExclusive() const { return m_autoExclusive; }
     void setAutoExclusive(bool exclusive) { m_autoExclusive = exclusive; }
     QButtonGroup *group() const { return m_group; }
+    bool autoRepeat() const { return m_autoRepeat; }
+    void setAutoRepeat(bool enable);
+    int autoRepeatDelay() const { return m_repeatDelay; }
+    void setAutoRepeatDelay(int delay) { m_repeatDelay = delay; }
+    int autoRepeatInterval() const { return m_repeatInterval; }
+    void setAutoRepeatInterval(int interval) { m_repeatInterval = interval; }
     QKeySequence shortcut() const;
     void setShortcut(const QKeySequence &key);
 
@@ -69,6 +79,8 @@ signals:
 protected:
     explicit QAbstractButton(QWidget *parent = nullptr);
     virtual bool hitButton(const QPoint &pos) const;
+    virtual void checkStateSet();
+    virtual void nextCheckState();
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -100,4 +112,9 @@ private:
     QAction *m_shortcutAction = nullptr; // a child that holds the shortcut, made when one is set
     bool m_shortcutSet = false;          // setShortcut() was called; otherwise the mnemonic of the text is it
     void updateShortcut(const QKeySequence &key);
+    void repeat();
+    bool m_autoRepeat = false;
+    int m_repeatDelay = 300;
+    int m_repeatInterval = 100;
+    QTimer m_repeatTimer;
 };

@@ -227,6 +227,7 @@ protected:
     void stopAutoScroll();
     void doAutoScroll();
     void keyPressEvent(QKeyEvent *event) override;
+    void inputMethodEvent(QInputMethodEvent *event) override;
     bool focusNextPrevChild(bool next) override;
     void updateEditorGeometries();
     virtual void updateGeometries();

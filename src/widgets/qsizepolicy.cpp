@@ -166,6 +166,64 @@
 */
 
 /*!
+    \enum QSizePolicy::ControlType
+    \since 6.0
+
+    The kind of control a widget is, which a style may use to space widgets in a layout.
+
+    \value DefaultType No particular kind.
+    \value ButtonBox A QDialogButtonBox.
+    \value CheckBox A QCheckBox.
+    \value ComboBox A QComboBox.
+    \value Frame A QFrame.
+    \value GroupBox A QGroupBox.
+    \value Label A QLabel.
+    \value Line A QFrame drawn as a line.
+    \value LineEdit A QLineEdit.
+    \value PushButton A QPushButton.
+    \value RadioButton A QRadioButton.
+    \value Slider A QAbstractSlider.
+    \value SpinBox A QAbstractSpinBox.
+    \value TabWidget A QTabWidget.
+    \value ToolButton A QToolButton.
+*/
+
+/*!
+    \fn QSizePolicy::ControlType QSizePolicy::controlType() const
+    \since 6.0
+
+    Returns the kind of control of the policy, DefaultType by default.
+*/
+
+/*!
+    \fn void QSizePolicy::setControlType(ControlType type)
+    \since 6.0
+
+    Sets the kind of control to \a type. Nt layouts space all widgets the same, so this is only kept.
+*/
+
+/*!
+    \fn QSizePolicy::QSizePolicy(Policy horizontal, Policy vertical, ControlType type)
+    \since 6.0
+
+    Constructs a size policy with the \a horizontal and \a vertical policies for a control of \a type.
+*/
+
+/*!
+    \fn void QSizePolicy::transpose()
+    \since 6.0
+
+    Swaps the horizontal and vertical parts of the policy.
+*/
+
+/*!
+    \fn QSizePolicy QSizePolicy::transposed() const
+    \since 6.0
+
+    Returns the policy with its horizontal and vertical parts swapped.
+*/
+
+/*!
     \fn Qt::Orientations QSizePolicy::expandingDirections() const
 
     Returns the directions in which the widget wants to expand: those whose policy has the ExpandFlag.

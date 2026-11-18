@@ -29,6 +29,10 @@ public:
     virtual QWidget *widget() const { return nullptr; }
     virtual QLayout *layout() { return nullptr; }
     virtual QSpacerItem *spacerItem() { return nullptr; }
+    virtual bool hasHeightForWidth() const { return false; }
+    virtual int heightForWidth(int w) const;
+    virtual int minimumHeightForWidth(int w) const { return heightForWidth(w); }
+    virtual QSizePolicy::ControlTypes controlTypes() const { return QSizePolicy::DefaultType; }
 
     Qt::Alignment alignment() const { return m_alignment; }
     void setAlignment(Qt::Alignment alignment) { m_alignment = alignment; }
@@ -42,6 +46,11 @@ public:
     QSpacerItem(int w, int h, QSizePolicy::Policy hPolicy = QSizePolicy::Minimum,
                 QSizePolicy::Policy vPolicy = QSizePolicy::Minimum);
 
+    void changeSize(int w, int h, QSizePolicy::Policy hPolicy = QSizePolicy::Minimum,
+                    QSizePolicy::Policy vPolicy = QSizePolicy::Minimum) {
+        m_size = QSize(w, h);
+        m_policy = QSizePolicy(hPolicy, vPolicy);
+    }
     QSize sizeHint() const override { return m_size; }
     QSize minimumSize() const override;
     QSize maximumSize() const override;
@@ -70,6 +79,10 @@ public:
     QRect geometry() const override;
     bool isEmpty() const override;
     QWidget *widget() const override { return m_widget; }
+    bool hasHeightForWidth() const override;
+    int heightForWidth(int w) const override;
+    int minimumHeightForWidth(int w) const override { return heightForWidth(w); }
+    QSizePolicy::ControlTypes controlTypes() const override;
 
 private:
     QWidget *m_widget;

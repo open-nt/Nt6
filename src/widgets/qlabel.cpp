@@ -39,7 +39,7 @@
     \image widgets/qlabel.png QLabel in the light color scheme
 
     \differences
-    The label shows plain text, rich text or a pixmap: no movies, Markdown, selection of the text or links
+    The label shows plain text, rich text or a pixmap: no movies, pictures, Markdown, selection of the text with the mouse or links
     reached with the keys. It has no \c indent().
     Of the textInteractionFlags(), only Qt::LinksAccessibleByMouse has an effect. Nothing opens a link for openExternalLinks(): a click emits
     linkActivated() with or without it. Rich text is placed as a whole by the alignment of the label; its
@@ -82,6 +82,7 @@ void QLabel::setText(const QString &text) {
     if (m_text == text && m_pixmap.isNull())
         return;
     m_text = text;
+    m_selectionStart = m_selectionLength = 0;
     m_pixmap = QPixmap();
     updateDocument();
     updateBuddyShortcut();
@@ -197,6 +198,7 @@ void QLabel::updateDocument() {
     if (!m_document) {
         m_document = std::make_unique<QTextDocument>();
         m_document->setDocumentMargin(0);
+        m_document->setResourceProvider(m_resourceProvider);
     }
     m_document->setDefaultFont(font());
     m_document->setHtml(m_text);
@@ -207,14 +209,37 @@ void QLabel::updateDocument() {
 
 // The rectangle that the text or the pixmap is placed in: inside the frame, the contents margins and the margin.
 QRect QLabel::labelArea() const {
-    return QFrame::contentsRect().marginsRemoved(contentsMargins()).adjusted(m_margin, m_margin, -m_margin, -m_margin);
+    QRect area =
+        QFrame::contentsRect().marginsRemoved(contentsMargins()).adjusted(m_margin, m_margin, -m_margin, -m_margin);
+    const int indent = indentWidth();
+    if (indent > 0) {
+        if (m_alignment & Qt::AlignRight)
+            area.setRight(area.right() - indent);
+        else if (m_alignment & Qt::AlignLeft)
+            area.setLeft(area.left() + indent);
+        if (m_alignment & Qt::AlignTop)
+            area.setTop(area.top() + indent);
+        else if (m_alignment & Qt::AlignBottom)
+            area.setBottom(area.bottom() - indent);
+    }
+    return area;
+}
+
+// The indent of the text: indent(), or, if it is negative, half the width of an "x" for a label with a frame.
+int QLabel::indentWidth() const {
+    if (m_indent >= 0)
+        return m_indent;
+    return frameWidth() > 0 ? fontMetrics().horizontalAdvance(QLatin1Char('x')) / 2 : 0;
 }
 
 // The room around the text or the pixmap: twice the margin, and the frame and the contents margins.
 QSize QLabel::labelExtra() const {
     const QMargins m = contentsMargins();
     const int frame = 2 * frameWidth() + 2 * m_margin;
-    return QSize(frame + m.left() + m.right(), frame + m.top() + m.bottom());
+    const int indent = indentWidth();
+    const int across = (m_alignment & (Qt::AlignLeft | Qt::AlignRight)) ? indent : 0;
+    const int down = (m_alignment & (Qt::AlignTop | Qt::AlignBottom)) ? indent : 0;
+    return QSize(frame + m.left() + m.right() + across, frame + m.top() + m.bottom() + down);
 }
 
 // Lays the document out for the label as it is, and returns where it is drawn.
@@ -424,6 +449,22 @@ void QLabel::paintEvent(QPaintEvent *event) {
     int flags = int(m_alignment);
     if (m_wordWrap)
         flags |= Qt::TextWordWrap;
+    if (m_selectionLength > 0 && !m_wordWrap && !m_text.contains(QLatin1Char('\n'))) {
+        // The selection of a line of plain text: highlighted under the text, which is drawn in its color there.
+        const QRect area = labelArea();
+        const QFontMetrics fm = fontMetrics();
+        const QRect bounds = fm.boundingRect(area, flags, m_text);
+        const int x0 = bounds.left() + fm.horizontalAdvance(m_text.left(m_selectionStart));
+        const int x1 = bounds.left() + fm.horizontalAdvance(m_text.left(m_selectionStart + m_selectionLength));
+        const QRect selected(x0, bounds.top(), x1 - x0, bounds.height());
+        const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
+        painter.fillRect(selected, palette().color(group, QPalette::Highlight));
+        painter.drawText(area, flags, m_text);
+        painter.setClipRect(selected);
+        painter.setPen(palette().color(group, QPalette::HighlightedText));
+        painter.drawText(area, flags, m_text);
+        return;
+    }
     painter.drawText(labelArea(), flags, m_text);
 }
 
@@ -494,6 +535,88 @@ void QLabel::mouseReleaseEvent(QMouseEvent *event) {
 void QLabel::leaveEvent(QEvent *event) {
     setHovered(QString());
     QFrame::leaveEvent(event);
+}
+
+QString QLabel::plainText() const {
+    if (m_document)
+        return m_document->toPlainText();
+    return m_text;
+}
+
+/*!
+    \fn int QLabel::indent() const
+    \since 6.0
+
+    Returns the indent of the text in pixels, or -1, the default, for half the width of an "x" in a label with a
+    frame and none in a label without one.
+*/
+
+/*!
+    \since 6.0
+
+    Indents the text \a indent pixels from the side it is aligned to.
+*/
+void QLabel::setIndent(int indent) {
+    m_indent = indent;
+    updateGeometry();
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the selected text, without its markup.
+
+    \sa setSelection()
+*/
+QString QLabel::selectedText() const { return plainText().mid(m_selectionStart, m_selectionLength); }
+
+/*!
+    \fn int QLabel::selectionStart() const
+    \since 6.0
+
+    Returns where the selection starts, or -1 if nothing is selected.
+*/
+
+/*!
+    \fn bool QLabel::hasSelectedText() const
+    \since 6.0
+
+    Returns \c true if some of the text is selected.
+*/
+
+/*!
+    \since 6.0
+
+    Selects \a length characters of the text from \a start, which the label highlights for a line of plain text.
+    Nothing happens unless textInteractionFlags() has Qt::TextSelectableByMouse or Qt::TextSelectableByKeyboard.
+*/
+void QLabel::setSelection(int start, int length) {
+    if (!(m_interaction & (Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard)))
+        return;
+    const int size = static_cast<int>(plainText().size());
+    m_selectionStart = std::clamp(start, 0, size);
+    m_selectionLength = std::clamp(length, 0, size - m_selectionStart);
+    update();
+}
+
+/*!
+    \fn QTextDocument::ResourceProvider QLabel::resourceProvider() const
+    \since 6.0
+
+    Returns the function that gives the resources of rich text, or an empty function.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the function that gives the resources, such as images, of rich text to \a provider; see
+    QTextDocument::setResourceProvider().
+*/
+void QLabel::setResourceProvider(const QTextDocument::ResourceProvider &provider) {
+    m_resourceProvider = provider;
+    if (m_document)
+        m_document->setResourceProvider(provider);
 }
 
 #include "moc_qlabel.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

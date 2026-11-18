@@ -17,6 +17,7 @@ class QErrorMessage : public QDialog {
 public:
     explicit QErrorMessage(QWidget *parent = nullptr);
     ~QErrorMessage() override;
+    static QErrorMessage *qtHandler();
 
 public slots:
     void showMessage(const QString &message);

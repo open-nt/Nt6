@@ -144,6 +144,7 @@ protected:
     void initStyleOption(QStyleOptionFrame *option) const;
     QRect cursorRect() const;
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void inputMethodEvent(QInputMethodEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;

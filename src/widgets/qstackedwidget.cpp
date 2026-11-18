@@ -40,6 +40,10 @@ QStackedWidget::QStackedWidget(QWidget *parent) : QFrame(parent) {
         if (*alive)
             emit currentChanged(index);
     });
+    QObject::connect(m_layout, &QStackedLayout::widgetAdded, [this, alive = m_alive](int index) {
+        if (*alive)
+            emit widgetAdded(index);
+    });
     QObject::connect(m_layout, &QStackedLayout::widgetRemoved, [this, alive = m_alive](int index) {
         if (*alive)
             emit widgetRemoved(index);

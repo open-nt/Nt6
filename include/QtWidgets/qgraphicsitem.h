@@ -24,6 +24,7 @@ class QGraphicsItemGroup;
 class QGraphicsObject;
 class QGraphicsScene;
 class QGraphicsSceneContextMenuEvent;
+class QInputMethodEvent;
 class QGraphicsSceneDragDropEvent;
 class QGraphicsSceneHoverEvent;
 class QGraphicsSceneMouseEvent;
@@ -100,6 +101,8 @@ public:
     };
 
     enum CacheMode { NoCache, ItemCoordinateCache, DeviceCoordinateCache };
+    enum PanelModality { NonModal, PanelModal, SceneModal };
+    enum Extension : unsigned { UserExtension = 0x80000000 };
 
     enum { Type = 1, UserType = 65536 };
 
@@ -174,6 +177,23 @@ public:
     void setFocus(Qt::FocusReason focusReason = Qt::OtherFocusReason);
     void clearFocus();
     QGraphicsItem *focusItem() const;
+    QGraphicsItem *focusProxy() const;
+    void setFocusProxy(QGraphicsItem *item);
+    QGraphicsItem *focusScopeItem() const;
+    QGraphicsItem *panel() const;
+    QGraphicsWidget *topLevelWidget() const;
+    QGraphicsWidget *window() const;
+    PanelModality panelModality() const;
+    void setPanelModality(PanelModality panelModality);
+    bool isBlockedByModalPanel(QGraphicsItem **blockingPanel = nullptr) const;
+    bool filtersChildEvents() const;
+    void setFiltersChildEvents(bool enabled);
+    Qt::InputMethodHints inputMethodHints() const;
+    void setInputMethodHints(Qt::InputMethodHints hints);
+    QRegion boundingRegion(const QTransform &itemToDeviceTransform) const;
+    qreal boundingRegionGranularity() const;
+    void setBoundingRegionGranularity(qreal granularity);
+    virtual void advance(int phase);
     bool isActive() const;
     void setActive(bool active);
 
@@ -299,6 +319,13 @@ protected:
     virtual void dragLeaveEvent(QGraphicsSceneDragDropEvent *event);
     virtual void dropEvent(QGraphicsSceneDragDropEvent *event);
     virtual QVariant itemChange(GraphicsItemChange change, const QVariant &value);
+    virtual void inputMethodEvent(QInputMethodEvent *event);
+    virtual QVariant inputMethodQuery(Qt::InputMethodQuery query) const;
+    virtual bool supportsExtension(Extension extension) const;
+    virtual void setExtension(Extension extension, const QVariant &variant);
+    virtual QVariant extension(const QVariant &variant) const;
+    void addToIndex();
+    void removeFromIndex();
 
     void prepareGeometryChange();
     void updateMicroFocus();

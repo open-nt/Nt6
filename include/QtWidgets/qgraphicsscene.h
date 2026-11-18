@@ -23,6 +23,7 @@ class QGraphicsProxyWidget;
 class QGraphicsRectItem;
 class QGraphicsSceneContextMenuEvent;
 class QGraphicsSceneDragDropEvent;
+class QInputMethodEvent;
 class QGraphicsSceneHoverEvent;
 class QGraphicsSceneMouseEvent;
 class QGraphicsSceneWheelEvent;
@@ -125,6 +126,7 @@ public:
     void removeItem(QGraphicsItem *item);
 
     QGraphicsItem *focusItem() const;
+    virtual QVariant inputMethodQuery(Qt::InputMethodQuery query) const;
     void setFocusItem(QGraphicsItem *item, Qt::FocusReason focusReason = Qt::OtherFocusReason);
     bool hasFocus() const;
     void setFocus(Qt::FocusReason focusReason = Qt::OtherFocusReason);
@@ -187,6 +189,7 @@ protected:
     virtual void dragLeaveEvent(QGraphicsSceneDragDropEvent *event);
     virtual void dropEvent(QGraphicsSceneDragDropEvent *event);
     virtual void drawBackground(QPainter *painter, const QRectF &rect);
+    virtual void inputMethodEvent(QInputMethodEvent *event);
     virtual void drawForeground(QPainter *painter, const QRectF &rect);
 
 private:

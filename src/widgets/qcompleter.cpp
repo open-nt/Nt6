@@ -3,6 +3,7 @@
 
 #include "qwidget_p.h"
 
+#include <QtCore/qstringlistmodel.h>
 #include <QtGui/qevent.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qlistwidget.h>
@@ -46,9 +47,9 @@ protected:
     replaces it. The filter mode chooses whether the words must start with the text, contain it, or end with it.
 
     \differences
-    The words come from the QStringList given to the constructor: there is no \c setModel(), \c model(),
-    \c completionModel(), \c setCompletionColumn() or \c setCompletionRole(), and \c setModelSorting() is recorded only.
-    The popup is a list inside the window, not a window of its own, and \c setPopup() is missing. Only QLineEdit uses
+    The completions are the top-level items of the model: splitPath() is not used to walk a tree, and
+    \c setModelSorting() is recorded only. The popup is a list inside the window, not a window of its own, and
+    \c setPopup() is missing. Only QLineEdit uses
     a completer by itself.
     \enddifferences
 
@@ -84,6 +85,13 @@ QCompleter::QCompleter(QObject *parent) : QObject(parent) {}
     Constructs a completer of the words in \a completions, with the given \a parent.
 */
 QCompleter::QCompleter(const QStringList &completions, QObject *parent) : QObject(parent), m_completions(completions) {}
+
+/*!
+    \since 6.0
+
+    Constructs a completer of the items of the column completionColumn() of \a model, with the given \a parent.
+*/
+QCompleter::QCompleter(QAbstractItemModel *model, QObject *parent) : QObject(parent) { setModel(model); }
 
 /*!
     Destroys the completer and its popup.
@@ -289,6 +297,8 @@ bool QCompleter::matches(const QString &candidate) const {
 }
 
 void QCompleter::filter() {
+    if (m_model)
+        readModel();
     m_matches.clear();
     m_row = -1;
     for (const QString &word : m_completions) {
@@ -305,6 +315,8 @@ void QCompleter::filter() {
     } else if (!m_matches.isEmpty()) {
         m_row = 0;
     }
+    if (m_completionModel)
+        m_completionModel->setStringList(m_matches);
 }
 
 void QCompleter::showPopup(const QRect &rect) {
@@ -412,5 +424,133 @@ void QCompleter::textEdited(const QString &edited, bool deleting) {
     }
     complete();
 }
+
+void QCompleter::readModel() {
+    m_completions.clear();
+    if (!m_model)
+        return;
+    for (int row = 0; row < m_model->rowCount(); ++row)
+        m_completions.append(pathFromIndex(m_model->index(row, m_column)));
+}
+
+/*!
+    \since 6.0
+
+    Returns the model that holds the completions. A completer made of a list of strings has a QStringListModel of
+    them.
+
+    \sa setModel()
+*/
+QAbstractItemModel *QCompleter::model() const {
+    if (!m_model) {
+        auto *self = const_cast<QCompleter *>(this); // NOLINT(cppcoreguidelines-pro-type-const-cast): made on demand
+        auto *list = new QStringListModel(m_completions, self);
+        self->m_model = list;
+        self->m_ownModel = true;
+    }
+    return m_model.data();
+}
+
+/*!
+    \since 6.0
+
+    Makes the items of the column completionColumn() of \a model the completions, as completionRole() gives them.
+    The completer follows changes of the model. It does not take ownership of \a model.
+*/
+void QCompleter::setModel(QAbstractItemModel *model) {
+    for (const QMetaObject::Connection &c : std::as_const(m_modelConnections))
+        QObject::disconnect(c);
+    m_modelConnections.clear();
+    if (m_ownModel && m_model && m_model != model)
+        delete m_model.data();
+    m_ownModel = false;
+    m_model = model;
+    if (model) {
+        const auto refresh = [this] { readModel(); };
+        m_modelConnections = {
+            QObject::connect(model, &QAbstractItemModel::rowsInserted, this, refresh),
+            QObject::connect(model, &QAbstractItemModel::rowsRemoved, this, refresh),
+            QObject::connect(model, &QAbstractItemModel::dataChanged, this, refresh),
+            QObject::connect(model, &QAbstractItemModel::modelReset, this, refresh),
+        };
+    }
+    readModel();
+}
+
+/*!
+    \fn int QCompleter::completionColumn() const
+    \since 6.0
+
+    Returns the column of the model that holds the completions, 0 by default.
+*/
+
+/*!
+    \since 6.0
+
+    Takes the completions from the column \a column of the model.
+*/
+void QCompleter::setCompletionColumn(int column) {
+    m_column = std::max(0, column);
+    readModel();
+}
+
+/*!
+    \fn int QCompleter::completionRole() const
+    \since 6.0
+
+    Returns the role of the model data that the completions are, Qt::EditRole by default.
+*/
+
+/*!
+    \since 6.0
+
+    Takes the completions from the data of the model in \a role.
+*/
+void QCompleter::setCompletionRole(int role) {
+    m_role = role;
+    readModel();
+}
+
+/*!
+    \since 6.0
+
+    Returns a model of the completions that match the completion prefix, which the popup shows.
+*/
+QAbstractItemModel *QCompleter::completionModel() const {
+    if (!m_completionModel) {
+        auto *self = const_cast<QCompleter *>(this); // NOLINT(cppcoreguidelines-pro-type-const-cast): made on demand
+        m_completionModel = new QStringListModel(m_matches, self);
+    }
+    return m_completionModel;
+}
+
+/*!
+    \since 6.0
+
+    Returns the index of the current completion in completionModel(), or an invalid index.
+*/
+QModelIndex QCompleter::currentIndex() const {
+    if (m_row < 0 || m_row >= completionCount())
+        return QModelIndex();
+    return completionModel()->index(m_row, 0);
+}
+
+/*!
+    \since 6.0
+
+    Returns the completion that the item at \a index of the model stands for: its data in completionRole().
+    Reimplement it, with splitPath(), to complete paths.
+*/
+QString QCompleter::pathFromIndex(const QModelIndex &index) const {
+    return index.isValid() ? index.data(m_role).toString() : QString();
+}
+
+/*!
+    \since 6.0
+
+    Returns the parts of \a path to look up in the model, one level of it each. The default returns \a path whole;
+    the completer looks at the top level of its model.
+*/
+QStringList QCompleter::splitPath(const QString &path) const { return {path}; }
 
 #include "moc_qcompleter.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

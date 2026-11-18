@@ -23,6 +23,12 @@ public:
 
     QHeaderView *horizontalHeader() const { return m_hheader; }
     QHeaderView *verticalHeader() const { return m_vheader; }
+    void setHorizontalHeader(QHeaderView *header);
+    void setVerticalHeader(QHeaderView *header);
+    void setSpan(int row, int column, int rowSpan, int columnSpan);
+    int rowSpan(int row, int column) const;
+    int columnSpan(int row, int column) const;
+    void clearSpans();
 
     bool showGrid() const { return m_showGrid; }
     Qt::PenStyle gridStyle() const { return m_gridStyle; }
@@ -70,6 +76,14 @@ public slots:
     void resizeColumnsToContents();
     void sortByColumn(int column, Qt::SortOrder order);
 
+protected slots:
+    void rowMoved(int row, int oldIndex, int newIndex);
+    void columnMoved(int column, int oldIndex, int newIndex);
+    void rowResized(int row, int oldHeight, int newHeight);
+    void columnResized(int column, int oldWidth, int newWidth);
+    void rowCountChanged(int oldCount, int newCount);
+    void columnCountChanged(int oldCount, int newCount);
+
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
@@ -89,6 +103,16 @@ protected:
 
 private:
     void syncHeaders();
+    void connectHeader(QHeaderView *header);
+    struct Span {
+        int row;
+        int column;
+        int rowSpan;
+        int columnSpan;
+    };
+    std::vector<Span> m_spans;
+    const Span *spanAt(int row, int column) const; // the span that covers the cell, or null
+    QRect spanRect(const Span &span) const;        // on the viewport
     void syncLabels(Qt::Orientation orientation);
     int visibleNeighbour(const QHeaderView *header, int from, int step) const;
     int firstVisible(const QHeaderView *header) const;

@@ -36,6 +36,8 @@ signals:
     void messageChanged(const QString &message) { emitSignal(&QStatusBar::messageChanged, message); }
 
 protected:
+    void hideOrShow();
+    void reformat();
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void timerEvent(QTimerEvent *event) override;

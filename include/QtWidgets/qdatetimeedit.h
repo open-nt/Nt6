@@ -160,6 +160,13 @@ public:
     explicit QDateEdit(QWidget *parent = nullptr);
     explicit QDateEdit(QDate date, QWidget *parent = nullptr);
     ~QDateEdit() override;
+
+signals:
+    /*!
+        \since 6.0
+        This signal is emitted when the date changes to \a date.
+    */
+    void userDateChanged(QDate date) { emitSignal(&QDateEdit::userDateChanged, date); }
 };
 
 class QTimeEdit : public QDateTimeEdit {
@@ -169,4 +176,11 @@ public:
     explicit QTimeEdit(QWidget *parent = nullptr);
     explicit QTimeEdit(QTime time, QWidget *parent = nullptr);
     ~QTimeEdit() override;
+
+signals:
+    /*!
+        \since 6.0
+        This signal is emitted when the time changes to \a time.
+    */
+    void userTimeChanged(QTime time) { emitSignal(&QTimeEdit::userTimeChanged, time); }
 };

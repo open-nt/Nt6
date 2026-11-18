@@ -30,6 +30,8 @@ public:
     QWidget *widget(int index) const;
     int indexOf(const QWidget *widget) const;
     int count() const { return static_cast<int>(m_items.size()); }
+    QIcon itemIcon(int index) const;
+    void setItemIcon(int index, const QIcon &icon);
 
 public slots:
     void setCurrentIndex(int index);

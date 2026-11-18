@@ -125,6 +125,14 @@ QLayoutItem::~QLayoutItem() = default;
 */
 
 /*!
+    \fn void QSpacerItem::changeSize(int w, int h, QSizePolicy::Policy hPolicy, QSizePolicy::Policy vPolicy)
+    \since 6.0
+
+    Changes the size of the spacer to \a w by \a h pixels, with the policies \a hPolicy across and \a vPolicy
+    down. Invalidate the layout to lay it out again.
+*/
+
+/*!
     Constructs a spacer item with the size hint \a w by \a h and the size policies \a hPolicy and
     \a vPolicy.
 */
@@ -304,3 +312,62 @@ bool QWidgetItem::isEmpty() const { return m_widget->isHidden(); }
 
     \reimp
 */
+
+/*!
+    \fn bool QLayoutItem::hasHeightForWidth() const
+    \since 6.0
+
+    Returns \c true if the preferred height of the item depends on its width. The default returns \c false.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the preferred height of the item at the width \a w, or -1 if it does not depend on the width.
+*/
+int QLayoutItem::heightForWidth(int w) const {
+    (void)w;
+    return -1;
+}
+
+/*!
+    \fn int QLayoutItem::minimumHeightForWidth(int w) const
+    \since 6.0
+
+    Returns the smallest height of the item at the width \a w; the default is heightForWidth().
+*/
+
+/*!
+    \fn QSizePolicy::ControlTypes QLayoutItem::controlTypes() const
+    \since 6.0
+
+    Returns the kinds of control the item holds, QSizePolicy::DefaultType by default.
+*/
+
+/*!
+    \reimp
+*/
+bool QWidgetItem::hasHeightForWidth() const { return m_widget && m_widget->hasHeightForWidth(); }
+
+/*!
+    \reimp
+*/
+int QWidgetItem::heightForWidth(int w) const {
+    return m_widget && m_widget->hasHeightForWidth() ? m_widget->heightForWidth(w) : -1;
+}
+
+/*!
+    \fn int QWidgetItem::minimumHeightForWidth(int w) const
+    \since 6.0
+
+    Returns the smallest height of the widget at the width \a w, which is heightForWidth().
+*/
+
+/*!
+    \reimp
+
+    Returns the control type of the size policy of the widget.
+*/
+QSizePolicy::ControlTypes QWidgetItem::controlTypes() const {
+    return m_widget ? QSizePolicy::ControlTypes(m_widget->sizePolicy().controlType()) : QSizePolicy::DefaultType;
+}

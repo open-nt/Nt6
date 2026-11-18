@@ -1462,6 +1462,832 @@ static void testItemWidgetExtras() {
     CHECK(cellPressed.count() == 1 && cellPressed.last().at(1).toInt() == 1);
 }
 
+static void testButtonExtras() {
+    // Auto-repeat
+    QPushButton repeat(QStringLiteral("+"));
+    repeat.setAutoRepeat(true);
+    repeat.setAutoRepeatDelay(30);
+    repeat.setAutoRepeatInterval(20);
+    CHECK(repeat.autoRepeat() && repeat.autoRepeatDelay() == 30 && repeat.autoRepeatInterval() == 20);
+    int clicks = 0;
+    QObject::connect(&repeat, &QAbstractButton::clicked, [&] { ++clicks; });
+    repeat.setDown(true);
+    QTest::qWait(150);
+    repeat.setDown(false);
+    CHECK(clicks >= 3);
+    const int after = clicks;
+    QTest::qWait(60);
+    CHECK(clicks == after);
+
+    // Tristate check box
+    QCheckBox box(QStringLiteral("x"));
+    QSignalSpy states(&box, &QCheckBox::checkStateChanged);
+    CHECK(!box.isTristate() && box.checkState() == Qt::Unchecked);
+    box.setCheckState(Qt::PartiallyChecked);
+    CHECK(box.isTristate() && box.checkState() == Qt::PartiallyChecked && !box.isChecked() && states.count() == 1);
+    box.click();
+    CHECK(box.checkState() == Qt::Checked && box.isChecked());
+    box.click();
+    CHECK(box.checkState() == Qt::Unchecked);
+    box.click();
+    CHECK(box.checkState() == Qt::PartiallyChecked && states.count() == 4);
+    box.setChecked(true);
+    CHECK(box.checkState() == Qt::Checked && states.last().at(0).value<Qt::CheckState>() == Qt::Checked);
+    box.setTristate(false);
+    box.click();
+    CHECK(box.checkState() == Qt::Unchecked);
+    QSignalSpy legacy(&box, &QCheckBox::stateChanged);
+    box.setCheckState(Qt::Checked);
+    CHECK(legacy.count() == 1 && legacy.last().at(0).toInt() == 2);
+
+    // Push button and tool button menus
+    QWidget top;
+    top.resize(300, 200);
+    auto *push = new QPushButton(QStringLiteral("Menu"), &top);
+    QMenu menu(&top);
+    QAction *copy = menu.addAction(QStringLiteral("Copy"));
+    push->setMenu(&menu);
+    CHECK(push->menu() == &menu);
+    top.show();
+    settle();
+    push->showMenu();
+    settle();
+    CHECK(menu.isVisible() && push->isDown());
+    menu.hide();
+    settle();
+    CHECK(!push->isDown());
+
+    auto *tool = new QToolButton(&top);
+    tool->setGeometry(100, 10, 40, 24);
+    tool->setMenu(&menu);
+    CHECK(tool->menu() == &menu && tool->popupMode() == QToolButton::DelayedPopup);
+    tool->setPopupMode(QToolButton::InstantPopup);
+    QSignalSpy triggered(tool, &QToolButton::triggered);
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(5, 5), QPointF(5, 5), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(tool, &press);
+    settle();
+    CHECK(menu.isVisible());
+    copy->trigger();
+    menu.hide();
+    settle();
+    CHECK(!tool->isDown());
+    tool->setPopupMode(QToolButton::MenuButtonPopup);
+    int toolClicks = 0;
+    QObject::connect(tool, &QAbstractButton::clicked, [&] { ++toolClicks; });
+    QMouseEvent left(QEvent::MouseButtonPress, QPointF(3, 5), QPointF(3, 5), Qt::LeftButton, Qt::LeftButton,
+                     Qt::NoModifier);
+    QMouseEvent leftUp(QEvent::MouseButtonRelease, QPointF(3, 5), QPointF(3, 5), Qt::LeftButton, Qt::NoButton,
+                       Qt::NoModifier);
+    QCoreApplication::sendEvent(tool, &left);
+    QCoreApplication::sendEvent(tool, &leftUp);
+    CHECK(toolClicks == 1 && !menu.isVisible());
+    QMouseEvent arrow(QEvent::MouseButtonPress, QPointF(37, 5), QPointF(37, 5), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(tool, &arrow);
+    settle();
+    CHECK(menu.isVisible());
+    menu.hide();
+}
+
+// Reaches the protected parts of QAbstractSlider.
+class RepeatSlider : public QSlider {
+public:
+    using QSlider::QSlider;
+    using QAbstractSlider::repeatAction;
+    using QAbstractSlider::setRepeatAction;
+};
+
+static void testSmallWidgetExtras() {
+    // Slider: ticks, inverted appearance, repeat action
+    RepeatSlider slider(Qt::Horizontal);
+    slider.resize(200, 30);
+    const int plain = slider.sizeHint().height();
+    slider.setTickPosition(QSlider::TicksBothSides);
+    slider.setTickInterval(10);
+    CHECK(slider.tickPosition() == QSlider::TicksBothSides && slider.tickInterval() == 10 &&
+          slider.sizeHint().height() == plain + 10);
+    slider.setValue(0);
+    const QImage normal = slider.grab().toImage();
+    slider.setInvertedAppearance(true);
+    CHECK(slider.invertedAppearance() && slider.grab().toImage() != normal);
+    slider.setInvertedAppearance(false);
+    slider.setRange(0, 100);
+    slider.setSingleStep(1);
+    slider.setRepeatAction(QAbstractSlider::SliderSingleStepAdd, 10, 10);
+    CHECK(slider.repeatAction() == QAbstractSlider::SliderSingleStepAdd);
+    QTest::qWait(80);
+    slider.setRepeatAction(QAbstractSlider::SliderNoAction);
+    const int reached = slider.value();
+    CHECK(reached >= 2);
+    QTest::qWait(40);
+    CHECK(slider.value() == reached);
+
+    // Dial
+    QDial dial;
+    dial.resize(100, 100);
+    dial.setRange(0, 100);
+    CHECK(dial.notchTarget() > 3.6 && dial.notchSize() >= 1);
+    dial.setNotchTarget(20);
+    CHECK(dial.notchTarget() == 20 && dial.notchSize() > 1);
+
+    // Progress bar
+    QProgressBar bar;
+    bar.setValue(50);
+    bar.setFormat(QStringLiteral("%v"));
+    bar.resetFormat();
+    CHECK(bar.format() == QStringLiteral("%p%") && bar.text() == QStringLiteral("50%"));
+    const QSize horizontal = bar.sizeHint();
+    bar.setOrientation(Qt::Vertical);
+    CHECK(bar.orientation() == Qt::Vertical && bar.sizeHint() == horizontal.transposed());
+    bar.setInvertedAppearance(true);
+    bar.setTextDirection(QProgressBar::BottomToTop);
+    bar.setAlignment(Qt::AlignCenter);
+    CHECK(bar.invertedAppearance() && bar.textDirection() == QProgressBar::BottomToTop &&
+          bar.alignment() == Qt::AlignCenter);
+    bar.resize(20, 100);
+    bar.setInvertedAppearance(false);
+    const QImage up = bar.grab().toImage();
+    const QColor highlight = bar.palette().color(QPalette::Active, QPalette::Highlight);
+    CHECK(up.pixelColor(10, 90) == highlight && up.pixelColor(10, 10) != highlight);
+
+    // Group box
+    QGroupBox box(QStringLiteral("Title"));
+    box.resize(200, 100);
+    box.setFlat(true);
+    box.setAlignment(Qt::AlignRight);
+    CHECK(box.isFlat() && box.alignment() == Qt::AlignRight);
+
+    // Frame
+    QFrame frame;
+    frame.resize(100, 100);
+    frame.setFrameStyle(QFrame::Box | QFrame::Plain);
+    frame.setFrameRect(QRect(10, 10, 50, 50));
+    CHECK(frame.frameRect() == QRect(10, 10, 50, 50) && frame.contentsRect() == QRect(11, 11, 48, 48));
+    frame.setFrameRect(QRect());
+    CHECK(frame.frameRect() == frame.rect());
+
+    // Scroll bar menu
+    QScrollBar scroll(Qt::Vertical);
+    scroll.setRange(0, 100);
+    scroll.resize(16, 200);
+    QMenu *menu = scroll.createStandardContextMenu(QPoint(8, 190));
+    QStringList texts;
+    for (QAction *a : menu->actions())
+        if (!a->isSeparator())
+            texts << a->text();
+    CHECK(texts.size() == 7 && texts.first() == QStringLiteral("Scroll here"));
+    menu->actions().at(3)->trigger(); // Bottom, after Scroll here, a separator and Top
+    CHECK(scroll.value() == 100);
+    menu->actions().first()->trigger();
+    CHECK(scroll.value() > 80);
+    delete menu;
+
+    // Size policy
+    QSizePolicy policy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    policy.setHorizontalStretch(2);
+    policy.setControlType(QSizePolicy::PushButton);
+    const QSizePolicy t = policy.transposed();
+    CHECK(t.horizontalPolicy() == QSizePolicy::Fixed && t.verticalPolicy() == QSizePolicy::Expanding &&
+          t.verticalStretch() == 2 && t.controlType() == QSizePolicy::PushButton);
+    policy.transpose();
+    CHECK(policy == t);
+}
+
+static void testSpinBoxExtras() {
+    QSpinBox spin;
+    spin.setRange(0, 5000);
+    spin.setValue(255);
+    spin.setDisplayIntegerBase(16);
+    CHECK(spin.displayIntegerBase() == 16 && spin.text() == QStringLiteral("ff"));
+    spin.setDisplayIntegerBase(10);
+    spin.setLocale(QLocale(QLocale::English, QLocale::UnitedStates));
+    spin.setValue(1234);
+    spin.setGroupSeparatorShown(true);
+    CHECK(spin.isGroupSeparatorShown() && spin.text() == QStringLiteral("1,234"));
+    QString input = QStringLiteral("2,000");
+    int pos = 0;
+    CHECK(spin.validate(input, pos) == QValidator::Acceptable);
+    input = QStringLiteral("9999");
+    CHECK(spin.validate(input, pos) == QValidator::Intermediate);
+    input = QStringLiteral("abc");
+    CHECK(spin.validate(input, pos) == QValidator::Invalid);
+    input = QStringLiteral("3000");
+    spin.fixup(input);
+    CHECK(input == QStringLiteral("3,000"));
+    spin.setGroupSeparatorShown(false);
+    CHECK(spin.hasAcceptableInput());
+    // Out-of-range typed values
+    spin.findChild<QLineEdit *>()->setText(QStringLiteral("9000"));
+    emit spin.findChild<QLineEdit *>()->editingFinished();
+    CHECK(spin.value() == 1234);
+    spin.setCorrectionMode(QAbstractSpinBox::CorrectToNearestValue);
+    spin.findChild<QLineEdit *>()->setText(QStringLiteral("9000"));
+    emit spin.findChild<QLineEdit *>()->editingFinished();
+    CHECK(spin.value() == 5000);
+    // Adaptive steps
+    spin.setValue(1500);
+    spin.setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
+    spin.stepBy(1);
+    CHECK(spin.value() == 1600);
+    spin.setValue(150);
+    spin.stepBy(1);
+    CHECK(spin.value() == 160);
+    // Frame, alignment, line edit, returnPressed
+    spin.setFrame(false);
+    spin.setAlignment(Qt::AlignRight);
+    spin.setAccelerated(true);
+    CHECK(!spin.hasFrame() && spin.alignment() == Qt::AlignRight && spin.isAccelerated());
+    QSignalSpy returned(&spin, &QAbstractSpinBox::returnPressed);
+    QKeyEvent enter(QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier);
+    QCoreApplication::sendEvent(spin.findChild<QLineEdit *>(), &enter);
+    CHECK(returned.count() == 1);
+
+    QDoubleSpinBox dbl;
+    dbl.setRange(0, 100);
+    dbl.setDecimals(2);
+    input = QStringLiteral("12.345");
+    CHECK(dbl.validate(input, pos) == QValidator::Invalid);
+    input = QStringLiteral("12.34");
+    CHECK(dbl.validate(input, pos) == QValidator::Acceptable);
+    input = QStringLiteral("7");
+    dbl.fixup(input);
+    CHECK(input == QStringLiteral("7.00"));
+    dbl.setValue(50);
+    dbl.setStepType(QAbstractSpinBox::AdaptiveDecimalStepType);
+    dbl.stepBy(1);
+    CHECK(qFuzzyCompare(dbl.value(), 51.0));
+}
+
+// Reaches the protected parts of QDialog and QSplitter.
+class OpenDialog : public QDialog {
+public:
+    using QDialog::adjustPosition;
+};
+class OpenSplitter : public QSplitter {
+public:
+    using QSplitter::getRange;
+    using QSplitter::setRubberBand;
+};
+
+static void testLabelAndSmallClassExtras() {
+    // Label: indent, selection
+    QLabel label(QStringLiteral("Hello world"));
+    const QSize plain = label.sizeHint();
+    label.setIndent(10);
+    CHECK(label.indent() == 10 && label.sizeHint().width() == plain.width() + 10);
+    label.setSelection(0, 5);
+    CHECK(!label.hasSelectedText()); // not selectable by default
+    label.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    label.setSelection(6, 5);
+    CHECK(label.hasSelectedText() && label.selectedText() == QStringLiteral("world") && label.selectionStart() == 6);
+    label.resize(label.sizeHint());
+    const QImage selected = label.grab().toImage();
+    label.setSelection(0, 0);
+    CHECK(!label.hasSelectedText() && label.selectionStart() == -1 && label.grab().toImage() != selected);
+    label.setText(QStringLiteral("<b>rich</b> text"));
+    label.setSelection(0, 4);
+    CHECK(label.selectedText() == QStringLiteral("rich"));
+    label.setText(QStringLiteral("other"));
+    CHECK(!label.hasSelectedText());
+    int asked = 0;
+    label.setResourceProvider([&](const QUrl &) {
+        ++asked;
+        return QVariant();
+    });
+    CHECK(label.resourceProvider() != nullptr);
+
+    // Message box
+    QMessageBox box(QMessageBox::Warning, QStringLiteral("t"), QStringLiteral("x"));
+    QPixmap px(16, 16);
+    px.fill(Qt::red);
+    box.setIconPixmap(px);
+    CHECK(box.icon() == QMessageBox::NoIcon && !box.iconPixmap().isNull());
+    box.setTextInteractionFlags(Qt::TextSelectableByMouse);
+    CHECK(box.textInteractionFlags() == Qt::TextSelectableByMouse);
+    box.setOption(QMessageBox::Option::DontUseNativeDialog);
+    CHECK(box.testOption(QMessageBox::Option::DontUseNativeDialog));
+
+    // Tool tip font and palette
+    QFont tipFont = QToolTip::font();
+    tipFont.setPointSize(20);
+    QToolTip::setFont(tipFont);
+    CHECK(QToolTip::font().pointSize() == 20);
+    QPalette tipPalette = QToolTip::palette();
+    tipPalette.setColor(QPalette::ToolTipBase, Qt::yellow);
+    QToolTip::setPalette(tipPalette);
+    CHECK(QToolTip::palette().color(QPalette::ToolTipBase) == QColor(Qt::yellow));
+    QToolTip::setFont(QGuiApplication::font());
+
+    // Dialog
+    OpenDialog dialog;
+    dialog.resize(200, 150);
+    dialog.setSizeGripEnabled(true);
+    auto *grip = dialog.findChild<QSizeGrip *>();
+    CHECK(dialog.isSizeGripEnabled() && grip && grip->geometry().bottomRight() == QPoint(199, 149));
+    dialog.resize(300, 200);
+    CHECK(grip->geometry().bottomRight() == QPoint(299, 199));
+    dialog.setSizeGripEnabled(false);
+    CHECK(!dialog.isSizeGripEnabled());
+    QWidget anchor;
+    anchor.setGeometry(100, 100, 400, 400);
+    dialog.adjustPosition(&anchor);
+    CHECK(dialog.geometry().center().x() >= 290 && dialog.geometry().center().x() <= 310);
+
+    // Tool box, splitter, status bar, spacer, stacked widget
+    QToolBox toolBox;
+    toolBox.addItem(new QWidget, QStringLiteral("a"));
+    toolBox.setItemIcon(0, QIcon(px));
+    CHECK(!toolBox.itemIcon(0).isNull() && toolBox.itemIcon(5).isNull());
+    OpenSplitter splitter;
+    splitter.addWidget(new QWidget);
+    splitter.addWidget(new QWidget);
+    splitter.resize(200, 100);
+    splitter.show();
+    settle();
+    int low = -1, high = -1;
+    splitter.getRange(1, &low, &high);
+    CHECK(low == 0 && high >= 190);
+    splitter.setRubberBand(50);
+    auto *band = splitter.findChild<QRubberBand *>();
+    CHECK(band && band->isVisible() && band->x() == 50);
+    splitter.setRubberBand(-1);
+    CHECK(!band->isVisible());
+    QSpacerItem spacer(10, 10);
+    spacer.changeSize(30, 40, QSizePolicy::Expanding, QSizePolicy::Fixed);
+    CHECK(spacer.sizeHint() == QSize(30, 40) && spacer.expandingDirections() == Qt::Horizontal);
+    QStackedWidget stack;
+    QSignalSpy added(&stack, &QStackedWidget::widgetAdded);
+    stack.addWidget(new QWidget);
+    stack.insertWidget(0, new QWidget);
+    CHECK(added.count() == 2 && added.last().at(0).toInt() == 0);
+    QDateEdit dateEdit;
+    QSignalSpy userDate(&dateEdit, &QDateEdit::userDateChanged);
+    dateEdit.setDate(QDate(2020, 5, 6));
+    CHECK(userDate.count() == 1);
+    QTimeEdit timeEdit;
+    QSignalSpy userTime(&timeEdit, &QTimeEdit::userTimeChanged);
+    timeEdit.setTime(QTime(10, 30));
+    CHECK(userTime.count() == 1);
+    QErrorMessage *handler = QErrorMessage::qtHandler();
+    CHECK(handler && QErrorMessage::qtHandler() == handler);
+}
+
+// A scroll area whose contents have a size.
+class SizedArea : public QAbstractScrollArea {
+public:
+    QWidget *setUp = nullptr;
+    int painted = 0;
+
+protected:
+    void setupViewport(QWidget *viewport) override { setUp = viewport; }
+    void paintEvent(QPaintEvent *) override { ++painted; }
+};
+
+static void testScrollAreaCompleterExtras() {
+    SizedArea area;
+    area.resize(200, 150);
+    area.verticalScrollBar()->setRange(0, 100);
+    area.horizontalScrollBar()->setRange(0, 100);
+    area.show();
+    settle();
+    auto *corner = new QWidget;
+    area.setCornerWidget(corner);
+    CHECK(area.cornerWidget() == corner && corner->isVisible() && corner->geometry().right() == 198);
+    auto *left = new QWidget;
+    left->setFixedSize(20, 10);
+    area.addScrollBarWidget(left, Qt::AlignLeft);
+    CHECK(area.scrollBarWidgets(Qt::AlignLeft) == QWidgetList{left} && area.scrollBarWidgets(Qt::AlignTop).isEmpty());
+    CHECK(area.horizontalScrollBar()->x() == left->geometry().right() + 1);
+    auto *bar = new QScrollBar;
+    area.setVerticalScrollBar(bar);
+    CHECK(area.verticalScrollBar() == bar && bar->orientation() == Qt::Vertical && bar->maximum() == 100);
+    auto *viewport = new QWidget;
+    area.setViewport(viewport);
+    CHECK(area.viewport() == viewport && area.setUp == viewport);
+    area.painted = 0;
+    viewport->repaint();
+    CHECK(area.painted > 0);
+    CHECK(area.maximumViewportSize().width() > 150);
+    area.setSizeAdjustPolicy(QAbstractScrollArea::AdjustToContents);
+    CHECK(area.sizeAdjustPolicy() == QAbstractScrollArea::AdjustToContents);
+
+    // Completer with a model
+    QStringListModel words({QStringLiteral("apple"), QStringLiteral("apricot"), QStringLiteral("banana")});
+    QCompleter completer(&words);
+    CHECK(completer.model() == &words);
+    completer.setCompletionPrefix(QStringLiteral("ap"));
+    CHECK(completer.completionCount() == 2 && completer.completionModel()->rowCount() == 2);
+    completer.setCurrentRow(1);
+    CHECK(completer.currentIndex().data().toString() == QStringLiteral("apricot"));
+    words.setStringList({QStringLiteral("apex")});
+    completer.setCompletionPrefix(QStringLiteral("ap"));
+    CHECK(completer.completionCount() == 1 && completer.currentCompletion() == QStringLiteral("apex"));
+    CHECK(completer.pathFromIndex(words.index(0)) == QStringLiteral("apex") &&
+          completer.splitPath(QStringLiteral("a/b")) == QStringList{QStringLiteral("a/b")});
+    QStandardItemModel table(2, 2);
+    table.setItem(0, 1, new QStandardItem(QStringLiteral("cherry")));
+    table.setItem(1, 1, new QStandardItem(QStringLiteral("cranberry")));
+    completer.setModel(&table);
+    completer.setCompletionColumn(1);
+    completer.setCompletionPrefix(QStringLiteral("cr"));
+    CHECK(completer.completionColumn() == 1 && completer.completionCount() == 1);
+    QCompleter plain(QStringList{QStringLiteral("x")});
+    CHECK(plain.model() && plain.model()->rowCount() == 1);
+
+    // Key sequence edit
+    QKeySequenceEdit keys;
+    keys.setFinishingKeyCombinations({QKeyCombination(Qt::Key_Tab)});
+    keys.setMaximumSequenceLength(9);
+    CHECK(keys.maximumSequenceLength() == 4 && keys.finishingKeyCombinations().size() == 1);
+    QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+    QCoreApplication::sendEvent(&keys, &tab);
+    CHECK(keys.keySequence().isEmpty());
+
+    // Progress dialog parts
+    QProgressDialog progress(QStringLiteral("Working"), QStringLiteral("Cancel"), 0, 10);
+    progress.setValue(3);
+    auto *newBar = new QProgressBar;
+    progress.setBar(newBar);
+    CHECK(newBar->parentWidget() == &progress && newBar->value() == 3 && progress.value() == 3);
+    auto *newLabel = new QLabel(QStringLiteral("Other"));
+    progress.setLabel(newLabel);
+    CHECK(newLabel->parentWidget() == &progress);
+    auto *stop = new QPushButton(QStringLiteral("Stop"));
+    progress.setCancelButton(stop);
+    QSignalSpy canceled(&progress, &QProgressDialog::canceled);
+    stop->click();
+    CHECK(canceled.count() == 1 && progress.wasCanceled());
+    progress.setCancelButton(nullptr);
+    CHECK(!progress.findChild<QPushButton *>());
+}
+
+// Reaches the protected parts of QLayout.
+class OpenBox : public QHBoxLayout {
+public:
+    using QHBoxLayout::QHBoxLayout;
+    using QLayout::alignmentRect;
+};
+
+static void testLayoutExtras() {
+    // Box layout: spacer items, struts, replaceWidget, size constraints
+    QWidget host;
+    auto *box = new OpenBox(&host);
+    box->setContentsMargins(0, 0, 0, 0);
+    box->setSpacing(0);
+    auto *a = new QWidget;
+    a->setMinimumSize(20, 10);
+    box->addWidget(a);
+    box->addSpacerItem(new QSpacerItem(30, 5));
+    box->insertItem(0, new QSpacerItem(5, 5));
+    CHECK(box->count() == 3 && box->itemAt(1)->widget() == a);
+    box->addStrut(40);
+    CHECK(box->sizeHint().height() >= 40 && box->minimumSize().height() >= 40);
+    auto *b = new QWidget;
+    QLayoutItem *old = box->replaceWidget(a, b);
+    CHECK(old && old->widget() == a && box->itemAt(1)->widget() == b && b->parentWidget() == &host);
+    delete old;
+    delete a;
+    CHECK(!box->replaceWidget(a, b));
+    int l = -1, t = -1, r = -1, bm = -1;
+    box->setContentsMargins(1, 2, 3, 4);
+    box->getContentsMargins(&l, &t, &r, &bm);
+    CHECK(l == 1 && t == 2 && r == 3 && bm == 4);
+    box->unsetContentsMargins();
+    CHECK(box->contentsMargins() != QMargins(1, 2, 3, 4));
+    box->setSizeConstraints(QLayout::SetFixedSize, QLayout::SetNoConstraint);
+    CHECK(box->horizontalSizeConstraint() == QLayout::SetFixedSize &&
+          box->verticalSizeConstraint() == QLayout::SetNoConstraint);
+    box->activate();
+    CHECK(host.minimumWidth() == host.maximumWidth() && host.maximumHeight() == QWIDGETSIZE_MAX);
+    CHECK(box->totalSizeHint().width() >= box->sizeHint().width());
+    box->setEnabled(false);
+    CHECK(!box->isEnabled() && !box->activate());
+    box->setEnabled(true);
+    box->setAlignment(Qt::AlignRight);
+    const QRect aligned = box->alignmentRect(QRect(0, 0, 500, 100));
+    CHECK(aligned.right() == 499 && aligned.width() <= 500);
+    QPushButton pushed;
+    pushed.setSizePolicy(QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed, QSizePolicy::PushButton));
+    QWidgetItem item(&pushed);
+    CHECK(item.controlTypes() == QSizePolicy::PushButton && !item.hasHeightForWidth() && item.heightForWidth(10) == -1);
+    QWidget sized;
+    sized.setMinimumSize(50, 50);
+    sized.setMaximumSize(100, 100);
+    CHECK(QLayout::closestAcceptableSize(&sized, QSize(10, 200)) == QSize(50, 100));
+
+    // Grid: cellRect, origin corner, default positioning
+    QWidget gridHost;
+    auto *grid = new QGridLayout(&gridHost);
+    grid->setContentsMargins(0, 0, 0, 0);
+    grid->setSpacing(0);
+    grid->setDefaultPositioning(2, Qt::Horizontal);
+    QList<QWidget *> cells;
+    for (int i = 0; i < 4; ++i) {
+        cells << new QWidget;
+        cells.last()->setMinimumSize(10, 10);
+        grid->addWidget(cells.last());
+    }
+    int row = -1, col = -1, rs = 0, cs = 0;
+    grid->getItemPosition(3, &row, &col, &rs, &cs);
+    CHECK(row == 1 && col == 1);
+    gridHost.resize(100, 100);
+    grid->setGeometry(QRect(0, 0, 100, 100));
+    CHECK(grid->cellRect(0, 0).topLeft() == QPoint(0, 0) && grid->cellRect(1, 1).bottomRight() == QPoint(99, 99));
+    CHECK(!grid->cellRect(5, 5).isValid());
+    grid->setOriginCorner(Qt::BottomRightCorner);
+    grid->setGeometry(QRect(0, 0, 100, 100));
+    CHECK(grid->originCorner() == Qt::BottomRightCorner && grid->cellRect(0, 0).bottomRight() == QPoint(99, 99) &&
+          cells[0]->geometry().bottomRight() == QPoint(99, 99));
+
+    // Form layout
+    QWidget formHost;
+    auto *form = new QFormLayout(&formHost);
+    form->addRow(QStringLiteral("Name"), new QLineEdit);
+    auto *field = new QLineEdit;
+    form->setItem(1, QFormLayout::FieldRole, new QWidgetItem(field));
+    QFormLayout::ItemRole role = QFormLayout::LabelRole;
+    form->getItemPosition(form->indexOf(field), &row, &role);
+    CHECK(row == 1 && role == QFormLayout::FieldRole && field->parentWidget() == &formHost);
+
+    // Stacked layout: StackAll
+    QWidget stackHost;
+    auto *stacked = new QStackedLayout(&stackHost);
+    auto *p1 = new QWidget;
+    auto *p2 = new QWidget;
+    stacked->addWidget(p1);
+    stacked->addWidget(p2);
+    stackHost.show();
+    settle();
+    CHECK(p1->isVisible() && !p2->isVisible());
+    stacked->setStackingMode(QStackedLayout::StackAll);
+    CHECK(stacked->stackingMode() == QStackedLayout::StackAll && p1->isVisible() && p2->isVisible());
+    stacked->setCurrentIndex(1);
+    CHECK(p1->isVisible() && p2->isVisible());
+    stacked->setStackingMode(QStackedLayout::StackOne);
+    CHECK(!p1->isVisible() && p2->isVisible());
+}
+
+// An item that records what reaches it.
+class RecordingItem : public QGraphicsRectItem {
+public:
+    using QGraphicsRectItem::QGraphicsRectItem;
+    QString committed;
+    QList<int> phases;
+    int filtered = 0;
+    void advance(int phase) override { phases << phase; }
+
+protected:
+    void inputMethodEvent(QInputMethodEvent *event) override {
+        committed += event->commitString();
+        event->accept();
+    }
+    QVariant inputMethodQuery(Qt::InputMethodQuery query) const override {
+        return query == Qt::ImSurroundingText ? QVariant(committed) : QVariant();
+    }
+    bool sceneEventFilter(QGraphicsItem *, QEvent *) override {
+        ++filtered;
+        return false;
+    }
+};
+
+static void testInputMethodAndGraphicsItemExtras() {
+    // Line edit and plain text edit take committed text
+    QLineEdit line(QStringLiteral("helo"));
+    line.setCursorPosition(4);
+    QInputMethodEvent im;
+    im.setCommitString(QStringLiteral("llo"), -2, 2);
+    QCoreApplication::sendEvent(&line, &im);
+    CHECK(line.text() == QStringLiteral("hello") && im.isAccepted());
+    QPlainTextEdit plain;
+    QInputMethodEvent typed(QStringLiteral("pre"), {QInputMethodEvent::Attribute(QInputMethodEvent::Cursor, 0, 1)});
+    typed.setCommitString(QStringLiteral("abc"));
+    CHECK(typed.preeditString() == QStringLiteral("pre") && typed.attributes().size() == 1 &&
+          typed.replacementStart() == 0);
+    QCoreApplication::sendEvent(&plain, &typed);
+    CHECK(plain.toPlainText() == QStringLiteral("abc"));
+    QComboBox combo;
+    combo.setEditable(true);
+    QInputMethodEvent toCombo;
+    toCombo.setCommitString(QStringLiteral("x"));
+    QCoreApplication::sendEvent(&combo, &toCombo);
+    CHECK(combo.currentText() == QStringLiteral("x"));
+    QWidget plainWidget;
+    QInputMethodEvent ignored;
+    QCoreApplication::sendEvent(&plainWidget, &ignored);
+    CHECK(!ignored.isAccepted());
+
+    // Graphics items
+    QGraphicsScene scene;
+    auto *item = new RecordingItem(0, 0, 10, 10);
+    item->setFlag(QGraphicsItem::ItemIsFocusable);
+    scene.addItem(item);
+    item->setFocus();
+    QInputMethodEvent toScene;
+    toScene.setCommitString(QStringLiteral("hi"));
+    QCoreApplication::sendEvent(&scene, &toScene);
+    CHECK(item->committed == QStringLiteral("hi") &&
+          scene.inputMethodQuery(Qt::ImSurroundingText).toString() == QStringLiteral("hi"));
+    scene.advance();
+    CHECK(item->phases == (QList<int>{0, 1}));
+    CHECK(!static_cast<QGraphicsItem *>(item)->isWidget()); // the extensions are protected, as in Qt
+    item->setInputMethodHints(Qt::ImhDigitsOnly);
+    CHECK(item->inputMethodHints() == Qt::ImhDigitsOnly);
+    item->setBoundingRegionGranularity(2);
+    CHECK(item->boundingRegionGranularity() == 1.0);
+    CHECK(item->boundingRegion(QTransform::fromScale(2, 2)).boundingRect() == QRect(-1, -1, 22, 22) ||
+          item->boundingRegion(QTransform::fromScale(2, 2)).boundingRect().contains(QRect(0, 0, 20, 20)));
+    // Focus proxy
+    auto *other = new QGraphicsRectItem(0, 0, 5, 5);
+    other->setFlag(QGraphicsItem::ItemIsFocusable);
+    scene.addItem(other);
+    item->setFocusProxy(other);
+    CHECK(item->focusProxy() == other);
+    item->setFocus();
+    CHECK(scene.focusItem() == other);
+    other->setFocusProxy(item); // a loop is refused
+    CHECK(!other->focusProxy());
+    delete other;
+    CHECK(!item->focusProxy());
+    // Child event filtering
+    auto *child = new QGraphicsRectItem(0, 0, 4, 4, item);
+    item->setFiltersChildEvents(true);
+    QEvent custom(QEvent::User);
+    scene.sendEvent(child, &custom);
+    CHECK(item->filtersChildEvents() && item->filtered == 1);
+    // Panels
+    auto *panel = new QGraphicsRectItem(0, 0, 50, 50);
+    panel->setFlag(QGraphicsItem::ItemIsPanel);
+    scene.addItem(panel);
+    auto *inPanel = new QGraphicsRectItem(0, 0, 5, 5, panel);
+    CHECK(inPanel->panel() == panel && !item->panel());
+    panel->setPanelModality(QGraphicsItem::SceneModal);
+    QGraphicsItem *blocker = nullptr;
+    CHECK(item->isBlockedByModalPanel(&blocker) && blocker == panel && !inPanel->isBlockedByModalPanel());
+    panel->setPanelModality(QGraphicsItem::NonModal);
+    CHECK(!item->isBlockedByModalPanel());
+    CHECK(!item->topLevelWidget() && !item->window() && !item->focusScopeItem());
+}
+
+static void testItemClassAndTableViewExtras() {
+    // Item classes
+    QListWidgetItem listItem(QStringLiteral("one"));
+    listItem.setStatusTip(QStringLiteral("status"));
+    listItem.setWhatsThis(QStringLiteral("what"));
+    listItem.setCheckState(Qt::Checked);
+    CHECK(listItem.statusTip() == QStringLiteral("status") && listItem.whatsThis() == QStringLiteral("what") &&
+          listItem.checkState() == Qt::Checked);
+    std::unique_ptr<QListWidgetItem> listCopy(listItem.clone());
+    CHECK(listCopy->text() == QStringLiteral("one") && listCopy->statusTip() == QStringLiteral("status") &&
+          !listCopy->listWidget());
+    QByteArray bytes;
+    {
+        QDataStream out(&bytes, QIODevice::WriteOnly);
+        listItem.write(out);
+    }
+    QListWidgetItem readBack;
+    {
+        QDataStream in(bytes);
+        readBack.read(in);
+    }
+    CHECK(readBack.text() == QStringLiteral("one") && readBack.whatsThis() == QStringLiteral("what"));
+
+    QTableWidgetItem tableItem(QStringLiteral("cell"), QTableWidgetItem::UserType + 1);
+    tableItem.setSizeHint(QSize(40, 20));
+    tableItem.setStatusTip(QStringLiteral("s"));
+    tableItem.setWhatsThis(QStringLiteral("w"));
+    CHECK(tableItem.type() == QTableWidgetItem::UserType + 1 && tableItem.sizeHint() == QSize(40, 20) &&
+          tableItem.statusTip() == QStringLiteral("s") && tableItem.whatsThis() == QStringLiteral("w"));
+    std::unique_ptr<QTableWidgetItem> tableCopy(tableItem.clone());
+    CHECK(tableCopy->text() == QStringLiteral("cell") && tableCopy->type() == tableItem.type() &&
+          tableCopy->whatsThis() == QStringLiteral("w"));
+    bytes.clear();
+    {
+        QDataStream out(&bytes, QIODevice::WriteOnly);
+        tableItem.write(out);
+    }
+    QTableWidgetItem tableBack;
+    {
+        QDataStream in(bytes);
+        tableBack.read(in);
+    }
+    CHECK(tableBack.text() == QStringLiteral("cell") && tableBack.statusTip() == QStringLiteral("s"));
+
+    QTreeWidget tree;
+    auto *treeItem = new QTreeWidgetItem(&tree, {QStringLiteral("a"), QStringLiteral("b")});
+    treeItem->setStatusTip(1, QStringLiteral("tip"));
+    treeItem->setWhatsThis(0, QStringLiteral("help"));
+    treeItem->setSizeHint(0, QSize(10, 30));
+    CHECK(treeItem->statusTip(1) == QStringLiteral("tip") && treeItem->whatsThis(0) == QStringLiteral("help") &&
+          treeItem->sizeHint(0) == QSize(10, 30));
+    bytes.clear();
+    {
+        QDataStream out(&bytes, QIODevice::WriteOnly);
+        treeItem->write(out);
+    }
+    QTreeWidgetItem treeBack;
+    {
+        QDataStream in(bytes);
+        treeBack.read(in);
+    }
+    CHECK(treeBack.text(1) == QStringLiteral("b") && treeBack.statusTip(1) == QStringLiteral("tip"));
+
+    // Table view spans and headers
+    QStandardItemModel model(4, 4);
+    for (int r = 0; r < 4; ++r)
+        for (int c = 0; c < 4; ++c)
+            model.setItem(r, c, new QStandardItem(QStringLiteral("%1,%2").arg(r).arg(c)));
+    QTableView view;
+    view.setModel(&model);
+    view.resize(400, 300);
+    view.show();
+    settle();
+    view.setSpan(0, 0, 2, 3);
+    CHECK(view.rowSpan(0, 0) == 2 && view.columnSpan(0, 0) == 3 && view.rowSpan(1, 1) == 1);
+    const QRect spanned = view.visualRect(model.index(0, 0));
+    CHECK(spanned.width() == 3 * view.columnWidth(0) && spanned.height() == 2 * view.rowHeight(0));
+    CHECK(view.visualRect(model.index(1, 2)).isEmpty() && view.visualRect(model.index(2, 0)).isValid());
+    CHECK(view.indexAt(view.visualRect(model.index(0, 0)).bottomRight() - QPoint(2, 2)) == model.index(0, 0));
+    view.setSpan(0, 1, 1, 1); // overlaps: removes the span
+    CHECK(view.rowSpan(0, 0) == 1);
+    view.setSpan(2, 2, 2, 2);
+    view.clearSpans();
+    CHECK(view.columnSpan(2, 2) == 1);
+    auto *header = new QHeaderView(Qt::Horizontal);
+    view.setHorizontalHeader(header);
+    CHECK(view.horizontalHeader() == header && header->count() == 4);
+    auto *wrong = new QHeaderView(Qt::Horizontal);
+    view.setVerticalHeader(wrong); // the wrong orientation is refused
+    CHECK(view.verticalHeader() != wrong);
+    delete wrong;
+}
+
+// Reaches the protected parts of QHeaderView.
+class OpenHeader : public QHeaderView {
+public:
+    using QHeaderView::QHeaderView;
+    using QHeaderView::sectionSizeFromContents;
+};
+
+static void testHeaderViewExtras() {
+    QStandardItemModel model(2, 3);
+    model.setHorizontalHeaderLabels({QStringLiteral("Name"), QStringLiteral("A much longer label"), QStringLiteral("C")});
+    OpenHeader header(Qt::Horizontal);
+    QSignalSpy counts(&header, &QHeaderView::sectionCountChanged);
+    header.setModel(&model);
+    CHECK(header.model() == &model && header.count() == 3 && counts.count() == 1);
+    model.setHorizontalHeaderItem(2, new QStandardItem(QStringLiteral("Changed")));
+    CHECK(header.sectionSizeFromContents(2).width() > 0);
+    model.insertColumn(3);
+    CHECK(header.count() == 4);
+    CHECK(header.sectionSizeHint(1) > header.sectionSizeHint(0));
+    header.resize(400, 30);
+    header.resizeSections(QHeaderView::ResizeToContents);
+    CHECK(header.sectionSize(1) == header.sectionSizeHint(1));
+    header.setMaximumSectionSize(50);
+    CHECK(header.maximumSectionSize() == 50 && header.sectionSize(1) == 50);
+    header.resizeSection(0, 500);
+    CHECK(header.sectionSize(0) == 50);
+    header.setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    CHECK(header.defaultAlignment() == (Qt::AlignLeft | Qt::AlignVCenter));
+    CHECK(header.sectionViewportPosition(1) == header.sectionPosition(1) && header.visualIndexAt(5) == 0);
+    header.swapSections(0, 1);
+    CHECK(header.logicalIndex(0) == 1 && header.logicalIndex(1) == 0);
+    header.setFirstSectionMovable(false);
+    header.moveSection(0, 2);
+    CHECK(header.logicalIndex(0) == 1);
+    header.setFirstSectionMovable(true);
+    header.setOffsetToSectionPosition(2);
+    CHECK(header.offset() == header.sectionPosition(header.logicalIndex(2)));
+    header.setOffset(0);
+    header.hideSection(3);
+    CHECK(header.sectionsHidden());
+    // A clearable sort indicator goes off on the third click
+    header.setSectionsClickable(true);
+    header.setSortIndicatorShown(true);
+    QSignalSpy clearable(&header, &QHeaderView::sortIndicatorClearableChanged);
+    header.setSortIndicatorClearable(true);
+    CHECK(header.isSortIndicatorClearable() && clearable.count() == 1);
+    header.show();
+    settle();
+    const QPoint inFirst(header.sectionViewportPosition(header.logicalIndex(0)) + 5, 10);
+    QSignalSpy pressed(&header, &QHeaderView::sectionPressed);
+    for (int i = 0; i < 3; ++i) {
+        QMouseEvent down(QEvent::MouseButtonPress, QPointF(inFirst), QPointF(inFirst), Qt::LeftButton, Qt::LeftButton,
+                         Qt::NoModifier);
+        QMouseEvent up(QEvent::MouseButtonRelease, QPointF(inFirst), QPointF(inFirst), Qt::LeftButton, Qt::NoButton,
+                       Qt::NoModifier);
+        QCoreApplication::sendEvent(&header, &down);
+        QCoreApplication::sendEvent(&header, &up);
+    }
+    CHECK(pressed.count() == 3 && header.sortIndicatorSection() == -1);
+    QSignalSpy doubled(&header, &QHeaderView::sectionDoubleClicked);
+    QMouseEvent dbl(QEvent::MouseButtonDblClick, QPointF(inFirst), QPointF(inFirst), Qt::LeftButton, Qt::LeftButton,
+                    Qt::NoModifier);
+    QCoreApplication::sendEvent(&header, &dbl);
+    CHECK(doubled.count() == 1);
+}
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     testFileSystemModel();
@@ -1480,6 +2306,15 @@ int main(int argc, char *argv[]) {
     testItemViewExtras();
     testTreeMenuBarComboExtras();
     testItemWidgetExtras();
+    testButtonExtras();
+    testSmallWidgetExtras();
+    testSpinBoxExtras();
+    testScrollAreaCompleterExtras();
+    testLayoutExtras();
+    testInputMethodAndGraphicsItemExtras();
+    testItemClassAndTableViewExtras();
+    testHeaderViewExtras();
+    testLabelAndSmallClassExtras();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

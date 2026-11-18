@@ -8,6 +8,8 @@
 
 #include <memory>
 
+#include <QtGui/qtextdocument.h>
+
 class QTextDocument;
 
 class QAction;
@@ -21,6 +23,9 @@ class QLabel : public QFrame {
     Q_PROPERTY(Qt::TextFormat textFormat READ textFormat WRITE setTextFormat)
     Q_PROPERTY(bool openExternalLinks READ openExternalLinks WRITE setOpenExternalLinks)
     Q_PROPERTY(Qt::TextInteractionFlags textInteractionFlags READ textInteractionFlags WRITE setTextInteractionFlags)
+    Q_PROPERTY(int indent READ indent WRITE setIndent)
+    Q_PROPERTY(bool hasSelectedText READ hasSelectedText)
+    Q_PROPERTY(QString selectedText READ selectedText)
 public:
     explicit QLabel(QWidget *parent = nullptr);
     explicit QLabel(const QString &text, QWidget *parent = nullptr);
@@ -44,6 +49,14 @@ public:
     void setOpenExternalLinks(bool open) { m_openExternal = open; }
     Qt::TextInteractionFlags textInteractionFlags() const { return m_interaction; }
     void setTextInteractionFlags(Qt::TextInteractionFlags flags) { m_interaction = flags; }
+    int indent() const { return m_indent; }
+    void setIndent(int indent);
+    bool hasSelectedText() const { return m_selectionLength > 0; }
+    QString selectedText() const;
+    int selectionStart() const { return m_selectionLength > 0 ? m_selectionStart : -1; }
+    void setSelection(int start, int length);
+    QTextDocument::ResourceProvider resourceProvider() const { return m_resourceProvider; }
+    void setResourceProvider(const QTextDocument::ResourceProvider &provider);
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
@@ -101,4 +114,10 @@ private:
     std::unique_ptr<QTextDocument> m_document; // of a text that is rich text
     QString m_hovered;
     QString m_pressed;
+    int m_indent = -1;
+    int m_selectionStart = 0;
+    int m_selectionLength = 0;
+    QTextDocument::ResourceProvider m_resourceProvider;
+    QString plainText() const; // the text without its markup
+    int indentWidth() const;   // the room that indent() leaves on the side of the alignment
 };

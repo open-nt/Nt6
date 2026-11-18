@@ -9,6 +9,7 @@ class QPushButton;
 class QDialog : public QWidget {
     Q_OBJECT
     Q_PROPERTY(bool modal READ isModal WRITE setModal)
+    Q_PROPERTY(bool sizeGripEnabled READ isSizeGripEnabled WRITE setSizeGripEnabled)
 public:
     enum DialogCode { Rejected, Accepted };
     Q_ENUM(DialogCode)
@@ -19,6 +20,8 @@ public:
     int result() const { return m_result; }
     void setResult(int result) { m_result = result; }
     void setModal(bool modal);
+    bool isSizeGripEnabled() const { return m_sizeGrip != nullptr; }
+    void setSizeGripEnabled(bool enabled);
     void setVisible(bool visible) override;
 
 public slots:
@@ -49,6 +52,8 @@ signals:
 protected:
     void keyPressEvent(QKeyEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void adjustPosition(QWidget *w);
 
 private:
     QPushButton *defaultButton() const;
@@ -57,4 +62,5 @@ private:
     int m_result = 0;
     bool m_positioned = false;
     bool m_resetModality = false;
+    QWidget *m_sizeGrip = nullptr; // a QSizeGrip, while it is enabled
 };

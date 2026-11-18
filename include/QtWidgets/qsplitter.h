@@ -58,6 +58,8 @@ signals:
 protected:
     virtual QSplitterHandle *createHandle();
     int closestLegalPosition(int pos, int index);
+    void getRange(int index, int *min, int *max) const;
+    void setRubberBand(int position);
     void moveSplitter(int pos, int index);
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
@@ -91,6 +93,7 @@ private:
     bool m_shown = false;
     bool m_laying = false;
     std::shared_ptr<bool> m_alive = std::make_shared<bool>(true);
+    QWidget *m_rubberBand = nullptr; // a QRubberBand, made by setRubberBand()
 };
 
 class QSplitterHandle : public QWidget {

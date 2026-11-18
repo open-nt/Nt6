@@ -15,6 +15,7 @@
 
 class QMimeData;
 class QTreeWidget;
+class QDataStream;
 namespace QtPrivate {
 class TreeModel;
 }
@@ -108,6 +109,14 @@ public:
         Sets the icon of the item in \a column to \a icon, shown before its text in the icon size of the tree.
     */
     void setIcon(int column, const QIcon &icon) { setData(column, Qt::DecorationRole, QVariant::fromValue(icon)); }
+    QString statusTip(int column) const { return data(column, Qt::StatusTipRole).toString(); }
+    void setStatusTip(int column, const QString &statusTip) { setData(column, Qt::StatusTipRole, statusTip); }
+    QString whatsThis(int column) const { return data(column, Qt::WhatsThisRole).toString(); }
+    void setWhatsThis(int column, const QString &whatsThis) { setData(column, Qt::WhatsThisRole, whatsThis); }
+    QSize sizeHint(int column) const { return data(column, Qt::SizeHintRole).toSize(); }
+    void setSizeHint(int column, const QSize &size) { setData(column, Qt::SizeHintRole, size); }
+    virtual void read(QDataStream &in);
+    virtual void write(QDataStream &out) const;
 
     virtual QVariant data(int column, int role) const;
     virtual void setData(int column, int role, const QVariant &value);
@@ -117,6 +126,9 @@ public:
     QTreeWidgetItem &operator=(const QTreeWidgetItem &other);
 
     int type() const { return m_type; }
+
+protected:
+    void emitDataChanged();
 
 private:
     friend class QTreeWidget;

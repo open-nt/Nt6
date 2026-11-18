@@ -4,9 +4,14 @@
 #include <QtCore/qbytearray.h>
 
 #include <QtCore/qstringlist.h>
+#include <QtCore/qpointer.h>
+#include <QtCore/qabstractitemmodel.h>
 #include <QtWidgets/qwidget.h>
 
 #include <vector>
+
+class QAbstractItemModel;
+class QStyleOptionHeader;
 
 class QHeaderView : public QWidget {
     Q_OBJECT
@@ -17,6 +22,12 @@ class QHeaderView : public QWidget {
     Q_PROPERTY(bool stretchLastSection READ stretchLastSection WRITE setStretchLastSection)
     Q_PROPERTY(bool sectionsClickable READ sectionsClickable WRITE setSectionsClickable)
     Q_PROPERTY(bool showSortIndicator READ isSortIndicatorShown WRITE setSortIndicatorShown)
+    Q_PROPERTY(bool highlightSections READ highlightSections WRITE setHighlightSections)
+    Q_PROPERTY(bool cascadingSectionResizes READ cascadingSectionResizes WRITE setCascadingSectionResizes)
+    Q_PROPERTY(int maximumSectionSize READ maximumSectionSize WRITE setMaximumSectionSize)
+    Q_PROPERTY(Qt::Alignment defaultAlignment READ defaultAlignment WRITE setDefaultAlignment)
+    Q_PROPERTY(bool sortIndicatorClearable READ isSortIndicatorClearable WRITE setSortIndicatorClearable NOTIFY
+                   sortIndicatorClearableChanged)
 public:
     enum ResizeMode { Interactive, Stretch, Custom, ResizeToContents, Fixed = Custom };
     Q_ENUM(ResizeMode)
@@ -62,11 +73,38 @@ public:
     int sortIndicatorSection() const { return m_sortSection; }
     Qt::SortOrder sortIndicatorOrder() const { return m_sortOrder; }
 
+    void setModel(QAbstractItemModel *model);
+    QAbstractItemModel *model() const;
+    int maximumSectionSize() const { return m_maximumSize; }
+    void setMaximumSectionSize(int size);
+    void resetDefaultSectionSize();
+    Qt::Alignment defaultAlignment() const { return m_alignment; }
+    void setDefaultAlignment(Qt::Alignment alignment);
+    bool highlightSections() const { return m_highlight; }
+    void setHighlightSections(bool highlight) { m_highlight = highlight; }
+    bool cascadingSectionResizes() const { return m_cascading; }
+    void setCascadingSectionResizes(bool enable) { m_cascading = enable; }
+    bool isFirstSectionMovable() const { return m_firstMovable; }
+    void setFirstSectionMovable(bool movable) { m_firstMovable = movable; }
+    bool isSortIndicatorClearable() const { return m_sortClearable; }
+    void setSortIndicatorClearable(bool clearable);
+    int resizeContentsPrecision() const { return m_precision; }
+    void setResizeContentsPrecision(int precision) { m_precision = precision; }
+    void resizeSections(QHeaderView::ResizeMode mode);
+    int sectionSizeHint(int logicalIndex) const;
+    int sectionViewportPosition(int logicalIndex) const;
+    int visualIndexAt(int position) const;
+    void swapSections(int first, int second);
+    bool sectionsHidden() const { return hiddenSectionCount() > 0; }
     QSize sizeHint() const override;
-
 public slots:
     void hideSection(int logicalIndex) { setSectionHidden(logicalIndex, true); }
     void showSection(int logicalIndex) { setSectionHidden(logicalIndex, false); }
+    void headerDataChanged(Qt::Orientation orientation, int logicalFirst, int logicalLast);
+    void setOffsetToSectionPosition(int visualSectionNumber);
+    void setOffsetToLastSection();
+    void updateSection(int logicalIndex);
+    void resizeSections();
 
 signals:
     /*!
@@ -98,8 +136,58 @@ signals:
     void sectionResized(int logicalIndex, int oldSize, int newSize) {
         emitSignal(&QHeaderView::sectionResized, logicalIndex, oldSize, newSize);
     }
+    /*!
+        \since 6.0
+        This signal is emitted when the user presses the mouse on the section \a logicalIndex.
+    */
+    void sectionPressed(int logicalIndex) { emitSignal(&QHeaderView::sectionPressed, logicalIndex); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user double-clicks the section \a logicalIndex.
+    */
+    void sectionDoubleClicked(int logicalIndex) { emitSignal(&QHeaderView::sectionDoubleClicked, logicalIndex); }
+    /*!
+        \since 6.0
+        This signal is emitted when the mouse moves onto the section \a logicalIndex with the button down.
+    */
+    void sectionEntered(int logicalIndex) { emitSignal(&QHeaderView::sectionEntered, logicalIndex); }
+    /*!
+        \since 6.0
+        This signal is emitted when the user double-clicks the edge after the section \a logicalIndex.
+    */
+    void sectionHandleDoubleClicked(int logicalIndex) {
+        emitSignal(&QHeaderView::sectionHandleDoubleClicked, logicalIndex);
+    }
+    /*!
+        \since 6.0
+        This signal is emitted when the number of sections changes from \a oldCount to \a newCount.
+    */
+    void sectionCountChanged(int oldCount, int newCount) {
+        emitSignal(&QHeaderView::sectionCountChanged, oldCount, newCount);
+    }
+    /*!
+        \since 6.0
+        This signal is emitted when the size the header needs changes.
+    */
+    void geometriesChanged() { emitSignal(&QHeaderView::geometriesChanged); }
+    /*!
+        \since 6.0
+        This signal is emitted when whether the sort indicator can be cleared changes to \a clearable.
+    */
+    void sortIndicatorClearableChanged(bool clearable) {
+        emitSignal(&QHeaderView::sortIndicatorClearableChanged, clearable);
+    }
 
 protected:
+    virtual void paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const;
+    virtual QSize sectionSizeFromContents(int logicalIndex) const;
+    void initStyleOption(QStyleOptionHeader *option) const;
+    void initStyleOptionForIndex(QStyleOptionHeader *option, int logicalIndex) const;
+    void initialize();
+    void initializeSections();
+    void sectionsInserted(const QModelIndex &parent, int logicalFirst, int logicalLast);
+    void sectionsAboutToBeRemoved(const QModelIndex &parent, int logicalFirst, int logicalLast);
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -147,4 +235,15 @@ private:
     int m_resizing = -1;
     int m_resizeStart = 0;
     int m_resizeOriginal = 0;
+    int m_maximumSize = 1048575;
+    Qt::Alignment m_alignment = Qt::AlignCenter;
+    bool m_highlight = false;
+    bool m_cascading = false;
+    bool m_firstMovable = true;
+    bool m_sortClearable = false;
+    int m_precision = 1000;
+    int m_entered = -1; // the section the mouse is over while the button is down
+    QPointer<QAbstractItemModel> m_model;
+    QList<QMetaObject::Connection> m_modelConnections;
+    void readModel();
 };

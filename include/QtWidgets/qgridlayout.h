@@ -16,6 +16,7 @@ public:
     explicit QGridLayout(QWidget *parent = nullptr);
     ~QGridLayout() override;
 
+    void addWidget(QWidget *widget) { QLayout::addWidget(widget); }
     void addWidget(QWidget *widget, int row, int column, Qt::Alignment alignment = Qt::Alignment());
     void addWidget(QWidget *widget, int row, int column, int rowSpan, int columnSpan,
                    Qt::Alignment alignment = Qt::Alignment());
@@ -29,6 +30,10 @@ public:
     int columnCount() const { return m_columns; }
     QLayoutItem *itemAtPosition(int row, int column) const;
     void getItemPosition(int index, int *row, int *column, int *rowSpan, int *columnSpan) const;
+    QRect cellRect(int row, int column) const;
+    Qt::Corner originCorner() const { return m_origin; }
+    void setOriginCorner(Qt::Corner corner);
+    void setDefaultPositioning(int n, Qt::Orientation orient);
 
     void setRowStretch(int row, int stretch);
     int rowStretch(int row) const;
@@ -72,4 +77,10 @@ private:
     int m_columns = 0;
     int m_horizontalSpacing = -1;
     int m_verticalSpacing = -1;
+    Qt::Corner m_origin = Qt::TopLeftCorner;
+    int m_defaultCount = 0; // setDefaultPositioning(): items per row or column; 0 for none
+    Qt::Orientation m_defaultOrientation = Qt::Horizontal;
+    std::vector<QRect> m_columnRects; // the cells of the last setGeometry(): x and width of each column
+    std::vector<QRect> m_rowRects;    // y and height of each row
+    QLayoutItem *replaceAt(int index, QLayoutItem *item) override;
 };

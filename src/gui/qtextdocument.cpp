@@ -1344,6 +1344,29 @@ QString Qt::convertFromPlainText(const QString &plain, Qt::WhiteSpaceMode mode) 
 */
 
 /*!
+    \typedef QTextDocument::ResourceProvider
+    \since 6.0
+
+    A function that takes the URL of a resource of the document, such as an image, and returns it: a
+    \c std::function<QVariant(const QUrl &)>.
+*/
+
+/*!
+    \fn QTextDocument::ResourceProvider QTextDocument::resourceProvider() const
+    \since 6.0
+
+    Returns the function that gives the resources of the document, or an empty function.
+*/
+
+/*!
+    \fn void QTextDocument::setResourceProvider(const ResourceProvider &provider)
+    \since 6.0
+
+    Sets the function that gives the resources of the document, by their URL, to \a provider. Nt keeps it; the
+    document does not load images.
+*/
+
+/*!
     \fn bool QTextDocument::isModified() const
     \since 6.0
 

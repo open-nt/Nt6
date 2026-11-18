@@ -87,8 +87,8 @@ struct QImage::Data {
     a QPainter cannot paint on; Format_RGB888 data is
     converted to Format_RGB32 when an image is made from it; files with other pixel formats are
     converted when they load. Image files are PNG, BMP and JPEG (JPEG only if Nt
-    was built with libjpeg), found by their contents; there is no QImageWriter and no
-    plugins for other formats (QImageReader reads the same formats). There is no
+    was built with libjpeg), found by their contents; there are no plugins for other
+    formats (QImageReader reads and QImageWriter writes the same formats). There is no
     \c transformed(), \c mirrored(), \c rgbSwapped(), no color tables and no
     metadata.
     The paint engine of an image is not shared between copies. Implicit sharing

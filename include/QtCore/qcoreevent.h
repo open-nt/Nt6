@@ -55,6 +55,8 @@ public:
         \value ShortcutOverride A key is about to activate a shortcut; delivered as a QKeyEvent to the widget with the
                focus first, which accepts it to get the key press itself instead.
         \value Shortcut A shortcut that QWidget::grabShortcut() grabbed was pressed; a QShortcutEvent.
+        \value InputMethod Text from an input method; a QInputMethodEvent.
+        \value InputMethodQuery An input method asks a widget about its text.
         \value LayoutDirectionChange The layout direction of a widget changed.
         \value WindowIconChange The icon of a window changed.
         \value IconTextChange The icon text of a window changed.
@@ -135,6 +137,8 @@ public:
         KeyRelease = 7,
         ShortcutOverride = 51,
         Shortcut = 117,
+        InputMethod = 83,
+        InputMethodQuery = 207,
         LayoutDirectionChange = 90,
         WindowIconChange = 34,
         IconTextChange = 101,

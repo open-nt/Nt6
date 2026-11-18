@@ -19,6 +19,7 @@
 #include "qimage.h"
 #include "qinputmethod.h"
 #include "qimagereader.h"
+#include "qimagewriter.h"
 #include "qkeysequence.h"
 #include "qmatrix4x4.h"
 #include "qoffscreensurface.h"

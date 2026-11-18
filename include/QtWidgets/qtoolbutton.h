@@ -3,14 +3,22 @@
 
 #include <QtCore/qpointer.h>
 #include <QtGui/qaction.h>
+#include <QtCore/qtimer.h>
 #include <QtWidgets/qabstractbutton.h>
+
+class QMenu;
+class QStyleOptionToolButton;
 
 class QToolButton : public QAbstractButton {
     Q_OBJECT
     Q_PROPERTY(bool autoRaise READ autoRaise WRITE setAutoRaise)
     Q_PROPERTY(Qt::ArrowType arrowType READ arrowType WRITE setArrowType)
     Q_PROPERTY(Qt::ToolButtonStyle toolButtonStyle READ toolButtonStyle WRITE setToolButtonStyle)
+    Q_PROPERTY(ToolButtonPopupMode popupMode READ popupMode WRITE setPopupMode)
 public:
+    enum ToolButtonPopupMode { DelayedPopup, MenuButtonPopup, InstantPopup };
+    Q_ENUM(ToolButtonPopupMode)
+
     explicit QToolButton(QWidget *parent = nullptr);
     ~QToolButton() override;
 
@@ -20,12 +28,17 @@ public:
     void setArrowType(Qt::ArrowType type);
     Qt::ToolButtonStyle toolButtonStyle() const { return m_style; }
     QAction *defaultAction() const { return m_defaultAction.data(); }
+    QMenu *menu() const;
+    void setMenu(QMenu *menu);
+    ToolButtonPopupMode popupMode() const { return m_popupMode; }
+    void setPopupMode(ToolButtonPopupMode mode);
 
     QSize sizeHint() const override;
 
 public slots:
     void setToolButtonStyle(Qt::ToolButtonStyle style);
     void setDefaultAction(QAction *action);
+    void showMenu();
 
 signals:
     /*!
@@ -34,6 +47,8 @@ signals:
     void triggered(QAction *action) { emitSignal(&QToolButton::triggered, action); }
 
 protected:
+    void initStyleOption(QStyleOptionToolButton *option) const;
+    void mousePressEvent(QMouseEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void actionEvent(QActionEvent *event) override;
 
@@ -49,4 +64,9 @@ private:
     bool showsIcon() const { return !icon().isNull() && m_style != Qt::ToolButtonTextOnly; }
     bool showsText() const { return !text().isEmpty() && (!showsIcon() || m_style != Qt::ToolButtonIconOnly); }
     QMetaObject::Connection m_triggered;
+    QPointer<QWidget> m_menu; // a QMenu
+    ToolButtonPopupMode m_popupMode = DelayedPopup;
+    QTimer m_popupTimer; // DelayedPopup: the menu opens when the button is held
+    QMenu *activeMenu() const; // menu(), or the menu of the default action
+    QRect menuArrowRect() const;
 };

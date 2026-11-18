@@ -3,6 +3,7 @@
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qmenu.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 
@@ -103,16 +104,7 @@ void QScrollBar::paintEvent(QPaintEvent *event) {
     (void)event;
     QPainter painter(this);
     QStyleOptionSlider option;
-    option.initFrom(this);
-    option.orientation = orientation();
-    option.minimum = minimum();
-    option.maximum = maximum();
-    option.sliderPosition = sliderPosition();
-    option.pageStep = pageStep();
-    if (isSliderDown())
-        option.state |= QStyle::State_Sunken;
-    else if (underMouse())
-        option.state |= QStyle::State_MouseOver;
+    initStyleOption(&option);
     style()->drawControl(QStyle::CE_ScrollBar, &option, &painter, this);
 }
 
@@ -172,6 +164,69 @@ void QScrollBar::wheelEvent(QWheelEvent *event) {
     }
     // Turning the wheel away from the user scrolls towards the start.
     setValue(value() - notches * std::min(3 * singleStep(), pageStep()));
+    event->accept();
+}
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the scroll bar, for the style to draw it.
+*/
+void QScrollBar::initStyleOption(QStyleOptionSlider *option) const {
+    if (!option)
+        return;
+    option->initFrom(this);
+    option->orientation = orientation();
+    option->minimum = minimum();
+    option->maximum = maximum();
+    option->sliderPosition = sliderPosition();
+    option->sliderValue = value();
+    option->singleStep = singleStep();
+    option->pageStep = pageStep();
+    option->upsideDown = invertedAppearance();
+    if (orientation() == Qt::Horizontal)
+        option->state |= QStyle::State_Horizontal;
+    if (isSliderDown())
+        option->state |= QStyle::State_Sunken;
+    else if (underMouse())
+        option->state |= QStyle::State_MouseOver;
+}
+
+/*!
+    \since 6.0
+
+    Returns a new menu with the standard actions of a scroll bar for a click at \a position: Scroll here, the ends,
+    and a page or a step either way. The caller owns the menu.
+*/
+QMenu *QScrollBar::createStandardContextMenu(QPoint position) {
+    auto *menu = new QMenu(this);
+    const bool horizontal = orientation() == Qt::Horizontal;
+    const auto add = [&](const QString &text, auto function) {
+        QAction *action = menu->addAction(text);
+        QObject::connect(action, &QAction::triggered, this, function);
+    };
+    add(tr("Scroll here"), [this, position] { setValue(valueAt(position)); });
+    menu->addSeparator();
+    add(horizontal ? tr("Left edge") : tr("Top"), [this] { triggerAction(SliderToMinimum); });
+    add(horizontal ? tr("Right edge") : tr("Bottom"), [this] { triggerAction(SliderToMaximum); });
+    menu->addSeparator();
+    add(horizontal ? tr("Page left") : tr("Page up"), [this] { triggerAction(SliderPageStepSub); });
+    add(horizontal ? tr("Page right") : tr("Page down"), [this] { triggerAction(SliderPageStepAdd); });
+    menu->addSeparator();
+    add(horizontal ? tr("Scroll left") : tr("Scroll up"), [this] { triggerAction(SliderSingleStepSub); });
+    add(horizontal ? tr("Scroll right") : tr("Scroll down"), [this] { triggerAction(SliderSingleStepAdd); });
+    return menu;
+}
+
+/*!
+    \reimp
+
+    Opens createStandardContextMenu() where the user asked for it.
+*/
+void QScrollBar::contextMenuEvent(QContextMenuEvent *event) {
+    QMenu *menu = createStandardContextMenu(event->pos());
+    menu->setAttribute(Qt::WA_DeleteOnClose);
+    menu->popup(event->globalPos());
     event->accept();
 }
 

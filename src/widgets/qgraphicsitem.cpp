@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qgraphicsitem.h>
+#include <QtWidgets/qgraphicswidget.h>
 
 #include "qgraphicsscene_p.h"
 
@@ -676,6 +677,10 @@ bool QGraphicsItem::hasFocus() const {
     visible and enabled. An item that is not in a scene yet takes the focus when it is added.
 */
 void QGraphicsItem::setFocus(Qt::FocusReason focusReason) {
+    if (d_ptr->focusProxy && d_ptr->focusProxy != this) {
+        d_ptr->focusProxy->setFocus(focusReason);
+        return;
+    }
     if (!(d_ptr->flags & ItemIsFocusable))
         return;
     if (!d_ptr->scene) {
@@ -1430,6 +1435,9 @@ void QGraphicsItem::contextMenuEvent(QGraphicsSceneContextMenuEvent *event) { ev
 */
 bool QGraphicsItem::sceneEvent(QEvent *event) {
     switch (event->type()) {
+    case QEvent::InputMethod:
+        inputMethodEvent(static_cast<QInputMethodEvent *>(event));
+        return true;
     case QEvent::GraphicsSceneMousePress:
         mousePressEvent(static_cast<QGraphicsSceneMouseEvent *>(event));
         return true;
@@ -1687,5 +1695,260 @@ void QGraphicsObject::notifyChange(GraphicsItemChange change) {
         break;
     }
 }
+
+/*!
+    \enum QGraphicsItem::PanelModality
+    \since 6.0
+
+    How a panel blocks the input of other items while it is shown.
+
+    \value NonModal It does not.
+    \value PanelModal It blocks its ancestor panels.
+    \value SceneModal It blocks every other panel of the scene.
+*/
+
+/*!
+    \enum QGraphicsItem::Extension
+    \since 6.0
+
+    Extensions of an item, which a subclass can support.
+
+    \value UserExtension The first value for extensions of an application.
+*/
+
+/*!
+    \since 6.0
+
+    Returns the item that takes the focus for this one, or \c nullptr.
+*/
+QGraphicsItem *QGraphicsItem::focusProxy() const { return d_ptr->focusProxy; }
+
+/*!
+    \since 6.0
+
+    Makes \a item take the focus whenever this item is given it; \c nullptr removes the proxy. An item of another
+    scene, or one that would make a loop, is refused.
+*/
+void QGraphicsItem::setFocusProxy(QGraphicsItem *item) {
+    if (item == this)
+        return;
+    if (item && item->scene() && d_ptr->scene && item->scene() != d_ptr->scene)
+        return;
+    for (QGraphicsItem *p = item; p; p = p->d_ptr->focusProxy)
+        if (p == this)
+            return;
+    d_ptr->focusProxy = item;
+}
+
+/*!
+    \since 6.0
+
+    Returns the item that has the focus within this focus scope; Nt has no focus scopes, so this is \c nullptr.
+*/
+QGraphicsItem *QGraphicsItem::focusScopeItem() const { return nullptr; }
+
+/*!
+    \since 6.0
+
+    Returns the nearest panel among the item and its ancestors, or \c nullptr.
+
+    \sa isPanel()
+*/
+QGraphicsItem *QGraphicsItem::panel() const {
+    for (const QGraphicsItem *item = this; item; item = item->parentItem())
+        if (item->isPanel())
+            return const_cast<QGraphicsItem *>(item); // NOLINT(cppcoreguidelines-pro-type-const-cast): Qt's signature
+    return nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Returns the outermost widget among the item and its ancestors, or \c nullptr.
+*/
+QGraphicsWidget *QGraphicsItem::topLevelWidget() const {
+    QGraphicsWidget *found = nullptr;
+    for (const QGraphicsItem *item = this; item; item = item->parentItem())
+        if (item->isWidget())
+            found = static_cast<QGraphicsWidget *>(const_cast<QGraphicsItem *>(item)); // NOLINT
+    return found;
+}
+
+/*!
+    \since 6.0
+
+    Returns the nearest window among the item and its ancestors, or \c nullptr.
+*/
+QGraphicsWidget *QGraphicsItem::window() const {
+    for (const QGraphicsItem *item = this; item; item = item->parentItem())
+        if (item->isWindow())
+            return static_cast<QGraphicsWidget *>(const_cast<QGraphicsItem *>(item)); // NOLINT
+    return nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Returns how the item, if it is a panel, blocks other panels.
+*/
+QGraphicsItem::PanelModality QGraphicsItem::panelModality() const { return d_ptr->modality; }
+
+/*!
+    \since 6.0
+
+    Sets how the item, if it is a panel, blocks other panels to \a panelModality.
+*/
+void QGraphicsItem::setPanelModality(PanelModality panelModality) { d_ptr->modality = panelModality; }
+
+/*!
+    \since 6.0
+
+    Returns \c true if a modal panel that is shown blocks the item, and puts it in \a blockingPanel if that is not
+    \c nullptr. A scene modal panel blocks every item that is not in it; a panel modal one blocks its ancestors.
+*/
+bool QGraphicsItem::isBlockedByModalPanel(QGraphicsItem **blockingPanel) const {
+    if (!d_ptr->scene)
+        return false;
+    const QGraphicsItem *own = panel();
+    for (QGraphicsItem *item : d_ptr->scene->items()) {
+        if (!item->isPanel() || !item->isVisible() || item->d_ptr->modality == NonModal || item == own)
+            continue;
+        bool blocks = false;
+        if (item->d_ptr->modality == SceneModal)
+            blocks = !item->isAncestorOf(this);
+        else
+            blocks = own && own->isAncestorOf(item);
+        if (blocks) {
+            if (blockingPanel)
+                *blockingPanel = item;
+            return true;
+        }
+    }
+    return false;
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the item filters the events of its children.
+*/
+bool QGraphicsItem::filtersChildEvents() const { return d_ptr->filtersChildEvents; }
+
+/*!
+    \since 6.0
+
+    Makes the item see the events of its children in sceneEventFilter() before they do, if \a enabled is \c true.
+*/
+void QGraphicsItem::setFiltersChildEvents(bool enabled) { d_ptr->filtersChildEvents = enabled; }
+
+/*!
+    \since 6.0
+
+    Returns the input method hints of the item.
+*/
+Qt::InputMethodHints QGraphicsItem::inputMethodHints() const { return d_ptr->inputMethodHints; }
+
+/*!
+    \since 6.0
+
+    Sets the input method hints of the item to \a hints.
+*/
+void QGraphicsItem::setInputMethodHints(Qt::InputMethodHints hints) { d_ptr->inputMethodHints = hints; }
+
+/*!
+    \since 6.0
+
+    Returns the region of the device that the item covers, its bounding rectangle mapped by
+    \a itemToDeviceTransform.
+*/
+QRegion QGraphicsItem::boundingRegion(const QTransform &itemToDeviceTransform) const {
+    return QRegion(itemToDeviceTransform.mapRect(boundingRect()).toAlignedRect());
+}
+
+/*!
+    \since 6.0
+
+    Returns how finely boundingRegion() follows the shape, from 0 to 1. Nt returns the bounding rectangle whatever
+    it is.
+*/
+qreal QGraphicsItem::boundingRegionGranularity() const { return d_ptr->regionGranularity; }
+
+/*!
+    \since 6.0
+
+    Sets how finely boundingRegion() follows the shape to \a granularity, from 0 to 1.
+*/
+void QGraphicsItem::setBoundingRegionGranularity(qreal granularity) {
+    d_ptr->regionGranularity = std::clamp(granularity, 0.0, 1.0);
+}
+
+/*!
+    \since 6.0
+
+    Is called twice by QGraphicsScene::advance(): with \a phase 0 to prepare a step of an animation, then with 1 to
+    take it. The default does nothing.
+*/
+void QGraphicsItem::advance(int phase) { (void)phase; }
+
+/*!
+    \since 6.0
+
+    Handles \a event, text from an input method. The default ignores it.
+*/
+void QGraphicsItem::inputMethodEvent(QInputMethodEvent *event) { event->ignore(); }
+
+/*!
+    \since 6.0
+
+    Returns the input method property \a query of the item. The default returns an invalid QVariant.
+*/
+QVariant QGraphicsItem::inputMethodQuery(Qt::InputMethodQuery query) const {
+    (void)query;
+    return QVariant();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the item supports \a extension. The default returns \c false.
+*/
+bool QGraphicsItem::supportsExtension(Extension extension) const {
+    (void)extension;
+    return false;
+}
+
+/*!
+    \since 6.0
+
+    Sets the \a extension of the item to \a variant. The default does nothing.
+*/
+void QGraphicsItem::setExtension(Extension extension, const QVariant &variant) {
+    (void)extension;
+    (void)variant;
+}
+
+/*!
+    \since 6.0
+
+    Returns the extension that \a variant asks for. The default returns an invalid QVariant.
+*/
+QVariant QGraphicsItem::extension(const QVariant &variant) const {
+    (void)variant;
+    return QVariant();
+}
+
+/*!
+    \since 6.0
+
+    Adds the item to the index of its scene. The scene of Nt keeps no index, so this does nothing.
+*/
+void QGraphicsItem::addToIndex() {}
+
+/*!
+    \since 6.0
+
+    Takes the item out of the index of its scene. The scene of Nt keeps no index, so this does nothing.
+*/
+void QGraphicsItem::removeFromIndex() {}
 
 #include "moc_qgraphicsitem.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

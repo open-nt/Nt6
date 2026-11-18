@@ -113,3 +113,12 @@ void QStylePainter::drawItemPixmap(const QRect &rectangle, int flags, const QPix
 
     Returns the style that the painter draws with: that of the widget it was begun with.
 */
+
+/*!
+    \since 6.0
+
+    Draws the complex control \a cc as \a option describes it, with the style of the widget.
+*/
+void QStylePainter::drawComplexControl(QStyle::ComplexControl cc, const QStyleOptionComplex &option) {
+    m_style->drawComplexControl(cc, &option, this, m_widget);
+}

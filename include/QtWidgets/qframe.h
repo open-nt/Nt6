@@ -4,6 +4,7 @@
 #include <QtWidgets/qwidget.h>
 
 class QPainter;
+class QStyleOptionFrame;
 
 class QFrame : public QWidget {
     Q_OBJECT
@@ -32,15 +33,18 @@ public:
     int midLineWidth() const { return m_midLineWidth; }
     void setMidLineWidth(int width);
     int frameWidth() const;
-    QRect frameRect() const { return rect(); }
+    QRect frameRect() const { return m_frameRect.isValid() ? m_frameRect : rect(); }
+    void setFrameRect(const QRect &rect);
     QRect contentsRect() const;
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void drawFrame(QPainter *painter);
+    void initStyleOption(QStyleOptionFrame *option) const;
 
 private:
     int m_style = NoFrame | Plain;
     int m_lineWidth = 1;
     int m_midLineWidth = 0;
+    QRect m_frameRect; // invalid: the whole widget
 };

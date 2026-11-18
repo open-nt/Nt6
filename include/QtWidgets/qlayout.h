@@ -31,6 +31,24 @@ public:
     void setSpacing(int spacing);
     SizeConstraint sizeConstraint() const;
     void setSizeConstraint(SizeConstraint constraint);
+    SizeConstraint horizontalSizeConstraint() const;
+    void setHorizontalSizeConstraint(SizeConstraint constraint);
+    SizeConstraint verticalSizeConstraint() const;
+    void setVerticalSizeConstraint(SizeConstraint constraint);
+    void setSizeConstraints(SizeConstraint horizontal, SizeConstraint vertical);
+    bool isEnabled() const;
+    void setEnabled(bool enable);
+    void getContentsMargins(int *left, int *top, int *right, int *bottom) const;
+    void unsetContentsMargins();
+    QLayoutItem *replaceWidget(QWidget *from, QWidget *to,
+                               Qt::FindChildOptions options = Qt::FindChildrenRecursively);
+    QSize totalSizeHint() const;
+    QSize totalMinimumSize() const;
+    QSize totalMaximumSize() const;
+    int totalHeightForWidth(int w) const;
+    int totalMinimumHeightForWidth(int w) const;
+    QSizePolicy::ControlTypes controlTypes() const override;
+    static QSize closestAcceptableSize(const QWidget *widget, const QSize &size);
     QWidget *menuBar() const;
     void setMenuBar(QWidget *widget);
     void setContentsMargins(int left, int top, int right, int bottom);
@@ -61,6 +79,10 @@ public:
 protected:
     // Makes `widget` a child of the widget that the layout manages.
     void addChildWidget(QWidget *widget);
+    void addChildLayout(QLayout *l);
+    bool adoptLayout(QLayout *layout);
+    QRect alignmentRect(const QRect &r) const;
+    void widgetEvent(QEvent *event);
 
 private:
     friend class QBoxLayout;
@@ -71,6 +93,9 @@ private:
     void clearPendingRequest();
     // Makes the widgets of the layout, and of the layouts in it, children of the widget it manages.
     void reparentChildWidgets();
+    // Puts `item` in the place of the item at `index` and returns that one, or null if the layout cannot.
+    virtual QLayoutItem *replaceAt(int index, QLayoutItem *item);
+    QSize addTotalMargins(const QSize &size) const;
     struct Data;
     std::unique_ptr<Data> m_d;
     QRect m_rect;

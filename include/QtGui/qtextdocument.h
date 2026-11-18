@@ -11,6 +11,10 @@
 #include <QtGui/qtextlayout.h>
 #include <QtGui/qtextoption.h>
 
+#include <QtCore/qurl.h>
+#include <QtCore/qvariant.h>
+
+#include <functional>
 #include <memory>
 
 class QPainter;
@@ -180,6 +184,10 @@ public:
     void drawContents(QPainter *painter, const QRectF &rect = QRectF());
     QAbstractTextDocumentLayout *documentLayout() const;
     bool isModified() const { return m_modified; }
+    // A function that gives the resources of the document, such as its images, by their URL.
+    using ResourceProvider = std::function<QVariant(const QUrl &)>;
+    ResourceProvider resourceProvider() const { return m_resourceProvider; }
+    void setResourceProvider(const ResourceProvider &provider) { m_resourceProvider = provider; }
 
 public slots:
     void setModified(bool m = true);
@@ -206,6 +214,7 @@ private:
     friend class QTextDocumentPrivate;
     std::unique_ptr<QTextDocumentPrivate> d;
     bool m_modified = false;
+    ResourceProvider m_resourceProvider;
 };
 Q_DECLARE_OPERATORS_FOR_FLAGS(QTextDocument::FindFlags)
 Q_DECLARE_OPERATORS_FOR_FLAGS(QTextDocument::MarkdownFeatures)

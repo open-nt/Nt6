@@ -1023,7 +1023,9 @@ QDateEdit::QDateEdit(QWidget *parent) : QDateEdit(QDate(2000, 1, 1), parent) {}
 /*!
     Constructs a date edit with the given \a date and \a parent.
 */
-QDateEdit::QDateEdit(QDate date, QWidget *parent) : QDateTimeEdit(date, parent) {}
+QDateEdit::QDateEdit(QDate date, QWidget *parent) : QDateTimeEdit(date, parent) {
+    QObject::connect(this, &QDateTimeEdit::dateChanged, this, [this](QDate d) { emit userDateChanged(d); });
+}
 
 /*!
     Destroys the date edit.
@@ -1056,7 +1058,9 @@ QTimeEdit::QTimeEdit(QWidget *parent) : QTimeEdit(QTime(0, 0), parent) {}
 /*!
     Constructs a time edit with the given \a time and \a parent.
 */
-QTimeEdit::QTimeEdit(QTime time, QWidget *parent) : QDateTimeEdit(time, parent) {}
+QTimeEdit::QTimeEdit(QTime time, QWidget *parent) : QDateTimeEdit(time, parent) {
+    QObject::connect(this, &QDateTimeEdit::timeChanged, this, [this](QTime t) { emit userTimeChanged(t); });
+}
 
 /*!
     Destroys the time edit.

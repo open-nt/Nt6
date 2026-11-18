@@ -673,8 +673,13 @@ static void testSpinBox() {
     CHECK(edit->text() == QString("7"));
     type(edit, "5"); // 75 is out of range: the value stays
     CHECK(spin.value() == 7 && edit->text() == QString("75"));
+    key(edit, Qt::Key_Return); // as in Qt, an out-of-range value goes back to the previous one
+    CHECK(spin.value() == 7 && edit->text() == QString("7") && finished >= 1);
+    spin.setCorrectionMode(QAbstractSpinBox::CorrectToNearestValue);
+    type(edit, "5");
     key(edit, Qt::Key_Return);
-    CHECK(spin.value() == 10 && edit->text() == QString("10") && finished >= 1);
+    CHECK(spin.value() == 10 && edit->text() == QString("10"));
+    spin.setCorrectionMode(QAbstractSpinBox::CorrectToPreviousValue);
     edit->selectAll();
     key(edit, Qt::Key_Backspace);
     CHECK(spin.value() == 10); // empty is no number

@@ -24,6 +24,10 @@ public:
     void insertStretch(int index, int stretch = 0);
     void insertWidget(int index, QWidget *widget, int stretch = 0, Qt::Alignment alignment = Qt::Alignment());
     void insertLayout(int index, QLayout *layout, int stretch = 0);
+    void addSpacerItem(QSpacerItem *spacerItem);
+    void insertSpacerItem(int index, QSpacerItem *spacerItem);
+    void insertItem(int index, QLayoutItem *item);
+    void addStrut(int size);
     void setStretch(int index, int stretch);
     int stretch(int index) const;
     bool setStretchFactor(QWidget *widget, int stretch);
@@ -49,6 +53,8 @@ private:
 
     std::vector<Entry> m_items;
     Direction m_direction;
+    int m_strut = 0; // addStrut(): the least size across
+    QLayoutItem *replaceAt(int index, QLayoutItem *item) override;
 };
 
 class QHBoxLayout : public QBoxLayout {

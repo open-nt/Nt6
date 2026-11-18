@@ -46,10 +46,9 @@
     Items are drawn and edited by the delegate; see QAbstractItemView and QStyledItemDelegate.
 
     \differences
-    Cells cannot be spanned (no \c setSpan()), and rows and columns cannot be moved. The headers cannot be
-    replaced (no \c setHorizontalHeader()). wordWrap() asks the delegate to wrap the text, but
-    QStyledItemDelegate draws one line. There is no drag and drop and no automatic scrolling while the mouse
-    selects.
+    Rows and columns cannot be moved. A span is drawn as one cell and selected through its top left cell; the
+    keyboard moves over the cells it covers. wordWrap() asks the delegate to wrap the text, but
+    QStyledItemDelegate draws one line. There is no drag and drop.
     \enddifferences
 
     \sa QTableWidget, QTreeView, QListView, QHeaderView, QAbstractItemView
@@ -127,21 +126,8 @@ QTableView::QTableView(QWidget *parent)
     setFocusPolicy(Qt::StrongFocus);
     m_hheader->setSectionsClickable(true);
     m_vheader->setSectionsClickable(true);
-    for (QHeaderView *header : {m_hheader, m_vheader}) {
-        connect(header, &QHeaderView::sectionResized, this, [this](int, int, int) {
-            updateGeometries();
-            viewport()->update();
-        });
-    }
-    connect(m_hheader, &QHeaderView::sortIndicatorChanged, this, [this](int section, Qt::SortOrder order) {
-        if (m_sorting && model() && section >= 0)
-            model()->sort(section, order);
-    });
-    connect(m_hheader, &QHeaderView::sectionClicked, this, [this](int column) {
-        if (!m_sorting)
-            selectColumn(column);
-    });
-    connect(m_vheader, &QHeaderView::sectionClicked, this, [this](int row) { selectRow(row); });
+    connectHeader(m_hheader);
+    connectHeader(m_vheader);
     QTableView::updateGeometries(); // not virtually: the object is still being made
 }
 
@@ -607,6 +593,12 @@ void QTableView::updateGeometries() {
 QRect QTableView::visualRect(const QModelIndex &index) const {
     if (!index.isValid() || index.model() != model() || index.parent() != rootIndex())
         return QRect();
+    if (const Span *span = spanAt(index.row(), index.column())) {
+        // The top left cell of a span covers it all; the others are not shown.
+        if (span->row != index.row() || span->column != index.column())
+            return QRect();
+        return spanRect(*span);
+    }
     const int width = columnWidth(index.column()), height = rowHeight(index.row());
     if (width <= 0 || height <= 0)
         return QRect();
@@ -661,9 +653,13 @@ void QTableView::scrollTo(const QModelIndex &index, ScrollHint hint) {
 QModelIndex QTableView::indexAt(const QPoint &point) const {
     if (!model())
         return QModelIndex();
-    const int row = rowAt(point.y()), column = columnAt(point.x());
+    int row = rowAt(point.y()), column = columnAt(point.x());
     if (row < 0 || column < 0)
         return QModelIndex();
+    if (const Span *span = spanAt(row, column)) {
+        row = span->row;
+        column = span->column;
+    }
     return model()->index(row, column, rootIndex());
 }
 
@@ -874,6 +870,10 @@ void QTableView::paintEvent(QPaintEvent *event) {
             const int width = columnWidth(c);
             if (width <= 0)
                 continue;
+            if (spanAt(r, c)) { // drawn below, whole
+                x += width;
+                continue;
+            }
             const QRect cell(x, y, width, height);
             const QModelIndex index = model()->index(r, c, root);
             QStyleOptionViewItem option = options;
@@ -904,6 +904,26 @@ void QTableView::paintEvent(QPaintEvent *event) {
             x += width;
         }
         y += height;
+    }
+    // The spans, each as one cell.
+    for (const Span &span : m_spans) {
+        const QRect cell = spanRect(span);
+        if (cell.isEmpty() || !cell.intersects(area))
+            continue;
+        const QModelIndex index = model()->index(span.row, span.column, root);
+        QStyleOptionViewItem option = options;
+        option.rect = cell.adjusted(0, 0, -grid, -grid);
+        painter.fillRect(option.rect, base);
+        if (selection && selection->isSelected(index))
+            option.state |= QStyle::State_Selected;
+        if (index == current && hasFocus())
+            option.state |= QStyle::State_HasFocus;
+        itemDelegateForIndex(index)->paint(&painter, option, index);
+        if (m_showGrid) {
+            painter.setPen(gridPen);
+            painter.drawLine(cell.right(), cell.top(), cell.right(), cell.bottom());
+            painter.drawLine(cell.left(), cell.bottom(), cell.right(), cell.bottom());
+        }
     }
 }
 
@@ -1275,6 +1295,212 @@ void QTableView::rowsAboutToBeRemoved(const QModelIndex &parent, int start, int 
         next = model()->index(start - 1, current.column(), parent);
     if (selectionModel())
         selectionModel()->setCurrentIndex(next, QItemSelectionModel::NoUpdate);
+}
+
+void QTableView::connectHeader(QHeaderView *header) {
+    header->setSectionsClickable(true);
+    const bool horizontal = header->orientation() == Qt::Horizontal;
+    if (horizontal)
+        connect(header, &QHeaderView::sectionResized, this, &QTableView::columnResized);
+    else
+        connect(header, &QHeaderView::sectionResized, this, &QTableView::rowResized);
+    if (horizontal) {
+        connect(header, &QHeaderView::sectionMoved, this, &QTableView::columnMoved);
+        connect(header, &QHeaderView::sortIndicatorChanged, this, [this](int section, Qt::SortOrder order) {
+            if (m_sorting && model() && section >= 0)
+                model()->sort(section, order);
+        });
+        connect(header, &QHeaderView::sectionClicked, this, [this](int column) {
+            if (!m_sorting)
+                selectColumn(column);
+        });
+    } else {
+        connect(header, &QHeaderView::sectionMoved, this, &QTableView::rowMoved);
+        connect(header, &QHeaderView::sectionClicked, this, [this](int row) { selectRow(row); });
+    }
+}
+
+/*!
+    \since 6.0
+
+    Replaces the horizontal header with \a header, which the view takes ownership of; the old one is deleted.
+*/
+void QTableView::setHorizontalHeader(QHeaderView *header) {
+    if (!header || header == m_hheader || header->orientation() != Qt::Horizontal)
+        return;
+    delete m_hheader;
+    m_hheader = header;
+    header->setParent(this);
+    connectHeader(header);
+    syncHeaders();
+    header->show();
+    updateGeometries();
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Replaces the vertical header with \a header, which the view takes ownership of; the old one is deleted.
+*/
+void QTableView::setVerticalHeader(QHeaderView *header) {
+    if (!header || header == m_vheader || header->orientation() != Qt::Vertical)
+        return;
+    delete m_vheader;
+    m_vheader = header;
+    header->setParent(this);
+    connectHeader(header);
+    syncHeaders();
+    header->show();
+    updateGeometries();
+    viewport()->update();
+}
+
+const QTableView::Span *QTableView::spanAt(int row, int column) const {
+    for (const Span &s : m_spans)
+        if (row >= s.row && row < s.row + s.rowSpan && column >= s.column && column < s.column + s.columnSpan)
+            return &s;
+    return nullptr;
+}
+
+QRect QTableView::spanRect(const Span &span) const {
+    int width = 0;
+    int height = 0;
+    for (int c = span.column; c < span.column + span.columnSpan && c < m_hheader->count(); ++c)
+        width += columnWidth(c);
+    for (int r = span.row; r < span.row + span.rowSpan && r < m_vheader->count(); ++r)
+        height += rowHeight(r);
+    if (width <= 0 || height <= 0)
+        return QRect();
+    return QRect(columnViewportPosition(span.column), rowViewportPosition(span.row), width, height);
+}
+
+/*!
+    \since 6.0
+
+    Makes the cell at \a row and \a column take \a rowSpan rows and \a columnSpan columns, drawn as one cell; a span
+    of one row and one column removes it. Spans that it overlaps are removed.
+
+    \code
+    table->setSpan(0, 0, 1, 3); // a title over three columns
+    \endcode
+*/
+void QTableView::setSpan(int row, int column, int rowSpan, int columnSpan) {
+    if (row < 0 || column < 0 || rowSpan < 1 || columnSpan < 1)
+        return;
+    const QRect wanted(column, row, columnSpan, rowSpan);
+    m_spans.erase(std::remove_if(m_spans.begin(), m_spans.end(),
+                                 [&](const Span &s) {
+                                     return QRect(s.column, s.row, s.columnSpan, s.rowSpan).intersects(wanted);
+                                 }),
+                  m_spans.end());
+    if (rowSpan > 1 || columnSpan > 1)
+        m_spans.push_back({row, column, rowSpan, columnSpan});
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Returns how many rows the cell at \a row and \a column spans: 1 unless it is the top left cell of a span.
+*/
+int QTableView::rowSpan(int row, int column) const {
+    const Span *s = spanAt(row, column);
+    return s && s->row == row && s->column == column ? s->rowSpan : 1;
+}
+
+/*!
+    \since 6.0
+
+    Returns how many columns the cell at \a row and \a column spans: 1 unless it is the top left cell of a span.
+*/
+int QTableView::columnSpan(int row, int column) const {
+    const Span *s = spanAt(row, column);
+    return s && s->row == row && s->column == column ? s->columnSpan : 1;
+}
+
+/*!
+    \since 6.0
+
+    Removes all spans.
+*/
+void QTableView::clearSpans() {
+    m_spans.clear();
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Called when the row \a row moved from the visual index \a oldIndex to \a newIndex; repaints the view.
+*/
+void QTableView::rowMoved(int row, int oldIndex, int newIndex) {
+    (void)row;
+    (void)oldIndex;
+    (void)newIndex;
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Called when the column \a column moved from the visual index \a oldIndex to \a newIndex; repaints the view.
+*/
+void QTableView::columnMoved(int column, int oldIndex, int newIndex) {
+    (void)column;
+    (void)oldIndex;
+    (void)newIndex;
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Called when the row \a row changes from \a oldHeight to \a newHeight; lays the view out again.
+*/
+void QTableView::rowResized(int row, int oldHeight, int newHeight) {
+    (void)row;
+    (void)oldHeight;
+    (void)newHeight;
+    updateGeometries();
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Called when the column \a column changes from \a oldWidth to \a newWidth; lays the view out again.
+*/
+void QTableView::columnResized(int column, int oldWidth, int newWidth) {
+    (void)column;
+    (void)oldWidth;
+    (void)newWidth;
+    updateGeometries();
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Called when the number of rows changes from \a oldCount to \a newCount; lays the view out again.
+*/
+void QTableView::rowCountChanged(int oldCount, int newCount) {
+    (void)oldCount;
+    (void)newCount;
+    updateGeometries();
+    viewport()->update();
+}
+
+/*!
+    \since 6.0
+
+    Called when the number of columns changes from \a oldCount to \a newCount; lays the view out again.
+*/
+void QTableView::columnCountChanged(int oldCount, int newCount) {
+    (void)oldCount;
+    (void)newCount;
+    updateGeometries();
+    viewport()->update();
 }
 
 #include "moc_qtableview.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

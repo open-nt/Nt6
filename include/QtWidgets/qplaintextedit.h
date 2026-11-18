@@ -176,6 +176,7 @@ protected:
     virtual void insertFromMimeData(const QMimeData *source);
     virtual void doSetTextCursor(const QTextCursor &cursor);
     void contextMenuEvent(QContextMenuEvent *event) override;
+    void inputMethodEvent(QInputMethodEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;

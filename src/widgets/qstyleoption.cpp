@@ -1282,6 +1282,13 @@ void QStyleOption::initFrom(const QWidget *widget) {
 */
 
 /*!
+    \variable QStyleOptionToolButton::icon
+    \since 6.0
+
+    The icon of the button.
+*/
+
+/*!
     \variable QStyleOptionToolButton::text
 
     The text of the button.

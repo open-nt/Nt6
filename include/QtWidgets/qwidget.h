@@ -45,6 +45,7 @@ class QEnterEvent;
 class QFocusEvent;
 class QHideEvent;
 class QKeyEvent;
+class QInputMethodEvent;
 class QLayout;
 class QMouseEvent;
 class QMoveEvent;
@@ -415,6 +416,7 @@ protected:
     virtual void dropEvent(QDropEvent *event);
     virtual bool focusNextPrevChild(bool next);
     virtual bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result);
+    virtual void inputMethodEvent(QInputMethodEvent *event);
 
 protected slots:
     void updateMicroFocus(Qt::InputMethodQuery query = Qt::ImQueryAll);

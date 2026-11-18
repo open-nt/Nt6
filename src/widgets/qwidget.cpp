@@ -2559,6 +2559,11 @@ bool QWidget::event(QEvent *e) {
     case QEvent::KeyRelease:
         keyReleaseEvent(static_cast<QKeyEvent *>(e));
         return true;
+    case QEvent::InputMethod:
+        inputMethodEvent(static_cast<QInputMethodEvent *>(e));
+        return true;
+    case QEvent::InputMethodQuery:
+        return true;
     case QEvent::FocusIn:
         focusInEvent(static_cast<QFocusEvent *>(e));
         update();

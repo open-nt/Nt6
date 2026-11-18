@@ -113,9 +113,14 @@ QAbstractSpinBox::QAbstractSpinBox(QWidget *parent)
       m_edit(new SpinEdit(this, [this](QChar c) { return acceptsCharacter(c) || m_special.contains(c); })) {
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     m_edit->setFrame(false);
+    connectEdit();
+    layoutEdit();
+}
+
+void QAbstractSpinBox::connectEdit() {
     QObject::connect(m_edit, &QLineEdit::textEdited, this, [this](const QString &text) { editEdited(text); });
     QObject::connect(m_edit, &QLineEdit::editingFinished, this, [this] { editFinished(); });
-    layoutEdit();
+    QObject::connect(m_edit, &QLineEdit::returnPressed, this, [this] { emit returnPressed(); });
 }
 
 /*!
@@ -296,9 +301,11 @@ void QAbstractSpinBox::refreshText() {
 }
 
 void QAbstractSpinBox::layoutEdit() {
+    // Not initStyleOption(): this runs from the constructor, where stepEnabled() is not the subclass's yet.
     QStyleOptionSpinBox option;
     option.initFrom(this);
     option.buttonSymbols = m_buttonSymbols;
+    option.frame = m_frame;
     m_edit->setGeometry(style()->subElementRect(QStyle::SE_SpinBoxEditField, &option, this));
 }
 
@@ -351,8 +358,7 @@ QSize QAbstractSpinBox::sizeHint() const {
     for (const QString &text : texts)
         width = std::max(width, fm.horizontalAdvance(text));
     QStyleOptionSpinBox option;
-    option.initFrom(this);
-    option.buttonSymbols = m_buttonSymbols;
+    initStyleOption(&option);
     return style()->sizeFromContents(QStyle::CT_SpinBox, &option, QSize(width, fm.height()), this);
 }
 
@@ -368,15 +374,7 @@ void QAbstractSpinBox::paintEvent(QPaintEvent *event) {
     (void)event;
     QPainter painter(this);
     QStyleOptionSpinBox option;
-    option.initFrom(this);
-    option.buttonSymbols = m_buttonSymbols;
-    if (m_edit->hasFocus())
-        option.state |= QStyle::State_HasFocus;
-    const StepEnabled steps = stepEnabled();
-    option.upEnabled = steps.testFlag(StepUpEnabled);
-    option.downEnabled = steps.testFlag(StepDownEnabled);
-    option.upPressed = m_pressed == UpButton;
-    option.downPressed = m_pressed == DownButton;
+    initStyleOption(&option);
     style()->drawControl(QStyle::CE_SpinBox, &option, &painter, this);
 }
 
@@ -478,6 +476,171 @@ void QAbstractSpinBox::changeEvent(QEvent *event) {
     }
     update();
     QWidget::changeEvent(event);
+}
+
+/*!
+    \enum QAbstractSpinBox::CorrectionMode
+    \since 6.0
+
+    What happens to a value the user typed that is out of the range when editing finishes.
+
+    \value CorrectToPreviousValue The value goes back to what it was.
+    \value CorrectToNearestValue The value becomes the nearest one in the range.
+*/
+
+/*!
+    \enum QAbstractSpinBox::StepType
+    \since 6.0
+
+    How large a step of a spin box is.
+
+    \value DefaultStepType The single step.
+    \value AdaptiveDecimalStepType A power of ten one digit below the leading digit of the value, at least the
+           single step: a step of 10 at 150, of 100 at 1500.
+*/
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the spin box, for the style to draw it.
+*/
+void QAbstractSpinBox::initStyleOption(QStyleOptionSpinBox *option) const {
+    if (!option)
+        return;
+    option->initFrom(this);
+    option->buttonSymbols = m_buttonSymbols;
+    option->frame = m_frame;
+    if (m_edit->hasFocus())
+        option->state |= QStyle::State_HasFocus;
+    const StepEnabled steps = stepEnabled();
+    option->upEnabled = steps.testFlag(StepUpEnabled);
+    option->downEnabled = steps.testFlag(StepDownEnabled);
+    option->upPressed = m_pressed == UpButton;
+    option->downPressed = m_pressed == DownButton;
+}
+
+/*!
+    \fn bool QAbstractSpinBox::hasFrame() const
+    \since 6.0
+
+    Returns whether the spin box draws a frame. The default is \c true.
+*/
+
+/*!
+    \since 6.0
+
+    Sets whether the spin box draws a frame to \a frame.
+*/
+void QAbstractSpinBox::setFrame(bool frame) {
+    m_frame = frame;
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Returns the alignment of the text.
+*/
+Qt::Alignment QAbstractSpinBox::alignment() const { return m_edit->alignment(); }
+
+/*!
+    \since 6.0
+
+    Aligns the text to \a flag.
+*/
+void QAbstractSpinBox::setAlignment(Qt::Alignment flag) { m_edit->setAlignment(flag); }
+
+/*!
+    \fn bool QAbstractSpinBox::isAccelerated() const
+    \since 6.0
+
+    Returns whether holding a button steps faster as time goes. Nt keeps the value.
+*/
+
+/*!
+    \fn void QAbstractSpinBox::setAccelerated(bool on)
+    \since 6.0
+
+    Sets whether holding a button steps faster to \a on.
+*/
+
+/*!
+    \fn QAbstractSpinBox::CorrectionMode QAbstractSpinBox::correctionMode() const
+    \since 6.0
+
+    Returns what happens to a typed value out of the range, CorrectToPreviousValue by default.
+*/
+
+/*!
+    \fn void QAbstractSpinBox::setCorrectionMode(CorrectionMode cm)
+    \since 6.0
+
+    Sets what happens to a typed value out of the range to \a cm.
+*/
+
+/*!
+    \since 6.0
+
+    Returns \c true if validate() takes the text as it is.
+*/
+bool QAbstractSpinBox::hasAcceptableInput() const {
+    QString input = m_edit->text();
+    int pos = m_edit->cursorPosition();
+    return validate(input, pos) == QValidator::Acceptable;
+}
+
+/*!
+    \fn bool QAbstractSpinBox::isGroupSeparatorShown() const
+    \since 6.0
+
+    Returns whether the thousands are separated in the text. The default is \c false.
+*/
+
+/*!
+    \since 6.0
+
+    Separates the thousands of the number with the group separator of the locale if \a shown is \c true.
+*/
+void QAbstractSpinBox::setGroupSeparatorShown(bool shown) {
+    m_groupSeparator = shown;
+    refreshText();
+    updateGeometry();
+}
+
+/*!
+    \since 6.0
+
+    Returns whether \a input, with the cursor at \a pos, is a value the spin box takes. The default takes any text.
+*/
+QValidator::State QAbstractSpinBox::validate(QString &input, int &pos) const {
+    (void)input;
+    (void)pos;
+    return QValidator::Acceptable;
+}
+
+/*!
+    \since 6.0
+
+    Corrects \a input, a text that validate() did not take. The default does nothing.
+*/
+void QAbstractSpinBox::fixup(QString &input) const { (void)input; }
+
+/*!
+    \since 6.0
+
+    Makes \a edit the line edit of the spin box, and takes ownership of it; the line edit it had is deleted.
+*/
+void QAbstractSpinBox::setLineEdit(QLineEdit *edit) {
+    if (!edit || edit == m_edit)
+        return;
+    delete m_edit;
+    m_edit = edit;
+    m_edit->setParent(this);
+    m_edit->setFrame(false);
+    connectEdit();
+    layoutEdit();
+    refreshText();
+    m_edit->show();
 }
 
 #include "moc_qabstractspinbox.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

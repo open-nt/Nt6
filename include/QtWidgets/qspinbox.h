@@ -12,6 +12,8 @@ class QSpinBox : public QAbstractSpinBox {
     Q_PROPERTY(QString prefix READ prefix WRITE setPrefix)
     Q_PROPERTY(QString suffix READ suffix WRITE setSuffix)
     Q_PROPERTY(QString cleanText READ cleanText)
+    Q_PROPERTY(int displayIntegerBase READ displayIntegerBase WRITE setDisplayIntegerBase)
+    Q_PROPERTY(StepType stepType READ stepType WRITE setStepType)
 public:
     explicit QSpinBox(QWidget *parent = nullptr);
     ~QSpinBox() override;
@@ -30,6 +32,12 @@ public:
     void setSuffix(const QString &suffix);
     QString cleanText() const;
     void stepBy(int steps) override;
+    int displayIntegerBase() const { return m_base; }
+    void setDisplayIntegerBase(int base);
+    StepType stepType() const { return m_stepType; }
+    void setStepType(StepType stepType) { m_stepType = stepType; }
+    QValidator::State validate(QString &input, int &pos) const override;
+    void fixup(QString &input) const override;
 
 public slots:
     void setValue(int value);
@@ -61,6 +69,9 @@ private:
     int m_maximum = 99;
     int m_value = 0;
     int m_step = 1;
+    int m_base = 10;
+    StepType m_stepType = DefaultStepType;
+    QString stripped(const QString &number) const; // without the group separators
 };
 
 class QDoubleSpinBox : public QAbstractSpinBox {
@@ -73,6 +84,7 @@ class QDoubleSpinBox : public QAbstractSpinBox {
     Q_PROPERTY(QString prefix READ prefix WRITE setPrefix)
     Q_PROPERTY(QString suffix READ suffix WRITE setSuffix)
     Q_PROPERTY(QString cleanText READ cleanText)
+    Q_PROPERTY(StepType stepType READ stepType WRITE setStepType)
 public:
     explicit QDoubleSpinBox(QWidget *parent = nullptr);
     ~QDoubleSpinBox() override;
@@ -96,6 +108,10 @@ public:
 
     virtual QString textFromValue(double value) const;
     virtual double valueFromText(const QString &text) const;
+    StepType stepType() const { return m_stepType; }
+    void setStepType(StepType stepType) { m_stepType = stepType; }
+    QValidator::State validate(QString &input, int &pos) const override;
+    void fixup(QString &input) const override;
 
 public slots:
     void setValue(double value);
@@ -127,4 +143,5 @@ private:
     double m_value = 0.0;
     double m_step = 1.0;
     int m_decimals = 2;
+    StepType m_stepType = DefaultStepType;
 };

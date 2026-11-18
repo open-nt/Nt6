@@ -306,6 +306,7 @@ public:
     QStyleOptionToolButton() : QStyleOptionComplex(SO_ToolButton) {}
 
     ToolButtonFeatures features;
+    QIcon icon;
     QString text;
     QSize iconSize;
     QFont font;

@@ -142,6 +142,15 @@ void QGridLayout::addItem(QLayoutItem *item, int row, int column, int rowSpan, i
     Adds \a item in the first free cell of the last row, or in a new row if that one is full.
 */
 void QGridLayout::addItem(QLayoutItem *item) {
+    if (m_defaultCount > 0) {
+        // setDefaultPositioning(): the next cell of rows (or columns) of m_defaultCount cells.
+        const int n = static_cast<int>(m_items.size());
+        if (m_defaultOrientation == Qt::Horizontal)
+            addItem(item, n / m_defaultCount, n % m_defaultCount);
+        else
+            addItem(item, n % m_defaultCount, n / m_defaultCount);
+        return;
+    }
     // The next cell, going right, and down at the end of the row; the width is that of the grid so far, or one column.
     int row = std::max(0, m_rows - 1);
     int column = 0;
@@ -497,16 +506,33 @@ void QGridLayout::setGeometry(const QRect &rect) {
         }
         return out;
     };
-    const std::vector<int> x = starts(columns, r.left(), horizontalGap, extraX);
-    const std::vector<int> y = starts(rows, r.top(), verticalGap, extraY);
+    std::vector<int> x = starts(columns, r.left(), horizontalGap, extraX);
+    std::vector<int> y = starts(rows, r.top(), verticalGap, extraY);
+    // An origin at the right or the bottom mirrors the columns or the rows.
+    const bool mirrorX = m_origin == Qt::TopRightCorner || m_origin == Qt::BottomRightCorner;
+    const bool mirrorY = m_origin == Qt::BottomLeftCorner || m_origin == Qt::BottomRightCorner;
+    if (mirrorX)
+        for (std::size_t i = 0; i < x.size(); ++i)
+            x[i] = r.left() + r.right() + 1 - x[i] - columns[i].size;
+    if (mirrorY)
+        for (std::size_t i = 0; i < y.size(); ++i)
+            y[i] = r.top() + r.bottom() + 1 - y[i] - rows[i].size;
+    m_columnRects.clear();
+    m_rowRects.clear();
+    for (std::size_t i = 0; i < x.size(); ++i)
+        m_columnRects.emplace_back(x[i], 0, columns[i].size, 0);
+    for (std::size_t i = 0; i < y.size(); ++i)
+        m_rowRects.emplace_back(0, y[i], 0, rows[i].size);
 
     for (const Entry &e : m_items) {
         const int right = e.column + e.columnSpan - 1, bottom = e.row + e.rowSpan - 1;
-        const QRect cell(x[static_cast<std::size_t>(e.column)], y[static_cast<std::size_t>(e.row)],
-                         x[static_cast<std::size_t>(right)] + columns[static_cast<std::size_t>(right)].size -
-                             x[static_cast<std::size_t>(e.column)],
-                         y[static_cast<std::size_t>(bottom)] + rows[static_cast<std::size_t>(bottom)].size -
-                             y[static_cast<std::size_t>(e.row)]);
+        const int x0 = std::min(x[static_cast<std::size_t>(e.column)], x[static_cast<std::size_t>(right)]);
+        const int x1 = std::max(x[static_cast<std::size_t>(e.column)] + columns[static_cast<std::size_t>(e.column)].size,
+                                x[static_cast<std::size_t>(right)] + columns[static_cast<std::size_t>(right)].size);
+        const int y0 = std::min(y[static_cast<std::size_t>(e.row)], y[static_cast<std::size_t>(bottom)]);
+        const int y1 = std::max(y[static_cast<std::size_t>(e.row)] + rows[static_cast<std::size_t>(e.row)].size,
+                                y[static_cast<std::size_t>(bottom)] + rows[static_cast<std::size_t>(bottom)].size);
+        const QRect cell(x0, y0, x1 - x0, y1 - y0);
         const QSize mn = e.item->minimumSize(), mx = e.item->maximumSize(), hint = e.item->sizeHint();
         const Qt::Alignment a = e.item->alignment();
         QSize size(std::clamp(cell.width(), mn.width(), std::max(mn.width(), mx.width())),
@@ -529,5 +555,67 @@ void QGridLayout::setGeometry(const QRect &rect) {
         e.item->setGeometry(QRect(QPoint(left, top), size));
     }
 }
+
+/*!
+    \since 6.0
+
+    Returns the rectangle of the cell at \a row and \a column as the layout last placed it, or an invalid rectangle
+    if the layout has not been laid out or there is no such cell.
+*/
+QRect QGridLayout::cellRect(int row, int column) const {
+    if (row < 0 || column < 0 || static_cast<std::size_t>(row) >= m_rowRects.size() ||
+        static_cast<std::size_t>(column) >= m_columnRects.size())
+        return QRect();
+    const QRect &c = m_columnRects[static_cast<std::size_t>(column)];
+    const QRect &r = m_rowRects[static_cast<std::size_t>(row)];
+    return QRect(c.x(), r.y(), c.width(), r.height());
+}
+
+/*!
+    \fn Qt::Corner QGridLayout::originCorner() const
+    \since 6.0
+
+    Returns the corner where row 0 and column 0 are, Qt::TopLeftCorner by default.
+*/
+
+/*!
+    \since 6.0
+
+    Puts row 0 and column 0 at \a corner: a right corner puts the columns from right to left, a bottom corner the
+    rows from bottom to top.
+*/
+void QGridLayout::setOriginCorner(Qt::Corner corner) {
+    m_origin = corner;
+    invalidate();
+}
+
+/*!
+    \since 6.0
+
+    Makes addWidget() and addItem() without a position fill rows of \a n cells for Qt::Horizontal \a orient, or
+    columns of \a n cells for Qt::Vertical. A non-positive \a n goes back to filling the rows of the grid so far.
+*/
+void QGridLayout::setDefaultPositioning(int n, Qt::Orientation orient) {
+    m_defaultCount = std::max(0, n);
+    m_defaultOrientation = orient;
+}
+
+QLayoutItem *QGridLayout::replaceAt(int index, QLayoutItem *item) {
+    if (index < 0 || index >= count() || !item)
+        return nullptr;
+    Entry &e = m_items[static_cast<std::size_t>(index)];
+    QLayoutItem *old = e.item;
+    e.item = item;
+    e.owned = true;
+    return old;
+}
+
+/*!
+    \fn void QGridLayout::addWidget(QWidget *widget)
+    \since 6.0
+    \overload
+
+    Adds \a widget in the next cell, as addItem() places it.
+*/
 
 #include "moc_qgridlayout.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

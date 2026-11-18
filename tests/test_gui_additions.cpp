@@ -18,6 +18,7 @@
 #include <QtGui/qundogroup.h>
 #include <QtGui/qundostack.h>
 #include <QtGui/qimagereader.h>
+#include <QtGui/qimagewriter.h>
 #include <QtGui/qmatrix4x4.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qpainterpath.h>
@@ -77,6 +78,7 @@ private slots:
     void painterPathAddText();
     void urlSetQuery();
     void imageReader();
+    void imageWriter();
     void shortcutOnWindow();
     void shortcutContexts();
     void keyEventNativeCodes();
@@ -486,6 +488,123 @@ void TestGuiAdditions::imageReader() {
     QImageReader bad(junk.fileName());
     QVERIFY(!bad.canRead());
     QCOMPARE(bad.error(), QImageReader::UnsupportedFormatError);
+}
+
+void TestGuiAdditions::imageWriter() {
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QImage image(24, 12, QImage::Format_ARGB32);
+    image.fill(qRgba(200, 100, 50, 128));
+    const QList<QByteArray> formats = QImageWriter::supportedImageFormats();
+    QVERIFY(formats.contains(QByteArray("bmp")));
+    QVERIFY(QImageWriter::supportedMimeTypes().contains(QByteArray("image/bmp")));
+
+    // Each format by file suffix, read back with the reader.
+    for (const QByteArray &format : formats) {
+        const QString path = dir.filePath(QString::fromLatin1("out.") + QString::fromLatin1(format));
+        QImageWriter writer(path);
+        QVERIFY(writer.canWrite());
+        QVERIFY2(writer.write(image), format.constData());
+        QCOMPARE(writer.error(), QImageWriter::UnknownError);
+        QImageReader reader(path);
+        const QImage read = reader.read();
+        QCOMPARE(read.size(), image.size());
+        if (format == "jpeg" || format == "jpg") {
+            QCOMPARE(reader.format(), QByteArray("jpeg"));
+            QVERIFY(!read.hasAlphaChannel());
+        } else {
+            QCOMPARE(reader.format(), format);
+            QCOMPARE(read.pixel(5, 5), image.pixel(5, 5));
+        }
+    }
+
+    // A device with an explicit format, in any case.
+    QBuffer buffer;
+    QVERIFY(buffer.open(QIODevice::WriteOnly));
+    QImageWriter toDevice(&buffer, QByteArray("BMP"));
+    QCOMPARE(toDevice.format(), QByteArray("bmp"));
+    QCOMPARE(toDevice.device(), &buffer);
+    QVERIFY(toDevice.write(image));
+    QVERIFY(buffer.data().startsWith("BM"));
+    QCOMPARE(QImage::fromData(buffer.data()).pixel(3, 3), image.pixel(3, 3));
+
+    if (formats.contains(QByteArray("jpeg"))) {
+        QBuffer low;
+        QBuffer high;
+        QVERIFY(low.open(QIODevice::WriteOnly));
+        QVERIFY(high.open(QIODevice::WriteOnly));
+        QImage noisy(64, 64, QImage::Format_RGB32);
+        for (int y = 0; y < 64; ++y)
+            for (int x = 0; x < 64; ++x)
+                noisy.setPixel(x, y, qRgb((x * 37) & 255, (y * 91) & 255, (x * y) & 255));
+        QImageWriter lowWriter(&low, QByteArray("jpg"));
+        lowWriter.setQuality(10);
+        QCOMPARE(lowWriter.quality(), 10);
+        QVERIFY(lowWriter.write(noisy));
+        QImageWriter highWriter(&high, QByteArray("jpg"));
+        highWriter.setQuality(95);
+        QVERIFY(highWriter.write(noisy));
+        QVERIFY(low.data().size() < high.data().size());
+    }
+
+    if (formats.contains(QByteArray("png"))) {
+        QBuffer stored;
+        QBuffer packed;
+        QVERIFY(stored.open(QIODevice::WriteOnly));
+        QVERIFY(packed.open(QIODevice::WriteOnly));
+        QImage flat(128, 128, QImage::Format_RGB32);
+        flat.fill(qRgb(1, 2, 3));
+        QImageWriter storedWriter(&stored, QByteArray("png"));
+        storedWriter.setCompression(0);
+        QCOMPARE(storedWriter.compression(), 0);
+        QVERIFY(storedWriter.write(flat));
+        QImageWriter packedWriter(&packed, QByteArray("png"));
+        packedWriter.setCompression(9);
+        QVERIFY(packedWriter.write(flat));
+        QVERIFY(packed.data().size() < stored.data().size());
+        QCOMPARE(QImage::fromData(packed.data()).pixel(7, 7), qRgb(1, 2, 3));
+    }
+
+    // Failures: null image, unknown format, missing format on a device, unwritable device, unopenable file.
+    QImageWriter nullImage(dir.filePath(QString::fromLatin1("null.bmp")));
+    QVERIFY(!nullImage.write(QImage()));
+    QCOMPARE(nullImage.error(), QImageWriter::InvalidImageError);
+    QVERIFY(!QFile::exists(dir.filePath(QString::fromLatin1("null.bmp"))));
+
+    const QString existing = dir.filePath(QString::fromLatin1("keep.xyz"));
+    QFile keep(existing);
+    QVERIFY(keep.open(QIODevice::WriteOnly));
+    keep.write("keep");
+    keep.close();
+    QImageWriter unknown(existing);
+    QVERIFY(!unknown.canWrite());
+    QCOMPARE(unknown.error(), QImageWriter::UnsupportedFormatError);
+    QVERIFY(!unknown.write(image));
+    QCOMPARE(unknown.error(), QImageWriter::UnsupportedFormatError);
+    QVERIFY(!unknown.errorString().isEmpty());
+    QVERIFY(keep.open(QIODevice::ReadOnly));
+    QCOMPARE(keep.readAll(), QByteArray("keep"));
+    keep.close();
+
+    QBuffer noFormat;
+    QVERIFY(noFormat.open(QIODevice::WriteOnly));
+    QImageWriter formatless;
+    formatless.setDevice(&noFormat);
+    QVERIFY(!formatless.write(image));
+    QCOMPARE(formatless.error(), QImageWriter::UnsupportedFormatError);
+
+    QBuffer readOnly;
+    QVERIFY(readOnly.open(QIODevice::ReadOnly));
+    QImageWriter unwritable(&readOnly, QByteArray("bmp"));
+    QVERIFY(!unwritable.canWrite());
+    QCOMPARE(unwritable.error(), QImageWriter::DeviceError);
+
+    QImageWriter badPath(dir.filePath(QString::fromLatin1("no/such/dir/out.bmp")));
+    QVERIFY(badPath.canWrite());
+    QVERIFY(!badPath.write(image));
+    QCOMPARE(badPath.error(), QImageWriter::DeviceError);
+    QCOMPARE(badPath.fileName(), dir.filePath(QString::fromLatin1("no/such/dir/out.bmp")));
+    QCOMPARE(badPath.device(), nullptr);
 }
 
 void TestGuiAdditions::shortcutOnWindow() {

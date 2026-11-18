@@ -167,6 +167,7 @@ signals:
 
 protected:
     void initStyleOption(QStyleOptionComboBox *option) const;
+    void inputMethodEvent(QInputMethodEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;

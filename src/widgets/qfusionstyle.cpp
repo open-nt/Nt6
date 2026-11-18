@@ -98,9 +98,14 @@ void drawArrow(QPainter *p, const QPoint &center, bool down, const QColor &color
 // The rectangle of the title of a group box in `r`, the check box included.
 QRect groupTitleRect(const QStyleOptionGroupBox *box) {
     const int indicator = box->checkable ? 14 + 4 : 0;
-    const int width = indicator + box->fontMetrics.horizontalAdvance(box->text) + 6;
-    return QRect(box->rect.left(), box->rect.top(), std::min(width, std::max(0, box->rect.width())),
-                 box->fontMetrics.height());
+    const int width = std::min(indicator + box->fontMetrics.horizontalAdvance(box->text) + 6,
+                               std::max(0, box->rect.width()));
+    int left = box->rect.left();
+    if (box->textAlignment & Qt::AlignRight)
+        left = box->rect.right() + 1 - width;
+    else if (box->textAlignment & Qt::AlignHCenter)
+        left = box->rect.left() + (box->rect.width() - width) / 2;
+    return QRect(left, box->rect.top(), width, box->fontMetrics.height());
 }
 
 } // namespace
@@ -225,6 +230,9 @@ void QFusionStyle::drawPrimitive(PrimitiveElement element, const QStyleOption *o
             painter->setPen(QPen(QBrush(option->palette.color(group, QPalette::Text)), 2));
             painter->drawLine(r.left() + 3, r.top() + r.height() / 2, r.left() + 5, r.top() + r.height() / 2 + 2);
             painter->drawLine(r.left() + 5, r.top() + r.height() / 2 + 2, r.right() - 3, r.top() + 3);
+        } else if (option->state & State_NoChange) {
+            painter->fillRect(QRect(r.left() + 3, r.top() + r.height() / 2 - 1, r.width() - 6, 2),
+                              option->palette.color(group, QPalette::Text));
         }
         break;
     }
@@ -502,10 +510,42 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         drawBox(painter, groove, option->palette.color(group, QPalette::Base).darker(106), outlineOf(option), window);
         // The part from the end where the slider starts to the handle has the highlight color.
         QRect filled = groove.adjusted(1, 1, -1, -1);
-        if (horizontal)
+        if (horizontal && !slider->upsideDown)
             filled.setRight(handle.center().x());
-        else
+        else if (horizontal)
+            filled.setLeft(handle.center().x());
+        else if (!slider->upsideDown)
             filled.setTop(handle.center().y());
+        else
+            filled.setBottom(handle.center().y());
+        if (slider->tickPosition != 0 && slider->maximum > slider->minimum) {
+            // Tick marks at every tick interval, or page step, along the groove, at the sides that have them.
+            const int interval = slider->tickInterval > 0 ? slider->tickInterval
+                                 : slider->pageStep > 0   ? slider->pageStep
+                                                          : std::max(1, (slider->maximum - slider->minimum) / 10);
+            const int length = proxy()->pixelMetric(PM_SliderLength, option, widget);
+            const int span = (horizontal ? option->rect.width() : option->rect.height()) - length;
+            painter->setPen(outlineOf(option));
+            for (qint64 v = slider->minimum; v <= slider->maximum; v += interval) {
+                qint64 at = v - slider->minimum;
+                if (slider->upsideDown)
+                    at = slider->maximum - slider->minimum - at;
+                const int offset = length / 2 + static_cast<int>(at * span / (slider->maximum - slider->minimum));
+                if (horizontal) {
+                    const int x = option->rect.left() + offset;
+                    if (slider->tickPosition & 1)
+                        painter->drawLine(x, option->rect.top(), x, option->rect.top() + 3);
+                    if (slider->tickPosition & 2)
+                        painter->drawLine(x, option->rect.bottom() - 3, x, option->rect.bottom());
+                } else {
+                    const int y = option->rect.bottom() - offset;
+                    if (slider->tickPosition & 1)
+                        painter->drawLine(option->rect.left(), y, option->rect.left() + 3, y);
+                    if (slider->tickPosition & 2)
+                        painter->drawLine(option->rect.right() - 3, y, option->rect.right(), y);
+                }
+            }
+        }
         if (option->state & State_Enabled)
             painter->fillRect(filled, highlight);
         QColor fill = option->palette.color(group, QPalette::Button);
@@ -529,10 +569,20 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         drawBox(painter, r, option->palette.color(group, QPalette::Base), outlineOf(option), window);
         const QRect inner = proxy()->subElementRect(SE_ProgressBarContents, option, widget);
         const qint64 span = static_cast<qint64>(bar->maximum) - bar->minimum;
+        // A bar without State_Horizontal that is taller than wide is vertical, and fills from the bottom.
+        const bool vertical = !(option->state & State_Horizontal) && r.height() > r.width();
         QRect filled;
         if (span > 0 && bar->progress > bar->minimum) {
             const qint64 done = std::min<qint64>(bar->progress, bar->maximum) - bar->minimum;
-            filled = QRect(inner.left(), inner.top(), static_cast<int>(inner.width() * done / span), inner.height());
+            if (vertical) {
+                const int h = static_cast<int>(inner.height() * done / span);
+                filled = bar->invertedAppearance ? QRect(inner.left(), inner.top(), inner.width(), h)
+                                                 : QRect(inner.left(), inner.bottom() + 1 - h, inner.width(), h);
+            } else {
+                const int w = static_cast<int>(inner.width() * done / span);
+                filled = bar->invertedAppearance ? QRect(inner.right() + 1 - w, inner.top(), w, inner.height())
+                                                 : QRect(inner.left(), inner.top(), w, inner.height());
+            }
             painter->fillRect(filled, option->palette.color(group, QPalette::Highlight));
         }
         if (bar->textVisible && !bar->text.isEmpty()) {
@@ -857,7 +907,15 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         QStyleOption frame = *option;
         frame.rect = QRect(option->rect.left(), title.bottom() + 3, option->rect.width(),
                            option->rect.bottom() - title.bottom() - 2);
-        proxy()->drawPrimitive(PE_FrameGroupBox, &frame, painter, widget);
+        if (box->features & QStyleOptionFrame::Flat) {
+            // A flat group box has a line under its title, and no frame.
+            painter->save();
+            painter->setPen(outlineOf(option));
+            painter->drawLine(frame.rect.left(), frame.rect.top(), frame.rect.right(), frame.rect.top());
+            painter->restore();
+        } else {
+            proxy()->drawPrimitive(PE_FrameGroupBox, &frame, painter, widget);
+        }
         painter->save();
         QRect text = title;
         if (box->checkable) {
@@ -987,7 +1045,9 @@ QRect QFusionStyle::subElementRect(SubElement element, const QStyleOption *optio
         const int length = proxy()->pixelMetric(PM_SliderLength, option, widget);
         const int thickness = proxy()->pixelMetric(PM_SliderThickness, option, widget);
         const qint64 range = static_cast<qint64>(slider->maximum) - slider->minimum;
-        const qint64 done = std::clamp<qint64>(static_cast<qint64>(slider->sliderPosition) - slider->minimum, 0, range);
+        qint64 done = std::clamp<qint64>(static_cast<qint64>(slider->sliderPosition) - slider->minimum, 0, range);
+        if (slider->upsideDown)
+            done = range - done;
         if (slider->orientation == Qt::Horizontal) {
             const int span = std::max(0, r.width() - length);
             const int x = range > 0 ? static_cast<int>(done * span / range) : 0;

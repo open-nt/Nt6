@@ -19,6 +19,7 @@
 
 class QListWidget;
 class QMimeData;
+class QDataStream;
 
 class QListWidgetItem {
 public:
@@ -38,6 +39,15 @@ public:
     void setIcon(const QIcon &icon);
     QString toolTip() const { return m_toolTip; }
     void setToolTip(const QString &toolTip) { m_toolTip = toolTip; }
+    QString statusTip() const { return data(Qt::StatusTipRole).toString(); }
+    void setStatusTip(const QString &statusTip) { setData(Qt::StatusTipRole, statusTip); }
+    QString whatsThis() const { return data(Qt::WhatsThisRole).toString(); }
+    void setWhatsThis(const QString &whatsThis) { setData(Qt::WhatsThisRole, whatsThis); }
+    Qt::CheckState checkState() const { return static_cast<Qt::CheckState>(data(Qt::CheckStateRole).toInt()); }
+    void setCheckState(Qt::CheckState state) { setData(Qt::CheckStateRole, static_cast<int>(state)); }
+    virtual QListWidgetItem *clone() const;
+    virtual void read(QDataStream &in);
+    virtual void write(QDataStream &out) const;
     Qt::Alignment textAlignment() const { return m_alignment; }
     void setTextAlignment(Qt::Alignment alignment);
     QBrush foreground() const { return m_foreground; }

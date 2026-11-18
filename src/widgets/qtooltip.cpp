@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qtooltip.h>
 
+#include <optional>
+
 #include "qtooltip_p.h"
 #include "qwidget_p.h"
 
@@ -26,6 +28,16 @@ namespace {
 
 // The label that shows a tool tip. It is a child of the window of the widget that the tool tip is for, above its other
 // children, and the mouse does not see it.
+// The font and the palette that setFont() and setPalette() set, if they were set.
+std::optional<QFont> &tipFont() {
+    static std::optional<QFont> font;
+    return font;
+}
+std::optional<QPalette> &tipPalette() {
+    static std::optional<QPalette> palette;
+    return palette;
+}
+
 class TipLabel : public QWidget {
 public:
     explicit TipLabel(QWidget *parent) : QWidget(parent) {
@@ -41,8 +53,8 @@ public:
         m_text = text;
         m_owner = owner;
         m_rect = rect;
-        setFont(QGuiApplication::font());
-        setPalette(QApplication::palette());
+        setFont(QToolTip::font());
+        setPalette(QToolTip::palette());
         const QSize size = textSize();
         QWidget *top = parentWidget();
         // Keep the tool tip inside the window.
@@ -142,13 +154,48 @@ bool toolTipFollowsMouse(QWidget *under, const QPoint &pos) {
     with the \c ToolTipBase and \c ToolTipText colors of the palette.
 
     \differences
-    There are no \c setPalette(), \c setFont(), \c palette(), \c font() and \c showText() with a display time,
+    There is no \c showText() with a display time,
     no rich text, and no \c QToolTip::isVisible() for a tool tip of another window. A tool tip is always inside the
     window, so one that shows a long text is not wider than the window.
     \enddifferences
 
     \sa QWidget::toolTip(), QHelpEvent
 */
+
+/*!
+    \since 6.0
+
+    Returns the font of tool tips: the one setFont() set, or the font of the application.
+*/
+QFont QToolTip::font() {
+    const std::optional<QFont> &font = tipFont();
+    return font.has_value() ? *font : QGuiApplication::font();
+}
+
+/*!
+    \since 6.0
+
+    Sets the font of tool tips to \a font.
+*/
+void QToolTip::setFont(const QFont &font) { tipFont() = font; }
+
+/*!
+    \since 6.0
+
+    Returns the palette of tool tips: the one setPalette() set, or the palette of the application.
+*/
+QPalette QToolTip::palette() {
+    const std::optional<QPalette> &palette = tipPalette();
+    return palette.has_value() ? *palette : QApplication::palette();
+}
+
+/*!
+    \since 6.0
+
+    Sets the palette of tool tips to \a palette; its QPalette::ToolTipBase and QPalette::ToolTipText colors are the
+    ones used.
+*/
+void QToolTip::setPalette(const QPalette &palette) { tipPalette() = palette; }
 
 /*!
     Shows \a text in a tool tip, with its top left corner a little below and to the right of \a pos, which is on the

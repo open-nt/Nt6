@@ -8,6 +8,7 @@
 #include <QtWidgets/qstyle.h>
 
 #include <algorithm>
+#include <functional>
 
 namespace QtPrivate {
 
@@ -93,18 +94,25 @@ QAbstractScrollArea::QAbstractScrollArea(QWidget *parent) : QFrame(parent) {
     m_vbar->setRange(0, 0);
     m_hbar->hide();
     m_vbar->hide();
-    QObject::connect(m_hbar, &QScrollBar::rangeChanged, [this](int, int) { layoutChildren(); });
-    QObject::connect(m_vbar, &QScrollBar::rangeChanged, [this](int, int) { layoutChildren(); });
-    QObject::connect(m_hbar, &QScrollBar::valueChanged, [this](int value) {
-        const int dx = m_hLast - value;
-        m_hLast = value;
-        scrollContentsBy(dx, 0);
-    });
-    QObject::connect(m_vbar, &QScrollBar::valueChanged, [this](int value) {
-        const int dy = m_vLast - value;
-        m_vLast = value;
-        scrollContentsBy(0, dy);
-    });
+    connectBar(m_hbar);
+    connectBar(m_vbar);
+}
+
+void QAbstractScrollArea::connectBar(QScrollBar *bar) {
+    QObject::connect(bar, &QScrollBar::rangeChanged, this, [this](int, int) { layoutChildren(); });
+    if (bar->orientation() == Qt::Horizontal) {
+        QObject::connect(bar, &QScrollBar::valueChanged, this, [this](int value) {
+            const int dx = m_hLast - value;
+            m_hLast = value;
+            scrollContentsBy(dx, 0);
+        });
+    } else {
+        QObject::connect(bar, &QScrollBar::valueChanged, this, [this](int value) {
+            const int dy = m_vLast - value;
+            m_vLast = value;
+            scrollContentsBy(0, dy);
+        });
+    }
 }
 
 /*!
@@ -225,8 +233,39 @@ void QAbstractScrollArea::layoutChildren() {
         const int vWidth = showV ? extent : 0, hHeight = showH ? extent : 0;
         m_hbar->setVisible(showH);
         m_vbar->setVisible(showV);
-        m_hbar->setGeometry(QRect(inner.left(), inner.bottom() + 1 - hHeight, inner.width() - vWidth, hHeight));
-        m_vbar->setGeometry(QRect(inner.right() + 1 - vWidth, inner.top(), vWidth, inner.height() - hHeight));
+        QRect hRect(inner.left(), inner.bottom() + 1 - hHeight, inner.width() - vWidth, hHeight);
+        QRect vRect(inner.right() + 1 - vWidth, inner.top(), vWidth, inner.height() - hHeight);
+        // The widgets beside the scroll bars take room from them, at the ends their alignment says.
+        for (const BarWidget &b : m_barWidgets) {
+            QWidget *w = b.widget.data();
+            if (!w)
+                continue;
+            const bool horizontal = b.alignment & (Qt::AlignLeft | Qt::AlignRight);
+            const bool shown = horizontal ? showH : showV;
+            w->setVisible(shown);
+            if (!shown)
+                continue;
+            const QSize hint = w->sizeHint().isValid() ? w->sizeHint() : w->size();
+            if (b.alignment & Qt::AlignLeft) {
+                w->setGeometry(hRect.left(), hRect.top(), hint.width(), hHeight);
+                hRect.setLeft(hRect.left() + hint.width());
+            } else if (b.alignment & Qt::AlignRight) {
+                w->setGeometry(hRect.right() + 1 - hint.width(), hRect.top(), hint.width(), hHeight);
+                hRect.setRight(hRect.right() - hint.width());
+            } else if (b.alignment & Qt::AlignTop) {
+                w->setGeometry(vRect.left(), vRect.top(), vWidth, hint.height());
+                vRect.setTop(vRect.top() + hint.height());
+            } else if (b.alignment & Qt::AlignBottom) {
+                w->setGeometry(vRect.left(), vRect.bottom() + 1 - hint.height(), vWidth, hint.height());
+                vRect.setBottom(vRect.bottom() - hint.height());
+            }
+        }
+        m_hbar->setGeometry(hRect);
+        m_vbar->setGeometry(vRect);
+        if (QWidget *corner = m_corner.data()) {
+            corner->setVisible(showH && showV);
+            corner->setGeometry(inner.right() + 1 - vWidth, inner.bottom() + 1 - hHeight, vWidth, hHeight);
+        }
         m_viewport->setGeometry(QRect(inner.left() + m_margins.left(), inner.top() + m_margins.top(),
                                       std::max(0, inner.width() - vWidth - m_margins.left() - m_margins.right()),
                                       std::max(0, inner.height() - hHeight - m_margins.top() - m_margins.bottom())));
@@ -399,6 +438,202 @@ void QAbstractScrollArea::keyPressEvent(QKeyEvent *event) {
         return;
     }
     event->accept();
+}
+
+namespace {
+// Hands the events of a viewport set with setViewport() to the scroll area, as its own viewport does.
+class ViewportFilter : public QObject {
+public:
+    ViewportFilter(QAbstractScrollArea *area, std::function<bool(QEvent *)> forward)
+        : QObject(area), m_area(area), m_forward(std::move(forward)) {}
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched != m_area->viewport())
+            return false;
+        switch (event->type()) {
+        case QEvent::Paint:
+        case QEvent::Resize:
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+        case QEvent::MouseButtonDblClick:
+        case QEvent::MouseMove:
+        case QEvent::Wheel:
+        case QEvent::ContextMenu:
+            return m_forward(event);
+        default:
+            return false;
+        }
+    }
+
+private:
+    QAbstractScrollArea *m_area;
+    std::function<bool(QEvent *)> m_forward;
+};
+} // namespace
+
+/*!
+    \enum QAbstractScrollArea::SizeAdjustPolicy
+    \since 6.0
+
+    How the size hint of the scroll area follows its contents.
+
+    \value AdjustIgnored The size hint is viewportSizeHint(), or 256 by 192 if it is invalid.
+    \value AdjustToContentsOnFirstShow As AdjustIgnored in Nt.
+    \value AdjustToContents As AdjustIgnored in Nt: the size hint always follows viewportSizeHint().
+*/
+
+/*!
+    \since 6.0
+
+    Makes \a widget the viewport, the widget that shows the contents, and takes ownership of it; the old viewport is
+    deleted. Its paint, resize and mouse events go to the scroll area as those of the viewport did. setupViewport()
+    is called with it.
+*/
+void QAbstractScrollArea::setViewport(QWidget *widget) {
+    if (!widget || widget == m_viewport)
+        return;
+    QWidget *old = m_viewport;
+    m_viewport = widget;
+    widget->setParent(this);
+    if (!m_viewportFilter)
+        m_viewportFilter = new ViewportFilter(this, [this](QEvent *event) { return viewportEvent(event); });
+    widget->installEventFilter(m_viewportFilter);
+    delete old;
+    setupViewport(widget);
+    layoutChildren();
+    widget->show();
+}
+
+/*!
+    \since 6.0
+
+    Is called by setViewport() with the new \a viewport, to set it up. The default does nothing.
+*/
+void QAbstractScrollArea::setupViewport(QWidget *viewport) { (void)viewport; }
+
+/*!
+    \since 6.0
+
+    Replaces the horizontal scroll bar with \a scrollBar, which takes its range, value and steps; the scroll area
+    takes ownership of it and deletes the old one.
+*/
+void QAbstractScrollArea::setHorizontalScrollBar(QScrollBar *scrollBar) {
+    if (!scrollBar || scrollBar == m_hbar)
+        return;
+    scrollBar->setOrientation(Qt::Horizontal);
+    scrollBar->setRange(m_hbar->minimum(), m_hbar->maximum());
+    scrollBar->setPageStep(m_hbar->pageStep());
+    scrollBar->setSingleStep(m_hbar->singleStep());
+    scrollBar->setValue(m_hbar->value());
+    scrollBar->setParent(this);
+    delete m_hbar;
+    m_hbar = scrollBar;
+    connectBar(scrollBar);
+    layoutChildren();
+}
+
+/*!
+    \since 6.0
+
+    Replaces the vertical scroll bar with \a scrollBar, which takes its range, value and steps; the scroll area takes
+    ownership of it and deletes the old one.
+*/
+void QAbstractScrollArea::setVerticalScrollBar(QScrollBar *scrollBar) {
+    if (!scrollBar || scrollBar == m_vbar)
+        return;
+    scrollBar->setOrientation(Qt::Vertical);
+    scrollBar->setRange(m_vbar->minimum(), m_vbar->maximum());
+    scrollBar->setPageStep(m_vbar->pageStep());
+    scrollBar->setSingleStep(m_vbar->singleStep());
+    scrollBar->setValue(m_vbar->value());
+    scrollBar->setParent(this);
+    delete m_vbar;
+    m_vbar = scrollBar;
+    connectBar(scrollBar);
+    layoutChildren();
+}
+
+/*!
+    \fn QWidget *QAbstractScrollArea::cornerWidget() const
+    \since 6.0
+
+    Returns the widget in the corner between the scroll bars, or \c nullptr.
+*/
+
+/*!
+    \since 6.0
+
+    Puts \a widget in the corner between the scroll bars, shown while both are; the scroll area takes ownership of
+    it and deletes the widget that was there.
+*/
+void QAbstractScrollArea::setCornerWidget(QWidget *widget) {
+    if (widget == m_corner)
+        return;
+    delete m_corner.data();
+    m_corner = widget;
+    if (widget)
+        widget->setParent(this);
+    layoutChildren();
+}
+
+/*!
+    \since 6.0
+
+    Shows \a widget beside a scroll bar: at the left or right end of the horizontal one for Qt::AlignLeft or
+    Qt::AlignRight, at the top or bottom of the vertical one for Qt::AlignTop or Qt::AlignBottom, as \a alignment
+    says. The widget takes room from the bar, and is shown while the bar is. The scroll area takes ownership of it.
+*/
+void QAbstractScrollArea::addScrollBarWidget(QWidget *widget, Qt::Alignment alignment) {
+    if (!widget)
+        return;
+    widget->setParent(this);
+    m_barWidgets.push_back({widget, alignment});
+    layoutChildren();
+}
+
+/*!
+    \since 6.0
+
+    Returns the widgets that addScrollBarWidget() added with \a alignment.
+*/
+QWidgetList QAbstractScrollArea::scrollBarWidgets(Qt::Alignment alignment) {
+    QWidgetList list;
+    for (const BarWidget &b : m_barWidgets)
+        if (b.widget && (b.alignment & alignment))
+            list.append(b.widget.data());
+    return list;
+}
+
+/*!
+    \since 6.0
+
+    Returns the largest size the viewport can have: the area inside the frame and the margins, without the scroll
+    bars unless they are always on.
+*/
+QSize QAbstractScrollArea::maximumViewportSize() const {
+    const int extent = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this);
+    const QRect inner = contentsRect();
+    const int w = inner.width() - m_margins.left() - m_margins.right() - (m_vPolicy == Qt::ScrollBarAlwaysOn ? extent : 0);
+    const int h = inner.height() - m_margins.top() - m_margins.bottom() - (m_hPolicy == Qt::ScrollBarAlwaysOn ? extent : 0);
+    return QSize(std::max(0, w), std::max(0, h));
+}
+
+/*!
+    \fn QAbstractScrollArea::SizeAdjustPolicy QAbstractScrollArea::sizeAdjustPolicy() const
+    \since 6.0
+
+    Returns how the size hint follows the contents, AdjustIgnored by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets how the size hint follows the contents to \a policy.
+*/
+void QAbstractScrollArea::setSizeAdjustPolicy(SizeAdjustPolicy policy) {
+    m_sizeAdjust = policy;
+    updateGeometry();
 }
 
 #include "moc_qabstractscrollarea.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

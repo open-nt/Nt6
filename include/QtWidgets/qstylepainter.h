@@ -19,6 +19,7 @@ public:
 
     void drawPrimitive(QStyle::PrimitiveElement element, const QStyleOption &option);
     void drawControl(QStyle::ControlElement element, const QStyleOption &option);
+    void drawComplexControl(QStyle::ComplexControl cc, const QStyleOptionComplex &option);
     void drawItemText(const QRect &rectangle, int flags, const QPalette &palette, bool enabled, const QString &text,
                       QPalette::ColorRole textRole = QPalette::NoRole);
     void drawItemPixmap(const QRect &rectangle, int flags, const QPixmap &pixmap);

@@ -3,9 +3,11 @@
 
 #include <QtCore/qflags.h>
 #include <QtCore/qstringlist.h>
+#include <QtGui/qvalidator.h>
 #include <QtWidgets/qwidget.h>
 
 class QLineEdit;
+class QStyleOptionSpinBox;
 
 class QAbstractSpinBox : public QWidget {
     Q_OBJECT
@@ -14,7 +16,17 @@ class QAbstractSpinBox : public QWidget {
     Q_PROPERTY(QString specialValueText READ specialValueText WRITE setSpecialValueText)
     Q_PROPERTY(QString text READ text)
     Q_PROPERTY(bool keyboardTracking READ keyboardTracking WRITE setKeyboardTracking)
+    Q_PROPERTY(bool frame READ hasFrame WRITE setFrame)
+    Q_PROPERTY(Qt::Alignment alignment READ alignment WRITE setAlignment)
+    Q_PROPERTY(bool accelerated READ isAccelerated WRITE setAccelerated)
+    Q_PROPERTY(CorrectionMode correctionMode READ correctionMode WRITE setCorrectionMode)
+    Q_PROPERTY(bool acceptableInput READ hasAcceptableInput)
+    Q_PROPERTY(bool showGroupSeparator READ isGroupSeparatorShown WRITE setGroupSeparatorShown)
 public:
+    enum CorrectionMode { CorrectToPreviousValue, CorrectToNearestValue };
+    Q_ENUM(CorrectionMode)
+    enum StepType { DefaultStepType, AdaptiveDecimalStepType };
+    Q_ENUM(StepType)
     enum StepEnabledFlag { StepNone = 0x00, StepUpEnabled = 0x01, StepDownEnabled = 0x02 };
     enum ButtonSymbols { UpDownArrows, PlusMinus, NoButtons };
     Q_ENUM(ButtonSymbols)
@@ -35,6 +47,19 @@ public:
     ButtonSymbols buttonSymbols() const { return m_buttonSymbols; }
     void setButtonSymbols(ButtonSymbols bs);
     void interpretText();
+    bool hasFrame() const { return m_frame; }
+    void setFrame(bool frame);
+    Qt::Alignment alignment() const;
+    void setAlignment(Qt::Alignment flag);
+    bool isAccelerated() const { return m_accelerated; }
+    void setAccelerated(bool on) { m_accelerated = on; }
+    CorrectionMode correctionMode() const { return m_correction; }
+    void setCorrectionMode(CorrectionMode cm) { m_correction = cm; }
+    bool hasAcceptableInput() const;
+    bool isGroupSeparatorShown() const { return m_groupSeparator; }
+    void setGroupSeparatorShown(bool shown);
+    virtual QValidator::State validate(QString &input, int &pos) const;
+    virtual void fixup(QString &input) const;
     virtual void stepBy(int steps);
 
     QSize sizeHint() const override;
@@ -52,10 +77,17 @@ signals:
         loses the focus.
     */
     void editingFinished() { emitSignal(&QAbstractSpinBox::editingFinished); }
+    /*!
+        \since 6.0
+        This signal is emitted when Return or Enter is pressed in the spin box.
+    */
+    void returnPressed() { emitSignal(&QAbstractSpinBox::returnPressed); }
 
 protected:
     virtual StepEnabled stepEnabled() const;
     QLineEdit *lineEdit() const { return m_edit; }
+    void setLineEdit(QLineEdit *edit);
+    void initStyleOption(QStyleOptionSpinBox *option) const;
 
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -98,6 +130,11 @@ private:
     bool m_keyboardTracking = true;
     ButtonSymbols m_buttonSymbols = UpDownArrows;
     Button m_pressed = NoButton;
+    bool m_frame = true;
+    bool m_accelerated = false;
+    bool m_groupSeparator = false;
+    CorrectionMode m_correction = CorrectToPreviousValue;
+    void connectEdit();
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QAbstractSpinBox::StepEnabled)

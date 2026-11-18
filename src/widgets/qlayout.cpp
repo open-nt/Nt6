@@ -19,7 +19,9 @@ struct QLayout::Data {
     bool marginsSet = false;
     QMargins margins;
     bool pending = false;
-    QLayout::SizeConstraint constraint = QLayout::SetDefaultConstraint;
+    QLayout::SizeConstraint constraint = QLayout::SetDefaultConstraint;  // horizontal
+    QLayout::SizeConstraint vConstraint = QLayout::SetDefaultConstraint; // vertical
+    bool enabled = true;
     QPointer<QWidget> menuBar; // setMenuBar(): at the top of the widget, above the items
 };
 
@@ -313,6 +315,7 @@ void QLayout::setMenuBar(QWidget *widget) {
 */
 void QLayout::setSizeConstraint(SizeConstraint constraint) {
     m_d->constraint = constraint;
+    m_d->vConstraint = constraint;
     invalidate();
 }
 
@@ -327,26 +330,38 @@ bool QLayout::activate() {
     while (auto *parentLayout = dynamic_cast<QLayout *>(top->parent()))
         top = parentLayout;
     QWidget *w = top->parentWidget();
-    if (!w)
+    if (!w || !top->m_d->enabled)
         return false;
-    switch (top->m_d->constraint) {
-    case SetMinimumSize:
-        w->setMinimumSize(top->minimumSize());
-        break;
-    case SetFixedSize:
-        w->setFixedSize(top->sizeHint());
-        break;
-    case SetMaximumSize:
-        w->setMaximumSize(top->maximumSize());
-        break;
-    case SetMinMaxSize:
-        w->setMinimumSize(top->minimumSize());
-        w->setMaximumSize(top->maximumSize());
-        break;
-    case SetDefaultConstraint:
-    case SetNoConstraint:
-        break;
-    }
+    // The constraints across and down: each sets the minimum and the maximum of the widget in its direction.
+    const auto constrain = [&](SizeConstraint constraint, bool horizontal) {
+        const auto pick = [horizontal](const QSize &s) { return horizontal ? s.width() : s.height(); };
+        QSize minimum = w->minimumSize(), maximum = w->maximumSize();
+        auto setMin = [&](int v) { horizontal ? minimum.setWidth(v) : minimum.setHeight(v); };
+        auto setMax = [&](int v) { horizontal ? maximum.setWidth(v) : maximum.setHeight(v); };
+        switch (constraint) {
+        case SetMinimumSize:
+            setMin(pick(top->totalMinimumSize()));
+            break;
+        case SetFixedSize:
+            setMin(pick(top->totalSizeHint()));
+            setMax(pick(top->totalSizeHint()));
+            break;
+        case SetMaximumSize:
+            setMax(pick(top->totalMaximumSize()));
+            break;
+        case SetMinMaxSize:
+            setMin(pick(top->totalMinimumSize()));
+            setMax(pick(top->totalMaximumSize()));
+            break;
+        case SetDefaultConstraint:
+        case SetNoConstraint:
+            return;
+        }
+        w->setMinimumSize(minimum);
+        w->setMaximumSize(maximum);
+    };
+    constrain(top->m_d->constraint, true);
+    constrain(top->m_d->vConstraint, false);
     QRect area = w->QWidget::contentsRect();
     if (QWidget *bar = top->m_d->menuBar.data(); bar && !bar->isHidden()) {
         const int height = bar->sizeHint().height();
@@ -425,5 +440,281 @@ Qt::Orientations QLayout::expandingDirections() const {
             o |= itemAt(i)->expandingDirections();
     return o;
 }
+
+/*!
+    \since 6.0
+
+    Returns the constraint on the width of the widget.
+*/
+QLayout::SizeConstraint QLayout::horizontalSizeConstraint() const { return m_d->constraint; }
+
+/*!
+    \since 6.0
+
+    Sets the constraint on the width of the widget to \a constraint.
+*/
+void QLayout::setHorizontalSizeConstraint(SizeConstraint constraint) {
+    m_d->constraint = constraint;
+    invalidate();
+}
+
+/*!
+    \since 6.0
+
+    Returns the constraint on the height of the widget.
+*/
+QLayout::SizeConstraint QLayout::verticalSizeConstraint() const { return m_d->vConstraint; }
+
+/*!
+    \since 6.0
+
+    Sets the constraint on the height of the widget to \a constraint.
+*/
+void QLayout::setVerticalSizeConstraint(SizeConstraint constraint) {
+    m_d->vConstraint = constraint;
+    invalidate();
+}
+
+/*!
+    \since 6.0
+
+    Sets the constraints on the width and the height of the widget to \a horizontal and \a vertical.
+*/
+void QLayout::setSizeConstraints(SizeConstraint horizontal, SizeConstraint vertical) {
+    m_d->constraint = horizontal;
+    m_d->vConstraint = vertical;
+    invalidate();
+}
+
+/*!
+    \since 6.0
+
+    Returns \c true if the layout places its items. The default is \c true.
+*/
+bool QLayout::isEnabled() const { return m_d->enabled; }
+
+/*!
+    \since 6.0
+
+    Makes the layout place its items if \a enable is \c true; a disabled layout leaves them where they are.
+*/
+void QLayout::setEnabled(bool enable) { m_d->enabled = enable; }
+
+/*!
+    \since 6.0
+
+    Puts the contents margins in \a left, \a top, \a right and \a bottom, any of which may be \c nullptr.
+*/
+void QLayout::getContentsMargins(int *left, int *top, int *right, int *bottom) const {
+    const QMargins m = contentsMargins();
+    if (left)
+        *left = m.left();
+    if (top)
+        *top = m.top();
+    if (right)
+        *right = m.right();
+    if (bottom)
+        *bottom = m.bottom();
+}
+
+/*!
+    \since 6.0
+
+    Goes back to the contents margins of the style.
+*/
+void QLayout::unsetContentsMargins() {
+    m_d->marginsSet = false;
+    invalidate();
+}
+
+QLayoutItem *QLayout::replaceAt(int index, QLayoutItem *item) {
+    (void)index;
+    (void)item;
+    return nullptr;
+}
+
+/*!
+    \since 6.0
+
+    Puts \a to in the place of \a from in the layout, or in a layout in it with Qt::FindChildrenRecursively in
+    \a options, and returns the item of \a from, which the caller owns; \a from is left as it is. Returns
+    \c nullptr if \a from is not found.
+*/
+QLayoutItem *QLayout::replaceWidget(QWidget *from, QWidget *to, Qt::FindChildOptions options) {
+    if (!from || !to)
+        return nullptr;
+    for (int i = 0; i < count(); ++i) {
+        QLayoutItem *item = itemAt(i);
+        if (!item)
+            continue;
+        if (item->widget() == from) {
+            auto *replacement = new QWidgetItem(to);
+            replacement->setAlignment(item->alignment());
+            QLayoutItem *old = replaceAt(i, replacement);
+            if (!old) {
+                delete replacement;
+                return nullptr;
+            }
+            addChildWidget(to);
+            invalidate();
+            return old;
+        }
+        if ((options & Qt::FindChildrenRecursively) && item->layout())
+            if (QLayoutItem *found = item->layout()->replaceWidget(from, to, options))
+                return found;
+    }
+    return nullptr;
+}
+
+QSize QLayout::addTotalMargins(const QSize &size) const {
+    QSize s = size;
+    if (QWidget *w = parentWidget()) {
+        const QMargins m = w->contentsMargins();
+        s += QSize(m.left() + m.right(), m.top() + m.bottom());
+    }
+    if (QWidget *bar = m_d->menuBar.data(); bar && !bar->isHidden())
+        s.setHeight(s.height() + bar->sizeHint().height());
+    return s;
+}
+
+/*!
+    \since 6.0
+
+    Returns the size hint of the layout with the contents margins of its widget and its menu bar.
+*/
+QSize QLayout::totalSizeHint() const { return addTotalMargins(sizeHint()); }
+
+/*!
+    \since 6.0
+
+    Returns the minimum size of the layout with the contents margins of its widget and its menu bar.
+*/
+QSize QLayout::totalMinimumSize() const { return addTotalMargins(minimumSize()); }
+
+/*!
+    \since 6.0
+
+    Returns the maximum size of the layout with the contents margins of its widget and its menu bar.
+*/
+QSize QLayout::totalMaximumSize() const {
+    const QSize s = addTotalMargins(maximumSize());
+    return QSize(std::min(s.width(), QLAYOUTSIZE_MAX), std::min(s.height(), QLAYOUTSIZE_MAX));
+}
+
+/*!
+    \since 6.0
+
+    Returns the preferred height at the width \a w, with the margins, or -1 if the layout has no height for width.
+*/
+int QLayout::totalHeightForWidth(int w) const {
+    const int h = heightForWidth(w);
+    return h < 0 ? -1 : addTotalMargins(QSize(0, h)).height();
+}
+
+/*!
+    \since 6.0
+
+    Returns the smallest height at the width \a w, with the margins, or -1 if the layout has no height for width.
+*/
+int QLayout::totalMinimumHeightForWidth(int w) const {
+    const int h = minimumHeightForWidth(w);
+    return h < 0 ? -1 : addTotalMargins(QSize(0, h)).height();
+}
+
+/*!
+    \reimp
+
+    Returns the kinds of control of the items of the layout.
+*/
+QSizePolicy::ControlTypes QLayout::controlTypes() const {
+    QSizePolicy::ControlTypes types;
+    for (int i = 0; i < count(); ++i)
+        if (const QLayoutItem *item = itemAt(i))
+            types |= item->controlTypes();
+    return types ? types : QSizePolicy::ControlTypes(QSizePolicy::DefaultType);
+}
+
+/*!
+    \since 6.0
+
+    Returns \a size brought between the minimum and the maximum size of \a widget, and no smaller than its minimum
+    size hint where it has no minimum size.
+*/
+QSize QLayout::closestAcceptableSize(const QWidget *widget, const QSize &size) {
+    if (!widget)
+        return size;
+    QSize minimum = widget->minimumSize();
+    const QSize hint = widget->minimumSizeHint();
+    if (minimum.width() <= 0)
+        minimum.setWidth(std::max(0, hint.width()));
+    if (minimum.height() <= 0)
+        minimum.setHeight(std::max(0, hint.height()));
+    const QSize maximum = widget->maximumSize();
+    return QSize(std::clamp(size.width(), minimum.width(), std::max(minimum.width(), maximum.width())),
+                 std::clamp(size.height(), minimum.height(), std::max(minimum.height(), maximum.height())));
+}
+
+/*!
+    \since 6.0
+
+    Makes \a l a child layout of this one, and the widgets in it children of the widget of this layout. A subclass
+    calls it when it adds a layout.
+*/
+void QLayout::addChildLayout(QLayout *l) {
+    if (!l)
+        return;
+    l->setParent(this);
+    reparentChildWidgets();
+    invalidate();
+}
+
+/*!
+    \since 6.0
+
+    Adopts \a layout as addChildLayout() does, and returns \c true, unless it has a parent already.
+*/
+bool QLayout::adoptLayout(QLayout *layout) {
+    if (!layout || layout->parent())
+        return false;
+    addChildLayout(layout);
+    return true;
+}
+
+/*!
+    \since 6.0
+
+    Returns the part of \a r that the layout takes when it has an alignment: its size hint, placed in \a r as the
+    alignment says. Without an alignment it is \a r.
+*/
+QRect QLayout::alignmentRect(const QRect &r) const {
+    const Qt::Alignment a = alignment();
+    if (!a)
+        return r;
+    const QSize hint = sizeHint().boundedTo(r.size());
+    QSize size = r.size();
+    if (a & Qt::AlignHorizontal_Mask)
+        size.setWidth(hint.width());
+    if (a & Qt::AlignVertical_Mask)
+        size.setHeight(hint.height());
+    int x = r.left();
+    int y = r.top();
+    if (a & Qt::AlignRight)
+        x = r.right() + 1 - size.width();
+    else if (a & Qt::AlignHCenter)
+        x = r.left() + (r.width() - size.width()) / 2;
+    if (a & Qt::AlignBottom)
+        y = r.bottom() + 1 - size.height();
+    else if (a & Qt::AlignVCenter)
+        y = r.top() + (r.height() - size.height()) / 2;
+    return QRect(QPoint(x, y), size);
+}
+
+/*!
+    \since 6.0
+
+    Handles \a event of the widget of the layout. Nt widgets tell their layouts of resizes themselves, so this does
+    nothing.
+*/
+void QLayout::widgetEvent(QEvent *event) { (void)event; }
 
 #include "moc_qlayout.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

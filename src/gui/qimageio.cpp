@@ -85,6 +85,27 @@ const char *NtImageCodecs::formatOf(const uchar *data, std::size_t size) {
 
 QImage NtImageCodecs::decodeAny(const uchar *data, std::size_t size) { return decode(data, size); }
 
+const char *NtImageCodecs::writableFormat(const QByteArray &name) {
+    switch (kindOfName(QString::fromLatin1(name))) {
+    case Kind::Bmp:
+        return "bmp";
+#ifdef NT_HAVE_ZLIB
+    case Kind::Png:
+        return "png";
+#endif
+#ifdef NT_HAVE_JPEG
+    case Kind::Jpeg:
+        return "jpeg";
+#endif
+    default:
+        return nullptr;
+    }
+}
+
+bool NtImageCodecs::encode(const QImage &image, const QByteArray &name, int quality, QByteArray *out) {
+    return !image.isNull() && ::encode(image, kindOfName(QString::fromLatin1(name)), quality, out);
+}
+
 /*!
     Constructs an image from the file \a fileName. If the file cannot be read or is not an image that Nt knows, the
     image is null.

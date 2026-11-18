@@ -49,6 +49,14 @@ public slots:
     void setCancelButtonText(const QString &text);
     void setMinimumDuration(int ms);
 
+public:
+    void setBar(QProgressBar *bar);
+    void setCancelButton(QPushButton *cancelButton);
+    void setLabel(QLabel *label);
+
+protected slots:
+    void forceShow();
+
 signals:
     /*!
         This signal is emitted when the user clicks Cancel, presses Escape or closes the window. It is connected to
@@ -62,7 +70,6 @@ protected:
 
 private:
     void init(const QString &labelText, const QString &cancelText, int minimum, int maximum);
-    void forceShow();
 
     QLabel *m_label = nullptr;
     QProgressBar *m_bar = nullptr;

@@ -3,11 +3,15 @@
 
 #include <QtWidgets/qwidget.h>
 
+class QStyleOptionGroupBox;
+
 class QGroupBox : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QString title READ title WRITE setTitle)
     Q_PROPERTY(bool checkable READ isCheckable WRITE setCheckable)
     Q_PROPERTY(bool checked READ isChecked WRITE setChecked NOTIFY toggled)
+    Q_PROPERTY(Qt::Alignment alignment READ alignment WRITE setAlignment)
+    Q_PROPERTY(bool flat READ isFlat WRITE setFlat)
 public:
     explicit QGroupBox(QWidget *parent = nullptr);
     explicit QGroupBox(const QString &title, QWidget *parent = nullptr);
@@ -18,6 +22,10 @@ public:
     bool isCheckable() const { return m_checkable; }
     void setCheckable(bool checkable);
     bool isChecked() const { return m_checked; }
+    Qt::Alignment alignment() const { return m_alignment; }
+    void setAlignment(int alignment);
+    bool isFlat() const { return m_flat; }
+    void setFlat(bool flat);
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -37,6 +45,7 @@ signals:
     void clicked(bool checked = false) { emitSignal(&QGroupBox::clicked, checked); }
 
 protected:
+    void initStyleOption(QStyleOptionGroupBox *option) const;
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
@@ -51,4 +60,6 @@ private:
     bool m_checkable = false;
     bool m_checked = true;
     bool m_down = false;
+    Qt::Alignment m_alignment = Qt::AlignLeft;
+    bool m_flat = false;
 };

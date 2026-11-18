@@ -564,6 +564,7 @@ add_library(NtGui
     src/gui/qimagejpeg.cpp
     src/gui/qimagepng.cpp
     src/gui/qimagereader.cpp
+    src/gui/qimagewriter.cpp
     src/gui/qkeysequence.cpp
     src/gui/qmatrix4x4.cpp
     src/gui/qoffscreensurface.cpp

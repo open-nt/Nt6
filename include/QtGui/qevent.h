@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qvariant.h>
+
 #include <QtCore/qcoreevent.h>
 #include <QtCore/qlist.h>
 #include <QtCore/qnamespace.h>
@@ -529,4 +531,39 @@ private:
     QKeySequence m_key;
     int m_id;
     bool m_ambiguous;
+};
+
+class QInputMethodEvent : public QEvent {
+public:
+    enum AttributeType { TextFormat, Cursor, Language, Ruby, Selection, MimeData };
+
+    class Attribute {
+    public:
+        Attribute(AttributeType typ, int s, int l, QVariant val)
+            : type(typ), start(s), length(l), value(std::move(val)) {}
+        Attribute(AttributeType typ, int s, int l) : type(typ), start(s), length(l) {}
+
+        AttributeType type;
+        int start;
+        int length;
+        QVariant value;
+    };
+
+    QInputMethodEvent();
+    QInputMethodEvent(const QString &preeditText, const QList<Attribute> &attributes);
+    ~QInputMethodEvent() override;
+
+    void setCommitString(const QString &commitString, int replaceFrom = 0, int replaceLength = 0);
+    const QList<Attribute> &attributes() const { return m_attributes; }
+    const QString &preeditString() const { return m_preedit; }
+    const QString &commitString() const { return m_commit; }
+    int replacementStart() const { return m_replaceFrom; }
+    int replacementLength() const { return m_replaceLength; }
+
+private:
+    QString m_preedit;
+    QList<Attribute> m_attributes;
+    QString m_commit;
+    int m_replaceFrom = 0;
+    int m_replaceLength = 0;
 };

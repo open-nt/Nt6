@@ -1,7 +1,11 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qpointer.h>
 #include <QtWidgets/qabstractbutton.h>
+
+class QMenu;
+class QStyleOptionButton;
 
 class QPushButton : public QAbstractButton {
     Q_OBJECT
@@ -19,9 +23,15 @@ public:
     void setAutoDefault(bool enable);
     bool isDefault() const { return m_default; }
     void setDefault(bool enable);
+    QMenu *menu() const;
+    void setMenu(QMenu *menu);
     QSize sizeHint() const override;
 
+public slots:
+    void showMenu();
+
 protected:
+    void initStyleOption(QStyleOptionButton *option) const;
     void paintEvent(QPaintEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void focusInEvent(QFocusEvent *event) override;
@@ -33,4 +43,6 @@ private:
     bool m_flat = false;
     bool m_default = false;
     AutoDefault m_autoDefault = AutoDefault::Auto;
+    QPointer<QWidget> m_menu; // a QMenu
+    QMetaObject::Connection m_menuConnection;
 };

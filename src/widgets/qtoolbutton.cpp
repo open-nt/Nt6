@@ -4,6 +4,7 @@
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qstyle.h>
+#include <QtWidgets/qmenu.h>
 #include <QtWidgets/qstyleoption.h>
 
 /*!
@@ -40,6 +41,13 @@
 */
 QToolButton::QToolButton(QWidget *parent) : QAbstractButton(parent) {
     setFocusPolicy(Qt::TabFocus);
+    m_popupTimer.setSingleShot(true);
+    m_popupTimer.setInterval(600);
+    QObject::connect(&m_popupTimer, &QTimer::timeout, this, [this] {
+        if (isDown())
+            showMenu();
+    });
+    QObject::connect(this, &QAbstractButton::released, this, [this] { m_popupTimer.stop(); });
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
     // A click triggers the default action, which then sets the checked state of the button.
     QObject::connect(this, &QAbstractButton::clicked, this, [this] {
@@ -215,6 +223,13 @@ void QToolButton::paintEvent(QPaintEvent *event) {
     const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
     const bool pressed = option.state & (QStyle::State_Sunken | QStyle::State_On);
     QRect content = rect();
+    if (activeMenu() && m_popupMode == MenuButtonPopup) {
+        // The part at the right that opens the menu, with its arrow.
+        QStyleOption arrow = option;
+        arrow.rect = menuArrowRect().adjusted(2, 0, -2, 0);
+        style()->drawPrimitive(QStyle::PE_IndicatorArrowDown, &arrow, &painter, this);
+        content.setRight(menuArrowRect().left() - 1);
+    }
     if (pressed)
         content.translate(0, 1);
     if (m_arrow != Qt::NoArrow) {
@@ -261,6 +276,137 @@ void QToolButton::paintEvent(QPaintEvent *event) {
         painter.setPen(palette().color(group, QPalette::ButtonText));
         painter.drawText(content, Qt::AlignCenter | Qt::TextSingleLine, text());
     }
+}
+
+/*!
+    \enum QToolButton::ToolButtonPopupMode
+    \since 6.0
+
+    How the button opens its menu.
+
+    \value DelayedPopup When the button is held down for a moment; a click triggers the button.
+    \value MenuButtonPopup With an arrow at the right of the button, which opens the menu.
+    \value InstantPopup When the button is pressed; the button is not triggered.
+*/
+
+QMenu *QToolButton::activeMenu() const {
+    if (m_menu)
+        return static_cast<QMenu *>(m_menu.data());
+    return m_defaultAction ? m_defaultAction->menu<QMenu *>() : nullptr;
+}
+
+QRect QToolButton::menuArrowRect() const {
+    const int width = std::min(14, this->width() / 2);
+    return QRect(this->width() - width, 0, width, height());
+}
+
+/*!
+    \since 6.0
+
+    Returns the menu of the button, or \c nullptr.
+*/
+QMenu *QToolButton::menu() const { return static_cast<QMenu *>(m_menu.data()); }
+
+/*!
+    \since 6.0
+
+    Makes the button open \a menu as popupMode() says; \c nullptr removes it. The button does not take ownership of
+    the menu. Without a menu of its own, the button opens the menu of its default action.
+*/
+void QToolButton::setMenu(QMenu *menu) {
+    m_menu = menu;
+    updateGeometry();
+    update();
+}
+
+/*!
+    \fn QToolButton::ToolButtonPopupMode QToolButton::popupMode() const
+    \since 6.0
+
+    Returns how the button opens its menu, DelayedPopup by default.
+*/
+
+/*!
+    \since 6.0
+
+    Sets how the button opens its menu to \a mode.
+*/
+void QToolButton::setPopupMode(ToolButtonPopupMode mode) {
+    m_popupMode = mode;
+    updateGeometry();
+    update();
+}
+
+/*!
+    \since 6.0
+
+    Opens the menu of the button below it. The button stays down while the menu is open.
+*/
+void QToolButton::showMenu() {
+    QMenu *m = activeMenu();
+    if (!m)
+        return;
+    m_popupTimer.stop();
+    setDown(true);
+    QPointer<QToolButton> guard(this);
+    QObject::connect(m, &QMenu::aboutToHide, this, [guard] {
+        if (guard)
+            guard->setDown(false);
+    }, Qt::SingleShotConnection);
+    QObject::connect(m, &QMenu::triggered, this, [this](QAction *action) { emit triggered(action); },
+                     Qt::SingleShotConnection);
+    m->popup(mapToGlobal(QPoint(0, height())));
+}
+
+/*!
+    \reimp
+
+    With a menu, InstantPopup opens it at once, MenuButtonPopup when the press is on the arrow, and DelayedPopup
+    when the button is held down.
+*/
+void QToolButton::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && activeMenu()) {
+        if (m_popupMode == InstantPopup ||
+            (m_popupMode == MenuButtonPopup && menuArrowRect().contains(event->pos()))) {
+            showMenu();
+            event->accept();
+            return;
+        }
+        if (m_popupMode == DelayedPopup)
+            m_popupTimer.start();
+    }
+    QAbstractButton::mousePressEvent(event);
+}
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the button, for the style to draw it.
+*/
+void QToolButton::initStyleOption(QStyleOptionToolButton *option) const {
+    if (!option)
+        return;
+    option->initFrom(this);
+    option->text = text();
+    option->icon = icon();
+    option->iconSize = iconSize();
+    option->arrowType = m_arrow;
+    option->toolButtonStyle = m_style;
+    option->font = font();
+    if (m_arrow != Qt::NoArrow)
+        option->features |= QStyleOptionToolButton::Arrow;
+    if (activeMenu()) {
+        option->features |= QStyleOptionToolButton::HasMenu;
+        if (m_popupMode == MenuButtonPopup)
+            option->features |= QStyleOptionToolButton::MenuButtonPopup;
+        else if (m_popupMode == DelayedPopup)
+            option->features |= QStyleOptionToolButton::PopupDelay;
+    }
+    option->state |= isDown() ? QStyle::State_Sunken : QStyle::State_Raised;
+    if (isChecked())
+        option->state |= QStyle::State_On;
+    if (m_autoRaise)
+        option->state |= QStyle::State_AutoRaise;
 }
 
 #include "moc_qtoolbutton.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

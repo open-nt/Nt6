@@ -51,6 +51,8 @@ public:
     void setWidget(int row, ItemRole role, QWidget *widget);
     void setLayout(int row, ItemRole role, QLayout *layout);
     QLayoutItem *itemAt(int row, ItemRole role) const;
+    void setItem(int row, ItemRole role, QLayoutItem *item);
+    void getItemPosition(int index, int *rowPtr, ItemRole *rolePtr) const;
     void getWidgetPosition(QWidget *widget, int *row, ItemRole *role) const;
     void getLayoutPosition(QLayout *layout, int *row, ItemRole *role) const;
     QWidget *labelForField(QWidget *field) const;
@@ -104,4 +106,6 @@ private:
     Qt::Alignment m_formAlignment = Qt::AlignLeft | Qt::AlignTop;
     int m_horizontalSpacing = -1;
     int m_verticalSpacing = -1;
+    QLayoutItem *replaceAt(int index, QLayoutItem *item) override;
+    void dump() const;
 };

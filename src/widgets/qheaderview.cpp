@@ -197,6 +197,8 @@ void QHeaderView::moveSection(int from, int to) {
     const int n = count();
     if (from < 0 || to < 0 || from >= n || to >= n || from == to)
         return;
+    if (!m_firstMovable && (from == 0 || to == 0))
+        return;
     const int section = m_order[static_cast<std::size_t>(from)];
     m_order.erase(m_order.begin() + from);
     m_order.insert(m_order.begin() + to, section);
@@ -305,7 +307,7 @@ bool QHeaderView::restoreState(const QByteArray &state) {
 void QHeaderView::resizeSection(int logicalIndex, int size) {
     if (logicalIndex < 0 || logicalIndex >= count())
         return;
-    size = std::max(size, m_minimumSize);
+    size = std::clamp(size, m_minimumSize, std::max(m_minimumSize, m_maximumSize));
     const int old = storedSize(logicalIndex);
     if (old == size)
         return;
@@ -559,6 +561,7 @@ std::vector<int> QHeaderView::contentsSections() const {
 
 void QHeaderView::setCount(int newCount) {
     newCount = std::max(0, newCount);
+    const int oldCount = count();
     m_order.erase(std::remove_if(m_order.begin(), m_order.end(), [newCount](int i) { return i >= newCount; }),
                   m_order.end());
     for (int i = count(); i < newCount; ++i)
@@ -568,6 +571,10 @@ void QHeaderView::setCount(int newCount) {
     m_modes.resize(static_cast<std::size_t>(newCount), static_cast<char>(m_defaultMode));
     updateGeometry();
     update();
+    if (oldCount != newCount) {
+        emit sectionCountChanged(oldCount, newCount);
+        emit geometriesChanged();
+    }
 }
 
 void QHeaderView::insertSections(int logicalIndex, int number) {
@@ -662,24 +669,13 @@ void QHeaderView::paintEvent(QPaintEvent *event) {
     const bool horizontal = m_orientation == Qt::Horizontal;
     const int extent = horizontal ? width() : height();
     QStyleOptionHeader option;
-    option.initFrom(this);
-    option.orientation = m_orientation;
+    initStyleOption(&option);
     int start = -m_offset;
     for (int v = 0; v < count() && start < extent; ++v) {
         const int i = logicalIndex(v);
         const int size = sectionSize(i);
-        if (size > 0 && start + size > 0) {
-            option.rect = horizontal ? QRect(start, 0, size, height()) : QRect(0, start, width(), size);
-            option.text = labelAt(i);
-            option.lastSection = false;
-            option.sortIndicator = !m_sortShown || i != m_sortSection  ? QStyleOptionHeader::None
-                                   : m_sortOrder == Qt::AscendingOrder ? QStyleOptionHeader::SortDown
-                                                                       : QStyleOptionHeader::SortUp;
-            option.state &= ~QStyle::State(QStyle::State_Sunken);
-            if (i == m_pressed)
-                option.state |= QStyle::State_Sunken;
-            style()->drawControl(QStyle::CE_Header, &option, &painter, this);
-        }
+        if (size > 0 && start + size > 0)
+            paintSection(&painter, horizontal ? QRect(start, 0, size, height()) : QRect(0, start, width(), size), i);
         start += size;
     }
     // What is left after the last section looks like an empty section
@@ -709,8 +705,11 @@ void QHeaderView::mousePressEvent(QMouseEvent *event) {
     } else if (m_clickable || m_movable) {
         m_pressPosition = m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y();
         m_pressed = logicalIndexAt(m_pressPosition);
+        m_entered = m_pressed;
         m_moving = false;
         update();
+        if (m_pressed >= 0)
+            emit sectionPressed(m_pressed);
     }
     event->accept();
 }
@@ -720,6 +719,13 @@ void QHeaderView::mousePressEvent(QMouseEvent *event) {
 */
 void QHeaderView::mouseMoveEvent(QMouseEvent *event) {
     const int at = m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y();
+    if (m_pressed >= 0 && (event->buttons() & Qt::LeftButton)) {
+        const int over = logicalIndexAt(at);
+        if (over >= 0 && over != m_entered) {
+            m_entered = over;
+            emit sectionEntered(over);
+        }
+    }
     if (m_resizing < 0 && m_movable && m_pressed >= 0 && (event->buttons() & Qt::LeftButton)) {
         // A pressed section that is dragged far enough is moved where it is released.
         if (std::abs(at - m_pressPosition) > 4)
@@ -762,9 +768,13 @@ void QHeaderView::mouseReleaseEvent(QMouseEvent *event) {
         pressed == logicalIndexAt(m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y())) {
         // A click on the section that is sorted by turns the order round; on another one, sorts by that one.
         if (m_sortShown && m_clickable) {
-            setSortIndicator(pressed, pressed == m_sortSection && m_sortOrder == Qt::AscendingOrder
-                                          ? Qt::DescendingOrder
-                                          : Qt::AscendingOrder);
+            // Ascending, descending, and with a clearable indicator no sorting, then ascending again.
+            if (m_sortClearable && pressed == m_sortSection && m_sortOrder == Qt::DescendingOrder)
+                setSortIndicator(-1, Qt::AscendingOrder);
+            else
+                setSortIndicator(pressed, pressed == m_sortSection && m_sortOrder == Qt::AscendingOrder
+                                              ? Qt::DescendingOrder
+                                              : Qt::AscendingOrder);
         }
         emit sectionClicked(pressed);
     }
@@ -855,6 +865,435 @@ bool QHeaderView::event(QEvent *event) {
         return true;
     }
     return QWidget::event(event);
+}
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the header, for the style to draw it.
+*/
+void QHeaderView::initStyleOption(QStyleOptionHeader *option) const {
+    if (!option)
+        return;
+    option->initFrom(this);
+    option->orientation = m_orientation;
+    option->textAlignment = m_alignment;
+}
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the section \a logicalIndex, for the style to draw it.
+*/
+void QHeaderView::initStyleOptionForIndex(QStyleOptionHeader *option, int logicalIndex) const {
+    if (!option)
+        return;
+    option->section = logicalIndex;
+    option->text = labelAt(logicalIndex);
+    option->textAlignment = m_alignment;
+    option->lastSection = false;
+    const int v = visualIndex(logicalIndex);
+    option->position = count() == 1 ? QStyleOptionHeader::OnlyOneSection
+                       : v == 0     ? QStyleOptionHeader::Beginning
+                       : v == count() - 1 ? QStyleOptionHeader::End
+                                          : QStyleOptionHeader::Middle;
+    option->sortIndicator = !m_sortShown || logicalIndex != m_sortSection ? QStyleOptionHeader::None
+                            : m_sortOrder == Qt::AscendingOrder           ? QStyleOptionHeader::SortDown
+                                                                          : QStyleOptionHeader::SortUp;
+    option->state &= ~QStyle::State(QStyle::State_Sunken);
+    if (logicalIndex == m_pressed)
+        option->state |= QStyle::State_Sunken;
+}
+
+/*!
+    \since 6.0
+
+    Draws the section \a logicalIndex in \a rect with \a painter. Reimplement it to draw sections of your own.
+*/
+void QHeaderView::paintSection(QPainter *painter, const QRect &rect, int logicalIndex) const {
+    QStyleOptionHeader option;
+    initStyleOption(&option);
+    option.rect = rect;
+    initStyleOptionForIndex(&option, logicalIndex);
+    style()->drawControl(QStyle::CE_Header, &option, painter, this);
+}
+
+/*!
+    \since 6.0
+
+    Returns the size that the label of the section \a logicalIndex needs, with the margins and the sort indicator.
+*/
+QSize QHeaderView::sectionSizeFromContents(int logicalIndex) const {
+    const QFontMetrics fm = fontMetrics();
+    const int margin = style()->pixelMetric(QStyle::PM_HeaderMargin, nullptr, this);
+    int width = fm.horizontalAdvance(labelAt(logicalIndex)) + 2 * margin;
+    if (m_sortShown)
+        width += style()->pixelMetric(QStyle::PM_HeaderMarkSize, nullptr, this) + margin;
+    const QSize size(width, fm.height() + 2 * margin);
+    return m_orientation == Qt::Horizontal ? size : size.transposed();
+}
+
+/*!
+    \since 6.0
+
+    Returns the size that the section \a logicalIndex wants along the header, or -1 for a hidden section.
+*/
+int QHeaderView::sectionSizeHint(int logicalIndex) const {
+    if (logicalIndex < 0 || logicalIndex >= count() || isSectionHidden(logicalIndex))
+        return -1;
+    const QSize s = sectionSizeFromContents(logicalIndex);
+    return std::max(m_minimumSize, m_orientation == Qt::Horizontal ? s.width() : s.height());
+}
+
+/*!
+    \since 6.0
+
+    Returns where the section \a logicalIndex starts on the header, as it is scrolled.
+*/
+int QHeaderView::sectionViewportPosition(int logicalIndex) const {
+    if (logicalIndex < 0 || logicalIndex >= count())
+        return -1;
+    return sectionPosition(logicalIndex) - m_offset;
+}
+
+/*!
+    \since 6.0
+
+    Returns the visual index of the section at \a position on the header, or -1.
+*/
+int QHeaderView::visualIndexAt(int position) const {
+    const int logical = logicalIndexAt(position);
+    return logical < 0 ? -1 : visualIndex(logical);
+}
+
+/*!
+    \since 6.0
+
+    Swaps the sections at the visual indexes \a first and \a second.
+*/
+void QHeaderView::swapSections(int first, int second) {
+    if (first == second || first < 0 || second < 0 || first >= count() || second >= count())
+        return;
+    std::swap(m_order[static_cast<std::size_t>(first)], m_order[static_cast<std::size_t>(second)]);
+    update();
+    emit sectionMoved(m_order[static_cast<std::size_t>(first)], second, first);
+    emit sectionMoved(m_order[static_cast<std::size_t>(second)], first, second);
+    emit sectionResized(m_order[static_cast<std::size_t>(first)], storedSize(m_order[static_cast<std::size_t>(first)]),
+                        storedSize(m_order[static_cast<std::size_t>(first)]));
+}
+
+/*!
+    \fn int QHeaderView::maximumSectionSize() const
+    \since 6.0
+
+    Returns the largest size of a section.
+*/
+
+/*!
+    \since 6.0
+
+    Sets the largest size of a section to \a size; larger sections are made smaller.
+*/
+void QHeaderView::setMaximumSectionSize(int size) {
+    m_maximumSize = std::max(0, size);
+    for (int i = 0; i < count(); ++i)
+        if (storedSize(i) > m_maximumSize)
+            resizeSection(i, m_maximumSize);
+}
+
+/*!
+    \since 6.0
+
+    Sets the default section size back to that of the style.
+*/
+void QHeaderView::resetDefaultSectionSize() { setDefaultSectionSize(m_orientation == Qt::Horizontal ? 100 : 30); }
+
+/*!
+    \fn Qt::Alignment QHeaderView::defaultAlignment() const
+    \since 6.0
+
+    Returns the alignment of the labels, Qt::AlignCenter by default.
+*/
+
+/*!
+    \since 6.0
+
+    Aligns the labels to \a alignment.
+*/
+void QHeaderView::setDefaultAlignment(Qt::Alignment alignment) {
+    m_alignment = alignment;
+    update();
+}
+
+/*!
+    \fn bool QHeaderView::highlightSections() const
+    \since 6.0
+
+    Returns whether the sections of selected items are highlighted. Nt keeps the value.
+*/
+
+/*!
+    \fn void QHeaderView::setHighlightSections(bool highlight)
+    \since 6.0
+
+    Sets whether the sections of selected items are highlighted to \a highlight.
+*/
+
+/*!
+    \fn bool QHeaderView::cascadingSectionResizes() const
+    \since 6.0
+
+    Returns whether resizing a section below its minimum resizes the sections before it. Nt keeps the value.
+*/
+
+/*!
+    \fn void QHeaderView::setCascadingSectionResizes(bool enable)
+    \since 6.0
+
+    Sets whether resizing a section cascades to the sections before it to \a enable.
+*/
+
+/*!
+    \fn bool QHeaderView::isFirstSectionMovable() const
+    \since 6.0
+
+    Returns whether the first section can be moved, when the sections can be. The default is \c true.
+*/
+
+/*!
+    \fn void QHeaderView::setFirstSectionMovable(bool movable)
+    \since 6.0
+
+    Sets whether the first section can be moved to \a movable; with \c false, no section moves to or from the
+    first place.
+*/
+
+/*!
+    \fn bool QHeaderView::isSortIndicatorClearable() const
+    \since 6.0
+
+    Returns whether a third click on the sorted section clears the sort indicator. The default is \c false.
+*/
+
+/*!
+    \since 6.0
+
+    Makes a third click on the sorted section clear the sort indicator if \a clearable is \c true.
+*/
+void QHeaderView::setSortIndicatorClearable(bool clearable) {
+    if (m_sortClearable == clearable)
+        return;
+    m_sortClearable = clearable;
+    emit sortIndicatorClearableChanged(clearable);
+}
+
+/*!
+    \fn int QHeaderView::resizeContentsPrecision() const
+    \since 6.0
+
+    Returns how many rows or columns are measured to size a section to its contents. Nt keeps the value.
+*/
+
+/*!
+    \fn void QHeaderView::setResizeContentsPrecision(int precision)
+    \since 6.0
+
+    Sets how many rows or columns are measured to size a section to its contents to \a precision.
+*/
+
+/*!
+    \since 6.0
+
+    Resizes the sections as \a mode says: to their size hints for ResizeToContents, to share the room for
+    Stretch. Interactive and Fixed leave them.
+*/
+void QHeaderView::resizeSections(QHeaderView::ResizeMode mode) {
+    if (mode == ResizeToContents) {
+        for (int i = 0; i < count(); ++i)
+            if (!isSectionHidden(i))
+                resizeSection(i, sectionSizeHint(i));
+    } else if (mode == Stretch) {
+        const int visible = count() - hiddenSectionCount();
+        const int room = m_orientation == Qt::Horizontal ? width() : height();
+        if (visible > 0)
+            for (int i = 0; i < count(); ++i)
+                if (!isSectionHidden(i))
+                    resizeSection(i, room / visible);
+    }
+}
+
+/*!
+    \since 6.0
+    \overload
+
+    Resizes the sections as their resize modes say.
+*/
+void QHeaderView::resizeSections() {
+    for (int i = 0; i < count(); ++i)
+        if (!isSectionHidden(i) && sectionResizeMode(i) == ResizeToContents)
+            resizeSection(i, sectionSizeHint(i));
+    update();
+}
+
+/*!
+    \fn bool QHeaderView::sectionsHidden() const
+    \since 6.0
+
+    Returns \c true if a section is hidden.
+*/
+
+/*!
+    \since 6.0
+
+    Scrolls the header so that the section at the visual index \a visualSectionNumber is at its start.
+*/
+void QHeaderView::setOffsetToSectionPosition(int visualSectionNumber) {
+    if (visualSectionNumber < 0 || visualSectionNumber >= count())
+        return;
+    setOffset(sectionPosition(logicalIndex(visualSectionNumber)));
+}
+
+/*!
+    \since 6.0
+
+    Scrolls the header so that its last section ends at its end.
+*/
+void QHeaderView::setOffsetToLastSection() {
+    const int room = m_orientation == Qt::Horizontal ? width() : height();
+    setOffset(std::max(0, length() - room));
+}
+
+/*!
+    \since 6.0
+
+    Repaints the section \a logicalIndex.
+*/
+void QHeaderView::updateSection(int logicalIndex) {
+    const int start = sectionViewportPosition(logicalIndex);
+    const int size = sectionSize(logicalIndex);
+    if (start < 0 && size <= 0)
+        return;
+    update(m_orientation == Qt::Horizontal ? QRect(start, 0, size, height()) : QRect(0, start, width(), size));
+}
+
+/*!
+    \since 6.0
+
+    Is called when the labels of the sections \a logicalFirst to \a logicalLast in \a orientation change in the
+    model; takes them again.
+*/
+void QHeaderView::headerDataChanged(Qt::Orientation orientation, int logicalFirst, int logicalLast) {
+    (void)logicalFirst;
+    (void)logicalLast;
+    if (orientation == m_orientation && m_model)
+        readModel();
+    update();
+}
+
+void QHeaderView::readModel() {
+    if (!m_model)
+        return;
+    const int n = m_orientation == Qt::Horizontal ? m_model->columnCount() : m_model->rowCount();
+    setCount(n);
+    QStringList labels;
+    for (int i = 0; i < n; ++i)
+        labels.append(m_model->headerData(i, m_orientation, Qt::DisplayRole).toString());
+    setLabels(labels);
+}
+
+/*!
+    \since 6.0
+
+    Takes the number and the labels of the sections from the header data of \a model, and follows its changes.
+    A view sets its header itself, so this is for a header on its own.
+*/
+void QHeaderView::setModel(QAbstractItemModel *model) {
+    for (const QMetaObject::Connection &c : std::as_const(m_modelConnections))
+        QObject::disconnect(c);
+    m_modelConnections.clear();
+    m_model = model;
+    if (!model)
+        return;
+    const auto refresh = [this] { readModel(); };
+    m_modelConnections = {
+        QObject::connect(model, &QAbstractItemModel::headerDataChanged, this,
+                         [this](Qt::Orientation o, int first, int last) { headerDataChanged(o, first, last); }),
+        QObject::connect(model, &QAbstractItemModel::modelReset, this, refresh),
+        QObject::connect(model, &QAbstractItemModel::columnsInserted, this, refresh),
+        QObject::connect(model, &QAbstractItemModel::columnsRemoved, this, refresh),
+        QObject::connect(model, &QAbstractItemModel::rowsInserted, this, refresh),
+        QObject::connect(model, &QAbstractItemModel::rowsRemoved, this, refresh),
+    };
+    readModel();
+}
+
+/*!
+    \since 6.0
+
+    Returns the model that setModel() set, or \c nullptr.
+*/
+QAbstractItemModel *QHeaderView::model() const { return m_model.data(); }
+
+/*!
+    \since 6.0
+
+    Sets the header up for its model: takes its sections again.
+*/
+void QHeaderView::initialize() { readModel(); }
+
+/*!
+    \since 6.0
+
+    Takes the sections of the model again, as initialize() does.
+*/
+void QHeaderView::initializeSections() { readModel(); }
+
+/*!
+    \since 6.0
+
+    Is called when the sections \a logicalFirst to \a logicalLast were inserted under \a parent; inserts them.
+*/
+void QHeaderView::sectionsInserted(const QModelIndex &parent, int logicalFirst, int logicalLast) {
+    if (parent.isValid() || logicalLast < logicalFirst)
+        return;
+    const int oldCount = count();
+    insertSections(logicalFirst, logicalLast - logicalFirst + 1);
+    emit sectionCountChanged(oldCount, count());
+}
+
+/*!
+    \since 6.0
+
+    Is called before the sections \a logicalFirst to \a logicalLast under \a parent are removed; removes them.
+*/
+void QHeaderView::sectionsAboutToBeRemoved(const QModelIndex &parent, int logicalFirst, int logicalLast) {
+    if (parent.isValid() || logicalLast < logicalFirst)
+        return;
+    const int oldCount = count();
+    removeSections(logicalFirst, logicalLast - logicalFirst + 1);
+    emit sectionCountChanged(oldCount, count());
+}
+
+/*!
+    \reimp
+
+    A double click on the edge after a section emits sectionHandleDoubleClicked(); on a section,
+    sectionDoubleClicked().
+*/
+void QHeaderView::mouseDoubleClickEvent(QMouseEvent *event) {
+    if (event->button() != Qt::LeftButton) {
+        event->ignore();
+        return;
+    }
+    const int edge = edgeAt(event->pos());
+    if (edge >= 0) {
+        emit sectionHandleDoubleClicked(edge);
+    } else {
+        const int section = logicalIndexAt(m_orientation == Qt::Horizontal ? event->pos().x() : event->pos().y());
+        if (section >= 0)
+            emit sectionDoubleClicked(section);
+    }
+    event->accept();
 }
 
 #include "moc_qheaderview.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

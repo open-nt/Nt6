@@ -166,7 +166,15 @@ QString QSpinBox::cleanText() const { return textFromValue(m_value); }
     spin box wraps.
 */
 void QSpinBox::stepBy(int steps) {
-    qint64 value = static_cast<qint64>(m_value) + static_cast<qint64>(steps) * m_step;
+    qint64 step = m_step;
+    if (m_stepType == AdaptiveDecimalStepType) {
+        // A power of ten one digit below the leading digit of the value, at least 1.
+        qint64 magnitude = 1;
+        for (qint64 v = std::abs(static_cast<qint64>(m_value)) / 10; v >= 10; v /= 10)
+            magnitude *= 10;
+        step = std::max<qint64>(m_step, magnitude);
+    }
+    qint64 value = static_cast<qint64>(m_value) + static_cast<qint64>(steps) * step;
     if (wrapping() && (value > m_maximum || value < m_minimum)) {
         const qint64 range = static_cast<qint64>(m_maximum) - m_minimum + 1;
         value = m_minimum + (((value - m_minimum) % range) + range) % range;
@@ -180,7 +188,16 @@ void QSpinBox::stepBy(int steps) {
 
     \sa valueFromText()
 */
-QString QSpinBox::textFromValue(int value) const { return QString::number(value); }
+QString QSpinBox::textFromValue(int value) const {
+    QString text = QString::number(value, m_base);
+    if (m_base != 10 || !isGroupSeparatorShown())
+        return text;
+    const QString separator = locale().groupSeparator();
+    const qsizetype digitsStart = value < 0 ? 1 : 0;
+    for (qsizetype i = text.size() - 3; i > digitsStart; i -= 3)
+        text.insert(i, separator);
+    return text;
+}
 
 /*!
     Returns the value for \a text, which is the text between the prefix and the suffix. The default implementation
@@ -188,7 +205,7 @@ QString QSpinBox::textFromValue(int value) const { return QString::number(value)
 
     \sa textFromValue()
 */
-int QSpinBox::valueFromText(const QString &text) const { return text.toInt(); }
+int QSpinBox::valueFromText(const QString &text) const { return stripped(text).toInt(nullptr, m_base); }
 
 /*!
     \reimp
@@ -222,7 +239,7 @@ void QSpinBox::takeText(const QString &number, bool atMinimum, bool finished) {
         return;
     }
     bool ok = false;
-    int value = number.toInt(&ok);
+    int value = stripped(number).toInt(&ok, m_base);
     if (!ok && !number.isEmpty()) {
         // A text of a reimplemented textFromValue(): take it if it reads back the same.
         value = valueFromText(number);
@@ -231,13 +248,22 @@ void QSpinBox::takeText(const QString &number, bool atMinimum, bool finished) {
         value = valueFromText(number);
     }
     if (finished) {
-        changeValue(ok ? value : m_value, true);
+        const bool outside = ok && (value < m_minimum || value > m_maximum);
+        changeValue(ok && !(outside && correctionMode() == CorrectToPreviousValue) ? value : m_value, true);
     } else if (ok && value >= m_minimum && value <= m_maximum) {
         changeValue(value, false); // leave the text as the user types it
     }
 }
 
-bool QSpinBox::acceptsCharacter(QChar c) const { return c.isDigit() || c == QChar('-') || c == QChar('+'); }
+bool QSpinBox::acceptsCharacter(QChar c) const {
+    if (c == QChar('-') || c == QChar('+') || c.isDigit())
+        return true;
+    if (isGroupSeparatorShown() && locale().groupSeparator().contains(c))
+        return true;
+    // Letters are digits in a base above ten.
+    const int letter = c.toLower().unicode() - 'a';
+    return m_base > 10 && letter >= 0 && letter < m_base - 10;
+}
 
 // Sets the value, brought into the range; rewrites the text if `rewrite`.
 void QSpinBox::changeValue(int value, bool rewrite) {
@@ -438,7 +464,12 @@ QString QDoubleSpinBox::cleanText() const { return textFromValue(m_value); }
     spin box wraps.
 */
 void QDoubleSpinBox::stepBy(int steps) {
-    double value = m_value + steps * m_step;
+    double step = m_step;
+    if (m_stepType == AdaptiveDecimalStepType) {
+        const double magnitude = m_value == 0.0 ? 0.0 : std::pow(10.0, std::floor(std::log10(std::abs(m_value))) - 1);
+        step = std::max({m_step, magnitude, std::pow(10.0, -m_decimals)});
+    }
+    double value = m_value + steps * step;
     if (wrapping()) {
         if (value > m_maximum + 1e-9)
             value = m_minimum;
@@ -496,7 +527,9 @@ void QDoubleSpinBox::takeText(const QString &number, bool atMinimum, bool finish
     }
     bool ok = false;
     (void)number.toDouble(&ok);
-    const double value = ok ? round(valueFromText(number)) : m_value;
+    double value = ok ? round(valueFromText(number)) : m_value;
+    if (finished && ok && (value < m_minimum || value > m_maximum) && correctionMode() == CorrectToPreviousValue)
+        value = m_value;
     if (finished)
         changeValue(value, true);
     else if (ok && value >= m_minimum && value <= m_maximum)
@@ -525,6 +558,137 @@ void QDoubleSpinBox::changeValue(double value, bool rewrite) {
         emit valueChanged(m_value);
         emit textChanged(valueText());
     }
+}
+
+QString QSpinBox::stripped(const QString &number) const {
+    if (!isGroupSeparatorShown())
+        return number;
+    QString out = number;
+    out.remove(locale().groupSeparator());
+    return out;
+}
+
+/*!
+    \fn int QSpinBox::displayIntegerBase() const
+    \since 6.0
+
+    Returns the base the value is shown in, 10 by default.
+*/
+
+/*!
+    \since 6.0
+
+    Shows the value in \a base, from 2 to 36; letters stand for the digits above 9. Another base is ignored.
+*/
+void QSpinBox::setDisplayIntegerBase(int base) {
+    if (base < 2 || base > 36)
+        return;
+    m_base = base;
+    refreshText();
+    updateGeometry();
+}
+
+/*!
+    \fn QAbstractSpinBox::StepType QSpinBox::stepType() const
+    \since 6.0
+
+    Returns how large a step is, DefaultStepType by default.
+*/
+
+/*!
+    \fn void QSpinBox::setStepType(StepType stepType)
+    \since 6.0
+
+    Sets how large a step is to \a stepType.
+*/
+
+/*!
+    \reimp
+
+    Takes a number in the range, the special value text, or, while it is typed, an empty text or a sign.
+*/
+QValidator::State QSpinBox::validate(QString &input, int &pos) const {
+    (void)pos;
+    if (!m_special.isEmpty() && input == m_special)
+        return QValidator::Acceptable;
+    QString number = input;
+    if (number.startsWith(m_prefix))
+        number.remove(0, m_prefix.size());
+    if (!m_suffix.isEmpty() && number.endsWith(m_suffix))
+        number.chop(m_suffix.size());
+    number = stripped(number.trimmed());
+    if (number.isEmpty() || number == QLatin1String("-") || number == QLatin1String("+"))
+        return QValidator::Intermediate;
+    bool ok = false;
+    const int value = number.toInt(&ok, m_base);
+    if (!ok)
+        return QValidator::Invalid;
+    return value >= m_minimum && value <= m_maximum ? QValidator::Acceptable : QValidator::Intermediate;
+}
+
+/*!
+    \reimp
+
+    Writes a valid number in \a input again as the spin box writes it.
+*/
+void QSpinBox::fixup(QString &input) const {
+    bool ok = false;
+    const int value = stripped(input).toInt(&ok, m_base);
+    if (ok)
+        input = textFromValue(value);
+}
+
+/*!
+    \fn QAbstractSpinBox::StepType QDoubleSpinBox::stepType() const
+    \since 6.0
+
+    Returns how large a step is, DefaultStepType by default.
+*/
+
+/*!
+    \fn void QDoubleSpinBox::setStepType(StepType stepType)
+    \since 6.0
+
+    Sets how large a step is to \a stepType.
+*/
+
+/*!
+    \reimp
+
+    Takes a number in the range, the special value text, or, while it is typed, an empty text or a sign.
+*/
+QValidator::State QDoubleSpinBox::validate(QString &input, int &pos) const {
+    (void)pos;
+    if (!m_special.isEmpty() && input == m_special)
+        return QValidator::Acceptable;
+    QString number = input;
+    if (number.startsWith(m_prefix))
+        number.remove(0, m_prefix.size());
+    if (!m_suffix.isEmpty() && number.endsWith(m_suffix))
+        number.chop(m_suffix.size());
+    number = number.trimmed();
+    if (number.isEmpty() || number == QLatin1String("-") || number == QLatin1String("+"))
+        return QValidator::Intermediate;
+    bool ok = false;
+    const double value = number.toDouble(&ok);
+    if (!ok)
+        return QValidator::Invalid;
+    const qsizetype point = number.indexOf(QLatin1Char('.'));
+    if (point >= 0 && number.size() - point - 1 > m_decimals)
+        return QValidator::Invalid;
+    return value >= m_minimum && value <= m_maximum ? QValidator::Acceptable : QValidator::Intermediate;
+}
+
+/*!
+    \reimp
+
+    Writes a valid number in \a input again with decimals() digits after the point.
+*/
+void QDoubleSpinBox::fixup(QString &input) const {
+    bool ok = false;
+    const double value = input.toDouble(&ok);
+    if (ok)
+        input = textFromValue(value);
 }
 
 #include "moc_qspinbox.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

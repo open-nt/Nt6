@@ -11,6 +11,8 @@ class QAbstractItemView;
 class QKeyEvent;
 class QLineEdit;
 class QListWidget;
+class QAbstractItemModel;
+class QStringListModel;
 
 class QCompleter : public QObject {
     Q_OBJECT
@@ -20,6 +22,8 @@ class QCompleter : public QObject {
     Q_PROPERTY(int maxVisibleItems READ maxVisibleItems WRITE setMaxVisibleItems)
     Q_PROPERTY(Qt::CaseSensitivity caseSensitivity READ caseSensitivity WRITE setCaseSensitivity)
     Q_PROPERTY(bool wrapAround READ wrapAround WRITE setWrapAround)
+    Q_PROPERTY(int completionColumn READ completionColumn WRITE setCompletionColumn)
+    Q_PROPERTY(int completionRole READ completionRole WRITE setCompletionRole)
 public:
     enum CompletionMode { PopupCompletion, UnfilteredPopupCompletion, InlineCompletion };
     Q_ENUM(CompletionMode)
@@ -28,6 +32,7 @@ public:
 
     explicit QCompleter(QObject *parent = nullptr);
     explicit QCompleter(const QStringList &completions, QObject *parent = nullptr);
+    explicit QCompleter(QAbstractItemModel *model, QObject *parent = nullptr);
     ~QCompleter() override;
 
     void setWidget(QWidget *widget);
@@ -51,6 +56,16 @@ public:
     int currentRow() const { return m_row; }
     QString currentCompletion() const;
     QAbstractItemView *popup() const;
+    QAbstractItemModel *model() const;
+    void setModel(QAbstractItemModel *model);
+    int completionColumn() const { return m_column; }
+    void setCompletionColumn(int column);
+    int completionRole() const { return m_role; }
+    void setCompletionRole(int role);
+    QAbstractItemModel *completionModel() const;
+    QModelIndex currentIndex() const;
+    virtual QString pathFromIndex(const QModelIndex &index) const;
+    virtual QStringList splitPath(const QString &path) const;
 
 public slots:
     void setCompletionPrefix(const QString &prefix);
@@ -78,7 +93,14 @@ private:
     // `deleting`: the user deleted text, which inline completion must not put back.
     void textEdited(const QString &edited, bool deleting);
 
+    void readModel(); // takes the completions from the model
     QStringList m_completions;
+    QPointer<QAbstractItemModel> m_model;
+    bool m_ownModel = false;
+    QList<QMetaObject::Connection> m_modelConnections;
+    mutable QStringListModel *m_completionModel = nullptr;
+    int m_column = 0;
+    int m_role = Qt::EditRole;
     QStringList m_matches;
     QString m_prefix;
     QPointer<QWidget> m_widget;

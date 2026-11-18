@@ -1030,6 +1030,14 @@ int QWidget::toolTipDuration() const { return m_d->toolTipDuration; }
 void QWidget::setToolTipDuration(int msec) { m_d->toolTipDuration = msec; }
 
 /*!
+    \since 6.0
+
+    Handles \a event, text from an input method, for a widget that has Qt::WA_InputMethodEnabled. The default
+    ignores it; an editor inserts its commit string.
+*/
+void QWidget::inputMethodEvent(QInputMethodEvent *event) { event->ignore(); }
+
+/*!
     \fn QWidget *QWidget::topLevelWidget() const
     \since 6.0
 

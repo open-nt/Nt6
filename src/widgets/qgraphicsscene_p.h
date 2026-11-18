@@ -51,6 +51,11 @@ struct QGraphicsItem::Private {
     QString toolTip;
     QMap<int, QVariant> data;
     QList<QGraphicsItem *> filters;
+    QGraphicsItem *focusProxy = nullptr; // setFocusProxy(); cleared when the proxy goes
+    QGraphicsItem::PanelModality modality = QGraphicsItem::NonModal;
+    bool filtersChildEvents = false;
+    Qt::InputMethodHints inputMethodHints;
+    qreal regionGranularity = 0.0;
 
     // The transformation from item to parent coordinates.
     QTransform localTransform() const;

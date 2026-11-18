@@ -37,6 +37,11 @@ signals:
         This signal is emitted when the page that was at \a index is removed.
     */
     void widgetRemoved(int index) { emitSignal(&QStackedWidget::widgetRemoved, index); }
+    /*!
+        \since 6.0
+        This signal is emitted when a widget is added at \a index.
+    */
+    void widgetAdded(int index) { emitSignal(&QStackedWidget::widgetAdded, index); }
 
 private:
     QStackedLayout *m_layout;

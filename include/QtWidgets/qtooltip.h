@@ -4,6 +4,8 @@
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
+#include <QtGui/qfont.h>
+#include <QtGui/qpalette.h>
 
 class QWidget;
 
@@ -13,6 +15,10 @@ public:
     static void hideText();
     static bool isVisible();
     static QString text();
+    static QFont font();
+    static void setFont(const QFont &font);
+    static QPalette palette();
+    static void setPalette(const QPalette &palette);
 
 private:
     QToolTip() = delete;

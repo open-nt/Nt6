@@ -11,6 +11,9 @@ class QKeySequenceEdit : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QKeySequence keySequence READ keySequence WRITE setKeySequence NOTIFY keySequenceChanged USER true)
     Q_PROPERTY(bool clearButtonEnabled READ isClearButtonEnabled WRITE setClearButtonEnabled)
+    Q_PROPERTY(qsizetype maximumSequenceLength READ maximumSequenceLength WRITE setMaximumSequenceLength)
+    Q_PROPERTY(QList<QKeyCombination> finishingKeyCombinations READ finishingKeyCombinations WRITE
+                   setFinishingKeyCombinations)
 public:
     explicit QKeySequenceEdit(QWidget *parent = nullptr);
     explicit QKeySequenceEdit(const QKeySequence &keySequence, QWidget *parent = nullptr);
@@ -19,6 +22,12 @@ public:
     QKeySequence keySequence() const { return m_sequence; }
     void setClearButtonEnabled(bool enable) { m_clearButton = enable; }
     bool isClearButtonEnabled() const { return m_clearButton; }
+    qsizetype maximumSequenceLength() const { return m_maximumLength; }
+    void setMaximumSequenceLength(qsizetype maximum);
+    QList<QKeyCombination> finishingKeyCombinations() const { return m_finishing; }
+    void setFinishingKeyCombinations(const QList<QKeyCombination> &finishingKeyCombinations) {
+        m_finishing = finishingKeyCombinations;
+    }
 
     QSize sizeHint() const override;
 
@@ -54,4 +63,6 @@ private:
     QTimer m_timer;
     bool m_clearButton = false;
     bool m_recording = false;
+    qsizetype m_maximumLength = 4;
+    QList<QKeyCombination> m_finishing;
 };

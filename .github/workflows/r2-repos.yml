@@ -88,7 +88,12 @@ jobs:
     needs: download
     runs-on: ubuntu-latest
     container: ${{ matrix.container }}
+    # Container steps otherwise run with sh, which is dash on Ubuntu; the scripts need bash.
+    defaults:
+      run:
+        shell: bash
     strategy:
+      fail-fast: false
       matrix:
         include:
           - format: apt

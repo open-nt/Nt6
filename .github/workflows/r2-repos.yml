@@ -211,7 +211,7 @@ jobs:
           aws s3api list-objects-v2 --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
             --bucket "$BUCKET" --query 'Contents[].Key' --output json | jq -r '.[]?' | sort > "$RUNNER_TEMP/remote.txt"
           comm -13 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" | while read -r stale; do
-            s3 rm "s3://$BUCKET/$stale"
+            aws s3 rm --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" "s3://$BUCKET/$stale"
           done
           {
             echo "### Package repositories published to R2 bucket \`$BUCKET\` ($PUBLIC_URL)"

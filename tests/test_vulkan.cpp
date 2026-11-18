@@ -6,6 +6,7 @@
 // Vulkan loader is missing, and the ray tracing part when no device supports it; Mesa's lavapipe does, in software.
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qfile.h>
+#include <QtCore/qtenvironmentvariables.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qvulkanfunctions.h>
 #include <QtGui/qvulkaninstance.h>
@@ -305,6 +306,17 @@ public:
             features.pNext = &rt;
             m_f->vkGetPhysicalDeviceFeatures2(dev, &features);
             if (rt.rayTracingPipeline && as.accelerationStructure && address.bufferDeviceAddress) {
+#if defined(__aarch64__)
+                // Mesa's lavapipe (seen with 25.2 and later) crashes on aarch64 inside its own compute shader that
+                // builds the bottom level, reading past an allocation of its queue thread; the inputs are not the
+                // cause (padding every buffer changes nothing). NT_VULKAN_TEST_SOFTWARE_RAY_TRACING=1 tries anyway.
+                if (props.deviceType == VK_PHYSICAL_DEVICE_TYPE_CPU &&
+                    !qEnvironmentVariableIsSet("NT_VULKAN_TEST_SOFTWARE_RAY_TRACING")) {
+                    std::printf("  not tracing rays on %s: lavapipe crashes building them on aarch64\n",
+                                props.deviceName);
+                    continue;
+                }
+#endif
                 m_physDev = dev;
                 std::printf("  ray tracing on: %s\n", props.deviceName);
                 return true;
@@ -806,6 +818,8 @@ private:
 } // namespace
 
 int main(int argc, char *argv[]) {
+    // Unbuffered, so that the output up to a crash inside a driver reaches the log of the test.
+    std::setvbuf(stdout, nullptr, _IONBF, 0);
     QGuiApplication app(argc, argv);
     testInfoVector();
 #if defined(__SANITIZE_ADDRESS__)

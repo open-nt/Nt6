@@ -166,8 +166,13 @@ static void testPainterWindow() {
                 }
         return top < 0 ? 0 : bottom - top + 1;
     };
-    const int one = inkHeight(1.0), two = inkHeight(2.0);
-    CHECK(one > 0 && two >= one * 2 - 2 && two <= one * 2 + 2);
+    // Without an installed font no glyph has ink, so there is nothing to measure.
+    if (QFontMetrics(QFont(QStringLiteral("sans-serif"), 10)).inFont(QChar('A'))) {
+        const int one = inkHeight(1.0), two = inkHeight(2.0);
+        CHECK(one > 0 && two >= one * 2 - 2 && two <= one * 2 + 2);
+    } else {
+        std::puts("SKIP: no fonts for the text of the transformed painter");
+    }
 }
 
 // ---- Icons ----

@@ -7,6 +7,17 @@ proposes modules and phases. No code was changed for this survey.
 
 This file lives in `doc/internal/` and is Markdown, so ndoc does not publish it.
 
+## Decisions (2026-11-18)
+
+- **Qt compatibility where Qt has a module.** Nt Quick 3D, Nt Quick 3D Physics, Nt MQTT, Nt OPC UA
+  and Nt Positioning follow Qt's API.
+- **Twin-specific parts are Nt-only modules** (Nt Twin, Nt Sim), following the ray tracing
+  precedent.
+- **Nt Twin depends only on Nt Core** and runs headless; rendering integration lives outside it.
+- **Environments are dynamic** (2026-11-19). Vegetation moves in the wind, weather and time of
+  day change, and buildings, doors and terrain features change state. Static baked meshes, such
+  as photogrammetry, are only acceptable as a far-distance backdrop. See §2.1b.
+
 ## Summary
 
 - A twin engine differs from a game engine in where state comes from. A game owns its world and
@@ -28,7 +39,7 @@ This file lives in `doc/internal/` and is Markdown, so ndoc does not publish it.
 ## 1. What Nt already provides
 
 | Need | Nt today |
-|---|---|
+| --- | --- |
 | Scene format | Nt glTF (`Nt::Gltf`, `QtGltf::Document`) |
 | GPU | QVulkanInstance, QVulkanWindow, Vulkan functions generated from vk.xml (core 1.0–1.3), KHR ray tracing tested on lavapipe; QtOpenGL |
 | Viewer | `tools/ntgltfview`: glTF, shadows, reflections, transmission, `--raytrace`, optional DLSS |
@@ -66,6 +77,136 @@ Twins also need the following:
   labels anchored in 3D, section planes and X-ray views.
 - **Picking that returns an asset ID**, not only a mesh and triangle.
 
+### 2.1a Large worlds (60 km and beyond)
+
+A single glTF file is not a suitable format for a 60 km world. glTF is suitable as the payload of
+each tile inside OGC 3D Tiles 1.1, which is how planet-scale datasets such as Cesium World
+Terrain and Google Photorealistic 3D Tiles are delivered. The problems with one file:
+
+- **Precision.** Vertex positions are `float32`. At 32–64 km from the origin, one float32 step is
+  2⁻⁸ m ≈ 4 mm. Storing positions at that resolution is tolerable, but transforming them on the GPU
+  in float makes close-up geometry jitter by centimetres. Each tile must store small local
+  coordinates. The tile and node transforms are kept in double, and the renderer computes
+  model-view matrices in double on the CPU, relative to the camera, before converting them to
+  float.
+- **Nt glTF loses precision today.** Node transforms are stored as `QMatrix4x4`, which is
+  `float`, so precision is lost at load even though glTF JSON numbers are doubles. Nt glTF needs
+  a double transform alongside the Qt-shaped one, for example `transformD` or a `QtGltf::DMatrix`.
+  This is Nt-only.
+- **Curvature.** Across a 60 km area the Earth drops d²/2R ≈ 280 m at 60 km, or 70 m at the edge
+  measured from the centre. A flat local ENU frame is wrong by that much, which breaks line of
+  sight, terrain clamping and geo-registration. Tiles should be placed in ECEF, with an ENU frame
+  only near the camera.
+- **Size.** A 60 × 60 km area is 3,600 km². A 1 m terrain grid alone is 3.6 × 10⁹ samples, so
+  the data must be tiled into a quadtree or octree with hierarchical LOD and streamed by screen-space
+  error. Core glTF has no LOD, no bounding hierarchy and no streaming.
+
+3D Tiles 1.1 supplies those missing parts:
+
+- `tileset.json` stores double-precision tile transforms, bounding volumes and a geometric
+  error for each tile, which drives refinement.
+- Tile content is plain glTF or GLB.
+- `EXT_mesh_features` and `EXT_structural_metadata` assign a feature ID to each vertex or texel
+  and attach property tables. This gives the "picking returns an asset ID" requirement directly,
+  and the IDs can key into the Nt Twin entity store.
+- Implicit tiling (subtree files) avoids a huge tileset.json for regular terrain.
+
+Nt glTF already reads `KHR_mesh_quantization` and `KHR_texture_basisu`. Large worlds also need:
+
+- `EXT_meshopt_compression`, or `KHR_draco_mesh_compression`
+- `EXT_mesh_features`
+- `EXT_structural_metadata`
+- `EXT_mesh_gpu_instancing` (trees, lamp posts)
+
+Other formats considered:
+
+| Format | Role |
+| --- | --- |
+| OpenUSD | Authoring and composition; native doubles and layers, but no geospatial streaming. Already planned; convert to 3D Tiles for runtime. |
+| OGC CDB | Common in defence simulators; a source to convert from, not a runtime format. |
+| Esri I3S | An alternative to 3D Tiles; only if a customer requires it. |
+| OpenFlight | Legacy simulation format; import only. |
+
+The recommendation is to use 3D Tiles 1.1 with glTF content as the runtime format for any world
+larger than a few kilometres, and to convert other sources to it offline. Plain glTF files remain
+the format for individual assets: vehicles, pumps and buildings placed in the world.
+
+§2.1b qualifies this: because environments must be dynamic, the tiles carry terrain and *instance
+lists*, not a single baked mesh of everything.
+
+### 2.1b Dynamic environments: how Arma 3 does it
+
+Arma 3 (Bohemia Interactive's Real Virtuality 4 engine) is the closest existing model for large,
+dynamic military terrain. Altis covers about 270 km². The world is not one mesh; it has three
+layers:
+
+1. **Terrain.** A heightmap grid, rendered with distance-based level of detail. A satellite image
+   is tiled over it for distant colour. A surface mask assigns materials (grass, dirt, rock,
+   tarmac), and close to the camera these become detail textures.
+2. **Objects.** Roughly a million placed instances of shared models: trees, bushes, rocks,
+   buildings, walls, power lines. Each model carries several resolution LODs and several special
+   LODs: collision geometry, fire geometry, view geometry for line of sight, roadway and shadow
+   volume. Objects are drawn out to a configurable object view distance, which is shorter than the
+   terrain view distance; fog and haze hide the cut-off.
+3. **Clutter.** Grass and small plants are not placed by hand. They are generated around the
+   camera from the surface type and disappear at a short distance.
+
+Vegetation and objects are animated without skeletal rigs:
+
+- **Trees, bushes and grass sway in the vertex shader**, driven by the global wind and by
+  per-vertex weights in the model: the trunk stays nearly rigid, branches bend and leaves flutter.
+  This costs no CPU, works for a million instances and needs no skeleton.
+- **Trees fall** as a scripted topple animation when destroyed, and stay down as part of the
+  saved state.
+- **Buildings** have doors, windows and gates animated through named selections. The model
+  configuration gives rigid rotations or translations driven by an animation source. Damage
+  replaces parts or swaps the whole model for a ruin model. These are simple hinges, not skinning.
+- **Vehicles** use the same named-selection animations for wheels, turrets, suspension and
+  hatches, and skinned skeletons only for characters.
+
+The environment also changes with time:
+
+- Time of day, with sun, moon and stars positioned from the terrain's latitude and longitude and
+  the date.
+- Overcast, rain, fog, lightning and waves, with wind that changes gradually and is synchronised
+  across the network.
+- Destruction state of buildings, walls and trees.
+
+Terrain shape does not change: Arma 3 has no deformable terrain.
+
+#### What Nt should take from this
+
+- **Separate terrain, instances and clutter in the tiles.** A 3D Tiles tile holds terrain (a
+  quantized mesh or heightmap patch) plus instance lists that refer to shared glTF assets
+  (`EXT_mesh_gpu_instancing`, with a feature ID for each instance). Each instance can then be an
+  Nt Twin entity with state, which a baked photogrammetry mesh cannot be. Photogrammetry stays as
+  a backdrop beyond the object view distance.
+- **Wind animation in the vertex shader, not glTF skins.** Tree assets carry sway weights in a
+  custom vertex attribute, such as `_WIND` (glTF allows application-specific attributes prefixed
+  with an underscore), or in `COLOR_0`. The wind vector and gust parameters come from the
+  environment state. glTF skins and morph targets are for characters and for the few objects that
+  need them.
+- **Hinged parts as glTF node animation.** Doors, valves, cranes and turrets are separate glTF
+  nodes. Twin properties drive their transforms directly (a valve at 40 % means a rotation of
+  36°). Keyframed glTF animations are used where a canned motion exists.
+- **Damage and state as model variants.** An asset declares variants (intact, damaged, destroyed,
+  open, closed) as alternative nodes or meshes, and an Nt Twin property selects one.
+- **Procedural clutter** from a surface-type mask in each terrain tile, generated on the GPU near
+  the camera and seeded from the tile coordinates, so the result is the same each run.
+- **Special LODs as glTF metadata.** Collision, line-of-sight and sensor proxies are separate
+  meshes in the asset, marked through `extras` or a small Nt-only extension, so Nt Sim and sensor
+  simulation do not ray-trace render meshes.
+- **Environment as twin state.** Time of day, sun position, cloud, rain, fog, wind and sea state
+  are properties of an environment entity in Nt Twin. They can be bound to a live weather feed,
+  replayed by the historian, or scripted for what-if runs. They then drive lighting, shaders,
+  particles and Nt Sim (wind loads on cranes, rain attenuation for lidar), all from one source.
+- **Ray tracing and moving geometry.** Swaying vegetation means bottom-level acceleration
+  structures change every frame. Refit them instead of rebuilding them, only near the camera.
+  Beyond that, use static or alpha-tested proxies for shadows and reflections, and keep a static
+  bottom-level structure per variant for hinged parts.
+- **Deformable terrain** (craters, earthworks, flooding) is beyond Arma 3. Leave it out of the
+  first version. Treat it later as per-tile heightmap edits stored as Nt Twin state.
+
 ### 2.2 World model (Nt-only)
 
 - **Entity store.** Each asset has an ID, a type, typed properties (temperature, valve position,
@@ -100,7 +241,7 @@ This layer differs most from a game engine.
 ### 2.4 Connectivity
 
 | Protocol | Status | Kind |
-|---|---|---|
+| --- | --- | --- |
 | MQTT | Qt has Qt MQTT | Qt-compatible module |
 | OPC UA | Qt has Qt OPC UA | Qt-compatible module, client first |
 | DDS | No Qt module; used by GVA (Def Stan 23-009), links to the gva-hmi port | Nt-only |
@@ -137,7 +278,7 @@ value.
 
 ## 3. Proposed modules
 
-```
+```text
 Qt-compatible:  Nt Quick 3D · Nt Quick 3D Physics · Nt MQTT · Nt OPC UA · Nt Positioning
 Nt-only:        Nt Twin   (entities, schemas, bindings, clock, historian, spatial index, CRS)
                 Nt Sim    (fixed-step scheduler, FMI, sensor simulation via ray queries)

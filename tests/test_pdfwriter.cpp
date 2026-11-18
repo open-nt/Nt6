@@ -278,7 +278,12 @@ static void testWriter(const QString &dir) {
     CHECK(pdf.find("/ShadingType 2") != std::string::npos);
     CHECK(pdf.find("/SMask") != std::string::npos); // the image has a transparent pixel
     CHECK(pdf.find("/ca 0.5") != std::string::npos);
-    CHECK(pdf.find("/Subtype /Form") != std::string::npos); // glyph outlines
+    // The text is drawn as glyph outlines, which there are only with an installed font.
+    const bool haveFonts = QFontMetrics(QFont(QStringLiteral("sans-serif"), 10)).inFont(QChar('A'));
+    if (haveFonts)
+        CHECK(pdf.find("/Subtype /Form") != std::string::npos); // glyph outlines
+    else
+        std::puts("SKIP: no fonts for the text of the PDF");
 #ifdef NT_HAVE_ZLIB
     CHECK(pdf.find("/FlateDecode") != std::string::npos);
     const std::string streams = allStreams(pdf);
@@ -313,7 +318,7 @@ static void testWriter(const QString &dir) {
     for (int y = top + 1500 * 72 / 300; y < top + 1700 * 72 / 300; ++y)
         for (int x = left; x < left + 600 * 72 / 300; ++x)
             dark += qGray(page1.pixel(x, y)) < 100 ? 1 : 0;
-    CHECK(dark > 50);
+    CHECK(dark > 50 || !haveFonts);
 
     const QImage page2 = render(file, 2, 72);
     CHECK(std::abs(page2.width() - 595) <= 1 && std::abs(page2.height() - 842) <= 1);

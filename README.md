@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`, `ntgltfview`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt Positioning`, `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -355,6 +355,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 | Nt Gamepad | `Nt::Gamepad` | Qt Gamepad from Qt 5, brought back: `QGamepad`, `QGamepadManager` and `QGamepadKeyNavigation`, plus SDL GameControllerDB mappings, stable ids across replugging, generic button and axis signals, dead zones and rumble. Reads evdev on Linux, event-driven, with hot plugging. Guide: [Using Nt Gamepad](https://open-nt.github.io/Nt6/nt-gamepad.html); example: [`gamepadinfo`](https://github.com/open-nt/nt6-examples/blob/main/gamepad/gamepadinfo.cpp) |
 | Nt glTF | `Nt::Gltf` | `QtGltf::Document`: loads glTF 2.0 scenes (`.gltf` and `.glb`) into meshes with decoded float vertex data and plain index lists, PBR materials, textures (decoded on demand), cameras, `KHR_lights_punctual` lights and world-space instances, ready for a Vulkan renderer or ray tracer. Guide: [Using Nt glTF](https://open-nt.github.io/Nt6/nt-gltf.html); example: [`gltfinfo`](https://github.com/open-nt/nt6-examples/blob/main/gltf/gltfinfo.cpp) |
 | Nt GPIO | `Nt::Gpio` | `QGpioLine`: one GPIO line, as input with `valueChanged()`, debounce and bias, or as output. Uses the Linux GPIO character device (v2, Linux 5.10 or later) or Zephyr. Guide: [Using Nt GPIO](https://open-nt.github.io/Nt6/nt-gpio.html); example: [`ptt`](https://github.com/open-nt/nt6-examples/blob/main/gpio/ptt.cpp) |
+| Nt Twin | `Nt::Twin` | the world model of a digital twin, on Nt Core and Nt Positioning alone so it runs headless: `QtTwin::Ellipsoid` converts WGS84 latitude, longitude and ellipsoidal height to and from Earth-centred, Earth-fixed coordinates in double precision, `QtTwin::LocalFrame` gives east-north-up frames (and the 4x4 matrix of a 3D Tiles `transform`), `QtTwin::TransverseMercator` and `QtTwin::UtmZone` project to UTM to nanometre accuracy (Krüger series, checked against PROJ), `QtTwin::GeoPosition` converts to and from `QGeoCoordinate`, `QtTwin::SimulationClock` keeps simulation time (rate, pause, deterministic steps, GPS time), and `QtTwin::GnssReceiver` is a simulated GNSS receiver: a `QGeoPositionInfoSource` with a seeded Gauss-Markov error model, denied (jammed) areas and NMEA 0183 output. Guide: [Using Nt Twin](https://open-nt.github.io/Nt6/nt-twin.html) |
 
 ### Additions to Qt classes
 
@@ -597,7 +598,7 @@ Not yet: video playback and recording (no video codecs), compressed audio (MP3, 
 | Qt OPC UA | Nt OPC UA |  |
 | Qt OpenGL | Nt OpenGL | ✔ (see Status) |
 | Qt OpenGL Widgets | Nt OpenGL Widgets | ✔ (`QOpenGLWidget`; see Nt OpenGL in Status) |
-| Qt Positioning | Nt Positioning |  |
+| Qt Positioning | Nt Positioning | ✔ (`QGeoCoordinate`, `QGeoRectangle`, `QGeoCircle`, `QGeoPositionInfo`, `QGeoSatelliteInfo`, `QGeoPositionInfoSource`, `QNmeaPositionInfoSource`, `QGeoSatelliteInfoSource`, `QNmeaSatelliteInfoSource`; no paths or polygons. Guide: [Using Nt Positioning](https://open-nt.github.io/Nt6/nt-positioning.html)) |
 | Qt Print Support | Nt Print Support |  |
 | Qt Protobuf | Nt Protobuf |  |
 | Qt Qml Compiler | Nt Qml Compiler |  |
@@ -621,6 +622,7 @@ Not yet: video playback and recording (no video codecs), compressed audio (MP3, 
 | Qt State Machine | Nt State Machine |  |
 | Qt SVG | Nt SVG | ✔ (see Status) |
 | Qt TextToSpeech | Nt TextToSpeech |  |
+| (none, [Nt Only](#nt-only)) | Nt Twin | ✔ (geodesy) |
 | Qt UI Tools | Nt UI Tools |  |
 | Qt Virtual Keyboard | Nt Virtual Keyboard |  |
 | Qt Wayland Compositor | Nt Wayland Compositor |  |

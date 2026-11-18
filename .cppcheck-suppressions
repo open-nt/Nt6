@@ -29,3 +29,9 @@ passedByValue:src/qversionnumber.cpp
 // Flags::enum_type of Q_DECLARE_OPERATORS_FOR_FLAGS to that enum in some translation units (qpathclipper.cpp)
 // and takes it for a class.
 passedByValue:include/QtCore/qflags.h
+// QGeoRectangle and QGeoCircle are gadgets of their own and hide QGeoShape's center() and toString() with
+// their own, as in Qt.
+duplInheritedMember:include/QtPositioning/qgeorectangle.h
+duplInheritedMember:include/QtPositioning/qgeocircle.h
+duplInheritedMember:src/positioning/qgeorectangle.cpp
+duplInheritedMember:src/positioning/qgeocircle.cpp

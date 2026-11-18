@@ -1,0 +1,3 @@
+#include "qtwinclock.h"
+#include "qtwingeodesy.h"
+#include "qtwingnss.h"

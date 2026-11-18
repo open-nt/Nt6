@@ -1113,6 +1113,44 @@ target_include_directories(NtBarcode
 target_link_libraries(NtBarcode PUBLIC NtCore NtGui)
 nt_set_compile_options(NtBarcode)
 
+# Nt Positioning: the core of Qt Positioning (coordinates, shapes, position sources, NMEA 0183). It depends only on
+# Nt Core.
+add_library(NtPositioning
+    src/positioning/qgeocircle.cpp
+    src/positioning/qgeocoordinate.cpp
+    src/positioning/qgeopositioninfo.cpp
+    src/positioning/qgeopositioninfosource.cpp
+    src/positioning/qgeorectangle.cpp
+    src/positioning/qgeosatelliteinfosource.cpp
+    src/positioning/qgeoshape.cpp
+    src/positioning/qnmeapositioninfosource.cpp
+    src/positioning/qnmeasatelliteinfosource.cpp
+)
+add_library(Nt::Positioning ALIAS NtPositioning)
+target_include_directories(NtPositioning
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtPositioning>
+        $<INSTALL_INTERFACE:include/nt6/QtPositioning>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/positioning
+)
+target_link_libraries(NtPositioning PUBLIC NtCore)
+nt_set_compile_options(NtPositioning)
+
+# Nt Twin: the world model of a digital twin (geodetic positions, local frames, map projections). It
+# depends only on Nt Core and Nt Positioning, so it runs headless.
+add_library(NtTwin src/twin/qtwinclock.cpp src/twin/qtwingeodesy.cpp src/twin/qtwingnss.cpp)
+add_library(Nt::Twin ALIAS NtTwin)
+target_include_directories(NtTwin
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtTwin>
+        $<INSTALL_INTERFACE:include/nt6/QtTwin>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/twin
+)
+target_link_libraries(NtTwin PUBLIC NtCore NtPositioning)
+nt_set_compile_options(NtTwin)
+
 # Nt Multimedia: the audio and camera parts of Qt Multimedia. Linux uses ALSA, loaded at run time, so the
 # library builds without its headers, and Video4Linux2 for cameras; other platforms have no devices yet.
 add_library(NtMultimedia
@@ -1268,6 +1306,8 @@ nt_moc_library(NtQml include/QtQml src/qml)
 nt_moc_library(NtFM include/QtFM)
 nt_moc_library(NtFMQml include/QtFMQml)
 nt_moc_library(NtGamepad include/QtGamepad)
+nt_moc_library(NtPositioning include/QtPositioning)
+nt_moc_library(NtTwin include/QtTwin)
 nt_moc_library(NtMultimedia include/QtMultimedia)
 nt_moc_library(NtMultimediaWidgets include/QtMultimediaWidgets)
 nt_moc_library(NtOpenGL include/QtOpenGL)
@@ -1952,6 +1992,18 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_barcode_tests COMMAND nt_barcode_tests)
     set_tests_properties(nt_barcode_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_barcode_tests)
+
+    # Nt Positioning: coordinates and shapes against known values, and NMEA logs read from a QBuffer.
+    add_executable(nt_positioning_tests tests/test_positioning.cpp)
+    target_link_libraries(nt_positioning_tests PRIVATE Nt::Positioning)
+    add_test(NAME nt_positioning_tests COMMAND nt_positioning_tests)
+    nt_set_compile_options(nt_positioning_tests)
+
+    # Nt Twin: geodesy checked against reference values from PROJ and by round trips.
+    add_executable(nt_twin_tests tests/test_twin.cpp)
+    target_link_libraries(nt_twin_tests PRIVATE Nt::Twin)
+    add_test(NAME nt_twin_tests COMMAND nt_twin_tests)
+    nt_set_compile_options(nt_twin_tests)
     nt_set_compile_options(nt_fm_tests)
 
     # The xcb tests need an X server (or XWayland); they report a skip without one.

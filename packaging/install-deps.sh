@@ -16,7 +16,10 @@ case "$like" in
         ca-certificates cmake dpkg-dev file g++ libfontconfig-dev libfreetype-dev libjpeg-dev libsqlite3-dev libssl-dev libvulkan-dev libxcb1-dev libzstd-dev make mesa-vulkan-drivers pkg-config tar zlib1g-dev zstd
     ;;
 *" rhel "* | *" fedora "* | *" centos "*)
-    dnf -y install cmake gcc-c++ fontconfig-devel freetype-devel libjpeg-turbo-devel libxcb-devel libzstd-devel make mesa-vulkan-drivers openssl-devel pkgconf-pkg-config rpm-build sqlite-devel tar vulkan-headers zlib-devel zstd findutils
+    dnf -y install cmake gcc-c++ fontconfig-devel freetype-devel libjpeg-turbo-devel libxcb-devel libzstd-devel make openssl-devel pkgconf-pkg-config rpm-build sqlite-devel tar vulkan-headers zlib-devel zstd findutils
+    # The software Vulkan driver only lets the Vulkan tests run; they skip without it. Enterprise Linux 9 has no
+    # aarch64 build of it.
+    dnf -y install mesa-vulkan-drivers || echo "install-deps.sh: mesa-vulkan-drivers is not available; the Vulkan tests will skip"
     ;;
 *" arch "*)
     # Arch's fontconfig, unlike Debian's and Fedora's, brings no font; the text tests need one.

@@ -2922,7 +2922,10 @@ static void testStyleHintsAndComplexControls() {
     CHECK(info.width() == style->pixelMetric(QStyle::PM_MessageBoxIconSize));
     CHECK(!style->standardPixmap(QStyle::SP_ArrowUp).isNull() &&
           !style->standardPixmap(QStyle::SP_TitleBarCloseButton).isNull());
-    CHECK(style->standardPixmap(QStyle::SP_DriveCDIcon).isNull());
+    // Folders, files and drives are drawn, so file icons exist without an icon theme.
+    CHECK(!style->standardPixmap(QStyle::SP_DirIcon).isNull() && !style->standardPixmap(QStyle::SP_FileIcon).isNull() &&
+          !style->standardPixmap(QStyle::SP_DriveCDIcon).isNull());
+    CHECK(style->standardPixmap(QStyle::SP_FileDialogDetailedView).isNull());
 
     // qstyleoption_cast.
     const QStyleOption *asBase = &slider;

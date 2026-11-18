@@ -204,7 +204,15 @@ jobs:
           for file in nt6.gpg nt6.asc nt6.repo; do
             s3 cp "$file" "s3://$BUCKET/$file" --cache-control 'public, max-age=3600'
           done
-          s3 sync . "s3://$BUCKET" --size-only --delete
+          # Not sync --delete: against R2 it deletes and uploads again every file that has a
+          # sibling named like it plus a suffix (Release and Release.gpg, nt6.db and nt6.db.sig),
+          # which leaves them missing for a moment and drops their Cache-Control.
+          find . -type f | sed 's|^\./||' | sort > "$RUNNER_TEMP/local.txt"
+          aws s3api list-objects-v2 --endpoint-url "https://$R2_ACCOUNT_ID.r2.cloudflarestorage.com" \
+            --bucket "$BUCKET" --query 'Contents[].Key' --output json | jq -r '.[]?' | sort > "$RUNNER_TEMP/remote.txt"
+          comm -13 "$RUNNER_TEMP/local.txt" "$RUNNER_TEMP/remote.txt" | while read -r stale; do
+            s3 rm "s3://$BUCKET/$stale"
+          done
           {
             echo "### Package repositories published to R2 bucket \`$BUCKET\` ($PUBLIC_URL)"
             echo "- apt: $(ls dists | tr '\n' ' ')"

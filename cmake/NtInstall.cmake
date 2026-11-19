@@ -6,7 +6,7 @@
 # clashing. Two components are installed:
 #
 #   Development  headers, static or shared libraries, CMake package
-#   Tools        ntmoc, ntrcc, ndoc and, with Vulkan, ntgltfview
+#   Tools        ntmoc, ntrcc, ndoc, ntgentree and, with Vulkan, ntgltfview
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -62,6 +62,9 @@ install(TARGETS ntmoc ntrcc ndoc
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 if(TARGET ntgltfview)
     install(TARGETS ntgltfview RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
+endif()
+if(TARGET ntgentree)
+    install(TARGETS ntgentree RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 endif()
 
 install(DIRECTORY include/QtCore include/QtNetwork include/QtGpio include/QtSerialPort include/QtSql include/QtDBus include/QtHttpServer include/QtWebSockets include/QtGui include/QtWidgets include/QtSvg include/QtSvgWidgets include/QtCharts include/QtOpenGL include/QtOpenGLWidgets include/QtQml include/QtFM include/QtFMQml include/QtGamepad include/QtGltf include/QtBarcode include/QtPositioning include/QtTwin include/QtMultimedia include/QtMultimediaWidgets include/QtConcurrent include/QtXml include/QtTest

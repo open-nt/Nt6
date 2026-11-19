@@ -241,6 +241,14 @@ with Nt or committed to the repository.
   library assets to area categories by kind.
 - **Non-glTF assets.** If the library is not glTF, a one-off offline conversion step comes before
   `scan`. The conversion keeps the asset IDs stable, so configurations survive a re-export.
+- **Generated vegetation (2026-11-19).** Trees, shrubs, hedges, grasses and weeds need not be modelled by hand.
+  `ntgentree` (`tools/ntgentree`) grows them procedurally from a species and a seed, as glTF with
+  four levels of detail, `_WIND` weights, felled variants, collision, ballistic and line-of-sight
+  proxies and sensor properties for lidar and thermal, so `ntmapgen assets scan` finds nothing
+  missing; `--asset` writes the configuration entry. Species for the UK and Australia come first;
+  eucalypts are thin in asset libraries. Textures come from fal.ai through
+  `tools/ntgentree/fetch_textures.py`. General-purpose AI mesh generators are not used: they fuse
+  branches and leaves into one mesh without levels of detail or wind.
 - **Tests.** Nt's own tests use a few tiny glTF assets that the tests generate. They exercise the
   pipeline only and are never offered as content.
 - **Output.** A packaged world refers to library assets by ID and version. `package` can copy the

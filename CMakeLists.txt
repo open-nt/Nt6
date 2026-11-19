@@ -1338,6 +1338,12 @@ add_executable(ndoc tools/ndoc/main.cpp)
 add_executable(Nt::ndoc ALIAS ndoc)
 target_compile_definitions(ndoc PRIVATE NT_VERSION_STRING="${NT_VERSION}")
 nt_set_compile_options(ndoc)
+# ntgentree: grows trees, grasses and weeds from rules and a seed and writes them as glTF (see tools/ntgentree). It
+# uses only the standard library.
+add_executable(ntgentree tools/ntgentree/main.cpp)
+add_executable(Nt::gentree ALIAS ntgentree)
+target_compile_definitions(ntgentree PRIVATE NT_VERSION_STRING="${NT_VERSION}")
+nt_set_compile_options(ntgentree)
 # ntgltfview: shows a glTF 2.0 scene with hardware ray tracing in a QVulkanWindow, to check what Nt glTF loaded. The
 # SPIR-V shaders are checked in (tools/ntgltfview/shaders/compile.sh rebuilds them with glslc).
 if(NT_HAVE_VULKAN)
@@ -1984,6 +1990,23 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_gltf_tests COMMAND nt_gltf_tests)
     set_tests_properties(nt_gltf_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gltf_tests)
+
+    # ntgentree: every species is grown and read back with Nt glTF.
+    add_executable(nt_gentree_tests tests/test_gentree.cpp)
+    target_link_libraries(nt_gentree_tests PRIVATE Nt::Gltf)
+    target_compile_definitions(nt_gentree_tests PRIVATE NT_GENTREE="$<TARGET_FILE:ntgentree>")
+    add_dependencies(nt_gentree_tests ntgentree)
+    add_test(NAME nt_gentree_tests COMMAND nt_gentree_tests)
+    set_tests_properties(nt_gentree_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_gentree_tests)
+
+    # The texture script of ntgentree, run against a local server in place of fal.ai (needs Python 3).
+    find_package(Python3 QUIET COMPONENTS Interpreter)
+    if(Python3_Interpreter_FOUND)
+        add_test(NAME nt_gentree_textures
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/gentree/test_fetch_textures.py
+                $<TARGET_FILE:ntgentree> ${CMAKE_CURRENT_SOURCE_DIR}/tools/ntgentree/fetch_textures.py)
+    endif()
 
     # Nt Barcode: QR Codes read back by a small decoder in the test, linear symbols checked bar by bar.
     add_executable(nt_barcode_tests tests/test_barcode.cpp)

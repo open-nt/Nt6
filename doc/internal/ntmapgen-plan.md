@@ -314,11 +314,32 @@ ntmapgen package project/ out/
 
 - Stages can be re-run individually; unchanged inputs are taken from the cache.
 - `preview` writes a single-tile glTF that ntgltfview opens directly.
-- **Studio (later).** An Nt Widgets application on the same library, with:
-  - a map view of the area and stage progress
-  - an asset browser with thumbnails rendered by the ntgltfview renderer
-  - a configuration editor
-  - a live 200 m preview
+- **Studio (started 2026-11-19).** `ntmapgen-studio` is an Nt Widgets application on the same
+  library. It has no moc dependency: it uses lambdas and callbacks only.
+  - **Done:**
+    - New and open project.
+    - Stage status, with background builds and the Arma 3 export.
+    - A map with relief, surface, footprints and objects, a cursor read-out, and pan and zoom.
+    - An asset browser with the library thumbnails, and an inspector.
+    - Undoable hand edits (select, move, turn, rescale, swap asset, delete, add, clear an area),
+      saved to `edits.json`.
+    - A 3D preview of the square around the view's centre, ray traced in ntgltfview (Vulkan KHR
+      ray tracing, DLSS selectable on NVIDIA), as a window or as a still in the studio.
+    - It runs headless (`--screenshot`, offscreen platform), and `tests/test_studio.cpp` drives it
+      with mouse and keyboard events.
+  - **Edits model.** `edits.json` holds removed and changed feature IDs, added objects (IDs with bit
+    52 set) and clearing polygons. The edits are applied when objects are read (`readMapObjects`),
+    never baked into the stage output, so they survive rebuilds. The `arma3` fingerprint includes
+    them.
+  - **Preview.** `ntmapgen preview` and the studio share `writePreviewScene()`, which writes one GLB
+    of the terrain, its surface texture and the library models, each merged once. The decimated
+    `library/preview/models` are used by default: 7.5 MB against 161 MB for 300 objects.
+  - **Next:**
+    - Embed the ray traced view in the studio. ntgltfview's renderer becomes a library behind a
+      QVulkanWindow, through `createWindowContainer`.
+    - Live re-preview on edit.
+    - A project settings and asset configuration editor.
+    - Surface paint edits, and road and fence editing once those stages exist.
 
 ## 6. GPS and real-world positioning
 
@@ -380,7 +401,7 @@ Nt Twin models GNSS, so the generated world and the twin share one geodetic trut
 5. **Twin integration.** `twin-entities.cbor`, collision export for Jolt, and Nt Twin loading a
    generated world headless. This phase includes the GNSS model and NMEA output from §6.
 6. **Studio and scale.**
-   - The studio GUI.
+   - The studio GUI: started (see section 5); embedded ray traced view and configuration editor next.
    - Generation that is incremental, parallel and resumable for 60 km and larger.
    - National LiDAR, Open Buildings, and CityGML and site overlays.
 

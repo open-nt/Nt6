@@ -9,6 +9,7 @@
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qcombobox.h>
+#include <QtWidgets/qdialog.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qslider.h>
 #include <QtWidgets/qstyle.h>
@@ -234,6 +235,61 @@ int main(int argc, char **argv) {
         CHECK(waitFor([&] { return slider->value() == slider->maximum(); }));
         sendButton(c, formId, 1, XCB_BUTTON_RELEASE, 24050, static_cast<int16_t>(to.x()), static_cast<int16_t>(to.y()));
         CHECK(waitFor([&] { return !slider->isSliderDown(); }));
+    }
+
+    // A dialog run with exec() from a click handler: the nested event loop starts while the click is still being
+    // handled, and must still expose and paint the dialog and deliver its input.
+    {
+        QWidget opener;
+        auto *openerLayout = new QVBoxLayout(&opener);
+        auto *open = new QPushButton("Open");
+        openerLayout->addWidget(open);
+        opener.resize(200, 100);
+        opener.show();
+        CHECK(
+            waitFor([&] { return opener.windowHandle() && opener.windowHandle()->isExposed() && open->width() > 0; }));
+        const xcb_window_t openerId = static_cast<xcb_window_t>(opener.windowHandle()->winId());
+        bool exposed = false, painted = false;
+        int result = -1;
+        QObject::connect(open, &QPushButton::clicked, [&] {
+            QDialog dialog(&opener);
+            auto *dialogLayout = new QVBoxLayout(&dialog);
+            auto *ok = new QPushButton("OK");
+            dialogLayout->addWidget(ok);
+            QObject::connect(ok, &QPushButton::clicked, &dialog, &QDialog::accept);
+            dialog.resize(160, 80);
+            QTimer::singleShot(0, &dialog, [&] {
+                exposed = waitFor([&] { return dialog.windowHandle() && dialog.windowHandle()->isExposed(); });
+                const xcb_window_t dialogId = static_cast<xcb_window_t>(dialog.windowHandle()->winId());
+                // The server has the window color, not the black of a window that was never drawn
+                painted = waitFor([&] {
+                    xcb_get_image_reply_t *image = xcb_get_image_reply(
+                        c, xcb_get_image(c, XCB_IMAGE_FORMAT_Z_PIXMAP, dialogId, 4, 4, 1, 1, ~0u), nullptr);
+                    int rgb = -1;
+                    if (image) {
+                        const uint8_t *d = xcb_get_image_data(image);
+                        rgb = (d[2] << 16) | (d[1] << 8) | d[0];
+                        std::free(image);
+                    }
+                    return rgb == 0xefefef;
+                });
+                const QPoint p = ok->mapTo(&dialog, QPoint(10, ok->height() / 2));
+                sendButton(c, dialogId, 1, XCB_BUTTON_PRESS, 60000, static_cast<int16_t>(p.x()),
+                           static_cast<int16_t>(p.y()));
+                sendButton(c, dialogId, 1, XCB_BUTTON_RELEASE, 60050, static_cast<int16_t>(p.x()),
+                           static_cast<int16_t>(p.y()));
+                // Closes the dialog if the click was lost, so that the test cannot hang
+                QTimer::singleShot(5000, &dialog, &QDialog::reject);
+            });
+            result = dialog.exec();
+        });
+        const QPoint p = open->mapTo(&opener, QPoint(10, open->height() / 2));
+        sendButton(c, openerId, 1, XCB_BUTTON_PRESS, 59000, static_cast<int16_t>(p.x()), static_cast<int16_t>(p.y()));
+        sendButton(c, openerId, 1, XCB_BUTTON_RELEASE, 59050, static_cast<int16_t>(p.x()), static_cast<int16_t>(p.y()));
+        CHECK(waitFor([&] { return result != -1; }, 10000));
+        CHECK(exposed);
+        CHECK(painted);
+        CHECK(result == QDialog::Accepted);
     }
 
     // The window manager's close request closes the window

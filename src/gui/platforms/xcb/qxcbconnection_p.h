@@ -138,7 +138,6 @@ private:
     xcb_atom_t m_utf8String = 0;
     QSocketNotifier *m_notifier = nullptr;
     bool m_processScheduled = false;
-    bool m_processing = false;
     xcb_generic_event_t *m_pending = nullptr;
     size_t m_maxRequestBytes = 0;
 

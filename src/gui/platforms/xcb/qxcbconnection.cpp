@@ -354,8 +354,6 @@ void QXcbConnection::scheduleProcessing() {
 }
 
 void QXcbConnection::checkQueue() {
-    if (m_processing)
-        return;
     if (!m_pending)
         m_pending = xcb_poll_for_queued_event(m_connection);
     if (m_pending)
@@ -390,10 +388,9 @@ xcb_generic_event_t *QXcbConnection::nextEvent() {
     return xcb_poll_for_event(m_connection);
 }
 
+// This is re-entrant: a handler that runs a nested event loop (QDialog::exec() from a click or a shortcut)
+// processes the events that follow, and the outer call goes on with whatever is left when it returns.
 void QXcbConnection::processEvents() {
-    if (m_processing)
-        return;
-    m_processing = true;
     static const QByteArray eventType = QByteArrayLiteral("xcb_generic_event_t");
     QAbstractEventDispatcher *dispatcher = QAbstractEventDispatcher::instance();
     for (;;) {
@@ -409,7 +406,6 @@ void QXcbConnection::processEvents() {
         if (!m_pending)
             break;
     }
-    m_processing = false;
     if (xcb_connection_has_error(m_connection)) {
         std::fputs("Nt GUI: the connection to the X server broke\n", stderr);
         m_notifier->setEnabled(false);

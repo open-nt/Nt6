@@ -274,6 +274,56 @@ void testQuantizedAndSparse() {
     CHECK(fuzzyEqual(sparse.primitives.at(0).positions.at(2), QVector3D(5, 6, 7)));
 }
 
+void testCustomAttributes() {
+    // _WIND as normalized unsigned byte VEC4 (as ntgentree writes it) and _ID as a float scalar; names
+    // without the underscore that the parser does not know are ignored.
+    Bytes b;
+    b.f32(0).f32(0).f32(0).f32(1).f32(0).f32(0).f32(0).f32(1).f32(0); // offset 0: positions
+    b.u8(0).u8(51).u8(255).u8(128);                                   // offset 36: wind
+    b.u8(255).u8(0).u8(0).u8(0);
+    b.u8(0).u8(0).u8(0).u8(255);
+    b.f32(7).f32(8).f32(9); // offset 48: ids
+    const QByteArray json = QStringLiteral(R"({
+        "asset": {"version": "2.0"},
+        "buffers": [{"byteLength": %1, "uri": "%2"}],
+        "bufferViews": [
+            {"buffer": 0, "byteOffset": 0, "byteLength": 36},
+            {"buffer": 0, "byteOffset": 36, "byteLength": 12},
+            {"buffer": 0, "byteOffset": 48, "byteLength": 12}
+        ],
+        "accessors": [
+            {"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3"},
+            {"bufferView": 1, "componentType": 5121, "normalized": true, "count": 3, "type": "VEC4"},
+            {"bufferView": 2, "componentType": 5126, "count": 3, "type": "SCALAR"}
+        ],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0, "_WIND": 1, "_ID": 2, "JOINTS_0": 1}}]}]
+    })")
+                                .arg(b.data.size())
+                                .arg(dataUri(b.data))
+                                .toUtf8();
+    Document doc;
+    CHECK(doc.loadFromData(json));
+    CHECK(doc.errorString().isEmpty());
+    if (doc.meshes().size() != 1)
+        return;
+    const Primitive &p = doc.meshes().at(0).primitives.at(0);
+    CHECK(p.customAttributes.size() == 2);
+    const QList<QVector4D> wind = p.customAttributes.value(QStringLiteral("_WIND"));
+    CHECK(wind.size() == 3);
+    if (wind.size() == 3) {
+        CHECK(fuzzyEqual(wind.at(0).y(), 0.2f) && fuzzyEqual(wind.at(0).z(), 1.0f));
+        CHECK(fuzzyEqual(wind.at(0).w(), 128.0f / 255.0f));
+        CHECK(wind.at(1) == QVector4D(1, 0, 0, 0));
+    }
+    const QList<QVector4D> ids = p.customAttributes.value(QStringLiteral("_ID"));
+    CHECK(ids.size() == 3 && ids.value(2) == QVector4D(9, 0, 0, 0));
+
+    // A custom attribute with the wrong number of elements is an error, like any other.
+    QByteArray shortWind = json;
+    shortWind.replace(R"("normalized": true, "count": 3)", R"("normalized": true, "count": 2)");
+    CHECK(loadError(shortWind) != Document::NoError);
+}
+
 // Builds a document whose one primitive has six vertices, no indices and the given mode.
 QByteArray modeJson(int mode) {
     Bytes b;
@@ -581,6 +631,7 @@ int main(int argc, char **argv) {
     testTriangle();
     testGlb();
     testQuantizedAndSparse();
+    testCustomAttributes();
     testModes();
     testHierarchy();
     testMaterialsCamerasLights();

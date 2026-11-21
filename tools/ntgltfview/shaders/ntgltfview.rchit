@@ -16,11 +16,22 @@ layout(set = 0, binding = 0) uniform accelerationStructureEXT scene;
 #include "ntgltfview_camera.glsl"
 #include "ntgltfview_sky.glsl"
 
+layout(set = 0, binding = 7) uniform sampler2D oceanWaves; // slope x, slope z, foam, height (ntgltfview_ocean.comp)
+
 layout(location = 0) rayPayloadInEXT HitPayload payload;
 layout(location = 1) rayPayloadEXT float visibility;
 hitAttributeEXT vec2 barycentrics;
 
-const vec3 kKeyLight = normalize(vec3(0.45, 1.0, 0.35));
+const uint kFlagSun = 8u;
+
+// The key light: from above at about 60 degrees, from the azimuth that --sun gives (bits 16 to 24 of the flags), or from
+// the default direction.
+vec3 keyLightDirection() {
+    if ((camera.flags & kFlagSun) == 0u)
+        return normalize(vec3(0.45, 1.0, 0.35));
+    const float azimuth = radians(float((camera.flags >> 16) & 0x1ffu));
+    return normalize(vec3(0.57 * cos(azimuth), 1.0, 0.57 * sin(azimuth)));
+}
 
 const float kPi = 3.14159265;
 
@@ -41,7 +52,7 @@ float keyLightVisibility(vec3 point, vec3 side) {
     const float bias = max(1.0e-4, 1.0e-4 * gl_HitTEXT);
     visibility = 0.0;
     traceRayEXT(scene, gl_RayFlagsTerminateOnFirstHitEXT | gl_RayFlagsSkipClosestHitShaderEXT, 0xff, 0, 0, 1,
-                point + side * bias, bias, kKeyLight, 1.0e4, 1);
+                point + side * bias, bias, keyLightDirection(), 1.0e4, 1);
     return visibility;
 }
 
@@ -72,6 +83,7 @@ void main() {
     if (dot(faceNormal, view) < 0.0)
         normal = -normal;
 
+    float foam = 0.0; // whitecaps on water
     // The normal map perturbs it in the tangent frame: the mesh's tangents, or ones derived from the triangle.
     const int normalMap = textureIndex(p.textures.z);
     if (normalMap >= 0) {
@@ -98,8 +110,25 @@ void main() {
         tangent = normalize(tangent - normal * dot(normal, tangent));
         if (dot(tangent, tangent) > 0.5) {
             const vec3 bitangent = cross(normal, tangent) * handedness;
-            vec3 sampled = sampleTexture(normalMap, transformUv(p, 2, uvSet(p, 2) == 1 ? uv1 : uv0)).xyz * 2.0 - 1.0;
+            const vec2 normalUv = transformUv(p, 2, uvSet(p, 2) == 1 ? uv1 : uv0);
+            vec3 sampled = sampleTexture(normalMap, normalUv).xyz * 2.0 - 1.0;
             sampled.xy *= p.textures2.z; // the normal scale
+            if (p.textures3.z > 0.5) {
+                // Water: the slopes of the FFT ocean, one tile per repeat of the normal texture, scaled by the
+                // material's normal scale (0.35 is a full sea).
+                const vec4 w = textureLod(oceanWaves, normalUv, 0.0);
+                sampled = vec3(-w.x, -w.y, 1.0) * vec3(p.textures2.z / 0.35, p.textures2.z / 0.35, 1.0);
+                const float sea = smoothstep(0.22, 0.35, p.textures2.z);
+                foam = 0.4 * w.z * sea; // whitecaps on a sea, not on a stream
+                if (p.texCoords1 != 0ul) {
+                    // Surf: where the sea runs up a beach (TEXCOORD_1 holds the depth in metres) the waves break,
+                    // in foam that comes and goes with them, and a thin swash line marks the water's edge.
+                    const float depth = uv1.x;
+                    const float breaking = (1.0 - smoothstep(0.0, 0.6, depth)) * clamp(0.55 + 5.0 * w.w, 0.0, 1.0);
+                    const float swash = 1.0 - smoothstep(0.0, 0.07, depth);
+                    foam = max(foam, sea * max(0.85 * breaking, swash));
+                }
+            }
             normal = normalize(mat3(tangent, bitangent, normal) * sampled);
         }
     }
@@ -140,11 +169,17 @@ void main() {
         transmission = clamp(transmission, 0.0, 1.0);
     }
 
+    if (foam > 0.0) {
+        // Foam is white and opaque, and rough.
+        transmission *= 1.0 - 0.9 * foam;
+        base.rgb = mix(base.rgb, vec3(0.92), foam);
+        roughness = mix(roughness, 0.7, foam);
+    }
     const vec3 f0 = mix(vec3(0.04), base.rgb, metallic);
     const vec3 diffuse = base.rgb * (1.0 - metallic) * (1.0 - transmission);
     const float nDotV = max(dot(normal, view), 1.0e-4);
     vec3 lit = 0.18 * base.rgb * occlusion * (1.0 - transmission);
-    const vec3 lightDirections[2] = vec3[2](view, kKeyLight);
+    const vec3 lightDirections[2] = vec3[2](view, keyLightDirection());
     const float lightPower[2] = float[2](0.55, 0.45);
     for (int i = 0; i < 2; ++i) {
         const vec3 light = lightDirections[i];
@@ -169,29 +204,58 @@ void main() {
     const vec3 incoming = gl_WorldRayDirectionEXT;
 
     if (transmission > 0.0) {
-        // Glass: a Fresnel share of the sky is reflected, the rest goes on through the volume and takes its color. A
-        // volume with a thickness bends the ray in and moves it sideways by the way it travels there; the ray
-        // leaves in its old direction, as it would from a slab. Without a thickness the ray goes straight on.
         const float ior = max(p.transmission.y, 1.0);
         const float r0 = (ior - 1.0) / (ior + 1.0);
         const float fresnel = r0 * r0 + (1.0 - r0 * r0) * pow(1.0 - nDotV, 5.0);
-        // Only the surface the ray enters through tints and displaces it; leaving the far wall costs nothing.
         const bool entering = dot(faceNormal, view) >= 0.0;
-        float thickness = entering ? p.transmission.z : 0.0;
-        const int thicknessMap = textureIndex(p.textures3.y);
-        if (thicknessMap >= 0)
-            thickness *= sampleTexture(thicknessMap, transformUv(p, 6, uvSet(p, 6) == 1 ? uv1 : uv0)).g;
-        thickness *= length(gl_ObjectToWorldEXT[0]); // the thickness is in the mesh's units
-        // Beer-Lambert: the attenuation color is what is left of white light after the attenuation distance.
-        const vec3 tint = (entering ? base.rgb : vec3(1.0)) * pow(clamp(p.attenuation.rgb, vec3(1.0e-4), vec3(1.0)),
-                                         vec3(thickness / max(p.transmission.w, 1.0e-6)));
-        color += transmission * fresnel * environment(reflect(incoming, normal));
-        payload.carry = transmission * (1.0 - fresnel) * tint;
-        payload.nextDirection = incoming;
-        payload.nextOrigin = point - side * bias;
-        const vec3 refracted = refract(incoming, normal, 1.0 / ior);
-        if (thickness > 0.0 && dot(refracted, refracted) > 0.0)
-            payload.nextOrigin = point + refracted * thickness;
+        // KHR_materials_volume: a thickness and a finite attenuation distance make the surface the boundary of a
+        // medium. The ray bends at it and the ray generation shader dims what lies beyond by the real path length,
+        // so shallow water is clear and deep water takes its colour.
+        const bool volume = p.transmission.z > 0.0 && p.transmission.w < 1.0e29;
+        if (volume) {
+            const vec3 bent = refract(incoming, normal, entering ? 1.0 / ior : ior);
+            if (dot(bent, bent) < 1.0e-6) {
+                // Total internal reflection: the ray stays in the medium.
+                payload.carry = vec3(transmission);
+                payload.nextDirection = reflect(incoming, normal);
+                payload.nextOrigin = point + side * bias;
+            } else {
+                if (entering)
+                    color += transmission * fresnel * environment(reflect(incoming, normal));
+                payload.carry = transmission * (1.0 - fresnel) * (entering ? base.rgb : vec3(1.0));
+                payload.nextDirection = normalize(bent);
+                payload.nextOrigin = point - side * bias;
+                if (entering) {
+                    const vec3 kept = clamp(p.attenuation.rgb, vec3(1.0e-4), vec3(1.0));
+                    payload.medium = vec4(-log(kept) / max(p.transmission.w, 1.0e-6), 1.0);
+                    // What the medium scatters back: its own colour under the sky.
+                    payload.mediumColor = vec4(0.3 * kept * environment(vec3(0.0, 1.0, 0.0)), 0.0);
+                } else {
+                    payload.medium = vec4(0.0, 0.0, 0.0, -1.0);
+                }
+            }
+        } else {
+            // Glass: a Fresnel share of the sky is reflected, the rest goes on through the volume and takes its color.
+            // A thickness bends the ray in and moves it sideways by the way it travels there; the ray leaves in its old
+            // direction, as it would from a slab. Without a thickness the ray goes straight on.
+            // Only the surface the ray enters through tints and displaces it; leaving the far wall costs nothing.
+            float thickness = entering ? p.transmission.z : 0.0;
+            const int thicknessMap = textureIndex(p.textures3.y);
+            if (thicknessMap >= 0)
+                thickness *= sampleTexture(thicknessMap, transformUv(p, 6, uvSet(p, 6) == 1 ? uv1 : uv0)).g;
+            thickness *= length(gl_ObjectToWorldEXT[0]); // the thickness is in the mesh's units
+            // Beer-Lambert: the attenuation color is what is left of white light after the attenuation distance.
+            const vec3 tint = (entering ? base.rgb : vec3(1.0)) *
+                              pow(clamp(p.attenuation.rgb, vec3(1.0e-4), vec3(1.0)),
+                                  vec3(thickness / max(p.transmission.w, 1.0e-6)));
+            color += transmission * fresnel * environment(reflect(incoming, normal));
+            payload.carry = transmission * (1.0 - fresnel) * tint;
+            payload.nextDirection = incoming;
+            payload.nextOrigin = point - side * bias;
+            const vec3 refracted = refract(incoming, normal, 1.0 / ior);
+            if (thickness > 0.0 && dot(refracted, refracted) > 0.0)
+                payload.nextOrigin = point + refracted * thickness;
+        }
     } else if (traced && p.params.z > 1.5) {
         // A blended surface shows what is behind it by the rest of its alpha.
         color *= base.a;

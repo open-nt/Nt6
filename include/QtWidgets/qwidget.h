@@ -191,6 +191,8 @@ public:
     WId internalWinId() const;
     void createWinId();
     static QWidget *find(WId id);
+    static QWidget *createWindowContainer(QWindow *window, QWidget *parent = nullptr,
+                                          Qt::WindowFlags flags = Qt::WindowFlags());
     QBackingStore *backingStore() const;
     QPainter *sharedPainter() const;
     qreal windowOpacity() const;

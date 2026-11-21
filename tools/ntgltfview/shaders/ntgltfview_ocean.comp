@@ -1,0 +1,101 @@
+// MIT License - see LICENSE
+//
+// Waves on water by Tessendorf's FFT ocean ("Simulating Ocean Water", 2001). The host makes a Phillips spectrum h0(k)
+// once; each frame this shader, in four modes, turns it into the slopes and the foam of the sea surface at that time:
+//   0  the spectrum at time t: h(k) = h0(k) e^(i w t) + conj(h0(-k)) e^(-i w t), w = sqrt(g |k|), and from it three
+//      complex fields packed two to a texel: the slopes (i kx h + i (i kz h)), the derivatives of the choppy
+//      displacement along x and z (kx^2/k h + i kz^2/k h), and across them with the height (kx kz/k h + i h);
+//   1  one butterfly stage of the inverse FFT along x (radix 2, decimation in time; stage 0 reads in bit-reversed
+//      order, so the result comes out in order);
+//   2  the same along z;
+//   3  the resolve: the sign of the centred spectrum, then the slopes, the foam where the choppy displacement folds the
+//      surface over (its Jacobian is small), and the height, into the texture that the hit shader samples.
+#version 460
+
+layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
+
+layout(set = 0, binding = 0, rgba32f) uniform readonly image2D spectrum;      // rg h0(k), ba conj(h0(-k))
+layout(set = 0, binding = 1, rgba32f) uniform image2DArray fields[2];         // ping and pong, two layers each
+layout(set = 0, binding = 2, rgba16f) uniform writeonly image2D waves;        // slope x, slope z, foam, height
+
+layout(push_constant) uniform Step {
+    uint mode;
+    uint stage; // of the butterflies, 0 to log2(N) - 1
+    uint src;   // which of fields[] holds the input; the output goes to the other
+    uint logN;
+    float time;   // seconds
+    float patchMetres; // metres covered by the texture
+    float choppy; // scale of the horizontal displacement
+    float pad;
+} step;
+
+const float kPi = 3.14159265358979;
+const float kGravity = 9.81;
+
+vec2 cmul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
+vec2 timesI(vec2 a) { return vec2(-a.y, a.x); }
+
+void main() {
+    const int n = 1 << int(step.logN);
+    const ivec2 xy = ivec2(gl_GlobalInvocationID.xy);
+    if (xy.x >= n || xy.y >= n)
+        return;
+
+    if (step.mode == 0u) {
+        const vec2 k = 2.0 * kPi * (vec2(xy) - vec2(n / 2)) / step.patchMetres;
+        const float len = length(k);
+        const vec4 h0 = imageLoad(spectrum, xy);
+        const float w = sqrt(kGravity * len) * step.time;
+        const vec2 e = vec2(cos(w), sin(w));
+        const vec2 h = cmul(h0.xy, e) + cmul(h0.zw, vec2(e.x, -e.y));
+        const vec2 slopeX = timesI(h * k.x);
+        const vec2 slopeZ = timesI(h * k.y);
+        const float inv = len > 1.0e-6 ? 1.0 / len : 0.0;
+        const vec2 dxx = h * (k.x * k.x * inv);
+        const vec2 dzz = h * (k.y * k.y * inv);
+        const vec2 dxz = h * (k.x * k.y * inv);
+        // Two real fields in one complex FFT: a + i b, whose inverse transform has a in its real part and b in its
+        // imaginary part, because both are spectra of real fields.
+        imageStore(fields[0], ivec3(xy, 0), vec4(slopeX + timesI(slopeZ), dxx + timesI(dzz)));
+        imageStore(fields[0], ivec3(xy, 1), vec4(dxz + timesI(h), 0.0, 0.0));
+        return;
+    }
+
+    if (step.mode == 1u || step.mode == 2u) {
+        const bool alongX = step.mode == 1u;
+        const int i = alongX ? xy.x : xy.y;
+        const int halfSpan = 1 << int(step.stage);
+        const int span = halfSpan * 2;
+        const int group = (i / span) * span;
+        const int pos = i % span;
+        const int j = pos % halfSpan;
+        int a = group + j;
+        int b = a + halfSpan;
+        if (step.stage == 0u) {
+            a = int(bitfieldReverse(uint(a)) >> (32u - step.logN));
+            b = int(bitfieldReverse(uint(b)) >> (32u - step.logN));
+        }
+        const float angle = 2.0 * kPi * float(j) / float(span); // + for the inverse transform
+        const vec2 w = vec2(cos(angle), sin(angle));
+        const uint dst = 1u - step.src;
+        for (int layer = 0; layer < 2; ++layer) {
+            const ivec3 pa = alongX ? ivec3(a, xy.y, layer) : ivec3(xy.x, a, layer);
+            const ivec3 pb = alongX ? ivec3(b, xy.y, layer) : ivec3(xy.x, b, layer);
+            const vec4 va = imageLoad(fields[step.src], pa);
+            const vec4 vb = imageLoad(fields[step.src], pb);
+            const vec4 t = vec4(cmul(w, vb.xy), cmul(w, vb.zw));
+            imageStore(fields[dst], ivec3(xy, layer), pos < halfSpan ? va + t : va - t);
+        }
+        return;
+    }
+
+    // The resolve. The spectrum is centred (k = 0 in the middle), which multiplies the result by (-1)^(x + y).
+    const float sign = ((xy.x + xy.y) & 1) == 0 ? 1.0 : -1.0;
+    const vec4 l0 = imageLoad(fields[step.src], ivec3(xy, 0)) * sign;
+    const vec4 l1 = imageLoad(fields[step.src], ivec3(xy, 1)) * sign;
+    const float lambda = -step.choppy;
+    const float jacobian = (1.0 + lambda * l0.z) * (1.0 + lambda * l0.w) - (lambda * l1.x) * (lambda * l1.x);
+    // Soft-edged, so that a texel's worth of foam does not show as a square.
+    const float foam = smoothstep(0.65, 0.05, jacobian);
+    imageStore(waves, xy, vec4(l0.x, l0.y, foam, l1.y));
+}

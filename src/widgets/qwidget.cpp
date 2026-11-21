@@ -347,7 +347,8 @@ void ensureWindow(QWidget *w) {
     The widget has no window flags (\c Qt::Window, \c Qt::Dialog, \c Qt::Tool and so on), no widget
     attributes (\c setAttribute()), no \c windowIcon(), cursor, tool tip, context menu, actions,
     style sheets (setStyleSheet() only keeps the text), shortcuts, \c grab(), \c setFocusProxy(), \c toolTipDuration(), \c statusTip(), \c whatsThis(), \c setTabOrder(), \c stackUnder(),
-    \c setWindowOpacity() or transparent windows. Only top-level widgets are native windows, and
+    \c setWindowOpacity() or transparent windows. Only top-level widgets, and the windows that
+    createWindowContainer() puts in a widget, are native windows, and
     a widget that is a window has its geometry set on the QWindow without a window frame, so
     \c frameGeometry() is not provided. \c raise() and \c lower() reorder the children of a parent, and
     ask the window system for a top-level widget. Mouse events go to the deepest widget under the mouse and

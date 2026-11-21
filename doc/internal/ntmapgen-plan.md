@@ -241,14 +241,19 @@ with Nt or committed to the repository.
   library assets to area categories by kind.
 - **Non-glTF assets.** If the library is not glTF, a one-off offline conversion step comes before
   `scan`. The conversion keeps the asset IDs stable, so configurations survive a re-export.
-- **Generated vegetation (2026-11-19).** Trees, shrubs, hedges, grasses and weeds need not be modelled by hand.
-  `ntgentree` (`tools/ntgentree`) grows them procedurally from a species and a seed, as glTF with
-  four levels of detail, `_WIND` weights, felled variants, collision, ballistic and line-of-sight
-  proxies and sensor properties for lidar and thermal, so `ntmapgen assets scan` finds nothing
-  missing; `--asset` writes the configuration entry. Species for the UK and Australia come first;
-  eucalypts are thin in asset libraries. Textures come from fal.ai through
-  `tools/ntgentree/fetch_textures.py`. General-purpose AI mesh generators are not used: they fuse
-  branches and leaves into one mesh without levels of detail or wind.
+- **Generated vegetation (2026-11-19; moved to the ntmapgen repository).** Trees, shrubs, hedges, grasses and weeds are
+  grown, not modelled by hand. `ntgentree` (`tools/ntgentree` in ntmapgen) grows them procedurally from a species and
+  a seed, as glTF with levels of detail, `_WIND` weights, a felled variant, collision, ballistic and line-of-sight
+  proxies and sensor properties for lidar and thermal; it uses the branching model of ez-tree (MIT). The asset library
+  makes its vegetation with it (`library/tools/make_vegetation.py`): the trees, shrubs, hedge sections and ground cover
+  that ntgentree can grow are procedural, with several model variants of each species (`"models": N` in the
+  catalogue), which a configuration spreads evenly over, so a forest has no two trees alike. The Rodin models of those
+  species are archived. Species for the UK and Australia come first; eucalypts are thin in asset libraries. Textures
+  come from fal.ai through `fetch_textures.py`, with their provenance recorded. General-purpose AI mesh generators
+  are not used for trees: they fuse branches and leaves into one mesh without levels of detail or wind.
+  **Trees on demand (2026-11-19):** an object of a procedural asset grows a tree of its own, from a seed derived from
+  its feature ID (stable for the same project, configuration and position, so the tree is always the same and unique);
+  ntmapgen calls ntgentree as a library and caches the model, so the world needs no stored tree per object.
 - **Tests.** Nt's own tests use a few tiny glTF assets that the tests generate. They exercise the
   pipeline only and are never offered as content.
 - **Output.** A packaged world refers to library assets by ID and version. `package` can copy the

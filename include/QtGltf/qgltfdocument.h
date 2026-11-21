@@ -2,7 +2,9 @@
 #pragma once
 
 #include <QtCore/qbytearray.h>
+#include <QtCore/qjsonobject.h>
 #include <QtCore/qlist.h>
+#include <QtCore/qmap.h>
 #include <QtCore/qshareddata.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
@@ -51,6 +53,7 @@ struct Material {
     TextureInfo thicknessTexture;
     QVector3D attenuationColor = QVector3D(1.0f, 1.0f, 1.0f);
     float attenuationDistance = std::numeric_limits<float>::infinity();
+    QJsonObject extras;
 };
 
 struct Sampler {
@@ -99,6 +102,7 @@ struct Primitive {
     QList<QVector2D> texCoords0;
     QList<QVector2D> texCoords1;
     QList<QVector4D> colors;
+    QMap<QString, QList<QVector4D>> customAttributes;
     QList<quint32> indices;
     QVector3D boundsMin;
     QVector3D boundsMax;
@@ -141,6 +145,7 @@ struct Node {
     int light = -1;
     QList<int> children;
     QMatrix4x4 transform;
+    QJsonObject extras;
 };
 
 struct Scene {

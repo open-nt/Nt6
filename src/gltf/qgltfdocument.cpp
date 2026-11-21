@@ -653,6 +653,7 @@ bool Parser::readMaterials(const QJsonArray &array) {
         const QString what = QStringLiteral("material %1").arg(i);
         Material m;
         m.name = o.value("name").toString();
+        m.extras = o.value("extras").toObject();
         const QJsonObject pbr = o.value("pbrMetallicRoughness").toObject();
         float color[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         float emissive[3] = {0.0f, 0.0f, 0.0f};
@@ -780,6 +781,25 @@ bool Parser::readPrimitive(const QJsonObject &o, Primitive *p, bool *keep, const
         for (qsizetype i = 0; i < vertexCount; ++i) {
             const float *v = values.constData() + i * components;
             p->colors[i] = QVector4D(v[0], v[1], v[2], components == 4 ? v[3] : 1.0f);
+        }
+    }
+
+    // Application-specific attributes (names starting with an underscore) of up to four components.
+    for (auto it = attributes.constBegin(); it != attributes.constEnd(); ++it) {
+        const QString name = it.key();
+        if (!name.startsWith(QLatin1Char('_')))
+            continue;
+        values.clear();
+        const QByteArray latin = name.toLatin1();
+        if (!readAttribute(attributes, latin.constData(), 1, 4, vertexCount, &values, &components, what))
+            return false;
+        QList<QVector4D> &list = p->customAttributes[name];
+        list.resize(vertexCount);
+        for (qsizetype i = 0; i < vertexCount; ++i) {
+            float v[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+            for (int c = 0; c < components; ++c)
+                v[c] = values[i * components + c];
+            list[i] = QVector4D(v[0], v[1], v[2], v[3]);
         }
     }
 
@@ -948,6 +968,7 @@ bool Parser::readNodes(const QJsonArray &array) {
         const QString what = QStringLiteral("node %1").arg(i);
         Node node;
         node.name = o.value("name").toString();
+        node.extras = o.value("extras").toObject();
         const QJsonObject lightExt = o.value("extensions").toObject().value("KHR_lights_punctual").toObject();
         if (!index(o, "mesh", m_meshCount, &node.mesh, what) ||
             !index(o, "camera", m_cameraCount, &node.camera, what) ||
@@ -1175,6 +1196,11 @@ bool Parser::parse(const QByteArray &data) {
 /*!
     \variable QtGltf::Material::name
     The name of the material; empty if it has none.
+*/
+
+/*!
+    \variable QtGltf::Material::extras
+    The material's \c extras object, empty if it has none. glTF leaves its meaning to the application.
 */
 
 /*!
@@ -1445,7 +1471,8 @@ QImage Image::toImage() const { return QImage::fromData(encodedData()); }
 
     \differences
     Skinning attributes (\c JOINTS_n, \c WEIGHTS_n), morph targets, texture coordinate sets after
-    the second, and colour sets after the first are not read.
+    the second, and colour sets after the first are not read. Application-specific attributes
+    of more than four components (matrices) are an error.
     \enddifferences
 */
 
@@ -1495,6 +1522,14 @@ QImage Image::toImage() const { return QImage::fromData(encodedData()); }
 /*!
     \variable QtGltf::Primitive::colors
     The linear vertex colours; alpha is 1 when the file stores RGB.
+*/
+
+/*!
+    \variable QtGltf::Primitive::customAttributes
+    \since 6.1
+    The application-specific vertex attributes, whose names start with an underscore (such as \c _WIND), by name.
+    Each list has one element per position; scalars and two- and three-component vectors fill the first components
+    and leave the rest 0. Normalized integers are converted as for the other attributes.
 */
 
 /*!
@@ -1662,6 +1697,11 @@ QImage Image::toImage() const { return QImage::fromData(encodedData()); }
 /*!
     \variable QtGltf::Node::name
     The name of the node; empty if it has none.
+*/
+
+/*!
+    \variable QtGltf::Node::extras
+    The node's \c extras object, empty if it has none.
 */
 
 /*!

@@ -42,13 +42,20 @@ class QWindow : public QObject, public QSurface {
     Q_PROPERTY(int width READ width WRITE setWidth NOTIFY widthChanged)
     Q_PROPERTY(int height READ height WRITE setHeight NOTIFY heightChanged)
 public:
+    enum AncestorMode { ExcludeTransients, IncludeTransients };
+    Q_ENUM(AncestorMode)
+
     explicit QWindow(QScreen *screen = nullptr);
+    explicit QWindow(QWindow *parent);
     ~QWindow() override;
 
     WId winId() const;
     void create();
     void destroy();
-    bool isTopLevel() const { return true; }
+    QWindow *parent(AncestorMode mode = ExcludeTransients) const;
+    void setParent(QWindow *parent);
+    bool isTopLevel() const;
+    bool isAncestorOf(const QWindow *child, AncestorMode mode = IncludeTransients) const;
 
     QString title() const;
     void setTitle(const QString &title);
@@ -85,8 +92,8 @@ public:
     void setY(int arg);
     void setWidth(int arg);
     void setHeight(int arg);
-    QPoint mapToGlobal(const QPoint &pos) const { return pos + position(); }
-    QPoint mapFromGlobal(const QPoint &pos) const { return pos - position(); }
+    QPoint mapToGlobal(const QPoint &pos) const;
+    QPoint mapFromGlobal(const QPoint &pos) const;
 
     QPlatformWindow *handle() const;
 

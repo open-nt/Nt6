@@ -38,12 +38,16 @@ void main() {
     float viaMirror = 0.0;
     float depth = 1.0;
     vec2 motion = vec2(0.0);
+    vec3 extinction = vec3(0.0); // per metre, of the medium the ray is in (water), or zero in air
+    vec3 inscatter = vec3(0.0);
     for (int bounce = 0; bounce < bounces; ++bounce) {
         payload.color = vec3(0.0);
         payload.distance = -1.0;
         payload.carry = vec3(0.0);
         payload.pad0 = viaMirror;
         payload.pad1 = 0.0;
+        payload.medium = vec4(0.0);
+        payload.mediumColor = vec4(0.0);
         traceRayEXT(scene, gl_RayFlagsNoneEXT, 0xff, 0, 0, 0, origin, 0.001, direction, 1.0e4, 0);
         if (bounce == 0) {
             // A miss is placed far away, so that only the camera's turning moves it.
@@ -62,8 +66,25 @@ void main() {
                 motion = prevUv * vec2(gl_LaunchSizeEXT.xy) - samplePos;
             }
         }
-        result += weight * payload.color;
+        if (any(greaterThan(extinction, vec3(0.0)))) {
+            // Inside a medium: what the ray finds is dimmed by the way there (Beer-Lambert), and by about as much
+            // again for the light that came down to it; the medium adds its own colour over that distance.
+            const float travelled = payload.distance >= 0.0 ? payload.distance : 1.0e4;
+            const vec3 there = exp(-extinction * travelled);
+            result += weight * inscatter * (vec3(1.0) - there);
+            weight *= there;
+            result += weight * payload.color * exp(-extinction * travelled * 0.8);
+        } else {
+            result += weight * payload.color;
+        }
         weight *= payload.carry;
+        if (payload.medium.w > 0.5) {
+            extinction = payload.medium.rgb;
+            inscatter = payload.mediumColor.rgb;
+        } else if (payload.medium.w < -0.5) {
+            extinction = vec3(0.0);
+            inscatter = vec3(0.0);
+        }
         viaMirror = max(viaMirror, payload.pad1);
         if (bounce == bounces - 1 || max(weight.x, max(weight.y, weight.z)) < 0.01)
             break;

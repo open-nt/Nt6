@@ -6,7 +6,7 @@
 set -e
 cd "$(dirname "$0")"
 for shader in ntgltfview.rgen:rgen ntgltfview.rmiss:rmiss ntgltfview_shadow.rmiss:rmiss ntgltfview.rchit:rchit \
-    ntgltfview.rahit:rahit; do
+    ntgltfview.rahit:rahit ntgltfview_ocean.comp:comp; do
     file=${shader%%:*}
     stage=${shader##*:}
     glslc --target-env=vulkan1.2 -fshader-stage=$stage -O "$file" -o "$file.spv"

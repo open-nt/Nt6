@@ -36,6 +36,9 @@ public:
     void setWindowFlags(Qt::WindowFlags flags) override { m_flags = flags; }
     // A maximized or full screen window takes the geometry of its screen, and gets its own back when it is normal.
     void setWindowStates(Qt::WindowStates states) override;
+    void setParent(const QPlatformWindow *parent) override { m_parent = parent; }
+    // The platform window of the parent window, for tests; null for a top-level window.
+    const QPlatformWindow *parent() const { return m_parent; }
     void raise() override { m_stacking = 1; }
     void lower() override { m_stacking = -1; }
     // What reached the platform, for tests: the flags, and 1 or -1 after the last raise() or lower().
@@ -46,6 +49,7 @@ private:
     Qt::CursorShape m_cursor = Qt::ArrowCursor;
     Qt::WindowFlags m_flags = Qt::Window;
     int m_stacking = 0;
+    const QPlatformWindow *m_parent = nullptr;
     QRect m_normalGeometry;
     bool m_filling = false; // the window has the geometry of its screen
     bool m_visible = false;

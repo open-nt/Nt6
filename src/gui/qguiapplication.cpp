@@ -199,10 +199,18 @@ QList<QScreen *> QGuiApplication::screens() { return g_state ? g_state->screens 
 QList<QWindow *> QGuiApplication::allWindows() { return g_state ? g_state->windows : QList<QWindow *>(); }
 
 /*!
-    Returns the top-level windows of the application. Every window is a
-    top-level window, so this is the same as allWindows().
+    Returns the top-level windows of the application: allWindows() without the child windows.
+
+    \sa QWindow::isTopLevel()
 */
-QList<QWindow *> QGuiApplication::topLevelWindows() { return allWindows(); }
+QList<QWindow *> QGuiApplication::topLevelWindows() {
+    QList<QWindow *> list;
+    for (QWindow *window : allWindows()) {
+        if (window->isTopLevel())
+            list.append(window);
+    }
+    return list;
+}
 
 /*!
     Returns the window that has the keyboard focus, or \c nullptr.
@@ -487,10 +495,11 @@ void GuiAccess::maybeQuitOnLastWindowClosed(QWindow *closed) {
         return;
     // Only the windows that keep the application running count: a tool window that is left open does not
     // keep it alive, and closing one does not end it.
-    if (closed && !quitOnClose(closed))
+    // Child windows neither keep it running nor end it: their top-level window does.
+    if (closed && (!closed->isTopLevel() || !quitOnClose(closed)))
         return;
     for (QWindow *w : g_state->windows) {
-        if (w->isVisible() && quitOnClose(w))
+        if (w->isVisible() && w->isTopLevel() && quitOnClose(w))
             return;
     }
     emit g_app->lastWindowClosed();

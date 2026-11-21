@@ -814,6 +814,12 @@ void QXcbConnection::handleButton(xcb_generic_event_t *event) {
     if (press) {
         m_buttons |= button;
         type = QEvent::MouseButtonPress;
+        // The window manager gives the focus to top-level windows; a child window takes it when it is clicked, and
+        // its top-level window takes it back when that is clicked outside the child.
+        QWindow *focus = QGuiApplication::focusWindow();
+        if (focus != w->window() && (w->isChild() || (focus && w->window()->isAncestorOf(focus))) &&
+            !w->window()->flags().testFlag(Qt::WindowDoesNotAcceptFocus))
+            w->requestActivateWindow();
         const QPoint pos(e->root_x, e->root_y);
         const auto doubleClickMs =
             static_cast<uint32_t>(std::max(0, QGuiApplication::styleHints()->mouseDoubleClickInterval()));
@@ -838,8 +844,9 @@ void QXcbConnection::handleConfigure(xcb_generic_event_t *event) {
     if (!w)
         return;
     QPoint pos(e->x, e->y);
-    // Unless the window manager sent it, the position is relative to the frame of the window.
-    if (!(event->response_type & 0x80)) {
+    // Unless the window manager sent it, the position is relative to the frame of the window. A child window's is
+    // relative to its parent, as its geometry is.
+    if (!w->isChild() && !(event->response_type & 0x80)) {
         xcb_translate_coordinates_reply_t *reply = xcb_translate_coordinates_reply(
             m_connection, xcb_translate_coordinates(m_connection, e->window, m_screen->root, 0, 0), nullptr);
         if (reply) {

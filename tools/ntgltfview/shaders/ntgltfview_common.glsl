@@ -4,7 +4,9 @@
 
 // What a ray brings back to the ray generation shader: the color the surface adds, and how far the hit was. When light
 // goes on past the surface, by reflection or through glass, it also says where that ray starts, which way it goes and
-// how much of what it finds is added (`carry`, zero when nothing follows); the ray generation shader traces it.
+// how much of what it finds is added (`carry`, zero when nothing follows); the ray generation shader traces it. A ray
+// that crosses into a volume (water, a solid glass) says so in `medium`, and the ray generation shader then dims what
+// the next ray finds by the length of its path through the medium (Beer-Lambert) and adds the medium's own colour.
 struct HitPayload {
     vec3 color;
     float distance; // along the ray, or -1 for a miss
@@ -14,6 +16,8 @@ struct HitPayload {
     float pad1;
     vec3 carry;
     float pad2;
+    vec4 medium;      // rgb: the extinction per metre of the medium the next ray enters; w: 1 entering, -1 leaving
+    vec4 mediumColor; // rgb: the light the medium scatters towards the eye, all the way down
 };
 
 // The bits of Camera.flags.

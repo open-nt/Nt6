@@ -27,6 +27,9 @@ public:
     // The icon that the window system shows for the window, in its task bar and title bar.
     virtual void setWindowIcon(const QIcon &icon) { (void)icon; }
     virtual void requestActivateWindow() {}
+    // Makes the window a child of `parent`, inside it at its geometry (which is then relative to the parent), or a
+    // top-level window again if `parent` is null.
+    virtual void setParent(const QPlatformWindow *parent) { (void)parent; }
     // Keeps the window above `parent`, as a dialog, or makes it a normal window again if `parent` is null.
     virtual void setTransientParent(const QPlatformWindow *parent) { (void)parent; }
     // Makes the window cover the whole screen, or normal again. Called before the window is shown, too.

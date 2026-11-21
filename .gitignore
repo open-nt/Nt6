@@ -9,3 +9,4 @@ html/
 
 # Python byte-code from the asset scripts
 __pycache__/
+*.py[cod]

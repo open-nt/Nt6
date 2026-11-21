@@ -368,7 +368,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 ### Platforms and tools
 
 - **Zephyr.** Nt Core, Nt Network and Nt HTTP Server build as a Zephyr module for microcontrollers, headless; see [Zephyr](#zephyr-embedded-headless).
-- **MIT tools.** `ntmoc`, `ntrcc` and `ndoc` replace moc, rcc and qdoc. Their command lines and CMake functions match Qt's, but the `.rcc` format is Nt's own; see [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator). `ntgentree` grows trees, grasses and weeds as glTF; see [ntgentree](#ntgentree-trees-grasses-and-weeds). `ntgltfview FILE` shows a glTF 2.0 scene with hardware ray tracing in a `QVulkanWindow`: the metallic-roughness materials with their textures, normal maps and alpha cut-outs, under a camera that orbits, walks inside (`--view`) and is moved with the mouse, keyboard and a gamepad via Nt Gamepad, with ray traced shadows, reflections and glass (`--raytrace on|off`, `--environment FILE.hdr` for the background and what the glass and metal reflect) and optional NVIDIA DLSS Super Resolution (`--dlss`, a build with `-DNT_DLSS_SDK_DIR=<a checkout of NVIDIA/DLSS>`) (`--grab FILE.png` saves a frame, `--devices` lists the GPUs); it is built when Vulkan is found.
+- **MIT tools.** `ntmoc`, `ntrcc` and `ndoc` replace moc, rcc and qdoc. Their command lines and CMake functions match Qt's, but the `.rcc` format is Nt's own; see [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator). `ntgltfview FILE` shows a glTF 2.0 scene with hardware ray tracing in a `QVulkanWindow`: the metallic-roughness materials with their textures, normal maps and alpha cut-outs, under a camera that orbits, walks inside (`--view`) and is moved with the mouse, keyboard and a gamepad via Nt Gamepad, with ray traced shadows, reflections and glass (`--raytrace on|off`, `--environment FILE.hdr` for the background and what the glass and metal reflect) and optional NVIDIA DLSS Super Resolution (`--dlss`, a build with `-DNT_DLSS_SDK_DIR=<a checkout of NVIDIA/DLSS>`) (`--grab FILE.png` saves a frame, `--devices` lists the GPUs); it is built when Vulkan is found. The driving simulation (`ntsim`) is part of ntmapgen.
 
 ## Qt 6 modules and their Nt names
 
@@ -737,36 +737,6 @@ cmake --build build --target docs      # writes build/doc/html
 The documentation is published to <https://open-nt.github.io/Nt6/> on every push to `main`.
 
 The class pages of the widgets show how each widget is drawn, in its states, in the light color scheme. The pictures in `doc/images/widgets` come from the real widgets: `render_widgets doc/images`, from [nt6-examples](https://github.com/open-nt/nt6-examples), renders them with `QWidget::render()` on the offscreen platform (no display needed), so run it again after changing how a widget or the style draws, and commit the result; `render_charts doc/images` and `painting --write doc/images` do the same for the charts and the painter pictures. The `docs` target fails on any broken link or bad parameter name. `coverage.txt` in the output lists public API that has no documentation yet. See [tools/ndoc/README.md](tools/ndoc/README.md) for the comment syntax. Write documentation from Nt's behaviour: Qt's documentation text is not MIT licensed, so it must not be copied or reworded.
-
-## ntgentree: trees, grasses and weeds
-
-`ntgentree` (`tools/ntgentree`) grows vegetation from rules and a seed and writes it as binary glTF, for the digital-twin world that ntmapgen builds. It has no dependencies. Trees, shrubs and hedges are procedural, not modelled by hand. A tree grows as a competition for space and light (Palubicki et al. 2009): buds that find free space in a crown envelope grow, the supply of a branch is shared between its main axis and its side branches, and branches that are shaded die, so one parameter (`apical`) gives a pine with a leader and an oak that forks in its crown. Trunk and crown proportions are checked against the Tallo allometry database. Shrubs have several stems, hedges a row of them; leaves are placed until their area matches the leaf area index. The same species, seed and options give the same file.
-
-```sh
-ntgentree --list                                  # 10 trees, 7 shrubs, 5 hedges, 7 grasses, 7 weeds, UK and Australia
-ntgentree eucalyptus_camaldulensis --seed 7 -o gum.glb
-ntgentree eucalyptus_camaldulensis --seed 7 --density 0.5 -o stressed-gum.glb     # a sparse crown
-ntgentree betula_pendula --seed 2 --leaf-off -o winter-birch.glb                  # the branch structure only
-ntgentree quercus_robur --param crown_radius=0.3 --param angle1=50 -o oak.glb     # --list-params
-ntgentree themeda_triandra --blades 200 --asset kangaroo.json -o kangaroo.glb
-ntgentree taxus_baccata_hedge --param hedge_length=6 -o yew-hedge.glb             # a clipped 6 m segment
-```
-
-Each file holds what the ntmapgen asset rules ask for ([doc/internal/ntmapgen-plan.md](doc/internal/ntmapgen-plan.md) §4):
-
-- **Levels of detail.** Trees, shrubs and hedges have `LOD0` to `LOD3`: every branch down to a millimetre and all the leaves (`--max-leaves`, 40 000 by default, larger leaves keep the leaf area when there are fewer), then fewer twigs and leaves, then limbs and leaf clusters, then a trunk and a crown of revolution (a box for a hedge). Grasses and weeds have `LOD0` to `LOD2`, with fewer and wider blades. Each node's extras give a suggested switch distance.
-- **Wind.** The custom vertex attribute `_WIND` holds the sway weights for the vertex shader: trunk bend, branch flex, leaf flutter and a per-branch phase.
-- **Variants and proxies.** A tree or shrub has a `Felled` node and the proxies `Collision`, `Trunk` (ballistic) and `Crown` (line of sight and sensors). A hedge is a clipped box that stands end to end with its neighbours: it has no `Felled` variant, and its `Collision` box is also the ballistic proxy. `--asset FILE` writes the matching entry for the ntmapgen asset configuration.
-- **Sensors.** Every material carries typical optical properties in its extras, for lidar and thermal simulation: reflectance at 905 nm and 1550 nm, long-wave emissivity and solar absorptivity, with a sensor class (`vegetation.broadleaf`, `.conifer`, `.sclerophyll`, `.needleleaf`, `.grass`, `.forb`). Bark reflectance follows its colour. They are indicative values for a class, not measurements of a species. Leaves are real geometry at real size, not alpha cards, so lidar returns come from where the leaves are; `--leaf-off` gives the leafless structure.
-- **Textures.** Without textures, materials are plain colours. `--textures DIR` embeds `<species>_bark.png`, `<species>_leaf.png` (trees), `<species>_blade.png` (grasses) and `<species>_leaf.png` (weeds), or a file with just the slot name as a fallback. `tools/ntgentree/fetch_textures.py` makes them with fal.ai: bark from Recraft V3, and leaves and blades cut out and cropped so that they fill the leaf. It reads the key from `FAL_KEY`, and fal.ai bills each image, so start with `--dry-run` and `--species`.
-
-```sh
-ntgentree --textures-plan                         # what each species needs, with the prompts
-FAL_KEY=... tools/ntgentree/fetch_textures.py --out textures --species quercus_robur eucalyptus_camaldulensis
-ntgentree quercus_robur --textures textures -o oak.glb
-```
-
-The species are a starting set with plausible habit, not fitted to surveys; use `--param` to tune one, and see [tools/ntgentree/README.md](tools/ntgentree/README.md) for the parameters and how the generator works. `ntgltfview FILE` shows the result.
 
 ## Build
 

@@ -5,6 +5,9 @@
 #include <QtCore>
 #include <QtGui/qclipboard.h>
 #include <QtGui/qstylehints.h>
+#include <QtGui/qevent.h>
+#include <QtGui/qpainter.h>
+#include <QtGui/qrasterwindow.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qboxlayout.h>
@@ -37,6 +40,26 @@ static int g_failures = 0;
     } while (0)
 
 using namespace xcbtest;
+
+namespace {
+
+// A window that fills itself with one colour and counts the mouse presses it gets, for the window container.
+class SolidWindow : public QRasterWindow {
+public:
+    int presses = 0;
+
+protected:
+    void paintEvent(QPaintEvent *) override {
+        QPainter painter(this);
+        painter.fillRect(QRect(QPoint(0, 0), size()), QColor(200, 20, 30));
+    }
+    void mousePressEvent(QMouseEvent *event) override {
+        ++presses;
+        event->accept();
+    }
+};
+
+} // namespace
 
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "xcb", 1);
@@ -290,6 +313,59 @@ int main(int argc, char **argv) {
         CHECK(exposed);
         CHECK(painted);
         CHECK(result == QDialog::Accepted);
+    }
+
+    // A window in a widget (QWidget::createWindowContainer()): an X subwindow of the top-level window at the
+    // container's place, which shows its own pixels in the top-level window and takes the focus when clicked.
+    {
+        QWidget host;
+        auto *column = new QVBoxLayout(&host);
+        column->setContentsMargins(0, 0, 0, 0);
+        column->setSpacing(0);
+        auto *above = new QLabel(QStringLiteral("above"));
+        above->setFixedHeight(40);
+        column->addWidget(above);
+        auto *solid = new SolidWindow;
+        QWidget *container = QWidget::createWindowContainer(solid);
+        column->addWidget(container);
+        host.resize(200, 140);
+        host.show();
+        const auto hostId = static_cast<xcb_window_t>(host.winId());
+        const auto childId = static_cast<xcb_window_t>(solid->winId());
+        CHECK(childId != 0 && childId != hostId);
+        xcb_query_tree_reply_t *tree = xcb_query_tree_reply(c, xcb_query_tree(c, childId), nullptr);
+        CHECK(tree && tree->parent == hostId);
+        std::free(tree);
+        CHECK(waitFor([&] {
+            xcb_get_geometry_reply_t *g = xcb_get_geometry_reply(c, xcb_get_geometry(c, childId), nullptr);
+            const bool placed = g && g->x == 0 && g->y == 40 && g->width == 200 && g->height == 100;
+            std::free(g);
+            return placed;
+        }));
+        // The top-level window's pixels include the subwindow's.
+        const auto hostPixel = [&](int x, int y) -> uint32_t {
+            xcb_get_image_reply_t *image = xcb_get_image_reply(
+                c, xcb_get_image(c, XCB_IMAGE_FORMAT_Z_PIXMAP, hostId, int16_t(x), int16_t(y), 1, 1, ~0u), nullptr);
+            uint32_t pixel = 0;
+            if (image && xcb_get_image_data_length(image) >= 4)
+                std::memcpy(&pixel, xcb_get_image_data(image), 4);
+            std::free(image);
+            return pixel & 0xffffffu;
+        };
+        CHECK(waitFor([&] { return hostPixel(100, 90) == 0xc8141eu; }));
+        CHECK(hostPixel(100, 10) != 0xc8141eu);
+        sendButton(c, childId, 1, XCB_BUTTON_PRESS, 1000, 10, 10);
+        sendButton(c, childId, 1, XCB_BUTTON_RELEASE, 1010, 10, 10);
+        CHECK(waitFor([&] { return solid->presses == 1; }));
+        CHECK(waitFor([&] { return QGuiApplication::focusWindow() == solid; }));
+        container->hide();
+        CHECK(waitFor([&] {
+            xcb_get_window_attributes_reply_t *a =
+                xcb_get_window_attributes_reply(c, xcb_get_window_attributes(c, childId), nullptr);
+            const bool unmapped = a && a->map_state == XCB_MAP_STATE_UNMAPPED;
+            std::free(a);
+            return unmapped;
+        }));
     }
 
     // The window manager's close request closes the window

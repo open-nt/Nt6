@@ -23,6 +23,7 @@ public:
     void setWindowTitle(const QString &title) override;
     void setWindowIcon(const QIcon &icon) override;
     void requestActivateWindow() override;
+    void setParent(const QPlatformWindow *parent) override;
     void setTransientParent(const QPlatformWindow *parent) override;
     void setFullScreen(bool fullScreen) override;
     void setWindowStates(Qt::WindowStates states) override;
@@ -33,6 +34,8 @@ public:
     void setCursor(Qt::CursorShape shape) override;
 
     xcb_window_t id() const { return m_id; }
+    // Whether the window is inside another window of the application (QWindow::setParent()).
+    bool isChild() const { return m_child; }
     // The geometry that the X server reported.
     void setServerGeometry(const QRect &rect) { m_geometry = rect; }
 
@@ -43,6 +46,7 @@ private:
     xcb_window_t m_id;
     QRect m_geometry;
     bool m_mapped = false;
+    bool m_child = false;
     std::vector<xcb_atom_t> m_netWmState; // the _NET_WM_STATE atoms asked for, read by the window manager on map
 
     void setNetWmState(xcb_atom_t atom, bool on);

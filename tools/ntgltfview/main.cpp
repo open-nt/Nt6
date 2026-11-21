@@ -16,7 +16,15 @@
 // With --raytrace on (the default) the key light casts shadows, smooth surfaces mirror what is around them, and glass
 // (KHR_materials_transmission, _volume and _ior, and blended alpha) lets the rays through: they bend into a volume that
 // has a thickness, and take its color. --environment gives the rays a panorama to find, a Radiance .hdr or an image,
-// which is also the background. --dlss upscales the traced image with NVIDIA DLSS Super Resolution.
+// which is also the background. --dlss upscales the traced image with NVIDIA DLSS Super Resolution. --sun turns the key
+// light round the vertical, --no-auto-rotate starts with the camera still, and --rotate-speed scales its motion.
+//
+// A transmissive material with a volume (thickness and a finite attenuation distance) is a medium: the ray bends into
+// it and what lies beyond is dimmed by the length of the path through it, so shallow water is clear and deep water
+// takes its colour. A transmissive material whose name starts with "water" also gets waves: a Tessendorf FFT ocean,
+// 256 x 256 over 64 m, computed every frame in a compute shader (shaders/ntgltfview_ocean.comp), tiled by the
+// material's normal texture transform and scaled by its normal scale (0.35 and above has whitecaps). Without --device
+// the first discrete GPU is used.
 //
 // Controls: drag to orbit or look around, wheel to zoom or change the speed; W A S D Q E (or the arrows) fly, with
 // Shift faster; F switches between orbiting and flying; Space stops and starts the automatic motion; R resets;
@@ -37,6 +45,7 @@
 #include <QMouseEvent>
 #include <QString>
 #include <QTimer>
+#include <QVector2D>
 #include <QVector3D>
 #include <QVulkanDeviceFunctions>
 #include <QVulkanFunctions>
@@ -50,6 +59,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <random>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -146,6 +156,7 @@ static_assert(sizeof(CameraConstants) == 128, "the push constants must match the
 
 constexpr uint32_t kFlagTraceEffects = 2; // shadows and reflections
 constexpr uint32_t kFlagEnvironment = 4;  // an environment image is bound
+constexpr uint32_t kFlagSun = 8;          // bits 16 to 24 hold the azimuth of the key light in degrees (--sun)
 constexpr VkShaderStageFlags kCameraStages = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR |
                                              VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
 constexpr uint32_t kGroupCount = 4; // shader groups: ray generation, two miss shaders, the hit group
@@ -227,6 +238,9 @@ struct RenderOptions {
     bool dlss = false;
     Dlss::Quality quality = Dlss::Quality::Quality;
     QString environment;            // a panorama for the background and the reflections, or empty
+    int sunAzimuth = -1;            // degrees clockwise from the x axis, or -1 for the built-in key light
+    bool autoRotate = true;         // the camera orbits (or pans) by itself until the user takes over
+    float rotateSpeed = 1.0f;       // times the default speed of that motion
     QString dlssLibrary;            // where NVIDIA's libnvidia-ngx-dlss is
     bool dlssInstanceReady = false; // the instance was made with the extensions NGX needs
     // Set by the renderer for the window title.
@@ -275,6 +289,7 @@ public:
     void resetCamera(View view) {
         Camera &c = *m_camera;
         c = Camera();
+        c.automatic = m_options->autoRotate;
         c.speed = m_radius * 0.4f;
         const QVector3D extent = m_hi - m_lo;
         if (view == View::Inside) {
@@ -389,6 +404,7 @@ public:
         createGeometry();
         createTextures();
         createEnvironment();
+        createOcean();
         createTopLevel();
         createPipeline();
         createShaderBindingTable();
@@ -473,6 +489,15 @@ public:
             return;
         m_dlss.shutdown();
         m_df->vkDestroyDescriptorPool(m_dev, m_descriptorPool, nullptr);
+        m_df->vkDestroyDescriptorPool(m_dev, m_oceanPool, nullptr);
+        m_df->vkDestroyPipeline(m_dev, m_oceanPipeline, nullptr);
+        m_df->vkDestroyPipelineLayout(m_dev, m_oceanLayout, nullptr);
+        m_df->vkDestroyDescriptorSetLayout(m_dev, m_oceanSetLayout, nullptr);
+        m_df->vkDestroySampler(m_dev, m_oceanSampler, nullptr);
+        destroyImage(m_oceanSpectrum);
+        destroyImage(m_oceanFields[0]);
+        destroyImage(m_oceanFields[1]);
+        destroyImage(m_oceanWaves);
         m_df->vkDestroyPipeline(m_dev, m_pipeline, nullptr);
         m_df->vkDestroyPipelineLayout(m_dev, m_pipelineLayout, nullptr);
         m_df->vkDestroyDescriptorSetLayout(m_dev, m_descriptorSetLayout, nullptr);
@@ -532,6 +557,8 @@ public:
                 imageBarrier(cmd, image, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 0,
                              VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                              VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+            if (m_hasWater)
+                runOcean(cmd, static_cast<float>(m_clock.elapsed()) * 0.001f);
             m_df->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipeline);
             m_df->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, m_pipelineLayout, 0, 1,
                                           &m_descriptorSet, 0, nullptr);
@@ -770,7 +797,7 @@ private:
             c.automatic = false;
         if (c.mode == Camera::Mode::Orbit) {
             if (c.automatic)
-                c.azimuth += dt * 0.35f;
+                c.azimuth += dt * 0.35f * m_options->rotateSpeed;
             c.azimuth -= lookX * dt * 2.0f;
             c.elevation = std::clamp(c.elevation + lookY * dt * 1.5f, -1.5f, 1.5f);
             c.distanceFactor = std::clamp(c.distanceFactor * std::pow(0.4f, rise * dt), 0.02f, 20.0f);
@@ -778,7 +805,8 @@ private:
             c.yaw -= lookX * dt * 2.0f;
             c.pitch = std::clamp(c.pitch - lookY * dt * 1.5f, -1.5f, 1.5f);
             if (c.automatic)
-                c.yaw += dt * 0.25f * 0.45f * std::cos(now * 0.25f); // the slow pan of the inside view
+                c.yaw += dt * 0.25f * 0.45f * m_options->rotateSpeed *
+                         std::cos(now * 0.25f); // the slow pan of the inside view
             const QVector3D forward = Camera::direction(c.yaw, c.pitch);
             const QVector3D right = QVector3D::crossProduct(forward, QVector3D(0.0f, 1.0f, 0.0f)).normalized();
             QVector3D step;
@@ -846,6 +874,8 @@ private:
         constants.depthNear = std::max(1.0e-4f, m_radius * 1.0e-3f);
         constants.flags = (m_options->rayTracing && m_options->effectsSupported ? kFlagTraceEffects : 0u) |
                           (m_hasEnvironment ? kFlagEnvironment : 0u);
+        if (m_options->sunAzimuth >= 0)
+            constants.flags |= kFlagSun | (static_cast<uint32_t>(m_options->sunAzimuth % 360) << 16);
         constants.swapRedBlue = m_swapRedBlue;
         if (m_dlssOn) {
             // One sub-pixel offset per frame from a Halton sequence long enough to cover the output pixels that
@@ -1041,6 +1071,13 @@ private:
                 m_dataTextures.insert(info.index);
         }
         record.textures2[1] = static_cast<float>(uvBits);
+        // Water (a transmissive material whose name starts with "water", as ntmapgen names them) gets the waves of
+        // the FFT ocean instead of its normal texture.
+        if (material.transmissionFactor > 0.0f &&
+            material.name.startsWith(QLatin1String("water"), Qt::CaseInsensitive)) {
+            record.textures3[2] = 1.0f;
+            m_hasWater = true;
+        }
     }
 
     // Uploads every mesh's primitives, fills their records, and builds one bottom-level structure per mesh.
@@ -1350,9 +1387,227 @@ private:
         return module;
     }
 
+    // An image for the shaders to write (storage) and maybe sample, with `layers` layers (an array view if more than
+    // one), in the general layout.
+    Image makeStorageImage(VkFormat format, uint32_t size, uint32_t layers, bool sampled) {
+        Image out;
+        out.format = format;
+        out.size = QSize(static_cast<int>(size), static_cast<int>(size));
+        auto info = make<VkImageCreateInfo>(VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO);
+        info.imageType = VK_IMAGE_TYPE_2D;
+        info.format = format;
+        info.extent = {size, size, 1};
+        info.mipLevels = 1;
+        info.arrayLayers = layers;
+        info.samples = VK_SAMPLE_COUNT_1_BIT;
+        info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        info.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT |
+                     (sampled ? static_cast<VkImageUsageFlags>(VK_IMAGE_USAGE_SAMPLED_BIT) : 0u);
+        info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        check(m_df->vkCreateImage(m_dev, &info, nullptr, &out.image), "vkCreateImage");
+        VkMemoryRequirements req{};
+        m_df->vkGetImageMemoryRequirements(m_dev, out.image, &req);
+        auto alloc = make<VkMemoryAllocateInfo>(VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
+        alloc.allocationSize = req.size;
+        alloc.memoryTypeIndex = memoryType(req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        check(m_df->vkAllocateMemory(m_dev, &alloc, nullptr, &out.memory), "vkAllocateMemory");
+        m_df->vkBindImageMemory(m_dev, out.image, out.memory, 0);
+        auto view = make<VkImageViewCreateInfo>(VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO);
+        view.image = out.image;
+        view.viewType = layers > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+        view.format = format;
+        view.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, layers};
+        check(m_df->vkCreateImageView(m_dev, &view, nullptr, &out.view), "vkCreateImageView");
+        submitAndWait([&](VkCommandBuffer cmd) {
+            auto barrier = make<VkImageMemoryBarrier>(VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER);
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+            barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+            barrier.image = out.image;
+            barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, layers};
+            m_df->vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0,
+                                       nullptr, 0, nullptr, 1, &barrier);
+            VkClearColorValue zero{};
+            m_df->vkCmdClearColorImage(cmd, out.image, VK_IMAGE_LAYOUT_GENERAL, &zero, 1, &barrier.subresourceRange);
+        });
+        return out;
+    }
+
+    // The FFT ocean: a Phillips spectrum for a moderate wind, scaled so that the slopes have a root mean square of
+    // 0.18 (a sea with whitecaps here and there), the images and the compute pipeline. It is made for every scene, so
+    // that the hit shader always has a texture to sample; it runs only when the scene has water.
+    void createOcean() {
+        const uint32_t n = 1u << kOceanLog;
+        const float g = 9.81f, wind = 9.0f, kPiF = 3.14159265f;
+        const QVector2D windDir = QVector2D(1.0f, 0.35f).normalized();
+        // Waves shorter than about half a metre are damped away: the texture's texels are a quarter of a metre, and
+        // waves near that would only make the foam flicker from texel to texel.
+        const float big = wind * wind / g, small = 0.35f;
+        std::mt19937 rng(20261121u);
+        std::normal_distribution<float> gauss(0.0f, 1.0f);
+        std::vector<float> h0(static_cast<std::size_t>(n) * n * 2);
+        auto at = [n](uint32_t x, uint32_t y) { return (static_cast<std::size_t>(y) * n + x) * 2; };
+        for (uint32_t y = 0; y < n; ++y) {
+            for (uint32_t x = 0; x < n; ++x) {
+                const QVector2D k(2.0f * kPiF * (static_cast<float>(x) - n / 2.0f) / kOceanPatch,
+                                  2.0f * kPiF * (static_cast<float>(y) - n / 2.0f) / kOceanPatch);
+                const float len = k.length();
+                float p = 0.0f;
+                if (len > 1.0e-6f) {
+                    const float along = QVector2D::dotProduct(k / len, windDir);
+                    p = std::exp(-1.0f / (len * big * len * big)) / (len * len * len * len) * along * along *
+                        std::exp(-len * len * small * small);
+                    if (along < 0.0f)
+                        p *= 0.25f; // waves running against the wind are weaker
+                }
+                const float amp = std::sqrt(p * 0.5f);
+                h0[at(x, y)] = gauss(rng) * amp;
+                h0[at(x, y) + 1] = gauss(rng) * amp;
+            }
+        }
+        // The slope variance of the sum, for the scale.
+        double slope = 0.0;
+        for (uint32_t y = 0; y < n; ++y)
+            for (uint32_t x = 0; x < n; ++x) {
+                const float kx = 2.0f * kPiF * (static_cast<float>(x) - n / 2.0f) / kOceanPatch;
+                const float ky = 2.0f * kPiF * (static_cast<float>(y) - n / 2.0f) / kOceanPatch;
+                const std::size_t i = at(x, y);
+                slope += 2.0 * static_cast<double>((kx * kx + ky * ky) * (h0[i] * h0[i] + h0[i + 1] * h0[i + 1]));
+            }
+        const float scale = slope > 0.0 ? static_cast<float>(0.18 / std::sqrt(slope)) : 0.0f;
+        std::vector<float> texels(static_cast<std::size_t>(n) * n * 4);
+        for (uint32_t y = 0; y < n; ++y)
+            for (uint32_t x = 0; x < n; ++x) {
+                const std::size_t i = at(x, y), m = at((n - x) % n, (n - y) % n);
+                float *t = &texels[(static_cast<std::size_t>(y) * n + x) * 4];
+                t[0] = h0[i] * scale;
+                t[1] = h0[i + 1] * scale;
+                t[2] = h0[m] * scale; // conj(h0(-k))
+                t[3] = -h0[m + 1] * scale;
+            }
+
+        m_oceanSpectrum = makeStorageImage(VK_FORMAT_R32G32B32A32_SFLOAT, n, 1, false);
+        m_oceanFields[0] = makeStorageImage(VK_FORMAT_R32G32B32A32_SFLOAT, n, 2, false);
+        m_oceanFields[1] = makeStorageImage(VK_FORMAT_R32G32B32A32_SFLOAT, n, 2, false);
+        m_oceanWaves = makeStorageImage(VK_FORMAT_R16G16B16A16_SFLOAT, n, 1, true);
+        const std::size_t bytes = texels.size() * sizeof(float);
+        Buffer staging = createBuffer(bytes, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                                      VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        upload(staging, texels.data(), bytes);
+        submitAndWait([&](VkCommandBuffer cmd) {
+            VkBufferImageCopy copy{};
+            copy.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+            copy.imageExtent = {n, n, 1};
+            m_df->vkCmdCopyBufferToImage(cmd, staging.buffer, m_oceanSpectrum.image, VK_IMAGE_LAYOUT_GENERAL, 1, &copy);
+        });
+        destroyBuffer(staging);
+
+        auto samplerInfo = make<VkSamplerCreateInfo>(VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO);
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = samplerInfo.addressModeV = samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        check(m_df->vkCreateSampler(m_dev, &samplerInfo, nullptr, &m_oceanSampler), "vkCreateSampler");
+
+        VkDescriptorSetLayoutBinding bindings[3]{};
+        for (uint32_t i = 0; i < 3; ++i) {
+            bindings[i].binding = i;
+            bindings[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            bindings[i].descriptorCount = i == 1 ? 2 : 1;
+            bindings[i].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+        }
+        auto layoutInfo = make<VkDescriptorSetLayoutCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
+        layoutInfo.bindingCount = 3;
+        layoutInfo.pBindings = bindings;
+        check(m_df->vkCreateDescriptorSetLayout(m_dev, &layoutInfo, nullptr, &m_oceanSetLayout),
+              "vkCreateDescriptorSetLayout");
+        VkPushConstantRange range{VK_SHADER_STAGE_COMPUTE_BIT, 0, 32};
+        auto pipelineLayout = make<VkPipelineLayoutCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO);
+        pipelineLayout.setLayoutCount = 1;
+        pipelineLayout.pSetLayouts = &m_oceanSetLayout;
+        pipelineLayout.pushConstantRangeCount = 1;
+        pipelineLayout.pPushConstantRanges = &range;
+        check(m_df->vkCreatePipelineLayout(m_dev, &pipelineLayout, nullptr, &m_oceanLayout), "vkCreatePipelineLayout");
+        auto stage = make<VkPipelineShaderStageCreateInfo>(VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO);
+        stage.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+        stage.module = loadShader(QStringLiteral(":/shaders/ntgltfview_ocean.comp.spv"));
+        stage.pName = "main";
+        auto pipelineInfo = make<VkComputePipelineCreateInfo>(VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO);
+        pipelineInfo.stage = stage;
+        pipelineInfo.layout = m_oceanLayout;
+        check(m_df->vkCreateComputePipelines(m_dev, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &m_oceanPipeline),
+              "vkCreateComputePipelines");
+        m_df->vkDestroyShaderModule(m_dev, stage.module, nullptr);
+
+        VkDescriptorPoolSize size{VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 4};
+        auto poolInfo = make<VkDescriptorPoolCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO);
+        poolInfo.maxSets = 1;
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &size;
+        check(m_df->vkCreateDescriptorPool(m_dev, &poolInfo, nullptr, &m_oceanPool), "vkCreateDescriptorPool");
+        auto allocInfo = make<VkDescriptorSetAllocateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO);
+        allocInfo.descriptorPool = m_oceanPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &m_oceanSetLayout;
+        check(m_df->vkAllocateDescriptorSets(m_dev, &allocInfo, &m_oceanSet), "vkAllocateDescriptorSets");
+        const VkDescriptorImageInfo images[4] = {{VK_NULL_HANDLE, m_oceanSpectrum.view, VK_IMAGE_LAYOUT_GENERAL},
+                                                 {VK_NULL_HANDLE, m_oceanFields[0].view, VK_IMAGE_LAYOUT_GENERAL},
+                                                 {VK_NULL_HANDLE, m_oceanFields[1].view, VK_IMAGE_LAYOUT_GENERAL},
+                                                 {VK_NULL_HANDLE, m_oceanWaves.view, VK_IMAGE_LAYOUT_GENERAL}};
+        VkWriteDescriptorSet writes[3];
+        for (uint32_t i = 0; i < 3; ++i) {
+            writes[i] = make<VkWriteDescriptorSet>(VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET);
+            writes[i].dstSet = m_oceanSet;
+            writes[i].dstBinding = i;
+            writes[i].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+            writes[i].descriptorCount = i == 1 ? 2 : 1;
+            writes[i].pImageInfo = &images[i == 2 ? 3 : i];
+        }
+        m_df->vkUpdateDescriptorSets(m_dev, 3, writes, 0, nullptr);
+    }
+
+    // The waves at `seconds`: the spectrum, the inverse FFT along x and along z, the resolve, then a barrier so that the
+    // ray tracing shaders see the result.
+    void runOcean(VkCommandBuffer cmd, float seconds) {
+        struct Step {
+            uint32_t mode, stage, src, logN;
+            float time, patch, choppy, pad;
+        } step{0, 0, 0, kOceanLog, seconds, kOceanPatch, 1.0f, 0.0f};
+        const uint32_t groups = (1u << kOceanLog) / 16u;
+        auto memoryBarrier = [&](VkPipelineStageFlags to) {
+            auto barrier = make<VkMemoryBarrier>(VK_STRUCTURE_TYPE_MEMORY_BARRIER);
+            barrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+            m_df->vkCmdPipelineBarrier(cmd, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, to, 0, 1, &barrier, 0, nullptr, 0,
+                                       nullptr);
+        };
+        m_df->vkCmdBindPipeline(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_oceanPipeline);
+        m_df->vkCmdBindDescriptorSets(cmd, VK_PIPELINE_BIND_POINT_COMPUTE, m_oceanLayout, 0, 1, &m_oceanSet, 0,
+                                      nullptr);
+        auto dispatch = [&] {
+            m_df->vkCmdPushConstants(cmd, m_oceanLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(step), &step);
+            m_df->vkCmdDispatch(cmd, groups, groups, 1);
+            memoryBarrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT);
+        };
+        dispatch(); // the spectrum, into fields[0]
+        for (uint32_t mode = 1; mode <= 2; ++mode) {
+            for (uint32_t s = 0; s < kOceanLog; ++s) {
+                step.mode = mode;
+                step.stage = s;
+                dispatch();
+                step.src = 1 - step.src;
+            }
+        }
+        step.mode = 3;
+        m_df->vkCmdPushConstants(cmd, m_oceanLayout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(step), &step);
+        m_df->vkCmdDispatch(cmd, groups, groups, 1);
+        memoryBarrier(VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR);
+    }
+
     // The pipeline: ray generation, miss, and a hit group of closest hit and any hit, in three shader groups.
     void createPipeline() {
-        VkDescriptorSetLayoutBinding bindings[7]{};
+        VkDescriptorSetLayoutBinding bindings[8]{};
         bindings[0].binding = 0;
         bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
         bindings[0].descriptorCount = 1;
@@ -1381,7 +1636,11 @@ private:
         bindings[6].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         bindings[6].descriptorCount = 1;
         bindings[6].stageFlags = VK_SHADER_STAGE_MISS_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR;
-        layoutInfo.bindingCount = 7;
+        bindings[7].binding = 7;
+        bindings[7].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        bindings[7].descriptorCount = 1;
+        bindings[7].stageFlags = VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR; // the waves of the FFT ocean
+        layoutInfo.bindingCount = 8;
         layoutInfo.pBindings = bindings;
         check(m_df->vkCreateDescriptorSetLayout(m_dev, &layoutInfo, nullptr, &m_descriptorSetLayout),
               "vkCreateDescriptorSetLayout");
@@ -1474,7 +1733,7 @@ private:
             {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 3},
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1},
-            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(m_textures.size()) + 1}};
+            {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, static_cast<uint32_t>(m_textures.size()) + 2}};
         auto poolInfo = make<VkDescriptorPoolCreateInfo>(VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO);
         poolInfo.maxSets = 1;
         poolInfo.poolSizeCount = 4;
@@ -1503,6 +1762,10 @@ private:
         write.dstBinding = 6;
         write.descriptorCount = 1;
         write.pImageInfo = &environmentInfo;
+        m_df->vkUpdateDescriptorSets(m_dev, 1, &write, 0, nullptr);
+        const VkDescriptorImageInfo wavesInfo{m_oceanSampler, m_oceanWaves.view, VK_IMAGE_LAYOUT_GENERAL};
+        write.dstBinding = 7;
+        write.pImageInfo = &wavesInfo;
         m_df->vkUpdateDescriptorSets(m_dev, 1, &write, 0, nullptr);
     }
 
@@ -1570,6 +1833,19 @@ private:
     std::vector<TextureData> m_textures;
     TextureData m_environment;
     bool m_hasEnvironment = false;
+    // The FFT ocean (see ntgltfview_ocean.comp): the spectrum, the ping-pong fields, the waves the hit shader samples.
+    static constexpr uint32_t kOceanLog = 8;    // 256 x 256
+    static constexpr float kOceanPatch = 64.0f; // metres of sea the texture stands for
+    bool m_hasWater = false;
+    Image m_oceanSpectrum;
+    Image m_oceanFields[2];
+    Image m_oceanWaves;
+    VkSampler m_oceanSampler = VK_NULL_HANDLE;
+    VkDescriptorSetLayout m_oceanSetLayout = VK_NULL_HANDLE;
+    VkPipelineLayout m_oceanLayout = VK_NULL_HANDLE;
+    VkPipeline m_oceanPipeline = VK_NULL_HANDLE;
+    VkDescriptorPool m_oceanPool = VK_NULL_HANDLE;
+    VkDescriptorSet m_oceanSet = VK_NULL_HANDLE;
     std::set<int> m_dataTextures; // the textures that hold data, not color
     std::vector<PrimitiveRecord> m_records;
     qsizetype m_triangles = 0;
@@ -1881,8 +2157,9 @@ int main(int argc, char *argv[]) {
                        "starts the automatic motion, Select quits."));
     parser.addHelpOption();
     parser.addPositionalArgument(QStringLiteral("file"), QStringLiteral("The .gltf or .glb file."));
-    const QCommandLineOption deviceOption(QStringLiteral("device"), QStringLiteral("Use the physical device INDEX."),
-                                          QStringLiteral("INDEX"));
+    const QCommandLineOption deviceOption(
+        QStringLiteral("device"), QStringLiteral("Use the physical device INDEX (default: the first discrete GPU)."),
+        QStringLiteral("INDEX"));
     const QCommandLineOption devicesOption(QStringLiteral("devices"), QStringLiteral("List the physical devices."));
     const QCommandLineOption framesOption(QStringLiteral("frames"), QStringLiteral("Quit after N frames."),
                                           QStringLiteral("N"));
@@ -1906,6 +2183,15 @@ int main(int argc, char *argv[]) {
         QStringLiteral("Upscale with NVIDIA DLSS Super Resolution (an RTX GPU, and a build with -DNT_DLSS_SDK_DIR): "
                        "quality, balanced, performance, dlaa or off (default)."),
         QStringLiteral("MODE"), QStringLiteral("off"));
+    const QCommandLineOption sunOption(QStringLiteral("sun"),
+                                       QStringLiteral("Light the scene from this direction: degrees round the "
+                                                      "vertical, 0 to 360."),
+                                       QStringLiteral("DEGREES"));
+    const QCommandLineOption noAutoOption(QStringLiteral("no-auto-rotate"),
+                                          QStringLiteral("Start with the camera still instead of orbiting."));
+    const QCommandLineOption rotateSpeedOption(QStringLiteral("rotate-speed"),
+                                               QStringLiteral("Speed of the automatic motion, times the default."),
+                                               QStringLiteral("FACTOR"), QStringLiteral("1"));
     const QCommandLineOption environmentOption(
         QStringLiteral("environment"),
         QStringLiteral("A panorama (a Radiance .hdr or an image, equirectangular) for the background and the "
@@ -1915,7 +2201,8 @@ int main(int argc, char *argv[]) {
                                             QStringLiteral("The directory with NVIDIA's libnvidia-ngx-dlss.so."),
                                             QStringLiteral("DIR"));
     parser.addOptions({deviceOption, devicesOption, framesOption, grabOption, sizeOption, viewOption, noVsyncOption,
-                       validateOption, rayTraceOption, dlssOption, dlssPathOption, environmentOption});
+                       validateOption, rayTraceOption, dlssOption, dlssPathOption, environmentOption, sunOption,
+                       noAutoOption, rotateSpeedOption});
     parser.process(app);
 
     RenderOptions options;
@@ -1923,6 +2210,15 @@ int main(int argc, char *argv[]) {
     if (rayTrace != QStringLiteral("on") && rayTrace != QStringLiteral("off"))
         fail(QStringLiteral("--raytrace is on or off, not %1").arg(rayTrace));
     options.rayTracing = rayTrace == QStringLiteral("on");
+    if (parser.isSet(sunOption)) {
+        bool sunOk = false;
+        const double sun = parser.value(sunOption).toDouble(&sunOk);
+        if (!sunOk)
+            fail(QStringLiteral("--sun takes degrees, not %1").arg(parser.value(sunOption)));
+        options.sunAzimuth = static_cast<int>(std::lround(std::fmod(std::fmod(sun, 360.0) + 360.0, 360.0))) % 360;
+    }
+    options.autoRotate = !parser.isSet(noAutoOption);
+    options.rotateSpeed = static_cast<float>(std::max(0.0, parser.value(rotateSpeedOption).toDouble()));
     const QString dlssMode = parser.value(dlssOption);
     if (dlssMode == QStringLiteral("quality"))
         options.quality = Dlss::Quality::Quality;
@@ -1992,15 +2288,18 @@ int main(int argc, char *argv[]) {
     window.setVulkanInstance(&inst);
     if (parser.isSet(deviceOption)) {
         window.setPhysicalDeviceIndex(parser.value(deviceOption).toInt());
-    } else if (options.dlss) {
-        // DLSS runs on NVIDIA's GPUs: take the first one.
+    } else {
+        // DLSS runs on NVIDIA's GPUs: take the first one. Otherwise a discrete GPU before an integrated one, which in a
+        // laptop is usually listed first and is much slower at tracing rays.
         const QList<VkPhysicalDeviceProperties> devices = window.availablePhysicalDevices();
-        for (int i = 0; i < devices.size(); ++i) {
-            if (devices.at(i).vendorID == 0x10de) {
-                window.setPhysicalDeviceIndex(i);
-                break;
-            }
+        int chosen = -1;
+        for (int i = 0; i < devices.size() && chosen < 0; ++i) {
+            if (options.dlss ? devices.at(i).vendorID == 0x10de
+                             : devices.at(i).deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                chosen = i;
         }
+        if (chosen >= 0)
+            window.setPhysicalDeviceIndex(chosen);
     }
     QSurfaceFormat format;
     format.setSwapInterval(parser.isSet(noVsyncOption) ? 0 : 1);

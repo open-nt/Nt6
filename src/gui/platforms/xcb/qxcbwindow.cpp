@@ -87,6 +87,17 @@ void QXcbWindow::setVisible(bool visible) {
     m_connection->flush();
 }
 
+// A child window is a subwindow of its parent's native window, which the window manager never sees; a top-level one
+// is a child of the root window again.
+void QXcbWindow::setParent(const QPlatformWindow *parent) {
+    m_child = parent != nullptr;
+    const xcb_window_t target = parent ? static_cast<xcb_window_t>(parent->winId()) : m_connection->rootWindow();
+    const QRect native = toNative(m_geometry);
+    xcb_reparent_window(m_connection->xcb(), m_id, target, static_cast<int16_t>(native.x()),
+                        static_cast<int16_t>(native.y()));
+    m_connection->flush();
+}
+
 void QXcbWindow::setTransientParent(const QPlatformWindow *parent) {
     xcb_connection_t *c = m_connection->xcb();
     const xcb_atom_t windowType = m_connection->atom("_NET_WM_WINDOW_TYPE");

@@ -23,7 +23,8 @@ struct QWindow::Data {
     QString title;
     QIcon icon;
     QPointer<QWindow> transientParent;
-    QRect geometry;
+    QPointer<QWindow> parent; // the window this one is a child of, inside it
+    QRect geometry;           // relative to the parent window for a child window
     bool visible = false;
     bool exposed = false;
     bool active = false;
@@ -65,8 +66,9 @@ struct QWindow::Data {
     \endcode
 
     \differences
-    Only top-level windows exist: there is no parent window, no window flags
-    or modality, no \c setMinimumSize(), icon or opacity, and no Metal or Direct3D surface. Minimizing needs a window manager that
+    A child window (see setParent()) is a native window inside its parent; the \c xcb platform reparents it, the
+    \c offscreen platform only records the parent. There is no modality, no \c setMinimumSize() or opacity, no
+    \c fromWinId() or foreign windows, and no Metal or Direct3D surface. Minimizing needs a window manager that
     honors the ICCCM; the \c offscreen platform resizes a maximized or full
     screen window to its screen. OpenGL surfaces work
     through EGL; see QOpenGLContext. \c close() destroys the platform
@@ -88,6 +90,13 @@ QWindow::QWindow(QScreen *screen) : QSurface(QSurface::Window), m_d(std::make_un
     m_d->screen = screen ? screen : QGuiApplication::primaryScreen();
     QtPrivate::GuiAccess::registerWindow(this);
 }
+
+/*!
+    \since 6.0
+    Constructs a window that is a child of \a parent, inside it; see setParent(). With a \a parent of \c nullptr
+    this is a top-level window on the primary screen.
+*/
+QWindow::QWindow(QWindow *parent) : QWindow(parent ? parent->screen() : nullptr) { setParent(parent); }
 
 /*!
     Destroys the window, which also hides it.
@@ -120,7 +129,11 @@ void QWindow::create() {
         return;
     if (m_d->geometry.isEmpty())
         QtPrivate::GuiAccess::applyGeometry(this, QRect(m_d->geometry.topLeft(), QSize(kDefaultSize, kDefaultSize)));
+    if (m_d->parent)
+        m_d->parent->create(); // a child window's native window is made inside its parent's
     m_d->platform = integration->createPlatformWindow(this);
+    if (m_d->parent && m_d->parent->m_d->platform)
+        m_d->platform->setParent(m_d->parent->m_d->platform);
     m_d->platform->setGeometry(m_d->geometry);
     if (!m_d->title.isEmpty())
         m_d->platform->setWindowTitle(m_d->title);
@@ -171,6 +184,11 @@ void QWindow::unsetCursor() { setCursor(QCursor()); }
 void QWindow::destroy() {
     if (!m_d->platform)
         return;
+    // The child windows first: their native windows are inside this one's.
+    for (QObject *object : children()) {
+        if (QWindow *child = qobject_cast<QWindow *>(object); child && child->m_d->parent == this)
+            child->destroy();
+    }
     setVisible(false);
     QtPrivate::GuiAccess::surfaceAboutToBeDestroyed(this);
     if (m_d->platform->destroyVulkanSurface) { // before the native window the surface was made for
@@ -184,10 +202,93 @@ void QWindow::destroy() {
 }
 
 /*!
-    \fn bool QWindow::isTopLevel() const
+    \enum QWindow::AncestorMode
 
-    Returns \c true, because every window is a top-level window.
+    Says whether the transient parent counts as a parent, for parent() and isAncestorOf().
+
+    \value ExcludeTransients Only the parent window counts.
+    \value IncludeTransients The transient parent counts as the parent of a window that has no parent window.
 */
+
+/*!
+    \since 6.0
+    Returns the window that this window is a child of, or \c nullptr for a top-level window. With \a mode
+    IncludeTransients, a top-level window returns its transient parent instead.
+
+    \sa setParent(), transientParent(), isTopLevel()
+*/
+QWindow *QWindow::parent(AncestorMode mode) const {
+    if (m_d->parent || mode == ExcludeTransients)
+        return m_d->parent.data();
+    return m_d->transientParent.data();
+}
+
+/*!
+    \since 6.0
+    Makes the window a child of \a parent, or a top-level window again if \a parent is \c nullptr.
+
+    A child window is a native window inside its parent: it shows only where the parent shows, its geometry() is
+    relative to the parent, and it moves with it. It gets its own input events, and the keyboard focus when it is
+    clicked or requestActivate() is called. The parent also becomes the QObject parent, so it deletes the child.
+    A child window does not count for QGuiApplication::topLevelWindows() or for quitting when the last window
+    closes. QWidget::createWindowContainer() puts a window inside a widget this way.
+
+    \sa parent(), isTopLevel(), QWidget::createWindowContainer()
+*/
+void QWindow::setParent(QWindow *parent) {
+    if (parent == this || m_d->parent == parent)
+        return;
+    QObject::setParent(parent);
+    m_d->parent = parent;
+    if (m_d->platform) {
+        if (parent)
+            parent->create();
+        m_d->platform->setParent(parent ? parent->m_d->platform : nullptr);
+        m_d->platform->setGeometry(m_d->geometry);
+    }
+}
+
+/*!
+    Returns \c true if the window has no parent window.
+
+    \sa parent(), setParent()
+*/
+bool QWindow::isTopLevel() const { return !m_d->parent; }
+
+/*!
+    \since 6.0
+    Returns \c true if \a child is a child of this window, or a child of one of its children, and so on. With
+    \a mode IncludeTransients, transient parents count as parents of windows that have no parent window.
+
+    \sa parent()
+*/
+bool QWindow::isAncestorOf(const QWindow *child, AncestorMode mode) const {
+    for (const QWindow *w = child ? child->parent(mode) : nullptr; w; w = w->parent(mode)) {
+        if (w == this)
+            return true;
+    }
+    return false;
+}
+
+/*!
+    Returns \a pos, a point in the window, as a point on the screen. A child window adds the positions of its
+    parents.
+
+    \sa mapFromGlobal()
+*/
+QPoint QWindow::mapToGlobal(const QPoint &pos) const {
+    const QPoint inParent = pos + position();
+    return m_d->parent ? m_d->parent->mapToGlobal(inParent) : inParent;
+}
+
+/*!
+    Returns \a pos, a point on the screen, as a point in the window.
+
+    \sa mapToGlobal()
+*/
+QPoint QWindow::mapFromGlobal(const QPoint &pos) const {
+    return (m_d->parent ? m_d->parent->mapFromGlobal(pos) : pos) - position();
+}
 
 /*!
     Returns the window title.
@@ -349,9 +450,9 @@ Qt::WindowType QWindow::type() const {
 qreal QWindow::devicePixelRatio() const { return m_d->screen ? m_d->screen->devicePixelRatio() : 1.0; }
 
 /*!
-    Returns the geometry of the window in screen coordinates.
+    Returns the geometry of the window in screen coordinates, or, for a child window, relative to its parent.
 
-    \sa setGeometry()
+    \sa setGeometry(), setParent()
 */
 QRect QWindow::geometry() const { return m_d->geometry; }
 
@@ -480,22 +581,6 @@ void QWindow::setWidth(int arg) { resize(QSize(arg, height())); }
     \sa height()
 */
 void QWindow::setHeight(int arg) { resize(QSize(width(), arg)); }
-
-/*!
-    \fn QPoint QWindow::mapToGlobal(const QPoint &pos) const
-
-    Returns \a pos, a point in the window, as a point on the screen.
-
-    \sa mapFromGlobal()
-*/
-
-/*!
-    \fn QPoint QWindow::mapFromGlobal(const QPoint &pos) const
-
-    Returns \a pos, a point on the screen, as a point in the window.
-
-    \sa mapToGlobal()
-*/
 
 /*!
     Returns the platform window, or \c nullptr if the window has not been

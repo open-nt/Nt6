@@ -16,6 +16,8 @@ struct HitPayload {
     float pad1;
     vec3 carry;
     float pad2;
+    vec4 medium;      // rgb: the extinction per metre of the medium the next ray enters; w: 1 entering, -1 leaving
+    vec4 mediumColor; // rgb: the light the medium scatters towards the eye, all the way down
 };
 
 layout(location = 0) rayPayloadInEXT HitPayload payload;

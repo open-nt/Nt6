@@ -1140,7 +1140,14 @@ nt_set_compile_options(NtPositioning)
 
 # Nt Twin: the world model of a digital twin (geodetic positions, local frames, map projections). It
 # depends only on Nt Core and Nt Positioning, so it runs headless.
-add_library(NtTwin src/twin/qtwinclock.cpp src/twin/qtwingeodesy.cpp src/twin/qtwingnss.cpp)
+add_library(NtTwin
+    src/twin/qtwinclock.cpp
+    src/twin/qtwindeadreckoning.cpp
+    src/twin/qtwindis.cpp
+    src/twin/qtwinentity.cpp
+    src/twin/qtwingeodesy.cpp
+    src/twin/qtwingnss.cpp
+)
 add_library(Nt::Twin ALIAS NtTwin)
 target_include_directories(NtTwin
     PUBLIC
@@ -1151,6 +1158,41 @@ target_include_directories(NtTwin
 )
 target_link_libraries(NtTwin PUBLIC NtCore NtPositioning)
 nt_set_compile_options(NtTwin)
+
+# Nt Comms: multiplayer sessions on the local network (multicast discovery, a reliable channel over UDP,
+# heartbeats, host migration) and text chat in Cursor on Target GeoChat form. It depends only on Nt Core and
+# Nt Network and knows nothing about twins.
+add_library(NtComms
+    src/comms/qcommschat.cpp
+    src/comms/qcommsprotocol.cpp
+    src/comms/qcommsreliable.cpp
+    src/comms/qcommssession.cpp
+    src/comms/qcommssessionbrowser.cpp
+)
+add_library(Nt::Comms ALIAS NtComms)
+target_include_directories(NtComms
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtComms>
+        $<INSTALL_INTERFACE:include/nt6/QtComms>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/comms
+)
+target_link_libraries(NtComms PUBLIC NtCore NtNetwork)
+nt_set_compile_options(NtComms)
+
+# Nt Twin Network: shares Nt Twin entities between the peers of an Nt Comms session as DIS 7 Entity State PDUs,
+# with the host's model admission checks. It joins the two so that Nt Twin itself needs no network.
+add_library(NtTwinNetwork src/twinnetwork/qtwinreplicator.cpp)
+add_library(Nt::TwinNetwork ALIAS NtTwinNetwork)
+target_include_directories(NtTwinNetwork
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtTwinNetwork>
+        $<INSTALL_INTERFACE:include/nt6/QtTwinNetwork>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/twinnetwork
+)
+target_link_libraries(NtTwinNetwork PUBLIC NtTwin NtComms)
+nt_set_compile_options(NtTwinNetwork)
 
 # Nt Multimedia: the audio and camera parts of Qt Multimedia. Linux uses ALSA, loaded at run time, so the
 # library builds without its headers, and Video4Linux2 for cameras; other platforms have no devices yet.
@@ -1309,6 +1351,8 @@ nt_moc_library(NtFMQml include/QtFMQml)
 nt_moc_library(NtGamepad include/QtGamepad)
 nt_moc_library(NtPositioning include/QtPositioning)
 nt_moc_library(NtTwin include/QtTwin)
+nt_moc_library(NtComms include/QtComms)
+nt_moc_library(NtTwinNetwork include/QtTwinNetwork)
 nt_moc_library(NtMultimedia include/QtMultimedia)
 nt_moc_library(NtMultimediaWidgets include/QtMultimediaWidgets)
 nt_moc_library(NtOpenGL include/QtOpenGL)
@@ -2013,6 +2057,21 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_twin_tests PRIVATE Nt::Twin)
     add_test(NAME nt_twin_tests COMMAND nt_twin_tests)
     nt_set_compile_options(nt_twin_tests)
+
+    # Nt Comms: sessions, the reliable channel and chat on the loopback interface; a child process hosts and
+    # is killed to test host migration.
+    add_executable(nt_comms_tests tests/test_comms.cpp)
+    target_link_libraries(nt_comms_tests PRIVATE Nt::Comms)
+    target_include_directories(nt_comms_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/comms)
+    add_test(NAME nt_comms_tests COMMAND nt_comms_tests)
+    nt_set_compile_options(nt_comms_tests)
+
+    # Nt Twin Network: entities shared between sessions on the loopback interface, model admission, heartbeats,
+    # staleness and host migration.
+    add_executable(nt_twinnetwork_tests tests/test_twinnetwork.cpp)
+    target_link_libraries(nt_twinnetwork_tests PRIVATE Nt::TwinNetwork)
+    add_test(NAME nt_twinnetwork_tests COMMAND nt_twinnetwork_tests)
+    nt_set_compile_options(nt_twinnetwork_tests)
     nt_set_compile_options(nt_fm_tests)
 
     # The xcb tests need an X server (or XWayland); they report a skip without one.

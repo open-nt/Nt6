@@ -63,11 +63,12 @@ double geodeticTan(double taup, double e) {
 /*!
     \module NtTwin
     \title Nt Twin C++ Classes
-    \brief The world model of a digital twin: geodetic positions, local frames and map projections.
+    \brief The world model of a digital twin: geodetic positions, local frames, map projections,
+    entities and DIS.
     \cmaketarget Nt::Twin
 
-    Nt Twin holds the state of a digital twin: where things are on the Earth and, in later
-    versions, the entities, properties and history that mirror a real site or vehicle. It
+    Nt Twin holds the state of a digital twin: where things are on the Earth, the moving entities
+    in it and, in later versions, the properties and history that mirror a real site or vehicle. It
     depends only on Nt Core and Nt Positioning, so it runs headless, in tests and on servers, and feeds a renderer
     that may run elsewhere. Qt has no such module.
 
@@ -76,7 +77,12 @@ double geodeticTan(double taup, double e) {
     east-north-up frames (QtTwin::LocalFrame) and on UTM grids (QtTwin::UtmZone,
     QtTwin::TransverseMercator).
 
-    See \l{Using Nt Twin} for an introduction.
+    Moving entities are described by QtTwin::EntityState, predicted between updates by
+    QtTwin::DeadReckoning, written as DIS 7 Entity State PDUs by QtTwin::DisEntityStatePdu, and
+    drawn with the models listed in a QtTwin::ModelCatalogue. Nt Twin Network shares them over a
+    network.
+
+    See \l{Using Nt Twin} and \l{Multiplayer Sessions} for an introduction.
 */
 
 /*!

@@ -9,6 +9,8 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 static int g_failures = 0;
 #define CHECK(cond)                                                                                                    \
@@ -462,6 +464,317 @@ void testRegisteredReceiver() {
     CHECK(error == QGeoPositionInfoSource::AccessError);
 }
 
+constexpr double kPi = 3.14159265358979323846;
+
+bool near(const EulerAngles &a, const EulerAngles &b, double tolerance) {
+    return DeadReckoning::orientationDifference(a, b) <= tolerance;
+}
+
+void testEntityKinds() {
+    for (EntityKind k :
+         {EntityKind::Person, EntityKind::GroundVehicle, EntityKind::Aircraft, EntityKind::Drone, EntityKind::Boat}) {
+        bool ok = false;
+        CHECK(ModelRef::kindFromName(ModelRef::kindName(k), &ok) == k && ok);
+        EntityKind back = EntityKind::Drone;
+        CHECK(DisEntityType::forKind(k).toEntityKind(&back));
+        CHECK(back == (k == EntityKind::Drone ? EntityKind::Aircraft : k));
+    }
+    bool ok = true;
+    ModelRef::kindFromName(QStringLiteral("submarine"), &ok);
+    CHECK(!ok);
+
+    const DisEntityType t = DisEntityType::fromString(QStringLiteral("1.2.225.20.1.0.0"), &ok);
+    CHECK(ok && t == DisEntityType(1, 2, 225, 20, 1));
+    CHECK(t.toString() == QStringLiteral("1.2.225.20.1.0.0"));
+    CHECK(DisEntityType::fromString(QStringLiteral("1.3"), &ok) == DisEntityType(1, 3, 0, 0) && ok);
+    DisEntityType::fromString(QStringLiteral("1.300"), &ok);
+    CHECK(!ok);
+    DisEntityType::fromString(QStringLiteral("1.2.3.4.5.6.7.8"), &ok);
+    CHECK(!ok);
+    EntityKind k;
+    CHECK(!DisEntityType(2, 1, 0, 0).toEntityKind(&k)); // munition
+}
+
+void testCatalogue() {
+    QTemporaryDir dir;
+    CHECK(dir.isValid());
+    QDir(dir.path()).mkpath(QStringLiteral("vehicles"));
+    const QByteArray glb("glTF-lr110");
+    QFile f(dir.filePath(QStringLiteral("vehicles/lr110.glb")));
+    CHECK(f.open(QIODevice::WriteOnly) && f.write(glb) == glb.size());
+    f.close();
+    const QByteArray hash = QCryptographicHash::hash(glb, QCryptographicHash::Sha256);
+    const QByteArray json = QByteArray(R"({"models": [
+        {"id": "land/wheeled/lr110", "revision": 3, "kind": "ground-vehicle", "dis": "1.1.225.6.1",
+         "file": "vehicles/lr110.glb", "sha256": ")") +
+                            hash.toHex() + QByteArray(R"("},
+        {"id": "air/rotary/ec135", "revision": 4, "kind": "aircraft", "file": "air/ec135.glb"},
+        {"id": "sea/rib", "revision": 1, "kind": "boat", "file": "vehicles/lr110.glb", "sha256": "00ff"},
+        {"id": "", "revision": 1},
+        {"id": "x/bad", "kind": "submarine"}
+    ]})");
+    QFile c(dir.filePath(QStringLiteral("models.json")));
+    CHECK(c.open(QIODevice::WriteOnly) && c.write(json) == json.size());
+    c.close();
+
+    ModelCatalogue verified;
+    CHECK(verified.load(dir.filePath(QStringLiteral("models.json"))));
+    CHECK(verified.size() == 1); // the helicopter's file is missing, the boat's hash is wrong
+    CHECK(verified.warnings().size() == 4);
+    const ModelRef lr = verified.find(QStringLiteral("land/wheeled/lr110"));
+    CHECK(lr.isValid() && lr.revision == 3 && lr.sha256 == hash && lr.disType == DisEntityType(1, 1, 225, 6, 1));
+    CHECK(verified.filePath(lr.id) == QDir(dir.path()).absoluteFilePath(QStringLiteral("vehicles/lr110.glb")));
+    CHECK(!verified.find(QStringLiteral("air/rotary/ec135")).isValid());
+
+    ModelCatalogue unverified;
+    CHECK(unverified.loadFromJson(json));
+    CHECK(unverified.size() == 3);
+    CHECK(unverified.find(QStringLiteral("air/rotary/ec135")).disType == DisEntityType::forKind(EntityKind::Aircraft));
+    CHECK(!unverified.loadFromJson("[]") && unverified.isEmpty());
+    CHECK(!ModelCatalogue().load(dir.filePath(QStringLiteral("nothing.json"))));
+
+    ModelRef need = lr;
+    CHECK(verified.canRender(need));
+    need.revision = 2;
+    CHECK(verified.canRender(need)); // an older revision is fine
+    need.revision = 4;
+    CHECK(!verified.canRender(need)); // a newer one is not
+    need.revision = 3;
+    CHECK(verified.canRender(need, true));
+    need.sha256 = QByteArray(32, 'x');
+    CHECK(!verified.canRender(need, true) && verified.canRender(need));
+
+    ModelRef heli;
+    heli.id = QStringLiteral("air/rotary/ec135");
+    heli.revision = 4;
+    const QList<ModelRef> lacking = verified.missing({lr, heli, heli});
+    CHECK(lacking.size() == 1 && lacking.at(0).id == heli.id);
+    CHECK(heli.toString() == QStringLiteral("air/rotary/ec135 r4"));
+
+    ModelCatalogue copy;
+    copy.insert(lr);
+    CHECK(copy.digest() == verified.digest());
+    copy.insert(heli);
+    CHECK(copy.digest() != verified.digest() && copy.size() == 2);
+    copy.insert(ModelRef());
+    CHECK(copy.size() == 2);
+}
+
+void testOrientation() {
+    // At latitude 0, longitude 0, facing east: forward is ECEF +y, right is south (-z), down is -x.
+    EntityState s;
+    s.setGeoPosition(GeoPosition(0.0, 0.0, 0.0));
+    s.setHeadingPitchRoll(HeadingPitchRoll(90.0, 0.0, 0.0));
+    CHECK(near(s.orientation, EulerAngles(kPi / 2, 0.0, -kPi / 2), 1e-9));
+
+    const GeoPosition places[] = {GeoPosition(51.1789, -1.8262, 160.0), GeoPosition(-33.8568, 151.2153, 25.0),
+                                  GeoPosition(78.2, 15.6, 10.0), GeoPosition(-0.5, -179.9, 3000.0)};
+    const HeadingPitchRoll attitudes[] = {HeadingPitchRoll(0.0, 0.0, 0.0), HeadingPitchRoll(212.0, 4.5, -2.0),
+                                          HeadingPitchRoll(359.0, -30.0, 60.0), HeadingPitchRoll(90.0, 80.0, 0.0)};
+    for (const GeoPosition &p : places) {
+        for (const HeadingPitchRoll &a : attitudes) {
+            EntityState e;
+            e.setGeoPosition(p);
+            e.setHeadingPitchRoll(a);
+            const HeadingPitchRoll back = e.headingPitchRoll();
+            const double dh = std::fabs(std::remainder(back.heading - a.heading, 360.0));
+            CHECK(dh < 1e-7 && near(back.pitch, a.pitch, 1e-7) && near(back.roll, a.roll, 1e-7));
+            e.setLocalVelocity(Vector3d(-5.3, -8.5, 1.25));
+            CHECK(near(e.localVelocity(), Vector3d(-5.3, -8.5, 1.25), 1e-9));
+            CHECK(near(e.velocity.length(), Vector3d(-5.3, -8.5, 1.25).length(), 1e-9));
+        }
+    }
+
+    // Up is away from the centre of the Earth.
+    EntityState up;
+    up.setGeoPosition(GeoPosition(51.0, -1.0, 100.0));
+    up.setLocalVelocity(Vector3d(0.0, 0.0, 10.0));
+    const Vector3d later = up.position + up.velocity;
+    CHECK(near(Ellipsoid::wgs84().fromEcef(later).height, 110.0, 1e-3));
+}
+
+void testDeadReckoning() {
+    EntityState s;
+    s.time = 1000;
+    s.setGeoPosition(GeoPosition(51.1789, -1.8262, 160.0));
+    s.setHeadingPitchRoll(HeadingPitchRoll(0.0, 0.0, 0.0));
+    s.setLocalVelocity(Vector3d(0.0, 10.0, 0.0));
+    s.deadReckoning = DeadReckoningAlgorithm::Fpw;
+
+    EntityState p = DeadReckoning::extrapolate(s, 3000);
+    CHECK(p.time == 3000);
+    CHECK(near(p.position, s.position + s.velocity * 2.0, 1e-9));
+    CHECK(p.orientation == s.orientation);
+
+    s.deadReckoning = DeadReckoningAlgorithm::Static;
+    CHECK(DeadReckoning::extrapolate(s, 9000).position == s.position);
+
+    s.deadReckoning = DeadReckoningAlgorithm::Fvw;
+    s.acceleration = Vector3d(1.0, 0.0, -2.0);
+    p = DeadReckoning::extrapolate(s, 3000);
+    CHECK(near(p.position, s.position + s.velocity * 2.0 + s.acceleration * 2.0, 1e-9)); // 0.5 * 2^2 = 2
+    CHECK(near(p.velocity, s.velocity + s.acceleration * 2.0, 1e-9));
+
+    // Turning right at 0.1 rad/s for 10 s, from north: a heading of 57.2958 degrees.
+    s.acceleration = Vector3d();
+    s.deadReckoning = DeadReckoningAlgorithm::Rpw;
+    s.angularVelocity = Vector3d(0.0, 0.0, 0.1);
+    p = DeadReckoning::extrapolate(s, 11000);
+    CHECK(near(p.headingPitchRoll().heading, 57.29578, 1e-3));
+    CHECK(near(p.headingPitchRoll().pitch, 0.0, 1e-2)); // the horizon tilts by 0.001 degrees over 100 m
+
+    // Rolling right at 0.2 rad/s for 1 s.
+    s.angularVelocity = Vector3d(0.2, 0.0, 0.0);
+    p = DeadReckoning::extrapolate(s, 2000);
+    CHECK(near(p.headingPitchRoll().roll, 11.45916, 1e-3));
+
+    // Whether the owner sends.
+    EntityState sent = s;
+    sent.deadReckoning = DeadReckoningAlgorithm::Fpw;
+    sent.angularVelocity = Vector3d();
+    const DeadReckoningThresholds t = DeadReckoningThresholds::forKind(EntityKind::GroundVehicle);
+    CHECK(t.position == 0.5 && t.heartbeat == 5000 && t.staleTimeout() == 12000);
+    EntityState now = DeadReckoning::extrapolate(sent, 2000);
+    CHECK(DeadReckoning::updateReason(sent, now, t) == DeadReckoning::UpdateReason::None);
+    now.position = now.position + Vector3d(0.0, 0.0, 0.6);
+    CHECK(DeadReckoning::updateReason(sent, now, t) == DeadReckoning::UpdateReason::Threshold);
+    now.time = sent.time + 10;
+    CHECK(DeadReckoning::updateReason(sent, now, t) == DeadReckoning::UpdateReason::RateLimited);
+    now = DeadReckoning::extrapolate(sent, 2000);
+    now.setHeadingPitchRoll(HeadingPitchRoll(4.0, 0.0, 0.0));
+    CHECK(DeadReckoning::updateReason(sent, now, t) == DeadReckoning::UpdateReason::Threshold);
+    now = DeadReckoning::extrapolate(sent, 2000);
+    now.appearance = 0x10;
+    CHECK(DeadReckoning::updateReason(sent, now, t) == DeadReckoning::UpdateReason::Changed);
+    now = DeadReckoning::extrapolate(sent, 2000);
+    now.articulatedParts.append(ArticulatedPart{4107, 0.5f, 0, 1});
+    CHECK(DeadReckoning::updateReason(sent, now, t) == DeadReckoning::UpdateReason::Changed);
+
+    // A parked entity sends only heartbeats.
+    EntityState parked = sent;
+    parked.velocity = Vector3d();
+    parked.deadReckoning = DeadReckoningAlgorithm::Static;
+    EntityState still = parked;
+    still.time = parked.time + 4999;
+    CHECK(DeadReckoning::updateReason(parked, still, t) == DeadReckoning::UpdateReason::None);
+    still.time = parked.time + 5000;
+    CHECK(DeadReckoning::updateReason(parked, still, t) == DeadReckoning::UpdateReason::Heartbeat);
+
+    // Blending.
+    EntityState a = sent;
+    EntityState b = sent;
+    b.position = a.position + Vector3d(10.0, 0.0, 0.0);
+    b.setHeadingPitchRoll(HeadingPitchRoll(90.0, 0.0, 0.0));
+    const EntityState mid = DeadReckoning::blend(a, b, 0.5);
+    CHECK(near(mid.position, a.position + Vector3d(5.0, 0.0, 0.0), 1e-9));
+    CHECK(near(mid.headingPitchRoll().heading, 45.0, 1e-6));
+    CHECK(near(DeadReckoning::blend(a, b, 2.0).position, b.position, 1e-9));
+    CHECK(near(DeadReckoning::blend(a, b, 0.0).orientation, a.orientation, 1e-9));
+}
+
+quint16 be16(const QByteArray &d, int at) {
+    return static_cast<quint16>((static_cast<uchar>(d[at]) << 8) | static_cast<uchar>(d[at + 1]));
+}
+
+double be64double(const QByteArray &d, int at) {
+    quint64 bits = 0;
+    for (int i = 0; i < 8; ++i)
+        bits = (bits << 8) | static_cast<uchar>(d[at + i]);
+    double v = 0.0;
+    std::memcpy(&v, &bits, sizeof v);
+    return v;
+}
+
+void testDisPdu() {
+    DisEntityStatePdu pdu;
+    pdu.exercise = 9;
+    pdu.entityId = DisEntityId(1, 2, 3);
+    pdu.force = DisForce::Friendly;
+    pdu.entityType = DisEntityType(1, 2, 225, 20, 1);
+    pdu.alternativeType = pdu.entityType;
+    pdu.state.setGeoPosition(GeoPosition(51.1789, -1.8262, 160.0));
+    pdu.state.setHeadingPitchRoll(HeadingPitchRoll(212.0, 3.0, -1.0));
+    pdu.state.setLocalVelocity(Vector3d(-5.0, -8.0, 0.5));
+    pdu.state.acceleration = Vector3d(0.25, -0.5, 1.0);
+    pdu.state.angularVelocity = Vector3d(0.0, 0.0, 0.125);
+    pdu.state.appearance = 0x00010020;
+    pdu.state.deadReckoning = DeadReckoningAlgorithm::Rvw;
+    pdu.state.articulatedParts = {ArticulatedPart{4107, 1.5f, 0, 2}, ArticulatedPart{4096 + 11, -0.25f, 1, 0}};
+    pdu.marking = "ALPHA-1";
+    pdu.capabilities = 7;
+    pdu.timestamp = DisEntityStatePdu::timestampFromMsec(1234567);
+
+    const QByteArray bytes = pdu.encode();
+    CHECK(bytes.size() == 144 + 2 * 16);
+    CHECK(bytes[0] == 7 && bytes[1] == 9 && bytes[2] == 1 && bytes[3] == 1);
+    CHECK(be16(bytes, 8) == bytes.size());
+    CHECK(be16(bytes, 12) == 1 && be16(bytes, 14) == 2 && be16(bytes, 16) == 3);
+    CHECK(bytes[18] == 1 && bytes[19] == 2);
+    CHECK(be16(bytes, 22) == 225);
+    CHECK(be64double(bytes, 48) == pdu.state.position.x && be64double(bytes, 64) == pdu.state.position.z);
+    CHECK(bytes[88] == 4);
+    CHECK(bytes[128] == 1 && bytes.mid(129, 7) == "ALPHA-1" && bytes[136] == 0);
+
+    DisEntityStatePdu back;
+    qsizetype length = 0;
+    CHECK(back.decode(bytes, 0, &length) && length == bytes.size());
+    CHECK(back.exercise == 9 && back.entityId == pdu.entityId && back.force == DisForce::Friendly);
+    CHECK(back.entityType == pdu.entityType && back.alternativeType == pdu.entityType);
+    CHECK(back.state.position == pdu.state.position); // doubles on the wire
+    CHECK(near(back.state.velocity, pdu.state.velocity, 1e-5));
+    CHECK(near(back.state.orientation, pdu.state.orientation, 1e-4));
+    CHECK(back.state.acceleration == pdu.state.acceleration && back.state.angularVelocity == pdu.state.angularVelocity);
+    CHECK(back.state.appearance == pdu.state.appearance && back.state.deadReckoning == DeadReckoningAlgorithm::Rvw);
+    CHECK(back.state.articulatedParts == pdu.state.articulatedParts);
+    CHECK(back.marking == "ALPHA-1" && back.capabilities == 7 && back.timestamp == pdu.timestamp);
+
+    // A long marking is cut to 11 characters.
+    DisEntityStatePdu longMark = pdu;
+    longMark.marking = "ABCDEFGHIJKLMNOP";
+    CHECK(back.decode(longMark.encode()) && back.marking == "ABCDEFGHIJK");
+
+    // Bundled PDUs, with a PDU of another type between them and garbage after them.
+    DisEntityStatePdu second = pdu;
+    second.entityId = DisEntityId(1, 2, 4);
+    second.state.articulatedParts.clear();
+    QByteArray other(24, '\0');
+    other[0] = 7;
+    other[2] = 22; // a Comment PDU
+    other[9] = 24;
+    const QByteArray bundle = bytes + other + second.encode() + QByteArray("junk");
+    const QList<DisEntityStatePdu> all = DisEntityStatePdu::decodeAll(bundle);
+    CHECK(all.size() == 2 && all.at(0).entityId.entity == 3 && all.at(1).entityId.entity == 4);
+
+    // Malformed PDUs are refused.
+    CHECK(!back.decode(bytes.left(143)));
+    QByteArray wrong = bytes;
+    wrong[0] = 4;
+    CHECK(!back.decode(wrong));
+    wrong = bytes;
+    wrong[19] = 9; // more records than the length holds
+    CHECK(!back.decode(wrong));
+    wrong = bytes;
+    wrong[9] = static_cast<char>(200);
+    CHECK(!back.decode(wrong));
+    CHECK(back.marking == "ABCDEFGHIJK"); // unchanged by the failures
+
+    // Timestamps.
+    for (qint64 t : {qint64(0), qint64(1234567), qint64(3599999), qint64(3600000 * 5 + 17)}) {
+        const quint32 ts = DisEntityStatePdu::timestampFromMsec(t);
+        CHECK((ts & 1u) == 0);
+        CHECK(std::llabs(DisEntityStatePdu::msecFromTimestamp(ts, t + 250) - t) <= 1);
+    }
+    // Sent just before the hour, received just after.
+    const quint32 late = DisEntityStatePdu::timestampFromMsec(3600000 - 100);
+    CHECK(std::llabs(DisEntityStatePdu::msecFromTimestamp(late, 3600000 + 50) - (3600000 - 100)) <= 1);
+    const quint32 early = DisEntityStatePdu::timestampFromMsec(7200000 + 100);
+    CHECK(std::llabs(DisEntityStatePdu::msecFromTimestamp(early, 7200000 - 50) - (7200000 + 100)) <= 1);
+
+    CHECK(DisEntityId(1, 2, 3).toString() == QStringLiteral("1:2:3"));
+    CHECK(DisEntityId::fromKey(DisEntityId(7, 65535, 9).key()) == DisEntityId(7, 65535, 9));
+    CHECK(!DisEntityId(0, 1, 1).isValid() && DisEntityId(1, 1, 1).isValid());
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -476,6 +789,11 @@ int main(int argc, char **argv) {
     testReceiver();
     testNmeaRoundTrip();
     testRegisteredReceiver();
+    testEntityKinds();
+    testCatalogue();
+    testOrientation();
+    testDeadReckoning();
+    testDisPdu();
     if (g_failures == 0)
         std::printf("All Nt Twin tests passed\n");
     return g_failures == 0 ? 0 : 1;

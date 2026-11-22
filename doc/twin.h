@@ -19,7 +19,8 @@
     \endcode
 
     This version provides the geodesy that everything else in a twin rests on, the simulation
-    clock and a simulated GNSS receiver. Entities, property bindings and the historian will
+    clock, a simulated GNSS receiver, and moving entities with dead reckoning and DIS, which
+    \l{Multiplayer Sessions} shares between machines. Property bindings and the historian will
     follow.
 
     \section1 Positions on the Earth
@@ -106,5 +107,5 @@
     QtTwin::GnssReceiver::registerSource() makes it available to
     QGeoPositionInfoSource::createSource() as \c nttwin.
 
-    \sa {Nt Twin C++ Classes}, {Using Nt Positioning}
+    \sa {Nt Twin C++ Classes}, {Using Nt Positioning}, {Multiplayer Sessions}
 */

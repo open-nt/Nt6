@@ -1,0 +1,3 @@
+#include "qcommschat.h"
+#include "qcommssession.h"
+#include "qcommssessionbrowser.h"

@@ -1141,12 +1141,15 @@ nt_set_compile_options(NtPositioning)
 # Nt Twin: the world model of a digital twin (geodetic positions, local frames, map projections). It
 # depends only on Nt Core and Nt Positioning, so it runs headless.
 add_library(NtTwin
+    src/twin/qtwinatmosphere.cpp
     src/twin/qtwinclock.cpp
     src/twin/qtwindeadreckoning.cpp
     src/twin/qtwindis.cpp
     src/twin/qtwinentity.cpp
     src/twin/qtwingeodesy.cpp
     src/twin/qtwingnss.cpp
+    src/twin/qtwinkinetic.cpp
+    src/twin/qtwinphysics.cpp
 )
 add_library(Nt::Twin ALIAS NtTwin)
 target_include_directories(NtTwin

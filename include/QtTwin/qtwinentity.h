@@ -45,6 +45,7 @@ struct ModelRef {
     EntityKind kind = EntityKind::GroundVehicle;
     DisEntityType disType;
     QString file;
+    QString wreck;
 
     bool isValid() const { return !id.isEmpty() && revision >= 0; }
     QString toString() const;
@@ -71,6 +72,7 @@ public:
     QList<ModelRef> models() const { return m_models.values(); }
     ModelRef find(const QString &id) const;
     QString filePath(const QString &id) const;
+    QString wreckFilePath(const QString &id) const;
 
     bool canRender(const ModelRef &model, bool strict = false) const;
     QList<ModelRef> missing(const QList<ModelRef> &models, bool strict = false) const;

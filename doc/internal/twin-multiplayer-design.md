@@ -413,6 +413,38 @@ It carries `time`, `start` and `stale`, and the detail elements below:
   authenticated, because TAK multicast has no authentication. The user documentation must say that
   sessions are meant for trusted networks.
 
+## 9b. Kinetic effects (added 2026-11-23)
+
+Requirement: a launcher shoots drones; land vehicles, ships, drones and aircraft can be destroyed;
+the session is told who eliminated whom. Flight is subject to gravity, air pressure and wind.
+
+- **Physics in Nt Twin, no I/O.** `Atmosphere` (ISA with the day's QNH and temperature), `WindModel`
+  (layers by height), `Gravity` (WGS 84 normal gravity as an ECEF vector) and `PhysicsEngine` (RK4
+  point-mass integration, drag with air density and relative wind, `simulate()`, `aim()` firing
+  solutions, segment-versus-box hit tests in the entity body frame). Bodies are point masses; no lift
+  or rigid-body rotation.
+- **DIS Fire (type 2) and Detonation (type 3) PDUs** carry shots on the update group, next to
+  Entity State. `DisPduHeader::split()` finds the PDUs in a bundle. Event IDs are
+  (site, shooter's peer, counter), so Fire and Detonation pair up and seed the destruction effect.
+- **Damage is decided by the owner of the target**, as DIS requires. The replicator applies a
+  `DamageModel` (hit points per kind: person 1, drone 1, aircraft 2, ground vehicle 3, boat 4; one
+  point per round) unless the application turns automatic damage off and calls `setDamage()` /
+  `eliminate()`. The result goes into the DIS appearance bits (`DisAppearance`: damage, smoke,
+  flaming, mobility and firepower kill), sent at once and in every heartbeat, so late joiners and
+  third-party DIS tools see the wreck.
+- **Elimination report:** an Nt control message (`Eliminated`, reliable, via the host like
+  despawn) with victim, killer, their markings and peers' names, event and session time; every peer
+  emits `entityEliminated()`, the owner also posts `Elimination::toString()` to the chat when a
+  `QtComms::Chat` is set. The host keeps the last 200 and hands them to joiners in JoinAccept (key 2).
+- **Destroying the 3D model** is the viewer's job: `ModelRef::wreck` (catalogue key `wreck`) names
+  the wrecked model to swap in; without one, darken the model. `DestructionEffect::forEntity()` gives
+  fireball, smoke and debris from a seed; `advance()` flies the debris with the physics engine.
+- Peers only honour Fire/Detonation PDUs whose firing entity belongs to the sending peer, and
+  detonations against an entity apply only on its owner.
+
+Status: implemented in Nt with tests (`test_twin.cpp`, `test_twinnetwork.cpp`). The ntsim turret
+and launcher UI (phase 4) are not started.
+
 ## 10. API sketch
 
 ```cpp

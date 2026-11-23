@@ -138,6 +138,16 @@ double geodeticTan(double taup, double e) {
 */
 
 /*!
+    \fn constexpr QtTwin::Vector3d QtTwin::Vector3d::crossProduct(const Vector3d &other) const
+    Returns the cross product of this vector and \a other.
+*/
+
+/*!
+    \fn QtTwin::Vector3d QtTwin::Vector3d::normalized() const
+    Returns this vector scaled to length 1, or the zero vector if it has no length.
+*/
+
+/*!
     \fn constexpr QtTwin::Vector3d QtTwin::Vector3d::operator+(const Vector3d &other) const
     Returns the sum of this vector and \a other.
 */

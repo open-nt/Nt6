@@ -107,5 +107,53 @@
     QtTwin::GnssReceiver::registerSource() makes it available to
     QGeoPositionInfoSource::createSource() as \c nttwin.
 
+    \section1 Air, Wind and Gravity
+
+    Anything in flight moves through air that thins with height, drifts with the wind and falls
+    under a gravity that varies with latitude. QtTwin::Atmosphere is the International Standard
+    Atmosphere, shifted to the day's sea-level pressure and temperature; QtTwin::WindModel gives the
+    wind at any height from a profile of layers; and QtTwin::Gravity is the normal gravity of the
+    WGS 84 ellipsoid, as a vector in Earth-centred coordinates. QtTwin::PhysicsEngine puts them
+    together and integrates a QtTwin::PointMass with the fourth-order Runge-Kutta method:
+
+    \code
+    QtTwin::Environment env;
+    env.atmosphere = QtTwin::Atmosphere(100900.0, 283.15);    // 1009 hPa, 10 degrees Celsius
+    env.wind = QtTwin::WindModel(8.0, 240.0);                 // 8 m/s from the south-west
+    QtTwin::PhysicsEngine physics(env);
+    physics.setTerrain([&](const QtTwin::GeoPosition &p) { return terrain.heightAt(p); });
+
+    QtTwin::PointMass round = QtTwin::PointMass::sphere(0.4, 0.04, 0.3);
+    round.position = muzzle;
+    round.velocity = QtTwin::PhysicsEngine::launchVelocity(muzzle, 400.0, azimuth, elevation);
+    const QtTwin::Trajectory path = physics.simulate(round, 30.0);   // until it lands
+    \endcode
+
+    A drone that loses power is an entity that falls: QtTwin::PhysicsEngine::advance() takes its
+    QtTwin::EntityState and returns it a moment later, lower and drifting downwind.
+
+    \section1 Kinetic Effects
+
+    A launcher that shoots drones needs a firing solution, a hit test and a damage model, and the
+    other participants need to see the result. QtTwin::PhysicsEngine::aim() finds the azimuth and
+    elevation at which a round meets a moving target, allowing for drag, wind and the target's dead
+    reckoning; QtTwin::PhysicsEngine::segmentHitsEntity() tests each step of the round against an
+    entity's QtTwin::BoundingBox; and QtTwin::DamageModel turns hits into a QtTwin::DamageState that
+    QtTwin::DisAppearance writes into the entity's appearance bits, where every DIS tool reads it.
+    QtTwin::DestructionEffect describes how a destroyed vehicle, boat, aircraft or drone comes apart,
+    from a seed, so every peer shows the same explosion, and QtTwin::ModelRef::wreck names the model
+    of the wreck.
+
+    \code
+    const QtTwin::FiringSolution solution = physics.aim(muzzle, 400.0, round, drone.state);
+    if (!solution.valid)
+        return;                                                   // out of range
+    turret.pointAt(solution.azimuth, solution.elevation);
+    \endcode
+
+    In a session, QtTwin::Replicator sends the shot and the detonation as DIS Fire and Detonation
+    PDUs, applies the damage on the owner of the entity that was hit, and reports eliminations to
+    every peer; see \l{Multiplayer Sessions}.
+
     \sa {Nt Twin C++ Classes}, {Using Nt Positioning}, {Multiplayer Sessions}
 */

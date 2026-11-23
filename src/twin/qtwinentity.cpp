@@ -267,6 +267,14 @@ bool DisEntityType::toEntityKind(EntityKind *result) const {
 */
 
 /*!
+    \variable QtTwin::ModelRef::wreck
+    The file of the model's destroyed form, relative to the catalogue, or empty if it has none. A
+    viewer swaps to it when the entity's appearance says destroyed (QtTwin::DisAppearance), and
+    otherwise darkens the model and adds the QtTwin::DestructionEffect. It is local to each
+    participant and not compared.
+*/
+
+/*!
     \fn bool QtTwin::ModelRef::isValid() const
     Returns \c true if the reference has an ID and a revision of 0 or more.
 */
@@ -327,10 +335,13 @@ EntityKind ModelRef::kindFromName(const QString &name, bool *ok) {
     {
       "models": [
         { "id": "land/wheeled/lr110", "revision": 3, "kind": "ground-vehicle",
-          "dis": "1.1.225.6.1.0.0", "file": "vehicles/lr110.glb", "sha256": "9f2c…" }
+          "dis": "1.1.225.6.1.0.0", "file": "vehicles/lr110.glb", "sha256": "9f2c…",
+          "wreck": "vehicles/lr110-wreck.glb" }
       ]
     }
     \endcode
+
+    The optional \c wreck names the model's destroyed form (see QtTwin::ModelRef::wreck).
 
     load() checks each file against its hash, so a missing, corrupted or edited file counts as not
     installed; warnings() says which. A session admits a participant only if every participant can
@@ -412,6 +423,7 @@ bool ModelCatalogue::loadFromJson(const QByteArray &json, const QString &baseDir
             continue;
         }
         m.file = o.value(QStringLiteral("file")).toString();
+        m.wreck = o.value(QStringLiteral("wreck")).toString();
         m.sha256 = QByteArray::fromHex(o.value(QStringLiteral("sha256")).toString().toLatin1());
         if (verifyFiles) {
             const QString path = m.file.isEmpty() ? QString() : QDir(m_baseDirectory).filePath(m.file);
@@ -481,6 +493,19 @@ QString ModelCatalogue::filePath(const QString &id) const {
     if (it == m_models.cend() || it->file.isEmpty())
         return QString();
     return QDir(m_baseDirectory).absoluteFilePath(it->file);
+}
+
+/*!
+    Returns the absolute path of the destroyed form of the model \a id, or an empty string if the
+    catalogue has no such model or it names no wreck.
+
+    \sa QtTwin::ModelRef::wreck
+*/
+QString ModelCatalogue::wreckFilePath(const QString &id) const {
+    const auto it = m_models.constFind(id);
+    if (it == m_models.cend() || it->wreck.isEmpty())
+        return QString();
+    return QDir(m_baseDirectory).absoluteFilePath(it->wreck);
 }
 
 /*!

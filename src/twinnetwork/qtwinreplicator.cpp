@@ -1,10 +1,13 @@
 // MIT License - see LICENSE
 #include "qtwinreplicator.h"
 
+#include <QtComms/qcommschat.h>
+
 #include <QtCore/qcborarray.h>
 #include <QtCore/qcborvalue.h>
 #include <QtCore/qhash.h>
 #include <QtCore/qmap.h>
+#include <QtCore/qpointer.h>
 #include <QtCore/qtimer.h>
 
 #include <algorithm>
@@ -15,6 +18,7 @@ namespace {
 
 constexpr int kTimerInterval = 100;
 constexpr qint64 kQueryInterval = 2000;
+constexpr qsizetype kEliminationHistory = 200;
 
 enum class Message : int {
     SpawnRequest = 1,
@@ -22,7 +26,8 @@ enum class Message : int {
     SpawnReject = 3,
     Despawn = 4,
     EntityQuery = 5,
-    ModelNotice = 6
+    ModelNotice = 6,
+    Eliminated = 7
 };
 
 const QString kWorld = QStringLiteral("world");
@@ -107,6 +112,36 @@ QList<MissingModel> decodeMissing(const QCborArray &a) {
     return missing;
 }
 
+QCborMap encodeElimination(const Elimination &e) {
+    QCborMap m;
+    m.insert(1, static_cast<qint64>(e.victim.key()));
+    m.insert(2, e.victimMarking);
+    m.insert(3, e.victimOwner);
+    m.insert(4, e.victimOwnerName);
+    m.insert(5, static_cast<qint64>(e.killer.key()));
+    m.insert(6, e.killerMarking);
+    m.insert(7, e.killerOwner);
+    m.insert(8, e.killerOwnerName);
+    m.insert(9, static_cast<qint64>(e.event));
+    m.insert(10, e.time);
+    return m;
+}
+
+Elimination decodeElimination(const QCborMap &m) {
+    Elimination e;
+    e.victim = DisEntityId::fromKey(static_cast<quint64>(m.value(1).toInteger()));
+    e.victimMarking = m.value(2).toString();
+    e.victimOwner = static_cast<quint16>(m.value(3).toInteger());
+    e.victimOwnerName = m.value(4).toString();
+    e.killer = DisEntityId::fromKey(static_cast<quint64>(m.value(5).toInteger()));
+    e.killerMarking = m.value(6).toString();
+    e.killerOwner = static_cast<quint16>(m.value(7).toInteger());
+    e.killerOwnerName = m.value(8).toString();
+    e.event = static_cast<quint32>(m.value(9).toInteger());
+    e.time = m.value(10).toInteger();
+    return e;
+}
+
 } // namespace
 
 class ReplicatorPrivate {
@@ -126,6 +161,8 @@ public:
         EntityState lastSent;
         bool accepted = false;
         bool sent = false;
+        int health = 1;
+        bool destroyed = false;
     };
     struct Remote {
         RemoteEntity entity;
@@ -152,6 +189,11 @@ public:
     QMap<quint64, Remote> remotes;
     QHash<quint64, qint64> queried;
     QTimer *timer = nullptr;
+    QPointer<QtComms::Chat> chat;
+    DamageModel damageModel;
+    bool automaticDamage = true;
+    quint16 nextEvent = 1;
+    QList<Elimination> eliminations;
 
     DeadReckoningThresholds thresholdsFor(EntityKind kind) const {
         return thresholds.value(static_cast<int>(kind), DeadReckoningThresholds::forKind(kind));
@@ -196,6 +238,11 @@ public:
     void sendPdu(quint16 handle, LocalEntity &e, const EntityState &state);
     void receiveMessage(quint16 peer, const QCborMap &m);
     void receiveDatagram(const QByteArray &datagram, quint16 peer);
+    void receiveEntityState(DisEntityStatePdu &pdu, quint16 peer);
+    void applyHit(const DisDetonationPdu &pdu);
+    void sendNow(quint16 handle, LocalEntity &e);
+    void eliminate(quint16 handle, LocalEntity &e, const DisEntityId &killer, quint32 event);
+    void applyElimination(const Elimination &e);
     void removeOwner(quint16 owner);
     void tick();
     QCborMap encodeSpawn(const SpawnRecord &r) const;
@@ -335,8 +382,12 @@ QtComms::Session::Admission ReplicatorPrivate::admit(const QtComms::Peer &candid
     QCborArray entities;
     for (const SpawnRecord &r : std::as_const(spawns))
         entities.append(encodeSpawn(r));
+    QCborArray history;
+    for (const Elimination &e : std::as_const(eliminations))
+        history.append(encodeElimination(e));
     QCborMap accept;
     accept.insert(1, entities);
+    accept.insert(2, history);
     return Admission::accept(accept);
 }
 
@@ -492,6 +543,16 @@ void ReplicatorPrivate::receiveMessage(quint16 peer, const QCborMap &m) {
         if (fromHost)
             emit q->modelUpdateNeeded(decodeMissing(m.value(1).toArray()), m.value(2).toString());
         break;
+    case Message::Eliminated: {
+        const Elimination e = decodeElimination(m.value(1).toMap());
+        if (session->isHost() && e.victim.application == peer) {
+            session->broadcastMessage(Replicator::channel, m);
+            applyElimination(e);
+        } else if (fromHost && e.victim.application != session->localPeer()) {
+            applyElimination(e);
+        }
+        break;
+    }
     }
 }
 
@@ -499,40 +560,160 @@ void ReplicatorPrivate::receiveDatagram(const QByteArray &datagram, quint16 peer
     if (peer == 0)
         return; // only peers of the session; a gateway for other DIS traffic comes later
     const quint8 exercise = session->info().exercise;
-    for (DisEntityStatePdu &pdu : DisEntityStatePdu::decodeAll(datagram)) {
-        if (pdu.exercise != exercise || pdu.entityId.application != peer)
-            continue; // another exercise, or a peer speaking for an entity it does not own
-        const quint64 key = pdu.entityId.key();
-        auto it = remotes.find(key);
-        if (it == remotes.end() || !spawns.contains(key)) {
-            const qint64 t = now();
-            if (!queried.contains(key) || t - queried.value(key) > kQueryInterval) {
-                queried.insert(key, t);
-                QCborMap query;
-                query.insert(0, static_cast<int>(Message::EntityQuery));
-                query.insert(1, static_cast<qint64>(key));
-                session->sendMessage(session->hostPeer(), Replicator::channel, query);
-            }
+    for (qsizetype offset : DisPduHeader::split(datagram)) {
+        DisPduHeader h;
+        if (!DisPduHeader::peek(datagram, offset, &h) || h.exercise != exercise)
             continue;
+        switch (h.type) {
+        case DisPduType::EntityState: {
+            DisEntityStatePdu pdu;
+            if (pdu.decode(datagram, offset) && pdu.entityId.application == peer)
+                receiveEntityState(pdu, peer);
+            break;
         }
-        const qint64 t = now();
-        pdu.state.time = DisEntityStatePdu::msecFromTimestamp(pdu.timestamp, t);
-        Remote &r = *it;
-        const bool first = !r.entity.hasState;
-        const bool wasStale = r.entity.stale;
-        if (!first && pdu.state.time < r.entity.lastState.time)
-            continue; // older than what we have
-        r.previous = r.entity.lastState;
-        r.hasPrevious = !first && !wasStale;
-        r.blendStart = t;
-        r.entity.lastState = pdu.state;
-        r.entity.lastReceived = t;
-        r.entity.hasState = true;
-        r.entity.stale = false;
-        if (first)
-            emit q->entityAppeared(r.entity.id);
-        emit q->entityUpdated(r.entity.id);
+        case DisPduType::Fire: {
+            DisFirePdu pdu;
+            if (pdu.decode(datagram, offset) && pdu.firingEntity.application == peer)
+                emit q->fireObserved(pdu);
+            break;
+        }
+        case DisPduType::Detonation: {
+            DisDetonationPdu pdu;
+            if (pdu.decode(datagram, offset) && pdu.firingEntity.application == peer) {
+                emit q->detonationObserved(pdu);
+                if (pdu.hitsTarget() && pdu.targetEntity.application == session->localPeer())
+                    applyHit(pdu);
+            }
+            break;
+        }
+        default:
+            break;
+        }
     }
+}
+
+void ReplicatorPrivate::receiveEntityState(DisEntityStatePdu &pdu, quint16 peer) {
+    const quint64 key = pdu.entityId.key();
+    auto it = remotes.find(key);
+    if (it == remotes.end() || !spawns.contains(key)) {
+        const qint64 t = now();
+        if (!queried.contains(key) || t - queried.value(key) > kQueryInterval) {
+            queried.insert(key, t);
+            QCborMap query;
+            query.insert(0, static_cast<int>(Message::EntityQuery));
+            query.insert(1, static_cast<qint64>(key));
+            session->sendMessage(session->hostPeer(), Replicator::channel, query);
+        }
+        return;
+    }
+    Q_UNUSED(peer);
+    const qint64 t = now();
+    pdu.state.time = DisEntityStatePdu::msecFromTimestamp(pdu.timestamp, t);
+    Remote &r = *it;
+    const bool first = !r.entity.hasState;
+    const bool wasStale = r.entity.stale;
+    if (!first && pdu.state.time < r.entity.lastState.time)
+        return; // older than what we have
+    r.previous = r.entity.lastState;
+    r.hasPrevious = !first && !wasStale;
+    r.blendStart = t;
+    r.entity.lastState = pdu.state;
+    r.entity.lastReceived = t;
+    r.entity.hasState = true;
+    r.entity.stale = false;
+    const DamageState damage = DisAppearance(pdu.state.appearance).damage();
+    const bool damageChanged = damage != r.entity.damage;
+    r.entity.damage = damage;
+    if (first)
+        emit q->entityAppeared(r.entity.id);
+    emit q->entityUpdated(r.entity.id);
+    if (damageChanged)
+        emit q->entityDamaged(r.entity.id, damage);
+}
+
+void ReplicatorPrivate::sendNow(quint16 handle, LocalEntity &e) {
+    if (e.accepted)
+        sendPdu(handle, e, DeadReckoning::extrapolate(e.current, std::max(now(), e.current.time)));
+}
+
+void ReplicatorPrivate::applyHit(const DisDetonationPdu &pdu) {
+    const quint16 handle = pdu.targetEntity.entity;
+    auto it = local.find(handle);
+    if (it == local.end() || !it->accepted || it->destroyed)
+        return;
+    LocalEntity &e = *it;
+    if (!automaticDamage) {
+        emit q->entityHit(handle, pdu, DisAppearance(e.current.appearance).damage());
+        return;
+    }
+    const DamageState state = damageModel.apply(e.model.kind, &e.health, damageModel.damageOf(pdu));
+    if (state == DamageState::Destroyed) {
+        eliminate(handle, e, pdu.firingEntity, pdu.event.number);
+        emit q->entityHit(handle, pdu, state);
+        return;
+    }
+    DisAppearance look(e.current.appearance);
+    look = look.withDamage(state);
+    if (state == DamageState::Moderate)
+        look = look.withSmoke(DisAppearance::Smoke::Emitting);
+    e.current.appearance = look.bits();
+    sendNow(handle, e);
+    emit q->entityHit(handle, pdu, state);
+}
+
+void ReplicatorPrivate::eliminate(quint16 handle, LocalEntity &e, const DisEntityId &killer, quint32 event) {
+    if (e.destroyed)
+        return;
+    e.destroyed = true;
+    e.health = 0;
+    e.current.appearance = DisAppearance(e.current.appearance).destroyed().bits();
+    sendNow(handle, e);
+    Elimination elimination;
+    elimination.victim = DisEntityId(site(), session->localPeer(), handle);
+    elimination.victimMarking = e.marking;
+    elimination.victimOwner = session->localPeer();
+    elimination.victimOwnerName = session->peer(session->localPeer()).name;
+    if (killer.isValid()) {
+        elimination.killer = killer;
+        elimination.killerOwner = killer.application;
+        elimination.killerOwnerName = session->peer(killer.application).name;
+        const auto spawn = spawns.constFind(killer.key());
+        if (spawn != spawns.cend())
+            elimination.killerMarking = spawn->marking;
+    }
+    elimination.event = event;
+    elimination.time = now();
+    QCborMap m;
+    m.insert(0, static_cast<int>(Message::Eliminated));
+    m.insert(1, encodeElimination(elimination));
+    if (session->isHost())
+        session->broadcastMessage(Replicator::channel, m);
+    else
+        session->sendMessage(session->hostPeer(), Replicator::channel, m);
+    if (chat)
+        chat->send(elimination.toString());
+    applyElimination(elimination);
+}
+
+void ReplicatorPrivate::applyElimination(const Elimination &e) {
+    if (!e.isValid())
+        return;
+    for (const Elimination &known : std::as_const(eliminations)) {
+        if (known.victim == e.victim && known.time == e.time)
+            return;
+    }
+    eliminations.append(e);
+    if (eliminations.size() > kEliminationHistory)
+        eliminations.removeFirst();
+    const auto it = remotes.find(e.victim.key());
+    if (it != remotes.end() && it->entity.damage != DamageState::Destroyed) {
+        it->entity.damage = DamageState::Destroyed;
+        if (it->entity.hasState) {
+            it->entity.lastState.appearance = DisAppearance(it->entity.lastState.appearance).destroyed().bits();
+            emit q->entityDamaged(e.victim, DamageState::Destroyed);
+        }
+    }
+    emit q->entityEliminated(e);
 }
 
 void ReplicatorPrivate::tick() {
@@ -644,6 +825,14 @@ void ReplicatorPrivate::tick() {
 */
 
 /*!
+    \variable QtTwin::RemoteEntity::damage
+    Its damage, from the appearance of its last state or an elimination report. Show a destroyed
+    entity as a wreck.
+
+    \sa QtTwin::Replicator::entityDamaged()
+*/
+
+/*!
     \class QtTwin::MissingModel
     \inmodule NtTwinNetwork
     \brief The MissingModel struct names a model that a peer cannot render.
@@ -717,12 +906,37 @@ void ReplicatorPrivate::tick() {
     timeout (12 seconds by default) is frozen and reported with entityStale(); after 30 seconds it is
     removed. Entities of a peer that leaves are removed at once.
 
+    \section1 Kinetic Effects
+
+    An entity that shoots calls fire(), which sends a DIS Fire PDU that every peer gets as
+    fireObserved(), so all can show the shot and fly the round with QtTwin::PhysicsEngine. The
+    shooter flies it too, and when it hits or lands calls detonate(), which sends the Detonation PDU
+    (detonationObserved() everywhere). As DIS requires, the owner of the entity that was hit decides
+    the damage: with automatic damage, the default, the replicator applies its QtTwin::DamageModel,
+    puts the result in the entity's appearance bits and sends a PDU at once, and emits entityHit().
+    Other peers see the change as entityDamaged(). When the damage reaches \c Destroyed, the owner
+    reports the elimination to every peer, which emit entityEliminated() with who was destroyed and
+    by whom, and posts it in the session's chat if setChat() was called. An application with its own
+    rules turns automatic damage off and calls setDamage() and eliminate() itself.
+
+    \code
+    const QtTwin::DisEventId shot = replicator.fire(turret, drone.id, munition, muzzle, velocity);
+    // ... fly the round; on impact:
+    replicator.detonate(turret, shot, drone.id, QtTwin::DisDetonationResult::EntityImpact, hit, speed);
+    connect(&replicator, &QtTwin::Replicator::entityEliminated,
+            [](const QtTwin::Elimination &e) { hud.announce(e.toString()); });  // "UAV-3 (bob) was eliminated by TURRET (alice)"
+    \endcode
+
+    A destroyed entity stays in the session as a wreck, with its destroyed appearance in every
+    PDU, until its owner removes it.
+
     \differences
-    Qt has no such class; this class is part of Nt Twin Network. Only Entity State PDUs from peers of
-    the session are used; DIS traffic from other applications is ignored.
+    Qt has no such class; this class is part of Nt Twin Network. Only Entity State, Fire and
+    Detonation PDUs from peers of the session are used; DIS traffic from other applications is
+    ignored.
     \enddifferences
 
-    \sa QtComms::Session, QtTwin::DisEntityStatePdu, QtTwin::DeadReckoning
+    \sa QtComms::Session, QtTwin::DisEntityStatePdu, QtTwin::DeadReckoning, QtTwin::DamageModel
 */
 
 /*!
@@ -748,6 +962,11 @@ Replicator::Replicator(QtComms::Session *session, QObject *parent)
     connect(session, &QtComms::Session::joined, this, [this](const QCborMap &accept) {
         for (const auto &v : accept.value(1).toArray())
             d->applySpawn(ReplicatorPrivate::decodeSpawn(v.toMap()));
+        for (const auto &v : accept.value(2).toArray()) {
+            const Elimination e = decodeElimination(v.toMap());
+            if (e.isValid())
+                d->eliminations.append(e);
+        }
     });
     connect(session, &QtComms::Session::peerLeft, this, [this](quint16 peer) { d->removeOwner(peer); });
     connect(session, &QtComms::Session::hostChanged, this, [this](quint16) {
@@ -765,6 +984,7 @@ Replicator::Replicator(QtComms::Session *session, QObject *parent)
             d->local.clear();
             d->spawns.clear();
             d->remotes.clear();
+            d->eliminations.clear();
         }
     });
     d->timer = new QTimer(this);
@@ -883,6 +1103,7 @@ quint16 Replicator::publish(const ModelRef &model, const QString &marking, const
     e.marking = marking;
     e.force = force;
     e.current = initial;
+    e.health = d->damageModel.hitPoints(model.kind);
     d->local.insert(handle, e);
     d->sendSpawnRequest(handle);
     return handle;
@@ -898,17 +1119,19 @@ void Replicator::update(quint16 handle, const EntityState &state) {
     if (it == d->local.end())
         return;
     it->current = state;
+    if (it->destroyed)
+        it->current.appearance = DisAppearance(state.appearance).destroyed().bits();
     if (!it->accepted)
         return;
     if (!it->sent) {
-        d->sendPdu(handle, *it, state);
+        d->sendPdu(handle, *it, it->current);
         return;
     }
     const DeadReckoning::UpdateReason reason =
-        DeadReckoning::updateReason(it->lastSent, state, d->thresholdsFor(it->model.kind));
+        DeadReckoning::updateReason(it->lastSent, it->current, d->thresholdsFor(it->model.kind));
     if (reason == DeadReckoning::UpdateReason::Threshold || reason == DeadReckoning::UpdateReason::Changed ||
         reason == DeadReckoning::UpdateReason::Heartbeat)
-        d->sendPdu(handle, *it, state);
+        d->sendPdu(handle, *it, it->current);
 }
 
 /*!
@@ -987,6 +1210,158 @@ EntityState Replicator::remoteState(const DisEntityId &id, qint64 sessionTime) c
     return DeadReckoning::blend(
         previous, latest, static_cast<double>(std::max<qint64>(0, sinceUpdate)) / static_cast<double>(d->blendTime));
 }
+
+/*!
+    Sets the chat eliminations are announced in to \a chat, or none if null. The owner of a
+    destroyed entity posts the report, such as "UAV-3 (bob) was eliminated by TURRET (alice)", to
+    everyone.
+*/
+void Replicator::setChat(QtComms::Chat *chat) { d->chat = chat; }
+
+/*!
+    Returns the chat eliminations are announced in, or null.
+*/
+QtComms::Chat *Replicator::chat() const { return d->chat; }
+
+/*!
+    Sets the damage model applied to this peer's entities when they are hit to \a model. Entities
+    published later start with its hit points.
+*/
+void Replicator::setDamageModel(const DamageModel &model) { d->damageModel = model; }
+
+/*!
+    Returns the damage model.
+*/
+DamageModel Replicator::damageModel() const { return d->damageModel; }
+
+/*!
+    Sets whether a detonation that hits one of this peer's entities is applied with the damage model
+    to \a automatic, on by default. Off, entityHit() is still emitted and the application calls
+    setDamage() or eliminate() itself.
+*/
+void Replicator::setAutomaticDamage(bool automatic) { d->automaticDamage = automatic; }
+
+/*!
+    Returns whether hits are applied with the damage model.
+*/
+bool Replicator::automaticDamage() const { return d->automaticDamage; }
+
+/*!
+    Sends a Fire PDU: this peer's entity \a shooter fired \a munition at \a target (which may be an
+    invalid ID for no particular target) from \a location at \a velocity, both in Earth-centred,
+    Earth-fixed coordinates, with the computed \a range in metres. Returns the event, to pass to
+    detonate() when the round ends, or an invalid event if \a shooter is not an accepted, intact
+    entity of this peer. fireObserved() is emitted here too, so the shooter's own view shows the shot.
+*/
+DisEventId Replicator::fire(quint16 shooter, const DisEntityId &target, const DisMunitionDescriptor &munition,
+                            const Vector3d &location, const Vector3d &velocity, double range) {
+    const auto it = d->local.constFind(shooter);
+    if (it == d->local.cend() || !it->accepted || it->destroyed)
+        return DisEventId();
+    DisFirePdu pdu;
+    pdu.exercise = d->session->info().exercise;
+    pdu.timestamp = DisEntityStatePdu::timestampFromMsec(d->now());
+    pdu.firingEntity = DisEntityId(d->site(), d->session->localPeer(), shooter);
+    pdu.targetEntity = target;
+    pdu.event = DisEventId(d->site(), d->session->localPeer(), d->nextEvent);
+    d->nextEvent = d->nextEvent == 65535 ? 1 : static_cast<quint16>(d->nextEvent + 1);
+    pdu.location = location;
+    pdu.descriptor = munition;
+    pdu.velocity = velocity;
+    pdu.range = range;
+    d->session->multicast(pdu.encode());
+    emit fireObserved(pdu);
+    return pdu.event;
+}
+
+/*!
+    Sends a Detonation PDU: the round of \a event, fired by this peer's entity \a shooter, ended at
+    \a location moving at \a velocity with the given \a result. If it struck \a target, pass the
+    result \c EntityImpact and where on the target in its body frame as \a locationInTarget; the
+    target's owner then applies the damage. \a munition says what detonated. detonationObserved() is
+    emitted here too, and a hit on this peer's own entity is applied at once.
+*/
+void Replicator::detonate(quint16 shooter, const DisEventId &event, const DisEntityId &target,
+                          DisDetonationResult result, const Vector3d &location, const Vector3d &velocity,
+                          const DisMunitionDescriptor &munition, const Vector3d &locationInTarget) {
+    const QtComms::Session::State s = d->session->state();
+    if (s != QtComms::Session::State::Hosting && s != QtComms::Session::State::Joined)
+        return;
+    DisDetonationPdu pdu;
+    pdu.exercise = d->session->info().exercise;
+    pdu.timestamp = DisEntityStatePdu::timestampFromMsec(d->now());
+    pdu.firingEntity = DisEntityId(d->site(), d->session->localPeer(), shooter);
+    pdu.targetEntity = target;
+    pdu.event = event;
+    pdu.velocity = velocity;
+    pdu.location = location;
+    pdu.descriptor = munition;
+    pdu.locationInEntity = locationInTarget;
+    pdu.result = result;
+    d->session->multicast(pdu.encode());
+    emit detonationObserved(pdu);
+    if (pdu.hitsTarget() && target.application == d->session->localPeer())
+        d->applyHit(pdu);
+}
+
+/*!
+    Returns the hit points this peer's entity \a handle has left, or 0 if there is no such entity.
+*/
+int Replicator::health(quint16 handle) const { return d->local.value(handle).health; }
+
+/*!
+    Returns the damage of this peer's entity \a handle, from its appearance.
+*/
+DamageState Replicator::damage(quint16 handle) const {
+    return DisAppearance(d->local.value(handle).current.appearance).damage();
+}
+
+/*!
+    Sets the damage of this peer's entity \a handle to \a state in its appearance and sends a PDU
+    at once. \c Destroyed eliminates it, with no killer named.
+*/
+void Replicator::setDamage(quint16 handle, DamageState state) {
+    auto it = d->local.find(handle);
+    if (it == d->local.end() || it->destroyed)
+        return;
+    if (state == DamageState::Destroyed) {
+        d->eliminate(handle, *it, DisEntityId(), 0);
+        return;
+    }
+    it->current.appearance = DisAppearance(it->current.appearance).withDamage(state).bits();
+    // Keep the hit points consistent with the state, so later hits continue from it.
+    const int full = d->damageModel.hitPoints(it->model.kind);
+    if (state == DamageState::None)
+        it->health = full;
+    else if (state == DamageState::Slight)
+        it->health = std::max(1, full - 1);
+    else
+        it->health = std::max(1, full / 3);
+    d->sendNow(handle, *it);
+}
+
+/*!
+    Destroys this peer's entity \a handle: its appearance becomes a wreck, a PDU goes out at once,
+    and every peer is told it was eliminated by the entity \a killer in the shot \a event, or just
+    destroyed if \a killer is invalid. The entity stays in the session until remove() is called.
+*/
+void Replicator::eliminate(quint16 handle, const DisEntityId &killer, quint32 event) {
+    auto it = d->local.find(handle);
+    if (it == d->local.end() || !it->accepted)
+        return;
+    d->eliminate(handle, *it, killer, event);
+}
+
+/*!
+    Returns \c true if this peer's entity \a handle has been destroyed.
+*/
+bool Replicator::isDestroyed(quint16 handle) const { return d->local.value(handle).destroyed; }
+
+/*!
+    Returns the eliminations reported in the session, oldest first, up to the last 200. A peer that
+    joins late gets the history from the host.
+*/
+QList<Elimination> Replicator::eliminations() const { return d->eliminations; }
 
 /*!
     Returns the models listed in the \a details of a refusal with the reason \c MissingModels or
@@ -1074,6 +1449,37 @@ QString Replicator::describeRejection(QtComms::Session::RejectReason reason, con
     \fn void QtTwin::Replicator::modelUpdateNeeded(const QList<QtTwin::MissingModel> &missing, const QString &peerName)
     This signal is emitted on a peer that lacks the \a missing models that \a peerName tried to
     bring into the session. Tell the user to update the model library.
+*/
+
+/*!
+    \fn void QtTwin::Replicator::fireObserved(const QtTwin::DisFirePdu &pdu)
+    This signal is emitted when an entity in the session fires, including this peer's own; \a pdu
+    says who, at what, from where and with which munition. Show the shot and fly the round.
+*/
+
+/*!
+    \fn void QtTwin::Replicator::detonationObserved(const QtTwin::DisDetonationPdu &pdu)
+    This signal is emitted when a round in the session detonates or lands, including this peer's
+    own; \a pdu says where and with what result. Show the explosion there.
+*/
+
+/*!
+    \fn void QtTwin::Replicator::entityHit(quint16 handle, const QtTwin::DisDetonationPdu &pdu, QtTwin::DamageState damage)
+    This signal is emitted when a detonation \a pdu strikes this peer's entity \a handle. With
+    automatic damage, \a damage is the new state after the damage model was applied and sent;
+    without, it is the current state, and the application decides with setDamage() or eliminate().
+*/
+
+/*!
+    \fn void QtTwin::Replicator::entityDamaged(const QtTwin::DisEntityId &id, QtTwin::DamageState damage)
+    This signal is emitted when the remote entity \a id reports a new \a damage state in its
+    appearance. At \c Destroyed, swap its model for the wreck and play the destruction effect.
+*/
+
+/*!
+    \fn void QtTwin::Replicator::entityEliminated(const QtTwin::Elimination &elimination)
+    This signal is emitted on every peer when an entity is destroyed; \a elimination says which,
+    whose it was and who destroyed it. Announce it and keep score.
 */
 
 } // namespace QtTwin

@@ -775,6 +775,395 @@ void testDisPdu() {
     CHECK(!DisEntityId(0, 1, 1).isValid() && DisEntityId(1, 1, 1).isValid());
 }
 
+void testAtmosphere() {
+    const Atmosphere isa;
+    // ISO 2533 table values.
+    AirState a = isa.at(0.0);
+    CHECK(near(a.temperature, 288.15, 1e-9) && near(a.pressure, 101325.0, 1e-6) && near(a.density, 1.225, 1e-4));
+    CHECK(near(a.speedOfSound, 340.29, 0.01));
+    // The tables are indexed by geopotential height; convert them to the geometric height at() takes.
+    const auto geometric = [](double geopotential) { return 6356766.0 * geopotential / (6356766.0 - geopotential); };
+    a = isa.at(geometric(1000.0));
+    CHECK(near(a.temperature, 281.65, 0.01) && near(a.pressure, 89874.6, 1.0) && near(a.density, 1.1117, 1e-3));
+    a = isa.at(geometric(5000.0));
+    CHECK(near(a.pressure, 54019.9, 1.0) && near(a.density, 0.7364, 1e-3));
+    a = isa.at(geometric(11000.0));
+    CHECK(near(a.temperature, 216.65, 0.01) && near(a.pressure, 22632.1, 1.0));
+    a = isa.at(geometric(20000.0));
+    CHECK(near(a.temperature, 216.65, 0.01) && near(a.pressure, 5474.9, 1.0)); // isothermal layer
+    a = isa.at(geometric(32000.0));
+    CHECK(near(a.temperature, 228.65, 0.01) && near(a.pressure, 868.02, 0.2));
+    a = isa.at(geometric(47000.0));
+    CHECK(near(a.temperature, 270.65, 0.01) && near(a.pressure, 110.91, 0.1));
+    a = isa.at(geometric(71000.0));
+    CHECK(near(a.temperature, 214.65, 0.01) && near(a.pressure, 3.9564, 0.01));
+    CHECK(near(isa.at(5000.0).pressure, 54048.0, 1.0));           // geometric 5000 m is geopotential 4996 m
+    CHECK(isa.at(100000.0).pressure == isa.at(86000.0).pressure); // clamped
+    CHECK(near(Atmosphere::geopotentialHeight(11000.0), 10981.0, 1.0));
+    // A warm, low-pressure day is thinner.
+    const Atmosphere day(100000.0, 303.15);
+    CHECK(day.density(0.0) < isa.density(0.0) && near(day.density(0.0), 100000.0 / (287.05287 * 303.15), 1e-9));
+    CHECK(day.temperature(1000.0) < day.temperature(0.0));
+    // A barometric altimeter reads back the height.
+    for (double h : {0.0, 350.0, 2500.0, 9000.0})
+        CHECK(near(isa.pressureAltitude(isa.pressure(h)), h, 1e-3));
+    CHECK(isa.pressureAltitude(200000.0) == 0.0);
+}
+
+void testWind() {
+    const WindModel calm;
+    CHECK(calm.isCalm() && calm.at(100.0) == Vector3d() && calm.atEcef(Vector3d(4e6, 0.0, 4.9e6)) == Vector3d());
+    // A westerly (from 270) blows east.
+    const WindModel westerly(10.0, 270.0);
+    CHECK(near(westerly.at(50.0), Vector3d(10.0, 0.0, 0.0), 1e-9));
+    CHECK(near(WindModel::speed(westerly.at(0.0)), 10.0, 1e-9) &&
+          near(WindModel::directionFrom(westerly.at(0.0)), 270.0, 1e-9));
+    // A northerly blows south.
+    CHECK(near(WindLayer::fromSpeedAndDirection(0.0, 5.0, 0.0).velocity, Vector3d(0.0, -5.0, 0.0), 1e-9));
+    CHECK(near(WindModel::directionFrom(Vector3d(0.0, -5.0, 0.0)), 0.0, 1e-9));
+    CHECK(near(WindModel::directionFrom(Vector3d(-3.0, -3.0, 0.0)), 45.0,
+               1e-9)); // blowing south-west: from the north-east
+    // Layers interpolate and clamp.
+    WindModel profile;
+    profile.addLayer(WindLayer(100.0, Vector3d(2.0, 0.0, 0.0)));
+    profile.addLayer(WindLayer(0.0, Vector3d(0.0, 0.0, 0.0)));
+    profile.addLayer(WindLayer(100.0, Vector3d(4.0, 0.0, 0.0))); // replaces
+    CHECK(profile.layers().size() == 2 && profile.layers().first().height == 0.0);
+    CHECK(near(profile.at(50.0), Vector3d(2.0, 0.0, 0.0), 1e-9));
+    CHECK(near(profile.at(-10.0), Vector3d(), 1e-9) && near(profile.at(500.0), Vector3d(4.0, 0.0, 0.0), 1e-9));
+    // In ECEF, an east wind at Amesbury has no component along the local up.
+    const Vector3d at = Ellipsoid::wgs84().toEcef(GeoPosition(51.1789, -1.8262, 50.0));
+    const Vector3d ecef = profile.atEcef(at);
+    CHECK(near(ecef.length(), 2.0, 1e-9));
+    CHECK(near(ecef.dotProduct(Ellipsoid::wgs84().surfaceNormal(51.1789, -1.8262)), 0.0, 1e-9));
+    const LocalFrame frame(GeoPosition(51.1789, -1.8262, 50.0));
+    CHECK(near(ecef.dotProduct(frame.east()), 2.0, 1e-9));
+}
+
+void testGravity() {
+    // WGS 84 normal gravity.
+    CHECK(near(Gravity::magnitude(0.0), 9.7803253359, 1e-9));
+    CHECK(near(Gravity::magnitude(90.0), 9.8321849379, 1e-8));
+    CHECK(near(Gravity::magnitude(45.0), 9.806199, 1e-5));
+    CHECK(near(Gravity::magnitude(45.0, 1000.0), 9.806199 - 0.003086, 2e-5)); // about 3.086 mm/s^2 per km
+    const GeoPosition amesbury(51.1789, -1.8262, 100.0);
+    const Vector3d g = Gravity::at(amesbury);
+    CHECK(near(g.length(), Gravity::magnitude(51.1789, 100.0), 1e-12));
+    CHECK(near(g.normalized().dotProduct(Ellipsoid::wgs84().surfaceNormal(51.1789, -1.8262)), -1.0, 1e-12));
+    CHECK(near(Gravity::at(Ellipsoid::wgs84().toEcef(amesbury)), g, 1e-9));
+    CHECK(Vector3d(1.0, 0.0, 0.0).crossProduct(Vector3d(0.0, 1.0, 0.0)) == Vector3d(0.0, 0.0, 1.0));
+    CHECK(Vector3d().normalized() == Vector3d());
+}
+
+void testPhysics() {
+    const GeoPosition site(51.1789, -1.8262, 100.0);
+    const LocalFrame frame(site);
+    const Vector3d launcher = frame.originEcef();
+
+    // A vacuum shot at 45 degrees lands at v^2/g, with the local g of the site.
+    Environment vacuum;
+    vacuum.drag = false;
+    PhysicsEngine engine(vacuum);
+    engine.setTerrain([](const GeoPosition &) { return 100.0; });
+    PointMass shot;
+    shot.position = launcher;
+    shot.velocity = PhysicsEngine::launchVelocity(launcher, 100.0, 90.0, 45.0); // east
+    CHECK(near(shot.velocity.length(), 100.0, 1e-9));
+    CHECK(near(shot.velocity.dotProduct(frame.east()), 100.0 * std::cos(M_PI / 4.0), 1e-9));
+    const Trajectory flight = engine.simulate(shot, 60.0, 0.1);
+    const double g = Gravity::magnitude(site.latitude, site.height);
+    CHECK(flight.end == Trajectory::End::Ground);
+    CHECK(near(flight.timeOfFlight, 2.0 * 100.0 * std::sin(M_PI / 4.0) / g, 0.02));
+    CHECK(near(flight.range, 100.0 * 100.0 / g, 2.0)); // the curved Earth and the ellipsoid add a little
+    CHECK(near(flight.apogee - 100.0, 100.0 * 100.0 * 0.5 / (2.0 * g), 0.5));
+    const Vector3d local = frame.toLocal(flight.impact);
+    CHECK(local.x > 1000.0 && std::fabs(local.y) < 1.0 && std::fabs(local.z) < 0.5);
+    CHECK(flight.samples.size() > 100 && near(flight.at(0.0).position, launcher, 1e-9));
+    CHECK(near(flight.at(1.0).position, flight.samples.at(10).position, 1e-6));
+
+    // Drag shortens the flight, and wind blows the round sideways.
+    Environment air;
+    PhysicsEngine airEngine(air);
+    airEngine.setTerrain([](const GeoPosition &) { return 100.0; });
+    PointMass ball = PointMass::sphere(2.0, 0.1, 0.47); // a heavy ball
+    CHECK(near(ball.referenceArea, M_PI * 0.0025, 1e-12));
+    ball.position = launcher;
+    ball.velocity = shot.velocity;
+    const Trajectory dragged = airEngine.simulate(ball, 60.0);
+    CHECK(dragged.end == Trajectory::End::Ground && dragged.range < flight.range * 0.7 &&
+          dragged.range > flight.range * 0.45);
+    CHECK(near(frame.toLocal(dragged.impact).y, 0.0, 0.5));
+    CHECK(airEngine.mach(ball) > 0.28 && airEngine.mach(ball) < 0.3);
+    air.wind = WindModel(10.0, 180.0); // from the south: pushes north
+    airEngine.setEnvironment(air);
+    const Trajectory blown = airEngine.simulate(ball, 60.0);
+    CHECK(frame.toLocal(blown.impact).y > 5.0);
+    CHECK(near(airEngine.airVelocity(ball).dotProduct(frame.north()), -10.0, 1e-6));
+
+    // A dropped drone falls; one that keeps flying does not.
+    EntityState drone;
+    drone.time = 5000;
+    drone.setGeoPosition(GeoPosition(51.1789, -1.8262, 300.0));
+    drone.setHeadingPitchRoll(HeadingPitchRoll(0.0, 0.0, 0.0));
+    drone.setLocalVelocity(Vector3d(0.0, 10.0, 0.0));
+    const EntityState fallen = airEngine.advance(drone, PointMass::sphere(2.0, 0.3, 0.5), 2.0);
+    CHECK(fallen.time == 7000 && fallen.geoPosition().height < 300.0 - 15.0 &&
+          fallen.geoPosition().height > 300.0 - 20.0);
+    CHECK(fallen.localVelocity().z < -15.0 && near(fallen.localVelocity().y, 10.0, 0.5)); // it rides the 10 m/s wind
+    CHECK(fallen.acceleration.length() > 5.0 && fallen.orientation == drone.orientation);
+    CHECK(near(airEngine.heightAboveTerrain(drone.position), 200.0, 1e-6));
+
+    // Hit tests. A truck heading north at the origin, 5 by 2.4 by 2 m.
+    EntityState truck;
+    truck.setGeoPosition(site);
+    truck.setHeadingPitchRoll(HeadingPitchRoll(0.0, 0.0, 0.0));
+    const BoundingBox box = BoundingBox::forKind(EntityKind::GroundVehicle);
+    const Vector3d bodyPoint = PhysicsEngine::toBodyFrame(truck, frame.toEcef(Vector3d(1.0, 2.0, 0.5)));
+    CHECK(near(bodyPoint, Vector3d(2.0, 1.0, -0.5), 1e-6)); // forward 2 (north), right 1 (east), down -0.5
+    CHECK(near(PhysicsEngine::fromBodyFrame(truck, bodyPoint), frame.toEcef(Vector3d(1.0, 2.0, 0.5)), 1e-6));
+    double fraction = 0.0;
+    Vector3d hit;
+    // From the west at 1 m up, through the cab.
+    CHECK(PhysicsEngine::segmentHitsEntity(frame.toEcef(Vector3d(-10.0, 0.0, 1.0)),
+                                           frame.toEcef(Vector3d(10.0, 0.0, 1.0)), truck, box, &fraction, &hit));
+    CHECK(near(fraction, (10.0 - 1.2) / 20.0, 1e-6) && near(frame.toLocal(hit), Vector3d(-1.2, 0.0, 1.0), 1e-6));
+    // Over the roof, and beside it.
+    CHECK(!PhysicsEngine::segmentHitsEntity(frame.toEcef(Vector3d(-10.0, 0.0, 2.5)),
+                                            frame.toEcef(Vector3d(10.0, 0.0, 2.5)), truck, box));
+    CHECK(!PhysicsEngine::segmentHitsEntity(frame.toEcef(Vector3d(-10.0, 3.0, 1.0)),
+                                            frame.toEcef(Vector3d(10.0, 3.0, 1.0)), truck, box));
+    // Turned east, the long side faces north: a shot from the north at x=2 hits, where before it missed.
+    truck.setHeadingPitchRoll(HeadingPitchRoll(90.0, 0.0, 0.0));
+    CHECK(PhysicsEngine::segmentHitsEntity(frame.toEcef(Vector3d(2.0, 10.0, 1.0)),
+                                           frame.toEcef(Vector3d(2.0, -10.0, 1.0)), truck, box));
+    CHECK(!PhysicsEngine::segmentHitsEntity(frame.toEcef(Vector3d(2.0, 10.0, 1.0)),
+                                            frame.toEcef(Vector3d(2.0, 1.5, 1.0)), truck, box));
+    CHECK(PhysicsEngine::segmentHitsSphere(Vector3d(-5.0, 0.0, 0.0), Vector3d(5.0, 0.0, 0.0), Vector3d(), 1.0,
+                                           &fraction));
+    CHECK(near(fraction, 0.4, 1e-12));
+    CHECK(!PhysicsEngine::segmentHitsSphere(Vector3d(-5.0, 2.0, 0.0), Vector3d(5.0, 2.0, 0.0), Vector3d(), 1.0));
+    CHECK(PhysicsEngine::segmentHitsSphere(Vector3d(0.5, 0.0, 0.0), Vector3d(5.0, 0.0, 0.0), Vector3d(), 1.0,
+                                           &fraction) &&
+          fraction == 0.0);
+    CHECK(near(BoundingBox::forKind(EntityKind::Drone).radius(), std::sqrt(0.25 + 0.25 + 0.04), 1e-12));
+
+    // A firing solution against a drone crossing at 20 m/s, 600 m out and 150 m up, in wind.
+    EntityState target;
+    target.time = 0;
+    target.position = frame.toEcef(Vector3d(0.0, 600.0, 150.0));
+    target.setHeadingPitchRoll(HeadingPitchRoll(90.0, 0.0, 0.0));
+    target.setLocalVelocity(Vector3d(20.0, 0.0, 0.0));
+    target.deadReckoning = DeadReckoningAlgorithm::Fpw;
+    PointMass round = PointMass::sphere(0.4, 0.04, 0.3);
+    const FiringSolution solution = airEngine.aim(launcher, 400.0, round, target);
+    CHECK(solution.valid && solution.miss <= 0.25 && solution.iterations < 24);
+    CHECK(solution.timeOfFlight > 1.5 && solution.timeOfFlight < 2.5);
+    CHECK(solution.azimuth > 1.0 && solution.azimuth < 6.0);       // lead to the east
+    CHECK(solution.elevation > 14.0 && solution.elevation < 30.0); // above the line of sight, 14 degrees, for the drop
+    CHECK(near(solution.direction.length(), 1.0, 1e-9));
+    // Flying the solution meets the target where it says.
+    round.position = launcher;
+    round.velocity = solution.direction * 400.0;
+    round.time = 0.0;
+    airEngine.advance(round, solution.timeOfFlight);
+    const Vector3d expected =
+        DeadReckoning::extrapolate(target, static_cast<qint64>(solution.timeOfFlight * 1000.0)).position;
+    CHECK(near(round.position, expected, 0.5) && near(solution.interceptPoint, expected, 0.5));
+    // A target out of range gives no valid solution but the best attempt.
+    EntityState far = target;
+    far.position = frame.toEcef(Vector3d(0.0, 30000.0, 150.0));
+    const FiringSolution none = airEngine.aim(launcher, 400.0, round, far, 60.0);
+    CHECK(!none.valid && none.miss > 100.0 && none.iterations > 0);
+    CHECK(!engine.aim(launcher, 0.0, round, target).valid);
+}
+
+void testKinetic() {
+    // Appearance bits.
+    DisAppearance look;
+    CHECK(look.bits() == 0 && look.damage() == DamageState::None && !look.isDestroyed());
+    look = look.withDamage(DamageState::Moderate).withSmoke(DisAppearance::Smoke::Emitting).withFlaming(true);
+    CHECK(look.bits() == ((2u << 3) | (2u << 5) | (1u << 15)));
+    CHECK(look.damage() == DamageState::Moderate && look.smoke() == DisAppearance::Smoke::Emitting && look.isFlaming());
+    look = look.withFlaming(false).withDeactivated(true).withFrozen(true);
+    CHECK(!look.isFlaming() && look.isDeactivated() && look.isFrozen() && (look.bits() & (1u << 23)));
+    const DisAppearance wreck = DisAppearance(1u << 12).destroyed(); // keeps the headlights bit
+    CHECK(wreck.isDestroyed() && wreck.isFlaming() && wreck.isMobilityKilled() && wreck.isFirepowerKilled());
+    CHECK(wreck.smoke() == DisAppearance::Smoke::Both && (wreck.bits() & (1u << 12)));
+    CHECK(wreck.withDamage(DamageState::None).damage() == DamageState::None && wreck != look);
+    CHECK(DisAppearance::damageName(DamageState::Destroyed) == QStringLiteral("destroyed"));
+    CHECK(DisAppearance::damageName(DamageState::Slight) == QStringLiteral("slight damage"));
+
+    // The damage model.
+    DamageModel model;
+    CHECK(model.hitPoints(EntityKind::Drone) == 1 && model.hitPoints(EntityKind::GroundVehicle) == 3);
+    CHECK(model.hitPoints(EntityKind::Boat) == 4 && model.hitPoints(EntityKind::Aircraft) == 2);
+    int health = model.hitPoints(EntityKind::Boat);
+    CHECK(model.apply(EntityKind::Boat, &health, 1) == DamageState::Slight && health == 3);
+    CHECK(model.apply(EntityKind::Boat, &health, 1) == DamageState::Slight && health == 2);
+    CHECK(model.apply(EntityKind::Boat, &health, 1) == DamageState::Moderate && health == 1);
+    CHECK(model.apply(EntityKind::Boat, &health, 5) == DamageState::Destroyed && health == 0);
+    CHECK(model.apply(EntityKind::Boat, &health, 1) == DamageState::Destroyed && health == 0);
+    CHECK(model.stateFor(EntityKind::Drone, 1) == DamageState::None &&
+          model.stateFor(EntityKind::Drone, 0) == DamageState::Destroyed);
+    model.setHitPoints(EntityKind::Drone, 0);
+    CHECK(model.hitPoints(EntityKind::Drone) == 1);
+    DisDetonationPdu det;
+    det.targetEntity = DisEntityId(1, 2, 3);
+    det.result = DisDetonationResult::EntityImpact;
+    CHECK(det.hitsTarget() && model.damageOf(det) == 1);
+    det.descriptor.quantity = 3;
+    CHECK(model.damageOf(det) == 3);
+    det.result = DisDetonationResult::GroundImpact;
+    CHECK(!det.hitsTarget() && model.damageOf(det) == 0);
+    det.result = DisDetonationResult::AirHit;
+    det.targetEntity = DisEntityId();
+    CHECK(!det.hitsTarget());
+
+    // Fire and Detonation PDUs on the wire.
+    DisFirePdu fire;
+    fire.exercise = 9;
+    fire.timestamp = DisEntityStatePdu::timestampFromMsec(123456);
+    fire.firingEntity = DisEntityId(1, 2, 3);
+    fire.targetEntity = DisEntityId(1, 4, 5);
+    fire.event = DisEventId(1, 2, 77);
+    fire.fireMissionIndex = 6;
+    fire.location = Vector3d(4004609.1876, -127682.9614, 4946170.2360);
+    fire.descriptor.munition = DisEntityType(2, 1, 225, 2, 1);
+    fire.descriptor.warhead = DisWarhead::HighExplosiveFragmentation;
+    fire.descriptor.fuse = DisFuse::Proximity;
+    fire.descriptor.quantity = 2;
+    fire.descriptor.rate = 600;
+    fire.velocity = Vector3d(100.0, -200.0, 300.0);
+    fire.range = 1234.5;
+    const QByteArray fireBytes = fire.encode();
+    CHECK(fireBytes.size() == 96 && fireBytes[0] == 7 && fireBytes[1] == 9 && fireBytes[2] == 2 && fireBytes[3] == 2);
+    CHECK(be16(fireBytes, 8) == 96 && be16(fireBytes, 12) == 1 && be16(fireBytes, 16) == 3);
+    CHECK(be16(fireBytes, 18) == 1 && be16(fireBytes, 20) == 4 && be16(fireBytes, 22) == 5); // target
+    CHECK(be16(fireBytes, 34) == 77);                                                        // event number
+    CHECK(be64double(fireBytes, 40) == fire.location.x);
+    CHECK(fireBytes[64] == 2 && fireBytes[65] == 1 && be16(fireBytes, 66) == 225);
+    CHECK(be16(fireBytes, 72) == 1300 && be16(fireBytes, 74) == 300 && be16(fireBytes, 76) == 2 &&
+          be16(fireBytes, 78) == 600);
+    DisFirePdu fireBack;
+    CHECK(fireBack.decode(fireBytes));
+    CHECK(fireBack.exercise == 9 && fireBack.timestamp == fire.timestamp && fireBack.firingEntity == fire.firingEntity);
+    CHECK(fireBack.targetEntity == fire.targetEntity && fireBack.event == fire.event && fireBack.fireMissionIndex == 6);
+    CHECK(fireBack.location == fire.location && fireBack.descriptor == fire.descriptor);
+    CHECK(near(fireBack.velocity, fire.velocity, 1e-4) && near(fireBack.range, 1234.5, 1e-3));
+    CHECK(!fireBack.decode(fireBytes.left(95)));
+    QByteArray wrong = fireBytes;
+    wrong[2] = 3;
+    CHECK(!fireBack.decode(wrong) && fireBack.event == fire.event);
+
+    det.exercise = 9;
+    det.timestamp = fire.timestamp;
+    det.firingEntity = fire.firingEntity;
+    det.targetEntity = fire.targetEntity;
+    det.event = fire.event;
+    det.velocity = Vector3d(90.0, -180.0, 250.0);
+    det.location = fire.location + Vector3d(10.0, 20.0, 30.0);
+    det.descriptor = fire.descriptor;
+    det.locationInEntity = Vector3d(1.5, -0.25, -0.75);
+    det.result = DisDetonationResult::EntityImpact;
+    const QByteArray detBytes = det.encode();
+    CHECK(detBytes.size() == 104 && detBytes[2] == 3 && detBytes[3] == 2 && be16(detBytes, 8) == 104);
+    CHECK(be16(detBytes, 34) == 77 && be64double(detBytes, 48) == det.location.x);
+    CHECK(detBytes[100] == 1 && detBytes[101] == 0);
+    DisDetonationPdu detBack;
+    CHECK(detBack.decode(detBytes));
+    CHECK(detBack.event == det.event && detBack.targetEntity == det.targetEntity && detBack.location == det.location);
+    CHECK(detBack.descriptor == det.descriptor && detBack.result == DisDetonationResult::EntityImpact);
+    CHECK(near(detBack.locationInEntity, det.locationInEntity, 1e-6) && near(detBack.velocity, det.velocity, 1e-4));
+    CHECK(detBack.hitsTarget());
+    wrong = detBytes;
+    wrong[101] = 5; // more records than the length holds
+    CHECK(!detBack.decode(wrong));
+
+    // Headers and bundles.
+    DisPduHeader h;
+    CHECK(DisPduHeader::peek(detBytes, 0, &h) && h.type == DisPduType::Detonation && h.family == 2 && h.length == 104);
+    CHECK(h.exercise == 9 && h.timestamp == det.timestamp && h.version == 7);
+    CHECK(!DisPduHeader::peek(detBytes, 100, &h));
+    DisEntityStatePdu es;
+    es.exercise = 9;
+    const QByteArray bundle = fireBytes + es.encode() + detBytes + QByteArray("junk");
+    const QList<qsizetype> offsets = DisPduHeader::split(bundle);
+    CHECK(offsets == QList<qsizetype>({0, 96, 96 + 144}));
+    CHECK(DisPduHeader::peek(bundle, 96, &h) && h.type == DisPduType::EntityState);
+    CHECK(DisEntityStatePdu::decodeAll(bundle).size() == 1);
+    CHECK(detBack.decode(bundle, 240) && detBack.event == det.event);
+    QByteArray other = detBytes;
+    other[2] = 55;
+    CHECK(DisPduHeader::peek(other, 0, &h) && h.type == DisPduType::Other);
+    CHECK(DisEventId(1, 2, 77).toString() == QStringLiteral("1:2:77") && !DisEventId().isValid());
+    CHECK(DisEventId(1, 2, 77) != DisEventId(1, 2, 78) && DisEventId(1, 2, 77).key() == DisEntityId(1, 2, 77).key());
+
+    // Destruction effects repeat from the seed.
+    EntityState truck;
+    truck.setGeoPosition(GeoPosition(51.1789, -1.8262, 100.0));
+    truck.setHeadingPitchRoll(HeadingPitchRoll(45.0, 0.0, 0.0));
+    const BoundingBox box = BoundingBox::forKind(EntityKind::GroundVehicle);
+    DestructionEffect boom = DestructionEffect::forEntity(truck, EntityKind::GroundVehicle, box, 77);
+    const DestructionEffect again = DestructionEffect::forEntity(truck, EntityKind::GroundVehicle, box, 77);
+    const DestructionEffect other2 = DestructionEffect::forEntity(truck, EntityKind::GroundVehicle, box, 78);
+    CHECK(boom.debris.size() == 24 && again.debris.size() == 24);
+    CHECK(boom.debris.first().position == again.debris.first().position &&
+          boom.debris.first().velocity == again.debris.first().velocity);
+    CHECK(boom.debris.first().position != other2.debris.first().position);
+    CHECK(near(boom.origin, PhysicsEngine::fromBodyFrame(truck, box.centre), 1e-9) && boom.fireballRadius > 3.0);
+    CHECK(boom.smokeDuration > 60.0 &&
+          DestructionEffect::forEntity(truck, EntityKind::Drone, box, 1).smokeDuration < 10.0);
+    const Vector3d up = Ellipsoid::wgs84().surfaceNormal(51.1789, -1.8262);
+    int upward = 0;
+    for (const Debris &d : boom.debris) {
+        CHECK(near(PhysicsEngine::toBodyFrame(truck, d.position).x, 0.0, 2.5 + 1e-6));
+        CHECK(d.velocity.length() > 1.0 && d.size > 0.05 && d.lifetime >= 2.0);
+        if (d.velocity.dotProduct(up) > 0.0)
+            ++upward;
+    }
+    CHECK(upward == 24);
+    PhysicsEngine physics;
+    physics.setTerrain([](const GeoPosition &) { return 100.0; });
+    const Vector3d before = boom.debris.first().position;
+    boom.advance(physics, 0.1);
+    CHECK(boom.debris.size() == 24 && boom.debris.first().position != before);
+    for (int i = 0; i < 70; ++i)
+        boom.advance(physics, 0.1);
+    CHECK(boom.debris.isEmpty()); // every lifetime is under 6 s, and nothing ends up below the ground
+    boom = DestructionEffect::forEntity(truck, EntityKind::GroundVehicle, box, 77);
+    for (int i = 0; i < 30; ++i)
+        boom.advance(physics, 0.1);
+    for (const Debris &d : boom.debris)
+        CHECK(physics.heightAboveTerrain(d.position) > -0.5);
+
+    // Elimination reports.
+    Elimination e;
+    CHECK(!e.isValid());
+    e.victim = DisEntityId(1, 2, 1);
+    e.victimMarking = QStringLiteral("UAV-3");
+    e.victimOwnerName = QStringLiteral("bob");
+    CHECK(e.toString() == QStringLiteral("UAV-3 (bob) was destroyed") && !e.isSelfInflicted());
+    e.killer = DisEntityId(1, 1, 1);
+    e.killerMarking = QStringLiteral("TURRET");
+    e.killerOwnerName = QStringLiteral("alice");
+    CHECK(e.toString() == QStringLiteral("UAV-3 (bob) was eliminated by TURRET (alice)"));
+    e.killer = DisEntityId(1, 2, 2);
+    CHECK(e.isSelfInflicted());
+    Elimination bare;
+    bare.victim = DisEntityId(1, 2, 1);
+    CHECK(bare.toString() == QStringLiteral("1:2:1 was destroyed"));
+
+    // The catalogue knows the wreck.
+    ModelCatalogue catalogue;
+    CHECK(catalogue.loadFromJson(QByteArray(R"({"models":[{"id":"land/lr110","revision":1,"kind":"ground-vehicle",
+        "file":"lr110.glb","wreck":"lr110-wreck.glb"},{"id":"air/uav","revision":1,"kind":"drone","file":"uav.glb"}]})"),
+                                 QStringLiteral("/opt/models")));
+    CHECK(catalogue.find(QStringLiteral("land/lr110")).wreck == QStringLiteral("lr110-wreck.glb"));
+    CHECK(catalogue.wreckFilePath(QStringLiteral("land/lr110")) == QStringLiteral("/opt/models/lr110-wreck.glb"));
+    CHECK(catalogue.wreckFilePath(QStringLiteral("air/uav")).isEmpty() &&
+          catalogue.wreckFilePath(QStringLiteral("x")).isEmpty());
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -794,6 +1183,11 @@ int main(int argc, char **argv) {
     testOrientation();
     testDeadReckoning();
     testDisPdu();
+    testAtmosphere();
+    testWind();
+    testGravity();
+    testPhysics();
+    testKinetic();
     if (g_failures == 0)
         std::printf("All Nt Twin tests passed\n");
     return g_failures == 0 ? 0 : 1;

@@ -83,6 +83,27 @@
 
     The PDUs are standard DIS 7, so Wireshark and other DIS tools can read them.
 
+    \section1 Kinetic Effects
+
+    Entities can shoot each other. The shooter's peer calls QtTwin::Replicator::fire(), which sends
+    a DIS Fire PDU that every peer receives as QtTwin::Replicator::fireObserved(), and flies the
+    round with QtTwin::PhysicsEngine; when the round hits or lands it calls
+    QtTwin::Replicator::detonate(), which sends the Detonation PDU. As in DIS, the owner of the
+    entity that was hit decides the damage: by default the replicator applies its
+    QtTwin::DamageModel (a drone dies to one hit, a ground vehicle to three), writes the result into
+    the entity's appearance bits and sends an update at once, so every peer, and every DIS tool,
+    sees the damage. When an entity is destroyed its owner reports the elimination to all peers,
+    which emit QtTwin::Replicator::entityEliminated() with who was destroyed and by whom, and posts
+    it in the chat:
+
+    \badcode
+    UAV-3 (bob) was eliminated by TURRET (alice)
+    \endcode
+
+    Viewers swap a destroyed entity's model for its wreck (QtTwin::ModelRef::wreck) and play the
+    QtTwin::DestructionEffect, which every peer builds from the shot's event number so the debris
+    matches. A peer that joins later receives the elimination history and sees the wrecks as wrecks.
+
     \section1 Chat
 
     QtComms::Chat sends text to everyone, to a team or to one peer, reliably. Messages are Cursor on

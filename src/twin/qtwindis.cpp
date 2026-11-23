@@ -9,7 +9,6 @@ namespace QtTwin {
 namespace {
 
 constexpr qint64 kHour = 3600000;
-constexpr qsizetype kHeaderSize = 12;
 constexpr qsizetype kRecordSize = 16;
 constexpr qsizetype kMarkingLength = 11;
 
@@ -50,6 +49,43 @@ public:
         u8(t.extra);
     }
     void zeros(int n) { m_out->append(n, '\0'); }
+    void entityId(const DisEntityId &id) {
+        u16(id.site);
+        u16(id.application);
+        u16(id.entity);
+    }
+    void eventId(const DisEventId &id) {
+        u16(id.site);
+        u16(id.application);
+        u16(id.number);
+    }
+    void vector32(const Vector3d &v) {
+        f32(v.x);
+        f32(v.y);
+        f32(v.z);
+    }
+    void vector64(const Vector3d &v) {
+        f64(v.x);
+        f64(v.y);
+        f64(v.z);
+    }
+    void descriptor(const DisMunitionDescriptor &d) {
+        type(d.munition);
+        u16(static_cast<quint16>(d.warhead));
+        u16(static_cast<quint16>(d.fuse));
+        u16(d.quantity);
+        u16(d.rate);
+    }
+    void header(quint8 exercise, quint8 pduType, quint8 family, quint32 timestamp, qsizetype length) {
+        u8(DisEntityStatePdu::protocolVersion);
+        u8(exercise);
+        u8(pduType);
+        u8(family);
+        u32(timestamp);
+        u16(static_cast<quint16>(length));
+        u8(0); // PDU status
+        u8(0); // padding
+    }
 
 private:
     QByteArray *m_out;
@@ -97,11 +133,56 @@ public:
     }
     void skip(qsizetype n) { m_pos += n; }
     qsizetype position() const { return m_pos; }
+    DisEntityId entityId() {
+        DisEntityId id;
+        id.site = u16();
+        id.application = u16();
+        id.entity = u16();
+        return id;
+    }
+    DisEventId eventId() {
+        DisEventId id;
+        id.site = u16();
+        id.application = u16();
+        id.number = u16();
+        return id;
+    }
+    Vector3d vector32() {
+        Vector3d v;
+        v.x = f32();
+        v.y = f32();
+        v.z = f32();
+        return v;
+    }
+    Vector3d vector64() {
+        Vector3d v;
+        v.x = f64();
+        v.y = f64();
+        v.z = f64();
+        return v;
+    }
+    DisMunitionDescriptor descriptor() {
+        DisMunitionDescriptor d;
+        d.munition = type();
+        d.warhead = static_cast<DisWarhead>(u16());
+        d.fuse = static_cast<DisFuse>(u16());
+        d.quantity = u16();
+        d.rate = u16();
+        return d;
+    }
 
 private:
     const uchar *m_data;
     qsizetype m_pos;
 };
+
+// Reads the header of the PDU at offset and checks that it is a complete PDU of the given type.
+bool readHeader(const QByteArray &data, qsizetype offset, quint8 pduType, qsizetype minimumSize, DisPduHeader *h) {
+    if (!DisPduHeader::peek(data, offset, h))
+        return false;
+    return h->version >= 5 && h->version <= 7 && static_cast<quint8>(h->type) == pduType && h->length >= minimumSize &&
+           h->length <= data.size() - offset;
+}
 
 } // namespace
 
@@ -186,6 +267,556 @@ QString DisEntityId::toString() const { return QStringLiteral("%1:%2:%3").arg(si
     \value Opposing The opposing force.
     \value Neutral Neither side.
 */
+
+/*!
+    \enum QtTwin::DisPduType
+    \inmodule NtTwin
+    \brief The types of PDU Nt Twin knows.
+
+    \value Other Any other PDU.
+    \value EntityState An Entity State PDU, QtTwin::DisEntityStatePdu.
+    \value Fire A Fire PDU, QtTwin::DisFirePdu.
+    \value Detonation A Detonation PDU, QtTwin::DisDetonationPdu.
+    \value Comment A Comment PDU.
+*/
+
+/*!
+    \class QtTwin::DisPduHeader
+    \inmodule NtTwin
+    \brief The DisPduHeader struct is the 12-byte header every DIS PDU starts with.
+
+    peek() reads the header of a PDU without decoding the rest, so a receiver can see what a
+    datagram holds, and split() finds every PDU in a datagram that bundles several.
+
+    \code
+    for (qsizetype offset : QtTwin::DisPduHeader::split(datagram)) {
+        QtTwin::DisPduHeader h;
+        QtTwin::DisPduHeader::peek(datagram, offset, &h);
+        if (h.type == QtTwin::DisPduType::Fire) { ... }
+    }
+    \endcode
+
+    \differences
+    Qt has no DIS support; this struct is part of Nt Twin.
+    \enddifferences
+*/
+
+/*!
+    \variable QtTwin::DisPduHeader::size
+    The size of the header: 12 bytes.
+*/
+
+/*!
+    \variable QtTwin::DisPduHeader::version
+    The protocol version, 7 for DIS 7.
+*/
+
+/*!
+    \variable QtTwin::DisPduHeader::exercise
+    The exercise ID.
+*/
+
+/*!
+    \variable QtTwin::DisPduHeader::type
+    The PDU type. Types Nt Twin does not know read as \c Other.
+*/
+
+/*!
+    \variable QtTwin::DisPduHeader::family
+    The protocol family: 1 for entity information, 2 for warfare.
+*/
+
+/*!
+    \variable QtTwin::DisPduHeader::timestamp
+    The DIS timestamp.
+*/
+
+/*!
+    \variable QtTwin::DisPduHeader::length
+    The length of the whole PDU in bytes.
+*/
+
+/*!
+    \variable QtTwin::DisPduHeader::status
+    The PDU status byte.
+*/
+
+/*!
+    Reads the header at \a offset in \a data into *\a header and returns \c true, or returns
+    \c false if fewer than 12 bytes are there.
+*/
+bool DisPduHeader::peek(const QByteArray &data, qsizetype offset, DisPduHeader *header) {
+    if (offset < 0 || data.size() - offset < size)
+        return false;
+    Reader r(data, offset);
+    DisPduHeader h;
+    h.version = r.u8();
+    h.exercise = r.u8();
+    const quint8 type = r.u8();
+    switch (type) {
+    case 1:
+    case 2:
+    case 3:
+    case 22:
+        h.type = static_cast<DisPduType>(type);
+        break;
+    default:
+        h.type = DisPduType::Other;
+        break;
+    }
+    h.family = r.u8();
+    h.timestamp = r.u32();
+    h.length = r.u16();
+    h.status = r.u8();
+    if (header)
+        *header = h;
+    return true;
+}
+
+/*!
+    Returns the offset of every PDU in \a datagram, which may bundle several back to back as DIS
+    allows. Reading stops at the first PDU whose length is malformed.
+*/
+QList<qsizetype> DisPduHeader::split(const QByteArray &datagram) {
+    QList<qsizetype> offsets;
+    qsizetype offset = 0;
+    while (datagram.size() - offset >= size) {
+        const auto *d = reinterpret_cast<const uchar *>(datagram.constData()) + offset;
+        const qsizetype pduLength = (static_cast<qsizetype>(d[8]) << 8) | d[9];
+        if (pduLength < size || pduLength > datagram.size() - offset)
+            break;
+        offsets.append(offset);
+        offset += pduLength;
+    }
+    return offsets;
+}
+
+/*!
+    \class QtTwin::DisEventId
+    \inmodule NtTwin
+    \brief The DisEventId struct identifies an event, such as a shot, in a DIS exercise.
+
+    The Fire PDU that starts a shot and the Detonation PDU that ends it carry the same event ID, so
+    receivers can pair them. The site and application are those of the firing peer, and the number
+    counts its shots.
+
+    \differences
+    Qt has no DIS support; this struct is part of Nt Twin.
+    \enddifferences
+*/
+
+/*!
+    \variable QtTwin::DisEventId::site
+    The site number.
+*/
+
+/*!
+    \variable QtTwin::DisEventId::application
+    The application number within the site.
+*/
+
+/*!
+    \variable QtTwin::DisEventId::number
+    The event number within the application.
+*/
+
+/*!
+    \fn constexpr QtTwin::DisEventId::DisEventId()
+    Constructs the invalid event 0:0:0.
+*/
+
+/*!
+    \fn constexpr QtTwin::DisEventId::DisEventId(quint16 s, quint16 a, quint16 n)
+    Constructs the event with site \a s, application \a a and number \a n.
+*/
+
+/*!
+    \fn constexpr bool QtTwin::DisEventId::isValid() const
+    Returns \c true if no part is 0.
+*/
+
+/*!
+    \fn constexpr quint64 QtTwin::DisEventId::key() const
+    Returns the ID packed into one integer, for use as a key.
+*/
+
+/*!
+    \fn constexpr bool QtTwin::DisEventId::operator==(const DisEventId &o) const
+    Returns \c true if all three parts equal those of \a o.
+*/
+
+/*!
+    \fn constexpr bool QtTwin::DisEventId::operator!=(const DisEventId &o) const
+    Returns \c true if any part differs from \a o.
+*/
+
+/*!
+    Returns the ID as \c site:application:number.
+*/
+QString DisEventId::toString() const { return QStringLiteral("%1:%2:%3").arg(site).arg(application).arg(number); }
+
+/*!
+    \enum QtTwin::DisWarhead
+    \inmodule NtTwin
+    \brief The warhead of a munition, from SISO-REF-010.
+
+    \value Other Another warhead.
+    \value HighExplosive A high-explosive warhead.
+    \value HighExplosiveFragmentation A fragmenting high-explosive warhead.
+    \value Kinetic A kinetic penetrator or a solid shot.
+    \value Practice An inert practice round.
+*/
+
+/*!
+    \enum QtTwin::DisFuse
+    \inmodule NtTwin
+    \brief The fuse of a munition, from SISO-REF-010.
+
+    \value Other Another fuse.
+    \value Contact Detonates on impact.
+    \value Timed Detonates after a set time.
+    \value Proximity Detonates near the target.
+    \value Command Detonates on command.
+*/
+
+/*!
+    \class QtTwin::DisMunitionDescriptor
+    \inmodule NtTwin
+    \brief The DisMunitionDescriptor struct says what was fired: the munition type, its warhead
+    and fuse, and how much.
+
+    The default is one anti-air kinetic round with a contact fuse, which is what a launcher that
+    shoots drones fires.
+
+    \differences
+    Qt has no DIS support; this struct is part of Nt Twin.
+    \enddifferences
+
+    \sa QtTwin::DisFirePdu, QtTwin::DisDetonationPdu
+*/
+
+/*!
+    \variable QtTwin::DisMunitionDescriptor::munition
+    The munition's entity type, kind 2. The domain says what it is for: 1 anti-air, 2 anti-armour,
+    6 anti-ship, 8 anti-personnel.
+*/
+
+/*!
+    \variable QtTwin::DisMunitionDescriptor::warhead
+    The warhead.
+*/
+
+/*!
+    \variable QtTwin::DisMunitionDescriptor::fuse
+    The fuse.
+*/
+
+/*!
+    \variable QtTwin::DisMunitionDescriptor::quantity
+    How many rounds the PDU stands for, 1 by default. A burst is one PDU with the number of rounds.
+*/
+
+/*!
+    \variable QtTwin::DisMunitionDescriptor::rate
+    The rate of fire of a burst in rounds per minute, 0 for a single shot.
+*/
+
+/*!
+    \fn bool QtTwin::DisMunitionDescriptor::operator==(const DisMunitionDescriptor &o) const
+    Returns \c true if every field equals that of \a o.
+*/
+
+/*!
+    \fn bool QtTwin::DisMunitionDescriptor::operator!=(const DisMunitionDescriptor &o) const
+    Returns \c true if any field differs from \a o.
+*/
+
+/*!
+    \class QtTwin::DisFirePdu
+    \inmodule NtTwin
+    \brief The DisFirePdu struct is the Fire PDU of DIS 7: an entity has fired a munition.
+
+    A peer sends a Fire PDU when one of its entities shoots: who fired, at what, from where, with
+    which munition and at what velocity. Every peer that hears it can show the muzzle flash and fly
+    the round with QtTwin::PhysicsEngine. The matching QtTwin::DisDetonationPdu, with the same event
+    ID, says where the round ended up.
+
+    \differences
+    Qt has no DIS support; this struct is part of Nt Twin. Only the munition form of the PDU is
+    written; the expendable form (fire type indicator 1) decodes but is not distinguished.
+    \enddifferences
+
+    \sa QtTwin::DisDetonationPdu, QtTwin::DisEventId
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::pduType
+    The PDU type of a Fire PDU: 2.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::size
+    The size of a Fire PDU: 96 bytes.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::exercise
+    The exercise ID.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::timestamp
+    The DIS timestamp of the shot.
+
+    \sa QtTwin::DisEntityStatePdu::timestampFromMsec()
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::firingEntity
+    The entity that fired.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::targetEntity
+    The entity fired at, or an invalid ID if there is no specific target.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::munitionEntity
+    The entity ID of the round itself, if it is tracked as an entity; otherwise invalid.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::event
+    The event, shared with the detonation that ends it.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::fireMissionIndex
+    The fire mission the shot belongs to, 0 if none.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::location
+    Where the round left the launcher, in Earth-centred, Earth-fixed coordinates.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::descriptor
+    What was fired.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::velocity
+    The velocity of the round as it left, in metres per second.
+*/
+
+/*!
+    \variable QtTwin::DisFirePdu::range
+    The range to the target in metres as the shooter computed it, 0 if unknown.
+*/
+
+/*!
+    Returns the PDU in DIS wire format.
+*/
+QByteArray DisFirePdu::encode() const {
+    QByteArray out;
+    out.reserve(size);
+    Writer w(&out);
+    w.header(exercise, pduType, 2, timestamp, size);
+    w.entityId(firingEntity);
+    w.entityId(targetEntity);
+    w.entityId(munitionEntity);
+    w.eventId(event);
+    w.u32(fireMissionIndex);
+    w.vector64(location);
+    w.descriptor(descriptor);
+    w.vector32(velocity);
+    w.f32(range);
+    return out;
+}
+
+/*!
+    Reads the Fire PDU that starts at \a offset in \a data into this object. Returns \c false,
+    leaving this object unchanged, if the bytes there are not a complete Fire PDU.
+*/
+bool DisFirePdu::decode(const QByteArray &data, qsizetype offset) {
+    DisPduHeader h;
+    if (!readHeader(data, offset, pduType, size, &h))
+        return false;
+    Reader r(data, offset + DisPduHeader::size);
+    DisFirePdu p;
+    p.exercise = h.exercise;
+    p.timestamp = h.timestamp;
+    p.firingEntity = r.entityId();
+    p.targetEntity = r.entityId();
+    p.munitionEntity = r.entityId();
+    p.event = r.eventId();
+    p.fireMissionIndex = r.u32();
+    p.location = r.vector64();
+    p.descriptor = r.descriptor();
+    p.velocity = r.vector32();
+    p.range = r.f32();
+    *this = p;
+    return true;
+}
+
+/*!
+    \enum QtTwin::DisDetonationResult
+    \inmodule NtTwin
+    \brief What a munition hit when it detonated, from SISO-REF-010.
+
+    \value Other Another result.
+    \value EntityImpact The round struck the target entity.
+    \value EntityProximateDetonation The round detonated close enough to the target to affect it.
+    \value GroundImpact The round struck the ground.
+    \value GroundProximateDetonation The round detonated near the ground.
+    \value Detonation The round detonated with nothing in particular hit.
+    \value None The round did not detonate: a dud.
+    \value AirHit The round hit something in the air.
+    \value WaterImpact The round struck the water.
+    \value AirBurst The round burst in the air.
+*/
+
+/*!
+    \class QtTwin::DisDetonationPdu
+    \inmodule NtTwin
+    \brief The DisDetonationPdu struct is the Detonation PDU of DIS 7: a munition has detonated or
+    struck something.
+
+    The peer that fired sends it when the round it flew ends: where, with what result and, when it
+    hit an entity, where on that entity. The owner of the target then decides the damage, as DIS
+    requires, shows it in the appearance of its Entity State PDUs (QtTwin::DisAppearance) and, if
+    the entity is destroyed, reports the elimination.
+
+    \differences
+    Qt has no DIS support; this struct is part of Nt Twin. Variable parameter records are skipped
+    when decoding and none are written.
+    \enddifferences
+
+    \sa QtTwin::DisFirePdu, QtTwin::DamageModel
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::pduType
+    The PDU type of a Detonation PDU: 3.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::baseSize
+    The size of a Detonation PDU without variable parameters: 104 bytes.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::exercise
+    The exercise ID.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::timestamp
+    The DIS timestamp of the detonation.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::firingEntity
+    The entity that fired.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::targetEntity
+    The entity hit, or an invalid ID if none.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::explodingEntity
+    The entity ID of the round, if it was tracked as an entity; otherwise invalid.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::event
+    The event of the shot, from its Fire PDU.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::velocity
+    The velocity of the round at detonation, in metres per second.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::location
+    Where it detonated, in Earth-centred, Earth-fixed coordinates.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::descriptor
+    What detonated.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::locationInEntity
+    Where on the target it struck, in the target's body frame (forward, right, down), in metres.
+    Zero unless an entity was hit.
+*/
+
+/*!
+    \variable QtTwin::DisDetonationPdu::result
+    What was hit.
+*/
+
+/*!
+    \fn bool QtTwin::DisDetonationPdu::hitsTarget() const
+    Returns \c true if the PDU names a target and the result says it was struck or affected.
+*/
+
+/*!
+    Returns the PDU in DIS wire format.
+*/
+QByteArray DisDetonationPdu::encode() const {
+    QByteArray out;
+    out.reserve(baseSize);
+    Writer w(&out);
+    w.header(exercise, pduType, 2, timestamp, baseSize);
+    w.entityId(firingEntity);
+    w.entityId(targetEntity);
+    w.entityId(explodingEntity);
+    w.eventId(event);
+    w.vector32(velocity);
+    w.vector64(location);
+    w.descriptor(descriptor);
+    w.vector32(locationInEntity);
+    w.u8(static_cast<quint8>(result));
+    w.u8(0); // number of variable parameters
+    w.u16(0);
+    return out;
+}
+
+/*!
+    Reads the Detonation PDU that starts at \a offset in \a data into this object. Returns
+    \c false, leaving this object unchanged, if the bytes there are not a complete Detonation PDU.
+*/
+bool DisDetonationPdu::decode(const QByteArray &data, qsizetype offset) {
+    DisPduHeader h;
+    if (!readHeader(data, offset, pduType, baseSize, &h))
+        return false;
+    Reader r(data, offset + DisPduHeader::size);
+    DisDetonationPdu p;
+    p.exercise = h.exercise;
+    p.timestamp = h.timestamp;
+    p.firingEntity = r.entityId();
+    p.targetEntity = r.entityId();
+    p.explodingEntity = r.entityId();
+    p.event = r.eventId();
+    p.velocity = r.vector32();
+    p.location = r.vector64();
+    p.descriptor = r.descriptor();
+    p.locationInEntity = r.vector32();
+    p.result = static_cast<DisDetonationResult>(r.u8());
+    const quint8 records = r.u8();
+    if (baseSize + records * kRecordSize > h.length)
+        return false;
+    *this = p;
+    return true;
+}
 
 /*!
     \class QtTwin::DisEntityStatePdu
@@ -428,18 +1059,10 @@ bool DisEntityStatePdu::decode(const QByteArray &data, qsizetype offset, qsizety
 */
 QList<DisEntityStatePdu> DisEntityStatePdu::decodeAll(const QByteArray &datagram) {
     QList<DisEntityStatePdu> result;
-    qsizetype offset = 0;
-    while (datagram.size() - offset >= kHeaderSize) {
-        const auto *d = reinterpret_cast<const uchar *>(datagram.constData()) + offset;
-        const qsizetype pduLength = (static_cast<qsizetype>(d[8]) << 8) | d[9];
-        if (pduLength < kHeaderSize || pduLength > datagram.size() - offset)
-            break;
-        if (d[2] == pduType) {
-            DisEntityStatePdu pdu;
-            if (pdu.decode(datagram, offset))
-                result.append(pdu);
-        }
-        offset += pduLength;
+    for (qsizetype offset : DisPduHeader::split(datagram)) {
+        DisEntityStatePdu pdu;
+        if (static_cast<uchar>(datagram.at(offset + 2)) == pduType && pdu.decode(datagram, offset))
+            result.append(pdu);
     }
     return result;
 }

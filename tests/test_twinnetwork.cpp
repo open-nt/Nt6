@@ -84,6 +84,7 @@ const ModelRef kLandRover = model(QStringLiteral("land/wheeled/lr110"), 3, Entit
 const ModelRef kHeli = model(QStringLiteral("air/rotary/ec135"), 4, EntityKind::Aircraft);
 const ModelRef kRib = model(QStringLiteral("sea/rib-7m"), 1, EntityKind::Boat);
 const ModelRef kWalker = model(QStringLiteral("person/civilian-a"), 2, EntityKind::Person);
+const ModelRef kDrone = model(QStringLiteral("air/uav/quad"), 1, EntityKind::Drone);
 
 ModelCatalogue catalogueOf(const QList<ModelRef> &models) {
     ModelCatalogue c;
@@ -100,6 +101,11 @@ struct Peer {
     QList<quint16> accepted;
     QList<QPair<quint16, QList<MissingModel>>> rejectedSpawns;
     QList<QPair<QString, QList<MissingModel>>> notices;
+    QList<DisFirePdu> fires;
+    QList<DisDetonationPdu> detonations;
+    QList<QPair<quint16, DamageState>> hits;
+    QList<QPair<DisEntityId, DamageState>> damaged;
+    QList<Elimination> eliminated;
     QtComms::Session::RejectReason refusal = QtComms::Session::RejectReason::None;
     QString refusalText;
     QCborMap refusalDetails;
@@ -128,6 +134,15 @@ struct Peer {
                          [this](quint16 h, const QList<MissingModel> &m) { rejectedSpawns.append({h, m}); });
         QObject::connect(&replicator, &Replicator::modelUpdateNeeded,
                          [this](const QList<MissingModel> &m, const QString &who) { notices.append({who, m}); });
+        QObject::connect(&replicator, &Replicator::fireObserved, [this](const DisFirePdu &p) { fires.append(p); });
+        QObject::connect(&replicator, &Replicator::detonationObserved,
+                         [this](const DisDetonationPdu &p) { detonations.append(p); });
+        QObject::connect(&replicator, &Replicator::entityHit,
+                         [this](quint16 h, const DisDetonationPdu &, DamageState d) { hits.append({h, d}); });
+        QObject::connect(&replicator, &Replicator::entityDamaged,
+                         [this](const DisEntityId &id, DamageState d) { damaged.append({id, d}); });
+        QObject::connect(&replicator, &Replicator::entityEliminated,
+                         [this](const Elimination &e) { eliminated.append(e); });
         QObject::connect(&session, &Session::rejected,
                          [this](QtComms::Session::RejectReason r, const QString &text, const QCborMap &details) {
                              refusal = r;
@@ -155,6 +170,8 @@ EntityState stateAt(const Session &session, double north, double speedNorth) {
 }
 
 double distance(const EntityState &a, const EntityState &b) { return (a.position - b.position).length(); }
+
+bool near(double a, double b, double tolerance) { return std::fabs(a - b) <= tolerance; }
 
 void testReplication() {
     const QtComms::SessionConfiguration config = testConfiguration(0);
@@ -396,6 +413,173 @@ void testMigration() {
     CHECK(dave.refusal == QtComms::Session::RejectReason::MissingModels);
 }
 
+void testKinetic() {
+    const QtComms::SessionConfiguration config = testConfiguration(10);
+    const QList<ModelRef> models{kLandRover, kDrone, kRib};
+    Peer alice(config, models);
+    Peer bob(config, models);
+    QtComms::Chat aliceChat(&alice.session);
+    QtComms::Chat bobChat(&bob.session);
+    alice.replicator.setChat(&aliceChat);
+    bob.replicator.setChat(&bobChat);
+    QList<QtComms::ChatMessage> aliceMessages;
+    QObject::connect(&aliceChat, &QtComms::Chat::messageReceived,
+                     [&](const QtComms::ChatMessage &m) { aliceMessages.append(m); });
+    CHECK(alice.replicator.host(QStringLiteral("Kinetic"), QStringLiteral("alice")));
+    const QtComms::SessionInfo info = discover(config, QStringLiteral("Kinetic"));
+    CHECK(bob.joinAndWait(info, QStringLiteral("bob")));
+    CHECK(alice.replicator.automaticDamage() && alice.replicator.chat() == &aliceChat);
+
+    // Alice has a turret on a Land Rover; bob flies a drone and drives a Land Rover.
+    const quint16 turret = alice.replicator.publish(kLandRover, QStringLiteral("TURRET"),
+                                                    stateAt(alice.session, 0.0, 0.0), DisForce::Friendly);
+    const quint16 drone =
+        bob.replicator.publish(kDrone, QStringLiteral("UAV-3"), stateAt(bob.session, 500.0, 0.0), DisForce::Opposing);
+    const quint16 truck = bob.replicator.publish(kLandRover, QStringLiteral("LR-2"), stateAt(bob.session, 300.0, 0.0));
+    CHECK(waitFor([&] {
+        return alice.accepted.contains(turret) && bob.accepted.contains(drone) && bob.accepted.contains(truck);
+    }));
+    const DisEntityId turretId = alice.replicator.entityId(turret);
+    const DisEntityId droneId = bob.replicator.entityId(drone);
+    const DisEntityId truckId = bob.replicator.entityId(truck);
+    CHECK(waitFor([&] { return alice.appeared.contains(droneId) && alice.appeared.contains(truckId); }));
+    CHECK(bob.replicator.health(drone) == 1 && bob.replicator.health(truck) == 3 && !bob.replicator.isDestroyed(drone));
+    CHECK(bob.replicator.damage(drone) == DamageState::None &&
+          alice.replicator.remoteEntity(droneId).damage == DamageState::None);
+
+    // Nobody can fire from an entity they do not own or that is not accepted.
+    DisMunitionDescriptor munition;
+    munition.munition = DisEntityType(2, 1, 224, 2, 1);
+    CHECK(!alice.replicator.fire(99, droneId, munition, Vector3d(), Vector3d()).isValid());
+
+    // Alice fires at the drone: everyone, alice included, sees the shot.
+    const Vector3d muzzle = stateAt(alice.session, 0.0, 0.0).position;
+    const Vector3d velocity = Vector3d(0.0, 0.0, 900.0);
+    const DisEventId shot = alice.replicator.fire(turret, droneId, munition, muzzle, velocity, 500.0);
+    CHECK(shot == DisEventId(1, 1, 1));
+    CHECK(alice.fires.size() == 1 && alice.fires.first().event == shot && alice.fires.first().targetEntity == droneId);
+    CHECK(waitFor([&] { return bob.fires.size() == 1; }));
+    CHECK(bob.fires.first().firingEntity == turretId && bob.fires.first().descriptor == munition);
+    CHECK(bob.fires.first().location == muzzle && near(bob.fires.first().range, 500.0, 1e-3));
+    CHECK(alice.replicator.fire(turret, droneId, munition, muzzle, velocity) == DisEventId(1, 1, 2));
+
+    // The round hits: bob's drone, with one hit point, is destroyed; bob reports the elimination to all.
+    const Vector3d impact = stateAt(bob.session, 500.0, 0.0).position;
+    alice.replicator.detonate(turret, shot, droneId, DisDetonationResult::EntityImpact, impact,
+                              Vector3d(0.0, 0.0, 800.0), munition, Vector3d(0.1, 0.0, 0.0));
+    CHECK(alice.detonations.size() == 1 && alice.detonations.first().event == shot);
+    CHECK(waitFor([&] { return bob.detonations.size() == 1 && bob.hits.size() == 1; }));
+    CHECK(bob.detonations.first().result == DisDetonationResult::EntityImpact && bob.detonations.first().hitsTarget());
+    CHECK(bob.hits.first() == qMakePair(drone, DamageState::Destroyed));
+    CHECK(bob.replicator.isDestroyed(drone) && bob.replicator.health(drone) == 0);
+    CHECK(bob.replicator.damage(drone) == DamageState::Destroyed);
+    CHECK(waitFor([&] { return alice.eliminated.size() == 1 && bob.eliminated.size() == 1; }));
+    const Elimination e = alice.eliminated.first();
+    CHECK(e.victim == droneId && e.victimMarking == QStringLiteral("UAV-3") &&
+          e.victimOwnerName == QStringLiteral("bob"));
+    CHECK(e.killer == turretId && e.killerMarking == QStringLiteral("TURRET") &&
+          e.killerOwnerName == QStringLiteral("alice"));
+    CHECK(e.event == 1 && e.time > 0 && !e.isSelfInflicted());
+    CHECK(e.toString() == QStringLiteral("UAV-3 (bob) was eliminated by TURRET (alice)"));
+    CHECK(bob.eliminated.first().victim == droneId && bob.replicator.eliminations().size() == 1);
+    // Alice sees the wreck: the destroyed appearance arrived in a PDU, or with the report.
+    CHECK(waitFor([&] { return alice.replicator.remoteEntity(droneId).damage == DamageState::Destroyed; }));
+    CHECK(!alice.damaged.isEmpty() && alice.damaged.last() == qMakePair(droneId, DamageState::Destroyed));
+    CHECK(DisAppearance(alice.replicator.remoteEntity(droneId).lastState.appearance).isDestroyed());
+    // The wreck keeps its destroyed appearance however the application updates it.
+    EntityState moved = stateAt(bob.session, 500.0, 0.0);
+    moved.appearance = 0;
+    bob.replicator.update(drone, moved);
+    CHECK(bob.replicator.damage(drone) == DamageState::Destroyed);
+    // And the report went to chat.
+    const auto report = [&] {
+        for (const QtComms::ChatMessage &m : std::as_const(aliceMessages)) {
+            if (m.text.contains(QStringLiteral("eliminated")))
+                return m;
+        }
+        return QtComms::ChatMessage();
+    };
+    CHECK(waitFor([&] { return !report().text.isEmpty(); }));
+    CHECK(report().text == QStringLiteral("UAV-3 (bob) was eliminated by TURRET (alice)"));
+    CHECK(report().peer == 2 && !report().system);
+    // A second hit on the wreck does nothing more.
+    alice.replicator.detonate(turret, DisEventId(1, 1, 2), droneId, DisDetonationResult::EntityImpact, impact,
+                              Vector3d());
+    pump(200);
+    CHECK(bob.hits.size() == 1 && alice.eliminated.size() == 1);
+    // A dead entity cannot fire.
+    CHECK(!bob.replicator.fire(drone, turretId, munition, impact, Vector3d()).isValid());
+
+    // The truck takes three hits: slight, moderate, destroyed; and only its owner's PDUs count.
+    const DisEventId s1 = alice.replicator.fire(turret, truckId, munition, muzzle, velocity);
+    alice.replicator.detonate(turret, s1, truckId, DisDetonationResult::EntityImpact, impact, Vector3d());
+    CHECK(waitFor([&] { return bob.hits.size() == 2; }));
+    CHECK(bob.hits.last() == qMakePair(truck, DamageState::Slight) && bob.replicator.health(truck) == 2);
+    CHECK(waitFor([&] { return alice.replicator.remoteEntity(truckId).damage == DamageState::Slight; }));
+    CHECK(alice.damaged.last() == qMakePair(truckId, DamageState::Slight));
+    // A miss does no damage.
+    alice.replicator.detonate(turret, s1, truckId, DisDetonationResult::GroundImpact, impact, Vector3d());
+    pump(150);
+    CHECK(bob.hits.size() == 2 && bob.detonations.size() >= 3);
+    alice.replicator.detonate(turret, s1, truckId, DisDetonationResult::EntityProximateDetonation, impact, Vector3d());
+    CHECK(waitFor([&] { return bob.hits.size() == 3; }));
+    CHECK(bob.hits.last() == qMakePair(truck, DamageState::Moderate) && bob.replicator.health(truck) == 1);
+    CHECK(DisAppearance(alice.replicator.remoteEntity(truckId).lastState.appearance).smoke() !=
+              DisAppearance::Smoke::None ||
+          waitFor([&] { return alice.replicator.remoteEntity(truckId).damage == DamageState::Moderate; }));
+
+    // Bob hands the last decision to his own rules.
+    bob.replicator.setAutomaticDamage(false);
+    alice.replicator.detonate(turret, s1, truckId, DisDetonationResult::EntityImpact, impact, Vector3d());
+    CHECK(waitFor([&] { return bob.hits.size() == 4; }));
+    CHECK(bob.hits.last() == qMakePair(truck, DamageState::Moderate) && bob.replicator.health(truck) == 1);
+    CHECK(!bob.replicator.isDestroyed(truck) && alice.eliminated.size() == 1);
+    bob.replicator.setDamage(truck, DamageState::Slight);
+    CHECK(bob.replicator.damage(truck) == DamageState::Slight && bob.replicator.health(truck) == 2);
+    CHECK(waitFor([&] { return alice.replicator.remoteEntity(truckId).damage == DamageState::Slight; }));
+    bob.replicator.eliminate(truck, turretId, 5);
+    CHECK(bob.replicator.isDestroyed(truck) && bob.replicator.health(truck) == 0);
+    CHECK(waitFor([&] { return alice.eliminated.size() == 2; }));
+    CHECK(alice.eliminated.last().victim == truckId && alice.eliminated.last().killer == turretId &&
+          alice.eliminated.last().event == 5);
+    CHECK(alice.eliminated.last().toString() == QStringLiteral("LR-2 (bob) was eliminated by TURRET (alice)"));
+    bob.replicator.eliminate(truck, turretId, 6); // already a wreck
+    pump(150);
+    CHECK(alice.eliminated.size() == 2 && bob.eliminated.size() == 2);
+
+    // Alice can destroy her own entity with no killer: "was destroyed".
+    const quint16 boat = alice.replicator.publish(kRib, QStringLiteral("RIB-1"), stateAt(alice.session, 50.0, 0.0));
+    CHECK(waitFor([&] { return alice.accepted.contains(boat) && bob.appeared.contains(DisEntityId(1, 1, boat)); }));
+    alice.replicator.setDamage(boat, DamageState::Destroyed);
+    CHECK(alice.replicator.isDestroyed(boat));
+    CHECK(waitFor([&] { return bob.eliminated.size() == 3; }));
+    CHECK(bob.eliminated.last().toString() == QStringLiteral("RIB-1 (alice) was destroyed"));
+    CHECK(!bob.eliminated.last().killer.isValid());
+    CHECK(
+        waitFor([&] { return bob.replicator.remoteEntity(DisEntityId(1, 1, boat)).damage == DamageState::Destroyed; }));
+
+    // A late joiner gets the history and sees the wrecks as wrecks.
+    Peer carol(config, models);
+    CHECK(carol.joinAndWait(info, QStringLiteral("carol")));
+    CHECK(carol.replicator.eliminations().size() == 3);
+    CHECK(carol.replicator.eliminations().first().victim == droneId);
+    CHECK(waitFor([&] { return carol.appeared.contains(droneId) && carol.appeared.contains(truckId); }, 2000));
+    CHECK(carol.replicator.remoteEntity(droneId).damage == DamageState::Destroyed);
+    CHECK(carol.replicator.remoteEntity(truckId).damage == DamageState::Destroyed);
+    CHECK(carol.eliminated.isEmpty()); // history is read, not replayed
+
+    // A forged detonation from a peer that does not own the firing entity is ignored.
+    DisDetonationPdu forged;
+    forged.exercise = 7;
+    forged.firingEntity = turretId; // alice's turret, sent by carol
+    forged.targetEntity = DisEntityId(1, 1, turret);
+    forged.result = DisDetonationResult::EntityImpact;
+    forged.timestamp = DisEntityStatePdu::timestampFromMsec(carol.session.sessionTime());
+    carol.session.multicast(forged.encode());
+    pump(200);
+    CHECK(alice.hits.isEmpty() && !alice.replicator.isDestroyed(turret) && alice.replicator.health(turret) == 3);
+}
+
 } // namespace
 
 int main(int argc, char **argv) {
@@ -409,6 +593,7 @@ int main(int argc, char **argv) {
     testStale();
     testModelAdmission();
     testMigration();
+    testKinetic();
     if (g_failures == 0)
         std::printf("All Nt Twin Network tests passed\n");
     return g_failures == 0 ? 0 : 1;

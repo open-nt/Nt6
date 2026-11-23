@@ -20,6 +20,13 @@ struct Vector3d {
 
     double length() const { return std::sqrt(x * x + y * y + z * z); }
     constexpr double dotProduct(const Vector3d &other) const { return x * other.x + y * other.y + z * other.z; }
+    constexpr Vector3d crossProduct(const Vector3d &other) const {
+        return Vector3d(y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x);
+    }
+    Vector3d normalized() const {
+        const double len = length();
+        return len > 0.0 ? Vector3d(x / len, y / len, z / len) : Vector3d();
+    }
 
     constexpr Vector3d operator+(const Vector3d &other) const {
         return Vector3d(x + other.x, y + other.y, z + other.z);

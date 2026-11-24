@@ -28,7 +28,7 @@
     Nt GUI provides the classes for graphical applications: QGuiApplication,
     QWindow and its input events, and QPainter with QImage for drawing. It talks
     to the window system through a platform integration, as Qt does. The
-    platforms are \c xcb (X11, also through XWayland) and \c offscreen, a
+    platforms are \c xcb (X11, also through XWayland), \c android (see \l{Nt on Android}) and \c offscreen, a
     headless platform for tests. Choose one with the \c{-platform} option or
     the \c QT_QPA_PLATFORM environment variable.
 
@@ -73,6 +73,8 @@ bool envSet(const char *name) {
 
 QString chooseDefaultPlatform() {
     const QStringList names = QtPrivate::availablePlatforms();
+    if (names.contains(QString::fromLatin1("android")))
+        return QString::fromLatin1("android");
     const bool haveDisplay = envSet("DISPLAY");
     if (haveDisplay && names.contains(QString::fromLatin1("xcb")))
         return QString::fromLatin1("xcb");

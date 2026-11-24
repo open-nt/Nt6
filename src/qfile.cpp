@@ -450,7 +450,7 @@ bool statFile(int fd, const QString &path, struct stat *st) {
 }
 
 QDateTime birthTime(int fd, const QString &path) {
-#if defined(__linux__) && defined(STATX_BTIME)
+#if defined(__linux__) && !defined(__ANDROID__) && defined(STATX_BTIME)
     struct statx sx;
     const QByteArray p = path.toUtf8();
     const int r = fd >= 0 ? ::statx(fd, "", AT_EMPTY_PATH, STATX_BTIME, &sx)

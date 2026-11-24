@@ -3,6 +3,7 @@
 
 #include <charconv>
 #include <cerrno>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -10,6 +11,69 @@
 #include <string_view>
 
 namespace QtPrivate {
+
+#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+#define NT_HAVE_FP_CHARCONV 1
+#endif
+
+// std::to_chars() for a double, which the C++ library of the Android NDK (libc++ before r26) does not have. The
+// fallback finds the fewest digits that read back as \a v, then lays them out as the standard does.
+inline char *doubleToChars(char *first, char *last, double v, std::chars_format fmt) {
+#ifdef NT_HAVE_FP_CHARCONV
+    return std::to_chars(first, last, v, fmt).ptr;
+#else
+    char sci[64];
+    int digits = 1;
+    for (; digits <= 17; ++digits) {
+        std::snprintf(sci, sizeof sci, "%.*e", digits - 1, v);
+        if (std::strtod(sci, nullptr) == v)
+            break;
+    }
+    if (digits > 17)
+        std::snprintf(sci, sizeof sci, "%.16e", v);
+    const char *ep = std::strchr(sci, 'e');
+    const int exp10 = ep ? std::atoi(ep + 1) : 0;
+    char fixed[400];
+    std::snprintf(fixed, sizeof fixed, "%.*f", digits - 1 - exp10 > 0 ? digits - 1 - exp10 : 0, v);
+    const char *out = sci;
+    if (fmt == std::chars_format::fixed)
+        out = fixed;
+    else if (fmt == std::chars_format::general && std::strlen(fixed) <= std::strlen(sci))
+        out = fixed;
+    const std::size_t n = std::strlen(out);
+    if (n > static_cast<std::size_t>(last - first))
+        return first;
+    std::memcpy(first, out, n);
+    return first + n;
+#endif
+}
+
+// std::from_chars() for a double, with the same fallback reason as doubleToChars().
+struct DoubleParse {
+    const char *ptr;
+    std::errc ec;
+};
+
+inline DoubleParse doubleFromChars(const char *first, const char *last, double &out) {
+#ifdef NT_HAVE_FP_CHARCONV
+    const auto r = std::from_chars(first, last, out);
+    return {r.ptr, r.ec};
+#else
+    if (first == last || *first == '+' || *first == ' ' || (*first >= '\t' && *first <= '\r'))
+        return {first, std::errc::invalid_argument};
+    const std::string copy(first, last);
+    errno = 0;
+    char *end = nullptr;
+    const double d = std::strtod(copy.c_str(), &end);
+    if (end == copy.c_str())
+        return {first, std::errc::invalid_argument};
+    const char *stop = first + (end - copy.c_str());
+    if (errno == ERANGE && (std::isinf(d) || d == 0.0))
+        return {stop, std::errc::result_out_of_range};
+    out = d;
+    return {stop, std::errc()};
+#endif
+}
 
 inline std::string_view trimAscii(std::string_view s) {
     auto sp = [](char c) { return c == ' ' || (c >= '\t' && c <= '\r'); };
@@ -80,8 +144,7 @@ inline std::string formatDouble(double v, char fmt, int prec) {
         std::chars_format cf = lower == 'f' ? std::chars_format::fixed
                                : lower == 'e' ? std::chars_format::scientific
                                               : std::chars_format::general;
-        auto r = std::to_chars(buf, buf + sizeof buf, v, cf);
-        n = static_cast<int>(r.ptr - buf);
+        n = static_cast<int>(doubleToChars(buf, buf + sizeof buf, v, cf) - buf);
     } else {
         const char f[] = {'%', '.', '*', lower == 'f' || lower == 'e' ? lower : 'g', '\0'};
         n = std::snprintf(buf, sizeof buf, f, prec, v);

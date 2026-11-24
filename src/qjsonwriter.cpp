@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtCore/qdebug.h>
 
+#include "numparse_p.h"
 #include "qjson_p.h"
 
 #include <charconv>
@@ -18,8 +19,8 @@ void appendDouble(std::string &out, double d) {
         return;
     }
     char buf[64];
-    const auto r = std::to_chars(buf, buf + sizeof buf, d, std::chars_format::scientific);
-    const std::string sci(buf, r.ptr);
+    const char *const end = QtPrivate::doubleToChars(buf, buf + sizeof buf, d, std::chars_format::scientific);
+    const std::string sci(static_cast<const char *>(buf), end);
     std::size_t pos = 0;
     if (sci[0] == '-') {
         out += '-';

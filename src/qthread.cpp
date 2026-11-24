@@ -394,8 +394,8 @@ QThread::QualityOfService QThread::serviceLevel() const { return m_d->serviceLev
     \sa setTerminationEnabled(), wait()
 */
 void QThread::terminate() {
-#ifdef __ZEPHYR__
-    qWarning("QThread::terminate: not supported on Zephyr");
+#if defined(__ZEPHYR__) || defined(__ANDROID__)
+    qWarning("QThread::terminate: not supported on this platform");
 #else
     std::lock_guard<std::mutex> lk(m_d->mutex);
     if (!m_d->running || m_d->adopted || m_d->inFinish)
@@ -412,7 +412,7 @@ void QThread::terminate() {
     \sa terminate()
 */
 void QThread::setTerminationEnabled(bool enabled) {
-#ifndef __ZEPHYR__
+#if !defined(__ZEPHYR__) && !defined(__ANDROID__)
     pthread_setcancelstate(enabled ? PTHREAD_CANCEL_ENABLE : PTHREAD_CANCEL_DISABLE, nullptr);
 #else
     (void)enabled;

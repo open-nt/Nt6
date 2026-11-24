@@ -1,4 +1,5 @@
 // MIT License - see LICENSE
+#include "numparse_p.h"
 #include "qjson_p.h"
 
 #include <charconv>
@@ -353,7 +354,7 @@ private:
 
     bool convertDouble(const char *first, const char *last, QJsonValue *out) {
         double d = 0;
-        const auto r = std::from_chars(first, last, d);
+        const auto r = QtPrivate::doubleFromChars(first, last, d);
         if (r.ec == std::errc::result_out_of_range) {
             if (!convertTiny(first, last, &d)) {
                 lastError = QJsonParseError::IllegalNumber;

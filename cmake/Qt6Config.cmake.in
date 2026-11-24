@@ -1,0 +1,19 @@
+@PACKAGE_INIT@
+
+# find_package(Qt6 COMPONENTS ...) for a project written against Qt 6, answered by Nt. It is installed only
+# with Nt for Android, whose cross builds have no Qt of their own to find; the Qt6:: targets are the aliases
+# that Nt6Config.cmake defines.
+set(Qt6_FOUND TRUE)
+find_package(Nt6 @PROJECT_VERSION@ CONFIG REQUIRED PATHS "${CMAKE_CURRENT_LIST_DIR}/../Nt6" NO_DEFAULT_PATH)
+set(Qt6_VERSION "6.8.0")
+foreach(_nt_component IN LISTS Qt6_FIND_COMPONENTS)
+    if(NOT TARGET Qt6::${_nt_component})
+        set(Qt6_${_nt_component}_FOUND FALSE)
+        if(Qt6_FIND_REQUIRED_${_nt_component})
+            set(Qt6_FOUND FALSE)
+            set(Qt6_NOT_FOUND_MESSAGE "Nt does not have the Qt module ${_nt_component}")
+        endif()
+    else()
+        set(Qt6_${_nt_component}_FOUND TRUE)
+    endif()
+endforeach()

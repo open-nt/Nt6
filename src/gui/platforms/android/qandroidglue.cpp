@@ -1,0 +1,263 @@
+// MIT License - see LICENSE
+//
+// The entry point of an Nt application on Android. The application is a shared library that defines main(), as a
+// Qt 6 application is; android.app.NativeActivity loads it and calls ANativeActivity_onCreate(), which starts a
+// thread that runs main(). Qt's own activity is written in Java, which Nt does without.
+#include "qandroidglue_p.h"
+
+#include <android/input.h>
+#include <android/log.h>
+#include <android/looper.h>
+
+#include <pthread.h>
+#include <unistd.h>
+
+#include <chrono>
+#include <cstdlib>
+#include <cstring>
+#include <fcntl.h>
+#include <string>
+
+// main() may not be named in C++ code; this declares the symbol of the application under another name.
+extern "C" int ntAndroidApplicationMain(int argc, char *argv[]) __asm__("main");
+
+namespace QtAndroid {
+
+Glue &Glue::instance() {
+    static Glue *glue = new Glue;
+    return *glue;
+}
+
+void Glue::attach(ANativeActivity *activity) {
+    m_activity = activity;
+    if (::pipe(m_pipe) == 0) {
+        for (int fd : m_pipe)
+            ::fcntl(fd, F_SETFL, ::fcntl(fd, F_GETFL) | O_NONBLOCK);
+    }
+    m_config = AConfiguration_new();
+    AConfiguration_fromAssetManager(m_config, activity->assetManager);
+}
+
+void Glue::post(const Event &event) {
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_events.push_back(event);
+    }
+    const char byte = 1;
+    if (::write(m_pipe[1], &byte, 1) < 0) {
+        // A full pipe means the application thread has plenty to read already.
+    }
+}
+
+void Glue::drainDescriptor() {
+    char buffer[64];
+    while (::read(m_pipe[0], buffer, sizeof buffer) > 0) {
+    }
+}
+
+bool Glue::next(Event *event) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    if (m_events.empty())
+        return false;
+    *event = m_events.front();
+    m_events.pop_front();
+    return true;
+}
+
+ANativeWindow *Glue::waitForWindow(int timeoutMs) {
+    std::unique_lock<std::mutex> lock(m_mutex);
+    m_changed.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] { return m_window != nullptr; });
+    return m_window;
+}
+
+ANativeWindow *Glue::window() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_window;
+}
+
+void Glue::setWindow(ANativeWindow *window) {
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_window = window;
+        m_windowGone = false;
+    }
+    m_changed.notify_all();
+    Event e;
+    e.kind = Event::WindowCreated;
+    post(e);
+}
+
+// The UI thread must not return from onNativeWindowDestroyed() while the application still draws into the window.
+void Glue::windowGoingAway() {
+    Event e;
+    e.kind = Event::WindowDestroyed;
+    {
+        std::unique_lock<std::mutex> lock(m_mutex);
+        m_window = nullptr;
+        m_windowGone = false;
+    }
+    post(e);
+    std::unique_lock<std::mutex> lock(m_mutex);
+    if (m_running)
+        m_changed.wait_for(lock, std::chrono::seconds(2), [this] { return m_windowGone; });
+}
+
+void Glue::windowReleased() {
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_windowGone = true;
+    }
+    m_changed.notify_all();
+}
+
+int Glue::density() const {
+    const int dpi = m_config ? AConfiguration_getDensity(m_config) : 0;
+    return dpi > 0 && dpi < 0xfffe ? dpi : 160;
+}
+
+void Glue::configurationChanged() {
+    if (m_config)
+        AConfiguration_fromAssetManager(m_config, m_activity->assetManager);
+    Event e;
+    e.kind = Event::ConfigChanged;
+    post(e);
+}
+
+void Glue::finish() {
+    if (m_activity)
+        ANativeActivity_finish(m_activity);
+}
+
+namespace {
+
+int inputCallback(int, int, void *data) {
+    auto *queue = static_cast<AInputQueue *>(data);
+    AInputEvent *event = nullptr;
+    while (AInputQueue_getEvent(queue, &event) >= 0) {
+        if (AInputQueue_preDispatchEvent(queue, event))
+            continue;
+        bool handled = false;
+        const int32_t type = AInputEvent_getType(event);
+        if (type == AINPUT_EVENT_TYPE_MOTION) {
+            const int32_t action = AMotionEvent_getAction(event);
+            const int32_t masked = action & AMOTION_EVENT_ACTION_MASK;
+            const size_t index =
+                (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
+            if (masked == AMOTION_EVENT_ACTION_MOVE) {
+                // Every pointer that moved; the application thread follows the first one.
+                const size_t count = AMotionEvent_getPointerCount(event);
+                for (size_t i = 0; i < count; ++i) {
+                    Event e;
+                    e.kind = Event::Touch;
+                    e.action = masked;
+                    e.pointerId = AMotionEvent_getPointerId(event, i);
+                    e.x = AMotionEvent_getX(event, i);
+                    e.y = AMotionEvent_getY(event, i);
+                    Glue::instance().post(e);
+                }
+            } else {
+                Event e;
+                e.kind = Event::Touch;
+                e.action = masked;
+                e.pointerId = AMotionEvent_getPointerId(event, index);
+                e.x = AMotionEvent_getX(event, index);
+                e.y = AMotionEvent_getY(event, index);
+                Glue::instance().post(e);
+            }
+            handled = true;
+        } else if (type == AINPUT_EVENT_TYPE_KEY) {
+            Event e;
+            e.kind = Event::Key;
+            e.action = AKeyEvent_getAction(event);
+            e.keyCode = AKeyEvent_getKeyCode(event);
+            e.meta = AKeyEvent_getMetaState(event);
+            Glue::instance().post(e);
+            handled = true;
+        }
+        AInputQueue_finishEvent(queue, event, handled ? 1 : 0);
+    }
+    return 1;
+}
+
+void *applicationThread(void *) {
+    char name[] = "app";
+    char *argv[] = {name, nullptr};
+    Glue &glue = Glue::instance();
+    const int result = ntAndroidApplicationMain(1, argv);
+    __android_log_print(ANDROID_LOG_INFO, "Nt", "main() returned %d", result);
+    glue.setApplicationRunning(false);
+    glue.finish();
+    return nullptr;
+}
+
+void onDestroy(ANativeActivity *activity) {
+    Event e;
+    e.kind = Event::Close;
+    Glue::instance().post(e);
+    // The process is not reused: static objects of the application are not meant to see a second main().
+    (void)activity;
+    for (int i = 0; i < 100 && Glue::instance().applicationRunning(); ++i)
+        ::usleep(20000);
+    std::_Exit(0);
+}
+
+void onWindowCreated(ANativeActivity *, ANativeWindow *window) { Glue::instance().setWindow(window); }
+void onWindowDestroyed(ANativeActivity *, ANativeWindow *) { Glue::instance().windowGoingAway(); }
+void onWindowResized(ANativeActivity *, ANativeWindow *) {
+    Event e;
+    e.kind = Event::WindowResized;
+    Glue::instance().post(e);
+}
+void onInputQueueCreated(ANativeActivity *, AInputQueue *queue) {
+    AInputQueue_attachLooper(queue, ALooper_forThread(), ALOOPER_POLL_CALLBACK, inputCallback, queue);
+}
+void onInputQueueDestroyed(ANativeActivity *, AInputQueue *queue) { AInputQueue_detachLooper(queue); }
+void onConfigurationChanged(ANativeActivity *) { Glue::instance().configurationChanged(); }
+void onPause(ANativeActivity *) {
+    Event e;
+    e.kind = Event::Pause;
+    Glue::instance().post(e);
+}
+void onResume(ANativeActivity *) {
+    Event e;
+    e.kind = Event::Resume;
+    Glue::instance().post(e);
+}
+void *onSaveInstanceState(ANativeActivity *, size_t *size) {
+    *size = 0;
+    return nullptr;
+}
+
+} // namespace
+} // namespace QtAndroid
+
+extern "C" __attribute__((visibility("default"))) void ANativeActivity_onCreate(ANativeActivity *activity, void *,
+                                                                                size_t) {
+    using namespace QtAndroid;
+    Glue &glue = Glue::instance();
+    glue.attach(activity);
+    activity->callbacks->onDestroy = onDestroy;
+    activity->callbacks->onPause = onPause;
+    activity->callbacks->onResume = onResume;
+    activity->callbacks->onSaveInstanceState = onSaveInstanceState;
+    activity->callbacks->onNativeWindowCreated = onWindowCreated;
+    activity->callbacks->onNativeWindowDestroyed = onWindowDestroyed;
+    activity->callbacks->onNativeWindowResized = onWindowResized;
+    activity->callbacks->onInputQueueCreated = onInputQueueCreated;
+    activity->callbacks->onInputQueueDestroyed = onInputQueueDestroyed;
+    activity->callbacks->onConfigurationChanged = onConfigurationChanged;
+    // The application's files live in the private directory of the package.
+    if (activity->internalDataPath) {
+        ::setenv("HOME", activity->internalDataPath, 1);
+        if (::chdir(activity->internalDataPath) != 0) {
+            // Stay where the process started.
+        }
+    }
+    glue.setApplicationRunning(true);
+    pthread_t thread;
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&thread, &attr, applicationThread, nullptr);
+    pthread_attr_destroy(&attr);
+}

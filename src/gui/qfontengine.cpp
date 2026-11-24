@@ -2,7 +2,10 @@
 #include "qfontengine_p.h"
 
 #ifdef NT_HAVE_FREETYPE
+#ifndef __ANDROID__
+#define NT_HAVE_FONTCONFIG 1
 #include <fontconfig/fontconfig.h>
+#endif
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_OUTLINE_H
@@ -15,6 +18,10 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <vector>
+#ifndef NT_HAVE_FONTCONFIG
+#include <dirent.h>
+#endif
 
 namespace {
 
@@ -119,6 +126,111 @@ const AppFont *findAppFont(const QStringList &families, const QFont &font) {
     return nullptr;
 }
 
+#ifndef NT_HAVE_FONTCONFIG
+// Without fontconfig (Android), the fonts of the system are the files in its font directories.
+struct SystemFont {
+    QString family;
+    std::string path;
+    int index;
+    int weight;
+    bool italic;
+};
+
+int weightFromFileName(const std::string &name) {
+    static const struct {
+        const char *token;
+        int weight;
+    } tokens[] = {{"Thin", 100},     {"ExtraLight", 200}, {"Light", 300}, {"Medium", 500},
+                  {"SemiBold", 600}, {"ExtraBold", 800},  {"Bold", 700},  {"Black", 900}};
+    for (const auto &t : tokens)
+        if (name.find(t.token) != std::string::npos)
+            return t.weight;
+    return 400;
+}
+
+const std::vector<SystemFont> &systemFonts() {
+    static const std::vector<SystemFont> fonts = [] {
+        std::vector<SystemFont> list;
+        FT_Library lib = nullptr;
+        if (FT_Init_FreeType(&lib) != 0)
+            return list;
+        for (const char *dir : {"/system/fonts", "/system/product/fonts", "/product/fonts", "/data/fonts/files"}) {
+            DIR *d = ::opendir(dir);
+            if (!d)
+                continue;
+            while (const dirent *entry = ::readdir(d)) {
+                const std::string file = entry->d_name;
+                const auto dot = file.rfind('.');
+                if (dot == std::string::npos)
+                    continue;
+                const std::string ext = file.substr(dot);
+                if (ext != ".ttf" && ext != ".otf" && ext != ".ttc")
+                    continue;
+                const std::string path = std::string(dir) + "/" + file;
+                FT_Face face = nullptr;
+                if (FT_New_Face(lib, path.c_str(), 0, &face) != 0 || !face)
+                    continue;
+                const long faces = face->num_faces;
+                for (long i = 0; i < faces; ++i) {
+                    FT_Face f = face;
+                    if (i > 0 && FT_New_Face(lib, path.c_str(), i, &f) != 0)
+                        continue;
+                    if (f->family_name)
+                        list.push_back({QString::fromUtf8(f->family_name), path, static_cast<int>(i),
+                                        weightFromFileName(file), (f->style_flags & FT_STYLE_FLAG_ITALIC) != 0});
+                    if (f != face)
+                        FT_Done_Face(f);
+                }
+                FT_Done_Face(face);
+            }
+            ::closedir(d);
+        }
+        FT_Done_FreeType(lib);
+        return list;
+    }();
+    return fonts;
+}
+
+// The system font that comes closest to one of `families`, or to the generic family of the font's style hint.
+FT_Face openSystemFace(FT_Library lib, const QStringList &families, const QFont &font) {
+    QStringList wanted;
+    for (const QString &f : families) {
+        const QString lower = f.toLower();
+        if (lower == QString::fromLatin1("sans serif") || lower == QString::fromLatin1("sans-serif"))
+            wanted << QString::fromLatin1("roboto");
+        else if (lower == QString::fromLatin1("serif"))
+            wanted << QString::fromLatin1("noto serif");
+        else if (lower == QString::fromLatin1("monospace"))
+            wanted << QString::fromLatin1("droid sans mono") << QString::fromLatin1("cutive mono");
+        else
+            wanted << lower;
+    }
+    const std::string generic = genericFamily(font.styleHint());
+    wanted << QString::fromLatin1(generic == "serif"       ? "noto serif"
+                                  : generic == "monospace" ? "droid sans mono"
+                                                           : "roboto");
+    wanted << QString::fromLatin1("roboto") << QString::fromLatin1("noto sans");
+    for (const QString &name : wanted) {
+        const SystemFont *best = nullptr;
+        int bestScore = 0;
+        for (const SystemFont &f : systemFonts()) {
+            if (f.family.toLower() != name)
+                continue;
+            const int score =
+                std::abs(f.weight - static_cast<int>(font.weight())) + (f.italic != font.italic() ? 1000 : 0);
+            if (!best || score < bestScore) {
+                best = &f;
+                bestScore = score;
+            }
+        }
+        FT_Face face = nullptr;
+        if (best && FT_New_Face(lib, best->path.c_str(), best->index, &face) == 0)
+            return face;
+    }
+    return nullptr;
+}
+#endif
+
 FT_Face openFace(const QFont &font, double pixelSize) {
     std::lock_guard<std::mutex> lock(libraryMutex());
     FT_Library lib = library();
@@ -134,6 +246,7 @@ FT_Face openFace(const QFont &font, double pixelSize) {
                 face = nullptr;
         }
     }
+#ifdef NT_HAVE_FONTCONFIG
     if (!face && FcInit()) {
         FcPattern *pattern = FcPatternCreate();
         bool any = false;
@@ -174,6 +287,10 @@ FT_Face openFace(const QFont &font, double pixelSize) {
         }
         FcPatternDestroy(pattern);
     }
+#else
+    if (!face)
+        face = openSystemFace(lib, families, font);
+#endif
     if (face && FT_Set_Char_Size(face, 0, static_cast<FT_F26Dot6>(std::lround(pixelSize * 64.0)), 72, 72) != 0) {
         FT_Done_Face(face);
         face = nullptr;
@@ -370,6 +487,7 @@ QStringList QFontEngine::families() {
     QStringList out;
 #ifdef NT_HAVE_FREETYPE
     std::lock_guard<std::mutex> lock(libraryMutex());
+#ifdef NT_HAVE_FONTCONFIG
     if (!FcInit())
         return out;
     FcPattern *pattern = FcPatternCreate();
@@ -388,6 +506,12 @@ QStringList QFontEngine::families() {
     }
     FcObjectSetDestroy(objects);
     FcPatternDestroy(pattern);
+#else
+    for (const SystemFont &f : systemFonts()) {
+        if (!out.contains(f.family))
+            out.append(f.family);
+    }
+#endif
     {
         std::lock_guard<std::mutex> appLock(appFonts().mutex);
         for (const AppFont &f : appFonts().fonts) {

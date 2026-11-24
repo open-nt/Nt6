@@ -679,7 +679,8 @@ void SessionPrivate::tick() {
     const qint64 t = now();
     // Retransmissions, and peers whose channel has given up.
     QList<QString> failedEndpoints;
-    for (auto &[endpoint, c] : channels) {
+    for (auto &[endpoint, entry] : channels) {
+        auto &c = entry; // clang cannot capture a structured binding in a lambda
         c.reliable.resend(t, [this, &c](const ReliableChannel::Fragment &f) {
             quint16 flags = f.more ? Protocol::More : 0;
             if (c.reliable.hasReceived())

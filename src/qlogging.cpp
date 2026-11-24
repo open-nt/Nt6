@@ -7,6 +7,9 @@
 #include <QtCore/qthread.h>
 
 #include <unistd.h>
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -281,6 +284,14 @@ std::string format(QtMsgType type, const QMessageLogContext &context, const std:
 
 void defaultHandler(QtMsgType type, const QMessageLogContext &context, const std::string &message) {
     std::string line = format(type, context, message);
+#ifdef __ANDROID__
+    // stderr of an Android application goes nowhere; logcat shows what is written to the log.
+    const int priority = type == QtDebugMsg     ? ANDROID_LOG_DEBUG
+                         : type == QtInfoMsg    ? ANDROID_LOG_INFO
+                         : type == QtWarningMsg ? ANDROID_LOG_WARN
+                                                : ANDROID_LOG_ERROR;
+    __android_log_write(priority, "Nt", line.c_str());
+#endif
     line.push_back('\n');
     std::fwrite(line.data(), 1, line.size(), stderr);
     std::fflush(stderr);

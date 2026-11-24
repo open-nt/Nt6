@@ -14,59 +14,50 @@ include(CMakePackageConfigHelpers)
 set(NT_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR}/nt6)
 set(NT_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/Nt6)
 
-set_target_properties(NtCore PROPERTIES EXPORT_NAME Core)
-set_target_properties(NtNetwork PROPERTIES EXPORT_NAME Network)
-set_target_properties(NtTest PROPERTIES EXPORT_NAME Test)
-set_target_properties(NtConcurrent PROPERTIES EXPORT_NAME Concurrent)
-set_target_properties(NtXml PROPERTIES EXPORT_NAME Xml)
-set_target_properties(NtSerialPort PROPERTIES EXPORT_NAME SerialPort)
-set_target_properties(NtGpio PROPERTIES EXPORT_NAME Gpio)
-set_target_properties(NtSql PROPERTIES EXPORT_NAME Sql)
-set_target_properties(NtDBus PROPERTIES EXPORT_NAME DBus)
-set_target_properties(NtHttpServer PROPERTIES EXPORT_NAME HttpServer)
-set_target_properties(NtWebSockets PROPERTIES EXPORT_NAME WebSockets)
-set_target_properties(NtGui PROPERTIES EXPORT_NAME Gui)
-set_target_properties(NtWidgets PROPERTIES EXPORT_NAME Widgets)
-set_target_properties(NtSvg PROPERTIES EXPORT_NAME Svg)
-set_target_properties(NtSvgWidgets PROPERTIES EXPORT_NAME SvgWidgets)
-set_target_properties(NtCharts PROPERTIES EXPORT_NAME Charts)
-set_target_properties(NtQml PROPERTIES EXPORT_NAME Qml)
-set_target_properties(NtFM PROPERTIES EXPORT_NAME FM)
-set_target_properties(NtFMQml PROPERTIES EXPORT_NAME FMQml)
-set_target_properties(NtGamepad PROPERTIES EXPORT_NAME Gamepad)
-set_target_properties(NtGltf PROPERTIES EXPORT_NAME Gltf)
-set_target_properties(NtBarcode PROPERTIES EXPORT_NAME Barcode)
-set_target_properties(NtPositioning PROPERTIES EXPORT_NAME Positioning)
-set_target_properties(NtTwin PROPERTIES EXPORT_NAME Twin)
-set_target_properties(NtComms PROPERTIES EXPORT_NAME Comms)
-set_target_properties(NtTwinNetwork PROPERTIES EXPORT_NAME TwinNetwork)
-set_target_properties(NtMultimedia PROPERTIES EXPORT_NAME Multimedia)
-set_target_properties(NtMultimediaWidgets PROPERTIES EXPORT_NAME MultimediaWidgets)
-set_target_properties(NtOpenGL PROPERTIES EXPORT_NAME OpenGL)
-set_target_properties(NtOpenGLWidgets PROPERTIES EXPORT_NAME OpenGLWidgets)
+set(NT_MODULES Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL OpenGLWidgets Qml FM FMQml Gamepad Gltf Barcode Positioning Twin Comms TwinNetwork Multimedia MultimediaWidgets Concurrent Xml Test)
+set(NT_INSTALL_TARGETS)
+set(NT_INSTALL_INCLUDES)
+foreach(module IN LISTS NT_MODULES)
+    # A cross build for Android leaves out some modules (see doc/android.h).
+    if(TARGET Nt${module})
+        set_target_properties(Nt${module} PROPERTIES EXPORT_NAME ${module})
+        list(APPEND NT_INSTALL_TARGETS Nt${module})
+        list(APPEND NT_INSTALL_INCLUDES include/Qt${module})
+    endif()
+endforeach()
 if(TARGET NtWaylandCompositor)
-    set_target_properties(NtWaylandCompositor PROPERTIES EXPORT_NAME WaylandCompositor)
-    install(TARGETS NtWaylandCompositor
+        install(TARGETS NtWaylandCompositor
         EXPORT Nt6Targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
 endif()
-set_target_properties(ntmoc PROPERTIES EXPORT_NAME moc)
-set_target_properties(ndoc PROPERTIES EXPORT_NAME ndoc)
-set_target_properties(ntrcc PROPERTIES EXPORT_NAME rcc)
+if(NOT CMAKE_CROSSCOMPILING)
+    set_target_properties(ntmoc PROPERTIES EXPORT_NAME moc)
+    set_target_properties(ndoc PROPERTIES EXPORT_NAME ndoc)
+    set_target_properties(ntrcc PROPERTIES EXPORT_NAME rcc)
+endif()
 
-install(TARGETS NtCore NtNetwork NtGpio NtSerialPort NtSql NtDBus NtWebSockets NtHttpServer NtGui NtWidgets NtSvg NtSvgWidgets NtCharts NtOpenGL NtOpenGLWidgets NtQml NtFM NtFMQml NtGamepad NtGltf NtBarcode NtPositioning NtTwin NtComms NtTwinNetwork NtMultimedia NtMultimediaWidgets NtConcurrent NtXml NtTest
+install(TARGETS ${NT_INSTALL_TARGETS}
     EXPORT Nt6Targets
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
-install(TARGETS ntmoc ntrcc ndoc
-    EXPORT Nt6Targets
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
+if(NOT CMAKE_CROSSCOMPILING)
+    install(TARGETS ntmoc ntrcc ndoc
+        EXPORT Nt6Targets
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
+endif()
+if(TARGET freetype)
+    # Nt GUI for Android is built with a FreeType of its own, which the static library needs when it is linked.
+    set_target_properties(freetype PROPERTIES EXPORT_NAME freetype)
+    install(TARGETS freetype
+        EXPORT Nt6Targets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
+endif()
 if(TARGET ntgltfview)
     install(TARGETS ntgltfview RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 endif()
 
-install(DIRECTORY include/QtCore include/QtNetwork include/QtGpio include/QtSerialPort include/QtSql include/QtDBus include/QtHttpServer include/QtWebSockets include/QtGui include/QtWidgets include/QtSvg include/QtSvgWidgets include/QtCharts include/QtOpenGL include/QtOpenGLWidgets include/QtQml include/QtFM include/QtFMQml include/QtGamepad include/QtGltf include/QtBarcode include/QtPositioning include/QtTwin include/QtComms include/QtTwinNetwork include/QtMultimedia include/QtMultimediaWidgets include/QtConcurrent include/QtXml include/QtTest
+install(DIRECTORY ${NT_INSTALL_INCLUDES}
     DESTINATION ${NT_INSTALL_INCLUDEDIR}
     COMPONENT Development
     PATTERN "*_p.h" EXCLUDE)
@@ -88,12 +79,33 @@ write_basic_package_version_file(
     ${CMAKE_CURRENT_BINARY_DIR}/Nt6ConfigVersion.cmake
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY SameMajorVersion)
+if(NT_ANDROID)
+    set(NT_HOST_TOOLS_DIR_FOR_TOOLCHAIN "${_nt_host_dir}")
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmake/nt-android.toolchain.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/nt-android.toolchain.cmake @ONLY)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/nt-android.toolchain.cmake
+        DESTINATION ${NT_INSTALL_CMAKEDIR} COMPONENT Development)
+    # Qt 6 projects find Nt under Qt's own package name.
+    configure_package_config_file(
+        ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Qt6Config.cmake.in
+        ${CMAKE_CURRENT_BINARY_DIR}/Qt6Config.cmake
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Qt6)
+    write_basic_package_version_file(
+        ${CMAKE_CURRENT_BINARY_DIR}/Qt6ConfigVersion.cmake
+        VERSION 6.8.0
+        COMPATIBILITY AnyNewerVersion)
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/Qt6Config.cmake ${CMAKE_CURRENT_BINARY_DIR}/Qt6ConfigVersion.cmake
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Qt6
+        COMPONENT Development)
+endif()
 install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/Nt6Config.cmake
     ${CMAKE_CURRENT_BINARY_DIR}/Nt6ConfigVersion.cmake
     cmake/NtMoc.cmake
     cmake/NtRcc.cmake
     cmake/NtDoc.cmake
+    cmake/NtAndroid.cmake
+    cmake/NtAndroidApk.cmake
     DESTINATION ${NT_INSTALL_CMAKEDIR}
     COMPONENT Development)
 

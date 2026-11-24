@@ -25,6 +25,14 @@ else()
     set(_nt_hosted ON)
 endif()
 
+# Android (NDK toolchain file, ANDROID is set) builds the headless libraries: Nt Core, Network, Comms, Sql, Xml and the
+# other modules that need no windowing system, D-Bus or serial devices. See doc/android.h.
+if(ANDROID)
+    set(NT_ANDROID ON)
+else()
+    set(NT_ANDROID OFF)
+endif()
+
 option(NT_BUILD_TESTS "Build tests" ${_nt_hosted})
 
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtCompilerOptions.cmake)
@@ -37,7 +45,7 @@ endif()
 # loader library is opened at run time. QT_FEATURE_vulkan in qconfig.h tells programs whether the classes are there.
 option(NT_USE_VULKAN "Build Vulkan support of Nt GUI (QVulkanInstance, QVulkanWindow)" ON)
 set(NT_HAVE_VULKAN OFF)
-if(NT_USE_VULKAN AND NOT NT_ZEPHYR)
+if(NT_USE_VULKAN AND NOT NT_ZEPHYR AND NOT NT_ANDROID)
     find_path(NT_VULKAN_INCLUDE_DIR vulkan/vulkan.h)
     if(NT_VULKAN_INCLUDE_DIR)
         set(NT_HAVE_VULKAN ON)
@@ -171,9 +179,14 @@ if(NOT NT_ZEPHYR)
         src/qlibrary.cpp
         src/qpluginloader.cpp
         src/qprocess.cpp
-        src/qsharedmemory.cpp
         src/qstorageinfo.cpp
         src/qsystemsemaphore.cpp)
+    # Android has no POSIX shared memory (shm_open); QSharedMemory is left out as on Zephyr.
+    if(NT_ANDROID)
+        target_compile_definitions(NtCore PUBLIC QT_NO_SHAREDMEMORY)
+    else()
+        target_sources(NtCore PRIVATE src/qsharedmemory.cpp)
+    endif()
 endif()
 add_library(Nt::Core ALIAS NtCore)
 add_library(Qt6::Core ALIAS NtCore)
@@ -222,6 +235,10 @@ endif()
 # them, resources compressed with that algorithm cannot be read and ntrcc cannot write them.
 option(NT_USE_ZLIB "Read and write zlib-compressed resources with the system zlib" ${_nt_hosted})
 option(NT_USE_ZSTD "Read and write Zstandard-compressed resources with the system libzstd" ${_nt_hosted})
+# A cross build must not pick up the build machine's libzstd.
+if(CMAKE_CROSSCOMPILING)
+    set(NT_USE_ZSTD OFF)
+endif()
 set(NT_HAVE_ZLIB OFF)
 set(NT_HAVE_ZSTD OFF)
 if(NT_USE_ZLIB)
@@ -375,6 +392,7 @@ endif() # NOT NT_ZEPHYR OR CONFIG_NT_GPIO
 # The other modules need a hosted system. This block ends after Nt Test.
 if(NOT NT_ZEPHYR)
 
+if(NOT NT_ANDROID)
 add_library(NtSerialPort
     src/serialport/qserialport.cpp
     src/serialport/qserialportbaud_linux.cpp
@@ -394,6 +412,7 @@ target_include_directories(NtSerialPort
 )
 target_link_libraries(NtSerialPort PUBLIC NtCore)
 nt_set_compile_options(NtSerialPort)
+endif() # NOT NT_ANDROID
 
 add_library(NtSql
     src/sql/qsqldatabase.cpp
@@ -616,6 +635,16 @@ add_library(NtGui
     src/gui/qwindow.cpp
     src/gui/qwindowsysteminterface.cpp
 )
+if(NT_ANDROID)
+    # The platform of Android: an activity (NativeActivity, so no Java), software rendering into its window, touch
+    # as the mouse, and the keys. See doc/android.h.
+    target_sources(NtGui PRIVATE
+        src/gui/platforms/android/qandroidglue.cpp
+        src/gui/platforms/android/qandroidintegration.cpp)
+    target_link_libraries(NtGui PRIVATE android log)
+    # ANativeActivity_onCreate lives in a static library, which the linker would not otherwise pull in.
+    target_link_options(NtGui INTERFACE "LINKER:--undefined=ANativeActivity_onCreate")
+endif()
 add_library(Nt::Gui ALIAS NtGui)
 add_library(Qt6::Gui ALIAS NtGui)
 target_include_directories(NtGui
@@ -639,7 +668,29 @@ endif()
 # library still builds, but fonts have fixed metrics and draw nothing.
 option(NT_USE_FREETYPE "Build text support of Nt GUI with FreeType and fontconfig" ON)
 set(NT_HAVE_FREETYPE OFF)
-if(NT_USE_FREETYPE)
+if(NT_USE_FREETYPE AND NT_ANDROID)
+    # Android has no FreeType for NDK code, and no fontconfig: FreeType is built from source, and the fonts are the
+    # files in /system/fonts. NT_FREETYPE_SOURCE_DIR names a checkout or an unpacked release; without it the
+    # release is downloaded.
+    set(NT_FREETYPE_SOURCE_DIR "" CACHE PATH "FreeType source to build for Android; downloaded when empty")
+    include(FetchContent)
+    set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_PNG ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_BZIP2 ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_BROTLI ON CACHE BOOL "" FORCE)
+    set(SKIP_INSTALL_ALL ON CACHE BOOL "" FORCE)
+    if(NT_FREETYPE_SOURCE_DIR)
+        FetchContent_Declare(nt_freetype SOURCE_DIR "${NT_FREETYPE_SOURCE_DIR}")
+    else()
+        FetchContent_Declare(nt_freetype
+            URL https://download.savannah.gnu.org/releases/freetype/freetype-2.13.3.tar.xz
+            URL_HASH SHA256=0550350666d427c74daeb85d5ac7bb353acba5f76956395995311a9c6f063289)
+    endif()
+    FetchContent_MakeAvailable(nt_freetype)
+    set_target_properties(freetype PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    set(NT_HAVE_FREETYPE ON)
+    set(NT_FT_ANDROID ON)
+elseif(NT_USE_FREETYPE AND NOT CMAKE_CROSSCOMPILING)
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
         pkg_check_modules(NT_FT QUIET freetype2 fontconfig)
@@ -652,15 +703,19 @@ if(NT_USE_FREETYPE)
 endif()
 if(NT_HAVE_FREETYPE)
     target_compile_definitions(NtGui PRIVATE NT_HAVE_FREETYPE)
-    target_include_directories(NtGui SYSTEM PRIVATE ${NT_FT_INCLUDE_DIRS})
-    target_link_directories(NtGui PRIVATE ${NT_FT_LIBRARY_DIRS})
-    target_link_libraries(NtGui PRIVATE ${NT_FT_LIBRARIES})
+    if(NT_FT_ANDROID)
+        target_link_libraries(NtGui PRIVATE freetype)
+    else()
+        target_include_directories(NtGui SYSTEM PRIVATE ${NT_FT_INCLUDE_DIRS})
+        target_link_directories(NtGui PRIVATE ${NT_FT_LIBRARY_DIRS})
+        target_link_libraries(NtGui PRIVATE ${NT_FT_LIBRARIES})
+    endif()
 endif()
 
 # JPEG files are read and written with libjpeg. PNG and BMP need nothing but zlib, which is optional too.
 option(NT_USE_JPEG "Read and write JPEG images in Nt GUI with libjpeg" ON)
 set(NT_HAVE_JPEG OFF)
-if(NT_USE_JPEG)
+if(NT_USE_JPEG AND NOT CMAKE_CROSSCOMPILING)
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
         pkg_check_modules(NT_JPEG QUIET libjpeg)
@@ -685,7 +740,7 @@ endif()
 # The xcb platform talks to an X server (or XWayland); it is built when XCB is found.
 option(NT_USE_XCB "Build the xcb platform of Nt GUI" ON)
 set(NT_HAVE_XCB OFF)
-if(NT_USE_XCB)
+if(NT_USE_XCB AND NOT CMAKE_CROSSCOMPILING)
     find_package(PkgConfig QUIET)
     if(PkgConfig_FOUND)
         pkg_check_modules(NT_XCB QUIET xcb)
@@ -1076,6 +1131,7 @@ target_include_directories(NtFMQml
 target_link_libraries(NtFMQml PUBLIC NtFM NtQml)
 nt_set_compile_options(NtFMQml)
 
+if(NOT NT_ANDROID)
 # Nt Gamepad: the API of Qt Gamepad from Qt 5, on evdev. Key navigation sends key events through Nt GUI.
 add_library(NtGamepad
     src/gamepad/qgamepad.cpp
@@ -1126,6 +1182,7 @@ target_include_directories(NtBarcode
 )
 target_link_libraries(NtBarcode PUBLIC NtCore NtGui)
 nt_set_compile_options(NtBarcode)
+endif() # NOT NT_ANDROID
 
 # Nt Positioning: the core of Qt Positioning (coordinates, shapes, position sources, NMEA 0183). It depends only on
 # Nt Core.
@@ -1210,6 +1267,7 @@ target_include_directories(NtTwinNetwork
 target_link_libraries(NtTwinNetwork PUBLIC NtTwin NtComms)
 nt_set_compile_options(NtTwinNetwork)
 
+if(NOT NT_ANDROID)
 # Nt Multimedia: the audio and camera parts of Qt Multimedia. Linux uses ALSA, loaded at run time, so the
 # library builds without its headers, and Video4Linux2 for cameras; other platforms have no devices yet.
 add_library(NtMultimedia
@@ -1269,6 +1327,7 @@ target_include_directories(NtMultimediaWidgets
 )
 target_link_libraries(NtMultimediaWidgets PUBLIC NtMultimedia NtWidgets)
 nt_set_compile_options(NtMultimediaWidgets)
+endif() # NOT NT_ANDROID
 
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
@@ -1343,8 +1402,10 @@ if(NOT NT_ZEPHYR OR CONFIG_NT_GPIO)
 nt_moc_library(NtGpio include/QtGpio)
 endif()
 if(NOT NT_ZEPHYR)
-nt_moc_library(NtSerialPort include/QtSerialPort)
 nt_moc_library(NtSql include/QtSql)
+if(NOT NT_ANDROID)
+nt_moc_library(NtSerialPort include/QtSerialPort)
+endif()
 nt_moc_library(NtDBus include/QtDBus)
 endif() # NOT NT_ZEPHYR
 if(NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER)
@@ -1364,13 +1425,17 @@ nt_moc_library(NtCharts include/QtCharts)
 nt_moc_library(NtQml include/QtQml src/qml)
 nt_moc_library(NtFM include/QtFM)
 nt_moc_library(NtFMQml include/QtFMQml)
+if(NOT NT_ANDROID)
 nt_moc_library(NtGamepad include/QtGamepad)
+endif()
 nt_moc_library(NtPositioning include/QtPositioning)
 nt_moc_library(NtTwin include/QtTwin)
 nt_moc_library(NtComms include/QtComms)
 nt_moc_library(NtTwinNetwork include/QtTwinNetwork)
+if(NOT NT_ANDROID)
 nt_moc_library(NtMultimedia include/QtMultimedia)
 nt_moc_library(NtMultimediaWidgets include/QtMultimediaWidgets)
+endif()
 nt_moc_library(NtOpenGL include/QtOpenGL)
 nt_moc_library(NtOpenGLWidgets include/QtOpenGLWidgets)
 if(NT_HAVE_WAYLAND)
@@ -1396,8 +1461,13 @@ if(NOT NT_ZEPHYR AND NOT CMAKE_CROSSCOMPILING)
     nt_set_compile_options(ntsb)
 endif()
 
-# The rest is the documentation, the packages and the tests, none of which is cross built.
+# The rest is the documentation, the packages and the tests, none of which is cross built. A cross build for Android
+# installs the libraries and the CMake package, so that applications can be built against them.
 if(CMAKE_CROSSCOMPILING)
+    if(NT_ANDROID AND CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+        include(GNUInstallDirs)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtInstall.cmake)
+    endif()
     return()
 endif()
 

@@ -5,6 +5,10 @@
 #include <unistd.h>
 #else
 #include <sys/random.h>
+#ifdef __ANDROID__
+#include <sys/syscall.h>
+#include <unistd.h>
+#endif
 #endif
 
 #include <cerrno>
@@ -22,7 +26,12 @@ void systemBytes(void *out, std::size_t size) {
         const std::size_t chunk = size < 256 ? size : 256;
         const ssize_t n = getentropy(p, chunk) == 0 ? static_cast<ssize_t>(chunk) : -1;
 #else
+#if defined(__ANDROID__) && __ANDROID_API__ < 28
+        // bionic declares getrandom() from Android 9 (API 28), but the system call is there since Android 8.
+        const ssize_t n = static_cast<ssize_t>(::syscall(__NR_getrandom, p, size, 0));
+#else
         const ssize_t n = getrandom(p, size, 0);
+#endif
 #endif
         if (n < 0) {
             if (errno == EINTR)

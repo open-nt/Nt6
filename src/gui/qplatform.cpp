@@ -10,6 +10,9 @@
 #ifdef NT_HAVE_XCB
 #include "platforms/xcb/qxcbintegration_p.h"
 #endif
+#ifdef __ANDROID__
+#include "platforms/android/qandroidintegration_p.h"
+#endif
 
 #include <QtCore/qdebug.h>
 
@@ -43,6 +46,9 @@ QStringList availablePlatforms() {
 #ifdef NT_HAVE_XCB
     names.append(QString::fromLatin1("xcb"));
 #endif
+#ifdef __ANDROID__
+    names.append(QString::fromLatin1("android"));
+#endif
     names.append(QString::fromLatin1("offscreen"));
     return names;
 }
@@ -53,6 +59,10 @@ QPlatformIntegration *createPlatformIntegration(const QString &name, int &argc, 
     const QString key = name.toLower();
     if (key == QString::fromLatin1("offscreen"))
         return new QOffscreenIntegration;
+#ifdef __ANDROID__
+    if (key == QString::fromLatin1("android"))
+        return QAndroidIntegration::create();
+#endif
 #ifdef NT_HAVE_XCB
     if (key == QString::fromLatin1("xcb"))
         return QXcbIntegration::create();

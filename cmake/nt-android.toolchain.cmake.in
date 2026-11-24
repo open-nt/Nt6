@@ -1,0 +1,37 @@
+# Toolchain file for building applications against this Nt for Android, as Qt's qt.toolchain.cmake does for Qt:
+#
+#   cmake -S . -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=<prefix>/lib/cmake/Nt6/nt-android.toolchain.cmake
+#
+# It loads the toolchain file of the NDK (ANDROID_NDK, or ANDROID_NDK_ROOT or ANDROID_NDK_HOME in the environment),
+# makes the prefix of Nt a place to look for packages, and takes ANDROID_ABI and ANDROID_PLATFORM from the Nt build
+# unless they are given. ntmoc and ntrcc come from NT_HOST_TOOLS_DIR.
+get_filename_component(_nt_prefix "${CMAKE_CURRENT_LIST_DIR}/../../.." ABSOLUTE)
+
+if(NOT ANDROID_NDK)
+    foreach(_nt_var ANDROID_NDK_ROOT ANDROID_NDK_HOME ANDROID_NDK)
+        if(NOT ANDROID_NDK AND DEFINED ENV{${_nt_var}})
+            set(ANDROID_NDK "$ENV{${_nt_var}}")
+        endif()
+    endforeach()
+endif()
+if(NOT ANDROID_NDK)
+    set(ANDROID_NDK "@CMAKE_ANDROID_NDK@")
+endif()
+if(NOT EXISTS "${ANDROID_NDK}/build/cmake/android.toolchain.cmake")
+    message(FATAL_ERROR "The Android NDK was not found: set ANDROID_NDK to its directory")
+endif()
+if(NOT ANDROID_ABI)
+    set(ANDROID_ABI "@ANDROID_ABI@")
+endif()
+if(NOT ANDROID_PLATFORM)
+    set(ANDROID_PLATFORM "@ANDROID_PLATFORM@")
+endif()
+if(NOT NT_HOST_TOOLS_DIR AND NOT DEFINED ENV{NT_HOST_TOOLS_DIR})
+    set(NT_HOST_TOOLS_DIR "@NT_HOST_TOOLS_DIR_FOR_TOOLCHAIN@" CACHE PATH "Directory with ntmoc and ntrcc")
+endif()
+
+include("${ANDROID_NDK}/build/cmake/android.toolchain.cmake")
+
+# The NDK limits find_package() to its sysroot.
+list(APPEND CMAKE_PREFIX_PATH "${_nt_prefix}")
+list(APPEND CMAKE_FIND_ROOT_PATH "${_nt_prefix}")

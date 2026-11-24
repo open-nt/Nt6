@@ -55,6 +55,7 @@ const Api *loadApi() {
         resolve(lib, "eglCreateContext", &api.CreateContext);
         resolve(lib, "eglDestroyContext", &api.DestroyContext);
         resolve(lib, "eglCreatePlatformWindowSurface", &api.CreatePlatformWindowSurface);
+        resolve(lib, "eglCreateWindowSurface", &api.CreateWindowSurface);
         resolve(lib, "eglCreatePbufferSurface", &api.CreatePbufferSurface);
         resolve(lib, "eglDestroySurface", &api.DestroySurface);
         resolve(lib, "eglMakeCurrent", &api.MakeCurrent);
@@ -66,7 +67,8 @@ const Api *loadApi() {
         resolveProc(api, "eglCreatePlatformWindowSurfaceEXT", &api.CreatePlatformWindowSurfaceEXT);
         loaded = api.GetError && api.Initialize && api.QueryString && api.GetConfigs && api.GetConfigAttrib &&
                  api.BindAPI && api.CreateContext && api.DestroyContext && api.DestroySurface && api.MakeCurrent &&
-                 api.SwapBuffers && api.GetProcAddress && (api.GetPlatformDisplay || api.GetPlatformDisplayEXT);
+                 api.SwapBuffers && api.GetProcAddress &&
+                 (api.GetPlatformDisplay || api.GetPlatformDisplayEXT || api.GetDisplay);
     });
     return loaded ? &api : nullptr;
 }
@@ -96,9 +98,14 @@ EGLDisplay platformDisplay(const Api &egl, unsigned platform, void *native, int 
         intAttribs[1] = screen;
         intAttribs[2] = NONE;
     }
+    // Android has one display, and its EGL library may lack the platform functions.
+    if (platform == PLATFORM_ANDROID_KHR && egl.GetDisplay)
+        return egl.GetDisplay(native);
     if (egl.GetPlatformDisplay)
         return egl.GetPlatformDisplay(platform, native, attribs);
-    return egl.GetPlatformDisplayEXT(platform, native, intAttribs);
+    if (egl.GetPlatformDisplayEXT)
+        return egl.GetPlatformDisplayEXT(platform, native, intAttribs);
+    return nullptr;
 }
 
 // The first EGL device, for a display without a window system when the Mesa surfaceless platform is missing.

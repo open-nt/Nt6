@@ -4,6 +4,7 @@
 #include <android/configuration.h>
 #include <android/native_activity.h>
 #include <android/native_window.h>
+#include <android/rect.h>
 
 #include <condition_variable>
 #include <cstdint>
@@ -51,6 +52,11 @@ public:
     // Tells the UI thread that the application has stopped using the window it was told is going away.
     void windowReleased();
     int density() const; // dots per inch of the screen, or 160
+    // The part of the window that is not under the system bars, in pixels; empty until the activity says.
+    ARect contentRect();
+    // The space that the system bars and cut-outs take at each edge, in pixels.
+    ARect systemInsets();
+    void setContentRect(const ARect &rect);
     ANativeActivity *activity() const { return m_activity; }
     void finish();
 
@@ -76,6 +82,7 @@ private:
     ANativeWindow *m_window = nullptr;
     bool m_windowGone = true; // the application has let go of the previous window
     bool m_running = false;
+    ARect m_content = {0, 0, 0, 0};
     AInputQueue *m_queue = nullptr;
 };
 

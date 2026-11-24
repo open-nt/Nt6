@@ -2,6 +2,7 @@
 #include "qandroidintegration_p.h"
 
 #include "qpa/qwindowsysteminterface_p.h"
+#include "qwindow_p.h"
 
 #include <QtCore/qdebug.h>
 #include <QtGui/qguiapplication.h>
@@ -28,9 +29,17 @@ bool QAndroidScreen::update(ANativeWindow *window) {
     m_ratio = static_cast<qreal>(m_dpi) / 160.0;
     const QSize pixels(ANativeWindow_getWidth(window), ANativeWindow_getHeight(window));
     const QRect geometry(0, 0, qRound(pixels.width() / m_ratio), qRound(pixels.height() / m_ratio));
-    const bool changed = pixels != m_pixels || geometry != m_geometry;
+    // The window is what the system bars leave free.
+    QRect available = geometry;
+    const ARect insets = Glue::instance().systemInsets();
+    const QRect free = QRect(QPoint(0, 0), pixels).adjusted(insets.left, insets.top, -insets.right, -insets.bottom);
+    if (!free.isEmpty())
+        available = QRect(qRound(free.x() / m_ratio), qRound(free.y() / m_ratio), qRound(free.width() / m_ratio),
+                          qRound(free.height() / m_ratio));
+    const bool changed = pixels != m_pixels || geometry != m_geometry || available != m_available;
     m_pixels = pixels;
     m_geometry = geometry;
+    m_available = available;
     return changed;
 }
 
@@ -51,7 +60,7 @@ QAndroidWindow::QAndroidWindow(QWindow *window, QAndroidScreen *screen)
     m_id = counter.fetch_add(1);
     // A top-level window fills the screen, as every window does on Android.
     if (m_topLevel)
-        QPlatformWindow::setGeometry(screen->geometry());
+        QPlatformWindow::setGeometry(screen->availableGeometry());
     else
         QPlatformWindow::setGeometry(window->geometry());
 }
@@ -66,7 +75,7 @@ void QAndroidWindow::setGeometry(const QRect &rect) {
         QPlatformWindow::setGeometry(rect);
         return;
     }
-    const QRect screenRect = m_screen->geometry();
+    const QRect screenRect = m_screen->availableGeometry();
     QPlatformWindow::setGeometry(screenRect);
     if (rect != screenRect)
         QWindowSystemInterface::handleGeometryChange(window(), screenRect);
@@ -82,7 +91,7 @@ void QAndroidWindow::setVisible(bool visible) {
     s.erase(std::remove(s.begin(), s.end(), this), s.end());
     if (visible) {
         s.push_back(this);
-        setGeometry(m_screen->geometry());
+        setGeometry(m_screen->availableGeometry());
         QWindowSystemInterface::handleExposeEvent(window(), QRegion(QRect(QPoint(0, 0), window()->size())));
         QWindowSystemInterface::handleWindowActivated(window());
     } else {
@@ -112,6 +121,8 @@ void QAndroidWindow::raise() {
     s.push_back(this);
     QWindowSystemInterface::handleExposeEvent(window(), QRegion(QRect(QPoint(0, 0), window()->size())));
 }
+
+void *QAndroidWindow::eglNativeWindow() const { return Glue::instance().window(); }
 
 QAndroidBackingStore::QAndroidBackingStore(QWindow *window, QAndroidScreen *screen)
     : QPlatformBackingStore(window), m_screen(screen) {}
@@ -148,9 +159,12 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
     ANativeWindow_Buffer buffer;
     if (ANativeWindow_lock(native, &buffer, nullptr) != 0)
         return;
-    const int width = std::min(buffer.width, m_image.width());
-    const int height = std::min(buffer.height, m_image.height());
-    auto *destination = static_cast<std::uint8_t *>(buffer.bits);
+    // The window lies inside the system bars.
+    const QPoint origin = m_screen->pixelOrigin();
+    const int width = std::min(buffer.width - origin.x(), m_image.width());
+    const int height = std::min(buffer.height - origin.y(), m_image.height());
+    auto *destination = static_cast<std::uint8_t *>(buffer.bits) +
+                        (static_cast<std::ptrdiff_t>(origin.y()) * buffer.stride + origin.x()) * 4;
     for (int y = 0; y < height; ++y) {
         const auto *source = reinterpret_cast<const std::uint32_t *>(m_image.constScanLine(y));
         auto *row = reinterpret_cast<std::uint32_t *>(destination + static_cast<std::ptrdiff_t>(y) * buffer.stride * 4);
@@ -197,6 +211,14 @@ QPlatformBackingStore *QAndroidIntegration::createPlatformBackingStore(QWindow *
     return new QAndroidBackingStore(window, m_screen.get());
 }
 
+// OpenGL ES through the EGL library of the system; windows get EGL window surfaces of the activity's native window.
+QEglNativePlatform QAndroidIntegration::eglPlatform() const {
+    QEglNativePlatform native;
+    native.platform = 0x3141; // EGL_PLATFORM_ANDROID_KHR
+    native.windowSurfaces = true;
+    return native;
+}
+
 void QAndroidIntegration::processEvents() {
     Glue &glue = Glue::instance();
     glue.drainDescriptor();
@@ -215,7 +237,10 @@ void QAndroidIntegration::processEvents() {
             windowChanged();
             break;
         case Event::WindowDestroyed:
-            // Nothing may draw into the window from here on; the UI thread waits for this.
+            // Nothing may draw into the window from here on; the UI thread waits for this. The EGL surfaces
+            // of OpenGL windows are made of the window that is going away.
+            for (QAndroidWindow *w : QAndroidWindow::stack())
+                QtPrivate::GuiAccess::surfaceAboutToBeDestroyed(w->window());
             m_surfaceLost = true;
             glue.windowReleased();
             break;
@@ -243,9 +268,9 @@ void QAndroidIntegration::windowChanged() {
     if (!changed && !surfaceReturned)
         return;
     for (QAndroidWindow *w : QAndroidWindow::stack()) {
-        QWindowSystemInterface::handleGeometryChange(w->window(), m_screen->geometry());
+        QWindowSystemInterface::handleGeometryChange(w->window(), m_screen->availableGeometry());
         QWindowSystemInterface::handleExposeEvent(w->window(),
-                                                  QRegion(QRect(QPoint(0, 0), m_screen->geometry().size())));
+                                                  QRegion(QRect(QPoint(0, 0), m_screen->availableGeometry().size())));
     }
 }
 
@@ -254,25 +279,26 @@ void QAndroidIntegration::touch(const Event &event) {
     if (!top)
         return;
     QWindow *window = top->window();
-    const QPointF position(static_cast<qreal>(event.x) / m_screen->ratio(),
-                           static_cast<qreal>(event.y) / m_screen->ratio());
+    const QPointF global(static_cast<qreal>(event.x) / m_screen->ratio(),
+                         static_cast<qreal>(event.y) / m_screen->ratio());
+    const QPointF position = global - QPointF(window->geometry().topLeft());
     switch (event.action) {
     case AMOTION_EVENT_ACTION_DOWN:
     case AMOTION_EVENT_ACTION_POINTER_DOWN:
         if (m_touchPointer >= 0)
             return; // the first finger is the pointer; others are ignored
         m_touchPointer = event.pointerId;
-        m_touchPosition = position;
+        m_touchPosition = global;
         m_buttons = Qt::LeftButton;
-        QWindowSystemInterface::handleEnterEvent(window, position, position);
-        QWindowSystemInterface::handleMouseEvent(window, position, position, m_buttons, Qt::LeftButton,
+        QWindowSystemInterface::handleEnterEvent(window, position, global);
+        QWindowSystemInterface::handleMouseEvent(window, position, global, m_buttons, Qt::LeftButton,
                                                  QEvent::MouseButtonPress, Qt::NoModifier);
         break;
     case AMOTION_EVENT_ACTION_MOVE:
         if (event.pointerId != m_touchPointer)
             return;
-        m_touchPosition = position;
-        QWindowSystemInterface::handleMouseEvent(window, position, position, m_buttons, Qt::NoButton, QEvent::MouseMove,
+        m_touchPosition = global;
+        QWindowSystemInterface::handleMouseEvent(window, position, global, m_buttons, Qt::NoButton, QEvent::MouseMove,
                                                  Qt::NoModifier);
         break;
     case AMOTION_EVENT_ACTION_UP:
@@ -282,7 +308,7 @@ void QAndroidIntegration::touch(const Event &event) {
             return;
         m_touchPointer = -1;
         m_buttons = Qt::NoButton;
-        QWindowSystemInterface::handleMouseEvent(window, position, position, Qt::NoButton, Qt::LeftButton,
+        QWindowSystemInterface::handleMouseEvent(window, position, global, Qt::NoButton, Qt::LeftButton,
                                                  QEvent::MouseButtonRelease, Qt::NoModifier);
         QWindowSystemInterface::handleLeaveEvent(window);
         break;

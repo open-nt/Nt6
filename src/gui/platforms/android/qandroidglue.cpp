@@ -8,6 +8,7 @@
 #include <android/input.h>
 #include <android/log.h>
 #include <android/looper.h>
+#include <jni.h>
 
 #include <pthread.h>
 #include <unistd.h>
@@ -115,6 +116,74 @@ int Glue::density() const {
     return dpi > 0 && dpi < 0xfffe ? dpi : 160;
 }
 
+// The system bars and cut-outs, as the insets of the decor view of the activity; NativeActivity reports no more than
+// the whole window. Asked on the application thread, through JNI.
+ARect Glue::systemInsets() {
+    ARect insets = {0, 0, 0, 0};
+    if (!m_activity || !m_activity->vm || !m_activity->clazz)
+        return insets;
+    JNIEnv *env = nullptr;
+    bool attached = false;
+    if (m_activity->vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        if (m_activity->vm->AttachCurrentThread(&env, nullptr) != JNI_OK)
+            return insets;
+        attached = true;
+    }
+    const auto call = [env](jobject object, const char *name, const char *signature) -> jobject {
+        if (!object)
+            return nullptr;
+        jclass cls = env->GetObjectClass(object);
+        jmethodID method = cls ? env->GetMethodID(cls, name, signature) : nullptr;
+        jobject result = method ? env->CallObjectMethod(object, method) : nullptr;
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            result = nullptr;
+        }
+        if (cls)
+            env->DeleteLocalRef(cls);
+        return result;
+    };
+    jobject window = call(m_activity->clazz, "getWindow", "()Landroid/view/Window;");
+    jobject decor = call(window, "getDecorView", "()Landroid/view/View;");
+    jobject windowInsets = call(decor, "getRootWindowInsets", "()Landroid/view/WindowInsets;");
+    if (windowInsets) {
+        jclass cls = env->GetObjectClass(windowInsets);
+        const auto read = [&](const char *name) {
+            jmethodID method = env->GetMethodID(cls, name, "()I");
+            const int value = method ? env->CallIntMethod(windowInsets, method) : 0;
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+            return value;
+        };
+        insets.left = read("getSystemWindowInsetLeft");
+        insets.top = read("getSystemWindowInsetTop");
+        insets.right = read("getSystemWindowInsetRight");
+        insets.bottom = read("getSystemWindowInsetBottom");
+        env->DeleteLocalRef(cls);
+    }
+    for (jobject local : {windowInsets, decor, window})
+        if (local)
+            env->DeleteLocalRef(local);
+    if (attached)
+        m_activity->vm->DetachCurrentThread();
+    return insets;
+}
+
+ARect Glue::contentRect() {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return m_content;
+}
+
+void Glue::setContentRect(const ARect &rect) {
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        m_content = rect;
+    }
+    Event e;
+    e.kind = Event::WindowResized;
+    post(e);
+}
+
 void Glue::configurationChanged() {
     if (m_config)
         AConfiguration_fromAssetManager(m_config, m_activity->assetManager);
@@ -208,6 +277,7 @@ void onWindowResized(ANativeActivity *, ANativeWindow *) {
     e.kind = Event::WindowResized;
     Glue::instance().post(e);
 }
+void onContentRectChanged(ANativeActivity *, const ARect *rect) { Glue::instance().setContentRect(*rect); }
 void onInputQueueCreated(ANativeActivity *, AInputQueue *queue) {
     AInputQueue_attachLooper(queue, ALooper_forThread(), ALOOPER_POLL_CALLBACK, inputCallback, queue);
 }
@@ -243,6 +313,7 @@ extern "C" __attribute__((visibility("default"))) void ANativeActivity_onCreate(
     activity->callbacks->onNativeWindowCreated = onWindowCreated;
     activity->callbacks->onNativeWindowDestroyed = onWindowDestroyed;
     activity->callbacks->onNativeWindowResized = onWindowResized;
+    activity->callbacks->onContentRectChanged = onContentRectChanged;
     activity->callbacks->onInputQueueCreated = onInputQueueCreated;
     activity->callbacks->onInputQueueDestroyed = onInputQueueDestroyed;
     activity->callbacks->onConfigurationChanged = onConfigurationChanged;

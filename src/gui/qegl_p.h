@@ -66,6 +66,7 @@ enum : EGLint {
     PLATFORM_SURFACELESS_MESA = 0x31DD,
     PLATFORM_XCB_SCREEN_EXT = 0x31DE,
     PLATFORM_DEVICE_EXT = 0x313F,
+    PLATFORM_ANDROID_KHR = 0x3141,
 };
 enum : EGLint { PBUFFER_BIT = 0x0001, WINDOW_BIT = 0x0004 };
 enum : EGLint { OPENGL_ES2_BIT = 0x0004, OPENGL_BIT = 0x0008, OPENGL_ES3_BIT = 0x0040 };
@@ -87,6 +88,7 @@ struct Api {
     EGLBoolean(NT_EGLAPIENTRY *DestroyContext)(EGLDisplay, EGLContext);
     EGLSurface(NT_EGLAPIENTRY *CreatePlatformWindowSurface)(EGLDisplay, EGLConfig, void *, const EGLAttrib *);
     EGLSurface(NT_EGLAPIENTRY *CreatePlatformWindowSurfaceEXT)(EGLDisplay, EGLConfig, void *, const EGLint *);
+    EGLSurface(NT_EGLAPIENTRY *CreateWindowSurface)(EGLDisplay, EGLConfig, void *, const EGLint *);
     EGLSurface(NT_EGLAPIENTRY *CreatePbufferSurface)(EGLDisplay, EGLConfig, const EGLint *);
     EGLBoolean(NT_EGLAPIENTRY *DestroySurface)(EGLDisplay, EGLSurface);
     EGLBoolean(NT_EGLAPIENTRY *MakeCurrent)(EGLDisplay, EGLSurface, EGLSurface, EGLContext);

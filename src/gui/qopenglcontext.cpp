@@ -481,7 +481,10 @@ bool QOpenGLContext::makeCurrent(QSurface *surface) {
             void *nativeWindow = d.platform == egl::PLATFORM_X11_KHR ? static_cast<void *>(&xlibWindow)
                                                                      : static_cast<void *>(&xcbWindow);
             egl::EGLSurface created = nullptr;
-            if (d.egl->CreatePlatformWindowSurface) {
+            if (void *handle = platform->eglNativeWindow()) {
+                const egl::EGLint attribs[] = {egl::NONE};
+                created = d.egl->CreateWindowSurface(d.display, m_d->config, handle, attribs);
+            } else if (d.egl->CreatePlatformWindowSurface) {
                 const egl::EGLAttrib attribs[] = {egl::NONE};
                 created = d.egl->CreatePlatformWindowSurface(d.display, m_d->config, nativeWindow, attribs);
             } else if (d.egl->CreatePlatformWindowSurfaceEXT) {

@@ -14,7 +14,7 @@
     engine into the window of an \c{android.app.NativeActivity}, so no Java is involved.
 
     The port is at an early stage. It was built with NDK r25 for \c arm64-v8a and \c x86_64, and a Widgets
-    application runs on the Android 15 emulator for \c x86_64; it has not been run on a device yet.
+    application runs on the Android 15 emulator for \c x86_64; it has not been run on a device yet. OpenGL ES, in QOpenGLWindow and QOpenGLWidget, runs on the emulator too.
 
     \section1 What is built
 
@@ -81,12 +81,13 @@
     \section1 Differences from Qt for Android
 
     \list
-    \li Rendering is software only: OpenGL and Vulkan are not available on Android yet, so
-        QOpenGLWidget and QVulkanWindow do not draw.
+    \li Widgets are painted by the raster engine. OpenGL ES works, through the EGL library of the system, in
+        QOpenGLWindow and QOpenGLWidget; Vulkan is not available on Android yet, so QVulkanWindow does not draw.
     \li There is no Java part, so no soft keyboard (QInputMethod), no clipboard, no QJniObject, no
         Android permissions API and no assets: \c{assets:} paths do not exist, and resources are the compiled-in kind.
-    \li Touch is the mouse. There are no QTouchEvent or gestures, and the system bars and cut-outs are not known, so
-        a window starts under the status bar.
+    \li Touch is the mouse. There are no QTouchEvent or gestures. A window is as large as the content area that the
+        activity reports, which leaves out the system bars (QScreen::availableGeometry()); an OpenGL window draws into
+        the whole surface, behind the bars.
     \li Only the first window is shown at a time; QMessageBox and other dialogs work because they are windows of
         their own that cover it.
     \li The activity is not recreated when the device turns, but the window follows the new size of the screen.

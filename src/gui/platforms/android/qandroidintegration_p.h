@@ -21,6 +21,8 @@ public:
     QAndroidScreen();
 
     QRect geometry() const override { return m_geometry; }
+    // Without the system bars; where the windows are.
+    QRect availableGeometry() const override { return m_available; }
     QString name() const override { return QString::fromLatin1("android"); }
     qreal logicalDpiX() const override { return 120.0; }
     qreal logicalDpiY() const override { return 120.0; }
@@ -30,11 +32,14 @@ public:
     // Reads the size of the native window again; returns whether it changed.
     bool update(ANativeWindow *window);
     QSize pixelSize() const { return m_pixels; }
+    // Where the window of the screen begins, in pixels.
+    QPoint pixelOrigin() const { return QPoint(qRound(m_available.x() * m_ratio), qRound(m_available.y() * m_ratio)); }
     qreal ratio() const { return m_ratio; }
 
 private:
     QSize m_pixels;
     QRect m_geometry;
+    QRect m_available;
     qreal m_ratio = 1.0;
     int m_dpi = 160;
 };
@@ -49,6 +54,7 @@ public:
     void requestActivateWindow() override;
     void raise() override;
     quintptr winId() const override { return m_id; }
+    void *eglNativeWindow() const override;
     bool isTopLevel() const { return m_topLevel; }
 
     // Every visible top-level window, the topmost last.
@@ -84,6 +90,7 @@ public:
     void initialize() override;
     QPlatformWindow *createPlatformWindow(QWindow *window) const override;
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
+    QEglNativePlatform eglPlatform() const override;
 
 private:
     explicit QAndroidIntegration(ANativeWindow *window);

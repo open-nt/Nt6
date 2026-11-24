@@ -45,6 +45,9 @@ public:
     virtual void lower() {}
     // Shows the mouse cursor with this shape while it is over the window.
     virtual void setCursor(Qt::CursorShape shape) { (void)shape; }
+    // The native window handle that EGL makes a window surface of, on a platform whose handle is a pointer (Android's
+    // ANativeWindow); null where the platform passes the window id instead.
+    virtual void *eglNativeWindow() const { return nullptr; }
 
     // The Vulkan surface of the window (a VkSurfaceKHR as an integer; 0 until QVulkanInstance::surfaceForWindow()
     // asks for it) and what destroys it, which QWindow::destroy() calls before the native window goes away.

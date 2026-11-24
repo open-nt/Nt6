@@ -83,8 +83,15 @@
     \list
     \li Widgets are painted by the raster engine. OpenGL ES works, through the EGL library of the system, in
         QOpenGLWindow and QOpenGLWidget; Vulkan is not available on Android yet, so QVulkanWindow does not draw.
-    \li There is no Java part, so no soft keyboard (QInputMethod), no clipboard, no QJniObject, no
-        Android permissions API and no assets: \c{assets:} paths do not exist, and resources are the compiled-in kind.
+    \li The Java part is one class, \c org.nt.NtActivity, a NativeActivity with a view for the keyboard to type into. It is
+        compiled with \c javac and \c d8 when the APK is made; without a JDK the application is a plain NativeActivity
+        and has no on-screen keyboard. There is no QJniObject, no Android permissions API and no assets: \c{assets:}
+        paths do not exist, and resources are the compiled-in kind.
+    \li The on-screen keyboard appears when a widget that takes text gets the focus (QInputMethod::show()), and the
+        window shrinks to leave it free. It types plain text: no composing text, suggestions or input method
+        events, and the keys it sends are those a hardware keyboard would send.
+    \li The clipboard is that of the system, for plain text; QClipboard::changed() is not emitted when another
+        application copies.
     \li Touch is the mouse. There are no QTouchEvent or gestures. A window is as large as the content area that the
         activity reports, which leaves out the system bars (QScreen::availableGeometry()); an OpenGL window draws into
         the whole surface, behind the bars.

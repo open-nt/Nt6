@@ -13,6 +13,7 @@
 #include <pthread.h>
 #include <unistd.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
@@ -159,6 +160,25 @@ ARect Glue::systemInsets() {
         insets.top = read("getSystemWindowInsetTop");
         insets.right = read("getSystemWindowInsetRight");
         insets.bottom = read("getSystemWindowInsetBottom");
+        // The keyboard (Android 11 and later).
+        jmethodID getInsets = env->GetMethodID(cls, "getInsets", "(I)Landroid/graphics/Insets;");
+        if (getInsets) {
+            const jint imeType = 1 << 3; // WindowInsets.Type.ime()
+            jobject ime = env->CallObjectMethod(windowInsets, getInsets, imeType);
+            if (!env->ExceptionCheck() && ime) {
+                jclass insetsClass = env->GetObjectClass(ime);
+                jfieldID bottom = env->GetFieldID(insetsClass, "bottom", "I");
+                if (bottom)
+                    insets.bottom = std::max(insets.bottom, env->GetIntField(ime, bottom));
+                env->DeleteLocalRef(insetsClass);
+            }
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+            if (ime)
+                env->DeleteLocalRef(ime);
+        } else if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+        }
         env->DeleteLocalRef(cls);
     }
     for (jobject local : {windowInsets, decor, window})
@@ -167,6 +187,183 @@ ARect Glue::systemInsets() {
     if (attached)
         m_activity->vm->DetachCurrentThread();
     return insets;
+}
+
+namespace {
+
+// The JNI environment of the calling thread, attached for as long as the object lives.
+class JniScope {
+public:
+    explicit JniScope(ANativeActivity *activity) : m_vm(activity ? activity->vm : nullptr) {
+        if (!m_vm)
+            return;
+        if (m_vm->GetEnv(reinterpret_cast<void **>(&m_env), JNI_VERSION_1_6) != JNI_OK) {
+            if (m_vm->AttachCurrentThread(&m_env, nullptr) == JNI_OK)
+                m_attached = true;
+            else
+                m_env = nullptr;
+        }
+    }
+    ~JniScope() {
+        if (m_attached)
+            m_vm->DetachCurrentThread();
+    }
+    JniScope(const JniScope &) = delete;
+    JniScope &operator=(const JniScope &) = delete;
+    JNIEnv *env() const { return m_env; }
+    // A Java exception is dropped: the caller sees a null result.
+    bool failed() const {
+        if (!m_env->ExceptionCheck())
+            return false;
+        m_env->ExceptionClear();
+        return true;
+    }
+
+private:
+    JavaVM *m_vm;
+    JNIEnv *m_env = nullptr;
+    bool m_attached = false;
+};
+
+} // namespace
+
+std::string Glue::clipboardText() {
+    JniScope jni(m_activity);
+    JNIEnv *env = jni.env();
+    if (!env || !m_activity->clazz)
+        return std::string();
+    std::string text;
+    jclass activityClass = env->GetObjectClass(m_activity->clazz);
+    jmethodID getService =
+        env->GetMethodID(activityClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+    jstring name = env->NewStringUTF("clipboard");
+    jobject manager = getService ? env->CallObjectMethod(m_activity->clazz, getService, name) : nullptr;
+    if (!jni.failed() && manager) {
+        jclass managerClass = env->GetObjectClass(manager);
+        jmethodID getClip = env->GetMethodID(managerClass, "getPrimaryClip", "()Landroid/content/ClipData;");
+        jobject clip = getClip ? env->CallObjectMethod(manager, getClip) : nullptr;
+        if (!jni.failed() && clip) {
+            jclass clipClass = env->GetObjectClass(clip);
+            jmethodID count = env->GetMethodID(clipClass, "getItemCount", "()I");
+            jmethodID itemAt = env->GetMethodID(clipClass, "getItemAt", "(I)Landroid/content/ClipData$Item;");
+            if (count && itemAt && env->CallIntMethod(clip, count) > 0 && !jni.failed()) {
+                jobject item = env->CallObjectMethod(clip, itemAt, 0);
+                if (!jni.failed() && item) {
+                    jclass itemClass = env->GetObjectClass(item);
+                    jmethodID coerce = env->GetMethodID(itemClass, "coerceToText",
+                                                        "(Landroid/content/Context;)Ljava/lang/CharSequence;");
+                    jobject sequence = coerce ? env->CallObjectMethod(item, coerce, m_activity->clazz) : nullptr;
+                    if (!jni.failed() && sequence) {
+                        jclass objectClass = env->GetObjectClass(sequence);
+                        jmethodID toString = env->GetMethodID(objectClass, "toString", "()Ljava/lang/String;");
+                        auto *string =
+                            toString ? static_cast<jstring>(env->CallObjectMethod(sequence, toString)) : nullptr;
+                        if (!jni.failed() && string) {
+                            const char *chars = env->GetStringUTFChars(string, nullptr);
+                            if (chars) {
+                                text = chars;
+                                env->ReleaseStringUTFChars(string, chars);
+                            }
+                            env->DeleteLocalRef(string);
+                        }
+                        env->DeleteLocalRef(objectClass);
+                        env->DeleteLocalRef(sequence);
+                    }
+                    env->DeleteLocalRef(itemClass);
+                    env->DeleteLocalRef(item);
+                }
+            }
+            env->DeleteLocalRef(clipClass);
+            env->DeleteLocalRef(clip);
+        }
+        env->DeleteLocalRef(managerClass);
+        env->DeleteLocalRef(manager);
+    }
+    env->DeleteLocalRef(name);
+    env->DeleteLocalRef(activityClass);
+    return text;
+}
+
+void Glue::setClipboardText(const std::string &text) {
+    JniScope jni(m_activity);
+    JNIEnv *env = jni.env();
+    if (!env || !m_activity->clazz)
+        return;
+    jclass activityClass = env->GetObjectClass(m_activity->clazz);
+    jmethodID getService =
+        env->GetMethodID(activityClass, "getSystemService", "(Ljava/lang/String;)Ljava/lang/Object;");
+    jstring name = env->NewStringUTF("clipboard");
+    jobject manager = getService ? env->CallObjectMethod(m_activity->clazz, getService, name) : nullptr;
+    jclass clipClass = env->FindClass("android/content/ClipData");
+    if (!jni.failed() && manager && clipClass) {
+        jmethodID newPlainText = env->GetStaticMethodID(
+            clipClass, "newPlainText", "(Ljava/lang/CharSequence;Ljava/lang/CharSequence;)Landroid/content/ClipData;");
+        jstring label = env->NewStringUTF("Nt");
+        jstring value = env->NewStringUTF(text.c_str());
+        jobject clip = newPlainText ? env->CallStaticObjectMethod(clipClass, newPlainText, label, value) : nullptr;
+        if (!jni.failed() && clip) {
+            jclass managerClass = env->GetObjectClass(manager);
+            jmethodID setClip = env->GetMethodID(managerClass, "setPrimaryClip", "(Landroid/content/ClipData;)V");
+            if (setClip) {
+                env->CallVoidMethod(manager, setClip, clip);
+                jni.failed();
+            }
+            env->DeleteLocalRef(managerClass);
+            env->DeleteLocalRef(clip);
+        }
+        env->DeleteLocalRef(label);
+        env->DeleteLocalRef(value);
+    }
+    if (clipClass)
+        env->DeleteLocalRef(clipClass);
+    if (manager)
+        env->DeleteLocalRef(manager);
+    env->DeleteLocalRef(name);
+    env->DeleteLocalRef(activityClass);
+}
+
+namespace {
+void nativeText(JNIEnv *env, jclass, jstring text);
+void nativeKey(JNIEnv *, jclass, jint action, jint keyCode, jint metaState);
+void nativeInsetsChanged(JNIEnv *, jclass);
+} // namespace
+
+// The activity of the package is org.nt.NtActivity when the APK was made with a JDK; its native methods are bound here,
+// not by name, so that the application library need not export them.
+void Glue::registerNtActivity() {
+    JniScope jni(m_activity);
+    JNIEnv *env = jni.env();
+    if (!env || !m_activity->clazz)
+        return;
+    jclass cls = env->GetObjectClass(m_activity->clazz);
+    const JNINativeMethod methods[] = {{"nativeText", "(Ljava/lang/String;)V", reinterpret_cast<void *>(&nativeText)},
+                                       {"nativeKey", "(III)V", reinterpret_cast<void *>(&nativeKey)},
+                                       {"nativeInsetsChanged", "()V", reinterpret_cast<void *>(&nativeInsetsChanged)}};
+    m_ntActivity = env->RegisterNatives(cls, methods, 3) == JNI_OK;
+    jni.failed();
+    env->DeleteLocalRef(cls);
+}
+
+void Glue::setSoftInputVisible(bool visible) {
+    if (!m_activity)
+        return;
+    if (m_ntActivity) {
+        JniScope jni(m_activity);
+        JNIEnv *env = jni.env();
+        if (!env)
+            return;
+        jclass cls = env->GetObjectClass(m_activity->clazz);
+        jmethodID show = env->GetMethodID(cls, "showNtInput", "(Z)V");
+        if (show)
+            env->CallVoidMethod(m_activity->clazz, show, static_cast<jboolean>(visible));
+        jni.failed();
+        env->DeleteLocalRef(cls);
+        return;
+    }
+    if (visible)
+        ANativeActivity_showSoftInput(m_activity, ANATIVEACTIVITY_SHOW_SOFT_INPUT_FORCED);
+    else
+        ANativeActivity_hideSoftInput(m_activity, ANATIVEACTIVITY_HIDE_SOFT_INPUT_NOT_ALWAYS);
 }
 
 ARect Glue::contentRect() {
@@ -198,6 +395,32 @@ void Glue::finish() {
 }
 
 namespace {
+
+void nativeText(JNIEnv *env, jclass, jstring text) {
+    const char *chars = env->GetStringUTFChars(text, nullptr);
+    if (!chars)
+        return;
+    Event e;
+    e.kind = Event::Text;
+    e.text = chars;
+    env->ReleaseStringUTFChars(text, chars);
+    Glue::instance().post(e);
+}
+
+void nativeKey(JNIEnv *, jclass, jint action, jint keyCode, jint metaState) {
+    Event e;
+    e.kind = Event::Key;
+    e.action = action;
+    e.keyCode = keyCode;
+    e.meta = metaState;
+    Glue::instance().post(e);
+}
+
+void nativeInsetsChanged(JNIEnv *, jclass) {
+    Event e;
+    e.kind = Event::WindowResized;
+    Glue::instance().post(e);
+}
 
 int inputCallback(int, int, void *data) {
     auto *queue = static_cast<AInputQueue *>(data);
@@ -324,6 +547,7 @@ extern "C" __attribute__((visibility("default"))) void ANativeActivity_onCreate(
             // Stay where the process started.
         }
     }
+    glue.registerNtActivity();
     glue.setApplicationRunning(true);
     pthread_t thread;
     pthread_attr_t attr;

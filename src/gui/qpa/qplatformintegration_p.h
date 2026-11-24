@@ -52,6 +52,10 @@ public:
     virtual void checkQueuedEvents() {}
     // The clipboard of the platform: by default one that keeps the data in the process.
     virtual QPlatformClipboard *clipboard() const;
+    // Whether the platform has an input panel (an on-screen keyboard), and shows or hides it. A widget that takes
+    // text input asks for it when it gets the focus, and the panel goes away when the focus moves elsewhere.
+    virtual bool hasInputPanel() const { return false; }
+    virtual void setInputPanelVisible(bool visible) { (void)visible; }
     // The instance extension that Vulkan surfaces of the platform's windows need ("VK_KHR_xcb_surface"); null when the
     // platform cannot present with Vulkan.
     virtual const char *vulkanSurfaceExtension() const { return nullptr; }

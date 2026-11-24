@@ -3,6 +3,7 @@
 
 #include "qandroidglue_p.h"
 #include "qpa/qplatformbackingstore_p.h"
+#include "qpa/qplatformclipboard_p.h"
 #include "qpa/qplatformintegration_p.h"
 #include "qpa/qplatformscreen_p.h"
 #include "qpa/qplatformwindow_p.h"
@@ -91,15 +92,20 @@ public:
     QPlatformWindow *createPlatformWindow(QWindow *window) const override;
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
     QEglNativePlatform eglPlatform() const override;
+    QPlatformClipboard *clipboard() const override;
+    bool hasInputPanel() const override { return true; }
+    void setInputPanelVisible(bool visible) override;
 
 private:
     explicit QAndroidIntegration(ANativeWindow *window);
     void processEvents();
     void touch(const QtAndroid::Event &event);
     void key(const QtAndroid::Event &event);
+    void text(const QtAndroid::Event &event);
     void windowChanged();
 
     std::unique_ptr<QAndroidScreen> m_screen;
+    mutable std::unique_ptr<QPlatformClipboard> m_clipboard;
     std::unique_ptr<QSocketNotifier> m_notifier;
     int m_touchPointer = -1;
     QPointF m_touchPosition;

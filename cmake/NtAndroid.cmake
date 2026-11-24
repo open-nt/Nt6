@@ -90,6 +90,7 @@ function(nt_android_add_apk target)
             "-DNT_ANDROID_JAR=${_platform}/android.jar"
             "-DNT_KEYSTORE=${_keystore}"
             "-DNT_WORK=${CMAKE_CURRENT_BINARY_DIR}/${target}_apk.dir"
+            "-DNT_ACTIVITY_SOURCE=${CMAKE_CURRENT_FUNCTION_LIST_DIR}/android/NtActivity.java"
             -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/NtAndroidApk.cmake"
         DEPENDS ${target}
         COMMENT "Packaging ${target}.apk"

@@ -3,6 +3,9 @@
 
 #include <QtGui/qguiapplication.h>
 
+#include "qpa/qplatformintegration_p.h"
+#include "qwindow_p.h"
+
 #include <QtCore/qpointer.h>
 
 /*!
@@ -18,7 +21,7 @@
     \endcode
 
     \differences
-    Nt has no input methods and no input panel: show() and hide() only set isVisible() and emit visibleChanged(),
+    Nt has no input methods, and only the android platform has an input panel: elsewhere show() and hide() only set isVisible() and emit visibleChanged(),
     the keyboard rectangle is empty, and the locale is that of QLocale().
     \enddifferences
 */
@@ -65,6 +68,8 @@ void QInputMethod::setVisible(bool visible) {
     if (visible == m_visible)
         return;
     m_visible = visible;
+    if (QPlatformIntegration *integration = QtPrivate::GuiAccess::integration())
+        integration->setInputPanelVisible(visible);
     emit visibleChanged();
 }
 

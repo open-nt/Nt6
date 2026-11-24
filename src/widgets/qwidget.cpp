@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qwidget.h>
 
+#include "gui/qpa/qplatformintegration_p.h"
 #include "gui/qwindow_p.h"
 #include "qwidget_p.h"
 #include "qwidgetutil_p.h"
@@ -10,6 +11,7 @@
 #include <QtGui/qaction.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
+#include <QtGui/qinputmethod.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qmenu.h>
 #include <QtGui/qscreen.h>
@@ -187,6 +189,10 @@ static void notifyFocusChange() {
     last = now;
     if (auto *app = QApplication::instance())
         emit app->focusChanged(old, now);
+    // A platform with an on-screen keyboard shows it for the widgets that take text.
+    if (QPlatformIntegration *integration = QtPrivate::GuiAccess::integration();
+        integration && integration->hasInputPanel())
+        QGuiApplication::inputMethod()->setVisible(now && now->inputMethodQuery(Qt::ImEnabled).toBool());
 }
 
 void WidgetAccess::setFocusWidget(QWidget *top, QWidget *w) {

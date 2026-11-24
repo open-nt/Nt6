@@ -85,6 +85,7 @@ if(NT_ANDROID)
         ${CMAKE_CURRENT_BINARY_DIR}/nt-android.toolchain.cmake @ONLY)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/nt-android.toolchain.cmake
         DESTINATION ${NT_INSTALL_CMAKEDIR} COMPONENT Development)
+    install(FILES cmake/android/NtActivity.java DESTINATION ${NT_INSTALL_CMAKEDIR}/android COMPONENT Development)
     # Qt 6 projects find Nt under Qt's own package name.
     configure_package_config_file(
         ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Qt6Config.cmake.in

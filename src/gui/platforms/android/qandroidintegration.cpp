@@ -5,6 +5,7 @@
 #include "qwindow_p.h"
 
 #include <QtCore/qdebug.h>
+#include <QtCore/qmimedata.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qwindow.h>
 
@@ -211,6 +212,47 @@ QPlatformBackingStore *QAndroidIntegration::createPlatformBackingStore(QWindow *
     return new QAndroidBackingStore(window, m_screen.get());
 }
 
+namespace {
+
+// The clipboard of Android: plain text, kept by the system. The data of a mode other than Clipboard stays in the
+// process.
+class QAndroidClipboard : public QPlatformClipboard {
+public:
+    QMimeData *mimeData(QClipboard::Mode mode) override {
+        if (mode == QClipboard::Clipboard) {
+            const QString text = QString::fromUtf8(Glue::instance().clipboardText());
+            QMimeData *current = m_data[mode].get();
+            if (text.isEmpty() && !current)
+                return nullptr;
+            if (!current || (!text.isEmpty() && current->text() != text)) {
+                auto *data = new QMimeData;
+                if (!text.isEmpty())
+                    data->setText(text);
+                m_data[mode].reset(data);
+            }
+        }
+        return m_data[mode].get();
+    }
+    void setMimeData(QMimeData *data, QClipboard::Mode mode) override {
+        m_data[mode].reset(data);
+        if (mode == QClipboard::Clipboard && data && data->hasText())
+            Glue::instance().setClipboardText(data->text().toStdString());
+        emitChanged(mode);
+    }
+    bool supportsMode(QClipboard::Mode mode) const override { return mode == QClipboard::Clipboard; }
+    bool ownsMode(QClipboard::Mode mode) const override { return mode == QClipboard::Clipboard && m_data[mode]; }
+};
+
+} // namespace
+
+QPlatformClipboard *QAndroidIntegration::clipboard() const {
+    if (!m_clipboard)
+        m_clipboard = std::make_unique<QAndroidClipboard>();
+    return m_clipboard.get();
+}
+
+void QAndroidIntegration::setInputPanelVisible(bool visible) { Glue::instance().setSoftInputVisible(visible); }
+
 // OpenGL ES through the EGL library of the system; windows get EGL window surfaces of the activity's native window.
 QEglNativePlatform QAndroidIntegration::eglPlatform() const {
     QEglNativePlatform native;
@@ -230,6 +272,9 @@ void QAndroidIntegration::processEvents() {
             break;
         case Event::Key:
             key(event);
+            break;
+        case Event::Text:
+            text(event);
             break;
         case Event::WindowCreated:
         case Event::WindowResized:
@@ -402,6 +447,19 @@ int qtKey(int code, bool shift, QString *text) {
 }
 
 } // namespace
+
+// Text from the on-screen keyboard goes to the window that has the focus, as typed characters.
+void QAndroidIntegration::text(const Event &event) {
+    QAndroidWindow *top = QAndroidWindow::top();
+    if (!top)
+        return;
+    QWindow *window = QGuiApplication::focusWindow() ? QGuiApplication::focusWindow() : top->window();
+    const QString text = QString::fromUtf8(event.text.c_str());
+    if (text.isEmpty())
+        return;
+    QWindowSystemInterface::handleKeyEvent(window, QEvent::KeyPress, Qt::Key_unknown, Qt::NoModifier, text);
+    QWindowSystemInterface::handleKeyEvent(window, QEvent::KeyRelease, Qt::Key_unknown, Qt::NoModifier, text);
+}
 
 void QAndroidIntegration::key(const Event &event) {
     QAndroidWindow *top = QAndroidWindow::top();

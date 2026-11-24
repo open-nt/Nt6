@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <deque>
 #include <mutex>
+#include <string>
 
 namespace QtAndroid {
 
@@ -22,6 +23,7 @@ struct Event {
         WindowDestroyed,
         WindowResized,
         ConfigChanged,
+        Text, // text typed on the on-screen keyboard (text)
         Pause,
         Resume,
         Close // the activity is being destroyed
@@ -33,6 +35,7 @@ struct Event {
     float x = 0;
     float y = 0;
     int pointerId = 0;
+    std::string text;
 };
 
 // The bridge between android.app.NativeActivity, whose callbacks run on the UI thread, and the thread that runs
@@ -56,6 +59,15 @@ public:
     ARect contentRect();
     // The space that the system bars and cut-outs take at each edge, in pixels.
     ARect systemInsets();
+    // The text on the clipboard of the system (empty if there is none, or the application may not read it), and
+    // replacing it. Through JNI, on any thread.
+    std::string clipboardText();
+    void setClipboardText(const std::string &text);
+    // Shows or hides the soft keyboard.
+    void setSoftInputVisible(bool visible);
+    // Whether the activity is the NtActivity of Nt, whose keyboard view delivers text and keys.
+    bool hasNtActivity() const { return m_ntActivity; }
+    void registerNtActivity();
     void setContentRect(const ARect &rect);
     ANativeActivity *activity() const { return m_activity; }
     void finish();
@@ -82,6 +94,7 @@ private:
     ANativeWindow *m_window = nullptr;
     bool m_windowGone = true; // the application has let go of the previous window
     bool m_running = false;
+    bool m_ntActivity = false;
     ARect m_content = {0, 0, 0, 0};
     AInputQueue *m_queue = nullptr;
 };

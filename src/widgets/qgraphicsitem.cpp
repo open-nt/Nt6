@@ -723,32 +723,44 @@ void QGraphicsItem::setActive(bool active) { (void)active; }
     Makes the item receive the mouse events of the scene until ungrabMouse(), wherever the mouse is.
 */
 void QGraphicsItem::grabMouse() {
-    if (d_ptr->scene && isVisible() && isEnabled())
+    if (d_ptr->scene && isVisible() && isEnabled()) {
         QGraphicsSceneAccess::d(d_ptr->scene)->grabber = this;
+        QEvent grab(QEvent::GrabMouse);
+        sceneEvent(&grab);
+    }
 }
 
 /*!
     Ends a mouse grab of the item.
 */
 void QGraphicsItem::ungrabMouse() {
-    if (d_ptr->scene && QGraphicsSceneAccess::d(d_ptr->scene)->grabber == this)
+    if (d_ptr->scene && QGraphicsSceneAccess::d(d_ptr->scene)->grabber == this) {
         QGraphicsSceneAccess::d(d_ptr->scene)->grabber = nullptr;
+        QEvent ungrab(QEvent::UngrabMouse);
+        sceneEvent(&ungrab);
+    }
 }
 
 /*!
     Makes the item receive the key events of the scene until ungrabKeyboard().
 */
 void QGraphicsItem::grabKeyboard() {
-    if (d_ptr->scene && isVisible() && isEnabled())
+    if (d_ptr->scene && isVisible() && isEnabled()) {
         QGraphicsSceneAccess::d(d_ptr->scene)->keyboardGrabber = this;
+        QEvent grab(QEvent::GrabKeyboard);
+        sceneEvent(&grab);
+    }
 }
 
 /*!
     Ends a keyboard grab of the item.
 */
 void QGraphicsItem::ungrabKeyboard() {
-    if (d_ptr->scene && QGraphicsSceneAccess::d(d_ptr->scene)->keyboardGrabber == this)
+    if (d_ptr->scene && QGraphicsSceneAccess::d(d_ptr->scene)->keyboardGrabber == this) {
         QGraphicsSceneAccess::d(d_ptr->scene)->keyboardGrabber = nullptr;
+        QEvent ungrab(QEvent::UngrabKeyboard);
+        sceneEvent(&ungrab);
+    }
 }
 
 /*!

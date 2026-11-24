@@ -23,6 +23,8 @@ class QGraphicsProxyWidget;
 class QGraphicsRectItem;
 class QGraphicsSceneContextMenuEvent;
 class QGraphicsSceneDragDropEvent;
+class QGraphicsSceneHelpEvent;
+class QGraphicsWidget;
 class QInputMethodEvent;
 class QGraphicsSceneHoverEvent;
 class QGraphicsSceneMouseEvent;
@@ -160,6 +162,9 @@ public:
 
     bool isActive() const;
     QGraphicsItem *activePanel() const;
+    void setActivePanel(QGraphicsItem *item);
+    QGraphicsWidget *activeWindow() const;
+    void setActiveWindow(QGraphicsWidget *widget);
 
     bool sendEvent(QGraphicsItem *item, QEvent *event);
 
@@ -198,6 +203,8 @@ protected:
     virtual void dragMoveEvent(QGraphicsSceneDragDropEvent *event);
     virtual void dragLeaveEvent(QGraphicsSceneDragDropEvent *event);
     virtual void dropEvent(QGraphicsSceneDragDropEvent *event);
+    virtual void helpEvent(QGraphicsSceneHelpEvent *helpEvent);
+    virtual bool focusNextPrevChild(bool next);
     virtual void drawBackground(QPainter *painter, const QRectF &rect);
     virtual void inputMethodEvent(QInputMethodEvent *event);
     virtual void drawForeground(QPainter *painter, const QRectF &rect);

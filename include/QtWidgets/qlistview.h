@@ -83,6 +83,7 @@ public:
 protected:
     QSize contentsSize() const;
     QRect rectForIndex(const QModelIndex &index) const;
+    void setPositionForIndex(const QPoint &position, const QModelIndex &index);
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -119,6 +120,7 @@ private:
 
     std::vector<Item> m_items; // the items that show, in the order of their rows
     QList<QPersistentModelIndex> m_hidden;
+    std::vector<std::pair<QPersistentModelIndex, QPoint>> m_placed; // items put where the application wanted
     std::vector<QMetaObject::Connection> m_connections;
     QPersistentModelIndex m_anchor;
     QPersistentModelIndex m_pressed;

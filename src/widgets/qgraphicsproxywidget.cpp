@@ -114,6 +114,54 @@ void QGraphicsProxyWidget::setWidget(QWidget *widget) {
 QWidget *QGraphicsProxyWidget::widget() const { return m_widget; }
 
 /*!
+    Returns the proxy that shows \a child, a descendant of the widget of this proxy. Nt draws the children of a proxied
+    widget through the proxy of their top-level widget, so this is the proxy itself; \c nullptr if \a child is not inside the
+    widget.
+*/
+QGraphicsProxyWidget *QGraphicsProxyWidget::createProxyForChildWidget(QWidget *child) {
+    if (!m_widget || !child || (child != m_widget && !m_widget->isAncestorOf(child)))
+        return nullptr;
+    return this;
+}
+
+/*!
+    Returns a new proxy widget for \a child, with this proxy as its parent item. A subclass may return a proxy of its own
+    class. Nt does not call it, as the children of a proxied widget have no proxies of their own.
+*/
+QGraphicsProxyWidget *QGraphicsProxyWidget::newProxyWidget(const QWidget *child) {
+    (void)child;
+    return new QGraphicsProxyWidget(this);
+}
+
+/*!
+    \reimp
+
+    Does nothing: the mouse is grabbed for the widget by the press that starts it.
+*/
+void QGraphicsProxyWidget::grabMouseEvent(QEvent *event) { QGraphicsWidget::grabMouseEvent(event); }
+
+/*!
+    \reimp
+
+    Lets go of the widget that got the press of the mouse.
+*/
+void QGraphicsProxyWidget::ungrabMouseEvent(QEvent *event) {
+    QGraphicsWidget::ungrabMouseEvent(event);
+    m_grab = nullptr;
+}
+
+/*!
+    \reimp
+
+    Moves the focus to the next or the previous widget inside the proxied widget.
+*/
+bool QGraphicsProxyWidget::focusNextPrevChild(bool next) {
+    if (m_widget && m_widget->focusWidget())
+        return next ? m_widget->focusNextChild() : m_widget->focusPreviousChild();
+    return QGraphicsWidget::focusNextPrevChild(next);
+}
+
+/*!
     Returns the rectangle of \a widget, the proxy's widget or one of its children, in proxy coordinates.
 */
 QRectF QGraphicsProxyWidget::subWidgetRect(const QWidget *widget) const {

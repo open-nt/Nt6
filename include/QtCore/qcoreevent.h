@@ -102,6 +102,10 @@ public:
         \value PolishRequest A widget should be polished.
         \value ChildRemoved An object lost a child; delivered as a QChildEvent.
         \value Gesture A gesture was recognized; delivered as a QGestureEvent.
+        \value GrabMouse A graphics item grabbed the mouse; sent to the item with sceneEvent().
+        \value UngrabMouse A graphics item let go of the mouse.
+        \value GrabKeyboard A graphics item grabbed the keyboard.
+        \value UngrabKeyboard A graphics item let go of the keyboard.
         \value User The first value available for application-defined events.
         \value MaxUser The last value available for application-defined events.
     */
@@ -181,6 +185,10 @@ public:
         GraphicsSceneHoverLeave = 162,
         GraphicsSceneWheel = 168,
         Gesture = 198,
+        GrabMouse = 186,
+        UngrabMouse = 187,
+        GrabKeyboard = 188,
+        UngrabKeyboard = 189,
         GraphicsSceneHelp = 163,
         GraphicsSceneResize = 181,
         GraphicsSceneMove = 182,

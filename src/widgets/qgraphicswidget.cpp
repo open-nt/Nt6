@@ -3,6 +3,7 @@
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qcoreevent.h>
+#include <QtCore/qdebug.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qpainterpath.h>
@@ -15,6 +16,7 @@
 #include <QtWidgets/qstyleoption.h>
 
 #include <algorithm>
+#include <functional>
 #include <vector>
 
 namespace {
@@ -1081,7 +1083,8 @@ void QGraphicsWidget::resize(const QSizeF &size) { setGeometry(QRectF(pos(), siz
     Moves and resizes the widget to \a rect, in the coordinates of its parent; the size is kept between its smallest
     and largest size. The layout is laid out again.
 */
-void QGraphicsWidget::setGeometry(const QRectF &rect) {
+void QGraphicsWidget::setGeometry(const QRectF &requested) {
+    const QRectF rect = propertyChange(QStringLiteral("geometry"), QVariant(requested)).toRectF();
     const QRectF old = geometry();
     const QSizeF minimum = effectiveSizeHint(Qt::MinimumSize);
     const QSizeF maximum = effectiveSizeHint(Qt::MaximumSize);
@@ -1291,6 +1294,9 @@ bool QGraphicsWidget::event(QEvent *event) {
     switch (event->type()) {
     case QEvent::Close:
         closeEvent(static_cast<QCloseEvent *>(event));
+        return true;
+    case QEvent::Polish:
+        polishEvent();
         return true;
     case QEvent::Show:
         showEvent(static_cast<QShowEvent *>(event));
@@ -1595,6 +1601,117 @@ void QGraphicsWidget::insertActions(QAction *before, const QList<QAction *> &act
     Removes the \a action from the list of actions.
 */
 void QGraphicsWidget::removeAction(QAction *action) { m_actions.removeAll(action); }
+
+/*!
+    \reimp
+
+    Passes the grab and ungrab events to grabMouseEvent() and the functions like it.
+*/
+bool QGraphicsWidget::sceneEvent(QEvent *event) {
+    switch (event->type()) {
+    case QEvent::GrabMouse:
+        grabMouseEvent(event);
+        return true;
+    case QEvent::UngrabMouse:
+        ungrabMouseEvent(event);
+        return true;
+    case QEvent::GrabKeyboard:
+        grabKeyboardEvent(event);
+        return true;
+    case QEvent::UngrabKeyboard:
+        ungrabKeyboardEvent(event);
+        return true;
+    default:
+        return QGraphicsObject::sceneEvent(event);
+    }
+}
+
+/*!
+    Handles the event \a event that tells that the widget grabbed the mouse; does nothing.
+*/
+void QGraphicsWidget::grabMouseEvent(QEvent *event) { (void)event; }
+
+/*!
+    Handles the event \a event that tells that the widget let go of the mouse; does nothing.
+*/
+void QGraphicsWidget::ungrabMouseEvent(QEvent *event) { (void)event; }
+
+/*!
+    Handles the event \a event that tells that the widget grabbed the keyboard; does nothing.
+*/
+void QGraphicsWidget::grabKeyboardEvent(QEvent *event) { (void)event; }
+
+/*!
+    Handles the event \a event that tells that the widget let go of the keyboard; does nothing.
+*/
+void QGraphicsWidget::ungrabKeyboardEvent(QEvent *event) { (void)event; }
+
+/*!
+    Handles the polish event, which tells that the style and the font are ready, before the widget is shown the first time.
+    Nt does not send it; an application may. Does nothing by default.
+*/
+void QGraphicsWidget::polishEvent() {}
+
+/*!
+    Handles the event \a event of the window frame. Returns \c true if it was handled; the default does not draw or handle a
+    frame, and returns \c false.
+*/
+bool QGraphicsWidget::windowFrameEvent(QEvent *event) {
+    (void)event;
+    return false;
+}
+
+/*!
+    Is called with the name \a propertyName and the new \a value before a property changes, to let the widget change the
+    value: the function returns the value that is used. Nt calls it for \c "geometry", with a QRectF. The default returns
+    \a value.
+*/
+QVariant QGraphicsWidget::propertyChange(const QString &propertyName, const QVariant &value) {
+    (void)propertyName;
+    return value;
+}
+
+/*!
+    Moves the focus to the next focusable item inside the widget, itself included, if \a next is \c true, and to the previous
+    one otherwise, wrapping at the ends. Returns \c true if the focus moved.
+*/
+bool QGraphicsWidget::focusNextPrevChild(bool next) {
+    if (!scene())
+        return false;
+    QList<QGraphicsItem *> chain;
+    const std::function<void(QGraphicsItem *)> collect = [&](QGraphicsItem *item) {
+        if ((item->flags() & QGraphicsItem::ItemIsFocusable) && item->isVisible() && item->isEnabled())
+            chain.append(item);
+        for (QGraphicsItem *child : item->childItems())
+            collect(child);
+    };
+    collect(this);
+    if (chain.isEmpty())
+        return false;
+    const qsizetype current = chain.indexOf(scene()->focusItem());
+    qsizetype target = 0;
+    if (current >= 0)
+        target = next ? (current + 1) % chain.size() : (current + chain.size() - 1) % chain.size();
+    else if (!next)
+        target = chain.size() - 1;
+    if (target == current)
+        return false;
+    scene()->setFocusItem(chain.at(target), next ? Qt::TabFocusReason : Qt::BacktabFocusReason);
+    return true;
+}
+
+/*!
+    Prints the focusable items inside the widget, in the order of focusNextPrevChild(), with qDebug().
+*/
+void QGraphicsWidget::dumpFocusChain() const {
+    const std::function<void(const QGraphicsItem *, int)> dump = [&](const QGraphicsItem *item, int depth) {
+        if (item->flags() & QGraphicsItem::ItemIsFocusable)
+            qDebug("%*s%p%s", depth * 2, "", static_cast<const void *>(item), item->hasFocus() ? " (focus)" : "");
+        for (const QGraphicsItem *child : item->childItems())
+            dump(child, depth + 1);
+    };
+    dump(this, 0);
+}
 
 /*!
     Sends a close event to the widget. If it accepts it (the default), the widget is hidden and \c true is returned.

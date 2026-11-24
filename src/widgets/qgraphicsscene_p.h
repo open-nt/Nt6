@@ -98,6 +98,7 @@ struct QGraphicsScene::Private {
     qreal minimumRenderSize = 0;
     bool focusOnTouch = true;
     QPointer<QStyle> style;
+    QPointer<QGraphicsWidget> activeWindow;
     bool stickyFocus = false;
     bool hasFocus = false;
     ItemIndexMethod indexMethod = BspTreeIndex;

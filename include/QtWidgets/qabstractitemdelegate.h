@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qabstractitemmodel.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qobject.h>
 #include <QtCore/qsize.h>
 #include <QtWidgets/qstyleoption.h>
@@ -9,6 +10,8 @@
 class QAbstractItemView;
 class QPainter;
 class QWidget;
+
+class QHelpEvent;
 
 class QAbstractItemDelegate : public QObject {
     Q_OBJECT
@@ -49,6 +52,9 @@ public:
                                       const QModelIndex &index) const;
     virtual bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option,
                              const QModelIndex &index);
+    virtual bool helpEvent(QHelpEvent *event, QAbstractItemView *view, const QStyleOptionViewItem &option,
+                           const QModelIndex &index);
+    virtual QList<int> paintingRoles() const;
 
 signals:
     /*!

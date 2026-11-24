@@ -177,6 +177,7 @@ public:
     bool isAccepted(Qt::GestureType type) const;
 
     void setWidget(QWidget *widget) { m_widget = widget; }
+    QPointF mapToGraphicsScene(const QPointF &gesturePoint) const;
     QWidget *widget() const { return m_widget; }
 
 private:

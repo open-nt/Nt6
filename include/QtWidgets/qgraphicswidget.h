@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qpointer.h>
+#include <QtCore/qvariant.h>
 #include <QtGui/qkeysequence.h>
 #include <QtGui/qaction.h>
 #include <QtGui/qfont.h>
@@ -94,6 +95,7 @@ public:
     void insertAction(QAction *before, QAction *action);
     void insertActions(QAction *before, const QList<QAction *> &actions);
     void removeAction(QAction *action);
+    void dumpFocusChain() const;
 
     void updateGeometry() override;
     QRectF boundingRect() const override;
@@ -118,6 +120,15 @@ protected:
     QSizeF sizeHint(Qt::SizeHint which, const QSizeF &constraint = QSizeF()) const override;
     virtual void resizeEvent(QGraphicsSceneResizeEvent *event);
     virtual void moveEvent(QGraphicsSceneMoveEvent *event);
+    bool sceneEvent(QEvent *event) override;
+    virtual void grabMouseEvent(QEvent *event);
+    virtual void ungrabMouseEvent(QEvent *event);
+    virtual void grabKeyboardEvent(QEvent *event);
+    virtual void ungrabKeyboardEvent(QEvent *event);
+    virtual void polishEvent();
+    virtual bool windowFrameEvent(QEvent *event);
+    virtual QVariant propertyChange(const QString &propertyName, const QVariant &value);
+    virtual bool focusNextPrevChild(bool next);
     virtual void closeEvent(QCloseEvent *event);
     virtual void showEvent(QShowEvent *event);
     virtual void hideEvent(QHideEvent *event);

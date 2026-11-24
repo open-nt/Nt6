@@ -19,6 +19,7 @@ public:
     void setWidget(QWidget *widget);
     QWidget *widget() const;
     QRectF subWidgetRect(const QWidget *widget) const;
+    QGraphicsProxyWidget *createProxyForChildWidget(QWidget *child);
 
     void setGeometry(const QRectF &rect) override;
     using QGraphicsWidget::setGeometry;
@@ -29,6 +30,10 @@ public:
 protected:
     QSizeF sizeHint(Qt::SizeHint which, const QSizeF &constraint = QSizeF()) const override;
     bool sceneEvent(QEvent *event) override;
+    virtual QGraphicsProxyWidget *newProxyWidget(const QWidget *child);
+    void grabMouseEvent(QEvent *event) override;
+    void ungrabMouseEvent(QEvent *event) override;
+    bool focusNextPrevChild(bool next) override;
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseReleaseEvent(QGraphicsSceneMouseEvent *event) override;

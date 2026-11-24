@@ -514,10 +514,33 @@ void QListView::doLayout() {
             y += size.height() + space;
             line = std::max(line, size.width());
         }
+        for (const auto &placed : m_placed)
+            if (placed.first == item.index)
+                item.rect.moveTopLeft(placed.second);
         right = std::max(right, item.rect.right() + 1);
         bottom = std::max(bottom, item.rect.bottom() + 1);
     }
     m_contents = QSize(right + space, bottom + space);
+}
+
+/*!
+    Puts the item \a index with its top left corner at \a position, in the coordinates of the contents before scrolling.
+    The item keeps its place when the others are laid out again, and the size of the contents grows to hold it. Items that
+    are removed from the model lose their place.
+*/
+void QListView::setPositionForIndex(const QPoint &position, const QModelIndex &index) {
+    if (!index.isValid() || index.model() != model())
+        return;
+    m_placed.erase(std::remove_if(m_placed.begin(), m_placed.end(), [](const auto &p) { return !p.first.isValid(); }),
+                   m_placed.end());
+    const auto it = std::find_if(m_placed.begin(), m_placed.end(), [&](const auto &p) { return p.first == index; });
+    if (it != m_placed.end())
+        it->second = position;
+    else
+        m_placed.emplace_back(QPersistentModelIndex(index), position);
+    doLayout();
+    setRanges();
+    viewport()->update();
 }
 
 // Sets the ranges of the scroll bars for the contents.
@@ -1157,16 +1180,19 @@ void QListView::scrollContentsBy(int dx, int dy) {
 /*!
     \reimp
 
-    Shows the tool tip of the item under the mouse, which the model returns for Qt::ToolTipRole; other
+    Asks the delegate of the item under the mouse for the tool tip, which by default is what the model returns for
+    Qt::ToolTipRole; other
     \a event are handled as in the base class.
 */
 bool QListView::viewportEvent(QEvent *event) {
     if (event->type() == QEvent::ToolTip && model()) {
         auto *help = static_cast<QHelpEvent *>(event);
         const QModelIndex index = indexAt(help->pos());
-        const QString tip = index.isValid() ? index.data(Qt::ToolTipRole).toString() : QString();
-        if (!tip.isEmpty()) {
-            QToolTip::showText(help->globalPos(), tip, viewport(), visualRect(index));
+        QStyleOptionViewItem option;
+        initViewItemOption(&option);
+        option.rect = visualRect(index);
+        QAbstractItemDelegate *delegate = index.isValid() ? itemDelegate() : nullptr;
+        if (delegate && delegate->helpEvent(help, this, option, index)) {
             event->accept();
             return true;
         }

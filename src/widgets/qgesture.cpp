@@ -2,6 +2,7 @@
 #include <QtWidgets/qgesture.h>
 
 #include <QtWidgets/qgesturerecognizer.h>
+#include <QtWidgets/qgraphicsview.h>
 
 #include <algorithm>
 #include <cmath>
@@ -486,7 +487,7 @@ QTapAndHoldGesture::~QTapAndHoldGesture() = default;
     Accepting the event, or one gesture of it, tells the sender that the widget uses the gesture.
 
     \differences
-    There is no \c mapToGraphicsScene() and no target widgets for single gestures.
+    There are no target widgets for single gestures.
     \enddifferences
 
     \sa QGesture, QGestureRecognizer
@@ -593,6 +594,19 @@ void QGestureEvent::setAccepted(Qt::GestureType type, bool value) {
     Returns whether the gestures of the \a type were accepted.
 */
 bool QGestureEvent::isAccepted(Qt::GestureType type) const { return m_accepted.value(type, false); }
+
+/*!
+    Returns \a gesturePoint, a point on the screen, in the coordinates of the scene of the graphics view that is the widget of
+    the event, or the view that the widget is the viewport of. Returns a null point if there is no such view.
+*/
+QPointF QGestureEvent::mapToGraphicsScene(const QPointF &gesturePoint) const {
+    QGraphicsView *view = qobject_cast<QGraphicsView *>(m_widget);
+    if (!view && m_widget)
+        view = qobject_cast<QGraphicsView *>(m_widget->parentWidget());
+    if (!view || !m_widget)
+        return QPointF();
+    return view->mapToScene(view->viewport()->mapFromGlobal(gesturePoint.toPoint()));
+}
 
 /*!
     \fn void QGestureEvent::setWidget(QWidget *widget)

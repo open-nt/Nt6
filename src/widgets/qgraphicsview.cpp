@@ -706,9 +706,21 @@ bool QGraphicsView::event(QEvent *event) { return QAbstractScrollArea::event(eve
 /*!
     \reimp
 
-    Also ends the hover of the scene when the mouse leaves the viewport.
+    Also ends the hover of the scene when the mouse leaves the viewport, and sends a tool tip event to the scene as a help
+    event.
 */
 bool QGraphicsView::viewportEvent(QEvent *event) {
+    if (event->type() == QEvent::ToolTip && d->scene) {
+        const auto *help = static_cast<QHelpEvent *>(event);
+        QGraphicsSceneHelpEvent sceneHelp(QEvent::GraphicsSceneHelp);
+        sceneHelp.setScenePos(mapToScene(help->pos()));
+        sceneHelp.setScreenPos(help->globalPos());
+        sceneHelp.setWidget(viewport());
+        sceneHelp.setAccepted(false);
+        QCoreApplication::sendEvent(d->scene, &sceneHelp);
+        event->setAccepted(sceneHelp.isAccepted());
+        return true;
+    }
     if (event->type() == QEvent::Leave && d->scene) {
         QEvent leave(QEvent::Leave);
         QCoreApplication::sendEvent(d->scene, &leave);
@@ -859,10 +871,9 @@ void QGraphicsView::mouseMoveEvent(QMouseEvent *event) {
             QPainterPath band;
             band.addPolygon(mapToScene(d->rubberRect));
             band.closeSubpath();
-            d->scene->setSelectionArea(band,
-                                       event->modifiers() & Qt::ControlModifier ? Qt::AddToSelection
-                                                                                : Qt::ReplaceSelection,
-                                       d->rubberBandMode, viewportTransform());
+            d->scene->setSelectionArea(
+                band, event->modifiers() & Qt::ControlModifier ? Qt::AddToSelection : Qt::ReplaceSelection,
+                d->rubberBandMode, viewportTransform());
         }
         emit rubberBandChanged(d->rubberRect, mapToScene(d->rubberOrigin), mapToScene(event->pos()));
         return;

@@ -10,8 +10,10 @@
 #include <QtWidgets/qgraphicseffect.h>
 #include <QtWidgets/qgraphicsproxywidget.h>
 #include <QtWidgets/qgraphicssceneevent.h>
+#include <QtWidgets/qgraphicswidget.h>
 #include <QtWidgets/qgraphicsview.h>
 #include <QtWidgets/qstyleoption.h>
+#include <QtWidgets/qtooltip.h>
 
 #include <algorithm>
 #include <cmath>
@@ -520,8 +522,8 @@ void QGraphicsScene::Private::drawWithEffect(QPainter *painter, QGraphicsItem *i
 
     \differences
     Items are found by walking them; there is no BSP index, so itemIndexMethod() is only kept. There is no
-    \c addWidget() and no QGraphicsProxyWidget yet, no drag and drop, no context menus, no help events,
-    no gestures and no touch events, and the scene has no panels or modality. selectionArea() and
+    \c addWidget() and no QGraphicsProxyWidget yet, no drag and drop, no context menus, no gestures and no touch events, and the scene has no panels or modality: setActivePanel() only gives focus. The default helpEvent() is
+    called when a help event is sent to the scene, which the views do for a tool tip event. selectionArea() and
     setSelectionArea() compare bounding rectangles for paths. A scene is active while it is in a view.
     \enddifferences
 
@@ -1115,6 +1117,71 @@ bool QGraphicsScene::isActive() const { return !d->views.isEmpty(); }
 QGraphicsItem *QGraphicsScene::activePanel() const { return nullptr; }
 
 /*!
+    Gives the focus to \a item, if it is in this scene and can have it. Nt has no panels, so this does what
+    setFocusItem() does; activePanel() stays \c nullptr.
+*/
+void QGraphicsScene::setActivePanel(QGraphicsItem *item) {
+    if (item && item->scene() == this && (item->flags() & QGraphicsItem::ItemIsFocusable))
+        setFocusItem(item, Qt::ActiveWindowFocusReason);
+}
+
+/*!
+    Returns the window that was given to setActiveWindow(), or \c nullptr if there is none or it was deleted.
+*/
+QGraphicsWidget *QGraphicsScene::activeWindow() const { return d->activeWindow.data(); }
+
+/*!
+    Makes \a widget the active window of the scene; \c nullptr clears it. The widget has to be in the scene, else nothing
+    happens. Windows are not drawn differently for being active.
+*/
+void QGraphicsScene::setActiveWindow(QGraphicsWidget *widget) {
+    if (widget && widget->scene() != this)
+        return;
+    d->activeWindow = widget;
+}
+
+/*!
+    Handles the help \a helpEvent: shows the tool tip of the topmost item under it that has one, and hides the tool tip if there
+    is none.
+*/
+void QGraphicsScene::helpEvent(QGraphicsSceneHelpEvent *helpEvent) {
+    QString text;
+    const QList<QGraphicsItem *> hit = items(helpEvent->scenePos());
+    for (QGraphicsItem *item : hit) {
+        if (!item->toolTip().isEmpty()) {
+            text = item->toolTip();
+            break;
+        }
+    }
+    QToolTip::showText(helpEvent->screenPos(), text, helpEvent->widget());
+    helpEvent->setAccepted(!text.isEmpty());
+}
+
+/*!
+    Moves the focus to the next focusable item if \a next is \c true, and to the previous one otherwise, in the order of
+    the items from the lowest to the highest, wrapping at the ends. Returns \c true if the focus moved.
+*/
+bool QGraphicsScene::focusNextPrevChild(bool next) {
+    QList<QGraphicsItem *> candidates;
+    const QList<QGraphicsItem *> all = items(Qt::AscendingOrder);
+    for (QGraphicsItem *item : all)
+        if ((item->flags() & QGraphicsItem::ItemIsFocusable) && item->isVisible() && item->isEnabled())
+            candidates.append(item);
+    if (candidates.isEmpty())
+        return false;
+    const qsizetype current = candidates.indexOf(focusItem());
+    qsizetype target = 0;
+    if (current >= 0)
+        target = next ? (current + 1) % candidates.size() : (current + candidates.size() - 1) % candidates.size();
+    else if (!next)
+        target = candidates.size() - 1;
+    if (target == current)
+        return false;
+    setFocusItem(candidates.at(target), next ? Qt::TabFocusReason : Qt::BacktabFocusReason);
+    return true;
+}
+
+/*!
     Sends \a event to \a item through its scene event filters. Returns \c true if a filter or the item handled it.
 */
 bool QGraphicsScene::sendEvent(QGraphicsItem *item, QEvent *event) {
@@ -1322,6 +1389,9 @@ bool QGraphicsScene::event(QEvent *event) {
         return true;
     case QEvent::GraphicsSceneWheel:
         wheelEvent(static_cast<QGraphicsSceneWheelEvent *>(event));
+        return true;
+    case QEvent::GraphicsSceneHelp:
+        helpEvent(static_cast<QGraphicsSceneHelpEvent *>(event));
         return true;
     case QEvent::GraphicsSceneContextMenu:
         contextMenuEvent(static_cast<QGraphicsSceneContextMenuEvent *>(event));

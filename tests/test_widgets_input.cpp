@@ -26,7 +26,10 @@
 #include <QtWidgets/qfiledialog.h>
 #include <QtWidgets/qgesture.h>
 #include <QtWidgets/qgraphicsanchorlayout.h>
+#include <QtGui/qstandarditemmodel.h>
 #include <QtWidgets/qgraphicsscene.h>
+#include <QtWidgets/qlistview.h>
+#include <QtWidgets/qstyleditemdelegate.h>
 #include <QtWidgets/qplaintextdocumentlayout.h>
 #include <QtWidgets/qgraphicswidget.h>
 #include <QtWidgets/qmdiarea.h>
@@ -679,6 +682,31 @@ void testSmallWidgets() {
     CHECK(edit.keySequence() == QKeySequence(Qt::Key_F5));
 }
 
+namespace {
+struct HookScene : QGraphicsScene {
+    using QGraphicsScene::focusNextPrevChild;
+    using QGraphicsScene::helpEvent;
+};
+struct HookWidget : QGraphicsWidget {
+    int grabs = 0, ungrabs = 0;
+    QRectF lastGeometry;
+    using QGraphicsWidget::focusNextPrevChild;
+    void grabMouseEvent(QEvent *) override { ++grabs; }
+    void ungrabMouseEvent(QEvent *) override { ++ungrabs; }
+    QVariant propertyChange(const QString &name, const QVariant &value) override {
+        if (name == "geometry") {
+            lastGeometry = value.toRectF();
+            return QVariant(lastGeometry.adjusted(0, 0, 10, 0)); // grows by 10
+        }
+        return value;
+    }
+};
+struct HookList : QListView {
+    using QListView::rectForIndex;
+    using QListView::setPositionForIndex;
+};
+} // namespace
+
 void testWidgetGaps() {
     QCalendarWidget calendar;
     QTextCharFormat red;
@@ -791,6 +819,51 @@ void testWidgetGaps() {
     textDocument.setPlainText("one\ntwo");
     QPlainTextDocumentLayout textLayout(&textDocument);
     CHECK(textLayout.pageCount() == 1 && textLayout.documentSize().height() > 0 && textLayout.cursorWidth() == 1);
+
+    // Scene: active window, focus chain; widget hooks
+    {
+        HookScene hookScene;
+        auto *first = new QGraphicsRectItem(0, 0, 10, 10);
+        auto *second = new QGraphicsRectItem(20, 0, 10, 10);
+        first->setFlag(QGraphicsItem::ItemIsFocusable);
+        second->setFlag(QGraphicsItem::ItemIsFocusable);
+        hookScene.addItem(first);
+        hookScene.addItem(second);
+        hookScene.setActivePanel(first);
+        CHECK(hookScene.focusItem() == first);
+        CHECK(hookScene.focusNextPrevChild(true) && hookScene.focusItem() == second);
+        CHECK(hookScene.focusNextPrevChild(true) && hookScene.focusItem() == first); // wraps
+        CHECK(hookScene.focusNextPrevChild(false) && hookScene.focusItem() == second);
+
+        auto *window = new HookWidget;
+        hookScene.addItem(window);
+        hookScene.setActiveWindow(window);
+        CHECK(hookScene.activeWindow() == window);
+        window->setGeometry(0, 0, 50, 20);
+        CHECK(window->lastGeometry == QRectF(0, 0, 50, 20) && window->geometry().width() == 60);
+        window->setFlag(QGraphicsItem::ItemIsFocusable);
+        window->grabMouse();
+        window->ungrabMouse();
+        CHECK(window->grabs == 1 && window->ungrabs == 1);
+        window->setFocus();
+        CHECK(!window->focusNextPrevChild(true)); // only itself in its chain
+        delete window;
+        CHECK(hookScene.activeWindow() == nullptr);
+    }
+
+    {
+        QStandardItemModel model;
+        for (int i = 0; i < 3; ++i)
+            model.appendRow(new QStandardItem(QString::number(i)));
+        HookList list;
+        list.setModel(&model);
+        list.resize(200, 200);
+        list.show();
+        list.setPositionForIndex(QPoint(120, 90), model.index(1, 0));
+        CHECK(list.rectForIndex(model.index(1, 0)).topLeft() == QPoint(120, 90));
+        QStyledItemDelegate delegate;
+        CHECK(delegate.paintingRoles().isEmpty());
+    }
 
     QFileDialog dialog;
     dialog.setDirectoryUrl(QUrl::fromLocalFile("/tmp"));

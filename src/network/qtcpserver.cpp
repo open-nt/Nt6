@@ -138,8 +138,16 @@ bool QTcpServer::listen(const QHostAddress &address, quint16 port) {
     const int on = 1;
     ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof on);
     if (fam == AF_INET6) {
-        const int v6only = address.kind() == 6 ? 1 : 0;
-        ::setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof v6only);
+        // A system that cannot make the socket dual-stack would accept no IPv4 clients, so listen
+        // on IPv4 only.
+        if (!QtPrivate::setV6Only(fd, address.kind() == 6) && dual) {
+            ::close(fd);
+            fam = AF_INET;
+            fd = QtPrivate::nonBlockingSocket(fam, SOCK_STREAM);
+            if (fd < 0)
+                return fail(errno);
+            ::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof on);
+        }
     }
     sockaddr_storage ss;
     const socklen_t len = QtPrivate::toSockaddr(address, port, fam, &ss);

@@ -43,6 +43,18 @@ inline int nonBlockingSocket(int family, int type) {
 #endif
 }
 
+// Sets IPV6_V6ONLY on an AF_INET6 socket to `v6only` and reads it back. Returns false where the
+// system cannot honour the option: Zephyr without IPv4-mapped addresses accepts the set but
+// leaves the socket IPv6-only, and refuses the read.
+inline bool setV6Only(int fd, bool v6only) {
+    const int want = v6only ? 1 : 0;
+    if (::setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &want, sizeof want) != 0)
+        return false;
+    int got = !want;
+    socklen_t len = sizeof got;
+    return ::getsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &got, &len) == 0 && got == want;
+}
+
 // accept() that returns a non-blocking, close-on-exec socket.
 inline int nonBlockingAccept(int listener) {
 #if defined(SOCK_NONBLOCK) && defined(SOCK_CLOEXEC)

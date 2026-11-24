@@ -900,8 +900,14 @@ bool QAbstractSocket::bind(const QHostAddress &address, quint16 port, BindMode m
             return false;
     }
     if (m_family == AF_INET6) {
-        const int v6only = address.kind() == 6 ? 1 : 0;
-        ::setsockopt(m_fd, IPPROTO_IPV6, IPV6_V6ONLY, &v6only, sizeof v6only);
+        // A system that cannot make the socket dual-stack would receive no IPv4 traffic, so bind on
+        // IPv4 only.
+        if (!QtPrivate::setV6Only(m_fd, address.kind() == 6) && dual) {
+            closeSocket();
+            fam = AF_INET;
+            if (!createSocket(fam))
+                return false;
+        }
     }
     if (mode.testFlag(ShareAddress) || mode.testFlag(ReuseAddressHint)) {
         const int on = 1;

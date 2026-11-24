@@ -43,8 +43,8 @@ public:
 
     QGraphicsAnchor *addAnchor(QGraphicsLayoutItem *firstItem, Qt::AnchorPoint firstEdge,
                                QGraphicsLayoutItem *secondItem, Qt::AnchorPoint secondEdge);
-    QGraphicsAnchor *anchor(QGraphicsLayoutItem *firstItem, Qt::AnchorPoint firstEdge,
-                            QGraphicsLayoutItem *secondItem, Qt::AnchorPoint secondEdge);
+    QGraphicsAnchor *anchor(QGraphicsLayoutItem *firstItem, Qt::AnchorPoint firstEdge, QGraphicsLayoutItem *secondItem,
+                            Qt::AnchorPoint secondEdge);
     void addCornerAnchors(QGraphicsLayoutItem *firstItem, Qt::Corner firstCorner, QGraphicsLayoutItem *secondItem,
                           Qt::Corner secondCorner);
     void addAnchors(QGraphicsLayoutItem *firstItem, QGraphicsLayoutItem *secondItem,

@@ -346,7 +346,9 @@ void QGraphicsAnchorLayout::solve(Qt::SizeHint which, const QSizeF *fixed, std::
         if (fixed)
             rows.push_back({{{1, 1}}, axis == 0 ? fixed->width() : fixed->height()});
         const auto indexOf = [this](const QGraphicsLayoutItem *item) -> std::size_t {
-            return item == this ? 0 : static_cast<std::size_t>(m_items.indexOf(const_cast<QGraphicsLayoutItem *>(item))) + 1;
+            return item == this
+                       ? 0
+                       : static_cast<std::size_t>(m_items.indexOf(const_cast<QGraphicsLayoutItem *>(item))) + 1;
         };
         for (const QGraphicsAnchor *a : m_anchors) {
             if ((isHorizontalEdge(a->m_firstEdge) ? Qt::Horizontal : Qt::Vertical) != orientation)

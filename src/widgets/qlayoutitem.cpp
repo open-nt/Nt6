@@ -143,16 +143,17 @@ QSpacerItem::QSpacerItem(int w, int h, QSizePolicy::Policy hPolicy, QSizePolicy:
     \reimp
 */
 QSize QSpacerItem::minimumSize() const {
-    return QSize((m_policy.horizontalPolicy() & QSizePolicy::ShrinkFlag) ? 0 : m_size.width(),
-                 (m_policy.verticalPolicy() & QSizePolicy::ShrinkFlag) ? 0 : m_size.height());
+    return QSize((static_cast<int>(m_policy.horizontalPolicy()) & QSizePolicy::ShrinkFlag) ? 0 : m_size.width(),
+                 (static_cast<int>(m_policy.verticalPolicy()) & QSizePolicy::ShrinkFlag) ? 0 : m_size.height());
 }
 
 /*!
     \reimp
 */
 QSize QSpacerItem::maximumSize() const {
-    return QSize((m_policy.horizontalPolicy() & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX : m_size.width(),
-                 (m_policy.verticalPolicy() & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX : m_size.height());
+    return QSize(
+        (static_cast<int>(m_policy.horizontalPolicy()) & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX : m_size.width(),
+        (static_cast<int>(m_policy.verticalPolicy()) & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX : m_size.height());
 }
 
 /*!
@@ -247,13 +248,15 @@ QSize QWidgetItem::minimumSize() const {
     if (set.width() > 0)
         s.setWidth(set.width());
     else if (p.horizontalPolicy() != QSizePolicy::Ignored)
-        s.setWidth((p.horizontalPolicy() & QSizePolicy::ShrinkFlag) ? minimumHint.width()
-                                                                    : std::max(hint.width(), minimumHint.width()));
+        s.setWidth((static_cast<int>(p.horizontalPolicy()) & QSizePolicy::ShrinkFlag)
+                       ? minimumHint.width()
+                       : std::max(hint.width(), minimumHint.width()));
     if (set.height() > 0)
         s.setHeight(set.height());
     else if (p.verticalPolicy() != QSizePolicy::Ignored)
-        s.setHeight((p.verticalPolicy() & QSizePolicy::ShrinkFlag) ? minimumHint.height()
-                                                                   : std::max(hint.height(), minimumHint.height()));
+        s.setHeight((static_cast<int>(p.verticalPolicy()) & QSizePolicy::ShrinkFlag)
+                        ? minimumHint.height()
+                        : std::max(hint.height(), minimumHint.height()));
     return QtPrivate::boundedTo(s, m_widget->maximumSize());
 }
 
@@ -266,12 +269,12 @@ QSize QWidgetItem::maximumSize() const {
     const QSize lowest = m_widget->minimumSize();
     const QSizePolicy p = m_widget->sizePolicy();
     const QSize hint = validSize(m_widget->sizeHint());
-    const int width = limit.width() < QLAYOUTSIZE_MAX                  ? std::max(limit.width(), lowest.width())
-                      : (p.horizontalPolicy() & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX
-                                                                       : hint.width();
-    const int height = limit.height() < QLAYOUTSIZE_MAX               ? std::max(limit.height(), lowest.height())
-                       : (p.verticalPolicy() & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX
-                                                                      : hint.height();
+    const int width = limit.width() < QLAYOUTSIZE_MAX ? std::max(limit.width(), lowest.width())
+                      : (static_cast<int>(p.horizontalPolicy()) & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX
+                                                                                         : hint.width();
+    const int height = limit.height() < QLAYOUTSIZE_MAX ? std::max(limit.height(), lowest.height())
+                       : (static_cast<int>(p.verticalPolicy()) & QSizePolicy::GrowFlag) ? QLAYOUTSIZE_MAX
+                                                                                        : hint.height();
     return QSize(width, height);
 }
 
@@ -284,9 +287,9 @@ Qt::Orientations QWidgetItem::expandingDirections() const {
     // As in Qt, a widget with a layout that wants room also expands where its policy lets it grow.
     if (const QLayout *layout = m_widget->layout()) {
         const Qt::Orientations inside = layout->expandingDirections();
-        if ((policy.horizontalPolicy() & QSizePolicy::GrowFlag) && (inside & Qt::Horizontal))
+        if ((static_cast<int>(policy.horizontalPolicy()) & QSizePolicy::GrowFlag) && (inside & Qt::Horizontal))
             directions |= Qt::Horizontal;
-        if ((policy.verticalPolicy() & QSizePolicy::GrowFlag) && (inside & Qt::Vertical))
+        if ((static_cast<int>(policy.verticalPolicy()) & QSizePolicy::GrowFlag) && (inside & Qt::Vertical))
             directions |= Qt::Vertical;
     }
     return directions;

@@ -273,9 +273,9 @@ QMatrix4x4 QMatrix4x4::inverted(bool *invertible) const {
 */
 QMatrix3x3 QMatrix4x4::normalMatrix() const {
     QMatrix3x3 inv;
-    const double a = m[0][0], b = m[1][0], c = m[2][0];
-    const double d = m[0][1], e = m[1][1], f = m[2][1];
-    const double g = m[0][2], h = m[1][2], i = m[2][2];
+    const double a = static_cast<double>(m[0][0]), b = static_cast<double>(m[1][0]), c = static_cast<double>(m[2][0]);
+    const double d = static_cast<double>(m[0][1]), e = static_cast<double>(m[1][1]), f = static_cast<double>(m[2][1]);
+    const double g = static_cast<double>(m[0][2]), h = static_cast<double>(m[1][2]), i = static_cast<double>(m[2][2]);
     const double det = a * (e * i - f * h) - b * (d * i - f * g) + c * (d * h - e * g);
     if (det == 0.0)
         return inv;

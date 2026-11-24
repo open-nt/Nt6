@@ -70,7 +70,7 @@ public:
     */
     void swap(QCryptographicHash &other) noexcept {
         std::swap(m_method, other.m_method);
-        d.swap(other.d);
+        m_state.swap(other.m_state);
     }
     QByteArray result() const;
     QByteArrayView resultView() const noexcept;
@@ -101,7 +101,7 @@ public:
 private:
     struct State;
     Algorithm m_method;
-    std::unique_ptr<State> d;
+    std::unique_ptr<State> m_state;
 };
 
 class QMessageAuthenticationCode {

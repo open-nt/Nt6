@@ -13,7 +13,7 @@
 namespace {
 
 constexpr const char *kUnreserved = "-._~";
-constexpr const char *kSubDelims = "!$&'()*+,;=";
+[[maybe_unused]] constexpr const char *kSubDelims = "!$&'()*+,;=";
 
 bool isAlpha(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
 bool isDigit(char c) { return c >= '0' && c <= '9'; }

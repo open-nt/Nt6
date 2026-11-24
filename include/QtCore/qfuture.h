@@ -189,8 +189,7 @@ public:
         Converts the future to one that does not give access to the results, so that futures of every result type
         can be kept together. The new future refers to the same computation.
     */
-    template <typename U = T, typename = std::enable_if_t<!std::is_void_v<U>>>
-    operator QFuture<void>() const {
+    template <typename U = T> operator std::enable_if_t<!std::is_void_v<U>, QFuture<void>>() const {
         return QFuture<void>(QFutureInterface<void>(d));
     }
 

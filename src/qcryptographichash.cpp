@@ -564,7 +564,7 @@ struct QCryptographicHash::State {
 
     \sa hash()
 */
-QCryptographicHash::QCryptographicHash(Algorithm method) : m_method(method), d(std::make_unique<State>(method)) {}
+QCryptographicHash::QCryptographicHash(Algorithm method) : m_method(method), m_state(std::make_unique<State>(method)) {}
 /*!
     Move-constructs an object from \a other. \a other must not be used
     afterwards except to be assigned to or destroyed.
@@ -586,7 +586,7 @@ QCryptographicHash &QCryptographicHash::operator=(QCryptographicHash &&other) no
 
     \sa addData()
 */
-void QCryptographicHash::reset() noexcept { d->init(); }
+void QCryptographicHash::reset() noexcept { m_state->init(); }
 
 /*!
     Adds \a data to the data being hashed.
@@ -594,7 +594,7 @@ void QCryptographicHash::reset() noexcept { d->init(); }
     \sa result()
 */
 void QCryptographicHash::addData(QByteArrayView data) noexcept {
-    d->add(reinterpret_cast<const uchar *>(data.data()), static_cast<std::size_t>(data.size()));
+    m_state->add(reinterpret_cast<const uchar *>(data.data()), static_cast<std::size_t>(data.size()));
 }
 
 /*!
@@ -621,7 +621,7 @@ bool QCryptographicHash::addData(QIODevice *device) {
     \sa resultView(), reset()
 */
 QByteArray QCryptographicHash::result() const {
-    State copy = *d; // more data may follow
+    State copy = *m_state; // more data may follow
     return copy.finish();
 }
 
@@ -633,8 +633,8 @@ QByteArray QCryptographicHash::result() const {
     \sa result()
 */
 QByteArrayView QCryptographicHash::resultView() const noexcept {
-    d->cache = result();
-    return QByteArrayView(d->cache);
+    m_state->cache = result();
+    return QByteArrayView(m_state->cache);
 }
 
 /*!

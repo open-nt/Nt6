@@ -124,7 +124,7 @@ QLCDNumber::QLCDNumber(QWidget *parent) : QLCDNumber(5, parent) {}
 */
 QLCDNumber::QLCDNumber(uint numDigits, QWidget *parent)
     : QFrame(parent), m_digits(static_cast<int>(std::min(numDigits, 99u))) {
-    setFrameStyle(Box | Raised);
+    setFrameStyle(static_cast<int>(Box) | Raised);
     setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Minimum);
     m_text = "0";
 }

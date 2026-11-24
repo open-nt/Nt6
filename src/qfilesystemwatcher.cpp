@@ -175,7 +175,11 @@ struct QFileSystemWatcher::Private {
             paths.removeAll(path);
             if (paths.isEmpty()) {
                 wdPaths.remove(wd);
+#ifdef __ANDROID__
+                ::inotify_rm_watch(inotifyFd, static_cast<uint32_t>(wd)); // bionic takes an unsigned watch descriptor
+#else
                 ::inotify_rm_watch(inotifyFd, wd);
+#endif
             }
         }
         updatePoller();

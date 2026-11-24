@@ -983,7 +983,7 @@ void QTabBar::paintEvent(QPaintEvent *event) {
         if (m_elideMode != Qt::ElideNone)
             text = fontMetrics().elidedText(text, m_elideMode, textRect.width());
         painter.setPen(tab.textColor.isValid() ? tab.textColor : palette().color(group, QPalette::WindowText));
-        painter.drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, text);
+        painter.drawText(textRect, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text);
         if (m_closable) {
             const QRect close(option.rect.width() - kCloseSize - 4, (option.rect.height() - kCloseSize) / 2,
                               kCloseSize, kCloseSize);

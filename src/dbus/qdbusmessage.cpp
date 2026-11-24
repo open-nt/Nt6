@@ -333,9 +333,9 @@ uint readU32(const char *p, bool swapped) {
 bool QDBusMessagePrivate::toWire(const QDBusMessage &message, bool expectReply, QDBusWireMessage *out,
                                  QDBusError *error) {
     const QDBusMessagePrivate *d = message.d_ptr.constData();
-    auto bad = [error](QDBusError::ErrorType type, const QString &text) {
+    auto bad = [error](QDBusError::ErrorType errorType, const QString &text) {
         if (error)
-            *error = QDBusError(type, text);
+            *error = QDBusError(errorType, text);
         return false;
     };
     switch (d->type) {

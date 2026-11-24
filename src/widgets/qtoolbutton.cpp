@@ -264,7 +264,7 @@ void QToolButton::paintEvent(QPaintEvent *event) {
                                  size.height());
             icon().paint(&painter, iconRect, Qt::AlignCenter, mode, state);
             painter.drawText(QRect(content.left(), iconRect.bottom() + 3, content.width(), fontMetrics().height()),
-                             Qt::AlignCenter | Qt::TextSingleLine, text());
+                             static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text());
         } else {
             const int left = content.left() + (content.width() - size.width() - 4 - textWidth) / 2;
             icon().paint(&painter, QRect(left, content.top(), size.width(), content.height()), Qt::AlignCenter, mode,
@@ -274,7 +274,7 @@ void QToolButton::paintEvent(QPaintEvent *event) {
         }
     } else if (!text().isEmpty()) {
         painter.setPen(palette().color(group, QPalette::ButtonText));
-        painter.drawText(content, Qt::AlignCenter | Qt::TextSingleLine, text());
+        painter.drawText(content, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text());
     }
 }
 

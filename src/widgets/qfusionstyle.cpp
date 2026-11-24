@@ -452,7 +452,7 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
             textRect.setLeft(iconRect.right() + 1 + gap);
             painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
         } else {
-            painter->drawText(textRect, Qt::AlignCenter | Qt::TextSingleLine, button->text);
+            painter->drawText(textRect, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, button->text);
         }
         painter->restore();
         break;
@@ -588,11 +588,11 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
         if (bar->textVisible && !bar->text.isEmpty()) {
             painter->setClipRect(inner);
             painter->setPen(option->palette.color(group, QPalette::Text));
-            painter->drawText(inner, Qt::AlignCenter | Qt::TextSingleLine, bar->text);
+            painter->drawText(inner, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, bar->text);
             if (!filled.isEmpty()) {
                 painter->setClipRect(filled);
                 painter->setPen(option->palette.color(group, QPalette::HighlightedText));
-                painter->drawText(inner, Qt::AlignCenter | Qt::TextSingleLine, bar->text);
+                painter->drawText(inner, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, bar->text);
             }
         }
         painter->restore();
@@ -828,7 +828,7 @@ void QFusionStyle::drawControl(ControlElement element, const QStyleOption *optio
             drawBox(painter, r, fill, outlineOf(option), window);
         }
         painter->setPen(option->palette.color(group, QPalette::WindowText));
-        painter->drawText(r, Qt::AlignCenter | Qt::TextSingleLine, tab->text);
+        painter->drawText(r, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, tab->text);
         painter->restore();
         break;
     }

@@ -43,7 +43,7 @@ protected:
     void initStyleOption(QStyleOptionFrame *option) const;
 
 private:
-    int m_style = NoFrame | Plain;
+    int m_style = static_cast<int>(NoFrame) | Plain;
     int m_lineWidth = 1;
     int m_midLineWidth = 0;
     QRect m_frameRect; // invalid: the whole widget

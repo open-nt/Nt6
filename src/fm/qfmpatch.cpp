@@ -87,13 +87,13 @@ FmEnvelope readEnv(const QJsonObject &o, const FmEnvelope &defaults) {
 
 QJsonObject writeEnv(const FmEnvelope &e) {
     QJsonObject o;
-    o.insert(QLatin1String("delay"), e.delay);
-    o.insert(QLatin1String("a"), e.attack);
-    o.insert(QLatin1String("h"), e.hold);
-    o.insert(QLatin1String("d"), e.decay);
-    o.insert(QLatin1String("s"), e.sustain);
-    o.insert(QLatin1String("r"), e.release);
-    o.insert(QLatin1String("curve"), e.curve);
+    o.insert(QLatin1String("delay"), static_cast<double>(e.delay));
+    o.insert(QLatin1String("a"), static_cast<double>(e.attack));
+    o.insert(QLatin1String("h"), static_cast<double>(e.hold));
+    o.insert(QLatin1String("d"), static_cast<double>(e.decay));
+    o.insert(QLatin1String("s"), static_cast<double>(e.sustain));
+    o.insert(QLatin1String("r"), static_cast<double>(e.release));
+    o.insert(QLatin1String("curve"), static_cast<double>(e.curve));
     return o;
 }
 
@@ -108,10 +108,10 @@ FmSweep readSweep(const QJsonObject &o, const FmSweep &defaults) {
 
 QJsonObject writeSweep(const FmSweep &s) {
     QJsonObject o;
-    o.insert(QLatin1String("start"), s.start);
-    o.insert(QLatin1String("end"), s.end);
-    o.insert(QLatin1String("time"), s.time);
-    o.insert(QLatin1String("curve"), s.curve);
+    o.insert(QLatin1String("start"), static_cast<double>(s.start));
+    o.insert(QLatin1String("end"), static_cast<double>(s.end));
+    o.insert(QLatin1String("time"), static_cast<double>(s.time));
+    o.insert(QLatin1String("curve"), static_cast<double>(s.curve));
     return o;
 }
 
@@ -228,80 +228,80 @@ QJsonObject writePatch(const PatchData &p) {
                                            ? QJsonValue(QJsonValue::Null)
                                            : QJsonValue(QLatin1String(chipNames[static_cast<int>(p.chip)])));
     root.insert(QLatin1String("algorithm"), p.algorithm);
-    root.insert(QLatin1String("feedback"), p.feedback);
+    root.insert(QLatin1String("feedback"), static_cast<double>(p.feedback));
     QJsonArray ops;
     for (int i = 0; i < p.opCount; ++i) {
         const FmOperator &op = p.ops[i];
         QJsonObject o;
-        o.insert(QLatin1String("ratio"), op.ratio);
-        o.insert(QLatin1String("offset"), op.offset);
-        o.insert(QLatin1String("fixed"), op.fixed);
-        o.insert(QLatin1String("level"), op.level);
+        o.insert(QLatin1String("ratio"), static_cast<double>(op.ratio));
+        o.insert(QLatin1String("offset"), static_cast<double>(op.offset));
+        o.insert(QLatin1String("fixed"), static_cast<double>(op.fixed));
+        o.insert(QLatin1String("level"), static_cast<double>(op.level));
         o.insert(QLatin1String("wave"), QLatin1String(waveNames[static_cast<int>(op.wave)]));
-        o.insert(QLatin1String("keyScaleRate"), op.keyScaleRate);
-        o.insert(QLatin1String("keyScaleLevel"), op.keyScaleLevel);
+        o.insert(QLatin1String("keyScaleRate"), static_cast<double>(op.keyScaleRate));
+        o.insert(QLatin1String("keyScaleLevel"), static_cast<double>(op.keyScaleLevel));
         o.insert(QLatin1String("env"), writeEnv(op.env));
         ops.append(o);
     }
     root.insert(QLatin1String("operators"), ops);
 
     QJsonObject pitch;
-    pitch.insert(QLatin1String("base"), p.baseNote);
+    pitch.insert(QLatin1String("base"), static_cast<double>(p.baseNote));
     pitch.insert(QLatin1String("env"), writeSweep(p.pitchEnv));
-    pitch.insert(QLatin1String("slide"), p.slide);
-    pitch.insert(QLatin1String("deltaSlide"), p.deltaSlide);
+    pitch.insert(QLatin1String("slide"), static_cast<double>(p.slide));
+    pitch.insert(QLatin1String("deltaSlide"), static_cast<double>(p.deltaSlide));
     QJsonObject arp;
     QJsonArray steps;
     for (int i = 0; i < p.arpCount; ++i)
-        steps.append(p.arpSteps[i]);
+        steps.append(static_cast<double>(p.arpSteps[i]));
     arp.insert(QLatin1String("steps"), steps);
-    arp.insert(QLatin1String("rate"), p.arpRate);
+    arp.insert(QLatin1String("rate"), static_cast<double>(p.arpRate));
     arp.insert(QLatin1String("repeat"), p.arpRepeat);
     pitch.insert(QLatin1String("arp"), arp);
     root.insert(QLatin1String("pitch"), pitch);
 
     QJsonObject lfo;
     lfo.insert(QLatin1String("wave"), QLatin1String(lfoNames[static_cast<int>(p.lfoWave)]));
-    lfo.insert(QLatin1String("rate"), p.lfoRate);
-    lfo.insert(QLatin1String("pitch"), p.lfoPitch);
-    lfo.insert(QLatin1String("amp"), p.lfoAmp);
-    lfo.insert(QLatin1String("index"), p.lfoIndex);
-    lfo.insert(QLatin1String("cutoff"), p.lfoCutoff);
+    lfo.insert(QLatin1String("rate"), static_cast<double>(p.lfoRate));
+    lfo.insert(QLatin1String("pitch"), static_cast<double>(p.lfoPitch));
+    lfo.insert(QLatin1String("amp"), static_cast<double>(p.lfoAmp));
+    lfo.insert(QLatin1String("index"), static_cast<double>(p.lfoIndex));
+    lfo.insert(QLatin1String("cutoff"), static_cast<double>(p.lfoCutoff));
     root.insert(QLatin1String("lfo"), lfo);
     root.insert(QLatin1String("index"), writeSweep(p.index));
 
     QJsonObject noise;
     noise.insert(QLatin1String("mode"), QLatin1String(noiseNames[static_cast<int>(p.noiseMode)]));
-    noise.insert(QLatin1String("level"), p.noiseLevel);
-    noise.insert(QLatin1String("rate"), p.noiseRate);
+    noise.insert(QLatin1String("level"), static_cast<double>(p.noiseLevel));
+    noise.insert(QLatin1String("rate"), static_cast<double>(p.noiseRate));
     noise.insert(QLatin1String("modulate"), p.noiseModulate);
     noise.insert(QLatin1String("env"), writeEnv(p.noiseEnv));
     root.insert(QLatin1String("noise"), noise);
 
     QJsonObject filter;
     filter.insert(QLatin1String("type"), QLatin1String(filterNames[static_cast<int>(p.filterType)]));
-    filter.insert(QLatin1String("cutoff"), p.cutoff);
-    filter.insert(QLatin1String("resonance"), p.resonance);
+    filter.insert(QLatin1String("cutoff"), static_cast<double>(p.cutoff));
+    filter.insert(QLatin1String("resonance"), static_cast<double>(p.resonance));
     QJsonObject sweep;
-    sweep.insert(QLatin1String("end"), p.sweepEnd);
-    sweep.insert(QLatin1String("time"), p.sweepTime);
-    sweep.insert(QLatin1String("curve"), p.sweepCurve);
+    sweep.insert(QLatin1String("end"), static_cast<double>(p.sweepEnd));
+    sweep.insert(QLatin1String("time"), static_cast<double>(p.sweepTime));
+    sweep.insert(QLatin1String("curve"), static_cast<double>(p.sweepCurve));
     filter.insert(QLatin1String("sweep"), sweep);
     root.insert(QLatin1String("filter"), filter);
 
     QJsonObject crush;
-    crush.insert(QLatin1String("bits"), p.crushBits);
-    crush.insert(QLatin1String("rate"), p.crushRate);
+    crush.insert(QLatin1String("bits"), static_cast<double>(p.crushBits));
+    crush.insert(QLatin1String("rate"), static_cast<double>(p.crushRate));
     root.insert(QLatin1String("crush"), crush);
 
     QJsonObject random;
     for (auto it = p.random.cbegin(); it != p.random.cend(); ++it)
-        random.insert(it.key(), it.value());
+        random.insert(it.key(), static_cast<double>(it.value()));
     root.insert(QLatin1String("random"), random);
-    root.insert(QLatin1String("gain"), p.gain);
-    root.insert(QLatin1String("pan"), p.pan);
+    root.insert(QLatin1String("gain"), static_cast<double>(p.gain));
+    root.insert(QLatin1String("pan"), static_cast<double>(p.pan));
     root.insert(QLatin1String("loop"), p.loop);
-    root.insert(QLatin1String("duration"), p.duration);
+    root.insert(QLatin1String("duration"), static_cast<double>(p.duration));
     return root;
 }
 
@@ -1040,9 +1040,9 @@ Patch Patch::generate(Category category, quint32 seed, ChipType target) {
     }
     FmOperator &mod = p->ops[0];
     FmOperator &car = p->ops[1];
-    auto env = [&](FmOperator &op, float a, float d, float sus, float rel) {
+    auto env = [&](FmOperator &op, float a, float dec, float sus, float rel) {
         op.env.attack = a;
-        op.env.decay = d;
+        op.env.decay = dec;
         op.env.sustain = sus;
         op.env.release = rel;
     };

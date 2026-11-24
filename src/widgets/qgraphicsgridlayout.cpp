@@ -502,9 +502,9 @@ void QGraphicsGridLayout::lineSizes(Qt::Orientation orientation, std::vector<qre
         *mx = along(e.item->effectiveSizeHint(Qt::MaximumSize), orientation);
         const QSizePolicy policy = e.item->sizePolicy();
         const QSizePolicy::Policy p = horizontal ? policy.horizontalPolicy() : policy.verticalPolicy();
-        if (!(p & QSizePolicy::GrowFlag))
+        if (!(static_cast<int>(p) & QSizePolicy::GrowFlag))
             *mx = *pf;
-        if (!(p & QSizePolicy::ShrinkFlag))
+        if (!(static_cast<int>(p) & QSizePolicy::ShrinkFlag))
             *mn = *pf;
     };
     // The items of one line first.
@@ -621,10 +621,10 @@ void QGraphicsGridLayout::setGeometry(const QRectF &rect) {
         const QSizeF mn = e.item->effectiveSizeHint(Qt::MinimumSize);
         const QSizeF pf = e.item->effectiveSizeHint(Qt::PreferredSize);
         const QSizeF mx = e.item->effectiveSizeHint(Qt::MaximumSize);
-        const qreal w = std::max(mn.width(), (policy.horizontalPolicy() & QSizePolicy::GrowFlag)
+        const qreal w = std::max(mn.width(), (static_cast<int>(policy.horizontalPolicy()) & QSizePolicy::GrowFlag)
                                                  ? std::min(cell.width(), mx.width())
                                                  : std::min(cell.width(), pf.width()));
-        const qreal h = std::max(mn.height(), (policy.verticalPolicy() & QSizePolicy::GrowFlag)
+        const qreal h = std::max(mn.height(), (static_cast<int>(policy.verticalPolicy()) & QSizePolicy::GrowFlag)
                                                   ? std::min(cell.height(), mx.height())
                                                   : std::min(cell.height(), pf.height()));
         Qt::Alignment a = e.alignment;

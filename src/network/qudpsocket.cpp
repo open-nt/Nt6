@@ -292,7 +292,7 @@ static bool membership(QUdpSocket *s, const QHostAddress &group, bool join, cons
 #ifdef __ZEPHYR__
             m.ipv6mr_ifindex = iface->index();
 #else
-            m.ipv6mr_interface = static_cast<unsigned>(iface->index());
+            m.ipv6mr_interface = static_cast<decltype(m.ipv6mr_interface)>(iface->index());
 #endif
         }
         rc = ::setsockopt(fd, IPPROTO_IPV6, join ? IPV6_JOIN_GROUP : IPV6_LEAVE_GROUP, &m, sizeof m);

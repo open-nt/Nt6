@@ -863,9 +863,9 @@ void QGraphicsLinearLayout::setGeometry(const QRectF &rect) {
         qreal minimum = along(entry.item->effectiveSizeHint(Qt::MinimumSize), m_orientation);
         const qreal preferred = along(entry.item->effectiveSizeHint(Qt::PreferredSize), m_orientation);
         qreal maximum = along(entry.item->effectiveSizeHint(Qt::MaximumSize), m_orientation);
-        if (!(p & QSizePolicy::ShrinkFlag))
+        if (!(static_cast<int>(p) & QSizePolicy::ShrinkFlag))
             minimum = preferred;
-        if (!(p & QSizePolicy::GrowFlag))
+        if (!(static_cast<int>(p) & QSizePolicy::GrowFlag))
             maximum = preferred;
         cells.push_back(
             Slot{static_cast<int>(i), minimum, preferred, maximum, preferred, entry.stretch, maximum > preferred});
@@ -921,8 +921,8 @@ void QGraphicsLinearLayout::setGeometry(const QRectF &rect) {
             const qreal crossMin = along(entry.item->effectiveSizeHint(Qt::MinimumSize), cross);
             const qreal crossPref = along(entry.item->effectiveSizeHint(Qt::PreferredSize), cross);
             const qreal crossMax = along(entry.item->effectiveSizeHint(Qt::MaximumSize), cross);
-            qreal size =
-                (p & QSizePolicy::GrowFlag) ? std::min(crossAvailable, crossMax) : std::min(crossAvailable, crossPref);
+            qreal size = (static_cast<int>(p) & QSizePolicy::GrowFlag) ? std::min(crossAvailable, crossMax)
+                                                                       : std::min(crossAvailable, crossPref);
             size = std::max(size, crossMin);
             const Qt::Alignment a = entry.alignment;
             const qreal room = crossAvailable - size;

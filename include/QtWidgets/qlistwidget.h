@@ -156,7 +156,7 @@ public:
 public slots:
     void setCurrentRow(int row);
     void clear();
-    void selectAll();
+    void selectAll() override;
     void clearSelection();
 
 signals:

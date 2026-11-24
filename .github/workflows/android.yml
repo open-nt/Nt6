@@ -1,6 +1,6 @@
 # Builds Nt with the Android NDK for two ABIs, installs it, and builds a Qt 6 style project (tests/android) against the
-# installation into an APK: the CMake package, moc, the shared library, the Java activity and the packaging. Warnings
-# are not errors here: the compiler of the NDK is clang, which finds things that check.sh (GCC) does not.
+# installation into an APK: the CMake package, moc, the shared library, the Java activity and the packaging.  The compiler
+# of the NDK is clang, which finds things that check.sh (GCC) does not, so warnings are errors here too.
 name: Android
 
 on:
@@ -39,7 +39,7 @@ jobs:
           cmake -S . -B build-nt -G Ninja \
               -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
               -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=$ANDROID_PLATFORM \
-              -DNT_BUILD_TESTS=OFF \
+              -DNT_BUILD_TESTS=OFF -DNT_WARNINGS_AS_ERRORS=ON \
               -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/nt-android"
           cmake --build build-nt
           cmake --install build-nt

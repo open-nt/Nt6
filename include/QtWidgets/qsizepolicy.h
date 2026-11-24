@@ -69,9 +69,9 @@ public:
     }
     constexpr Qt::Orientations expandingDirections() const noexcept {
         Qt::Orientations o;
-        if (m_vertical & ExpandFlag)
+        if (static_cast<int>(m_vertical) & ExpandFlag)
             o |= Qt::Vertical;
-        if (m_horizontal & ExpandFlag)
+        if (static_cast<int>(m_horizontal) & ExpandFlag)
             o |= Qt::Horizontal;
         return o;
     }

@@ -26,16 +26,17 @@ std::u16string decodeUtf8(const char *s, std::size_t n) {
         if (c < 0x80) {
             cp = c;
         } else if ((c & 0xe0) == 0xc0 && i + 1 < n && (s[i + 1] & 0xc0) == 0x80) {
-            cp = ((c & 0x1f) << 6) | (s[i + 1] & 0x3f);
+            cp = static_cast<char32_t>(((c & 0x1f) << 6) | (s[i + 1] & 0x3f));
             len = 2;
             if (cp < 0x80) cp = 0xfffd;
         } else if ((c & 0xf0) == 0xe0 && i + 2 < n && (s[i + 1] & 0xc0) == 0x80 && (s[i + 2] & 0xc0) == 0x80) {
-            cp = ((c & 0x0f) << 12) | ((s[i + 1] & 0x3f) << 6) | (s[i + 2] & 0x3f);
+            cp = static_cast<char32_t>(((c & 0x0f) << 12) | ((s[i + 1] & 0x3f) << 6) | (s[i + 2] & 0x3f));
             len = 3;
             if (cp < 0x800 || (cp >= 0xd800 && cp <= 0xdfff)) cp = 0xfffd;
         } else if ((c & 0xf8) == 0xf0 && i + 3 < n && (s[i + 1] & 0xc0) == 0x80 && (s[i + 2] & 0xc0) == 0x80 &&
                    (s[i + 3] & 0xc0) == 0x80) {
-            cp = ((c & 0x07) << 18) | ((s[i + 1] & 0x3f) << 12) | ((s[i + 2] & 0x3f) << 6) | (s[i + 3] & 0x3f);
+            cp = static_cast<char32_t>(((c & 0x07) << 18) | ((s[i + 1] & 0x3f) << 12) | ((s[i + 2] & 0x3f) << 6) |
+                                       (s[i + 3] & 0x3f));
             len = 4;
             if (cp < 0x10000 || cp > 0x10ffff) cp = 0xfffd;
         }

@@ -85,7 +85,7 @@ private:
     Constructs a scroll area with the given \a parent. It has a sunken, styled frame and shows its scroll bars as needed.
 */
 QAbstractScrollArea::QAbstractScrollArea(QWidget *parent) : QFrame(parent) {
-    setFrameStyle(StyledPanel | Sunken);
+    setFrameStyle(static_cast<int>(StyledPanel) | Sunken);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     m_viewport = new QtPrivate::ScrollAreaViewport(this);
     m_hbar = new QScrollBar(Qt::Horizontal, this);

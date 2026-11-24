@@ -67,12 +67,14 @@ void testChildWindows() {
 
     // Hiding a child does not quit; closing the last top-level window does.
     int lastClosed = 0;
-    QObject::connect(qApp, &QGuiApplication::lastWindowClosed, [&] { ++lastClosed; });
+    const QMetaObject::Connection closedConnection =
+        QObject::connect(qApp, &QGuiApplication::lastWindowClosed, [&] { ++lastClosed; });
     top->show();
     child->show();
     CHECK(child->isVisible());
     child->hide();
     CHECK(lastClosed == 0);
+    QObject::disconnect(closedConnection); // the lambda holds a local, and the signal comes again after this function
     child->show();
 
     // Destroying the parent destroys the child's native window first; showing it again makes both anew.

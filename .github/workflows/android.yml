@@ -1,0 +1,64 @@
+# Builds Nt with the Android NDK for two ABIs, installs it, and builds a Qt 6 style project (tests/android) against the
+# installation into an APK: the CMake package, moc, the shared library, the Java activity and the packaging. Warnings
+# are not errors here: the compiler of the NDK is clang, which finds things that check.sh (GCC) does not.
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: NDK build (${{ matrix.abi }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        abi: [arm64-v8a, x86_64]
+    env:
+      ANDROID_PLATFORM: android-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find the NDK
+        # The runner image has the Android SDK, an NDK and a JDK.
+        run: |
+          echo "ANDROID_NDK=${ANDROID_NDK_LATEST_HOME:-$ANDROID_NDK_ROOT}" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-$ANDROID_HOME}" >> "$GITHUB_ENV"
+
+      - name: Build and install Nt
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build
+          cmake -S . -B build-nt -G Ninja \
+              -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+              -DANDROID_ABI=${{ matrix.abi }} -DANDROID_PLATFORM=$ANDROID_PLATFORM \
+              -DNT_BUILD_TESTS=OFF \
+              -DCMAKE_INSTALL_PREFIX="$RUNNER_TEMP/nt-android"
+          cmake --build build-nt
+          cmake --install build-nt
+
+      - name: Build the application
+        run: |
+          cmake -S tests/android -B build-app -G Ninja \
+              -DANDROID_NDK="$ANDROID_NDK" \
+              -DCMAKE_TOOLCHAIN_FILE="$RUNNER_TEMP/nt-android/lib/cmake/Nt6/nt-android.toolchain.cmake"
+          cmake --build build-app
+
+      - name: Check the package
+        run: |
+          unzip -l build-app/nt_android_smoke.apk | tee contents.txt
+          grep -q "lib/${{ matrix.abi }}/libnt_android_smoke.so" contents.txt
+          grep -q "classes.dex" contents.txt
+          "$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)/apksigner" verify build-app/nt_android_smoke.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nt-android-smoke-${{ matrix.abi }}
+          path: build-app/nt_android_smoke.apk

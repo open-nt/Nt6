@@ -263,8 +263,9 @@ bool QXcbClipboard::fetch(xcb_atom_t selection, xcb_atom_t target, QByteArray *d
                 const bool incremental = reply->type == m_connection->atom("INCR");
                 if (!incremental) {
                     *type = reply->type;
+                    // xcb_get_property_value_length() already returns bytes, not items
                     *data = QByteArray(static_cast<const char *>(xcb_get_property_value(reply)),
-                                       xcb_get_property_value_length(reply) * (reply->format / 8));
+                                       xcb_get_property_value_length(reply));
                 }
                 std::free(reply);
                 return !incremental;

@@ -11,6 +11,7 @@
 #include <rhi/qrhivulkan.h>
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <memory>
 
@@ -175,6 +176,11 @@ static void testCompute(QRhi *rhi) {
 
 int main(int argc, char **argv) {
     qputenv("QT_QPA_PLATFORM", "offscreen");
+#if defined(__SANITIZE_ADDRESS__)
+    // The Vulkan loader unloads the drivers with the last instance, and leaks in them would then be reported
+    // from an unknown module, which no suppression matches; keep them loaded (as test_vulkan.cpp does).
+    ::setenv("VK_LOADER_DISABLE_DYNAMIC_LIBRARY_UNLOADING", "1", 1);
+#endif
     QGuiApplication app(argc, argv);
     QVulkanInstance instance;
     if (!instance.create()) {

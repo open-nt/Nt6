@@ -927,6 +927,8 @@ QTreeWidget::QTreeWidget(QWidget *parent)
     QTreeView::setModel(m_model);
     connect(this, &QAbstractItemView::pressed, this,
             [this](const QModelIndex &index) { emit itemPressed(itemFromIndex(index), index.column()); });
+    connect(this, &QAbstractItemView::entered, this,
+            [this](const QModelIndex &index) { emit itemEntered(itemFromIndex(index), index.column()); });
     connect(this, &QAbstractItemView::clicked, this,
             [this](const QModelIndex &index) { emit itemClicked(itemFromIndex(index), index.column()); });
     connect(this, &QAbstractItemView::doubleClicked, this,
@@ -1070,6 +1072,39 @@ void QTreeWidget::setHeaderLabels(const QStringList &labels) {
     for (int i = 0; i < labels.size(); ++i)
         m_headerItem->setText(i, labels.at(i));
 }
+
+/*!
+    Makes \a item the header item, whose texts are the labels of the columns, and deletes the old one. The tree owns
+    \a item. It gets as many columns as the tree has. Does nothing if \a item is \c nullptr, already the header item,
+    or in a tree.
+
+    \sa headerItem()
+*/
+void QTreeWidget::setHeaderItem(QTreeWidgetItem *item) {
+    if (!item || item == m_headerItem || item->m_view || item->parent())
+        return;
+    const int columns = columnCount();
+    QTreeWidgetItem *old = m_headerItem;
+    old->m_view = nullptr;
+    item->m_values.resize(static_cast<std::size_t>(columns));
+    item->m_view = this;
+    m_headerItem = item;
+    delete old;
+    for (int i = 0; i < columns; ++i)
+        m_model->headerChanged(i);
+}
+
+/*!
+    \fn Qt::DropActions QTreeWidget::supportedDragActions() const
+
+    Returns the actions that a drag from the tree may have, Qt::CopyAction by default; only kept.
+*/
+
+/*!
+    \fn void QTreeWidget::setSupportedDragActions(Qt::DropActions actions)
+
+    Sets the actions that a drag from the tree may have to \a actions; only kept.
+*/
 
 /*!
     \fn void QTreeWidget::setHeaderLabel(const QString &label)

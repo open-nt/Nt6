@@ -38,8 +38,8 @@
     of the value, or any widget through its user property.
 
     \differences
-    There is no \c QItemEditorFactory: \c itemEditorFactory() and \c setItemEditorFactory() are missing. Text
-    is drawn on one line, and the decoration is not tinted when the item is selected.
+    Text is drawn on one line, and the decoration is not tinted when the item is selected; selectedPixmap()
+    only tints the pixmap it is given.
     \enddifferences
 
     \sa QStyledItemDelegate, QAbstractItemDelegate, QAbstractItemView
@@ -366,6 +366,49 @@ void QItemDelegate::drawFocus(QPainter *painter, const QStyleOptionViewItem &opt
     focus.palette = option.palette;
     focus.state = option.state;
     styleOf(option)->drawPrimitive(QStyle::PE_FrameFocusRect, &focus, painter, option.widget);
+}
+
+/*!
+    Returns the editor factory of the delegate, or the default factory if none was set.
+*/
+QItemEditorFactory *QItemDelegate::itemEditorFactory() const { return m_editors->itemEditorFactory(); }
+
+/*!
+    Sets the editor factory to \a factory, which the delegate does not own.
+*/
+void QItemDelegate::setItemEditorFactory(QItemEditorFactory *factory) { m_editors->setItemEditorFactory(factory); }
+
+/*!
+    Returns the rectangle of the check box inside \a bounding, for the check state in \a variant, with the size that the
+    style gives a check box. Returns an empty rectangle if \a variant holds no check state. \a option gives the
+    style and the layout.
+*/
+QRect QItemDelegate::doCheck(const QStyleOptionViewItem &option, const QRect &bounding, const QVariant &variant) const {
+    if (!variant.isValid())
+        return QRect();
+    const int width = styleOf(option)->pixelMetric(QStyle::PM_IndicatorWidth, &option, option.widget);
+    const int height = styleOf(option)->pixelMetric(QStyle::PM_IndicatorHeight, &option, option.widget);
+    return QRect(bounding.left(), bounding.top() + (bounding.height() - height) / 2, width, height);
+}
+
+/*!
+    Returns \a pixmap tinted for a selected item with the highlight color of \a palette, or grayed if \a enabled is
+    \c false.
+*/
+QPixmap QItemDelegate::selectedPixmap(const QPixmap &pixmap, const QPalette &palette, bool enabled) const {
+    QStyleOption option;
+    option.palette = palette;
+    return QApplication::style()->generatedIconPixmap(enabled ? QIcon::Selected : QIcon::Disabled, pixmap, &option);
+}
+
+/*!
+    Returns the rectangle that \a text takes in \a rect when drawn with \a font on one line, for the \a painter.
+*/
+QRect QItemDelegate::textRectangle(QPainter *painter, const QRect &rect, const QFont &font, const QString &text) const {
+    (void)painter;
+    const QFontMetrics metrics(font);
+    const QSize size = metrics.size(Qt::TextSingleLine, text);
+    return QRect(rect.topLeft(), QSize(std::min(rect.width(), size.width()), std::min(rect.height(), size.height())));
 }
 
 /*!

@@ -5,6 +5,7 @@
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qmdiarea.h>
+#include <QtWidgets/qmenu.h>
 #include <QtWidgets/qtoolbutton.h>
 
 #include <algorithm>
@@ -35,8 +36,9 @@ constexpr int kMinimizedWidth = 160;
     accepts it. The window title follows that of the widget.
 
     \differences
-    The buttons show "-", "+", "=" and "x" rather than icons, and there is no system menu, no shading
-    (\c showShaded()) and no keyboard moving and resizing. The sub-window options are recorded only; moving and resizing
+    The buttons show "-", "+", "=" and "x" rather than icons, there is no default system menu (one given
+    to setSystemMenu() is shown by showSystemMenu()), and there is no keyboard moving and resizing, so the keyboard
+    steps are only kept. Shading folds the sub-window to its title bar. The sub-window options are recorded only; moving and resizing
     are never shown with a rubber band. showMaximized(), showMinimized() and showNormal() are functions of the
     sub-window, since QWidget has no window states in Nt.
     \enddifferences
@@ -226,6 +228,79 @@ void QMdiSubWindow::showMinimized() {
     setGeometry(QRect(at, QSize(kMinimizedWidth, titleHeight() + 2 * border())));
     show();
 }
+
+/*!
+    Folds the sub-window up to its title bar, or unfolds it again if it is folded.
+
+    \sa isShaded()
+*/
+void QMdiSubWindow::showShaded() {
+    if (m_shaded) {
+        m_shaded = false;
+        if (m_widget)
+            m_widget->show();
+        if (m_normalGeometry.isValid())
+            setGeometry(m_normalGeometry);
+        return;
+    }
+    if (m_state & (Qt::WindowMaximized | Qt::WindowMinimized))
+        showNormal();
+    m_normalGeometry = geometry();
+    m_shaded = true;
+    if (m_widget)
+        m_widget->hide();
+    setGeometry(x(), y(), width(), titleHeight() + 2 * border());
+}
+
+/*!
+    Sets the menu that showSystemMenu() shows to \a systemMenu, which the sub-window does not own.
+*/
+void QMdiSubWindow::setSystemMenu(QMenu *systemMenu) { m_systemMenu = systemMenu; }
+
+/*!
+    \fn QMenu *QMdiSubWindow::systemMenu() const
+
+    Returns the menu that was given to setSystemMenu(), or \c nullptr.
+*/
+
+/*!
+    Shows the system menu under the top left corner of the title bar. Does nothing if there is none.
+*/
+void QMdiSubWindow::showSystemMenu() {
+    if (m_systemMenu)
+        m_systemMenu->popup(mapToGlobal(QPoint(0, titleHeight())));
+}
+
+/*!
+    \fn bool QMdiSubWindow::isShaded() const
+
+    Returns whether the sub-window is folded up to its title bar.
+*/
+
+/*!
+    \fn int QMdiSubWindow::keyboardSingleStep() const
+
+    Returns the distance in pixels of a step when the sub-window is moved with the keyboard, 5 by default; only kept.
+*/
+
+/*!
+    \fn void QMdiSubWindow::setKeyboardSingleStep(int step)
+
+    Sets the distance of a keyboard step to \a step pixels; only kept.
+*/
+
+/*!
+    \fn int QMdiSubWindow::keyboardPageStep() const
+
+    Returns the distance in pixels of a large step when the sub-window is moved with the keyboard, 20 by default; only
+    kept.
+*/
+
+/*!
+    \fn void QMdiSubWindow::setKeyboardPageStep(int step)
+
+    Sets the distance of a large keyboard step to \a step pixels; only kept.
+*/
 
 /*!
     Makes the sub-window normal again, with the geometry it had before it was maximized or minimized.

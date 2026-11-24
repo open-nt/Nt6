@@ -2455,6 +2455,25 @@ void QWidget::repaint(const QRect &rect) {
 }
 
 /*!
+    Subscribes the widget to the gestures of the \a type, with the \a flags. Nt does not recognize gestures itself, so
+    the widget gets a QGestureEvent only from a recognizer of the application; the subscription is only kept.
+
+    \sa ungrabGesture()
+*/
+void QWidget::grabGesture(Qt::GestureType type, Qt::GestureFlags flags) {
+    (void)flags;
+    if (!m_gestures.contains(type))
+        m_gestures.append(type);
+}
+
+/*!
+    Unsubscribes the widget from the gestures of the \a type.
+
+    \sa grabGesture()
+*/
+void QWidget::ungrabGesture(Qt::GestureType type) { m_gestures.removeAll(type); }
+
+/*!
     \reimp
 */
 bool QWidget::event(QEvent *e) {

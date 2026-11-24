@@ -44,6 +44,9 @@ public:
                        const QWidget *widget = nullptr) const override;
     QPixmap standardPixmap(StandardPixmap standardPixmap, const QStyleOption *option = nullptr,
                            const QWidget *widget = nullptr) const override;
+    QPixmap generatedIconPixmap(QIcon::Mode iconMode, const QPixmap &pixmap, const QStyleOption *option) const override;
+    int layoutSpacing(QSizePolicy::ControlType control1, QSizePolicy::ControlType control2, Qt::Orientation orientation,
+                      const QStyleOption *option = nullptr, const QWidget *widget = nullptr) const override;
     void polish(QWidget *widget) override;
     void unpolish(QWidget *widget) override;
     void polish(QApplication *application) override;

@@ -91,10 +91,10 @@ bool isEmptyValue(const QVariant &value) {
 
     \differences
     All the styles look the same: a title and a subtitle above the page, and the buttons in a row at the bottom.
-    There are no pixmaps (\c setPixmap(), the watermark and the logo), no \c setButtonLayout(), no
-    \c setTitleFormat() or \c setSubTitleFormat() (the text is plain), and no \c setDefaultProperty(). A field of a
-    widget that Nt does not know needs its property; a changed signal given to \c registerField() is connected with
-    the string-based syntax. The texts are not translated.
+    The pixmaps (\c setPixmap(): the watermark, the logo, the banner and the background) are stored but not drawn.
+    \c setDefaultProperty() gives the property of a widget class for \c registerField(), but not the signal that
+    announces its changes: a field of such a widget changes the completeness of the page only when it is registered
+    with a changed signal. A changed signal given to \c registerField() is connected with the string-based syntax. The texts are not translated.
     \enddifferences
 
     \sa QWizardPage, QDialog
@@ -118,6 +118,18 @@ bool isEmptyValue(const QVariant &value) {
     \value NoButton No button.
     \omitvalue NStandardButtons
     \omitvalue NButtons
+*/
+
+/*!
+    \enum QWizard::WizardPixmap
+
+    The pictures of a wizard; they are stored but not drawn.
+
+    \value WatermarkPixmap The picture at the side of the first and last pages.
+    \value LogoPixmap The small picture in the header.
+    \value BannerPixmap The picture across the top of the header.
+    \value BackgroundPixmap The picture behind the whole wizard.
+    \omitvalue NPixmaps
 */
 
 /*!
@@ -685,9 +697,18 @@ void QWizard::layoutButtons() {
     while (QLayoutItem *item = m_buttonRow->takeAt(0))
         delete item;
     const auto add = [this](WizardButton which) {
-        if (m_buttons[which])
+        if (which >= 0 && which < NButtons && m_buttons[which])
             m_buttonRow->addWidget(m_buttons[which]);
     };
+    if (!m_buttonLayout.isEmpty()) {
+        for (WizardButton which : std::as_const(m_buttonLayout)) {
+            if (which == Stretch)
+                m_buttonRow->addStretch();
+            else
+                add(which);
+        }
+        return;
+    }
     if (testOption(CancelButtonOnLeft))
         add(CancelButton);
     if (!testOption(HelpButtonOnRight))
@@ -704,6 +725,84 @@ void QWizard::layoutButtons() {
         add(CancelButton);
     if (testOption(HelpButtonOnRight))
         add(HelpButton);
+}
+
+/*!
+    Sets the order of the buttons to \a layout, from left to right. Stretch adds a space that grows. A button that is
+    not in the list is not shown by the layout, and an empty list brings back the default order, which depends on the
+    options.
+*/
+void QWizard::setButtonLayout(const QList<WizardButton> &layout) {
+    m_buttonLayout = layout;
+    layoutButtons();
+}
+
+/*!
+    Sets the \a which pixmap of the wizard to \a pixmap. The pixmaps are stored but not drawn.
+
+    \sa pixmap()
+*/
+void QWizard::setPixmap(WizardPixmap which, const QPixmap &pixmap) {
+    if (which >= 0 && which < NPixmaps)
+        m_pixmaps[which] = pixmap;
+}
+
+/*!
+    Returns the \a which pixmap of the wizard. The pixmap of the current page, if it has one, wins.
+*/
+QPixmap QWizard::pixmap(WizardPixmap which) const {
+    if (which < 0 || which >= NPixmaps)
+        return QPixmap();
+    if (const QWizardPage *current = currentPage(); current && !current->pixmap(which).isNull())
+        return current->pixmap(which);
+    return m_pixmaps[which];
+}
+
+/*!
+    Sets the format of the titles of the pages to \a format; Qt::AutoText by default.
+*/
+void QWizard::setTitleFormat(Qt::TextFormat format) {
+    m_titleFormat = format;
+    m_title->setTextFormat(format);
+}
+
+/*!
+    \fn Qt::TextFormat QWizard::titleFormat() const
+
+    Returns the format of the titles of the pages.
+*/
+
+/*!
+    Sets the format of the subtitles of the pages to \a format; Qt::AutoText by default.
+*/
+void QWizard::setSubTitleFormat(Qt::TextFormat format) {
+    m_subTitleFormat = format;
+    m_subTitle->setTextFormat(format);
+}
+
+/*!
+    \fn Qt::TextFormat QWizard::subTitleFormat() const
+
+    Returns the format of the subtitles of the pages.
+*/
+
+/*!
+    Makes \a property the property that QWizardPage::registerField() reads for widgets of the class \a className,
+    or of a class derived from it. \a changedSignal is the signal that announces a change, written with
+    \c SIGNAL(); it replaces the one that \c registerField() would connect. A later call for the same class replaces
+    the earlier one.
+*/
+void QWizard::setDefaultProperty(const char *className, const char *property, const char *changedSignal) {
+    if (!className || !property)
+        return;
+    for (DefaultProperty &entry : m_defaultProperties) {
+        if (entry.className == className) {
+            entry.property = property;
+            entry.changedSignal = changedSignal ? changedSignal : "";
+            return;
+        }
+    }
+    m_defaultProperties.push_back({className, property, changedSignal ? changedSignal : ""});
 }
 
 void QWizard::updateButtons() {
@@ -990,16 +1089,50 @@ void QWizardPage::registerField(const QString &name, QWidget *widget, const char
         return;
     const bool mandatory = name.endsWith(QLatin1Char('*'));
     const QString plain = mandatory ? name.left(name.size() - 1) : name;
-    const char *prop = property ? property : defaultProperty(widget);
+    const char *prop = property ? property : nullptr;
+    const char *registeredSignal = changedSignal;
+    if (!prop && m_wizard) {
+        for (const QMetaObject *meta = widget->metaObject(); meta && !prop; meta = meta->superClass()) {
+            for (const auto &entry : m_wizard->m_defaultProperties) {
+                if (entry.className == meta->className()) {
+                    prop = entry.property.constData();
+                    if (!registeredSignal && !entry.changedSignal.isEmpty())
+                        registeredSignal = entry.changedSignal.constData();
+                    break;
+                }
+            }
+        }
+    }
+    if (!prop)
+        prop = defaultProperty(widget);
     if (!prop) {
         qWarning("QWizardPage::registerField: no property for the field");
         return;
     }
     m_fields.push_back({plain, widget, QByteArray(prop), widget->property(prop), mandatory});
-    if (changedSignal)
-        QObject::connect(widget, changedSignal, this, SIGNAL(completeChanged()));
+    if (registeredSignal)
+        QObject::connect(widget, registeredSignal, this, SIGNAL(completeChanged()));
     else
         connectChanges(widget, this, [this] { emit completeChanged(); });
+}
+
+/*!
+    Sets the \a which pixmap of the page to \a pixmap, which wins over that of the wizard.
+*/
+void QWizardPage::setPixmap(QWizard::WizardPixmap which, const QPixmap &pixmap) {
+    if (which >= 0 && which < QWizard::NPixmaps)
+        m_pixmaps[which] = pixmap;
+}
+
+/*!
+    Returns the \a which pixmap of the page, or the one of the wizard if the page has none.
+*/
+QPixmap QWizardPage::pixmap(QWizard::WizardPixmap which) const {
+    if (which < 0 || which >= QWizard::NPixmaps)
+        return QPixmap();
+    if (!m_pixmaps[which].isNull())
+        return m_pixmaps[which];
+    return m_wizard ? m_wizard->m_pixmaps[which] : QPixmap();
 }
 
 /*!

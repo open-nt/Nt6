@@ -101,6 +101,7 @@ public:
         \value Polish A widget was polished by its style, before it is shown for the first time.
         \value PolishRequest A widget should be polished.
         \value ChildRemoved An object lost a child; delivered as a QChildEvent.
+        \value Gesture A gesture was recognized; delivered as a QGestureEvent.
         \value User The first value available for application-defined events.
         \value MaxUser The last value available for application-defined events.
     */
@@ -179,6 +180,7 @@ public:
         GraphicsSceneHoverMove = 161,
         GraphicsSceneHoverLeave = 162,
         GraphicsSceneWheel = 168,
+        Gesture = 198,
         GraphicsSceneHelp = 163,
         GraphicsSceneResize = 181,
         GraphicsSceneMove = 182,

@@ -4,6 +4,8 @@
 #include <QtCore/qpointer.h>
 #include <QtWidgets/qwidget.h>
 
+class QStyleOption;
+
 class QFocusFrame : public QWidget {
     Q_OBJECT
 public:
@@ -14,6 +16,7 @@ public:
     QWidget *widget() const { return m_widget.data(); }
 
 protected:
+    void initStyleOption(QStyleOption *option) const;
     bool eventFilter(QObject *watched, QEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
 

@@ -16,7 +16,7 @@
 
     \differences
     The families are shown in the font of the combo box, not in their own font. The font filters are recorded but do
-    not filter, and there is no \c writingSystem().
+    not filter, and neither does \c writingSystem(). The display fonts and the sample texts are stored but not shown.
     \enddifferences
 
     \sa QFontDialog, QComboBox
@@ -75,6 +75,61 @@ QFont QFontComboBox::currentFont() const {
     QFont font;
     font.setFamily(currentText());
     return font;
+}
+
+/*!
+    \fn QFontDatabase::WritingSystem QFontComboBox::writingSystem() const
+
+    Returns the writing system of the families that the list shows, QFontDatabase::Any by default; recorded only.
+*/
+
+/*!
+    \fn void QFontComboBox::setWritingSystem(QFontDatabase::WritingSystem script)
+
+    Sets the writing system of the families that the list shows to \a script; recorded only.
+*/
+
+/*!
+    Returns the font in which the \a family is shown in the list, or a font of that family if none was set.
+*/
+QFont QFontComboBox::displayFont(const QString &family) const {
+    const auto it = m_displayFonts.constFind(family);
+    if (it != m_displayFonts.constEnd())
+        return *it;
+    QFont font;
+    font.setFamily(family);
+    return font;
+}
+
+/*!
+    Sets the font in which the \a family is shown to \a font; recorded only.
+*/
+void QFontComboBox::setDisplayFont(const QString &family, const QFont &font) { m_displayFonts.insert(family, font); }
+
+/*!
+    Returns the sample text of the \a writingSystem, or an empty string if none was set.
+*/
+QString QFontComboBox::sampleTextForSystem(QFontDatabase::WritingSystem writingSystem) const {
+    return m_systemSamples.value(static_cast<int>(writingSystem));
+}
+
+/*!
+    Sets the sample text of the \a writingSystem to \a sampleText; recorded only.
+*/
+void QFontComboBox::setSampleTextForSystem(QFontDatabase::WritingSystem writingSystem, const QString &sampleText) {
+    m_systemSamples.insert(static_cast<int>(writingSystem), sampleText);
+}
+
+/*!
+    Returns the sample text of the \a fontFamily, or an empty string if none was set.
+*/
+QString QFontComboBox::sampleTextForFont(const QString &fontFamily) const { return m_fontSamples.value(fontFamily); }
+
+/*!
+    Sets the sample text of the \a fontFamily to \a sampleText; recorded only.
+*/
+void QFontComboBox::setSampleTextForFont(const QString &fontFamily, const QString &sampleText) {
+    m_fontSamples.insert(fontFamily, sampleText);
 }
 
 /*!

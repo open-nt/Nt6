@@ -17,6 +17,20 @@ constexpr int kColumns = 7;
 const char *const kMonths[] = {"January", "February", "March",     "April",   "May",      "June",
                                "July",    "August",   "September", "October", "November", "December"};
 const char *const kDays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
+const char *const kLongDays[] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+
+// The font with the properties that the format sets.
+QFont formatted(QFont font, const QTextCharFormat &format) {
+    if (format.hasProperty(QTextFormat::FontWeight))
+        font.setBold(format.fontWeight() > QFont::Medium);
+    if (format.hasProperty(QTextFormat::FontItalic))
+        font.setItalic(format.fontItalic());
+    if (format.hasProperty(QTextFormat::FontUnderline))
+        font.setUnderline(format.fontUnderline());
+    if (format.hasProperty(QTextFormat::FontStrikeOut))
+        font.setStrikeOut(format.fontStrikeOut());
+    return font;
+}
 
 } // namespace
 
@@ -39,8 +53,9 @@ const char *const kDays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
 
     \differences
     The names of the months and the days are English and the first day of the week is Monday, as there is no
-    \c QLocale; \c setFirstDayOfWeek() changes it. There are no date text formats (\c setDateTextFormat()), no
-    \c horizontalHeaderFormat(), no month and year menus in the navigation bar, and no \c dateEditEnabled().
+    \c QLocale; \c setFirstDayOfWeek() changes it. The month and year menus of the navigation bar are missing, and
+    \c dateEditEnabled() is stored but has no effect. The \c calendar() is stored but dates are always shown in the
+    Gregorian calendar.
     \enddifferences
 
     \sa QDateEdit, QDate
@@ -53,6 +68,17 @@ const char *const kDays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
 
     \value NoSelection The selected date cannot be changed by the user.
     \value SingleSelection The user can select one date.
+*/
+
+/*!
+    \enum QCalendarWidget::HorizontalHeaderFormat
+
+    What is shown above the days.
+
+    \value SingleLetterDayNames The first letter of the name of the day.
+    \value ShortDayNames The first three letters of the name of the day.
+    \value LongDayNames The whole name of the day.
+    \value NoHorizontalHeader Nothing.
 */
 
 /*!
@@ -326,6 +352,144 @@ void QCalendarWidget::showToday() {
     setCurrentPage(today.year(), today.month());
 }
 
+/*!
+    Sets what is shown above the days to \a format.
+*/
+void QCalendarWidget::setHorizontalHeaderFormat(HorizontalHeaderFormat format) {
+    m_horizontal = format;
+    updateGeometry();
+    update();
+}
+
+/*!
+    \fn QCalendarWidget::HorizontalHeaderFormat QCalendarWidget::horizontalHeaderFormat() const
+
+    Returns what is shown above the days, ShortDayNames by default.
+*/
+
+/*!
+    \fn QCalendar QCalendarWidget::calendar() const
+
+    Returns the calendar of the widget.
+*/
+
+/*!
+    Sets the calendar of the widget to \a calendar. Dates are still shown in the Gregorian calendar.
+*/
+void QCalendarWidget::setCalendar(QCalendar calendar) {
+    m_calendar = calendar;
+    update();
+}
+
+/*!
+    \fn void QCalendarWidget::clearMinimumDate()
+
+    Resets the first date that can be selected to 1752-09-14.
+*/
+
+/*!
+    \fn void QCalendarWidget::clearMaximumDate()
+
+    Resets the last date that can be selected to 9999-12-31.
+*/
+
+/*!
+    \fn QTextCharFormat QCalendarWidget::headerTextFormat() const
+
+    Returns the format of the names of the days above the dates.
+*/
+
+/*!
+    Sets the format of the names of the days above the dates to \a format.
+*/
+void QCalendarWidget::setHeaderTextFormat(const QTextCharFormat &format) {
+    m_headerFormat = format;
+    update();
+}
+
+/*!
+    Returns the format of the \a dayOfWeek in the dates; an empty format if none was set.
+*/
+QTextCharFormat QCalendarWidget::weekdayTextFormat(Qt::DayOfWeek dayOfWeek) const {
+    return m_weekdayFormats.value(dayOfWeek);
+}
+
+/*!
+    Sets the format of the \a dayOfWeek in the dates to \a format.
+*/
+void QCalendarWidget::setWeekdayTextFormat(Qt::DayOfWeek dayOfWeek, const QTextCharFormat &format) {
+    m_weekdayFormats.insert(dayOfWeek, format);
+    update();
+}
+
+/*!
+    \fn QMap<QDate, QTextCharFormat> QCalendarWidget::dateTextFormat() const
+
+    Returns the formats of all the dates that have one. A date format wins over the format of its day of the week.
+*/
+
+/*!
+    \fn QTextCharFormat QCalendarWidget::dateTextFormat(QDate date) const
+    \overload
+
+    Returns the format of the \a date; an empty format if none was set.
+*/
+
+/*!
+    Sets the format of the \a date to \a format. An empty format removes it.
+*/
+void QCalendarWidget::setDateTextFormat(QDate date, const QTextCharFormat &format) {
+    if (!date.isValid()) {
+        m_dateFormats.clear();
+    } else if (format.isEmpty()) {
+        m_dateFormats.remove(date);
+    } else {
+        m_dateFormats.insert(date, format);
+    }
+    update();
+}
+
+/*!
+    \fn bool QCalendarWidget::isDateEditEnabled() const
+
+    Returns whether the user may type a date. The value is stored; typing is not implemented.
+*/
+
+/*!
+    \fn void QCalendarWidget::setDateEditEnabled(bool enable)
+
+    Sets whether the user may type a date to \a enable.
+*/
+
+/*!
+    \fn int QCalendarWidget::dateEditAcceptDelay() const
+
+    Returns the time in milliseconds after which a typed date is accepted, 1500 by default.
+*/
+
+/*!
+    \fn void QCalendarWidget::setDateEditAcceptDelay(int delay)
+
+    Sets the time in milliseconds after which a typed date is accepted to \a delay.
+*/
+
+/*!
+    Repaints the cell of the \a date if it is shown.
+*/
+void QCalendarWidget::updateCell(QDate date) {
+    if (!date.isValid())
+        return;
+    const qint64 offset = firstShown().daysTo(date);
+    if (offset < 0 || offset >= kRows * kColumns)
+        return;
+    update(cellRect(static_cast<int>(offset / kColumns), static_cast<int>(offset % kColumns)));
+}
+
+/*!
+    Repaints all the cells.
+*/
+void QCalendarWidget::updateCells() { update(); }
+
 void QCalendarWidget::updateTitle() {
     m_title->setText(QString::fromUtf8(kMonths[m_month - 1]) + QLatin1Char(' ') + QString::number(m_year));
     m_previous->setEnabled(QDate(m_year, m_month, 1) > m_minimum);
@@ -367,6 +531,36 @@ QDate QCalendarWidget::dateAt(const QPoint &pos) const {
 }
 
 /*!
+    Paints the cell of the \a date in \a rect with the \a painter: the highlight of the selected date and the day
+    number, with the format of the date or of its day of the week. Reimplement it to draw cells differently.
+*/
+void QCalendarWidget::paintCell(QPainter *painter, const QRect &rect, QDate date) const {
+    const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
+    const bool inMonth = date.month() == m_month;
+    const bool inRange = date >= m_minimum && date <= m_maximum;
+    QTextCharFormat format = m_weekdayFormats.value(static_cast<Qt::DayOfWeek>(date.dayOfWeek()));
+    if (m_dateFormats.contains(date))
+        format = m_dateFormats.value(date);
+    painter->save();
+    if (format.background().style() != Qt::NoBrush)
+        painter->fillRect(rect, format.background());
+    if (date == m_selected && inMonth) {
+        painter->fillRect(rect.adjusted(1, 1, -1, -1), palette().color(group, QPalette::Highlight));
+        painter->setPen(palette().color(group, QPalette::HighlightedText));
+    } else if (!inMonth || !inRange) {
+        painter->setPen(palette().color(QPalette::Disabled, QPalette::Text));
+    } else if (format.foreground().style() != Qt::NoBrush) {
+        painter->setPen(format.foreground().color());
+    } else {
+        painter->setPen(palette().color(group, QPalette::Text));
+    }
+    if (!format.isEmpty())
+        painter->setFont(formatted(font(), format));
+    painter->drawText(rect, Qt::AlignCenter, QString::number(date.day()));
+    painter->restore();
+}
+
+/*!
     \reimp
 */
 void QCalendarWidget::paintEvent(QPaintEvent *event) {
@@ -376,13 +570,20 @@ void QCalendarWidget::paintEvent(QPaintEvent *event) {
     const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
     painter.fillRect(gridRect(), palette().color(group, QPalette::Base));
     // The names of the days.
-    QFont bold = font();
-    bold.setBold(true);
-    painter.setFont(bold);
-    painter.setPen(palette().color(group, QPalette::Text));
-    for (int column = 0; column < kColumns; ++column) {
-        const int day = (static_cast<int>(m_firstDay) - 1 + column) % 7;
-        painter.drawText(cellRect(-1, column), Qt::AlignCenter, QString::fromUtf8(kDays[day]));
+    if (m_horizontal != NoHorizontalHeader) {
+        QFont bold = font();
+        bold.setBold(true);
+        painter.setFont(formatted(bold, m_headerFormat));
+        const QBrush headerColor = m_headerFormat.foreground();
+        painter.setPen(headerColor.style() != Qt::NoBrush ? headerColor.color()
+                                                          : palette().color(group, QPalette::Text));
+        for (int column = 0; column < kColumns; ++column) {
+            const int day = (static_cast<int>(m_firstDay) - 1 + column) % 7;
+            QString name = QString::fromUtf8(m_horizontal == LongDayNames ? kLongDays[day] : kDays[day]);
+            if (m_horizontal == SingleLetterDayNames)
+                name = name.left(1);
+            painter.drawText(cellRect(-1, column), Qt::AlignCenter, name);
+        }
     }
     painter.setFont(font());
     const QDate first = firstShown();
@@ -395,17 +596,7 @@ void QCalendarWidget::paintEvent(QPaintEvent *event) {
         for (int column = 0; column < kColumns; ++column) {
             const QDate date = first.addDays(row * kColumns + column);
             const QRect cell = cellRect(row, column);
-            const bool inMonth = date.month() == m_month;
-            const bool inRange = date >= m_minimum && date <= m_maximum;
-            if (date == m_selected && inMonth) {
-                painter.fillRect(cell.adjusted(1, 1, -1, -1), palette().color(group, QPalette::Highlight));
-                painter.setPen(palette().color(group, QPalette::HighlightedText));
-            } else if (!inMonth || !inRange) {
-                painter.setPen(palette().color(QPalette::Disabled, QPalette::Text));
-            } else {
-                painter.setPen(palette().color(group, QPalette::Text));
-            }
-            painter.drawText(cell, Qt::AlignCenter, QString::number(date.day()));
+            paintCell(&painter, cell, date);
             if (m_grid) {
                 painter.setPen(palette().color(group, QPalette::Midlight));
                 painter.drawLine(cell.right(), cell.top(), cell.right(), cell.bottom());

@@ -29,8 +29,8 @@
     without its frame.
 
     \differences
-    The scroll bars are always off: sub-windows that are moved out of the area are cut off. There is no
-    \c setDocumentMode(), \c setTabShape() or \c setTabPosition() (the tabs are at the top), and the background is
+    The scroll bars are always off: sub-windows that are moved out of the area are cut off. The tab
+    bar is only at the top or the bottom (\c setTabPosition() treats West and East as North), and the background is
     filled with a color, not tiled with an image.
     \enddifferences
 
@@ -264,6 +264,57 @@ bool QMdiArea::tabsClosable() const { return m_tabs && m_tabs->tabsClosable(); }
 void QMdiArea::setTabsClosable(bool closable) {
     tabBar()->setTabsClosable(closable);
     layoutTabbed();
+}
+
+/*!
+    Returns whether the tab bar of the tabbed view is drawn in the document mode, without a frame. The default is
+    \c false.
+*/
+bool QMdiArea::documentMode() const { return m_tabs && m_tabs->documentMode(); }
+
+/*!
+    Sets whether the tab bar of the tabbed view is drawn in the document mode to \a enabled.
+*/
+void QMdiArea::setDocumentMode(bool enabled) {
+    tabBar()->setDocumentMode(enabled);
+    layoutTabbed();
+}
+
+/*!
+    \fn QTabWidget::TabPosition QMdiArea::tabPosition() const
+
+    Returns where the tab bar of the tabbed view is, North by default.
+*/
+
+/*!
+    Sets where the tab bar of the tabbed view is to \a position. North and South are supported; West and East are
+    stored but place the bar at the top.
+*/
+void QMdiArea::setTabPosition(QTabWidget::TabPosition position) {
+    m_tabPosition = position;
+    updateTabShape();
+    layoutTabbed();
+}
+
+/*!
+    \fn QTabWidget::TabShape QMdiArea::tabShape() const
+
+    Returns the shape of the tabs of the tabbed view, Rounded by default.
+*/
+
+/*!
+    Sets the shape of the tabs of the tabbed view to \a shape.
+*/
+void QMdiArea::setTabShape(QTabWidget::TabShape shape) {
+    m_tabShape = shape;
+    updateTabShape();
+}
+
+void QMdiArea::updateTabShape() {
+    const bool south = m_tabPosition == QTabWidget::South;
+    const bool rounded = m_tabShape == QTabWidget::Rounded;
+    tabBar()->setShape(south ? (rounded ? QTabBar::RoundedSouth : QTabBar::TriangularSouth)
+                             : (rounded ? QTabBar::RoundedNorth : QTabBar::TriangularNorth));
 }
 
 /*!
@@ -509,8 +560,9 @@ void QMdiArea::layoutTabbed() {
     if (m_viewMode != TabbedView || !m_tabs)
         return;
     const int bar = m_tabs->sizeHint().height();
-    setViewportMargins(0, bar, 0, 0);
-    m_tabs->setGeometry(0, 0, width(), bar);
+    const bool south = m_tabPosition == QTabWidget::South;
+    setViewportMargins(0, south ? 0 : bar, 0, south ? bar : 0);
+    m_tabs->setGeometry(0, south ? height() - bar : 0, width(), bar);
     for (const QPointer<QMdiSubWindow> &w : m_windows) {
         if (!w)
             continue;

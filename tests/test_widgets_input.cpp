@@ -22,6 +22,16 @@
 #include <QtWidgets/qtabwidget.h>
 #include <QtWidgets/qtoolbox.h>
 #include <QtWidgets/qdial.h>
+#include <QtWidgets/qcolormap.h>
+#include <QtWidgets/qfiledialog.h>
+#include <QtWidgets/qgesture.h>
+#include <QtWidgets/qgraphicsanchorlayout.h>
+#include <QtWidgets/qgraphicsscene.h>
+#include <QtWidgets/qplaintextdocumentlayout.h>
+#include <QtWidgets/qgraphicswidget.h>
+#include <QtWidgets/qmdiarea.h>
+#include <QtWidgets/qtreewidget.h>
+#include <QtWidgets/qwizard.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
@@ -669,6 +679,127 @@ void testSmallWidgets() {
     CHECK(edit.keySequence() == QKeySequence(Qt::Key_F5));
 }
 
+void testWidgetGaps() {
+    QCalendarWidget calendar;
+    QTextCharFormat red;
+    red.setForeground(QBrush(Qt::red));
+    calendar.setDateTextFormat(QDate(2024, 2, 14), red);
+    CHECK(calendar.dateTextFormat(QDate(2024, 2, 14)).foreground().color() == QColor(Qt::red));
+    CHECK(calendar.dateTextFormat().size() == 1);
+    calendar.setDateTextFormat(QDate(), QTextCharFormat());
+    CHECK(calendar.dateTextFormat().isEmpty());
+    calendar.setHorizontalHeaderFormat(QCalendarWidget::SingleLetterDayNames);
+    CHECK(calendar.horizontalHeaderFormat() == QCalendarWidget::SingleLetterDayNames);
+    calendar.setMaximumDate(QDate(2030, 1, 1));
+    calendar.clearMaximumDate();
+    CHECK(calendar.maximumDate() == QDate(9999, 12, 31));
+
+    QFontComboBox fonts;
+    fonts.setSampleTextForFont("Serif", "abc");
+    CHECK(fonts.sampleTextForFont("Serif") == "abc" && fonts.displayFont("Serif").family() == "Serif");
+
+    QWizard wizard;
+    wizard.setButtonLayout({QWizard::Stretch, QWizard::NextButton});
+    wizard.setTitleFormat(Qt::PlainText);
+    CHECK(wizard.titleFormat() == Qt::PlainText);
+
+    CHECK(QApplication::style()->layoutSpacing(QSizePolicy::PushButton, QSizePolicy::PushButton, Qt::Horizontal) >= 0);
+    CHECK(QApplication::style()->combinedLayoutSpacing(QSizePolicy::PushButton | QSizePolicy::Label,
+                                                       QSizePolicy::LineEdit, Qt::Vertical) >= 0);
+    QPixmap pixmap(4, 4);
+    pixmap.fill(Qt::blue);
+    CHECK(!QApplication::style()->generatedIconPixmap(QIcon::Disabled, pixmap, nullptr).isNull());
+
+    QGraphicsScene scene;
+    scene.setMinimumRenderSize(2);
+    CHECK(scene.minimumRenderSize() == 2 && scene.style() == QApplication::style());
+
+    auto *gw = new QGraphicsWidget;
+    scene.addItem(gw);
+    gw->setWindowFrameMargins(2, 10, 2, 2);
+    gw->resize(100, 50);
+    CHECK(gw->windowFrameRect() == QRectF(-2, -10, 104, 62));
+    CHECK(gw->windowFrameSectionAt(QPointF(50, -5)) == Qt::TitleBarArea &&
+          gw->windowFrameSectionAt(QPointF(50, 20)) == Qt::NoSection);
+    QAction action;
+    gw->addAction(&action);
+    CHECK(gw->actions().size() == 1);
+    gw->removeAction(&action);
+    gw->setAttribute(Qt::WA_Hover);
+    CHECK(gw->testAttribute(Qt::WA_Hover) && gw->style() == scene.style());
+    CHECK(gw->close() && !gw->isVisible());
+
+    QTreeWidget tree;
+    tree.setColumnCount(2);
+    auto *header = new QTreeWidgetItem;
+    header->setText(0, "A");
+    tree.setHeaderItem(header);
+    CHECK(tree.headerItem() == header && tree.columnCount() == 2);
+
+    QMdiArea area;
+    area.setTabPosition(QTabWidget::South);
+    area.setDocumentMode(true);
+    CHECK(area.tabPosition() == QTabWidget::South && area.documentMode());
+    auto *sub = area.addSubWindow(new QWidget);
+    sub->resize(200, 100);
+    sub->showShaded();
+    CHECK(sub->isShaded() && sub->height() < 100);
+    sub->showShaded();
+    CHECK(!sub->isShaded() && sub->height() == 100);
+
+    QPanGesture pan;
+    pan.setLastOffset(QPointF(1, 1));
+    pan.setOffset(QPointF(4, 5));
+    CHECK(pan.gestureType() == Qt::PanGesture && pan.delta() == QPointF(3, 4));
+    QSwipeGesture swipe;
+    swipe.setSwipeAngle(90);
+    CHECK(swipe.verticalDirection() == QSwipeGesture::Up && swipe.horizontalDirection() == QSwipeGesture::NoDirection);
+    QGestureEvent gestureEvent({&pan});
+    CHECK(gestureEvent.gesture(Qt::PanGesture) == &pan && !gestureEvent.isAccepted(Qt::PanGesture));
+    gestureEvent.accept(&pan);
+    CHECK(gestureEvent.isAccepted(&pan));
+    CHECK(QColormap::instance().pixel(QColor(255, 0, 0)) == 0xffff0000u);
+    QStyleOptionHeaderV2 headerOption;
+    CHECK(headerOption.version == 2 && headerOption.type == QStyleOption::SO_Header);
+
+    // Anchors: a fills the layout's width; b sits below a with the default spacing
+    {
+        QGraphicsWidget form;
+        auto *anchors = new QGraphicsAnchorLayout;
+        auto *a = new QGraphicsWidget;
+        auto *b = new QGraphicsWidget;
+        a->setPreferredSize(50, 20);
+        b->setPreferredSize(50, 30);
+        anchors->addAnchors(anchors, a, Qt::Horizontal);
+        anchors->addAnchor(anchors, Qt::AnchorTop, a, Qt::AnchorTop);
+        anchors->addAnchor(a, Qt::AnchorBottom, b, Qt::AnchorTop);
+        anchors->addAnchor(b, Qt::AnchorLeft, a, Qt::AnchorLeft)->setSpacing(0);
+        anchors->setContentsMargins(0, 0, 0, 0);
+        form.setLayout(anchors);
+        form.resize(200, 100);
+        anchors->activate();
+        CHECK(a->geometry().width() == 200 && a->geometry().top() == 0);
+        CHECK(b->geometry().top() == a->geometry().bottom() + 6 && b->geometry().left() == 0);
+        CHECK(anchors->anchor(a, Qt::AnchorBottom, b, Qt::AnchorTop) != nullptr);
+        anchors->anchor(a, Qt::AnchorBottom, b, Qt::AnchorTop)->setSpacing(10);
+        anchors->activate();
+        CHECK(b->geometry().top() == a->geometry().bottom() + 10);
+        CHECK(anchors->addAnchor(a, Qt::AnchorLeft, b, Qt::AnchorTop) == nullptr);
+    }
+
+    QTextDocument textDocument;
+    textDocument.setPlainText("one\ntwo");
+    QPlainTextDocumentLayout textLayout(&textDocument);
+    CHECK(textLayout.pageCount() == 1 && textLayout.documentSize().height() > 0 && textLayout.cursorWidth() == 1);
+
+    QFileDialog dialog;
+    dialog.setDirectoryUrl(QUrl::fromLocalFile("/tmp"));
+    CHECK(dialog.directoryUrl() == QUrl::fromLocalFile("/tmp") && dialog.history().contains("/tmp"));
+    QFileDialog other;
+    CHECK(other.restoreState(dialog.saveState()) && other.directory().absolutePath() == "/tmp");
+    CHECK(!other.restoreState(QByteArray("junk")));
+}
+
 void testCalendar() {
     QCalendarWidget calendar;
     calendar.setSelectedDate(QDate(2024, 2, 14));
@@ -918,6 +1049,7 @@ int main(int argc, char **argv) {
     testToolBox();
     testSmallWidgets();
     testCalendar();
+    testWidgetGaps();
     testDateTimeEdit();
     testCompleter();
     if (g_failures == 0)

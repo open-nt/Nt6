@@ -3,9 +3,11 @@
 
 #include <QtCore/qflags.h>
 #include <QtCore/qpointer.h>
+#include <QtWidgets/qmenu.h>
 #include <QtWidgets/qwidget.h>
 
 class QMdiArea;
+
 class QToolButton;
 
 class QMdiSubWindow : public QWidget {
@@ -31,6 +33,14 @@ public:
     bool isMaximized() const { return m_state.testFlag(Qt::WindowMaximized); }
     bool isMinimized() const { return m_state.testFlag(Qt::WindowMinimized); }
 
+    bool isShaded() const { return m_shaded; }
+    int keyboardSingleStep() const { return m_singleStep; }
+    void setKeyboardSingleStep(int step) { m_singleStep = step; }
+    int keyboardPageStep() const { return m_pageStep; }
+    void setKeyboardPageStep(int step) { m_pageStep = step; }
+    void setSystemMenu(QMenu *systemMenu);
+    QMenu *systemMenu() const { return m_systemMenu.data(); }
+
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
 
@@ -38,6 +48,8 @@ public slots:
     void showMaximized();
     void showMinimized();
     void showNormal();
+    void showShaded();
+    void showSystemMenu();
 
 signals:
     /*!
@@ -76,6 +88,10 @@ private:
     void updateButtons();
 
     QPointer<QWidget> m_widget;
+    QPointer<QMenu> m_systemMenu;
+    bool m_shaded = false;
+    int m_singleStep = 5;
+    int m_pageStep = 20;
     QToolButton *m_minimize = nullptr;
     QToolButton *m_maximize = nullptr;
     QToolButton *m_close = nullptr;

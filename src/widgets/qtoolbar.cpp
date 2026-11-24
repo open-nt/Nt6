@@ -4,6 +4,7 @@
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qtoolbutton.h>
 #include <QtWidgets/qwidgetaction.h>
@@ -511,6 +512,21 @@ void QToolBar::paintEvent(QPaintEvent *event) {
             painter.drawPoint(x, 6);
         }
     }
+}
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the tool bar: whether it is movable and its orientation as an area.
+*/
+void QToolBar::initStyleOption(QStyleOptionToolBar *option) const {
+    if (!option)
+        return;
+    option->initFrom(this);
+    option->features = m_movable ? QStyleOptionToolBar::Movable : QStyleOptionToolBar::None;
+    option->toolBarArea = m_orientation == Qt::Horizontal ? Qt::TopToolBarArea : Qt::LeftToolBarArea;
+    option->positionOfLine = QStyleOptionToolBar::OnlyOne;
+    option->positionWithinLine = QStyleOptionToolBar::OnlyOne;
 }
 
 /*!

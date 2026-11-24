@@ -5,6 +5,7 @@
 #include <QtCore/qmap.h>
 #include <QtCore/qpointer.h>
 #include <QtCore/qvariant.h>
+#include <QtGui/qpixmap.h>
 #include <QtWidgets/qabstractbutton.h>
 #include <QtWidgets/qdialog.h>
 
@@ -20,6 +21,8 @@ class QWizard : public QDialog {
     Q_PROPERTY(WizardStyle wizardStyle READ wizardStyle WRITE setWizardStyle)
     Q_PROPERTY(int startId READ startId WRITE setStartId)
     Q_PROPERTY(int currentId READ currentId WRITE setCurrentId NOTIFY currentIdChanged)
+    Q_PROPERTY(Qt::TextFormat titleFormat READ titleFormat WRITE setTitleFormat)
+    Q_PROPERTY(Qt::TextFormat subTitleFormat READ subTitleFormat WRITE setSubTitleFormat)
 public:
     enum WizardButton {
         BackButton,
@@ -37,6 +40,9 @@ public:
         NButtons = 9
     };
     Q_ENUM(WizardButton)
+
+    enum WizardPixmap { WatermarkPixmap, LogoPixmap, BannerPixmap, BackgroundPixmap, NPixmaps };
+    Q_ENUM(WizardPixmap)
 
     enum WizardStyle { ClassicStyle, ModernStyle, MacStyle, AeroStyle, NStyles };
     Q_ENUM(WizardStyle)
@@ -94,6 +100,14 @@ public:
     QString buttonText(WizardButton which) const;
     void setButton(WizardButton which, QAbstractButton *button);
     QAbstractButton *button(WizardButton which) const;
+    void setButtonLayout(const QList<WizardButton> &layout);
+    void setPixmap(WizardPixmap which, const QPixmap &pixmap);
+    QPixmap pixmap(WizardPixmap which) const;
+    void setTitleFormat(Qt::TextFormat format);
+    Qt::TextFormat titleFormat() const { return m_titleFormat; }
+    void setSubTitleFormat(Qt::TextFormat format);
+    Qt::TextFormat subTitleFormat() const { return m_subTitleFormat; }
+    void setDefaultProperty(const char *className, const char *property, const char *changedSignal);
     void setSideWidget(QWidget *widget);
     QWidget *sideWidget() const { return m_side.data(); }
 
@@ -157,6 +171,16 @@ private:
     WizardStyle m_style = ClassicStyle;
     WizardOptions m_options;
     bool m_restarted = false;
+    QList<WizardButton> m_buttonLayout;
+    QPixmap m_pixmaps[NPixmaps];
+    Qt::TextFormat m_titleFormat = Qt::AutoText;
+    Qt::TextFormat m_subTitleFormat = Qt::AutoText;
+    struct DefaultProperty {
+        QByteArray className;
+        QByteArray property;
+        QByteArray changedSignal;
+    };
+    std::vector<DefaultProperty> m_defaultProperties;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QWizard::WizardOptions)
@@ -176,6 +200,8 @@ public:
     void setFinalPage(bool finalPage);
     bool isFinalPage() const;
     void setCommitPage(bool commitPage);
+    void setPixmap(QWizard::WizardPixmap which, const QPixmap &pixmap);
+    QPixmap pixmap(QWizard::WizardPixmap which) const;
     bool isCommitPage() const { return m_commit; }
     void setButtonText(QWizard::WizardButton which, const QString &text);
     QString buttonText(QWizard::WizardButton which) const;
@@ -218,4 +244,5 @@ private:
     QWizard *m_wizard = nullptr;
     bool m_final = false;
     bool m_commit = false;
+    QPixmap m_pixmaps[QWizard::NPixmaps];
 };

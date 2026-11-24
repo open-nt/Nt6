@@ -234,6 +234,8 @@ public:
     bool isEnabledTo(const QWidget *ancestor) const;
     void setAttribute(Qt::WidgetAttribute attribute, bool on = true);
     bool testAttribute(Qt::WidgetAttribute attribute) const;
+    void grabGesture(Qt::GestureType type, Qt::GestureFlags flags = Qt::GestureFlags());
+    void ungrabGesture(Qt::GestureType type);
     bool updatesEnabled() const;
     void setUpdatesEnabled(bool enable);
     bool isWindowModified() const;
@@ -403,6 +405,7 @@ protected:
     virtual void mouseDoubleClickEvent(QMouseEvent *event);
     virtual void mouseMoveEvent(QMouseEvent *event);
     virtual void wheelEvent(QWheelEvent *event);
+
     virtual void keyPressEvent(QKeyEvent *event);
     virtual void keyReleaseEvent(QKeyEvent *event);
     virtual void focusInEvent(QFocusEvent *event);
@@ -435,6 +438,7 @@ private:
     friend class QApplication;
     struct Data;
     std::unique_ptr<Data> m_d;
+    QList<Qt::GestureType> m_gestures;
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QWidget::RenderFlags)

@@ -3,6 +3,8 @@
 
 #include <QtWidgets/qwidget.h>
 
+class QStyleOptionRubberBand;
+
 class QRubberBand : public QWidget {
     Q_OBJECT
 public:
@@ -15,6 +17,7 @@ public:
     Shape shape() const { return m_shape; }
 
 protected:
+    void initStyleOption(QStyleOptionRubberBand *option) const;
     void paintEvent(QPaintEvent *event) override;
 
 private:

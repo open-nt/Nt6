@@ -378,6 +378,17 @@ public:
     SortIndicator sortIndicator = None;
 };
 
+class QStyleOptionHeaderV2 : public QStyleOptionHeader {
+public:
+    enum StyleOptionType { Type = SO_Header };
+    enum StyleOptionVersion { Version = 2 };
+
+    QStyleOptionHeaderV2() { version = Version; }
+
+    Qt::TextElideMode textElideMode = Qt::ElideNone;
+    bool isSectionDragTarget = false;
+};
+
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStyleOptionButton::ButtonFeatures)
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStyleOptionFrame::FrameFeatures)
 Q_DECLARE_OPERATORS_FOR_FLAGS(QStyleOptionTab::CornerWidgets)

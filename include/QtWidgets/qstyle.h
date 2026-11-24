@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtGui/qicon.h>
+#include <QtWidgets/qsizepolicy.h>
 
 #include <QtCore/qflags.h>
 #include <QtCore/qobject.h>
@@ -653,6 +654,13 @@ public:
                                    const QWidget *widget = nullptr) const;
     virtual QIcon standardIcon(StandardPixmap standardIcon, const QStyleOption *option = nullptr,
                                const QWidget *widget = nullptr) const;
+    virtual QPixmap generatedIconPixmap(QIcon::Mode iconMode, const QPixmap &pixmap, const QStyleOption *option) const;
+    virtual int layoutSpacing(QSizePolicy::ControlType control1, QSizePolicy::ControlType control2,
+                              Qt::Orientation orientation, const QStyleOption *option = nullptr,
+                              const QWidget *widget = nullptr) const;
+    int combinedLayoutSpacing(QSizePolicy::ControlTypes controls1, QSizePolicy::ControlTypes controls2,
+                              Qt::Orientation orientation, QStyleOption *option = nullptr,
+                              const QWidget *widget = nullptr) const;
     virtual void polish(QWidget *widget);
     virtual void unpolish(QWidget *widget);
     virtual void polish(QApplication *application);

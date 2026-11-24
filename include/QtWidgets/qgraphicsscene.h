@@ -32,6 +32,7 @@ class QGraphicsTextItem;
 class QGraphicsView;
 class QKeyEvent;
 class QPainter;
+class QStyle;
 
 class QGraphicsScene : public QObject {
     Q_OBJECT
@@ -147,6 +148,15 @@ public:
     void setFont(const QFont &font);
     QPalette palette() const;
     void setPalette(const QPalette &palette);
+
+    int bspTreeDepth() const;
+    void setBspTreeDepth(int depth);
+    qreal minimumRenderSize() const;
+    void setMinimumRenderSize(qreal minSize);
+    bool focusOnTouch() const;
+    void setFocusOnTouch(bool enabled);
+    QStyle *style() const;
+    void setStyle(QStyle *style);
 
     bool isActive() const;
     QGraphicsItem *activePanel() const;

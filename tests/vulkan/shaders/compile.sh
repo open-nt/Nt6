@@ -8,3 +8,8 @@ cd "$(dirname "$0")"
 for stage in rgen rmiss rchit; do
     glslc --target-env=vulkan1.2 -fshader-stage=$stage -O rtriangle.$stage -o rtriangle.$stage.spv
 done
+
+# The shaders of nt_rhi_vulkan_tests (QRhi): a vertex colored triangle with a tint and a texture, and a compute fill.
+glslc --target-env=vulkan1.0 rhi_tri.vert -o rhi_tri.vert.spv
+glslc --target-env=vulkan1.0 rhi_tri.frag -o rhi_tri.frag.spv
+glslc --target-env=vulkan1.0 rhi_fill.comp -o rhi_fill.comp.spv

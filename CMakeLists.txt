@@ -609,6 +609,10 @@ add_library(NtGui
     src/gui/qvulkanfunctions.cpp
     src/gui/qvulkaninstance.cpp
     src/gui/qvulkanwindow.cpp
+    src/gui/rhi/qrhi.cpp
+    src/gui/rhi/qrhinull.cpp
+    src/gui/rhi/qrhivulkan.cpp
+    src/gui/rhi/qshader.cpp
     src/gui/qwindow.cpp
     src/gui/qwindowsysteminterface.cpp
 )
@@ -620,6 +624,7 @@ target_include_directories(NtGui
         $<INSTALL_INTERFACE:include/nt6/QtGui>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/rhi
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtGui PUBLIC NtCore PRIVATE NtDBus)
@@ -738,6 +743,8 @@ add_library(NtWidgets
     src/widgets/qgraphicsitem.cpp
     src/widgets/qgraphicsitems.cpp
     src/widgets/qgraphicsscene.cpp
+    src/widgets/qgraphicsanchorlayout.cpp
+    src/widgets/qgesture.cpp
     src/widgets/qgraphicseffect.cpp
     src/widgets/qgraphicsproxywidget.cpp
     src/widgets/qgraphicswidget.cpp
@@ -776,6 +783,7 @@ add_library(NtWidgets
     src/widgets/qprogressdialog.cpp
     src/widgets/qplaintextedit.cpp
     src/widgets/qproxystyle.cpp
+    src/widgets/qplaintextdocumentlayout.cpp
     src/widgets/qpushbutton.cpp
     src/widgets/qradiobutton.cpp
     src/widgets/qrubberband.cpp
@@ -793,7 +801,9 @@ add_library(NtWidgets
     src/widgets/qstatusbar.cpp
     src/widgets/qstyle.cpp
     src/widgets/qstyleditemdelegate.cpp
+    src/widgets/qcolormap.cpp
     src/widgets/qstylefactory.cpp
+    src/widgets/qstyleplugin.cpp
     src/widgets/qstyleoption.cpp
     src/widgets/qstylepainter.cpp
     src/widgets/qtabbar.cpp
@@ -847,6 +857,7 @@ target_include_directories(NtSvg
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/svg
         ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/rhi
 )
 target_link_libraries(NtSvg PUBLIC NtGui)
 nt_set_compile_options(NtSvg)
@@ -896,6 +907,7 @@ target_include_directories(NtCharts
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/charts
         ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/rhi
 )
 target_link_libraries(NtCharts PUBLIC NtWidgets)
 nt_set_compile_options(NtCharts)
@@ -921,6 +933,7 @@ target_include_directories(NtOpenGL
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/opengl
         ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/rhi
 )
 target_link_libraries(NtOpenGL PUBLIC NtGui)
 nt_set_compile_options(NtOpenGL)
@@ -1375,6 +1388,13 @@ endif()
 add_executable(Nt::rcc ALIAS ntrcc)
 add_executable(Qt6::rcc ALIAS ntrcc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtRcc.cmake)
+
+# ntsb: GLSL (through glslc) or SPIR-V to the .nsb files that QShader reads.
+if(NOT NT_ZEPHYR AND NOT CMAKE_CROSSCOMPILING)
+    add_executable(ntsb tools/ntsb/main.cpp)
+    target_link_libraries(ntsb PRIVATE Nt::Gui)
+    nt_set_compile_options(ntsb)
+endif()
 
 # The rest is the documentation, the packages and the tests, none of which is cross built.
 if(CMAKE_CROSSCOMPILING)
@@ -1945,6 +1965,14 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_openglwidgets_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_openglwidgets_tests)
 
+    # QRhi and QShader in Nt GUI: the shader container, the checks that all backends share, and the Null backend.
+    add_executable(nt_rhi_tests tests/test_rhi.cpp)
+    target_link_libraries(nt_rhi_tests PRIVATE Nt::Gui)
+    add_test(NAME nt_rhi_tests COMMAND nt_rhi_tests)
+    set_tests_properties(nt_rhi_tests PROPERTIES ENVIRONMENT
+        "QT_QPA_PLATFORM=offscreen;NT_NTSB=$<TARGET_FILE:ntsb>;NT_SHADER_DIR=${CMAKE_CURRENT_SOURCE_DIR}/tests/vulkan/shaders")
+    nt_set_compile_options(nt_rhi_tests)
+
     # Vulkan in Nt GUI: the instance and its functions, a device, QVulkanWindow without a surface, and a triangle
     # traced with VK_KHR_ray_tracing_pipeline into an image, headless, on the offscreen platform. The tests report a skip
     # where there is no Vulkan loader, and the ray tracing part where no device traces rays (Mesa's lavapipe does).
@@ -1958,6 +1986,19 @@ if(NT_BUILD_TESTS)
         add_test(NAME nt_vulkan_tests COMMAND nt_vulkan_tests)
         set_tests_properties(nt_vulkan_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
         nt_set_compile_options(nt_vulkan_tests)
+    endif()
+
+    # The Vulkan backend of QRhi, on the first Vulkan device (Mesa's lavapipe, in software, works); skipped without one.
+    if(NT_HAVE_VULKAN)
+        add_executable(nt_rhi_vulkan_tests tests/test_rhi_vulkan.cpp)
+        nt_add_resources(nt_rhi_vulkan_tests rhishaders PREFIX /shaders BASE tests/vulkan/shaders FILES
+            tests/vulkan/shaders/rhi_tri.vert.spv
+            tests/vulkan/shaders/rhi_tri.frag.spv
+            tests/vulkan/shaders/rhi_fill.comp.spv)
+        target_link_libraries(nt_rhi_vulkan_tests PRIVATE Nt::Gui)
+        add_test(NAME nt_rhi_vulkan_tests COMMAND nt_rhi_vulkan_tests)
+        set_tests_properties(nt_rhi_vulkan_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        nt_set_compile_options(nt_rhi_vulkan_tests)
     endif()
 
     # Nt SVG: the reader, the rasterizer, the generator and the widget, on the offscreen platform.

@@ -4,6 +4,7 @@
 #include <QtGui/qaction.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qmainwindow.h>
 #include <QtWidgets/qtoolbutton.h>
 
@@ -318,6 +319,23 @@ void QDockWidget::paintEvent(QPaintEvent *event) {
     painter.drawText(
         QRect(title.left() + kTitleMargin, title.top(), right - title.left() - kTitleMargin, title.height()),
         Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, windowTitle());
+}
+
+/*!
+    \since 6.0
+
+    Fills \a option with the state of the dock widget: its title and which of the close, move and float actions it
+    offers. The title bar is never vertical.
+*/
+void QDockWidget::initStyleOption(QStyleOptionDockWidget *option) const {
+    if (!option)
+        return;
+    option->initFrom(this);
+    option->title = windowTitle();
+    option->closable = m_features.testFlag(DockWidgetClosable);
+    option->movable = m_features.testFlag(DockWidgetMovable);
+    option->floatable = m_features.testFlag(DockWidgetFloatable);
+    option->verticalTitleBar = false;
 }
 
 /*!

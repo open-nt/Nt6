@@ -264,6 +264,49 @@ Q_DECLARE_FLAGS(MouseButtons, MouseButton)
 Q_DECLARE_OPERATORS_FOR_FLAGS(MouseButtons)
 
 /*!
+    \enum Qt::MouseEventSource
+
+    Where a mouse event came from.
+
+    \value MouseEventNotSynthesized The event comes from a mouse.
+    \value MouseEventSynthesizedBySystem The system made the event from a touch or a pen.
+    \value MouseEventSynthesizedByQt The library made the event from a touch.
+    \value MouseEventSynthesizedByApplication The application made the event.
+*/
+enum MouseEventSource {
+    MouseEventNotSynthesized,
+    MouseEventSynthesizedBySystem,
+    MouseEventSynthesizedByQt,
+    MouseEventSynthesizedByApplication
+};
+
+/*!
+    \enum Qt::MouseEventFlag
+
+    Extra information about a mouse event. The MouseEventFlags type is a typedef for \c{QFlags<MouseEventFlag>}.
+
+    \value NoMouseEventFlag No flag.
+    \value MouseEventCreatedDoubleClick The press is the second of a double click.
+    \value MouseEventFlagMask All the flags.
+*/
+enum MouseEventFlag { NoMouseEventFlag = 0x00, MouseEventCreatedDoubleClick = 0x01, MouseEventFlagMask = 0xFF };
+Q_DECLARE_FLAGS(MouseEventFlags, MouseEventFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(MouseEventFlags)
+
+/*!
+    \enum Qt::ScrollPhase
+
+    The phase of a scroll gesture.
+
+    \value NoScrollPhase The event is not part of a scroll gesture.
+    \value ScrollBegin The scroll gesture starts.
+    \value ScrollUpdate The scroll gesture goes on.
+    \value ScrollEnd The scroll gesture ends.
+    \value ScrollMomentum The scroll goes on by momentum.
+*/
+enum ScrollPhase { NoScrollPhase = 0, ScrollBegin, ScrollUpdate, ScrollEnd, ScrollMomentum };
+
+/*!
     \enum Qt::KeyboardModifier
 
     This enum describes the modifier keys. The KeyboardModifiers type is a
@@ -1049,6 +1092,36 @@ enum SizeHint { MinimumSize, PreferredSize, MaximumSize, MinimumDescent, NSizeHi
     \value CustomGesture The first value of a gesture of the application, also the one of a QScroller.
     \omitvalue LastGestureType
 */
+/*!
+    \enum Qt::GestureState
+
+    The state of a gesture.
+
+    \value NoGesture No gesture.
+    \value GestureStarted A continuous gesture has started.
+    \value GestureUpdated A gesture continues.
+    \value GestureFinished A gesture ended successfully.
+    \value GestureCanceled A gesture was canceled.
+*/
+enum GestureState { NoGesture, GestureStarted = 1, GestureUpdated = 2, GestureFinished = 3, GestureCanceled = 4 };
+
+/*!
+    \enum Qt::GestureFlag
+
+    How a widget or item wants gestures. GestureFlags is a typedef for \c{QFlags<GestureFlag>}.
+
+    \value DontStartGestureOnChildren A gesture does not start on a child of the widget.
+    \value ReceivePartialGestures The widget gets gestures that may still be recognized.
+    \value IgnoredGesturesPropagateToParent An ignored gesture is offered to the parent.
+*/
+enum GestureFlag {
+    DontStartGestureOnChildren = 0x01,
+    ReceivePartialGestures = 0x02,
+    IgnoredGesturesPropagateToParent = 0x04
+};
+Q_DECLARE_FLAGS(GestureFlags, GestureFlag)
+Q_DECLARE_OPERATORS_FOR_FLAGS(GestureFlags)
+
 enum GestureType : unsigned {
     TapGesture = 1,
     TapAndHoldGesture = 2,
@@ -1352,6 +1425,35 @@ enum TransformationMode { FastTransformation, SmoothTransformation };
     \value ApplicationShortcut While any window of the application is active.
     \value WidgetWithChildrenShortcut While its parent widget or one of its children has the focus.
 */
+/*!
+    \enum Qt::WindowFrameSection
+
+    The parts of a window frame.
+
+    \value NoSection Not on the frame.
+    \value LeftSection The left edge.
+    \value TopLeftSection The top left corner.
+    \value TopSection The top edge.
+    \value TopRightSection The top right corner.
+    \value RightSection The right edge.
+    \value BottomRightSection The bottom right corner.
+    \value BottomSection The bottom edge.
+    \value BottomLeftSection The bottom left corner.
+    \value TitleBarArea The title bar.
+*/
+enum WindowFrameSection {
+    NoSection,
+    LeftSection,
+    TopLeftSection,
+    TopSection,
+    TopRightSection,
+    RightSection,
+    BottomRightSection,
+    BottomSection,
+    BottomLeftSection,
+    TitleBarArea
+};
+
 enum ShortcutContext { WidgetShortcut, WindowShortcut, ApplicationShortcut, WidgetWithChildrenShortcut };
 
 /*!
@@ -1818,6 +1920,20 @@ enum NavigationMode {
     \value BottomLeftCorner The bottom left corner.
     \value BottomRightCorner The bottom right corner.
 */
+/*!
+    \enum Qt::AnchorPoint
+
+    The edges of an item that a QGraphicsAnchorLayout anchors.
+
+    \value AnchorLeft The left edge.
+    \value AnchorHorizontalCenter The vertical line through the middle.
+    \value AnchorRight The right edge.
+    \value AnchorTop The top edge.
+    \value AnchorVerticalCenter The horizontal line through the middle.
+    \value AnchorBottom The bottom edge.
+*/
+enum AnchorPoint { AnchorLeft = 0, AnchorHorizontalCenter, AnchorRight, AnchorTop, AnchorVerticalCenter, AnchorBottom };
+
 enum Corner { TopLeftCorner = 0x00000, TopRightCorner = 0x00001, BottomLeftCorner = 0x00002, BottomRightCorner = 0x00003 };
 
 /*!

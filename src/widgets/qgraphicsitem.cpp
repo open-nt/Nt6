@@ -1649,6 +1649,25 @@ QGraphicsObject::QGraphicsObject(QGraphicsItem *parent) : QObject(nullptr), QGra
 QGraphicsObject::~QGraphicsObject() = default;
 
 /*!
+    Subscribes the item to the gestures of the \a type, with the \a flags. Nt does not recognize gestures itself; the
+    subscription is only kept.
+
+    \sa ungrabGesture()
+*/
+void QGraphicsObject::grabGesture(Qt::GestureType type, Qt::GestureFlags flags) {
+    (void)flags;
+    if (!m_gestures.contains(type))
+        m_gestures.append(type);
+}
+
+/*!
+    Unsubscribes the item from the gestures of the \a type.
+
+    \sa grabGesture()
+*/
+void QGraphicsObject::ungrabGesture(Qt::GestureType type) { m_gestures.removeAll(type); }
+
+/*!
     Accepted for compatibility; Nt has no input methods.
 */
 void QGraphicsObject::updateMicroFocus() {}

@@ -5,6 +5,7 @@
 #include <QtGui/qpixmap.h>
 #include <QtWidgets/qabstractitemdelegate.h>
 
+class QItemEditorFactory;
 class QStyledItemDelegate;
 
 class QItemDelegate : public QAbstractItemDelegate {
@@ -16,6 +17,9 @@ public:
 
     bool hasClipping() const { return m_clipping; }
     void setClipping(bool clip);
+
+    QItemEditorFactory *itemEditorFactory() const;
+    void setItemEditorFactory(QItemEditorFactory *factory);
 
     void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
     QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override;
@@ -33,6 +37,9 @@ protected:
     virtual void drawFocus(QPainter *painter, const QStyleOptionViewItem &option, const QRect &rect) const;
     virtual void drawCheck(QPainter *painter, const QStyleOptionViewItem &option, const QRect &rect,
                            Qt::CheckState state) const;
+    QRect doCheck(const QStyleOptionViewItem &option, const QRect &bounding, const QVariant &variant) const;
+    QPixmap selectedPixmap(const QPixmap &pixmap, const QPalette &palette, bool enabled) const;
+    QRect textRectangle(QPainter *painter, const QRect &rect, const QFont &font, const QString &text) const;
     void drawBackground(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const;
     void doLayout(const QStyleOptionViewItem &option, QRect *checkRect, QRect *pixmapRect, QRect *textRect,
                   bool hint) const;

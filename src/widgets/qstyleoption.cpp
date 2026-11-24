@@ -381,6 +381,51 @@ void QStyleOption::initFrom(const QWidget *widget) {
 */
 
 /*!
+    \class QStyleOptionHeaderV2
+    \brief The QStyleOptionHeaderV2 class adds the elide mode and the drop target mark to QStyleOptionHeader.
+
+    \differences
+    The members are ordinary members, not bit fields.
+    \enddifferences
+
+    \sa QStyleOptionHeader, QHeaderView
+*/
+
+/*!
+    \enum QStyleOptionHeaderV2::StyleOptionType
+
+    The type that identifies the option: the same as for QStyleOptionHeader.
+
+    \value Type The type of the option.
+*/
+
+/*!
+    \enum QStyleOptionHeaderV2::StyleOptionVersion
+
+    The version of the option.
+
+    \value Version The version, 2.
+*/
+
+/*!
+    \fn QStyleOptionHeaderV2::QStyleOptionHeaderV2()
+
+    Constructs an option for a header section, with the version 2.
+*/
+
+/*!
+    \variable QStyleOptionHeaderV2::textElideMode
+
+    Where the text is cut if it is too long: Qt::ElideNone by default.
+*/
+
+/*!
+    \variable QStyleOptionHeaderV2::isSectionDragTarget
+
+    Whether the section is the place where a dragged section would be dropped.
+*/
+
+/*!
     \fn QStyleOptionHeader::QStyleOptionHeader()
 
     Constructs an option for a header section.

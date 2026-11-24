@@ -378,6 +378,9 @@ public:
     explicit QGraphicsObject(QGraphicsItem *parent = nullptr);
     ~QGraphicsObject() override;
 
+    void grabGesture(Qt::GestureType type, Qt::GestureFlags flags = Qt::GestureFlags());
+    void ungrabGesture(Qt::GestureType type);
+
 public slots:
     void updateMicroFocus();
 
@@ -412,6 +415,7 @@ protected:
 
 private:
     void notifyChange(GraphicsItemChange change) override;
+    QList<Qt::GestureType> m_gestures;
 };
 
 class QAbstractGraphicsShapeItem : public QGraphicsItem {

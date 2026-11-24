@@ -22,6 +22,9 @@ public:
     QSize sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize,
                            const QWidget *widget = nullptr) const override;
     QPalette standardPalette() const override;
+    QPixmap generatedIconPixmap(QIcon::Mode iconMode, const QPixmap &pixmap, const QStyleOption *option) const override;
+    int layoutSpacing(QSizePolicy::ControlType control1, QSizePolicy::ControlType control2, Qt::Orientation orientation,
+                      const QStyleOption *option = nullptr, const QWidget *widget = nullptr) const override;
 
 private:
     std::unique_ptr<QStyle> m_look; // draws what the style does not draw itself

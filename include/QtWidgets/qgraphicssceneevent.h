@@ -23,9 +23,18 @@ public:
         Sets the widget the event happened in to \a widget.
     */
     void setWidget(QWidget *widget) { m_widget = widget; }
+    /*!
+        Returns the time of the event in milliseconds, or 0 if it was not set.
+    */
+    quint64 timestamp() const { return m_timestamp; }
+    /*!
+        Sets the time of the event to \a timestamp milliseconds.
+    */
+    void setTimestamp(quint64 timestamp) { m_timestamp = timestamp; }
 
 private:
     QWidget *m_widget = nullptr;
+    quint64 m_timestamp = 0;
 };
 
 class QGraphicsSceneMouseEvent : public QGraphicsSceneEvent {
@@ -78,6 +87,14 @@ public:
     Qt::KeyboardModifiers modifiers() const { return m_modifiers; }
     /*! Sets the keyboard modifiers to \a modifiers. */
     void setModifiers(Qt::KeyboardModifiers modifiers) { m_modifiers = modifiers; }
+    /*! Returns where the event came from, Qt::MouseEventNotSynthesized by default. */
+    Qt::MouseEventSource source() const { return m_source; }
+    /*! Sets where the event came from to \a source. */
+    void setSource(Qt::MouseEventSource source) { m_source = source; }
+    /*! Returns the flags of the event. */
+    Qt::MouseEventFlags flags() const { return m_flags; }
+    /*! Sets the flags of the event to \a flags. */
+    void setFlags(Qt::MouseEventFlags flags) { m_flags = flags; }
 
 private:
     QPointF m_pos;
@@ -92,6 +109,8 @@ private:
     Qt::MouseButtons m_buttons;
     Qt::MouseButton m_button = Qt::NoButton;
     Qt::KeyboardModifiers m_modifiers;
+    Qt::MouseEventSource m_source = Qt::MouseEventNotSynthesized;
+    Qt::MouseEventFlags m_flags;
 };
 
 class QGraphicsSceneHoverEvent : public QGraphicsSceneEvent {
@@ -286,6 +305,14 @@ public:
     QPoint pixelDelta() const { return m_pixelDelta; }
     /*! Sets the scrolling distance in pixels to \a delta. */
     void setPixelDelta(const QPoint &delta) { m_pixelDelta = delta; }
+    /*! Returns the phase of the scroll gesture, Qt::NoScrollPhase by default. */
+    Qt::ScrollPhase phase() const { return m_phase; }
+    /*! Sets the phase of the scroll gesture to \a phase. */
+    void setPhase(Qt::ScrollPhase phase) { m_phase = phase; }
+    /*! Returns whether the direction of the delta is inverted by the system. */
+    bool isInverted() const { return m_inverted; }
+    /*! Sets whether the direction of the delta is inverted to \a inverted. */
+    void setInverted(bool inverted) { m_inverted = inverted; }
 
 private:
     QPointF m_pos;
@@ -296,6 +323,8 @@ private:
     int m_delta = 0;
     Qt::Orientation m_orientation = Qt::Vertical;
     QPoint m_pixelDelta;
+    Qt::ScrollPhase m_phase = Qt::NoScrollPhase;
+    bool m_inverted = false;
 };
 
 class QGraphicsSceneHelpEvent : public QGraphicsSceneEvent {

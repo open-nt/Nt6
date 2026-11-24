@@ -10,6 +10,8 @@
 class QBoxLayout;
 class QToolButton;
 
+class QStyleOptionToolBar;
+
 class QToolBar : public QWidget {
     Q_OBJECT
     Q_PROPERTY(bool movable READ isMovable WRITE setMovable NOTIFY movableChanged)
@@ -111,6 +113,7 @@ signals:
     void visibilityChanged(bool visible) { emitSignal(&QToolBar::visibilityChanged, visible); }
 
 protected:
+    void initStyleOption(QStyleOptionToolBar *option) const;
     void actionEvent(QActionEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void showEvent(QShowEvent *event) override;

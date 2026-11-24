@@ -72,6 +72,22 @@ QRect QCommonStyle::subElementRect(SubElement element, const QStyleOption *optio
 /*!
     \reimp
 */
+QPixmap QCommonStyle::generatedIconPixmap(QIcon::Mode iconMode, const QPixmap &pixmap,
+                                          const QStyleOption *option) const {
+    return QStyle::generatedIconPixmap(iconMode, pixmap, option);
+}
+
+/*!
+    \reimp
+*/
+int QCommonStyle::layoutSpacing(QSizePolicy::ControlType control1, QSizePolicy::ControlType control2,
+                                Qt::Orientation orientation, const QStyleOption *option, const QWidget *widget) const {
+    return QStyle::layoutSpacing(control1, control2, orientation, option, widget);
+}
+
+/*!
+    \reimp
+*/
 int QCommonStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const {
     return m_look->pixelMetric(metric, option, widget);
 }

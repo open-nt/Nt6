@@ -1,7 +1,10 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qfiledialog.h>
 
+#include <QtCore/qdatastream.h>
 #include <QtCore/qfileinfo.h>
+#include <QtCore/qmimedatabase.h>
+#include <QtCore/qmimetype.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qcombobox.h>
 #include <QtWidgets/qdialogbuttonbox.h>
@@ -72,9 +75,10 @@ QString withSlash(const QString &dir) { return dir.endsWith(QLatin1Char('/')) ? 
 
     \differences
     The dialog is always drawn by Nt, as a plain list of names: there is no detail view, no icons, no sidebar of places,
-    no history and no file system watching (the list is read when a directory is entered). There are no URL variants
-    (\c getOpenFileUrl() and the others), no \c setFilter(), \c setProxyModel(), \c setIconProvider() or
-    \c saveState(), and no \c open() with a receiver. The texts are not translated.
+    no history and no file system watching (the list is read when a directory is entered). The URL functions work with
+    \c file: URLs only. The \c filter(), the history, the sidebar URLs, the supported schemes, the icon provider, the
+    item delegate and the proxy model are kept but not used. There is no \c open() with a receiver, and no
+    \c getOpenFileContent() or \c saveFileContent(). The texts are not translated.
     \enddifferences
 
     \sa QDir, QFileInfo
@@ -230,7 +234,219 @@ void QFileDialog::setDirectory(const QString &directory) {
     m_lookIn->setText(path);
     m_up->setEnabled(!QDir(path).isRoot());
     refresh();
+    m_history.removeAll(path);
+    m_history.append(path);
     emit directoryEntered(path);
+    emit directoryUrlEntered(QUrl::fromLocalFile(path));
+}
+
+/*!
+    Sets the directory that the dialog shows to \a directory, if it is a \c file: URL.
+
+    \sa directoryUrl(), setDirectory()
+*/
+void QFileDialog::setDirectoryUrl(const QUrl &directory) {
+    if (directory.isLocalFile())
+        setDirectory(directory.toLocalFile());
+}
+
+/*!
+    \fn QUrl QFileDialog::directoryUrl() const
+
+    Returns the directory that the dialog shows, as a \c file: URL.
+*/
+
+/*!
+    Selects the file at \a url, if it is a \c file: URL.
+
+    \sa selectFile()
+*/
+void QFileDialog::selectUrl(const QUrl &url) {
+    if (url.isLocalFile())
+        selectFile(url.toLocalFile());
+}
+
+/*!
+    Returns the selected files as \c file: URLs.
+
+    \sa selectedFiles()
+*/
+QList<QUrl> QFileDialog::selectedUrls() const {
+    QList<QUrl> urls;
+    const QStringList files = selectedFiles();
+    for (const QString &file : files)
+        urls.append(QUrl::fromLocalFile(file));
+    return urls;
+}
+
+/*!
+    \fn QDir::Filters QFileDialog::filter() const
+
+    Returns the kinds of entries that the dialog lists; only kept.
+*/
+
+/*!
+    \fn void QFileDialog::setFilter(QDir::Filters filters)
+
+    Sets the kinds of entries that the dialog lists to \a filters; only kept.
+*/
+
+/*!
+    Sets the name filters from the MIME type names \a filters: each becomes the name filter of its MIME type, with
+    the glob patterns of the type. A name that is not a known MIME type is ignored, and \c application/octet-stream
+    stands for all files.
+
+    \sa mimeTypeFilters(), setNameFilters()
+*/
+void QFileDialog::setMimeTypeFilters(const QStringList &filters) {
+    m_mimeTypeFilters = filters;
+    const QMimeDatabase database;
+    QStringList names;
+    for (const QString &name : filters) {
+        if (name == QLatin1String("application/octet-stream")) {
+            names.append(QStringLiteral("All Files (*)"));
+            continue;
+        }
+        const QMimeType type = database.mimeTypeForName(name);
+        if (type.isValid() && !type.globPatterns().isEmpty())
+            names.append(type.comment() + QLatin1String(" (") + type.globPatterns().join(QLatin1Char(' ')) +
+                         QLatin1Char(')'));
+    }
+    setNameFilters(names);
+}
+
+/*!
+    \fn QStringList QFileDialog::mimeTypeFilters() const
+
+    Returns the MIME type names that were given to setMimeTypeFilters().
+*/
+
+/*!
+    Chooses the filter of the MIME type \a filter, if it is one of mimeTypeFilters().
+*/
+void QFileDialog::selectMimeTypeFilter(const QString &filter) {
+    const qsizetype index = m_mimeTypeFilters.indexOf(filter);
+    if (index >= 0 && index < m_nameFilters.size())
+        selectNameFilter(m_nameFilters.at(index));
+}
+
+/*!
+    Returns the MIME type of the chosen filter, or an empty string if the filters were not set with
+    setMimeTypeFilters().
+*/
+QString QFileDialog::selectedMimeTypeFilter() const {
+    if (m_mimeTypeFilters.isEmpty())
+        return QString();
+    const int index = m_types->currentIndex();
+    return index >= 0 && index < m_mimeTypeFilters.size() ? m_mimeTypeFilters.at(index) : QString();
+}
+
+/*!
+    \fn QStringList QFileDialog::history() const
+
+    Returns the directories that the dialog showed, the latest last. The list is kept but not used for navigation.
+*/
+
+/*!
+    \fn void QFileDialog::setHistory(const QStringList &paths)
+
+    Sets the directories in the history to \a paths.
+*/
+
+/*!
+    \fn QList<QUrl> QFileDialog::sidebarUrls() const
+
+    Returns the URLs of the sidebar; only kept, as the dialog has no sidebar.
+*/
+
+/*!
+    \fn void QFileDialog::setSidebarUrls(const QList<QUrl> &urls)
+
+    Sets the URLs of the sidebar to \a urls; only kept.
+*/
+
+/*!
+    \fn QStringList QFileDialog::supportedSchemes() const
+
+    Returns the URL schemes that the dialog accepts; only kept.
+*/
+
+/*!
+    \fn void QFileDialog::setSupportedSchemes(const QStringList &schemes)
+
+    Sets the URL schemes that the dialog accepts to \a schemes; only kept.
+*/
+
+/*!
+    \fn QAbstractFileIconProvider *QFileDialog::iconProvider() const
+
+    Returns the icon provider that was set, or \c nullptr. The dialog does not show icons.
+*/
+
+/*!
+    \fn void QFileDialog::setIconProvider(QAbstractFileIconProvider *provider)
+
+    Sets the icon provider to \a provider, which the dialog does not own; only kept.
+*/
+
+/*!
+    \fn QAbstractItemDelegate *QFileDialog::itemDelegate() const
+
+    Returns the item delegate that was set, or \c nullptr.
+*/
+
+/*!
+    \fn void QFileDialog::setItemDelegate(QAbstractItemDelegate *delegate)
+
+    Sets the item delegate to \a delegate, which the dialog does not own; only kept.
+*/
+
+/*!
+    \fn QAbstractProxyModel *QFileDialog::proxyModel() const
+
+    Returns the proxy model that was set, or \c nullptr.
+*/
+
+/*!
+    \fn void QFileDialog::setProxyModel(QAbstractProxyModel *model)
+
+    Sets the proxy model to \a model, which the dialog does not own; only kept.
+*/
+
+/*!
+    Returns the state of the dialog: the directory, the history, the name filter, the view mode and the size.
+
+    \sa restoreState()
+*/
+QByteArray QFileDialog::saveState() const {
+    QByteArray state;
+    QDataStream out(&state, QIODevice::WriteOnly);
+    out << qint32(0x4e744644) << m_directory << m_history << selectedNameFilter() << qint32(m_viewMode) << size();
+    return state;
+}
+
+/*!
+    Restores the state that saveState() returned. Returns \c false, and changes nothing, if \a state is not valid.
+*/
+bool QFileDialog::restoreState(const QByteArray &state) {
+    QDataStream in(state);
+    qint32 magic = 0;
+    QString directory;
+    QStringList history;
+    QString filter;
+    qint32 viewMode = 0;
+    QSize dialogSize;
+    in >> magic >> directory >> history >> filter >> viewMode >> dialogSize;
+    if (in.status() != QDataStream::Ok || magic != 0x4e744644 || (viewMode != Detail && viewMode != List))
+        return false;
+    setViewMode(static_cast<ViewMode>(viewMode));
+    selectNameFilter(filter);
+    if (QDir(directory).exists())
+        setDirectory(directory);
+    m_history = history;
+    if (dialogSize.isValid())
+        resize(dialogSize);
+    return true;
 }
 
 /*!
@@ -541,8 +757,11 @@ void QFileDialog::accept() {
     }
     m_selected = files;
     emit filesSelected(files);
-    if (m_fileMode != ExistingFiles)
+    emit urlsSelected(selectedUrls());
+    if (m_fileMode != ExistingFiles) {
         emit fileSelected(files.first());
+        emit urlSelected(QUrl::fromLocalFile(files.first()));
+    }
     QDialog::accept();
 }
 
@@ -648,6 +867,7 @@ void QFileDialog::selectionChanged() {
         if (text.endsWith(QLatin1Char('/')))
             text.chop(1);
         emit currentChanged(withSlash(m_directory) + text);
+        emit currentUrlChanged(QUrl::fromLocalFile(withSlash(m_directory) + text));
     }
     if (names.isEmpty())
         return;
@@ -727,6 +947,59 @@ QString QFileDialog::getExistingDirectory(QWidget *parent, const QString &captio
     if (dialog.exec() != Accepted)
         return QString();
     return dialog.selectedFiles().value(0);
+}
+
+/*!
+    Shows a file dialog for opening a file with the given \a parent, window \a caption, starting directory \a dir,
+    name filters \a filter and \a options, and waits. Returns the \c file: URL of the chosen file, or an empty URL if
+    the user canceled. \a selectedFilter works as in getOpenFileName(). \a supportedSchemes is kept but only
+    \c file: URLs can be chosen.
+*/
+QUrl QFileDialog::getOpenFileUrl(QWidget *parent, const QString &caption, const QUrl &dir, const QString &filter,
+                                 QString *selectedFilter, Options options, const QStringList &supportedSchemes) {
+    (void)supportedSchemes;
+    const QString name = getOpenFileName(parent, caption, dir.toLocalFile(), filter, selectedFilter, options);
+    return name.isEmpty() ? QUrl() : QUrl::fromLocalFile(name);
+}
+
+/*!
+    Shows a file dialog for opening files with the given \a parent, window \a caption, starting directory \a dir, name
+    filters \a filter and \a options, and waits. \a selectedFilter and \a supportedSchemes work as in getOpenFileUrl().
+    Returns the \c file: URLs of the chosen files.
+*/
+QList<QUrl> QFileDialog::getOpenFileUrls(QWidget *parent, const QString &caption, const QUrl &dir,
+                                         const QString &filter, QString *selectedFilter, Options options,
+                                         const QStringList &supportedSchemes) {
+    (void)supportedSchemes;
+    const QStringList names = getOpenFileNames(parent, caption, dir.toLocalFile(), filter, selectedFilter, options);
+    QList<QUrl> urls;
+    for (const QString &name : names)
+        urls.append(QUrl::fromLocalFile(name));
+    return urls;
+}
+
+/*!
+    Shows a file dialog for saving a file with the given \a parent, window \a caption, starting directory \a dir, name
+    filters \a filter and \a options, and waits. \a selectedFilter and \a supportedSchemes work as in getOpenFileUrl().
+    Returns the \c file: URL of the chosen file, or an empty URL.
+*/
+QUrl QFileDialog::getSaveFileUrl(QWidget *parent, const QString &caption, const QUrl &dir, const QString &filter,
+                                 QString *selectedFilter, Options options, const QStringList &supportedSchemes) {
+    (void)supportedSchemes;
+    const QString name = getSaveFileName(parent, caption, dir.toLocalFile(), filter, selectedFilter, options);
+    return name.isEmpty() ? QUrl() : QUrl::fromLocalFile(name);
+}
+
+/*!
+    Shows a file dialog for choosing a directory with the given \a parent, window \a caption, starting directory \a dir
+    and \a options, and waits. \a supportedSchemes works as in getOpenFileUrl(). Returns the \c file: URL of the
+    directory, or an empty URL.
+*/
+QUrl QFileDialog::getExistingDirectoryUrl(QWidget *parent, const QString &caption, const QUrl &dir, Options options,
+                                          const QStringList &supportedSchemes) {
+    (void)supportedSchemes;
+    const QString name = getExistingDirectory(parent, caption, dir.toLocalFile(), options);
+    return name.isEmpty() ? QUrl() : QUrl::fromLocalFile(name);
 }
 
 #include "moc_qfiledialog.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

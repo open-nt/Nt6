@@ -6,6 +6,7 @@
 #include <QtGui/qbrush.h>
 #include <QtWidgets/qabstractscrollarea.h>
 #include <QtWidgets/qmdisubwindow.h>
+#include <QtWidgets/qtabwidget.h>
 
 #include <vector>
 
@@ -16,6 +17,7 @@ class QMdiArea : public QAbstractScrollArea {
     Q_PROPERTY(QBrush background READ background WRITE setBackground)
     Q_PROPERTY(WindowOrder activationOrder READ activationOrder WRITE setActivationOrder)
     Q_PROPERTY(ViewMode viewMode READ viewMode WRITE setViewMode)
+    Q_PROPERTY(bool documentMode READ documentMode WRITE setDocumentMode)
     Q_PROPERTY(bool tabsClosable READ tabsClosable WRITE setTabsClosable)
     Q_PROPERTY(bool tabsMovable READ tabsMovable WRITE setTabsMovable)
 public:
@@ -45,6 +47,12 @@ public:
     void setViewMode(ViewMode mode);
     bool tabsClosable() const;
     void setTabsClosable(bool closable);
+    bool documentMode() const;
+    void setDocumentMode(bool enabled);
+    QTabWidget::TabPosition tabPosition() const { return m_tabPosition; }
+    void setTabPosition(QTabWidget::TabPosition position);
+    QTabWidget::TabShape tabShape() const { return m_tabShape; }
+    void setTabShape(QTabWidget::TabShape shape);
     bool tabsMovable() const;
     void setTabsMovable(bool movable);
 
@@ -76,6 +84,7 @@ private:
     void forget(QMdiSubWindow *window);
     void activate(QMdiSubWindow *window);
     void layoutTabbed();
+    void updateTabShape();
     void syncTabs();
     QList<QMdiSubWindow *> visibleWindows() const;
 
@@ -87,6 +96,8 @@ private:
     WindowOrder m_order = CreationOrder;
     AreaOptions m_options;
     ViewMode m_viewMode = SubWindowView;
+    QTabWidget::TabPosition m_tabPosition = QTabWidget::North;
+    QTabWidget::TabShape m_tabShape = QTabWidget::Rounded;
     bool m_syncing = false;
 };
 

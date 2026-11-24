@@ -8,6 +8,8 @@
 class QAction;
 class QToolButton;
 
+class QStyleOptionDockWidget;
+
 class QDockWidget : public QWidget {
     Q_OBJECT
     Q_PROPERTY(bool floating READ isFloating WRITE setFloating NOTIFY topLevelChanged)
@@ -71,6 +73,7 @@ signals:
     void dockLocationChanged(Qt::DockWidgetArea area) { emitSignal(&QDockWidget::dockLocationChanged, area); }
 
 protected:
+    void initStyleOption(QStyleOptionDockWidget *option) const;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;

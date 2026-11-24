@@ -3,13 +3,16 @@
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qcoreevent.h>
+#include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qpainterpath.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qgraphicslinearlayout.h>
+#include <QtWidgets/qgraphicsscene.h>
 #include <QtWidgets/qgraphicssceneevent.h>
 #include <QtWidgets/qlayoutitem.h>
 #include <QtWidgets/qstyle.h>
+#include <QtWidgets/qstyleoption.h>
 
 #include <algorithm>
 #include <vector>
@@ -957,8 +960,9 @@ void QGraphicsLinearLayout::setGeometry(const QRectF &rect) {
     QGraphicsProxyWidget is a graphics widget, so widgets can be put in layouts.
 
     \differences
-    There is no focus handling of its own (\c setFocusPolicy(), tab order), no style, no window frame or window
-    title, no actions and no \c close(). The font and palette are kept but not passed on to the children.
+    The focus policy, \c setTabOrder(), the shortcut functions, the attributes and the window frame margins are kept
+    but have no effect, and the window frame is never drawn. The style is only handed out, nothing is drawn with it.
+    The actions are kept but not shown. The font and palette are not passed on to the children.
     \enddifferences
 
     \sa QGraphicsLinearLayout, QGraphicsProxyWidget
@@ -1284,6 +1288,26 @@ void QGraphicsWidget::requestLayout() {
     \reimp
 */
 bool QGraphicsWidget::event(QEvent *event) {
+    switch (event->type()) {
+    case QEvent::Close:
+        closeEvent(static_cast<QCloseEvent *>(event));
+        return true;
+    case QEvent::Show:
+        showEvent(static_cast<QShowEvent *>(event));
+        return true;
+    case QEvent::Hide:
+        hideEvent(static_cast<QHideEvent *>(event));
+        return true;
+    case QEvent::FontChange:
+    case QEvent::PaletteChange:
+    case QEvent::StyleChange:
+    case QEvent::LayoutDirectionChange:
+    case QEvent::EnabledChange:
+        changeEvent(event);
+        return true;
+    default:
+        break;
+    }
     if (event->type() == QEvent::GraphicsSceneResize) {
         resizeEvent(static_cast<QGraphicsSceneResizeEvent *>(event));
         return true;
@@ -1301,6 +1325,340 @@ bool QGraphicsWidget::event(QEvent *event) {
     if (m_layout)
         m_layout->widgetEvent(event);
     return QGraphicsObject::event(event);
+}
+
+/*!
+    \fn Qt::WindowType QGraphicsWidget::windowType() const
+
+    Returns the window type from the window flags.
+*/
+
+/*!
+    \fn QString QGraphicsWidget::windowTitle() const
+
+    Returns the title of the window; only kept.
+*/
+
+/*!
+    \fn void QGraphicsWidget::setWindowTitle(const QString &title)
+
+    Sets the title of the window to \a title; only kept.
+*/
+
+/*!
+    Returns \c true if the widget is in the active scene.
+*/
+bool QGraphicsWidget::isActiveWindow() const { return scene() && scene()->isActive(); }
+
+/*!
+    \fn Qt::FocusPolicy QGraphicsWidget::focusPolicy() const
+
+    Returns how the widget gets focus; Qt::NoFocus by default. Only kept.
+*/
+
+/*!
+    \fn void QGraphicsWidget::setFocusPolicy(Qt::FocusPolicy policy)
+
+    Sets how the widget gets focus to \a policy; only kept.
+*/
+
+/*!
+    Returns the widget below this one, or this one, that has the focus, or \c nullptr.
+*/
+QGraphicsWidget *QGraphicsWidget::focusWidget() const {
+    if (!scene())
+        return nullptr;
+    QGraphicsItem *focus = scene()->focusItem();
+    if (focus != this && !isAncestorOf(focus))
+        return nullptr;
+    while (focus) {
+        if (auto *widget = dynamic_cast<QGraphicsWidget *>(focus))
+            return widget;
+        focus = focus->parentItem();
+    }
+    return nullptr;
+}
+
+/*!
+    Does nothing: the tab order of \a first and \a second is not kept.
+*/
+void QGraphicsWidget::setTabOrder(QGraphicsWidget *first, QGraphicsWidget *second) {
+    (void)first;
+    (void)second;
+}
+
+/*!
+    Returns the style that was set, or the style of the scene, or the style of the application.
+*/
+QStyle *QGraphicsWidget::style() const {
+    if (m_style)
+        return m_style.data();
+    return scene() ? scene()->style() : QApplication::style();
+}
+
+/*!
+    \fn void QGraphicsWidget::setStyle(QStyle *style)
+
+    Sets the style of the widget to \a style, which the widget does not own. \c nullptr brings back the style of the
+    scene.
+*/
+
+/*!
+    \fn Qt::LayoutDirection QGraphicsWidget::layoutDirection() const
+
+    Returns the direction in which the layouts of the widget place items, Qt::LeftToRight by default.
+*/
+
+/*!
+    Sets the layout direction to \a direction and sends a QEvent::LayoutDirectionChange to the widget.
+*/
+void QGraphicsWidget::setLayoutDirection(Qt::LayoutDirection direction) {
+    m_layoutDirectionSet = true;
+    if (m_layoutDirection == direction)
+        return;
+    m_layoutDirection = direction;
+    QEvent change(QEvent::LayoutDirectionChange);
+    QCoreApplication::sendEvent(this, &change);
+    if (m_layout)
+        m_layout->invalidate();
+}
+
+/*!
+    Brings back the layout direction of the application.
+*/
+void QGraphicsWidget::unsetLayoutDirection() {
+    m_layoutDirectionSet = false;
+    const Qt::LayoutDirection direction = QApplication::layoutDirection();
+    if (m_layoutDirection == direction)
+        return;
+    m_layoutDirection = direction;
+    QEvent change(QEvent::LayoutDirectionChange);
+    QCoreApplication::sendEvent(this, &change);
+}
+
+/*!
+    Sets the \a attribute to \a on. The attributes are kept but have no effect.
+*/
+void QGraphicsWidget::setAttribute(Qt::WidgetAttribute attribute, bool on) {
+    if (attribute >= 0 && attribute < Qt::WA_AttributeCount)
+        m_attributes.set(static_cast<std::size_t>(attribute), on);
+}
+
+/*!
+    Returns whether the \a attribute is set.
+*/
+bool QGraphicsWidget::testAttribute(Qt::WidgetAttribute attribute) const {
+    return attribute >= 0 && attribute < Qt::WA_AttributeCount &&
+           m_attributes.test(static_cast<std::size_t>(attribute));
+}
+
+/*!
+    Does nothing: the shortcut \a id is not kept, \a enabled is ignored.
+*/
+void QGraphicsWidget::setShortcutEnabled(int id, bool enabled) {
+    (void)id;
+    (void)enabled;
+}
+
+/*!
+    Does nothing: the shortcut \a id is not kept, \a enabled is ignored.
+*/
+void QGraphicsWidget::setShortcutAutoRepeat(int id, bool enabled) {
+    (void)id;
+    (void)enabled;
+}
+
+/*!
+    Returns a new shortcut number for the key \a sequence and the \a context. The shortcut never fires.
+*/
+int QGraphicsWidget::grabShortcut(const QKeySequence &sequence, Qt::ShortcutContext context) {
+    (void)sequence;
+    (void)context;
+    return m_nextShortcut++;
+}
+
+/*!
+    Does nothing: the shortcut \a id is not kept.
+*/
+void QGraphicsWidget::releaseShortcut(int id) { (void)id; }
+
+/*!
+    Sets the margins of the window frame to \a left, \a top, \a right and \a bottom. The frame is not drawn.
+*/
+void QGraphicsWidget::setWindowFrameMargins(qreal left, qreal top, qreal right, qreal bottom) {
+    m_frameMargins[0] = left;
+    m_frameMargins[1] = top;
+    m_frameMargins[2] = right;
+    m_frameMargins[3] = bottom;
+    m_frameMarginsSet = true;
+}
+
+/*!
+    Gets the margins of the window frame into \a left, \a top, \a right and \a bottom. Any of them may be \c nullptr.
+*/
+void QGraphicsWidget::getWindowFrameMargins(qreal *left, qreal *top, qreal *right, qreal *bottom) const {
+    if (left)
+        *left = m_frameMargins[0];
+    if (top)
+        *top = m_frameMargins[1];
+    if (right)
+        *right = m_frameMargins[2];
+    if (bottom)
+        *bottom = m_frameMargins[3];
+}
+
+/*!
+    Sets the margins of the window frame to 0.
+*/
+void QGraphicsWidget::unsetWindowFrameMargins() {
+    for (qreal &margin : m_frameMargins)
+        margin = 0;
+    m_frameMarginsSet = false;
+}
+
+/*!
+    Returns the rectangle of the widget with its window frame, in the coordinates of the parent.
+*/
+QRectF QGraphicsWidget::windowFrameGeometry() const { return windowFrameRect().translated(pos()); }
+
+/*!
+    Returns the rectangle of the widget with its window frame, in its own coordinates.
+*/
+QRectF QGraphicsWidget::windowFrameRect() const {
+    return rect().adjusted(-m_frameMargins[0], -m_frameMargins[1], m_frameMargins[2], m_frameMargins[3]);
+}
+
+/*!
+    Returns the part of the window frame at \a pos, in the coordinates of the widget: a corner or an edge within the
+    frame margins, TitleBarArea for the top margin between the corners, and Qt::NoSection inside the widget or
+    outside the frame.
+*/
+Qt::WindowFrameSection QGraphicsWidget::windowFrameSectionAt(const QPointF &pos) const {
+    const QRectF frame = windowFrameRect();
+    if (!frame.contains(pos) || rect().contains(pos))
+        return Qt::NoSection;
+    const bool left = pos.x() < rect().left();
+    const bool right = pos.x() > rect().right();
+    const bool top = pos.y() < rect().top();
+    const bool bottom = pos.y() > rect().bottom();
+    if (top)
+        return left ? Qt::TopLeftSection : right ? Qt::TopRightSection : Qt::TitleBarArea;
+    if (bottom)
+        return left ? Qt::BottomLeftSection : right ? Qt::BottomRightSection : Qt::BottomSection;
+    return left ? Qt::LeftSection : Qt::RightSection;
+}
+
+/*!
+    \fn QList<QAction *> QGraphicsWidget::actions() const
+
+    Returns the actions that were added to the widget, in order.
+*/
+
+/*!
+    \fn void QGraphicsWidget::addAction(QAction *action)
+
+    Adds the \a action at the end of the list of actions.
+*/
+
+/*!
+    \fn void QGraphicsWidget::addActions(const QList<QAction *> &actions)
+
+    Adds the \a actions at the end of the list of actions.
+*/
+
+/*!
+    Inserts the \a action before the action \a before, or at the end if \a before is \c nullptr or not in the list.
+    An action that is in the list already moves.
+*/
+void QGraphicsWidget::insertAction(QAction *before, QAction *action) {
+    if (!action)
+        return;
+    m_actions.removeAll(action);
+    const qsizetype index = before ? m_actions.indexOf(before) : -1;
+    if (index >= 0)
+        m_actions.insert(index, action);
+    else
+        m_actions.append(action);
+}
+
+/*!
+    Inserts the \a actions before the action \a before, in order.
+
+    \sa insertAction()
+*/
+void QGraphicsWidget::insertActions(QAction *before, const QList<QAction *> &actions) {
+    for (QAction *action : actions)
+        insertAction(before, action);
+}
+
+/*!
+    Removes the \a action from the list of actions.
+*/
+void QGraphicsWidget::removeAction(QAction *action) { m_actions.removeAll(action); }
+
+/*!
+    Sends a close event to the widget. If it accepts it (the default), the widget is hidden and \c true is returned.
+*/
+bool QGraphicsWidget::close() {
+    QCloseEvent closing;
+    QCoreApplication::sendEvent(this, &closing);
+    if (!closing.isAccepted())
+        return false;
+    hide();
+    return true;
+}
+
+/*!
+    Handles the close \a event: accepts it. Reimplement it to ignore the event and keep the widget open.
+*/
+void QGraphicsWidget::closeEvent(QCloseEvent *event) { event->accept(); }
+
+/*!
+    Handles the show \a event; does nothing.
+*/
+void QGraphicsWidget::showEvent(QShowEvent *event) { (void)event; }
+
+/*!
+    Handles the hide \a event; does nothing.
+*/
+void QGraphicsWidget::hideEvent(QHideEvent *event) { (void)event; }
+
+/*!
+    Handles the change \a event, for the font, palette, style, layout direction and enabled state: repaints the widget.
+*/
+void QGraphicsWidget::changeEvent(QEvent *event) {
+    (void)event;
+    update();
+}
+
+/*!
+    Fills \a option with the state of the widget: its rectangle, palette, layout direction and whether it is enabled,
+    active or has the focus.
+*/
+void QGraphicsWidget::initStyleOption(QStyleOption *option) const {
+    if (!option)
+        return;
+    option->state = QStyle::State_None;
+    if (isEnabled())
+        option->state |= QStyle::State_Enabled;
+    if (hasFocus())
+        option->state |= QStyle::State_HasFocus;
+    if (isActiveWindow())
+        option->state |= QStyle::State_Active;
+    option->direction = m_layoutDirection;
+    option->rect = rect().toRect();
+    option->palette = m_palette;
+    option->fontMetrics = QFontMetrics(m_font);
+}
+
+/*!
+    Draws the window frame with the \a painter. The frame is not drawn by default, and the default implementation
+    does nothing; \a option and \a widget are the arguments of paint().
+*/
+void QGraphicsWidget::paintWindowFrame(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) {
+    (void)painter;
+    (void)option;
+    (void)widget;
 }
 
 #include "moc_qgraphicswidget.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

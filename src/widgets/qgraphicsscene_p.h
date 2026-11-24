@@ -5,6 +5,7 @@
 
 #include <QtCore/qmap.h>
 #include <QtCore/qpointer.h>
+#include <QtWidgets/qstyle.h>
 #include <QtWidgets/qgraphicsitem.h>
 #include <QtWidgets/qgraphicsscene.h>
 #include <QtWidgets/qgraphicsview.h>
@@ -93,6 +94,10 @@ struct QGraphicsScene::Private {
     QBrush foregroundBrush;
     QFont font;
     QPalette palette;
+    int bspTreeDepth = 0;
+    qreal minimumRenderSize = 0;
+    bool focusOnTouch = true;
+    QPointer<QStyle> style;
     bool stickyFocus = false;
     bool hasFocus = false;
     ItemIndexMethod indexMethod = BspTreeIndex;

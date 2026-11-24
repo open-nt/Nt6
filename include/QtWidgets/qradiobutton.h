@@ -3,6 +3,8 @@
 
 #include <QtWidgets/qabstractbutton.h>
 
+class QStyleOptionButton;
+
 class QRadioButton : public QAbstractButton {
     Q_OBJECT
 public:
@@ -13,6 +15,7 @@ public:
     QSize sizeHint() const override;
 
 protected:
+    void initStyleOption(QStyleOptionButton *button) const;
     void paintEvent(QPaintEvent *event) override;
     bool hitButton(const QPoint &pos) const override;
     void keyPressEvent(QKeyEvent *event) override;

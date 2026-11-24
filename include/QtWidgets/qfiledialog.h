@@ -2,9 +2,14 @@
 #pragma once
 
 #include <QtCore/qdir.h>
+#include <QtCore/qbytearray.h>
 #include <QtCore/qstringlist.h>
+#include <QtCore/qurl.h>
 #include <QtWidgets/qdialog.h>
 
+class QAbstractItemDelegate;
+class QAbstractFileIconProvider;
+class QAbstractProxyModel;
 class QComboBox;
 class QDialogButtonBox;
 class QLabel;
@@ -69,6 +74,44 @@ public:
     void setOptions(Options options);
     Options options() const { return m_options; }
 
+    QUrl directoryUrl() const { return QUrl::fromLocalFile(m_directory); }
+    void setDirectoryUrl(const QUrl &directory);
+    void selectUrl(const QUrl &url);
+    QList<QUrl> selectedUrls() const;
+    QDir::Filters filter() const { return m_filter; }
+    void setFilter(QDir::Filters filters) { m_filter = filters; }
+    void setMimeTypeFilters(const QStringList &filters);
+    QStringList mimeTypeFilters() const { return m_mimeTypeFilters; }
+    void selectMimeTypeFilter(const QString &filter);
+    QString selectedMimeTypeFilter() const;
+    QStringList history() const { return m_history; }
+    void setHistory(const QStringList &paths) { m_history = paths; }
+    QList<QUrl> sidebarUrls() const { return m_sidebarUrls; }
+    void setSidebarUrls(const QList<QUrl> &urls) { m_sidebarUrls = urls; }
+    QStringList supportedSchemes() const { return m_supportedSchemes; }
+    void setSupportedSchemes(const QStringList &schemes) { m_supportedSchemes = schemes; }
+    QAbstractFileIconProvider *iconProvider() const { return m_iconProvider; }
+    void setIconProvider(QAbstractFileIconProvider *provider) { m_iconProvider = provider; }
+    QAbstractItemDelegate *itemDelegate() const { return m_itemDelegate; }
+    void setItemDelegate(QAbstractItemDelegate *delegate) { m_itemDelegate = delegate; }
+    QAbstractProxyModel *proxyModel() const { return m_proxyModel; }
+    void setProxyModel(QAbstractProxyModel *model) { m_proxyModel = model; }
+    QByteArray saveState() const;
+    bool restoreState(const QByteArray &state);
+
+    static QUrl getOpenFileUrl(QWidget *parent = nullptr, const QString &caption = QString(), const QUrl &dir = QUrl(),
+                               const QString &filter = QString(), QString *selectedFilter = nullptr,
+                               Options options = Options(), const QStringList &supportedSchemes = QStringList());
+    static QList<QUrl> getOpenFileUrls(QWidget *parent = nullptr, const QString &caption = QString(),
+                                       const QUrl &dir = QUrl(), const QString &filter = QString(),
+                                       QString *selectedFilter = nullptr, Options options = Options(),
+                                       const QStringList &supportedSchemes = QStringList());
+    static QUrl getSaveFileUrl(QWidget *parent = nullptr, const QString &caption = QString(), const QUrl &dir = QUrl(),
+                               const QString &filter = QString(), QString *selectedFilter = nullptr,
+                               Options options = Options(), const QStringList &supportedSchemes = QStringList());
+    static QUrl getExistingDirectoryUrl(QWidget *parent = nullptr, const QString &caption = QString(),
+                                        const QUrl &dir = QUrl(), Options options = ShowDirsOnly,
+                                        const QStringList &supportedSchemes = QStringList());
     static QString getOpenFileName(QWidget *parent = nullptr, const QString &caption = QString(),
                                    const QString &dir = QString(), const QString &filter = QString(),
                                    QString *selectedFilter = nullptr, Options options = Options());
@@ -105,6 +148,22 @@ signals:
         This signal is emitted when the user chooses the name \a filter.
     */
     void filterSelected(const QString &filter) { emitSignal(&QFileDialog::filterSelected, filter); }
+    /*!
+        This signal is emitted when the user moves to the file or directory at \a url.
+    */
+    void currentUrlChanged(const QUrl &url) { emitSignal(&QFileDialog::currentUrlChanged, url); }
+    /*!
+        This signal is emitted when the dialog shows the directory at \a directory.
+    */
+    void directoryUrlEntered(const QUrl &directory) { emitSignal(&QFileDialog::directoryUrlEntered, directory); }
+    /*!
+        This signal is emitted when the dialog is accepted with one \a url, in all the modes but ExistingFiles.
+    */
+    void urlSelected(const QUrl &url) { emitSignal(&QFileDialog::urlSelected, url); }
+    /*!
+        This signal is emitted when the dialog is accepted, with the selected \a urls.
+    */
+    void urlsSelected(const QList<QUrl> &urls) { emitSignal(&QFileDialog::urlsSelected, urls); }
 
 private:
     void init(const QString &caption, const QString &directory, const QString &filter);
@@ -126,6 +185,14 @@ private:
     QComboBox *m_types = nullptr;
     QDialogButtonBox *m_buttons = nullptr;
     QString m_directory;
+    QDir::Filters m_filter = QDir::AllEntries | QDir::NoDotAndDotDot | QDir::AllDirs;
+    QStringList m_mimeTypeFilters;
+    QStringList m_history;
+    QList<QUrl> m_sidebarUrls;
+    QStringList m_supportedSchemes;
+    QAbstractFileIconProvider *m_iconProvider = nullptr;
+    QAbstractItemDelegate *m_itemDelegate = nullptr;
+    QAbstractProxyModel *m_proxyModel = nullptr;
     QStringList m_nameFilters;
     QStringList m_selected;
     QString m_defaultSuffix;

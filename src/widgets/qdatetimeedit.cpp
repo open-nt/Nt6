@@ -85,8 +85,9 @@ protected:
     \differences
     There is no \c QLocale, so the default formats are \c "yyyy-MM-dd HH:mm", \c "yyyy-MM-dd" and \c "HH:mm", the
     names are English, and \c yy is read as a year of the century of the current date. The time is always local time:
-    there is no \c timeSpec() or \c setTimeZone(). Tab does not move between the sections, and the calendar popup
-    opens from the step buttons, which are drawn as for any spin box. There is no \c setCalendar().
+    \c setTimeZone() keeps the zone for \c timeZone() but does not convert, and there is no \c timeSpec(). Tab does not move between the sections, and the calendar popup
+    opens from the step buttons, which are drawn as for any spin box. \c setCalendar() keeps the calendar and
+    gives it to the popup, but dates are shown in the Gregorian calendar.
     \enddifferences
 
     \sa QDateEdit, QTimeEdit, QCalendarWidget
@@ -544,6 +545,33 @@ void QDateTimeEdit::setCalendarPopup(bool enable) {
     m_calendarPopup = enable;
     update();
 }
+
+/*!
+    \fn QCalendar QDateTimeEdit::calendar() const
+
+    Returns the calendar system of the editor, the Gregorian calendar by default.
+*/
+
+/*!
+    Sets the calendar system of the editor to \a calendar, and of the popup if there is one.
+*/
+void QDateTimeEdit::setCalendar(QCalendar calendar) {
+    m_cal = calendar;
+    if (m_calendar)
+        m_calendar->setCalendar(calendar);
+}
+
+/*!
+    \fn QTimeZone QDateTimeEdit::timeZone() const
+
+    Returns the time zone that was set; only kept.
+*/
+
+/*!
+    \fn void QDateTimeEdit::setTimeZone(const QTimeZone &zone)
+
+    Sets the time zone to \a zone; only kept, the editor does not convert times.
+*/
 
 /*!
     Returns the calendar of the popup, creating it if there is none yet.

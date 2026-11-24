@@ -39,7 +39,7 @@ constexpr Qt::Alignment kVertical = Qt::AlignTop | Qt::AlignBottom | Qt::AlignVC
     (\c CE_Slider and so on, which Qt does not have) with the option of the complex control, and the default
     drawComplexControl() draws those elements. Elements, metrics and hints that Nt's widgets do not use are
     drawn with similar ones, answered as Qt's Fusion style answers them, or not drawn. There is no
-    \c standardIcon(), as Nt has no \c QIcon, no \c layoutSpacing() and no style sheets. drawItemText() does
+    \c standardIcon(), as Nt has no \c QIcon, and no style sheets. layoutSpacing() answers the same for every pair of control types. drawItemText() does
     not draw mnemonics.
     \enddifferences
 
@@ -1543,6 +1543,75 @@ QIcon QStyle::standardIcon(StandardPixmap standardIcon, const QStyleOption *opti
     }
     const QPixmap pixmap = proxy()->standardPixmap(standardIcon, option, widget);
     return pixmap.isNull() ? QIcon() : QIcon(pixmap);
+}
+
+/*!
+    Returns a copy of \a pixmap for the icon mode \a iconMode: grayed out and lighter for QIcon::Disabled, tinted
+    with the highlight color of the palette of \a option for QIcon::Selected, and unchanged for the other modes.
+*/
+QPixmap QStyle::generatedIconPixmap(QIcon::Mode iconMode, const QPixmap &pixmap, const QStyleOption *option) const {
+    if (pixmap.isNull() || iconMode == QIcon::Normal || iconMode == QIcon::Active)
+        return pixmap;
+    QImage image = pixmap.toImage().convertToFormat(QImage::Format_ARGB32);
+    const QPalette palette = option ? option->palette : standardPalette();
+    const QColor tint = palette.color(QPalette::Highlight);
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            QColor c = image.pixelColor(x, y);
+            if (iconMode == QIcon::Disabled) {
+                const int gray = qGray(c.red(), c.green(), c.blue());
+                const int lighter = 128 + gray / 2;
+                c.setRgb(lighter, lighter, lighter, c.alpha() * 6 / 10);
+            } else {
+                c.setRgb((c.red() + tint.red()) / 2, (c.green() + tint.green()) / 2, (c.blue() + tint.blue()) / 2,
+                         c.alpha());
+            }
+            image.setPixelColor(x, y, c);
+        }
+    }
+    return QPixmap::fromImage(image);
+}
+
+/*!
+    Returns the space in pixels between a widget of the type \a control1 and one of the type \a control2 in a layout
+    of the given \a orientation: the layout spacing of the style for that orientation, or 6 if it has none. \a option
+    and \a widget are passed to pixelMetric().
+
+    \sa combinedLayoutSpacing()
+*/
+int QStyle::layoutSpacing(QSizePolicy::ControlType control1, QSizePolicy::ControlType control2,
+                          Qt::Orientation orientation, const QStyleOption *option, const QWidget *widget) const {
+    (void)control1;
+    (void)control2;
+    const int spacing = pixelMetric(
+        orientation == Qt::Horizontal ? PM_LayoutHorizontalSpacing : PM_LayoutVerticalSpacing, option, widget);
+    return spacing >= 0 ? spacing : 6;
+}
+
+/*!
+    Returns the space in pixels between the widgets of the types \a controls1 and those of the types \a controls2:
+    the largest layoutSpacing() of any pair, or 0 if a set is empty. A set with no bit set counts as the default type.
+    \a orientation, \a option and \a widget are passed to layoutSpacing().
+
+    \sa layoutSpacing()
+*/
+int QStyle::combinedLayoutSpacing(QSizePolicy::ControlTypes controls1, QSizePolicy::ControlTypes controls2,
+                                  Qt::Orientation orientation, QStyleOption *option, const QWidget *widget) const {
+    int spacing = 0;
+    bool any = false;
+    for (int a = 1; a <= 0x4000; a <<= 1) {
+        if (!(controls1.toInt() & a) && !(a == 1 && controls1.toInt() == 0))
+            continue;
+        for (int b = 1; b <= 0x4000; b <<= 1) {
+            if (!(controls2.toInt() & b) && !(b == 1 && controls2.toInt() == 0))
+                continue;
+            spacing =
+                std::max(spacing, layoutSpacing(static_cast<QSizePolicy::ControlType>(a),
+                                                static_cast<QSizePolicy::ControlType>(b), orientation, option, widget));
+            any = true;
+        }
+    }
+    return any ? spacing : 0;
 }
 
 /*!

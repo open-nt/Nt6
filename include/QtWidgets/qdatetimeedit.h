@@ -3,6 +3,8 @@
 
 #include <QtCore/qdatetime.h>
 #include <QtCore/qpointer.h>
+#include <QtCore/qcalendar.h>
+#include <QtCore/qtimezone.h>
 #include <QtWidgets/qabstractspinbox.h>
 #include <QtWidgets/qcalendarwidget.h>
 
@@ -83,6 +85,10 @@ public:
     void setDisplayFormat(const QString &format);
     bool calendarPopup() const { return m_calendarPopup; }
     void setCalendarPopup(bool enable);
+    QCalendar calendar() const { return m_cal; }
+    void setCalendar(QCalendar calendar);
+    QTimeZone timeZone() const { return m_zone; }
+    void setTimeZone(const QTimeZone &zone) { m_zone = zone; }
     QCalendarWidget *calendarWidget() const;
     void setCalendarWidget(QCalendarWidget *calendarWidget);
 
@@ -147,6 +153,8 @@ private:
     std::vector<Token> m_tokens;
     mutable std::vector<Span> m_sections; // the sections of the current text
     QPointer<QCalendarWidget> m_calendar;
+    QCalendar m_cal;
+    QTimeZone m_zone;
     int m_currentSection = 0;
     bool m_calendarPopup = false;
 };

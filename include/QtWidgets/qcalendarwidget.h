@@ -1,10 +1,14 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qcalendar.h>
 #include <QtCore/qdatetime.h>
+#include <QtCore/qmap.h>
+#include <QtGui/qtextformat.h>
 #include <QtWidgets/qwidget.h>
 
 class QLabel;
+class QPainter;
 class QToolButton;
 
 class QCalendarWidget : public QWidget {
@@ -17,11 +21,17 @@ class QCalendarWidget : public QWidget {
     Q_PROPERTY(SelectionMode selectionMode READ selectionMode WRITE setSelectionMode)
     Q_PROPERTY(VerticalHeaderFormat verticalHeaderFormat READ verticalHeaderFormat WRITE setVerticalHeaderFormat)
     Q_PROPERTY(bool navigationBarVisible READ isNavigationBarVisible WRITE setNavigationBarVisible)
+    Q_PROPERTY(
+        HorizontalHeaderFormat horizontalHeaderFormat READ horizontalHeaderFormat WRITE setHorizontalHeaderFormat)
+    Q_PROPERTY(bool dateEditEnabled READ isDateEditEnabled WRITE setDateEditEnabled)
+    Q_PROPERTY(int dateEditAcceptDelay READ dateEditAcceptDelay WRITE setDateEditAcceptDelay)
 public:
     enum SelectionMode { NoSelection, SingleSelection };
     Q_ENUM(SelectionMode)
     enum VerticalHeaderFormat { NoVerticalHeader, ISOWeekNumbers };
     Q_ENUM(VerticalHeaderFormat)
+    enum HorizontalHeaderFormat { SingleLetterDayNames, ShortDayNames, LongDayNames, NoHorizontalHeader };
+    Q_ENUM(HorizontalHeaderFormat)
 
     explicit QCalendarWidget(QWidget *parent = nullptr);
     ~QCalendarWidget() override;
@@ -41,6 +51,23 @@ public:
     VerticalHeaderFormat verticalHeaderFormat() const { return m_vertical; }
     void setVerticalHeaderFormat(VerticalHeaderFormat format);
     bool isNavigationBarVisible() const;
+    HorizontalHeaderFormat horizontalHeaderFormat() const { return m_horizontal; }
+    void setHorizontalHeaderFormat(HorizontalHeaderFormat format);
+    QCalendar calendar() const { return m_calendar; }
+    void setCalendar(QCalendar calendar);
+    void clearMinimumDate() { setMinimumDate(QDate(1752, 9, 14)); }
+    void clearMaximumDate() { setMaximumDate(QDate(9999, 12, 31)); }
+    QTextCharFormat headerTextFormat() const { return m_headerFormat; }
+    void setHeaderTextFormat(const QTextCharFormat &format);
+    QTextCharFormat weekdayTextFormat(Qt::DayOfWeek dayOfWeek) const;
+    void setWeekdayTextFormat(Qt::DayOfWeek dayOfWeek, const QTextCharFormat &format);
+    QMap<QDate, QTextCharFormat> dateTextFormat() const { return m_dateFormats; }
+    QTextCharFormat dateTextFormat(QDate date) const { return m_dateFormats.value(date); }
+    void setDateTextFormat(QDate date, const QTextCharFormat &format);
+    bool isDateEditEnabled() const { return m_dateEditEnabled; }
+    void setDateEditEnabled(bool enable) { m_dateEditEnabled = enable; }
+    int dateEditAcceptDelay() const { return m_dateEditAcceptDelay; }
+    void setDateEditAcceptDelay(int delay) { m_dateEditAcceptDelay = delay; }
 
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
@@ -57,6 +84,8 @@ public slots:
     void showPreviousYear();
     void showSelectedDate();
     void showToday();
+    void updateCell(QDate date);
+    void updateCells();
 
 signals:
     /*!
@@ -77,6 +106,7 @@ signals:
     void currentPageChanged(int year, int month) { emitSignal(&QCalendarWidget::currentPageChanged, year, month); }
 
 protected:
+    virtual void paintCell(QPainter *painter, const QRect &rect, QDate date) const;
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
@@ -107,4 +137,11 @@ private:
     SelectionMode m_selectionMode = SingleSelection;
     VerticalHeaderFormat m_vertical = ISOWeekNumbers;
     bool m_grid = false;
+    HorizontalHeaderFormat m_horizontal = ShortDayNames;
+    QCalendar m_calendar;
+    QTextCharFormat m_headerFormat;
+    QMap<Qt::DayOfWeek, QTextCharFormat> m_weekdayFormats;
+    QMap<QDate, QTextCharFormat> m_dateFormats;
+    bool m_dateEditEnabled = true;
+    int m_dateEditAcceptDelay = 1500;
 };

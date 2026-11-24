@@ -168,6 +168,9 @@ public:
     void addTopLevelItems(const QList<QTreeWidgetItem *> &items);
 
     QTreeWidgetItem *headerItem() const { return m_headerItem; }
+    void setHeaderItem(QTreeWidgetItem *item);
+    Qt::DropActions supportedDragActions() const { return m_dragActions; }
+    void setSupportedDragActions(Qt::DropActions actions) { m_dragActions = actions; }
     void setHeaderLabels(const QStringList &labels);
     void setHeaderLabel(const QString &label) { setHeaderLabels(QStringList{label}); }
 
@@ -210,6 +213,10 @@ signals:
         This signal is emitted when a mouse button is pressed on \a item, in the column \a column.
     */
     void itemPressed(QTreeWidgetItem *item, int column) { emitSignal(&QTreeWidget::itemPressed, item, column); }
+    /*!
+        This signal is emitted when the mouse enters \a item, in the column \a column, if mouse tracking is on.
+    */
+    void itemEntered(QTreeWidgetItem *item, int column) { emitSignal(&QTreeWidget::itemEntered, item, column); }
     /*!
         This signal is emitted when \a item is clicked, in the column \a column.
     */
@@ -263,6 +270,7 @@ private:
     QtPrivate::TreeModel *treeModel() const { return m_model; }
 
     QtPrivate::TreeModel *m_model;
+    Qt::DropActions m_dragActions = Qt::CopyAction;
     QTreeWidgetItem *m_root;       // the parent of the top-level items; it has the column count
     QTreeWidgetItem *m_headerItem; // its texts are the header labels
 };

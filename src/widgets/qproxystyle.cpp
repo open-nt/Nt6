@@ -228,6 +228,22 @@ QPixmap QProxyStyle::standardPixmap(StandardPixmap standardPixmap, const QStyleO
 /*!
     \reimp
 */
+QPixmap QProxyStyle::generatedIconPixmap(QIcon::Mode iconMode, const QPixmap &pixmap,
+                                         const QStyleOption *option) const {
+    return m_base ? m_base->generatedIconPixmap(iconMode, pixmap, option) : pixmap;
+}
+
+/*!
+    \reimp
+*/
+int QProxyStyle::layoutSpacing(QSizePolicy::ControlType control1, QSizePolicy::ControlType control2,
+                               Qt::Orientation orientation, const QStyleOption *option, const QWidget *widget) const {
+    return m_base ? m_base->layoutSpacing(control1, control2, orientation, option, widget) : 6;
+}
+
+/*!
+    \reimp
+*/
 void QProxyStyle::polish(QWidget *widget) {
     if (m_base)
         m_base->polish(widget);

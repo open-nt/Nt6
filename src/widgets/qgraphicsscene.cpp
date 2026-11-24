@@ -520,7 +520,7 @@ void QGraphicsScene::Private::drawWithEffect(QPainter *painter, QGraphicsItem *i
 
     \differences
     Items are found by walking them; there is no BSP index, so itemIndexMethod() is only kept. There is no
-    \c addWidget() and no QGraphicsProxyWidget yet, no style, no drag and drop, no context menus, no help events,
+    \c addWidget() and no QGraphicsProxyWidget yet, no drag and drop, no context menus, no help events,
     no gestures and no touch events, and the scene has no panels or modality. selectionArea() and
     setSelectionArea() compare bounding rectangles for paths. A scene is active while it is in a view.
     \enddifferences
@@ -1061,6 +1061,48 @@ QPalette QGraphicsScene::palette() const { return d->palette; }
     Sets the palette to \a palette. Nt keeps it; the style option of an item carries the view's palette.
 */
 void QGraphicsScene::setPalette(const QPalette &palette) { d->palette = palette; }
+
+/*!
+    Returns the depth of the BSP tree index; 0 means chosen automatically. Nt has no BSP index, so the value is only
+    kept.
+*/
+int QGraphicsScene::bspTreeDepth() const { return d->bspTreeDepth; }
+
+/*!
+    Sets the depth of the BSP tree index to \a depth; only kept.
+*/
+void QGraphicsScene::setBspTreeDepth(int depth) { d->bspTreeDepth = depth; }
+
+/*!
+    Returns the smallest size in pixels that an item is drawn at, 0 by default; only kept.
+*/
+qreal QGraphicsScene::minimumRenderSize() const { return d->minimumRenderSize; }
+
+/*!
+    Sets the smallest size in pixels that an item is drawn at to \a minSize; only kept.
+*/
+void QGraphicsScene::setMinimumRenderSize(qreal minSize) { d->minimumRenderSize = minSize; }
+
+/*!
+    Returns whether a touch gives focus to the item under it, \c true by default; only kept.
+*/
+bool QGraphicsScene::focusOnTouch() const { return d->focusOnTouch; }
+
+/*!
+    Sets whether a touch gives focus to the item under it to \a enabled; only kept.
+*/
+void QGraphicsScene::setFocusOnTouch(bool enabled) { d->focusOnTouch = enabled; }
+
+/*!
+    Returns the style of the scene, or the style of the application if none was set.
+*/
+QStyle *QGraphicsScene::style() const { return d->style ? d->style.data() : QApplication::style(); }
+
+/*!
+    Sets the style of the scene to \a style, which the scene does not own, or back to the application style if
+    it is \c nullptr.
+*/
+void QGraphicsScene::setStyle(QStyle *style) { d->style = style; }
 
 /*!
     Returns \c true while the scene is shown in a view.

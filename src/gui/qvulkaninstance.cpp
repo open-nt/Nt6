@@ -216,7 +216,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBits
     functions of QVulkanFunctions and QVulkanDeviceFunctions work without setApiVersion(). There is no
     handle() (no QPlatformVulkanInstance), no \c NoPortabilityDrivers behaviour (the flag is accepted) and no
     \c VK_EXT_debug_report filter (\c DebugFilter); only the \c VK_EXT_debug_utils filter is there. The
-    \c xcb platform presents; the \c offscreen platform creates no surfaces, so there the instance serves
+    \c xcb and \c android platforms present; the \c offscreen platform creates no surfaces, so there the instance serves
     headless rendering and compute.
     \enddifferences
 

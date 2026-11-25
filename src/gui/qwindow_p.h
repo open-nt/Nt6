@@ -59,6 +59,9 @@ struct GuiAccess {
     static QOpenGLExtraFunctionsPrivate *openGLExtraFunctions(QOpenGLContext *context);
     // Called before the platform window of `surface` goes away: drops what OpenGL made for it.
     static void surfaceAboutToBeDestroyed(QSurface *surface);
+    // Makes a QVulkanWindow let go of its swapchain, device and window surface, for a platform that takes the native
+    // window away while the QWindow lives on (Android). Does nothing for other windows.
+    static void releaseVulkanWindow(QWindow *window);
     // Deletes the platform integration; the application object calls it as it goes away.
     static void shutdown();
 };

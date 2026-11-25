@@ -45,7 +45,7 @@ endif()
 # loader library is opened at run time. QT_FEATURE_vulkan in qconfig.h tells programs whether the classes are there.
 option(NT_USE_VULKAN "Build Vulkan support of Nt GUI (QVulkanInstance, QVulkanWindow)" ON)
 set(NT_HAVE_VULKAN OFF)
-if(NT_USE_VULKAN AND NOT NT_ZEPHYR AND NOT NT_ANDROID)
+if(NT_USE_VULKAN AND NOT NT_ZEPHYR)
     find_path(NT_VULKAN_INCLUDE_DIR vulkan/vulkan.h)
     if(NT_VULKAN_INCLUDE_DIR)
         set(NT_HAVE_VULKAN ON)
@@ -779,8 +779,9 @@ target_include_directories(NtGui
 target_link_libraries(NtGui PUBLIC NtCore PRIVATE NtDBus)
 # As Qt does, so that <QtTest> brings in the GUI test functions for a target that links Nt GUI.
 target_compile_definitions(NtGui PUBLIC QT_GUI_LIB)
-if(NT_HAVE_VULKAN)
-    # Programs include <vulkan/vulkan.h> through the Nt headers; the library itself is loaded at run time.
+if(NT_HAVE_VULKAN AND NOT NT_ANDROID)
+    # Programs include <vulkan/vulkan.h> through the Nt headers; the library itself is loaded at run time. On Android
+    # the headers are in the sysroot of the NDK, which must not be added as an include directory.
     target_include_directories(NtGui SYSTEM PUBLIC ${NT_VULKAN_INCLUDE_DIR})
 endif()
 

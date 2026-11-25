@@ -118,6 +118,7 @@ protected:
 
 private:
     Q_DISABLE_COPY(QVulkanWindow)
+    friend struct QtPrivate::GuiAccess;
     struct Data;
     std::unique_ptr<Data> m_d;
 };

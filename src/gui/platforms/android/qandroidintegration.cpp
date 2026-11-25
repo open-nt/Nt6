@@ -10,6 +10,12 @@
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qwindow.h>
 
+#if QT_CONFIG(vulkan)
+#include "qvulkan_p.h"
+
+#include <vulkan/vulkan_android.h>
+#endif
+
 #include <android/input.h>
 #include <android/keycodes.h>
 
@@ -152,15 +158,19 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
     ANativeWindow *native = Glue::instance().window();
     if (!native)
         return;
-    static ANativeWindow *formatted = nullptr;
-    if (formatted != native) {
-        // Opaque pixels, in the size of the window; the screen is not scaled by the compositor.
+    // Opaque 32-bit pixels, in the size of the window; the screen is not scaled by the compositor. The window itself is
+    // asked every time: after the application was in the background, a new window can have the address of the old
+    // one, and it starts with 16-bit pixels.
+    if (ANativeWindow_getFormat(native) != WINDOW_FORMAT_RGBX_8888)
         ANativeWindow_setBuffersGeometry(native, 0, 0, WINDOW_FORMAT_RGBX_8888);
-        formatted = native;
-    }
     ANativeWindow_Buffer buffer;
     if (ANativeWindow_lock(native, &buffer, nullptr) != 0)
         return;
+    if (buffer.format != WINDOW_FORMAT_RGBX_8888 && buffer.format != WINDOW_FORMAT_RGBA_8888) {
+        // Four bytes a pixel would not fit; leave the buffer alone.
+        ANativeWindow_unlockAndPost(native);
+        return;
+    }
     // The window lies inside the system bars.
     const QPoint origin = m_screen->pixelOrigin();
     const int width = std::min(buffer.width - origin.x(), m_image.width());
@@ -254,6 +264,45 @@ QPlatformClipboard *QAndroidIntegration::clipboard() const {
 
 void QAndroidIntegration::setInputPanelVisible(bool visible) { Glue::instance().setSoftInputVisible(visible); }
 
+// Vulkan presents to the native window of the activity through VK_KHR_android_surface. The surface belongs to the
+// platform window, and goes when the window is destroyed or when Android takes the native window away.
+quint64 QAndroidIntegration::createVulkanSurface(QWindow *window, void *instance,
+                                                 QVulkanGetInstanceProcAddr getInstanceProcAddr) const {
+#if QT_CONFIG(vulkan)
+    auto *platformWindow = static_cast<QAndroidWindow *>(QtPrivate::GuiAccess::platformWindow(window));
+    ANativeWindow *native = Glue::instance().window();
+    if (!platformWindow || !native || !instance || !getInstanceProcAddr)
+        return 0;
+    if (platformWindow->vulkanSurface)
+        return platformWindow->vulkanSurface;
+    auto *vkInstance = static_cast<VkInstance>(instance);
+    auto getProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(getInstanceProcAddr);
+    auto createSurface =
+        reinterpret_cast<PFN_vkCreateAndroidSurfaceKHR>(getProcAddr(vkInstance, "vkCreateAndroidSurfaceKHR"));
+    auto destroySurface = reinterpret_cast<PFN_vkDestroySurfaceKHR>(getProcAddr(vkInstance, "vkDestroySurfaceKHR"));
+    if (!createSurface || !destroySurface) {
+        qWarning("Nt GUI (android): the Vulkan instance has no VK_KHR_android_surface");
+        return 0;
+    }
+    VkAndroidSurfaceCreateInfoKHR info{};
+    info.sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR;
+    info.window = native;
+    VkSurfaceKHR surface = VK_NULL_HANDLE;
+    const VkResult result = createSurface(vkInstance, &info, nullptr, &surface);
+    if (result != VK_SUCCESS) {
+        qWarning("Nt GUI (android): vkCreateAndroidSurfaceKHR failed: %d", static_cast<int>(result));
+        return 0;
+    }
+    platformWindow->vulkanSurface = QtPrivate::Vulkan::handleToU64(surface);
+    platformWindow->destroyVulkanSurface = [vkInstance, destroySurface, surface] {
+        destroySurface(vkInstance, surface, nullptr);
+    };
+    return platformWindow->vulkanSurface;
+#else
+    return QPlatformIntegration::createVulkanSurface(window, instance, getInstanceProcAddr);
+#endif
+}
+
 // OpenGL ES through the EGL library of the system; windows get EGL window surfaces of the activity's native window.
 QEglNativePlatform QAndroidIntegration::eglPlatform() const {
     QEglNativePlatform native;
@@ -285,8 +334,18 @@ void QAndroidIntegration::processEvents() {
         case Event::WindowDestroyed:
             // Nothing may draw into the window from here on; the UI thread waits for this. The EGL surfaces
             // of OpenGL windows are made of the window that is going away.
-            for (QAndroidWindow *w : QAndroidWindow::stack())
+            for (QAndroidWindow *w : QAndroidWindow::stack()) {
+                QWindowSystemInterface::handleExposeEvent(w->window(), QRegion());
                 QtPrivate::GuiAccess::surfaceAboutToBeDestroyed(w->window());
+#if QT_CONFIG(vulkan)
+                QtPrivate::GuiAccess::releaseVulkanWindow(w->window());
+#endif
+                if (w->destroyVulkanSurface) {
+                    w->destroyVulkanSurface();
+                    w->destroyVulkanSurface = nullptr;
+                    w->vulkanSurface = 0;
+                }
+            }
             m_surfaceLost = true;
             glue.windowReleased();
             break;

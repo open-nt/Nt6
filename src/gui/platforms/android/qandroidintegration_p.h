@@ -95,6 +95,9 @@ public:
     QPlatformClipboard *clipboard() const override;
     bool hasInputPanel() const override { return true; }
     void setInputPanelVisible(bool visible) override;
+    const char *vulkanSurfaceExtension() const override { return "VK_KHR_android_surface"; }
+    quint64 createVulkanSurface(QWindow *window, void *instance,
+                                QVulkanGetInstanceProcAddr getInstanceProcAddr) const override;
 
 private:
     explicit QAndroidIntegration(ANativeWindow *window);

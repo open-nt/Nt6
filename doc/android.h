@@ -40,7 +40,7 @@
 
     Use \c android-26 or newer as the platform. FreeType is downloaded and built with Nt for text (the system fonts
     in \c /system/fonts are used); \c NT_FREETYPE_SOURCE_DIR names a source tree to use instead, for a build without
-    network access. Vulkan, Zstandard and JPEG are left out.
+    network access. Zstandard and JPEG are left out; Vulkan is built with the headers of the NDK.
 
     \section1 Building an application
 
@@ -83,7 +83,11 @@
 
     \list
     \li Widgets are painted by the raster engine. OpenGL ES works, through the EGL library of the system, in
-        QOpenGLWindow and QOpenGLWidget; Vulkan is not available on Android yet, so QVulkanWindow does not draw.
+        QOpenGLWindow and QOpenGLWidget. Vulkan presents through \c{VK_KHR_android_surface}, loaded at run time from
+        the system, so QVulkanWindow works; like an OpenGL window it draws into the whole surface. While the
+        application is in the background there is no native window: QVulkanWindow releases its swapchain, device and
+        surface and makes them again, but a program that uses QVulkanInstance::surfaceForWindow() in a QWindow of
+        its own is only told with an expose event (isExposed() is false) and must release its swapchain then.
     \li The Java part is one class, \c org.nt.NtActivity, a NativeActivity with a view for the keyboard to type into. It is
         compiled with \c javac and \c d8 when the APK is made; without a JDK the application is a plain NativeActivity
         and has no on-screen keyboard. There is no QJniObject, no Android permissions API and no assets: \c{assets:}

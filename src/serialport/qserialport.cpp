@@ -300,6 +300,12 @@
     waitForBytesWritten() waits for the whole buffer, not for one chunk of it.
     Exclusive access uses \c flock() and \c TIOCEXCL rather than a lock file in
     \c{/var/lock}. Ports are POSIX terminal devices; only Linux has been tested.
+
+    On Zephyr (\c CONFIG_NT_SERIALPORT) a port is a UART, named by its node label in the
+    devicetree or by its device name. \c OneAndHalfStop and space and mark parity are available
+    where the driver has them, but \c SoftwareControl, a break and separate input and output
+    rates are not, and the pins are those that \c CONFIG_UART_LINE_CTRL gives. handle() returns
+    an eventfd, not a file descriptor of the UART. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QSerialPortInfo
@@ -465,7 +471,7 @@ public:
     QString location;
     QSerialPort::SerialPortError error = QSerialPort::NoError;
     QByteArray rbuf;
-    qint64 rpos = 0;
+    qsizetype rpos = 0;
     QByteArray wbuf;
     qint64 readLimit = 0;
     QSocketNotifier *readNotifier = nullptr;
@@ -518,7 +524,7 @@ void QSerialPortPrivate::startNotifiers() {
         readNotifier = new QSocketNotifier(fd, QSocketNotifier::Read, q);
         QObject::connect(readNotifier, &QSocketNotifier::activated, q, [this] { receive(); });
     }
-    writeNotifier = new QSocketNotifier(fd, QSocketNotifier::Write, q);
+    writeNotifier = new QSocketNotifier(engine.writeNotifierHandle(), QtPrivate::SerialEngine::kWriteNotifierType, q);
     writeNotifier->setEnabled(false);
     QObject::connect(writeNotifier, &QSocketNotifier::activated, q, [this] { send(); });
 }
@@ -555,7 +561,7 @@ bool QSerialPortPrivate::receive() {
             broken = n < 0;
             break;
         }
-        rbuf.append(chunk, n);
+        rbuf.append(chunk, static_cast<qsizetype>(n));
         got = true;
     }
     updateNotifiers();
@@ -588,7 +594,7 @@ bool QSerialPortPrivate::send() {
         }
         sent += n;
     }
-    wbuf.remove(0, sent);
+    wbuf.remove(0, static_cast<qsizetype>(sent));
     updateNotifiers();
     QPointer<QSerialPort> guard(q);
     if (sent > 0) {
@@ -1111,7 +1117,7 @@ qint64 QSerialPort::readData(char *data, qint64 maxSize) {
     if (n <= 0)
         return 0;
     std::memcpy(data, d->rbuf.constData() + d->rpos, static_cast<std::size_t>(n));
-    d->rpos += n;
+    d->rpos += static_cast<qsizetype>(n);
     if (d->rpos == d->rbuf.size()) {
         d->rbuf.clear();
         d->rpos = 0;
@@ -1129,7 +1135,7 @@ qint64 QSerialPort::readData(char *data, qint64 maxSize) {
 qint64 QSerialPort::writeData(const char *data, qint64 maxSize) {
     if (d->failed)
         return -1;
-    d->wbuf.append(data, maxSize);
+    d->wbuf.append(data, static_cast<qsizetype>(maxSize));
     d->updateNotifiers();
     return maxSize;
 }

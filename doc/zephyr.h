@@ -169,6 +169,54 @@
     west flash
     \endcode
 
+    \section1 Files and Settings
+
+    \c CONFIG_NT_STORAGE mounts LittleFS on the flash partition labelled \c storage_partition at
+    \c CONFIG_NT_HOME_PATH (\c{/lfs}) before \c main() runs, and formats the partition the first
+    time. QDir::homePath() is that directory, so QFile, QSaveFile and QTemporaryFile (in
+    \c{/lfs/tmp}) work on it, the locations of QStandardPaths lie below it (AppDataLocation is
+    \c{/lfs/.local/share/<application>}), and QSettings keeps its file in
+    \c{/lfs/.config/<organization>/<application>.conf}, across reboots:
+
+    \code
+    CONFIG_NT_STORAGE=y
+    \endcode
+
+    \code
+    QCoreApplication::setOrganizationName(QStringLiteral("acme"));
+    QCoreApplication::setApplicationName(QStringLiteral("sensor"));
+    QSettings settings;
+    const int boots = settings.value(QStringLiteral("boots"), 0).toInt() + 1;
+    settings.setValue(QStringLiteral("boots"), boots);
+    \endcode
+
+    The MIMXRT1170-EVKB has a \c storage_partition of almost 2 MB in its QSPI flash. A board
+    without one adds it in an overlay; a file system that the fstab of the devicetree mounts
+    elsewhere works too, with \c CONFIG_NT_HOME_PATH set to its mount point. Each write goes to
+    the flash, which wears out after many erase cycles, so do not write settings many times a
+    second.
+
+    \section1 MQTT
+
+    \c CONFIG_NT_MQTT, with \c CONFIG_NT_NETWORK, builds Nt Mqtt, linked as \c Nt::Mqtt: QMqttClient
+    publishes the readings of a device to an MQTT broker and receives its commands, over TCP or,
+    with \c CONFIG_NT_TLS, over TLS; see \l{Using Nt Mqtt}. \c zephyr/mqtt in the
+    \l{Nt Examples}{examples repository} publishes the uptime of the board and prints the commands it
+    receives. Give each board a client identifier of its own with QMqttClient::setClientId(): the
+    random one needs an entropy driver.
+
+    \section1 Serial Ports
+
+    \c CONFIG_NT_SERIALPORT, with \c CONFIG_SERIAL, builds Nt SerialPort, linked as
+    \c Nt::SerialPort: QSerialPort reads and writes a UART through the interrupt-driven API of its
+    driver, for a GPS receiver, a modem or a radio. A port is named by the node label of its UART
+    (\c lpuart2) or by its device name; QSerialPortInfo::availablePorts() lists them all. The
+    interrupt handler moves bytes into a receive buffer of \c CONFIG_NT_SERIALPORT_BUFFER_SIZE bytes,
+    and bytes that arrive while it is full are lost. Leave the UART of the console alone: an open
+    port takes its interrupts over. \c zephyr/serial in the \l{Nt Examples}{examples repository}
+    puts LPUART2 of the MIMXRT1170-EVKB, on D0 and D1 of the Arduino header, in loopback mode and
+    writes a line every second, which it reads back.
+
     \section1 CAN Bus
 
     \c CONFIG_NT_SERIALBUS, with \c CONFIG_CAN, builds Nt SerialBus, linked as \c Nt::SerialBus: a
@@ -258,9 +306,15 @@
          on its WM8962, with QAudioHeadset) run on it; Nt Core and Nt Network build for it.
     \row \li NXP MIMXRT1170-EVKB, CAN \li Nt SerialBus builds for its FlexCAN controllers (CAN FD);
          not yet run on the board.
+    \row \li NXP MIMXRT1170-EVKB, UART \li Nt SerialPort builds for its LPUARTs; not yet run on the
+         board.
+    \row \li NXP MIMXRT1170-EVKB, flash \li \c CONFIG_NT_STORAGE builds for its \c storage_partition;
+         not yet run on the board.
     \row \li NXP MIMXRT1170-EVK (\c mimxrt1170_evk@A/mimxrt1176/cm7, revision A) \li Nt Multimedia
          audio builds for its WM8960, untested, without QAudioHeadset.
-    \row \li Arm MPS2 AN385 in QEMU (\c mps2/an385) \li Runs the self-checking sample, without audio.
+    \row \li Arm MPS2 AN385 in QEMU (\c mps2/an385) \li Runs the self-checking sample, without audio;
+         QSerialPort on its second UART, Nt Mqtt over its emulated Ethernet, and
+         \c CONFIG_NT_STORAGE on a simulated flash partition have run on it too.
     \endtable
 
     \section1 Host Tools
@@ -351,8 +405,9 @@
             safe yet, so keep to one thread where you can.
         \li \b Files. A path has to be absolute and start at a mounted file system: there is no
             working directory. There are no symbolic links, users or permissions, so a file that
-            exists is readable, writable and owned by user 0. The locations of QStandardPaths
-            are those of a desktop and do not exist.
+            exists is readable, writable and owned by user 0. QDir::homePath() is
+            \c CONFIG_NT_HOME_PATH, below which QStandardPaths and QSettings keep their files; see
+            \l{Files and Settings}.
         \li \b Time. Local time is UTC, as the C library has no time zones. The steady clock of
             the C++ library follows the system clock, so setting the time of day moves the
             timers that are running.

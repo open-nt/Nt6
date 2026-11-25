@@ -1,0 +1,6 @@
+#include "qmqttclient.h"
+#include "qmqttglobal.h"
+#include "qmqttmessage.h"
+#include "qmqttsubscription.h"
+#include "qmqtttopicfilter.h"
+#include "qmqtttopicname.h"

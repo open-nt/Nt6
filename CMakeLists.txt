@@ -220,6 +220,17 @@ if(NT_ZEPHYR)
     set(NT_ZEPHYR_PRIVATE_OPTIONS
         -D_GNU_SOURCE "SHELL:-include ${CMAKE_CURRENT_SOURCE_DIR}/src/zephyr/ntposix_zephyr_p.h")
     target_compile_options(NtCore PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+    if(CONFIG_NT_STORAGE)
+        # The default configuration of LittleFS is a macro of designated initializers, which C++17 only has as an
+        # extension that -Wpedantic reports.
+        set(_nt_storage_zephyr src/zephyr/qstorage_zephyr.cpp)
+        target_sources(NtCore PRIVATE ${_nt_storage_zephyr})
+        set_source_files_properties(${_nt_storage_zephyr} PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
+        # The headers of LittleFS come with the interface target of Zephyr's littlefs module.
+        target_link_libraries(NtCore PRIVATE LITTLEFS)
+        # Nothing calls the function that SYS_INIT runs, so the linker is told to keep it.
+        target_link_options(NtCore INTERFACE -Wl,--undefined=nt_storage_mount)
+    endif()
 else()
     target_link_libraries(NtCore PUBLIC Threads::Threads)
     # QJniObject, QJniEnvironment and QNativeInterface::QAndroidApplication.
@@ -402,16 +413,11 @@ endif()
 nt_set_compile_options(NtGpio)
 endif() # NOT NT_ZEPHYR OR CONFIG_NT_GPIO
 
-# The other modules need a hosted system. This block ends after Nt Test.
-if(NOT NT_ZEPHYR)
-
-if(NOT NT_ANDROID)
+# Nt SerialPort: POSIX terminals on Linux, and the UART drivers of Zephyr when CONFIG_NT_SERIALPORT asks.
+if(NOT NT_ANDROID AND (NOT NT_ZEPHYR OR CONFIG_NT_SERIALPORT))
 add_library(NtSerialPort
     src/serialport/qserialport.cpp
-    src/serialport/qserialportbaud_linux.cpp
-    src/serialport/qserialportengine_unix.cpp
     src/serialport/qserialportinfo.cpp
-    src/serialport/qserialportinfo_linux.cpp
 )
 add_library(Nt::SerialPort ALIAS NtSerialPort)
 add_library(Qt6::SerialPort ALIAS NtSerialPort)
@@ -424,8 +430,24 @@ target_include_directories(NtSerialPort
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtSerialPort PUBLIC NtCore)
+if(NT_ZEPHYR)
+    target_compile_options(NtSerialPort PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+    set(_nt_serialport_zephyr_backend src/zephyr/qserialportengine_zephyr.cpp)
+    target_sources(NtSerialPort PRIVATE ${_nt_serialport_zephyr_backend})
+    # The table of node labels expands the devicetree's macros with empty variadic arguments, which -Wpedantic reports.
+    set_source_files_properties(${_nt_serialport_zephyr_backend} PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
+else()
+    target_sources(NtSerialPort PRIVATE
+        src/serialport/qserialportbaud_linux.cpp
+        src/serialport/qserialportengine_unix.cpp
+        src/serialport/qserialportinfo_linux.cpp)
+endif()
 nt_set_compile_options(NtSerialPort)
-endif() # NOT NT_ANDROID
+endif() # NOT NT_ANDROID AND (NOT NT_ZEPHYR OR CONFIG_NT_SERIALPORT)
+
+# The other modules need a hosted system. This block ends after Nt Test.
+if(NOT NT_ZEPHYR)
+
 
 add_library(NtSql
     src/sql/qsqldatabase.cpp
@@ -562,6 +584,31 @@ target_link_libraries(NtHttpServer PUBLIC NtNetwork NtWebSockets)
 nt_set_compile_options(NtHttpServer)
 
 endif() # NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER
+
+# Nt Mqtt: the MQTT 3.1 and 3.1.1 client of Qt MQTT, on Nt Network. Zephyr builds it when CONFIG_NT_MQTT asks.
+if(NOT NT_ZEPHYR OR CONFIG_NT_MQTT)
+add_library(NtMqtt
+    src/mqtt/qmqttclient.cpp
+    src/mqtt/qmqttconnection.cpp
+    src/mqtt/qmqttmessage.cpp
+    src/mqtt/qmqttsubscription.cpp
+    src/mqtt/qmqtttopicname.cpp)
+add_library(Nt::Mqtt ALIAS NtMqtt)
+add_library(Qt6::Mqtt ALIAS NtMqtt)
+target_include_directories(NtMqtt
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtMqtt>
+        $<INSTALL_INTERFACE:include/nt6/QtMqtt>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/mqtt
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtMqtt PUBLIC NtNetwork)
+if(NT_ZEPHYR)
+    target_compile_options(NtMqtt PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+endif()
+nt_set_compile_options(NtMqtt)
+endif() # NOT NT_ZEPHYR OR CONFIG_NT_MQTT
 
 # Nt SerialBus: the CAN part of Qt Serial Bus. It needs Nt Core only. Linux has SocketCAN, Zephyr (CONFIG_NT_SERIALBUS)
 # its CAN drivers, and every platform the virtual bus inside the process.
@@ -1533,11 +1580,11 @@ set(NT_MOC_DEFINES)
 if(NOT NT_ZEPHYR OR CONFIG_NT_GPIO)
 nt_moc_library(NtGpio include/QtGpio)
 endif()
-if(NOT NT_ZEPHYR)
-nt_moc_library(NtSql include/QtSql)
-if(NOT NT_ANDROID)
+if(NOT NT_ANDROID AND (NOT NT_ZEPHYR OR CONFIG_NT_SERIALPORT))
 nt_moc_library(NtSerialPort include/QtSerialPort)
 endif()
+if(NOT NT_ZEPHYR)
+nt_moc_library(NtSql include/QtSql)
 nt_moc_library(NtDBus include/QtDBus)
 endif() # NOT NT_ZEPHYR
 if(NOT NT_ZEPHYR OR CONFIG_NT_SENSORS)
@@ -1545,6 +1592,13 @@ nt_moc_library(NtSensors include/QtSensors)
 endif()
 if(NOT NT_ZEPHYR OR CONFIG_NT_SERIALBUS)
 nt_moc_library(NtSerialBus include/QtSerialBus)
+endif()
+if(NOT NT_ZEPHYR OR CONFIG_NT_MQTT)
+if(NOT NT_HAVE_TLS)
+    set(NT_MOC_DEFINES -DQT_NO_SSL)
+endif()
+nt_moc_library(NtMqtt include/QtMqtt)
+set(NT_MOC_DEFINES)
 endif()
 if(NT_ZEPHYR AND CONFIG_NT_MULTIMEDIA)
 set(NT_MOC_DEFINES -DQT_NO_CAMERA)
@@ -2349,6 +2403,12 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_serialbus_vcan_tests COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tests/serialbus_vcan.sh
                                                   $<TARGET_FILE:nt_serialbus_tests>)
     nt_set_compile_options(nt_serialbus_tests)
+
+    # Nt Mqtt: topics, the bytes of the packets, a broker inside the test, and mosquitto when it is installed.
+    add_executable(nt_mqtt_tests tests/test_mqtt.cpp)
+    target_link_libraries(nt_mqtt_tests PRIVATE Nt::Mqtt)
+    add_test(NAME nt_mqtt_tests COMMAND nt_mqtt_tests)
+    nt_set_compile_options(nt_mqtt_tests)
 
     # Nt Sensors: QSensor against a fake backend, and the Industrial I/O backend on a sysfs tree written by the test.
     add_executable(nt_sensors_tests tests/test_sensors.cpp)

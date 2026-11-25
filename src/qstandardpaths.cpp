@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 
+#include <QtCore/qcoreapplication.h>
 #include <QtCore/qstandardpaths.h>
 
 #include <QtCore/qdir.h>
@@ -67,8 +68,8 @@ QStringList dirList(const char *var, const char *fallback) {
 QString appName() {
     char buf[4096];
     const ssize_t n = ::readlink("/proc/self/exe", buf, sizeof buf - 1);
-    if (n <= 0)
-        return QString();
+    if (n <= 0) // no /proc, as on Zephyr, where there is no executable file either
+        return QCoreApplication::applicationName();
     return QFileInfo(QString::fromUtf8(buf, static_cast<qsizetype>(n))).fileName();
 }
 
@@ -147,9 +148,10 @@ bool existsAsSpecified(const QString &path, QStandardPaths::LocateOptions option
     organization and application names.
     displayName() returns untranslated English names.
 
-    On Zephyr the locations are still those of a Linux desktop and do not
-    exist; choose paths on a mounted file system yourself. See \l{Nt on
-    Zephyr}.
+    On Zephyr the locations are those of the XDG layout below QDir::homePath(),
+    \c CONFIG_NT_HOME_PATH, where \c CONFIG_NT_STORAGE mounts LittleFS, and the
+    application sub-directory is QCoreApplication::applicationName(). The
+    system-wide locations do not exist. See \l{Nt on Zephyr}.
     \enddifferences
 */
 

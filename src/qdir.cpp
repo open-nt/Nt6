@@ -294,8 +294,8 @@ QString ntResolveSearchPath(const QString &path) { return resolveSearchPath(path
     resolves \c .. lexically and never follows symbolic links to do so.
 
     On Zephyr there is no working directory: currentPath() is \c{/}, setCurrent() fails, and a path has to be
-    absolute and start at a mounted file system. homePath() is the root directory, and tempPath() names a
-    directory that does not exist. See \l{Nt on Zephyr}.
+    absolute and start at a mounted file system. homePath() is \c CONFIG_NT_HOME_PATH (\c{/lfs} by default, where
+    \c CONFIG_NT_STORAGE mounts LittleFS) and tempPath() is its directory \c tmp. See \l{Nt on Zephyr}.
     \enddifferences
 
     \sa QFileInfo, QStandardPaths
@@ -942,21 +942,29 @@ QString QDir::currentPath() {
 QString QDir::homePath() {
     if (const char *home = std::getenv("HOME"); home && *home)
         return cleanPath(QString::fromUtf8(home));
+#ifdef __ZEPHYR__
+    return cleanPath(QString::fromUtf8(CONFIG_NT_HOME_PATH));
+#else
     if (const passwd *pw = ::getpwuid(::getuid()); pw && pw->pw_dir && *pw->pw_dir)
         return cleanPath(QString::fromUtf8(pw->pw_dir));
     return rootPath();
+#endif
 }
 
 /*!
     Returns the path of the system's temporary directory. It is taken from
-    \c TMPDIR and falls back to \c /tmp.
+    \c TMPDIR and falls back to \c /tmp, and on Zephyr to the directory \c tmp of homePath().
 
     \sa temp()
 */
 QString QDir::tempPath() {
     if (const char *tmp = std::getenv("TMPDIR"); tmp && *tmp)
         return cleanPath(QString::fromUtf8(tmp));
+#ifdef __ZEPHYR__
+    return homePath() + QString::fromUtf8("/tmp");
+#else
     return QString::fromUtf8("/tmp");
+#endif
 }
 
 /*!

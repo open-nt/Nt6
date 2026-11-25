@@ -28,7 +28,9 @@
     Ports are found through sysfs, so availablePorts() returns nothing on other
     systems, and only USB and PCI hardware reports identifiers. Pseudo
     terminals are not listed, because they have no entry in sysfs. Objects of
-    this class are plain values, not implicitly shared.
+    this class are plain values, not implicitly shared. On Zephyr, availablePorts() lists every
+    UART device, with its node label in the devicetree as the port name and the device name as
+    the system location, and reports no identifiers.
     \enddifferences
 
     \sa QSerialPort

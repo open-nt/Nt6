@@ -36,13 +36,38 @@ config NT_THREAD_STACK_SIZE
 	  one that resolves a host name. The stacks are allocated from the kernel heap
 	  (CONFIG_HEAP_MEM_POOL_SIZE).
 
+config NT_HOME_PATH
+	string "Home directory of Nt"
+	default "/lfs"
+	help
+	  What QDir::homePath() returns, unless the environment variable HOME is set. The
+	  locations of QStandardPaths and the files of QSettings are below it (QSettings writes
+	  <home>/.config/<organization>/<application>.conf), and QDir::tempPath() is its directory
+	  tmp. It has to be on a mounted file system, such as the one CONFIG_NT_STORAGE mounts.
+
+config NT_STORAGE
+	bool "Mount LittleFS at the home directory"
+	depends on $(dt_nodelabel_exists,storage_partition)
+	select FLASH
+	select FLASH_MAP
+	select FILE_SYSTEM
+	select FILE_SYSTEM_LITTLEFS
+	help
+	  Mounts LittleFS on the flash partition labelled storage_partition at NT_HOME_PATH before
+	  main() runs, formatting the partition if it holds no LittleFS yet. QFile, QSaveFile,
+	  QSettings and QStandardPaths then keep their files across a reboot. Leave it off when the
+	  devicetree's fstab mounts a file system there instead.
+
 config ZVFS_EVENTFD_ADD_SIZE_NT
 	int "Number of eventfds needed by Nt"
+	default 16 if NT_GPIO && NT_SERIALPORT
 	default 12 if NT_GPIO
+	default 8 if NT_SERIALPORT
 	default 4
 	help
 	  The event loop of each thread that runs one (the main thread and each QThread) wakes up
-	  through an eventfd, and so does each QGpioLine input whose pin has an interrupt. Zephyr's
+	  through an eventfd, and so does each QGpioLine input whose pin has an interrupt; an open
+	  QSerialPort takes two. Zephyr's
 	  default of one eventfd in all leaves no more after the main thread, and an input line is
 	  then polled instead of woken by its interrupt. Each eventfd also takes a file descriptor.
 
@@ -55,6 +80,14 @@ config NT_NETWORK
 	  QNetworkAccessManager for http:. Link the application with Nt::Network.
 
 	  QLocalSocket and QLocalServer are not available on Zephyr.
+
+config NT_MQTT
+	bool "Nt Mqtt"
+	depends on NT_NETWORK
+	help
+	  Builds Nt Mqtt: QMqttClient, which publishes messages to an MQTT broker and subscribes to
+	  topics, with MQTT 3.1.1 over TCP and, with CONFIG_NT_TLS, over TLS. Link the application
+	  with Nt::Mqtt.
 
 config NT_GPIO
 	bool "Nt GPIO"
@@ -69,6 +102,33 @@ config NT_GPIO
 	  QPwmChannel, QAnalogInput, QAnalogOutput, QI2cDevice and QSpiDevice work when CONFIG_PWM,
 	  CONFIG_ADC, CONFIG_DAC, CONFIG_I2C and CONFIG_SPI are set; without one, that class fails
 	  open() with UnsupportedOperationError.
+
+config NT_SERIALPORT
+	bool "Nt SerialPort"
+	depends on SERIAL
+	depends on SERIAL_SUPPORT_INTERRUPT
+	select UART_INTERRUPT_DRIVEN
+	help
+	  Builds Nt SerialPort: QSerialPort and QSerialPortInfo on the UART drivers of Zephyr, for a
+	  GPS receiver, a modem or a radio. A port is named by the node label of its UART (lpuart2)
+	  or by its device name (serial@40080000); availablePorts() lists every UART. Runtime
+	  configuration (CONFIG_UART_USE_RUNTIME_CONFIGURE, on by default) sets the baud rate, data
+	  bits, parity, stop bits and RTS/CTS flow control; CONFIG_UART_LINE_CTRL adds DTR and RTS
+	  where the driver has them. Link the application with Nt::SerialPort.
+
+	  Do not open the UART of the console or the shell: the port takes its interrupts over.
+
+if NT_SERIALPORT
+
+config NT_SERIALPORT_BUFFER_SIZE
+	int "Size of each of the receive and transmit buffers of a port, in bytes"
+	default 1024
+	help
+	  The interrupt handler moves bytes between the UART and these buffers, which hold what
+	  arrives until the event loop reads it. Bytes that arrive when the receive buffer is full
+	  are lost: at 115200 baud, 1024 bytes last about 90 ms.
+
+endif # NT_SERIALPORT
 
 config NT_SERIALBUS
 	bool "Nt SerialBus (CAN)"

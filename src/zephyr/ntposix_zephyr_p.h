@@ -10,6 +10,7 @@
 
 #include <fcntl.h>
 #include <pwd.h>
+#include <stdlib.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -59,6 +60,17 @@ struct passwd *getpwuid(uid_t uid);
 // The working directory is always "/", so every path that Nt opens has to be absolute.
 char *getcwd(char *buf, size_t size);
 int chdir(const char *path);
+// Succeed and change nothing: there are no permissions to set.
+int chmod(const char *path, mode_t mode);
+int fchmod(int fd, mode_t mode);
+mode_t umask(mode_t mask);
+// Opens a new file whose name is templ with its final "XXXXXX" replaced.
+int mkostemp(char *templ, int flags);
+// The host name of the network stack (CONFIG_NET_HOSTNAME), or "zephyr".
+int gethostname(char *name, size_t size);
+// Makes path absolute against "/" and removes "." and "..", which is all it takes without links. Fails with ENOENT
+// if the result does not exist.
+char *realpath(const char *path, char *resolved);
 
 #ifdef __cplusplus
 }

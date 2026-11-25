@@ -373,12 +373,13 @@ target_include_directories(NtGpio
 target_link_libraries(NtGpio PUBLIC NtCore)
 if(NT_ZEPHYR)
     target_compile_options(NtGpio PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+    set(_nt_gpio_zephyr_backend src/zephyr/qgpiobackend_zephyr.cpp)
     target_sources(NtGpio PRIVATE
-        src/zephyr/qgpiobackend_zephyr.cpp
+        ${_nt_gpio_zephyr_backend}
         src/zephyr/qperipheralbackend_zephyr.cpp)
     # The table of devicetree names expands the devicetree's macros with empty variadic arguments, which
     # -Wpedantic reports thousands of times while preprocessing (no #pragma reaches that stage).
-    set_source_files_properties(src/zephyr/qgpiobackend_zephyr.cpp PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
+    set_source_files_properties(${_nt_gpio_zephyr_backend} PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
     # Each peripheral class works when its Zephyr driver class is configured, and fails open()
     # with UnsupportedOperationError when it is not.
     foreach(peripheral PWM ADC DAC I2C SPI ADC_CONFIGURABLE_INPUTS)
@@ -556,6 +557,38 @@ target_link_libraries(NtHttpServer PUBLIC NtNetwork NtWebSockets)
 nt_set_compile_options(NtHttpServer)
 
 endif() # NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER
+
+# Nt Sensors: a subset of Qt Sensors. It needs Nt Core only. Linux reads the Industrial I/O devices of the kernel and
+# Zephyr (CONFIG_NT_SENSORS) its sensor drivers; other platforms have no sensors yet.
+if(NOT NT_ZEPHYR OR CONFIG_NT_SENSORS)
+add_library(NtSensors
+    src/sensors/qsensor.cpp
+    src/sensors/qsensorreadings.cpp)
+add_library(Nt::Sensors ALIAS NtSensors)
+add_library(Qt6::Sensors ALIAS NtSensors)
+target_include_directories(NtSensors
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSensors>
+        $<INSTALL_INTERFACE:include/nt6/QtSensors>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/sensors
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtSensors PUBLIC NtCore)
+if(NT_ZEPHYR)
+    target_compile_options(NtSensors PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+    set(_nt_sensors_zephyr_backend src/zephyr/qsensorbackend_zephyr.cpp)
+    target_sources(NtSensors PRIVATE ${_nt_sensors_zephyr_backend})
+    # The table of devicetree aliases expands COND_CODE_1() with an empty branch, which -Wpedantic reports while
+    # preprocessing (no #pragma reaches that stage).
+    set_source_files_properties(${_nt_sensors_zephyr_backend} PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(NtSensors PRIVATE src/sensors/qsensorbackend_iio.cpp)
+else()
+    target_sources(NtSensors PRIVATE src/sensors/qsensorbackend_null.cpp)
+endif()
+nt_set_compile_options(NtSensors)
+endif() # NOT NT_ZEPHYR OR CONFIG_NT_SENSORS
 
 # The audio part of Nt Multimedia, which needs Nt Core only. It is built with the rest of Nt Multimedia below on a
 # hosted system, and on its own for Zephyr when CONFIG_NT_MULTIMEDIA is set, through the I2S and audio codec drivers.
@@ -1439,6 +1472,9 @@ nt_moc_library(NtSerialPort include/QtSerialPort)
 endif()
 nt_moc_library(NtDBus include/QtDBus)
 endif() # NOT NT_ZEPHYR
+if(NOT NT_ZEPHYR OR CONFIG_NT_SENSORS)
+nt_moc_library(NtSensors include/QtSensors)
+endif()
 if(NT_ZEPHYR AND CONFIG_NT_MULTIMEDIA)
 set(NT_MOC_DEFINES -DQT_NO_CAMERA)
 nt_moc_library(NtMultimedia include/QtMultimedia)
@@ -2203,6 +2239,13 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_barcode_tests COMMAND nt_barcode_tests)
     set_tests_properties(nt_barcode_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_barcode_tests)
+
+    # Nt Sensors: QSensor against a fake backend, and the Industrial I/O backend on a sysfs tree written by the test.
+    add_executable(nt_sensors_tests tests/test_sensors.cpp)
+    target_include_directories(nt_sensors_tests PRIVATE src/sensors)
+    target_link_libraries(nt_sensors_tests PRIVATE Nt::Sensors)
+    add_test(NAME nt_sensors_tests COMMAND nt_sensors_tests)
+    nt_set_compile_options(nt_sensors_tests)
 
     # Nt Positioning: coordinates and shapes against known values, and NMEA logs read from a QBuffer.
     add_executable(nt_positioning_tests tests/test_positioning.cpp)

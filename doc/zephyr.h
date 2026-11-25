@@ -169,7 +169,17 @@
     west flash
     \endcode
 
-\section1 Audio and Headsets
+    \section1 Sensors
+
+    \c CONFIG_NT_SENSORS, with \c CONFIG_SENSOR and the driver of the sensor, builds Nt Sensors, linked
+    as \c Nt::Sensors. QSensor and its subclasses read the sensors that the devicetree aliases
+    \c accel0, \c gyro0, \c magn0, \c press0, \c ambient-temp0, \c die-temp0, \c humidity0 and
+    \c light0 name, or any sensor device by its device name; see \l{Using Nt Sensors}. The
+    MIMXRT1170-EVKB has no such sensor of its own, so one goes on its Arduino header or I2C bus.
+    \c zephyr/sensors in the \l{Nt Examples}{examples repository} lists the sensors and prints a
+    reading of each every second.
+
+    \section1 Audio and Headsets
 
     \c CONFIG_NT_MULTIMEDIA builds the audio part of Nt Multimedia, linked as \c Nt::Multimedia:
     QAudioSink, QAudioSource, QAudioInput, QAudioOutput, QSoundEffect, QAudioDecoder, QMediaDevices

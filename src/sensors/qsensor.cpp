@@ -25,6 +25,37 @@
     See \l{Using Nt Sensors} for a walk through.
 */
 
+/*!
+    \class qoutputrange
+    \inmodule NtSensors
+    \brief The qoutputrange struct describes a range that a sensor can measure in.
+    \since 6.0
+
+    \differences
+    None.
+    \enddifferences
+
+    \sa QSensor::outputRanges()
+*/
+
+/*!
+    \variable qoutputrange::minimum
+
+    The lowest value of the range.
+*/
+
+/*!
+    \variable qoutputrange::maximum
+
+    The highest value of the range.
+*/
+
+/*!
+    \variable qoutputrange::accuracy
+
+    The resolution of the values in the range.
+*/
+
 namespace QtSensorsPrivate {
 
 namespace {
@@ -145,6 +176,7 @@ QVariant QSensorReading::value(int index) const {
     \code
     class LowPass : public QAccelerometerFilter {
     public:
+        using QAccelerometerFilter::filter; // keeps -Woverloaded-virtual quiet
         bool filter(QAccelerometerReading *reading) override {
             m_x = 0.9 * m_x + 0.1 * reading->x();
             reading->setX(m_x);
@@ -180,6 +212,12 @@ QSensorFilter::~QSensorFilter() {
 
     Looks at \a reading, which it may change, and returns \c true to let the sensor report it or
     \c false to drop it.
+*/
+
+/*!
+    \variable QSensorFilter::m_sensor
+
+    The sensor the filter is added to, or \c nullptr.
 */
 
 /*!

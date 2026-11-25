@@ -154,7 +154,8 @@ void QAccelerometerReading::setZ(qreal z) { m_z = z; }
     Reimplement filter() and add the filter with QSensor::addFilter().
 
     \differences
-    None.
+    The override of QSensorFilter::filter() is protected rather than private, so that a subclass can
+    bring it in with \c{using} and keep \c{-Woverloaded-virtual} quiet.
     \enddifferences
 
     \sa QSensorFilter
@@ -313,7 +314,8 @@ void QGyroscopeReading::setZ(qreal z) { m_z = z; }
     Reimplement filter() and add the filter with QSensor::addFilter().
 
     \differences
-    None.
+    The override of QSensorFilter::filter() is protected rather than private, so that a subclass can
+    bring it in with \c{using} and keep \c{-Woverloaded-virtual} quiet.
     \enddifferences
 
     \sa QSensorFilter
@@ -348,7 +350,7 @@ bool QGyroscopeFilter::filter(QSensorReading *reading) { return filter(static_ca
     \endcode
 
     \differences
-    As for QSensor. 
+    As for QSensor.
     \enddifferences
 
     \sa QGyroscopeReading, {Using Nt Sensors}
@@ -458,7 +460,8 @@ void QMagnetometerReading::setCalibrationLevel(qreal calibrationLevel) { m_calib
     Reimplement filter() and add the filter with QSensor::addFilter().
 
     \differences
-    None.
+    The override of QSensorFilter::filter() is protected rather than private, so that a subclass can
+    bring it in with \c{using} and keep \c{-Woverloaded-virtual} quiet.
     \enddifferences
 
     \sa QSensorFilter
@@ -596,7 +599,8 @@ void QPressureReading::setTemperature(qreal temperature) { m_temperature = tempe
     Reimplement filter() and add the filter with QSensor::addFilter().
 
     \differences
-    None.
+    The override of QSensorFilter::filter() is protected rather than private, so that a subclass can
+    bring it in with \c{using} and keep \c{-Woverloaded-virtual} quiet.
     \enddifferences
 
     \sa QSensorFilter
@@ -631,7 +635,7 @@ bool QPressureFilter::filter(QSensorReading *reading) { return filter(static_cas
     \endcode
 
     \differences
-    As for QSensor. 
+    As for QSensor.
     \enddifferences
 
     \sa QPressureReading, {Using Nt Sensors}
@@ -705,7 +709,8 @@ void QAmbientTemperatureReading::setTemperature(qreal temperature) { m_temperatu
     Reimplement filter() and add the filter with QSensor::addFilter().
 
     \differences
-    None.
+    The override of QSensorFilter::filter() is protected rather than private, so that a subclass can
+    bring it in with \c{using} and keep \c{-Woverloaded-virtual} quiet.
     \enddifferences
 
     \sa QSensorFilter
@@ -740,7 +745,7 @@ bool QAmbientTemperatureFilter::filter(QSensorReading *reading) { return filter(
     \endcode
 
     \differences
-    As for QSensor. 
+    As for QSensor.
     \enddifferences
 
     \sa QAmbientTemperatureReading, {Using Nt Sensors}
@@ -826,7 +831,8 @@ void QHumidityReading::setAbsoluteHumidity(qreal absoluteHumidity) { m_absoluteH
     Reimplement filter() and add the filter with QSensor::addFilter().
 
     \differences
-    None.
+    The override of QSensorFilter::filter() is protected rather than private, so that a subclass can
+    bring it in with \c{using} and keep \c{-Woverloaded-virtual} quiet.
     \enddifferences
 
     \sa QSensorFilter
@@ -861,7 +867,7 @@ bool QHumidityFilter::filter(QSensorReading *reading) { return filter(static_cas
     \endcode
 
     \differences
-    As for QSensor. 
+    As for QSensor.
     \enddifferences
 
     \sa QHumidityReading, {Using Nt Sensors}
@@ -935,7 +941,8 @@ void QLightReading::setLux(qreal lux) { m_lux = lux; }
     Reimplement filter() and add the filter with QSensor::addFilter().
 
     \differences
-    None.
+    The override of QSensorFilter::filter() is protected rather than private, so that a subclass can
+    bring it in with \c{using} and keep \c{-Woverloaded-virtual} quiet.
     \enddifferences
 
     \sa QSensorFilter

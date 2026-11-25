@@ -21,7 +21,8 @@ class QAmbientTemperatureFilter : public QSensorFilter {
 public:
     virtual bool filter(QAmbientTemperatureReading *reading) = 0;
 
-private:
+protected:
+    // Calls the typed filter(); a subclass can bring it in with a using-declaration to keep -Woverloaded-virtual quiet.
     bool filter(QSensorReading *reading) override;
 };
 

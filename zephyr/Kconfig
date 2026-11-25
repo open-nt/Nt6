@@ -70,6 +70,16 @@ config NT_GPIO
 	  CONFIG_ADC, CONFIG_DAC, CONFIG_I2C and CONFIG_SPI are set; without one, that class fails
 	  open() with UnsupportedOperationError.
 
+config NT_SENSORS
+	bool "Nt Sensors"
+	depends on SENSOR
+	help
+	  Builds Nt Sensors: QSensor, QAccelerometer, QGyroscope, QMagnetometer, QPressureSensor,
+	  QAmbientTemperatureSensor, QHumiditySensor and QLightSensor, on the sensor drivers of
+	  Zephyr. The sensors listed are those of the devicetree aliases accel0, gyro0, magn0,
+	  press0, ambient-temp0, die-temp0, humidity0 and light0; others are named by their device
+	  name. Link the application with Nt::Sensors.
+
 config NT_MULTIMEDIA
 	bool "Nt Multimedia (audio)"
 	depends on I2S

@@ -40,3 +40,4 @@ duplInheritedMember:src/positioning/qgeocircle.cpp
 // build checks them.
 syntaxError:src/zephyr/qaudiobackend_zephyr.cpp
 syntaxError:src/zephyr/qgpiobackend_zephyr.cpp
+syntaxError:src/zephyr/qsensorbackend_zephyr.cpp

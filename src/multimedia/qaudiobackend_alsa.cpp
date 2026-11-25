@@ -318,7 +318,7 @@ private:
 class AlsaHeadset : public AudioHeadsetControl {
 public:
     // Opens the card chosen as the comment at the top describes, or returns nullptr when no card has a capture volume.
-    static std::unique_ptr<AlsaHeadset> create(std::shared_ptr<AlsaApi> api) {
+    static std::unique_ptr<AlsaHeadset> create(const std::shared_ptr<AlsaApi> &api) {
         if (!api || !api->mixerLoaded)
             return nullptr;
         const QByteArray wanted = qgetenv("NT_AUDIO_HEADSET_CARD");

@@ -40,6 +40,10 @@
     editTriggers() allows: by default with a double click, with F2, or by starting to type. The delegate makes
     the editor and writes its value to the model when the user is done; see QStyledItemDelegate.
 
+    A QTreeView, one of the item views, showing a model with a current item.
+
+    \image widgets/qtreeview.png QTreeView in the light color scheme
+
     \differences
     visualRect(), indexAt(), scrollTo(), moveCursor(), horizontalOffset(), verticalOffset(), isIndexHidden(),
     setSelection() and visualRegionForSelection() have defaults, where Qt has pure virtual functions, so that

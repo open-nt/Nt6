@@ -25,6 +25,10 @@
 
     Given a QUndoGroup, the view shows its active stack and follows it as another becomes active.
 
+    An undo view of a stack of four commands, with the last one undone.
+
+    \image widgets/qundoview.png QUndoView in the light color scheme
+
     \differences
     The clean icon is a QPixmap, as Nt has no \c QIcon.
     \enddifferences

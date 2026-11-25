@@ -257,6 +257,10 @@ QSpinBox *spin(QWidget *parent, int maximum) {
 
     The custom colors are shared by all color dialogs of the application.
 
+    The color dialog, with the basic and custom colors, the hue and saturation field and the value bar.
+
+    \image widgets/qcolordialog.png QColorDialog in the light color scheme
+
     \differences
     The dialog is always drawn by Nt; there is no native dialog and no eye dropper. The basic colors are a grid of
     grays and hues of Nt's own. There is no \c open() with a receiver. The texts are not translated.

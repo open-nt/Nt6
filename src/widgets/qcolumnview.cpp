@@ -27,6 +27,10 @@ constexpr int kDefaultWidth = 200;
     view->setRootIndex(fileSystemModel->index(QDir::homePath()));
     \endcode
 
+    A column view of a small project tree, with a file in the src folder selected.
+
+    \image widgets/qcolumnview.png QColumnView in the light color scheme
+
     \differences
     Each column is a QListView with a selection of its own: the view has no selection model of its own across the
     columns, and the user cannot resize the columns, so resizeGripsVisible() has no effect.

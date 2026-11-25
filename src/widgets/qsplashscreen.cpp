@@ -29,6 +29,10 @@
     The message is drawn over the pixmap; reimplement drawContents() to draw more. showMessage() repaints at once, so
     the message is seen even while the application is busy. A click closes the splash screen.
 
+    A splash screen made from a pixmap, with a message at the bottom.
+
+    \image widgets/qsplashscreen.png QSplashScreen in the light color scheme
+
     \differences
     There is no \c QSplashScreen(QScreen *) constructor, and pixmaps cannot be loaded from files in Nt, so the pixmap is
     painted by the application.

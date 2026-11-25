@@ -25,6 +25,10 @@
 
     triggerAction() moves the slider the way the keys do, and emits actionTriggered() before the value changes.
 
+    Sliders, the commonest QAbstractSlider, at different values and in their states.
+
+    \image widgets/qslider.png QSlider in the light color scheme
+
     \differences
     There is no \c invertedAppearance and no \c setRepeatAction(). The keys and the wheel move by the steps of the
     slider; the wheel does not take \c QApplication::wheelScrollLines() into account and moves by three single steps,

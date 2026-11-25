@@ -23,6 +23,10 @@
 
     With a type, the check box applies to all the messages of that type.
 
+    An error message with the check box that lets the user hide it next time.
+
+    \image widgets/qerrormessage.png QErrorMessage in the light color scheme
+
     \differences
     There is no \c qtHandler(), which would show the messages of qDebug(), qWarning() and the others. The texts
     are not translated, and the message is plain text.

@@ -24,7 +24,7 @@
 
 - **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ntprotobufgen`, `ndoc`, `ntgltfview`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt Positioning`, `Nt Sensors`, `Nt Protobuf`, `Nt SerialBus` (CAN), `Nt Mqtt`, `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt Positioning`, `Nt Sensors`, `Nt Protobuf`, `Nt SerialBus` (CAN), `Nt Mqtt`, `Nt Device` (watchdog and firmware updates), `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -632,6 +632,7 @@ Not yet: video playback and recording (no video codecs), compressed audio (MP3, 
 | Qt Sensors | Nt Sensors | ✔ (all 18 sensor types of Qt 6 with their readings and filters, `QSensorManager` and `QSensorBackend` for sensors of your own; Linux Industrial I/O devices and the ACPI lid, Android sensors and Zephyr sensor drivers; orientation, tilt, rotation, compass, altimeter and light level computed from the base sensors where the platform has none; polled at the data rate, no gestures, plugins or QML. Guide: [Using Nt Sensors](https://open-nt.github.io/Nt6/nt-sensors.html)) |
 | Qt Serial Bus | Nt SerialBus | ✔ (CAN: `QCanBus`, `QCanBusDevice`, `QCanBusDeviceInfo`, `QCanBusFrame`, `QCanBusFactory`; backends `socketcan` (Linux, CAN FD, filters, error frames, kernel time stamps), `zephyrcan` (Zephyr CAN drivers, bit rates, loopback, bus status, reset) and `virtualcan` (in-process bus); no Modbus, DBC parser or vendor backends. Guide: [Using Nt SerialBus](https://open-nt.github.io/Nt6/nt-serialbus.html)) |
 | Qt MQTT | Nt Mqtt | ✔ (`QMqttClient`, `QMqttSubscription`, `QMqttMessage`, `QMqttTopicName`, `QMqttTopicFilter`: MQTT 3.1.1 and 3.1 over TCP, TLS or any `QIODevice`, QoS 0/1/2 both ways, retained messages, last will, keep-alive; also on Zephyr. No MQTT 5 or resending after a reconnect. Guide: [Using Nt Mqtt](https://open-nt.github.io/Nt6/nt-mqtt.html)) |
+| — (Nt only) | Nt Device | `QWatchdog` (Linux `/dev/watchdog`, Zephyr watchdog drivers; auto-feed from the event loop, reset cause) and `QFirmwareUpdate` (MCUboot images into `slot1_partition` on Zephyr with test boot and confirm; a file or partition on Linux). Guide: [Using Nt Device](https://open-nt.github.io/Nt6/nt-device.html) |
 | Qt Serial Port | Nt Serial Port | ✔ (POSIX terminals on Linux; the UARTs of Zephyr with `CONFIG_NT_SERIALPORT`) |
 | Qt Shader Tools | Nt Shader Tools |  |
 | Qt Spatial Audio | Nt Spatial Audio |  |
@@ -782,6 +783,8 @@ west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/headset -- -DNT_ROOT=/path/to
 ```
 
 With `CONFIG_NT_SENSORS=y` (and `CONFIG_SENSOR`), `Nt::Sensors` reads the sensors that devicetree aliases such as `accel0` or `ambient-temp0` name; [`zephyr/sensors`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/sensors) lists and reads them. The MIMXRT1170-EVKB itself has no such sensor, so add one on its Arduino header or I2C bus.
+
+With `CONFIG_NT_DEVICE=y`, `QWatchdog` resets the board when the event loop hangs and `QFirmwareUpdate` writes a signed image for MCUboot, which boots it on trial until it confirms itself; [`zephyr/update`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/update) downloads newer firmware over HTTP.
 
 With `CONFIG_NT_STORAGE=y`, LittleFS is mounted on the board's `storage_partition` at `/lfs`, which is `QDir::homePath()`: `QFile`, `QSaveFile` and `QStandardPaths` work there, and `QSettings` keeps its files across reboots.
 

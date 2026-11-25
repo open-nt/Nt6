@@ -28,6 +28,10 @@ constexpr int kArrow = 20; // the room of the arrow at the left
     The button is flat until the mouse is over it, and draws an arrow before its title, which is larger than the text
     of other buttons. Lines of the description are wrapped to the width of the button.
 
+    Command link buttons with descriptions: one with the keyboard focus, and one disabled.
+
+    \image widgets/qcommandlinkbutton.png QCommandLinkButton in the light color scheme
+
     \differences
     The arrow is drawn rather than taken from the icon theme, and there is no \c setIcon().
     \enddifferences

@@ -35,6 +35,10 @@
 
     When the value reaches the maximum the dialog resets and hides, unless autoReset() or autoClose() are turned off.
 
+    A progress dialog part of the way through, with its Cancel button.
+
+    \image widgets/qprogressdialog.png QProgressDialog in the light color scheme
+
     \differences
     There is no \c open() with a receiver. The texts are not translated.
     \enddifferences

@@ -42,6 +42,10 @@ void QGraphicsView::Private::sceneDirty(const QRectF &rect) {
     view.fitInView(scene.sceneRect(), Qt::KeepAspectRatio);
     \endcode
 
+    A graphics view of a scene with a rectangle, an ellipse, a line and a text item.
+
+    \image widgets/qgraphicsview.png QGraphicsView in the light color scheme
+
     \differences
     The view draws in software, into the viewport's backing store; there is no OpenGL viewport through
     \c setViewport(). The cache mode, optimization flags and anchors are kept but have no effect: there is no

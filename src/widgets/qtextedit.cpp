@@ -24,6 +24,10 @@
 
     toHtml() returns the text as HTML, and document() the document.
 
+    A text edit showing rich text from HTML: a heading, bold, italic and colored text, and a list.
+
+    \image widgets/qtextedit.png QTextEdit in the light color scheme
+
     \differences
     Rich text is shown, not edited: there is no QTextCursor over the document, and text with formats has no
     selection. When the text is changed in another way than by setHtml(), by typing for one, the editor goes on

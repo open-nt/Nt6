@@ -22,6 +22,10 @@
     connect(button, &QPushButton::toggled, [](bool on) { qDebug() << on; });
     \endcode
 
+    Push buttons, one of the kinds of QAbstractButton, in their states.
+
+    \image widgets/qpushbutton.png QPushButton in the light color scheme
+
     \differences
     There is no auto-repeat, and animateClick() clicks at once. The mnemonic of the text is the shortcut with Alt,
     as in Qt.

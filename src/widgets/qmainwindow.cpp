@@ -276,6 +276,8 @@ private:
                             s.setHeight(entry.height);
                     }
                 }
+                // The area is no thicker than the dock may be, so that the central widget gets the rest.
+                s = s.boundedTo(dock->maximumSize()).expandedTo(dock->minimumSize());
                 thick = std::max(thick, horizontal ? s.height() : s.width());
             }
             // A dock area takes at most half of the room that is left.
@@ -363,6 +365,10 @@ private:
     // next time, after the bars and dock widgets are made:
     window.restoreState(settings.value("state").toByteArray());
     \endcode
+
+    A main window with a menu bar, a tool bar, a dock widget, a central text edit and a status bar.
+
+    \image widgets/qmainwindow.png QMainWindow in the light color scheme
 
     \differences
     The user cannot drag tool bars or dock widgets to other areas or resize the dock areas. Several dock widgets in

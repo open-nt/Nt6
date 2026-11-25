@@ -89,6 +89,10 @@ bool isEmptyValue(const QVariant &value) {
     The Next button is enabled when the current page is complete, and is replaced by Commit on a commit page, after
     which the user cannot go back. Finish shows on the last page.
 
+    A wizard on its second page, with a title, a subtitle and a form.
+
+    \image widgets/qwizard.png QWizard in the light color scheme
+
     \differences
     All the styles look the same: a title and a subtitle above the page, and the buttons in a row at the bottom.
     The pixmaps (\c setPixmap(): the watermark, the logo, the banner and the background) are stored but not drawn.
@@ -870,6 +874,10 @@ void QWizard::updateButtons() {
 
     Reimplement initializePage() to fill the page from the fields of earlier pages, validatePage() to check it before
     the user goes on, isComplete() to say when Next is enabled, and nextId() to choose the next page.
+
+    A QWizard showing a page with a title, a subtitle and a form.
+
+    \image widgets/qwizard.png QWizard in the light color scheme
 
     \differences
     See QWizard.

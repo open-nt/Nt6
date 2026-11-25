@@ -309,6 +309,12 @@ void testMainWindow() {
     settle(&window);
     CHECK(left2->geometry().top() == left->geometry().bottom() + 1 &&
           left2->geometry().left() == left->geometry().left());
+    // A dock area is no wider than the maximum width of its dock: the central widget takes the rest
+    right->setWidget(new QLabel("a right side with a long text that wants a wide dock"));
+    right->setMaximumWidth(60);
+    settle(&window);
+    CHECK(right->geometry().width() == 60 && central->geometry().right() == right->geometry().left() - 1);
+    right->setMaximumWidth(QWIDGETSIZE_MAX);
     // Moving a dock to another area
     window.addDockWidget(Qt::TopDockWidgetArea, left2);
     settle(&window);

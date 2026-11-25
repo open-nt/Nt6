@@ -25,6 +25,10 @@
 
     A rubber band lets the mouse through to the widgets under it.
 
+    A rectangle rubber band and a line rubber band over a frame.
+
+    \image widgets/qrubberband.png QRubberBand in the light color scheme
+
     \differences
     A rubber band is a child widget: without a parent it is a window, which Nt cannot make translucent, so give it the
     widget it is drawn over as the parent.

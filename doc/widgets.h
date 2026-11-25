@@ -828,11 +828,22 @@
 
     \section1 What Is Not There Yet
 
-    There are no trees, no model and view classes (a table and a list keep their items themselves, and cannot be edited or
-    sorted by the user), no native dialogs, and tool bars and dock widgets cannot be dragged. The native window of a
-    window, top-level or with a parent such as a dialog, is a
-    QWindow; child widgets are painted into the backing store of that window and are not native windows
-    themselves. Each class lists what differs from Qt in its \e Differences from Qt section.
+    Trees, lists and tables come both as item widgets (QTreeWidget, QListWidget, QTableWidget) and as views of any
+    model of Nt Core (QTreeView, QListView, QTableView, QColumnView), with sorting from the header and editing in
+    place. What is still missing:
+
+    \list
+    \li The dialogs (QFileDialog, QColorDialog, QFontDialog, QMessageBox) are always drawn by Nt; there are no native
+        dialogs of the platform, and \c DontUseNativeDialog is only kept.
+    \li Tool bars and dock widgets cannot be dragged to another side of the main window, and a tool bar cannot float.
+        A dock widget floats with setFloating() or its title bar button.
+    \li The rows and columns of a tree or table view cannot be moved by the user, and the item views have no drag and
+        drop.
+    \li The native window of a window, top-level or with a parent such as a dialog, is a QWindow; child widgets are
+        painted into the backing store of that window and are not native windows themselves.
+    \endlist
+
+    Each class lists what differs from Qt in its \e Differences from Qt section.
 
     \sa QApplication, QWidget, QLayout, QStyle
 */

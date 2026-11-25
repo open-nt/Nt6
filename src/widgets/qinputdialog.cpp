@@ -25,6 +25,10 @@
     A QInputDialog can also be set up and shown like any QDialog. The input mode says which field it shows: a line
     edit, a multi-line text, a combo box of items, a QSpinBox or a QDoubleSpinBox.
 
+    An input dialog that asks for a text.
+
+    \image widgets/qinputdialog.png QInputDialog in the light color scheme
+
     \differences
     The combo box of getItem() cannot be edited, whatever \c editable says, and there is no list view
     (\c UseListViewForComboBoxItems shows the combo box). The texts are not translated.

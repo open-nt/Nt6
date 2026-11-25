@@ -1,0 +1,2 @@
+#include "qfirmwareupdate.h"
+#include "qwatchdog.h"

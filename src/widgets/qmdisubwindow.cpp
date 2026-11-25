@@ -35,6 +35,10 @@ constexpr int kMinimizedWidth = 160;
     its title bar. Closing a sub-window sends a close event to its widget, and deletes the sub-window if the widget
     accepts it. The window title follows that of the widget.
 
+    Sub-windows in a QMdiArea, tiled, with their title bars; the first one is active.
+
+    \image widgets/qmdiarea.png QMdiArea in the light color scheme
+
     \differences
     The buttons show "-", "+", "=" and "x" rather than icons, there is no default system menu (one given
     to setSystemMenu() is shown by showSystemMenu()), and there is no keyboard moving and resizing, so the keyboard

@@ -62,6 +62,10 @@ private:
     action is reported by actionTriggered(). toggleViewAction() is a checkable action that shows and hides the tool
     bar, for a menu of the tool bars of a window.
 
+    A tool bar with actions, a separator, a checked and a disabled action, and a combo box.
+
+    \image widgets/qtoolbar.png QToolBar in the light color scheme
+
     \differences
     A tool bar cannot be dragged to another side of the window or float (\c isFloating() is always \c false), and it
     has no extension button for the actions that do not fit. Buttons have no icons, so \c iconSize() is missing and

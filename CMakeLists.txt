@@ -586,6 +586,35 @@ nt_set_compile_options(NtHttpServer)
 
 endif() # NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER
 
+# Nt Device (Nt only): QWatchdog and QFirmwareUpdate. Linux and Android use /dev/watchdog and a file or partition;
+# Zephyr (CONFIG_NT_DEVICE) its watchdog drivers and MCUboot.
+if((NT_ZEPHYR AND CONFIG_NT_DEVICE) OR (NOT NT_ZEPHYR AND (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR NT_ANDROID)))
+add_library(NtDevice
+    src/device/qdevice.cpp
+    src/device/qfirmwareupdate.cpp
+    src/device/qwatchdog.cpp)
+add_library(Nt::Device ALIAS NtDevice)
+target_include_directories(NtDevice
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtDevice>
+        $<INSTALL_INTERFACE:include/nt6/QtDevice>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/device
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtDevice PUBLIC NtCore)
+if(NT_ZEPHYR)
+    target_compile_options(NtDevice PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+    set(_nt_device_zephyr_backend src/zephyr/qdevicebackend_zephyr.cpp)
+    target_sources(NtDevice PRIVATE ${_nt_device_zephyr_backend})
+    # The devicetree's macros expand with empty variadic arguments, which -Wpedantic reports.
+    set_source_files_properties(${_nt_device_zephyr_backend} PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
+else()
+    target_sources(NtDevice PRIVATE src/device/qdevicebackend_linux.cpp)
+endif()
+nt_set_compile_options(NtDevice)
+endif()
+
 # Nt Mqtt: the MQTT 3.1 and 3.1.1 client of Qt MQTT, on Nt Network. Zephyr builds it when CONFIG_NT_MQTT asks.
 if(NOT NT_ZEPHYR OR CONFIG_NT_MQTT)
 add_library(NtMqtt
@@ -1594,6 +1623,9 @@ endif()
 if(NOT NT_ZEPHYR OR CONFIG_NT_SERIALBUS)
 nt_moc_library(NtSerialBus include/QtSerialBus)
 endif()
+if(TARGET NtDevice)
+nt_moc_library(NtDevice include/QtDevice)
+endif()
 if(NOT NT_ZEPHYR OR CONFIG_NT_MQTT)
 if(NOT NT_HAVE_TLS)
     set(NT_MOC_DEFINES -DQT_NO_SSL)
@@ -2404,6 +2436,15 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_serialbus_vcan_tests COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tests/serialbus_vcan.sh
                                                   $<TARGET_FILE:nt_serialbus_tests>)
     nt_set_compile_options(nt_serialbus_tests)
+
+    # Nt Device: QWatchdog and QFirmwareUpdate against fake backends, and an image written to a file.
+    if(TARGET NtDevice)
+        add_executable(nt_device_tests tests/test_device.cpp)
+        target_include_directories(nt_device_tests PRIVATE src/device)
+        target_link_libraries(nt_device_tests PRIVATE Nt::Device)
+        add_test(NAME nt_device_tests COMMAND nt_device_tests)
+        nt_set_compile_options(nt_device_tests)
+    endif()
 
     # Nt Mqtt: topics, the bytes of the packets, a broker inside the test, and mosquitto when it is installed.
     add_executable(nt_mqtt_tests tests/test_mqtt.cpp)

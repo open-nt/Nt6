@@ -34,6 +34,10 @@ constexpr int kTitleMargin = 3; // around the text of the title bar
     setFloating(), docks a floating dock widget again. toggleViewAction() is a checkable action that shows and hides
     the dock widget.
 
+    Dock widgets on the left and the right of a QMainWindow, around its central widget.
+
+    \image widgets/qdockwidget.png QDockWidget in the light color scheme
+
     \differences
     A dock widget cannot be dragged to another side of the window or into a floating position; setFloating() and the
     title bar move it. A vertical title bar (\c DockWidgetVerticalTitleBar) is drawn horizontally. The title bar

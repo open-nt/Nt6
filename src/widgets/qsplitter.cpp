@@ -634,6 +634,10 @@ void QSplitter::moveSplitter(int pos, int index) { moveHandle(index - 1, pos); }
     };
     \endcode
 
+    The handles between the panes of two QSplitter widgets, one inside the other.
+
+    \image widgets/qsplitter.png QSplitter in the light color scheme
+
     \differences
     The cursor does not change over a handle.
     \enddifferences

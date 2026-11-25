@@ -82,6 +82,10 @@ protected:
 
     QDateEdit and QTimeEdit edit only a date or a time.
 
+    A date and time edit, a QDateEdit with the keyboard focus, a QTimeEdit, and a disabled date edit.
+
+    \image widgets/qdatetimeedit.png QDateTimeEdit in the light color scheme
+
     \differences
     There is no \c QLocale, so the default formats are \c "yyyy-MM-dd HH:mm", \c "yyyy-MM-dd" and \c "HH:mm", the
     names are English, and \c yy is read as a year of the century of the current date. The time is always local time:
@@ -1036,6 +1040,10 @@ bool QDateTimeEdit::acceptsCharacter(QChar c) const {
     birthday->setCalendarPopup(true);
     \endcode
 
+    A QDateTimeEdit, a date edit with the keyboard focus, a QTimeEdit, and a disabled date edit.
+
+    \image widgets/qdatetimeedit.png QDateTimeEdit in the light color scheme
+
     \differences
     See QDateTimeEdit.
     \enddifferences
@@ -1070,6 +1078,10 @@ QDateEdit::~QDateEdit() = default;
     auto *alarm = new QTimeEdit(QTime(7, 30), form);
     alarm->setDisplayFormat("HH:mm:ss");
     \endcode
+
+    A QDateTimeEdit, a QDateEdit with the keyboard focus, a time edit, and a disabled QDateEdit.
+
+    \image widgets/qdatetimeedit.png QDateTimeEdit in the light color scheme
 
     \differences
     See QDateTimeEdit.

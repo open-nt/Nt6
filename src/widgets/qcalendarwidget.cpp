@@ -51,6 +51,10 @@ QFont formatted(QFont font, const QTextCharFormat &format) {
     and Page Down (a month), Home and End (the first and last day of the month) and Return. Dates outside the range
     cannot be selected.
 
+    A calendar showing November 2026, with the 13th selected and the week numbers at the side.
+
+    \image widgets/qcalendarwidget.png QCalendarWidget in the light color scheme
+
     \differences
     The names of the months and the days are English and the first day of the week is Monday, as there is no
     \c QLocale; \c setFirstDayOfWeek() changes it. The month and year menus of the navigation bar are missing, and

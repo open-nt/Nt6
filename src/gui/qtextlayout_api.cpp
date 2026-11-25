@@ -183,7 +183,9 @@ struct QTextLayout::Data {
         }
         advances.assign(static_cast<std::size_t>(n), 0);
         for (const Span &span : spans) {
-            const QFontMetrics metrics(span.font);
+            // Fractional advances, as drawText() places the glyphs: whole pixels would add up to less than the drawn
+            // text, and a span would start inside the one before it.
+            const QFontMetricsF metrics(span.font);
             const qreal tab = option.tabStopDistance() > 0 ? option.tabStopDistance()
                                                            : 8.0 * metrics.horizontalAdvance(QChar(' '));
             for (int i = span.start; i < span.end; ++i) {

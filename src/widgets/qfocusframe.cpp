@@ -27,6 +27,10 @@ constexpr int kMargin = 2; // how far the frame is outside the widget
 
     The frame lets the mouse through to the widgets under it.
 
+    A focus frame around the line edit that has the keyboard focus.
+
+    \image widgets/qfocusframe.png QFocusFrame in the light color scheme
+
     \differences
     The frame is drawn by Nt in the highlight color, not by the style, and it follows the widget it was given rather
     than the focus.

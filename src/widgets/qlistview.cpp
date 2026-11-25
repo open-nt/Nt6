@@ -46,6 +46,10 @@
     mode and the Shift and Control keys; in the extended and contiguous modes dragging the mouse over the items
     selects them. Items are drawn and edited by the delegate; see QAbstractItemView and QStyledItemDelegate.
 
+    A list view of a QStringListModel with a current item, and the same model in icon mode.
+
+    \image widgets/qlistview.png QListView in the light color scheme
+
     \differences
     Items cannot be dragged: movement() is kept but items stay where the layout puts them, so there is no
     \c indexesMoved() signal and no rubber band for selectionRectVisible(). The view always lays the items out

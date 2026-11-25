@@ -75,6 +75,10 @@ constexpr int kVerticalOrder[] = {QDialogButtonBox::AcceptRole,      QDialogButt
     QDialog the first button with the AcceptRole becomes the default button when the box is shown, unless the
     dialog already has one.
 
+    Button boxes made from standard buttons, laid out in the order of the platform.
+
+    \image widgets/qdialogbuttonbox.png QDialogButtonBox in the light color scheme
+
     \differences
     The buttons are always in the KDE order of Qt: help and reset buttons at the start, then a stretch, then the
     yes, no, action, accept, apply, destructive and reject buttons. The texts of the standard buttons have no

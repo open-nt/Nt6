@@ -38,6 +38,10 @@ constexpr int kDragDistance = 4;
     tabs run down and their text is turned. Tabs that do not fit are shortened if elideMode() allows it, and cut off
     otherwise.
 
+    A tab bar with the second tab current, and one with close buttons and a disabled tab.
+
+    \image widgets/qtabbar.png QTabBar in the light color scheme
+
     \differences
     Triangular shapes are drawn rounded, and there are no scroll buttons (usesScrollButtons() is only kept).
     expanding() and drawBase() are only kept. The close button is drawn as an "x". changeCurrentOnDrag() is only

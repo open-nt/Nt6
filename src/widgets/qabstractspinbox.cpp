@@ -74,6 +74,10 @@ private:
     delay->setSpecialValueText("Off");
     \endcode
 
+    Spin boxes, built on QAbstractSpinBox, with a prefix, a suffix, the keyboard focus and disabled.
+
+    \image widgets/qspinbox.png QSpinBox in the light color scheme
+
     \differences
     There is no \c alignment, \c accelerated, \c correctionMode, \c frame or
     \c showGroupSeparator, and no \c validate() or \c fixup(): the subclasses check what the user types. The buttons

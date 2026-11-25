@@ -81,6 +81,15 @@ config NT_NETWORK
 
 	  QLocalSocket and QLocalServer are not available on Zephyr.
 
+config NT_DEVICE
+	bool "Nt Device (watchdog and firmware updates)"
+	help
+	  Builds Nt Device: QWatchdog on the watchdog drivers (CONFIG_WATCHDOG, with the reset cause
+	  from CONFIG_HWINFO) and QFirmwareUpdate, which writes a new image into slot1_partition for
+	  MCUboot (CONFIG_IMG_MANAGER, CONFIG_MCUBOOT_IMG_MANAGER, CONFIG_STREAM_FLASH) and reboots into
+	  it (CONFIG_REBOOT). A part whose options are not set fails with UnsupportedOperationError.
+	  Link the application with Nt::Device.
+
 config NT_MQTT
 	bool "Nt Mqtt"
 	depends on NT_NETWORK

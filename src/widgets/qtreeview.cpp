@@ -43,6 +43,10 @@
     hands out its rows in steps, as QSqlQueryModel does, is asked for more when the view is scrolled to its
     end.
 
+    A tree view of a model with two columns, expanded, with a current item.
+
+    \image widgets/qtreeview.png QTreeView in the light color scheme
+
     \differences
     All rows have the same height: that of a line of text of the font of the view, or more if the first item
     wants more; uniformRowHeights() is kept but makes no difference. Columns cannot be moved. Expanding is not

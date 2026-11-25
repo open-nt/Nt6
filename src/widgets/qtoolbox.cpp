@@ -69,6 +69,10 @@ private:
     connect(box, &QToolBox::currentChanged, [](int index) { qDebug() << index; });
     \endcode
 
+    A tool box with its first page open and its last page disabled.
+
+    \image widgets/qtoolbox.png QToolBox in the light color scheme
+
     \differences
     The items have no icons (\c setItemIcon()), and the change of item is not animated.
     \enddifferences

@@ -28,6 +28,10 @@
     In TabbedView mode the area shows a tab bar with a tab for each sub-window, and the active sub-window fills the area
     without its frame.
 
+    An MDI area with three sub-windows, tiled; the first one is active.
+
+    \image widgets/qmdiarea.png QMdiArea in the light color scheme
+
     \differences
     The scroll bars are always off: sub-windows that are moved out of the area are cut off. The tab
     bar is only at the top or the bottom (\c setTabPosition() treats West and East as North), and the background is

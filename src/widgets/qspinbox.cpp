@@ -296,6 +296,10 @@ void QSpinBox::changeValue(int value, bool rewrite) {
     connect(gain, &QDoubleSpinBox::valueChanged, [](double value) { qDebug() << value; });
     \endcode
 
+    Double spin boxes with decimals, a suffix and a prefix; one has the keyboard focus, one is disabled.
+
+    \image widgets/qdoublespinbox.png QDoubleSpinBox in the light color scheme
+
     \differences
     The number is written and read with a point, whatever the locale, and without group separators. There is no
     \c stepType(). textFromValue() and valueFromText() see the number without the prefix and the suffix.

@@ -44,3 +44,4 @@ syntaxError:src/zephyr/qsensorbackend_zephyr.cpp
 syntaxError:src/zephyr/qcanbus_zephyr.cpp
 syntaxError:src/zephyr/qserialportengine_zephyr.cpp
 syntaxError:src/zephyr/qstorage_zephyr.cpp
+syntaxError:src/zephyr/qdevicebackend_zephyr.cpp

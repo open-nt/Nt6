@@ -41,6 +41,10 @@
     Escape and the close button of the window reject the dialog. Return and Enter click the default button (see
     QPushButton::setDefault()).
 
+    A small dialog with a label, a line edit and a QDialogButtonBox.
+
+    \image widgets/qdialog.png QDialog in the light color scheme
+
     \differences
     There is no size grip (\c setSizeGripEnabled()), no extension (\c setExtension()) and no
     \c Qt::WA_DeleteOnClose. A modal dialog blocks the mouse and the keyboard of the windows behind it, but they are

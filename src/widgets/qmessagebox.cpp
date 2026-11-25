@@ -153,6 +153,10 @@ QMessageBox::StandardButton showBox(QWidget *parent, QMessageBox::Icon icon, con
     The buttons are laid out by a QDialogButtonBox. Escape and the close button of the window click the escape
     button: the one set with setEscapeButton(), or else the button with the RejectRole, or the only button.
 
+    A question with an informative text and the Save, Discard and Cancel buttons.
+
+    \image widgets/qmessagebox.png QMessageBox in the light color scheme
+
     \differences
     The icons are drawn rather than taken from the icon theme, and there is no \c textFormat() (the text is plain)
     or \c open() with a receiver. The dialog is never native, so options() are only kept. The texts of the

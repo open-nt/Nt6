@@ -349,6 +349,10 @@ void ensureWindow(QWidget *w) {
     The widgets of a window are painted into the backing store of one native window, so child widgets
     are not native windows of their own.
 
+    The gallery example: widgets of many kinds, in the light color scheme.
+
+    \image widgets-gallery-light.png The gallery example in the light color scheme
+
     \differences
     The widget has no window flags (\c Qt::Window, \c Qt::Dialog, \c Qt::Tool and so on), no widget
     attributes (\c setAttribute()), no \c windowIcon(), cursor, tool tip, context menu, actions,

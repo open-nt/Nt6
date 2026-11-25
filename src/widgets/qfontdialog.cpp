@@ -50,6 +50,10 @@ int rowOf(QListWidget *list, const QString &text) {
 
     The families are the generic Sans Serif, Serif and Monospace, then the families that fontconfig finds.
 
+    The font dialog, with the families, the styles, the sizes and a sample.
+
+    \image widgets/qfontdialog.png QFontDialog in the light color scheme
+
     \differences
     The dialog is always drawn by Nt. The styles are Regular, Italic, Bold and Bold Italic whatever the family has, and
     there are no effects (underline, strike out) and no writing systems. The options that filter the families

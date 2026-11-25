@@ -14,7 +14,7 @@ include(CMakePackageConfigHelpers)
 set(NT_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR}/nt6)
 set(NT_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/Nt6)
 
-set(NT_MODULES Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL OpenGLWidgets Qml FM FMQml Gamepad Gltf Barcode Positioning Sensors Protobuf SerialBus Mqtt Twin Comms TwinNetwork Multimedia MultimediaWidgets Concurrent Xml Test)
+set(NT_MODULES Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL OpenGLWidgets Qml FM FMQml Gamepad Gltf Barcode Positioning Sensors Protobuf SerialBus Mqtt Device Twin Comms TwinNetwork Multimedia MultimediaWidgets Concurrent Xml Test)
 set(NT_INSTALL_TARGETS)
 set(NT_INSTALL_INCLUDES)
 foreach(module IN LISTS NT_MODULES)

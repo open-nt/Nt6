@@ -78,6 +78,10 @@ private:
     }
     \endcode
 
+    A QScrollArea, which derives from QAbstractScrollArea, scrolled part of the way down.
+
+    \image widgets/qscrollarea.png QScrollArea in the light color scheme
+
     \sa QScrollArea, QScrollBar
 */
 

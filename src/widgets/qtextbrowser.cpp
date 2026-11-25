@@ -28,6 +28,10 @@
     backward and forward. A click on a link emits anchorClicked(); with openLinks(), which is the default, the
     browser then shows the target, if it is a local file or a relative name.
 
+    A text browser showing HTML with two links.
+
+    \image widgets/qtextbrowser.png QTextBrowser in the light color scheme
+
     \differences
     The HTML and Markdown (a source that ends in \c .md) are what QTextDocument reads; there are no images. A link to somewhere else than a
     file (\c http, \c mailto) is never opened: \c openExternalLinks() is recorded only, and anchorClicked() tells

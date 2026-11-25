@@ -28,6 +28,10 @@ bool isModifierKey(int key) {
     connect(edit, &QKeySequenceEdit::editingFinished, [=] { action->setShortcut(edit->keySequence()); });
     \endcode
 
+    Key sequence edits: empty, showing its placeholder, and holding two shortcuts.
+
+    \image widgets/qkeysequenceedit.png QKeySequenceEdit in the light color scheme
+
     \differences
     A key sequence of Nt has one key, so the edit records one key with its modifiers rather than up to four, whatever
     maximumSequenceLength() is. The clear button setting is recorded but no button is shown.

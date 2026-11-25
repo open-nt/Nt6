@@ -14,6 +14,10 @@
     connect(fonts, &QFontComboBox::currentFontChanged, editor, &QWidget::setFont);
     \endcode
 
+    A font combo box, and a disabled one.
+
+    \image widgets/qfontcombobox.png QFontComboBox in the light color scheme
+
     \differences
     The families are shown in the font of the combo box, not in their own font. The font filters are recorded but do
     not filter, and neither does \c writingSystem(). The display fonts and the sample texts are stored but not shown.

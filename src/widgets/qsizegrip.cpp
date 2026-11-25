@@ -18,6 +18,10 @@
     layout->addWidget(grip, 0, Qt::AlignBottom | Qt::AlignRight);
     \endcode
 
+    A size grip in the bottom right corner of a window.
+
+    \image widgets/qsizegrip.png QSizeGrip in the light color scheme
+
     \differences
     The grip resizes the window itself rather than asking the window manager to, and it is always in the bottom
     right corner: it does not hide when the window is maximized or move for right-to-left layouts.

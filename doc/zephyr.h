@@ -196,6 +196,17 @@
     the flash, which wears out after many erase cycles, so do not write settings many times a
     second.
 
+    \section1 Watchdog and Firmware Updates
+
+    \c CONFIG_NT_DEVICE builds Nt Device, linked as \c Nt::Device. QWatchdog arms the watchdog that
+    the alias \c watchdog0 names (\c CONFIG_WATCHDOG) and, with autoFeed, resets the board when the
+    event loop hangs; QFirmwareUpdate writes a signed image into \c slot1_partition for MCUboot and
+    reboots into it, and the new image confirms itself or is rolled back. See \l{Using Nt Device}.
+    \c zephyr/update in the \l{Nt Examples}{examples repository} does both: build it with
+    \c{west build --sysbuild ... -- -DZEPHYR_EXTRA_MODULES=/path/to/Nt}, since with sysbuild
+    \c -DNT_ROOT does not reach the application. Signing needs the Python package \c cryptography
+    in the environment of west.
+
     \section1 MQTT
 
     \c CONFIG_NT_MQTT, with \c CONFIG_NT_NETWORK, builds Nt Mqtt, linked as \c Nt::Mqtt: QMqttClient
@@ -313,8 +324,9 @@
     \row \li NXP MIMXRT1170-EVK (\c mimxrt1170_evk@A/mimxrt1176/cm7, revision A) \li Nt Multimedia
          audio builds for its WM8960, untested, without QAudioHeadset.
     \row \li Arm MPS2 AN385 in QEMU (\c mps2/an385) \li Runs the self-checking sample, without audio;
-         QSerialPort on its second UART, Nt Mqtt over its emulated Ethernet, and
-         \c CONFIG_NT_STORAGE on a simulated flash partition have run on it too.
+         QSerialPort on its second UART, Nt Mqtt over its emulated Ethernet,
+         \c CONFIG_NT_STORAGE on a simulated flash partition and QWatchdog resetting a hung event loop
+         have run on it too.
     \endtable
 
     \section1 Host Tools

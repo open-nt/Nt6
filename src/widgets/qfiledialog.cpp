@@ -73,6 +73,10 @@ QString withSlash(const QString &dir) { return dir.endsWith(QLatin1Char('/')) ? 
     be chosen: any file name (for saving), an existing file, several existing files, or a directory. In AcceptSave
     mode the dialog asks before it replaces an existing file, and adds defaultSuffix() to a name without one.
 
+    The file dialog, opened on a folder with two folders and three text files, filtered to text files.
+
+    \image widgets/qfiledialog.png QFileDialog in the light color scheme
+
     \differences
     The dialog is always drawn by Nt, as a plain list of names: there is no detail view, no icons, no sidebar of places,
     no history and no file system watching (the list is read when a directory is entered). The URL functions work with

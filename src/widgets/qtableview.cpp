@@ -45,6 +45,10 @@
 
     Items are drawn and edited by the delegate; see QAbstractItemView and QStyledItemDelegate.
 
+    A table view of a model, sorted by name, with a current cell.
+
+    \image widgets/qtableview.png QTableView in the light color scheme
+
     \differences
     Rows and columns cannot be moved. A span is drawn as one cell and selected through its top left cell; the
     keyboard moves over the cells it covers. wordWrap() asks the delegate to wrap the text, but

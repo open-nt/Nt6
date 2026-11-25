@@ -64,6 +64,10 @@
 
     Use QTreeView with a model of your own when the data is already somewhere else, or is large.
 
+    A tree widget with its items expanded and a current item.
+
+    \image widgets/qtreewidget.png QTreeWidget in the light color scheme
+
     \differences
     Items are not sorted as they are inserted while sorting is enabled: they are sorted when the user clicks
     the header or sortItems() is called. There are no item widgets (\c setItemWidget()), no persistent

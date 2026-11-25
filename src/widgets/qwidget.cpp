@@ -2551,6 +2551,13 @@ bool QWidget::event(QEvent *e) {
     case QEvent::Close:
         closeEvent(static_cast<QCloseEvent *>(e));
         return true;
+    case QEvent::TouchBegin:
+    case QEvent::TouchUpdate:
+    case QEvent::TouchEnd:
+    case QEvent::TouchCancel:
+        // A widget that takes touch events reimplements event() and accepts them.
+        e->ignore();
+        return false;
     case QEvent::MouseButtonPress:
         mousePressEvent(static_cast<QMouseEvent *>(e));
         return true;

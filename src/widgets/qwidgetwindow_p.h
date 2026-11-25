@@ -38,6 +38,7 @@ protected:
     void mouseDoubleClickEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
+    void touchEvent(QTouchEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void keyReleaseEvent(QKeyEvent *event) override;
     bool event(QEvent *event) override;
@@ -53,6 +54,7 @@ private:
     QPointer<QWidget> m_grab;
     QPointer<QWidget> m_under;
     QPointer<QWidget> m_popup;
+    QPointer<QWidget> m_touchTarget; // the widget that took the touch sequence that is going on
     QPointer<QWidget> m_dropTarget; // the widget a drag is over, which accepted the enter event or not
     bool m_dropAccepted = false;
     void handleDrag(QEvent *event);

@@ -408,6 +408,45 @@ void QWidgetWindow::wheelEvent(QWheelEvent *event) {
     event->setAccepted(handled);
 }
 
+// Touch events go to the widget under the first finger, or the nearest ancestor that has Qt::WA_AcceptTouchEvents, and
+// that widget gets the rest of the sequence if it accepts the TouchBegin event. If no widget does, the event is ignored
+// and the window system interface sends the first finger as the mouse.
+void QWidgetWindow::touchEvent(QTouchEvent *event) {
+    const auto deliver = [&](QWidget *target) {
+        QList<QEventPoint> points = event->points();
+        const QPoint origin = target->mapTo(m_widget, QPoint(0, 0));
+        for (QEventPoint &p : points) {
+            p.setPosition(p.scenePosition() - QPointF(origin));
+            p.setPressPosition(p.pressPosition() - QPointF(origin));
+        }
+        QTouchEvent copy(event->type(), event->modifiers(), points);
+        QCoreApplication::sendEvent(target, &copy);
+        return copy.isAccepted();
+    };
+    event->ignore();
+    if (!m_widget || WidgetAccess::blockedByModal(m_widget))
+        return;
+    if (event->type() == QEvent::TouchBegin) {
+        m_touchTarget = nullptr;
+        if (event->pointCount() == 0)
+            return;
+        cancelToolTip();
+        for (QWidget *w = WidgetAccess::widgetAt(m_widget, event->point(0).scenePosition().toPoint());
+             w && !m_touchTarget; w = w->parentWidget()) {
+            if (w->testAttribute(Qt::WA_AcceptTouchEvents) && deliver(w))
+                m_touchTarget = w;
+        }
+        event->setAccepted(!m_touchTarget.isNull());
+        return;
+    }
+    if (m_touchTarget) {
+        deliver(m_touchTarget);
+        event->accept();
+    }
+    if (event->type() == QEvent::TouchEnd || event->type() == QEvent::TouchCancel)
+        m_touchTarget = nullptr;
+}
+
 void QWidgetWindow::keyPressEvent(QKeyEvent *event) {
     if (!m_widget)
         return;

@@ -107,8 +107,5 @@ private:
     std::unique_ptr<QAndroidScreen> m_screen;
     mutable std::unique_ptr<QPlatformClipboard> m_clipboard;
     std::unique_ptr<QSocketNotifier> m_notifier;
-    int m_touchPointer = -1;
-    QPointF m_touchPosition;
-    Qt::MouseButtons m_buttons;
     bool m_surfaceLost = false;
 };

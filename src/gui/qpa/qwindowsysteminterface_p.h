@@ -2,12 +2,14 @@
 #pragma once
 
 #include <QtCore/qcoreevent.h>
+#include <QtCore/qlist.h>
 #include <QtCore/qnamespace.h>
 #include <QtCore/qpoint.h>
 #include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
 #include <QtGui/qregion.h>
 
+class QEventPoint;
 class QPlatformScreen;
 class QWindow;
 
@@ -30,6 +32,14 @@ public:
                                  Qt::MouseButton button, QEvent::Type type, Qt::KeyboardModifiers modifiers);
     static void handleWheelEvent(QWindow *window, const QPointF &local, const QPointF &global, const QPoint &pixelDelta,
                                  const QPoint &angleDelta, Qt::KeyboardModifiers modifiers);
+    // The fingers that changed or are down, in one call. A point has its id and state, its position in the window
+    // as scenePosition() and on the screen as globalPosition(). The first call of a sequence (the first finger
+    // down) sends QEvent::TouchBegin to the window; if the window does not accept it, the first finger is sent as
+    // the mouse instead.
+    static void handleTouchEvent(QWindow *window, const QList<QEventPoint> &points,
+                                 Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+    // The system took the touch sequence away (a gesture of the system, or the window going away).
+    static void handleTouchCancel(QWindow *window);
     static void handleKeyEvent(QWindow *window, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers,
                                const QString &text = QString(), bool autorep = false);
     // The same with the codes of the platform's keyboard, which QKeyEvent::nativeScanCode() and the others return.

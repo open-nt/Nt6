@@ -11,13 +11,14 @@
 #include <deque>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace QtAndroid {
 
 // What the UI thread of the activity tells the thread that runs main().
 struct Event {
     enum Kind {
-        Touch,         // action is an AMOTION_EVENT_ACTION_* value; x and y are in pixels
+        Touch,         // action is an AMOTION_EVENT_ACTION_* value; points are in pixels
         Key,           // action is AKEY_EVENT_ACTION_*; keyCode and meta as Android has them
         WindowCreated, // the native window is available (Glue::window())
         WindowDestroyed,
@@ -28,13 +29,20 @@ struct Event {
         Resume,
         Close // the activity is being destroyed
     };
+    // The fingers of a touch event: every finger that is down, with what it did.
+    struct TouchPoint {
+        int id = 0;
+        float x = 0;
+        float y = 0;
+        int state = 0; // 0 stationary, 1 pressed, 2 moved, 3 released
+    };
     Kind kind = Touch;
     int action = 0;
     int keyCode = 0;
     int meta = 0;
     float x = 0;
     float y = 0;
-    int pointerId = 0;
+    std::vector<TouchPoint> points;
     std::string text;
 };
 

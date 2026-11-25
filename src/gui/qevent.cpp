@@ -781,8 +781,10 @@ QEventPoint::QEventPoint(int pointId, State state, const QPointF &scenePosition,
     \brief The QTouchEvent class describes the fingers on a touch screen.
 
     \differences
-    The platforms of Nt deliver no touch input yet, so these events come only from the application itself. There is
-    no device(), target() or QPointerEvent base.
+    The android platform delivers touch input: every finger, to the window on top. A widget gets the events if it
+    sets Qt::WA_AcceptTouchEvents and accepts the TouchBegin event in event(); other widgets get the first finger as
+    the mouse. The other platforms have no touch screens, so there the events come only from the application itself.
+    There is no device(), target() or QPointerEvent base, and no gesture recognition (QGesture, QPinchGesture).
     \enddifferences
 */
 

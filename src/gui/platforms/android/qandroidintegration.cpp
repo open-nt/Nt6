@@ -6,6 +6,7 @@
 
 #include <QtCore/qdebug.h>
 #include <QtCore/qmimedata.h>
+#include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qwindow.h>
 
@@ -319,47 +320,25 @@ void QAndroidIntegration::windowChanged() {
     }
 }
 
+// Every finger goes to the window on top as a touch event; a window that does not take touch events gets the first
+// finger as the mouse.
 void QAndroidIntegration::touch(const Event &event) {
     QAndroidWindow *top = QAndroidWindow::top();
     if (!top)
         return;
     QWindow *window = top->window();
-    const QPointF global(static_cast<qreal>(event.x) / m_screen->ratio(),
-                         static_cast<qreal>(event.y) / m_screen->ratio());
-    const QPointF position = global - QPointF(window->geometry().topLeft());
-    switch (event.action) {
-    case AMOTION_EVENT_ACTION_DOWN:
-    case AMOTION_EVENT_ACTION_POINTER_DOWN:
-        if (m_touchPointer >= 0)
-            return; // the first finger is the pointer; others are ignored
-        m_touchPointer = event.pointerId;
-        m_touchPosition = global;
-        m_buttons = Qt::LeftButton;
-        QWindowSystemInterface::handleEnterEvent(window, position, global);
-        QWindowSystemInterface::handleMouseEvent(window, position, global, m_buttons, Qt::LeftButton,
-                                                 QEvent::MouseButtonPress, Qt::NoModifier);
-        break;
-    case AMOTION_EVENT_ACTION_MOVE:
-        if (event.pointerId != m_touchPointer)
-            return;
-        m_touchPosition = global;
-        QWindowSystemInterface::handleMouseEvent(window, position, global, m_buttons, Qt::NoButton, QEvent::MouseMove,
-                                                 Qt::NoModifier);
-        break;
-    case AMOTION_EVENT_ACTION_UP:
-    case AMOTION_EVENT_ACTION_POINTER_UP:
-    case AMOTION_EVENT_ACTION_CANCEL:
-        if (event.pointerId != m_touchPointer && event.action != AMOTION_EVENT_ACTION_CANCEL)
-            return;
-        m_touchPointer = -1;
-        m_buttons = Qt::NoButton;
-        QWindowSystemInterface::handleMouseEvent(window, position, global, Qt::NoButton, Qt::LeftButton,
-                                                 QEvent::MouseButtonRelease, Qt::NoModifier);
-        QWindowSystemInterface::handleLeaveEvent(window);
-        break;
-    default:
-        break;
+    if (event.action == AMOTION_EVENT_ACTION_CANCEL) {
+        QWindowSystemInterface::handleTouchCancel(window);
+        return;
     }
+    QList<QEventPoint> points;
+    for (const Event::TouchPoint &p : event.points) {
+        const QPointF global(static_cast<qreal>(p.x) / m_screen->ratio(), static_cast<qreal>(p.y) / m_screen->ratio());
+        static const QEventPoint::State states[] = {QEventPoint::Stationary, QEventPoint::Pressed, QEventPoint::Updated,
+                                                    QEventPoint::Released};
+        points.append(QEventPoint(p.id, states[p.state & 3], global - QPointF(window->geometry().topLeft()), global));
+    }
+    QWindowSystemInterface::handleTouchEvent(window, points);
 }
 
 namespace {

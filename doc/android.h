@@ -75,7 +75,8 @@
     The application thread runs \c main(); the activity's UI thread passes input, the native window and the
     life cycle to it. The screen is the window of the activity, and every top-level window fills it, with the one
     shown last on top. The scale factor is the density of the screen over 160, and the logical resolution is 120
-    dots per inch. The first finger is the mouse (a press, moves and a release with the left button), keys from a
+    dots per inch. Touch screens deliver QTouchEvent with every finger, and the first finger is the mouse
+    (a press, moves and a release with the left button) for the widgets that do not take touch events. Keys from a
     keyboard type text, and the Back key closes the window on top.
 
     \section1 Differences from Qt for Android
@@ -92,7 +93,8 @@
         events, and the keys it sends are those a hardware keyboard would send.
     \li The clipboard is that of the system, for plain text; QClipboard::changed() is not emitted when another
         application copies.
-    \li Touch is the mouse. There are no QTouchEvent or gestures. A window is as large as the content area that the
+    \li A widget that sets Qt::WA_AcceptTouchEvents and accepts QEvent::TouchBegin gets the fingers as QTouchEvent;
+        otherwise the first finger is the mouse. There are no gestures (QGesture, QPinchGesture). A window is as large as the content area that the
         activity reports, which leaves out the system bars (QScreen::availableGeometry()); an OpenGL window draws into
         the whole surface, behind the bars.
     \li Only the first window is shown at a time; QMessageBox and other dialogs work because they are windows of

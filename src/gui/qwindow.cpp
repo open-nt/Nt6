@@ -919,6 +919,12 @@ bool QWindow::event(QEvent *event) {
     case QEvent::Wheel:
         wheelEvent(static_cast<QWheelEvent *>(event));
         return true;
+    case QEvent::TouchBegin:
+    case QEvent::TouchUpdate:
+    case QEvent::TouchEnd:
+    case QEvent::TouchCancel:
+        touchEvent(static_cast<QTouchEvent *>(event));
+        return true;
     case QEvent::UpdateRequest:
         m_d->updateRequested = false;
         return true;
@@ -1022,6 +1028,14 @@ void QWindow::mouseMoveEvent(QMouseEvent *event) { event->ignore(); }
     Handles the mouse wheel turn \a event. The default ignores the event.
 */
 void QWindow::wheelEvent(QWheelEvent *event) { event->ignore(); }
+
+/*!
+    Handles \a event, which tells where the fingers on a touch screen are: QEvent::TouchBegin when the first finger
+    goes down, QEvent::TouchUpdate while they move, and QEvent::TouchEnd when the last one leaves. Accept the
+    TouchBegin event to receive the rest of the sequence. The default ignores the event, and then the first finger is
+    delivered as the mouse instead (a press, moves and a release with the left button).
+*/
+void QWindow::touchEvent(QTouchEvent *event) { event->ignore(); }
 
 namespace QtPrivate {
 

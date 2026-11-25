@@ -1721,7 +1721,7 @@ enum CursorShape {
     \value WA_DontShowOnScreen A window that is shown is visible to the application, with its show events and
            layout, but gets no window on the screen: for rendering it with QWidget::render() or QWidget::grab().
     \value WA_TranslucentBackground Kept for the application; windows of Nt are opaque.
-    \value WA_AcceptTouchEvents Kept for the application; Nt has no touch events.
+    \value WA_AcceptTouchEvents The widget takes touch events (QTouchEvent) in event(). Touch events that no widget accepts are delivered as mouse events for the first finger.
     \omitvalue WA_AttributeCount
 
     \sa QWidget::setAttribute(), QWidget::testAttribute()

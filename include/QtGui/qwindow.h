@@ -26,6 +26,7 @@ class QResizeEvent;
 class QIcon;
 class QScreen;
 class QShowEvent;
+class QTouchEvent;
 class QVulkanInstance;
 class QWheelEvent;
 
@@ -193,6 +194,7 @@ protected:
     virtual void mouseDoubleClickEvent(QMouseEvent *event);
     virtual void mouseMoveEvent(QMouseEvent *event);
     virtual void wheelEvent(QWheelEvent *event);
+    virtual void touchEvent(QTouchEvent *event);
     bool event(QEvent *event) override;
 
 private:

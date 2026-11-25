@@ -435,27 +435,26 @@ int inputCallback(int, int, void *data) {
             const int32_t masked = action & AMOTION_EVENT_ACTION_MASK;
             const size_t index =
                 (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
-            if (masked == AMOTION_EVENT_ACTION_MOVE) {
-                // Every pointer that moved; the application thread follows the first one.
-                const size_t count = AMotionEvent_getPointerCount(event);
-                for (size_t i = 0; i < count; ++i) {
-                    Event e;
-                    e.kind = Event::Touch;
-                    e.action = masked;
-                    e.pointerId = AMotionEvent_getPointerId(event, i);
-                    e.x = AMotionEvent_getX(event, i);
-                    e.y = AMotionEvent_getY(event, i);
-                    Glue::instance().post(e);
-                }
-            } else {
-                Event e;
-                e.kind = Event::Touch;
-                e.action = masked;
-                e.pointerId = AMotionEvent_getPointerId(event, index);
-                e.x = AMotionEvent_getX(event, index);
-                e.y = AMotionEvent_getY(event, index);
-                Glue::instance().post(e);
+            Event e;
+            e.kind = Event::Touch;
+            e.action = masked;
+            const size_t count = AMotionEvent_getPointerCount(event);
+            for (size_t i = 0; i < count; ++i) {
+                Event::TouchPoint p;
+                p.id = AMotionEvent_getPointerId(event, i);
+                p.x = AMotionEvent_getX(event, i);
+                p.y = AMotionEvent_getY(event, i);
+                const bool changed = i == index;
+                if (masked == AMOTION_EVENT_ACTION_MOVE)
+                    p.state = 2;
+                else if (changed &&
+                         (masked == AMOTION_EVENT_ACTION_DOWN || masked == AMOTION_EVENT_ACTION_POINTER_DOWN))
+                    p.state = 1;
+                else if (changed && (masked == AMOTION_EVENT_ACTION_UP || masked == AMOTION_EVENT_ACTION_POINTER_UP))
+                    p.state = 3;
+                e.points.push_back(p);
             }
+            Glue::instance().post(e);
             handled = true;
         } else if (type == AINPUT_EVENT_TYPE_KEY) {
             Event e;

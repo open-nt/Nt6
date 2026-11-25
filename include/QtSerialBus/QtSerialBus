@@ -1,0 +1,5 @@
+#include "qcanbus.h"
+#include "qcanbusdevice.h"
+#include "qcanbusdeviceinfo.h"
+#include "qcanbusfactory.h"
+#include "qcanbusframe.h"

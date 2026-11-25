@@ -14,7 +14,7 @@ include(CMakePackageConfigHelpers)
 set(NT_INSTALL_INCLUDEDIR ${CMAKE_INSTALL_INCLUDEDIR}/nt6)
 set(NT_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/Nt6)
 
-set(NT_MODULES Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL OpenGLWidgets Qml FM FMQml Gamepad Gltf Barcode Positioning Sensors Twin Comms TwinNetwork Multimedia MultimediaWidgets Concurrent Xml Test)
+set(NT_MODULES Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL OpenGLWidgets Qml FM FMQml Gamepad Gltf Barcode Positioning Sensors Protobuf SerialBus Twin Comms TwinNetwork Multimedia MultimediaWidgets Concurrent Xml Test)
 set(NT_INSTALL_TARGETS)
 set(NT_INSTALL_INCLUDES)
 foreach(module IN LISTS NT_MODULES)
@@ -35,6 +35,9 @@ if(NOT CMAKE_CROSSCOMPILING)
     set_target_properties(ntmoc PROPERTIES EXPORT_NAME moc)
     set_target_properties(ndoc PROPERTIES EXPORT_NAME ndoc)
     set_target_properties(ntrcc PROPERTIES EXPORT_NAME rcc)
+    if(TARGET ntprotobufgen)
+        set_target_properties(ntprotobufgen PROPERTIES EXPORT_NAME protobufgen)
+    endif()
 endif()
 
 install(TARGETS ${NT_INSTALL_TARGETS}
@@ -45,6 +48,11 @@ if(NOT CMAKE_CROSSCOMPILING)
     install(TARGETS ntmoc ntrcc ndoc
         EXPORT Nt6Targets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
+    if(TARGET ntprotobufgen)
+        install(TARGETS ntprotobufgen
+            EXPORT Nt6Targets
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
+    endif()
 endif()
 if(TARGET freetype)
     # Nt GUI for Android is built with a FreeType of its own, which the static library needs when it is linked.
@@ -104,6 +112,7 @@ install(FILES
     ${CMAKE_CURRENT_BINARY_DIR}/Nt6ConfigVersion.cmake
     cmake/NtMoc.cmake
     cmake/NtRcc.cmake
+    cmake/NtProtobuf.cmake
     cmake/NtDoc.cmake
     cmake/NtAndroid.cmake
     cmake/NtAndroidApk.cmake

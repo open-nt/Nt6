@@ -1,0 +1,86 @@
+// MIT License - see LICENSE
+//
+// Every kind of field that ntprotobufgen supports, in proto3.
+syntax = "proto3";
+
+package nttest;
+
+import "nttest/common.proto";
+
+option java_package = "org.nt.test"; // options are accepted and ignored
+
+enum Mood {
+  MOOD_UNSPECIFIED = 0;
+  HAPPY = 1;
+  SAD = -2;
+}
+
+/* A message with one field of each scalar type. */
+message Scalars {
+  double a_double = 1;
+  float a_float = 2;
+  int32 an_int32 = 3;
+  int64 an_int64 = 4;
+  uint32 a_uint32 = 5;
+  uint64 a_uint64 = 6;
+  sint32 a_sint32 = 7;
+  sint64 a_sint64 = 8;
+  fixed32 a_fixed32 = 9;
+  fixed64 a_fixed64 = 10;
+  sfixed32 a_sfixed32 = 11;
+  sfixed64 a_sfixed64 = 12;
+  bool a_bool = 13;
+  string a_string = 14;
+  bytes some_bytes = 15;
+}
+
+message Person {
+  string name = 1;
+  int32 id = 2;
+  optional string email = 3;
+
+  enum PhoneType {
+    MOBILE = 0;
+    HOME = 1;
+    WORK = 2;
+  }
+
+  message PhoneNumber {
+    string number = 1;
+    PhoneType type = 2;
+  }
+
+  repeated PhoneNumber phones = 4;
+  map<string, int32> scores = 5;
+
+  oneof contact {
+    string phone = 6;
+    string fax = 7;
+    PhoneNumber pager = 8;
+  }
+
+  sint64 big = 9 [json_name = "hugeNumber"];
+  bytes blob = 10;
+  Mood mood = 11;
+  nttest.common.Color favourite = 12;
+  repeated int32 lucky = 13;
+  repeated int32 unlucky = 14 [packed = false];
+  repeated string tags = 15;
+  repeated Mood moods = 16;
+  map<int32, PhoneNumber> by_slot = 17;
+  map<bool, string> flags = 18;
+  optional int32 maybe = 19;
+  reserved 20 to 22;
+  reserved "old_name";
+  repeated double weights = 23;
+  .nttest.common.Shade shade = 24;
+}
+
+// A message that holds itself.
+message Node {
+  string label = 1;
+  repeated Node children = 2;
+  Node parent = 3;
+}
+
+message Empty {}

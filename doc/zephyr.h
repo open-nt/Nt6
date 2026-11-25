@@ -169,6 +169,15 @@
     west flash
     \endcode
 
+    \section1 CAN Bus
+
+    \c CONFIG_NT_SERIALBUS, with \c CONFIG_CAN, builds Nt SerialBus, linked as \c Nt::SerialBus: a
+    QCanBusDevice of the backend \c zephyrcan sends and receives CAN and CAN FD frames on a controller
+    of the board, named \c canbus for the one that \c zephyr,canbus chooses (FlexCAN3 on the
+    MIMXRT1170-EVKB); see \l{Using Nt SerialBus}. \c zephyr/can in the \l{Nt Examples}{examples
+    repository} sends a frame every second in loopback mode, which needs no transceiver, and prints
+    what comes back.
+
     \section1 Sensors
 
     \c CONFIG_NT_SENSORS, with \c CONFIG_SENSOR and the driver of the sensor, builds Nt Sensors, linked
@@ -247,6 +256,8 @@
     \row \li NXP MIMXRT1170-EVKB (\c mimxrt1170_evk/mimxrt1176/cm7, revision B) \li The primary
          target. Nt GPIO (its LEDs and user button) and Nt Multimedia audio (headphones and microphone
          on its WM8962, with QAudioHeadset) run on it; Nt Core and Nt Network build for it.
+    \row \li NXP MIMXRT1170-EVKB, CAN \li Nt SerialBus builds for its FlexCAN controllers (CAN FD);
+         not yet run on the board.
     \row \li NXP MIMXRT1170-EVK (\c mimxrt1170_evk@A/mimxrt1176/cm7, revision A) \li Nt Multimedia
          audio builds for its WM8960, untested, without QAudioHeadset.
     \row \li Arm MPS2 AN385 in QEMU (\c mps2/an385) \li Runs the self-checking sample, without audio.

@@ -12,6 +12,9 @@
 
 class QSensor;
 class QSensorPrivate;
+namespace QtSensorsPrivate {
+struct SensorAccess;
+}
 
 using qrange = QPair<int, int>;
 using qrangelist = QList<qrange>;
@@ -167,9 +170,7 @@ signals:
     /*!
         This signal is emitted when skipDuplicates() changes to \a skipDuplicates.
     */
-    void skipDuplicatesChanged(bool skipDuplicates) {
-        emitSignal(&QSensor::skipDuplicatesChanged, skipDuplicates);
-    }
+    void skipDuplicatesChanged(bool skipDuplicates) { emitSignal(&QSensor::skipDuplicatesChanged, skipDuplicates); }
     /*!
         This signal is emitted when identifier() changes.
     */
@@ -179,5 +180,6 @@ protected:
     QSensor(const QByteArray &type, QSensorReading *reading, QObject *parent);
 
 private:
+    friend struct QtSensorsPrivate::SensorAccess;
     std::unique_ptr<QSensorPrivate> d;
 };

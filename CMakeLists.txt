@@ -558,11 +558,52 @@ nt_set_compile_options(NtHttpServer)
 
 endif() # NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER
 
-# Nt Sensors: a subset of Qt Sensors. It needs Nt Core only. Linux reads the Industrial I/O devices of the kernel and
-# Zephyr (CONFIG_NT_SENSORS) its sensor drivers; other platforms have no sensors yet.
+# Nt SerialBus: the CAN part of Qt Serial Bus. It needs Nt Core only. Linux has SocketCAN, Zephyr (CONFIG_NT_SERIALBUS)
+# its CAN drivers, and every platform the virtual bus inside the process.
+if(NOT NT_ZEPHYR OR CONFIG_NT_SERIALBUS)
+add_library(NtSerialBus
+    src/serialbus/qcanbus.cpp
+    src/serialbus/qcanbus_virtual.cpp
+    src/serialbus/qcanbusdevice.cpp
+    src/serialbus/qcanbusdeviceinfo.cpp
+    src/serialbus/qcanbusframe.cpp)
+add_library(Nt::SerialBus ALIAS NtSerialBus)
+add_library(Qt6::SerialBus ALIAS NtSerialBus)
+target_include_directories(NtSerialBus
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtSerialBus>
+        $<INSTALL_INTERFACE:include/nt6/QtSerialBus>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/serialbus
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtSerialBus PUBLIC NtCore)
+set(_nt_socketcan 0)
+set(_nt_zephyrcan 0)
+if(NT_ZEPHYR)
+    target_compile_options(NtSerialBus PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+    set(_nt_serialbus_zephyr_backend src/zephyr/qcanbus_zephyr.cpp)
+    target_sources(NtSerialBus PRIVATE ${_nt_serialbus_zephyr_backend})
+    # The table of controllers expands the devicetree's macros with empty variadic arguments, which -Wpedantic reports
+    # while preprocessing (no #pragma reaches that stage).
+    set_source_files_properties(${_nt_serialbus_zephyr_backend} PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
+    set(_nt_zephyrcan 1)
+elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_sources(NtSerialBus PRIVATE src/serialbus/qcanbus_socketcan.cpp)
+    set(_nt_socketcan 1)
+endif()
+target_compile_definitions(NtSerialBus PRIVATE NT_SERIALBUS_SOCKETCAN=${_nt_socketcan} NT_SERIALBUS_ZEPHYR=${_nt_zephyrcan})
+nt_set_compile_options(NtSerialBus)
+endif() # NOT NT_ZEPHYR OR CONFIG_NT_SERIALBUS
+
+# Nt Sensors: a subset of Qt Sensors. It needs Nt Core only. Linux reads the Industrial I/O devices of the kernel and the
+# ACPI lid, Android the NDK's ASensorManager and Zephyr (CONFIG_NT_SENSORS) its sensor drivers; other platforms have no
+# sensors yet.
 if(NOT NT_ZEPHYR OR CONFIG_NT_SENSORS)
 add_library(NtSensors
     src/sensors/qsensor.cpp
+    src/sensors/qsensorderived.cpp
+    src/sensors/qsensormanager.cpp
     src/sensors/qsensorreadings.cpp)
 add_library(Nt::Sensors ALIAS NtSensors)
 add_library(Qt6::Sensors ALIAS NtSensors)
@@ -582,6 +623,9 @@ if(NT_ZEPHYR)
     # The table of devicetree aliases expands COND_CODE_1() with an empty branch, which -Wpedantic reports while
     # preprocessing (no #pragma reaches that stage).
     set_source_files_properties(${_nt_sensors_zephyr_backend} PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
+elseif(NT_ANDROID)
+    target_sources(NtSensors PRIVATE src/sensors/qsensorbackend_android.cpp)
+    target_link_libraries(NtSensors PRIVATE android)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(NtSensors PRIVATE src/sensors/qsensorbackend_iio.cpp)
 else()
@@ -1284,6 +1328,24 @@ target_include_directories(NtPositioning
 target_link_libraries(NtPositioning PUBLIC NtCore)
 nt_set_compile_options(NtPositioning)
 
+# Nt Protobuf: a subset of Qt Protobuf. The message classes are generated from .proto files by ntprotobufgen (with
+# qt_add_protobuf()); the library has the base class of the messages and the binary and JSON serializers.
+add_library(NtProtobuf
+    src/protobuf/qprotobufjsonserializer.cpp
+    src/protobuf/qprotobufmessage.cpp
+    src/protobuf/qprotobufserializer.cpp)
+add_library(Nt::Protobuf ALIAS NtProtobuf)
+add_library(Qt6::Protobuf ALIAS NtProtobuf)
+target_include_directories(NtProtobuf
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtProtobuf>
+        $<INSTALL_INTERFACE:include/nt6/QtProtobuf>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtProtobuf PUBLIC NtCore)
+nt_set_compile_options(NtProtobuf)
+
 # Nt Twin: the world model of a digital twin (geodetic positions, local frames, map projections). It
 # depends only on Nt Core and Nt Positioning, so it runs headless.
 add_library(NtTwin
@@ -1475,6 +1537,9 @@ endif() # NOT NT_ZEPHYR
 if(NOT NT_ZEPHYR OR CONFIG_NT_SENSORS)
 nt_moc_library(NtSensors include/QtSensors)
 endif()
+if(NOT NT_ZEPHYR OR CONFIG_NT_SERIALBUS)
+nt_moc_library(NtSerialBus include/QtSerialBus)
+endif()
 if(NT_ZEPHYR AND CONFIG_NT_MULTIMEDIA)
 set(NT_MOC_DEFINES -DQT_NO_CAMERA)
 nt_moc_library(NtMultimedia include/QtMultimedia)
@@ -1525,6 +1590,18 @@ endif()
 add_executable(Nt::rcc ALIAS ntrcc)
 add_executable(Qt6::rcc ALIAS ntrcc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtRcc.cmake)
+
+# ntprotobufgen: .proto files to the C++ classes of Nt Protobuf, and its CMake helpers (qt_add_protobuf()).
+if(NOT NT_ZEPHYR AND NOT CMAKE_CROSSCOMPILING)
+    add_executable(ntprotobufgen tools/ntprotobufgen/main.cpp)
+    target_compile_definitions(ntprotobufgen PRIVATE NT_VERSION_STRING="${NT_VERSION}")
+    nt_set_compile_options(ntprotobufgen)
+    add_executable(Nt::protobufgen ALIAS ntprotobufgen)
+    add_executable(Qt6::qtprotobufgen ALIAS ntprotobufgen)
+endif()
+if(TARGET ntprotobufgen) # built here, or a host tool of a cross build (cmake/NtHostTools.cmake)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtProtobuf.cmake)
+endif()
 
 # ntsb: GLSL (through glslc) or SPIR-V to the .nsb files that QShader reads.
 if(NOT NT_ZEPHYR AND NOT CMAKE_CROSSCOMPILING)
@@ -2239,6 +2316,33 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_barcode_tests COMMAND nt_barcode_tests)
     set_tests_properties(nt_barcode_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_barcode_tests)
+
+    # Nt Protobuf: messages generated by ntprotobufgen from the .proto files in tests/protobuf, written and read in the
+    # binary format and JSON, and checked against protoc when it is installed.
+    nt_add_protobuf(nt_protobuf_test_messages
+        PROTO_FILES tests/protobuf/nttest/everything.proto tests/protobuf/nttest/legacy.proto
+            tests/protobuf/nttest/common.proto
+        PROTO_INCLUDES tests/protobuf
+        OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/protobuf-test)
+    nt_set_compile_options(nt_protobuf_test_messages)
+    add_executable(nt_protobuf_tests tests/test_protobuf.cpp)
+    target_link_libraries(nt_protobuf_tests PRIVATE nt_protobuf_test_messages)
+    find_program(NT_PROTOC protoc)
+    if(NT_PROTOC)
+        target_compile_definitions(nt_protobuf_tests PRIVATE NT_PROTOC="${NT_PROTOC}"
+            NT_PROTO_DIR="${CMAKE_CURRENT_SOURCE_DIR}/tests/protobuf")
+    endif()
+    add_test(NAME nt_protobuf_tests COMMAND nt_protobuf_tests)
+    nt_set_compile_options(nt_protobuf_tests)
+
+    # Nt SerialBus: frames, the virtual bus between devices, and SocketCAN on vcan0: that of the machine if it has one,
+    # and one in a network namespace of the test's own (tests/serialbus_vcan.sh) where the machine allows it.
+    add_executable(nt_serialbus_tests tests/test_serialbus.cpp)
+    target_link_libraries(nt_serialbus_tests PRIVATE Nt::SerialBus)
+    add_test(NAME nt_serialbus_tests COMMAND nt_serialbus_tests)
+    add_test(NAME nt_serialbus_vcan_tests COMMAND sh ${CMAKE_CURRENT_SOURCE_DIR}/tests/serialbus_vcan.sh
+                                                  $<TARGET_FILE:nt_serialbus_tests>)
+    nt_set_compile_options(nt_serialbus_tests)
 
     # Nt Sensors: QSensor against a fake backend, and the Industrial I/O backend on a sysfs tree written by the test.
     add_executable(nt_sensors_tests tests/test_sensors.cpp)

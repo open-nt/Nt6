@@ -57,3 +57,10 @@ foreach(_nt_tool ntmoc ntrcc)
     add_executable(${_nt_tool} IMPORTED GLOBAL)
     set_target_properties(${_nt_tool} PROPERTIES IMPORTED_LOCATION "${NT_HOST_${_nt_tool}}")
 endforeach()
+# ntprotobufgen is optional: a directory of host tools from before it was there lacks it.
+find_program(NT_HOST_ntprotobufgen ntprotobufgen PATHS "${_nt_host_dir}" "${_nt_host_dir}/bin"
+    NO_DEFAULT_PATH NO_CMAKE_FIND_ROOT_PATH)
+if(NT_HOST_ntprotobufgen)
+    add_executable(ntprotobufgen IMPORTED GLOBAL)
+    set_target_properties(ntprotobufgen PROPERTIES IMPORTED_LOCATION "${NT_HOST_ntprotobufgen}")
+endif()

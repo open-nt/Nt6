@@ -22,9 +22,9 @@
 
 **Write Qt. Ship MIT.** Nt is a small, MIT-licensed, clean-room implementation of the Qt 6 API in C++17. It keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`, `QHttpServer`), so code written for Qt compiles against Nt, and it links statically by default.
 
-- **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ndoc`, `ntgltfview`) are MIT licensed, so you can link Nt statically into any program, open or closed.
+- **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ntprotobufgen`, `ndoc`, `ntgltfview`) are MIT licensed, so you can link Nt statically into any program, open or closed.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
-- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt Positioning`, `Nt Sensors`, `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
+- **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt Positioning`, `Nt Sensors`, `Nt Protobuf`, `Nt SerialBus` (CAN), `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
 Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
@@ -379,9 +379,9 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 ### Platforms and tools
 
-- **Zephyr.** Nt Core, Nt Network, Nt HTTP Server, Nt GPIO, Nt Sensors and the audio part of Nt Multimedia build as a Zephyr module for microcontrollers, headless; see [Zephyr](#zephyr-embedded-headless).
+- **Zephyr.** Nt Core, Nt Network, Nt HTTP Server, Nt GPIO, Nt Sensors, Nt SerialBus (CAN) and the audio part of Nt Multimedia build as a Zephyr module for microcontrollers, headless; see [Zephyr](#zephyr-embedded-headless).
 - **Headset microphones.** `QAudioHeadset` matches the codec's input to a headset microphone by its impedance, and reports the microphone and the headset's button; see [Nt Multimedia](#nt-multimedia-audio-and-cameras).
-- **MIT tools.** `ntmoc`, `ntrcc` and `ndoc` replace moc, rcc and qdoc. Their command lines and CMake functions match Qt's, but the `.rcc` format is Nt's own; see [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator). `ntgltfview FILE` shows a glTF 2.0 scene with hardware ray tracing in a `QVulkanWindow`: the metallic-roughness materials with their textures, normal maps and alpha cut-outs, under a camera that orbits, walks inside (`--view`) and is moved with the mouse, keyboard and a gamepad via Nt Gamepad, with ray traced shadows, reflections and glass (`--raytrace on|off`, `--environment FILE.hdr` for the background and what the glass and metal reflect) and optional NVIDIA DLSS Super Resolution (`--dlss`, a build with `-DNT_DLSS_SDK_DIR=<a checkout of NVIDIA/DLSS>`) (`--grab FILE.png` saves a frame, `--devices` lists the GPUs); it is built when Vulkan is found. The driving simulation (`ntsim`) is part of ntmapgen.
+- **MIT tools.** `ntmoc`, `ntrcc`, `ntprotobufgen` and `ndoc` replace moc, rcc, qtprotobufgen and qdoc; `ntprotobufgen` parses `.proto` files itself, so it needs no `protoc`. Their command lines and CMake functions match Qt's, but the `.rcc` format is Nt's own; see [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator). `ntgltfview FILE` shows a glTF 2.0 scene with hardware ray tracing in a `QVulkanWindow`: the metallic-roughness materials with their textures, normal maps and alpha cut-outs, under a camera that orbits, walks inside (`--view`) and is moved with the mouse, keyboard and a gamepad via Nt Gamepad, with ray traced shadows, reflections and glass (`--raytrace on|off`, `--environment FILE.hdr` for the background and what the glass and metal reflect) and optional NVIDIA DLSS Super Resolution (`--dlss`, a build with `-DNT_DLSS_SDK_DIR=<a checkout of NVIDIA/DLSS>`) (`--grab FILE.png` saves a frame, `--devices` lists the GPUs); it is built when Vulkan is found. The driving simulation (`ntsim`) is part of ntmapgen.
 
 ## Qt 6 modules and their Nt names
 
@@ -616,7 +616,7 @@ Not yet: video playback and recording (no video codecs), compressed audio (MP3, 
 | Qt OpenGL Widgets | Nt OpenGL Widgets | ✔ (`QOpenGLWidget`; see Nt OpenGL in Status) |
 | Qt Positioning | Nt Positioning | ✔ (`QGeoCoordinate`, `QGeoRectangle`, `QGeoCircle`, `QGeoPositionInfo`, `QGeoSatelliteInfo`, `QGeoPositionInfoSource`, `QNmeaPositionInfoSource`, `QGeoSatelliteInfoSource`, `QNmeaSatelliteInfoSource`; no paths or polygons. Guide: [Using Nt Positioning](https://open-nt.github.io/Nt6/nt-positioning.html)) |
 | Qt Print Support | Nt Print Support |  |
-| Qt Protobuf | Nt Protobuf |  |
+| Qt Protobuf | Nt Protobuf | ✔ (`QProtobufMessage`, `QProtobufSerializer` (binary, byte-compatible with `protoc`, unknown fields kept), `QProtobufJsonSerializer` (proto3 JSON mapping), the `QtProtobuf` scalar types, and `ntprotobufgen` with `qt_add_protobuf()` generating Qt-style message classes from proto2 and proto3 files without needing `protoc`: nested types, enums, repeated, packed, maps, oneof, optional, imports; no well-known types, gRPC or QML yet. Guide: [Using Nt Protobuf](https://open-nt.github.io/Nt6/nt-protobuf.html)) |
 | Qt Qml Compiler | Nt Qml Compiler |  |
 | Qt Qml Design Support | Nt Qml Design Support |  |
 | Qt Qml Network | Nt Qml Network |  |
@@ -629,8 +629,8 @@ Not yet: video playback and recording (no video codecs), compressed audio (MP3, 
 | Qt Quick Widgets | Nt Quick Widgets |  |
 | Qt Remote Objects | Nt Remote Objects |  |
 | Qt SCXML | Nt SCXML |  |
-| Qt Sensors | Nt Sensors | ✔ (`QSensor`, `QSensorReading`, `QSensorFilter`, `QAccelerometer`, `QGyroscope`, `QMagnetometer`, `QPressureSensor`, `QAmbientTemperatureSensor`, `QHumiditySensor`, `QLightSensor` with their readings and filters; Linux Industrial I/O devices and Zephyr sensor drivers, polled at the data rate; no derived sensors (orientation, rotation, compass, tap), gestures or QML. Guide: [Using Nt Sensors](https://open-nt.github.io/Nt6/nt-sensors.html)) |
-| Qt Serial Bus | Nt Serial Bus |  |
+| Qt Sensors | Nt Sensors | ✔ (all 18 sensor types of Qt 6 with their readings and filters, `QSensorManager` and `QSensorBackend` for sensors of your own; Linux Industrial I/O devices and the ACPI lid, Android sensors and Zephyr sensor drivers; orientation, tilt, rotation, compass, altimeter and light level computed from the base sensors where the platform has none; polled at the data rate, no gestures, plugins or QML. Guide: [Using Nt Sensors](https://open-nt.github.io/Nt6/nt-sensors.html)) |
+| Qt Serial Bus | Nt SerialBus | ✔ (CAN: `QCanBus`, `QCanBusDevice`, `QCanBusDeviceInfo`, `QCanBusFrame`, `QCanBusFactory`; backends `socketcan` (Linux, CAN FD, filters, error frames, kernel time stamps), `zephyrcan` (Zephyr CAN drivers, bit rates, loopback, bus status, reset) and `virtualcan` (in-process bus); no Modbus, DBC parser or vendor backends. Guide: [Using Nt SerialBus](https://open-nt.github.io/Nt6/nt-serialbus.html)) |
 | Qt Serial Port | Nt Serial Port | ✔ |
 | Qt Shader Tools | Nt Shader Tools |  |
 | Qt Spatial Audio | Nt Spatial Audio |  |
@@ -781,6 +781,8 @@ west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/headset -- -DNT_ROOT=/path/to
 ```
 
 With `CONFIG_NT_SENSORS=y` (and `CONFIG_SENSOR`), `Nt::Sensors` reads the sensors that devicetree aliases such as `accel0` or `ambient-temp0` name; [`zephyr/sensors`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/sensors) lists and reads them. The MIMXRT1170-EVKB itself has no such sensor, so add one on its Arduino header or I2C bus.
+
+With `CONFIG_NT_SERIALBUS=y` (and `CONFIG_CAN`), `Nt::SerialBus` sends and receives CAN and CAN FD frames on the board's controller (FlexCAN3 on the EVKB); [`zephyr/can`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/can) runs it in loopback mode.
 
 With `CONFIG_NT_GPIO=y`, `Nt::Gpio` drives the board's pins: [`zephyr/gpio`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/gpio) blinks `led0` and lights `led1` while `sw0` is held.
 

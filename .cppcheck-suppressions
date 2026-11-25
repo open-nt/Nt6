@@ -41,3 +41,4 @@ duplInheritedMember:src/positioning/qgeocircle.cpp
 syntaxError:src/zephyr/qaudiobackend_zephyr.cpp
 syntaxError:src/zephyr/qgpiobackend_zephyr.cpp
 syntaxError:src/zephyr/qsensorbackend_zephyr.cpp
+syntaxError:src/zephyr/qcanbus_zephyr.cpp

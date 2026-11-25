@@ -1,0 +1,15 @@
+// MIT License - see LICENSE
+syntax = "proto3";
+
+package nttest.common;
+
+enum Shade {
+  SHADE_UNSPECIFIED = 0;
+  LIGHT = 1;
+  DARK = 2;
+}
+
+message Color {
+  uint32 rgb = 1;
+  Shade shade = 2;
+}

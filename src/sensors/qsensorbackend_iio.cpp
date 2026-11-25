@@ -6,6 +6,9 @@
 // (raw + offset) * scale. A device is listed once for each kind of channel it has, so a combined sensor such as a
 // BME280 is a pressure, a temperature and a humidity sensor. The values are read from sysfs each time the sensor is
 // sampled, which suits rates up to a few hundred a second; the buffered interface of IIO is not used.
+//
+// The lid of a laptop is a QLidSensor, read from the ACPI button under /proc/acpi/button/lid (LID0/state holds
+// "state:      open" or "closed").
 
 #include "qsensorbackend_p.h"
 
@@ -31,13 +34,14 @@ struct ChannelKind {
 };
 
 const ChannelKind kKinds[] = {
-    {"QAccelerometer", "in_accel", "xyz", 1.0},                  // m/s^2
-    {"QGyroscope", "in_anglvel", "xyz", 180.0 / kPi},            // rad/s to degrees/s
-    {"QMagnetometer", "in_magn", "xyz", 1e-4},                   // gauss to tesla
-    {"QPressureSensor", "in_pressure", "", 1000.0},              // kPa to Pa
+    {"QAccelerometer", "in_accel", "xyz", 1.0},                          // m/s^2
+    {"QGyroscope", "in_anglvel", "xyz", 180.0 / kPi},                    // rad/s to degrees/s
+    {"QMagnetometer", "in_magn", "xyz", 1e-4},                           // gauss to tesla
+    {"QPressureSensor", "in_pressure", "", 1000.0},                      // kPa to Pa
     {"QAmbientTemperatureSensor", "in_temp_ambient|in_temp", "", 0.001}, // milli degrees Celsius
-    {"QHumiditySensor", "in_humidityrelative", "", 0.001},       // milli percent
-    {"QLightSensor", "in_illuminance|in_illuminance0", "", 1.0}, // lux
+    {"QHumiditySensor", "in_humidityrelative", "", 0.001},               // milli percent
+    {"QLightSensor", "in_illuminance|in_illuminance0", "", 1.0},         // lux
+    {"QIRProximitySensor", "in_proximity|in_proximity0", "", 1.0},       // as the driver scales it
 };
 
 std::optional<qreal> readNumber(const QString &path) {
@@ -114,8 +118,9 @@ public:
         if (type == "QMagnetometer") {
             values.append(1.0); // calibration level: not known
         } else if (type == "QPressureSensor") {
-            const auto temperature =
-                m_temperaturePrefix.isEmpty() ? std::nullopt : readChannel(m_dir, m_temperaturePrefix, m_temperaturePrefix);
+            const auto temperature = m_temperaturePrefix.isEmpty()
+                                         ? std::nullopt
+                                         : readChannel(m_dir, m_temperaturePrefix, m_temperaturePrefix);
             values.append(temperature ? *temperature * 0.001 : 0.0);
         } else if (type == "QHumiditySensor") {
             values.append(0.0); // absolute humidity: not measured
@@ -135,12 +140,32 @@ private:
     const ChannelKind &m_kind;
 };
 
+// The lid of a laptop: values are backLidClosed and frontLidClosed.
+class LidDevice : public SensorDevice {
+public:
+    explicit LidDevice(QString stateFile) : m_stateFile(std::move(stateFile)) {}
+
+    bool read(QList<qreal> &values, int *error) override {
+        QFile file(m_stateFile);
+        if (!file.open(QIODevice::ReadOnly)) {
+            *error = -EIO;
+            return false;
+        }
+        const QByteArray state = file.readAll();
+        values = {state.contains("closed") ? 1.0 : 0.0, 0.0};
+        return true;
+    }
+
+private:
+    QString m_stateFile;
+};
+
 class IioBackend : public SensorBackend {
 public:
-    explicit IioBackend(QString root) : m_root(std::move(root)) {}
+    IioBackend(QString root, QString lidRoot) : m_root(std::move(root)), m_lidRoot(std::move(lidRoot)) {}
 
     QList<SensorInfo> sensors() override {
-        QList<SensorInfo> list;
+        QList<SensorInfo> list = lids();
         QDir root(m_root);
         const QStringList devices =
             root.entryList({QStringLiteral("iio:device*")}, QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name);
@@ -165,6 +190,15 @@ public:
     }
 
     std::unique_ptr<SensorDevice> open(const QByteArray &identifier, const QByteArray &type, int *error) override {
+        if (type == "QLidSensor") {
+            for (const SensorInfo &lid : lids()) {
+                if (lid.identifier == identifier)
+                    return std::make_unique<LidDevice>(QDir(m_lidRoot).filePath(QString::fromUtf8(identifier)) +
+                                                       QLatin1String("/state"));
+            }
+            *error = -ENODEV;
+            return nullptr;
+        }
         const ChannelKind *kind = kindOf(type);
         if (!kind || identifier.contains('/')) {
             *error = -ENODEV;
@@ -180,15 +214,36 @@ public:
     }
 
 private:
+    QList<SensorInfo> lids() const {
+        QList<SensorInfo> list;
+        if (m_lidRoot.isEmpty())
+            return list;
+        const QDir root(m_lidRoot);
+        for (const QString &name : root.entryList(QDir::Dirs | QDir::NoDotAndDotDot, QDir::Name)) {
+            if (!QFile::exists(root.filePath(name) + QLatin1String("/state")))
+                continue;
+            SensorInfo info;
+            info.identifier = name.toUtf8();
+            info.type = "QLidSensor";
+            info.description = QStringLiteral("ACPI lid %1").arg(name);
+            info.isDefault = list.isEmpty();
+            list.append(info);
+        }
+        return list;
+    }
+
     QString m_root;
+    QString m_lidRoot;
 };
 
 } // namespace
 
-std::unique_ptr<SensorBackend> createIioSensorBackend(const QString &root) { return std::make_unique<IioBackend>(root); }
+std::unique_ptr<SensorBackend> createIioSensorBackend(const QString &root, const QString &lidRoot) {
+    return std::make_unique<IioBackend>(root, lidRoot);
+}
 
 std::unique_ptr<SensorBackend> createPlatformSensorBackend() {
-    return createIioSensorBackend(QStringLiteral("/sys/bus/iio/devices"));
+    return createIioSensorBackend(QStringLiteral("/sys/bus/iio/devices"), QStringLiteral("/proc/acpi/button/lid"));
 }
 
 } // namespace QtSensorsPrivate

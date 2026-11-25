@@ -10,6 +10,7 @@
 #include <cerrno>
 #include <cmath>
 #include <cstdio>
+#include <initializer_list>
 #include <mutex>
 
 static int g_failures = 0;
@@ -109,7 +110,11 @@ public:
 };
 
 void testDiscovery() {
-    CHECK((QSensor::sensorTypes() == QList<QByteArray>{"QAccelerometer", "QPressureSensor"}));
+    // The derived sensors follow those they are computed from; a compass needs a magnetometer, which there is not.
+    CHECK((QSensor::sensorTypes() == QList<QByteArray>{"QAccelerometer", "QPressureSensor", "QOrientationSensor",
+                                                       "QTiltSensor", "QRotationSensor", "QAltimeter"}));
+    CHECK((QSensor::sensorsForType("QTiltSensor") == QList<QByteArray>{"accel-a", "accel-b"}));
+    CHECK(QSensor::sensorsForType("QCompass").isEmpty());
     CHECK((QSensor::sensorsForType("QAccelerometer") == QList<QByteArray>{"accel-a", "accel-b"}));
     CHECK(QSensor::defaultSensorForType("QAccelerometer") == "accel-a");
     CHECK(QSensor::defaultSensorForType("QGyroscope").isEmpty());
@@ -271,6 +276,243 @@ void testErrors() {
     CHECK(toggled.isAlwaysOn());
 }
 
+void testDerivedMath() {
+    // Heading of the top of a device lying face up, with the field pointing north and down.
+    const qreal g = 9.81;
+    const qreal h = 20e-6;
+    const qreal v = 40e-6;
+    CHECK(near(compassAzimuth(0, 0, g, 0, h, -v), 0.0, 1e-9));   // top to the north
+    CHECK(near(compassAzimuth(0, 0, g, -h, 0, -v), 90.0, 1e-9)); // top to the east: north is to the left
+    CHECK(near(compassAzimuth(0, 0, g, 0, -h, -v), 180.0, 1e-9));
+    CHECK(near(compassAzimuth(0, 0, g, h, 0, -v), 270.0, 1e-9));
+    // Tilting the device does not move the heading: upright, top up and facing north (the back to the north).
+    CHECK(near(compassAzimuth(0, g, 0, 0, -v, -h), compassAzimuth(0, g, 0, 0, -v, -h), 1e-9));
+    const qreal tilted = compassAzimuth(0, g * std::sin(0.3), g * std::cos(0.3), 0,
+                                        h * std::cos(0.3) - v * std::sin(0.3), -h * std::sin(0.3) - v * std::cos(0.3));
+    CHECK(near(tilted, 0.0, 1e-6));
+
+    CHECK(orientationFor(0, g, 0, QOrientationReading::Undefined) == QOrientationReading::TopUp);
+    CHECK(orientationFor(0, -g, 0, 0) == QOrientationReading::TopDown);
+    CHECK(orientationFor(g, 0, 0, 0) == QOrientationReading::RightUp);
+    CHECK(orientationFor(-g, 0, 0, 0) == QOrientationReading::LeftUp);
+    CHECK(orientationFor(0, 0, g, 0) == QOrientationReading::FaceUp);
+    CHECK(orientationFor(0, 0, -g, 0) == QOrientationReading::FaceDown);
+    // Along the diagonal of all three axes none has 70 percent of gravity: the last orientation stays.
+    const qreal third = g / std::sqrt(3.0);
+    CHECK(orientationFor(third, third, third, QOrientationReading::FaceUp) == QOrientationReading::FaceUp);
+    CHECK(orientationFor(0, 0, 0, QOrientationReading::TopUp) == QOrientationReading::TopUp);
+
+    CHECK(near(altitudeFor(101325.0), 0.0, 1e-6));
+    CHECK(near(altitudeFor(89874.6), 1000.0, 1.0)); // the standard atmosphere at 1000 m
+    CHECK(altitudeFor(0) == 0);
+
+    CHECK(lightLevelFor(-1) == QAmbientLightReading::Undefined);
+    CHECK(lightLevelFor(1) == QAmbientLightReading::Dark);
+    CHECK(lightLevelFor(20) == QAmbientLightReading::Twilight);
+    CHECK(lightLevelFor(300) == QAmbientLightReading::Light);
+    CHECK(lightLevelFor(1000) == QAmbientLightReading::Bright);
+    CHECK(lightLevelFor(50000) == QAmbientLightReading::Sunny);
+}
+
+void testDerivedSensors() {
+    // Orientation, tilt and rotation from the fake accelerometer.
+    g_world->values = {0.0, 9.81, 0.0};
+    QOrientationSensor orientation;
+    QTiltSensor tilt;
+    QRotationSensor rotation;
+    QAltimeter altimeter;
+    for (QSensor *sensor : std::initializer_list<QSensor *>{&orientation, &tilt, &rotation, &altimeter}) {
+        sensor->setDataRate(200);
+        CHECK(sensor->start());
+    }
+    CHECK(waitFor([&] { return orientation.reading()->orientation() == QOrientationReading::TopUp; }));
+    CHECK(waitFor([&] { return near(tilt.reading()->xRotation(), 90.0, 1e-6); }));
+    CHECK(near(tilt.reading()->yRotation(), 0.0, 1e-6));
+    CHECK(waitFor([&] { return near(rotation.reading()->x(), 90.0, 1e-6); }));
+    CHECK(rotation.reading()->z() == 0.0);
+    CHECK(orientation.identifier() == "accel-a");
+    // The altimeter reads the barometer, whose first value the fake also serves.
+    g_world->values = {101325.0, 20.0, 0.0};
+    CHECK(waitFor([&] { return near(altimeter.reading()->altitude(), 0.0, 1e-6); }));
+
+    // calibrate() takes the current tilt as level.
+    g_world->values = {0.0, 4.905, 8.496}; // tilted 30 degrees about x
+    CHECK(waitFor([&] { return near(tilt.reading()->xRotation(), 30.0, 0.01); }));
+    tilt.calibrate();
+    CHECK(waitFor([&] { return near(tilt.reading()->xRotation(), 0.0, 0.01); }));
+    g_world->values = {0.0, 0.0, 9.81};
+    CHECK(waitFor([&] { return near(tilt.reading()->xRotation(), -30.0, 0.01); }));
+    for (QSensor *sensor : std::initializer_list<QSensor *>{&orientation, &tilt, &rotation, &altimeter})
+        sensor->stop();
+
+    // A value travels as the enum through a filter of its type.
+    class OnlyFaceUp : public QOrientationFilter {
+    public:
+        using QOrientationFilter::filter;
+        bool filter(QOrientationReading *reading) override {
+            return reading->orientation() == QOrientationReading::FaceUp;
+        }
+    } onlyFaceUp;
+    QOrientationSensor filtered;
+    filtered.setDataRate(200);
+    filtered.addFilter(&onlyFaceUp);
+    g_world->values = {0.0, 9.81, 0.0};
+    int changes = 0;
+    QObject::connect(&filtered, &QSensor::readingChanged, [&] { ++changes; });
+    CHECK(filtered.start());
+    spinEvents(50);
+    CHECK(changes == 0);
+    g_world->values = {0.0, 0.0, 9.81};
+    CHECK(waitFor([&] { return filtered.reading()->orientation() == QOrientationReading::FaceUp; }));
+    CHECK(filtered.reading()->value(0).isValid());
+    filtered.stop();
+}
+
+class LidBackend : public QSensorBackend {
+public:
+    explicit LidBackend(QSensor *sensor) : QSensorBackend(sensor) {
+        m_reading = setReading<QLidReading>(nullptr);
+        setDescription(QStringLiteral("Test lid"));
+        addDataRate(1, 50);
+        addOutputRange(0, 1, 1);
+        ++s_created;
+    }
+    ~LidBackend() override { ++s_destroyed; }
+    void start() override {
+        ++s_starts;
+        if (s_refuse)
+            sensorStopped();
+    }
+    void stop() override { ++s_stops; }
+    bool isFeatureSupported(QSensor::Feature feature) const override { return feature == QSensor::AlwaysOn; }
+
+    void close(bool closed) {
+        m_reading->setBackLidClosed(closed);
+        m_reading->setTimestamp(1234);
+        newReadingAvailable();
+    }
+    using QSensorBackend::sensorBusy;
+    using QSensorBackend::sensorError;
+
+    static inline int s_created = 0;
+    static inline int s_destroyed = 0;
+    static inline int s_starts = 0;
+    static inline int s_stops = 0;
+    static inline bool s_refuse = false;
+    static inline LidBackend *s_last = nullptr;
+
+private:
+    QLidReading *m_reading;
+};
+
+class LidFactory : public QSensorBackendFactory {
+public:
+    QSensorBackend *createBackend(QSensor *sensor) override {
+        auto *backend = new LidBackend(sensor);
+        LidBackend::s_last = backend;
+        return backend;
+    }
+};
+
+void testManager() {
+    static LidFactory factory;
+    CHECK(!QSensorManager::isBackendRegistered("QLidSensor", "test-lid"));
+    QSensorManager::registerBackend("QLidSensor", "test-lid", &factory);
+    QSensorManager::registerBackend("QLidSensor", "test-lid-2", &factory);
+    CHECK(QSensorManager::isBackendRegistered("QLidSensor", "test-lid"));
+    CHECK(QSensor::sensorTypes().contains("QLidSensor"));
+    CHECK((QSensor::sensorsForType("QLidSensor") == QList<QByteArray>{"test-lid", "test-lid-2"}));
+    QSensorManager::setDefaultBackend("QLidSensor", "test-lid-2");
+    CHECK(QSensor::defaultSensorForType("QLidSensor") == "test-lid-2");
+    QSensorManager::setDefaultBackend("QLidSensor", "test-lid");
+
+    {
+        QLidSensor lid;
+        QList<bool> backChanges;
+        QObject::connect(lid.reading(), &QLidReading::backLidChanged, [&](bool closed) { backChanges.append(closed); });
+        int changes = 0;
+        QObject::connect(&lid, &QSensor::readingChanged, [&] { ++changes; });
+        CHECK(lid.start());
+        CHECK(lid.isActive() && LidBackend::s_starts == 1);
+        CHECK(lid.identifier() == "test-lid");
+        CHECK(lid.description() == QStringLiteral("Test lid"));
+        CHECK((lid.availableDataRates() == qrangelist{qrange(1, 50)}));
+        CHECK(lid.outputRanges().size() == 1);
+        CHECK(lid.isFeatureSupported(QSensor::AlwaysOn));
+        CHECK(!lid.isFeatureSupported(QSensor::SkipDuplicates));
+        LidBackend::s_last->close(true);
+        CHECK(changes == 1);
+        CHECK(lid.reading()->backLidClosed() && !lid.reading()->frontLidClosed());
+        CHECK(lid.reading()->timestamp() == 1234);
+        CHECK(backChanges == QList<bool>{true});
+
+        int busyChanges = 0;
+        QObject::connect(&lid, &QSensor::busyChanged, [&] { ++busyChanges; });
+        LidBackend::s_last->sensorBusy();
+        CHECK(lid.isBusy() && busyChanges == 1);
+        LidBackend::s_last->sensorBusy(false);
+        CHECK(!lid.isBusy() && busyChanges == 2);
+        LidBackend::s_last->sensorError(-EIO);
+        CHECK(lid.error() == -EIO);
+        lid.stop();
+        CHECK(!lid.isActive() && LidBackend::s_stops == 1);
+        // A reading after the sensor stopped is not reported.
+        LidBackend::s_last->close(false);
+        CHECK(changes == 1);
+    }
+    CHECK(LidBackend::s_created == LidBackend::s_destroyed);
+
+    // A backend that cannot start stops the sensor.
+    LidBackend::s_refuse = true;
+    QLidSensor refused;
+    refused.setIdentifier("test-lid-2");
+    CHECK(!refused.start());
+    CHECK(!refused.isActive());
+    LidBackend::s_refuse = false;
+
+    // QSensorManager::createBackend() makes one for a sensor directly.
+    QLidSensor other;
+    QSensorBackend *backend = QSensorManager::createBackend(&other);
+    CHECK(backend && backend->sensor() == &other && backend->reading());
+    delete backend;
+
+    QSensorManager::unregisterBackend("QLidSensor", "test-lid");
+    QSensorManager::unregisterBackend("QLidSensor", "test-lid-2");
+    CHECK(!QSensorManager::isBackendRegistered("QLidSensor", "test-lid"));
+    CHECK(!QSensor::sensorTypes().contains("QLidSensor"));
+}
+
+void testReadingTypes() {
+    // Every type has its reading, with its values in order.
+    const QList<QByteArray> types = {
+        "QAccelerometer",  "QAltimeter",     "QAmbientLightSensor", "QAmbientTemperatureSensor", "QCompass",
+        "QGyroscope",      "QHolsterSensor", "QHumiditySensor",     "QIRProximitySensor",        "QLidSensor",
+        "QLightSensor",    "QMagnetometer",  "QOrientationSensor",  "QPressureSensor",           "QProximitySensor",
+        "QRotationSensor", "QTapSensor",     "QTiltSensor"};
+    const QList<int> counts = {3, 1, 1, 1, 2, 3, 1, 2, 1, 2, 1, 4, 1, 2, 1, 3, 2, 2};
+    for (qsizetype i = 0; i < types.size(); ++i) {
+        QSensor sensor(types[i]);
+        CHECK(sensor.reading()->valueCount() == counts[i]);
+        if (sensor.reading()->valueCount() != counts[i])
+            std::printf("  %s has %d values\n", types[i].constData(), sensor.reading()->valueCount());
+    }
+    QTapReading tap;
+    tap.setTapDirection(QTapReading::Z_Neg);
+    tap.setDoubleTap(true);
+    CHECK(tap.tapDirection() == QTapReading::Z_Neg && tap.isDoubleTap());
+    QRotationReading rotation;
+    rotation.setFromEuler(1, 2, 3);
+    CHECK(rotation.x() == 1 && rotation.y() == 2 && rotation.z() == 3);
+    QMagnetometerReading magnetometer;
+    CHECK(magnetometer.calibrationLevel() == 1);
+    QTapSensor tapSensor;
+    CHECK(tapSensor.returnDoubleTapEvents());
+    tapSensor.setReturnDoubleTapEvents(false);
+    CHECK(!tapSensor.returnDoubleTapEvents());
+    QRotationSensor rotationSensor;
+    CHECK(!rotationSensor.hasZ());
+}
+
 void writeFile(const QString &path, const QByteArray &contents) {
     QFile file(path);
     if (file.open(QIODevice::WriteOnly))
@@ -309,12 +551,23 @@ void testIio(const QTemporaryDir &dir) {
     writeFile(light + QLatin1String("/in_illuminance_scale"), "0.5");
     QDir().mkpath(root + QLatin1String("/trigger0"));
 
-    auto backend = createIioSensorBackend(root);
+    // A proximity sensor, and an ACPI lid.
+    const QString prox = root + QLatin1String("/iio:device3");
+    QDir().mkpath(prox);
+    writeFile(prox + QLatin1String("/in_proximity_raw"), "40");
+    writeFile(prox + QLatin1String("/in_proximity_scale"), "0.01");
+    const QString lids = dir.filePath(QStringLiteral("lid"));
+    QDir().mkpath(lids + QLatin1String("/LID0"));
+    writeFile(lids + QLatin1String("/LID0/state"), "state:      closed");
+
+    auto backend = createIioSensorBackend(root, lids);
     const QList<SensorInfo> all = backend->sensors();
     QMap<QByteArray, QByteArray> byType;
     for (const SensorInfo &info : all)
         byType.insert(info.type, info.identifier);
-    CHECK(all.size() == 7);
+    CHECK(all.size() == 9);
+    CHECK(byType.value("QIRProximitySensor") == "iio:device3");
+    CHECK(byType.value("QLidSensor") == "LID0");
     CHECK(byType.value("QAccelerometer") == "iio:device0");
     CHECK(byType.value("QGyroscope") == "iio:device0");
     CHECK(byType.value("QMagnetometer") == "iio:device0");
@@ -328,6 +581,7 @@ void testIio(const QTemporaryDir &dir) {
         CHECK(info.isDefault);
     }
 
+    int dummyError = 0;
     auto readAll = [&](const QByteArray &id, const QByteArray &type) {
         QList<qreal> values;
         int error = 0;
@@ -348,6 +602,14 @@ void testIio(const QTemporaryDir &dir) {
     CHECK(temperature.size() == 1 && near(temperature[0], 21.5));
     const QList<qreal> humidity = readAll("iio:device1", "QHumiditySensor");
     CHECK(humidity.size() == 2 && near(humidity[0], 45.25));
+    const QList<qreal> reflectance = readAll("iio:device3", "QIRProximitySensor");
+    CHECK(reflectance.size() == 1 && near(reflectance[0], 0.4));
+    QList<qreal> lid = readAll("LID0", "QLidSensor");
+    CHECK((lid == QList<qreal>{1.0, 0.0}));
+    writeFile(lids + QLatin1String("/LID0/state"), "state:      open");
+    lid = readAll("LID0", "QLidSensor");
+    CHECK((lid == QList<qreal>{0.0, 0.0}));
+    CHECK(!backend->open("LID9", "QLidSensor", &dummyError) && dummyError == -ENODEV);
     const QList<qreal> lux = readAll("iio:device2", "QLightSensor");
     CHECK(lux.size() == 1 && near(lux[0], 150.0));
 
@@ -367,6 +629,22 @@ void testIio(const QTemporaryDir &dir) {
     CHECK(waitFor([&] { return near(sensor.reading()->relativeHumidity(), 45.25); }));
     CHECK(sensor.description() == QStringLiteral("bme280"));
     sensor.stop();
+
+    // The lid of this machine, if it has one: only read.
+    if (QFile::exists(QStringLiteral("/proc/acpi/button/lid"))) {
+        auto real =
+            createIioSensorBackend(QStringLiteral("/sys/bus/iio/devices"), QStringLiteral("/proc/acpi/button/lid"));
+        for (const SensorInfo &info : real->sensors()) {
+            if (info.type != "QLidSensor")
+                continue;
+            int lidError = 0;
+            auto lidDevice = real->open(info.identifier, info.type, &lidError);
+            QList<qreal> lidValues;
+            CHECK(lidDevice && lidDevice->read(lidValues, &lidError) && lidValues.size() == 2);
+            std::printf("this machine: lid %s is %s\n", info.identifier.constData(),
+                        lidValues.value(0) != 0 ? "closed" : "open");
+        }
+    }
 }
 
 } // namespace
@@ -381,6 +659,10 @@ int main(int argc, char **argv) {
     testReadings();
     testFilters();
     testErrors();
+    testDerivedMath();
+    testDerivedSensors();
+    testManager();
+    testReadingTypes();
     QTemporaryDir dir;
     testIio(dir);
     setSensorBackend(nullptr);

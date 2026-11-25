@@ -41,7 +41,33 @@
     \row \li QAmbientTemperatureSensor \li QAmbientTemperatureReading \li temperature in \unicode{0xb0}C
     \row \li QHumiditySensor \li QHumidityReading \li relative humidity in percent
     \row \li QLightSensor \li QLightReading \li illuminance in lux
+    \row \li QProximitySensor \li QProximityReading \li whether something is close
+    \row \li QIRProximitySensor \li QIRProximityReading \li reflectance
+    \row \li QLidSensor \li QLidReading \li whether the lid or cover is closed
+    \row \li QOrientationSensor \li QOrientationReading \li which side faces up (computed)
+    \row \li QTiltSensor \li QTiltReading \li tilt around x and y in degrees (computed)
+    \row \li QRotationSensor \li QRotationReading \li rotation around x, y, z in degrees (computed)
+    \row \li QCompass \li QCompassReading \li heading from magnetic north in degrees (computed)
+    \row \li QAltimeter \li QAltimeterReading \li altitude in metres (computed)
+    \row \li QAmbientLightSensor \li QAmbientLightReading \li a light level from dark to sunny (computed)
+    \row \li QTapSensor, QHolsterSensor \li QTapReading, QHolsterReading \li from a QSensorBackend only
     \endtable
+
+    \section1 Computed Sensors
+
+    Where a machine has no sensor of its own for them, Nt computes six types from others, on every
+    platform, and lists them under the identifier of the sensor they read: QOrientationSensor,
+    QTiltSensor and QRotationSensor from an accelerometer, QCompass from an accelerometer and a
+    magnetometer (with tilt compensation, from magnetic north), QAltimeter from a pressure sensor
+    (the standard atmosphere) and QAmbientLightSensor from a light sensor. The class of each reading
+    gives the formula. A rotation has z only with a magnetometer.
+
+    \section1 Sensors of Your Own
+
+    A sensor that Nt does not read, such as a chip that the application drives over SPI, can still be
+    a QSensor: subclass QSensorBackend, register a QSensorBackendFactory for the type with
+    QSensorManager, and every QSensor of the type can use it. Registered backends come before the
+    sensors that Nt reads itself.
 
     QSensor::sensorTypes() lists the kinds the machine has and QSensor::sensorsForType() the sensors of
     a kind, the default first. Choose another than the default with QSensor::setIdentifier() before
@@ -57,12 +83,23 @@
     rate, as their \c _input files or as \c{(_raw + _offset) * _scale}, and converted from the units of
     IIO. The files have to be readable by the user, which a udev rule can arrange.
 
+    The lid of a laptop is a QLidSensor, read from the ACPI button under
+    \c{/proc/acpi/button/lid}, and a proximity channel of IIO is a QIRProximitySensor.
+
+    \section1 Android
+
+    The sensors are those of the NDK's \c ASensorManager: accelerometers, magnetometers, gyroscopes,
+    light, pressure, proximity, humidity and temperature sensors, named by their names. Each is
+    enabled on an event queue of the looper of the thread that starts it, and each sample takes the
+    newest event, so readingChanged() comes at the data rate or the rate of the sensor, whichever is
+    lower.
+
     \section1 Zephyr
 
     Set \c CONFIG_SENSOR and \c CONFIG_NT_SENSORS, and the driver of the sensor, and link with
     \c Nt::Sensors. The sensors listed are those that the usual aliases of the devicetree name:
     \c accel0, \c gyro0, \c magn0, \c press0, \c ambient-temp0, \c die-temp0, \c humidity0,
-    \c light0, and \c accel1, \c gyro1 and \c magn1. Any other sensor device can be read by setting
+    \c light0, \c prox0, and \c accel1, \c gyro1 and \c magn1. Any other sensor device can be read by setting
     its name, as \c device_get_binding() takes it, as the identifier. A sample is fetched with
     \c sensor_sample_fetch() in the thread of the sensor, which blocks while the bus transfers it.
 
@@ -77,9 +114,9 @@
     \section1 What Is Missing
 
     Readings are polled from the event loop; there is no buffering or batching, so rates above a few
-    hundred a second are not practical. The orientation, rotation, compass, tilt, proximity, tap and
-    other derived sensors of Qt Sensors are not there, nor sensor gestures and the QML types. Android
-    has no backend yet.
+    hundred a second are not practical. The computed sensors are not fused with a gyroscope, and taps
+    and holsters come only from a QSensorBackend. There are no sensor plugins, configuration file,
+    gestures or QML types.
 
     \sa {Nt Sensors C++ Classes}, {Nt on Zephyr}
 */

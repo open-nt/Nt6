@@ -18,7 +18,7 @@
 
     \section1 What is built
 
-    Nt Core, Network, Sql, Xml, Concurrent, Test, Qml, FM, Gpio, WebSockets, HttpServer, Positioning, Twin, Comms
+    Nt Core, Network, Sql, Xml, Concurrent, Test, Qml, FM, Gpio, WebSockets, HttpServer, Positioning, Sensors, Twin, Comms
     and Twin Network, and Nt GUI with Widgets, Svg, Svg Widgets, Charts, OpenGL and OpenGL Widgets. Left out are
     Serial Port, Gamepad, Gltf and Barcode (they depend on
     Linux devices or have not been tried), Multimedia and the Wayland compositor.

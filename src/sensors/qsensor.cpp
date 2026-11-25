@@ -3,6 +3,8 @@
 
 #include "qsensorbackend_p.h"
 
+#include <QtSensors/qsensorbackend.h>
+
 #include <QtCore/qmetaobject.h>
 #include <QtCore/qtimer.h>
 
@@ -82,13 +84,13 @@ SensorBackend *sensorBackend() {
     const std::lock_guard<std::mutex> lock(backendMutex());
     auto &backend = backendInstance();
     if (!backend)
-        backend = createPlatformSensorBackend();
+        backend = createDerivedSensorBackend(createPlatformSensorBackend());
     return backend.get();
 }
 
 void setSensorBackend(std::unique_ptr<SensorBackend> backend) {
     const std::lock_guard<std::mutex> lock(backendMutex());
-    backendInstance() = std::move(backend);
+    backendInstance() = backend ? createDerivedSensorBackend(std::move(backend)) : nullptr;
 }
 
 } // namespace QtSensorsPrivate
@@ -240,32 +242,47 @@ public:
         emit q->sensorError(code);
     }
 
+    void setActive(bool on) {
+        if (active == on)
+            return;
+        active = on;
+        emit q->activeChanged();
+    }
+
+    // Takes a sample of a built-in sensor.
     void sample() {
         if (!device)
             return;
         QList<qreal> values;
         int err = 0;
         if (!device->read(values, &err)) {
+            if (err == -EAGAIN)
+                return; // nothing new yet
             setError(err < 0 ? err : -EIO);
             q->stop();
             return;
         }
+        deliver(values, QtSensorsPrivate::microsecondsNow());
+    }
+
+    // Reports values, from a built-in sensor or a QSensorBackend, unless a filter drops them.
+    void deliver(QList<qreal> values, quint64 timestamp) {
+        raw = values;
+        if (adjuster)
+            adjuster(values);
         if (skipDuplicates && haveLast && values == last)
             return;
         last = values;
         haveLast = true;
         // Filters see a copy, so that the reading of the sensor changes only for a value that is reported.
         QtSensorsPrivate::setReadingValues(scratch, values);
-        scratch->setTimestamp(QtSensorsPrivate::microsecondsNow());
+        scratch->setTimestamp(timestamp);
         for (QSensorFilter *filter : filters) {
             if (!filter->filter(scratch))
                 return;
         }
-        QList<qreal> filtered;
-        for (int i = 0; i < scratch->valueCount(); ++i)
-            filtered.append(scratch->value(i).toDouble());
-        QtSensorsPrivate::setReadingValues(reading, filtered);
-        reading->setTimestamp(scratch->timestamp());
+        QtSensorsPrivate::setReadingValues(reading, QtSensorsPrivate::readingValues(scratch));
+        reading->setTimestamp(timestamp);
         emit q->readingChanged();
     }
 
@@ -277,18 +294,61 @@ public:
     QSensorReading *reading;
     QSensorReading *scratch = nullptr;
     QList<QSensorFilter *> filters;
-    std::unique_ptr<QtSensorsPrivate::SensorDevice> device;
+    std::unique_ptr<QtSensorsPrivate::SensorDevice> device; // a built-in sensor, polled by timer
+    QSensorBackend *backend = nullptr;                      // or one registered with QSensorManager
     QtSensorsPrivate::SensorInfo info;
+    std::function<void(QList<qreal> &)> adjuster;
     bool connected = false;
+    bool active = false;
+    bool busy = false;
     bool alwaysOn = false;
     bool skipDuplicates = false;
     bool haveLast = false;
     QList<qreal> last;
+    QList<qreal> raw;
     int dataRate = 0;
     int outputRange = -1;
     int error = 0;
     QTimer timer;
 };
+
+namespace QtSensorsPrivate {
+
+void SensorAccess::deliver(QSensor *sensor, const QList<qreal> &values, quint64 timestamp) {
+    if (sensor->d->active)
+        sensor->d->deliver(values, timestamp ? timestamp : microsecondsNow());
+}
+
+void SensorAccess::stopped(QSensor *sensor) { sensor->d->setActive(false); }
+
+void SensorAccess::setBusy(QSensor *sensor, bool busy) {
+    if (sensor->d->busy == busy)
+        return;
+    sensor->d->busy = busy;
+    emit sensor->busyChanged();
+}
+
+void SensorAccess::error(QSensor *sensor, int error) { sensor->d->setError(error); }
+
+void SensorAccess::addDataRate(QSensor *sensor, int minimum, int maximum) {
+    sensor->d->info.dataRates.append(qrange(minimum, maximum));
+}
+
+void SensorAccess::addOutputRange(QSensor *sensor, const qoutputrange &range) {
+    sensor->d->info.outputRanges.append(range);
+}
+
+void SensorAccess::setDescription(QSensor *sensor, const QString &description) {
+    sensor->d->info.description = description;
+}
+
+void SensorAccess::setAdjuster(QSensor *sensor, std::function<void(QList<qreal> &)> adjuster) {
+    sensor->d->adjuster = std::move(adjuster);
+}
+
+QList<qreal> SensorAccess::lastValues(const QSensor *sensor) { return sensor->d->raw; }
+
+} // namespace QtSensorsPrivate
 
 /*!
     \class QSensor
@@ -315,8 +375,8 @@ public:
 
     \differences
     Readings are taken by polling from the event loop of the thread the sensor lives in, at the
-    data rate (10 a second when none is set); there is no buffering, and busy and
-    availableSensorsChanged() are never reported. Axes orientation, output ranges and the
+    data rate (10 a second when none is set); there is no buffering, and availableSensorsChanged()
+    is never emitted. A sensor of a backend registered with QSensorManager is driven by its backend. Axes orientation, output ranges and the
     \c AlwaysOn feature are not supported; alwaysOn is only stored. error() is a negative
     \c errno value. The backends are Linux Industrial I/O and Zephyr; the sensors of Android are
     not read yet.
@@ -363,6 +423,7 @@ QSensor::~QSensor() {
     stop();
     for (QSensorFilter *filter : d->filters)
         filter->setSensor(nullptr);
+    delete d->backend;
 }
 
 /*!
@@ -395,25 +456,38 @@ QByteArray QSensor::type() const { return d->type; }
 bool QSensor::connectToBackend() {
     if (d->connected)
         return true;
-    QtSensorsPrivate::SensorBackend *backend = QtSensorsPrivate::sensorBackend();
-    if (!backend)
-        return false;
-    const QList<QtSensorsPrivate::SensorInfo> all = backend->sensors();
+    // A backend registered with QSensorManager comes first.
+    const QList<QByteArray> registered = QtSensorsPrivate::registeredIdentifiers(d->type);
     QByteArray wanted = d->identifier;
-    if (wanted.isEmpty())
-        wanted = defaultSensorForType(d->type);
-    for (const QtSensorsPrivate::SensorInfo &info : all) {
-        if (info.type == d->type && info.identifier == wanted) {
-            d->info = info;
-            break;
-        }
-    }
-    if (d->info.identifier.isEmpty()) {
-        // A backend may open a device it does not list, such as a Zephyr device named by its devicetree node.
-        if (d->identifier.isEmpty())
-            return false;
-        d->info.identifier = d->identifier;
+    if (wanted.isEmpty() && !registered.isEmpty())
+        wanted = registered.first();
+    if (!wanted.isEmpty() && registered.contains(wanted)) {
+        d->info = QtSensorsPrivate::SensorInfo();
+        d->info.identifier = wanted;
         d->info.type = d->type;
+        d->info.dataRates.clear(); // the backend adds its own
+        d->backend = QtSensorsPrivate::createRegisteredBackend(this, wanted);
+        if (!d->backend)
+            return false;
+    } else {
+        QtSensorsPrivate::SensorBackend *backend = QtSensorsPrivate::sensorBackend();
+        if (!backend)
+            return false;
+        if (wanted.isEmpty())
+            wanted = defaultSensorForType(d->type);
+        for (const QtSensorsPrivate::SensorInfo &info : backend->sensors()) {
+            if (info.type == d->type && info.identifier == wanted) {
+                d->info = info;
+                break;
+            }
+        }
+        if (d->info.identifier.isEmpty()) {
+            // A backend may open a device it does not list, such as a Zephyr device named by its devicetree node.
+            if (d->identifier.isEmpty())
+                return false;
+            d->info.identifier = d->identifier;
+            d->info.type = d->type;
+        }
     }
     if (d->identifier != d->info.identifier) {
         d->identifier = d->info.identifier;
@@ -429,9 +503,10 @@ bool QSensor::connectToBackend() {
 bool QSensor::isConnectedToBackend() const { return d->connected; }
 
 /*!
-    Returns \c true if the sensor is in use by another program. Nt cannot tell, and returns \c false.
+    Returns \c true if the sensor is in use by another program. Only a QSensorBackend can tell, with
+    QSensorBackend::sensorBusy(); the sensors that Nt reads itself are never busy.
 */
-bool QSensor::isBusy() const { return false; }
+bool QSensor::isBusy() const { return d->busy; }
 
 /*!
     Starts the sensor if \a active is \c true, or stops it otherwise.
@@ -448,7 +523,7 @@ void QSensor::setActive(bool active) {
 /*!
     Returns \c true while the sensor is being read.
 */
-bool QSensor::isActive() const { return d->timer.isActive(); }
+bool QSensor::isActive() const { return d->active; }
 
 /*!
     Returns \c true if the sensor should keep running when the screen is off. The setting is only
@@ -571,7 +646,7 @@ QSensorReading *QSensor::reading() const { return d->reading; }
     Returns the types that the machine has at least one sensor of.
 */
 QList<QByteArray> QSensor::sensorTypes() {
-    QList<QByteArray> types;
+    QList<QByteArray> types = QtSensorsPrivate::registeredTypes();
     if (QtSensorsPrivate::SensorBackend *backend = QtSensorsPrivate::sensorBackend()) {
         for (const QtSensorsPrivate::SensorInfo &info : backend->sensors()) {
             if (!types.contains(info.type))
@@ -582,19 +657,26 @@ QList<QByteArray> QSensor::sensorTypes() {
 }
 
 /*!
-    Returns the identifiers of the sensors of \a type, the default one first.
+    Returns the identifiers of the sensors of \a type, the default one first: the backends
+    registered with QSensorManager, then the sensors that Nt reads itself.
 */
 QList<QByteArray> QSensor::sensorsForType(const QByteArray &type) {
     QList<QByteArray> ids;
     if (QtSensorsPrivate::SensorBackend *backend = QtSensorsPrivate::sensorBackend()) {
         for (const QtSensorsPrivate::SensorInfo &info : backend->sensors()) {
-            if (info.type != type)
+            if (info.type != type || ids.contains(info.identifier))
                 continue;
             if (info.isDefault)
                 ids.prepend(info.identifier);
             else
                 ids.append(info.identifier);
         }
+    }
+    // The backends registered with QSensorManager come first, the default of them at the front.
+    const QList<QByteArray> registered = QtSensorsPrivate::registeredIdentifiers(type);
+    for (auto it = registered.crbegin(); it != registered.crend(); ++it) {
+        ids.removeAll(*it);
+        ids.prepend(*it);
     }
     return ids;
 }
@@ -611,6 +693,8 @@ QByteArray QSensor::defaultSensorForType(const QByteArray &type) {
     Returns \c true if the sensor supports \a feature.
 */
 bool QSensor::isFeatureSupported(QSensor::Feature feature) const {
+    if (d->backend)
+        return d->backend->isFeatureSupported(feature);
     switch (feature) {
     case SkipDuplicates:
         return true;
@@ -628,11 +712,19 @@ bool QSensor::isFeatureSupported(QSensor::Feature feature) const {
     \sa stop(), isActive()
 */
 bool QSensor::start() {
-    if (d->timer.isActive())
+    if (d->active)
         return true;
     if (!connectToBackend()) {
         d->setError(-ENODEV);
         return false;
+    }
+    d->error = 0;
+    d->haveLast = false;
+    if (d->backend) {
+        // The backend reports with newReadingAvailable(), and with sensorStopped() if it cannot start.
+        d->setActive(true);
+        d->backend->start();
+        return d->active;
     }
     int err = 0;
     d->device = QtSensorsPrivate::sensorBackend()->open(d->identifier, d->type, &err);
@@ -640,10 +732,8 @@ bool QSensor::start() {
         d->setError(err < 0 ? err : -ENODEV);
         return false;
     }
-    d->error = 0;
-    d->haveLast = false;
     d->timer.start(d->interval());
-    emit activeChanged();
+    d->setActive(true);
     // The first reading comes at once rather than a period later.
     QTimer::singleShot(0, this, [this] {
         if (d->timer.isActive())
@@ -658,11 +748,15 @@ bool QSensor::start() {
     \sa start()
 */
 void QSensor::stop() {
-    if (!d->timer.isActive())
+    if (!d->active)
         return;
-    d->timer.stop();
-    d->device.reset();
-    emit activeChanged();
+    if (d->backend) {
+        d->backend->stop();
+    } else {
+        d->timer.stop();
+        d->device.reset();
+    }
+    d->setActive(false);
 }
 
 #include "moc_qsensor.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

@@ -1,0 +1,20 @@
+// MIT License - see LICENSE
+syntax = "proto2";
+
+package nttest.legacy;
+
+message Settings {
+  required int32 version = 1;
+  optional string title = 2 [default = "untitled"];
+  optional int32 retries = 3 [default = 3];
+  optional bool verbose = 4;
+  optional double ratio = 5 [default = 0.5];
+  repeated int32 codes = 6;
+  repeated int32 packed_codes = 7 [packed = true];
+
+  enum Level {
+    LOW = 1;
+    HIGH = 2;
+  }
+  optional Level level = 8 [default = HIGH];
+}

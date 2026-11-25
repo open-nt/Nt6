@@ -70,6 +70,16 @@ config NT_GPIO
 	  CONFIG_ADC, CONFIG_DAC, CONFIG_I2C and CONFIG_SPI are set; without one, that class fails
 	  open() with UnsupportedOperationError.
 
+config NT_SERIALBUS
+	bool "Nt SerialBus (CAN)"
+	depends on CAN
+	help
+	  Builds the CAN part of Nt SerialBus: QCanBus, QCanBusDevice and QCanBusFrame, on the CAN
+	  drivers of Zephyr (the backend zephyrcan) and on a virtual bus inside the application
+	  (virtualcan). A controller is named "canbus" for the one that zephyr,canbus chooses, by an
+	  alias can0 to can3, or by its device name, such as can@40c3c000. Link the application with
+	  Nt::SerialBus.
+
 config NT_SENSORS
 	bool "Nt Sensors"
 	depends on SENSOR

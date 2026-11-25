@@ -2,7 +2,7 @@
 //
 // The sensor backend on Zephyr: its sensor drivers, read with sensor_sample_fetch() and sensor_channel_get() in the
 // thread of the QSensor, each time the sensor is sampled. The sensors listed are the devices that the usual aliases of
-// the devicetree name (accel0, gyro0, magn0, ambient-temp0, die-temp0, press0, humidity0, light0, and a second of
+// the devicetree name (accel0, gyro0, magn0, ambient-temp0, die-temp0, press0, humidity0, light0, prox0, and a second of
 // some); any other sensor device can be opened by the name that device_get_binding() takes, set as the identifier.
 // The values are converted to the units of Qt Sensors: gyroscopes from radians to degrees a second, magnetometers from
 // gauss to tesla and pressure from kilopascals to pascals.
@@ -32,13 +32,12 @@ struct AliasSensor {
 
 const AliasSensor kAliasSensors[] = {
     NT_SENSOR_ALIAS(accel0, "QAccelerometer") NT_SENSOR_ALIAS(accel1, "QAccelerometer")
-    NT_SENSOR_ALIAS(gyro0, "QGyroscope") NT_SENSOR_ALIAS(gyro1, "QGyroscope")
-    NT_SENSOR_ALIAS(magn0, "QMagnetometer") NT_SENSOR_ALIAS(magn1, "QMagnetometer")
-    NT_SENSOR_ALIAS(press0, "QPressureSensor")
-    NT_SENSOR_ALIAS(ambient_temp0, "QAmbientTemperatureSensor") NT_SENSOR_ALIAS(die_temp0, "QAmbientTemperatureSensor")
-    NT_SENSOR_ALIAS(humidity0, "QHumiditySensor")
-    NT_SENSOR_ALIAS(light0, "QLightSensor")
-    {nullptr, nullptr},
+        NT_SENSOR_ALIAS(gyro0, "QGyroscope") NT_SENSOR_ALIAS(gyro1, "QGyroscope")
+            NT_SENSOR_ALIAS(magn0, "QMagnetometer") NT_SENSOR_ALIAS(magn1, "QMagnetometer")
+                NT_SENSOR_ALIAS(press0, "QPressureSensor") NT_SENSOR_ALIAS(ambient_temp0, "QAmbientTemperatureSensor")
+                    NT_SENSOR_ALIAS(die_temp0, "QAmbientTemperatureSensor")
+                        NT_SENSOR_ALIAS(humidity0, "QHumiditySensor") NT_SENSOR_ALIAS(light0, "QLightSensor")
+                            NT_SENSOR_ALIAS(prox0, "QProximitySensor"){nullptr, nullptr},
 };
 
 class ZephyrSensorDevice : public SensorDevice {
@@ -82,6 +81,13 @@ public:
         }
         if (m_type == "QLightSensor")
             return channel(SENSOR_CHAN_LIGHT, 1, 1.0, values, error);
+        if (m_type == "QProximitySensor") {
+            QList<qreal> proximity;
+            if (!channel(SENSOR_CHAN_PROX, 1, 1.0, proximity, error))
+                return false;
+            values.append(proximity.value(0) != 0 ? 1.0 : 0.0);
+            return true;
+        }
         *error = -ENOTSUP;
         return false;
     }

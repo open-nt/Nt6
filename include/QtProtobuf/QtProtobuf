@@ -1,0 +1,5 @@
+#include "qabstractprotobufserializer.h"
+#include "qprotobufjsonserializer.h"
+#include "qprotobufmessage.h"
+#include "qprotobufserializer.h"
+#include "qtprotobuftypes.h"

@@ -70,6 +70,12 @@
     and a platform) is found from \c ANDROID_SDK_ROOT. \c nt_android_add_apk() takes the package name, the label,
     the version and a key store; \c MANUAL_FINALIZATION leaves the packaging to a call of \c qt_finalize_target().
 
+    \section1 Calling Java
+
+    QJniObject, QJniEnvironment and QNativeInterface::QAndroidApplication of Nt Core call the Java APIs of Android,
+    as in Qt. Code that uses views, toasts or dialogs has to run on the UI thread, with
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread(); \c main() runs on a thread of its own.
+
     \section1 The android platform
 
     The application thread runs \c main(); the activity's UI thread passes input, the native window and the
@@ -90,8 +96,9 @@
         its own is only told with an expose event (isExposed() is false) and must release its swapchain then.
     \li The Java part is one class, \c org.nt.NtActivity, a NativeActivity with a view for the keyboard to type into. It is
         compiled with \c javac and \c d8 when the APK is made; without a JDK the application is a plain NativeActivity
-        and has no on-screen keyboard. There is no QJniObject, no Android permissions API and no assets: \c{assets:}
-        paths do not exist, and resources are the compiled-in kind.
+        and has no on-screen keyboard. There is no Android permissions API (QCoreApplication::requestPermission()),
+        an application cannot add Java sources of its own to the APK, and there are no assets: \c{assets:} paths do
+        not exist, and resources are the compiled-in kind.
     \li The on-screen keyboard appears when a widget that takes text gets the focus (QInputMethod::show()), and the
         window shrinks to leave it free. It types plain text: no composing text, suggestions or input method
         events, and the keys it sends are those a hardware keyboard would send.

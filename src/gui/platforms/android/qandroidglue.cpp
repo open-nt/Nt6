@@ -5,6 +5,8 @@
 // thread that runs main(). Qt's own activity is written in Java, which Nt does without.
 #include "qandroidglue_p.h"
 
+#include "android/qjni_android_p.h"
+
 #include <android/input.h>
 #include <android/log.h>
 #include <android/looper.h>
@@ -546,6 +548,8 @@ extern "C" __attribute__((visibility("default"))) void ANativeActivity_onCreate(
             // Stay where the process started.
         }
     }
+    // Nt Core gets the Java VM and the activity, for QJniObject and QNativeInterface::QAndroidApplication.
+    QtAndroidPrivate::initJni(activity->vm, activity->env, activity->clazz, activity->sdkVersion);
     glue.registerNtActivity();
     glue.setApplicationRunning(true);
     pthread_t thread;

@@ -222,6 +222,11 @@ if(NT_ZEPHYR)
     target_compile_options(NtCore PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
 else()
     target_link_libraries(NtCore PUBLIC Threads::Threads)
+    # QJniObject, QJniEnvironment and QNativeInterface::QAndroidApplication.
+    if(NT_ANDROID)
+        target_sources(NtCore PRIVATE src/android/qjni_android.cpp)
+        target_link_libraries(NtCore PRIVATE android)
+    endif()
     # QLibrary loads with dlopen(). QSharedMemory and QSystemSemaphore use POSIX shared memory and named
     # semaphores, which older C libraries keep in librt.
     target_link_libraries(NtCore PRIVATE ${CMAKE_DL_LIBS})

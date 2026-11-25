@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qcoreapplication_platform.h>
 #include <QtCore/qeventloop.h>
 #include <QtCore/qnamespace.h>
 #include <QtCore/qobject.h>

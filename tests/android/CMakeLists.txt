@@ -15,3 +15,7 @@ qt_standard_project_setup()
 
 qt_add_executable(nt_android_smoke main.cpp counter.h)
 target_link_libraries(nt_android_smoke PRIVATE Qt6::Widgets Qt6::OpenGLWidgets Qt6::Network)
+
+# QJniObject and friends, checked on a device (see jni.cpp).
+qt_add_executable(nt_android_jni jni.cpp)
+target_link_libraries(nt_android_jni PRIVATE Qt6::Gui)

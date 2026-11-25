@@ -31,6 +31,16 @@ Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/PO
 
 **[Documentation](https://open-nt.github.io/Nt6/)** · **[Install](https://open-nt.github.io/Nt6/install.html)** · **[Examples](examples)** · **[Contributing](CONTRIBUTING.md)** · **[Discussions](https://github.com/open-nt/Nt6/discussions)**
 
+## Supported hardware
+
+| Hardware | Platform | Status |
+|---|---|---|
+| **NXP MIMXRT1170-EVKB** (i.MX RT1176, revision B; `mimxrt1170_evk/mimxrt1176/cm7`) | Zephyr 4.5 | Primary embedded target. Runs Nt GPIO (the user LEDs `led0`/`led1` and button `sw0`, any pin as `gpio9:3`) and Nt Multimedia audio: headphones and a headset microphone on its WM8962 codec through `QAudioHeadset` (bias, gain, impedance matching, microphone and button sensing). Nt Core and Nt Network build for it. See [Zephyr](#zephyr-embedded-headless). |
+| NXP MIMXRT1170-EVK (revision A; `mimxrt1170_evk@A/mimxrt1176/cm7`) | Zephyr 4.5 | Nt Multimedia audio builds for its WM8960, untested, without `QAudioHeadset`. |
+| Arm MPS2 AN385 in QEMU (`mps2/an385`) | Zephyr 4.5 | Runs the self-checking [`zephyr/qemu`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/qemu) sample, without audio. |
+| x86-64 and arm64 PCs and boards | Linux | All modules; audio through ALSA (and PipeWire or PulseAudio), cameras through Video4Linux2. |
+| arm64 and x86-64 phones and emulators | Android | The headless modules and Nt GUI; see [Android](https://open-nt.github.io/Nt6/nt-android.html). |
+
 ## Quick start
 
 A web service in one file, `main.cpp`:
@@ -355,7 +365,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 | Nt FM QML | `Nt::FMQml` | the QML types of Nt FM (`import QtFM`); see the [`fmqml`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmqml.cpp) example |
 | Nt Gamepad | `Nt::Gamepad` | Qt Gamepad from Qt 5, brought back: `QGamepad`, `QGamepadManager` and `QGamepadKeyNavigation`, plus SDL GameControllerDB mappings, stable ids across replugging, generic button and axis signals, dead zones and rumble. Reads evdev on Linux, event-driven, with hot plugging. Guide: [Using Nt Gamepad](https://open-nt.github.io/Nt6/nt-gamepad.html); example: [`gamepadinfo`](https://github.com/open-nt/nt6-examples/blob/main/gamepad/gamepadinfo.cpp) |
 | Nt glTF | `Nt::Gltf` | `QtGltf::Document`: loads glTF 2.0 scenes (`.gltf` and `.glb`) into meshes with decoded float vertex data and plain index lists, PBR materials, textures (decoded on demand), cameras, `KHR_lights_punctual` lights and world-space instances, ready for a Vulkan renderer or ray tracer. Guide: [Using Nt glTF](https://open-nt.github.io/Nt6/nt-gltf.html); example: [`gltfinfo`](https://github.com/open-nt/nt6-examples/blob/main/gltf/gltfinfo.cpp) |
-| Nt GPIO | `Nt::Gpio` | `QGpioLine`: one GPIO line, as input with `valueChanged()`, debounce and bias, or as output. Uses the Linux GPIO character device (v2, Linux 5.10 or later) or Zephyr. Guide: [Using Nt GPIO](https://open-nt.github.io/Nt6/nt-gpio.html); example: [`ptt`](https://github.com/open-nt/nt6-examples/blob/main/gpio/ptt.cpp) |
+| Nt GPIO | `Nt::Gpio` | `QGpioLine`: one GPIO line, as input with `valueChanged()`, debounce and bias, or as output. Uses the Linux GPIO character device (v2, Linux 5.10 or later) or Zephyr, where lines are named by the devicetree (`gpio9:3`, `led0`, `sw0`; see [`zephyr/gpio`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/gpio) for the MIMXRT1170-EVKB). Guide: [Using Nt GPIO](https://open-nt.github.io/Nt6/nt-gpio.html); example: [`ptt`](https://github.com/open-nt/nt6-examples/blob/main/gpio/ptt.cpp) |
 | Nt Twin | `Nt::Twin` | the world model of a digital twin, on Nt Core and Nt Positioning alone so it runs headless: `QtTwin::Ellipsoid` converts WGS84 latitude, longitude and ellipsoidal height to and from Earth-centred, Earth-fixed coordinates in double precision, `QtTwin::LocalFrame` gives east-north-up frames (and the 4x4 matrix of a 3D Tiles `transform`), `QtTwin::TransverseMercator` and `QtTwin::UtmZone` project to UTM to nanometre accuracy (Krüger series, checked against PROJ), `QtTwin::GeoPosition` converts to and from `QGeoCoordinate`, `QtTwin::SimulationClock` keeps simulation time (rate, pause, deterministic steps, GPS time), and `QtTwin::GnssReceiver` is a simulated GNSS receiver: a `QGeoPositionInfoSource` with a seeded Gauss-Markov error model, denied (jammed) areas and NMEA 0183 output. Moving entities: `QtTwin::EntityState`, `QtTwin::DeadReckoning` (the DIS algorithms and send thresholds), `QtTwin::DisEntityStatePdu` (DIS 7 Entity State PDUs) and `QtTwin::ModelCatalogue` (the models a copy can render, from `models.json`). Guide: [Using Nt Twin](https://open-nt.github.io/Nt6/nt-twin.html) |
 | Nt Twin Network | `Nt::TwinNetwork` | `QtTwin::Replicator` shares Nt Twin entities (people, vehicles, aircraft, drones, boats) between the peers of an Nt Comms session as DIS 7, sending on dead-reckoning thresholds with heartbeats, marking silent entities stale, and refusing peers that cannot render every model in the session. Guide: [Multiplayer Sessions](https://open-nt.github.io/Nt6/nt-multiplayer.html) |
 
@@ -369,7 +379,8 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 ### Platforms and tools
 
-- **Zephyr.** Nt Core, Nt Network and Nt HTTP Server build as a Zephyr module for microcontrollers, headless; see [Zephyr](#zephyr-embedded-headless).
+- **Zephyr.** Nt Core, Nt Network, Nt HTTP Server and the audio part of Nt Multimedia build as a Zephyr module for microcontrollers, headless; see [Zephyr](#zephyr-embedded-headless).
+- **Headset microphones.** `QAudioHeadset` matches the codec's input to a headset microphone by its impedance, and reports the microphone and the headset's button; see [Nt Multimedia](#nt-multimedia-audio-and-cameras).
 - **MIT tools.** `ntmoc`, `ntrcc` and `ndoc` replace moc, rcc and qdoc. Their command lines and CMake functions match Qt's, but the `.rcc` format is Nt's own; see [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator). `ntgltfview FILE` shows a glTF 2.0 scene with hardware ray tracing in a `QVulkanWindow`: the metallic-roughness materials with their textures, normal maps and alpha cut-outs, under a camera that orbits, walks inside (`--view`) and is moved with the mouse, keyboard and a gamepad via Nt Gamepad, with ray traced shadows, reflections and glass (`--raytrace on|off`, `--environment FILE.hdr` for the background and what the glass and metal reflect) and optional NVIDIA DLSS Super Resolution (`--dlss`, a build with `-DNT_DLSS_SDK_DIR=<a checkout of NVIDIA/DLSS>`) (`--grab FILE.png` saves a frame, `--devices` lists the GPUs); it is built when Vulkan is found. The driving simulation (`ntsim`) is part of ntmapgen.
 
 ## Qt 6 modules and their Nt names
@@ -548,11 +559,14 @@ Nt Multimedia has the audio and camera parts of Qt Multimedia. Link with `Nt::Mu
 | `QVideoWidget` (`Nt::MultimediaWidgets`) | a widget that shows a camera, scaled with the aspect ratio kept, stretched or cropped, drawn with `QPainter`; full screen |
 | `QVideoFrame`, `QVideoFrameFormat` | frames in memory that share their pixels: mapping, planes, start and end times, rotation and mirroring; `toImage()` from packed RGB, YUYV, UYVY, NV12, NV21, P010, YUV420P, YV12, YUV422P, grey and JPEG, in BT.601 or BT.709 and video or full range |
 | `QImageCapture` | pictures taken from the camera's stream, scaled to a resolution if set, as a `QImage` or saved as JPEG or PNG |
+| `QAudioHeadset` (Nt only) | the microphone of a headset on the board's codec: `setMicrophoneImpedance()` picks the bias and gain for a dynamic (below 1 kΩ) or electret microphone, with the bias level, the gain (−23.25 to +54 dB on the WM8962), the codec channel and input pin also settable, and `microphoneConnectedChanged`/`buttonPressedChanged` from the codec's sensing; on Zephyr with the WM8962 (MIMXRT1170-EVKB), and on Linux through the ALSA mixer (boost and capture volume, input source, jack detection; bias and button where the driver has them) |
 | `QMediaRecorder`, `QAudioInput`, `QMediaFormat`, `QMediaMetaData` | the microphone recorded to a WAV file, with pause, duration, numbered files in a folder and text tags (title, artist, date, ...) in its `LIST/INFO` chunk; the input sets the device, gain and mute |
 
 WAV files with 8, 16, 24 or 32-bit integer or 32 or 64-bit floating-point samples, up to 8 channels, can be played and decoded. Guide: [Using Nt Multimedia](https://open-nt.github.io/Nt6/nt-multimedia.html). Examples: [`audiodevices`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/audiodevices.cpp) lists the devices and plays a tone, [`audioplayer`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/audioplayer.cpp) plays a WAV file, [`camera`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/camera.cpp) lists the cameras, streams and saves a picture, [`viewfinder`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/viewfinder.cpp) shows a camera in a window, [`recorder`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/recorder.cpp) records the microphone, and [`decoder`](https://github.com/open-nt/nt6-examples/blob/main/multimedia/decoder.cpp) decodes a file to 16 kHz mono.
 
-Not yet: video playback and recording (no video codecs), compressed audio (MP3, AAC, Ogg, FLAC), a QML video item and GPU drawing of video, camera controls (focus, zoom, exposure), pitch-preserving playback rates, and backends other than ALSA and Video4Linux2.
+On Zephyr the audio classes (not cameras, `QMediaPlayer` or `QMediaRecorder`) work through the I2S and audio codec drivers.
+
+Not yet: video playback and recording (no video codecs), compressed audio (MP3, AAC, Ogg, FLAC), a QML video item and GPU drawing of video, camera controls (focus, zoom, exposure), pitch-preserving playback rates, and backends other than ALSA, Video4Linux2 and Zephyr's audio drivers.
 
 ### Essentials
 
@@ -760,7 +774,15 @@ west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/hello -- -DNT_ROOT=/path/to/N
 
 [`zephyr/qemu`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/qemu) is a self-checking application that runs without hardware, with `west build -b mps2/an385 zephyr/qemu -t run -- -DNT_ROOT=/path/to/Nt`. It also serves a web page of its results with Nt HTTP Server (`CONFIG_NT_HTTPSERVER`), which QEMU can forward to your browser; the guide shows how.
 
-The port is at an early stage: it runs under QEMU, and has not been run on a real board yet. The guide [Nt on Zephyr](https://open-nt.github.io/Nt6/nt-zephyr.html) lists what is left out and what differs.
+With `CONFIG_NT_MULTIMEDIA=y` (and `CONFIG_I2S`, `CONFIG_AUDIO_CODEC`, `CONFIG_I2C`) the application can link `Nt::Multimedia` for audio: `QAudioSink`, `QAudioSource`, `QSoundEffect`, `QMediaDevices` and `QAudioHeadset`, on the I2S controller and codec of the board (SAI1 and the WM8962 on the MIMXRT1170-EVKB). [`zephyr/headset`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/headset) sets up a headset microphone for its impedance, prints its level and button, and plays it back on the headphones:
+
+```sh
+west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/headset -- -DNT_ROOT=/path/to/Nt -DCONFIG_APP_MIC_IMPEDANCE=150
+```
+
+With `CONFIG_NT_GPIO=y`, `Nt::Gpio` drives the board's pins: [`zephyr/gpio`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/gpio) blinks `led0` and lights `led1` while `sw0` is held.
+
+The port is at an early stage: it runs under QEMU and on the MIMXRT1170-EVKB. The guide [Nt on Zephyr](https://open-nt.github.io/Nt6/nt-zephyr.html) lists what is left out and what differs.
 
 ## Packages
 

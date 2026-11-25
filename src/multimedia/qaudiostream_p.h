@@ -14,7 +14,6 @@
 #include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <thread>
 #include <vector>
 
 namespace QtMultimediaPrivate {
@@ -54,7 +53,10 @@ public:
     void setVolume(float volume) { m_volume.store(volume); }
 
     // The bytes played or recorded since open().
-    qint64 processedBytes() const { return m_processed.load(); }
+    qint64 processedBytes() const {
+        const std::lock_guard<std::mutex> lock(m_mutex);
+        return m_processed;
+    }
     // True once the device has failed; the worker has then stopped.
     bool failed() const { return m_failed.load(); }
 
@@ -78,9 +80,10 @@ private:
     bool m_suspended = false;
 
     std::atomic<float> m_volume{1.0f};
-    std::atomic<qint64> m_processed{0};
+    qint64 m_processed = 0; // under m_mutex: 64-bit atomics need libatomic on 32-bit cores
     std::atomic<bool> m_failed{false};
-    std::thread m_thread;
+    std::condition_variable m_finished;
+    bool m_running = false; // the worker thread has not finished
 };
 
 } // namespace QtMultimediaPrivate

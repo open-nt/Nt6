@@ -35,3 +35,8 @@ duplInheritedMember:include/QtPositioning/qgeorectangle.h
 duplInheritedMember:include/QtPositioning/qgeocircle.h
 duplInheritedMember:src/positioning/qgeorectangle.cpp
 duplInheritedMember:src/positioning/qgeocircle.cpp
+// The Zephyr backends read the devicetree through macros (DT_NODE_EXISTS, DT_FOREACH_STATUS_OKAY_NODE) that only
+// Zephyr's generated headers define, so cppcheck on the host cannot preprocess them. Only the compiler of a Zephyr
+// build checks them.
+syntaxError:src/zephyr/qaudiobackend_zephyr.cpp
+syntaxError:src/zephyr/qgpiobackend_zephyr.cpp

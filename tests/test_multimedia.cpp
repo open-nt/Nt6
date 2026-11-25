@@ -58,6 +58,10 @@ struct FakeWorld {
     std::atomic<int> drains{0};
     std::atomic<int> drops{0};
     std::atomic<int> failAfterWrites{-1};
+    bool withHeadset = false;
+    bool headsetFails = false;
+    int headsetApplies = 0;
+    std::atomic<int> headsetStatus{0};
 
     QByteArray takePlayed() {
         const std::lock_guard<std::mutex> lock(mutex);
@@ -152,6 +156,33 @@ public:
     }
 
     QString deviceDirectory() const override { return g_world->directory; }
+
+    AudioHeadsetControl *headsetControl() override { return g_world->withHeadset ? &m_headset : nullptr; }
+
+private:
+    // A codec whose gain moves in 0.5 dB steps from -10 to +40 dB, and whose sensing reports g_world->headsetStatus.
+    class FakeHeadset : public AudioHeadsetControl {
+    public:
+        QString codecName() const override { return QStringLiteral("FAKE1"); }
+        double minimumGain() const override { return -10.0; }
+        double maximumGain() const override { return 40.0; }
+        bool apply(const AudioHeadsetSettings &settings, QString *error) override {
+            ++g_world->headsetApplies;
+            if (g_world->headsetFails) {
+                *error = QStringLiteral("codec gone");
+                return false;
+            }
+            m_settings = settings;
+            m_settings.gain = std::round(settings.gain * 2.0) / 2.0;
+            return true;
+        }
+        AudioHeadsetSettings settings() const override { return m_settings; }
+        int status() override { return g_world->headsetStatus.load(); }
+
+    private:
+        AudioHeadsetSettings m_settings;
+    };
+    FakeHeadset m_headset;
 };
 
 QAudioFormat stereo16(int rate = 8000) {
@@ -964,6 +995,147 @@ void testMonitor() {
     CHECK(g_world->playedSize() == 0);
 }
 
+void testSplitGain() {
+    // The closest sum wins; of equally close pairs, the least boost.
+    const std::vector<double> boost{0, 10, 20, 30};
+    std::vector<double> capture;
+    for (int i = 0; i <= 63; ++i)
+        capture.push_back(-17.25 + 0.75 * i);
+    std::size_t b = 99;
+    std::size_t c = 99;
+    CHECK(splitGain(boost, capture, 0.0, &b, &c) == 0.0);
+    CHECK(b == 0 && c == 23);
+    CHECK(splitGain(boost, capture, 36.0, &b, &c) == 36.0);
+    CHECK(b == 3 && c == 31); // 30 dB of boost and 6 dB of capture: exact, where less boost misses by 0.25 dB
+    CHECK(splitGain(boost, capture, 100.0, &b, &c) == 60.0);
+    CHECK(b == 3 && c == 63);
+    CHECK(splitGain(boost, capture, -40.0, &b, &c) == -17.25);
+    CHECK(splitGain(boost, capture, 1.1, &b, &c) == 1.0); // 10 dB of boost and -9 dB of capture
+    CHECK(b == 1 && c == 11);
+    // A missing stage is one step of 0 dB.
+    CHECK(splitGain({}, capture, 3.0, &b, &c) == 3.0);
+    CHECK(b == 0);
+    CHECK(splitGain({}, {}, 5.0, &b, &c) == 0.0);
+    // The WM8962: PGA from -23.25 dB in 0.75 dB steps, then a boost of 0 to 30 dB in uneven steps.
+    std::vector<double> pga;
+    for (int i = 0; i <= 63; ++i)
+        pga.push_back(-23.25 + 0.75 * i);
+    CHECK(splitGain({0, 6, 13, 18, 20, 24, 27, 30}, pga, 54.0, &b, &c) == 54.0);
+    CHECK(b == 7 && c == 63);
+    CHECK(splitGain({0, 6, 13, 18, 20, 24, 27, 30}, pga, 24.0, &b, &c) == 24.0);
+    CHECK(b == 0);
+}
+
+void testHeadset() {
+    {
+        // Without a codec that can be controlled, the settings are only stored.
+        g_world->withHeadset = false;
+        QAudioHeadset headset;
+        CHECK(!headset.isAvailable());
+        CHECK(headset.codecName().isEmpty());
+        CHECK(headset.pollInterval() == 0);
+        headset.setMicrophoneImpedance(150);
+        CHECK(headset.microphoneImpedance() == 150);
+        CHECK(headset.microphoneBias() == QAudioHeadset::BiasOff);
+        CHECK(!headset.isMicrophoneConnected());
+    }
+
+    g_world->withHeadset = true;
+    g_world->headsetApplies = 0;
+    QAudioHeadset headset;
+    CHECK(headset.isAvailable());
+    CHECK(headset.codecName() == QStringLiteral("FAKE1"));
+    CHECK(headset.microphoneBias() == QAudioHeadset::BiasHigh);
+    CHECK(headset.microphoneChannel() == QAudioHeadset::RightChannel);
+    CHECK(headset.microphoneInput() == 3);
+    CHECK(headset.minimumMicrophoneGain() == -10.0f && headset.maximumMicrophoneGain() == 40.0f);
+    CHECK(headset.pollInterval() == 100);
+
+    int impedanceSignals = 0;
+    int biasSignals = 0;
+    QList<float> gains;
+    QObject::connect(&headset, &QAudioHeadset::microphoneImpedanceChanged, [&](int) { ++impedanceSignals; });
+    QObject::connect(&headset, &QAudioHeadset::microphoneBiasChanged,
+                     [&](QAudioHeadset::MicrophoneBias) { ++biasSignals; });
+    QObject::connect(&headset, &QAudioHeadset::microphoneGainChanged, [&](float gain) { gains.append(gain); });
+
+    // A dynamic microphone: no bias and more gain; an electret one: bias and less.
+    headset.setMicrophoneImpedance(150);
+    CHECK(headset.microphoneImpedance() == 150);
+    CHECK(headset.microphoneBias() == QAudioHeadset::BiasOff);
+    CHECK(headset.microphoneGain() == 36.0f);
+    CHECK(impedanceSignals == 1 && biasSignals == 1 && gains == QList<float>{36.0f});
+    headset.setMicrophoneImpedance(2200);
+    CHECK(headset.microphoneBias() == QAudioHeadset::BiasHigh);
+    CHECK(headset.microphoneGain() == 24.0f);
+    CHECK(impedanceSignals == 2 && biasSignals == 2);
+    // Zero keeps the bias and gain.
+    headset.setMicrophoneImpedance(0);
+    CHECK(headset.microphoneImpedance() == 0 && headset.microphoneGain() == 24.0f);
+
+    // The gain is clamped to the codec's range and rounded to its step; setting the same again emits nothing.
+    headset.setMicrophoneGain(80.0f);
+    CHECK(headset.microphoneGain() == 40.0f);
+    headset.setMicrophoneGain(12.3f);
+    CHECK(headset.microphoneGain() == 12.5f);
+    const qsizetype gainSignals = gains.size();
+    headset.setMicrophoneGain(12.5f);
+    CHECK(gains.size() == gainSignals);
+
+    headset.setMicrophoneBias(QAudioHeadset::BiasLow);
+    CHECK(headset.microphoneBias() == QAudioHeadset::BiasLow);
+    headset.setMicrophoneChannel(QAudioHeadset::LeftChannel);
+    CHECK(headset.microphoneChannel() == QAudioHeadset::LeftChannel);
+    headset.setMicrophoneInput(1);
+    CHECK(headset.microphoneInput() == 1);
+    const int applies = g_world->headsetApplies;
+    headset.setMicrophoneInput(5); // not a pin
+    CHECK(headset.microphoneInput() == 1 && g_world->headsetApplies == applies);
+
+    // Settings belong to the codec: a second object sees them.
+    {
+        QAudioHeadset other;
+        CHECK(other.microphoneInput() == 1 && other.microphoneBias() == QAudioHeadset::BiasLow);
+    }
+
+    // What the codec senses is polled.
+    QList<bool> connected;
+    QList<bool> pressed;
+    QObject::connect(&headset, &QAudioHeadset::microphoneConnectedChanged, [&](bool on) { connected.append(on); });
+    QObject::connect(&headset, &QAudioHeadset::buttonPressedChanged, [&](bool on) { pressed.append(on); });
+    headset.setPollInterval(10);
+    CHECK(headset.pollInterval() == 10);
+    g_world->headsetStatus = AudioHeadsetControl::MicrophonePresent;
+    CHECK(waitFor([&] { return headset.isMicrophoneConnected(); }));
+    g_world->headsetStatus = AudioHeadsetControl::MicrophonePresent | AudioHeadsetControl::ButtonPressed;
+    CHECK(waitFor([&] { return headset.isButtonPressed(); }));
+    g_world->headsetStatus = AudioHeadsetControl::MicrophonePresent;
+    CHECK(waitFor([&] { return !headset.isButtonPressed(); }));
+    // A button without a microphone is not a button.
+    g_world->headsetStatus = AudioHeadsetControl::ButtonPressed;
+    CHECK(waitFor([&] { return !headset.isMicrophoneConnected(); }));
+    CHECK(!headset.isButtonPressed());
+    CHECK((connected == QList<bool>{true, false}));
+    CHECK((pressed == QList<bool>{true, false}));
+    headset.setPollInterval(0);
+    CHECK(headset.pollInterval() == 0);
+    g_world->headsetStatus = AudioHeadsetControl::MicrophonePresent;
+    spinEvents(50);
+    CHECK(!headset.isMicrophoneConnected());
+
+    // A codec that cannot be reached keeps the old settings and reports the error.
+    int errors = 0;
+    QObject::connect(&headset, &QAudioHeadset::errorOccurred, [&] { ++errors; });
+    g_world->headsetFails = true;
+    headset.setMicrophoneGain(3.0f);
+    CHECK(errors == 1);
+    CHECK(headset.errorString() == QStringLiteral("codec gone"));
+    CHECK(headset.microphoneGain() == 12.5f);
+    g_world->headsetFails = false;
+    g_world->headsetStatus = 0;
+    g_world->withHeadset = false;
+}
+
 void testAlsa() {
     // The real backend lists devices, or none where ALSA is missing, without failing.
     auto alsa = createPlatformAudioBackend();
@@ -972,6 +1144,19 @@ void testAlsa() {
         CHECK(device.mode() == QAudioDevice::Output && !device.id().isEmpty());
     CHECK(outputs.isEmpty() || outputs.first().isDefault());
     CHECK(alsa->devices(QAudioDevice::Null).isEmpty());
+    // The headset control of the real mixer, if a card has one: only read, so the machine's settings stay as they are.
+    if (AudioHeadsetControl *headset = alsa->headsetControl()) {
+        CHECK(headset->minimumGain() <= headset->maximumGain());
+        const AudioHeadsetSettings settings = headset->settings();
+        CHECK(settings.gain >= headset->minimumGain() - 0.01 && settings.gain <= headset->maximumGain() + 0.01);
+        CHECK(settings.input >= 1 && settings.input <= 4);
+        const int status = headset->status();
+        CHECK(status == -1 ||
+              (status & ~(AudioHeadsetControl::MicrophonePresent | AudioHeadsetControl::ButtonPressed)) == 0);
+        std::printf("ALSA headset control: %s, %.2f to %.2f dB, now %.2f dB, status %d\n",
+                    qPrintable(headset->codecName()), headset->minimumGain(), headset->maximumGain(), settings.gain,
+                    status);
+    }
 }
 
 } // namespace
@@ -993,6 +1178,8 @@ int main(int argc, char **argv) {
     testSinkPush();
     testSinkSuspendAndErrors();
     testSource();
+    testSplitGain();
+    testHeadset();
     testWave(dir);
     testSoundEffect(dir);
     testAudioOutput();

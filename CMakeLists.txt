@@ -300,6 +300,10 @@ target_include_directories(NtNetwork
 )
 target_link_libraries(NtNetwork PUBLIC NtCore)
 if(NT_ZEPHYR)
+    # Without CONFIG_NT_NETWORK the network stack's headers are missing: build it only if something links it.
+    if(NOT CONFIG_NT_NETWORK)
+        set_target_properties(NtNetwork PROPERTIES EXCLUDE_FROM_ALL ON)
+    endif()
     target_compile_options(NtNetwork PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
     target_sources(NtNetwork PRIVATE src/zephyr/qnetworkinterface_zephyr.cpp)
     target_compile_definitions(NtNetwork PUBLIC QT_NO_LOCALSERVER QT_NO_LOCALSOCKET)
@@ -372,6 +376,9 @@ if(NT_ZEPHYR)
     target_sources(NtGpio PRIVATE
         src/zephyr/qgpiobackend_zephyr.cpp
         src/zephyr/qperipheralbackend_zephyr.cpp)
+    # The table of devicetree names expands the devicetree's macros with empty variadic arguments, which
+    # -Wpedantic reports thousands of times while preprocessing (no #pragma reaches that stage).
+    set_source_files_properties(src/zephyr/qgpiobackend_zephyr.cpp PROPERTIES COMPILE_OPTIONS -Wno-pedantic)
     # Each peripheral class works when its Zephyr driver class is configured, and fails open()
     # with UnsupportedOperationError when it is not.
     foreach(peripheral PWM ADC DAC I2C SPI ADC_CONFIGURABLE_INPUTS)
@@ -549,6 +556,42 @@ target_link_libraries(NtHttpServer PUBLIC NtNetwork NtWebSockets)
 nt_set_compile_options(NtHttpServer)
 
 endif() # NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER
+
+# The audio part of Nt Multimedia, which needs Nt Core only. It is built with the rest of Nt Multimedia below on a
+# hosted system, and on its own for Zephyr when CONFIG_NT_MULTIMEDIA is set, through the I2S and audio codec drivers.
+set(NT_MULTIMEDIA_AUDIO_SOURCES
+    src/multimedia/qaudiobuffer.cpp
+    src/multimedia/qaudiodecoder.cpp
+    src/multimedia/qaudiodevice.cpp
+    src/multimedia/qaudioformat.cpp
+    src/multimedia/qaudioheadset.cpp
+    src/multimedia/qaudioinput.cpp
+    src/multimedia/qaudiooutput.cpp
+    src/multimedia/qaudiosink.cpp
+    src/multimedia/qaudiosource.cpp
+    src/multimedia/qaudiostream.cpp
+    src/multimedia/qmediadevices.cpp
+    src/multimedia/qmediaformat.cpp
+    src/multimedia/qsoundeffect.cpp
+    src/multimedia/qtaudio.cpp
+    src/multimedia/qwavedecoder.cpp)
+if(NT_ZEPHYR AND CONFIG_NT_MULTIMEDIA)
+add_library(NtMultimedia ${NT_MULTIMEDIA_AUDIO_SOURCES} src/zephyr/qaudiobackend_zephyr.cpp)
+add_library(Nt::Multimedia ALIAS NtMultimedia)
+target_include_directories(NtMultimedia
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtMultimedia>
+        $<INSTALL_INTERFACE:include/nt6/QtMultimedia>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/multimedia
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
+target_link_libraries(NtMultimedia PUBLIC NtCore)
+# Cameras and video need Nt GUI, which Zephyr does not have.
+target_compile_definitions(NtMultimedia PUBLIC QT_NO_CAMERA)
+target_compile_options(NtMultimedia PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+nt_set_compile_options(NtMultimedia)
+endif() # NT_ZEPHYR AND CONFIG_NT_MULTIMEDIA
 
 if(NOT NT_ZEPHYR)
 
@@ -1271,30 +1314,17 @@ if(NOT NT_ANDROID)
 # Nt Multimedia: the audio and camera parts of Qt Multimedia. Linux uses ALSA, loaded at run time, so the
 # library builds without its headers, and Video4Linux2 for cameras; other platforms have no devices yet.
 add_library(NtMultimedia
-    src/multimedia/qaudiobuffer.cpp
-    src/multimedia/qaudiodecoder.cpp
-    src/multimedia/qaudiodevice.cpp
-    src/multimedia/qaudioformat.cpp
-    src/multimedia/qaudioinput.cpp
-    src/multimedia/qaudiooutput.cpp
-    src/multimedia/qaudiosink.cpp
-    src/multimedia/qaudiosource.cpp
-    src/multimedia/qaudiostream.cpp
+    ${NT_MULTIMEDIA_AUDIO_SOURCES}
     src/multimedia/qcamera.cpp
     src/multimedia/qcameradevice.cpp
     src/multimedia/qimagecapture.cpp
     src/multimedia/qmediacapturesession.cpp
-    src/multimedia/qmediadevices.cpp
-    src/multimedia/qmediaformat.cpp
     src/multimedia/qmediametadata.cpp
     src/multimedia/qmediaplayer.cpp
     src/multimedia/qmediarecorder.cpp
-    src/multimedia/qsoundeffect.cpp
-    src/multimedia/qtaudio.cpp
     src/multimedia/qvideoframe.cpp
     src/multimedia/qvideoframeformat.cpp
     src/multimedia/qvideosink.cpp
-    src/multimedia/qwavedecoder.cpp
 )
 add_library(Nt::Multimedia ALIAS NtMultimedia)
 add_library(Qt6::Multimedia ALIAS NtMultimedia)
@@ -1304,6 +1334,7 @@ target_include_directories(NtMultimedia
         $<INSTALL_INTERFACE:include/nt6/QtMultimedia>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src/multimedia
+        ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtMultimedia PUBLIC NtCore NtGui)
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -1408,6 +1439,11 @@ nt_moc_library(NtSerialPort include/QtSerialPort)
 endif()
 nt_moc_library(NtDBus include/QtDBus)
 endif() # NOT NT_ZEPHYR
+if(NT_ZEPHYR AND CONFIG_NT_MULTIMEDIA)
+set(NT_MOC_DEFINES -DQT_NO_CAMERA)
+nt_moc_library(NtMultimedia include/QtMultimedia)
+set(NT_MOC_DEFINES)
+endif()
 if(NOT NT_ZEPHYR OR CONFIG_NT_HTTPSERVER)
 if(NOT NT_HAVE_TLS)
     set(NT_MOC_DEFINES -DQT_NO_SSL)

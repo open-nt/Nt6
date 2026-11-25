@@ -14,8 +14,8 @@
 
     The port is at an early stage. With Zephyr 4.5 and the Zephyr SDK 1.0.1, the sample for
     QEMU below runs and passes on the emulated \c mps2/an385 board, and the other sample compiles
-    and links for \c mimxrt1170_evk/mimxrt1176/cm7, at about 920 KB of code; neither has been run
-    on a real board yet.
+    and links for \c mimxrt1170_evk/mimxrt1176/cm7, at about 920 KB of code. The samples for
+    GPIO and audio run on the MIMXRT1170-EVKB, the primary board; see \l{Supported Hardware}.
 
     \section1 Building
 
@@ -150,9 +150,97 @@
 
     \c CONFIG_NT_GPIO builds Nt GPIO, linked as \c Nt::Gpio: QGpioLine, and QPwmChannel,
     QAnalogInput, QAnalogOutput, QI2cDevice and QSpiDevice for each of \c CONFIG_PWM,
-    \c CONFIG_ADC, \c CONFIG_DAC, \c CONFIG_I2C and \c CONFIG_SPI that is set. Devices are named
-    by the name \c device_get_binding() takes and a pin, channel or chip select number, such as
-    \c i2c@40044000 or \c pwm@40018000:1; see \l{Using PWM, Analog I/O, I2C and SPI}.
+    \c CONFIG_ADC, \c CONFIG_DAC, \c CONFIG_I2C and \c CONFIG_SPI that is set. A GPIO line is
+    named by its controller and pin, with the controller's node label or device name (\c gpio9:3,
+    \c gpio@40c64000:3), or by the alias or node label of an LED or key of the board (\c led0,
+    \c sw0, \c green_led), whose pin and flags come from the devicetree. The other devices are named
+    by the name \c device_get_binding() takes and a channel or chip select number, such as
+    \c i2c@40044000 or \c pwm@40018000:1; see \l{Using Nt GPIO} and
+    \l{Using PWM, Analog I/O, I2C and SPI}.
+
+    On the MIMXRT1170-EVKB, \c led0 and \c led1 are the green and red user LEDs and \c sw0 the
+    user button SW7. Inputs on GPIO1 to GPIO6 and GPIO13 work by interrupt; Zephyr gives the
+    Cortex-M7 no interrupts for GPIO7 to GPIO12, so inputs there are polled. \c zephyr/gpio in
+    the \l{Nt Examples}{examples repository} blinks \c led0 and lights \c led1 while the button is
+    held:
+
+    \code
+    west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/gpio -- -DNT_ROOT=/path/to/Nt
+    west flash
+    \endcode
+
+\section1 Audio and Headsets
+
+    \c CONFIG_NT_MULTIMEDIA builds the audio part of Nt Multimedia, linked as \c Nt::Multimedia:
+    QAudioSink, QAudioSource, QAudioInput, QAudioOutput, QSoundEffect, QAudioDecoder, QMediaDevices
+    and QAudioHeadset. It needs \c CONFIG_I2S, \c CONFIG_AUDIO_CODEC (under \c CONFIG_AUDIO) and
+    \c CONFIG_I2C. Cameras, video, QMediaPlayer, QMediaRecorder and QMediaCaptureSession need Nt GUI
+    and are left out (\c QT_NO_CAMERA).
+
+    Sound goes through the I2S controller named by the devicetree alias \c i2s-codec-tx and the codec
+    labelled \c audio_codec, which the board files of the MIMXRT1170-EVKB provide: SAI1 and the
+    WM8962. QMediaDevices lists one output and one input, named after the codec's node, such as
+    \c wm8962@1a. They play and record one or two channels of \c Int16 or \c Int32 samples at 8 to
+    48 kHz; a stream with one channel is copied to both headphones, or recorded from the channel that
+    QAudioHeadset::microphoneChannel() names. The output and the input can be open together, at the
+    same sample rate and sample size.
+
+    \code
+    # prj.conf
+    CONFIG_I2C=y
+    CONFIG_I2S=y
+    CONFIG_AUDIO=y
+    CONFIG_AUDIO_CODEC=y
+    CONFIG_NT_MULTIMEDIA=y
+    CONFIG_HEAP_MEM_POOL_SIZE=131072
+    \endcode
+
+    \code
+    QAudioHeadset headset;
+    headset.setMicrophoneImpedance(150);     // a dynamic microphone: bias off, +36 dB
+    QAudioFormat format;
+    format.setSampleRate(16000);
+    format.setChannelCount(1);
+    format.setSampleFormat(QAudioFormat::Int16);
+    QAudioSource source(QMediaDevices::defaultAudioInput(), format);
+    QIODevice *mic = source.start();
+    \endcode
+
+    The SAI of the i.MX RT receives in step with its transmitter, so one thread runs both
+    directions: it sends silence while nothing plays, which keeps recording going. The blocks that
+    its DMA moves hold 10 ms each and are kept in memory that the data cache does not cover
+    (\c CONFIG_NOCACHE_MEMORY); \c CONFIG_NT_AUDIO_BLOCK_SIZE and \c CONFIG_NT_AUDIO_BLOCK_COUNT
+    size them. The thread, and one for each open stream, take \c CONFIG_NT_THREAD_STACK_SIZE each
+    from the kernel heap.
+
+    QAudioHeadset controls the WM8962: the bias of the microphone and its level, the input pin, and
+    the gain of the input PGA and its boost, from -23.25 to +54 dB. While the bias is on it reports
+    the microphone being plugged in and the button of the headset, which the codec senses on the
+    microphone contact. Zephyr's driver for the codec resets it when it sets it up for a stream,
+    and the settings are applied again after it. With another codec QAudioHeadset::isAvailable()
+    is \c false.
+
+    \c zephyr/headset in the \l{Nt Examples}{examples repository} sets up the microphone for the
+    impedance in its configuration, prints its level and the button, and plays it back on the
+    headphones:
+
+    \code
+    west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/headset -- -DNT_ROOT=/path/to/Nt \
+        -DCONFIG_APP_MIC_IMPEDANCE=150
+    west flash
+    \endcode
+
+    \section1 Supported Hardware
+
+    \table
+    \header \li Board \li Status
+    \row \li NXP MIMXRT1170-EVKB (\c mimxrt1170_evk/mimxrt1176/cm7, revision B) \li The primary
+         target. Nt GPIO (its LEDs and user button) and Nt Multimedia audio (headphones and microphone
+         on its WM8962, with QAudioHeadset) run on it; Nt Core and Nt Network build for it.
+    \row \li NXP MIMXRT1170-EVK (\c mimxrt1170_evk@A/mimxrt1176/cm7, revision A) \li Nt Multimedia
+         audio builds for its WM8960, untested, without QAudioHeadset.
+    \row \li Arm MPS2 AN385 in QEMU (\c mps2/an385) \li Runs the self-checking sample, without audio.
+    \endtable
 
     \section1 Host Tools
 

@@ -1,6 +1,7 @@
 #include "qaudiobuffer.h"
 #include "qaudiodecoder.h"
 #include "qaudiodevice.h"
+#include "qaudioheadset.h"
 #include "qaudioformat.h"
 #include "qaudioinput.h"
 #include "qaudiooutput.h"

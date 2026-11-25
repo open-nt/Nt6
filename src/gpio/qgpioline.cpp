@@ -58,10 +58,21 @@
         \li Linux
         \li Line 17 of \c /dev/gpiochip0. A full path such as \c /dev/gpiochip0:17 also works.
     \row
-        \li \c gpio@401b8000:17
+        \li \c gpio9:3
         \li Zephyr
-        \li Pin 17 of the GPIO device with this name, the name that \c device_get_binding()
+        \li Pin 3 of the GPIO controller with this node label in the devicetree.
+    \row
+        \li \c gpio@40c64000:3
+        \li Zephyr
+        \li Pin 3 of the GPIO device with this name, the name that \c device_get_binding()
             takes: the devicetree node name, or its \c label.
+    \row
+        \li \c led0, \c sw0, \c green_led
+        \li Zephyr
+        \li The LED or key of the board with this alias (\c led0 to \c led3, \c sw0 to
+            \c sw3) or node label, from the \c gpio-leds and \c gpio-keys nodes of the
+            devicetree. Its pin, active-low flag and pull come from the devicetree;
+            setActiveLow() inverts the line once more, and setBias() replaces the pull.
     \endtable
 
     \c gpioinfo, from the libgpiod tools, lists the chips and lines of a Linux machine.
@@ -143,8 +154,24 @@
 
     The line is configured with \c gpio_pin_configure() and watched with an interrupt on both
     edges. The interrupt only wakes the thread that owns the QGpioLine, so its slots run in that
-    thread as usual. A pin whose controller cannot interrupt is polled. Names of lines from the
-    devicetree are not looked up; use the device name and pin number.
+    thread as usual, through an eventfd; \c CONFIG_ZVFS_EVENTFD_ADD_SIZE_NT reserves twelve of
+    them for Nt when \c CONFIG_NT_GPIO is set. A pin whose controller cannot interrupt is polled,
+    and so is every input line once the eventfds run out; isEventDriven() tells which.
+
+    On the NXP MIMXRT1170-EVKB the user LEDs are \c led0 (green, \c gpio9:3) and \c led1
+    (red, \c gpio9:25), and the user button SW7 is \c sw0 (\c gpio13:0), which works by
+    interrupt. Zephyr gives the Cortex-M7 of the i.MX RT1170 interrupts for GPIO1 to GPIO6 and
+    GPIO13 only, so an input on GPIO7 to GPIO12, which carry the pins of the Arduino header, is
+    polled. A pin is switched to GPIO in the pin multiplexer when it is opened.
+
+    \code
+    QGpioLine led(QStringLiteral("led0"));
+    led.setDirection(QGpioLine::Output);
+    QGpioLine button(QStringLiteral("sw0"));
+    button.setDebounceInterval(20);
+    if (led.open() && button.open())
+        QObject::connect(&button, &QGpioLine::valueChanged, &led, &QGpioLine::setValue);
+    \endcode
 */
 
 namespace QtPrivate {
@@ -303,7 +330,8 @@ public:
     character device (version 2 of its interface, Linux 5.10 or later), and on Zephyr. One object
     handles one line. Direction, bias and active low are applied by open() and need the line
     to be opened again to change; there is no open drain or open source drive, and no event
-    timestamps. On Zephyr, line names are not looked up, and quick edges that come closer
+    timestamps. On Zephyr, lines are named by the devicetree: a controller and pin, or the alias or
+    node label of an LED or key; quick edges that come closer
     together than the thread can wake are seen as the level the line settled at.
     \enddifferences
 
@@ -372,7 +400,8 @@ QGpioLine::QGpioLine(const QString &name, QObject *parent) : QGpioLine(parent) {
 QGpioLine::~QGpioLine() { close(); }
 
 /*!
-    Sets the line this object opens to \a name, such as \c PTT or \c gpiochip0:17. It takes
+    Sets the line this object opens to \a name, such as \c PTT, \c gpiochip0:17 or, on
+    Zephyr, \c gpio9:3 or \c led0. It takes
     effect at the next open().
 
     \sa {Naming a Line}

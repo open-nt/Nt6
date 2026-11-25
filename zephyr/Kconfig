@@ -36,6 +36,16 @@ config NT_THREAD_STACK_SIZE
 	  one that resolves a host name. The stacks are allocated from the kernel heap
 	  (CONFIG_HEAP_MEM_POOL_SIZE).
 
+config ZVFS_EVENTFD_ADD_SIZE_NT
+	int "Number of eventfds needed by Nt"
+	default 12 if NT_GPIO
+	default 4
+	help
+	  The event loop of each thread that runs one (the main thread and each QThread) wakes up
+	  through an eventfd, and so does each QGpioLine input whose pin has an interrupt. Zephyr's
+	  default of one eventfd in all leaves no more after the main thread, and an input line is
+	  then polled instead of woken by its interrupt. Each eventfd also takes a file descriptor.
+
 config NT_NETWORK
 	bool "Nt Network"
 	depends on NETWORKING
@@ -51,12 +61,48 @@ config NT_GPIO
 	depends on GPIO
 	help
 	  Builds Nt GPIO: QGpioLine, which reads and drives GPIO pins, such as a push-to-talk
-	  switch or an LED, from the event loop. Pins are named "<device>:<pin>", with the device
-	  name that device_get_binding() takes. Link the application with Nt::Gpio.
+	  switch or an LED, from the event loop. Pins are named "<controller>:<pin>", with the
+	  controller's node label or the device name that device_get_binding() takes (gpio9:3), or
+	  by the alias or node label of an LED or key of the board (led0, sw0). Link the
+	  application with Nt::Gpio.
 
 	  QPwmChannel, QAnalogInput, QAnalogOutput, QI2cDevice and QSpiDevice work when CONFIG_PWM,
 	  CONFIG_ADC, CONFIG_DAC, CONFIG_I2C and CONFIG_SPI are set; without one, that class fails
 	  open() with UnsupportedOperationError.
+
+config NT_MULTIMEDIA
+	bool "Nt Multimedia (audio)"
+	depends on I2S
+	depends on AUDIO_CODEC
+	depends on I2C
+	imply NOCACHE_MEMORY if ARCH_HAS_NOCACHE_MEMORY_SUPPORT
+	help
+	  Builds the audio part of Nt Multimedia: QAudioSink, QAudioSource, QAudioInput,
+	  QAudioOutput, QSoundEffect, QAudioDecoder, QMediaDevices and QAudioHeadset, which sets the
+	  bias and gain of a headset microphone and senses it and its button. Link the application
+	  with Nt::Multimedia.
+
+	  Audio goes through the I2S controller that the devicetree alias i2s-codec-tx names and the
+	  codec labelled audio_codec, as on the MIMXRT1170-EVKB with its WM8962. QAudioHeadset
+	  controls the WM8962. Cameras, video and QMediaPlayer are not built (QT_NO_CAMERA).
+
+if NT_MULTIMEDIA
+
+config NT_AUDIO_BLOCK_SIZE
+	int "Size of an audio DMA block, in bytes"
+	default 3840
+	help
+	  Each block holds 10 ms of stereo samples on the I2S bus. The default holds 48 kHz with
+	  32-bit words; 1920 is enough for 48 kHz with 16-bit samples. Must be a multiple of 32.
+
+config NT_AUDIO_BLOCK_COUNT
+	int "Number of audio DMA blocks for playing"
+	default 4
+	help
+	  The blocks queued for the I2S transmitter, which set the latency of playing at 10 ms
+	  each; recording has four more. They are kept in memory that the data cache does not cover.
+
+endif # NT_MULTIMEDIA
 
 config NT_HTTPSERVER
 	bool "HTTP server and WebSockets"

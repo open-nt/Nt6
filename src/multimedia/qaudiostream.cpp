@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include "qaudiostream_p.h"
 
+#include "threaddata_p.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -46,6 +48,33 @@ void setAudioBackend(std::unique_ptr<AudioBackend> backend) {
 }
 
 QAudioDevice makeAudioDevice(const QAudioDevicePrivate &info) { return QAudioDevice(new QAudioDevicePrivate(info)); }
+
+double splitGain(const std::vector<double> &coarse, const std::vector<double> &fine, double target,
+                 std::size_t *coarseIndex, std::size_t *fineIndex) {
+    const std::vector<double> none{0.0};
+    const std::vector<double> &c = coarse.empty() ? none : coarse;
+    const std::vector<double> &f = fine.empty() ? none : fine;
+    std::size_t bestCoarse = 0;
+    std::size_t bestFine = 0;
+    double bestError = -1.0;
+    for (std::size_t i = 0; i < c.size(); ++i) {
+        for (std::size_t j = 0; j < f.size(); ++j) {
+            const double error = std::abs(c[i] + f[j] - target);
+            // Within a hundredth of a dB counts as equally close.
+            if (bestError < 0 || error < bestError - 0.01 ||
+                (error < bestError + 0.01 && c[i] < c[bestCoarse] - 0.01)) {
+                bestError = error;
+                bestCoarse = i;
+                bestFine = j;
+            }
+        }
+    }
+    if (coarseIndex)
+        *coarseIndex = bestCoarse;
+    if (fineIndex)
+        *fineIndex = bestFine;
+    return c[bestCoarse] + f[bestFine];
+}
 
 void applyVolume(char *data, qint64 bytes, QAudioFormat::SampleFormat format, float volume) {
     if (volume == 1.0f)
@@ -109,13 +138,26 @@ bool AudioStream::open(const QAudioDevice &device, QString *error) {
         return false;
     m_stop = false;
     m_failed.store(false);
-    m_processed.store(0);
-    m_thread = std::thread([this] {
+    m_processed = 0;
+    m_running = true;
+    // A thread of Nt's rather than a std::thread, which cannot start where the C++ library has no thread
+    // support, as on Zephyr. close() waits for it with m_running.
+    const bool started = QtPrivate::startDetachedThread([this] {
         if (m_mode == QAudioDevice::Output)
             runOutput();
         else
             runInput();
+        const std::lock_guard<std::mutex> lock(m_mutex);
+        m_running = false;
+        // Notified under the lock, so that close() cannot return, and the stream go, before this is done.
+        m_finished.notify_all();
     });
+    if (!started) {
+        m_running = false;
+        m_pcm.reset();
+        *error = QStringLiteral("cannot start the audio thread");
+        return false;
+    }
     return true;
 }
 
@@ -123,15 +165,16 @@ void AudioStream::close(bool drain) {
     if (!m_pcm)
         return;
     {
-        const std::lock_guard<std::mutex> lock(m_mutex);
+        std::unique_lock<std::mutex> lock(m_mutex);
         m_stop = true;
+        m_wake.notify_all();
+        m_finished.wait(lock, [this] { return !m_running; });
     }
-    m_wake.notify_all();
-    if (m_thread.joinable())
-        m_thread.join();
     if (drain && m_mode == QAudioDevice::Output && !m_failed.load()) {
         // Let the device play out what it holds without holding up the caller.
-        std::thread([pcm = std::shared_ptr<AudioPcm>(std::move(m_pcm))] { pcm->drain(); }).detach();
+        auto pcm = std::shared_ptr<AudioPcm>(std::move(m_pcm));
+        if (!QtPrivate::startDetachedThread([pcm] { pcm->drain(); }))
+            pcm->drop();
     } else {
         m_pcm->drop();
         m_pcm.reset();
@@ -234,7 +277,7 @@ void AudioStream::runOutput() {
             m_failed.store(true);
             return;
         }
-        m_processed.fetch_add(n);
+        m_processed += n;
     }
 }
 
@@ -271,7 +314,7 @@ void AudioStream::runInput() {
         if (take > first)
             std::memcpy(m_ring.data(), chunk.data() + first, std::size_t(take - first));
         m_count += take;
-        m_processed.fetch_add(n);
+        m_processed += n;
     }
 }
 

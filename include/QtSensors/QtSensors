@@ -1,0 +1,8 @@
+#include "qsensor.h"
+#include "qaccelerometer.h"
+#include "qambienttemperaturesensor.h"
+#include "qgyroscope.h"
+#include "qhumiditysensor.h"
+#include "qlightsensor.h"
+#include "qmagnetometer.h"
+#include "qpressuresensor.h"

@@ -24,6 +24,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <vector>
 
 /*!
     \class QThread
@@ -122,21 +123,98 @@ void *detachedMain(void *p) {
     return nullptr;
 }
 
+// The attributes a thread was created with. Zephyr's pthread_create() runs the thread on the stack that its
+// pthread_attr_t holds, and pthread_attr_destroy() frees that stack, so there the attributes may only be destroyed
+// once the thread has exited and been joined. Zephyr cannot detach such a thread either, so the threads of
+// startDetachedThread() are joinable there and reaped by the next start of a thread, which also returns their slot
+// in Zephyr's fixed pool of threads. Elsewhere the attributes are destroyed at once, as POSIX allows.
+#ifdef __ZEPHYR__
+struct KeptAttributes {
+    pthread_t handle;
+    pthread_attr_t *attr;
+    bool detached;
+};
+
+std::mutex &keptAttributesMutex() {
+    static std::mutex mutex;
+    return mutex;
+}
+
+std::vector<KeptAttributes> &keptAttributes() {
+    static std::vector<KeptAttributes> kept;
+    return kept;
+}
+#endif
+
+void keepAttributes(pthread_t handle, pthread_attr_t *attr, bool detached) {
+#ifdef __ZEPHYR__
+    const std::lock_guard<std::mutex> lock(keptAttributesMutex());
+    keptAttributes().push_back({handle, attr, detached});
+#else
+    (void)handle;
+    (void)detached;
+    pthread_attr_destroy(attr);
+    delete attr;
+#endif
+}
+
+// Called once the thread has been joined.
+void releaseAttributes(pthread_t handle) {
+#ifdef __ZEPHYR__
+    const std::lock_guard<std::mutex> lock(keptAttributesMutex());
+    auto &kept = keptAttributes();
+    for (auto it = kept.begin(); it != kept.end(); ++it) {
+        if (pthread_equal(it->handle, handle)) {
+            pthread_attr_destroy(it->attr);
+            delete it->attr;
+            kept.erase(it);
+            return;
+        }
+    }
+#else
+    (void)handle;
+#endif
+}
+
+// Joins the threads of startDetachedThread() that have finished.
+void reapDetachedThreads() {
+#ifdef __ZEPHYR__
+    const std::lock_guard<std::mutex> lock(keptAttributesMutex());
+    auto &kept = keptAttributes();
+    for (auto it = kept.begin(); it != kept.end();) {
+        if (it->detached && pthread_tryjoin_np(it->handle, nullptr) == 0) {
+            pthread_attr_destroy(it->attr);
+            delete it->attr;
+            it = kept.erase(it);
+        } else {
+            ++it;
+        }
+    }
+#endif
+}
+
 } // namespace
 
 bool startDetachedThread(std::function<void()> body) {
+    reapDetachedThreads();
     // Owned by the thread once it has started; detachedMain() deletes it.
     auto *owned = new std::function<void()>(std::move(body));
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-    applyStackSize(&attr, 0);
+    auto *attr = new pthread_attr_t;
+    pthread_attr_init(attr);
+#ifndef __ZEPHYR__
+    pthread_attr_setdetachstate(attr, PTHREAD_CREATE_DETACHED);
+#endif
+    applyStackSize(attr, 0);
     pthread_t handle{};
-    const int err = pthread_create(&handle, &attr, &detachedMain, owned);
-    pthread_attr_destroy(&attr);
-    if (err != 0)
+    const int err = pthread_create(&handle, attr, &detachedMain, owned);
+    if (err != 0) {
+        pthread_attr_destroy(attr);
+        delete attr;
         delete owned;
-    return err == 0;
+        return false;
+    }
+    keepAttributes(handle, attr, true);
+    return true;
 }
 } // namespace QtPrivate
 
@@ -271,8 +349,10 @@ QThread::~QThread() {
     const bool join = d.joinable;
     d.joinable = false;
     lk.unlock();
-    if (join)
+    if (join) {
         pthread_join(d.handle, nullptr);
+        QtPrivate::releaseAttributes(d.handle);
+    }
     d.td->thread.store(nullptr);
     d.td->release();
 }
@@ -551,6 +631,7 @@ void QThread::start(Priority priority) {
         d.joinable = false;
         lk.unlock();
         pthread_join(old, nullptr);
+        QtPrivate::releaseAttributes(old);
         lk.lock();
         if (d.running)
             return;
@@ -564,11 +645,17 @@ void QThread::start(Priority priority) {
     d.interruption.store(false);
     d.td->quitNow.store(false);
 
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    QtPrivate::applyStackSize(&attr, d.stackSize);
-    const int err = pthread_create(&d.handle, &attr, &QtPrivate::ThreadAccess::threadMain, this);
-    pthread_attr_destroy(&attr);
+    QtPrivate::reapDetachedThreads();
+    auto *attr = new pthread_attr_t;
+    pthread_attr_init(attr);
+    QtPrivate::applyStackSize(attr, d.stackSize);
+    const int err = pthread_create(&d.handle, attr, &QtPrivate::ThreadAccess::threadMain, this);
+    if (err == 0) {
+        QtPrivate::keepAttributes(d.handle, attr, false);
+    } else {
+        pthread_attr_destroy(attr);
+        delete attr;
+    }
     if (err != 0) {
         d.running = false;
         lk.unlock();

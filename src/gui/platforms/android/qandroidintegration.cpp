@@ -177,6 +177,20 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
     const int height = std::min(buffer.height - origin.y(), m_image.height());
     auto *destination = static_cast<std::uint8_t *>(buffer.bits) +
                         (static_cast<std::ptrdiff_t>(origin.y()) * buffer.stride + origin.x()) * 4;
+    // The rest of the screen, under the system bars, is black. It is cleared every time: the buffers take turns, and
+    // one may still hold a frame that was painted before the sizes of the bars were known.
+    auto *pixels = static_cast<std::uint32_t *>(buffer.bits);
+    const int left = std::clamp(origin.x(), 0, buffer.width);
+    const int right = std::clamp(origin.x() + std::max(width, 0), left, buffer.width);
+    for (int y = 0; y < buffer.height; ++y) {
+        std::uint32_t *line = pixels + static_cast<std::ptrdiff_t>(y) * buffer.stride;
+        if (y < origin.y() || y >= origin.y() + height) {
+            std::fill_n(line, buffer.width, 0xff000000u);
+        } else {
+            std::fill_n(line, left, 0xff000000u);
+            std::fill_n(line + right, buffer.width - right, 0xff000000u);
+        }
+    }
     for (int y = 0; y < height; ++y) {
         const auto *source = reinterpret_cast<const std::uint32_t *>(m_image.constScanLine(y));
         auto *row = reinterpret_cast<std::uint32_t *>(destination + static_cast<std::ptrdiff_t>(y) * buffer.stride * 4);

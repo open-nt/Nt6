@@ -56,7 +56,10 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     endif()
 
     if(NT_HARDENING)
-        # Probe each flag: some are not available on every compiler or architecture.
+        # Probe each flag: some are not available on every compiler or architecture. clang accepts a flag that does
+        # nothing for the target and only warns, which -Werror turns into an error later, so the probe uses it too.
+        set(_nt_saved_required_flags "${CMAKE_REQUIRED_FLAGS}")
+        string(APPEND CMAKE_REQUIRED_FLAGS " -Werror")
         foreach(flag -fstack-protector-strong -fstack-clash-protection -fcf-protection)
             string(MAKE_C_IDENTIFIER "NT_HAS${flag}" var)
             check_cxx_compiler_flag(${flag} ${var})
@@ -64,6 +67,7 @@ if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
                 list(APPEND _nt_hardening_flags ${flag})
             endif()
         endforeach()
+        set(CMAKE_REQUIRED_FLAGS "${_nt_saved_required_flags}")
         # _FORTIFY_SOURCE needs optimisation, and some distributions define it already.
         list(APPEND _nt_hardening_flags
             "$<$<NOT:$<CONFIG:Debug>>:-U_FORTIFY_SOURCE>"

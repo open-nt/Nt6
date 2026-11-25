@@ -236,7 +236,8 @@ else()
     # QJniObject, QJniEnvironment and QNativeInterface::QAndroidApplication.
     if(NT_ANDROID)
         target_sources(NtCore PRIVATE src/android/qjni_android.cpp)
-        target_link_libraries(NtCore PRIVATE android)
+        # log: Nt Core writes its messages to logcat, so programs without Nt GUI need it too.
+        target_link_libraries(NtCore PRIVATE android log)
     endif()
     # QLibrary loads with dlopen(). QSharedMemory and QSystemSemaphore use POSIX shared memory and named
     # semaphores, which older C libraries keep in librt.

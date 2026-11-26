@@ -128,7 +128,7 @@ private:
     void drawTab(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawComboBox(const QStyleOption *option, QPainter *painter) const;
     void drawMenuItem(const QStyleOption *option, QPainter *painter) const;
-    void drawFabMenuItem(const QStyleOption *option, QPainter *painter) const;
+    void drawFabMenuItem(const QStyleOption *option, QPainter *painter, const QWidget *menu) const;
     QColor buttonLabelColor(const QStyleOption *option, const QWidget *widget) const;
     bool keyboardFocus(const QStyleOption *option) const;
     double stateLayer(const QStyleOption *option) const;

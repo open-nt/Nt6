@@ -88,6 +88,9 @@ constexpr int fabShadow = 2;        // the room under a FAB for its shadow
 constexpr int fabMenuItemSpace = 4; // between the items of a FAB menu
 constexpr int fabMenuItemPadding = 24;
 constexpr int fabMenuGap = 8; // between a FAB menu and its button
+constexpr double fabMenuStagger = 0.03; // seconds between one item of a FAB menu setting off and the next
+constexpr double fabMenuFade = 0.1;     // seconds in which an item that sets off fades in
+const char *const fabMenuOpened = "_nt_fabMenuOpened"; // when the menu was opened, on the animator's clock
 const char *const fabMenuProperty = "_nt_fabMenu";
 constexpr int loadingSize = 48;           // the container of the loading indicator
 constexpr double loadingRadius = 19;      // of the shape that turns and changes in it
@@ -367,8 +370,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
     have square corners. Dialogs get the Material container color and text buttons; their rounded corners and the
     dimming behind them are the android platform's. A QMessageBox has no headline type style.
-    Split buttons are of the small size, and FABs of the standard one. The items of a FAB menu appear at once, without
-    an animation, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
+    Split buttons are of the small size, and FABs of the standard one. The items of a FAB menu open one after another
+    but close at once, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
@@ -1012,6 +1015,7 @@ bool QMaterialStyle::popupFabMenu(QPushButton *button, QMenu *menu) const {
         return false;
     // Above the button, with their right edges in line. The last item has its space below it.
     const QSize size = menu->sizeHint();
+    menu->setProperty(fabMenuOpened, m_animator->seconds()); // its items set off from now
     menu->popup(
         button->mapToGlobal(QPoint(button->width() - size.width(), -size.height() - (fabMenuGap - fabMenuItemSpace))));
     return true;
@@ -1073,22 +1077,41 @@ void QMaterialStyle::drawFabLabel(const QStyleOption *option, QPainter *painter,
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
 }
 
-void QMaterialStyle::drawFabMenuItem(const QStyleOption *option, QPainter *painter) const {
+void QMaterialStyle::drawFabMenuItem(const QStyleOption *option, QPainter *painter, const QWidget *menu) const {
     const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
     if (item->menuItemType == QStyleOptionMenuItem::Separator)
         return;
-    const int width = std::min(fabMenuItemWidth(*item), item->rect.width());
-    const QRectF pill(item->rect.left() + item->rect.width() - width, item->rect.top(), width,
-                      item->rect.height() - fabMenuItemSpace);
+    const double full = std::min(fabMenuItemWidth(*item), item->rect.width());
+    const double height = item->rect.height() - fabMenuItemSpace;
+    // The items open one after another, the one by the button first: each grows from a circle at the right to its
+    // width, along a spring that passes it a little, and fades in as it sets off.
+    double width = full;
+    double shown = 1;
+    if (m_motion && menu) {
+        const int fromButton = (menu->height() - item->rect.top() - item->rect.height()) / item->rect.height();
+        const double since =
+            m_animator->seconds() - menu->property(fabMenuOpened).toDouble() - std::max(0, fromButton) * fabMenuStagger;
+        const QtPrivate::Spring spring(0, 0, 1, QtPrivate::fastSpatialSpring);
+        const double grown = since > 0 ? spring.at(since).position : 0.0;
+        width = std::clamp(height + (full - height) * grown, std::min(height, full),
+                           static_cast<double>(item->rect.width()));
+        shown = std::clamp(since / fabMenuFade, 0.0, 1.0);
+        if (since < 0 || !spring.restsAt(since, 0.002))
+            m_animator->keepPainting(menu);
+    }
+    const QRectF pill(item->rect.left() + item->rect.width() - width, item->rect.top(), width, height);
     const bool usable = item->state & State_Enabled;
     const QColor ink =
         usable ? color(Role::OnPrimaryContainer) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
+    painter->setOpacity(shown);
     fillRounded(painter, pill, pill.height() / 2, color(usable ? Role::PrimaryContainer : Role::SurfaceContainerHigh));
     if (usable && (item->state & State_Selected))
         fillRounded(painter, pill, pill.height() / 2, withOpacity(ink, pressedOpacity));
-    int left = static_cast<int>(pill.left()) + fabMenuItemPadding;
+    // What is in the pill keeps its place from the right end, and shows as the pill reaches it.
+    painter->setClipRect(pill, Qt::IntersectClip);
+    int left = static_cast<int>(pill.right() - full) + fabMenuItemPadding;
     if (!item->icon.isNull()) {
         const QRect lead(left, item->rect.top() + (static_cast<int>(pill.height()) - fabIconSize) / 2, fabIconSize,
                          fabIconSize);
@@ -1625,7 +1648,7 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
         } else {
             painter->setFont(static_cast<const QStyleOptionMenuItem *>(option)->font);
             if (isFabMenu(widget))
-                drawFabMenuItem(option, painter);
+                drawFabMenuItem(option, painter, widget);
             else
                 drawMenuItem(option, painter);
         }

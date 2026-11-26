@@ -55,8 +55,8 @@ changes to the application: `QApplication::setStyle("Material3")`.
    while the menu is open; `QToolButton` calls the private `drawSplitButton()`. The FAB is a `QPushButton` with
    `materialButton` = `"fab"`; a menu on it opens as the FAB menu, which `QPushButton::showMenu()` leaves to the
    private `popupFabMenu()`. The menu is marked with `_nt_fabMenu`: no panel, a pill of 56 for each action, 4 apart
-   and 8 above the button, which shows as a round close button. To do: the opening animation of the items and the other
-   sizes.
+   and 8 above the button, which shows as a round close button. The items open with motion: each grows from a circle at the right to its width along the fast spatial spring,
+   0.03 s after the one below it, fading in over 0.1 s; they close at once. To do: the other sizes.
    **Done:** the floating toolbar is a `QToolBar` with `materialToolBar` = `"floating"` or `"floatingVibrant"`: a
    pill of 64 with a shadow, in a row or a column, whose `QToolButton`s are 48 to a finger with a shape of 40, with no
    container until checked. `QToolBar` lays itself out for it (no grip, no stretch) and asks the private

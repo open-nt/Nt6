@@ -1097,6 +1097,78 @@ void testFloatingToolBar() {
     CHECK(bar->widgetForAction(bold)->x() >= 10);
 }
 
+// The items of a FAB menu grow from the button's side, one after another.
+void testFabMenuMotion() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    layout->addStretch(1);
+    auto *fab = new QPushButton;
+    fab->setProperty("materialButton", QStringLiteral("fab"));
+    auto *menu = new QMenu(fab);
+    QAction *top = menu->addAction(QStringLiteral("A rather long item"));
+    menu->addAction(QStringLiteral("Another long item"));
+    menu->addAction(QStringLiteral("The one by the button"));
+    fab->setMenu(menu);
+    layout->addWidget(fab, 0, Qt::AlignRight);
+    window.resize(320, 400);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // Near the left end of the pill of the item farthest from the button, left of its label.
+    const auto farEnd = [&] {
+        const QRect row = menu->actionGeometry(top);
+        const int width = 48 + QFontMetrics([&] {
+                                   QFont font = menu->font();
+                                   font.setPixelSize(16);
+                                   font.setWeight(QFont::Medium);
+                                   return font;
+                               }())
+                                   .horizontalAdvance(top->text());
+        const QPoint point = menu->mapTo(&window, QPoint(row.right() - width + 14, row.top() + 28));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const QColor container = style->color(Role::PrimaryContainer);
+    fab->showMenu();
+    CHECK(!near(farEnd(), container, 3)); // it has yet to grow
+    wait(800);
+    CHECK(near(farEnd(), container, 2));
+
+    // Once the items are open the menu is left alone.
+    class Paints : public QObject {
+    public:
+        int count = 0;
+        bool eventFilter(QObject *, QEvent *event) override {
+            count += event->type() == QEvent::Paint ? 1 : 0;
+            return false;
+        }
+    } paints;
+    menu->installEventFilter(&paints);
+    wait(250);
+    CHECK(paints.count == 0);
+
+    // The next time they grow again.
+    menu->hide();
+    QCoreApplication::processEvents();
+    paints.count = 0;
+    fab->showMenu();
+    CHECK(!near(farEnd(), container, 3));
+    wait(800);
+    CHECK(near(farEnd(), container, 2));
+    CHECK(paints.count >= 10);
+    menu->hide();
+
+    // Without motion they are all there at once.
+    style->setMotionEnabled(false);
+    fab->showMenu();
+    CHECK(near(farEnd(), container, 2));
+    menu->hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1113,6 +1185,7 @@ int main(int argc, char *argv[]) {
     testButtonGroup();
     testSplitButton();
     testFab();
+    testFabMenuMotion();
     testBusy();
     testFloatingToolBar();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");

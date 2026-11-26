@@ -34,6 +34,22 @@ bool near(const QColor &a, const QColor &b, int tolerance) {
 
 bool near(double a, double b, double tolerance) { return std::abs(a - b) <= tolerance; }
 
+// False in a build without FreeType, as the one of the Check workflow is: no text is drawn, and there is none to look
+// for.
+bool textIsDrawn() {
+    QImage image(40, 40, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::white);
+    QPainter painter(&image);
+    painter.setPen(Qt::black);
+    painter.drawText(QRect(0, 0, 40, 40), Qt::AlignCenter, QStringLiteral("M"));
+    painter.end();
+    for (int y = 0; y < image.height(); ++y)
+        for (int x = 0; x < image.width(); ++x)
+            if (image.pixelColor(x, y).red() < 128)
+                return true;
+    return false;
+}
+
 void testHct() {
     // The HCT coordinates of the primaries of sRGB, as published with Material's color utilities.
     const struct {
@@ -294,8 +310,10 @@ void testSliderProgressTabs() {
                     return true;
         return false;
     };
-    CHECK(hasAccentText(1));
-    CHECK(!hasAccentText(0));
+    if (textIsDrawn()) {
+        CHECK(hasAccentText(1));
+        CHECK(!hasAccentText(0));
+    }
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
@@ -1078,7 +1096,8 @@ void testFloatingToolBar() {
                 found += near(at(first->x() + column, first->y() + row), ink, 24) ? 1 : 0;
         return found;
     };
-    CHECK(inked(style->color(Role::OnSurfaceVariant)) > 3);
+    if (textIsDrawn())
+        CHECK(inked(style->color(Role::OnSurfaceVariant)) > 3);
 
     // The vibrant one, and a toolbar that stands up.
     bar->setProperty("materialToolBar", QStringLiteral("floatingVibrant"));

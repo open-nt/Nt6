@@ -78,6 +78,13 @@ its label). A tab's and a menu row's ripples stay within them. A widget that is 
 menu opens clean. `QMenu` now has the style polish it before it is measured: it was too narrow for Material's font the
 first time it opened.
 
+The sizes of the common button are `materialButtonSize` = `"extraSmall"` to `"extraLarge"` on a `QPushButton` or a
+`QToolButton`: heights 32, 40, 56, 96, 136; room before and after the label 12, 16, 24, 48, 64; icons 20, 20, 24, 32,
+40; labels of 14, 14, 16 (medium weight), 24 and 32 (regular); pressed corners 8, 8, 12, 16, 16; checked (round) and
+resting (`materialButtonShape` = `"square"`) corners 12, 12, 16, 28, 28; outlines 1, 1, 1, 2, 3. A button without a
+size is as before. A tool button with a size or a kind takes the label colour of its container. Split buttons, groups
+and FABs keep one size.
+
 ## Open points
 
 - `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected

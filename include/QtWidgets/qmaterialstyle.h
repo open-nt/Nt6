@@ -117,7 +117,7 @@ private:
     friend class QPushButton;
     bool popupFabMenu(QPushButton *button, QMenu *menu) const;
     // A floating toolbar. QToolBar lays itself out for one and asks for its container; its buttons ask for the color
-    // of their labels, which is invalid for another button.
+    // of their labels (as does another tool button with a kind or a size); for any other button the color is invalid.
     friend class QToolBar;
     static bool isFloatingToolBar(const QWidget *widget);
     void drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const;

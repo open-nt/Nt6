@@ -1385,6 +1385,98 @@ void testMoreRipples() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// The five sizes of the common button, and the square shape.
+void testButtonSizes() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    const struct {
+        const char *name;
+        int height, padding, labelPixels, pressedCorner;
+    } sizes[] = {{"extraSmall", 32, 12, 14, 8},
+                 {"small", 40, 16, 14, 8},
+                 {"medium", 56, 24, 16, 12},
+                 {"large", 96, 48, 24, 16},
+                 {"extraLarge", 136, 64, 32, 16}};
+    QList<QPushButton *> buttons;
+    for (const auto &size : sizes) {
+        auto *button = new QPushButton(QStringLiteral("A longer label"));
+        button->setProperty("materialButtonSize", QString::fromLatin1(size.name));
+        button->setProperty("materialButton", QStringLiteral("filled"));
+        layout->addWidget(button, 0, Qt::AlignLeft);
+        buttons << button;
+    }
+    auto *square = new QPushButton(QStringLiteral("Square"));
+    square->setProperty("materialButtonSize", QStringLiteral("large"));
+    square->setProperty("materialButtonShape", QStringLiteral("square"));
+    square->setProperty("materialButton", QStringLiteral("filled"));
+    square->setCheckable(true);
+    layout->addWidget(square, 0, Qt::AlignLeft);
+    auto *plain = new QPushButton(QStringLiteral("No size"));
+    layout->addWidget(plain, 0, Qt::AlignLeft);
+    auto *tool = new QToolButton;
+    tool->setText(QStringLiteral("Tool"));
+    tool->setProperty("materialButtonSize", QStringLiteral("medium"));
+    layout->addWidget(tool, 0, Qt::AlignLeft);
+    layout->addStretch(1);
+    window.resize(640, 760);
+    window.show();
+    QCoreApplication::processEvents();
+
+    for (int i = 0; i < buttons.size(); ++i) {
+        const auto &size = sizes[i];
+        const QPushButton *button = buttons[i];
+        CHECK(button->height() == size.height);
+        CHECK(button->font().pixelSize() == size.labelPixels);
+        CHECK(button->font().weight() == (i < 3 ? QFont::Medium : QFont::Normal));
+        CHECK(button->width() ==
+              std::max(40, button->fontMetrics().horizontalAdvance(button->text()) + 2 * size.padding));
+        // The room that the label is drawn in holds all of it.
+        QStyleOptionButton option;
+        option.rect = button->rect();
+        CHECK(style->subElementRect(QStyle::SE_PushButtonContents, &option, button).width() >=
+              button->fontMetrics().horizontalAdvance(button->text()));
+    }
+    CHECK(plain->height() == 40 && plain->font().pixelSize() == 14);
+    CHECK(tool->height() == 56 && tool->font().pixelSize() == 16);
+
+    // The label of a filled tool button has the color that is read on its container.
+    tool->setProperty("materialButton", QStringLiteral("filled"));
+    tool->update();
+    if (textIsDrawn()) {
+        const QImage image = window.grab().toImage();
+        const QRect area(tool->mapTo(&window, QPoint(0, 0)), tool->size());
+        int light = 0;
+        for (int y = area.top() + 16; y < area.bottom() - 16; ++y)
+            for (int x = area.left() + 24; x < area.right() - 24; ++x)
+                light += near(image.pixelColor(x, y), style->color(Role::OnPrimary), 40) ? 1 : 0;
+        CHECK(light > 8);
+    }
+
+    // A point on the diagonal of the top left corner, `in` from both edges.
+    const auto filled = [&](QWidget *button, int in) {
+        const QPoint point = button->mapTo(&window, QPoint(in, in));
+        return near(window.grab().toImage().pixelColor(point.x(), point.y()), style->color(Role::Primary), 40);
+    };
+    QPushButton *large = buttons[3];
+    CHECK(!filled(large, 9)); // a pill, 96 high: its corners are 48
+    large->setDown(true);
+    CHECK(filled(large, 9)); // corners of 16 while it is pressed
+    CHECK(!filled(large, 2));
+    large->setDown(false);
+    CHECK(filled(square, 11)); // corners of 28 at rest
+    CHECK(!filled(square, 5));
+    square->setChecked(true);
+    CHECK(!near(window.grab().toImage().pixelColor(square->mapTo(&window, QPoint(11, 11)).x(),
+                                                   square->mapTo(&window, QPoint(11, 11)).y()),
+                style->color(Role::Primary), 40)); // a pill while it is checked
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1406,6 +1498,7 @@ int main(int argc, char *argv[]) {
     testFloatingToolBar();
     testWavyProgress();
     testMoreRipples();
+    testButtonSizes();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

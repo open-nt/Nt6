@@ -267,6 +267,49 @@ QColor defaultSeedColor() {
     return system.isValid() ? system : QColor(0x67, 0x50, 0xa4);
 }
 
+// A size of the common button, which a button asks for with the property materialButtonSize. One that asks for none is
+// small, and keeps the room around its label and the size of its icon that buttons have had here.
+struct ButtonSize {
+    int height;
+    int padding; // before and after the label
+    int icon;
+    int iconSpace;
+    int labelPixels;
+    QFont::Weight labelWeight;
+    double pressedCorner; // the shape of one that is pressed,
+    double checkedCorner; // of a round one that is checked,
+    double squareCorner;  // and of a square one at rest
+    int outline;          // of an outlined one
+};
+
+constexpr ButtonSize smallButton{40, 16, 20, 8, 14, QFont::Medium, 8, 12, 12, 1};
+
+// The size that a push button or a tool button asks for; nullptr for one that asks for none.
+const ButtonSize *sizeOfButton(const QWidget *widget) {
+    static constexpr ButtonSize extraSmall{32, 12, 20, 4, 14, QFont::Medium, 8, 12, 12, 1};
+    static constexpr ButtonSize medium{56, 24, 24, 8, 16, QFont::Medium, 12, 16, 16, 1};
+    static constexpr ButtonSize large{96, 48, 32, 12, 24, QFont::Normal, 16, 28, 28, 2};
+    static constexpr ButtonSize extraLarge{136, 64, 40, 16, 32, QFont::Normal, 16, 28, 28, 3};
+    if (!qobject_cast<const QPushButton *>(widget) && !qobject_cast<const QToolButton *>(widget))
+        return nullptr;
+    const QString name = widget->property("materialButtonSize").toString();
+    if (name == QLatin1String("extraSmall"))
+        return &extraSmall;
+    if (name == QLatin1String("small"))
+        return &smallButton;
+    if (name == QLatin1String("medium"))
+        return &medium;
+    if (name == QLatin1String("large"))
+        return &large;
+    if (name == QLatin1String("extraLarge"))
+        return &extraLarge;
+    return nullptr;
+}
+
+bool isSquareButton(const QWidget *widget) {
+    return widget && widget->property("materialButtonShape").toString() == QLatin1String("square");
+}
+
 enum Channel {
     CornerChannel, // of the corners at the left
     RightCornerChannel,
@@ -364,6 +407,12 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         its buttons need, so place it with an alignment, or as a child that is moved over the content. Set the property
         before the toolbar is shown: it is read when actions are added, when the toolbar is shown and when the style
         changes.
+    \li \c materialButtonSize of a QPushButton or a QToolButton: \c "extraSmall", \c "small", \c "medium",
+        \c "large" or \c "extraLarge", the five sizes of Material 3 Expressive, 32, 40, 56, 96 and 136 high, each
+        with its own label, icon, room around them, corners and outline. Without it a button is small.
+        \c materialButtonShape \c "square" gives a button square corners at rest, and a pill while it is checked,
+        the other way round from a round one. Set the size before the button is shown: the style sets its font when it
+        polishes the button.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
@@ -394,7 +443,7 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
     have square corners. Dialogs get the Material container color and text buttons; their rounded corners and the
     dimming behind them are the android platform's. A QMessageBox has no headline type style.
-    Split buttons are of the small size, and FABs of the standard one. The items of a FAB menu open one after another
+    Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another
     but close at once, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
@@ -778,6 +827,10 @@ void QMaterialStyle::polish(QWidget *widget) {
         font.setPixelSize(button ? 14 : 16);
         if (button)
             font.setWeight(QFont::Medium);
+        if (const ButtonSize *size = sizeOfButton(widget)) {
+            font.setPixelSize(size->labelPixels);
+            font.setWeight(size->labelWeight);
+        }
         widget->setFont(font);
         widget->setProperty(polishedFont, true);
     }
@@ -982,10 +1035,19 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
             if (!segment.last)
                 right = inner;
         }
-    } else if (option->state & State_Sunken) {
-        left = right = std::min<double>(pill, rect.height() >= 56 ? selectedCorner : pressedCorner);
-    } else if (checked) {
-        left = right = std::min<double>(pill, selectedCorner);
+    } else {
+        // A round button is a pill, and a squarer one while it is checked; a square one the other way round.
+        const ButtonSize *size = sizeOfButton(widget);
+        const bool square = isSquareButton(widget);
+        const double squared = size ? size->squareCorner : selectedCorner;
+        if (option->state & State_Sunken)
+            left = right = std::min<double>(pill, size                  ? size->pressedCorner
+                                                  : rect.height() >= 56 ? selectedCorner
+                                                                        : pressedCorner);
+        else if (square && !checked)
+            left = right = std::min(pill, squared);
+        else if (!square && checked)
+            left = right = std::min<double>(pill, size ? size->checkedCorner : selectedCorner);
     }
     // The shape springs from one to the other, and may pass it a little.
     left = std::clamp(animated(widget, CornerChannel, left, QtPrivate::fastSpatialSpring, 0.05), 0.0, pill);
@@ -1047,8 +1109,10 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     };
     if (container.alpha() > 0)
         painter->fillPath(outline, QBrush(container));
-    if (kind == ButtonKind::Outlined && !checked)
-        stroke(color(Role::OutlineVariant), 1);
+    if (kind == ButtonKind::Outlined && !checked) {
+        const ButtonSize *size = sizeOfButton(widget);
+        stroke(color(Role::OutlineVariant), size ? size->outline : 1);
+    }
     // With motion, the ripple shows the press; the layer is for the pointer and the keyboard.
     QStyleOption resting = *option;
     // An open FAB is down only to say that its menu is open.
@@ -1132,7 +1196,10 @@ void QMaterialStyle::drawFloatingToolBar(QPainter *painter, const QToolBar *bar)
 }
 
 QColor QMaterialStyle::toolBarItemColor(const QStyleOption *option, const QWidget *widget) const {
-    return isToolBarItem(widget) ? buttonLabelColor(option, widget) : QColor();
+    // And for any tool button that says what kind of button it is, or how large: its container is the style's.
+    const bool styled = isToolBarItem(widget) || sizeOfButton(widget) ||
+                        (qobject_cast<const QToolButton *>(widget) && widget->property("materialButton").isValid());
+    return styled ? buttonLabelColor(option, widget) : QColor();
 }
 
 void QMaterialStyle::drawFabLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
@@ -1237,9 +1304,12 @@ void QMaterialStyle::drawButtonLabel(const QStyleOption *option, QPainter *paint
         painter->drawText(button->rect, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, button->text);
         return;
     }
-    const QSize icon = button->iconSize.isValid() ? button->iconSize : QSize(buttonIconSize, buttonIconSize);
+    const ButtonSize *size = sizeOfButton(widget);
+    const QSize icon = size                         ? QSize(size->icon, size->icon)
+                       : button->iconSize.isValid() ? button->iconSize
+                                                    : QSize(buttonIconSize, buttonIconSize);
     const int textWidth = button->text.isEmpty() ? 0 : painter->fontMetrics().horizontalAdvance(button->text);
-    const int space = button->text.isEmpty() ? 0 : buttonIconSpace;
+    const int space = button->text.isEmpty() ? 0 : size ? size->iconSpace : buttonIconSpace;
     const int left = button->rect.left() + (button->rect.width() - icon.width() - space - textWidth) / 2;
     const QRect iconRect(left, button->rect.top() + (button->rect.height() - icon.height()) / 2, icon.width(),
                          icon.height());
@@ -1837,8 +1907,10 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
     const QRect r = option->rect;
     switch (element) {
     case SE_PushButtonContents:
-        if (isFab(widget))
-            return r; // the open one is a circle at the right of the whole button
+        // The open FAB is a circle at the right of the whole button. A button with a size is made as wide as its label
+        // needs with the room of that size, so its label has the whole of it.
+        if (isFab(widget) || sizeOfButton(widget))
+            return r;
         // A narrow button keeps what room it has for its label.
         return r.adjusted(std::min(buttonPadding, r.width() / 4), 0, -std::min(buttonPadding, r.width() / 4), 0);
     case SE_SliderGroove: {
@@ -1940,6 +2012,13 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
                 width += fabIconSize + (text ? fabIconSpace : 0);
             return QSize(std::max(fabSize, text ? width + 2 * fabPadding : fabSize), fabSize + fabShadow);
         }
+        if (const ButtonSize *size = sizeOfButton(widget)) {
+            // A size says how high the button is; its width is the label's, with the room around it, and no less than
+            // the height of a small button.
+            if (button && !button->icon.isNull())
+                width += size->icon + (button->text.isEmpty() ? 0 : size->iconSpace);
+            return QSize(std::max(buttonHeight, width + 2 * size->padding), size->height);
+        }
         if (button && !button->icon.isNull()) {
             const QSize icon = button->iconSize.isValid() ? button->iconSize : QSize(buttonIconSize, buttonIconSize);
             width += icon.width() + (button->text.isEmpty() ? 0 : buttonIconSpace);
@@ -1953,6 +2032,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         if (isSplitButton(widget))
             return QSize(splitLeadingSpace + contentsSize.width() + splitTrailingSpace + groupSpace + splitTrailing,
                          std::max(buttonHeight, contentsSize.height() + 8));
+        if (const ButtonSize *size = sizeOfButton(widget))
+            return QSize(std::max(buttonHeight, contentsSize.width() + 2 * size->padding), size->height);
         return QCommonStyle::sizeFromContents(type, option, contentsSize, widget);
     case CT_ComboBox:
         return QSize(contentsSize.width() + textFieldPadding + comboArrowRoom,

@@ -108,6 +108,8 @@ void QToolBar::init(const QString &title) {
     m_toggleView->setChecked(true);
     QObject::connect(m_toggleView, &QAction::triggered, this, [this](bool checked) { setVisible(checked); });
     QObject::connect(this, &QWidget::windowTitleChanged, m_toggleView, &QAction::setText);
+    // A top app bar of the Material style shows the title.
+    QObject::connect(this, &QWidget::windowTitleChanged, this, [this] { update(); });
 }
 
 int QToolBar::handleExtent() const { return m_movable ? kHandleExtent : 0; }
@@ -488,21 +490,44 @@ void QToolBar::relayout() {
     while (QLayoutItem *item = m_layout->takeAt(0))
         delete item;
     const QList<QAction *> order = actions();
-    for (QAction *action : order)
-        if (QWidget *widget = widgetForAction(action))
-            m_layout->addWidget(widget);
     const bool floating = isFloatingForStyle();
-    if (!floating)
+    // A top app bar has its title where the first separator is, or before every action if there is none.
+    const bool appBar = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isAppBar(this);
+    bool gap = false;
+    if (appBar && std::none_of(order.begin(), order.end(), [](QAction *a) { return a->isSeparator(); })) {
         m_layout->addStretch();
-    m_layout->setSpacing(floating ? 0 : 2);
+        gap = true;
+    }
+    for (QAction *action : order) {
+        QWidget *widget = widgetForAction(action);
+        if (!widget)
+            continue;
+        if (appBar && action->isSeparator() && !gap) {
+            m_layout->addStretch();
+            widget->hide();
+            gap = true;
+            continue;
+        }
+        if (action->isSeparator() && widget->isHidden() && action->isVisible())
+            widget->show(); // it was the title's place in an app bar
+        m_layout->addWidget(widget);
+    }
+    if (!floating && !appBar)
+        m_layout->addStretch();
+    m_layout->setSpacing(floating || appBar ? 0 : 2);
     // A floating toolbar is as long as its buttons need; another stretches along its side.
-    const QSizePolicy::Policy along = floating ? QSizePolicy::Maximum : QSizePolicy::Preferred;
+    // A top app bar goes across all of its room.
+    const QSizePolicy::Policy along = floating ? QSizePolicy::Maximum
+                                      : appBar ? QSizePolicy::Expanding
+                                               : QSizePolicy::Preferred;
     setSizePolicy(m_orientation == Qt::Horizontal ? QSizePolicy(along, QSizePolicy::Fixed)
                                                   : QSizePolicy(QSizePolicy::Fixed, along));
     for (const Item &item : m_items)
         if (item.owned)
             item.widget->updateGeometry(); // its size depends on the toolbar that it is in
-    if (floating)
+    if (appBar)
+        m_layout->setContentsMargins(4, 8, 4, 8); // 64 high with buttons of 48
+    else if (floating)
         // 64 across with buttons of 48, and room below for the shadow.
         m_layout->setContentsMargins(m_orientation == Qt::Horizontal ? QMargins(4, 8, 4, 10) : QMargins(8, 4, 8, 6));
     else if (m_orientation == Qt::Horizontal)
@@ -518,6 +543,11 @@ void QToolBar::relayout() {
 */
 void QToolBar::paintEvent(QPaintEvent *event) {
     (void)event;
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style()); material && material->isAppBar(this)) {
+        QPainter painter(this);
+        material->drawAppBar(&painter, this);
+        return;
+    }
     if (isFloatingForStyle()) {
         QPainter painter(this);
         static_cast<const QMaterialStyle *>(style())->drawFloatingToolBar(&painter, this);

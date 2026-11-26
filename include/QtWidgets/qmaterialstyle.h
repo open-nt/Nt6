@@ -141,6 +141,9 @@ private:
     void propertyChanged(QWidget *widget);
     friend class QToolBar;
     static bool isFloatingToolBar(const QWidget *widget);
+    // A top app bar: QToolBar lays itself out for one and asks for its background and title.
+    static bool isAppBar(const QWidget *widget);
+    void drawAppBar(QPainter *painter, const QToolBar *bar) const;
     void drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const;
     QColor toolBarItemColor(const QStyleOption *option, const QWidget *widget) const;
     // An icon in `ink`, if it has one color of its own; one with several is drawn as it is.
@@ -177,6 +180,9 @@ private:
     // which slides from tab to tab, once they are all painted.
     friend class QTabBar;
     void drawTabIndicator(QPainter *painter, const QTabBar *bar, const QRect &tab, bool below) const;
+    // A bottom navigation bar: QTabBar gives its tabs equal widths and asks for the whole of it to be drawn.
+    static bool isNavigationBar(const QWidget *widget);
+    void drawNavigationBar(QPainter *painter, const QTabBar *bar) const;
 
     QColor m_seed;
     Qt::ColorScheme m_scheme = Qt::ColorScheme::Unknown; // Unknown follows the system

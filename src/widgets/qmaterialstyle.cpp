@@ -109,6 +109,14 @@ constexpr int loadingSize = 48;           // the container of the loading indica
 constexpr double loadingRadius = 19;      // of the shape that turns and changes in it
 constexpr double loadingStep = 0.65;      // seconds from one shape to the next
 constexpr double busyPeriod = 1.8;        // seconds for a part of a busy progress bar to cross it
+constexpr int appBarHeight = 64;
+constexpr int appBarTitlePixels = 22;
+constexpr int appBarTitleSpace = 16; // before the title of an app bar with nothing leading it
+constexpr int navigationHeight = 64;
+constexpr int navigationPillWidth = 56; // behind the icon of the destination that is shown
+constexpr int navigationPillHeight = 32;
+constexpr int navigationIcon = 24;
+constexpr int navigationLabelPixels = 12;
 constexpr int toolBarTarget = 48;         // a button of a floating toolbar, as a finger finds it,
 constexpr int toolBarInset = 4;           // and what it leaves around the shape that is drawn
 constexpr int toolBarShadow = 2;          // the room under a floating toolbar for its shadow
@@ -258,7 +266,22 @@ bool isToolBarItem(const QWidget *widget) {
     if (!qobject_cast<const QToolButton *>(widget))
         return false;
     const QString kind = toolBarKind(widget->parentWidget());
-    return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant");
+    return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant") ||
+           kind == QLatin1String("appBar");
+}
+
+// True for a button of a top app bar that is before the title: one of the actions before the first separator.
+bool leadsAppBar(const QWidget *widget) {
+    auto *bar = qobject_cast<QToolBar *>(widget->parentWidget());
+    if (!bar)
+        return false;
+    bool found = false;
+    for (QAction *action : bar->actions()) {
+        if (action->isSeparator())
+            return found;
+        found = found || bar->widgetForAction(action) == widget;
+    }
+    return false; // without a separator, every action is after the title
 }
 
 // How far in from the left a check box, a radio button or a switch is drawn, so that the circle of a press fits: its
@@ -400,7 +423,8 @@ enum Channel {
     RippleOpacityChannel,
     TabCentreChannel,
     TabWidthChannel,
-    WaveChannel
+    WaveChannel,
+    NavigationChannel = 100 // plus the index of a destination: how far its pill has opened
 };
 const char *const polishedFont = "_nt_materialFont";
 const char *const polishedPalette = "_nt_materialPalette";
@@ -496,6 +520,14 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         \c "outlined", a button that is its icon alone, in the sizes of \c materialButtonSize (small without it) with
         icons of 20 to 40, round or, with \c materialButtonShape, square. A checkable one shows that it is checked. One
         smaller than 48 is 48 to a finger.
+    \li \c materialToolBar \c "appBar" makes a QToolBar a top app bar, 64 high, with its window title as the
+        heading. The actions before the first separator are before the title, such as the one that goes back, and the
+        others after it; without a separator, all are after it. Add it to a QMainWindow with addToolBar(), or to the
+        top of a layout.
+    \li \c materialTabBar \c "navigationBar" makes a horizontal QTabBar a bottom navigation bar, 64 high: its tabs
+        share the width, each an icon over its label, with a pill behind the one that is current. With a QTabWidget
+        whose tabs are at the south it is the navigation of an application and its pages:
+        tabs->tabBar()->setProperty("materialTabBar", "navigationBar").
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
@@ -537,7 +569,9 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. Text fields are those of QLineEdit, and
     have no icons, prefix, suffix or character counter; their caret is the color of the text. Icon buttons have the default width, not
-    the narrow or the wide one. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
+    the narrow or the wide one. An app bar is the small one: it has no subtitle, does not grow into a medium or large
+    one, and keeps its color as the content scrolls. A navigation bar has no badges, and no horizontal items for wide
+    screens; there is no navigation rail or drawer. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
     going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
     what does not fit. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
@@ -918,6 +952,8 @@ void QMaterialStyle::polish(QWidget *widget) {
         font.setPixelSize(button ? 14 : 16);
         if (button)
             font.setWeight(QFont::Medium);
+        if (isNavigationBar(widget))
+            font.setPixelSize(navigationLabelPixels);
         if (const ButtonSize *size = sizeOfButton(widget)) {
             font.setPixelSize(size->labelPixels);
             font.setWeight(size->labelWeight);
@@ -1119,6 +1155,10 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
     case ButtonKind::IconOutlined:
         return color(checked ? Role::InverseOnSurface : Role::OnSurfaceVariant);
     case ButtonKind::ToolBarItem:
+        if (toolBarKind(widget->parentWidget()) == QLatin1String("appBar"))
+            return color(checked               ? Role::OnSecondaryContainer
+                         : leadsAppBar(widget) ? Role::OnSurface
+                                               : Role::OnSurfaceVariant);
         if (isVibrantToolBar(widget->parentWidget()))
             return color(checked ? Role::OnSurface : Role::OnPrimaryContainer);
         return color(checked ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
@@ -1340,6 +1380,109 @@ int QMaterialStyle::iconButtonIconSize(const QWidget *widget) {
         return 0;
     const int height = iconButtonSize(widget).height;
     return height <= 32 ? 20 : height <= 56 ? 24 : height <= 96 ? 32 : 40;
+}
+
+bool QMaterialStyle::isAppBar(const QWidget *widget) { return toolBarKind(widget) == QLatin1String("appBar"); }
+
+void QMaterialStyle::drawAppBar(QPainter *painter, const QToolBar *bar) const {
+    painter->fillRect(bar->rect(), color(Role::Surface));
+    // The title is between what leads and what follows: the buttons before the first separator, and the others.
+    int from = appBarTitleSpace;
+    int to = bar->width() - appBarTitleSpace;
+    bool titled = false;
+    const QList<QAction *> actions = bar->actions();
+    const bool separated = std::any_of(actions.begin(), actions.end(), [](QAction *a) { return a->isSeparator(); });
+    titled = !separated;
+    for (QAction *action : actions) {
+        if (action->isSeparator()) {
+            titled = true;
+            continue;
+        }
+        const QWidget *widget = const_cast<QToolBar *>(bar)->widgetForAction(action); // NOLINT: it only reads
+        if (!widget || widget->isHidden())
+            continue;
+        if (titled)
+            to = std::min(to, widget->x() - 8);
+        else
+            from = std::max(from, widget->x() + widget->width() + 4);
+    }
+    if (to <= from)
+        return;
+    QFont font = bar->font();
+    font.setPixelSize(appBarTitlePixels);
+    font.setWeight(QFont::Normal);
+    painter->save();
+    painter->setFont(font);
+    painter->setPen(color(Role::OnSurface));
+    painter->drawText(QRect(from, 0, to - from, appBarHeight), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                      QFontMetrics(font).elidedText(bar->windowTitle(), Qt::ElideRight, to - from));
+    painter->restore();
+}
+
+bool QMaterialStyle::isNavigationBar(const QWidget *widget) {
+    const auto *bar = qobject_cast<const QTabBar *>(widget);
+    return bar && bar->property("materialTabBar").toString() == QLatin1String("navigationBar") &&
+           (bar->shape() == QTabBar::RoundedNorth || bar->shape() == QTabBar::RoundedSouth ||
+            bar->shape() == QTabBar::TriangularNorth || bar->shape() == QTabBar::TriangularSouth);
+}
+
+// Each destination: an icon with a label under it, and a pill behind the icon of the one that is shown.
+void QMaterialStyle::drawNavigationBar(QPainter *painter, const QTabBar *bar) const {
+    painter->fillRect(bar->rect(), color(Role::SurfaceContainer));
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setFont(bar->font());
+    for (int i = 0; i < bar->count(); ++i) {
+        const QRect tab = bar->tabRect(i);
+        if (tab.isEmpty())
+            continue;
+        const bool selected = i == bar->currentIndex();
+        const bool usable = bar->isTabEnabled(i) && bar->isEnabled();
+        const QIcon icon = bar->tabIcon(i);
+        const QString label = bar->tabText(i);
+        // The icon in the pill, 6 from the top, and the label 4 under it; one without the other is in the middle.
+        const int pillTop =
+            tab.top() + (icon.isNull() || label.isEmpty() ? (tab.height() - navigationPillHeight) / 2 : 6);
+        const QRectF pill(tab.center().x() + 0.5 - navigationPillWidth / 2.0, pillTop, navigationPillWidth,
+                          navigationPillHeight);
+        // It opens from the middle as its destination is chosen.
+        double open = selected ? 1.0 : 0.0;
+        if (m_motion)
+            open = std::clamp(m_animator->value(bar, NavigationChannel + i, open, QtPrivate::fastSpatialSpring, 0.004),
+                              0.0, 1.1);
+        if (open > 0.02) {
+            const double width = navigationPillHeight + (navigationPillWidth - navigationPillHeight) * open;
+            QColor fill = color(Role::SecondaryContainer);
+            fill.setAlphaF(std::min(1.0, 2 * open));
+            fillRounded(painter, QRectF(pill.center().x() - width / 2, pill.top(), width, pill.height()),
+                        pill.height() / 2, fill);
+        }
+        if (usable && bar == m_rippleWidget.data() && tab.contains(m_rippleOrigin.toPoint())) {
+            QPainterPath outline;
+            outline.addRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+            drawRipple(painter, bar, outline, pill, pill.center(), m_rowPressed,
+                       color(selected ? Role::OnSecondaryContainer : Role::OnSurface));
+        }
+        if (selected && bar->hasFocus() && m_keyboard)
+            strokeRounded(painter, pill, pill.height() / 2, color(Role::Secondary), focusRingWidth);
+        const QColor faint = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+        const QColor iconInk = !usable ? faint : color(selected ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
+        const QColor labelInk = !usable ? faint : color(selected ? Role::Secondary : Role::OnSurfaceVariant);
+        if (!icon.isNull()) {
+            const QRect middle(static_cast<int>(pill.center().x()) - navigationIcon / 2,
+                               pillTop + (navigationPillHeight - navigationIcon) / 2, navigationIcon, navigationIcon);
+            paintIcon(painter, middle, icon, usable ? QIcon::Normal : QIcon::Disabled,
+                      selected ? QIcon::On : QIcon::Off, iconInk);
+        }
+        if (!label.isEmpty()) {
+            const QRect area =
+                icon.isNull() ? tab : QRect(tab.left(), pillTop + navigationPillHeight + 4, tab.width(), 16);
+            painter->setPen(labelInk);
+            painter->drawText(area, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine,
+                              painter->fontMetrics().elidedText(label, Qt::ElideRight, area.width() - 4));
+        }
+    }
+    painter->restore();
 }
 
 bool QMaterialStyle::isFloatingToolBar(const QWidget *widget) {
@@ -2359,6 +2502,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             return QSize(contentsSize.width(), std::max(wavyProgressHeight, contentsSize.height()));
         return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));
     case CT_TabBarTab:
+        if (isNavigationBar(widget))
+            return QSize(std::max(navigationPillWidth + 8, contentsSize.width() + 8), navigationHeight);
         return QSize(std::max(touchTarget, contentsSize.width() + 2 * tabPadding), tabHeight);
     case CT_CheckBox:
     case CT_RadioButton: {

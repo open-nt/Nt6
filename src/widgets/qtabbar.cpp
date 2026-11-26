@@ -525,6 +525,21 @@ std::vector<QRect> QTabBar::layoutTabs() const {
     const bool vert = vertical();
     const int room = vert ? height() : width();
     const int thick = vert ? width() : height();
+    // The destinations of a navigation bar of the Material style share its width alike.
+    if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationBar(this)) {
+        const int shown =
+            static_cast<int>(std::count_if(m_tabs.begin(), m_tabs.end(), [](const Tab &tab) { return tab.visible; }));
+        std::vector<QRect> shared;
+        shared.reserve(m_tabs.size());
+        int left = 0;
+        int odd = shown > 0 ? room % shown : 0;
+        for (const Tab &tab : m_tabs) {
+            const int length = tab.visible ? room / std::max(1, shown) + (odd-- > 0 ? 1 : 0) : 0;
+            shared.push_back(QRect(left, 0, length, thick));
+            left += length;
+        }
+        return shared;
+    }
     std::vector<int> lengths(m_tabs.size(), 0);
     long long sum = 0;
     for (int i = 0; i < count(); ++i) {
@@ -948,6 +963,11 @@ void QTabBar::paintEvent(QPaintEvent *event) {
     (void)event;
     QPainter painter(this);
     painter.setFont(font());
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
+        material && QMaterialStyle::isNavigationBar(this)) {
+        material->drawNavigationBar(&painter, this);
+        return;
+    }
     const std::vector<QRect> rects = layoutTabs();
     const bool vert = vertical();
     const bool south = m_shape == RoundedSouth || m_shape == TriangularSouth;

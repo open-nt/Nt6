@@ -1704,6 +1704,139 @@ void testIconButtons() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A top app bar and a bottom navigation bar, together as an application has them.
+void testAppBarAndNavigation() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    const auto dot = [] {
+        QImage image(48, 48, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        painter.fillRect(QRect(8, 8, 32, 32), Qt::black);
+        painter.end();
+        return QIcon(QPixmap::fromImage(image));
+    };
+    QMainWindow window;
+    auto *bar = new QToolBar;
+    bar->setProperty("materialToolBar", QStringLiteral("appBar"));
+    bar->setWindowTitle(QStringLiteral("Notes"));
+    QAction *back = bar->addAction(dot(), QStringLiteral("Back"));
+    QAction *separator = bar->addSeparator();
+    QAction *search = bar->addAction(dot(), QStringLiteral("Search"));
+    QAction *more = bar->addAction(dot(), QStringLiteral("More"));
+    window.addToolBar(bar);
+    auto *pages = new QTabWidget;
+    pages->setTabPosition(QTabWidget::South);
+    pages->tabBar()->setProperty("materialTabBar", QStringLiteral("navigationBar"));
+    QList<QWidget *> content;
+    for (const char *name : {"Home", "Search", "Settings"}) {
+        content << new QWidget;
+        pages->addTab(content.last(), dot(), QString::fromLatin1(name));
+    }
+    window.setCentralWidget(pages);
+    window.resize(360, 420);
+    window.show();
+    QCoreApplication::processEvents();
+
+    const auto at = [&](QWidget *widget, int x, int y) {
+        const QPoint point = widget->mapTo(&window, QPoint(x, y));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    // The app bar: 64 high across the window, one action before the title and two after it.
+    CHECK(bar->height() == 64 && bar->width() == 360);
+    CHECK(bar->y() == 0);
+    const QWidget *backButton = bar->widgetForAction(back);
+    const QWidget *searchButton = bar->widgetForAction(search);
+    const QWidget *moreButton = bar->widgetForAction(more);
+    CHECK(backButton->x() == 4 && backButton->width() == 48 && backButton->y() == 8);
+    CHECK(moreButton->x() + moreButton->width() == 360 - 4);
+    CHECK(searchButton->x() + searchButton->width() == moreButton->x());
+    CHECK(bar->widgetForAction(separator)->isHidden()); // it only says where the title is
+    CHECK(is(at(bar, 150, 4), Role::Surface));
+    // What leads is darker than what follows.
+    CHECK(is(at(const_cast<QWidget *>(backButton), 24, 24), Role::OnSurface));
+    CHECK(is(at(const_cast<QWidget *>(searchButton), 24, 24), Role::OnSurfaceVariant));
+    int triggered = 0;
+    QObject::connect(back, &QAction::triggered, [&triggered] { ++triggered; });
+    qobject_cast<QToolButton *>(const_cast<QWidget *>(backButton))->click();
+    CHECK(triggered == 1);
+    const auto titleInk = [&] {
+        int found = 0;
+        const QImage image = bar->grab().toImage();
+        for (int y = 20; y < 44; ++y)
+            for (int x = 56; x < 200; ++x)
+                found += image.pixelColor(x, y).lightness() < 128 ? 1 : 0;
+        return found;
+    };
+    if (textIsDrawn()) {
+        CHECK(titleInk() > 40);
+        bar->setWindowTitle(QString());
+        CHECK(titleInk() == 0);
+        bar->setWindowTitle(QStringLiteral("Notes"));
+    }
+
+    // The navigation bar: 64 high at the bottom, three destinations of equal width.
+    QTabBar *navigation = pages->tabBar();
+    CHECK(navigation->height() == 64 && navigation->width() == 360);
+    CHECK(navigation->font().pixelSize() == 12);
+    CHECK(navigation->mapTo(&window, QPoint(0, 63)).y() == 419);
+    for (int i = 0; i < 3; ++i)
+        CHECK(navigation->tabRect(i) == QRect(120 * i, 0, 120, 64));
+    const int pageTop = content[0]->mapTo(&window, QPoint(0, 0)).y();
+    CHECK(content[0]->isVisible() && pageTop >= 64 && pageTop <= 66); // under the app bar, in the tab widget
+    // A pill behind the icon of the destination that is shown, and none behind the others.
+    const auto pill = [&](int tab) { return at(navigation, 120 * tab + 60 - 22, 6 + 16); };
+    const auto icon = [&](int tab) { return at(navigation, 120 * tab + 60, 6 + 16); };
+    CHECK(is(pill(0), Role::SecondaryContainer) && is(icon(0), Role::OnSecondaryContainer));
+    CHECK(is(pill(1), Role::SurfaceContainer) && is(icon(1), Role::OnSurfaceVariant));
+    const QPointF second(180, 30);
+    for (const QEvent::Type type : {QEvent::MouseButtonPress, QEvent::MouseButtonRelease}) {
+        QMouseEvent event(type, second, navigation->mapToGlobal(second.toPoint()), Qt::LeftButton,
+                          type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(navigation, &event);
+    }
+    QCoreApplication::processEvents();
+    CHECK(pages->currentIndex() == 1 && content[1]->isVisible() && !content[0]->isVisible());
+    CHECK(is(pill(1), Role::SecondaryContainer) && is(pill(0), Role::SurfaceContainer));
+
+    // With motion the pill opens from the middle.
+    style->setMotionEnabled(true);
+    // A destination that is held shows the press in its pill.
+    const auto hold = [&](QEvent::Type type) {
+        const QPointF third(300, 30);
+        QMouseEvent event(type, third, navigation->mapToGlobal(third.toPoint()), Qt::LeftButton,
+                          type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(navigation, &event);
+    };
+    navigation->grab();
+    hold(QEvent::MouseButtonPress);
+    wait(700);
+    CHECK(!is(pill(2), Role::SecondaryContainer)); // darker than the pill alone
+    hold(QEvent::MouseButtonRelease);
+    wait(900);
+    CHECK(is(pill(2), Role::SecondaryContainer));
+    pages->setCurrentIndex(1);
+    wait(700);
+    navigation->grab(); // the bar as it is, for the pills to set off from
+    pages->setCurrentIndex(2);
+    CHECK(!is(pill(2), Role::SecondaryContainer));
+    wait(700);
+    CHECK(is(pill(2), Role::SecondaryContainer));
+    style->setMotionEnabled(false);
+
+    // Under another style they are a toolbar and tabs, with the separator that was the title's place.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(bar->height() < 50);
+    CHECK(!bar->widgetForAction(separator)->isHidden());
+    CHECK(navigation->height() < 40);
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1728,6 +1861,7 @@ int main(int argc, char *argv[]) {
     testButtonSizes();
     testTextFields();
     testIconButtons();
+    testAppBarAndNavigation();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

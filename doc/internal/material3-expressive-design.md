@@ -99,6 +99,14 @@ Icons: an icon of one colour is repainted in the colour the style gives its butt
 are without a property. The icons are the application's, or those of the optional package Nt Material Symbols
 (`third_party/material-symbols`, Apache-2.0), which Nt Widgets does not use. Not done: the narrow and wide widths.
 
+The top app bar (small) is a `QToolBar` with `materialToolBar` = `"appBar"`: 64 high, `Surface`, the window title in
+22 (title large); the first separator marks where the title goes, so the actions before it lead (icons `OnSurface`)
+and those after it trail (`OnSurfaceVariant`). `QMainWindow` now gives what a tool bar line leaves free to bars whose
+size policy expands, as Qt does, which the app bar's does. The bottom navigation bar is a horizontal `QTabBar` with
+`materialTabBar` = `"navigationBar"` (in a `QTabWidget` with the tabs at the south): 64 high, `SurfaceContainer`, equal
+widths, a 24 icon in a 56 by 32 pill over a label of 12; the pill opens along the fast spatial spring. Not done: medium
+and large app bars, the colour on scroll, badges, horizontal items, the navigation rail and drawer.
+
 ## Open points
 
 - `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected

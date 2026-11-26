@@ -225,8 +225,30 @@ private:
             for (const Line &line : all) {
                 const int thick = thickness({line}, horizontal);
                 int along = horizontal ? x0 : y0;
+                // What a line leaves free goes to the bars whose size policy asks to expand along it, as in Qt.
+                const auto expands = [horizontal](const QToolBar *bar) {
+                    const QSizePolicy policy = bar->sizePolicy();
+                    const auto grows = horizontal ? policy.horizontalPolicy() : policy.verticalPolicy();
+                    return (static_cast<int>(grows) & static_cast<int>(QSizePolicy::ExpandFlag)) != 0;
+                };
+                int spare = horizontal ? x1 - x0 : y1 - y0;
+                int expanding = 0;
+                for (const QToolBar *bar : line) {
+                    spare -= horizontal ? hintOf(bar).width() : hintOf(bar).height();
+                    expanding += expands(bar) ? 1 : 0;
+                }
+                spare = std::max(0, spare);
                 for (QToolBar *bar : line) {
-                    const QSize s = hintOf(bar);
+                    QSize s = hintOf(bar);
+                    if (expanding > 0 && expands(bar)) {
+                        const int share = spare / expanding;
+                        spare -= share;
+                        --expanding;
+                        if (horizontal)
+                            s.rwidth() += share;
+                        else
+                            s.rheight() += share;
+                    }
                     if (horizontal) {
                         const int w = std::max(0, std::min(s.width(), x1 - along));
                         bar->setGeometry(along, at, w, thick);

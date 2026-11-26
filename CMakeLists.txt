@@ -2170,7 +2170,7 @@ if(NT_BUILD_TESTS)
     # Touch input: QTouchEvent sequences for windows and widgets, and the first finger as the mouse.
     add_executable(nt_touch_tests tests/test_touch.cpp)
     target_include_directories(nt_touch_tests PRIVATE src/gui)
-    target_link_libraries(nt_touch_tests PRIVATE Nt::Widgets)
+    target_link_libraries(nt_touch_tests PRIVATE Nt::Widgets Nt::Test)
     add_test(NAME nt_touch_tests COMMAND nt_touch_tests)
     set_tests_properties(nt_touch_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_touch_tests)

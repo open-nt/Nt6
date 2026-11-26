@@ -96,6 +96,12 @@ private:
     void deliverHeldPress();
     void dropHeldPress();
     bool mouseInput(QMouseEvent *event);
+    // The touch gesture takes every touch to see where it goes. One that stays put is a click, which the widget under
+    // the finger gets as the mouse, through the window.
+    void pressTap();
+    void releaseTap(const QPointF &scene, const QPointF &global);
+    void cancelTap();
+    void sendTapMouse(bool press, const QPointF &scene, const QPointF &global);
     void setState(State state);
     QAbstractScrollArea *area() const;
     QPointF contentPosition() const; // in pixels
@@ -116,6 +122,10 @@ private:
     std::unique_ptr<QMouseEvent> m_heldPress;
     bool m_delivering = false;
     bool m_swallowRelease = false; // of a press that did no more than stop a flick
+    enum class Tap { None, Held, Pressed }; // of the finger of the touch gesture: not yet a click, or its press sent
+    Tap m_tap = Tap::None;
+    QPointF m_tapScene; // where the finger went down, in the window and on the screen
+    QPointF m_tapGlobal;
     QElapsedTimer m_clock;
     QPointF m_pressPosition; // where the press was, in the coordinates of handleInput()
     QPointF m_lastPosition;

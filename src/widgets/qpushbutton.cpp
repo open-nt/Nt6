@@ -181,6 +181,32 @@ void QPushButton::paintEvent(QPaintEvent *event) {
 
 /*!
     \reimp
+
+    While the menu that a press opened is shown, the button stays down however the pointer moves.
+*/
+void QPushButton::mouseMoveEvent(QMouseEvent *event) {
+    if (menu() && menu()->isVisible()) {
+        event->accept();
+        return;
+    }
+    QAbstractButton::mouseMoveEvent(event);
+}
+
+/*!
+    \reimp
+
+    The release of a press that opened the menu does not click the button, which stays down until the menu closes.
+*/
+void QPushButton::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && menu() && menu()->isVisible()) {
+        event->accept();
+        return;
+    }
+    QAbstractButton::mouseReleaseEvent(event);
+}
+
+/*!
+    \reimp
 */
 void QPushButton::keyPressEvent(QKeyEvent *event) {
     if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) && (autoDefault() || m_default)) {

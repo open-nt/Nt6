@@ -4,6 +4,7 @@
 // finger that is delivered as the mouse when nothing takes the touch events.
 #include <QtGui/QtGui>
 #include <QtWidgets/QtWidgets>
+#include <QtTest/qsignalspy.h>
 
 #include "qpa/qwindowsysteminterface_p.h"
 
@@ -163,6 +164,154 @@ void testTouchOnAPlainWindow() {
     CHECK(window.types.last() == QEvent::TouchEnd);
 }
 
+// A finger on a widget of a window: down, to the places given, and up.
+void finger(QWidget &top, const QPoint &from, const QList<QPoint> &moves = {}) {
+    QWindow *window = top.windowHandle();
+    QWindowSystemInterface::handleTouchEvent(window, {point(0, QEventPoint::Pressed, QPointF(from))});
+    QPoint at = from;
+    for (const QPoint &next : moves) {
+        at = next;
+        QWindowSystemInterface::handleTouchEvent(window, {point(0, QEventPoint::Updated, QPointF(at))});
+    }
+    QWindowSystemInterface::handleTouchEvent(window, {point(0, QEventPoint::Released, QPointF(at))});
+    QCoreApplication::processEvents();
+}
+
+// A list that scrolls under a finger with the touch gesture of QScroller: a tap is a click, and a drag is not.
+void testScrollerTouchGesture() {
+    QWidget top;
+    top.resize(240, 240);
+    auto *list = new QListWidget(&top);
+    list->setGeometry(0, 0, 200, 200);
+    list->setVerticalScrollMode(QAbstractItemView::ScrollPerPixel);
+    for (int i = 0; i < 100; ++i)
+        list->addItem(QStringLiteral("Row %1").arg(i));
+    top.show();
+    QCoreApplication::processEvents();
+    QScroller::grabGesture(list->viewport(), QScroller::TouchGesture);
+    QSignalSpy pressed(list, &QListWidget::itemPressed);
+    QSignalSpy clicked(list, &QListWidget::itemClicked);
+    const auto middleOf = [&](int row) {
+        return list->viewport()->mapTo(&top, list->visualItemRect(list->item(row)).center());
+    };
+
+    finger(top, middleOf(2));
+    CHECK(pressed.count() == 1);
+    CHECK(clicked.count() == 1);
+    CHECK(list->currentRow() == 2);
+
+    list->clearSelection();
+    list->setCurrentRow(-1);
+    finger(top, QPoint(50, 150), {QPoint(50, 130), QPoint(50, 90), QPoint(50, 50)});
+    CHECK(list->verticalScrollBar()->value() > 20);
+    CHECK(pressed.count() == 1); // the drag pressed nothing
+    CHECK(clicked.count() == 1);
+    CHECK(list->selectedItems().isEmpty());
+    QScroller::scroller(list->viewport())->stop();
+
+    // A finger that rests is a press, which a drag after it ends without a click.
+    const int scrolled = list->verticalScrollBar()->value();
+    QWindow *window = top.windowHandle();
+    QWindowSystemInterface::handleTouchEvent(window, {point(0, QEventPoint::Pressed, QPointF(50, 150))});
+    CHECK(pressed.count() == 1); // held back
+    QElapsedTimer held;
+    held.start();
+    while (held.elapsed() < 350)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    CHECK(pressed.count() == 2);
+    for (const int y : {110, 70})
+        QWindowSystemInterface::handleTouchEvent(window, {point(0, QEventPoint::Updated, QPointF(50, y))});
+    QWindowSystemInterface::handleTouchEvent(window, {point(0, QEventPoint::Released, QPointF(50, 70))});
+    CHECK(list->verticalScrollBar()->value() > scrolled);
+    CHECK(clicked.count() == 1);
+    QScroller::scroller(list->viewport())->stop();
+
+    // A touch that is cancelled clicks nothing.
+    QWindowSystemInterface::handleTouchEvent(window, {point(0, QEventPoint::Pressed, QPointF(50, 100))});
+    QWindowSystemInterface::handleTouchCancel(window);
+    QCoreApplication::processEvents();
+    CHECK(pressed.count() == 2);
+    CHECK(clicked.count() == 1);
+}
+
+// In a scroll area that scrolls under the finger, a tap clicks the button that it is on, and a drag does not.
+void testScrollerTouchOverButtons() {
+    QWidget top;
+    top.resize(240, 240);
+    auto *area = new QScrollArea(&top);
+    area->setGeometry(0, 0, 200, 200);
+    auto *content = new QWidget;
+    content->resize(180, 600);
+    auto *button = new QPushButton(QStringLiteral("In the area"), content);
+    button->setGeometry(20, 60, 140, 40);
+    area->setWidget(content);
+    top.show();
+    QCoreApplication::processEvents();
+    QScroller::grabGesture(area->viewport(), QScroller::TouchGesture);
+    QSignalSpy clicked(button, &QPushButton::clicked);
+    const QPoint on = button->mapTo(&top, QPoint(70, 20));
+    finger(top, on);
+    CHECK(clicked.count() == 1);
+    CHECK(!button->isDown());
+    finger(top, on, {on - QPoint(0, 30), on - QPoint(0, 50)});
+    CHECK(clicked.count() == 1);
+    CHECK(area->verticalScrollBar()->value() > 0);
+    QScroller::scroller(area->viewport())->stop();
+}
+
+// A button with a menu opens it when it is pressed. Releasing is not a click, as in Qt.
+void testMenuButtonIsNotClicked() {
+    QWidget top;
+    top.resize(300, 300);
+    auto *button = new QPushButton(QStringLiteral("More"), &top);
+    button->setGeometry(20, 20, 100, 40);
+    auto *menu = new QMenu(button);
+    menu->addAction(QStringLiteral("One"));
+    button->setMenu(menu);
+    top.show();
+    QCoreApplication::processEvents();
+    QSignalSpy pressed(button, &QPushButton::pressed);
+    QSignalSpy clicked(button, &QPushButton::clicked);
+
+    finger(top, QPoint(70, 40));
+    CHECK(menu->isVisible());
+    CHECK(pressed.count() == 1);
+    CHECK(clicked.count() == 0);
+    CHECK(button->isDown()); // it stays down while the menu is open
+    menu->hide();
+    QCoreApplication::processEvents();
+    CHECK(!button->isDown());
+    CHECK(clicked.count() == 0);
+    // Moving off the button while the menu is open leaves it down.
+    QWindow *window = top.windowHandle();
+    QWindowSystemInterface::handleMouseEvent(window, QPointF(70, 40), QPointF(70, 40), Qt::LeftButton, Qt::LeftButton,
+                                             QEvent::MouseButtonPress, Qt::NoModifier);
+    QWindowSystemInterface::handleMouseEvent(window, QPointF(250, 250), QPointF(250, 250), Qt::LeftButton, Qt::NoButton,
+                                             QEvent::MouseMove, Qt::NoModifier);
+    CHECK(button->isDown());
+    QWindowSystemInterface::handleMouseEvent(window, QPointF(250, 250), QPointF(250, 250), Qt::NoButton, Qt::LeftButton,
+                                             QEvent::MouseButtonRelease, Qt::NoModifier);
+    menu->hide();
+    // Without its menu it is a button like any other again.
+    button->setMenu(nullptr);
+    finger(top, QPoint(70, 40));
+    CHECK(clicked.count() == 1);
+    button->setMenu(menu);
+    clicked.clear();
+
+    pressed.clear();
+    clicked.clear();
+    button->setFocus();
+    QKeyEvent down(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier);
+    QApplication::sendEvent(button, &down);
+    CHECK(menu->isVisible());
+    // The release goes where the focus is: to the menu, or back to the button.
+    QKeyEvent up(QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier);
+    QApplication::sendEvent(button, &up);
+    CHECK(clicked.count() == 0);
+    menu->hide();
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -171,6 +320,9 @@ int main(int argc, char *argv[]) {
     testIgnoredTouchBecomesMouse();
     testWidgetThatIgnoresTouchGetsMouse();
     testTouchOnAPlainWindow();
+    testScrollerTouchGesture();
+    testScrollerTouchOverButtons();
+    testMenuButtonIsNotClicked();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

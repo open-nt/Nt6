@@ -6,9 +6,12 @@
 #include <QtCore/qhash.h>
 #include <QtCore/qtimer.h>
 #include <QtGui/qevent.h>
+#include <QtGui/qwindow.h>
 #include <QtWidgets/qabstractscrollarea.h>
 #include <QtWidgets/qscrollbar.h>
 #include <QtWidgets/qwidget.h>
+
+#include "gui/qpa/qwindowsysteminterface_p.h"
 
 #include <algorithm>
 #include <cmath>
@@ -108,7 +111,7 @@ qreal snapValue(qreal value, const QList<qreal> &list, qreal first, qreal interv
 
     \differences
     The scroller uses DragStartDistance, DragVelocitySmoothingFactor, DecelerationFactor, MinimumVelocity,
-    MaximumVelocity, ScrollingCurve, SnapTime, FrameRate and, for the mouse button gestures, MousePressEventDelay.
+    MaximumVelocity, ScrollingCurve, SnapTime, FrameRate and MousePressEventDelay.
     The others are kept but have no effect: there is no overshoot and no accelerating flick.
     \enddifferences
 
@@ -246,9 +249,13 @@ void QScrollerProperties::setScrollMetric(ScrollMetric metric, const QVariant &v
     });
     \endcode
 
-    With a mouse button gesture the press is held back for \c MousePressEventDelay, a quarter of a second. If a drag
-    starts in that time, the target never gets the press, so that scrolling a list does not select a row. Otherwise
-    the target gets it when the time is up, or with the release if that comes first.
+    The press is held back for \c MousePressEventDelay, a quarter of a second. If a drag starts in that time, the
+    target never gets the press, so that scrolling a list does not select a row. Otherwise the target gets it when the
+    time is up, or with the release if that comes first.
+
+    The touch gesture takes every touch, to see where it goes. A finger that does not drag clicks: the widget under
+    it, a button in a scroll area too, gets the press and the release as the left mouse button. If a finger starts to
+    drag after the press was sent, the press ends outside every widget, and nothing is clicked.
 
     \differences
     The target must be a QAbstractScrollArea or its viewport, whose scroll bars are moved; Nt sends no
@@ -296,7 +303,12 @@ QScroller::QScroller(QObject *target) : m_target(target) {
     QObject::connect(m_timer, &QTimer::timeout, this, [this] { tick(); });
     m_pressTimer = new QTimer(this);
     m_pressTimer->setSingleShot(true);
-    QObject::connect(m_pressTimer, &QTimer::timeout, this, [this] { deliverHeldPress(); });
+    QObject::connect(m_pressTimer, &QTimer::timeout, this, [this] {
+        if (m_gesture == TouchGesture)
+            pressTap();
+        else
+            deliverHeldPress();
+    });
     QObject::connect(target, &QObject::destroyed, this, [this, target] {
         scrollers().remove(target);
         m_target = nullptr;
@@ -373,6 +385,7 @@ void QScroller::ungrabGesture(QObject *target) {
     target->removeEventFilter(s);
     s->m_grabbed = false;
     s->dropHeldPress();
+    s->cancelTap();
     s->m_swallowRelease = false;
     s->stop();
 }
@@ -752,21 +765,48 @@ bool QScroller::eventFilter(QObject *watched, QEvent *event) {
         return false;
     const QEvent::Type type = event->type();
     if (m_gesture == TouchGesture) {
+        if (type == QEvent::TouchCancel) {
+            cancelTap();
+            stop();
+            return false;
+        }
         if (type != QEvent::TouchBegin && type != QEvent::TouchUpdate && type != QEvent::TouchEnd)
             return false;
         const auto *touch = static_cast<QTouchEvent *>(event);
         if (touch->points().isEmpty())
             return false;
-        const QPointF pos = touch->points().first().position();
-        const Input input = type == QEvent::TouchBegin ? InputPress
-                            : type == QEvent::TouchEnd ? InputRelease
-                                                       : InputMove;
-        const bool used = handleInput(input, pos);
+        const QEventPoint point = touch->points().first();
         if (type == QEvent::TouchBegin) {
+            cancelTap();
+            if (!handleInput(InputPress, point.position())) { // false unless it stopped a flick
+                m_tap = Tap::Held;
+                m_tapScene = point.scenePosition();
+                m_tapGlobal = point.globalPosition();
+                if (pressDelay() > 0)
+                    m_pressTimer->start(pressDelay());
+                else
+                    pressTap();
+            }
             event->accept(); // to be given the updates
             return true;
         }
-        return used;
+        if (type == QEvent::TouchUpdate) {
+            const bool used = handleInput(InputMove, point.position());
+            if (m_state == Dragging)
+                cancelTap();
+            return used;
+        }
+        const bool used = handleInput(InputRelease, point.position());
+        if (m_tap == Tap::None)
+            return used;
+        // The finger did not drag: a click, now if its press has not been sent yet.
+        const QPointF scene = point.scenePosition();
+        const QPointF global = point.globalPosition();
+        const QPointer<QScroller> self(this);
+        pressTap();
+        if (self)
+            releaseTap(scene, global);
+        return true;
     }
     if (type != QEvent::MouseButtonPress && type != QEvent::MouseButtonDblClick && type != QEvent::MouseMove &&
         type != QEvent::MouseButtonRelease)
@@ -849,6 +889,50 @@ void QScroller::deliverHeldPress() {
 void QScroller::dropHeldPress() {
     m_pressTimer->stop();
     m_heldPress.reset();
+}
+
+void QScroller::sendTapMouse(bool press, const QPointF &scene, const QPointF &global) {
+    const auto *widget = qobject_cast<QWidget *>(m_target.data());
+    QWindow *window = widget ? widget->window()->windowHandle() : nullptr;
+    if (!window)
+        return;
+    // As the first finger is when nothing takes a touch: through the window, which finds the widget under it. The
+    // filter of the touch gesture lets mouse events pass.
+    if (press) {
+        QWindowSystemInterface::handleEnterEvent(window, scene, global);
+        QWindowSystemInterface::handleMouseEvent(window, scene, global, Qt::LeftButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonPress, Qt::NoModifier);
+    } else {
+        const QPointer<QWindow> shown(window);
+        QWindowSystemInterface::handleMouseEvent(window, scene, global, Qt::NoButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonRelease, Qt::NoModifier);
+        if (shown) // what a click does may close the window
+            QWindowSystemInterface::handleLeaveEvent(shown);
+    }
+}
+
+void QScroller::pressTap() {
+    if (m_tap != Tap::Held)
+        return;
+    m_pressTimer->stop();
+    m_tap = Tap::Pressed;
+    sendTapMouse(true, m_tapScene, m_tapGlobal);
+}
+
+void QScroller::releaseTap(const QPointF &scene, const QPointF &global) {
+    if (m_tap != Tap::Pressed)
+        return;
+    m_tap = Tap::None;
+    sendTapMouse(false, scene, global);
+}
+
+void QScroller::cancelTap() {
+    m_pressTimer->stop();
+    // A press that was sent ends outside every widget, so that nothing is clicked.
+    const bool pressed = m_tap == Tap::Pressed;
+    m_tap = Tap::None;
+    if (pressed)
+        sendTapMouse(false, QPointF(-1, -1), QPointF(-1, -1));
 }
 
 #include "moc_qscroller.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

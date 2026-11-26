@@ -4,6 +4,7 @@
 #include <QtCore/qpoint.h>
 #include <QtCore/qpointer.h>
 #include <QtGui/qcolor.h>
+#include <QtGui/qicon.h>
 #include <QtWidgets/qcommonstyle.h>
 
 #include <memory>
@@ -101,7 +102,19 @@ public:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
-    enum class ButtonKind { Filled, Tonal, Outlined, Text, Elevated, Fab, ToolBarItem };
+    enum class ButtonKind {
+        Filled,
+        Tonal,
+        Outlined,
+        Text,
+        Elevated,
+        Fab,
+        ToolBarItem,
+        IconStandard,
+        IconFilled,
+        IconTonal,
+        IconOutlined
+    };
     static ButtonKind buttonKind(const QStyleOption *option, const QWidget *widget);
     void drawButtonContainer(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     // The container of a button, or of one half of a split button, with its corners at the left and the right.
@@ -130,6 +143,11 @@ private:
     static bool isFloatingToolBar(const QWidget *widget);
     void drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const;
     QColor toolBarItemColor(const QStyleOption *option, const QWidget *widget) const;
+    // An icon in `ink`, if it has one color of its own; one with several is drawn as it is.
+    static void paintIcon(QPainter *painter, const QRect &rect, const QIcon &icon, QIcon::Mode mode, QIcon::State state,
+                          const QColor &ink);
+    // The width and height of the icon of an icon button; 0 for another button.
+    static int iconButtonIconSize(const QWidget *widget);
     void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter, const QWidget *widget) const;
     void drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawProgressBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;

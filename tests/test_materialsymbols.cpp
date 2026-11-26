@@ -86,6 +86,27 @@ void testDrawing() {
         CHECK(image.width() == extent && painted(image, green) > extent);
     }
     CHECK(QMaterialSymbols::icon(QStringLiteral("no_such_symbol")).isNull());
+
+    // At the size of an icon on a phone of 1.75 pixels to a logical one, the edges are as smooth as the SVG's own: an
+    // icon without a color is drawn at that size, and one with a color holds that size.
+    const auto soft = [](const QImage &image) {
+        int partial = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x) {
+                const int alpha = image.pixelColor(x, y).alpha();
+                partial += alpha > 12 && alpha < 243 ? 1 : 0;
+            }
+        return partial;
+    };
+    const int smooth = soft(QMaterialSymbols::pixmap(QStringLiteral("edit"), 42, QColor(Qt::black)).toImage());
+    for (const QIcon &each : {QMaterialSymbols::icon(QStringLiteral("edit")),
+                              QMaterialSymbols::icon(QStringLiteral("edit"), QColor(Qt::black))}) {
+        const QPixmap shown = each.pixmap(QSize(24, 24), 1.75);
+        CHECK(shown.width() == 42);
+        CHECK(soft(shown.toImage()) == smooth);
+    }
+    // Without a color, at a size that no pixmap was made for.
+    CHECK(QMaterialSymbols::icon(QStringLiteral("edit")).pixmap(QSize(131, 131)).width() == 131);
 }
 
 } // namespace

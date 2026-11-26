@@ -145,15 +145,25 @@ QPixmap QMaterialSymbols::pixmap(const QString &name, int extent, const QColor &
 }
 
 /*!
-    Returns an icon of the symbol \a name in \a color, outlined, or filled if \a filled is \c true. An invalid color
-    leaves it black. The icon holds the symbol at the sizes that icons are commonly shown at, with those of screens of
-    two and three device pixels to a logical one. It is null if there is no such symbol.
+    Returns an icon of the symbol \a name in \a color, outlined, or filled if \a filled is \c true. It is null if
+    there is no such symbol.
+
+    With an invalid color, the default, the icon is black and is drawn from the SVG file at whatever size it is shown
+    at, so that it is sharp on every screen. Give no color to an icon for a button of QMaterialStyle, which paints it in
+    the color of the button. With a color, the icon holds pixmaps of the common sizes and screen densities, and a size
+    between them is scaled down from the next one, which is not quite as sharp.
 
     \sa pixmap()
 */
 QIcon QMaterialSymbols::icon(const QString &name, const QColor &color, bool filled) {
+    if (!hasSymbol(name))
+        return QIcon();
+    if (!color.isValid())
+        return QIcon(QString::fromLatin1(folder) + name + QString::fromLatin1(filled ? filledEnd : outlinedEnd));
     QIcon result;
-    for (const int pixels : {20, 24, 32, 40, 48, 64, 72, 96, 120, 144}) {
+    // Icons of 20, 24, 32 and 40 on screens of 1 to 3.5 device pixels to a logical one, among them Android's.
+    for (const int pixels :
+         {20, 24, 30, 32, 35, 36, 40, 42, 48, 56, 60, 63, 64, 66, 70, 72, 84, 96, 105, 120, 140, 144}) {
         const QPixmap drawn = pixmap(name, pixels, color, filled);
         if (drawn.isNull())
             return QIcon();

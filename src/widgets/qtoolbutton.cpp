@@ -229,6 +229,7 @@ void QToolButton::paintEvent(QPaintEvent *event) {
     // The Material style draws a split button whole, and says what color its label has; so it does for the buttons of
     // a floating toolbar.
     const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    bool inked = false; // the style gave the color of the label, and of an icon of one color
     if (material && split) {
         option.rect = content;
         ink =
@@ -238,10 +239,13 @@ void QToolButton::paintEvent(QPaintEvent *event) {
         style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, this);
         if (material) {
             const QColor own = material->toolBarItemColor(&option, this);
-            if (own.isValid())
+            if (own.isValid()) {
                 ink = own;
+                inked = true;
+            }
         }
     }
+    inked = inked || (material && split);
     const bool pressed = !material && (option.state & (QStyle::State_Sunken | QStyle::State_On));
     if (split && !material) {
         // The part at the right that opens the menu, with its arrow.
@@ -270,25 +274,41 @@ void QToolButton::paintEvent(QPaintEvent *event) {
             break;
         }
         style()->drawPrimitive(element, &arrow, &painter, this);
+    } else if (const int extent = material ? QMaterialStyle::iconButtonIconSize(this) : 0;
+               extent > 0 && !icon().isNull()) {
+        // An icon button of the Material style is its icon alone, in the size of the button's.
+        const QRect middle(content.left() + (content.width() - extent) / 2,
+                           content.top() + (content.height() - extent) / 2, extent, extent);
+        QMaterialStyle::paintIcon(&painter, middle, icon(), !isEnabled() ? QIcon::Disabled : QIcon::Normal,
+                                  isChecked() ? QIcon::On : QIcon::Off, ink);
     } else if (showsIcon()) {
         const QSize size = iconSize();
         const QIcon::Mode mode = !isEnabled() ? QIcon::Disabled : QIcon::Normal;
         const QIcon::State state = isChecked() ? QIcon::On : QIcon::Off;
         painter.setPen(ink);
         const int textWidth = showsText() ? fontMetrics().horizontalAdvance(text()) : 0;
+        const auto paint = [&](const QRect &area) {
+            if (inked) {
+                // At its own size, in the middle of the room for it.
+                const QRect icons(area.left() + (area.width() - size.width()) / 2,
+                                  area.top() + (area.height() - size.height()) / 2, size.width(), size.height());
+                QMaterialStyle::paintIcon(&painter, icons, icon(), mode, state, ink);
+            } else {
+                icon().paint(&painter, area, Qt::AlignCenter, mode, state);
+            }
+        };
         if (!showsText()) {
-            icon().paint(&painter, content, Qt::AlignCenter, mode, state);
+            paint(content);
         } else if (m_style == Qt::ToolButtonTextUnderIcon) {
             const int total = size.height() + 2 + fontMetrics().height();
             const QRect iconRect(content.left(), content.top() + (content.height() - total) / 2, content.width(),
                                  size.height());
-            icon().paint(&painter, iconRect, Qt::AlignCenter, mode, state);
+            paint(iconRect);
             painter.drawText(QRect(content.left(), iconRect.bottom() + 3, content.width(), fontMetrics().height()),
                              static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text());
         } else {
             const int left = content.left() + (content.width() - size.width() - 4 - textWidth) / 2;
-            icon().paint(&painter, QRect(left, content.top(), size.width(), content.height()), Qt::AlignCenter, mode,
-                         state);
+            paint(QRect(left, content.top(), size.width(), content.height()));
             painter.drawText(QRect(left + size.width() + 4, content.top(), textWidth + 1, content.height()),
                              Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, text());
         }

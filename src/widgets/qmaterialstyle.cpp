@@ -310,6 +310,45 @@ const ButtonSize *sizeOfButton(const QWidget *widget) {
     return nullptr;
 }
 
+// The kind of icon button that a push button or a tool button asks to be with its property; empty for none.
+QString iconButtonKind(const QWidget *widget) {
+    if (!qobject_cast<const QPushButton *>(widget) && !qobject_cast<const QToolButton *>(widget))
+        return QString();
+    const QString name = widget->property("materialIconButton").toString();
+    const bool known = name == QLatin1String("standard") || name == QLatin1String("filled") ||
+                       name == QLatin1String("tonal") || name == QLatin1String("outlined");
+    return known ? name : QString();
+}
+
+bool isIconButton(const QWidget *widget) { return !iconButtonKind(widget).isEmpty(); }
+
+// An icon button is as high and as wide as the button of its size, with an icon of its own size in the middle. What is
+// smaller than a finger needs is 48 all the same, with the shape in the middle.
+const ButtonSize &iconButtonSize(const QWidget *widget) {
+    const ButtonSize *size = sizeOfButton(widget);
+    return size ? *size : smallButton;
+}
+
+int iconButtonExtent(const QWidget *widget) { return std::max(touchTarget, iconButtonSize(widget).height); }
+
+// One color is all that an icon has, if the pixels that show are all close to one of them.
+bool hasOneColor(const QImage &image) {
+    QColor first;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const QColor pixel = image.pixelColor(x, y);
+            if (pixel.alpha() < 64)
+                continue;
+            if (!first.isValid())
+                first = pixel;
+            else if (std::abs(pixel.red() - first.red()) > 32 || std::abs(pixel.green() - first.green()) > 32 ||
+                     std::abs(pixel.blue() - first.blue()) > 32)
+                return false;
+        }
+    }
+    return first.isValid();
+}
+
 bool isSquareButton(const QWidget *widget) {
     return widget && widget->property("materialButtonShape").toString() == QLatin1String("square");
 }
@@ -453,6 +492,10 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         under the field, and a \c materialError that is not empty turns the field red and takes that line's place. The
         room for the line is kept while either property is there, so give a field an empty \c materialError from the
         start if an error should not move what is below it.
+    \li \c materialIconButton of a QPushButton or a QToolButton: \c "standard", \c "filled", \c "tonal" or
+        \c "outlined", a button that is its icon alone, in the sizes of \c materialButtonSize (small without it) with
+        icons of 20 to 40, round or, with \c materialButtonShape, square. A checkable one shows that it is checked. One
+        smaller than 48 is 48 to a finger.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
@@ -460,6 +503,10 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         buttons small, and the checked button is a pill. For a choice of one, make the buttons checkable and
         auto-exclusive.
     \endlist
+
+    An icon of one color is drawn in the color that the style gives what it is on: on buttons, floating action
+    buttons, toolbars and menus. An icon with several colors, such as a logo, is drawn as it is. The icons are the
+    application's own, from files or, with the optional package \l{Nt Material Symbols}, Google's.
 
     A widget that is shown takes a change of these properties at once.
 
@@ -489,7 +536,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     but close at once, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. Text fields are those of QLineEdit, and
-    have no icons, prefix, suffix or character counter; their caret is the color of the text. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
+    have no icons, prefix, suffix or character counter; their caret is the color of the text. Icon buttons have the default width, not
+    the narrow or the wide one. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
     going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
     what does not fit. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
@@ -1011,6 +1059,13 @@ double QMaterialStyle::stateLayer(const QStyleOption *option) const {
 QMaterialStyle::ButtonKind QMaterialStyle::buttonKind(const QStyleOption *option, const QWidget *widget) {
     if (isFab(widget))
         return ButtonKind::Fab;
+    if (const QString icon = iconButtonKind(widget); !icon.isEmpty()) {
+        if (icon == QLatin1String("filled"))
+            return ButtonKind::IconFilled;
+        if (icon == QLatin1String("tonal"))
+            return ButtonKind::IconTonal;
+        return icon == QLatin1String("outlined") ? ButtonKind::IconOutlined : ButtonKind::IconStandard;
+    }
     const QString name = widget ? widget->property("materialButton").toString() : QString();
     if (name == QLatin1String("filled"))
         return ButtonKind::Filled;
@@ -1052,6 +1107,17 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
         return color(checked ? Role::OnPrimary : Role::Primary);
     case ButtonKind::Fab:
         return color(isOpenFab(widget) ? Role::OnPrimary : Role::OnPrimaryContainer);
+    case ButtonKind::IconStandard:
+        return color(checked ? Role::Primary : Role::OnSurfaceVariant);
+    case ButtonKind::IconFilled: {
+        // One that can be checked is quiet until it is.
+        const auto *button = qobject_cast<const QAbstractButton *>(widget);
+        return color(button && button->isCheckable() && !checked ? Role::OnSurfaceVariant : Role::OnPrimary);
+    }
+    case ButtonKind::IconTonal:
+        return color(checked ? Role::OnSecondary : Role::OnSecondaryContainer);
+    case ButtonKind::IconOutlined:
+        return color(checked ? Role::InverseOnSurface : Role::OnSurfaceVariant);
     case ButtonKind::ToolBarItem:
         if (isVibrantToolBar(widget->parentWidget()))
             return color(checked ? Role::OnSurface : Role::OnPrimaryContainer);
@@ -1068,7 +1134,9 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
     // A button is a pill; pressed, its corners tighten, and a checked button is squarer. In a connected group the
     // ends of the row stay round, the corners between the buttons are small, and a checked button is a pill.
     const Segment segment = segmentOf(widget);
-    const double pill = rect.height() / 2;
+    // Of the shape that is drawn, which for a small icon button is less than the widget.
+    const double pill =
+        isIconButton(widget) ? std::min<double>(rect.height(), iconButtonSize(widget).height) / 2 : rect.height() / 2;
     double left = pill;
     double right = pill;
     const bool fab = isFab(widget);
@@ -1086,7 +1154,7 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
         }
     } else {
         // A round button is a pill, and a squarer one while it is checked; a square one the other way round.
-        const ButtonSize *size = sizeOfButton(widget);
+        const ButtonSize *size = isIconButton(widget) ? &iconButtonSize(widget) : sizeOfButton(widget);
         const bool square = isSquareButton(widget);
         const double squared = size ? size->squareCorner : selectedCorner;
         if (option->state & State_Sunken)
@@ -1130,6 +1198,20 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     case ButtonKind::Fab:
         container = color(isOpenFab(widget) ? Role::Primary : Role::PrimaryContainer);
         break;
+    case ButtonKind::IconStandard:
+        break;
+    case ButtonKind::IconFilled: {
+        const auto *button = qobject_cast<const QAbstractButton *>(widget);
+        container = color(button && button->isCheckable() && !checked ? Role::SurfaceContainer : Role::Primary);
+        break;
+    }
+    case ButtonKind::IconTonal:
+        container = color(checked ? Role::Secondary : Role::SecondaryContainer);
+        break;
+    case ButtonKind::IconOutlined:
+        if (checked)
+            container = color(Role::InverseSurface);
+        break;
     case ButtonKind::ToolBarItem:
         if (checked)
             container =
@@ -1138,16 +1220,19 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     case ButtonKind::Text:
         break;
     }
-    if (!enabled(option) && kind != ButtonKind::Text &&
-        !((kind == ButtonKind::Outlined || kind == ButtonKind::ToolBarItem) && !checked))
+    const bool bare =
+        kind == ButtonKind::Outlined || kind == ButtonKind::ToolBarItem || kind == ButtonKind::IconOutlined;
+    if (!enabled(option) && kind != ButtonKind::Text && kind != ButtonKind::IconStandard && !(bare && !checked))
         container = withOpacity(color(Role::OnSurface), disabledContainerOpacity);
     const double lift = kind == ButtonKind::Fab ? fabShadow : kind == ButtonKind::Elevated ? 1.5 : 0.0;
     const bool raised = lift > 0 && enabled(option) && (kind == ButtonKind::Fab || !(option->state & State_Sunken));
     if (raised)
         painter->fillPath(sidedPath(rect.adjusted(0.5, lift, -0.5, 0), left, right),
                           QBrush(withOpacity(QColor(Qt::black), 0.18)));
-    // A button of a toolbar is drawn smaller than it is to a finger.
-    const double inset = kind == ButtonKind::ToolBarItem ? toolBarInset : 0;
+    // A button of a toolbar, and a small icon button, are drawn smaller than they are to a finger.
+    double inset = kind == ButtonKind::ToolBarItem ? toolBarInset : 0;
+    if (isIconButton(widget))
+        inset = std::max(0, iconButtonExtent(widget) - iconButtonSize(widget).height) / 2.0;
     const QRectF body = rect.adjusted(inset, inset, -inset, -inset - lift);
     const QPainterPath outline = sidedPath(body, left, right);
     // A line inside the shape.
@@ -1158,7 +1243,7 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     };
     if (container.alpha() > 0)
         painter->fillPath(outline, QBrush(container));
-    if (kind == ButtonKind::Outlined && !checked) {
+    if ((kind == ButtonKind::Outlined || kind == ButtonKind::IconOutlined) && !checked) {
         const ButtonSize *size = sizeOfButton(widget);
         stroke(color(Role::OutlineVariant), size ? size->outline : 1);
     }
@@ -1228,6 +1313,35 @@ bool QMaterialStyle::popupFabMenu(QPushButton *button, QMenu *menu) const {
     return true;
 }
 
+void QMaterialStyle::paintIcon(QPainter *painter, const QRect &rect, const QIcon &icon, QIcon::Mode mode,
+                               QIcon::State state, const QColor &ink) {
+    const qreal ratio = painter->device() ? painter->device()->devicePixelRatioF() : 1.0;
+    const QPixmap plain = icon.pixmap(rect.size(), ratio, QIcon::Normal, state);
+    QImage image = plain.toImage().convertToFormat(QImage::Format_ARGB32);
+    if (!ink.isValid() || !hasOneColor(image)) {
+        icon.paint(painter, rect, Qt::AlignCenter, mode, state);
+        return;
+    }
+    // The shape is the icon's; the color, and how much of it shows, are the ink's. A disabled color is a faint one.
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            const int alpha = qAlpha(image.pixel(x, y));
+            image.setPixel(x, y, qRgba(ink.red(), ink.green(), ink.blue(), (alpha * ink.alpha() + 127) / 255));
+        }
+    }
+    const QSizeF shown = QSizeF(image.size()) / plain.devicePixelRatio();
+    const QRectF target(rect.x() + (rect.width() - shown.width()) / 2, rect.y() + (rect.height() - shown.height()) / 2,
+                        shown.width(), shown.height());
+    painter->drawImage(target, image);
+}
+
+int QMaterialStyle::iconButtonIconSize(const QWidget *widget) {
+    if (!isIconButton(widget))
+        return 0;
+    const int height = iconButtonSize(widget).height;
+    return height <= 32 ? 20 : height <= 56 ? 24 : height <= 96 ? 32 : 40;
+}
+
 bool QMaterialStyle::isFloatingToolBar(const QWidget *widget) {
     const QString kind = toolBarKind(widget);
     return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant");
@@ -1246,7 +1360,7 @@ void QMaterialStyle::drawFloatingToolBar(QPainter *painter, const QToolBar *bar)
 
 QColor QMaterialStyle::toolBarItemColor(const QStyleOption *option, const QWidget *widget) const {
     // And for any tool button that says what kind of button it is, or how large: its container is the style's.
-    const bool styled = isToolBarItem(widget) || sizeOfButton(widget) ||
+    const bool styled = isToolBarItem(widget) || sizeOfButton(widget) || isIconButton(widget) ||
                         (qobject_cast<const QToolButton *>(widget) && widget->property("materialButton").isValid());
     return styled ? buttonLabelColor(option, widget) : QColor();
 }
@@ -1281,7 +1395,7 @@ void QMaterialStyle::drawFabLabel(const QStyleOption *option, QPainter *painter,
     const int space = button->text.isEmpty() ? 0 : fabIconSpace;
     const int left = body.left() + (body.width() - fabIconSize - space - textWidth) / 2;
     const QRect iconRect(left, body.top() + (body.height() - fabIconSize) / 2, fabIconSize, fabIconSize);
-    button->icon.paint(painter, iconRect, Qt::AlignCenter, enabled(option) ? QIcon::Normal : QIcon::Disabled);
+    paintIcon(painter, iconRect, button->icon, enabled(option) ? QIcon::Normal : QIcon::Disabled, QIcon::Off, ink);
     QRect textRect = body;
     textRect.setLeft(iconRect.right() + 1 + space);
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
@@ -1397,7 +1511,7 @@ void QMaterialStyle::drawFabMenuItem(const QStyleOption *option, QPainter *paint
     if (!item->icon.isNull()) {
         const QRect lead(left, item->rect.top() + (static_cast<int>(pill.height()) - fabIconSize) / 2, fabIconSize,
                          fabIconSize);
-        item->icon.paint(painter, lead, Qt::AlignCenter, usable ? QIcon::Normal : QIcon::Disabled);
+        paintIcon(painter, lead, item->icon, usable ? QIcon::Normal : QIcon::Disabled, QIcon::Off, ink);
         left += fabIconSize + fabIconSpace;
     }
     painter->setFont(fabMenuFont(item->font));
@@ -1416,6 +1530,19 @@ void QMaterialStyle::drawButtonLabel(const QStyleOption *option, QPainter *paint
     const auto *button = static_cast<const QStyleOptionButton *>(option);
     const QColor ink = buttonLabelColor(option, widget);
     painter->setPen(ink);
+    const QIcon::Mode iconMode = enabled(option) ? QIcon::Normal : QIcon::Disabled;
+    const QIcon::State iconState = (option->state & State_On) ? QIcon::On : QIcon::Off;
+    if (const int extent = iconButtonIconSize(widget); extent > 0) {
+        // The icon alone; a button without one shows its text, a letter or a sign, in its place.
+        if (button->icon.isNull()) {
+            painter->drawText(button->rect, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, button->text);
+            return;
+        }
+        const QRect middle(button->rect.left() + (button->rect.width() - extent) / 2,
+                           button->rect.top() + (button->rect.height() - extent) / 2, extent, extent);
+        paintIcon(painter, middle, button->icon, iconMode, iconState, ink);
+        return;
+    }
     if (button->icon.isNull()) {
         painter->drawText(button->rect, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, button->text);
         return;
@@ -1429,8 +1556,7 @@ void QMaterialStyle::drawButtonLabel(const QStyleOption *option, QPainter *paint
     const int left = button->rect.left() + (button->rect.width() - icon.width() - space - textWidth) / 2;
     const QRect iconRect(left, button->rect.top() + (button->rect.height() - icon.height()) / 2, icon.width(),
                          icon.height());
-    button->icon.paint(painter, iconRect, Qt::AlignCenter, enabled(option) ? QIcon::Normal : QIcon::Disabled,
-                       (option->state & State_On) ? QIcon::On : QIcon::Off);
+    paintIcon(painter, iconRect, button->icon, iconMode, iconState, ink);
     QRect textRect = button->rect;
     textRect.setLeft(iconRect.right() + 1 + space);
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
@@ -1810,7 +1936,7 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter,
         painter->drawLine(QPointF(lead.left() + 5, lead.top() + 12.5), QPointF(lead.left() + 10, lead.top() + 17.5));
         painter->drawLine(QPointF(lead.left() + 10, lead.top() + 17.5), QPointF(lead.left() + 19, lead.top() + 7.5));
     } else if (!item->icon.isNull()) {
-        item->icon.paint(painter, lead, Qt::AlignCenter, usable ? QIcon::Normal : QIcon::Disabled);
+        paintIcon(painter, lead, item->icon, usable ? QIcon::Normal : QIcon::Disabled, QIcon::Off, quiet);
     }
     if (checkable || !item->icon.isNull())
         left += menuIconSize + menuIconSpace;
@@ -2069,7 +2195,7 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
     case SE_PushButtonContents:
         // The open FAB is a circle at the right of the whole button. A button with a size is made as wide as its label
         // needs with the room of that size, so its label has the whole of it.
-        if (isFab(widget) || sizeOfButton(widget))
+        if (isFab(widget) || sizeOfButton(widget) || isIconButton(widget))
             return r;
         // A narrow button keeps what room it has for its label.
         return r.adjusted(std::min(buttonPadding, r.width() / 4), 0, -std::min(buttonPadding, r.width() / 4), 0);
@@ -2172,6 +2298,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         const auto *button = option && option->type == QStyleOption::SO_Button
                                  ? static_cast<const QStyleOptionButton *>(option)
                                  : nullptr;
+        if (isIconButton(widget))
+            return QSize(iconButtonExtent(widget), iconButtonExtent(widget));
         if (isFab(widget)) {
             const bool text = button && !button->text.isEmpty();
             if (button && !button->icon.isNull())
@@ -2193,6 +2321,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         return QSize(std::max(touchTarget, width + 2 * buttonPadding), std::max(buttonHeight, height + 8));
     }
     case CT_ToolButton:
+        if (isIconButton(widget))
+            return QSize(iconButtonExtent(widget), iconButtonExtent(widget));
         if (isToolBarItem(widget))
             return QSize(std::max(toolBarTarget, contentsSize.width() + 6 * toolBarInset), toolBarTarget);
         if (isSplitButton(widget))

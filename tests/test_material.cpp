@@ -1601,6 +1601,109 @@ void testTextFields() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// Icon buttons, and icons that take the color of what they are on.
+void testIconButtons() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    // An icon of one color, black, and one of two.
+    const auto square = [](const QColor &left, const QColor &right) {
+        QImage image(96, 96, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        painter.fillRect(QRect(16, 16, 32, 64), left);
+        painter.fillRect(QRect(48, 16, 32, 64), right);
+        painter.end();
+        return QIcon(QPixmap::fromImage(image));
+    };
+    const QIcon plain = square(Qt::black, Qt::black);
+    const QIcon logo = square(QColor(220, 30, 30), QColor(30, 60, 220));
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    const auto make = [&](const char *kind, bool checkable, const QIcon &icon) {
+        auto *button = new QToolButton;
+        button->setProperty("materialIconButton", QString::fromLatin1(kind));
+        button->setCheckable(checkable);
+        button->setIcon(icon);
+        layout->addWidget(button, 0, Qt::AlignLeft);
+        return button;
+    };
+    QToolButton *standard = make("standard", true, plain);
+    QToolButton *filled = make("filled", false, plain);
+    QToolButton *toggle = make("filled", true, plain);
+    QToolButton *tonal = make("tonal", false, plain);
+    QToolButton *outlined = make("outlined", true, plain);
+    QToolButton *colored = make("tonal", false, logo);
+    QToolButton *large = make("filled", false, plain);
+    large->setProperty("materialButtonSize", QStringLiteral("large"));
+    auto *push = new QPushButton;
+    push->setProperty("materialIconButton", QStringLiteral("filled"));
+    push->setIcon(plain);
+    layout->addWidget(push, 0, Qt::AlignLeft);
+    auto *worded = new QPushButton(QStringLiteral("Save"));
+    worded->setProperty("materialButton", QStringLiteral("filled"));
+    worded->setIcon(plain);
+    layout->addWidget(worded, 0, Qt::AlignLeft);
+    layout->addStretch(1);
+    window.resize(320, 700);
+    window.show();
+    QCoreApplication::processEvents();
+
+    CHECK(standard->size() == QSize(48, 48)); // 48 to a finger, though its shape is 40
+    CHECK(push->size() == QSize(48, 48));
+    CHECK(large->size() == QSize(96, 96));
+    const auto at = [&](QWidget *widget, int x, int y) {
+        const QPoint point = widget->mapTo(&window, QPoint(x, y));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const QColor surface = style->color(Role::Surface);
+    // In the middle of the left half of the icon, and in the shape above the icon.
+    const auto ink = [&](QWidget *widget) { return at(widget, widget->width() / 2 - 3, widget->height() / 2); };
+    const auto container = [&](QWidget *widget) { return at(widget, widget->width() / 2, widget->height() / 2 - 16); };
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    CHECK(is(container(standard), Role::Surface) && is(ink(standard), Role::OnSurfaceVariant));
+    CHECK(is(container(filled), Role::Primary) && is(ink(filled), Role::OnPrimary));
+    CHECK(is(container(toggle), Role::SurfaceContainer) && is(ink(toggle), Role::OnSurfaceVariant));
+    CHECK(is(container(tonal), Role::SecondaryContainer) && is(ink(tonal), Role::OnSecondaryContainer));
+    CHECK(is(container(outlined), Role::Surface) && is(ink(outlined), Role::OnSurfaceVariant));
+    CHECK(near(at(outlined, 24, 4), style->color(Role::OutlineVariant), 8)); // its line, 40 across
+    CHECK(is(container(push), Role::Primary) && is(ink(push), Role::OnPrimary));
+    CHECK(near(at(filled, 24, 1), surface, 3)); // the room around the shape
+    for (QToolButton *each : {standard, toggle, outlined})
+        each->setChecked(true);
+    CHECK(is(ink(standard), Role::Primary));
+    CHECK(is(container(toggle), Role::Primary) && is(ink(toggle), Role::OnPrimary));
+    CHECK(is(container(outlined), Role::InverseSurface) && is(ink(outlined), Role::InverseOnSurface));
+
+    // Several colors stay as they are.
+    CHECK(near(at(colored, 20, 24), QColor(220, 30, 30), 3));
+    CHECK(near(at(colored, 28, 24), QColor(30, 60, 220), 3));
+    // A large one has an icon of 32: 16 of it either side of the middle, in a box of which 2/3 is painted.
+    CHECK(is(at(large, 48 - 9, 48), Role::OnPrimary));
+    CHECK(is(at(large, 48 - 13, 48), Role::Primary));
+    // Disabled, the icon is faint, not the color of the application's.
+    filled->setEnabled(false);
+    const QColor faint = ink(filled);
+    CHECK(faint.red() > 120 && faint.red() < 210);
+
+    // The icon of a button with a label takes the color of the label.
+    const auto count = [&](QWidget *widget, const QColor &color) {
+        const QImage image = widget->grab().toImage();
+        int found = 0;
+        for (int y = 8; y < image.height() - 8; ++y)
+            for (int x = 8; x < image.width() - 8; ++x)
+                found += near(image.pixelColor(x, y), color, 3) ? 1 : 0;
+        return found;
+    };
+    CHECK(count(worded, style->color(Role::OnPrimary)) > 60);
+    CHECK(count(worded, QColor(Qt::black)) == 0);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1624,6 +1727,7 @@ int main(int argc, char *argv[]) {
     testMoreRipples();
     testButtonSizes();
     testTextFields();
+    testIconButtons();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

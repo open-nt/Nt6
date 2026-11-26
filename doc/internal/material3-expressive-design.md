@@ -92,6 +92,13 @@ placeholder is hidden while the label rests (`QLineEdit` asks the private `hides
 `materialSupportingText` and `materialError` have 20 under the field. Not done: icons, prefix and suffix, character
 counter, the caret in the accent colour, and multi-line fields.
 
+Icon buttons are `materialIconButton` = `"standard"`, `"filled"`, `"tonal"` or `"outlined"` on a push or tool button:
+square in the five button sizes with icons of 20, 24, 24, 32 and 40, the buttons' corners and outlines, 48 to a finger.
+Icons: an icon of one colour is repainted in the colour the style gives its button, floating toolbar, FAB or menu item
+(`paintIcon()`; one colour means that all pixels with some opacity are within 32 of each other), so logos stay as they
+are without a property. The icons are the application's, or those of the optional package Nt Material Symbols
+(`third_party/material-symbols`, Apache-2.0), which Nt Widgets does not use. Not done: the narrow and wide widths.
+
 ## Open points
 
 - `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected

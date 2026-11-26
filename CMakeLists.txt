@@ -1726,7 +1726,8 @@ if(NT_BUILD_MATERIAL_SYMBOLS AND NOT NT_ZEPHYR AND TARGET NtSvg)
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtMaterialSymbols>
             $<INSTALL_INTERFACE:include/nt6/QtMaterialSymbols>
     )
-    target_link_libraries(NtMaterialSymbols PUBLIC NtGui PRIVATE NtSvg)
+    # PUBLIC, for the link option of Nt SVG that keeps its renderer for QIcon in a static link.
+    target_link_libraries(NtMaterialSymbols PUBLIC NtGui NtSvg)
     nt_set_compile_options(NtMaterialSymbols)
     file(GLOB _nt_symbol_files CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/material-symbols/icons/*.svg)
     nt_add_resources(NtMaterialSymbols ntmaterialsymbols PREFIX /nt/material-symbols

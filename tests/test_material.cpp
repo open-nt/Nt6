@@ -937,6 +937,94 @@ void testFab() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A busy progress bar moves, as a line or as the loading indicator.
+void testBusy() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *line = new QProgressBar;
+    line->setRange(0, 0);
+    auto *loading = new QProgressBar;
+    loading->setProperty("materialProgress", QStringLiteral("loading"));
+    loading->setRange(0, 0);
+    auto *contained = new QProgressBar;
+    contained->setProperty("materialProgress", QStringLiteral("containedLoading"));
+    contained->setRange(0, 0);
+    layout->addWidget(line);
+    layout->addWidget(loading, 0, Qt::AlignHCenter);
+    layout->addWidget(contained, 0, Qt::AlignHCenter);
+    layout->addStretch(1);
+    window.resize(300, 200);
+    window.show();
+    QCoreApplication::processEvents();
+
+    CHECK(loading->size() == QSize(48, 48));
+    const auto count = [&](QWidget *widget, const QColor &color) {
+        const QImage image = widget->grab().toImage();
+        int found = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                found += near(image.pixelColor(x, y), color, 3) ? 1 : 0;
+        return found;
+    };
+    // The shape fills most of a circle of 38, and the container the circle of 48.
+    const int shape = count(loading, style->color(Role::Primary));
+    CHECK(shape > 600 && shape < 1150);
+    CHECK(pixel(*loading, 24, 24) == style->color(Role::Primary));
+    CHECK(count(contained, style->color(Role::PrimaryContainer)) > 500);
+    CHECK(near(pixel(*contained, 24, 24), style->color(Role::OnPrimaryContainer), 3));
+
+    class Paints : public QObject {
+    public:
+        int count = 0;
+        bool eventFilter(QObject *, QEvent *event) override {
+            count += event->type() == QEvent::Paint ? 1 : 0;
+            return false;
+        }
+    };
+    for (QProgressBar *bar : {line, loading}) {
+        Paints paints;
+        bar->installEventFilter(&paints);
+        bar->update();
+        const QImage before = bar->grab().toImage();
+        paints.count = 0;
+        wait(300);
+        CHECK(paints.count >= 5); // it goes on being painted,
+        CHECK(bar->grab().toImage() != before);
+        // until it is hidden,
+        bar->hide();
+        wait(100);
+        paints.count = 0;
+        wait(200);
+        CHECK(paints.count == 0);
+        bar->show();
+        wait(200);
+        CHECK(paints.count >= 3);
+        // or has a range, when there is nothing left to move.
+        bar->setRange(0, 100);
+        bar->setValue(50);
+        wait(150);
+        paints.count = 0;
+        wait(200);
+        CHECK(paints.count == 0);
+        bar->setRange(0, 0);
+        bar->removeEventFilter(&paints);
+    }
+
+    // Without motion a busy bar stands still, with a part of it in the accent color.
+    style->setMotionEnabled(false);
+    for (QProgressBar *bar : {line, loading}) {
+        const QImage first = bar->grab().toImage();
+        wait(120);
+        CHECK(bar->grab().toImage() == first);
+        CHECK(count(bar, style->color(Role::Primary)) > 100);
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -953,6 +1041,7 @@ int main(int argc, char *argv[]) {
     testButtonGroup();
     testSplitButton();
     testFab();
+    testBusy();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

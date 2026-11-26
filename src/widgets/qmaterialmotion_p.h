@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 namespace QtPrivate {
 
@@ -120,9 +121,26 @@ public:
         m_motions.insert(Key{widget, channel}, motion);
     }
 
+    // The time that things which never come to rest are drawn at, in seconds.
+    double seconds() const { return static_cast<double>(m_clock.nsecsElapsed()) * 1e-9; }
+
+    // Repaints `widget` once more, soon. What never rests asks each time it is painted, so that the repainting ends
+    // with the first time that it is not: when the widget is hidden, or has nothing left to show moving.
+    void keepPainting(const QWidget *widget) {
+        auto *asked = const_cast<QWidget *>(widget); // NOLINT(cppcoreguidelines-pro-type-const-cast)
+        for (const QPointer<QWidget> &other : m_painting) {
+            if (other.data() == asked)
+                return;
+        }
+        m_painting.push_back(asked);
+        if (!m_timer.isActive())
+            m_timer.start();
+    }
+
     bool isActive() const { return m_timer.isActive(); }
     void clear() {
         m_motions.clear();
+        m_painting.clear();
         m_timer.stop();
     }
 
@@ -145,7 +163,13 @@ private:
 
     void tick() {
         const double now = static_cast<double>(m_clock.nsecsElapsed()) * 1e-9;
-        bool any = false;
+        std::vector<QPointer<QWidget>> painting;
+        painting.swap(m_painting); // each asks again as it is painted
+        for (const QPointer<QWidget> &widget : painting) {
+            if (widget)
+                widget->update();
+        }
+        bool any = !painting.empty();
         for (auto it = m_motions.begin(); it != m_motions.end();) {
             if (it->widget.isNull()) {
                 it = m_motions.erase(it);
@@ -166,6 +190,7 @@ private:
     }
 
     QHash<Key, Motion> m_motions;
+    std::vector<QPointer<QWidget>> m_painting;
     QElapsedTimer m_clock;
     QTimer m_timer;
 };

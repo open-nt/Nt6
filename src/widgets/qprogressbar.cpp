@@ -28,7 +28,7 @@
 
     \differences
     The bar is horizontal and grows from the left: there is no \c setOrientation() and no \c setInvertedAppearance(). There
-    is no busy indicator for a range of 0 to 0, which shows an empty bar, and no \c setTextDirection(). The text is
+    is no busy indicator for a range of 0 to 0, which shows an empty bar (QMaterialStyle animates one), and no \c setTextDirection(). The text is
     always centered.
     \enddifferences
 

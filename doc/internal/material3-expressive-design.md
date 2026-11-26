@@ -56,7 +56,12 @@ changes to the application: `QApplication::setStyle("Material3")`.
    `materialButton` = `"fab"`; a menu on it opens as the FAB menu, which `QPushButton::showMenu()` leaves to the
    private `popupFabMenu()`. The menu is marked with `_nt_fabMenu`: no panel, a pill of 56 for each action, 4 apart
    and 8 above the button, which shows as a round close button. To do: the opening animation of the items, the other
-   sizes, the floating toolbar and the loading indicator.
+   sizes and the floating toolbar.
+   **Done:** a busy `QProgressBar` (range 0 to 0) moves: as a line, two parts that cross it, or, with
+   `materialProgress` = `"loading"` or `"containedLoading"`, as the loading indicator (a shape of 38, in a container
+   of 48). Compose defines its shapes in code, not as tokens, so Nt has its own: circles with 2 to 10 swellings,
+   changing along a spring while they turn. What never rests asks `QtPrivate::Animator::keepPainting()` each time it
+   is painted, so repainting stops once it is hidden or has a range.
 
 ## Open points
 

@@ -203,6 +203,12 @@ std::uint32_t mixPixels(std::uint32_t below, std::uint32_t above, std::uint32_t 
     return 0xff000000u | outer | green;
 }
 
+// A run of pixels of an image as pixels of the screen. A plain loop, so that the compiler does several at a time.
+void copyPixels(const std::uint32_t *source, std::uint32_t *row, int count) {
+    for (int i = 0; i < count; ++i)
+        row[i] = screenPixel(source[i]);
+}
+
 } // namespace
 
 void QAndroidBackingStore::resize(const QSize &size, const QRegion &staticContents) {
@@ -249,15 +255,22 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
     }
     auto *pixels = static_cast<std::uint32_t *>(buffer.bits);
     const auto line = [&](int y) { return pixels + static_cast<std::ptrdiff_t>(y) * buffer.stride; };
-    // Black to begin with, for what is under the system bars. Every time: the buffers take turns, and one may still
-    // hold a frame that was painted before the sizes of the bars were known.
-    for (int y = 0; y < buffer.height; ++y)
-        std::fill_n(line(y), buffer.width, 0xff000000u);
-
     // The windows lie inside the system bars.
     const QPoint origin = m_screen->pixelOrigin();
     const QRect inside(origin, QSize(buffer.width - origin.x(), buffer.height - origin.y()));
     const qreal ratio = m_screen->ratio();
+    // Black where the window that fills the screen is not: under the system bars. Every time: the buffers take turns,
+    // and one may still hold a frame that was painted before the sizes of the bars were known. The whole frame is made
+    // each time: to keep what has not changed, the system would copy it from the frame before, which takes longer.
+    const QAndroidBackingStore *bottom = storeOf(windows[base]->window());
+    const QRect under = bottom && !bottom->m_image.isNull() ? QRect(origin, bottom->m_image.size()) : QRect();
+    for (int y = 0; y < buffer.height; ++y) {
+        const bool beside = y >= under.top() && y <= under.bottom();
+        const int before = beside ? std::clamp(under.left(), 0, buffer.width) : buffer.width;
+        const int after = beside ? std::clamp(under.right() + 1, 0, buffer.width) : buffer.width;
+        std::fill(line(y), line(y) + before, 0xff000000u);
+        std::fill(line(y) + after, line(y) + buffer.width, 0xff000000u);
+    }
     for (std::size_t i = base; i < windows.size(); ++i) {
         const QAndroidBackingStore *store = storeOf(windows[i]->window());
         if (!store || store->m_image.isNull())
@@ -285,9 +298,15 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
             std::uint32_t *row = line(at.y() + y) + at.x();
             // How far into a rounded corner this row and a column are.
             const double dy = radius - std::min(y + 0.5, image.height() - y - 0.5);
+            if (dy <= 0) {
+                // Not at a corner: the whole row is copied.
+                if (right > left)
+                    copyPixels(source + left, row + left, right - left);
+                continue;
+            }
             for (int x = left; x < right; ++x) {
                 const double dx = radius - std::min(x + 0.5, image.width() - x - 0.5);
-                if (dx <= 0 || dy <= 0) {
+                if (dx <= 0) {
                     row[x] = screenPixel(source[x]);
                     continue;
                 }

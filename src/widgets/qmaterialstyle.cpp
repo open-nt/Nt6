@@ -88,6 +88,10 @@ constexpr int fabMenuItemSpace = 4; // between the items of a FAB menu
 constexpr int fabMenuItemPadding = 24;
 constexpr int fabMenuGap = 8; // between a FAB menu and its button
 const char *const fabMenuProperty = "_nt_fabMenu";
+constexpr int loadingSize = 48;           // the container of the loading indicator
+constexpr double loadingRadius = 19;      // of the shape that turns and changes in it
+constexpr double loadingStep = 0.65;      // seconds from one shape to the next
+constexpr double busyPeriod = 1.8;        // seconds for a part of a busy progress bar to cross it
 constexpr double listRadius = 4;          // the corners of a row of a list,
 constexpr double listSelectedRadius = 16; // and of one that is chosen or held
 constexpr double listPressSlop = 8;       // how far a press may stray and still be one
@@ -202,6 +206,27 @@ int fabMenuItemWidth(const QStyleOptionMenuItem &item) {
            QFontMetrics(fabMenuFont(item.font)).horizontalAdvance(menuLabel(item.text));
 }
 
+// How the loading indicator is to be drawn, if a progress bar asks for it with its property and is busy.
+enum class Loading { No, Plain, Contained };
+
+Loading loadingOf(const QWidget *widget) {
+    const QString name = widget ? widget->property("materialProgress").toString() : QString();
+    if (name == QLatin1String("loading"))
+        return Loading::Plain;
+    if (name == QLatin1String("containedLoading"))
+        return Loading::Contained;
+    return Loading::No;
+}
+
+// The shapes that the loading indicator goes through: circles with `lobes` swellings, each `depth` of the radius high.
+// They are Nt's own.
+struct LoadingShape {
+    int lobes;
+    double depth;
+};
+constexpr LoadingShape loadingShapes[] = {{10, 0.07}, {9, 0.045}, {5, 0.09}, {2, 0.22},
+                                          {8, 0.10},  {4, 0.13},  {2, 0.12}};
+
 enum Channel {
     CornerChannel, // of the corners at the left
     RightCornerChannel,
@@ -286,6 +311,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         text (an extended FAB). Without an icon and a text it shows a plus. A menu that it is given with
         QPushButton::setMenu() opens as Material's FAB menu: a pill for each action above the button, which turns into
         the button that closes it. A layout stretches a FAB like any button, so add it with an alignment.
+    \li \c materialProgress of a QProgressBar: \c "loading" shows a busy bar (a range of 0 to 0) as the loading
+        indicator, a shape of 38 that turns and changes, and \c "containedLoading" puts it in a round container of 48.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
@@ -319,7 +346,9 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     Split buttons are of the small size, and FABs of the standard one. The items of a FAB menu appear at once, without
     an animation, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
-    button widens, is not drawn differently from buttons in a row. A slider shows no value bubble, and a busy progress bar shows only its track. Ripples are those of buttons only: a
+    button widens, is not drawn differently from buttons in a row. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
+    do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
+    going on, not how far it is. There is no wavy progress bar. Ripples are those of buttons only: a
     check box, a radio button, a tab or a menu row shows a press without one. The colors of buttons, labels and radio
     buttons change at once. The line under the tabs slides on a horizontal QTabBar, and not on one at the side. In an
     item view nothing moves.
@@ -1146,9 +1175,62 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
 }
 
 // A thin rounded line: what is done, a gap, what is left, and a dot at the far end.
-void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *painter) const {
+void QMaterialStyle::drawLoadingIndicator(const QStyleOption *option, QPainter *painter, const QWidget *widget,
+                                          bool contained) const {
+    double time = 0;
+    if (m_motion && widget && enabled(option)) {
+        time = m_animator->seconds();
+        m_animator->keepPainting(widget);
+    }
+    // From one shape to the next along a spring that passes its mark a little, turning all the while, and a quarter
+    // turn further with each change.
+    constexpr int count = static_cast<int>(std::size(loadingShapes));
+    const double steps = time / loadingStep;
+    const double whole = std::floor(steps);
+    const double part =
+        QtPrivate::Spring(0, 0, 1, QtPrivate::SpringSpec{0.6, 200}).at((steps - whole) * loadingStep).position;
+    const int index = static_cast<int>(std::fmod(whole, count));
+    const LoadingShape from = loadingShapes[index];
+    const LoadingShape to = loadingShapes[(index + 1) % count];
+    const double turn = time * 50 + std::fmod(whole + part, 4.0) * 90;
+    const QPointF centre = QRectF(option->rect).center();
+    constexpr double pi = 3.14159265358979323846;
+    constexpr int corners = 120;
+    QPainterPath shape;
+    for (int i = 0; i < corners; ++i) {
+        const double angle = 2 * pi * i / corners;
+        const auto radiusOf = [angle](const LoadingShape &s) {
+            return (1 + s.depth * std::cos(s.lobes * angle)) / (1 + s.depth);
+        };
+        const double radius = loadingRadius * (radiusOf(from) + (radiusOf(to) - radiusOf(from)) * part);
+        const double turned = angle + turn * pi / 180;
+        const QPointF point = centre + QPointF(radius * std::cos(turned), radius * std::sin(turned));
+        if (i == 0)
+            shape.moveTo(point);
+        else
+            shape.lineTo(point);
+    }
+    shape.closeSubpath();
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    if (contained)
+        fillRounded(painter,
+                    QRectF(centre.x() - loadingSize / 2.0, centre.y() - loadingSize / 2.0, loadingSize, loadingSize),
+                    loadingSize / 2.0, color(Role::PrimaryContainer));
+    const QColor ink = !enabled(option) ? withOpacity(color(Role::OnSurface), disabledContentOpacity)
+                                        : color(contained ? Role::OnPrimaryContainer : Role::Primary);
+    painter->fillPath(shape, QBrush(ink));
+    painter->restore();
+}
+
+void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
     const auto *bar = static_cast<const QStyleOptionProgressBar *>(option);
     const QRect r = option->rect;
+    const bool busy = bar->minimum == 0 && bar->maximum == 0;
+    if (const Loading loading = loadingOf(widget); busy && loading != Loading::No) {
+        drawLoadingIndicator(option, painter, widget, loading == Loading::Contained);
+        return;
+    }
     const bool vertical = !(option->state & State_Horizontal) && r.height() > r.width();
     QRectF line(r);
     if (bar->textVisible && !bar->text.isEmpty() && !vertical) {
@@ -1174,12 +1256,46 @@ void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *paint
         enabled(option) ? color(Role::Primary) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
     const QColor track = enabled(option) ? color(Role::SecondaryContainer)
                                          : withOpacity(color(Role::OnSurface), disabledContainerOpacity);
+    const double radius = progressThickness / 2.0;
+    if (busy && enabled(option)) {
+        // Two parts that cross the bar, half a period apart: the front of each leaves first, and its back follows.
+        // Without motion, one stands in the middle.
+        std::vector<std::pair<double, double>> parts{{0.3, 0.6}};
+        if (m_motion && widget) {
+            const double time = m_animator->seconds() / busyPeriod;
+            m_animator->keepPainting(widget);
+            const auto eased = [](double t) {
+                const double u = std::clamp(t, 0.0, 1.0);
+                return u * u * (3 - 2 * u);
+            };
+            parts.clear();
+            for (const double offset : {0.0, 0.5}) {
+                const double at = std::fmod(time + offset, 1.0);
+                parts.emplace_back(eased((at - 0.3) / 0.7), eased(at / 0.7));
+            }
+            std::sort(parts.begin(), parts.end());
+        }
+        // The track fills what is between them, apart from them.
+        double from = 0;
+        for (const auto &[back, front] : parts) {
+            const double start = back * length;
+            const double end = front * length;
+            if (end - start < 1)
+                continue;
+            if (start - progressGap - from >= 1)
+                fillRounded(painter, part(from, start - progressGap), radius, track);
+            fillRounded(painter, part(start, end), radius, active);
+            from = std::max(from, end + progressGap);
+        }
+        if (length - from >= 1)
+            fillRounded(painter, part(from, length), radius, track);
+        return;
+    }
     const qint64 span = static_cast<qint64>(bar->maximum) - bar->minimum;
     double done = 0;
     if (span > 0 && bar->progress > bar->minimum)
         done = length * static_cast<double>(std::min<qint64>(bar->progress, bar->maximum) - bar->minimum) /
                static_cast<double>(span);
-    const double radius = progressThickness / 2.0;
     if (done > 0)
         fillRounded(painter, part(0, std::max<double>(done, progressThickness)), radius, active);
     const double rest = done > 0 ? std::max<double>(done, progressThickness) + progressGap : 0;
@@ -1465,7 +1581,7 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
         if (element == CE_Slider)
             drawSlider(option, painter, widget);
         else if (element == CE_ProgressBar)
-            drawProgressBar(option, painter);
+            drawProgressBar(option, painter, widget);
         else
             drawTab(option, painter, widget);
         painter->restore();
@@ -1619,6 +1735,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         return QSize(std::max(width, menuMinimumWidth), std::max(menuItemHeight, contentsSize.height()));
     }
     case CT_ProgressBar:
+        if (loadingOf(widget) != Loading::No)
+            return QSize(loadingSize, loadingSize);
         return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));
     case CT_TabBarTab:
         return QSize(std::max(touchTarget, contentsSize.width() + 2 * tabPadding), tabHeight);

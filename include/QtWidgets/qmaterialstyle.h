@@ -115,7 +115,9 @@ private:
     bool popupFabMenu(QPushButton *button, QMenu *menu) const;
     void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter, const QWidget *widget) const;
     void drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
-    void drawProgressBar(const QStyleOption *option, QPainter *painter) const;
+    void drawProgressBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
+    void drawLoadingIndicator(const QStyleOption *option, QPainter *painter, const QWidget *widget,
+                              bool contained) const;
     void drawTab(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawComboBox(const QStyleOption *option, QPainter *painter) const;
     void drawMenuItem(const QStyleOption *option, QPainter *painter) const;

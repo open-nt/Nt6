@@ -6,6 +6,7 @@
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qhash.h>
+#include <QtCore/qscopeguard.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qguiapplication.h>
@@ -66,6 +67,11 @@ constexpr int sliderGap = 6;     // between the handle and each part of the trac
 constexpr int sliderLength = 16; // the room of the handle along the track
 constexpr int stopSize = 4;      // the dots at the ends of tracks, and of the steps of a slider
 constexpr int progressThickness = 4;
+constexpr double waveHeight = 3;       // of the wavy progress bar, above and below its line,
+constexpr double waveLength = 40;      // from one crest to the next,
+constexpr double busyWaveLength = 20;  // and of a busy one
+constexpr double waveSpeed = 40;       // how far it travels in a second
+constexpr int wavyProgressHeight = 14; // the room of a wavy bar
 constexpr int progressGap = 4;
 constexpr int progressHeight = 8;
 constexpr int tabHeight = 48;
@@ -261,7 +267,8 @@ enum Channel {
     RippleRadiusChannel,
     RippleOpacityChannel,
     TabCentreChannel,
-    TabWidthChannel
+    TabWidthChannel,
+    WaveChannel
 };
 const char *const polishedFont = "_nt_materialFont";
 const char *const polishedPalette = "_nt_materialPalette";
@@ -332,7 +339,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         text (an extended FAB). Without an icon and a text it shows a plus. A menu that it is given with
         QPushButton::setMenu() opens as Material's FAB menu: a pill for each action above the button, which turns into
         the button that closes it. A layout stretches a FAB like any button, so add it with an alignment.
-    \li \c materialProgress of a QProgressBar: \c "loading" shows a busy bar (a range of 0 to 0) as the loading
+    \li \c materialProgress of a QProgressBar: \c "wavy" draws the part that is done as a wave, which travels while
+        motion is enabled and is flat below a tenth and from 95 in 100; a busy bar's parts are waves too. \c "loading" shows a busy bar (a range of 0 to 0) as the loading
         indicator, a shape of 38 that turns and changes, and \c "containedLoading" puts it in a round container of 48.
     \li \c materialToolBar of a QToolBar: \c "floating" makes it a floating toolbar, a pill of 64 with a shadow
         that goes over the content, in a row or, with a vertical orientation, in a column; \c "floatingVibrant" is the
@@ -375,7 +383,7 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
-    going on, not how far it is. There is no wavy progress bar. A floating toolbar does not hide as the content is scrolled, and has no menu for
+    going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
     what does not fit. Icons keep their own colors. Ripples are those of buttons only: a
     check box, a radio button, a tab or a menu row shows a press without one. The colors of buttons, labels and radio
     buttons change at once. The line under the tabs slides on a horizontal QTabBar, and not on one at the side. In an
@@ -1338,7 +1346,40 @@ void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *paint
         enabled(option) ? color(Role::Primary) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
     const QColor track = enabled(option) ? color(Role::SecondaryContainer)
                                          : withOpacity(color(Role::OnSurface), disabledContainerOpacity);
+    // A wavy bar: the part that is done is a wave, which travels while motion is on. The track stays straight.
+    const bool wavy = !vertical && widget && widget->property("materialProgress").toString() == QLatin1String("wavy");
     const double radius = progressThickness / 2.0;
+    const auto drawActive = [&](double from, double to, double height, double crest, double phase) {
+        if (!wavy || height < 0.05) {
+            fillRounded(painter, part(from, to), radius, active);
+            return;
+        }
+        // A line along the wave, whose round ends stay within `from` and `to`.
+        constexpr double pi = 3.14159265358979323846;
+        const double first = from + radius;
+        const double last = std::max(first, to - radius);
+        const auto point = [&](double along) {
+            const double x = reversed ? line.right() - along : line.left() + along;
+            return QPointF(x, line.center().y() + height * std::sin(2 * pi * (along - phase) / crest));
+        };
+        QPainterPath wave;
+        wave.moveTo(point(first));
+        const int steps = static_cast<int>(last - first);
+        for (int step = 1; step <= steps; ++step)
+            wave.lineTo(point(first + step));
+        wave.lineTo(point(last));
+        painter->strokePath(wave, QPen(QBrush(active), progressThickness, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    };
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    const auto restore = qScopeGuard([painter] { painter->restore(); });
+    // How far the wave has travelled; asks to be painted again, as it goes on.
+    const auto travelled = [&] {
+        if (!m_motion || !widget || !enabled(option))
+            return 0.0;
+        m_animator->keepPainting(widget);
+        return m_animator->seconds() * waveSpeed;
+    };
     if (busy && enabled(option)) {
         // Two parts that cross the bar, half a period apart: the front of each leaves first, and its back follows.
         // Without motion, one stands in the middle.
@@ -1358,6 +1399,7 @@ void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *paint
             std::sort(parts.begin(), parts.end());
         }
         // The track fills what is between them, apart from them.
+        const double phase = wavy ? travelled() : 0;
         double from = 0;
         for (const auto &[back, front] : parts) {
             const double start = back * length;
@@ -1366,7 +1408,7 @@ void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *paint
                 continue;
             if (start - progressGap - from >= 1)
                 fillRounded(painter, part(from, start - progressGap), radius, track);
-            fillRounded(painter, part(start, end), radius, active);
+            drawActive(start, end, waveHeight, busyWaveLength, phase);
             from = std::max(from, end + progressGap);
         }
         if (length - from >= 1)
@@ -1378,8 +1420,20 @@ void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *paint
     if (span > 0 && bar->progress > bar->minimum)
         done = length * static_cast<double>(std::min<qint64>(bar->progress, bar->maximum) - bar->minimum) /
                static_cast<double>(span);
-    if (done > 0)
-        fillRounded(painter, part(0, std::max<double>(done, progressThickness)), radius, active);
+    if (done > 0) {
+        double height = 0;
+        if (wavy && enabled(option)) {
+            // Flat when there is little to show a wave in, and when nearly all is done; it rises and settles.
+            const double share = done / length;
+            height = share > 0.1 && share < 0.95 ? waveHeight : 0;
+            if (m_motion)
+                height =
+                    std::clamp(m_animator->value(widget, WaveChannel, height, QtPrivate::defaultEffectsSpring, 0.02),
+                               0.0, waveHeight);
+        }
+        const double phase = height >= 0.05 ? travelled() : 0;
+        drawActive(0, std::max<double>(done, progressThickness), height, waveLength, phase);
+    }
     const double rest = done > 0 ? std::max<double>(done, progressThickness) + progressGap : 0;
     if (length - rest > 0) {
         fillRounded(painter, part(rest, length), radius, track);
@@ -1821,6 +1875,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
     case CT_ProgressBar:
         if (loadingOf(widget) != Loading::No)
             return QSize(loadingSize, loadingSize);
+        if (widget && widget->property("materialProgress").toString() == QLatin1String("wavy"))
+            return QSize(contentsSize.width(), std::max(wavyProgressHeight, contentsSize.height()));
         return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));
     case CT_TabBarTab:
         return QSize(std::max(touchTarget, contentsSize.width() + 2 * tabPadding), tabHeight);

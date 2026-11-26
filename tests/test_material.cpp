@@ -1169,6 +1169,88 @@ void testFabMenuMotion() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// The wavy progress bar.
+void testWavyProgress() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *bar = new QProgressBar;
+    bar->setProperty("materialProgress", QStringLiteral("wavy"));
+    bar->setTextVisible(false);
+    bar->setValue(60);
+    layout->addWidget(bar);
+    layout->addStretch(1);
+    window.resize(300, 100);
+    window.show();
+    QCoreApplication::processEvents();
+
+    CHECK(bar->height() >= 14); // room for the wave, or for its text line if that is higher
+    // Ink above or below where a straight line of 4 would be, in the part that is done or in the track.
+    const auto off = [&](double from, double to) {
+        const QImage image = bar->grab().toImage();
+        int found = 0;
+        const double middle = image.height() / 2.0;
+        for (int x = static_cast<int>(from * image.width()); x < static_cast<int>(to * image.width()); ++x)
+            for (int y = 0; y < image.height(); ++y)
+                if (std::abs(y + 0.5 - middle) > 3 && near(image.pixelColor(x, y), style->color(Role::Primary), 40))
+                    ++found;
+        return found;
+    };
+    wait(600); // the wave rises
+    CHECK(off(0.05, 0.55) > 40);
+    CHECK(off(0.65, 0.95) == 0); // the track is straight
+
+    class Paints : public QObject {
+    public:
+        int count = 0;
+        bool eventFilter(QObject *, QEvent *event) override {
+            count += event->type() == QEvent::Paint ? 1 : 0;
+            return false;
+        }
+    } paints;
+    bar->installEventFilter(&paints);
+    const QImage first = bar->grab().toImage();
+    paints.count = 0;
+    wait(210);
+    CHECK(paints.count >= 4); // the wave travels
+    CHECK(bar->grab().toImage() != first);
+
+    // Done, or hardly begun, it is flat and left alone.
+    for (const int value : {100, 5}) {
+        bar->setValue(value);
+        wait(700);
+        paints.count = 0;
+        wait(200);
+        CHECK(paints.count == 0);
+        CHECK(off(0.0, 1.0) == 0);
+    }
+
+    // Busy, its parts are waves.
+    bar->setRange(0, 0);
+    int most = 0;
+    for (int i = 0; i < 6; ++i) {
+        wait(80);
+        most = std::max(most, off(0.0, 1.0));
+    }
+    CHECK(most > 20);
+
+    // Without motion the wave stands still.
+    bar->setRange(0, 100);
+    bar->setValue(60);
+    style->setMotionEnabled(false);
+    const QImage still = bar->grab().toImage();
+    wait(150);
+    CHECK(bar->grab().toImage() == still);
+    CHECK(off(0.05, 0.55) > 40);
+    // A bar that did not ask for a wave has none.
+    bar->setProperty("materialProgress", QVariant());
+    CHECK(off(0.0, 1.0) == 0);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1188,6 +1270,7 @@ int main(int argc, char *argv[]) {
     testFabMenuMotion();
     testBusy();
     testFloatingToolBar();
+    testWavyProgress();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

@@ -42,7 +42,7 @@ changes to the application: `QApplication::setStyle("Material3")`.
    held or until it has nearly filled it, then fades; it takes the place of the pressed state layer. `QTabBar` paints
    a tab at a time, so after the tabs it calls the private `QMaterialStyle::drawTabIndicator()` (a friend) to draw
    the one line. To do: ripples on check boxes, radio buttons, tabs and menu rows; fading of button, label and radio
-   colours; the wavy progress indicator. Motion is kept per widget, so item views, which draw many indicators, do
+   colours. Motion is kept per widget, so item views, which draw many indicators, do
    not move.
 4. New components, Nt only: button groups, split button, FAB menu, floating toolbar, loading indicator.
    **Started:** the connected button group (small), which takes the place of segmented buttons, is the property
@@ -68,10 +68,13 @@ changes to the application: `QApplication::setStyle("Material3")`.
    changing along a spring while they turn. What never rests asks `QtPrivate::Animator::keepPainting()` each time it
    is painted, so repainting stops once it is hidden or has a range.
 
+The wavy progress bar is `materialProgress` = `"wavy"` on a horizontal `QProgressBar`: the done part is a sine 3 high
+with a wavelength of 40 (20 for the parts of a busy bar), travelling 40 a second, flat at a tenth and below and from
+95%; the height springs between the two. The track stays straight.
+
 ## Open points
 
 - `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected
   label is not accented.
-- The wavy progress indicator of the Expressive design (amplitude 3, wavelength 40).
 - The system's dynamic colour (Android 12 and later) as the seed.
 - The emphasized type styles and the Roboto Flex variable font axes.

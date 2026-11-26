@@ -41,9 +41,8 @@ changes to the application: `QApplication::setStyle("Material3")`.
    effects spring. A button's ripple spreads from the press along the slow effects spring, stays while the button is
    held or until it has nearly filled it, then fades; it takes the place of the pressed state layer. `QTabBar` paints
    a tab at a time, so after the tabs it calls the private `QMaterialStyle::drawTabIndicator()` (a friend) to draw
-   the one line. To do: ripples on check boxes, radio buttons, tabs and menu rows; fading of button, label and radio
-   colours. Motion is kept per widget, so item views, which draw many indicators, do
-   not move.
+   the one line. To do: fading of button, label and radio colours. Motion is kept per widget, so item views, which
+   draw many indicators, do not move (the rows of a list ripple).
 4. New components, Nt only: button groups, split button, FAB menu, floating toolbar, loading indicator.
    **Started:** the connected button group (small), which takes the place of segmented buttons, is the property
    `materialButtonGroup` = `"connected"` on the widget that holds the buttons: 2 between them (the style's
@@ -71,6 +70,13 @@ changes to the application: `QApplication::setStyle("Material3")`.
 The wavy progress bar is `materialProgress` = `"wavy"` on a horizontal `QProgressBar`: the done part is a sine 3 high
 with a wavelength of 40 (20 for the parts of a busy bar), travelling 40 a second, flat at a tenth and below and from
 95%; the height springs between the two. The track stays straight.
+
+Check boxes, radio buttons, switches, tabs and menu rows ripple too. The first three are drawn with their middle (a
+switch's handle when off) 20 in from the left, so that the circle of 40 around the control fits in the widget and the
+three line up; the ripple spreads from the control, and only for a press that the button takes (not on the room past
+its label). A tab's and a menu row's ripples stay within them. A widget that is hidden forgets its press, so that a
+menu opens clean. `QMenu` now has the style polish it before it is measured: it was too narrow for Material's font the
+first time it opened.
 
 ## Open points
 

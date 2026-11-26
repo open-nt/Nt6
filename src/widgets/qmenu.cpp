@@ -456,11 +456,15 @@ QWidget *QMenu::host() const {
 // Shows the menu with its top left corner at `position` in the window `host`, or above or to the left if it does not fit.
 // `leftEdge` is where the right edge goes when the menu does not fit on the right, for a submenu; -1 to keep it in the window.
 void QMenu::showAt(QWidget *host, const QPoint &position, QAction *at, int leftEdge) {
-    layoutItems();
-    if (m_items.empty() || !host)
+    if (!host)
         return;
     if (parentWidget() != host)
         setParent(host);
+    // The style may give the menu another font, which its size must be measured with, the first time it opens too.
+    ensurePolished();
+    layoutItems();
+    if (m_items.empty())
+        return;
     const QSize size = sizeHint();
     resize(size);
     QPoint p = position;

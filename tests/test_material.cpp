@@ -1270,6 +1270,117 @@ void testWavyProgress() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A press on a check box, a radio button, a switch, a tab and a row of a menu.
+void testMoreRipples() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *box = new QCheckBox(QStringLiteral("Check"));
+    auto *radio = new QRadioButton(QStringLiteral("Radio"));
+    auto *toggle = new QCheckBox(QStringLiteral("Switch"));
+    toggle->setProperty("materialSwitch", true);
+    auto *tabs = new QTabBar;
+    tabs->setExpanding(true);
+    tabs->addTab(QStringLiteral("One"));
+    tabs->addTab(QStringLiteral("Two"));
+    layout->addWidget(box);
+    layout->addWidget(radio);
+    layout->addWidget(toggle);
+    layout->addWidget(tabs);
+    layout->addStretch(1);
+    window.resize(320, 460);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // The three are in a column: the middle of a box, of a circle and of the handle of a switch that is off, 20 in.
+    QStyleOptionButton option;
+    option.rect = QRect(0, 0, 200, 48);
+    CHECK(style->subElementRect(QStyle::SE_CheckBoxIndicator, &option, box) == QRect(11, 15, 18, 18));
+    CHECK(style->subElementRect(QStyle::SE_RadioButtonIndicator, &option, radio) == QRect(10, 14, 20, 20));
+    CHECK(style->subElementRect(QStyle::SE_CheckBoxIndicator, &option, toggle) == QRect(4, 8, 52, 32));
+    CHECK(style->subElementRect(QStyle::SE_CheckBoxContents, &option, box).left() == 41);
+    CHECK(box->sizeHint().width() == 11 + 18 + 12 + box->fontMetrics().horizontalAdvance(QStringLiteral("Check")));
+
+    const auto at = [&](QWidget *widget, const QPoint &point) {
+        const QPoint in = widget->mapTo(&window, point);
+        return window.grab().toImage().pixelColor(in.x(), in.y());
+    };
+    const auto mouse = [&](QWidget *widget, QEvent::Type type, const QPointF &where) {
+        QMouseEvent event(type, where, widget->mapToGlobal(where.toPoint()), Qt::LeftButton,
+                          type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+        QApplication::sendEvent(widget, &event);
+    };
+
+    // The circle around the control, pressed anywhere on the button.
+    for (QAbstractButton *button : {static_cast<QAbstractButton *>(box), static_cast<QAbstractButton *>(radio),
+                                    static_cast<QAbstractButton *>(toggle)}) {
+        const int middle = button->height() / 2;
+        const QPoint inside(20, middle - 18);
+        const QPoint outside(1, middle - 19);
+        const QColor resting = at(button, inside);
+        const QPointF press(button->sizeHint().width() - 6, middle); // on the label
+        mouse(button, QEvent::MouseButtonPress, press);
+        CHECK(near(at(button, inside), resting, 2)); // it has yet to spread, from the control
+        wait(600);
+        CHECK(!near(at(button, inside), resting, 5));
+        CHECK(near(at(button, outside), resting, 2));
+        CHECK(near(at(button, QPoint(static_cast<int>(press.x()), middle - 18)), resting, 2)); // not where pressed
+        mouse(button, QEvent::MouseButtonRelease, press);
+        wait(900);
+        CHECK(near(at(button, inside), resting, 2));
+        // Past the label there is nothing to press, and nothing to show.
+        const QPointF past(button->width() - 4, middle);
+        mouse(button, QEvent::MouseButtonPress, past);
+        CHECK(!button->isDown());
+        wait(300);
+        CHECK(near(at(button, inside), resting, 2));
+        mouse(button, QEvent::MouseButtonRelease, past);
+    }
+
+    // A tab: within the tab that was pressed.
+    const QRect second = tabs->tabRect(1);
+    const QPoint far(second.right() - 6, 10);
+    const QPoint other(tabs->tabRect(0).left() + 6, 10);
+    const QColor tabResting = at(tabs, far);
+    mouse(tabs, QEvent::MouseButtonPress, QPointF(second.left() + 20, 24));
+    wait(600);
+    CHECK(!near(at(tabs, far), tabResting, 5));
+    CHECK(near(at(tabs, other), tabResting, 2));
+    mouse(tabs, QEvent::MouseButtonRelease, QPointF(second.left() + 20, 24));
+    wait(900);
+    CHECK(near(at(tabs, far), tabResting, 2));
+
+    // A row of a menu; one that closed with a choice shows nothing of it when it opens again.
+    auto *menu = new QMenu(tabs);
+    QAction *first = menu->addAction(QStringLiteral("A rather long first item"));
+    menu->addAction(QStringLiteral("Second"));
+    menu->popup(window.mapToGlobal(QPoint(20, 260)));
+    QCoreApplication::processEvents();
+    const QRect row = menu->actionGeometry(first);
+    CHECK(menu->width() >= row.width()); // as wide as its rows, in the style's font, the first time it opens
+    const QPoint end(row.right() - 4, row.top() + 6);
+    mouse(menu, QEvent::MouseMove, QPointF(40, row.center().y()));
+    const QColor hovered = at(menu, end);
+    mouse(menu, QEvent::MouseButtonPress, QPointF(40, row.center().y()));
+    wait(600);
+    CHECK(!near(at(menu, end), hovered, 5));
+    mouse(menu, QEvent::MouseButtonRelease, QPointF(40, row.center().y()));
+    QCoreApplication::processEvents();
+    CHECK(!menu->isVisible());
+    wait(300);
+    menu->popup(window.mapToGlobal(QPoint(20, 260)));
+    QCoreApplication::processEvents();
+    mouse(menu, QEvent::MouseMove, QPointF(40, row.center().y()));
+    CHECK(near(at(menu, end), hovered, 2));
+    wait(100);
+    CHECK(near(at(menu, end), hovered, 2));
+    menu->hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1290,6 +1401,7 @@ int main(int argc, char *argv[]) {
     testBusy();
     testFloatingToolBar();
     testWavyProgress();
+    testMoreRipples();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

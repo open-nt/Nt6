@@ -127,7 +127,7 @@ private:
                               bool contained) const;
     void drawTab(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawComboBox(const QStyleOption *option, QPainter *painter) const;
-    void drawMenuItem(const QStyleOption *option, QPainter *painter) const;
+    void drawMenuItem(const QStyleOption *option, QPainter *painter, const QWidget *menu) const;
     void drawFabMenuItem(const QStyleOption *option, QPainter *painter, const QWidget *menu) const;
     QColor buttonLabelColor(const QStyleOption *option, const QWidget *widget) const;
     bool keyboardFocus(const QStyleOption *option) const;
@@ -136,7 +136,10 @@ private:
     double animated(const QWidget *widget, int channel, double target, const QtPrivate::SpringSpec &spring,
                     double precision) const;
     void drawRipple(QPainter *painter, const QWidget *widget, const QPainterPath &outline, const QRectF &shape,
-                    bool held, const QColor &ink) const;
+                    const QPointF &origin, bool held, const QColor &ink) const;
+    // What a press, the pointer or the focus shows around the control of a check box, a radio button or a switch.
+    void drawChoicePress(const QStyleOption *option, QPainter *painter, const QWidget *widget, const QPointF &centre,
+                         const QColor &ink) const;
     // The background of a row of a list: its selection, and the press on it. The views that paint rows ask for it.
     friend class QListWidget;
     friend class QStyledItemDelegate;
@@ -154,5 +157,5 @@ private:
     std::unique_ptr<QtPrivate::Animator> m_animator;
     QPointer<QWidget> m_rippleWidget; // the button that was pressed last, and where
     QPointF m_rippleOrigin;
-    bool m_rowPressed = false; // a row of a list is held down
+    bool m_rowPressed = false; // a row of a list, a tab or a row of a menu is held down
 };

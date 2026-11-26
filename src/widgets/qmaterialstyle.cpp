@@ -56,6 +56,8 @@ constexpr int textFieldCorner = 4;
 constexpr int textFieldPadding = 16;
 constexpr int checkBoxSize = 18;
 constexpr int radioSize = 20;
+constexpr int choiceCentre = 20; // where the middle of a check box, a radio button or a switch's handle is, and the
+constexpr int choiceRadius = 20; // radius of the circle around it that shows a press
 constexpr int indicatorSpace = 12;
 constexpr int switchWidth = 52;
 constexpr int switchHeight = 32;
@@ -254,6 +256,10 @@ bool isToolBarItem(const QWidget *widget) {
     return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant");
 }
 
+// How far in from the left a check box, a radio button or a switch is drawn, so that the circle of a press fits: its
+// middle, or the middle of the handle of a switch that is off, is choiceCentre in.
+int choiceInset(int width, bool toggle) { return choiceCentre - (toggle ? switchHeight : width) / 2; }
+
 enum Channel {
     CornerChannel, // of the corners at the left
     RightCornerChannel,
@@ -384,8 +390,9 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     button widens, is not drawn differently from buttons in a row. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
     going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
-    what does not fit. Icons keep their own colors. Ripples are those of buttons only: a
-    check box, a radio button, a tab or a menu row shows a press without one. The colors of buttons, labels and radio
+    what does not fit. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
+    lists and menus, and the tabs of a horizontal QTabBar ripple; trees and tables do not. A check box, a radio button
+    and a switch are drawn a little in from the left, their middle 20 in, so that the circle of the press fits. The colors of buttons, labels and radio
     buttons change at once. The line under the tabs slides on a horizontal QTabBar, and not on one at the side. In an
     item view nothing moves.
     \enddifferences
@@ -603,7 +610,7 @@ double QMaterialStyle::animated(const QWidget *widget, int channel, double targe
 
 // A circle that spreads from where the button was pressed until it fills it, and fades once the press has ended.
 void QMaterialStyle::drawRipple(QPainter *painter, const QWidget *widget, const QPainterPath &outline,
-                                const QRectF &shape, bool held, const QColor &ink) const {
+                                const QRectF &shape, const QPointF &origin, bool held, const QColor &ink) const {
     if (!m_motion || !widget || widget != m_rippleWidget.data())
         return;
     // A view's viewport ripples too, so this asks the animator itself rather than animated().
@@ -616,16 +623,32 @@ void QMaterialStyle::drawRipple(QPainter *painter, const QWidget *widget, const 
     if (strength < 0.01)
         return;
     // As far as the corner that is farthest from where the press was.
-    const double dx =
-        std::max(std::abs(m_rippleOrigin.x() - shape.left()), std::abs(shape.right() - m_rippleOrigin.x()));
-    const double dy =
-        std::max(std::abs(m_rippleOrigin.y() - shape.top()), std::abs(shape.bottom() - m_rippleOrigin.y()));
+    const double dx = std::max(std::abs(origin.x() - shape.left()), std::abs(shape.right() - origin.x()));
+    const double dy = std::max(std::abs(origin.y() - shape.top()), std::abs(shape.bottom() - origin.y()));
     const double reach = spread * std::hypot(dx, dy);
     if (reach <= 0)
         return;
     QPainterPath circle;
-    circle.addEllipse(m_rippleOrigin, reach, reach);
+    circle.addEllipse(origin, reach, reach);
     painter->fillPath(outline.intersected(circle), QBrush(withOpacity(ink, pressedOpacity * strength)));
+}
+
+void QMaterialStyle::drawChoicePress(const QStyleOption *option, QPainter *painter, const QWidget *widget,
+                                     const QPointF &centre, const QColor &ink) const {
+    const QRectF around(centre.x() - choiceRadius, centre.y() - choiceRadius, 2 * choiceRadius, 2 * choiceRadius);
+    // With motion, the ripple shows the press; the layer is for the pointer and the keyboard.
+    QStyleOption resting = *option;
+    if (m_motion && widget && widget == m_rippleWidget.data())
+        resting.state &= ~QStyle::State(State_Sunken);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    if (const double layer = stateLayer(&resting); layer > 0)
+        fillRounded(painter, around, choiceRadius, withOpacity(ink, layer));
+    QPainterPath circle;
+    circle.addEllipse(centre, choiceRadius, choiceRadius);
+    // From the middle of the control, wherever on the button the press was.
+    drawRipple(painter, widget, circle, around, centre, option->state & State_Sunken, ink);
+    painter->restore();
 }
 
 void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled,
@@ -649,12 +672,23 @@ void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selec
     if (held && !m_motion)
         fillRounded(painter, shape, radius, withOpacity(ink, pressedOpacity));
     if (pressedHere)
-        drawRipple(painter, viewport, sidedPath(shape, radius, radius), shape, held, ink);
+        drawRipple(painter, viewport, sidedPath(shape, radius, radius), shape, m_rippleOrigin, held, ink);
     painter->restore();
 }
 
 void QMaterialStyle::drawTabIndicator(QPainter *painter, const QTabBar *bar, const QRect &tab, bool below) const {
-    if (bar->currentIndex() < 0)
+    if (const int pressed = bar && bar == m_rippleWidget.data() ? bar->tabAt(m_rippleOrigin.toPoint()) : -1;
+        pressed >= 0) {
+        const QRectF shape(bar->tabRect(pressed));
+        QPainterPath outline;
+        outline.addRect(shape);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        drawRipple(painter, bar, outline, shape, m_rippleOrigin, m_rowPressed,
+                   color(pressed == bar->currentIndex() ? Role::Primary : Role::OnSurface));
+        painter->restore();
+    }
+    if (!bar || bar->currentIndex() < 0)
         return;
     // As wide as the label, on its way from where it was.
     const double label = bar->fontMetrics().horizontalAdvance(bar->tabText(bar->currentIndex()));
@@ -755,6 +789,11 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
         if (auto *dialog = qobject_cast<QDialog *>(watched); dialog && dialog->isWindow() && dialog->windowHandle())
             dialog->windowHandle()->setProperty("_nt_cornerRadius", dialogCorner);
     }
+    // What is hidden is no longer pressed: a menu that closed with a choice must not show it when it opens again.
+    if (event->type() == QEvent::Hide && m_rippleWidget && watched == m_rippleWidget.data()) {
+        m_rippleWidget = nullptr;
+        m_rowPressed = false;
+    }
     if (event->type() == QEvent::KeyPress) {
         const int key = static_cast<QKeyEvent *>(event)->key();
         if (key == Qt::Key_Tab || key == Qt::Key_Backtab || key == Qt::Key_Left || key == Qt::Key_Right ||
@@ -768,7 +807,10 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
         (m_rowPressed && event->type() == QEvent::MouseMove)) {
         auto *viewport = qobject_cast<QWidget *>(watched);
         const auto *view = viewport ? qobject_cast<QAbstractItemView *>(viewport->parentWidget()) : nullptr;
-        if (view && view->viewport() == viewport && isList(view) &&
+        // Tabs and the rows of menus show a press in the same way.
+        const bool row = (view && view->viewport() == viewport && isList(view)) || qobject_cast<QTabBar *>(watched) ||
+                         qobject_cast<QMenu *>(watched);
+        if (viewport && row &&
             !(event->type() == QEvent::MouseButtonPress &&
               QScroller::holdsBackPress(viewport, static_cast<QMouseEvent *>(event)->button()))) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
@@ -792,10 +834,13 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
         }
     }
     if (m_motion && event->type() == QEvent::MouseButtonPress) {
-        // A button's ripple starts where it is pressed. (A choice shows the press around its indicator.)
+        // A button's ripple starts where it is pressed; that of a check box, a radio button or a switch spreads from
+        // its control.
         auto *button = qobject_cast<QAbstractButton *>(watched);
+        // A check box and a radio button take a press on their control and its label only, not on room past them.
+        const bool choice = qobject_cast<QCheckBox *>(watched) || qobject_cast<QRadioButton *>(watched);
         if (button && button->isEnabled() && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton &&
-            !qobject_cast<QCheckBox *>(button) && !qobject_cast<QRadioButton *>(button)) {
+            !(choice && static_cast<QMouseEvent *>(event)->position().x() >= button->sizeHint().width())) {
             m_rippleWidget = button;
             m_rippleOrigin = static_cast<QMouseEvent *>(event)->position();
             m_animator->place(button, RippleRadiusChannel, 0);
@@ -973,7 +1018,7 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     // Only on the part that was pressed, of a button that has two.
     if (isOpenFab(widget) ||
         (m_rippleOrigin.x() >= option->rect.left() && m_rippleOrigin.x() < option->rect.left() + option->rect.width()))
-        drawRipple(painter, widget, outline, body, (option->state & State_Sunken) && !isOpenFab(widget),
+        drawRipple(painter, widget, outline, body, m_rippleOrigin, (option->state & State_Sunken) && !isOpenFab(widget),
                    buttonLabelColor(option, widget));
     if (keyboardFocus(option))
         stroke(color(Role::Secondary), focusRingWidth);
@@ -1117,6 +1162,11 @@ void QMaterialStyle::drawFabMenuItem(const QStyleOption *option, QPainter *paint
     fillRounded(painter, pill, pill.height() / 2, color(usable ? Role::PrimaryContainer : Role::SurfaceContainerHigh));
     if (usable && (item->state & State_Selected))
         fillRounded(painter, pill, pill.height() / 2, withOpacity(ink, pressedOpacity));
+    if (usable && menu && menu == m_rippleWidget.data() && pill.contains(m_rippleOrigin)) {
+        QPainterPath outline;
+        outline.addRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+        drawRipple(painter, menu, outline, pill, m_rippleOrigin, m_rowPressed, ink);
+    }
     // What is in the pill keeps its place from the right end, and shows as the pill reaches it.
     painter->setClipRect(pill, Qt::IntersectClip);
     int left = static_cast<int>(pill.right() - full) + fabMenuItemPadding;
@@ -1192,9 +1242,7 @@ void QMaterialStyle::drawSwitch(const QStyleOption *option, const QRect &rect, Q
     const double travel = switchWidth - switchHeight;
     const double centre = track.left() + switchHeight / 2.0 + position * travel;
     const QPointF middle(centre, track.center().y());
-    if (const double layer = stateLayer(option); layer > 0)
-        fillRounded(painter, QRectF(middle.x() - 20, middle.y() - 20, 40, 40), 20,
-                    withOpacity(color(on ? Role::Primary : Role::OnSurface), layer));
+    drawChoicePress(option, painter, widget, middle, color(on ? Role::Primary : Role::OnSurface));
     fillRounded(painter, QRectF(middle.x() - size / 2, middle.y() - size / 2, size, size), size / 2, handle);
 }
 
@@ -1507,7 +1555,7 @@ void QMaterialStyle::drawComboBox(const QStyleOption *option, QPainter *painter)
 }
 
 // A row of a menu: 48 high, with room for an icon or a check mark when the item has one.
-void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter) const {
+void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter, const QWidget *menu) const {
     const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
     const QRect r = item->rect;
     if (item->menuItemType == QStyleOptionMenuItem::Separator) {
@@ -1517,6 +1565,14 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter)
     const bool usable = item->state & State_Enabled;
     if (usable && (item->state & State_Selected))
         painter->fillRect(r, withOpacity(color(Role::OnSurface), hoverOpacity));
+    if (usable && menu && menu == m_rippleWidget.data() && r.contains(m_rippleOrigin.toPoint())) {
+        QPainterPath outline;
+        outline.addRect(QRectF(r));
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        drawRipple(painter, menu, outline, QRectF(r), m_rippleOrigin, m_rowPressed, color(Role::OnSurface));
+        painter->restore();
+    }
     const QColor ink = usable ? color(Role::OnSurface) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
     const QColor quiet = usable ? color(Role::OnSurfaceVariant) : ink;
     int left = r.left() + menuPadding;
@@ -1608,9 +1664,7 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
             accent = outline = withOpacity(color(Role::OnSurface), disabledContentOpacity);
             mark = color(Role::Surface);
         }
-        if (const double layer = stateLayer(option); layer > 0)
-            fillRounded(painter, box.adjusted(-8, -8, 8, 8), box.width() / 2 + 8,
-                        withOpacity(filled ? accent : outline, layer));
+        drawChoicePress(option, painter, widget, box.center(), filled ? accent : outline);
         if (amount < 0.999)
             strokeRounded(painter, box, 2, outline, 2);
         if (amount < 0.001)
@@ -1642,8 +1696,7 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         QColor accent = color(on ? Role::Primary : Role::OnSurfaceVariant);
         if (!enabled(option))
             accent = withOpacity(color(Role::OnSurface), disabledContentOpacity);
-        if (const double layer = stateLayer(option); layer > 0)
-            fillRounded(painter, box.adjusted(-8, -8, 8, 8), box.width() / 2 + 8, withOpacity(accent, layer));
+        drawChoicePress(option, painter, widget, box.center(), accent);
         strokeRounded(painter, box, box.width() / 2, accent, 2);
         // The dot grows from the middle, and shrinks away.
         const double grown = std::clamp(
@@ -1704,7 +1757,7 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
             if (isFabMenu(widget))
                 drawFabMenuItem(option, painter, widget);
             else
-                drawMenuItem(option, painter);
+                drawMenuItem(option, painter, widget);
         }
         painter->restore();
         return;
@@ -1754,13 +1807,22 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
         return QRect(r.left() + (r.width() - sliderTrack) / 2, r.top(), sliderTrack, r.height());
     }
     case SE_CheckBoxIndicator:
-        if (isSwitch(widget))
-            return QRect(r.left(), r.top() + (r.height() - switchHeight) / 2, switchWidth, switchHeight);
-        break;
     case SE_CheckBoxContents:
-        if (isSwitch(widget))
-            return r.adjusted(switchWidth + indicatorSpace, 0, 0, 0);
-        break;
+    case SE_RadioButtonIndicator:
+    case SE_RadioButtonContents: {
+        const bool radio = element == SE_RadioButtonIndicator || element == SE_RadioButtonContents;
+        const bool toggle = !radio && isSwitch(widget);
+        const QSize size(toggle  ? switchWidth
+                         : radio ? radioSize
+                                 : checkBoxSize,
+                         toggle  ? switchHeight
+                         : radio ? radioSize
+                                 : checkBoxSize);
+        const int left = choiceInset(size.width(), toggle);
+        if (element == SE_CheckBoxIndicator || element == SE_RadioButtonIndicator)
+            return QRect(QPoint(r.left() + left, r.top() + (r.height() - size.height()) / 2), size);
+        return r.adjusted(left + size.width() + indicatorSpace, 0, 0, 0);
+    }
     case SE_LineEditContents: {
         const bool framed =
             option->type != QStyleOption::SO_Frame || static_cast<const QStyleOptionFrame *>(option)->lineWidth > 0;
@@ -1883,7 +1945,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
     case CT_CheckBox:
     case CT_RadioButton: {
         const int indicator = isSwitch(widget) ? switchWidth : type == CT_CheckBox ? checkBoxSize : radioSize;
-        return QSize(indicator + (contentsSize.width() > 0 ? indicatorSpace + contentsSize.width() : 0),
+        return QSize(choiceInset(indicator, isSwitch(widget)) + indicator +
+                         (contentsSize.width() > 0 ? indicatorSpace + contentsSize.width() : 0),
                      std::max(touchTarget, contentsSize.height()));
     }
     case CT_LineEdit: {

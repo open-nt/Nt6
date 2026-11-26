@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <vector>
 
 namespace {
 
@@ -409,8 +410,10 @@ char *QStringEncoder::appendToBuffer(char *out, QStringView in) {
 QString QStringDecoder::decode(QByteArrayView ba) {
     if (!m_valid)
         return QString();
-    std::basic_string<unsigned char> buf(m_pending, m_pending + m_pendingCount);
-    buf.append(reinterpret_cast<const unsigned char *>(ba.data() ? ba.data() : ""), static_cast<std::size_t>(ba.size()));
+    // Not a std::basic_string: C++ has no std::char_traits<unsigned char>, and libc++ of Android NDK r30 has none.
+    std::vector<unsigned char> buf(m_pending, m_pending + m_pendingCount);
+    const auto *input = reinterpret_cast<const unsigned char *>(ba.data() ? ba.data() : "");
+    buf.insert(buf.end(), input, input + static_cast<std::size_t>(ba.size()));
     m_pendingCount = 0;
     const bool stateless = m_flags.testFlag(Flag::Stateless);
     const char32_t bad = m_flags.testFlag(Flag::ConvertInvalidToNull) ? 0 : 0xfffd;

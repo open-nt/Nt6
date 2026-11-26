@@ -10,6 +10,7 @@
 [![Enterprise Linux 9](https://github.com/open-nt/Nt6/actions/workflows/el9.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/el9.yml)
 [![Enterprise Linux 10](https://github.com/open-nt/Nt6/actions/workflows/el10.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/el10.yml)
 [![Arch Linux](https://github.com/open-nt/Nt6/actions/workflows/arch.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/arch.yml)
+[![Android](https://github.com/open-nt/Nt6/actions/workflows/android.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/android.yml)
 [![Docs](https://github.com/open-nt/Nt6/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/open-nt/Nt6/actions/workflows/docs.yml)
 [![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
 [![Snap Store](https://snapcraft.io/open-nt6/badge.svg)](https://snapcraft.io/open-nt6)
@@ -27,7 +28,7 @@
 - **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt Positioning`, `Nt Sensors`, `Nt Protobuf`, `Nt SerialBus` (CAN), `Nt Mqtt`, `Nt Device` (watchdog and firmware updates), `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
 
-Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/POSIX only for now. It is not affiliated with The Qt Company, and no Qt source code is used.
+Nt is young: Core, Network, GUI and Widgets are partial. It is developed on Linux/POSIX first; [Android](#android) and, headless, [Zephyr](#zephyr-embedded-headless) are early ports. It is not affiliated with The Qt Company, and no Qt source code is used.
 
 **[Documentation](https://open-nt.github.io/Nt6/)** · **[Install](https://open-nt.github.io/Nt6/install.html)** · **[Examples](examples)** · **[Contributing](CONTRIBUTING.md)** · **[Discussions](https://github.com/open-nt/Nt6/discussions)**
 
@@ -39,7 +40,8 @@ Nt is young: Core, Network, GUI and Widgets are partial, and it runs on Linux/PO
 | NXP MIMXRT1170-EVK (revision A; `mimxrt1170_evk@A/mimxrt1176/cm7`) | Zephyr 4.5 | Nt Multimedia audio builds for its WM8960, untested, without `QAudioHeadset`. |
 | Arm MPS2 AN385 in QEMU (`mps2/an385`) | Zephyr 4.5 | Runs the self-checking [`zephyr/qemu`](https://github.com/open-nt/nt6-examples/tree/main/zephyr/qemu) sample, without audio. |
 | x86-64 and arm64 PCs and boards | Linux | All modules; audio through ALSA (and PipeWire or PulseAudio), cameras through Video4Linux2. |
-| arm64 and x86-64 phones and emulators | Android | The headless modules and Nt GUI; see [Android](https://open-nt.github.io/Nt6/nt-android.html). |
+| x86-64 Android emulator (Android 15) | Android (NDK r25 or r30, API 26 or newer) | Qt 6 Widgets, OpenGL ES, Vulkan (in software) and multi-touch apps run. See [Android](#android). |
+| Motorola moto g04s (`arm64-v8a`, Mali-G57) | Android 14 (NDK r30) | Qt 6 Widgets, OpenGL ES and Vulkan apps run and survive the background; touch, the on-screen keyboard, the clipboard and the `QJniObject` tests work. Multi-touch and rotation have not been tried on it. |
 
 ## Quick start
 
@@ -114,6 +116,7 @@ The example programs live in [nt6-examples](https://github.com/open-nt/nt6-examp
 | [`httpserver`](https://github.com/open-nt/nt6-examples/blob/main/httpserver/hello_server.cpp) | routes, JSON, streaming, delayed answers and WebSockets on one port |
 | [`websockets`](https://github.com/open-nt/nt6-examples/tree/main/websockets), [`dbus`](https://github.com/open-nt/nt6-examples/tree/main/dbus), [`serialport`](https://github.com/open-nt/nt6-examples/tree/main/serialport), [`sql`](https://github.com/open-nt/nt6-examples/tree/main/sql) | an echo server and client, a clock on the session bus, serial ports, an address book in SQLite |
 | [`gui`](https://github.com/open-nt/nt6-examples/tree/main/gui), [`widgets`](https://github.com/open-nt/nt6-examples/tree/main/widgets), [`svg`](https://github.com/open-nt/nt6-examples/tree/main/svg), [`charts`](https://github.com/open-nt/nt6-examples/tree/main/charts), [`opengl`](https://github.com/open-nt/nt6-examples/tree/main/opengl), [`vulkan`](https://github.com/open-nt/nt6-examples/tree/main/vulkan) | a painted window, the widget gallery, SVG rendering, a live chart dashboard, a window rendered with OpenGL, a triangle ray traced with Vulkan |
+| [`android`](https://github.com/open-nt/nt6-examples/tree/main/android), [`comms`](https://github.com/open-nt/nt6-examples/tree/main/comms) | Qt 6 projects packaged as Android APKs (widgets, OpenGL ES, Vulkan, multi-touch), and a console chat on the local network with Nt Comms that also builds for Android |
 | [`fm`](https://github.com/open-nt/nt6-examples/tree/main/fm) | game sound effects synthesised with FM, chip music and the QML types: [`fmplay`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmplay.cpp) and [`fmqml`](https://github.com/open-nt/nt6-examples/blob/main/fm/fmqml.cpp) |
 
 ## Contents
@@ -274,7 +277,7 @@ Header names match Qt: `#include <QObject>`, `#include <QtCore/QTimer>`, `#inclu
 
 ### Nt GUI: implemented
 
-Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration (QPA), which creates the windows and delivers input. The platforms are `xcb` (X11, including XWayland) and `offscreen` (no display, for tests); pick one with `-platform` or `QT_QPA_PLATFORM`.
+Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration (QPA), which creates the windows and delivers input. The platforms are `xcb` (X11, including XWayland), `android` (see [Android](#android)) and `offscreen` (no display, for tests); pick one with `-platform` or `QT_QPA_PLATFORM`.
 
 | Class | Notes |
 |---|---|
@@ -285,18 +288,18 @@ Nt GUI is layered like Qt GUI: a `QGuiApplication` loads a platform integration 
 | `QPainterPath`, `QTransform`, `QPolygon`, `QPolygonF`, `QLinearGradient`, `QRadialGradient`, `QConicalGradient` | Bezier paths with both fill rules, affine transformations, gradients with spread modes; pens with caps, joins and dashes |
 | `QVector2D`, `QVector3D`, `QVector4D`, `QQuaternion`, `QMatrix4x4` | 3D math in `float`: dot and cross products, normals, distances, `project()`/`unproject()`; axis-angle, Euler, `slerp()`; translate/rotate/scale, `perspective()`, `ortho()`, `frustum()`, `lookAt()`, inverse, column-major `data()` for OpenGL. No `QMatrix3x3` or `QGenericMatrix` |
 | `QOpenGLContext`, `QOpenGLFunctions`, `QSurfaceFormat`, `QSurface`, `QOffscreenSurface` | OpenGL through EGL, loaded at run time: desktop OpenGL or OpenGL ES contexts, sharing, the OpenGL ES 2.0 functions, swap interval (vsync on or off), multisampling; windows of the `offscreen` platform render into framebuffer objects |
-| `QVulkanInstance`, `QVulkanFunctions`, `QVulkanDeviceFunctions`, `QVulkanWindow`, `QVulkanWindowRenderer` | Vulkan through the loader, opened at run time: layers, extensions and the API version (1.3 by default), the core 1.0 to 1.3 functions of an instance and a device, validation output through `qWarning()` with filters, `surfaceForWindow()` on `xcb`; a window with device and queue selection, swapchain, depth-stencil, default render pass, multisampling, per-frame synchronization, `grab()` and swapchain recreation on resize. The [`rtriangle`](https://github.com/open-nt/nt6-examples/blob/main/vulkan/rtriangle.cpp) example traces rays with `VK_KHR_ray_tracing_pipeline` (see [Using Nt Vulkan](https://open-nt.github.io/Nt6/nt-vulkan.html)); needs `vulkan/vulkan.h` to build, `QT_CONFIG(vulkan)` tells |
+| `QVulkanInstance`, `QVulkanFunctions`, `QVulkanDeviceFunctions`, `QVulkanWindow`, `QVulkanWindowRenderer` | Vulkan through the loader, opened at run time: layers, extensions and the API version (1.3 by default), the core 1.0 to 1.3 functions of an instance and a device, validation output through `qWarning()` with filters, `surfaceForWindow()` on `xcb` and `android`; a window with device and queue selection, swapchain, depth-stencil, default render pass, multisampling, per-frame synchronization, `grab()` and swapchain recreation on resize. The [`rtriangle`](https://github.com/open-nt/nt6-examples/blob/main/vulkan/rtriangle.cpp) example traces rays with `VK_KHR_ray_tracing_pipeline` (see [Using Nt Vulkan](https://open-nt.github.io/Nt6/nt-vulkan.html)); needs `vulkan/vulkan.h` to build, `QT_CONFIG(vulkan)` tells |
 | `QFont`, `QFontMetrics` | families found with fontconfig, point or pixel size, weight, italic; metrics, also for a paint device's resolution; `elidedText()`, `drawText()` with alignment, word wrap and clipping, or a `QTextOption`; glyphs are anti-aliased by FreeType; a point is a point on devices of other resolutions, such as a `QPdfWriter` |
 | `QPdfWriter`, `QPagedPaintDevice`, `QPageLayout`, `QPageSize` | PDF documents painted with `QPainter`, page by page: paths, pens with caps, joins and dashes, linear and radial gradients as shadings, images with alpha, opacity, clipping; text as glyph outlines (sharp at any zoom, not selectable); A, B and US page sizes, orientation, margins in any unit; title and creator; Flate compression with zlib |
 | `QImage`, `QPixmap`, `QColor`, `QRgb`, `QPen`, `QBrush`, `QRegion` | 32-bit images (`RGB32`, `ARGB32`, `ARGB32_Premultiplied`) with implicit sharing, loading and saving of PNG, BMP and JPEG files, colors with `#rgb` and CSS names, solid pens and brushes, rectangle-list regions |
 | `QUndoCommand`, `QUndoStack`, `QUndoGroup` | undo and redo: commands with children and merging, a stack with a clean state, macros, an undo limit and obsolete commands, undo and redo actions that follow it, and a group of stacks of which one is active |
 | `QAction`, `QActionGroup`, `QKeySequence`, `QActionEvent` | what a user can do, shared by menus and shortcuts: text, check state, enabled and visible, a shortcut (a key with modifiers, from a string or a standard key), exclusive groups, and the events for widgets that show actions. No icons, and one key per sequence |
-| `QMouseEvent`, `QWheelEvent`, `QKeyEvent`, `QFocusEvent`, `QEnterEvent`, `QPaintEvent`, `QExposeEvent`, `QResizeEvent`, `QMoveEvent`, `QShowEvent`, `QHideEvent`, `QCloseEvent` | the event classes, with the `Qt::Key`, `Qt::MouseButton` and `Qt::KeyboardModifier` enums |
+| `QMouseEvent`, `QWheelEvent`, `QKeyEvent`, `QFocusEvent`, `QEnterEvent`, `QPaintEvent`, `QExposeEvent`, `QResizeEvent`, `QMoveEvent`, `QShowEvent`, `QHideEvent`, `QCloseEvent`, `QTouchEvent` | the event classes, with the `Qt::Key`, `Qt::MouseButton` and `Qt::KeyboardModifier` enums; touch input comes from the `android` platform, and the first finger is the mouse for what does not take touch events. No gesture classes |
 | `QTextDocument`, `QTextLayout`, `QTextLine`, `QTextCharFormat`, `QTextBlockFormat`, `QTextOption` | rich text: a document of paragraphs with character and paragraph formats, read from and written as a subset of HTML (headings, bold/italic/underline, fonts, sizes, colors, links, lists, `pre`, rules, alignment and margins), laid out for a width and drawn with a painter; `anchorAt()` for the link at a point; line breaking, cursor positions and format ranges for one paragraph |
 
 Guides: [Using Nt GUI](https://open-nt.github.io/Nt6/nt-gui.html) and [Using Nt Vulkan](https://open-nt.github.io/Nt6/nt-vulkan.html). The [`hello_window`](https://github.com/open-nt/nt6-examples/blob/main/gui/hello_window.cpp) example paints a window and follows the mouse; [`rtriangle`](https://github.com/open-nt/nt6-examples/blob/main/vulkan/rtriangle.cpp) renders a turning triangle with hardware ray tracing in a `QVulkanWindow`, on an RTX, RDNA 2 or Arc GPU or Mesa's lavapipe in software.
 
-Not implemented yet: QRhi, `QVulkanWindow` on platforms other than `xcb` (the `offscreen` platform has `QVulkanInstance` for headless rendering and compute), text shaping (HarfBuzz) and font fallback, `QFontDatabase`, editing of a `QTextDocument` (`QTextCursor` over it, tables, images, style sheets), other image formats and `QImageReader`/`QImageWriter`, the clipboard, cursors made of pixmaps and themed cursors (`QCursor` has the standard shapes, from the cursor font of the X server), RandR multi-screen, and Wayland.
+Not implemented yet: QRhi, `QVulkanWindow` on platforms other than `xcb` and `android` (the `offscreen` platform has `QVulkanInstance` for headless rendering and compute), text shaping (HarfBuzz) and font fallback, `QFontDatabase`, editing of a `QTextDocument` (`QTextCursor` over it, tables, images, style sheets), other image formats and `QImageReader`/`QImageWriter`, cursors made of pixmaps and themed cursors (`QCursor` has the standard shapes, from the cursor font of the X server), RandR multi-screen, and Wayland.
 
 ### Nt Widgets: implemented
 
@@ -380,6 +383,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 ### Platforms and tools
 
 - **Zephyr.** Nt Core, Nt Network, Nt HTTP Server, Nt Mqtt, Nt GPIO, Nt Serial Port, Nt Sensors, Nt SerialBus (CAN) and the audio part of Nt Multimedia build as a Zephyr module for microcontrollers, headless; see [Zephyr](#zephyr-embedded-headless).
+- **Android.** Projects written for Qt 6 build with the NDK into APKs with their `CMakeLists.txt` unchanged (`find_package(Qt6)`, `qt_add_executable()`); see [Android](#android).
 - **Headset microphones.** `QAudioHeadset` matches the codec's input to a headset microphone by its impedance, and reports the microphone and the headset's button; see [Nt Multimedia](#nt-multimedia-audio-and-cameras).
 - **MIT tools.** `ntmoc`, `ntrcc`, `ntprotobufgen` and `ndoc` replace moc, rcc, qtprotobufgen and qdoc; `ntprotobufgen` parses `.proto` files itself, so it needs no `protoc`. Their command lines and CMake functions match Qt's, but the `.rcc` format is Nt's own; see [ntmoc](#ntmoc-mit-moc-replacement), [ntrcc](#ntrcc-mit-rcc-replacement) and [NDoc](#ndoc-mit-documentation-generator). `ntgltfview FILE` shows a glTF 2.0 scene with hardware ray tracing in a `QVulkanWindow`: the metallic-roughness materials with their textures, normal maps and alpha cut-outs, under a camera that orbits, walks inside (`--view`) and is moved with the mouse, keyboard and a gamepad via Nt Gamepad, with ray traced shadows, reflections and glass (`--raytrace on|off`, `--environment FILE.hdr` for the background and what the glass and metal reflect) and optional NVIDIA DLSS Super Resolution (`--dlss`, a build with `-DNT_DLSS_SDK_DIR=<a checkout of NVIDIA/DLSS>`) (`--grab FILE.png` saves a frame, `--devices` lists the GPUs); it is built when Vulkan is found. The driving simulation (`ntsim`) is part of ntmapgen.
 
@@ -765,6 +769,38 @@ cmake -S . -B build && cmake --build build && ctest --test-dir build
 ```
 
 Requires C++17 and a POSIX system. Link with the modules you use, such as `Nt::Core`, `Nt::Network`, `Nt::HttpServer` or `Nt::WebSockets` (or the `Qt6::` aliases, `Qt6::Core`, `Qt6::Network`, `Qt6::HttpServer`, `Qt6::WebSockets`).
+
+### Android
+
+A project written for Qt 6 builds for Android against Nt with its `CMakeLists.txt` unchanged, into an APK that installs with `adb install`. The port is at an early stage: it has run on the x86-64 emulator with Android 15 and on one `arm64-v8a` phone with Android 14.
+
+It needs the Android NDK (tested with r25 and r30; API 26 or newer), the SDK's build tools and a platform, and a JDK for the on-screen keyboard. Build and install Nt, once for each ABI (a cross build builds `ntmoc` and `ntrcc` for the build machine by itself, and downloads FreeType; `-DNT_FREETYPE_SOURCE_DIR` names a copy instead):
+
+```sh
+cmake -S . -B build-android -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK/build/cmake/android.toolchain.cmake \
+    -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26 \
+    -DCMAKE_INSTALL_PREFIX=$HOME/nt-android
+cmake --build build-android
+cmake --install build-android
+```
+
+Then build the application with the toolchain file that Nt installed:
+
+```sh
+export ANDROID_SDK_ROOT=$HOME/Android/Sdk
+cmake -S . -B build -G Ninja -DANDROID_NDK=$ANDROID_NDK \
+    -DCMAKE_TOOLCHAIN_FILE=$HOME/nt-android/lib/cmake/Nt6/nt-android.toolchain.cmake
+cmake --build build        # build/<target>.apk, signed with the debug key
+adb install build/<target>.apk
+```
+
+- **Works:** Nt Widgets and Nt GUI (raster, OpenGL ES with `QOpenGLWindow` and `QOpenGLWidget`, and `QVulkanWindow`), multi-touch (`QTouchEvent`), the on-screen keyboard, the system clipboard (plain text), rotation and returning from the background, and calls into Java with `QJniObject`, `QJniEnvironment` and `QNativeInterface::QAndroidApplication`. Programs without a GUI can run from `adb shell`.
+- **No TLS and no SQLite yet:** the NDK has neither OpenSSL nor SQLite, so the build described here has no `QSslSocket` or `https:` and Nt SQL has no `QSQLITE` driver.
+- **Not yet:** the permissions API (`requestPermission()`), Java sources of your own in the APK, assets, gestures and composing text. Nt Serial Port, Gamepad, Gltf, Barcode, Multimedia and the Wayland compositor are not built; other modules build, but only some have been run on Android.
+- **Different from Qt:** every top-level window fills the screen, and OpenGL and Vulkan windows draw behind the system bars. `QSharedMemory` is not built and `QThread::terminate()` only warns.
+
+The guide [Nt on Android](https://open-nt.github.io/Nt6/nt-android.html) has the details. CI (`android.yml`) builds Nt and an application for `arm64-v8a` and `x86_64`.
 
 ### Zephyr (embedded, headless)
 

@@ -13,15 +13,18 @@
     APK that installs with \c{adb install}. Nt has an \c android platform for Nt GUI, which draws with the raster
     engine into the window of an \c{android.app.NativeActivity}, so no Java is involved.
 
-    The port is at an early stage. It was built with NDK r25 for \c arm64-v8a and \c x86_64, and a Widgets
-    application runs on the Android 15 emulator for \c x86_64; it has not been run on a device yet. OpenGL ES, in QOpenGLWindow and QOpenGLWidget, runs on the emulator too.
+    The port is at an early stage. It was built with NDK r25 and r30. Widgets, OpenGL ES, Vulkan and multi-touch
+    applications run on the Android 15 emulator for \c x86_64, where Vulkan is in software. On an \c arm64-v8a
+    phone with Android 14 (a Motorola moto g04s), Widgets, OpenGL ES and Vulkan applications, the on-screen
+    keyboard, the clipboard and QJniObject work; multi-touch and rotation have not been tried there.
 
     \section1 What is built
 
-    Nt Core, Network, Sql, Xml, Concurrent, Test, Qml, FM, Gpio, WebSockets, HttpServer, Positioning, Sensors, Twin, Comms
-    and Twin Network, and Nt GUI with Widgets, Svg, Svg Widgets, Charts, OpenGL and OpenGL Widgets. Left out are
-    Serial Port, Gamepad, Gltf and Barcode (they depend on
-    Linux devices or have not been tried), Multimedia and the Wayland compositor.
+    Nt Core, Network, Sql, D-Bus, Xml, Concurrent, Test, Qml, FM, Gpio, Sensors, SerialBus, Protobuf, Mqtt, Device,
+    WebSockets, HttpServer, Positioning, Twin, Comms and Twin Network, and Nt GUI with Widgets, Svg, Svg Widgets,
+    Charts, OpenGL and OpenGL Widgets. Several of these have only been compiled for Android, not run on it; Android
+    has no D-Bus for Nt D-Bus to talk to. Left out are Serial Port, Gamepad, Gltf and Barcode (they depend on Linux
+    devices or have not been tried), Multimedia and the Wayland compositor.
 
     \section1 Building Nt for Android
 
@@ -40,7 +43,8 @@
 
     Use \c android-26 or newer as the platform. FreeType is downloaded and built with Nt for text (the system fonts
     in \c /system/fonts are used); \c NT_FREETYPE_SOURCE_DIR names a source tree to use instead, for a build without
-    network access. Zstandard and JPEG are left out; Vulkan is built with the headers of the NDK.
+    network access. Zstandard and JPEG are left out; Vulkan is built with the headers of the NDK. The NDK has neither OpenSSL nor SQLite,
+    so Nt Network is built without TLS (no QSslSocket or \c https:) and Nt SQL without the \c QSQLITE driver.
 
     \section1 Building an application
 

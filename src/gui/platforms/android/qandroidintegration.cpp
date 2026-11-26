@@ -78,12 +78,41 @@ QAndroidWindow::~QAndroidWindow() {
     s.erase(std::remove(s.begin(), s.end(), this), s.end());
 }
 
+bool QAndroidWindow::isDialog() const {
+    const auto type = window()->flags() & Qt::WindowType_Mask;
+    return m_topLevel && (type == Qt::Dialog || type == Qt::Sheet) &&
+           !window()->windowStates().testFlag(Qt::WindowFullScreen);
+}
+
+bool QAndroidWindow::isOverlay() const {
+    if (!isDialog())
+        return false;
+    // Something has to show behind it: a window below that fills the screen. (Not yet in the stack, it is on top.)
+    for (const QAndroidWindow *other : stack()) {
+        if (other == this)
+            break;
+        if (!other->isDialog())
+            return true;
+    }
+    return false;
+}
+
+QRect QAndroidWindow::dialogGeometry(const QRect &wanted) const {
+    // The widths of a Material dialog are 280 to 560 dp, and it keeps clear of the edges.
+    const QRect screen = m_screen->availableGeometry();
+    const int margin = 24;
+    const int widest = std::max(1, std::min(560, screen.width() - 2 * margin));
+    const int width = std::clamp(wanted.width(), std::min(280, widest), widest);
+    const int height = std::clamp(wanted.height(), 1, std::max(1, screen.height() - 2 * margin));
+    return QRect(screen.x() + (screen.width() - width) / 2, screen.y() + (screen.height() - height) / 2, width, height);
+}
+
 void QAndroidWindow::setGeometry(const QRect &rect) {
     if (!m_topLevel) {
         QPlatformWindow::setGeometry(rect);
         return;
     }
-    const QRect screenRect = m_screen->availableGeometry();
+    const QRect screenRect = isOverlay() ? dialogGeometry(rect) : m_screen->availableGeometry();
     QPlatformWindow::setGeometry(screenRect);
     if (rect != screenRect)
         QWindowSystemInterface::handleGeometryChange(window(), screenRect);
@@ -99,19 +128,23 @@ void QAndroidWindow::setVisible(bool visible) {
     s.erase(std::remove(s.begin(), s.end(), this), s.end());
     if (visible) {
         s.push_back(this);
-        setGeometry(m_screen->availableGeometry());
+        // A dialog keeps the size that it asks for; other windows fill the screen.
+        setGeometry(window()->geometry());
         QWindowSystemInterface::handleExposeEvent(window(), QRegion(QRect(QPoint(0, 0), window()->size())));
         QWindowSystemInterface::handleWindowActivated(window());
     } else {
         QWindowSystemInterface::handleExposeEvent(window(), QRegion());
         if (QGuiApplication::focusWindow() == window())
             QWindowSystemInterface::handleWindowActivated(nullptr);
-        // The window below shows again.
-        if (QAndroidWindow *below = top()) {
-            QWindowSystemInterface::handleExposeEvent(below->window(),
-                                                      QRegion(QRect(QPoint(0, 0), below->window()->size())));
-            QWindowSystemInterface::handleWindowActivated(below->window());
+        // The windows below show again, from the one that fills the screen up.
+        std::size_t first = s.size();
+        while (first > 0 && s[--first]->isOverlay()) {
         }
+        for (std::size_t i = first; i < s.size(); ++i)
+            QWindowSystemInterface::handleExposeEvent(s[i]->window(),
+                                                      QRegion(QRect(QPoint(0, 0), s[i]->window()->size())));
+        if (QAndroidWindow *below = top())
+            QWindowSystemInterface::handleWindowActivated(below->window());
     }
 }
 
@@ -133,7 +166,44 @@ void QAndroidWindow::raise() {
 void *QAndroidWindow::eglNativeWindow() const { return Glue::instance().window(); }
 
 QAndroidBackingStore::QAndroidBackingStore(QWindow *window, QAndroidScreen *screen)
-    : QPlatformBackingStore(window), m_screen(screen) {}
+    : QPlatformBackingStore(window), m_screen(screen) {
+    stores().push_back(this);
+}
+
+QAndroidBackingStore::~QAndroidBackingStore() {
+    auto &all = stores();
+    all.erase(std::remove(all.begin(), all.end(), this), all.end());
+}
+
+std::vector<QAndroidBackingStore *> &QAndroidBackingStore::stores() {
+    static std::vector<QAndroidBackingStore *> all;
+    return all;
+}
+
+const QAndroidBackingStore *QAndroidBackingStore::storeOf(const QWindow *window) {
+    for (const QAndroidBackingStore *store : stores()) {
+        if (store->window() == window)
+            return store;
+    }
+    return nullptr;
+}
+
+namespace {
+
+// A pixel of an image, 0xAARRGGBB, which memory holds as B, G, R, A, as an opaque pixel of the screen.
+std::uint32_t screenPixel(std::uint32_t p) {
+    return 0xff000000u | (p & 0x0000ff00u) | ((p >> 16) & 0xffu) | ((p & 0xffu) << 16);
+}
+
+// Mixes two screen pixels: `amount` of 256 of the second.
+std::uint32_t mixPixels(std::uint32_t below, std::uint32_t above, std::uint32_t amount) {
+    const std::uint32_t rest = 256 - amount;
+    const std::uint32_t outer = (((below & 0x00ff00ffu) * rest + (above & 0x00ff00ffu) * amount) >> 8) & 0x00ff00ffu;
+    const std::uint32_t green = (((below & 0x0000ff00u) * rest + (above & 0x0000ff00u) * amount) >> 8) & 0x0000ff00u;
+    return 0xff000000u | outer | green;
+}
+
+} // namespace
 
 void QAndroidBackingStore::resize(const QSize &size, const QRegion &staticContents) {
     (void)staticContents;
@@ -147,13 +217,19 @@ void QAndroidBackingStore::resize(const QSize &size, const QRegion &staticConten
     m_image = image;
 }
 
-// Copies the image into the buffer of the native window. Only the window on top shows; the others paint into their
-// own images until they are raised.
+// Makes the frame in the buffer of the native window: the window that fills the screen, and on it the dialogs, each
+// with what is below it dimmed. Windows under the one that fills the screen paint into their own images only.
 void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const QPoint &offset) {
     (void)region;
     (void)offset;
-    QAndroidWindow *top = QAndroidWindow::top();
-    if (!top || top->window() != window || m_image.isNull())
+    const auto &windows = QAndroidWindow::stack();
+    if (windows.empty())
+        return;
+    std::size_t base = windows.size() - 1;
+    while (base > 0 && windows[base]->isOverlay())
+        --base;
+    if (std::none_of(windows.begin() + static_cast<std::ptrdiff_t>(base), windows.end(),
+                     [window](const QAndroidWindow *w) { return w->window() == window; }))
         return;
     ANativeWindow *native = Glue::instance().window();
     if (!native)
@@ -171,32 +247,53 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
         ANativeWindow_unlockAndPost(native);
         return;
     }
-    // The window lies inside the system bars.
-    const QPoint origin = m_screen->pixelOrigin();
-    const int width = std::min(buffer.width - origin.x(), m_image.width());
-    const int height = std::min(buffer.height - origin.y(), m_image.height());
-    auto *destination = static_cast<std::uint8_t *>(buffer.bits) +
-                        (static_cast<std::ptrdiff_t>(origin.y()) * buffer.stride + origin.x()) * 4;
-    // The rest of the screen, under the system bars, is black. It is cleared every time: the buffers take turns, and
-    // one may still hold a frame that was painted before the sizes of the bars were known.
     auto *pixels = static_cast<std::uint32_t *>(buffer.bits);
-    const int left = std::clamp(origin.x(), 0, buffer.width);
-    const int right = std::clamp(origin.x() + std::max(width, 0), left, buffer.width);
-    for (int y = 0; y < buffer.height; ++y) {
-        std::uint32_t *line = pixels + static_cast<std::ptrdiff_t>(y) * buffer.stride;
-        if (y < origin.y() || y >= origin.y() + height) {
-            std::fill_n(line, buffer.width, 0xff000000u);
-        } else {
-            std::fill_n(line, left, 0xff000000u);
-            std::fill_n(line + right, buffer.width - right, 0xff000000u);
+    const auto line = [&](int y) { return pixels + static_cast<std::ptrdiff_t>(y) * buffer.stride; };
+    // Black to begin with, for what is under the system bars. Every time: the buffers take turns, and one may still
+    // hold a frame that was painted before the sizes of the bars were known.
+    for (int y = 0; y < buffer.height; ++y)
+        std::fill_n(line(y), buffer.width, 0xff000000u);
+
+    // The windows lie inside the system bars.
+    const QPoint origin = m_screen->pixelOrigin();
+    const QRect inside(origin, QSize(buffer.width - origin.x(), buffer.height - origin.y()));
+    const qreal ratio = m_screen->ratio();
+    for (std::size_t i = base; i < windows.size(); ++i) {
+        const QAndroidBackingStore *store = storeOf(windows[i]->window());
+        if (!store || store->m_image.isNull())
+            continue;
+        const QImage &image = store->m_image;
+        QPoint at = origin;
+        double radius = 0;
+        if (i > base) {
+            // The scrim of Material: black at 32 percent over what is below the dialog.
+            for (int y = std::max(0, inside.top()); y < buffer.height; ++y) {
+                std::uint32_t *row = line(y);
+                for (int x = std::max(0, inside.left()); x < buffer.width; ++x)
+                    row[x] = mixPixels(row[x], 0xff000000u, 82);
+            }
+            const QPoint corner = windows[i]->geometry().topLeft() - m_screen->availableGeometry().topLeft();
+            at += QPoint(qRound(corner.x() * ratio), qRound(corner.y() * ratio));
+            // A style may ask for rounded corners, in dp (QMaterialStyle does for dialogs).
+            radius = std::min(windows[i]->window()->property("_nt_cornerRadius").toDouble() * ratio,
+                              std::min(image.width(), image.height()) / 2.0);
         }
-    }
-    for (int y = 0; y < height; ++y) {
-        const auto *source = reinterpret_cast<const std::uint32_t *>(m_image.constScanLine(y));
-        auto *row = reinterpret_cast<std::uint32_t *>(destination + static_cast<std::ptrdiff_t>(y) * buffer.stride * 4);
-        for (int x = 0; x < width; ++x) {
-            const std::uint32_t p = source[x]; // 0xAARRGGBB, which memory holds as B, G, R, A
-            row[x] = 0xff000000u | (p & 0x0000ff00u) | ((p >> 16) & 0xffu) | ((p & 0xffu) << 16);
+        const int left = std::max(0, -at.x());
+        const int right = std::min(image.width(), buffer.width - at.x());
+        for (int y = std::max(0, -at.y()); y < std::min(image.height(), buffer.height - at.y()); ++y) {
+            const auto *source = reinterpret_cast<const std::uint32_t *>(image.constScanLine(y));
+            std::uint32_t *row = line(at.y() + y) + at.x();
+            // How far into a rounded corner this row and a column are.
+            const double dy = radius - std::min(y + 0.5, image.height() - y - 0.5);
+            for (int x = left; x < right; ++x) {
+                const double dx = radius - std::min(x + 0.5, image.width() - x - 0.5);
+                if (dx <= 0 || dy <= 0) {
+                    row[x] = screenPixel(source[x]);
+                    continue;
+                }
+                const double covered = std::clamp(radius - std::hypot(dx, dy) + 0.5, 0.0, 1.0);
+                row[x] = mixPixels(row[x], screenPixel(source[x]), static_cast<std::uint32_t>(covered * 256));
+            }
         }
     }
     ANativeWindow_unlockAndPost(native);
@@ -389,9 +486,10 @@ void QAndroidIntegration::windowChanged() {
     if (!changed && !surfaceReturned)
         return;
     for (QAndroidWindow *w : QAndroidWindow::stack()) {
-        QWindowSystemInterface::handleGeometryChange(w->window(), m_screen->availableGeometry());
-        QWindowSystemInterface::handleExposeEvent(w->window(),
-                                                  QRegion(QRect(QPoint(0, 0), m_screen->availableGeometry().size())));
+        // A dialog is centred in the new screen; other windows take its size.
+        w->setGeometry(w->window()->geometry());
+        QWindowSystemInterface::handleGeometryChange(w->window(), w->geometry());
+        QWindowSystemInterface::handleExposeEvent(w->window(), QRegion(QRect(QPoint(0, 0), w->geometry().size())));
     }
 }
 

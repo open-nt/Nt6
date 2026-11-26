@@ -25,8 +25,9 @@ changes to the application: `QApplication::setStyle("Material3")`.
 ## Steps
 
 1. Theme: colour roles, light and dark, from a seed colour. **Done.**
-2. Style: buttons, text fields, check boxes, radio buttons, switches, sliders, progress bars, tabs (**done**);
-   combo boxes, menus, dialogs, item views (to do).
+2. Style: buttons, text fields, check boxes, radio buttons, switches, sliders, progress bars, tabs, combo boxes,
+   menus, dialogs (**done**); item views (to do). The android platform shows a dialog over another window as a card
+   over the dimmed window, and rounds its corners by the window property `_nt_cornerRadius` that the style sets.
 3. Motion: springs (expressive scheme: spatial default damping 0.8, stiffness 380; fast 0.6, 800; slow 0.8, 200;
    effects damping 1.0 with stiffness 1600, 3800, 800) and shape morphing. Until then the pressed shape of a button
    changes at once.

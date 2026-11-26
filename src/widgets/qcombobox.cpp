@@ -1,4 +1,5 @@
 // MIT License - see LICENSE
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qcombobox.h>
 #include <QtCore/qcoreapplication.h>
 #include <QtWidgets/qlineedit.h>
@@ -26,8 +27,11 @@ public:
         hide();
     }
 
+    bool material() const { return qobject_cast<const QMaterialStyle *>(m_combo->style()) != nullptr; }
+
     int itemHeight() const {
-        int height = fontMetrics().height() + 6;
+        // Material's rows are high enough for a finger.
+        int height = material() ? 48 : fontMetrics().height() + 6;
         // A delegate sizes the items; the list takes the highest.
         if (QAbstractItemDelegate *delegate = m_combo->itemDelegate()) {
             QStyleOptionViewItem option;
@@ -44,7 +48,13 @@ public:
         if (parentWidget() != top)
             setParent(top);
         setFont(m_combo->font());
-        setPalette(m_combo->palette());
+        QPalette colors = m_combo->palette();
+        if (const auto *style = qobject_cast<const QMaterialStyle *>(m_combo->style())) {
+            // Material marks the current row of a menu quietly; the rows and their delegate take it from the palette.
+            colors.setColor(QPalette::Highlight, style->color(QMaterialStyle::Role::SecondaryContainer));
+            colors.setColor(QPalette::HighlightedText, style->color(QMaterialStyle::Role::OnSecondaryContainer));
+        }
+        setPalette(colors);
         const int rows = std::max(1, std::min(m_combo->count(), m_combo->maxVisibleItems()));
         const QPoint below = m_combo->mapTo(top, QPoint(0, m_combo->height()));
         const int above = below.y() - m_combo->height();
@@ -73,10 +83,18 @@ protected:
         QPainter painter(this);
         painter.setFont(font());
         const QPalette::ColorGroup group = QPalette::Active;
-        painter.fillRect(rect(), palette().color(group, QPalette::Base));
-        painter.setPen(palette().color(group, QPalette::Window).darker(150));
-        painter.setBrush(Qt::NoBrush);
-        painter.drawRect(rect().adjusted(0, 0, -1, -1));
+        if (material()) {
+            // The panel of a Material menu.
+            QStyleOption panel;
+            panel.initFrom(this);
+            panel.rect = rect();
+            m_combo->style()->drawPrimitive(QStyle::PE_PanelMenu, &panel, &painter, this);
+        } else {
+            painter.fillRect(rect(), palette().color(group, QPalette::Base));
+            painter.setPen(palette().color(group, QPalette::Window).darker(150));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRect(rect().adjusted(0, 0, -1, -1));
+        }
         const int h = itemHeight();
         for (int row = 0; row < visibleItems(); ++row) {
             const int index = m_top + row;
@@ -107,7 +125,7 @@ protected:
                 painter.fillRect(item, palette().color(group, QPalette::Highlight));
             painter.setPen(enabled ? palette().color(group, hot ? QPalette::HighlightedText : QPalette::Text)
                                    : palette().color(QPalette::Disabled, QPalette::Text));
-            int left = 7;
+            int left = material() ? 16 : 7;
             const QIcon icon = m_combo->itemIcon(index);
             if (!icon.isNull()) {
                 const QSize size = m_combo->iconSize();

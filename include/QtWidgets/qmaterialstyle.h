@@ -84,6 +84,8 @@ private:
     void drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawProgressBar(const QStyleOption *option, QPainter *painter) const;
     void drawTab(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
+    void drawComboBox(const QStyleOption *option, QPainter *painter) const;
+    void drawMenuItem(const QStyleOption *option, QPainter *painter) const;
     QColor buttonLabelColor(const QStyleOption *option, const QWidget *widget) const;
     bool keyboardFocus(const QStyleOption *option) const;
     double stateLayer(const QStyleOption *option) const;

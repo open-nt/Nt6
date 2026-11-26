@@ -294,6 +294,83 @@ void testSliderProgressTabs() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+void testComboAndMenu() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *combo = new QComboBox;
+    combo->addItems({QStringLiteral("Walnut"), QStringLiteral("Pecan"), QStringLiteral("Almond")});
+    layout->addWidget(combo);
+    layout->addStretch(1);
+    window.resize(320, 360);
+    window.show();
+    QCoreApplication::processEvents();
+
+    CHECK(combo->sizeHint().height() == 56);
+    CHECK(combo->font().pixelSize() == 16);
+    // An outlined field: the outline at its edge, the background inside.
+    CHECK(near(pixel(*combo, 0, combo->height() / 2), style->color(Role::Outline), 3));
+    CHECK(near(pixel(*combo, 4, combo->height() / 2), style->color(Role::Surface), 2));
+
+    // The list has rows of 48, in the container color of a menu; a press on the second row chooses it.
+    combo->showPopup();
+    QCoreApplication::processEvents();
+    const QPoint below = combo->mapTo(&window, QPoint(0, combo->height()));
+    const QImage open = window.grab().toImage();
+    CHECK(near(open.pixelColor(below.x() + 200, below.y() + 48 + 6), style->color(Role::SurfaceContainer), 3));
+    CHECK(near(open.pixelColor(below.x() + 200, below.y() + 6), style->color(Role::SecondaryContainer), 3));
+    QWidget *popup = window.childAt(below + QPoint(20, 60));
+    CHECK(popup && popup->height() == 3 * 48 + 2);
+    if (popup) {
+        const QPointF at(20, 1 + 48 + 24);
+        QMouseEvent press(QEvent::MouseButtonPress, at, popup->mapToGlobal(at.toPoint()), Qt::LeftButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(popup, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, at, popup->mapToGlobal(at.toPoint()), Qt::LeftButton,
+                            Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(popup, &release);
+        CHECK(combo->currentText() == QStringLiteral("Pecan"));
+    }
+
+    QMenu menu;
+    QAction *share = menu.addAction(QStringLiteral("&Share"));
+    menu.addSeparator();
+    QAction *bold = menu.addAction(QStringLiteral("Bold"));
+    bold->setCheckable(true);
+    bold->setChecked(true);
+    CHECK(menu.sizeHint().width() >= 112);
+    CHECK(menu.sizeHint().height() == 48 + 9 + 48);
+    menu.popup(QPoint(10, 10));
+    QCoreApplication::processEvents();
+    CHECK(menu.actionGeometry(share).height() == 48);
+    const QImage shown = menu.grab().toImage();
+    CHECK(near(shown.pixelColor(shown.width() - 6, 8), style->color(Role::SurfaceContainer), 3));
+    CHECK(near(shown.pixelColor(shown.width() / 2, 48 + 4), style->color(Role::OutlineVariant), 6));
+    menu.hide();
+
+    // A dialog has the container color of Material, text buttons for its actions, and rounded corners on Android.
+    QDialog dialog(&window);
+    auto *column = new QVBoxLayout(&dialog);
+    column->addWidget(new QLabel(QStringLiteral("Delete the note?")));
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    column->addWidget(buttons);
+    dialog.resize(280, 140);
+    dialog.show();
+    QCoreApplication::processEvents();
+    CHECK(dialog.palette().color(QPalette::Window) == style->color(Role::SurfaceContainerHigh));
+    const QImage card = dialog.grab().toImage();
+    CHECK(near(card.pixelColor(4, 4), style->color(Role::SurfaceContainerHigh), 2));
+    QPushButton *ok = buttons->button(QDialogButtonBox::Ok);
+    CHECK(near(pixel(*ok, 8, ok->height() / 2), style->color(Role::SurfaceContainerHigh), 2));
+    CHECK(dialog.windowHandle() && dialog.windowHandle()->property("_nt_cornerRadius").toInt() == 28);
+    const QColor container = style->color(Role::SurfaceContainerHigh);
+    QApplication::setStyle(QStringLiteral("Fusion")); // deletes the Material style
+    CHECK(dialog.palette().color(QPalette::Window) != container);
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -302,6 +379,7 @@ int main(int argc, char *argv[]) {
     testScheme();
     testWidgets();
     testSliderProgressTabs();
+    testComboAndMenu();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

@@ -83,8 +83,8 @@
     \section1 The android platform
 
     The application thread runs \c main(); the activity's UI thread passes input, the native window and the
-    life cycle to it. The screen is the window of the activity, and every top-level window fills it, with the one
-    shown last on top. The scale factor is the density of the screen over 160, and the logical resolution is 120
+    life cycle to it. The screen is the window of the activity. A top-level window fills it, with the one shown last on
+    top; a dialog over such a window keeps its size (280 to 560 wide), is centred, and what is below it is dimmed. The scale factor is the density of the screen over 160, and the logical resolution is 120
     dots per inch. Touch screens deliver QTouchEvent with every finger, and the first finger is the mouse
     (a press, moves and a release with the left button) for the widgets that do not take touch events. Keys from a
     keyboard type text, and the Back key closes the window on top.
@@ -112,7 +112,8 @@
         otherwise the first finger is the mouse. There are no gestures (QGesture, QPinchGesture). A window is as large as the content area that the
         activity reports, which leaves out the system bars (QScreen::availableGeometry()); an OpenGL window draws into
         the whole surface, behind the bars.
-    \li Only the first window is shown at a time; QMessageBox and other dialogs work because they are windows of
+    \li Windows cannot be moved or resized by the user, and there are no title bars: a dialog has to say what it is
+        in its content. Dialogs such as QMessageBox are windows of
         their own that cover it.
     \li The activity is not recreated when the device turns, but the window follows the new size of the screen.
     \li QSharedMemory is not built (\c QT_NO_SHAREDMEMORY is defined), because Android has no POSIX shared memory.

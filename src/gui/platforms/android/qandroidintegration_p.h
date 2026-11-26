@@ -16,7 +16,8 @@
 #include <vector>
 
 // The Android platform: one screen, which is the native window of the activity, and software rendering into it. The
-// windows of the application share that surface; the one shown last is on top.
+// windows of the application share that surface. A window fills it, except a dialog over another window, which keeps
+// its size, centred, with the windows below dimmed.
 class QAndroidScreen : public QPlatformScreen {
 public:
     QAndroidScreen();
@@ -57,12 +58,18 @@ public:
     quintptr winId() const override { return m_id; }
     void *eglNativeWindow() const override;
     bool isTopLevel() const { return m_topLevel; }
+    // Whether the window is a dialog that is shown over a window that fills the screen.
+    bool isOverlay() const;
 
     // Every visible top-level window, the topmost last.
     static std::vector<QAndroidWindow *> &stack();
     static QAndroidWindow *top();
 
 private:
+    bool isDialog() const;
+    // Where a dialog of the size that is asked for goes: centred, inside the screen with a margin.
+    QRect dialogGeometry(const QRect &wanted) const;
+
     QAndroidScreen *m_screen;
     quintptr m_id;
     bool m_topLevel;
@@ -71,6 +78,7 @@ private:
 class QAndroidBackingStore : public QPlatformBackingStore {
 public:
     QAndroidBackingStore(QWindow *window, QAndroidScreen *screen);
+    ~QAndroidBackingStore() override;
 
     QPaintDevice *paintDevice() override { return &m_image; }
     void flush(QWindow *window, const QRegion &region, const QPoint &offset) override;
@@ -78,6 +86,10 @@ public:
     QImage toImage() const override { return m_image; }
 
 private:
+    // The backing store of each window, for the frame is made of those of the windows that show.
+    static std::vector<QAndroidBackingStore *> &stores();
+    static const QAndroidBackingStore *storeOf(const QWindow *window);
+
     QAndroidScreen *m_screen;
     QImage m_image;
 };

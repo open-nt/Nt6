@@ -374,7 +374,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 ### Material 3 Expressive
 
-`QApplication::setStyle("Material3")`, or a `QMaterialStyle` with a seed color, draws a Qt Widgets application in the [Material 3 Expressive](https://m3.material.io/) look, light or dark, with sizes for fingers; the [`material`](https://github.com/open-nt/nt6-examples/blob/main/android/material.cpp) example shows it. So far push buttons (filled, tonal, outlined, text, elevated), line edits, check boxes, radio buttons, switches (a `QCheckBox` with the property `materialSwitch`), sliders, progress bars and tabs are drawn the Material way, and other widgets like Fusion in the Material colors. No motion, shape morphing, ripples or the new Expressive components yet. The HCT color engine is Nt's own.
+`QApplication::setStyle("Material3")`, or a `QMaterialStyle` with a seed color, draws a Qt Widgets application in the [Material 3 Expressive](https://m3.material.io/) look, light or dark, with sizes for fingers; the [`material`](https://github.com/open-nt/nt6-examples/blob/main/android/material.cpp) example shows it. So far push buttons (filled, tonal, outlined, text, elevated), line edits, check boxes, radio buttons, switches (a `QCheckBox` with the property `materialSwitch`), sliders, progress bars, tabs, combo boxes and menus are drawn the Material way, and other widgets like Fusion in the Material colors. No motion, shape morphing, ripples or the new Expressive components yet. The HCT color engine is Nt's own.
 
 ### Additions to Qt classes
 
@@ -802,7 +802,7 @@ adb install build/<target>.apk
 - **Works:** Nt Widgets and Nt GUI (raster, OpenGL ES with `QOpenGLWindow` and `QOpenGLWidget`, and `QVulkanWindow`), multi-touch (`QTouchEvent`), the on-screen keyboard, the system clipboard (plain text), rotation and returning from the background, and calls into Java with `QJniObject`, `QJniEnvironment` and `QNativeInterface::QAndroidApplication`. Programs without a GUI can run from `adb shell`.
 - **No TLS and no SQLite yet:** the NDK has neither OpenSSL nor SQLite, so the build described here has no `QSslSocket` or `https:` and Nt SQL has no `QSQLITE` driver.
 - **Not yet:** the permissions API (`requestPermission()`), Java sources of your own in the APK, assets, gestures and composing text. Nt Serial Port, Gamepad, Gltf, Barcode, Multimedia and the Wayland compositor are not built; other modules build, but only some have been run on Android.
-- **Different from Qt:** every top-level window fills the screen, and OpenGL and Vulkan windows draw behind the system bars. `QSharedMemory` is not built and `QThread::terminate()` only warns.
+- **Different from Qt:** a top-level window fills the screen (a dialog is a card over the dimmed window below), there are no title bars, and OpenGL and Vulkan windows draw behind the system bars. `QSharedMemory` is not built and `QThread::terminate()` only warns.
 
 The guide [Nt on Android](https://open-nt.github.io/Nt6/nt-android.html) has the details. CI (`android.yml`) builds Nt and an application for `arm64-v8a` and `x86_64`.
 

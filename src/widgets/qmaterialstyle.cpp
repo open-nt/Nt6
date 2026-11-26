@@ -8,12 +8,18 @@
 #include <QtGui/qfont.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qpainter.h>
+#include <QtGui/qpainterpath.h>
 #include <QtGui/qpalette.h>
 #include <QtGui/qstylehints.h>
+#include <QtGui/qwindow.h>
 #include <QtWidgets/qabstractbutton.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qcheckbox.h>
+#include <QtWidgets/qcombobox.h>
+#include <QtWidgets/qdialog.h>
+#include <QtWidgets/qdialogbuttonbox.h>
 #include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qmenu.h>
 #include <QtWidgets/qradiobutton.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
@@ -51,13 +57,22 @@ constexpr int progressHeight = 8;
 constexpr int tabHeight = 48;
 constexpr int tabPadding = 16;
 constexpr int tabIndicator = 3;
+constexpr int menuItemHeight = 48;
+constexpr int menuPadding = 16;
+constexpr int menuIconSize = 24;
+constexpr int menuIconSpace = 12;
+constexpr int menuSeparator = 9;
+constexpr int menuMinimumWidth = 112;
+constexpr int comboArrowRoom = 48;
 constexpr int focusRingWidth = 3;
+constexpr int dialogCorner = 28; // extra large
 constexpr double hoverOpacity = 0.08;
 constexpr double focusOpacity = 0.10;
 constexpr double pressedOpacity = 0.10;
 constexpr double disabledContentOpacity = 0.38;
 constexpr double disabledContainerOpacity = 0.10;
 const char *const polishedFont = "_nt_materialFont";
+const char *const polishedPalette = "_nt_materialPalette";
 
 QColor withOpacity(QColor color, double opacity) {
     color.setAlphaF(opacity);
@@ -102,7 +117,7 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
 
     The scheme is light or dark as the system says, unless setColorScheme() says otherwise. Sizes are in logical
     pixels, which on Android are the dp of Material: buttons are 40 high, text fields 56, and check boxes and radio
-    buttons have a height of at least 48 for a finger. A slider moves to where it is pressed and follows from there.
+    buttons have a height of at least 48 for a finger, as do the rows of menus and of the list of a combo box. A slider moves to where it is pressed and follows from there.
 
     Choices that the classes of Qt have no function for are dynamic properties, so that the same program also builds
     with Qt:
@@ -123,8 +138,11 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
 
     \differences
     Qt Widgets has no Material style. Push buttons, line edits, check boxes, radio buttons, switches, sliders (the
-    extra small size), progress bars (a thin line, with the text beside it) and tab bars (primary tabs) are drawn in
-    the Material way so far; the other widgets are drawn as the Fusion style draws them, in the Material colors.
+    extra small size), progress bars (a thin line, with the text beside it), tab bars (primary tabs), combo boxes
+    (the outlined exposed dropdown menu), menus and dialogs are drawn in the Material way so far; the other widgets,
+    among them list, tree and table views, are drawn as the Fusion style draws them, in the Material colors. Menus
+    have square corners. Dialogs get the Material container color and text buttons; their rounded corners and the
+    dimming behind them are the android platform's. A QMessageBox has no headline type style.
     A slider shows no value bubble, and a busy progress bar shows only its track.
     Changes of state show at once: there is no motion, no shape morphing and no ripple yet.
     \enddifferences
@@ -312,10 +330,18 @@ void QMaterialStyle::polish(QWidget *widget) {
     QCommonStyle::polish(widget);
     if (qobject_cast<QAbstractButton *>(widget))
         widget->setAttribute(Qt::WA_Hover);
+    if (qobject_cast<QDialog *>(widget) && !widget->testAttribute(Qt::WA_SetPalette)) {
+        QPalette palette = widget->palette();
+        palette.setColor(QPalette::Window, color(Role::SurfaceContainerHigh));
+        widget->setPalette(palette);
+        widget->setProperty(polishedPalette, true);
+    }
     // The type scale: label large for buttons, body large for text and choices. A font that the program set stays.
     const bool choice = qobject_cast<QCheckBox *>(widget) || qobject_cast<QRadioButton *>(widget);
     const bool button = (!choice && qobject_cast<QAbstractButton *>(widget)) || qobject_cast<QTabBar *>(widget);
-    if ((choice || button || qobject_cast<QLineEdit *>(widget)) && !widget->testAttribute(Qt::WA_SetFont)) {
+    const bool text =
+        qobject_cast<QLineEdit *>(widget) || qobject_cast<QComboBox *>(widget) || qobject_cast<QMenu *>(widget);
+    if ((choice || button || text) && !widget->testAttribute(Qt::WA_SetFont)) {
         QFont font = widget->font();
         font.setPixelSize(button ? 14 : 16);
         if (button)
@@ -329,6 +355,11 @@ void QMaterialStyle::polish(QWidget *widget) {
     \reimp
 */
 void QMaterialStyle::unpolish(QWidget *widget) {
+    if (widget->property(polishedPalette).toBool()) {
+        widget->setPalette(QPalette());
+        widget->setAttribute(Qt::WA_SetPalette, false);
+        widget->setProperty(polishedPalette, QVariant());
+    }
     if (widget->property(polishedFont).toBool()) {
         widget->setFont(QFont());
         widget->setAttribute(Qt::WA_SetFont, false);
@@ -362,6 +393,11 @@ void QMaterialStyle::unpolish(QApplication *application) {
     shows only in the first case.
 */
 bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
+    if (event->type() == QEvent::Show) {
+        // The android platform rounds the corners of a dialog's window by this property.
+        if (auto *dialog = qobject_cast<QDialog *>(watched); dialog && dialog->isWindow() && dialog->windowHandle())
+            dialog->windowHandle()->setProperty("_nt_cornerRadius", dialogCorner);
+    }
     if (event->type() == QEvent::KeyPress) {
         const int key = static_cast<QKeyEvent *>(event)->key();
         if (key == Qt::Key_Tab || key == Qt::Key_Backtab || key == Qt::Key_Left || key == Qt::Key_Right ||
@@ -400,6 +436,9 @@ QMaterialStyle::ButtonKind QMaterialStyle::buttonKind(const QStyleOption *option
         return ButtonKind::Text;
     if (name == QLatin1String("elevated"))
         return ButtonKind::Elevated;
+    // The actions of a Material dialog are text buttons.
+    if (widget && qobject_cast<QDialogButtonBox *>(widget->parentWidget()))
+        return ButtonKind::Text;
     if (option->type == QStyleOption::SO_Button) {
         const auto *button = static_cast<const QStyleOptionButton *>(option);
         if (button->features & QStyleOptionButton::Flat)
@@ -651,6 +690,99 @@ void QMaterialStyle::drawTab(const QStyleOption *option, QPainter *painter, cons
     painter->restore();
 }
 
+// The outlined text field of Material, with a triangle that opens the list: its exposed dropdown menu.
+void QMaterialStyle::drawComboBox(const QStyleOption *option, QPainter *painter) const {
+    const auto *combo = static_cast<const QStyleOptionComboBox *>(option);
+    const bool open = option->state & State_On;
+    const bool focused = open || keyboardFocus(option);
+    QColor line = color(focused ? Role::Primary : Role::Outline);
+    if (!enabled(option))
+        line = withOpacity(color(Role::OnSurface), 0.12);
+    const QRectF rect(option->rect);
+    fillRounded(painter, rect, textFieldCorner, option->palette.color(QPalette::Base));
+    if (const double layer = stateLayer(option); layer > 0)
+        fillRounded(painter, rect, textFieldCorner, withOpacity(color(Role::OnSurface), layer));
+    strokeRounded(painter, rect, textFieldCorner, line, focused ? 3 : 1);
+
+    const QColor ink =
+        enabled(option) ? color(Role::OnSurface) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    QRect text = option->rect.adjusted(textFieldPadding, 0, -comboArrowRoom, 0);
+    if (!combo->currentIcon.isNull()) {
+        const QSize size = combo->iconSize.isValid() ? combo->iconSize : QSize(menuIconSize, menuIconSize);
+        combo->currentIcon.paint(
+            painter, QRect(text.left(), text.top() + (text.height() - size.height()) / 2, size.width(), size.height()),
+            Qt::AlignCenter, enabled(option) ? QIcon::Normal : QIcon::Disabled);
+        text.setLeft(text.left() + size.width() + menuIconSpace);
+    }
+    // An editable combo box shows its text in a line edit of its own.
+    if (!combo->editable) {
+        painter->setPen(ink);
+        painter->drawText(text, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, combo->currentText);
+    }
+    const QPointF centre(rect.right() - comboArrowRoom / 2.0, rect.center().y());
+    const double up = open ? -1 : 1;
+    QPainterPath arrow;
+    arrow.moveTo(centre.x() - 5, centre.y() - 2.5 * up);
+    arrow.lineTo(centre.x() + 5, centre.y() - 2.5 * up);
+    arrow.lineTo(centre.x(), centre.y() + 2.5 * up);
+    arrow.closeSubpath();
+    painter->fillPath(arrow, QBrush(enabled(option) ? color(Role::OnSurfaceVariant) : ink));
+}
+
+// A row of a menu: 48 high, with room for an icon or a check mark when the item has one.
+void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter) const {
+    const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
+    const QRect r = item->rect;
+    if (item->menuItemType == QStyleOptionMenuItem::Separator) {
+        painter->fillRect(QRect(r.left(), r.center().y(), r.width(), 1), color(Role::OutlineVariant));
+        return;
+    }
+    const bool usable = item->state & State_Enabled;
+    if (usable && (item->state & State_Selected))
+        painter->fillRect(r, withOpacity(color(Role::OnSurface), hoverOpacity));
+    const QColor ink = usable ? color(Role::OnSurface) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    const QColor quiet = usable ? color(Role::OnSurfaceVariant) : ink;
+    int left = r.left() + menuPadding;
+    const bool checkable = item->checkType != QStyleOptionMenuItem::NotCheckable;
+    const QRect lead(left, r.top() + (r.height() - menuIconSize) / 2, menuIconSize, menuIconSize);
+    if (checkable && item->checked) {
+        painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->drawLine(QPointF(lead.left() + 5, lead.top() + 12.5), QPointF(lead.left() + 10, lead.top() + 17.5));
+        painter->drawLine(QPointF(lead.left() + 10, lead.top() + 17.5), QPointF(lead.left() + 19, lead.top() + 7.5));
+    } else if (!item->icon.isNull()) {
+        item->icon.paint(painter, lead, Qt::AlignCenter, usable ? QIcon::Normal : QIcon::Disabled);
+    }
+    if (checkable || !item->icon.isNull())
+        left += menuIconSize + menuIconSpace;
+    const qsizetype tab = item->text.indexOf(QLatin1Char('\t'));
+    // An ampersand marks the mnemonic; two stand for one.
+    const QString marked = tab < 0 ? item->text : item->text.left(tab);
+    QString label;
+    for (qsizetype i = 0; i < marked.size(); ++i) {
+        if (marked.at(i) == QLatin1Char('&') && i + 1 < marked.size())
+            ++i;
+        label.append(marked.at(i));
+    }
+    painter->setPen(ink);
+    painter->drawText(QRect(left, r.top(), r.right() - menuPadding - left + 1, r.height()),
+                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, label);
+    const bool submenu = item->menuItemType == QStyleOptionMenuItem::SubMenu;
+    if (tab >= 0) {
+        painter->setPen(quiet);
+        painter->drawText(QRect(r.left(), r.top(), r.width() - menuPadding - (submenu ? menuPadding : 0), r.height()),
+                          Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, item->text.mid(tab + 1));
+    }
+    if (submenu) {
+        const QPointF centre(r.right() - menuPadding, r.center().y());
+        QPainterPath arrow;
+        arrow.moveTo(centre.x() - 2.5, centre.y() - 5);
+        arrow.lineTo(centre.x() + 2.5, centre.y());
+        arrow.lineTo(centre.x() - 2.5, centre.y() + 5);
+        arrow.closeSubpath();
+        painter->fillPath(arrow, QBrush(quiet));
+    }
+}
+
 /*!
     \reimp
 */
@@ -661,6 +793,17 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     switch (element) {
     case PE_PanelButtonCommand:
         drawButtonContainer(option, painter, widget);
+        break;
+    case PE_PanelMenu:
+    case PE_FrameMenu:
+        // Only the fill: a menu is a window, whose corners would show behind rounded ones.
+        painter->fillRect(option->rect, color(Role::SurfaceContainer));
+        if (element == PE_FrameMenu)
+            break;
+        painter->setPen(QPen(QBrush(color(Role::OutlineVariant)), 1));
+        painter->setBrush(Qt::NoBrush);
+        painter->setRenderHint(QPainter::Antialiasing, false);
+        painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
         break;
     case PE_FrameTabWidget:
         break; // the pages of a tab widget have no frame: the line under the tabs parts them
@@ -746,6 +889,19 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
         painter->setPen(
             option->palette.color(enabled(option) ? QPalette::Active : QPalette::Disabled, QPalette::WindowText));
         painter->drawText(button->rect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
+        painter->restore();
+        return;
+    }
+    if ((element == CE_ComboBox && option->type == QStyleOption::SO_ComboBox) ||
+        (element == CE_MenuItem && option->type == QStyleOption::SO_MenuItem)) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        if (element == CE_ComboBox) {
+            drawComboBox(option, painter);
+        } else {
+            painter->setFont(static_cast<const QStyleOptionMenuItem *>(option)->font);
+            drawMenuItem(option, painter);
+        }
         painter->restore();
         return;
     }
@@ -837,6 +993,8 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
     case PM_CheckBoxLabelSpacing:
     case PM_RadioButtonLabelSpacing:
         return indicatorSpace;
+    case PM_ComboBoxArrowWidth:
+        return comboArrowRoom;
     case PM_SliderLength:
         return sliderLength;
     case PM_SliderThickness:
@@ -868,6 +1026,22 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             height = std::max(height, icon.height());
         }
         return QSize(std::max(touchTarget, width + 2 * buttonPadding), std::max(buttonHeight, height + 8));
+    }
+    case CT_ComboBox:
+        return QSize(contentsSize.width() + textFieldPadding + comboArrowRoom,
+                     std::max(textFieldHeight, contentsSize.height()));
+    case CT_MenuItem: {
+        const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
+        if (item->menuItemType == QStyleOptionMenuItem::Separator)
+            return QSize(menuMinimumWidth, menuSeparator);
+        int width = contentsSize.width() + 2 * menuPadding;
+        if (!item->icon.isNull() || item->checkType != QStyleOptionMenuItem::NotCheckable)
+            width += menuIconSize + menuIconSpace;
+        if (item->text.contains(QLatin1Char('\t')))
+            width += item->reservedShortcutWidth + 2 * menuPadding;
+        if (item->menuItemType == QStyleOptionMenuItem::SubMenu)
+            width += menuPadding;
+        return QSize(std::max(width, menuMinimumWidth), std::max(menuItemHeight, contentsSize.height()));
     }
     case CT_ProgressBar:
         return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));

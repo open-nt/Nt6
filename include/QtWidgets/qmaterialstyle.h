@@ -13,6 +13,7 @@ class Animator;
 struct SpringSpec;
 } // namespace QtPrivate
 
+class QLineEdit;
 class QListWidget;
 class QToolBar;
 class QStyleOptionButton;
@@ -118,6 +119,13 @@ private:
     bool popupFabMenu(QPushButton *button, QMenu *menu) const;
     // A floating toolbar. QToolBar lays itself out for one and asks for its container; its buttons ask for the color
     // of their labels (as does another tool button with a kind or a size); for any other button the color is invalid.
+    // A text field: its container, label and the line under it. QLineEdit draws its placeholder itself, and asks if
+    // the resting label stands where it would.
+    friend class QLineEdit;
+    bool hidesPlaceholder(const QLineEdit *field) const;
+    void drawTextFieldText(QPainter *painter, const QStyleOption *option, const QWidget *widget) const;
+    // A property of the style's that a widget was given, or lost, while it is shown.
+    void propertyChanged(QWidget *widget);
     friend class QToolBar;
     static bool isFloatingToolBar(const QWidget *widget);
     void drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const;

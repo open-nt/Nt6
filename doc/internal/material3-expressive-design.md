@@ -59,8 +59,8 @@ changes to the application: `QApplication::setStyle("Material3")`.
    **Done:** the floating toolbar is a `QToolBar` with `materialToolBar` = `"floating"` or `"floatingVibrant"`: a
    pill of 64 with a shadow, in a row or a column, whose `QToolButton`s are 48 to a finger with a shape of 40, with no
    container until checked. `QToolBar` lays itself out for it (no grip, no stretch) and asks the private
-   `drawFloatingToolBar()` to paint it. Nt sends no `QEvent::DynamicPropertyChange`, so the property is read when
-   actions are added, when the toolbar is shown and when the style changes.
+   `drawFloatingToolBar()` to paint it. A change of any of the style's properties on a shown widget takes
+   effect at once: the style's event filter answers `QEvent::DynamicPropertyChange`.
    **Done:** a busy `QProgressBar` (range 0 to 0) moves: as a line, two parts that cross it, or, with
    `materialProgress` = `"loading"` or `"containedLoading"`, as the loading indicator (a shape of 38, in a container
    of 48). Compose defines its shapes in code, not as tokens, so Nt has its own: circles with 2 to 10 swellings,
@@ -84,6 +84,13 @@ The sizes of the common button are `materialButtonSize` = `"extraSmall"` to `"ex
 resting (`materialButtonShape` = `"square"`) corners 12, 12, 16, 28, 28; outlines 1, 1, 1, 2, 3. A button without a
 size is as before. A tool button with a size or a kind takes the label colour of its container. Split buttons, groups
 and FABs keep one size.
+
+Text fields: a framed `QLineEdit` is outlined, or filled with `materialTextField` = `"filled"`. `materialLabel` rests
+at 16 in the middle of an empty unfocused field and floats to 12 along the default effects spring: onto the outline,
+which makes way for it (an outlined field then has 8 above its container), or into the top of a filled one. The
+placeholder is hidden while the label rests (`QLineEdit` asks the private `hidesPlaceholder()`).
+`materialSupportingText` and `materialError` have 20 under the field. Not done: icons, prefix and suffix, character
+counter, the caret in the accent colour, and multi-line fields.
 
 ## Open points
 

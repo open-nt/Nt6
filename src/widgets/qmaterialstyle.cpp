@@ -54,6 +54,10 @@ constexpr int selectedCorner = 12; // the shape of a checked button
 constexpr int touchTarget = 48;    // the least height of what a finger has to hit
 constexpr int textFieldHeight = 56;
 constexpr int textFieldCorner = 4;
+constexpr int fieldLabelRoom = 8;    // above an outlined field whose label sits on its outline,
+constexpr int fieldSupportRoom = 20; // and below one with a line of supporting text
+constexpr int fieldSmallPixels = 12; // the label that has floated up, and the supporting text
+constexpr int fieldInputPixels = 16;
 constexpr int textFieldPadding = 16;
 constexpr int checkBoxSize = 18;
 constexpr int radioSize = 20;
@@ -310,7 +314,40 @@ bool isSquareButton(const QWidget *widget) {
     return widget && widget->property("materialButtonShape").toString() == QLatin1String("square");
 }
 
+// What a framed QLineEdit asks of its text field with its properties.
+struct TextField {
+    bool filled = false;
+    QString label;
+    QString supporting; // the line under the field: the supporting text, or the error, which takes its place
+    bool error = false;
+    int above = 0; // the room over the container,
+    int below = 0; // and under it
+
+    QRect box(const QRect &widget) const { return widget.adjusted(0, above, 0, -below); }
+};
+
+TextField textFieldOf(const QWidget *widget) {
+    TextField field;
+    const auto *edit = qobject_cast<const QLineEdit *>(widget);
+    if (!edit || !edit->hasFrame())
+        return field;
+    field.filled = edit->property("materialTextField").toString() == QLatin1String("filled");
+    field.label = edit->property("materialLabel").toString();
+    const QVariant supporting = edit->property("materialSupportingText");
+    const QVariant error = edit->property("materialError");
+    field.error = !error.toString().isEmpty();
+    field.supporting = field.error ? error.toString() : supporting.toString();
+    field.above = !field.filled && !field.label.isEmpty() ? fieldLabelRoom : 0;
+    // The room is kept while either is there, even empty, so that an error that comes does not move what is below.
+    field.below = supporting.isValid() || error.isValid() ? fieldSupportRoom : 0;
+    return field;
+}
+
+// The label rests where the text goes in an empty field that does not have the focus, and has floated up otherwise.
+bool isLabelUp(const QLineEdit *field) { return field->hasFocus() || !field->text().isEmpty(); }
+
 enum Channel {
+    LabelChannel,  // how far the label of a text field has floated
     CornerChannel, // of the corners at the left
     RightCornerChannel,
     GlyphChannel, // how far the chevron of a split button, or the plus of a FAB, has turned
@@ -404,15 +441,18 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     \li \c materialToolBar of a QToolBar: \c "floating" makes it a floating toolbar, a pill of 64 with a shadow
         that goes over the content, in a row or, with a vertical orientation, in a column; \c "floatingVibrant" is the
         same in the primary container color. Its buttons have no container until they are checked. It is as long as
-        its buttons need, so place it with an alignment, or as a child that is moved over the content. Set the property
-        before the toolbar is shown: it is read when actions are added, when the toolbar is shown and when the style
-        changes.
+        its buttons need, so place it with an alignment, or as a child that is moved over the content.
     \li \c materialButtonSize of a QPushButton or a QToolButton: \c "extraSmall", \c "small", \c "medium",
         \c "large" or \c "extraLarge", the five sizes of Material 3 Expressive, 32, 40, 56, 96 and 136 high, each
         with its own label, icon, room around them, corners and outline. Without it a button is small.
         \c materialButtonShape \c "square" gives a button square corners at rest, and a pill while it is checked,
-        the other way round from a round one. Set the size before the button is shown: the style sets its font when it
-        polishes the button.
+        the other way round from a round one.
+    \li A framed QLineEdit is an outlined text field; \c materialTextField \c "filled" fills it, with a line at the
+        bottom. \c materialLabel is a label that rests where the text goes while the field is empty without the focus,
+        and floats up otherwise; the placeholder text shows once the label is up. \c materialSupportingText is a line
+        under the field, and a \c materialError that is not empty turns the field red and takes that line's place. The
+        room for the line is kept while either property is there, so give a field an empty \c materialError from the
+        start if an error should not move what is below it.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
@@ -420,6 +460,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         buttons small, and the checked button is a pill. For a choice of one, make the buttons checkable and
         auto-exclusive.
     \endlist
+
+    A widget that is shown takes a change of these properties at once.
 
     \code
     save->setProperty("materialButton", "filled");
@@ -446,7 +488,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another
     but close at once, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
-    button widens, is not drawn differently from buttons in a row. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
+    button widens, is not drawn differently from buttons in a row. Text fields are those of QLineEdit, and
+    have no icons, prefix, suffix or character counter; their caret is the color of the text. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
     going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
     what does not fit. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
@@ -693,7 +736,7 @@ double QMaterialStyle::animated(const QWidget *widget, int channel, double targe
                                 double precision) const {
     // Only widgets that draw one such thing each: a view draws many indicators with the same widget.
     if (!m_motion || !(qobject_cast<const QAbstractButton *>(widget) || qobject_cast<const QSlider *>(widget) ||
-                       qobject_cast<const QTabBar *>(widget)))
+                       qobject_cast<const QLineEdit *>(widget) || qobject_cast<const QTabBar *>(widget)))
         return target;
     return m_animator->value(widget, channel, target, spring, precision);
 }
@@ -887,6 +930,12 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::Hide && m_rippleWidget && watched == m_rippleWidget.data()) {
         m_rippleWidget = nullptr;
         m_rowPressed = false;
+    }
+    if (event->type() == QEvent::DynamicPropertyChange) {
+        auto *widget = qobject_cast<QWidget *>(watched);
+        if (widget && widget->style() == this &&
+            static_cast<QDynamicPropertyChangeEvent *>(event)->propertyName().startsWith("material"))
+            propertyChanged(widget);
     }
     if (event->type() == QEvent::KeyPress) {
         const int key = static_cast<QKeyEvent *>(event)->key();
@@ -1236,6 +1285,73 @@ void QMaterialStyle::drawFabLabel(const QStyleOption *option, QPainter *painter,
     QRect textRect = body;
     textRect.setLeft(iconRect.right() + 1 + space);
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
+}
+
+bool QMaterialStyle::hidesPlaceholder(const QLineEdit *field) const {
+    return !textFieldOf(field).label.isEmpty() && !isLabelUp(field);
+}
+
+// The label of a text field, on its way between where it rests and where it floats, and the line under the field.
+void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *option, const QWidget *widget) const {
+    const auto *edit = qobject_cast<const QLineEdit *>(widget);
+    const TextField field = textFieldOf(widget);
+    if (!edit || (field.label.isEmpty() && field.supporting.isEmpty()))
+        return;
+    const QRectF box(field.box(option->rect));
+    const QColor quiet = enabled(option) ? color(field.error ? Role::Error : Role::OnSurfaceVariant)
+                                         : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    painter->save();
+    if (!field.label.isEmpty()) {
+        const double up = std::clamp(
+            animated(edit, LabelChannel, isLabelUp(edit) ? 1.0 : 0.0, QtPrivate::defaultEffectsSpring, 0.004), 0.0,
+            1.0);
+        QFont font = edit->font();
+        font.setPixelSize(static_cast<int>(std::lround(fieldInputPixels - (fieldInputPixels - fieldSmallPixels) * up)));
+        // Floating, it is on the outline of an outlined field, and in the upper part of a filled one.
+        const double rest = box.center().y();
+        const double floated = field.filled ? box.top() + 16 : box.top();
+        const double middle = rest + (floated - rest) * up;
+        QColor ink = quiet;
+        if (enabled(option) && !field.error && edit->hasFocus())
+            ink = color(Role::Primary);
+        painter->setFont(font);
+        painter->setPen(ink);
+        const int width = static_cast<int>(box.width()) - 2 * textFieldPadding;
+        painter->drawText(
+            QRect(static_cast<int>(box.left()) + textFieldPadding, static_cast<int>(middle) - 10, width, 20),
+            Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+            QFontMetrics(font).elidedText(field.label, Qt::ElideRight, width));
+    }
+    if (!field.supporting.isEmpty()) {
+        QFont font = edit->font();
+        font.setPixelSize(fieldSmallPixels);
+        painter->setFont(font);
+        painter->setPen(quiet);
+        const int width = static_cast<int>(box.width()) - 2 * textFieldPadding;
+        painter->drawText(QRect(static_cast<int>(box.left()) + textFieldPadding, static_cast<int>(box.bottom()) + 4,
+                                width, fieldSupportRoom - 4),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                          QFontMetrics(font).elidedText(field.supporting, Qt::ElideRight, width));
+    }
+    painter->restore();
+}
+
+void QMaterialStyle::propertyChanged(QWidget *widget) {
+    if (qobject_cast<QToolBar *>(widget)) {
+        QEvent change(QEvent::StyleChange); // it lays itself out anew
+        QCoreApplication::sendEvent(widget, &change);
+    } else if (widget->property(polishedFont).toBool()) {
+        // The font may be another now: a size of button has its own.
+        unpolish(widget);
+        polish(widget);
+    }
+    widget->updateGeometry();
+    widget->update();
+    // The buttons of a group take their shapes from the widget that holds them.
+    for (QObject *child : widget->children()) {
+        if (auto *button = qobject_cast<QAbstractButton *>(child))
+            button->update();
+    }
 }
 
 void QMaterialStyle::drawFabMenuItem(const QStyleOption *option, QPainter *painter, const QWidget *menu) const {
@@ -1749,17 +1865,61 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_PanelLineEdit: {
         const auto *frame =
             option->type == QStyleOption::SO_Frame ? static_cast<const QStyleOptionFrame *>(option) : nullptr;
-        fillRounded(painter, QRectF(option->rect), textFieldCorner, option->palette.color(QPalette::Base));
+        const TextField field = textFieldOf(widget);
+        const QRectF box(field.box(option->rect));
+        if (field.filled) {
+            // Rounded at the top only: the line at the bottom is straight.
+            QPainterPath shape;
+            shape.addRoundedRect(box.adjusted(0, 0, 0, textFieldCorner), textFieldCorner, textFieldCorner);
+            QPainterPath inside;
+            inside.addRect(box);
+            painter->fillPath(shape.intersected(inside),
+                              QBrush(enabled(option) ? color(Role::SurfaceContainerHighest)
+                                                     : withOpacity(color(Role::OnSurface), 0.04)));
+        } else {
+            fillRounded(painter, box, textFieldCorner, option->palette.color(QPalette::Base));
+        }
         if (!frame || frame->lineWidth > 0)
             proxy()->drawPrimitive(PE_FrameLineEdit, option, painter, widget);
+        drawTextFieldText(painter, option, widget);
         break;
     }
     case PE_FrameLineEdit: {
         const bool focused = option->state & State_HasFocus;
-        QColor line = color(focused ? Role::Primary : Role::Outline);
+        const TextField field = textFieldOf(widget);
+        const QRectF box(field.box(option->rect));
+        QColor line = color(field.error    ? Role::Error
+                            : focused      ? Role::Primary
+                            : field.filled ? Role::OnSurfaceVariant
+                                           : Role::Outline);
         if (!enabled(option))
-            line = withOpacity(color(Role::OnSurface), 0.12);
-        strokeRounded(painter, QRectF(option->rect), textFieldCorner, line, focused ? 3 : 1);
+            line = withOpacity(color(Role::OnSurface), field.filled ? disabledContentOpacity : 0.12);
+        if (field.filled) {
+            const double height = focused ? 2 : 1;
+            painter->fillRect(QRectF(box.left(), box.bottom() - height, box.width(), height), line);
+            break;
+        }
+        const auto *edit = qobject_cast<const QLineEdit *>(widget);
+        if (!edit || field.label.isEmpty() || !isLabelUp(edit)) {
+            strokeRounded(painter, box, textFieldCorner, line, focused ? 3 : 1);
+            break;
+        }
+        // The outline makes way for the label that sits on it.
+        QFont small = edit->font();
+        small.setPixelSize(fieldSmallPixels);
+        const double from = box.left() + textFieldPadding - 4;
+        const double to =
+            std::min(box.right() - textFieldCorner, from + QFontMetrics(small).horizontalAdvance(field.label) + 8.0);
+        const QRectF around = QRectF(option->rect);
+        const QRectF parts[] = {QRectF(around.left(), around.top(), from - around.left(), around.height()),
+                                QRectF(to, around.top(), around.right() - to, around.height()),
+                                QRectF(from, box.top() + 6, to - from, around.bottom() - box.top() - 6)};
+        for (const QRectF &part : parts) {
+            painter->save();
+            painter->setClipRect(part, Qt::IntersectClip);
+            strokeRounded(painter, box, textFieldCorner, line, focused ? 3 : 1);
+            painter->restore();
+        }
         break;
     }
     case PE_IndicatorCheckBox: {
@@ -1939,8 +2099,14 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
     case SE_LineEditContents: {
         const bool framed =
             option->type != QStyleOption::SO_Frame || static_cast<const QStyleOptionFrame *>(option)->lineWidth > 0;
-        if (framed)
-            return r.adjusted(textFieldPadding, 3, -textFieldPadding, -3);
+        if (framed) {
+            const TextField field = textFieldOf(widget);
+            const QRect box = field.box(r);
+            // Under a label that floats inside a filled field, the text is in the lower part.
+            if (field.filled && !field.label.isEmpty())
+                return box.adjusted(textFieldPadding, 22, -textFieldPadding, -4);
+            return box.adjusted(textFieldPadding, 3, -textFieldPadding, -3);
+        }
         break;
     }
     default:
@@ -2074,8 +2240,11 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
     case CT_LineEdit: {
         const bool framed = !option || option->type != QStyleOption::SO_Frame ||
                             static_cast<const QStyleOptionFrame *>(option)->lineWidth > 0;
-        if (framed)
-            return QSize(contentsSize.width() + 2 * textFieldPadding, std::max(textFieldHeight, contentsSize.height()));
+        if (framed) {
+            const TextField field = textFieldOf(widget);
+            return QSize(contentsSize.width() + 2 * textFieldPadding,
+                         std::max(textFieldHeight, contentsSize.height()) + field.above + field.below);
+        }
         break;
     }
     default:

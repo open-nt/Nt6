@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qmaterialstyle.h>
 
 #include <QtGui/qclipboard.h>
 #include <QtGui/qevent.h>
@@ -737,7 +738,9 @@ void QLineEdit::paintEvent(QPaintEvent *event) {
     const int origin = textOrigin();
     const QRect textRect(origin, top, xOf(static_cast<int>(m_text.size())) + 4, fm.height());
     painter.setClipRect(contents);
-    if (m_text.isEmpty()) {
+    // In the Material style, a label that rests stands where the placeholder would.
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (m_text.isEmpty() && !(material && material->hidesPlaceholder(this))) {
         painter.setPen(palette().color(group, QPalette::PlaceholderText));
         const Qt::Alignment h = QStyle::visualAlignment(layoutDirection(), m_alignment) & Qt::AlignHorizontal_Mask;
         painter.drawText(QRect(contents.left(), top, contents.width(), fm.height()),

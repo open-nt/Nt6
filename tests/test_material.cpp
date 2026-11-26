@@ -1477,6 +1477,130 @@ void testButtonSizes() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// Text fields: outlined and filled, with a label that floats, supporting text and an error.
+void testTextFields() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *outlined = new QLineEdit;
+    outlined->setProperty("materialLabel", QStringLiteral("Name of the nut"));
+    outlined->setPlaceholderText(QStringLiteral("Acorn"));
+    auto *filled = new QLineEdit;
+    filled->setProperty("materialTextField", QStringLiteral("filled"));
+    filled->setProperty("materialLabel", QStringLiteral("Weight"));
+    filled->setProperty("materialSupportingText", QStringLiteral("In grams"));
+    auto *plain = new QLineEdit;
+    auto *elsewhere = new QPushButton(QStringLiteral("Elsewhere"));
+    layout->addWidget(outlined);
+    layout->addWidget(filled);
+    layout->addWidget(plain);
+    layout->addWidget(elsewhere);
+    layout->addStretch(1);
+    window.resize(340, 420);
+    window.show();
+    elsewhere->setFocus();
+    QCoreApplication::processEvents();
+
+    CHECK(outlined->height() == 8 + 56); // the room for the label on the outline
+    CHECK(filled->height() == 56 + 20);  // and for the line below
+    CHECK(plain->height() == 56);
+    QStyleOptionFrame option;
+    option.rect = filled->rect();
+    option.lineWidth = 1;
+    CHECK(style->subElementRect(QStyle::SE_LineEditContents, &option, filled) ==
+          QRect(16, 22, filled->width() - 32, 30));
+
+    const auto at = [&](QWidget *widget, int x, int y) {
+        const QPoint point = widget->mapTo(&window, QPoint(x, y));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const QColor surface = style->color(Role::Surface);
+    const QColor outline = style->color(Role::Outline);
+    const QColor primary = style->color(Role::Primary);
+    const QColor red = style->color(Role::Error);
+
+    // At rest the outline is whole, where a label that floats would sit on it.
+    CHECK(near(at(outlined, 24, 8), outline, 40));
+    outlined->setText(QStringLiteral("x"));
+    CHECK(near(at(outlined, 14, 8), surface, 3)); // it makes way for the label
+    CHECK(near(at(outlined, outlined->width() - 24, 8), outline, 40));
+    outlined->clear();
+    CHECK(near(at(outlined, 24, 8), outline, 40));
+    outlined->setFocus();
+    CHECK(near(at(outlined, 14, 8), surface, 3));
+    CHECK(near(at(outlined, outlined->width() - 24, 9), primary, 3)); // three wide, in the accent color
+
+    // A filled field: rounded at the top, straight at the bottom, with a line that the focus thickens.
+    const int w = filled->width();
+    CHECK(near(at(filled, w - 40, 6), style->color(Role::SurfaceContainerHighest), 2));
+    CHECK(near(at(filled, 0, 0), surface, 3));
+    CHECK(near(at(filled, 0, 53), style->color(Role::SurfaceContainerHighest), 3));
+    CHECK(near(at(filled, w - 40, 55), style->color(Role::OnSurfaceVariant), 3));
+    CHECK(near(at(filled, w - 40, 54), style->color(Role::SurfaceContainerHighest), 3));
+    CHECK(near(at(filled, w - 40, 66), surface, 3)); // the supporting text has no container
+    filled->setFocus();
+    CHECK(near(at(filled, w - 40, 54), primary, 3));
+
+    // An error that comes while the field is shown turns it red, and moves nothing: the room was there.
+    filled->setProperty("materialError", QStringLiteral("A weight is a number"));
+    QCoreApplication::processEvents();
+    CHECK(filled->height() == 76);
+    CHECK(near(at(filled, w - 40, 55), red, 3));
+    filled->setProperty("materialError", QString());
+    CHECK(near(at(filled, w - 40, 55), primary, 3));
+    // A field that had no line below makes room for one.
+    plain->setProperty("materialError", QStringLiteral("Needed"));
+    QCoreApplication::processEvents();
+    CHECK(plain->height() == 76);
+    CHECK(near(at(plain, plain->width() - 40, 0), red, 40));
+    plain->setProperty("materialError", QVariant());
+    QCoreApplication::processEvents();
+    CHECK(plain->height() == 56);
+
+    // The text of the label and of the line below, where text is drawn.
+    if (textIsDrawn()) {
+        const auto inked = [&](QWidget *widget, const QRect &area) {
+            int found = 0;
+            const QImage image = window.grab().toImage();
+            const QPoint origin = widget->mapTo(&window, QPoint(0, 0));
+            for (int y = area.top(); y <= area.bottom(); ++y)
+                for (int x = area.left(); x <= area.right(); ++x)
+                    found += image.pixelColor(origin.x() + x, origin.y() + y).lightness() < 170 ? 1 : 0;
+            return found;
+        };
+        elsewhere->setFocus();
+        outlined->clear();
+        CHECK(inked(outlined, QRect(16, 26, 140, 20)) > 20); // the label rests where the text goes
+        const int resting = inked(outlined, QRect(16, 26, 140, 20));
+        outlined->setPlaceholderText(QString());
+        CHECK(inked(outlined, QRect(16, 26, 140, 20)) == resting); // and the placeholder does not show through it
+        outlined->setFocus();
+        CHECK(inked(outlined, QRect(16, 2, 120, 11)) > 15); // up, on the outline
+        CHECK(inked(filled, QRect(16, 60, 140, 14)) > 15);  // the supporting text
+    }
+
+    // Other properties of the style take effect on what is shown, too.
+    elsewhere->setProperty("materialButtonSize", QStringLiteral("large"));
+    QCoreApplication::processEvents();
+    CHECK(elsewhere->height() == 96 && elsewhere->font().pixelSize() == 24);
+    elsewhere->setProperty("materialButtonSize", QVariant());
+    QCoreApplication::processEvents();
+    CHECK(elsewhere->height() == 40 && elsewhere->font().pixelSize() == 14);
+    auto *bar = new QToolBar;
+    bar->addAction(QStringLiteral("A"));
+    layout->insertWidget(0, bar, 0, Qt::AlignHCenter);
+    bar->show();
+    QCoreApplication::processEvents();
+    bar->setProperty("materialToolBar", QStringLiteral("floating"));
+    QCoreApplication::processEvents();
+    CHECK(bar->height() == 66);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1499,6 +1623,7 @@ int main(int argc, char *argv[]) {
     testWavyProgress();
     testMoreRipples();
     testButtonSizes();
+    testTextFields();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

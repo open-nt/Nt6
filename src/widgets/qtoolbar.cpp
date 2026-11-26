@@ -570,7 +570,7 @@ void QToolBar::changeEvent(QEvent *event) {
     \reimp
 */
 void QToolBar::showEvent(QShowEvent *event) {
-    // A property that makes the toolbar float may have been set since the actions were added.
+    // A property that makes the toolbar float may have been set since the actions were added, under another style.
     relayout();
     QWidget::showEvent(event);
     m_toggleView->setChecked(true);

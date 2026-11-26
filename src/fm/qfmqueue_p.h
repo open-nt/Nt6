@@ -8,7 +8,9 @@
 
 #include <atomic>
 #include <cstddef>
+#include <cstring>
 #include <memory>
+#include <type_traits>
 
 namespace QtFM::Private {
 
@@ -96,6 +98,61 @@ private:
     std::unique_ptr<T[]> m_items;
     alignas(64) std::atomic<std::size_t> m_head{0};
     alignas(64) std::atomic<std::size_t> m_tail{0};
+};
+
+// An eight-byte value that one thread at a time stores and any thread loads, such as the frame counter that the
+// audio thread advances. Where eight-byte atomics are not lock-free, as on a 32-bit Cortex-M, whose toolchains have
+// no libatomic to fall back on, it is a sequence lock over two four-byte words: load() never sees a torn value, and
+// neither side locks or allocates.
+// The tests choose the sequence lock with LockFree = false.
+template <typename T, bool LockFree = std::atomic<T>::is_always_lock_free> class SingleWriterAtomic {
+    static_assert(sizeof(T) == 8 && std::is_trivially_copyable_v<T>, "an eight-byte value");
+
+public:
+    explicit SingleWriterAtomic(T value = T()) { store(value); }
+    SingleWriterAtomic(const SingleWriterAtomic &) = delete;
+    SingleWriterAtomic &operator=(const SingleWriterAtomic &) = delete;
+
+    void store(T value) {
+        if constexpr (kLockFree) {
+            m_value.store(value, std::memory_order_release);
+        } else {
+            quint32 words[2];
+            std::memcpy(words, &value, sizeof(words));
+            const quint32 sequence = m_sequence.load(std::memory_order_relaxed);
+            m_sequence.store(sequence + 1, std::memory_order_relaxed); // odd: a store is under way
+            std::atomic_thread_fence(std::memory_order_release);
+            m_words[0].store(words[0], std::memory_order_relaxed);
+            m_words[1].store(words[1], std::memory_order_relaxed);
+            m_sequence.store(sequence + 2, std::memory_order_release);
+        }
+    }
+
+    T load() const {
+        if constexpr (kLockFree) {
+            return m_value.load(std::memory_order_acquire);
+        } else {
+            quint32 words[2];
+            for (;;) {
+                const quint32 before = m_sequence.load(std::memory_order_acquire);
+                words[0] = m_words[0].load(std::memory_order_relaxed);
+                words[1] = m_words[1].load(std::memory_order_relaxed);
+                std::atomic_thread_fence(std::memory_order_acquire);
+                if ((before & 1U) == 0 && m_sequence.load(std::memory_order_relaxed) == before)
+                    break;
+            }
+            T value;
+            std::memcpy(&value, words, sizeof(value));
+            return value;
+        }
+    }
+
+private:
+    static constexpr bool kLockFree = LockFree;
+    // Only the members of one implementation are used.
+    std::conditional_t<kLockFree, std::atomic<T>, char> m_value{};
+    std::atomic<quint32> m_sequence{0};
+    std::atomic<quint32> m_words[2] = {{0}, {0}};
 };
 
 } // namespace QtFM::Private

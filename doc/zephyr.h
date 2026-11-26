@@ -308,6 +308,40 @@
     west flash
     \endcode
 
+    \section1 FM Synthesis
+
+    \c CONFIG_NT_FM builds Nt FM, linked as \c Nt::FM: QtFM::Engine synthesises sound effects and
+    plays MIDI files and OPL music in real time; see \l{Using Nt FM}. With \c CONFIG_NT_MULTIMEDIA,
+    Engine::start() plays through the audio codec described above, in stereo with 16-bit samples
+    at the engine's sample rate, which has to be one the codec runs at (the default, 48 kHz, is).
+    A thread of Nt FM renders a block of \c EngineConfig::blockSize frames at a time and hands it to
+    the codec's engine, so the latency is the four blocks of the stream's ring and the
+    \c CONFIG_NT_AUDIO_BLOCK_COUNT blocks of the bus, about 80 ms with the defaults. The codec
+    plays one stream at a time, so an engine and a QAudioSink cannot both play.
+
+    The synthesiser works in single-precision floating point, so the option implies
+    \c CONFIG_FPU, which the Cortex-M7 of the i.MX RT1170 has. An engine
+    whose configuration has no seed draws one from QRandomGenerator::global(), which needs the
+    entropy driver (\c CONFIG_ENTROPY_GENERATOR, also implied). VGZ files (gzipped VGM) are not
+    read, as Zephyr has no zlib.
+
+    \code
+    CONFIG_I2C=y
+    CONFIG_I2S=y
+    CONFIG_AUDIO=y
+    CONFIG_AUDIO_CODEC=y
+    CONFIG_NT_MULTIMEDIA=y
+    CONFIG_NT_FM=y
+    \endcode
+
+    \c zephyr/fm in the \l{Nt Examples}{examples repository} prints how fast the board renders eight
+    voices, then plays a sound effect of each category every second over an engine hum:
+
+    \code
+    west build -b mimxrt1170_evk/mimxrt1176/cm7 zephyr/fm -- -DNT_ROOT=/path/to/Nt
+    west flash
+    \endcode
+
     \section1 Supported Hardware
 
     \table
@@ -315,6 +349,8 @@
     \row \li NXP MIMXRT1170-EVKB (\c mimxrt1170_evk/mimxrt1176/cm7, revision B) \li The primary
          target. Nt GPIO (its LEDs and user button) and Nt Multimedia audio (headphones and microphone
          on its WM8962, with QAudioHeadset) run on it; Nt Core and Nt Network build for it.
+    \row \li NXP MIMXRT1170-EVKB, FM synthesis \li Nt FM builds for it and plays through its WM8962;
+         not yet run on the board.
     \row \li NXP MIMXRT1170-EVKB, CAN \li Nt SerialBus builds for its FlexCAN controllers (CAN FD);
          not yet run on the board.
     \row \li NXP MIMXRT1170-EVKB, UART \li Nt SerialPort builds for its LPUARTs; not yet run on the

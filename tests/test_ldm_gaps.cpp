@@ -992,7 +992,60 @@ static void testScroller() {
     scroller->ensureVisible(QRectF(0, 10, 10, 10), 0, 5, 0);
     CHECK(bar->value() == 5);
 
+    // The press is held back: a drag that starts in time selects nothing, and a click arrives whole.
+    scroller->scrollTo(QPointF(0, 0));
+    list->clearSelection();
+    list->setCurrentRow(-1);
+    QSignalSpy pressed(list, &QListWidget::itemPressed);
+    QSignalSpy clicked(list, &QListWidget::itemClicked);
+    mouse(QEvent::MouseButtonPress, 150);
+    CHECK(pressed.count() == 0 && list->selectedItems().isEmpty());
+    mouse(QEvent::MouseMove, 148); // no further than a finger trembles
+    mouse(QEvent::MouseMove, 100);
+    mouse(QEvent::MouseMove, 60);
+    CHECK(scroller->state() == QScroller::Dragging && bar->value() > 0);
+    scroller->stop();
+    mouse(QEvent::MouseButtonRelease, 60);
+    const auto elapse = [](int ms) {
+        QElapsedTimer waited;
+        waited.start();
+        while (waited.elapsed() < ms)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+    };
+    elapse(350);
+    CHECK(pressed.count() == 0 && clicked.count() == 0 && list->selectedItems().isEmpty());
+
+    mouse(QEvent::MouseButtonPress, 50);
+    mouse(QEvent::MouseButtonRelease, 50);
+    CHECK(pressed.count() == 1 && clicked.count() == 1 && list->selectedItems().size() == 1);
+    CHECK(scroller->state() == QScroller::Inactive);
+    elapse(350);
+    CHECK(pressed.count() == 1); // once only
+
+    // A press that is held arrives when the delay is over.
+    list->clearSelection();
+    mouse(QEvent::MouseButtonPress, 90);
+    CHECK(pressed.count() == 1);
+    elapse(350);
+    CHECK(pressed.count() == 2 && clicked.count() == 1 && list->selectedItems().size() == 1);
+    mouse(QEvent::MouseButtonRelease, 90);
+    CHECK(clicked.count() == 2);
+
+    // Without a delay the target gets the press at once.
+    props.setScrollMetric(QScrollerProperties::MousePressEventDelay, 0.0);
+    scroller->setScrollerProperties(props);
+    mouse(QEvent::MouseButtonPress, 50);
+    CHECK(pressed.count() == 3);
+    mouse(QEvent::MouseButtonRelease, 50);
+
+    // A gesture that is given up takes the press it holds with it.
+    props.setScrollMetric(QScrollerProperties::MousePressEventDelay, 0.25);
+    scroller->setScrollerProperties(props);
+    mouse(QEvent::MouseButtonPress, 90);
     QScroller::ungrabGesture(viewport);
+    elapse(350);
+    CHECK(pressed.count() == 3);
+
     CHECK(QScroller::grabbedGesture(viewport) == 0);
     delete list;
     CHECK(!QScroller::hasScroller(viewport));

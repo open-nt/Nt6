@@ -21,7 +21,7 @@
 
     \section1 Playing a Sound
 
-    A QtFM::Engine owns the voices. start() opens the default sound output (ALSA on Linux), and
+    A QtFM::Engine owns the voices. start() opens the default sound output (ALSA on Linux, the audio codec on Zephyr), and
     play() starts a patch:
 
     \code
@@ -390,8 +390,9 @@
     \li A voice on a chip channel follows its note, length and pitch changes only.
     \li The QML types run on Nt Qml, which has no Qt Quick: documents are rooted in \c QtObject.
     \li Floating point only; the \c qint16 output is converted from it. There is no fixed-point
-        path for microcontrollers, and Nt FM is not built for Zephyr.
+        path for microcontrollers without a floating-point unit.
     \li No oversampling: square and saw waves, and high feedback, alias at high pitches.
-    \li The default output is ALSA on Linux. Elsewhere, pass an AudioOutput to Engine::start().
+    \li The default output is ALSA on Linux and, with \c CONFIG_NT_MULTIMEDIA, the audio codec on
+        Zephyr (see \l{Nt on Zephyr}). Elsewhere, pass an AudioOutput to Engine::start().
     \endlist
 */

@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qscroller.h>
 
+#include <QtCore/qcoreapplication.h>
 #include <QtCore/qeasingcurve.h>
 #include <QtCore/qhash.h>
 #include <QtCore/qtimer.h>
@@ -12,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <memory>
+#include <utility>
 
 namespace {
 
@@ -106,8 +108,8 @@ qreal snapValue(qreal value, const QList<qreal> &list, qreal first, qreal interv
 
     \differences
     The scroller uses DragStartDistance, DragVelocitySmoothingFactor, DecelerationFactor, MinimumVelocity,
-    MaximumVelocity, ScrollingCurve, SnapTime and FrameRate. The others are kept but have no effect: there is no
-    overshoot, no delay of the press and no accelerating flick.
+    MaximumVelocity, ScrollingCurve, SnapTime, FrameRate and, for the mouse button gestures, MousePressEventDelay.
+    The others are kept but have no effect: there is no overshoot and no accelerating flick.
     \enddifferences
 
     \sa QScroller
@@ -244,11 +246,15 @@ void QScrollerProperties::setScrollMetric(ScrollMetric metric, const QVariant &v
     });
     \endcode
 
+    With a mouse button gesture the press is held back for \c MousePressEventDelay, a quarter of a second. If a drag
+    starts in that time, the target never gets the press, so that scrolling a list does not select a row. Otherwise
+    the target gets it when the time is up, or with the release if that comes first.
+
     \differences
     The target must be a QAbstractScrollArea or its viewport, whose scroll bars are moved; Nt sends no
     \c QScrollPrepareEvent or \c QScrollEvent, so other widgets and graphics objects cannot be scrolled. There is no
-    overshoot and the press is not held back: the widget gets it, and a drag that starts scrolling takes the moves
-    and the release. The gesture is not a QGesture; grabGesture() returns Qt::CustomGesture.
+    overshoot. If a drag starts after the target got the press, the scroller takes the moves and the release, and the
+    target is not told that the press has ended. The gesture is not a QGesture; grabGesture() returns Qt::CustomGesture.
     \enddifferences
 
     \sa QScrollerProperties
@@ -288,6 +294,9 @@ QScroller::QScroller(QObject *target) : m_target(target) {
     m_clock.start();
     m_timer = new QTimer(this);
     QObject::connect(m_timer, &QTimer::timeout, this, [this] { tick(); });
+    m_pressTimer = new QTimer(this);
+    m_pressTimer->setSingleShot(true);
+    QObject::connect(m_pressTimer, &QTimer::timeout, this, [this] { deliverHeldPress(); });
     QObject::connect(target, &QObject::destroyed, this, [this, target] {
         scrollers().remove(target);
         m_target = nullptr;
@@ -363,6 +372,8 @@ void QScroller::ungrabGesture(QObject *target) {
         return;
     target->removeEventFilter(s);
     s->m_grabbed = false;
+    s->dropHeldPress();
+    s->m_swallowRelease = false;
     s->stop();
 }
 
@@ -757,20 +768,87 @@ bool QScroller::eventFilter(QObject *watched, QEvent *event) {
         }
         return used;
     }
-    if (type != QEvent::MouseButtonPress && type != QEvent::MouseMove && type != QEvent::MouseButtonRelease)
+    if (type != QEvent::MouseButtonPress && type != QEvent::MouseButtonDblClick && type != QEvent::MouseMove &&
+        type != QEvent::MouseButtonRelease)
         return false;
-    const auto *mouse = static_cast<QMouseEvent *>(event);
-    const Qt::MouseButton button = m_gesture == LeftMouseButtonGesture    ? Qt::LeftButton
-                                   : m_gesture == RightMouseButtonGesture ? Qt::RightButton
-                                                                          : Qt::MiddleButton;
-    if (type == QEvent::MouseMove) {
-        if (!(mouse->buttons() & button))
+    return !m_delivering && mouseInput(static_cast<QMouseEvent *>(event));
+}
+
+bool QScroller::mouseInput(QMouseEvent *event) {
+    const Qt::MouseButton button = gestureButton();
+    if (event->type() == QEvent::MouseMove) {
+        if (!(event->buttons() & button))
             return false;
-        return handleInput(InputMove, mouse->position());
+        const bool used = handleInput(InputMove, event->position());
+        if (m_state == Dragging)
+            dropHeldPress();                   // a drag: the target never gets the press
+        return used || m_heldPress != nullptr; // no moves before the press
     }
-    if (mouse->button() != button)
+    if (event->button() != button)
         return false;
-    return handleInput(type == QEvent::MouseButtonPress ? InputPress : InputRelease, mouse->position());
+    if (event->type() == QEvent::MouseButtonRelease) {
+        const bool swallow = std::exchange(m_swallowRelease, false);
+        if (!m_heldPress)
+            return handleInput(InputRelease, event->position()) || swallow;
+        // A click that was over before the delay was: the target gets the press, and then the release.
+        const std::unique_ptr<QMouseEvent> release(event->clone());
+        const QPointF position = event->position();
+        const QPointer<QScroller> self(this);
+        deliverHeldPress();
+        if (!self)
+            return true;
+        handleInput(InputRelease, position);
+        deliver(*release);
+        return true;
+    }
+    dropHeldPress();
+    m_swallowRelease = handleInput(InputPress, event->position()); // true if it stopped a flick
+    if (m_swallowRelease)
+        return true;
+    if (pressDelay() <= 0)
+        return false;
+    // Held back until it shows whether it starts a drag.
+    m_heldPress.reset(event->clone());
+    m_pressTimer->start(pressDelay());
+    return true;
+}
+
+Qt::MouseButton QScroller::gestureButton() const {
+    return m_gesture == LeftMouseButtonGesture    ? Qt::LeftButton
+           : m_gesture == RightMouseButtonGesture ? Qt::RightButton
+                                                  : Qt::MiddleButton;
+}
+
+int QScroller::pressDelay() const {
+    return static_cast<int>(std::lround(metric(QScrollerProperties::MousePressEventDelay) * 1000));
+}
+
+bool QScroller::holdsBackPress(const QObject *target, Qt::MouseButton button) {
+    const QScroller *s = scrollers().value(target);
+    return s && s->m_grabbed && !s->m_delivering && s->m_gesture != TouchGesture && s->gestureButton() == button &&
+           s->pressDelay() > 0;
+}
+
+void QScroller::deliver(QMouseEvent &event) {
+    if (!m_target)
+        return;
+    const QPointer<QScroller> self(this);
+    m_delivering = true;
+    event.accept();
+    QCoreApplication::sendEvent(m_target, &event);
+    if (self) // what the target does with it may delete the target, and the scroller with it
+        m_delivering = false;
+}
+
+void QScroller::deliverHeldPress() {
+    m_pressTimer->stop();
+    if (const std::unique_ptr<QMouseEvent> press = std::move(m_heldPress))
+        deliver(*press);
+}
+
+void QScroller::dropHeldPress() {
+    m_pressTimer->stop();
+    m_heldPress.reset();
 }
 
 #include "moc_qscroller.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

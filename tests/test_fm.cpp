@@ -1564,6 +1564,41 @@ static void testQueues() {
     CHECK(!spsc.pop(v));
 }
 
+// The eight-byte values that the audio thread publishes, with the sequence lock that 32-bit microcontrollers use
+// forced on: a reader never sees half of one store and half of another, and sees the stores in order.
+template <bool LockFree> static void testSingleWriterAtomic() {
+    Private::SingleWriterAtomic<quint64, LockFree> value(0);
+    CHECK(value.load() == 0);
+    constexpr quint64 stores = 200000;
+    std::atomic<bool> torn{false};
+    std::atomic<bool> backwards{false};
+    std::atomic<bool> finished{false};
+    std::thread reader([&] {
+        quint64 previous = 0;
+        while (!finished.load(std::memory_order_acquire)) {
+            const quint64 v = value.load();
+            // Each store puts the same count in both halves.
+            if ((v >> 32) != (v & 0xffffffffU))
+                torn = true;
+            if (v < previous)
+                backwards = true;
+            previous = v;
+        }
+    });
+    for (quint64 n = 1; n <= stores; ++n)
+        value.store((n << 32) | n);
+    finished.store(true, std::memory_order_release);
+    reader.join();
+    CHECK(!torn.load());
+    CHECK(!backwards.load());
+    CHECK(value.load() == ((stores << 32) | stores));
+
+    Private::SingleWriterAtomic<double, LockFree> position(1.5);
+    CHECK(position.load() == 1.5);
+    position.store(-2.25);
+    CHECK(position.load() == -2.25);
+}
+
 int main(int argc, char **argv) {
     QCoreApplication app(argc, argv);
     testParsing();
@@ -1589,6 +1624,8 @@ int main(int argc, char **argv) {
     testThreadedEngine();
     testRealTimeSafety();
     testQueues();
+    testSingleWriterAtomic<true>();
+    testSingleWriterAtomic<false>();
     if (g_failures) {
         std::printf("%d failure(s)\n", g_failures);
         return 1;

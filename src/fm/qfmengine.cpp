@@ -88,7 +88,7 @@ struct EngineCore {
     // inFlight and finished) are only touched with mutex held.
     MpscQueue<Command> commands;
     SpscQueue<Program *> returns;
-    std::atomic<quint64> frame{0};
+    SingleWriterAtomic<quint64> frame{0};
     std::vector<float> scratch;
     QList<quint32> finished;
     QMutex mutex;
@@ -97,7 +97,7 @@ struct EngineCore {
     SpscQueue<MusicData *> musicReturns;
     std::vector<std::unique_ptr<ChipCore>> chipCores;
     std::vector<ChipType> chipTypes;
-    std::atomic<double> musicPosition{0};
+    SingleWriterAtomic<double> musicPosition{0};
     std::atomic<bool> musicPlaying{false};
     std::atomic<bool> musicFinished{false};
     std::atomic<int> active{0};
@@ -400,8 +400,8 @@ void VoiceHandle::setParameterAt(ParamId id, float value, quint64 frame) {
     Only the OPL2 and OPL3 are emulated. A voice on a chip channel follows its note, duration and
     pitch changes only: pitch envelopes, arpeggios and the other native parameters do not apply.
     There is no 2x oversampling, and no fixed-point synthesis path: render() into \c qint16 converts
-    the floating-point output. The default output of start() is ALSA on Linux; elsewhere, pass an
-    AudioOutput.
+    the floating-point output. The default output of start() is ALSA on Linux and the audio codec
+    of Nt Multimedia on Zephyr; elsewhere, pass an AudioOutput.
     \enddifferences
 
     \sa QtFM::Patch, QtFM::AudioOutput, {Using Nt FM}
@@ -442,7 +442,8 @@ EngineConfig Engine::config() const { return m_core->config; }
 /*!
     Starts rendering into \a output, opening it at the engine's sample rate, in stereo. If
     \a output is \c nullptr, the engine opens the platform's default output: the ALSA \c default
-    device on Linux. Returns \c false if the output cannot be opened, or the engine is already
+    device on Linux, or on Zephyr the audio codec of Nt Multimedia (\c CONFIG_NT_MULTIMEDIA), in
+    16-bit samples at a rate the codec runs at. Returns \c false if the output cannot be opened, or the engine is already
     started. The engine does not take ownership of \a output.
 
     \sa stop()
@@ -492,7 +493,7 @@ bool Engine::isStarted() const { return m_output != nullptr; }
 VoiceHandle Engine::play(const Patch &patch, const PlayOptions &options) {
     quint64 frame = 0;
     if (options.delay > 0.0f && std::isfinite(options.delay)) {
-        frame = m_core->frame.load(std::memory_order_acquire) +
+        frame = m_core->frame.load() +
                 static_cast<quint64>(std::min(options.delay, 3600.0f) * static_cast<float>(m_core->config.sampleRate));
     }
     return playAt(patch, options, frame);
@@ -510,7 +511,7 @@ QList<VoiceHandle> Engine::play(const Sequence &sequence, const PlayOptions &opt
     const float delay = options.delay > 0.0f && std::isfinite(options.delay) ? std::min(options.delay, 3600.0f) : 0.0f;
     // One base frame for every note, so the notes keep their spacing however the audio thread runs.
     // It is a block ahead, so that the first note is not late either.
-    const quint64 base = m_core->frame.load(std::memory_order_acquire) +
+    const quint64 base = m_core->frame.load() +
                          static_cast<quint64>(m_core->config.blockSize) + static_cast<quint64>(delay * rate);
     for (const Sequence::Note &note : sequence.notes()) {
         PlayOptions o = options;
@@ -589,7 +590,7 @@ VoiceHandle Engine::playAt(const Patch &patch, const PlayOptions &options, quint
 
     \sa playAt()
 */
-quint64 Engine::frame() const { return m_core->frame.load(std::memory_order_acquire); }
+quint64 Engine::frame() const { return m_core->frame.load(); }
 
 /*!
     Returns the chip of \a type that the engine was configured with, for register-level access, or
@@ -638,8 +639,8 @@ int Engine::render(float *interleaved, int frames) {
         core.renderer.busGain[i] = core.busGain[i].load(std::memory_order_relaxed);
     core.renderer.masterGain = core.masterGain.load(std::memory_order_relaxed);
     core.renderer.render(interleaved, frames);
-    core.frame.store(core.renderer.frame(), std::memory_order_release);
-    core.musicPosition.store(core.renderer.musicPosition(), std::memory_order_relaxed);
+    core.frame.store(core.renderer.frame());
+    core.musicPosition.store(core.renderer.musicPosition());
     core.musicPlaying.store(core.renderer.musicPlaying(), std::memory_order_relaxed);
     if (core.renderer.takeMusicFinished())
         core.musicFinished.store(true, std::memory_order_relaxed);
@@ -837,7 +838,8 @@ QByteArray Engine::renderToWav(const Patch &patch, int sampleRate, const PlayOpt
     \endcode
 
     \differences
-    There is no Qt Multimedia backend. Nt FM has ALSA on Linux as the default output.
+    There is no Qt Multimedia backend. Nt FM has ALSA on Linux as the default output, and the audio
+    codec of Nt Multimedia on Zephyr.
     \enddifferences
 */
 
@@ -1019,7 +1021,7 @@ void Chip::writeRegister(quint16 reg, quint8 value, float delay) {
     c.param = static_cast<quint8>(m_index);
     c.voiceId = quint32(reg & 0x1ff) | (quint32(value) << 16);
     if (delay > 0.0f && std::isfinite(delay)) {
-        c.frame = m_core->frame.load(std::memory_order_acquire) +
+        c.frame = m_core->frame.load() +
                   static_cast<quint64>(std::min(delay, 3600.0f) * static_cast<float>(m_core->config.sampleRate));
     }
     m_core->send(c);
@@ -1178,7 +1180,7 @@ bool MusicPlayer::isPlaying() const { return m_core->musicPlaying.load(std::memo
 /*!
     Returns the position in seconds, as of the last render.
 */
-double MusicPlayer::position() const { return m_core->musicPosition.load(std::memory_order_relaxed); }
+double MusicPlayer::position() const { return m_core->musicPosition.load(); }
 
 /*!
     Returns the length of the music in seconds.

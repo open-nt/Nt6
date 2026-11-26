@@ -193,6 +193,27 @@ config NT_AUDIO_BLOCK_COUNT
 
 endif # NT_MULTIMEDIA
 
+config NT_FM
+	bool "Nt FM (FM synthesiser for sound effects and music)"
+	imply NT_MULTIMEDIA if I2S && AUDIO_CODEC && I2C
+	# The synthesiser renders in single-precision floating point.
+	imply FPU
+	# An engine without a seed of its own takes one from QRandomGenerator::global(), which reads getentropy().
+	imply ENTROPY_GENERATOR
+	help
+	  Builds Nt FM: QtFM::Engine, which synthesises sound effects and plays music (MIDI files
+	  and OPL register logs) with four-operator FM in real time, from patches of a few
+	  hundred bytes instead of sample files. Link the application with Nt::FM.
+
+	  With CONFIG_NT_MULTIMEDIA, Engine::start() plays through the audio codec, as on the
+	  MIMXRT1170-EVKB with its WM8962, in stereo with 16-bit samples; the engine's sample rate
+	  has to be one the codec runs at, such as the default of 48000 Hz. Without it, the engine
+	  renders offline or into an AudioOutput of the application's own. VGZ (gzipped VGM) is
+	  not read.
+
+	  The synthesiser renders in floating point, so CONFIG_FPU is implied, and an engine whose
+	  EngineConfig has no seed draws one from the board's entropy driver (CONFIG_ENTROPY_GENERATOR).
+
 config NT_HTTPSERVER
 	bool "HTTP server and WebSockets"
 	depends on NT_NETWORK

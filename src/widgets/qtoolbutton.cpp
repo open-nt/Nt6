@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qtoolbutton.h>
+#include <QtWidgets/qmaterialstyle.h>
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
@@ -44,8 +45,10 @@ QToolButton::QToolButton(QWidget *parent) : QAbstractButton(parent) {
     m_popupTimer.setSingleShot(true);
     m_popupTimer.setInterval(600);
     QObject::connect(&m_popupTimer, &QTimer::timeout, this, [this] {
-        if (isDown())
+        if (isDown()) {
+            m_pressOpenedMenu = true;
             showMenu();
+        }
     });
     QObject::connect(this, &QAbstractButton::released, this, [this] { m_popupTimer.stop(); });
     setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -219,11 +222,22 @@ void QToolButton::paintEvent(QPaintEvent *event) {
     option.state |= isDown() ? QStyle::State_Sunken : QStyle::State_Raised;
     if (isChecked())
         option.state |= QStyle::State_On;
-    style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, this);
     const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
-    const bool pressed = option.state & (QStyle::State_Sunken | QStyle::State_On);
+    QColor ink = palette().color(group, QPalette::ButtonText);
     QRect content = rect();
-    if (activeMenu() && m_popupMode == MenuButtonPopup) {
+    const bool split = activeMenu() && m_popupMode == MenuButtonPopup;
+    // The Material style draws a split button whole, and says what color its label has.
+    const auto *material = split ? qobject_cast<const QMaterialStyle *>(style()) : nullptr;
+    if (material) {
+        option.rect = content;
+        ink =
+            material->drawSplitButton(&option, &painter, this, menuArrowRect(), isDown() && activeMenu()->isVisible());
+        content.setRight(menuArrowRect().left() - 3);
+    } else {
+        style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, this);
+    }
+    const bool pressed = !material && (option.state & (QStyle::State_Sunken | QStyle::State_On));
+    if (split && !material) {
         // The part at the right that opens the menu, with its arrow.
         QStyleOption arrow = option;
         arrow.rect = menuArrowRect().adjusted(2, 0, -2, 0);
@@ -254,7 +268,7 @@ void QToolButton::paintEvent(QPaintEvent *event) {
         const QSize size = iconSize();
         const QIcon::Mode mode = !isEnabled() ? QIcon::Disabled : QIcon::Normal;
         const QIcon::State state = isChecked() ? QIcon::On : QIcon::Off;
-        painter.setPen(palette().color(group, QPalette::ButtonText));
+        painter.setPen(ink);
         const int textWidth = showsText() ? fontMetrics().horizontalAdvance(text()) : 0;
         if (!showsText()) {
             icon().paint(&painter, content, Qt::AlignCenter, mode, state);
@@ -273,7 +287,7 @@ void QToolButton::paintEvent(QPaintEvent *event) {
                              Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, text());
         }
     } else if (!text().isEmpty()) {
-        painter.setPen(palette().color(group, QPalette::ButtonText));
+        painter.setPen(ink);
         painter.drawText(content, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text());
     }
 }
@@ -296,7 +310,9 @@ QMenu *QToolButton::activeMenu() const {
 }
 
 QRect QToolButton::menuArrowRect() const {
-    const int width = std::min(14, this->width() / 2);
+    // Wide enough for a finger in the Material style.
+    const int wanted = qobject_cast<const QMaterialStyle *>(style()) ? 48 : 14;
+    const int width = std::min(wanted, this->width() / 2);
     return QRect(this->width() - width, 0, width, height());
 }
 
@@ -368,8 +384,10 @@ void QToolButton::showMenu() {
     when the button is held down.
 */
 void QToolButton::mousePressEvent(QMouseEvent *event) {
+    m_pressOpenedMenu = false;
     if (event->button() == Qt::LeftButton && activeMenu()) {
         if (m_popupMode == InstantPopup || (m_popupMode == MenuButtonPopup && menuArrowRect().contains(event->pos()))) {
+            m_pressOpenedMenu = true;
             showMenu();
             event->accept();
             return;
@@ -378,6 +396,20 @@ void QToolButton::mousePressEvent(QMouseEvent *event) {
             m_popupTimer.start();
     }
     QAbstractButton::mousePressEvent(event);
+}
+
+/*!
+    \reimp
+
+    The release of a press that opened the menu does not click the button.
+*/
+void QToolButton::mouseReleaseEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && m_pressOpenedMenu) {
+        m_pressOpenedMenu = false;
+        event->accept();
+        return;
+    }
+    QAbstractButton::mouseReleaseEvent(event);
 }
 
 /*!

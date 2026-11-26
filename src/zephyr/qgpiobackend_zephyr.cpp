@@ -4,7 +4,9 @@
 // interrupt on both edges. Nt may not be called from an interrupt, so the handler only submits
 // a work item, and the work item, in the thread of the system work queue, writes an eventfd that
 // the event loop of the QGpioLine watches with a QSocketNotifier. A pin whose controller has no
-// interrupt, such as GPIO7 to GPIO12 for the Cortex-M7 of the i.MX RT1170, is polled.
+// interrupt, such as GPIO7 to GPIO12 for the Cortex-M7 of the i.MX RT1170, is polled. The driver of
+// the i.MX GPIO (nxp,imx-gpio) accepts gpio_pin_interrupt_configure() on such a controller although
+// no interrupt is connected, so whether it can interrupt is taken from its devicetree node instead.
 //
 // Lines are named "<controller>:<pin>", where the controller is the name device_get_binding()
 // takes (gpio@40c64000) or a node label of it in the devicetree (gpio9), or by the alias or node
@@ -64,6 +66,21 @@ const GpioName kGpioNames[] = {
             NT_GPIO_ALIAS(led2) NT_GPIO_ALIAS(led3) NT_GPIO_ALIAS(sw0) NT_GPIO_ALIAS(sw1) NT_GPIO_ALIAS(sw2)
                 NT_GPIO_ALIAS(sw3){nullptr, nullptr, -1, 0},
 };
+
+// The names of the i.MX GPIO controllers that have no interrupt in the devicetree. Their driver
+// enables edges on them without complaint, and no edge would ever be reported.
+#define NT_GPIO_NO_IRQ(node) COND_CODE_1(DT_IRQ_HAS_IDX(node, 0), (), (DEVICE_DT_NAME(node), ))
+const char *const kControllersWithoutInterrupt[] = {
+    DT_FOREACH_STATUS_OKAY(nxp_imx_gpio, NT_GPIO_NO_IRQ) nullptr,
+};
+
+bool canInterrupt(const device *controller) {
+    for (const char *name : kControllersWithoutInterrupt) {
+        if (name && std::strcmp(controller->name, name) == 0)
+            return false;
+    }
+    return true;
+}
 
 const GpioName *findGpioName(const QByteArray &name, bool controller) {
     for (const GpioName &entry : kGpioNames) {
@@ -205,6 +222,8 @@ public:
 private:
     // Turns on the interrupt of the pin; without one the line is polled.
     void watchEdges() {
+        if (!canInterrupt(m_device))
+            return;
         m_hooks.fd = eventfd(0, EFD_NONBLOCK);
         if (m_hooks.fd < 0)
             return;

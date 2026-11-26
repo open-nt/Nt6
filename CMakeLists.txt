@@ -752,6 +752,40 @@ target_compile_options(NtMultimedia PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
 nt_set_compile_options(NtMultimedia)
 endif() # NT_ZEPHYR AND CONFIG_NT_MULTIMEDIA
 
+# Nt FM, the FM synthesiser of game sound effects: built on the hosted systems below, and for Zephyr when CONFIG_NT_FM
+# is set. Its default sound output on Zephyr is the audio codec of Nt Multimedia, when CONFIG_NT_MULTIMEDIA is set too.
+set(NT_FM_SOURCES
+    src/fm/qfmbank.cpp
+    src/fm/qfmengine.cpp
+    src/fm/qfmmidi.cpp
+    src/fm/qfmmusic.cpp
+    src/fm/qfmopl.cpp
+    src/fm/qfmpatch.cpp
+    src/fm/qfmsynth.cpp)
+# The output of platforms without a default one, where Engine::start() needs an AudioOutput of the application's.
+set(NT_FM_NULL_OUTPUT src/fm/qfmoutput_null.cpp)
+if(NT_ZEPHYR AND CONFIG_NT_FM)
+add_library(NtFM ${NT_FM_SOURCES})
+add_library(Nt::FM ALIAS NtFM)
+target_include_directories(NtFM
+    PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtFM>
+        $<INSTALL_INTERFACE:include/nt6/QtFM>
+    PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/fm
+)
+target_link_libraries(NtFM PUBLIC NtCore)
+if(CONFIG_NT_MULTIMEDIA)
+    target_sources(NtFM PRIVATE src/zephyr/qfmoutput_zephyr.cpp)
+    target_include_directories(NtFM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src/multimedia ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(NtFM PRIVATE NtMultimedia)
+else()
+    target_sources(NtFM PRIVATE ${NT_FM_NULL_OUTPUT})
+endif()
+target_compile_options(NtFM PRIVATE ${NT_ZEPHYR_PRIVATE_OPTIONS})
+nt_set_compile_options(NtFM)
+endif() # NT_ZEPHYR AND CONFIG_NT_FM
+
 if(NOT NT_ZEPHYR)
 
 add_library(NtGui
@@ -1293,15 +1327,7 @@ nt_set_compile_options(NtQml)
 
 # Nt FM: an FM synthesiser for game sound effects. The default sound output on Linux loads ALSA at run time,
 # so the module needs no audio headers to build.
-add_library(NtFM
-    src/fm/qfmbank.cpp
-    src/fm/qfmengine.cpp
-    src/fm/qfmmidi.cpp
-    src/fm/qfmmusic.cpp
-    src/fm/qfmopl.cpp
-    src/fm/qfmpatch.cpp
-    src/fm/qfmsynth.cpp
-)
+add_library(NtFM ${NT_FM_SOURCES})
 add_library(Nt::FM ALIAS NtFM)
 target_include_directories(NtFM
     PUBLIC
@@ -1319,7 +1345,7 @@ endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_sources(NtFM PRIVATE src/fm/qfmoutput_alsa.cpp)
 else()
-    target_sources(NtFM PRIVATE src/fm/qfmoutput_null.cpp)
+    target_sources(NtFM PRIVATE ${NT_FM_NULL_OUTPUT})
 endif()
 nt_set_compile_options(NtFM)
 
@@ -1635,6 +1661,9 @@ endif()
 nt_moc_library(NtMqtt include/QtMqtt)
 set(NT_MOC_DEFINES)
 endif()
+if(NOT NT_ZEPHYR OR CONFIG_NT_FM)
+nt_moc_library(NtFM include/QtFM)
+endif()
 if(NT_ZEPHYR AND CONFIG_NT_MULTIMEDIA)
 set(NT_MOC_DEFINES -DQT_NO_CAMERA)
 nt_moc_library(NtMultimedia include/QtMultimedia)
@@ -1655,7 +1684,6 @@ nt_moc_library(NtSvg include/QtSvg)
 nt_moc_library(NtSvgWidgets include/QtSvgWidgets)
 nt_moc_library(NtCharts include/QtCharts)
 nt_moc_library(NtQml include/QtQml src/qml)
-nt_moc_library(NtFM include/QtFM)
 nt_moc_library(NtFMQml include/QtFMQml)
 if(NOT NT_ANDROID)
 nt_moc_library(NtGamepad include/QtGamepad)

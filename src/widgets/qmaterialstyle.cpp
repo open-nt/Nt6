@@ -4,6 +4,7 @@
 #include "qmaterialcolor_p.h"
 #include "qmaterialmotion_p.h"
 
+#include <QtCore/qcoreapplication.h>
 #include <QtCore/qhash.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qfont.h>
@@ -24,10 +25,13 @@
 #include <QtWidgets/qlistview.h>
 #include <QtWidgets/qlistwidget.h>
 #include <QtWidgets/qmenu.h>
+#include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
+#include <QtWidgets/qscroller.h>
 #include <QtWidgets/qslider.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
+#include <QtWidgets/qtoolbutton.h>
 #include <QtWidgets/qtreeview.h>
 
 #include <algorithm>
@@ -66,6 +70,24 @@ constexpr int progressHeight = 8;
 constexpr int tabHeight = 48;
 constexpr int tabPadding = 16;
 constexpr int tabIndicator = 3;
+constexpr int groupSpace = 2;          // between the buttons of a connected group
+constexpr double groupCorner = 8;      // the corners that they turn to each other,
+constexpr double groupPressed = 4;     // and those while a button is pressed
+constexpr int splitTrailing = 48;      // the part of a split button that opens the menu
+constexpr int splitLeadingSpace = 16;  // before the label of the other part,
+constexpr int splitTrailingSpace = 12; // and after it
+constexpr double splitCorner = 4;      // the corners that the two parts turn to each other,
+constexpr double splitPressed = 12;    // and that of a part that is pressed
+constexpr int fabSize = 56;
+constexpr double fabCorner = 16;
+constexpr int fabIconSize = 24;
+constexpr int fabIconSpace = 8;
+constexpr int fabPadding = 16;      // before and after the label of an extended FAB
+constexpr int fabShadow = 2;        // the room under a FAB for its shadow
+constexpr int fabMenuItemSpace = 4; // between the items of a FAB menu
+constexpr int fabMenuItemPadding = 24;
+constexpr int fabMenuGap = 8; // between a FAB menu and its button
+const char *const fabMenuProperty = "_nt_fabMenu";
 constexpr double listRadius = 4;          // the corners of a row of a list,
 constexpr double listSelectedRadius = 16; // and of one that is chosen or held
 constexpr double listPressSlop = 8;       // how far a press may stray and still be one
@@ -88,8 +110,102 @@ bool isList(const QWidget *widget) {
     return qobject_cast<const QListView *>(widget) || qobject_cast<const QListWidget *>(widget);
 }
 
+// A rectangle with one radius for its two corners at the left and another for those at the right.
+QPainterPath sidedPath(const QRectF &r, double left, double right) {
+    const double most = std::min(r.width(), r.height()) / 2;
+    const double a = 2 * std::clamp(left, 0.01, std::max(0.01, most));
+    const double b = 2 * std::clamp(right, 0.01, std::max(0.01, most));
+    QPainterPath path;
+    path.arcMoveTo(QRectF(r.left(), r.top(), a, a), 180);
+    path.arcTo(QRectF(r.left(), r.top(), a, a), 180, -90);
+    path.arcTo(QRectF(r.right() - b, r.top(), b, b), 90, -90);
+    path.arcTo(QRectF(r.right() - b, r.bottom() - b, b, b), 0, -90);
+    path.arcTo(QRectF(r.left(), r.bottom() - a, a, a), 270, -90);
+    path.closeSubpath();
+    return path;
+}
+
+// True if the buttons that `widget` holds form a connected button group.
+bool isConnectedGroup(const QWidget *widget) {
+    return widget && widget->property("materialButtonGroup").toString() == QLatin1String("connected");
+}
+
+// Where a button is in its connected group: whether it is the first or the last of its row. One that is in no group
+// is both, so that all its corners are those of an end.
+struct Segment {
+    bool grouped = false;
+    bool first = true;
+    bool last = true;
+};
+
+Segment segmentOf(const QWidget *widget) {
+    Segment segment;
+    const QWidget *group = widget ? widget->parentWidget() : nullptr;
+    if (!isConnectedGroup(group))
+        return segment;
+    segment.grouped = true;
+    const QRect own = widget->geometry();
+    for (const QObject *child : group->children()) {
+        const auto *other = qobject_cast<const QAbstractButton *>(child);
+        if (!other || other == widget || other->isHidden() || other->geometry().top() > own.bottom() ||
+            other->geometry().bottom() < own.top())
+            continue;
+        if (other->geometry().left() < own.left())
+            segment.first = false;
+        else
+            segment.last = false;
+    }
+    return segment;
+}
+
+bool isFab(const QWidget *widget) {
+    return qobject_cast<const QPushButton *>(widget) &&
+           widget->property("materialButton").toString() == QLatin1String("fab");
+}
+
+// A FAB whose menu is open is the button that closes it.
+bool isOpenFab(const QWidget *widget) {
+    const auto *button = qobject_cast<const QPushButton *>(widget);
+    return button && isFab(widget) && button->menu() && button->menu()->isVisible();
+}
+
+bool isFabMenu(const QWidget *widget) { return widget && widget->property(fabMenuProperty).toBool(); }
+
+bool isSplitButton(const QWidget *widget) {
+    const auto *button = qobject_cast<const QToolButton *>(widget);
+    return button && button->popupMode() == QToolButton::MenuButtonPopup &&
+           (button->menu() || (button->defaultAction() && button->defaultAction()->menu<QMenu *>()));
+}
+
+// The text of a menu item without the ampersand that marks its mnemonic (two stand for one) and without the shortcut.
+QString menuLabel(const QString &text) {
+    const qsizetype tab = text.indexOf(QLatin1Char('\t'));
+    const QString marked = tab < 0 ? text : text.left(tab);
+    QString label;
+    for (qsizetype i = 0; i < marked.size(); ++i) {
+        if (marked.at(i) == QLatin1Char('&') && i + 1 < marked.size())
+            ++i;
+        label.append(marked.at(i));
+    }
+    return label;
+}
+
+// The type of the items of a FAB menu: title medium.
+QFont fabMenuFont(QFont font) {
+    font.setPixelSize(16);
+    font.setWeight(QFont::Medium);
+    return font;
+}
+
+int fabMenuItemWidth(const QStyleOptionMenuItem &item) {
+    return 2 * fabMenuItemPadding + (item.icon.isNull() ? 0 : fabIconSize + fabIconSpace) +
+           QFontMetrics(fabMenuFont(item.font)).horizontalAdvance(menuLabel(item.text));
+}
+
 enum Channel {
-    CornerChannel,
+    CornerChannel, // of the corners at the left
+    RightCornerChannel,
+    GlyphChannel, // how far the chevron of a split button, or the plus of a FAB, has turned
     SwitchPositionChannel,
     SwitchSizeChannel,
     SwitchColorChannel,
@@ -157,17 +273,30 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     buttons have a height of at least 48 for a finger, as do the rows of menus and of the list of a combo box. A slider
     moves to where it is pressed and follows from there.
 
+    A QToolButton in the \c MenuButtonPopup mode, with a menu, is drawn as a split button: its action and the part that
+    opens the menu are two shapes, and the second turns round while the menu is open. This is Qt's own API.
+
     Choices that the classes of Qt have no function for are dynamic properties, so that the same program also builds
     with Qt:
 
     \list
     \li \c materialButton of a button: \c "filled", \c "tonal", \c "outlined", \c "text" or \c "elevated". Without
         it the default button is filled, a flat button is a text button, and other buttons are tonal.
+    \li \c materialButton \c "fab" of a QPushButton makes it a floating action button: 56 square, or wider with a
+        text (an extended FAB). Without an icon and a text it shows a plus. A menu that it is given with
+        QPushButton::setMenu() opens as Material's FAB menu: a pill for each action above the button, which turns into
+        the button that closes it. A layout stretches a FAB like any button, so add it with an alignment.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
+    \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
+        button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
+        widget puts them 2 apart unless it is told a spacing; the ends of the row are round, the corners between the
+        buttons small, and the checked button is a pill. For a choice of one, make the buttons checkable and
+        auto-exclusive.
     \endlist
 
     \code
     save->setProperty("materialButton", "filled");
+    period->setProperty("materialButtonGroup", "connected"); // the widget that holds Day, Week and Month
     wifi->setProperty("materialSwitch", true);
     \endcode
 
@@ -187,7 +316,10 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
     have square corners. Dialogs get the Material container color and text buttons; their rounded corners and the
     dimming behind them are the android platform's. A QMessageBox has no headline type style.
-    A slider shows no value bubble, and a busy progress bar shows only its track. Ripples are those of buttons only: a
+    Split buttons are of the small size, and FABs of the standard one. The items of a FAB menu appear at once, without
+    an animation, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
+    A connected button group is of the small size and lies across; Material's standard button group, whose pressed
+    button widens, is not drawn differently from buttons in a row. A slider shows no value bubble, and a busy progress bar shows only its track. Ripples are those of buttons only: a
     check box, a radio button, a tab or a menu row shows a press without one. The colors of buttons, labels and radio
     buttons change at once. The line under the tabs slides on a horizontal QTabBar, and not on one at the side. In an
     item view nothing moves.
@@ -405,8 +537,8 @@ double QMaterialStyle::animated(const QWidget *widget, int channel, double targe
 }
 
 // A circle that spreads from where the button was pressed until it fills it, and fades once the press has ended.
-void QMaterialStyle::drawRipple(QPainter *painter, const QWidget *widget, const QRectF &shape, double radius, bool held,
-                                const QColor &ink) const {
+void QMaterialStyle::drawRipple(QPainter *painter, const QWidget *widget, const QPainterPath &outline,
+                                const QRectF &shape, bool held, const QColor &ink) const {
     if (!m_motion || !widget || widget != m_rippleWidget.data())
         return;
     // A view's viewport ripples too, so this asks the animator itself rather than animated().
@@ -426,8 +558,6 @@ void QMaterialStyle::drawRipple(QPainter *painter, const QWidget *widget, const 
     const double reach = spread * std::hypot(dx, dy);
     if (reach <= 0)
         return;
-    QPainterPath outline;
-    outline.addRoundedRect(shape, radius, radius);
     QPainterPath circle;
     circle.addEllipse(m_rippleOrigin, reach, reach);
     painter->fillPath(outline.intersected(circle), QBrush(withOpacity(ink, pressedOpacity * strength)));
@@ -454,7 +584,7 @@ void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selec
     if (held && !m_motion)
         fillRounded(painter, shape, radius, withOpacity(ink, pressedOpacity));
     if (pressedHere)
-        drawRipple(painter, viewport, shape, radius, held, ink);
+        drawRipple(painter, viewport, sidedPath(shape, radius, radius), shape, held, ink);
     painter->restore();
 }
 
@@ -573,7 +703,9 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
         (m_rowPressed && event->type() == QEvent::MouseMove)) {
         auto *viewport = qobject_cast<QWidget *>(watched);
         const auto *view = viewport ? qobject_cast<QAbstractItemView *>(viewport->parentWidget()) : nullptr;
-        if (view && view->viewport() == viewport && isList(view)) {
+        if (view && view->viewport() == viewport && isList(view) &&
+            !(event->type() == QEvent::MouseButtonPress &&
+              QScroller::holdsBackPress(viewport, static_cast<QMouseEvent *>(event)->button()))) {
             const auto *mouse = static_cast<QMouseEvent *>(event);
             if (event->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton) {
                 m_rippleWidget = viewport;
@@ -624,6 +756,8 @@ double QMaterialStyle::stateLayer(const QStyleOption *option) const {
 }
 
 QMaterialStyle::ButtonKind QMaterialStyle::buttonKind(const QStyleOption *option, const QWidget *widget) {
+    if (isFab(widget))
+        return ButtonKind::Fab;
     const QString name = widget ? widget->property("materialButton").toString() : QString();
     if (name == QLatin1String("filled"))
         return ButtonKind::Filled;
@@ -661,6 +795,8 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
         return color(checked ? Role::InverseOnSurface : Role::OnSurfaceVariant);
     case ButtonKind::Elevated:
         return color(checked ? Role::OnPrimary : Role::Primary);
+    case ButtonKind::Fab:
+        return color(isOpenFab(widget) ? Role::OnPrimary : Role::OnPrimaryContainer);
     case ButtonKind::Text:
         break;
     }
@@ -668,18 +804,45 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
 }
 
 void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
-    const ButtonKind kind = buttonKind(option, widget);
-    const QRectF rect(option->rect);
+    QRectF rect(option->rect);
     const bool checked = option->state & State_On;
-    // A button is a pill; pressed, its corners tighten, and a checked button is squarer.
-    double radius = rect.height() / 2;
-    if (option->state & State_Sunken)
-        radius = std::min<double>(radius, rect.height() >= 56 ? selectedCorner : pressedCorner);
-    else if (checked)
-        radius = std::min<double>(radius, selectedCorner);
+    // A button is a pill; pressed, its corners tighten, and a checked button is squarer. In a connected group the
+    // ends of the row stay round, the corners between the buttons are small, and a checked button is a pill.
+    const Segment segment = segmentOf(widget);
+    const double pill = rect.height() / 2;
+    double left = pill;
+    double right = pill;
+    const bool fab = isFab(widget);
+    if (fab) {
+        // A rounded square; open, the close button of its menu, which is a circle at the right.
+        const bool open = isOpenFab(widget);
+        left = right = open ? (rect.height() - fabShadow) / 2 : fabCorner;
+    } else if (segment.grouped) {
+        if (!checked || (option->state & State_Sunken)) {
+            const double inner = (option->state & State_Sunken) ? groupPressed : groupCorner;
+            if (!segment.first)
+                left = inner;
+            if (!segment.last)
+                right = inner;
+        }
+    } else if (option->state & State_Sunken) {
+        left = right = std::min<double>(pill, rect.height() >= 56 ? selectedCorner : pressedCorner);
+    } else if (checked) {
+        left = right = std::min<double>(pill, selectedCorner);
+    }
     // The shape springs from one to the other, and may pass it a little.
-    radius =
-        std::clamp(animated(widget, CornerChannel, radius, QtPrivate::fastSpatialSpring, 0.05), 0.0, rect.height() / 2);
+    left = std::clamp(animated(widget, CornerChannel, left, QtPrivate::fastSpatialSpring, 0.05), 0.0, pill);
+    right = std::clamp(animated(widget, RightCornerChannel, right, QtPrivate::fastSpatialSpring, 0.05), 0.0, pill);
+    drawButtonShape(option, painter, widget, left, right);
+}
+
+void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *painter, const QWidget *widget, double left,
+                                     double right) const {
+    const ButtonKind kind = buttonKind(option, widget);
+    QRectF rect(option->rect);
+    if (isOpenFab(widget))
+        rect.setLeft(rect.right() - (rect.height() - fabShadow));
+    const bool checked = option->state & State_On;
 
     QColor container(Qt::transparent);
     switch (kind) {
@@ -696,30 +859,167 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
         if (checked)
             container = color(Role::InverseSurface);
         break;
+    case ButtonKind::Fab:
+        container = color(isOpenFab(widget) ? Role::Primary : Role::PrimaryContainer);
+        break;
     case ButtonKind::Text:
         break;
     }
     if (!enabled(option) && kind != ButtonKind::Text && !(kind == ButtonKind::Outlined && !checked))
         container = withOpacity(color(Role::OnSurface), disabledContainerOpacity);
-    if (kind == ButtonKind::Elevated && enabled(option) && !(option->state & State_Sunken))
-        fillRounded(painter, rect.adjusted(0.5, 1.5, -0.5, 0), radius, withOpacity(QColor(Qt::black), 0.18));
-    const QRectF body = kind == ButtonKind::Elevated ? rect.adjusted(0, 0, 0, -1.5) : rect;
+    const double lift = kind == ButtonKind::Fab ? fabShadow : kind == ButtonKind::Elevated ? 1.5 : 0.0;
+    const bool raised = lift > 0 && enabled(option) && (kind == ButtonKind::Fab || !(option->state & State_Sunken));
+    if (raised)
+        painter->fillPath(sidedPath(rect.adjusted(0.5, lift, -0.5, 0), left, right),
+                          QBrush(withOpacity(QColor(Qt::black), 0.18)));
+    const QRectF body = rect.adjusted(0, 0, 0, -lift);
+    const QPainterPath outline = sidedPath(body, left, right);
+    // A line inside the shape.
+    const auto stroke = [&](const QColor &ink, double width) {
+        const double half = width / 2;
+        painter->strokePath(sidedPath(body.adjusted(half, half, -half, -half), left - half, right - half),
+                            QPen(QBrush(ink), width));
+    };
     if (container.alpha() > 0)
-        fillRounded(painter, body, radius, container);
+        painter->fillPath(outline, QBrush(container));
     if (kind == ButtonKind::Outlined && !checked)
-        strokeRounded(painter, body, radius, color(Role::OutlineVariant), 1);
+        stroke(color(Role::OutlineVariant), 1);
     // With motion, the ripple shows the press; the layer is for the pointer and the keyboard.
     QStyleOption resting = *option;
-    if (m_motion && widget && widget == m_rippleWidget.data())
+    // An open FAB is down only to say that its menu is open.
+    if (isOpenFab(widget) || (m_motion && widget && widget == m_rippleWidget.data()))
         resting.state &= ~QStyle::State(State_Sunken);
     if (const double layer = stateLayer(&resting); layer > 0)
-        fillRounded(painter, body, radius, withOpacity(buttonLabelColor(option, widget), layer));
-    drawRipple(painter, widget, body, radius, option->state & State_Sunken, buttonLabelColor(option, widget));
+        painter->fillPath(outline, QBrush(withOpacity(buttonLabelColor(option, widget), layer)));
+    // Only on the part that was pressed, of a button that has two.
+    if (isOpenFab(widget) ||
+        (m_rippleOrigin.x() >= option->rect.left() && m_rippleOrigin.x() < option->rect.left() + option->rect.width()))
+        drawRipple(painter, widget, outline, body, (option->state & State_Sunken) && !isOpenFab(widget),
+                   buttonLabelColor(option, widget));
     if (keyboardFocus(option))
-        strokeRounded(painter, body, radius, color(Role::Secondary), focusRingWidth);
+        stroke(color(Role::Secondary), focusRingWidth);
+}
+
+QColor QMaterialStyle::drawSplitButton(const QStyleOptionButton *option, QPainter *painter, const QWidget *widget,
+                                       const QRect &trailing, bool open) const {
+    const double pill = option->rect.height() / 2.0;
+    const bool pressed = (option->state & State_Sunken) && !open;
+    // While the menu is open, the part that opened it is a pill of its own.
+    const double inner = std::clamp(
+        animated(widget, RightCornerChannel, pressed ? splitPressed : splitCorner, QtPrivate::fastSpatialSpring, 0.05),
+        0.0, pill);
+    const double opening = std::clamp(
+        animated(widget, CornerChannel, open ? pill : splitCorner, QtPrivate::fastSpatialSpring, 0.05), 0.0, pill);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    QStyleOptionButton part = *option; // the whole of it: buttonKind() reads what a button's option has
+    part.rect.setWidth(trailing.left() - groupSpace - option->rect.left());
+    if (open)
+        part.state &= ~QStyle::State(State_Sunken);
+    drawButtonShape(&part, painter, widget, pill, inner);
+    part.rect = trailing;
+    part.state &= ~QStyle::State(State_Sunken);
+    drawButtonShape(&part, painter, widget, opening, pill);
+    // The chevron, which turns over as the menu opens.
+    const QColor ink = buttonLabelColor(&part, widget);
+    painter->translate(QRectF(trailing).center());
+    painter->rotate(animated(widget, GlyphChannel, open ? 180 : 0, QtPrivate::fastSpatialSpring, 0.5));
+    painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter->drawLine(QPointF(-5, -2.5), QPointF(0, 2.5));
+    painter->drawLine(QPointF(0, 2.5), QPointF(5, -2.5));
+    painter->restore();
+    QStyleOptionButton label = *option;
+    label.state &= ~QStyle::State(State_Sunken);
+    return buttonLabelColor(&label, widget);
+}
+
+bool QMaterialStyle::popupFabMenu(QPushButton *button, QMenu *menu) const {
+    const bool fab = isFab(button);
+    if (fab != isFabMenu(menu)) {
+        menu->setProperty(fabMenuProperty, fab ? QVariant(true) : QVariant());
+        QEvent change(QEvent::StyleChange); // its items have other sizes
+        QCoreApplication::sendEvent(menu, &change);
+    }
+    if (!fab)
+        return false;
+    // Above the button, with their right edges in line. The last item has its space below it.
+    const QSize size = menu->sizeHint();
+    menu->popup(
+        button->mapToGlobal(QPoint(button->width() - size.width(), -size.height() - (fabMenuGap - fabMenuItemSpace))));
+    return true;
+}
+
+void QMaterialStyle::drawFabLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    const auto *button = static_cast<const QStyleOptionButton *>(option);
+    const QColor ink = buttonLabelColor(option, widget);
+    const bool open = isOpenFab(widget);
+    QRect body = button->rect.adjusted(0, 0, 0, -fabShadow);
+    if (open)
+        body.setLeft(body.right() + 1 - body.height());
+    const bool plain = button->icon.isNull() && button->text.isEmpty();
+    const double turned = animated(widget, GlyphChannel, open ? 45 : 0, QtPrivate::fastSpatialSpring, 0.5);
+    if (open || plain) {
+        // A plus, which turns into the cross that closes the menu.
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->translate(QRectF(body).center());
+        painter->rotate(turned);
+        painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->drawLine(QPointF(-7, 0), QPointF(7, 0));
+        painter->drawLine(QPointF(0, -7), QPointF(0, 7));
+        painter->restore();
+        return;
+    }
+    painter->setPen(ink);
+    if (button->icon.isNull()) {
+        painter->drawText(body, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, button->text);
+        return;
+    }
+    const int textWidth = button->text.isEmpty() ? 0 : painter->fontMetrics().horizontalAdvance(button->text);
+    const int space = button->text.isEmpty() ? 0 : fabIconSpace;
+    const int left = body.left() + (body.width() - fabIconSize - space - textWidth) / 2;
+    const QRect iconRect(left, body.top() + (body.height() - fabIconSize) / 2, fabIconSize, fabIconSize);
+    button->icon.paint(painter, iconRect, Qt::AlignCenter, enabled(option) ? QIcon::Normal : QIcon::Disabled);
+    QRect textRect = body;
+    textRect.setLeft(iconRect.right() + 1 + space);
+    painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
+}
+
+void QMaterialStyle::drawFabMenuItem(const QStyleOption *option, QPainter *painter) const {
+    const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
+    if (item->menuItemType == QStyleOptionMenuItem::Separator)
+        return;
+    const int width = std::min(fabMenuItemWidth(*item), item->rect.width());
+    const QRectF pill(item->rect.left() + item->rect.width() - width, item->rect.top(), width,
+                      item->rect.height() - fabMenuItemSpace);
+    const bool usable = item->state & State_Enabled;
+    const QColor ink =
+        usable ? color(Role::OnPrimaryContainer) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    fillRounded(painter, pill, pill.height() / 2, color(usable ? Role::PrimaryContainer : Role::SurfaceContainerHigh));
+    if (usable && (item->state & State_Selected))
+        fillRounded(painter, pill, pill.height() / 2, withOpacity(ink, pressedOpacity));
+    int left = static_cast<int>(pill.left()) + fabMenuItemPadding;
+    if (!item->icon.isNull()) {
+        const QRect lead(left, item->rect.top() + (static_cast<int>(pill.height()) - fabIconSize) / 2, fabIconSize,
+                         fabIconSize);
+        item->icon.paint(painter, lead, Qt::AlignCenter, usable ? QIcon::Normal : QIcon::Disabled);
+        left += fabIconSize + fabIconSpace;
+    }
+    painter->setFont(fabMenuFont(item->font));
+    painter->setPen(ink);
+    painter->drawText(
+        QRect(left, item->rect.top(), static_cast<int>(pill.right()) - left, static_cast<int>(pill.height())),
+        Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, menuLabel(item->text));
+    painter->restore();
 }
 
 void QMaterialStyle::drawButtonLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    if (isFab(widget)) {
+        drawFabLabel(option, painter, widget);
+        return;
+    }
     const auto *button = static_cast<const QStyleOptionButton *>(option);
     const QColor ink = buttonLabelColor(option, widget);
     painter->setPen(ink);
@@ -980,14 +1280,7 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter)
     if (checkable || !item->icon.isNull())
         left += menuIconSize + menuIconSpace;
     const qsizetype tab = item->text.indexOf(QLatin1Char('\t'));
-    // An ampersand marks the mnemonic; two stand for one.
-    const QString marked = tab < 0 ? item->text : item->text.left(tab);
-    QString label;
-    for (qsizetype i = 0; i < marked.size(); ++i) {
-        if (marked.at(i) == QLatin1Char('&') && i + 1 < marked.size())
-            ++i;
-        label.append(marked.at(i));
-    }
+    const QString label = menuLabel(item->text);
     painter->setPen(ink);
     painter->drawText(QRect(left, r.top(), r.right() - menuPadding - left + 1, r.height()),
                       Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, label);
@@ -1021,6 +1314,8 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         break;
     case PE_PanelMenu:
     case PE_FrameMenu:
+        if (isFabMenu(widget))
+            break; // the items of a FAB menu float over what is below
         // Only the fill: a menu is a window, whose corners would show behind rounded ones.
         painter->fillRect(option->rect, color(Role::SurfaceContainer));
         if (element == PE_FrameMenu)
@@ -1154,7 +1449,10 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
             drawComboBox(option, painter);
         } else {
             painter->setFont(static_cast<const QStyleOptionMenuItem *>(option)->font);
-            drawMenuItem(option, painter);
+            if (isFabMenu(widget))
+                drawFabMenuItem(option, painter);
+            else
+                drawMenuItem(option, painter);
         }
         painter->restore();
         return;
@@ -1193,6 +1491,8 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
     const QRect r = option->rect;
     switch (element) {
     case SE_PushButtonContents:
+        if (isFab(widget))
+            return r; // the open one is a circle at the right of the whole button
         // A narrow button keeps what room it has for its label.
         return r.adjusted(std::min(buttonPadding, r.width() / 4), 0, -std::min(buttonPadding, r.width() / 4), 0);
     case SE_SliderGroove: {
@@ -1249,6 +1549,11 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
         return indicatorSpace;
     case PM_ComboBoxArrowWidth:
         return comboArrowRoom;
+    case PM_LayoutHorizontalSpacing:
+        // A layout asks with the widget that it is the layout of.
+        if (isConnectedGroup(widget))
+            return groupSpace;
+        return QCommonStyle::pixelMetric(metric, option, widget);
     case PM_SliderLength:
         return sliderLength;
     case PM_SliderThickness:
@@ -1274,6 +1579,12 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         const auto *button = option && option->type == QStyleOption::SO_Button
                                  ? static_cast<const QStyleOptionButton *>(option)
                                  : nullptr;
+        if (isFab(widget)) {
+            const bool text = button && !button->text.isEmpty();
+            if (button && !button->icon.isNull())
+                width += fabIconSize + (text ? fabIconSpace : 0);
+            return QSize(std::max(fabSize, text ? width + 2 * fabPadding : fabSize), fabSize + fabShadow);
+        }
         if (button && !button->icon.isNull()) {
             const QSize icon = button->iconSize.isValid() ? button->iconSize : QSize(buttonIconSize, buttonIconSize);
             width += icon.width() + (button->text.isEmpty() ? 0 : buttonIconSpace);
@@ -1281,11 +1592,21 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         }
         return QSize(std::max(touchTarget, width + 2 * buttonPadding), std::max(buttonHeight, height + 8));
     }
+    case CT_ToolButton:
+        if (isSplitButton(widget))
+            return QSize(splitLeadingSpace + contentsSize.width() + splitTrailingSpace + groupSpace + splitTrailing,
+                         std::max(buttonHeight, contentsSize.height() + 8));
+        return QCommonStyle::sizeFromContents(type, option, contentsSize, widget);
     case CT_ComboBox:
         return QSize(contentsSize.width() + textFieldPadding + comboArrowRoom,
                      std::max(textFieldHeight, contentsSize.height()));
     case CT_MenuItem: {
         const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
+        if (isFabMenu(widget)) {
+            if (item->menuItemType == QStyleOptionMenuItem::Separator)
+                return QSize(fabSize, fabMenuItemSpace);
+            return QSize(fabMenuItemWidth(*item), fabSize + fabMenuItemSpace);
+        }
         if (item->menuItemType == QStyleOptionMenuItem::Separator)
             return QSize(menuMinimumWidth, menuSeparator);
         int width = contentsSize.width() + 2 * menuPadding;

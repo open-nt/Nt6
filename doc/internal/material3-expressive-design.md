@@ -45,6 +45,18 @@ changes to the application: `QApplication::setStyle("Material3")`.
    colours; the wavy progress indicator. Motion is kept per widget, so item views, which draw many indicators, do
    not move.
 4. New components, Nt only: button groups, split button, FAB menu, floating toolbar, loading indicator.
+   **Started:** the connected button group (small), which takes the place of segmented buttons, is the property
+   `materialButtonGroup` = `"connected"` on the widget that holds the buttons: 2 between them (the style's
+   `PM_LayoutHorizontalSpacing` for that widget), round ends, inner corners of 8 and of 4 while pressed, and a
+   checked button is a pill. A button's place comes from the geometry of its siblings. The standard group's
+   widening of a pressed button would move widgets against their layout, and is not drawn.
+   **Done:** the split button (small) is a `QToolButton` in `MenuButtonPopup` mode, so it needs no new API: the part
+   for the menu is 48 wide (`menuArrowRect()`), 2 from the other, and turns into a pill with its chevron turned over
+   while the menu is open; `QToolButton` calls the private `drawSplitButton()`. The FAB is a `QPushButton` with
+   `materialButton` = `"fab"`; a menu on it opens as the FAB menu, which `QPushButton::showMenu()` leaves to the
+   private `popupFabMenu()`. The menu is marked with `_nt_fabMenu`: no panel, a pill of 56 for each action, 4 apart
+   and 8 above the button, which shows as a round close button. To do: the opening animation of the items, the other
+   sizes, the floating toolbar and the loading indicator.
 
 ## Open points
 

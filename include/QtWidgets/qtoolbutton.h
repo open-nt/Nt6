@@ -49,6 +49,7 @@ signals:
 protected:
     void initStyleOption(QStyleOptionToolButton *option) const;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void actionEvent(QActionEvent *event) override;
 
@@ -67,6 +68,7 @@ private:
     QPointer<QWidget> m_menu; // a QMenu
     ToolButtonPopupMode m_popupMode = DelayedPopup;
     QTimer m_popupTimer;       // DelayedPopup: the menu opens when the button is held
+    bool m_pressOpenedMenu = false; // the release of that press is not a click
     QMenu *activeMenu() const; // menu(), or the menu of the default action
     QRect menuArrowRect() const;
 };

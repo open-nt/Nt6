@@ -10,7 +10,11 @@
 #include <QtCore/qrect.h>
 #include <QtWidgets/qscrollerproperties.h>
 
+#include <memory>
+
 class QAbstractScrollArea;
+class QMaterialStyle;
+class QMouseEvent;
 class QTimer;
 
 class QScroller : public QObject {
@@ -81,6 +85,17 @@ private:
     ~QScroller() override;
     Q_DISABLE_COPY(QScroller)
 
+    // True if a press of `button` on `target` is held back, and will reach the target later or not at all. The
+    // Material style, which sees events before the scroller does, then leaves the press alone.
+    friend class QMaterialStyle;
+    static bool holdsBackPress(const QObject *target, Qt::MouseButton button);
+    Qt::MouseButton gestureButton() const;
+    int pressDelay() const; // in milliseconds
+    // Sends an event that was held back to the target, past the scroller.
+    void deliver(QMouseEvent &event);
+    void deliverHeldPress();
+    void dropHeldPress();
+    bool mouseInput(QMouseEvent *event);
     void setState(State state);
     QAbstractScrollArea *area() const;
     QPointF contentPosition() const; // in pixels
@@ -97,6 +112,10 @@ private:
     ScrollerGestureType m_gesture = TouchGesture;
     bool m_grabbed = false;
     QTimer *m_timer = nullptr;
+    QTimer *m_pressTimer = nullptr;
+    std::unique_ptr<QMouseEvent> m_heldPress;
+    bool m_delivering = false;
+    bool m_swallowRelease = false; // of a press that did no more than stop a flick
     QElapsedTimer m_clock;
     QPointF m_pressPosition; // where the press was, in the coordinates of handleInput()
     QPointF m_lastPosition;

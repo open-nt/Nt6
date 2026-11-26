@@ -668,6 +668,23 @@ void testLists() {
         wait(900);
         CHECK(near(inside(other), plain, 2));
         style->setMotionEnabled(false);
+
+        // Behind a scroller, which holds the press back, a drag marks no row, and a tap leaves none held.
+        QScroller::grabGesture(port, QScroller::LeftMouseButtonGesture);
+        deselect();
+        mouse(QEvent::MouseButtonPress, at);
+        CHECK(near(inside(other), plain, 2));
+        mouse(QEvent::MouseButtonRelease, at);
+        deselect();
+        CHECK(near(inside(other), plain, 2));
+        mouse(QEvent::MouseButtonPress, at);
+        wait(350);
+        deselect();
+        CHECK(!near(inside(other), plain, 6)); // held long enough to be a press
+        mouse(QEvent::MouseButtonRelease, at);
+        deselect();
+        CHECK(near(inside(other), plain, 2));
+        QScroller::ungrabGesture(port);
     }
 
     // Material has no tree: it takes the colors, and rows that a finger can hit.
@@ -680,6 +697,244 @@ void testLists() {
     QCoreApplication::processEvents();
     CHECK(tree->palette().color(QPalette::Highlight) == QApplication::palette().color(QPalette::Highlight));
     CHECK(widgetList->rowHeight() < 40);
+}
+
+// A connected button group: the property on the widget that holds the buttons.
+void testButtonGroup() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false); // the pixels are those of the shapes at rest
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *outer = new QVBoxLayout(&window);
+    auto *group = new QWidget;
+    group->setProperty("materialButtonGroup", QStringLiteral("connected"));
+    auto *row = new QHBoxLayout(group);
+    row->setContentsMargins(0, 0, 0, 0);
+    QList<QPushButton *> buttons;
+    for (const char *name : {"Day", "Week", "Month"}) {
+        auto *button = new QPushButton(QString::fromLatin1(name));
+        button->setCheckable(true);
+        button->setAutoExclusive(true);
+        row->addWidget(button);
+        buttons << button;
+    }
+    outer->addWidget(group);
+    auto *lone = new QPushButton(QStringLiteral("Alone"));
+    outer->addWidget(lone);
+    outer->addStretch(1);
+    window.resize(360, 200);
+    window.show();
+    QCoreApplication::processEvents();
+
+    CHECK(buttons[1]->x() - (buttons[0]->x() + buttons[0]->width()) == 2);
+    CHECK(buttons[2]->x() - (buttons[1]->x() + buttons[1]->width()) == 2);
+
+    // A point by a corner, which a pill leaves out and a small corner takes in.
+    enum Side { Left, Right };
+    const auto filled = [&](QPushButton *button, Side side) {
+        const QImage image = window.grab().toImage();
+        const QPoint at = button->mapTo(&window, QPoint(side == Left ? 3 : button->width() - 4, 3));
+        return !near(image.pixelColor(at.x(), at.y()), style->color(Role::Surface), 6);
+    };
+    CHECK(!filled(buttons[0], Left)); // the ends of the row are round
+    CHECK(filled(buttons[0], Right));
+    CHECK(filled(buttons[1], Left));
+    CHECK(filled(buttons[1], Right));
+    CHECK(filled(buttons[2], Left));
+    CHECK(!filled(buttons[2], Right));
+    CHECK(!filled(lone, Right)); // a button in no group is a pill
+
+    // The checked button is a pill, and one that is pressed is not.
+    buttons[1]->setChecked(true);
+    CHECK(!filled(buttons[1], Left));
+    CHECK(!filled(buttons[1], Right));
+    buttons[1]->setDown(true);
+    CHECK(filled(buttons[1], Left));
+    buttons[1]->setDown(false);
+    buttons[0]->setChecked(true);
+    CHECK(filled(buttons[1], Left));
+
+    // The end of the row is the last button that shows.
+    buttons[2]->hide();
+    QCoreApplication::processEvents();
+    CHECK(!filled(buttons[1], Right));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// A QToolButton with MenuButtonPopup: two shapes, for the action and for the menu.
+void testSplitButton() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *split = new QToolButton;
+    split->setText(QStringLiteral("Send"));
+    auto *menu = new QMenu(split);
+    menu->addAction(QStringLiteral("Send later"));
+    split->setMenu(menu);
+    split->setPopupMode(QToolButton::MenuButtonPopup);
+    layout->addWidget(split, 0, Qt::AlignLeft);
+    layout->addStretch(1);
+    window.resize(300, 240);
+    window.show();
+    QCoreApplication::processEvents();
+
+    const int w = split->width(), h = split->height();
+    CHECK(h == 40);
+    CHECK(w == 16 + split->fontMetrics().horizontalAdvance(QStringLiteral("Send")) + 12 + 2 + 48);
+    const auto at = [&](int x, int y) {
+        const QPoint point = split->mapTo(&window, QPoint(x, y));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const QColor surface = style->color(Role::Surface);
+    const QColor container = style->color(Role::SecondaryContainer);
+    CHECK(near(at(w - 49, h / 2), surface, 2)); // the space between the two parts
+    CHECK(near(at(w - 54, h / 2), container, 2));
+    CHECK(near(at(w - 44, h / 2), container, 2));
+    CHECK(near(at(2, 2), surface, 3)); // the outer ends are round,
+    CHECK(near(at(w - 3, 2), surface, 3));
+    CHECK(!near(at(w - 46, 3), surface, 6)); // and the corners between the parts small
+
+    int clicks = 0;
+    QObject::connect(split, &QToolButton::clicked, [&clicks] { ++clicks; });
+    const auto click = [&](int x) {
+        for (const QEvent::Type type : {QEvent::MouseButtonPress, QEvent::MouseButtonRelease}) {
+            const QPointF point(x, h / 2.0);
+            QMouseEvent event(type, point, point, Qt::LeftButton,
+                              type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+            QApplication::sendEvent(split, &event);
+        }
+    };
+    click(20);
+    CHECK(clicks == 1 && !menu->isVisible());
+    click(w - 40); // anywhere on the second part, which is wide enough for a finger
+    CHECK(clicks == 1 && menu->isVisible());
+    CHECK(near(at(w - 46, 3), surface, 3)); // it is a pill of its own while the menu is open
+    menu->hide();
+    QCoreApplication::processEvents();
+    CHECK(!near(at(w - 46, 3), surface, 6));
+    // A button whose menu opens when it is held: that press is no click, and a short one is.
+    split->setPopupMode(QToolButton::DelayedPopup);
+    click(20);
+    CHECK(clicks == 2 && !menu->isVisible());
+    const QPointF point(20, h / 2.0);
+    QMouseEvent press(QEvent::MouseButtonPress, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QApplication::sendEvent(split, &press);
+    wait(800);
+    CHECK(menu->isVisible());
+    QMouseEvent release(QEvent::MouseButtonRelease, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(split, &release);
+    CHECK(clicks == 2 && menu->isVisible());
+    menu->hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// A floating action button and its menu.
+void testFab() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    layout->addStretch(1);
+    auto *fab = new QPushButton;
+    fab->setProperty("materialButton", QStringLiteral("fab"));
+    layout->addWidget(fab, 0, Qt::AlignRight);
+    auto *extended = new QPushButton(QStringLiteral("Compose"));
+    extended->setProperty("materialButton", QStringLiteral("fab"));
+    layout->addWidget(extended, 0, Qt::AlignRight);
+    window.resize(320, 400);
+    window.show();
+    QCoreApplication::processEvents();
+
+    CHECK(fab->size() == QSize(56, 58)); // with the room for its shadow
+    CHECK(extended->height() == 58 &&
+          extended->width() == 32 + extended->fontMetrics().horizontalAdvance(QStringLiteral("Compose")));
+    const auto at = [&](QWidget *widget, int x, int y) {
+        const QPoint point = widget->mapTo(&window, QPoint(x, y));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const QColor surface = style->color(Role::Surface);
+    CHECK(near(at(fab, 10, 28), style->color(Role::PrimaryContainer), 2));
+    CHECK(near(at(fab, 3, 3), surface, 4));                                   // rounded,
+    CHECK(!near(at(fab, 6, 6), surface, 6));                                  // but not a circle
+    CHECK(near(at(fab, 28, 28), style->color(Role::OnPrimaryContainer), 40)); // the plus
+
+    auto *menu = new QMenu(fab);
+    QAction *share = menu->addAction(QStringLiteral("Share"));
+    menu->addAction(QStringLiteral("Start a new note"));
+    fab->setMenu(menu);
+    CHECK(fab->width() == 56);
+    int shared = 0;
+    QObject::connect(share, &QAction::triggered, [&shared] { ++shared; });
+    fab->showMenu();
+    QCoreApplication::processEvents();
+    CHECK(menu->isVisible());
+    // Above the button, their right edges in line, 8 from the last pill to the button.
+    const QPoint corner = menu->mapToGlobal(QPoint(menu->width(), menu->height()));
+    const QPoint button = fab->mapToGlobal(QPoint(fab->width(), 0));
+    CHECK(corner.x() == button.x() && corner.y() == button.y() - 4);
+    CHECK(menu->height() == 120);
+    // A pill for each action, as wide as it needs, and nothing behind them.
+    const QRect row = menu->actionGeometry(share);
+    CHECK(near(at(menu, row.right() - 8, row.top() + 28), style->color(Role::PrimaryContainer), 2));
+    CHECK(near(at(menu, 4, row.top() + 28), surface, 3));
+    CHECK(near(at(menu, menu->width() - 40, row.top() + 58), surface, 3));
+    // Its mark, the plus or the cross, is in the middle of the circle: where the ink is, on average.
+    const auto markCentre = [&](const QColor &ink) {
+        const QImage image = window.grab().toImage();
+        const QPoint origin = fab->mapTo(&window, QPoint(0, 0));
+        double x = 0, y = 0;
+        int count = 0;
+        for (int line = 8; line < 48; ++line)
+            for (int column = 8; column < 48; ++column)
+                if (near(image.pixelColor(origin.x() + column, origin.y() + line), ink, 60)) {
+                    x += column + 0.5;
+                    y += line + 0.5;
+                    ++count;
+                }
+        return count ? QPointF(x / count, y / count) : QPointF();
+    };
+    const QPointF cross = markCentre(style->color(Role::OnPrimary));
+    CHECK(near(cross.x(), 28.0, 1.0) && near(cross.y(), 28.0, 1.0));
+    // The button is the circle that closes the menu.
+    CHECK(near(at(fab, 10, 28), style->color(Role::Primary), 2));
+    CHECK(near(at(fab, 6, 6), surface, 6));
+
+    const QPointF in(row.right() - 20, row.top() + 28);
+    QMouseEvent release(QEvent::MouseButtonRelease, in, in, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QApplication::sendEvent(menu, &release);
+    QCoreApplication::processEvents();
+    CHECK(shared == 1 && !menu->isVisible());
+    CHECK(near(at(fab, 10, 28), style->color(Role::PrimaryContainer), 2));
+
+    // Tapped, the button opens the menu, which stays when the finger is lifted.
+    for (const QEvent::Type type : {QEvent::MouseButtonPress, QEvent::MouseButtonRelease}) {
+        const QPointF middle(28, 28);
+        QMouseEvent event(type, middle, middle, Qt::LeftButton,
+                          type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(fab, &event);
+    }
+    QCoreApplication::processEvents();
+    CHECK(menu->isVisible());
+    CHECK(near(at(fab, 10, 28), style->color(Role::Primary), 2));
+    menu->hide();
+    QCoreApplication::processEvents();
+
+    // The menu is an ordinary one again below a button that is no FAB.
+    fab->setProperty("materialButton", QStringLiteral("tonal"));
+    fab->showMenu();
+    QCoreApplication::processEvents();
+    CHECK(menu->actionGeometry(share).height() == 48);
+    menu->hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
 } // namespace
@@ -695,6 +950,9 @@ int main(int argc, char *argv[]) {
     testMotion();
     testRippleColorsAndTabs();
     testLists();
+    testButtonGroup();
+    testSplitButton();
+    testFab();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

@@ -12,8 +12,11 @@
 #include <QtWidgets/qdatetimeedit.h>
 #include <QtWidgets/qitemeditorfactory.h>
 #include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qlistview.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qspinbox.h>
 #include <QtWidgets/qstyle.h>
+#include <QtWidgets/qtreeview.h>
 
 #include <algorithm>
 #include <limits>
@@ -80,6 +83,25 @@ namespace {
 constexpr int kMargin = 3;  // around the parts of an item
 constexpr int kSpacing = 4; // between the check box, the decoration and the text
 
+// The Material style gives rows that a finger can hit: those of a list 56 high, with room at the ends.
+constexpr int kMaterialListHeight = 56, kMaterialListMargin = 16, kMaterialListSpacing = 12;
+constexpr int kMaterialTreeHeight = 48;
+
+bool isMaterial(const QStyleOptionViewItem &option) {
+    return option.widget && qobject_cast<const QMaterialStyle *>(option.widget->style());
+}
+
+// A row of a list in the Material style: an item of the icon mode is not a row.
+bool isMaterialRow(const QStyleOptionViewItem &option) {
+    return isMaterial(option) && qobject_cast<const QListView *>(option.widget) &&
+           (option.decorationPosition == QStyleOptionViewItem::Left ||
+            option.decorationPosition == QStyleOptionViewItem::Right);
+}
+
+int marginOf(const QStyleOptionViewItem &option) { return isMaterialRow(option) ? kMaterialListMargin : kMargin; }
+
+int spacingOf(const QStyleOptionViewItem &option) { return isMaterialRow(option) ? kMaterialListSpacing : kSpacing; }
+
 struct Parts {
     QRect check;
     QRect decoration;
@@ -103,11 +125,12 @@ QSize decorationSizeOf(const QStyleOptionViewItem &option) {
 // decoration on the side of the text that decorationPosition says.
 Parts layoutParts(const QStyleOptionViewItem &option) {
     Parts parts;
-    QRect r = option.rect.adjusted(kMargin, 0, -kMargin, 0);
+    const int spacing = spacingOf(option);
+    QRect r = option.rect.adjusted(marginOf(option), 0, -marginOf(option), 0);
     if (option.features & QStyleOptionViewItem::HasCheckIndicator) {
         const int size = indicatorSize(option);
         parts.check = QRect(r.left(), r.top() + (r.height() - size) / 2, size, size);
-        r.setLeft(r.left() + size + kSpacing);
+        r.setLeft(r.left() + size + spacing);
     }
     const QSize decoration = decorationSizeOf(option);
     if (decoration.isEmpty()) {
@@ -132,11 +155,11 @@ Parts layoutParts(const QStyleOptionViewItem &option) {
     switch (option.decorationPosition) {
     case QStyleOptionViewItem::Left:
         parts.decoration = place(QRect(r.left(), r.top(), decoration.width(), r.height()));
-        r.setLeft(r.left() + decoration.width() + kSpacing);
+        r.setLeft(r.left() + decoration.width() + spacing);
         break;
     case QStyleOptionViewItem::Right:
         parts.decoration = place(QRect(r.right() + 1 - decoration.width(), r.top(), decoration.width(), r.height()));
-        r.setRight(r.right() - decoration.width() - kSpacing);
+        r.setRight(r.right() - decoration.width() - spacing);
         break;
     case QStyleOptionViewItem::Top:
         r.adjust(0, kMargin, 0, -kMargin);
@@ -280,7 +303,11 @@ void QStyledItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
     const bool selected = opt.state & QStyle::State_Selected;
     painter->save();
     painter->setClipRect(opt.rect);
-    if (selected)
+    if (isMaterialRow(opt))
+        static_cast<const QMaterialStyle *>(opt.widget->style())
+            ->drawListRow(painter, opt.rect, selected, opt.state & QStyle::State_Enabled, opt.backgroundBrush,
+                          opt.widget);
+    else if (selected)
         painter->fillRect(opt.rect, opt.palette.color(group, QPalette::Highlight));
     else if (opt.backgroundBrush.style() != Qt::NoBrush)
         painter->fillRect(opt.rect, opt.backgroundBrush);
@@ -322,11 +349,12 @@ QSize QStyledItemDelegate::sizeHint(const QStyleOptionViewItem &option, const QM
         return hint.toSize();
     QStyleOptionViewItem opt = option;
     initStyleOption(&opt, index);
-    int width = 2 * kMargin;
+    const int spacing = spacingOf(opt);
+    int width = 2 * marginOf(opt);
     int height = opt.fontMetrics.height();
     if (opt.features & QStyleOptionViewItem::HasCheckIndicator) {
         const int size = indicatorSize(opt);
-        width += size + kSpacing;
+        width += size + spacing;
         height = std::max(height, size);
     }
     const QSize decoration = decorationSizeOf(opt);
@@ -338,10 +366,14 @@ QSize QStyledItemDelegate::sizeHint(const QStyleOptionViewItem &option, const QM
         return QSize(width, height + decoration.height() + kSpacing + 4 * kMargin);
     }
     if (!decoration.isEmpty()) {
-        width += decoration.width() + kSpacing;
+        width += decoration.width() + spacing;
         height = std::max(height, decoration.height());
     }
     width += text;
+    if (isMaterialRow(opt))
+        return QSize(width, std::max(kMaterialListHeight, height + 2 * kMargin));
+    if (isMaterial(opt) && qobject_cast<const QTreeView *>(opt.widget))
+        return QSize(width, std::max(kMaterialTreeHeight, height + 2 * kMargin));
     return QSize(width, height + 2 * kMargin);
 }
 

@@ -1,8 +1,21 @@
 // MIT License - see LICENSE
 #pragma once
 
+#include <QtCore/qpoint.h>
+#include <QtCore/qpointer.h>
 #include <QtGui/qcolor.h>
 #include <QtWidgets/qcommonstyle.h>
+
+#include <memory>
+
+namespace QtPrivate {
+class Animator;
+struct SpringSpec;
+} // namespace QtPrivate
+
+class QListWidget;
+class QStyledItemDelegate;
+class QTabBar;
 
 // The Material 3 Expressive look. Nt only: Qt Widgets has no such style.
 class QMaterialStyle : public QCommonStyle {
@@ -54,6 +67,9 @@ public:
     bool isDark() const;
     QColor color(Role role) const;
 
+    bool isMotionEnabled() const { return m_motion; }
+    void setMotionEnabled(bool enabled);
+
     void drawPrimitive(PrimitiveElement element, const QStyleOption *option, QPainter *painter,
                        const QWidget *widget = nullptr) const override;
     void drawControl(ControlElement element, const QStyleOption *option, QPainter *painter,
@@ -80,7 +96,7 @@ private:
     static ButtonKind buttonKind(const QStyleOption *option, const QWidget *widget);
     void drawButtonContainer(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawButtonLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
-    void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter) const;
+    void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter, const QWidget *widget) const;
     void drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawProgressBar(const QStyleOption *option, QPainter *painter) const;
     void drawTab(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
@@ -89,8 +105,27 @@ private:
     QColor buttonLabelColor(const QStyleOption *option, const QWidget *widget) const;
     bool keyboardFocus(const QStyleOption *option) const;
     double stateLayer(const QStyleOption *option) const;
+    // Where a value of a widget is on its way to `target`, along a spring; the target itself without motion.
+    double animated(const QWidget *widget, int channel, double target, const QtPrivate::SpringSpec &spring,
+                    double precision) const;
+    void drawRipple(QPainter *painter, const QWidget *widget, const QRectF &shape, double radius, bool held,
+                    const QColor &ink) const;
+    // The background of a row of a list: its selection, and the press on it. The views that paint rows ask for it.
+    friend class QListWidget;
+    friend class QStyledItemDelegate;
+    void drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled, const QBrush &background,
+                     const QWidget *view) const;
+    // The line under the current tab of a horizontal tab bar. QTabBar paints a tab at a time, so it asks for the line,
+    // which slides from tab to tab, once they are all painted.
+    friend class QTabBar;
+    void drawTabIndicator(QPainter *painter, const QTabBar *bar, const QRect &tab, bool below) const;
 
     QColor m_seed;
     Qt::ColorScheme m_scheme = Qt::ColorScheme::Unknown; // Unknown follows the system
     bool m_keyboard = false;                             // the focus was last moved with the keyboard
+    bool m_motion = true;
+    std::unique_ptr<QtPrivate::Animator> m_animator;
+    QPointer<QWidget> m_rippleWidget; // the button that was pressed last, and where
+    QPointF m_rippleOrigin;
+    bool m_rowPressed = false; // a row of a list is held down
 };

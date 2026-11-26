@@ -9,6 +9,7 @@
 #include <QtGui/qevent.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qmaterialstyle.h>
 
 #include "qitemtextmatch_p.h"
 
@@ -21,6 +22,8 @@
 
 namespace {
 constexpr int textMargin = 3;
+// As QStyledItemDelegate has them for the rows of a list in the Material style.
+constexpr int materialRowHeight = 56, materialMargin = 16, materialSpacing = 12;
 }
 
 /*!
@@ -485,6 +488,9 @@ int QListWidget::rowHeight() const {
             break;
         }
     }
+    // The Material style's rows are for a finger.
+    if (m_viewMode == QListView::ListMode && qobject_cast<const QMaterialStyle *>(style()))
+        height = std::max(height, materialRowHeight);
     return height;
 }
 
@@ -1146,7 +1152,12 @@ void QListWidget::paintEvent(QPaintEvent *event) {
         const QListWidgetItem *it = m_items[static_cast<std::size_t>(r)];
         const bool selected = it->isSelected();
         const bool on = isEnabled() && (it->flags() & Qt::ItemIsEnabled);
-        if (selected)
+        const auto *material = iconMode ? nullptr : qobject_cast<const QMaterialStyle *>(style());
+        if (material)
+            material->drawListRow(&painter, rect, selected, on,
+                                  it->background().style() != Qt::NoBrush ? QBrush(it->background().color()) : QBrush(),
+                                  this);
+        else if (selected)
             painter.fillRect(rect, highlight);
         else if (it->background().style() != Qt::NoBrush)
             painter.fillRect(rect, it->background().color());
@@ -1176,15 +1187,17 @@ void QListWidget::paintEvent(QPaintEvent *event) {
             painter.drawText(textRect, Qt::AlignHCenter | Qt::AlignTop | (m_wordWrap ? Qt::TextWordWrap : 0), text);
             painter.setClipping(false);
         } else {
+            const int margin = material ? materialMargin : textMargin;
+            const int gap = material ? materialSpacing : textMargin;
             int iconWidth = 0;
             if (!it->icon().isNull()) {
                 const QSize size = iconSize().isValid() ? iconSize() : QSize(16, 16);
-                it->icon().paint(&painter, QRect(rect.left() + textMargin, rect.top(), size.width(), rect.height()),
+                it->icon().paint(&painter, QRect(rect.left() + margin, rect.top(), size.width(), rect.height()),
                                  Qt::AlignCenter, iconState);
-                iconWidth = size.width() + textMargin;
+                iconWidth = size.width() + gap;
             }
             if (!it->text().isEmpty()) {
-                const QRect textRect = rect.adjusted(textMargin + iconWidth, 0, -textMargin, 0);
+                const QRect textRect = rect.adjusted(margin + iconWidth, 0, -margin, 0);
                 painter.setFont(font);
                 painter.setPen(color);
                 painter.setClipRect(rect);
@@ -1196,7 +1209,13 @@ void QListWidget::paintEvent(QPaintEvent *event) {
                 painter.setClipping(false);
             }
         }
-        if (r == m_current && hasFocus()) {
+        if (r == m_current && hasFocus() && material) {
+            // The style says when a ring shows: with the keyboard, not after a tap.
+            QStyleOption focus;
+            focus.initFrom(this);
+            focus.rect = rect;
+            style()->drawPrimitive(QStyle::PE_FrameFocusRect, &focus, &painter, this);
+        } else if (r == m_current && hasFocus()) {
             painter.setPen(selected ? highlight.lighter(150) : highlight);
             painter.setBrush(Qt::NoBrush);
             painter.drawRect(rect.adjusted(0, 0, -1, -1));

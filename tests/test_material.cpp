@@ -3,9 +3,12 @@
 // Tests for QMaterialStyle: the HCT color space that its schemes are made in, the color roles, the sizes and what is
 // drawn, on the offscreen platform.
 #include <QtGui/QtGui>
+#include <QtCore/qstringlistmodel.h>
+#include <QtCore/qthread.h>
 #include <QtWidgets/QtWidgets>
 
 #include "qmaterialcolor_p.h"
+#include "qmaterialmotion_p.h"
 
 #include <cmath>
 #include <cstdio>
@@ -116,6 +119,7 @@ QColor pixel(QWidget &widget, int x, int y) {
 void testWidgets() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false); // the pixels are those of the shapes at rest
     QApplication::setStyle(style);
     CHECK(QApplication::palette().color(QPalette::Window) == style->color(Role::Surface));
 
@@ -201,6 +205,7 @@ void testWidgets() {
 void testSliderProgressTabs() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false); // the pixels are those of the shapes at rest
     QApplication::setStyle(style);
 
     QWidget window;
@@ -297,6 +302,7 @@ void testSliderProgressTabs() {
 void testComboAndMenu() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false); // the pixels are those of the shapes at rest
     QApplication::setStyle(style);
 
     QWidget window;
@@ -371,6 +377,311 @@ void testComboAndMenu() {
     CHECK(dialog.palette().color(QPalette::Window) != container);
 }
 
+void testSpring() {
+    using QtPrivate::Spring;
+    // Starts where and as it was told to.
+    const Spring expressive(0, 0, 100, QtPrivate::fastSpatialSpring);
+    CHECK(near(expressive.at(0).position, 0, 1e-9));
+    CHECK(near(expressive.at(0).velocity, 0, 1e-9));
+    // The velocity is the derivative of the position, under- and critically damped.
+    for (const QtPrivate::SpringSpec spec :
+         {QtPrivate::fastSpatialSpring, QtPrivate::defaultSpatialSpring, QtPrivate::fastEffectsSpring}) {
+        const Spring spring(10, -300, 50, spec);
+        CHECK(near(spring.at(0).velocity, -300, 1e-6));
+        for (double t : {0.01, 0.05, 0.1, 0.3}) {
+            const double slope = (spring.at(t + 1e-6).position - spring.at(t - 1e-6).position) / 2e-6;
+            CHECK(near(slope, spring.at(t).velocity, 1e-3 * (1 + std::abs(slope))));
+        }
+        CHECK(near(spring.at(3).position, 50, 1e-6));
+        CHECK(spring.restsAt(3, 0.01));
+        CHECK(!spring.restsAt(0.01, 0.01));
+    }
+    // The expressive spatial spring passes its mark, by exp(-pi z / sqrt(1 - z z)) of the way; an effects spring does
+    // not.
+    const auto farthest = [](const Spring &spring) {
+        double most = 0;
+        for (int i = 0; i < 2000; ++i)
+            most = std::max(most, spring.at(i * 0.0005).position);
+        return most;
+    };
+    const double zeta = 0.6;
+    const double overshoot = std::exp(-3.14159265358979 * zeta / std::sqrt(1 - zeta * zeta));
+    CHECK(near(farthest(expressive), 100 * (1 + overshoot), 0.05));
+    CHECK(farthest(Spring(0, 0, 100, QtPrivate::fastEffectsSpring)) <= 100 + 1e-9);
+}
+
+void wait(int milliseconds) {
+    QElapsedTimer clock;
+    clock.start();
+    while (clock.elapsed() < milliseconds) {
+        QCoreApplication::processEvents();
+        QThread::msleep(4);
+    }
+}
+
+void testMotion() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+    CHECK(style->isMotionEnabled());
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *button = new QPushButton(QStringLiteral("Save"));
+    button->setProperty("materialButton", QStringLiteral("filled"));
+    auto *toggle = new QCheckBox(QStringLiteral("Wi-Fi"));
+    toggle->setProperty("materialSwitch", true);
+    layout->addWidget(button);
+    layout->addWidget(toggle);
+    layout->addStretch(1);
+    window.resize(300, 240);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // A corner that the pill leaves out, and the pressed shape fills.
+    const auto corner = [&] { return pixel(*button, 3, 5); };
+    const QColor resting = corner();
+    button->setDown(true);
+    CHECK(near(corner(), resting, 8)); // it sets off from the shape that it had
+    wait(600);
+    CHECK(!near(corner(), resting, 40)); // and comes to rest at the pressed one
+    button->setDown(false);
+    wait(600);
+    CHECK(near(corner(), resting, 8));
+
+    // The switch's handle travels: off on the left, then on the way, then on at the right.
+    const int middle = toggle->height() / 2;
+    CHECK(near(pixel(*toggle, 16, middle), style->color(Role::Outline), 3));
+    toggle->setChecked(true);
+    CHECK(!near(pixel(*toggle, 36, middle), style->color(Role::OnPrimary), 3));
+    wait(600);
+    CHECK(near(pixel(*toggle, 36, middle), style->color(Role::OnPrimary), 3));
+
+    // The widgets are repainted while something moves, and left alone once everything rests.
+    class Paints : public QObject {
+    public:
+        int count = 0;
+        bool eventFilter(QObject *, QEvent *event) override {
+            count += event->type() == QEvent::Paint ? 1 : 0;
+            return false;
+        }
+    } paints;
+    toggle->installEventFilter(&paints);
+    toggle->setChecked(false);
+    wait(150);
+    CHECK(paints.count >= 3);
+    wait(700);
+    const int settled = paints.count;
+    wait(200);
+    CHECK(paints.count == settled);
+
+    // Without motion the shape changes at once.
+    style->setMotionEnabled(false);
+    button->setDown(true);
+    CHECK(!near(corner(), resting, 40));
+    button->setDown(false);
+    // A widget that is deleted while it moves is forgotten.
+    style->setMotionEnabled(true);
+    auto *brief = new QPushButton(QStringLiteral("Brief"), &window);
+    brief->show();
+    brief->grab();
+    brief->setDown(true);
+    brief->grab();
+    delete brief;
+    wait(100);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// The ripple of a press, colors that fade, and the line that slides from tab to tab.
+void testRippleColorsAndTabs() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *button = new QPushButton(QStringLiteral("Save"));
+    button->setProperty("materialButton", QStringLiteral("filled"));
+    auto *toggle = new QCheckBox(QStringLiteral("Wi-Fi"));
+    toggle->setProperty("materialSwitch", true);
+    auto *box = new QCheckBox(QStringLiteral("Remember"));
+    auto *tabs = new QTabBar;
+    for (const char *name : {"One", "Two", "Three"})
+        tabs->addTab(QString::fromLatin1(name));
+    layout->addWidget(button);
+    layout->addWidget(toggle);
+    layout->addWidget(box);
+    layout->addWidget(tabs);
+    layout->addStretch(1);
+    window.resize(360, 280);
+    window.show();
+    QCoreApplication::processEvents();
+
+    const auto press = [&](QEvent::Type type, const QPointF &at) {
+        QMouseEvent event(type, at, at, Qt::LeftButton,
+                          type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(button, &event);
+    };
+    // Two points of the container that the label leaves free: by the press, and at the other end.
+    const int row = button->height() / 2;
+    const auto nearPress = [&] { return pixel(*button, 24, row); };
+    const auto farFromPress = [&] { return pixel(*button, button->width() - 24, row); };
+    const QColor resting = farFromPress();
+    press(QEvent::MouseButtonPress, QPointF(24, row));
+    CHECK(near(farFromPress(), resting, 2)); // the circle has yet to spread
+    wait(600);
+    CHECK(!near(nearPress(), resting, 6));
+    CHECK(near(nearPress(), farFromPress(), 2)); // it has filled the button
+    press(QEvent::MouseButtonRelease, QPointF(24, row));
+    wait(900);
+    CHECK(near(nearPress(), resting, 2));
+    CHECK(near(farFromPress(), resting, 2));
+
+    // A switch's track and a check box's fill fade to the accent color.
+    const int top = toggle->height() / 2 - 13;
+    CHECK(near(pixel(*toggle, 26, top), style->color(Role::SurfaceContainerHighest), 3));
+    toggle->setChecked(true);
+    CHECK(!near(pixel(*toggle, 26, top), style->color(Role::Primary), 30));
+    wait(600);
+    CHECK(near(pixel(*toggle, 26, top), style->color(Role::Primary), 3));
+
+    const auto accented = [&] {
+        const QImage image = box->grab().toImage();
+        int count = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < 24; ++x)
+                count += near(image.pixelColor(x, y), style->color(Role::Primary), 3) ? 1 : 0;
+        return count;
+    };
+    CHECK(accented() == 0);
+    box->setChecked(true);
+    CHECK(accented() == 0);
+    wait(600);
+    CHECK(accented() > 150);
+
+    // The line sets off from under the old tab, and comes to rest under the new one.
+    const auto indicatorUnder = [&](int tab) {
+        const QRect r = tabs->tabRect(tab);
+        return near(pixel(*tabs, r.center().x(), r.bottom() - 1), style->color(Role::Primary), 3);
+    };
+    CHECK(indicatorUnder(0));
+    tabs->setCurrentIndex(2);
+    CHECK(indicatorUnder(0));
+    CHECK(!indicatorUnder(2));
+    wait(800);
+    CHECK(!indicatorUnder(0));
+    CHECK(indicatorUnder(2));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// The rows of lists, and what trees take from the style.
+void testLists() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false); // the pixels are those of the shapes at rest
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *widgetList = new QListWidget;
+    widgetList->addItems(QStringList{QStringLiteral("Inbox"), QStringLiteral("Sent"), QStringLiteral("Drafts")});
+    auto *model = new QStringListModel(QStringList{QStringLiteral("Red"), QStringLiteral("Green")}, &window);
+    auto *view = new QListView;
+    view->setModel(model);
+    view->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    auto *tree = new QTreeView;
+    auto *treeModel = new QStandardItemModel(&window);
+    treeModel->appendRow(new QStandardItem(QStringLiteral("Folder")));
+    tree->setModel(treeModel);
+    layout->addWidget(widgetList);
+    layout->addWidget(view);
+    layout->addWidget(tree);
+    window.resize(300, 560);
+    window.show();
+    QCoreApplication::processEvents();
+
+    for (QAbstractItemView *each :
+         {static_cast<QAbstractItemView *>(widgetList), static_cast<QAbstractItemView *>(view)}) {
+        // A QListWidget has items and no model.
+        const bool items = each == widgetList;
+        const auto rowRect = [&](int n) {
+            return items ? widgetList->visualItemRect(widgetList->item(n)) : view->visualRect(model->index(n, 0));
+        };
+        const auto deselect = [&] {
+            if (items)
+                widgetList->clearSelection();
+            else
+                view->selectionModel()->clearSelection();
+        };
+        const QRect row = rowRect(0);
+        const QRect other = rowRect(1);
+        CHECK(row.height() == 56);
+        CHECK(each->font().pixelSize() == 16);
+        QWidget *port = each->viewport();
+        const auto inside = [&](const QRect &r) { return pixel(*port, r.right() - 30, r.center().y()); };
+        const QColor plain = inside(row);
+
+        // The selected row is a rounded container in the quiet accent color.
+        each->setFocus();
+        CHECK(each->hasFocus());
+        if (items)
+            widgetList->setCurrentRow(0);
+        else
+            view->setCurrentIndex(model->index(0, 0));
+        CHECK(near(inside(row), style->color(Role::SecondaryContainer), 2));
+        CHECK(near(pixel(*port, row.left() + 1, row.top() + 2), plain, 3));
+        CHECK(near(inside(other), plain, 2));
+        // After a tap or a call there is no focus ring around it.
+        for (const int y : {row.top(), row.top() + 1})
+            CHECK(near(pixel(*port, row.center().x(), y),
+                       y == row.top() ? plain : style->color(Role::SecondaryContainer), 3));
+
+        // A row that is held down is marked, until the finger is dragged away or lifted.
+        const auto mouse = [&](QEvent::Type type, const QPointF &at) {
+            QMouseEvent event(type, at, at, type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                              type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+            QApplication::sendEvent(port, &event);
+        };
+        const QPointF at(other.left() + 40, other.center().y());
+        mouse(QEvent::MouseButtonPress, at);
+        deselect();
+        CHECK(!near(inside(other), plain, 6));
+        mouse(QEvent::MouseButtonRelease, at);
+        deselect();
+        CHECK(near(inside(other), plain, 2));
+        mouse(QEvent::MouseButtonPress, at);
+        mouse(QEvent::MouseMove, at + QPointF(0, 30));
+        deselect();
+        CHECK(near(inside(other), plain, 2));
+        mouse(QEvent::MouseButtonRelease, at + QPointF(0, 30));
+
+        // With motion the press spreads from where it is.
+        style->setMotionEnabled(true);
+        deselect();
+        mouse(QEvent::MouseButtonPress, at);
+        deselect();
+        CHECK(near(inside(other), plain, 2));
+        wait(600);
+        CHECK(!near(inside(other), plain, 6));
+        mouse(QEvent::MouseButtonRelease, at);
+        deselect();
+        wait(900);
+        CHECK(near(inside(other), plain, 2));
+        style->setMotionEnabled(false);
+    }
+
+    // Material has no tree: it takes the colors, and rows that a finger can hit.
+    CHECK(tree->visualRect(treeModel->index(0, 0)).height() == 48);
+    CHECK(tree->palette().color(QPalette::Highlight) == style->color(Role::SecondaryContainer));
+    CHECK(tree->palette().color(QPalette::HighlightedText) == style->color(Role::OnSecondaryContainer));
+
+    // Another style gets its own colors and rows back.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(tree->palette().color(QPalette::Highlight) == QApplication::palette().color(QPalette::Highlight));
+    CHECK(widgetList->rowHeight() < 40);
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -380,6 +691,10 @@ int main(int argc, char *argv[]) {
     testWidgets();
     testSliderProgressTabs();
     testComboAndMenu();
+    testSpring();
+    testMotion();
+    testRippleColorsAndTabs();
+    testLists();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

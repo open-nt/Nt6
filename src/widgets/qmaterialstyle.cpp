@@ -2,6 +2,7 @@
 #include <QtWidgets/qmaterialstyle.h>
 
 #include "qmaterialcolor_p.h"
+#include "qmaterialmotion_p.h"
 
 #include <QtCore/qhash.h>
 #include <QtGui/qevent.h>
@@ -13,18 +14,26 @@
 #include <QtGui/qstylehints.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qabstractbutton.h>
+#include <QtWidgets/qabstractitemview.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qcombobox.h>
 #include <QtWidgets/qdialog.h>
 #include <QtWidgets/qdialogbuttonbox.h>
 #include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qlistview.h>
+#include <QtWidgets/qlistwidget.h>
 #include <QtWidgets/qmenu.h>
 #include <QtWidgets/qradiobutton.h>
+#include <QtWidgets/qslider.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
+#include <QtWidgets/qtreeview.h>
 
 #include <algorithm>
+#ifdef __ANDROID__
+#include <QtCore/qjniobject.h>
+#endif
 
 namespace {
 
@@ -57,6 +66,9 @@ constexpr int progressHeight = 8;
 constexpr int tabHeight = 48;
 constexpr int tabPadding = 16;
 constexpr int tabIndicator = 3;
+constexpr double listRadius = 4;          // the corners of a row of a list,
+constexpr double listSelectedRadius = 16; // and of one that is chosen or held
+constexpr double listPressSlop = 8;       // how far a press may stray and still be one
 constexpr int menuItemHeight = 48;
 constexpr int menuPadding = 16;
 constexpr int menuIconSize = 24;
@@ -71,6 +83,24 @@ constexpr double focusOpacity = 0.10;
 constexpr double pressedOpacity = 0.10;
 constexpr double disabledContentOpacity = 0.38;
 constexpr double disabledContainerOpacity = 0.10;
+// What of a widget a spring moves.
+bool isList(const QWidget *widget) {
+    return qobject_cast<const QListView *>(widget) || qobject_cast<const QListWidget *>(widget);
+}
+
+enum Channel {
+    CornerChannel,
+    SwitchPositionChannel,
+    SwitchSizeChannel,
+    SwitchColorChannel,
+    RadioDotChannel,
+    CheckChannel,
+    HandleWidthChannel,
+    RippleRadiusChannel,
+    RippleOpacityChannel,
+    TabCentreChannel,
+    TabWidthChannel
+};
 const char *const polishedFont = "_nt_materialFont";
 const char *const polishedPalette = "_nt_materialPalette";
 
@@ -82,6 +112,13 @@ QColor withOpacity(QColor color, double opacity) {
 bool isSwitch(const QWidget *widget) { return widget && widget->property("materialSwitch").toBool(); }
 
 bool enabled(const QStyleOption *option) { return option->state & QStyle::State_Enabled; }
+
+// The color that is `amount` of the way from one color to another.
+QColor blend(const QColor &from, const QColor &to, double amount) {
+    const auto channel = [amount](int a, int b) { return static_cast<int>(std::lround(a + (b - a) * amount)); };
+    return QColor(channel(from.red(), to.red()), channel(from.green(), to.green()), channel(from.blue(), to.blue()),
+                  channel(from.alpha(), to.alpha()));
+}
 
 void fillRounded(QPainter *painter, const QRectF &rect, double radius, const QColor &color) {
     painter->setPen(Qt::NoPen);
@@ -117,7 +154,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
 
     The scheme is light or dark as the system says, unless setColorScheme() says otherwise. Sizes are in logical
     pixels, which on Android are the dp of Material: buttons are 40 high, text fields 56, and check boxes and radio
-    buttons have a height of at least 48 for a finger, as do the rows of menus and of the list of a combo box. A slider moves to where it is pressed and follows from there.
+    buttons have a height of at least 48 for a finger, as do the rows of menus and of the list of a combo box. A slider
+    moves to where it is pressed and follows from there.
 
     Choices that the classes of Qt have no function for are dynamic properties, so that the same program also builds
     with Qt:
@@ -133,18 +171,26 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     wifi->setProperty("materialSwitch", true);
     \endcode
 
+    Changes of shape and position move along springs, colors fade, a press on a button spreads a ripple from where it
+    is, and the line under the tabs slides to the one that is chosen (see setMotionEnabled()).
+
     A focus ring shows while the focus is moved with the keyboard (Tab or the arrow keys), and not after a click or a
     tap.
 
     \differences
     Qt Widgets has no Material style. Push buttons, line edits, check boxes, radio buttons, switches, sliders (the
     extra small size), progress bars (a thin line, with the text beside it), tab bars (primary tabs), combo boxes
-    (the outlined exposed dropdown menu), menus and dialogs are drawn in the Material way so far; the other widgets,
-    among them list, tree and table views, are drawn as the Fusion style draws them, in the Material colors. Menus
+    (the outlined exposed dropdown menu), menus, lists and dialogs are drawn in the Material way so far; the other
+    widgets are drawn as the Fusion style draws them, in the Material colors. Material has no tree and no table:
+    those show their selection in the Material colors, and the rows of a tree are 48 high. The rows of a QListView
+    or QListWidget are 56 high; behind a QProxyStyle they are drawn as Fusion draws them. A finger that is dragged
+    on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
     have square corners. Dialogs get the Material container color and text buttons; their rounded corners and the
     dimming behind them are the android platform's. A QMessageBox has no headline type style.
-    A slider shows no value bubble, and a busy progress bar shows only its track.
-    Changes of state show at once: there is no motion, no shape morphing and no ripple yet.
+    A slider shows no value bubble, and a busy progress bar shows only its track. Ripples are those of buttons only: a
+    check box, a radio button, a tab or a menu row shows a press without one. The colors of buttons, labels and radio
+    buttons change at once. The line under the tabs slides on a horizontal QTabBar, and not on one at the side. In an
+    item view nothing moves.
     \enddifferences
 
     \sa QStyleFactory, QApplication::setStyle()
@@ -197,7 +243,13 @@ QMaterialStyle::QMaterialStyle() : QMaterialStyle(QColor(0x67, 0x50, 0xa4)) {}
 
     Constructs the style with a scheme made from \a seedColor.
 */
-QMaterialStyle::QMaterialStyle(const QColor &seedColor) : m_seed(seedColor) {}
+QMaterialStyle::QMaterialStyle(const QColor &seedColor)
+    : m_seed(seedColor), m_animator(std::make_unique<QtPrivate::Animator>()) {
+#ifdef __ANDROID__
+    // "Remove animations" of the accessibility settings.
+    m_motion = QJniObject::callStaticMethod<jboolean>("android/animation/ValueAnimator", "areAnimatorsEnabled", "()Z");
+#endif
+}
 
 /*!
     Destroys the style.
@@ -324,6 +376,108 @@ QPalette QMaterialStyle::standardPalette() const {
 }
 
 /*!
+    \fn bool QMaterialStyle::isMotionEnabled() const
+
+    Returns \c true if changes of state move along springs.
+
+    \sa setMotionEnabled()
+*/
+
+/*!
+    If \a enabled is \c true, which is the default, a button's corners, a switch's handle, the dot of a radio button,
+    a slider's handle and the line under the tabs move along the springs of Material's expressive motion scheme, the
+    colors of switches and check boxes fade, and buttons ripple; otherwise changes show at once.
+    On Android motion starts off when the system's accessibility settings remove animations.
+*/
+void QMaterialStyle::setMotionEnabled(bool enabled) {
+    m_motion = enabled;
+    if (!enabled)
+        m_animator->clear();
+}
+
+double QMaterialStyle::animated(const QWidget *widget, int channel, double target, const QtPrivate::SpringSpec &spring,
+                                double precision) const {
+    // Only widgets that draw one such thing each: a view draws many indicators with the same widget.
+    if (!m_motion || !(qobject_cast<const QAbstractButton *>(widget) || qobject_cast<const QSlider *>(widget) ||
+                       qobject_cast<const QTabBar *>(widget)))
+        return target;
+    return m_animator->value(widget, channel, target, spring, precision);
+}
+
+// A circle that spreads from where the button was pressed until it fills it, and fades once the press has ended.
+void QMaterialStyle::drawRipple(QPainter *painter, const QWidget *widget, const QRectF &shape, double radius, bool held,
+                                const QColor &ink) const {
+    if (!m_motion || !widget || widget != m_rippleWidget.data())
+        return;
+    // A view's viewport ripples too, so this asks the animator itself rather than animated().
+    const double spread =
+        std::clamp(m_animator->value(widget, RippleRadiusChannel, 1.0, QtPrivate::slowEffectsSpring, 0.004), 0.0, 1.0);
+    // A tap is over before the ripple has spread: it stays until it nearly has.
+    const double strength = std::clamp(m_animator->value(widget, RippleOpacityChannel, held || spread < 0.9 ? 1.0 : 0.0,
+                                                         QtPrivate::slowEffectsSpring, 0.004),
+                                       0.0, 1.0);
+    if (strength < 0.01)
+        return;
+    // As far as the corner that is farthest from where the press was.
+    const double dx =
+        std::max(std::abs(m_rippleOrigin.x() - shape.left()), std::abs(shape.right() - m_rippleOrigin.x()));
+    const double dy =
+        std::max(std::abs(m_rippleOrigin.y() - shape.top()), std::abs(shape.bottom() - m_rippleOrigin.y()));
+    const double reach = spread * std::hypot(dx, dy);
+    if (reach <= 0)
+        return;
+    QPainterPath outline;
+    outline.addRoundedRect(shape, radius, radius);
+    QPainterPath circle;
+    circle.addEllipse(m_rippleOrigin, reach, reach);
+    painter->fillPath(outline.intersected(circle), QBrush(withOpacity(ink, pressedOpacity * strength)));
+}
+
+void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled,
+                                 const QBrush &background, const QWidget *view) const {
+    const auto *list = qobject_cast<const QAbstractItemView *>(view);
+    const QWidget *viewport = list ? list->viewport() : nullptr;
+    const bool pressedHere = viewport && viewport == m_rippleWidget.data() && row.contains(m_rippleOrigin.toPoint());
+    const bool held = pressedHere && m_rowPressed;
+    const QColor ink = color(selected ? Role::OnSecondaryContainer : Role::OnSurface);
+    // A little apart, so that two rows that are selected show as two. A row that is chosen or held is rounder.
+    const QRectF shape = QRectF(row).adjusted(0, 1, 0, -1);
+    const double radius = selected || held ? listSelectedRadius : listRadius;
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    if (selected)
+        fillRounded(painter, shape, radius,
+                    enabled ? color(Role::SecondaryContainer)
+                            : withOpacity(color(Role::OnSurface), disabledContainerOpacity));
+    else if (background.style() != Qt::NoBrush)
+        painter->fillRect(row, background);
+    if (held && !m_motion)
+        fillRounded(painter, shape, radius, withOpacity(ink, pressedOpacity));
+    if (pressedHere)
+        drawRipple(painter, viewport, shape, radius, held, ink);
+    painter->restore();
+}
+
+void QMaterialStyle::drawTabIndicator(QPainter *painter, const QTabBar *bar, const QRect &tab, bool below) const {
+    if (bar->currentIndex() < 0)
+        return;
+    // As wide as the label, on its way from where it was.
+    const double label = bar->fontMetrics().horizontalAdvance(bar->tabText(bar->currentIndex()));
+    const double width = std::max(24.0, std::min<double>(label, tab.width() - 2 * tabPadding));
+    const double centre =
+        animated(bar, TabCentreChannel, QRectF(tab).center().x(), QtPrivate::defaultSpatialSpring, 0.1);
+    const double shown = std::max(24.0, animated(bar, TabWidthChannel, width, QtPrivate::defaultSpatialSpring, 0.1));
+    const double edge = below ? tab.top() : tab.bottom() + 1.0;
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setClipRect(QRectF(0, tab.top(), bar->width(), tab.height()), Qt::IntersectClip);
+    // Twice as high as what shows, so that only the corners towards the labels are rounded.
+    fillRounded(painter, QRectF(centre - shown / 2, edge - tabIndicator, shown, 2 * tabIndicator), tabIndicator,
+                color(Role::Primary));
+    painter->restore();
+}
+
+/*!
     \reimp
 */
 void QMaterialStyle::polish(QWidget *widget) {
@@ -336,11 +490,19 @@ void QMaterialStyle::polish(QWidget *widget) {
         widget->setPalette(palette);
         widget->setProperty(polishedPalette, true);
     }
+    // Lists, trees and tables mark what is selected quietly, as menus do.
+    if (qobject_cast<QAbstractItemView *>(widget) && !widget->testAttribute(Qt::WA_SetPalette)) {
+        QPalette palette = widget->palette();
+        palette.setColor(QPalette::Highlight, color(Role::SecondaryContainer));
+        palette.setColor(QPalette::HighlightedText, color(Role::OnSecondaryContainer));
+        widget->setPalette(palette);
+        widget->setProperty(polishedPalette, true);
+    }
     // The type scale: label large for buttons, body large for text and choices. A font that the program set stays.
     const bool choice = qobject_cast<QCheckBox *>(widget) || qobject_cast<QRadioButton *>(widget);
     const bool button = (!choice && qobject_cast<QAbstractButton *>(widget)) || qobject_cast<QTabBar *>(widget);
-    const bool text =
-        qobject_cast<QLineEdit *>(widget) || qobject_cast<QComboBox *>(widget) || qobject_cast<QMenu *>(widget);
+    const bool text = qobject_cast<QLineEdit *>(widget) || qobject_cast<QComboBox *>(widget) ||
+                      qobject_cast<QMenu *>(widget) || isList(widget) || qobject_cast<QTreeView *>(widget);
     if ((choice || button || text) && !widget->testAttribute(Qt::WA_SetFont)) {
         QFont font = widget->font();
         font.setPixelSize(button ? 14 : 16);
@@ -405,6 +567,43 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
             m_keyboard = true;
     } else if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::TouchBegin) {
         m_keyboard = false;
+    }
+    // The row of a list that is pressed. A finger or a pointer that moves away is not pressing it any more.
+    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease ||
+        (m_rowPressed && event->type() == QEvent::MouseMove)) {
+        auto *viewport = qobject_cast<QWidget *>(watched);
+        const auto *view = viewport ? qobject_cast<QAbstractItemView *>(viewport->parentWidget()) : nullptr;
+        if (view && view->viewport() == viewport && isList(view)) {
+            const auto *mouse = static_cast<QMouseEvent *>(event);
+            if (event->type() == QEvent::MouseButtonPress && mouse->button() == Qt::LeftButton) {
+                m_rippleWidget = viewport;
+                m_rippleOrigin = mouse->position();
+                m_rowPressed = true;
+                m_animator->place(viewport, RippleRadiusChannel, 0);
+                m_animator->place(viewport, RippleOpacityChannel, 1);
+                viewport->update();
+            } else if (m_rowPressed && viewport == m_rippleWidget.data()) {
+                const bool moved = event->type() == QEvent::MouseMove &&
+                                   (mouse->position() - m_rippleOrigin).manhattanLength() > listPressSlop;
+                if (moved)
+                    m_rippleWidget = nullptr;
+                if (moved || event->type() == QEvent::MouseButtonRelease) {
+                    m_rowPressed = false;
+                    viewport->update();
+                }
+            }
+        }
+    }
+    if (m_motion && event->type() == QEvent::MouseButtonPress) {
+        // A button's ripple starts where it is pressed. (A choice shows the press around its indicator.)
+        auto *button = qobject_cast<QAbstractButton *>(watched);
+        if (button && button->isEnabled() && static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton &&
+            !qobject_cast<QCheckBox *>(button) && !qobject_cast<QRadioButton *>(button)) {
+            m_rippleWidget = button;
+            m_rippleOrigin = static_cast<QMouseEvent *>(event)->position();
+            m_animator->place(button, RippleRadiusChannel, 0);
+            m_animator->place(button, RippleOpacityChannel, 1);
+        }
     }
     return QCommonStyle::eventFilter(watched, event);
 }
@@ -478,6 +677,9 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
         radius = std::min<double>(radius, rect.height() >= 56 ? selectedCorner : pressedCorner);
     else if (checked)
         radius = std::min<double>(radius, selectedCorner);
+    // The shape springs from one to the other, and may pass it a little.
+    radius =
+        std::clamp(animated(widget, CornerChannel, radius, QtPrivate::fastSpatialSpring, 0.05), 0.0, rect.height() / 2);
 
     QColor container(Qt::transparent);
     switch (kind) {
@@ -506,8 +708,13 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
         fillRounded(painter, body, radius, container);
     if (kind == ButtonKind::Outlined && !checked)
         strokeRounded(painter, body, radius, color(Role::OutlineVariant), 1);
-    if (const double layer = stateLayer(option); layer > 0)
+    // With motion, the ripple shows the press; the layer is for the pointer and the keyboard.
+    QStyleOption resting = *option;
+    if (m_motion && widget && widget == m_rippleWidget.data())
+        resting.state &= ~QStyle::State(State_Sunken);
+    if (const double layer = stateLayer(&resting); layer > 0)
         fillRounded(painter, body, radius, withOpacity(buttonLabelColor(option, widget), layer));
+    drawRipple(painter, widget, body, radius, option->state & State_Sunken, buttonLabelColor(option, widget));
     if (keyboardFocus(option))
         strokeRounded(painter, body, radius, color(Role::Secondary), focusRingWidth);
 }
@@ -533,13 +740,17 @@ void QMaterialStyle::drawButtonLabel(const QStyleOption *option, QPainter *paint
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
 }
 
-void QMaterialStyle::drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter) const {
+void QMaterialStyle::drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter,
+                                const QWidget *widget) const {
     const bool on = option->state & State_On;
     const bool pressed = option->state & State_Sunken;
     const QRectF track(rect.left(), rect.top() + (rect.height() - switchHeight) / 2.0, switchWidth, switchHeight);
-    QColor trackColor = color(on ? Role::Primary : Role::SurfaceContainerHighest);
-    QColor border = color(Role::Outline);
-    QColor handle = color(on ? Role::OnPrimary : Role::Outline);
+    // The colors cross over as the handle does, along a spring that does not pass its mark.
+    const double filled = std::clamp(
+        animated(widget, SwitchColorChannel, on ? 1.0 : 0.0, QtPrivate::defaultEffectsSpring, 0.004), 0.0, 1.0);
+    QColor trackColor = blend(color(Role::SurfaceContainerHighest), color(Role::Primary), filled);
+    QColor border = blend(color(Role::Outline), color(Role::Primary), filled);
+    QColor handle = blend(color(Role::Outline), color(Role::OnPrimary), filled);
     if (!enabled(option)) {
         const QColor ink = color(Role::OnSurface);
         trackColor = on ? withOpacity(ink, 0.12) : withOpacity(color(Role::SurfaceContainerHighest), 0.12);
@@ -547,11 +758,20 @@ void QMaterialStyle::drawSwitch(const QStyleOption *option, const QRect &rect, Q
         handle = on ? color(Role::Surface) : withOpacity(ink, disabledContentOpacity);
     }
     fillRounded(painter, track, switchHeight / 2.0, trackColor);
-    if (!on)
+    if (filled < 0.999)
         strokeRounded(painter, track, switchHeight / 2.0, border, 2);
     // The handle is small when off, larger when on, and larger still under a finger.
-    const double size = pressed ? 28 : on ? 24 : 16;
-    const double centre = on ? track.right() - switchHeight / 2.0 : track.left() + switchHeight / 2.0;
+    const double size = std::clamp(animated(widget, SwitchSizeChannel,
+                                            pressed ? 28
+                                            : on    ? 24
+                                                    : 16,
+                                            QtPrivate::fastSpatialSpring, 0.05),
+                                   12.0, 30.0);
+    // 0 is off and 1 on; the handle springs across, and a little past.
+    const double position = std::clamp(
+        animated(widget, SwitchPositionChannel, on ? 1.0 : 0.0, QtPrivate::fastSpatialSpring, 0.002), -0.08, 1.08);
+    const double travel = switchWidth - switchHeight;
+    const double centre = track.left() + switchHeight / 2.0 + position * travel;
     const QPointF middle(centre, track.center().y());
     if (const double layer = stateLayer(option); layer > 0)
         fillRounded(painter, QRectF(middle.x() - 20, middle.y() - 20, 40, 40), 20,
@@ -614,7 +834,9 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
         dot(activeFirst ? end - inset : start + inset);
     }
     const bool pressed = option->state & State_Sunken;
-    const double width = pressed ? sliderPressedWidth : sliderHandleWidth;
+    const double width =
+        std::max(1.0, animated(widget, HandleWidthChannel, pressed ? sliderPressedWidth : sliderHandleWidth,
+                               QtPrivate::fastSpatialSpring, 0.05));
     const QRectF bar =
         horizontal ? QRectF(handle - width / 2, centre.y() - sliderHandleHeight / 2.0, width, sliderHandleHeight)
                    : QRectF(centre.x() - sliderHandleHeight / 2.0, handle - width / 2, sliderHandleHeight, width);
@@ -675,7 +897,10 @@ void QMaterialStyle::drawTab(const QStyleOption *option, QPainter *painter, cons
     if (const double layer = stateLayer(option); layer > 0)
         painter->fillRect(r, withOpacity(color(selected ? Role::Primary : Role::OnSurface), layer));
     painter->fillRect(QRectF(r.left(), r.bottom() - 1, r.width(), 1), color(Role::OutlineVariant));
-    if (!selected)
+    // A horizontal QTabBar draws the line itself, once, so that it can slide (drawTabIndicator()).
+    const auto *tabBar = qobject_cast<const QTabBar *>(widget);
+    if (!selected || (tabBar && tabBar->shape() != QTabBar::RoundedWest && tabBar->shape() != QTabBar::RoundedEast &&
+                      tabBar->shape() != QTabBar::TriangularWest && tabBar->shape() != QTabBar::TriangularEast))
         return;
     double width = r.width() - 2 * tabPadding;
     // QTabBar draws the shape without the text: the label is that of its current tab, in its font.
@@ -826,29 +1051,42 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_IndicatorCheckBox: {
         const QRectF box(option->rect);
         const bool filled = option->state & (State_On | State_NoChange);
-        QColor accent = color(filled ? Role::Primary : Role::OnSurfaceVariant);
+        // 0 is empty and 1 filled: the fill fades in, and the mark is drawn as it does.
+        const double amount = std::clamp(
+            animated(widget, CheckChannel, filled ? 1.0 : 0.0, QtPrivate::defaultEffectsSpring, 0.004), 0.0, 1.0);
+        QColor accent = color(Role::Primary);
+        QColor outline = color(Role::OnSurfaceVariant);
         QColor mark = color(Role::OnPrimary);
         if (!enabled(option)) {
-            accent = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+            accent = outline = withOpacity(color(Role::OnSurface), disabledContentOpacity);
             mark = color(Role::Surface);
         }
         if (const double layer = stateLayer(option); layer > 0)
-            fillRounded(painter, box.adjusted(-8, -8, 8, 8), box.width() / 2 + 8, withOpacity(accent, layer));
-        if (!filled) {
-            strokeRounded(painter, box, 2, accent, 2);
+            fillRounded(painter, box.adjusted(-8, -8, 8, 8), box.width() / 2 + 8,
+                        withOpacity(filled ? accent : outline, layer));
+        if (amount < 0.999)
+            strokeRounded(painter, box, 2, outline, 2);
+        if (amount < 0.001)
             break;
-        }
-        fillRounded(painter, box, 2, accent);
+        QColor fill = accent;
+        fill.setAlphaF(fill.alphaF() * amount);
+        fillRounded(painter, box, 2, fill);
         painter->setPen(QPen(QBrush(mark), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         const auto at = [&box](double x, double y) {
             return QPointF(box.left() + x * box.width(), box.top() + y * box.height());
         };
-        if (option->state & State_On) {
-            painter->drawLine(at(0.22, 0.52), at(0.42, 0.72));
-            painter->drawLine(at(0.42, 0.72), at(0.79, 0.30));
-        } else {
-            painter->drawLine(at(0.25, 0.5), at(0.75, 0.5));
+        const auto towards = [](const QPointF &from, const QPointF &to, double part) {
+            return from + (to - from) * part;
+        };
+        if (option->state & State_NoChange) {
+            painter->drawLine(at(0.25, 0.5), towards(at(0.25, 0.5), at(0.75, 0.5), amount));
+            break;
         }
+        // The short stroke first, then the long one.
+        const QPointF start = at(0.22, 0.52), bend = at(0.42, 0.72), end = at(0.79, 0.30);
+        painter->drawLine(start, towards(start, bend, std::min(1.0, amount / 0.35)));
+        if (amount > 0.35)
+            painter->drawLine(bend, towards(bend, end, (amount - 0.35) / 0.65));
         break;
     }
     case PE_IndicatorRadioButton: {
@@ -860,10 +1098,26 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         if (const double layer = stateLayer(option); layer > 0)
             fillRounded(painter, box.adjusted(-8, -8, 8, 8), box.width() / 2 + 8, withOpacity(accent, layer));
         strokeRounded(painter, box, box.width() / 2, accent, 2);
-        if (on)
-            fillRounded(painter, box.adjusted(5, 5, -5, -5), box.width() / 2 - 5, accent);
+        // The dot grows from the middle, and shrinks away.
+        const double grown = std::clamp(
+            animated(widget, RadioDotChannel, on ? 1.0 : 0.0, QtPrivate::fastSpatialSpring, 0.004), 0.0, 1.2);
+        if (grown > 0.02) {
+            const double dot = (box.width() - 10) * grown;
+            fillRounded(painter, QRectF(box.center().x() - dot / 2, box.center().y() - dot / 2, dot, dot), dot / 2,
+                        accent);
+        }
         break;
     }
+    case PE_FrameFocusRect:
+        // The current row of a view, while the keyboard moves it: after a tap the selection says enough.
+        if (qobject_cast<const QAbstractItemView *>(widget)) {
+            if (keyboardFocus(option))
+                strokeRounded(painter, QRectF(option->rect).adjusted(0, 1, 0, -1), listSelectedRadius,
+                              color(Role::Secondary), 2);
+            break;
+        }
+        QCommonStyle::drawPrimitive(element, option, painter, widget);
+        break;
     default:
         QCommonStyle::drawPrimitive(element, option, painter, widget);
         break;
@@ -922,7 +1176,7 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
     if (element == CE_CheckBox && isSwitch(widget)) {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
-        drawSwitch(option, proxy()->subElementRect(SE_CheckBoxIndicator, option, widget), painter);
+        drawSwitch(option, proxy()->subElementRect(SE_CheckBoxIndicator, option, widget), painter, widget);
         painter->restore();
         QStyleOptionButton label = *static_cast<const QStyleOptionButton *>(option);
         label.rect = proxy()->subElementRect(SE_CheckBoxContents, option, widget);

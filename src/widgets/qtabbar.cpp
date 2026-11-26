@@ -1025,6 +1025,13 @@ void QTabBar::paintEvent(QPaintEvent *event) {
         drawTab(m_current);
     if (m_dragging >= 0)
         drawTab(m_dragging);
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (material && !vert && m_current >= 0 && m_tabs[static_cast<std::size_t>(m_current)].visible) {
+        QRect current = rects[static_cast<std::size_t>(m_current)];
+        if (m_current == m_dragging)
+            current.translate(m_dragOffset, 0);
+        material->drawTabIndicator(&painter, this, current, south);
+    }
 }
 
 /*!

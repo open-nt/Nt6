@@ -21,6 +21,8 @@ if(@NT_HAVE_SQLITE@)
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/Nt6Targets.cmake")
+# Nt Material Symbols is installed apart from the rest, with its Apache 2.0 icons: it is there if that was installed.
+include("${CMAKE_CURRENT_LIST_DIR}/Nt6MaterialSymbolsTargets.cmake" OPTIONAL)
 
 # A cross build has no tools of its own: ntmoc and ntrcc run on the build machine, from NT_HOST_TOOLS_DIR (a
 # directory, or the prefix of an installed Nt for the build machine, with them in its bin directory).
@@ -50,7 +52,7 @@ if(CMAKE_CROSSCOMPILING)
     endif()
 endif()
 
-set(_nt_modules Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL OpenGLWidgets Qml FM FMQml Gamepad Gltf Barcode Positioning Sensors Protobuf SerialBus Mqtt Device Twin Comms TwinNetwork Multimedia MultimediaWidgets Concurrent Xml Test)
+set(_nt_modules Core Network Gpio SerialPort Sql DBus HttpServer WebSockets Gui Widgets Svg SvgWidgets Charts OpenGL OpenGLWidgets Qml FM FMQml Gamepad Gltf Barcode Positioning Sensors Protobuf SerialBus Mqtt Device Twin Comms TwinNetwork Multimedia MultimediaWidgets Concurrent Xml Test MaterialSymbols)
 if(TARGET Nt6::WaylandCompositor)
     list(APPEND _nt_modules WaylandCompositor)
 endif()
@@ -58,6 +60,8 @@ foreach(module IN LISTS _nt_modules)
     if(NOT TARGET Nt6::${module})
         continue()
     endif()
+    # check_required_components() asks this of each component that find_package() was given.
+    set(Nt6_${module}_FOUND TRUE)
     if(NOT TARGET Nt::${module})
         add_library(Nt::${module} ALIAS Nt6::${module})
     endif()

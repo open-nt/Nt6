@@ -23,7 +23,7 @@
 
 **Write Qt. Ship MIT.** Nt is a small, MIT-licensed, clean-room implementation of the Qt 6 API in C++17. It keeps Qt's class names and headers (`QObject`, `<QtCore/QTimer>`, `QHttpServer`), so code written for Qt compiles against Nt, and it links statically by default.
 
-- **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ntprotobufgen`, `ndoc`, `ntgltfview`) are MIT licensed, so you can link Nt statically into any program, open or closed.
+- **MIT, all the way down.** The libraries and the tools (`ntmoc`, `ntrcc`, `ntprotobufgen`, `ndoc`, `ntgltfview`) are MIT licensed, so you can link Nt statically into any program, open or closed. There is one exception, which you have to ask for: [Nt Material Symbols](#material-symbols-not-mit), an optional icon library whose icons are Google's, under Apache 2.0. Nothing else in Nt uses it.
 - **Source compatible.** `#include <QTimer>`, `Q_OBJECT`, `signals:`, `connect()` and the `Qt6::` CMake targets work as they do in Qt.
 - **Built module by module.** `Nt Core`, `Nt Network`, `Nt Serial Port`, `Nt SQL`, `Nt D-Bus`, `Nt HTTP Server`, `Nt WebSockets`, `Nt GUI`, `Nt Widgets`, `Nt SVG`, `Nt Charts`, `Nt OpenGL`, `Nt OpenGL Widgets`, `Nt Qml`, `Nt Multimedia` (audio and cameras), `Nt Positioning`, `Nt Sensors`, `Nt Protobuf`, `Nt SerialBus` (CAN), `Nt Mqtt`, `Nt Device` (watchdog and firmware updates), `Nt FM`, `Nt Concurrent`, `Nt XML` and `Nt Test` so far; [Status](#status) lists what each one has and what is missing.
 - **Checked on every commit.** Tests run under AddressSanitizer, UBSan and ThreadSanitizer, and release packages carry SLSA level 3 provenance.
@@ -375,6 +375,22 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 ### Material 3 Expressive
 
 `QApplication::setStyle("Material3")` (in the colors of the system's theme on Android 12 and later), or a `QMaterialStyle` with a seed color, draws a Qt Widgets application in the [Material 3 Expressive](https://m3.material.io/) look, light or dark, with sizes for fingers; the [`material`](https://github.com/open-nt/nt6-examples/blob/main/android/material.cpp) example shows it. So far push buttons (filled, tonal, outlined, text, elevated), line edits, check boxes, radio buttons, switches (a `QCheckBox` with the property `materialSwitch`), sliders, progress bars, tabs, combo boxes, menus, dialogs and lists are drawn the Material way, and other widgets (trees and tables among them) like Fusion in the Material colors. Buttons change shape, buttons, check boxes, radio buttons, switches, tabs, list rows and menu rows ripple, switches and check boxes fade, and switch handles, radio dots, slider handles and the line under the tabs move along the springs of the expressive motion scheme (off with `setMotionEnabled(false)`, or on Android when the system removes animations). Of the new Expressive components there are the connected button group (the property `materialButtonGroup` on the widget that holds the buttons), the split button (a `QToolButton` with `MenuButtonPopup`) the floating action button with its menu (a `QPushButton` with `materialButton` `"fab"` and `setMenu()`) and the loading indicator (a busy `QProgressBar` with `materialProgress` `"loading"`); a busy progress bar moves. There are a floating toolbar too (a `QToolBar` with `materialToolBar` `"floating"`) a wavy progress bar (`materialProgress` `"wavy"`) and the five button sizes (`materialButtonSize`) with a square shape; line edits are outlined or filled text fields, with floating labels, supporting text and errors. The HCT color engine is Nt's own.
+
+### Material Symbols (not MIT)
+
+`Nt::MaterialSymbols` (Nt only) gives a selection of Google's [Material Symbols](https://fonts.google.com/icons), outlined and filled, as a `QIcon` or `QPixmap` in any colour:
+
+```cpp
+#include <QMaterialSymbols>
+button->setIcon(QMaterialSymbols::icon("search", button->palette().color(QPalette::ButtonText)));
+```
+
+```cmake
+find_package(Nt6 REQUIRED COMPONENTS Widgets MaterialSymbols)
+target_link_libraries(app PRIVATE Nt6::Widgets Nt6::MaterialSymbols)
+```
+
+**The icons are licensed under the [Apache License 2.0](third_party/material-symbols/LICENSE), not MIT.** A program that links with this library distributes them, so it has to follow section 4 of that license, which among other things means giving its users a copy of it. The library's own code is MIT. It is kept apart so that you only take the icons on if you want them: no other Nt library or tool uses it, it is installed as its own CMake component (`MaterialSymbols`) and packaged on its own (`nt6-material-symbols`), the snap leaves it out, and `-DNT_BUILD_MATERIAL_SYMBOLS=OFF` leaves it out of a build. [Where the icons come from](third_party/material-symbols/README.md).
 
 ### Additions to Qt classes
 

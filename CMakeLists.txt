@@ -1714,6 +1714,25 @@ add_executable(Nt::rcc ALIAS ntrcc)
 add_executable(Qt6::rcc ALIAS ntrcc)
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtRcc.cmake)
 
+# Nt Material Symbols: Google's icons, which are NOT MIT licensed (Apache 2.0, see third_party/material-symbols), in a
+# library of their own that nothing else in Nt links with. It is installed as a component of its own.
+option(NT_BUILD_MATERIAL_SYMBOLS "Build Nt Material Symbols, the library with Google's Apache 2.0 icons" ON)
+if(NT_BUILD_MATERIAL_SYMBOLS AND NOT NT_ZEPHYR AND TARGET NtSvg)
+    add_library(NtMaterialSymbols src/materialsymbols/qmaterialsymbols.cpp)
+    add_library(Nt::MaterialSymbols ALIAS NtMaterialSymbols)
+    target_include_directories(NtMaterialSymbols
+        PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include/QtMaterialSymbols>
+            $<INSTALL_INTERFACE:include/nt6/QtMaterialSymbols>
+    )
+    target_link_libraries(NtMaterialSymbols PUBLIC NtGui PRIVATE NtSvg)
+    nt_set_compile_options(NtMaterialSymbols)
+    file(GLOB _nt_symbol_files CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/material-symbols/icons/*.svg)
+    nt_add_resources(NtMaterialSymbols ntmaterialsymbols PREFIX /nt/material-symbols
+        BASE ${CMAKE_CURRENT_SOURCE_DIR}/third_party/material-symbols/icons FILES ${_nt_symbol_files})
+endif()
+
 # ntprotobufgen: .proto files to the C++ classes of Nt Protobuf, and its CMake helpers (qt_add_protobuf()).
 if(NOT NT_ZEPHYR AND NOT CMAKE_CROSSCOMPILING)
     add_executable(ntprotobufgen tools/ntprotobufgen/main.cpp)
@@ -2168,6 +2187,14 @@ if(NT_BUILD_TESTS)
     nt_set_compile_options(nt_material_tests)
 
     # Touch input: QTouchEvent sequences for windows and widgets, and the first finger as the mouse.
+    if(TARGET NtMaterialSymbols)
+        add_executable(nt_materialsymbols_tests tests/test_materialsymbols.cpp)
+        target_link_libraries(nt_materialsymbols_tests PRIVATE Nt::MaterialSymbols)
+        add_test(NAME nt_materialsymbols_tests COMMAND nt_materialsymbols_tests)
+        set_tests_properties(nt_materialsymbols_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+        nt_set_compile_options(nt_materialsymbols_tests)
+    endif()
+
     add_executable(nt_touch_tests tests/test_touch.cpp)
     target_include_directories(nt_touch_tests PRIVATE src/gui)
     target_link_libraries(nt_touch_tests PRIVATE Nt::Widgets Nt::Test)

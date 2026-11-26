@@ -50,6 +50,8 @@ parts:
       - -DCMAKE_INSTALL_PREFIX=/usr
       - -DNT_BUILD_TESTS=OFF
       - -DNT_BUILD_EXAMPLES=OFF
+      # The snap holds only what is MIT licensed: Nt Material Symbols (Apache 2.0 icons) is a package of its own.
+      - -DNT_BUILD_MATERIAL_SYMBOLS=OFF
     build-packages:
       - g++
       - libfontconfig-dev

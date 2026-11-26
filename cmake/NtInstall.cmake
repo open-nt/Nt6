@@ -7,6 +7,10 @@
 #
 #   Development  headers, static or shared libraries, CMake package
 #   Tools        ntmoc, ntrcc, ndoc and, with Vulkan, ntgltfview
+#
+# and, apart from them, MaterialSymbols: Nt Material Symbols, whose icons are Google's and licensed under Apache 2.0,
+# not MIT. Everything of it, the CMake targets file and the license among it, is in that component alone, so that the
+# others hold nothing under that license and work without it.
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -78,6 +82,49 @@ install(EXPORT Nt6Targets
     NAMESPACE Nt6::
     DESTINATION ${NT_INSTALL_CMAKEDIR}
     COMPONENT Development)
+
+if(TARGET NtMaterialSymbols)
+    set_target_properties(NtMaterialSymbols PROPERTIES EXPORT_NAME MaterialSymbols)
+    install(TARGETS NtMaterialSymbols
+        EXPORT Nt6MaterialSymbolsTargets
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT MaterialSymbols
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT MaterialSymbols)
+    install(DIRECTORY include/QtMaterialSymbols
+        DESTINATION ${NT_INSTALL_INCLUDEDIR}
+        COMPONENT MaterialSymbols)
+    install(EXPORT Nt6MaterialSymbolsTargets
+        NAMESPACE Nt6::
+        DESTINATION ${NT_INSTALL_CMAKEDIR}
+        COMPONENT MaterialSymbols)
+    # The copyright file that Debian wants says what is under which license, and holds the text of both.
+    file(READ third_party/material-symbols/README.md _nt_symbols_readme)
+    file(READ third_party/material-symbols/LICENSE _nt_symbols_apache)
+    file(READ LICENSE _nt_symbols_mit)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/material-symbols.copyright
+"Nt Material Symbols.
+
+The icons (Material Symbols, by Google) are licensed under the Apache License, Version 2.0.
+The code of the library is licensed under the MIT License, like the rest of Nt.
+
+==== About the icons ====
+
+${_nt_symbols_readme}
+==== Apache License, Version 2.0 (the icons) ====
+
+${_nt_symbols_apache}
+==== MIT License (the code) ====
+
+${_nt_symbols_mit}")
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/material-symbols.copyright
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/nt6-material-symbols
+        RENAME copyright
+        COMPONENT MaterialSymbols)
+    install(FILES third_party/material-symbols/LICENSE third_party/material-symbols/README.md
+        DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/doc/nt6-material-symbols
+        COMPONENT MaterialSymbols)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/third_party/material-symbols/README.md)
+endif()
 
 configure_package_config_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Nt6Config.cmake.in

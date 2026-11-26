@@ -70,6 +70,10 @@ set(CPACK_PACKAGE_DESCRIPTION
 set(CPACK_RESOURCE_FILE_LICENSE ${CMAKE_CURRENT_SOURCE_DIR}/LICENSE)
 set(CPACK_STRIP_FILES ON)
 set(CPACK_COMPONENTS_ALL Development Tools)
+# Nt Material Symbols is a package of its own: its icons are Google's, under Apache 2.0, and nothing else holds them.
+if(TARGET NtMaterialSymbols)
+    list(APPEND CPACK_COMPONENTS_ALL MaterialSymbols)
+endif()
 
 # Debian and Ubuntu: libnt6-dev and nt6-tools.
 set(CPACK_DEB_COMPONENT_INSTALL ON)
@@ -90,10 +94,21 @@ set(CPACK_DEBIAN_TOOLS_PACKAGE_SECTION devel)
 set(CPACK_DEBIAN_TOOLS_PACKAGE_SHLIBDEPS ON)
 set(CPACK_DEBIAN_TOOLS_PACKAGE_DESCRIPTION "ntmoc and ntrcc, moc and rcc replacements, and ndoc, a documentation generator, for Nt")
 
-# Enterprise Linux and Fedora: nt6-devel and nt6-tools.
+set(CPACK_DEBIAN_MATERIALSYMBOLS_PACKAGE_NAME nt6-material-symbols)
+set(CPACK_DEBIAN_MATERIALSYMBOLS_PACKAGE_SECTION libdevel)
+set(CPACK_DEBIAN_MATERIALSYMBOLS_PACKAGE_DEPENDS
+    "libnt6-dev (= ${CPACK_DEBIAN_PACKAGE_VERSION}-${CPACK_DEBIAN_PACKAGE_RELEASE})")
+set(CPACK_DEBIAN_MATERIALSYMBOLS_PACKAGE_DESCRIPTION
+    "Nt Material Symbols: Google's Material Symbols icons for Nt (icons under Apache-2.0, not MIT)")
+
+# Enterprise Linux and Fedora: nt6-devel, nt6-tools and nt6-material-symbols.
 set(CPACK_RPM_COMPONENT_INSTALL ON)
 set(CPACK_RPM_FILE_NAME RPM-DEFAULT)
-set(CPACK_RPM_PACKAGE_LICENSE "MIT")
+# CPack has no license for each component, so the tag says it by the name of the package, which the spec has set before
+# it: nt6-material-symbols holds Google's icons under Apache 2.0, and every other package is MIT. (Single quotes only:
+# CPack does not escape double quotes in the values that it writes to its configuration.)
+set(CPACK_RPM_PACKAGE_LICENSE
+    "%{lua: if rpm.expand('%{name}') == 'nt6-material-symbols' then print('MIT AND Apache-2.0') else print('MIT') end}")
 set(CPACK_RPM_PACKAGE_RELEASE "1")
 set(CPACK_RPM_PACKAGE_RELEASE_DIST ON)
 set(CPACK_RPM_PACKAGE_URL "${CPACK_PACKAGE_HOMEPAGE_URL}")
@@ -104,6 +119,10 @@ set(CPACK_RPM_DEVELOPMENT_PACKAGE_SUMMARY "${CPACK_PACKAGE_DESCRIPTION_SUMMARY} 
 set(CPACK_RPM_TOOLS_PACKAGE_NAME nt6-tools)
 set(CPACK_RPM_TOOLS_PACKAGE_GROUP "Development/Tools")
 set(CPACK_RPM_TOOLS_PACKAGE_SUMMARY "ntmoc, ntrcc and ndoc for Nt")
+set(CPACK_RPM_MATERIALSYMBOLS_PACKAGE_NAME nt6-material-symbols)
+set(CPACK_RPM_MATERIALSYMBOLS_PACKAGE_GROUP "Development/Libraries")
+set(CPACK_RPM_MATERIALSYMBOLS_PACKAGE_SUMMARY "Material Symbols icons for Nt (icons under Apache-2.0, not MIT)")
+set(CPACK_RPM_MATERIALSYMBOLS_PACKAGE_REQUIRES "nt6-devel = ${CPACK_RPM_PACKAGE_VERSION}")
 # Directories that belong to the system or to other packages.
 set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION
     ${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}/cmake

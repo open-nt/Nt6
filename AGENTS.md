@@ -8,6 +8,15 @@ headers in `include/Qt*/`, sources in `src/`). Tools: `ntmoc` (a moc replacement
 and `ndoc` (the documentation generator). Source files start with
 `// MIT License - see LICENSE`.
 
+## Third-party material
+
+Everything in the libraries and tools is MIT licensed, with one exception that is kept apart: `third_party/` holds
+material under other licenses, as published, with its `LICENSE` and a `README.md` that says where it comes from.
+`third_party/material-symbols` (Google's icons, Apache-2.0) is compiled only into `NtMaterialSymbols`. Do not make
+another library or tool use it, do not copy its files into `src/` or `include/` (whose files say they are MIT), and
+keep it in its own CMake component and packages (`nt6-material-symbols`). New third-party material needs the user's
+approval first.
+
 ## Platform support
 
 Nt should be cross-platform, targeting:

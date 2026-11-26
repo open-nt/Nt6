@@ -82,5 +82,8 @@ first time it opened.
 
 - `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected
   label is not accented.
-- The system's dynamic colour (Android 12 and later) as the seed.
+- Dynamic colour is the seed only: `systemSeedColor()` reads `android.R.color.system_accent1_500` on API 31 and later,
+  and the default constructor uses it. The system's own five palettes are not copied (their tones would be closer to
+  other applications'), a grey theme still gives a coloured scheme, and a change of theme is not followed while the
+  application runs.
 - The emphasized type styles and the Roboto Flex variable font axes.

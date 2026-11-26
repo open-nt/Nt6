@@ -97,6 +97,10 @@ double contrast(const QColor &a, const QColor &b) {
 }
 
 void testScheme() {
+    // A desktop has no color of its own theme to take: a style that is given none has the baseline's violet.
+    CHECK(!QMaterialStyle::systemSeedColor().isValid());
+    CHECK(QMaterialStyle().seedColor() == QColor(0x67, 0x50, 0xa4));
+    CHECK(QMaterialStyle(QColor(0x00, 0x6c, 0x4c)).seedColor() == QColor(0x00, 0x6c, 0x4c));
     for (const QColor &seed : {QColor(0x67, 0x50, 0xa4), QColor(0x00, 0x6c, 0x4c), QColor(0xb3, 0x26, 0x1e),
                                QColor(250, 210, 60), QColor(128, 128, 128)}) {
         for (Qt::ColorScheme scheme : {Qt::ColorScheme::Light, Qt::ColorScheme::Dark}) {

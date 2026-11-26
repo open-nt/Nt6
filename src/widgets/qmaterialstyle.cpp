@@ -38,6 +38,7 @@
 
 #include <algorithm>
 #ifdef __ANDROID__
+#include <QtCore/qcoreapplication_platform.h>
 #include <QtCore/qjniobject.h>
 #endif
 
@@ -260,6 +261,12 @@ bool isToolBarItem(const QWidget *widget) {
 // middle, or the middle of the handle of a switch that is off, is choiceCentre in.
 int choiceInset(int width, bool toggle) { return choiceCentre - (toggle ? switchHeight : width) / 2; }
 
+// The seed of a style that is given none.
+QColor defaultSeedColor() {
+    const QColor system = QMaterialStyle::systemSeedColor();
+    return system.isValid() ? system : QColor(0x67, 0x50, 0xa4);
+}
+
 enum Channel {
     CornerChannel, // of the corners at the left
     RightCornerChannel,
@@ -323,9 +330,12 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
 
     \code
     QApplication::setStyle(QStringLiteral("Material3"));
-    // or
+    // or, with colors of its own
     QApplication::setStyle(new QMaterialStyle(QColor(0x00, 0x6c, 0x4c)));
     \endcode
+
+    Without a seed color, the scheme is made from the color of the system's theme where there is one, on Android 12
+    and later (see systemSeedColor()).
 
     The scheme is light or dark as the system says, unless setColorScheme() says otherwise. Sizes are in logical
     pixels, which on Android are the dp of Material: buttons are 40 high, text fields 56, and check boxes and radio
@@ -438,9 +448,40 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
 */
 
 /*!
-    Constructs the style with the seed color of the Material baseline scheme, a violet.
+    Constructs the style with the system's color, systemSeedColor(), where there is one: the application then has the
+    colors that the user chose for the device. Elsewhere the seed is that of the Material baseline scheme, a violet.
+
+    \sa systemSeedColor()
 */
-QMaterialStyle::QMaterialStyle() : QMaterialStyle(QColor(0x67, 0x50, 0xa4)) {}
+QMaterialStyle::QMaterialStyle() : QMaterialStyle(defaultSeedColor()) {}
+
+/*!
+    \since 6.0
+
+    Returns the color that the system makes its own theme from, which on Android 12 and later follows the wallpaper or
+    the user's choice (dynamic color): the middle tone of the system's first accent palette. On an older Android and on
+    other platforms the color is invalid.
+
+    The style makes its scheme from this one color, as it does from any seed. It does not take the other colors of the
+    system's palettes, so they are close to those of the system's own applications and not always the same; and a theme
+    of greys gives a scheme with a color. The color is read when this is called: a style does not follow a later change
+    of the system's theme.
+*/
+QColor QMaterialStyle::systemSeedColor() {
+#ifdef __ANDROID__
+    constexpr int dynamicColorLevel = 31; // Android 12, which has the system's palettes
+    if (QNativeInterface::QAndroidApplication::sdkVersion() >= dynamicColorLevel) {
+        const jint id = QJniObject::getStaticField<jint>("android/R$color", "system_accent1_500");
+        const QJniObject context(QNativeInterface::QAndroidApplication::context());
+        if (id != 0 && context.isValid()) {
+            const jint argb = context.callMethod<jint>("getColor", "(I)I", id);
+            if (argb != 0) // nothing came back
+                return QColor::fromRgb(static_cast<QRgb>(argb));
+        }
+    }
+#endif
+    return QColor();
+}
 
 /*!
     \overload

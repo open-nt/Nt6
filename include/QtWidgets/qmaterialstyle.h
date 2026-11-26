@@ -66,6 +66,8 @@ public:
     explicit QMaterialStyle(const QColor &seedColor);
     ~QMaterialStyle() override;
 
+    // The color that the system's own theme is made from, on Android 12 and later; invalid elsewhere.
+    static QColor systemSeedColor();
     QColor seedColor() const { return m_seed; }
     void setSeedColor(const QColor &color);
     Qt::ColorScheme colorScheme() const { return m_scheme; }

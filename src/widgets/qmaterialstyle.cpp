@@ -18,10 +18,12 @@
 #include <QtWidgets/qabstractbutton.h>
 #include <QtWidgets/qabstractitemview.h>
 #include <QtWidgets/qapplication.h>
+#include <QtWidgets/qcalendarwidget.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qcombobox.h>
 #include <QtWidgets/qdialog.h>
 #include <QtWidgets/qdialogbuttonbox.h>
+#include <QtWidgets/qframe.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qlistview.h>
 #include <QtWidgets/qlistwidget.h>
@@ -30,6 +32,7 @@
 #include <QtWidgets/qradiobutton.h>
 #include <QtWidgets/qscroller.h>
 #include <QtWidgets/qslider.h>
+#include <QtWidgets/qstatusbar.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
 #include <QtWidgets/qtoolbar.h>
@@ -52,6 +55,13 @@ constexpr int buttonIconSpace = 8;
 constexpr int pressedCorner = 8;   // the shape of a pressed small button
 constexpr int selectedCorner = 12; // the shape of a checked button
 constexpr int touchTarget = 48;    // the least height of what a finger has to hit
+constexpr int calendarCell = 40;   // a day of a calendar, and the circle that shows the one that is chosen
+constexpr int chipHeight = 32;
+constexpr double chipCorner = 8;
+constexpr int chipIcon = 18;
+constexpr int chipPadding = 16;    // before and after a label with nothing on that side,
+constexpr int chipIconPadding = 8; // and on each side of an icon
+constexpr double cardCorner = 12;
 constexpr int textFieldHeight = 56;
 constexpr int textFieldCorner = 4;
 constexpr int fieldLabelRoom = 8;    // above an outlined field whose label sits on its outline,
@@ -109,6 +119,13 @@ constexpr int loadingSize = 48;           // the container of the loading indica
 constexpr double loadingRadius = 19;      // of the shape that turns and changes in it
 constexpr double loadingStep = 0.65;      // seconds from one shape to the next
 constexpr double busyPeriod = 1.8;        // seconds for a part of a busy progress bar to cross it
+constexpr int snackbarOneLine = 48;
+constexpr int snackbarTwoLines = 68;
+constexpr int snackbarPadding = 16;
+constexpr double snackbarCorner = 4;
+constexpr int circularSize = 40;
+constexpr double circularThickness = 4;
+constexpr double circularGap = 4; // between the part of a circular progress indicator that is done and its track
 constexpr int appBarHeight = 64;
 constexpr int appBarTitlePixels = 22;
 constexpr int appBarTitleSpace = 16; // before the title of an app bar with nothing leading it
@@ -333,8 +350,18 @@ const ButtonSize *sizeOfButton(const QWidget *widget) {
     return nullptr;
 }
 
-// The kind of icon button that a push button or a tool button asks to be with its property; empty for none.
+// The buttons of a calendar that show the month before and the month after.
+bool isMonthArrow(const QWidget *widget) {
+    const auto *button = qobject_cast<const QToolButton *>(widget);
+    return button && button->arrowType() != Qt::NoArrow && button->parentWidget() &&
+           qobject_cast<const QCalendarWidget *>(button->parentWidget()->parentWidget());
+}
+
+// The kind of icon button that a push button or a tool button asks to be with its property; empty for none. The arrows
+// of a calendar are standard ones without asking.
 QString iconButtonKind(const QWidget *widget) {
+    if (isMonthArrow(widget))
+        return QStringLiteral("standard");
     if (!qobject_cast<const QPushButton *>(widget) && !qobject_cast<const QToolButton *>(widget))
         return QString();
     const QString name = widget->property("materialIconButton").toString();
@@ -370,6 +397,38 @@ bool hasOneColor(const QImage &image) {
         }
     }
     return first.isValid();
+}
+
+// The kind of chip that a push button asks to be with its property; empty for none.
+QString chipKind(const QWidget *widget) {
+    if (!qobject_cast<const QPushButton *>(widget))
+        return QString();
+    const QString name = widget->property("materialChip").toString();
+    const bool known = name == QLatin1String("assist") || name == QLatin1String("filter") ||
+                       name == QLatin1String("input") || name == QLatin1String("suggestion");
+    return known ? name : QString();
+}
+
+bool isChip(const QWidget *widget) { return !chipKind(widget).isEmpty(); }
+
+// What a chip has before its label and after it. A filter chip that is chosen has a check mark where its icon goes,
+// and an input chip has a cross at the end.
+struct ChipParts {
+    bool lead = false;
+    bool mark = false;  // the lead is the check mark
+    bool cross = false; // there is a cross at the end
+
+    int before() const { return lead ? chipIcon + 2 * chipIconPadding : chipPadding; }
+    int after() const { return cross ? chipIcon + 2 * chipIconPadding : chipPadding; }
+};
+
+ChipParts chipParts(const QWidget *widget, bool hasIcon, bool checked) {
+    const QString kind = chipKind(widget);
+    ChipParts parts;
+    parts.mark = checked && kind == QLatin1String("filter");
+    parts.lead = parts.mark || hasIcon;
+    parts.cross = kind == QLatin1String("input");
+    return parts;
 }
 
 bool isSquareButton(const QWidget *widget) {
@@ -528,6 +587,19 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         share the width, each an icon over its label, with a pill behind the one that is current. With a QTabWidget
         whose tabs are at the south it is the navigation of an application and its pages:
         tabs->tabBar()->setProperty("materialTabBar", "navigationBar").
+    \li \c materialProgress \c "circular" draws a QProgressBar as a ring of 40: how far it is, or while it is busy an
+        arc that goes round.
+    \li \c materialStatusBar \c "snackbar" makes the status bar of a QMainWindow a snackbar: it takes no room, floats
+        over the content, above a navigation bar, while it has a message, from showMessage() until clearMessage() or
+        the message's timeout, and its permanent widgets, buttons, are its actions.
+    \li \c materialChip of a QPushButton: \c "assist", \c "filter", \c "input" or \c "suggestion" makes it a chip,
+        32 high (48 to a finger) with small corners and an outline. A filter chip is made checkable: checked, it is
+        filled and a check mark takes the place of its icon, which makes it wider. An input chip stands for something
+        that was entered and has a cross; a click anywhere on it is clicked(), on which the program takes it away. A
+        chosen chip of any kind is filled.
+    \li \c materialCard of a QFrame: \c "filled", \c "elevated" or \c "outlined" draws it as a card with corners of
+        12, whatever its frame shape; its layout and its children are the contents. Under this style a QFrame whose
+        shape is \c HLine or \c VLine is a divider, a quiet line of 1, whatever its shadow and line width.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
@@ -535,6 +607,12 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         buttons small, and the checked button is a pill. For a choice of one, make the buttons checkable and
         auto-exclusive.
     \endlist
+
+    Tooltips, as QToolTip shows them, are Material's plain tooltips without anything being asked for. So is
+    QCalendarWidget drawn as Material's date picker: days of 40, the chosen one in a filled circle and today in a ring,
+    with icon buttons for the months. Material's has no week numbers, which
+    \l{QCalendarWidget::setVerticalHeaderFormat()}{NoVerticalHeader} turns off and makes room for on a narrow screen.
+    A paintCell() of your own that calls the calendar's keeps the look.
 
     An icon of one color is drawn in the color that the style gives what it is on: on buttons, floating action
     buttons, toolbars and menus. An icon with several colors, such as a logo, is drawn as it is. The icons are the
@@ -568,7 +646,13 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     but close at once, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. Text fields are those of QLineEdit, and
-    have no icons, prefix, suffix or character counter; their caret is the color of the text. Icon buttons have the default width, not
+    have no icons, prefix, suffix or character counter; their caret is the color of the text. A snackbar appears and goes without an
+    animation, has no close icon, and is one only in a QMainWindow; showing a message does not queue it. There are no
+    rich tooltips. Chips are push buttons only; there are no elevated chips, avatars in input chips or separate click
+    on the cross, and a filter chip takes its new width at once. The date picker is the calendar alone: it has no headline with the chosen date, no choice of
+    years, no range and no field to type a date in, it keeps the days of the other months, faint, and it has no time
+    picker beside it. A card is not a button and shows no press. A card or
+    a divider behind a QProxyStyle is drawn as a plain frame. Icon buttons have the default width, not
     the narrow or the wide one. An app bar is the small one: it has no subtitle, does not grow into a medium or large
     one, and keeps its color as the content scrolls. A navigation bar has no badges, and no horizontal items for wide
     screens; there is no navigation rail or drawer. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
@@ -934,6 +1018,16 @@ void QMaterialStyle::polish(QWidget *widget) {
         widget->setPalette(palette);
         widget->setProperty(polishedPalette, true);
     }
+    // A calendar is Material's date picker, on its container.
+    if (qobject_cast<QCalendarWidget *>(widget) && !widget->testAttribute(Qt::WA_SetPalette)) {
+        QPalette palette = widget->palette();
+        palette.setColor(QPalette::Window, color(Role::SurfaceContainerHigh));
+        palette.setColor(QPalette::Base, color(Role::SurfaceContainerHigh));
+        palette.setColor(QPalette::Text, color(Role::OnSurface));
+        palette.setColor(QPalette::Disabled, QPalette::Text, color(Role::OnSurfaceVariant)); // the week numbers
+        widget->setPalette(palette);
+        widget->setProperty(polishedPalette, true);
+    }
     // Lists, trees and tables mark what is selected quietly, as menus do.
     if (qobject_cast<QAbstractItemView *>(widget) && !widget->testAttribute(Qt::WA_SetPalette)) {
         QPalette palette = widget->palette();
@@ -945,8 +1039,15 @@ void QMaterialStyle::polish(QWidget *widget) {
     // The type scale: label large for buttons, body large for text and choices. A font that the program set stays.
     const bool choice = qobject_cast<QCheckBox *>(widget) || qobject_cast<QRadioButton *>(widget);
     const bool button = (!choice && qobject_cast<QAbstractButton *>(widget)) || qobject_cast<QTabBar *>(widget);
+    if (isSnackbar(widget) && !widget->testAttribute(Qt::WA_SetFont)) {
+        QFont font = widget->font();
+        font.setPixelSize(14);
+        widget->setFont(font);
+        widget->setProperty(polishedFont, true);
+    }
     const bool text = qobject_cast<QLineEdit *>(widget) || qobject_cast<QComboBox *>(widget) ||
-                      qobject_cast<QMenu *>(widget) || isList(widget) || qobject_cast<QTreeView *>(widget);
+                      qobject_cast<QMenu *>(widget) || qobject_cast<QCalendarWidget *>(widget) || isList(widget) ||
+                      qobject_cast<QTreeView *>(widget);
     if ((choice || button || text) && !widget->testAttribute(Qt::WA_SetFont)) {
         QFont font = widget->font();
         font.setPixelSize(button ? 14 : 16);
@@ -1093,6 +1194,8 @@ double QMaterialStyle::stateLayer(const QStyleOption *option) const {
 }
 
 QMaterialStyle::ButtonKind QMaterialStyle::buttonKind(const QStyleOption *option, const QWidget *widget) {
+    if (isChip(widget))
+        return ButtonKind::Chip;
     if (isFab(widget))
         return ButtonKind::Fab;
     if (const QString icon = iconButtonKind(widget); !icon.isEmpty()) {
@@ -1115,6 +1218,8 @@ QMaterialStyle::ButtonKind QMaterialStyle::buttonKind(const QStyleOption *option
         return ButtonKind::Elevated;
     if (isToolBarItem(widget))
         return ButtonKind::ToolBarItem;
+    if (widget && isSnackbar(widget->parentWidget()))
+        return ButtonKind::Text; // an action of a snackbar
     // The actions of a Material dialog are text buttons.
     if (widget && qobject_cast<QDialogButtonBox *>(widget->parentWidget()))
         return ButtonKind::Text;
@@ -1133,6 +1238,10 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
         return withOpacity(color(Role::OnSurface), disabledContentOpacity);
     const bool checked = option->state & State_On;
     switch (buttonKind(option, widget)) {
+    case ButtonKind::Chip:
+        if (checked)
+            return color(Role::OnSecondaryContainer);
+        return color(chipKind(widget) == QLatin1String("assist") ? Role::OnSurface : Role::OnSurfaceVariant);
     case ButtonKind::Filled:
         return color(Role::OnPrimary);
     case ButtonKind::Tonal:
@@ -1163,6 +1272,8 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
             return color(checked ? Role::OnSurface : Role::OnPrimaryContainer);
         return color(checked ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
     case ButtonKind::Text:
+        if (widget && isSnackbar(widget->parentWidget()))
+            return color(Role::InversePrimary);
         break;
     }
     return color(Role::Primary);
@@ -1179,6 +1290,10 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
         isIconButton(widget) ? std::min<double>(rect.height(), iconButtonSize(widget).height) / 2 : rect.height() / 2;
     double left = pill;
     double right = pill;
+    if (isChip(widget)) {
+        drawButtonShape(option, painter, widget, chipCorner, chipCorner); // a chip keeps its shape
+        return;
+    }
     const bool fab = isFab(widget);
     if (fab) {
         // A rounded square; open, the close button of its menu, which is a circle at the right.
@@ -1257,11 +1372,15 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
             container =
                 color(isVibrantToolBar(widget->parentWidget()) ? Role::SurfaceContainer : Role::SecondaryContainer);
         break;
+    case ButtonKind::Chip:
+        if (checked)
+            container = color(Role::SecondaryContainer);
+        break;
     case ButtonKind::Text:
         break;
     }
-    const bool bare =
-        kind == ButtonKind::Outlined || kind == ButtonKind::ToolBarItem || kind == ButtonKind::IconOutlined;
+    const bool bare = kind == ButtonKind::Outlined || kind == ButtonKind::ToolBarItem ||
+                      kind == ButtonKind::IconOutlined || kind == ButtonKind::Chip;
     if (!enabled(option) && kind != ButtonKind::Text && kind != ButtonKind::IconStandard && !(bare && !checked))
         container = withOpacity(color(Role::OnSurface), disabledContainerOpacity);
     const double lift = kind == ButtonKind::Fab ? fabShadow : kind == ButtonKind::Elevated ? 1.5 : 0.0;
@@ -1273,7 +1392,9 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     double inset = kind == ButtonKind::ToolBarItem ? toolBarInset : 0;
     if (isIconButton(widget))
         inset = std::max(0, iconButtonExtent(widget) - iconButtonSize(widget).height) / 2.0;
-    const QRectF body = rect.adjusted(inset, inset, -inset, -inset - lift);
+    // A chip is as wide as it is to a finger, but not as high.
+    const double above = kind == ButtonKind::Chip ? std::max(0.0, (rect.height() - chipHeight) / 2) : inset;
+    const QRectF body = rect.adjusted(inset, above, -inset, -above - lift);
     const QPainterPath outline = sidedPath(body, left, right);
     // A line inside the shape.
     const auto stroke = [&](const QColor &ink, double width) {
@@ -1283,6 +1404,8 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     };
     if (container.alpha() > 0)
         painter->fillPath(outline, QBrush(container));
+    if (kind == ButtonKind::Chip && !checked)
+        stroke(enabled(option) ? color(Role::OutlineVariant) : withOpacity(color(Role::OnSurface), 0.12), 1);
     if ((kind == ButtonKind::Outlined || kind == ButtonKind::IconOutlined) && !checked) {
         const ButtonSize *size = sizeOfButton(widget);
         stroke(color(Role::OutlineVariant), size ? size->outline : 1);
@@ -1675,6 +1798,10 @@ void QMaterialStyle::drawButtonLabel(const QStyleOption *option, QPainter *paint
     painter->setPen(ink);
     const QIcon::Mode iconMode = enabled(option) ? QIcon::Normal : QIcon::Disabled;
     const QIcon::State iconState = (option->state & State_On) ? QIcon::On : QIcon::Off;
+    if (isChip(widget)) {
+        drawChipLabel(option, painter, widget);
+        return;
+    }
     if (const int extent = iconButtonIconSize(widget); extent > 0) {
         // The icon alone; a button without one shows its text, a letter or a sign, in its place.
         if (button->icon.isNull()) {
@@ -1703,6 +1830,107 @@ void QMaterialStyle::drawButtonLabel(const QStyleOption *option, QPainter *paint
     QRect textRect = button->rect;
     textRect.setLeft(iconRect.right() + 1 + space);
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
+}
+
+void QMaterialStyle::drawChipLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    const auto *button = static_cast<const QStyleOptionButton *>(option);
+    const bool checked = option->state & State_On;
+    const ChipParts parts = chipParts(widget, !button->icon.isNull(), checked);
+    const QRect r = button->rect;
+    const QColor ink = buttonLabelColor(option, widget);
+    // The icon of a chip that helps, suggests or filters is in the primary color until the chip is chosen; that of an
+    // input chip is the other way round.
+    const bool input = chipKind(widget) == QLatin1String("input");
+    const QColor iconInk = enabled(option) && input == checked ? color(Role::Primary) : ink;
+    const int textWidth = painter->fontMetrics().horizontalAdvance(button->text);
+    // A chip that is wider than it asked to be has what it shows in the middle.
+    int left = r.left() + std::max(0, r.width() - parts.before() - textWidth - parts.after()) / 2;
+    const int top = r.top() + (r.height() - chipIcon) / 2;
+    painter->setRenderHint(QPainter::Antialiasing);
+    if (parts.mark) {
+        const QRectF box(left + chipIconPadding, top, chipIcon, chipIcon);
+        const auto at = [&box](double x, double y) {
+            return QPointF(box.left() + x * box.width(), box.top() + y * box.height());
+        };
+        painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->drawLine(at(0.20, 0.52), at(0.40, 0.72));
+        painter->drawLine(at(0.40, 0.72), at(0.80, 0.30));
+    } else if (parts.lead) {
+        paintIcon(painter, QRect(left + chipIconPadding, top, chipIcon, chipIcon), button->icon,
+                  enabled(option) ? QIcon::Normal : QIcon::Disabled, checked ? QIcon::On : QIcon::Off, iconInk);
+    }
+    left += parts.before();
+    painter->setPen(ink);
+    painter->drawText(QRect(left, r.top(), r.left() + r.width() - left, r.height()),
+                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
+    if (!parts.cross)
+        return;
+    const QRectF box(left + textWidth + chipIconPadding, top, chipIcon, chipIcon);
+    const QRectF cross = box.adjusted(5, 5, -5, -5);
+    painter->setPen(QPen(QBrush(ink), 1.75, Qt::SolidLine, Qt::RoundCap));
+    painter->drawLine(cross.topLeft(), cross.bottomRight());
+    painter->drawLine(cross.topRight(), cross.bottomLeft());
+}
+
+void QMaterialStyle::drawCalendarDay(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int day,
+                                     bool selected, bool today, bool usable, const QColor &ink) const {
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    const double extent = std::min(calendarCell, std::min(cell.width(), cell.height()));
+    const QRectF circle(cell.left() + (cell.width() - extent) / 2, cell.top() + (cell.height() - extent) / 2, extent,
+                        extent);
+    QColor text = ink.isValid() ? ink : color(today ? Role::Primary : Role::OnSurface);
+    if (!usable)
+        text = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    if (selected) {
+        fillRounded(painter, circle, extent / 2,
+                    usable ? color(Role::Primary) : withOpacity(color(Role::OnSurface), disabledContainerOpacity));
+        if (usable)
+            text = color(Role::OnPrimary);
+        // The day that the keyboard moves.
+        if (m_keyboard && calendar->hasFocus())
+            strokeRounded(painter, circle, extent / 2, color(Role::Secondary), focusRingWidth);
+    } else if (today) {
+        strokeRounded(painter, circle, extent / 2, usable ? color(Role::Primary) : text, 1);
+    }
+    painter->setPen(text);
+    painter->drawText(cell, Qt::AlignCenter, QString::number(day));
+    painter->restore();
+}
+
+bool QMaterialStyle::drawMaterialFrame(QPainter *painter, const QFrame *frame) const {
+    const QString card = frame->property("materialCard").toString();
+    const bool filled = card == QLatin1String("filled");
+    const bool elevated = card == QLatin1String("elevated");
+    const bool outlined = card == QLatin1String("outlined");
+    const bool isCard = filled || elevated || outlined;
+    if (!isCard && frame->frameShape() != QFrame::HLine && frame->frameShape() != QFrame::VLine)
+        return false;
+    painter->save();
+    const QRect r = frame->frameRect();
+    if (!isCard) {
+        // A divider: one thin line, whatever shadow and width the frame has.
+        const QRect band = frame->frameShape() == QFrame::HLine
+                               ? QRect(r.left(), r.top() + (r.height() - 1) / 2, r.width(), 1)
+                               : QRect(r.left() + (r.width() - 1) / 2, r.top(), 1, r.height());
+        painter->fillRect(band, color(Role::OutlineVariant));
+        painter->restore();
+        return true;
+    }
+    painter->setRenderHint(QPainter::Antialiasing);
+    QRectF body(r);
+    if (elevated) {
+        body.adjust(0.5, 0, -0.5, -fabShadow);
+        fillRounded(painter, body.translated(0, 1.5), cardCorner, withOpacity(QColor(Qt::black), 0.18));
+    }
+    fillRounded(painter, body, cardCorner,
+                color(filled     ? Role::SurfaceContainerHighest
+                      : elevated ? Role::SurfaceContainerLow
+                                 : Role::Surface));
+    if (outlined)
+        strokeRounded(painter, body, cardCorner, color(Role::OutlineVariant), 1);
+    painter->restore();
+    return true;
 }
 
 void QMaterialStyle::drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter,
@@ -1857,8 +2085,101 @@ void QMaterialStyle::drawLoadingIndicator(const QStyleOption *option, QPainter *
     painter->restore();
 }
 
+void QMaterialStyle::drawCircularProgress(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    const auto *bar = static_cast<const QStyleOptionProgressBar *>(option);
+    const double extent = std::min<double>(circularSize, std::min(option->rect.width(), option->rect.height()));
+    const QPointF centre = QRectF(option->rect).center();
+    const double inset = (extent - circularThickness) / 2;
+    const QRectF ring(centre.x() - inset, centre.y() - inset, 2 * inset, 2 * inset);
+    const QColor active =
+        enabled(option) ? color(Role::Primary) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    const QColor track = enabled(option) ? color(Role::SecondaryContainer)
+                                         : withOpacity(color(Role::OnSurface), disabledContainerOpacity);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    // Angles are in degrees clockwise from the top; QPainter's are in sixteenths, anticlockwise from the right.
+    const auto arc = [&](double from, double sweep, const QColor &ink) {
+        painter->setPen(QPen(QBrush(ink), circularThickness, Qt::SolidLine, Qt::RoundCap));
+        painter->drawArc(ring, static_cast<int>(std::lround((90 - from) * 16)),
+                         -static_cast<int>(std::lround(sweep * 16)));
+    };
+    constexpr double pi = 3.14159265358979323846;
+    // The room that a gap and the two round ends take, as an angle.
+    const double apart = (circularGap + circularThickness) / (pi * ring.width()) * 360;
+    if (bar->minimum == 0 && bar->maximum == 0) {
+        // Busy: an arc that grows and shrinks while it goes round. Without motion it stands as a quarter.
+        double from = 0;
+        double sweep = 90;
+        if (m_motion && widget && enabled(option)) {
+            const double time = m_animator->seconds();
+            m_animator->keepPainting(widget);
+            from = std::fmod(time * 300, 360.0);
+            sweep = 40 + 220 * (0.5 - 0.5 * std::cos(time * 2 * pi / 1.4));
+        }
+        arc(from, sweep, active);
+        painter->restore();
+        return;
+    }
+    const qint64 span = static_cast<qint64>(bar->maximum) - bar->minimum;
+    double done = 0;
+    if (span > 0 && bar->progress > bar->minimum)
+        done = 360.0 * static_cast<double>(std::min<qint64>(bar->progress, bar->maximum) - bar->minimum) /
+               static_cast<double>(span);
+    if (done >= 359.5) {
+        arc(0, 360, active);
+    } else if (done <= 0) {
+        arc(0, 360, track);
+    } else {
+        if (360 - done - 2 * apart > 0)
+            arc(done + apart, 360 - done - 2 * apart, track);
+        arc(0, std::max(done, 0.5), active);
+    }
+    painter->restore();
+}
+
+bool QMaterialStyle::isSnackbar(const QWidget *widget) {
+    return qobject_cast<const QStatusBar *>(widget) &&
+           widget->property("materialStatusBar").toString() == QLatin1String("snackbar");
+}
+
+int QMaterialStyle::snackbarHeight(const QStatusBar *bar, int width) {
+    // Two lines if the message does not go on one beside the actions.
+    int room = width - 2 * snackbarPadding;
+    for (const QObject *child : bar->children()) {
+        const auto *action = qobject_cast<const QAbstractButton *>(child);
+        if (action && !action->isHidden())
+            room -= action->sizeHint().width() + 4;
+    }
+    return bar->fontMetrics().horizontalAdvance(bar->currentMessage()) > room ? snackbarTwoLines : snackbarOneLine;
+}
+
+void QMaterialStyle::drawSnackbar(QPainter *painter, const QStatusBar *bar) const {
+    if (bar->currentMessage().isEmpty() || bar->height() <= 0)
+        return;
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    const QRectF body = QRectF(bar->rect()).adjusted(0, 0, 0, -2);
+    fillRounded(painter, body.adjusted(0.5, 2, -0.5, 2), snackbarCorner, withOpacity(QColor(Qt::black), 0.18));
+    fillRounded(painter, body, snackbarCorner, color(Role::InverseSurface));
+    int right = bar->width() - snackbarPadding;
+    for (const QObject *child : bar->children()) {
+        const auto *action = qobject_cast<const QAbstractButton *>(child);
+        if (action && !action->isHidden())
+            right = std::min(right, action->x() - 4);
+    }
+    painter->setFont(bar->font());
+    painter->setPen(color(Role::InverseOnSurface));
+    painter->drawText(QRect(snackbarPadding, 0, std::max(0, right - snackbarPadding), static_cast<int>(body.height())),
+                      static_cast<int>(Qt::AlignLeft | Qt::AlignVCenter) | Qt::TextWordWrap, bar->currentMessage());
+    painter->restore();
+}
+
 void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
     const auto *bar = static_cast<const QStyleOptionProgressBar *>(option);
+    if (widget && widget->property("materialProgress").toString() == QLatin1String("circular")) {
+        drawCircularProgress(option, painter, widget);
+        return;
+    }
     const QRect r = option->rect;
     const bool busy = bar->minimum == 0 && bar->maximum == 0;
     if (const Loading loading = loadingOf(widget); busy && loading != Loading::No) {
@@ -2129,6 +2450,11 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         painter->setRenderHint(QPainter::Antialiasing, false);
         painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
         break;
+    case PE_PanelTipLabel:
+        // A plain tooltip: dark on a light scheme and light on a dark one.
+        painter->setRenderHint(QPainter::Antialiasing);
+        fillRounded(painter, QRectF(option->rect), snackbarCorner, color(Role::InverseSurface));
+        break;
     case PE_FrameTabWidget:
         break; // the pages of a tab widget have no frame: the line under the tabs parts them
     case PE_PanelLineEdit: {
@@ -2248,6 +2574,21 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         }
         break;
     }
+    case PE_IndicatorArrowLeft:
+    case PE_IndicatorArrowRight: {
+        if (!isMonthArrow(widget)) {
+            QCommonStyle::drawPrimitive(element, option, painter, widget);
+            break;
+        }
+        // A chevron.
+        const double x = option->rect.left() + option->rect.width() / 2.0;
+        const double y = option->rect.top() + option->rect.height() / 2.0;
+        const double out = element == PE_IndicatorArrowLeft ? -3 : 3;
+        painter->setPen(QPen(QBrush(buttonLabelColor(option, widget)), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->drawLine(QPointF(x - out, y - 6), QPointF(x + out, y));
+        painter->drawLine(QPointF(x + out, y), QPointF(x - out, y + 6));
+        break;
+    }
     case PE_FrameFocusRect:
         // The current row of a view, while the keyboard moves it: after a tap the selection says enough.
         if (qobject_cast<const QAbstractItemView *>(widget)) {
@@ -2338,7 +2679,7 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
     case SE_PushButtonContents:
         // The open FAB is a circle at the right of the whole button. A button with a size is made as wide as its label
         // needs with the room of that size, so its label has the whole of it.
-        if (isFab(widget) || sizeOfButton(widget) || isIconButton(widget))
+        if (isFab(widget) || sizeOfButton(widget) || isIconButton(widget) || isChip(widget))
             return r;
         // A narrow button keeps what room it has for its label.
         return r.adjusted(std::min(buttonPadding, r.width() / 4), 0, -std::min(buttonPadding, r.width() / 4), 0);
@@ -2441,6 +2782,12 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         const auto *button = option && option->type == QStyleOption::SO_Button
                                  ? static_cast<const QStyleOptionButton *>(option)
                                  : nullptr;
+        if (isChip(widget)) {
+            const auto *chip = static_cast<const QAbstractButton *>(widget);
+            const ChipParts parts = chipParts(widget, button && !button->icon.isNull(), chip->isChecked());
+            const int text = button && button->text.isEmpty() ? 0 : width;
+            return QSize(parts.before() + text + parts.after(), touchTarget);
+        }
         if (isIconButton(widget))
             return QSize(iconButtonExtent(widget), iconButtonExtent(widget));
         if (isFab(widget)) {
@@ -2498,6 +2845,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
     case CT_ProgressBar:
         if (loadingOf(widget) != Loading::No)
             return QSize(loadingSize, loadingSize);
+        if (widget && widget->property("materialProgress").toString() == QLatin1String("circular"))
+            return QSize(circularSize, circularSize);
         if (widget && widget->property("materialProgress").toString() == QLatin1String("wavy"))
             return QSize(contentsSize.width(), std::max(wavyProgressHeight, contentsSize.height()));
         return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));

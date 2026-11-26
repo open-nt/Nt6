@@ -192,6 +192,9 @@ void QAbstractButton::changeChecked(bool checked) {
     if (m_checked == checked)
         return;
     m_checked = checked;
+    // A filter chip of the Material style is wider while it is checked, with its mark.
+    if (property("materialChip").isValid())
+        updateGeometry();
     update();
     QPointer<QAbstractButton> guard(this);
     emit toggled(checked);

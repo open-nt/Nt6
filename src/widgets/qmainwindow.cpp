@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qmainwindow.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qstyle.h>
 
 #include "qwidget_p.h"
@@ -184,7 +185,8 @@ private:
         const int rightDocks = dockRow(Qt::RightDockWidgetArea, false, &rightDocksHeight);
         const QSize central = shown(m_window->m_central) ? sizeOf(m_window->m_central) : QSize(0, 0);
         const QSize menu = shown(m_window->m_menu) ? hintOf(m_window->m_menu) : QSize(0, 0);
-        const QSize status = shown(m_window->m_status) ? hintOf(m_window->m_status) : QSize(0, 0);
+        const QSize status =
+            shown(m_window->m_status) && !m_window->floatingStatus() ? hintOf(m_window->m_status) : QSize(0, 0);
 
         int width = left + leftDocks + central.width() + rightDocks + right;
         width = std::max({width, topDocksWidth, bottomDocksWidth});
@@ -208,7 +210,8 @@ private:
             menu->setGeometry(x0, y0, x1 - x0, h);
             y0 += h;
         }
-        if (QWidget *status = m_window->m_status; shown(status)) {
+        QStatusBar *snackbar = m_window->floatingStatus();
+        if (QWidget *status = m_window->m_status; shown(status) && !snackbar) {
             const int h = hintOf(status).height();
             status->setGeometry(x0, y1 - h, x1 - x0, h);
             y1 -= h;
@@ -347,6 +350,8 @@ private:
         placeDocks(Qt::RightDockWidgetArea);
         if (QWidget *central = m_window->m_central; shown(central))
             central->setGeometry(x0, y0, std::max(0, x1 - x0), std::max(0, y1 - y0));
+        if (snackbar) // above what is at the bottom
+            m_window->placeSnackbar(snackbar, QRect(x0, r.top(), std::max(0, x1 - x0), std::max(0, y1 - r.top())));
     }
 
     QMainWindow *m_window;
@@ -857,6 +862,37 @@ void QMainWindow::manage(QWidget *widget) {
 }
 
 void QMainWindow::unmanage(QWidget *widget) { m_layout->removeWidget(widget); }
+
+QStatusBar *QMainWindow::floatingStatus() const {
+    auto *status = qobject_cast<QStatusBar *>(m_status.data());
+    if (!status || status->isHidden() || !qobject_cast<const QMaterialStyle *>(status->style()) ||
+        !QMaterialStyle::isSnackbar(status))
+        return nullptr;
+    return status;
+}
+
+// Puts a snackbar over the bottom of `room`, above a navigation bar that is there; with no message it has no size.
+void QMainWindow::placeSnackbar(QStatusBar *status, const QRect &room) const {
+    constexpr int margin = 16;
+    constexpr int widest = 600;
+    int bottom = room.bottom() + 1;
+    if (QWidget *central = m_central) {
+        QList<QTabBar *> bars = central->findChildren<QTabBar *>();
+        if (auto *self = qobject_cast<QTabBar *>(central))
+            bars.append(self);
+        for (const QTabBar *bar : std::as_const(bars)) {
+            if (!QMaterialStyle::isNavigationBar(bar) || bar->isHidden())
+                continue;
+            const int top = bar->mapTo(this, QPoint(0, 0)).y();
+            if (top + bar->height() >= bottom - 4)
+                bottom = top;
+        }
+    }
+    const int width = std::max(0, std::min(widest, room.width() - 2 * margin));
+    const int height = status->currentMessage().isEmpty() ? 0 : QMaterialStyle::snackbarHeight(status, width) + 2;
+    status->setGeometry(room.left() + (room.width() - width) / 2, bottom - margin - height, width, height);
+    status->raise();
+}
 
 void QMainWindow::relayout() {
     m_layout->invalidate();

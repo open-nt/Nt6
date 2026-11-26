@@ -151,6 +151,10 @@ private:
     void manage(QWidget *widget);
     void unmanage(QWidget *widget);
     void relayout();
+    // The status bar if it is a snackbar of the Material style, which floats over the rest and takes no room; and
+    // where that goes in `room`.
+    QStatusBar *floatingStatus() const;
+    void placeSnackbar(QStatusBar *status, const QRect &room) const;
     void prune() const;
 
     QMainWindowLayout *m_layout = nullptr;

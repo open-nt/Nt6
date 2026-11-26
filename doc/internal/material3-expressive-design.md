@@ -107,6 +107,30 @@ size policy expands, as Qt does, which the app bar's does. The bottom navigation
 widths, a 24 icon in a 56 by 32 pill over a label of 12; the pill opens along the fast spatial spring. Not done: medium
 and large app bars, the colour on scroll, badges, horizontal items, the navigation rail and drawer.
 
+A snackbar is the status bar of a `QMainWindow` with `materialStatusBar` = `"snackbar"`: `InverseSurface`, corners 4,
+48 high (68 when the message takes two lines), 16 from the sides and from the bottom, above a navigation bar, at most
+600 wide; it takes no room and has none while there is no message. Permanent widgets are its actions, text buttons in
+`InversePrimary`. `QMainWindow` places it through private functions of its own. Tooltips (`QToolTip`) are Material's
+plain tooltips without a property. `materialProgress` = `"circular"` is the circular indicator: 40, 4 thick, a gap of 4
+before the track; busy, an arc that grows and shrinks as it goes round. Not done: animation of the snackbar, a queue of
+messages, a close icon, rich tooltips, the wavy circular indicator.
+
+Chips are `QPushButton`s with `materialChip` = `"assist"`, `"filter"`, `"input"` or `"suggestion"`: 32 high in a
+target of 48, corners 8, an `OutlineVariant` outline, label large, an 18 icon; 16 beside a bare label, 8 around an
+icon. A chosen one is `SecondaryContainer`; a filter chip then shows a check mark, and `QAbstractButton` asks for a new
+size when its checked state changes. The input chip's cross is not a target of its own, so that no Nt-only signal is
+needed. Cards are `QFrame`s with `materialCard` = `"filled"` (`SurfaceContainerHighest`), `"elevated"`
+(`SurfaceContainerLow` over a shadow) or `"outlined"` (`Surface`, `OutlineVariant`), corners 12. Under the style a
+`QFrame` line is the divider, 1 of `OutlineVariant`, so a Qt application gets it unchanged. `QFrame` asks the style
+through a private function. Not done: elevated chips, avatars, clickable cards.
+
+`QCalendarWidget` is the date picker without a property: `SurfaceContainerHigh`, days of 40, the chosen one a
+`Primary` circle, today a `Primary` ring and label, names of days and days in body large. The base `paintCell()` asks
+the style, so an application's override that calls it keeps the look, and the colors of its text formats win. The
+style treats the two arrow buttons as standard icon buttons and draws chevrons. Days of other months stay, faint,
+because Qt lets a click on one go to its month. Not done: the headline, the year grid, ranges, date input and the time
+picker (Qt Widgets has no widget that is one).
+
 ## Open points
 
 - `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected

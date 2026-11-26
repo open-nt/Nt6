@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qstatusbar.h>
+#include <QtWidgets/qmaterialstyle.h>
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
@@ -197,6 +198,9 @@ void QStatusBar::showMessage(const QString &text, int timeout) {
         m_timer = startTimer(timeout);
     layoutEntries();
     update();
+    // A snackbar is placed over the content only while it has a message, and is as high as that needs.
+    if (QMaterialStyle::isSnackbar(this))
+        updateGeometry();
     emit messageChanged(m_message);
 }
 
@@ -220,6 +224,8 @@ void QStatusBar::clearMessage() {
     }
     layoutEntries();
     update();
+    if (QMaterialStyle::isSnackbar(this))
+        updateGeometry();
     emit messageChanged(QString());
 }
 
@@ -255,7 +261,11 @@ QSize QStatusBar::sizeHint() const {
 QSize QStatusBar::minimumSizeHint() const { return QSize(0, sizeHint().height()); }
 
 void QStatusBar::layoutEntries() {
-    const int top = kTopMargin, height = std::max(0, this->height() - kTopMargin - kBottomMargin);
+    // The actions of a snackbar are 40 high, in the middle of what shows above its shadow.
+    const bool snackbar = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isSnackbar(this);
+    const int top = snackbar ? std::max(0, (this->height() - 2 - 40) / 2) : kTopMargin;
+    const int height =
+        snackbar ? std::min(40, this->height()) : std::max(0, this->height() - kTopMargin - kBottomMargin);
     int right = width() - kSideMargin;
     // The permanent widgets from the right edge
     for (int i = static_cast<int>(m_entries.size()) - 1; i >= 0; --i) {
@@ -313,6 +323,11 @@ void QStatusBar::changeEvent(QEvent *event) {
 void QStatusBar::paintEvent(QPaintEvent *event) {
     (void)event;
     QPainter painter(this);
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
+        material && QMaterialStyle::isSnackbar(this)) {
+        material->drawSnackbar(&painter, this);
+        return;
+    }
     QStyleOption option;
     option.initFrom(this);
     style()->drawPrimitive(QStyle::PE_PanelStatusBar, &option, &painter, this);

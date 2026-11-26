@@ -1968,6 +1968,41 @@ static void testLayouts() {
     loose.invalidate();
 }
 
+static void testFrameLines() {
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto *above = new QWidget;
+    above->setMinimumHeight(20);
+    auto *line = new QFrame;
+    line->setFrameShape(QFrame::HLine);
+    layout->addWidget(above);
+    layout->addWidget(line);
+    auto *row = new QHBoxLayout;
+    auto *upright = new QFrame;
+    upright->setFrameStyle(static_cast<int>(QFrame::VLine) | QFrame::Sunken);
+    row->addWidget(upright);
+    row->addStretch(1);
+    layout->addLayout(row, 1);
+    window.resize(200, 200);
+    window.show();
+    QCoreApplication::processEvents();
+    // A line is 3 across and as long as there is room.
+    CHECK(line->sizeHint() == QSize(-1, 3));
+    CHECK(line->size() == QSize(200, 3));
+    CHECK(upright->sizeHint() == QSize(3, -1));
+    CHECK(upright->width() == 3 && upright->height() > 100);
+    CHECK(line->sizePolicy() == QSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed));
+    // A frame that is no line any more has the policy of a widget again.
+    line->setFrameShape(QFrame::Box);
+    CHECK(line->sizePolicy() == QSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred));
+    // A size policy that the program set stays.
+    QFrame own;
+    own.setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    own.setFrameShape(QFrame::HLine);
+    CHECK(own.sizePolicy() == QSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding));
+}
+
 static void testLabel() {
     QLabel empty;
     CHECK(empty.text().isEmpty() && empty.alignment() == (Qt::AlignLeft | Qt::AlignVCenter) && !empty.wordWrap() &&
@@ -3027,6 +3062,7 @@ int main(int argc, char **argv) {
     testFormLayout();
     testStackedLayout();
     testStackedWidget();
+    testFrameLines();
     testLabel();
     testButtons();
     testSignalsAndDeletion();

@@ -1837,6 +1837,340 @@ void testAppBarAndNavigation() {
     CHECK(navigation->height() < 40);
 }
 
+// A snackbar, a tooltip and a circular progress indicator.
+void testSnackbarTooltipCircular() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QMainWindow window;
+    auto *pages = new QTabWidget;
+    pages->setTabPosition(QTabWidget::South);
+    pages->tabBar()->setProperty("materialTabBar", QStringLiteral("navigationBar"));
+    auto *page = new QWidget;
+    pages->addTab(page, QStringLiteral("Home"));
+    window.setCentralWidget(pages);
+    auto *status = new QStatusBar;
+    status->setProperty("materialStatusBar", QStringLiteral("snackbar"));
+    window.setStatusBar(status);
+    window.resize(360, 400);
+    window.show();
+    QCoreApplication::processEvents();
+
+    const auto at = [&](int x, int y) { return window.grab().toImage().pixelColor(x, y); };
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    const auto navigationTop = [&] { return pages->tabBar()->mapTo(&window, QPoint(0, 0)).y(); };
+    // Without a message there is no snackbar, and the pages reach the bottom.
+    CHECK(status->height() == 0);
+    CHECK(navigationTop() + pages->tabBar()->height() >= 398);
+
+    status->showMessage(QStringLiteral("Note deleted"));
+    QCoreApplication::processEvents();
+    CHECK(status->x() == 16 && status->width() == 360 - 32);
+    CHECK(status->height() == 48 + 2); // with its shadow
+    CHECK(status->y() + status->height() == navigationTop() - 16);
+    CHECK(navigationTop() + pages->tabBar()->height() >= 398); // it takes no room
+    CHECK(status->font().pixelSize() == 14);
+    CHECK(is(at(200, status->y() + 6), Role::InverseSurface));
+    CHECK(is(at(8, status->y() + 6), Role::Surface));
+
+    // An action is a permanent widget, drawn as a text button in the inverse accent.
+    auto *undo = new QPushButton(QStringLiteral("Undo"));
+    status->addPermanentWidget(undo);
+    QCoreApplication::processEvents();
+    CHECK(undo->isVisible() && undo->height() == 40);
+    CHECK(undo->x() + undo->width() <= status->width() && undo->x() > status->width() / 2);
+    if (textIsDrawn()) {
+        const QImage image = window.grab().toImage();
+        const QPoint origin = undo->mapTo(&window, QPoint(0, 0));
+        int accented = 0;
+        for (int y = 8; y < 32; ++y)
+            for (int x = 4; x < undo->width() - 4; ++x)
+                accented +=
+                    near(image.pixelColor(origin.x() + x, origin.y() + y), style->color(Role::InversePrimary), 30) ? 1
+                                                                                                                   : 0;
+        CHECK(accented > 8);
+    }
+    // A long message takes two lines.
+    status->showMessage(QStringLiteral("The note could not be saved because the storage of the device is full"));
+    QCoreApplication::processEvents();
+    CHECK(status->height() == (textIsDrawn() ? 70 : status->height()));
+    // It goes when its time is up.
+    status->showMessage(QStringLiteral("Saved"), 150);
+    QCoreApplication::processEvents();
+    CHECK(status->height() == 50);
+    wait(400);
+    CHECK(status->height() == 0);
+    CHECK(is(at(200, navigationTop() - 40), Role::Surface));
+
+    // A tooltip: dark in a light scheme, with small text, rounded, and at least 24 high.
+    QToolTip::showText(window.mapToGlobal(QPoint(100, 100)), QStringLiteral("Search"), page);
+    QCoreApplication::processEvents();
+    CHECK(QToolTip::isVisible());
+    QWidget *tip = nullptr;
+    for (QWidget *child : window.findChildren<QWidget *>()) {
+        if (child->isVisible() && child->parentWidget() == &window && child != status && child != pages)
+            tip = child;
+    }
+    CHECK(tip != nullptr);
+    if (tip) {
+        CHECK(tip->height() >= 24 && tip->height() < 32);
+        CHECK(tip->font().pixelSize() == 12);
+        const QColor inside = at(tip->x() + 3, tip->y() + 12);
+        CHECK(is(inside, Role::InverseSurface));
+        CHECK(!is(at(tip->x(), tip->y()), Role::InverseSurface)); // its corners are round
+    }
+    QToolTip::hideText();
+
+    // A circular progress indicator.
+    auto *circle = new QProgressBar(page);
+    circle->setProperty("materialProgress", QStringLiteral("circular"));
+    circle->setValue(25);
+    circle->move(20, 20);
+    circle->resize(circle->sizeHint());
+    circle->show();
+    QCoreApplication::processEvents();
+    CHECK(circle->sizeHint() == QSize(40, 40));
+    const auto ring = [&](int degrees) { // clockwise from the top
+        const double radians = degrees * 3.14159265358979323846 / 180.0;
+        const QImage image = circle->grab().toImage();
+        return image.pixelColor(static_cast<int>(20 + 18 * std::sin(radians)),
+                                static_cast<int>(20 - 18 * std::cos(radians)));
+    };
+    CHECK(near(ring(45), style->color(Role::Primary), 40));             // a quarter is done,
+    CHECK(near(ring(200), style->color(Role::SecondaryContainer), 12)); // and the rest is track
+    CHECK(near(ring(300), style->color(Role::SecondaryContainer), 12));
+    circle->setValue(100);
+    CHECK(near(ring(200), style->color(Role::Primary), 40));
+    // Busy, it goes round while it is shown, and stands still without motion.
+    circle->setRange(0, 0);
+    const QImage still = circle->grab().toImage();
+    wait(150);
+    CHECK(circle->grab().toImage() == still);
+    style->setMotionEnabled(true);
+    const QImage first = circle->grab().toImage();
+    wait(200);
+    CHECK(circle->grab().toImage() != first);
+    circle->hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+void testChipsCardsDividers() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(360, 400);
+    window.show();
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    const auto chip = [&](const char *kind, const QString &text, int y) {
+        auto *button = new QPushButton(text, &window);
+        button->setProperty("materialChip", QLatin1String(kind));
+        button->move(10, y);
+        button->resize(button->sizeHint());
+        button->show();
+        return button;
+    };
+    // As the window shows a widget: a grab of its own has nothing behind it.
+    const auto seen = [&](const QWidget *widget) { return window.grab().toImage().copy(widget->geometry()); };
+    QPushButton *assist = chip("assist", QStringLiteral("Directions"), 0);
+    QPushButton *filter = chip("filter", QStringLiteral("Unread"), 50);
+    filter->setCheckable(true);
+    QPushButton *input = chip("input", QStringLiteral("Hazel"), 100);
+    QCoreApplication::processEvents();
+
+    // 48 to a finger, 32 to the eye; 16 on each side of a label that has nothing there.
+    const int label = assist->fontMetrics().horizontalAdvance(assist->text());
+    CHECK(assist->sizeHint() == QSize(label + 32, 48));
+    CHECK(assist->font().pixelSize() == 14);
+    // An outline around nothing, with small corners.
+    const QImage plain = seen(assist);
+    CHECK(is(plain.pixelColor(assist->width() / 2, 8), Role::OutlineVariant));
+    CHECK(is(plain.pixelColor(assist->width() / 2, 39), Role::OutlineVariant));
+    CHECK(is(plain.pixelColor(0, 24), Role::OutlineVariant));
+    CHECK(is(plain.pixelColor(assist->width() / 2, 3), Role::Surface));
+    CHECK(is(plain.pixelColor(assist->width() / 2, 44), Role::Surface));
+    CHECK(is(plain.pixelColor(assist->width() / 2, 12), Role::Surface));
+    CHECK(is(plain.pixelColor(0, 8), Role::Surface));
+
+    // An icon takes the room of the padding before the label, and is in the primary color.
+    QPixmap square(18, 18);
+    square.fill(Qt::black);
+    assist->setIcon(QIcon(square));
+    CHECK(assist->sizeHint().width() == label + 34 + 16);
+    assist->resize(assist->sizeHint());
+    CHECK(is(seen(assist).pixelColor(17, 24), Role::Primary));
+
+    // A filter chip that is chosen is filled, loses its outline and has a check mark before its label, which makes it
+    // wider.
+    const int narrow = filter->sizeHint().width();
+    int clicks = 0;
+    QObject::connect(filter, &QPushButton::clicked, [&] { ++clicks; });
+    filter->click();
+    CHECK(filter->isChecked() && clicks == 1);
+    CHECK(filter->sizeHint().width() == narrow + 18);
+    filter->resize(filter->sizeHint());
+    const QImage chosen = seen(filter);
+    CHECK(is(chosen.pixelColor(filter->width() / 2, 10), Role::SecondaryContainer));
+    CHECK(is(chosen.pixelColor(filter->width() / 2, 8), Role::SecondaryContainer));
+    int marked = 0;
+    for (int y = 15; y < 33; ++y)
+        for (int x = 8; x < 26; ++x)
+            marked += near(chosen.pixelColor(x, y), style->color(Role::OnSecondaryContainer), 40) ? 1 : 0;
+    CHECK(marked > 10);
+    filter->click();
+    CHECK(filter->sizeHint().width() == narrow);
+
+    // An input chip has a cross after its label; its click is the program's, which takes the chip away.
+    const int name = input->fontMetrics().horizontalAdvance(input->text());
+    CHECK(input->sizeHint().width() == 16 + name + 34);
+    const QImage crossed = seen(input);
+    int ink = 0;
+    for (int y = 18; y < 30; ++y)
+        for (int x = input->width() - 26; x < input->width() - 8; ++x)
+            ink += is(crossed.pixelColor(x, y), Role::Surface) ? 0 : 1;
+    CHECK(ink > 8);
+
+    // A property that is no kind of chip leaves a button as it was.
+    QPushButton *other = chip("round", QStringLiteral("Other"), 150);
+    CHECK(other->sizeHint().height() == 40);
+
+    // Cards: a QFrame with the property, of any shape.
+    const auto card = [&](const char *kind, int y) {
+        auto *frame = new QFrame(&window);
+        frame->setProperty("materialCard", QLatin1String(kind));
+        frame->setGeometry(10, y, 200, 50);
+        frame->show();
+        return frame;
+    };
+    card("filled", 200);
+    card("elevated", 260);
+    card("outlined", 320);
+    QCoreApplication::processEvents();
+    const QImage cards = window.grab().toImage();
+    CHECK(is(cards.pixelColor(100, 225), Role::SurfaceContainerHighest));
+    CHECK(is(cards.pixelColor(10, 200), Role::Surface)); // round corners
+    CHECK(is(cards.pixelColor(100, 285), Role::SurfaceContainerLow));
+    CHECK(!is(cards.pixelColor(100, 308), Role::SurfaceContainerLow)); // its shadow
+    CHECK(!is(cards.pixelColor(100, 308), Role::Surface));
+    CHECK(is(cards.pixelColor(100, 345), Role::Surface));
+    CHECK(is(cards.pixelColor(100, 320), Role::OutlineVariant));
+    CHECK(is(cards.pixelColor(10, 345), Role::OutlineVariant));
+
+    // A line is a divider, one pixel of the outline's quiet color, sunken or plain.
+    for (QFrame::Shadow shadow : {QFrame::Sunken, QFrame::Plain}) {
+        QFrame line(&window);
+        line.setFrameShape(QFrame::HLine);
+        line.setFrameShadow(shadow);
+        line.setGeometry(220, 200, 100, 9);
+        line.show();
+        QFrame upright(&window);
+        upright.setFrameShape(QFrame::VLine);
+        upright.setFrameShadow(shadow);
+        upright.setGeometry(340, 200, 9, 100);
+        upright.show();
+        QCoreApplication::processEvents();
+        const QImage lines = window.grab().toImage();
+        int rows = 0, columns = 0;
+        for (int y = 200; y < 209; ++y)
+            rows += is(lines.pixelColor(270, y), Role::Surface) ? 0 : 1;
+        for (int x = 340; x < 349; ++x)
+            columns += is(lines.pixelColor(x, 250), Role::Surface) ? 0 : 1;
+        CHECK(rows == 1 && columns == 1);
+        CHECK(is(lines.pixelColor(270, 204), Role::OutlineVariant));
+        CHECK(is(lines.pixelColor(344, 250), Role::OutlineVariant));
+    }
+    // In a layout, a line has the height that it asks for.
+    {
+        QWidget column;
+        auto *layout = new QVBoxLayout(&column);
+        auto *line = new QFrame;
+        line->setFrameShape(QFrame::HLine);
+        layout->addWidget(line);
+        layout->addStretch(1);
+        column.resize(100, 100);
+        column.show();
+        QCoreApplication::processEvents();
+        CHECK(line->height() == 3);
+    }
+
+    // Under another style a card is the frame that it is.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(window.grab().toImage().pixelColor(100, 225) == window.grab().toImage().pixelColor(5, 225));
+}
+
+void testCalendar() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(400, 420);
+    auto *calendar = new QCalendarWidget(&window);
+    calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    window.show();
+    QCoreApplication::processEvents();
+    // Days of 40, under a bar with the arrows as icon buttons.
+    const QList<QToolButton *> arrows = calendar->findChildren<QToolButton *>();
+    CHECK(arrows.size() == 2);
+    if (arrows.size() != 2)
+        return;
+    CHECK(arrows.at(0)->sizeHint() == QSize(48, 48));
+    const int bar = arrows.at(0)->parentWidget()->sizeHint().height();
+    CHECK(calendar->sizeHint() == QSize(7 * 40, bar + 7 * 40));
+    calendar->resize(calendar->sizeHint());
+    calendar->setSelectedDate(QDate(2020, 6, 17));
+    QCoreApplication::processEvents();
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    // The middle of the cell of a day, of weeks that start on Monday; June 2020 starts on one, so that a whole week of
+    // May comes first.
+    const auto cell = [&](int day) {
+        const int at = 7 + day - 1;
+        return QPoint((at % 7) * 40 + 20, bar + (at / 7 + 1) * 40 + 20);
+    };
+    const auto pixel = [&](const QPoint &point) { return calendar->grab().toImage().pixelColor(point.x(), point.y()); };
+    CHECK(is(pixel(QPoint(2, bar + 2)), Role::SurfaceContainerHigh));
+    // The chosen day is in a circle of the primary color, and no other is.
+    CHECK(is(pixel(cell(17) + QPoint(0, -15)), Role::Primary));
+    CHECK(is(pixel(cell(17) + QPoint(-15, 0)), Role::Primary));
+    CHECK(is(pixel(cell(17) + QPoint(-18, -18)), Role::SurfaceContainerHigh));
+    CHECK(is(pixel(cell(18) + QPoint(0, -15)), Role::SurfaceContainerHigh));
+    // A click chooses a day, as under any style.
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(cell(18)), QPointF(cell(18)), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(calendar, &press);
+    CHECK(calendar->selectedDate() == QDate(2020, 6, 18));
+    CHECK(is(pixel(cell(18) + QPoint(0, -15)), Role::Primary));
+    CHECK(is(pixel(cell(17) + QPoint(0, -15)), Role::SurfaceContainerHigh));
+    arrows.at(1)->click();
+    CHECK(calendar->monthShown() == 7);
+    arrows.at(0)->click();
+    CHECK(calendar->monthShown() == 6);
+    // Today has a ring around nothing.
+    const QDate today = QDate::currentDate();
+    calendar->setSelectedDate(QDate(today.year(), today.month(), today.day() == 1 ? 2 : 1));
+    const QDate first(today.year(), today.month(), 1);
+    const int back = first.dayOfWeek() == 1 ? 7 : first.dayOfWeek() - 1;
+    const int at = back + today.day() - 1;
+    const QPoint ringed((at % 7) * 40 + 20, bar + (at / 7 + 1) * 40 + 20);
+    CHECK(near(pixel(ringed + QPoint(0, -20)), style->color(Role::Primary), 60));
+    CHECK(is(pixel(ringed + QPoint(0, -15)), Role::SurfaceContainerHigh));
+    // With the week numbers it is a column wider.
+    calendar->setVerticalHeaderFormat(QCalendarWidget::ISOWeekNumbers);
+    CHECK(calendar->sizeHint().width() == 8 * 40);
+
+    // Under another style it is the calendar that it was.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(calendar->palette().color(QPalette::Base) == QApplication::palette().color(QPalette::Base));
+    CHECK(arrows.at(0)->sizeHint().width() < 48);
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1862,6 +2196,9 @@ int main(int argc, char *argv[]) {
     testTextFields();
     testIconButtons();
     testAppBarAndNavigation();
+    testSnackbarTooltipCircular();
+    testChipsCardsDividers();
+    testCalendar();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

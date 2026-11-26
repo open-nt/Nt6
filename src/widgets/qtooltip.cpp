@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qtooltip.h>
+#include <QtWidgets/qmaterialstyle.h>
 
 #include <optional>
 
@@ -53,7 +54,10 @@ public:
         m_text = text;
         m_owner = owner;
         m_rect = rect;
-        setFont(QToolTip::font());
+        QFont shown = QToolTip::font();
+        if (isMaterial() && !tipFont()) // body small, unless the program chose a font for tool tips
+            shown.setPixelSize(12);
+        setFont(shown);
         setPalette(QToolTip::palette());
         const QSize size = textSize();
         QWidget *top = parentWidget();
@@ -86,18 +90,23 @@ protected:
         option.initFrom(this);
         style()->drawPrimitive(QStyle::PE_PanelTipLabel, &option, &painter, this);
         painter.setPen(palette().color(QPalette::ToolTipText));
-        painter.drawText(rect().adjusted(kMarginX, kMarginY, -kMarginX, -kMarginY), Qt::AlignLeft | Qt::AlignTop,
-                         m_text);
+        painter.drawText(rect().adjusted(marginX(), marginY(), -marginX(), -marginY()),
+                         Qt::AlignLeft | (isMaterial() ? Qt::AlignVCenter : Qt::AlignTop), m_text);
     }
     void timerEvent(QTimerEvent *) override { close(); }
 
 private:
     static constexpr int kMarginX = 5;
     static constexpr int kMarginY = 3;
+    bool isMaterial() const { return qobject_cast<const QMaterialStyle *>(style()) != nullptr; }
+    // A plain tooltip of the Material style has 8 at its sides and 4 above and below, and is at least 24 high.
+    int marginX() const { return isMaterial() ? 8 : kMarginX; }
+    int marginY() const { return isMaterial() ? 4 : kMarginY; }
 
     QSize textSize() const {
         const QSize text = fontMetrics().size(0, m_text);
-        return QSize(text.width() + 2 * kMarginX, text.height() + 2 * kMarginY);
+        const int height = text.height() + 2 * marginY();
+        return QSize(text.width() + 2 * marginX(), isMaterial() ? std::max(24, height) : height);
     }
     void killTimers() {
         if (m_timer) {

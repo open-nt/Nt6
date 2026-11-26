@@ -14,8 +14,12 @@ class Animator;
 struct SpringSpec;
 } // namespace QtPrivate
 
+class QCalendarWidget;
+class QFrame;
 class QLineEdit;
 class QListWidget;
+class QMainWindow;
+class QStatusBar;
 class QToolBar;
 class QStyleOptionButton;
 class QMenu;
@@ -113,7 +117,8 @@ private:
         IconStandard,
         IconFilled,
         IconTonal,
-        IconOutlined
+        IconOutlined,
+        Chip
     };
     static ButtonKind buttonKind(const QStyleOption *option, const QWidget *widget);
     void drawButtonContainer(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
@@ -122,6 +127,7 @@ private:
                          double right) const;
     void drawButtonLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawFabLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
+    void drawChipLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     // A QToolButton with MenuButtonPopup is a split button. It paints its label itself, in the color returned.
     friend class QToolButton;
     QColor drawSplitButton(const QStyleOptionButton *option, QPainter *painter, const QWidget *widget,
@@ -139,6 +145,14 @@ private:
     void drawTextFieldText(QPainter *painter, const QStyleOption *option, const QWidget *widget) const;
     // A property of the style's that a widget was given, or lost, while it is shown.
     void propertyChanged(QWidget *widget);
+    // A day of a calendar, as the date picker of Material shows it: QCalendarWidget::paintCell() asks for it. The
+    // text is in `ink` if the program formatted the day with a color.
+    friend class QCalendarWidget;
+    void drawCalendarDay(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int day, bool selected,
+                         bool today, bool usable, const QColor &ink) const;
+    // A frame that is a card, or a line that is a divider: QFrame asks for it. False for another frame.
+    friend class QFrame;
+    bool drawMaterialFrame(QPainter *painter, const QFrame *frame) const;
     friend class QToolBar;
     static bool isFloatingToolBar(const QWidget *widget);
     // A top app bar: QToolBar lays itself out for one and asks for its background and title.
@@ -180,6 +194,14 @@ private:
     // which slides from tab to tab, once they are all painted.
     friend class QTabBar;
     void drawTabIndicator(QPainter *painter, const QTabBar *bar, const QRect &tab, bool below) const;
+    // A status bar that is a snackbar: QMainWindow floats it over the content, QStatusBar asks for it to be drawn and
+    // lays its actions out.
+    friend class QMainWindow;
+    friend class QStatusBar;
+    static bool isSnackbar(const QWidget *widget);
+    static int snackbarHeight(const QStatusBar *bar, int width);
+    void drawSnackbar(QPainter *painter, const QStatusBar *bar) const;
+    void drawCircularProgress(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     // A bottom navigation bar: QTabBar gives its tabs equal widths and asks for the whole of it to be drawn.
     static bool isNavigationBar(const QWidget *widget);
     void drawNavigationBar(QPainter *painter, const QTabBar *bar) const;

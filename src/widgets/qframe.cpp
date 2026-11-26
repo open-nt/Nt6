@@ -2,6 +2,7 @@
 #include <QtWidgets/qframe.h>
 
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 
@@ -132,6 +133,17 @@ void QFrame::setFrameStyle(int style) {
         style |= Plain;
     if (m_style == style)
         return;
+    // A line keeps its height, or width, in a layout. A size policy that the program set stays.
+    const auto policyOf = [](int shape) {
+        if (shape == HLine)
+            return QSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+        if (shape == VLine)
+            return QSizePolicy(QSizePolicy::Fixed, QSizePolicy::Minimum);
+        return QSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+    };
+    const int before = m_style & 0x0f, after = style & 0x0f;
+    if (before != after && sizePolicy() == policyOf(before))
+        setSizePolicy(policyOf(after));
     m_style = style;
     updateGeometry();
     update();
@@ -222,6 +234,21 @@ QRect QFrame::contentsRect() const {
 
 /*!
     \reimp
+
+    A horizontal line asks to be 3 high, and a vertical one 3 wide, with a size policy that keeps them so; a layout
+    gives a line the length that there is. Another frame asks for what its layout does.
+*/
+QSize QFrame::sizeHint() const {
+    constexpr int line = 3;
+    if (frameShape() == HLine)
+        return QSize(-1, std::max(line, frameWidth()));
+    if (frameShape() == VLine)
+        return QSize(std::max(line, frameWidth()), -1);
+    return QWidget::sizeHint();
+}
+
+/*!
+    \reimp
 */
 void QFrame::paintEvent(QPaintEvent *event) {
     (void)event;
@@ -236,6 +263,10 @@ void QFrame::paintEvent(QPaintEvent *event) {
 void QFrame::drawFrame(QPainter *painter) {
     const Shape shape = frameShape();
     const Shadow shadow = frameShadow();
+    // The Material style draws cards, which need no frame shape, and makes lines into its dividers.
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (material && material->drawMaterialFrame(painter, this))
+        return;
     if (shape == NoFrame)
         return;
     const QRect r = frameRect();

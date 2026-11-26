@@ -37,6 +37,8 @@ public:
     void setFrameRect(const QRect &rect);
     QRect contentsRect() const;
 
+    QSize sizeHint() const override;
+
 protected:
     void paintEvent(QPaintEvent *event) override;
     void drawFrame(QPainter *painter);

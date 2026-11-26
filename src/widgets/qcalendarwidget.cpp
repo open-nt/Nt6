@@ -5,6 +5,7 @@
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qlabel.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qtoolbutton.h>
 
 #include <algorithm>
@@ -272,9 +273,15 @@ void QCalendarWidget::setNavigationBarVisible(bool visible) {
 */
 QSize QCalendarWidget::sizeHint() const {
     const QFontMetrics fm = fontMetrics();
-    const int cell = std::max(fm.horizontalAdvance(QStringLiteral("Wed")) + 8, fm.height() + 8);
+    int cell = std::max(fm.horizontalAdvance(QStringLiteral("Wed")) + 8, fm.height() + 8);
+    int row = fm.height() + 8;
+    if (qobject_cast<const QMaterialStyle *>(style())) {
+        // A day of Material's date picker is a circle of 40, which the names of the days nearly fill.
+        cell = std::max(fm.horizontalAdvance(QStringLiteral("Wed")) + 4, 40);
+        row = std::max(row, 40);
+    }
     const int navigation = isNavigationBarVisible() ? m_navigation->sizeHint().height() : 0;
-    return QSize((kColumns + headerColumns()) * cell, navigation + (kRows + 1) * (fm.height() + 8));
+    return QSize((kColumns + headerColumns()) * cell, navigation + (kRows + 1) * row);
 }
 
 /*!
@@ -548,6 +555,15 @@ void QCalendarWidget::paintCell(QPainter *painter, const QRect &rect, QDate date
     painter->save();
     if (format.background().style() != Qt::NoBrush)
         painter->fillRect(rect, format.background());
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style())) {
+        if (!format.isEmpty())
+            painter->setFont(formatted(font(), format));
+        material->drawCalendarDay(painter, rect, this, date.day(), date == m_selected && inMonth,
+                                  date == QDate::currentDate() && inMonth, isEnabled() && inMonth && inRange,
+                                  format.foreground().style() != Qt::NoBrush ? format.foreground().color() : QColor());
+        painter->restore();
+        return;
+    }
     if (date == m_selected && inMonth) {
         painter->fillRect(rect.adjusted(1, 1, -1, -1), palette().color(group, QPalette::Highlight));
         painter->setPen(palette().color(group, QPalette::HighlightedText));
@@ -572,11 +588,12 @@ void QCalendarWidget::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
     painter.setFont(font());
     const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
+    const bool material = qobject_cast<const QMaterialStyle *>(style()) != nullptr;
     painter.fillRect(gridRect(), palette().color(group, QPalette::Base));
     // The names of the days.
     if (m_horizontal != NoHorizontalHeader) {
         QFont bold = font();
-        bold.setBold(true);
+        bold.setBold(!material); // Material's names of the days are in the type of the days
         painter.setFont(formatted(bold, m_headerFormat));
         const QBrush headerColor = m_headerFormat.foreground();
         painter.setPen(headerColor.style() != Qt::NoBrush ? headerColor.color()
@@ -608,7 +625,7 @@ void QCalendarWidget::paintEvent(QPaintEvent *event) {
             }
         }
     }
-    if (hasFocus()) {
+    if (hasFocus() && !material) { // Material rings the day that the keyboard is on
         painter.setPen(palette().color(group, QPalette::Highlight));
         painter.setBrush(Qt::NoBrush);
         painter.drawRect(gridRect().adjusted(0, 0, -1, -1));

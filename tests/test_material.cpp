@@ -1,0 +1,210 @@
+// MIT License - see LICENSE
+//
+// Tests for QMaterialStyle: the HCT color space that its schemes are made in, the color roles, the sizes and what is
+// drawn, on the offscreen platform.
+#include <QtGui/QtGui>
+#include <QtWidgets/QtWidgets>
+
+#include "qmaterialcolor_p.h"
+
+#include <cmath>
+#include <cstdio>
+
+static int g_failures = 0;
+#define CHECK(cond)                                                                                                    \
+    do {                                                                                                               \
+        if (!(cond)) {                                                                                                 \
+            std::printf("FAIL %s:%d  %s\n", __FILE__, __LINE__, #cond);                                                \
+            ++g_failures;                                                                                              \
+        }                                                                                                              \
+    } while (0)
+
+namespace {
+
+using QtPrivate::Hct;
+using Role = QMaterialStyle::Role;
+
+bool near(const QColor &a, const QColor &b, int tolerance) {
+    return std::abs(a.red() - b.red()) <= tolerance && std::abs(a.green() - b.green()) <= tolerance &&
+           std::abs(a.blue() - b.blue()) <= tolerance;
+}
+
+bool near(double a, double b, double tolerance) { return std::abs(a - b) <= tolerance; }
+
+void testHct() {
+    // The HCT coordinates of the primaries of sRGB, as published with Material's color utilities.
+    const struct {
+        QColor color;
+        double hue, chroma, tone;
+    } known[] = {{QColor(255, 0, 0), 27.408, 113.357, 53.233},
+                 {QColor(0, 255, 0), 142.139, 108.410, 87.737},
+                 {QColor(0, 0, 255), 282.788, 87.230, 32.302}};
+    for (const auto &k : known) {
+        const Hct h = Hct::fromColor(k.color);
+        CHECK(near(h.hue, k.hue, 0.1));
+        CHECK(near(h.chroma, k.chroma, 0.1));
+        CHECK(near(h.tone, k.tone, 0.05));
+    }
+    for (const QColor &c : {QColor(255, 0, 0), QColor(0x67, 0x50, 0xa4), QColor(0x00, 0x6c, 0x4c),
+                            QColor(128, 128, 128), QColor(Qt::black), QColor(Qt::white), QColor(250, 210, 60)}) {
+        const Hct h = Hct::fromColor(c);
+        CHECK(near(Hct::toColor(h.hue, h.chroma, h.tone), c, 1));
+    }
+    // A chroma that sRGB does not reach gives the strongest color that it does, at the tone that was asked for.
+    const QColor vivid = Hct::toColor(142, 200, 50);
+    CHECK(vivid.isValid() && near(Hct::fromColor(vivid).tone, 50, 0.6));
+
+    // The tones of the baseline primary palette, as Jetpack Compose's tokens have them.
+    const Hct seed = Hct::fromColor(QColor(0x67, 0x50, 0xa4));
+    const struct {
+        int tone;
+        QColor color;
+    } tones[] = {{10, QColor(0x21, 0x00, 0x5d)}, {20, QColor(0x38, 0x1e, 0x72)}, {30, QColor(0x4f, 0x37, 0x8b)},
+                 {40, QColor(0x67, 0x50, 0xa4)}, {50, QColor(0x7f, 0x67, 0xbe)}, {60, QColor(0x9a, 0x82, 0xdb)},
+                 {70, QColor(0xb6, 0x9d, 0xf8)}, {80, QColor(0xd0, 0xbc, 0xff)}, {90, QColor(0xea, 0xdd, 0xff)}};
+    for (const auto &t : tones)
+        CHECK(near(Hct::toColor(seed.hue, seed.chroma, t.tone), t.color, 2));
+}
+
+// The relative luminance contrast of WCAG.
+double contrast(const QColor &a, const QColor &b) {
+    const auto luminance = [](const QColor &c) {
+        const auto linear = [](double v) { return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4); };
+        return 0.2126 * linear(c.red() / 255.0) + 0.7152 * linear(c.green() / 255.0) +
+               0.0722 * linear(c.blue() / 255.0);
+    };
+    const double x = luminance(a), y = luminance(b);
+    return (std::max(x, y) + 0.05) / (std::min(x, y) + 0.05);
+}
+
+void testScheme() {
+    for (const QColor &seed : {QColor(0x67, 0x50, 0xa4), QColor(0x00, 0x6c, 0x4c), QColor(0xb3, 0x26, 0x1e),
+                               QColor(250, 210, 60), QColor(128, 128, 128)}) {
+        for (Qt::ColorScheme scheme : {Qt::ColorScheme::Light, Qt::ColorScheme::Dark}) {
+            QMaterialStyle style(seed);
+            style.setColorScheme(scheme);
+            CHECK(style.isDark() == (scheme == Qt::ColorScheme::Dark));
+            // Text on each color can be read, whatever the seed.
+            const std::pair<Role, Role> pairs[] = {{Role::Primary, Role::OnPrimary},
+                                                   {Role::PrimaryContainer, Role::OnPrimaryContainer},
+                                                   {Role::Secondary, Role::OnSecondary},
+                                                   {Role::SecondaryContainer, Role::OnSecondaryContainer},
+                                                   {Role::TertiaryContainer, Role::OnTertiaryContainer},
+                                                   {Role::Error, Role::OnError},
+                                                   {Role::Surface, Role::OnSurface},
+                                                   {Role::SurfaceContainerHighest, Role::OnSurfaceVariant},
+                                                   {Role::InverseSurface, Role::InverseOnSurface}};
+            for (const auto &[fill, ink] : pairs)
+                CHECK(contrast(style.color(fill), style.color(ink)) >= 4.5);
+            const QPalette palette = style.standardPalette();
+            CHECK(palette.color(QPalette::Window) == style.color(Role::Surface));
+            CHECK(palette.color(QPalette::Highlight) == style.color(Role::Primary));
+            CHECK((Hct::fromColor(style.color(Role::Surface)).tone < 50) == style.isDark());
+        }
+    }
+}
+
+// The color of a pixel of what `widget` draws, at a point in logical pixels.
+QColor pixel(QWidget &widget, int x, int y) {
+    // Taken from the whole window, so that the background behind the widget is there.
+    const QImage image = widget.window()->grab().toImage();
+    const double ratio = image.devicePixelRatio();
+    const QPoint at = widget.mapTo(widget.window(), QPoint(x, y));
+    return image.pixelColor(static_cast<int>(at.x() * ratio), static_cast<int>(at.y() * ratio));
+}
+
+void testWidgets() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+    CHECK(QApplication::palette().color(QPalette::Window) == style->color(Role::Surface));
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *filled = new QPushButton(QStringLiteral("Save"));
+    filled->setProperty("materialButton", QStringLiteral("filled"));
+    auto *tonal = new QPushButton(QStringLiteral("Share"));
+    auto *outlined = new QPushButton(QStringLiteral("Cancel"));
+    outlined->setProperty("materialButton", QStringLiteral("outlined"));
+    auto *disabled = new QPushButton(QStringLiteral("No"));
+    disabled->setEnabled(false);
+    auto *edit = new QLineEdit;
+    auto *check = new QCheckBox(QStringLiteral("Check"));
+    check->setChecked(true);
+    auto *radio = new QRadioButton(QStringLiteral("Radio"));
+    auto *toggle = new QCheckBox(QStringLiteral("Wi-Fi"));
+    toggle->setProperty("materialSwitch", true);
+    for (QWidget *w : std::initializer_list<QWidget *>{filled, tonal, outlined, disabled, edit, check, radio, toggle})
+        layout->addWidget(w);
+    window.resize(320, 520);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // The sizes of the design, and heights that a finger can hit.
+    CHECK(filled->sizeHint().height() == 40);
+    CHECK(filled->sizeHint().width() >= 48);
+    CHECK(edit->sizeHint().height() == 56);
+    CHECK(check->sizeHint().height() >= 48);
+    CHECK(radio->sizeHint().height() >= 48);
+    CHECK(toggle->sizeHint().width() >= 52 + 12);
+    CHECK(filled->font().pixelSize() == 14);
+    CHECK(edit->font().pixelSize() == 16);
+
+    // A pill: filled at its sides' middle, the background showing at its corners.
+    CHECK(near(pixel(*filled, 8, filled->height() / 2), style->color(Role::Primary), 2));
+    CHECK(near(pixel(*filled, 1, 1), style->color(Role::Surface), 2));
+    CHECK(near(pixel(*tonal, 8, tonal->height() / 2), style->color(Role::SecondaryContainer), 2));
+    CHECK(near(pixel(*outlined, 8, outlined->height() / 2), style->color(Role::Surface), 2));
+    CHECK(!near(pixel(*disabled, 8, disabled->height() / 2), style->color(Role::SecondaryContainer), 2));
+
+    // Pressed, the corners tighten: a pixel near the corner that the pill leaves out is filled.
+    const QColor resting = pixel(*filled, 3, 5);
+    filled->setDown(true);
+    CHECK(!near(pixel(*filled, 3, 5), resting, 8));
+    filled->setDown(false);
+
+    // The switch: the handle is on the left when off and on the right when on, and a click toggles it.
+    const int middle = toggle->height() / 2;
+    CHECK(near(pixel(*toggle, 16, middle), style->color(Role::Outline), 3));
+    CHECK(near(pixel(*toggle, 40, middle), style->color(Role::SurfaceContainerHighest), 3));
+    toggle->click();
+    CHECK(toggle->isChecked());
+    CHECK(near(pixel(*toggle, 36, middle), style->color(Role::OnPrimary), 3));
+    CHECK(near(pixel(*toggle, 8, middle), style->color(Role::Primary), 3));
+
+    // A focus ring shows when the keyboard moves the focus, and not after a tap or a click.
+    const auto ringShows = [&] {
+        return near(pixel(*tonal, 1, tonal->height() / 2), style->color(Role::Secondary), 3);
+    };
+    const auto send = [&](QEvent &event) { QCoreApplication::sendEvent(&window, &event); };
+    tonal->setFocus();
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(1, 1), QPointF(1, 1), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    send(press);
+    CHECK(tonal->hasFocus());
+    CHECK(!ringShows());
+    QKeyEvent tab(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+    send(tab);
+    tonal->setFocus();
+    CHECK(ringShows());
+    send(press);
+    CHECK(!ringShows());
+
+    // The names that the factory knows, and going back to Fusion, which undoes the fonts.
+    CHECK(QStyleFactory::keys().contains(QStringLiteral("Material3")));
+    std::unique_ptr<QStyle> made(QStyleFactory::create(QStringLiteral("material3")));
+    CHECK(made && made->name() == QStringLiteral("Material3"));
+    CHECK(QApplication::setStyle(QStringLiteral("Fusion")) != nullptr);
+    CHECK(filled->font().pixelSize() != 14);
+}
+
+} // namespace
+
+int main(int argc, char *argv[]) {
+    QApplication app(argc, argv);
+    testHct();
+    testScheme();
+    testWidgets();
+    std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
+    return g_failures ? 1 : 0;
+}

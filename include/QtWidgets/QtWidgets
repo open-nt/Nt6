@@ -46,6 +46,7 @@
 #include "qlistview.h"
 #include "qlistwidget.h"
 #include "qmainwindow.h"
+#include "qmaterialstyle.h"
 #include "qmdiarea.h"
 #include "qmdisubwindow.h"
 #include "qmenu.h"

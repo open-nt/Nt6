@@ -94,6 +94,9 @@ public:
     QEglNativePlatform eglPlatform() const override;
     QPlatformClipboard *clipboard() const override;
     bool hasInputPanel() const override { return true; }
+    Qt::ColorScheme colorScheme() const override {
+        return QtAndroid::Glue::instance().nightMode() ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light;
+    }
     void setInputPanelVisible(bool visible) override;
     const char *vulkanSurfaceExtension() const override { return "VK_KHR_android_surface"; }
     quint64 createVulkanSurface(QWindow *window, void *instance,

@@ -2610,7 +2610,7 @@ static void testAttributes() {
 }
 
 static void testStyleFactory() {
-    CHECK(QStyleFactory::keys() == QStringList{"Fusion"});
+    CHECK((QStyleFactory::keys() == QStringList{"Fusion", "Material3"}));
     QStyle *fusion = QStyleFactory::create("fusion");
     QStyle *second = QStyleFactory::create("Fusion");
     CHECK(fusion != nullptr && second != nullptr && second != fusion);

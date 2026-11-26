@@ -998,6 +998,8 @@ add_library(NtWidgets
     src/widgets/qformlayout.cpp
     src/widgets/qframe.cpp
     src/widgets/qfusionstyle.cpp
+    src/widgets/qmaterialcolor.cpp
+    src/widgets/qmaterialstyle.cpp
     src/widgets/qgraphicsitem.cpp
     src/widgets/qgraphicsitems.cpp
     src/widgets/qgraphicsscene.cpp
@@ -2128,6 +2130,14 @@ if(NT_BUILD_TESTS)
     set_tests_properties(nt_widgets_more_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_widgets_more_tests)
     nt_enable_automoc(nt_widgets_more_tests)
+
+    # QMaterialStyle: the HCT color space, the color roles, sizes and drawing.
+    add_executable(nt_material_tests tests/test_material.cpp)
+    target_include_directories(nt_material_tests PRIVATE src/widgets)
+    target_link_libraries(nt_material_tests PRIVATE Nt::Widgets)
+    add_test(NAME nt_material_tests COMMAND nt_material_tests)
+    set_tests_properties(nt_material_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    nt_set_compile_options(nt_material_tests)
 
     # Touch input: QTouchEvent sequences for windows and widgets, and the first finger as the mouse.
     add_executable(nt_touch_tests tests/test_touch.cpp)

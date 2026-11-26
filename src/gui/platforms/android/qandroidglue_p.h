@@ -63,6 +63,7 @@ public:
     // Tells the UI thread that the application has stopped using the window it was told is going away.
     void windowReleased();
     int density() const; // dots per inch of the screen, or 160
+    bool nightMode() const; // whether the system uses its dark theme
     // The part of the window that is not under the system bars, in pixels; empty until the activity says.
     ARect contentRect();
     // The space that the system bars and cut-outs take at each edge, in pixels.

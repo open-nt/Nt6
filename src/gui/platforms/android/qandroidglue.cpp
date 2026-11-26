@@ -383,6 +383,10 @@ void Glue::setContentRect(const ARect &rect) {
     post(e);
 }
 
+bool Glue::nightMode() const {
+    return m_config && AConfiguration_getUiModeNight(m_config) == ACONFIGURATION_UI_MODE_NIGHT_YES;
+}
+
 void Glue::configurationChanged() {
     if (m_config)
         AConfiguration_fromAssetManager(m_config, m_activity->assetManager);

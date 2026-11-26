@@ -343,6 +343,8 @@ void QAndroidIntegration::processEvents() {
         case Event::WindowCreated:
         case Event::WindowResized:
         case Event::ConfigChanged:
+            if (event.kind == Event::ConfigChanged)
+                QWindowSystemInterface::handleColorSchemeChange(colorScheme());
             windowChanged();
             break;
         case Event::WindowDestroyed:

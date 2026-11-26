@@ -16,6 +16,7 @@
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qradiobutton.h>
 #include <QtWidgets/qstyleoption.h>
+#include <QtWidgets/qtabbar.h>
 
 #include <algorithm>
 
@@ -37,6 +38,19 @@ constexpr int radioSize = 20;
 constexpr int indicatorSpace = 12;
 constexpr int switchWidth = 52;
 constexpr int switchHeight = 32;
+constexpr int sliderTrack = 16; // the extra small slider
+constexpr int sliderHandleWidth = 4;
+constexpr int sliderPressedWidth = 2;
+constexpr int sliderHandleHeight = 44;
+constexpr int sliderGap = 6;     // between the handle and each part of the track
+constexpr int sliderLength = 16; // the room of the handle along the track
+constexpr int stopSize = 4;      // the dots at the ends of tracks, and of the steps of a slider
+constexpr int progressThickness = 4;
+constexpr int progressGap = 4;
+constexpr int progressHeight = 8;
+constexpr int tabHeight = 48;
+constexpr int tabPadding = 16;
+constexpr int tabIndicator = 3;
 constexpr int focusRingWidth = 3;
 constexpr double hoverOpacity = 0.08;
 constexpr double focusOpacity = 0.10;
@@ -88,7 +102,7 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
 
     The scheme is light or dark as the system says, unless setColorScheme() says otherwise. Sizes are in logical
     pixels, which on Android are the dp of Material: buttons are 40 high, text fields 56, and check boxes and radio
-    buttons have a height of at least 48 for a finger.
+    buttons have a height of at least 48 for a finger. A slider moves to where it is pressed and follows from there.
 
     Choices that the classes of Qt have no function for are dynamic properties, so that the same program also builds
     with Qt:
@@ -108,8 +122,10 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     tap.
 
     \differences
-    Qt Widgets has no Material style. Push buttons, line edits, check boxes, radio buttons and switches are drawn in
+    Qt Widgets has no Material style. Push buttons, line edits, check boxes, radio buttons, switches, sliders (the
+    extra small size), progress bars (a thin line, with the text beside it) and tab bars (primary tabs) are drawn in
     the Material way so far; the other widgets are drawn as the Fusion style draws them, in the Material colors.
+    A slider shows no value bubble, and a busy progress bar shows only its track.
     Changes of state show at once: there is no motion, no shape morphing and no ripple yet.
     \enddifferences
 
@@ -298,7 +314,7 @@ void QMaterialStyle::polish(QWidget *widget) {
         widget->setAttribute(Qt::WA_Hover);
     // The type scale: label large for buttons, body large for text and choices. A font that the program set stays.
     const bool choice = qobject_cast<QCheckBox *>(widget) || qobject_cast<QRadioButton *>(widget);
-    const bool button = !choice && qobject_cast<QAbstractButton *>(widget);
+    const bool button = (!choice && qobject_cast<QAbstractButton *>(widget)) || qobject_cast<QTabBar *>(widget);
     if ((choice || button || qobject_cast<QLineEdit *>(widget)) && !widget->testAttribute(Qt::WA_SetFont)) {
         QFont font = widget->font();
         font.setPixelSize(button ? 14 : 16);
@@ -504,6 +520,137 @@ void QMaterialStyle::drawSwitch(const QStyleOption *option, const QRect &rect, Q
     fillRounded(painter, QRectF(middle.x() - size / 2, middle.y() - size / 2, size, size), size / 2, handle);
 }
 
+// A thick track in two parts, with a gap on each side of a thin handle.
+void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    const auto *slider = static_cast<const QStyleOptionSlider *>(option);
+    const bool horizontal = slider->orientation == Qt::Horizontal;
+    const QRectF groove(proxy()->subElementRect(SE_SliderGroove, option, widget));
+    const QPointF centre = QRectF(proxy()->subElementRect(SE_SliderHandle, option, widget)).center();
+    // Everything is worked out along the track, from its left or top end.
+    const double start = horizontal ? groove.left() : groove.top();
+    const double end = horizontal ? groove.right() : groove.bottom();
+    const double handle = horizontal ? centre.x() : centre.y();
+    const auto part = [&](double from, double to) {
+        return horizontal ? QRectF(from, groove.top(), to - from, groove.height())
+                          : QRectF(groove.left(), from, groove.width(), to - from);
+    };
+    // As in the Fusion style: the active part starts at the left, or at the bottom of a vertical slider.
+    const bool activeFirst = horizontal ? !slider->upsideDown : slider->upsideDown;
+    QColor active = color(Role::Primary);
+    QColor inactive = color(Role::SecondaryContainer);
+    QColor knob = color(Role::Primary);
+    if (!enabled(option)) {
+        const QColor ink = color(Role::OnSurface);
+        active = knob = withOpacity(ink, disabledContentOpacity);
+        inactive = withOpacity(ink, disabledContainerOpacity);
+    }
+    const double beforeEnd = handle - sliderHandleWidth / 2.0 - sliderGap;
+    const double afterStart = handle + sliderHandleWidth / 2.0 + sliderGap;
+    if (beforeEnd > start)
+        fillRounded(painter, part(start, beforeEnd), std::min(sliderTrack / 2.0, (beforeEnd - start) / 2),
+                    activeFirst ? active : inactive);
+    if (end > afterStart)
+        fillRounded(painter, part(afterStart, end), std::min(sliderTrack / 2.0, (end - afterStart) / 2),
+                    activeFirst ? inactive : active);
+    // Stops: one at the far end of the inactive part, or one for every step when the slider shows tick marks.
+    const auto dot = [&](double at) {
+        const bool onActive = activeFirst ? at < handle : at > handle;
+        if (at > beforeEnd && at < afterStart)
+            return;
+        const QPointF middle = horizontal ? QPointF(at, groove.center().y()) : QPointF(groove.center().x(), at);
+        fillRounded(painter, QRectF(middle.x() - stopSize / 2.0, middle.y() - stopSize / 2.0, stopSize, stopSize),
+                    stopSize / 2.0, color(onActive ? Role::OnPrimary : Role::OnSecondaryContainer));
+    };
+    const double inset = sliderTrack / 2.0;
+    const qint64 range = static_cast<qint64>(slider->maximum) - slider->minimum;
+    if (slider->tickPosition != 0 && range > 0) {
+        const qint64 interval = slider->tickInterval > 0 ? slider->tickInterval
+                                : slider->pageStep > 0   ? slider->pageStep
+                                                         : std::max<qint64>(1, range / 10);
+        // At most one dot every two dot widths.
+        if (range / interval <= static_cast<qint64>((end - start) / (2 * stopSize)))
+            for (qint64 v = 0; v <= range; v += interval)
+                dot(start + inset + (end - start - 2 * inset) * static_cast<double>(v) / static_cast<double>(range));
+    } else {
+        dot(activeFirst ? end - inset : start + inset);
+    }
+    const bool pressed = option->state & State_Sunken;
+    const double width = pressed ? sliderPressedWidth : sliderHandleWidth;
+    const QRectF bar =
+        horizontal ? QRectF(handle - width / 2, centre.y() - sliderHandleHeight / 2.0, width, sliderHandleHeight)
+                   : QRectF(centre.x() - sliderHandleHeight / 2.0, handle - width / 2, sliderHandleHeight, width);
+    fillRounded(painter, bar, width / 2, knob);
+    if (keyboardFocus(option))
+        strokeRounded(painter, bar.adjusted(-4, -2, 4, 2), 6, color(Role::Secondary), 2);
+}
+
+// A thin rounded line: what is done, a gap, what is left, and a dot at the far end.
+void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *painter) const {
+    const auto *bar = static_cast<const QStyleOptionProgressBar *>(option);
+    const QRect r = option->rect;
+    const bool vertical = !(option->state & State_Horizontal) && r.height() > r.width();
+    QRectF line(r);
+    if (bar->textVisible && !bar->text.isEmpty() && !vertical) {
+        const int room = painter->fontMetrics().horizontalAdvance(QStringLiteral("100%")) + 8;
+        painter->setPen(
+            option->palette.color(enabled(option) ? QPalette::Active : QPalette::Disabled, QPalette::WindowText));
+        painter->drawText(QRect(r.right() + 1 - room, r.top(), room, r.height()),
+                          static_cast<int>(Qt::AlignRight | Qt::AlignVCenter) | Qt::TextSingleLine, bar->text);
+        line.setRight(line.right() - room - 4);
+    }
+    // Along the bar from where it starts to fill.
+    const double length = vertical ? line.height() : line.width();
+    const bool reversed = bar->invertedAppearance;
+    const auto part = [&](double from, double to) {
+        if (vertical) {
+            const double top = reversed ? line.top() + from : line.bottom() - to;
+            return QRectF(line.center().x() - progressThickness / 2.0, top, progressThickness, to - from);
+        }
+        const double left = reversed ? line.right() - to : line.left() + from;
+        return QRectF(left, line.center().y() - progressThickness / 2.0, to - from, progressThickness);
+    };
+    const QColor active =
+        enabled(option) ? color(Role::Primary) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    const QColor track = enabled(option) ? color(Role::SecondaryContainer)
+                                         : withOpacity(color(Role::OnSurface), disabledContainerOpacity);
+    const qint64 span = static_cast<qint64>(bar->maximum) - bar->minimum;
+    double done = 0;
+    if (span > 0 && bar->progress > bar->minimum)
+        done = length * static_cast<double>(std::min<qint64>(bar->progress, bar->maximum) - bar->minimum) /
+               static_cast<double>(span);
+    const double radius = progressThickness / 2.0;
+    if (done > 0)
+        fillRounded(painter, part(0, std::max<double>(done, progressThickness)), radius, active);
+    const double rest = done > 0 ? std::max<double>(done, progressThickness) + progressGap : 0;
+    if (length - rest > 0) {
+        fillRounded(painter, part(rest, length), radius, track);
+        if (length - rest >= stopSize)
+            fillRounded(painter, part(length - stopSize, length), radius, active);
+    }
+}
+
+// A primary tab: the line under the selected one is as wide as its label.
+void QMaterialStyle::drawTab(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    const QRectF r(option->rect);
+    const bool selected = option->state & State_Selected;
+    if (const double layer = stateLayer(option); layer > 0)
+        painter->fillRect(r, withOpacity(color(selected ? Role::Primary : Role::OnSurface), layer));
+    painter->fillRect(QRectF(r.left(), r.bottom() - 1, r.width(), 1), color(Role::OutlineVariant));
+    if (!selected)
+        return;
+    double width = r.width() - 2 * tabPadding;
+    // QTabBar draws the shape without the text: the label is that of its current tab, in its font.
+    if (const auto *bar = qobject_cast<const QTabBar *>(widget); bar && bar->currentIndex() >= 0)
+        width = std::min<double>(width, bar->fontMetrics().horizontalAdvance(bar->tabText(bar->currentIndex())));
+    width = std::max(24.0, width);
+    painter->save();
+    painter->setClipRect(r, Qt::IntersectClip);
+    // Twice as high as what shows, so that only the top corners are rounded.
+    fillRounded(painter, QRectF(r.center().x() - width / 2, r.bottom() - tabIndicator, width, 2 * tabIndicator),
+                tabIndicator, color(Role::Primary));
+    painter->restore();
+}
+
 /*!
     \reimp
 */
@@ -515,6 +662,8 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_PanelButtonCommand:
         drawButtonContainer(option, painter, widget);
         break;
+    case PE_FrameTabWidget:
+        break; // the pages of a tab widget have no frame: the line under the tabs parts them
     case PE_PanelLineEdit: {
         const auto *frame =
             option->type == QStyleOption::SO_Frame ? static_cast<const QStyleOptionFrame *>(option) : nullptr;
@@ -600,6 +749,20 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
         painter->restore();
         return;
     }
+    if ((element == CE_Slider && option->type == QStyleOption::SO_Slider) ||
+        (element == CE_ProgressBar && option->type == QStyleOption::SO_ProgressBar) ||
+        (element == CE_TabBarTab && option->type == QStyleOption::SO_Tab)) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        if (element == CE_Slider)
+            drawSlider(option, painter, widget);
+        else if (element == CE_ProgressBar)
+            drawProgressBar(option, painter);
+        else
+            drawTab(option, painter, widget);
+        painter->restore();
+        return;
+    }
     if (element == CE_CheckBox && isSwitch(widget)) {
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
@@ -622,6 +785,12 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
     case SE_PushButtonContents:
         // A narrow button keeps what room it has for its label.
         return r.adjusted(std::min(buttonPadding, r.width() / 4), 0, -std::min(buttonPadding, r.width() / 4), 0);
+    case SE_SliderGroove: {
+        const auto *slider = static_cast<const QStyleOptionSlider *>(option);
+        if (slider->orientation == Qt::Horizontal)
+            return QRect(r.left(), r.top() + (r.height() - sliderTrack) / 2, r.width(), sliderTrack);
+        return QRect(r.left() + (r.width() - sliderTrack) / 2, r.top(), sliderTrack, r.height());
+    }
     case SE_CheckBoxIndicator:
         if (isSwitch(widget))
             return QRect(r.left(), r.top() + (r.height() - switchHeight) / 2, switchWidth, switchHeight);
@@ -646,6 +815,17 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
 /*!
     \reimp
 */
+int QMaterialStyle::styleHint(StyleHint hint, const QStyleOption *option, const QWidget *widget,
+                              QStyleHintReturn *returnData) const {
+    // A finger moves a slider to where it touches it.
+    if (hint == SH_Slider_AbsoluteSetButtons)
+        return static_cast<int>(Qt::LeftButton) | static_cast<int>(Qt::MiddleButton);
+    return QCommonStyle::styleHint(hint, option, widget, returnData);
+}
+
+/*!
+    \reimp
+*/
 int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const {
     switch (metric) {
     case PM_IndicatorWidth:
@@ -657,6 +837,11 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
     case PM_CheckBoxLabelSpacing:
     case PM_RadioButtonLabelSpacing:
         return indicatorSpace;
+    case PM_SliderLength:
+        return sliderLength;
+    case PM_SliderThickness:
+    case PM_SliderControlThickness:
+        return sliderHandleHeight;
     case PM_ButtonShiftHorizontal:
     case PM_ButtonShiftVertical:
         return 0;
@@ -684,6 +869,10 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         }
         return QSize(std::max(touchTarget, width + 2 * buttonPadding), std::max(buttonHeight, height + 8));
     }
+    case CT_ProgressBar:
+        return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));
+    case CT_TabBarTab:
+        return QSize(std::max(touchTarget, contentsSize.width() + 2 * tabPadding), tabHeight);
     case CT_CheckBox:
     case CT_RadioButton: {
         const int indicator = isSwitch(widget) ? switchWidth : type == CT_CheckBox ? checkBoxSize : radioSize;

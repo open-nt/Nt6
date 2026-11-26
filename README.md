@@ -374,7 +374,7 @@ Nt follows Qt's API, but it also has a few things Qt does not. Code that uses th
 
 ### Material 3 Expressive
 
-`QApplication::setStyle("Material3")`, or a `QMaterialStyle` with a seed color, draws a Qt Widgets application in the [Material 3 Expressive](https://m3.material.io/) look, light or dark, with sizes for fingers; the [`material`](https://github.com/open-nt/nt6-examples/blob/main/android/material.cpp) example shows it. So far push buttons (filled, tonal, outlined, text, elevated), line edits, check boxes, radio buttons and switches (a `QCheckBox` with the property `materialSwitch`) are drawn the Material way, and other widgets like Fusion in the Material colors. No motion, shape morphing, ripples or the new Expressive components yet. The HCT color engine is Nt's own.
+`QApplication::setStyle("Material3")`, or a `QMaterialStyle` with a seed color, draws a Qt Widgets application in the [Material 3 Expressive](https://m3.material.io/) look, light or dark, with sizes for fingers; the [`material`](https://github.com/open-nt/nt6-examples/blob/main/android/material.cpp) example shows it. So far push buttons (filled, tonal, outlined, text, elevated), line edits, check boxes, radio buttons, switches (a `QCheckBox` with the property `materialSwitch`), sliders, progress bars and tabs are drawn the Material way, and other widgets like Fusion in the Material colors. No motion, shape morphing, ripples or the new Expressive components yet. The HCT color engine is Nt's own.
 
 ### Additions to Qt classes
 

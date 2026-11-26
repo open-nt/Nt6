@@ -62,6 +62,8 @@ public:
                          const QWidget *widget = nullptr) const override;
     int pixelMetric(PixelMetric metric, const QStyleOption *option = nullptr,
                     const QWidget *widget = nullptr) const override;
+    int styleHint(StyleHint hint, const QStyleOption *option = nullptr, const QWidget *widget = nullptr,
+                  QStyleHintReturn *returnData = nullptr) const override;
     QSize sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize,
                            const QWidget *widget = nullptr) const override;
     QPalette standardPalette() const override;
@@ -79,6 +81,9 @@ private:
     void drawButtonContainer(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawButtonLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter) const;
+    void drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
+    void drawProgressBar(const QStyleOption *option, QPainter *painter) const;
+    void drawTab(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     QColor buttonLabelColor(const QStyleOption *option, const QWidget *widget) const;
     bool keyboardFocus(const QStyleOption *option) const;
     double stateLayer(const QStyleOption *option) const;

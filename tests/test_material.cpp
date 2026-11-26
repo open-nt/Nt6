@@ -198,6 +198,102 @@ void testWidgets() {
     CHECK(filled->font().pixelSize() != 14);
 }
 
+void testSliderProgressTabs() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *slider = new QSlider(Qt::Horizontal);
+    slider->setRange(0, 100);
+    slider->setValue(50);
+    auto *progress = new QProgressBar;
+    progress->setValue(50);
+    progress->setTextVisible(false);
+    auto *tabs = new QTabBar;
+    tabs->addTab(QStringLiteral("First"));
+    tabs->addTab(QStringLiteral("Second"));
+    tabs->setExpanding(false);
+    layout->addWidget(slider);
+    layout->addWidget(progress);
+    layout->addWidget(tabs);
+    layout->addStretch(1);
+    window.resize(320, 260);
+    window.show();
+    QCoreApplication::processEvents();
+
+    CHECK(slider->sizeHint().height() == 44);
+    CHECK(progress->sizeHint().height() >= 8);
+    CHECK(tabs->sizeHint().height() == 48);
+    CHECK(tabs->tabRect(0).width() >= 48);
+    // Expanding tabs share the width of the bar.
+    tabs->setExpanding(true);
+    CHECK(tabs->tabRect(0).left() == 0 && tabs->tabRect(1).right() == tabs->width() - 1);
+    CHECK(std::abs(tabs->tabRect(0).width() - tabs->tabRect(1).width()) <= tabs->width() / 8);
+    // The line is as wide as the label, not as the wider tab.
+    tabs->setCurrentIndex(0);
+    const QRect wide = tabs->tabRect(0);
+    CHECK(near(pixel(*tabs, wide.center().x(), wide.bottom() - 1), style->color(Role::Primary), 3));
+    CHECK(!near(pixel(*tabs, wide.left() + 20, wide.bottom() - 1), style->color(Role::Primary), 20));
+    tabs->setExpanding(false);
+    CHECK(tabs->tabRect(1).right() < tabs->width() - 1);
+
+    // The slider: the active part, the handle, the gap beside it, the rest, and the stop at the end.
+    const int w = slider->width(), y = slider->height() / 2;
+    CHECK(near(pixel(*slider, w / 4, y), style->color(Role::Primary), 2));
+    CHECK(near(pixel(*slider, 3 * w / 4, y), style->color(Role::SecondaryContainer), 2));
+    CHECK(near(pixel(*slider, w / 2, 3), style->color(Role::Primary), 3)); // the handle, above the track
+    CHECK(near(pixel(*slider, w / 2 + 5, y), style->color(Role::Surface), 2));
+    CHECK(near(pixel(*slider, w - 8, y), style->color(Role::OnSecondaryContainer), 3));
+    CHECK(near(pixel(*slider, w / 4, 3), style->color(Role::Surface), 2));
+    // A press where a finger lands moves the handle there, to the ends too.
+    const auto pressAt = [&](int x) {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(x, y), slider->mapToGlobal(QPoint(x, y)), Qt::LeftButton,
+                          Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(slider, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(x, y), slider->mapToGlobal(QPoint(x, y)),
+                            Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(slider, &release);
+    };
+    pressAt(0);
+    CHECK(slider->value() == 0);
+    pressAt(w - 1);
+    CHECK(slider->value() == 100);
+    pressAt(w / 4);
+    CHECK(std::abs(slider->value() - 25) <= 2);
+
+    // The progress bar: done, a gap, what is left and the dot at its end.
+    const int pw = progress->width(), py = progress->height() / 2;
+    CHECK(near(pixel(*progress, pw / 4, py), style->color(Role::Primary), 3));
+    CHECK(near(pixel(*progress, pw / 2 + 2, py), style->color(Role::Surface), 3));
+    CHECK(near(pixel(*progress, 3 * pw / 4, py), style->color(Role::SecondaryContainer), 3));
+    CHECK(near(pixel(*progress, pw - 2, py), style->color(Role::Primary), 40));
+
+    // The tabs: the line under the selected one only, and it follows the selection.
+    const auto indicatorUnder = [&](int tab) {
+        const QRect r = tabs->tabRect(tab);
+        return near(pixel(*tabs, r.center().x(), r.bottom() - 1), style->color(Role::Primary), 3);
+    };
+    CHECK(indicatorUnder(0));
+    CHECK(!indicatorUnder(1));
+    tabs->setCurrentIndex(1);
+    CHECK(!indicatorUnder(0));
+    CHECK(indicatorUnder(1));
+    // The label of the selected tab has the accent color.
+    const auto hasAccentText = [&](int tab) {
+        const QRect r = tabs->tabRect(tab);
+        for (int x = r.left(); x <= r.right(); ++x)
+            for (int row = r.top() + 12; row < r.bottom() - 12; ++row)
+                if (near(pixel(*tabs, x, row), style->color(Role::Primary), 8))
+                    return true;
+        return false;
+    };
+    CHECK(hasAccentText(1));
+    CHECK(!hasAccentText(0));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -205,6 +301,7 @@ int main(int argc, char *argv[]) {
     testHct();
     testScheme();
     testWidgets();
+    testSliderProgressTabs();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

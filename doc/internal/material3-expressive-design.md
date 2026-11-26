@@ -25,8 +25,8 @@ changes to the application: `QApplication::setStyle("Material3")`.
 ## Steps
 
 1. Theme: colour roles, light and dark, from a seed colour. **Done.**
-2. Style: buttons, text fields, check boxes, radio buttons, switches (**done**); sliders, progress bars, tabs, combo
-   boxes, menus, dialogs, item views (to do).
+2. Style: buttons, text fields, check boxes, radio buttons, switches, sliders, progress bars, tabs (**done**);
+   combo boxes, menus, dialogs, item views (to do).
 3. Motion: springs (expressive scheme: spatial default damping 0.8, stiffness 380; fast 0.6, 800; slow 0.8, 200;
    effects damping 1.0 with stiffness 1600, 3800, 800) and shape morphing. Until then the pressed shape of a button
    changes at once.
@@ -34,6 +34,9 @@ changes to the application: `QApplication::setStyle("Material3")`.
 
 ## Open points
 
+- `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected
+  label is not accented.
+- The wavy progress indicator of the Expressive design (amplitude 3, wavelength 40) comes with motion.
 - The system's dynamic colour (Android 12 and later) as the seed.
 - The emphasized type styles and the Roboto Flex variable font axes.
 - Ripples.

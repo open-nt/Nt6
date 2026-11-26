@@ -3,6 +3,7 @@
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtooltip.h>
@@ -44,7 +45,7 @@ constexpr int kDragDistance = 4;
 
     \differences
     Triangular shapes are drawn rounded, and there are no scroll buttons (usesScrollButtons() is only kept).
-    expanding() and drawBase() are only kept. The close button is drawn as an "x". changeCurrentOnDrag() is only
+    expanding() works only under QMaterialStyle, and drawBase() is only kept. The close button is drawn as an "x". changeCurrentOnDrag() is only
     kept, as Nt does not drag over tab bars.
     \enddifferences
 
@@ -543,6 +544,19 @@ std::vector<QRect> QTabBar::layoutTabs() const {
             length = std::max(vert ? minimum.height() : minimum.width(), static_cast<int>(length * room / sum));
         }
     }
+    // Material's primary tabs share the width of their bar. Under other styles expanding() is only kept.
+    if (m_expanding && !vert && room > sum && qobject_cast<const QMaterialStyle *>(style())) {
+        const long long shown = std::count_if(lengths.begin(), lengths.end(), [](int length) { return length > 0; });
+        if (shown > 0) {
+            // What is left over goes to every tab alike, and the pixels that do not divide to the first ones.
+            const long long share = (room - sum) / shown;
+            long long odd = (room - sum) % shown;
+            for (int &length : lengths) {
+                if (length > 0)
+                    length += static_cast<int>(share + (odd-- > 0 ? 1 : 0));
+            }
+        }
+    }
     std::vector<QRect> rects;
     rects.reserve(m_tabs.size());
     int at = 0;
@@ -986,7 +1000,12 @@ void QTabBar::paintEvent(QPaintEvent *event) {
         QString text = option.text;
         if (m_elideMode != Qt::ElideNone)
             text = fontMetrics().elidedText(text, m_elideMode, textRect.width());
-        painter.setPen(tab.textColor.isValid() ? tab.textColor : palette().color(group, QPalette::WindowText));
+        QColor ink = palette().color(group, QPalette::WindowText);
+        // Material gives the selected tab's label the accent color, which a palette has no role for.
+        if (const auto *material = qobject_cast<const QMaterialStyle *>(style()); material && group == QPalette::Active)
+            ink = material->color(i == m_current ? QMaterialStyle::Role::Primary
+                                                 : QMaterialStyle::Role::OnSurfaceVariant);
+        painter.setPen(tab.textColor.isValid() ? tab.textColor : ink);
         painter.drawText(textRect, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text);
         if (m_closable) {
             const QRect close(option.rect.width() - kCloseSize - 4, (option.rect.height() - kCloseSize) / 2,

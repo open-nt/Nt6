@@ -120,6 +120,11 @@ void QSlider::mousePressEvent(QMouseEvent *event) {
     if (handle.contains(event->pos())) {
         m_grabOffset = horizontal ? event->pos().x() - handle.left() : event->pos().y() - handle.top();
         setSliderDown(true);
+    } else if (style()->styleHint(QStyle::SH_Slider_AbsoluteSetButtons, nullptr, this) & Qt::LeftButton) {
+        // A style for touch: the handle goes to where the press is, and follows it from there.
+        m_grabOffset = (horizontal ? handle.width() : handle.height()) / 2;
+        setSliderDown(true);
+        setSliderPosition(valueAt(event->pos()));
     } else {
         const bool before = horizontal ? event->pos().x() < handle.left() : event->pos().y() < handle.top();
         // Before the handle is lower for a horizontal slider and higher for a vertical one.

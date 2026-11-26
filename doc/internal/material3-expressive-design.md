@@ -55,8 +55,13 @@ changes to the application: `QApplication::setStyle("Material3")`.
    while the menu is open; `QToolButton` calls the private `drawSplitButton()`. The FAB is a `QPushButton` with
    `materialButton` = `"fab"`; a menu on it opens as the FAB menu, which `QPushButton::showMenu()` leaves to the
    private `popupFabMenu()`. The menu is marked with `_nt_fabMenu`: no panel, a pill of 56 for each action, 4 apart
-   and 8 above the button, which shows as a round close button. To do: the opening animation of the items, the other
-   sizes and the floating toolbar.
+   and 8 above the button, which shows as a round close button. To do: the opening animation of the items and the other
+   sizes.
+   **Done:** the floating toolbar is a `QToolBar` with `materialToolBar` = `"floating"` or `"floatingVibrant"`: a
+   pill of 64 with a shadow, in a row or a column, whose `QToolButton`s are 48 to a finger with a shape of 40, with no
+   container until checked. `QToolBar` lays itself out for it (no grip, no stretch) and asks the private
+   `drawFloatingToolBar()` to paint it. Nt sends no `QEvent::DynamicPropertyChange`, so the property is read when
+   actions are added, when the toolbar is shown and when the style changes.
    **Done:** a busy `QProgressBar` (range 0 to 0) moves: as a line, two parts that cross it, or, with
    `materialProgress` = `"loading"` or `"containedLoading"`, as the loading indicator (a shape of 38, in a container
    of 48). Compose defines its shapes in code, not as tokens, so Nt has its own: circles with 2 to 10 swellings,

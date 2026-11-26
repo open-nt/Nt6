@@ -14,6 +14,7 @@ struct SpringSpec;
 } // namespace QtPrivate
 
 class QListWidget;
+class QToolBar;
 class QStyleOptionButton;
 class QMenu;
 class QPushButton;
@@ -97,7 +98,7 @@ public:
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
-    enum class ButtonKind { Filled, Tonal, Outlined, Text, Elevated, Fab };
+    enum class ButtonKind { Filled, Tonal, Outlined, Text, Elevated, Fab, ToolBarItem };
     static ButtonKind buttonKind(const QStyleOption *option, const QWidget *widget);
     void drawButtonContainer(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     // The container of a button, or of one half of a split button, with its corners at the left and the right.
@@ -113,6 +114,12 @@ private:
     // menu is left to open as menus do.
     friend class QPushButton;
     bool popupFabMenu(QPushButton *button, QMenu *menu) const;
+    // A floating toolbar. QToolBar lays itself out for one and asks for its container; its buttons ask for the color
+    // of their labels, which is invalid for another button.
+    friend class QToolBar;
+    static bool isFloatingToolBar(const QWidget *widget);
+    void drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const;
+    QColor toolBarItemColor(const QStyleOption *option, const QWidget *widget) const;
     void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter, const QWidget *widget) const;
     void drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawProgressBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;

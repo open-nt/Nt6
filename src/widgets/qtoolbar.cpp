@@ -6,6 +6,7 @@
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qboxlayout.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qtoolbutton.h>
 #include <QtWidgets/qwidgetaction.h>
 
@@ -477,6 +478,11 @@ void QToolBar::actionEvent(QActionEvent *event) {
     QWidget::actionEvent(event);
 }
 
+// True for the floating toolbar of the Material style, which asks for it with a property.
+bool QToolBar::isFloatingForStyle() const {
+    return qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isFloatingToolBar(this);
+}
+
 // Puts the widgets in the layout in the order of the actions.
 void QToolBar::relayout() {
     while (QLayoutItem *item = m_layout->takeAt(0))
@@ -485,8 +491,21 @@ void QToolBar::relayout() {
     for (QAction *action : order)
         if (QWidget *widget = widgetForAction(action))
             m_layout->addWidget(widget);
-    m_layout->addStretch();
-    if (m_orientation == Qt::Horizontal)
+    const bool floating = isFloatingForStyle();
+    if (!floating)
+        m_layout->addStretch();
+    m_layout->setSpacing(floating ? 0 : 2);
+    // A floating toolbar is as long as its buttons need; another stretches along its side.
+    const QSizePolicy::Policy along = floating ? QSizePolicy::Maximum : QSizePolicy::Preferred;
+    setSizePolicy(m_orientation == Qt::Horizontal ? QSizePolicy(along, QSizePolicy::Fixed)
+                                                  : QSizePolicy(QSizePolicy::Fixed, along));
+    for (const Item &item : m_items)
+        if (item.owned)
+            item.widget->updateGeometry(); // its size depends on the toolbar that it is in
+    if (floating)
+        // 64 across with buttons of 48, and room below for the shadow.
+        m_layout->setContentsMargins(m_orientation == Qt::Horizontal ? QMargins(4, 8, 4, 10) : QMargins(8, 4, 8, 6));
+    else if (m_orientation == Qt::Horizontal)
         m_layout->setContentsMargins(2 + handleExtent(), 2, 2, 2);
     else
         m_layout->setContentsMargins(2, 2 + handleExtent(), 2, 2);
@@ -499,6 +518,11 @@ void QToolBar::relayout() {
 */
 void QToolBar::paintEvent(QPaintEvent *event) {
     (void)event;
+    if (isFloatingForStyle()) {
+        QPainter painter(this);
+        static_cast<const QMaterialStyle *>(style())->drawFloatingToolBar(&painter, this);
+        return;
+    }
     if (!m_movable)
         return;
     // The grip: two columns of dots at the start.
@@ -536,7 +560,18 @@ void QToolBar::initStyleOption(QStyleOptionToolBar *option) const {
 /*!
     \reimp
 */
+void QToolBar::changeEvent(QEvent *event) {
+    if (event->type() == QEvent::StyleChange)
+        relayout();
+    QWidget::changeEvent(event);
+}
+
+/*!
+    \reimp
+*/
 void QToolBar::showEvent(QShowEvent *event) {
+    // A property that makes the toolbar float may have been set since the actions were added.
+    relayout();
     QWidget::showEvent(event);
     m_toggleView->setChecked(true);
     emit visibilityChanged(true);

@@ -31,6 +31,7 @@
 #include <QtWidgets/qslider.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
+#include <QtWidgets/qtoolbar.h>
 #include <QtWidgets/qtoolbutton.h>
 #include <QtWidgets/qtreeview.h>
 
@@ -92,6 +93,9 @@ constexpr int loadingSize = 48;           // the container of the loading indica
 constexpr double loadingRadius = 19;      // of the shape that turns and changes in it
 constexpr double loadingStep = 0.65;      // seconds from one shape to the next
 constexpr double busyPeriod = 1.8;        // seconds for a part of a busy progress bar to cross it
+constexpr int toolBarTarget = 48;         // a button of a floating toolbar, as a finger finds it,
+constexpr int toolBarInset = 4;           // and what it leaves around the shape that is drawn
+constexpr int toolBarShadow = 2;          // the room under a floating toolbar for its shadow
 constexpr double listRadius = 4;          // the corners of a row of a list,
 constexpr double listSelectedRadius = 16; // and of one that is chosen or held
 constexpr double listPressSlop = 8;       // how far a press may stray and still be one
@@ -227,6 +231,20 @@ struct LoadingShape {
 constexpr LoadingShape loadingShapes[] = {{10, 0.07}, {9, 0.045}, {5, 0.09}, {2, 0.22},
                                           {8, 0.10},  {4, 0.13},  {2, 0.12}};
 
+// The kind of floating toolbar that a widget asks to be with its property.
+QString toolBarKind(const QWidget *widget) {
+    return qobject_cast<const QToolBar *>(widget) ? widget->property("materialToolBar").toString() : QString();
+}
+
+bool isVibrantToolBar(const QWidget *widget) { return toolBarKind(widget) == QLatin1String("floatingVibrant"); }
+
+bool isToolBarItem(const QWidget *widget) {
+    if (!qobject_cast<const QToolButton *>(widget))
+        return false;
+    const QString kind = toolBarKind(widget->parentWidget());
+    return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant");
+}
+
 enum Channel {
     CornerChannel, // of the corners at the left
     RightCornerChannel,
@@ -313,6 +331,12 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         the button that closes it. A layout stretches a FAB like any button, so add it with an alignment.
     \li \c materialProgress of a QProgressBar: \c "loading" shows a busy bar (a range of 0 to 0) as the loading
         indicator, a shape of 38 that turns and changes, and \c "containedLoading" puts it in a round container of 48.
+    \li \c materialToolBar of a QToolBar: \c "floating" makes it a floating toolbar, a pill of 64 with a shadow
+        that goes over the content, in a row or, with a vertical orientation, in a column; \c "floatingVibrant" is the
+        same in the primary container color. Its buttons have no container until they are checked. It is as long as
+        its buttons need, so place it with an alignment, or as a child that is moved over the content. Set the property
+        before the toolbar is shown: it is read when actions are added, when the toolbar is shown and when the style
+        changes.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
@@ -348,7 +372,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
-    going on, not how far it is. There is no wavy progress bar. Ripples are those of buttons only: a
+    going on, not how far it is. There is no wavy progress bar. A floating toolbar does not hide as the content is scrolled, and has no menu for
+    what does not fit. Icons keep their own colors. Ripples are those of buttons only: a
     check box, a radio button, a tab or a menu row shows a press without one. The colors of buttons, labels and radio
     buttons change at once. The line under the tabs slides on a horizontal QTabBar, and not on one at the side. In an
     item view nothing moves.
@@ -798,6 +823,8 @@ QMaterialStyle::ButtonKind QMaterialStyle::buttonKind(const QStyleOption *option
         return ButtonKind::Text;
     if (name == QLatin1String("elevated"))
         return ButtonKind::Elevated;
+    if (isToolBarItem(widget))
+        return ButtonKind::ToolBarItem;
     // The actions of a Material dialog are text buttons.
     if (widget && qobject_cast<QDialogButtonBox *>(widget->parentWidget()))
         return ButtonKind::Text;
@@ -826,6 +853,10 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
         return color(checked ? Role::OnPrimary : Role::Primary);
     case ButtonKind::Fab:
         return color(isOpenFab(widget) ? Role::OnPrimary : Role::OnPrimaryContainer);
+    case ButtonKind::ToolBarItem:
+        if (isVibrantToolBar(widget->parentWidget()))
+            return color(checked ? Role::OnSurface : Role::OnPrimaryContainer);
+        return color(checked ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
     case ButtonKind::Text:
         break;
     }
@@ -891,17 +922,25 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     case ButtonKind::Fab:
         container = color(isOpenFab(widget) ? Role::Primary : Role::PrimaryContainer);
         break;
+    case ButtonKind::ToolBarItem:
+        if (checked)
+            container =
+                color(isVibrantToolBar(widget->parentWidget()) ? Role::SurfaceContainer : Role::SecondaryContainer);
+        break;
     case ButtonKind::Text:
         break;
     }
-    if (!enabled(option) && kind != ButtonKind::Text && !(kind == ButtonKind::Outlined && !checked))
+    if (!enabled(option) && kind != ButtonKind::Text &&
+        !((kind == ButtonKind::Outlined || kind == ButtonKind::ToolBarItem) && !checked))
         container = withOpacity(color(Role::OnSurface), disabledContainerOpacity);
     const double lift = kind == ButtonKind::Fab ? fabShadow : kind == ButtonKind::Elevated ? 1.5 : 0.0;
     const bool raised = lift > 0 && enabled(option) && (kind == ButtonKind::Fab || !(option->state & State_Sunken));
     if (raised)
         painter->fillPath(sidedPath(rect.adjusted(0.5, lift, -0.5, 0), left, right),
                           QBrush(withOpacity(QColor(Qt::black), 0.18)));
-    const QRectF body = rect.adjusted(0, 0, 0, -lift);
+    // A button of a toolbar is drawn smaller than it is to a finger.
+    const double inset = kind == ButtonKind::ToolBarItem ? toolBarInset : 0;
+    const QRectF body = rect.adjusted(inset, inset, -inset, -inset - lift);
     const QPainterPath outline = sidedPath(body, left, right);
     // A line inside the shape.
     const auto stroke = [&](const QColor &ink, double width) {
@@ -976,6 +1015,26 @@ bool QMaterialStyle::popupFabMenu(QPushButton *button, QMenu *menu) const {
     menu->popup(
         button->mapToGlobal(QPoint(button->width() - size.width(), -size.height() - (fabMenuGap - fabMenuItemSpace))));
     return true;
+}
+
+bool QMaterialStyle::isFloatingToolBar(const QWidget *widget) {
+    const QString kind = toolBarKind(widget);
+    return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant");
+}
+
+void QMaterialStyle::drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const {
+    const QRectF body = QRectF(bar->rect()).adjusted(0, 0, 0, -toolBarShadow);
+    const double radius = std::min(body.width(), body.height()) / 2;
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    fillRounded(painter, body.adjusted(0.5, toolBarShadow, -0.5, toolBarShadow), radius,
+                withOpacity(QColor(Qt::black), 0.18));
+    fillRounded(painter, body, radius, color(isVibrantToolBar(bar) ? Role::PrimaryContainer : Role::SurfaceContainer));
+    painter->restore();
+}
+
+QColor QMaterialStyle::toolBarItemColor(const QStyleOption *option, const QWidget *widget) const {
+    return isToolBarItem(widget) ? buttonLabelColor(option, widget) : QColor();
 }
 
 void QMaterialStyle::drawFabLabel(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
@@ -1709,6 +1768,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         return QSize(std::max(touchTarget, width + 2 * buttonPadding), std::max(buttonHeight, height + 8));
     }
     case CT_ToolButton:
+        if (isToolBarItem(widget))
+            return QSize(std::max(toolBarTarget, contentsSize.width() + 6 * toolBarInset), toolBarTarget);
         if (isSplitButton(widget))
             return QSize(splitLeadingSpace + contentsSize.width() + splitTrailingSpace + groupSpace + splitTrailing,
                          std::max(buttonHeight, contentsSize.height() + 8));

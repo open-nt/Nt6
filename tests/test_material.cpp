@@ -1025,6 +1025,78 @@ void testBusy() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A floating toolbar: the property on a QToolBar.
+void testFloatingToolBar() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    layout->addStretch(1);
+    auto *bar = new QToolBar;
+    bar->addAction(QStringLiteral("A"));
+    // The property may come after an action, as long as it is before the toolbar is shown.
+    bar->setProperty("materialToolBar", QStringLiteral("floating"));
+    QAction *bold = bar->addAction(QStringLiteral("B"));
+    bold->setCheckable(true);
+    QAction *off = bar->addAction(QStringLiteral("C"));
+    off->setEnabled(false);
+    layout->addWidget(bar, 0, Qt::AlignHCenter);
+    window.resize(360, 220);
+    window.show();
+    QCoreApplication::processEvents();
+
+    CHECK(bar->size() == QSize(4 + 3 * 48 + 4, 66)); // 64 and the room for the shadow
+    const auto at = [&](int x, int y) {
+        const QPoint point = bar->mapTo(&window, QPoint(x, y));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const QColor surface = style->color(Role::Surface);
+    const QColor container = style->color(Role::SurfaceContainer);
+    CHECK(near(at(3, 32), container, 2));
+    CHECK(near(at(3, 3), surface, 3)); // a pill, with no grip although the toolbar is movable
+    auto *button = qobject_cast<QToolButton *>(bar->widgetForAction(bold));
+    CHECK(button && button->size() == QSize(48, 48));
+    // A point in the shape of the second button, left of its label.
+    const int x = button->x() + 10, y = button->y() + 24;
+    CHECK(near(at(x, y), container, 2));
+    int clicked = 0;
+    QObject::connect(bold, &QAction::triggered, [&clicked] { ++clicked; });
+    button->click();
+    CHECK(clicked == 1 && bold->isChecked());
+    CHECK(near(at(x, y), style->color(Role::SecondaryContainer), 2));
+    CHECK(near(at(button->x() + 1, y), container, 2)); // the shape is smaller than the button
+
+    // The label has the color of an icon of a toolbar: the darkest ink of the first button is near it.
+    const auto inked = [&](const QColor &ink) {
+        const QWidget *first = bar->widgetForAction(bar->actions().first());
+        int found = 0;
+        for (int row = 14; row < 34; ++row)
+            for (int column = 14; column < 34; ++column)
+                found += near(at(first->x() + column, first->y() + row), ink, 24) ? 1 : 0;
+        return found;
+    };
+    CHECK(inked(style->color(Role::OnSurfaceVariant)) > 3);
+
+    // The vibrant one, and a toolbar that stands up.
+    bar->setProperty("materialToolBar", QStringLiteral("floatingVibrant"));
+    bar->update();
+    CHECK(near(at(3, 32), style->color(Role::PrimaryContainer), 2));
+    CHECK(near(at(x, y), style->color(Role::SurfaceContainer), 2)); // what is checked
+    bar->setOrientation(Qt::Vertical);
+    QCoreApplication::processEvents();
+    CHECK(bar->size() == QSize(64, 4 + 3 * 48 + 6));
+
+    // Under another style it is a toolbar like any other, with its grip's room at the start.
+    bar->setOrientation(Qt::Horizontal);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(bar->height() < 50);
+    CHECK(bar->widgetForAction(bold)->x() >= 10);
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -1042,6 +1114,7 @@ int main(int argc, char *argv[]) {
     testSplitButton();
     testFab();
     testBusy();
+    testFloatingToolBar();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

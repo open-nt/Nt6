@@ -226,15 +226,21 @@ void QToolButton::paintEvent(QPaintEvent *event) {
     QColor ink = palette().color(group, QPalette::ButtonText);
     QRect content = rect();
     const bool split = activeMenu() && m_popupMode == MenuButtonPopup;
-    // The Material style draws a split button whole, and says what color its label has.
-    const auto *material = split ? qobject_cast<const QMaterialStyle *>(style()) : nullptr;
-    if (material) {
+    // The Material style draws a split button whole, and says what color its label has; so it does for the buttons of
+    // a floating toolbar.
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (material && split) {
         option.rect = content;
         ink =
             material->drawSplitButton(&option, &painter, this, menuArrowRect(), isDown() && activeMenu()->isVisible());
         content.setRight(menuArrowRect().left() - 3);
     } else {
         style()->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, this);
+        if (material) {
+            const QColor own = material->toolBarItemColor(&option, this);
+            if (own.isValid())
+                ink = own;
+        }
     }
     const bool pressed = !material && (option.state & (QStyle::State_Sunken | QStyle::State_On));
     if (split && !material) {

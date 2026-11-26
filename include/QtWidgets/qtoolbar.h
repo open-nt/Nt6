@@ -116,6 +116,7 @@ protected:
     void initStyleOption(QStyleOptionToolBar *option) const;
     void actionEvent(QActionEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
+    void changeEvent(QEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
 
@@ -129,6 +130,7 @@ private:
 
     void init(const QString &title);
     void relayout();
+    bool isFloatingForStyle() const;
     QWidget *createItemWidget(QAction *action, bool *fromAction);
     void syncVisibility(const Item &item);
     int handleExtent() const;

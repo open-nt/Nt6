@@ -4162,6 +4162,479 @@ void testMultiLineListRows() {
     CHECK(widgetList->visualItemRect(widgetList->item(1)).height() < 56);
 }
 
+// A docked toolbar at the bottom of a main window, and icon buttons that are narrower or wider than they are high.
+void testDockedToolBarAndIconWidths() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QMainWindow window;
+    window.setCentralWidget(new QWidget);
+    auto *bar = new QToolBar;
+    bar->setProperty("materialToolBar", QStringLiteral("docked"));
+    QAction *first = bar->addAction(QStringLiteral("A"));
+    QAction *bold = bar->addAction(QStringLiteral("B"));
+    bold->setCheckable(true);
+    QAction *separator = bar->addSeparator();
+    QAction *last = bar->addAction(QStringLiteral("C"));
+    window.addToolBar(Qt::BottomToolBarArea, bar);
+    auto *status = new QStatusBar;
+    status->setProperty("materialStatusBar", QStringLiteral("snackbar"));
+    window.setStatusBar(status);
+    window.resize(600, 480);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // Across the whole of the bottom, 64 high.
+    CHECK(bar->geometry() == QRect(0, 480 - 64, 600, 64));
+    const auto at = [&](int x, int y) {
+        const QPoint point = bar->mapTo(&window, QPoint(x, y));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const QColor container = style->color(Role::SurfaceContainer);
+    CHECK(near(at(100, 32), container, 2));
+    CHECK(near(at(0, 0), container, 2) && near(at(599, 63), container, 2)); // square corners, no shadow
+    // Its buttons are 48, in the middle 32 apart while there is room for that; the separator is not shown.
+    const auto button = [&](QAction *action) { return bar->widgetForAction(action); };
+    CHECK(button(first)->size() == QSize(48, 48) && button(first)->y() == 8);
+    CHECK(button(separator)->isHidden());
+    CHECK(button(bold)->x() - (button(first)->x() + 48) == 32);
+    CHECK(button(last)->x() - (button(bold)->x() + 48) == 32);
+    const int group = 3 * 48 + 2 * 32;
+    CHECK(near(button(first)->x(), (600 - group) / 2.0, 1.0));
+    // In the toolbar item colors: no container until it is checked.
+    QWidget *boldButton = button(bold);
+    CHECK(near(at(boldButton->x() + 10, 32), container, 2));
+    bold->setChecked(true);
+    QCoreApplication::processEvents();
+    CHECK(near(at(boldButton->x() + 10, 32), style->color(Role::SecondaryContainer), 2));
+    // A snackbar is above it.
+    status->showMessage(QStringLiteral("Archived"));
+    QCoreApplication::processEvents();
+    CHECK(status->height() > 0 && status->y() + status->height() == bar->y() - 16);
+
+    // More buttons than fit 32 apart are spread from 16 in at either end, evenly.
+    for (int i = 0; i < 3; ++i)
+        bar->addAction(QStringLiteral("D"));
+    window.resize(360, 480);
+    QCoreApplication::processEvents();
+    CHECK(bar->geometry() == QRect(0, 480 - 64, 360, 64));
+    QList<QWidget *> shown;
+    for (QAction *action : bar->actions())
+        if (!action->isSeparator())
+            shown.append(button(action));
+    CHECK(shown.size() == 6);
+    CHECK(shown.first()->x() == 16 && shown.last()->x() + 48 >= 360 - 17);
+    for (qsizetype i = 1; i < shown.size(); ++i) {
+        const int space = shown[i]->x() - (shown[i - 1]->x() + 48);
+        CHECK(space >= 4 && space < 32 && near(space, (360 - 32 - 6 * 48) / 5.0, 1.0));
+    }
+    CHECK(status->y() + status->height() == bar->y() - 16);
+    // The vibrant one.
+    bar->setProperty("materialToolBar", QStringLiteral("dockedVibrant"));
+    bar->update();
+    QCoreApplication::processEvents();
+    CHECK(near(at(2, 2), style->color(Role::PrimaryContainer), 2));
+
+    // Icon buttons of each width, at the small, medium and extra large sizes.
+    QWidget panel;
+    auto *column = new QVBoxLayout(&panel);
+    const QIcon plain = [] {
+        QImage image(96, 96, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        painter.fillRect(QRect(16, 16, 64, 64), Qt::black);
+        painter.end();
+        return QIcon(QPixmap::fromImage(image));
+    }();
+    const auto make = [&](const char *size, const char *width) {
+        auto *made = new QToolButton;
+        made->setProperty("materialIconButton", QStringLiteral("filled"));
+        if (size)
+            made->setProperty("materialButtonSize", QString::fromLatin1(size));
+        if (width)
+            made->setProperty("materialIconButtonWidth", QString::fromLatin1(width));
+        made->setIcon(plain);
+        column->addWidget(made, 0, Qt::AlignLeft);
+        return made;
+    };
+    QToolButton *small = make(nullptr, nullptr);
+    QToolButton *smallDefault = make("small", "default");
+    QToolButton *narrow = make("small", "narrow");
+    QToolButton *wide = make("small", "wide");
+    QToolButton *xsNarrow = make("extraSmall", "narrow");
+    QToolButton *mediumNarrow = make("medium", "narrow");
+    QToolButton *mediumWide = make("medium", "wide");
+    QToolButton *largeNarrow = make("large", "narrow");
+    QToolButton *xlWide = make("extraLarge", "wide");
+    auto *push = new QPushButton;
+    push->setProperty("materialIconButton", QStringLiteral("tonal"));
+    push->setProperty("materialIconButtonWidth", QStringLiteral("wide"));
+    push->setIcon(plain);
+    column->addWidget(push, 0, Qt::AlignLeft);
+    column->addStretch(1);
+    panel.resize(260, 1000);
+    panel.show();
+    QCoreApplication::processEvents();
+    // The size to a finger: the shape, and 48 at least.
+    CHECK(small->size() == QSize(48, 48) && smallDefault->size() == QSize(48, 48));
+    CHECK(narrow->size() == QSize(48, 48) && wide->size() == QSize(52, 48));
+    CHECK(xsNarrow->size() == QSize(48, 48));
+    CHECK(mediumNarrow->size() == QSize(48, 56) && mediumWide->size() == QSize(72, 56));
+    CHECK(largeNarrow->size() == QSize(64, 96) && xlWide->size() == QSize(184, 136));
+    CHECK(push->sizeHint() == QSize(52, 48));
+    const auto pixel = [&](QWidget *widget, int x, int y) {
+        const QPoint point = widget->mapTo(&panel, QPoint(x, y));
+        return panel.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const QColor surface = style->color(Role::Surface);
+    const QColor primary = style->color(Role::Primary);
+    // A wide small one is 52 by 40: it reaches the sides, not the top.
+    CHECK(near(pixel(wide, 2, 24), primary, 3) && near(pixel(wide, 49, 24), primary, 3));
+    CHECK(near(pixel(wide, 26, 2), surface, 3) && near(pixel(wide, 26, 6), primary, 3));
+    // A narrow small one is 32 by 40, in the middle: room at the sides, a round top.
+    CHECK(near(pixel(narrow, 5, 24), surface, 3) && near(pixel(narrow, 10, 24), primary, 3));
+    CHECK(near(pixel(narrow, 42, 24), surface, 3) && near(pixel(narrow, 24, 6), primary, 3));
+    CHECK(near(pixel(narrow, 10, 6), surface, 3)); // the corner of a shape that is a circle at each end
+    // A narrow extra small one is 28 by 32.
+    CHECK(near(pixel(xsNarrow, 9, 24), surface, 3) && near(pixel(xsNarrow, 12, 24), primary, 3));
+    CHECK(near(pixel(xsNarrow, 24, 6), surface, 3) && near(pixel(xsNarrow, 24, 10), primary, 3));
+    // A medium narrow one is 48 by 56, all of its width.
+    CHECK(near(pixel(mediumNarrow, 1, 28), primary, 3) && near(pixel(mediumNarrow, 24, 1), primary, 3));
+    CHECK(near(pixel(push, 2, 24), style->color(Role::SecondaryContainer), 3));
+    // The icon is in the middle of each.
+    const auto inkCentre = [&](QWidget *widget) {
+        const QImage image = widget->grab().toImage();
+        const QColor ink = style->color(Role::OnPrimary);
+        double sum = 0;
+        int count = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                if (near(image.pixelColor(x, y), ink, 8)) {
+                    sum += x;
+                    ++count;
+                }
+        return count > 0 ? sum / count : -1.0;
+    };
+    for (QToolButton *each : {narrow, wide, mediumWide, largeNarrow, xlWide})
+        CHECK(near(inkCentre(each), (each->width() - 1) / 2.0, 1.0));
+    // Pressed, the shape still morphs: the corners of the wide one tighten.
+    CHECK(near(pixel(wide, 3, 7), surface, 3));
+    wide->setDown(true);
+    QCoreApplication::processEvents();
+    CHECK(near(pixel(wide, 3, 7), primary, 40)); // with the layer of the press over it
+    wide->setDown(false);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// A completer under a search bar opens Material's docked search view: the bar and the view are one shape. Under
+// another line edit its popup is a menu.
+void testSearchView() {
+    for (const Qt::ColorScheme scheme : {Qt::ColorScheme::Light, Qt::ColorScheme::Dark}) {
+        auto *style = new QMaterialStyle;
+        style->setColorScheme(scheme);
+        style->setMotionEnabled(false);
+        QApplication::setStyle(style);
+        const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+        QWidget window;
+        window.resize(400, 600);
+        auto *search = new QLineEdit(&window);
+        search->setProperty("materialTextField", QStringLiteral("search"));
+        search->setGeometry(20, 20, 360, 56);
+        auto *plain = new QLineEdit(&window);
+        plain->setGeometry(20, 520, 200, 56);
+        QStandardItemModel words;
+        for (int i = 0; i < 10; ++i)
+            words.appendRow(new QStandardItem(QStringLiteral("apple %1").arg(i)));
+        QPixmap mark(24, 24);
+        mark.fill(Qt::red);
+        words.item(1)->setIcon(QIcon(mark));
+        QCompleter completer(&words);
+        search->setCompleter(&completer);
+        window.show();
+        QCoreApplication::processEvents();
+        QWindow *handle = window.windowHandle();
+        const auto key = [&](int code, const QString &text = QString()) {
+            QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, code, Qt::NoModifier, text);
+            QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyRelease, code, Qt::NoModifier);
+            QCoreApplication::processEvents();
+        };
+        const auto click = [&](QWidget *widget, QPoint local) {
+            const QPointF at(widget->mapTo(&window, local));
+            QWindowSystemInterface::handleMouseEvent(handle, at, at, Qt::LeftButton, Qt::LeftButton,
+                                                     QEvent::MouseButtonPress, Qt::NoModifier);
+            QWindowSystemInterface::handleMouseEvent(handle, at, at, Qt::NoButton, Qt::LeftButton,
+                                                     QEvent::MouseButtonRelease, Qt::NoModifier);
+            QCoreApplication::processEvents();
+        };
+        search->setFocus();
+        key(Qt::Key_A, QStringLiteral("a"));
+        auto *popup = dynamic_cast<QListWidget *>(completer.popup());
+        CHECK(popup && popup->isVisible() && popup->count() == 10);
+        if (!popup || !popup->isVisible())
+            continue;
+        // Under the bar and as wide, its rows 56 high, seven of them before it scrolls.
+        CHECK(popup->parentWidget() == &window);
+        CHECK(popup->geometry() == QRect(20, 76, 360, 7 * 56));
+        CHECK(popup->visualItemRect(popup->item(0)).height() == 56);
+        CHECK(popup->iconSize() == QSize(24, 24));
+        QImage image = window.grab().toImage();
+        const QRect view = popup->geometry();
+        const int third = view.top() + 2 * 56; // a row that is not the current one
+        CHECK(is(image.pixelColor(view.right() - 30, third + 28), Role::SurfaceContainerHigh));
+        CHECK(is(image.pixelColor(view.center().x(), view.bottom() - 1), Role::SurfaceContainerHigh));
+        CHECK(is(image.pixelColor(view.left() + 2, view.bottom() - 2), Role::Surface)); // round at the bottom,
+        CHECK(is(image.pixelColor(view.right() - 2, view.bottom() - 2), Role::Surface));
+        // square at the top, where the current row's layer reaches the corner,
+        const QColor corner = image.pixelColor(view.left() + 1, view.top() + 2);
+        CHECK(near(corner, image.pixelColor(view.right() - 30, view.top() + 2), 3) && !is(corner, Role::Surface));
+        CHECK(is(image.pixelColor(view.center().x(), view.top()), Role::OutlineVariant)); // under a divider
+        // The bar is square at the bottom while the view is open, and round at the top.
+        const QRect bar = search->geometry();
+        CHECK(is(image.pixelColor(bar.left() + 2, bar.bottom() - 2), Role::SurfaceContainerHigh));
+        CHECK(is(image.pixelColor(bar.right() - 2, bar.bottom() - 2), Role::SurfaceContainerHigh));
+        CHECK(is(image.pixelColor(bar.left() + 2, bar.top() + 2), Role::Surface));
+        // The current row has a layer; the icon that the model has goes before the second word.
+        CHECK(!is(image.pixelColor(view.right() - 30, view.top() + 28), Role::SurfaceContainerHigh));
+        int marked = 0;
+        for (int y = view.top() + 56 + 16; y < view.top() + 56 + 40; ++y)
+            for (int x = view.left() + 16; x < view.left() + 40; ++x)
+                marked += is(image.pixelColor(x, y), Role::OnSurfaceVariant) ? 1 : 0;
+        CHECK(marked > 100);
+
+        // The arrow keys move the current row, and Return takes it.
+        key(Qt::Key_Down);
+        CHECK(completer.currentRow() == 1);
+        key(Qt::Key_Return);
+        CHECK(search->text() == QStringLiteral("apple 1") && !popup->isVisible());
+        image = window.grab().toImage();
+        CHECK(is(image.pixelColor(bar.left() + 2, bar.bottom() - 2), Role::Surface)); // a pill again
+        // A click takes a row.
+        search->clear();
+        key(Qt::Key_A, QStringLiteral("a"));
+        CHECK(popup->isVisible());
+        click(popup->viewport(), popup->visualItemRect(popup->item(2)).center());
+        CHECK(search->text() == QStringLiteral("apple 2") && !popup->isVisible());
+        // Escape closes the view and leaves the text.
+        search->clear();
+        key(Qt::Key_A, QStringLiteral("a"));
+        CHECK(popup->isVisible());
+        key(Qt::Key_Escape);
+        CHECK(!popup->isVisible() && search->text() == QStringLiteral("a"));
+
+        // Under another line edit the popup is a menu, with rows 48 high; with no room below, it opens above.
+        QCompleter others(QStringList{QStringLiteral("berry"), QStringLiteral("blue"), QStringLiteral("brown")});
+        plain->setCompleter(&others);
+        plain->setFocus();
+        key(Qt::Key_B, QStringLiteral("b"));
+        auto *menu = dynamic_cast<QListWidget *>(others.popup());
+        CHECK(menu && menu->isVisible());
+        if (!menu || !menu->isVisible())
+            continue;
+        CHECK(menu->geometry() == QRect(20, 520 - 3 * 48, 200, 3 * 48));
+        CHECK(menu->visualItemRect(menu->item(0)).height() == 48);
+        image = window.grab().toImage();
+        const QRect list = menu->geometry();
+        CHECK(is(image.pixelColor(list.right() - 20, list.top() + 48 + 24), Role::SurfaceContainer));
+        CHECK(is(image.pixelColor(list.left() + 1, list.top() + 1), Role::Surface)); // round corners
+        CHECK(is(image.pixelColor(list.right() - 1, list.bottom() - 1), Role::Surface));
+        key(Qt::Key_Down);
+        key(Qt::Key_Return);
+        CHECK(plain->text() == QStringLiteral("blue") && !menu->isVisible());
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// What goes moves too: a sheet slides back to its edge, the scrim behind a dialog fades in and out, and the items of a
+// FAB menu go one after another.
+void testExitMotion() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(true);
+    QApplication::setStyle(style);
+    const char *const scrim = "_nt_scrimOpacity";
+    const auto ghostOf = [](QWidget &window) { return window.findChild<QWidget *>(QStringLiteral("_nt_sheetGhost")); };
+
+    QWidget window;
+    window.setGeometry(100, 50, 400, 700);
+    window.show();
+    QCoreApplication::processEvents();
+    QDialog sheet(&window);
+    sheet.setProperty("materialSheet", QStringLiteral("bottom"));
+    auto *column = new QVBoxLayout(&sheet);
+    auto *content = new QWidget;
+    content->setFixedHeight(180);
+    column->addWidget(content);
+    int finished = 0, accepted = 0;
+    QObject::connect(&sheet, &QDialog::finished, [&finished](int) { ++finished; });
+    QObject::connect(&sheet, &QDialog::accepted, [&accepted] { ++accepted; });
+
+    // The scrim fades in with the sheet.
+    sheet.show();
+    QWindow *handle = sheet.windowHandle();
+    CHECK(handle->property(scrim).toDouble() < 0.05);
+    wait(40);
+    const double rising = handle->property(scrim).toDouble();
+    CHECK(rising > 0.0 && rising < 0.32);
+    wait(600);
+    CHECK(near(handle->property(scrim).toDouble(), 0.32, 1e-9));
+    const QRect rest = sheet.geometry();
+    const int high = rest.height();
+    CHECK(rest == QRect(100, 50 + 700 - high, 400, high));
+
+    // Accepted, it is hidden at once, as any dialog is: the signals come and the result is set now. A picture of it,
+    // in a window of its own that takes no input, slides to the edge with its scrim and then goes.
+    sheet.accept();
+    CHECK(!sheet.isVisible() && sheet.result() == QDialog::Accepted && finished == 1 && accepted == 1);
+    QWidget *ghost = ghostOf(window);
+    CHECK(ghost && ghost->isVisible() && ghost->isWindow() && ghost->geometry() == rest);
+    CHECK(ghost && ghost->testAttribute(Qt::WA_TransparentForMouseEvents));
+    CHECK(ghost && ghost->windowHandle()->property("_nt_sheet").toString() == QLatin1String("bottom"));
+    CHECK(ghost && near(ghost->windowHandle()->property(scrim).toDouble(), 0.32, 1e-9));
+    CHECK(handle->property(scrim).toDouble() == 0.0); // the dialog's own scrim is gone with it
+    wait(40);
+    ghost = ghostOf(window);
+    CHECK(ghost && ghost->y() > rest.y() && ghost->y() < rest.y() + high); // on its way down,
+    if (ghost) {
+        const double fading = ghost->windowHandle()->property(scrim).toDouble();
+        CHECK(fading > 0.0 && fading < 0.32); // its scrim fading
+        CHECK(ghost->windowHandle()->property("_nt_sheetOffset").toInt() == ghost->y() - rest.y());
+    }
+    int lowest = rest.y();
+    for (int i = 0; i < 100 && ghostOf(window); ++i) {
+        if (const QWidget *going = ghostOf(window)) {
+            CHECK(going->y() >= lowest); // only ever down
+            lowest = going->y();
+        }
+        wait(5);
+    }
+    CHECK(!ghostOf(window)); // and gone at the edge
+    CHECK(lowest > rest.y() + high / 2);
+
+    // exec() returns as soon as the sheet is closed, while its picture still slides.
+    QTimer::singleShot(400, &sheet, [&sheet] { sheet.reject(); });
+    CHECK(sheet.exec() == QDialog::Rejected);
+    CHECK(!sheet.isVisible() && finished == 2);
+    ghost = ghostOf(window);
+    CHECK(ghost && ghost->isVisible() && ghost->y() < rest.y() + high / 2);
+    wait(500);
+    CHECK(!ghostOf(window));
+
+    // Shown again on its way out, it comes back from where it was, and the picture goes.
+    sheet.show();
+    wait(600);
+    sheet.hide();
+    wait(30);
+    ghost = ghostOf(window);
+    const int halfway = ghost ? ghost->y() : -1;
+    CHECK(ghost && halfway > rest.y() && halfway < rest.y() + high);
+    const double dimmed = ghost ? ghost->windowHandle()->property(scrim).toDouble() : -1;
+    sheet.show();
+    CHECK(sheet.isVisible() && sheet.y() >= rest.y() && sheet.y() <= halfway); // not from the edge,
+    CHECK(near(handle->property(scrim).toDouble(), dimmed, 0.02));             // nor the scrim from nothing
+    QCoreApplication::processEvents();
+    CHECK(!ghostOf(window));
+    wait(600);
+    CHECK(sheet.isVisible() && sheet.geometry() == rest && !ghostOf(window));
+    CHECK(near(handle->property(scrim).toDouble(), 0.32, 1e-9));
+
+    // Escape, too; and a sheet that is deleted at once still leaves its picture, which goes on its own.
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QApplication::sendEvent(&sheet, &escape);
+    CHECK(!sheet.isVisible() && sheet.result() == QDialog::Rejected && ghostOf(window));
+    wait(500);
+    auto *drawer = new QDialog(&window);
+    drawer->setProperty("materialSheet", QStringLiteral("drawer"));
+    new QVBoxLayout(drawer);
+    drawer->show();
+    wait(800);
+    const QRect drawerRest = drawer->geometry();
+    drawer->accept();
+    delete drawer;
+    ghost = ghostOf(window);
+    CHECK(ghost && ghost->geometry() == drawerRest);
+    wait(40);
+    ghost = ghostOf(window);
+    CHECK(ghost && ghost->x() < drawerRest.x() && ghost->y() == drawerRest.y()); // to the left
+    wait(500);
+    CHECK(!ghostOf(window));
+
+    // The scrim of a dialog that is no sheet fades in too, and goes with it.
+    QDialog dialog(&window);
+    new QVBoxLayout(&dialog);
+    dialog.show();
+    CHECK(dialog.windowHandle()->property(scrim).toDouble() < 0.05);
+    wait(500);
+    CHECK(near(dialog.windowHandle()->property(scrim).toDouble(), 0.32, 1e-9));
+    dialog.hide();
+    CHECK(dialog.windowHandle()->property(scrim).toDouble() == 0.0 && !ghostOf(window));
+
+    // The items of a FAB menu go one after another, the one farthest from the button first, and then the menu.
+    auto *layout = new QVBoxLayout(&window);
+    layout->addStretch(1);
+    auto *fab = new QPushButton;
+    fab->setProperty("materialButton", QStringLiteral("fab"));
+    auto *menu = new QMenu(fab);
+    QAction *farthest = menu->addAction(QStringLiteral("Far from the button"));
+    menu->addAction(QStringLiteral("Between"));
+    QAction *closest = menu->addAction(QStringLiteral("By the button"));
+    fab->setMenu(menu);
+    layout->addWidget(fab, 0, Qt::AlignRight);
+    QCoreApplication::processEvents();
+    const QColor container = style->color(Role::PrimaryContainer);
+    const QColor surface = style->color(Role::Surface);
+    const auto pillEnd = [&](QAction *action) {
+        const QRect row = menu->actionGeometry(action);
+        const QPoint point = menu->mapTo(&window, QPoint(row.right() - 8, row.top() + 28));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const auto leftovers = [&] { return window.findChildren<QWidget *>(QStringLiteral("_nt_fabMenuGhost")); };
+    fab->showMenu();
+    wait(800);
+    CHECK(near(pillEnd(farthest), container, 2) && near(pillEnd(closest), container, 2));
+    const QRect where = menu->geometry();
+    menu->hide();
+    CHECK(!menu->isVisible() && leftovers().size() == 1);
+    CHECK(leftovers().size() == 1 && leftovers().first()->geometry() == where);
+    CHECK(!near(pillEnd(closest), surface, 20)); // the items are still there
+    QElapsedTimer clock;
+    clock.start();
+    qint64 farGone = -1, closeGone = -1;
+    while (clock.elapsed() < 400 && (farGone < 0 || closeGone < 0)) {
+        if (farGone < 0 && near(pillEnd(farthest), surface, 20))
+            farGone = clock.elapsed();
+        if (closeGone < 0 && near(pillEnd(closest), surface, 20))
+            closeGone = clock.elapsed();
+        QCoreApplication::processEvents();
+    }
+    CHECK(farGone >= 0 && closeGone >= 0 && farGone <= closeGone);
+    wait(200);
+    CHECK(leftovers().isEmpty());
+    CHECK(near(fab->grab().toImage().pixelColor(10, 28), container, 2)); // the button is the FAB again
+
+    // Opened again while it closes, the menu takes the place of what is left of it.
+    fab->showMenu();
+    wait(800);
+    menu->hide();
+    CHECK(leftovers().size() == 1);
+    fab->showMenu();
+    QCoreApplication::processEvents();
+    CHECK(menu->isVisible() && leftovers().isEmpty());
+    wait(800);
+
+    // Without motion all of it is at once.
+    style->setMotionEnabled(false);
+    menu->hide();
+    CHECK(leftovers().isEmpty());
+    sheet.show();
+    CHECK(sheet.geometry() == rest && near(handle->property(scrim).toDouble(), 0.32, 1e-9));
+    sheet.accept();
+    CHECK(!sheet.isVisible() && !ghostOf(window));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -4207,6 +4680,9 @@ int main(int argc, char *argv[]) {
     testExpandedRail();
     testFlexibleAppBars();
     testMultiLineListRows();
+    testDockedToolBarAndIconWidths();
+    testSearchView();
+    testExitMotion();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

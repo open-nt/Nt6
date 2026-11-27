@@ -5,6 +5,7 @@
 #include "qmaterialmotion_p.h"
 #include "gui/qpa/qplatformintegration_p.h"
 #include "gui/qwindow_p.h"
+#include "qwidget_p.h"
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qhash.h>
@@ -27,6 +28,7 @@
 #include <QtWidgets/qcalendarwidget.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qcombobox.h>
+#include <QtWidgets/qcompleter.h>
 #include <QtWidgets/qdatetimeedit.h>
 #include <QtWidgets/qdialog.h>
 #include <QtWidgets/qdialogbuttonbox.h>
@@ -160,6 +162,8 @@ constexpr int fabMenuGap = 8; // between a FAB menu and its button
 constexpr double fabMenuStagger = 0.03; // seconds between one item of a FAB menu setting off and the next
 constexpr double fabMenuFade = 0.1;     // seconds in which an item that sets off fades in
 const char *const fabMenuOpened = "_nt_fabMenuOpened"; // when the menu was opened, on the animator's clock
+constexpr double fabMenuCloseStagger = 0.02; // seconds between one item of a closing FAB menu going and the next
+constexpr double fabMenuCloseFade = 0.08;    // seconds in which an item that goes fades out
 const char *const fabMenuProperty = "_nt_fabMenu";
 constexpr int loadingSize = 48;           // the container of the loading indicator
 constexpr double loadingRadius = 19;      // of the shape that turns and changes in it
@@ -171,6 +175,12 @@ constexpr int snackbarPadding = 16;
 constexpr double snackbarCorner = 4;
 // A sheet comes in on the default spatial spring of Material, but damped so that it stops at its edge.
 constexpr QtPrivate::SpringSpec sheetSpring{1.0, 380};
+// It goes faster than it came, as what leaves does in Material.
+constexpr QtPrivate::SpringSpec sheetExitSpring{1.0, 800};
+// The scrim behind a modal dialog or sheet: black at 32 percent, which the android platform draws, and reads from this
+// window property while it fades.
+constexpr double scrimOpacity = 0.32;
+const char *const scrimProperty = "_nt_scrimOpacity";
 constexpr int circularSize = 40;
 constexpr double circularThickness = 4;
 constexpr double circularGap = 4; // between the part of a circular progress indicator that is done and its track
@@ -221,6 +231,8 @@ constexpr int menuIconSize = 24;
 constexpr int menuIconSpace = 12;
 constexpr int menuSeparator = 9;
 constexpr int menuMinimumWidth = 112;
+constexpr double searchViewCorner = 28; // the docked search view under a search bar (corner extra large)
+constexpr int searchViewRowHeight = 56;
 constexpr int comboArrowRoom = 48;
 constexpr int focusRingWidth = 3;
 constexpr int dialogCorner = 28; // extra large
@@ -532,13 +544,22 @@ int scrolledUnderBy(const QToolBar *bar) {
 // True while the content under a top app bar is scrolled.
 bool scrolledUnder(const QToolBar *bar) { return scrolledUnderBy(bar) > 0; }
 
-bool isVibrantToolBar(const QWidget *widget) { return toolBarKind(widget) == QLatin1String("floatingVibrant"); }
+// The kinds of toolbar that are docked toolbars, across the bottom (or the top) of a window.
+bool isDockedKind(const QString &kind) {
+    return kind == QLatin1String("docked") || kind == QLatin1String("dockedVibrant");
+}
+
+bool isVibrantToolBar(const QWidget *widget) {
+    const QString kind = toolBarKind(widget);
+    return kind == QLatin1String("floatingVibrant") || kind == QLatin1String("dockedVibrant");
+}
 
 bool isToolBarItem(const QWidget *widget) {
     if (!qobject_cast<const QToolButton *>(widget))
         return false;
     const QString kind = toolBarKind(widget->parentWidget());
-    return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant") || isAppBarKind(kind);
+    return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant") || isDockedKind(kind) ||
+           isAppBarKind(kind);
 }
 
 // True for a button of a top app bar that is before the title: one of the actions before the first separator.
@@ -633,7 +654,32 @@ const ButtonSize &iconButtonSize(const QWidget *widget) {
     return size ? *size : smallButton;
 }
 
-int iconButtonExtent(const QWidget *widget) { return std::max(touchTarget, iconButtonSize(widget).height); }
+// How wide the shape of an icon button is: as wide as it is high by default, and narrower or wider with the property
+// materialIconButtonWidth. Each is the icon and the room before and after it (IconButton*Tokens): 4 + 20 + 4,
+// 6 + 20 + 6 and 10 + 20 + 10 for the extra small size, up to 32 + 40 + 32, 48 + 40 + 48 and 72 + 40 + 72 for the
+// extra large one.
+int iconButtonWidth(const QWidget *widget) {
+    struct Widths {
+        int height;
+        int narrow;
+        int wide;
+    };
+    static constexpr Widths widths[] = {{32, 28, 40}, {40, 32, 52}, {56, 48, 72}, {96, 64, 128}, {136, 104, 184}};
+    const int height = iconButtonSize(widget).height;
+    const QString name = widget->property("materialIconButtonWidth").toString();
+    const bool narrow = name == QLatin1String("narrow");
+    if (!narrow && name != QLatin1String("wide"))
+        return height;
+    for (const Widths &each : widths)
+        if (each.height == height)
+            return narrow ? each.narrow : each.wide;
+    return height;
+}
+
+// The size of an icon button to a finger: its shape, and 48 at least either way, with the shape in the middle.
+QSize iconButtonExtent(const QWidget *widget) {
+    return QSize(std::max(touchTarget, iconButtonWidth(widget)), std::max(touchTarget, iconButtonSize(widget).height));
+}
 
 // One color is all that an icon has, if the pixels that show are all close to one of them.
 bool hasOneColor(const QImage &image) {
@@ -728,6 +774,95 @@ TextField textFieldOf(const QWidget *widget) {
 // The label rests where the text goes in an empty field that does not have the focus, and has floated up otherwise.
 bool isLabelUp(const QLineEdit *field) { return field->hasFocus() || !field->text().isEmpty(); }
 
+// What the popup of a QCompleter is drawn as: under a search bar its docked search view, under another line edit a
+// menu. The popup is a list in the window of the line edit, which is the widget that it is open under.
+enum class CompleterPopup { None, Menu, SearchView };
+
+const QLineEdit *completerEdit(const QWidget *widget) {
+    if (!qobject_cast<const QListWidget *>(widget))
+        return nullptr;
+    const auto *edit = qobject_cast<const QLineEdit *>(QtPrivate::WidgetAccess::data(widget).popupAnchor.data());
+    return edit && edit->completer() ? edit : nullptr;
+}
+
+CompleterPopup completerPopupOf(const QWidget *widget) {
+    const QLineEdit *edit = completerEdit(widget);
+    if (!edit)
+        return CompleterPopup::None;
+    return textFieldOf(edit).search ? CompleterPopup::SearchView : CompleterPopup::Menu;
+}
+
+// Whether `popup` is open below `edit`; it opens over it where there is no room below.
+bool isBelow(const QWidget *popup, const QWidget *edit) {
+    return popup->y() >= edit->mapTo(popup->parentWidget(), QPoint(0, edit->height() / 2)).y();
+}
+
+// The docked search view that is open under (or over) the search bar `edit`, or nullptr.
+const QWidget *openSearchView(const QWidget *edit) {
+    const auto *line = qobject_cast<const QLineEdit *>(edit);
+    if (!line || !line->completer())
+        return nullptr;
+    for (const QObject *child : edit->window()->children()) {
+        const auto *list = qobject_cast<const QListWidget *>(child);
+        if (list && list->isVisible() && QtPrivate::WidgetAccess::data(list).popupAnchor.data() == edit)
+            return list;
+    }
+    return nullptr;
+}
+
+// A rectangle with one radius for its two corners at the top and another for those at the bottom; 0 is square.
+QPainterPath endedPath(const QRectF &r, double top, double bottom) {
+    const double most = std::min(r.width(), r.height()) / 2;
+    top = std::clamp(top, 0.0, most);
+    bottom = std::clamp(bottom, 0.0, most);
+    QPainterPath path;
+    path.moveTo(r.left(), r.top() + top);
+    if (top > 0)
+        path.arcTo(QRectF(r.left(), r.top(), 2 * top, 2 * top), 180, -90);
+    path.lineTo(r.right() - top, r.top());
+    if (top > 0)
+        path.arcTo(QRectF(r.right() - 2 * top, r.top(), 2 * top, 2 * top), 90, -90);
+    path.lineTo(r.right(), r.bottom() - bottom);
+    if (bottom > 0)
+        path.arcTo(QRectF(r.right() - 2 * bottom, r.bottom() - 2 * bottom, 2 * bottom, 2 * bottom), 0, -90);
+    path.lineTo(r.left() + bottom, r.bottom());
+    if (bottom > 0)
+        path.arcTo(QRectF(r.left(), r.bottom() - 2 * bottom, 2 * bottom, 2 * bottom), 270, -90);
+    path.closeSubpath();
+    return path;
+}
+
+// The search bar `box`: a pill, or while its search view is open, square on the side where the view goes on.
+QPainterPath searchBarShape(const QRectF &box, const QWidget *edit) {
+    const double round = box.height() / 2;
+    const QWidget *view = openSearchView(edit);
+    if (!view)
+        return endedPath(box, round, round);
+    const bool below = isBelow(view, edit);
+    return endedPath(box, below ? round : 0, below ? 0 : round);
+}
+
+// The container of the popup of a completer, in its coordinates: a menu is round at all its corners, a search view
+// only at those away from its bar.
+QPainterPath completerShape(const QWidget *popup, CompleterPopup kind) {
+    const QRectF r(popup->rect());
+    if (kind == CompleterPopup::Menu) {
+        QPainterPath path;
+        path.addRoundedRect(r, menuCorner, menuCorner);
+        return path;
+    }
+    const QLineEdit *edit = completerEdit(popup);
+    const bool below = !edit || isBelow(popup, edit);
+    return endedPath(r, below ? 0 : searchViewCorner, below ? searchViewCorner : 0);
+}
+
+// The divider between a search view and its bar, in the coordinates of the view.
+QRectF searchViewDivider(const QWidget *popup) {
+    const QLineEdit *edit = completerEdit(popup);
+    const bool below = !edit || isBelow(popup, edit);
+    return QRectF(0, below ? 0 : popup->height() - 1, popup->width(), 1);
+}
+
 enum Channel {
     LabelChannel,  // how far the label of a text field has floated
     CornerChannel, // of the corners at the left
@@ -751,6 +886,7 @@ enum Channel {
 const char *const polishedFont = "_nt_materialFont";
 const char *const polishedPalette = "_nt_materialPalette";
 const char *const polishedFrame = "_nt_materialFrame"; // the frame style that a widget had
+const char *const polishedIconSize = "_nt_materialIconSize"; // the icon size was given by the style
 
 QColor withOpacity(QColor color, double opacity) {
     color.setAlphaF(opacity);
@@ -922,6 +1058,12 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
         that goes over the content, in a row or, with a vertical orientation, in a column; \c "floatingVibrant" is the
         same in the primary container color. Its buttons have no container until they are checked. It is as long as
         its buttons need, so place it with an alignment, or as a child that is moved over the content.
+    \li \c materialToolBar \c "docked" makes a QToolBar a docked toolbar, a bar of 64 across the whole of the
+        window in the surface container color, with square corners and no shadow; \c "dockedVibrant" is the same in
+        the primary container color. Put it in the bottom tool bar area of a QMainWindow with
+        addToolBar(Qt::BottomToolBarArea, bar), or at the bottom of a layout. Its buttons, 48 and in the colors of a
+        floating toolbar's, are spread out along it, 16 in from its ends and from 4 to 32 apart, and centred when 32
+        apart leaves room; its separators are not shown. A snackbar goes above it.
     \li \c materialButtonSize of a QPushButton or a QToolButton: \c "extraSmall", \c "small", \c "medium",
         \c "large" or \c "extraLarge", the five sizes of Material 3 Expressive, 32, 40, 56, 96 and 136 high, each
         with its own label, icon, room around them, corners and outline. Without it a button is small.
@@ -940,7 +1082,10 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     \li \c materialIconButton of a QPushButton or a QToolButton: \c "standard", \c "filled", \c "tonal" or
         \c "outlined", a button that is its icon alone, in the sizes of \c materialButtonSize (small without it) with
         icons of 20 to 40, round or, with \c materialButtonShape, square. A checkable one shows that it is checked. One
-        smaller than 48 is 48 to a finger.
+        smaller than 48 is 48 to a finger. \c materialIconButtonWidth \c "narrow" or \c "wide" makes its shape
+        narrower or wider than it is high, with the icon in the middle: 28 or 40 for the extra small size (32 by
+        default), 32 or 52 for the small one, 48 or 72 for the medium one, 64 or 128 for the large one and 104 or 184
+        for the extra large one; \c "default" or none keeps it as wide as it is high.
     \li \c materialToolBar \c "appBar" makes a QToolBar a top app bar, 64 high, with its window title as the
         heading. The actions before the first separator are before the title, such as the one that goes back, and the
         others after it; without a separator, all are after it. Add it to a QMainWindow with addToolBar(), or to the
@@ -984,7 +1129,11 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
         shape is \c HLine or \c VLine is a divider, a quiet line of 1, whatever its shadow and line width.
     \li \c materialTextField \c "search" makes a QLineEdit a search bar: a pill, 56 high, with a magnifier before the
         text. The placeholder text says what is searched, and with \l{QLineEdit::setClearButtonEnabled()}{a clear
-        button} there is a cross to empty it.
+        button} there is a cross to empty it. Given a QCompleter, the bar opens Material's docked search view: the
+        popup of the completer goes on from the bar, as wide as it, with a divider between them and corners of 28 at
+        the far end, while the bar's corners towards it turn square. Its rows are 56 high, with the icon that the model
+        has in Qt::DecorationRole before the text. Under another line edit the popup of a completer is drawn as a
+        menu, with rows 48 high and corners of 16.
     \li \c materialTabBar \c "secondary" makes the tabs of a QTabBar secondary ones, for what is inside a page: the
         line under the current one is as wide as the tab and 2 high, and its label is not in the accent color.
     \li \c materialTimeInput of a QTimeEdit: \c true draws it as Material's time input, a large box for each of the
@@ -1010,8 +1159,10 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
         \endcode
     \li \c materialSheet of a QDialog: \c "bottom" makes it a modal bottom sheet, against the bottom of its parent's
         window, as high as what is in it and no wider than 640; \c "drawer" makes it a modal drawer, against the left
-        edge, as high as the window and up to 360 wide. It slides in from its edge and has no title bar. On Android the window behind is dimmed, and
-        a tap on it or Back dismisses the sheet.
+        edge, as high as the window and up to 360 wide. It slides in from its edge and has no title bar. Closed, it is
+        hidden at once, as any dialog is (isVisible() is \c false, the signals are emitted and exec() returns), and a
+        picture of it that takes no input slides back to its edge in a window of its own. On Android the window behind
+        is dimmed, the dimming fading in and out with the sheet, and a tap on it or Back dismisses the sheet.
     \li \c materialList \c "navigationDrawer" of a QListWidget, for the list of a drawer: the one that is current is
         marked with a pill, and the list has no frame. Open a destination from itemClicked() and accept() the drawer.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
@@ -1082,13 +1233,15 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
     are the standard menus of Material 3 Expressive in shape (corners of 16) but have no groups, gaps or selected
     rows with their own shape, and an outline in the place of their shadow. Dialogs get the Material container color and text buttons; their rounded corners and the
-    dimming behind them are the android platform's.
-    Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another
-    but close at once, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
+    dimming behind them, which fades in while motion is enabled, are the android platform's.
+    Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another,
+    and go one after another as a picture of them when it closes; they have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. Text fields are those of QLineEdit, and
     take icons, a prefix, a suffix and a counter only as properties and actions (a search bar has its magnifier, and
-    does not open a view of results of its own; the actions of its trailing end are not avatars); their caret is the color of the text. A snackbar fades in and out but does not
+    the actions of its trailing end are not avatars; its search view is only the docked one, the popup of a
+    QCompleter, which does not emphasize the part of a row that matches the text, has no header of its own and opens
+    without motion); their caret is the color of the text. A snackbar fades in and out but does not
     grow as it comes, and is one only in a QMainWindow; showing a message does not queue it. There are no
     rich tooltips. Chips are push buttons only; there are no elevated chips, avatars in input chips or separate click
     on the cross, and a filter chip takes its new width at once. A date picker has no range, no field to type a date in and no
@@ -1101,8 +1254,7 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     no floating label or supporting text, and its buttons do not repeat while
     held; a scroll bar does not hide when the contents are still. A time input is for a format of times alone, does not go on to the minute by itself
     when the hour has been typed, and names its boxes in English. A card is not a button and shows no press. A card or
-    a divider behind a QProxyStyle is drawn as a plain frame. Icon buttons have the default width, not
-    the narrow or the wide one. An app bar has no subtitle, and does not scroll off the screen with the content. A
+    a divider behind a QProxyStyle is drawn as a plain frame. An app bar has no subtitle, and does not scroll off the screen with the content. A
     medium or large one collapses by the offset of the scroll area under it, which also moves its content, so the
     content goes up faster than the finger while the bar collapses; the bar expands again as the content comes back
     to the top, as with exitUntilCollapsed, not as soon as it is scrolled up (enterAlways). Its titles fade rather
@@ -1111,8 +1263,9 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     navigation rail, collapsed or expanded, has no menu button or floating action button of its own, changes its width
     at once rather than over an animation, is never the modal one over the content, and does not scroll if its
     destinations do not fit; the navigation drawer is the modal one only. A sheet is no taller than leaves 72 above it, unless what is in it cannot be made shorter: put that in
-    a QScrollArea. Sheets slide in but leave at once, the scrim does not fade, and
-    sheets are not dragged and have no drag handle; there are no standard (not modal)
+    a QScrollArea. A sheet that leaves is a picture of itself while it slides out, and
+    shows no change made to it after it was hidden. Dialogs that are not sheets leave at once, their scrim with them.
+    Sheets are not dragged and have no drag handle; there are no standard (not modal)
     sheets. On a desktop a click beside a sheet does not dismiss it, only Escape or the program does, and a sheet stays
     where it was put if its parent's window moves or changes size. Badges are on icon buttons,
     toolbar buttons and the destinations of a navigation bar or rail only. A snackbar finds where a floating action
@@ -1122,7 +1275,8 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     handle are round on the extra small size. There are no inset icons and no centered or range sliders. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
     going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
-    what does not fit. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
+    what does not fit. A docked toolbar does not hide as the content is scrolled either, has no menu for what does not
+    fit and no floating action button of its own, and shows no separators. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
     lists and menus, and the tabs of a horizontal QTabBar ripple; trees and tables do not. A check box, a radio button
     and a switch are drawn a little in from the left, their middle 20 in, so that the circle of the press fits. The colors of buttons, labels and radio
     buttons change at once. The line under the tabs slides on a horizontal QTabBar, and not on one at the side. In an
@@ -1420,6 +1574,32 @@ void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selec
     const QWidget *viewport = list ? list->viewport() : nullptr;
     const bool pressedHere = viewport && viewport == m_rippleWidget.data() && row.contains(m_rippleOrigin.toPoint());
     const bool held = pressedHere && m_rowPressed;
+    if (const CompleterPopup kind = completerPopupOf(view); kind != CompleterPopup::None) {
+        // The current row of a completer's popup has a layer, as that of a menu, inside the corners of the container
+        // and off the divider of a search view.
+        QPainterPath inside = completerShape(view, kind);
+        if (kind == CompleterPopup::SearchView) {
+            QPainterPath divider;
+            divider.addRect(searchViewDivider(view));
+            inside = inside.subtracted(divider);
+        }
+        QPainterPath outline;
+        outline.addRect(QRectF(row));
+        outline = outline.intersected(inside.translated(-QPointF(viewport->pos())));
+        const QColor onSurface = color(Role::OnSurface);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        if (background.style() != Qt::NoBrush)
+            painter->fillPath(outline, background);
+        if (selected && enabled)
+            painter->fillPath(outline, QBrush(withOpacity(onSurface, hoverOpacity)));
+        if (held && !m_motion)
+            painter->fillPath(outline, QBrush(withOpacity(onSurface, pressedOpacity)));
+        if (pressedHere)
+            drawRipple(painter, viewport, outline, QRectF(row), m_rippleOrigin, held, onSurface);
+        painter->restore();
+        return;
+    }
     const QColor ink = color(selected ? Role::OnSecondaryContainer : Role::OnSurface);
     // A little apart, so that two rows that are selected show as two. A row that is chosen or held is rounder. In a
     // navigation drawer it is a pill, in from the sides.
@@ -1533,6 +1713,26 @@ void QMaterialStyle::polish(QWidget *widget) {
         widget->setPalette(palette);
         widget->setProperty(polishedPalette, true);
     }
+    // The popup of a completer: the list lies on the container that its frame draws, a menu or a search view.
+    if (const CompleterPopup kind = completerPopupOf(widget); kind != CompleterPopup::None) {
+        auto *list = static_cast<QListWidget *>(widget);
+        if (!widget->testAttribute(Qt::WA_SetPalette) || widget->property(polishedPalette).toBool()) {
+            QPalette palette = widget->palette();
+            palette.setColor(QPalette::Base, Qt::transparent);
+            palette.setColor(QPalette::Text, color(Role::OnSurface));
+            palette.setColor(QPalette::HighlightedText, color(Role::OnSurface)); // the current row has a layer only
+            widget->setPalette(palette);
+            widget->setProperty(polishedPalette, true);
+        }
+        if (list->frameShape() != QFrame::NoFrame) {
+            widget->setProperty(polishedFrame, list->frameStyle());
+            list->setFrameShape(QFrame::NoFrame);
+        }
+        if (!list->iconSize().isValid()) {
+            list->setIconSize(QSize(menuIconSize, menuIconSize));
+            widget->setProperty(polishedIconSize, true);
+        }
+    }
     // The type scale: label large for buttons, body large for text and choices. A font that the program set stays.
     const bool choice = qobject_cast<QCheckBox *>(widget) || qobject_cast<QRadioButton *>(widget);
     const bool button = (!choice && qobject_cast<QAbstractButton *>(widget)) || qobject_cast<QTabBar *>(widget);
@@ -1578,6 +1778,10 @@ void QMaterialStyle::unpolish(QWidget *widget) {
         widget->setProperty(polishedPalette, QVariant());
     }
     removeHeadline(widget);
+    if (auto *view = qobject_cast<QAbstractItemView *>(widget); view && widget->property(polishedIconSize).toBool()) {
+        view->setIconSize(QSize());
+        widget->setProperty(polishedIconSize, QVariant());
+    }
     if (qobject_cast<QAbstractScrollArea *>(widget))
         delete widget->findChild<QObject *>(QLatin1String(appBarWatcher), Qt::FindDirectChildrenOnly);
     if (auto *frame = qobject_cast<QFrame *>(widget); frame && widget->property(polishedFrame).isValid()) {
@@ -1619,9 +1823,28 @@ void QMaterialStyle::unpolish(QApplication *application) {
 bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::Show) {
         // The android platform rounds the corners of a dialog's window by this property.
-        if (auto *dialog = qobject_cast<QDialog *>(watched); dialog && dialog->isWindow() && dialog->windowHandle())
-            dialog->windowHandle()->setProperty(
-                "_nt_cornerRadius", sheetKind(dialog) == QLatin1String("drawer") ? drawerCorner : dialogCorner);
+        if (auto *dialog = qobject_cast<QDialog *>(watched); dialog && dialog->isWindow() && dialog->windowHandle()) {
+            QWindow *window = dialog->windowHandle();
+            window->setProperty("_nt_cornerRadius",
+                                sheetKind(dialog) == QLatin1String("drawer") ? drawerCorner : dialogCorner);
+            // The scrim behind it fades in, from where it was if a sheet came back as it went.
+            const QVariant was = window->property(scrimProperty);
+            if (m_motion)
+                fadeScrim(dialog, was.isValid() ? std::clamp(was.toDouble(), 0.0, scrimOpacity) : 0.0);
+            else
+                window->setProperty(scrimProperty, scrimOpacity);
+        }
+    }
+    if (event->type() == QEvent::Hide) {
+        // The scrim goes with the dialog, and the next time it fades in from nothing.
+        if (auto *dialog = qobject_cast<QDialog *>(watched); m_motion && dialog && dialog->isWindow()) {
+            QtPrivate::Transition::stop(dialog, QStringLiteral("_nt_scrimFade"));
+            if (QWindow *window = dialog->windowHandle())
+                window->setProperty(scrimProperty, 0.0);
+        }
+        // The items of a FAB menu go one after another.
+        if (auto *menu = qobject_cast<QMenu *>(watched); menu && isFabMenu(menu))
+            closeFabMenu(menu);
     }
     // What is hidden is no longer pressed: a menu that closed with a choice must not show it when it opens again.
     if (event->type() == QEvent::Hide && m_rippleWidget && watched == m_rippleWidget.data()) {
@@ -1819,8 +2042,11 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
     // ends of the row stay round, the corners between the buttons are small, and a checked button is a pill.
     const Segment segment = segmentOf(widget);
     // Of the shape that is drawn, which for a small icon button is less than the widget.
-    const double pill =
-        isIconButton(widget) ? std::min<double>(rect.height(), iconButtonSize(widget).height) / 2 : rect.height() / 2;
+    double pill = rect.height() / 2;
+    if (isIconButton(widget)) // a narrow one is a circle no wider than itself
+        pill = std::min({rect.height(), static_cast<double>(iconButtonSize(widget).height),
+                         static_cast<double>(iconButtonWidth(widget))}) /
+               2;
     double left = pill;
     double right = pill;
     if (isChip(widget)) {
@@ -1923,10 +2149,16 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
                           QBrush(withOpacity(QColor(Qt::black), 0.18)));
     // A button of a toolbar, and a small icon button, are drawn smaller than they are to a finger.
     double inset = kind == ButtonKind::ToolBarItem ? toolBarInset : 0;
-    if (isIconButton(widget))
-        inset = std::max(0, iconButtonExtent(widget) - iconButtonSize(widget).height) / 2.0;
+    double above = inset;
+    if (isIconButton(widget)) {
+        // A narrow or a wide one has other room at its sides than above and below.
+        const QSize extent = iconButtonExtent(widget);
+        inset = std::max(0, extent.width() - iconButtonWidth(widget)) / 2.0;
+        above = std::max(0, extent.height() - iconButtonSize(widget).height) / 2.0;
+    }
     // A chip is as wide as it is to a finger, but not as high.
-    const double above = kind == ButtonKind::Chip ? std::max(0.0, (rect.height() - chipHeight) / 2) : inset;
+    if (kind == ButtonKind::Chip)
+        above = std::max(0.0, (rect.height() - chipHeight) / 2);
     const QRectF body = rect.adjusted(inset, above, -inset, -above - lift);
     const QPainterPath outline = sidedPath(body, left, right);
     // A line inside the shape.
@@ -1992,6 +2224,99 @@ QColor QMaterialStyle::drawSplitButton(const QStyleOptionButton *option, QPainte
     return buttonLabelColor(&label, widget);
 }
 
+namespace {
+// A picture of a FAB menu that closed, where it was: its items go one after another, the one furthest from the button
+// first (the other way round from how they opened), each shrinking toward its right end into a circle as it fades.
+class FabMenuGhost : public QWidget {
+public:
+    FabMenuGhost(QWidget *parent, const QPixmap &picture, std::vector<QRect> pills)
+        : QWidget(parent), m_picture(picture), m_pills(std::move(pills)) {
+        setObjectName(QStringLiteral("_nt_fabMenuGhost"));
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        std::sort(m_pills.begin(), m_pills.end(), [](const QRect &a, const QRect &b) { return a.top() < b.top(); });
+        m_clock.start();
+        m_timer.setInterval(16);
+        QObject::connect(&m_timer, &QTimer::timeout, this, [this] {
+            if (seconds() > lastGoes()) {
+                m_timer.stop();
+                hide();
+                deleteLater();
+                return;
+            }
+            update();
+        });
+        m_timer.start();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        (void)event;
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const double now = seconds();
+        const QtPrivate::Spring spring(0, 0, 1, QtPrivate::fastEffectsSpring);
+        for (std::size_t i = 0; i < m_pills.size(); ++i) {
+            const QRect &pill = m_pills[i];
+            const double since = now - static_cast<double>(i) * fabMenuCloseStagger;
+            const double gone = since > 0 ? std::clamp(spring.at(since).position, 0.0, 1.0) : 0.0;
+            const double shown = 1.0 - std::clamp(since / fabMenuCloseFade, 0.0, 1.0);
+            if (shown <= 0)
+                continue;
+            const double height = pill.height();
+            const double width = std::max(height, pill.width() - (pill.width() - height) * gone);
+            const QRectF left(pill.left() + pill.width() - width, pill.top(), width, height);
+            QPainterPath shape;
+            shape.addRoundedRect(left, height / 2, height / 2);
+            painter.save();
+            painter.setOpacity(shown);
+            painter.setClipPath(shape);
+            painter.drawPixmap(pill, m_picture, pill);
+            painter.restore();
+        }
+    }
+
+private:
+    double seconds() const { return static_cast<double>(m_clock.nsecsElapsed()) * 1e-9; }
+    // When the last item is gone.
+    double lastGoes() const {
+        return static_cast<double>(std::max<std::size_t>(m_pills.size(), 1) - 1) * fabMenuCloseStagger +
+               fabMenuCloseFade;
+    }
+
+    QPixmap m_picture;
+    std::vector<QRect> m_pills;
+    QElapsedTimer m_clock;
+    QTimer m_timer;
+};
+} // namespace
+
+void QMaterialStyle::closeFabMenu(QMenu *menu) const {
+    QWidget *host = menu->parentWidget();
+    if (!m_motion || !host || !host->isVisible() || QCoreApplication::closingDown())
+        return;
+    // The pill of each item, as wide as it is when it is open, at the right of its row.
+    std::vector<QRect> pills;
+    for (QAction *action : menu->actions()) {
+        if (!action->isVisible() || action->isSeparator())
+            continue;
+        const QRect row = menu->actionGeometry(action);
+        if (row.isEmpty())
+            continue;
+        QStyleOptionMenuItem item;
+        item.text = action->text();
+        item.icon = action->icon();
+        item.font = menu->font();
+        const int width = std::min(fabMenuItemWidth(item), row.width());
+        pills.emplace_back(row.right() + 1 - width, row.top(), width, std::max(1, row.height() - fabMenuItemSpace));
+    }
+    if (pills.empty())
+        return;
+    auto *ghost = new FabMenuGhost(host, menu->grab(), std::move(pills));
+    ghost->setGeometry(menu->geometry());
+    ghost->show();
+    ghost->raise();
+}
+
 bool QMaterialStyle::popupFabMenu(QPushButton *button, QMenu *menu) const {
     const bool fab = isFab(button);
     if (fab != isFabMenu(menu)) {
@@ -2001,6 +2326,15 @@ bool QMaterialStyle::popupFabMenu(QPushButton *button, QMenu *menu) const {
     }
     if (!fab)
         return false;
+    // A menu that opens again while it closes takes the place of what is left of it.
+    if (QWidget *host = menu->parentWidget()) {
+        const QList<QWidget *> leftovers =
+            host->findChildren<QWidget *>(QStringLiteral("_nt_fabMenuGhost"), Qt::FindDirectChildrenOnly);
+        for (QWidget *leftover : leftovers) {
+            leftover->hide();
+            leftover->deleteLater();
+        }
+    }
     // Above the button, with their right edges in line. The last item has its space below it.
     const QSize size = menu->sizeHint();
     menu->setProperty(fabMenuOpened, m_animator->seconds()); // its items set off from now
@@ -2348,6 +2682,13 @@ void QMaterialStyle::drawExpandedRail(QPainter *painter, const QTabBar *bar) con
 bool QMaterialStyle::isFloatingToolBar(const QWidget *widget) {
     const QString kind = toolBarKind(widget);
     return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant");
+}
+
+bool QMaterialStyle::isDockedToolBar(const QWidget *widget) { return isDockedKind(toolBarKind(widget)); }
+
+// The whole of the bar, with square corners and no shadow.
+void QMaterialStyle::drawDockedToolBar(QPainter *painter, const QToolBar *bar) const {
+    painter->fillRect(bar->rect(), color(isVibrantToolBar(bar) ? Role::PrimaryContainer : Role::SurfaceContainer));
 }
 
 void QMaterialStyle::drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const {
@@ -3031,6 +3372,18 @@ bool QMaterialStyle::isDrawerList(const QWidget *widget) {
            widget->property("materialList").toString() == QLatin1String("navigationDrawer");
 }
 
+int QMaterialStyle::completerRowHeight(const QWidget *list) {
+    switch (completerPopupOf(list)) {
+    case CompleterPopup::SearchView:
+        return searchViewRowHeight;
+    case CompleterPopup::Menu:
+        return menuItemHeight;
+    case CompleterPopup::None:
+        break;
+    }
+    return 0;
+}
+
 void QMaterialStyle::prepareHeadline(QDialog *dialog) const {
     const QPlatformIntegration *platform = QtPrivate::GuiAccess::integration();
     if (!platform || platform->showsDialogTitles() || dialog->windowTitle().isEmpty() || !sheetKind(dialog).isEmpty()) {
@@ -3065,6 +3418,61 @@ void QMaterialStyle::drawHeadline(QPainter *painter, const QDialog *dialog) cons
     painter->restore();
 }
 
+namespace {
+// A picture of a sheet that was hidden, in a window of its own over the sheet's parent, on its way back to its edge.
+// The dialog itself is hidden at once, as any other dialog is; this takes no input and only shows where it goes.
+class SheetGhost : public QWidget {
+public:
+    SheetGhost(QDialog *dialog, const QPixmap &picture)
+        : QWidget(dialog->parentWidget() ? dialog->parentWidget()->window() : nullptr,
+                  Qt::Dialog | Qt::FramelessWindowHint),
+          m_dialog(dialog), m_picture(picture) {
+        setObjectName(QStringLiteral("_nt_sheetGhost"));
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_ShowWithoutActivating);
+        setFocusPolicy(Qt::NoFocus);
+        ghosts().push_back(this);
+    }
+    ~SheetGhost() override { forget(); }
+    SheetGhost(const SheetGhost &) = delete;
+    SheetGhost &operator=(const SheetGhost &) = delete;
+
+    // The picture of `dialog` that is on its way out, if there is one.
+    static SheetGhost *of(const QDialog *dialog) {
+        for (SheetGhost *ghost : ghosts()) {
+            if (ghost->m_dialog.data() == dialog)
+                return ghost;
+        }
+        return nullptr;
+    }
+    // It no longer stands for its dialog, which is shown again.
+    void forget() {
+        auto &all = ghosts();
+        all.erase(std::remove(all.begin(), all.end(), this), all.end());
+    }
+
+    // How far it is from its place, as a fraction of its height or width, and the opacity of its scrim.
+    double away = 0;
+    double scrim = scrimOpacity;
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        (void)event;
+        QPainter painter(this);
+        painter.drawPixmap(0, 0, m_picture);
+    }
+
+private:
+    static std::vector<SheetGhost *> &ghosts() {
+        static std::vector<SheetGhost *> all;
+        return all;
+    }
+
+    QPointer<QDialog> m_dialog;
+    QPixmap m_picture;
+};
+} // namespace
+
 bool QMaterialStyle::placeSheet(QDialog *dialog) const {
     const QString kind = sheetKind(dialog);
     if (kind.isEmpty())
@@ -3094,14 +3502,25 @@ bool QMaterialStyle::placeSheet(QDialog *dialog) const {
     if (QWindow *window = dialog->windowHandle())
         window->setProperty("_nt_sheet", kind);
     dialog->setGeometry(place);
+    // One that is shown again while it slides out comes back from where its picture is.
+    double away = 1.0;
+    if (SheetGhost *ghost = SheetGhost::of(dialog)) {
+        away = ghost->away;
+        if (QWindow *window = dialog->windowHandle())
+            window->setProperty(scrimProperty, ghost->scrim);
+        ghost->forget();
+        QtPrivate::Transition::stop(ghost, QStringLiteral("_nt_sheetSlide"));
+        ghost->deleteLater(); // after the dialog is on the screen in its place
+    }
     if (m_motion)
-        slideSheetIn(dialog, place, kind == QLatin1String("drawer"));
+        slideSheetIn(dialog, place, kind == QLatin1String("drawer"), away);
     return true;
 }
 
 // A sheet comes in from its edge of the window, along a spring that does not overshoot, so the edge never shows a gap.
-void QMaterialStyle::slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft) const {
-    const int distance = fromLeft ? place.width() : place.height();
+void QMaterialStyle::slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft, double from) const {
+    const int distance =
+        static_cast<int>(std::lround(std::clamp(from, 0.0, 1.0) * (fromLeft ? place.width() : place.height())));
     // The android platform places a sheet itself; it learns how far from its place the sheet is from the window.
     const auto moveTo = [place, fromLeft, distance](QDialog *sheet, double progress) {
         const int away = static_cast<int>(std::lround((1.0 - std::clamp(progress, 0.0, 1.0)) * distance));
@@ -3123,7 +3542,98 @@ void QMaterialStyle::slideSheetIn(QDialog *dialog, const QRect &place, bool from
     });
 }
 
+// A sheet that goes slides back to its edge, faster than it came, as a picture in a window of its own: the dialog is
+// hidden at once, so that isVisible(), exec() and the signals are as they are for any dialog, and the dialog may even
+// be deleted while its picture slides. Its scrim fades out with it.
+void QMaterialStyle::slideSheetOut(QDialog *dialog) const {
+    const QString kind = sheetKind(dialog);
+    QWindow *window = dialog->windowHandle();
+    if (!m_motion || kind.isEmpty() || !window || QCoreApplication::closingDown())
+        return;
+    if (const QWidget *parent = dialog->parentWidget(); parent && !parent->window()->isVisible())
+        return; // the window it is on goes too
+    const bool fromLeft = kind == QLatin1String("drawer");
+    const int distance = std::max(1, fromLeft ? dialog->width() : dialog->height());
+    // It may still be on its way in.
+    QtPrivate::Transition::stop(dialog, QStringLiteral("_nt_sheetSlide"));
+    QtPrivate::Transition::stop(dialog, QStringLiteral("_nt_scrimFade"));
+    const int away = std::clamp(window->property("_nt_sheetOffset").toInt(), 0, distance);
+    const QVariant was = window->property(scrimProperty);
+    const double scrim = was.isValid() ? std::clamp(was.toDouble(), 0.0, scrimOpacity) : scrimOpacity;
+    const QPoint start = dialog->pos();
+    const QPoint direction = fromLeft ? QPoint(-1, 0) : QPoint(0, 1);
+
+    auto *ghost = new SheetGhost(dialog, dialog->grab());
+    ghost->away = static_cast<double>(away) / distance;
+    ghost->scrim = scrim;
+    // The android platform places it as it does the sheet, with the corners and the scrim of the sheet.
+    ghost->winId();
+    if (QWindow *own = ghost->windowHandle()) {
+        own->setProperty("_nt_sheet", kind);
+        own->setProperty("_nt_sheetOffset", away);
+        own->setProperty("_nt_cornerRadius", fromLeft ? drawerCorner : dialogCorner);
+        own->setProperty(scrimProperty, scrim);
+    }
+    ghost->setGeometry(dialog->geometry());
+    // Its scrim takes the place of the dialog's, which would otherwise darken what is below twice for a moment.
+    window->setProperty(scrimProperty, 0.0);
+    ghost->show();
+    ghost->raise();
+    QPointer<SheetGhost> guard(ghost);
+    new QtPrivate::Transition(ghost, QStringLiteral("_nt_sheetSlide"), sheetExitSpring,
+                              [guard, away, distance, scrim, start, direction](double progress) {
+                                  if (!guard)
+                                      return false;
+                                  const double p = std::clamp(progress, 0.0, 1.0);
+                                  const int now = away + static_cast<int>(std::lround((distance - away) * p));
+                                  if (now >= distance || !guard->isVisible()) {
+                                      guard->forget();
+                                      guard->hide();
+                                      guard->deleteLater();
+                                      return false;
+                                  }
+                                  guard->away = static_cast<double>(now) / distance;
+                                  guard->scrim = scrim * (1.0 - p);
+                                  if (QWindow *own = guard->windowHandle()) {
+                                      own->setProperty("_nt_sheetOffset", now);
+                                      own->setProperty(scrimProperty, guard->scrim);
+                                  }
+                                  guard->move(start + direction * (now - away));
+                                  return true;
+                              });
+}
+
+void QMaterialStyle::fadeScrim(QDialog *dialog, double from) const {
+    if (QWindow *window = dialog->windowHandle())
+        window->setProperty(scrimProperty, from);
+    QPointer<QDialog> guard(dialog);
+    new QtPrivate::Transition(dialog, QStringLiteral("_nt_scrimFade"), QtPrivate::defaultEffectsSpring,
+                              [guard, from](double progress) {
+                                  if (!guard || !guard->isVisible() || !guard->windowHandle())
+                                      return false;
+                                  guard->windowHandle()->setProperty(
+                                      scrimProperty, from + (scrimOpacity - from) * std::clamp(progress, 0.0, 1.0));
+                                  // The android platform draws the scrim as it puts the dialog on the screen.
+                                  guard->update();
+                                  return true;
+                              });
+}
+
 bool QMaterialStyle::drawMaterialFrame(QPainter *painter, const QFrame *frame) const {
+    if (const CompleterPopup kind = completerPopupOf(frame); kind != CompleterPopup::None) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        if (kind == CompleterPopup::Menu) {
+            fillRounded(painter, QRectF(frame->rect()), menuCorner, color(Role::SurfaceContainer));
+            strokeRounded(painter, QRectF(frame->rect()), menuCorner, color(Role::OutlineVariant), 1);
+        } else {
+            // The view goes on from its bar, with a divider between them.
+            painter->fillPath(completerShape(frame, kind), QBrush(color(Role::SurfaceContainerHigh)));
+            painter->fillRect(searchViewDivider(frame), color(Role::OutlineVariant));
+        }
+        painter->restore();
+        return true;
+    }
     if (isTextEditor(frame) && frame->frameShape() == QFrame::StyledPanel) {
         drawEditorFrame(painter, frame);
         return true;
@@ -3884,7 +4394,7 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         const TextField field = textFieldOf(widget);
         const QRectF box(field.box(option->rect));
         if (field.search) {
-            fillRounded(painter, box, box.height() / 2, color(Role::SurfaceContainerHigh));
+            painter->fillPath(searchBarShape(box, widget), QBrush(color(Role::SurfaceContainerHigh)));
         } else if (field.filled) {
             // Rounded at the top only: the line at the bottom is straight.
             QPainterPath shape;
@@ -3908,8 +4418,12 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         const QRectF box(field.box(option->rect));
         if (field.search) {
             // No outline: the cursor shows where the text goes, and the ring what the keyboard moved to.
-            if (focused && m_keyboard)
-                strokeRounded(painter, box, box.height() / 2, color(Role::Secondary), focusRingWidth);
+            if (focused && m_keyboard) {
+                const double half = focusRingWidth / 2.0;
+                painter->setPen(QPen(QBrush(color(Role::Secondary)), focusRingWidth));
+                painter->setBrush(Qt::NoBrush);
+                painter->drawPath(searchBarShape(box.adjusted(half, half, -half, -half), widget));
+            }
             break;
         }
         QColor line = color(field.error    ? Role::Error
@@ -4340,7 +4854,7 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             return QSize(parts.before() + text + parts.after(), touchTarget);
         }
         if (isIconButton(widget))
-            return QSize(iconButtonExtent(widget), iconButtonExtent(widget));
+            return iconButtonExtent(widget);
         if (isFab(widget)) {
             const bool text = button && !button->text.isEmpty();
             if (button && !button->icon.isNull())
@@ -4363,7 +4877,7 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
     }
     case CT_ToolButton:
         if (isIconButton(widget))
-            return QSize(iconButtonExtent(widget), iconButtonExtent(widget));
+            return iconButtonExtent(widget);
         if (isToolBarItem(widget))
             return QSize(std::max(toolBarTarget, contentsSize.width() + 6 * toolBarInset), toolBarTarget);
         if (isSplitButton(widget))

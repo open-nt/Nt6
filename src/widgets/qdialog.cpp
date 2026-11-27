@@ -139,6 +139,9 @@ void QDialog::fitPlatformWidth() {
 
     The first time the dialog is shown it takes its size hint, unless it was resized, and is centered over the window
     of its parent, or on the screen if it has no parent, unless it was moved. Hiding the dialog ends exec().
+
+    A sheet of QMaterialStyle (see \l{QMaterialStyle}{materialSheet}) is hidden at once too, as any other dialog: it is
+    no longer visible, and exec() returns. A picture of it, which takes no input, slides back to its edge in its place.
 */
 void QDialog::setVisible(bool visible) {
     // A sheet of the Material style goes to its edge every time, as the window it is on may have changed.
@@ -162,6 +165,9 @@ void QDialog::setVisible(bool visible) {
         if (pos() == QPoint(0, 0))
             adjustPosition(parentWidget());
     }
+    // A sheet that goes leaves a picture of itself sliding back to its edge; the dialog itself is hidden now.
+    if (!visible && isWindow() && isVisible() && material)
+        material->slideSheetOut(this);
     QWidget::setVisible(visible);
     if (!visible && m_loop)
         m_loop->exit();

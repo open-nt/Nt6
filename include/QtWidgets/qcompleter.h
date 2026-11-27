@@ -102,6 +102,7 @@ private:
     int m_column = 0;
     int m_role = Qt::EditRole;
     QStringList m_matches;
+    QList<int> m_matchRows; // the row of the model of each match, for its icon
     QString m_prefix;
     QPointer<QWidget> m_widget;
     QListWidget *m_popup = nullptr;

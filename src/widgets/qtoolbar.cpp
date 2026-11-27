@@ -458,6 +458,9 @@ void QToolBar::actionEvent(QActionEvent *event) {
         for (const Item &item : m_items)
             if (item.action == action)
                 syncVisibility(item);
+        // The spacing of a docked toolbar is between the buttons that are shown, and it keeps its separators hidden.
+        if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isDockedToolBar(this))
+            relayout();
         break;
     case QEvent::ActionRemoved: {
         auto it = std::find_if(m_items.begin(), m_items.end(), [action](const Item &i) { return i.action == action; });
@@ -498,6 +501,9 @@ void QToolBar::relayout() {
         delete item;
     const QList<QAction *> order = actions();
     const bool floating = isFloatingForStyle();
+    // A docked toolbar spreads its buttons out along it, from 4 to 32 apart (DockedToolbarTokens), and centres them
+    // where 32 leaves room at the ends.
+    const bool docked = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isDockedToolBar(this);
     // A top app bar has its title where the first separator is, or before every action if there is none.
     const bool appBar = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isAppBar(this);
     // A medium or large one keeps its buttons in the top row, above its title.
@@ -507,10 +513,31 @@ void QToolBar::relayout() {
         m_layout->addStretch();
         gap = true;
     }
+    const bool horizontal = m_orientation == Qt::Horizontal;
+    const auto space = [&](int extent, QSizePolicy::Policy policy) {
+        m_layout->addItem(horizontal ? new QSpacerItem(extent, 0, policy, QSizePolicy::Minimum)
+                                     : new QSpacerItem(0, extent, QSizePolicy::Minimum, policy));
+    };
+    if (docked)
+        m_layout->addStretch();
+    bool first = true;
     for (QAction *action : order) {
         QWidget *widget = widgetForAction(action);
         if (!widget)
             continue;
+        if (docked) {
+            if (action->isSeparator())
+                widget->hide(); // the spacing is what separates the buttons
+            if (action->isSeparator() || !action->isVisible())
+                continue;
+            if (!first) {
+                space(4, QSizePolicy::Fixed);
+                space(28, QSizePolicy::Maximum);
+            }
+            first = false;
+            m_layout->addWidget(widget);
+            continue;
+        }
         if (appBar && action->isSeparator() && !gap) {
             m_layout->addStretch();
             widget->hide();
@@ -523,19 +550,20 @@ void QToolBar::relayout() {
     }
     if (!floating && !appBar)
         m_layout->addStretch();
-    m_layout->setSpacing(floating || appBar ? 0 : 2);
+    m_layout->setSpacing(floating || appBar || docked ? 0 : 2);
     // A floating toolbar is as long as its buttons need; another stretches along its side.
-    // A top app bar goes across all of its room.
-    const QSizePolicy::Policy along = floating ? QSizePolicy::Maximum
-                                      : appBar ? QSizePolicy::Expanding
-                                               : QSizePolicy::Preferred;
-    setSizePolicy(m_orientation == Qt::Horizontal ? QSizePolicy(along, QSizePolicy::Fixed)
-                                                  : QSizePolicy(QSizePolicy::Fixed, along));
+    // A top app bar and a docked toolbar go across all of their room.
+    const QSizePolicy::Policy along = floating           ? QSizePolicy::Maximum
+                                      : appBar || docked ? QSizePolicy::Expanding
+                                                         : QSizePolicy::Preferred;
+    setSizePolicy(horizontal ? QSizePolicy(along, QSizePolicy::Fixed) : QSizePolicy(QSizePolicy::Fixed, along));
     for (const Item &item : m_items)
         if (item.owned)
             item.widget->updateGeometry(); // its size depends on the toolbar that it is in
     if (appBar)
         m_layout->setContentsMargins(4, 8, 4, 8); // 64 high with buttons of 48
+    else if (docked)                              // 64 across with buttons of 48, and 16 at the ends
+        m_layout->setContentsMargins(horizontal ? QMargins(16, 8, 16, 8) : QMargins(8, 16, 8, 16));
     else if (floating)
         // 64 across with buttons of 48, and room below for the shadow.
         m_layout->setContentsMargins(m_orientation == Qt::Horizontal ? QMargins(4, 8, 4, 10) : QMargins(8, 4, 8, 6));
@@ -558,6 +586,12 @@ void QToolBar::paintEvent(QPaintEvent *event) {
         // A medium or large one changes its height along a spring: each frame asks for the new one.
         if (QMaterialStyle::isFlexibleAppBar(this) && material->appBarExtent(this) != height())
             updateGeometry();
+        return;
+    }
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
+        material && QMaterialStyle::isDockedToolBar(this)) {
+        QPainter painter(this);
+        material->drawDockedToolBar(&painter, this);
         return;
     }
     if (isFloatingForStyle()) {

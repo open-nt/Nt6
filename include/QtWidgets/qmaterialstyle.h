@@ -141,6 +141,8 @@ private:
     // menu is left to open as menus do.
     friend class QPushButton;
     bool popupFabMenu(QPushButton *button, QMenu *menu) const;
+    // A FAB menu that closed leaves a picture of its items in its place, which go one after another.
+    void closeFabMenu(QMenu *menu) const;
     // A floating toolbar. QToolBar lays itself out for one and asks for its container; its buttons ask for the color
     // of their labels (as does another tool button with a kind or a size); for any other button the color is invalid.
     // A text field: its container, label and the line under it. QLineEdit draws its placeholder itself, and asks if
@@ -185,7 +187,14 @@ private:
     // is shown. False for another dialog.
     friend class QDialog;
     bool placeSheet(QDialog *dialog) const;
-    void slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft) const;
+    // A sheet slides in from its edge, or from `from` (a fraction of its height or width away) when it was on its way
+    // out.
+    void slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft, double from) const;
+    // A sheet that is hidden leaves a picture of itself that slides back to its edge: QDialog asks for it just before
+    // it hides the dialog, which goes at once as any other dialog does.
+    void slideSheetOut(QDialog *dialog) const;
+    // The scrim behind a dialog fades in from `from`; the android platform reads it from the window.
+    void fadeScrim(QDialog *dialog, double from) const;
     // Where dialogs have no title bar, a dialog shows its window title as Material's headline: room is made for it
     // above what is in the dialog, before it is shown, and QDialog asks for it to be drawn there.
     void prepareHeadline(QDialog *dialog) const;
@@ -197,6 +206,8 @@ private:
     bool drawMaterialFrame(QPainter *painter, const QFrame *frame) const;
     friend class QToolBar;
     static bool isFloatingToolBar(const QWidget *widget);
+    // A docked toolbar: across the whole of its side, its buttons spread out along it.
+    static bool isDockedToolBar(const QWidget *widget);
     // A top app bar: QToolBar lays itself out for one and asks for its background and title.
     static bool isAppBar(const QWidget *widget);
     void drawAppBar(QPainter *painter, const QToolBar *bar) const;
@@ -205,6 +216,7 @@ private:
     static bool isFlexibleAppBar(const QWidget *widget);
     int appBarExtent(const QToolBar *bar) const;
     void drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const;
+    void drawDockedToolBar(QPainter *painter, const QToolBar *bar) const;
     QColor toolBarItemColor(const QStyleOption *option, const QWidget *widget) const;
     // An icon in `ink`, if it has one color of its own; one with several is drawn as it is.
     static void paintIcon(QPainter *painter, const QRect &rect, const QIcon &icon, QIcon::Mode mode, QIcon::State state,
@@ -241,6 +253,9 @@ private:
     friend class QStyledItemDelegate;
     void drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled, const QBrush &background,
                      const QWidget *view) const;
+    // The height of the rows of a QCompleter's popup: 56 in the docked search view under a search bar, 48 in the menu
+    // under another line edit, and 0 for a list that is no completer's popup. QListWidget asks for it.
+    static int completerRowHeight(const QWidget *list);
     // The icon of a row, in `area`: one of one color is drawn in the color of the icons of a list.
     void drawRowIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode, bool selected,
                      bool enabled) const;

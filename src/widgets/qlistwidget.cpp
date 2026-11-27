@@ -489,9 +489,11 @@ int QListWidget::rowHeight() const {
             break;
         }
     }
-    // The Material style's rows are for a finger.
-    if (m_viewMode == QListView::ListMode && qobject_cast<const QMaterialStyle *>(style()))
-        height = std::max(height, materialRowHeight);
+    // The Material style's rows are for a finger; those of a completer's popup are as high as the style says.
+    if (m_viewMode == QListView::ListMode && qobject_cast<const QMaterialStyle *>(style())) {
+        const int popupRow = QMaterialStyle::completerRowHeight(this);
+        height = std::max(height, popupRow > 0 ? popupRow : materialRowHeight);
+    }
     return height;
 }
 

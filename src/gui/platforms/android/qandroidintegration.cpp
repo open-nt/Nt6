@@ -337,11 +337,15 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
         if (i == base)
             at.ry() -= slid;
         if (i > base) {
-            // The scrim of Material: black at 32 percent over what is below the dialog.
-            for (int y = std::max(0, inside.top()); y < buffer.height; ++y) {
+            // The scrim of Material: black at 32 percent over what is below the dialog, or as much as a style says
+            // while it fades in or out (QMaterialStyle does).
+            const QVariant scrim = windows[i]->window()->property("_nt_scrimOpacity");
+            const double opacity = scrim.isValid() ? std::clamp(scrim.toDouble(), 0.0, 1.0) : 0.32;
+            const auto weight = static_cast<std::uint32_t>(std::lround(opacity * 256));
+            for (int y = std::max(0, inside.top()); weight > 0 && y < buffer.height; ++y) {
                 std::uint32_t *row = line(y);
                 for (int x = std::max(0, inside.left()); x < buffer.width; ++x)
-                    row[x] = mixPixels(row[x], 0xff000000u, 82);
+                    row[x] = mixPixels(row[x], 0xff000000u, weight);
             }
             const QPoint corner = windows[i]->geometry().topLeft() - m_screen->availableGeometry().topLeft();
             at += QPoint(qRound(corner.x() * ratio), qRound(corner.y() * ratio));

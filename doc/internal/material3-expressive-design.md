@@ -55,7 +55,8 @@ changes to the application: `QApplication::setStyle("Material3")`.
    `materialButton` = `"fab"`; a menu on it opens as the FAB menu, which `QPushButton::showMenu()` leaves to the
    private `popupFabMenu()`. The menu is marked with `_nt_fabMenu`: no panel, a pill of 56 for each action, 4 apart
    and 8 above the button, which shows as a round close button. The items open with motion: each grows from a circle at the right to its width along the fast spatial spring,
-   0.03 s after the one below it, fading in over 0.1 s; they close at once. To do: the other sizes.
+   0.03 s after the one below it, fading in over 0.1 s; they close the other way round (see the motion of what goes,
+   below). To do: the other sizes.
    **Done:** the floating toolbar is a `QToolBar` with `materialToolBar` = `"floating"` or `"floatingVibrant"`: a
    pill of 64 with a shadow, in a row or a column, whose `QToolButton`s are 48 to a finger with a shape of 40, with no
    container until checked. `QToolBar` lays itself out for it (no grip, no stretch) and asks the private
@@ -145,7 +146,7 @@ or `"drawer"` (against the left edge, up to 360 wide and 56 short of the window,
 dialogs itself, reads the window property `_nt_sheet`, rounds only the corners away from the edge, and closes the
 sheet on a tap on the scrim; Back closes it as it does any dialog. A `QListWidget` with `materialList` =
 `"navigationDrawer"` is the drawer's list: pills of 56 inset by 12, no frame. Icons of one color in the rows of any
-list now take `OnSurfaceVariant` (`OnSecondaryContainer` when chosen). Not done: the sliding motion, dragging and the
+list now take `OnSurfaceVariant` (`OnSecondaryContainer` when chosen). Not done: dragging and the
 drag handle (which would promise it), standard sheets, dismissal by an outside click on a desktop.
 
 `materialTextField` = `"search"` makes a `QLineEdit` the search bar: a `SurfaceContainerHigh` pill of 56 with a
@@ -192,8 +193,8 @@ spring of stiffness 380 (the default spatial one) with a damping ratio of 1, so 
 gap; the Android platform accepts a sheet's geometry beyond its edge and recomposes when a dialog moves. A snackbar
 fades in on the default effects spring through a `QGraphicsOpacityEffect` (only if the application set none), and one
 that is cleared or replaced leaves a picture of itself (`grab()`, with its buttons) that fades out on the fast effects
-spring. Not done: the snackbar's growing from 80 percent, sheets sliding out (the dialog is hidden at once, and
-`exec()` returns then), the scrim fading.
+spring. Not done: the snackbar's growing from 80 percent. (Sheets sliding out and the scrim fading: see the motion
+of what goes, below.)
 
 Text fields have icons, a prefix, a suffix and a counter. The icons come from Qt's own `QLineEdit::addAction(action,
 position)`, which Nt now has: `QLineEdit` draws the visible actions' icons at its ends and triggers an action on a
@@ -307,6 +308,62 @@ expressive tokens, as the one-line rows have it). The style draws the text (`dra
 QStyledItemDelegate and QListWidget's own painting; the supporting text is left out of the width hint, so a long one
 is shortened rather than giving the list a horizontal scroll bar. Not done: overline, avatars, images and videos,
 trailing icons and checkboxes, segmented or gapped lists.
+
+**Docked toolbar and icon button widths.** `materialToolBar` = `"docked"` or `"dockedVibrant"` makes a `QToolBar` the
+docked toolbar: 64 high across its whole side (`DockedToolbarTokens`), square corners and no shadow, in
+`SurfaceContainer` (`StandardToolbarTokens`) or `PrimaryContainer` (`VibrantToolbarTokens`), its buttons 48 and in the
+colours of the floating toolbar's items, which are the same tokens. The app puts it in `Qt::BottomToolBarArea` of a
+`QMainWindow` (or the top, or at the bottom of a layout); its size policy is `Expanding` along it, so the main window's
+tool bar line gives it the width. The items are 16 in from the ends (leading and trailing space) and from 4 to 32 apart
+(min and max spacing): `QToolBar::relayout()` puts a stretch at each end and, between two buttons, a fixed spacer of 4
+and one of 28 that may shrink to nothing, so a narrow window spreads them edge to edge and a wide one centres them 32
+apart. Separators are hidden; the spacing is what separates the buttons. A snackbar already sits above a bar in the
+bottom tool bar area, since the main window gives the snackbar only the room above its tool bars;
+`QMainWindow::placeSnackbar()` also goes above a docked toolbar at the bottom of the central widget, as it does for a
+navigation bar. `materialIconButtonWidth` = `"narrow"` or `"wide"` changes the width of an icon button's shape
+(`"default"` or none keeps it square): each width is the icon and its leading and trailing space of
+`IconButton*Tokens`, narrow / default / wide 28 / 32 / 40 for extra small, 32 / 40 / 52 for small, 48 / 56 / 72 for
+medium, 64 / 96 / 128 for large and 104 / 136 / 184 for extra large. The size hint is the shape and 48 at least in each
+direction, the shape is centred in it with its own room at the sides and above and below, a full corner is no more
+than half of the narrower side, and the pressed and checked corners morph as before. Not done: the docked toolbar does
+not hide on scroll, and has no FAB of its own or overflow menu.
+
+**Search view.** A search bar (`materialTextField` `"search"`) with a QCompleter opens Material's docked search view,
+so that a program written for Qt gets an ordinary completer there. The completer's popup is a QListWidget in the
+line edit's window (as menus are), so its corners show the window behind it. The style knows it by its popup anchor
+(the line edit, set by QCompleter before the popup is polished, and polished again if the completer moves to another
+widget): it makes the list's `Base` transparent and its frame `NoFrame`, and `drawMaterialFrame()` draws the container
+under the rows. The view is `SurfaceContainerHigh` (`SearchViewTokens`), goes on from the bar at its full width with a
+1 divider in `OutlineVariant`, and has corners of 28 (corner extra large, the docked container shape) at the far end;
+while it is open the bar's corners towards it are square, so the two read as one shape (opened over the bar where
+there is no room below, the shapes flip). Rows are 56, at most `maxVisibleItems()` (7) before the list scrolls, text
+body large in `OnSurface`, and the icon that the model has in `Qt::DecorationRole` is a 24 leading icon. The current
+row has the menu's hover layer (`OnSurface` 0.08) inside the container rather than the list's `SecondaryContainer`
+pill. Under any other line edit the completer's popup is drawn as a menu instead: `SurfaceContainer`, corner 16,
+outline `OutlineVariant`, rows 48. Keyboard and mouse stay QCompleter's (arrows, Return, a click, Escape). Not done:
+the full-screen search view, a header of the view's own (the bar is the header), emphasis of the matching text,
+motion when the view opens.
+
+Things that go move too. A sheet that is closed (accept, reject, `done()`, `hide()`, Escape, Back, a tap beside it on
+Android) is hidden at once, as any dialog is, so the semantics stay Qt's: `isVisible()` is false at once, `accepted`,
+`rejected` and `finished` are emitted and the result set as before, and `exec()` returns at once. `QDialog::setVisible`
+asks the private `slideSheetOut()` first, which puts a picture of the sheet (`grab()`) in a frameless `Qt::Dialog`
+window of its own (`_nt_sheetGhost`, transparent for the mouse, a child of the parent's window), with the sheet's
+`_nt_sheet`, `_nt_cornerRadius` and `_nt_sheetOffset`, and slides that to the edge on a spring of stiffness 800
+(critically damped, faster than the 380 it came in on); it goes when it reaches the edge. The other way, a window that
+stays on the screen while the widget says it is hidden, or signals that wait for the slide, would have broken code that
+deletes the dialog after `exec()` or tests `isVisible()`; the picture outlives the dialog. A sheet shown again during its
+exit takes the picture's offset and scrim and slides in from there, and the picture is deleted. The scrim: the style
+sets `_nt_scrimOpacity` on the window of every dialog, fading it from 0 (or the picture's value) to 0.32 on the default
+effects spring as the dialog is shown, and to 0 when it is hidden; the picture of a sheet carries the scrim and fades it
+to 0 as it slides. The android platform dims by that property (32 percent without it) and composes again when a dialog
+paints, which the fade asks for at each step. A dialog that is not a sheet still goes at once, and its scrim with it.
+A FAB menu that closes leaves a picture of itself (`_nt_fabMenuGhost`, a child of the menu's window, which on every
+platform is where a `QMenu` lives): its pills go one after another, the one farthest from the button first, 0.02 s
+apart, each shrinking toward its right end into a circle on the fast effects spring while it fades out over 0.08 s;
+the menu opening again deletes what is left. The FAB's cross turns back into the plus as before. With motion off all of
+it is at once. Not run on a device yet: the Android scrim and the picture window on the compositor (the ghost is a
+dialog window, so it is activated while it slides and Back or a tap beside it closes it early).
 
 ## Open points
 

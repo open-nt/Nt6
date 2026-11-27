@@ -5,6 +5,8 @@
 
 #include <QtCore/qstringlistmodel.h>
 #include <QtGui/qevent.h>
+#include <QtGui/qicon.h>
+#include <QtGui/qpixmap.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qlistwidget.h>
 
@@ -24,6 +26,9 @@ public:
 protected:
     void hideEvent(QHideEvent *event) override {
         QtPrivate::WidgetAccess::setPopup(this, nullptr);
+        // A style may draw the widget differently while its popup is open.
+        if (QWidget *anchor = QtPrivate::WidgetAccess::data(this).popupAnchor.data())
+            anchor->update();
         QListWidget::hideEvent(event);
     }
 };
@@ -300,10 +305,14 @@ void QCompleter::filter() {
     if (m_model)
         readModel();
     m_matches.clear();
+    m_matchRows.clear();
     m_row = -1;
-    for (const QString &word : m_completions) {
-        if (m_mode == UnfilteredPopupCompletion || matches(word))
+    for (int i = 0; i < static_cast<int>(m_completions.size()); ++i) {
+        const QString &word = m_completions.at(i);
+        if (m_mode == UnfilteredPopupCompletion || matches(word)) {
             m_matches.append(word);
+            m_matchRows.append(i);
+        }
     }
     if (m_mode == UnfilteredPopupCompletion) {
         for (int i = 0; i < completionCount(); ++i) {
@@ -326,13 +335,34 @@ void QCompleter::showPopup(const QRect &rect) {
     QWidget *top = m_widget->window();
     if (m_popup->parentWidget() != top)
         m_popup->setParent(top);
+    // The style sees which widget the popup is under, and may draw it to suit that widget: polished again for another.
+    auto &data = QtPrivate::WidgetAccess::data(m_popup);
+    if (data.popupAnchor != m_widget) {
+        data.popupAnchor = m_widget.data();
+        if (data.polished) {
+            m_popup->style()->unpolish(m_popup);
+            m_popup->style()->polish(m_popup);
+        }
+    }
+    m_popup->ensurePolished();
     const int row = m_row; // filling the list moves its current row
     m_popup->clear();
-    m_popup->addItems(m_matches);
+    for (qsizetype i = 0; i < m_matches.size(); ++i) {
+        auto *item = new QListWidgetItem(m_matches.at(i));
+        // The icon that the model has for the word goes before it.
+        if (m_model && i < m_matchRows.size()) {
+            const QVariant decoration = m_model->index(m_matchRows.at(i), m_column).data(Qt::DecorationRole);
+            if (decoration.typeId() == QMetaType::fromType<QIcon>().id())
+                item->setIcon(decoration.value<QIcon>());
+            else if (decoration.typeId() == QMetaType::fromType<QPixmap>().id())
+                item->setIcon(QIcon(decoration.value<QPixmap>()));
+        }
+        m_popup->addItem(item);
+    }
     m_row = row;
     const QRect area = rect.isValid() ? rect : m_widget->rect();
     const int rows = std::min(completionCount(), m_maxVisible);
-    const int height = rows * m_popup->rowHeight() + 4;
+    const int height = rows * m_popup->rowHeight() + 2 * m_popup->frameWidth();
     QPoint at = m_widget->mapTo(top, area.bottomLeft() + QPoint(0, 1));
     if (at.y() + height > top->height())
         at.setY(std::max(0, m_widget->mapTo(top, area.topLeft()).y() - height));
@@ -341,7 +371,7 @@ void QCompleter::showPopup(const QRect &rect) {
     m_popup->raise();
     m_popup->show();
     QtPrivate::WidgetAccess::setPopup(m_popup, m_popup);
-    QtPrivate::WidgetAccess::data(m_popup).popupAnchor = m_widget.data();
+    m_widget->update();
 }
 
 void QCompleter::hidePopup() {

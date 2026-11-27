@@ -899,6 +899,16 @@ void QMainWindow::placeSnackbar(QStatusBar *status, const QRect &area) const {
             if (top + bar->height() >= bottom - 4)
                 bottom = top;
         }
+        // So does a docked toolbar at the bottom of the central widget. One in the bottom tool bar area is below the
+        // room already.
+        const QList<QToolBar *> toolBars = central->findChildren<QToolBar *>();
+        for (const QToolBar *bar : toolBars) {
+            if (!QMaterialStyle::isDockedToolBar(bar) || !bar->isVisibleTo(this))
+                continue;
+            const int top = bar->mapTo(this, QPoint(0, 0)).y();
+            if (top + bar->height() >= bottom - 4)
+                bottom = top;
+        }
     }
     const int width = std::max(0, std::min(widest, room.width() - 2 * margin));
     // Material puts a snackbar above a floating action button that is where it would go, so that both can be reached.

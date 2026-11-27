@@ -9,6 +9,7 @@
 #define QT_WIDGETS_LIB
 #endif
 
+#include <QtWidgets/qtestsupport_widgets.h>
 #include <QtWidgets/qwidget.h>
 
 #include <QtTest/qtest_gui.h>

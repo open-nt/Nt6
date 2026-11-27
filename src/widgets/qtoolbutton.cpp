@@ -316,6 +316,8 @@ void QToolButton::paintEvent(QPaintEvent *event) {
         painter.setPen(ink);
         painter.drawText(content, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text());
     }
+    if (material)
+        material->drawButtonBadge(&painter, this);
 }
 
 /*!

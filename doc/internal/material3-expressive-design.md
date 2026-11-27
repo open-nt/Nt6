@@ -105,7 +105,7 @@ and those after it trail (`OnSurfaceVariant`). `QMainWindow` now gives what a to
 size policy expands, as Qt does, which the app bar's does. The bottom navigation bar is a horizontal `QTabBar` with
 `materialTabBar` = `"navigationBar"` (in a `QTabWidget` with the tabs at the south): 64 high, `SurfaceContainer`, equal
 widths, a 24 icon in a 56 by 32 pill over a label of 12; the pill opens along the fast spatial spring. Not done: medium
-and large app bars, the colour on scroll, badges, horizontal items, the navigation rail and drawer.
+and large app bars, the colour on scroll, horizontal items and the navigation drawer.
 
 A snackbar is the status bar of a `QMainWindow` with `materialStatusBar` = `"snackbar"`: `InverseSurface`, corners 4,
 48 high (68 when the message takes two lines), 16 from the sides and from the bottom, above a navigation bar, at most
@@ -130,6 +130,15 @@ the style, so an application's override that calls it keeps the look, and the co
 style treats the two arrow buttons as standard icon buttons and draws chevrons. Days of other months stay, faint,
 because Qt lets a click on one go to its month. Not done: the headline, the year grid, ranges, date input and the time
 picker (Qt Widgets has no widget that is one).
+
+The navigation rail is a vertical `QTabBar` with `materialTabBar` = `"navigationRail"` (a `QTabWidget` with the tabs
+at the west): 96 wide, `Surface`, destinations of 64 with 4 between them from 44 down, drawn as those of the bar.
+Badges are `Error` with `OnError`: a dot of 6, or 16 high with a label of 11; `materialBadge` on icon and toolbar
+buttons, `materialBadges` (a list, as the tabs have no object of their own and tab data is the application's) on the
+tab bar. Under the style `SH_DialogButtonLayout` is `AndroidLayout`, which `QDialogButtonBox` now asks for. A
+snackbar goes above a floating action button at the bottom, as Compose's `Scaffold` places it, since a button that a
+layout places cannot be moved aside, and keeps to the pages beside a rail. Not done: the expanded rail, a rail that
+scrolls.
 
 ## Open points
 

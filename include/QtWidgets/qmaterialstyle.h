@@ -15,6 +15,7 @@ struct SpringSpec;
 } // namespace QtPrivate
 
 class QCalendarWidget;
+class QAbstractButton;
 class QFrame;
 class QLineEdit;
 class QListWidget;
@@ -199,11 +200,17 @@ private:
     friend class QMainWindow;
     friend class QStatusBar;
     static bool isSnackbar(const QWidget *widget);
+    static bool isFloatingActionButton(const QWidget *widget); // which a snackbar goes above
     static int snackbarHeight(const QStatusBar *bar, int width);
     void drawSnackbar(QPainter *painter, const QStatusBar *bar) const;
     void drawCircularProgress(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     // A bottom navigation bar: QTabBar gives its tabs equal widths and asks for the whole of it to be drawn.
     static bool isNavigationBar(const QWidget *widget);
+    // A navigation rail: the same at the side, its destinations one under another.
+    static bool isNavigationRail(const QWidget *widget);
+    // The badge that a button or a destination has: a dot, or a few characters, at the top right of its icon.
+    void drawBadge(QPainter *painter, const QVariant &badge, const QRect &icon) const;
+    void drawButtonBadge(QPainter *painter, const QAbstractButton *button) const;
     void drawNavigationBar(QPainter *painter, const QTabBar *bar) const;
 
     QColor m_seed;

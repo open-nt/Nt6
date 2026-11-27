@@ -5,6 +5,7 @@
 
 #include "qwidget_p.h"
 
+#include <QtWidgets/qabstractbutton.h>
 #include <QtWidgets/qdockwidget.h>
 #include <QtWidgets/qlayout.h>
 #include <QtWidgets/qmenu.h>
@@ -871,8 +872,10 @@ QStatusBar *QMainWindow::floatingStatus() const {
     return status;
 }
 
-// Puts a snackbar over the bottom of `room`, above a navigation bar that is there; with no message it has no size.
-void QMainWindow::placeSnackbar(QStatusBar *status, const QRect &room) const {
+// Puts a snackbar over the bottom of `area`, above a navigation bar that is there and beside a navigation rail; with no
+// message it has no size.
+void QMainWindow::placeSnackbar(QStatusBar *status, const QRect &area) const {
+    QRect room = area;
     constexpr int margin = 16;
     constexpr int widest = 600;
     int bottom = room.bottom() + 1;
@@ -881,6 +884,15 @@ void QMainWindow::placeSnackbar(QStatusBar *status, const QRect &room) const {
         if (auto *self = qobject_cast<QTabBar *>(central))
             bars.append(self);
         for (const QTabBar *bar : std::as_const(bars)) {
+            if (QMaterialStyle::isNavigationRail(bar) && !bar->isHidden()) {
+                // The snackbar keeps to the pages, at whichever side of them the rail is.
+                const int at = bar->mapTo(this, QPoint(0, 0)).x();
+                if (at <= room.left() + 4)
+                    room.setLeft(std::max(room.left(), at + bar->width()));
+                else if (at + bar->width() >= room.left() + room.width() - 4)
+                    room.setRight(std::min(room.right(), at - 1));
+                continue;
+            }
             if (!QMaterialStyle::isNavigationBar(bar) || bar->isHidden())
                 continue;
             const int top = bar->mapTo(this, QPoint(0, 0)).y();
@@ -889,8 +901,23 @@ void QMainWindow::placeSnackbar(QStatusBar *status, const QRect &room) const {
         }
     }
     const int width = std::max(0, std::min(widest, room.width() - 2 * margin));
+    // Material puts a snackbar above a floating action button that is where it would go, so that both can be reached.
+    const int left = room.left() + (room.width() - width) / 2;
+    constexpr int reach = 96; // how far over the bottom a button counts as being at it
+    int above = bottom;
+    if (const QWidget *central = m_central) {
+        const QList<QAbstractButton *> buttons = central->findChildren<QAbstractButton *>();
+        for (const QAbstractButton *button : buttons) {
+            if (!QMaterialStyle::isFloatingActionButton(button) || !button->isVisibleTo(this))
+                continue;
+            const QRect at(button->mapTo(this, QPoint(0, 0)), button->size());
+            if (at.right() >= left && at.left() < left + width && at.bottom() >= bottom - reach && at.top() < above)
+                above = at.top();
+        }
+    }
+    bottom = above;
     const int height = status->currentMessage().isEmpty() ? 0 : QMaterialStyle::snackbarHeight(status, width) + 2;
-    status->setGeometry(room.left() + (room.width() - width) / 2, bottom - margin - height, width, height);
+    status->setGeometry(left, bottom - margin - height, width, height);
     status->raise();
 }
 

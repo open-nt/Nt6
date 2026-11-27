@@ -2171,6 +2171,197 @@ void testCalendar() {
     CHECK(arrows.at(0)->sizeHint().width() < 48);
 }
 
+void testDialogOrderAndFab() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    // What confirms comes last; what dismisses before it.
+    QDialogButtonBox box(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Help);
+    box.resize(400, 48);
+    box.show();
+    QCoreApplication::processEvents();
+    const auto at = [&](QDialogButtonBox::StandardButton which) { return box.button(which)->x(); };
+    CHECK(at(QDialogButtonBox::Help) < at(QDialogButtonBox::Cancel));
+    CHECK(at(QDialogButtonBox::Cancel) < at(QDialogButtonBox::Ok));
+    QDialogButtonBox question(QDialogButtonBox::Yes | QDialogButtonBox::No);
+    question.resize(300, 48);
+    question.show();
+    QCoreApplication::processEvents();
+    CHECK(question.button(QDialogButtonBox::No)->x() < question.button(QDialogButtonBox::Yes)->x());
+    // The order is the style's: another one, set while the box is shown, puts them back.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(at(QDialogButtonBox::Ok) < at(QDialogButtonBox::Cancel));
+    box.hide();
+    question.hide();
+
+    style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    // A snackbar goes above a floating action button at the bottom, and back down when the button goes.
+    QMainWindow window;
+    auto *pages = new QStackedWidget;
+    auto *with = new QWidget;
+    auto *column = new QVBoxLayout(with);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->addStretch(1);
+    auto *fab = new QPushButton(QStringLiteral("+"));
+    fab->setProperty("materialButton", QStringLiteral("fab"));
+    column->addWidget(fab, 0, Qt::AlignRight);
+    pages->addWidget(with);
+    pages->addWidget(new QWidget);
+    window.setCentralWidget(pages);
+    auto *status = new QStatusBar;
+    status->setProperty("materialStatusBar", QStringLiteral("snackbar"));
+    window.setStatusBar(status);
+    window.resize(360, 500);
+    window.show();
+    QCoreApplication::processEvents();
+    status->showMessage(QStringLiteral("Saved"));
+    QCoreApplication::processEvents();
+    const int top = fab->mapTo(&window, QPoint(0, 0)).y();
+    CHECK(status->y() + status->height() == top - 16);
+    const int bottom = 500 - 16;
+    pages->setCurrentIndex(1);
+    for (int i = 0; i < 3; ++i)
+        QCoreApplication::processEvents();
+    CHECK(status->y() + status->height() == bottom);
+    pages->setCurrentIndex(0);
+    for (int i = 0; i < 3; ++i)
+        QCoreApplication::processEvents();
+    CHECK(status->y() + status->height() == top - 16);
+    // One that is not at the bottom is no concern of the snackbar's.
+    column->removeWidget(fab);
+    fab->move(250, 40);
+    fab->hide();
+    fab->show();
+    for (int i = 0; i < 3; ++i)
+        QCoreApplication::processEvents();
+    CHECK(status->y() + status->height() == bottom);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+void testRailAndBadges() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    QPixmap square(24, 24);
+    square.fill(Qt::black);
+    const QIcon icon(square);
+
+    QMainWindow window;
+    auto *pages = new QTabWidget;
+    pages->setTabPosition(QTabWidget::West);
+    QTabBar *bar = pages->tabBar();
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRail"));
+    for (const char *name : {"Home", "Search", "Settings"})
+        pages->addTab(new QWidget, icon, QString::fromLatin1(name));
+    window.setCentralWidget(pages);
+    auto *status = new QStatusBar;
+    status->setProperty("materialStatusBar", QStringLiteral("snackbar"));
+    window.setStatusBar(status);
+    window.resize(600, 400);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // 96 across, with the destinations of 64 one under another from 44 down.
+    CHECK(bar->width() == 96 && bar->height() == 400);
+    CHECK(bar->tabRect(0) == QRect(0, 44, 96, 64));
+    CHECK(bar->tabRect(1) == QRect(0, 112, 96, 64));
+    CHECK(bar->tabRect(2) == QRect(0, 180, 96, 64));
+    CHECK(bar->tabAt(QPoint(48, 140)) == 1);
+    CHECK(bar->font().pixelSize() == 12);
+    const auto shot = [&] { return window.grab().toImage(); };
+    QImage image = shot();
+    const QPoint origin = bar->mapTo(&window, QPoint(0, 0));
+    const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+    CHECK(is(at(2, 20), Role::Surface));
+    CHECK(is(at(24, 44 + 22), Role::SecondaryContainer)); // the pill of the one shown
+    CHECK(is(at(24, 112 + 22), Role::Surface));
+    CHECK(is(at(48, 44 + 22), Role::OnSecondaryContainer)); // its icon
+    CHECK(is(at(48, 112 + 22), Role::OnSurfaceVariant));
+    // A click goes to a destination.
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(48, 140), QPointF(48, 140), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(bar, &press);
+    CHECK(pages->currentIndex() == 1);
+    // A rail is at the side: a snackbar stays at the bottom.
+    status->showMessage(QStringLiteral("Saved"));
+    QCoreApplication::processEvents();
+    CHECK(status->y() + status->height() == 400 - 16);
+    CHECK(status->x() == 96 + 16 && status->width() == 600 - 96 - 32); // and beside the rail
+    pages->setTabPosition(QTabWidget::East);
+    QCoreApplication::processEvents();
+    status->showMessage(QStringLiteral("Saved again"));
+    QCoreApplication::processEvents();
+    CHECK(status->x() == 16 && status->width() == 600 - 96 - 32);
+    pages->setTabPosition(QTabWidget::West);
+    status->clearMessage();
+
+    // Badges of destinations: a dot, a count, none.
+    bar->setProperty("materialBadges", QVariantList{true, 3, 0});
+    QCoreApplication::processEvents();
+    image = shot();
+    // The icon of destination i is 24 wide in the middle, 10 under the top of its destination.
+    const auto red = [&](const QRect &area) {
+        int count = 0;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+            for (int x = area.left(); x <= area.right(); ++x)
+                count += near(at(x, y), style->color(Role::Error), 6) ? 1 : 0;
+        return count;
+    };
+    const QRect first(36, 44 + 10, 24, 24), second = first.translated(0, 68), third = second.translated(0, 68);
+    CHECK(is(at(first.right() - 2, first.top() + 3), Role::Error));
+    const int dot = red(first.adjusted(0, -8, 24, 0));
+    CHECK(dot > 12 && dot < 40);
+    CHECK(red(second.adjusted(0, -8, 24, 0)) > dot * 2);
+    CHECK(red(third.adjusted(0, -8, 24, 0)) == 0);
+
+    // Badges of an icon button and of a button of an app bar.
+    QWidget panel;
+    panel.resize(200, 60);
+    auto *button = new QPushButton(&panel);
+    button->setProperty("materialIconButton", QStringLiteral("standard"));
+    button->setIcon(icon);
+    button->setGeometry(10, 6, 48, 48);
+    auto *tool = new QToolButton(&panel);
+    tool->setProperty("materialIconButton", QStringLiteral("standard"));
+    tool->setIcon(icon);
+    tool->setGeometry(100, 6, 48, 48);
+    panel.show();
+    QCoreApplication::processEvents();
+    const auto redIn = [&](const QRect &area) {
+        const QImage now = panel.grab().toImage();
+        int count = 0;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+            for (int x = area.left(); x <= area.right(); ++x)
+                count += near(now.pixelColor(x, y), style->color(Role::Error), 6) ? 1 : 0;
+        return count;
+    };
+    for (QAbstractButton *each : {static_cast<QAbstractButton *>(button), static_cast<QAbstractButton *>(tool)}) {
+        const QRect around = each->geometry();
+        CHECK(redIn(around) == 0);
+        each->setProperty("materialBadge", true);
+        const int small = redIn(around);
+        CHECK(small > 12 && small < 40);
+        each->setProperty("materialBadge", 7);
+        const int one = redIn(around);
+        CHECK(one > 2 * small);
+        each->setProperty("materialBadge", 12345); // 999+, which is wider
+        CHECK(!textIsDrawn() || redIn(around.adjusted(0, 0, 20, 0)) > one);
+        for (const QVariant &gone : {QVariant(0), QVariant(false), QVariant(QString()), QVariant()}) {
+            each->setProperty("materialBadge", gone);
+            CHECK(redIn(around) == 0);
+        }
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -2199,6 +2390,8 @@ int main(int argc, char *argv[]) {
     testSnackbarTooltipCircular();
     testChipsCardsDividers();
     testCalendar();
+    testDialogOrderAndFab();
+    testRailAndBadges();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

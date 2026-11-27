@@ -14,6 +14,9 @@ namespace {
 
 constexpr int kCloseSize = 14; // the close button of a tab
 constexpr int kDragDistance = 4;
+constexpr int kRailTop = 44; // above the first destination of a navigation rail,
+constexpr int kRailItem = 64;
+constexpr int kRailSpace = 4; // and between one and the next
 
 } // namespace
 
@@ -525,6 +528,17 @@ std::vector<QRect> QTabBar::layoutTabs() const {
     const bool vert = vertical();
     const int room = vert ? height() : width();
     const int thick = vert ? width() : height();
+    // Those of a navigation rail are one under another, below the room that Material leaves at its top.
+    if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationRail(this)) {
+        std::vector<QRect> column;
+        column.reserve(m_tabs.size());
+        int top = kRailTop;
+        for (const Tab &tab : m_tabs) {
+            column.push_back(QRect(0, top, thick, tab.visible ? kRailItem : 0));
+            top += tab.visible ? kRailItem + kRailSpace : 0;
+        }
+        return column;
+    }
     // The destinations of a navigation bar of the Material style share its width alike.
     if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationBar(this)) {
         const int shown =
@@ -673,6 +687,15 @@ void QTabBar::setTabsClosable(bool closable) {
     \reimp
 */
 QSize QTabBar::sizeHint() const {
+    if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationRail(this)) {
+        const std::vector<QRect> rects = layoutTabs();
+        int bottom = kRailTop;
+        for (const QRect &rect : rects)
+            bottom = std::max(bottom, rect.y() + rect.height());
+        QStyleOptionTab option;
+        option.initFrom(this);
+        return QSize(style()->sizeFromContents(QStyle::CT_TabBarTab, &option, QSize(), this).width(), bottom);
+    }
     int width = 0;
     int height = 0;
     for (int i = 0; i < count(); ++i) {
@@ -964,7 +987,7 @@ void QTabBar::paintEvent(QPaintEvent *event) {
     QPainter painter(this);
     painter.setFont(font());
     if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
-        material && QMaterialStyle::isNavigationBar(this)) {
+        material && (QMaterialStyle::isNavigationBar(this) || QMaterialStyle::isNavigationRail(this))) {
         material->drawNavigationBar(&painter, this);
         return;
     }

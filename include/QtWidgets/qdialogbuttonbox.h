@@ -104,6 +104,7 @@ signals:
 
 protected:
     void showEvent(QShowEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private:
     struct Entry {

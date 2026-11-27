@@ -4,6 +4,7 @@
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qdialog.h>
 #include <QtWidgets/qpushbutton.h>
+#include <QtWidgets/qstyle.h>
 
 #include <algorithm>
 
@@ -49,6 +50,12 @@ constexpr int kHorizontalOrder[] = {
     QDialogButtonBox::YesRole,    QDialogButtonBox::NoRole,    QDialogButtonBox::ActionRole,
     QDialogButtonBox::AcceptRole, QDialogButtonBox::ApplyRole, QDialogButtonBox::DestructiveRole,
     QDialogButtonBox::RejectRole};
+// The Android layout: what dismisses comes before what confirms, which is last.
+constexpr int kAndroidOrder[] = {
+    QDialogButtonBox::HelpRole,   QDialogButtonBox::ResetRole,       -1,
+    QDialogButtonBox::ActionRole, QDialogButtonBox::DestructiveRole, QDialogButtonBox::RejectRole,
+    QDialogButtonBox::NoRole,     QDialogButtonBox::ApplyRole,       QDialogButtonBox::YesRole,
+    QDialogButtonBox::AcceptRole};
 constexpr int kVerticalOrder[] = {QDialogButtonBox::AcceptRole,      QDialogButtonBox::ApplyRole,
                                   QDialogButtonBox::ActionRole,      QDialogButtonBox::YesRole,
                                   QDialogButtonBox::NoRole,          -1,
@@ -80,8 +87,10 @@ constexpr int kVerticalOrder[] = {QDialogButtonBox::AcceptRole,      QDialogButt
     \image widgets/qdialogbuttonbox.png QDialogButtonBox in the light color scheme
 
     \differences
-    The buttons are always in the KDE order of Qt: help and reset buttons at the start, then a stretch, then the
-    yes, no, action, accept, apply, destructive and reject buttons. The texts of the standard buttons have no
+    A row of buttons is in the KDE order of Qt (help and reset buttons at the start, then a stretch, then the yes, no,
+    action, accept, apply, destructive and reject buttons) or, where the style asks for it with
+    QStyle::SH_DialogButtonLayout, as QMaterialStyle does, in the Android order, which ends with the buttons that
+    confirm. The other layouts of Qt are not there, and a column is always in the KDE order. The texts of the standard buttons have no
     mnemonics and are not translated, and the buttons have no icons. \c AlternateRole is not used.
     \enddifferences
 
@@ -381,6 +390,15 @@ void QDialogButtonBox::setCenterButtons(bool center) {
 
 /*!
     \reimp
+*/
+void QDialogButtonBox::changeEvent(QEvent *event) {
+    if (event->type() == QEvent::StyleChange)
+        relayout(); // another style may order the buttons its own way
+    QWidget::changeEvent(event);
+}
+
+/*!
+    \reimp
 
     In a QDialog without a default button, the first push button with the AcceptRole or the YesRole becomes the
     default.
@@ -444,7 +462,18 @@ void QDialogButtonBox::relayout() {
             if (entry.role == role)
                 m_layout->addWidget(entry.button);
     };
-    if (horizontal) {
+    // The style says how a row of buttons is ordered; of the layouts of Qt, Nt has the Android and the KDE one.
+    const bool android = style()->styleHint(QStyle::SH_DialogButtonLayout, nullptr, this) == AndroidLayout;
+    if (horizontal && android) {
+        for (const int role : kAndroidOrder) {
+            if (role < 0) {
+                if (!m_center)
+                    m_layout->addStretch();
+            } else {
+                addRole(role);
+            }
+        }
+    } else if (horizontal) {
         for (const int role : kHorizontalOrder) {
             if (role < 0) {
                 if (!m_center)

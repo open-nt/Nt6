@@ -167,6 +167,8 @@ void QPushButton::paintEvent(QPaintEvent *event) {
     QStyleOptionButton option;
     initStyleOption(&option);
     style()->drawControl(QStyle::CE_PushButton, &option, &painter, this);
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style()))
+        material->drawButtonBadge(&painter, this);
     // A floating action button of the Material style shows its menu without an arrow.
     const bool fab =
         qobject_cast<const QMaterialStyle *>(style()) && property("materialButton").toString() == QLatin1String("fab");

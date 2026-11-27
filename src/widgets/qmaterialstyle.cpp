@@ -27,6 +27,7 @@
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qlistview.h>
 #include <QtWidgets/qlistwidget.h>
+#include <QtWidgets/qmainwindow.h>
 #include <QtWidgets/qmenu.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
@@ -126,6 +127,10 @@ constexpr double snackbarCorner = 4;
 constexpr int circularSize = 40;
 constexpr double circularThickness = 4;
 constexpr double circularGap = 4; // between the part of a circular progress indicator that is done and its track
+constexpr int railWidth = 96;
+constexpr int badgeDot = 6;
+constexpr int badgeHeight = 16; // of one with a number or a word
+constexpr int badgePixels = 11;
 constexpr int appBarHeight = 64;
 constexpr int appBarTitlePixels = 22;
 constexpr int appBarTitleSpace = 16; // before the title of an app bar with nothing leading it
@@ -587,11 +592,19 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         share the width, each an icon over its label, with a pill behind the one that is current. With a QTabWidget
         whose tabs are at the south it is the navigation of an application and its pages:
         tabs->tabBar()->setProperty("materialTabBar", "navigationBar").
+    \li \c materialTabBar \c "navigationRail" makes a vertical QTabBar a navigation rail, for a screen that is wide: 96
+        across, its destinations one under another from the top. With a QTabWidget whose tabs are at the west it is the
+        navigation of an application and its pages.
+    \li \c materialBadge of an icon button or a button of a toolbar puts a badge on its icon: \c true is a dot, and a
+        number above 0, or a text, is shown in it (over 999 as 999+); 0, \c false or an empty text take it away. The
+        destinations of a navigation bar or rail have theirs in \c materialBadges of the QTabBar, a QVariantList with
+        one such value for each, in order.
     \li \c materialProgress \c "circular" draws a QProgressBar as a ring of 40: how far it is, or while it is busy an
         arc that goes round.
     \li \c materialStatusBar \c "snackbar" makes the status bar of a QMainWindow a snackbar: it takes no room, floats
-        over the content, above a navigation bar, while it has a message, from showMessage() until clearMessage() or
-        the message's timeout, and its permanent widgets, buttons, are its actions.
+        over the content, above a navigation bar, beside a navigation rail and above a floating action button that is at
+        the bottom, while it has a message, from showMessage() until clearMessage() or the message's timeout, and its
+        permanent widgets, buttons, are its actions.
     \li \c materialChip of a QPushButton: \c "assist", \c "filter", \c "input" or \c "suggestion" makes it a chip,
         32 high (48 to a finger) with small corners and an outline. A filter chip is made checkable: checked, it is
         filled and a check mark takes the place of its icon, which makes it wider. An input chip stands for something
@@ -607,6 +620,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         buttons small, and the checked button is a pill. For a choice of one, make the buttons checkable and
         auto-exclusive.
     \endlist
+
+    The buttons of a QDialogButtonBox, and so of a QMessageBox, are in the order of Android: what confirms is last.
 
     Tooltips, as QToolTip shows them, are Material's plain tooltips without anything being asked for. So is
     QCalendarWidget drawn as Material's date picker: days of 40, the chosen one in a filled circle and today in a ring,
@@ -654,8 +669,11 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     picker beside it. A card is not a button and shows no press. A card or
     a divider behind a QProxyStyle is drawn as a plain frame. Icon buttons have the default width, not
     the narrow or the wide one. An app bar is the small one: it has no subtitle, does not grow into a medium or large
-    one, and keeps its color as the content scrolls. A navigation bar has no badges, and no horizontal items for wide
-    screens; there is no navigation rail or drawer. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
+    one, and keeps its color as the content scrolls. A navigation bar has no horizontal items for wide screens. A
+    navigation rail is the collapsed one: it does not expand, has no menu button or floating action button of its own,
+    and does not scroll if its destinations do not fit; there is no navigation drawer. Badges are on icon buttons,
+    toolbar buttons and the destinations of a navigation bar or rail only. A snackbar finds where a floating action
+    button is when it is placed, and again when one is shown or hidden, not when one is moved. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
     going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
     what does not fit. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
@@ -1053,7 +1071,7 @@ void QMaterialStyle::polish(QWidget *widget) {
         font.setPixelSize(button ? 14 : 16);
         if (button)
             font.setWeight(QFont::Medium);
-        if (isNavigationBar(widget))
+        if (isNavigationBar(widget) || isNavigationRail(widget))
             font.setPixelSize(navigationLabelPixels);
         if (const ButtonSize *size = sizeOfButton(widget)) {
             font.setPixelSize(size->labelPixels);
@@ -1115,6 +1133,17 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::Hide && m_rippleWidget && watched == m_rippleWidget.data()) {
         m_rippleWidget = nullptr;
         m_rowPressed = false;
+    }
+    // A floating action button that comes or goes, as with the page that it is on, moves a snackbar that is shown.
+    if (event->type() == QEvent::Show || event->type() == QEvent::Hide) {
+        auto *button = qobject_cast<QAbstractButton *>(watched);
+        if (button && isFab(button)) {
+            if (const auto *window = qobject_cast<const QMainWindow *>(button->window())) {
+                auto *status = window->findChild<QStatusBar *>(QString(), Qt::FindDirectChildrenOnly);
+                if (status && isSnackbar(status) && !status->currentMessage().isEmpty())
+                    status->updateGeometry();
+            }
+        }
     }
     if (event->type() == QEvent::DynamicPropertyChange) {
         auto *widget = qobject_cast<QWidget *>(watched);
@@ -1549,9 +1578,65 @@ bool QMaterialStyle::isNavigationBar(const QWidget *widget) {
             bar->shape() == QTabBar::TriangularNorth || bar->shape() == QTabBar::TriangularSouth);
 }
 
+bool QMaterialStyle::isNavigationRail(const QWidget *widget) {
+    const auto *bar = qobject_cast<const QTabBar *>(widget);
+    return bar && bar->property("materialTabBar").toString() == QLatin1String("navigationRail") &&
+           (bar->shape() == QTabBar::RoundedWest || bar->shape() == QTabBar::RoundedEast ||
+            bar->shape() == QTabBar::TriangularWest || bar->shape() == QTabBar::TriangularEast);
+}
+
+void QMaterialStyle::drawBadge(QPainter *painter, const QVariant &badge, const QRect &icon) const {
+    // true is a dot; a number above none, or some text, is a badge that says it.
+    QString text;
+    bool dot = false;
+    if (badge.typeId() == QMetaType::Bool) {
+        dot = badge.toBool();
+    } else if (badge.typeId() == QMetaType::Int || badge.typeId() == QMetaType::LongLong ||
+               badge.typeId() == QMetaType::UInt || badge.typeId() == QMetaType::ULongLong) {
+        const qlonglong count = badge.toLongLong();
+        if (count > 0)
+            text = count > 999 ? QStringLiteral("999+") : QString::number(count);
+    } else {
+        text = badge.toString();
+    }
+    if (!dot && text.isEmpty())
+        return;
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    const int right = icon.x() + icon.width();
+    if (dot) {
+        fillRounded(painter, QRectF(right - badgeDot, icon.y(), badgeDot, badgeDot), badgeDot / 2.0,
+                    color(Role::Error));
+    } else {
+        QFont font = painter->font();
+        font.setPixelSize(badgePixels);
+        font.setWeight(QFont::Medium);
+        painter->setFont(font);
+        // It starts over the icon and grows away from it.
+        const int width = std::max(badgeHeight, QFontMetrics(font).horizontalAdvance(text) + 8);
+        const QRect pill(right - icon.width() / 2, icon.y() + icon.height() / 2 - badgeHeight - 1, width, badgeHeight);
+        fillRounded(painter, QRectF(pill), badgeHeight / 2.0, color(Role::Error));
+        painter->setPen(color(Role::OnError));
+        painter->drawText(pill, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text);
+    }
+    painter->restore();
+}
+
+void QMaterialStyle::drawButtonBadge(QPainter *painter, const QAbstractButton *button) const {
+    const QVariant badge = button->property("materialBadge");
+    if (!badge.isValid())
+        return;
+    int extent = iconButtonIconSize(button);
+    if (extent <= 0)
+        extent = button->iconSize().width();
+    const QRect icon((button->width() - extent) / 2, (button->height() - extent) / 2, extent, extent);
+    drawBadge(painter, badge, icon);
+}
+
 // Each destination: an icon with a label under it, and a pill behind the icon of the one that is shown.
 void QMaterialStyle::drawNavigationBar(QPainter *painter, const QTabBar *bar) const {
-    painter->fillRect(bar->rect(), color(Role::SurfaceContainer));
+    painter->fillRect(bar->rect(), color(isNavigationRail(bar) ? Role::Surface : Role::SurfaceContainer));
+    const QVariantList badges = bar->property("materialBadges").toList(); // one for each destination, in order
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setFont(bar->font());
@@ -1596,6 +1681,8 @@ void QMaterialStyle::drawNavigationBar(QPainter *painter, const QTabBar *bar) co
                                pillTop + (navigationPillHeight - navigationIcon) / 2, navigationIcon, navigationIcon);
             paintIcon(painter, middle, icon, usable ? QIcon::Normal : QIcon::Disabled,
                       selected ? QIcon::On : QIcon::Off, iconInk);
+            if (i < badges.size())
+                drawBadge(painter, badges.at(i), middle);
         }
         if (!label.isEmpty()) {
             const QRect area =
@@ -2136,6 +2223,8 @@ void QMaterialStyle::drawCircularProgress(const QStyleOption *option, QPainter *
     }
     painter->restore();
 }
+
+bool QMaterialStyle::isFloatingActionButton(const QWidget *widget) { return isFab(widget); }
 
 bool QMaterialStyle::isSnackbar(const QWidget *widget) {
     return qobject_cast<const QStatusBar *>(widget) &&
@@ -2730,6 +2819,9 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
 */
 int QMaterialStyle::styleHint(StyleHint hint, const QStyleOption *option, const QWidget *widget,
                               QStyleHintReturn *returnData) const {
+    // What confirms comes last, as on Android.
+    if (hint == SH_DialogButtonLayout)
+        return QDialogButtonBox::AndroidLayout;
     // A finger moves a slider to where it touches it.
     if (hint == SH_Slider_AbsoluteSetButtons)
         return static_cast<int>(Qt::LeftButton) | static_cast<int>(Qt::MiddleButton);
@@ -2851,6 +2943,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             return QSize(contentsSize.width(), std::max(wavyProgressHeight, contentsSize.height()));
         return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));
     case CT_TabBarTab:
+        if (isNavigationRail(widget))
+            return QSize(railWidth, navigationHeight);
         if (isNavigationBar(widget))
             return QSize(std::max(navigationPillWidth + 8, contentsSize.width() + 8), navigationHeight);
         return QSize(std::max(touchTarget, contentsSize.width() + 2 * tabPadding), tabHeight);

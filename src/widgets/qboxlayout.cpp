@@ -36,7 +36,7 @@ using QtPrivate::Cell;
     \endcode
 
     \differences
-    There is no height-for-width, \c addStrut(), \c setAlignment() on the layout or \c insertItem(). The alignment of an
+    There is no \c setAlignment() on the layout. The alignment of an
     item applies across the box only: along the box an item always gets the space that the algorithm gives it.
     \enddifferences
 
@@ -300,14 +300,8 @@ Qt::Orientations QBoxLayout::expandingDirections() const {
     return directions;
 }
 
-/*!
-    \reimp
-*/
-void QBoxLayout::setGeometry(const QRect &rect) {
-    QLayout::setGeometry(rect);
-    const QRect r = rect.marginsRemoved(contentsMargins());
+std::vector<Cell> QBoxLayout::cells() const {
     const bool h = horizontal();
-
     std::vector<Cell> cells;
     for (const Entry &e : m_items) {
         if (e.item->isEmpty() && !e.item->spacerItem())
@@ -323,6 +317,79 @@ void QBoxLayout::setGeometry(const QRect &rect) {
         s.empty = e.item->isEmpty();
         cells.push_back(s);
     }
+    return cells;
+}
+
+/*!
+    \reimp
+
+    Returns \c true if the height of any item of the box depends on its width.
+*/
+bool QBoxLayout::hasHeightForWidth() const {
+    return std::any_of(m_items.begin(), m_items.end(),
+                       [](const Entry &e) { return !e.item->isEmpty() && e.item->hasHeightForWidth(); });
+}
+
+int QBoxLayout::heightAtWidth(int w, bool minimum) const {
+    if (!hasHeightForWidth())
+        return -1;
+    const QMargins m = contentsMargins();
+    const int inner = std::max(0, w - m.left() - m.right());
+    std::vector<Cell> items = cells();
+    const int gap = spacing();
+    const bool h = horizontal();
+    if (h)
+        calculate(items, inner, gap); // each item's width, which its height may depend on
+    int height = 0, spaced = 0;
+    for (const Cell &s : items) {
+        int own = minimum ? s.item->minimumSize().height() : s.item->sizeHint().height();
+        if (s.item->hasHeightForWidth())
+            own = QtPrivate::heightAt(s.item, QtPrivate::widthIn(s.item, h ? s.size : inner), minimum);
+        height = h ? std::max(height, own) : height + own;
+        spaced += s.empty ? 0 : 1;
+    }
+    if (!h && spaced > 1)
+        height += (spaced - 1) * gap;
+    if (h)
+        height = std::max(height, m_strut);
+    return height + m.top() + m.bottom();
+}
+
+/*!
+    \reimp
+
+    Returns the height that the box would like to have if it is \a w wide, or -1 if no item's height depends on its
+    width.
+*/
+int QBoxLayout::heightForWidth(int w) const { return heightAtWidth(w, false); }
+
+/*!
+    \reimp
+
+    Returns the least height of the box if it is \a w wide, or -1 if no item's height depends on its width.
+*/
+int QBoxLayout::minimumHeightForWidth(int w) const { return heightAtWidth(w, true); }
+
+/*!
+    \reimp
+*/
+void QBoxLayout::setGeometry(const QRect &rect) {
+    QLayout::setGeometry(rect);
+    const QRect r = rect.marginsRemoved(contentsMargins());
+    const bool h = horizontal();
+
+    std::vector<Cell> cells = this->cells();
+    if (!h) {
+        // An item whose height depends on its width gets the height for the width that it is to have.
+        for (Cell &s : cells) {
+            if (!s.item->hasHeightForWidth())
+                continue;
+            const int width = QtPrivate::widthIn(s.item, r.width());
+            s.min = QtPrivate::heightAt(s.item, width, true);
+            s.hint = std::max(s.min, QtPrivate::heightAt(s.item, width, false));
+            s.max = std::max(s.hint, s.max);
+        }
+    }
     if (cells.empty())
         return;
 
@@ -335,7 +402,10 @@ void QBoxLayout::setGeometry(const QRect &rect) {
     const int count = static_cast<int>(cells.size());
     for (int n = 0; n < count; ++n) {
         const Cell &s = cells[static_cast<std::size_t>(n)];
-        const QSize mn = s.item->minimumSize(), mx = s.item->maximumSize(), hint = s.item->sizeHint();
+        QSize hint = s.item->sizeHint();
+        const QSize mn = s.item->minimumSize(), mx = s.item->maximumSize();
+        if (h && s.item->hasHeightForWidth())
+            hint.setHeight(QtPrivate::heightAt(s.item, s.size, false));
         const int crossAvailable = h ? r.height() : r.width();
         const int crossMin = h ? mn.height() : mn.width();
         const int crossMax = std::max(crossMin, h ? mx.height() : mx.width());

@@ -10,6 +10,12 @@
 #include <QtWidgets/qstyle.h>
 
 #include <algorithm>
+#include <cmath>
+
+namespace {
+constexpr int wrappedWidth =
+    80; // the characters of average width that a wrapped label would like a line to have at most
+} // namespace
 
 /*!
     \class QLabel
@@ -43,8 +49,8 @@
     reached with the keys. It has no \c indent().
     Of the textInteractionFlags(), only Qt::LinksAccessibleByMouse has an effect. Nothing opens a link for openExternalLinks(): a click emits
     linkActivated() with or without it. Rich text is placed as a whole by the alignment of the label; its
-    paragraphs are aligned by their own HTML. A word-wrapped label has no height-for-width, so its size
-    hint is that of the text with the lines that it has without the wrapping.
+    paragraphs are aligned by their own HTML. A word-wrapped label would like its lines no wider than 80
+    characters of average width; Qt's chooses the width differently.
     \enddifferences
 
     \sa QPushButton, QWidget
@@ -392,12 +398,21 @@ QSize QLabel::textSize(int width) const {
 QSize QLabel::sizeHint() const {
     if (!m_pixmap.isNull())
         return m_pixmap.size() + labelExtra();
+    // Wrapped text would rather break than take a line wider than is comfortable to read.
+    const QSize extra = labelExtra();
+    const int widest =
+        std::max(1, std::min(wrappedWidth * fontMetrics().averageCharWidth(), maximumWidth() - extra.width()));
     if (m_document) {
         m_document->setTextWidth(-1);
+        if (m_wordWrap && m_document->size().width() > widest)
+            m_document->setTextWidth(widest);
         const QSizeF size = m_document->size();
-        return QSize(static_cast<int>(size.width()), static_cast<int>(size.height())) + labelExtra();
+        return QSize(static_cast<int>(size.width()), static_cast<int>(size.height())) + extra;
     }
-    return textSize(0) + labelExtra();
+    QSize text = textSize(0);
+    if (m_wordWrap && text.width() > widest)
+        text = textSize(widest);
+    return text + extra;
 }
 
 /*!
@@ -409,6 +424,30 @@ QSize QLabel::minimumSizeHint() const {
     if (m_wordWrap)
         return QSize(fontMetrics().averageCharWidth() * 3, fontMetrics().height()) + labelExtra();
     return sizeHint();
+}
+
+/*!
+    \reimp
+
+    Returns \c true for a label with wordWrap() and no pixmap.
+*/
+bool QLabel::hasHeightForWidth() const { return m_wordWrap && m_pixmap.isNull(); }
+
+/*!
+    \reimp
+
+    Returns the height of the label at the width \a w with its text wrapped, or -1 without wordWrap().
+*/
+int QLabel::heightForWidth(int w) const {
+    if (!hasHeightForWidth())
+        return -1;
+    const QSize extra = labelExtra();
+    const int room = std::max(1, w - extra.width());
+    if (m_document) {
+        m_document->setTextWidth(room);
+        return static_cast<int>(std::ceil(m_document->size().height())) + extra.height();
+    }
+    return textSize(room).height() + extra.height();
 }
 
 /*!

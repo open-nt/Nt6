@@ -1,4 +1,5 @@
 // MIT License - see LICENSE
+#include <QtWidgets/qlayout.h>
 #include <QtWidgets/qwidget.h>
 
 #include "qwidget_p.h"
@@ -262,23 +263,28 @@ void QWidget::setSizeIncrement(const QSize &size) { m_d->sizeIncrement = size; }
     \since 6.0
 
     Returns \c true if the preferred height of the widget depends on its
-    width, as its size policy says.
+    width: for a widget with a layout, as the layout says, and otherwise as
+    its size policy says.
 
     \sa heightForWidth()
 */
-bool QWidget::hasHeightForWidth() const { return m_d->sizePolicy.hasHeightForWidth(); }
+bool QWidget::hasHeightForWidth() const {
+    return layout() ? layout()->hasHeightForWidth() : m_d->sizePolicy.hasHeightForWidth();
+}
 
 /*!
     \since 6.0
 
     Returns the preferred height of the widget at the width \a w, or -1 if it
-    does not depend on the width. The default returns -1.
+    does not depend on the width. The default is that of the layout of the
+    widget, with its contents margins, if it has one whose height depends on
+    its width.
 
     \sa hasHeightForWidth()
 */
 int QWidget::heightForWidth(int w) const {
-    (void)w;
-    return -1;
+    const QLayout *inner = layout();
+    return inner && inner->hasHeightForWidth() ? inner->totalHeightForWidth(w) : -1;
 }
 
 /*!

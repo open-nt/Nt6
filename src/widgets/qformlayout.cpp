@@ -53,9 +53,8 @@ int labelHeightLimit(const QLayoutItem *label, int hintHeight) {
     \image widgets/qformlayout.png QFormLayout in the light color scheme
 
     \differences
-    A new label cannot be given a buddy. There is no \c takeRow(), no \c removeRow() for a widget or a layout, no \c setSpacing()
-    that is different from QLayout::setSpacing(), and no height for width (\c hasHeightForWidth()), so a word-wrapped label
-    needs a fixed height. The form alignment only places the form when it is smaller than the space it has. The defaults
+    A new label cannot be given a buddy. There is no \c takeRow(), no \c removeRow() for a widget or a layout, and no \c setSpacing()
+    that is different from QLayout::setSpacing(). The form alignment only places the form when it is smaller than the space it has. The defaults
     are those of the Fusion style: the labels are on the left, and the fields grow.
     \enddifferences
 
@@ -809,6 +808,103 @@ QFormLayout::Metrics QFormLayout::measure(int width) const {
     return m;
 }
 
+// The columns: the labels get what they ask for as long as the fields keep their minimum.
+int QFormLayout::labelColumn(const Metrics &m, int width) const {
+    const int hs = horizontalSpacing();
+    if (width < m.labelHint + hs + m.fieldMin)
+        return std::max(m.labelMin, width - hs - m.fieldMin);
+    return m.labelHint;
+}
+
+// The width of a field that may have `available`.
+int QFormLayout::fieldWidth(const QLayoutItem *item, bool spanning, int available) const {
+    const QSize hint = item->sizeHint(), mn = item->minimumSize(), mx = item->maximumSize();
+    const bool grows = spanning || m_growth == AllNonFixedFieldsGrow ||
+                       (m_growth == ExpandingFieldsGrow && (item->expandingDirections() & Qt::Horizontal));
+    const int wanted = grows ? available : std::min(hint.width(), available);
+    return std::clamp(wanted, mn.width(), std::max(mn.width(), mx.width()));
+}
+
+// Gives the labels and fields whose height depends on their width the heights for the widths they get in a form that
+// is `width` wide, and the rows the heights that follow.
+void QFormLayout::fit(Metrics &m, int width) const {
+    const int labelWidth = labelColumn(m, width);
+    const int fieldAvailable = std::max(0, width - labelWidth - horizontalSpacing());
+    const int vs = verticalSpacing();
+    const auto set = [](const QLayoutItem *item, int itemWidth, QSize &hint, QSize &least) {
+        least.setHeight(QtPrivate::heightAt(item, itemWidth, true));
+        hint.setHeight(std::max(least.height(), QtPrivate::heightAt(item, itemWidth, false)));
+    };
+    for (auto &s : m.rows) {
+        const Row &row = *s.row;
+        bool changed = false;
+        if (!row.spanning && !absent(row.label) && row.label->hasHeightForWidth()) {
+            set(row.label, std::min(s.wrapped ? width : labelWidth, s.labelHint.width()), s.labelHint, s.labelMin);
+            changed = true;
+        }
+        if (!absent(row.field) && row.field->hasHeightForWidth()) {
+            const int room = s.wrapped || row.spanning ? width : fieldAvailable;
+            set(row.field, fieldWidth(row.field, row.spanning, room), s.fieldHint, s.fieldMin);
+            s.maxHeight = std::max(s.maxHeight, s.fieldHint.height());
+            changed = true;
+        }
+        if (!changed)
+            continue;
+        if (s.wrapped) {
+            s.hintHeight = s.labelHint.height() + vs + s.fieldHint.height();
+            s.minHeight = s.labelMin.height() + vs + s.fieldMin.height();
+            if (s.maxHeight < QLAYOUTSIZE_MAX)
+                s.maxHeight = std::max(s.maxHeight, s.hintHeight);
+        } else if (row.spanning) {
+            s.hintHeight = s.fieldHint.height();
+            s.minHeight = s.fieldMin.height();
+        } else {
+            s.hintHeight = std::max(s.labelHint.height(), s.fieldHint.height());
+            s.minHeight = std::max(s.labelMin.height(), s.fieldMin.height());
+        }
+    }
+}
+
+/*!
+    \reimp
+
+    Returns \c true if the height of any label or field of the form depends on its width.
+*/
+bool QFormLayout::hasHeightForWidth() const {
+    return std::any_of(m_rows.begin(), m_rows.end(), [](const Row &r) {
+        return (!absent(r.label) && r.label->hasHeightForWidth()) || (!absent(r.field) && r.field->hasHeightForWidth());
+    });
+}
+
+int QFormLayout::heightAtWidth(int w, bool minimum) const {
+    if (!hasHeightForWidth())
+        return -1;
+    const QMargins margins = contentsMargins();
+    const int inner = std::max(0, w - margins.left() - margins.right());
+    Metrics m = measure(inner);
+    fit(m, inner);
+    int height = std::max(0, static_cast<int>(m.rows.size()) - 1) * verticalSpacing();
+    for (const auto &s : m.rows)
+        height += minimum ? s.minHeight : s.hintHeight;
+    return height + margins.top() + margins.bottom();
+}
+
+/*!
+    \reimp
+
+    Returns the height that the form would like to have if it is \a w wide, or -1 if nothing in it has a height that
+    depends on its width.
+*/
+int QFormLayout::heightForWidth(int w) const { return heightAtWidth(w, false); }
+
+/*!
+    \reimp
+
+    Returns the least height of the form if it is \a w wide, or -1 if nothing in it has a height that depends on its
+    width.
+*/
+int QFormLayout::minimumHeightForWidth(int w) const { return heightAtWidth(w, true); }
+
 // The size the form needs: for the hint, as the rows are laid out when there is room; for the minimum, as they are
 // when there is none, which wraps the rows that the policy lets wrap.
 QSize QFormLayout::total(bool minimum) const {
@@ -861,14 +957,12 @@ void QFormLayout::setGeometry(const QRect &rect) {
     QLayout::setGeometry(rect);
     const QRect r = rect.marginsRemoved(contentsMargins());
     const int hs = horizontalSpacing(), vs = verticalSpacing();
-    const Metrics m = measure(r.width());
+    Metrics m = measure(r.width());
     if (m.rows.empty())
         return;
 
-    // The columns: the labels get what they ask for as long as the fields keep their minimum.
-    int labelWidth = m.labelHint;
-    if (r.width() < labelWidth + hs + m.fieldMin)
-        labelWidth = std::max(m.labelMin, r.width() - hs - m.fieldMin);
+    const int labelWidth = labelColumn(m, r.width());
+    fit(m, r.width());
     const int fieldAvailable = std::max(0, r.width() - labelWidth - hs);
 
     std::vector<Cell> cells;
@@ -897,13 +991,6 @@ void QFormLayout::setGeometry(const QRect &rect) {
         QRect rect;
     };
     std::vector<Placed> placed;
-    auto fieldWidth = [this](const QLayoutItem *item, bool spanning, int available) {
-        const QSize hint = item->sizeHint(), mn = item->minimumSize(), mx = item->maximumSize();
-        const bool grows = spanning || m_growth == AllNonFixedFieldsGrow ||
-                           (m_growth == ExpandingFieldsGrow && (item->expandingDirections() & Qt::Horizontal));
-        const int wanted = grows ? available : std::min(hint.width(), available);
-        return std::clamp(wanted, mn.width(), std::max(mn.width(), mx.width()));
-    };
     int y = 0;
     for (std::size_t i = 0; i < m.rows.size(); ++i) {
         const auto &s = m.rows[i];

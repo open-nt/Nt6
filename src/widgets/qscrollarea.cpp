@@ -35,7 +35,7 @@
     \image widgets/qscrollarea.png QScrollArea in the light color scheme
 
     \differences
-    There are no height-for-width layouts in the widget. The scroll area takes over the
+    The scroll area takes over the
     widget: it becomes a child of the viewport, and is deleted with the scroll area unless takeWidget() is used.
     Scroll bars move by pixels and a single step is 20 pixels.
     \enddifferences
@@ -147,7 +147,11 @@ void QScrollArea::updateScrollBars() {
             const QSize view = viewport()->size();
             if (m_resizable) {
                 const QSize least = widget->minimumSizeHint().expandedTo(widget->minimumSize());
-                widget->resize(view.expandedTo(QSize(std::max(0, least.width()), std::max(0, least.height()))));
+                QSize size = view.expandedTo(QSize(std::max(0, least.width()), std::max(0, least.height())));
+                if (widget->hasHeightForWidth()) // as high as it has to be at that width
+                    size.setHeight(std::max(size.height(),
+                                            std::min(widget->heightForWidth(size.width()), widget->maximumHeight())));
+                widget->resize(size);
             }
             const QSize size = widget->size();
             hbar->setPageStep(std::max(1, view.width()));

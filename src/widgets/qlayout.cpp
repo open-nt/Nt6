@@ -46,9 +46,9 @@ struct QLayout::Data {
     widget calls QWidget::updateGeometry().
 
     \differences
-    There is no \c setSizeConstraint(), \c setMenuBar(), height-for-width, \c setAlignment() for widgets,
-    \c addChildLayout(), \c widgetEvent() or \c layoutItems. QGridLayout, QFormLayout and QStackedLayout are
-    not implemented.
+    There is no \c setAlignment() for widgets or \c layoutItems, and widgetEvent() does nothing. A window with a
+    layout whose height depends on its width is not given a height for width by the window system: the layout only
+    makes it higher when it is too low.
     \enddifferences
 
     \sa QBoxLayout, QWidget
@@ -370,8 +370,14 @@ bool QLayout::activate() {
     }
     top->setGeometry(area);
     if (w->isWindow() && top->m_d->constraint == SetDefaultConstraint) {
-        const QSize minimum = top->minimumSize();
+        QSize minimum = top->minimumSize();
         const QSize current = w->size();
+        if (top->hasHeightForWidth()) {
+            // The least height depends on the width, which the contents margins and a menu bar are not part of.
+            const int width = area.width() + std::max(0, minimum.width() - current.width());
+            const int least = top->minimumHeightForWidth(width);
+            minimum.setHeight(std::max(minimum.height(), least + current.height() - area.height()));
+        }
         if (current.width() < minimum.width() || current.height() < minimum.height())
             w->resize(QtPrivate::expandedTo(current, minimum));
     }
@@ -395,6 +401,9 @@ void QLayout::invalidate() {
     if (w && !m_d->pending) {
         m_d->pending = true;
         QCoreApplication::postEvent(w, new QEvent(QEvent::LayoutRequest));
+        // Where a height depends on a width, what changed inside may change how high the widget has to be.
+        if (!w->isWindow() && hasHeightForWidth())
+            w->updateGeometry();
     }
 }
 

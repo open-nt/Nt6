@@ -30,6 +30,9 @@ public:
     int count() const override { return static_cast<int>(m_items.size()); }
     QSize sizeHint() const override;
     QSize minimumSize() const override;
+    bool hasHeightForWidth() const override;
+    int heightForWidth(int w) const override;
+    int minimumHeightForWidth(int w) const override;
     Qt::Orientations expandingDirections() const override;
     void setGeometry(const QRect &rect) override;
 
@@ -56,5 +59,6 @@ private:
     std::vector<QLayoutItem *> m_items;
     int m_current = -1;
     StackingMode m_mode = StackOne;
+    int heightAtWidth(int w, bool minimum) const;
     QLayoutItem *replaceAt(int index, QLayoutItem *item) override;
 };

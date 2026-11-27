@@ -192,6 +192,8 @@ static void tellInputHints(QPlatformIntegration *integration, const QWidget *w) 
 // room of their tallest page, whichever is shown; what only a hidden page needs does not count here.
 static int leastHeightShown(const QWidget *top) {
     int least = std::max(top->minimumSizeHint().height(), top->minimumHeight());
+    if (const QLayout *layout = top->layout(); layout && layout->hasHeightForWidth())
+        least = std::max(least, layout->totalMinimumHeightForWidth(top->width()));
     int hidden = 0; // the most that one of them asks for beyond the page that it shows
     const auto beyond = [&](const QWidget *holder, const QWidget *shown, int count, const auto &pageAt) {
         if (!shown || !holder->isVisibleTo(top))
@@ -1251,6 +1253,10 @@ void QWidget::adjustSize() {
     const QSize minimum = minimumSizeHint();
     if (minimum.isValid())
         s = QtPrivate::expandedTo(s, minimum);
+    if (hasHeightForWidth()) {
+        if (const int height = heightForWidth(s.width()); height >= 0)
+            s.setHeight(std::max(height, std::max(0, minimum.height())));
+    }
     resize(s);
 }
 

@@ -2289,6 +2289,173 @@ static void testHeaderViewExtras() {
     CHECK(doubled.count() == 1);
 }
 
+// A widget that is always half as high as it is wide.
+class HalfHigh : public QWidget {
+public:
+    HalfHigh() {
+        QSizePolicy policy(QSizePolicy::Preferred, QSizePolicy::Preferred);
+        policy.setHeightForWidth(true);
+        setSizePolicy(policy);
+    }
+    int heightForWidth(int w) const override { return w / 2; }
+    QSize sizeHint() const override { return QSize(100, 50); }
+    QSize minimumSizeHint() const override { return QSize(10, 5); }
+};
+
+// Layouts give what has a height that depends on its width, wrapped text above all, the height for the width it gets.
+static void testHeightForWidth() {
+    const QString words =
+        QStringLiteral("a walnut and a pecan and a chestnut and an almond and a hazel nut ").repeated(4).trimmed();
+    QLabel plain(words);
+    CHECK(!plain.hasHeightForWidth() && plain.heightForWidth(200) == -1);
+    const int line = plain.sizeHint().height();
+    const int unwrapped = plain.sizeHint().width();
+    QLabel wrapped(words);
+    wrapped.setWordWrap(true);
+    CHECK(wrapped.hasHeightForWidth());
+    CHECK(wrapped.heightForWidth(unwrapped + 10) == line);
+    const int at200 = wrapped.heightForWidth(200), at400 = wrapped.heightForWidth(400);
+    CHECK(at200 > at400 && at400 > line);
+    // It would like lines of no more than 80 characters.
+    CHECK(wrapped.sizeHint().width() <= 80 * wrapped.fontMetrics().averageCharWidth());
+    CHECK(wrapped.sizeHint().height() > line);
+    wrapped.setContentsMargins(10, 3, 10, 3);
+    CHECK(wrapped.heightForWidth(220) == at200 + 6);
+    wrapped.setContentsMargins(0, 0, 0, 0);
+    QLabel rich(QStringLiteral("<b>") + words + QStringLiteral("</b>"));
+    rich.setWordWrap(true);
+    CHECK(rich.heightForWidth(200) > rich.heightForWidth(400));
+
+    // A column: the labels get their lines, in a group box in it too, and the rest follows them.
+    QWidget column;
+    auto *rows = new QVBoxLayout(&column);
+    rows->setContentsMargins(10, 10, 10, 10);
+    rows->setSpacing(5);
+    auto *first = new QLabel(words);
+    first->setWordWrap(true);
+    rows->addWidget(first);
+    auto *group = new QGroupBox(QStringLiteral("Group"));
+    auto *inside = new QVBoxLayout(group);
+    auto *second = new QLabel(words);
+    second->setWordWrap(true);
+    inside->addWidget(second);
+    rows->addWidget(group);
+    auto *half = new HalfHigh;
+    rows->addWidget(half);
+    rows->addStretch(1);
+    CHECK(rows->hasHeightForWidth() && column.hasHeightForWidth() && group->hasHeightForWidth());
+    QSizePolicy other = half->sizePolicy();
+    other.setHeightForWidth(false);
+    CHECK(other != half->sizePolicy()); // so that setSizePolicy() takes a change of that alone
+    CHECK(column.heightForWidth(220) > column.heightForWidth(420) - 100);
+    column.resize(220, 1500);
+    column.show();
+    QCoreApplication::processEvents();
+    CHECK(first->height() == first->heightForWidth(first->width()));
+    CHECK(second->height() == second->heightForWidth(second->width()));
+    CHECK(half->height() == half->width() / 2);
+    CHECK(group->geometry().top() == first->geometry().bottom() + 1 + 5);
+    CHECK(half->geometry().top() == group->geometry().bottom() + 1 + 5);
+    const int groupHeight = group->height();
+
+    // Text that changes inside the group box makes the group box, in the column, as high as it then has to be.
+    second->setText(words + QLatin1Char(' ') + words);
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    CHECK(group->height() > groupHeight);
+    CHECK(second->height() == second->heightForWidth(second->width()));
+
+    // A window that is too low for its lines grows to hold them when what is in it changes.
+    column.resize(220, 100);
+    second->setText(words);
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    CHECK(column.height() >= rows->totalMinimumHeightForWidth(220));
+    CHECK(second->height() == second->heightForWidth(second->width()));
+
+    // adjustSize() takes the height for the width that it gives the widget.
+    QWidget fitted;
+    auto *fittedRows = new QVBoxLayout(&fitted);
+    auto *text = new QLabel(words);
+    text->setWordWrap(true);
+    fittedRows->addWidget(text);
+    fitted.adjustSize();
+    CHECK(fitted.height() == fitted.heightForWidth(fitted.width()));
+
+    // A row: the labels beside each other get half the width each, and the row the height of the longer one.
+    QWidget row;
+    auto *across = new QHBoxLayout(&row);
+    across->setContentsMargins(0, 0, 0, 0);
+    across->setSpacing(10);
+    auto *shorter = new QLabel(words);
+    auto *longer = new QLabel(words + QLatin1Char(' ') + words);
+    for (QLabel *label : {shorter, longer}) {
+        label->setWordWrap(true);
+        across->addWidget(label, 1);
+    }
+    CHECK(row.heightForWidth(410) == longer->heightForWidth(200));
+    CHECK(across->minimumHeightForWidth(410) == longer->heightForWidth(200));
+
+    // A grid: a row is as high as what is in it needs at the width of its columns.
+    QWidget table;
+    auto *cells = new QGridLayout(&table);
+    cells->setContentsMargins(0, 0, 0, 0);
+    cells->setSpacing(10);
+    auto *left = new QLabel(words);
+    auto *right = new QLabel(QStringLiteral("below"));
+    auto *wide = new QLabel(words);
+    left->setWordWrap(true);
+    wide->setWordWrap(true);
+    cells->addWidget(left, 0, 0);
+    cells->addWidget(new QLabel(QStringLiteral("beside")), 0, 1);
+    cells->addWidget(wide, 1, 0, 1, 2);
+    cells->addWidget(right, 2, 0);
+    table.resize(300, 1200);
+    table.show();
+    QCoreApplication::processEvents();
+    CHECK(cells->hasHeightForWidth());
+    CHECK(left->height() >= left->heightForWidth(left->width()));
+    CHECK(wide->width() == 300 && wide->height() >= wide->heightForWidth(300));
+    CHECK(table.heightForWidth(300) < table.heightForWidth(150));
+
+    // A form: a field that wraps makes its row higher.
+    QWidget sheet;
+    auto *form = new QFormLayout(&sheet);
+    form->setContentsMargins(0, 0, 0, 0);
+    auto *value = new QLabel(words);
+    value->setWordWrap(true);
+    form->addRow(QStringLiteral("Nuts"), value);
+    auto *below = new QLineEdit;
+    form->addRow(QStringLiteral("More"), below);
+    sheet.resize(300, 900);
+    sheet.show();
+    QCoreApplication::processEvents();
+    CHECK(form->hasHeightForWidth());
+    CHECK(value->height() >= value->heightForWidth(value->width()));
+    CHECK(below->geometry().top() > value->geometry().bottom());
+    CHECK(form->heightForWidth(200) > form->heightForWidth(500));
+
+    // A stack is as high as the page that needs most; a scroll area scrolls what is then too high for it.
+    QStackedWidget stack;
+    stack.addWidget(new QLabel(QStringLiteral("short")));
+    auto *page = new QLabel(words);
+    page->setWordWrap(true);
+    stack.addWidget(page);
+    CHECK(stack.hasHeightForWidth() && stack.heightForWidth(200) >= at200);
+
+    QScrollArea area;
+    area.setWidgetResizable(true);
+    auto *scrolled = new QLabel(words.repeated(3));
+    scrolled->setWordWrap(true);
+    area.setWidget(scrolled);
+    area.resize(200, 80);
+    area.show();
+    QCoreApplication::processEvents();
+    CHECK(scrolled->height() == scrolled->heightForWidth(scrolled->width()));
+    CHECK(scrolled->height() > area.viewport()->height());
+    CHECK(area.verticalScrollBar()->maximum() == scrolled->height() - area.viewport()->height());
+}
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     testFileSystemModel();
@@ -2316,6 +2483,7 @@ int main(int argc, char *argv[]) {
     testItemClassAndTableViewExtras();
     testHeaderViewExtras();
     testLabelAndSmallClassExtras();
+    testHeightForWidth();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

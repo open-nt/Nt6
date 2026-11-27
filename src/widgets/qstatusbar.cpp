@@ -184,6 +184,10 @@ void QStatusBar::showMessage(const QString &text, int timeout) {
         clearMessage();
         return;
     }
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    const bool snackbar = material && QMaterialStyle::isSnackbar(this);
+    if (snackbar && m_message != text)
+        material->snackbarLeaves(this);
     const bool first = m_message.isEmpty();
     m_message = text;
     if (first) {
@@ -199,8 +203,10 @@ void QStatusBar::showMessage(const QString &text, int timeout) {
     layoutEntries();
     update();
     // A snackbar is placed over the content only while it has a message, and is as high as that needs.
-    if (QMaterialStyle::isSnackbar(this))
+    if (snackbar) {
         updateGeometry();
+        material->snackbarArrives(this);
+    }
     emit messageChanged(m_message);
 }
 
@@ -216,6 +222,9 @@ void QStatusBar::clearMessage() {
     }
     if (m_message.isEmpty())
         return;
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
+        material && QMaterialStyle::isSnackbar(this))
+        material->snackbarLeaves(this);
     m_message.clear();
     for (Entry &e : m_entries) {
         if (!e.permanent && e.hiddenByUs)

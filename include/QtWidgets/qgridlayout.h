@@ -56,6 +56,9 @@ public:
     QSize sizeHint() const override;
     QSize minimumSize() const override;
     Qt::Orientations expandingDirections() const override;
+    bool hasHeightForWidth() const override;
+    int heightForWidth(int w) const override;
+    int minimumHeightForWidth(int w) const override;
     void setGeometry(const QRect &rect) override;
 
 private:
@@ -68,7 +71,10 @@ private:
         int columnSpan;
     };
     void insert(QLayoutItem *item, bool owned, int row, int column, int rowSpan, int columnSpan);
-    std::vector<QtPrivate::Cell> axisCells(bool columns) const;
+    // With the sizes of the columns, the rows take the heights that the items have at those widths.
+    std::vector<QtPrivate::Cell> axisCells(bool columns, const std::vector<QtPrivate::Cell> *widths = nullptr) const;
+    int heightAtWidth(int w, bool minimum) const;
+    int spanSize(const std::vector<QtPrivate::Cell> &cells, int start, int span) const;
     int gap(bool columns) const;
 
     std::vector<Entry> m_items;

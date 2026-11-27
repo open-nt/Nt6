@@ -81,7 +81,7 @@ public:
     QWidget *widget() const override { return m_widget; }
     bool hasHeightForWidth() const override;
     int heightForWidth(int w) const override;
-    int minimumHeightForWidth(int w) const override { return heightForWidth(w); }
+    int minimumHeightForWidth(int w) const override;
     QSizePolicy::ControlTypes controlTypes() const override;
 
 private:

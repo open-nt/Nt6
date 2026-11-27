@@ -78,6 +78,9 @@ public:
     QSize sizeHint() const override;
     QSize minimumSize() const override;
     Qt::Orientations expandingDirections() const override;
+    bool hasHeightForWidth() const override;
+    int heightForWidth(int w) const override;
+    int minimumHeightForWidth(int w) const override;
     void setGeometry(const QRect &rect) override;
 
 private:
@@ -96,6 +99,10 @@ private:
     int insertEmptyRow(int row);
     QWidget *newLabel(const QString &text);
     Metrics measure(int width) const;
+    int labelColumn(const Metrics &m, int width) const;
+    int fieldWidth(const QLayoutItem *item, bool spanning, int available) const;
+    void fit(Metrics &m, int width) const;
+    int heightAtWidth(int w, bool minimum) const;
     QSize total(bool minimum) const;
     bool wraps(const Row &row, int width, int labelWidth) const;
 

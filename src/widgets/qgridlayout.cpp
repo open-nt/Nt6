@@ -36,9 +36,7 @@ using QtPrivate::calculate;
     \image widgets/qgridlayout.png QGridLayout in the light color scheme
 
     \differences
-    There is no \c setOriginCorner(), \c cellRect(), \c setDefaultPositioning() and no \c addItem() overload that
-    fills the cell by direction. Empty rows and columns have no spacing next to them. The height of a widget does not
-    depend on its width (\c heightForWidth()), so a word-wrapped label needs a fixed height.
+    Empty rows and columns have no spacing next to them.
     \enddifferences
 
     \sa QBoxLayout, QLayout
@@ -355,8 +353,68 @@ QLayoutItem *QGridLayout::takeAt(int index) {
 
 int QGridLayout::gap(bool columns) const { return columns ? horizontalSpacing() : verticalSpacing(); }
 
+// The room of `span` cells from `start`, which have their sizes, with the spacing between them.
+int QGridLayout::spanSize(const std::vector<Cell> &cells, int start, int span) const {
+    int size = 0, spaced = 0;
+    for (int i = start; i < start + span && i < static_cast<int>(cells.size()); ++i) {
+        const Cell &c = cells[static_cast<std::size_t>(i)];
+        size += c.size;
+        spaced += c.empty ? 0 : 1;
+    }
+    return size + std::max(0, spaced - 1) * horizontalSpacing();
+}
+
+/*!
+    \reimp
+
+    Returns \c true if the height of any item of the grid depends on its width.
+*/
+bool QGridLayout::hasHeightForWidth() const {
+    return std::any_of(m_items.begin(), m_items.end(),
+                       [](const Entry &e) { return !e.item->isEmpty() && e.item->hasHeightForWidth(); });
+}
+
+int QGridLayout::heightAtWidth(int w, bool minimum) const {
+    if (!hasHeightForWidth())
+        return -1;
+    const QMargins m = contentsMargins();
+    std::vector<Cell> columns = axisCells(true);
+    calculate(columns, std::max(0, w - m.left() - m.right()), horizontalSpacing());
+    int height = 0, used = 0;
+    for (const Cell &c : axisCells(false, &columns)) {
+        height += minimum ? c.min : c.hint;
+        used += c.empty ? 0 : 1;
+    }
+    return height + std::max(0, used - 1) * verticalSpacing() + m.top() + m.bottom();
+}
+
+/*!
+    \reimp
+
+    Returns the height that the grid would like to have if it is \a w wide, or -1 if no item's height depends on its
+    width.
+*/
+int QGridLayout::heightForWidth(int w) const { return heightAtWidth(w, false); }
+
+/*!
+    \reimp
+
+    Returns the least height of the grid if it is \a w wide, or -1 if no item's height depends on its width.
+*/
+int QGridLayout::minimumHeightForWidth(int w) const { return heightAtWidth(w, true); }
+
 // The cells of the columns, or of the rows: how much each needs and wants, and whether it wants more.
-std::vector<Cell> QGridLayout::axisCells(bool columns) const {
+std::vector<Cell> QGridLayout::axisCells(bool columns, const std::vector<Cell> *widths) const {
+    // The sizes of an item along the axis, its height that for the width of its columns if the one depends on the other.
+    const auto sizes = [&](const Entry &e) {
+        std::pair<QSize, QSize> s(e.item->sizeHint(), e.item->minimumSize());
+        if (!columns && widths && e.item->hasHeightForWidth()) {
+            const int width = QtPrivate::widthIn(e.item, spanSize(*widths, e.column, e.columnSpan));
+            s.second.setHeight(QtPrivate::heightAt(e.item, width, true));
+            s.first.setHeight(std::max(s.second.height(), QtPrivate::heightAt(e.item, width, false)));
+        }
+        return s;
+    };
     const int n = columns ? m_columns : m_rows;
     std::vector<Cell> cells(static_cast<std::size_t>(n));
     std::vector<bool> used(static_cast<std::size_t>(n), false), hasItems(static_cast<std::size_t>(n), false);
@@ -377,7 +435,8 @@ std::vector<Cell> QGridLayout::axisCells(bool columns) const {
             continue;
         const int start = columns ? e.column : e.row;
         const int span = columns ? e.columnSpan : e.rowSpan;
-        const QSize hint = e.item->sizeHint(), mn = e.item->minimumSize(), mx = e.item->maximumSize();
+        const auto [hint, mn] = sizes(e);
+        const QSize mx = e.item->maximumSize();
         const bool expands = e.item->expandingDirections().testFlag(columns ? Qt::Horizontal : Qt::Vertical);
         for (int i = start; i < start + span; ++i) {
             Cell &c = cells[static_cast<std::size_t>(i)];
@@ -401,7 +460,7 @@ std::vector<Cell> QGridLayout::axisCells(bool columns) const {
         if (span == 1 || (e.item->isEmpty() && !e.item->spacerItem()))
             continue;
         const int start = columns ? e.column : e.row;
-        const QSize hint = e.item->sizeHint(), mn = e.item->minimumSize();
+        const auto [hint, mn] = sizes(e);
         for (int pass = 0; pass < 2; ++pass) {
             const int needed = pass == 0 ? (columns ? hint.width() : hint.height()) : (columns ? mn.width() : mn.height());
             int have = (span - 1) * spacing;
@@ -491,9 +550,10 @@ void QGridLayout::setGeometry(const QRect &rect) {
     if (m_items.empty())
         return;
     const QRect r = rect.marginsRemoved(contentsMargins());
-    std::vector<Cell> columns = axisCells(true), rows = axisCells(false);
+    std::vector<Cell> columns = axisCells(true);
     const int horizontalGap = horizontalSpacing(), verticalGap = verticalSpacing();
     const int extraX = calculate(columns, r.width(), horizontalGap);
+    std::vector<Cell> rows = axisCells(false, &columns); // after the columns, whose widths heights may depend on
     const int extraY = calculate(rows, r.height(), verticalGap);
 
     // Where each column and row starts; the space that nobody could take goes between them, as in a box layout.
@@ -534,7 +594,10 @@ void QGridLayout::setGeometry(const QRect &rect) {
         const int y1 = std::max(y[static_cast<std::size_t>(e.row)] + rows[static_cast<std::size_t>(e.row)].size,
                                 y[static_cast<std::size_t>(bottom)] + rows[static_cast<std::size_t>(bottom)].size);
         const QRect cell(x0, y0, x1 - x0, y1 - y0);
-        const QSize mn = e.item->minimumSize(), mx = e.item->maximumSize(), hint = e.item->sizeHint();
+        const QSize mn = e.item->minimumSize(), mx = e.item->maximumSize();
+        QSize hint = e.item->sizeHint();
+        if (e.item->hasHeightForWidth())
+            hint.setHeight(QtPrivate::heightAt(e.item, QtPrivate::widthIn(e.item, cell.width()), false));
         const Qt::Alignment a = e.item->alignment();
         QSize size(std::clamp(cell.width(), mn.width(), std::max(mn.width(), mx.width())),
                    std::clamp(cell.height(), mn.height(), std::max(mn.height(), mx.height())));

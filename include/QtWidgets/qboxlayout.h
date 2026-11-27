@@ -5,6 +5,10 @@
 
 #include <vector>
 
+namespace QtPrivate {
+struct Cell;
+}
+
 class QBoxLayout : public QLayout {
     Q_OBJECT
 public:
@@ -40,6 +44,9 @@ public:
     QSize sizeHint() const override;
     QSize minimumSize() const override;
     Qt::Orientations expandingDirections() const override;
+    bool hasHeightForWidth() const override;
+    int heightForWidth(int w) const override;
+    int minimumHeightForWidth(int w) const override;
     void setGeometry(const QRect &rect) override;
 
 private:
@@ -49,6 +56,9 @@ private:
         int stretch;
     };
     void insertEntry(int index, QLayoutItem *item, bool owned, int stretch);
+    // The items as they share the length of the box.
+    std::vector<QtPrivate::Cell> cells() const;
+    int heightAtWidth(int w, bool minimum) const;
     bool horizontal() const { return m_direction == LeftToRight || m_direction == RightToLeft; }
 
     std::vector<Entry> m_items;

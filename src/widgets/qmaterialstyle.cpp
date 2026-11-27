@@ -29,12 +29,15 @@
 #include <QtWidgets/qdialog.h>
 #include <QtWidgets/qdialogbuttonbox.h>
 #include <QtWidgets/qframe.h>
+#include <QtWidgets/qgraphicseffect.h>
+#include <QtWidgets/qgroupbox.h>
 #include <QtWidgets/qlayout.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qlistview.h>
 #include <QtWidgets/qlistwidget.h>
 #include <QtWidgets/qmainwindow.h>
 #include <QtWidgets/qmenu.h>
+#include <QtWidgets/qplaintextedit.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
 #include <QtWidgets/qscrollbar.h>
@@ -43,6 +46,7 @@
 #include <QtWidgets/qstatusbar.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
+#include <QtWidgets/qtextedit.h>
 #include <QtWidgets/qtoolbar.h>
 #include <QtWidgets/qtoolbutton.h>
 #include <QtWidgets/qtreeview.h>
@@ -63,6 +67,11 @@ constexpr int buttonIconSpace = 8;
 constexpr int pressedCorner = 8;   // the shape of a pressed small button
 constexpr int selectedCorner = 12; // the shape of a checked button
 constexpr int touchTarget = 48;    // the least height of what a finger has to hit
+constexpr int groupTitle = 24;     // the room of a group box's title,
+constexpr int checkableGroupTitle = 40; // with a check box in it,
+constexpr int groupTitleGap = 4;        // what is between it and the card under it,
+constexpr int groupPadding = 16;        // and what the card keeps around its contents
+constexpr int editorFrame = 10;         // between the border of a text editor and its text, with the document's margin
 constexpr int spinButton = 48;     // a button of a spin box that steps, as wide as a finger needs
 constexpr int scrollBarWidth = 10; // the room of a scroll bar,
 constexpr double scrollThumb = 4;  // how wide its handle is drawn,
@@ -147,6 +156,8 @@ constexpr int snackbarOneLine = 48;
 constexpr int snackbarTwoLines = 68;
 constexpr int snackbarPadding = 16;
 constexpr double snackbarCorner = 4;
+// A sheet comes in on the default spatial spring of Material, but damped so that it stops at its edge.
+constexpr QtPrivate::SpringSpec sheetSpring{1.0, 380};
 constexpr int circularSize = 40;
 constexpr double circularThickness = 4;
 constexpr double circularGap = 4; // between the part of a circular progress indicator that is done and its track
@@ -243,6 +254,18 @@ void removeHeadline(QWidget *dialog) {
     dialog->setContentsMargins(margins);
     dialog->setProperty(headlineRoom, QVariant());
 }
+
+bool isTextEditor(const QWidget *widget) {
+    return qobject_cast<const QTextEdit *>(widget) || qobject_cast<const QPlainTextEdit *>(widget);
+}
+
+QFont groupTitleFont(QFont font) {
+    font.setPixelSize(14); // label large
+    font.setWeight(QFont::Medium);
+    return font;
+}
+
+int groupTitleHeight(bool checkable) { return checkable ? checkableGroupTitle : groupTitle; }
 
 bool isList(const QWidget *widget) {
     return qobject_cast<const QListView *>(widget) || qobject_cast<const QListWidget *>(widget);
@@ -710,12 +733,15 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     \li \c materialTimeInput of a QTimeEdit: \c true draws it as Material's time input, a large box for each of the
         hour and the minute (and the second, if the format shows it), and a choice of AM or PM if the format has one.
         A click chooses a box; digits typed, the arrow keys and the wheel change what is in it.
+    \li A QTextEdit or QPlainTextEdit with its usual frame is an outlined field, its text 16 and clear of the border.
+        A QGroupBox is a section: its title in the accent color over an outlined card, or over a line if it is flat; the
+        check box of a checkable one is a Material one. Neither needs a property.
     \li A spin box, among them a date or time edit, is an outlined field of 56 with a button that steps down and one
         that steps up, each 48 wide; a date edit with a calendar pop-up has one button, for the calendar. Scroll bars
         are thin handles without a track or arrows. Neither needs a property.
     \li \c materialSheet of a QDialog: \c "bottom" makes it a modal bottom sheet, against the bottom of its parent's
         window, as high as what is in it and no wider than 640; \c "drawer" makes it a modal drawer, against the left
-        edge, as high as the window and up to 360 wide. It has no title bar. On Android the window behind is dimmed, and
+        edge, as high as the window and up to 360 wide. It slides in from its edge and has no title bar. On Android the window behind is dimmed, and
         a tap on it or Back dismisses the sheet.
     \li \c materialList \c "navigationDrawer" of a QListWidget, for the list of a drawer: the one that is current is
         marked with a pill, and the list has no frame. Open a destination from itemClicked() and accept() the drawer.
@@ -771,13 +797,15 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. Text fields are those of QLineEdit, and
     have no icons, prefix, suffix or character counter (a search bar has its magnifier, and does not open a view of
-    results of its own); their caret is the color of the text. A snackbar appears and goes without an
-    animation, has no close icon, and is one only in a QMainWindow; showing a message does not queue it. There are no
+    results of its own); their caret is the color of the text. A snackbar fades in and out but does not
+    grow as it comes, has no close icon, and is one only in a QMainWindow; showing a message does not queue it. There are no
     rich tooltips. Chips are push buttons only; there are no elevated chips, avatars in input chips or separate click
     on the cross, and a filter chip takes its new width at once. The date picker is the calendar alone: it has no headline with the chosen date, no choice of
     years, no range and no field to type a date in, it keeps the days of the other months, faint, and it has no time
     picker with a clock dial. A headline is one line, shortened if the dialog is too narrow, is made when the dialog is shown, and is not drawn
-    by a subclass whose paintEvent() does not call QDialog's. A spin box has no floating label or supporting text, and its buttons do not repeat while
+    by a subclass whose paintEvent() does not call QDialog's. A text editor has no floating label or
+    supporting text, and one with another frame shape keeps it. A spin box has
+    no floating label or supporting text, and its buttons do not repeat while
     held; a scroll bar does not hide when the contents are still. A time input is for a format of times alone, does not go on to the minute by itself
     when the hour has been typed, and names its boxes in English. A card is not a button and shows no press. A card or
     a divider behind a QProxyStyle is drawn as a plain frame. Icon buttons have the default width, not
@@ -785,7 +813,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     one, and keeps its color as the content scrolls. A navigation bar has no horizontal items for wide screens. A
     navigation rail is the collapsed one: it does not expand, has no menu button or floating action button of its own,
     and does not scroll if its destinations do not fit; the navigation drawer is the modal one only. A sheet is no taller than leaves 72 above it, unless what is in it cannot be made shorter: put that in
-    a QScrollArea. Sheets do not slide in, are not dragged and have no drag handle; there are no standard (not modal)
+    a QScrollArea. Sheets slide in but leave at once, the scrim does not fade, and
+    sheets are not dragged and have no drag handle; there are no standard (not modal)
     sheets. On a desktop a click beside a sheet does not dismiss it, only Escape or the program does, and a sheet stays
     where it was put if its parent's window moves or changes size. Badges are on icon buttons,
     toolbar buttons and the destinations of a navigation bar or rail only. A snackbar finds where a floating action
@@ -1205,7 +1234,8 @@ void QMaterialStyle::polish(QWidget *widget) {
     }
     const bool text = qobject_cast<QLineEdit *>(widget) || qobject_cast<QComboBox *>(widget) ||
                       qobject_cast<QMenu *>(widget) || qobject_cast<QCalendarWidget *>(widget) ||
-                      qobject_cast<QAbstractSpinBox *>(widget) || isList(widget) || qobject_cast<QTreeView *>(widget);
+                      qobject_cast<QAbstractSpinBox *>(widget) || isTextEditor(widget) || isList(widget) ||
+                      qobject_cast<QTreeView *>(widget);
     if ((choice || button || text) && !widget->testAttribute(Qt::WA_SetFont)) {
         QFont font = widget->font();
         font.setPixelSize(button ? 14 : 16);
@@ -1283,6 +1313,11 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::Hide && m_rippleWidget && watched == m_rippleWidget.data()) {
         m_rippleWidget = nullptr;
         m_rowPressed = false;
+    }
+    // A text editor's border shows that it has the focus.
+    if (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut) {
+        if (auto *widget = qobject_cast<QWidget *>(watched); widget && isTextEditor(widget))
+            widget->update();
     }
     // A floating action button that comes or goes, as with the page that it is on, moves a snackbar that is shown.
     if (event->type() == QEvent::Show || event->type() == QEvent::Hide) {
@@ -2135,6 +2170,50 @@ void QMaterialStyle::drawChipLabel(const QStyleOption *option, QPainter *painter
     painter->drawLine(cross.topRight(), cross.bottomLeft());
 }
 
+void QMaterialStyle::drawEditorFrame(QPainter *painter, const QFrame *editor) const {
+    const QWidget *focus = QApplication::focusWidget();
+    const bool focused = focus && (focus == editor || editor->isAncestorOf(focus));
+    const QRectF box(editor->frameRect());
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    fillRounded(painter, box, textFieldCorner, editor->palette().color(QPalette::Base));
+    const QColor line = !editor->isEnabled() ? withOpacity(color(Role::OnSurface), 0.12)
+                                             : color(focused ? Role::Primary : Role::Outline);
+    strokeRounded(painter, box, textFieldCorner, line, focused ? 3 : 1);
+    painter->restore();
+}
+
+// A title in the accent color over an outlined card that holds the rest; a flat one has a line in the card's place.
+void QMaterialStyle::drawGroupBox(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    const auto *box = static_cast<const QStyleOptionGroupBox *>(option);
+    const QRect title = proxy()->subElementRect(SE_GroupBoxTitle, option, widget);
+    const bool usable = enabled(option);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    const double top = option->rect.top() + groupTitleHeight(box->checkable) + groupTitleGap;
+    const QRectF card(option->rect.left(), top, option->rect.width(),
+                      std::max(0.0, option->rect.top() + option->rect.height() - top));
+    if (box->features & QStyleOptionFrame::Flat)
+        painter->fillRect(QRectF(card.left(), card.top(), card.width(), 1), color(Role::OutlineVariant));
+    else
+        strokeRounded(painter, card, cardCorner, color(Role::OutlineVariant), 1);
+    int left = title.left() + 4;
+    if (box->checkable) {
+        QStyleOptionButton indicator;
+        indicator.state = option->state;
+        indicator.palette = option->palette;
+        indicator.rect = proxy()->subElementRect(SE_GroupBoxIndicator, option, widget);
+        proxy()->drawPrimitive(PE_IndicatorCheckBox, &indicator, painter, widget);
+        left = indicator.rect.right() + 1 + indicatorSpace;
+    }
+    painter->setFont(groupTitleFont(widget ? widget->font() : painter->font()));
+    painter->setPen(usable || box->checkable ? color(Role::Primary)
+                                             : withOpacity(color(Role::OnSurface), disabledContentOpacity));
+    painter->drawText(QRect(left, title.top(), std::max(0, title.right() + 1 - left), title.height()),
+                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, box->text);
+    painter->restore();
+}
+
 void QMaterialStyle::drawCalendarDay(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int day,
                                      bool selected, bool today, bool usable, const QColor &ink) const {
     painter->save();
@@ -2334,10 +2413,33 @@ bool QMaterialStyle::placeSheet(QDialog *dialog) const {
     if (QWindow *window = dialog->windowHandle())
         window->setProperty("_nt_sheet", kind);
     dialog->setGeometry(place);
+    if (m_motion)
+        slideSheetIn(dialog, place, kind == QLatin1String("drawer"));
     return true;
 }
 
+// A sheet comes in from its edge of the window, along a spring that does not overshoot, so the edge never shows a gap.
+void QMaterialStyle::slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft) const {
+    const int distance = fromLeft ? place.width() : place.height();
+    const auto at = [place, fromLeft, distance](double progress) {
+        const int away = static_cast<int>(std::lround((1.0 - std::clamp(progress, 0.0, 1.0)) * distance));
+        return place.topLeft() + (fromLeft ? QPoint(-away, 0) : QPoint(0, away));
+    };
+    dialog->move(at(0));
+    QPointer<QDialog> guard(dialog);
+    new QtPrivate::Transition(dialog, QStringLiteral("_nt_sheetSlide"), sheetSpring, [guard, at](double progress) {
+        if (!guard || !guard->isVisible())
+            return false;
+        guard->move(at(progress));
+        return true;
+    });
+}
+
 bool QMaterialStyle::drawMaterialFrame(QPainter *painter, const QFrame *frame) const {
+    if (isTextEditor(frame) && frame->frameShape() == QFrame::StyledPanel) {
+        drawEditorFrame(painter, frame);
+        return true;
+    }
     const QString card = frame->property("materialCard").toString();
     const bool filled = card == QLatin1String("filled");
     const bool elevated = card == QLatin1String("elevated");
@@ -2657,6 +2759,85 @@ int QMaterialStyle::snackbarHeight(const QStatusBar *bar, int width) {
             room -= action->sizeHint().width() + 4;
     }
     return bar->fontMetrics().horizontalAdvance(bar->currentMessage()) > room ? snackbarTwoLines : snackbarOneLine;
+}
+
+namespace {
+// What a snackbar showed, while it fades out.
+class SnackbarGhost : public QWidget {
+public:
+    SnackbarGhost(QWidget *parent, const QPixmap &picture) : QWidget(parent), m_picture(picture) {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        (void)event;
+        QPainter painter(this);
+        painter.drawPixmap(0, 0, m_picture);
+    }
+
+private:
+    QPixmap m_picture;
+};
+} // namespace
+
+void QMaterialStyle::snackbarArrives(QStatusBar *bar) const {
+    const QString fade = QStringLiteral("_nt_snackbarFade");
+    QGraphicsEffect *own = bar->graphicsEffect();
+    if (!m_motion || (own && own->objectName() != fade))
+        return; // the application's own effect stays
+    auto *effect = qobject_cast<QGraphicsOpacityEffect *>(own);
+    if (!effect) {
+        effect = new QGraphicsOpacityEffect;
+        effect->setObjectName(fade);
+        bar->setGraphicsEffect(effect);
+    }
+    effect->setOpacity(0);
+    QPointer<QStatusBar> guard(bar);
+    new QtPrivate::Transition(bar, fade, QtPrivate::defaultEffectsSpring, [guard, fade](double progress) {
+        if (!guard)
+            return false;
+        auto *opacity = qobject_cast<QGraphicsOpacityEffect *>(guard->graphicsEffect());
+        if (!opacity || opacity->objectName() != fade)
+            return false;
+        if (progress >= 1.0) {
+            guard->setGraphicsEffect(nullptr);
+            return false;
+        }
+        opacity->setOpacity(std::clamp(progress, 0.0, 1.0));
+        return true;
+    });
+}
+
+void QMaterialStyle::snackbarLeaves(QStatusBar *bar) const {
+    QWidget *holder = bar->parentWidget();
+    if (!m_motion || !holder || !bar->isVisible() || bar->height() <= 2 || bar->currentMessage().isEmpty())
+        return;
+    // A picture of it as it is now, buttons and all, takes its place and fades.
+    QtPrivate::Transition::stop(bar, QStringLiteral("_nt_snackbarFade"));
+    if (auto *opacity = qobject_cast<QGraphicsOpacityEffect *>(bar->graphicsEffect());
+        opacity && opacity->objectName() == QLatin1String("_nt_snackbarFade"))
+        bar->setGraphicsEffect(nullptr);
+    auto *ghost = new SnackbarGhost(holder, bar->grab());
+    ghost->setObjectName(QStringLiteral("_nt_snackbarGhost"));
+    ghost->setGeometry(bar->geometry());
+    auto *effect = new QGraphicsOpacityEffect;
+    ghost->setGraphicsEffect(effect);
+    ghost->show();
+    ghost->raise();
+    QPointer<SnackbarGhost> guard(ghost);
+    new QtPrivate::Transition(ghost, QStringLiteral("_nt_fade"), QtPrivate::fastEffectsSpring,
+                              [guard, effect](double progress) {
+                                  if (!guard)
+                                      return false;
+                                  if (progress >= 1.0) {
+                                      guard->hide();
+                                      guard->deleteLater();
+                                      return false;
+                                  }
+                                  effect->setOpacity(1.0 - std::clamp(progress, 0.0, 1.0));
+                                  return true;
+                              });
 }
 
 void QMaterialStyle::drawSnackbar(QPainter *painter, const QStatusBar *bar) const {
@@ -3137,6 +3318,10 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
         drawSpinBox(option, painter, widget);
         return;
     }
+    if (element == CE_GroupBox && option->type == QStyleOption::SO_GroupBox) {
+        drawGroupBox(option, painter, widget);
+        return;
+    }
     if (element == CE_ScrollBar && option->type == QStyleOption::SO_Slider) {
         drawScrollBar(option, painter, widget);
         return;
@@ -3221,6 +3406,26 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
         const int from = element == SE_SpinBoxUp ? 1 : 2;
         return from > buttons ? QRect() : QRect(r.left() + r.width() - from * width, r.top(), width, r.height());
     }
+    if ((element == SE_GroupBoxTitle || element == SE_GroupBoxIndicator || element == SE_GroupBoxContents) &&
+        option->type == QStyleOption::SO_GroupBox) {
+        const auto *box = static_cast<const QStyleOptionGroupBox *>(option);
+        const int height = groupTitleHeight(box->checkable);
+        if (element == SE_GroupBoxContents)
+            return r.adjusted(1, height + groupTitleGap + 1, -1, -1);
+        const QFontMetrics metrics(groupTitleFont(widget ? widget->font() : QFont()));
+        const int indicator = box->checkable ? choiceCentre - checkBoxSize / 2 + checkBoxSize + indicatorSpace : 4;
+        const int width = std::min(r.width(), indicator + metrics.horizontalAdvance(box->text) + 8);
+        int left = r.left();
+        if (box->textAlignment & Qt::AlignRight)
+            left = r.left() + r.width() - width;
+        else if (box->textAlignment & Qt::AlignHCenter)
+            left = r.left() + (r.width() - width) / 2;
+        if (element == SE_GroupBoxTitle)
+            return QRect(left, r.top(), width, height);
+        // The check box has the room around it that shows a press.
+        return QRect(left + choiceCentre - checkBoxSize / 2, r.top() + (height - checkBoxSize) / 2, checkBoxSize,
+                     checkBoxSize);
+    }
     switch (element) {
     case SE_PushButtonContents:
         // The open FAB is a circle at the right of the whole button. A button with a size is made as wide as its label
@@ -3299,9 +3504,19 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
         // A dialog keeps what is in it 24 from its edges, clear of its round corners.
         if (qobject_cast<const QDialog *>(widget) && widget->isWindow())
             return dialogPadding;
+        // A group box keeps its title over the card, and room around what is in the card.
+        if (const auto *group = qobject_cast<const QGroupBox *>(widget)) {
+            if (metric != PM_LayoutTopMargin)
+                return groupPadding;
+            return groupTitleHeight(group->isCheckable()) + groupTitleGap + groupPadding;
+        }
         return QCommonStyle::pixelMetric(metric, option, widget);
     case PM_ScrollBarExtent:
         return scrollBarWidth;
+    case PM_DefaultFrameWidth:
+        if (isTextEditor(widget))
+            return editorFrame;
+        return QCommonStyle::pixelMetric(metric, option, widget);
     case PM_ScrollBarSliderMin:
         return scrollThumbLeast;
     case PM_IndicatorWidth:

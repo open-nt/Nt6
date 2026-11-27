@@ -59,6 +59,8 @@ public:
     void setResourceProvider(const QTextDocument::ResourceProvider &provider);
     QSize sizeHint() const override;
     QSize minimumSizeHint() const override;
+    bool hasHeightForWidth() const override;
+    int heightForWidth(int w) const override;
 
 public slots:
     void setText(const QString &text);

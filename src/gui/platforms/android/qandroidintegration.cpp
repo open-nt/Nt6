@@ -109,13 +109,18 @@ QRect QAndroidWindow::dialogGeometry(const QRect &wanted) const {
     const QRect screen = m_screen->availableGeometry();
     // A sheet lies against an edge (QMaterialStyle says which).
     const QString sheet = window()->property("_nt_sheet").toString();
+    // While it slides in, it is lower, or further left, than where it rests.
     if (sheet == QLatin1String("bottom")) {
         const int width = std::max(1, std::min(640, screen.width()));
         const int height = std::clamp(wanted.height(), 1, std::max(1, screen.height() - 72));
-        return QRect(screen.x() + (screen.width() - width) / 2, screen.y() + screen.height() - height, width, height);
+        const int rest = screen.y() + screen.height() - height;
+        return QRect(screen.x() + (screen.width() - width) / 2, std::clamp(wanted.y(), rest, rest + height), width,
+                     height);
     }
-    if (sheet == QLatin1String("drawer"))
-        return QRect(screen.x(), screen.y(), std::max(1, std::min(360, screen.width() - 56)), screen.height());
+    if (sheet == QLatin1String("drawer")) {
+        const int width = std::max(1, std::min(360, screen.width() - 56));
+        return QRect(std::clamp(wanted.x(), screen.x() - width, screen.x()), screen.y(), width, screen.height());
+    }
     const int margin = 24;
     const int widest = std::max(1, std::min(560, screen.width() - 2 * margin));
     const int width = std::clamp(wanted.width(), std::min(280, widest), widest);
@@ -156,9 +161,14 @@ void QAndroidWindow::setGeometry(const QRect &rect) {
         return;
     }
     const QRect screenRect = isOverlay() ? dialogGeometry(rect) : baseGeometry();
+    const QPoint before = geometry().topLeft();
     QPlatformWindow::setGeometry(screenRect);
     if (rect != screenRect)
         QWindowSystemInterface::handleGeometryChange(window(), screenRect);
+    // A dialog that moved, as a sheet that slides in, is put on the screen again where it now is.
+    const auto &s = stack();
+    if (isOverlay() && screenRect.topLeft() != before && std::find(s.begin(), s.end(), this) != s.end())
+        QWindowSystemInterface::handleExposeEvent(window(), QRegion(QRect(QPoint(0, 0), screenRect.size())));
 }
 
 void QAndroidWindow::setVisible(bool visible) {

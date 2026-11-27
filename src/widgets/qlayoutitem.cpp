@@ -17,8 +17,7 @@
     with setGeometry().
 
     \differences
-    There is no height-for-width support: \c hasHeightForWidth(), \c heightForWidth() and
-    \c minimumHeightForWidth() do not exist. There is no \c controlTypes() or \c spacerItem() on QWidgetItem other than the one here.
+    There is no \c controlTypes() or \c spacerItem() on QWidgetItem other than the one here.
     \enddifferences
 
     \sa QLayout, QWidgetItem, QSpacerItem
@@ -360,11 +359,15 @@ int QWidgetItem::heightForWidth(int w) const {
 }
 
 /*!
-    \fn int QWidgetItem::minimumHeightForWidth(int w) const
     \since 6.0
 
-    Returns the smallest height of the widget at the width \a w, which is heightForWidth().
+    Returns the smallest height of the widget at the width \a w: for a widget whose layout has a height for width, the
+    least that the layout needs, and otherwise heightForWidth().
 */
+int QWidgetItem::minimumHeightForWidth(int w) const {
+    const QLayout *inner = m_widget ? m_widget->layout() : nullptr;
+    return inner && inner->hasHeightForWidth() ? inner->totalMinimumHeightForWidth(w) : heightForWidth(w);
+}
 
 /*!
     \reimp

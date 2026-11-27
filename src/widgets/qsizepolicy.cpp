@@ -13,7 +13,7 @@
     \endcode
 
     \differences
-    There is no height-for-width support, \c retainSizeWhenHidden(), \c ControlType or \c transposed().
+    A layout does not keep the room of a hidden widget for \c retainSizeWhenHidden(), and width for height is not used.
     The policy is a plain value with the stretch factors, which the box layouts of Nt do not use: use
     QBoxLayout::addWidget()'s stretch argument.
     \enddifferences
@@ -127,7 +127,8 @@
     \fn bool QSizePolicy::hasHeightForWidth() const
     \since 6.0
 
-    Returns \c true if the height of the widget depends on its width. Nt layouts do not use it.
+    Returns \c true if the height of the widget depends on its width; the layouts then ask the widget for
+    QWidget::heightForWidth().
 */
 
 /*!

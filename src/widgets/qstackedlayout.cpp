@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qstackedlayout.h>
 
+#include "qlayoutcalc_p.h"
 #include "qwidgetutil_p.h"
 
 #include <QtCore/qdebug.h>
@@ -210,6 +211,46 @@ QSize QStackedLayout::minimumSize() const {
     const QMargins m = contentsMargins();
     return QSize(size.width() + m.left() + m.right(), size.height() + m.top() + m.bottom());
 }
+
+/*!
+    \reimp
+
+    Returns \c true if the height of any page depends on its width.
+*/
+bool QStackedLayout::hasHeightForWidth() const {
+    return std::any_of(m_items.begin(), m_items.end(),
+                       [](const QLayoutItem *item) { return item->hasHeightForWidth(); });
+}
+
+// The tallest of the pages, as for the size hint: the stack does not change its height with the page.
+int QStackedLayout::heightAtWidth(int w, bool minimum) const {
+    if (!hasHeightForWidth())
+        return -1;
+    const QMargins m = contentsMargins();
+    const int inner = std::max(0, w - m.left() - m.right());
+    int height = 0;
+    for (const QLayoutItem *item : m_items) {
+        int own = minimum ? item->minimumSize().height() : item->sizeHint().height();
+        if (item->hasHeightForWidth())
+            own = QtPrivate::heightAt(item, inner, minimum);
+        height = std::max(height, own);
+    }
+    return height + m.top() + m.bottom();
+}
+
+/*!
+    \reimp
+
+    Returns the height of the tallest page at the width \a w, or -1 if no page's height depends on its width.
+*/
+int QStackedLayout::heightForWidth(int w) const { return heightAtWidth(w, false); }
+
+/*!
+    \reimp
+
+    Returns the least height that holds every page at the width \a w, or -1 if no page's height depends on its width.
+*/
+int QStackedLayout::minimumHeightForWidth(int w) const { return heightAtWidth(w, true); }
 
 /*!
     \reimp

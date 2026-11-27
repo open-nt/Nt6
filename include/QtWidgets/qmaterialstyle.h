@@ -168,6 +168,7 @@ private:
     // is shown. False for another dialog.
     friend class QDialog;
     bool placeSheet(QDialog *dialog) const;
+    void slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft) const;
     // Where dialogs have no title bar, a dialog shows its window title as Material's headline: room is made for it
     // above what is in the dialog, before it is shown, and QDialog asks for it to be drawn there.
     void prepareHeadline(QDialog *dialog) const;
@@ -189,6 +190,9 @@ private:
                           const QColor &ink);
     // The width and height of the icon of an icon button; 0 for another button.
     static int iconButtonIconSize(const QWidget *widget);
+    void drawGroupBox(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
+    // The border of a text editor, as that of an outlined text field.
+    void drawEditorFrame(QPainter *painter, const QFrame *editor) const;
     void drawSpinBox(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawScrollBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter, const QWidget *widget) const;
@@ -230,6 +234,9 @@ private:
     static bool isSnackbar(const QWidget *widget);
     static bool isFloatingActionButton(const QWidget *widget); // which a snackbar goes above
     static int snackbarHeight(const QStatusBar *bar, int width);
+    // A message that comes fades in; one that goes, or is replaced, fades out over what follows.
+    void snackbarArrives(QStatusBar *bar) const;
+    void snackbarLeaves(QStatusBar *bar) const;
     void drawSnackbar(QPainter *painter, const QStatusBar *bar) const;
     void drawCircularProgress(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     // A bottom navigation bar: QTabBar gives its tabs equal widths and asks for the whole of it to be drawn.

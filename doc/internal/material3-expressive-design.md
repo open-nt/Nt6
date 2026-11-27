@@ -171,14 +171,30 @@ dragged), no track and no arrows, and at least 48 long. Not done: a floating lab
 button is held, hiding the scroll bar at rest.
 
 A dialog keeps its contents 24 from its edges. Where the platform narrows dialogs (`maximumDialogWidth()`, Android),
-`QDialog` narrows itself before it is shown and gives each wrapping label the height of its lines, because Nt's layouts
-have no height-for-width and a message box asked for one line.
+`QDialog` narrows itself before it is shown and takes the height that its layout needs at that width. (Nt's layouts
+have height-for-width since then: a wrapping `QLabel` gets the height of its lines in box, grid, form and stacked
+layouts, group boxes and scroll areas, and a wrapping label would like lines of at most 80 average characters.)
 
 Where `showsDialogTitles()` is false (Android), a dialog with a window title shows it as the headline: 24, `OnSurface`,
 24 from the top and 16 over the contents. The style makes the room as top contents margin before the dialog is sized,
 and `QDialog::paintEvent()` asks it to draw, so no application layout changes. Sheets have none. A message box without
 an icon now gives its text both columns: the empty icon column kept some of the width of the button row. Not done: a
 headline of two lines, the centered form under an icon.
+
+Group boxes and text editors need no property. A `QGroupBox` is a section: its title 14 medium in `Primary`, 4 over an
+outlined card (corners 12, `OutlineVariant`), or over a line if it is flat; the layout margins are 16 inside the card.
+The title font is only used for drawing, so the children keep the widget's font. A checkable title is 40 high with the
+style's check box. A `QTextEdit` or `QPlainTextEdit` whose frame shape is `StyledPanel` is an outlined field: corners 4,
+`Outline` 1, `Primary` 3 with the focus, text 16 with 10 between border and text (4 more come from the document's
+margin). It has no floating label.
+
+Sheets and snackbars move. A sheet is placed at its resting place and then moved from just beyond its edge along a
+spring of stiffness 380 (the default spatial one) with a damping ratio of 1, so it never passes its edge and shows a
+gap; the Android platform accepts a sheet's geometry beyond its edge and recomposes when a dialog moves. A snackbar
+fades in on the default effects spring through a `QGraphicsOpacityEffect` (only if the application set none), and one
+that is cleared or replaced leaves a picture of itself (`grab()`, with its buttons) that fades out on the fast effects
+spring. Not done: the snackbar's growing from 80 percent, sheets sliding out (the dialog is hidden at once, and
+`exec()` returns then), the scrim fading.
 
 ## Open points
 

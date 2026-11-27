@@ -122,29 +122,16 @@ void QDialog::paintEvent(QPaintEvent *event) {
     }
 }
 
-// A platform with a small screen makes a dialog narrower than it asks to be. Layouts have no height for a width, so
-// the dialog does that here itself: each label that wraps its text is given the height of its lines at that width.
+// A platform with a small screen makes a dialog narrower than it asks to be, and as high as it has to be then.
 void QDialog::fitPlatformWidth() {
     const QPlatformIntegration *platform = QtPrivate::GuiAccess::integration();
     const int widest = platform ? platform->maximumDialogWidth() : 0;
     if (widest <= 0 || width() <= widest || !layout())
         return;
     ensurePolished();
-    resize(widest, height());
+    const int wrapped = hasHeightForWidth() ? heightForWidth(widest) : -1;
+    resize(widest, std::max({wrapped >= 0 ? wrapped : sizeHint().height(), minimumSizeHint().height()}));
     layout()->activate();
-    const QList<QLabel *> labels = findChildren<QLabel *>();
-    for (QLabel *label : labels) {
-        if (!label->wordWrap() || label->isHidden() || label->text().isEmpty() || label->width() <= 0)
-            continue;
-        const QMargins around = label->contentsMargins();
-        const int room = std::max(1, label->width() - around.left() - around.right() - 2 * label->margin());
-        const int lines =
-            label->fontMetrics().boundingRect(QRect(0, 0, room, 0), Qt::TextWordWrap, label->text()).height();
-        label->setMinimumHeight(
-            std::max(label->minimumHeight(), lines + around.top() + around.bottom() + 2 * label->margin()));
-    }
-    layout()->activate();
-    resize(widest, std::max(sizeHint().height(), minimumSizeHint().height()));
 }
 
 /*!

@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtWidgets/qlayoutitem.h>
+#include <QtWidgets/qwidget.h>
 
 #include <algorithm>
 #include <cmath>
@@ -25,6 +26,26 @@ struct Cell {
 };
 
 inline int fixedRound(double v) { return static_cast<int>(std::lround(v)); }
+
+// The width that an item gets of the `available` one: within its limits, and no more than its hint if it is aligned.
+inline int widthIn(const QLayoutItem *item, int available) {
+    const int least = item->minimumSize().width();
+    int width = std::clamp(available, least, std::max(least, item->maximumSize().width()));
+    if (item->alignment() & (Qt::AlignLeft | Qt::AlignRight | Qt::AlignHCenter))
+        width = std::min(width, std::max(least, item->sizeHint().width()));
+    return width;
+}
+
+// The height of an item that has a height for width, `width` wide: the preferred one, or the least. Of a widget, the
+// height for the width stands in for what its size hints say, so only the limits that were set on it apply.
+inline int heightAt(const QLayoutItem *item, int width, bool minimum) {
+    const int height = minimum ? item->minimumHeightForWidth(width) : item->heightForWidth(width);
+    if (height < 0)
+        return minimum ? item->minimumSize().height() : item->sizeHint().height();
+    if (const QWidget *widget = item->widget())
+        return std::clamp(height, widget->minimumHeight(), std::max(widget->minimumHeight(), widget->maximumHeight()));
+    return std::min(height, std::max(0, item->maximumSize().height()));
+}
 
 // Shares `space` between the cells with `spacing` between the non-empty ones, as Qt's qGeomCalc() does. The sizes
 // come out in Cell::size. If no cell can take the space that is left, it is returned as extra spacing: put it before the

@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <functional>
 #include <vector>
 
 namespace QtPrivate {
@@ -193,6 +194,53 @@ private:
     std::vector<QPointer<QWidget>> m_painting;
     QElapsedTimer m_clock;
     QTimer m_timer;
+};
+
+// Moves something along a spring from 0 to 1, a frame at a time: `step` is given where it is, and 1 when it rests, and
+// returns false to stop it before then. It belongs to `owner`, and goes when it ends or with the owner; a new one of the
+// same name takes the place of one that is still going.
+class Transition : public QObject {
+public:
+    Transition(QObject *owner, const QString &name, SpringSpec spec, std::function<bool(double)> step)
+        : QObject(owner), m_spring(0, 0, 1, spec), m_step(std::move(step)) {
+        stop(owner, name);
+        setObjectName(name);
+        m_clock.start();
+        m_timer.setInterval(16);
+        QObject::connect(&m_timer, &QTimer::timeout, this, [this] { tick(); });
+        m_timer.start();
+    }
+
+    // Stops the transition of `owner` called `name` where it is, if there is one.
+    static void stop(QObject *owner, const QString &name) {
+        const QList<Transition *> going = owner->findChildren<Transition *>(name, Qt::FindDirectChildrenOnly);
+        for (Transition *transition : going)
+            transition->finish();
+    }
+
+private:
+    void tick() {
+        if (m_done)
+            return;
+        const double seconds = static_cast<double>(m_clock.nsecsElapsed()) * 1e-9;
+        const bool rests = m_spring.restsAt(seconds, 0.002);
+        if (!m_step(rests ? 1.0 : m_spring.at(seconds).position) || rests)
+            finish();
+    }
+    void finish() {
+        if (m_done)
+            return;
+        m_done = true;
+        m_timer.stop();
+        setObjectName(QString());
+        deleteLater();
+    }
+
+    Spring m_spring;
+    std::function<bool(double)> m_step;
+    QElapsedTimer m_clock;
+    QTimer m_timer;
+    bool m_done = false;
 };
 
 } // namespace QtPrivate

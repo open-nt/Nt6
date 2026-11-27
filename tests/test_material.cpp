@@ -2944,6 +2944,184 @@ void testDialogHeadline() {
     platform->dialogTitles = true;
 }
 
+void testGroupBoxAndTextEditors() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(360, 500);
+    auto *group = new QGroupBox(QStringLiteral("Notifications"), &window);
+    auto *rows = new QVBoxLayout(group);
+    auto *inside = new QWidget;
+    inside->setFixedHeight(40);
+    rows->addWidget(inside);
+    group->setGeometry(10, 10, 300, 100);
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    // The title over the card, which keeps 16 around what is in it.
+    CHECK(inside->mapTo(group, QPoint(0, 0)) == QPoint(16, 24 + 4 + 16));
+    CHECK(group->sizeHint().height() == 24 + 4 + 16 + 40 + 16);
+    CHECK(group->font().pixelSize() != 14 || group->font().weight() != QFont::Medium); // its children keep theirs
+    const auto shot = [&](const QWidget *widget) { return window.grab().toImage().copy(widget->geometry()); };
+    QImage image = shot(group);
+    CHECK(is(image.pixelColor(150, 28), Role::OutlineVariant)); // the card,
+    CHECK(is(image.pixelColor(0, 28), Role::Surface));          // with round corners
+    CHECK(is(image.pixelColor(0, 70), Role::OutlineVariant));
+    CHECK(is(image.pixelColor(150, 99), Role::OutlineVariant));
+    if (textIsDrawn()) {
+        int accented = 0;
+        for (int y = 0; y < 24; ++y)
+            for (int x = 0; x < 150; ++x)
+                accented += near(image.pixelColor(x, y), style->color(Role::Primary), 40) ? 1 : 0;
+        CHECK(accented > 20);
+    }
+    group->setFlat(true);
+    image = shot(group);
+    CHECK(is(image.pixelColor(150, 28), Role::OutlineVariant));
+    CHECK(is(image.pixelColor(0, 70), Role::Surface) && is(image.pixelColor(150, 99), Role::Surface));
+    group->setFlat(false);
+
+    // A checkable one has Material's check box in its title, and a tap on the title turns it.
+    group->setCheckable(true);
+    group->setChecked(true);
+    group->resize(300, 40 + 4 + 16 + 40 + 16);
+    QCoreApplication::processEvents();
+    CHECK(inside->mapTo(group, QPoint(0, 0)).y() == 40 + 4 + 16);
+    CHECK(is(shot(group).pixelColor(11 + 3, 13), Role::Primary)); // filled, in a corner clear of the mark
+    const auto tap = [](QWidget *on, int x, int y) {
+        const QPointF at(x, y);
+        QMouseEvent press(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(on, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(on, &release);
+        QCoreApplication::processEvents();
+    };
+    tap(group, 60, 20);
+    CHECK(!group->isChecked() && !inside->isEnabled());
+    tap(group, 20, 20);
+    CHECK(group->isChecked());
+
+    // A text editor is an outlined field, which shows that it has the focus.
+    auto *plain = new QPlainTextEdit(&window);
+    plain->setPlainText(QStringLiteral("Text"));
+    plain->setGeometry(10, 150, 300, 100);
+    auto *rich = new QTextEdit(&window);
+    rich->setGeometry(10, 270, 300, 100);
+    plain->show();
+    rich->show();
+    QCoreApplication::processEvents();
+    for (QAbstractScrollArea *editor :
+         {static_cast<QAbstractScrollArea *>(plain), static_cast<QAbstractScrollArea *>(rich)}) {
+        CHECK(editor->frameWidth() == 10);
+        CHECK(editor->font().pixelSize() == 16);
+        editor->clearFocus();
+        window.setFocus();
+        image = shot(editor);
+        CHECK(is(image.pixelColor(150, 0), Role::Outline));
+        CHECK(is(image.pixelColor(150, 99), Role::Outline));
+        CHECK(!is(image.pixelColor(150, 2), Role::Outline));
+        CHECK(is(image.pixelColor(0, 0), Role::Surface)); // round
+        editor->setFocus();
+        image = shot(editor);
+        CHECK(is(image.pixelColor(150, 0), Role::Primary));
+        CHECK(is(image.pixelColor(150, 2), Role::Primary)); // thicker
+    }
+    // One that the program gave another frame keeps it.
+    plain->setFrameShape(QFrame::NoFrame);
+    plain->clearFocus();
+    CHECK(!is(shot(plain).pixelColor(150, 0), Role::Outline));
+
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(rich->frameWidth() < 10);
+}
+
+// With motion, a sheet slides in from its edge and a snackbar fades in; one that goes leaves a picture that fades out.
+void testSheetAndSnackbarMotion() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(true);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.setGeometry(100, 50, 400, 700);
+    window.show();
+    QCoreApplication::processEvents();
+    QDialog sheet(&window);
+    sheet.setProperty("materialSheet", QStringLiteral("bottom"));
+    auto *column = new QVBoxLayout(&sheet);
+    auto *content = new QWidget;
+    content->setFixedHeight(180);
+    column->addWidget(content);
+    sheet.show();
+    const int high = sheet.height();
+    const QRect rest(100, 50 + 700 - high, 400, high);
+    CHECK(sheet.geometry() == rest.translated(0, high)); // below its place, at first
+    wait(60);
+    CHECK(sheet.y() > rest.y() && sheet.y() < rest.y() + high); // on its way
+    int lowest = sheet.y();
+    for (int i = 0; i < 100 && sheet.y() != rest.y(); ++i) {
+        wait(10);
+        lowest = std::min(lowest, sheet.y());
+    }
+    CHECK(sheet.geometry() == rest && lowest >= rest.y()); // and it never goes past it
+    sheet.hide();
+    QCoreApplication::processEvents();
+
+    QDialog drawer(&window);
+    drawer.setProperty("materialSheet", QStringLiteral("drawer"));
+    new QVBoxLayout(&drawer);
+    drawer.show();
+    CHECK(drawer.x() == 100 - drawer.width());
+    wait(800);
+    CHECK(drawer.geometry() == QRect(100, 50, 400 - 56, 700));
+    drawer.hide();
+
+    QMainWindow main;
+    main.setCentralWidget(new QWidget);
+    auto *status = new QStatusBar;
+    status->setProperty("materialStatusBar", QStringLiteral("snackbar"));
+    main.setStatusBar(status);
+    main.resize(360, 400);
+    main.show();
+    QCoreApplication::processEvents();
+    status->showMessage(QStringLiteral("Archived"));
+    auto *fade = qobject_cast<QGraphicsOpacityEffect *>(status->graphicsEffect());
+    CHECK(fade && fade->opacity() < 0.5);
+    wait(500);
+    CHECK(!status->graphicsEffect()); // gone once it is in
+    const QRect shown = status->geometry();
+    status->clearMessage();
+    QCoreApplication::processEvents();
+    auto *ghost = main.findChild<QWidget *>(QStringLiteral("_nt_snackbarGhost"));
+    CHECK(ghost && ghost->isVisible() && ghost->geometry() == shown);
+    CHECK(status->height() == 0);
+    wait(400);
+    CHECK(!main.findChild<QWidget *>(QStringLiteral("_nt_snackbarGhost")));
+
+    // An effect of the application's own is left alone.
+    auto *own = new QGraphicsOpacityEffect;
+    own->setOpacity(0.7);
+    status->setGraphicsEffect(own);
+    status->showMessage(QStringLiteral("Mine"));
+    CHECK(status->graphicsEffect() == own && own->opacity() == 0.7);
+    status->setGraphicsEffect(nullptr);
+
+    // Without motion, all of it is at once.
+    style->setMotionEnabled(false);
+    sheet.show();
+    CHECK(sheet.geometry() == rest);
+    sheet.hide();
+    status->showMessage(QStringLiteral("Again"));
+    CHECK(!status->graphicsEffect());
+    status->clearMessage();
+    CHECK(!main.findChild<QWidget *>(QStringLiteral("_nt_snackbarGhost")));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -2979,6 +3157,8 @@ int main(int argc, char *argv[]) {
     testTimeInput();
     testSpinBoxAndScrollBar();
     testDialogHeadline();
+    testGroupBoxAndTextEditors();
+    testSheetAndSnackbarMotion();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

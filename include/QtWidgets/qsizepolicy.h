@@ -77,8 +77,10 @@ public:
     }
 
     friend constexpr bool operator==(const QSizePolicy &a, const QSizePolicy &b) noexcept {
-        return a.m_horizontal == b.m_horizontal && a.m_vertical == b.m_vertical
-               && a.m_horizontalStretch == b.m_horizontalStretch && a.m_verticalStretch == b.m_verticalStretch;
+        return a.m_horizontal == b.m_horizontal && a.m_vertical == b.m_vertical &&
+               a.m_horizontalStretch == b.m_horizontalStretch && a.m_verticalStretch == b.m_verticalStretch &&
+               a.m_heightForWidth == b.m_heightForWidth && a.m_widthForHeight == b.m_widthForHeight &&
+               a.m_retainSizeWhenHidden == b.m_retainSizeWhenHidden && a.m_controlType == b.m_controlType;
     }
     friend constexpr bool operator!=(const QSizePolicy &a, const QSizePolicy &b) noexcept { return !(a == b); }
 

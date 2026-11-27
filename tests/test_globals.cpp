@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtCore>
 #include <QtCore/QByteArrayMatcher>
+#include <QtCore/qnativeinterface.h> // Qt 6 header that Qt code includes
 #include <QtCore/QLatin1StringMatcher>
 #include <QtCore/QTypeInfo>
 #include <QtCore/QtAlgorithms>

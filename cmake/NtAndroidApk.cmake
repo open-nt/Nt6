@@ -1,8 +1,9 @@
 # MIT License - see LICENSE
 #
 # Script mode: cmake -DNT_APK=... -DNT_LIBRARY=... -P NtAndroidApk.cmake
-# Makes the signed APK of an application whose only code is one native library, loaded by
-# android.app.NativeActivity. Run by the <target>_apk target of nt_android_add_apk().
+# Makes the signed APK of an application: its native library, loaded by org.nt.NtActivity (or a plain
+# NativeActivity without a JDK), and any Java sources, permissions and <application> entries the application adds
+# (NT_APP_CONFIG, written by nt_android_add_apk()). Run by the <target>_apk target of nt_android_add_apk().
 #
 # Included normally (by NtAndroid.cmake) it does nothing.
 
@@ -16,6 +17,14 @@ foreach(var NT_APK NT_LIBRARY NT_LIBRARY_NAME NT_ABI NT_PACKAGE NT_LABEL NT_MIN_
         message(FATAL_ERROR "NtAndroidApk.cmake: ${var} is not set")
     endif()
 endforeach()
+
+set(NT_APP_ACTIVITY "")
+set(NT_APP_PERMISSIONS "")
+set(NT_APP_JAVA_SOURCES "")
+set(NT_APP_MANIFEST_APPLICATION "")
+if(DEFINED NT_APP_CONFIG AND EXISTS "${NT_APP_CONFIG}")
+    include("${NT_APP_CONFIG}")
+endif()
 
 macro(_nt_run)
     execute_process(COMMAND ${ARGN} RESULT_VARIABLE _result OUTPUT_VARIABLE _out ERROR_VARIABLE _out)
@@ -40,13 +49,18 @@ else()
     set(_nt_java_ok FALSE)
     message(STATUS "No javac (or no source of NtActivity): ${NT_APK} has no on-screen keyboard")
 endif()
+# The application's own Java needs the compiler: without it the APK would start an activity it does not contain.
+if(NOT _nt_java_ok AND (NT_APP_JAVA_SOURCES OR NT_APP_ACTIVITY))
+    message(FATAL_ERROR "${NT_APK}: the application has Java sources or its own activity, which need javac and the d8 of "
+        "the SDK build tools")
+endif()
 
 file(REMOVE_RECURSE "${NT_WORK}")
 file(MAKE_DIRECTORY "${NT_WORK}/lib/${NT_ABI}")
 if(_nt_java_ok)
     file(MAKE_DIRECTORY "${NT_WORK}/classes" "${NT_WORK}/dex")
     execute_process(COMMAND "${NT_JAVAC}" -source 8 -target 8 -Xlint:-options -classpath "${NT_ANDROID_JAR}"
-            -d "${NT_WORK}/classes" "${NT_ACTIVITY_SOURCE}"
+            -d "${NT_WORK}/classes" "${NT_ACTIVITY_SOURCE}" ${NT_APP_JAVA_SOURCES}
         RESULT_VARIABLE _result OUTPUT_VARIABLE _out ERROR_VARIABLE _out)
     if(_result EQUAL 0)
         file(GLOB_RECURSE _nt_classes "${NT_WORK}/classes/*.class")
@@ -56,10 +70,28 @@ if(_nt_java_ok)
     endif()
     if(_result EQUAL 0 AND EXISTS "${NT_WORK}/dex/classes.dex")
         set(_nt_activity "org.nt.NtActivity")
+        if(NT_APP_ACTIVITY)
+            set(_nt_activity "${NT_APP_ACTIVITY}")
+        endif()
         set(_nt_has_code "true")
+    elseif(NT_APP_JAVA_SOURCES OR NT_APP_ACTIVITY)
+        message(FATAL_ERROR "The Java sources of ${NT_APK} could not be compiled:\n${_out}")
     else()
         message(WARNING "NtActivity could not be compiled; ${NT_APK} has no on-screen keyboard:\n${_out}")
     endif()
+endif()
+
+# Permissions: the network ones every Nt application has, then the application's, each once.
+set(_nt_permissions android.permission.INTERNET android.permission.ACCESS_NETWORK_STATE
+    android.permission.CHANGE_WIFI_MULTICAST_STATE ${NT_APP_PERMISSIONS})
+list(REMOVE_DUPLICATES _nt_permissions)
+set(_nt_permission_xml "")
+foreach(_permission IN LISTS _nt_permissions)
+    string(APPEND _nt_permission_xml "    <uses-permission android:name=\"${_permission}\"/>\n")
+endforeach()
+set(_nt_application_xml "")
+if(NT_APP_MANIFEST_APPLICATION)
+    file(READ "${NT_APP_MANIFEST_APPLICATION}" _nt_application_xml)
 endif()
 
 file(WRITE "${NT_WORK}/AndroidManifest.xml" "<?xml version=\"1.0\" encoding=\"utf-8\"?>
@@ -68,10 +100,7 @@ file(WRITE "${NT_WORK}/AndroidManifest.xml" "<?xml version=\"1.0\" encoding=\"ut
     android:versionCode=\"${NT_VERSION_CODE}\"
     android:versionName=\"${NT_VERSION_NAME}\">
     <uses-sdk android:minSdkVersion=\"${NT_MIN_SDK}\" android:targetSdkVersion=\"${NT_TARGET_SDK}\"/>
-    <uses-permission android:name=\"android.permission.INTERNET\"/>
-    <uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>
-    <uses-permission android:name=\"android.permission.CHANGE_WIFI_MULTICAST_STATE\"/>
-    <application android:label=\"${_label}\" android:hasCode=\"${_nt_has_code}\" android:extractNativeLibs=\"true\">
+${_nt_permission_xml}    <application android:label=\"${_label}\" android:hasCode=\"${_nt_has_code}\" android:extractNativeLibs=\"true\">
         <activity android:name=\"${_nt_activity}\"
             android:label=\"${_label}\"
             android:exported=\"true\"
@@ -82,7 +111,7 @@ file(WRITE "${NT_WORK}/AndroidManifest.xml" "<?xml version=\"1.0\" encoding=\"ut
                 <category android:name=\"android.intent.category.LAUNCHER\"/>
             </intent-filter>
         </activity>
-    </application>
+${_nt_application_xml}    </application>
 </manifest>
 ")
 file(COPY "${NT_LIBRARY}" DESTINATION "${NT_WORK}/lib/${NT_ABI}")

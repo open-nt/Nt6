@@ -6,7 +6,14 @@
 #   qt_standard_project_setup()
 #   qt_finalize_target(<name>)
 #   nt_android_add_apk(<target> [PACKAGE <id>] [LABEL <text>] [VERSION_CODE <n>] [VERSION_NAME <text>]
-#                      [KEYSTORE <file>])
+#                      [KEYSTORE <file>] [ACTIVITY <class>] [PERMISSIONS <name>...]
+#                      [JAVA_SOURCES <file>...] [MANIFEST_APPLICATION <file>])
+#
+# ACTIVITY names the activity to launch instead of org.nt.NtActivity; it must extend org.nt.NtActivity, so the
+# window, input and keyboard still work. JAVA_SOURCES are compiled with NtActivity (against android.jar only: no
+# AndroidX or other libraries) and go into the APK's classes.dex. PERMISSIONS are added as <uses-permission> (a
+# name without a dot gets "android.permission." in front). MANIFEST_APPLICATION is a file whose XML is put inside
+# <application>, after the activity: services, receivers, providers and meta-data.
 #
 # On Android qt_add_executable() makes a shared library, which android.app.NativeActivity loads and which defines
 # main(), and an <name>.apk next to it (the target <name>_apk, part of "all"). The package is signed with the debug
@@ -19,7 +26,8 @@ include(${CMAKE_CURRENT_LIST_DIR}/NtAndroidApk.cmake OPTIONAL)
 set(NT_ANDROID_TARGET_SDK "" CACHE STRING "targetSdkVersion of the applications; the newest platform of the SDK when empty")
 
 function(nt_android_add_apk target)
-    cmake_parse_arguments(ARG "" "PACKAGE;LABEL;VERSION_CODE;VERSION_NAME;KEYSTORE" "" ${ARGN})
+    cmake_parse_arguments(ARG "" "PACKAGE;LABEL;VERSION_CODE;VERSION_NAME;KEYSTORE;ACTIVITY;MANIFEST_APPLICATION"
+        "PERMISSIONS;JAVA_SOURCES" ${ARGN})
     if(NOT ANDROID)
         message(FATAL_ERROR "nt_android_add_apk() needs the Android toolchain")
     endif()
@@ -74,6 +82,33 @@ function(nt_android_add_apk target)
         set(_output "${target}")
     endif()
     set(_apk "${CMAKE_CURRENT_BINARY_DIR}/${target}.apk")
+
+    # What the application adds, handed to the packaging script in a file rather than on the command line, so lists
+    # and paths need no escaping.
+    set(_java_sources)
+    foreach(_source IN LISTS ARG_JAVA_SOURCES)
+        get_filename_component(_source "${_source}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        list(APPEND _java_sources "${_source}")
+    endforeach()
+    set(_permissions)
+    foreach(_permission IN LISTS ARG_PERMISSIONS)
+        if(NOT _permission MATCHES "\\.")
+            set(_permission "android.permission.${_permission}")
+        endif()
+        list(APPEND _permissions "${_permission}")
+    endforeach()
+    set(_manifest_application "")
+    if(ARG_MANIFEST_APPLICATION)
+        get_filename_component(_manifest_application "${ARG_MANIFEST_APPLICATION}" ABSOLUTE
+            BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
+    set(_app_config "${CMAKE_CURRENT_BINARY_DIR}/${target}_apk.cmake")
+    file(GENERATE OUTPUT "${_app_config}" CONTENT
+"set(NT_APP_ACTIVITY [==[${ARG_ACTIVITY}]==])
+set(NT_APP_PERMISSIONS [==[${_permissions}]==])
+set(NT_APP_JAVA_SOURCES [==[${_java_sources}]==])
+set(NT_APP_MANIFEST_APPLICATION [==[${_manifest_application}]==])
+")
     add_custom_target(${target}_apk ALL
         COMMAND ${CMAKE_COMMAND}
             "-DNT_APK=${_apk}"
@@ -91,8 +126,9 @@ function(nt_android_add_apk target)
             "-DNT_KEYSTORE=${_keystore}"
             "-DNT_WORK=${CMAKE_CURRENT_BINARY_DIR}/${target}_apk.dir"
             "-DNT_ACTIVITY_SOURCE=${CMAKE_CURRENT_FUNCTION_LIST_DIR}/android/NtActivity.java"
+            "-DNT_APP_CONFIG=${_app_config}"
             -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/NtAndroidApk.cmake"
-        DEPENDS ${target}
+        DEPENDS ${target} ${_java_sources} ${_manifest_application}
         COMMENT "Packaging ${target}.apk"
         VERBATIM)
 endfunction()

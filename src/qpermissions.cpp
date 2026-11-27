@@ -7,6 +7,8 @@
 
 #include <utility>
 
+#include "qpermissions_p.h"
+
 /*!
     \class QPermission
     \since 6.5
@@ -304,14 +306,24 @@ QDebug operator<<(QDebug debug, const QPermission &permission) {
 
 /*!
     \since 6.5
-    Returns whether the application may use the feature that \a permission describes. The platforms that Nt
-    supports have no permission prompts, so this returns \c Qt::PermissionStatus::Granted for every permission
-    class, and \c Qt::PermissionStatus::Denied for an invalid, default-constructed QPermission.
+    Returns whether the application may use the feature that \a permission describes. On Android this is
+    \c Qt::PermissionStatus::Granted when the system has granted every Android permission the feature needs,
+    \c Qt::PermissionStatus::Denied when the user refused them since the application started, and
+    \c Qt::PermissionStatus::Undetermined otherwise, so the application should ask with requestPermission(). The
+    application's manifest must declare those permissions (\c nt_android_add_apk() \c PERMISSIONS). The other
+    platforms that Nt supports have no permission prompts, and there this returns \c Qt::PermissionStatus::Granted.
+    An invalid, default-constructed QPermission is always \c Qt::PermissionStatus::Denied.
 
     \sa requestPermission()
 */
 Qt::PermissionStatus QCoreApplication::checkPermission(const QPermission &permission) {
-    return permission.type().isValid() ? Qt::PermissionStatus::Granted : Qt::PermissionStatus::Denied;
+    if (!permission.type().isValid())
+        return Qt::PermissionStatus::Denied;
+#ifdef __ANDROID__
+    return QtPrivate::androidCheckPermission(permission);
+#else
+    return Qt::PermissionStatus::Granted;
+#endif
 }
 
 /*!
@@ -328,8 +340,11 @@ Qt::PermissionStatus QCoreApplication::checkPermission(const QPermission &permis
     });
     \endcode
 
-    Since the platforms that Nt supports have no permission prompts, the answer is the one of
-    checkPermission(), and it comes at once from the event loop.
+    On Android the system asks the user, unless the permission is already granted, and \a func is called with the
+    answer; a location permission that is wanted \c Always is asked for in two steps from Android 11 on, as the
+    system requires (first while in use, then all the time). An application whose activity is a plain NativeActivity
+    (no JDK when it was packaged) cannot ask, and gets \c Qt::PermissionStatus::Denied. Elsewhere there are no
+    permission prompts: the answer is the one of checkPermission(), and it comes at once from the event loop.
 
     \sa checkPermission()
 */
@@ -344,13 +359,70 @@ Qt::PermissionStatus QCoreApplication::checkPermission(const QPermission &permis
 
 void QCoreApplication::requestPermissionImpl(const QPermission &permission, const QObject *context,
                                              std::function<void(const QPermission &)> callback) {
-    QPermission answered = permission;
-    answered.m_status = checkPermission(permission);
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast): the context only chooses the thread
     QObject *target = context ? const_cast<QObject *>(context) : this;
+#ifdef __ANDROID__
+    if (permission.type().isValid()) {
+        QtPrivate::androidRequestPermission(permission, target,
+                                            [permission, callback = std::move(callback)](Qt::PermissionStatus status) {
+                                                QPermission answered = permission;
+                                                answered.m_status = status;
+                                                callback(answered);
+                                            });
+        return;
+    }
+#endif
+    QPermission answered = permission;
+    answered.m_status = checkPermission(permission);
     QMetaObject::invokeMethod(
         target, [answered = std::move(answered), callback = std::move(callback)] { callback(answered); },
         Qt::QueuedConnection);
 }
+
+namespace QtPrivate {
+
+QStringList androidPermissionNames(const QPermission &permission, int sdkVersion) {
+    QStringList names;
+    const auto add = [&names](const char *name) {
+        names.append(QStringLiteral("android.permission.") + QLatin1String(name));
+    };
+    if (permission.value<QCameraPermission>()) {
+        add("CAMERA");
+    } else if (permission.value<QMicrophonePermission>()) {
+        add("RECORD_AUDIO");
+    } else if (const auto location = permission.value<QLocationPermission>()) {
+        // Precise location needs the approximate one too: from Android 12 the user may grant only that.
+        if (location->accuracy() == QLocationPermission::Precise)
+            add("ACCESS_FINE_LOCATION");
+        add("ACCESS_COARSE_LOCATION");
+        if (location->availability() == QLocationPermission::Always && sdkVersion >= 29)
+            add("ACCESS_BACKGROUND_LOCATION");
+    } else if (const auto contacts = permission.value<QContactsPermission>()) {
+        add("READ_CONTACTS");
+        if (contacts->accessMode() == QContactsPermission::ReadWrite)
+            add("WRITE_CONTACTS");
+    } else if (const auto calendar = permission.value<QCalendarPermission>()) {
+        add("READ_CALENDAR");
+        if (calendar->accessMode() == QCalendarPermission::ReadWrite)
+            add("WRITE_CALENDAR");
+    } else if (const auto bluetooth = permission.value<QBluetoothPermission>()) {
+        if (sdkVersion >= 31) {
+            if (bluetooth->communicationModes().testFlag(QBluetoothPermission::Access)) {
+                add("BLUETOOTH_SCAN");
+                add("BLUETOOTH_CONNECT");
+            }
+            if (bluetooth->communicationModes().testFlag(QBluetoothPermission::Advertise))
+                add("BLUETOOTH_ADVERTISE");
+        } else {
+            // Before Android 12 scanning for devices needs the location permission.
+            add("BLUETOOTH");
+            add("BLUETOOTH_ADMIN");
+            add("ACCESS_FINE_LOCATION");
+        }
+    }
+    return names;
+}
+
+} // namespace QtPrivate
 
 #include "moc_qpermissions.cpp" // NOLINT(bugprone-suspicious-include): generated by ntmoc

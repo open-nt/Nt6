@@ -235,7 +235,7 @@ else()
     target_link_libraries(NtCore PUBLIC Threads::Threads)
     # QJniObject, QJniEnvironment and QNativeInterface::QAndroidApplication.
     if(NT_ANDROID)
-        target_sources(NtCore PRIVATE src/android/qjni_android.cpp)
+        target_sources(NtCore PRIVATE src/android/qjni_android.cpp src/android/qpermissions_android.cpp)
         # log: Nt Core writes its messages to logcat, so programs without Nt GUI need it too.
         target_link_libraries(NtCore PRIVATE android log)
     endif()

@@ -57,6 +57,17 @@ jobs:
           grep -q "lib/${{ matrix.abi }}/libnt_android_smoke.so" contents.txt
           grep -q "classes.dex" contents.txt
           "$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)/apksigner" verify build-app/nt_android_smoke.apk
+          # An application's own activity, service, Java sources and permissions (nt_android_add_apk() options).
+          tools="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/* | sort -V | tail -1)"
+          "$tools/aapt2" dump xmltree build-app/nt_android_app.apk --file AndroidManifest.xml | tee manifest.txt
+          grep -q '"org.nt.smoke.SmokeActivity"' manifest.txt
+          grep -q '"org.nt.smoke.SmokeService"' manifest.txt
+          grep -q '"android.permission.ACCESS_FINE_LOCATION"' manifest.txt
+          grep -q '"android.permission.CAMERA"' manifest.txt
+          grep -q '"android.permission.INTERNET"' manifest.txt
+          unzip -p build-app/nt_android_app.apk classes.dex | grep -aq 'Lorg/nt/smoke/SmokeService;'
+          unzip -p build-app/nt_android_app.apk classes.dex | grep -aq 'Lorg/nt/NtActivity;'
+          "$tools/apksigner" verify build-app/nt_android_app.apk
 
       - uses: actions/upload-artifact@v4
         with:

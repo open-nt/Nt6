@@ -58,6 +58,8 @@
 #include <variant>
 #include <vector>
 
+#include "../src/qpermissions_p.h" // the Android names of the permissions
+
 using namespace Qt::StringLiterals;
 
 static int g_failures = 0;
@@ -740,7 +742,35 @@ static void testPermissions() {
     location.setAccuracy(QLocationPermission::Approximate);
     CHECK(held.value<QLocationPermission>()->accuracy() == QLocationPermission::Precise);
 
-    // There are no permission prompts: every valid permission is granted.
+    // The Android permissions each class stands for (used by checkPermission() and requestPermission() on Android).
+    const auto names = [](const QPermission &p, int sdk) { return QtPrivate::androidPermissionNames(p, sdk); };
+    const QString perm = QStringLiteral("android.permission.");
+    CHECK(names(QCameraPermission(), 34) == QStringList{perm + QLatin1String("CAMERA")});
+    CHECK(names(QMicrophonePermission(), 34) == QStringList{perm + QLatin1String("RECORD_AUDIO")});
+    CHECK(names(QLocationPermission(), 34) == QStringList{perm + QLatin1String("ACCESS_COARSE_LOCATION")});
+    QLocationPermission precise;
+    precise.setAccuracy(QLocationPermission::Precise);
+    CHECK(names(precise, 34) ==
+          (QStringList{perm + QLatin1String("ACCESS_FINE_LOCATION"), perm + QLatin1String("ACCESS_COARSE_LOCATION")}));
+    precise.setAvailability(QLocationPermission::Always);
+    CHECK(names(precise, 34).contains(perm + QLatin1String("ACCESS_BACKGROUND_LOCATION")) &&
+          names(precise, 34).size() == 3);
+    CHECK(!names(precise, 28).contains(perm + QLatin1String("ACCESS_BACKGROUND_LOCATION"))); // before Android 10: none
+    QContactsPermission writeContacts;
+    writeContacts.setAccessMode(QContactsPermission::ReadWrite);
+    CHECK(names(writeContacts, 34) ==
+          (QStringList{perm + QLatin1String("READ_CONTACTS"), perm + QLatin1String("WRITE_CONTACTS")}));
+    CHECK(names(QCalendarPermission(), 34) == QStringList{perm + QLatin1String("READ_CALENDAR")});
+    QBluetoothPermission scan;
+    scan.setCommunicationModes(QBluetoothPermission::Access);
+    CHECK(names(scan, 31) ==
+          (QStringList{perm + QLatin1String("BLUETOOTH_SCAN"), perm + QLatin1String("BLUETOOTH_CONNECT")}));
+    CHECK(names(QBluetoothPermission(), 31).contains(perm + QLatin1String("BLUETOOTH_ADVERTISE")));
+    // Before Android 12, scanning for Bluetooth devices needs the location permission.
+    CHECK(names(scan, 30).contains(perm + QLatin1String("ACCESS_FINE_LOCATION")));
+    CHECK(names(invalid, 34).isEmpty());
+
+    // There are no permission prompts off Android: every valid permission is granted.
     CHECK(qApp->checkPermission(QCameraPermission()) == Qt::PermissionStatus::Granted);
     CHECK(qApp->checkPermission(QMicrophonePermission()) == Qt::PermissionStatus::Granted);
     CHECK(qApp->checkPermission(held) == Qt::PermissionStatus::Granted);

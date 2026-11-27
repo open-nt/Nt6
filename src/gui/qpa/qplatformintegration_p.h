@@ -3,6 +3,7 @@
 
 #include <QtCore/qnamespace.h>
 #include <QtCore/qpoint.h>
+#include <QtCore/qrect.h>
 #include <QtCore/qstring.h>
 #include <QtCore/qstringlist.h>
 
@@ -59,6 +60,14 @@ public:
     // What the widget with the focus says it takes (digits, an e-mail address, a password), so that the panel can
     // show the keys for it. Told before the panel is shown, and again when it changes.
     virtual void setInputMethodHints(Qt::InputMethodHints hints) { (void)hints; }
+    // For a panel that covers part of the screen: how short the contents of `window` can be, and where in it, in its
+    // coordinates, the item is that takes the text (null when none has the focus). Told when the focus moves, before
+    // the panel is shown, and again when the window is resized.
+    virtual void setInputItem(QWindow *window, int minimumHeight, const QRect &item) {
+        (void)window;
+        (void)minimumHeight;
+        (void)item;
+    }
     // The instance extension that Vulkan surfaces of the platform's windows need ("VK_KHR_xcb_surface"); null when the
     // platform cannot present with Vulkan.
     virtual const char *vulkanSurfaceExtension() const { return nullptr; }

@@ -25,6 +25,8 @@ public:
     QRect geometry() const override { return m_geometry; }
     // Without the system bars; where the windows are.
     QRect availableGeometry() const override { return m_available; }
+    // The same as if there were no keyboard (the same as availableGeometry() before Android 11, which does not say).
+    QRect unobstructedGeometry() const { return m_unobstructed; }
     QString name() const override { return QString::fromLatin1("android"); }
     qreal logicalDpiX() const override { return 120.0; }
     qreal logicalDpiY() const override { return 120.0; }
@@ -42,6 +44,7 @@ private:
     QSize m_pixels;
     QRect m_geometry;
     QRect m_available;
+    QRect m_unobstructed;
     qreal m_ratio = 1.0;
     int m_dpi = 160;
 };
@@ -61,6 +64,13 @@ public:
     // Whether the window is a dialog that is shown over a window that fills the screen.
     bool isOverlay() const;
 
+    // What the window that fills the screen needs, and where its field with the keyboard's text is; returns whether
+    // its height may be another.
+    bool setInput(int minimumHeight, const QRect &item);
+    // How far up the window that fills the screen is slid, so that the field is above the keyboard. A window that is
+    // too short for its contents above the keyboard keeps the height it needs, and is slid instead of squeezed.
+    int pan() const;
+
     // Every visible top-level window, the topmost last.
     static std::vector<QAndroidWindow *> &stack();
     static QAndroidWindow *top();
@@ -69,10 +79,14 @@ private:
     bool isDialog() const;
     // Where a dialog of the size that is asked for goes: centred, inside the screen with a margin.
     QRect dialogGeometry(const QRect &wanted) const;
+    // Where the window that fills the screen goes: above the keyboard, or as high as its contents need.
+    QRect baseGeometry() const;
 
     QAndroidScreen *m_screen;
     quintptr m_id;
     bool m_topLevel;
+    int m_minimumHeight = 0;
+    QRect m_inputItem;
 };
 
 class QAndroidBackingStore : public QPlatformBackingStore {
@@ -111,6 +125,7 @@ public:
     }
     void setInputPanelVisible(bool visible) override;
     void setInputMethodHints(Qt::InputMethodHints hints) override;
+    void setInputItem(QWindow *window, int minimumHeight, const QRect &item) override;
     const char *vulkanSurfaceExtension() const override { return "VK_KHR_android_surface"; }
     quint64 createVulkanSurface(QWindow *window, void *instance,
                                 QVulkanGetInstanceProcAddr getInstanceProcAddr) const override;
@@ -127,5 +142,6 @@ private:
     mutable std::unique_ptr<QPlatformClipboard> m_clipboard;
     std::unique_ptr<QSocketNotifier> m_notifier;
     bool m_surfaceLost = false;
+    int m_touchPan = 0; // how far the window was slid when the first finger came down; kept until the last is up
     bool m_dismissingTouch = false; // the fingers that dismissed a sheet are still down
 };

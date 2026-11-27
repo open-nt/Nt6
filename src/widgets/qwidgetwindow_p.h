@@ -51,6 +51,7 @@ private:
     void updateUnderMouse(QWidget *target, const QPointF &local, const QPointF &global);
 
     QWidget *m_widget;
+    QPoint m_pressedAt; // where the mouse button went down, to tell a click or a tap from a drag
     QPointer<QWidget> m_grab;
     QPointer<QWidget> m_under;
     QPointer<QWidget> m_popup;

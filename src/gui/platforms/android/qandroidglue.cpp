@@ -121,8 +121,10 @@ int Glue::density() const {
 
 // The system bars and cut-outs, as the insets of the decor view of the activity; NativeActivity reports no more than
 // the whole window. Asked on the application thread, through JNI.
-ARect Glue::systemInsets() {
+ARect Glue::systemInsets(int *bottomWithoutKeyboard) {
     ARect insets = {0, 0, 0, 0};
+    if (bottomWithoutKeyboard)
+        *bottomWithoutKeyboard = 0;
     if (!m_activity || !m_activity->vm || !m_activity->clazz)
         return insets;
     JNIEnv *env = nullptr;
@@ -162,9 +164,23 @@ ARect Glue::systemInsets() {
         insets.top = read("getSystemWindowInsetTop");
         insets.right = read("getSystemWindowInsetRight");
         insets.bottom = read("getSystemWindowInsetBottom");
+        int barsBottom = -1; // what the system bars alone take at the bottom, if the system says
         // The keyboard (Android 11 and later).
         jmethodID getInsets = env->GetMethodID(cls, "getInsets", "(I)Landroid/graphics/Insets;");
         if (getInsets) {
+            const jint barTypes = 7; // WindowInsets.Type.systemBars()
+            jobject bars = env->CallObjectMethod(windowInsets, getInsets, barTypes);
+            if (!env->ExceptionCheck() && bars) {
+                jclass insetsClass = env->GetObjectClass(bars);
+                jfieldID bottom = env->GetFieldID(insetsClass, "bottom", "I");
+                if (bottom)
+                    barsBottom = env->GetIntField(bars, bottom);
+                env->DeleteLocalRef(insetsClass);
+            }
+            if (env->ExceptionCheck())
+                env->ExceptionClear();
+            if (bars)
+                env->DeleteLocalRef(bars);
             const jint imeType = 1 << 3; // WindowInsets.Type.ime()
             jobject ime = env->CallObjectMethod(windowInsets, getInsets, imeType);
             if (!env->ExceptionCheck() && ime) {
@@ -182,6 +198,8 @@ ARect Glue::systemInsets() {
             env->ExceptionClear();
         }
         env->DeleteLocalRef(cls);
+        if (bottomWithoutKeyboard)
+            *bottomWithoutKeyboard = barsBottom >= 0 ? barsBottom : insets.bottom;
     }
     for (jobject local : {windowInsets, decor, window})
         if (local)

@@ -84,6 +84,29 @@ public:
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
     QEglNativePlatform eglPlatform() const override;
 
+    // For tests of what the widgets tell a platform with an on-screen keyboard: made present, this one records it.
+    struct InputPanel {
+        bool present = false;
+        bool visible = false;
+        int requests = 0; // to show it
+        Qt::InputMethodHints hints;
+        QWindow *window = nullptr;
+        int minimumHeight = 0;
+        QRect item;
+    };
+    InputPanel inputPanel;
+    bool hasInputPanel() const override { return inputPanel.present; }
+    void setInputPanelVisible(bool visible) override {
+        inputPanel.visible = visible;
+        inputPanel.requests += visible ? 1 : 0;
+    }
+    void setInputMethodHints(Qt::InputMethodHints hints) override { inputPanel.hints = hints; }
+    void setInputItem(QWindow *window, int minimumHeight, const QRect &item) override {
+        inputPanel.window = window;
+        inputPanel.minimumHeight = minimumHeight;
+        inputPanel.item = item;
+    }
+
 private:
     QOffscreenScreen *m_screen;
 };

@@ -14,6 +14,9 @@
 #include <QtGui/qinputmethod.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qmenu.h>
+#include <QtWidgets/qscrollarea.h>
+#include <QtWidgets/qstackedwidget.h>
+#include <QtWidgets/qtabwidget.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qapplication.h>
@@ -185,6 +188,81 @@ static void tellInputHints(QPlatformIntegration *integration, const QWidget *w) 
     integration->setInputMethodHints(Qt::InputMethodHints(static_cast<Qt::InputMethodHint>(hints)));
 }
 
+// How short the contents of the window `top` can be as they are shown. A tab widget and a stacked widget ask for the
+// room of their tallest page, whichever is shown; what only a hidden page needs does not count here.
+static int leastHeightShown(const QWidget *top) {
+    int least = std::max(top->minimumSizeHint().height(), top->minimumHeight());
+    int hidden = 0; // the most that one of them asks for beyond the page that it shows
+    const auto beyond = [&](const QWidget *holder, const QWidget *shown, int count, const auto &pageAt) {
+        if (!shown || !holder->isVisibleTo(top))
+            return;
+        int tallest = 0;
+        for (int i = 0; i < count; ++i)
+            tallest = std::max(tallest, pageAt(i)->minimumSizeHint().height());
+        hidden = std::max(hidden, tallest - std::max(0, shown->minimumSizeHint().height()));
+    };
+    const QList<QTabWidget *> tabs = top->findChildren<QTabWidget *>();
+    for (const QTabWidget *holder : tabs)
+        beyond(holder, holder->currentWidget(), holder->count(), [holder](int i) { return holder->widget(i); });
+    const QList<QStackedWidget *> stacks = top->findChildren<QStackedWidget *>();
+    for (const QStackedWidget *holder : stacks)
+        beyond(holder, holder->currentWidget(), holder->count(), [holder](int i) { return holder->widget(i); });
+    return std::max(0, least - hidden);
+}
+
+// Tells a platform with an on-screen keyboard how short the window of `w`, which has the focus, can be, and where in it
+// the text goes.
+static void tellInputItem(QPlatformIntegration *integration, QWidget *w) {
+    if (!w)
+        return; // the panel goes, and what was told last does no harm
+    QWidget *top = w->window();
+    QWindow *window = top->windowHandle();
+    if (!window)
+        return;
+    QRect item;
+    if (w->inputMethodQuery(Qt::ImEnabled).toBool()) {
+        // A line edit without a size, as in the Material style's time input, stands for the widget that holds it.
+        const QWidget *shown = w->width() > 0 && w->height() > 0 ? w : w->parentWidget();
+        if (shown) {
+            item = QRect(shown->mapTo(top, QPoint(0, 0)), shown->size());
+            // Of a large editor, the line with the cursor is what has to be seen.
+            constexpr int large = 200;
+            if (item.height() > large) {
+                const QRect cursor = w->inputMethodQuery(Qt::ImCursorRectangle).toRect();
+                if (cursor.isValid())
+                    item = cursor.translated(w->mapTo(top, QPoint(0, 0)));
+            }
+        }
+    }
+    integration->setInputItem(window, leastHeightShown(top), item);
+}
+
+void WidgetAccess::tappedInput(const QWidget *target) {
+    QPlatformIntegration *integration = QtPrivate::GuiAccess::integration();
+    QWidget *focus = QApplication::focusWidget();
+    if (!integration || !integration->hasInputPanel() || !focus || !target ||
+        !focus->inputMethodQuery(Qt::ImEnabled).toBool())
+        return;
+    // On the field itself, on what is inside it, as the viewport of a text edit, or on the spin box around it.
+    if (target != focus && !focus->isAncestorOf(target) && target != focus->parentWidget())
+        return;
+    tellInputItem(integration, focus);
+    QGuiApplication::inputMethod()->setVisible(true);
+}
+
+void WidgetAccess::inputAreaChanged(const QWidget *top) {
+    QPlatformIntegration *integration = QtPrivate::GuiAccess::integration();
+    QWidget *focus = QApplication::focusWidget();
+    if (!integration || !integration->hasInputPanel() || !focus || focus->window() != top ||
+        !focus->inputMethodQuery(Qt::ImEnabled).toBool())
+        return;
+    for (QWidget *above = focus->parentWidget(); above; above = above->parentWidget()) {
+        if (auto *area = qobject_cast<QScrollArea *>(above))
+            area->ensureWidgetVisible(focus, 0, 16);
+    }
+    tellInputItem(integration, focus);
+}
+
 void WidgetAccess::inputHintsChanged(const QWidget *w) {
     if (QPlatformIntegration *integration = QtPrivate::GuiAccess::integration();
         integration && integration->hasInputPanel() && w == QApplication::focusWidget())
@@ -205,6 +283,7 @@ static void notifyFocusChange() {
     if (QPlatformIntegration *integration = QtPrivate::GuiAccess::integration();
         integration && integration->hasInputPanel()) {
         tellInputHints(integration, now);
+        tellInputItem(integration, now);
         QGuiApplication::inputMethod()->setVisible(now && now->inputMethodQuery(Qt::ImEnabled).toBool());
     }
 }

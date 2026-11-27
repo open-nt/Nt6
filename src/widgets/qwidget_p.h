@@ -148,6 +148,12 @@ struct WidgetAccess {
     static bool focusable(const QWidget *w);
     // The input method hints of `w` may be others now: the platform is told, if `w` has the focus.
     static void inputHintsChanged(const QWidget *w);
+    // The window of `top` was resized, perhaps by a panel that covers part of it: the field with the focus is scrolled
+    // into view, and the platform is told where it is now.
+    static void inputAreaChanged(const QWidget *top);
+    // A click, or a tap, on `target`: if it is on the field that has the focus, the panel for its text is asked for
+    // again.
+    static void tappedInput(const QWidget *target);
     static std::vector<QWidget *> tabChain(QWidget *top);
     static void setFocusWidget(QWidget *top, QWidget *w);
     static void clearReferences(QWidget *w);

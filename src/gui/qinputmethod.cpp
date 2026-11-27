@@ -65,12 +65,16 @@ QInputMethod::QInputMethod(QObject *parent) : QObject(parent) {}
     Asks for the input panel if \a visible is \c true, or for it to go away, and emits visibleChanged().
 */
 void QInputMethod::setVisible(bool visible) {
-    if (visible == m_visible)
+    const bool changed = visible != m_visible;
+    // A request to show goes to the platform every time: the user can have put the panel away, as with the Back key
+    // of Android, without Nt hearing of it.
+    if (!changed && !visible)
         return;
     m_visible = visible;
     if (QPlatformIntegration *integration = QtPrivate::GuiAccess::integration())
         integration->setInputPanelVisible(visible);
-    emit visibleChanged();
+    if (changed)
+        emit visibleChanged();
 }
 
 /*!

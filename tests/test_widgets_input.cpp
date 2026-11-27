@@ -38,6 +38,7 @@
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
+#include <QtWidgets/qscrollarea.h>
 #include <QtWidgets/qscrollbar.h>
 #include <QtWidgets/qslider.h>
 #include <QtWidgets/qspinbox.h>
@@ -45,7 +46,9 @@
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qlabel.h>
 
+#include "platforms/offscreen/qoffscreenintegration_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
+#include "qwindow_p.h"
 
 #include <cstdio>
 #include <cstdlib>
@@ -1146,6 +1149,101 @@ static void testInputHints() {
     CHECK(!(hintsOf(&field) & hidden));
 }
 
+// What a platform with an on-screen keyboard is told: how short the window can be, where the field is, and to show
+// the keyboard again when the field that has it is tapped.
+static void testInputPanel() {
+    auto *platform = dynamic_cast<QOffscreenIntegration *>(QtPrivate::GuiAccess::integration());
+    CHECK(platform != nullptr);
+    if (!platform)
+        return;
+    platform->inputPanel = {};
+    platform->inputPanel.present = true;
+
+    // Two pages of a tab widget, one much taller than the other.
+    QWidget window;
+    auto *rows = new QVBoxLayout(&window);
+    rows->setContentsMargins(0, 0, 0, 0);
+    auto *tabs = new QTabWidget;
+    rows->addWidget(tabs);
+    auto *shortPage = new QWidget;
+    auto *shortRows = new QVBoxLayout(shortPage);
+    auto *first = new QLineEdit;
+    auto *second = new QLineEdit;
+    shortRows->addWidget(first);
+    shortRows->addStretch(1);
+    shortRows->addWidget(second);
+    auto *tall = new QWidget;
+    auto *tallRows = new QVBoxLayout(tall);
+    auto *block = new QWidget;
+    block->setMinimumHeight(900);
+    tallRows->addWidget(block);
+    tabs->addTab(shortPage, QStringLiteral("Short"));
+    tabs->addTab(tall, QStringLiteral("Tall"));
+    window.resize(300, 400);
+    window.show();
+    window.activateWindow();
+    second->setFocus();
+    QCoreApplication::processEvents();
+    CHECK(platform->inputPanel.visible && platform->inputPanel.window == window.windowHandle());
+    CHECK(platform->inputPanel.item == QRect(second->mapTo(&window, QPoint(0, 0)), second->size()));
+    // The page that is hidden does not count, though the window itself asks for its room.
+    CHECK(window.minimumSizeHint().height() > 900);
+    const int least = platform->inputPanel.minimumHeight;
+    CHECK(least >= shortPage->minimumSizeHint().height() && least < 200);
+
+    // A window that is resized tells where the field has gone.
+    window.resize(300, 300);
+    QCoreApplication::processEvents();
+    CHECK(platform->inputPanel.item == QRect(second->mapTo(&window, QPoint(0, 0)), second->size()));
+
+    // The user put the keyboard away, without Nt hearing of it: a tap on the field asks for it again.
+    const auto click = [&](QWidget *on, const QPoint &from, const QPoint &to) {
+        const QPoint down = on->mapTo(&window, from), up = on->mapTo(&window, to);
+        QWindowSystemInterface::handleMouseEvent(window.windowHandle(), down, down, Qt::LeftButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonPress, Qt::NoModifier);
+        QWindowSystemInterface::handleMouseEvent(window.windowHandle(), up, up, Qt::NoButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonRelease, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    int before = platform->inputPanel.requests;
+    click(second, QPoint(10, 5), QPoint(10, 5));
+    CHECK(platform->inputPanel.requests == before + 1);
+    // A press that drags, as one that scrolls does, asks for nothing.
+    before = platform->inputPanel.requests;
+    click(second, QPoint(10, 5), QPoint(120, 5));
+    CHECK(platform->inputPanel.requests == before);
+    // Another field gets it too, though Nt believes it is shown already.
+    click(first, QPoint(10, 5), QPoint(10, 5));
+    CHECK(first->hasFocus() && platform->inputPanel.requests > before);
+    CHECK(platform->inputPanel.item.top() == first->mapTo(&window, QPoint(0, 0)).y());
+
+    // In a scroll area, the field with the focus is scrolled into view as the window shrinks.
+    QWidget other;
+    auto *column = new QVBoxLayout(&other);
+    column->setContentsMargins(0, 0, 0, 0);
+    auto *area = new QScrollArea;
+    auto *content = new QWidget;
+    auto *inside = new QVBoxLayout(content);
+    auto *spacer = new QWidget;
+    spacer->setMinimumHeight(500);
+    inside->addWidget(spacer);
+    auto *low = new QLineEdit;
+    inside->addWidget(low);
+    area->setWidget(content);
+    area->setWidgetResizable(true);
+    column->addWidget(area);
+    other.resize(300, 700);
+    other.show();
+    other.activateWindow();
+    low->setFocus();
+    QCoreApplication::processEvents();
+    other.resize(300, 250);
+    QCoreApplication::processEvents();
+    const QRect seen(low->mapTo(area->viewport(), QPoint(0, 0)), low->size());
+    CHECK(area->viewport()->rect().contains(seen));
+    platform->inputPanel = {};
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -1163,6 +1261,7 @@ int main(int argc, char **argv) {
     testDateTimeEdit();
     testCompleter();
     testInputHints();
+    testInputPanel();
     if (g_failures == 0)
         std::puts("all input tests passed");
     return g_failures == 0 ? 0 : 1;

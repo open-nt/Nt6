@@ -120,6 +120,7 @@ void QWidgetWindow::resizeEvent(QResizeEvent *event) {
     d.geometrySet = true;
     QResizeEvent resize(event->size(), event->oldSize());
     QCoreApplication::sendEvent(m_widget, &resize);
+    WidgetAccess::inputAreaChanged(m_widget);
 }
 
 void QWidgetWindow::moveEvent(QMoveEvent *event) {
@@ -290,6 +291,7 @@ void QWidgetWindow::mousePressEvent(QMouseEvent *event) {
         return;
     }
     cancelToolTip();
+    m_pressedAt = event->pos();
     if (m_popup && !m_grab) {
         // A press outside the popup closes it, and does nothing else.
         bool inside = false;
@@ -355,7 +357,13 @@ void QWidgetWindow::mouseReleaseEvent(QMouseEvent *event) {
     QWidget *target = explicitGrab() ? explicitGrab()
                       : m_grab        ? m_grab.data()
                                       : WidgetAccess::widgetAt(m_widget, event->pos());
+    // A press that stayed where it was, not one that dragged or scrolled.
+    const bool tap = event->button() == Qt::LeftButton &&
+                     (event->pos() - m_pressedAt).manhattanLength() < QApplication::startDragDistance();
+    const QPointer<QWidget> released(target);
     deliverMouse(event, target);
+    if (tap && released)
+        WidgetAccess::tappedInput(released);
     if (event->buttons() == Qt::NoButton) {
         m_grab = nullptr;
         // The mouse may have moved to another widget while the button was down.

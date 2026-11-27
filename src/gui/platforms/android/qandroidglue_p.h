@@ -67,7 +67,9 @@ public:
     // The part of the window that is not under the system bars, in pixels; empty until the activity says.
     ARect contentRect();
     // The space that the system bars and cut-outs take at each edge, in pixels.
-    ARect systemInsets();
+    // If `bottomWithoutKeyboard` is given, it gets what the bottom inset would be with no keyboard (Android 11 and
+    // later; before that it is the inset as it is).
+    ARect systemInsets(int *bottomWithoutKeyboard = nullptr);
     // The text on the clipboard of the system (empty if there is none, or the application may not read it), and
     // replacing it. Through JNI, on any thread.
     std::string clipboardText();

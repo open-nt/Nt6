@@ -104,7 +104,10 @@
         an application cannot add Java sources of its own to the APK, and there are no assets: \c{assets:} paths do
         not exist, and resources are the compiled-in kind.
     \li The on-screen keyboard appears when a widget that takes text gets the focus (QInputMethod::show()), and the
-        window shrinks to leave it free. With \c org.nt.NtActivity it shows the keys for what the widget says it takes
+        window shrinks to leave it free. A window whose contents cannot be that short (QWidget::minimumSizeHint()) is not
+        squeezed: it keeps the height it needs and slides up until the field with the focus is above the keyboard, as
+        Android's own panning does (Android 11 and later; before that it shrinks). A field in a QScrollArea is scrolled
+        into view. With \c org.nt.NtActivity it shows the keys for what the widget says it takes
         with its input method hints: digits or numbers (as a spin box does), a telephone number, an e-mail address, a
         URL, a date or a time, or a password. It types plain text: no composing text, suggestions or input method
         events, and the keys it sends are those a hardware keyboard would send.

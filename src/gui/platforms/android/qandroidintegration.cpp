@@ -39,12 +39,19 @@ bool QAndroidScreen::update(ANativeWindow *window) {
     const QRect geometry(0, 0, qRound(pixels.width() / m_ratio), qRound(pixels.height() / m_ratio));
     // The window is what the system bars leave free.
     QRect available = geometry;
-    const ARect insets = Glue::instance().systemInsets();
+    int barsBottom = 0;
+    const ARect insets = Glue::instance().systemInsets(&barsBottom);
     const QRect free = QRect(QPoint(0, 0), pixels).adjusted(insets.left, insets.top, -insets.right, -insets.bottom);
     if (!free.isEmpty())
         available = QRect(qRound(free.x() / m_ratio), qRound(free.y() / m_ratio), qRound(free.width() / m_ratio),
                           qRound(free.height() / m_ratio));
-    const bool changed = pixels != m_pixels || geometry != m_geometry || available != m_available;
+    QRect unobstructed = available;
+    if (!free.isEmpty())
+        unobstructed.setHeight(
+            std::max(available.height(), qRound((pixels.height() - insets.top - barsBottom) / m_ratio)));
+    const bool changed =
+        pixels != m_pixels || geometry != m_geometry || available != m_available || unobstructed != m_unobstructed;
+    m_unobstructed = unobstructed;
     m_pixels = pixels;
     m_geometry = geometry;
     m_available = available;
@@ -116,12 +123,39 @@ QRect QAndroidWindow::dialogGeometry(const QRect &wanted) const {
     return QRect(screen.x() + (screen.width() - width) / 2, screen.y() + (screen.height() - height) / 2, width, height);
 }
 
+QRect QAndroidWindow::baseGeometry() const {
+    QRect area = m_screen->availableGeometry();
+    area.setHeight(
+        std::clamp(m_minimumHeight, area.height(), std::max(area.height(), m_screen->unobstructedGeometry().height())));
+    return area;
+}
+
+bool QAndroidWindow::setInput(int minimumHeight, const QRect &item) {
+    const bool other = minimumHeight != m_minimumHeight;
+    m_minimumHeight = minimumHeight;
+    m_inputItem = item;
+    return other && m_topLevel && !isOverlay();
+}
+
+int QAndroidWindow::pan() const {
+    if (!m_topLevel || m_inputItem.isNull() || isOverlay())
+        return 0;
+    const int shown = m_screen->availableGeometry().height();
+    const int excess = geometry().height() - shown;
+    if (excess <= 0)
+        return 0;
+    constexpr int margin = 12;
+    // Far enough for the field to clear the keyboard, but not so far that its top goes out of sight.
+    const int wanted = std::min(m_inputItem.y() + m_inputItem.height() + margin - shown, m_inputItem.y() - margin);
+    return std::clamp(wanted, 0, excess);
+}
+
 void QAndroidWindow::setGeometry(const QRect &rect) {
     if (!m_topLevel) {
         QPlatformWindow::setGeometry(rect);
         return;
     }
-    const QRect screenRect = isOverlay() ? dialogGeometry(rect) : m_screen->availableGeometry();
+    const QRect screenRect = isOverlay() ? dialogGeometry(rect) : baseGeometry();
     QPlatformWindow::setGeometry(screenRect);
     if (rect != screenRect)
         QWindowSystemInterface::handleGeometryChange(window(), screenRect);
@@ -272,7 +306,9 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
     // and one may still hold a frame that was painted before the sizes of the bars were known. The whole frame is made
     // each time: to keep what has not changed, the system would copy it from the frame before, which takes longer.
     const QAndroidBackingStore *bottom = storeOf(windows[base]->window());
-    const QRect under = bottom && !bottom->m_image.isNull() ? QRect(origin, bottom->m_image.size()) : QRect();
+    const int slid = qRound(windows[base]->pan() * ratio); // in pixels
+    const QRect under =
+        bottom && !bottom->m_image.isNull() ? QRect(origin, bottom->m_image.size() - QSize(0, slid)) : QRect();
     for (int y = 0; y < buffer.height; ++y) {
         const bool beside = y >= under.top() && y <= under.bottom();
         const int before = beside ? std::clamp(under.left(), 0, buffer.width) : buffer.width;
@@ -288,6 +324,8 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
         QPoint at = origin;
         double radius = 0;
         QString sheet;
+        if (i == base)
+            at.ry() -= slid;
         if (i > base) {
             // The scrim of Material: black at 32 percent over what is below the dialog.
             for (int y = std::max(0, inside.top()); y < buffer.height; ++y) {
@@ -304,7 +342,9 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
         }
         const int left = std::max(0, -at.x());
         const int right = std::min(image.width(), buffer.width - at.x());
-        for (int y = std::max(0, -at.y()); y < std::min(image.height(), buffer.height - at.y()); ++y) {
+        // What is slid up does not go over the bar at the top.
+        const int first = std::max({0, -at.y(), i == base ? origin.y() - at.y() : 0});
+        for (int y = first; y < std::min(image.height(), buffer.height - at.y()); ++y) {
             const auto *source = reinterpret_cast<const std::uint32_t *>(image.constScanLine(y));
             std::uint32_t *row = line(at.y() + y) + at.x();
             // How far into a rounded corner this row and a column are.
@@ -408,6 +448,34 @@ QPlatformClipboard *QAndroidIntegration::clipboard() const {
 }
 
 void QAndroidIntegration::setInputPanelVisible(bool visible) { Glue::instance().setSoftInputVisible(visible); }
+
+void QAndroidIntegration::setInputItem(QWindow *window, int minimumHeight, const QRect &item) {
+    const auto &windows = QAndroidWindow::stack();
+    bool slid = false;
+    QAndroidWindow *resized = nullptr;
+    for (QAndroidWindow *each : windows) {
+        if (each->window() != window)
+            continue;
+        const int before = each->pan();
+        if (each->setInput(minimumHeight, item))
+            resized = each;
+        slid = each->pan() != before;
+    }
+    if (resized) {
+        const QRect before = resized->geometry();
+        resized->setGeometry(resized->window()->geometry());
+        if (resized->geometry() != before) {
+            QWindowSystemInterface::handleGeometryChange(resized->window(), resized->geometry());
+            slid = true;
+        }
+    }
+    // The frame is made anew, from the window that fills the screen up.
+    if (slid) {
+        for (QAndroidWindow *each : std::vector<QAndroidWindow *>(windows))
+            QWindowSystemInterface::handleExposeEvent(each->window(),
+                                                      QRegion(QRect(QPoint(0, 0), each->geometry().size())));
+    }
+}
 
 void QAndroidIntegration::setInputMethodHints(Qt::InputMethodHints hints) {
     Glue::instance().setSoftInputHints(static_cast<int>(hints.toInt()));
@@ -559,12 +627,16 @@ void QAndroidIntegration::touch(const Event &event) {
         QWindowSystemInterface::handleTouchCancel(window);
         return;
     }
+    // A press may move the focus and with it how far the window is slid: a gesture keeps the one it began with.
+    if (event.action == AMOTION_EVENT_ACTION_DOWN)
+        m_touchPan = top->pan();
     QList<QEventPoint> points;
     for (const Event::TouchPoint &p : event.points) {
         const QPointF global(static_cast<qreal>(p.x) / m_screen->ratio(), static_cast<qreal>(p.y) / m_screen->ratio());
         static const QEventPoint::State states[] = {QEventPoint::Stationary, QEventPoint::Pressed, QEventPoint::Updated,
                                                     QEventPoint::Released};
-        points.append(QEventPoint(p.id, states[p.state & 3], global - QPointF(window->geometry().topLeft()), global));
+        points.append(QEventPoint(p.id, states[p.state & 3],
+                                  global - QPointF(window->geometry().topLeft()) + QPointF(0, m_touchPan), global));
     }
     QWindowSystemInterface::handleTouchEvent(window, points);
 }

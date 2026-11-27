@@ -14,6 +14,7 @@
 #include <QtCore/qpointer.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
+#include <QtGui/qpainter.h>
 #include <QtGui/qscreen.h>
 #include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qpushbutton.h>
@@ -108,6 +109,19 @@ QDialog::~QDialog() {
 */
 void QDialog::setModal(bool modal) { setWindowModality(modal ? Qt::ApplicationModal : Qt::NonModal); }
 
+/*!
+    \reimp
+
+    The Material style draws the window title as a headline here, where dialogs have no title bar.
+*/
+void QDialog::paintEvent(QPaintEvent *event) {
+    QWidget::paintEvent(event);
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style())) {
+        QPainter painter(this);
+        material->drawHeadline(&painter, this);
+    }
+}
+
 // A platform with a small screen makes a dialog narrower than it asks to be. Layouts have no height for a width, so
 // the dialog does that here itself: each label that wraps its text is given the height of its lines at that width.
 void QDialog::fitPlatformWidth() {
@@ -142,6 +156,14 @@ void QDialog::fitPlatformWidth() {
 void QDialog::setVisible(bool visible) {
     // A sheet of the Material style goes to its edge every time, as the window it is on may have changed.
     const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    // Before the dialog takes its size: where there is no title bar, the Material style draws the title inside.
+    if (visible && isWindow() && !isVisible() && material) {
+        const int before = contentsMargins().top();
+        material->prepareHeadline(this);
+        // One that has been shown keeps its size: it grows or shrinks by the room that came or went.
+        if (const int more = contentsMargins().top() - before; m_positioned && more != 0)
+            resize(width(), height() + more);
+    }
     if (visible && isWindow() && !isVisible() && material && material->placeSheet(this)) {
         m_positioned = true;
     } else if (visible && isWindow() && !isVisible() && !m_positioned) {

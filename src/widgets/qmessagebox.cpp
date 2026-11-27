@@ -261,11 +261,22 @@ void QMessageBox::init() {
     m_informative->hide();
     m_box = new QDialogButtonBox(this);
     m_grid->addWidget(m_iconWidget, 0, 0, 2, 1, Qt::AlignTop);
-    m_grid->addWidget(m_label, 0, 1);
-    m_grid->addWidget(m_informative, 1, 1);
     m_grid->addWidget(m_box, 3, 0, 1, 2);
     m_grid->setColumnStretch(1, 1);
+    placeTexts();
     QObject::connect(m_box, &QDialogButtonBox::clicked, this, [this](QAbstractButton *button) { clicked(button); });
+}
+
+void QMessageBox::placeTexts() {
+    // The column of the icon would keep some of the width of the buttons under it, even empty.
+    const int column = m_iconWidget->isHidden() ? 0 : 1;
+    QWidget *const texts[] = {m_label, m_informative, m_checkBox}; // one in each row
+    for (int row = 0; row < 3; ++row) {
+        if (!texts[row])
+            continue;
+        m_grid->removeWidget(texts[row]);
+        m_grid->addWidget(texts[row], row, column, 1, 2 - column);
+    }
 }
 
 /*!
@@ -449,6 +460,7 @@ void QMessageBox::setIcon(Icon icon) {
     m_icon = icon;
     static_cast<MessageIcon *>(m_iconWidget)->setIcon(icon);
     m_iconWidget->setVisible(icon != NoIcon);
+    placeTexts();
 }
 
 /*!
@@ -517,7 +529,7 @@ void QMessageBox::setCheckBox(QCheckBox *cb) {
     m_checkBox = cb;
     if (cb) {
         cb->setParent(this);
-        m_grid->addWidget(cb, 2, 1);
+        placeTexts();
         if (isVisible())
             cb->show();
     }
@@ -732,6 +744,7 @@ void QMessageBox::setIconPixmap(const QPixmap &pixmap) {
     icon->setIcon(NoIcon);
     icon->setPixmap(pixmap);
     m_iconWidget->setVisible(!pixmap.isNull());
+    placeTexts();
 }
 
 /*!

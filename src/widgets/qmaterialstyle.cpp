@@ -3,6 +3,8 @@
 
 #include "qmaterialcolor_p.h"
 #include "qmaterialmotion_p.h"
+#include "gui/qpa/qplatformintegration_p.h"
+#include "gui/qwindow_p.h"
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qhash.h>
@@ -27,6 +29,7 @@
 #include <QtWidgets/qdialog.h>
 #include <QtWidgets/qdialogbuttonbox.h>
 #include <QtWidgets/qframe.h>
+#include <QtWidgets/qlayout.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qlistview.h>
 #include <QtWidgets/qlistwidget.h>
@@ -175,6 +178,9 @@ constexpr int comboArrowRoom = 48;
 constexpr int focusRingWidth = 3;
 constexpr int dialogCorner = 28; // extra large
 constexpr int dialogPadding = 24;
+constexpr int headlinePixels = 24;                       // headline small
+constexpr int headlineSpace = 16;                        // between a dialog's headline and what is under it
+const char *const headlineRoom = "_nt_materialHeadline"; // the top margin that a dialog with a headline had
 constexpr int bottomSheetWidest = 640;
 constexpr int bottomSheetTopRoom = 72; // that a bottom sheet leaves above it
 constexpr int drawerWidth = 360;
@@ -218,6 +224,24 @@ QStringList timeParts(const QString &text) {
 bool opensCalendar(const QWidget *widget) {
     const auto *edit = qobject_cast<const QDateTimeEdit *>(widget);
     return edit && edit->calendarPopup();
+}
+
+QFont headlineFont(const QWidget *dialog) {
+    QFont font = dialog->font();
+    font.setPixelSize(headlinePixels);
+    font.setWeight(QFont::Normal);
+    return font;
+}
+
+// Gives a dialog back the room that was made above its contents for a headline.
+void removeHeadline(QWidget *dialog) {
+    const QVariant before = dialog->property(headlineRoom);
+    if (!before.isValid())
+        return;
+    QMargins margins = dialog->contentsMargins();
+    margins.setTop(before.toInt());
+    dialog->setContentsMargins(margins);
+    dialog->setProperty(headlineRoom, QVariant());
 }
 
 bool isList(const QWidget *widget) {
@@ -705,6 +729,9 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
 
     The buttons of a QDialogButtonBox, and so of a QMessageBox, are in the order of Android: what confirms is last.
 
+    Where dialogs have no title bar, as on Android, a QDialog that has a window title, a QMessageBox among them, shows
+    it as Material's headline above what is in it. A sheet has none.
+
     Tooltips, as QToolTip shows them, are Material's plain tooltips without anything being asked for. So is
     QCalendarWidget drawn as Material's date picker: days of 40, the chosen one in a filled circle and today in a ring,
     with icon buttons for the months. Material's has no week numbers, which
@@ -738,7 +765,7 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     or QListWidget are 56 high; behind a QProxyStyle they are drawn as Fusion draws them. A finger that is dragged
     on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
     have square corners. Dialogs get the Material container color and text buttons; their rounded corners and the
-    dimming behind them are the android platform's. A QMessageBox has no headline type style.
+    dimming behind them are the android platform's.
     Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another
     but close at once, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
@@ -749,7 +776,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     rich tooltips. Chips are push buttons only; there are no elevated chips, avatars in input chips or separate click
     on the cross, and a filter chip takes its new width at once. The date picker is the calendar alone: it has no headline with the chosen date, no choice of
     years, no range and no field to type a date in, it keeps the days of the other months, faint, and it has no time
-    picker with a clock dial. A spin box has no floating label or supporting text, and its buttons do not repeat while
+    picker with a clock dial. A headline is one line, shortened if the dialog is too narrow, is made when the dialog is shown, and is not drawn
+    by a subclass whose paintEvent() does not call QDialog's. A spin box has no floating label or supporting text, and its buttons do not repeat while
     held; a scroll bar does not hide when the contents are still. A time input is for a format of times alone, does not go on to the minute by itself
     when the hour has been typed, and names its boxes in English. A card is not a button and shows no press. A card or
     a divider behind a QProxyStyle is drawn as a plain frame. Icon buttons have the default width, not
@@ -1207,6 +1235,7 @@ void QMaterialStyle::unpolish(QWidget *widget) {
         widget->setAttribute(Qt::WA_SetPalette, false);
         widget->setProperty(polishedPalette, QVariant());
     }
+    removeHeadline(widget);
     if (auto *frame = qobject_cast<QFrame *>(widget); frame && widget->property(polishedFrame).isValid()) {
         frame->setFrameStyle(widget->property(polishedFrame).toInt());
         widget->setProperty(polishedFrame, QVariant());
@@ -2240,6 +2269,40 @@ void QMaterialStyle::drawTimeInput(QPainter *painter, const QStyleOption *option
 bool QMaterialStyle::isDrawerList(const QWidget *widget) {
     return qobject_cast<const QListWidget *>(widget) &&
            widget->property("materialList").toString() == QLatin1String("navigationDrawer");
+}
+
+void QMaterialStyle::prepareHeadline(QDialog *dialog) const {
+    const QPlatformIntegration *platform = QtPrivate::GuiAccess::integration();
+    if (!platform || platform->showsDialogTitles() || dialog->windowTitle().isEmpty() || !sheetKind(dialog).isEmpty()) {
+        removeHeadline(dialog);
+        return;
+    }
+    if (dialog->property(headlineRoom).isValid())
+        return;
+    dialog->ensurePolished();
+    QMargins margins = dialog->contentsMargins();
+    dialog->setProperty(headlineRoom, margins.top());
+    // The headline is 24 from the top and 16 over the contents, part of which a layout's own margin already is.
+    const int inside = dialog->layout() ? dialog->layout()->contentsMargins().top() : 0;
+    const int height = QFontMetrics(headlineFont(dialog)).height();
+    margins.setTop(margins.top() + std::max(0, dialogPadding + height + headlineSpace - inside));
+    dialog->setContentsMargins(margins);
+}
+
+void QMaterialStyle::drawHeadline(QPainter *painter, const QDialog *dialog) const {
+    const QVariant before = dialog->property(headlineRoom);
+    if (!before.isValid())
+        return;
+    painter->save();
+    const QFont font = headlineFont(dialog);
+    const QFontMetrics metrics(font);
+    const int width = std::max(0, dialog->width() - 2 * dialogPadding);
+    painter->setFont(font);
+    painter->setPen(color(Role::OnSurface));
+    painter->drawText(QRect(dialogPadding, before.toInt() + dialogPadding, width, metrics.height()),
+                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                      metrics.elidedText(dialog->windowTitle(), Qt::ElideRight, width));
+    painter->restore();
 }
 
 bool QMaterialStyle::placeSheet(QDialog *dialog) const {

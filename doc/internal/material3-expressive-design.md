@@ -172,8 +172,13 @@ button is held, hiding the scroll bar at rest.
 
 A dialog keeps its contents 24 from its edges. Where the platform narrows dialogs (`maximumDialogWidth()`, Android),
 `QDialog` narrows itself before it is shown and gives each wrapping label the height of its lines, because Nt's layouts
-have no height-for-width and a message box asked for one line. Not done: the headline (a message box's window title is
-not shown on Android).
+have no height-for-width and a message box asked for one line.
+
+Where `showsDialogTitles()` is false (Android), a dialog with a window title shows it as the headline: 24, `OnSurface`,
+24 from the top and 16 over the contents. The style makes the room as top contents margin before the dialog is sized,
+and `QDialog::paintEvent()` asks it to draw, so no application layout changes. Sheets have none. A message box without
+an icon now gives its text both columns: the empty icon column kept some of the width of the button row. Not done: a
+headline of two lines, the centered form under an icon.
 
 ## Open points
 

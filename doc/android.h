@@ -103,6 +103,8 @@
         and has no on-screen keyboard. There is no Android permissions API (QCoreApplication::requestPermission()),
         an application cannot add Java sources of its own to the APK, and there are no assets: \c{assets:} paths do
         not exist, and resources are the compiled-in kind.
+    \li Dialogs have no title bar. The Material style shows a dialog's window title inside it; the other styles do not show
+        it.
     \li A dialog is shown inside the window, no wider than 560 or than the screen less 24 at each side. One that asks to be
         wider narrows itself first, and its labels that wrap their text are given the height they need at that width, as
         layouts have no height for a width.

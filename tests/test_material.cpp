@@ -9,7 +9,9 @@
 
 #include "qmaterialcolor_p.h"
 #include "qmaterialmotion_p.h"
+#include "platforms/offscreen/qoffscreenintegration_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
+#include "qwindow_p.h"
 
 #include <cmath>
 #include <cstdio>
@@ -2822,6 +2824,126 @@ void testSpinBoxAndScrollBar() {
     CHECK(spin->sizeHint().height() < 56 && bar.sizeHint().width() > 10);
 }
 
+void testDialogHeadline() {
+    auto *platform = dynamic_cast<QOffscreenIntegration *>(QtPrivate::GuiAccess::integration());
+    CHECK(platform != nullptr);
+    if (!platform)
+        return;
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    // How a dialog with a message is laid out, with the platform showing titles or not.
+    struct Shown {
+        int height = 0;
+        int message = 0; // the top of what is first in it
+        int ink = 0;     // pixels of the headline's color in the room over that
+    };
+    const auto show = [&](QDialog &dialog, const QWidget *first) {
+        dialog.show();
+        QCoreApplication::processEvents();
+        Shown shown;
+        shown.height = dialog.height();
+        shown.message = first->mapTo(&dialog, QPoint(0, 0)).y();
+        const QImage image = dialog.grab().toImage();
+        for (int y = 24; y < 56 && y < image.height(); ++y)
+            for (int x = 24; x < image.width() - 24; ++x)
+                shown.ink += near(image.pixelColor(x, y), style->color(Role::OnSurface), 60) ? 1 : 0;
+        return shown;
+    };
+    const auto make = [](QDialog &dialog, const QString &title) {
+        dialog.setWindowTitle(title);
+        auto *rows = new QVBoxLayout(&dialog);
+        auto *first = new QWidget;
+        first->setFixedSize(300, 40);
+        rows->addWidget(first);
+        return first;
+    };
+    platform->dialogTitles = true;
+    QDialog titled;
+    const Shown bar = show(titled, make(titled, QStringLiteral("About")));
+    // Material's padding of 24 around what is in a dialog.
+    CHECK(bar.message == 24 && bar.height == 88 && bar.ink == 0);
+
+    platform->dialogTitles = false;
+    QDialog headed;
+    const QWidget *first = make(headed, QStringLiteral("About"));
+    const Shown drawn = show(headed, first);
+    // The headline is 24 down, and what is in the dialog 16 under it.
+    QFont large = headed.font();
+    large.setPixelSize(24);
+    const int line = QFontMetrics(large).height();
+    CHECK(drawn.message == 24 + line + 16);
+    CHECK(drawn.height == bar.height + drawn.message - bar.message);
+    CHECK(!textIsDrawn() || drawn.ink > 40);
+    // Shown again, it is no higher for it.
+    headed.hide();
+    CHECK(show(headed, first).height == drawn.height);
+    // A dialog without a title has no room made for one, and nor has a sheet.
+    headed.hide();
+    headed.setWindowTitle(QString());
+    const Shown without = show(headed, first);
+    CHECK(without.message == 24 && without.height == bar.height);
+    // And grows again with one.
+    headed.hide();
+    headed.setWindowTitle(QStringLiteral("About"));
+    CHECK(show(headed, first).height == drawn.height);
+    QDialog sheet;
+    sheet.setProperty("materialSheet", QStringLiteral("bottom"));
+    CHECK(show(sheet, make(sheet, QStringLiteral("A sheet"))).message == 24);
+    sheet.hide();
+
+    // A message box shows its title, with its text and button under it.
+    QMessageBox box(QMessageBox::Information, QStringLiteral("About"), QStringLiteral("Nt"), QMessageBox::Ok);
+    box.show();
+    QCoreApplication::processEvents();
+    const QList<QLabel *> labels = box.findChildren<QLabel *>();
+    for (const QLabel *label : labels) {
+        if (label->isVisible() && !label->text().isEmpty())
+            CHECK(label->mapTo(&box, QPoint(0, 0)).y() >= 24 + line + 16);
+    }
+    const QList<QPushButton *> buttons = box.findChildren<QPushButton *>();
+    CHECK(!buttons.isEmpty() &&
+          box.rect().contains(QRect(buttons.first()->mapTo(&box, QPoint(0, 0)), buttons.first()->size())));
+    box.hide();
+    // Without an icon the text starts where the headline does; with one, beside it.
+    const auto textLeft = [](QMessageBox &shown, const QString &text) {
+        shown.show();
+        QCoreApplication::processEvents();
+        const QList<QLabel *> all = shown.findChildren<QLabel *>();
+        for (const QLabel *label : all) {
+            if (label->text() == text)
+                return label->mapTo(&shown, QPoint(0, 0)).x();
+        }
+        return -1;
+    };
+    QMessageBox plain(QMessageBox::NoIcon, QStringLiteral("Delete"), QStringLiteral("Gone?"),
+                      QMessageBox::Cancel | QMessageBox::Ok);
+    CHECK(textLeft(plain, QStringLiteral("Gone?")) == 24);
+    plain.hide();
+    auto *never = new QCheckBox(QStringLiteral("Do not ask again"));
+    plain.setCheckBox(never);
+    textLeft(plain, QStringLiteral("Gone?"));
+    CHECK(never->isVisible() && never->mapTo(&plain, QPoint(0, 0)).x() == 24);
+    plain.hide();
+    plain.setIcon(QMessageBox::Warning);
+    CHECK(textLeft(plain, QStringLiteral("Gone?")) > 24 + 30);
+    plain.hide();
+    plain.setIcon(QMessageBox::NoIcon);
+    CHECK(textLeft(plain, QStringLiteral("Gone?")) == 24);
+    plain.hide();
+    // Another style takes the room away again.
+    QDialog again;
+    const QWidget *content = make(again, QStringLiteral("Again"));
+    show(again, content);
+    CHECK(again.contentsMargins().top() > 0);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(again.contentsMargins().top() == 0);
+    platform->dialogTitles = true;
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -2856,6 +2978,7 @@ int main(int argc, char *argv[]) {
     testSearchAndSecondaryTabs();
     testTimeInput();
     testSpinBoxAndScrollBar();
+    testDialogHeadline();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

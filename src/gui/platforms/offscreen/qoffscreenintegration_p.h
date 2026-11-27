@@ -96,6 +96,8 @@ public:
     };
     InputPanel inputPanel;
     int dialogWidthLimit = 0; // for tests of a platform that narrows its dialogs
+    bool dialogTitles = true; // and of one that does not show their titles
+    bool showsDialogTitles() const override { return dialogTitles; }
     int maximumDialogWidth() const override { return dialogWidthLimit; }
     bool hasInputPanel() const override { return inputPanel.present; }
     void setInputPanelVisible(bool visible) override {

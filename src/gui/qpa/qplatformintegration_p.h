@@ -63,6 +63,9 @@ public:
     // The widest that the platform lets a dialog be, in logical pixels, for one that makes its dialogs fit a small
     // screen; 0 for a platform that leaves them as they are.
     virtual int maximumDialogWidth() const { return 0; }
+    // Whether the platform shows the title of a dialog, as a title bar does. Where it does not, a style may draw the
+    // title inside the dialog.
+    virtual bool showsDialogTitles() const { return true; }
     // For a panel that covers part of the screen: how short the contents of `window` can be, and where in it, in its
     // coordinates, the item is that takes the text (null when none has the focus). Told when the focus moves, before
     // the panel is shown, and again when the window is resized.

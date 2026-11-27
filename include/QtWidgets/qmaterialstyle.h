@@ -168,6 +168,10 @@ private:
     // is shown. False for another dialog.
     friend class QDialog;
     bool placeSheet(QDialog *dialog) const;
+    // Where dialogs have no title bar, a dialog shows its window title as Material's headline: room is made for it
+    // above what is in the dialog, before it is shown, and QDialog asks for it to be drawn there.
+    void prepareHeadline(QDialog *dialog) const;
+    void drawHeadline(QPainter *painter, const QDialog *dialog) const;
     // The rows of a list that is a navigation drawer keep their icons and text further in.
     static bool isDrawerList(const QWidget *widget);
     // A frame that is a card, or a line that is a divider: QFrame asks for it. False for another frame.

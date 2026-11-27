@@ -696,7 +696,9 @@ namespace {
 class PermissionReceiver : public QObject {
 public:
     void answer(const QPermission &permission) { answers.push_back(permission.status()); }
+    void answered() { ++plainAnswers; }
     std::vector<Qt::PermissionStatus> answers;
+    int plainAnswers = 0;
 };
 
 } // namespace
@@ -791,6 +793,14 @@ static void testPermissions() {
     CHECK((answers == std::vector<Qt::PermissionStatus>{Qt::PermissionStatus::Granted, Qt::PermissionStatus::Denied}));
     CHECK(answeredType == QMetaType::fromType<QMicrophonePermission>());
     CHECK((receiver.answers == std::vector<Qt::PermissionStatus>{Qt::PermissionStatus::Granted}));
+
+    // As in Qt, the member function or functor may take no arguments.
+    int plainCalls = 0;
+    qApp->requestPermission(QCameraPermission(), &receiver, &PermissionReceiver::answered);
+    qApp->requestPermission(QCameraPermission(), &receiver, [&plainCalls]() { ++plainCalls; });
+    qApp->requestPermission(QCameraPermission(), [&plainCalls]() { ++plainCalls; });
+    QCoreApplication::processEvents();
+    CHECK(receiver.plainAnswers == 1 && plainCalls == 2);
 
     // The callback is not called once its context is gone.
     bool called = false;

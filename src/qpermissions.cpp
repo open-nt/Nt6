@@ -330,8 +330,9 @@ Qt::PermissionStatus QCoreApplication::checkPermission(const QPermission &permis
     \fn template <typename Functor> void QCoreApplication::requestPermission(const QPermission &permission, const typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type *context, Functor &&func)
     \since 6.5
     Asks the user for \a permission and calls \a func with a copy of it whose QPermission::status() holds the
-    answer. \a func is a function, a functor or a member function of \a context, and is called from the event
-    loop of the thread that \a context lives in; it is not called if \a context is destroyed first.
+    answer. \a func is a function, a functor or a member function of \a context, taking the permission or nothing,
+    and is called from the event loop of the thread that \a context lives in; it is not called if \a context is
+    destroyed first.
 
     \code
     qApp->requestPermission(QMicrophonePermission(), this, [this](const QPermission &permission) {

@@ -7,7 +7,7 @@
 #   qt_finalize_target(<name>)
 #   nt_android_add_apk(<target> [PACKAGE <id>] [LABEL <text>] [VERSION_CODE <n>] [VERSION_NAME <text>]
 #                      [KEYSTORE <file>] [ACTIVITY <class>] [PERMISSIONS <name>...]
-#                      [JAVA_SOURCES <file>...] [MANIFEST_APPLICATION <file>])
+#                      [JAVA_SOURCES <file>...] [MANIFEST_APPLICATION <file>] [ICON <png>])
 #
 # ACTIVITY names the activity to launch instead of org.nt.NtActivity; it must extend org.nt.NtActivity, so the
 # window, input and keyboard still work. JAVA_SOURCES are compiled with NtActivity (against android.jar only: no
@@ -19,14 +19,14 @@
 # main(), and an <name>.apk next to it (the target <name>_apk, part of "all"). The package is signed with the debug
 # key of the Android SDK (~/.android/debug.keystore, created when missing), so that `adb install` takes it. Elsewhere
 # it is add_executable(). The Android SDK is found from ANDROID_SDK_ROOT, ANDROID_HOME or the directory above the
-# NDK.
+# NDK. ICON is a PNG for the launcher, best 512 pixels square; without it Android shows its default icon.
 
 include(${CMAKE_CURRENT_LIST_DIR}/NtAndroidApk.cmake OPTIONAL)
 
 set(NT_ANDROID_TARGET_SDK "" CACHE STRING "targetSdkVersion of the applications; the newest platform of the SDK when empty")
 
 function(nt_android_add_apk target)
-    cmake_parse_arguments(ARG "" "PACKAGE;LABEL;VERSION_CODE;VERSION_NAME;KEYSTORE;ACTIVITY;MANIFEST_APPLICATION"
+    cmake_parse_arguments(ARG "" "PACKAGE;LABEL;VERSION_CODE;VERSION_NAME;KEYSTORE;ACTIVITY;MANIFEST_APPLICATION;ICON"
         "PERMISSIONS;JAVA_SOURCES" ${ARGN})
     if(NOT ANDROID)
         message(FATAL_ERROR "nt_android_add_apk() needs the Android toolchain")
@@ -109,6 +109,10 @@ set(NT_APP_PERMISSIONS [==[${_permissions}]==])
 set(NT_APP_JAVA_SOURCES [==[${_java_sources}]==])
 set(NT_APP_MANIFEST_APPLICATION [==[${_manifest_application}]==])
 ")
+    set(_icon "")
+    if(ARG_ICON)
+        get_filename_component(_icon "${ARG_ICON}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
     add_custom_target(${target}_apk ALL
         COMMAND ${CMAKE_COMMAND}
             "-DNT_APK=${_apk}"
@@ -127,8 +131,9 @@ set(NT_APP_MANIFEST_APPLICATION [==[${_manifest_application}]==])
             "-DNT_WORK=${CMAKE_CURRENT_BINARY_DIR}/${target}_apk.dir"
             "-DNT_ACTIVITY_SOURCE=${CMAKE_CURRENT_FUNCTION_LIST_DIR}/android/NtActivity.java"
             "-DNT_APP_CONFIG=${_app_config}"
+            "-DNT_ICON=${_icon}"
             -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/NtAndroidApk.cmake"
-        DEPENDS ${target} ${_java_sources} ${_manifest_application}
+        DEPENDS ${target} ${_java_sources} ${_manifest_application} ${_icon}
         COMMENT "Packaging ${target}.apk"
         VERBATIM)
 endfunction()

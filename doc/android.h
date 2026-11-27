@@ -99,6 +99,14 @@
     application asks with QCoreApplication::requestPermission() (QLocationPermission, QCameraPermission and the
     other permission classes), which shows the system's prompt.
 
+    \section1 Launcher icon
+
+    \c ICON names a PNG, best 512 pixels square, that becomes the application's launcher icon:
+
+    \code
+    nt_android_add_apk(app PACKAGE com.example.app ICON icon.png)
+    \endcode
+
     \section1 Calling Java
 
     QJniObject, QJniEnvironment and QNativeInterface::QAndroidApplication of Nt Core call the Java APIs of Android,

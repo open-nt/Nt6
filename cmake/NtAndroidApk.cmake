@@ -3,7 +3,7 @@
 # Script mode: cmake -DNT_APK=... -DNT_LIBRARY=... -P NtAndroidApk.cmake
 # Makes the signed APK of an application: its native library, loaded by org.nt.NtActivity (or a plain
 # NativeActivity without a JDK), and any Java sources, permissions and <application> entries the application adds
-# (NT_APP_CONFIG, written by nt_android_add_apk()). Run by the <target>_apk target of nt_android_add_apk().
+# (NT_APP_CONFIG, written by nt_android_add_apk()), with its launcher icon if it has one (NT_ICON). Run by the <target>_apk target of nt_android_add_apk().
 #
 # Included normally (by NtAndroid.cmake) it does nothing.
 
@@ -94,13 +94,29 @@ if(NT_APP_MANIFEST_APPLICATION)
     file(READ "${NT_APP_MANIFEST_APPLICATION}" _nt_application_xml)
 endif()
 
+# The launcher icon, if the application has one: a PNG, compiled as the resource @mipmap/ic_launcher. It is filed
+# as extra-extra-extra-high density, so that it is scaled down rather than up.
+set(_nt_icon_attribute "")
+set(_nt_resources)
+if(NT_ICON)
+    if(NOT EXISTS "${NT_ICON}")
+        message(FATAL_ERROR "${NT_APK}: the icon ${NT_ICON} does not exist")
+    endif()
+    file(MAKE_DIRECTORY "${NT_WORK}/res/mipmap-xxxhdpi" "${NT_WORK}/compiled")
+    configure_file("${NT_ICON}" "${NT_WORK}/res/mipmap-xxxhdpi/ic_launcher.png" COPYONLY)
+    _nt_run("${NT_BUILD_TOOLS}/aapt2" compile -o "${NT_WORK}/compiled"
+        "${NT_WORK}/res/mipmap-xxxhdpi/ic_launcher.png")
+    file(GLOB _nt_resources "${NT_WORK}/compiled/*.flat")
+    set(_nt_icon_attribute " android:icon=\"@mipmap/ic_launcher\"")
+endif()
+
 file(WRITE "${NT_WORK}/AndroidManifest.xml" "<?xml version=\"1.0\" encoding=\"utf-8\"?>
 <manifest xmlns:android=\"http://schemas.android.com/apk/res/android\"
     package=\"${NT_PACKAGE}\"
     android:versionCode=\"${NT_VERSION_CODE}\"
     android:versionName=\"${NT_VERSION_NAME}\">
     <uses-sdk android:minSdkVersion=\"${NT_MIN_SDK}\" android:targetSdkVersion=\"${NT_TARGET_SDK}\"/>
-${_nt_permission_xml}    <application android:label=\"${_label}\" android:hasCode=\"${_nt_has_code}\" android:extractNativeLibs=\"true\">
+${_nt_permission_xml}    <application android:label=\"${_label}\"${_nt_icon_attribute} android:hasCode=\"${_nt_has_code}\" android:extractNativeLibs=\"true\">
         <activity android:name=\"${_nt_activity}\"
             android:label=\"${_label}\"
             android:exported=\"true\"
@@ -119,7 +135,7 @@ file(COPY "${NT_LIBRARY}" DESTINATION "${NT_WORK}/lib/${NT_ABI}")
 set(_aapt2 "${NT_BUILD_TOOLS}/aapt2")
 set(_aapt "${NT_BUILD_TOOLS}/aapt")
 _nt_run("${_aapt2}" link -o "${NT_WORK}/base.apk" -I "${NT_ANDROID_JAR}" --manifest "${NT_WORK}/AndroidManifest.xml"
-    --min-sdk-version ${NT_MIN_SDK} --target-sdk-version ${NT_TARGET_SDK})
+    --min-sdk-version ${NT_MIN_SDK} --target-sdk-version ${NT_TARGET_SDK} ${_nt_resources})
 get_filename_component(_library_file "${NT_LIBRARY}" NAME)
 execute_process(COMMAND "${_aapt}" add base.apk "lib/${NT_ABI}/${_library_file}"
     WORKING_DIRECTORY "${NT_WORK}" RESULT_VARIABLE _result OUTPUT_VARIABLE _out ERROR_VARIABLE _out)

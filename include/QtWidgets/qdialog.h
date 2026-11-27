@@ -56,6 +56,7 @@ protected:
     void adjustPosition(QWidget *w);
 
 private:
+    void fitPlatformWidth();
     QPushButton *defaultButton() const;
 
     QEventLoop *m_loop = nullptr;

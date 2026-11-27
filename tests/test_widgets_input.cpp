@@ -36,6 +36,8 @@
 #include <QtWidgets/qtreewidget.h>
 #include <QtWidgets/qwizard.h>
 #include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qdialog.h>
+#include <QtWidgets/qmessagebox.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
 #include <QtWidgets/qscrollarea.h>
@@ -1149,6 +1151,130 @@ static void testInputHints() {
     CHECK(!(hintsOf(&field) & hidden));
 }
 
+// On a platform that narrows its dialogs to fit the screen, a dialog narrows itself and is as high as its wrapped
+// text then needs.
+static void testNarrowDialogs() {
+    auto *platform = dynamic_cast<QOffscreenIntegration *>(QtPrivate::GuiAccess::integration());
+    CHECK(platform != nullptr);
+    if (!platform)
+        return;
+    const QString text = QStringLiteral("A message that is much too long for one line of a dialog on a telephone, so "
+                                        "that it has to be broken into several of them to be read at all.");
+    const auto needed = [](const QLabel *label) {
+        return label->fontMetrics()
+            .boundingRect(QRect(0, 0, label->width(), 0), Qt::TextWordWrap, label->text())
+            .height();
+    };
+    for (const int limit : {312, 0}) {
+        platform->dialogWidthLimit = limit;
+        QMessageBox box(QMessageBox::Information, QStringLiteral("About"), text, QMessageBox::Ok);
+        box.show();
+        QCoreApplication::processEvents();
+        QLabel *message = nullptr;
+        const QList<QLabel *> labels = box.findChildren<QLabel *>();
+        for (QLabel *label : labels) {
+            if (label->text() == text)
+                message = label;
+        }
+        CHECK(message != nullptr);
+        if (!message)
+            continue;
+        if (limit > 0) {
+            CHECK(box.width() == limit);
+            CHECK(message->height() >= needed(message));
+            // All of the text, and the button under it, are inside the dialog.
+            const QRect shown(message->mapTo(&box, QPoint(0, 0)), message->size());
+            CHECK(box.rect().contains(shown));
+            const QList<QPushButton *> buttons = box.findChildren<QPushButton *>();
+            CHECK(!buttons.isEmpty() && buttons.first()->mapTo(&box, QPoint(0, 0)).y() >= shown.y() + shown.height());
+        } else {
+            CHECK(message->minimumHeight() == 0); // a platform with room leaves the dialog as it was
+        }
+    }
+    // A dialog that is narrow enough, and one with a size of its own, are left alone.
+    platform->dialogWidthLimit = 312;
+    QDialog sized;
+    sized.resize(500, 200);
+    sized.show();
+    QCoreApplication::processEvents();
+    CHECK(sized.width() == 500);
+    platform->dialogWidthLimit = 0;
+}
+
+// What is typed in a spin box goes into its number, never into the prefix or the suffix, wherever the text was
+// clicked.
+static void testSpinBoxAffixes() {
+    QWidget window;
+    auto *spin = new QSpinBox(&window);
+    spin->setRange(0, 999);
+    spin->setPrefix(QStringLiteral("~ "));
+    spin->setSuffix(QStringLiteral(" nuts"));
+    spin->setGeometry(0, 0, 220, 40);
+    window.resize(300, 100);
+    window.show();
+    window.activateWindow();
+    auto *line = spin->findChild<QLineEdit *>();
+    CHECK(line != nullptr);
+    if (!line)
+        return;
+    line->setFocus();
+    QCoreApplication::processEvents();
+    const auto key = [&](int code, const QString &text = QString(), Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+        QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyPress, code, modifiers, text);
+        QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyRelease, code, modifiers, text);
+        QCoreApplication::processEvents();
+    };
+    // A click past the end of the text leaves the cursor after the number.
+    const QPointF past(line->width() - 3, line->height() / 2);
+    QMouseEvent press(QEvent::MouseButtonPress, past, past, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(line, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, past, past, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(line, &release);
+    CHECK(line->text() == QStringLiteral("~ 0 nuts") && line->cursorPosition() == 3);
+    key(Qt::Key_5, QStringLiteral("5"));
+    CHECK(line->text() == QStringLiteral("~ 05 nuts") && spin->value() == 5);
+    // A key that an on-screen keyboard sends has no key code, only its text.
+    key(Qt::Key_unknown, QStringLiteral("7"));
+    CHECK(spin->value() == 57);
+    // Nor does the cursor go there by the keys, or by the program.
+    key(Qt::Key_End);
+    CHECK(line->cursorPosition() == static_cast<int>(line->text().size()) - 5);
+    key(Qt::Key_Delete); // nothing of the suffix goes
+    CHECK(line->text().endsWith(QStringLiteral(" nuts")));
+    key(Qt::Key_Home);
+    CHECK(line->cursorPosition() == 2);
+    key(Qt::Key_Backspace); // nor of the prefix
+    CHECK(line->text().startsWith(QStringLiteral("~ ")));
+    key(Qt::Key_Left);
+    CHECK(line->cursorPosition() == 2);
+    line->setCursorPosition(0);
+    CHECK(line->cursorPosition() == 2);
+    // Select All takes the number alone, so that typing over it replaces no more.
+    key(Qt::Key_A, QString(), Qt::ControlModifier);
+    CHECK(line->selectedText() == line->text().mid(2, line->text().size() - 7));
+    key(Qt::Key_8, QStringLiteral("8"));
+    CHECK(line->text() == QStringLiteral("~ 8 nuts") && spin->value() == 8);
+    key(Qt::Key_Backspace);
+    key(Qt::Key_3, QStringLiteral("3"));
+    CHECK(line->text() == QStringLiteral("~ 3 nuts") && spin->value() == 3);
+    // After the program or a step has changed the value, the cursor is still in the number.
+    spin->setValue(120);
+    CHECK(line->cursorPosition() <= 5);
+    spin->setSuffix(QStringLiteral(" nuts left"));
+    CHECK(line->cursorPosition() <= 5);
+    // The special value text is shown whole, and the cursor may be anywhere in it.
+    spin->setSpecialValueText(QStringLiteral("None at all"));
+    spin->setValue(0);
+    line->setCursorPosition(11);
+    CHECK(line->text() == QStringLiteral("None at all") && line->cursorPosition() == 11);
+
+    QDoubleSpinBox weight;
+    weight.setSuffix(QStringLiteral(" kg"));
+    auto *grams = weight.findChild<QLineEdit *>();
+    grams->setCursorPosition(100);
+    CHECK(grams->cursorPosition() == static_cast<int>(grams->text().size()) - 3);
+}
+
 // What a platform with an on-screen keyboard is told: how short the window can be, where the field is, and to show
 // the keyboard again when the field that has it is tapped.
 static void testInputPanel() {
@@ -1217,6 +1343,32 @@ static void testInputPanel() {
     CHECK(first->hasFocus() && platform->inputPanel.requests > before);
     CHECK(platform->inputPanel.item.top() == first->mapTo(&window, QPoint(0, 0)).y());
 
+    // A spin box's buttons step without asking for the keys; its text asks for them, and then a button leaves them be.
+    auto *spin = new QSpinBox(shortPage);
+    shortRows->insertWidget(1, spin);
+    spin->setRange(0, 9);
+    spin->show();
+    QCoreApplication::processEvents();
+    auto *digits = spin->findChild<QLineEdit *>();
+    QStyleOptionSpinBox option;
+    option.initFrom(spin);
+    const QRect plus = spin->style()->subElementRect(QStyle::SE_SpinBoxUp, &option, spin);
+    second->setFocus();
+    before = platform->inputPanel.requests;
+    click(spin, plus.center(), plus.center());
+    CHECK(spin->value() == 1 && second->hasFocus() && platform->inputPanel.requests == before);
+    click(digits, QPoint(5, 5), QPoint(5, 5));
+    CHECK(digits->hasFocus() && platform->inputPanel.requests > before);
+    before = platform->inputPanel.requests;
+    click(spin, plus.center(), plus.center());
+    CHECK(spin->value() == 2 && platform->inputPanel.requests == before);
+    // Without a keyboard on the screen, a button gives the field the focus, for the arrow keys.
+    second->setFocus();
+    platform->inputPanel.present = false;
+    click(spin, plus.center(), plus.center());
+    CHECK(spin->value() == 3 && digits->hasFocus());
+    platform->inputPanel.present = true;
+
     // In a scroll area, the field with the focus is scrolled into view as the window shrinks.
     QWidget other;
     auto *column = new QVBoxLayout(&other);
@@ -1262,6 +1414,8 @@ int main(int argc, char **argv) {
     testCompleter();
     testInputHints();
     testInputPanel();
+    testSpinBoxAffixes();
+    testNarrowDialogs();
     if (g_failures == 0)
         std::puts("all input tests passed");
     return g_failures == 0 ? 0 : 1;

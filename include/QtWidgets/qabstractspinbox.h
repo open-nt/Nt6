@@ -135,6 +135,8 @@ private:
     bool m_groupSeparator = false;
     CorrectionMode m_correction = CorrectToPreviousValue;
     void connectEdit();
+    bool numberRange(int *begin, int *end) const; // of the number between the prefix and the suffix
+    void keepCursorInNumber();
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QAbstractSpinBox::StepEnabled)

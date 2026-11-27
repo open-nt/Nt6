@@ -2702,6 +2702,126 @@ void testTimeInput() {
     CHECK(edit->sizeHint().height() < 72 && line->width() > 0);
 }
 
+void testSpinBoxAndScrollBar() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(400, 400);
+    auto *spin = new QSpinBox(&window);
+    spin->setRange(0, 10);
+    spin->setValue(5);
+    auto *date = new QDateEdit(QDate(2020, 6, 17), &window);
+    date->setCalendarPopup(true);
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    // A field of 56 with two buttons of 48, in the type of the other fields.
+    CHECK(spin->sizeHint().height() == 56);
+    CHECK(spin->font().pixelSize() == 16);
+    spin->setGeometry(10, 10, 220, 56);
+    date->setGeometry(10, 90, 220, 56);
+    QCoreApplication::processEvents();
+    auto *line = spin->findChild<QLineEdit *>();
+    CHECK(line && line->geometry() == QRect(16, 3, 220 - 16 - 96, 50));
+    if (!line)
+        return;
+    const auto click = [](QWidget *on, int x, int y) {
+        const QPointF at(x, y);
+        QMouseEvent press(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(on, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(on, &release);
+        QCoreApplication::processEvents();
+    };
+    click(spin, 220 - 24, 28); // up, at the end
+    CHECK(spin->value() == 6);
+    click(spin, 220 - 72, 28); // down, before it
+    click(spin, 220 - 72, 28);
+    CHECK(spin->value() == 4);
+    click(spin, 220 - 90, 6); // anywhere on a button
+    CHECK(spin->value() == 3);
+    line->clearFocus();
+    const auto shot = [&](const QWidget *widget) { return window.grab().toImage().copy(widget->geometry()); };
+    QImage image = shot(spin);
+    CHECK(is(image.pixelColor(110, 0), Role::Outline));
+    CHECK(is(image.pixelColor(110, 28), Role::Surface));               // the line edit has no box of its own,
+    CHECK(is(image.pixelColor(220 - 24, 28), Role::OnSurfaceVariant)); // a plus at the end
+    CHECK(is(image.pixelColor(220 - 24, 23), Role::OnSurfaceVariant));
+    CHECK(is(image.pixelColor(220 - 72, 28), Role::OnSurfaceVariant)); // and a minus before it
+    CHECK(is(image.pixelColor(220 - 72, 23), Role::Surface));
+    line->setFocus();
+    CHECK(is(shot(spin).pixelColor(110, 2), Role::Primary));
+    // At the end of the range, the button that cannot step is faint.
+    spin->setValue(10);
+    CHECK(!is(shot(spin).pixelColor(220 - 24, 23), Role::OnSurfaceVariant));
+    // Without buttons the text has the room; without a frame there is no outline.
+    spin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    QCoreApplication::processEvents();
+    CHECK(line->geometry() == QRect(16, 3, 220 - 32, 50));
+    CHECK(spin->sizeHint().width() < date->sizeHint().width() + 48);
+    spin->setFrame(false);
+    line->clearFocus();
+    CHECK(is(shot(spin).pixelColor(110, 0), Role::Surface));
+
+    // A date edit with a calendar has one button, which opens the calendar.
+    auto *text = date->findChild<QLineEdit *>();
+    CHECK(text && text->width() == 220 - 16 - 48);
+    image = shot(date);
+    CHECK(is(image.pixelColor(220 - 72, 28), Role::Surface));
+    CHECK(window.findChildren<QCalendarWidget *>().isEmpty() ||
+          !window.findChildren<QCalendarWidget *>().first()->isVisible());
+    click(date, 220 - 24, 28);
+    CHECK(date->calendarWidget() && date->calendarWidget()->isVisible());
+    CHECK(date->date() == QDate(2020, 6, 17));
+    if (date->calendarWidget())
+        date->calendarWidget()->window()->hide();
+    if (date->calendarWidget())
+        date->calendarWidget()->hide();
+
+    // A scroll bar is a thin handle with no track.
+    QScrollBar bar(Qt::Vertical, &window);
+    bar.setRange(0, 100);
+    bar.setPageStep(100);
+    CHECK(bar.sizeHint().width() == 10);
+    bar.setGeometry(300, 10, 10, 200);
+    bar.show();
+    QCoreApplication::processEvents();
+    image = shot(&bar);
+    const auto drawn = [&](const QImage &in, int y) {
+        int count = 0;
+        for (int x = 0; x < 10; ++x)
+            count += is(in.pixelColor(x, y), Role::Surface) ? 0 : 1;
+        return count;
+    };
+    CHECK(drawn(image, 50) >= 3 && drawn(image, 50) <= 5); // the handle, in the upper half
+    CHECK(drawn(image, 150) == 0);
+    // It drags as any scroll bar does.
+    const auto move = [&](QEvent::Type type, int y, Qt::MouseButtons buttons) {
+        QMouseEvent event(type, QPointF(5, y), QPointF(5, y), Qt::LeftButton, buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(&bar, &event);
+    };
+    move(QEvent::MouseButtonPress, 50, Qt::LeftButton);
+    move(QEvent::MouseMove, 100, Qt::LeftButton);
+    CHECK(bar.value() == 50);
+    CHECK(drawn(shot(&bar), 100) >= 7); // wider while it is held
+    move(QEvent::MouseButtonRelease, 100, Qt::NoButton);
+    // A long document leaves a handle that a finger finds.
+    bar.setRange(0, 100000);
+    bar.setValue(0);
+    QCoreApplication::processEvents();
+    image = shot(&bar);
+    CHECK(drawn(image, 40) > 0 && drawn(image, 60) == 0);
+
+    // Under another style they are what they were.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(spin->sizeHint().height() < 56 && bar.sizeHint().width() > 10);
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -2735,6 +2855,7 @@ int main(int argc, char *argv[]) {
     testSheetsAndDrawer();
     testSearchAndSecondaryTabs();
     testTimeInput();
+    testSpinBoxAndScrollBar();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

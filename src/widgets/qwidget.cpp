@@ -243,8 +243,10 @@ void WidgetAccess::tappedInput(const QWidget *target) {
     if (!integration || !integration->hasInputPanel() || !focus || !target ||
         !focus->inputMethodQuery(Qt::ImEnabled).toBool())
         return;
-    // On the field itself, on what is inside it, as the viewport of a text edit, or on the spin box around it.
-    if (target != focus && !focus->isAncestorOf(target) && target != focus->parentWidget())
+    // On the field itself or on what is inside it, as the viewport of a text edit. Of a line edit without a size, as
+    // in the Material style's time input, the widget that holds it is the field; a spin box's buttons are not.
+    const bool holder = target == focus->parentWidget() && (focus->width() == 0 || focus->height() == 0);
+    if (target != focus && !focus->isAncestorOf(target) && !holder)
         return;
     tellInputItem(integration, focus);
     QGuiApplication::inputMethod()->setVisible(true);

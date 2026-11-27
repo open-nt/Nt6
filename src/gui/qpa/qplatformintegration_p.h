@@ -60,6 +60,9 @@ public:
     // What the widget with the focus says it takes (digits, an e-mail address, a password), so that the panel can
     // show the keys for it. Told before the panel is shown, and again when it changes.
     virtual void setInputMethodHints(Qt::InputMethodHints hints) { (void)hints; }
+    // The widest that the platform lets a dialog be, in logical pixels, for one that makes its dialogs fit a small
+    // screen; 0 for a platform that leaves them as they are.
+    virtual int maximumDialogWidth() const { return 0; }
     // For a panel that covers part of the screen: how short the contents of `window` can be, and where in it, in its
     // coordinates, the item is that takes the text (null when none has the focus). Told when the focus moves, before
     // the panel is shown, and again when the window is resized.

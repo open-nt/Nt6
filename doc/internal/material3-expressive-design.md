@@ -163,6 +163,18 @@ period selector of 52 by 72 with `TertiaryContainer` for the half that applies. 
 dial, moving on to the minute after two digits, translated captions. A format of numbers alone sets
 `ImhPreferNumbers`, with which Android shows its number keys (see `doc/android.h`).
 
+Spin boxes and scroll bars are drawn without a property, as every Qt form and list has them. Material has no spin box:
+this one is the outlined field, 56 high, with a minus and a plus in 48 each (a chevron alone for a date edit with a
+calendar pop-up). On a platform with an on-screen keyboard the two buttons leave the focus where it is, since the keys
+would slide the page from under the finger. A scroll bar is 10 wide with a handle of 4 (8 under the pointer or while
+dragged), no track and no arrows, and at least 48 long. Not done: a floating label on a spin box, repeat while a
+button is held, hiding the scroll bar at rest.
+
+A dialog keeps its contents 24 from its edges. Where the platform narrows dialogs (`maximumDialogWidth()`, Android),
+`QDialog` narrows itself before it is shown and gives each wrapping label the height of its lines, because Nt's layouts
+have no height-for-width and a message box asked for one line. Not done: the headline (a message box's window title is
+not shown on Android).
+
 ## Open points
 
 - `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected

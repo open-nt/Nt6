@@ -119,6 +119,7 @@ public:
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const override;
     QEglNativePlatform eglPlatform() const override;
     QPlatformClipboard *clipboard() const override;
+    int maximumDialogWidth() const override;
     bool hasInputPanel() const override { return true; }
     Qt::ColorScheme colorScheme() const override {
         return QtAndroid::Glue::instance().nightMode() ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light;

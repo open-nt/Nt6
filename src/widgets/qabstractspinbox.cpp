@@ -1,6 +1,9 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qabstractspinbox.h>
 
+#include "gui/qpa/qplatformintegration_p.h"
+#include "gui/qwindow_p.h"
+
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qlineedit.h>
@@ -16,11 +19,21 @@ namespace {
 // that the spin box does not take.
 class SpinEdit : public QLineEdit {
 public:
-    SpinEdit(QAbstractSpinBox *box, std::function<bool(QChar)> accepts)
-        : QLineEdit(box), m_accepts(std::move(accepts)) {}
+    // `number` gives where the number begins and ends in the text, between the prefix and the suffix; false when the
+    // text is not made of those.
+    SpinEdit(QAbstractSpinBox *box, std::function<bool(QChar)> accepts, std::function<bool(int *, int *)> number)
+        : QLineEdit(box), m_accepts(std::move(accepts)), m_number(std::move(number)) {}
 
 protected:
     void keyPressEvent(QKeyEvent *event) override {
+        // Select All is of the number, as in Qt.
+        if (event->matches(QKeySequence::SelectAll)) {
+            if (auto *box = qobject_cast<QAbstractSpinBox *>(parentWidget())) {
+                box->selectAll();
+                event->accept();
+                return;
+            }
+        }
         switch (event->key()) {
         case Qt::Key_Up:
         case Qt::Key_Down:
@@ -28,6 +41,17 @@ protected:
         case Qt::Key_PageDown:
             event->ignore();
             return;
+        case Qt::Key_Backspace:
+        case Qt::Key_Delete: {
+            // Neither takes anything of the prefix or the suffix.
+            int begin = 0, end = 0;
+            if (!hasSelectedText() && m_number(&begin, &end) &&
+                cursorPosition() == (event->key() == Qt::Key_Backspace ? begin : end)) {
+                event->accept();
+                return;
+            }
+            break;
+        }
         default:
             break;
         }
@@ -52,6 +76,7 @@ protected:
 
 private:
     std::function<bool(QChar)> m_accepts;
+    std::function<bool(int *, int *)> m_number;
 };
 
 } // namespace
@@ -113,15 +138,39 @@ private:
     Constructs a spin box with the given \a parent.
 */
 QAbstractSpinBox::QAbstractSpinBox(QWidget *parent)
-    : QWidget(parent),
-      m_edit(new SpinEdit(this, [this](QChar c) { return acceptsCharacter(c) || m_special.contains(c); })) {
+    : QWidget(parent), m_edit(new SpinEdit(
+                           this, [this](QChar c) { return acceptsCharacter(c) || m_special.contains(c); },
+                           [this](int *begin, int *end) { return numberRange(begin, end); })) {
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     m_edit->setFrame(false);
     connectEdit();
     layoutEdit();
 }
 
+bool QAbstractSpinBox::numberRange(int *begin, int *end) const {
+    const QString text = m_edit->text();
+    if ((!m_special.isEmpty() && text == m_special) || text.size() < m_prefix.size() + m_suffix.size() ||
+        !text.startsWith(m_prefix) || !text.endsWith(m_suffix))
+        return false;
+    *begin = static_cast<int>(m_prefix.size());
+    *end = static_cast<int>(text.size() - m_suffix.size());
+    return true;
+}
+
+// As in Qt, the cursor does not go into the prefix or the suffix: what is typed goes into the number, wherever the text
+// was clicked. A selection may reach into them, as one of all of the text does, which the special value text is typed
+// over.
+void QAbstractSpinBox::keepCursorInNumber() {
+    int begin = 0, end = 0;
+    if (m_edit->hasSelectedText() || !numberRange(&begin, &end))
+        return;
+    const int cursor = m_edit->cursorPosition();
+    if (cursor < begin || cursor > end)
+        m_edit->setCursorPosition(std::clamp(cursor, begin, end));
+}
+
 void QAbstractSpinBox::connectEdit() {
+    QObject::connect(m_edit, &QLineEdit::cursorPositionChanged, this, [this] { keepCursorInNumber(); });
     QObject::connect(m_edit, &QLineEdit::textEdited, this, [this](const QString &text) { editEdited(text); });
     QObject::connect(m_edit, &QLineEdit::editingFinished, this, [this] { editFinished(); });
     QObject::connect(m_edit, &QLineEdit::returnPressed, this, [this] { emit returnPressed(); });
@@ -301,6 +350,7 @@ void QAbstractSpinBox::setButtonSymbols(ButtonSymbols bs) {
 
 void QAbstractSpinBox::refreshText() {
     m_edit->setText(valueText());
+    keepCursorInNumber();
     update();
 }
 
@@ -401,13 +451,19 @@ void QAbstractSpinBox::mousePressEvent(QMouseEvent *event) {
     QStyleOptionSpinBox option;
     option.initFrom(this);
     option.buttonSymbols = m_buttonSymbols;
-    m_edit->setFocus();
+    const bool up = style()->subElementRect(QStyle::SE_SpinBoxUp, &option, this).contains(event->pos());
+    const bool down = !up && style()->subElementRect(QStyle::SE_SpinBoxDown, &option, this).contains(event->pos());
+    // Where the keys are on the screen, a button that steps leaves them be: they would cover the page, and slide it so
+    // that the button is no longer under the finger.
+    const QPlatformIntegration *platform = QtPrivate::GuiAccess::integration();
+    if (!(up || down) || !platform || !platform->hasInputPanel())
+        m_edit->setFocus();
     const StepEnabled steps = stepEnabled();
-    if (style()->subElementRect(QStyle::SE_SpinBoxUp, &option, this).contains(event->pos())) {
+    if (up) {
         m_pressed = UpButton;
         if (steps.testFlag(StepUpEnabled))
             stepBy(1);
-    } else if (style()->subElementRect(QStyle::SE_SpinBoxDown, &option, this).contains(event->pos())) {
+    } else if (down) {
         m_pressed = DownButton;
         if (steps.testFlag(StepDownEnabled))
             stepBy(-1);

@@ -477,6 +477,11 @@ void QAndroidIntegration::setInputItem(QWindow *window, int minimumHeight, const
     }
 }
 
+// As QAndroidWindow::dialogGeometry() places them.
+int QAndroidIntegration::maximumDialogWidth() const {
+    return std::max(1, std::min(560, m_screen->availableGeometry().width() - 48));
+}
+
 void QAndroidIntegration::setInputMethodHints(Qt::InputMethodHints hints) {
     Glue::instance().setSoftInputHints(static_cast<int>(hints.toInt()));
 }

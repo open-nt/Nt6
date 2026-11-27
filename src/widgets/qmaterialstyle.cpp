@@ -18,6 +18,7 @@
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qabstractbutton.h>
 #include <QtWidgets/qabstractitemview.h>
+#include <QtWidgets/qabstractspinbox.h>
 #include <QtWidgets/qapplication.h>
 #include <QtWidgets/qcalendarwidget.h>
 #include <QtWidgets/qcheckbox.h>
@@ -33,6 +34,7 @@
 #include <QtWidgets/qmenu.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
+#include <QtWidgets/qscrollbar.h>
 #include <QtWidgets/qscroller.h>
 #include <QtWidgets/qslider.h>
 #include <QtWidgets/qstatusbar.h>
@@ -58,6 +60,11 @@ constexpr int buttonIconSpace = 8;
 constexpr int pressedCorner = 8;   // the shape of a pressed small button
 constexpr int selectedCorner = 12; // the shape of a checked button
 constexpr int touchTarget = 48;    // the least height of what a finger has to hit
+constexpr int spinButton = 48;     // a button of a spin box that steps, as wide as a finger needs
+constexpr int scrollBarWidth = 10; // the room of a scroll bar,
+constexpr double scrollThumb = 4;  // how wide its handle is drawn,
+constexpr double scrollThumbHeld = 8; // and while the pointer is on it or drags it
+constexpr int scrollThumbLeast = 48;
 constexpr int timeBoxWidth = 96;   // of the hour and of the minute in a time input
 constexpr int timeBoxHeight = 72;
 constexpr double timeBoxCorner = 8;
@@ -167,6 +174,7 @@ constexpr int menuMinimumWidth = 112;
 constexpr int comboArrowRoom = 48;
 constexpr int focusRingWidth = 3;
 constexpr int dialogCorner = 28; // extra large
+constexpr int dialogPadding = 24;
 constexpr int bottomSheetWidest = 640;
 constexpr int bottomSheetTopRoom = 72; // that a bottom sheet leaves above it
 constexpr int drawerWidth = 360;
@@ -204,6 +212,12 @@ QStringList timeParts(const QString &text) {
             parts.append(QString());
     }
     return parts;
+}
+
+// A date edit whose button opens a calendar has that one button, and no two that step.
+bool opensCalendar(const QWidget *widget) {
+    const auto *edit = qobject_cast<const QDateTimeEdit *>(widget);
+    return edit && edit->calendarPopup();
 }
 
 bool isList(const QWidget *widget) {
@@ -672,6 +686,9 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     \li \c materialTimeInput of a QTimeEdit: \c true draws it as Material's time input, a large box for each of the
         hour and the minute (and the second, if the format shows it), and a choice of AM or PM if the format has one.
         A click chooses a box; digits typed, the arrow keys and the wheel change what is in it.
+    \li A spin box, among them a date or time edit, is an outlined field of 56 with a button that steps down and one
+        that steps up, each 48 wide; a date edit with a calendar pop-up has one button, for the calendar. Scroll bars
+        are thin handles without a track or arrows. Neither needs a property.
     \li \c materialSheet of a QDialog: \c "bottom" makes it a modal bottom sheet, against the bottom of its parent's
         window, as high as what is in it and no wider than 640; \c "drawer" makes it a modal drawer, against the left
         edge, as high as the window and up to 360 wide. It has no title bar. On Android the window behind is dimmed, and
@@ -732,7 +749,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     rich tooltips. Chips are push buttons only; there are no elevated chips, avatars in input chips or separate click
     on the cross, and a filter chip takes its new width at once. The date picker is the calendar alone: it has no headline with the chosen date, no choice of
     years, no range and no field to type a date in, it keeps the days of the other months, faint, and it has no time
-    picker with a clock dial. A time input is for a format of times alone, does not go on to the minute by itself
+    picker with a clock dial. A spin box has no floating label or supporting text, and its buttons do not repeat while
+    held; a scroll bar does not hide when the contents are still. A time input is for a format of times alone, does not go on to the minute by itself
     when the hour has been typed, and names its boxes in English. A card is not a button and shows no press. A card or
     a divider behind a QProxyStyle is drawn as a plain frame. Icon buttons have the default width, not
     the narrow or the wide one. An app bar is the small one: it has no subtitle, does not grow into a medium or large
@@ -1109,7 +1127,7 @@ void QMaterialStyle::drawTabIndicator(QPainter *painter, const QTabBar *bar, con
 */
 void QMaterialStyle::polish(QWidget *widget) {
     QCommonStyle::polish(widget);
-    if (qobject_cast<QAbstractButton *>(widget))
+    if (qobject_cast<QAbstractButton *>(widget) || qobject_cast<QScrollBar *>(widget))
         widget->setAttribute(Qt::WA_Hover);
     if (qobject_cast<QDialog *>(widget) && !widget->testAttribute(Qt::WA_SetPalette)) {
         QPalette palette = widget->palette();
@@ -1158,8 +1176,8 @@ void QMaterialStyle::polish(QWidget *widget) {
         widget->setProperty(polishedFont, true);
     }
     const bool text = qobject_cast<QLineEdit *>(widget) || qobject_cast<QComboBox *>(widget) ||
-                      qobject_cast<QMenu *>(widget) || qobject_cast<QCalendarWidget *>(widget) || isList(widget) ||
-                      qobject_cast<QTreeView *>(widget);
+                      qobject_cast<QMenu *>(widget) || qobject_cast<QCalendarWidget *>(widget) ||
+                      qobject_cast<QAbstractSpinBox *>(widget) || isList(widget) || qobject_cast<QTreeView *>(widget);
     if ((choice || button || text) && !widget->testAttribute(Qt::WA_SetFont)) {
         QFont font = widget->font();
         font.setPixelSize(button ? 14 : 16);
@@ -2291,6 +2309,71 @@ bool QMaterialStyle::drawMaterialFrame(QPainter *painter, const QFrame *frame) c
     return true;
 }
 
+// An outlined field, as a line edit is, with a button at its end that steps down and one that steps up.
+void QMaterialStyle::drawSpinBox(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    const auto *spin = static_cast<const QStyleOptionSpinBox *>(option);
+    const QRectF box(option->rect);
+    const bool usable = enabled(option);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    if (spin->frame) {
+        const bool focused = option->state & State_HasFocus;
+        fillRounded(painter, box, textFieldCorner, option->palette.color(QPalette::Base));
+        const QColor line =
+            !usable ? withOpacity(color(Role::OnSurface), 0.12) : color(focused ? Role::Primary : Role::Outline);
+        strokeRounded(painter, box, textFieldCorner, line, focused ? 3 : 1);
+    }
+    if (spin->buttonSymbols == QAbstractSpinBox::NoButtons) {
+        painter->restore();
+        return;
+    }
+    const auto button = [&](SubElement element, bool up, bool can, bool pressed) {
+        const QRect at = proxy()->subElementRect(element, option, widget);
+        if (at.isEmpty())
+            return;
+        const QPointF centre = QRectF(at).center();
+        const QColor ink =
+            usable && can ? color(Role::OnSurfaceVariant) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+        if (pressed && can)
+            fillRounded(painter, QRectF(centre.x() - 20, centre.y() - 20, 40, 40), 20,
+                        withOpacity(color(Role::OnSurfaceVariant), pressedOpacity));
+        painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        if (opensCalendar(widget)) {
+            // A chevron that points down, to what opens.
+            painter->drawLine(centre + QPointF(-5, -2.5), centre + QPointF(0, 2.5));
+            painter->drawLine(centre + QPointF(0, 2.5), centre + QPointF(5, -2.5));
+            return;
+        }
+        painter->drawLine(centre + QPointF(-6, 0), centre + QPointF(6, 0));
+        if (up)
+            painter->drawLine(centre + QPointF(0, -6), centre + QPointF(0, 6));
+    };
+    // The calendar's button is there whether or not the date can step.
+    const bool calendar = opensCalendar(widget);
+    button(SE_SpinBoxUp, true, calendar || spin->upEnabled, spin->upPressed);
+    button(SE_SpinBoxDown, false, calendar || spin->downEnabled, spin->downPressed);
+    painter->restore();
+}
+
+// A thin handle with round ends and no track, as on a phone; wider while the pointer is on it or drags it.
+void QMaterialStyle::drawScrollBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
+    const auto *bar = static_cast<const QStyleOptionSlider *>(option);
+    painter->save();
+    painter->fillRect(option->rect, option->palette.color(QPalette::Base));
+    if (bar->maximum > bar->minimum) {
+        const QRectF handle(proxy()->subElementRect(SE_ScrollBarSlider, option, widget));
+        const bool held = option->state & (State_Sunken | State_MouseOver);
+        const double width = held ? scrollThumbHeld : scrollThumb;
+        const QRectF thumb =
+            bar->orientation == Qt::Horizontal
+                ? QRectF(handle.left() + 2, handle.center().y() - width / 2, handle.width() - 4, width)
+                : QRectF(handle.center().x() - width / 2, handle.top() + 2, width, handle.height() - 4);
+        painter->setRenderHint(QPainter::Antialiasing);
+        fillRounded(painter, thumb, width / 2, withOpacity(color(Role::OnSurfaceVariant), held ? 0.7 : 0.4));
+    }
+    painter->restore();
+}
+
 void QMaterialStyle::drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter,
                                 const QWidget *widget) const {
     const bool on = option->state & State_On;
@@ -2819,6 +2902,9 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_FrameTabWidget:
         break; // the pages of a tab widget have no frame: the line under the tabs parts them
     case PE_PanelLineEdit: {
+        // The line edit inside a spin box lies on the field that the spin box draws.
+        if (widget && qobject_cast<const QAbstractSpinBox *>(widget->parentWidget()))
+            break;
         const auto *frame =
             option->type == QStyleOption::SO_Frame ? static_cast<const QStyleOptionFrame *>(option) : nullptr;
         const TextField field = textFieldOf(widget);
@@ -2984,6 +3070,14 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
         drawTimeInput(painter, option, static_cast<const QDateTimeEdit *>(widget));
         return;
     }
+    if (element == CE_SpinBox && option->type == QStyleOption::SO_SpinBox) {
+        drawSpinBox(option, painter, widget);
+        return;
+    }
+    if (element == CE_ScrollBar && option->type == QStyleOption::SO_Slider) {
+        drawScrollBar(option, painter, widget);
+        return;
+    }
     if (element == CE_PushButtonLabel && option->type == QStyleOption::SO_Button) {
         painter->save();
         drawButtonLabel(option, painter, widget);
@@ -3051,6 +3145,19 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
     // The line edit of a time input has the keys, and nothing to show; there are no buttons that step.
     if ((element == SE_SpinBoxEditField || element == SE_SpinBoxUp || element == SE_SpinBoxDown) && isTimeInput(widget))
         return QRect(r.left(), r.top(), 0, 0);
+    if (element == SE_SpinBoxEditField || element == SE_SpinBoxUp || element == SE_SpinBoxDown) {
+        const bool none =
+            option->type == QStyleOption::SO_SpinBox &&
+            static_cast<const QStyleOptionSpinBox *>(option)->buttonSymbols == QAbstractSpinBox::NoButtons;
+        const int buttons = none ? 0 : opensCalendar(widget) ? 1 : 2;
+        const int width = std::min(spinButton, r.width() / 3);
+        if (element == SE_SpinBoxEditField)
+            return r.adjusted(std::min(textFieldPadding, r.width() / 8), 3,
+                              -(buttons ? buttons * width : textFieldPadding), -3);
+        // Up is at the end, and down before it.
+        const int from = element == SE_SpinBoxUp ? 1 : 2;
+        return from > buttons ? QRect() : QRect(r.left() + r.width() - from * width, r.top(), width, r.height());
+    }
     switch (element) {
     case SE_PushButtonContents:
         // The open FAB is a circle at the right of the whole button. A button with a size is made as wide as its label
@@ -3122,6 +3229,18 @@ int QMaterialStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
 */
 int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, const QWidget *widget) const {
     switch (metric) {
+    case PM_LayoutLeftMargin:
+    case PM_LayoutTopMargin:
+    case PM_LayoutRightMargin:
+    case PM_LayoutBottomMargin:
+        // A dialog keeps what is in it 24 from its edges, clear of its round corners.
+        if (qobject_cast<const QDialog *>(widget) && widget->isWindow())
+            return dialogPadding;
+        return QCommonStyle::pixelMetric(metric, option, widget);
+    case PM_ScrollBarExtent:
+        return scrollBarWidth;
+    case PM_ScrollBarSliderMin:
+        return scrollThumbLeast;
     case PM_IndicatorWidth:
     case PM_IndicatorHeight:
         return checkBoxSize;
@@ -3159,6 +3278,13 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
     if (type == CT_SpinBox && isTimeInput(widget)) {
         const std::vector<QRect> rects = timeInputRects(static_cast<const QDateTimeEdit *>(widget));
         return QSize(rects.empty() ? 0 : rects.back().x() + rects.back().width(), timeBoxHeight + timeCaption);
+    }
+    if (type == CT_SpinBox && option && option->type == QStyleOption::SO_SpinBox) {
+        const int symbols = static_cast<const QStyleOptionSpinBox *>(option)->buttonSymbols;
+        const int buttons = symbols == QAbstractSpinBox::NoButtons ? 0 : opensCalendar(widget) ? 1 : 2;
+        // Room for the cursor besides the text.
+        return QSize(contentsSize.width() + textFieldPadding + 8 + (buttons ? buttons * spinButton : textFieldPadding),
+                     std::max(textFieldHeight, contentsSize.height()));
     }
     switch (type) {
     case CT_PushButton: {

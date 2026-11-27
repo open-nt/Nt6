@@ -185,6 +185,8 @@ private:
                           const QColor &ink);
     // The width and height of the icon of an icon button; 0 for another button.
     static int iconButtonIconSize(const QWidget *widget);
+    void drawSpinBox(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
+    void drawScrollBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter, const QWidget *widget) const;
     void drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawProgressBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;

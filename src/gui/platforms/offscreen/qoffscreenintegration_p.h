@@ -95,6 +95,8 @@ public:
         QRect item;
     };
     InputPanel inputPanel;
+    int dialogWidthLimit = 0; // for tests of a platform that narrows its dialogs
+    int maximumDialogWidth() const override { return dialogWidthLimit; }
     bool hasInputPanel() const override { return inputPanel.present; }
     void setInputPanelVisible(bool visible) override {
         inputPanel.visible = visible;

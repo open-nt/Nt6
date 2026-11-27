@@ -1773,6 +1773,15 @@ static void testSpinBoxRepeat() {
     QTest::qWait(300);
     CHECK(spin.value() == released - 2);
     mouse(QEvent::MouseButtonRelease, QPoint(4, 4), Qt::NoButton);
+    // Sliding onto the other button steps that way at once, and repeats that way after the threshold.
+    spin.setValue(100);
+    mouse(QEvent::MouseButtonPress, up, Qt::LeftButton);
+    CHECK(spin.value() == 101);
+    mouse(QEvent::MouseMove, down, Qt::LeftButton);
+    CHECK(spin.value() == 100);
+    QTest::qWait(400);
+    CHECK(spin.value() < 98);
+    mouse(QEvent::MouseButtonRelease, down, Qt::NoButton);
     // At the end of the range the steps stop, and a press of a button that cannot step does not repeat either.
     spin.setValue(2);
     mouse(QEvent::MouseButtonPress, down, Qt::LeftButton);

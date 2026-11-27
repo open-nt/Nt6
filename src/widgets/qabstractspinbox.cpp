@@ -469,16 +469,22 @@ void QAbstractSpinBox::mousePressEvent(QMouseEvent *event) {
 /*!
     \reimp
 
-    The steps of a button that is held stop when the pointer leaves it.
+    As in Qt, the steps of a button that is held stop when the pointer leaves both buttons, and go the other way,
+    with one step at once, when it moves onto the other button.
 */
 void QAbstractSpinBox::mouseMoveEvent(QMouseEvent *event) {
     if (m_pressed == NoButton) {
         event->ignore();
         return;
     }
-    if (buttonAt(event->pos()) != m_pressed) {
+    const Button under = buttonAt(event->pos());
+    if (under != m_pressed) {
         stopRepeat();
-        m_pressed = NoButton;
+        m_pressed = under;
+        if (under != NoButton && stepPressed())
+            startRepeat(false);
+        else
+            m_pressed = NoButton;
         update();
     }
     event->accept();

@@ -112,9 +112,22 @@ A snackbar is the status bar of a `QMainWindow` with `materialStatusBar` = `"sna
 48 high (68 when the message takes two lines), 16 from the sides and from the bottom, above a navigation bar, at most
 600 wide; it takes no room and has none while there is no message. Permanent widgets are its actions, text buttons in
 `InversePrimary`. `QMainWindow` places it through private functions of its own. Tooltips (`QToolTip`) are Material's
-plain tooltips without a property. `materialProgress` = `"circular"` is the circular indicator: 40, 4 thick, a gap of 4
-before the track; busy, an arc that grows and shrinks as it goes round. Not done: a queue of messages, rich tooltips and
-the wavy circular indicator (the snackbar's motion and close icon are below).
+plain tooltips without a property. A tooltip whose text is rich text (`Qt::mightBeRichText()`) is a rich tooltip, so
+that a program which still builds with Qt, whose tooltips show HTML, gets one: `SurfaceContainer`, corners 12 (medium),
+16 at the sides and 12 above and below, at most 320 wide (less if the window is narrower), at level 2 with its shadow
+in 2 that the label keeps below it. A bold run (`<b>`, `<strong>`) or a heading (`<h1>` to `<h6>`) at the start,
+after any `<qt>`, `<html>`, `<body>`, `<p>` or `<div>`, is the subhead in title small; the rest, made plain by
+`QTextDocument` (paragraphs and `<br>` become line breaks), is the supporting text in body medium; both are
+`OnSurfaceVariant` and wrap. The Nt-only property `materialToolTip` = `"rich"` of the widget the tooltip is for makes a
+plain text one rich, its first line the subhead. QToolTip's label does the layout and the text, as it does for a plain
+tooltip, and sets `_nt_materialRichToolTip` on itself so that `PE_PanelTipLabel` draws the container. `materialProgress`
+= `"circular"` is the circular indicator: 40, 4 thick, a gap of 4 before the track; busy, an arc that grows and shrinks
+as it goes round. `"circularWavy"` is the wavy circular indicator: 48, the part that is done (or the busy arc) a wave
+1.6 out and in from a circle of radius 20.4, with a whole number of crests (9, about 15 apart) so that a full circle
+closes, turning at 60 degrees a second; flat at a tenth and below and from 95%, its height springing between the two as
+on the wavy bar. The track stays a plain circle. Not done: a queue of messages and the action buttons of a rich tooltip
+(Nt's tooltip is a label the mouse goes through, gone when the mouse leaves the widget, so it has nothing to press;
+Qt's `QToolTip` has no actions either). The snackbar's motion and close icon are below.
 
 Chips are `QPushButton`s with `materialChip` = `"assist"`, `"filter"`, `"input"` or `"suggestion"`: 32 high in a
 target of 48, corners 8, an `OutlineVariant` outline, label large, an 18 icon; 16 beside a bare label, 8 around an
@@ -131,8 +144,9 @@ and 8 before the label, in its own colours; without it an icon stays an icon of 
 cropped. A card that can be clicked is a `QPushButton` (any `QAbstractButton` that draws through the push button's
 panel) with `materialCard`, as a `QFrame` cannot be clicked in Qt: the same shapes and colours as the frame, with the
 state layer of `OnSurface` (0.08 on hover, 0.10 pressed), the ripple of buttons and a focus ring; an elevated one keeps
-2 below for its shadow, which falls 1, and 2 on hover. Its size is that of its layout. Not done: motion of the
-elevation, a separate target for the input chip's cross.
+2 below for its shadow, which falls 1, and 2 on hover. Its size is that of its layout. With motion, the shadow
+of an elevated chip or card moves between its levels on the default effects spring. Not done: a separate target for
+the input chip's cross.
 
 `QCalendarWidget` is the date picker without a property: `SurfaceContainerHigh`, days of 40, the chosen one a
 `Primary` circle, today a `Primary` ring and label, names of days and days in body large. The base `paintCell()` asks
@@ -181,7 +195,12 @@ the focus, and rests inside, before the buttons, once the text has been cleared,
 is held repeats, for every style, as in Qt: `QAbstractSpinBox` steps once at the press, again after
 `SH_SpinBox_ClickAutoRepeatThreshold` (500) and then every `SH_SpinBox_ClickAutoRepeatRate` (150) until the release,
 the pointer leaving the button or the end of the range. A scroll bar is 10 wide with a handle of 4 (8 under the
-pointer or while dragged), no track and no arrows, and at least 48 long. Not done: hiding the scroll bar at rest.
+pointer or while dragged), no track and no arrows, and at least 48 long. Its handle hides at rest, as on a phone: a child
+of the bar (`ScrollBarRest`) wakes it when it is shown, when its value changes (the wheel, the keys, the program, or
+QScroller under a finger), when the pointer comes onto it or leaves it and when it is pressed or released, and lets it
+rest 1.5 s later; the style fades the handle in on the fast effects spring and out on the slow one. The bar keeps its
+width and its clicks, so nothing is laid out again. Without motion the handle stays, which keeps forms usable and tests
+still; `materialScrollBar` = `"always"` (Nt only) on the bar or its scroll area keeps it too.
 
 A dialog keeps its contents 24 from its edges. Where the platform narrows dialogs (`maximumDialogWidth()`, Android),
 `QDialog` narrows itself before it is shown and takes the height that its layout needs at that width. (Nt's layouts
@@ -251,9 +270,29 @@ replaces the days with the years from `minimumDate().year()` to `maximumDate().y
 shown opens in the second row; the wheel scrolls by rows; arrows, Page Up/Down, Home/End move, Return/Enter/Space
 choose, Escape (or another click on the label) goes back. Choosing a year shows its days in the same month, clamped to
 the months of the range, and leaves the selection alone, as Compose does. Nothing moves, so motion off changes nothing.
-Not done: the range picker, the input mode (field and its toggle), a menu of months (the docked picker's), the
-confirm and cancel buttons (left to the dialog), state layers on the years, animating the switch, and a localized
-headline.
+The modal picker has the input mode too. At the end of the row of the date, 12 from the right and centred on its
+line, is an icon button of 48 with an icon of 24, drawn with `QPainter` paths in `OnSurfaceVariant` (no Material
+Symbols, which only `NtMaterialSymbols` may use): a pencil, which switches to the input mode, and there a calendar,
+which switches back (`datePickerModeButton()`; the date is elided before it). The input mode hides the navigation bar
+(`isNavigationBarVisible()` still says what the program asked for), paints nothing where the month was and shows a
+real `QLineEdit` child, made the first time, as an outlined field 24 in from the sides and 16 under the divider
+(`datePickerField()`), with `materialLabel` "Date", the pattern as supporting text and placeholder, an empty
+`materialError` from the start so that an error does not move it, and the focus. The headline's first line says
+"Enter date". The pattern is the locale's short date format with days and months of two digits and years of four
+("MM/dd/yyyy" in the US; a format with names becomes that one). Once the text is as long as the pattern, a date of
+the range selects itself (`selectionChanged()`, not `clicked()`) and the headline follows, while text that is not a
+date, or a date outside `minimumDate()` to `maximumDate()`, shows the error ("Date does not match the pattern
+MM/DD/YYYY", "Date out of range: ... to ...") and keeps the selection; shorter text is left alone, since where the day
+comes last its first digit is already a date. Return, the field losing the focus and going back read days and months
+of one digit too, and show the error for text that is not a date of the range. Return on a good date emits `activated()`, as Qt's own
+date edit of the calendar does. Going back takes the text if it is a date of the range and otherwise leaves the
+selection alone; the calendar gets the focus back. A date selected by the program while the field is shown is written
+into it. The field asks for `ImhDate`, which the android platform turns into a keyboard of digits with the separators
+of a date (`ImhPreferNumbers` would give digits alone, without the slash). A calendar that loses the property or the
+style leaves the input mode. Not done: the icon button is not a widget, so it cannot be reached with Tab and has no
+state layer.
+Not done: the range picker, a menu of months (the docked picker's), the confirm and cancel buttons (left to the
+dialog), state layers on the years, animating the switch, and a localized headline.
 
 Sliders have the five Expressive sizes, `materialSliderSize` = `"extraSmall"` (the default, the look they had) to
 `"extraLarge"`: tracks of 16, 24, 40, 56 and 96, outer corners 8, 8, 12, 16 and 28, handles of 44, 44, 52, 68 and 108
@@ -283,8 +322,19 @@ check mark and icon `OnTertiaryContainer`, the state layer in that color. Groups
 2 + 4 + 4 high (the padding of the group above, the gap and the padding of the group below, from `CT_MenuItem`) and
 draws nothing, and `PE_PanelMenu` fills and outlines a container for each group, with the menu's 16 at the ends of
 the menu and 8 (corner small) beside a gap; the window shows in the gap. A section (a separator with a text) is not
-a gap. Setting the property sends the menu a style change, so it lays itself out anew. Not done: group labels,
-supporting text and trailing icons of rows, and the vertical menu whose submenu opens in place.
+a gap. Setting the property sends the menu a style change, so it lays itself out anew. A section
+(`QMenu::addSection()`) is a group label: a row of 32 with no line, its text in label medium (12 of the menu's 16, medium
+weight) and `OnSurfaceVariant`, 12 in from the row as the rows' text is; in a grouped menu it sits inside its group. Nt's
+`QMenu` gives the style a section as a normal item that is not enabled, so the style knows it by its action, found with
+`actionAt()` at the row, or, while the menu measures its rows (which have no rectangle then), by a separator with that
+text. A line break in an action's text puts what follows under the label as supporting text (body medium,
+`OnSurfaceVariant`, a line of 20 for each line break), the label in a line of 24, 8 above and below, so 60 with one
+line; the type is that of the list's rows (`listRowFont()`), and the shortcut, which `QMenu` puts after a tab at the end
+of the text, stays at the trailing end in the middle of the row. The Nt-only property `materialTrailingIcon` (a `QIcon`)
+of a `QAction` draws it 24 by 24 at the trailing end, tinted `OnSurfaceVariant` by `paintIcon()` when it has one color,
+inside the arrow of a submenu and outside the shortcut; the rows share one width, so all make room for it when one has
+it. Not done: the vertical menu whose submenu opens in place, supporting text that wraps (each line is one line break),
+and icons of section labels.
 
 The expanded navigation rail (Compose's `WideNavigationRail` expanded, the baseline item tokens) is `materialTabBar` =
 `"navigationRailExpanded"`, a value of the same property rather than a boolean beside it, so that a rail is one or the

@@ -2,9 +2,11 @@
 #include <QtWidgets/qcalendarwidget.h>
 
 #include <QtGui/qevent.h>
+#include <QtCore/qlocale.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qlabel.h>
+#include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qtoolbutton.h>
 
@@ -68,7 +70,10 @@ QFont formatted(QFont font, const QTextCharFormat &format) {
     The names of the months and the days are English and the first day of the week is Monday, as there is no
     \c QLocale; \c setFirstDayOfWeek() changes it. The month and year menus of the navigation bar are missing (under
     QMaterialStyle a click on the month and the year shows a grid of years, as Material's date picker does), and
-    \c dateEditEnabled() is stored but has no effect. The \c calendar() is stored but dates are always shown in the
+    \c dateEditEnabled() is stored but has no effect. Under QMaterialStyle, a calendar with the Nt-only property
+    \c materialDatePicker set to \c "modal" has Material's headline, whose pencil switches to a text field where the
+    date is typed in the short format of the locale; a valid date in the range selects it at once, and Return in the
+    field emits activated(). The \c calendar() is stored but dates are always shown in the
     Gregorian calendar.
     \enddifferences
 
@@ -270,13 +275,14 @@ void QCalendarWidget::setVerticalHeaderFormat(VerticalHeaderFormat format) {
 /*!
     Returns whether the navigation bar is shown. The default is \c true.
 */
-bool QCalendarWidget::isNavigationBarVisible() const { return !m_navigation->isHidden(); }
+bool QCalendarWidget::isNavigationBarVisible() const { return m_navigationBar; }
 
 /*!
     Shows the navigation bar if \a visible is \c true, and hides it otherwise.
 */
 void QCalendarWidget::setNavigationBarVisible(bool visible) {
-    m_navigation->setVisible(visible);
+    m_navigationBar = visible;
+    m_navigation->setVisible(visible && !m_inputMode);
     resizeEvent(nullptr);
     updateGeometry();
     update();
@@ -322,6 +328,10 @@ void QCalendarWidget::select(QDate date, bool byUser) {
         return;
     m_selected = date;
     update();
+    if (m_inputMode && !m_typing) { // the field shows the date that was selected some other way
+        m_dateField->setText(QLocale().toString(date, dateFieldFormat()));
+        m_dateField->setProperty("materialError", QString());
+    }
     emit selectionChanged();
 }
 
@@ -540,7 +550,7 @@ int QCalendarWidget::headlineHeight() const {
 }
 
 QRect QCalendarWidget::gridRect() const {
-    const int top = headlineHeight() + (isNavigationBarVisible() ? m_navigation->height() : 0);
+    const int top = headlineHeight() + (isNavigationBarVisible() && !m_inputMode ? m_navigation->height() : 0);
     return QRect(0, top, width(), height() - top);
 }
 
@@ -613,8 +623,10 @@ void QCalendarWidget::paintEvent(QPaintEvent *event) {
     const QPalette::ColorGroup group = isEnabled() ? QPalette::Active : QPalette::Disabled;
     const QMaterialStyle *material = materialStyle(this);
     if (const int headline = headlineHeight())
-        material->drawDatePickerHeadline(&painter, QRect(0, 0, width(), headline), this);
+        material->drawDatePickerHeadline(&painter, QRect(0, 0, width(), headline), this, m_inputMode);
     painter.fillRect(gridRect(), palette().color(group, QPalette::Base));
+    if (m_inputMode)
+        return; // the text field is in the place of the month
     if (m_choosingYear && material) {
         painter.setClipRect(gridRect());
         const int first = m_minimum.year() + m_yearRow * kYearColumns;
@@ -676,6 +688,149 @@ void QCalendarWidget::resizeEvent(QResizeEvent *event) {
     m_navigation->setGeometry(0, headlineHeight(), width(), navigationHeight());
     if (m_choosingYear)
         scrollYears(m_yearRow);
+    layoutDateField();
+}
+
+QRect QCalendarWidget::modeButtonRect() const {
+    const int headline = headlineHeight();
+    return headline ? QMaterialStyle::datePickerModeButton(QRect(0, 0, width(), headline)) : QRect();
+}
+
+void QCalendarWidget::layoutDateField() {
+    if (m_dateField)
+        m_dateField->setGeometry(QMaterialStyle::datePickerField(gridRect(), m_dateField->sizeHint().height()));
+}
+
+// The short date format of the locale, with days and months of two digits and years of four, as Material's hint
+// shows it ("MM/dd/yyyy"); a format with names of days or months becomes MM/dd/yyyy, which can be typed with digits.
+QString QCalendarWidget::dateFieldFormat() const {
+    const QString format = QLocale().dateFormat(QLocale::ShortFormat);
+    QString result;
+    qsizetype i = 0;
+    while (i < format.size()) {
+        const QChar c = format.at(i);
+        qsizetype run = 1;
+        while (i + run < format.size() && format.at(i + run) == c)
+            ++run;
+        if (c == QLatin1Char('\'') || ((c == QLatin1Char('d') || c == QLatin1Char('M')) && run > 2))
+            return QStringLiteral("MM/dd/yyyy"); // quoted text or names
+        if (c == QLatin1Char('d'))
+            result += QStringLiteral("dd");
+        else if (c == QLatin1Char('M'))
+            result += QStringLiteral("MM");
+        else if (c == QLatin1Char('y'))
+            result += QStringLiteral("yyyy");
+        else
+            result += QString(run, c);
+        i += run;
+    }
+    return result.contains(QLatin1Char('d')) && result.contains(QLatin1Char('M')) && result.contains(QLatin1Char('y'))
+               ? result
+               : QStringLiteral("MM/dd/yyyy");
+}
+
+QDate QCalendarWidget::dateFieldDate(QString *error) const {
+    const QString format = dateFieldFormat();
+    const QString text = m_dateField->text().trimmed();
+    QDate date = QLocale().toDate(text, format);
+    if (!date.isValid()) { // days and months may be typed with one digit
+        QString relaxed = format;
+        relaxed.replace(QStringLiteral("dd"), QStringLiteral("d")).replace(QStringLiteral("MM"), QStringLiteral("M"));
+        date = QLocale().toDate(text, relaxed);
+    }
+    if (!date.isValid()) {
+        *error = QStringLiteral("Date does not match the pattern %1").arg(format.toUpper());
+        return QDate();
+    }
+    if (date < m_minimum || date > m_maximum) {
+        *error = QStringLiteral("Date out of range: %1 to %2")
+                     .arg(QLocale().toString(m_minimum, format), QLocale().toString(m_maximum, format));
+        return QDate();
+    }
+    error->clear();
+    return date;
+}
+
+// A date that is typed whole selects itself. While the text is shorter than the pattern it may still become another
+// date (where the day comes last, its first figure is already a date), so nothing is selected and there is no error
+// yet; Return, or going back, also reads a day or a month of one figure.
+void QCalendarWidget::dateFieldEdited() {
+    if (m_dateField->text().trimmed().size() < dateFieldFormat().size()) {
+        m_dateField->setProperty("materialError", QString());
+        return;
+    }
+    QString error;
+    const QDate date = dateFieldDate(&error);
+    if (date.isValid() && m_selectionMode == SingleSelection) {
+        m_typing = true;
+        select(date, true);
+        m_typing = false;
+    }
+    m_dateField->setProperty("materialError", error);
+}
+
+// Return, or the field losing the focus: text that is not a date of the range shows why, and the selection stays.
+void QCalendarWidget::dateFieldFinished() {
+    if (!m_inputMode || m_dateField->text().trimmed().isEmpty())
+        return;
+    QString error;
+    const QDate date = dateFieldDate(&error);
+    m_dateField->setProperty("materialError", error);
+    if (date.isValid() && m_selectionMode == SingleSelection) {
+        m_typing = true;
+        select(date, true);
+        m_typing = false;
+    }
+}
+
+void QCalendarWidget::setInputMode(bool input) {
+    if (input == m_inputMode || (input && !headlineHeight()))
+        return;
+    if (input) {
+        setChoosingYear(false);
+        if (!m_dateField) {
+            m_dateField = new QLineEdit(this);
+            m_dateField->setProperty("materialLabel", QStringLiteral("Date"));
+            // On a phone, a keyboard of digits with the separators of a date; ImhPreferNumbers would give one of
+            // digits alone, without the slash.
+            m_dateField->setInputMethodHints(Qt::ImhDate);
+            QObject::connect(m_dateField, &QLineEdit::textEdited, this, [this] { dateFieldEdited(); });
+            QObject::connect(m_dateField, &QLineEdit::editingFinished, this, [this] { dateFieldFinished(); });
+            QObject::connect(m_dateField, &QLineEdit::returnPressed, this, [this] {
+                if (m_dateField->property("materialError").toString().isEmpty() &&
+                    !m_dateField->text().trimmed().isEmpty())
+                    emit activated(m_selected);
+            });
+        }
+        const QString format = dateFieldFormat();
+        m_dateField->setProperty("materialSupportingText", format.toUpper());
+        m_dateField->setPlaceholderText(format.toUpper());
+        m_dateField->setProperty("materialError", QString()); // its room is kept, so an error does not move it
+        m_dateField->setText(QLocale().toString(m_selected, format));
+        m_inputMode = true;
+        m_navigation->setVisible(false);
+        layoutDateField();
+        m_dateField->show();
+        m_dateField->setFocus();
+    } else {
+        // What was typed counts if it is a date of the range; otherwise the selection stays as it was.
+        if (m_selectionMode == SingleSelection) {
+            QString error;
+            const QDate date = dateFieldDate(&error);
+            if (date.isValid()) {
+                m_typing = true;
+                select(date, true);
+                m_typing = false;
+            }
+        }
+        const bool focused = m_dateField->hasFocus();
+        m_inputMode = false;
+        m_dateField->hide();
+        m_navigation->setVisible(m_navigationBar);
+        if (focused)
+            setFocus();
+    }
+    update();
 }
 
 void QCalendarWidget::setChoosingYear(bool choosing) {
@@ -746,6 +901,15 @@ int QCalendarWidget::yearAt(const QPoint &pos) const {
     A click on a date in the range selects it and emits clicked(); a date of another month shows that month.
 */
 void QCalendarWidget::mousePressEvent(QMouseEvent *event) {
+    if (event->button() == Qt::LeftButton && modeButtonRect().contains(event->pos())) {
+        setInputMode(!m_inputMode);
+        event->accept();
+        return;
+    }
+    if (m_inputMode) {
+        event->ignore();
+        return;
+    }
     if (m_choosingYear) {
         if (event->button() != Qt::LeftButton) {
             event->ignore();
@@ -777,11 +941,11 @@ void QCalendarWidget::mousePressEvent(QMouseEvent *event) {
     \reimp
 */
 void QCalendarWidget::mouseDoubleClickEvent(QMouseEvent *event) {
-    if (m_choosingYear) {
+    if (m_choosingYear || modeButtonRect().contains(event->pos())) {
         event->accept();
         return;
     }
-    const QDate date = dateAt(event->pos());
+    const QDate date = m_inputMode ? QDate() : dateAt(event->pos());
     if (event->button() == Qt::LeftButton && date.isValid() && date >= m_minimum && date <= m_maximum) {
         emit activated(date);
         event->accept();
@@ -797,6 +961,10 @@ void QCalendarWidget::mouseDoubleClickEvent(QMouseEvent *event) {
     and last day of the month. Return and Enter emit activated().
 */
 void QCalendarWidget::keyPressEvent(QKeyEvent *event) {
+    if (m_inputMode) {
+        event->ignore();
+        return;
+    }
     if (m_choosingYear) {
         switch (event->key()) {
         case Qt::Key_Escape:
@@ -885,7 +1053,7 @@ void QCalendarWidget::keyPressEvent(QKeyEvent *event) {
 */
 void QCalendarWidget::wheelEvent(QWheelEvent *event) {
     const int notches = event->angleDelta().y() / 120;
-    if (notches == 0) {
+    if (notches == 0 || m_inputMode) {
         event->ignore();
         return;
     }
@@ -911,6 +1079,8 @@ void QCalendarWidget::changeEvent(QEvent *event) {
         // The headline and the years are Material's; a property of the style may have changed too.
         if (!materialStyle(this))
             setChoosingYear(false);
+        if (!headlineHeight()) // the input mode is the modal picker's
+            setInputMode(false);
         resizeEvent(nullptr);
         updateGeometry();
     }

@@ -82,6 +82,10 @@ constexpr int scrollBarWidth = 10; // the room of a scroll bar,
 constexpr double scrollThumb = 4;  // how wide its handle is drawn,
 constexpr double scrollThumbHeld = 8; // and while the pointer is on it or drags it
 constexpr int scrollThumbLeast = 48;
+constexpr int scrollRestDelay = 1500; // milliseconds that a scroll bar is left alone before its handle fades out
+// The child of a scroll bar that wakes it and lets it rest, and the property of the bar in which it says which.
+const char *const scrollRestWatcher = "_nt_materialScrollRest";
+const char *const scrollAwake = "_nt_scrollAwake";
 constexpr int timeBoxWidth = 96;   // of the hour and of the minute in a time input
 constexpr int timeBoxHeight = 72;
 constexpr double timeBoxCorner = 8;
@@ -94,6 +98,8 @@ constexpr int calendarCell = 40;   // a day of a calendar, and the circle that s
 constexpr int datePickerHeader = 120;        // the headline of a modal date picker, above a divider of 1
 constexpr int datePickerInset = 24;          // of its texts from the left, and 12 from the right
 constexpr int datePickerHeadlinePixels = 32; // headline large
+constexpr int datePickerModeButtonSize = 48; // the icon button at the end of the row of the date, an icon of 24
+constexpr int datePickerFieldTop = 16;       // the text field of the input mode, under the headline
 constexpr int calendarYearWidth = 72;        // the pill of a year in the grid of years
 constexpr int calendarYearHeight = 36;
 constexpr int calendarMenuArrow = 18; // the arrow after the month and the year, which opens the years
@@ -178,6 +184,9 @@ constexpr int snackbarOneLine = 48;
 constexpr int snackbarTwoLines = 68;
 constexpr int snackbarPadding = 16;
 constexpr double snackbarCorner = 4;
+constexpr double richToolTipCorner = 12; // corner medium
+constexpr int richToolTipShadow = 2;     // the room that QToolTip's label keeps below a rich tooltip for its shadow
+const char *const richToolTipProperty = "_nt_materialRichToolTip"; // set by QToolTip's label on a rich tooltip
 // A sheet comes in on the default spatial spring of Material, but damped so that it stops at its edge.
 constexpr QtPrivate::SpringSpec sheetSpring{1.0, 380};
 // It goes faster than it came, as what leaves does in Material.
@@ -189,6 +198,10 @@ const char *const scrimProperty = "_nt_scrimOpacity";
 constexpr int circularSize = 40;
 constexpr double circularThickness = 4;
 constexpr double circularGap = 4; // between the part of a circular progress indicator that is done and its track
+constexpr int circularWavySize = 48;       // the wavy circular indicator: its room,
+constexpr double circularWaveHeight = 1.6; // how far its wave goes out and in from the circle,
+constexpr double circularWaveLength = 15;  // from one crest to the next, about, as a whole number go round,
+constexpr double circularWaveTurn = 60;    // and how many degrees a second the wave turns while it is shown
 constexpr int railWidth = 96;
 // The expanded rail: as wide as its longest destination needs, within these, each a row with a pill across it.
 constexpr int railExpandedMinimum = 220;
@@ -242,6 +255,10 @@ constexpr double menuGroupCorner = 8;     // the corners of a group beside a gap
 constexpr double menuRowCorner = 4;       // the shape of a row under the pointer (corner extra small),
 constexpr double menuSelectedCorner = 12; // of a checked row (corner medium), and of a row at an end of the menu
 constexpr int menuMinimumWidth = 112;
+constexpr int menuGroupLabelHeight =
+    32; // a section's row: its label (label medium, a line of 16) and 8 above and below
+constexpr int menuSupportingPadding = 8; // above and below the text of a row that has supporting text
+const char *const menuTrailingIconProperty = "materialTrailingIcon";
 constexpr double searchViewCorner = 28; // the docked search view under a search bar (corner extra large)
 constexpr int searchViewRowHeight = 56;
 constexpr int comboArrowRoom = 48;
@@ -463,6 +480,69 @@ QString menuLabel(const QString &text) {
         label.append(marked.at(i));
     }
     return label;
+}
+
+// The parts of the text of a menu row: its label, the supporting text after a line break, and the shortcut after a tab,
+// which runs to the end of its line (QMenu puts the shortcut of the action at the end of the text).
+struct MenuRowParts {
+    QString label, supporting, shortcut;
+};
+
+MenuRowParts menuRowParts(const QString &text) {
+    MenuRowParts parts;
+    QString rest = text;
+    if (const qsizetype tab = rest.indexOf(QLatin1Char('\t')); tab >= 0) {
+        qsizetype end = rest.indexOf(QLatin1Char('\n'), tab);
+        if (end < 0)
+            end = rest.size();
+        parts.shortcut = rest.mid(tab + 1, end - tab - 1);
+        rest.remove(tab, end - tab);
+    }
+    const qsizetype brk = rest.indexOf(QLatin1Char('\n'));
+    parts.label = menuLabel(brk < 0 ? rest : rest.left(brk));
+    if (brk >= 0)
+        parts.supporting = rest.mid(brk + 1);
+    return parts;
+}
+
+// The type of a section's label, label medium, as it is to the menu's body large: 12 to 16. QMenu makes it bold.
+QFont menuGroupLabelFont(QFont font) {
+    font.setBold(false);
+    return listRowFont(font, 12, true);
+}
+
+// True if `item` is a section of `widget`, a separator with a text, which QMenu draws as an item that cannot be
+// chosen. A row that is drawn is found at its rectangle; while the menu measures its rows they have none, and a
+// section is known by its text.
+bool isMenuSection(const QWidget *widget, const QStyleOptionMenuItem *item) {
+    const auto *menu = qobject_cast<const QMenu *>(widget);
+    if (!menu || item->menuItemType != QStyleOptionMenuItem::Normal || item->text.isEmpty())
+        return false;
+    if (item->rect.isValid()) {
+        const QAction *action = menu->actionAt(item->rect.center());
+        return action && action->isSeparator();
+    }
+    const QList<QAction *> actions = menu->actions();
+    return std::any_of(actions.begin(), actions.end(),
+                       [item](const QAction *action) { return action->isSeparator() && action->text() == item->text; });
+}
+
+// The icon that the action of a row asks for at the trailing end of its row.
+QIcon menuTrailingIcon(const QWidget *widget, const QRect &row) {
+    const auto *menu = qobject_cast<const QMenu *>(widget);
+    const QAction *action = menu ? menu->actionAt(row.center()) : nullptr;
+    return action ? action->property(menuTrailingIconProperty).value<QIcon>() : QIcon();
+}
+
+// True if a row of the menu has a trailing icon: the rows share one width, so every row makes room for it.
+bool hasMenuTrailingIcons(const QWidget *widget) {
+    const auto *menu = qobject_cast<const QMenu *>(widget);
+    if (!menu)
+        return false;
+    const QList<QAction *> actions = menu->actions();
+    return std::any_of(actions.begin(), actions.end(), [](const QAction *action) {
+        return action->isVisible() && !action->property(menuTrailingIconProperty).value<QIcon>().isNull();
+    });
 }
 
 // The type of the items of a FAB menu: title medium.
@@ -980,6 +1060,8 @@ enum Channel {
     WaveChannel,
     AppBarChannel,         // how far a top app bar has gone from its color at rest to that of content scrolled under it
     AppBarCollapseChannel, // how far a medium or large top app bar has collapsed, in pixels
+    ElevationChannel,      // how far the shadow of an elevated chip or card falls, in pixels
+    ScrollBarChannel,      // how far the handle of a scroll bar has faded in
     NavigationChannel = 100 // plus the index of a destination: how far its pill has opened
 };
 const char *const polishedFont = "_nt_materialFont";
@@ -1138,6 +1220,65 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     return QTransform(0, 1, 1, 0, 0, 0).map(sidedPath(QRectF(r.top(), r.left(), r.height(), r.width()), first, second));
 }
 
+// Lets the handle of a scroll bar fade out once the bar has been left alone for a while. It wakes the bar when it is
+// shown, when its value changes (by the wheel, the keys, a finger that flicks the content with QScroller, or the
+// program), when the pointer comes onto it or leaves it, and when it is pressed or released; its timer then lets it
+// rest. Whether it is awake is a property of the bar, which the style reads as it paints. It is a child of the bar, so
+// it goes with it, or when unpolish() deletes it.
+class ScrollBarRest : public QObject {
+public:
+    explicit ScrollBarRest(QScrollBar *bar) : QObject(bar), m_bar(bar) {
+        setObjectName(QLatin1String(scrollRestWatcher));
+        m_timer.setSingleShot(true);
+        m_timer.setInterval(scrollRestDelay);
+        QObject::connect(&m_timer, &QTimer::timeout, this, [this] { setAwake(false); });
+        QObject::connect(bar, &QAbstractSlider::valueChanged, this, [this] { wake(); });
+        bar->installEventFilter(this);
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        switch (event->type()) {
+        case QEvent::Show:
+        case QEvent::Enter:
+        case QEvent::Leave:
+        case QEvent::MouseButtonPress:
+        case QEvent::MouseButtonRelease:
+            wake();
+            break;
+        default:
+            break;
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    void wake() {
+        m_timer.start();
+        setAwake(true);
+    }
+    void setAwake(bool awake) {
+        const QVariant was = m_bar->property(scrollAwake);
+        if (!was.isValid() || was.toBool() != awake)
+            m_bar->setProperty(scrollAwake, awake);
+        m_bar->update();
+    }
+
+    QScrollBar *m_bar;
+    QTimer m_timer;
+};
+
+// Whether the scroll bar keeps its handle shown at rest: `materialScrollBar` = "always" on it or on its scroll area.
+bool scrollBarAlwaysShown(const QWidget *bar) {
+    for (const QWidget *widget = bar; widget; widget = widget->parentWidget()) {
+        if (widget->property("materialScrollBar").toString() == QLatin1String("always"))
+            return true;
+        if (qobject_cast<const QAbstractScrollArea *>(widget))
+            break;
+    }
+    return false;
+}
+
 } // namespace
 
 /*!
@@ -1238,7 +1379,15 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
         destinations of a navigation bar or rail have theirs in \c materialBadges of the QTabBar, a QVariantList with
         one such value for each, in order.
     \li \c materialProgress \c "circular" draws a QProgressBar as a ring of 40: how far it is, or while it is busy an
-        arc that goes round.
+        arc that goes round. \c "circularWavy" is the wavy circular indicator, 48: the part that is done, or the arc
+        of a busy one, is a wave that goes 1.6 out and in from the circle, with a whole number of crests about 15
+        apart that turn while motion is enabled; the track stays a plain circle, and the wave is flat below a tenth and
+        from 95 in 100.
+    \li \c materialScrollBar \c "always", on a QScrollBar or on the QAbstractScrollArea that it belongs to, keeps the
+        scroll bar's handle shown at rest. Otherwise the handle fades out once the bar has been left alone for 1.5
+        seconds, and fades in when the value changes (by the wheel, the keys, the program, or a finger that flicks the
+        content with QScroller), when the pointer comes onto the bar, and while it is pressed. The bar keeps its room
+        all the while; only its drawing fades. Without motion the handle stays shown.
     \li \c materialStatusBar \c "snackbar" makes the status bar of a QMainWindow a snackbar: it takes no room, floats
         over the content, above a navigation bar, beside a navigation rail and above a floating action button that is at
         the bottom, while it has a message, from showMessage() until clearMessage() or the message's timeout, and its
@@ -1305,6 +1454,11 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
         lines, and part the menu into groups, each a container of its own with the round corners of the menu at its
         ends and corners of 8 beside a gap, as in the menus of Material 3 Expressive with gaps. A section, a separator
         with a text, is no gap. Without the property a separator is a line.
+    \li \c materialTrailingIcon of a QAction in a QMenu: a QIcon that is drawn at the trailing end of its row, 24 by
+        24, in \c OnSurfaceVariant if it has one color, before the shortcut and after the arrow of a submenu. Every
+        row of the menu makes room for it.
+    \li \c materialToolTip \c "rich" of a widget: its tooltip is a rich tooltip, the first line of its text the
+        subhead and the rest supporting text. A tooltip whose text is rich text is one without the property.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialSliderSize of a QSlider: \c "extraSmall", \c "small", \c "medium", \c "large" or
         \c "extraLarge", the five sizes of Material 3 Expressive, with tracks 16, 24, 40, 56 and 96 thick and handles
@@ -1318,7 +1472,9 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     \li \c materialDatePicker \c "modal" of a QCalendarWidget makes it Material's modal date picker: above the month
         it has a headline, "Select date" and the chosen date (as "Mon, Aug 17"), over a divider, 121 high in all. It
         is for a calendar in a dialog of its own; a calendar without it, such as the pop-up of a QDateEdit, is the
-        docked date picker, which has no headline.
+        docked date picker, which has no headline. The pencil at the end of the headline switches to the input mode:
+        an outlined text field "Date" in the place of the month, where a date is typed in the short format of the
+        locale, and a calendar icon in the place of the pencil to go back to the days.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
         widget puts them 2 apart unless it is told a spacing; the ends of the row are round, the corners between the
@@ -1331,7 +1487,19 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     Where dialogs have no title bar, as on Android, a QDialog that has a window title, a QMessageBox among them, shows
     it as Material's headline above what is in it. A sheet has none.
 
-    Tooltips, as QToolTip shows them, are Material's plain tooltips without anything being asked for. So is
+    Tooltips, as QToolTip shows them, are Material's plain tooltips without anything being asked for. A tooltip whose
+    text is rich text, as Qt::mightBeRichText() tells, is a rich tooltip: a container of 12 corners in
+    \c SurfaceContainer at elevation level 2, at most 320 wide, with 16 at its sides and 12 above and below. If the
+    text begins with a bold run or a heading, that is its subhead, in title small, over the rest, the supporting text
+    in body medium, both in \c OnSurfaceVariant and wrapped:
+
+    \code
+    button->setToolTip("<b>Grid view</b><br>Shows the files as a grid of pictures, which is easier to scan.");
+    \endcode
+
+    The rest of the markup is left out. A program that is still to build with Qt can use this, since Qt's tooltips
+    show rich text; the property \c materialToolTip described above does the same for plain text. Rich tooltips have
+    no action buttons. So is
     QCalendarWidget drawn as Material's date picker: days of 40, the chosen one in a filled circle and today in a ring,
     with icon buttons for the months. Material's has no week numbers, which
     \l{QCalendarWidget::setVerticalHeaderFormat()}{NoVerticalHeader} turns off and makes room for on a narrow screen.
@@ -1373,8 +1541,10 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
     are the standard menus of Material 3 Expressive in shape (corners of 16, 4 of padding above and below the rows,
     which are inset 4 from the sides and have shapes of their own, a checked one filled in the tertiary container
-    color), with an outline in the place of their shadow. They have no group labels, supporting text or trailing
-    icons, and a checked row keeps its check mark. Dialogs get the Material container color and text buttons; their rounded corners and the
+    color), with an outline in the place of their shadow. A section, added with QMenu::addSection(), is a group label: its
+    text in label medium and \c OnSurfaceVariant, 32 high, with no line and no icon. A line break in the text of an action
+    puts what follows it under the label as supporting text in body medium, a line of 20 each, with 8 above and below
+    the text (60 high with one line); the shortcut stays at the trailing end. A checked row keeps its check mark. Dialogs get the Material container color and text buttons; their rounded corners and the
     dimming behind them, which fades in while motion is enabled, are the android platform's.
     Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another,
     and go one after another as a picture of them when it closes; they have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
@@ -1418,7 +1588,10 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     once; the indicator is not shown for a slider whose value is changed by the program. A slider's ends beside the
     handle are round on the extra small size. There are no inset icons and no centered or range sliders. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
-    going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
+    going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A wavy circular indicator's wave turns as a whole, at a steady
+    speed, and is painted at every frame while it does. A scroll bar whose handle has faded out still takes its room
+    and its clicks, and a scroll area shows its scroll bars only when the pointer is on them, not when it is on the
+    content. A floating toolbar does not hide as the content is scrolled, and has no menu for
     what does not fit. A docked toolbar does not hide as the content is scrolled either, has no menu for what does not
     fit and no floating action button of its own, and shows no separators. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
     lists and menus, and the tabs of a horizontal QTabBar ripple; trees and tables do not. A check box, a radio button
@@ -1811,6 +1984,10 @@ void QMaterialStyle::polish(QWidget *widget) {
     QCommonStyle::polish(widget);
     if (qobject_cast<QAbstractButton *>(widget) || qobject_cast<QScrollBar *>(widget))
         widget->setAttribute(Qt::WA_Hover);
+    // A scroll bar's handle fades out at rest.
+    if (auto *bar = qobject_cast<QScrollBar *>(widget);
+        bar && !bar->findChild<QObject *>(QLatin1String(scrollRestWatcher), Qt::FindDirectChildrenOnly))
+        new ScrollBarRest(bar);
     if (qobject_cast<QDialog *>(widget) && !widget->testAttribute(Qt::WA_SetPalette)) {
         QPalette palette = widget->palette();
         palette.setColor(QPalette::Window,
@@ -1928,6 +2105,10 @@ void QMaterialStyle::unpolish(QWidget *widget) {
     }
     if (qobject_cast<QAbstractScrollArea *>(widget))
         delete widget->findChild<QObject *>(QLatin1String(appBarWatcher), Qt::FindDirectChildrenOnly);
+    if (qobject_cast<QScrollBar *>(widget)) {
+        delete widget->findChild<QObject *>(QLatin1String(scrollRestWatcher), Qt::FindDirectChildrenOnly);
+        widget->setProperty(scrollAwake, QVariant());
+    }
     if (auto *frame = qobject_cast<QFrame *>(widget); frame && widget->property(polishedFrame).isValid()) {
         frame->setFrameStyle(widget->property(polishedFrame).toInt());
         widget->setProperty(polishedFrame, QVariant());
@@ -2336,8 +2517,10 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     // chip has the room of its target for it, a card that which it keeps below itself.
     if ((elevatedChip || elevatedCard) && enabled(option)) {
         const bool hovered = (option->state & State_MouseOver) && !(option->state & State_Sunken);
-        const double fall = elevatedChip ? (hovered ? chipRaiseHover : chipRaise)
-                                         : (hovered ? static_cast<double>(fabShadow) : cardRaise);
+        const double level = elevatedChip ? (hovered ? chipRaiseHover : chipRaise)
+                                          : (hovered ? static_cast<double>(fabShadow) : cardRaise);
+        // It rises and settles on the default effects spring, as Compose's elevation does.
+        const double fall = animated(widget, ElevationChannel, level, QtPrivate::defaultEffectsSpring, 0.02);
         painter->fillPath(sidedPath(body.translated(0, fall), left, right),
                           QBrush(withOpacity(QColor(Qt::black), 0.18)));
     }
@@ -3060,6 +3243,13 @@ void QMaterialStyle::propertyChanged(QWidget *widget) {
                 status->updateGeometry();
         }
     }
+    // The scroll bars of a scroll area follow its materialScrollBar.
+    if (const auto *area = qobject_cast<const QAbstractScrollArea *>(widget)) {
+        for (QScrollBar *bar : {area->verticalScrollBar(), area->horizontalScrollBar()}) {
+            if (bar)
+                bar->update();
+        }
+    }
     // The buttons of a group take their shapes from the widget that holds them.
     for (QObject *child : widget->children()) {
         if (auto *button = qobject_cast<QAbstractButton *>(child))
@@ -3301,13 +3491,26 @@ int QMaterialStyle::datePickerHeadlineHeight(const QWidget *calendar) {
                : 0;
 }
 
-void QMaterialStyle::drawDatePickerHeadline(QPainter *painter, const QRect &rect,
-                                            const QCalendarWidget *calendar) const {
+QRect QMaterialStyle::datePickerModeButton(const QRect &headline) {
+    // At the end of the row of the date, 12 from the right, centred on its line of 40, 12 from the bottom.
+    const int middle = headline.top() + datePickerHeader - 12 - 20;
+    return QRect(headline.right() + 1 - 12 - datePickerModeButtonSize, middle - datePickerModeButtonSize / 2,
+                 datePickerModeButtonSize, datePickerModeButtonSize);
+}
+
+QRect QMaterialStyle::datePickerField(const QRect &room, int fieldHeight) {
+    return QRect(room.left() + datePickerInset, room.top() + datePickerFieldTop,
+                 std::max(0, room.width() - 2 * datePickerInset), fieldHeight);
+}
+
+void QMaterialStyle::drawDatePickerHeadline(QPainter *painter, const QRect &rect, const QCalendarWidget *calendar,
+                                            bool input) const {
     const bool usable = calendar->isEnabled();
     const QColor ink =
         usable ? color(Role::OnSurfaceVariant) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
     const QRect text(rect.left() + datePickerInset, rect.top(), std::max(0, rect.width() - datePickerInset - 12),
                      datePickerHeader);
+    const QRect button = datePickerModeButton(rect);
     painter->save();
     painter->fillRect(rect, calendar->palette().color(usable ? QPalette::Active : QPalette::Disabled, QPalette::Base));
     painter->setPen(ink);
@@ -3317,19 +3520,48 @@ void QMaterialStyle::drawDatePickerHeadline(QPainter *painter, const QRect &rect
     supporting.setWeight(QFont::Medium);
     painter->setFont(supporting);
     const QRect top(text.left(), text.top() + 16, text.width(), 20);
+    const QString title = input ? QStringLiteral("Enter date") : QStringLiteral("Select date");
     painter->drawText(top, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-                      QFontMetrics(supporting).elidedText(QStringLiteral("Select date"), Qt::ElideRight, top.width()));
-    // and the chosen date, headline large, 12 from the bottom on a line of 40.
+                      QFontMetrics(supporting).elidedText(title, Qt::ElideRight, top.width()));
+    // and the chosen date, headline large, 12 from the bottom on a line of 40, up to the icon button.
     QFont headline = calendar->font();
     headline.setPixelSize(datePickerHeadlinePixels);
     headline.setWeight(QFont::Normal);
     painter->setFont(headline);
-    const QRect bottom(text.left(), text.bottom() + 1 - 12 - 40, text.width(), 40);
+    const QRect bottom(text.left(), text.bottom() + 1 - 12 - 40, std::max(0, button.left() - text.left()), 40);
     const QString date = calendar->selectedDate().toString(QStringLiteral("ddd, MMM d"));
     painter->drawText(bottom, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                       QFontMetrics(headline).elidedText(date, Qt::ElideRight, bottom.width()));
-    painter->fillRect(QRect(rect.left(), rect.top() + datePickerHeader, rect.width(), 1), color(Role::OutlineVariant));
+    // The icon of the button, 24 in its middle: a pencil for the input mode, a calendar for the days.
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->translate(QPointF(button.center()) + QPointF(0.5, 0.5));
+    if (input) {
+        // A page with a band at the top, two rings that hold it, and a day marked on it.
+        painter->setPen(QPen(ink, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawRoundedRect(QRectF(-8, -6, 16, 15), 2, 2);
+        painter->drawLine(QPointF(-8, -2), QPointF(8, -2));
+        painter->drawLine(QPointF(-4, -9), QPointF(-4, -5));
+        painter->drawLine(QPointF(4, -9), QPointF(4, -5));
+        painter->fillRect(QRectF(2, 2, 3, 3), ink);
+    } else {
+        // A pencil, its point at the bottom left: a body, the point, and the band before the eraser at the top right.
+        painter->rotate(-45);
+        QPainterPath pencil;
+        pencil.moveTo(-10.5, 0);
+        pencil.lineTo(-6, -3);
+        pencil.lineTo(8, -3);
+        pencil.lineTo(8, 3);
+        pencil.lineTo(-6, 3);
+        pencil.closeSubpath();
+        painter->setPen(QPen(ink, 1.75, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawPath(pencil);
+        painter->drawLine(QPointF(4.5, -3), QPointF(4.5, 3));
+        painter->drawLine(QPointF(-6, -3), QPointF(-6, 3));
+    }
     painter->restore();
+    painter->fillRect(QRect(rect.left(), rect.top() + datePickerHeader, rect.width(), 1), color(Role::OutlineVariant));
 }
 
 void QMaterialStyle::drawCalendarTitle(QPainter *painter, const QRect &rect, const QWidget *label, const QString &text,
@@ -3934,13 +4166,28 @@ void QMaterialStyle::drawScrollBar(const QStyleOption *option, QPainter *painter
     if (bar->maximum > bar->minimum) {
         const QRectF handle(proxy()->subElementRect(SE_ScrollBarSlider, option, widget));
         const bool held = option->state & (State_Sunken | State_MouseOver);
+        // At rest the handle fades out, and it fades in when the bar wakes; the bar keeps its room. Without motion, or
+        // with materialScrollBar "always", it stays.
+        double shown = 1;
+        if (m_motion && widget && !scrollBarAlwaysShown(widget)) {
+            const QVariant awake = widget->property(scrollAwake);
+            const bool wanted = held || !awake.isValid() || awake.toBool();
+            shown = std::clamp(m_animator->value(widget, ScrollBarChannel, wanted ? 1.0 : 0.0,
+                                                 wanted ? QtPrivate::fastEffectsSpring : QtPrivate::slowEffectsSpring,
+                                                 0.004),
+                               0.0, 1.0);
+        }
+        if (shown < 0.01) {
+            painter->restore();
+            return;
+        }
         const double width = held ? scrollThumbHeld : scrollThumb;
         const QRectF thumb =
             bar->orientation == Qt::Horizontal
                 ? QRectF(handle.left() + 2, handle.center().y() - width / 2, handle.width() - 4, width)
                 : QRectF(handle.center().x() - width / 2, handle.top() + 2, width, handle.height() - 4);
         painter->setRenderHint(QPainter::Antialiasing);
-        fillRounded(painter, thumb, width / 2, withOpacity(color(Role::OnSurfaceVariant), held ? 0.7 : 0.4));
+        fillRounded(painter, thumb, width / 2, withOpacity(color(Role::OnSurfaceVariant), (held ? 0.7 : 0.4) * shown));
     }
     painter->restore();
 }
@@ -4123,9 +4370,12 @@ void QMaterialStyle::drawLoadingIndicator(const QStyleOption *option, QPainter *
 
 void QMaterialStyle::drawCircularProgress(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
     const auto *bar = static_cast<const QStyleOptionProgressBar *>(option);
-    const double extent = std::min<double>(circularSize, std::min(option->rect.width(), option->rect.height()));
+    // The wavy one is larger, so that its wave fits; its track is a plain circle along the middle of the wave.
+    const bool wavy = widget && widget->property("materialProgress").toString() == QLatin1String("circularWavy");
+    const double size = wavy ? circularWavySize : circularSize;
+    const double extent = std::min<double>(size, std::min(option->rect.width(), option->rect.height()));
     const QPointF centre = QRectF(option->rect).center();
-    const double inset = (extent - circularThickness) / 2;
+    const double inset = std::max(1.0, (extent - circularThickness) / 2 - (wavy ? circularWaveHeight : 0));
     const QRectF ring(centre.x() - inset, centre.y() - inset, 2 * inset, 2 * inset);
     const QColor active =
         enabled(option) ? color(Role::Primary) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
@@ -4133,13 +4383,41 @@ void QMaterialStyle::drawCircularProgress(const QStyleOption *option, QPainter *
                                          : withOpacity(color(Role::OnSurface), disabledContainerOpacity);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
-    // Angles are in degrees clockwise from the top; QPainter's are in sixteenths, anticlockwise from the right.
-    const auto arc = [&](double from, double sweep, const QColor &ink) {
-        painter->setPen(QPen(QBrush(ink), circularThickness, Qt::SolidLine, Qt::RoundCap));
-        painter->drawArc(ring, static_cast<int>(std::lround((90 - from) * 16)),
-                         -static_cast<int>(std::lround(sweep * 16)));
-    };
     constexpr double pi = 3.14159265358979323846;
+    // A whole number of crests go round, so that a full circle closes.
+    const double crests = std::max(3.0, std::round(2 * pi * inset / circularWaveLength));
+    // How far the wave has turned, in degrees; asks to be painted again, as it goes on.
+    const auto turned = [&] {
+        if (!m_motion || !widget || !enabled(option))
+            return 0.0;
+        m_animator->keepPainting(widget);
+        return m_animator->seconds() * circularWaveTurn;
+    };
+    // Angles are in degrees clockwise from the top; QPainter's are in sixteenths, anticlockwise from the right. A wave
+    // goes `height` out and in from the circle, turned on by `phase` degrees.
+    const auto arc = [&](double from, double sweep, const QColor &ink, double height = 0, double phase = 0) {
+        const QPen pen(QBrush(ink), circularThickness, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+        if (height < 0.05) {
+            painter->setPen(pen);
+            painter->drawArc(ring, static_cast<int>(std::lround((90 - from) * 16)),
+                             -static_cast<int>(std::lround(sweep * 16)));
+            return;
+        }
+        const auto point = [&](double degrees) {
+            const double radians = degrees * pi / 180;
+            const double radius = inset + height * std::sin(crests * (degrees - phase) * pi / 180);
+            return QPointF(centre.x() + radius * std::sin(radians), centre.y() - radius * std::cos(radians));
+        };
+        // A point for about every pixel along the circle.
+        const int steps = std::max(2, static_cast<int>(std::ceil(sweep * pi / 180 * inset)));
+        QPainterPath wave;
+        wave.moveTo(point(from));
+        for (int step = 1; step <= steps; ++step)
+            wave.lineTo(point(from + sweep * step / steps));
+        if (sweep >= 359.5)
+            wave.closeSubpath();
+        painter->strokePath(wave, pen);
+    };
     // The room that a gap and the two round ends take, as an angle.
     const double apart = (circularGap + circularThickness) / (pi * ring.width()) * 360;
     if (bar->minimum == 0 && bar->maximum == 0) {
@@ -4152,7 +4430,7 @@ void QMaterialStyle::drawCircularProgress(const QStyleOption *option, QPainter *
             from = std::fmod(time * 300, 360.0);
             sweep = 40 + 220 * (0.5 - 0.5 * std::cos(time * 2 * pi / 1.4));
         }
-        arc(from, sweep, active);
+        arc(from, sweep, active, wavy ? circularWaveHeight : 0, wavy ? turned() : 0);
         painter->restore();
         return;
     }
@@ -4161,14 +4439,23 @@ void QMaterialStyle::drawCircularProgress(const QStyleOption *option, QPainter *
     if (span > 0 && bar->progress > bar->minimum)
         done = 360.0 * static_cast<double>(std::min<qint64>(bar->progress, bar->maximum) - bar->minimum) /
                static_cast<double>(span);
+    // A wave is flat when there is little to show it in, and when nearly all is done; it rises and settles.
+    double height = 0;
+    if (wavy && enabled(option)) {
+        height = done > 36 && done < 342 ? circularWaveHeight : 0;
+        if (m_motion && widget)
+            height = std::clamp(m_animator->value(widget, WaveChannel, height, QtPrivate::defaultEffectsSpring, 0.02),
+                                0.0, circularWaveHeight);
+    }
+    const double phase = height >= 0.05 ? turned() : 0;
     if (done >= 359.5) {
-        arc(0, 360, active);
+        arc(0, 360, active, height, phase);
     } else if (done <= 0) {
         arc(0, 360, track);
     } else {
         if (360 - done - 2 * apart > 0)
             arc(done + apart, 360 - done - 2 * apart, track);
-        arc(0, std::max(done, 0.5), active);
+        arc(0, std::max(done, 0.5), active, height, phase);
     }
     painter->restore();
 }
@@ -4318,7 +4605,8 @@ void QMaterialStyle::drawSnackbar(QPainter *painter, const QStatusBar *bar) cons
 
 void QMaterialStyle::drawProgressBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
     const auto *bar = static_cast<const QStyleOptionProgressBar *>(option);
-    if (widget && widget->property("materialProgress").toString() == QLatin1String("circular")) {
+    if (const QString kind = widget ? widget->property("materialProgress").toString() : QString();
+        kind == QLatin1String("circular") || kind == QLatin1String("circularWavy")) {
         drawCircularProgress(option, painter, widget);
         return;
     }
@@ -4524,6 +4812,14 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter,
             painter->fillRect(QRect(r.left(), r.center().y(), r.width(), 1), color(Role::OutlineVariant));
         return;
     }
+    if (isMenuSection(menu, item)) {
+        // A section is a group label: no line, its text in label medium, as far in as the text of the rows.
+        painter->setFont(menuGroupLabelFont(item->font));
+        painter->setPen(color(Role::OnSurfaceVariant));
+        painter->drawText(QRect(r.left() + menuPadding, r.top(), r.width() - 2 * menuPadding, r.height()),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, menuLabel(item->text));
+        return;
+    }
     const bool usable = item->state & State_Enabled;
     const bool checkable = item->checkType != QStyleOptionMenuItem::NotCheckable;
     const bool checked = checkable && item->checked;
@@ -4563,16 +4859,44 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter,
     }
     if (checkable || !item->icon.isNull())
         left += menuIconSize + menuIconSpace;
-    const qsizetype tab = item->text.indexOf(QLatin1Char('\t'));
-    const QString label = menuLabel(item->text);
+    const MenuRowParts parts = menuRowParts(item->text);
+    const QRect room(left, r.top(), r.right() - menuPadding - left + 1, r.height());
     painter->setPen(ink);
-    painter->drawText(QRect(left, r.top(), r.right() - menuPadding - left + 1, r.height()),
-                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, label);
-    const bool submenu = item->menuItemType == QStyleOptionMenuItem::SubMenu;
-    if (tab >= 0) {
+    if (parts.supporting.isEmpty()) {
+        painter->drawText(room, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, parts.label);
+    } else {
+        // The label over its supporting text, in body medium, the two in the middle of the row as a list's are.
+        const QFont supportingFont = listRowFont(item->font, 14, false);
+        const int labelHeight = std::max(listHeadlineLine, QFontMetrics(item->font).height());
+        const int lineHeight = std::max(listSupportingLine, QFontMetrics(supportingFont).height());
+        const QStringList lines = parts.supporting.split(QLatin1Char('\n'));
+        int y = r.top() + (r.height() - labelHeight - static_cast<int>(lines.size()) * lineHeight) / 2;
+        painter->drawText(QRect(room.left(), y, room.width(), labelHeight),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, parts.label);
+        y += labelHeight;
+        painter->save();
+        painter->setFont(supportingFont);
         painter->setPen(quiet);
-        painter->drawText(QRect(r.left(), r.top(), r.width() - menuPadding - (submenu ? menuPadding : 0), r.height()),
-                          Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, item->text.mid(tab + 1));
+        for (const QString &line : lines) {
+            painter->drawText(QRect(room.left(), y, room.width(), lineHeight),
+                              Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, line);
+            y += lineHeight;
+        }
+        painter->restore();
+    }
+    const bool submenu = item->menuItemType == QStyleOptionMenuItem::SubMenu;
+    // What is at the trailing end, from the edge in: the arrow of a submenu, the trailing icon, the shortcut.
+    int trailing = r.right() + 1 - menuPadding - (submenu ? menuPadding : 0);
+    if (const QIcon icon = menuTrailingIcon(menu, r); !icon.isNull()) {
+        paintIcon(painter,
+                  QRect(trailing - menuIconSize, r.top() + (r.height() - menuIconSize) / 2, menuIconSize, menuIconSize),
+                  icon, usable ? QIcon::Normal : QIcon::Disabled, QIcon::Off, quiet);
+        trailing -= menuIconSize + menuIconSpace;
+    }
+    if (!parts.shortcut.isEmpty()) {
+        painter->setPen(quiet);
+        painter->drawText(QRect(r.left(), r.top(), trailing - r.left(), r.height()),
+                          Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, parts.shortcut);
     }
     if (submenu) {
         const QPointF centre(r.right() - menuPadding, r.center().y());
@@ -4614,8 +4938,17 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
         }
         break;
     case PE_PanelTipLabel:
-        // A plain tooltip: dark on a light scheme and light on a dark one.
         painter->setRenderHint(QPainter::Antialiasing);
+        // A rich tooltip, which QToolTip's label says it is: a surface container at level 2, its shadow in the 2 that
+        // the label keeps below it.
+        if (widget && widget->property(richToolTipProperty).toBool()) {
+            const QRectF body = QRectF(option->rect).adjusted(0, 0, 0, -richToolTipShadow);
+            fillRounded(painter, body.adjusted(0.5, richToolTipShadow, -0.5, richToolTipShadow), richToolTipCorner,
+                        withOpacity(QColor(Qt::black), 0.18));
+            fillRounded(painter, body, richToolTipCorner, color(Role::SurfaceContainer));
+            break;
+        }
+        // A plain tooltip: dark on a light scheme and light on a dark one.
         fillRounded(painter, QRectF(option->rect), snackbarCorner, color(Role::InverseSurface));
         break;
     case PE_FrameTabWidget:
@@ -5128,21 +5461,45 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         if (item->menuItemType == QStyleOptionMenuItem::Separator)
             return QSize(menuMinimumWidth - 2 * menuInset,
                          isGroupedMenu(widget) ? 2 * menuVerticalPadding + menuGroupGap : menuSeparator);
-        int width = contentsSize.width() + 2 * menuPadding;
+        // A section is a group label, lower than a row.
+        if (isMenuSection(widget, item))
+            return QSize(
+                std::max(menuMinimumWidth - 2 * menuInset,
+                         QFontMetrics(menuGroupLabelFont(item->font)).horizontalAdvance(menuLabel(item->text)) +
+                             2 * menuPadding),
+                menuGroupLabelHeight);
+        int textWidth = contentsSize.width();
+        int height = std::max(menuItemHeight, contentsSize.height());
+        if (const MenuRowParts parts = menuRowParts(item->text); !parts.supporting.isEmpty()) {
+            // A row with supporting text is as wide as its widest line and grows by a line of 20 for each.
+            const QFontMetrics label(item->font);
+            const QFontMetrics supporting(listRowFont(item->font, 14, false));
+            const QStringList lines = parts.supporting.split(QLatin1Char('\n'));
+            textWidth = label.horizontalAdvance(parts.label);
+            for (const QString &line : lines)
+                textWidth = std::max(textWidth, supporting.horizontalAdvance(line));
+            height = std::max(menuItemHeight,
+                              2 * menuSupportingPadding + std::max(listHeadlineLine, label.height()) +
+                                  static_cast<int>(lines.size()) * std::max(listSupportingLine, supporting.height()));
+        }
+        int width = textWidth + 2 * menuPadding;
         if (!item->icon.isNull() || item->checkType != QStyleOptionMenuItem::NotCheckable)
             width += menuIconSize + menuIconSpace;
         if (item->text.contains(QLatin1Char('\t')))
             width += item->reservedShortcutWidth + 2 * menuPadding;
         if (item->menuItemType == QStyleOptionMenuItem::SubMenu)
             width += menuPadding;
-        return QSize(std::max(width, menuMinimumWidth - 2 * menuInset),
-                     std::max(menuItemHeight, contentsSize.height()));
+        if (hasMenuTrailingIcons(widget))
+            width += menuIconSize + menuIconSpace;
+        return QSize(std::max(width, menuMinimumWidth - 2 * menuInset), height);
     }
     case CT_ProgressBar:
         if (loadingOf(widget) != Loading::No)
             return QSize(loadingSize, loadingSize);
         if (widget && widget->property("materialProgress").toString() == QLatin1String("circular"))
             return QSize(circularSize, circularSize);
+        if (widget && widget->property("materialProgress").toString() == QLatin1String("circularWavy"))
+            return QSize(circularWavySize, circularWavySize);
         if (widget && widget->property("materialProgress").toString() == QLatin1String("wavy"))
             return QSize(contentsSize.width(), std::max(wavyProgressHeight, contentsSize.height()));
         return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));

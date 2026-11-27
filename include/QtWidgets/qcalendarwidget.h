@@ -8,6 +8,7 @@
 #include <QtWidgets/qwidget.h>
 
 class QLabel;
+class QLineEdit;
 class QPainter;
 class QToolButton;
 
@@ -136,6 +137,15 @@ private:
     void moveYearCursor(int year);
     QRect yearRect(int year) const;
     int yearAt(const QPoint &pos) const; // 0 for none
+    // The input mode of Material's modal date picker: a text field in the place of the month, where a date is typed
+    // in the short format of the locale; the icon button at the end of the headline switches to it and back.
+    void setInputMode(bool input);
+    QRect modeButtonRect() const;
+    void layoutDateField();
+    QString dateFieldFormat() const;
+    QDate dateFieldDate(QString *error) const; // an invalid date and why, for text that is not a date of the range
+    void dateFieldEdited();
+    void dateFieldFinished();
 
     QWidget *m_navigation = nullptr;
     QToolButton *m_previous = nullptr;
@@ -160,4 +170,8 @@ private:
     bool m_choosingYear = false;
     int m_yearRow = 0;    // the first row of years that is shown
     int m_yearCursor = 0; // the year that the keyboard is on
+    bool m_navigationBar = true; // whether the program wants the navigation bar, which the input mode hides
+    bool m_inputMode = false;
+    bool m_typing = false;            // while the field selects what was typed, its text is left alone
+    QLineEdit *m_dateField = nullptr; // made when the input mode is first shown
 };

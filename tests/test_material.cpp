@@ -1509,6 +1509,176 @@ void testMenuShapes() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A rich tooltip: rich text, or the property of its widget, makes one; a plain tooltip stays as it was.
+void testRichToolTips() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(480, 400);
+    auto *button = new QPushButton(QStringLiteral("Grid"), &window);
+    button->move(20, 20);
+    window.show();
+    QCoreApplication::processEvents();
+    const auto tipLabel = [&]() -> QWidget * {
+        for (QWidget *child : window.findChildren<QWidget *>())
+            if (child->isVisible() && child->parentWidget() == &window && child != button)
+                return child;
+        return nullptr;
+    };
+    const auto at = [&](int x, int y) { return window.grab().toImage().pixelColor(x, y); };
+    const QColor container = style->color(Role::SurfaceContainer);
+    const QColor ink = style->color(Role::OnSurfaceVariant);
+
+    // A plain text stays a plain tooltip.
+    QToolTip::showText(window.mapToGlobal(QPoint(40, 40)), QStringLiteral("Search"), button);
+    QCoreApplication::processEvents();
+    QWidget *tip = tipLabel();
+    CHECK(tip != nullptr);
+    if (tip) {
+        CHECK(!tip->property("_nt_materialRichToolTip").toBool());
+        CHECK(tip->height() < 32);
+        CHECK(near(at(tip->x() + 3, tip->y() + 12), style->color(Role::InverseSurface), 3));
+    }
+
+    // Rich text that starts with a bold run: the run is the subhead, over the supporting text, in a surface container.
+    const QString rich = QStringLiteral("<b>Grid view</b><br>Shows the files as a grid of pictures, which is easier to "
+                                        "scan when there are many of them.");
+    QToolTip::showText(window.mapToGlobal(QPoint(40, 40)), rich, button);
+    QCoreApplication::processEvents();
+    tip = tipLabel();
+    CHECK(tip != nullptr);
+    CHECK(QToolTip::text() == rich);
+    if (tip) {
+        CHECK(tip->property("_nt_materialRichToolTip").toBool());
+        CHECK(tip->font().pixelSize() == 14);
+        CHECK(tip->width() <= 320);
+        // 12 above, the subhead, 4, the supporting text, 12 below and 2 for the shadow.
+        CHECK(tip->height() >= 12 + 14 + 4 + 14 + 12 + 2);
+        if (textIsDrawn()) {
+            CHECK(tip->width() > 240); // the supporting text wraps at the widest the tooltip may be
+            CHECK(tip->height() >= 12 + 14 + 4 + 2 * 14 + 12 + 2);
+        }
+        const QPoint origin = tip->pos();
+        CHECK(near(at(origin.x() + tip->width() / 2, origin.y() + 4), container, 3));  // the padding above the text
+        CHECK(near(at(origin.x() + 6, origin.y() + tip->height() / 2), container, 3)); // and beside it
+        CHECK(!near(at(origin.x(), origin.y()), container, 3));                        // its corners are round, 12
+        CHECK(!near(at(origin.x() + 2, origin.y() + 2), container, 3));
+        // The shadow lies in the 2 below the container, darker than the window.
+        const QColor shadow = at(origin.x() + tip->width() / 2, origin.y() + tip->height() - 1);
+        CHECK(shadow.lightness() < style->color(Role::Surface).lightness() - 10);
+        if (textIsDrawn()) {
+            const QImage image = window.grab().toImage();
+            int inked = 0;
+            for (int y = 12; y < tip->height() - 14; ++y)
+                for (int x = 16; x < tip->width() - 16; ++x)
+                    inked += near(image.pixelColor(origin.x() + x, origin.y() + y), ink, 40) ? 1 : 0;
+            CHECK(inked > 20);
+        }
+    }
+
+    // Rich text without a bold start is a rich tooltip too, with no subhead.
+    QToolTip::showText(window.mapToGlobal(QPoint(40, 40)), QStringLiteral("Shows the files as <i>pictures</i>"),
+                       button);
+    QCoreApplication::processEvents();
+    tip = tipLabel();
+    CHECK(tip && tip->property("_nt_materialRichToolTip").toBool());
+
+    // The property makes a plain text rich, its first line the subhead.
+    button->setProperty("materialToolTip", QStringLiteral("rich"));
+    QToolTip::showText(window.mapToGlobal(QPoint(40, 40)), QStringLiteral("Grid view\nShows the files as pictures"),
+                       button);
+    QCoreApplication::processEvents();
+    tip = tipLabel();
+    CHECK(tip && tip->property("_nt_materialRichToolTip").toBool());
+    if (tip)
+        CHECK(tip->height() >= 12 + 14 + 4 + 14 + 12 + 2);
+    QToolTip::hideText();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// The extras of a menu row: group labels, supporting text and trailing icons.
+void testMenuRowExtras() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(480, 480);
+    window.show();
+    QCoreApplication::processEvents();
+    const QColor container = style->color(Role::SurfaceContainer);
+    const QColor quiet = style->color(Role::OnSurfaceVariant);
+
+    QMenu menu(&window);
+    QAction *cut = menu.addAction(QStringLiteral("Cut"));
+    QAction *recent = menu.addSection(QStringLiteral("Recent"));
+    QAction *open = menu.addAction(QStringLiteral("Open\nOpens a file"));
+    open->setShortcut(QKeySequence(QStringLiteral("Ctrl+O")));
+    QAction *two = menu.addAction(QStringLiteral("Share\nSends a copy\nto someone else"));
+    menu.popup(window.mapToGlobal(QPoint(20, 20)));
+    QCoreApplication::processEvents();
+    const auto at = [&](const QPoint &point) { return window.grab().toImage().pixelColor(menu.mapTo(&window, point)); };
+
+    // A section is a group label of 32, with no line through it.
+    const QRect label = menu.actionGeometry(recent);
+    CHECK(label.height() == 32);
+    CHECK(label.top() == 4 + 48);
+    for (int x = label.left() + 90; x < label.right() - 1; x += 4)
+        CHECK(near(at(QPoint(x, label.center().y())), container, 2));
+    CHECK(near(at(QPoint(label.right() - 4, label.center().y())), container, 2));
+    // A row with supporting text: a label of 24 over a line of 20, 8 above and below; one more line, 20 more.
+    CHECK(menu.actionGeometry(open).height() == 60);
+    CHECK(menu.actionGeometry(two).height() == 80);
+    CHECK(menu.actionGeometry(cut).height() == 48);
+    CHECK(menu.height() == 4 + 48 + 32 + 60 + 80 + 4);
+    if (textIsDrawn()) {
+        const QImage image = window.grab().toImage();
+        const auto inked = [&](const QRect &area, const QColor &color) {
+            int count = 0;
+            for (int y = area.top(); y <= area.bottom(); ++y)
+                for (int x = area.left(); x <= area.right(); ++x)
+                    count += near(image.pixelColor(menu.mapTo(&window, QPoint(x, y))), color, 40) ? 1 : 0;
+            return count;
+        };
+        // The group label's text, 12 in from the row, in the quiet color.
+        CHECK(inked(QRect(label.left() + 12, label.top() + 8, 40, 16), quiet) > 4);
+        CHECK(inked(QRect(label.left(), label.top(), 10, label.height()), quiet) == 0);
+        // The supporting text, under the label, in the quiet color too.
+        const QRect row = menu.actionGeometry(open);
+        CHECK(inked(QRect(row.left() + 12, row.top() + 8 + 24, 60, 20), quiet) > 4);
+        // The shortcut stays at the trailing end.
+        CHECK(inked(QRect(row.right() - 60, row.top(), 48, row.height()), quiet) > 4);
+    }
+    const int plainWidth = menu.width();
+    menu.hide();
+
+    // A trailing icon: 24 at the trailing end of its row, an icon of one color in OnSurfaceVariant; every row makes
+    // room for it.
+    QPixmap pixmap(24, 24);
+    pixmap.fill(Qt::black);
+    QMenu icons(&window);
+    icons.addAction(QStringLiteral("Cut"));
+    icons.addSection(QStringLiteral("Recent"));
+    QAction *withIcon = icons.addAction(QStringLiteral("Open\nOpens a file"));
+    withIcon->setShortcut(QKeySequence(QStringLiteral("Ctrl+O")));
+    icons.addAction(QStringLiteral("Share\nSends a copy\nto someone else"));
+    withIcon->setProperty("materialTrailingIcon", QIcon(pixmap));
+    icons.popup(window.mapToGlobal(QPoint(20, 20)));
+    QCoreApplication::processEvents();
+    CHECK(icons.width() == plainWidth + 24 + 12);
+    const QRect row = icons.actionGeometry(withIcon);
+    const QPoint centre(row.right() + 1 - 12 - 12, row.center().y());
+    CHECK(near(window.grab().toImage().pixelColor(icons.mapTo(&window, centre)), quiet, 3));
+    CHECK(near(window.grab().toImage().pixelColor(icons.mapTo(&window, QPoint(row.right() - 4, row.center().y()))),
+               container, 2));
+    icons.hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 // The five sizes of the common button, and the square shape.
 void testButtonSizes() {
     auto *style = new QMaterialStyle;
@@ -3948,6 +4118,205 @@ void testDatePicker() {
     CHECK(arrows.at(0)->isVisible());
 }
 
+// The input mode of the modal date picker: the pencil in the headline swaps the month for a text field.
+void testDatePickerInput() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(400, 560);
+    auto *calendar = new QCalendarWidget(&window);
+    calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    calendar->setProperty("materialDatePicker", "modal");
+    const int year = QDate::currentDate().year();
+    calendar->setDateRange(QDate(year - 25, 3, 15), QDate(year + 10, 9, 10));
+    calendar->setSelectedDate(QDate(year - 1, 1, 20));
+    calendar->resize(calendar->sizeHint());
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    int selections = 0;
+    int clicks = 0;
+    QList<QDate> activations;
+    QObject::connect(calendar, &QCalendarWidget::selectionChanged, [&] { ++selections; });
+    QObject::connect(calendar, &QCalendarWidget::clicked, [&](QDate) { ++clicks; });
+    QObject::connect(calendar, &QCalendarWidget::activated, [&](QDate date) { activations.append(date); });
+    QWidget *navigation = calendar->findChild<QLabel *>()->parentWidget();
+    CHECK(calendar->findChild<QLineEdit *>() == nullptr); // made when it is first wanted
+
+    const auto click = [&](const QPoint &at) {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(at), QPointF(at), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(calendar, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(at), QPointF(at), Qt::LeftButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(calendar, &release);
+        QCoreApplication::processEvents();
+    };
+    // Keys go through the window, to whatever has the focus.
+    const auto key = [&](int code, const QString &text = QString()) {
+        QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyPress, code, Qt::NoModifier, text);
+        QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyRelease, code, Qt::NoModifier, text);
+        QCoreApplication::processEvents();
+    };
+    const auto type = [&](const QString &text) {
+        for (const QChar c : text)
+            key(c.isDigit() ? Qt::Key_0 + c.digitValue() : Qt::Key_Slash, QString(c));
+    };
+    const auto clear = [&] {
+        for (int i = 0; i < 12; ++i)
+            key(Qt::Key_Backspace);
+    };
+    // The icon button is 48 square at the end of the row of the date, 12 from the right; the pencil is in its middle.
+    const QPoint button(7 * 40 - 12 - 24, 120 - 12 - 20);
+    const auto inked = [&](const QRect &area) {
+        const QImage image = calendar->grab().toImage().copy(area);
+        int count = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                count += near(image.pixelColor(x, y), style->color(Role::OnSurfaceVariant), 40) ? 1 : 0;
+        return count;
+    };
+    const QRect icon(button - QPoint(12, 12), QSize(24, 24));
+    CHECK(inked(icon) > 20);
+    const QImage pencil = calendar->grab().toImage().copy(icon);
+
+    // A click on it shows the field, "Date", with the selected date in the form that its supporting text shows, and
+    // gives it the focus; the month and its bar go.
+    click(button);
+    auto *field = calendar->findChild<QLineEdit *>();
+    CHECK(field && field->isVisible());
+    if (!field)
+        return;
+    CHECK(field->property("materialLabel").toString() == QLatin1String("Date"));
+    CHECK(!navigation->isVisible());
+    CHECK(calendar->isNavigationBarVisible()); // the program's wish is kept
+    CHECK(QApplication::focusWidget() == field);
+    CHECK(field->inputMethodHints() == Qt::ImhDate); // digits and the separators, not digits alone
+    // The field is 24 in from the sides, 16 under the headline.
+    CHECK(field->geometry().left() == 24 && field->geometry().right() == 7 * 40 - 25);
+    CHECK(field->geometry().top() == 121 + 16);
+    const QString hint = field->property("materialSupportingText").toString();
+    CHECK(hint.contains(QLatin1String("MM")) && hint.contains(QLatin1String("DD")) &&
+          hint.contains(QLatin1String("YYYY")));
+    QString format = hint;
+    format.replace(QLatin1Char('D'), QLatin1Char('d')).replace(QLatin1Char('Y'), QLatin1Char('y'));
+    const auto shown = [&](QDate date) { return QLocale().toString(date, format); };
+    CHECK(field->text() == shown(QDate(year - 1, 1, 20)));
+    CHECK(field->property("materialError").toString().isEmpty());
+    // The pencil has become a calendar.
+    CHECK(calendar->grab().toImage().copy(icon) != pencil);
+    CHECK(inked(icon) > 20);
+    CHECK(selections == 0 && clicks == 0);
+
+    // A date typed whole selects itself, and the headline follows; while it is short of the pattern there is no error.
+    const QRect headline(24, 68, 7 * 40 - 24 - 60, 40);
+    const QImage before = calendar->grab().toImage().copy(headline);
+    clear();
+    const QString typed = shown(QDate(year + 2, 5, 6));
+    type(typed.left(4));
+    CHECK(field->property("materialError").toString().isEmpty());
+    CHECK(calendar->selectedDate() == QDate(year - 1, 1, 20));
+    type(typed.mid(4));
+    CHECK(field->text() == typed);
+    CHECK(calendar->selectedDate() == QDate(year + 2, 5, 6));
+    CHECK(selections == 1 && clicks == 0);
+    CHECK(field->property("materialError").toString().isEmpty());
+    if (textIsDrawn())
+        CHECK(calendar->grab().toImage().copy(headline) != before);
+    // Return accepts it, as in Qt's own date edit.
+    key(Qt::Key_Return);
+    CHECK(activations.size() == 1 && activations.value(0) == QDate(year + 2, 5, 6));
+
+    // A date that cannot be shows the error, and the selection stays; Return does not accept it.
+    clear();
+    QString impossible = format; // the 45th day of a 13th month
+    impossible.replace(QLatin1String("MM"), QLatin1String("13"))
+        .replace(QLatin1String("dd"), QLatin1String("45"))
+        .replace(QLatin1String("yyyy"), QString::number(year));
+    type(impossible);
+    CHECK(!field->property("materialError").toString().isEmpty());
+    CHECK(calendar->selectedDate() == QDate(year + 2, 5, 6));
+    key(Qt::Key_Return);
+    CHECK(activations.size() == 1);
+    CHECK(!field->property("materialError").toString().isEmpty());
+    // So does a date out of the range, before or after it.
+    clear();
+    type(shown(QDate(year + 11, 1, 1)));
+    CHECK(field->property("materialError").toString().contains(QLatin1String("range")));
+    CHECK(calendar->selectedDate() == QDate(year + 2, 5, 6));
+    clear();
+    type(shown(QDate(year - 25, 3, 14)));
+    CHECK(field->property("materialError").toString().contains(QLatin1String("range")));
+    clear();
+    type(shown(QDate(year - 25, 3, 15))); // the first day of the range is in it
+    CHECK(field->property("materialError").toString().isEmpty());
+    CHECK(calendar->selectedDate() == QDate(year - 25, 3, 15));
+    CHECK(selections == 2);
+    // A date selected some other way shows in the field.
+    calendar->setSelectedDate(QDate(year, 7, 4));
+    CHECK(field->text() == shown(QDate(year, 7, 4)));
+    CHECK(selections == 3);
+
+    // The calendar goes back to the days, with what was typed if it is a date of the range.
+    clear();
+    type(shown(QDate(year + 1, 2, 3)));
+    clear(); // what is left is not a date, and the selection stays as typed last
+    type(shown(QDate(year + 1, 2, 3)).left(3));
+    // The days cannot be clicked while the field is in their place.
+    const QPoint day(140, calendar->height() - 60);
+    click(day);
+    CHECK(clicks == 0);
+    click(button);
+    CHECK(!field->isVisible());
+    CHECK(navigation->isVisible());
+    CHECK(calendar->selectedDate() == QDate(year + 1, 2, 3));
+    CHECK(calendar->yearShown() == year + 1 && calendar->monthShown() == 2);
+    CHECK(QApplication::focusWidget() == calendar);
+    CHECK(calendar->grab().toImage().copy(icon) == pencil);
+    // The days can be clicked again.
+    click(day);
+    CHECK(clicks == 1);
+    calendar->setSelectedDate(QDate(year + 1, 2, 3));
+
+    // Text that is a date when the calendar goes back selects it, without Return.
+    click(button);
+    CHECK(field->isVisible() && field->text() == shown(QDate(year + 1, 2, 3)));
+    CHECK(field->property("materialError").toString().isEmpty());
+    calendar->setSelectedDate(QDate(year + 1, 2, 4)); // as if typed with no signal from the field
+    field->setText(shown(QDate(year + 3, 8, 9)));
+    selections = 0;
+    click(button);
+    CHECK(calendar->selectedDate() == QDate(year + 3, 8, 9));
+    CHECK(selections == 1);
+    // Text that is not leaves the selection alone.
+    click(button);
+    field->setText(QStringLiteral("x"));
+    click(button);
+    CHECK(calendar->selectedDate() == QDate(year + 3, 8, 9));
+    CHECK(!field->isVisible());
+
+    // Without the property the input mode goes with the headline, and the button with it.
+    click(button);
+    CHECK(field->isVisible());
+    calendar->setProperty("materialDatePicker", QVariant());
+    QCoreApplication::processEvents();
+    CHECK(!field->isVisible());
+    CHECK(navigation->isVisible());
+    calendar->resize(calendar->sizeHint());
+    click(QPoint(7 * 40 - 36, 30));
+    CHECK(!field->isVisible());
+    // Under another style there is no headline, so no button either.
+    calendar->setProperty("materialDatePicker", "modal");
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    calendar->resize(calendar->sizeHint());
+    click(button);
+    CHECK(!field->isVisible());
+}
+
 // The five sizes of the slider, and the value indicator over its handle.
 void testSliderSizesAndValue() {
     auto *style = new QMaterialStyle;
@@ -4992,6 +5361,130 @@ void testExitMotion() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A scroll bar's handle fades out at rest and comes back when it is scrolled or the pointer comes onto it.
+void testScrollBarRest() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *area = new QScrollArea(&window);
+    auto *content = new QWidget;
+    content->resize(180, 1000);
+    area->setWidget(content);
+    area->setGeometry(10, 10, 200, 200);
+    window.resize(240, 240);
+    window.show();
+    QCoreApplication::processEvents();
+    QScrollBar *bar = area->verticalScrollBar();
+    CHECK(bar->isVisible() && bar->maximum() > 0);
+    const int width = bar->width();
+    // The pixels of the handle in a row near the top, where it is at the start: those unlike the background at the left.
+    const auto handle = [&] {
+        const QImage image = bar->grab().toImage();
+        int count = 0;
+        for (int x = 1; x < image.width(); ++x)
+            count += near(image.pixelColor(x, 20), image.pixelColor(0, 20), 3) ? 0 : 1;
+        return count;
+    };
+    const int rest = 1500; // milliseconds before it rests
+    CHECK(handle() >= 3);  // shown when it appears,
+    wait(rest + 700);
+    CHECK(handle() == 0);                             // gone once left alone,
+    CHECK(bar->width() == width && bar->isVisible()); // without giving up its room
+    bar->setValue(40);
+    wait(250);
+    CHECK(handle() >= 3); // back as it scrolls
+    wait(rest + 700);
+    CHECK(handle() == 0);
+    // The pointer that comes onto it shows it; once it has left, it goes again.
+    QEvent enter(QEvent::Enter);
+    QCoreApplication::sendEvent(bar, &enter);
+    wait(250);
+    CHECK(handle() >= 3);
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(bar, &leave);
+    wait(rest + 700);
+    CHECK(handle() == 0);
+    // "always" on the scroll area keeps it, as does a style without motion.
+    area->setProperty("materialScrollBar", QStringLiteral("always"));
+    QCoreApplication::processEvents();
+    CHECK(handle() >= 3);
+    area->setProperty("materialScrollBar", QVariant());
+    QCoreApplication::processEvents();
+    CHECK(handle() == 0);
+    style->setMotionEnabled(false);
+    CHECK(handle() >= 3);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// The wavy circular progress indicator: its part that is done is a wave about the circle, and its track is plain.
+void testCircularWavyProgress() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *circle = new QProgressBar(&window);
+    circle->setProperty("materialProgress", QStringLiteral("circularWavy"));
+    circle->setValue(50);
+    circle->move(20, 20);
+    circle->resize(circle->sizeHint());
+    window.resize(100, 100);
+    window.show();
+    QCoreApplication::processEvents();
+    CHECK(circle->sizeHint() == QSize(48, 48));
+    // How many of the angles in a range (clockwise from the top) show `role` at a distance from the middle.
+    const auto count = [&](const QImage &image, int from, int to, double radius, Role role) {
+        int found = 0;
+        for (int degrees = from; degrees < to; ++degrees) {
+            const double radians = degrees * 3.14159265358979323846 / 180.0;
+            const QColor at = image.pixelColor(static_cast<int>(24 + radius * std::sin(radians)),
+                                               static_cast<int>(24 - radius * std::cos(radians)));
+            found += near(at, style->color(role), 20) ? 1 : 0;
+        }
+        return found;
+    };
+    // A plain ring of 4 about a circle of 20.4 reaches from 18.4 to 22.4; the wave goes 1.6 further out and in.
+    wait(600); // the wave rises
+    QImage image = circle->grab().toImage();
+    CHECK(count(image, 15, 165, 23.4, Role::Primary) > 20);
+    CHECK(count(image, 15, 165, 17.4, Role::Primary) > 20);
+    CHECK(count(image, 200, 340, 20.4, Role::SecondaryContainer) > 120); // the track is a plain circle,
+    CHECK(count(image, 200, 340, 23.4, Role::SecondaryContainer) == 0);
+    CHECK(count(image, 200, 340, 23.4, Role::Primary) == 0);
+    // and the wave turns.
+    wait(150);
+    CHECK(circle->grab().toImage() != image);
+
+    // Nearly done, it is flat.
+    circle->setValue(99);
+    wait(700);
+    image = circle->grab().toImage();
+    CHECK(count(image, 15, 340, 23.4, Role::Primary) == 0);
+    CHECK(count(image, 15, 340, 20.4, Role::Primary) > 300);
+
+    // Busy, its arc is a wave that goes round.
+    circle->setRange(0, 0);
+    int outside = 0;
+    for (int i = 0; i < 6; ++i) {
+        wait(80);
+        outside = std::max(outside, count(circle->grab().toImage(), 0, 360, 23.4, Role::Primary));
+    }
+    CHECK(outside > 10);
+
+    // Without motion the busy wave stands still, and is still a wave.
+    style->setMotionEnabled(false);
+    const QImage still = circle->grab().toImage();
+    wait(150);
+    CHECK(circle->grab().toImage() == still);
+    CHECK(count(still, 0, 90, 23.4, Role::Primary) > 5);
+    // The plain circular indicator has no wave.
+    circle->setProperty("materialProgress", QStringLiteral("circular"));
+    CHECK(circle->sizeHint() == QSize(40, 40));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -5002,6 +5495,8 @@ int main(int argc, char *argv[]) {
     testSliderProgressTabs();
     testComboAndMenu();
     testMenuShapes();
+    testMenuRowExtras();
+    testRichToolTips();
     testSpring();
     testMotion();
     testRippleColorsAndTabs();
@@ -5023,12 +5518,15 @@ int main(int argc, char *argv[]) {
     testElevatedChipsAvatarsClickableCards();
     testCalendar();
     testDatePicker();
+    testDatePickerInput();
     testDialogOrderAndFab();
     testRailAndBadges();
     testSheetsAndDrawer();
     testSearchAndSecondaryTabs();
     testTimeInput();
     testSpinBoxAndScrollBar();
+    testScrollBarRest();
+    testCircularWavyProgress();
     testSpinBoxLabel();
     testDialogHeadline();
     testGroupBoxAndTextEditors();

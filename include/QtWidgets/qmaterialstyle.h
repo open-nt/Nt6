@@ -174,9 +174,15 @@ private:
     void drawCalendarDay(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int day, bool selected,
                          bool today, bool usable, const QColor &ink) const;
     // A calendar whose materialDatePicker is "modal" has the headline of Material's modal date picker above the month:
-    // QCalendarWidget makes room for it, as high as this (0 for another calendar), and asks for it to be drawn.
+    // QCalendarWidget makes room for it, as high as this (0 for another calendar), and asks for it to be drawn. At
+    // the end of the row of the date is the icon button that switches to the input mode, a pencil, or back to the
+    // days, a calendar, while `input` is true; QCalendarWidget asks where it is, and where the text field of the
+    // input mode goes in the room under the headline, for a field as high as `fieldHeight`.
     static int datePickerHeadlineHeight(const QWidget *calendar);
-    void drawDatePickerHeadline(QPainter *painter, const QRect &rect, const QCalendarWidget *calendar) const;
+    static QRect datePickerModeButton(const QRect &headline);
+    static QRect datePickerField(const QRect &room, int fieldHeight);
+    void drawDatePickerHeadline(QPainter *painter, const QRect &rect, const QCalendarWidget *calendar,
+                                bool input) const;
     // The month and the year of a calendar, with the arrow of the menu of years, which is `open` while the years are
     // shown in the place of the days; QCalendarWidget paints its label with it, and lays out the grid of years and asks
     // for each, in its cell.

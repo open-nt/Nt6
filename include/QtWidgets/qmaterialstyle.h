@@ -15,6 +15,7 @@ class Animator;
 struct SpringSpec;
 } // namespace QtPrivate
 
+class QFont;
 class QCalendarWidget;
 class QAbstractButton;
 class QDateTimeEdit;
@@ -146,6 +147,11 @@ private:
     // the resting label stands where it would.
     friend class QLineEdit;
     bool hidesPlaceholder(const QLineEdit *field) const;
+    // The prefix or the suffix of a text field, while it shows: when the label has floated, or there is none.
+    QString fieldAffix(const QLineEdit *field, bool suffix) const;
+    // The icon of an action at an end of a text field, in the color of the field's icons.
+    void drawFieldIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode,
+                       const QLineEdit *field, bool trailing) const;
     // The cross of a clear button, in lines, which stay sharp on a screen of any scale.
     void drawClearButton(QPainter *painter, const QRect &area) const;
     void drawTextFieldText(QPainter *painter, const QStyleOption *option, const QWidget *widget) const;
@@ -164,6 +170,17 @@ private:
     friend class QCalendarWidget;
     void drawCalendarDay(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int day, bool selected,
                          bool today, bool usable, const QColor &ink) const;
+    // A calendar whose materialDatePicker is "modal" has the headline of Material's modal date picker above the month:
+    // QCalendarWidget makes room for it, as high as this (0 for another calendar), and asks for it to be drawn.
+    static int datePickerHeadlineHeight(const QWidget *calendar);
+    void drawDatePickerHeadline(QPainter *painter, const QRect &rect, const QCalendarWidget *calendar) const;
+    // The month and the year of a calendar, with the arrow of the menu of years, which is `open` while the years are
+    // shown in the place of the days; QCalendarWidget paints its label with it, and lays out the grid of years and asks
+    // for each, in its cell.
+    void drawCalendarTitle(QPainter *painter, const QRect &rect, const QWidget *label, const QString &text,
+                           bool open) const;
+    void drawCalendarYear(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int year,
+                          bool selected, bool current, bool cursor) const;
     // A dialog that is a sheet against an edge of its parent's window: QDialog asks for it to be put there when it
     // is shown. False for another dialog.
     friend class QDialog;
@@ -183,6 +200,10 @@ private:
     // A top app bar: QToolBar lays itself out for one and asks for its background and title.
     static bool isAppBar(const QWidget *widget);
     void drawAppBar(QPainter *painter, const QToolBar *bar) const;
+    // A medium or large app bar, whose title is on a line below its buttons until it collapses as what is under it
+    // scrolls, and how high it is now: QToolBar keeps its buttons in the top row and asks for that height.
+    static bool isFlexibleAppBar(const QWidget *widget);
+    int appBarExtent(const QToolBar *bar) const;
     void drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const;
     QColor toolBarItemColor(const QStyleOption *option, const QWidget *widget) const;
     // An icon in `ink`, if it has one color of its own; one with several is drawn as it is.
@@ -223,6 +244,15 @@ private:
     // The icon of a row, in `area`: one of one color is drawn in the color of the icons of a list.
     void drawRowIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode, bool selected,
                      bool enabled) const;
+    // A row whose text has a line break is a headline over supporting text, and a tab in its headline puts what follows
+    // at the trailing end: its height (56, 72 or 88), where an icon of `height` goes in it, the size of its text, and
+    // the drawing of that text in `area`, the row without its margins and icon.
+    static bool isMultiPartRow(const QString &text);
+    static int listRowHeight(const QString &text);
+    static int listRowContentTop(const QRect &row, int height, const QString &text);
+    static QSize listRowTextSize(const QString &text, const QFont &font);
+    void drawListRowText(QPainter *painter, const QRect &area, const QString &text, const QFont &font,
+                         const QColor &headlineInk, Qt::Alignment alignment, bool selected, bool enabled) const;
     // The line under the current tab of a horizontal tab bar. QTabBar paints a tab at a time, so it asks for the line,
     // which slides from tab to tab, once they are all painted.
     friend class QTabBar;
@@ -236,6 +266,7 @@ private:
     static int snackbarHeight(const QStatusBar *bar, int width);
     // A message that comes fades in; one that goes, or is replaced, fades out over what follows.
     void snackbarArrives(QStatusBar *bar) const;
+    void drawSnackbarClose(QPainter *painter, const QAbstractButton *button) const;
     void snackbarLeaves(QStatusBar *bar) const;
     void drawSnackbar(QPainter *painter, const QStatusBar *bar) const;
     void drawCircularProgress(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
@@ -243,10 +274,13 @@ private:
     static bool isNavigationBar(const QWidget *widget);
     // A navigation rail: the same at the side, its destinations one under another.
     static bool isNavigationRail(const QWidget *widget);
+    // The expanded one, a rail too: its destinations are rows, the icon beside the label.
+    static bool isExpandedRail(const QWidget *widget);
     // The badge that a button or a destination has: a dot, or a few characters, at the top right of its icon.
     void drawBadge(QPainter *painter, const QVariant &badge, const QRect &icon) const;
     void drawButtonBadge(QPainter *painter, const QAbstractButton *button) const;
     void drawNavigationBar(QPainter *painter, const QTabBar *bar) const;
+    void drawExpandedRail(QPainter *painter, const QTabBar *bar) const;
 
     QColor m_seed;
     Qt::ColorScheme m_scheme = Qt::ColorScheme::Unknown; // Unknown follows the system

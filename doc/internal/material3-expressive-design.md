@@ -137,8 +137,7 @@ Badges are `Error` with `OnError`: a dot of 6, or 16 high with a label of 11; `m
 buttons, `materialBadges` (a list, as the tabs have no object of their own and tab data is the application's) on the
 tab bar. Under the style `SH_DialogButtonLayout` is `AndroidLayout`, which `QDialogButtonBox` now asks for. A
 snackbar goes above a floating action button at the bottom, as Compose's `Scaffold` places it, since a button that a
-layout places cannot be moved aside, and keeps to the pages beside a rail. Not done: the expanded rail, a rail that
-scrolls.
+layout places cannot be moved aside, and keeps to the pages beside a rail. Not done: a rail that scrolls.
 
 Sheets are `QDialog`s with `materialSheet` = `"bottom"` (against the bottom, up to 640 wide, corners 28 at the top)
 or `"drawer"` (against the left edge, up to 360 wide and 56 short of the window, corners 16 at the right), both
@@ -195,6 +194,119 @@ fades in on the default effects spring through a `QGraphicsOpacityEffect` (only 
 that is cleared or replaced leaves a picture of itself (`grab()`, with its buttons) that fades out on the fast effects
 spring. Not done: the snackbar's growing from 80 percent, sheets sliding out (the dialog is hidden at once, and
 `exec()` returns then), the scrim fading.
+
+Text fields have icons, a prefix, a suffix and a counter. The icons come from Qt's own `QLineEdit::addAction(action,
+position)`, which Nt now has: `QLineEdit` draws the visible actions' icons at its ends and triggers an action on a
+click, and the style gives them 24 with 16 more room (`PM_LineEditIconSize`, `PM_LineEditIconMargin`), a quarter of
+which goes toward the edge, so an icon is 12 from the edge and the text 16 from the icon (52 in). The style colours
+one-colour icons `OnSurfaceVariant`, a trailing one `Error` while there is an error. The label rests where the text
+begins and floats to the edge on an outlined field. `materialPrefix` and `materialSuffix` (Nt only) show, in the
+placeholder colour, once the label has floated; `materialCounter` puts `length/maxLength` at the end of the supporting
+line. Not done: the icon buttons' own ripple and hover, avatars.
+
+A snackbar can have its close affordance: `materialCloseButton` (Nt only) on the status bar makes `QStatusBar` give
+itself a button of 48 at its very end, after the actions, while there is a message. The snackbar draws its cross (24,
+`InverseOnSurface`, a light circle while pressed) over the button, which only takes the press, and the click clears
+the message. Not done: hover on the cross, a focus ring.
+
+The top app bar follows what is scrolled under it, as Compose's `TopAppBarDefaults` colors do: its container is
+`Surface` at rest and `SurfaceContainer` (`scrolledContainerColor`) while the content beneath it is scrolled, faded on
+the default effects spring (at once without motion). The bar has no link to its content in Qt, so the style looks for
+it when it paints the bar: a `QAbstractScrollArea` of the same window that is shown, starts at or below the bar's
+bottom edge, is at least half as high as the window below the bar, and whose vertical scroll bar is past its minimum.
+`polish()` gives each scroll area a hidden child object that connects its vertical scroll bar's `valueChanged` to a
+repaint of the window's app bars (`unpolish()` deletes it, which disconnects it), and the style's event filter does the
+same when a scroll area is shown or hidden, as when a tab widget changes page. The title and icons keep their colors.
+Not done: the bar does not scroll away or collapse (`enterAlways`, `exitUntilCollapsed`), the medium and large bars
+that shrink as the content scrolls, and content that scrolls without a `QAbstractScrollArea` (a `QGraphicsView` is one,
+so it counts; a custom widget that scrolls itself does not). A scroll bar that is replaced with
+`setVerticalScrollBar()` after polishing loses the connection until the area is polished again.
+
+The date picker has a headline and a choice of years (numbers from `DatePickerModalTokens`). The headline is opt-in:
+`materialDatePicker` `"modal"` on a `QCalendarWidget` puts above the month a header of 120 (`SurfaceContainerHigh`):
+"Select date" 14 medium 16 from the top and the selected date as `ddd, MMM d` 32 regular 12 from the bottom, both
+`OnSurfaceVariant` and 24 in, then an `OutlineVariant` divider of 1. Without it a calendar keeps its look, since a
+calendar that is not in a dialog of its own, such as the pop-up of a `QDateEdit`, is the docked picker, which has no
+headline. The choice of years is for every calendar under the style: `QCalendarWidget` filters the paint and press
+events of its month label, which `QMaterialStyle::drawCalendarTitle()` paints as 14 medium `OnSurfaceVariant` text
+with an arrow of a menu (up while open). A click hides the month arrows (the bar keeps the height they give it) and
+replaces the days with the years from `minimumDate().year()` to `maximumDate().year()`, three columns of cells 52 high,
+8 under the bar; `drawCalendarYear()` draws a pill of 72 by 36, `Primary` with `OnPrimary` for the year shown, a 1
+`Primary` outline for this year, `OnSurfaceVariant` otherwise, and the focus ring for the keyboard's year. The year
+shown opens in the second row; the wheel scrolls by rows; arrows, Page Up/Down, Home/End move, Return/Enter/Space
+choose, Escape (or another click on the label) goes back. Choosing a year shows its days in the same month, clamped to
+the months of the range, and leaves the selection alone, as Compose does. Nothing moves, so motion off changes nothing.
+Not done: the range picker, the input mode (field and its toggle), a menu of months (the docked picker's), the
+confirm and cancel buttons (left to the dialog), state layers on the years, animating the switch, and a localized
+headline.
+
+Sliders have the five Expressive sizes, `materialSliderSize` = `"extraSmall"` (the default, the look they had) to
+`"extraLarge"`: tracks of 16, 24, 40, 56 and 96, outer corners 8, 8, 12, 16 and 28, handles of 44, 44, 52, 68 and 108
+(`PM_SliderThickness`, and `SE_SliderHandle` is as long across, so that is where a press takes hold). The ends beside
+the handle have corners of 2, except on the extra small size, which keeps its round ones; the stops sit as far in as
+the outer corner. The value indicator is a pill of 44 by at least 48 (`InverseSurface`, the value in label large,
+`InverseOnSurface`, 12 beside it), 4 over the handle, or 4 at its left on a vertical slider, and pushed back inside
+the slider near an end. It shows while the handle is pressed or the slider has the keyboard focus ring (that is, the
+arrow keys are moving it). A slider with tick marks shows it, as Material's discrete sliders do; `materialSliderValue`
+= `true` or `false` overrides that. It is drawn inside the slider, not in an overlay: a slider that shows it is
+thicker by 48 (or by the width of its widest value, vertically), and the track and handle are centred in the rest, so
+it is never clipped as long as the slider gets its minimum size. Not done: drawing it over the content above without
+the room, its scaling in and out with motion, inset icons, centered and range sliders.
+
+Menus have the shape of the standard menu of Material 3 Expressive: corners of 16 (`CornerLarge`), with the outline
+kept in the place of the shadow. A menu is a child of its window in Nt, so the window shows at the corners. Nt's
+`QPainter::setClipPath()` clips to the bounding rectangle, so the highlight and ripple of a row are filled with the row
+intersected with the rounded menu instead of being clipped. Not done: groups and gaps, the selected row's own shape,
+vertical padding.
+
+The expanded navigation rail (Compose's `WideNavigationRail` expanded, the baseline item tokens) is `materialTabBar` =
+`"navigationRailExpanded"`, a value of the same property rather than a boolean beside it, so that a rail is one or the
+other and `isNavigationRail()` counts both: the snackbar, layout and press code take it as a rail with no more work.
+It is as wide as its longest destination needs (20 + 16 + icon 24 + 8 + label + 8 + count + 16 + 20) within 220 and
+360, `Surface`, with rows of 56 and 4 between them from 44 down. The label is label large (14, medium) beside the
+icon, both `OnSecondaryContainer` on a pill of `SecondaryContainer` across the row (20 from each side, corners full)
+for the destination shown and `OnSurfaceVariant` for the others. A dot sits on the icon as on the collapsed rail; a
+count or text is a badge at the end of the row, 16 inside the pill. The pill opens from the middle with the spring of
+the collapsed rail, and a press ripples from where it is. Setting the property at runtime switches between the two:
+the style's `propertyChanged()` sends the `QTabWidget` that holds the bar a style change so that it lays the bar out
+at its new width, and moves a snackbar that is shown. The width changes at once, not animated: `QTabWidget` lays its
+bar out at its size hint, and growing that over frames would relayout the pages at every one. Not done: the menu
+button and the floating action button at the top of the rail, the modal expanded rail (`SurfaceContainer`, over the
+content with a scrim), and a rail that hides its labels as it collapses.
+
+The medium and large flexible top app bars are `materialToolBar` = `"appBarMedium"` and `"appBarLarge"`, app bars in
+every other way (`QMaterialStyle::isAppBar()`). Expanded they are 112 and 120 high (the Compose medium and large
+flexible app bars without a subtitle): the buttons stay in the top row of 64 (`Qt::AlignTop` in the toolbar's layout)
+and the window title is on a line of its own below them, 16 from the left and 12 above the bottom, in headline medium
+(28 on 36) or display small (36 on 44). Their height follows the scroll area that the color rule picks: height =
+max(64, expanded - offset), which `QToolBar::sizeHint()` asks the style for, and `updateAppBars()` calls
+`updateGeometry()` so the main window lays it out again. The big title goes up with the bottom edge, clipped to below
+the row, and fades as 1 - collapsed; the small title fades in over the second half (2 * collapsed - 1). With motion the
+collapse is the target of a critically damped spring (`AppBarCollapseChannel`, default effects), and each frame that
+paints a height other than the bar's own calls `updateGeometry()`. Coupling the height to the offset is stable: the
+scroll area grows as the bar shrinks, but its value stays, and only near the end of a list that is barely longer than
+the room can the range shrink under the value, which then is clamped down and the bar expands a little; that settles
+in a step or two, it does not swing. The cost is that the content moves up twice as fast while the bar collapses,
+since it scrolls and its area moves up with the bar; Compose's nested scrolling, which gives the scroll to the bar
+first, has no counterpart here. Not done: subtitles (136 and 152 high), centred titles, titles on two lines, enterAlways
+and pinned behaviour.
+
+**Two- and three-line list items.** QListView and QListWidget rows take Material's one-, two- and three-line list
+items from the display text alone, so that a program reads the same under Qt (which draws the line breaks as lines of
+its own): the first line is the headline (body large, `OnSurface`), the text after the first `\n` the supporting text
+(body medium, 14/16 of the headline's size, `OnSurfaceVariant`), and a `\t` in the headline puts the rest at the
+trailing end as trailing supporting text (label small, 11/16, medium weight, `OnSurfaceVariant`, 12 after the text).
+Selected rows use `OnSecondaryContainer` for both, disabled ones `OnSurface` at 0.38. One line is 56, two lines 72,
+three lines 88 (`ListTokens`); the headline line box is 24 and a supporting line 20. A row has three lines when the
+supporting text has a `\n` of its own: the count does not depend on the width, so a row keeps its height as the list
+is resized, and a size hint needs no width. The supporting text of a two-line row is shortened to one line; that of a
+three-line row is wrapped at words (and at its line breaks) and the second line shortened if there is more. Two
+lines and their trailing text are centred as a block; a three-line row puts its content 12 from the top, with the
+icon and check box beside the headline. Margins stay 16 and the gap after the icon 12 (`ItemBetweenSpace` of the
+expressive tokens, as the one-line rows have it). The style draws the text (`drawListRowText()`) for both
+QStyledItemDelegate and QListWidget's own painting; the supporting text is left out of the width hint, so a long one
+is shortened rather than giving the list a horizontal scroll bar. Not done: overline, avatars, images and videos,
+trailing icons and checkboxes, segmented or gapped lists.
 
 ## Open points
 

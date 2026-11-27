@@ -17,8 +17,10 @@
 #include <QtGui/qpalette.h>
 #include <QtGui/qscreen.h>
 #include <QtGui/qstylehints.h>
+#include <QtGui/qtransform.h>
 #include <QtGui/qwindow.h>
 #include <QtWidgets/qabstractbutton.h>
+#include <QtWidgets/qabstractscrollarea.h>
 #include <QtWidgets/qabstractitemview.h>
 #include <QtWidgets/qabstractspinbox.h>
 #include <QtWidgets/qapplication.h>
@@ -46,6 +48,7 @@
 #include <QtWidgets/qstatusbar.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
+#include <QtWidgets/qtabwidget.h>
 #include <QtWidgets/qtextedit.h>
 #include <QtWidgets/qtoolbar.h>
 #include <QtWidgets/qtoolbutton.h>
@@ -86,6 +89,12 @@ constexpr int periodSpace = 12;    // and what is before it
 constexpr int timeCaption = 20;    // under the boxes, for their names
 constexpr int timeDigits = 45;     // display medium
 constexpr int calendarCell = 40;   // a day of a calendar, and the circle that shows the one that is chosen
+constexpr int datePickerHeader = 120;        // the headline of a modal date picker, above a divider of 1
+constexpr int datePickerInset = 24;          // of its texts from the left, and 12 from the right
+constexpr int datePickerHeadlinePixels = 32; // headline large
+constexpr int calendarYearWidth = 72;        // the pill of a year in the grid of years
+constexpr int calendarYearHeight = 36;
+constexpr int calendarMenuArrow = 18; // the arrow after the month and the year, which opens the years
 constexpr int chipHeight = 32;
 constexpr double chipCorner = 8;
 constexpr int chipIcon = 18;
@@ -99,6 +108,8 @@ constexpr int fieldSupportRoom = 20; // and below one with a line of supporting 
 constexpr int fieldSmallPixels = 12; // the label that has floated up, and the supporting text
 constexpr int fieldInputPixels = 16;
 constexpr int textFieldPadding = 16;
+constexpr int fieldIcon = 24;                                      // an icon at an end of a text field,
+constexpr int fieldIconMargin = 16;                                // with this much more room, 4 of it toward the edge
 constexpr int searchIcon = 24;                                     // the magnifier of a search bar,
 constexpr int searchTextLeft = textFieldPadding + searchIcon + 16; // and where the text begins after it
 constexpr int secondaryIndicator = 2;
@@ -109,11 +120,13 @@ constexpr int choiceRadius = 20; // radius of the circle around it that shows a 
 constexpr int indicatorSpace = 12;
 constexpr int switchWidth = 52;
 constexpr int switchHeight = 32;
-constexpr int sliderTrack = 16; // the extra small slider
 constexpr int sliderHandleWidth = 4;
 constexpr int sliderPressedWidth = 2;
-constexpr int sliderHandleHeight = 44;
 constexpr int sliderGap = 6;     // between the handle and each part of the track
+constexpr int valueWidth = 48;   // the value indicator of a slider: at least this wide,
+constexpr int valueHeight = 44;  // this high,
+constexpr int valuePadding = 12; // with this much beside its label,
+constexpr int valueGap = 4;      // and this far from the handle
 constexpr int sliderLength = 16; // the room of the handle along the track
 constexpr int stopSize = 4;      // the dots at the ends of tracks, and of the steps of a slider
 constexpr int progressThickness = 4;
@@ -162,12 +175,29 @@ constexpr int circularSize = 40;
 constexpr double circularThickness = 4;
 constexpr double circularGap = 4; // between the part of a circular progress indicator that is done and its track
 constexpr int railWidth = 96;
+// The expanded rail: as wide as its longest destination needs, within these, each a row with a pill across it.
+constexpr int railExpandedMinimum = 220;
+constexpr int railExpandedMaximum = 360;
+constexpr int railExpandedInset = 20;       // from the sides of the rail to its pills
+constexpr int railExpandedPadding = 16;     // inside a pill, before the icon and after the label or count
+constexpr int railExpandedIconSpace = 8;    // between the icon and the label
+constexpr int railExpandedLabelPixels = 14; // label large
+constexpr int railExpandedItem = 56;        // the height of a row
 constexpr int badgeDot = 6;
 constexpr int badgeHeight = 16; // of one with a number or a word
 constexpr int badgePixels = 11;
 constexpr int appBarHeight = 64;
 constexpr int appBarTitlePixels = 22;
 constexpr int appBarTitleSpace = 16; // before the title of an app bar with nothing leading it
+// The medium and large flexible app bars when they are expanded: their title on a line of its own under the row of
+// buttons, 16 from the left and 12 above the bottom, in headline medium (28 on 36) and display small (36 on 44).
+constexpr int appBarMediumHeight = 112;
+constexpr int appBarLargeHeight = 120;
+constexpr int appBarMediumTitlePixels = 28;
+constexpr int appBarMediumTitleLine = 36;
+constexpr int appBarLargeTitlePixels = 36;
+constexpr int appBarLargeTitleLine = 44;
+constexpr int appBarExpandedTitleBottom = 12;
 constexpr int navigationHeight = 64;
 constexpr int navigationPillWidth = 56; // behind the icon of the destination that is shown
 constexpr int navigationPillHeight = 32;
@@ -179,7 +209,13 @@ constexpr int toolBarShadow = 2;          // the room under a floating toolbar f
 constexpr double listRadius = 4;          // the corners of a row of a list,
 constexpr double listSelectedRadius = 16; // and of one that is chosen or held
 constexpr double listPressSlop = 8;       // how far a press may stray and still be one
+// The rows of a list with one, two and three lines, the line boxes of a headline and of supporting text, the room
+// above the content of a three-line row (which is at the top, not in the middle) and between the text and a trailing
+// supporting text.
+constexpr int listOneLineHeight = 56, listTwoLineHeight = 72, listThreeLineHeight = 88;
+constexpr int listHeadlineLine = 24, listSupportingLine = 20, listThreeLineTop = 12, listTrailingSpace = 12;
 constexpr int menuItemHeight = 48;
+constexpr double menuCorner = 16; // the container of the standard menu of Material 3 Expressive (corner large)
 constexpr int menuPadding = 16;
 constexpr int menuIconSize = 24;
 constexpr int menuIconSpace = 12;
@@ -204,6 +240,61 @@ constexpr double pressedOpacity = 0.10;
 constexpr double disabledContentOpacity = 0.38;
 constexpr double disabledContainerOpacity = 0.10;
 // What of a widget a spring moves.
+
+// The parts of the text of a row of a list: the headline is the first line without what follows a tab in it, which is
+// the trailing supporting text, and the supporting text is the rest. A supporting text that has a line break of its
+// own makes three lines.
+struct ListRowParts {
+    QString headline, trailing, supporting;
+    int lines = 1;
+};
+
+ListRowParts listRowParts(const QString &text) {
+    ListRowParts parts;
+    const qsizetype brk = text.indexOf(QLatin1Char('\n'));
+    parts.headline = brk < 0 ? text : text.left(brk);
+    if (brk >= 0) {
+        parts.supporting = text.mid(brk + 1);
+        parts.lines = parts.supporting.contains(QLatin1Char('\n')) ? 3 : 2;
+    }
+    if (const qsizetype tab = parts.headline.indexOf(QLatin1Char('\t')); tab >= 0) {
+        parts.trailing = parts.headline.mid(tab + 1);
+        parts.headline = parts.headline.left(tab);
+    }
+    return parts;
+}
+
+// The supporting text in body medium and the trailing text in label small, as they are to body large: 14 and 11 to 16.
+QFont listRowFont(const QFont &headline, int sixteenths, bool medium) {
+    QFont font = headline;
+    if (headline.pixelSize() > 0)
+        font.setPixelSize(std::max(1, headline.pixelSize() * sixteenths / 16));
+    else
+        font.setPointSizeF(std::max(1.0, headline.pointSizeF() * sixteenths / 16));
+    if (medium)
+        font.setWeight(QFont::Medium);
+    return font;
+}
+
+// `text` broken into lines no wider than `width`: at its line breaks, and between words.
+QStringList wrapListText(const QString &text, const QFontMetrics &metrics, int width) {
+    QStringList lines;
+    for (const QString &paragraph : text.split(QLatin1Char('\n'))) {
+        QString line;
+        for (const QString &word : paragraph.split(QLatin1Char(' '))) {
+            const QString longer = line.isEmpty() ? word : line + QLatin1Char(' ') + word;
+            if (!line.isEmpty() && metrics.horizontalAdvance(longer) > width) {
+                lines.append(line);
+                line = word;
+            } else {
+                line = longer;
+            }
+        }
+        lines.append(line);
+    }
+    return lines;
+}
+
 // What a dialog asks to be with its property: "bottom", "drawer", or empty for a dialog like any other.
 QString sheetKind(const QWidget *widget) {
     if (!qobject_cast<const QDialog *>(widget))
@@ -389,14 +480,65 @@ QString toolBarKind(const QWidget *widget) {
     return qobject_cast<const QToolBar *>(widget) ? widget->property("materialToolBar").toString() : QString();
 }
 
+// The kinds of toolbar that are top app bars: the small one, and the medium and large flexible ones.
+bool isAppBarKind(const QString &kind) {
+    return kind == QLatin1String("appBar") || kind == QLatin1String("appBarMedium") ||
+           kind == QLatin1String("appBarLarge");
+}
+
+// How high a top app bar is when it is expanded: more than the small one for a medium or large one.
+int expandedAppBarHeight(const QWidget *bar) {
+    const QString kind = toolBarKind(bar);
+    return kind == QLatin1String("appBarMedium")  ? appBarMediumHeight
+           : kind == QLatin1String("appBarLarge") ? appBarLargeHeight
+                                                  : appBarHeight;
+}
+
+// The child of a scroll area whose connection to its vertical scroll bar repaints the app bars of its window.
+const char *const appBarWatcher = "_nt_materialAppBarWatcher";
+
+// Repaints the top app bars of the window of `widget`, whose color may follow what is scrolled in it. A medium or large
+// one also asks for the height that the scrolling gives it.
+void updateAppBars(const QWidget *widget) {
+    const QList<QToolBar *> bars = widget->window()->findChildren<QToolBar *>();
+    for (QToolBar *bar : bars) {
+        if (!isAppBarKind(toolBarKind(bar)))
+            continue;
+        bar->update();
+        if (expandedAppBarHeight(bar) > appBarHeight)
+            bar->updateGeometry();
+    }
+}
+
+// How far the content under a top app bar is scrolled down from the top, 0 if it is not: that of a scroll area of the
+// same window that is shown, starts at or below the bottom of the bar and is at least half as high as the room of the
+// window below the bar. A small scroll area elsewhere in the window does not count.
+int scrolledUnderBy(const QToolBar *bar) {
+    const QWidget *window = bar->window();
+    const int bottom = bar->mapTo(window, QPoint(0, bar->height())).y();
+    const int room = window->height() - bottom;
+    const QList<QAbstractScrollArea *> areas = window->findChildren<QAbstractScrollArea *>();
+    int offset = 0;
+    for (const QAbstractScrollArea *area : areas) {
+        const QScrollBar *scroll = area->verticalScrollBar();
+        if (!scroll || !area->isVisible() || scroll->value() <= scroll->minimum())
+            continue;
+        if (area->mapTo(window, QPoint(0, 0)).y() >= bottom && 2 * area->height() >= room)
+            offset = std::max(offset, scroll->value() - scroll->minimum());
+    }
+    return offset;
+}
+
+// True while the content under a top app bar is scrolled.
+bool scrolledUnder(const QToolBar *bar) { return scrolledUnderBy(bar) > 0; }
+
 bool isVibrantToolBar(const QWidget *widget) { return toolBarKind(widget) == QLatin1String("floatingVibrant"); }
 
 bool isToolBarItem(const QWidget *widget) {
     if (!qobject_cast<const QToolButton *>(widget))
         return false;
     const QString kind = toolBarKind(widget->parentWidget());
-    return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant") ||
-           kind == QLatin1String("appBar");
+    return kind == QLatin1String("floating") || kind == QLatin1String("floatingVibrant") || isAppBarKind(kind);
 }
 
 // True for a button of a top app bar that is before the title: one of the actions before the first separator.
@@ -554,6 +696,7 @@ struct TextField {
     QString label;
     QString supporting; // the line under the field: the supporting text, or the error, which takes its place
     bool error = false;
+    QString counter; // the count of characters, at the end of the line under the field
     int above = 0; // the room over the container,
     int below = 0; // and under it
 
@@ -574,9 +717,11 @@ TextField textFieldOf(const QWidget *widget) {
     const QVariant error = edit->property("materialError");
     field.error = !error.toString().isEmpty();
     field.supporting = field.error ? error.toString() : supporting.toString();
+    if (edit->property("materialCounter").toBool())
+        field.counter = QStringLiteral("%1/%2").arg(edit->text().size()).arg(edit->maxLength());
     field.above = !field.filled && !field.label.isEmpty() ? fieldLabelRoom : 0;
     // The room is kept while either is there, even empty, so that an error that comes does not move what is below.
-    field.below = supporting.isValid() || error.isValid() ? fieldSupportRoom : 0;
+    field.below = supporting.isValid() || error.isValid() || !field.counter.isEmpty() ? fieldSupportRoom : 0;
     return field;
 }
 
@@ -599,6 +744,8 @@ enum Channel {
     TabCentreChannel,
     TabWidthChannel,
     WaveChannel,
+    AppBarChannel,         // how far a top app bar has gone from its color at rest to that of content scrolled under it
+    AppBarCollapseChannel, // how far a medium or large top app bar has collapsed, in pixels
     NavigationChannel = 100 // plus the index of a destination: how far its pill has opened
 };
 const char *const polishedFont = "_nt_materialFont";
@@ -634,6 +781,100 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     painter->setBrush(Qt::NoBrush);
     painter->drawRoundedRect(rect.adjusted(half, half, -half, -half), std::max(0.0, radius - half),
                              std::max(0.0, radius - half));
+}
+
+// A size of slider, which a slider asks for with the property materialSliderSize. One that asks for none is extra
+// small, the look that sliders have had here.
+struct SliderSize {
+    int track;     // how thick the track is,
+    int handle;    // how long the handle is across it,
+    double corner; // the corners of the track's outer ends,
+    double inner;  // and of its ends beside the handle
+};
+
+const SliderSize &sizeOfSlider(const QWidget *widget) {
+    static constexpr SliderSize extraSmall{16, 44, 8, 8};
+    static constexpr SliderSize small{24, 44, 8, 2};
+    static constexpr SliderSize medium{40, 52, 12, 2};
+    static constexpr SliderSize large{56, 68, 16, 2};
+    static constexpr SliderSize extraLarge{96, 108, 28, 2};
+    const QString name = widget ? widget->property("materialSliderSize").toString() : QString();
+    if (name == QLatin1String("small"))
+        return small;
+    if (name == QLatin1String("medium"))
+        return medium;
+    if (name == QLatin1String("large"))
+        return large;
+    if (name == QLatin1String("extraLarge"))
+        return extraLarge;
+    return extraSmall;
+}
+
+// What the style needs to know of a slider, from its style option or, where it is given none, from the widget.
+struct SliderFacts {
+    bool horizontal = true;
+    int ticks = 0;
+    int minimum = 0;
+    int maximum = 0;
+};
+
+SliderFacts factsOfSlider(const QStyleOption *option, const QWidget *widget) {
+    SliderFacts facts;
+    if (const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option)) {
+        facts.horizontal = slider->orientation == Qt::Horizontal;
+        facts.ticks = slider->tickPosition;
+        facts.minimum = slider->minimum;
+        facts.maximum = slider->maximum;
+    } else if (const auto *widgetSlider = qobject_cast<const QSlider *>(widget)) {
+        facts.horizontal = widgetSlider->orientation() == Qt::Horizontal;
+        facts.ticks = widgetSlider->tickPosition();
+        facts.minimum = widgetSlider->minimum();
+        facts.maximum = widgetSlider->maximum();
+    }
+    return facts;
+}
+
+// Whether a slider shows its value over the handle while it is pressed or changed with the keys: one with tick marks
+// does, as Material's discrete sliders do, unless materialSliderValue says otherwise.
+bool showsSliderValue(const QWidget *widget, int ticks) {
+    const QVariant asked = widget ? widget->property("materialSliderValue") : QVariant();
+    if (asked.isValid())
+        return asked.toBool();
+    return ticks != 0;
+}
+
+QFont sliderValueFont(const QWidget *widget) { return groupTitleFont(widget ? widget->font() : QApplication::font()); }
+
+int sliderValueWidth(const QFontMetrics &metrics, int value) {
+    return std::max(valueWidth, metrics.horizontalAdvance(QString::number(value)) + 2 * valuePadding);
+}
+
+// The room that a slider keeps for its value indicator: above a horizontal one, at the left of a vertical one.
+int sliderValueRoom(const QStyleOption *option, const QWidget *widget) {
+    const SliderFacts facts = factsOfSlider(option, widget);
+    if (!showsSliderValue(widget, facts.ticks))
+        return 0;
+    if (facts.horizontal)
+        return valueHeight + valueGap;
+    const QFontMetrics metrics(sliderValueFont(widget));
+    return std::max(sliderValueWidth(metrics, facts.minimum), sliderValueWidth(metrics, facts.maximum)) + valueGap;
+}
+
+// The part of a slider that is not kept for its value indicator.
+QRect sliderBody(const QStyleOption *option, const QWidget *widget) {
+    const int room = sliderValueRoom(option, widget);
+    if (factsOfSlider(option, widget).horizontal)
+        return option->rect.adjusted(0, room, 0, 0);
+    return option->rect.adjusted(room, 0, 0, 0);
+}
+
+// A part of a slider's track, with one radius for the corners of the end where it starts (its left, or its top) and
+// another for those of the other end.
+QPainterPath trackPart(const QRectF &r, double first, double second, bool horizontal) {
+    if (horizontal)
+        return sidedPath(r, first, second);
+    // Made across and turned over the diagonal, which swaps x and y.
+    return QTransform(0, 1, 1, 0, 0, 0).map(sidedPath(QRectF(r.top(), r.left(), r.height(), r.width()), first, second));
 }
 
 } // namespace
@@ -691,7 +932,11 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         and floats up otherwise; the placeholder text shows once the label is up. \c materialSupportingText is a line
         under the field, and a \c materialError that is not empty turns the field red and takes that line's place. The
         room for the line is kept while either property is there, so give a field an empty \c materialError from the
-        start if an error should not move what is below it.
+        start if an error should not move what is below it. Icons added with QLineEdit::addAction() are the leading
+        and trailing icons, 24 and 12 from the edges, in the color of the field's icons (a trailing one in that of an
+        error). \c materialPrefix and \c materialSuffix are shown before the text and at the end of the field once the
+        label has floated, and \c materialCounter set to \c true counts the characters against maxLength() at the end
+        of the line under the field.
     \li \c materialIconButton of a QPushButton or a QToolButton: \c "standard", \c "filled", \c "tonal" or
         \c "outlined", a button that is its icon alone, in the sizes of \c materialButtonSize (small without it) with
         icons of 20 to 40, round or, with \c materialButtonShape, square. A checkable one shows that it is checked. One
@@ -699,14 +944,25 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     \li \c materialToolBar \c "appBar" makes a QToolBar a top app bar, 64 high, with its window title as the
         heading. The actions before the first separator are before the title, such as the one that goes back, and the
         others after it; without a separator, all are after it. Add it to a QMainWindow with addToolBar(), or to the
-        top of a layout.
+        top of a layout. Its container is the surface color, and fades to the surface container color while the
+        content under it is scrolled: a QAbstractScrollArea of the same window that is shown, starts at or below the
+        bottom of the bar, is at least half as high as the room of the window below the bar and is scrolled down from
+        the top, as a list or a QScrollArea that fills the central widget is. \c "appBarMedium" and \c "appBarLarge"
+        make it the medium or the large flexible app bar, 112 or 120 high when expanded, with its buttons in the top
+        row of 64 and the title on a line of its own below them, 16 from the left, in 28 or 36 pixels. As that scroll
+        area is scrolled down the bar collapses by as much, until it is as high as the small one, and the content moves
+        up with it; past half of the way the big title fades out and the small one comes into the row. At the top it is
+        expanded again. With motion it follows the scrolling along a spring.
     \li \c materialTabBar \c "navigationBar" makes a horizontal QTabBar a bottom navigation bar, 64 high: its tabs
         share the width, each an icon over its label, with a pill behind the one that is current. With a QTabWidget
         whose tabs are at the south it is the navigation of an application and its pages:
         tabs->tabBar()->setProperty("materialTabBar", "navigationBar").
     \li \c materialTabBar \c "navigationRail" makes a vertical QTabBar a navigation rail, for a screen that is wide: 96
         across, its destinations one under another from the top. With a QTabWidget whose tabs are at the west it is the
-        navigation of an application and its pages.
+        navigation of an application and its pages. \c "navigationRailExpanded" makes it the expanded rail: as wide as
+        its longest destination needs, from 220 to 360, each destination a row of 56 with the icon and the label beside
+        it, and a pill across the row behind the one that is current. A dot badge is on the icon and a count at the end
+        of the row. Setting the property while the rail is shown expands or collapses it at once.
     \li \c materialBadge of an icon button or a button of a toolbar puts a badge on its icon: \c true is a dot, and a
         number above 0, or a text, is shown in it (over 999 as 999+); 0, \c false or an empty text take it away. The
         destinations of a navigation bar or rail have theirs in \c materialBadges of the QTabBar, a QVariantList with
@@ -716,7 +972,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     \li \c materialStatusBar \c "snackbar" makes the status bar of a QMainWindow a snackbar: it takes no room, floats
         over the content, above a navigation bar, beside a navigation rail and above a floating action button that is at
         the bottom, while it has a message, from showMessage() until clearMessage() or the message's timeout, and its
-        permanent widgets, buttons, are its actions.
+        permanent widgets, buttons, are its actions. With \c materialCloseButton set to \c true it has a cross at its
+        end, after the actions, which clears the message.
     \li \c materialChip of a QPushButton: \c "assist", \c "filter", \c "input" or \c "suggestion" makes it a chip,
         32 high (48 to a finger) with small corners and an outline. A filter chip is made checkable: checked, it is
         filled and a check mark takes the place of its icon, which makes it wider. An input chip stands for something
@@ -739,6 +996,18 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     \li A spin box, among them a date or time edit, is an outlined field of 56 with a button that steps down and one
         that steps up, each 48 wide; a date edit with a calendar pop-up has one button, for the calendar. Scroll bars
         are thin handles without a track or arrows. Neither needs a property.
+    \li The text of an item of a QListView or QListWidget makes it a list item of one, two or three lines. A line
+        break puts supporting text under the headline, in a smaller size and a quieter color, and makes the row 72
+        high; a second line break in the supporting text makes a row of three lines, 88 high, whose supporting text
+        wraps to two lines and is shortened after the second. A tab in the headline puts what follows it at the
+        trailing end, as trailing supporting text (\c{"Inbox\t100+"}). The icon and check box of a row of three lines
+        are at its top, beside the headline. Qt draws the same text with its line breaks, on as many lines, and the
+        tab as a space:
+
+        \code
+        list->addItem(new QListWidgetItem(icon, "Brunch this weekend?\nAli Connors: I'll be in your neighborhood"));
+        list->addItem(new QListWidgetItem(icon, "Summer BBQ\t15 min\nTo: Alex, Scott, Jennifer\nWish I could come"));
+        \endcode
     \li \c materialSheet of a QDialog: \c "bottom" makes it a modal bottom sheet, against the bottom of its parent's
         window, as high as what is in it and no wider than 640; \c "drawer" makes it a modal drawer, against the left
         edge, as high as the window and up to 360 wide. It slides in from its edge and has no title bar. On Android the window behind is dimmed, and
@@ -746,6 +1015,19 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     \li \c materialList \c "navigationDrawer" of a QListWidget, for the list of a drawer: the one that is current is
         marked with a pill, and the list has no frame. Open a destination from itemClicked() and accept() the drawer.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
+    \li \c materialSliderSize of a QSlider: \c "extraSmall", \c "small", \c "medium", \c "large" or
+        \c "extraLarge", the five sizes of Material 3 Expressive, with tracks 16, 24, 40, 56 and 96 thick and handles
+        44, 44, 52, 68 and 108 long, which is also how thick the slider is and how far across a press takes hold of the
+        handle. Without it a slider is extra small.
+    \li \c materialSliderValue of a QSlider: \c true shows the value indicator, a small container with the value
+        in it, over the handle (at its left on a vertical slider) while the handle is pressed or the keys change it;
+        \c false hides it. Without the property a slider with tick marks shows it, as Material's discrete sliders
+        do, and others do not. A slider that shows it is made thicker by its room (48 over a horizontal one, the width
+        of its widest value at the left of a vertical one), so that nothing has to be drawn outside it.
+    \li \c materialDatePicker \c "modal" of a QCalendarWidget makes it Material's modal date picker: above the month
+        it has a headline, "Select date" and the chosen date (as "Mon, Aug 17"), over a divider, 121 high in all. It
+        is for a calendar in a dialog of its own; a calendar without it, such as the pop-up of a QDateEdit, is the
+        docked date picker, which has no headline.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
         widget puts them 2 apart unless it is told a spacing; the ends of the row are round, the corners between the
@@ -762,7 +1044,13 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     QCalendarWidget drawn as Material's date picker: days of 40, the chosen one in a filled circle and today in a ring,
     with icon buttons for the months. Material's has no week numbers, which
     \l{QCalendarWidget::setVerticalHeaderFormat()}{NoVerticalHeader} turns off and makes room for on a narrow screen.
-    A paintCell() of your own that calls the calendar's keeps the look.
+    A paintCell() of your own that calls the calendar's keeps the look. The month and the year between the arrows have
+    the arrow of a menu: a click on them shows, in the place of the days, the years from that of
+    \l{QCalendarWidget::minimumDate()}{minimumDate()} to that of \l{QCalendarWidget::maximumDate()}{maximumDate()},
+    three to a row, the year shown in a filled pill and this year in a ring. The wheel scrolls them, and a click on one
+    shows the days of that year, in the same month or, past a limit of the range, the nearest month in it; the
+    selected date stays. The arrow keys, Page Up, Page Down, Home and End move among the years, Return, Enter or Space
+    chooses one, and Escape or a second click on the month and the year goes back to the days.
 
     An icon of one color is drawn in the color that the style gives what it is on: on buttons, floating action
     buttons, toolbars and menus. An icon with several colors, such as a logo, is drawn as it is. The icons are the
@@ -783,42 +1071,55 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     tap.
 
     \differences
-    Qt Widgets has no Material style. Push buttons, line edits, check boxes, radio buttons, switches, sliders (the
-    extra small size), progress bars (a thin line, with the text beside it), tab bars, combo boxes
+    Qt Widgets has no Material style. Push buttons, line edits, check boxes, radio buttons, switches, sliders, progress bars (a thin line, with the text beside it), tab bars, combo boxes
     (the outlined exposed dropdown menu), menus, lists and dialogs are drawn in the Material way so far; the other
     widgets are drawn as the Fusion style draws them, in the Material colors. Material has no tree and no table:
     those show their selection in the Material colors, and the rows of a tree are 48 high. The rows of a QListView
-    or QListWidget are 56 high; behind a QProxyStyle they are drawn as Fusion draws them. A finger that is dragged
+    or QListWidget are 56 high, or 72 and 88 for two and three lines; whether a row has three lines is told by a
+    second line break, not by the width of its text, and a row of two lines shortens its supporting text to one line.
+    Supporting text does not widen a list. List items have no overline, avatars, images, videos, trailing icons or
+    check boxes at the trailing end, and no segmented or expressive (gapped) look. Behind a QProxyStyle they are drawn as Fusion draws them. A finger that is dragged
     on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
-    have square corners. Dialogs get the Material container color and text buttons; their rounded corners and the
+    are the standard menus of Material 3 Expressive in shape (corners of 16) but have no groups, gaps or selected
+    rows with their own shape, and an outline in the place of their shadow. Dialogs get the Material container color and text buttons; their rounded corners and the
     dimming behind them are the android platform's.
     Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another
     but close at once, have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. Text fields are those of QLineEdit, and
-    have no icons, prefix, suffix or character counter (a search bar has its magnifier, and does not open a view of
-    results of its own); their caret is the color of the text. A snackbar fades in and out but does not
-    grow as it comes, has no close icon, and is one only in a QMainWindow; showing a message does not queue it. There are no
+    take icons, a prefix, a suffix and a counter only as properties and actions (a search bar has its magnifier, and
+    does not open a view of results of its own; the actions of its trailing end are not avatars); their caret is the color of the text. A snackbar fades in and out but does not
+    grow as it comes, and is one only in a QMainWindow; showing a message does not queue it. There are no
     rich tooltips. Chips are push buttons only; there are no elevated chips, avatars in input chips or separate click
-    on the cross, and a filter chip takes its new width at once. The date picker is the calendar alone: it has no headline with the chosen date, no choice of
-    years, no range and no field to type a date in, it keeps the days of the other months, faint, and it has no time
-    picker with a clock dial. A headline is one line, shortened if the dialog is too narrow, is made when the dialog is shown, and is not drawn
+    on the cross, and a filter chip takes its new width at once. A date picker has no range, no field to type a date in and no
+    button to switch to one, no menu of months, and no buttons to confirm or cancel (those are the dialog's); it keeps
+    the days of the other months, faint, and there is no time picker with a clock dial. The headline is in English and
+    shows the selected date also when the user cannot select one. The change between the days and the years is not
+    animated, and the years have no state layer under the pointer. A headline is one line, shortened if the dialog is too narrow, is made when the dialog is shown, and is not drawn
     by a subclass whose paintEvent() does not call QDialog's. A text editor has no floating label or
     supporting text, and one with another frame shape keeps it. A spin box has
     no floating label or supporting text, and its buttons do not repeat while
     held; a scroll bar does not hide when the contents are still. A time input is for a format of times alone, does not go on to the minute by itself
     when the hour has been typed, and names its boxes in English. A card is not a button and shows no press. A card or
     a divider behind a QProxyStyle is drawn as a plain frame. Icon buttons have the default width, not
-    the narrow or the wide one. An app bar is the small one: it has no subtitle, does not grow into a medium or large
-    one, and keeps its color as the content scrolls. A navigation bar has no horizontal items for wide screens. A
-    navigation rail is the collapsed one: it does not expand, has no menu button or floating action button of its own,
-    and does not scroll if its destinations do not fit; the navigation drawer is the modal one only. A sheet is no taller than leaves 72 above it, unless what is in it cannot be made shorter: put that in
+    the narrow or the wide one. An app bar has no subtitle, and does not scroll off the screen with the content. A
+    medium or large one collapses by the offset of the scroll area under it, which also moves its content, so the
+    content goes up faster than the finger while the bar collapses; the bar expands again as the content comes back
+    to the top, as with exitUntilCollapsed, not as soon as it is scrolled up (enterAlways). Its titles fade rather
+    than move, and a long title is shortened, not put on two lines. Its color, too, follows a scroll area under it,
+    not a scrolling widget of another kind. A navigation bar has no horizontal items for wide screens. A
+    navigation rail, collapsed or expanded, has no menu button or floating action button of its own, changes its width
+    at once rather than over an animation, is never the modal one over the content, and does not scroll if its
+    destinations do not fit; the navigation drawer is the modal one only. A sheet is no taller than leaves 72 above it, unless what is in it cannot be made shorter: put that in
     a QScrollArea. Sheets slide in but leave at once, the scrim does not fade, and
     sheets are not dragged and have no drag handle; there are no standard (not modal)
     sheets. On a desktop a click beside a sheet does not dismiss it, only Escape or the program does, and a sheet stays
     where it was put if its parent's window moves or changes size. Badges are on icon buttons,
     toolbar buttons and the destinations of a navigation bar or rail only. A snackbar finds where a floating action
-    button is when it is placed, and again when one is shown or hidden, not when one is moved. A slider shows no value bubble. A busy progress bar moves while motion is enabled, which the other styles of Nt
+    button is when it is placed, and again when one is shown or hidden, not when one is moved. A slider that shows its value
+    indicator keeps room for it all the time, instead of drawing it over what is above, and it appears and goes at
+    once; the indicator is not shown for a slider whose value is changed by the program. A slider's ends beside the
+    handle are round on the extra small size. There are no inset icons and no centered or range sliders. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
     going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A floating toolbar does not hide as the content is scrolled, and has no menu for
     what does not fit. Icons keep their own colors. Buttons, check boxes, radio buttons, switches, the rows of
@@ -1193,6 +1494,15 @@ void QMaterialStyle::polish(QWidget *widget) {
         widget->setPalette(palette);
         widget->setProperty(polishedPalette, true);
     }
+    // A top app bar changes its color while the content under it is scrolled: what scrolls repaints it.
+    if (auto *area = qobject_cast<QAbstractScrollArea *>(widget);
+        area && area->verticalScrollBar() &&
+        !area->findChild<QObject *>(QLatin1String(appBarWatcher), Qt::FindDirectChildrenOnly)) {
+        auto *watcher = new QObject(area); // the connection goes when unpolish() deletes it
+        watcher->setObjectName(QLatin1String(appBarWatcher));
+        QObject::connect(area->verticalScrollBar(), &QScrollBar::valueChanged, watcher,
+                         [area] { updateAppBars(area); });
+    }
     // The drawer is all the frame that its list has.
     if (isDrawerList(widget)) {
         auto *list = static_cast<QListWidget *>(widget);
@@ -1241,8 +1551,10 @@ void QMaterialStyle::polish(QWidget *widget) {
         font.setPixelSize(button ? 14 : 16);
         if (button)
             font.setWeight(QFont::Medium);
-        if (isNavigationBar(widget) || isNavigationRail(widget))
+        if (isNavigationBar(widget) || (isNavigationRail(widget) && !isExpandedRail(widget)))
             font.setPixelSize(navigationLabelPixels);
+        if (isExpandedRail(widget)) // label large
+            font.setPixelSize(railExpandedLabelPixels);
         if (isDrawerList(widget)) { // label large
             font.setPixelSize(14);
             font.setWeight(QFont::Medium);
@@ -1266,6 +1578,8 @@ void QMaterialStyle::unpolish(QWidget *widget) {
         widget->setProperty(polishedPalette, QVariant());
     }
     removeHeadline(widget);
+    if (qobject_cast<QAbstractScrollArea *>(widget))
+        delete widget->findChild<QObject *>(QLatin1String(appBarWatcher), Qt::FindDirectChildrenOnly);
     if (auto *frame = qobject_cast<QFrame *>(widget); frame && widget->property(polishedFrame).isValid()) {
         frame->setFrameStyle(widget->property(polishedFrame).toInt());
         widget->setProperty(polishedFrame, QVariant());
@@ -1314,6 +1628,11 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
         m_rippleWidget = nullptr;
         m_rowPressed = false;
     }
+    // A scroll area that comes or goes, as with the page of a tab widget that it is on, may change the color of an app
+    // bar.
+    if ((event->type() == QEvent::Show || event->type() == QEvent::Hide) &&
+        qobject_cast<QAbstractScrollArea *>(watched))
+        updateAppBars(static_cast<QWidget *>(watched));
     // A text editor's border shows that it has the focus.
     if (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut) {
         if (auto *widget = qobject_cast<QWidget *>(watched); widget && isTextEditor(widget))
@@ -1478,7 +1797,7 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
     case ButtonKind::IconOutlined:
         return color(checked ? Role::InverseOnSurface : Role::OnSurfaceVariant);
     case ButtonKind::ToolBarItem:
-        if (toolBarKind(widget->parentWidget()) == QLatin1String("appBar"))
+        if (isAppBarKind(toolBarKind(widget->parentWidget())))
             return color(checked               ? Role::OnSecondaryContainer
                          : leadsAppBar(widget) ? Role::OnSurface
                                                : Role::OnSurfaceVariant);
@@ -1719,10 +2038,32 @@ int QMaterialStyle::iconButtonIconSize(const QWidget *widget) {
     return height <= 32 ? 20 : height <= 56 ? 24 : height <= 96 ? 32 : 40;
 }
 
-bool QMaterialStyle::isAppBar(const QWidget *widget) { return toolBarKind(widget) == QLatin1String("appBar"); }
+bool QMaterialStyle::isAppBar(const QWidget *widget) { return isAppBarKind(toolBarKind(widget)); }
+
+bool QMaterialStyle::isFlexibleAppBar(const QWidget *widget) { return expandedAppBarHeight(widget) > appBarHeight; }
+
+int QMaterialStyle::appBarExtent(const QToolBar *bar) const {
+    // A medium or large one collapses toward the small one as far as the content under it is scrolled.
+    const int expanded = expandedAppBarHeight(bar);
+    const int range = expanded - appBarHeight;
+    if (range <= 0)
+        return appBarHeight;
+    double collapse = std::min(scrolledUnderBy(bar), range);
+    if (m_motion)
+        collapse =
+            std::clamp(m_animator->value(bar, AppBarCollapseChannel, collapse, QtPrivate::defaultEffectsSpring, 0.25),
+                       0.0, static_cast<double>(range));
+    return expanded - static_cast<int>(std::lround(collapse));
+}
 
 void QMaterialStyle::drawAppBar(QPainter *painter, const QToolBar *bar) const {
-    painter->fillRect(bar->rect(), color(Role::Surface));
+    // The container is Surface at rest and SurfaceContainer while the content under the bar is scrolled. A toolbar is
+    // not one of the widgets that animated() moves, so this asks the animator itself.
+    double scrolled = scrolledUnder(bar) ? 1.0 : 0.0;
+    if (m_motion)
+        scrolled = std::clamp(m_animator->value(bar, AppBarChannel, scrolled, QtPrivate::defaultEffectsSpring, 0.004),
+                              0.0, 1.0);
+    painter->fillRect(bar->rect(), blend(color(Role::Surface), color(Role::SurfaceContainer), scrolled));
     // The title is between what leads and what follows: the buttons before the first separator, and the others.
     int from = appBarTitleSpace;
     int to = bar->width() - appBarTitleSpace;
@@ -1743,12 +2084,36 @@ void QMaterialStyle::drawAppBar(QPainter *painter, const QToolBar *bar) const {
         else
             from = std::max(from, widget->x() + widget->width() + 4);
     }
-    if (to <= from)
+    // A medium or large one has its title on a line of its own below the buttons while it is expanded. As it collapses
+    // that title goes up with its bottom edge and fades, and the small title comes in the row once it is past half.
+    const int range = expandedAppBarHeight(bar) - appBarHeight;
+    const double collapsed =
+        range > 0 ? std::clamp(static_cast<double>(expandedAppBarHeight(bar) - bar->height()) / range, 0.0, 1.0) : 1.0;
+    if (range > 0 && collapsed < 1.0 && bar->height() > appBarHeight) {
+        const bool large = expandedAppBarHeight(bar) == appBarLargeHeight;
+        const int line = large ? appBarLargeTitleLine : appBarMediumTitleLine;
+        const int width = bar->width() - 2 * appBarTitleSpace;
+        QFont font = bar->font();
+        font.setPixelSize(large ? appBarLargeTitlePixels : appBarMediumTitlePixels);
+        font.setWeight(QFont::Normal);
+        painter->save();
+        painter->setClipRect(QRect(0, appBarHeight, bar->width(), bar->height() - appBarHeight));
+        painter->setOpacity(1.0 - collapsed);
+        painter->setFont(font);
+        painter->setPen(color(Role::OnSurface));
+        painter->drawText(QRect(appBarTitleSpace, bar->height() - appBarExpandedTitleBottom - line, width, line),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                          QFontMetrics(font).elidedText(bar->windowTitle(), Qt::ElideRight, width));
+        painter->restore();
+    }
+    const double small = std::clamp(2.0 * collapsed - 1.0, 0.0, 1.0);
+    if (to <= from || small <= 0.0)
         return;
     QFont font = bar->font();
     font.setPixelSize(appBarTitlePixels);
     font.setWeight(QFont::Normal);
     painter->save();
+    painter->setOpacity(small);
     painter->setFont(font);
     painter->setPen(color(Role::OnSurface));
     painter->drawText(QRect(from, 0, to - from, appBarHeight), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
@@ -1765,25 +2130,50 @@ bool QMaterialStyle::isNavigationBar(const QWidget *widget) {
 
 bool QMaterialStyle::isNavigationRail(const QWidget *widget) {
     const auto *bar = qobject_cast<const QTabBar *>(widget);
-    return bar && bar->property("materialTabBar").toString() == QLatin1String("navigationRail") &&
+    const QString kind = bar ? bar->property("materialTabBar").toString() : QString();
+    return bar && (kind == QLatin1String("navigationRail") || kind == QLatin1String("navigationRailExpanded")) &&
            (bar->shape() == QTabBar::RoundedWest || bar->shape() == QTabBar::RoundedEast ||
             bar->shape() == QTabBar::TriangularWest || bar->shape() == QTabBar::TriangularEast);
 }
 
-void QMaterialStyle::drawBadge(QPainter *painter, const QVariant &badge, const QRect &icon) const {
-    // true is a dot; a number above none, or some text, is a badge that says it.
-    QString text;
-    bool dot = false;
+bool QMaterialStyle::isExpandedRail(const QWidget *widget) {
+    return isNavigationRail(widget) &&
+           widget->property("materialTabBar").toString() == QLatin1String("navigationRailExpanded");
+}
+
+namespace {
+// What a badge says: true is a dot; a number above none, or some text, is a badge that says it.
+QString badgeText(const QVariant &badge, bool *dot) {
+    *dot = false;
     if (badge.typeId() == QMetaType::Bool) {
-        dot = badge.toBool();
-    } else if (badge.typeId() == QMetaType::Int || badge.typeId() == QMetaType::LongLong ||
-               badge.typeId() == QMetaType::UInt || badge.typeId() == QMetaType::ULongLong) {
-        const qlonglong count = badge.toLongLong();
-        if (count > 0)
-            text = count > 999 ? QStringLiteral("999+") : QString::number(count);
-    } else {
-        text = badge.toString();
+        *dot = badge.toBool();
+        return QString();
     }
+    if (badge.typeId() == QMetaType::Int || badge.typeId() == QMetaType::LongLong ||
+        badge.typeId() == QMetaType::UInt || badge.typeId() == QMetaType::ULongLong) {
+        const qlonglong count = badge.toLongLong();
+        if (count <= 0)
+            return QString();
+        return count > 999 ? QStringLiteral("999+") : QString::number(count);
+    }
+    return badge.toString();
+}
+
+QFont badgeFont(QFont font) {
+    font.setPixelSize(badgePixels);
+    font.setWeight(QFont::Medium);
+    return font;
+}
+
+// The width of a badge with `text` in it.
+int badgeWidth(const QFont &font, const QString &text) {
+    return std::max(badgeHeight, QFontMetrics(badgeFont(font)).horizontalAdvance(text) + 8);
+}
+} // namespace
+
+void QMaterialStyle::drawBadge(QPainter *painter, const QVariant &badge, const QRect &icon) const {
+    bool dot = false;
+    const QString text = badgeText(badge, &dot);
     if (!dot && text.isEmpty())
         return;
     painter->save();
@@ -1793,12 +2183,9 @@ void QMaterialStyle::drawBadge(QPainter *painter, const QVariant &badge, const Q
         fillRounded(painter, QRectF(right - badgeDot, icon.y(), badgeDot, badgeDot), badgeDot / 2.0,
                     color(Role::Error));
     } else {
-        QFont font = painter->font();
-        font.setPixelSize(badgePixels);
-        font.setWeight(QFont::Medium);
-        painter->setFont(font);
+        const int width = badgeWidth(painter->font(), text);
+        painter->setFont(badgeFont(painter->font()));
         // It starts over the icon and grows away from it.
-        const int width = std::max(badgeHeight, QFontMetrics(font).horizontalAdvance(text) + 8);
         const QRect pill(right - icon.width() / 2, icon.y() + icon.height() / 2 - badgeHeight - 1, width, badgeHeight);
         fillRounded(painter, QRectF(pill), badgeHeight / 2.0, color(Role::Error));
         painter->setPen(color(Role::OnError));
@@ -1820,6 +2207,10 @@ void QMaterialStyle::drawButtonBadge(QPainter *painter, const QAbstractButton *b
 
 // Each destination: an icon with a label under it, and a pill behind the icon of the one that is shown.
 void QMaterialStyle::drawNavigationBar(QPainter *painter, const QTabBar *bar) const {
+    if (isExpandedRail(bar)) {
+        drawExpandedRail(painter, bar);
+        return;
+    }
     painter->fillRect(bar->rect(), color(isNavigationRail(bar) ? Role::Surface : Role::SurfaceContainer));
     const QVariantList badges = bar->property("materialBadges").toList(); // one for each destination, in order
     painter->save();
@@ -1875,6 +2266,80 @@ void QMaterialStyle::drawNavigationBar(QPainter *painter, const QTabBar *bar) co
             painter->setPen(labelInk);
             painter->drawText(area, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine,
                               painter->fontMetrics().elidedText(label, Qt::ElideRight, area.width() - 4));
+        }
+    }
+    painter->restore();
+}
+
+// Each destination a row: a pill across the rail behind the one that is shown, the icon in it and the label beside the
+// icon; a count is at the end of the row and a dot on the icon.
+void QMaterialStyle::drawExpandedRail(QPainter *painter, const QTabBar *bar) const {
+    painter->fillRect(bar->rect(), color(Role::Surface));
+    const QVariantList badges = bar->property("materialBadges").toList();
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setFont(bar->font());
+    for (int i = 0; i < bar->count(); ++i) {
+        const QRect tab = bar->tabRect(i);
+        if (tab.isEmpty())
+            continue;
+        const bool selected = i == bar->currentIndex();
+        const bool usable = bar->isTabEnabled(i) && bar->isEnabled();
+        const QIcon icon = bar->tabIcon(i);
+        const QString label = bar->tabText(i);
+        const QRectF pill(tab.left() + railExpandedInset, tab.top(), std::max(0, tab.width() - 2 * railExpandedInset),
+                          tab.height());
+        // It opens from the middle as its destination is chosen.
+        double open = selected ? 1.0 : 0.0;
+        if (m_motion)
+            open = std::clamp(m_animator->value(bar, NavigationChannel + i, open, QtPrivate::fastSpatialSpring, 0.004),
+                              0.0, 1.1);
+        if (open > 0.02) {
+            const double width = std::min(pill.width(), pill.height() + (pill.width() - pill.height()) * open);
+            QColor fill = color(Role::SecondaryContainer);
+            fill.setAlphaF(std::min(1.0, 2 * open));
+            fillRounded(painter, QRectF(pill.center().x() - width / 2, pill.top(), width, pill.height()),
+                        pill.height() / 2, fill);
+        }
+        if (usable && bar == m_rippleWidget.data() && tab.contains(m_rippleOrigin.toPoint())) {
+            QPainterPath outline;
+            outline.addRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+            drawRipple(painter, bar, outline, pill, m_rippleOrigin, m_rowPressed,
+                       color(selected ? Role::OnSecondaryContainer : Role::OnSurface));
+        }
+        if (selected && bar->hasFocus() && m_keyboard)
+            strokeRounded(painter, pill, pill.height() / 2, color(Role::Secondary), focusRingWidth);
+        const QColor faint = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+        const QColor ink = !usable ? faint : color(selected ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
+        int left = static_cast<int>(pill.left()) + railExpandedPadding;
+        int right = static_cast<int>(pill.right()) - railExpandedPadding;
+        const QVariant badge = i < badges.size() ? badges.at(i) : QVariant();
+        bool dot = false;
+        const QString count = badgeText(badge, &dot);
+        if (!icon.isNull()) {
+            const QRect lead(left, tab.top() + (tab.height() - navigationIcon) / 2, navigationIcon, navigationIcon);
+            paintIcon(painter, lead, icon, usable ? QIcon::Normal : QIcon::Disabled, selected ? QIcon::On : QIcon::Off,
+                      ink);
+            if (dot)
+                drawBadge(painter, badge, lead);
+            left = lead.right() + 1 + railExpandedIconSpace;
+        }
+        if (!count.isEmpty()) {
+            const int width = badgeWidth(painter->font(), count);
+            const QRect end(right - width, tab.top() + (tab.height() - badgeHeight) / 2, width, badgeHeight);
+            fillRounded(painter, QRectF(end), badgeHeight / 2.0, color(Role::Error));
+            painter->save();
+            painter->setFont(badgeFont(painter->font()));
+            painter->setPen(color(Role::OnError));
+            painter->drawText(end, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, count);
+            painter->restore();
+            right = end.left() - railExpandedIconSpace;
+        }
+        if (!label.isEmpty()) {
+            const QRect area(left, tab.top(), std::max(0, right - left), tab.height());
+            painter->setPen(ink);
+            painter->drawText(area, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                              painter->fontMetrics().elidedText(label, Qt::ElideRight, area.width()));
         }
     }
     painter->restore();
@@ -1954,6 +2419,22 @@ bool QMaterialStyle::hidesPlaceholder(const QLineEdit *field) const {
     return !textFieldOf(field).label.isEmpty() && !isLabelUp(field);
 }
 
+QString QMaterialStyle::fieldAffix(const QLineEdit *field, bool suffix) const {
+    const TextField kind = textFieldOf(field);
+    if (!field->hasFrame() || kind.search || (!kind.label.isEmpty() && !isLabelUp(field)))
+        return QString();
+    return field->property(suffix ? "materialSuffix" : "materialPrefix").toString();
+}
+
+void QMaterialStyle::drawFieldIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode,
+                                   const QLineEdit *field, bool trailing) const {
+    const bool usable = mode != QIcon::Disabled;
+    QColor ink = usable ? color(Role::OnSurfaceVariant) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    if (usable && trailing && textFieldOf(field).error)
+        ink = color(Role::Error); // the trailing icon tells of the error too
+    paintIcon(painter, area, icon, mode, QIcon::Off, ink);
+}
+
 // The label of a text field, on its way between where it rests and where it floats, and the line under the field.
 void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *option, const QWidget *widget) const {
     const auto *edit = qobject_cast<const QLineEdit *>(widget);
@@ -1973,7 +2454,7 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
         painter->restore();
         return;
     }
-    if (!edit || (field.label.isEmpty() && field.supporting.isEmpty()))
+    if (!edit || (field.label.isEmpty() && field.supporting.isEmpty() && field.counter.isEmpty()))
         return;
     const QRectF box(field.box(option->rect));
     const QColor quiet = enabled(option) ? color(field.error ? Role::Error : Role::OnSurfaceVariant)
@@ -1989,33 +2470,46 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
         const double rest = box.center().y();
         const double floated = field.filled ? box.top() + 16 : box.top();
         const double middle = rest + (floated - rest) * up;
+        // It rests where the text begins, after the leading icons; on the outline it floats back to the edge.
+        int start = static_cast<int>(box.left()) + textFieldPadding;
+        for (const auto &side : edit->sides())
+            if (side.position == QLineEdit::LeadingPosition)
+                start = std::max(start, side.slot.right() + 1);
+        const int floatedStart = field.filled ? start : static_cast<int>(box.left()) + textFieldPadding;
+        const int left = static_cast<int>(std::lround(start + (floatedStart - start) * up));
         QColor ink = quiet;
         if (enabled(option) && !field.error && edit->hasFocus())
             ink = color(Role::Primary);
         painter->setFont(font);
         painter->setPen(ink);
-        const int width = static_cast<int>(box.width()) - 2 * textFieldPadding;
-        painter->drawText(
-            QRect(static_cast<int>(box.left()) + textFieldPadding, static_cast<int>(middle) - 10, width, 20),
-            Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-            QFontMetrics(font).elidedText(field.label, Qt::ElideRight, width));
+        const int width = std::max(0, static_cast<int>(box.right()) + 1 - textFieldPadding - left);
+        painter->drawText(QRect(left, static_cast<int>(middle) - 10, width, 20),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                          QFontMetrics(font).elidedText(field.label, Qt::ElideRight, width));
     }
-    if (!field.supporting.isEmpty()) {
+    if (!field.supporting.isEmpty() || !field.counter.isEmpty()) {
         QFont font = edit->font();
         font.setPixelSize(fieldSmallPixels);
+        const QFontMetrics metrics(font);
         painter->setFont(font);
         painter->setPen(quiet);
-        const int width = static_cast<int>(box.width()) - 2 * textFieldPadding;
-        painter->drawText(QRect(static_cast<int>(box.left()) + textFieldPadding, static_cast<int>(box.bottom()) + 4,
-                                width, fieldSupportRoom - 4),
+        const QRect line(static_cast<int>(box.left()) + textFieldPadding, static_cast<int>(box.bottom()) + 4,
+                         static_cast<int>(box.width()) - 2 * textFieldPadding, fieldSupportRoom - 4);
+        // The counter at the end of the line, and the supporting text in what it leaves.
+        const int counted = field.counter.isEmpty() ? 0 : metrics.horizontalAdvance(field.counter) + textFieldPadding;
+        if (!field.counter.isEmpty())
+            painter->drawText(line, Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, field.counter);
+        const int width = std::max(0, line.width() - counted);
+        painter->drawText(QRect(line.left(), line.top(), width, line.height()),
                           Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-                          QFontMetrics(font).elidedText(field.supporting, Qt::ElideRight, width));
+                          metrics.elidedText(field.supporting, Qt::ElideRight, width));
     }
     painter->restore();
 }
 
 void QMaterialStyle::propertyChanged(QWidget *widget) {
-    if (qobject_cast<QToolBar *>(widget) || qobject_cast<QAbstractSpinBox *>(widget)) {
+    if (qobject_cast<QToolBar *>(widget) || qobject_cast<QAbstractSpinBox *>(widget) ||
+        qobject_cast<QStatusBar *>(widget) || qobject_cast<QCalendarWidget *>(widget)) {
         QEvent change(QEvent::StyleChange); // it lays itself out anew
         QCoreApplication::sendEvent(widget, &change);
     } else if (widget->property(polishedFont).toBool() || widget->property(polishedPalette).toBool()) {
@@ -2025,6 +2519,19 @@ void QMaterialStyle::propertyChanged(QWidget *widget) {
     }
     widget->updateGeometry();
     widget->update();
+    // A navigation rail that expands or collapses, or whose badges change, may be of another width: the tab widget
+    // that holds it, which has no layout, lays it out anew, and a snackbar beside it moves.
+    if (qobject_cast<QTabBar *>(widget)) {
+        if (auto *pages = qobject_cast<QTabWidget *>(widget->parentWidget())) {
+            QEvent change(QEvent::StyleChange);
+            QCoreApplication::sendEvent(pages, &change);
+        }
+        if (const auto *window = qobject_cast<const QMainWindow *>(widget->window())) {
+            auto *status = window->findChild<QStatusBar *>(QString(), Qt::FindDirectChildrenOnly);
+            if (status && isSnackbar(status) && !status->currentMessage().isEmpty())
+                status->updateGeometry();
+        }
+    }
     // The buttons of a group take their shapes from the widget that holds them.
     for (QObject *child : widget->children()) {
         if (auto *button = qobject_cast<QAbstractButton *>(child))
@@ -2240,11 +2747,185 @@ void QMaterialStyle::drawCalendarDay(QPainter *painter, const QRect &cell, const
     painter->restore();
 }
 
+int QMaterialStyle::datePickerHeadlineHeight(const QWidget *calendar) {
+    return calendar && calendar->property("materialDatePicker").toString() == QLatin1String("modal")
+               ? datePickerHeader + 1
+               : 0;
+}
+
+void QMaterialStyle::drawDatePickerHeadline(QPainter *painter, const QRect &rect,
+                                            const QCalendarWidget *calendar) const {
+    const bool usable = calendar->isEnabled();
+    const QColor ink =
+        usable ? color(Role::OnSurfaceVariant) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    const QRect text(rect.left() + datePickerInset, rect.top(), std::max(0, rect.width() - datePickerInset - 12),
+                     datePickerHeader);
+    painter->save();
+    painter->fillRect(rect, calendar->palette().color(usable ? QPalette::Active : QPalette::Disabled, QPalette::Base));
+    painter->setPen(ink);
+    // The supporting text, label large, 16 from the top on a line of 20,
+    QFont supporting = calendar->font();
+    supporting.setPixelSize(14);
+    supporting.setWeight(QFont::Medium);
+    painter->setFont(supporting);
+    const QRect top(text.left(), text.top() + 16, text.width(), 20);
+    painter->drawText(top, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                      QFontMetrics(supporting).elidedText(QStringLiteral("Select date"), Qt::ElideRight, top.width()));
+    // and the chosen date, headline large, 12 from the bottom on a line of 40.
+    QFont headline = calendar->font();
+    headline.setPixelSize(datePickerHeadlinePixels);
+    headline.setWeight(QFont::Normal);
+    painter->setFont(headline);
+    const QRect bottom(text.left(), text.bottom() + 1 - 12 - 40, text.width(), 40);
+    const QString date = calendar->selectedDate().toString(QStringLiteral("ddd, MMM d"));
+    painter->drawText(bottom, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                      QFontMetrics(headline).elidedText(date, Qt::ElideRight, bottom.width()));
+    painter->fillRect(QRect(rect.left(), rect.top() + datePickerHeader, rect.width(), 1), color(Role::OutlineVariant));
+    painter->restore();
+}
+
+void QMaterialStyle::drawCalendarTitle(QPainter *painter, const QRect &rect, const QWidget *label, const QString &text,
+                                       bool open) const {
+    QFont font = label->font();
+    font.setPixelSize(14); // label large
+    font.setWeight(QFont::Medium);
+    const QFontMetrics metrics(font);
+    const QString shown = metrics.elidedText(text, Qt::ElideRight, std::max(0, rect.width() - calendarMenuArrow));
+    const int width = metrics.horizontalAdvance(shown) + calendarMenuArrow;
+    const int left = std::max(rect.left(), rect.left() + (rect.width() - width) / 2);
+    const QColor ink = label->isEnabled() ? color(Role::OnSurfaceVariant)
+                                          : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setFont(font);
+    painter->setPen(ink);
+    painter->drawText(QRect(left, rect.top(), width - calendarMenuArrow, rect.height()),
+                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, shown);
+    // The arrow of a menu, down while the days are shown and up while the years are.
+    const QPointF centre(left + width - calendarMenuArrow / 2.0, rect.top() + rect.height() / 2.0);
+    const double tip = open ? -2.5 : 2.5;
+    QPainterPath arrow;
+    arrow.moveTo(centre.x() - 5, centre.y() - tip);
+    arrow.lineTo(centre.x() + 5, centre.y() - tip);
+    arrow.lineTo(centre.x(), centre.y() + tip);
+    arrow.closeSubpath();
+    painter->fillPath(arrow, ink);
+    painter->restore();
+}
+
+void QMaterialStyle::drawCalendarYear(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int year,
+                                      bool selected, bool current, bool cursor) const {
+    const bool usable = calendar->isEnabled();
+    const double width = std::min(calendarYearWidth, cell.width());
+    const double height = std::min(calendarYearHeight, cell.height());
+    const QRectF pill(cell.left() + (cell.width() - width) / 2, cell.top() + (cell.height() - height) / 2, width,
+                      height);
+    QColor text = color(current ? Role::Primary : Role::OnSurfaceVariant);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    if (selected) {
+        fillRounded(painter, pill, height / 2,
+                    usable ? color(Role::Primary) : withOpacity(color(Role::OnSurface), disabledContainerOpacity));
+        text = color(Role::OnPrimary);
+    } else if (current) {
+        strokeRounded(painter, pill, height / 2, usable ? color(Role::Primary) : text, 1);
+    }
+    if (!usable)
+        text = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    // The year that the keyboard moves.
+    if (cursor && m_keyboard && calendar->hasFocus())
+        strokeRounded(painter, pill, height / 2, color(Role::Secondary), focusRingWidth);
+    painter->setFont(calendar->font());
+    painter->setPen(text);
+    painter->drawText(cell, Qt::AlignCenter, QString::number(year));
+    painter->restore();
+}
+
 void QMaterialStyle::drawRowIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode,
                                  bool selected, bool enabled) const {
     const QColor ink = !enabled ? withOpacity(color(Role::OnSurface), disabledContentOpacity)
                                 : color(selected ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
     paintIcon(painter, area, icon, mode == QIcon::Selected ? QIcon::Normal : mode, QIcon::Off, ink);
+}
+
+bool QMaterialStyle::isMultiPartRow(const QString &text) {
+    return text.contains(QLatin1Char('\n')) || text.contains(QLatin1Char('\t'));
+}
+
+int QMaterialStyle::listRowHeight(const QString &text) {
+    const int lines = listRowParts(text).lines;
+    return lines == 3 ? listThreeLineHeight : lines == 2 ? listTwoLineHeight : listOneLineHeight;
+}
+
+int QMaterialStyle::listRowContentTop(const QRect &row, int height, const QString &text) {
+    return listRowParts(text).lines == 3 ? row.top() + listThreeLineTop : row.top() + (row.height() - height) / 2;
+}
+
+QSize QMaterialStyle::listRowTextSize(const QString &text, const QFont &font) {
+    const ListRowParts parts = listRowParts(text);
+    const QFontMetrics headline(font);
+    int width = headline.horizontalAdvance(parts.headline);
+    if (!parts.trailing.isEmpty())
+        width += listTrailingSpace + QFontMetrics(listRowFont(font, 11, true)).horizontalAdvance(parts.trailing);
+    // The supporting text is shortened to the width of the row, and does not widen it.
+    const QFontMetrics supporting(listRowFont(font, 14, false));
+    const int lines = parts.lines;
+    return QSize(width, std::max(listHeadlineLine, headline.height()) +
+                            (lines - 1) * std::max(listSupportingLine, supporting.height()));
+}
+
+void QMaterialStyle::drawListRowText(QPainter *painter, const QRect &area, const QString &text, const QFont &font,
+                                     const QColor &headlineInk, Qt::Alignment alignment, bool selected,
+                                     bool enabled) const {
+    const ListRowParts parts = listRowParts(text);
+    const QColor quiet = !enabled ? withOpacity(color(Role::OnSurface), disabledContentOpacity)
+                                  : color(selected ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
+    const QFont supportingFont = listRowFont(font, 14, false);
+    const QFont trailingFont = listRowFont(font, 11, true);
+    const QFontMetrics headlineMetrics(font);
+    const QFontMetrics supportingMetrics(supportingFont);
+    const int headlineHeight = std::max(listHeadlineLine, headlineMetrics.height());
+    const int supportingHeight = std::max(listSupportingLine, supportingMetrics.height());
+    const int block = headlineHeight + (parts.lines - 1) * supportingHeight;
+    const int top = parts.lines == 3 ? area.top() + listThreeLineTop : area.top() + (area.height() - block) / 2;
+    const int horizontal = static_cast<int>(alignment & Qt::AlignHorizontal_Mask);
+    QRect room = area;
+    painter->save();
+    if (!parts.trailing.isEmpty()) {
+        // At the trailing end, in the middle of the row, or beside the headline of a row of three lines.
+        const int width = QFontMetrics(trailingFont).horizontalAdvance(parts.trailing);
+        const QRect trailing = parts.lines == 3 ? QRect(area.right() + 1 - width, top, width, headlineHeight)
+                                                : QRect(area.right() + 1 - width, area.top(), width, area.height());
+        painter->setFont(trailingFont);
+        painter->setPen(quiet);
+        painter->drawText(trailing, Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, parts.trailing);
+        room.setRight(trailing.left() - listTrailingSpace - 1);
+    }
+    const int width = std::max(0, room.width());
+    painter->setFont(font);
+    painter->setPen(headlineInk);
+    painter->drawText(QRect(room.left(), top, width, headlineHeight),
+                      horizontal | Qt::AlignVCenter | Qt::TextSingleLine,
+                      headlineMetrics.elidedText(parts.headline, Qt::ElideRight, width));
+    if (parts.lines > 1) {
+        // One line of a row of two lines; up to two of a row of three, the second shortened if there is more.
+        QStringList lines =
+            parts.lines == 3 ? wrapListText(parts.supporting, supportingMetrics, width) : QStringList{parts.supporting};
+        while (lines.size() > parts.lines - 1) {
+            lines[lines.size() - 2] += QLatin1Char(' ') + lines.last();
+            lines.removeLast();
+        }
+        painter->setFont(supportingFont);
+        painter->setPen(quiet);
+        int y = top + headlineHeight;
+        for (const QString &line : lines) {
+            painter->drawText(QRect(room.left(), y, width, supportingHeight),
+                              horizontal | Qt::AlignVCenter | Qt::TextSingleLine,
+                              supportingMetrics.elidedText(line, Qt::ElideRight, width));
+            y += supportingHeight;
+        }
+    }
+    painter->restore();
 }
 
 bool QMaterialStyle::isTimeInput(const QWidget *widget) {
@@ -2599,6 +3280,7 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
     };
     // As in the Fusion style: the active part starts at the left, or at the bottom of a vertical slider.
     const bool activeFirst = horizontal ? !slider->upsideDown : slider->upsideDown;
+    const SliderSize &size = sizeOfSlider(widget);
     QColor active = color(Role::Primary);
     QColor inactive = color(Role::SecondaryContainer);
     QColor knob = color(Role::Primary);
@@ -2609,12 +3291,16 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
     }
     const double beforeEnd = handle - sliderHandleWidth / 2.0 - sliderGap;
     const double afterStart = handle + sliderHandleWidth / 2.0 + sliderGap;
-    if (beforeEnd > start)
-        fillRounded(painter, part(start, beforeEnd), std::min(sliderTrack / 2.0, (beforeEnd - start) / 2),
-                    activeFirst ? active : inactive);
-    if (end > afterStart)
-        fillRounded(painter, part(afterStart, end), std::min(sliderTrack / 2.0, (end - afterStart) / 2),
-                    activeFirst ? inactive : active);
+    // The outer ends of the track have the corners of its size, the ends beside the handle small ones.
+    painter->setPen(Qt::NoPen);
+    if (beforeEnd > start) {
+        painter->setBrush(activeFirst ? active : inactive);
+        painter->drawPath(trackPart(part(start, beforeEnd), size.corner, size.inner, horizontal));
+    }
+    if (end > afterStart) {
+        painter->setBrush(activeFirst ? inactive : active);
+        painter->drawPath(trackPart(part(afterStart, end), size.inner, size.corner, horizontal));
+    }
     // Stops: one at the far end of the inactive part, or one for every step when the slider shows tick marks.
     const auto dot = [&](double at) {
         const bool onActive = activeFirst ? at < handle : at > handle;
@@ -2624,7 +3310,7 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
         fillRounded(painter, QRectF(middle.x() - stopSize / 2.0, middle.y() - stopSize / 2.0, stopSize, stopSize),
                     stopSize / 2.0, color(onActive ? Role::OnPrimary : Role::OnSecondaryContainer));
     };
-    const double inset = sliderTrack / 2.0;
+    const double inset = size.corner;
     const qint64 range = static_cast<qint64>(slider->maximum) - slider->minimum;
     if (slider->tickPosition != 0 && range > 0) {
         const qint64 interval = slider->tickInterval > 0 ? slider->tickInterval
@@ -2641,12 +3327,31 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
     const double width =
         std::max(1.0, animated(widget, HandleWidthChannel, pressed ? sliderPressedWidth : sliderHandleWidth,
                                QtPrivate::fastSpatialSpring, 0.05));
-    const QRectF bar =
-        horizontal ? QRectF(handle - width / 2, centre.y() - sliderHandleHeight / 2.0, width, sliderHandleHeight)
-                   : QRectF(centre.x() - sliderHandleHeight / 2.0, handle - width / 2, sliderHandleHeight, width);
+    const double length = size.handle;
+    const QRectF bar = horizontal ? QRectF(handle - width / 2, centre.y() - length / 2, width, length)
+                                  : QRectF(centre.x() - length / 2, handle - width / 2, length, width);
     fillRounded(painter, bar, width / 2, knob);
     if (keyboardFocus(option))
         strokeRounded(painter, bar.adjusted(-4, -2, 4, 2), 6, color(Role::Secondary), 2);
+    // The value indicator, over the handle (at the left of a vertical slider) while it is pressed or the keys change
+    // it, in the room that the slider keeps for it. Near an end it stays inside the slider.
+    if (!enabled(option) || !(pressed || keyboardFocus(option)) || !showsSliderValue(widget, slider->tickPosition))
+        return;
+    const QFont font = sliderValueFont(widget);
+    const QString text = QString::number(slider->sliderPosition);
+    const double boxWidth = sliderValueWidth(QFontMetrics(font), slider->sliderPosition);
+    const QRectF r(option->rect);
+    QRectF box = horizontal
+                     ? QRectF(handle - boxWidth / 2, bar.top() - valueGap - valueHeight, boxWidth, valueHeight)
+                     : QRectF(bar.left() - valueGap - boxWidth, handle - valueHeight / 2.0, boxWidth, valueHeight);
+    if (horizontal)
+        box.moveLeft(std::clamp(box.left(), r.left(), std::max(r.left(), r.right() - box.width())));
+    else
+        box.moveTop(std::clamp(box.top(), r.top(), std::max(r.top(), r.bottom() - box.height())));
+    fillRounded(painter, box, valueHeight / 2.0, color(Role::InverseSurface));
+    painter->setFont(font);
+    painter->setPen(color(Role::InverseOnSurface));
+    painter->drawText(box, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text);
 }
 
 // A thin rounded line: what is done, a gap, what is left, and a dot at the far end.
@@ -2845,6 +3550,22 @@ void QMaterialStyle::snackbarLeaves(QStatusBar *bar) const {
                                   effect->setOpacity(1.0 - std::clamp(progress, 0.0, 1.0));
                                   return true;
                               });
+}
+
+// The cross of a snackbar's close button: 24 in the middle of its 48, in the color of the text, with a press shown.
+void QMaterialStyle::drawSnackbarClose(QPainter *painter, const QAbstractButton *button) const {
+    const QColor ink = color(Role::InverseOnSurface);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    const QRectF area(button->rect());
+    if (button->isDown())
+        fillRounded(painter, area.adjusted(4, 4, -4, -4), (area.height() - 8) / 2, withOpacity(ink, 0.1));
+    const QPointF centre = area.center();
+    painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap));
+    const double arm = 6;
+    painter->drawLine(centre + QPointF(-arm, -arm), centre + QPointF(arm, arm));
+    painter->drawLine(centre + QPointF(-arm, arm), centre + QPointF(arm, -arm));
+    painter->restore();
 }
 
 void QMaterialStyle::drawSnackbar(QPainter *painter, const QStatusBar *bar) const {
@@ -3075,16 +3796,21 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter,
         return;
     }
     const bool usable = item->state & State_Enabled;
-    if (usable && (item->state & State_Selected))
-        painter->fillRect(r, withOpacity(color(Role::OnSurface), hoverOpacity));
-    if (usable && menu && menu == m_rippleWidget.data() && r.contains(m_rippleOrigin.toPoint())) {
-        QPainterPath outline;
-        outline.addRect(QRectF(r));
-        painter->save();
-        painter->setRenderHint(QPainter::Antialiasing);
-        drawRipple(painter, menu, outline, QRectF(r), m_rippleOrigin, m_rowPressed, color(Role::OnSurface));
-        painter->restore();
+    // The highlight and the ripple of a row keep inside the round corners of the menu.
+    QPainterPath outline;
+    outline.addRect(QRectF(r));
+    if (menu) {
+        QPainterPath corners;
+        corners.addRoundedRect(QRectF(menu->rect()), menuCorner, menuCorner);
+        outline = outline.intersected(corners);
     }
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    if (usable && (item->state & State_Selected))
+        painter->fillPath(outline, QBrush(withOpacity(color(Role::OnSurface), hoverOpacity)));
+    if (usable && menu && menu == m_rippleWidget.data() && r.contains(m_rippleOrigin.toPoint()))
+        drawRipple(painter, menu, outline, QRectF(r), m_rippleOrigin, m_rowPressed, color(Role::OnSurface));
+    painter->restore();
     const QColor ink = usable ? color(Role::OnSurface) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
     const QColor quiet = usable ? color(Role::OnSurfaceVariant) : ink;
     int left = r.left() + menuPadding;
@@ -3136,14 +3862,11 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_FrameMenu:
         if (isFabMenu(widget))
             break; // the items of a FAB menu float over what is below
-        // Only the fill: a menu is a window, whose corners would show behind rounded ones.
-        painter->fillRect(option->rect, color(Role::SurfaceContainer));
+        // A menu is drawn in its window, which shows at its round corners.
+        fillRounded(painter, QRectF(option->rect), menuCorner, color(Role::SurfaceContainer));
         if (element == PE_FrameMenu)
             break;
-        painter->setPen(QPen(QBrush(color(Role::OutlineVariant)), 1));
-        painter->setBrush(Qt::NoBrush);
-        painter->setRenderHint(QPainter::Antialiasing, false);
-        painter->drawRect(option->rect.adjusted(0, 0, -1, -1));
+        strokeRounded(painter, QRectF(option->rect), menuCorner, color(Role::OutlineVariant), 1);
         break;
     case PE_PanelTipLabel:
         // A plain tooltip: dark on a light scheme and light on a dark one.
@@ -3442,10 +4165,36 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
         // A narrow button keeps what room it has for its label.
         return r.adjusted(std::min(buttonPadding, r.width() / 4), 0, -std::min(buttonPadding, r.width() / 4), 0);
     case SE_SliderGroove: {
-        const auto *slider = static_cast<const QStyleOptionSlider *>(option);
-        if (slider->orientation == Qt::Horizontal)
-            return QRect(r.left(), r.top() + (r.height() - sliderTrack) / 2, r.width(), sliderTrack);
-        return QRect(r.left() + (r.width() - sliderTrack) / 2, r.top(), sliderTrack, r.height());
+        // Across the middle of what is not kept for the value indicator.
+        const QRect body = sliderBody(option, widget);
+        const int track = sizeOfSlider(widget).track;
+        if (factsOfSlider(option, widget).horizontal)
+            return QRect(body.left(), body.top() + (body.height() - track) / 2, body.width(), track);
+        return QRect(body.left() + (body.width() - track) / 2, body.top(), track, body.height());
+    }
+    case SE_SliderHandle: {
+        // Where a press takes hold of the handle: as long across the track as the handle is, centred on the track.
+        const auto *slider = qstyleoption_cast<const QStyleOptionSlider *>(option);
+        if (!slider)
+            break;
+        const QRect groove = proxy()->subElementRect(SE_SliderGroove, option, widget);
+        const int length = proxy()->pixelMetric(PM_SliderLength, option, widget);
+        const SliderSize &size = sizeOfSlider(widget);
+        const int across = size.handle;
+        const int beside = (size.track - across) / 2; // where the handle begins across, from the groove's edge
+        const qint64 range = static_cast<qint64>(slider->maximum) - slider->minimum;
+        qint64 done = std::clamp<qint64>(static_cast<qint64>(slider->sliderPosition) - slider->minimum, 0, range);
+        if (slider->upsideDown)
+            done = range - done;
+        if (slider->orientation == Qt::Horizontal) {
+            const int span = std::max(0, groove.width() - length);
+            const int x = range > 0 ? static_cast<int>(done * span / range) : 0;
+            return QRect(groove.left() + x, groove.top() + beside, length, across);
+        }
+        // The smallest value of a vertical slider is at the bottom.
+        const int span = std::max(0, groove.height() - length);
+        const int y = range > 0 ? static_cast<int>(done * span / range) : 0;
+        return QRect(groove.left() + beside, groove.bottom() + 1 - length - y, across, length);
     }
     case SE_CheckBoxIndicator:
     case SE_CheckBoxContents:
@@ -3520,6 +4269,11 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
         return QCommonStyle::pixelMetric(metric, option, widget);
     case PM_ScrollBarExtent:
         return scrollBarWidth;
+    // The icons at the ends of a text field: 24, 12 from its edges, and 16 from the text.
+    case PM_LineEditIconSize:
+        return fieldIcon;
+    case PM_LineEditIconMargin:
+        return fieldIconMargin;
     case PM_DefaultFrameWidth:
         if (isTextEditor(widget))
             return editorFrame;
@@ -3546,7 +4300,8 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
         return sliderLength;
     case PM_SliderThickness:
     case PM_SliderControlThickness:
-        return sliderHandleHeight;
+        // The handle of the slider's size, and the room for its value indicator if it shows one.
+        return sizeOfSlider(widget).handle + sliderValueRoom(option, widget);
     case PM_ButtonShiftHorizontal:
     case PM_ButtonShiftVertical:
         return 0;
@@ -3647,6 +4402,26 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             return QSize(contentsSize.width(), std::max(wavyProgressHeight, contentsSize.height()));
         return QSize(contentsSize.width(), std::max(progressHeight, contentsSize.height()));
     case CT_TabBarTab:
+        if (isExpandedRail(widget)) {
+            // Wide enough for the longest destination and its count.
+            const auto *bar = static_cast<const QTabBar *>(widget);
+            const QFontMetrics metrics(bar->font());
+            const QVariantList badges = bar->property("materialBadges").toList();
+            int widest = 0;
+            for (int i = 0; i < bar->count(); ++i) {
+                int width = metrics.horizontalAdvance(bar->tabText(i));
+                if (!bar->tabIcon(i).isNull())
+                    width += navigationIcon + railExpandedIconSpace;
+                bool dot = false;
+                const QString count = i < badges.size() ? badgeText(badges.at(i), &dot) : QString();
+                if (!count.isEmpty())
+                    width += railExpandedIconSpace + badgeWidth(bar->font(), count);
+                widest = std::max(widest, width);
+            }
+            return QSize(std::clamp(widest + 2 * (railExpandedInset + railExpandedPadding), railExpandedMinimum,
+                                    railExpandedMaximum),
+                         railExpandedItem);
+        }
         if (isNavigationRail(widget))
             return QSize(railWidth, navigationHeight);
         if (isNavigationBar(widget))

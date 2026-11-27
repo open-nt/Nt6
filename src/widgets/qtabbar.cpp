@@ -16,6 +16,7 @@ constexpr int kCloseSize = 14; // the close button of a tab
 constexpr int kDragDistance = 4;
 constexpr int kRailTop = 44; // above the first destination of a navigation rail,
 constexpr int kRailItem = 64;
+constexpr int kRailRow = 56;  // a destination of the expanded rail
 constexpr int kRailSpace = 4; // and between one and the next
 
 } // namespace
@@ -532,10 +533,11 @@ std::vector<QRect> QTabBar::layoutTabs() const {
     if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationRail(this)) {
         std::vector<QRect> column;
         column.reserve(m_tabs.size());
+        const int item = QMaterialStyle::isExpandedRail(this) ? kRailRow : kRailItem;
         int top = kRailTop;
         for (const Tab &tab : m_tabs) {
-            column.push_back(QRect(0, top, thick, tab.visible ? kRailItem : 0));
-            top += tab.visible ? kRailItem + kRailSpace : 0;
+            column.push_back(QRect(0, top, thick, tab.visible ? item : 0));
+            top += tab.visible ? item + kRailSpace : 0;
         }
         return column;
     }

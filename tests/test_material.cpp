@@ -381,6 +381,26 @@ void testComboAndMenu() {
     CHECK(near(shown.pixelColor(shown.width() - 6, 8), style->color(Role::SurfaceContainer), 3));
     CHECK(near(shown.pixelColor(shown.width() / 2, 48 + 4), style->color(Role::OutlineVariant), 6));
     menu.hide();
+    // The corners are round (16, the standard menu of Material 3 Expressive), and the window shows at them.
+    QWidget plain;
+    plain.resize(300, 300);
+    plain.show();
+    QCoreApplication::processEvents();
+    QMenu inWindow(&plain);
+    inWindow.addAction(QStringLiteral("Share"));
+    QAction *rename = inWindow.addAction(QStringLiteral("Rename"));
+    inWindow.popup(plain.mapToGlobal(QPoint(40, 40)));
+    inWindow.setActiveAction(inWindow.actions().first()); // a highlighted first row keeps inside the corners too
+    QCoreApplication::processEvents();
+    const QImage behind = plain.grab().toImage();
+    const QPoint corner = inWindow.mapTo(&plain, QPoint(0, 0));
+    const QColor windowColor = style->color(Role::Surface);
+    CHECK(near(behind.pixelColor(corner + QPoint(1, 1)), windowColor, 3));
+    CHECK(near(behind.pixelColor(corner + QPoint(inWindow.width() - 2, inWindow.height() - 2)), windowColor, 3));
+    CHECK(!near(behind.pixelColor(corner + QPoint(16, 16)), windowColor, 3));
+    CHECK(near(behind.pixelColor(corner + QPoint(inWindow.width() - 8, inWindow.actionGeometry(rename).center().y())),
+               style->color(Role::SurfaceContainer), 3));
+    inWindow.hide();
 
     // A dialog has the container color of Material, text buttons for its actions, and rounded corners on Android.
     QDialog dialog(&window);
@@ -3125,6 +3145,1023 @@ void testSheetAndSnackbarMotion() {
     CHECK(!main.findChild<QWidget *>(QStringLiteral("_nt_snackbarGhost")));
 }
 
+// Text fields with icons at their ends, a prefix, a suffix and a counter.
+void testFieldIconsAffixesCounter() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(360, 400);
+    QPixmap square(48, 48);
+    square.fill(Qt::black); // an icon of one color, which takes the color of the field's icons
+    auto *edit = new QLineEdit(&window);
+    edit->setProperty("materialLabel", QStringLiteral("Search"));
+    QAction *find = edit->addAction(QIcon(square), QLineEdit::LeadingPosition);
+    edit->setGeometry(0, 0, 300, edit->sizeHint().height());
+    auto *other = new QLineEdit(&window);
+    other->setGeometry(0, 200, 300, 56);
+    window.show();
+    QCoreApplication::processEvents();
+    const auto shot = [&](const QWidget *w) { return window.grab().toImage().copy(w->geometry()); };
+    const int box = edit->height() - 56; // the room over the box, for the floating label
+    QImage image = shot(edit);
+    // The icon is 24, 12 from the edge, in the quiet color.
+    CHECK(is(image.pixelColor(12 + 12, box + 28), Role::OnSurfaceVariant));
+    CHECK(!is(image.pixelColor(12 + 26, box + 28), Role::OnSurfaceVariant));
+    CHECK(!is(image.pixelColor(8, box + 28), Role::OnSurfaceVariant));
+    // The text begins 52 in, and a tap on the icon triggers it, not the text.
+    edit->setFocus();
+    edit->setText(QStringLiteral("x"));
+    edit->home(false);
+    int found = 0;
+    QObject::connect(find, &QAction::triggered, [&found] { ++found; });
+    const QPointF on(20, box + 28);
+    QMouseEvent press(QEvent::MouseButtonPress, on, on, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(edit, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, on, on, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(edit, &release);
+    CHECK(found == 1);
+    const auto textLeft = [&] {
+        QImage picture = shot(edit);
+        for (int x = 40; x < 200; ++x)
+            for (int y = box + 16; y < box + 40; ++y)
+                if (near(picture.pixelColor(x, y), style->color(Role::OnSurface), 90))
+                    return x;
+        return -1;
+    };
+    if (textIsDrawn())
+        CHECK(std::abs(textLeft() - 52) <= 3);
+    // A trailing icon 12 from the other edge, in the color of an error while there is one.
+    edit->addAction(QIcon(square), QLineEdit::TrailingPosition);
+    QCoreApplication::processEvents();
+    CHECK(is(shot(edit).pixelColor(300 - 24, box + 28), Role::OnSurfaceVariant));
+    edit->setProperty("materialError", QStringLiteral("Wrong"));
+    QCoreApplication::processEvents();
+    image = shot(edit);
+    CHECK(is(image.pixelColor(300 - 24, box + 28), Role::Error));
+    CHECK(is(image.pixelColor(24, box + 28), Role::OnSurfaceVariant)); // the leading one is not part of the error
+    edit->setProperty("materialError", QVariant());
+
+    // A prefix and a suffix show once the label has floated, and the text goes between them.
+    auto *price = new QLineEdit(&window);
+    price->setProperty("materialLabel", QStringLiteral("Price"));
+    price->setProperty("materialPrefix", QStringLiteral("$"));
+    price->setProperty("materialSuffix", QStringLiteral("per kg"));
+    price->setGeometry(0, 100, 300, price->sizeHint().height());
+    price->show();
+    QCoreApplication::processEvents();
+    const auto inked = [&](const QRect &area) {
+        const QImage picture = shot(price);
+        int count = 0;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+            for (int x = area.left(); x <= area.right(); ++x)
+                count += near(picture.pixelColor(x, y), style->color(Role::OnSurfaceVariant), 60) ? 1 : 0;
+        return count;
+    };
+    const QRect end(220, box + 18, 64, 22);
+    if (textIsDrawn()) {
+        CHECK(inked(end) == 0); // the label rests: no suffix yet
+        price->setText(QStringLiteral("12"));
+        QCoreApplication::processEvents();
+        CHECK(inked(end) > 20);
+        CHECK(inked(QRect(14, box + 18, 12, 22)) > 5); // the dollar
+    }
+    price->clear();
+    other->setFocus();
+    QCoreApplication::processEvents();
+    if (textIsDrawn())
+        CHECK(inked(end) == 0); // the label rests again
+
+    // A counter of the characters, at the end of the line under the field, which it makes room for.
+    auto *note = new QLineEdit(&window);
+    const int plain = note->sizeHint().height();
+    note->setMaxLength(40);
+    note->setProperty("materialCounter", true);
+    CHECK(note->sizeHint().height() == plain + 20);
+    note->setText(QStringLiteral("hazel"));
+    note->setGeometry(0, 300, 300, note->sizeHint().height());
+    note->show();
+    QCoreApplication::processEvents();
+    if (textIsDrawn()) {
+        const QImage picture = shot(note);
+        int count = 0;
+        for (int y = 58; y < picture.height(); ++y)
+            for (int x = 240; x < 284; ++x)
+                count += near(picture.pixelColor(x, y), style->color(Role::OnSurfaceVariant), 60) ? 1 : 0;
+        CHECK(count > 10);
+    }
+}
+
+// A snackbar may have a close button at its end, which takes the message away.
+void testSnackbarClose() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QMainWindow window;
+    window.setCentralWidget(new QWidget);
+    auto *status = new QStatusBar;
+    status->setProperty("materialStatusBar", QStringLiteral("snackbar"));
+    window.setStatusBar(status);
+    window.resize(360, 400);
+    window.show();
+    QCoreApplication::processEvents();
+    const auto close = [&] { return status->findChild<QAbstractButton *>(QStringLiteral("_nt_snackbarClose")); };
+    status->showMessage(QStringLiteral("Saved"));
+    QCoreApplication::processEvents();
+    CHECK(!close()); // only when asked for
+    status->setProperty("materialCloseButton", true);
+    QCoreApplication::processEvents();
+    QAbstractButton *button = close();
+    CHECK(button && button->isVisible());
+    if (!button)
+        return;
+    CHECK(button->geometry() == QRect(status->width() - 48, 0, 48, 48));
+    // A cross in the color of the text, in the middle of the button.
+    const QImage image = window.grab().toImage().copy(status->geometry());
+    int ink = 0;
+    for (int y = 14; y < 34; ++y)
+        for (int x = status->width() - 34; x < status->width() - 14; ++x)
+            ink += is(image.pixelColor(x, y), Role::InverseOnSurface) ? 1 : 0;
+    CHECK(ink > 10);
+    CHECK(is(image.pixelColor(status->width() - 44, 6), Role::InverseSurface));
+    // An action goes before it.
+    auto *undo = new QPushButton(QStringLiteral("Undo"));
+    status->addPermanentWidget(undo);
+    status->showMessage(QStringLiteral("Deleted"));
+    QCoreApplication::processEvents();
+    CHECK(undo->geometry().right() < button->geometry().left());
+    // A tap on it takes the message away, and the button with it.
+    const QPointF middle(24, 24);
+    QMouseEvent press(QEvent::MouseButtonPress, middle, middle, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(button, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, middle, middle, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(button, &release);
+    QCoreApplication::processEvents();
+    CHECK(status->currentMessage().isEmpty() && status->height() == 0 && button->isHidden());
+    status->showMessage(QStringLiteral("Again"));
+    CHECK(button->isVisible());
+    status->setProperty("materialCloseButton", false);
+    QCoreApplication::processEvents();
+    CHECK(!close());
+}
+
+// A top app bar is Surface at rest and SurfaceContainer while the content under it is scrolled.
+void testAppBarScrolled() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QMainWindow window;
+    auto *bar = new QToolBar;
+    bar->setProperty("materialToolBar", QStringLiteral("appBar"));
+    bar->setWindowTitle(QStringLiteral("Inbox"));
+    window.addToolBar(bar);
+    auto *central = new QWidget;
+    auto *layout = new QVBoxLayout(central);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto *list = new QListWidget;
+    for (int i = 0; i < 100; ++i)
+        list->addItem(QStringLiteral("Message %1").arg(i));
+    layout->addWidget(list, 1);
+    // A small scroll area at the bottom, which is not what the bar is over.
+    auto *notes = new QPlainTextEdit;
+    QString text;
+    for (int i = 0; i < 40; ++i)
+        text += QStringLiteral("Line %1\n").arg(i);
+    notes->setPlainText(text);
+    notes->setFixedHeight(60);
+    layout->addWidget(notes);
+    window.setCentralWidget(central);
+    window.resize(360, 480);
+    window.show();
+    QCoreApplication::processEvents();
+    CHECK(list->verticalScrollBar()->maximum() > 0 && notes->verticalScrollBar()->maximum() > 0);
+
+    const auto barColor = [&] { return pixel(*bar, bar->width() - 10, 4); };
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    CHECK(!near(style->color(Role::Surface), style->color(Role::SurfaceContainer), 3));
+
+    // What scrolls repaints the bar.
+    int paints = 0;
+    struct PaintCounter : QObject {
+        int *count;
+        explicit PaintCounter(int *c) : count(c) {}
+        bool eventFilter(QObject *, QEvent *event) override {
+            if (event->type() == QEvent::Paint)
+                ++*count;
+            return false;
+        }
+    } counter(&paints);
+    bar->installEventFilter(&counter);
+
+    CHECK(is(barColor(), Role::Surface));
+    QCoreApplication::processEvents();
+    paints = 0;
+    list->verticalScrollBar()->setValue(10);
+    QCoreApplication::processEvents();
+    CHECK(paints > 0);
+    CHECK(is(barColor(), Role::SurfaceContainer));
+    list->verticalScrollBar()->setValue(0);
+    CHECK(is(barColor(), Role::Surface));
+
+    // The small one does not change it.
+    notes->verticalScrollBar()->setValue(notes->verticalScrollBar()->maximum());
+    CHECK(is(barColor(), Role::Surface));
+    notes->verticalScrollBar()->setValue(0);
+
+    // A list that is hidden, as on another page, is not under the bar.
+    list->verticalScrollBar()->setValue(10);
+    CHECK(is(barColor(), Role::SurfaceContainer));
+    list->hide();
+    QCoreApplication::processEvents();
+    CHECK(is(barColor(), Role::Surface));
+    list->show();
+    QCoreApplication::processEvents();
+    CHECK(is(barColor(), Role::SurfaceContainer));
+    list->verticalScrollBar()->setValue(0);
+
+    // A QScrollArea that fills the central widget counts as well.
+    auto *area = new QScrollArea;
+    auto *page = new QWidget;
+    page->setMinimumSize(300, 2000);
+    area->setWidget(page);
+    window.setCentralWidget(area);
+    QCoreApplication::processEvents();
+    CHECK(is(barColor(), Role::Surface));
+    area->verticalScrollBar()->setValue(50);
+    CHECK(is(barColor(), Role::SurfaceContainer));
+    area->verticalScrollBar()->setValue(0);
+    CHECK(is(barColor(), Role::Surface));
+
+    // With motion the color fades: it sets off from Surface and comes to SurfaceContainer.
+    style->setMotionEnabled(true);
+    QCoreApplication::processEvents();
+    CHECK(is(barColor(), Role::Surface));
+    area->verticalScrollBar()->setValue(50);
+    CHECK(is(barColor(), Role::Surface));
+    wait(700);
+    CHECK(is(barColor(), Role::SurfaceContainer));
+    area->verticalScrollBar()->setValue(0);
+    wait(700);
+    CHECK(is(barColor(), Role::Surface));
+    bar->removeEventFilter(&counter);
+}
+
+void testDatePicker() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(400, 560);
+    auto *calendar = new QCalendarWidget(&window);
+    calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    const int year = QDate::currentDate().year();
+    calendar->setDateRange(QDate(year - 25, 3, 15), QDate(year + 10, 9, 10));
+    calendar->setSelectedDate(QDate(year - 1, 1, 20));
+    window.show();
+    QCoreApplication::processEvents();
+    const QList<QToolButton *> arrows = calendar->findChildren<QToolButton *>();
+    auto *title = calendar->findChild<QLabel *>();
+    CHECK(arrows.size() == 2 && title);
+    if (arrows.size() != 2 || !title)
+        return;
+    QWidget *navigation = arrows.at(0)->parentWidget();
+    const int bar = navigation->sizeHint().height();
+    // A calendar has no headline unless it asks for one, and it may ask while it is shown.
+    CHECK(calendar->sizeHint() == QSize(7 * 40, bar + 7 * 40));
+    calendar->setProperty("materialDatePicker", "modal");
+    CHECK(calendar->sizeHint() == QSize(7 * 40, 121 + bar + 7 * 40));
+    calendar->resize(calendar->sizeHint());
+    QCoreApplication::processEvents();
+    CHECK(navigation->geometry() == QRect(0, 121, 7 * 40, bar));
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    const auto pixel = [&](const QPoint &point) { return calendar->grab().toImage().pixelColor(point.x(), point.y()); };
+    // The headline is on the container, above a divider; the month is under it.
+    CHECK(is(pixel(QPoint(2, 2)), Role::SurfaceContainerHigh));
+    CHECK(is(pixel(QPoint(2, 119)), Role::SurfaceContainerHigh));
+    CHECK(is(pixel(QPoint(140, 120)), Role::OutlineVariant));
+    CHECK(is(pixel(QPoint(2, 121 + bar + 2)), Role::SurfaceContainerHigh));
+    // The chosen date, in the headline, 24 in, in the color of the supporting text; it follows the selection.
+    const QRect headline(24, 68, 7 * 40 - 36, 40);
+    const auto inked = [&](const QRect &area) {
+        const QImage image = calendar->grab().toImage().copy(area);
+        int count = 0;
+        for (int y = 0; y < image.height(); ++y)
+            for (int x = 0; x < image.width(); ++x)
+                count += near(image.pixelColor(x, y), style->color(Role::OnSurfaceVariant), 40) ? 1 : 0;
+        return count;
+    };
+    if (textIsDrawn()) {
+        CHECK(inked(headline) > 40);
+        CHECK(inked(QRect(24, 16, 120, 20)) > 10); // "Select date"
+        CHECK(inked(QRect(0, 68, 20, 40)) == 0);
+        const QImage before = calendar->grab().toImage().copy(headline);
+        calendar->setSelectedDate(QDate(year - 1, 1, 21));
+        CHECK(calendar->grab().toImage().copy(headline) != before);
+    }
+    calendar->setSelectedDate(QDate(year - 1, 1, 20));
+
+    // A click on the month and the year shows the years, three to a row, in the place of the days, without the arrows.
+    const auto click = [&](QWidget *target, const QPoint &at) {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(at), QPointF(at), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(at), QPointF(at), Qt::LeftButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &release);
+        QCoreApplication::processEvents();
+    };
+    const auto key = [&](int code) {
+        QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier);
+        QCoreApplication::sendEvent(calendar, &press);
+        QCoreApplication::processEvents();
+    };
+    click(title, title->rect().center());
+    CHECK(!arrows.at(0)->isVisible() && !arrows.at(1)->isVisible());
+    CHECK(navigation->geometry().height() == bar);
+    // The years are from that of the minimum to that of the maximum, 36 in 12 rows, of which 5 fit; the year shown is
+    // in the second row. A year's cell is a third of the width and 52 high, 8 under the bar.
+    const int top = 121 + bar;
+    int scrolled = 7;
+    const auto centre = [&](int shown) {
+        const int index = shown - (year - 25);
+        const int column = index % 3;
+        const int left = 7 * 40 * column / 3;
+        const int right = 7 * 40 * (column + 1) / 3;
+        return QPoint((left + right) / 2, top + 8 + (index / 3 - scrolled) * 52 + 26);
+    };
+    // The year shown is a filled pill of 72 by 36, this year is in a ring and the others are on the container.
+    CHECK(is(pixel(centre(year - 1) + QPoint(-30, 0)), Role::Primary));
+    CHECK(is(pixel(centre(year - 1) + QPoint(30, 0)), Role::Primary));
+    CHECK(is(pixel(centre(year - 1) + QPoint(0, -15)), Role::Primary));
+    CHECK(is(pixel(centre(year - 1) + QPoint(0, -21)), Role::SurfaceContainerHigh));
+    CHECK(is(pixel(centre(year - 1) + QPoint(-40, 0)), Role::SurfaceContainerHigh));
+    CHECK(near(pixel(centre(year) + QPoint(0, -18)), style->color(Role::Primary), 60));
+    CHECK(is(pixel(centre(year) + QPoint(-30, 0)), Role::SurfaceContainerHigh));
+    CHECK(is(pixel(centre(year + 1) + QPoint(-30, 0)), Role::SurfaceContainerHigh));
+    CHECK(is(pixel(centre(year + 1) + QPoint(0, -18)), Role::SurfaceContainerHigh));
+    // The years are in the color of the supporting text.
+    if (textIsDrawn())
+        CHECK(inked(QRect(centre(year + 1) - QPoint(30, 12), QSize(60, 24))) > 10);
+    // After the last year there is nothing to click.
+    click(calendar, QPoint(20, top + 7 * 40 - 4));
+    CHECK(calendar->yearShown() == year - 1);
+    CHECK(!arrows.at(0)->isVisible());
+    // The wheel scrolls the rows.
+    QWheelEvent up(QPointF(140, top + 100), QPointF(140, top + 100), QPoint(0, 0), QPoint(0, 240), Qt::NoButton,
+                   Qt::NoModifier);
+    QCoreApplication::sendEvent(calendar, &up);
+    QCoreApplication::processEvents();
+    scrolled = 5;
+    CHECK(is(pixel(centre(year - 1) + QPoint(-30, 0)), Role::Primary));
+    // A click on a year shows the days of that year, in the same month.
+    click(calendar, centre(year + 2));
+    CHECK(arrows.at(0)->isVisible() && arrows.at(1)->isVisible());
+    CHECK(calendar->yearShown() == year + 2 && calendar->monthShown() == 1);
+    CHECK(calendar->selectedDate() == QDate(year - 1, 1, 20)); // the selection stays
+    CHECK(is(pixel(QPoint(2, top + 2)), Role::SurfaceContainerHigh));
+
+    // Escape goes back to the days, with nothing changed.
+    click(title, title->rect().center());
+    CHECK(!arrows.at(0)->isVisible());
+    key(Qt::Key_Escape);
+    CHECK(arrows.at(0)->isVisible());
+    CHECK(calendar->yearShown() == year + 2 && calendar->monthShown() == 1);
+    // A second click on the month and the year goes back too.
+    click(title, title->rect().center());
+    click(title, title->rect().center());
+    CHECK(arrows.at(0)->isVisible());
+
+    // The keyboard: Home goes to the first year; a month before the minimum becomes that of the minimum.
+    click(title, title->rect().center());
+    key(Qt::Key_Home);
+    key(Qt::Key_Return);
+    CHECK(calendar->yearShown() == year - 25 && calendar->monthShown() == 3);
+    // And a month after the maximum that of the maximum.
+    calendar->setCurrentPage(year - 1, 11);
+    click(title, title->rect().center());
+    key(Qt::Key_End);
+    key(Qt::Key_Left);
+    key(Qt::Key_Right);
+    key(Qt::Key_Enter);
+    CHECK(calendar->yearShown() == year + 10 && calendar->monthShown() == 9);
+    // The arrow keys move by a year and by a row.
+    click(title, title->rect().center());
+    key(Qt::Key_Up);
+    key(Qt::Key_Left);
+    key(Qt::Key_Space);
+    CHECK(calendar->yearShown() == year + 6 && calendar->monthShown() == 9);
+
+    // In the dark, the same roles.
+    style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Dark);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    QCoreApplication::processEvents();
+    CHECK(is(pixel(QPoint(2, 2)), Role::SurfaceContainerHigh));
+    CHECK(is(pixel(QPoint(140, 120)), Role::OutlineVariant));
+    calendar->setCurrentPage(year - 1, 1);
+    click(title, title->rect().center());
+    scrolled = 7;
+    CHECK(is(pixel(centre(year - 1) + QPoint(-30, 0)), Role::Primary));
+    CHECK(is(pixel(centre(year + 1) + QPoint(-30, 0)), Role::SurfaceContainerHigh));
+    key(Qt::Key_Escape);
+
+    // Without the property, the headline goes.
+    calendar->setProperty("materialDatePicker", QVariant());
+    CHECK(calendar->sizeHint() == QSize(7 * 40, bar + 7 * 40));
+    calendar->resize(calendar->sizeHint());
+    QCoreApplication::processEvents();
+    CHECK(navigation->geometry().top() == 0);
+    // Under another style the years are not there: the label is a label.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    const QSize fusion = calendar->sizeHint();
+    calendar->setProperty("materialDatePicker", "modal");
+    CHECK(calendar->sizeHint() == fusion);
+    click(title, title->rect().center());
+    CHECK(arrows.at(0)->isVisible());
+}
+
+// The five sizes of the slider, and the value indicator over its handle.
+void testSliderSizesAndValue() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false); // the pixels are those of the shapes at rest
+    QApplication::setStyle(style);
+
+    const struct {
+        const char *name;
+        int track, handle;
+    } sizes[] = {{nullptr, 16, 44},  {"extraSmall", 16, 44}, {"small", 24, 44},
+                 {"medium", 40, 52}, {"large", 56, 68},      {"extraLarge", 96, 108}};
+    for (const auto &size : sizes) {
+        QWidget window;
+        auto *layout = new QHBoxLayout(&window);
+        auto *column = new QVBoxLayout;
+        layout->addLayout(column);
+        auto *across = new QSlider(Qt::Horizontal);
+        auto *upright = new QSlider(Qt::Vertical);
+        for (QSlider *s : {across, upright}) {
+            s->setRange(0, 100);
+            s->setValue(50);
+            if (size.name)
+                s->setProperty("materialSliderSize", QString::fromLatin1(size.name));
+        }
+        column->addWidget(across);
+        column->addStretch(1);
+        layout->addWidget(upright);
+        window.resize(360, 300);
+        window.show();
+        QCoreApplication::processEvents();
+
+        // As thick as the handle, which a press takes hold of across its whole length.
+        CHECK(across->sizeHint().height() == size.handle);
+        CHECK(upright->sizeHint().width() == size.handle);
+        CHECK(across->height() == size.handle);
+        QStyleOptionSlider option;
+        option.initFrom(across);
+        option.orientation = Qt::Horizontal;
+        option.minimum = 0;
+        option.maximum = 100;
+        option.sliderPosition = 50;
+        const QRect handle = style->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, across);
+        CHECK(handle.height() == size.handle);
+        CHECK(std::abs(handle.center().x() - across->width() / 2) <= 2);
+
+        // The track: as thick as its size, the active part before the handle and the inactive one after it.
+        const int w = across->width(), y = across->height() / 2;
+        CHECK(near(pixel(*across, w / 4, y), style->color(Role::Primary), 2));
+        CHECK(near(pixel(*across, w / 4, y - size.track / 2 + 2), style->color(Role::Primary), 2));
+        CHECK(near(pixel(*across, w / 4, y + size.track / 2 - 2), style->color(Role::Primary), 2));
+        CHECK(near(pixel(*across, w / 4, y - size.track / 2 - 2), style->color(Role::Surface), 2));
+        CHECK(near(pixel(*across, 3 * w / 4, y - size.track / 2 + 2), style->color(Role::SecondaryContainer), 2));
+        CHECK(near(pixel(*across, w / 2, y - size.handle / 2 + 2), style->color(Role::Primary), 3)); // the handle
+        // A vertical one: active below the handle, and as thick.
+        const int h = upright->height(), x = upright->width() / 2;
+        CHECK(near(pixel(*upright, x - size.track / 2 + 2, 3 * h / 4), style->color(Role::Primary), 2));
+        CHECK(near(pixel(*upright, x - size.track / 2 - 2, 3 * h / 4), style->color(Role::Surface), 2));
+        CHECK(near(pixel(*upright, x + size.track / 2 - 2, h / 4), style->color(Role::SecondaryContainer), 2));
+        // Disabled, the track is a faint one of the same thickness.
+        across->setEnabled(false);
+        const QColor faint = pixel(*across, w / 4, y - size.track / 2 + 2);
+        CHECK(!near(faint, style->color(Role::Primary), 20) && !near(faint, style->color(Role::Surface), 2));
+        CHECK(near(pixel(*across, w / 4, y - size.track / 2 - 2), style->color(Role::Surface), 2));
+    }
+
+    // The value indicator: room is kept for it over a slider with tick marks, or one that asks for it.
+    for (Qt::ColorScheme scheme : {Qt::ColorScheme::Light, Qt::ColorScheme::Dark}) {
+        style->setColorScheme(scheme);
+        QWidget window;
+        auto *layout = new QVBoxLayout(&window);
+        auto *steps = new QSlider(Qt::Horizontal);
+        steps->setRange(0, 10);
+        steps->setValue(5);
+        steps->setTickPosition(QSlider::TicksBelow);
+        auto *plain = new QSlider(Qt::Horizontal);
+        plain->setRange(0, 1000);
+        plain->setValue(0);
+        auto *quiet = new QSlider(Qt::Horizontal);
+        quiet->setTickPosition(QSlider::TicksBelow);
+        quiet->setProperty("materialSliderValue", false);
+        auto *upright = new QSlider(Qt::Vertical);
+        upright->setRange(0, 10);
+        upright->setTickPosition(QSlider::TicksBothSides);
+        for (QWidget *w : std::initializer_list<QWidget *>{steps, plain, quiet, upright})
+            layout->addWidget(w);
+        layout->addStretch(1);
+        window.resize(320, 520);
+        window.show();
+        QCoreApplication::processEvents();
+
+        CHECK(steps->sizeHint().height() >= 44 + 48);
+        CHECK(plain->sizeHint().height() == 44);
+        CHECK(quiet->sizeHint().height() < 44 + 48);
+        CHECK(upright->sizeHint().width() >= 44 + 52);
+        plain->setProperty("materialSliderValue", true);
+        QCoreApplication::processEvents();
+        CHECK(plain->sizeHint().height() == 44 + 48);
+        CHECK(plain->height() == 44 + 48);
+
+        // Shown while the handle is pressed, above it and whole, and gone when it is let go.
+        const QColor bubble = style->color(Role::InverseSurface);
+        const QColor surface = style->color(Role::Surface);
+        const auto handleOf = [&](QSlider *s) {
+            QStyleOptionSlider option;
+            option.initFrom(s);
+            option.orientation = s->orientation();
+            option.minimum = s->minimum();
+            option.maximum = s->maximum();
+            option.sliderPosition = s->sliderPosition();
+            option.tickPosition = s->tickPosition();
+            return style->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, s);
+        };
+        const auto bubbleShows = [&](QSlider *s, int bx, int by) { return near(pixel(*s, bx, by), bubble, 3); };
+        constexpr int belowText = 15; // from the middle of the bubble, clear of the value written in it
+        // Nothing from the keys of an earlier round: a click shows no focus ring.
+        QMouseEvent click(QEvent::MouseButtonPress, QPointF(1, 1), QPointF(1, 1), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(&window, &click);
+        QRect handle = handleOf(steps);
+        int sx = handle.center().x();
+        int sy = handle.top() - 4 - 44 / 2; // the middle of the bubble
+        CHECK(sy - 44 / 2 >= 0);
+        CHECK(!bubbleShows(steps, sx, sy + belowText));
+        const QPoint at = handle.center();
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(at), steps->mapToGlobal(at), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(steps, &press);
+        CHECK(steps->isSliderDown());
+        CHECK(bubbleShows(steps, sx, sy + belowText));
+        // Not clipped: its round top and its sides are in the slider.
+        CHECK(bubbleShows(steps, sx, sy - 44 / 2 + 3));
+        CHECK(bubbleShows(steps, sx - 20, sy));
+        CHECK(bubbleShows(steps, sx + 20, sy));
+        CHECK(near(pixel(*steps, sx - 28, sy), surface, 3));
+        if (textIsDrawn()) {
+            // The value is written in it, in the color for text on it.
+            bool written = false;
+            for (int dy = -10; dy <= 10; ++dy)
+                for (int dx = -12; dx <= 12; ++dx)
+                    written =
+                        written || near(pixel(*steps, sx + dx, sy + dy), style->color(Role::InverseOnSurface), 60);
+            CHECK(written);
+        }
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(at), steps->mapToGlobal(at), Qt::LeftButton,
+                            Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(steps, &release);
+        CHECK(!steps->isSliderDown());
+        CHECK(near(pixel(*steps, sx, sy + belowText), surface, 3));
+
+        // At an end it stays inside the slider.
+        plain->setSliderDown(true);
+        const int py = handleOf(plain).top() - 4 - 44 / 2;
+        CHECK(bubbleShows(plain, 3, py));
+        CHECK(bubbleShows(plain, 24, py - 44 / 2 + 2));
+        plain->setSliderDown(false);
+        CHECK(!bubbleShows(plain, 24, py));
+        // One that does not want it shows none.
+        quiet->setSliderDown(true);
+        CHECK(quiet->height() < 44 + 48);
+        quiet->setSliderDown(false);
+
+        // Changed with the keys, it shows while the slider has the focus.
+        steps->setFocus();
+        QKeyEvent right(QEvent::KeyPress, Qt::Key_Right, Qt::NoModifier);
+        QCoreApplication::sendEvent(steps, &right);
+        CHECK(steps->value() == 6);
+        sx = handleOf(steps).center().x();
+        CHECK(bubbleShows(steps, sx, sy + belowText));
+        plain->setFocus();
+        CHECK(!bubbleShows(steps, sx, sy + belowText));
+
+        // A vertical slider shows it at the left of the handle.
+        upright->setValue(5);
+        upright->setSliderDown(true);
+        handle = handleOf(upright);
+        CHECK(handle.left() - 4 - 48 >= 0);
+        CHECK(bubbleShows(upright, handle.left() - 4 - 24, handle.center().y() + belowText));
+        upright->setSliderDown(false);
+        CHECK(!bubbleShows(upright, handle.left() - 4 - 24, handle.center().y() + belowText));
+    }
+}
+
+void testExpandedRail() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    QPixmap square(24, 24);
+    square.fill(Qt::black);
+    const QIcon icon(square);
+
+    QMainWindow window;
+    auto *pages = new QTabWidget;
+    pages->setTabPosition(QTabWidget::West);
+    QTabBar *bar = pages->tabBar();
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRailExpanded"));
+    for (const char *name : {"Home", "Search", "Settings"})
+        pages->addTab(new QWidget, icon, QString::fromLatin1(name));
+    window.setCentralWidget(pages);
+    auto *status = new QStatusBar;
+    status->setProperty("materialStatusBar", QStringLiteral("snackbar"));
+    window.setStatusBar(status);
+    window.resize(600, 400);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // 220 across for short labels, with rows of 56 one under another from 44 down, in label large.
+    CHECK(bar->width() == 220 && bar->height() == 400);
+    CHECK(bar->tabRect(0) == QRect(0, 44, 220, 56));
+    CHECK(bar->tabRect(1) == QRect(0, 104, 220, 56));
+    CHECK(bar->tabRect(2) == QRect(0, 164, 220, 56));
+    CHECK(bar->font().pixelSize() == 14 && bar->font().weight() == QFont::Medium);
+    const auto shot = [&] { return window.grab().toImage(); };
+    QImage image = shot();
+    const QPoint origin = bar->mapTo(&window, QPoint(0, 0));
+    const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+    // The pill of the one shown spans the row, 20 from each side.
+    CHECK(is(at(10, 44 + 28), Role::Surface));
+    CHECK(is(at(24, 44 + 28), Role::SecondaryContainer));
+    CHECK(is(at(195, 44 + 28), Role::SecondaryContainer));
+    CHECK(is(at(205, 44 + 28), Role::Surface));
+    CHECK(is(at(48, 44 + 4), Role::SecondaryContainer));
+    CHECK(is(at(48, 44 - 2), Role::Surface));
+    CHECK(is(at(24, 104 + 28), Role::Surface));
+    CHECK(is(at(195, 104 + 28), Role::Surface));
+    // The icon 16 into the pill, and the label 8 after it.
+    CHECK(is(at(48, 44 + 28), Role::OnSecondaryContainer));
+    CHECK(is(at(48, 104 + 28), Role::OnSurfaceVariant));
+    CHECK(is(at(64, 44 + 28), Role::SecondaryContainer));
+    if (textIsDrawn()) {
+        const auto inked = [&](const QRect &area, Role role) {
+            int count = 0;
+            for (int y = area.top(); y <= area.bottom(); ++y)
+                for (int x = area.left(); x <= area.right(); ++x)
+                    count += near(at(x, y), style->color(role), 40) ? 1 : 0;
+            return count;
+        };
+        CHECK(inked(QRect(68, 44 + 16, 60, 24), Role::OnSecondaryContainer) > 10);
+        CHECK(inked(QRect(68, 104 + 16, 60, 24), Role::OnSurfaceVariant) > 10);
+        CHECK(inked(QRect(140, 44 + 16, 50, 24), Role::OnSecondaryContainer) == 0); // "Home" is short
+    }
+    // A click on a row goes to its destination.
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(180, 104 + 28), QPointF(180, 104 + 28), Qt::LeftButton,
+                      Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(bar, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(180, 104 + 28), QPointF(180, 104 + 28), Qt::LeftButton,
+                        Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(bar, &release);
+    CHECK(pages->currentIndex() == 1);
+    QCoreApplication::processEvents();
+    image = shot();
+    CHECK(is(at(24, 104 + 28), Role::SecondaryContainer));
+    CHECK(is(at(24, 44 + 28), Role::Surface));
+
+    // A snackbar keeps beside it, and moves when it collapses.
+    status->showMessage(QStringLiteral("Saved"));
+    QCoreApplication::processEvents();
+    CHECK(status->x() == 220 + 16 && status->width() == 600 - 220 - 32);
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRail"));
+    QCoreApplication::processEvents();
+    CHECK(bar->width() == 96 && bar->tabRect(1) == QRect(0, 112, 96, 64));
+    CHECK(bar->font().pixelSize() == 12);
+    CHECK(status->x() == 96 + 16 && status->width() == 600 - 96 - 32);
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRailExpanded"));
+    QCoreApplication::processEvents();
+    CHECK(bar->width() == 220 && bar->tabRect(1) == QRect(0, 104, 220, 56));
+    CHECK(bar->font().pixelSize() == 14);
+    CHECK(status->x() == 220 + 16);
+    status->clearMessage();
+
+    // A dot on the icon, a count at the end of the row.
+    bar->setProperty("materialBadges", QVariantList{true, 3, 0});
+    QCoreApplication::processEvents();
+    image = shot();
+    const auto red = [&](const QRect &area) {
+        int count = 0;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+            for (int x = area.left(); x <= area.right(); ++x)
+                count += near(at(x, y), style->color(Role::Error), 6) ? 1 : 0;
+        return count;
+    };
+    CHECK(is(at(57, 44 + 18), Role::Error));   // at the top right of the icon
+    CHECK(red(QRect(20, 44, 180, 56)) < 40);   // and nowhere else in the row
+    CHECK(is(at(171, 104 + 28), Role::Error)); // 16 from the end of the pill
+    CHECK(red(QRect(20, 104, 100, 56)) == 0);  // not on the icon
+    CHECK(red(QRect(0, 164, 220, 56)) == 0);
+
+    // A longer label widens the rail, up to 360.
+    QTabBar lone;
+    lone.setShape(QTabBar::RoundedWest);
+    lone.setProperty("materialTabBar", QStringLiteral("navigationRailExpanded"));
+    lone.addTab(icon, QStringLiteral("A destination with a long name"));
+    lone.show();
+    QCoreApplication::processEvents();
+    const int wanted = lone.fontMetrics().horizontalAdvance(lone.tabText(0)) + 24 + 8 + 2 * (20 + 16);
+    CHECK(lone.sizeHint().width() == std::clamp(wanted, 220, 360));
+    CHECK(lone.sizeHint().height() == 44 + 56);
+    if (textIsDrawn())
+        CHECK(lone.sizeHint().width() > 220);
+    lone.addTab(icon, QStringLiteral("A destination whose name is far too long to be shown in full in a rail"));
+    CHECK(lone.sizeHint().width() ==
+          std::min(360, std::max(wanted, lone.fontMetrics().horizontalAdvance(lone.tabText(1)) + 104)));
+    if (textIsDrawn())
+        CHECK(lone.sizeHint().width() == 360);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// The medium and large flexible app bars: their title on a line under the buttons, collapsing toward the small bar as
+// far as the list under them is scrolled.
+void testFlexibleAppBars() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QImage square(48, 48, QImage::Format_ARGB32_Premultiplied);
+    square.fill(Qt::transparent);
+    {
+        QPainter painter(&square);
+        painter.fillRect(QRect(8, 8, 32, 32), Qt::black);
+    }
+    const QIcon icon(QPixmap::fromImage(square));
+    for (const char *kind : {"appBarMedium", "appBarLarge"}) {
+        const bool large = QByteArray(kind) == "appBarLarge";
+        const int expanded = large ? 120 : 112;
+        QMainWindow window;
+        auto *bar = new QToolBar;
+        bar->setProperty("materialToolBar", QString::fromLatin1(kind));
+        bar->setWindowTitle(QStringLiteral("Inbox"));
+        QAction *back = bar->addAction(icon, QStringLiteral("Back"));
+        bar->addSeparator();
+        QAction *more = bar->addAction(icon, QStringLiteral("More"));
+        window.addToolBar(bar);
+        auto *list = new QListWidget;
+        for (int i = 0; i < 100; ++i)
+            list->addItem(QStringLiteral("Message %1").arg(i));
+        window.setCentralWidget(list);
+        window.resize(360, 480);
+        window.show();
+        QCoreApplication::processEvents();
+
+        // Expanded: its height across the window, the buttons in the top row of 64, the list right under it.
+        CHECK(bar->sizeHint().height() == expanded);
+        CHECK(bar->height() == expanded && bar->width() == 360);
+        const QWidget *backButton = bar->widgetForAction(back);
+        const QWidget *moreButton = bar->widgetForAction(more);
+        CHECK(backButton->geometry() == QRect(4, 8, 48, 48));
+        CHECK(moreButton->y() == 8 && moreButton->x() + moreButton->width() == 360 - 4);
+        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == expanded);
+
+        // Ink of the title in the row of the buttons, beside the leading one, and on the line below it.
+        const auto ink = [&](int left, int top, int bottom) {
+            int found = 0;
+            const QImage image = bar->grab().toImage();
+            for (int y = top; y < std::min(bottom, image.height()); ++y)
+                for (int x = left; x < 200; ++x)
+                    found += image.pixelColor(x, y).lightness() < 128 ? 1 : 0;
+            return found;
+        };
+        const auto rowInk = [&] { return ink(56, 20, 44); };
+        const auto lineInk = [&] { return ink(16, 64, bar->height()); };
+        if (textIsDrawn()) {
+            CHECK(rowInk() == 0);
+            CHECK(lineInk() > 40);
+        }
+
+        // Scrolled a little, it is that much lower and still shows the big title.
+        list->verticalScrollBar()->setValue(10);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == expanded - 10);
+        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == expanded - 10);
+        CHECK(backButton->geometry() == QRect(4, 8, 48, 48));
+        // Scrolled further than the difference, it is the small bar, with the small title in the row.
+        list->verticalScrollBar()->setValue(200);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 64);
+        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == 64);
+        CHECK(backButton->geometry() == QRect(4, 8, 48, 48));
+        CHECK(near(pixel(*bar, 300, 60), style->color(Role::SurfaceContainer), 3));
+        if (textIsDrawn())
+            CHECK(rowInk() > 40);
+        // Back at the top it is expanded again.
+        list->verticalScrollBar()->setValue(0);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == expanded);
+        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == expanded);
+        CHECK(near(pixel(*bar, 300, expanded - 4), style->color(Role::Surface), 3));
+        if (textIsDrawn()) {
+            CHECK(rowInk() == 0);
+            CHECK(lineInk() > 40);
+        }
+
+        // With motion it gets there along a spring.
+        style->setMotionEnabled(true);
+        QCoreApplication::processEvents();
+        list->verticalScrollBar()->setValue(200);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() > 64);
+        wait(700);
+        CHECK(bar->height() == 64);
+        list->verticalScrollBar()->setValue(0);
+        wait(700);
+        CHECK(bar->height() == expanded);
+        style->setMotionEnabled(false);
+    }
+
+    // The small one stays 64 high, scrolled or not.
+    QMainWindow window;
+    auto *bar = new QToolBar;
+    bar->setProperty("materialToolBar", QStringLiteral("appBar"));
+    bar->addAction(QStringLiteral("More"));
+    window.addToolBar(bar);
+    auto *list = new QListWidget;
+    for (int i = 0; i < 100; ++i)
+        list->addItem(QStringLiteral("Message %1").arg(i));
+    window.setCentralWidget(list);
+    window.resize(360, 480);
+    window.show();
+    QCoreApplication::processEvents();
+    CHECK(bar->height() == 64 && bar->sizeHint().height() == 64);
+    list->verticalScrollBar()->setValue(200);
+    QCoreApplication::processEvents();
+    CHECK(bar->height() == 64 && list->mapTo(&window, QPoint(0, 0)).y() == 64);
+}
+
+// Rows of two and three lines: a line break in the text of an item puts supporting text under its headline, and a tab
+// in the headline a trailing supporting text at its end.
+void testMultiLineListRows() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    const QStringList texts{QStringLiteral("Inbox"), QStringLiteral("Headline\nSupporting text"),
+                            QStringLiteral("Headline\nFirst line\nSecond line"), QStringLiteral("Inbox\t100+")};
+    QPixmap black(24, 24);
+    black.fill(Qt::black);
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    layout->setContentsMargins(0, 0, 0, 0);
+    auto *widgetList = new QListWidget;
+    widgetList->setIconSize(QSize(24, 24));
+    for (const QString &text : texts)
+        widgetList->addItem(new QListWidgetItem(QIcon(black), text));
+    auto *model = new QStandardItemModel(&window);
+    for (const QString &text : texts)
+        model->appendRow(new QStandardItem(QIcon(black), text));
+    auto *view = new QListView;
+    view->setIconSize(QSize(24, 24));
+    view->setModel(model);
+    layout->addWidget(widgetList);
+    layout->addWidget(view);
+    window.resize(320, 700);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // The color of the pixel in `r` that is farthest from `background`: the ink of what is drawn there.
+    const auto ink = [](const QImage &image, const QRect &r, const QColor &background) {
+        QColor most = background;
+        int far = -1;
+        for (int y = r.top(); y <= r.bottom(); ++y)
+            for (int x = r.left(); x <= r.right(); ++x) {
+                const QColor c = image.pixelColor(x, y);
+                const int d = std::abs(c.red() - background.red()) + std::abs(c.green() - background.green()) +
+                              std::abs(c.blue() - background.blue());
+                if (d > far) {
+                    far = d;
+                    most = c;
+                }
+            }
+        return most;
+    };
+
+    for (const bool dark : {false, true}) {
+        // The palettes of the widgets follow the scheme when the style is set.
+        style = new QMaterialStyle;
+        style->setColorScheme(dark ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light);
+        style->setMotionEnabled(false);
+        QApplication::setStyle(style);
+        QCoreApplication::processEvents();
+        for (QAbstractItemView *each :
+             {static_cast<QAbstractItemView *>(widgetList), static_cast<QAbstractItemView *>(view)}) {
+            const bool items = each == widgetList;
+            const auto rowRect = [&](int n) {
+                return items ? widgetList->visualItemRect(widgetList->item(n)) : view->visualRect(model->index(n, 0));
+            };
+            // One line 56, two 72, three 88, and a trailing text does not add one.
+            CHECK(rowRect(0).height() == 56);
+            CHECK(rowRect(1).height() == 72);
+            CHECK(rowRect(2).height() == 88);
+            CHECK(rowRect(3).height() == 56);
+            QWidget *port = each->viewport();
+            const QImage image = window.grab().toImage();
+            const QPoint origin = port->mapTo(&window, QPoint(0, 0));
+            const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+            const auto area = [&](const QRect &r) { return r.translated(origin); };
+            const QColor surface = at(rowRect(0).right() - 4, rowRect(0).top() + 4);
+            const QColor iconInk = style->color(Role::OnSurfaceVariant);
+
+            // The icon is in the middle of a row of one or two lines, 16 in, and at the top of a row of three, beside
+            // the headline.
+            for (const int n : {0, 1, 3})
+                CHECK(near(at(16 + 12, rowRect(n).center().y()), iconInk, 3));
+            CHECK(near(at(15, rowRect(1).center().y()), surface, 3));
+            const QRect three = rowRect(2);
+            CHECK(near(at(16 + 12, three.top() + 12 + 2), iconInk, 3));
+            CHECK(near(at(16 + 12, three.top() + 12 + 22), iconInk, 3));
+            CHECK(near(at(16 + 12, three.top() + 12 + 28), surface, 3));
+            CHECK(near(at(16 + 12, three.center().y()), surface, 3));
+
+            if (!textIsDrawn())
+                continue;
+            const int textLeft = 16 + 24 + 12;
+            const QColor headline = style->color(Role::OnSurface);
+            const QColor supporting = style->color(Role::OnSurfaceVariant);
+            // A single line in the middle of its row, as it was.
+            const QRect one = rowRect(0);
+            CHECK(near(ink(image, area(QRect(textLeft, one.top() + 18, 60, 20)), surface), headline, 12));
+            CHECK(near(ink(image, area(QRect(textLeft, one.top() + 2, 60, 10)), surface), surface, 3));
+            // Two lines: the headline over the supporting text, in the middle of the row together.
+            const QRect two = rowRect(1);
+            const int top = two.top() + (72 - 44) / 2;
+            CHECK(near(ink(image, area(QRect(textLeft, top + 2, 80, 20)), surface), headline, 12));
+            CHECK(near(ink(image, area(QRect(textLeft, top + 26, 80, 16)), surface), supporting, 12));
+            CHECK(near(ink(image, area(QRect(textLeft, two.top() + 1, 80, 8)), surface), surface, 3));
+            // Three lines: the headline 12 from the top, and two lines of supporting text under it.
+            CHECK(near(ink(image, area(QRect(textLeft, three.top() + 14, 80, 20)), surface), headline, 12));
+            CHECK(near(ink(image, area(QRect(textLeft, three.top() + 38, 80, 16)), surface), supporting, 12));
+            CHECK(near(ink(image, area(QRect(textLeft, three.top() + 58, 80, 16)), surface), supporting, 12));
+            // A trailing text at the end of the row, 16 from it, in the quiet color; the headline keeps its own.
+            const QRect trailing = rowRect(3);
+            CHECK(near(ink(image, area(QRect(trailing.right() - 16 - 30, trailing.top() + 18, 30, 20)), surface),
+                       supporting, 12));
+            CHECK(
+                near(ink(image, area(QRect(trailing.right() - 15, trailing.top() + 4, 14, 48)), surface), surface, 3));
+            CHECK(near(ink(image, area(QRect(textLeft, trailing.top() + 18, 40, 20)), surface), headline, 12));
+        }
+    }
+
+    // A disabled item has fainter text; a selected one the colors of its container.
+    style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    widgetList->item(1)->setFlags(Qt::ItemIsSelectable);
+    widgetList->setCurrentRow(2);
+    QCoreApplication::processEvents();
+    if (textIsDrawn()) {
+        const QImage image = window.grab().toImage();
+        const QPoint origin = widgetList->viewport()->mapTo(&window, QPoint(0, 0));
+        const QRect two = widgetList->visualItemRect(widgetList->item(1)).translated(origin);
+        const QRect three = widgetList->visualItemRect(widgetList->item(2)).translated(origin);
+        const QColor surface = image.pixelColor(two.right() - 4, two.top() + 4);
+        const QColor faint = ink(image, QRect(two.left() + 52, two.top() + 40, 80, 16), surface);
+        CHECK(!near(faint, style->color(Role::OnSurfaceVariant), 30));
+        CHECK(!near(faint, surface, 20));
+        const QColor container = image.pixelColor(three.right() - 4, three.center().y());
+        CHECK(near(container, style->color(Role::SecondaryContainer), 3));
+        CHECK(near(ink(image, QRect(three.left() + 52, three.top() + 38, 80, 16), container),
+                   style->color(Role::OnSecondaryContainer), 12));
+    }
+
+    // Another style draws the text as it always has, the rows as high as one line.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(widgetList->visualItemRect(widgetList->item(1)).height() < 56);
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -3153,6 +4190,7 @@ int main(int argc, char *argv[]) {
     testSnackbarTooltipCircular();
     testChipsCardsDividers();
     testCalendar();
+    testDatePicker();
     testDialogOrderAndFab();
     testRailAndBadges();
     testSheetsAndDrawer();
@@ -3162,6 +4200,13 @@ int main(int argc, char *argv[]) {
     testDialogHeadline();
     testGroupBoxAndTextEditors();
     testSheetAndSnackbarMotion();
+    testFieldIconsAffixesCounter();
+    testSnackbarClose();
+    testAppBarScrolled();
+    testSliderSizesAndValue();
+    testExpandedRail();
+    testFlexibleAppBars();
+    testMultiLineListRows();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

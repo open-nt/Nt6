@@ -943,11 +943,15 @@ void QListWidget::layoutItems() const {
     }
     // Rows one under the other, rowHeight() high or as high as the size hint of their item.
     const int base = std::max(1, rowHeight());
+    const bool material = qobject_cast<const QMaterialStyle *>(style()) != nullptr;
     int top = m_spacing;
     for (std::size_t r = 0; r < m_items.size(); ++r) {
         if (m_items[r]->m_hidden)
             continue;
-        const int h = std::max(base, m_items[r]->m_sizeHint.height());
+        int h = std::max(base, m_items[r]->m_sizeHint.height());
+        // A Material row of two or three lines is 72 or 88 high.
+        if (material && QMaterialStyle::isMultiPartRow(m_items[r]->m_text))
+            h = std::max(h, QMaterialStyle::listRowHeight(m_items[r]->m_text));
         m_rects[r] = QRect(m_spacing, top, std::max(1, width - 2 * m_spacing), h);
         top += h + m_spacing;
     }
@@ -1193,18 +1197,28 @@ void QListWidget::paintEvent(QPaintEvent *event) {
                                                                     : materialMargin;
             const int gap = material ? materialSpacing : textMargin;
             int iconWidth = 0;
+            // A row of more than one line, or with a trailing text, is drawn by the style.
+            const bool multiPart = material && QMaterialStyle::isMultiPartRow(it->text());
             if (!it->icon().isNull()) {
                 const QSize size = iconSize().isValid() ? iconSize() : QSize(16, 16);
                 const QRect room(rect.left() + margin, rect.top(), size.width(), rect.height());
                 if (material)
                     material->drawRowIcon(
-                        &painter, QRect(QPoint(room.left(), room.top() + (room.height() - size.height()) / 2), size),
+                        &painter,
+                        QRect(QPoint(room.left(), QMaterialStyle::listRowContentTop(
+                                                      rect, size.height(), multiPart ? it->text() : QString())),
+                              size),
                         it->icon(), iconState, selected, on);
                 else
                     it->icon().paint(&painter, room, Qt::AlignCenter, iconState);
                 iconWidth = size.width() + gap;
             }
-            if (!it->text().isEmpty()) {
+            if (multiPart) {
+                painter.setClipRect(rect);
+                material->drawListRowText(&painter, rect.adjusted(margin + iconWidth, 0, -margin, 0), it->text(), font,
+                                          color, it->textAlignment(), selected, on);
+                painter.setClipping(false);
+            } else if (!it->text().isEmpty()) {
                 const QRect textRect = rect.adjusted(margin + iconWidth, 0, -margin, 0);
                 painter.setFont(font);
                 painter.setPen(color);

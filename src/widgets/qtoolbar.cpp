@@ -385,7 +385,14 @@ void QToolBar::setToolButtonStyle(Qt::ToolButtonStyle toolButtonStyle) {
 /*!
     \reimp
 */
-QSize QToolBar::sizeHint() const { return m_layout->sizeHint(); }
+QSize QToolBar::sizeHint() const {
+    QSize size = m_layout->sizeHint();
+    // A medium or large top app bar is as high as the scrolling of what is under it leaves it.
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
+        material && QMaterialStyle::isFlexibleAppBar(this))
+        size.setHeight(material->appBarExtent(this));
+    return size;
+}
 
 /*!
     \reimp
@@ -493,6 +500,8 @@ void QToolBar::relayout() {
     const bool floating = isFloatingForStyle();
     // A top app bar has its title where the first separator is, or before every action if there is none.
     const bool appBar = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isAppBar(this);
+    // A medium or large one keeps its buttons in the top row, above its title.
+    const Qt::Alignment align = appBar && QMaterialStyle::isFlexibleAppBar(this) ? Qt::AlignTop : Qt::Alignment();
     bool gap = false;
     if (appBar && std::none_of(order.begin(), order.end(), [](QAction *a) { return a->isSeparator(); })) {
         m_layout->addStretch();
@@ -510,7 +519,7 @@ void QToolBar::relayout() {
         }
         if (action->isSeparator() && widget->isHidden() && action->isVisible())
             widget->show(); // it was the title's place in an app bar
-        m_layout->addWidget(widget);
+        m_layout->addWidget(widget, 0, align);
     }
     if (!floating && !appBar)
         m_layout->addStretch();
@@ -546,6 +555,9 @@ void QToolBar::paintEvent(QPaintEvent *event) {
     if (const auto *material = qobject_cast<const QMaterialStyle *>(style()); material && material->isAppBar(this)) {
         QPainter painter(this);
         material->drawAppBar(&painter, this);
+        // A medium or large one changes its height along a spring: each frame asks for the new one.
+        if (QMaterialStyle::isFlexibleAppBar(this) && material->appBarExtent(this) != height())
+            updateGeometry();
         return;
     }
     if (isFloatingForStyle()) {

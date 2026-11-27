@@ -4,6 +4,7 @@
 #include "qwidget_p.h"
 #include <QtWidgets/qmaterialstyle.h>
 
+#include <QtGui/qaction.h>
 #include <QtGui/qclipboard.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
@@ -46,7 +47,8 @@
     \endcode
 
     \differences
-    Text is not dragged and dropped (dragEnabled() is only kept), and the alignment is horizontal only. The cursor
+    Text is not dragged and dropped (dragEnabled() is only kept), and the alignment is horizontal only. The icons of
+    actions at the ends are drawn by the line edit, not shown as tool buttons, and have no tooltips or hover. The cursor
     does not blink, there is no \c PasswordEchoOnEdit, and cursorMoveStyle() is only kept, as text is not laid
     out right to left. Text is edited one code unit at a time, so characters outside the Basic Multilingual Plane
     count twice. There is no \c inputMethodEvent().
@@ -63,6 +65,16 @@
     \value Normal The characters are shown as they are.
     \value NoEcho Nothing is shown, which hides even the length of the text.
     \value Password A bullet is shown for each character.
+*/
+
+/*!
+    \enum QLineEdit::ActionPosition
+    \since 6.0
+
+    This enum says at which end of a line edit addAction() puts an action.
+
+    \value LeadingPosition Before the text.
+    \value TrailingPosition After the text.
 */
 
 /*!
@@ -503,13 +515,122 @@ void QLineEdit::home(bool mark) { moveCursor(0, mark); }
 */
 void QLineEdit::end(bool mark) { moveCursor(static_cast<int>(m_text.size()), mark); }
 
-QRect QLineEdit::contentsRect() const {
+QRect QLineEdit::textArea() const {
     QStyleOptionFrame option;
     initStyleOption(&option);
-    QRect contents = style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
+    return style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
+}
+
+int QLineEdit::sideShift() const { return style()->pixelMetric(QStyle::PM_LineEditIconMargin, nullptr, this) / 4; }
+
+// The prefix or the suffix that the Material style shows beside the text.
+QString QLineEdit::affix(bool suffix) const {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    return material ? material->fieldAffix(this, suffix) : QString();
+}
+
+std::vector<QLineEdit::Side> QLineEdit::sides() const {
+    std::vector<Side> out;
+    const QRect area = textArea();
+    const int icon = style()->pixelMetric(QStyle::PM_LineEditIconSize, nullptr, this);
+    const int slot = icon + style()->pixelMetric(QStyle::PM_LineEditIconMargin, nullptr, this);
+    const int shift = sideShift();
+    int left = area.left() - shift;
+    int right = area.right() + 1 + shift - (m_clearButton ? clearButtonRect().width() : 0);
+    for (const auto &[action, position] : m_sideActions) {
+        if (!action || !action->isVisible())
+            continue;
+        Side side{action.data(), position, QRect(), QRect()};
+        const int top = area.top() + (area.height() - icon) / 2;
+        if (position == LeadingPosition) {
+            side.slot = QRect(left, area.top(), slot, area.height());
+            side.icon = QRect(left, top, icon, icon);
+            left += slot;
+        } else {
+            right -= slot;
+            side.slot = QRect(right, area.top(), slot, area.height());
+            side.icon = QRect(right + slot - icon, top, icon, icon);
+        }
+        out.push_back(side);
+    }
+    return out;
+}
+
+QRect QLineEdit::contentsRect() const {
+    QRect contents = textArea();
     if (m_clearButton)
         contents.setRight(contents.right() - clearButtonRect().width());
+    for (const Side &side : sides()) {
+        if (side.position == LeadingPosition)
+            contents.setLeft(std::max(contents.left(), side.slot.right() + 1));
+        else
+            contents.setRight(std::min(contents.right(), side.slot.left() - 1));
+    }
+    const QFontMetrics fm = fontMetrics();
+    if (const QString before = affix(false); !before.isEmpty())
+        contents.setLeft(contents.left() + fm.horizontalAdvance(before));
+    if (const QString after = affix(true); !after.isEmpty())
+        contents.setRight(contents.right() - fm.horizontalAdvance(after) - fm.horizontalAdvance(QLatin1Char(' ')));
     return contents.marginsRemoved(m_textMargins);
+}
+
+/*!
+    \since 6.0
+
+    Adds \a action at the start or the end of the line edit, as \a position says, and to the actions of the widget. Its
+    icon is shown there while the action is visible, and a click on it triggers the action. Actions at one end are
+    shown in the order they were added, from the edge inward; the text is between them.
+
+    \code
+    QAction *search = edit->addAction(QIcon(":/search.svg"), QLineEdit::LeadingPosition);
+    connect(search, &QAction::triggered, this, &Window::find);
+    \endcode
+
+    \sa QWidget::removeAction()
+*/
+void QLineEdit::addAction(QAction *action, ActionPosition position) {
+    if (!action)
+        return;
+    for (auto &entry : m_sideActions) {
+        if (entry.first == action) {
+            entry.second = position;
+            update();
+            return;
+        }
+    }
+    m_sideActions.emplace_back(action, position);
+    QWidget::addAction(action);
+    scrollToCursor();
+    update();
+}
+
+/*!
+    \since 6.0
+    \overload
+
+    Makes an action with \a icon, owned by the line edit, adds it at \a position and returns it.
+*/
+QAction *QLineEdit::addAction(const QIcon &icon, ActionPosition position) {
+    auto *action = new QAction(icon, QString(), this);
+    addAction(action, position);
+    return action;
+}
+
+/*!
+    \reimp
+
+    An action at an end that is removed from the widget leaves it, and one that changes is shown as it now is.
+*/
+void QLineEdit::actionEvent(QActionEvent *event) {
+    if (event->type() == QEvent::ActionRemoved) {
+        QAction *gone = event->action();
+        m_sideActions.erase(std::remove_if(m_sideActions.begin(), m_sideActions.end(),
+                                           [gone](const auto &entry) { return !entry.first || entry.first == gone; }),
+                            m_sideActions.end());
+    }
+    scrollToCursor();
+    update();
+    QWidget::actionEvent(event);
 }
 
 /*!
@@ -554,16 +675,13 @@ QRect QLineEdit::cursorRect() const {
     return QRect(textOrigin() + xOf(m_cursor) - 1, top, 3, fm.height());
 }
 
-// Where the clear button is: a square at the right end of the text area, which the text leaves free.
+// Where the clear button is: at the right end of the text area, as the outermost of the actions there.
 QRect QLineEdit::clearButtonRect() const {
-    QStyleOptionFrame option;
-    option.initFrom(this);
-    option.lineWidth = m_frame ? style()->pixelMetric(QStyle::PM_DefaultFrameWidth, nullptr, this) : 0;
-    const QRect text = style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
-    const int icon = style()->pixelMetric(QStyle::PM_LineEditIconSize, &option, this);
-    const int margin = style()->pixelMetric(QStyle::PM_LineEditIconMargin, &option, this);
+    const QRect text = textArea();
+    const int icon = style()->pixelMetric(QStyle::PM_LineEditIconSize, nullptr, this);
+    const int margin = style()->pixelMetric(QStyle::PM_LineEditIconMargin, nullptr, this);
     const int width = std::min(icon + margin, std::max(0, text.width() / 2));
-    return QRect(text.right() + 1 - width, text.top(), width, text.height());
+    return QRect(text.right() + 1 + sideShift() - width, text.top(), width, text.height());
 }
 
 bool QLineEdit::clearButtonShown() const { return m_clearButton && !m_text.isEmpty() && !m_readOnly && isEnabled(); }
@@ -764,9 +882,33 @@ void QLineEdit::paintEvent(QPaintEvent *event) {
         painter.fillRect(origin + xOf(m_cursor), top, 1, fm.height(),
                          palette().color(group, QPalette::Text));
     }
+    painter.setClipping(false);
+    // A prefix just before the text, and a suffix at the end, in the color of the placeholder.
+    const QString before = affix(false), after = affix(true);
+    if (!before.isEmpty() || !after.isEmpty()) {
+        painter.setPen(palette().color(group, QPalette::PlaceholderText));
+        const int beforeWidth = fm.horizontalAdvance(before);
+        if (!before.isEmpty())
+            painter.drawText(QRect(contents.left() - beforeWidth, top, beforeWidth, fm.height()),
+                             Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, before);
+        if (!after.isEmpty())
+            painter.drawText(
+                QRect(contents.right() + 1, top, fm.horizontalAdvance(QLatin1Char(' ') + after), fm.height()),
+                Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, after);
+    }
+    for (const Side &side : sides()) {
+        const QIcon::Mode mode = side.action->isEnabled() && isEnabled() ? QIcon::Normal : QIcon::Disabled;
+        if (material)
+            material->drawFieldIcon(&painter, side.icon, side.action->icon(), mode, this,
+                                    side.position == TrailingPosition);
+        else
+            side.action->icon().paint(&painter, side.icon, Qt::AlignCenter, mode);
+    }
     if (clearButtonShown() && material) {
-        painter.setClipping(false);
-        material->drawClearButton(&painter, clearButtonRect());
+        const QRect area = clearButtonRect();
+        const int icon = style()->pixelMetric(QStyle::PM_LineEditIconSize, nullptr, this);
+        material->drawClearButton(&painter,
+                                  QRect(area.right() + 1 - icon, area.top() + (area.height() - icon) / 2, icon, icon));
     } else if (clearButtonShown()) {
         painter.setClipping(false);
         QStyleOption iconOption;
@@ -788,6 +930,13 @@ void QLineEdit::mousePressEvent(QMouseEvent *event) {
         m_clearPressed = true;
         event->accept();
         return;
+    }
+    for (const Side &side : sides()) {
+        if (side.slot.contains(event->pos())) {
+            m_sidePressed = side.action;
+            event->accept();
+            return;
+        }
     }
     m_dragging = true;
     moveCursor(cursorPositionAt(event->pos()), event->modifiers() & Qt::ShiftModifier);
@@ -811,6 +960,17 @@ void QLineEdit::mouseMoveEvent(QMouseEvent *event) {
 */
 void QLineEdit::mouseReleaseEvent(QMouseEvent *event) {
     m_dragging = false;
+    // A click on the icon of an action triggers it, if it is let go there.
+    if (QAction *pressed = m_sidePressed.data()) {
+        m_sidePressed.clear();
+        for (const Side &side : sides()) {
+            if (side.action == pressed && event->button() == Qt::LeftButton && side.slot.contains(event->pos()) &&
+                pressed->isEnabled())
+                pressed->trigger();
+        }
+        event->accept();
+        return;
+    }
     // A click on the clear button clears the text as if the user had deleted it.
     if (m_clearPressed) {
         m_clearPressed = false;

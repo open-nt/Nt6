@@ -71,7 +71,9 @@ public:
     void setPixel(int x, int y, uint index_or_rgb);
     void setPixel(const QPoint &pt, uint index_or_rgb) { setPixel(pt.x(), pt.y(), index_or_rgb); }
     QColor pixelColor(int x, int y) const;
+    QColor pixelColor(const QPoint &pt) const { return pixelColor(pt.x(), pt.y()); }
     void setPixelColor(int x, int y, const QColor &color);
+    void setPixelColor(const QPoint &pt, const QColor &color) { setPixelColor(pt.x(), pt.y(), color); }
 
     bool load(const QString &fileName, const char *format = nullptr);
     bool load(QIODevice *device, const char *format = nullptr);

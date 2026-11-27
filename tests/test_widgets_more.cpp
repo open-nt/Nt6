@@ -2456,6 +2456,66 @@ static void testHeightForWidth() {
     CHECK(area.verticalScrollBar()->maximum() == scrolled->height() - area.viewport()->height());
 }
 
+// Actions at the ends of a line edit: their icons take room from the text, and a click on one triggers it.
+class CursorAt : public QLineEdit {
+public:
+    using QLineEdit::cursorRect;
+};
+
+static void testLineEditActions() {
+    QWidget window;
+    auto *edit = new CursorAt;
+    auto *rows = new QVBoxLayout(&window);
+    rows->addWidget(edit);
+    window.resize(300, 60);
+    window.show();
+    QCoreApplication::processEvents();
+    const int before = edit->cursorRect().left();
+    QPixmap dot(16, 16);
+    dot.fill(Qt::red);
+    QAction *find = edit->addAction(QIcon(dot), QLineEdit::LeadingPosition);
+    CHECK(find && find->parent() == edit && edit->actions().contains(find));
+    QCoreApplication::processEvents();
+    const int after = edit->cursorRect().left();
+    CHECK(after > before);
+    QSignalSpy found(find, &QAction::triggered);
+    const auto click = [&](const QPoint &at) {
+        QMouseEvent press(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(edit, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(edit, &release);
+    };
+    click(QPoint(before + 4, edit->height() / 2));
+    CHECK(found.count() == 1);
+    edit->setText(QStringLiteral("text"));
+    click(QPoint(edit->width() - 10, edit->height() / 2)); // on the text: the cursor moves, nothing is triggered
+    CHECK(found.count() == 1 && edit->cursorPosition() == 4);
+    find->setEnabled(false);
+    click(QPoint(before + 4, edit->height() / 2));
+    CHECK(found.count() == 1);
+    // A hidden action takes no room; one that is removed is gone.
+    edit->home(false);
+    CHECK(edit->cursorRect().left() == after);
+    find->setVisible(false);
+    QCoreApplication::processEvents();
+    CHECK(edit->cursorRect().left() == before);
+    find->setVisible(true);
+    auto *clear = new QAction(QIcon(dot), QString(), &window);
+    edit->addAction(clear, QLineEdit::TrailingPosition);
+    QSignalSpy cleared(clear, &QAction::triggered);
+    edit->setText(QString());
+    click(QPoint(edit->width() - 10, edit->height() / 2));
+    CHECK(cleared.count() == 1);
+    edit->removeAction(find);
+    QCoreApplication::processEvents();
+    CHECK(edit->cursorRect().left() == before);
+    // One added again at the other end moves there.
+    edit->addAction(clear, QLineEdit::LeadingPosition);
+    edit->addAction(clear, QLineEdit::LeadingPosition);
+    CHECK(edit->actions().count(clear) == 1);
+    CHECK(edit->cursorRect().left() == after);
+}
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     testFileSystemModel();
@@ -2484,6 +2544,7 @@ int main(int argc, char *argv[]) {
     testHeaderViewExtras();
     testLabelAndSmallClassExtras();
     testHeightForWidth();
+    testLineEditActions();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

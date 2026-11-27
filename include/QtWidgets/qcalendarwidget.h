@@ -114,6 +114,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void changeEvent(QEvent *event) override;
+    bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
     QDate firstShown() const;
@@ -123,6 +124,18 @@ private:
     void select(QDate date, bool byUser);
     void updateTitle();
     int headerColumns() const { return m_vertical == ISOWeekNumbers ? 1 : 0; }
+    int navigationHeight() const;
+    int headlineHeight() const;
+    // The grid of years that Material's date picker shows in the place of the days, from the year of minimumDate()
+    // to that of maximumDate(), three to a row: its rows scroll, and one year is where the keyboard is.
+    void setChoosingYear(bool choosing);
+    void chooseYear(int year);
+    int yearRows() const;
+    int visibleYearRows() const;
+    void scrollYears(int row);
+    void moveYearCursor(int year);
+    QRect yearRect(int year) const;
+    int yearAt(const QPoint &pos) const; // 0 for none
 
     QWidget *m_navigation = nullptr;
     QToolButton *m_previous = nullptr;
@@ -144,4 +157,7 @@ private:
     QMap<QDate, QTextCharFormat> m_dateFormats;
     bool m_dateEditEnabled = true;
     int m_dateEditAcceptDelay = 1500;
+    bool m_choosingYear = false;
+    int m_yearRow = 0;    // the first row of years that is shown
+    int m_yearCursor = 0; // the year that the keyboard is on
 };

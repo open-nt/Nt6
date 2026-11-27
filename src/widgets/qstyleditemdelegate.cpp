@@ -70,7 +70,9 @@
     \differences
     The item is drawn by the delegate itself, not by the style, so a custom
     QStyle does not change how items look. The decoration is a pixmap, an
-    image or a color: Nt has no QIcon. Text is drawn on one line. There is
+    image or a color: Nt has no QIcon. Text is drawn on one line, except
+    in the rows of a list in the Material style, which draws an item whose text has
+    a line break as a list item of two or three lines (see QMaterialStyle). There is
     no \c QItemEditorFactory: the editor for a type is chosen by
     createEditor(). \c QItemDelegate is not provided.
     \enddifferences
@@ -312,7 +314,15 @@ void QStyledItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
     else if (opt.backgroundBrush.style() != Qt::NoBrush)
         painter->fillRect(opt.rect, opt.backgroundBrush);
 
-    const Parts parts = layoutParts(opt);
+    Parts parts = layoutParts(opt);
+    // A Material row of more than one line, or with a trailing text: its text is drawn by the style.
+    const bool multiPart = isMaterialRow(opt) && (opt.features & QStyleOptionViewItem::HasDisplay) &&
+                           QMaterialStyle::isMultiPartRow(opt.text);
+    if (multiPart) {
+        // A row of three lines has its check box and icon at the top, beside the headline.
+        parts.check.moveTop(QMaterialStyle::listRowContentTop(opt.rect, parts.check.height(), opt.text));
+        parts.decoration.moveTop(QMaterialStyle::listRowContentTop(opt.rect, parts.decoration.height(), opt.text));
+    }
     if (opt.features & QStyleOptionViewItem::HasCheckIndicator) {
         QStyleOptionButton box;
         box.rect = parts.check;
@@ -333,7 +343,12 @@ void QStyledItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
         else
             painter->drawPixmap(parts.decoration, opt.decoration);
     }
-    if (opt.features & QStyleOptionViewItem::HasDisplay) {
+    if (multiPart) {
+        static_cast<const QMaterialStyle *>(opt.widget->style())
+            ->drawListRowText(painter, parts.text, opt.text, opt.font,
+                              opt.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text),
+                              opt.displayAlignment, selected, opt.state & QStyle::State_Enabled);
+    } else if (opt.features & QStyleOptionViewItem::HasDisplay) {
         painter->setFont(opt.font);
         painter->setPen(opt.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text));
         const QString text = opt.textElideMode == Qt::ElideNone
@@ -366,7 +381,9 @@ QSize QStyledItemDelegate::sizeHint(const QStyleOptionViewItem &option, const QM
         height = std::max(height, size);
     }
     const QSize decoration = decorationSizeOf(opt);
-    const int text = opt.fontMetrics.horizontalAdvance(opt.text);
+    const bool multiPart = isMaterialRow(opt) && QMaterialStyle::isMultiPartRow(opt.text);
+    const int text = multiPart ? QMaterialStyle::listRowTextSize(opt.text, opt.font).width()
+                               : opt.fontMetrics.horizontalAdvance(opt.text);
     if (!decoration.isEmpty() && (opt.decorationPosition == QStyleOptionViewItem::Top ||
                                   opt.decorationPosition == QStyleOptionViewItem::Bottom)) {
         // The decoration above or below the text: as wide as the wider of the two, as high as both.
@@ -378,6 +395,8 @@ QSize QStyledItemDelegate::sizeHint(const QStyleOptionViewItem &option, const QM
         height = std::max(height, decoration.height());
     }
     width += text;
+    if (multiPart)
+        return QSize(width, std::max(QMaterialStyle::listRowHeight(opt.text), height + 2 * kMargin));
     if (isMaterialRow(opt))
         return QSize(width, std::max(kMaterialListHeight, height + 2 * kMargin));
     if (isMaterial(opt) && qobject_cast<const QTreeView *>(opt.widget))

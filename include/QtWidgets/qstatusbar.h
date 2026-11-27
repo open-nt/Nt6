@@ -53,6 +53,8 @@ private:
     void insertEntry(int index, QWidget *widget, int stretch, bool permanent);
     void layoutEntries();
     void entryDestroyed(QObject *widget);
+    // The close button of a snackbar that asks for one (materialCloseButton), made or taken away as asked.
+    QWidget *closeButton();
 
     std::vector<Entry> m_entries;
     QString m_message;

@@ -4,6 +4,7 @@
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qabstractbutton.h>
 #include <QtWidgets/qlayoutitem.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
@@ -15,6 +16,20 @@ constexpr int kSideMargin = 6;
 constexpr int kTopMargin = 3;
 constexpr int kBottomMargin = 2;
 constexpr int kSpacing = 4;
+constexpr int kCloseSize = 48; // the close button of a snackbar, against its end
+
+// The button that closes a snackbar. It draws nothing: the snackbar draws its cross, where it is.
+class SnackbarClose : public QAbstractButton {
+public:
+    explicit SnackbarClose(QWidget *parent) : QAbstractButton(parent) {
+        setObjectName(QStringLiteral("_nt_snackbarClose"));
+        setFocusPolicy(Qt::NoFocus);
+    }
+    QSize sizeHint() const override { return QSize(kCloseSize, kCloseSize); }
+
+protected:
+    void paintEvent(QPaintEvent *event) override { (void)event; }
+};
 } // namespace
 
 /*!
@@ -269,6 +284,24 @@ QSize QStatusBar::sizeHint() const {
 */
 QSize QStatusBar::minimumSizeHint() const { return QSize(0, sizeHint().height()); }
 
+QWidget *QStatusBar::closeButton() {
+    const bool wanted = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isSnackbar(this) &&
+                        property("materialCloseButton").toBool();
+    auto *button = findChild<SnackbarClose *>(QStringLiteral("_nt_snackbarClose"), Qt::FindDirectChildrenOnly);
+    if (!wanted) {
+        delete button;
+        return nullptr;
+    }
+    if (!button) {
+        button = new SnackbarClose(this);
+        QObject::connect(button, &QAbstractButton::clicked, this, &QStatusBar::clearMessage);
+        QObject::connect(button, &QAbstractButton::pressed, this, [this] { update(); });
+        QObject::connect(button, &QAbstractButton::released, this, [this] { update(); });
+    }
+    button->setVisible(!m_message.isEmpty());
+    return button;
+}
+
 void QStatusBar::layoutEntries() {
     // The actions of a snackbar are 40 high, in the middle of what shows above its shadow.
     const bool snackbar = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isSnackbar(this);
@@ -276,6 +309,12 @@ void QStatusBar::layoutEntries() {
     const int height =
         snackbar ? std::min(40, this->height()) : std::max(0, this->height() - kTopMargin - kBottomMargin);
     int right = width() - kSideMargin;
+    // A snackbar's close button is at its very end, and its actions before it.
+    if (QWidget *close = closeButton(); close && !close->isHidden()) {
+        close->setGeometry(width() - kCloseSize, std::max(0, (this->height() - 2 - kCloseSize) / 2), kCloseSize,
+                           std::min(kCloseSize, this->height()));
+        right = width() - kCloseSize;
+    }
     // The permanent widgets from the right edge
     for (int i = static_cast<int>(m_entries.size()) - 1; i >= 0; --i) {
         const Entry &e = m_entries[static_cast<std::size_t>(i)];
@@ -335,6 +374,11 @@ void QStatusBar::paintEvent(QPaintEvent *event) {
     if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
         material && QMaterialStyle::isSnackbar(this)) {
         material->drawSnackbar(&painter, this);
+        const auto *close = findChild<SnackbarClose *>(QStringLiteral("_nt_snackbarClose"), Qt::FindDirectChildrenOnly);
+        if (close && !close->isHidden() && !m_message.isEmpty()) {
+            painter.translate(close->pos());
+            material->drawSnackbarClose(&painter, close);
+        }
         return;
     }
     QStyleOption option;

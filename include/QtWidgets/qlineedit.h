@@ -31,6 +31,7 @@ class QLineEdit : public QWidget {
     Q_PROPERTY(QString displayText READ displayText)
 public:
     enum EchoMode { Normal, NoEcho, Password };
+    enum ActionPosition { LeadingPosition, TrailingPosition };
 
     explicit QLineEdit(QWidget *parent = nullptr);
     explicit QLineEdit(const QString &text, QWidget *parent = nullptr);
@@ -50,6 +51,9 @@ public:
     bool isReadOnly() const { return m_readOnly; }
     void setReadOnly(bool readOnly);
     bool isClearButtonEnabled() const { return m_clearButton; }
+    using QWidget::addAction;
+    void addAction(QAction *action, ActionPosition position);
+    QAction *addAction(const QIcon &icon, ActionPosition position);
     void setClearButtonEnabled(bool enable);
     bool hasFrame() const { return m_frame; }
     void setFrame(bool frame);
@@ -155,9 +159,22 @@ protected:
     void focusOutEvent(QFocusEvent *event) override;
     void changeEvent(QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void actionEvent(QActionEvent *event) override;
 
 private:
+    friend class QMaterialStyle; // which puts the label of a text field after its leading icons
     QRect contentsRect() const;
+    // The actions at the ends that are shown, each with the room it takes, from the outside in.
+    struct Side {
+        QAction *action;
+        ActionPosition position;
+        QRect slot; // where a press triggers it
+        QRect icon; // where its icon is, against the outer side of the slot
+    };
+    std::vector<Side> sides() const;
+    QRect textArea() const; // the style's area for the text, before the ends take their room
+    int sideShift() const;  // how far the icons go out of that area, toward the edges
+    QString affix(bool suffix) const;
     QRect clearButtonRect() const;
     bool clearButtonShown() const;
     int xOf(int position) const;
@@ -191,6 +208,8 @@ private:
     bool m_dragging = false;
     bool m_clearButton = false;
     bool m_clearPressed = false;
+    std::vector<std::pair<QPointer<QAction>, ActionPosition>> m_sideActions;
+    QPointer<QAction> m_sidePressed;
     EchoMode m_echoMode = Normal;
     QPointer<QCompleter> m_completer;
     QPointer<const QValidator> m_validator;

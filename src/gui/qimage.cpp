@@ -486,6 +486,22 @@ QColor QImage::pixelColor(int x, int y) const {
 }
 
 /*!
+    \fn QColor QImage::pixelColor(const QPoint &pt) const
+    \overload
+    \since 6.0
+
+    Returns the pixel at \a pt as a QColor.
+*/
+
+/*!
+    \fn void QImage::setPixelColor(const QPoint &pt, const QColor &color)
+    \overload
+    \since 6.0
+
+    Sets the pixel at \a pt to \a color.
+*/
+
+/*!
     Sets the pixel at (\a x, \a y) to \a color.
 
     \sa pixelColor(), setPixel()

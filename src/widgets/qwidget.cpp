@@ -179,6 +179,18 @@ std::vector<QWidget *> WidgetAccess::tabChain(QWidget *top) { return focusChain(
 
 QWidget *WidgetAccess::focusWidgetOf(QWidget *top) { return top->m_d->focusChild; }
 
+// Tells a platform with an on-screen keyboard what `w`, which has the focus, takes.
+static void tellInputHints(QPlatformIntegration *integration, const QWidget *w) {
+    const int hints = w ? w->inputMethodQuery(Qt::ImHints).toInt() : 0;
+    integration->setInputMethodHints(Qt::InputMethodHints(static_cast<Qt::InputMethodHint>(hints)));
+}
+
+void WidgetAccess::inputHintsChanged(const QWidget *w) {
+    if (QPlatformIntegration *integration = QtPrivate::GuiAccess::integration();
+        integration && integration->hasInputPanel() && w == QApplication::focusWidget())
+        tellInputHints(integration, w);
+}
+
 // Emits QApplication::focusChanged() if the widget with the focus is another one than when it was last called.
 static void notifyFocusChange() {
     static QPointer<QWidget> last;
@@ -191,8 +203,10 @@ static void notifyFocusChange() {
         emit app->focusChanged(old, now);
     // A platform with an on-screen keyboard shows it for the widgets that take text.
     if (QPlatformIntegration *integration = QtPrivate::GuiAccess::integration();
-        integration && integration->hasInputPanel())
+        integration && integration->hasInputPanel()) {
+        tellInputHints(integration, now);
         QGuiApplication::inputMethod()->setVisible(now && now->inputMethodQuery(Qt::ImEnabled).toBool());
+    }
 }
 
 void WidgetAccess::setFocusWidget(QWidget *top, QWidget *w) {
@@ -645,7 +659,10 @@ Qt::InputMethodHints QWidget::inputMethodHints() const { return m_d->inputMethod
 
     Sets the hints to an input method to \a hints. Nt has no input methods, so they only are kept.
 */
-void QWidget::setInputMethodHints(Qt::InputMethodHints hints) { m_d->inputMethodHints = hints; }
+void QWidget::setInputMethodHints(Qt::InputMethodHints hints) {
+    m_d->inputMethodHints = hints;
+    QtPrivate::WidgetAccess::inputHintsChanged(this);
+}
 
 /*!
     \since 6.0

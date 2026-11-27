@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qspinbox.h>
 
+#include <QtWidgets/qlineedit.h>
+
 #include <algorithm>
 #include <cmath>
 
@@ -34,7 +36,10 @@
 /*!
     Constructs a spin box with the given \a parent. The range is 0 to 99 and the value 0.
 */
-QSpinBox::QSpinBox(QWidget *parent) : QAbstractSpinBox(parent) { refreshText(); }
+QSpinBox::QSpinBox(QWidget *parent) : QAbstractSpinBox(parent) {
+    lineEdit()->setInputMethodHints(Qt::ImhDigitsOnly); // an on-screen keyboard shows its numbers
+    refreshText();
+}
 
 /*!
     Destroys the spin box.
@@ -80,6 +85,8 @@ void QSpinBox::setMaximum(int maximum) { setRange(std::min(m_minimum, maximum), 
 void QSpinBox::setRange(int minimum, int maximum) {
     m_minimum = minimum;
     m_maximum = std::max(minimum, maximum);
+    // A sign is typed only where the range has numbers below zero.
+    lineEdit()->setInputMethodHints(m_minimum < 0 ? Qt::ImhFormattedNumbersOnly : Qt::ImhDigitsOnly);
     changeValue(m_value, true);
     updateGeometry();
 }
@@ -311,7 +318,10 @@ void QSpinBox::changeValue(int value, bool rewrite) {
 /*!
     Constructs a spin box with the given \a parent. The range is 0.00 to 99.99, the value 0.00 and the single step 1.0.
 */
-QDoubleSpinBox::QDoubleSpinBox(QWidget *parent) : QAbstractSpinBox(parent) { refreshText(); }
+QDoubleSpinBox::QDoubleSpinBox(QWidget *parent) : QAbstractSpinBox(parent) {
+    lineEdit()->setInputMethodHints(Qt::ImhFormattedNumbersOnly);
+    refreshText();
+}
 
 /*!
     Destroys the spin box.

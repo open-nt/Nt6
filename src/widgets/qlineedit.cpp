@@ -1,5 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qlineedit.h>
+
+#include "qwidget_p.h"
 #include <QtWidgets/qmaterialstyle.h>
 
 #include <QtGui/qclipboard.h>
@@ -257,6 +259,7 @@ void QLineEdit::setEchoMode(EchoMode mode) {
     if (m_echoMode == mode)
         return;
     m_echoMode = mode;
+    QtPrivate::WidgetAccess::inputHintsChanged(this);
     scrollToCursor();
     update();
 }
@@ -1395,6 +1398,14 @@ void QLineEdit::contextMenuEvent(QContextMenuEvent *event) {
 */
 QVariant QLineEdit::inputMethodQuery(Qt::InputMethodQuery property) const {
     switch (property) {
+    case Qt::ImHints: {
+        // As in Qt, a field that hides what is typed says so, whatever hints it was given.
+        Qt::InputMethodHints hints = inputMethodHints();
+        if (m_echoMode != Normal)
+            hints |= Qt::InputMethodHints(Qt::ImhHiddenText) | Qt::ImhSensitiveData | Qt::ImhNoPredictiveText |
+                     Qt::ImhNoAutoUppercase;
+        return QVariant(static_cast<int>(hints.toInt()));
+    }
     case Qt::ImEnabled:
         return QVariant(isEnabled() && !m_readOnly);
     case Qt::ImCursorRectangle:

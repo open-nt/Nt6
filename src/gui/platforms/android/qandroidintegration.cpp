@@ -409,6 +409,10 @@ QPlatformClipboard *QAndroidIntegration::clipboard() const {
 
 void QAndroidIntegration::setInputPanelVisible(bool visible) { Glue::instance().setSoftInputVisible(visible); }
 
+void QAndroidIntegration::setInputMethodHints(Qt::InputMethodHints hints) {
+    Glue::instance().setSoftInputHints(static_cast<int>(hints.toInt()));
+}
+
 // Vulkan presents to the native window of the activity through VK_KHR_android_surface. The surface belongs to the
 // platform window, and goes when the window is destroyed or when Android takes the native window away.
 quint64 QAndroidIntegration::createVulkanSurface(QWindow *window, void *instance,

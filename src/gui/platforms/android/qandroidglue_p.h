@@ -72,6 +72,8 @@ public:
     // replacing it. Through JNI, on any thread.
     std::string clipboardText();
     void setClipboardText(const std::string &text);
+    // What the keyboard is to type, as Qt::InputMethodHints; NtActivity picks the kind of keyboard for it.
+    void setSoftInputHints(int hints);
     // Shows or hides the soft keyboard.
     void setSoftInputVisible(bool visible);
     // Whether the activity is the NtActivity of Nt, whose keyboard view delivers text and keys.

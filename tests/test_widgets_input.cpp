@@ -1109,6 +1109,43 @@ void testCompleter() {
 }
 } // namespace
 
+// What the widgets that take text tell an input method, for the keys that an on-screen keyboard shows.
+static void testInputHints() {
+    // A line edit says it as the focus widget: of a spin box, that is the line edit inside it.
+    const auto hintsOf = [](const QWidget *widget) { return widget->inputMethodQuery(Qt::ImHints).toInt(); };
+    QSpinBox count;
+    auto *digits = count.findChild<QLineEdit *>();
+    CHECK(digits && hintsOf(digits) == static_cast<int>(Qt::ImhDigitsOnly));
+    count.setRange(-10, 10); // a sign can be typed
+    CHECK(digits && hintsOf(digits) == static_cast<int>(Qt::ImhFormattedNumbersOnly));
+    count.setMinimum(0);
+    CHECK(digits && hintsOf(digits) == static_cast<int>(Qt::ImhDigitsOnly));
+    QDoubleSpinBox weight;
+    CHECK(hintsOf(weight.findChild<QLineEdit *>()) == static_cast<int>(Qt::ImhFormattedNumbersOnly));
+    QTimeEdit time;
+    time.setDisplayFormat(QStringLiteral("HH:mm"));
+    CHECK(hintsOf(time.findChild<QLineEdit *>()) == static_cast<int>(Qt::ImhPreferNumbers));
+    time.setDisplayFormat(QStringLiteral("h:mm AP"));
+    CHECK(hintsOf(time.findChild<QLineEdit *>()) == 0);
+    QDateEdit date;
+    date.setDisplayFormat(QStringLiteral("d MMM yyyy"));
+    CHECK(hintsOf(date.findChild<QLineEdit *>()) == 0);
+
+    QLineEdit field;
+    CHECK(hintsOf(&field) == 0);
+    field.setInputMethodHints(Qt::ImhEmailCharactersOnly);
+    CHECK(hintsOf(&field) == static_cast<int>(Qt::ImhEmailCharactersOnly));
+    // A password says that it is hidden, besides what it was given, until it is shown.
+    field.setInputMethodHints(Qt::ImhDigitsOnly);
+    field.setEchoMode(QLineEdit::Password);
+    const int hidden = static_cast<int>(Qt::ImhHiddenText);
+    CHECK((hintsOf(&field) & hidden) && (hintsOf(&field) & static_cast<int>(Qt::ImhSensitiveData)));
+    CHECK(hintsOf(&field) & static_cast<int>(Qt::ImhDigitsOnly));
+    CHECK(field.inputMethodHints() == Qt::InputMethodHints(Qt::ImhDigitsOnly)); // what it was given is as it was
+    field.setEchoMode(QLineEdit::Normal);
+    CHECK(!(hintsOf(&field) & hidden));
+}
+
 int main(int argc, char **argv) {
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
     ::setenv("QT_SCALE_FACTOR", "1", 1);
@@ -1125,6 +1162,7 @@ int main(int argc, char **argv) {
     testWidgetGaps();
     testDateTimeEdit();
     testCompleter();
+    testInputHints();
     if (g_failures == 0)
         std::puts("all input tests passed");
     return g_failures == 0 ? 0 : 1;

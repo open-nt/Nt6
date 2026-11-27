@@ -146,6 +146,8 @@ struct WidgetAccess {
     static bool updatesBlocked(const QWidget *w);
     static QWidget *focusWidgetOf(QWidget *top);
     static bool focusable(const QWidget *w);
+    // The input method hints of `w` may be others now: the platform is told, if `w` has the focus.
+    static void inputHintsChanged(const QWidget *w);
     static std::vector<QWidget *> tabChain(QWidget *top);
     static void setFocusWidget(QWidget *top, QWidget *w);
     static void clearReferences(QWidget *w);

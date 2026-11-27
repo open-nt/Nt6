@@ -56,6 +56,9 @@ public:
     // text input asks for it when it gets the focus, and the panel goes away when the focus moves elsewhere.
     virtual bool hasInputPanel() const { return false; }
     virtual void setInputPanelVisible(bool visible) { (void)visible; }
+    // What the widget with the focus says it takes (digits, an e-mail address, a password), so that the panel can
+    // show the keys for it. Told before the panel is shown, and again when it changes.
+    virtual void setInputMethodHints(Qt::InputMethodHints hints) { (void)hints; }
     // The instance extension that Vulkan surfaces of the platform's windows need ("VK_KHR_xcb_surface"); null when the
     // platform cannot present with Vulkan.
     virtual const char *vulkanSurfaceExtension() const { return nullptr; }

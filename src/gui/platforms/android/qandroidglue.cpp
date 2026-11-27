@@ -346,6 +346,21 @@ void Glue::registerNtActivity() {
     env->DeleteLocalRef(cls);
 }
 
+void Glue::setSoftInputHints(int hints) {
+    if (!m_activity || !m_ntActivity)
+        return; // the plain NativeActivity has no say in what its keyboard shows
+    JniScope jni(m_activity);
+    JNIEnv *env = jni.env();
+    if (!env)
+        return;
+    jclass cls = env->GetObjectClass(m_activity->clazz);
+    jmethodID set = env->GetMethodID(cls, "setNtInputHints", "(I)V");
+    if (set)
+        env->CallVoidMethod(m_activity->clazz, set, static_cast<jint>(hints));
+    jni.failed();
+    env->DeleteLocalRef(cls);
+}
+
 void Glue::setSoftInputVisible(bool visible) {
     if (!m_activity)
         return;

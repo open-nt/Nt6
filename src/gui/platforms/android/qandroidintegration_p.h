@@ -110,6 +110,7 @@ public:
         return QtAndroid::Glue::instance().nightMode() ? Qt::ColorScheme::Dark : Qt::ColorScheme::Light;
     }
     void setInputPanelVisible(bool visible) override;
+    void setInputMethodHints(Qt::InputMethodHints hints) override;
     const char *vulkanSurfaceExtension() const override { return "VK_KHR_android_surface"; }
     quint64 createVulkanSurface(QWindow *window, void *instance,
                                 QVulkanGetInstanceProcAddr getInstanceProcAddr) const override;

@@ -259,6 +259,37 @@ void testScrollerTouchOverButtons() {
     QScroller::scroller(area->viewport())->stop();
 }
 
+// A drag across a page that only scrolls up and down is not a scroll: it moves the slider under the finger. A drag
+// up the slider still scrolls the page.
+void testScrollerLeavesCrossDrags() {
+    QWidget top;
+    top.resize(240, 240);
+    auto *area = new QScrollArea(&top);
+    area->setGeometry(0, 0, 200, 200);
+    area->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    auto *content = new QWidget;
+    content->resize(180, 600);
+    auto *slider = new QSlider(Qt::Horizontal, content);
+    slider->setGeometry(10, 60, 160, 40);
+    slider->setRange(0, 100);
+    area->setWidget(content);
+    top.show();
+    QCoreApplication::processEvents();
+    QScroller::grabGesture(area->viewport(), QScroller::TouchGesture);
+    const QPoint handle = slider->mapTo(&top, QPoint(8, 20));
+    finger(top, handle, {handle + QPoint(30, 2), handle + QPoint(80, 2), handle + QPoint(120, 2)});
+    CHECK(slider->value() > 50);
+    CHECK(!slider->isSliderDown());
+    CHECK(area->verticalScrollBar()->value() == 0);
+
+    const int value = slider->value();
+    const QPoint on = slider->mapTo(&top, QPoint(80, 20));
+    finger(top, on, {on - QPoint(0, 30), on - QPoint(0, 50)});
+    CHECK(area->verticalScrollBar()->value() > 0);
+    CHECK(slider->value() == value);
+    QScroller::scroller(area->viewport())->stop();
+}
+
 // A button with a menu opens it when it is pressed. Releasing is not a click, as in Qt.
 void testMenuButtonIsNotClicked() {
     QWidget top;
@@ -322,6 +353,7 @@ int main(int argc, char *argv[]) {
     testTouchOnAPlainWindow();
     testScrollerTouchGesture();
     testScrollerTouchOverButtons();
+    testScrollerLeavesCrossDrags();
     testMenuButtonIsNotClicked();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;

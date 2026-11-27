@@ -257,6 +257,9 @@ void QScrollerProperties::setScrollMetric(ScrollMetric metric, const QVariant &v
     it, a button in a scroll area too, gets the press and the release as the left mouse button. If a finger starts to
     drag after the press was sent, the press ends outside every widget, and nothing is clicked.
 
+    A drag in a direction the content cannot be scrolled in is not taken: the widget under it gets the press and the
+    moves, so that a slider can be dragged across a page that only scrolls up and down.
+
     \differences
     The target must be a QAbstractScrollArea or its viewport, whose scroll bars are moved; Nt sends no
     \c QScrollPrepareEvent or \c QScrollEvent, so other widgets and graphics objects cannot be scrolled. There is no
@@ -535,6 +538,7 @@ bool QScroller::handleInput(Input input, const QPointF &position, qint64 timesta
         m_lastTime = now;
         m_startContent = contentPosition();
         m_velocity = QPointF();
+        m_declined = false;
         setState(Pressed);
         return wasScrolling; // a press that stops a flick goes no further
     }
@@ -544,6 +548,15 @@ bool QScroller::handleInput(Input input, const QPointF &position, qint64 timesta
             const qreal start = metric(QScrollerProperties::DragStartDistance) * pixelPerMeter().y();
             if (std::hypot(moved.x(), moved.y()) < start)
                 return false;
+            // Mostly across, where the content cannot be scrolled across, or mostly along, where it cannot be
+            // scrolled along: not a scroll, as a slider dragged in a page that only scrolls up and down.
+            const QRectF range = contentRange();
+            const bool across = std::abs(moved.x()) > std::abs(moved.y());
+            if (across ? range.width() <= 0 : range.height() <= 0) {
+                m_declined = true;
+                setState(Inactive);
+                return false;
+            }
             m_pressPosition = position;
             m_startContent = contentPosition();
             setState(Dragging);
@@ -794,6 +807,12 @@ bool QScroller::eventFilter(QObject *watched, QEvent *event) {
             const bool used = handleInput(InputMove, point.position());
             if (m_state == Dragging)
                 cancelTap();
+            // A drag that is not a scroll goes to the widget under the finger, pressed where the finger went down.
+            if (m_declined && m_tap != Tap::None) {
+                pressTap();
+                sendTapMove(point.scenePosition(), point.globalPosition());
+                return true;
+            }
             return used;
         }
         const bool used = handleInput(InputRelease, point.position());
@@ -820,6 +839,10 @@ bool QScroller::mouseInput(QMouseEvent *event) {
         if (!(event->buttons() & button))
             return false;
         const bool used = handleInput(InputMove, event->position());
+        if (m_declined && m_heldPress) {
+            deliverHeldPress(); // not a scroll: the target gets the press, and this move after it
+            return false;
+        }
         if (m_state == Dragging)
             dropHeldPress();                   // a drag: the target never gets the press
         return used || m_heldPress != nullptr; // no moves before the press
@@ -909,6 +932,13 @@ void QScroller::sendTapMouse(bool press, const QPointF &scene, const QPointF &gl
         if (shown) // what a click does may close the window
             QWindowSystemInterface::handleLeaveEvent(shown);
     }
+}
+
+void QScroller::sendTapMove(const QPointF &scene, const QPointF &global) {
+    const auto *widget = qobject_cast<QWidget *>(m_target.data());
+    if (QWindow *window = widget ? widget->window()->windowHandle() : nullptr)
+        QWindowSystemInterface::handleMouseEvent(window, scene, global, Qt::LeftButton, Qt::NoButton, QEvent::MouseMove,
+                                                 Qt::NoModifier);
 }
 
 void QScroller::pressTap() {

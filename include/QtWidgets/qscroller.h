@@ -102,6 +102,7 @@ private:
     void releaseTap(const QPointF &scene, const QPointF &global);
     void cancelTap();
     void sendTapMouse(bool press, const QPointF &scene, const QPointF &global);
+    void sendTapMove(const QPointF &scene, const QPointF &global);
     void setState(State state);
     QAbstractScrollArea *area() const;
     QPointF contentPosition() const; // in pixels
@@ -122,6 +123,8 @@ private:
     std::unique_ptr<QMouseEvent> m_heldPress;
     bool m_delivering = false;
     bool m_swallowRelease = false; // of a press that did no more than stop a flick
+    // The press began a drag in a direction that cannot be scrolled, which is left to the widget under it.
+    bool m_declined = false;
     enum class Tap { None, Held, Pressed }; // of the finger of the touch gesture: not yet a click, or its press sent
     Tap m_tap = Tap::None;
     QPointF m_tapScene; // where the finger went down, in the window and on the screen

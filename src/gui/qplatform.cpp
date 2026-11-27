@@ -10,6 +10,9 @@
 #ifdef NT_HAVE_XCB
 #include "platforms/xcb/qxcbintegration_p.h"
 #endif
+#ifdef NT_HAVE_SSD1322
+#include "platforms/ssd1322/qssd1322integration_p.h"
+#endif
 #ifdef __ANDROID__
 #include "platforms/android/qandroidintegration_p.h"
 #endif
@@ -49,16 +52,24 @@ QStringList availablePlatforms() {
 #ifdef __ANDROID__
     names.append(QString::fromLatin1("android"));
 #endif
+#ifdef NT_HAVE_SSD1322
+    names.append(QString::fromLatin1("ssd1322"));
+#endif
     names.append(QString::fromLatin1("offscreen"));
     return names;
 }
 
-QPlatformIntegration *createPlatformIntegration(const QString &name, int &argc, char **argv) {
+QPlatformIntegration *createPlatformIntegration(const QString &name, int &argc, char **argv, const QString &options) {
     (void)argc;
     (void)argv;
+    (void)options;
     const QString key = name.toLower();
     if (key == QString::fromLatin1("offscreen"))
         return new QOffscreenIntegration;
+#ifdef NT_HAVE_SSD1322
+    if (key == QString::fromLatin1("ssd1322"))
+        return QSsd1322Integration::create(options);
+#endif
 #ifdef __ANDROID__
     if (key == QString::fromLatin1("android"))
         return QAndroidIntegration::create();

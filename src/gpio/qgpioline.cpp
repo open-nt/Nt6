@@ -1,5 +1,8 @@
 // MIT License - see LICENSE
 #include "qgpiobackend_p.h"
+#ifdef NT_HAVE_HW_EMULATOR
+#include "qhwemulator_p.h"
+#endif
 
 #include <QtCore/qlogging.h>
 #include <QtCore/qsocketnotifier.h>
@@ -509,8 +512,15 @@ bool QGpioLine::open() {
         d->setError(DeviceNotFoundError, QStringLiteral("No GPIO line name was set"));
         return false;
     }
-    std::unique_ptr<QtPrivate::GpioBackend> backend =
-        QtPrivate::g_factory ? QtPrivate::g_factory() : QtPrivate::createPlatformGpioBackend();
+    std::unique_ptr<QtPrivate::GpioBackend> backend;
+    if (QtPrivate::g_factory)
+        backend = QtPrivate::g_factory();
+#ifdef NT_HAVE_HW_EMULATOR
+    else if (QtPrivate::hwEmulatorEnabled())
+        backend = QtPrivate::createEmulatorGpioBackend();
+#endif
+    else
+        backend = QtPrivate::createPlatformGpioBackend();
     GpioFailure failure;
     d->config.initialValue = d->value;
     if (!backend->open(d->config, failure)) {

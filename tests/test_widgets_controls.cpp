@@ -1262,12 +1262,15 @@ static void testToolTips() {
     QCoreApplication::sendEvent(top.windowHandle(), &leave);
     CHECK(!QToolTip::isVisible());
 
-    // The tool tip does not appear while the mouse keeps moving, and not after the mouse button is pressed
+    // The tool tip does not appear while the mouse keeps moving, and not after the mouse button is pressed. The moves
+    // take longer together than the delay, and each comes long before it is over, even on a machine that is busy.
+    QtPrivate::toolTipDelay() = 600;
     for (int i = 0; i < 5; ++i) {
         hover(&button, QPoint(20 + i, 10));
-        CHECK(!waitFor([] { return QToolTip::isVisible(); }, 4));
+        CHECK(!waitFor([] { return QToolTip::isVisible(); }, 150));
     }
     CHECK(waitFor([] { return QToolTip::isVisible(); }));
+    QtPrivate::toolTipDelay() = 15;
     QToolTip::hideText();
     CHECK(!QToolTip::isVisible());
     press(&button, QPoint(20, 10));

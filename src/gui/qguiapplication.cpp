@@ -112,7 +112,8 @@ QString chooseDefaultPlatform() {
     Only the functions below exist. There is no clipboard, no style hints, no
     palette or font, no translators, no high-DPI settings, no \c queryKeyboardModifiers()
     and no session management. The \c{-platform} option stays in arguments().
-    Platform options after a colon (\c{xcb:foo}) are ignored. There are no platform plugins:
+    Platform options after a colon are read by the \c ssd1322 platform and ignored by the others
+    (\c{xcb:foo}). There are no platform plugins:
     the platforms are built in. \c qApp is not redefined by Nt GUI; use \c qGuiApp.
     \enddifferences
 
@@ -135,12 +136,15 @@ QGuiApplication::QGuiApplication(int &argc, char **argv) : QCoreApplication(argc
     }
     if (name.isEmpty())
         name = chooseDefaultPlatform();
+    QString options;
     const qsizetype colon = name.indexOf(QChar(':'));
-    if (colon >= 0)
+    if (colon >= 0) {
+        options = name.mid(colon + 1);
         name = name.left(colon);
+    }
     g_state->platformName = name.toLower();
     g_state->styleHints = new QStyleHints;
-    g_state->integration.reset(QtPrivate::createPlatformIntegration(g_state->platformName, argc, argv));
+    g_state->integration.reset(QtPrivate::createPlatformIntegration(g_state->platformName, argc, argv, options));
     if (!g_state->integration) {
         std::fprintf(stderr, "Nt GUI: could not start the platform \"%s\". Available platforms: %s\n",
                      name.toUtf8().constData(),

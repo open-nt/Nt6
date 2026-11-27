@@ -376,8 +376,10 @@ add_library(NtGpio
     src/gpio/qpwmchannel.cpp
     src/gpio/qanaloginput.cpp
     src/gpio/qanalogoutput.cpp
+    src/gpio/qcharacterdisplay.cpp
     src/gpio/qi2cdevice.cpp
-    src/gpio/qspidevice.cpp)
+    src/gpio/qspidevice.cpp
+    src/gpio/qssd1322display.cpp)
 add_library(Nt::Gpio ALIAS NtGpio)
 target_include_directories(NtGpio
     PUBLIC
@@ -409,7 +411,10 @@ if(NT_ZEPHYR)
 else()
     target_sources(NtGpio PRIVATE
         src/gpio/qgpiobackend_linux.cpp
+        src/gpio/qhwemulator.cpp
         src/gpio/qperipheralbackend_linux.cpp)
+    # NT_GPIO_EMULATOR sends the lines and buses to an emulator such as ntdisplayemu.
+    target_compile_definitions(NtGpio PRIVATE NT_HAVE_HW_EMULATOR)
 endif()
 nt_set_compile_options(NtGpio)
 endif() # NOT NT_ZEPHYR OR CONFIG_NT_GPIO
@@ -972,6 +977,17 @@ endif()
 if(NT_HAVE_ZLIB)
     target_compile_definitions(NtGui PRIVATE NT_HAVE_ZLIB)
     target_link_libraries(NtGui PRIVATE ZLIB::ZLIB)
+endif()
+
+# The ssd1322 platform shows the windows on an SSD1322 OLED panel over SPI, through Nt GPIO. It
+# needs no library of its own, only the SPI and GPIO devices of Linux at run time.
+option(NT_USE_SSD1322 "Build the ssd1322 platform of Nt GUI (an SPI OLED panel)" ON)
+set(NT_HAVE_SSD1322 OFF)
+if(NT_USE_SSD1322 AND TARGET NtGpio AND NOT NT_ANDROID)
+    set(NT_HAVE_SSD1322 ON)
+    target_sources(NtGui PRIVATE src/gui/platforms/ssd1322/qssd1322integration.cpp)
+    target_compile_definitions(NtGui PRIVATE NT_HAVE_SSD1322)
+    target_link_libraries(NtGui PRIVATE NtGpio)
 endif()
 
 # The xcb platform talks to an X server (or XWayland); it is built when XCB is found.
@@ -1792,6 +1808,18 @@ if(NT_HAVE_VULKAN)
     target_compile_definitions(ntgltfview PRIVATE NT_DLSS_LIBRARY_DIR="${_nt_dlss_library_dir}")
 endif()
 
+# ntdisplayemu: SSD1322 and HD44780 displays, switches and LEDs in a window, which Nt GPIO programs started with
+# NT_GPIO_EMULATOR=ntdisplayemu talk to instead of the hardware. The bench is a library of its own for the tests.
+if(TARGET NtWidgets AND TARGET NtNetwork AND TARGET NtGpio AND NOT NT_ZEPHYR)
+    add_library(ntdisplayemu_bench STATIC tools/ntdisplayemu/bench.cpp)
+    target_include_directories(ntdisplayemu_bench PUBLIC tools/ntdisplayemu PRIVATE src/gpio)
+    target_link_libraries(ntdisplayemu_bench PUBLIC Nt::Gui Nt::Network)
+    nt_set_compile_options(ntdisplayemu_bench)
+    add_executable(ntdisplayemu tools/ntdisplayemu/main.cpp)
+    target_link_libraries(ntdisplayemu PRIVATE ntdisplayemu_bench Nt::Widgets)
+    nt_set_compile_options(ntdisplayemu)
+endif()
+
 include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/NtDoc.cmake)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     nt_add_docs(docs CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/doc/ndoc.conf STRICT REQUIRE_COMPLETE)
@@ -1887,6 +1915,20 @@ if(NT_BUILD_TESTS)
     target_link_libraries(nt_peripheral_tests PRIVATE Nt::Gpio)
     add_test(NAME nt_peripheral_tests COMMAND nt_peripheral_tests)
     nt_set_compile_options(nt_peripheral_tests)
+    # Nt GPIO talking to the ntdisplayemu bench through NT_GPIO_EMULATOR, with the bench in a thread of the test.
+    if(TARGET ntdisplayemu_bench)
+        add_executable(nt_hwemulator_tests tests/test_hwemulator.cpp)
+        target_include_directories(nt_hwemulator_tests PRIVATE src/gpio)
+        target_link_libraries(nt_hwemulator_tests PRIVATE ntdisplayemu_bench Nt::Gpio)
+        add_test(NAME nt_hwemulator_tests COMMAND nt_hwemulator_tests)
+        nt_set_compile_options(nt_hwemulator_tests)
+    endif()
+    # The HD44780 and SSD1322 drivers against fake I2C, SPI and GPIO backends.
+    add_executable(nt_display_tests tests/test_displays.cpp)
+    target_include_directories(nt_display_tests PRIVATE src/gpio)
+    target_link_libraries(nt_display_tests PRIVATE Nt::Gpio)
+    add_test(NAME nt_display_tests COMMAND nt_display_tests)
+    nt_set_compile_options(nt_display_tests)
 
     # The QProcess tests start a helper program built next to them.
     add_executable(nt_process_helper tests/process_helper.cpp)
@@ -2149,6 +2191,15 @@ if(NT_BUILD_TESTS)
     add_test(NAME nt_gui_tests COMMAND nt_gui_tests)
     set_tests_properties(nt_gui_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     nt_set_compile_options(nt_gui_tests)
+
+    # The ssd1322 platform, with the SPI and GPIO backends of Nt GPIO replaced by fakes.
+    if(NT_HAVE_SSD1322)
+        add_executable(nt_gui_ssd1322_tests tests/test_gui_ssd1322.cpp)
+        target_include_directories(nt_gui_ssd1322_tests PRIVATE src/gui src/gpio)
+        target_link_libraries(nt_gui_ssd1322_tests PRIVATE Nt::Gui Nt::Gpio)
+        add_test(NAME nt_gui_ssd1322_tests COMMAND nt_gui_ssd1322_tests)
+        nt_set_compile_options(nt_gui_ssd1322_tests)
+    endif()
 
     # The widget tests run on the offscreen platform too, and play the window system with the private headers.
     add_executable(nt_widgets_tests tests/test_widgets.cpp)

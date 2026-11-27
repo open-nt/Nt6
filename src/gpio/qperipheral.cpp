@@ -1,5 +1,8 @@
 // MIT License - see LICENSE
 #include "qperipheral_p.h"
+#ifdef NT_HAVE_HW_EMULATOR
+#include "qhwemulator_p.h"
+#endif
 
 #include <QtCore/qlogging.h>
 #include <QtGpio/qanaloginput.h>
@@ -13,7 +16,8 @@
 /*!
     \page nt-gpio-peripherals.html
     \title Using PWM, Analog I/O, I2C and SPI
-    \brief Naming the channels and buses of a board, and driving them on Linux and on Zephyr.
+    \brief Naming the channels and buses of a board, driving them on Linux and on Zephyr, and the
+    displays that use them.
 
     Besides QGpioLine, Nt GPIO has a class for each of the other peripherals that an embedded
     board brings out:
@@ -165,6 +169,58 @@
     the devicetree or \c driver_override, and one transfer is limited by its \c bufsiz parameter,
     4096 bytes by default.
 
+    \section1 Displays
+
+    Two classes drive small displays on top of these buses:
+
+    \list
+    \li QCharacterDisplay drives a character LCD with a Hitachi HD44780 controller, or one
+        compatible with it, through a PCF8574 I2C backpack or six GPIO lines.
+    \li QSsd1322Display drives a 16-level gray OLED with an SSD1322 controller over 4-wire SPI,
+        with a GPIO line for D/C and one for reset.
+    \endlist
+
+    \code
+    QCharacterDisplay lcd;
+    lcd.setI2cDevice(QStringLiteral("i2c-1"), 0x27);
+    lcd.open();
+    lcd.setText(QStringLiteral("Ready"));
+
+    QSsd1322Display oled;
+    oled.setSpiDevice(QStringLiteral("spidev0.0"));
+    oled.setDataCommandLine(QStringLiteral("gpiochip0:25"));
+    oled.setResetLine(QStringLiteral("gpiochip0:24"));
+    oled.open();
+    oled.writePixels(frame.constBits(), frame.bytesPerLine()); // a Format_Grayscale8 QImage
+    \endcode
+
+    Both need only Nt Core and Nt GPIO, so they work on Zephyr as well as on Linux. On Linux, a
+    whole Nt GUI or Nt Widgets application can also run on an SSD1322 panel through the
+    \c ssd1322 platform of Nt GUI (see \l{Using Nt GUI}).
+
+    \section1 Developing Without the Hardware
+
+    The \c ntdisplayemu tool, installed with the Nt tools, is a bench of emulated hardware in a
+    window: SSD1322 OLED panels on SPI, HD44780 character LCDs on a PCF8574 I2C backpack or on GPIO
+    lines, and every GPIO line a program opens, inputs as switches to click and outputs as LEDs.
+    When the environment variable \c NT_GPIO_EMULATOR is set to its name (or the path of its
+    socket), QGpioLine, QSpiDevice and QI2cDevice connect to the bench instead of opening the
+    devices of the system, so the program runs unchanged on a desktop:
+
+    \code
+    ntdisplayemu --hd44780 i2c=i2c-1,address=0x27,size=20x4 --switch gpiochip0:17=PTT &
+    NT_GPIO_EMULATOR=ntdisplayemu ./myapp
+    \endcode
+
+    Without options the bench has a 256 by 64 SSD1322 on \c spidev0.0 (D/C \c gpiochip0:25,
+    RES \c gpiochip0:24) and a 16 by 2 HD44780 on \c i2c-1 at \c 0x27; \c{ntdisplayemu --help}
+    lists the options. Opening an SPI device with nothing attached fails with
+    \c DeviceNotFoundError, and an I2C transfer to an empty address with \c IoError, as on a real
+    board. Levels are physical on the bench, so an active-low line shows low when it is
+    \c true. Every call waits for the bench to answer, so it sees the calls of a program in the
+    order they were made, at the cost of speed: a full SSD1322 frame takes about a millisecond.
+    The emulator is available on Linux; PWM and analog channels still use the system's devices.
+
     \section1 Zephyr
 
     Set \c CONFIG_NT_GPIO, and the Zephyr option of each peripheral used, in \c prj.conf. A
@@ -186,7 +242,7 @@
     device. An SPI device is selected by the native chip select of the controller; a chip select
     on a GPIO pin, from \c cs-gpios, is not used.
 
-    \sa QGpioLine, {Using Nt GPIO}, {Nt on Zephyr}
+    \sa QGpioLine, QCharacterDisplay, QSsd1322Display, {Using Nt GPIO}, {Nt on Zephyr}
 */
 
 namespace QtPrivate {
@@ -285,7 +341,23 @@ std::unique_ptr<AnalogInputBackend> createAnalogInputBackend() {
 std::unique_ptr<AnalogOutputBackend> createAnalogOutputBackend() {
     return g_analogOutputFactory ? g_analogOutputFactory() : createPlatformAnalogOutputBackend();
 }
-std::unique_ptr<I2cBackend> createI2cBackend() { return g_i2cFactory ? g_i2cFactory() : createPlatformI2cBackend(); }
-std::unique_ptr<SpiBackend> createSpiBackend() { return g_spiFactory ? g_spiFactory() : createPlatformSpiBackend(); }
+std::unique_ptr<I2cBackend> createI2cBackend() {
+    if (g_i2cFactory)
+        return g_i2cFactory();
+#ifdef NT_HAVE_HW_EMULATOR
+    if (hwEmulatorEnabled())
+        return createEmulatorI2cBackend();
+#endif
+    return createPlatformI2cBackend();
+}
+std::unique_ptr<SpiBackend> createSpiBackend() {
+    if (g_spiFactory)
+        return g_spiFactory();
+#ifdef NT_HAVE_HW_EMULATOR
+    if (hwEmulatorEnabled())
+        return createEmulatorSpiBackend();
+#endif
+    return createPlatformSpiBackend();
+}
 
 } // namespace QtPrivate

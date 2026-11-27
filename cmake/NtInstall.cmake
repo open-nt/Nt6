@@ -6,7 +6,7 @@
 # clashing. Two components are installed:
 #
 #   Development  headers, static or shared libraries, CMake package
-#   Tools        ntmoc, ntrcc, ndoc and, with Vulkan, ntgltfview
+#   Tools        ntmoc, ntrcc, ndoc, ntdisplayemu and, with Vulkan, ntgltfview
 #
 # and, apart from them, MaterialSymbols: Nt Material Symbols, whose icons are Google's and licensed under Apache 2.0,
 # not MIT. Everything of it, the CMake targets file and the license among it, is in that component alone, so that the
@@ -64,6 +64,9 @@ if(TARGET freetype)
     install(TARGETS freetype
         EXPORT Nt6Targets
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT Development)
+endif()
+if(TARGET ntdisplayemu)
+    install(TARGETS ntdisplayemu RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)
 endif()
 if(TARGET ntgltfview)
     install(TARGETS ntgltfview RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT Tools)

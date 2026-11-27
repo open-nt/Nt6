@@ -2,5 +2,7 @@
 #include "qpwmchannel.h"
 #include "qanaloginput.h"
 #include "qanalogoutput.h"
+#include "qcharacterdisplay.h"
 #include "qi2cdevice.h"
 #include "qspidevice.h"
+#include "qssd1322display.h"

@@ -100,15 +100,41 @@
 
     \section1 Platforms
 
-    Nt GUI has two platforms:
+    Nt GUI has three platforms:
 
     \list
     \li \c xcb talks to an X11 server, including XWayland on a Wayland desktop.
-        It needs the XCB library at build time; without it, Nt GUI builds with the
-        \c offscreen platform only.
+        It needs the XCB library at build time; without it, Nt GUI is built without this platform.
     \li \c offscreen has no display. Windows keep their pixels in memory. The
         tests of Nt use it, and so can yours.
+    \li \c ssd1322 shows the windows on an OLED panel with an SSD1322 controller,
+        connected over SPI, through QSsd1322Display. It is built on Linux unless
+        \c NT_USE_SSD1322 is off.
     \endlist
+
+    The \c ssd1322 platform takes its settings as options after the name, separated by colons:
+
+    \code
+    ./myapp -platform ssd1322:spi=spidev0.0:dc=gpiochip0:25:reset=gpiochip0:24
+    \endcode
+
+    \table
+    \header \li Option \li Meaning \li Default
+    \row \li \c spi \li The SPI device, as QSpiDevice names it \li \c spidev0.0
+    \row \li \c dc \li The GPIO line of the D/C pin, as QGpioLine names it \li required
+    \row \li \c reset \li The GPIO line of the RES pin \li none
+    \row \li \c size \li The panel in pixels, \c{WIDTHxHEIGHT} \li \c 256x64
+    \row \li \c offset \li The first RAM column group the panel shows \li 28
+    \row \li \c speed \li The SPI clock in hertz \li 10000000
+    \row \li \c rotate \li 0, or 180 for a panel mounted upside down \li 0
+    \row \li \c contrast \li The segment current, 0 to 255 \li 159
+    \endtable
+
+    A colon inside a value, as in \c gpiochip0:25, is kept: a part without \c = continues the
+    value before it. A top-level window fills the panel when it is shown. The pixels are turned
+    to gray (black stays dark, which on an OLED is also what saves power and wear), and each flush
+    sends only the part of the panel that changed. The panel has no input; a program reads its
+    buttons with QGpioLine.
 
     The platform is the value of the \c{-platform} command line option, or else of
     the \c QT_QPA_PLATFORM environment variable. Without either, Nt GUI uses

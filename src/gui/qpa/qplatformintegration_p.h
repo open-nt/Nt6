@@ -71,7 +71,8 @@ namespace QtPrivate {
 // Names of the platforms built into this library.
 QStringList availablePlatforms();
 // Creates the platform called `name`; returns null if there is none or it cannot start (it
-// prints why).
-QPlatformIntegration *createPlatformIntegration(const QString &name, int &argc, char **argv);
+// prints why). `options` is what followed the name after a colon (`ssd1322:spi=spidev0.0:...`).
+QPlatformIntegration *createPlatformIntegration(const QString &name, int &argc, char **argv,
+                                                const QString &options = QString());
 
 } // namespace QtPrivate

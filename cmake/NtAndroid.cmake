@@ -6,20 +6,20 @@
 #   qt_standard_project_setup()
 #   qt_finalize_target(<name>)
 #   nt_android_add_apk(<target> [PACKAGE <id>] [LABEL <text>] [VERSION_CODE <n>] [VERSION_NAME <text>]
-#                      [KEYSTORE <file>])
+#                      [KEYSTORE <file>] [ICON <png>])
 #
 # On Android qt_add_executable() makes a shared library, which android.app.NativeActivity loads and which defines
 # main(), and an <name>.apk next to it (the target <name>_apk, part of "all"). The package is signed with the debug
 # key of the Android SDK (~/.android/debug.keystore, created when missing), so that `adb install` takes it. Elsewhere
 # it is add_executable(). The Android SDK is found from ANDROID_SDK_ROOT, ANDROID_HOME or the directory above the
-# NDK.
+# NDK. ICON is a PNG for the launcher, best 512 pixels square; without it Android shows its default icon.
 
 include(${CMAKE_CURRENT_LIST_DIR}/NtAndroidApk.cmake OPTIONAL)
 
 set(NT_ANDROID_TARGET_SDK "" CACHE STRING "targetSdkVersion of the applications; the newest platform of the SDK when empty")
 
 function(nt_android_add_apk target)
-    cmake_parse_arguments(ARG "" "PACKAGE;LABEL;VERSION_CODE;VERSION_NAME;KEYSTORE" "" ${ARGN})
+    cmake_parse_arguments(ARG "" "PACKAGE;LABEL;VERSION_CODE;VERSION_NAME;KEYSTORE;ICON" "" ${ARGN})
     if(NOT ANDROID)
         message(FATAL_ERROR "nt_android_add_apk() needs the Android toolchain")
     endif()
@@ -74,6 +74,10 @@ function(nt_android_add_apk target)
         set(_output "${target}")
     endif()
     set(_apk "${CMAKE_CURRENT_BINARY_DIR}/${target}.apk")
+    set(_icon "")
+    if(ARG_ICON)
+        get_filename_component(_icon "${ARG_ICON}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    endif()
     add_custom_target(${target}_apk ALL
         COMMAND ${CMAKE_COMMAND}
             "-DNT_APK=${_apk}"
@@ -91,8 +95,9 @@ function(nt_android_add_apk target)
             "-DNT_KEYSTORE=${_keystore}"
             "-DNT_WORK=${CMAKE_CURRENT_BINARY_DIR}/${target}_apk.dir"
             "-DNT_ACTIVITY_SOURCE=${CMAKE_CURRENT_FUNCTION_LIST_DIR}/android/NtActivity.java"
+            "-DNT_ICON=${_icon}"
             -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/NtAndroidApk.cmake"
-        DEPENDS ${target}
+        DEPENDS ${target} ${_icon}
         COMMENT "Packaging ${target}.apk"
         VERBATIM)
 endfunction()

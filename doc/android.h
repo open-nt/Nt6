@@ -72,7 +72,17 @@
     On Android \c qt_add_executable() makes a shared library that defines \c main(), and the target \c app_apk
     packages it with a manifest into \c app.apk, signed with the debug key of the SDK. The Android SDK (build tools
     and a platform) is found from \c ANDROID_SDK_ROOT. \c nt_android_add_apk() takes the package name, the label,
-    the version and a key store; \c MANUAL_FINALIZATION leaves the packaging to a call of \c qt_finalize_target().
+    the version, a key store and the launcher icon; \c MANUAL_FINALIZATION leaves the packaging to it, or to a call of
+    \c qt_finalize_target(). The icon is a PNG, best 512 pixels square:
+
+    \code
+    qt_add_executable(app MANUAL_FINALIZATION main.cpp)
+    if(ANDROID AND COMMAND nt_android_add_apk)
+        nt_android_add_apk(app ICON icon.png)
+    else()
+        qt_finalize_target(app)
+    endif()
+    \endcode
 
     \section1 Calling Java
 

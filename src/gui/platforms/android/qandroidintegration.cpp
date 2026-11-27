@@ -100,6 +100,15 @@ bool QAndroidWindow::isOverlay() const {
 QRect QAndroidWindow::dialogGeometry(const QRect &wanted) const {
     // The widths of a Material dialog are 280 to 560 dp, and it keeps clear of the edges.
     const QRect screen = m_screen->availableGeometry();
+    // A sheet lies against an edge (QMaterialStyle says which).
+    const QString sheet = window()->property("_nt_sheet").toString();
+    if (sheet == QLatin1String("bottom")) {
+        const int width = std::max(1, std::min(640, screen.width()));
+        const int height = std::clamp(wanted.height(), 1, std::max(1, screen.height() - 72));
+        return QRect(screen.x() + (screen.width() - width) / 2, screen.y() + screen.height() - height, width, height);
+    }
+    if (sheet == QLatin1String("drawer"))
+        return QRect(screen.x(), screen.y(), std::max(1, std::min(360, screen.width() - 56)), screen.height());
     const int margin = 24;
     const int widest = std::max(1, std::min(560, screen.width() - 2 * margin));
     const int width = std::clamp(wanted.width(), std::min(280, widest), widest);
@@ -278,6 +287,7 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
         const QImage &image = store->m_image;
         QPoint at = origin;
         double radius = 0;
+        QString sheet;
         if (i > base) {
             // The scrim of Material: black at 32 percent over what is below the dialog.
             for (int y = std::max(0, inside.top()); y < buffer.height; ++y) {
@@ -290,6 +300,7 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
             // A style may ask for rounded corners, in dp (QMaterialStyle does for dialogs).
             radius = std::min(windows[i]->window()->property("_nt_cornerRadius").toDouble() * ratio,
                               std::min(image.width(), image.height()) / 2.0);
+            sheet = windows[i]->window()->property("_nt_sheet").toString();
         }
         const int left = std::max(0, -at.x());
         const int right = std::min(image.width(), buffer.width - at.x());
@@ -297,7 +308,10 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
             const auto *source = reinterpret_cast<const std::uint32_t *>(image.constScanLine(y));
             std::uint32_t *row = line(at.y() + y) + at.x();
             // How far into a rounded corner this row and a column are.
-            const double dy = radius - std::min(y + 0.5, image.height() - y - 0.5);
+            // The corners of a sheet that touch its edge of the screen are square.
+            const bool squareBottom = sheet == QLatin1String("bottom");
+            const bool squareLeft = sheet == QLatin1String("drawer");
+            const double dy = radius - (squareBottom ? y + 0.5 : std::min(y + 0.5, image.height() - y - 0.5));
             if (dy <= 0) {
                 // Not at a corner: the whole row is copied.
                 if (right > left)
@@ -305,7 +319,8 @@ void QAndroidBackingStore::flush(QWindow *window, const QRegion &region, const Q
                 continue;
             }
             for (int x = left; x < right; ++x) {
-                const double dx = radius - std::min(x + 0.5, image.width() - x - 0.5);
+                const double fromRight = image.width() - x - 0.5;
+                const double dx = radius - (squareLeft ? fromRight : std::min(x + 0.5, fromRight));
                 if (dx <= 0) {
                     row[x] = screenPixel(source[x]);
                     continue;
@@ -519,6 +534,23 @@ void QAndroidIntegration::touch(const Event &event) {
     if (!top)
         return;
     QWindow *window = top->window();
+    // A tap beside a sheet dismisses it, and is not for what is below.
+    if (m_dismissingTouch) {
+        if (event.action == AMOTION_EVENT_ACTION_UP || event.action == AMOTION_EVENT_ACTION_CANCEL)
+            m_dismissingTouch = false;
+        return;
+    }
+    if (event.action == AMOTION_EVENT_ACTION_DOWN && !event.points.empty() && top->isOverlay() &&
+        !window->property("_nt_sheet").toString().isEmpty()) {
+        const auto &first = event.points.front();
+        const QPointF at(static_cast<qreal>(first.x) / m_screen->ratio(),
+                         static_cast<qreal>(first.y) / m_screen->ratio());
+        if (!QRectF(window->geometry()).contains(at)) {
+            m_dismissingTouch = true;
+            QWindowSystemInterface::handleCloseEvent(window);
+            return;
+        }
+    }
     if (event.action == AMOTION_EVENT_ACTION_CANCEL) {
         QWindowSystemInterface::handleTouchCancel(window);
         return;

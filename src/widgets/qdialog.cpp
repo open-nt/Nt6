@@ -10,6 +10,7 @@
 #include <QtGui/qevent.h>
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qscreen.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qpushbutton.h>
 
 /*!
@@ -109,7 +110,11 @@ void QDialog::setModal(bool modal) { setWindowModality(modal ? Qt::ApplicationMo
     of its parent, or on the screen if it has no parent, unless it was moved. Hiding the dialog ends exec().
 */
 void QDialog::setVisible(bool visible) {
-    if (visible && isWindow() && !isVisible() && !m_positioned) {
+    // A sheet of the Material style goes to its edge every time, as the window it is on may have changed.
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (visible && isWindow() && !isVisible() && material && material->placeSheet(this)) {
+        m_positioned = true;
+    } else if (visible && isWindow() && !isVisible() && !m_positioned) {
         m_positioned = true;
         if (!QtPrivate::WidgetAccess::data(this).geometrySet)
             adjustSize();

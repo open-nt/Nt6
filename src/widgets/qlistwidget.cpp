@@ -24,6 +24,7 @@ namespace {
 constexpr int textMargin = 3;
 // As QStyledItemDelegate has them for the rows of a list in the Material style.
 constexpr int materialRowHeight = 56, materialMargin = 16, materialSpacing = 12;
+constexpr int materialDrawerMargin = 28; // inside the pill of a row of a navigation drawer
 }
 
 /*!
@@ -1187,13 +1188,20 @@ void QListWidget::paintEvent(QPaintEvent *event) {
             painter.drawText(textRect, Qt::AlignHCenter | Qt::AlignTop | (m_wordWrap ? Qt::TextWordWrap : 0), text);
             painter.setClipping(false);
         } else {
-            const int margin = material ? materialMargin : textMargin;
+            const int margin = !material                            ? textMargin
+                               : QMaterialStyle::isDrawerList(this) ? materialDrawerMargin
+                                                                    : materialMargin;
             const int gap = material ? materialSpacing : textMargin;
             int iconWidth = 0;
             if (!it->icon().isNull()) {
                 const QSize size = iconSize().isValid() ? iconSize() : QSize(16, 16);
-                it->icon().paint(&painter, QRect(rect.left() + margin, rect.top(), size.width(), rect.height()),
-                                 Qt::AlignCenter, iconState);
+                const QRect room(rect.left() + margin, rect.top(), size.width(), rect.height());
+                if (material)
+                    material->drawRowIcon(
+                        &painter, QRect(QPoint(room.left(), room.top() + (room.height() - size.height()) / 2), size),
+                        it->icon(), iconState, selected, on);
+                else
+                    it->icon().paint(&painter, room, Qt::AlignCenter, iconState);
                 iconWidth = size.width() + gap;
             }
             if (!it->text().isEmpty()) {

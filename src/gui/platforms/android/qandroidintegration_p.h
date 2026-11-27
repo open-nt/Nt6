@@ -126,4 +126,5 @@ private:
     mutable std::unique_ptr<QPlatformClipboard> m_clipboard;
     std::unique_ptr<QSocketNotifier> m_notifier;
     bool m_surfaceLost = false;
+    bool m_dismissingTouch = false; // the fingers that dismissed a sheet are still down
 };

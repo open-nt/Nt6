@@ -16,6 +16,7 @@ struct SpringSpec;
 
 class QCalendarWidget;
 class QAbstractButton;
+class QDialog;
 class QFrame;
 class QLineEdit;
 class QListWidget;
@@ -143,6 +144,8 @@ private:
     // the resting label stands where it would.
     friend class QLineEdit;
     bool hidesPlaceholder(const QLineEdit *field) const;
+    // The cross of a clear button, in lines, which stay sharp on a screen of any scale.
+    void drawClearButton(QPainter *painter, const QRect &area) const;
     void drawTextFieldText(QPainter *painter, const QStyleOption *option, const QWidget *widget) const;
     // A property of the style's that a widget was given, or lost, while it is shown.
     void propertyChanged(QWidget *widget);
@@ -151,6 +154,12 @@ private:
     friend class QCalendarWidget;
     void drawCalendarDay(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int day, bool selected,
                          bool today, bool usable, const QColor &ink) const;
+    // A dialog that is a sheet against an edge of its parent's window: QDialog asks for it to be put there when it
+    // is shown. False for another dialog.
+    friend class QDialog;
+    bool placeSheet(QDialog *dialog) const;
+    // The rows of a list that is a navigation drawer keep their icons and text further in.
+    static bool isDrawerList(const QWidget *widget);
     // A frame that is a card, or a line that is a divider: QFrame asks for it. False for another frame.
     friend class QFrame;
     bool drawMaterialFrame(QPainter *painter, const QFrame *frame) const;
@@ -191,6 +200,9 @@ private:
     friend class QStyledItemDelegate;
     void drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled, const QBrush &background,
                      const QWidget *view) const;
+    // The icon of a row, in `area`: one of one color is drawn in the color of the icons of a list.
+    void drawRowIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode, bool selected,
+                     bool enabled) const;
     // The line under the current tab of a horizontal tab bar. QTabBar paints a tab at a time, so it asks for the line,
     // which slides from tab to tab, once they are all painted.
     friend class QTabBar;

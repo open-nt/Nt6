@@ -2362,6 +2362,228 @@ void testRailAndBadges() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+void testSheetsAndDrawer() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.setGeometry(100, 50, 400, 700);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // A bottom sheet: against the bottom of the window, as high as what is in it.
+    QDialog sheet(&window);
+    sheet.setProperty("materialSheet", QStringLiteral("bottom"));
+    auto *column = new QVBoxLayout(&sheet);
+    auto *content = new QWidget;
+    content->setFixedHeight(180);
+    column->addWidget(content);
+    sheet.show();
+    QCoreApplication::processEvents();
+    const int high = sheet.sizeHint().height();
+    CHECK(sheet.geometry() == QRect(100, 50 + 700 - high, 400, high));
+    CHECK(sheet.windowFlags() & Qt::FramelessWindowHint);
+    CHECK(sheet.palette().color(QPalette::Window) == style->color(Role::SurfaceContainerLow));
+    CHECK(sheet.windowHandle() && sheet.windowHandle()->property("_nt_sheet").toString() == QLatin1String("bottom"));
+    CHECK(sheet.windowHandle()->property("_nt_cornerRadius").toInt() == 28);
+    // It goes to the bottom again when it is shown again, wherever the window is by then, and Escape dismisses it.
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QCoreApplication::sendEvent(&sheet, &escape);
+    CHECK(!sheet.isVisible() && sheet.result() == QDialog::Rejected);
+    window.setGeometry(0, 0, 900, 800);
+    sheet.show();
+    QCoreApplication::processEvents();
+    // A wide window has a sheet of 640 in its middle.
+    CHECK(sheet.geometry() == QRect(130, 800 - high, 640, high));
+    sheet.hide();
+    // One that would like more than the window holds leaves room above it.
+    struct Tall : QWidget {
+        QSize sizeHint() const override { return QSize(100, 2000); }
+    };
+    delete content;
+    column->addWidget(new Tall);
+    sheet.show();
+    QCoreApplication::processEvents();
+    CHECK(sheet.height() == 800 - 72);
+    sheet.hide();
+
+    // A drawer, with its list.
+    window.setGeometry(100, 50, 400, 700);
+    QDialog drawer(&window);
+    drawer.setProperty("materialSheet", QStringLiteral("drawer"));
+    auto *inside = new QVBoxLayout(&drawer);
+    inside->setContentsMargins(0, 12, 0, 12);
+    auto *list = new QListWidget;
+    list->setProperty("materialList", QStringLiteral("navigationDrawer"));
+    list->addItems({QStringLiteral("Inbox"), QStringLiteral("Sent"), QStringLiteral("Archive")});
+    list->setCurrentRow(0);
+    inside->addWidget(list);
+    drawer.show();
+    QCoreApplication::processEvents();
+    CHECK(drawer.geometry() == QRect(100, 50, 400 - 56, 700));
+    CHECK(drawer.windowHandle()->property("_nt_cornerRadius").toInt() == 16);
+    CHECK(list->font().pixelSize() == 14);
+    const QImage image = drawer.grab().toImage();
+    const QPoint origin = list->viewport()->mapTo(&drawer, QPoint(0, 0));
+    const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+    const int wide = list->viewport()->width();
+    CHECK(wide == drawer.width());                          // no frame takes room from it
+    CHECK(is(at(wide - 40, 28), Role::SecondaryContainer)); // the pill of the current row,
+    CHECK(is(at(4, 28), Role::SurfaceContainerLow));        // in from the sides,
+    CHECK(is(at(13, 3), Role::SurfaceContainerLow));        // with round ends
+    CHECK(is(at(wide - 40, 84), Role::SurfaceContainerLow));
+    // The icons of rows are in the colors of the list, in a drawer and in any other list.
+    QPixmap black(24, 24);
+    black.fill(Qt::black);
+    list->setIconSize(QSize(24, 24));
+    for (int i = 0; i < list->count(); ++i)
+        list->item(i)->setIcon(QIcon(black));
+    QCoreApplication::processEvents();
+    const QImage iconed = drawer.grab().toImage();
+    const auto in = [&](int x, int y) { return iconed.pixelColor(origin.x() + x, origin.y() + y); };
+    CHECK(is(in(28 + 12, 28), Role::OnSecondaryContainer));
+    CHECK(is(in(28 + 12, 84), Role::OnSurfaceVariant));
+    {
+        QStandardItemModel model;
+        model.appendRow(new QStandardItem(QIcon(black), QStringLiteral("One")));
+        QListView view;
+        view.setIconSize(QSize(24, 24));
+        view.setModel(&model);
+        view.resize(200, 80);
+        view.show();
+        QCoreApplication::processEvents();
+        const QImage rows = view.viewport()->grab().toImage();
+        int inked = 0, black_pixels = 0;
+        for (int y = 0; y < 56; ++y)
+            for (int x = 0; x < 60; ++x) {
+                inked += is(rows.pixelColor(x, y), Role::OnSurfaceVariant) ? 1 : 0;
+                black_pixels += rows.pixelColor(x, y) == QColor(Qt::black) ? 1 : 0;
+            }
+        CHECK(inked > 200 && black_pixels == 0);
+    }
+    drawer.hide();
+    window.setGeometry(0, 0, 800, 600);
+    drawer.show();
+    QCoreApplication::processEvents();
+    CHECK(drawer.width() == 360);
+    drawer.hide();
+    // Another style gives the list its frame back.
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    CHECK(list->frameShape() == QFrame::StyledPanel);
+    style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    CHECK(list->frameShape() == QFrame::NoFrame);
+
+    // A dialog that is no sheet is a dialog as before.
+    QDialog plain(&window);
+    plain.resize(200, 100);
+    plain.show();
+    QCoreApplication::processEvents();
+    CHECK(!(plain.windowFlags() & Qt::FramelessWindowHint));
+    CHECK(plain.palette().color(QPalette::Window) == style->color(Role::SurfaceContainerHigh));
+    CHECK(plain.windowHandle()->property("_nt_cornerRadius").toInt() == 28);
+    plain.hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+void testSearchAndSecondaryTabs() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(360, 300);
+    auto *search = new QLineEdit(&window);
+    search->setProperty("materialTextField", QStringLiteral("search"));
+    search->setPlaceholderText(QStringLiteral("Search notes"));
+    search->setClearButtonEnabled(true);
+    search->setGeometry(10, 10, 340, 56);
+    window.show();
+    QCoreApplication::processEvents();
+    // 56 high, with no room over or under it for a label or a line of text, even if it is given them.
+    CHECK(search->sizeHint().height() == 56);
+    search->setProperty("materialLabel", QStringLiteral("Label"));
+    search->setProperty("materialSupportingText", QStringLiteral("More"));
+    CHECK(search->sizeHint().height() == 56);
+    const auto shot = [&] { return window.grab().toImage().copy(search->geometry()); };
+    QImage image = shot();
+    CHECK(is(image.pixelColor(200, 6), Role::SurfaceContainerHigh)); // a pill with no outline,
+    CHECK(is(image.pixelColor(200, 0), Role::SurfaceContainerHigh));
+    CHECK(is(image.pixelColor(2, 2), Role::Surface)); // round at its ends
+    CHECK(is(image.pixelColor(337, 53), Role::Surface));
+    // with a magnifier before the text.
+    const auto dark = [&](const QImage &in, const QRect &area) {
+        int count = 0;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+            for (int x = area.left(); x <= area.right(); ++x)
+                count += near(in.pixelColor(x, y), style->color(Role::OnSurface), 60) ? 1 : 0;
+        return count;
+    };
+    CHECK(dark(image, QRect(16, 16, 24, 24)) > 20);
+    CHECK(dark(image, QRect(42, 8, 12, 40)) == 0);
+    // The text begins 56 in.
+    search->setText(QStringLiteral("MMMM"));
+    image = shot();
+    if (textIsDrawn()) {
+        CHECK(dark(image, QRect(56, 16, 40, 24)) > 20);
+        CHECK(dark(image, QRect(42, 8, 13, 40)) == 0);
+    }
+    // A cross at the end, in the quiet color.
+    image = shot();
+    int crossed = 0;
+    for (int y = 16; y < 40; ++y)
+        for (int x = 340 - 40; x < 340 - 14; ++x)
+            crossed += is(image.pixelColor(x, y), Role::OnSurfaceVariant) ? 1 : 0;
+    CHECK(crossed > 20);
+    // The cross at the end empties it.
+    const QPointF cross(340 - 26, 28);
+    QMouseEvent press(QEvent::MouseButtonPress, cross, cross, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(search, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, cross, cross, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(search, &release);
+    CHECK(search->text().isEmpty());
+
+    // Secondary tabs: a thin line as wide as the tab, where primary tabs have a rounded one as wide as the label.
+    auto *tabs = new QTabBar(&window);
+    tabs->setExpanding(true);
+    for (const char *name : {"Videos", "Photos", "Audio"})
+        tabs->addTab(QString::fromLatin1(name));
+    tabs->setCurrentIndex(1);
+    tabs->setGeometry(0, 100, 360, 48);
+    tabs->show();
+    QCoreApplication::processEvents();
+    const auto bar = [&] { return window.grab().toImage().copy(tabs->geometry()); };
+    const QRect current = tabs->tabRect(1);
+    image = bar();
+    CHECK(is(image.pixelColor(current.center().x(), 46), Role::Primary));
+    CHECK(!is(image.pixelColor(current.left() + 2, 46), Role::Primary)); // primary: only as wide as the label
+    CHECK(is(image.pixelColor(current.center().x(), 45), Role::Primary));
+    tabs->setProperty("materialTabBar", QStringLiteral("secondary"));
+    QCoreApplication::processEvents();
+    image = bar();
+    CHECK(is(image.pixelColor(current.left() + 1, 47), Role::Primary));
+    CHECK(is(image.pixelColor(current.right() - 1, 46), Role::Primary));
+    CHECK(!is(image.pixelColor(current.center().x(), 45), Role::Primary)); // 2 high
+    CHECK(!is(image.pixelColor(current.left() - 3, 47), Role::Primary));
+    if (textIsDrawn()) {
+        int accented = 0, plain = 0;
+        for (int y = 12; y < 36; ++y)
+            for (int x = current.left(); x <= current.right(); ++x) {
+                accented += is(image.pixelColor(x, y), Role::Primary) ? 1 : 0;
+                plain += is(image.pixelColor(x, y), Role::OnSurface) ? 1 : 0;
+            }
+        CHECK(accented == 0 && plain > 4);
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -2392,6 +2614,8 @@ int main(int argc, char *argv[]) {
     testCalendar();
     testDialogOrderAndFab();
     testRailAndBadges();
+    testSheetsAndDrawer();
+    testSearchAndSecondaryTabs();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

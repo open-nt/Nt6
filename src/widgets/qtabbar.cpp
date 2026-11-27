@@ -1046,8 +1046,10 @@ void QTabBar::paintEvent(QPaintEvent *event) {
         QColor ink = palette().color(group, QPalette::WindowText);
         // Material gives the selected tab's label the accent color, which a palette has no role for.
         if (const auto *material = qobject_cast<const QMaterialStyle *>(style()); material && group == QPalette::Active)
-            ink = material->color(i == m_current ? QMaterialStyle::Role::Primary
-                                                 : QMaterialStyle::Role::OnSurfaceVariant);
+            ink = material->color(i != m_current ? QMaterialStyle::Role::OnSurfaceVariant
+                                  : property("materialTabBar").toString() == QLatin1String("secondary")
+                                      ? QMaterialStyle::Role::OnSurface
+                                      : QMaterialStyle::Role::Primary);
         painter.setPen(tab.textColor.isValid() ? tab.textColor : ink);
         painter.drawText(textRect, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text);
         if (m_closable) {

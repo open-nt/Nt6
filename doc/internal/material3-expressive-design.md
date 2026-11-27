@@ -105,7 +105,7 @@ and those after it trail (`OnSurfaceVariant`). `QMainWindow` now gives what a to
 size policy expands, as Qt does, which the app bar's does. The bottom navigation bar is a horizontal `QTabBar` with
 `materialTabBar` = `"navigationBar"` (in a `QTabWidget` with the tabs at the south): 64 high, `SurfaceContainer`, equal
 widths, a 24 icon in a 56 by 32 pill over a label of 12; the pill opens along the fast spatial spring. Not done: medium
-and large app bars, the colour on scroll, horizontal items and the navigation drawer.
+and large app bars, the colour on scroll, horizontal items.
 
 A snackbar is the status bar of a `QMainWindow` with `materialStatusBar` = `"snackbar"`: `InverseSurface`, corners 4,
 48 high (68 when the message takes two lines), 16 from the sides and from the bottom, above a navigation bar, at most
@@ -139,6 +139,21 @@ tab bar. Under the style `SH_DialogButtonLayout` is `AndroidLayout`, which `QDia
 snackbar goes above a floating action button at the bottom, as Compose's `Scaffold` places it, since a button that a
 layout places cannot be moved aside, and keeps to the pages beside a rail. Not done: the expanded rail, a rail that
 scrolls.
+
+Sheets are `QDialog`s with `materialSheet` = `"bottom"` (against the bottom, up to 640 wide, corners 28 at the top)
+or `"drawer"` (against the left edge, up to 360 wide and 56 short of the window, corners 16 at the right), both
+`SurfaceContainerLow`. `QDialog` asks the style to place one each time it is shown. The android platform, which places
+dialogs itself, reads the window property `_nt_sheet`, rounds only the corners away from the edge, and closes the
+sheet on a tap on the scrim; Back closes it as it does any dialog. A `QListWidget` with `materialList` =
+`"navigationDrawer"` is the drawer's list: pills of 56 inset by 12, no frame. Icons of one color in the rows of any
+list now take `OnSurfaceVariant` (`OnSecondaryContainer` when chosen). Not done: the sliding motion, dragging and the
+drag handle (which would promise it), standard sheets, dismissal by an outside click on a desktop.
+
+`materialTextField` = `"search"` makes a `QLineEdit` the search bar: a `SurfaceContainerHigh` pill of 56 with a
+magnifier at 16 and the text at 56; the clear button is its trailing action. The style draws the magnifier itself, as
+`QLineEdit` has no leading actions in Nt. `materialTabBar` = `"secondary"` gives the secondary tabs: an indicator of 2
+as wide as the tab, and the current label in `OnSurface`. Not done: the search view with its results, an avatar and
+other icons in the bar.
 
 ## Open points
 

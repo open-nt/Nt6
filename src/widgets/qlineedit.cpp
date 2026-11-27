@@ -761,7 +761,10 @@ void QLineEdit::paintEvent(QPaintEvent *event) {
         painter.fillRect(origin + xOf(m_cursor), top, 1, fm.height(),
                          palette().color(group, QPalette::Text));
     }
-    if (clearButtonShown()) {
+    if (clearButtonShown() && material) {
+        painter.setClipping(false);
+        material->drawClearButton(&painter, clearButtonRect());
+    } else if (clearButtonShown()) {
         painter.setClipping(false);
         QStyleOption iconOption;
         iconOption.initFrom(this);

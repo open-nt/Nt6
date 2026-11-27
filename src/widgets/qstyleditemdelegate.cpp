@@ -323,8 +323,16 @@ void QStyledItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
         const QStyle *style = opt.widget ? opt.widget->style() : QApplication::style();
         style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &box, painter, opt.widget);
     }
-    if (!parts.decoration.isEmpty() && !opt.decoration.isNull())
-        painter->drawPixmap(parts.decoration, opt.decoration);
+    if (!parts.decoration.isEmpty() && !opt.decoration.isNull()) {
+        // The Material style gives an icon of one color the color of the icons of its lists.
+        const QVariant icon = isMaterialRow(opt) ? index.data(Qt::DecorationRole) : QVariant();
+        if (holds<QIcon>(icon))
+            static_cast<const QMaterialStyle *>(opt.widget->style())
+                ->drawRowIcon(painter, parts.decoration, icon.value<QIcon>(), QIcon::Normal, selected,
+                              opt.state & QStyle::State_Enabled);
+        else
+            painter->drawPixmap(parts.decoration, opt.decoration);
+    }
     if (opt.features & QStyleOptionViewItem::HasDisplay) {
         painter->setFont(opt.font);
         painter->setPen(opt.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text));

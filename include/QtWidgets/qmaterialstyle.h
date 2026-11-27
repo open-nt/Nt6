@@ -8,6 +8,7 @@
 #include <QtWidgets/qcommonstyle.h>
 
 #include <memory>
+#include <vector>
 
 namespace QtPrivate {
 class Animator;
@@ -16,6 +17,7 @@ struct SpringSpec;
 
 class QCalendarWidget;
 class QAbstractButton;
+class QDateTimeEdit;
 class QDialog;
 class QFrame;
 class QLineEdit;
@@ -149,6 +151,14 @@ private:
     void drawTextFieldText(QPainter *painter, const QStyleOption *option, const QWidget *widget) const;
     // A property of the style's that a widget was given, or lost, while it is shown.
     void propertyChanged(QWidget *widget);
+    // A QDateTimeEdit that is Material's time input: large boxes for the hour and the minute. The style lays them out
+    // and draws them from the text of the line edit, which keeps the focus but has no size; QDateTimeEdit asks which
+    // box was clicked.
+    friend class QDateTimeEdit;
+    static bool isTimeInput(const QWidget *widget);
+    // The rectangle of each section of the time, in their order; an empty one for a section that has none.
+    static std::vector<QRect> timeInputRects(const QDateTimeEdit *edit);
+    void drawTimeInput(QPainter *painter, const QStyleOption *option, const QDateTimeEdit *edit) const;
     // A day of a calendar, as the date picker of Material shows it: QCalendarWidget::paintCell() asks for it. The
     // text is in `ink` if the program formatted the day with a color.
     friend class QCalendarWidget;

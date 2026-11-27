@@ -2232,7 +2232,7 @@ if(NT_BUILD_TESTS)
 
     # QMaterialStyle: the HCT color space, the color roles, sizes and drawing.
     add_executable(nt_material_tests tests/test_material.cpp)
-    target_include_directories(nt_material_tests PRIVATE src/widgets)
+    target_include_directories(nt_material_tests PRIVATE src/widgets src/gui)
     target_link_libraries(nt_material_tests PRIVATE Nt::Widgets)
     add_test(NAME nt_material_tests COMMAND nt_material_tests)
     set_tests_properties(nt_material_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")

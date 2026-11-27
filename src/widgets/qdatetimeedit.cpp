@@ -6,6 +6,7 @@
 #include <QtGui/qevent.h>
 #include <QtWidgets/qcalendarwidget.h>
 #include <QtWidgets/qlineedit.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 
@@ -153,6 +154,11 @@ void QDateTimeEdit::init(const QDateTime &value, const QString &format) {
     m_maximum = defaultMaximum();
     m_value = clamped(value.isValid() ? value : QDateTime(QDate(2000, 1, 1), QTime(0, 0)));
     setDisplayFormat(format);
+    // A style may show the sections itself, as the Material style's time input does, and then follows the line edit.
+    const auto repaint = [this] { update(); };
+    QObject::connect(lineEdit(), &QLineEdit::textChanged, this, repaint);
+    QObject::connect(lineEdit(), &QLineEdit::cursorPositionChanged, this, repaint);
+    QObject::connect(lineEdit(), &QLineEdit::selectionChanged, this, repaint);
 }
 
 /*!
@@ -530,6 +536,14 @@ void QDateTimeEdit::setDisplayFormat(const QString &format) {
         m_tokens.push_back({section, format.mid(i, run), false});
         i += run;
     }
+    // A format of numbers alone asks an on-screen keyboard for its digits; AM, PM and the names of months and days
+    // are typed in letters.
+    const bool words = std::any_of(m_tokens.begin(), m_tokens.end(), [](const Token &token) {
+        return !token.literal &&
+               (token.section == AmPmSection ||
+                ((token.section == MonthSection || token.section == DaySection) && token.pattern.size() > 2));
+    });
+    lineEdit()->setInputMethodHints(words ? Qt::ImhNone : Qt::ImhPreferNumbers);
     refreshText();
     updateGeometry();
 }
@@ -737,6 +751,25 @@ QAbstractSpinBox::StepEnabled QDateTimeEdit::stepEnabled() const {
     With calendarPopup(), the buttons open the calendar.
 */
 void QDateTimeEdit::mousePressEvent(QMouseEvent *event) {
+    // In the Material style's time input, a click chooses a box; in the choice of AM or PM, a half.
+    if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isTimeInput(this) &&
+        event->button() == Qt::LeftButton) {
+        const std::vector<QRect> rects = QMaterialStyle::timeInputRects(this);
+        lineEdit()->setFocus();
+        for (int i = 0; i < static_cast<int>(rects.size()); ++i) {
+            const QRect &box = rects[static_cast<std::size_t>(i)];
+            if (!box.contains(event->pos()))
+                continue;
+            const Section section = sectionAt(i);
+            const bool after = event->pos().y() >= box.top() + box.height() / 2;
+            setSelectedSection(section);
+            if (section == AmPmSection && !isReadOnly() && (time().hour() >= 12) != after)
+                stepBy(after ? 1 : -1);
+        }
+        update();
+        event->accept();
+        return;
+    }
     if (m_calendarPopup && event->button() == Qt::LeftButton && !isReadOnly()) {
         QStyleOptionSpinBox option;
         option.initFrom(this);

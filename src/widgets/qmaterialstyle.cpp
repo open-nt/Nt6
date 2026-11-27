@@ -22,6 +22,7 @@
 #include <QtWidgets/qcalendarwidget.h>
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qcombobox.h>
+#include <QtWidgets/qdatetimeedit.h>
 #include <QtWidgets/qdialog.h>
 #include <QtWidgets/qdialogbuttonbox.h>
 #include <QtWidgets/qframe.h>
@@ -57,6 +58,14 @@ constexpr int buttonIconSpace = 8;
 constexpr int pressedCorner = 8;   // the shape of a pressed small button
 constexpr int selectedCorner = 12; // the shape of a checked button
 constexpr int touchTarget = 48;    // the least height of what a finger has to hit
+constexpr int timeBoxWidth = 96;   // of the hour and of the minute in a time input
+constexpr int timeBoxHeight = 72;
+constexpr double timeBoxCorner = 8;
+constexpr int timeSeparator = 24;  // between two boxes, where the colon is
+constexpr int periodWidth = 52;    // of the choice of AM or PM,
+constexpr int periodSpace = 12;    // and what is before it
+constexpr int timeCaption = 20;    // under the boxes, for their names
+constexpr int timeDigits = 45;     // display medium
 constexpr int calendarCell = 40;   // a day of a calendar, and the circle that shows the one that is chosen
 constexpr int chipHeight = 32;
 constexpr double chipCorner = 8;
@@ -182,6 +191,19 @@ QString sheetKind(const QWidget *widget) {
 bool isSecondaryTabBar(const QWidget *widget) {
     return qobject_cast<const QTabBar *>(widget) &&
            widget->property("materialTabBar").toString() == QLatin1String("secondary");
+}
+
+// What the text of a time has between its separators: the hour, the minute and so on, as they stand while they are
+// typed.
+QStringList timeParts(const QString &text) {
+    QStringList parts(1);
+    for (const QChar c : text) {
+        if (c.isLetterOrNumber())
+            parts.last() += c;
+        else
+            parts.append(QString());
+    }
+    return parts;
 }
 
 bool isList(const QWidget *widget) {
@@ -647,6 +669,9 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
         button} there is a cross to empty it.
     \li \c materialTabBar \c "secondary" makes the tabs of a QTabBar secondary ones, for what is inside a page: the
         line under the current one is as wide as the tab and 2 high, and its label is not in the accent color.
+    \li \c materialTimeInput of a QTimeEdit: \c true draws it as Material's time input, a large box for each of the
+        hour and the minute (and the second, if the format shows it), and a choice of AM or PM if the format has one.
+        A click chooses a box; digits typed, the arrow keys and the wheel change what is in it.
     \li \c materialSheet of a QDialog: \c "bottom" makes it a modal bottom sheet, against the bottom of its parent's
         window, as high as what is in it and no wider than 640; \c "drawer" makes it a modal drawer, against the left
         edge, as high as the window and up to 360 wide. It has no title bar. On Android the window behind is dimmed, and
@@ -707,7 +732,8 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     rich tooltips. Chips are push buttons only; there are no elevated chips, avatars in input chips or separate click
     on the cross, and a filter chip takes its new width at once. The date picker is the calendar alone: it has no headline with the chosen date, no choice of
     years, no range and no field to type a date in, it keeps the days of the other months, faint, and it has no time
-    picker beside it. A card is not a button and shows no press. A card or
+    picker with a clock dial. A time input is for a format of times alone, does not go on to the minute by itself
+    when the hour has been typed, and names its boxes in English. A card is not a button and shows no press. A card or
     a divider behind a QProxyStyle is drawn as a plain frame. Icon buttons have the default width, not
     the narrow or the wide one. An app bar is the small one: it has no subtitle, does not grow into a medium or large
     one, and keeps its color as the content scrolls. A navigation bar has no horizontal items for wide screens. A
@@ -1907,7 +1933,7 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
 }
 
 void QMaterialStyle::propertyChanged(QWidget *widget) {
-    if (qobject_cast<QToolBar *>(widget)) {
+    if (qobject_cast<QToolBar *>(widget) || qobject_cast<QAbstractSpinBox *>(widget)) {
         QEvent change(QEvent::StyleChange); // it lays itself out anew
         QCoreApplication::sendEvent(widget, &change);
     } else if (widget->property(polishedFont).toBool() || widget->property(polishedPalette).toBool()) {
@@ -2093,6 +2119,104 @@ void QMaterialStyle::drawRowIcon(QPainter *painter, const QRect &area, const QIc
     const QColor ink = !enabled ? withOpacity(color(Role::OnSurface), disabledContentOpacity)
                                 : color(selected ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
     paintIcon(painter, area, icon, mode == QIcon::Selected ? QIcon::Normal : mode, QIcon::Off, ink);
+}
+
+bool QMaterialStyle::isTimeInput(const QWidget *widget) {
+    const auto *edit = qobject_cast<const QDateTimeEdit *>(widget);
+    return edit && edit->property("materialTimeInput").toBool() &&
+           !(edit->displayedSections() & QDateTimeEdit::DateSections_Mask);
+}
+
+std::vector<QRect> QMaterialStyle::timeInputRects(const QDateTimeEdit *edit) {
+    std::vector<QRect> rects;
+    int left = 0;
+    bool box = false; // there is a box before this one
+    for (int i = 0; i < edit->sectionCount(); ++i) {
+        if (edit->sectionAt(i) == QDateTimeEdit::AmPmSection) {
+            left += box ? periodSpace : 0;
+            rects.push_back(QRect(left, 0, periodWidth, timeBoxHeight));
+            left += periodWidth;
+        } else {
+            left += box ? timeSeparator : 0;
+            rects.push_back(QRect(left, 0, timeBoxWidth, timeBoxHeight));
+            left += timeBoxWidth;
+        }
+        box = true;
+    }
+    return rects;
+}
+
+void QMaterialStyle::drawTimeInput(QPainter *painter, const QStyleOption *option, const QDateTimeEdit *edit) const {
+    const std::vector<QRect> rects = timeInputRects(edit);
+    const QStringList parts = timeParts(edit->text());
+    const bool usable = enabled(option);
+    const bool focused = option->state & State_HasFocus;
+    const int current = focused ? edit->currentSectionIndex() : -1;
+    const QColor faint = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    QFont digits = edit->font();
+    digits.setPixelSize(timeDigits);
+    digits.setWeight(QFont::Normal);
+    QFont small = edit->font();
+    small.setPixelSize(12);
+    QFont period = edit->font();
+    period.setPixelSize(16);
+    period.setWeight(QFont::Medium);
+    for (std::size_t i = 0; i < rects.size(); ++i) {
+        const QRectF at(rects[i]);
+        const QDateTimeEdit::Section section = edit->sectionAt(static_cast<int>(i));
+        const bool here = static_cast<int>(i) == current;
+        if (section == QDateTimeEdit::AmPmSection) {
+            // Two halves, the one that the time is in filled.
+            const bool after = edit->time().hour() >= 12;
+            QPainterPath outline;
+            outline.addRoundedRect(at.adjusted(0.5, 0.5, -0.5, -0.5), timeBoxCorner, timeBoxCorner);
+            const QRectF halves[] = {QRectF(at.left(), at.top(), at.width(), at.height() / 2),
+                                     QRectF(at.left(), at.center().y(), at.width(), at.height() / 2)};
+            painter->save();
+            painter->setClipRect(halves[after ? 1 : 0], Qt::IntersectClip);
+            painter->fillPath(outline, QBrush(usable ? color(Role::TertiaryContainer)
+                                                     : withOpacity(color(Role::OnSurface), disabledContainerOpacity)));
+            painter->restore();
+            const QColor line = here ? color(Role::Primary) : color(Role::Outline);
+            painter->strokePath(outline, QPen(QBrush(line), here ? 2 : 1));
+            painter->fillRect(QRectF(at.left(), at.center().y(), at.width(), 1), line);
+            painter->setFont(period);
+            for (int half = 0; half < 2; ++half) {
+                const bool chosen = (half == 1) == after;
+                painter->setPen(!usable  ? faint
+                                : chosen ? color(Role::OnTertiaryContainer)
+                                         : color(Role::OnSurfaceVariant));
+                painter->drawText(halves[half].toRect(), static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine,
+                                  half == 0 ? QStringLiteral("AM") : QStringLiteral("PM"));
+            }
+            continue;
+        }
+        fillRounded(painter, at, timeBoxCorner, color(here ? Role::PrimaryContainer : Role::SurfaceContainerHighest));
+        if (here)
+            strokeRounded(painter, at, timeBoxCorner, color(Role::Primary), 2);
+        painter->setFont(digits);
+        painter->setPen(!usable ? faint : color(here ? Role::OnPrimaryContainer : Role::OnSurface));
+        const int part = static_cast<int>(i);
+        painter->drawText(rects[i], static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine,
+                          part < parts.size() ? parts.at(part) : QString());
+        // A colon before each box but the first.
+        if (i > 0) {
+            painter->setPen(usable ? color(Role::OnSurface) : faint);
+            painter->drawText(QRect(rects[i].left() - timeSeparator, 0, timeSeparator, timeBoxHeight),
+                              static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, QStringLiteral(":"));
+        }
+        const char *const name = section == QDateTimeEdit::HourSection     ? "Hour"
+                                 : section == QDateTimeEdit::MinuteSection ? "Minute"
+                                 : section == QDateTimeEdit::SecondSection ? "Second"
+                                                                           : "";
+        painter->setFont(small);
+        painter->setPen(usable ? color(Role::OnSurfaceVariant) : faint);
+        painter->drawText(QRect(rects[i].left(), timeBoxHeight + 4, rects[i].width(), timeCaption - 4),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, QString::fromLatin1(name));
+    }
+    painter->restore();
 }
 
 bool QMaterialStyle::isDrawerList(const QWidget *widget) {
@@ -2856,6 +2980,10 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
 */
 void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *option, QPainter *painter,
                                  const QWidget *widget) const {
+    if (element == CE_SpinBox && isTimeInput(widget)) {
+        drawTimeInput(painter, option, static_cast<const QDateTimeEdit *>(widget));
+        return;
+    }
     if (element == CE_PushButtonLabel && option->type == QStyleOption::SO_Button) {
         painter->save();
         drawButtonLabel(option, painter, widget);
@@ -2920,6 +3048,9 @@ void QMaterialStyle::drawControl(ControlElement element, const QStyleOption *opt
 */
 QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *option, const QWidget *widget) const {
     const QRect r = option->rect;
+    // The line edit of a time input has the keys, and nothing to show; there are no buttons that step.
+    if ((element == SE_SpinBoxEditField || element == SE_SpinBoxUp || element == SE_SpinBoxDown) && isTimeInput(widget))
+        return QRect(r.left(), r.top(), 0, 0);
     switch (element) {
     case SE_PushButtonContents:
         // The open FAB is a circle at the right of the whole button. A button with a size is made as wide as its label
@@ -3025,6 +3156,10 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
 */
 QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize,
                                        const QWidget *widget) const {
+    if (type == CT_SpinBox && isTimeInput(widget)) {
+        const std::vector<QRect> rects = timeInputRects(static_cast<const QDateTimeEdit *>(widget));
+        return QSize(rects.empty() ? 0 : rects.back().x() + rects.back().width(), timeBoxHeight + timeCaption);
+    }
     switch (type) {
     case CT_PushButton: {
         int width = contentsSize.width();

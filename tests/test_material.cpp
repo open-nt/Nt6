@@ -9,6 +9,7 @@
 
 #include "qmaterialcolor_p.h"
 #include "qmaterialmotion_p.h"
+#include "qpa/qwindowsysteminterface_p.h"
 
 #include <cmath>
 #include <cstdio>
@@ -2584,6 +2585,123 @@ void testSearchAndSecondaryTabs() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+void testTimeInput() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(400, 240);
+    auto *edit = new QTimeEdit(QTime(9, 41), &window);
+    edit->setDisplayFormat(QStringLiteral("HH:mm"));
+    const QSize plain = edit->sizeHint();
+    edit->setProperty("materialTimeInput", true);
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    // A box of 96 by 72 for each of the hour and the minute, 24 apart, with their names under them.
+    CHECK(edit->sizeHint() == QSize(216, 92));
+    edit->setGeometry(10, 10, 216, 92);
+    QCoreApplication::processEvents();
+    auto *line = edit->findChild<QLineEdit *>();
+    CHECK(line && line->width() == 0 && line->height() == 0);
+    if (!line)
+        return;
+    CHECK(line->inputMethodHints() & Qt::ImhPreferNumbers); // the digits of an on-screen keyboard
+    const auto shot = [&] { return window.grab().toImage().copy(edit->geometry()); };
+    line->clearFocus();
+    QImage image = shot();
+    CHECK(is(image.pixelColor(10, 10), Role::SurfaceContainerHighest));
+    CHECK(is(image.pixelColor(130, 10), Role::SurfaceContainerHighest));
+    CHECK(is(image.pixelColor(108, 10), Role::Surface)); // between them
+
+    const auto click = [&](int x, int y) {
+        const QPointF at(x, y);
+        QMouseEvent press(QEvent::MouseButtonPress, at, at, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(edit, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, at, at, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(edit, &release);
+        QCoreApplication::processEvents();
+    };
+    // Keys go through the window, as from a keyboard.
+    const auto key = [&](int code, const QString &text = QString()) {
+        QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyPress, code, Qt::NoModifier, text);
+        QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyRelease, code, Qt::NoModifier, text);
+        QCoreApplication::processEvents();
+    };
+    // A click chooses a box, which is marked; what is typed replaces what is in it.
+    click(40, 30);
+    CHECK(QApplication::focusWidget() == line);
+    CHECK(line->selectedText() == QLatin1String("09"));
+    image = shot();
+    CHECK(is(image.pixelColor(10, 10), Role::PrimaryContainer));
+    CHECK(is(image.pixelColor(48, 1), Role::Primary));
+    CHECK(is(image.pixelColor(130, 10), Role::SurfaceContainerHighest));
+    key(Qt::Key_1, QStringLiteral("1"));
+    key(Qt::Key_7, QStringLiteral("7"));
+    CHECK(edit->time() == QTime(17, 41));
+    click(160, 30);
+    CHECK(line->selectedText() == QLatin1String("41"));
+    CHECK(is(shot().pixelColor(130, 10), Role::PrimaryContainer));
+    key(Qt::Key_0, QStringLiteral("0"));
+    key(Qt::Key_8, QStringLiteral("8"));
+    CHECK(edit->time() == QTime(17, 8));
+    key(Qt::Key_Up);
+    CHECK(edit->time() == QTime(17, 9));
+    key(Qt::Key_Down);
+    key(Qt::Key_Down);
+    CHECK(edit->time() == QTime(17, 7));
+    // The digits are drawn anew as the time changes, also by the program.
+    if (textIsDrawn()) {
+        const QImage before = shot();
+        edit->setTime(QTime(11, 7));
+        QCoreApplication::processEvents();
+        CHECK(shot() != before);
+    }
+
+    // With AM and PM there is a choice between them, in two halves.
+    edit->setDisplayFormat(QStringLiteral("h:mm AP"));
+    edit->setTime(QTime(21, 5));
+    QCoreApplication::processEvents();
+    CHECK(edit->sizeHint() == QSize(216 + 12 + 52, 92));
+    CHECK(!(line->inputMethodHints() & Qt::ImhPreferNumbers)); // AM and PM are letters
+    edit->setGeometry(10, 10, 280, 92);
+    QCoreApplication::processEvents();
+    image = shot();
+    CHECK(is(image.pixelColor(236, 54), Role::TertiaryContainer));
+    CHECK(is(image.pixelColor(236, 18), Role::Surface));
+    click(254, 18);
+    CHECK(edit->time() == QTime(9, 5));
+    CHECK(is(shot().pixelColor(236, 18), Role::TertiaryContainer));
+    click(254, 18);
+    CHECK(edit->time() == QTime(9, 5));
+    click(254, 54);
+    CHECK(edit->time() == QTime(21, 5));
+    edit->setReadOnly(true);
+    click(254, 18);
+    CHECK(edit->time() == QTime(21, 5));
+    edit->setReadOnly(false);
+
+    // A format with a date in it is no time input.
+    QDateTimeEdit both;
+    both.setDisplayFormat(QStringLiteral("yyyy-MM-dd HH:mm"));
+    both.setProperty("materialTimeInput", true);
+    CHECK(both.sizeHint().height() < 72);
+    // Without the property, and under another style, a time edit is the one that it was.
+    edit->setDisplayFormat(QStringLiteral("HH:mm"));
+    edit->setProperty("materialTimeInput", false);
+    QCoreApplication::processEvents();
+    CHECK(edit->sizeHint().height() == plain.height() && line->width() > 0);
+    edit->setProperty("materialTimeInput", true);
+    QCoreApplication::processEvents();
+    CHECK(line->width() == 0);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(edit->sizeHint().height() < 72 && line->width() > 0);
+}
+
 } // namespace
 
 int main(int argc, char *argv[]) {
@@ -2616,6 +2734,7 @@ int main(int argc, char *argv[]) {
     testRailAndBadges();
     testSheetsAndDrawer();
     testSearchAndSecondaryTabs();
+    testTimeInput();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

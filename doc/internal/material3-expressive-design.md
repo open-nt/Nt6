@@ -155,6 +155,14 @@ magnifier at 16 and the text at 56; the clear button is its trailing action. The
 as wide as the tab, and the current label in `OnSurface`. Not done: the search view with its results, an avatar and
 other icons in the bar.
 
+`materialTimeInput` on a `QTimeEdit` is Material's time input (the keyboard form of its time picker; the dial would
+need a widget that Qt Widgets has not got, and an application using it would not build with Qt). Boxes of 96 by 72,
+corners 8, `SurfaceContainerHighest`, the current one `PrimaryContainer` with a 2 `Primary` outline, digits in 45; a
+period selector of 52 by 72 with `TertiaryContainer` for the half that applies. All editing stays
+`QDateTimeEdit`'s: its line edit keeps the focus with no size, and the style draws its text by section. Not done: the
+dial, moving on to the minute after two digits, translated captions. A format of numbers alone sets
+`ImhPreferNumbers`, with which Android shows its number keys (see `doc/android.h`).
+
 ## Open points
 
 - `QTabBar` draws its labels itself and asks `QMaterialStyle` for their color; behind a `QProxyStyle` the selected

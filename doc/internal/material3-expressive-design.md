@@ -90,31 +90,31 @@ Text fields: a framed `QLineEdit` is outlined, or filled with `materialTextField
 at 16 in the middle of an empty unfocused field and floats to 12 along the default effects spring: onto the outline,
 which makes way for it (an outlined field then has 8 above its container), or into the top of a filled one. The
 placeholder is hidden while the label rests (`QLineEdit` asks the private `hidesPlaceholder()`).
-`materialSupportingText` and `materialError` have 20 under the field. Not done: icons, prefix and suffix, character
-counter, the caret in the accent colour, and multi-line fields.
+`materialSupportingText` and `materialError` have 20 under the field. Not done: the caret in the accent colour and
+multi-line fields (icons, prefix and suffix and the counter are below).
 
 Icon buttons are `materialIconButton` = `"standard"`, `"filled"`, `"tonal"` or `"outlined"` on a push or tool button:
 square in the five button sizes with icons of 20, 24, 24, 32 and 40, the buttons' corners and outlines, 48 to a finger.
 Icons: an icon of one colour is repainted in the colour the style gives its button, floating toolbar, FAB or menu item
 (`paintIcon()`; one colour means that all pixels with some opacity are within 32 of each other), so logos stay as they
 are without a property. The icons are the application's, or those of the optional package Nt Material Symbols
-(`third_party/material-symbols`, Apache-2.0), which Nt Widgets does not use. Not done: the narrow and wide widths.
+(`third_party/material-symbols`, Apache-2.0), which Nt Widgets does not use. The narrow and wide widths are below.
 
 The top app bar (small) is a `QToolBar` with `materialToolBar` = `"appBar"`: 64 high, `Surface`, the window title in
 22 (title large); the first separator marks where the title goes, so the actions before it lead (icons `OnSurface`)
 and those after it trail (`OnSurfaceVariant`). `QMainWindow` now gives what a tool bar line leaves free to bars whose
 size policy expands, as Qt does, which the app bar's does. The bottom navigation bar is a horizontal `QTabBar` with
 `materialTabBar` = `"navigationBar"` (in a `QTabWidget` with the tabs at the south): 64 high, `SurfaceContainer`, equal
-widths, a 24 icon in a 56 by 32 pill over a label of 12; the pill opens along the fast spatial spring. Not done: medium
-and large app bars, the colour on scroll, horizontal items.
+widths, a 24 icon in a 56 by 32 pill over a label of 12; the pill opens along the fast spatial spring. Not done:
+horizontal items.
 
 A snackbar is the status bar of a `QMainWindow` with `materialStatusBar` = `"snackbar"`: `InverseSurface`, corners 4,
 48 high (68 when the message takes two lines), 16 from the sides and from the bottom, above a navigation bar, at most
 600 wide; it takes no room and has none while there is no message. Permanent widgets are its actions, text buttons in
 `InversePrimary`. `QMainWindow` places it through private functions of its own. Tooltips (`QToolTip`) are Material's
 plain tooltips without a property. `materialProgress` = `"circular"` is the circular indicator: 40, 4 thick, a gap of 4
-before the track; busy, an arc that grows and shrinks as it goes round. Not done: animation of the snackbar, a queue of
-messages, a close icon, rich tooltips, the wavy circular indicator.
+before the track; busy, an arc that grows and shrinks as it goes round. Not done: a queue of messages, rich tooltips and
+the wavy circular indicator (the snackbar's motion and close icon are below).
 
 Chips are `QPushButton`s with `materialChip` = `"assist"`, `"filter"`, `"input"` or `"suggestion"`: 32 high in a
 target of 48, corners 8, an `OutlineVariant` outline, label large, an 18 icon; 16 beside a bare label, 8 around an
@@ -129,8 +129,8 @@ through a private function. Not done: elevated chips, avatars, clickable cards.
 `Primary` circle, today a `Primary` ring and label, names of days and days in body large. The base `paintCell()` asks
 the style, so an application's override that calls it keeps the look, and the colors of its text formats win. The
 style treats the two arrow buttons as standard icon buttons and draws chevrons. Days of other months stay, faint,
-because Qt lets a click on one go to its month. Not done: the headline, the year grid, ranges, date input and the time
-picker (Qt Widgets has no widget that is one).
+because Qt lets a click on one go to its month. Not done here: ranges, date input and the time
+picker (Qt Widgets has no widget that is one); the headline and the year grid are below.
 
 The navigation rail is a vertical `QTabBar` with `materialTabBar` = `"navigationRail"` (a `QTabWidget` with the tabs
 at the west): 96 wide, `Surface`, destinations of 64 with 4 between them from 44 down, drawn as those of the bar.
@@ -152,8 +152,8 @@ drag handle (which would promise it), standard sheets, dismissal by an outside c
 `materialTextField` = `"search"` makes a `QLineEdit` the search bar: a `SurfaceContainerHigh` pill of 56 with a
 magnifier at 16 and the text at 56; the clear button is its trailing action. The style draws the magnifier itself, as
 `QLineEdit` has no leading actions in Nt. `materialTabBar` = `"secondary"` gives the secondary tabs: an indicator of 2
-as wide as the tab, and the current label in `OnSurface`. Not done: the search view with its results, an avatar and
-other icons in the bar.
+as wide as the tab, and the current label in `OnSurface`. Not done: an avatar and other icons in the bar (the
+search view is below).
 
 `materialTimeInput` on a `QTimeEdit` is Material's time input (the keyboard form of its time picker; the dial would
 need a widget that Qt Widgets has not got, and an application using it would not build with Qt). Boxes of 96 by 72,
@@ -218,8 +218,7 @@ bottom edge, is at least half as high as the window below the bar, and whose ver
 `polish()` gives each scroll area a hidden child object that connects its vertical scroll bar's `valueChanged` to a
 repaint of the window's app bars (`unpolish()` deletes it, which disconnects it), and the style's event filter does the
 same when a scroll area is shown or hidden, as when a tab widget changes page. The title and icons keep their colors.
-Not done: the bar does not scroll away or collapse (`enterAlways`, `exitUntilCollapsed`), the medium and large bars
-that shrink as the content scrolls, and content that scrolls without a `QAbstractScrollArea` (a `QGraphicsView` is one,
+Not done: the bar does not scroll away (`enterAlways`; the medium and large bars that collapse are below), and content that scrolls without a `QAbstractScrollArea` (a `QGraphicsView` is one,
 so it counts; a custom widget that scrolls itself does not). A scroll bar that is replaced with
 `setVerticalScrollBar()` after polishing loses the connection until the area is polished again.
 

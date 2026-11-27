@@ -1,6 +1,7 @@
 # A glass style for Nt Widgets (iPad, iPhone and Android)
 
-Status: plan (2026-11-27). Nothing built. Not part of 6.0.x.
+Status: plan (2026-11-27). Nothing built. Not part of 6.0.x. The Windows counterpart is `fluent-style-plan.md`,
+which shares the private helpers and the role mapping described here.
 
 ## Goal
 

@@ -34,7 +34,8 @@ private:
     QRgb premultiplied(const QColor &color) const;
     void fillRect(const QRect &rect, QRgb premult);
     void fillSpan(int y, int x0, int x1, QRgb premult);
-    void blend(uint *dst, QRgb premult) const;
+    void blend(uint *dst, QRgb premult, int coverage = 255) const;
+    void compose(uint *dst, QRgb premult, int coverage) const;
     // Paints the polygons, in device coordinates, with the brush (or the color of the pen if `pen` is set).
     void paintCoverage(const void *polygons, bool evenOdd, const QBrush &brush, bool pen, const QTransform &toDevice);
 

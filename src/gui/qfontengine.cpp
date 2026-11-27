@@ -18,6 +18,7 @@
 #include <cmath>
 #include <map>
 #include <string>
+#include <tuple>
 #include <vector>
 #ifndef NT_HAVE_FONTCONFIG
 #include <dirent.h>
@@ -298,6 +299,99 @@ FT_Face openFace(const QFont &font, double pixelSize) {
     return face;
 }
 
+// Where a fallback font is: a file and the number of the face in it. An empty path: there is none.
+struct FaceFile {
+    std::string path;
+    int index = 0;
+};
+
+#ifdef NT_HAVE_FONTCONFIG
+// The best scalable font of the system that has `codePoint`. The library mutex must be held.
+FaceFile searchFallback(char32_t codePoint, int weight, bool italic, QFont::StyleHint hint) {
+    FaceFile found;
+    if (!FcInit())
+        return found;
+    FcPattern *pattern = FcPatternCreate();
+    const char *generic = genericFamily(hint);
+    FcPatternAddString(pattern, FC_FAMILY,
+                       reinterpret_cast<const FcChar8 *>(*generic != '\0' ? generic : "sans-serif"));
+    FcPatternAddInteger(pattern, FC_WEIGHT, FcWeightFromOpenType(weight));
+    FcPatternAddInteger(pattern, FC_SLANT, italic ? FC_SLANT_ITALIC : FC_SLANT_ROMAN);
+    FcPatternAddBool(pattern, FC_SCALABLE, FcTrue);
+    FcCharSet *wanted = FcCharSetCreate();
+    FcCharSetAddChar(wanted, codePoint);
+    FcPatternAddCharSet(pattern, FC_CHARSET, wanted);
+    FcConfigSubstitute(nullptr, pattern, FcMatchPattern);
+    FcDefaultSubstitute(pattern);
+    FcResult result;
+    if (FcFontSet *fonts = FcFontSort(nullptr, pattern, FcFalse, nullptr, &result)) {
+        for (int i = 0; i < fonts->nfont && found.path.empty(); ++i) {
+            FcCharSet *has = nullptr;
+            FcBool scalable = FcFalse;
+            FcChar8 *file = nullptr;
+            // A font of bitmaps, as color emoji fonts are, cannot be drawn.
+            if (FcPatternGetCharSet(fonts->fonts[i], FC_CHARSET, 0, &has) != FcResultMatch ||
+                !FcCharSetHasChar(has, codePoint) ||
+                FcPatternGetBool(fonts->fonts[i], FC_SCALABLE, 0, &scalable) != FcResultMatch || !scalable ||
+                FcPatternGetString(fonts->fonts[i], FC_FILE, 0, &file) != FcResultMatch)
+                continue;
+            found.path = reinterpret_cast<const char *>(file);
+            FcPatternGetInteger(fonts->fonts[i], FC_INDEX, 0, &found.index);
+        }
+        FcFontSetDestroy(fonts);
+    }
+    FcCharSetDestroy(wanted);
+    FcPatternDestroy(pattern);
+    return found;
+}
+#else
+// The scalable system font that has `codePoint`: of the families that a reader expects first, then of any, and of those
+// the one closest in weight and slant. The library mutex must be held.
+FaceFile searchFallback(char32_t codePoint, int weight, bool italic, QFont::StyleHint) {
+    const auto rank = [&](const SystemFont &f) {
+        const QString family = f.family.toLower();
+        const int first = family == QString::fromLatin1("roboto")                       ? 0
+                          : family.startsWith(QString::fromLatin1("noto sans symbols")) ? 1
+                          : family.startsWith(QString::fromLatin1("noto sans"))         ? 2
+                                                                                        : 3;
+        return first * 10000 + std::abs(f.weight - weight) + (f.italic != italic ? 1000 : 0);
+    };
+    std::vector<const SystemFont *> order;
+    for (const SystemFont &f : systemFonts())
+        order.push_back(&f);
+    std::stable_sort(order.begin(), order.end(),
+                     [&](const SystemFont *a, const SystemFont *b) { return rank(*a) < rank(*b); });
+    for (const SystemFont *f : order) {
+        FT_Face face = nullptr;
+        if (FT_New_Face(library(), f->path.c_str(), f->index, &face) != 0)
+            continue;
+        const bool has = FT_IS_SCALABLE(face) && FT_Get_Char_Index(face, codePoint) != 0;
+        FT_Done_Face(face);
+        if (has)
+            return {f->path, f->index};
+    }
+    return {};
+}
+#endif
+
+// searchFallback(), asked once for each character and kind of font. The library mutex must be held.
+FaceFile fallbackFile(char32_t codePoint, int weight, bool italic, QFont::StyleHint hint) {
+    static auto *known = new std::map<std::tuple<char32_t, int, bool, int>, FaceFile>;
+    const auto key = std::make_tuple(codePoint, weight, italic, static_cast<int>(hint));
+    const auto it = known->find(key);
+    if (it != known->end())
+        return it->second;
+    return known->emplace(key, searchFallback(codePoint, weight, italic, hint)).first->second;
+}
+
+// Whether a character is worth looking for in other fonts: not a control or a mark that only steers how text is laid
+// out, which has nothing to show.
+bool showsSomething(char32_t c) {
+    return c > 0x20 && !(c >= 0x7f && c <= 0xa0) && !(c >= 0x200b && c <= 0x200f) && !(c >= 0x2028 && c <= 0x202e) &&
+           !(c >= 0x2060 && c <= 0x206f) && !(c >= 0xfe00 && c <= 0xfe0f) && c != 0xfeff &&
+           !(c >= 0xd800 && c <= 0xdfff) && c < 0xe0000;
+}
+
 // Collects an outline from FreeType into a QPainterPath.
 struct OutlineSink {
     QPainterPath *path;
@@ -368,6 +462,9 @@ std::shared_ptr<QFontEngine> QFontEngine::create(const QFont &font, double scale
     face = openFace(font, pixels);
 #endif
     std::shared_ptr<QFontEngine> engine(new QFontEngine(face, pixels));
+    engine->m_weight = static_cast<int>(font.weight());
+    engine->m_italic = font.italic();
+    engine->m_styleHint = static_cast<int>(font.styleHint());
     if (font.letterSpacingType() == QFont::AbsoluteSpacing)
         engine->m_letterExtra64 = static_cast<int>(std::lround(font.letterSpacing() * scale * 64.0));
     else
@@ -445,7 +542,63 @@ bool QFontEngine::hasGlyph(char32_t codePoint) {
     return false;
 }
 
+QFontEngine *QFontEngine::fallbackFor(char32_t codePoint) {
+#ifdef NT_HAVE_FREETYPE
+    if (!m_face || m_isFallback || !showsSomething(codePoint))
+        return nullptr;
+    std::lock_guard<std::mutex> lock(m_fallbackMutex);
+    const auto known = m_fallbackByCodePoint.find(codePoint);
+    if (known != m_fallbackByCodePoint.end())
+        return known->second;
+    QFontEngine *use = nullptr;
+    FT_Face opened = nullptr;
+    {
+        std::lock_guard<std::mutex> libLock(libraryMutex());
+        if (FT_Get_Char_Index(static_cast<FT_Face>(m_face), codePoint) == 0) {
+            // A font that was found for another character may have this one too, as the rest of a script does.
+            for (const auto &other : m_fallbacks) {
+                if (FT_Get_Char_Index(static_cast<FT_Face>(other->m_face), codePoint) != 0) {
+                    use = other.get();
+                    break;
+                }
+            }
+            if (!use) {
+                const FaceFile file =
+                    fallbackFile(codePoint, m_weight, m_italic, static_cast<QFont::StyleHint>(m_styleHint));
+                if (!file.path.empty() && FT_New_Face(library(), file.path.c_str(), file.index, &opened) == 0 &&
+                    (FT_Get_Char_Index(opened, codePoint) == 0 ||
+                     FT_Set_Char_Size(opened, 0, static_cast<FT_F26Dot6>(std::lround(m_pixelSize * 64.0)), 72, 72) !=
+                         0)) {
+                    FT_Done_Face(opened);
+                    opened = nullptr;
+                }
+            }
+        }
+    }
+    if (opened) {
+        // The constructor takes the library's lock itself.
+        std::unique_ptr<QFontEngine> engine(new QFontEngine(opened, m_pixelSize));
+        engine->m_isFallback = true;
+        m_fallbacks.push_back(std::move(engine));
+        use = m_fallbacks.back().get();
+    }
+    m_fallbackByCodePoint.emplace(codePoint, use);
+    return use;
+#else
+    (void)codePoint;
+    return nullptr;
+#endif
+}
+
 const QGlyph &QFontEngine::glyph(char32_t codePoint) {
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        const auto cached = m_glyphs.find(codePoint);
+        if (cached != m_glyphs.end())
+            return cached->second;
+    }
+    if (QFontEngine *other = fallbackFor(codePoint))
+        return other->glyph(codePoint);
     std::lock_guard<std::mutex> lock(m_mutex);
     const auto it = m_glyphs.find(codePoint);
     if (it != m_glyphs.end())
@@ -599,6 +752,8 @@ bool QFontEngine::removeAllApplicationFonts() {
 }
 
 int QFontEngine::addOutline(char32_t codePoint, double originX, double originY, QPainterPath *path) {
+    if (QFontEngine *other = fallbackFor(codePoint))
+        return other->addOutline(codePoint, originX, originY, path);
     const int advance = glyph(codePoint).advance64;
 #ifdef NT_HAVE_FREETYPE
     if (m_face && path) {

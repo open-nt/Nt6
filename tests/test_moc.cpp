@@ -90,6 +90,17 @@ int main(int argc, char **argv) {
     emit pe.pasted();
     CHECK(pasted == 1);
 
+    // The program's own macros are expanded where they declare something.
+    const QMetaObject *mm = &MacroEmitter::staticMetaObject;
+    for (const char *signal : {"widthChanged()", "labelChanged()", "moved(int)", "resized(int)", "after()"})
+        CHECK(mm->indexOfSignal(signal) >= 0);
+    CHECK(mm->indexOfProperty("width") >= 0 && mm->indexOfProperty("label") >= 0);
+    MacroEmitter emitter;
+    int widths = 0;
+    QObject::connect(&emitter, &MacroEmitter::widthChanged, [&] { ++widths; });
+    CHECK(emitter.setProperty("width", 4));
+    CHECK(emitter.property("width").toInt() == 4 && widths == 1 && emitter.next() == 5);
+
     if (g_failures == 0)
         std::puts("all moc tests passed");
     return g_failures == 0 ? 0 : 1;

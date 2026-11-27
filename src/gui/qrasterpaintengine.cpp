@@ -94,15 +94,17 @@ QRgb QRasterPaintEngine::premultiplied(const QColor &color) const {
     return qPremultiply(qRgba(color.red(), color.green(), color.blue(), std::clamp(a, 0, 255)));
 }
 
-void QRasterPaintEngine::blend(uint *dst, QRgb src) const {
+void QRasterPaintEngine::blend(uint *dst, QRgb src, int coverage) const {
     const QImage::Format f = m_image->format();
     const QPainter::CompositionMode mode = m_state.compositionMode();
-    if (mode == QPainter::CompositionMode_Clear) {
-        *dst = QtImageFormat::clearValue(f);
+    if (mode != QPainter::CompositionMode_SourceOver) {
+        compose(dst, src, coverage);
         return;
     }
+    if (coverage < 255)
+        src = scaleChannels(src, coverage);
     const uint sa = static_cast<uint>(qAlpha(src));
-    if (mode == QPainter::CompositionMode_Source || sa == 255u) {
+    if (sa == 255u) {
         *dst = fromPremultiplied(src, f);
         return;
     }
@@ -113,6 +115,71 @@ void QRasterPaintEngine::blend(uint *dst, QRgb src) const {
     auto mix = [ia](int s, int dc) { return std::min(255, s + (dc * ia + 127) / 255); };
     const QRgb out = qRgba(mix(qRed(src), qRed(d)), mix(qGreen(src), qGreen(d)), mix(qBlue(src), qBlue(d)),
                            mix(qAlpha(src), qAlpha(d)));
+    *dst = fromPremultiplied(out, f);
+}
+
+// The other Porter-Duff operators, and Plus: of premultiplied pixels, the result is a part of the source and a part of
+// the destination, each part set by the mode from the other's alpha. Where a shape covers a pixel only in part, that
+// part of the pixel gets the result and the rest keeps what it had.
+void QRasterPaintEngine::compose(uint *dst, QRgb src, int coverage) const {
+    const QImage::Format f = m_image->format();
+    const QPainter::CompositionMode mode = m_state.compositionMode();
+    const QRgb d = toPremultiplied(*dst, f);
+    const int sa = qAlpha(src), da = qAlpha(d);
+    int ofSource = 0, ofDestination = 0; // from 0 to 255
+    switch (mode) {
+    case QPainter::CompositionMode_SourceOver:
+        ofSource = 255;
+        ofDestination = 255 - sa;
+        break;
+    case QPainter::CompositionMode_DestinationOver:
+        ofSource = 255 - da;
+        ofDestination = 255;
+        break;
+    case QPainter::CompositionMode_Clear:
+        break;
+    case QPainter::CompositionMode_Source:
+        ofSource = 255;
+        break;
+    case QPainter::CompositionMode_Destination:
+        ofDestination = 255;
+        break;
+    case QPainter::CompositionMode_SourceIn:
+        ofSource = da;
+        break;
+    case QPainter::CompositionMode_DestinationIn:
+        ofDestination = sa;
+        break;
+    case QPainter::CompositionMode_SourceOut:
+        ofSource = 255 - da;
+        break;
+    case QPainter::CompositionMode_DestinationOut:
+        ofDestination = 255 - sa;
+        break;
+    case QPainter::CompositionMode_SourceAtop:
+        ofSource = da;
+        ofDestination = 255 - sa;
+        break;
+    case QPainter::CompositionMode_DestinationAtop:
+        ofSource = 255 - da;
+        ofDestination = sa;
+        break;
+    case QPainter::CompositionMode_Xor:
+        ofSource = 255 - da;
+        ofDestination = 255 - sa;
+        break;
+    case QPainter::CompositionMode_Plus:
+        ofSource = ofDestination = 255;
+        break;
+    }
+    const auto channel = [=](int s, int dc) {
+        const int result = std::min(255, (s * ofSource + dc * ofDestination + 127) / 255);
+        return coverage >= 255 ? result : (result * coverage + dc * (255 - coverage) + 127) / 255;
+    };
+    QRgb out = qRgba(channel(qRed(src), qRed(d)), channel(qGreen(src), qGreen(d)), channel(qBlue(src), qBlue(d)),
+                     channel(sa, da));
+    if (QtImageFormat::isOpaque(f))
+        out |= 0xff000000u;
     *dst = fromPremultiplied(out, f);
 }
 
@@ -128,7 +195,7 @@ void QRasterPaintEngine::fillRect(const QRect &rect, QRgb premult) {
             continue;
         for (int y = r.top(); y <= r.bottom(); ++y) {
             uint *line = asPixels(m_image->scanLine(y)) + r.left();
-            if (plain && m_state.compositionMode() != QPainter::CompositionMode_Clear)
+            if (plain)
                 std::fill(line, line + r.width(), solid);
             else
                 for (int x = 0; x < r.width(); ++x)
@@ -420,8 +487,7 @@ void QRasterPaintEngine::drawTransformedImage(const QRectF &rect, const QImage &
                 } else {
                     p = pixelAt(static_cast<int>(std::floor(center.x())), static_cast<int>(std::floor(center.y())));
                 }
-                p = scaleChannels(p, coverage * opacity / 255);
-                blend(dstLine + x, p);
+                blend(dstLine + x, scaleChannels(p, opacity), coverage);
             }
         }
     }
@@ -444,7 +510,7 @@ void QRasterPaintEngine::drawAlphaMask(const QPoint &topLeft, const uchar *mask,
             for (int x = 0; x < r.width(); ++x) {
                 const int c = coverage[x];
                 if (c != 0)
-                    blend(line + x, c == 255 ? color : scaleChannels(color, c));
+                    blend(line + x, color, c);
             }
         }
     }
@@ -638,8 +704,6 @@ void QRasterPaintEngine::paintCoverage(const void *polygonData, bool evenOdd, co
     if (gradient && !raster::gradientShader(brush, toDevice, m_state.opacity(), &shader))
         return;
     const bool antialias = m_state.renderHints() & QPainter::Antialiasing;
-    const QPainter::CompositionMode mode = m_state.compositionMode();
-    const QImage::Format f = m_image->format();
     for (const QRect &clip : m_clip) {
         const QRect r = clip.intersected(box);
         for (int y = r.top(); y <= r.bottom(); ++y) {
@@ -650,23 +714,8 @@ void QRasterPaintEngine::paintCoverage(const void *polygonData, bool evenOdd, co
                 unsigned c = cov[x - box.x()] >> 24u;
                 if (!antialias)
                     c = c >= 128u ? 255u : 0u;
-                if (c == 0u)
-                    continue;
-                const QRgb color = gradient ? shader.at(x + 0.5, y + 0.5) : solid;
-                if (mode == QPainter::CompositionMode_SourceOver) {
-                    blend(line + x, c == 255u ? color : scaleChannels(color, static_cast<int>(c)));
-                    continue;
-                }
-                // Source and Clear replace the destination where the shape covers it.
-                const QRgb src = mode == QPainter::CompositionMode_Clear ? 0u : color;
-                const QRgb dst = toPremultiplied(line[x], f);
-                const int k = static_cast<int>(c), ik = 255 - k;
-                const auto mix = [k, ik](int s, int d) { return (s * k + d * ik + 127) / 255; };
-                QRgb out = qRgba(mix(qRed(src), qRed(dst)), mix(qGreen(src), qGreen(dst)), mix(qBlue(src), qBlue(dst)),
-                                 mix(qAlpha(src), qAlpha(dst)));
-                if (QtImageFormat::isOpaque(f))
-                    out |= 0xff000000u;
-                line[x] = fromPremultiplied(out, f);
+                if (c != 0u)
+                    blend(line + x, gradient ? shader.at(x + 0.5, y + 0.5) : solid, static_cast<int>(c));
             }
         }
     }

@@ -112,6 +112,18 @@ QMenu *QMenuBar::addMenu(const QString &title) {
 }
 
 /*!
+    \overload
+    \since 6.1
+
+    Creates a menu with the given \a icon and \a title, adds it at the end of the bar, and returns it.
+*/
+QMenu *QMenuBar::addMenu(const QIcon &icon, const QString &title) {
+    QMenu *menu = addMenu(title);
+    menu->setIcon(icon);
+    return menu;
+}
+
+/*!
     Adds \a menu in front of the action \a before, and returns its action.
 
     \sa addMenu()

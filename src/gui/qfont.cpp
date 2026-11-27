@@ -72,7 +72,9 @@ int fromLegacyWeight(int weight) {
     There is no underline, strike-out or \c resolve(); the hinting preference is remembered but not used. Letter and word spacing are applied
     to the advances of single characters, not to shaped clusters. The style hint only chooses a generic fontconfig
     family (\c monospace, \c serif, \c sans-serif, \c cursive, \c fantasy)
-    that is tried after the families of the font, and the style strategy is
+    that is tried after the families of the font. A character that the chosen font lacks is drawn from another font of
+    the system that has it, one with outlines, so not from a font of color bitmaps such as an emoji font may be; lines
+    keep the height of the chosen font, and QFontMetrics::inFont() tells about that font alone. The style strategy is
     remembered but not used. The font is not found until it is used.
     \enddifferences
 

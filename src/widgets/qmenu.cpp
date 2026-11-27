@@ -235,6 +235,18 @@ QMenu *QMenu::addMenu(const QString &title) {
 }
 
 /*!
+    \overload
+    \since 6.1
+
+    Creates a menu with the given \a icon and \a title, adds it as a submenu, and returns it.
+*/
+QMenu *QMenu::addMenu(const QIcon &icon, const QString &title) {
+    QMenu *menu = addMenu(title);
+    menu->setIcon(icon);
+    return menu;
+}
+
+/*!
     Adds a separator, a line between groups of entries, at the end of the menu, and returns its action. A separator at the
     start or the end of a menu, and one next to another, is not shown.
 

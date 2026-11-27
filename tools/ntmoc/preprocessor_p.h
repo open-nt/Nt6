@@ -2,9 +2,10 @@
 //
 // The preprocessor of ntmoc. Like Qt's moc, ntmoc has to know which branch of each #if is compiled,
 // or it would put slots and properties that the compiler never sees into the meta-object. This
-// preprocessor does not expand the code; it evaluates the conditionals and blanks the lines of the
-// branches that are not compiled, keeping offsets and newlines so that the scanner sees the same
-// positions.
+// preprocessor evaluates the conditionals and blanks the lines of the branches that are not compiled,
+// keeping newlines. It leaves the code as it is, except for a macro of the program's own that
+// declares something, or whose expansion has a word for the meta-object in it, such as Q_PROPERTY or
+// signals: that one is expanded where it is used, on as many lines as it took.
 //
 // It follows the C preprocessor where that is possible:
 //
@@ -26,6 +27,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <cctype>
 #include <filesystem>
 #include <fstream>
@@ -868,6 +870,119 @@ private:
 
     std::string currentFile_;
 
+    // The words that the scanner makes the meta-object from.
+    static const std::set<std::string> &mocWords() {
+        static const std::set<std::string> words = {"Q_OBJECT",          "Q_GADGET",
+                                                    "Q_NAMESPACE",       "Q_NAMESPACE_EXPORT",
+                                                    "Q_PROPERTY",        "Q_ENUM",
+                                                    "Q_ENUM_NS",         "Q_FLAG",
+                                                    "Q_FLAG_NS",         "Q_ENUMS",
+                                                    "Q_FLAGS",           "Q_CLASSINFO",
+                                                    "Q_PLUGIN_METADATA", "Q_DECLARE_FLAGS",
+                                                    "Q_INTERFACES",      "Q_INVOKABLE",
+                                                    "Q_SIGNAL",          "Q_SLOT",
+                                                    "Q_SCRIPTABLE",      "Q_REVISION",
+                                                    "Q_SIGNALS",         "Q_SLOTS",
+                                                    "signals",           "slots",
+                                                    "QML_ELEMENT",       "QML_NAMED_ELEMENT",
+                                                    "QML_SINGLETON",     "QML_ANONYMOUS",
+                                                    "QML_UNCREATABLE"};
+        return words;
+    }
+
+    // The tokens as source text.
+    static std::string join(const std::vector<std::string> &tokens) {
+        std::string text;
+        std::string before;
+        for (const std::string &token : tokens) {
+            const bool word = identChar(token[0]) || token[0] == '"' || token[0] == '\'';
+            const bool opens = before == "::" || before == "(" || before == "<" || before == "~";
+            if (!before.empty() && ((word && !opens) || before == "," || before.back() == token[0]))
+                text += ' ';
+            text += token;
+            before = token;
+        }
+        return text;
+    }
+
+    // Writes to \a expanded the part of \a out from \a copied on, with each use between \a from and \a to of a macro
+    // that declares something, or brings in a word of the meta-object, replaced by its expansion. \a s is \a out
+    // without its comments. A macro that stands for a type or a value is left as it is written.
+    void expandMocMacros(const std::string &s, std::size_t from, std::size_t to, const std::string &out,
+                         std::size_t &copied, std::string &expanded) {
+        for (std::size_t i = from; i < to;) {
+            const char c = s[i];
+            if (c == '"' || (c == '\'' && !(i > 0 && std::isalnum(static_cast<unsigned char>(s[i - 1]))))) {
+                i = skipLiteral(s, i);
+                continue;
+            }
+            if (!identChar(c)) {
+                ++i;
+                continue;
+            }
+            std::size_t j = i;
+            while (j < to && identChar(s[j]))
+                ++j;
+            const std::string name = s.substr(i, j - i);
+            const std::size_t start = i;
+            i = j;
+            // The framework's own macros stay: the scanner knows those that matter.
+            if (!identStart(c) || name.rfind("Q_", 0) == 0 || name.rfind("QT_", 0) == 0 || name.rfind("QML_", 0) == 0 ||
+                mocWords().count(name))
+                continue;
+            const auto it = macros_.find(name);
+            if (it == macros_.end())
+                continue;
+            std::size_t end = j;
+            if (it->second.function) {
+                std::size_t k = j;
+                while (k < to && std::isspace(static_cast<unsigned char>(s[k])))
+                    ++k;
+                if (k >= to || s[k] != '(')
+                    continue;
+                int nest = 0;
+                while (k < to) {
+                    if (s[k] == '"' || s[k] == '\'') {
+                        k = skipLiteral(s, k);
+                        continue;
+                    }
+                    if (s[k] == '(')
+                        ++nest;
+                    else if (s[k] == ')' && --nest == 0)
+                        break;
+                    ++k;
+                }
+                if (k >= to)
+                    continue;
+                end = k + 1;
+            }
+            bool unknown = false;
+            const std::vector<std::string> result =
+                expand(tokenize(s.substr(start, end - start)), mocWords(), unknown, 0);
+            bool wanted = false;
+            for (const std::string &token : result)
+                wanted = wanted || token == ";" || mocWords().count(token) != 0;
+            if (!wanted)
+                continue;
+            expanded.append(out, copied, start - copied);
+            expanded += ' ' + join(result) + ' ';
+            for (std::size_t k = start; k < end; ++k)
+                if (s[k] == '\n')
+                    expanded += '\n';
+            copied = end;
+            i = end;
+        }
+    }
+
+    // The index after the string or character literal that begins at \a i.
+    static std::size_t skipLiteral(const std::string &s, std::size_t i) {
+        const char quote = s[i];
+        std::size_t j = i + 1;
+        while (j < s.size() && s[j] != quote && s[j] != '\n')
+            j += s[j] == '\\' ? 2u : 1u;
+        return j < s.size() && s[j] == quote ? j + 1 : i + 1;
+    }
+
     std::string process(const std::string &text, const std::string &path, Cond base, bool blank) {
         struct Frame {
             Cond parent;
@@ -898,6 +1013,14 @@ private:
 
         std::size_t pos = 0;
         const std::size_t n = s.size();
+        // For the file that is scanned: what has been written to \a expanded, up to copied, and where the code that
+        // has not been looked at for macros begins. The macros of a stretch of code are those defined before it.
+        std::string expanded;
+        std::size_t copied = 0, code = 0;
+        auto expandCode = [&](std::size_t to) {
+            if (blank && to > code)
+                expandMocMacros(s, code, std::min(to, n), out, copied, expanded);
+        };
         while (pos < n) {
             // A logical line: physical lines joined at a trailing backslash.
             std::size_t end = pos;
@@ -921,6 +1044,9 @@ private:
                 ++k;
             const Cond lineState = state;
             if (k < end && s[k] == '#') {
+                if (lineState != Cond::False)
+                    expandCode(pos);
+                code = end + 1;
                 std::string line = s.substr(k + 1, end - k - 1);
                 for (std::size_t c = 0; c + 1 < line.size(); ++c)
                     if (line[c] == '\\' && (line[c + 1] == '\n' || line[c + 1] == '\r'))
@@ -989,12 +1115,20 @@ private:
                 }
             }
             // Blank a disabled line. The directives themselves are blanked by the scanner.
-            if (blank && lineState == Cond::False)
+            if (blank && lineState == Cond::False) {
                 for (std::size_t c = pos; c < end; ++c)
                     if (out[c] != '\n')
                         out[c] = ' ';
+                code = end + 1;
+            }
             pos = end + 1;
+            if (lineState == Cond::False && state != Cond::False)
+                code = pos;
         }
+        if (state != Cond::False)
+            expandCode(n);
+        if (blank && !expanded.empty())
+            out = expanded + out.substr(copied);
         --depth_;
         currentFile_ = savedFile;
         return out;

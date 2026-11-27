@@ -320,6 +320,72 @@ QTransform QTransform::fromTranslate(qreal dx, qreal dy) { return QTransform(1, 
 QTransform QTransform::fromScale(qreal dx, qreal dy) { return QTransform(dx, 0, 0, dy, 0, 0); }
 
 /*!
+    Sets \a result to the transformation that takes the corners of the unit square, (0, 0), (1, 0), (1, 1) and (0, 1),
+    to the four points of \a quad in that order, and returns \c true. Returns \c false, and leaves \a result alone,
+    if \a quad does not have four points or three of them lie on a line.
+
+    \sa quadToSquare(), quadToQuad()
+*/
+bool QTransform::squareToQuad(const QPolygonF &quad, QTransform &result) {
+    if (quad.size() != 4)
+        return false;
+    const QPointF p0 = quad.at(0), p1 = quad.at(1), p2 = quad.at(2), p3 = quad.at(3);
+    const double sx = p0.x() - p1.x() + p2.x() - p3.x();
+    const double sy = p0.y() - p1.y() + p2.y() - p3.y();
+    // How much the far sides lean towards each other; none for a parallelogram, which is an affine image.
+    double g = 0.0, h = 0.0;
+    if (sx != 0.0 || sy != 0.0) {
+        const double dx1 = p1.x() - p2.x(), dx2 = p3.x() - p2.x();
+        const double dy1 = p1.y() - p2.y(), dy2 = p3.y() - p2.y();
+        const double divisor = dx1 * dy2 - dx2 * dy1;
+        if (divisor == 0.0)
+            return false;
+        g = (sx * dy2 - dx2 * sy) / divisor;
+        h = (dx1 * sy - sx * dy1) / divisor;
+    }
+    const QTransform found(p1.x() - p0.x() + g * p1.x(), p1.y() - p0.y() + g * p1.y(), g, p3.x() - p0.x() + h * p3.x(),
+                           p3.y() - p0.y() + h * p3.y(), h, p0.x(), p0.y(), 1.0);
+    if (!found.isInvertible())
+        return false;
+    result = found;
+    return true;
+}
+
+/*!
+    Sets \a result to the transformation that takes the four points of \a quad to the corners of the unit square, and
+    returns \c true; returns \c false where squareToQuad() does.
+*/
+bool QTransform::quadToSquare(const QPolygonF &quad, QTransform &result) {
+    QTransform from;
+    if (!squareToQuad(quad, from))
+        return false;
+    bool invertible = false;
+    const QTransform inverse = from.inverted(&invertible);
+    if (invertible)
+        result = inverse;
+    return invertible;
+}
+
+/*!
+    Sets \a result to the transformation that takes the four points of the quadrilateral \a one to those of \a two,
+    in order, and returns \c true; returns \c false, and leaves \a result alone, if either is not a quadrilateral. It
+    is a projective one unless the two are related by an affine one, as two parallelograms are.
+
+    \code
+    QTransform keystone;
+    if (QTransform::quadToQuad(QPolygonF(QList<QPointF>{{0, 0}, {w, 0}, {w, h}, {0, h}}), corners, keystone))
+        painter.setTransform(keystone);
+    \endcode
+*/
+bool QTransform::quadToQuad(const QPolygonF &one, const QPolygonF &two, QTransform &result) {
+    QTransform in, out;
+    if (!quadToSquare(one, in) || !squareToQuad(two, out))
+        return false;
+    result = in * out;
+    return true;
+}
+
+/*!
     Maps the point (\a x, \a y) and stores the result in \a tx and \a ty.
 */
 void QTransform::map(qreal x, qreal y, qreal *tx, qreal *ty) const {

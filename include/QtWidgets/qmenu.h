@@ -71,6 +71,7 @@ public:
     }
     QAction *addMenu(QMenu *menu);
     QMenu *addMenu(const QString &title);
+    QMenu *addMenu(const QIcon &icon, const QString &title);
     QAction *addSeparator();
     QAction *insertMenu(QAction *before, QMenu *menu);
     QAction *insertSeparator(QAction *before);

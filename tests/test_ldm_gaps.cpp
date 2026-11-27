@@ -1667,6 +1667,194 @@ static void testTextAndCoreTail() {
     CHECK(errors == 1);
 }
 
+// Gaps that were reported from a port: constant colors, HSL, quadToQuad(), the composition modes, the geometry
+// properties of widgets and menus with icons.
+static_assert(QColor(1, 2, 3).blue() == 3 && QColor(1, 2, 3, 4).alpha() == 4);
+static_assert(QColor(Qt::red).rgb() == 0xffff0000U && QColor(Qt::transparent).alpha() == 0);
+static_assert(QColor(QRgb(0x80102030U)).rgba() == 0xff102030U);
+static_assert(!QColor().isValid() && QColor(300, -1, 0) == QColor(255, 0, 0));
+
+static void testReportedGaps() {
+    constexpr QColor accent(0x20, 0x60, 0xa0);
+    CHECK(accent.name() == QStringLiteral("#2060a0"));
+
+    CHECK(QColor::fromHsl(0, 255, 127) == QColor(254, 0, 0));
+    CHECK(QColor::fromHsl(120, 255, 64).green() == 128);
+    CHECK(QColor::fromHsl(-1, 0, 128) == QColor(128, 128, 128));
+    CHECK(QColor::fromHsl(480, 255, 127) == QColor::fromHsl(120, 255, 127));
+    CHECK(!QColor::fromHsl(0, 256, 0).isValid() && !QColor::fromHsl(-2, 0, 0).isValid());
+    CHECK(!QColor::fromHslF(1.5F, 0.0F, 0.0F).isValid());
+    CHECK(QColor(128, 128, 128).hslHue() == -1 && QColor(128, 128, 128).hslSaturation() == 0);
+    CHECK(QColor(0, 0, 255).hslHue() == 240 && QColor(0, 0, 255).hslSaturation() == 255);
+    CHECK(QColor(Qt::white).hslSaturation() == 0 && QColor(Qt::black).hslSaturationF() == 0.0);
+    // There and back is within rounding.
+    for (const QColor &color : {accent, QColor(250, 210, 60), QColor(10, 200, 190, 77), QColor(255, 128, 0),
+                                QColor(30, 31, 33), QColor(240, 250, 255)}) {
+        float h = 0, sat = 0, l = 0, a = 0;
+        color.getHslF(&h, &sat, &l, &a);
+        const QColor back = QColor::fromHslF(h, sat, l, a);
+        CHECK(std::abs(back.red() - color.red()) <= 1 && std::abs(back.green() - color.green()) <= 1 &&
+              std::abs(back.blue() - color.blue()) <= 1 && back.alpha() == color.alpha());
+        int ih = 0, is = 0, il = 0, ia = 0;
+        color.getHsl(&ih, &is, &il, &ia);
+        const QColor rounded = QColor::fromHsl(ih, is, il, ia);
+        CHECK(std::abs(rounded.red() - color.red()) <= 3 && std::abs(rounded.green() - color.green()) <= 3 &&
+              std::abs(rounded.blue() - color.blue()) <= 3);
+    }
+
+    // A rectangle to a trapezoid, which takes a projective transformation.
+    const QPolygonF from(QList<QPointF>{{0, 0}, {100, 0}, {100, 50}, {0, 50}});
+    const QPolygonF to(QList<QPointF>{{30, 10}, {90, 12}, {130, 80}, {5, 70}});
+    QTransform transform;
+    CHECK(QTransform::quadToQuad(from, to, transform));
+    CHECK(!transform.isAffine());
+    for (int i = 0; i < 4; ++i)
+        CHECK((transform.map(from.at(i)) - to.at(i)).manhattanLength() < 1e-6);
+    // The diagonals cross where those of the image do.
+    QPointF crossing;
+    CHECK(QLineF(to.at(0), to.at(2)).intersects(QLineF(to.at(1), to.at(3)), &crossing) != QLineF::NoIntersection);
+    CHECK((transform.map(QPointF(50, 25)) - crossing).manhattanLength() < 1e-6);
+    const QPolygonF slanted(QList<QPointF>{{10, 10}, {50, 10}, {60, 40}, {20, 40}});
+    CHECK(QTransform::quadToQuad(from, slanted, transform) && transform.isAffine());
+    const QPolygonF three(QList<QPointF>{{0, 0}, {1, 0}, {1, 1}});
+    const QPolygonF flat(QList<QPointF>{{0, 0}, {1, 0}, {2, 0}, {3, 0}});
+    CHECK(!QTransform::quadToQuad(three, to, transform) && !QTransform::quadToQuad(from, flat, transform));
+
+    // The composition modes. The left half of an image is red; a blue square covers the middle.
+    const auto compose = [](QPainter::CompositionMode mode, int alpha) {
+        QImage image(40, 10, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::transparent);
+        QPainter painter(&image);
+        painter.fillRect(0, 0, 20, 10, QColor(255, 0, 0));
+        painter.setCompositionMode(mode);
+        painter.fillRect(10, 0, 20, 10, QColor(0, 0, 255, alpha));
+        painter.end();
+        // Red alone, both, and blue alone.
+        return std::vector<QRgb>{image.pixel(5, 5), image.pixel(15, 5), image.pixel(25, 5)};
+    };
+    const QRgb red = 0xffff0000U, blue = 0xff0000ffU, none = 0U;
+    const auto is = [&](QPainter::CompositionMode mode, QRgb left, QRgb middle, QRgb right) {
+        return compose(mode, 255) == std::vector<QRgb>{left, middle, right};
+    };
+    // Pixels that the square does not cover are left alone in every mode.
+    CHECK(is(QPainter::CompositionMode_SourceOver, red, blue, blue));
+    CHECK(is(QPainter::CompositionMode_DestinationOver, red, red, blue));
+    CHECK(is(QPainter::CompositionMode_Clear, red, none, none));
+    CHECK(is(QPainter::CompositionMode_Source, red, blue, blue));
+    CHECK(is(QPainter::CompositionMode_Destination, red, red, none));
+    CHECK(is(QPainter::CompositionMode_SourceIn, red, blue, none));
+    CHECK(is(QPainter::CompositionMode_DestinationIn, red, red, none));
+    CHECK(is(QPainter::CompositionMode_SourceOut, red, none, blue));
+    CHECK(is(QPainter::CompositionMode_DestinationOut, red, none, none));
+    CHECK(is(QPainter::CompositionMode_SourceAtop, red, blue, none));
+    CHECK(is(QPainter::CompositionMode_DestinationAtop, red, red, blue));
+    CHECK(is(QPainter::CompositionMode_Xor, red, none, blue));
+    CHECK(is(QPainter::CompositionMode_Plus, red, 0xffff00ffU, blue));
+    CHECK(qAlpha(compose(QPainter::CompositionMode_DestinationIn, 128).at(1)) == 128);
+
+    // Tinting an icon: SourceIn keeps its shape, soft edges and all, also for an image and an antialiased path.
+    QImage icon(20, 20, QImage::Format_ARGB32_Premultiplied);
+    icon.fill(Qt::transparent);
+    {
+        QPainter painter(&icon);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(Qt::black);
+        painter.drawEllipse(QRectF(2, 2, 16, 16));
+    }
+    QImage tinted = icon;
+    {
+        QPainter painter(&tinted);
+        painter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        painter.fillRect(tinted.rect(), accent);
+    }
+    CHECK(tinted.pixel(10, 10) == accent.rgb() && qAlpha(tinted.pixel(0, 0)) == 0);
+    int softEdges = 0;
+    for (int y = 0; y < 20; ++y) {
+        for (int x = 0; x < 20; ++x) {
+            CHECK(qAlpha(tinted.pixel(x, y)) == qAlpha(icon.pixel(x, y)));
+            softEdges += qAlpha(icon.pixel(x, y)) > 0 && qAlpha(icon.pixel(x, y)) < 255 ? 1 : 0;
+        }
+    }
+    CHECK(softEdges > 8);
+    QImage stamped(20, 20, QImage::Format_ARGB32_Premultiplied);
+    stamped.fill(Qt::white);
+    {
+        QPainter painter(&stamped);
+        painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+        painter.drawImage(0, 0, icon);
+    }
+    CHECK(qAlpha(stamped.pixel(10, 10)) == 0 && qAlpha(stamped.pixel(0, 0)) == 255);
+
+    // The geometry of a widget as properties, as animations and .ui files set them.
+    QWidget widget;
+    CHECK(widget.setProperty("pos", QPoint(5, 6)) && widget.pos() == QPoint(5, 6));
+    CHECK(widget.setProperty("size", QSize(120, 80)) && widget.size() == QSize(120, 80));
+    CHECK(widget.setProperty("geometry", QRect(1, 2, 30, 40)) && widget.geometry() == QRect(1, 2, 30, 40));
+    CHECK(widget.property("rect").toRect() == QRect(0, 0, 30, 40));
+    CHECK(widget.setProperty("minimumWidth", 50) && widget.minimumWidth() == 50);
+    CHECK(widget.setProperty("minimumHeight", 60) && widget.property("minimumHeight").toInt() == 60);
+    CHECK(widget.setProperty("maximumWidth", 200) && widget.maximumWidth() == 200);
+    CHECK(widget.setProperty("maximumHeight", 210) && widget.maximumHeight() == 210);
+    CHECK(widget.property("minimumSize").toSize() == QSize(50, 60));
+    CHECK(widget.setProperty("maximumSize", QSize(90, 95)) && widget.maximumSize() == QSize(90, 95));
+    for (const char *name : {"frameGeometry", "childrenRect"})
+        CHECK(widget.metaObject()->indexOfProperty(name) >= 0);
+
+    // Menus with an icon.
+    QPixmap dot(8, 8);
+    dot.fill(Qt::green);
+    QMenu menu;
+    QMenu *sub = menu.addMenu(QIcon(dot), QStringLiteral("Export"));
+    CHECK(sub && sub->title() == QStringLiteral("Export") && !sub->icon().isNull());
+    CHECK(menu.actions().size() == 1 && !menu.actions().constFirst()->icon().isNull());
+    QMenuBar bar;
+    QMenu *file = bar.addMenu(QIcon(dot), QStringLiteral("File"));
+    CHECK(file && !file->icon().isNull() && bar.actions().size() == 1);
+}
+
+// A symbol that the font lacks is drawn from a font of the system's that has it, not as the missing-glyph box.
+static void testFontFallback() {
+    QFont font;
+    font.setPixelSize(32);
+    const QFontMetrics metrics(font);
+    const auto drawn = [&](char32_t c) {
+        QImage image(64, 56, QImage::Format_ARGB32_Premultiplied);
+        image.fill(Qt::white);
+        QPainter painter(&image);
+        painter.setFont(font);
+        painter.setPen(Qt::black);
+        painter.drawText(8, 40, QString::fromUcs4(&c, 1));
+        return image;
+    };
+    const QImage box = drawn(0x10FFFD); // a private-use character that no font is expected to have
+    QImage blank(box.size(), box.format());
+    blank.fill(Qt::white);
+    int lacking = 0, found = 0;
+    for (const char32_t c : {char32_t(0x2605), char32_t(0x2713), char32_t(0x2699), char32_t(0x4E2D), char32_t(0x30A2),
+                             char32_t(0x0E01), char32_t(0x0905), char32_t(0x16A0), char32_t(0x2F00), char32_t(0x1D11E),
+                             char32_t(0x10900), char32_t(0x13000)}) {
+        // inFont() takes a character of 16 bits; the others here are rare ones that a text font does not have.
+        if (c <= 0xFFFF && metrics.inFont(QChar(static_cast<ushort>(c))))
+            continue;
+        ++lacking;
+        const QImage image = drawn(c);
+        if (image != box && image != blank) {
+            ++found;
+            // Its width is that of the glyph that is drawn, and an outline of it is to be had too.
+            QPainterPath path;
+            path.addText(0, 40, font, QString::fromUcs4(&c, 1));
+            CHECK(!path.isEmpty());
+            CHECK(metrics.horizontalAdvance(QString::fromUcs4(&c, 1)) > 0);
+            CHECK(drawn(c) == image); // the same again
+        }
+    }
+    std::printf("font fallback: %d of %d characters that the default font lacks were found\n", found, lacking);
+    // A system with one font, or a build without FreeType, has nothing to fall back to.
+    if (box != blank && QFontDatabase::families().size() > 20)
+        CHECK(found > 0);
+}
+
 int main(int argc, char *argv[]) {
     QApplication app(argc, argv);
     QTemporaryDir dir;
@@ -1694,6 +1882,8 @@ int main(int argc, char *argv[]) {
     testWidgetTail();
     testViewTail();
     testTextAndCoreTail();
+    testReportedGaps();
+    testFontFallback();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;
 }

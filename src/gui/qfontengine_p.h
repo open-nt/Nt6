@@ -40,7 +40,8 @@ public:
     int averageCharWidth() const { return m_averageCharWidth; }
     // Whether the font has a glyph for `codePoint`.
     bool hasGlyph(char32_t codePoint);
-    // The glyph for `codePoint`, or the font's replacement glyph. Valid as long as the engine lives.
+    // The glyph for `codePoint`: the font's, or else that of a system font that has the character, or else the font's
+    // replacement glyph. Valid as long as the engine lives.
     const QGlyph &glyph(char32_t codePoint);
 
     // Pixel size that a QFont stands for.
@@ -78,4 +79,15 @@ private:
     int m_letterExtra64 = 0;        // QFont::AbsoluteSpacing, 26.6 pixels
     int m_wordExtra64 = 0;          // added to spaces, 26.6 pixels
     std::unordered_map<char32_t, QGlyph> m_glyphs;
+
+    // The engine of another font that has `codePoint`, if this one's font does not and one of the system's does;
+    // nullptr to use this one.
+    QFontEngine *fallbackFor(char32_t codePoint);
+    int m_weight = 400; // of the font asked for, which a fallback should come close to,
+    bool m_italic = false;
+    int m_styleHint = 0;
+    bool m_isFallback = false; // and one that is a fallback has none of its own
+    std::mutex m_fallbackMutex;
+    std::unordered_map<char32_t, QFontEngine *> m_fallbackByCodePoint;
+    std::vector<std::unique_ptr<QFontEngine>> m_fallbacks;
 };

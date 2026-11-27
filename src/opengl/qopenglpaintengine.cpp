@@ -414,6 +414,36 @@ void QOpenGL2PaintEngine::applyBlend() {
     case QPainter::CompositionMode_Source:
         m_f->glBlendFunc(GL_ONE, GL_ZERO);
         break;
+    case QPainter::CompositionMode_DestinationOver:
+        m_f->glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_ONE);
+        break;
+    case QPainter::CompositionMode_Destination:
+        m_f->glBlendFunc(GL_ZERO, GL_ONE);
+        break;
+    case QPainter::CompositionMode_SourceIn:
+        m_f->glBlendFunc(GL_DST_ALPHA, GL_ZERO);
+        break;
+    case QPainter::CompositionMode_DestinationIn:
+        m_f->glBlendFunc(GL_ZERO, GL_SRC_ALPHA);
+        break;
+    case QPainter::CompositionMode_SourceOut:
+        m_f->glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_ZERO);
+        break;
+    case QPainter::CompositionMode_DestinationOut:
+        m_f->glBlendFunc(GL_ZERO, GL_ONE_MINUS_SRC_ALPHA);
+        break;
+    case QPainter::CompositionMode_SourceAtop:
+        m_f->glBlendFunc(GL_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        break;
+    case QPainter::CompositionMode_DestinationAtop:
+        m_f->glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_SRC_ALPHA);
+        break;
+    case QPainter::CompositionMode_Xor:
+        m_f->glBlendFunc(GL_ONE_MINUS_DST_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        break;
+    case QPainter::CompositionMode_Plus:
+        m_f->glBlendFunc(GL_ONE, GL_ONE);
+        break;
     default:
         m_f->glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
         break;

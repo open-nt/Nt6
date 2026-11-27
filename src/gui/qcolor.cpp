@@ -27,29 +27,6 @@ constexpr NamedColor kNamedColors[] = {
     {"yellow", 0xffffff00u},
 };
 
-constexpr QRgb kGlobalColors[] = {
-    0xff000000u, // color0 (opaque black as a color)
-    0xffffffffu, // color1
-    0xff000000u, // black
-    0xffffffffu, // white
-    0xff808080u, // darkGray
-    0xffa0a0a4u, // gray
-    0xffc0c0c0u, // lightGray
-    0xffff0000u, // red
-    0xff00ff00u, // green
-    0xff0000ffu, // blue
-    0xff00ffffu, // cyan
-    0xffff00ffu, // magenta
-    0xffffff00u, // yellow
-    0xff800000u, // darkRed
-    0xff008000u, // darkGreen
-    0xff000080u, // darkBlue
-    0xff008080u, // darkCyan
-    0xff800080u, // darkMagenta
-    0xff808000u, // darkYellow
-    0x00000000u, // transparent
-};
-
 int clamp255(int v) { return std::clamp(v, 0, 255); }
 
 int hexDigit(QChar c) {
@@ -121,8 +98,10 @@ bool lookup(const QString &name, QRgb *out) {
     A default-constructed QColor is invalid; isValid() returns \c false.
 
     \differences
-    Only the RGB color specification exists: there is no CMYK, HSL or extended
-    RGB, and each component has 8 bits, so the floating-point accessors are
+    A color is always stored as RGB: there is no CMYK or extended RGB, HSV and
+    HSL values are worked out from the RGB ones, so that they may come back off by
+    one, spec() reports \c Rgb and toHsl() returns the color as it is. Each
+    component has 8 bits, so the floating-point accessors are
     quantized to 1/255. Color names are the \c #rgb, \c #rrggbb and
     \c #aarrggbb forms and a short list of the CSS basic colors, not the full
     SVG list. There are no QVariant or QDataStream conversions.
@@ -159,32 +138,24 @@ bool lookup(const QString &name, QRgb *out) {
 */
 
 /*!
+    \fn QColor::QColor(Qt::GlobalColor color)
+
     Constructs a color for the predefined \a color.
 */
-QColor::QColor(Qt::GlobalColor color) noexcept {
-    const QRgb rgb = kGlobalColors[static_cast<int>(color)];
-    m_r = static_cast<unsigned char>(qRed(rgb));
-    m_g = static_cast<unsigned char>(qGreen(rgb));
-    m_b = static_cast<unsigned char>(qBlue(rgb));
-    m_a = static_cast<unsigned char>(qAlpha(rgb));
-    m_valid = true;
-}
 
 /*!
+    \fn QColor::QColor(int r, int g, int b, int a)
+
     Constructs a color with the components \a r, \a g, \a b and \a a, each
     clamped to the range 0 to 255.
 */
-QColor::QColor(int r, int g, int b, int a) noexcept
-    : m_r(static_cast<unsigned char>(clamp255(r))), m_g(static_cast<unsigned char>(clamp255(g))),
-      m_b(static_cast<unsigned char>(clamp255(b))), m_a(static_cast<unsigned char>(clamp255(a))), m_valid(true) {}
 
 /*!
+    \fn QColor::QColor(QRgb rgb)
+
     Constructs an opaque color from \a rgb. The alpha byte of \a rgb is
     ignored; use fromRgba() to keep it.
 */
-QColor::QColor(QRgb rgb) noexcept
-    : m_r(static_cast<unsigned char>(qRed(rgb))), m_g(static_cast<unsigned char>(qGreen(rgb))),
-      m_b(static_cast<unsigned char>(qBlue(rgb))), m_a(255), m_valid(true) {}
 
 /*!
     Constructs a color from \a name, which is a hex form or a color name. The
@@ -579,6 +550,150 @@ QColor QColor::fromHsv(int h, int s, int v, int a) {
         return QColor(v, p, q, a);
     }
 }
+
+namespace {
+
+struct HslValue {
+    double h; // from 0 to under 360; -1 for grays
+    double s; // from 0 to 1
+    double l;
+};
+
+HslValue hslOf(int r, int g, int b) {
+    const int hi = std::max({r, g, b});
+    const int lo = std::min({r, g, b});
+    const int delta = hi - lo;
+    HslValue out{-1.0, 0.0, (hi + lo) / 510.0};
+    if (delta == 0)
+        return out;
+    out.s = static_cast<double>(delta) / (hi + lo <= 255 ? hi + lo : 510 - hi - lo);
+    double h = hi == r   ? static_cast<double>(g - b) / delta
+               : hi == g ? 2.0 + static_cast<double>(b - r) / delta
+                         : 4.0 + static_cast<double>(r - g) / delta;
+    h *= 60.0;
+    out.h = h < 0.0 ? h + 360.0 : h;
+    return out;
+}
+
+// The red, green and blue, from 0 to 1, of a hue in degrees (negative for a gray), saturation and lightness.
+void rgbOfHsl(double h, double s, double l, double rgb[3]) {
+    const double chroma = h < 0.0 ? 0.0 : (1.0 - std::fabs(2.0 * l - 1.0)) * s;
+    const double sector = h < 0.0 ? 0.0 : std::fmod(h, 360.0) / 60.0;
+    const double second = chroma * (1.0 - std::fabs(std::fmod(sector, 2.0) - 1.0));
+    const double low = l - chroma / 2.0;
+    const int at = static_cast<int>(sector) % 6;
+    // Which of red, green and blue is the largest in this sector, and which the second.
+    const int largest[] = {0, 1, 1, 2, 2, 0};
+    const int middle[] = {1, 0, 2, 1, 0, 2};
+    rgb[0] = rgb[1] = rgb[2] = low;
+    rgb[largest[at]] += chroma;
+    rgb[middle[at]] += second;
+}
+
+} // namespace
+
+/*!
+    Returns the hue in the HSL model, from 0 to 359, or -1 for a gray. It is the same as hue().
+
+    \sa hslSaturation(), lightness()
+*/
+int QColor::hslHue() const noexcept { return hue(); }
+
+/*!
+    Returns the saturation in the HSL model, from 0 to 255.
+
+    \sa hslHue(), lightness()
+*/
+int QColor::hslSaturation() const noexcept { return qRound(hslOf(m_r, m_g, m_b).s * 255.0); }
+
+/*!
+    Returns the hue in the HSL model as a part of a turn, from 0.0 to under 1.0, or -1.0 for a gray.
+*/
+qreal QColor::hslHueF() const noexcept {
+    const double h = hslOf(m_r, m_g, m_b).h;
+    return h < 0.0 ? -1.0 : h / 360.0;
+}
+
+/*!
+    Returns the saturation in the HSL model, from 0.0 to 1.0.
+*/
+qreal QColor::hslSaturationF() const noexcept { return hslOf(m_r, m_g, m_b).s; }
+
+/*!
+    Stores the hue in \a h, the saturation in \a s, the lightness in \a l and, if it is not null, the alpha in \a a.
+
+    \sa setHsl(), getHslF()
+*/
+void QColor::getHsl(int *h, int *s, int *l, int *a) const {
+    *h = hslHue();
+    *s = hslSaturation();
+    *l = lightness();
+    if (a)
+        *a = m_a;
+}
+
+/*!
+    Stores the hue in \a h (a part of a turn, -1 for a gray), the saturation in \a s, the lightness in \a l and, if
+    it is not null, the alpha in \a a, the last three from 0.0 to 1.0.
+
+    \sa setHslF(), getHsl()
+*/
+void QColor::getHslF(float *h, float *s, float *l, float *a) const {
+    const HslValue value = hslOf(m_r, m_g, m_b);
+    *h = value.h < 0.0 ? -1.0F : static_cast<float>(value.h / 360.0);
+    *s = static_cast<float>(value.s);
+    *l = static_cast<float>(value.l);
+    if (a)
+        *a = static_cast<float>(alphaF());
+}
+
+/*!
+    Returns the color with the hue \a h (0 to 359, or -1 for a gray; 360 and more go round again), the saturation
+    \a s, the lightness \a l and the alpha \a a (each 0 to 255). The color is invalid if a value is out of range.
+
+    \sa setHsl()
+*/
+QColor QColor::fromHsl(int h, int s, int l, int a) {
+    if (h < -1 || s < 0 || s > 255 || l < 0 || l > 255 || a < 0 || a > 255)
+        return QColor();
+    double rgb[3];
+    rgbOfHsl(h, s / 255.0, l / 255.0, rgb);
+    return QColor(qRound(rgb[0] * 255.0), qRound(rgb[1] * 255.0), qRound(rgb[2] * 255.0), a);
+}
+
+/*!
+    Returns the color with the hue \a h (a part of a turn from 0.0 to 1.0, or -1.0 for a gray), the saturation \a s,
+    the lightness \a l and the alpha \a a (each 0.0 to 1.0). The color is invalid if a value is out of range.
+
+    \sa setHslF()
+*/
+QColor QColor::fromHslF(float h, float s, float l, float a) {
+    const auto outside = [](float v) { return !(v >= 0.0F && v <= 1.0F); };
+    if ((outside(h) && h != -1.0F) || outside(s) || outside(l) || outside(a))
+        return QColor();
+    double rgb[3];
+    rgbOfHsl(h == -1.0F ? -1.0 : static_cast<double>(h) * 360.0, static_cast<double>(s), static_cast<double>(l), rgb);
+    return fromRgbF(rgb[0], rgb[1], rgb[2], static_cast<double>(a));
+}
+
+/*!
+    Sets the color from the hue \a h, the saturation \a s, the lightness \a l and the alpha \a a, as fromHsl()
+    takes them.
+*/
+void QColor::setHsl(int h, int s, int l, int a) { *this = fromHsl(h, s, l, a); }
+
+/*!
+    Sets the color from the hue \a h, the saturation \a s, the lightness \a l and the alpha \a a, as fromHslF()
+    takes them.
+*/
+void QColor::setHslF(float h, float s, float l, float a) { *this = fromHslF(h, s, l, a); }
+
+/*!
+    \fn QColor QColor::toHsl() const
+
+    Returns the color. Nt stores every color as RGB, so there is nothing to convert; hslHue(), hslSaturation() and
+    lightness() work on any color.
+*/
 
 /*!
     Returns a lighter color. A \a factor of 150 makes the value 50% higher;

@@ -29,7 +29,21 @@ public:
     enum RenderHint { Antialiasing = 0x01, TextAntialiasing = 0x02, SmoothPixmapTransform = 0x04 };
     Q_DECLARE_FLAGS(RenderHints, RenderHint)
 
-    enum CompositionMode { CompositionMode_SourceOver = 0, CompositionMode_Clear = 2, CompositionMode_Source = 3 };
+    enum CompositionMode {
+        CompositionMode_SourceOver = 0,
+        CompositionMode_DestinationOver = 1,
+        CompositionMode_Clear = 2,
+        CompositionMode_Source = 3,
+        CompositionMode_Destination = 4,
+        CompositionMode_SourceIn = 5,
+        CompositionMode_DestinationIn = 6,
+        CompositionMode_SourceOut = 7,
+        CompositionMode_DestinationOut = 8,
+        CompositionMode_SourceAtop = 9,
+        CompositionMode_DestinationAtop = 10,
+        CompositionMode_Xor = 11,
+        CompositionMode_Plus = 12
+    };
 
     QPainter();
     explicit QPainter(QPaintDevice *device);

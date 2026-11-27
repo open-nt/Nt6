@@ -56,6 +56,33 @@ public:
 
 } // namespace outer
 
+// Macros of the program's own that declare parts of the meta-object, as moc expands them.
+#define TEST_PROPERTY(type, name)                                                                                      \
+    Q_PROPERTY(type name READ name WRITE set_##name NOTIFY name##Changed)                                              \
+public:                                                                                                                \
+    type name() const { return m_##name; }                                                                             \
+    void set_##name(type value) {                                                                                      \
+        m_##name = value;                                                                                              \
+        emit name##Changed();                                                                                          \
+    }                                                                                                                  \
+    Q_SIGNAL void name##Changed();                                                                                     \
+                                                                                                                       \
+private:                                                                                                               \
+    type m_##name{};
+#define TEST_SIGNAL(name) void name(int value);
+#define TEST_SECTION signals
+#define TEST_OUTER(name) TEST_SIGNAL(name)
+#define TEST_VALUE(x) ((x) + 1)
+
+class MacroEmitter : public QObject {
+    Q_OBJECT
+    TEST_PROPERTY(int, width)
+    TEST_PROPERTY(std::string, label)
+public:
+    int next() const { return TEST_VALUE(m_width); }
+    TEST_SECTION : TEST_SIGNAL(moved) TEST_OUTER(resized) void after();
+};
+
 // Signals in a class without Q_OBJECT are not generated (and a comment mentioning Q_OBJECT
 // or `signals: void fake();` must be ignored).
 class NoMacro {

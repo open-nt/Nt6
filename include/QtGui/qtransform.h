@@ -64,6 +64,9 @@ public:
 
     static QTransform fromTranslate(qreal dx, qreal dy);
     static QTransform fromScale(qreal dx, qreal dy);
+    static bool squareToQuad(const QPolygonF &quad, QTransform &result);
+    static bool quadToSquare(const QPolygonF &quad, QTransform &result);
+    static bool quadToQuad(const QPolygonF &one, const QPolygonF &two, QTransform &result);
 
     QPoint map(const QPoint &point) const;
     QPointF map(const QPointF &point) const;

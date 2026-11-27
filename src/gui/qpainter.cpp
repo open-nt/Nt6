@@ -237,7 +237,9 @@ struct QPainter::Data {
     There is no viewport or window. Text follows the transformation in position, not in rotation: it is drawn
     upright at the size of its font. Images are rotated, sheared and mirrored with the transformation. Clipping
     is by rectangles of the device: a clip under a rotation is its bounding rectangle. Text is drawn without kerning or shaping, in the color of the pen. The
-    composition modes are SourceOver, Source and Clear. Pens draw with the color of their brush.
+    composition modes are the Porter-Duff ones and Plus; there are no blend modes such as Multiply, and no raster
+    operations. A mode changes only the pixels that the shape, image or text drawn covers. Pens draw with the color of
+    their brush.
     \enddifferences
 
     \sa QPaintDevice, QPaintEngine, QPen, QBrush, QImage
@@ -262,6 +264,17 @@ struct QPainter::Data {
     \value CompositionMode_SourceOver The source is blended over the destination. This is the default.
     \value CompositionMode_Clear The destination pixels become transparent.
     \value CompositionMode_Source The source replaces the destination.
+    \value CompositionMode_DestinationOver The destination is blended over the source.
+    \value CompositionMode_Destination The destination is left as it is.
+    \value CompositionMode_SourceIn The source, where the destination is opaque: it takes the destination's shape.
+           Drawing a color over an icon with this mode tints the icon.
+    \value CompositionMode_DestinationIn The destination, where the source is opaque.
+    \value CompositionMode_SourceOut The source, where the destination is transparent.
+    \value CompositionMode_DestinationOut The destination, where the source is transparent.
+    \value CompositionMode_SourceAtop The source blended over the destination, keeping the destination's alpha.
+    \value CompositionMode_DestinationAtop The destination blended over the source, keeping the source's alpha.
+    \value CompositionMode_Xor Each where the other is transparent.
+    \value CompositionMode_Plus The sum of the two, no more than full.
 */
 
 /*!

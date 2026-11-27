@@ -528,6 +528,40 @@ static void testPainting() {
     }
 }
 
+// Each composition mode gives what the raster engine does: a square of one color over a square of another, both
+// translucent, offset so that there are pixels of each alone and of both.
+static void testCompositionModes() {
+    const auto draw = [](QPainter &p, QPainter::CompositionMode mode) {
+        p.fillRect(0, 0, 40, 40, QColor(255, 0, 0, 200));
+        p.setCompositionMode(mode);
+        p.fillRect(20, 20, 40, 40, QColor(0, 0, 255, 160));
+    };
+    for (int m = QPainter::CompositionMode_SourceOver; m <= QPainter::CompositionMode_Plus; ++m) {
+        const auto mode = static_cast<QPainter::CompositionMode>(m);
+        QImage reference(60, 60, QImage::Format_ARGB32_Premultiplied);
+        reference.fill(Qt::transparent);
+        {
+            QPainter p(&reference);
+            draw(p, mode);
+        }
+        QOpenGLFramebufferObject fbo(QSize(60, 60), QOpenGLFramebufferObject::CombinedDepthStencil);
+        fbo.bind();
+        QOpenGLContext::currentContext()->functions()->glClearColor(0, 0, 0, 0);
+        QOpenGLContext::currentContext()->functions()->glClear(GL_COLOR_BUFFER_BIT);
+        QOpenGLPaintDevice device(fbo.size());
+        {
+            QPainter p(&device);
+            draw(p, mode);
+        }
+        const QImage gl = fbo.toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+        fbo.release();
+        const double differs = difference(reference, gl, 3);
+        if (differs > 0.0)
+            std::printf("composition mode %d: %.2f%% of the pixels differ\n", m, differs * 100);
+        CHECK(differs == 0.0);
+    }
+}
+
 static void testFillRules() {
     QOpenGLFramebufferObject fbo(QSize(60, 60), QOpenGLFramebufferObject::CombinedDepthStencil);
     fbo.bind();
@@ -760,6 +794,7 @@ int main(int argc, char *argv[]) {
     testBuffersAndVertexArrays(context);
     testExtraFunctions(context);
     testPainting();
+    testCompositionModes();
     testFillRules();
     testImages();
     context.doneCurrent();

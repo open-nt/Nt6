@@ -12,6 +12,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets OpenGLWidgets Network)
 qt_standard_project_setup()
+# Both spellings of the found variables are set, as by Qt's packages.
+foreach(_module Widgets OpenGLWidgets Network)
+    if(NOT Qt6_${_module}_FOUND OR NOT Qt6${_module}_FOUND)
+        message(FATAL_ERROR "Qt6_${_module}_FOUND and Qt6${_module}_FOUND should both be set")
+    endif()
+endforeach()
 
 qt_add_executable(nt_android_smoke main.cpp counter.h)
 target_link_libraries(nt_android_smoke PRIVATE Qt6::Widgets Qt6::OpenGLWidgets Qt6::Network)

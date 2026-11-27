@@ -87,6 +87,9 @@ private:
     bool m_topLevel;
     int m_minimumHeight = 0;
     QRect m_inputItem;
+    // The size the application last asked a dialog to have. Where the screen leaves less room, as with the keyboard
+    // up, the dialog is made smaller, and it takes this size again when the room comes back.
+    QSize m_wantedSize;
 };
 
 class QAndroidBackingStore : public QPlatformBackingStore {

@@ -113,9 +113,12 @@ QRect QAndroidWindow::dialogGeometry(const QRect &wanted) const {
     const int away = std::max(0, window()->property("_nt_sheetOffset").toInt());
     if (sheet == QLatin1String("bottom")) {
         const int width = std::max(1, std::min(640, screen.width()));
-        const int height = std::clamp(wanted.height(), 1, std::max(1, screen.height() - 72));
-        return QRect(screen.x() + (screen.width() - width) / 2,
-                     screen.y() + screen.height() - height + std::min(away, height), width, height);
+        // It leaves a gap above it. Where the keyboard leaves less room than it needs, as in landscape, it is not
+        // squeezed: its top goes to the top of the room and the rest of it behind the keyboard.
+        const int whole = std::max(screen.height(), m_screen->unobstructedGeometry().height());
+        const int height = std::clamp(wanted.height(), 1, std::max(1, whole - 72));
+        const int top = std::max(screen.y(), screen.y() + screen.height() - height);
+        return QRect(screen.x() + (screen.width() - width) / 2, top + std::min(away, height), width, height);
     }
     if (sheet == QLatin1String("drawer")) {
         const int width = std::max(1, std::min(360, screen.width() - 56));
@@ -160,7 +163,10 @@ void QAndroidWindow::setGeometry(const QRect &rect) {
         QPlatformWindow::setGeometry(rect);
         return;
     }
-    const QRect screenRect = isOverlay() ? dialogGeometry(rect) : baseGeometry();
+    // A size other than the one the window has is the application's; the same size is the window being placed again.
+    if (rect.size() != geometry().size() || m_wantedSize.isEmpty())
+        m_wantedSize = rect.size();
+    const QRect screenRect = isOverlay() ? dialogGeometry(QRect(rect.topLeft(), m_wantedSize)) : baseGeometry();
     const QPoint before = geometry().topLeft();
     QPlatformWindow::setGeometry(screenRect);
     if (rect != screenRect)

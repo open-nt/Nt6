@@ -93,9 +93,11 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void changeEvent(QEvent *event) override;
+    void timerEvent(QTimerEvent *event) override;
 
 private:
     friend class QSpinBox;
@@ -137,6 +139,12 @@ private:
     void connectEdit();
     bool numberRange(int *begin, int *end) const; // of the number between the prefix and the suffix
     void keepCursorInNumber();
+    Button buttonAt(const QPoint &pos) const;
+    bool stepPressed(); // steps the way of the button held down; false if it cannot
+    void startRepeat(bool atRate);
+    void stopRepeat();
+    int m_repeatTimer = 0;    // the next step while a button is held,
+    bool m_repeating = false; // which comes at the rate rather than after the threshold
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QAbstractSpinBox::StepEnabled)

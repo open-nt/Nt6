@@ -1719,6 +1719,72 @@ static void testSpinBoxExtras() {
     CHECK(qFuzzyCompare(dbl.value(), 51.0));
 }
 
+// A style whose spin box buttons repeat soon and fast, so that the test does not wait long.
+class QuickRepeatStyle : public QProxyStyle {
+public:
+    QuickRepeatStyle() : QProxyStyle(QStringLiteral("Fusion")) {}
+    int styleHint(StyleHint hint, const QStyleOption *option, const QWidget *widget,
+                  QStyleHintReturn *returnData) const override {
+        if (hint == SH_SpinBox_ClickAutoRepeatThreshold)
+            return 200;
+        if (hint == SH_SpinBox_ClickAutoRepeatRate)
+            return 20;
+        return QProxyStyle::styleHint(hint, option, widget, returnData);
+    }
+};
+
+// A spin box button that is held steps once at once, again after the threshold, and then at the rate until it is
+// released, the pointer leaves it or the end of the range is reached.
+static void testSpinBoxRepeat() {
+    QuickRepeatStyle style;
+    QSpinBox spin;
+    spin.setStyle(&style);
+    spin.setRange(0, 1000);
+    spin.resize(160, 40);
+    spin.show();
+    settle();
+    QStyleOptionSpinBox option;
+    option.initFrom(&spin);
+    const QPoint up = style.subElementRect(QStyle::SE_SpinBoxUp, &option, &spin).center();
+    const QPoint down = style.subElementRect(QStyle::SE_SpinBoxDown, &option, &spin).center();
+    const auto mouse = [&spin](QEvent::Type type, const QPoint &at, Qt::MouseButtons buttons) {
+        QMouseEvent event(type, QPointF(at), QPointF(at), Qt::LeftButton, buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(&spin, &event);
+    };
+    mouse(QEvent::MouseButtonPress, up, Qt::LeftButton);
+    CHECK(spin.value() == 1);
+    QTest::qWait(100); // within the threshold, no more steps
+    CHECK(spin.value() == 1);
+    QTest::qWait(400);
+    const int held = spin.value();
+    CHECK(held > 3);
+    mouse(QEvent::MouseButtonRelease, up, Qt::NoButton);
+    const int released = spin.value();
+    QTest::qWait(100);
+    CHECK(spin.value() == released);
+    // A click without holding steps once.
+    mouse(QEvent::MouseButtonPress, down, Qt::LeftButton);
+    mouse(QEvent::MouseButtonRelease, down, Qt::NoButton);
+    QTest::qWait(300);
+    CHECK(spin.value() == released - 1);
+    // Leaving the button stops the steps.
+    mouse(QEvent::MouseButtonPress, down, Qt::LeftButton);
+    mouse(QEvent::MouseMove, QPoint(4, 4), Qt::LeftButton);
+    QTest::qWait(300);
+    CHECK(spin.value() == released - 2);
+    mouse(QEvent::MouseButtonRelease, QPoint(4, 4), Qt::NoButton);
+    // At the end of the range the steps stop, and a press of a button that cannot step does not repeat either.
+    spin.setValue(2);
+    mouse(QEvent::MouseButtonPress, down, Qt::LeftButton);
+    QTest::qWait(400);
+    CHECK(spin.value() == 0);
+    mouse(QEvent::MouseButtonRelease, down, Qt::NoButton);
+    spin.setValue(5);
+    QTest::qWait(50);
+    CHECK(spin.value() == 5);
+    spin.setStyle(nullptr);
+}
+
 // Reaches the protected parts of QDialog and QSplitter.
 class OpenDialog : public QDialog {
 public:
@@ -2537,6 +2603,7 @@ int main(int argc, char *argv[]) {
     testButtonExtras();
     testSmallWidgetExtras();
     testSpinBoxExtras();
+    testSpinBoxRepeat();
     testScrollAreaCompleterExtras();
     testLayoutExtras();
     testInputMethodAndGraphicsItemExtras();

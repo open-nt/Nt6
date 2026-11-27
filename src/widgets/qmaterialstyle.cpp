@@ -102,6 +102,11 @@ constexpr double chipCorner = 8;
 constexpr int chipIcon = 18;
 constexpr int chipPadding = 16;    // before and after a label with nothing on that side,
 constexpr int chipIconPadding = 8; // and on each side of an icon
+constexpr int chipAvatar = 24;     // the round picture at the start of an input chip,
+constexpr int chipAvatarPadding = 4; // with this much room before it
+constexpr double chipRaise = 1.5;    // how far the shadow of an elevated chip falls, and on hover
+constexpr double chipRaiseHover = 3;
+constexpr double cardRaise = 1; // that of a card that can be clicked, which falls fabShadow on hover
 constexpr double cardCorner = 12;
 constexpr int textFieldHeight = 56;
 constexpr int textFieldCorner = 4;
@@ -226,10 +231,16 @@ constexpr int listOneLineHeight = 56, listTwoLineHeight = 72, listThreeLineHeigh
 constexpr int listHeadlineLine = 24, listSupportingLine = 20, listThreeLineTop = 12, listTrailingSpace = 12;
 constexpr int menuItemHeight = 48;
 constexpr double menuCorner = 16; // the container of the standard menu of Material 3 Expressive (corner large)
-constexpr int menuPadding = 16;
+constexpr int menuVerticalPadding = 4; // above the first row and below the last, inside the container
+constexpr int menuInset = 4;           // between the rows and the sides of the container
+constexpr int menuPadding = 12;        // inside a row, so that its text is 16 in from the container
 constexpr int menuIconSize = 24;
 constexpr int menuIconSpace = 12;
 constexpr int menuSeparator = 9;
+constexpr int menuGroupGap = 2;           // between the groups of a grouped menu
+constexpr double menuGroupCorner = 8;     // the corners of a group beside a gap (corner small)
+constexpr double menuRowCorner = 4;       // the shape of a row under the pointer (corner extra small),
+constexpr double menuSelectedCorner = 12; // of a checked row (corner medium), and of a row at an end of the menu
 constexpr int menuMinimumWidth = 112;
 constexpr double searchViewCorner = 28; // the docked search view under a search bar (corner extra large)
 constexpr int searchViewRowHeight = 56;
@@ -711,14 +722,36 @@ QString chipKind(const QWidget *widget) {
 
 bool isChip(const QWidget *widget) { return !chipKind(widget).isEmpty(); }
 
+// A chip that helps, filters or suggests is raised over a shadow, without an outline, when it asks to be. An input
+// chip has no such kind.
+bool isElevatedChip(const QWidget *widget) {
+    const QString kind = chipKind(widget);
+    return !kind.isEmpty() && kind != QLatin1String("input") && widget->property("materialChipElevated").toBool();
+}
+
+// The kind of card that a button asks to be with its property; empty for none.
+QString buttonCardKind(const QWidget *widget) {
+    if (!qobject_cast<const QAbstractButton *>(widget))
+        return QString();
+    const QString name = widget->property("materialCard").toString();
+    const bool known =
+        name == QLatin1String("filled") || name == QLatin1String("elevated") || name == QLatin1String("outlined");
+    return known ? name : QString();
+}
+
 // What a chip has before its label and after it. A filter chip that is chosen has a check mark where its icon goes,
-// and an input chip has a cross at the end.
+// an input chip has a cross at the end, and its icon may be a round picture of the person it stands for.
 struct ChipParts {
     bool lead = false;
-    bool mark = false;  // the lead is the check mark
-    bool cross = false; // there is a cross at the end
+    bool mark = false;   // the lead is the check mark
+    bool avatar = false; // the lead is the icon, as a round picture
+    bool cross = false;  // there is a cross at the end
 
-    int before() const { return lead ? chipIcon + 2 * chipIconPadding : chipPadding; }
+    int before() const {
+        if (avatar)
+            return chipAvatarPadding + chipAvatar + chipIconPadding;
+        return lead ? chipIcon + 2 * chipIconPadding : chipPadding;
+    }
     int after() const { return cross ? chipIcon + 2 * chipIconPadding : chipPadding; }
 };
 
@@ -728,6 +761,7 @@ ChipParts chipParts(const QWidget *widget, bool hasIcon, bool checked) {
     parts.mark = checked && kind == QLatin1String("filter");
     parts.lead = parts.mark || hasIcon;
     parts.cross = kind == QLatin1String("input");
+    parts.avatar = parts.cross && hasIcon && widget->property("materialChipAvatar").toBool();
     return parts;
 }
 
@@ -735,7 +769,8 @@ bool isSquareButton(const QWidget *widget) {
     return widget && widget->property("materialButtonShape").toString() == QLatin1String("square");
 }
 
-// What a framed QLineEdit asks of its text field with its properties.
+// What a framed QLineEdit asks of its text field with its properties. A framed spin box is an outlined field too, and
+// takes its label the same way.
 struct TextField {
     bool filled = false;
     bool search = false; // a search bar: a pill with a magnifier, and nothing over or under it
@@ -751,6 +786,13 @@ struct TextField {
 
 TextField textFieldOf(const QWidget *widget) {
     TextField field;
+    if (const auto *spin = qobject_cast<const QAbstractSpinBox *>(widget)) {
+        if (spin->hasFrame()) { // a time input lays itself out before it would ask
+            field.label = spin->property("materialLabel").toString();
+            field.above = field.label.isEmpty() ? 0 : fieldLabelRoom;
+        }
+        return field;
+    }
     const auto *edit = qobject_cast<const QLineEdit *>(widget);
     if (!edit || !edit->hasFrame())
         return field;
@@ -771,8 +813,27 @@ TextField textFieldOf(const QWidget *widget) {
     return field;
 }
 
+// Whether a text field has the focus; a spin box has it while its line edit has.
+bool hasFieldFocus(const QWidget *field) {
+    if (field->hasFocus())
+        return true;
+    if (!qobject_cast<const QAbstractSpinBox *>(field))
+        return false;
+    const QObjectList &children = field->children();
+    return std::any_of(children.begin(), children.end(), [](const QObject *child) {
+        const auto *edit = qobject_cast<const QLineEdit *>(child);
+        return edit && edit->hasFocus();
+    });
+}
+
 // The label rests where the text goes in an empty field that does not have the focus, and has floated up otherwise.
-bool isLabelUp(const QLineEdit *field) { return field->hasFocus() || !field->text().isEmpty(); }
+// A spin box always shows a value, so there its label has floated unless its text has been cleared.
+bool isLabelUp(const QWidget *field) {
+    if (const auto *spin = qobject_cast<const QAbstractSpinBox *>(field))
+        return hasFieldFocus(spin) || !spin->text().isEmpty();
+    const auto *edit = qobject_cast<const QLineEdit *>(field);
+    return !edit || edit->hasFocus() || !edit->text().isEmpty();
+}
 
 // What the popup of a QCompleter is drawn as: under a search bar its docked search view, under another line edit a
 // menu. The popup is a list in the window of the line edit, which is the widget that it is open under.
@@ -863,6 +924,44 @@ QRectF searchViewDivider(const QWidget *popup) {
     return QRectF(0, below ? 0 : popup->height() - 1, popup->width(), 1);
 }
 
+// True if the plain separators of a menu part it into groups with gaps between them, rather than being lines.
+bool isGroupedMenu(const QWidget *menu) {
+    return menu && menu->property("materialMenu").toString() == QLatin1String("grouped");
+}
+
+// A container of a menu: the whole menu, or one group of a grouped menu, with the radii of its corners at the top
+// and at the bottom.
+struct MenuContainer {
+    QRectF rect;
+    double top;
+    double bottom;
+};
+
+// The containers of a menu in `r`, its rectangle. A grouped menu has one for each group, with the gaps left out: the
+// corners at the ends of the menu are its own, and those beside a gap smaller.
+std::vector<MenuContainer> menuContainers(const QWidget *widget, const QRectF &r) {
+    std::vector<MenuContainer> containers;
+    const auto *menu = qobject_cast<const QMenu *>(widget);
+    double top = r.top();
+    if (menu && isGroupedMenu(menu)) {
+        for (QAction *action : menu->actions()) {
+            if (!action->isSeparator() || !action->text().isEmpty())
+                continue;
+            const QRect gap = menu->actionGeometry(action); // empty for a separator that is not shown
+            if (gap.isEmpty())
+                continue;
+            // The separator holds the padding of the group above it, the gap and the padding of the one below.
+            const double bottom = gap.top() + (gap.height() - menuGroupGap) / 2.0;
+            containers.push_back({QRectF(r.left(), top, r.width(), bottom - top),
+                                  containers.empty() ? menuCorner : menuGroupCorner, menuGroupCorner});
+            top = bottom + menuGroupGap;
+        }
+    }
+    containers.push_back({QRectF(r.left(), top, r.width(), r.bottom() - top),
+                          containers.empty() ? menuCorner : menuGroupCorner, menuCorner});
+    return containers;
+}
+
 enum Channel {
     LabelChannel,  // how far the label of a text field has floated
     CornerChannel, // of the corners at the left
@@ -917,6 +1016,32 @@ void strokeRounded(QPainter *painter, const QRectF &rect, double radius, const Q
     painter->setBrush(Qt::NoBrush);
     painter->drawRoundedRect(rect.adjusted(half, half, -half, -half), std::max(0.0, radius - half),
                              std::max(0.0, radius - half));
+}
+
+// The outline of an outlined text field or spin box in `around`, its widget's rectangle. The outline makes way for a
+// label that has floated onto it.
+void strokeOutlinedField(QPainter *painter, const QRectF &around, const TextField &field, const QWidget *widget,
+                         const QColor &line, bool focused) {
+    const QRectF box = around.adjusted(0, field.above, 0, -field.below);
+    const double width = focused ? 3 : 1;
+    if (!widget || field.label.isEmpty() || !isLabelUp(widget)) {
+        strokeRounded(painter, box, textFieldCorner, line, width);
+        return;
+    }
+    QFont small = widget->font();
+    small.setPixelSize(fieldSmallPixels);
+    const double from = box.left() + textFieldPadding - 4;
+    const double to =
+        std::min(box.right() - textFieldCorner, from + QFontMetrics(small).horizontalAdvance(field.label) + 8.0);
+    const QRectF parts[] = {QRectF(around.left(), around.top(), from - around.left(), around.height()),
+                            QRectF(to, around.top(), around.right() - to, around.height()),
+                            QRectF(from, box.top() + 6, to - from, around.bottom() - box.top() - 6)};
+    for (const QRectF &part : parts) {
+        painter->save();
+        painter->setClipRect(part, Qt::IntersectClip);
+        strokeRounded(painter, box, textFieldCorner, line, width);
+        painter->restore();
+    }
 }
 
 // A size of slider, which a slider asks for with the property materialSliderSize. One that asks for none is extra
@@ -1124,9 +1249,20 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
         filled and a check mark takes the place of its icon, which makes it wider. An input chip stands for something
         that was entered and has a cross; a click anywhere on it is clicked(), on which the program takes it away. A
         chosen chip of any kind is filled.
+    \li \c materialChipElevated \c true of an assist, filter or suggestion chip makes it an elevated chip: it has no
+        outline, and its container, \c SurfaceContainerLow, is raised over a shadow, which falls further while the
+        pointer is over it. An input chip has no elevated kind and ignores the property.
+    \li \c materialChipAvatar \c true of an input chip shows its icon as an avatar: a round picture of 24, in its own
+        colors, 4 from the start of the chip, which makes the chip 2 wider than one with a plain icon. Without the
+        property an icon is an icon of 18 like that of any chip.
     \li \c materialCard of a QFrame: \c "filled", \c "elevated" or \c "outlined" draws it as a card with corners of
         12, whatever its frame shape; its layout and its children are the contents. Under this style a QFrame whose
         shape is \c HLine or \c VLine is a divider, a quiet line of 1, whatever its shadow and line width.
+    \li \c materialCard of a QPushButton makes it a card that can be clicked, as a QFrame cannot be: drawn as the
+        card of that kind is, with a layer of the color of its content under the pointer and while it is pressed, the
+        ripple of a button, and a shadow that falls further on hover for an elevated card. Its text, if it has one,
+        is in the middle; more often its layout holds the contents, and it asks for the size of that layout. The
+        program builds unchanged with Qt, where it is a push button.
     \li \c materialTextField \c "search" makes a QLineEdit a search bar: a pill, 56 high, with a magnifier before the
         text. The placeholder text says what is searched, and with \l{QLineEdit::setClearButtonEnabled()}{a clear
         button} there is a cross to empty it. Given a QCompleter, the bar opens Material's docked search view: the
@@ -1165,6 +1301,10 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
         is dimmed, the dimming fading in and out with the sheet, and a tap on it or Back dismisses the sheet.
     \li \c materialList \c "navigationDrawer" of a QListWidget, for the list of a drawer: the one that is current is
         marked with a pill, and the list has no frame. Open a destination from itemClicked() and accept() the drawer.
+    \li \c materialMenu \c "grouped" of a QMenu: the separators that addSeparator() adds are gaps of 2 rather than
+        lines, and part the menu into groups, each a container of its own with the round corners of the menu at its
+        ends and corners of 8 beside a gap, as in the menus of Material 3 Expressive with gaps. A section, a separator
+        with a text, is no gap. Without the property a separator is a line.
     \li \c materialSwitch of a QCheckBox: \c true draws it as a switch.
     \li \c materialSliderSize of a QSlider: \c "extraSmall", \c "small", \c "medium", \c "large" or
         \c "extraLarge", the five sizes of Material 3 Expressive, with tracks 16, 24, 40, 56 and 96 thick and handles
@@ -1231,8 +1371,10 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     Supporting text does not widen a list. List items have no overline, avatars, images, videos, trailing icons or
     check boxes at the trailing end, and no segmented or expressive (gapped) look. Behind a QProxyStyle they are drawn as Fusion draws them. A finger that is dragged
     on a view selects, unless QScroller::grabGesture() makes it scroll. Menus
-    are the standard menus of Material 3 Expressive in shape (corners of 16) but have no groups, gaps or selected
-    rows with their own shape, and an outline in the place of their shadow. Dialogs get the Material container color and text buttons; their rounded corners and the
+    are the standard menus of Material 3 Expressive in shape (corners of 16, 4 of padding above and below the rows,
+    which are inset 4 from the sides and have shapes of their own, a checked one filled in the tertiary container
+    color), with an outline in the place of their shadow. They have no group labels, supporting text or trailing
+    icons, and a checked row keeps its check mark. Dialogs get the Material container color and text buttons; their rounded corners and the
     dimming behind them, which fades in while motion is enabled, are the android platform's.
     Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another,
     and go one after another as a picture of them when it closes; they have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
@@ -1243,8 +1385,10 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     QCompleter, which does not emphasize the part of a row that matches the text, has no header of its own and opens
     without motion); their caret is the color of the text. A snackbar fades in and out but does not
     grow as it comes, and is one only in a QMainWindow; showing a message does not queue it. There are no
-    rich tooltips. Chips are push buttons only; there are no elevated chips, avatars in input chips or separate click
-    on the cross, and a filter chip takes its new width at once. A date picker has no range, no field to type a date in and no
+    rich tooltips. Chips are push buttons only; there is no separate click on the cross, an avatar is the icon cut to
+    a circle, and a filter chip takes its new width at once. The shadow of an elevated chip or card moves at once
+    from level 1 to level 2 rather than with motion. A card that can be clicked is a push button only, and a press
+    on a child that takes clicks of its own does not press the card. A date picker has no range, no field to type a date in and no
     button to switch to one, no menu of months, and no buttons to confirm or cancel (those are the dialog's); it keeps
     the days of the other months, faint, and there is no time picker with a clock dial. The headline is in English and
     shows the selected date also when the user cannot select one. The change between the days and the years is not
@@ -1952,6 +2096,8 @@ double QMaterialStyle::stateLayer(const QStyleOption *option) const {
 QMaterialStyle::ButtonKind QMaterialStyle::buttonKind(const QStyleOption *option, const QWidget *widget) {
     if (isChip(widget))
         return ButtonKind::Chip;
+    if (!buttonCardKind(widget).isEmpty())
+        return ButtonKind::Card;
     if (isFab(widget))
         return ButtonKind::Fab;
     if (const QString icon = iconButtonKind(widget); !icon.isEmpty()) {
@@ -1998,6 +2144,8 @@ QColor QMaterialStyle::buttonLabelColor(const QStyleOption *option, const QWidge
         if (checked)
             return color(Role::OnSecondaryContainer);
         return color(chipKind(widget) == QLatin1String("assist") ? Role::OnSurface : Role::OnSurfaceVariant);
+    case ButtonKind::Card:
+        return color(Role::OnSurface);
     case ButtonKind::Filled:
         return color(Role::OnPrimary);
     case ButtonKind::Tonal:
@@ -2051,6 +2199,10 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
     double right = pill;
     if (isChip(widget)) {
         drawButtonShape(option, painter, widget, chipCorner, chipCorner); // a chip keeps its shape
+        return;
+    }
+    if (!buttonCardKind(widget).isEmpty()) {
+        drawButtonShape(option, painter, widget, cardCorner, cardCorner); // and so does a card
         return;
     }
     const bool fab = isFab(widget);
@@ -2134,13 +2286,27 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     case ButtonKind::Chip:
         if (checked)
             container = color(Role::SecondaryContainer);
+        else if (isElevatedChip(widget))
+            container = color(Role::SurfaceContainerLow);
         break;
+    case ButtonKind::Card: {
+        const QString card = buttonCardKind(widget);
+        container = color(card == QLatin1String("filled")     ? Role::SurfaceContainerHighest
+                          : card == QLatin1String("elevated") ? Role::SurfaceContainerLow
+                                                              : Role::Surface);
+        // A card that cannot be used fades, rather than taking the color of a disabled button.
+        if (!enabled(option))
+            container = withOpacity(container, disabledContentOpacity);
+        break;
+    }
     case ButtonKind::Text:
         break;
     }
+    const bool elevatedChip = kind == ButtonKind::Chip && isElevatedChip(widget);
     const bool bare = kind == ButtonKind::Outlined || kind == ButtonKind::ToolBarItem ||
-                      kind == ButtonKind::IconOutlined || kind == ButtonKind::Chip;
-    if (!enabled(option) && kind != ButtonKind::Text && kind != ButtonKind::IconStandard && !(bare && !checked))
+                      kind == ButtonKind::IconOutlined || (kind == ButtonKind::Chip && !elevatedChip);
+    if (!enabled(option) && kind != ButtonKind::Text && kind != ButtonKind::IconStandard && kind != ButtonKind::Card &&
+        !(bare && !checked))
         container = withOpacity(color(Role::OnSurface), disabledContainerOpacity);
     const double lift = kind == ButtonKind::Fab ? fabShadow : kind == ButtonKind::Elevated ? 1.5 : 0.0;
     const bool raised = lift > 0 && enabled(option) && (kind == ButtonKind::Fab || !(option->state & State_Sunken));
@@ -2159,8 +2325,22 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     // A chip is as wide as it is to a finger, but not as high.
     if (kind == ButtonKind::Chip)
         above = std::max(0.0, (rect.height() - chipHeight) / 2);
-    const QRectF body = rect.adjusted(inset, above, -inset, -above - lift);
+    QRectF body = rect.adjusted(inset, above, -inset, -above - lift);
+    const QString card = kind == ButtonKind::Card ? buttonCardKind(widget) : QString();
+    const bool elevatedCard = card == QLatin1String("elevated");
+    // An elevated card keeps room for its shadow below it, as the frame that is one does.
+    if (elevatedCard)
+        body.adjust(0.5, 0, -0.5, -fabShadow);
     const QPainterPath outline = sidedPath(body, left, right);
+    // An elevated chip or card is at level 1, and at level 2 under the pointer, where its shadow falls further: a
+    // chip has the room of its target for it, a card that which it keeps below itself.
+    if ((elevatedChip || elevatedCard) && enabled(option)) {
+        const bool hovered = (option->state & State_MouseOver) && !(option->state & State_Sunken);
+        const double fall = elevatedChip ? (hovered ? chipRaiseHover : chipRaise)
+                                         : (hovered ? static_cast<double>(fabShadow) : cardRaise);
+        painter->fillPath(sidedPath(body.translated(0, fall), left, right),
+                          QBrush(withOpacity(QColor(Qt::black), 0.18)));
+    }
     // A line inside the shape.
     const auto stroke = [&](const QColor &ink, double width) {
         const double half = width / 2;
@@ -2169,7 +2349,7 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     };
     if (container.alpha() > 0)
         painter->fillPath(outline, QBrush(container));
-    if (kind == ButtonKind::Chip && !checked)
+    if ((kind == ButtonKind::Chip && !checked && !elevatedChip) || card == QLatin1String("outlined"))
         stroke(enabled(option) ? color(Role::OutlineVariant) : withOpacity(color(Role::OnSurface), 0.12), 1);
     if ((kind == ButtonKind::Outlined || kind == ButtonKind::IconOutlined) && !checked) {
         const ButtonSize *size = sizeOfButton(widget);
@@ -2796,7 +2976,7 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
         painter->restore();
         return;
     }
-    if (!edit || (field.label.isEmpty() && field.supporting.isEmpty() && field.counter.isEmpty()))
+    if (!widget || (field.label.isEmpty() && field.supporting.isEmpty() && field.counter.isEmpty()))
         return;
     const QRectF box(field.box(option->rect));
     const QColor quiet = enabled(option) ? color(field.error ? Role::Error : Role::OnSurfaceVariant)
@@ -2804,9 +2984,9 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
     painter->save();
     if (!field.label.isEmpty()) {
         const double up = std::clamp(
-            animated(edit, LabelChannel, isLabelUp(edit) ? 1.0 : 0.0, QtPrivate::defaultEffectsSpring, 0.004), 0.0,
+            animated(widget, LabelChannel, isLabelUp(widget) ? 1.0 : 0.0, QtPrivate::defaultEffectsSpring, 0.004), 0.0,
             1.0);
-        QFont font = edit->font();
+        QFont font = widget->font();
         font.setPixelSize(static_cast<int>(std::lround(fieldInputPixels - (fieldInputPixels - fieldSmallPixels) * up)));
         // Floating, it is on the outline of an outlined field, and in the upper part of a filled one.
         const double rest = box.center().y();
@@ -2814,23 +2994,28 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
         const double middle = rest + (floated - rest) * up;
         // It rests where the text begins, after the leading icons; on the outline it floats back to the edge.
         int start = static_cast<int>(box.left()) + textFieldPadding;
-        for (const auto &side : edit->sides())
-            if (side.position == QLineEdit::LeadingPosition)
-                start = std::max(start, side.slot.right() + 1);
+        if (edit)
+            for (const auto &side : edit->sides())
+                if (side.position == QLineEdit::LeadingPosition)
+                    start = std::max(start, side.slot.right() + 1);
         const int floatedStart = field.filled ? start : static_cast<int>(box.left()) + textFieldPadding;
         const int left = static_cast<int>(std::lround(start + (floatedStart - start) * up));
         QColor ink = quiet;
-        if (enabled(option) && !field.error && edit->hasFocus())
+        if (enabled(option) && !field.error && hasFieldFocus(widget))
             ink = color(Role::Primary);
         painter->setFont(font);
         painter->setPen(ink);
-        const int width = std::max(0, static_cast<int>(box.right()) + 1 - textFieldPadding - left);
+        // The label of a spin box stops before its buttons.
+        int end = static_cast<int>(box.right()) + 1 - textFieldPadding;
+        if (!edit)
+            end = std::min(end, proxy()->subElementRect(SE_SpinBoxEditField, option, widget).right() + 1);
+        const int width = std::max(0, end - left);
         painter->drawText(QRect(left, static_cast<int>(middle) - 10, width, 20),
                           Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                           QFontMetrics(font).elidedText(field.label, Qt::ElideRight, width));
     }
     if (!field.supporting.isEmpty() || !field.counter.isEmpty()) {
-        QFont font = edit->font();
+        QFont font = widget->font();
         font.setPixelSize(fieldSmallPixels);
         const QFontMetrics metrics(font);
         painter->setFont(font);
@@ -2851,7 +3036,8 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
 
 void QMaterialStyle::propertyChanged(QWidget *widget) {
     if (qobject_cast<QToolBar *>(widget) || qobject_cast<QAbstractSpinBox *>(widget) ||
-        qobject_cast<QStatusBar *>(widget) || qobject_cast<QCalendarWidget *>(widget)) {
+        qobject_cast<QStatusBar *>(widget) || qobject_cast<QCalendarWidget *>(widget) ||
+        qobject_cast<QMenu *>(widget)) {
         QEvent change(QEvent::StyleChange); // it lays itself out anew
         QCoreApplication::sendEvent(widget, &change);
     } else if (widget->property(polishedFont).toBool() || widget->property(polishedPalette).toBool()) {
@@ -3002,6 +3188,26 @@ void QMaterialStyle::drawChipLabel(const QStyleOption *option, QPainter *painter
         painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter->drawLine(at(0.20, 0.52), at(0.40, 0.72));
         painter->drawLine(at(0.40, 0.72), at(0.80, 0.30));
+    } else if (parts.avatar) {
+        // The icon is a picture, in its own colors, that fills a circle.
+        const QRect round(left + chipAvatarPadding, r.top() + (r.height() - chipAvatar) / 2, chipAvatar, chipAvatar);
+        const qreal ratio = painter->device() ? painter->device()->devicePixelRatioF() : 1.0;
+        const QPixmap picture = button->icon.pixmap(
+            round.size(), ratio, enabled(option) ? QIcon::Normal : QIcon::Disabled, checked ? QIcon::On : QIcon::Off);
+        // A painter clips to rectangles, so the picture is cut to the circle in an image of its own first.
+        const int across = std::max(1, static_cast<int>(std::lround(chipAvatar * ratio)));
+        QImage disc(across, across, QImage::Format_ARGB32_Premultiplied);
+        disc.fill(Qt::transparent);
+        {
+            QPainter cutter(&disc);
+            cutter.setRenderHint(QPainter::Antialiasing);
+            QPainterPath circle;
+            circle.addEllipse(QRectF(disc.rect()));
+            cutter.fillPath(circle, QBrush(QColor(Qt::white)));
+            cutter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+            cutter.drawImage(QRectF(disc.rect()), picture.toImage(), QRectF(picture.toImage().rect()));
+        }
+        painter->drawImage(QRectF(round), disc, QRectF(disc.rect()));
     } else if (parts.lead) {
         paintIcon(painter, QRect(left + chipIconPadding, top, chipIcon, chipIcon), button->icon,
                   enabled(option) ? QIcon::Normal : QIcon::Disabled, checked ? QIcon::On : QIcon::Off, iconInk);
@@ -3676,16 +3882,17 @@ bool QMaterialStyle::drawMaterialFrame(QPainter *painter, const QFrame *frame) c
 // An outlined field, as a line edit is, with a button at its end that steps down and one that steps up.
 void QMaterialStyle::drawSpinBox(const QStyleOption *option, QPainter *painter, const QWidget *widget) const {
     const auto *spin = static_cast<const QStyleOptionSpinBox *>(option);
-    const QRectF box(option->rect);
+    const TextField field = textFieldOf(widget);
     const bool usable = enabled(option);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
     if (spin->frame) {
         const bool focused = option->state & State_HasFocus;
-        fillRounded(painter, box, textFieldCorner, option->palette.color(QPalette::Base));
+        fillRounded(painter, QRectF(field.box(option->rect)), textFieldCorner, option->palette.color(QPalette::Base));
         const QColor line =
             !usable ? withOpacity(color(Role::OnSurface), 0.12) : color(focused ? Role::Primary : Role::Outline);
-        strokeRounded(painter, box, textFieldCorner, line, focused ? 3 : 1);
+        strokeOutlinedField(painter, QRectF(option->rect), field, widget, line, focused);
+        drawTextFieldText(painter, option, widget);
     }
     if (spin->buttonSymbols == QAbstractSpinBox::NoButtons) {
         painter->restore();
@@ -4015,19 +4222,27 @@ void QMaterialStyle::snackbarArrives(QStatusBar *bar) const {
         effect->setObjectName(fade);
         bar->setGraphicsEffect(effect);
     }
+    // It fades in and grows from 80 percent of its size, about its middle, as Compose's snackbar does.
+    const char *const scale = "_nt_effectScale";
     effect->setOpacity(0);
+    bar->setProperty(scale, 0.8);
     QPointer<QStatusBar> guard(bar);
-    new QtPrivate::Transition(bar, fade, QtPrivate::defaultEffectsSpring, [guard, fade](double progress) {
+    new QtPrivate::Transition(bar, fade, QtPrivate::defaultEffectsSpring, [guard, fade, scale](double progress) {
         if (!guard)
             return false;
         auto *opacity = qobject_cast<QGraphicsOpacityEffect *>(guard->graphicsEffect());
-        if (!opacity || opacity->objectName() != fade)
+        if (!opacity || opacity->objectName() != fade) {
+            guard->setProperty(scale, QVariant());
             return false;
+        }
         if (progress >= 1.0) {
+            guard->setProperty(scale, QVariant());
             guard->setGraphicsEffect(nullptr);
             return false;
         }
-        opacity->setOpacity(std::clamp(progress, 0.0, 1.0));
+        const double shown = std::clamp(progress, 0.0, 1.0);
+        guard->setProperty(scale, 0.8 + 0.2 * shown);
+        opacity->setOpacity(shown);
         return true;
     });
 }
@@ -4041,6 +4256,7 @@ void QMaterialStyle::snackbarLeaves(QStatusBar *bar) const {
     if (auto *opacity = qobject_cast<QGraphicsOpacityEffect *>(bar->graphicsEffect());
         opacity && opacity->objectName() == QLatin1String("_nt_snackbarFade"))
         bar->setGraphicsEffect(nullptr);
+    bar->setProperty("_nt_effectScale", QVariant());
     auto *ghost = new SnackbarGhost(holder, bar->grab());
     ghost->setObjectName(QStringLiteral("_nt_snackbarGhost"));
     ghost->setGeometry(bar->geometry());
@@ -4303,31 +4519,42 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter,
     const auto *item = static_cast<const QStyleOptionMenuItem *>(option);
     const QRect r = item->rect;
     if (item->menuItemType == QStyleOptionMenuItem::Separator) {
-        painter->fillRect(QRect(r.left(), r.center().y(), r.width(), 1), color(Role::OutlineVariant));
+        // In a grouped menu the separator is the gap between two containers, which the panel leaves out.
+        if (!isGroupedMenu(menu))
+            painter->fillRect(QRect(r.left(), r.center().y(), r.width(), 1), color(Role::OutlineVariant));
         return;
     }
     const bool usable = item->state & State_Enabled;
-    // The highlight and the ripple of a row keep inside the round corners of the menu.
-    QPainterPath outline;
-    outline.addRect(QRectF(r));
-    if (menu) {
-        QPainterPath corners;
-        corners.addRoundedRect(QRectF(menu->rect()), menuCorner, menuCorner);
-        outline = outline.intersected(corners);
+    const bool checkable = item->checkType != QStyleOptionMenuItem::NotCheckable;
+    const bool checked = checkable && item->checked;
+    // A row has a shape of its own, inset in the container: small corners, but at an end of the menu as round as the
+    // container's less the inset, and a checked row round all over. The highlight and the ripple fill it.
+    double top = menuRowCorner, bottom = menuRowCorner;
+    if (checked) {
+        top = bottom = menuSelectedCorner;
+    } else if (const auto *list = qobject_cast<const QMenu *>(menu)) {
+        if (!list->actionAt(QPoint(r.center().x(), r.top() - 1)))
+            top = menuSelectedCorner;
+        if (!list->actionAt(QPoint(r.center().x(), r.bottom() + 1)))
+            bottom = menuSelectedCorner;
     }
+    const QPainterPath outline = endedPath(QRectF(r), top, bottom);
+    const QColor onRow = checked ? color(Role::OnTertiaryContainer) : color(Role::OnSurface);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
+    if (checked)
+        painter->fillPath(outline, QBrush(usable ? color(Role::TertiaryContainer)
+                                                 : withOpacity(color(Role::OnSurface), disabledContainerOpacity)));
     if (usable && (item->state & State_Selected))
-        painter->fillPath(outline, QBrush(withOpacity(color(Role::OnSurface), hoverOpacity)));
+        painter->fillPath(outline, QBrush(withOpacity(onRow, hoverOpacity)));
     if (usable && menu && menu == m_rippleWidget.data() && r.contains(m_rippleOrigin.toPoint()))
-        drawRipple(painter, menu, outline, QRectF(r), m_rippleOrigin, m_rowPressed, color(Role::OnSurface));
+        drawRipple(painter, menu, outline, QRectF(r), m_rippleOrigin, m_rowPressed, onRow);
     painter->restore();
-    const QColor ink = usable ? color(Role::OnSurface) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
-    const QColor quiet = usable ? color(Role::OnSurfaceVariant) : ink;
+    const QColor ink = usable ? onRow : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    const QColor quiet = usable && !checked ? color(Role::OnSurfaceVariant) : ink;
     int left = r.left() + menuPadding;
-    const bool checkable = item->checkType != QStyleOptionMenuItem::NotCheckable;
     const QRect lead(left, r.top() + (r.height() - menuIconSize) / 2, menuIconSize, menuIconSize);
-    if (checkable && item->checked) {
+    if (checked) {
         painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter->drawLine(QPointF(lead.left() + 5, lead.top() + 12.5), QPointF(lead.left() + 10, lead.top() + 17.5));
         painter->drawLine(QPointF(lead.left() + 10, lead.top() + 17.5), QPointF(lead.left() + 19, lead.top() + 7.5));
@@ -4373,11 +4600,18 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
     case PE_FrameMenu:
         if (isFabMenu(widget))
             break; // the items of a FAB menu float over what is below
-        // A menu is drawn in its window, which shows at its round corners.
-        fillRounded(painter, QRectF(option->rect), menuCorner, color(Role::SurfaceContainer));
-        if (element == PE_FrameMenu)
-            break;
-        strokeRounded(painter, QRectF(option->rect), menuCorner, color(Role::OutlineVariant), 1);
+        // A menu is drawn in its window, which shows at its round corners and in the gaps between its groups.
+        for (const MenuContainer &container : menuContainers(widget, QRectF(option->rect))) {
+            painter->fillPath(endedPath(container.rect, container.top, container.bottom),
+                              QBrush(color(Role::SurfaceContainer)));
+            if (element == PE_FrameMenu)
+                continue;
+            // The outline lies inside the container.
+            painter->setPen(QPen(QBrush(color(Role::OutlineVariant)), 1));
+            painter->setBrush(Qt::NoBrush);
+            painter->drawPath(
+                endedPath(container.rect.adjusted(0.5, 0.5, -0.5, -0.5), container.top - 0.5, container.bottom - 0.5));
+        }
         break;
     case PE_PanelTipLabel:
         // A plain tooltip: dark on a light scheme and light on a dark one.
@@ -4438,27 +4672,7 @@ void QMaterialStyle::drawPrimitive(PrimitiveElement element, const QStyleOption 
             painter->fillRect(QRectF(box.left(), box.bottom() - height, box.width(), height), line);
             break;
         }
-        const auto *edit = qobject_cast<const QLineEdit *>(widget);
-        if (!edit || field.label.isEmpty() || !isLabelUp(edit)) {
-            strokeRounded(painter, box, textFieldCorner, line, focused ? 3 : 1);
-            break;
-        }
-        // The outline makes way for the label that sits on it.
-        QFont small = edit->font();
-        small.setPixelSize(fieldSmallPixels);
-        const double from = box.left() + textFieldPadding - 4;
-        const double to =
-            std::min(box.right() - textFieldCorner, from + QFontMetrics(small).horizontalAdvance(field.label) + 8.0);
-        const QRectF around = QRectF(option->rect);
-        const QRectF parts[] = {QRectF(around.left(), around.top(), from - around.left(), around.height()),
-                                QRectF(to, around.top(), around.right() - to, around.height()),
-                                QRectF(from, box.top() + 6, to - from, around.bottom() - box.top() - 6)};
-        for (const QRectF &part : parts) {
-            painter->save();
-            painter->setClipRect(part, Qt::IntersectClip);
-            strokeRounded(painter, box, textFieldCorner, line, focused ? 3 : 1);
-            painter->restore();
-        }
+        strokeOutlinedField(painter, QRectF(option->rect), field, widget, line, focused);
         break;
     }
     case PE_IndicatorCheckBox: {
@@ -4644,12 +4858,15 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
             static_cast<const QStyleOptionSpinBox *>(option)->buttonSymbols == QAbstractSpinBox::NoButtons;
         const int buttons = none ? 0 : opensCalendar(widget) ? 1 : 2;
         const int width = std::min(spinButton, r.width() / 3);
+        // A label on the outline takes room over the field.
+        const QRect box = textFieldOf(widget).box(r);
         if (element == SE_SpinBoxEditField)
-            return r.adjusted(std::min(textFieldPadding, r.width() / 8), 3,
-                              -(buttons ? buttons * width : textFieldPadding), -3);
+            return box.adjusted(std::min(textFieldPadding, box.width() / 8), 3,
+                                -(buttons ? buttons * width : textFieldPadding), -3);
         // Up is at the end, and down before it.
         const int from = element == SE_SpinBoxUp ? 1 : 2;
-        return from > buttons ? QRect() : QRect(r.left() + r.width() - from * width, r.top(), width, r.height());
+        return from > buttons ? QRect()
+                              : QRect(box.left() + box.width() - from * width, box.top(), width, box.height());
     }
     if ((element == SE_GroupBoxTitle || element == SE_GroupBoxIndicator || element == SE_GroupBoxContents) &&
         option->type == QStyleOption::SO_GroupBox) {
@@ -4782,6 +4999,11 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
             return groupTitleHeight(group->isCheckable()) + groupTitleGap + groupPadding;
         }
         return QCommonStyle::pixelMetric(metric, option, widget);
+    // The rows of a menu are inset in its container; a FAB menu has no container.
+    case PM_MenuHMargin:
+        return qobject_cast<const QMenu *>(widget) && !isFabMenu(widget) ? menuInset : 0;
+    case PM_MenuVMargin:
+        return qobject_cast<const QMenu *>(widget) && !isFabMenu(widget) ? menuVerticalPadding : 0;
     case PM_ScrollBarExtent:
         return scrollBarWidth;
     // The icons at the ends of a text field: 24, 12 from its edges, and 16 from the text.
@@ -4839,7 +5061,7 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         const int buttons = symbols == QAbstractSpinBox::NoButtons ? 0 : opensCalendar(widget) ? 1 : 2;
         // Room for the cursor besides the text.
         return QSize(contentsSize.width() + textFieldPadding + 8 + (buttons ? buttons * spinButton : textFieldPadding),
-                     std::max(textFieldHeight, contentsSize.height()));
+                     std::max(textFieldHeight, contentsSize.height()) + textFieldOf(widget).above);
     }
     switch (type) {
     case CT_PushButton: {
@@ -4853,6 +5075,11 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             const ChipParts parts = chipParts(widget, button && !button->icon.isNull(), chip->isChecked());
             const int text = button && button->text.isEmpty() ? 0 : width;
             return QSize(parts.before() + text + parts.after(), touchTarget);
+        }
+        // What a card shows is usually the widgets of its layout, which a push button does not ask about.
+        if (!buttonCardKind(widget).isEmpty() && widget->layout()) {
+            const QSize laid = widget->layout()->sizeHint();
+            return QSize(std::max(laid.width(), width + 2 * buttonPadding), std::max(laid.height(), height));
         }
         if (isIconButton(widget))
             return iconButtonExtent(widget);
@@ -4897,8 +5124,10 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
                 return QSize(fabSize, fabMenuItemSpace);
             return QSize(fabMenuItemWidth(*item), fabSize + fabMenuItemSpace);
         }
+        // A grouped menu's separator is a gap, with the padding of the groups on either side of it.
         if (item->menuItemType == QStyleOptionMenuItem::Separator)
-            return QSize(menuMinimumWidth, menuSeparator);
+            return QSize(menuMinimumWidth - 2 * menuInset,
+                         isGroupedMenu(widget) ? 2 * menuVerticalPadding + menuGroupGap : menuSeparator);
         int width = contentsSize.width() + 2 * menuPadding;
         if (!item->icon.isNull() || item->checkType != QStyleOptionMenuItem::NotCheckable)
             width += menuIconSize + menuIconSpace;
@@ -4906,7 +5135,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             width += item->reservedShortcutWidth + 2 * menuPadding;
         if (item->menuItemType == QStyleOptionMenuItem::SubMenu)
             width += menuPadding;
-        return QSize(std::max(width, menuMinimumWidth), std::max(menuItemHeight, contentsSize.height()));
+        return QSize(std::max(width, menuMinimumWidth - 2 * menuInset),
+                     std::max(menuItemHeight, contentsSize.height()));
     }
     case CT_ProgressBar:
         if (loadingOf(widget) != Loading::No)

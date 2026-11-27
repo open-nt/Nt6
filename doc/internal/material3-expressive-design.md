@@ -123,7 +123,16 @@ size when its checked state changes. The input chip's cross is not a target of i
 needed. Cards are `QFrame`s with `materialCard` = `"filled"` (`SurfaceContainerHighest`), `"elevated"`
 (`SurfaceContainerLow` over a shadow) or `"outlined"` (`Surface`, `OutlineVariant`), corners 12. Under the style a
 `QFrame` line is the divider, 1 of `OutlineVariant`, so a Qt application gets it unchanged. `QFrame` asks the style
-through a private function. Not done: elevated chips, avatars, clickable cards.
+through a private function. `materialChipElevated` = `true` makes an assist, filter or suggestion chip elevated: no
+outline, `SurfaceContainerLow` over the shadow of the elevated button (level 1), whose fall grows from 1.5 to 3 in the
+room of the target while the pointer is over it (level 2); an input chip has no elevated kind. `materialChipAvatar` =
+`true` on an input chip with an icon shows the icon as an avatar, a picture of 24 cut to a circle, 4 from the start
+and 8 before the label, in its own colours; without it an icon stays an icon of 18, so that plain icons are not
+cropped. A card that can be clicked is a `QPushButton` (any `QAbstractButton` that draws through the push button's
+panel) with `materialCard`, as a `QFrame` cannot be clicked in Qt: the same shapes and colours as the frame, with the
+state layer of `OnSurface` (0.08 on hover, 0.10 pressed), the ripple of buttons and a focus ring; an elevated one keeps
+2 below for its shadow, which falls 1, and 2 on hover. Its size is that of its layout. Not done: motion of the
+elevation, a separate target for the input chip's cross.
 
 `QCalendarWidget` is the date picker without a property: `SurfaceContainerHigh`, days of 40, the chosen one a
 `Primary` circle, today a `Primary` ring and label, names of days and days in body large. The base `paintCell()` asks
@@ -166,9 +175,13 @@ dial, moving on to the minute after two digits, translated captions. A format of
 Spin boxes and scroll bars are drawn without a property, as every Qt form and list has them. Material has no spin box:
 this one is the outlined field, 56 high, with a minus and a plus in 48 each (a chevron alone for a date edit with a
 calendar pop-up). On a platform with an on-screen keyboard the two buttons leave the focus where it is, since the keys
-would slide the page from under the finger. A scroll bar is 10 wide with a handle of 4 (8 under the pointer or while
-dragged), no track and no arrows, and at least 48 long. Not done: a floating label on a spin box, repeat while a
-button is held, hiding the scroll bar at rest.
+would slide the page from under the finger. `materialLabel` on a spin box (Nt only, as on a line edit) is drawn by
+the line edit's code: it takes 8 over the field, sits on the outline, which makes way for it, while there is text or
+the focus, and rests inside, before the buttons, once the text has been cleared, along the same spring. A button that
+is held repeats, for every style, as in Qt: `QAbstractSpinBox` steps once at the press, again after
+`SH_SpinBox_ClickAutoRepeatThreshold` (500) and then every `SH_SpinBox_ClickAutoRepeatRate` (150) until the release,
+the pointer leaving the button or the end of the range. A scroll bar is 10 wide with a handle of 4 (8 under the
+pointer or while dragged), no track and no arrows, and at least 48 long. Not done: hiding the scroll bar at rest.
 
 A dialog keeps its contents 24 from its edges. Where the platform narrows dialogs (`maximumDialogWidth()`, Android),
 `QDialog` narrows itself before it is shown and takes the height that its layout needs at that width. (Nt's layouts
@@ -191,9 +204,11 @@ margin). It has no floating label.
 Sheets and snackbars move. A sheet is placed at its resting place and then moved from just beyond its edge along a
 spring of stiffness 380 (the default spatial one) with a damping ratio of 1, so it never passes its edge and shows a
 gap; the Android platform accepts a sheet's geometry beyond its edge and recomposes when a dialog moves. A snackbar
-fades in on the default effects spring through a `QGraphicsOpacityEffect` (only if the application set none), and one
+fades in on the default effects spring through a `QGraphicsOpacityEffect` (only if the application set none) and grows
+from 80 percent about its middle: the private property `_nt_effectScale` scales the picture that the opacity effect
+draws, so the bar keeps its geometry and its buttons stay where clicks find them. One
 that is cleared or replaced leaves a picture of itself (`grab()`, with its buttons) that fades out on the fast effects
-spring. Not done: the snackbar's growing from 80 percent. (Sheets sliding out and the scrim fading: see the motion
+spring. (Sheets sliding out and the scrim fading: see the motion
 of what goes, below.)
 
 Text fields have icons, a prefix, a suffix and a counter. The icons come from Qt's own `QLineEdit::addAction(action,
@@ -254,10 +269,22 @@ it is never clipped as long as the slider gets its minimum size. Not done: drawi
 the room, its scaling in and out with motion, inset icons, centered and range sliders.
 
 Menus have the shape of the standard menu of Material 3 Expressive: corners of 16 (`CornerLarge`), with the outline
-kept in the place of the shadow. A menu is a child of its window in Nt, so the window shows at the corners. Nt's
-`QPainter::setClipPath()` clips to the bounding rectangle, so the highlight and ripple of a row are filled with the row
-intersected with the rounded menu instead of being clipped. Not done: groups and gaps, the selected row's own shape,
-vertical padding.
+kept in the place of the shadow. A menu is a child of its window in Nt, so the window shows at the corners. The rows
+are 4 below the top of the container and 4 above its bottom (`PM_MenuVMargin`) and inset 4 from its sides
+(`PM_MenuHMargin`); `QMenu::layoutItems()` now asks for both, as Qt's `QMenu` does (not for `PM_MenuPanelWidth`, which
+would move the rows of Fusion's menus by its 1), and Fusion answers 0, and so does a FAB menu here. Inside a row the
+padding is 12, so the text stays 16 from the container's edge, and a row's width is at least 112 less the insets. A
+row has its own shape, which the highlight and the ripple fill (Nt's `QPainter::setClipPath()` clips to the bounding
+rectangle, so the shape is the filled path itself): corners of 4 (extra small), but 12 at the top of the first row
+and at the bottom of the last (the container's 16 less the inset, found with `actionAt()` just outside the row), and
+a checked row (a checkable `QAction` that is checked) is a shape of 12 all round in `TertiaryContainer`, its text,
+check mark and icon `OnTertiaryContainer`, the state layer in that color. Groups and gaps are the Nt-only property
+`materialMenu` = `"grouped"` of the `QMenu`, since Qt's menus have only `addSeparator()`: a plain separator is then
+2 + 4 + 4 high (the padding of the group above, the gap and the padding of the group below, from `CT_MenuItem`) and
+draws nothing, and `PE_PanelMenu` fills and outlines a container for each group, with the menu's 16 at the ends of
+the menu and 8 (corner small) beside a gap; the window shows in the gap. A section (a separator with a text) is not
+a gap. Setting the property sends the menu a style change, so it lays itself out anew. Not done: group labels,
+supporting text and trailing icons of rows, and the vertical menu whose submenu opens in place.
 
 The expanded navigation rail (Compose's `WideNavigationRail` expanded, the baseline item tokens) is `materialTabBar` =
 `"navigationRailExpanded"`, a value of the same property rather than a boolean beside it, so that a rail is one or the

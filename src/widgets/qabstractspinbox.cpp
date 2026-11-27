@@ -448,25 +448,19 @@ void QAbstractSpinBox::mousePressEvent(QMouseEvent *event) {
         event->ignore();
         return;
     }
-    QStyleOptionSpinBox option;
-    option.initFrom(this);
-    option.buttonSymbols = m_buttonSymbols;
-    const bool up = style()->subElementRect(QStyle::SE_SpinBoxUp, &option, this).contains(event->pos());
-    const bool down = !up && style()->subElementRect(QStyle::SE_SpinBoxDown, &option, this).contains(event->pos());
+    const Button button = buttonAt(event->pos());
+    const bool up = button == UpButton;
+    const bool down = button == DownButton;
     // Where the keys are on the screen, a button that steps leaves them be: they would cover the page, and slide it so
     // that the button is no longer under the finger.
     const QPlatformIntegration *platform = QtPrivate::GuiAccess::integration();
     if (!(up || down) || !platform || !platform->hasInputPanel())
         m_edit->setFocus();
-    const StepEnabled steps = stepEnabled();
-    if (up) {
-        m_pressed = UpButton;
-        if (steps.testFlag(StepUpEnabled))
-            stepBy(1);
-    } else if (down) {
-        m_pressed = DownButton;
-        if (steps.testFlag(StepDownEnabled))
-            stepBy(-1);
+    stopRepeat();
+    if (up || down) {
+        m_pressed = button;
+        if (stepPressed())
+            startRepeat(false);
     }
     update();
     event->accept();
@@ -474,11 +468,83 @@ void QAbstractSpinBox::mousePressEvent(QMouseEvent *event) {
 
 /*!
     \reimp
+
+    The steps of a button that is held stop when the pointer leaves it.
+*/
+void QAbstractSpinBox::mouseMoveEvent(QMouseEvent *event) {
+    if (m_pressed == NoButton) {
+        event->ignore();
+        return;
+    }
+    if (buttonAt(event->pos()) != m_pressed) {
+        stopRepeat();
+        m_pressed = NoButton;
+        update();
+    }
+    event->accept();
+}
+
+// The button that steps under `pos`, if there is one.
+QAbstractSpinBox::Button QAbstractSpinBox::buttonAt(const QPoint &pos) const {
+    QStyleOptionSpinBox option;
+    option.initFrom(this);
+    option.buttonSymbols = m_buttonSymbols;
+    if (style()->subElementRect(QStyle::SE_SpinBoxUp, &option, this).contains(pos))
+        return UpButton;
+    if (style()->subElementRect(QStyle::SE_SpinBoxDown, &option, this).contains(pos))
+        return DownButton;
+    return NoButton;
+}
+
+/*!
+    \reimp
 */
 void QAbstractSpinBox::mouseReleaseEvent(QMouseEvent *event) {
+    stopRepeat();
     m_pressed = NoButton;
     update();
     event->accept();
+}
+
+// Steps once the way of the button that is held. As in Qt, the steps repeat while it is held: the first after the
+// style's threshold, the others at its rate.
+bool QAbstractSpinBox::stepPressed() {
+    const bool up = m_pressed == UpButton;
+    if (m_pressed == NoButton || !stepEnabled().testFlag(up ? StepUpEnabled : StepDownEnabled))
+        return false;
+    stepBy(up ? 1 : -1);
+    return true;
+}
+
+void QAbstractSpinBox::startRepeat(bool atRate) {
+    stopRepeat();
+    const QStyle::StyleHint hint =
+        atRate ? QStyle::SH_SpinBox_ClickAutoRepeatRate : QStyle::SH_SpinBox_ClickAutoRepeatThreshold;
+    m_repeatTimer = startTimer(std::max(1, style()->styleHint(hint, nullptr, this)));
+    m_repeating = atRate;
+}
+
+void QAbstractSpinBox::stopRepeat() {
+    if (m_repeatTimer != 0)
+        killTimer(m_repeatTimer);
+    m_repeatTimer = 0;
+    m_repeating = false;
+}
+
+/*!
+    \reimp
+*/
+void QAbstractSpinBox::timerEvent(QTimerEvent *event) {
+    if (m_repeatTimer == 0 || event->timerId() != m_repeatTimer) {
+        QWidget::timerEvent(event);
+        return;
+    }
+    if (!isEnabled() || !isVisible() || !stepPressed()) {
+        stopRepeat();
+        return;
+    }
+    if (!m_repeating)
+        startRepeat(true); // the threshold has passed: from now on the steps come at the rate
 }
 
 /*!
@@ -530,6 +596,10 @@ void QAbstractSpinBox::keyPressEvent(QKeyEvent *event) {
     \reimp
 */
 void QAbstractSpinBox::changeEvent(QEvent *event) {
+    if (event->type() == QEvent::EnabledChange && !isEnabled()) {
+        stopRepeat();
+        m_pressed = NoButton;
+    }
     if (event->type() == QEvent::FontChange || event->type() == QEvent::StyleChange) {
         updateGeometry();
         layoutEdit();

@@ -373,13 +373,13 @@ void testComboAndMenu() {
     bold->setCheckable(true);
     bold->setChecked(true);
     CHECK(menu.sizeHint().width() >= 112);
-    CHECK(menu.sizeHint().height() == 48 + 9 + 48);
+    CHECK(menu.sizeHint().height() == 4 + 48 + 9 + 48 + 4); // 4 of padding above and below the rows
     menu.popup(QPoint(10, 10));
     QCoreApplication::processEvents();
     CHECK(menu.actionGeometry(share).height() == 48);
     const QImage shown = menu.grab().toImage();
     CHECK(near(shown.pixelColor(shown.width() - 6, 8), style->color(Role::SurfaceContainer), 3));
-    CHECK(near(shown.pixelColor(shown.width() / 2, 48 + 4), style->color(Role::OutlineVariant), 6));
+    CHECK(near(shown.pixelColor(shown.width() / 2, 4 + 48 + 4), style->color(Role::OutlineVariant), 6));
     menu.hide();
     // The corners are round (16, the standard menu of Material 3 Expressive), and the window shows at them.
     QWidget plain;
@@ -1408,6 +1408,107 @@ void testMoreRipples() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// The details of the menus of Material 3 Expressive: the padding, the rows' own shapes, a checked row and groups.
+void testMenuShapes() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(400, 400);
+    window.show();
+    QCoreApplication::processEvents();
+    const QColor windowColor = style->color(Role::Surface);
+    const QColor container = style->color(Role::SurfaceContainer);
+    const QColor tertiary = style->color(Role::TertiaryContainer);
+
+    QMenu menu(&window);
+    QAction *cut = menu.addAction(QStringLiteral("Cut"));
+    QAction *copy = menu.addAction(QStringLiteral("Copy"));
+    QAction *bold = menu.addAction(QStringLiteral("Bold"));
+    bold->setCheckable(true);
+    bold->setChecked(true);
+    QAction *line = menu.addSeparator();
+    QAction *paste = menu.addAction(QStringLiteral("Paste"));
+    menu.popup(window.mapToGlobal(QPoint(40, 40)));
+    QCoreApplication::processEvents();
+    const auto at = [&](const QPoint &point) { return window.grab().toImage().pixelColor(menu.mapTo(&window, point)); };
+
+    // 4 of padding above and below the rows, which are inset 4 from the sides.
+    CHECK(menu.height() == 4 + 3 * 48 + 9 + 48 + 4);
+    CHECK(menu.actionGeometry(cut) == QRect(4, 4, menu.width() - 8, 48));
+    CHECK(menu.actionGeometry(paste).bottom() == menu.height() - 5);
+
+    // A row under the pointer has its own shape: in the padding and the inset there is none of its layer.
+    menu.setActiveAction(cut);
+    QCoreApplication::processEvents();
+    const QRect first = menu.actionGeometry(cut);
+    const QColor hovered = at(QPoint(first.center().x(), first.top() + 8));
+    CHECK(!near(hovered, container, 2));
+    CHECK(near(at(QPoint(first.center().x(), 2)), container, 2));
+    CHECK(near(at(QPoint(2, first.top() + 24)), container, 2));
+    // The first row is round at the top as the container is (12, its 16 less the inset), a row between others has
+    // small corners.
+    CHECK(near(at(first.topLeft() + QPoint(2, 2)), container, 2));
+    menu.setActiveAction(copy);
+    QCoreApplication::processEvents();
+    const QRect middle = menu.actionGeometry(copy);
+    CHECK(near(at(middle.topLeft() + QPoint(2, 2)), hovered, 3));
+    CHECK(near(at(QPoint(middle.center().x(), middle.top() - 4)), container, 2)); // the row above is at rest
+
+    // A checked row is a shape of 12 in the tertiary container color, its check mark in the color on it.
+    menu.setActiveAction(nullptr);
+    QCoreApplication::processEvents();
+    const QRect checked = menu.actionGeometry(bold);
+    CHECK(near(at(QPoint(checked.right() - 8, checked.center().y())), tertiary, 2));
+    CHECK(near(at(checked.topLeft() + QPoint(2, 2)), container, 2));
+    CHECK(near(at(checked.bottomRight() - QPoint(2, 2)), container, 2));
+    const QImage image = window.grab().toImage();
+    bool mark = false;
+    for (int y = 12; y < 36 && !mark; ++y)
+        for (int x = 12; x < 36 && !mark; ++x)
+            mark = near(image.pixelColor(menu.mapTo(&window, checked.topLeft() + QPoint(x, y))),
+                        style->color(Role::OnTertiaryContainer), 12);
+    CHECK(mark);
+
+    // Without the property a separator is a line; with it, the line becomes a gap between two groups, which the
+    // window shows through. Setting it on a menu that is open lays the menu out anew.
+    const QRect divider = menu.actionGeometry(line);
+    CHECK(near(at(QPoint(menu.width() / 2, divider.center().y())), style->color(Role::OutlineVariant), 6));
+    menu.setProperty("materialMenu", "grouped");
+    QCoreApplication::processEvents();
+    CHECK(menu.height() == 4 + 3 * 48 + (4 + 2 + 4) + 48 + 4);
+    const QRect gap = menu.actionGeometry(line);
+    CHECK(gap.height() == 10 && gap.top() == 4 + 3 * 48);
+    CHECK(near(at(QPoint(menu.width() / 2, gap.top() + 4)), windowColor, 3));
+    CHECK(near(at(QPoint(menu.width() / 2, gap.top() + 5)), windowColor, 3));
+    CHECK(near(at(QPoint(menu.width() / 2, gap.top() + 2)), container, 3));
+    CHECK(near(at(QPoint(menu.width() / 2, gap.top() + 7)), container, 3));
+    // The corners beside the gap are 8, smaller than the menu's 16: a pixel 2 in and 4 above the gap is in the group.
+    CHECK(!near(at(QPoint(2, gap.top())), windowColor, 6));
+    CHECK(!near(at(QPoint(2, gap.bottom() - 1)), windowColor, 6));
+    CHECK(near(at(QPoint(1, gap.top() + 3)), windowColor, 6));
+    // The menu's own corners stay round.
+    CHECK(near(at(QPoint(1, 1)), windowColor, 3));
+    CHECK(near(at(QPoint(menu.width() - 2, menu.height() - 2)), windowColor, 3));
+    menu.hide();
+
+    // A section, a separator with a text, is no gap.
+    QMenu sections(&window);
+    sections.setProperty("materialMenu", "grouped");
+    sections.addAction(QStringLiteral("One"));
+    sections.addSection(QStringLiteral("More"));
+    sections.addAction(QStringLiteral("Two"));
+    sections.popup(window.mapToGlobal(QPoint(40, 40)));
+    QCoreApplication::processEvents();
+    for (int y = 0; y < sections.height(); ++y)
+        CHECK(!near(window.grab().toImage().pixelColor(sections.mapTo(&window, QPoint(sections.width() / 2, y))),
+                    windowColor, 3));
+    sections.hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 // The five sizes of the common button, and the square shape.
 void testButtonSizes() {
     auto *style = new QMaterialStyle;
@@ -1497,6 +1598,94 @@ void testButtonSizes() {
     CHECK(!near(window.grab().toImage().pixelColor(square->mapTo(&window, QPoint(11, 11)).x(),
                                                    square->mapTo(&window, QPoint(11, 11)).y()),
                 style->color(Role::Primary), 40)); // a pill while it is checked
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// A spin box takes a label as an outlined field does: it sits on the outline while there is a value, and rests inside
+// once the text has been cleared.
+void testSpinBoxLabel() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(400, 300);
+    auto *spin = new QSpinBox(&window);
+    spin->setRange(0, 99);
+    spin->setValue(7);
+    auto *plain = new QSpinBox(&window);
+    auto *date = new QDateEdit(QDate(2020, 6, 17), &window);
+    date->setProperty("materialLabel", QStringLiteral("Harvested"));
+    auto *elsewhere = new QPushButton(QStringLiteral("Elsewhere"), &window);
+    elsewhere->setGeometry(300, 250, 90, 40);
+    window.show();
+    elsewhere->setFocus();
+    QCoreApplication::processEvents();
+    CHECK(spin->sizeHint().height() == 56);
+    spin->setProperty("materialLabel", QStringLiteral("Number of nuts"));
+    QCoreApplication::processEvents();
+    // The label takes 8 over the field, as on a line edit, and the text and the buttons stay in the field.
+    CHECK(spin->sizeHint().height() == 8 + 56);
+    CHECK(date->sizeHint().height() == 8 + 56);
+    CHECK(plain->sizeHint().height() == 56);
+    spin->setGeometry(10, 10, 220, 64);
+    date->setGeometry(10, 100, 220, 64);
+    plain->setGeometry(10, 190, 220, 56);
+    QCoreApplication::processEvents();
+    auto *line = spin->findChild<QLineEdit *>();
+    CHECK(line && line->geometry() == QRect(16, 8 + 3, 220 - 16 - 96, 50));
+    if (!line)
+        return;
+    QStyleOptionSpinBox option;
+    option.initFrom(spin);
+    CHECK(style->subElementRect(QStyle::SE_SpinBoxUp, &option, spin) == QRect(220 - 48, 8, 48, 56));
+
+    const auto shot = [&](const QWidget *widget) { return window.grab().toImage().copy(widget->geometry()); };
+    const auto inked = [&](const QImage &image, const QRect &area, Role role) {
+        int count = 0;
+        for (int y = area.top(); y <= area.bottom(); ++y)
+            for (int x = area.left(); x <= area.right(); ++x)
+                count += near(image.pixelColor(x, y), style->color(role), 60) ? 1 : 0;
+        return count;
+    };
+    // With a value the label has floated: the outline makes way for it, and is whole after it and below.
+    QImage image = shot(spin);
+    CHECK(is(image.pixelColor(14, 8), Role::Surface));
+    CHECK(is(image.pixelColor(200, 8), Role::Outline));
+    CHECK(is(image.pixelColor(110, 63), Role::Outline));
+    CHECK(is(image.pixelColor(110, 4), Role::Surface)); // nothing over the field but the label
+    if (textIsDrawn())
+        CHECK(inked(image, QRect(16, 1, 60, 6), Role::OnSurfaceVariant) > 5);
+    // The date edit's label floats the same way.
+    CHECK(is(shot(date).pixelColor(14, 8), Role::Surface));
+    // With the focus the label and the outline are in the accent color.
+    line->setFocus();
+    QCoreApplication::processEvents();
+    image = shot(spin);
+    CHECK(is(image.pixelColor(14, 8), Role::Surface));
+    CHECK(is(image.pixelColor(200, 9), Role::Primary));
+    if (textIsDrawn())
+        CHECK(inked(image, QRect(16, 1, 60, 6), Role::Primary) > 5);
+    // Cleared without the focus, the label rests inside, before the buttons, and the outline is whole. (Leaving the
+    // spin box with no text puts its value back.)
+    elsewhere->setFocus();
+    line->clear();
+    QCoreApplication::processEvents();
+    CHECK(spin->text().isEmpty());
+    image = shot(spin);
+
+    CHECK(is(image.pixelColor(24, 8), Role::Outline));
+    if (textIsDrawn()) {
+        CHECK(inked(image, QRect(16, 1, 60, 6), Role::OnSurfaceVariant) == 0);
+        CHECK(inked(image, QRect(16, 26, 100, 22), Role::OnSurfaceVariant) > 20);
+        CHECK(inked(image, QRect(220 - 94, 26, 14, 22), Role::OnSurfaceVariant) < 3); // none up to the minus
+    }
+    // Without a frame there is no field, and no label.
+    spin->setFrame(false);
+    QCoreApplication::processEvents();
+    CHECK(spin->sizeHint().height() == 56);
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
@@ -2124,6 +2313,158 @@ void testChipsCardsDividers() {
     QApplication::setStyle(QStringLiteral("Fusion"));
     QCoreApplication::processEvents();
     CHECK(window.grab().toImage().pixelColor(100, 225) == window.grab().toImage().pixelColor(5, 225));
+}
+
+void testElevatedChipsAvatarsClickableCards() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(360, 420);
+    window.show();
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    // As the window shows a widget: a grab of its own has nothing behind it.
+    const auto seen = [&](const QWidget *widget) { return window.grab().toImage().copy(widget->geometry()); };
+    // The panel of a button drawn on the window's color, with the pointer over it or not.
+    const auto panel = [&](QPushButton *button, bool hovered) {
+        QImage image(button->size(), QImage::Format_ARGB32);
+        image.fill(style->color(Role::Surface));
+        QPainter painter(&image);
+        QStyleOptionButton option;
+        option.initFrom(button);
+        option.state &= ~QStyle::State(QStyle::State_MouseOver | QStyle::State_HasFocus);
+        if (hovered)
+            option.state |= QStyle::State_MouseOver;
+        style->drawPrimitive(QStyle::PE_PanelButtonCommand, &option, &painter, button);
+        painter.end();
+        return image;
+    };
+    const auto chip = [&](const char *kind, const QString &text, int y) {
+        auto *button = new QPushButton(text, &window);
+        button->setProperty("materialChip", QLatin1String(kind));
+        button->move(10, y);
+        button->resize(button->sizeHint());
+        button->show();
+        return button;
+    };
+
+    // An elevated chip has no outline: its container is raised over a shadow, and it is as wide as an outlined one.
+    QPushButton *assist = chip("assist", QStringLiteral("Directions"), 0);
+    const QSize outlined = assist->sizeHint();
+    assist->setProperty("materialChipElevated", true);
+    CHECK(assist->sizeHint() == outlined);
+    QCoreApplication::processEvents();
+    const QImage raised = seen(assist);
+    CHECK(is(raised.pixelColor(assist->width() / 2, 9), Role::SurfaceContainerLow));
+    CHECK(is(raised.pixelColor(4, 24), Role::SurfaceContainerLow));
+    CHECK(is(raised.pixelColor(0, 24), Role::SurfaceContainerLow));        // where the outline was
+    CHECK(!is(raised.pixelColor(assist->width() / 2, 40), Role::Surface)); // the shadow
+    CHECK(is(raised.pixelColor(assist->width() / 2, 43), Role::Surface));
+    // Under the pointer it is at level 2, and its shadow falls further.
+    CHECK(is(panel(assist, false).pixelColor(assist->width() / 2, 42), Role::Surface));
+    CHECK(!is(panel(assist, true).pixelColor(assist->width() / 2, 42), Role::Surface));
+    // A chosen filter chip keeps its height, and is filled.
+    QPushButton *filter = chip("filter", QStringLiteral("Unread"), 50);
+    filter->setCheckable(true);
+    filter->setProperty("materialChipElevated", true);
+    filter->click();
+    filter->resize(filter->sizeHint());
+    QCoreApplication::processEvents();
+    CHECK(is(seen(filter).pixelColor(filter->width() / 2, 9), Role::SecondaryContainer));
+    CHECK(!is(seen(filter).pixelColor(filter->width() / 2, 40), Role::Surface));
+    // An input chip has no elevated kind.
+    QPushButton *input = chip("input", QStringLiteral("Hazel"), 100);
+    input->setProperty("materialChipElevated", true);
+    QCoreApplication::processEvents();
+    CHECK(is(seen(input).pixelColor(input->width() / 2, 8), Role::OutlineVariant));
+
+    // With the property, the icon of an input chip is an avatar: a round picture of 24, 4 from the start, in its own
+    // colors. Without it an icon stays an icon of 18.
+    const int name = input->fontMetrics().horizontalAdvance(input->text());
+    QPixmap picture(24, 24);
+    picture.fill(QColor(200, 30, 30));
+    input->setIcon(QIcon(picture));
+    CHECK(input->sizeHint().width() == 34 + name + 34);
+    input->setProperty("materialChipAvatar", true);
+    CHECK(input->sizeHint().width() == 36 + name + 34);
+    input->resize(input->sizeHint());
+    QCoreApplication::processEvents();
+    const QImage avatar = seen(input);
+    CHECK(near(avatar.pixelColor(16, 24), QColor(200, 30, 30), 3));
+    CHECK(near(avatar.pixelColor(6, 24), QColor(200, 30, 30), 3));
+    CHECK(near(avatar.pixelColor(26, 24), QColor(200, 30, 30), 3));
+    CHECK(!near(avatar.pixelColor(5, 13), QColor(200, 30, 30), 60)); // round, not square
+    CHECK(!near(avatar.pixelColor(27, 35), QColor(200, 30, 30), 60));
+    // On another chip the property does nothing.
+    assist->setIcon(QIcon(picture));
+    const int plainWidth = assist->sizeHint().width();
+    assist->setProperty("materialChipAvatar", true);
+    CHECK(assist->sizeHint().width() == plainWidth);
+
+    // A push button with materialCard is a card that can be clicked.
+    const auto card = [&](const char *kind, int y) {
+        auto *button = new QPushButton(&window);
+        button->setProperty("materialCard", QLatin1String(kind));
+        button->setGeometry(10, y, 200, 60);
+        button->show();
+        return button;
+    };
+    QPushButton *filled = card("filled", 160);
+    QPushButton *elevated = card("elevated", 230);
+    QPushButton *bordered = card("outlined", 300);
+    QCoreApplication::processEvents();
+    const QImage cards = window.grab().toImage();
+    CHECK(is(cards.pixelColor(110, 190), Role::SurfaceContainerHighest));
+    CHECK(is(cards.pixelColor(110, 160), Role::SurfaceContainerHighest));
+    CHECK(is(cards.pixelColor(10, 160), Role::Surface)); // round corners
+    CHECK(is(cards.pixelColor(110, 260), Role::SurfaceContainerLow));
+    CHECK(!is(cards.pixelColor(110, 288), Role::SurfaceContainerLow)); // its shadow
+    CHECK(!is(cards.pixelColor(110, 288), Role::Surface));
+    CHECK(is(cards.pixelColor(110, 330), Role::Surface));
+    CHECK(is(cards.pixelColor(110, 300), Role::OutlineVariant));
+    CHECK(is(cards.pixelColor(10, 330), Role::OutlineVariant));
+    // A layer of the content's color shows the pointer, and the press.
+    const auto layered = [&](Role base, double opacity) {
+        const QColor under = style->color(base);
+        const QColor ink = style->color(Role::OnSurface);
+        const auto mix = [&](int a, int b) { return static_cast<int>(std::lround(a + (b - a) * opacity)); };
+        return QColor(mix(under.red(), ink.red()), mix(under.green(), ink.green()), mix(under.blue(), ink.blue()));
+    };
+    CHECK(near(panel(filled, false).pixelColor(100, 30), style->color(Role::SurfaceContainerHighest), 2));
+    CHECK(near(panel(filled, true).pixelColor(100, 30), layered(Role::SurfaceContainerHighest, 0.08), 3));
+    CHECK(is(panel(elevated, false).pixelColor(100, 59), Role::Surface));
+    CHECK(!is(panel(elevated, true).pixelColor(100, 59), Role::Surface)); // level 2
+    filled->setDown(true);
+    CHECK(near(seen(filled).pixelColor(100, 30), layered(Role::SurfaceContainerHighest, 0.10), 3));
+    filled->setDown(false);
+    int clicks = 0;
+    QObject::connect(bordered, &QPushButton::clicked, [&] { ++clicks; });
+    bordered->click();
+    CHECK(clicks == 1);
+    // With motion, a press ripples over the card from where it was.
+    style->setMotionEnabled(true);
+    const auto send = [&](QEvent::Type type, const QPointF &at) {
+        QMouseEvent event(type, at, at, Qt::LeftButton,
+                          type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+        QApplication::sendEvent(filled, &event);
+    };
+    send(QEvent::MouseButtonPress, QPointF(20, 30));
+    wait(600);
+    CHECK(near(seen(filled).pixelColor(180, 30), layered(Role::SurfaceContainerHighest, 0.10), 4));
+    send(QEvent::MouseButtonRelease, QPointF(20, 30));
+    style->setMotionEnabled(false);
+    // Its contents are those of its layout, whose size it asks for.
+    auto *contents = new QVBoxLayout(elevated);
+    auto *title = new QLabel(QStringLiteral("Title"));
+    title->setFixedSize(240, 90);
+    contents->addWidget(title);
+    CHECK(elevated->sizeHint().width() >= 240 && elevated->sizeHint().height() >= 90);
+    // Other buttons, and a card under another style, are left as they were.
+    QPushButton other(QStringLiteral("Other"), &window);
+    CHECK(other.sizeHint().height() == 40);
+    QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
 void testCalendar() {
@@ -3115,8 +3456,23 @@ void testSheetAndSnackbarMotion() {
     status->showMessage(QStringLiteral("Archived"));
     auto *fade = qobject_cast<QGraphicsOpacityEffect *>(status->graphicsEffect());
     CHECK(fade && fade->opacity() < 0.5);
+    CHECK(status->property("_nt_effectScale").toDouble() < 0.85); // and smaller
+    {
+        // Drawn smaller about its middle: the corner of the bar is not covered yet, the middle is.
+        // grab() leaves graphics effects out, so this reads what the window shows, a little way in: the middle
+        // shows through, the corner not yet, since the bar is drawn smaller.
+        wait(50);
+        main.repaint();
+        const QImage early = QOffscreenBackingStore::imageOf(main.windowHandle());
+        const QPoint corner = status->mapTo(&main, QPoint(2, status->height() / 2));
+        const QPoint middle = status->mapTo(&main, QPoint(status->width() / 2, status->height() / 2));
+        const QColor behind = early.pixelColor(status->mapTo(&main, QPoint(status->width() / 2, -20)));
+        CHECK(near(early.pixelColor(corner), behind, 6));
+        CHECK(!near(early.pixelColor(middle), behind, 30));
+    }
     wait(500);
     CHECK(!status->graphicsEffect()); // gone once it is in
+    CHECK(!status->property("_nt_effectScale").isValid());
     const QRect shown = status->geometry();
     status->clearMessage();
     QCoreApplication::processEvents();
@@ -4645,6 +5001,7 @@ int main(int argc, char *argv[]) {
     testWidgets();
     testSliderProgressTabs();
     testComboAndMenu();
+    testMenuShapes();
     testSpring();
     testMotion();
     testRippleColorsAndTabs();
@@ -4663,6 +5020,7 @@ int main(int argc, char *argv[]) {
     testAppBarAndNavigation();
     testSnackbarTooltipCircular();
     testChipsCardsDividers();
+    testElevatedChipsAvatarsClickableCards();
     testCalendar();
     testDatePicker();
     testDialogOrderAndFab();
@@ -4671,6 +5029,7 @@ int main(int argc, char *argv[]) {
     testSearchAndSecondaryTabs();
     testTimeInput();
     testSpinBoxAndScrollBar();
+    testSpinBoxLabel();
     testDialogHeadline();
     testGroupBoxAndTextEditors();
     testSheetAndSnackbarMotion();

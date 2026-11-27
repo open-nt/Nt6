@@ -123,7 +123,8 @@ private:
         IconFilled,
         IconTonal,
         IconOutlined,
-        Chip
+        Chip,
+        Card // a button that is a card, which can be clicked
     };
     static ButtonKind buttonKind(const QStyleOption *option, const QWidget *widget);
     void drawButtonContainer(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;

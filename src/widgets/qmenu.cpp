@@ -365,12 +365,15 @@ void QMenu::layoutItems() const {
         sizes.push_back(size);
     }
     const int width = widest + tab;
-    int y = 0;
+    // The style keeps the entries in from the edges of the menu, as Qt's QMenu asks it to.
+    const int hmargin = style()->pixelMetric(QStyle::PM_MenuHMargin, nullptr, this);
+    const int vmargin = style()->pixelMetric(QStyle::PM_MenuVMargin, nullptr, this);
+    int y = vmargin;
     for (std::size_t i = 0; i < visible.size(); ++i) {
-        m_items.push_back({visible[i], QRect(0, y, width, sizes[i].height())});
+        m_items.push_back({visible[i], QRect(hmargin, y, width, sizes[i].height())});
         y += sizes[i].height();
     }
-    m_size = m_items.empty() ? QSize() : QSize(width, y);
+    m_size = m_items.empty() ? QSize() : QSize(width + 2 * hmargin, y + vmargin);
     m_dirty = false;
 }
 

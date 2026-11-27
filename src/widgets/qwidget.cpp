@@ -106,6 +106,12 @@ void WidgetAccess::paintRecursive(QWidget *w, const QPoint &origin, const QRect 
         {
             QPainter painter(w);
             painter.setOpacity(effect->opacity());
+            // The Material style grows a snackbar that arrives from a smaller size, about its middle (private).
+            if (const double scale = w->property("_nt_effectScale").toDouble(); scale > 0 && scale != 1.0) {
+                painter.translate(QPointF(w->width(), w->height()) / 2);
+                painter.scale(scale, scale);
+                painter.translate(-QPointF(w->width(), w->height()) / 2);
+            }
             painter.drawImage(QPointF(0, 0), image);
         }
         d.painting = false;

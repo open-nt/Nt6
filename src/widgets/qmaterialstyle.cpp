@@ -1094,10 +1094,10 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
         bottom of the bar, is at least half as high as the room of the window below the bar and is scrolled down from
         the top, as a list or a QScrollArea that fills the central widget is. \c "appBarMedium" and \c "appBarLarge"
         make it the medium or the large flexible app bar, 112 or 120 high when expanded, with its buttons in the top
-        row of 64 and the title on a line of its own below them, 16 from the left, in 28 or 36 pixels. As that scroll
-        area is scrolled down the bar collapses by as much, until it is as high as the small one, and the content moves
-        up with it; past half of the way the big title fades out and the small one comes into the row. At the top it is
-        expanded again. With motion it follows the scrolling along a spring.
+        row of 64 and the title on a line of its own below them, 16 from the left, in 28 or 36 pixels. Once that scroll
+        area is scrolled down the bar collapses to the height of the small one, and the content moves up with it; on
+        the way the big title fades out and the small one comes into the row. At the top it is expanded again. With
+        motion it collapses and expands on a spring.
     \li \c materialTabBar \c "navigationBar" makes a horizontal QTabBar a bottom navigation bar, 64 high: its tabs
         share the width, each an icon over its label, with a pill behind the one that is current. With a QTabWidget
         whose tabs are at the south it is the navigation of an application and its pages:
@@ -2377,12 +2377,13 @@ bool QMaterialStyle::isAppBar(const QWidget *widget) { return isAppBarKind(toolB
 bool QMaterialStyle::isFlexibleAppBar(const QWidget *widget) { return expandedAppBarHeight(widget) > appBarHeight; }
 
 int QMaterialStyle::appBarExtent(const QToolBar *bar) const {
-    // A medium or large one collapses toward the small one as far as the content under it is scrolled.
+    // A medium or large one collapses to the small one once the content under it is scrolled, and expands at the top.
+    // It does not follow the scrolling: the content would move up twice as fast as the finger, scrolled and lifted.
     const int expanded = expandedAppBarHeight(bar);
     const int range = expanded - appBarHeight;
     if (range <= 0)
         return appBarHeight;
-    double collapse = std::min(scrolledUnderBy(bar), range);
+    double collapse = scrolledUnder(bar) ? range : 0;
     if (m_motion)
         collapse =
             std::clamp(m_animator->value(bar, AppBarCollapseChannel, collapse, QtPrivate::defaultEffectsSpring, 0.25),

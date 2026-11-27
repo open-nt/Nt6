@@ -3960,11 +3960,12 @@ void testFlexibleAppBars() {
             CHECK(lineInk() > 40);
         }
 
-        // Scrolled a little, it is that much lower and still shows the big title.
+        // Scrolled a little, it collapses all the way: it does not follow the scrolling.
         list->verticalScrollBar()->setValue(10);
         QCoreApplication::processEvents();
-        CHECK(bar->height() == expanded - 10);
-        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == expanded - 10);
+        CHECK(bar->height() == 64);
+        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == 64);
+        CHECK(list->verticalScrollBar()->value() == 10);
         CHECK(backButton->geometry() == QRect(4, 8, 48, 48));
         // Scrolled further than the difference, it is the small bar, with the small title in the row.
         list->verticalScrollBar()->setValue(200);

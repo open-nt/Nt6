@@ -279,17 +279,16 @@ The medium and large flexible top app bars are `materialToolBar` = `"appBarMediu
 every other way (`QMaterialStyle::isAppBar()`). Expanded they are 112 and 120 high (the Compose medium and large
 flexible app bars without a subtitle): the buttons stay in the top row of 64 (`Qt::AlignTop` in the toolbar's layout)
 and the window title is on a line of its own below them, 16 from the left and 12 above the bottom, in headline medium
-(28 on 36) or display small (36 on 44). Their height follows the scroll area that the color rule picks: height =
-max(64, expanded - offset), which `QToolBar::sizeHint()` asks the style for, and `updateAppBars()` calls
-`updateGeometry()` so the main window lays it out again. The big title goes up with the bottom edge, clipped to below
-the row, and fades as 1 - collapsed; the small title fades in over the second half (2 * collapsed - 1). With motion the
-collapse is the target of a critically damped spring (`AppBarCollapseChannel`, default effects), and each frame that
-paints a height other than the bar's own calls `updateGeometry()`. Coupling the height to the offset is stable: the
-scroll area grows as the bar shrinks, but its value stays, and only near the end of a list that is barely longer than
-the room can the range shrink under the value, which then is clamped down and the bar expands a little; that settles
-in a step or two, it does not swing. The cost is that the content moves up twice as fast while the bar collapses,
-since it scrolls and its area moves up with the bar; Compose's nested scrolling, which gives the scroll to the bar
-first, has no counterpart here. Not done: subtitles (136 and 152 high), centred titles, titles on two lines, enterAlways
+(28 on 36) or display small (36 on 44). They collapse to the small bar's 64 once the scroll area that the color
+rule picks is scrolled down, and expand when it is back at the top; `QToolBar::sizeHint()` asks the style for the
+height, and `updateAppBars()` calls `updateGeometry()` so the main window lays it out again. The big title goes up with
+the bottom edge, clipped to below the row, and fades as 1 - collapsed; the small title fades in over the second half
+(2 * collapsed - 1). With motion the collapse is the target of a critically damped spring (`AppBarCollapseChannel`,
+default effects), and each frame that paints a height other than the bar's own calls `updateGeometry()`. The bar first
+followed the offset (height = max(64, expanded - offset)), but then the content moved up twice as fast as the finger,
+scrolled and lifted with the bar; Compose avoids that with nested scrolling, which gives the scroll to the bar first and
+has no counterpart here, so the bar now snaps. A list barely longer than the room cannot collapse it: the room the
+collapse gives clamps the scroll back to the top, which expands the bar again, and it settles there. Not done: subtitles (136 and 152 high), centred titles, titles on two lines, enterAlways
 and pinned behaviour.
 
 **Two- and three-line list items.** QListView and QListWidget rows take Material's one-, two- and three-line list

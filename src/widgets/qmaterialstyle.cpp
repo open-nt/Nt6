@@ -2421,16 +2421,23 @@ bool QMaterialStyle::placeSheet(QDialog *dialog) const {
 // A sheet comes in from its edge of the window, along a spring that does not overshoot, so the edge never shows a gap.
 void QMaterialStyle::slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft) const {
     const int distance = fromLeft ? place.width() : place.height();
-    const auto at = [place, fromLeft, distance](double progress) {
+    // The android platform places a sheet itself; it learns how far from its place the sheet is from the window.
+    const auto moveTo = [place, fromLeft, distance](QDialog *sheet, double progress) {
         const int away = static_cast<int>(std::lround((1.0 - std::clamp(progress, 0.0, 1.0)) * distance));
-        return place.topLeft() + (fromLeft ? QPoint(-away, 0) : QPoint(0, away));
+        if (QWindow *window = sheet->windowHandle())
+            window->setProperty("_nt_sheetOffset", away);
+        sheet->move(place.topLeft() + (fromLeft ? QPoint(-away, 0) : QPoint(0, away)));
     };
-    dialog->move(at(0));
+    moveTo(dialog, 0);
     QPointer<QDialog> guard(dialog);
-    new QtPrivate::Transition(dialog, QStringLiteral("_nt_sheetSlide"), sheetSpring, [guard, at](double progress) {
-        if (!guard || !guard->isVisible())
+    new QtPrivate::Transition(dialog, QStringLiteral("_nt_sheetSlide"), sheetSpring, [guard, moveTo](double progress) {
+        if (!guard)
             return false;
-        guard->move(at(progress));
+        if (!guard->isVisible()) {
+            moveTo(guard, 1.0); // where it rests, if it is shown again before it is placed
+            return false;
+        }
+        moveTo(guard, progress);
         return true;
     });
 }

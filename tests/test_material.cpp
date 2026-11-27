@@ -3061,6 +3061,8 @@ void testSheetAndSnackbarMotion() {
     const int high = sheet.height();
     const QRect rest(100, 50 + 700 - high, 400, high);
     CHECK(sheet.geometry() == rest.translated(0, high)); // below its place, at first
+    // A platform that places sheets itself (Android) is told how far from its place it is.
+    CHECK(sheet.windowHandle()->property("_nt_sheetOffset").toInt() == high);
     wait(60);
     CHECK(sheet.y() > rest.y() && sheet.y() < rest.y() + high); // on its way
     int lowest = sheet.y();
@@ -3069,6 +3071,7 @@ void testSheetAndSnackbarMotion() {
         lowest = std::min(lowest, sheet.y());
     }
     CHECK(sheet.geometry() == rest && lowest >= rest.y()); // and it never goes past it
+    CHECK(sheet.windowHandle()->property("_nt_sheetOffset").toInt() == 0);
     sheet.hide();
     QCoreApplication::processEvents();
 

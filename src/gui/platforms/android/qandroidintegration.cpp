@@ -109,17 +109,17 @@ QRect QAndroidWindow::dialogGeometry(const QRect &wanted) const {
     const QRect screen = m_screen->availableGeometry();
     // A sheet lies against an edge (QMaterialStyle says which).
     const QString sheet = window()->property("_nt_sheet").toString();
-    // While it slides in, it is lower, or further left, than where it rests.
+    // While it slides in, it is lower, or further left, than where it rests, by as much as the style says.
+    const int away = std::max(0, window()->property("_nt_sheetOffset").toInt());
     if (sheet == QLatin1String("bottom")) {
         const int width = std::max(1, std::min(640, screen.width()));
         const int height = std::clamp(wanted.height(), 1, std::max(1, screen.height() - 72));
-        const int rest = screen.y() + screen.height() - height;
-        return QRect(screen.x() + (screen.width() - width) / 2, std::clamp(wanted.y(), rest, rest + height), width,
-                     height);
+        return QRect(screen.x() + (screen.width() - width) / 2,
+                     screen.y() + screen.height() - height + std::min(away, height), width, height);
     }
     if (sheet == QLatin1String("drawer")) {
         const int width = std::max(1, std::min(360, screen.width() - 56));
-        return QRect(std::clamp(wanted.x(), screen.x() - width, screen.x()), screen.y(), width, screen.height());
+        return QRect(screen.x() - std::min(away, width), screen.y(), width, screen.height());
     }
     const int margin = 24;
     const int widest = std::max(1, std::min(560, screen.width() - 2 * margin));

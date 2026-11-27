@@ -211,6 +211,9 @@ class QWheelEvent : public QInputEvent {
 public:
     QWheelEvent(const QPointF &pos, const QPointF &globalPos, const QPoint &pixelDelta, const QPoint &angleDelta,
                 Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers);
+    QWheelEvent(const QPointF &pos, const QPointF &globalPos, const QPoint &pixelDelta, const QPoint &angleDelta,
+                Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers, Qt::ScrollPhase phase, bool inverted,
+                Qt::MouseEventSource source = Qt::MouseEventNotSynthesized);
     ~QWheelEvent() override;
     /*!
         \reimp
@@ -222,6 +225,31 @@ public:
     Qt::MouseButtons buttons() const { return m_buttons; }
     QPointF position() const { return m_local; }
     QPointF globalPosition() const { return m_global; }
+    /*!
+        Returns the scrolling phase of the event: \c Qt::NoScrollPhase for a wheel that has no phases.
+    */
+    Qt::ScrollPhase phase() const { return m_phase; }
+    /*!
+        Returns \c true if the deltas are inverted from the direction of the device ("natural" scrolling).
+    */
+    bool inverted() const { return m_inverted; }
+    /*!
+        Returns \c true if the event begins a scrolling sequence (phase \c Qt::ScrollBegin).
+    */
+    bool isBeginEvent() const { return m_phase == Qt::ScrollBegin; }
+    /*!
+        Returns \c true if the event continues a scrolling sequence (phase \c Qt::ScrollUpdate or
+        \c Qt::ScrollMomentum).
+    */
+    bool isUpdateEvent() const { return m_phase == Qt::ScrollUpdate || m_phase == Qt::ScrollMomentum; }
+    /*!
+        Returns \c true if the event ends a scrolling sequence (phase \c Qt::ScrollEnd).
+    */
+    bool isEndEvent() const { return m_phase == Qt::ScrollEnd; }
+    /*!
+        Returns where the event comes from: a wheel, or synthesized by the system or by Qt.
+    */
+    Qt::MouseEventSource source() const { return m_source; }
 
 private:
     QPointF m_local;
@@ -229,6 +257,9 @@ private:
     QPoint m_pixelDelta;
     QPoint m_angleDelta;
     Qt::MouseButtons m_buttons;
+    Qt::ScrollPhase m_phase = Qt::NoScrollPhase;
+    bool m_inverted = false;
+    Qt::MouseEventSource m_source = Qt::MouseEventNotSynthesized;
 };
 
 class QKeyEvent : public QInputEvent {

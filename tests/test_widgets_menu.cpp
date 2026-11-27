@@ -711,6 +711,17 @@ void testMenuExec() {
     });
     menu.exec(host.top.mapToGlobal(QPoint(100, 100)), e.wrap);
     CHECK(menu.y() == 100 - menu.actionGeometry(e.wrap).top());
+
+    // A request to close the window while a menu is open, as Android's Back key makes, closes the menu; the next
+    // one closes the window.
+    menu.popup(host.top.mapToGlobal(QPoint(50, 40)));
+    CHECK(menu.isVisible());
+    QWindowSystemInterface::handleCloseEvent(host.top.windowHandle());
+    QCoreApplication::processEvents();
+    CHECK(menu.isHidden() && host.top.isVisible());
+    QWindowSystemInterface::handleCloseEvent(host.top.windowHandle());
+    QCoreApplication::processEvents();
+    CHECK(!host.top.isVisible());
 }
 
 void testMenuBar() {

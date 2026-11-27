@@ -166,6 +166,15 @@ void QWidgetWindow::closeEvent(QCloseEvent *event) {
         event->ignore();
         return;
     }
+    // A popup that is open, as a menu, is closed instead, and the window stays: Android's Back key asks the window
+    // on top to close, and a popup is part of its window in Nt.
+    if (m_popup && m_popup->isVisible()) {
+        QWidget *popup = m_popup;
+        m_popup = nullptr;
+        popup->hide();
+        event->ignore();
+        return;
+    }
     QCloseEvent close;
     QCoreApplication::sendEvent(m_widget, &close);
     event->setAccepted(close.isAccepted());

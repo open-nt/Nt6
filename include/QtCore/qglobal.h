@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QtCore/qconfig.h>
+#include <QtCore/qsystemdetection.h>
 
 // QT_CONFIG(feature) is true when the optional feature was built in; qconfig.h defines each QT_FEATURE_<feature> as 1
 // or -1, so an unknown feature fails to compile instead of reading as absent.

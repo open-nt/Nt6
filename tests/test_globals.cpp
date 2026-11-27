@@ -400,6 +400,26 @@ void capture(QtMsgType type, const QMessageLogContext &, const QString &message)
 
 } // namespace
 
+// The Q_OS_ macros follow the compiler's target, as in Qt (qsystemdetection.h).
+static void testSystemDetection() {
+#if defined(__ANDROID__)
+#if !defined(Q_OS_ANDROID) || !defined(Q_OS_LINUX)
+    CHECK(false); // Android is also Linux
+#endif
+#elif defined(__linux__)
+#if !defined(Q_OS_LINUX) || defined(Q_OS_ANDROID)
+    CHECK(false);
+#endif
+#endif
+#if defined(__unix__) && !defined(__ZEPHYR__) && !defined(Q_OS_UNIX)
+    CHECK(false);
+#endif
+#if defined(_WIN32) && (!defined(Q_OS_WIN) || defined(Q_OS_UNIX))
+    CHECK(false);
+#endif
+    CHECK(true);
+}
+
 static void testMacros() {
     CHECK(std::string(QT_STRINGIFY(QT_VERSION_MAJOR)) == std::to_string(QT_VERSION_MAJOR));
     CHECK(std::string(QT_STRINGIFY2(QT_VERSION_MAJOR)) == "QT_VERSION_MAJOR");
@@ -694,6 +714,7 @@ static void testLatin1StringMatcher() {
 
 int main(int argc, char **argv) {
     testEnvironment();
+    testSystemDetection();
     testNumeric();
     testBits();
     testMath();

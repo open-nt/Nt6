@@ -103,7 +103,9 @@
 
     QJniObject, QJniEnvironment and QNativeInterface::QAndroidApplication of Nt Core call the Java APIs of Android,
     as in Qt. Code that uses views, toasts or dialogs has to run on the UI thread, with
-    QNativeInterface::QAndroidApplication::runOnAndroidMainThread(); \c main() runs on a thread of its own.
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread(); \c main() runs on a thread of its own. As in
+    Qt, \c Q_OS_ANDROID is defined for Android code (with \c Q_OS_LINUX and \c Q_OS_UNIX, see
+    \c{<QtCore/qsystemdetection.h>}), so the Android parts of a Qt application are compiled in.
 
     \section1 The android platform
 

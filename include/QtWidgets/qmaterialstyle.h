@@ -250,6 +250,11 @@ private:
                            bool checked, bool usable, bool cursor, bool hovered, bool pressed) const;
     // The date of the headline in the names and the order of the locale.
     static QString datePickerHeadlineText(QDate date, const QLocale &locale);
+    // The calendar that a QDateTimeEdit opens is a popup, Material's menu-like container (SurfaceContainerHigh, corners
+    // of 16, an outline in the place of the shadow of level 3) under the field: QCalendarWidget asks whether it is
+    // one, paints that container under the rest, and leaves its corners to the window.
+    static bool isDatePickerPopup(const QWidget *calendar);
+    void drawDatePickerPopup(QPainter *painter, const QRect &rect, const QCalendarWidget *calendar) const;
     // A dialog that is a sheet against an edge of its parent's window: QDialog asks for it to be put there when it
     // is shown. False for another dialog.
     friend class QDialog;

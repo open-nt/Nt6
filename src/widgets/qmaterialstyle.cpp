@@ -120,6 +120,7 @@ constexpr int datePickerHeadlinePixels = 32; // headline large
 constexpr int datePickerModeButtonSize = 48; // the icon button at the end of the row of the date, an icon of 24
 constexpr int datePickerFieldTop = 16;       // the text field of the input mode, under the headline
 constexpr int datePickerFieldBottom = 8;     // and above the actions of the dialog, which have room of their own
+constexpr double datePickerPopupCorner = 16; // the docked picker as a pop-up, a menu's container (corner large)
 constexpr int calendarYearWidth = 72;        // the pill of a year in the grid of years
 constexpr int calendarYearHeight = 36;
 constexpr int calendarMenuArrow = 18; // the arrow after the month and the year, which opens the years
@@ -2282,7 +2283,10 @@ void QMaterialStyle::layOutEditorField(QAbstractScrollArea *editor) {
     \li \c materialDatePicker \c "docked" of a QCalendarWidget makes its navigation bar that of Material's docked
         date picker: the month between its arrows at the start and the year between its arrows at the end. A click
         on the month shows a menu of the months of the year in the place of the days, the month shown checked; a
-        click on the year shows the years.
+        click on the year shows a menu of the years in the same way. The calendar that a QDateEdit or QDateTimeEdit
+        with \l{QDateTimeEdit::calendarPopup()}{calendarPopup()} makes is docked, unless the application sets
+        another value, and pops up below the field (above it where there is no room) on a menu's container, 8 in from
+        the edges of the window.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
         widget puts them 2 apart unless it is told a spacing; the ends of the row are round, the corners between the
@@ -5173,7 +5177,7 @@ void QMaterialStyle::drawDatePickerHeadline(QPainter *painter, const QRect &rect
     supporting.setWeight(QFont::Medium);
     painter->setFont(supporting);
     const QRect top(text.left(), text.top() + 16, text.width(), 20);
-    const QString title = input ? QStringLiteral("Enter date") : QStringLiteral("Select date");
+    const QString title = input ? tr("Enter date") : tr("Select date");
     painter->drawText(top, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                       QFontMetrics(supporting).elidedText(title, Qt::ElideRight, top.width()));
     // and the chosen date, headline large, 12 from the bottom on a line of 40, up to the icon button.
@@ -5325,6 +5329,23 @@ QString QMaterialStyle::datePickerHeadlineText(QDate date, const QLocale &locale
     const qsizetype month = order.indexOf(QLatin1Char('M'));
     const bool dayFirst = day >= 0 && month >= 0 && day < month;
     return locale.toString(date, dayFirst ? QStringLiteral("ddd d MMM") : QStringLiteral("ddd, MMM d"));
+}
+
+bool QMaterialStyle::isDatePickerPopup(const QWidget *calendar) {
+    return calendar && qobject_cast<const QMaterialStyle *>(calendar->style()) &&
+           qobject_cast<const QDateTimeEdit *>(QtPrivate::WidgetAccess::data(calendar).popupAnchor.data());
+}
+
+void QMaterialStyle::drawDatePickerPopup(QPainter *painter, const QRect &rect, const QCalendarWidget *calendar) const {
+    // The container of a menu (corner large), in the calendar's color, with the outline that menus have in the place
+    // of their shadow.
+    const QColor fill =
+        calendar->palette().color(calendar->isEnabled() ? QPalette::Active : QPalette::Disabled, QPalette::Base);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    fillRounded(painter, QRectF(rect), datePickerPopupCorner, fill);
+    strokeRounded(painter, QRectF(rect), datePickerPopupCorner, color(Role::OutlineVariant), 1);
+    painter->restore();
 }
 
 double QMaterialStyle::datePickerYearsShown(const QCalendarWidget *calendar, bool choosing) const {

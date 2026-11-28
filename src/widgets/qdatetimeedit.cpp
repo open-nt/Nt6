@@ -37,10 +37,14 @@ QString padded(int value, int width) {
     return text;
 }
 
-// The calendar of a date edit as a popup: it closes when the mouse is pressed outside it.
+// The calendar of a date edit as a popup: it closes when the mouse is pressed outside it. Under QMaterialStyle it is
+// Material's docked date picker; the application may set materialDatePicker to something else.
 class CalendarPopup : public QCalendarWidget {
 public:
-    explicit CalendarPopup(QWidget *parent) : QCalendarWidget(parent) { hide(); }
+    explicit CalendarPopup(QWidget *parent) : QCalendarWidget(parent) {
+        hide();
+        setProperty("materialDatePicker", QStringLiteral("docked"));
+    }
 
 protected:
     void hideEvent(QHideEvent *event) override {
@@ -596,7 +600,9 @@ void QDateTimeEdit::setCalendar(QCalendar calendar) {
 */
 
 /*!
-    Returns the calendar of the popup, creating it if there is none yet.
+    Returns the calendar of the popup, creating it if there is none yet. Under QMaterialStyle the calendar that it
+    creates is Material's docked date picker (the Nt-only property \c materialDatePicker is \c "docked"); a calendar
+    given to setCalendarWidget() keeps its own.
 
     \sa setCalendarWidget()
 */
@@ -636,17 +642,26 @@ void QDateTimeEdit::showPopup() {
     if (calendar->parentWidget() != top)
         calendar->setParent(top);
     calendar->setSelectedDate(m_value.date());
+    // The calendar knows what opened it before it shows, so the style can draw it as a popup.
+    QtPrivate::WidgetAccess::data(calendar).popupAnchor = this;
     const QSize size = calendar->sizeHint();
+    // Below the field, or above it where there is no room below, inside the part of the window that the style keeps
+    // menus in (8 from its edges under QMaterialStyle) along a side where the calendar fits in it.
+    const QMargins margins = QMaterialStyle::menuWindowMargins(calendar);
+    QRect area = top->rect();
+    if (size.width() <= area.width() - margins.left() - margins.right())
+        area.adjust(margins.left(), 0, -margins.right(), 0);
+    if (size.height() <= area.height() - margins.top() - margins.bottom())
+        area.adjust(0, margins.top(), 0, -margins.bottom());
     QPoint at = mapTo(top, QPoint(0, height()));
-    if (at.y() + size.height() > top->height())
-        at.setY(std::max(0, mapTo(top, QPoint(0, 0)).y() - size.height()));
-    at.setX(std::clamp(at.x(), 0, std::max(0, top->width() - size.width())));
+    if (at.y() + size.height() > area.bottom() + 1)
+        at.setY(std::max(area.top(), mapTo(top, QPoint(0, 0)).y() - size.height()));
+    at.setX(std::clamp(at.x(), area.left(), std::max(area.left(), area.right() + 1 - size.width())));
     calendar->setGeometry(QRect(at, size));
     calendar->raise();
     calendar->show();
     calendar->setFocus();
     QtPrivate::WidgetAccess::setPopup(calendar, calendar);
-    QtPrivate::WidgetAccess::data(calendar).popupAnchor = this;
 }
 
 /*!

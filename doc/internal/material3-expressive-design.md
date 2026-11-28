@@ -388,12 +388,24 @@ the years: rows of 48, 8 under the bar, drawn by `drawCalendarMonth()` as menu r
 month shown, `OnSurfaceVariant`; the name in body large `OnSurface` at 48; a state layer across the row; the focus
 ring inset by 2), months without a day in the range at 0.38 and not chosen. The month shown opens in the second row;
 the same keys, wheel, press and release, Escape and cross-fade as the years (the two share the scroll, the cursor and
-`YearsChannel`; one replaces the other at once). Choosing a month shows it in the year shown and leaves the
+`YearsChannel`; one replaces the other at once). The docked picker's years are such a menu too, one to a row of 48
+with a check mark for the year shown (as the M3 docked picker; the grid of three stays for other calendars), the
+year shown in the second row; a calendar docked or undocked while the years are open scrolls them anew. Choosing a month shows it in the year shown and leaves the
 selection alone. While one menu is open the arrows go and the other label is disabled. The names come from the
 calendar's `locale()`: the month in the bar (`standaloneMonthName()`, short when docked), the days above the days
 (`dayName()`, `standaloneDayName()` narrow for single letters), the date of the headline
 (`datePickerHeadlineText()`: `ddd, MMM d`, or `ddd d MMM` where the locale's short date has the day before the month)
-and the input mode's pattern; a `LocaleChange` updates them. "Select date" and "Enter date" stay English.
+and the input mode's pattern; a `LocaleChange` updates them, and a day-first locale reads the field day first
+("25.12.2026" in German selects the 25th of December). "Select date", "Enter date", the field's "Date", its errors
+and the accessible names of the mode button and the year arrows go through `QMaterialStyle::tr()`.
+The calendar that a `QDateTimeEdit` with `calendarPopup()` makes (`CalendarPopup`) gets `materialDatePicker`
+`"docked"`; one given with `setCalendarWidget()`, or a property the application sets, is left alone. `showPopup()`
+sets the calendar's `popupAnchor` before it shows, and `QMaterialStyle::isDatePickerPopup()` (a calendar under the
+style whose anchor is a date edit) makes it a menu's container: `drawDatePickerPopup()` fills corners of 16 in
+`SurfaceContainerHigh` with the `OutlineVariant` outline that menus have in the place of their shadow (level 3), the
+grid is not filled square and the navigation bar does not fill its background, so the window shows at the corners.
+It goes below the field, above it where there is no room, inside the window less `menuWindowMargins()` (8) along a
+side where it fits, as `QMenu::windowArea()` does.
 Not done: the range picker (Qt Widgets' calendar has no range), the confirm and cancel buttons (left to the dialog).
 
 Sliders have the five Expressive sizes, `materialSliderSize` = `"extraSmall"` (the default, the look they had) to

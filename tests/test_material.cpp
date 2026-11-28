@@ -5972,6 +5972,197 @@ void testDatePickerModeButton() {
     QCoreApplication::processEvents();
     CHECK(!mode->isVisible());
 }
+
+// Gives the date picker's strings in French, to see that they go through the translators.
+class DatePickerTranslator : public QTranslator {
+public:
+    QString translate(const char *context, const char *sourceText, const char *, int) const override {
+        if (qstrcmp(context, "QMaterialStyle") != 0)
+            return QString();
+        if (qstrcmp(sourceText, "Date") == 0)
+            return QStringLiteral("Jour");
+        if (qstrcmp(sourceText, "Next year") == 0)
+            return QStringLiteral("Année suivante");
+        if (qstrcmp(sourceText, "Switch to text input mode") == 0)
+            return QStringLiteral("Saisir au clavier");
+        return QString();
+    }
+    bool isEmpty() const override { return false; }
+};
+
+// The calendar of a date edit is Material's docked date picker on a menu's container, below the field or above it,
+// 8 in from the edges of the window; its years are a menu of single rows.
+void testDatePickerPopup() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(400, 640);
+    auto *date = new QDateEdit(QDate(2026, 5, 20), &window);
+    date->setCalendarPopup(true);
+    date->setDateRange(QDate(2020, 1, 1), QDate(2035, 12, 31));
+    date->setGeometry(2, 10, 220, 56);
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    const auto open = [&] {
+        QKeyEvent f4(QEvent::KeyPress, Qt::Key_F4, Qt::NoModifier);
+        QCoreApplication::sendEvent(date, &f4);
+        QCoreApplication::processEvents();
+    };
+    open();
+    QCalendarWidget *calendar = date->calendarWidget();
+    CHECK(calendar->isVisible());
+    CHECK(calendar->property("materialDatePicker").toString() == QLatin1String("docked"));
+    CHECK(calendar->findChildren<QLabel *>().size() == 2); // the month and the year, each between arrows
+    // Under the field, kept 8 in from the window's left edge.
+    const QRect place = calendar->geometry();
+    CHECK(place.top() == 66 && place.left() == 8);
+    CHECK(place.size() == calendar->sizeHint());
+    // The container: round corners that show the window, the color of the picker inside, its outline at the edge.
+    QImage image = window.grab().toImage();
+    CHECK(is(image.pixelColor(place.left() + 1, place.top() + 1), Role::Surface));
+    CHECK(is(image.pixelColor(place.right() - 1, place.bottom() - 1), Role::Surface));
+    CHECK(is(image.pixelColor(place.center().x(), place.top() + 4), Role::SurfaceContainerHigh));
+    CHECK(is(image.pixelColor(place.left() + 4, place.center().y()), Role::SurfaceContainerHigh));
+    CHECK(is(image.pixelColor(place.center().x(), place.top()), Role::OutlineVariant));
+
+    // The year opens a list of the years, one to a row of 48: Down moves a year (in a grid it would be three).
+    QLabel *year = calendar->findChildren<QLabel *>().at(1);
+    const auto click = [&](QWidget *target, const QPoint &at) {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(at), QPointF(at), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(at), QPointF(at), Qt::LeftButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &release);
+        QCoreApplication::processEvents();
+    };
+    const auto key = [&](int code) {
+        QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier);
+        QCoreApplication::sendEvent(calendar, &press);
+        QCoreApplication::processEvents();
+    };
+    click(year, year->rect().center());
+    key(Qt::Key_Down);
+    key(Qt::Key_Return);
+    CHECK(calendar->yearShown() == 2027 && calendar->monthShown() == 5);
+    // The year shown is in the second row, checked; a click on the third row chooses the year after it.
+    click(year, year->rect().center());
+    const int top = year->parentWidget()->geometry().bottom() + 1;
+    const auto row = [&](int index) { return QPoint(calendar->width() / 2, top + 8 + index * 48 + 24); };
+    if (textIsDrawn()) {
+        const QImage shown = calendar->grab().toImage();
+        int marked = 0;
+        for (int y = row(1).y() - 12; y < row(1).y() + 12; ++y)
+            for (int x = 12; x < 36; ++x)
+                marked += is(shown.pixelColor(x, y), Role::OnSurfaceVariant) ? 1 : 0;
+        CHECK(marked > 10);
+    }
+    click(calendar, row(2));
+    CHECK(calendar->yearShown() == 2028);
+    CHECK(calendar->selectedDate() == QDate(2026, 5, 20)); // choosing a year leaves the selection alone
+    key(Qt::Key_Escape);                                   // closes the popup
+    CHECK(!calendar->isVisible());
+    // A calendar that is not docked keeps the grid of three.
+    calendar->setProperty("materialDatePicker", QVariant());
+    open();
+    CHECK(calendar->isVisible() && !year->isVisible());
+    QLabel *title = calendar->findChildren<QLabel *>().at(0);
+    calendar->setCurrentPage(2026, 5);
+    click(title, title->rect().center());
+    key(Qt::Key_Down);
+    key(Qt::Key_Return);
+    CHECK(calendar->yearShown() == 2029);
+    key(Qt::Key_Escape);
+    calendar->setProperty("materialDatePicker", QStringLiteral("docked"));
+
+    // Where there is no room below the field, the calendar is above it; at the right it keeps 8 from the edge.
+    date->setGeometry(300, 640 - 70, 96, 56);
+    open();
+    CHECK(calendar->isVisible());
+    CHECK(calendar->geometry().bottom() == 640 - 70 - 1);
+    CHECK(calendar->geometry().right() == 400 - 8 - 1);
+    key(Qt::Key_Escape);
+
+    // A calendar that the application gives keeps what it has: it is not docked.
+    auto *own = new QCalendarWidget;
+    date->setCalendarWidget(own);
+    open();
+    CHECK(own->isVisible() && !own->property("materialDatePicker").isValid());
+    CHECK(own->findChildren<QLabel *>().size() == 1);
+    own->hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// The date picker's strings go through the translators, in the context of QMaterialStyle, and a date typed in the
+// order of the locale (the day first in German) selects itself.
+void testDatePickerLocale() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    DatePickerTranslator french;
+    QCoreApplication::installTranslator(&french);
+
+    QWidget window;
+    window.resize(400, 640);
+    auto *calendar = new QCalendarWidget(&window);
+    calendar->setLocale(QLocale(QLocale::German, QLocale::Germany));
+    calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    calendar->setDateRange(QDate(2020, 1, 1), QDate(2035, 12, 31));
+    calendar->setSelectedDate(QDate(2026, 5, 20));
+    calendar->setProperty("materialDatePicker", "docked");
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    bool translated = false;
+    for (QToolButton *arrow : calendar->findChildren<QToolButton *>())
+        translated = translated || arrow->accessibleName() == QStringLiteral("Année suivante");
+    CHECK(translated);
+    calendar->setProperty("materialDatePicker", "modal");
+    calendar->resize(calendar->sizeHint());
+    QCoreApplication::processEvents();
+    QToolButton *mode = nullptr;
+    for (QToolButton *button : calendar->findChildren<QToolButton *>())
+        if (button->accessibleName() == QStringLiteral("Saisir au clavier"))
+            mode = button;
+    CHECK(mode != nullptr);
+    auto *field =
+        mode ? (mode->click(), QCoreApplication::processEvents(), calendar->findChild<QLineEdit *>()) : nullptr;
+    CHECK(field && field->isVisible());
+    if (field) {
+        CHECK(field->property("materialLabel").toString() == QStringLiteral("Jour"));
+        // The pattern of the German short date, the day first, and the text in it.
+        CHECK(field->property("materialSupportingText").toString() == QStringLiteral("DD.MM.YYYY"));
+        CHECK(field->text() == QStringLiteral("20.05.2026"));
+        const auto key = [&](int code, const QString &text = QString()) {
+            QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyPress, code, Qt::NoModifier, text);
+            QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyRelease, code, Qt::NoModifier,
+                                                   text);
+            QCoreApplication::processEvents();
+        };
+        const auto retype = [&](const QString &text) {
+            for (int i = 0; i < 12; ++i)
+                key(Qt::Key_Backspace);
+            for (const QChar c : text)
+                key(c.isDigit() ? Qt::Key_0 + c.digitValue() : Qt::Key_Period, QString(c));
+        };
+        retype(QStringLiteral("25.12.2026"));
+        CHECK(field->text() == QStringLiteral("25.12.2026"));
+        CHECK(calendar->selectedDate() == QDate(2026, 12, 25));
+        CHECK(field->property("materialError").toString().isEmpty());
+        // The month first is no date here, as there is no 25th month.
+        retype(QStringLiteral("12.25.2026"));
+        CHECK(calendar->selectedDate() == QDate(2026, 12, 25));
+        CHECK(field->property("materialError").toString().contains(QStringLiteral("DD.MM.YYYY")));
+    }
+    QCoreApplication::removeTranslator(&french);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
 // The five sizes of the slider, and the value indicator over its handle.
 void testSliderSizesAndValue() {
     auto *style = new QMaterialStyle;
@@ -8005,6 +8196,55 @@ void testSearchView() {
 // whole window, with a header of its own (an arrow back, the field and a divider) and the suggestions under it, in
 // which what matches the typed text is emphasized. With motion it grows from the bar. A wider window keeps the docked
 // view, and materialSearchView chooses either.
+// On a phone the keyboard that the view's field calls up makes the window shorter: the view stays open over the
+// window that is left, its field keeps the focus and the suggestions stay shown; what is typed goes to the field.
+void testSearchViewSurvivesKeyboard() {
+    auto *style = new QMaterialStyle;
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    QWidget window;
+    window.resize(360, 640);
+    auto *search = new QLineEdit(&window);
+    search->setProperty("materialTextField", QStringLiteral("search"));
+    search->setGeometry(16, 16, 328, 56);
+    auto *list = new QListWidget(&window);
+    list->setGeometry(0, 100, 360, 500);
+    list->addItems({QStringLiteral("Almond"), QStringLiteral("Brazil nut"), QStringLiteral("Walnut")});
+    QCompleter completer(QStringList{QStringLiteral("Almond"), QStringLiteral("Brazil nut"), QStringLiteral("Walnut")});
+    completer.setCaseSensitivity(Qt::CaseInsensitive);
+    completer.setFilterMode(Qt::MatchContains);
+    search->setCompleter(&completer);
+    window.show();
+    QCoreApplication::processEvents();
+    QWindow *handle = window.windowHandle();
+    const QPointF point(100, 44);
+    QWindowSystemInterface::handleMouseEvent(handle, point, point, Qt::LeftButton, Qt::LeftButton,
+                                             QEvent::MouseButtonPress, Qt::NoModifier);
+    QWindowSystemInterface::handleMouseEvent(handle, point, point, Qt::NoButton, Qt::LeftButton,
+                                             QEvent::MouseButtonRelease, Qt::NoModifier);
+    QCoreApplication::processEvents();
+    auto *view = window.findChild<QWidget *>(QStringLiteral("_nt_searchView"));
+    CHECK(view && view->isVisible());
+    if (!view)
+        return;
+    auto *field = view->findChild<QLineEdit *>(QStringLiteral("_nt_searchField"));
+    CHECK(field && field->hasFocus() && completer.popup()->isVisible());
+    // The keyboard comes up.
+    window.resize(360, 380);
+    QCoreApplication::processEvents();
+    view = window.findChild<QWidget *>(QStringLiteral("_nt_searchView"));
+    CHECK(view && view->isVisible() && view->geometry() == window.rect());
+    CHECK(field && field->hasFocus());
+    CHECK(completer.popup()->isVisible());
+    CHECK(!completer.popup()->isVisible() || completer.popup()->geometry().bottom() < 380);
+    QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, Qt::Key_N, Qt::NoModifier, QStringLiteral("n"));
+    QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyRelease, Qt::Key_N, Qt::NoModifier);
+    QCoreApplication::processEvents();
+    CHECK(field && field->text() == QStringLiteral("n") && search->text() == QStringLiteral("n"));
+    CHECK(list->currentRow() == -1 || list->currentItem()->checkState() == Qt::Unchecked);
+    QApplication::setStyle(QStringLiteral("fusion"));
+}
+
 void testFullScreenSearchView() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
@@ -8755,6 +8995,8 @@ int main(int argc, char *argv[]) {
     testDatePickerYearsFade();
     testDatePickerInput();
     testDatePickerModeButton();
+    testDatePickerPopup();
+    testDatePickerLocale();
     testDialogOrderAndFab();
     testRailAndBadges();
     testSheetsAndDrawer();
@@ -8792,6 +9034,7 @@ int main(int argc, char *argv[]) {
     testAppBarSubtitlesAndScrolling();
     testSearchView();
     testFullScreenSearchView();
+    testSearchViewSurvivesKeyboard();
     testSearchViewRecentAndClosing();
     testAppBarTitleBelowButtons();
     testExitMotion();

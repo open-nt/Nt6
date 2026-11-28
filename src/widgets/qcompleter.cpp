@@ -56,7 +56,8 @@ protected:
     The completions are the top-level items of the model: splitPath() is not used to walk a tree, and
     \c setModelSorting() is recorded only. The popup is a list inside the window, not a window of its own, and
     \c setPopup() is missing. Only QLineEdit uses
-    a completer by itself.
+    a completer by itself. Under QMaterialStyle, in the full-screen search view of a search bar, emptying the text
+    shows every row of the model (Material's recent searches) instead of closing the popup.
     \enddifferences
 
     \sa QLineEdit::setCompleter()
@@ -442,6 +443,11 @@ void QCompleter::textEdited(const QString &edited, bool deleting) {
     // A copy: `edited` may be the text of the line edit, which setText() below changes.
     const QString text = edited; // NOLINT(performance-unnecessary-copy-initialization): see above
     setCompletionPrefix(text);
+    // The Material style's full-screen search view offers all the rows (the recent searches) while its field is empty.
+    if (text.isEmpty() && m_mode != InlineCompletion && QMaterialStyle::completerOffersAll(m_widget)) {
+        complete();
+        return;
+    }
     if (text.isEmpty()) {
         hidePopup();
         return;

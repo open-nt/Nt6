@@ -5,6 +5,7 @@
 #include <QtGui/QtGui>
 #include <QtCore/qstringlistmodel.h>
 #include <QtCore/qthread.h>
+#include <QtCore/qtranslator.h>
 #include <QtWidgets/QtWidgets>
 
 #include "qmaterialcolor_p.h"
@@ -3734,6 +3735,158 @@ void testTimeInput() {
     CHECK(edit->sizeHint().height() < 72 && line->width() > 0);
 }
 
+// Gives the captions of the Material style in French, to see that they go through the translators.
+class CaptionTranslator : public QTranslator {
+public:
+    QString translate(const char *context, const char *sourceText, const char *, int) const override {
+        if (qstrcmp(context, "QMaterialStyle") == 0 && qstrcmp(sourceText, "Select time") == 0)
+            return QStringLiteral("Choisir une heure, maintenant");
+        return QString();
+    }
+    bool isEmpty() const override { return false; }
+};
+
+void testTimeDial() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(400, 480);
+    auto *edit = new QTimeEdit(QTime(9, 41), &window);
+    edit->setDisplayFormat(QStringLiteral("h:mm AP"));
+    QTime changed;
+    QObject::connect(edit, &QTimeEdit::timeChanged, [&](QTime time) { changed = time; });
+    edit->setProperty("materialTimeInput", QStringLiteral("dial"));
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    // The headline of 16 and 20 under it, boxes of 96 by 80 with the choice of AM or PM of 52 beside them, 36 under
+    // them the dial of 256: 280 wide in all.
+    CHECK(edit->sizeHint() == QSize(280, 408));
+    edit->setGeometry(10, 10, 280, 408);
+    QCoreApplication::processEvents();
+    auto *line = edit->findChild<QLineEdit *>();
+    CHECK(line && line->width() == 0);
+    if (!line)
+        return;
+    const auto shot = [&] { return window.grab().toImage().copy(edit->geometry()); };
+    // At first the dial shows the hours, and the box of the hour is chosen. The dial's middle is at (140, 280).
+    QImage image = shot();
+    CHECK(is(image.pixelColor(10, 45), Role::PrimaryContainer));
+    CHECK(is(image.pixelColor(130, 45), Role::SurfaceContainerHighest));
+    CHECK(is(image.pixelColor(108, 45), Role::Surface));           // where the colon is
+    CHECK(is(image.pixelColor(240, 50), Role::TertiaryContainer)); // AM
+    CHECK(is(image.pixelColor(240, 100), Role::Surface));          // PM
+    CHECK(is(image.pixelColor(140, 340), Role::SurfaceContainerHighest));
+    CHECK(is(image.pixelColor(14, 156), Role::Surface)); // outside the circle
+    // The selector on the 9, 101 to the left of the middle, and the line to it.
+    CHECK(is(image.pixelColor(39, 298), Role::Primary));
+    CHECK(is(image.pixelColor(90, 279), Role::Primary));
+    CHECK(is(image.pixelColor(140, 280), Role::Primary));                 // the dot in the middle
+    CHECK(is(image.pixelColor(241, 298), Role::SurfaceContainerHighest)); // under the 3
+
+    const auto mouse = [&](QEvent::Type type, int x, int y) {
+        const QPointF at(x, y);
+        QMouseEvent event(type, at, at, Qt::LeftButton,
+                          type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(edit, &event);
+        QCoreApplication::processEvents();
+    };
+    const auto click = [&](int x, int y) {
+        mouse(QEvent::MouseButtonPress, x, y);
+        mouse(QEvent::MouseButtonRelease, x, y);
+    };
+    const auto key = [&](int code) {
+        QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyPress, code, Qt::NoModifier);
+        QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyRelease, code, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    // A tap on the 3 sets the hour, and the dial goes on to the minutes.
+    click(241, 280);
+    CHECK(edit->time() == QTime(3, 41) && changed == QTime(3, 41));
+    CHECK(QApplication::focusWidget() == line);
+    CHECK(line->selectedText() == QLatin1String("41"));
+    image = shot();
+    CHECK(is(image.pixelColor(10, 45), Role::SurfaceContainerHighest));
+    CHECK(is(image.pixelColor(130, 45), Role::PrimaryContainer));
+    CHECK(is(image.pixelColor(241, 298), Role::SurfaceContainerHighest)); // the selector has gone to minute 41
+    // A drag chooses any minute, not only the ones with numbers.
+    mouse(QEvent::MouseButtonPress, 140, 179); // the 00
+    CHECK(edit->time() == QTime(3, 0));
+    mouse(QEvent::MouseMove, 241, 280);
+    CHECK(edit->time() == QTime(3, 15));
+    CHECK(is(shot().pixelColor(241, 298), Role::Primary));
+    mouse(QEvent::MouseMove, 215, 348); // 132 degrees from the top
+    CHECK(edit->time() == QTime(3, 22));
+    mouse(QEvent::MouseButtonRelease, 215, 348);
+    CHECK(edit->time() == QTime(3, 22));
+    CHECK(line->selectedText() == QLatin1String("22"));
+    // A move without a press on the dial changes nothing.
+    mouse(QEvent::MouseMove, 140, 179);
+    CHECK(edit->time() == QTime(3, 22));
+    // The box of the hour brings the hours back; the keys still step what is chosen, the AM or PM still applies.
+    click(40, 70);
+    CHECK(line->selectedText() == QLatin1String("3"));
+    CHECK(is(shot().pixelColor(10, 45), Role::PrimaryContainer));
+    key(Qt::Key_Up);
+    CHECK(edit->time() == QTime(4, 22));
+    click(254, 100);
+    CHECK(edit->time() == QTime(16, 22));
+    click(40, 70);
+    click(140, 179); // the 12, in the afternoon
+    CHECK(edit->time() == QTime(12, 22));
+    edit->setReadOnly(true);
+    click(40, 70);
+    click(241, 280);
+    CHECK(edit->time() == QTime(12, 22));
+    edit->setReadOnly(false);
+
+    // A 24-hour format has the hours from 13 and 00 in an inner ring, 69 from the middle; the picker is 256 wide.
+    edit->setDisplayFormat(QStringLiteral("HH:mm"));
+    edit->setTime(QTime(9, 41));
+    QCoreApplication::processEvents();
+    CHECK(edit->sizeHint() == QSize(256, 408));
+    edit->setGeometry(10, 10, 256, 408); // the middle of the dial at (128, 280), the boxes from 20
+    QCoreApplication::processEvents();
+    click(40, 70);
+    CHECK(line->selectedText() == QLatin1String("09"));
+    click(128 + 69, 280);
+    CHECK(edit->time() == QTime(15, 41));
+    click(40, 70);
+    image = shot();
+    CHECK(is(image.pixelColor(197, 298), Role::Primary));
+    CHECK(is(image.pixelColor(229, 298), Role::SurfaceContainerHighest));
+    CHECK(is(image.pixelColor(30, 45), Role::PrimaryContainer));
+    click(128 + 101, 280);
+    CHECK(edit->time() == QTime(3, 41));
+    click(40, 70);
+    click(128, 280 - 69);
+    CHECK(edit->time() == QTime(0, 41));
+    click(40, 70);
+    click(128, 280 - 101);
+    CHECK(edit->time() == QTime(12, 41));
+
+    // The headline is translated, in the context of QMaterialStyle.
+    if (textIsDrawn()) {
+        const QImage before = shot().copy(0, 0, 256, 16);
+        CaptionTranslator translator;
+        QCoreApplication::installTranslator(&translator);
+        edit->update();
+        QCoreApplication::processEvents();
+        CHECK(shot().copy(0, 0, 256, 16) != before);
+        QCoreApplication::removeTranslator(&translator);
+    }
+
+    // As true, the property gives the time input without the dial again.
+    edit->setProperty("materialTimeInput", true);
+    QCoreApplication::processEvents();
+    CHECK(edit->sizeHint() == QSize(216, 92));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 void testSpinBoxAndScrollBar() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
@@ -4091,6 +4244,38 @@ void testDialogHeadlineForms() {
     CHECK(plain.show() == oneTop);
     plain.dialog.hide();
     QGuiApplication::setWindowIcon(QIcon());
+
+    // An icon without a title: the icon alone, 24 from the top in the middle, the contents 16 under it.
+    Dialog untitled{QString()};
+    const int bareTop = untitled.show(); // neither a title nor an icon: no headline
+    untitled.dialog.hide();
+    Dialog iconOnly{QString()};
+    iconOnly.dialog.setWindowIcon(QIcon(glyph));
+    CHECK(iconOnly.show() == 24 + 24 + 16);
+    CHECK(near(iconOnly.dialog.grab().toImage().pixelColor(iconOnly.dialog.width() / 2, 24 + 12),
+               style->color(Role::Secondary), 12));
+    // A title set while it is shown goes under the icon at once, and the dialog grows by its room.
+    const int iconOnlyHeight = iconOnly.dialog.height();
+    iconOnly.dialog.setWindowTitle(QStringLiteral("Hi"));
+    QCoreApplication::processEvents();
+    CHECK(iconOnly.first->mapTo(&iconOnly.dialog, QPoint(0, 0)).y() == centeredTop);
+    CHECK(iconOnly.dialog.height() == iconOnlyHeight + line + 16);
+    iconOnly.dialog.hide();
+
+    // A shown dialog whose title gets longer makes room for the second line without being resized by anyone, and
+    // one whose title goes (with no icon) gives the headline's room back.
+    Dialog retitled(QStringLiteral("About"));
+    CHECK(retitled.show() == oneTop);
+    const int retitledHeight = retitled.dialog.height();
+    retitled.dialog.setWindowTitle(longTitle);
+    QCoreApplication::processEvents();
+    CHECK(retitled.first->mapTo(&retitled.dialog, QPoint(0, 0)).y() == twoTop);
+    CHECK(retitled.dialog.height() == retitledHeight + twoTop - oneTop);
+    retitled.dialog.setWindowTitle(QString());
+    QCoreApplication::processEvents();
+    CHECK(retitled.first->mapTo(&retitled.dialog, QPoint(0, 0)).y() == bareTop);
+    CHECK(retitled.dialog.height() == retitledHeight - (oneTop - bareTop));
+    retitled.dialog.hide();
 
     // A message box with an icon has it over its headline, in Secondary, rather than beside its text.
     QMessageBox box(QMessageBox::Information, QStringLiteral("Saved"), QStringLiteral("The file was saved."),
@@ -7272,6 +7457,10 @@ void testFullScreenSearchView() {
     CHECK(view->geometry() == window.rect());
     CHECK(field->geometry() == QRect(56, 8, 300, 56));
     CHECK(field->placeholderText() == QStringLiteral("Search fruit") && field->isClearButtonEnabled());
+    // With no text it offers every row (see testSearchViewRecentAndClosing()); Escape closes them first.
+    CHECK(completer.popup()->isVisible());
+    key(Qt::Key_Escape);
+    CHECK(!completer.popup()->isVisible() && viewOf(window));
     QImage image = window.grab().toImage();
     CHECK(is(image.pixelColor(1, 1), Role::SurfaceContainerHigh)); // square corners
     CHECK(is(image.pixelColor(200, 400), Role::SurfaceContainerHigh));
@@ -7378,7 +7567,166 @@ void testFullScreenSearchView() {
     wait(800);
     CHECK(view && view->geometry() == window.rect());
     other->setFocus();
+    wait(800); // it shrinks back to the bar first
     CHECK(closed());
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// The full-screen search view with an empty field offers every row of the completer's model (the recent searches),
+// mirrors the bar's trailing actions and avatars in its header, and shrinks back to the bar as it closes.
+void testSearchViewRecentAndClosing() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto viewOf = [](QWidget &window) { return window.findChild<QWidget *>(QStringLiteral("_nt_searchView")); };
+
+    QWidget window;
+    window.resize(360, 640);
+    auto *search = new QLineEdit(&window);
+    search->setProperty("materialTextField", QStringLiteral("search"));
+    search->setGeometry(16, 16, 328, 56);
+    auto *other = new QLineEdit(&window);
+    other->setGeometry(16, 560, 200, 56);
+    QPixmap face(30, 30);
+    face.fill(QColor(220, 0, 0));
+    QAction *mic = search->addAction(QIcon(face), QLineEdit::TrailingPosition);
+    auto *avatar = new QAction(QIcon(face), QStringLiteral("Account"), search);
+    avatar->setProperty("materialAvatar", true);
+    search->addAction(avatar, QLineEdit::TrailingPosition);
+    int accounts = 0;
+    QObject::connect(avatar, &QAction::triggered, [&accounts] { ++accounts; });
+    QCompleter completer(QStringList{QStringLiteral("Apple pie"), QStringLiteral("apricot"), QStringLiteral("banana")});
+    completer.setCaseSensitivity(Qt::CaseInsensitive);
+    search->setCompleter(&completer);
+    window.show();
+    QCoreApplication::processEvents();
+    QWindow *handle = window.windowHandle();
+    const auto key = [&](int code, const QString &text = QString()) {
+        QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, code, Qt::NoModifier, text);
+        QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyRelease, code, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    const auto click = [&](QPoint at) {
+        const QPointF point(at);
+        QWindowSystemInterface::handleMouseEvent(handle, point, point, Qt::LeftButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonPress, Qt::NoModifier);
+        QWindowSystemInterface::handleMouseEvent(handle, point, point, Qt::NoButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonRelease, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    auto *popup = dynamic_cast<QListWidget *>(completer.popup());
+    CHECK(popup != nullptr);
+    if (!popup)
+        return;
+
+    // Opened with no text, the view offers every row under its header.
+    other->setFocus();
+    search->setFocus();
+    QWidget *view = viewOf(window);
+    CHECK(view != nullptr);
+    if (!view)
+        return;
+    auto *field = view->findChild<QLineEdit *>(QStringLiteral("_nt_searchField"));
+    CHECK(field && field->text().isEmpty());
+    if (!field)
+        return;
+    CHECK(popup->isVisible() && popup->count() == 3);
+    CHECK(popup->geometry() == QRect(0, 73, 360, 3 * 56));
+    // Typing filters them; emptying the field offers them all again rather than closing the popup.
+    key(Qt::Key_A, QStringLiteral("a"));
+    CHECK(popup->isVisible() && popup->count() == 2);
+    key(Qt::Key_Backspace);
+    CHECK(field->text().isEmpty() && popup->isVisible() && popup->count() == 3);
+
+    // The bar's trailing actions are in the header's field, and the avatar there triggers the same action.
+    CHECK(field->actions().contains(mic) && field->actions().contains(avatar));
+    const QImage image = QOffscreenBackingStore::imageOf(handle);
+    int avatarX = -1;
+    for (int x = 359; x > 200 && avatarX < 0; --x)
+        if (near(image.pixelColor(x, 36), QColor(220, 0, 0), 30))
+            avatarX = x - 8;
+    CHECK(avatarX > 300);
+    if (avatarX > 0) {
+        click(QPoint(avatarX, 36));
+        CHECK(accounts == 1);
+    }
+    // Under a docked bar (not in the view) an empty field closes the popup, as QCompleter does.
+    key(Qt::Key_Escape);
+    key(Qt::Key_Escape);
+    QCoreApplication::processEvents();
+    CHECK(!viewOf(window));
+    search->setProperty("materialSearchView", QStringLiteral("docked"));
+    other->setFocus();
+    search->setFocus();
+    key(Qt::Key_A, QStringLiteral("a"));
+    CHECK(popup->isVisible());
+    key(Qt::Key_Backspace);
+    CHECK(!popup->isVisible());
+    search->setProperty("materialSearchView", QVariant());
+
+    // With motion it grows, then offers the rows; as it closes it shrinks back to the bar's rectangle and goes.
+    style->setMotionEnabled(true);
+    other->setFocus();
+    search->setFocus();
+    view = viewOf(window);
+    CHECK(view != nullptr);
+    wait(800);
+    CHECK(view && view->geometry() == window.rect());
+    CHECK(popup->isVisible() && popup->count() == 3);
+    const QPointer<QWidget> closing = view;
+    other->setFocus();
+    CHECK(!popup->isVisible() && completer.widget() == search);
+    CHECK(closing && closing->isVisible());
+    wait(60);
+    if (closing) {
+        const QRect shrinking = closing->geometry();
+        CHECK(shrinking.height() > 56 && shrinking.height() < 640);
+    }
+    wait(800);
+    QCoreApplication::processEvents();
+    CHECK(!closing);
+    CHECK(other->hasFocus());
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// The expanded title of a medium or large bar keeps below the row of its buttons however long it is: nothing of it is
+// in that row, beside or under the buttons at either end.
+void testAppBarTitleBelowButtons() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    QPixmap blank(24, 24);
+    blank.fill(Qt::transparent);
+    for (const char *kind : {"appBarMedium", "appBarLarge"}) {
+        for (const bool centred : {false, true}) {
+            QMainWindow window;
+            auto *bar = new QToolBar;
+            bar->setProperty("materialToolBar", QString::fromLatin1(kind));
+            if (centred)
+                bar->setProperty("materialTitleAlignment", QStringLiteral("center"));
+            bar->setWindowTitle(QStringLiteral("Wwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwww and more"));
+            bar->addAction(QIcon(blank), QStringLiteral("Back"));
+            bar->addSeparator();
+            for (int i = 0; i < 3; ++i)
+                bar->addAction(QIcon(blank), QStringLiteral("Action"));
+            window.addToolBar(bar);
+            window.setCentralWidget(new QWidget);
+            window.resize(360, 480);
+            window.show();
+            QCoreApplication::processEvents();
+            QCoreApplication::processEvents();
+            const QImage image = bar->grab().toImage();
+            int row = 0, below = 0;
+            for (int y = 0; y < image.height(); ++y)
+                for (int x = 0; x < image.width(); ++x)
+                    (y < 64 ? row : below) += image.pixelColor(x, y).lightness() < 128 ? 1 : 0;
+            CHECK(row == 0);
+            if (textIsDrawn())
+                CHECK(below > 40);
+        }
+    }
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
@@ -7806,6 +8154,7 @@ int main(int argc, char *argv[]) {
     testSheetDragging();
     testSearchAndSecondaryTabs();
     testTimeInput();
+    testTimeDial();
     testSpinBoxAndScrollBar();
     testScrollBarRest();
     testScrollAreaHover();
@@ -7833,6 +8182,8 @@ int main(int argc, char *argv[]) {
     testAppBarSubtitlesAndScrolling();
     testSearchView();
     testFullScreenSearchView();
+    testSearchViewRecentAndClosing();
+    testAppBarTitleBelowButtons();
     testExitMotion();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;

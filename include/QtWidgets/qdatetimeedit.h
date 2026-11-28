@@ -119,6 +119,8 @@ protected:
     virtual QString textFromDateTime(const QDateTime &dt) const;
     StepEnabled stepEnabled() const override;
     void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
 private:
@@ -158,6 +160,7 @@ private:
     QTimeZone m_zone;
     int m_currentSection = 0;
     bool m_calendarPopup = false;
+    bool m_dialHeld = false; // the dial of the Material style's time picker is pressed, and a drag moves the time
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QDateTimeEdit::Sections)

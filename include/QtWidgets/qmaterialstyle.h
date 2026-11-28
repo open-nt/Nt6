@@ -22,6 +22,7 @@ class QCalendarWidget;
 class QAbstractButton;
 class QDateTimeEdit;
 class QDialog;
+class QTime;
 class QFrame;
 class QLineEdit;
 class QListWidget;
@@ -198,6 +199,15 @@ private:
     // The rectangle of each section of the time, in their order; an empty one for a section that has none.
     static std::vector<QRect> timeInputRects(const QDateTimeEdit *edit);
     void drawTimeInput(QPainter *painter, const QStyleOption *option, const QDateTimeEdit *edit) const;
+    // With materialTimeInput "dial" it is Material's time picker: a headline, the boxes and a dial under them, all in
+    // the widget. QDateTimeEdit asks whether a point is on the dial, what time a press or a drag there gives, and
+    // whether the dial shows the hours (to go on to the minutes when it is let go).
+    static bool isTimeDial(const QWidget *widget);
+    static QRect timeDialRect(const QDateTimeEdit *edit);
+    static bool timeDialHours(const QDateTimeEdit *edit);
+    static bool onTimeDial(const QDateTimeEdit *edit, const QPoint &pos);
+    static QTime timeDialTime(const QDateTimeEdit *edit, const QPoint &pos);
+    void drawTimeDial(QPainter *painter, const QStyleOption *option, const QDateTimeEdit *edit) const;
     // A day of a calendar, as the date picker of Material shows it: QCalendarWidget::paintCell() asks for it. The
     // text is in `ink` if the program formatted the day with a color.
     friend class QCalendarWidget;
@@ -338,6 +348,9 @@ private:
     friend class QCompleter;
     static QRect completerPopupGeometry(const QWidget *popup, const QWidget *widget, const QRect &proposed,
                                         int content);
+    // Whether QCompleter shows all its rows for an empty prefix under `widget`: in the full-screen search view, whose
+    // empty field offers the recent or suggested searches of the model.
+    static bool completerOffersAll(const QWidget *widget);
     // A search bar that gets the focus on a compact window (or with materialSearchView "fullScreen") opens the
     // full-screen search view over its window.
     void openFullScreenSearch(QLineEdit *edit) const;

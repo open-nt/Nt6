@@ -757,6 +757,19 @@ void QDateTimeEdit::mousePressEvent(QMouseEvent *event) {
     if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isTimeInput(this) &&
         event->button() == Qt::LeftButton) {
         const std::vector<QRect> rects = QMaterialStyle::timeInputRects(this);
+        // On the dial of the time picker, the number under the press is chosen, and a drag goes on choosing.
+        if (QMaterialStyle::isTimeDial(this) && QMaterialStyle::onTimeDial(this, event->pos())) {
+            const Section shown = QMaterialStyle::timeDialHours(this) ? HourSection : currentSection();
+            lineEdit()->setFocus();
+            if (!isReadOnly()) {
+                m_dialHeld = true;
+                setTime(QMaterialStyle::timeDialTime(this, event->pos()));
+            }
+            setSelectedSection(shown);
+            update();
+            event->accept();
+            return;
+        }
         lineEdit()->setFocus();
         for (int i = 0; i < static_cast<int>(rects.size()); ++i) {
             const QRect &box = rects[static_cast<std::size_t>(i)];
@@ -783,6 +796,37 @@ void QDateTimeEdit::mousePressEvent(QMouseEvent *event) {
         }
     }
     QAbstractSpinBox::mousePressEvent(event);
+}
+
+/*!
+    \reimp
+*/
+void QDateTimeEdit::mouseMoveEvent(QMouseEvent *event) {
+    if (m_dialHeld) {
+        const Section shown = QMaterialStyle::timeDialHours(this) ? HourSection : currentSection();
+        setTime(QMaterialStyle::timeDialTime(this, event->pos()));
+        setSelectedSection(shown);
+        update();
+        event->accept();
+        return;
+    }
+    QAbstractSpinBox::mouseMoveEvent(event);
+}
+
+/*!
+    \reimp
+*/
+void QDateTimeEdit::mouseReleaseEvent(QMouseEvent *event) {
+    // An hour chosen on the dial of the Material style's time picker goes on to the minutes, as Material's does.
+    if (m_dialHeld) {
+        m_dialHeld = false;
+        if (QMaterialStyle::timeDialHours(this))
+            setSelectedSection(MinuteSection);
+        update();
+        event->accept();
+        return;
+    }
+    QAbstractSpinBox::mouseReleaseEvent(event);
 }
 
 /*!

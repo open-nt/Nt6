@@ -203,14 +203,23 @@ icon as a round picture of 30 in its own colors, cut to the circle in an image o
 rectangles), always last, past the clear button. `materialTabBar` = `"secondary"` gives the secondary tabs: an
 indicator of 2 as wide as the tab, and the current label in `OnSurface`. (The search view is below.)
 
-`materialTimeInput` on a `QTimeEdit` is Material's time input (the keyboard form of its time picker; the dial would
-need a widget that Qt Widgets has not got, and an application using it would not build with Qt). Boxes of 96 by 72,
-corners 8, `SurfaceContainerHighest`, the current one `PrimaryContainer` with a 2 `Primary` outline, digits in 45; a
-period selector of 52 by 72 with `TertiaryContainer` for the half that applies. All editing stays
+`materialTimeInput` on a `QTimeEdit` is Material's time input (the keyboard form of its time picker). Boxes of 96 by
+72, corners 8, `SurfaceContainerHighest`, the current one `PrimaryContainer` with a 2 `Primary` outline, digits in 45;
+a period selector of 52 by 72 with `TertiaryContainer` for the half that applies. All editing stays
 `QDateTimeEdit`'s: its line edit keeps the focus with no size, and the style draws its text by section. Two digits
 of the hour, or one that no second could follow, move on to the minute, selected, as `QDateTimeEdit` now does for
-every format, as Qt does. Not done: the dial, translated captions. A format of numbers alone sets
-`ImhPreferNumbers`, with which Android shows its number keys (see `doc/android.h`).
+every format, as Qt does. A format of numbers alone sets `ImhPreferNumbers`, with which Android shows its number keys
+(see `doc/android.h`). `materialTimeInput` = `"dial"` is the vertical time picker, inside the `QTimeEdit` (no popup;
+its size hint is the picker's, 280 by 408 with AM/PM, 256 wide without), so an application stays Qt's: the headline
+"Select time" (label medium) in 16, 20 under it the boxes of 96 by 80 in 57 (the one the dial shows
+`PrimaryContainer`, no outline), the period selector 52 by 80, and 36 under them a dial of 256
+(`SurfaceContainerHighest`) with its numbers in 16, 101 from the middle, a 24-hour format's 00 and 13 to 23 in a ring
+of 69 (as Compose), a `Primary` selector of 48 on the number, a line of 2 to a dot of 8. The dial shows the minutes
+(or seconds) while the line edit has the focus in them, else the hours. A press or drag on the dial sets the time with
+`setTime()` (`QDateTimeEdit` keeps the press), the hour snapped to a number, inner ring under 85 from the middle;
+letting go of an hour selects the minute section, whose 5-minute labels a drag passes for any minute. Captions
+("Select time", "Hour", "Minute", "Second") go through `tr()`, context `QMaterialStyle`. Not done: the keyboard icon
+that switches the picker to the input ("Enter time"), the horizontal layout, motion of the selector.
 
 Spin boxes and scroll bars are drawn without a property, as every Qt form and list has them. Material has no spin box:
 this one is the outlined field, 56 high, with a minus and a plus in 48 each (a chevron alone for a date edit with a
@@ -247,8 +256,11 @@ grows for them. A dialog with its own window icon (the icon set on the dialog it
 application's) has the centered form: the icon 24, `Secondary` through `paintIcon()`, 24 from the top in the middle,
 and the headline centered 16 under it. A message box with an icon has the same form: its icon widget is hidden and its
 texts take both columns, and the style draws its sign of one color (a round "i", "?" or "!", or a triangle with "!")
-over the headline; a box with an icon pixmap shows the pixmap there. Not done: an icon without a window title, a new
-title taking effect while the dialog is shown and not resized.
+over the headline; a box with an icon pixmap shows the pixmap there. A dialog with such an icon and no window title
+has the icon alone (`headlineParts()` gives an empty text rectangle 16 above the contents, so they are 16 under the
+icon). The style's application filter takes `WindowTitleChange` and `WindowIconChange` of a shown dialog: it runs
+`prepareHeadline()` again (room made, refitted or given back), resizes the dialog by the room that came or went, as
+showing it again does, and repaints.
 
 Group boxes and text editors need no property. A `QGroupBox` is a section: its title 14 medium in `Primary`, 4 over an
 outlined card (corners 12, `OutlineVariant`), or over a line if it is flat; the layout margins are 16 inside the card.
@@ -477,7 +489,10 @@ second, a first word wider than the line elided on one), and the expanded height
 and the spec gives no fixed height for two lines. It follows the bar's width; `QToolBar::event()` asks again on a
 resize. `materialTitleAlignment` = `"center"` centres the title and subtitle on the bar (Compose's
 `CenterAlignedTopAppBar`, and the `titleHorizontalAlignment` of the flexible bars), as wide as the room on the
-narrower side leaves. Not done: three-line titles, and the expanded title does not avoid buttons in the top row.
+narrower side leaves. The buttons of a medium or large bar are aligned to the top row and the expanded title is
+clipped to below it, so a long title never goes under them (checked with long and centred titles beside trailing
+buttons). Not done: three-line titles; Compose's flexible bars take a title of one line by default, and the guidelines
+show at most two, so two stay the limit.
 
 **Two- and three-line list items.** QListView and QListWidget rows take Material's one-, two- and three-line list
 items from the display text alone, so that a program reads the same under Qt (which draws the line breaks as lines of
@@ -565,8 +580,15 @@ header at the window's width, as many rows of 56 as fit, square. The arrow back,
 Return, a chosen row or the focus going elsewhere closes the view at once and gives the completer back; all but the
 last leave nothing focused, and a window that grows to 600 or more closes it and gives the bar the focus (docked
 again). It grows from the bar's rectangle to the window's on the default spatial spring (a `Transition`), its corners
-from the bar's half height to 0; without motion it is there at once. Not done: closing motion (it goes at once), the
-recent searches of an empty full-screen view, a trailing avatar or action in the header.
+from the bar's half height to 0; without motion it is there at once. Closing gives the completer back and hides its
+popup at once, and the live view (transparent for the mouse, no longer found as the open view) shrinks back to the
+bar's rectangle on the same spring, round again, and is deleted at rest; without motion it goes at once. The bar's
+trailing actions and avatars (`m_sideActions` at `TrailingPosition`, which the style reads as QLineEdit's friend) are
+added to the header's field, so they show there and trigger the same QAction. Recent searches: while the view's field
+is empty the popup shows every row of the model (an empty prefix matches all) rather than none: the view asks for it
+once it has grown (at once without motion), and `QCompleter::textEdited()` completes rather than hides on an empty
+text where the private `completerOffersAll()` says the widget is the view's field; under other line edits, docked
+search bars included, an empty text still closes the popup, as in Qt.
 
 Things that go move too. A sheet that is closed (accept, reject, `done()`, `hide()`, Escape, Back, a tap beside it on
 Android) is hidden at once, as any dialog is, so the semantics stay Qt's: `isVisible()` is false at once, `accepted`,

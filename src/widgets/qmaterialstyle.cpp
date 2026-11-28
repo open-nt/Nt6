@@ -101,6 +101,18 @@ constexpr int periodWidth = 52;    // of the choice of AM or PM,
 constexpr int periodSpace = 12;    // and what is before it
 constexpr int timeCaption = 20;    // under the boxes, for their names
 constexpr int timeDigits = 45;     // display medium
+// The time picker with a dial, materialTimeInput "dial": its headline, the boxes under it, and the dial under them.
+constexpr int dialHeadline = 16;    // label medium
+constexpr int dialBoxTop = 36;      // the headline and 20 under it
+constexpr int dialBoxHeight = 80;   // of the hour, the minute and the choice of AM or PM
+constexpr int dialDigits = 57;      // display large
+constexpr int dialTop = 152;        // the boxes and 36 under them
+constexpr int dialSize = 256;       // the circle of the dial
+constexpr double dialOuter = 101;   // from its middle to the middle of the numbers of the outer ring,
+constexpr double dialInner = 69;    // and of the inner one, of a 24-hour format
+constexpr double dialSelector = 48; // the circle on the chosen number,
+constexpr double dialDot = 8;       // the dot in the middle of the dial,
+constexpr double dialTrack = 2;     // and the line from one to the other
 constexpr int calendarCell = 40;   // a day of a calendar, and the circle that shows the one that is chosen
 constexpr int datePickerHeader = 120;        // the headline of a modal date picker, above a divider of 1
 constexpr int datePickerInset = 24;          // of its texts from the left, and 12 from the right
@@ -469,7 +481,8 @@ void removeRoom(QWidget *dialog, const char *room) {
 
 // Where the parts of a dialog's headline are when the dialog is `width` wide and its contents began at `top` before
 // the headline: the icon of the centered form (empty without one) 24 from the top, and the text, 24 from the top or
-// 16 under the icon, on as many lines as it takes.
+// 16 under the icon, on as many lines as it takes. A dialog with an icon and no title has no text: its rectangle is
+// empty, 16 above where the contents go, so that they are 16 under the icon.
 struct HeadlineParts {
     QRect icon, text;
 };
@@ -481,6 +494,10 @@ HeadlineParts headlineParts(const QWidget *dialog, bool icon, int width, int top
         y += dialogIconSize + headlineSpace;
     }
     const int textWidth = std::max(1, width - 2 * dialogPadding);
+    if (icon && dialog->windowTitle().isEmpty()) {
+        parts.text = QRect(dialogPadding, y - headlineSpace, textWidth, 0);
+        return parts;
+    }
     const QFontMetrics metrics(headlineFont(dialog));
     const QRect lines =
         metrics.boundingRect(QRect(0, 0, textWidth, QWIDGETSIZE_MAX), Qt::TextWordWrap, dialog->windowTitle());
@@ -2052,11 +2069,14 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         Material's full-screen search view when it gets the focus or is tapped, and on a wider one the docked view;
         \c "fullScreen" or \c "docked" chooses either on any window. The full-screen view covers the window, growing
         from the bar's rectangle, with a header of 72 of its own: an arrow back, a line edit with a clear button, and a
-        divider under them, and the suggestions under the header. What is typed there is the bar's text, and the bar
-        emits \l{QLineEdit::textEdited()}{textEdited()}, \l{QLineEdit::returnPressed()}{returnPressed()} and
-        \l{QLineEdit::editingFinished()}{editingFinished()} for it. The arrow back, Escape (after the suggestions have
-        closed), Return, a chosen suggestion or the focus moving elsewhere closes the view, leaving nothing focused,
-        except in the last case.
+        divider under them, and the suggestions under the header. The bar's trailing actions and avatars are in the
+        header's line edit too, and trigger the same QAction. While the header's text is empty, the completer shows
+        every row of its model (the recent or suggested searches) rather than none. What is typed there is the bar's
+        text, and the bar emits \l{QLineEdit::textEdited()}{textEdited()},
+        \l{QLineEdit::returnPressed()}{returnPressed()} and \l{QLineEdit::editingFinished()}{editingFinished()} for
+        it. The arrow back, Escape (after the suggestions have closed), Return, a chosen suggestion or the focus moving
+        elsewhere closes the view, leaving nothing focused, except in the last case; it shrinks back to the bar as it
+        goes.
     \li \c materialAvatar \c true of a QAction that is added to a QLineEdit with
         \l{QLineEdit::addAction()}{addAction()} at its trailing end shows its icon as an avatar: a round picture of 30,
         in its own colors, at the far end, past the clear button. In a search bar the actions at the end have targets
@@ -2066,7 +2086,14 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         line under the current one is as wide as the tab and 2 high, and its label is not in the accent color.
     \li \c materialTimeInput of a QTimeEdit: \c true draws it as Material's time input, a large box for each of the
         hour and the minute (and the second, if the format shows it), and a choice of AM or PM if the format has one.
-        A click chooses a box; digits typed, the arrow keys and the wheel change what is in it.
+        A click chooses a box; digits typed, the arrow keys and the wheel change what is in it. \c "dial" draws it as
+        Material's time picker instead, all inside the widget, which is as large as the picker (280 by 408 with AM
+        and PM): the headline "Select time", the boxes, and under them a dial of the hours (two rings of them for a
+        24-hour format, 00 and 13 to 23 inside) or of the minutes. A press or a drag on the dial chooses the hour,
+        on the nearest number, and letting go goes on to the minutes, of which a drag chooses any; a click on a box
+        chooses what the dial shows. The time changes through \l{QDateTimeEdit::setTime()}{setTime()}, so
+        \l{QDateTimeEdit::timeChanged()}{timeChanged()} is emitted, and the keys work as in the time input. The
+        captions are translated in the context \c QMaterialStyle.
     \li A QTextEdit or QPlainTextEdit with its usual frame is an outlined field, its text 16 and clear of the border.
         With \c materialTextField \c "outlined" or \c "filled", \c materialLabel, \c materialSupportingText or
         \c materialError it is a multi-line text field, drawn as a QLineEdit's is, its label resting on the first
@@ -2171,7 +2198,9 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     it as Material's headline above what is in it, on as many lines as it takes. A sheet has none. A dialog with a
     window icon of its own (setWindowIcon() on the dialog, not the application's) has the centered form: the icon, 24
     and in the \c Secondary color if it is of one color, over the headline, which is centered. A QMessageBox with an
-    icon has it there too, as a symbol of one color, rather than beside its text.
+    icon has it there too, as a symbol of one color, rather than beside its text. A dialog with such an icon and no
+    title shows the icon alone, its contents 16 under it. A title or icon set while the dialog is shown takes effect at
+    once, and the dialog grows or shrinks by the room that its headline takes.
 
     Tooltips, as QToolTip shows them, are Material's plain tooltips without anything being asked for. A tooltip whose
     text is rich text, as Qt::mightBeRichText() tells, is a rich tooltip: a container of 12 corners in
@@ -2940,8 +2969,9 @@ bool opensFullScreenSearch(const QWidget *edit) {
 // The full-screen search view of a search bar: over the whole window, SurfaceContainerHigh, with a header of its own
 // (an arrow back, a line edit and a divider under them) and the completer's popup under it. The search bar keeps its
 // place under the view, and its completer completes the header's line edit while the view is open; what is typed
-// there is the bar's text, and the bar emits textEdited(), returnPressed() and editingFinished() for it. The view grows
-// from the bar's rectangle to the window's.
+// there is the bar's text, and the bar emits textEdited(), returnPressed() and editingFinished() for it. The bar's
+// trailing actions (and avatars) are in the header's field too. The view grows from the bar's rectangle to the window's
+// and shrinks back to it as it closes.
 class SearchView : public QWidget {
 public:
     // What the view does with the focus as it closes.
@@ -2951,7 +2981,8 @@ public:
         Leave  // it went to another widget already
     };
 
-    SearchView(const QMaterialStyle *style, QLineEdit *edit) : QWidget(edit->window()), m_style(style), m_edit(edit) {
+    SearchView(const QMaterialStyle *style, QLineEdit *edit, const QList<QAction *> &trailing)
+        : QWidget(edit->window()), m_style(style), m_edit(edit) {
         setObjectName(QLatin1String(searchViewName));
         setFocusPolicy(Qt::NoFocus);
         m_field = new QLineEdit(this);
@@ -2967,6 +2998,9 @@ public:
         m_field->setText(edit->text());
         m_field->setCursorPosition(edit->cursorPosition());
         m_field->setClearButtonEnabled(true);
+        // The same actions, which trigger as they do on the bar.
+        for (QAction *action : trailing)
+            m_field->addAction(action, QLineEdit::TrailingPosition);
         QObject::connect(m_field, &QLineEdit::textChanged, this, [this](const QString &text) {
             if (m_edit && m_edit->text() != text)
                 m_edit->setText(text);
@@ -3015,6 +3049,8 @@ public:
                                           if (!guard)
                                               return false;
                                           guard->growTo(from, progress);
+                                          if (progress >= 1.0)
+                                              guard->offerRecent();
                                           return true;
                                       });
         } else {
@@ -3023,23 +3059,48 @@ public:
         raise();
         show();
         m_field->setFocus();
+        if (!motion)
+            offerRecent();
         QObject::connect(qApp, &QApplication::focusChanged, this, [this](QWidget *, QWidget *now) {
             if (now && now != m_field && !isAncestorOf(now))
                 close(Focus::Leave);
         });
     }
 
-    // Closes the view at once: the completer goes back to the bar, and the view is deleted soon.
+    // Closes the view: the completer goes back to the bar at once, and the view shrinks back to the bar's rectangle on
+    // the default spatial spring (with motion; at once without), going round again, and is deleted then.
     void close(Focus focus) {
         if (m_closing)
             return;
         m_closing = true;
         QtPrivate::Transition::stop(this, QStringLiteral("_nt_searchViewGrow"));
+        if (m_completer)
+            m_completer->popup()->hide();
         m_field->setCompleter(nullptr);
         if (m_completer && m_edit && m_edit->completer() == m_completer.data())
             m_completer->setWidget(m_edit);
         m_field->clearFocus();
-        hide();
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        if (m_style->isMotionEnabled() && m_edit && isVisible()) {
+            const QRect to(m_edit->mapTo(parentWidget(), QPoint(0, 0)), m_edit->size());
+            const double start = std::clamp(m_progress, 0.0, 1.0);
+            QPointer<SearchView> guard(this);
+            new QtPrivate::Transition(this, QStringLiteral("_nt_searchViewShrink"), QtPrivate::defaultSpatialSpring,
+                                      [guard, to, start](double progress) {
+                                          if (!guard)
+                                              return false;
+                                          guard->growTo(to, std::max(0.0, start * (1.0 - progress)));
+                                          if (progress >= 1.0) {
+                                              guard->hide();
+                                              guard->deleteLater();
+                                              return false;
+                                          }
+                                          return true;
+                                      });
+        } else {
+            hide();
+            deleteLater();
+        }
         if (m_edit) {
             if (focus == Focus::ToBar)
                 m_edit->setFocus();
@@ -3047,7 +3108,6 @@ public:
                 m_edit->clearFocus();
             m_edit->update();
         }
-        deleteLater();
     }
 
 protected:
@@ -3118,6 +3178,18 @@ protected:
     }
 
 private:
+    // Once the view is open with no text, the completer offers all its rows (the recent or suggested searches of the
+    // model): QCompleter shows the whole model for an empty prefix in this view.
+    void offerRecent() {
+        if (m_offered || m_closing)
+            return;
+        m_offered = true;
+        if (m_completer && m_field->text().isEmpty() && m_completer->widget() == m_field) {
+            m_completer->setCompletionPrefix(QString());
+            m_completer->complete();
+        }
+    }
+
     // The header is 72, or the whole view while it is lower, as it is when it starts to grow from the bar.
     int headerHeight() const { return std::min(searchHeaderHeight, height()); }
 
@@ -3144,6 +3216,7 @@ private:
     double m_barCorner = 28; // the corners of the bar that it grows from
     bool m_backPressed = false;
     bool m_closing = false;
+    bool m_offered = false; // whether the recent searches were offered as the view opened
 };
 
 } // namespace
@@ -3152,8 +3225,16 @@ private:
 void QMaterialStyle::openFullScreenSearch(QLineEdit *edit) const {
     if (SearchView::of(edit))
         return;
-    auto *view = new SearchView(this, edit);
+    QList<QAction *> trailing;
+    for (const auto &[action, position] : edit->m_sideActions)
+        if (action && position == QLineEdit::TrailingPosition)
+            trailing.append(action.data());
+    auto *view = new SearchView(this, edit, trailing);
     view->open(m_motion);
+}
+
+bool QMaterialStyle::completerOffersAll(const QWidget *widget) {
+    return widget && qobject_cast<const QMaterialStyle *>(widget->style()) && isFullScreenSearchField(widget);
 }
 
 QRect QMaterialStyle::completerPopupGeometry(const QWidget *popup, const QWidget *widget, const QRect &proposed,
@@ -3229,6 +3310,18 @@ bool QMaterialStyle::drawCompletionText(QPainter *painter, const QRect &area, co
     shows only in the first case.
 */
 bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
+    // A dialog that is shown takes a new title (or icon) in its headline at once: the room above its contents follows
+    // it, and the dialog grows or shrinks by the room that came or went, as it does when it is shown again.
+    if (event->type() == QEvent::WindowTitleChange || event->type() == QEvent::WindowIconChange) {
+        auto *dialog = qobject_cast<QDialog *>(watched);
+        if (dialog && dialog->isWindow() && dialog->isVisible() && dialog->style() == this) {
+            const int before = dialog->contentsMargins().top();
+            prepareHeadline(dialog);
+            if (const int more = dialog->contentsMargins().top() - before; more != 0)
+                dialog->resize(dialog->width(), dialog->height() + more);
+            dialog->update();
+        }
+    }
     if (event->type() == QEvent::Show) {
         // The android platform rounds the corners of a dialog's window by this property.
         if (auto *dialog = qobject_cast<QDialog *>(watched); dialog && dialog->isWindow() && dialog->windowHandle()) {
@@ -5207,40 +5300,131 @@ void QMaterialStyle::drawListRowText(QPainter *painter, const QRect &area, const
 
 bool QMaterialStyle::isTimeInput(const QWidget *widget) {
     const auto *edit = qobject_cast<const QDateTimeEdit *>(widget);
-    return edit && edit->property("materialTimeInput").toBool() &&
-           !(edit->displayedSections() & QDateTimeEdit::DateSections_Mask);
+    if (!edit || (edit->displayedSections() & QDateTimeEdit::DateSections_Mask))
+        return false;
+    const QVariant kind = edit->property("materialTimeInput");
+    return kind.toString() == QLatin1String("dial") || kind.toBool();
 }
+
+bool QMaterialStyle::isTimeDial(const QWidget *widget) {
+    return isTimeInput(widget) && widget->property("materialTimeInput").toString() == QLatin1String("dial");
+}
+
+namespace {
+
+constexpr double dialPi = 3.14159265358979323846;
+
+// How wide the boxes of a time input are together, from the first to the end of the last.
+int timeRowWidth(const std::vector<QRect> &rects) {
+    return rects.empty() ? 0 : rects.back().x() + rects.back().width() - rects.front().x();
+}
+
+// A time format without AM and PM counts 24 hours, which the dial shows in two rings.
+bool countsDay(const QDateTimeEdit *edit) { return !(edit->displayedSections() & QDateTimeEdit::AmPmSection); }
+
+// The middle of a number of the dial, `steps` twelfths of a turn clockwise from the top, `radius` from the middle.
+QPointF dialPoint(const QRectF &dial, double steps, double radius) {
+    const double angle = steps * dialPi / 6;
+    return {dial.center().x() + radius * std::sin(angle), dial.center().y() - radius * std::cos(angle)};
+}
+
+// The section whose numbers the dial of a time picker shows: the minutes (or the seconds) while the keys are in
+// them; otherwise, and at first, the hours.
+QDateTimeEdit::Section timeDialSection(const QDateTimeEdit *edit) {
+    const QDateTimeEdit::Section section = edit->currentSection();
+    const QWidget *focus = QApplication::focusWidget();
+    const bool keys = focus && edit->isAncestorOf(focus);
+    return keys && (section == QDateTimeEdit::MinuteSection || section == QDateTimeEdit::SecondSection)
+               ? section
+               : QDateTimeEdit::HourSection;
+}
+
+} // namespace
 
 std::vector<QRect> QMaterialStyle::timeInputRects(const QDateTimeEdit *edit) {
     std::vector<QRect> rects;
+    const bool dial = isTimeDial(edit);
+    const int height = dial ? dialBoxHeight : timeBoxHeight;
     int left = 0;
     bool box = false; // there is a box before this one
     for (int i = 0; i < edit->sectionCount(); ++i) {
         if (edit->sectionAt(i) == QDateTimeEdit::AmPmSection) {
             left += box ? periodSpace : 0;
-            rects.push_back(QRect(left, 0, periodWidth, timeBoxHeight));
+            rects.push_back(QRect(left, 0, periodWidth, height));
             left += periodWidth;
         } else {
             left += box ? timeSeparator : 0;
-            rects.push_back(QRect(left, 0, timeBoxWidth, timeBoxHeight));
+            rects.push_back(QRect(left, 0, timeBoxWidth, height));
             left += timeBoxWidth;
         }
         box = true;
     }
+    // The picker with a dial is in the middle of the widget, its boxes in the middle of the picker, under the headline.
+    if (dial) {
+        const int row = timeRowWidth(rects);
+        const int picker = std::max(row, dialSize);
+        const int shift = std::max(0, (edit->width() - picker) / 2) + (picker - row) / 2;
+        for (QRect &rect : rects)
+            rect.translate(shift, dialBoxTop);
+    }
     return rects;
+}
+
+QRect QMaterialStyle::timeDialRect(const QDateTimeEdit *edit) {
+    const int picker = std::max(timeRowWidth(timeInputRects(edit)), dialSize);
+    return QRect(std::max(0, (edit->width() - picker) / 2) + (picker - dialSize) / 2, dialTop, dialSize, dialSize);
+}
+
+bool QMaterialStyle::timeDialHours(const QDateTimeEdit *edit) {
+    return timeDialSection(edit) == QDateTimeEdit::HourSection;
+}
+
+bool QMaterialStyle::onTimeDial(const QDateTimeEdit *edit, const QPoint &pos) {
+    const QRectF dial(timeDialRect(edit));
+    return std::hypot(pos.x() + 0.5 - dial.center().x(), pos.y() + 0.5 - dial.center().y()) <= dialSize / 2.0;
+}
+
+QTime QMaterialStyle::timeDialTime(const QDateTimeEdit *edit, const QPoint &pos) {
+    const QRectF dial(timeDialRect(edit));
+    const double dx = pos.x() + 0.5 - dial.center().x();
+    const double dy = pos.y() + 0.5 - dial.center().y();
+    double angle = std::atan2(dx, -dy) * 180 / dialPi; // clockwise from the top
+    if (angle < 0)
+        angle += 360;
+    const QTime time = edit->time();
+    const int sixtieth = static_cast<int>(std::lround(angle / 6)) % 60;
+    switch (timeDialSection(edit)) {
+    case QDateTimeEdit::MinuteSection:
+        return QTime(time.hour(), sixtieth, time.second(), time.msec());
+    case QDateTimeEdit::SecondSection:
+        return QTime(time.hour(), time.minute(), sixtieth, time.msec());
+    default:
+        break;
+    }
+    // The hour of the nearest number: in a 24-hour format, the inner ring has 00 and 13 to 23.
+    const int step = static_cast<int>(std::lround(angle / 30)) % 12;
+    int hour = step + (time.hour() >= 12 ? 12 : 0);
+    if (countsDay(edit)) {
+        const bool inner = std::hypot(dx, dy) < (dialInner + dialOuter) / 2;
+        hour = inner ? (step == 0 ? 0 : step + 12) : (step == 0 ? 12 : step);
+    }
+    return QTime(hour, time.minute(), time.second(), time.msec());
 }
 
 void QMaterialStyle::drawTimeInput(QPainter *painter, const QStyleOption *option, const QDateTimeEdit *edit) const {
     const std::vector<QRect> rects = timeInputRects(edit);
     const QStringList parts = timeParts(edit->text());
+    const bool dial = isTimeDial(edit);
     const bool usable = enabled(option);
     const bool focused = option->state & State_HasFocus;
+    // The box that the keys are in; in the picker with a dial, the one whose numbers the dial shows.
     const int current = focused ? edit->currentSectionIndex() : -1;
+    const QDateTimeEdit::Section shown = dial ? timeDialSection(edit) : QDateTimeEdit::NoSection;
     const QColor faint = withOpacity(color(Role::OnSurface), disabledContentOpacity);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
     QFont digits = edit->font();
-    digits.setPixelSize(timeDigits);
+    digits.setPixelSize(dial ? dialDigits : timeDigits);
     digits.setWeight(QFont::Normal);
     QFont small = edit->font();
     small.setPixelSize(12);
@@ -5250,7 +5434,7 @@ void QMaterialStyle::drawTimeInput(QPainter *painter, const QStyleOption *option
     for (std::size_t i = 0; i < rects.size(); ++i) {
         const QRectF at(rects[i]);
         const QDateTimeEdit::Section section = edit->sectionAt(static_cast<int>(i));
-        const bool here = static_cast<int>(i) == current;
+        const bool here = dial ? section == shown : static_cast<int>(i) == current;
         if (section == QDateTimeEdit::AmPmSection) {
             // Two halves, the one that the time is in filled.
             const bool after = edit->time().hour() >= 12;
@@ -5278,7 +5462,7 @@ void QMaterialStyle::drawTimeInput(QPainter *painter, const QStyleOption *option
             continue;
         }
         fillRounded(painter, at, timeBoxCorner, color(here ? Role::PrimaryContainer : Role::SurfaceContainerHighest));
-        if (here)
+        if (here && !dial)
             strokeRounded(painter, at, timeBoxCorner, color(Role::Primary), 2);
         painter->setFont(digits);
         painter->setPen(!usable ? faint : color(here ? Role::OnPrimaryContainer : Role::OnSurface));
@@ -5288,19 +5472,97 @@ void QMaterialStyle::drawTimeInput(QPainter *painter, const QStyleOption *option
         // A colon before each box but the first.
         if (i > 0) {
             painter->setPen(usable ? color(Role::OnSurface) : faint);
-            painter->drawText(QRect(rects[i].left() - timeSeparator, 0, timeSeparator, timeBoxHeight),
+            painter->drawText(QRect(rects[i].left() - timeSeparator, rects[i].top(), timeSeparator, rects[i].height()),
                               static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, QStringLiteral(":"));
         }
-        const char *const name = section == QDateTimeEdit::HourSection     ? "Hour"
-                                 : section == QDateTimeEdit::MinuteSection ? "Minute"
-                                 : section == QDateTimeEdit::SecondSection ? "Second"
-                                                                           : "";
+        if (dial)
+            continue;
+        const QString name = section == QDateTimeEdit::HourSection     ? tr("Hour")
+                             : section == QDateTimeEdit::MinuteSection ? tr("Minute")
+                             : section == QDateTimeEdit::SecondSection ? tr("Second")
+                                                                       : QString();
         painter->setFont(small);
         painter->setPen(usable ? color(Role::OnSurfaceVariant) : faint);
         painter->drawText(QRect(rects[i].left(), timeBoxHeight + 4, rects[i].width(), timeCaption - 4),
-                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, QString::fromLatin1(name));
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, name);
     }
+    if (dial)
+        drawTimeDial(painter, option, edit);
     painter->restore();
+}
+
+void QMaterialStyle::drawTimeDial(QPainter *painter, const QStyleOption *option, const QDateTimeEdit *edit) const {
+    const bool usable = enabled(option);
+    const QColor faint = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    const QRectF dial(timeDialRect(edit));
+    // The headline, over the picker from its left.
+    const int picker = std::max(timeRowWidth(timeInputRects(edit)), dialSize);
+    QFont headline = edit->font();
+    headline.setPixelSize(12); // label medium
+    headline.setWeight(QFont::Medium);
+    painter->setFont(headline);
+    painter->setPen(usable ? color(Role::OnSurfaceVariant) : faint);
+    painter->drawText(QRect(std::max(0, (edit->width() - picker) / 2), 0, picker, dialHeadline),
+                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, tr("Select time"));
+
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(color(Role::SurfaceContainerHighest));
+    painter->drawEllipse(dial);
+    // The numbers: the hours, twelve in each ring, or every fifth minute.
+    const QDateTimeEdit::Section section = timeDialSection(edit);
+    const bool hours = section == QDateTimeEdit::HourSection;
+    const bool day = hours && countsDay(edit);
+    struct Mark {
+        QPointF at;
+        QString text;
+    };
+    std::vector<Mark> marks;
+    for (int step = 0; step < 12; ++step) {
+        if (!hours) {
+            marks.push_back({dialPoint(dial, step, dialOuter), QString::number(step * 5).rightJustified(2, u'0')});
+            continue;
+        }
+        marks.push_back({dialPoint(dial, step, dialOuter), QString::number(step == 0 ? 12 : step)});
+        if (day)
+            marks.push_back(
+                {dialPoint(dial, step, dialInner), step == 0 ? QStringLiteral("00") : QString::number(step + 12)});
+    }
+    // Where the selector is: on the hour, in its ring, or at the minute.
+    const QTime time = edit->time();
+    QPointF selector;
+    if (hours) {
+        const int hour = time.hour();
+        const bool inner = day && (hour == 0 || hour > 12);
+        selector = dialPoint(dial, hour % 12, inner ? dialInner : dialOuter);
+    } else {
+        const int value = section == QDateTimeEdit::SecondSection ? time.second() : time.minute();
+        selector = dialPoint(dial, value / 5.0, dialOuter);
+    }
+    QFont numbers = edit->font();
+    numbers.setPixelSize(16); // body large
+    numbers.setWeight(QFont::Normal);
+    painter->setFont(numbers);
+    const auto drawMark = [&](const Mark &mark) {
+        const QRectF box(mark.at.x() - dialSelector / 2, mark.at.y() - dialSelector / 2, dialSelector, dialSelector);
+        painter->drawText(box.toRect(), static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, mark.text);
+    };
+    painter->setPen(usable ? color(Role::OnSurface) : faint);
+    for (const Mark &mark : marks)
+        drawMark(mark);
+    // The selector: a line from the dot in the middle to the circle on the number, which is then drawn over it.
+    const QColor accent = usable ? color(Role::Primary) : faint;
+    painter->setPen(QPen(QBrush(accent), dialTrack));
+    painter->drawLine(dial.center(), selector);
+    painter->setPen(Qt::NoPen);
+    painter->setBrush(accent);
+    painter->drawEllipse(dial.center(), dialDot / 2, dialDot / 2);
+    painter->drawEllipse(selector, dialSelector / 2, dialSelector / 2);
+    painter->setPen(usable ? color(Role::OnPrimary) : color(Role::Surface));
+    for (const Mark &mark : marks) {
+        const QPointF off = mark.at - selector;
+        if (off.x() * off.x() + off.y() * off.y() < 1)
+            drawMark(mark);
+    }
 }
 
 bool QMaterialStyle::isDrawerList(const QWidget *widget) {
@@ -5337,7 +5599,9 @@ void QMaterialStyle::prepareHeadline(QDialog *dialog) const {
     }
     removeRoom(dialog, handleRoom);
     const QPlatformIntegration *platform = QtPrivate::GuiAccess::integration();
-    if (!platform || platform->showsDialogTitles() || dialog->windowTitle().isEmpty() || !sheetKind(dialog).isEmpty()) {
+    // A dialog with neither a title nor an icon has no headline; one with an icon alone shows the icon.
+    if (!platform || platform->showsDialogTitles() || !sheetKind(dialog).isEmpty() ||
+        (dialog->windowTitle().isEmpty() && headlineIcon(dialog).isNull())) {
         removeHeadline(dialog);
         return;
     }
@@ -7207,6 +7471,10 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
 */
 QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize,
                                        const QWidget *widget) const {
+    if (type == CT_SpinBox && isTimeDial(widget)) {
+        const int row = timeRowWidth(timeInputRects(static_cast<const QDateTimeEdit *>(widget)));
+        return QSize(std::max(row, dialSize), dialTop + dialSize);
+    }
     if (type == CT_SpinBox && isTimeInput(widget)) {
         const std::vector<QRect> rects = timeInputRects(static_cast<const QDateTimeEdit *>(widget));
         return QSize(rects.empty() ? 0 : rects.back().x() + rects.back().width(), timeBoxHeight + timeCaption);

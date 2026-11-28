@@ -291,7 +291,16 @@ bottom edge, is at least half as high as the window below the bar, and whose ver
 `polish()` gives each scroll area a hidden child object that connects its vertical scroll bar's `valueChanged` to a
 repaint of the window's app bars (`unpolish()` deletes it, which disconnects it), and the style's event filter does the
 same when a scroll area is shown or hidden, as when a tab widget changes page. The title and icons keep their colors.
-Not done: the bar does not scroll away (`enterAlways`; the medium and large bars that collapse are below), and content that scrolls without a `QAbstractScrollArea` (a `QGraphicsView` is one,
+`materialScrollBehavior` = `"enterAlways"` takes the bar away as that scroll area scrolls down and brings it back as
+soon as it scrolls up or reaches the top (Compose's `enterAlwaysScrollBehavior`), snapping as the flexible bars do
+(below): the watcher's repaint compares the offset with the last one the bar saw (`followScrolling()`), and a step
+back that leaves the scroll bar at its maximum is ignored, since that is the clamp from the room the bar gave up. The
+height goes on `ToolBarHideChannel` (default effects); `appBarExtent()` is `toolBarRest()` times 1 - away, and while
+the bar is partly away `QToolBar::event()` lays the buttons out at the rest height, moved up with the bottom edge,
+and `drawAppBar()` translates the same way. The animator's `resizes()` makes each frame of such a spring call
+`updateGeometry()` too, since a bar with no height left is not painted. `"pinned"` keeps a medium or large bar
+expanded; `"exitUntilCollapsed"` (or none) is the collapse below. A medium or large bar with `enterAlways` collapses
+and goes away, and comes back collapsed until the top. Not done: content that scrolls without a `QAbstractScrollArea` (a `QGraphicsView` is one,
 so it counts; a custom widget that scrolls itself does not). A scroll bar that is replaced with
 `setVerticalScrollBar()` after polishing loses the connection until the area is polished again.
 
@@ -423,8 +432,17 @@ default effects), and each frame that paints a height other than the bar's own c
 followed the offset (height = max(64, expanded - offset)), but then the content moved up twice as fast as the finger,
 scrolled and lifted with the bar; Compose avoids that with nested scrolling, which gives the scroll to the bar first and
 has no counterpart here, so the bar now snaps. A list barely longer than the room cannot collapse it: the room the
-collapse gives clamps the scroll back to the top, which expands the bar again, and it settles there. Not done: subtitles (136 and 152 high), centred titles, titles on two lines, enterAlways
-and pinned behaviour.
+collapse gives clamps the scroll back to the top, which expands the bar again, and it settles there.
+`materialSubtitle` adds a subtitle in `OnSurfaceVariant` (`AppBar*Tokens`): label medium (12 on 16) in the small bar,
+whose title line (28) and subtitle line are centred together in its 64, and label large (14 on 20) or title medium
+(16 on 24) in the medium and large bars, which are then 136 and 152 high, title and subtitle stacked 12 above the
+bottom. A title wider than its line goes on two lines (`wrapAppBarTitle()`: broken at words, the rest elided on the
+second, a first word wider than the line elided on one), and the expanded height grows by a title line, 36 or 44
+(148 / 164, or 172 / 196 with a subtitle): Compose's flexible bars grow to fit their content above the minimum height,
+and the spec gives no fixed height for two lines. It follows the bar's width; `QToolBar::event()` asks again on a
+resize. `materialTitleAlignment` = `"center"` centres the title and subtitle on the bar (Compose's
+`CenterAlignedTopAppBar`, and the `titleHorizontalAlignment` of the flexible bars), as wide as the room on the
+narrower side leaves. Not done: three-line titles, and the expanded title does not avoid buttons in the top row.
 
 **Two- and three-line list items.** QListView and QListWidget rows take Material's one-, two- and three-line list
 items from the display text alone, so that a program reads the same under Qt (which draws the line breaks as lines of
@@ -478,8 +496,10 @@ navigation bar. `materialIconButtonWidth` = `"narrow"` or `"wide"` changes the w
 `IconButton*Tokens`, narrow / default / wide 28 / 32 / 40 for extra small, 32 / 40 / 52 for small, 48 / 56 / 72 for
 medium, 64 / 96 / 128 for large and 104 / 136 / 184 for extra large. The size hint is the shape and 48 at least in each
 direction, the shape is centred in it with its own room at the sides and above and below, a full corner is no more
-than half of the narrower side, and the pressed and checked corners morph as before. Not done: the docked toolbar does
-not hide on scroll, and has no FAB of its own or overflow menu.
+than half of the narrower side, and the pressed and checked corners morph as before. `materialScrollBehavior` =
+`"exitAlways"` on a horizontal docked toolbar takes it away down as the scroll area above it (ending at or above its
+top, at least half the room above) scrolls down and brings it back on scrolling up, as the app bar's `enterAlways`
+does; its buttons stay with its top edge. Not done: the docked toolbar has no FAB of its own or overflow menu.
 
 **Search view.** A search bar (`materialTextField` `"search"`) with a QCompleter opens Material's docked search view,
 so that a program written for Qt gets an ordinary completer there. The completer's popup is a QListWidget in the

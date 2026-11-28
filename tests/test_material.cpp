@@ -6346,6 +6346,271 @@ void testDockedToolBarAndIconWidths() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// Subtitles, centred titles and titles on two lines in top app bars, and the bars that scroll away: a top app bar with
+// enterAlways and a docked toolbar with exitAlways. A flexible bar that is pinned does not collapse.
+void testAppBarSubtitlesAndScrolling() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    const auto makeList = [] {
+        auto *list = new QListWidget;
+        for (int i = 0; i < 100; ++i)
+            list->addItem(QStringLiteral("Message %1").arg(i));
+        return list;
+    };
+    // The rows of `image` in [top, bottom) and the columns in [left, right) that have ink: darker than half.
+    struct Ink {
+        int count = 0, left = 1 << 20, right = -1;
+        QColor darkest = Qt::white;
+    };
+    const auto inkOf = [](QWidget *widget, int left, int top, int right, int bottom) {
+        Ink ink;
+        const QImage image = widget->grab().toImage();
+        for (int y = top; y < std::min(bottom, image.height()); ++y)
+            for (int x = left; x < std::min(right, image.width()); ++x) {
+                const QColor c = image.pixelColor(x, y);
+                if (c.lightness() >= 128)
+                    continue;
+                ++ink.count;
+                ink.left = std::min(ink.left, x);
+                ink.right = std::max(ink.right, x);
+                if (c.lightness() < ink.darkest.lightness())
+                    ink.darkest = c;
+            }
+        return ink;
+    };
+
+    // The small bar keeps 64 with a subtitle: the title (22 on 28) and the subtitle (12 on 16) are centred together,
+    // the subtitle in OnSurfaceVariant.
+    {
+        QMainWindow window;
+        auto *bar = new QToolBar;
+        bar->setProperty("materialToolBar", QStringLiteral("appBar"));
+        bar->setProperty("materialSubtitle", QStringLiteral("Subtitle text"));
+        bar->setWindowTitle(QStringLiteral("Inbox"));
+        window.addToolBar(bar);
+        window.setCentralWidget(makeList());
+        window.resize(360, 480);
+        window.show();
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 64);
+        if (textIsDrawn()) {
+            const Ink title = inkOf(bar, 0, 10, 360, 38);
+            const Ink subtitle = inkOf(bar, 0, 39, 360, 54);
+            CHECK(title.count > 20 && subtitle.count > 10);
+            CHECK(inkOf(bar, 0, 0, 360, 9).count == 0 && inkOf(bar, 0, 56, 360, 64).count == 0);
+            CHECK(subtitle.left >= 16 && subtitle.left < 24);
+            CHECK(near(subtitle.darkest, style->color(Role::OnSurfaceVariant), 40));
+            CHECK(subtitle.darkest.lightness() > title.darkest.lightness());
+        }
+
+        // Centred, the title and the subtitle are in the middle of the bar.
+        bar->setProperty("materialTitleAlignment", QStringLiteral("center"));
+        bar->update();
+        QCoreApplication::processEvents();
+        if (textIsDrawn()) {
+            const Ink title = inkOf(bar, 0, 10, 360, 38);
+            const Ink subtitle = inkOf(bar, 0, 39, 360, 54);
+            CHECK(near((title.left + title.right) / 2.0, 180.0, 3.0));
+            CHECK(near((subtitle.left + subtitle.right) / 2.0, 180.0, 3.0));
+            CHECK(title.left > 100);
+        }
+        // Without a subtitle the title is in the middle of the row both ways.
+        bar->setProperty("materialSubtitle", QVariant());
+        bar->update();
+        QCoreApplication::processEvents();
+        if (textIsDrawn()) {
+            const Ink title = inkOf(bar, 0, 0, 360, 64);
+            CHECK(near((title.left + title.right) / 2.0, 180.0, 3.0));
+        }
+    }
+
+    // The medium and large flexible bars are 136 and 152 high with a subtitle, which is under the title; a title too
+    // long for a line goes on two and the bar grows by a line, 36 or 44.
+    for (const char *kind : {"appBarMedium", "appBarLarge"}) {
+        const bool large = QByteArray(kind) == "appBarLarge";
+        QMainWindow window;
+        auto *bar = new QToolBar;
+        bar->setProperty("materialToolBar", QString::fromLatin1(kind));
+        bar->setProperty("materialSubtitle", QStringLiteral("Subtitle text"));
+        bar->setWindowTitle(QStringLiteral("Inbox"));
+        window.addToolBar(bar);
+        auto *list = makeList();
+        window.setCentralWidget(list);
+        window.resize(360, 480);
+        window.show();
+        QCoreApplication::processEvents();
+        const int subtitled = large ? 152 : 136;
+        CHECK(bar->height() == subtitled);
+        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == subtitled);
+        if (textIsDrawn()) {
+            // The subtitle is the last line, 12 above the bottom; the title is over it.
+            const int subtitleLine = large ? 24 : 20;
+            const Ink subtitle = inkOf(bar, 0, subtitled - 12 - subtitleLine, 360, subtitled - 12);
+            const Ink title = inkOf(bar, 0, 64, 360, subtitled - 12 - subtitleLine);
+            CHECK(subtitle.count > 10 && title.count > 40);
+            CHECK(subtitle.darkest.lightness() > title.darkest.lightness());
+        }
+        // Collapsed, it is the small bar with both in the row.
+        list->verticalScrollBar()->setValue(200);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 64);
+        if (textIsDrawn())
+            CHECK(inkOf(bar, 0, 39, 360, 54).count > 10);
+        list->verticalScrollBar()->setValue(0);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == subtitled);
+
+        // Two lines of title.
+        bar->setProperty("materialSubtitle", QVariant());
+        bar->setWindowTitle(QStringLiteral("A title far too long for one line of the bar"));
+        bar->updateGeometry();
+        QCoreApplication::processEvents();
+        const int line = large ? 44 : 36;
+        const int single = large ? 120 : 112;
+        if (textIsDrawn()) {
+            CHECK(bar->height() == single + line);
+            // Ink on both lines.
+            CHECK(inkOf(bar, 0, single + line - 12 - 2 * line, 360, single + line - 12 - line).count > 40);
+            CHECK(inkOf(bar, 0, single + line - 12 - line, 360, single + line - 12).count > 40);
+            // Wide enough, it is one line again.
+            window.resize(1600, 480);
+            QCoreApplication::processEvents();
+            QCoreApplication::processEvents();
+            CHECK(bar->height() == single);
+            window.resize(360, 480);
+            QCoreApplication::processEvents();
+            QCoreApplication::processEvents();
+            CHECK(bar->height() == single + line);
+            // With a subtitle too.
+            bar->setProperty("materialSubtitle", QStringLiteral("Subtitle"));
+            bar->updateGeometry();
+            QCoreApplication::processEvents();
+            CHECK(bar->height() == subtitled + line);
+        }
+
+        // Pinned, it does not collapse.
+        bar->setProperty("materialScrollBehavior", QStringLiteral("pinned"));
+        bar->setProperty("materialSubtitle", QVariant());
+        bar->setWindowTitle(QStringLiteral("Inbox"));
+        bar->updateGeometry();
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == single);
+        list->verticalScrollBar()->setValue(200);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == single);
+        CHECK(near(pixel(*bar, 300, single - 4), style->color(Role::SurfaceContainer), 3));
+        list->verticalScrollBar()->setValue(0);
+        QCoreApplication::processEvents();
+    }
+
+    // enterAlways: the small bar goes as the list scrolls down and comes back as soon as it scrolls up.
+    {
+        QMainWindow window;
+        auto *bar = new QToolBar;
+        bar->setProperty("materialToolBar", QStringLiteral("appBar"));
+        bar->setProperty("materialScrollBehavior", QStringLiteral("enterAlways"));
+        QAction *more = bar->addAction(QStringLiteral("More"));
+        window.addToolBar(bar);
+        auto *list = makeList();
+        window.setCentralWidget(list);
+        window.resize(360, 480);
+        window.show();
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 64);
+        QScrollBar *scroll = list->verticalScrollBar();
+        scroll->setValue(10);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 0);
+        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == 0);
+        CHECK(scroll->value() == 10);
+        scroll->setValue(15);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 0);
+        scroll->setValue(14);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 64);
+        CHECK(list->mapTo(&window, QPoint(0, 0)).y() == 64);
+        CHECK(bar->widgetForAction(more)->y() == 8);
+        // At the bottom, the room that the bar gives up does not bring it back.
+        scroll->setValue(scroll->maximum());
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 0);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 0);
+        scroll->setValue(0);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 64);
+
+        // With motion it slides away, its buttons going up with its bottom edge.
+        style->setMotionEnabled(true);
+        QCoreApplication::processEvents();
+        scroll->setValue(10);
+        QCoreApplication::processEvents();
+        wait(60);
+        const QWidget *button = bar->widgetForAction(more);
+        CHECK(bar->height() > 0 && bar->height() < 64);
+        CHECK(button->y() == bar->height() - 64 + 8);
+        wait(700);
+        CHECK(bar->height() == 0);
+        scroll->setValue(9);
+        wait(700);
+        CHECK(bar->height() == 64 && button->y() == 8);
+        style->setMotionEnabled(false);
+    }
+
+    // exitAlways: a docked toolbar at the bottom goes as the list scrolls down and comes back as it scrolls up.
+    {
+        QMainWindow window;
+        auto *list = makeList();
+        window.setCentralWidget(list);
+        auto *bar = new QToolBar;
+        bar->setProperty("materialToolBar", QStringLiteral("docked"));
+        bar->setProperty("materialScrollBehavior", QStringLiteral("exitAlways"));
+        QAction *first = bar->addAction(QStringLiteral("A"));
+        bar->addAction(QStringLiteral("B"));
+        window.addToolBar(Qt::BottomToolBarArea, bar);
+        window.resize(360, 480);
+        window.show();
+        QCoreApplication::processEvents();
+        CHECK(bar->geometry() == QRect(0, 480 - 64, 360, 64));
+        QScrollBar *scroll = list->verticalScrollBar();
+        scroll->setValue(10);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 0);
+        CHECK(list->height() == 480);
+        scroll->setValue(8);
+        QCoreApplication::processEvents();
+        CHECK(bar->geometry() == QRect(0, 480 - 64, 360, 64));
+        CHECK(bar->widgetForAction(first)->y() == 8);
+
+        // With motion its buttons stay with its top edge as it goes down.
+        style->setMotionEnabled(true);
+        QCoreApplication::processEvents();
+        scroll->setValue(15);
+        QCoreApplication::processEvents();
+        wait(60);
+        CHECK(bar->height() > 0 && bar->height() < 64);
+        CHECK(bar->y() + bar->height() == 480);
+        CHECK(bar->widgetForAction(first)->y() == 8);
+        wait(700);
+        CHECK(bar->height() == 0);
+        style->setMotionEnabled(false);
+
+        // Without the property it stays.
+        bar->setProperty("materialScrollBehavior", QVariant());
+        bar->updateGeometry();
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 64);
+        scroll->setValue(30);
+        QCoreApplication::processEvents();
+        CHECK(bar->height() == 64);
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 // A completer under a search bar opens Material's docked search view: the bar and the view are one shape. Under
 // another line edit its popup is a menu.
 void testSearchView() {
@@ -6909,6 +7174,7 @@ int main(int argc, char *argv[]) {
     testMultiLineListRows();
     testListItemExtras();
     testDockedToolBarAndIconWidths();
+    testAppBarSubtitlesAndScrolling();
     testSearchView();
     testExitMotion();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");

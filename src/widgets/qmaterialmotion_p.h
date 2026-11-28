@@ -113,6 +113,13 @@ public:
         return it->moving ? it->spring.at(now - it->start).position : target;
     }
 
+    // Marks a value that sizes its widget: each frame of its spring asks for the widget's new size as well as a
+    // repaint, which a widget with no height left (a toolbar that scrolled away) would never get.
+    void resizes(const QWidget *widget, int channel) {
+        if (auto it = m_motions.find(Key{widget, channel}); it != m_motions.end())
+            it->sizes = true;
+    }
+
     // Puts a value somewhere, at rest, for the next spring to set off from.
     void place(const QWidget *widget, int channel, double position) {
         Motion motion;
@@ -160,6 +167,7 @@ private:
         double precision = 0.01;
         double start = 0;
         bool moving = false;
+        bool sizes = false; // a frame asks for a new size too
     };
 
     void tick() {
@@ -183,6 +191,8 @@ private:
                 else
                     any = true;
                 it->widget->update();
+                if (it->sizes)
+                    it->widget->updateGeometry();
             }
             ++it;
         }

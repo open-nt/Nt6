@@ -241,6 +241,18 @@ constexpr int appBarMediumTitleLine = 36;
 constexpr int appBarLargeTitlePixels = 36;
 constexpr int appBarLargeTitleLine = 44;
 constexpr int appBarExpandedTitleBottom = 12;
+// A subtitle (AppBar*Tokens): label medium (12 on 16) under the title of the small bar, whose two lines are centred in
+// its 64; label large (14 on 20) and title medium (16 on 24) under the title of the medium and large flexible bars,
+// which are then 136 and 152 high. A title that does not fit one line of those goes on two, and the bar grows by a line.
+constexpr int appBarTitleLine = 28;
+constexpr int appBarSubtitlePixels = 12;
+constexpr int appBarSubtitleLine = 16;
+constexpr int appBarMediumSubtitledHeight = 136;
+constexpr int appBarLargeSubtitledHeight = 152;
+constexpr int appBarMediumSubtitlePixels = 14;
+constexpr int appBarMediumSubtitleLine = 20;
+constexpr int appBarLargeSubtitlePixels = 16;
+constexpr int appBarLargeSubtitleLine = 24;
 constexpr int navigationHeight = 64;
 constexpr int navigationPillWidth = 56; // behind the icon of the destination that is shown
 constexpr int navigationPillHeight = 32;
@@ -739,55 +751,153 @@ bool isAppBarKind(const QString &kind) {
            kind == QLatin1String("appBarLarge");
 }
 
-// How high a top app bar is when it is expanded: more than the small one for a medium or large one.
+// The subtitle of a top app bar, which it shows under its title if it has one.
+QString appBarSubtitle(const QWidget *bar) { return bar->property("materialSubtitle").toString(); }
+
+// True for a top app bar whose title (and subtitle) are in the middle of it, as Compose's CenterAlignedTopAppBar has
+// them, rather than at its leading end.
+bool centresTitle(const QWidget *bar) {
+    return bar->property("materialTitleAlignment").toString() == QLatin1String("center");
+}
+
+// The font of the title of a medium or large app bar on its own line(s).
+QFont expandedTitleFont(const QWidget *bar, bool large) {
+    QFont font = bar->font();
+    font.setPixelSize(large ? appBarLargeTitlePixels : appBarMediumTitlePixels);
+    font.setWeight(QFont::Normal);
+    return font;
+}
+
+// The title of a medium or large app bar on its own line, broken at words onto a second line if it does not fit
+// `width`; what does not fit the second line is elided, as is a first word wider than the line, on one line.
+QStringList wrapAppBarTitle(const QString &title, const QFontMetrics &metrics, int width) {
+    if (width <= 0 || metrics.horizontalAdvance(title) <= width)
+        return {title};
+    const QStringList words = title.split(QLatin1Char(' '), Qt::SkipEmptyParts);
+    QString first;
+    qsizetype used = 0;
+    for (; used < words.size(); ++used) {
+        const QString next = first.isEmpty() ? words[used] : first + QLatin1Char(' ') + words[used];
+        if (metrics.horizontalAdvance(next) > width)
+            break;
+        first = next;
+    }
+    if (used == 0)
+        return {metrics.elidedText(title, Qt::ElideRight, width)};
+    if (used == words.size())
+        return {first};
+    return {first, metrics.elidedText(words.mid(used).join(QLatin1Char(' ')), Qt::ElideRight, width)};
+}
+
+// How high a top app bar is when it is expanded: more than the small one for a medium or large one, more again with a
+// subtitle, and a line more when its title takes two lines at the width that the bar has.
 int expandedAppBarHeight(const QWidget *bar) {
     const QString kind = toolBarKind(bar);
-    return kind == QLatin1String("appBarMedium")  ? appBarMediumHeight
-           : kind == QLatin1String("appBarLarge") ? appBarLargeHeight
-                                                  : appBarHeight;
+    const bool large = kind == QLatin1String("appBarLarge");
+    if (!large && kind != QLatin1String("appBarMedium"))
+        return appBarHeight;
+    const bool subtitled = !appBarSubtitle(bar).isEmpty();
+    int height = large ? (subtitled ? appBarLargeSubtitledHeight : appBarLargeHeight)
+                       : (subtitled ? appBarMediumSubtitledHeight : appBarMediumHeight);
+    if (wrapAppBarTitle(bar->windowTitle(), QFontMetrics(expandedTitleFont(bar, large)),
+                        bar->width() - 2 * appBarTitleSpace)
+            .size() > 1)
+        height += large ? appBarLargeTitleLine : appBarMediumTitleLine;
+    return height;
+}
+
+// The kinds of toolbar that are docked toolbars, across the bottom (or the top) of a window.
+bool isDockedKind(const QString &kind) {
+    return kind == QLatin1String("docked") || kind == QLatin1String("dockedVibrant");
+}
+
+// The scroll behaviour that a top app bar or a docked toolbar asks for with its property.
+QString scrollBehavior(const QWidget *bar) { return bar->property("materialScrollBehavior").toString(); }
+
+// True for a bar that scrolls away as what is under it scrolls down, and comes back as soon as it scrolls up: a top
+// app bar with enterAlways, and a docked toolbar across a window with exitAlways.
+bool scrollsAwayKind(const QWidget *bar) {
+    const QString kind = toolBarKind(bar);
+    if (isAppBarKind(kind))
+        return scrollBehavior(bar) == QLatin1String("enterAlways");
+    return isDockedKind(kind) && scrollBehavior(bar) == QLatin1String("exitAlways") &&
+           static_cast<const QToolBar *>(bar)->orientation() == Qt::Horizontal;
 }
 
 // The child of a scroll area whose connection to its vertical scroll bar repaints the app bars of its window.
 const char *const appBarWatcher = "_nt_materialAppBarWatcher";
+// Whether a bar that scrolls away is away, and the scrolling it last saw.
+const char *const barAway = "_nt_materialBarAway";
+const char *const barOffset = "_nt_materialBarOffset";
 
-// Repaints the top app bars of the window of `widget`, whose color may follow what is scrolled in it. A medium or large
-// one also asks for the height that the scrolling gives it.
-void updateAppBars(const QWidget *widget) {
-    const QList<QToolBar *> bars = widget->window()->findChildren<QToolBar *>();
-    for (QToolBar *bar : bars) {
-        if (!isAppBarKind(toolBarKind(bar)))
-            continue;
-        bar->update();
-        if (expandedAppBarHeight(bar) > appBarHeight)
-            bar->updateGeometry();
-    }
-}
-
-// How far the content under a top app bar is scrolled down from the top, 0 if it is not: that of a scroll area of the
-// same window that is shown, starts at or below the bottom of the bar and is at least half as high as the room of the
-// window below the bar. A small scroll area elsewhere in the window does not count.
-int scrolledUnderBy(const QToolBar *bar) {
+// The vertical scroll bar of what scrolls under a bar. For a top app bar it is that of a scroll area of the same window
+// that is shown, starts at or below the bottom of the bar and is at least half as high as the room of the window below
+// the bar; for a docked toolbar one that ends at or above its top and is at least half as high as the room above it.
+// A small scroll area elsewhere in the window does not count. Of several, the one that is scrolled furthest.
+const QScrollBar *contentScrollBar(const QToolBar *bar) {
     const QWidget *window = bar->window();
-    const int bottom = bar->mapTo(window, QPoint(0, bar->height())).y();
-    const int room = window->height() - bottom;
+    const bool below = !isDockedKind(toolBarKind(bar));
+    const int top = bar->mapTo(window, QPoint(0, 0)).y();
+    const int bottom = top + bar->height();
+    const int room = below ? window->height() - bottom : top;
     const QList<QAbstractScrollArea *> areas = window->findChildren<QAbstractScrollArea *>();
-    int offset = 0;
+    const QScrollBar *found = nullptr;
     for (const QAbstractScrollArea *area : areas) {
         const QScrollBar *scroll = area->verticalScrollBar();
-        if (!scroll || !area->isVisible() || scroll->value() <= scroll->minimum())
+        if (!scroll || !area->isVisible() || 2 * area->height() < room)
             continue;
-        if (area->mapTo(window, QPoint(0, 0)).y() >= bottom && 2 * area->height() >= room)
-            offset = std::max(offset, scroll->value() - scroll->minimum());
+        const int y = area->mapTo(window, QPoint(0, 0)).y();
+        if (below ? y < bottom : y + area->height() > top)
+            continue;
+        if (!found || scroll->value() - scroll->minimum() > found->value() - found->minimum())
+            found = scroll;
     }
-    return offset;
+    return found;
+}
+
+// How far the content under a top app bar is scrolled down from the top, 0 if it is not.
+int scrolledUnderBy(const QToolBar *bar) {
+    const QScrollBar *scroll = contentScrollBar(bar);
+    return scroll ? std::max(0, scroll->value() - scroll->minimum()) : 0;
 }
 
 // True while the content under a top app bar is scrolled.
 bool scrolledUnder(const QToolBar *bar) { return scrolledUnderBy(bar) > 0; }
 
-// The kinds of toolbar that are docked toolbars, across the bottom (or the top) of a window.
-bool isDockedKind(const QString &kind) {
-    return kind == QLatin1String("docked") || kind == QLatin1String("dockedVibrant");
+// A bar that scrolls away goes when what is under it scrolls down and comes back when it scrolls up, or is at the top.
+// A step back that leaves it at its maximum is not the user's: the room that the bar gave up made the scroll area
+// longer, which took that much off the range. A scroll area that comes or goes (`scrolled` false) does not move it.
+void followScrolling(QToolBar *bar, bool scrolled) {
+    const QScrollBar *scroll = contentScrollBar(bar);
+    const int offset = scroll ? std::max(0, scroll->value() - scroll->minimum()) : 0;
+    const int previous = bar->property(barOffset).toInt();
+    bar->setProperty(barOffset, offset);
+    bool away = bar->property(barAway).toBool();
+    const bool down = scrolled && offset > previous;
+    const bool up = scrolled && offset < previous && scroll->value() < scroll->maximum();
+    if (offset == 0 || up)
+        away = false;
+    else if (down)
+        away = true;
+    bar->setProperty(barAway, away);
+}
+
+// Repaints the top app bars of the window of `widget`, whose color may follow what is scrolled in it. A medium or large
+// one, and a bar that scrolls away (a docked toolbar too), also asks for the height that the scrolling gives it.
+// `scrolled` is true when something scrolled, false when a scroll area was shown or hidden.
+void updateAppBars(const QWidget *widget, bool scrolled) {
+    const QList<QToolBar *> bars = widget->window()->findChildren<QToolBar *>();
+    for (QToolBar *bar : bars) {
+        const QString kind = toolBarKind(bar);
+        if (!isAppBarKind(kind) && !isDockedKind(kind))
+            continue;
+        const bool away = scrollsAwayKind(bar);
+        if (away)
+            followScrolling(bar, scrolled);
+        bar->update();
+        if (away || expandedAppBarHeight(bar) > appBarHeight)
+            bar->updateGeometry();
+    }
 }
 
 bool isVibrantToolBar(const QWidget *widget) {
@@ -1265,6 +1375,7 @@ enum Channel {
     WaveChannel,
     AppBarChannel,         // how far a top app bar has gone from its color at rest to that of content scrolled under it
     AppBarCollapseChannel, // how far a medium or large top app bar has collapsed, in pixels
+    ToolBarHideChannel,    // how far a top app bar or a docked toolbar has scrolled away, from 0 to 1
     ElevationChannel,      // how far the shadow of an elevated chip or card falls, in pixels
     ScrollBarChannel,      // how far the handle of a scroll bar has faded in
     YearsChannel,          // how far the years of a date picker have faded in over its days
@@ -1697,7 +1808,18 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         row of 64 and the title on a line of its own below them, 16 from the left, in 28 or 36 pixels. Once that scroll
         area is scrolled down the bar collapses to the height of the small one, and the content moves up with it; on
         the way the big title fades out and the small one comes into the row. At the top it is expanded again. With
-        motion it collapses and expands on a spring.
+        motion it collapses and expands on a spring. A title too long for its line goes on two lines, and the bar is
+        a line (36 or 44) higher.
+    \li \c materialSubtitle of a top app bar is a subtitle under its title, in the on surface variant color: in 12
+        pixels in the small bar, whose title and subtitle are centred together in its 64, and in 14 or 16 pixels in the
+        medium or large one, which is then 136 or 152 high when expanded. \c materialTitleAlignment \c "center" puts
+        the title and the subtitle in the middle of the bar rather than after what leads it.
+    \li \c materialScrollBehavior of a top app bar is how it follows the scroll area under it: \c "pinned" keeps it
+        where it is (a medium or large one does not collapse); \c "exitUntilCollapsed", the default, collapses a
+        medium or large one as above, and keeps the small one; \c "enterAlways" also takes the bar away as the content
+        scrolls down and brings it back as soon as it scrolls up or is at the top. \c "exitAlways" on a docked toolbar
+        across the bottom of a window takes it away down in the same way, following the scroll area above it. A bar
+        that goes gives its room to the content, and its buttons go with it; with motion it slides on a spring.
     \li \c materialTabBar \c "navigationBar" makes a horizontal QTabBar a bottom navigation bar, 64 high: its tabs
         share the width, each an icon over its label, with a pill behind the one that is current. With a QTabWidget
         whose tabs are at the south it is the navigation of an application and its pages:
@@ -2418,7 +2540,7 @@ void QMaterialStyle::polish(QWidget *widget) {
         auto *watcher = new QObject(area); // the connection goes when unpolish() deletes it
         watcher->setObjectName(QLatin1String(appBarWatcher));
         QObject::connect(area->verticalScrollBar(), &QScrollBar::valueChanged, watcher,
-                         [area] { updateAppBars(area); });
+                         [area] { updateAppBars(area, true); });
     }
     // The drawer is all the frame that its list has.
     if (isDrawerList(widget)) {
@@ -2645,7 +2767,7 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
     // bar.
     if ((event->type() == QEvent::Show || event->type() == QEvent::Hide) &&
         qobject_cast<QAbstractScrollArea *>(watched))
-        updateAppBars(static_cast<QWidget *>(watched));
+        updateAppBars(static_cast<QWidget *>(watched), false);
     // A text editor's border shows that it has the focus.
     if (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut) {
         if (auto *widget = qobject_cast<QWidget *>(watched); widget && isTextEditor(widget))
@@ -3211,19 +3333,41 @@ bool QMaterialStyle::isAppBar(const QWidget *widget) { return isAppBarKind(toolB
 
 bool QMaterialStyle::isFlexibleAppBar(const QWidget *widget) { return expandedAppBarHeight(widget) > appBarHeight; }
 
-int QMaterialStyle::appBarExtent(const QToolBar *bar) const {
-    // A medium or large one collapses to the small one once the content under it is scrolled, and expands at the top.
-    // It does not follow the scrolling: the content would move up twice as fast as the finger, scrolled and lifted.
+bool QMaterialStyle::scrollsAway(const QWidget *widget) { return scrollsAwayKind(widget); }
+
+int QMaterialStyle::toolBarRest(const QToolBar *bar, int natural) const {
+    // A medium or large one collapses to the small one once the content under it is scrolled, and expands at the top,
+    // unless it is pinned. It does not follow the scrolling: the content would move up twice as fast as the finger,
+    // scrolled and lifted.
     const int expanded = expandedAppBarHeight(bar);
     const int range = expanded - appBarHeight;
-    if (range <= 0)
-        return appBarHeight;
-    double collapse = scrolledUnder(bar) ? range : 0;
-    if (m_motion)
+    if (range <= 0) // a small one is 64 high even without buttons
+        return isAppBarKind(toolBarKind(bar)) ? std::max(natural, appBarHeight) : natural;
+    double collapse = scrolledUnder(bar) && scrollBehavior(bar) != QLatin1String("pinned") ? range : 0;
+    if (m_motion) {
         collapse =
             std::clamp(m_animator->value(bar, AppBarCollapseChannel, collapse, QtPrivate::defaultEffectsSpring, 0.25),
                        0.0, static_cast<double>(range));
+        m_animator->resizes(bar, AppBarCollapseChannel);
+    }
     return expanded - static_cast<int>(std::lround(collapse));
+}
+
+double QMaterialStyle::toolBarAway(const QToolBar *bar) const {
+    // It snaps away and back, as the collapse does, rather than following the scrolling.
+    if (!scrollsAwayKind(bar))
+        return 0.0;
+    double away = bar->property(barAway).toBool() ? 1.0 : 0.0;
+    if (m_motion) {
+        away = std::clamp(m_animator->value(bar, ToolBarHideChannel, away, QtPrivate::defaultEffectsSpring, 0.004), 0.0,
+                          1.0);
+        m_animator->resizes(bar, ToolBarHideChannel);
+    }
+    return away;
+}
+
+int QMaterialStyle::appBarExtent(const QToolBar *bar, int natural) const {
+    return static_cast<int>(std::lround(toolBarRest(bar, natural) * (1.0 - toolBarAway(bar))));
 }
 
 void QMaterialStyle::drawAppBar(QPainter *painter, const QToolBar *bar) const {
@@ -3233,7 +3377,12 @@ void QMaterialStyle::drawAppBar(QPainter *painter, const QToolBar *bar) const {
     if (m_motion)
         scrolled = std::clamp(m_animator->value(bar, AppBarChannel, scrolled, QtPrivate::defaultEffectsSpring, 0.004),
                               0.0, 1.0);
-    painter->fillRect(bar->rect(), blend(color(Role::Surface), color(Role::SurfaceContainer), scrolled));
+    // A bar that is partly scrolled away is drawn whole, moved up by what has gone, as QToolBar moves its buttons.
+    const int height = toolBarAway(bar) > 0.0 ? std::max(bar->height(), toolBarRest(bar, appBarHeight)) : bar->height();
+    painter->save();
+    painter->translate(0, bar->height() - height);
+    painter->fillRect(QRect(0, 0, bar->width(), height),
+                      blend(color(Role::Surface), color(Role::SurfaceContainer), scrolled));
     // The title is between what leads and what follows: the buttons before the first separator, and the others.
     int from = appBarTitleSpace;
     int to = bar->width() - appBarTitleSpace;
@@ -3254,40 +3403,78 @@ void QMaterialStyle::drawAppBar(QPainter *painter, const QToolBar *bar) const {
         else
             from = std::max(from, widget->x() + widget->width() + 4);
     }
-    // A medium or large one has its title on a line of its own below the buttons while it is expanded. As it collapses
-    // that title goes up with its bottom edge and fades, and the small title comes in the row once it is past half.
-    const int range = expandedAppBarHeight(bar) - appBarHeight;
-    const double collapsed =
-        range > 0 ? std::clamp(static_cast<double>(expandedAppBarHeight(bar) - bar->height()) / range, 0.0, 1.0) : 1.0;
-    if (range > 0 && collapsed < 1.0 && bar->height() > appBarHeight) {
-        const bool large = expandedAppBarHeight(bar) == appBarLargeHeight;
+    const QString subtitle = appBarSubtitle(bar);
+    const bool centred = centresTitle(bar);
+    const Qt::Alignment along = centred ? Qt::AlignHCenter : Qt::AlignLeft;
+    // A medium or large one has its title on a line (or two) of its own below the buttons while it is expanded, and
+    // its subtitle under that. As it collapses they go up with its bottom edge and fade, and the small title comes in
+    // the row once it is past half.
+    const int expanded = expandedAppBarHeight(bar);
+    const int range = expanded - appBarHeight;
+    const double collapsed = range > 0 ? std::clamp(static_cast<double>(expanded - height) / range, 0.0, 1.0) : 1.0;
+    if (range > 0 && collapsed < 1.0 && height > appBarHeight) {
+        const bool large = toolBarKind(bar) == QLatin1String("appBarLarge");
         const int line = large ? appBarLargeTitleLine : appBarMediumTitleLine;
         const int width = bar->width() - 2 * appBarTitleSpace;
-        QFont font = bar->font();
-        font.setPixelSize(large ? appBarLargeTitlePixels : appBarMediumTitlePixels);
-        font.setWeight(QFont::Normal);
+        const QFont font = expandedTitleFont(bar, large);
+        const QStringList lines = wrapAppBarTitle(bar->windowTitle(), QFontMetrics(font), width);
+        QFont subtitleFont = bar->font();
+        subtitleFont.setPixelSize(large ? appBarLargeSubtitlePixels : appBarMediumSubtitlePixels);
+        subtitleFont.setWeight(QFont::Medium);
+        const int subtitleLine = subtitle.isEmpty() ? 0 : large ? appBarLargeSubtitleLine : appBarMediumSubtitleLine;
         painter->save();
-        painter->setClipRect(QRect(0, appBarHeight, bar->width(), bar->height() - appBarHeight));
+        painter->setClipRect(QRect(0, appBarHeight, bar->width(), height - appBarHeight));
         painter->setOpacity(1.0 - collapsed);
         painter->setFont(font);
         painter->setPen(color(Role::OnSurface));
-        painter->drawText(QRect(appBarTitleSpace, bar->height() - appBarExpandedTitleBottom - line, width, line),
-                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-                          QFontMetrics(font).elidedText(bar->windowTitle(), Qt::ElideRight, width));
+        int y = height - appBarExpandedTitleBottom - subtitleLine - line * static_cast<int>(lines.size());
+        for (const QString &text : lines) {
+            painter->drawText(QRect(appBarTitleSpace, y, width, line), along | Qt::AlignVCenter | Qt::TextSingleLine,
+                              text);
+            y += line;
+        }
+        if (!subtitle.isEmpty()) {
+            painter->setFont(subtitleFont);
+            painter->setPen(color(Role::OnSurfaceVariant));
+            painter->drawText(QRect(appBarTitleSpace, y, width, subtitleLine),
+                              along | Qt::AlignVCenter | Qt::TextSingleLine,
+                              QFontMetrics(subtitleFont).elidedText(subtitle, Qt::ElideRight, width));
+        }
         painter->restore();
     }
+    // A centred title is in the middle of the bar, as wide as the room on its narrower side leaves.
+    if (centred) {
+        const int middle = bar->width() / 2;
+        const int half = std::min(middle - from, to - middle);
+        from = middle - half;
+        to = middle + half;
+    }
     const double small = std::clamp(2.0 * collapsed - 1.0, 0.0, 1.0);
-    if (to <= from || small <= 0.0)
-        return;
-    QFont font = bar->font();
-    font.setPixelSize(appBarTitlePixels);
-    font.setWeight(QFont::Normal);
-    painter->save();
-    painter->setOpacity(small);
-    painter->setFont(font);
-    painter->setPen(color(Role::OnSurface));
-    painter->drawText(QRect(from, 0, to - from, appBarHeight), Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-                      QFontMetrics(font).elidedText(bar->windowTitle(), Qt::ElideRight, to - from));
+    if (to > from && small > 0.0) {
+        // With a subtitle, the title (28 high) and the subtitle (16) are centred together in the row.
+        QFont font = bar->font();
+        font.setPixelSize(appBarTitlePixels);
+        font.setWeight(QFont::Normal);
+        const int top = subtitle.isEmpty() ? 0 : (appBarHeight - appBarTitleLine - appBarSubtitleLine) / 2;
+        painter->save();
+        painter->setOpacity(small);
+        painter->setFont(font);
+        painter->setPen(color(Role::OnSurface));
+        painter->drawText(QRect(from, top, to - from, subtitle.isEmpty() ? appBarHeight : appBarTitleLine),
+                          along | Qt::AlignVCenter | Qt::TextSingleLine,
+                          QFontMetrics(font).elidedText(bar->windowTitle(), Qt::ElideRight, to - from));
+        if (!subtitle.isEmpty()) {
+            QFont subtitleFont = bar->font();
+            subtitleFont.setPixelSize(appBarSubtitlePixels);
+            subtitleFont.setWeight(QFont::Medium);
+            painter->setFont(subtitleFont);
+            painter->setPen(color(Role::OnSurfaceVariant));
+            painter->drawText(QRect(from, top + appBarTitleLine, to - from, appBarSubtitleLine),
+                              along | Qt::AlignVCenter | Qt::TextSingleLine,
+                              QFontMetrics(subtitleFont).elidedText(subtitle, Qt::ElideRight, to - from));
+        }
+        painter->restore();
+    }
     painter->restore();
 }
 

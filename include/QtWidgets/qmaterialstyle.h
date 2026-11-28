@@ -274,7 +274,14 @@ private:
     // A medium or large app bar, whose title is on a line below its buttons until it collapses as what is under it
     // scrolls, and how high it is now: QToolBar keeps its buttons in the top row and asks for that height.
     static bool isFlexibleAppBar(const QWidget *widget);
-    int appBarExtent(const QToolBar *bar) const;
+    // How high a top app bar or a docked toolbar is now, of `natural`, the height its buttons ask for: a medium or
+    // large one as the scrolling leaves it, and less of it once it scrolls away (enterAlways or exitAlways).
+    // toolBarRest() is the height without what has scrolled away, and toolBarAway() how far it has, from 0 to 1;
+    // QToolBar lays its buttons out at the rest height, moved with the edge that leaves, while that is more than 0.
+    int appBarExtent(const QToolBar *bar, int natural) const;
+    int toolBarRest(const QToolBar *bar, int natural) const;
+    double toolBarAway(const QToolBar *bar) const;
+    static bool scrollsAway(const QWidget *widget);
     void drawFloatingToolBar(QPainter *painter, const QToolBar *bar) const;
     void drawDockedToolBar(QPainter *painter, const QToolBar *bar) const;
     QColor toolBarItemColor(const QStyleOption *option, const QWidget *widget) const;

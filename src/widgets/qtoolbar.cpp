@@ -387,17 +387,55 @@ void QToolBar::setToolButtonStyle(Qt::ToolButtonStyle toolButtonStyle) {
 */
 QSize QToolBar::sizeHint() const {
     QSize size = m_layout->sizeHint();
-    // A medium or large top app bar is as high as the scrolling of what is under it leaves it.
-    if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
-        material && QMaterialStyle::isFlexibleAppBar(this))
-        size.setHeight(material->appBarExtent(this));
+    // A top app bar or a docked toolbar is as high as the scrolling of what is under it leaves it.
+    if (const QMaterialStyle *material = scrollingStyle())
+        size.setHeight(material->appBarExtent(this, size.height()));
     return size;
 }
 
 /*!
     \reimp
 */
-QSize QToolBar::minimumSizeHint() const { return m_layout->minimumSize(); }
+QSize QToolBar::minimumSizeHint() const {
+    QSize size = m_layout->minimumSize();
+    // One that scrolls away needs no more than what is left of it.
+    if (scrollingStyle())
+        size.setHeight(std::min(size.height(), sizeHint().height()));
+    return size;
+}
+
+// The Material style of a horizontal top app bar or docked toolbar, whose height follows what scrolls under it; null
+// for another toolbar.
+const QMaterialStyle *QToolBar::scrollingStyle() const {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    return material && m_orientation == Qt::Horizontal &&
+                   (QMaterialStyle::isAppBar(this) || QMaterialStyle::isDockedToolBar(this))
+               ? material
+               : nullptr;
+}
+
+/*!
+    \reimp
+*/
+bool QToolBar::event(QEvent *event) {
+    const bool done = QWidget::event(event);
+    if (event->type() != QEvent::Resize && event->type() != QEvent::LayoutRequest)
+        return done;
+    const QMaterialStyle *material = scrollingStyle();
+    if (!material)
+        return done;
+    // While part of it has scrolled away, its buttons are laid out at the whole height and go with the edge that
+    // leaves: those of a top app bar up, those of a docked toolbar down.
+    const int natural = m_layout->sizeHint().height();
+    const int rest = material->toolBarRest(this, natural);
+    if (material->toolBarAway(this) > 0.0 && height() < rest)
+        m_layout->setGeometry(QRect(0, QMaterialStyle::isAppBar(this) ? height() - rest : 0, width(), rest));
+    // The title of a medium or large one may take another line, or one fewer, at a new width.
+    if (event->type() == QEvent::Resize && QMaterialStyle::isFlexibleAppBar(this) &&
+        material->appBarExtent(this, natural) != height())
+        updateGeometry();
+    return done;
+}
 
 QWidget *QToolBar::createItemWidget(QAction *action, bool *fromAction) {
     *fromAction = false;
@@ -583,8 +621,9 @@ void QToolBar::paintEvent(QPaintEvent *event) {
     if (const auto *material = qobject_cast<const QMaterialStyle *>(style()); material && material->isAppBar(this)) {
         QPainter painter(this);
         material->drawAppBar(&painter, this);
-        // A medium or large one changes its height along a spring: each frame asks for the new one.
-        if (QMaterialStyle::isFlexibleAppBar(this) && material->appBarExtent(this) != height())
+        // A medium or large one, or one that scrolls away, changes its height along a spring: each frame asks for the
+        // new one.
+        if (material->appBarExtent(this, m_layout->sizeHint().height()) != height())
             updateGeometry();
         return;
     }
@@ -592,6 +631,9 @@ void QToolBar::paintEvent(QPaintEvent *event) {
         material && QMaterialStyle::isDockedToolBar(this)) {
         QPainter painter(this);
         material->drawDockedToolBar(&painter, this);
+        // One that scrolls away changes its height along a spring, as an app bar does.
+        if (scrollingStyle() && material->appBarExtent(this, m_layout->sizeHint().height()) != height())
+            updateGeometry();
         return;
     }
     if (isFloatingForStyle()) {

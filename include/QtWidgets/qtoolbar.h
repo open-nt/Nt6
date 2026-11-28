@@ -9,6 +9,7 @@
 
 class QBoxLayout;
 class QToolButton;
+class QMaterialStyle;
 
 class QStyleOptionToolBar;
 
@@ -114,6 +115,7 @@ signals:
 
 protected:
     void initStyleOption(QStyleOptionToolBar *option) const;
+    bool event(QEvent *event) override;
     void actionEvent(QActionEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
     void changeEvent(QEvent *event) override;
@@ -131,6 +133,7 @@ private:
     void init(const QString &title);
     void relayout();
     bool isFloatingForStyle() const;
+    const QMaterialStyle *scrollingStyle() const;
     QWidget *createItemWidget(QAction *action, bool *fromAction);
     void syncVisibility(const Item &item);
     int handleExtent() const;

@@ -8,6 +8,7 @@
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qapplication.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qmenubar.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
@@ -85,6 +86,9 @@ QString plainLabel(const QString &text) {
     bold, which Qt's Fusion style does not show. The menu is a child of a window, not a window that can reach beyond it:
     popup() reparents the menu to the window of its parent, or to the active window if it has no parent. Shortcuts of the
     actions are shown but are triggered by the window, not by the menu. The menu is not a style-sheet or a platform menu.
+    Under QMaterialStyle, a menu whose Nt-only property \c materialMenu is \c "vertical" opens its submenus in its own
+    place, on a click, Right or Return, under a row with an arrow and the submenu's title that goes back, as do Left
+    and Escape; the submenu emits aboutToShow() and aboutToHide() but is not shown itself.
     \enddifferences
 
     \sa QMenuBar, QAction, QActionGroup
@@ -312,8 +316,10 @@ void QMenu::layoutItems() const {
         return;
     m_items.clear();
     std::vector<QAction *> visible;
+    if (!m_inPlace.empty() && m_backAction)
+        visible.push_back(m_backAction);
     bool afterSeparator = true;
-    for (QAction *action : actions()) {
+    for (QAction *action : shownActions()) {
         if (!action->isVisible())
             continue;
         const bool section = action->isSeparator() && !action->text().isEmpty();
@@ -378,6 +384,67 @@ void QMenu::layoutItems() const {
 }
 
 bool QMenu::isSubMenuAction(const QAction *action) const { return action->menu<QMenu *>() != nullptr; }
+
+bool QMenu::opensSubMenusInPlace() const { return QMaterialStyle::opensSubMenusInPlace(this); }
+
+QList<QAction *> QMenu::shownActions() const {
+    for (auto it = m_inPlace.rbegin(); it != m_inPlace.rend(); ++it)
+        if (*it)
+            return (*it)->actions();
+    return actions();
+}
+
+// Shows the items of `menu` in the place of this menu's, under a row with an arrow and the title of the menu that
+// goes back. The submenu is told that it shows and hides as if it opened on its own.
+void QMenu::openInPlace(QMenu *menu, bool selectFirst) {
+    m_subMenuTimer.stop();
+    m_pendingSubMenu = nullptr;
+    m_inPlace.emplace_back(menu);
+    menu->m_inPlaceHost = this;
+    if (!m_backAction)
+        m_backAction = new QAction(this);
+    m_backAction->setText(menu->title());
+    m_backAction->setIcon(style()->standardIcon(QStyle::SP_ArrowBack, nullptr, this));
+    emit menu->aboutToShow();
+    m_active = nullptr;
+    relayout();
+    setCurrent(selectFirst ? step(m_backAction, 1) : nullptr, false);
+}
+
+// Goes back from the submenu shown in place to what was shown before it, with the submenu's row current.
+void QMenu::goBack() {
+    if (m_inPlace.empty())
+        return;
+    const QPointer<QMenu> menu = m_inPlace.back();
+    m_inPlace.pop_back();
+    if (!m_inPlace.empty() && m_inPlace.back())
+        m_backAction->setText(m_inPlace.back()->title());
+    m_active = nullptr;
+    relayout();
+    if (menu) {
+        menu->m_inPlaceHost = nullptr;
+        setCurrent(menu->menuAction(), false);
+        emit menu->aboutToHide();
+    }
+}
+
+void QMenu::relayout() {
+    m_dirty = true;
+    layoutItems();
+    if (m_active && std::none_of(m_items.begin(), m_items.end(),
+                                 [this](const Item &item) { return item.action == m_active.data(); }))
+        m_active = nullptr;
+    if (isVisible() && !m_size.isEmpty()) {
+        resize(m_size);
+        // What grew past the edge of the window goes back into it.
+        if (const QWidget *window = parentWidget()) {
+            const int x = std::max(0, std::min(pos().x(), window->width() - width()));
+            const int y = std::max(0, std::min(pos().y(), window->height() - height()));
+            move(x, y);
+        }
+    }
+    update();
+}
 
 QMenu *QMenu::openMenu() const { return static_cast<QMenu *>(m_open.data()); }
 
@@ -449,7 +516,8 @@ void QMenu::setCurrent(QAction *action, bool openSubMenu) {
             action->hover();
         }
     }
-    if (action && openSubMenu && action->isEnabled() && isSubMenuAction(action)) {
+    // A submenu that opens in place waits for a click: it would take the rows from under the pointer.
+    if (action && openSubMenu && action->isEnabled() && isSubMenuAction(action) && !opensSubMenusInPlace()) {
         m_pendingSubMenu = action;
         m_subMenuTimer.start();
     }
@@ -547,6 +615,10 @@ void QMenu::openSubMenu(QAction *action, bool selectFirst) {
     auto *sub = action ? action->menu<QMenu *>() : nullptr;
     if (!sub || sub->isEmpty() || !action->isEnabled())
         return;
+    if (opensSubMenusInPlace()) {
+        openInPlace(sub, selectFirst);
+        return;
+    }
     if (m_open.data() == sub && sub->isVisible()) {
         if (selectFirst)
             sub->setCurrent(sub->step(nullptr, 1), false);
@@ -647,8 +719,12 @@ QAction *QMenu::mnemonicTarget(int key, bool *several) const {
 void QMenu::activateItem(QAction *action) {
     if (!action || !action->isEnabled() || action->isSeparator())
         return;
-    // The menus from this one to the first, which all report the action
-    std::vector<QPointer<QMenu>> chain;
+    if (action == m_backAction && !m_inPlace.empty()) {
+        goBack();
+        return;
+    }
+    // The menus from this one to the first, which all report the action, after those shown in this one's place
+    std::vector<QPointer<QMenu>> chain(m_inPlace.rbegin(), m_inPlace.rend());
     for (QMenu *menu = this; menu; menu = dynamic_cast<QMenu *>(WidgetAccess::data(menu).popupParent.data()))
         chain.emplace_back(menu);
     QMenu *root = rootMenu();
@@ -699,7 +775,7 @@ void QMenu::mousePressEvent(QMouseEvent *event) {
     QAction *action = actionAt(event->pos());
     if (action && !action->isSeparator()) {
         setCurrent(action, false);
-        if (isSubMenuAction(action))
+        if (isSubMenuAction(action) && !opensSubMenusInPlace())
             openSubMenu(action, false);
     }
     event->accept();
@@ -710,8 +786,13 @@ void QMenu::mousePressEvent(QMouseEvent *event) {
 */
 void QMenu::mouseReleaseEvent(QMouseEvent *event) {
     QAction *action = actionAt(event->pos());
-    if (action && !action->isSeparator() && action->isEnabled() && !isSubMenuAction(action))
-        activateItem(action);
+    if (action && !action->isSeparator() && action->isEnabled()) {
+        // A submenu that opens in place does on the release, so that the release does not choose what takes its place.
+        if (!isSubMenuAction(action))
+            activateItem(action);
+        else if (opensSubMenusInPlace())
+            openSubMenu(action, false);
+    }
     event->accept();
 }
 
@@ -754,7 +835,9 @@ void QMenu::keyPressEvent(QKeyEvent *event) {
             root->menuBar()->navigate(root, 1);
         break;
     case Qt::Key_Left:
-        if (parentMenu)
+        if (!m_inPlace.empty())
+            goBack();
+        else if (parentMenu)
             hide();
         else if (menuBar())
             menuBar()->navigate(this, -1);
@@ -768,7 +851,9 @@ void QMenu::keyPressEvent(QKeyEvent *event) {
             activateItem(current);
         break;
     case Qt::Key_Escape:
-        if (parentMenu)
+        if (!m_inPlace.empty())
+            goBack();
+        else if (parentMenu)
             hide();
         else
             closeAll();
@@ -803,9 +888,12 @@ void QMenu::keyPressEvent(QKeyEvent *event) {
 void QMenu::actionEvent(QActionEvent *event) {
     (void)event;
     m_dirty = true;
-    if (m_active) {
+    // A menu shown in another's place changes the rows of that one.
+    if (m_inPlaceHost && isHidden())
+        m_inPlaceHost->relayout();
+    if (m_active && m_active.data() != m_backAction) {
         bool present = false;
-        for (QAction *action : actions())
+        for (QAction *action : shownActions())
             present = present || action == m_active.data();
         if (!present)
             m_active = nullptr;
@@ -826,6 +914,16 @@ void QMenu::hideEvent(QHideEvent *event) {
     m_closing = true;
     closeSubMenu();
     m_active = nullptr;
+    // The submenus shown in place close with it, and it opens again with its own items.
+    std::vector<QPointer<QMenu>> inPlace;
+    inPlace.swap(m_inPlace);
+    m_dirty = m_dirty || !inPlace.empty();
+    for (auto it = inPlace.rbegin(); it != inPlace.rend(); ++it) {
+        if (*it) {
+            (*it)->m_inPlaceHost = nullptr;
+            emit(*it)->aboutToHide();
+        }
+    }
     auto *parentMenu = dynamic_cast<QMenu *>(WidgetAccess::data(this).popupParent.data());
     if (parentMenu) {
         WidgetAccess::data(this).popupParent = nullptr;

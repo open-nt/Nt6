@@ -335,8 +335,13 @@ of a date (`ImhPreferNumbers` would give digits alone, without the slash). A cal
 style leaves the input mode. In the input mode the picker's size hint (and minimum) is only the headline, the field
 and 8 under it (`datePickerInputHeight()`), as Material's date input dialog; a shown `QDialog` with a layout that
 holds the picker shrinks by the height that went and grows back with the days.
+The years have state layers on their pills, in the color of the text: 0.08 under the pointer (the calendar tracks the
+mouse and handles the moves in `event()`) and 0.10 while pressed; a year is chosen on the release over the year it was
+pressed on, so the press shows. The days and the years cross-fade (`datePickerYearsShown()`, the default effects spring
+on the animator's `YearsChannel`): the calendar paints the years at that opacity and the days over them at the rest,
+and at once without motion.
 Not done: the range picker, a menu of months (the docked picker's), the confirm and cancel buttons (left to the
-dialog), state layers on the years, animating the switch, and a localized headline.
+dialog), and a localized headline.
 
 Sliders have the five Expressive sizes, `materialSliderSize` = `"extraSmall"` (the default, the look they had) to
 `"extraLarge"`: tracks of 16, 24, 40, 56 and 96, outer corners 8, 8, 12, 16 and 28, handles of 44, 44, 52, 68 and 108
@@ -368,17 +373,27 @@ draws nothing, and `PE_PanelMenu` fills and outlines a container for each group,
 the menu and 8 (corner small) beside a gap; the window shows in the gap. A section (a separator with a text) is not
 a gap. Setting the property sends the menu a style change, so it lays itself out anew. A section
 (`QMenu::addSection()`) is a group label: a row of 32 with no line, its text in label medium (12 of the menu's 16, medium
-weight) and `OnSurfaceVariant`, 12 in from the row as the rows' text is; in a grouped menu it sits inside its group. Nt's
+weight) and `OnSurfaceVariant`, 12 in from the row as the rows' text is, after its icon (`addSection(icon, text)`), 20 by
+20 and 8 before the text, tinted the same; in a grouped menu it sits inside its group. Nt's
 `QMenu` gives the style a section as a normal item that is not enabled, so the style knows it by its action, found with
 `actionAt()` at the row, or, while the menu measures its rows (which have no rectangle then), by a separator with that
 text. A line break in an action's text puts what follows under the label as supporting text (body medium,
-`OnSurfaceVariant`, a line of 20 for each line break), the label in a line of 24, 8 above and below, so 60 with one
-line; the type is that of the list's rows (`listRowFont()`), and the shortcut, which `QMenu` puts after a tab at the end
+`OnSurfaceVariant`, a line of 20 for each line), the label in a line of 24, 8 above and below, so 60 with one
+line. It wraps between words (`wrapListText()`) to what a row of the widest menu, 280, leaves beside the leading icon,
+the arrow of a submenu and a trailing icon (`menuSupportingWidth()`), measured and drawn alike, so a row that wraps makes
+the menu 280 wide and grows by 20 a line, and a line break still starts a line; the type is that of the list's rows (`listRowFont()`), and the shortcut, which `QMenu` puts after a tab at the end
 of the text, stays at the trailing end in the middle of the row. The Nt-only property `materialTrailingIcon` (a `QIcon`)
 of a `QAction` draws it 24 by 24 at the trailing end, tinted `OnSurfaceVariant` by `paintIcon()` when it has one color,
 inside the arrow of a submenu and outside the shortcut; the rows share one width, so all make room for it when one has
-it. Not done: the vertical menu whose submenu opens in place, supporting text that wraps (each line is one line break),
-and icons of section labels.
+it. The vertical menu of Expressive, whose submenu opens in place, is `materialMenu` = `"vertical"`: `QMenu` asks
+`QMaterialStyle::opensSubMenusInPlace()` (a friend), and then a click on a submenu's row (on the release, so that the
+release does not choose what takes its place), Right or Return lays out the submenu's actions in the menu's place, under
+a back row; hovering does not open it. The back row is a private `QAction` of the menu with the submenu's title and
+`SP_ArrowBack` for other styles; this style draws Material's arrow back (a 2 stroke) in it, knowing the row through
+`QtPrivate::MenuAccess` (`qmenu_p.h`), which also gives the shown actions to the measuring of sections, trailing icons
+and groups. The back row, Left and Escape go back, with the submenu's row current; submenus nest. The submenu emits
+`aboutToShow()`/`aboutToHide()` and `triggered()`, but is never shown, and a change to its actions lays the menu out
+again. The menu resizes to its new rows and is moved back inside its window. Not done: an animation between the levels.
 
 The expanded navigation rail (Compose's `WideNavigationRail` expanded, the baseline item tokens) is `materialTabBar` =
 `"navigationRailExpanded"`, a value of the same property rather than a boolean beside it, so that a rail is one or the

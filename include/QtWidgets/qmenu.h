@@ -12,6 +12,10 @@
 class QMenuBar;
 class QStyleOptionMenuItem;
 
+namespace QtPrivate {
+struct MenuAccess;
+}
+
 class QMenu : public QWidget {
     Q_OBJECT
     Q_PROPERTY(QString title READ title WRITE setTitle)
@@ -148,6 +152,7 @@ protected:
 
 private:
     friend class QMenuBar;
+    friend struct QtPrivate::MenuAccess;
     struct Item {
         QAction *action;
         QRect rect;
@@ -168,6 +173,13 @@ private:
     bool isSubMenuAction(const QAction *action) const;
     QMenu *openMenu() const;
     QMenuBar *menuBar() const;
+    // A menu that the style asks to open its submenus in place (QMaterialStyle's vertical menu) shows the items of a
+    // submenu in its own place, under a row that goes back to what it showed before.
+    bool opensSubMenusInPlace() const;
+    QList<QAction *> shownActions() const; // the actions that the rows are of, without the row that goes back
+    void openInPlace(QMenu *menu, bool selectFirst);
+    void goBack();
+    void relayout(); // lays the rows out anew and fits the menu to them in its window
 
     QString m_title;
     QAction *m_menuAction = nullptr;
@@ -186,4 +198,7 @@ private:
     bool m_collapsible = true;
     bool m_toolTipsVisible = false;
     bool m_tearOff = false;
+    std::vector<QPointer<QMenu>> m_inPlace; // the submenus shown in place, one in another, the last one shown
+    QAction *m_backAction = nullptr;        // the row over them that goes back, made when first needed
+    QPointer<QMenu> m_inPlaceHost;          // the menu that shows this one in its place
 };

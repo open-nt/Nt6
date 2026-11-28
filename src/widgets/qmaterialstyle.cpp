@@ -3,6 +3,7 @@
 
 #include "qmaterialcolor_p.h"
 #include "qmaterialmotion_p.h"
+#include "qmenu_p.h"
 #include "gui/qpa/qplatformintegration_p.h"
 #include "gui/qwindow_p.h"
 #include "qwidget_p.h"
@@ -269,10 +270,13 @@ constexpr double menuGroupCorner = 8;     // the corners of a group beside a gap
 constexpr double menuRowCorner = 4;       // the shape of a row under the pointer (corner extra small),
 constexpr double menuSelectedCorner = 12; // of a checked row (corner medium), and of a row at an end of the menu
 constexpr int menuMinimumWidth = 112;
+constexpr int menuMaximumWidth = 280; // to which supporting text wraps
 constexpr int menuGroupLabelHeight =
     32; // a section's row: its label (label medium, a line of 16) and 8 above and below
 constexpr int menuSupportingPadding = 8; // above and below the text of a row that has supporting text
 const char *const menuTrailingIconProperty = "materialTrailingIcon";
+constexpr int menuSectionIconSize = 20; // the icon of a section's label
+constexpr int menuSectionIconSpace = 8;
 constexpr double searchViewCorner = 28; // the docked search view under a search bar (corner extra large)
 constexpr int searchViewRowHeight = 56;
 constexpr int comboArrowRoom = 48;
@@ -625,7 +629,7 @@ bool isMenuSection(const QWidget *widget, const QStyleOptionMenuItem *item) {
         const QAction *action = menu->actionAt(item->rect.center());
         return action && action->isSeparator();
     }
-    const QList<QAction *> actions = menu->actions();
+    const QList<QAction *> actions = QtPrivate::MenuAccess::shownActions(menu);
     return std::any_of(actions.begin(), actions.end(),
                        [item](const QAction *action) { return action->isSeparator() && action->text() == item->text; });
 }
@@ -642,10 +646,29 @@ bool hasMenuTrailingIcons(const QWidget *widget) {
     const auto *menu = qobject_cast<const QMenu *>(widget);
     if (!menu)
         return false;
-    const QList<QAction *> actions = menu->actions();
+    const QList<QAction *> actions = QtPrivate::MenuAccess::shownActions(menu);
     return std::any_of(actions.begin(), actions.end(), [](const QAction *action) {
         return action->isVisible() && !action->property(menuTrailingIconProperty).value<QIcon>().isNull();
     });
+}
+
+// True if `row` of the menu `widget` is the row that goes back from a submenu shown in the menu's place.
+bool isMenuBackRow(const QWidget *widget, const QRect &row) {
+    const auto *menu = qobject_cast<const QMenu *>(widget);
+    return menu && row.isValid() && QtPrivate::MenuAccess::isBackAction(menu, menu->actionAt(row.center()));
+}
+
+// The width that the supporting text of a row as wide as `rowWidth` wraps to: what the row leaves beside its icon,
+// the arrow of a submenu and a trailing icon, in a row no wider than that of the widest menu.
+int menuSupportingWidth(int rowWidth, const QStyleOptionMenuItem *item, const QWidget *widget) {
+    int width = std::min(rowWidth, menuMaximumWidth - 2 * menuInset) - 2 * menuPadding;
+    if (!item->icon.isNull() || item->checkType != QStyleOptionMenuItem::NotCheckable)
+        width -= menuIconSize + menuIconSpace;
+    if (item->menuItemType == QStyleOptionMenuItem::SubMenu)
+        width -= menuPadding;
+    if (hasMenuTrailingIcons(widget))
+        width -= menuIconSize + menuIconSpace;
+    return std::max(1, width);
 }
 
 // The type of the items of a FAB menu: title medium.
@@ -1158,6 +1181,15 @@ bool isGroupedMenu(const QWidget *menu) {
     return menu && menu->property("materialMenu").toString() == QLatin1String("grouped");
 }
 
+} // namespace
+
+bool QMaterialStyle::opensSubMenusInPlace(const QWidget *menu) {
+    return menu && qobject_cast<const QMaterialStyle *>(menu->style()) &&
+           menu->property("materialMenu").toString() == QLatin1String("vertical");
+}
+
+namespace {
+
 // A container of a menu: the whole menu, or one group of a grouped menu, with the radii of its corners at the top
 // and at the bottom.
 struct MenuContainer {
@@ -1173,7 +1205,7 @@ std::vector<MenuContainer> menuContainers(const QWidget *widget, const QRectF &r
     const auto *menu = qobject_cast<const QMenu *>(widget);
     double top = r.top();
     if (menu && isGroupedMenu(menu)) {
-        for (QAction *action : menu->actions()) {
+        for (QAction *action : QtPrivate::MenuAccess::shownActions(menu)) {
             if (!action->isSeparator() || !action->text().isEmpty())
                 continue;
             const QRect gap = menu->actionGeometry(action); // empty for a separator that is not shown
@@ -1211,6 +1243,7 @@ enum Channel {
     AppBarCollapseChannel, // how far a medium or large top app bar has collapsed, in pixels
     ElevationChannel,      // how far the shadow of an elevated chip or card falls, in pixels
     ScrollBarChannel,      // how far the handle of a scroll bar has faded in
+    YearsChannel,          // how far the years of a date picker have faded in over its days
     NavigationChannel = 100 // plus the index of a destination: how far its pill has opened
 };
 const char *const polishedFont = "_nt_materialFont";
@@ -1734,6 +1767,10 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         lines, and part the menu into groups, each a container of its own with the round corners of the menu at its
         ends and corners of 8 beside a gap, as in the menus of Material 3 Expressive with gaps. A section, a separator
         with a text, is no gap. Without the property a separator is a line.
+    \li \c materialMenu \c "vertical" of a QMenu: the vertical menu of Material 3 Expressive, whose submenus open in
+        its own place. A click on a submenu's row, Right or Return shows the submenu's items instead of the menu's,
+        under a row with an arrow back and the submenu's title; that row, Left and Escape go back. Moving over a
+        submenu's row does not open it. Other menus open their submenus beside them.
     \li \c materialTrailingIcon of a QAction in a QMenu: a QIcon that is drawn at the trailing end of its row, 24 by
         24, in \c OnSurfaceVariant if it has one color, before the shortcut and after the arrow of a submenu. Every
         row of the menu makes room for it.
@@ -1789,7 +1826,9 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     A paintCell() of your own that calls the calendar's keeps the look. The month and the year between the arrows have
     the arrow of a menu: a click on them shows, in the place of the days, the years from that of
     \l{QCalendarWidget::minimumDate()}{minimumDate()} to that of \l{QCalendarWidget::maximumDate()}{maximumDate()},
-    three to a row, the year shown in a filled pill and this year in a ring. The wheel scrolls them, and a click on one
+    three to a row, the year shown in a filled pill and this year in a ring, with a state layer on the pill under
+    the pointer (0.08) and on the one pressed (0.10). The days and the years cross-fade on the default effects spring
+    while motion is enabled. The wheel scrolls them, and a click on one
     shows the days of that year, in the same month or, past a limit of the range, the nearest month in it; the
     selected date stays. The arrow keys, Page Up, Page Down, Home and End move among the years, Return, Enter or Space
     chooses one, and Escape or a second click on the month and the year goes back to the days.
@@ -1825,9 +1864,10 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     are the standard menus of Material 3 Expressive in shape (corners of 16, 4 of padding above and below the rows,
     which are inset 4 from the sides and have shapes of their own, a checked one filled in the tertiary container
     color), with an outline in the place of their shadow. A section, added with QMenu::addSection(), is a group label: its
-    text in label medium and \c OnSurfaceVariant, 32 high, with no line and no icon. A line break in the text of an action
-    puts what follows it under the label as supporting text in body medium, a line of 20 each, with 8 above and below
-    the text (60 high with one line); the shortcut stays at the trailing end. A checked row keeps its check mark. Dialogs get the Material container color and text buttons; their rounded corners and the
+    text in label medium and \c OnSurfaceVariant, 32 high, with no line, after its icon, 20 by 20, if it has one. A line
+    break in the text of an action puts what follows it under the label as supporting text in body medium, a line of 20
+    each, with 8 above and below the text (60 high with one line), which wraps between words so that the menu is no
+    wider than 280 for it; the shortcut stays at the trailing end. A checked row keeps its check mark. Dialogs get the Material container color and text buttons; their rounded corners and the
     dimming behind them, which fades in while motion is enabled, are the android platform's.
     Split buttons and connected button groups are of the small size, and FABs of the standard one. The items of a FAB menu open one after another,
     and go one after another as a picture of them when it closes; they have no check marks, and a row can be chosen anywhere across the menu, left of its pill too.
@@ -1844,8 +1884,8 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     on a child that takes clicks of its own does not press the card. A date picker has no range, no field to type a date in and no
     button to switch to one, no menu of months, and no buttons to confirm or cancel (those are the dialog's); it keeps
     the days of the other months, faint, and there is no time picker with a clock dial. The headline is in English and
-    shows the selected date also when the user cannot select one. The change between the days and the years is not
-    animated, and the years have no state layer under the pointer. A dialog's headline is made when the dialog is shown, wraps
+    shows the selected date also when the user cannot select one. A year is chosen when the button is released over
+    it. A dialog's headline is made when the dialog is shown, wraps
     but follows a new window title only when the dialog is shown or resized again, and is not drawn by a subclass whose paintEvent() does not call QDialog's. A text editor has no floating label or
     supporting text, and one with another frame shape keeps it. A spin box has
     no floating label or supporting text, and its buttons do not repeat while
@@ -4045,7 +4085,7 @@ void QMaterialStyle::drawCalendarTitle(QPainter *painter, const QRect &rect, con
 }
 
 void QMaterialStyle::drawCalendarYear(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int year,
-                                      bool selected, bool current, bool cursor) const {
+                                      bool selected, bool current, bool cursor, bool hovered, bool pressed) const {
     const bool usable = calendar->isEnabled();
     const double width = std::min(calendarYearWidth, cell.width());
     const double height = std::min(calendarYearHeight, cell.height());
@@ -4063,6 +4103,9 @@ void QMaterialStyle::drawCalendarYear(QPainter *painter, const QRect &cell, cons
     }
     if (!usable)
         text = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    // The state layer of the pill under the pointer or pressed, in the color of its text.
+    if (usable && (hovered || pressed))
+        fillRounded(painter, pill, height / 2, withOpacity(text, pressed ? pressedOpacity : hoverOpacity));
     // The year that the keyboard moves.
     if (cursor && m_keyboard && calendar->hasFocus())
         strokeRounded(painter, pill, height / 2, color(Role::Secondary), focusRingWidth);
@@ -4070,6 +4113,15 @@ void QMaterialStyle::drawCalendarYear(QPainter *painter, const QRect &cell, cons
     painter->setPen(text);
     painter->drawText(cell, Qt::AlignCenter, QString::number(year));
     painter->restore();
+}
+
+double QMaterialStyle::datePickerYearsShown(const QCalendarWidget *calendar, bool choosing) const {
+    // A calendar is not one of the widgets that animated() moves, so this asks the animator itself.
+    const double target = choosing ? 1.0 : 0.0;
+    if (!m_motion)
+        return target;
+    return std::clamp(m_animator->value(calendar, YearsChannel, target, QtPrivate::defaultEffectsSpring, 0.004), 0.0,
+                      1.0);
 }
 
 void QMaterialStyle::drawRowIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode,
@@ -5458,9 +5510,18 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter,
     }
     if (isMenuSection(menu, item)) {
         // A section is a group label: no line, its text in label medium, as far in as the text of the rows.
+        // An icon goes before the text, in the same color.
+        int left = r.left() + menuPadding;
+        if (!item->icon.isNull()) {
+            paintIcon(
+                painter,
+                QRect(left, r.top() + (r.height() - menuSectionIconSize) / 2, menuSectionIconSize, menuSectionIconSize),
+                item->icon, QIcon::Normal, QIcon::Off, color(Role::OnSurfaceVariant));
+            left += menuSectionIconSize + menuSectionIconSpace;
+        }
         painter->setFont(menuGroupLabelFont(item->font));
         painter->setPen(color(Role::OnSurfaceVariant));
-        painter->drawText(QRect(r.left() + menuPadding, r.top(), r.width() - 2 * menuPadding, r.height()),
+        painter->drawText(QRect(left, r.top(), r.right() + 1 - menuPadding - left, r.height()),
                           Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, menuLabel(item->text));
         return;
     }
@@ -5498,6 +5559,16 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter,
         painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
         painter->drawLine(QPointF(lead.left() + 5, lead.top() + 12.5), QPointF(lead.left() + 10, lead.top() + 17.5));
         painter->drawLine(QPointF(lead.left() + 10, lead.top() + 17.5), QPointF(lead.left() + 19, lead.top() + 7.5));
+    } else if (isMenuBackRow(menu, r)) {
+        // The row that goes back from a submenu shown in place: Material's arrow back, in the color of the label.
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+        const QPointF tip(lead.left() + 5, lead.top() + 12);
+        painter->drawLine(tip, QPointF(lead.left() + 19, lead.top() + 12));
+        painter->drawLine(QPointF(lead.left() + 11, lead.top() + 6), tip);
+        painter->drawLine(tip, QPointF(lead.left() + 11, lead.top() + 18));
+        painter->restore();
     } else if (!item->icon.isNull()) {
         paintIcon(painter, lead, item->icon, usable ? QIcon::Normal : QIcon::Disabled, QIcon::Off, quiet);
     }
@@ -5513,7 +5584,8 @@ void QMaterialStyle::drawMenuItem(const QStyleOption *option, QPainter *painter,
         const QFont supportingFont = listRowFont(item->font, 14, false);
         const int labelHeight = std::max(listHeadlineLine, QFontMetrics(item->font).height());
         const int lineHeight = std::max(listSupportingLine, QFontMetrics(supportingFont).height());
-        const QStringList lines = parts.supporting.split(QLatin1Char('\n'));
+        const QStringList lines =
+            wrapListText(parts.supporting, QFontMetrics(supportingFont), menuSupportingWidth(r.width(), item, menu));
         int y = r.top() + (r.height() - labelHeight - static_cast<int>(lines.size()) * lineHeight) / 2;
         painter->drawText(QRect(room.left(), y, room.width(), labelHeight),
                           Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, parts.label);
@@ -6116,15 +6188,17 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             return QSize(
                 std::max(menuMinimumWidth - 2 * menuInset,
                          QFontMetrics(menuGroupLabelFont(item->font)).horizontalAdvance(menuLabel(item->text)) +
-                             2 * menuPadding),
+                             2 * menuPadding + (item->icon.isNull() ? 0 : menuSectionIconSize + menuSectionIconSpace)),
                 menuGroupLabelHeight);
         int textWidth = contentsSize.width();
         int height = std::max(menuItemHeight, contentsSize.height());
         if (const MenuRowParts parts = menuRowParts(item->text); !parts.supporting.isEmpty()) {
-            // A row with supporting text is as wide as its widest line and grows by a line of 20 for each.
+            // A row with supporting text is as wide as its widest line, which wraps to the widest a menu is, and grows
+            // by a line of 20 for each.
             const QFontMetrics label(item->font);
             const QFontMetrics supporting(listRowFont(item->font, 14, false));
-            const QStringList lines = parts.supporting.split(QLatin1Char('\n'));
+            const QStringList lines =
+                wrapListText(parts.supporting, supporting, menuSupportingWidth(menuMaximumWidth, item, widget));
             textWidth = label.horizontalAdvance(parts.label);
             for (const QString &line : lines)
                 textWidth = std::max(textWidth, supporting.horizontalAdvance(line));

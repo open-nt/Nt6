@@ -147,6 +147,7 @@ private:
 */
 QCalendarWidget::QCalendarWidget(QWidget *parent) : QWidget(parent), m_minimum(1752, 9, 14), m_maximum(9999, 12, 31) {
     setFocusPolicy(Qt::StrongFocus);
+    setMouseTracking(true); // the year under the pointer has a state layer
     // Before the navigation bar, so that Tab comes to it first, as it reads.
     m_modeButton = new DatePickerModeButton(this, [this](QPainter *painter) {
         if (const QMaterialStyle *material = materialStyle(this))
@@ -670,15 +671,23 @@ void QCalendarWidget::paintEvent(QPaintEvent *event) {
     painter.fillRect(gridRect(), palette().color(group, QPalette::Base));
     if (m_inputMode)
         return; // the text field is in the place of the month
-    if (m_choosingYear && material) {
+    // Under QMaterialStyle the years and the days cross-fade as one gives way to the other.
+    const double years = material ? material->datePickerYearsShown(this, m_choosingYear) : 0.0;
+    if (years > 0.0) {
+        painter.save();
         painter.setClipRect(gridRect());
+        painter.setOpacity(years);
         const int first = m_minimum.year() + m_yearRow * kYearColumns;
         const int last = std::min(m_maximum.year(), first + (visibleYearRows() + 1) * kYearColumns - 1);
         const int today = QDate::currentDate().year();
         for (int year = first; year <= last; ++year)
             material->drawCalendarYear(&painter, yearRect(year), this, year, year == m_year, year == today,
-                                       year == m_yearCursor && hasFocus());
-        return;
+                                       year == m_yearCursor && hasFocus(), year == m_hoveredYear,
+                                       year == m_pressedYear);
+        painter.restore();
+        if (years >= 1.0)
+            return;
+        painter.setOpacity(1.0 - years);
     }
     // The names of the days.
     if (m_horizontal != NoHorizontalHeader) {
@@ -904,6 +913,7 @@ void QCalendarWidget::setChoosingYear(bool choosing) {
     if (choosing == m_choosingYear)
         return;
     m_choosingYear = choosing;
+    m_hoveredYear = m_pressedYear = 0;
     m_previous->setVisible(!choosing);
     m_next->setVisible(!choosing);
     if (choosing) {
@@ -983,8 +993,8 @@ void QCalendarWidget::mousePressEvent(QMouseEvent *event) {
             return;
         }
         setFocus();
-        if (const int year = yearAt(event->pos()))
-            chooseYear(year);
+        m_pressedYear = yearAt(event->pos()); // chosen when the button comes up on it
+        update();
         event->accept();
         return;
     }
@@ -1153,6 +1163,48 @@ void QCalendarWidget::changeEvent(QEvent *event) {
     }
     update();
     QWidget::changeEvent(event);
+}
+
+/*!
+    \reimp
+
+    Under QMaterialStyle, while the years are shown, the year under the pointer is highlighted, and a year is chosen
+    when the button is released over the year that it was pressed on.
+*/
+bool QCalendarWidget::event(QEvent *event) {
+    if (!m_choosingYear)
+        return QWidget::event(event);
+    switch (event->type()) {
+    case QEvent::MouseMove: {
+        const int year = isEnabled() ? yearAt(static_cast<QMouseEvent *>(event)->pos()) : 0;
+        if (year != m_hoveredYear) {
+            m_hoveredYear = year;
+            update();
+        }
+        break;
+    }
+    case QEvent::MouseButtonRelease: {
+        const auto *mouse = static_cast<QMouseEvent *>(event);
+        if (mouse->button() != Qt::LeftButton || !m_pressedYear)
+            break;
+        const int pressed = m_pressedYear;
+        m_pressedYear = 0;
+        update();
+        if (yearAt(mouse->pos()) == pressed)
+            chooseYear(pressed);
+        event->accept();
+        return true;
+    }
+    case QEvent::Leave:
+        if (m_hoveredYear) {
+            m_hoveredYear = 0;
+            update();
+        }
+        break;
+    default:
+        break;
+    }
+    return QWidget::event(event);
 }
 
 /*!

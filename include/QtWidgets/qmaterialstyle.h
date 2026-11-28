@@ -145,6 +145,9 @@ private:
     // menu is left to open as menus do.
     friend class QPushButton;
     bool popupFabMenu(QPushButton *button, QMenu *menu) const;
+    // A vertical menu (materialMenu "vertical") opens its submenus in its own place: QMenu asks whether `menu` is one.
+    friend class QMenu;
+    static bool opensSubMenusInPlace(const QWidget *menu);
     // A FAB menu that closed leaves a picture of its items in its place, which go one after another.
     void closeFabMenu(QMenu *menu) const;
     // A floating toolbar. QToolBar lays itself out for one and asks for its container; its buttons ask for the color
@@ -217,8 +220,11 @@ private:
     // for each, in its cell.
     void drawCalendarTitle(QPainter *painter, const QRect &rect, const QWidget *label, const QString &text,
                            bool open) const;
+    // A year has a state layer while it is `hovered` or `pressed`. How far the years have faded in over the days, on
+    // their way to 1 while `choosing` a year and to 0 otherwise, is asked as the calendar paints.
     void drawCalendarYear(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int year,
-                          bool selected, bool current, bool cursor) const;
+                          bool selected, bool current, bool cursor, bool hovered, bool pressed) const;
+    double datePickerYearsShown(const QCalendarWidget *calendar, bool choosing) const;
     // A dialog that is a sheet against an edge of its parent's window: QDialog asks for it to be put there when it
     // is shown. False for another dialog.
     friend class QDialog;

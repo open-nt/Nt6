@@ -1679,6 +1679,169 @@ void testMenuRowExtras() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// Supporting text that wraps, icons of group labels, and the vertical menu whose submenus open in its place.
+void testMenuWrapsAndOpensInPlace() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(640, 640);
+    window.show();
+    QCoreApplication::processEvents();
+    const QColor container = style->color(Role::SurfaceContainer);
+    const QColor quiet = style->color(Role::OnSurfaceVariant);
+    const auto mouse = [&](QWidget *target, QEvent::Type type, const QPoint &at) {
+        QMouseEvent event(type, QPointF(at), QPointF(at), type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                          type == QEvent::MouseButtonPress ? Qt::LeftButton : Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &event);
+        QCoreApplication::processEvents();
+    };
+    const auto click = [&](QWidget *target, const QPoint &at) {
+        mouse(target, QEvent::MouseButtonPress, at);
+        mouse(target, QEvent::MouseButtonRelease, at);
+    };
+    const auto key = [&](QWidget *target, int code) {
+        QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &press);
+        QCoreApplication::processEvents();
+    };
+
+    // Supporting text wraps between words so that the menu is no wider than 280; each line is 20 more.
+    QMenu menu(&window);
+    menu.addAction(QStringLiteral("Cut"));
+    const QString words = QStringLiteral("word ").repeated(30).trimmed();
+    QAction *share = menu.addAction(QStringLiteral("Share\n") + words);
+    QAction *twice = menu.addAction(QStringLiteral("Send\n") + words + QLatin1Char('\n') + words);
+    menu.popup(window.mapToGlobal(QPoint(20, 20)));
+    QCoreApplication::processEvents();
+    if (QFontMetrics(menu.font()).horizontalAdvance(words) > 280) {
+        CHECK(menu.width() <= 280);
+        CHECK(menu.width() >= 112);
+        const int height = menu.actionGeometry(share).height();
+        const int lines = (height - 8 - 24 - 8) / 20;
+        CHECK(lines >= 2);
+        CHECK(height == 8 + 24 + 20 * lines + 8);
+        // A line break still starts a line: the two paragraphs are twice as many lines.
+        CHECK(menu.actionGeometry(twice).height() == 8 + 24 + 40 * lines + 8);
+        if (textIsDrawn()) {
+            // The last line is drawn, in the quiet color.
+            const QImage image = window.grab().toImage();
+            const QRect row = menu.actionGeometry(share);
+            int count = 0;
+            for (int y = row.bottom() - 8 - 19; y <= row.bottom() - 8; ++y)
+                for (int x = row.left() + 12; x < row.left() + 80; ++x)
+                    count += near(image.pixelColor(menu.mapTo(&window, QPoint(x, y))), quiet, 40) ? 1 : 0;
+            CHECK(count > 4);
+        }
+    }
+    menu.hide();
+
+    // A group label with an icon: 20 by 20, 12 in from the row, in OnSurfaceVariant, before the text.
+    QPixmap pixmap(20, 20);
+    pixmap.fill(Qt::black);
+    QMenu sections(&window);
+    sections.addAction(QStringLiteral("Cut"));
+    QAction *recent = sections.addSection(QIcon(pixmap), QStringLiteral("Recent"));
+    QAction *plain = sections.addSection(QStringLiteral("Recent"));
+    sections.addAction(QStringLiteral("Open"));
+    sections.popup(window.mapToGlobal(QPoint(20, 20)));
+    QCoreApplication::processEvents();
+    const QRect label = sections.actionGeometry(recent);
+    CHECK(label.height() == 32);
+    const auto at = [&](QWidget *list, const QPoint &point) {
+        return window.grab().toImage().pixelColor(list->mapTo(&window, point));
+    };
+    CHECK(near(at(&sections, QPoint(label.left() + 12 + 10, label.center().y())), quiet, 3));
+    CHECK(near(at(&sections, QPoint(label.left() + 8, label.center().y())), container, 2));
+    const QRect noIcon = sections.actionGeometry(plain);
+    CHECK(near(at(&sections, QPoint(noIcon.left() + 12 + 2, noIcon.top() + 4)), container, 2));
+    sections.hide();
+
+    // The vertical menu: a submenu's items take the place of the menu's, under a row that goes back.
+    QMenu vertical(&window);
+    vertical.setProperty("materialMenu", "vertical");
+    QAction *cut = vertical.addAction(QStringLiteral("Cut"));
+    QMenu *send = vertical.addMenu(QStringLiteral("Send"));
+    QAction *mail = send->addAction(QStringLiteral("Mail"));
+    send->addAction(QStringLiteral("Copy link"));
+    QMenu *more = send->addMenu(QStringLiteral("More"));
+    QAction *print = more->addAction(QStringLiteral("Print"));
+    int shown = 0, hidden = 0;
+    QObject::connect(send, &QMenu::aboutToShow, [&] { ++shown; });
+    QObject::connect(send, &QMenu::aboutToHide, [&] { ++hidden; });
+    QAction *triggered = nullptr;
+    QObject::connect(&vertical, &QMenu::triggered, [&](QAction *action) { triggered = action; });
+    QAction *sendTriggered = nullptr;
+    QObject::connect(send, &QMenu::triggered, [&](QAction *action) { sendTriggered = action; });
+    vertical.popup(window.mapToGlobal(QPoint(20, 20)));
+    QCoreApplication::processEvents();
+    const int topHeight = vertical.height();
+    const QPoint sendRow = vertical.actionGeometry(send->menuAction()).center();
+    // Resting on the submenu's row does not open it.
+    mouse(&vertical, QEvent::MouseMove, sendRow);
+    wait(400);
+    CHECK(vertical.actionGeometry(mail).isEmpty());
+    CHECK(!send->isVisible());
+    // A click does: the row that goes back, 48 high, then the submenu's items; the submenu is not shown itself.
+    click(&vertical, sendRow);
+    CHECK(!send->isVisible());
+    CHECK(vertical.isVisible());
+    CHECK(vertical.actionGeometry(cut).isEmpty());
+    const QRect mailRow = vertical.actionGeometry(mail);
+    CHECK(mailRow.top() == 4 + 48);
+    QAction *back = vertical.actionAt(QPoint(mailRow.center().x(), 4 + 24));
+    CHECK(back && back != mail && back->text() == QStringLiteral("Send"));
+    CHECK(vertical.height() == 4 + 4 * 48 + 4);
+    CHECK(shown == 1 && hidden == 0);
+    CHECK(vertical.activeAction() != mail); // a click selects nothing
+    // The arrow back is drawn in the color of the label, where an icon goes.
+    CHECK(near(at(&vertical, QPoint(mailRow.left() + 12 + 12, 4 + 24)), style->color(Role::OnSurface), 40));
+    CHECK(near(at(&vertical, QPoint(mailRow.left() + 12 + 12, 4 + 24 - 8)), container, 2));
+    // Right opens a submenu in place too, with its first item current; Left goes back, with the submenu's row current.
+    vertical.setActiveAction(more->menuAction());
+    key(&vertical, Qt::Key_Right);
+    CHECK(vertical.activeAction() == print);
+    CHECK(vertical.actionAt(QPoint(mailRow.center().x(), 4 + 24))->text() == QStringLiteral("More"));
+    key(&vertical, Qt::Key_Left);
+    CHECK(vertical.activeAction() == more->menuAction());
+    CHECK(vertical.actionGeometry(mail).isValid());
+    // Escape goes back to the menu's own items, which closes the submenu.
+    key(&vertical, Qt::Key_Escape);
+    CHECK(vertical.isVisible());
+    CHECK(vertical.activeAction() == send->menuAction());
+    CHECK(vertical.actionGeometry(cut).isValid() && vertical.actionGeometry(mail).isEmpty());
+    CHECK(vertical.height() == topHeight);
+    CHECK(shown == 1 && hidden == 1);
+    // A click on the row that goes back does too.
+    click(&vertical, sendRow);
+    click(&vertical, QPoint(mailRow.center().x(), 4 + 24));
+    CHECK(vertical.actionGeometry(cut).isValid());
+    CHECK(shown == 2 && hidden == 2);
+    // Choosing an item of the submenu triggers it, reports it from both menus and closes the menu.
+    click(&vertical, sendRow);
+    click(&vertical, vertical.actionGeometry(mail).center());
+    CHECK(!vertical.isVisible());
+    CHECK(triggered == mail && sendTriggered == mail);
+    CHECK(hidden == 3);
+    // It opens again with its own items.
+    vertical.popup(window.mapToGlobal(QPoint(20, 20)));
+    QCoreApplication::processEvents();
+    CHECK(vertical.actionGeometry(cut).isValid() && vertical.actionGeometry(mail).isEmpty());
+    vertical.hide();
+
+    // Without the property a submenu opens beside the menu.
+    vertical.setProperty("materialMenu", QVariant());
+    vertical.popup(window.mapToGlobal(QPoint(20, 20)));
+    QCoreApplication::processEvents();
+    click(&vertical, sendRow);
+    CHECK(send->isVisible());
+    CHECK(vertical.actionGeometry(cut).isValid());
+    vertical.hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 // The five sizes of the common button, and the square shape.
 void testButtonSizes() {
     auto *style = new QMaterialStyle;
@@ -4601,6 +4764,36 @@ void testDatePicker() {
     // The years are in the color of the supporting text.
     if (textIsDrawn())
         CHECK(inked(QRect(centre(year + 1) - QPoint(30, 12), QSize(60, 24))) > 10);
+    // The year under the pointer has a state layer of 0.08 on its pill, in the color of its text, and the one pressed
+    // one of 0.10; a year is chosen when the button comes up on the one it went down on.
+    const auto yearLayer = [&](Role ink, double opacity) {
+        const QColor under = style->color(Role::SurfaceContainerHigh);
+        const QColor over = style->color(ink);
+        const auto mix = [&](int a, int b) { return static_cast<int>(std::lround(a + (b - a) * opacity)); };
+        return QColor(mix(under.red(), over.red()), mix(under.green(), over.green()), mix(under.blue(), over.blue()));
+    };
+    const auto mouse = [&](QEvent::Type type, const QPoint &at, Qt::MouseButtons buttons) {
+        QMouseEvent event(type, QPointF(at), QPointF(at), type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton,
+                          buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(calendar, &event);
+        QCoreApplication::processEvents();
+    };
+    mouse(QEvent::MouseMove, centre(year + 1), Qt::NoButton);
+    CHECK(near(pixel(centre(year + 1) + QPoint(-30, 0)), yearLayer(Role::OnSurfaceVariant, 0.08), 3));
+    CHECK(is(pixel(centre(year + 1) + QPoint(-40, 0)), Role::SurfaceContainerHigh)); // only the pill
+    CHECK(is(pixel(centre(year + 2) + QPoint(-30, 0)), Role::SurfaceContainerHigh));
+    mouse(QEvent::MouseButtonPress, centre(year + 1), Qt::LeftButton);
+    CHECK(near(pixel(centre(year + 1) + QPoint(-30, 0)), yearLayer(Role::OnSurfaceVariant, 0.10), 3));
+    CHECK(!arrows.at(0)->isVisible()); // not chosen yet
+    mouse(QEvent::MouseMove, centre(year + 4), Qt::LeftButton);
+    mouse(QEvent::MouseButtonRelease, centre(year + 4), Qt::NoButton);
+    CHECK(!arrows.at(0)->isVisible()); // released on another year: none is chosen
+    CHECK(is(pixel(centre(year + 1) + QPoint(-30, 0)), Role::SurfaceContainerHigh));
+    CHECK(near(pixel(centre(year + 4) + QPoint(-30, 0)), yearLayer(Role::OnSurfaceVariant, 0.08), 3));
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(calendar, &leave);
+    QCoreApplication::processEvents();
+    CHECK(is(pixel(centre(year + 4) + QPoint(-30, 0)), Role::SurfaceContainerHigh));
     // After the last year there is nothing to click.
     click(calendar, QPoint(20, top + 7 * 40 - 4));
     CHECK(calendar->yearShown() == year - 1);
@@ -4682,6 +4875,56 @@ void testDatePicker() {
 }
 
 // The input mode of the modal date picker: the pencil in the headline swaps the month for a text field.
+// The days and the years cross-fade on the default effects spring while motion is enabled.
+void testDatePickerYearsFade() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(400, 560);
+    auto *calendar = new QCalendarWidget(&window);
+    calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    const int year = QDate::currentDate().year();
+    calendar->setDateRange(QDate(year - 25, 3, 15), QDate(year + 10, 9, 10));
+    calendar->setSelectedDate(QDate(year - 1, 1, 20));
+    calendar->resize(calendar->sizeHint());
+    window.show();
+    QCoreApplication::processEvents();
+    auto *title = calendar->findChild<QLabel *>();
+    CHECK(title);
+    if (!title)
+        return;
+    const int top = title->parentWidget()->height();
+    // The year shown, in the second row of years, is a filled pill once the years have faded in.
+    const int column = ((year - 1) - (year - 25)) % 3;
+    const QPoint pill((7 * 40 * column / 3 + 7 * 40 * (column + 1) / 3) / 2 - 30, top + 8 + 52 + 26);
+    const auto pixel = [&](const QPoint &point) { return calendar->grab().toImage().pixelColor(point.x(), point.y()); };
+    const QColor primary = style->color(Role::Primary);
+    const QColor container = style->color(Role::SurfaceContainerHigh);
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(title->rect().center()), QPointF(title->rect().center()),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(title, &press);
+    QCoreApplication::processEvents();
+    // At first the years have hardly come in.
+    CHECK(!near(pixel(pill), primary, 40));
+    wait(600);
+    CHECK(near(pixel(pill), primary, 3));
+    // And they fade out again over the days.
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QCoreApplication::sendEvent(calendar, &escape);
+    QCoreApplication::processEvents();
+    CHECK(!near(pixel(pill), container, 3));
+    wait(600);
+    CHECK(!near(pixel(pill), primary, 40));
+    // Without motion the change is immediate.
+    style->setMotionEnabled(false);
+    QCoreApplication::sendEvent(title, &press);
+    QCoreApplication::processEvents();
+    CHECK(near(pixel(pill), primary, 3));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 void testDatePickerInput() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
@@ -6345,6 +6588,7 @@ int main(int argc, char *argv[]) {
     testComboAndMenu();
     testMenuShapes();
     testMenuRowExtras();
+    testMenuWrapsAndOpensInPlace();
     testRichToolTips();
     testSpring();
     testMotion();
@@ -6367,6 +6611,7 @@ int main(int argc, char *argv[]) {
     testElevatedChipsAvatarsClickableCards();
     testCalendar();
     testDatePicker();
+    testDatePickerYearsFade();
     testDatePickerInput();
     testDatePickerModeButton();
     testDialogOrderAndFab();

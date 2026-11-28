@@ -115,6 +115,7 @@ protected:
     void keyPressEvent(QKeyEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
     void changeEvent(QEvent *event) override;
+    bool event(QEvent *event) override;
     bool eventFilter(QObject *watched, QEvent *event) override;
 
 private:
@@ -173,6 +174,8 @@ private:
     bool m_choosingYear = false;
     int m_yearRow = 0;    // the first row of years that is shown
     int m_yearCursor = 0; // the year that the keyboard is on
+    int m_hoveredYear = 0;       // the year under the pointer, 0 for none
+    int m_pressedYear = 0;       // the year that the button went down on, chosen if it comes up there
     bool m_navigationBar = true; // whether the program wants the navigation bar, which the input mode hides
     bool m_inputMode = false;
     bool m_typing = false;            // while the field selects what was typed, its text is left alone

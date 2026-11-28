@@ -4,6 +4,7 @@
 #include <QtCore/qpointer.h>
 #include <QtCore/qtimer.h>
 #include <QtGui/qaction.h>
+#include <QtGui/qimage.h>
 #include <QtWidgets/qwidget.h>
 
 #include <type_traits>
@@ -162,6 +163,7 @@ private:
     void layoutItems() const;
     void showAt(QWidget *host, const QPoint &position, QAction *at, int leftEdge = -1);
     QWidget *host() const;
+    QRect windowArea(const QWidget *window, QSize size) const; // where in its window the menu is kept
     void setCurrent(QAction *action, bool openSubMenu);
     void openSubMenu(QAction *action, bool selectFirst);
     void closeSubMenu();
@@ -180,6 +182,10 @@ private:
     void openInPlace(QMenu *menu, bool selectFirst);
     void goBack();
     void relayout(); // lays the rows out anew and fits the menu to them in its window
+    // The rows of a vertical menu slide sideways between its levels, with motion: the rows that were shown, drawn
+    // apart, go out as the new ones come in from the right (`direction` 1, deeper) or the left (-1, back).
+    QImage rowsPicture() const;
+    void slideLevel(const QImage &before, int direction);
 
     QString m_title;
     QAction *m_menuAction = nullptr;
@@ -201,4 +207,7 @@ private:
     std::vector<QPointer<QMenu>> m_inPlace; // the submenus shown in place, one in another, the last one shown
     QAction *m_backAction = nullptr;        // the row over them that goes back, made when first needed
     QPointer<QMenu> m_inPlaceHost;          // the menu that shows this one in its place
+    QImage m_levelPicture;                  // the rows of the level that slides out
+    double m_levelProgress = 1;             // how far the new level has come in, from 0 to 1
+    int m_levelDirection = 0;               // where it comes from: 1 the right, -1 the left, 0 while none slides
 };

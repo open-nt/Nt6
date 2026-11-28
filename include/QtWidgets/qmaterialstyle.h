@@ -148,6 +148,8 @@ private:
     // A vertical menu (materialMenu "vertical") opens its submenus in its own place: QMenu asks whether `menu` is one.
     friend class QMenu;
     static bool opensSubMenusInPlace(const QWidget *menu);
+    // How far a menu keeps from the edges of its window when it is placed: none for a FAB menu or another style's.
+    static QMargins menuWindowMargins(const QWidget *menu);
     // A FAB menu that closed leaves a picture of its items in its place, which go one after another.
     void closeFabMenu(QMenu *menu) const;
     // A floating toolbar. QToolBar lays itself out for one and asks for its container; its buttons ask for the color

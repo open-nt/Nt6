@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qmenu.h>
 
+#include "qmaterialmotion_p.h"
 #include "qwidget_p.h"
 
 #include <QtCore/qeventloop.h>
@@ -383,6 +384,18 @@ void QMenu::layoutItems() const {
     m_dirty = false;
 }
 
+// The part of its window that the menu, `size` large, is kept in: the window less the margins that the style asks
+// for, or the whole window along a side where the menu does not fit inside them.
+QRect QMenu::windowArea(const QWidget *window, QSize size) const {
+    const QMargins margins = QMaterialStyle::menuWindowMargins(this);
+    QRect area = window->rect();
+    if (size.width() <= area.width() - margins.left() - margins.right())
+        area.adjust(margins.left(), 0, -margins.right(), 0);
+    if (size.height() <= area.height() - margins.top() - margins.bottom())
+        area.adjust(0, margins.top(), 0, -margins.bottom());
+    return area;
+}
+
 bool QMenu::isSubMenuAction(const QAction *action) const { return action->menu<QMenu *>() != nullptr; }
 
 bool QMenu::opensSubMenusInPlace() const { return QMaterialStyle::opensSubMenusInPlace(this); }
@@ -407,7 +420,9 @@ void QMenu::openInPlace(QMenu *menu, bool selectFirst) {
     m_backAction->setIcon(style()->standardIcon(QStyle::SP_ArrowBack, nullptr, this));
     emit menu->aboutToShow();
     m_active = nullptr;
+    const QImage before = rowsPicture();
     relayout();
+    slideLevel(before, 1);
     setCurrent(selectFirst ? step(m_backAction, 1) : nullptr, false);
 }
 
@@ -420,7 +435,9 @@ void QMenu::goBack() {
     if (!m_inPlace.empty() && m_inPlace.back())
         m_backAction->setText(m_inPlace.back()->title());
     m_active = nullptr;
+    const QImage before = rowsPicture();
     relayout();
+    slideLevel(before, -1);
     if (menu) {
         menu->m_inPlaceHost = nullptr;
         setCurrent(menu->menuAction(), false);
@@ -438,12 +455,62 @@ void QMenu::relayout() {
         resize(m_size);
         // What grew past the edge of the window goes back into it.
         if (const QWidget *window = parentWidget()) {
-            const int x = std::max(0, std::min(pos().x(), window->width() - width()));
-            const int y = std::max(0, std::min(pos().y(), window->height() - height()));
+            const QRect area = windowArea(window, size());
+            const int x = std::max(area.left(), std::min(pos().x(), area.left() + area.width() - width()));
+            const int y = std::max(area.top(), std::min(pos().y(), area.top() + area.height() - height()));
             move(x, y);
         }
     }
     update();
+}
+
+// The rows as they are now, without the container, to slide out of the menu as another level comes in.
+QImage QMenu::rowsPicture() const {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (!material || !material->isMotionEnabled() || !isVisible() || size().isEmpty())
+        return QImage();
+    const qreal ratio = devicePixelRatio() > 0 ? devicePixelRatio() : 1.0;
+    QImage picture(QSize(qRound(width() * ratio), qRound(height() * ratio)), QImage::Format_ARGB32_Premultiplied);
+    picture.setDevicePixelRatio(ratio);
+    picture.fill(Qt::transparent);
+    QPainter painter(&picture);
+    painter.setFont(font());
+    // Drawn in the slide's own frame: the level that goes is no longer the menu's.
+    for (const Item &item : m_items) {
+        QStyleOptionMenuItem option;
+        initStyleOption(&option, item.action);
+        option.rect = item.rect;
+        style()->drawControl(QStyle::CE_MenuItem, &option, &painter, this);
+    }
+    return picture;
+}
+
+// The new level comes in along the fast spatial spring, and the old one goes out ahead of it.
+void QMenu::slideLevel(const QImage &before, int direction) {
+    QtPrivate::Transition::stop(this, QStringLiteral("_nt_menuLevel"));
+    if (before.isNull()) {
+        m_levelDirection = 0;
+        m_levelPicture = QImage();
+        return;
+    }
+    m_levelPicture = before;
+    m_levelDirection = isRightToLeft() ? -direction : direction;
+    m_levelProgress = 0;
+    QPointer<QMenu> guard(this);
+    new QtPrivate::Transition(this, QStringLiteral("_nt_menuLevel"), QtPrivate::fastSpatialSpring,
+                              [guard](double progress) {
+                                  if (!guard)
+                                      return false;
+                                  guard->m_levelProgress = progress;
+                                  if (progress >= 1.0 || !guard->isVisible()) {
+                                      guard->m_levelDirection = 0;
+                                      guard->m_levelPicture = QImage();
+                                      guard->update();
+                                      return false;
+                                  }
+                                  guard->update();
+                                  return true;
+                              });
 }
 
 QMenu *QMenu::openMenu() const { return static_cast<QMenu *>(m_open.data()); }
@@ -553,13 +620,18 @@ void QMenu::showAt(QWidget *host, const QPoint &position, QAction *at, int leftE
     QPoint p = position;
     if (at)
         p.setY(p.y() - actionGeometry(at).top());
-    if (p.x() + size.width() > host->width())
-        p.setX(leftEdge >= 0 ? leftEdge - size.width() : host->width() - size.width());
-    if (p.y() + size.height() > host->height())
-        p.setY(p.y() - size.height() >= 0 && !at ? position.y() - size.height() : host->height() - size.height());
-    move(std::max(0, p.x()), std::max(0, p.y()));
+    const QRect area = windowArea(host, size);
+    const int right = area.left() + area.width();
+    const int bottom = area.top() + area.height();
+    if (p.x() + size.width() > right)
+        p.setX(leftEdge >= 0 ? leftEdge - size.width() : right - size.width());
+    if (p.y() + size.height() > bottom)
+        p.setY(p.y() - size.height() >= area.top() && !at ? std::min(position.y(), bottom) - size.height()
+                                                          : bottom - size.height());
+    move(std::max(area.left(), p.x()), std::max(area.top(), p.y()));
     m_active = at;
     m_triggered = nullptr;
+    slideLevel(QImage(), 0); // it opens at rest
     emit aboutToShow();
     raise();
     show();
@@ -574,7 +646,8 @@ void QMenu::showAt(QWidget *host, const QPoint &position, QAction *at, int leftE
 /*!
     Shows the menu with its top left corner at \a pos, a position on the screen, and returns at once. If \a at is an
     action of the menu, the menu is placed so that the action is at \a pos, and it is the current action. The menu is
-    moved if it would reach outside the window.
+    moved if it would reach outside the window; under QMaterialStyle it keeps 8 pixels from the window's edges, where it
+    fits.
 
     \sa exec()
 */
@@ -752,6 +825,14 @@ void QMenu::paintEvent(QPaintEvent *event) {
     panel.rect = rect();
     style()->drawPrimitive(QStyle::PE_PanelMenu, &panel, &painter, this);
     layoutItems();
+    // Between the levels of a vertical menu the rows slide, inside the container.
+    if (m_levelDirection != 0) {
+        const double across = width();
+        const double shift = m_levelDirection * across * (1.0 - m_levelProgress);
+        painter.setClipRect(rect());
+        painter.drawImage(QPointF(shift - m_levelDirection * across, 0), m_levelPicture);
+        painter.translate(shift, 0);
+    }
     for (const Item &item : m_items) {
         QStyleOptionMenuItem option;
         initStyleOption(&option, item.action);

@@ -291,6 +291,7 @@ constexpr int menuItemHeight = 48;
 constexpr double menuCorner = 16; // the container of the standard menu of Material 3 Expressive (corner large)
 constexpr int menuVerticalPadding = 4; // above the first row and below the last, inside the container
 constexpr int menuInset = 4;           // between the rows and the sides of the container
+constexpr int menuWindowMargin = 8;    // between a menu and the edges of its window
 constexpr int menuPadding = 12;        // inside a row, so that its text is 16 in from the container
 constexpr int menuIconSize = 24;
 constexpr int menuIconSpace = 12;
@@ -1354,6 +1355,12 @@ bool QMaterialStyle::opensSubMenusInPlace(const QWidget *menu) {
            menu->property("materialMenu").toString() == QLatin1String("vertical");
 }
 
+QMargins QMaterialStyle::menuWindowMargins(const QWidget *menu) {
+    if (!menu || !qobject_cast<const QMaterialStyle *>(menu->style()) || isFabMenu(menu))
+        return QMargins();
+    return QMargins(menuWindowMargin, menuWindowMargin, menuWindowMargin, menuWindowMargin);
+}
+
 namespace {
 
 // A container of a menu: the whole menu, or one group of a grouped menu, with the radii of its corners at the top
@@ -1898,8 +1905,8 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
 
     The scheme is light or dark as the system says, unless setColorScheme() says otherwise. Sizes are in logical
     pixels, which on Android are the dp of Material: buttons are 40 high, text fields 56, and check boxes and radio
-    buttons have a height of at least 48 for a finger, as do the rows of menus and of the list of a combo box. A slider
-    moves to where it is pressed and follows from there.
+    buttons have a height of at least 48 for a finger, as do the rows of menus and of the list of a combo box. A menu
+    keeps 8 from the edges of its window where it fits. A slider moves to where it is pressed and follows from there.
 
     A QToolButton in the \c MenuButtonPopup mode, with a menu, is drawn as a split button: its action and the part that
     opens the menu are two shapes, and the second turns round while the menu is open. This is Qt's own API.
@@ -1990,9 +1997,11 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         the west) goes at the top of the rail, 44 down and as wide as it, for a menu button and a floating action
         button; the destinations start 40 under it and scroll out of sight under it. \c "navigationRailModal" is the
         modal expanded rail: the expanded rail in the surface container color, with its trailing corners rounded,
-        over the pages, which keep the room of the collapsed rail, and a scrim of black at 32 percent over them. A
-        press on the scrim, Escape or the choice of a destination sets the property back to \c "navigationRail"; a
-        menu button opens it by setting \c "navigationRailModal".
+        over the pages, which keep the room of the collapsed rail, and a scrim of black at 32 percent over the whole
+        window. A press on the scrim, Escape or the choice of a destination sets the property back to
+        \c "navigationRail"; a menu button opens it by setting \c "navigationRailModal". With motion the rail slides
+        in from its edge as the scrim fades in, and slides out over the collapsed rail, its labels fading, as it
+        closes.
     \li \c materialBadge of an icon button or a button of a toolbar puts a badge on its icon: \c true is a dot, and a
         number above 0, or a text, is shown in it (over 999 as 999+); 0, \c false or an empty text take it away. The
         destinations of a navigation bar or rail have theirs in \c materialBadges of the QTabBar, a QVariantList with
@@ -2115,7 +2124,8 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     \li \c materialMenu \c "vertical" of a QMenu: the vertical menu of Material 3 Expressive, whose submenus open in
         its own place. A click on a submenu's row, Right or Return shows the submenu's items instead of the menu's,
         under a row with an arrow back and the submenu's title; that row, Left and Escape go back. Moving over a
-        submenu's row does not open it. Other menus open their submenus beside them.
+        submenu's row does not open it; with motion the rows slide sideways between the levels. Other menus open
+        their submenus beside them.
     \li \c materialTrailingIcon of a QAction in a QMenu: a QIcon that is drawn at the trailing end of its row, 24 by
         24, in \c OnSurfaceVariant if it has one color, before the shortcut and after the arrow of a submenu. Every
         row of the menu makes room for it.
@@ -4006,9 +4016,17 @@ bool QMaterialStyle::isNavigationBar(const QWidget *widget) {
             bar->shape() == QTabBar::TriangularNorth || bar->shape() == QTabBar::TriangularSouth);
 }
 
+namespace {
+// The kind of a rail: its materialTabBar, or the modal rail while QTabWidget takes a picture of one that closed.
+QString railKind(const QWidget *bar) {
+    return bar->property("_nt_railPicture").toBool() ? QStringLiteral("navigationRailModal")
+                                                     : bar->property("materialTabBar").toString();
+}
+} // namespace
+
 bool QMaterialStyle::isNavigationRail(const QWidget *widget) {
     const auto *bar = qobject_cast<const QTabBar *>(widget);
-    const QString kind = bar ? bar->property("materialTabBar").toString() : QString();
+    const QString kind = bar ? railKind(bar) : QString();
     return bar &&
            (kind == QLatin1String("navigationRail") || kind == QLatin1String("navigationRailExpanded") ||
             kind == QLatin1String("navigationRailModal")) &&
@@ -4019,13 +4037,12 @@ bool QMaterialStyle::isNavigationRail(const QWidget *widget) {
 bool QMaterialStyle::isExpandedRail(const QWidget *widget) {
     if (!isNavigationRail(widget))
         return false;
-    const QString kind = widget->property("materialTabBar").toString();
+    const QString kind = railKind(widget);
     return kind == QLatin1String("navigationRailExpanded") || kind == QLatin1String("navigationRailModal");
 }
 
 bool QMaterialStyle::isModalRail(const QWidget *widget) {
-    return isNavigationRail(widget) &&
-           widget->property("materialTabBar").toString() == QLatin1String("navigationRailModal");
+    return isNavigationRail(widget) && railKind(widget) == QLatin1String("navigationRailModal");
 }
 
 int QMaterialStyle::collapsedRailWidth() { return railWidth; }
@@ -4272,7 +4289,9 @@ void QMaterialStyle::drawExpandedRail(QPainter *painter, const QTabBar *bar, int
             painter->restore();
             right = end.left() - railExpandedIconSpace;
         }
-        if (!label.isEmpty()) {
+        // The picture of a closing modal rail is taken without its labels too, which fade out as it slides.
+        const QVariant labels = bar->property("_nt_railLabels");
+        if (!label.isEmpty() && (!labels.isValid() || labels.toBool())) {
             const QRect area(left, tab.top(), std::max(0, right - left), tab.height());
             painter->setPen(ink);
             painter->drawText(area, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,

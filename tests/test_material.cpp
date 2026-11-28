@@ -1831,6 +1831,25 @@ void testMenuWrapsAndOpensInPlace() {
     CHECK(vertical.actionGeometry(cut).isValid() && vertical.actionGeometry(mail).isEmpty());
     vertical.hide();
 
+    // With motion the rows slide sideways between the levels, and come to rest where they are without it.
+    style->setMotionEnabled(true);
+    vertical.popup(window.mapToGlobal(QPoint(20, 20)));
+    QCoreApplication::processEvents();
+    const auto picture = [&] { return window.grab().toImage().copy(vertical.geometry()); };
+    click(&vertical, sendRow);
+    const QImage sliding = picture();
+    wait(800);
+    const QImage deeper = picture();
+    CHECK(sliding != deeper);
+    CHECK(near(deeper.pixelColor(mailRow.left() + 12 + 12, 4 + 24), style->color(Role::OnSurface), 40));
+    key(&vertical, Qt::Key_Escape);
+    const QImage returning = picture();
+    wait(800);
+    CHECK(returning != picture());
+    CHECK(vertical.actionGeometry(cut).isValid());
+    vertical.hide();
+    style->setMotionEnabled(false);
+
     // Without the property a submenu opens beside the menu.
     vertical.setProperty("materialMenu", QVariant());
     vertical.popup(window.mapToGlobal(QPoint(20, 20)));
@@ -1839,6 +1858,166 @@ void testMenuWrapsAndOpensInPlace() {
     CHECK(send->isVisible());
     CHECK(vertical.actionGeometry(cut).isValid());
     vertical.hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// A menu keeps 8 from the edges of its window, as one from an app bar's overflow button on a phone; other styles let
+// it reach them.
+void testMenuWindowMargins() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(720, 400);
+    auto *overflow = new QToolButton(&window);
+    overflow->setGeometry(672, 8, 48, 48);
+    auto *menu = new QMenu(overflow);
+    menu->addAction(QStringLiteral("Settings"));
+    menu->addAction(QStringLiteral("Help and feedback"));
+    overflow->setMenu(menu);
+    window.show();
+    QCoreApplication::processEvents();
+    overflow->showMenu();
+    QCoreApplication::processEvents();
+    CHECK(menu->isVisible());
+    CHECK(menu->x() + menu->width() == 720 - 8);
+    CHECK(menu->y() == 56);
+    menu->hide();
+    // Near the top left corner and the bottom.
+    menu->popup(window.mapToGlobal(QPoint(2, 2)));
+    QCoreApplication::processEvents();
+    CHECK(menu->pos() == QPoint(8, 8));
+    menu->hide();
+    menu->popup(window.mapToGlobal(QPoint(100, 398)));
+    QCoreApplication::processEvents();
+    CHECK(menu->y() + menu->height() <= 400 - 8);
+    menu->hide();
+    // A window too small for the margins still holds the menu.
+    window.resize(menu->sizeHint().width() + 4, 400);
+    QCoreApplication::processEvents();
+    menu->popup(window.mapToGlobal(QPoint(30, 30)));
+    QCoreApplication::processEvents();
+    CHECK(menu->x() + menu->width() == window.width());
+    menu->hide();
+
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    window.resize(720, 400);
+    QCoreApplication::processEvents();
+    menu->popup(window.mapToGlobal(QPoint(715, 2)));
+    QCoreApplication::processEvents();
+    CHECK(menu->x() + menu->width() == 720);
+    CHECK(menu->y() == 2);
+    menu->hide();
+}
+
+// The modal expanded rail: the scrim covers the whole window, an app bar above the tab widget too, fades on the
+// default effects spring and the rail slides in from the left edge; it slides out over the collapsed rail as it closes.
+void testModalRailMotion() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QImage square(48, 48, QImage::Format_ARGB32_Premultiplied);
+    square.fill(Qt::transparent);
+    {
+        QPainter painter(&square);
+        painter.fillRect(QRect(8, 8, 32, 32), Qt::black);
+    }
+    const QIcon icon(QPixmap::fromImage(square));
+    QMainWindow window;
+    auto *appBar = new QToolBar;
+    appBar->setProperty("materialToolBar", QStringLiteral("appBar"));
+    appBar->setWindowTitle(QStringLiteral("Inbox"));
+    window.addToolBar(appBar);
+    auto *pages = new QTabWidget;
+    pages->setTabPosition(QTabWidget::West);
+    QTabBar *bar = pages->tabBar();
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRail"));
+    for (const char *name : {"Home", "Search", "Settings"})
+        pages->addTab(new QWidget, icon, QString::fromLatin1(name));
+    window.setCentralWidget(pages);
+    window.resize(600, 400);
+    window.show();
+    QCoreApplication::processEvents();
+    const auto modal = [bar] {
+        return bar->property("materialTabBar").toString() == QLatin1String("navigationRailModal");
+    };
+    const QPoint inAppBar = appBar->mapTo(&window, QPoint(appBar->width() - 20, appBar->height() / 2));
+    const QPoint inPage = pages->mapTo(&window, QPoint(400, 200));
+    CHECK(pages->mapTo(&window, QPoint(0, 0)).y() >= appBar->height());
+    QImage image = window.grab().toImage();
+    const QColor barColor = image.pixelColor(inAppBar);
+    const QColor pageColor = image.pixelColor(inPage);
+    const auto dimmed = [](const QColor &color) {
+        return QColor::fromRgbF(color.redF() * 0.68, color.greenF() * 0.68, color.blueF() * 0.68);
+    };
+
+    // Without motion it opens at once, and the scrim lies over the app bar too.
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRailModal"));
+    QCoreApplication::processEvents();
+    CHECK(bar->x() == 0 && bar->width() == 220);
+    image = window.grab().toImage();
+    CHECK(near(image.pixelColor(inAppBar), dimmed(barColor), 6));
+    CHECK(near(image.pixelColor(inPage), dimmed(pageColor), 6));
+    // A press on the app bar's scrim collapses the rail.
+    QWidget *over = window.childAt(inAppBar);
+    CHECK(over && over != appBar && !appBar->isAncestorOf(over));
+    if (over) {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(over->mapFrom(&window, inAppBar)), QPointF(inAppBar),
+                          Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(over, &press);
+    }
+    QCoreApplication::processEvents();
+    CHECK(!modal() && bar->width() == 96);
+    image = window.grab().toImage();
+    CHECK(near(image.pixelColor(inAppBar), barColor, 2));
+    over = window.childAt(inAppBar);
+    CHECK(over == appBar || appBar->isAncestorOf(over));
+
+    // With motion the rail slides in from the left edge and the scrim fades in.
+    style->setMotionEnabled(true);
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRailModal"));
+    QCoreApplication::processEvents();
+    CHECK(bar->width() == 220 && bar->x() < 0);
+    image = window.grab().toImage();
+    CHECK(image.pixelColor(inAppBar).lightness() > dimmed(barColor).lightness() + 4);
+    wait(1000);
+    CHECK(bar->x() == 0);
+    image = window.grab().toImage();
+    CHECK(near(image.pixelColor(inAppBar), dimmed(barColor), 6));
+    CHECK(near(image.pixelColor(inPage), dimmed(pageColor), 6));
+
+    // Escape closes it: the rail is collapsed at once, under a picture of the modal rail that slides out, and the
+    // scrim fades out, letting presses through.
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QCoreApplication::sendEvent(bar, &escape);
+    QCoreApplication::processEvents();
+    CHECK(!modal() && bar->width() == 96 && bar->x() == 0);
+    const auto ghost = [&] {
+        for (QWidget *child : pages->findChildren<QWidget *>(QString(), Qt::FindDirectChildrenOnly))
+            if (child->isVisible() && child != bar && child->width() == 220)
+                return child;
+        return static_cast<QWidget *>(nullptr);
+    };
+    CHECK(ghost() != nullptr);
+    over = window.childAt(inAppBar);
+    CHECK(over == appBar || appBar->isAncestorOf(over));
+    image = window.grab().toImage();
+    CHECK(image.pixelColor(inPage).lightness() < pageColor.lightness() - 4);
+    // The picture is over the collapsed rail, still where the modal rail was.
+    const auto inPages = [&](int x, int y) { return image.pixelColor(pages->mapTo(&window, QPoint(x, y))); };
+    CHECK(near(inPages(50, 330), style->color(Role::SurfaceContainer), 3));
+    CHECK(near(inPages(150, 330), style->color(Role::SurfaceContainer), 3));
+    wait(1000);
+    CHECK(ghost() == nullptr);
+    image = window.grab().toImage();
+    CHECK(near(inPages(50, 330), style->color(Role::Surface), 3));
+    image = window.grab().toImage();
+    CHECK(near(image.pixelColor(inAppBar), barColor, 2));
+    CHECK(near(image.pixelColor(inPage), pageColor, 2));
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
@@ -7595,6 +7774,7 @@ int main(int argc, char *argv[]) {
     testMenuShapes();
     testMenuRowExtras();
     testMenuWrapsAndOpensInPlace();
+    testMenuWindowMargins();
     testRichToolTips();
     testSpring();
     testMotion();
@@ -7643,6 +7823,7 @@ int main(int argc, char *argv[]) {
     testSliderSizesAndValue();
     testSliderIconsCenteredAndGrowth();
     testExpandedRail();
+    testModalRailMotion();
     testNavigationItems();
     testRailScrolls();
     testFlexibleAppBars();

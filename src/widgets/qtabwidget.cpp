@@ -8,6 +8,7 @@
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
 
+#include "qmaterialmotion_p.h"
 #include "qwidgetutil_p.h"
 
 #include <algorithm>
@@ -385,40 +386,212 @@ bool isModalKind(const QTabBar *bar) {
     return bar->property("materialTabBar").toString() == QLatin1String("navigationRailModal");
 }
 
-// The scrim over the pages behind a modal expanded rail. A press on it, Escape on the rail, or a destination chosen
-// collapses the rail.
+// A picture of the modal rail that slides out over the collapsed one when it closes, its labels fading on the way.
+class RailGhost : public QWidget {
+public:
+    RailGhost(QWidget *parent, QPixmap labelled, QPixmap bare)
+        : QWidget(parent), m_labelled(std::move(labelled)), m_bare(std::move(bare)) {
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+    }
+    double labels = 1; // how much of the labels shows
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        (void)event;
+        QPainter painter(this);
+        painter.drawPixmap(0, 0, m_bare);
+        painter.setOpacity(std::clamp(labels, 0.0, 1.0));
+        painter.drawPixmap(0, 0, m_labelled);
+    }
+
+private:
+    QPixmap m_labelled;
+    QPixmap m_bare; // without the labels
+};
+
+// The scrim behind a modal expanded rail. The one over the tab widget, under the rail, has the motion and the parts
+// over the rest of the window, children of the window raised over all else in it, which tile around the tab widget
+// (a child cannot be under the rail of the tab widget and over the window's other children both). A press on any part,
+// Escape on the rail, or a destination chosen collapses the rail.
 class RailScrim : public QWidget {
 public:
-    RailScrim(QTabWidget *tabs, QTabBar *bar) : QWidget(tabs), m_bar(bar) {
+    RailScrim(QTabWidget *tabs, QTabBar *bar) : QWidget(tabs), m_bar(bar), m_owner(this) {
         bar->installEventFilter(this);
+        tabs->installEventFilter(this);
         QObject::connect(bar, &QTabBar::currentChanged, this, [bar] { collapse(bar); });
     }
+    ~RailScrim() override {
+        if (m_owner != this)
+            return;
+        for (const QPointer<RailScrim> &part : m_parts)
+            delete part.data();
+    }
+    RailScrim(const RailScrim &) = delete;
+    RailScrim &operator=(const RailScrim &) = delete;
+
     static void collapse(QTabBar *bar) {
         if (isModalKind(bar))
             bar->setProperty("materialTabBar", "navigationRail");
+    }
+
+    bool isOpen() const { return m_open; }
+    // How far the rail is still out of sight past its edge as it slides in.
+    int hidden() const { return m_hidden; }
+    void setHeader(QWidget *header) { m_header = header; }
+
+    // The rail opened `across` wide: the scrim fades in on the default effects spring and the rail slides in from its
+    // edge on the default spatial spring, which may pass its mark: the rail stops at the edge rather than leave a gap.
+    void open(bool motion, int across) {
+        m_open = true;
+        setMouseTransparent(false);
+        QtPrivate::Transition::stop(this, QStringLiteral("_nt_railSlide"));
+        fade(1.0, motion);
+        if (!motion) {
+            m_hidden = 0;
+            return;
+        }
+        m_hidden = across;
+        new QtPrivate::Transition(this, QStringLiteral("_nt_railSlide"), QtPrivate::defaultSpatialSpring,
+                                  [this, across](double progress) {
+                                      m_hidden = std::max(0, static_cast<int>(std::lround(across * (1.0 - progress))));
+                                      moveRail();
+                                      return m_open;
+                                  });
+    }
+
+    // The rail closed. The bar is still where the modal rail was, and is the collapsed rail once the tab widget lays it
+    // out: a picture of the modal rail, with its labels and without, slides out over it while the labels fade, and the
+    // scrim fades out, letting presses through at once.
+    void close(bool motion) {
+        m_open = false;
+        setMouseTransparent(true);
+        QtPrivate::Transition::stop(this, QStringLiteral("_nt_railSlide"));
+        fade(0.0, motion);
+        const int start = m_hidden;
+        m_hidden = 0;
+        auto *tabs = static_cast<QTabWidget *>(parentWidget());
+        if (!motion || !m_bar || !m_bar->isVisible() || m_bar->width() <= start)
+            return;
+        // The bar draws itself as the modal rail while it is told to, and its labels while they are not left out.
+        m_bar->setProperty("_nt_railPicture", true);
+        QPixmap labelled = m_bar->grab();
+        m_bar->setProperty("_nt_railLabels", false);
+        QPixmap bare = m_bar->grab();
+        m_bar->setProperty("_nt_railLabels", QVariant());
+        m_bar->setProperty("_nt_railPicture", QVariant());
+        delete m_ghost.data();
+        auto *ghost = new RailGhost(tabs, std::move(labelled), std::move(bare));
+        m_ghost = ghost;
+        const QRect from = m_bar->geometry();
+        ghost->setGeometry(from);
+        ghost->show();
+        const bool east = tabs->tabPosition() == QTabWidget::East;
+        const int distance = from.width();
+        const int rest = east ? from.x() - start : from.x() + start; // where it would be fully shown
+        QPointer<RailGhost> guard(ghost);
+        new QtPrivate::Transition(ghost, QStringLiteral("_nt_railSlide"), QtPrivate::defaultSpatialSpring,
+                                  [guard, start, distance, rest, east](double progress) {
+                                      if (!guard)
+                                          return false;
+                                      const int away =
+                                          start + static_cast<int>(std::lround((distance - start) * progress));
+                                      if (away >= distance || progress >= 1.0) {
+                                          guard->hide();
+                                          guard->deleteLater();
+                                          return false;
+                                      }
+                                      guard->labels = 1.0 - progress;
+                                      guard->move(east ? rest + away : rest - away, guard->y());
+                                      guard->update();
+                                      return true;
+                                  });
+    }
+
+    // Keeps the picture of a closing rail over the collapsed rail.
+    void raiseGhost() {
+        if (m_ghost)
+            m_ghost->raise();
+    }
+
+    // Puts the parts in their places, shown while the scrim is open or fading.
+    void place() {
+        auto *tabs = static_cast<QTabWidget *>(parentWidget());
+        const bool shown = (m_open || m_opacity > 0.002) && tabs->isVisible();
+        setGeometry(tabs->rect());
+        setVisible(shown);
+        QWidget *window = tabs->window();
+        if (window != m_window.data()) {
+            if (m_window)
+                m_window->removeEventFilter(this);
+            m_window = window;
+            if (window != tabs)
+                window->installEventFilter(this);
+        }
+        std::vector<QRect> around;
+        if (window != tabs) {
+            const QRect inner = QRect(tabs->mapTo(window, QPoint(0, 0)), tabs->size()).intersected(window->rect());
+            const int w = window->width();
+            const int h = window->height();
+            const int below = inner.top() + inner.height();
+            const int after = inner.left() + inner.width();
+            around = {QRect(0, 0, w, inner.top()), QRect(0, below, w, h - below),
+                      QRect(0, inner.top(), inner.left(), inner.height()),
+                      QRect(after, inner.top(), w - after, inner.height())};
+        }
+        m_parts.resize(around.size());
+        for (std::size_t i = 0; i < around.size(); ++i) {
+            QPointer<RailScrim> &part = m_parts[i];
+            if (part && part->parentWidget() != window)
+                delete part.data();
+            if (!part) {
+                part = new RailScrim(window, this);
+                part->setAttribute(Qt::WA_TransparentForMouseEvents, !m_open);
+            }
+            part->setGeometry(around[i]);
+            part->setVisible(shown && !around[i].isEmpty());
+            if (shown)
+                part->raise();
+            part->update();
+        }
+        update();
     }
 
 protected:
     void paintEvent(QPaintEvent *event) override {
         (void)event;
         QPainter painter(this);
-        painter.fillRect(rect(), QColor(0, 0, 0, 82)); // black at 32 percent
+        // Black at 32 percent, faded.
+        painter.fillRect(rect(), QColor(0, 0, 0, static_cast<int>(std::lround(82 * m_owner->m_opacity))));
     }
     void mousePressEvent(QMouseEvent *event) override {
         event->accept();
-        if (m_bar)
-            collapse(m_bar);
+        if (m_owner->m_bar && m_owner->m_open)
+            collapse(m_owner->m_bar);
     }
     void mouseReleaseEvent(QMouseEvent *event) override { event->accept(); }
     bool eventFilter(QObject *watched, QEvent *event) override {
+        if (m_owner != this)
+            return false;
+        const QEvent::Type type = event->type();
+        if (watched == parentWidget() || watched == m_window.data()) {
+            // The tab widget moves or comes or goes in its window, or the window is resized.
+            if (type == QEvent::Move || type == QEvent::Resize || type == QEvent::Show) {
+                place();
+            } else if (type == QEvent::Hide && watched == parentWidget()) {
+                for (const QPointer<RailScrim> &part : m_parts)
+                    if (part)
+                        part->hide();
+            }
+            return false;
+        }
         if (watched != m_bar || !isModalKind(m_bar) || m_bar->isHidden())
             return false;
-        if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+        if (type == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
             collapse(m_bar);
             return true;
         }
         // The destination that is shown chosen again: one that is not changes the current tab, which collapses it.
-        if (event->type() == QEvent::MouseButtonRelease) {
+        if (type == QEvent::MouseButtonRelease) {
             const int index = m_bar->tabAt(static_cast<QMouseEvent *>(event)->pos());
             if (index >= 0 && index == m_bar->currentIndex())
                 collapse(m_bar);
@@ -427,7 +600,54 @@ protected:
     }
 
 private:
+    // A part over the window around the tab widget.
+    RailScrim(QWidget *window, RailScrim *owner) : QWidget(window), m_owner(owner) {}
+
+    void setMouseTransparent(bool through) {
+        setAttribute(Qt::WA_TransparentForMouseEvents, through);
+        for (const QPointer<RailScrim> &part : m_parts)
+            if (part)
+                part->setAttribute(Qt::WA_TransparentForMouseEvents, through);
+    }
+
+    void fade(double target, bool motion) {
+        QtPrivate::Transition::stop(this, QStringLiteral("_nt_scrimFade"));
+        if (!motion) {
+            m_opacity = target;
+            place();
+            return;
+        }
+        const double from = m_opacity;
+        new QtPrivate::Transition(this, QStringLiteral("_nt_scrimFade"), QtPrivate::defaultEffectsSpring,
+                                  [this, from, target](double progress) {
+                                      m_opacity = from + (target - from) * std::clamp(progress, 0.0, 1.0);
+                                      place();
+                                      return true;
+                                  });
+        place();
+    }
+
+    // Puts the rail and the widget at its top where the slide has them.
+    void moveRail() {
+        auto *tabs = static_cast<QTabWidget *>(parentWidget());
+        if (!m_bar)
+            return;
+        const bool east = tabs->tabPosition() == QTabWidget::East;
+        const int x = east ? tabs->width() - m_bar->width() + m_hidden : -m_hidden;
+        m_bar->move(x, m_bar->y());
+        if (m_header)
+            m_header->move(x, m_header->y());
+    }
+
     QPointer<QTabBar> m_bar;
+    RailScrim *m_owner; // the scrim over the tab widget, which has the state; itself for that one
+    std::vector<QPointer<RailScrim>> m_parts;
+    QPointer<QWidget> m_window;
+    QPointer<QWidget> m_header;
+    QPointer<RailGhost> m_ghost;
+    double m_opacity = 0;
+    int m_hidden = 0;
+    bool m_open = false;
 };
 } // namespace
 
@@ -479,8 +699,21 @@ void QTabWidget::layoutChildren() {
     auto *scrim = static_cast<RailScrim *>(m_scrim.data());
     if (verticalBar()) {
         const bool modal = isOpenModalRail();
+        const auto *material = qobject_cast<const QMaterialStyle *>(m_bar->style());
+        const bool motion = material && material->isMotionEnabled() && isVisible();
+        if (modal && !scrim) {
+            scrim = new RailScrim(this, m_bar);
+            m_scrim = scrim;
+        }
+        // A rail that closed is pictured where it is, before it collapses.
+        if (scrim && scrim->isOpen() && !modal)
+            scrim->close(motion);
         const int across = modal ? m_bar->sizeHint().width() : thick;
-        m_bar->setGeometry(m_position == West ? 0 : w - across, 0, across, h);
+        if (scrim && modal && !scrim->isOpen())
+            scrim->open(motion, across);
+        const int hidden = modal ? scrim->hidden() : 0;
+        const int x = m_position == West ? -hidden : w - across + hidden;
+        m_bar->setGeometry(x, 0, across, h);
         // A rail of the Material style has the corner widget at its top; otherwise the corners have no room.
         QWidget *top = nullptr;
         if (isMaterialRail())
@@ -488,25 +721,20 @@ void QTabWidget::layoutChildren() {
         for (QWidget *corner : {m_leftCorner.data(), m_rightCorner.data()})
             if (corner && corner != top)
                 corner->setGeometry(QRect());
-        if (modal) {
-            if (!scrim) {
-                scrim = new RailScrim(this, m_bar);
-                m_scrim = scrim;
-            }
-            scrim->setGeometry(rect());
-            scrim->show();
+        if (scrim) {
+            scrim->setHeader(top);
+            scrim->place();
             scrim->raise();
             m_bar->raise();
-        } else if (scrim) {
-            scrim->hide();
+            scrim->raiseGhost();
         }
         if (top && !top->isHidden()) {
             top->setGeometry(m_bar->x(), kRailHeaderTop, across, cornerSize(top).height());
             top->raise();
         }
     } else {
-        if (scrim)
-            scrim->hide();
+        if (scrim && scrim->isOpen())
+            scrim->close(false);
         int left = 0;
         int right = w;
         const int y = m_position == North ? 0 : h - thick;

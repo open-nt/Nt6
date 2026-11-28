@@ -411,7 +411,16 @@ a back row; hovering does not open it. The back row is a private `QAction` of th
 `QtPrivate::MenuAccess` (`qmenu_p.h`), which also gives the shown actions to the measuring of sections, trailing icons
 and groups. The back row, Left and Escape go back, with the submenu's row current; submenus nest. The submenu emits
 `aboutToShow()`/`aboutToHide()` and `triggered()`, but is never shown, and a change to its actions lays the menu out
-again. The menu resizes to its new rows and is moved back inside its window. Not done: an animation between the levels.
+again. The menu resizes to its new rows and is moved back inside its window. With motion the rows slide sideways
+between the levels on the fast spatial spring, the new level in from the right going deeper and from the left going
+back (mirrored right to left), the old one out ahead of it: `QMenu` draws the old rows apart (`rowsPicture()`, no
+container) before it lays out the new ones, and both inside the new container while they move; without motion they
+change at once. A menu keeps 8 from the edges of its window (`QMaterialStyle::menuWindowMargins()`, asked by
+`QMenu::windowArea()` as it is placed and as it grows), so the menu of an app bar's overflow button on a phone ends 8
+short of the right edge; a FAB menu and other styles' menus keep none, and along a side where the menu does not fit
+within the margins it takes the whole window. Compose keeps its dropdown 48 from the top and bottom
+(`MenuVerticalMargin`) and only inside the window across, where it lines the menu up with its anchor; 8 all round
+keeps a menu bar's menus right under the bar.
 
 The expanded navigation rail (Compose's `WideNavigationRail` expanded, the baseline item tokens) is `materialTabBar` =
 `"navigationRailExpanded"`, a value of the same property rather than a boolean beside it, so that a rail is one or the
@@ -434,8 +443,16 @@ expanded rail is `materialTabBar` = `"navigationRailModal"`, an expanded rail in
 corners of 16: the tab widget lays it over the pages, which keep the 96 of the collapsed rail, with a scrim (a child of
 the tab widget, black at 32 percent) over them and the corner widget raised over the rail. A press on the scrim, Escape
 on the rail, a destination chosen or the current one chosen again set the property back to `"navigationRail"`; the
-menu button opens it by setting the property, a standard call. Not done: the scrim covers the tab widget only, not
-an app bar above it; it does not fade, nor does the rail slide; and a rail that hides its labels as it collapses.
+menu button opens it by setting the property, a standard call. The scrim covers the whole window, an app bar above
+the tab widget too: a child cannot be under the rail and over the window's other children both, so the part over the
+tab widget is its child, under the rail, and up to four more are children of the window, raised, tiling the window
+around the tab widget (kept in place as the tab widget moves or the window is resized); a press on any part closes the
+rail. With motion the scrim fades in and out on the default effects spring and lets presses through as soon as the
+rail closes; the rail and the corner widget slide in from the edge on the default spatial spring, stopped at the edge
+rather than passing it. As it closes the bar is the collapsed rail at once, and a picture of the modal rail taken
+before it collapsed (the style draws the bar as the modal rail while it has the private `_nt_railPicture`, and without
+labels while `_nt_railLabels` is false) slides out over it on the same spring, its labels fading out as it goes.
+Without motion all of it is immediate.
 
 The medium and large flexible top app bars are `materialToolBar` = `"appBarMedium"` and `"appBarLarge"`, app bars in
 every other way (`QMaterialStyle::isAppBar()`). Expanded they are 112 and 120 high (the Compose medium and large

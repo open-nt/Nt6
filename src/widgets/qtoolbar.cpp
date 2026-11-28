@@ -5,7 +5,10 @@
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qstyleoption.h>
+#include <QtCore/qtimer.h>
+#include <QtWidgets/qapplication.h>
 #include <QtWidgets/qboxlayout.h>
+#include <QtWidgets/qmainwindow.h>
 #include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qmenu.h>
 #include <QtWidgets/qtoolbutton.h>
@@ -62,7 +65,9 @@ private:
 
     Each action gets a QToolButton that follows its text, checked state, enabled state and visibility. A triggered
     action is reported by actionTriggered(). When there is not room for all of them, those at the end make way for
-    an extension button, which opens a menu of them. toggleViewAction() is a checkable action that shows and hides
+    an extension button. In a QMainWindow a click on it expands the tool bar over what is next to it, with the items
+    that did not fit in rows after the first, until it is clicked again or the mouse leaves the tool bar; elsewhere it
+    opens a menu of the actions. toggleViewAction() is a checkable action that shows and hides
     the tool bar, for a menu of the tool bars of a window.
 
     A tool bar with actions, a separator, a checked and a disabled action, and a combo box.
@@ -70,10 +75,12 @@ private:
     \image widgets/qtoolbar.png QToolBar in the light color scheme
 
     \differences
-    A tool bar cannot be dragged to another side of the window or float (\c isFloating() is always \c false). When its
-    actions do not fit, the extension button at its end opens a menu of those that did not, where Qt shows them in an
-    expanded tool bar; a widget that does not fit (one given to addWidget()) is hidden and has no entry in the menu. A
-    movable tool bar shows a grip that does nothing.
+    A tool bar cannot be dragged to another side of the window or float (\c isFloating() is always \c false). Outside
+    a QMainWindow the extension button opens a menu of the actions that did not fit, as in Qt, but a tool bar whose
+    widgets (those given to addWidget() or by a QWidgetAction) did not fit expands as it would in a main window, where
+    Qt lists them in the menu by their actions. The docked and floating toolbars of QMaterialStyle always open the
+    menu, which has no entry for a widget. The expanded tool bar keeps its first row where it was and lays out the rest
+    in rows of the same length; Qt lays all of the items out again. A movable tool bar shows a grip that does nothing.
     \enddifferences
 
     \sa QMainWindow, QToolButton, QAction
@@ -111,7 +118,7 @@ void QToolBar::init(const QString &title) {
     m_extension->setObjectName(QStringLiteral("qt_toolbar_ext_button"));
     m_extension->setAutoRaise(true);
     m_extension->hide();
-    QObject::connect(m_extension, &QAbstractButton::clicked, this, [this] { showExtensionMenu(); });
+    QObject::connect(m_extension, &QAbstractButton::clicked, this, [this] { extensionClicked(); });
     m_toggleView = new QAction(title, this);
     m_toggleView->setCheckable(true);
     m_toggleView->setChecked(true);
@@ -442,6 +449,27 @@ const QMaterialStyle *QToolBar::scrollingStyle() const {
     \reimp
 */
 bool QToolBar::event(QEvent *event) {
+    if (m_expanded) {
+        // An expanded tool bar keeps its rows until it collapses: when the mouse leaves it and no popup is open, or
+        // when the window gives it another size.
+        if (event->type() == QEvent::Leave)
+            QTimer::singleShot(500, this, [this] { collapseUnlessHeld(); });
+        if (event->type() == QEvent::Resize && size() != m_expandedSize) {
+            const bool done = QWidget::event(event);
+            collapse(false);
+            relayout();
+            return done;
+        }
+        if (event->type() == QEvent::LayoutRequest) {
+            // Its widgets are placed here; the window is not asked to lay it out again.
+            layOutExpansion(true);
+            return true;
+        }
+        const bool done = QWidget::event(event);
+        if (event->type() == QEvent::Resize)
+            layOutExpansion(true);
+        return done;
+    }
     const bool done = QWidget::event(event);
     if (event->type() != QEvent::Resize && event->type() != QEvent::LayoutRequest)
         return done;
@@ -681,6 +709,8 @@ void QToolBar::relayout() {
     if (m_relayingOut)
         return;
     m_relayingOut = true;
+    if (m_expanded)
+        collapse();
     for (int round = 0; round < 3; ++round) {
         const QSize before = size();
         layOutItems();
@@ -746,6 +776,163 @@ void QToolBar::layOutItems() {
     update();
 }
 
+// A click on the extension button: collapses the tool bar if it is expanded, or else expands it or opens the menu.
+void QToolBar::extensionClicked() {
+    if (m_expanded) {
+        collapse();
+        relayout();
+    } else if (canExpand()) {
+        expand();
+    } else {
+        showExtensionMenu();
+    }
+}
+
+// True if the tool bar expands rather than opening the menu, as a QToolBarLayout of Qt that uses no popup menu: in
+// a main window, and elsewhere when widgets did not fit, if the expanded bar is not as large as its parent across.
+bool QToolBar::canExpand() {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (material && (QMaterialStyle::isDockedToolBar(this) || QMaterialStyle::isAppBar(this) || isFloatingForStyle()))
+        return false;
+    QWidget *parent = parentWidget();
+    if (!parent || isWindow() || m_overflow.empty())
+        return false;
+    const bool widgets = std::any_of(m_overflow.begin(), m_overflow.end(), [this](QAction *action) {
+        const auto it =
+            std::find_if(m_items.begin(), m_items.end(), [action](const Item &item) { return item.action == action; });
+        return it != m_items.end() && !it->owned && action->isVisible();
+    });
+    if (!qobject_cast<QMainWindow *>(parent) && !widgets)
+        return false;
+    const QRect saved = m_collapsedGeometry;
+    m_collapsedGeometry = geometry();
+    const int across = layOutExpansion(false);
+    m_collapsedGeometry = saved;
+    return across < (m_orientation == Qt::Horizontal ? parent->height() : parent->width());
+}
+
+// Expands the tool bar over what is next to it: away from the edge of the window that it is at.
+void QToolBar::expand() {
+    const bool horizontal = m_orientation == Qt::Horizontal;
+    m_collapsedGeometry = geometry();
+    QWidget *parent = parentWidget();
+    if (auto *window = qobject_cast<QMainWindow *>(parent)) {
+        const Qt::ToolBarArea area = window->toolBarArea(this);
+        m_growsBack = area == Qt::BottomToolBarArea || area == Qt::RightToolBarArea;
+    } else {
+        const QPoint middle = m_collapsedGeometry.center();
+        m_growsBack = horizontal ? middle.y() > parent->height() / 2 : middle.x() > parent->width() / 2;
+    }
+    const int across = layOutExpansion(false);
+    QRect expanded = m_collapsedGeometry;
+    if (horizontal && m_growsBack)
+        expanded.setTop(expanded.bottom() + 1 - across);
+    else if (horizontal)
+        expanded.setHeight(across);
+    else if (m_growsBack)
+        expanded.setLeft(expanded.right() + 1 - across);
+    else
+        expanded.setWidth(across);
+    m_expanded = true;
+    m_expandedSize = expanded.size();
+    raise();
+    setGeometry(expanded);
+    layOutExpansion(true);
+    m_extension->setDown(true);
+    update();
+}
+
+// Collapses an expanded tool bar, to where it was if `restore`; the widgets that do not fit are hidden again.
+void QToolBar::collapse(bool restore) {
+    if (!m_expanded)
+        return;
+    m_expanded = false;
+    m_extension->setDown(false);
+    for (QAction *action : m_overflow)
+        if (QWidget *widget = widgetForAction(action))
+            widget->hide();
+    if (restore)
+        setGeometry(m_collapsedGeometry);
+    update();
+}
+
+// After the mouse left the expanded tool bar: it collapses unless the mouse came back or a popup (that of a combo box
+// in it, say) is open, which it waits for.
+void QToolBar::collapseUnlessHeld() {
+    if (!m_expanded || underMouse())
+        return;
+    if (QApplication::activePopupWidget()) {
+        QTimer::singleShot(500, this, [this] { collapseUnlessHeld(); });
+        return;
+    }
+    collapse();
+    relayout();
+}
+
+// The rows of an expanded tool bar (columns of a vertical one): after the first, which stays as it was, the widgets
+// that did not fit, from the start of each row as far as the length of the bar. Places them if `apply`. Returns how
+// far across the expanded tool bar reaches.
+int QToolBar::layOutExpansion(bool apply) {
+    const bool horizontal = m_orientation == Qt::Horizontal;
+    const QSize collapsed = m_collapsedGeometry.size();
+    const int along = alongOf(collapsed);
+    const int first = horizontal ? collapsed.height() : collapsed.width();
+    const QMargins margins = m_layout->contentsMargins();
+    const int start = horizontal ? margins.left() : margins.top();
+    const int end = std::max(start + 1, along - (horizontal ? margins.right() : margins.bottom()));
+    const int spacing = std::max(2, m_layout->spacing());
+    struct Placed {
+        QWidget *widget;
+        int along;
+        int length;
+        int thickness;
+        std::size_t row;
+    };
+    std::vector<Placed> placed;
+    std::vector<int> rows; // the thickness of each row after the first
+    int cursor = start;
+    for (QAction *action : m_overflow) {
+        QWidget *widget = widgetForAction(action);
+        if (!widget || !action->isVisible())
+            continue;
+        const QSize hint = widget->sizeHint().expandedTo(widget->minimumSize()).boundedTo(widget->maximumSize());
+        const int length = std::min(alongOf(hint), end - start);
+        const int thickness = horizontal ? hint.height() : hint.width();
+        if (rows.empty() || (cursor > start && cursor + length > end)) {
+            rows.push_back(0);
+            cursor = start;
+        }
+        if (cursor == start && action->isSeparator())
+            continue; // a separator does not start a row
+        placed.push_back({widget, cursor, length, thickness, rows.size() - 1});
+        rows.back() = std::max(rows.back(), thickness);
+        cursor += length + spacing;
+    }
+    int across = first;
+    std::vector<int> rowAt;
+    for (const int thickness : rows) {
+        rowAt.push_back(across);
+        across += thickness + spacing;
+    }
+    if (!rows.empty())
+        across += (horizontal ? margins.bottom() : margins.right()) - spacing;
+    if (!apply)
+        return across;
+    const int total = horizontal ? height() : width();
+    const auto toRect = [&](int at, int over, int length, int thickness) {
+        if (m_growsBack)
+            over = total - over - thickness;
+        return horizontal ? QRect(at, over, length, thickness) : QRect(over, at, thickness, length);
+    };
+    m_layout->setGeometry(toRect(0, 0, along, first));
+    for (const Placed &item : placed) {
+        const int over = rowAt[item.row] + (rows[item.row] - item.thickness) / 2;
+        item.widget->setGeometry(toRect(item.along, over, item.length, item.thickness));
+        item.widget->show();
+    }
+    return across;
+}
+
 // Opens the menu of the actions that did not fit, from the extension button: below it, or above it at the bottom of
 // the window, and beside a vertical tool bar.
 void QToolBar::showExtensionMenu() {
@@ -793,6 +980,9 @@ void QToolBar::showExtensionMenu() {
 */
 void QToolBar::paintEvent(QPaintEvent *event) {
     (void)event;
+    // An expanded tool bar covers what is under it.
+    if (m_expanded)
+        QPainter(this).fillRect(rect(), palette().brush(QPalette::Window));
     if (const auto *material = qobject_cast<const QMaterialStyle *>(style()); material && material->isAppBar(this)) {
         QPainter painter(this);
         material->drawAppBar(&painter, this);
@@ -874,6 +1064,7 @@ void QToolBar::showEvent(QShowEvent *event) {
     \reimp
 */
 void QToolBar::hideEvent(QHideEvent *event) {
+    collapse();
     QWidget::hideEvent(event);
     if (isHidden())
         m_toggleView->setChecked(false);

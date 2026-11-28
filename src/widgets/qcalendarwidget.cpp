@@ -1,6 +1,8 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qcalendarwidget.h>
 
+#include "qpaintediconbutton_p.h"
+
 #include <QtGui/qevent.h>
 #include <QtCore/qlocale.h>
 #include <QtGui/qpainter.h>
@@ -40,36 +42,6 @@ QFont formatted(QFont font, const QTextCharFormat &format) {
         font.setStrikeOut(format.fontStrikeOut());
     return font;
 }
-
-// The icon button at the end of the headline of Material's modal date picker: a standard icon button, which the style
-// draws with its state layer, focus ring and ripple, and over it the icon that the calendar paints. Space, Return and
-// Enter press it.
-class DatePickerModeButton : public QToolButton {
-public:
-    DatePickerModeButton(QWidget *parent, std::function<void(QPainter *)> icon)
-        : QToolButton(parent), m_icon(std::move(icon)) {
-        setProperty("materialIconButton", QStringLiteral("standard"));
-        setAutoRaise(true);
-    }
-
-protected:
-    void paintEvent(QPaintEvent *event) override {
-        QToolButton::paintEvent(event);
-        QPainter painter(this);
-        m_icon(&painter);
-    }
-    void keyPressEvent(QKeyEvent *event) override {
-        if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) && !event->isAutoRepeat()) {
-            click();
-            event->accept();
-            return;
-        }
-        QToolButton::keyPressEvent(event);
-    }
-
-private:
-    std::function<void(QPainter *)> m_icon;
-};
 
 } // namespace
 
@@ -147,7 +119,7 @@ QCalendarWidget::QCalendarWidget(QWidget *parent) : QWidget(parent), m_minimum(1
     setFocusPolicy(Qt::StrongFocus);
     setMouseTracking(true); // the year under the pointer has a state layer
     // Before the navigation bar, so that Tab comes to it first, as it reads.
-    m_modeButton = new DatePickerModeButton(this, [this](QPainter *painter) {
+    m_modeButton = new QtPrivate::PaintedIconButton(this, [this](QPainter *painter) {
         if (const QMaterialStyle *material = materialStyle(this))
             material->drawDatePickerModeIcon(painter, m_modeButton->rect(), m_modeButton, m_inputMode);
     });

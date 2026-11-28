@@ -214,6 +214,16 @@ private:
     static bool onTimeDial(const QDateTimeEdit *edit, const QPoint &pos);
     static QTime timeDialTime(const QDateTimeEdit *edit, const QPoint &pos);
     void drawTimeDial(QPainter *painter, const QStyleOption *option, const QDateTimeEdit *edit) const;
+    // The icon button at the bottom start of the picker that switches between the dial and the input (Nt's
+    // materialTimeToggle): a standard icon button child of the edit, put where timeToggleRect() says (an empty
+    // rectangle when there is none), which draws a keyboard in its `button` rectangle over its state layer while the
+    // dial is shown and a clock while the input is. The edit says which form it switched to; a click on a half of the
+    // choice of AM or PM, which is side by side in the horizontal picker, asks which half it is.
+    static bool timeFormToggled(const QDateTimeEdit *edit);
+    static bool hasTimeToggle(const QWidget *widget);
+    static QRect timeToggleRect(const QDateTimeEdit *edit);
+    static bool timePeriodAfter(const QRect &box, const QPoint &pos);
+    void drawTimeToggleIcon(QPainter *painter, const QRect &button, const QWidget *widget, bool dial) const;
     // A day of a calendar, as the date picker of Material shows it: QCalendarWidget::paintCell() asks for it. The
     // text is in `ink` if the program formatted the day with a color.
     friend class QCalendarWidget;
@@ -291,6 +301,10 @@ private:
     bool sheetMouseEvent(QObject *watched, QEvent *event);
     // Puts a sheet `offset` from its place at `rest`, toward its edge, and fades its scrim with the distance.
     void dragSheetTo(QDialog *dialog, const QRect &rest, int offset) const;
+    // The drag handle of a bottom sheet is a private child that the keyboard reaches: it stays over the handle, and
+    // Space or Enter on it moves the sheet to its other resting place (or dismisses a sheet that has none).
+    static void placeSheetHandle(QDialog *dialog);
+    void moveSheetByKey(QDialog *dialog) const;
     // The rows of a list that is a navigation drawer keep their icons and text further in.
     static bool isDrawerList(const QWidget *widget);
     // A frame that is a card, or a line that is a divider: QFrame asks for it. False for another frame.

@@ -3989,6 +3989,8 @@ public:
     QString translate(const char *context, const char *sourceText, const char *, int) const override {
         if (qstrcmp(context, "QMaterialStyle") == 0 && qstrcmp(sourceText, "Select time") == 0)
             return QStringLiteral("Choisir une heure, maintenant");
+        if (qstrcmp(context, "QMaterialStyle") == 0 && qstrcmp(sourceText, "Enter time") == 0)
+            return QStringLiteral("Saisir une heure, maintenant");
         return QString();
     }
     bool isEmpty() const override { return false; }
@@ -4012,8 +4014,8 @@ void testTimeDial() {
     window.activateWindow();
     QCoreApplication::processEvents();
     // The headline of 16 and 20 under it, boxes of 96 by 80 with the choice of AM or PM of 52 beside them, 36 under
-    // them the dial of 256: 280 wide in all.
-    CHECK(edit->sizeHint() == QSize(280, 408));
+    // them the dial of 256, and 24 under it the row of 40 of the icon button: 280 wide in all.
+    CHECK(edit->sizeHint() == QSize(280, 472));
     edit->setGeometry(10, 10, 280, 408);
     QCoreApplication::processEvents();
     auto *line = edit->findChild<QLineEdit *>();
@@ -4096,7 +4098,7 @@ void testTimeDial() {
     edit->setDisplayFormat(QStringLiteral("HH:mm"));
     edit->setTime(QTime(9, 41));
     QCoreApplication::processEvents();
-    CHECK(edit->sizeHint() == QSize(256, 408));
+    CHECK(edit->sizeHint() == QSize(256, 472));
     edit->setGeometry(10, 10, 256, 408); // the middle of the dial at (128, 280), the boxes from 20
     QCoreApplication::processEvents();
     click(40, 70);
@@ -4132,6 +4134,226 @@ void testTimeDial() {
     edit->setProperty("materialTimeInput", true);
     QCoreApplication::processEvents();
     CHECK(edit->sizeHint() == QSize(216, 92));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+void testTimeToggle() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    auto *edit = new QTimeEdit(QTime(9, 41));
+    edit->setDisplayFormat(QStringLiteral("h:mm AP"));
+    edit->setProperty("materialTimeInput", QStringLiteral("dial"));
+    layout->addWidget(edit);
+    auto *after = new QPushButton(QStringLiteral("OK"));
+    layout->addWidget(after);
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    QToolButton *toggle = nullptr;
+    for (QToolButton *each : edit->findChildren<QToolButton *>())
+        if (each->property("materialIconButton").toString() == QLatin1String("standard"))
+            toggle = each;
+    CHECK(toggle && toggle->isVisible());
+    if (!toggle)
+        return;
+    edit->resize(280, 472);
+    QCoreApplication::processEvents();
+    // At the bottom start, 24 under the dial, centred on a row of 40.
+    CHECK(edit->sizeHint() == QSize(280, 472));
+    CHECK(toggle->geometry() == QRect(0, 408 + 24 - 4, 48, 48));
+    CHECK(toggle->accessibleName() == QLatin1String("Switch to text input mode for the time input"));
+    QWindow *handle = window.windowHandle();
+    const auto key = [&](int code, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+        QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, code, modifiers);
+        QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyRelease, code, modifiers);
+        QCoreApplication::processEvents();
+    };
+    auto *line = edit->findChild<QLineEdit *>();
+    CHECK(line != nullptr);
+    if (!line)
+        return;
+    // Tab from the keys comes to the button, with its focus ring; the dial then shows the hours.
+    line->setFocus();
+    QCoreApplication::processEvents();
+    key(Qt::Key_Tab);
+    CHECK(QApplication::focusWidget() == toggle);
+    CHECK(is(pixel(*toggle, 4 + 1, 24), Role::Secondary));
+    // Space switches to the input, headed "Enter time": the boxes of 96 by 72 at 36 and their captions, and the
+    // button under them. The layout is told of the new size.
+    const int dialHeight = window.sizeHint().height();
+    key(Qt::Key_Space);
+    CHECK(QApplication::focusWidget() == toggle);
+    CHECK(edit->sizeHint() == QSize(280, 36 + 72 + 20 + 64));
+    QCoreApplication::processEvents();
+    CHECK(window.sizeHint().height() == dialHeight - (472 - 192));
+    edit->resize(280, 192);
+    QCoreApplication::processEvents();
+    CHECK(toggle->geometry() == QRect(0, 128 + 20, 48, 48));
+    CHECK(toggle->accessibleName() == QLatin1String("Switch to clock mode for the time input"));
+    const QImage input = window.grab().toImage().copy(edit->geometry());
+    CHECK(is(input.pixelColor(10, 36 + 10), Role::SurfaceContainerHighest));
+    CHECK(is(input.pixelColor(10, 20), Role::Surface));                 // over the boxes, under the headline's text
+    CHECK(is(input.pixelColor(240, 36 + 10), Role::TertiaryContainer)); // AM
+    // A click on a box chooses it, as in the time input.
+    {
+        const QPointF at(edit->mapTo(&window, QPoint(150, 36 + 30)));
+        QWindowSystemInterface::handleMouseEvent(handle, at, at, Qt::LeftButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonPress, Qt::NoModifier);
+        QWindowSystemInterface::handleMouseEvent(handle, at, at, Qt::NoButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonRelease, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    }
+    CHECK(line->selectedText() == QLatin1String("41"));
+    // The headline is translated, in the context of QMaterialStyle.
+    if (textIsDrawn()) {
+        const auto headline = [&] { return window.grab().toImage().copy(edit->geometry()).copy(0, 0, 280, 16); };
+        const QImage before = headline();
+        CaptionTranslator translator;
+        QCoreApplication::installTranslator(&translator);
+        edit->update();
+        QCoreApplication::processEvents();
+        CHECK(headline() != before);
+        QCoreApplication::removeTranslator(&translator);
+    }
+    // Tab from the keys comes to the button again, and Return switches back to the dial.
+    key(Qt::Key_Tab);
+    CHECK(QApplication::focusWidget() == toggle);
+    key(Qt::Key_Return);
+    CHECK(edit->sizeHint() == QSize(280, 472));
+    edit->resize(280, 472);
+    QCoreApplication::processEvents();
+    CHECK(toggle->geometry() == QRect(0, 428, 48, 48));
+    CHECK(is(window.grab().toImage().copy(edit->geometry()).pixelColor(140, 340), Role::SurfaceContainerHighest));
+    // A wider widget has the picker, and its button, in the middle.
+    edit->resize(380, 472);
+    QCoreApplication::processEvents();
+    CHECK(toggle->geometry() == QRect(50, 428, 48, 48));
+    edit->resize(280, 472);
+
+    // materialTimeToggle false takes the button away; true gives it to the plain input, with the headline.
+    edit->setProperty("materialTimeToggle", false);
+    QCoreApplication::processEvents();
+    CHECK(!toggle->isVisible());
+    CHECK(edit->sizeHint() == QSize(280, 408));
+    edit->setProperty("materialTimeInput", true);
+    edit->setProperty("materialTimeToggle", true);
+    QCoreApplication::processEvents();
+    CHECK(toggle->isVisible());
+    CHECK(edit->sizeHint() == QSize(280, 192));
+    toggle->click();
+    QCoreApplication::processEvents();
+    CHECK(edit->sizeHint() == QSize(280, 472)); // the dial
+    // Another materialTimeInput forgets the switch.
+    edit->setProperty("materialTimeInput", QStringLiteral("dial"));
+    QCoreApplication::processEvents();
+    CHECK(edit->sizeHint() == QSize(280, 472));
+    edit->setProperty("materialTimeToggle", QVariant());
+    QCoreApplication::processEvents();
+
+    // The horizontal picker: the boxes and under them AM and PM side by side at the start, the column in the middle
+    // of the height of the dial, and 52 after it the dial.
+    edit->setProperty("materialTimeLayout", QStringLiteral("horizontal"));
+    QCoreApplication::processEvents();
+    CHECK(edit->sizeHint() == QSize(216 + 52 + 256, 36 + 256 + 64));
+    layout->removeWidget(edit);
+    edit->setGeometry(0, 0, 524, 356);
+    QCoreApplication::processEvents();
+    CHECK(toggle->geometry() == QRect(0, 292 + 20, 48, 48));
+    const int column = 36 + (256 - 130) / 2; // the top of the boxes
+    const QImage across = window.grab().toImage().copy(edit->geometry());
+    CHECK(is(across.pixelColor(10, column + 10), Role::PrimaryContainer));
+    CHECK(is(across.pixelColor(10, column + 92 + 19), Role::TertiaryContainer)); // AM, at the left
+    CHECK(is(across.pixelColor(200, column + 92 + 19), Role::Surface));          // PM
+    CHECK(is(across.pixelColor(396, 164 + 60), Role::SurfaceContainerHighest));  // the dial, its middle at (396, 164)
+    CHECK(is(across.pixelColor(396 - 101, 164 + 18), Role::Primary));            // the selector on the 9
+    const auto click = [&](int x, int y) {
+        for (const QEvent::Type type : {QEvent::MouseButtonPress, QEvent::MouseButtonRelease}) {
+            const QPointF at(x, y);
+            QMouseEvent event(type, at, at, Qt::LeftButton,
+                              type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+            QCoreApplication::sendEvent(edit, &event);
+            QCoreApplication::processEvents();
+        }
+    };
+    click(396 + 101, 164); // the 3
+    CHECK(edit->time() == QTime(3, 41));
+    click(180, column + 92 + 19); // PM
+    CHECK(edit->time() == QTime(15, 41));
+    click(30, column + 92 + 19); // AM
+    CHECK(edit->time() == QTime(3, 41));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+void testTimeDialMotion() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(300, 480);
+    auto *edit = new QTimeEdit(QTime(9, 41), &window);
+    edit->setDisplayFormat(QStringLiteral("h:mm AP"));
+    edit->setProperty("materialTimeInput", QStringLiteral("dial"));
+    edit->setGeometry(0, 0, 280, 472);
+    window.show();
+    window.activateWindow();
+    QCoreApplication::processEvents();
+    const auto shot = [&] { return window.grab().toImage().copy(edit->geometry()); };
+    auto *line = edit->findChild<QLineEdit *>();
+    if (!line)
+        return;
+    line->setFocus();
+    edit->setSelectedSection(QDateTimeEdit::HourSection);
+    QCoreApplication::processEvents();
+    // The dial's middle at (140, 280); the 9 is 101 to its left, the 10 above it.
+    CHECK(is(shot().pixelColor(39, 280 + 18), Role::Primary));
+    // A key moves the selector along a spring: at first it is still on the 9, and then it comes to the 10.
+    QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyPress, Qt::Key_Up, Qt::NoModifier);
+    QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyRelease, Qt::Key_Up, Qt::NoModifier);
+    QCoreApplication::processEvents();
+    CHECK(edit->time() == QTime(10, 41));
+    const QPoint ten(52, 229); // 101 from the middle, 60 degrees left of the top
+    QImage image = shot();
+    CHECK(is(image.pixelColor(39, 280 + 18), Role::Primary));
+    CHECK(!is(image.pixelColor(ten.x(), ten.y() + 18), Role::Primary));
+    wait(700);
+    image = shot();
+    CHECK(is(image.pixelColor(ten.x(), ten.y() + 18), Role::Primary));
+    CHECK(is(image.pixelColor(39, 280 + 18), Role::SurfaceContainerHighest));
+
+    // A drag moves it at once: from the 10 to the 3 in one move.
+    const auto mouse = [&](QEvent::Type type, int x, int y) {
+        const QPointF at(x, y);
+        QMouseEvent event(type, at, at, Qt::LeftButton,
+                          type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(edit, &event);
+        QCoreApplication::processEvents();
+    };
+    mouse(QEvent::MouseButtonPress, ten.x(), ten.y());
+    mouse(QEvent::MouseMove, 241, 280);
+    CHECK(edit->time() == QTime(3, 41));
+    CHECK(is(shot().pixelColor(241, 280 + 18), Role::Primary));
+    // Letting go goes on to the minutes, whose numbers fade in over the hours as the selector goes to the 41.
+    mouse(QEvent::MouseButtonRelease, 241, 280);
+    CHECK(line->selectedText() == QLatin1String("41"));
+    CHECK(is(shot().pixelColor(241, 280 + 18), Role::Primary)); // not there yet
+    wait(700);
+    CHECK(is(shot().pixelColor(241, 280 + 18), Role::SurfaceContainerHighest));
+
+    // With motion off, a change shows at once.
+    style->setMotionEnabled(false);
+    edit->setSelectedSection(QDateTimeEdit::HourSection);
+    edit->setTime(QTime(9, 41));
+    CHECK(is(shot().pixelColor(39, 280 + 18), Role::Primary));
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
@@ -6608,6 +6830,162 @@ void testSliderIconsCenteredAndGrowth() {
         CHECK(overlay && overlay->isHidden());
         style->setMotionEnabled(false);
     }
+}
+
+// The drag handle of a bottom sheet takes the focus from the keyboard: Space or Enter moves the sheet to its other
+// resting place, or dismisses one that rests in only one, and the handle describes the state for assistive
+// technology. A centered slider shows its inset icon at the end of its minimum.
+void testSheetHandleKeysAndCenteredIcon() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto key = [](QWidget *target, Qt::Key code) {
+        QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &press);
+        QKeyEvent release(QEvent::KeyRelease, code, Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &release);
+        QCoreApplication::processEvents();
+    };
+    const auto mouse = [](QWidget *target, QEvent::Type type, const QPoint &global) {
+        const Qt::MouseButtons held = type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton;
+        QMouseEvent event(type, QPointF(target->mapFromGlobal(global)), QPointF(global), Qt::LeftButton, held,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &event);
+    };
+
+    QWidget window;
+    window.setGeometry(100, 50, 400, 700);
+    window.show();
+    QCoreApplication::processEvents();
+    {
+        QDialog sheet(&window);
+        sheet.setProperty("materialSheet", QStringLiteral("standardBottom"));
+        auto *column = new QVBoxLayout(&sheet);
+        auto *content = new QWidget;
+        content->setFixedHeight(240);
+        column->addWidget(content);
+        sheet.show();
+        QCoreApplication::processEvents();
+        auto *handle = sheet.findChild<QWidget *>(QStringLiteral("qt_material_sheet_handle"));
+        CHECK(handle && handle->isVisible());
+        if (!handle)
+            return;
+        CHECK(handle->focusPolicy() == Qt::TabFocus && handle->testAttribute(Qt::WA_TransparentForMouseEvents));
+        CHECK(handle->geometry() == QRect(200 - 24, 0, 48, 48));
+        CHECK(handle->accessibleName() == QLatin1String("Drag handle"));
+        CHECK(handle->accessibleDescription() == QLatin1String("Collapsed, Expand bottom sheet"));
+        const int high = sheet.height();
+        const QRect expanded(100, 50 + 700 - high, 400, high);
+        CHECK(sheet.geometry() == expanded.translated(0, high - 56));
+        // Tab gives it the focus, with the focus ring around the handle.
+        const QColor container = style->color(Role::SurfaceContainerLow);
+        CHECK(near(pixel(sheet, 200, 14), container, 3));
+        key(&sheet, Qt::Key_Tab);
+        handle->setFocus();
+        QCoreApplication::processEvents();
+        CHECK(handle->hasFocus());
+        CHECK(near(pixel(sheet, 200, 15), style->color(Role::Secondary), 40));
+        CHECK(near(pixel(sheet, 200, 32), style->color(Role::Secondary), 40));
+        CHECK(near(pixel(sheet, 200, 6), container, 3));
+        // Space expands it, Enter collapses it again; it never closes.
+        key(handle, Qt::Key_Space);
+        CHECK(sheet.isVisible() && sheet.geometry() == expanded);
+        CHECK(handle->accessibleDescription() == QLatin1String("Expanded, Collapse bottom sheet"));
+        key(handle, Qt::Key_Return);
+        CHECK(sheet.isVisible() && sheet.geometry() == expanded.translated(0, high - 56));
+        CHECK(handle->accessibleDescription() == QLatin1String("Collapsed, Expand bottom sheet"));
+        // Dragged up, the description follows.
+        const QPoint grip = sheet.mapToGlobal(QPoint(200, 20));
+        mouse(&sheet, QEvent::MouseButtonPress, grip);
+        mouse(&sheet, QEvent::MouseMove, grip - QPoint(0, high));
+        mouse(&sheet, QEvent::MouseButtonRelease, grip - QPoint(0, high));
+        CHECK(sheet.geometry() == expanded);
+        CHECK(handle->accessibleDescription() == QLatin1String("Expanded, Collapse bottom sheet"));
+        // Without a handle there is nothing to focus.
+        sheet.hide();
+        sheet.setProperty("materialSheetHandle", false);
+        sheet.show();
+        QCoreApplication::processEvents();
+        CHECK(!sheet.findChild<QWidget *>(QStringLiteral("qt_material_sheet_handle")));
+        sheet.hide();
+    }
+    {
+        // A half-open modal sheet goes between half open and expanded, and can be dismissed.
+        QDialog tall(&window);
+        tall.setProperty("materialSheet", QStringLiteral("bottom"));
+        tall.setProperty("materialSheetHalf", true);
+        auto *rows = new QVBoxLayout(&tall);
+        auto *list = new QWidget;
+        list->setFixedHeight(500);
+        rows->addWidget(list);
+        tall.setModal(true);
+        tall.show();
+        QCoreApplication::processEvents();
+        auto *handle = tall.findChild<QWidget *>(QStringLiteral("qt_material_sheet_handle"));
+        CHECK(handle != nullptr);
+        if (!handle)
+            return;
+        const int high = tall.height();
+        const QRect full(100, 50 + 700 - high, 400, high);
+        CHECK(tall.geometry() == full.translated(0, high - 350));
+        CHECK(handle->accessibleDescription() ==
+              QLatin1String("Half expanded, Expand bottom sheet, Dismiss bottom sheet"));
+        key(handle, Qt::Key_Space);
+        CHECK(tall.isVisible() && tall.geometry() == full);
+        CHECK(handle->accessibleDescription() ==
+              QLatin1String("Expanded, Collapse bottom sheet, Dismiss bottom sheet"));
+        key(handle, Qt::Key_Enter);
+        CHECK(tall.isVisible() && tall.geometry() == full.translated(0, high - 350));
+        tall.hide();
+        // One that rests only expanded is dismissed.
+        list->setFixedHeight(200);
+        tall.show();
+        QCoreApplication::processEvents();
+        CHECK(handle->accessibleDescription() == QLatin1String("Expanded, Dismiss bottom sheet"));
+        key(handle, Qt::Key_Space);
+        CHECK(!tall.isVisible() && tall.result() == QDialog::Rejected);
+    }
+    {
+        // The icon of a centered slider: at the end of the minimum on the inactive track, or after a handle that is
+        // too near that end, on the active track.
+        QPixmap square(24, 24);
+        square.fill(Qt::black);
+        QWidget holder;
+        auto *layout = new QVBoxLayout(&holder);
+        auto *slider = new QSlider(Qt::Horizontal);
+        slider->setRange(-50, 50);
+        slider->setValue(25);
+        slider->setProperty("materialSlider", QStringLiteral("centered"));
+        slider->setProperty("materialSliderSize", QStringLiteral("medium"));
+        slider->setProperty("materialSliderIcon", QIcon(square));
+        layout->addWidget(slider);
+        holder.resize(320, 200);
+        holder.show();
+        QCoreApplication::processEvents();
+        const int y = slider->height() / 2;
+        const QColor inactive = style->color(Role::SecondaryContainer);
+        CHECK(near(pixel(*slider, 8 + 12, y), style->color(Role::OnSecondaryContainer), 2));
+        CHECK(near(pixel(*slider, 4, y), inactive, 2));
+        CHECK(near(pixel(*slider, 8 + 24 + 3, y), inactive, 2));
+        // Below the middle as well, while the handle leaves room.
+        slider->setValue(-20);
+        CHECK(near(pixel(*slider, 8 + 12, y), style->color(Role::OnSecondaryContainer), 2));
+        // Near the minimum it goes after the handle, toward the middle.
+        slider->setValue(-49);
+        QStyleOptionSlider option;
+        option.initFrom(slider);
+        option.orientation = Qt::Horizontal;
+        option.minimum = -50;
+        option.maximum = 50;
+        option.sliderPosition = -49;
+        const int handle =
+            style->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, slider).center().x();
+        const int after = handle + 2 + 6 + 8;
+        CHECK(near(pixel(*slider, after + 12, y), style->color(Role::OnPrimary), 2));
+        CHECK(near(pixel(*slider, after + 24 + 4, y), style->color(Role::Primary), 2));
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
 // A navigation rail whose destinations do not fit its height scrolls them: the wheel and a drag move them, and the
@@ -9121,6 +9499,8 @@ int main(int argc, char *argv[]) {
     testSearchAndSecondaryTabs();
     testTimeInput();
     testTimeDial();
+    testTimeToggle();
+    testTimeDialMotion();
     testSpinBoxAndScrollBar();
     testScrollBarRest();
     testScrollAreaHover();
@@ -9138,6 +9518,7 @@ int main(int argc, char *argv[]) {
     testAppBarScrolled();
     testSliderSizesAndValue();
     testSliderIconsCenteredAndGrowth();
+    testSheetHandleKeysAndCenteredIcon();
     testExpandedRail();
     testModalRailMotion();
     testNavigationItems();

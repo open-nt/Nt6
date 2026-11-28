@@ -216,8 +216,17 @@ style meant, so a collapsed sheet keeps its peek. A modal bottom sheet with
 `materialSheetHalf` = true (Nt only) that is taller than half its window opens half open, the top at the middle of
 the window (Compose's partially expanded), and rests there or expanded the same way, or closes when let go nearer the
 bottom; its scrim is whole at both and fades only below half open. A click on the handle (its target of 48) of either
-goes to the other resting place. Not done: keyboard and accessibility moves (Escape closes, as before), and the shadow
-of a standard sheet while its picture slides out, or of one without a parent.
+goes to the other resting place. Tab reaches the handle: a private child `qt_material_sheet_handle` over its target of
+48 (`Qt::TabFocus`, transparent for the mouse, so presses still drag the sheet, last in the focus chain, so a sheet
+gives its first control the focus), made with the handle's room and removed with it, kept in the middle on resize.
+With the keyboard's focus the sheet draws a pill ring around the handle (`Secondary`, 3, 6 beyond its ends and 8 above
+and below). Space or Enter on it goes to the other resting place on the entry spring (expanded from collapsed or half
+open, back from expanded; the nearer is taken from midway) and dismisses (`reject()`) a sheet that rests only
+expanded, as Compose's `BottomSheetDefaults.DragHandle` offers expand, collapse and dismiss. It is named
+"Drag handle" (accessibleName), and its accessibleDescription gives the state and those actions in Compose's words,
+following each placement, drag and slide ("Collapsed, Expand bottom sheet"; "Half expanded, Expand bottom sheet,
+Dismiss bottom sheet"; "Expanded, Dismiss bottom sheet"); Nt has no accessible action interface for them. Escape
+closes, as before. Not done: the shadow of a standard sheet while its picture slides out, or of one without a parent.
 
 `materialTextField` = `"search"` makes a `QLineEdit` the search bar: a `SurfaceContainerHigh` pill of 56 with a
 magnifier at 16 and the text at 56. The style draws the magnifier itself, not as a leading action. Its trailing
@@ -244,8 +253,18 @@ of 69 (as Compose), a `Primary` selector of 48 on the number, a line of 2 to a d
 (or seconds) while the line edit has the focus in them, else the hours. A press or drag on the dial sets the time with
 `setTime()` (`QDateTimeEdit` keeps the press), the hour snapped to a number, inner ring under 85 from the middle;
 letting go of an hour selects the minute section, whose 5-minute labels a drag passes for any minute. Captions
-("Select time", "Hour", "Minute", "Second") go through `tr()`, context `QMaterialStyle`. Not done: the keyboard icon
-that switches the picker to the input ("Enter time"), the horizontal layout, motion of the selector.
+("Select time", "Enter time", "Hour", "Minute", "Second") go through `tr()`, context `QMaterialStyle`. 24 under the
+picker, at the start of a row of 40 (Compose's `TimePickerDialog`), a standard icon button of 48 (a real focusable
+child, after the line edit in the Tab order, state layers and focus ring) shows a keyboard on the dial and switches to
+the input, headed "Enter time" (the boxes at 36, the picker centred like the dial), whose button shows a clock and
+switches back; the edit remembers which `materialTimeInput` it switched from, the size hint follows the form (280 by
+472 for the dial with AM/PM, 280 by 192 for the input) and `updateGeometry()` tells the layout. Nt's
+`materialTimeToggle` = `true` gives the plain input the button and headline, `false` takes it from the dial.
+`materialTimeLayout` = `"horizontal"` (explicit only) is Compose's horizontal picker: the boxes at the start, a
+period selector of the boxes' width by 38 12 under them, side by side halves, the column in the middle of the dial's
+height, 52 to the dial (524 by 356). The selector's angle (the short way round) and ring radius move on the fast
+spatial spring when the value changes by a tap, a key or a switch of section, and follow a drag at once; the hour
+and minute numbers cross-fade on the default effects spring; immediate with motion off.
 
 Spin boxes and scroll bars are drawn without a property, as every Qt form and list has them. Material has no spin box:
 this one is the outlined field, 56 high, with a minus and a plus in 48 each (a chevron alone for a date edit with a
@@ -434,8 +453,11 @@ motion. `materialSliderValueRoom` = `true`, and a slider that is a window, draw 
 before. Inset icons: `materialSliderIcon` (a QIcon) on the medium, large and extra large sizes, 24 (32 on extra large),
 8 from the outer end of the active track in `OnPrimary`, or 8 after the handle's gap in the inactive track in
 `OnSecondaryContainer` where the active part is shorter than the icon and its padding. `materialSlider` = `"centered"`:
-the active track runs from the middle of the track to the handle (square at the middle), stops at both ends; no inset
-icon. Not done: range sliders (Qt Widgets has no range slider), an icon on a centered slider.
+the active track runs from the middle of the track to the handle (square at the middle), stops at both ends. Compose
+defines no icon for it: its inset icon is 8 from the minimum's end in the inactive track (`OnSecondaryContainer`),
+or, when the handle leaves less than the icon and its padding there, 8 after the handle's gap in the active track
+toward the middle (`OnPrimary`), and none where neither fits. Not done: range sliders (Qt Widgets has no range
+slider).
 
 Menus have the shape of the standard menu of Material 3 Expressive: corners of 16 (`CornerLarge`), with the outline
 kept in the place of the shadow. A menu is a child of its window in Nt, so the window shows at the corners. The rows
@@ -608,16 +630,22 @@ given to `addWidget()`, with `materialButton` = `"fab"`; `isFab()` takes tool bu
 and bottom, the bar still 64 and its other buttons in the middle; it lies flat (`fabLift()` is 0 there, no shadow and
 no room for one), as Compose's bottom app bar FAB does. `QToolBar` had no extension: now, as in Qt, when the actions
 do not fit (the layout's minimum length with all of them is more than the bar's) the last of them are hidden, one at
-a time, until those left and the extension button (`qt_toolbar_ext_button`) fit, and the button opens a `QMenu` of the
-rest, below it or above it when the window has no room below (beside a vertical bar), at its end; the chosen action
-is reported by its hidden button, once. The size hint is still that of all of them, and the minimum only the
-extension button (and the FAB). Widgets from `addWidget()` that do not fit are hidden without an entry (Qt shows them
-in an expanded bar). A docked toolbar's extension button is the last of its buttons, spaced as they are, and the FAB
+a time, until those left and the extension button (`qt_toolbar_ext_button`) fit. Outside a `QMainWindow` the button
+opens a `QMenu` of the rest (Qt's popup menu), below it or above it when the window has no room below (beside a
+vertical bar), at its end; the chosen action is reported by its hidden button, once. In a main window (Qt's
+`QToolBarLayout` without a popup menu), and elsewhere when a widget (`addWidget()`, `QWidgetAction`) did not fit, a
+click expands the bar instead: raised over what is next to it, away from its edge (up from the bottom area, left from
+the right one), the first row where it was and the rest in rows of the bar's length, centred in each row, a separator
+never first; filled with `Window`. Another click collapses it, as does the mouse leaving it (500 ms later, waiting
+while a popup is open, as Qt's `waitForPopup`), the window giving it another size, any relayout and hiding; the button
+is down while it is expanded. Where the expanded bar would be as large as its parent across, the menu opens instead
+(Qt's test). Qt lays all of the items out again; here the first row stays. The size hint is still that of all of
+them, and the minimum only the extension button (and the FAB). A docked toolbar's extension button is the last of its buttons, spaced as they are, and the FAB
 stays; a top app bar has no extension. The style draws the symbol (`standardPixmap()` of
 `SP_ToolBarHorizontalExtensionButton` is Material's "more vertical", `SP_ToolBarVerticalExtensionButton` "more
 horizontal"; QStyle draws two chevrons), which an item of a Material toolbar recolours; on a plain tool bar the
-button is a standard icon button (`materialIconButton` set by the bar). Not done: the bar has no overflow that keeps
-widgets.
+button is a standard icon button (`materialIconButton` set by the bar). The docked and floating toolbars keep the
+menu, which has no entry for a widget (M3's overflow menu). Not done: an expanded bar for Material toolbars.
 
 **Search view.** A search bar (`materialTextField` `"search"`) with a QCompleter opens Material's docked search view,
 so that a program written for Qt gets an ordinary completer there. The completer's popup is a QListWidget in the

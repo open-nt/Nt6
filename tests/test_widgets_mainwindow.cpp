@@ -25,6 +25,7 @@
 #include <QtWidgets/qdockwidget.h>
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qmainwindow.h>
+#include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qmenu.h>
 #include <QtWidgets/qmenubar.h>
 #include <QtWidgets/qplaintextedit.h>
@@ -256,6 +257,106 @@ void testToolBarExtension() {
     settle(&top);
     CHECK(!extension->isHidden() && extension->geometry().bottom() < 60);
     CHECK(bar.widgetForAction(actions.last())->isHidden());
+}
+
+// In a main window the extension button expands the tool bar, with what did not fit (widgets too) in rows after the
+// first, as Qt's QToolBarLayout does when it uses no popup menu; elsewhere a tool bar with a widget that did not fit
+// expands as well.
+void testToolBarExpansion() {
+    const auto idle = [](int ms) {
+        QElapsedTimer clock;
+        clock.start();
+        while (clock.elapsed() < ms)
+            QCoreApplication::processEvents();
+    };
+    QMainWindow window;
+    window.setCentralWidget(new QWidget);
+    QToolBar *bar = window.addToolBar("Edit");
+    QList<QAction *> actions;
+    for (int i = 0; i < 4; ++i)
+        actions << bar->addAction(QString("Action %1").arg(i));
+    auto *edit = new QLineEdit;
+    edit->setFixedWidth(120);
+    QAction *editAction = bar->addWidget(edit);
+    for (int i = 4; i < 12; ++i)
+        actions << bar->addAction(QString("Action %1").arg(i));
+    window.resize(360, 300);
+    window.show();
+    settle(&window);
+    auto *extension = bar->findChild<QToolButton *>("qt_toolbar_ext_button");
+    CHECK(extension && extension->isVisible());
+    CHECK(edit->isHidden() && bar->widgetForAction(actions.last())->isHidden());
+    const QRect collapsed = bar->geometry();
+    // A click expands it down over the central widget: no menu, the edit and the other buttons in rows below.
+    click(extension, QPoint(3, 3));
+    CHECK(!window.findChild<QMenu *>() || !window.findChild<QMenu *>()->isVisible());
+    CHECK(bar->geometry().topLeft() == collapsed.topLeft() && bar->width() == collapsed.width());
+    CHECK(bar->height() > collapsed.height() && extension->isDown());
+    CHECK(edit->isVisible() && edit->y() >= collapsed.height() && edit->geometry().bottom() < bar->height());
+    CHECK(edit->width() == 120 && edit->geometry().right() < bar->width());
+    for (QAction *action : actions) {
+        QWidget *button = bar->widgetForAction(action);
+        CHECK(button->isVisible() && button->geometry().right() < bar->width() &&
+              button->geometry().bottom() < bar->height());
+    }
+    CHECK(bar->widgetForAction(actions.last())->y() >= edit->y()); // in order, row after row
+    CHECK(extension->geometry().bottom() < collapsed.height());    // it stays in the first row
+    // Its buttons work; a second click collapses it.
+    QList<QAction *> triggered;
+    QObject::connect(bar, &QToolBar::actionTriggered, [&](QAction *a) { triggered << a; });
+    click(bar->widgetForAction(actions.last()), QPoint(3, 3));
+    CHECK(triggered == QList<QAction *>({actions.last()}));
+    click(extension, QPoint(3, 3));
+    CHECK(bar->geometry() == collapsed && !extension->isDown());
+    CHECK(edit->isHidden() && bar->widgetForAction(actions.last())->isHidden());
+    // It collapses when the mouse leaves it.
+    click(extension, QPoint(3, 3));
+    CHECK(bar->height() > collapsed.height());
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(bar, &leave);
+    idle(700);
+    CHECK(bar->geometry() == collapsed && edit->isHidden());
+    // And when the window changes its size.
+    click(extension, QPoint(3, 3));
+    CHECK(bar->height() > collapsed.height());
+    window.resize(380, 300);
+    settle(&window);
+    CHECK(bar->height() == collapsed.height() && bar->width() == 380 && !extension->isDown());
+    // At the bottom of the window it expands up.
+    window.addToolBar(Qt::BottomToolBarArea, bar);
+    window.resize(360, 300);
+    settle(&window);
+    const QRect low = bar->geometry();
+    CHECK(low.bottom() == 299 && extension->isVisible());
+    click(extension, QPoint(3, 3));
+    CHECK(bar->geometry().bottom() == low.bottom() && bar->y() < low.y());
+    CHECK(edit->isVisible() && edit->geometry().bottom() < bar->height() - low.height());
+    CHECK(extension->y() >= bar->height() - low.height()); // the first row stays at the bottom
+    click(extension, QPoint(3, 3));
+    CHECK(bar->geometry() == low);
+    (void)editAction;
+
+    // Outside a main window, a tool bar whose widget did not fit expands; one of actions only opens the menu.
+    QWidget top;
+    top.resize(400, 300);
+    QToolBar plain("Plain", &top);
+    for (int i = 0; i < 3; ++i)
+        plain.addAction(QString("Action %1").arg(i));
+    auto *combo = new QComboBox;
+    combo->addItem("One");
+    combo->setFixedWidth(100);
+    plain.addWidget(combo);
+    top.show();
+    settle(&top);
+    plain.setGeometry(0, 0, plain.sizeHint().width() / 2, plain.sizeHint().height());
+    settle(&top);
+    auto *more = plain.findChild<QToolButton *>("qt_toolbar_ext_button");
+    CHECK(more && more->isVisible() && combo->isHidden());
+    const int thin = plain.height();
+    click(more, QPoint(3, 3));
+    CHECK(plain.height() > thin && combo->isVisible() && !top.findChild<QMenu *>());
+    click(more, QPoint(3, 3));
+    CHECK(plain.height() == thin && combo->isHidden());
 }
 
 void testMainWindow() {
@@ -905,6 +1006,7 @@ int main(int argc, char **argv) {
     testToolButtonAction();
     testToolBar();
     testToolBarExtension();
+    testToolBarExpansion();
     testMainWindow();
     testDockWidget();
     testSizeGrip();

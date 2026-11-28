@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtWidgets/qdatetimeedit.h>
 
+#include "qpaintediconbutton_p.h"
 #include "qwidget_p.h"
 
 #include <QtGui/qevent.h>
@@ -554,6 +555,7 @@ void QDateTimeEdit::setDisplayFormat(const QString &format) {
     lineEdit()->setInputMethodHints(words ? Qt::ImhNone : Qt::ImhPreferNumbers);
     refreshText();
     updateGeometry();
+    layoutTimeToggle();
 }
 
 /*!
@@ -780,6 +782,7 @@ void QDateTimeEdit::mousePressEvent(QMouseEvent *event) {
             lineEdit()->setFocus();
             if (!isReadOnly()) {
                 m_dialHeld = true;
+                m_dialDragged = false;
                 setTime(QMaterialStyle::timeDialTime(this, event->pos()));
             }
             setSelectedSection(shown);
@@ -793,7 +796,7 @@ void QDateTimeEdit::mousePressEvent(QMouseEvent *event) {
             if (!box.contains(event->pos()))
                 continue;
             const Section section = sectionAt(i);
-            const bool after = event->pos().y() >= box.top() + box.height() / 2;
+            const bool after = QMaterialStyle::timePeriodAfter(box, event->pos());
             setSelectedSection(section);
             if (section == AmPmSection && !isReadOnly() && (time().hour() >= 12) != after)
                 stepBy(after ? 1 : -1);
@@ -820,6 +823,7 @@ void QDateTimeEdit::mousePressEvent(QMouseEvent *event) {
 */
 void QDateTimeEdit::mouseMoveEvent(QMouseEvent *event) {
     if (m_dialHeld) {
+        m_dialDragged = true;
         const Section shown = QMaterialStyle::timeDialHours(this) ? HourSection : currentSection();
         setTime(QMaterialStyle::timeDialTime(this, event->pos()));
         setSelectedSection(shown);
@@ -837,6 +841,7 @@ void QDateTimeEdit::mouseReleaseEvent(QMouseEvent *event) {
     // An hour chosen on the dial of the Material style's time picker goes on to the minutes, as Material's does.
     if (m_dialHeld) {
         m_dialHeld = false;
+        m_dialDragged = false;
         if (QMaterialStyle::timeDialHours(this))
             setSelectedSection(MinuteSection);
         update();
@@ -880,6 +885,61 @@ void QDateTimeEdit::keyPressEvent(QKeyEvent *event) {
     if (stepEnabled().testFlag(steps > 0 ? StepUpEnabled : StepDownEnabled))
         stepBy(steps);
     event->accept();
+}
+
+/*!
+    \reimp
+*/
+void QDateTimeEdit::resizeEvent(QResizeEvent *event) {
+    QAbstractSpinBox::resizeEvent(event);
+    layoutTimeToggle();
+}
+
+/*!
+    \reimp
+*/
+void QDateTimeEdit::changeEvent(QEvent *event) {
+    QAbstractSpinBox::changeEvent(event);
+    if (event->type() == QEvent::StyleChange || event->type() == QEvent::FontChange)
+        layoutTimeToggle();
+}
+
+// The Material style's time picker has an icon button at its bottom start that switches between the dial and the
+// input. It is made the first time that the style wants one, after the line edit, so that Tab comes to it from the
+// keys, and goes where the style puts it.
+void QDateTimeEdit::layoutTimeToggle() {
+    const QRect rect = qobject_cast<const QMaterialStyle *>(style()) ? QMaterialStyle::timeToggleRect(this) : QRect();
+    if (!rect.isValid()) {
+        if (m_timeToggle)
+            m_timeToggle->hide();
+        return;
+    }
+    if (!m_timeToggle) {
+        m_timeToggle = new QtPrivate::PaintedIconButton(this, [this](QPainter *painter) {
+            if (const auto *material = qobject_cast<const QMaterialStyle *>(style()))
+                material->drawTimeToggleIcon(painter, m_timeToggle->rect(), m_timeToggle,
+                                             QMaterialStyle::isTimeDial(this));
+        });
+        QObject::connect(m_timeToggle, &QToolButton::clicked, this, [this] { toggleTimeForm(); });
+    }
+    m_timeToggle->setAccessibleName(QMaterialStyle::isTimeDial(this)
+                                        ? QMaterialStyle::tr("Switch to text input mode for the time input")
+                                        : QMaterialStyle::tr("Switch to clock mode for the time input"));
+    m_timeToggle->setGeometry(rect);
+    m_timeToggle->show();
+    m_timeToggle->update();
+}
+
+// Switches the time picker from the form that materialTimeInput asks for to the other one, or back. The picker is of
+// another size, which a layout is told of.
+void QDateTimeEdit::toggleTimeForm() {
+    m_timeToggledFrom = QMaterialStyle::timeFormToggled(this) ? QString() : property("materialTimeInput").toString();
+    m_dialHeld = false;
+    m_dialDragged = false;
+    updateGeometry();
+    layoutEdit();
+    layoutTimeToggle();
+    update();
 }
 
 // The text of `dt` in the display format, with the span of each section.

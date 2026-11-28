@@ -138,6 +138,12 @@ private:
     bool canExtend() const;
     int alongOf(const QSize &size) const;
     void showExtensionMenu();
+    void extensionClicked();
+    bool canExpand();
+    void expand();
+    void collapse(bool restore = true);
+    void collapseUnlessHeld();
+    int layOutExpansion(bool apply);
     bool isFloatingForStyle() const;
     const QMaterialStyle *scrollingStyle() const;
     QWidget *createItemWidget(QAction *action, bool *fromAction);
@@ -161,4 +167,8 @@ private:
     bool m_movable = true;
     bool m_floatable = true;
     bool m_relayingOut = false;
+    bool m_expanded = false;   // the widgets that do not fit are shown in rows after the first
+    bool m_growsBack = false;  // and the rows go up (left beside a vertical tool bar)
+    QRect m_collapsedGeometry; // the geometry before the tool bar expanded
+    QSize m_expandedSize;
 };

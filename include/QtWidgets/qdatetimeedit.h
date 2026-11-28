@@ -10,6 +10,8 @@
 
 #include <vector>
 
+class QToolButton;
+
 class QDateTimeEdit : public QAbstractSpinBox {
     Q_OBJECT
     Q_PROPERTY(QDateTime dateTime READ dateTime WRITE setDateTime NOTIFY dateTimeChanged USER true)
@@ -122,8 +124,11 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void changeEvent(QEvent *event) override;
 
 private:
+    friend class QMaterialStyle;
     struct Token {
         Section section;
         QString pattern; // the letters of the format, or the literal text
@@ -144,6 +149,9 @@ private:
     void advanceSection();
     bool textSpans(const QString &text, std::vector<Span> *spans) const;
     void showPopup();
+    // The icon button of the Material style's time picker that switches between the dial and the input.
+    void layoutTimeToggle();
+    void toggleTimeForm();
 
     QString valueText() const override;
     QStringList sizeTexts() const override;
@@ -163,6 +171,9 @@ private:
     int m_currentSection = 0;
     bool m_calendarPopup = false;
     bool m_dialHeld = false; // the dial of the Material style's time picker is pressed, and a drag moves the time
+    bool m_dialDragged = false;          // and it has moved since the press, so that the selector follows it at once
+    QToolButton *m_timeToggle = nullptr; // switches between the dial and the input, made when the style wants one
+    QString m_timeToggledFrom;           // the materialTimeInput from which it switched to the other form
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QDateTimeEdit::Sections)

@@ -120,6 +120,12 @@ public:
             it->sizes = true;
     }
 
+    // The target of `channel` of `widget`, or `fallback` if nothing has been asked of it yet.
+    double target(const QWidget *widget, int channel, double fallback) const {
+        const auto it = m_motions.constFind(Key{widget, channel});
+        return it == m_motions.cend() || it->widget.isNull() ? fallback : it->spring.target();
+    }
+
     // Puts a value somewhere, at rest, for the next spring to set off from.
     void place(const QWidget *widget, int channel, double position) {
         Motion motion;

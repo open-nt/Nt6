@@ -63,6 +63,7 @@ public:
         \value WindowStateChange The state of a window changed: minimized, maximized or full screen.
         \value ZOrderChange A widget was raised or lowered among its siblings.
         \value ApplicationLayoutDirectionChange The layout direction of the application changed.
+        \value ApplicationStateChange The state of the application changed; see QGuiApplication::applicationState().
         \value FocusIn A window gained the keyboard focus; delivered as a QFocusEvent.
         \value FocusOut A window lost the keyboard focus; delivered as a QFocusEvent.
         \value Enter The mouse entered a window; delivered as a QEnterEvent.
@@ -150,6 +151,7 @@ public:
         WindowStateChange = 105,
         ZOrderChange = 126,
         ApplicationLayoutDirectionChange = 37,
+        ApplicationStateChange = 214,
         ContextMenu = 82,
         DragEnter = 60,
         DragMove = 61,

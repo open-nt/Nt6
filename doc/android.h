@@ -72,23 +72,48 @@
     On Android \c qt_add_executable() makes a shared library that defines \c main(), and the target \c app_apk
     packages it with a manifest into \c app.apk, signed with the debug key of the SDK. The Android SDK (build tools
     and a platform) is found from \c ANDROID_SDK_ROOT. \c nt_android_add_apk() takes the package name, the label,
-    the version, a key store and the launcher icon; \c MANUAL_FINALIZATION leaves the packaging to it, or to a call of
-    \c qt_finalize_target(). The icon is a PNG, best 512 pixels square:
+    the version, a key store and what the application adds to the APK (see below); \c MANUAL_FINALIZATION leaves the packaging to a call of \c qt_finalize_target().
+
+    \section1 Java sources, permissions and services
+
+    An application that needs more of Android than a window gives \c nt_android_add_apk() what to add, and leaves
+    the packaging to it with \c MANUAL_FINALIZATION:
 
     \code
     qt_add_executable(app MANUAL_FINALIZATION main.cpp)
-    if(ANDROID AND COMMAND nt_android_add_apk)
-        nt_android_add_apk(app ICON icon.png)
-    else()
-        qt_finalize_target(app)
-    endif()
+    nt_android_add_apk(app
+        PACKAGE com.example.app
+        ACTIVITY com.example.app.AppActivity
+        PERMISSIONS ACCESS_FINE_LOCATION android.permission.CAMERA
+        JAVA_SOURCES android/AppActivity.java android/AppService.java
+        MANIFEST_APPLICATION android/application.xml)
+    \endcode
+
+    \c PERMISSIONS become \c{<uses-permission>} entries (a name without a dot is taken from
+    \c{android.permission}), next to the network permissions every Nt application has. \c JAVA_SOURCES are
+    compiled together with \c org.nt.NtActivity into the APK's \c classes.dex. \c ACTIVITY is the activity the
+    launcher starts; it must extend \c org.nt.NtActivity, which keeps the window, input and keyboard of Nt, and call
+    \c super.onCreate() first. \c MANIFEST_APPLICATION names a file of XML that is put inside \c{<application>},
+    after the activity: services, receivers, providers and meta-data. Declaring a permission does not grant a
+    dangerous one such as location or the camera: the user still has to allow it, in the system settings or when the
+    application asks with QCoreApplication::requestPermission() (QLocationPermission, QCameraPermission and the
+    other permission classes), which shows the system's prompt.
+
+    \section1 Launcher icon
+
+    \c ICON names a PNG, best 512 pixels square, that becomes the application's launcher icon:
+
+    \code
+    nt_android_add_apk(app PACKAGE com.example.app ICON icon.png)
     \endcode
 
     \section1 Calling Java
 
     QJniObject, QJniEnvironment and QNativeInterface::QAndroidApplication of Nt Core call the Java APIs of Android,
     as in Qt. Code that uses views, toasts or dialogs has to run on the UI thread, with
-    QNativeInterface::QAndroidApplication::runOnAndroidMainThread(); \c main() runs on a thread of its own.
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread(); \c main() runs on a thread of its own. As in
+    Qt, \c Q_OS_ANDROID is defined for Android code (with \c Q_OS_LINUX and \c Q_OS_UNIX, see
+    \c{<QtCore/qsystemdetection.h>}), so the Android parts of a Qt application are compiled in.
 
     \section1 The android platform
 
@@ -110,9 +135,10 @@
         its own is only told with an expose event (isExposed() is false) and must release its swapchain then.
     \li The Java part is one class, \c org.nt.NtActivity, a NativeActivity with a view for the keyboard to type into. It is
         compiled with \c javac and \c d8 when the APK is made; without a JDK the application is a plain NativeActivity
-        and has no on-screen keyboard. There is no Android permissions API (QCoreApplication::requestPermission()),
-        an application cannot add Java sources of its own to the APK, and there are no assets: \c{assets:} paths do
-        not exist, and resources are the compiled-in kind.
+        and has no on-screen keyboard, and QCoreApplication::requestPermission() answers
+        \c Qt::PermissionStatus::Denied, as it cannot ask. There are no assets: \c{assets:} paths do not exist, and resources are the compiled-in kind. An
+        application's own Java is compiled with \c javac against \c android.jar alone: there is no Gradle, so
+        AndroidX and other libraries cannot be used (see \l{Java sources, permissions and services}).
     \li Dialogs have no title bar. The Material style shows a dialog's window title inside it; the other styles do not show
         it.
     \li A dialog is shown inside the window, no wider than 560 or than the screen less 24 at each side. One that asks to be

@@ -594,7 +594,10 @@ void QAndroidIntegration::processEvents() {
             glue.windowReleased();
             break;
         case Event::Pause:
+            QtPrivate::GuiAccess::setApplicationState(Qt::ApplicationInactive);
+            break;
         case Event::Resume:
+            QtPrivate::GuiAccess::setApplicationState(Qt::ApplicationActive);
             break;
         case Event::Close:
             if (QGuiApplication::instance())

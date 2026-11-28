@@ -47,6 +47,7 @@ public:
     static void setFont(const QFont &font);
     static void setQuitOnLastWindowClosed(bool quit);
     static bool quitOnLastWindowClosed();
+    static Qt::ApplicationState applicationState();
 
     static void setOverrideCursor(const QCursor &cursor);
     static void changeOverrideCursor(const QCursor &cursor);
@@ -83,6 +84,15 @@ signals:
     */
     void layoutDirectionChanged(Qt::LayoutDirection direction) {
         emitSignal(&QGuiApplication::layoutDirectionChanged, direction);
+    }
+    /*!
+        \since 5.2
+        This signal is emitted when the state of the application changes to \a state.
+
+        \sa applicationState()
+    */
+    void applicationStateChanged(Qt::ApplicationState state) {
+        emitSignal(&QGuiApplication::applicationStateChanged, state);
     }
 };
 

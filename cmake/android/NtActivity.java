@@ -27,6 +27,9 @@ public class NtActivity extends NativeActivity {
     // The system bars or the keyboard changed the space that is left for the window.
     private static native void nativeInsetsChanged();
 
+    // The answer to requestNtPermissions(); registered by Nt Core the first time the application asks for a permission.
+    private static native void nativePermissionResult(int requestCode, String[] permissions, int[] grantResults);
+
     private InputView inputView;
 
     @Override
@@ -41,6 +44,27 @@ public class NtActivity extends NativeActivity {
                 return view.onApplyWindowInsets(insets);
             }
         });
+    }
+
+    // Asks the user for Android permissions (QCoreApplication::requestPermission()); called from the application
+    // thread through JNI. The answer comes to onRequestPermissionsResult().
+    public void requestNtPermissions(final String[] permissions, final int requestCode) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                requestPermissions(permissions, requestCode);
+            }
+        });
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        try {
+            nativePermissionResult(requestCode, permissions, grantResults);
+        } catch (UnsatisfiedLinkError e) {
+            // A request the application made itself, before Nt Core asked for anything: not Nt's to answer.
+        }
     }
 
     // Shows or hides the keyboard; called from the application thread through JNI.

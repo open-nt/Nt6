@@ -33,6 +33,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <functional>
+#include <memory>
 #include <vector>
 
 static int g_failures = 0;
@@ -844,6 +845,14 @@ static void testEvents() {
     QWheelEvent w(QPointF(3, 4), QPointF(5, 6), QPoint(0, 2), QPoint(0, 120), Qt::NoButton, Qt::ShiftModifier);
     CHECK(w.type() == QEvent::Wheel && w.angleDelta() == QPoint(0, 120) && w.pixelDelta() == QPoint(0, 2));
     CHECK(w.position() == QPointF(3, 4) && w.globalPosition() == QPointF(5, 6) && w.buttons() == Qt::NoButton);
+    CHECK(w.phase() == Qt::NoScrollPhase && !w.inverted() && w.source() == Qt::MouseEventNotSynthesized);
+    QWheelEvent wp(QPointF(1, 1), QPointF(2, 2), QPoint(), QPoint(0, -120), Qt::LeftButton, Qt::NoModifier,
+                   Qt::ScrollBegin, true, Qt::MouseEventSynthesizedBySystem);
+    CHECK(wp.phase() == Qt::ScrollBegin && wp.isBeginEvent() && !wp.isUpdateEvent() && !wp.isEndEvent());
+    CHECK(wp.inverted() && wp.source() == Qt::MouseEventSynthesizedBySystem && wp.angleDelta() == QPoint(0, -120));
+    QWheelEvent wm(QPointF(), QPointF(), QPoint(), QPoint(0, 1), Qt::NoButton, Qt::NoModifier, Qt::ScrollMomentum,
+                   false);
+    CHECK(wm.isUpdateEvent() && std::unique_ptr<QWheelEvent>(wm.clone())->phase() == Qt::ScrollMomentum);
 
     QKeyEvent k(QEvent::KeyPress, Qt::Key_A, Qt::ShiftModifier, "A", true, 2);
     CHECK(k.key() == Qt::Key_A && k.text() == QString("A") && k.isAutoRepeat() && k.count() == 2);
@@ -1899,6 +1908,32 @@ static void testDrawText() {
     CHECK(inkCount(edge) > 0);
 }
 
+// The application state is active on desktop; a state the platform reports is sent as the signal and an event.
+static void testApplicationState() {
+    CHECK(QGuiApplication::applicationState() == Qt::ApplicationActive);
+    struct Filter : QObject {
+        int events = 0;
+        bool eventFilter(QObject *, QEvent *e) override {
+            if (e->type() == QEvent::ApplicationStateChange)
+                ++events;
+            return false;
+        }
+    } filter;
+    qApp->installEventFilter(&filter);
+    QList<Qt::ApplicationState> seen;
+    QObject context;
+    QObject::connect(qGuiApp, &QGuiApplication::applicationStateChanged, &context,
+                     [&seen](Qt::ApplicationState s) { seen.append(s); });
+    QtPrivate::GuiAccess::setApplicationState(Qt::ApplicationInactive);
+    CHECK(QGuiApplication::applicationState() == Qt::ApplicationInactive);
+    QtPrivate::GuiAccess::setApplicationState(Qt::ApplicationInactive); // no change, nothing sent
+    QtPrivate::GuiAccess::setApplicationState(Qt::ApplicationActive);
+    CHECK(QGuiApplication::applicationState() == Qt::ApplicationActive);
+    CHECK(seen == (QList<Qt::ApplicationState>{Qt::ApplicationInactive, Qt::ApplicationActive}));
+    CHECK(filter.events == 2);
+    qApp->removeEventFilter(&filter);
+}
+
 int main(int argc, char **argv) {
     // The tests need no display.
     ::setenv("QT_QPA_PLATFORM", "offscreen", 1);
@@ -1923,6 +1958,7 @@ int main(int argc, char **argv) {
     testPaintWindow();
     testBackingStore();
     testQuitOnLastWindowClosed();
+    testApplicationState();
     testPlatformRegistry();
     testMetaObject();
     testKeySequence();

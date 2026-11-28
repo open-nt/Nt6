@@ -1855,6 +1855,28 @@ enum DayOfWeek { Monday = 1, Tuesday = 2, Wednesday = 3, Thursday = 4, Friday = 
 enum LayoutDirection { LeftToRight, RightToLeft, LayoutDirectionAuto };
 
 /*!
+    \enum Qt::ApplicationState
+
+    The state of the application, as QGuiApplication::applicationState() reports it.
+
+    \value ApplicationSuspended The application is about to be suspended; it cannot run code.
+    \value ApplicationHidden The application is hidden and runs in the background.
+    \value ApplicationInactive The application is visible but not in front; on Android, the activity is paused,
+        for example when the user has gone to the home screen or another app is in front.
+    \value ApplicationActive The application is visible and in front. On desktop platforms the application is
+        always in this state.
+
+    \sa QGuiApplication::applicationState(), QGuiApplication::applicationStateChanged()
+*/
+enum ApplicationState {
+    ApplicationSuspended = 0x00000000,
+    ApplicationHidden = 0x00000001,
+    ApplicationInactive = 0x00000002,
+    ApplicationActive = 0x00000004
+};
+Q_DECLARE_FLAGS(ApplicationStates, ApplicationState)
+
+/*!
     \enum Qt::CursorMoveStyle
     \since 6.0
 

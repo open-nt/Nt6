@@ -103,6 +103,11 @@ public:
     void setField(const char *fieldName, const char *signature, jobject value);
     template <typename T> static QtPrivate::Jni::Result<T> getStaticField(const char *className, const char *fieldName);
     static QJniObject getStaticObjectField(const char *className, const char *fieldName, const char *signature);
+    // The object field with the signature of T, which is jstring, jobject or jclass.
+    template <typename T, std::enable_if_t<std::is_pointer_v<T> && QtPrivate::Jni::Type<T>::known, int> = 0>
+    static QJniObject getStaticObjectField(const char *className, const char *fieldName) {
+        return getStaticObjectField(className, fieldName, QtPrivate::Jni::Type<T>::signature);
+    }
     template <typename T> static void setStaticField(const char *className, const char *fieldName, const T &value);
 
     template <typename T> QJniObject &operator=(T object) {

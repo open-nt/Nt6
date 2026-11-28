@@ -91,16 +91,20 @@ public:
         using Context = typename QtPrivate::InvokeContext<std::decay_t<Functor>>::type;
         if constexpr (std::is_member_function_pointer_v<std::decay_t<Functor>>) {
             auto *object = const_cast<Context *>(context); // NOLINT(cppcoreguidelines-pro-type-const-cast): as Qt
-            requestPermissionImpl(permission, context,
-                                  [object, f = std::forward<Functor>(func)](const QPermission &p) { (object->*f)(p); });
+            // As in Qt, the member function may take the permission or nothing.
+            requestPermissionImpl(permission, context, [object, f = std::forward<Functor>(func)](const QPermission &p) {
+                if constexpr (std::is_invocable_v<std::decay_t<Functor>, Context *, const QPermission &>) {
+                    (object->*f)(p);
+                } else {
+                    (object->*f)();
+                }
+            });
         } else {
-            requestPermissionImpl(permission, context,
-                                  [f = std::forward<Functor>(func)](const QPermission &p) mutable { f(p); });
+            requestPermissionImpl(permission, context, wrapPermissionFunctor(std::forward<Functor>(func)));
         }
     }
     template <typename Functor> void requestPermission(const QPermission &permission, Functor &&func) {
-        requestPermissionImpl(permission, nullptr,
-                              [f = std::forward<Functor>(func)](const QPermission &p) mutable { f(p); });
+        requestPermissionImpl(permission, nullptr, wrapPermissionFunctor(std::forward<Functor>(func)));
     }
 
 public slots:
@@ -138,6 +142,16 @@ signals:
 private:
     void requestPermissionImpl(const QPermission &permission, const QObject *context,
                                std::function<void(const QPermission &)> callback);
+    // A function or functor that takes the permission, or takes nothing (as Qt allows).
+    template <typename Functor> static std::function<void(const QPermission &)> wrapPermissionFunctor(Functor &&func) {
+        return [f = std::forward<Functor>(func)](const QPermission &p) mutable {
+            if constexpr (std::is_invocable_v<std::decay_t<Functor> &, const QPermission &>) {
+                f(p);
+            } else {
+                f();
+            }
+        };
+    }
 };
 
 #define qApp QCoreApplication::instance()

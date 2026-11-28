@@ -123,7 +123,8 @@ QMouseEvent::~QMouseEvent() = default;
     The angle delta is in eighths of a degree; a notch of a typical wheel is 120.
 
     \differences
-    There is no phase, inverted flag or source; the event is a single scroll step.
+    There is no pointing device (QPointingDevice) for the event. The platforms deliver wheel events with no
+    phase, not inverted, from a wheel; the phase, inverted flag and source are those given to the constructor.
     \enddifferences
 
     \sa QMouseEvent
@@ -139,6 +140,18 @@ QWheelEvent::QWheelEvent(const QPointF &pos, const QPointF &globalPos, const QPo
                          const QPoint &angleDelta, Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers)
     : QInputEvent(Wheel, modifiers), m_local(pos), m_global(globalPos), m_pixelDelta(pixelDelta),
       m_angleDelta(angleDelta), m_buttons(buttons) {}
+
+/*!
+    \since 6.0
+    Constructs a wheel event for a mouse at \a pos in the window and \a globalPos on the screen, with the scroll
+    amounts \a pixelDelta and \a angleDelta, the pressed \a buttons and the \a modifiers, in the scrolling
+    \a phase, \a inverted if the deltas are reversed from the device's direction, coming from \a source.
+*/
+QWheelEvent::QWheelEvent(const QPointF &pos, const QPointF &globalPos, const QPoint &pixelDelta,
+                         const QPoint &angleDelta, Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers,
+                         Qt::ScrollPhase phase, bool inverted, Qt::MouseEventSource source)
+    : QInputEvent(Wheel, modifiers), m_local(pos), m_global(globalPos), m_pixelDelta(pixelDelta),
+      m_angleDelta(angleDelta), m_buttons(buttons), m_phase(phase), m_inverted(inverted), m_source(source) {}
 
 QWheelEvent::~QWheelEvent() = default;
 

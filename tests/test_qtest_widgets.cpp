@@ -91,8 +91,20 @@ void TestQtestWidgets::waitForWindow() {
     hidden.show();
     hidden.hide();
     QVERIFY(!QTest::qWaitForWindowExposed(hidden.windowHandle(), 20));
-    QVERIFY(!QTest::qWaitForWindowExposed(nullptr, 20));
-    QVERIFY(!QTest::qWaitForWindowActive(nullptr, 20));
+    QVERIFY(!QTest::qWaitForWindowExposed(static_cast<QWindow *>(nullptr), 20));
+    QVERIFY(!QTest::qWaitForWindowActive(static_cast<QWindow *>(nullptr), 20));
+
+    // The QWidget overloads (qtestsupport_widgets.h): the widget's top-level window, as in Qt.
+    QWidget top;
+    auto *child = new QWidget(&top);
+    top.resize(200, 100);
+    QVERIFY(!QTest::qWaitForWindowExposed(&top, 20)); // never shown: no window
+    top.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&top));
+    QVERIFY(QTest::qWaitForWindowExposed(child));
+    QVERIFY(QTest::qWaitForWindowActive(&top));
+    QVERIFY(!QTest::qWaitForWindowExposed(static_cast<QWidget *>(nullptr), 20));
+    QVERIFY(!QTest::qWaitForWindowActive(static_cast<QWidget *>(nullptr), 20));
 }
 
 void TestQtestWidgets::clickButton() {

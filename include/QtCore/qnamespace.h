@@ -1548,8 +1548,8 @@ Q_DECLARE_OPERATORS_FOR_FLAGS(TouchPointStates)
     \value WindowMinMaxButtonsHint Both of the above.
     \value WindowContextHelpButtonHint A window with a help button.
     \value WindowStaysOnTopHint A window that is kept above the others.
-    \value WindowTransparentForInput A window that input passes through; accepted for compatibility, Nt does not
-           apply it yet.
+    \value WindowTransparentForInput A window that input passes through. Only the android platform applies it, to
+           touches; elsewhere it is accepted for compatibility.
     \value WindowDoesNotAcceptFocus A window that does not take the keyboard focus.
     \value WindowStaysOnBottomHint A window that is kept below the others.
     \value NoDropShadowWindowHint A window without a shadow; accepted for compatibility.

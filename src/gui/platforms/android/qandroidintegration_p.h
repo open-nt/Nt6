@@ -74,6 +74,9 @@ public:
     // Every visible top-level window, the topmost last.
     static std::vector<QAndroidWindow *> &stack();
     static QAndroidWindow *top();
+    // The window that a finger coming down at `at` (in dp) goes to, or null; `dismiss` says that it closes that window
+    // instead (a tap beside a modal sheet). See routeTouch().
+    static QAndroidWindow *touchTarget(const QPointF &at, bool *dismiss);
 
 private:
     bool isDialog() const;
@@ -149,4 +152,5 @@ private:
     bool m_surfaceLost = false;
     int m_touchPan = 0; // how far the window was slid when the first finger came down; kept until the last is up
     bool m_dismissingTouch = false; // the fingers that dismissed a sheet are still down
+    QPointer<QWindow> m_touchWindow; // the window that the first finger went to; the gesture stays with it
 };

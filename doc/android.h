@@ -121,7 +121,10 @@
     life cycle to it. The screen is the window of the activity. A top-level window fills it, with the one shown last on
     top; a dialog over such a window keeps its size (280 to 560 wide), is centred, and what is below it is dimmed. The scale factor is the density of the screen over 160, and the logical resolution is 120
     dots per inch. Touch screens deliver QTouchEvent with every finger, and the first finger is the mouse
-    (a press, moves and a release with the left button) for the widgets that do not take touch events. Keys from a
+    (a press, moves and a release with the left button) for the widgets that do not take touch events. A finger goes
+    to the topmost window that it is in; beside a dialog that is not modal (such as a standard bottom sheet of the
+    Material style) it goes to the window below, and beside a modal one to that dialog, or it closes a modal sheet.
+    The window touched becomes the active one. Keys from a
     keyboard type text, and the Back key closes the window on top.
 
     \section1 Differences from Qt for Android

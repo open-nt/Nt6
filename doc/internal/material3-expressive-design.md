@@ -183,8 +183,8 @@ is true for a rail; Nt's `QTabBar` draws no scroll buttons for any style.
 Sheets are `QDialog`s with `materialSheet` = `"bottom"` (against the bottom, up to 640 wide, corners 28 at the top)
 or `"drawer"` (against the left edge, up to 360 wide and 56 short of the window, corners 16 at the right), both
 `SurfaceContainerLow`. `QDialog` asks the style to place one each time it is shown. The android platform, which places
-dialogs itself, reads the window property `_nt_sheet`, rounds only the corners away from the edge, and closes the
-sheet on a tap on the scrim; Back closes it as it does any dialog. A `QListWidget` with `materialList` =
+dialogs itself, reads the window property `_nt_sheet`, rounds only the corners away from the edge, and closes a
+modal sheet on a tap on the scrim; Back closes it as it does any dialog. A `QListWidget` with `materialList` =
 `"navigationDrawer"` is the drawer's list: pills of 56 inset by 12, no frame. Icons of one color in the rows of any
 list now take `OnSurfaceVariant` (`OnSecondaryContainer` when chosen). A bottom sheet has a drag handle, 32 by 4,
 `OnSurfaceVariant` at 0.4, corners 2, 22 from the top in a target of 48; the style makes that room as top contents
@@ -202,13 +202,22 @@ nothing public is added for it. `materialSheet` = `"standardBottom"` is the stan
 leaving its peek showing: `materialSheetPeek` (Nt only, default 56). It is dragged up to expand and no lower than the
 peek; let go, it goes to the nearer of the two, or to the next one the way it was flung, on the entry spring; it never
 closes by dragging (Escape still rejects it). The style, as the application's event filter, puts it back at the bottom
-of its window, expanded or collapsed as it was, when the window moves or is resized. A modal bottom sheet with
+of its window, expanded or collapsed as it was, when the window moves or is resized. It lies on its window with the
+shadow of elevation level 1: Nt's windows are opaque, so the shadow is a child of the window below
+(`_nt_sheetShadow`, transparent for the mouse) that follows the sheet's Show, Move, Resize and Hide, four rings of
+black at 0.045 rounded as the top corners (about 0.17 at the edge, gone 4 out); the android platform shows it in
+the rounded corners too. On the android platform it works as elsewhere: `QWidgetWindow` sets `_nt_modal` (from
+`QWidget::isModal()`) on each window it shows, and a finger that comes down goes to the topmost window it is in,
+through any that is not modal or has `Qt::WindowTransparentForInput` (the picture of a sheet that slides out), and
+stops at a modal one, which takes it, or is closed by it if it is a sheet; a window without `_nt_modal` counts as
+modal (`routeTouch()` in `qandroidtouchroute_p.h`). The window touched becomes the active one, and the gesture stays
+with it. A sheet that the platform makes shorter than it asked (the screen less 72) keeps the part showing that the
+style meant, so a collapsed sheet keeps its peek. A modal bottom sheet with
 `materialSheetHalf` = true (Nt only) that is taller than half its window opens half open, the top at the middle of
 the window (Compose's partially expanded), and rests there or expanded the same way, or closes when let go nearer the
 bottom; its scrim is whole at both and fades only below half open. A click on the handle (its target of 48) of either
-goes to the other resting place. Not done: keyboard and accessibility moves (Escape closes, as before), standard sheets
-on the android platform, which still gives the top window every touch and closes it on a tap beside it, and the
-elevation of a standard sheet.
+goes to the other resting place. Not done: keyboard and accessibility moves (Escape closes, as before), and the shadow
+of a standard sheet while its picture slides out, or of one without a parent.
 
 `materialTextField` = `"search"` makes a `QLineEdit` the search bar: a `SurfaceContainerHigh` pill of 56 with a
 magnifier at 16 and the text at 56. The style draws the magnifier itself, not as a leading action. Its trailing

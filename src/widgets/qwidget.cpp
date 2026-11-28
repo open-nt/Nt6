@@ -1539,6 +1539,8 @@ void QWidget::setWindowModality(Qt::WindowModality windowModality) {
     if (shown && m_d->modality != Qt::NonModal)
         WidgetAccess::modalHidden(this);
     m_d->modality = windowModality;
+    if (shown && m_d->window)
+        m_d->window->setProperty("_nt_modal", windowModality != Qt::NonModal);
     if (shown && windowModality != Qt::NonModal)
         WidgetAccess::modalShown(this);
 }

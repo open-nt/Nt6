@@ -1,5 +1,6 @@
 // MIT License - see LICENSE
 #include "qandroidintegration_p.h"
+#include "qandroidtouchroute_p.h"
 
 #include "qpa/qwindowsysteminterface_p.h"
 #include "qwindow_p.h"
@@ -69,6 +70,27 @@ std::vector<QAndroidWindow *> &QAndroidWindow::stack() {
 
 QAndroidWindow *QAndroidWindow::top() { return stack().empty() ? nullptr : stack().back(); }
 
+QAndroidWindow *QAndroidWindow::touchTarget(const QPointF &at, bool *dismiss) {
+    const auto &windows = stack();
+    std::vector<QtAndroidPrivate::TouchLayer> layers;
+    layers.reserve(windows.size());
+    for (const QAndroidWindow *w : windows) {
+        QtAndroidPrivate::TouchLayer layer;
+        layer.geometry = w->geometry();
+        layer.fillsScreen = !w->isOverlay();
+        // Nt Widgets says whether a window that it shows is modal (QWidget::windowModality()); a window that does not
+        // say blocks what is below it, as every window on top did before.
+        const QVariant modal = w->window()->property("_nt_modal");
+        layer.modal = !modal.isValid() || modal.toBool();
+        layer.sheet = !w->window()->property("_nt_sheet").toString().isEmpty();
+        layer.transparent = w->window()->flags().testFlag(Qt::WindowTransparentForInput);
+        layers.push_back(layer);
+    }
+    const QtAndroidPrivate::TouchRoute route = QtAndroidPrivate::routeTouch(layers, at);
+    *dismiss = route.dismiss;
+    return route.index < 0 ? nullptr : windows[static_cast<std::size_t>(route.index)];
+}
+
 QAndroidWindow::QAndroidWindow(QWindow *window, QAndroidScreen *screen)
     : QPlatformWindow(window), m_screen(screen), m_topLevel(window->parent() == nullptr) {
     static std::atomic<quintptr> counter{1};
@@ -118,7 +140,10 @@ QRect QAndroidWindow::dialogGeometry(const QRect &wanted) const {
         const int whole = std::max(screen.height(), m_screen->unobstructedGeometry().height());
         const int height = std::clamp(wanted.height(), 1, std::max(1, whole - 72));
         const int top = std::max(screen.y(), screen.y() + screen.height() - height);
-        return QRect(screen.x() + (screen.width() - width) / 2, top + std::min(away, height), width, height);
+        // A sheet that is made shorter than it asked keeps as much of it showing as the style meant (the peek of a
+        // standard sheet that is collapsed).
+        const int lower = std::clamp(away - std::max(0, wanted.height() - height), 0, height);
+        return QRect(screen.x() + (screen.width() - width) / 2, top + lower, width, height);
     }
     if (sheet == QLatin1String("drawer")) {
         const int width = std::max(1, std::min(360, screen.width() - 56));
@@ -627,37 +652,47 @@ void QAndroidIntegration::windowChanged() {
     }
 }
 
-// Every finger goes to the window on top as a touch event; a window that does not take touch events gets the first
-// finger as the mouse.
+// Every finger goes, as a touch event, to the window that the first one came down on: the topmost that it is in, or
+// the first modal one above that (see routeTouch()), so that what is beside a standard sheet, which is not modal, can
+// still be used. A window that does not take touch events gets the first finger as the mouse.
 void QAndroidIntegration::touch(const Event &event) {
-    QAndroidWindow *top = QAndroidWindow::top();
-    if (!top)
-        return;
-    QWindow *window = top->window();
-    // A tap beside a sheet dismisses it, and is not for what is below.
+    // A tap beside a modal sheet dismisses it, and is not for what is below.
     if (m_dismissingTouch) {
         if (event.action == AMOTION_EVENT_ACTION_UP || event.action == AMOTION_EVENT_ACTION_CANCEL)
             m_dismissingTouch = false;
         return;
     }
-    if (event.action == AMOTION_EVENT_ACTION_DOWN && !event.points.empty() && top->isOverlay() &&
-        !window->property("_nt_sheet").toString().isEmpty()) {
+    if (event.action == AMOTION_EVENT_ACTION_DOWN) {
+        m_touchWindow = nullptr;
+        if (event.points.empty())
+            return;
         const auto &first = event.points.front();
         const QPointF at(static_cast<qreal>(first.x) / m_screen->ratio(),
                          static_cast<qreal>(first.y) / m_screen->ratio());
-        if (!QRectF(window->geometry()).contains(at)) {
+        bool dismiss = false;
+        QAndroidWindow *target = QAndroidWindow::touchTarget(at, &dismiss);
+        if (!target)
+            return;
+        if (dismiss) {
             m_dismissingTouch = true;
-            QWindowSystemInterface::handleCloseEvent(window);
+            QWindowSystemInterface::handleCloseEvent(target->window());
             return;
         }
+        m_touchWindow = target->window();
+        // A press may move the focus and with it how far the window is slid: a gesture keeps the one it began with.
+        m_touchPan = target->pan();
+        // A window below a window that is not modal becomes the active one when it is touched, as with a click on a
+        // desktop, so that the keys go to it.
+        if (QGuiApplication::focusWindow() != m_touchWindow)
+            QWindowSystemInterface::handleWindowActivated(m_touchWindow);
     }
+    QWindow *window = m_touchWindow.data();
+    if (!window)
+        return;
     if (event.action == AMOTION_EVENT_ACTION_CANCEL) {
         QWindowSystemInterface::handleTouchCancel(window);
         return;
     }
-    // A press may move the focus and with it how far the window is slid: a gesture keeps the one it began with.
-    if (event.action == AMOTION_EVENT_ACTION_DOWN)
-        m_touchPan = top->pan();
     QList<QEventPoint> points;
     for (const Event::TouchPoint &p : event.points) {
         const QPointF global(static_cast<qreal>(p.x) / m_screen->ratio(), static_cast<qreal>(p.y) / m_screen->ratio());

@@ -10,6 +10,7 @@
 
 #include "qmaterialcolor_p.h"
 #include "qmaterialmotion_p.h"
+#include "platforms/android/qandroidtouchroute_p.h"
 #include "platforms/offscreen/qoffscreenintegration_p.h"
 #include "qpa/qwindowsysteminterface_p.h"
 #include "qwindow_p.h"
@@ -3643,6 +3644,120 @@ void testStandardAndHalfSheets() {
     CHECK(tall.geometry().bottom() == 50 + 700 - 1 && tall.windowHandle()->property("_nt_sheetOffset").toInt() == 0);
     tall.hide();
     QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// A standard bottom sheet lies on its window with a shadow, says that it is not modal, and the android platform lets
+// a touch beside it through to the window below (its routing runs here without the NDK).
+void testStandardSheetShadowAndRouting() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.setGeometry(100, 50, 400, 700);
+    window.show();
+    QCoreApplication::processEvents();
+    QDialog sheet(&window);
+    sheet.setProperty("materialSheet", QStringLiteral("standardBottom"));
+    auto *column = new QVBoxLayout(&sheet);
+    auto *content = new QWidget;
+    content->setFixedHeight(240);
+    column->addWidget(content);
+    sheet.show();
+    QCoreApplication::processEvents();
+    const QRect place = sheet.geometry().translated(-window.geometry().topLeft()); // in the window
+    CHECK(place.top() == 700 - 56);
+    CHECK(sheet.windowHandle()->property("_nt_modal").isValid() &&
+          !sheet.windowHandle()->property("_nt_modal").toBool());
+    // The shadow is a child of the window, under the sheet's top edge and 4 beyond it, and lets the mouse through.
+    auto *shadow = window.findChild<QWidget *>(QStringLiteral("_nt_sheetShadow"));
+    CHECK(shadow && shadow->isVisible() && shadow->testAttribute(Qt::WA_TransparentForMouseEvents));
+    if (shadow)
+        CHECK(shadow->geometry() == QRect(0, place.top() - 4, 400, 56 + 4));
+    window.repaint();
+    QCoreApplication::processEvents();
+    {
+        const QImage image = QOffscreenBackingStore::imageOf(window.windowHandle());
+        const QColor surface = style->color(QMaterialStyle::Role::Surface);
+        // Darker just above the sheet, fading out, and the window as it was further up.
+        const QColor edge = image.pixelColor(200, place.top() - 1);
+        const QColor outer = image.pixelColor(200, place.top() - 4);
+        CHECK(edge.lightness() < surface.lightness() - 20);
+        CHECK(outer.lightness() > edge.lightness() && outer.lightness() < surface.lightness());
+        CHECK(near(image.pixelColor(200, place.top() - 10), surface, 3));
+    }
+    // It follows the sheet as it expands, and goes when the sheet is hidden.
+    const QPoint grip = sheet.mapToGlobal(QPoint(200, 20));
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(200, 20), QPointF(grip), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(&sheet, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(200, 20), QPointF(grip), Qt::LeftButton, Qt::NoButton,
+                        Qt::NoModifier);
+    QCoreApplication::sendEvent(&sheet, &release);
+    CHECK(sheet.y() == 50 + 700 - sheet.height());
+    if (shadow)
+        CHECK(shadow->geometry() == QRect(0, 700 - sheet.height() - 4, 400, sheet.height() + 4));
+    sheet.hide();
+    CHECK(shadow && !shadow->isVisible());
+    // A modal sheet has none, and says that it is modal.
+    QDialog modal(&window);
+    modal.setProperty("materialSheet", QStringLiteral("bottom"));
+    new QVBoxLayout(&modal);
+    modal.setModal(true);
+    modal.show();
+    QCoreApplication::processEvents();
+    CHECK(modal.windowHandle()->property("_nt_modal").toBool());
+    CHECK(window.findChildren<QWidget *>(QStringLiteral("_nt_sheetShadow")).size() == 1);
+    modal.hide();
+    // The shadow goes with its sheet.
+    {
+        auto *gone = new QDialog(&window);
+        gone->setProperty("materialSheet", QStringLiteral("standardBottom"));
+        new QVBoxLayout(gone);
+        gone->show();
+        QCoreApplication::processEvents();
+        CHECK(window.findChildren<QWidget *>(QStringLiteral("_nt_sheetShadow")).size() == 2);
+        delete gone;
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        CHECK(window.findChildren<QWidget *>(QStringLiteral("_nt_sheetShadow")).size() == 1);
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+
+    // The routing of the android platform: the window that fills the screen, a standard sheet at its peek over it.
+    using QtAndroidPrivate::routeTouch;
+    using QtAndroidPrivate::TouchLayer;
+    TouchLayer base;
+    base.geometry = QRect(0, 24, 400, 776);
+    base.fillsScreen = true;
+    TouchLayer standard;
+    standard.geometry = QRect(0, 800 - 56, 400, 300);
+    standard.modal = false;
+    standard.sheet = true;
+    std::vector<TouchLayer> stack{base, standard};
+    // On the sheet, it takes the touch; beside it, the window below does, and the sheet is not closed.
+    CHECK(routeTouch(stack, QPointF(200, 770)).index == 1 && !routeTouch(stack, QPointF(200, 770)).dismiss);
+    CHECK(routeTouch(stack, QPointF(200, 300)).index == 0 && !routeTouch(stack, QPointF(200, 300)).dismiss);
+    // A modal sheet is closed by a tap beside it, which goes no further.
+    stack[1].modal = true;
+    CHECK(routeTouch(stack, QPointF(200, 300)).index == 1 && routeTouch(stack, QPointF(200, 300)).dismiss);
+    CHECK(!routeTouch(stack, QPointF(200, 770)).dismiss);
+    // A modal dialog that is not a sheet blocks: it takes a touch beside it, as before.
+    TouchLayer dialog;
+    dialog.geometry = QRect(60, 300, 280, 200);
+    std::vector<TouchLayer> dialogs{base, standard, dialog};
+    dialogs[1].modal = false;
+    CHECK(routeTouch(dialogs, QPointF(200, 770)).index == 2 && !routeTouch(dialogs, QPointF(200, 770)).dismiss);
+    // Over a non-modal sheet, a window that does not say whether it is modal blocks; one that is not lets it through.
+    dialogs[2].modal = false;
+    CHECK(routeTouch(dialogs, QPointF(200, 770)).index == 1);
+    CHECK(routeTouch(dialogs, QPointF(200, 100)).index == 0);
+    CHECK(routeTouch(dialogs, QPointF(200, 400)).index == 2);
+    // Input passes through a window that is transparent for it, as the picture of a sheet that slides out.
+    dialogs[2].modal = true;
+    dialogs[2].transparent = true;
+    CHECK(routeTouch(dialogs, QPointF(200, 400)).index == 0);
+    CHECK(routeTouch(std::vector<TouchLayer>{}, QPointF(1, 1)).index == -1);
 }
 
 void testSearchAndSecondaryTabs() {
@@ -9002,6 +9117,7 @@ int main(int argc, char *argv[]) {
     testSheetsAndDrawer();
     testSheetDragging();
     testStandardAndHalfSheets();
+    testStandardSheetShadowAndRouting();
     testSearchAndSecondaryTabs();
     testTimeInput();
     testTimeDial();

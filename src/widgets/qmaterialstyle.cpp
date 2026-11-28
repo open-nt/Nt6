@@ -350,6 +350,10 @@ constexpr qint64 sheetFlingWindow = 100, sheetFlingShortest = 10;
 constexpr int bottomSheetWidest = 640;
 constexpr int bottomSheetTopRoom = 72; // that a bottom sheet leaves above it
 constexpr int bottomSheetPeek = 56;    // of a standard bottom sheet that is collapsed, unless materialSheetPeek says
+// The shadow of a standard bottom sheet, at elevation level 1: how far it reaches beyond the sheet, and the opacity of
+// each of the rings it is made of, which add up to about 0.17 at the sheet's edge.
+constexpr int sheetShadowReach = 4;
+constexpr double sheetShadowRing = 0.045;
 constexpr int drawerWidth = 360;
 constexpr int drawerRoom = 56; // that a drawer leaves beside it
 constexpr int drawerCorner = 16;
@@ -2232,7 +2236,8 @@ void QMaterialStyle::layOutEditorField(QAbstractScrollArea *editor) {
         not modal and dims nothing, so what is behind it can still be used. It lies against the bottom of its
         parent's window, as a bottom sheet does, follows the window as it moves or changes its size, and rests
         collapsed, only its top showing. Dragged up it expands, dragged down it collapses again; it does not close
-        when dragged, and a click on its handle expands or collapses it.
+        when dragged, and a click on its handle expands or collapses it. It casts the shadow of elevation level 1 on
+        its parent's window. On Android too, a touch beside it goes to the window below.
     \li \c materialSheetPeek of a standard bottom sheet: how much of it shows when it is collapsed, 56 by default.
     \li \c materialSheetHalf \c true of a modal bottom sheet that is taller than half its window opens it half open,
         its top at the middle of the window. Dragged up it expands; let go, it comes to rest half open or expanded,
@@ -5905,7 +5910,7 @@ class SheetGhost : public QWidget {
 public:
     SheetGhost(QDialog *dialog, const QPixmap &picture)
         : QWidget(dialog->parentWidget() ? dialog->parentWidget()->window() : nullptr,
-                  Qt::Dialog | Qt::FramelessWindowHint),
+                  Qt::Dialog | Qt::FramelessWindowHint | Qt::WindowTransparentForInput),
           m_dialog(dialog), m_picture(picture) {
         setObjectName(QStringLiteral("_nt_sheetGhost"));
         setAttribute(Qt::WA_TransparentForMouseEvents);
@@ -5951,6 +5956,88 @@ private:
     QPointer<QDialog> m_dialog;
     QPixmap m_picture;
 };
+
+// The shadow of a standard bottom sheet (elevation level 1). Windows of Nt are opaque, so the sheet's own window has no
+// room around it to draw one in: the shadow is a child of the window that the sheet lies over, transparent for the
+// mouse, kept under the sheet's top edge as the sheet moves, and drawn as rings of black, rounded as the sheet's top
+// corners, that fade out over 4. What of it lies under the sheet is covered by the sheet; on the android platform,
+// which rounds the sheet's corners, it shows in them too.
+class SheetShadow : public QWidget {
+public:
+    explicit SheetShadow(QDialog *dialog) : QWidget(dialog->parentWidget()->window()), m_dialog(dialog) {
+        setObjectName(QStringLiteral("_nt_sheetShadow"));
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setFocusPolicy(Qt::NoFocus);
+        hide();
+        dialog->installEventFilter(this);
+        // It goes with its sheet.
+        QObject::connect(dialog, &QObject::destroyed, this, &QObject::deleteLater);
+    }
+
+    // The shadow of `dialog`, made the first time it is asked for. Null for a sheet without a parent.
+    static SheetShadow *of(QDialog *dialog) {
+        QWidget *parent = dialog->parentWidget();
+        if (!parent)
+            return nullptr;
+        const QList<SheetShadow *> all = parent->window()->findChildren<SheetShadow *>(
+            QStringLiteral("_nt_sheetShadow"), Qt::FindDirectChildrenOnly);
+        for (SheetShadow *shadow : all) {
+            if (shadow->m_dialog.data() == dialog)
+                return shadow;
+        }
+        return new SheetShadow(dialog);
+    }
+
+    // Puts it under the sheet, and shows it while the sheet shows (or is being shown, as its Show event comes before
+    // isVisible() is true) and is still a standard sheet of QMaterialStyle.
+    void follow(bool showing = false) {
+        QDialog *dialog = m_dialog.data();
+        QWidget *host = parentWidget();
+        if (!dialog || !host || !(showing || dialog->isVisible()) || !isStandardSheet(dialog) ||
+            !qobject_cast<const QMaterialStyle *>(dialog->style())) {
+            hide();
+            return;
+        }
+        // The sheet and the window are both windows: their places are on the screen.
+        const QRect sheet(dialog->geometry().topLeft() - host->geometry().topLeft(), dialog->size());
+        const QRect around = sheet.adjusted(-sheetShadowReach, -sheetShadowReach, sheetShadowReach, 0);
+        setGeometry(around.intersected(host->rect()));
+        m_sheet = sheet.translated(-pos());
+        show();
+        raise();
+        update();
+    }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched == m_dialog.data()) {
+            const QEvent::Type type = event->type();
+            if (type == QEvent::Show)
+                follow(true);
+            else if (type == QEvent::Move || type == QEvent::Resize || type == QEvent::StyleChange ||
+                     type == QEvent::DynamicPropertyChange)
+                follow();
+            else if (type == QEvent::Hide)
+                hide();
+        }
+        return false;
+    }
+
+    void paintEvent(QPaintEvent *event) override {
+        (void)event;
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        for (int ring = sheetShadowReach; ring > 0; --ring) {
+            // The bottom goes on below the window, so that only the top corners are rounded.
+            const QRectF shape = QRectF(m_sheet).adjusted(-ring, -ring, ring, dialogCorner);
+            fillRounded(&painter, shape, dialogCorner + ring, withOpacity(QColor(Qt::black), sheetShadowRing));
+        }
+    }
+
+private:
+    QPointer<QDialog> m_dialog;
+    QRect m_sheet; // where the sheet is, in its own coordinates
+};
 } // namespace
 
 bool QMaterialStyle::placeSheet(QDialog *dialog) const {
@@ -5963,6 +6050,9 @@ bool QMaterialStyle::placeSheet(QDialog *dialog) const {
     const bool drawer = kind == QLatin1String("drawer");
     // A standard sheet comes to rest collapsed, and a modal one with materialSheetHalf half open.
     const int partial = drawer ? 0 : sheetPartialOffset(dialog, place.height());
+    // A standard sheet lies on its window with the shadow of elevation level 1.
+    if (kind == QLatin1String("standardBottom"))
+        SheetShadow::of(dialog);
     // The android platform places dialogs itself, and learns from this that the dialog is a sheet.
     dialog->winId();
     if (QWindow *window = dialog->windowHandle())

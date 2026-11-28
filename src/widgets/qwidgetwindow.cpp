@@ -135,7 +135,11 @@ void QWidgetWindow::moveEvent(QMoveEvent *event) {
 
 void QWidgetWindow::showEvent(QShowEvent *event) {
     (void)event;
-    if (m_widget && m_widget->isModal())
+    if (!m_widget)
+        return;
+    // The android platform routes a touch beside a window that is not modal to the window below it.
+    setProperty("_nt_modal", m_widget->isModal());
+    if (m_widget->isModal())
         WidgetAccess::modalShown(m_widget);
 }
 

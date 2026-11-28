@@ -23,6 +23,8 @@ public:
     bool isSizeGripEnabled() const { return m_sizeGrip != nullptr; }
     void setSizeGripEnabled(bool enabled);
     void setVisible(bool visible) override;
+    bool hasHeightForWidth() const override;
+    int heightForWidth(int w) const override;
 
 public slots:
     virtual void open();

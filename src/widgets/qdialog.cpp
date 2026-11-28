@@ -112,7 +112,8 @@ void QDialog::setModal(bool modal) { setWindowModality(modal ? Qt::ApplicationMo
 /*!
     \reimp
 
-    The Material style draws the window title as a headline here, where dialogs have no title bar.
+    The Material style draws the window title as a headline here, where dialogs have no title bar, and the drag handle
+    of a bottom sheet.
 */
 void QDialog::paintEvent(QPaintEvent *event) {
     QWidget::paintEvent(event);
@@ -120,6 +121,33 @@ void QDialog::paintEvent(QPaintEvent *event) {
         QPainter painter(this);
         material->drawHeadline(&painter, this);
     }
+}
+
+/*!
+    \reimp
+
+    A dialog with the Material style's headline has a height for its width, since the headline wraps.
+*/
+bool QDialog::hasHeightForWidth() const {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    return QWidget::hasHeightForWidth() || (material && material->headlineTop(this, width()) >= 0);
+}
+
+/*!
+    \reimp
+
+    The height at the width \a w includes the room of the Material style's headline on as many lines as it takes
+    at that width.
+*/
+int QDialog::heightForWidth(int w) const {
+    int height = QWidget::heightForWidth(w);
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    const int top = material ? material->headlineTop(this, w) : -1;
+    if (top < 0)
+        return height;
+    if (height < 0)
+        height = sizeHint().height();
+    return height + top - contentsMargins().top();
 }
 
 // A platform with a small screen makes a dialog narrower than it asks to be, and as high as it has to be then.
@@ -349,6 +377,9 @@ void QDialog::setSizeGripEnabled(bool enabled) {
 */
 void QDialog::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
+    // The Material style's headline wraps to the new width, and takes more or less room above the contents.
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style()))
+        material->fitHeadline(this);
     if (m_sizeGrip) {
         m_sizeGrip->move(width() - m_sizeGrip->width(), height() - m_sizeGrip->height());
         m_sizeGrip->raise();

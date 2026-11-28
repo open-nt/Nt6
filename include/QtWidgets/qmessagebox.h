@@ -142,6 +142,7 @@ protected:
     void showEvent(QShowEvent *event) override;
 
 private:
+    friend class QMaterialStyle; // which moves the icon over its headline
     void init();
     void placeTexts(); // beside the icon, or across the box when there is none
     void clicked(QAbstractButton *button);

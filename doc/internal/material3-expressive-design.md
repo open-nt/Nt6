@@ -181,14 +181,25 @@ or `"drawer"` (against the left edge, up to 360 wide and 56 short of the window,
 dialogs itself, reads the window property `_nt_sheet`, rounds only the corners away from the edge, and closes the
 sheet on a tap on the scrim; Back closes it as it does any dialog. A `QListWidget` with `materialList` =
 `"navigationDrawer"` is the drawer's list: pills of 56 inset by 12, no frame. Icons of one color in the rows of any
-list now take `OnSurfaceVariant` (`OnSecondaryContainer` when chosen). Not done: dragging and the
-drag handle (which would promise it), standard sheets, dismissal by an outside click on a desktop.
+list now take `OnSurfaceVariant` (`OnSecondaryContainer` when chosen). A bottom sheet has a drag handle, 32 by 4,
+`OnSurfaceVariant` at 0.4, corners 2, 22 from the top in a target of 48; the style makes that room as top contents
+margin before the sheet is sized, as for a headline, and `QDialog::paintEvent()` asks for it in the same call;
+`materialSheetHandle` = false (Nt only) leaves it out. A press on a sheet itself (its handle, its background, or a
+child that ignores the press) and a move of more than the drag distance toward its edge drags it: the style, as the
+application's event filter, moves the dialog and sets `_nt_sheetOffset` (which the android platform places it by) and
+`_nt_scrimOpacity` (0.32 times what is left of the way). Let go past a third of its height or width, or at more than
+1000 px/s toward the edge (over the last 100 ms of the drag, not measured under 10 ms), it is `reject()`ed and its
+picture slides on from there; flung back, or short of a third, it springs back on the entry spring with its scrim.
+A press that reaches a window blocked by a modal sheet (`exec()`, `setModal()`) rejects the sheet and goes no further;
+nothing public is added for it. Not done: standard sheets, a half-open state, keyboard and accessibility moves.
 
 `materialTextField` = `"search"` makes a `QLineEdit` the search bar: a `SurfaceContainerHigh` pill of 56 with a
-magnifier at 16 and the text at 56; the clear button is its trailing action. The style draws the magnifier itself, as
-`QLineEdit` has no leading actions in Nt. `materialTabBar` = `"secondary"` gives the secondary tabs: an indicator of 2
-as wide as the tab, and the current label in `OnSurface`. Not done: an avatar and other icons in the bar (the
-search view is below).
+magnifier at 16 and the text at 56. The style draws the magnifier itself, not as a leading action. Its trailing
+actions and the clear button have targets of 48 side by side, icons of 24 in their middle, the outermost target 4 from
+the edge (an icon 16 from it). An action with `materialAvatar` = `true` (Nt only, on the `QAction`) is an avatar: its
+icon as a round picture of 30 in its own colors, cut to the circle in an image of its own (a painter clips to
+rectangles), always last, past the clear button. `materialTabBar` = `"secondary"` gives the secondary tabs: an
+indicator of 2 as wide as the tab, and the current label in `OnSurface`. (The search view is below.)
 
 `materialTimeInput` on a `QTimeEdit` is Material's time input (the keyboard form of its time picker; the dial would
 need a widget that Qt Widgets has not got, and an application using it would not build with Qt). Boxes of 96 by 72,
@@ -227,8 +238,15 @@ layouts, group boxes and scroll areas, and a wrapping label would like lines of 
 Where `showsDialogTitles()` is false (Android), a dialog with a window title shows it as the headline: 24, `OnSurface`,
 24 from the top and 16 over the contents. The style makes the room as top contents margin before the dialog is sized,
 and `QDialog::paintEvent()` asks it to draw, so no application layout changes. Sheets have none. A message box without
-an icon now gives its text both columns: the empty icon column kept some of the width of the button row. Not done: a
-headline of two lines, the centered form under an icon.
+an icon now gives its text both columns: the empty icon column kept some of the width of the button row. A headline too
+long for the dialog wraps (24 on its line height): the style sets the top margin for the width whenever the dialog is
+resized, and `QDialog::heightForWidth()` adds the room the lines take at a width, so a dialog that a platform narrows
+grows for them. A dialog with its own window icon (the icon set on the dialog itself, which Nt keeps apart from the
+application's) has the centered form: the icon 24, `Secondary` through `paintIcon()`, 24 from the top in the middle,
+and the headline centered 16 under it. A message box with an icon has the same form: its icon widget is hidden and its
+texts take both columns, and the style draws its sign of one color (a round "i", "?" or "!", or a triangle with "!")
+over the headline; a box with an icon pixmap shows the pixmap there. Not done: an icon without a window title, a new
+title taking effect while the dialog is shown and not resized.
 
 Group boxes and text editors need no property. A `QGroupBox` is a section: its title 14 medium in `Primary`, 4 over an
 outlined card (corners 12, `OutlineVariant`), or over a line if it is flat; the layout margins are 16 inside the card.
@@ -254,7 +272,9 @@ which goes toward the edge, so an icon is 12 from the edge and the text 16 from 
 one-colour icons `OnSurfaceVariant`, a trailing one `Error` while there is an error. The label rests where the text
 begins and floats to the edge on an outlined field. `materialPrefix` and `materialSuffix` (Nt only) show, in the
 placeholder colour, once the label has floated; `materialCounter` puts `length/maxLength` at the end of the supporting
-line. Not done: the icon buttons' own ripple and hover, avatars.
+line. The actions and the clear button are standard icon buttons: `QLineEdit` tracks the one under the pointer and the
+one held down, and the style draws a circle of 40 about the icon, `OnSurfaceVariant` at 0.08 on hover and 0.10 while
+held; with motion the press is the ripple from where it was, inside that circle. They take no focus, as in Qt.
 
 A snackbar can have its close affordance: `materialCloseButton` (Nt only) on the status bar makes `QStatusBar` give
 itself a button of 48 at its very end, after the actions, while there is a message. The snackbar draws its cross (24,

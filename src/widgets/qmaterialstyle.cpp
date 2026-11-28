@@ -11,6 +11,7 @@
 #include <QtCore/qhash.h>
 #include <QtCore/qpointer.h>
 #include <QtCore/qscopeguard.h>
+#include <QtGui/qaction.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qfont.h>
 #include <QtGui/qguiapplication.h>
@@ -42,6 +43,7 @@
 #include <QtWidgets/qlistwidget.h>
 #include <QtWidgets/qmainwindow.h>
 #include <QtWidgets/qmenu.h>
+#include <QtWidgets/qmessagebox.h>
 #include <QtWidgets/qplaintextedit.h>
 #include <QtWidgets/qpushbutton.h>
 #include <QtWidgets/qradiobutton.h>
@@ -58,6 +60,8 @@
 #include <QtWidgets/qtreeview.h>
 
 #include <algorithm>
+#include <cmath>
+#include <utility>
 #ifdef __ANDROID__
 #include <QtCore/qcoreapplication_platform.h>
 #include <QtCore/qjniobject.h>
@@ -130,6 +134,10 @@ constexpr int textCursorWidth = 2;
 constexpr int fieldIcon = 24;                                      // an icon at an end of a text field,
 constexpr int fieldIconMargin = 16;                                // with this much more room, 4 of it toward the edge
 constexpr int searchIcon = 24;                                     // the magnifier of a search bar,
+constexpr int searchIconTarget = 48;                               // the target of each icon at its end,
+constexpr int searchTargetInset = 4;                               // which is this far from the edge,
+constexpr int fieldAvatar = 30;                                    // and an avatar there
+constexpr int fieldIconLayer = 40;                                 // the circle under an icon button of a text field
 constexpr int searchTextLeft = textFieldPadding + searchIcon + 16; // and where the text begins after it
 constexpr int secondaryIndicator = 2;
 constexpr int checkBoxSize = 18;
@@ -273,7 +281,15 @@ constexpr int dialogCorner = 28; // extra large
 constexpr int dialogPadding = 24;
 constexpr int headlinePixels = 24;                       // headline small
 constexpr int headlineSpace = 16;                        // between a dialog's headline and what is under it
+constexpr int dialogIconSize = 24;                       // over the headline of the centered form
 const char *const headlineRoom = "_nt_materialHeadline"; // the top margin that a dialog with a headline had
+const char *const handleRoom = "_nt_materialHandle";     // the top margin that a sheet with a drag handle had
+// The drag handle of a bottom sheet: a bar of 32 by 4 with corners 2, 22 from the top, in a touch target of 48 high.
+constexpr int sheetHandleWidth = 32, sheetHandleHeight = 4, sheetHandleTop = 22, sheetHandleTarget = 48;
+// A sheet let go after it was moved toward its edge this fast, in pixels a second, closes however far it went; the
+// speed is measured over the last 100 ms of the drag, and not at all over less than 10 ms.
+constexpr double sheetFlingSpeed = 1000;
+constexpr qint64 sheetFlingWindow = 100, sheetFlingShortest = 10;
 constexpr int bottomSheetWidest = 640;
 constexpr int bottomSheetTopRoom = 72; // that a bottom sheet leaves above it
 constexpr int drawerWidth = 360;
@@ -381,15 +397,96 @@ QFont headlineFont(const QWidget *dialog) {
     return font;
 }
 
-// Gives a dialog back the room that was made above its contents for a headline.
-void removeHeadline(QWidget *dialog) {
-    const QVariant before = dialog->property(headlineRoom);
+// Gives a dialog back the room that was made above its contents for a headline or a drag handle, as `room` says.
+void removeRoom(QWidget *dialog, const char *room) {
+    const QVariant before = dialog->property(room);
     if (!before.isValid())
         return;
     QMargins margins = dialog->contentsMargins();
     margins.setTop(before.toInt());
     dialog->setContentsMargins(margins);
-    dialog->setProperty(headlineRoom, QVariant());
+    dialog->setProperty(room, QVariant());
+}
+
+// Where the parts of a dialog's headline are when the dialog is `width` wide and its contents began at `top` before
+// the headline: the icon of the centered form (empty without one) 24 from the top, and the text, 24 from the top or
+// 16 under the icon, on as many lines as it takes.
+struct HeadlineParts {
+    QRect icon, text;
+};
+HeadlineParts headlineParts(const QWidget *dialog, bool icon, int width, int top) {
+    HeadlineParts parts;
+    int y = top + dialogPadding;
+    if (icon) {
+        parts.icon = QRect((width - dialogIconSize) / 2, y, dialogIconSize, dialogIconSize);
+        y += dialogIconSize + headlineSpace;
+    }
+    const int textWidth = std::max(1, width - 2 * dialogPadding);
+    const QFontMetrics metrics(headlineFont(dialog));
+    const QRect lines =
+        metrics.boundingRect(QRect(0, 0, textWidth, QWIDGETSIZE_MAX), Qt::TextWordWrap, dialog->windowTitle());
+    parts.text = QRect(dialogPadding, y, textWidth, std::max(metrics.height(), lines.height()));
+    return parts;
+}
+
+// A message box's icon as one color, drawn as Material's symbols are: a round sign with "i", "?" or "!", or a
+// triangle with "!". What is not the sign is transparent, so that QMaterialStyle::paintIcon() colors it.
+QPixmap messageSign(QMessageBox::Icon icon, int pixels) {
+    QImage image(pixels, pixels, QImage::Format_ARGB32_Premultiplied);
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(Qt::black));
+    const double unit = pixels / 24.0; // the symbols are drawn on a grid of 24
+    const double stem = 2 * unit;
+    if (icon == QMessageBox::Warning) {
+        QPainterPath triangle;
+        triangle.moveTo(12 * unit, 2 * unit);
+        triangle.lineTo(23 * unit, 21 * unit);
+        triangle.lineTo(1 * unit, 21 * unit);
+        triangle.closeSubpath();
+        painter.drawPath(triangle);
+    } else {
+        painter.drawEllipse(QRectF(2 * unit, 2 * unit, 20 * unit, 20 * unit));
+    }
+    painter.setCompositionMode(QPainter::CompositionMode_DestinationOut);
+    const double middle = 12 * unit - stem / 2;
+    switch (icon) {
+    case QMessageBox::Information: // a dot over a stem
+        painter.drawRect(QRectF(middle, 11 * unit, stem, 6 * unit));
+        painter.drawRect(QRectF(middle, 7 * unit, stem, stem));
+        break;
+    case QMessageBox::Warning: // a stem over a dot, lower in the triangle
+        painter.drawRect(QRectF(middle, 9 * unit, stem, 6 * unit));
+        painter.drawRect(QRectF(middle, 17 * unit, stem, stem));
+        break;
+    case QMessageBox::Critical:
+        painter.drawRect(QRectF(middle, 7 * unit, stem, 6 * unit));
+        painter.drawRect(QRectF(middle, 15 * unit, stem, stem));
+        break;
+    case QMessageBox::Question: { // a hook over a dot
+        QPainterPath hook;
+        hook.addEllipse(QRectF(9 * unit, 6 * unit, 6 * unit, 6 * unit));
+        QPainterPath hole;
+        hole.addEllipse(QRectF(9 * unit + stem, 6 * unit + stem, 6 * unit - 2 * stem, 6 * unit - 2 * stem));
+        hole.addRect(QRectF(6 * unit, 9 * unit, 6 * unit, 5 * unit)); // the left of the ring, under its middle
+        painter.drawPath(hook.subtracted(hole));
+        painter.drawRect(QRectF(middle, 11 * unit, stem, 3 * unit));
+        painter.drawRect(QRectF(middle, 15 * unit, stem, stem));
+        break;
+    }
+    case QMessageBox::NoIcon:
+        break;
+    }
+    painter.end();
+    return QPixmap::fromImage(image);
+}
+
+// A bottom sheet has a drag handle, unless its materialSheetHandle is false.
+bool hasSheetHandle(const QWidget *dialog) {
+    const QVariant shown = dialog->property("materialSheetHandle");
+    return sheetKind(dialog) == QLatin1String("bottom") && (!shown.isValid() || shown.toBool());
 }
 
 bool isTextEditor(const QWidget *widget) {
@@ -1149,6 +1246,26 @@ QColor blend(const QColor &from, const QColor &to, double amount) {
                   channel(from.alpha(), to.alpha()));
 }
 
+// A picture in its own colors that fills the circle `round`. A painter clips to rectangles, so the picture is cut to
+// the circle in an image of its own first.
+void paintAvatar(QPainter *painter, const QRect &round, const QIcon &icon, QIcon::Mode mode, QIcon::State state) {
+    const qreal ratio = painter->device() ? painter->device()->devicePixelRatioF() : 1.0;
+    const QImage picture = icon.pixmap(round.size(), ratio, mode, state).toImage();
+    const int across = std::max(1, static_cast<int>(std::lround(round.width() * ratio)));
+    QImage disc(across, across, QImage::Format_ARGB32_Premultiplied);
+    disc.fill(Qt::transparent);
+    {
+        QPainter cutter(&disc);
+        cutter.setRenderHint(QPainter::Antialiasing);
+        QPainterPath circle;
+        circle.addEllipse(QRectF(disc.rect()));
+        cutter.fillPath(circle, QBrush(QColor(Qt::white)));
+        cutter.setCompositionMode(QPainter::CompositionMode_SourceIn);
+        cutter.drawImage(QRectF(disc.rect()), picture, QRectF(picture.rect()));
+    }
+    painter->drawImage(QRectF(round), disc, QRectF(disc.rect()));
+}
+
 void fillRounded(QPainter *painter, const QRectF &rect, double radius, const QColor &color) {
     painter->setPen(Qt::NoPen);
     painter->setBrush(color);
@@ -1566,6 +1683,11 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         the far end, while the bar's corners towards it turn square. Its rows are 56 high, with the icon that the model
         has in Qt::DecorationRole before the text. Under another line edit the popup of a completer is drawn as a
         menu, with rows 48 high and corners of 16.
+    \li \c materialAvatar \c true of a QAction that is added to a QLineEdit with
+        \l{QLineEdit::addAction()}{addAction()} at its trailing end shows its icon as an avatar: a round picture of 30,
+        in its own colors, at the far end, past the clear button. In a search bar the actions at the end have targets
+        of 48, side by side. Under the pointer and while held, each action of a text field shows the circle of 40 of
+        a standard icon button, and a press ripples.
     \li \c materialTabBar \c "secondary" makes the tabs of a QTabBar secondary ones, for what is inside a page: the
         line under the current one is as wide as the tab and 2 high, and its label is not in the accent color.
     \li \c materialTimeInput of a QTimeEdit: \c true draws it as Material's time input, a large box for each of the
@@ -1599,7 +1721,13 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         edge, as high as the window and up to 360 wide. It slides in from its edge and has no title bar. Closed, it is
         hidden at once, as any dialog is (isVisible() is \c false, the signals are emitted and exec() returns), and a
         picture of it that takes no input slides back to its edge in a window of its own. On Android the window behind
-        is dimmed, the dimming fading in and out with the sheet, and a tap on it or Back dismisses the sheet.
+        is dimmed, the dimming fading in and out with the sheet, and a tap on it or Back dismisses the sheet; elsewhere
+        a press in a window that a modal sheet blocks dismisses it. A bottom sheet has a drag handle at its top, for
+        which room is made above what is in it. A sheet is dragged toward its edge by a press on its handle or
+        background, or on a child that leaves the mouse to it, the dimming fading with the distance: let go past a
+        third of the way, or flung, it is rejected as Back does, and otherwise it springs back.
+    \li \c materialSheetHandle \c false on a bottom sheet hides its drag handle and the room for it; the sheet is still
+        dragged.
     \li \c materialList \c "navigationDrawer" of a QListWidget, for the list of a drawer: the one that is current is
         marked with a pill, and the list has no frame. Open a destination from itemClicked() and accept() the drawer.
     \li \c materialMenu \c "grouped" of a QMenu: the separators that addSeparator() adds are gaps of 2 rather than
@@ -1637,7 +1765,10 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     The buttons of a QDialogButtonBox, and so of a QMessageBox, are in the order of Android: what confirms is last.
 
     Where dialogs have no title bar, as on Android, a QDialog that has a window title, a QMessageBox among them, shows
-    it as Material's headline above what is in it. A sheet has none.
+    it as Material's headline above what is in it, on as many lines as it takes. A sheet has none. A dialog with a
+    window icon of its own (setWindowIcon() on the dialog, not the application's) has the centered form: the icon, 24
+    and in the \c Secondary color if it is of one color, over the headline, which is centered. A QMessageBox with an
+    icon has it there too, as a symbol of one color, rather than beside its text.
 
     Tooltips, as QToolTip shows them, are Material's plain tooltips without anything being asked for. A tooltip whose
     text is rich text, as Qt::mightBeRichText() tells, is a rich tooltip: a container of 12 corners in
@@ -1703,7 +1834,7 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     A connected button group is of the small size and lies across; Material's standard button group, whose pressed
     button widens, is not drawn differently from buttons in a row. Text fields are those of QLineEdit, and
     take icons, a prefix, a suffix and a counter only as properties and actions (a search bar has its magnifier, and
-    the actions of its trailing end are not avatars; its search view is only the docked one, the popup of a
+    its search view is only the docked one, the popup of a
     QCompleter, which does not emphasize the part of a row that matches the text, has no header of its own and opens
     without motion); their caret is the color of the text. A snackbar fades in and out but does not
     grow as it comes, and is one only in a QMainWindow; showing a message does not queue it. There are no
@@ -1714,8 +1845,8 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     button to switch to one, no menu of months, and no buttons to confirm or cancel (those are the dialog's); it keeps
     the days of the other months, faint, and there is no time picker with a clock dial. The headline is in English and
     shows the selected date also when the user cannot select one. The change between the days and the years is not
-    animated, and the years have no state layer under the pointer. A headline is one line, shortened if the dialog is too narrow, is made when the dialog is shown, and is not drawn
-    by a subclass whose paintEvent() does not call QDialog's. A text editor has no floating label or
+    animated, and the years have no state layer under the pointer. A dialog's headline is made when the dialog is shown, wraps
+    but follows a new window title only when the dialog is shown or resized again, and is not drawn by a subclass whose paintEvent() does not call QDialog's. A text editor has no floating label or
     supporting text, and one with another frame shape keeps it. A spin box has
     no floating label or supporting text, and its buttons do not repeat while
     held; a scroll bar does not hide when the contents are still. A time input is for a format of times alone, does not go on to the minute by itself
@@ -1731,9 +1862,9 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     destinations do not fit; the navigation drawer is the modal one only. A sheet is no taller than leaves 72 above it, unless what is in it cannot be made shorter: put that in
     a QScrollArea. A sheet that leaves is a picture of itself while it slides out, and
     shows no change made to it after it was hidden. Dialogs that are not sheets leave at once, their scrim with them.
-    Sheets are not dragged and have no drag handle; there are no standard (not modal)
-    sheets. On a desktop a click beside a sheet does not dismiss it, only Escape or the program does, and a sheet stays
-    where it was put if its parent's window moves or changes size. Badges are on icon buttons,
+    There are no standard (not modal) sheets. A click beside a sheet dismisses it only if the sheet is modal (shown with
+    exec() or setModal()), and a sheet stays where it was put if its parent's window moves or changes size. A sheet
+    has no state that is partly open, and no key or accessibility action moves it. Badges are on icon buttons,
     toolbar buttons and the destinations of a navigation bar or rail only. A snackbar finds where a floating action
     button is when it is placed, and again when one is shown or hidden, not when one is moved. A slider that shows its value
     indicator keeps room for it all the time, instead of drawing it over what is above, and it appears and goes at
@@ -1840,6 +1971,19 @@ QMaterialStyle::QMaterialStyle(const QColor &seedColor)
     m_motion = QJniObject::callStaticMethod<jboolean>("android/animation/ValueAnimator", "areAnimatorsEnabled", "()Z");
 #endif
 }
+
+// A sheet that is being dragged: where the press was, where the sheet rests, how far from there it was at the press and
+// is now, and how far it was at moments of the drag, for the speed at which it is let go.
+struct QMaterialStyle::SheetDrag {
+    QPointer<QDialog> dialog;
+    QPointF start;
+    QRect rest;
+    int from = 0;
+    int offset = 0;
+    bool moving = false;
+    QElapsedTimer clock;
+    std::vector<std::pair<qint64, int>> samples;
+};
 
 /*!
     Destroys the style.
@@ -2286,6 +2430,7 @@ void QMaterialStyle::unpolish(QWidget *widget) {
         widget->setProperty(polishedPalette, QVariant());
     }
     removeHeadline(widget);
+    removeRoom(widget, handleRoom);
     if (auto *view = qobject_cast<QAbstractItemView *>(widget); view && widget->property(polishedIconSize).toBool()) {
         view->setIconSize(QSize());
         widget->setProperty(polishedIconSize, QVariant());
@@ -2363,6 +2508,9 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
         }
     }
     if (event->type() == QEvent::Hide) {
+        // A sheet that is hidden while it is dragged is no longer dragged.
+        if (m_sheetDrag && watched == m_sheetDrag->dialog.data())
+            m_sheetDrag.reset();
         // The scrim goes with the dialog, and the next time it fades in from nothing.
         if (auto *dialog = qobject_cast<QDialog *>(watched); m_motion && dialog && dialog->isWindow()) {
             QtPrivate::Transition::stop(dialog, QStringLiteral("_nt_scrimFade"));
@@ -2449,6 +2597,8 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
             }
         }
     }
+    if (sheetMouseEvent(watched, event))
+        return true;
     if (m_motion && event->type() == QEvent::MouseButtonPress) {
         // A button's ripple starts where it is pressed; that of a check box, a radio button or a switch spreads from
         // its control.
@@ -3316,7 +3466,9 @@ void QMaterialStyle::drawFabLabel(const QStyleOption *option, QPainter *painter,
     painter->drawText(textRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, button->text);
 }
 
-void QMaterialStyle::drawClearButton(QPainter *painter, const QRect &area) const {
+void QMaterialStyle::drawClearButton(QPainter *painter, const QRect &slot, const QRect &area, const QLineEdit *field,
+                                     bool hovered, bool pressed) const {
+    drawFieldIconLayer(painter, slot, area, field, hovered, pressed);
     const QPointF centre = QRectF(area).center();
     constexpr double reach = 5; // from the middle to the end of a stroke, across and down
     painter->save();
@@ -3363,13 +3515,74 @@ QString QMaterialStyle::fieldAffix(const QLineEdit *field, bool suffix) const {
     return field->property(suffix ? "materialSuffix" : "materialPrefix").toString();
 }
 
-void QMaterialStyle::drawFieldIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode,
-                                   const QLineEdit *field, bool trailing) const {
+void QMaterialStyle::drawFieldIcon(QPainter *painter, const QRect &slot, const QRect &area, const QAction *action,
+                                   QIcon::Mode mode, const QLineEdit *field, bool trailing, bool hovered,
+                                   bool pressed) const {
+    drawFieldIconLayer(painter, slot, area, field, hovered, pressed);
+    if (isFieldAvatar(action)) {
+        // A picture of its own, in a circle of 30 about the middle of the icon.
+        paintAvatar(painter,
+                    QRect(area.left() - (fieldAvatar - area.width()) / 2,
+                          area.top() - (fieldAvatar - area.height()) / 2, fieldAvatar, fieldAvatar),
+                    action->icon(), mode, QIcon::Off);
+        return;
+    }
     const bool usable = mode != QIcon::Disabled;
     QColor ink = usable ? color(Role::OnSurfaceVariant) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
     if (usable && trailing && textFieldOf(field).error)
         ink = color(Role::Error); // the trailing icon tells of the error too
-    paintIcon(painter, area, icon, mode, QIcon::Off, ink);
+    paintIcon(painter, area, action->icon(), mode, QIcon::Off, ink);
+}
+
+// The state layer of a standard icon button at an end of a field: OnSurfaceVariant under the pointer and while it is
+// held down, in a circle of 40 about the icon. With motion the press is the ripple, from where it was.
+void QMaterialStyle::drawFieldIconLayer(QPainter *painter, const QRect &slot, const QRect &area, const QLineEdit *field,
+                                        bool hovered, bool pressed) const {
+    const QColor ink = color(Role::OnSurfaceVariant);
+    const QPointF centre = QRectF(area).center();
+    constexpr double radius = fieldIconLayer / 2.0;
+    const QRectF circle(centre.x() - radius, centre.y() - radius, fieldIconLayer, fieldIconLayer);
+    const bool rippling =
+        m_motion && field && field == m_rippleWidget.data() && slot.contains(m_rippleOrigin.toPoint());
+    double layer = hovered ? hoverOpacity : 0.0;
+    if (pressed && !m_motion)
+        layer = pressedOpacity;
+    if (layer <= 0 && !rippling)
+        return;
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    if (layer > 0)
+        fillRounded(painter, circle, radius, withOpacity(ink, layer));
+    if (rippling) {
+        QPainterPath outline;
+        outline.addEllipse(circle);
+        drawRipple(painter, field, outline, circle, m_rippleOrigin, pressed, ink);
+    }
+    painter->restore();
+}
+
+int QMaterialStyle::fieldIconShift(const QLineEdit *field) const {
+    // The outermost target of a search bar is 4 from its edge, beside the room for text that ends 16 from it.
+    if (textFieldOf(field).search)
+        return textFieldPadding - searchTargetInset;
+    return proxy()->pixelMetric(PM_LineEditIconMargin, nullptr, field) / 4;
+}
+
+int QMaterialStyle::fieldIconInset(const QLineEdit *field) const {
+    return textFieldOf(field).search ? (searchIconTarget - fieldIcon) / 2 : 0;
+}
+
+bool QMaterialStyle::isFieldAvatar(const QAction *action) {
+    return action && action->property("materialAvatar").toBool();
+}
+
+void QMaterialStyle::pressFieldIcon(QLineEdit *field, const QPointF &at) {
+    if (!m_motion)
+        return;
+    m_rippleWidget = field;
+    m_rippleOrigin = at;
+    m_animator->place(field, RippleRadiusChannel, 0);
+    m_animator->place(field, RippleOpacityChannel, 1);
 }
 
 // The label of a text field, on its way between where it rests and where it floats, and the line under the field.
@@ -3619,23 +3832,8 @@ void QMaterialStyle::drawChipLabel(const QStyleOption *option, QPainter *painter
     } else if (parts.avatar) {
         // The icon is a picture, in its own colors, that fills a circle.
         const QRect round(left + chipAvatarPadding, r.top() + (r.height() - chipAvatar) / 2, chipAvatar, chipAvatar);
-        const qreal ratio = painter->device() ? painter->device()->devicePixelRatioF() : 1.0;
-        const QPixmap picture = button->icon.pixmap(
-            round.size(), ratio, enabled(option) ? QIcon::Normal : QIcon::Disabled, checked ? QIcon::On : QIcon::Off);
-        // A painter clips to rectangles, so the picture is cut to the circle in an image of its own first.
-        const int across = std::max(1, static_cast<int>(std::lround(chipAvatar * ratio)));
-        QImage disc(across, across, QImage::Format_ARGB32_Premultiplied);
-        disc.fill(Qt::transparent);
-        {
-            QPainter cutter(&disc);
-            cutter.setRenderHint(QPainter::Antialiasing);
-            QPainterPath circle;
-            circle.addEllipse(QRectF(disc.rect()));
-            cutter.fillPath(circle, QBrush(QColor(Qt::white)));
-            cutter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-            cutter.drawImage(QRectF(disc.rect()), picture.toImage(), QRectF(picture.toImage().rect()));
-        }
-        painter->drawImage(QRectF(round), disc, QRectF(disc.rect()));
+        paintAvatar(painter, round, button->icon, enabled(option) ? QIcon::Normal : QIcon::Disabled,
+                    checked ? QIcon::On : QIcon::Off);
     } else if (parts.lead) {
         paintIcon(painter, QRect(left + chipIconPadding, top, chipIcon, chipIcon), button->icon,
                   enabled(option) ? QIcon::Normal : QIcon::Disabled, checked ? QIcon::On : QIcon::Off, iconInk);
@@ -4077,36 +4275,103 @@ int QMaterialStyle::completerRowHeight(const QWidget *list) {
 }
 
 void QMaterialStyle::prepareHeadline(QDialog *dialog) const {
+    // A bottom sheet has its drag handle there instead, at the top of a target of 48 above the contents.
+    if (hasSheetHandle(dialog)) {
+        removeHeadline(dialog);
+        if (dialog->property(handleRoom).isValid())
+            return;
+        dialog->ensurePolished();
+        QMargins margins = dialog->contentsMargins();
+        dialog->setProperty(handleRoom, margins.top());
+        const int inside = dialog->layout() ? dialog->layout()->contentsMargins().top() : 0;
+        margins.setTop(margins.top() + std::max(0, sheetHandleTarget - inside));
+        dialog->setContentsMargins(margins);
+        return;
+    }
+    removeRoom(dialog, handleRoom);
     const QPlatformIntegration *platform = QtPrivate::GuiAccess::integration();
     if (!platform || platform->showsDialogTitles() || dialog->windowTitle().isEmpty() || !sheetKind(dialog).isEmpty()) {
         removeHeadline(dialog);
         return;
     }
-    if (dialog->property(headlineRoom).isValid())
-        return;
-    dialog->ensurePolished();
-    QMargins margins = dialog->contentsMargins();
-    dialog->setProperty(headlineRoom, margins.top());
-    // The headline is 24 from the top and 16 over the contents, part of which a layout's own margin already is.
+    if (!dialog->property(headlineRoom).isValid()) {
+        dialog->ensurePolished();
+        dialog->setProperty(headlineRoom, dialog->contentsMargins().top());
+        if (auto *box = qobject_cast<QMessageBox *>(dialog))
+            box->placeTexts(); // its icon goes over the headline
+    }
+    fitHeadline(dialog);
+}
+
+int QMaterialStyle::headlineTop(const QDialog *dialog, int width) const {
+    const QVariant before = dialog->property(headlineRoom);
+    if (!before.isValid())
+        return -1;
+    const int top = before.toInt();
+    const HeadlineParts parts = headlineParts(dialog, !headlineIcon(dialog).isNull(), width, top);
+    // 16 over the contents, part of which a layout's own margin already is.
     const int inside = dialog->layout() ? dialog->layout()->contentsMargins().top() : 0;
-    const int height = QFontMetrics(headlineFont(dialog)).height();
-    margins.setTop(margins.top() + std::max(0, dialogPadding + height + headlineSpace - inside));
+    return top + std::max(0, parts.text.bottom() + 1 + headlineSpace - top - inside);
+}
+
+void QMaterialStyle::fitHeadline(QDialog *dialog) const {
+    const int top = headlineTop(dialog, dialog->width());
+    QMargins margins = dialog->contentsMargins();
+    if (top < 0 || margins.top() == top)
+        return;
+    margins.setTop(top);
     dialog->setContentsMargins(margins);
 }
 
+QIcon QMaterialStyle::headlineIcon(const QDialog *dialog) {
+    // The icon set on the dialog itself, not the application's, which windowIcon() falls back to.
+    if (const QIcon &own = QtPrivate::WidgetAccess::data(dialog).icon; !own.isNull())
+        return own;
+    if (const auto *box = qobject_cast<const QMessageBox *>(dialog)) {
+        if (box->icon() != QMessageBox::NoIcon) {
+            const qreal ratio = std::max<qreal>(1.0, dialog->devicePixelRatioF());
+            QPixmap sign = messageSign(box->icon(), qRound(dialogIconSize * ratio));
+            sign.setDevicePixelRatio(ratio);
+            return QIcon(sign);
+        }
+        if (const QPixmap pixmap = box->iconPixmap(); !pixmap.isNull())
+            return QIcon(pixmap);
+    }
+    return QIcon();
+}
+
+void QMaterialStyle::removeHeadline(QWidget *widget) {
+    if (!widget->property(headlineRoom).isValid())
+        return;
+    removeRoom(widget, headlineRoom);
+    if (auto *box = qobject_cast<QMessageBox *>(widget))
+        box->placeTexts(); // its icon goes back beside the text
+}
+
+bool QMaterialStyle::movesMessageIcon(const QMessageBox *box) { return box->property(headlineRoom).isValid(); }
+
 void QMaterialStyle::drawHeadline(QPainter *painter, const QDialog *dialog) const {
+    if (const QVariant room = dialog->property(handleRoom); room.isValid()) {
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        const QRectF bar((dialog->width() - sheetHandleWidth) / 2.0, room.toInt() + sheetHandleTop, sheetHandleWidth,
+                         sheetHandleHeight);
+        fillRounded(painter, bar, sheetHandleHeight / 2.0, withOpacity(color(Role::OnSurfaceVariant), 0.4));
+        painter->restore();
+    }
     const QVariant before = dialog->property(headlineRoom);
     if (!before.isValid())
         return;
     painter->save();
-    const QFont font = headlineFont(dialog);
-    const QFontMetrics metrics(font);
-    const int width = std::max(0, dialog->width() - 2 * dialogPadding);
-    painter->setFont(font);
+    const QIcon icon = headlineIcon(dialog);
+    const HeadlineParts parts = headlineParts(dialog, !icon.isNull(), dialog->width(), before.toInt());
+    if (!icon.isNull())
+        paintIcon(painter, parts.icon, icon, QIcon::Normal, QIcon::Off, color(Role::Secondary));
+    painter->setFont(headlineFont(dialog));
     painter->setPen(color(Role::OnSurface));
-    painter->drawText(QRect(dialogPadding, before.toInt() + dialogPadding, width, metrics.height()),
-                      Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
-                      metrics.elidedText(dialog->windowTitle(), Qt::ElideRight, width));
+    // Under an icon the headline is centered; without one it is at the start.
+    const int align = (icon.isNull() ? Qt::AlignLeft : Qt::AlignHCenter) | Qt::AlignTop | Qt::TextWordWrap;
+    painter->drawText(parts.text, align, dialog->windowTitle());
     painter->restore();
 }
 
@@ -4206,6 +4471,8 @@ bool QMaterialStyle::placeSheet(QDialog *dialog) const {
     }
     if (m_motion)
         slideSheetIn(dialog, place, kind == QLatin1String("drawer"), away);
+    else if (QWindow *window = dialog->windowHandle())
+        window->setProperty("_nt_sheetOffset", 0);
     return true;
 }
 
@@ -4309,6 +4576,118 @@ void QMaterialStyle::fadeScrim(QDialog *dialog, double from) const {
                                   guard->update();
                                   return true;
                               });
+}
+
+void QMaterialStyle::dragSheetTo(QDialog *dialog, const QRect &rest, int offset) const {
+    const bool fromLeft = sheetKind(dialog) == QLatin1String("drawer");
+    const int distance = std::max(1, fromLeft ? rest.width() : rest.height());
+    const int away = std::clamp(offset, 0, distance);
+    // The android platform places the sheet itself, by how far from its place the window says it is.
+    if (QWindow *window = dialog->windowHandle()) {
+        window->setProperty("_nt_sheetOffset", away);
+        window->setProperty(scrimProperty, scrimOpacity * (1.0 - static_cast<double>(away) / distance));
+    }
+    dialog->move(rest.topLeft() + (fromLeft ? QPoint(-away, 0) : QPoint(0, away)));
+    dialog->update(); // the android platform draws the scrim again as the dialog paints
+}
+
+bool QMaterialStyle::sheetMouseEvent(QObject *watched, QEvent *event) {
+    const QEvent::Type type = event->type();
+    if (type != QEvent::MouseButtonPress && type != QEvent::MouseMove && type != QEvent::MouseButtonRelease)
+        return false;
+    const auto *mouse = static_cast<const QMouseEvent *>(event);
+    // A press in a window that a modal sheet blocks, as beside the sheet on a desktop, dismisses the sheet as Escape
+    // does. (On Android the platform closes it on a tap on the scrim.)
+    if (type == QEvent::MouseButtonPress && watched->isWindowType()) {
+        auto *sheet = qobject_cast<QDialog *>(QApplication::activeModalWidget());
+        if (!sheet || sheet->style() != this || sheetKind(sheet).isEmpty() || !sheet->isVisible() ||
+            sheet->windowHandle() == watched)
+            return false;
+        const QList<QWidget *> tops = QApplication::topLevelWidgets();
+        const bool blocked = std::any_of(tops.begin(), tops.end(), [watched](const QWidget *top) {
+            return top->windowHandle() == watched && top->isVisible() && QtPrivate::WidgetAccess::blockedByModal(top);
+        });
+        if (blocked)
+            sheet->reject();
+        return blocked;
+    }
+    auto *dialog = qobject_cast<QDialog *>(watched);
+    if (!dialog)
+        return false;
+    const bool fromLeft = sheetKind(dialog) == QLatin1String("drawer");
+    // A press on the sheet itself, its handle or its background, or on a child that leaves the mouse to it.
+    if (type == QEvent::MouseButtonPress) {
+        if (mouse->button() != Qt::LeftButton || !dialog->isWindow() || !dialog->isVisible() ||
+            dialog->style() != this || sheetKind(dialog).isEmpty())
+            return false;
+        // It may still be on its way in: it stays where it is now.
+        QtPrivate::Transition::stop(dialog, QStringLiteral("_nt_sheetSlide"));
+        QtPrivate::Transition::stop(dialog, QStringLiteral("_nt_scrimFade"));
+        const int distance = std::max(1, fromLeft ? dialog->width() : dialog->height());
+        const QWindow *window = dialog->windowHandle();
+        const int from = window ? std::clamp(window->property("_nt_sheetOffset").toInt(), 0, distance) : 0;
+        m_sheetDrag = std::make_unique<SheetDrag>();
+        m_sheetDrag->dialog = dialog;
+        m_sheetDrag->start = mouse->globalPosition();
+        m_sheetDrag->rest = dialog->geometry().translated(fromLeft ? from : 0, fromLeft ? 0 : -from);
+        m_sheetDrag->from = from;
+        m_sheetDrag->offset = from;
+        m_sheetDrag->clock.start();
+        m_sheetDrag->samples.emplace_back(0, from);
+        return true;
+    }
+    if (!m_sheetDrag || m_sheetDrag->dialog.data() != dialog)
+        return false;
+    SheetDrag &drag = *m_sheetDrag;
+    const int distance = std::max(1, fromLeft ? drag.rest.width() : drag.rest.height());
+    if (type == QEvent::MouseMove) {
+        if (!(mouse->buttons() & Qt::LeftButton))
+            return false;
+        // Toward the edge: down for a bottom sheet, to the left for a drawer.
+        const QPointF moved = mouse->globalPosition() - drag.start;
+        const double delta = fromLeft ? -moved.x() : moved.y();
+        if (!drag.moving && std::abs(delta) < QApplication::startDragDistance())
+            return true;
+        drag.moving = true;
+        drag.offset = std::clamp(drag.from + static_cast<int>(std::lround(delta)), 0, distance);
+        dragSheetTo(dialog, drag.rest, drag.offset);
+        const qint64 now = drag.clock.elapsed();
+        drag.samples.emplace_back(now, drag.offset);
+        while (drag.samples.size() > 2 && drag.samples.front().first < now - sheetFlingWindow)
+            drag.samples.erase(drag.samples.begin());
+        return true;
+    }
+    if (mouse->button() != Qt::LeftButton)
+        return false;
+    const std::unique_ptr<SheetDrag> ended = std::move(m_sheetDrag);
+    // How fast it moved toward its edge at the end, if that can be told.
+    const qint64 now = ended->clock.elapsed();
+    double speed = 0;
+    for (const auto &[when, offset] : ended->samples) {
+        if (when >= now - sheetFlingWindow) {
+            if (now - when >= sheetFlingShortest)
+                speed = static_cast<double>(ended->offset - offset) * 1000.0 / static_cast<double>(now - when);
+            break;
+        }
+    }
+    // Past a third of the way, unless it was flung back, or flung toward the edge from anywhere, it closes.
+    const bool close =
+        ended->moving && (speed > sheetFlingSpeed || (ended->offset * 3 > distance && speed > -sheetFlingSpeed));
+    if (close) {
+        dialog->reject(); // as Back and Escape do; with motion, its picture slides on from where it is
+        if (!m_motion)
+            dragSheetTo(dialog, ended->rest, 0);
+        return true;
+    }
+    // Otherwise it springs back to its place, and its scrim comes back with it.
+    if (m_motion) {
+        const QVariant scrim = dialog->windowHandle() ? dialog->windowHandle()->property(scrimProperty) : QVariant();
+        slideSheetIn(dialog, ended->rest, fromLeft, static_cast<double>(ended->offset) / distance);
+        fadeScrim(dialog, scrim.isValid() ? std::clamp(scrim.toDouble(), 0.0, scrimOpacity) : scrimOpacity);
+    } else {
+        dragSheetTo(dialog, ended->rest, 0);
+    }
+    return true;
 }
 
 bool QMaterialStyle::drawMaterialFrame(QPainter *painter, const QFrame *frame) const {
@@ -5611,7 +5990,8 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
     case PM_LineEditIconSize:
         return fieldIcon;
     case PM_LineEditIconMargin:
-        return fieldIconMargin;
+        // In a search bar, targets of 48.
+        return widget && textFieldOf(widget).search ? searchIconTarget - fieldIcon : fieldIconMargin;
     case PM_TextCursorWidth:
         return textCursorWidth;
     case PM_DefaultFrameWidth:

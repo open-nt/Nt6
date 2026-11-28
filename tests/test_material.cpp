@@ -3025,6 +3025,150 @@ void testSheetsAndDrawer() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A bottom sheet has a drag handle, and a sheet is dragged toward its edge: let go far enough it closes, and otherwise
+// it springs back. A press beside a modal sheet, in the window that it blocks, closes it too.
+void testSheetDragging() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const char *const scrim = "_nt_scrimOpacity";
+    const auto mouse = [](QWidget *target, QEvent::Type type, const QPoint &global) {
+        const Qt::MouseButtons held = type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton;
+        QMouseEvent event(type, QPointF(target->mapFromGlobal(global)), QPointF(global), Qt::LeftButton, held,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &event);
+        return event.isAccepted();
+    };
+
+    QWidget window;
+    window.setGeometry(100, 50, 400, 700);
+    window.show();
+    QCoreApplication::processEvents();
+    QDialog sheet(&window);
+    sheet.setProperty("materialSheet", QStringLiteral("bottom"));
+    auto *column = new QVBoxLayout(&sheet);
+    auto *content = new QWidget;
+    content->setFixedHeight(180);
+    column->addWidget(content);
+    auto *button = new QPushButton(QStringLiteral("Share"));
+    column->addWidget(button);
+    sheet.show();
+    QCoreApplication::processEvents();
+
+    // The handle, 32 by 4 and 22 from the top in the middle, in a target of 48 above what is in the sheet.
+    CHECK(content->mapTo(&sheet, QPoint(0, 0)).y() == 48);
+    const QRect rest = sheet.geometry();
+    const int high = rest.height();
+    CHECK(rest == QRect(100, 50 + 700 - high, 400, high));
+    {
+        const QImage image = sheet.grab().toImage();
+        const QColor surface = style->color(Role::SurfaceContainerLow);
+        const QColor handle = style->color(Role::OnSurfaceVariant);
+        const QColor mixed =
+            QColor::fromRgbF(surface.redF() * 0.6 + handle.redF() * 0.4, surface.greenF() * 0.6 + handle.greenF() * 0.4,
+                             surface.blueF() * 0.6 + handle.blueF() * 0.4);
+        CHECK(near(image.pixelColor(200, 23), mixed, 4));
+        CHECK(near(image.pixelColor(200 - 14, 24), mixed, 4));
+        CHECK(near(image.pixelColor(200 - 18, 23), surface, 2)); // 16 to each side of the middle
+        CHECK(near(image.pixelColor(200, 20), surface, 2));      // 22 from the top
+        CHECK(near(image.pixelColor(200, 27), surface, 2));      // 4 high
+    }
+
+    // Dragged down by a little, it follows, its scrim fading with the distance, and springs back when let go.
+    const QPoint grip = sheet.mapToGlobal(QPoint(200, 20));
+    CHECK(mouse(&sheet, QEvent::MouseButtonPress, grip));
+    mouse(&sheet, QEvent::MouseMove, grip + QPoint(0, 30));
+    CHECK(sheet.geometry() == rest.translated(0, 30));
+    CHECK(sheet.windowHandle()->property("_nt_sheetOffset").toInt() == 30);
+    CHECK(near(sheet.windowHandle()->property(scrim).toDouble(), 0.32 * (1.0 - 30.0 / high), 1e-9));
+    mouse(&sheet, QEvent::MouseMove, grip + QPoint(0, -40)); // not above its place
+    CHECK(sheet.geometry() == rest);
+    mouse(&sheet, QEvent::MouseMove, grip + QPoint(0, high / 4));
+    CHECK(sheet.y() == rest.y() + high / 4);
+    mouse(&sheet, QEvent::MouseButtonRelease, grip + QPoint(0, high / 4));
+    CHECK(sheet.isVisible() && sheet.geometry() == rest);
+    CHECK(sheet.windowHandle()->property("_nt_sheetOffset").toInt() == 0);
+    CHECK(near(sheet.windowHandle()->property(scrim).toDouble(), 0.32, 1e-9));
+
+    // A child that takes the mouse keeps its press, and the sheet does not move.
+    const QPoint onButton = button->mapToGlobal(button->rect().center());
+    mouse(button, QEvent::MouseButtonPress, onButton);
+    mouse(button, QEvent::MouseMove, onButton + QPoint(0, high / 2));
+    CHECK(sheet.geometry() == rest);
+    mouse(button, QEvent::MouseButtonRelease, onButton + QPoint(0, high / 2));
+    CHECK(sheet.isVisible());
+
+    // Past a third of its height, it closes as Back does.
+    int rejected = 0;
+    QObject::connect(&sheet, &QDialog::rejected, [&rejected] { ++rejected; });
+    mouse(&sheet, QEvent::MouseButtonPress, grip);
+    mouse(&sheet, QEvent::MouseMove, grip + QPoint(0, high / 2));
+    CHECK(sheet.y() == rest.y() + high / 2);
+    mouse(&sheet, QEvent::MouseButtonRelease, grip + QPoint(0, high / 2));
+    CHECK(!sheet.isVisible() && sheet.result() == QDialog::Rejected && rejected == 1);
+    // Shown again, it is in its place with nothing left of the drag.
+    sheet.show();
+    QCoreApplication::processEvents();
+    CHECK(sheet.geometry() == rest && sheet.windowHandle()->property("_nt_sheetOffset").toInt() == 0);
+    sheet.hide();
+
+    // Without its handle it makes no room for one, and is still dragged by its background.
+    sheet.setProperty("materialSheetHandle", false);
+    sheet.show();
+    QCoreApplication::processEvents();
+    CHECK(content->mapTo(&sheet, QPoint(0, 0)).y() == 24);
+    CHECK(near(sheet.grab().toImage().pixelColor(sheet.width() / 2, 23), style->color(Role::SurfaceContainerLow), 2));
+    sheet.hide();
+
+    // A drawer goes to the left.
+    QDialog drawer(&window);
+    drawer.setProperty("materialSheet", QStringLiteral("drawer"));
+    auto *inside = new QVBoxLayout(&drawer);
+    inside->addWidget(new QLabel(QStringLiteral("Mail")));
+    drawer.show();
+    QCoreApplication::processEvents();
+    const QRect place = drawer.geometry();
+    const QPoint at = drawer.mapToGlobal(QPoint(place.width() / 2, place.height() - 10));
+    mouse(&drawer, QEvent::MouseButtonPress, at);
+    mouse(&drawer, QEvent::MouseMove, at - QPoint(60, 0));
+    CHECK(drawer.geometry() == place.translated(-60, 0));
+    CHECK(drawer.windowHandle()->property("_nt_sheetOffset").toInt() == 60);
+    mouse(&drawer, QEvent::MouseButtonRelease, at - QPoint(60, 0));
+    CHECK(drawer.isVisible() && drawer.geometry() == place);
+    mouse(&drawer, QEvent::MouseButtonPress, at);
+    mouse(&drawer, QEvent::MouseMove, at - QPoint(place.width() / 2, 0));
+    mouse(&drawer, QEvent::MouseButtonRelease, at - QPoint(place.width() / 2, 0));
+    CHECK(!drawer.isVisible() && drawer.result() == QDialog::Rejected);
+
+    // A press in the window that a modal sheet blocks closes the sheet; one on the sheet does not.
+    sheet.setModal(true);
+    sheet.show();
+    QCoreApplication::processEvents();
+    CHECK(QApplication::activeModalWidget() == &sheet);
+    const QPoint beside = window.mapToGlobal(QPoint(200, 100));
+    QMouseEvent onSheet(QEvent::MouseButtonPress, QPointF(10, 10), QPointF(sheet.mapToGlobal(QPoint(10, 10))),
+                        Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(sheet.windowHandle(), &onSheet);
+    CHECK(sheet.isVisible());
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(200, 100), QPointF(beside), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(window.windowHandle(), &press);
+    CHECK(!sheet.isVisible() && sheet.result() == QDialog::Rejected);
+    // Nor does one beside a dialog that is no sheet.
+    QDialog plain(&window);
+    plain.setModal(true);
+    plain.resize(200, 100);
+    plain.show();
+    QCoreApplication::processEvents();
+    QMouseEvent again(QEvent::MouseButtonPress, QPointF(200, 100), QPointF(beside), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(window.windowHandle(), &again);
+    CHECK(plain.isVisible());
+    plain.hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 void testSearchAndSecondaryTabs() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
@@ -3424,7 +3568,8 @@ void testDialogHeadline() {
     // Shown again, it is no higher for it.
     headed.hide();
     CHECK(show(headed, first).height == drawn.height);
-    // A dialog without a title has no room made for one, and nor has a sheet.
+    // A dialog without a title has no room made for one, and nor has a sheet, which has its drag handle there instead
+    // (or nothing without it).
     headed.hide();
     headed.setWindowTitle(QString());
     const Shown without = show(headed, first);
@@ -3435,7 +3580,12 @@ void testDialogHeadline() {
     CHECK(show(headed, first).height == drawn.height);
     QDialog sheet;
     sheet.setProperty("materialSheet", QStringLiteral("bottom"));
-    CHECK(show(sheet, make(sheet, QStringLiteral("A sheet"))).message == 24);
+    const QWidget *top = make(sheet, QStringLiteral("A sheet"));
+    const Shown handled = show(sheet, top);
+    CHECK(handled.message == 48 && handled.ink == 0);
+    sheet.hide();
+    sheet.setProperty("materialSheetHandle", false);
+    CHECK(show(sheet, top).message == 24);
     sheet.hide();
 
     // A message box shows its title, with its text and button under it.
@@ -3471,9 +3621,14 @@ void testDialogHeadline() {
     textLeft(plain, QStringLiteral("Gone?"));
     CHECK(never->isVisible() && never->mapTo(&plain, QPoint(0, 0)).x() == 24);
     plain.hide();
+    // With an icon the text starts there too: the icon is over the headline. Where titles are shown, it is beside.
     plain.setIcon(QMessageBox::Warning);
+    CHECK(textLeft(plain, QStringLiteral("Gone?")) == 24);
+    plain.hide();
+    platform->dialogTitles = true;
     CHECK(textLeft(plain, QStringLiteral("Gone?")) > 24 + 30);
     plain.hide();
+    platform->dialogTitles = false;
     plain.setIcon(QMessageBox::NoIcon);
     CHECK(textLeft(plain, QStringLiteral("Gone?")) == 24);
     plain.hide();
@@ -3485,6 +3640,134 @@ void testDialogHeadline() {
     QApplication::setStyle(QStringLiteral("Fusion"));
     QCoreApplication::processEvents();
     CHECK(again.contentsMargins().top() == 0);
+    platform->dialogTitles = true;
+}
+
+// A headline too long for the dialog wraps, and an icon of the dialog's own puts it in the centered form.
+void testDialogHeadlineForms() {
+    auto *platform = dynamic_cast<QOffscreenIntegration *>(QtPrivate::GuiAccess::integration());
+    CHECK(platform != nullptr);
+    if (!platform)
+        return;
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    platform->dialogTitles = false;
+
+    struct Dialog {
+        QDialog dialog;
+        QWidget *first = nullptr;
+        explicit Dialog(const QString &title) {
+            dialog.setWindowTitle(title);
+            auto *rows = new QVBoxLayout(&dialog);
+            first = new QWidget;
+            first->setFixedSize(300, 40);
+            rows->addWidget(first);
+        }
+        int show() {
+            dialog.show();
+            QCoreApplication::processEvents();
+            return first->mapTo(&dialog, QPoint(0, 0)).y();
+        }
+    };
+    QFont large = QApplication::font();
+    large.setPixelSize(24);
+    const int line = QFontMetrics(large).height();
+    const QString longTitle = QStringLiteral("Discard the changes to this document for good");
+
+    Dialog one(QStringLiteral("About"));
+    const int oneTop = one.show();
+    CHECK(oneTop == 24 + line + 16);
+    // Two lines take the room of two, and the dialog is taller by a line.
+    Dialog two(longTitle);
+    const int twoTop = two.show();
+    CHECK(two.dialog.width() == one.dialog.width());
+    CHECK(twoTop >= oneTop + line - 2 && twoTop < oneTop + 2 * line);
+    CHECK(two.dialog.height() == one.dialog.height() + twoTop - oneTop);
+    // Its height for a width counts the lines at that width: on one line where the dialog is wide enough.
+    CHECK(two.dialog.hasHeightForWidth());
+    CHECK(two.dialog.heightForWidth(2000) == one.dialog.heightForWidth(2000));
+    CHECK(two.dialog.heightForWidth(two.dialog.width()) == two.dialog.height());
+    // Made wider, it gives the room of the second line back.
+    two.dialog.resize(2000, two.dialog.height());
+    QCoreApplication::processEvents();
+    CHECK(two.dialog.contentsMargins().top() == one.dialog.contentsMargins().top());
+    two.dialog.hide();
+
+    // A platform that narrows its dialogs makes them as high as the wrapped headline needs.
+    platform->dialogWidthLimit = 300;
+    QDialog narrowed;
+    narrowed.setWindowTitle(longTitle);
+    auto *rows = new QVBoxLayout(&narrowed);
+    auto *message = new QLabel(QStringLiteral("Everything that was typed since the document was last saved is lost "
+                                              "when the changes are discarded."));
+    message->setWordWrap(true);
+    rows->addWidget(message);
+    narrowed.show();
+    QCoreApplication::processEvents();
+    CHECK(narrowed.width() == 300);
+    const int below = message->mapTo(&narrowed, QPoint(0, 0)).y();
+    CHECK(below >= 24 + 2 * line + 16 - 2);
+    CHECK(narrowed.height() >= below + message->height());
+    narrowed.hide();
+    platform->dialogWidthLimit = 0;
+
+    // With an icon of its own, the icon is 24 from the top in the middle, and the headline is centered 16 under it.
+    QPixmap glyph(24, 24);
+    glyph.fill(Qt::transparent);
+    {
+        QPainter painter(&glyph);
+        painter.fillRect(QRect(4, 4, 16, 16), Qt::black);
+    }
+    Dialog centered(QStringLiteral("Hi"));
+    centered.dialog.setWindowIcon(QIcon(glyph));
+    const int centeredTop = centered.show();
+    CHECK(centeredTop == 24 + 24 + 16 + line + 16);
+    CHECK(centered.dialog.height() == one.dialog.height() + 24 + 16);
+    const QImage image = centered.dialog.grab().toImage();
+    const int middle = centered.dialog.width() / 2;
+    // The icon, recolored in Secondary, at the top in the middle; the sides of the room are bare.
+    CHECK(near(image.pixelColor(middle, 24 + 12), style->color(Role::Secondary), 12));
+    CHECK(!near(image.pixelColor(24 + 12, 24 + 12), style->color(Role::Secondary), 40));
+    // The headline's ink is around the middle, not at the start.
+    const auto ink = [&](int left, int right) {
+        int count = 0;
+        for (int y = 64; y < 64 + line; ++y)
+            for (int x = left; x < right; ++x)
+                count += near(image.pixelColor(x, y), style->color(Role::OnSurface), 60) ? 1 : 0;
+        return count;
+    };
+    if (textIsDrawn()) {
+        CHECK(ink(middle - 30, middle + 30) > 20);
+        CHECK(ink(24, middle - 60) == 0);
+    }
+    centered.dialog.hide();
+    // The application's icon does not count: without its own, a dialog keeps the headline at the start.
+    QGuiApplication::setWindowIcon(QIcon(glyph));
+    Dialog plain(QStringLiteral("Hi"));
+    CHECK(plain.show() == oneTop);
+    plain.dialog.hide();
+    QGuiApplication::setWindowIcon(QIcon());
+
+    // A message box with an icon has it over its headline, in Secondary, rather than beside its text.
+    QMessageBox box(QMessageBox::Information, QStringLiteral("Saved"), QStringLiteral("The file was saved."),
+                    QMessageBox::Ok);
+    box.show();
+    QCoreApplication::processEvents();
+    const QImage boxImage = box.grab().toImage();
+    const int boxMiddle = box.width() / 2;
+    // The round sign: its ring in Secondary, the "i" in the middle cut out of it.
+    CHECK(near(boxImage.pixelColor(boxMiddle - 7, 24 + 12), style->color(Role::Secondary), 12));
+    CHECK(!near(boxImage.pixelColor(boxMiddle, 24 + 14), style->color(Role::Secondary), 40));
+    const QList<QLabel *> labels = box.findChildren<QLabel *>();
+    for (const QLabel *label : labels) {
+        if (label->text() == QStringLiteral("The file was saved.")) {
+            CHECK(label->mapTo(&box, QPoint(0, 0)).x() == 24);
+            CHECK(label->mapTo(&box, QPoint(0, 0)).y() >= 24 + 24 + 16 + line + 16);
+        }
+    }
+    box.hide();
     platform->dialogTitles = true;
 }
 
@@ -3908,6 +4191,124 @@ void testFieldIconsAffixesCounter() {
                 count += near(picture.pixelColor(x, y), style->color(Role::OnSurfaceVariant), 60) ? 1 : 0;
         CHECK(count > 10);
     }
+}
+
+// The actions at the ends of a text field are standard icon buttons, and an action can be an avatar.
+void testFieldIconButtonsAndAvatars() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    window.resize(360, 200);
+    QPixmap square(48, 48);
+    square.fill(Qt::black);
+    auto *edit = new QLineEdit(&window);
+    QAction *action = edit->addAction(QIcon(square), QLineEdit::TrailingPosition);
+    edit->setGeometry(0, 0, 300, 56);
+    window.show();
+    QCoreApplication::processEvents();
+    const auto shot = [&](const QWidget *w) { return window.grab().toImage().copy(w->geometry()); };
+    const auto send = [](QWidget *w, QEvent::Type type, const QPointF &at, Qt::MouseButtons buttons) {
+        QMouseEvent event(type, at, at, type == QEvent::MouseMove ? Qt::NoButton : Qt::LeftButton, buttons,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(w, &event);
+    };
+    // The icon is 264 to 288; the circle of 40 about it reaches 8 past it, so (276, 12) is on the layer only.
+    const QPoint layer(276, 12);
+    const QColor rest = shot(edit).pixelColor(layer);
+    CHECK(near(shot(edit).pixelColor(276, 4), rest, 3)); // and nothing yet out of the circle either
+    send(edit, QEvent::MouseMove, QPointF(276, 28), Qt::NoButton);
+    QImage image = shot(edit);
+    const auto mixed = [&](double opacity) {
+        const QColor ink = style->color(Role::OnSurfaceVariant);
+        const auto channel = [opacity](int a, int b) { return static_cast<int>(std::lround(a + (b - a) * opacity)); };
+        return QColor(channel(rest.red(), ink.red()), channel(rest.green(), ink.green()),
+                      channel(rest.blue(), ink.blue()));
+    };
+    CHECK(near(image.pixelColor(layer), mixed(0.08), 3));
+    CHECK(near(image.pixelColor(276, 4), rest, 3)); // a circle, not the whole slot
+    CHECK(near(image.pixelColor(250, 28), rest, 3));
+    // A press is stronger, and goes when it ends.
+    int triggered = 0;
+    QObject::connect(action, &QAction::triggered, [&triggered] { ++triggered; });
+    send(edit, QEvent::MouseButtonPress, QPointF(276, 28), Qt::LeftButton);
+    const QColor held = shot(edit).pixelColor(layer);
+    CHECK(near(held, mixed(0.10), 3));
+    CHECK(held.lightness() < image.pixelColor(layer).lightness());
+    send(edit, QEvent::MouseButtonRelease, QPointF(276, 28), Qt::NoButton);
+    CHECK(triggered == 1);
+    CHECK(near(shot(edit).pixelColor(layer), mixed(0.08), 3));
+    // Off the icon, and out of the field, there is no layer.
+    send(edit, QEvent::MouseMove, QPointF(100, 28), Qt::NoButton);
+    CHECK(near(shot(edit).pixelColor(layer), rest, 3));
+    send(edit, QEvent::MouseMove, QPointF(276, 28), Qt::NoButton);
+    QEvent leave(QEvent::Leave);
+    QCoreApplication::sendEvent(edit, &leave);
+    CHECK(near(shot(edit).pixelColor(layer), rest, 3));
+    // A disabled action has none.
+    action->setEnabled(false);
+    send(edit, QEvent::MouseMove, QPointF(276, 28), Qt::NoButton);
+    CHECK(near(shot(edit).pixelColor(layer), rest, 3));
+    action->setEnabled(true);
+
+    // With motion, a press ripples from where it was.
+    style->setMotionEnabled(true);
+    send(edit, QEvent::MouseMove, QPointF(100, 28), Qt::NoButton);
+    send(edit, QEvent::MouseButtonPress, QPointF(276, 28), Qt::LeftButton);
+    wait(400);
+    CHECK(shot(edit).pixelColor(layer).lightness() < rest.lightness());
+    send(edit, QEvent::MouseButtonRelease, QPointF(276, 28), Qt::NoButton);
+    CHECK(triggered == 2);
+    wait(800);
+    CHECK(near(shot(edit).pixelColor(layer), rest, 3));
+    style->setMotionEnabled(false);
+
+    // In a search bar the icons are 24 in targets of 48, the outermost 4 from the edge; an avatar is a round picture
+    // of 30 in its own colors, last, past the clear button.
+    auto *search = new QLineEdit(&window);
+    search->setProperty("materialTextField", QStringLiteral("search"));
+    search->setClearButtonEnabled(true);
+    search->setText(QStringLiteral("hazel"));
+    search->setGeometry(10, 100, 340, 56);
+    search->addAction(QIcon(square), QLineEdit::TrailingPosition);
+    QPixmap picture(60, 60);
+    picture.fill(QColor(200, 30, 40));
+    QAction *avatar = new QAction(QIcon(picture), QStringLiteral("Account"), search);
+    avatar->setProperty("materialAvatar", true);
+    search->addAction(avatar, QLineEdit::TrailingPosition);
+    search->show();
+    QCoreApplication::processEvents();
+    image = shot(search);
+    // The avatar is about (312, 28): 297 to 327 across, 13 to 43 down.
+    CHECK(near(image.pixelColor(312, 28), QColor(200, 30, 40), 3));
+    CHECK(near(image.pixelColor(300, 28), QColor(200, 30, 40), 3));
+    for (const QPoint corner : {QPoint(298, 14), QPoint(326, 14), QPoint(298, 42), QPoint(326, 42)})
+        CHECK(is(image.pixelColor(corner), Role::SurfaceContainerHigh));
+    // the cross 16 in from the avatar's target, then the icon in the colour of the icons.
+    int crossed = 0;
+    for (int y = 16; y < 40; ++y)
+        for (int x = 252; x < 276; ++x)
+            crossed += is(image.pixelColor(x, y), Role::OnSurfaceVariant) ? 1 : 0;
+    CHECK(crossed > 20);
+    CHECK(is(image.pixelColor(216, 28), Role::OnSurfaceVariant));
+    CHECK(is(image.pixelColor(232, 28), Role::SurfaceContainerHigh));
+    // A press on the avatar triggers it, and the text keeps out of the way of the icons.
+    int account = 0;
+    QObject::connect(avatar, &QAction::triggered, [&account] { ++account; });
+    send(search, QEvent::MouseButtonPress, QPointF(312, 28), Qt::LeftButton);
+    send(search, QEvent::MouseButtonRelease, QPointF(312, 28), Qt::NoButton);
+    CHECK(account == 1);
+    CHECK(search->text() == QStringLiteral("hazel"));
+    send(search, QEvent::MouseButtonPress, QPointF(264, 28), Qt::LeftButton);
+    send(search, QEvent::MouseButtonRelease, QPointF(264, 28), Qt::NoButton);
+    CHECK(search->text().isEmpty());
+    // The avatar has the layer of an icon button under the pointer too, around the picture.
+    send(search, QEvent::MouseMove, QPointF(312, 28), Qt::NoButton);
+    CHECK(!is(shot(search).pixelColor(312, 10), Role::SurfaceContainerHigh));
+    CHECK(near(shot(search).pixelColor(312, 28), QColor(200, 30, 40), 3));
 }
 
 // A snackbar may have a close button at its end, which takes the message away.
@@ -5971,6 +6372,7 @@ int main(int argc, char *argv[]) {
     testDialogOrderAndFab();
     testRailAndBadges();
     testSheetsAndDrawer();
+    testSheetDragging();
     testSearchAndSecondaryTabs();
     testTimeInput();
     testSpinBoxAndScrollBar();
@@ -5979,10 +6381,12 @@ int main(int argc, char *argv[]) {
     testCircularWavyProgress();
     testSpinBoxLabel();
     testDialogHeadline();
+    testDialogHeadlineForms();
     testGroupBoxAndTextEditors();
     testMultilineFieldsAndCaret();
     testSheetAndSnackbarMotion();
     testFieldIconsAffixesCounter();
+    testFieldIconButtonsAndAvatars();
     testSnackbarClose();
     testAppBarScrolled();
     testSliderSizesAndValue();

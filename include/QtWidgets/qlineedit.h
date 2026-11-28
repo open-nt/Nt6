@@ -154,6 +154,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void mouseDoubleClickEvent(QMouseEvent *event) override;
+    void leaveEvent(QEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
     void focusInEvent(QFocusEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
@@ -162,18 +163,23 @@ protected:
     void actionEvent(QActionEvent *event) override;
 
 private:
-    friend class QMaterialStyle; // which puts the label of a text field after its leading icons
+    // The Material style puts the label of a text field after its leading icons, and draws the layer of the icon
+    // button under the pointer or held down.
+    friend class QMaterialStyle;
     QRect contentsRect() const;
     // The actions at the ends that are shown, each with the room it takes, from the outside in.
     struct Side {
         QAction *action;
         ActionPosition position;
         QRect slot; // where a press triggers it
-        QRect icon; // where its icon is, against the outer side of the slot
+        QRect icon; // where its icon is, in the slot
     };
     std::vector<Side> sides() const;
     QRect textArea() const; // the style's area for the text, before the ends take their room
     int sideShift() const;  // how far the icons go out of that area, toward the edges
+    int sideInset() const;  // how far an icon is in from the outer side of its slot
+    bool isAvatar(const QAction *action) const;
+    void updateHover(const QPoint &at); // which icon button the pointer is over
     QString affix(bool suffix) const;
     QRect clearButtonRect() const;
     bool clearButtonShown() const;
@@ -210,6 +216,8 @@ private:
     bool m_clearPressed = false;
     std::vector<std::pair<QPointer<QAction>, ActionPosition>> m_sideActions;
     QPointer<QAction> m_sidePressed;
+    QPointer<QAction> m_sideHovered;
+    bool m_clearHovered = false;
     EchoMode m_echoMode = Normal;
     QPointer<QCompleter> m_completer;
     QPointer<const QValidator> m_validator;

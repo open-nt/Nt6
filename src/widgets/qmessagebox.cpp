@@ -6,6 +6,7 @@
 #include <QtWidgets/qcheckbox.h>
 #include <QtWidgets/qgridlayout.h>
 #include <QtWidgets/qlabel.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qplaintextedit.h>
 #include <QtWidgets/qpushbutton.h>
 
@@ -268,6 +269,9 @@ void QMessageBox::init() {
 }
 
 void QMessageBox::placeTexts() {
+    // Under the Material style's headline the icon is over the headline, not beside the text.
+    const bool icon = m_icon != NoIcon || !iconPixmap().isNull();
+    m_iconWidget->setVisible(icon && !QMaterialStyle::movesMessageIcon(this));
     // The column of the icon would keep some of the width of the buttons under it, even empty.
     const int column = m_iconWidget->isHidden() ? 0 : 1;
     QWidget *const texts[] = {m_label, m_informative, m_checkBox}; // one in each row
@@ -459,7 +463,6 @@ void QMessageBox::setTextFormat(Qt::TextFormat format) { m_label->setTextFormat(
 void QMessageBox::setIcon(Icon icon) {
     m_icon = icon;
     static_cast<MessageIcon *>(m_iconWidget)->setIcon(icon);
-    m_iconWidget->setVisible(icon != NoIcon);
     placeTexts();
 }
 
@@ -743,7 +746,6 @@ void QMessageBox::setIconPixmap(const QPixmap &pixmap) {
     auto *icon = static_cast<MessageIcon *>(m_iconWidget);
     icon->setIcon(NoIcon);
     icon->setPixmap(pixmap);
-    m_iconWidget->setVisible(!pixmap.isNull());
     placeTexts();
 }
 

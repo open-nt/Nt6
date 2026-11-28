@@ -16,6 +16,7 @@ struct SpringSpec;
 } // namespace QtPrivate
 
 class QAbstractScrollArea;
+class QAction;
 class QFont;
 class QCalendarWidget;
 class QAbstractButton;
@@ -25,6 +26,7 @@ class QFrame;
 class QLineEdit;
 class QListWidget;
 class QMainWindow;
+class QMessageBox;
 class QStatusBar;
 class QToolBar;
 class QStyleOptionButton;
@@ -162,11 +164,24 @@ private:
     void polishEditorField(QAbstractScrollArea *editor) const;
     // The prefix or the suffix of a text field, while it shows: when the label has floated, or there is none.
     QString fieldAffix(const QLineEdit *field, bool suffix) const;
-    // The icon of an action at an end of a text field, in the color of the field's icons.
-    void drawFieldIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode,
-                       const QLineEdit *field, bool trailing) const;
-    // The cross of a clear button, in lines, which stay sharp on a screen of any scale.
-    void drawClearButton(QPainter *painter, const QRect &area) const;
+    // The icon of an action at an end of a text field, in `area`, in the color of the field's icons, or the picture of
+    // an avatar; the actions are standard icon buttons, with a circle of 40 under the pointer and while held down
+    // (`hovered`, `pressed`) and the ripple of a press anywhere in their `slot`.
+    void drawFieldIcon(QPainter *painter, const QRect &slot, const QRect &area, const QAction *action, QIcon::Mode mode,
+                       const QLineEdit *field, bool trailing, bool hovered, bool pressed) const;
+    // The cross of a clear button, in lines, which stay sharp on a screen of any scale; an icon button too.
+    void drawClearButton(QPainter *painter, const QRect &slot, const QRect &area, const QLineEdit *field, bool hovered,
+                         bool pressed) const;
+    void drawFieldIconLayer(QPainter *painter, const QRect &slot, const QRect &area, const QLineEdit *field,
+                            bool hovered, bool pressed) const;
+    // How far the icons of a field go out of its area for text, toward the edges, and how far an icon is in from the
+    // outer side of its slot: a search bar has targets of 48 with the icon in the middle.
+    int fieldIconShift(const QLineEdit *field) const;
+    int fieldIconInset(const QLineEdit *field) const;
+    // An action whose materialAvatar is true is a round picture of 30, at the far end of the trailing actions.
+    static bool isFieldAvatar(const QAction *action);
+    // An icon button of a field is pressed at `at`: its ripple starts there.
+    void pressFieldIcon(QLineEdit *field, const QPointF &at);
     void drawTextFieldText(QPainter *painter, const QStyleOption *option, const QWidget *widget) const;
     // A property of the style's that a widget was given, or lost, while it is shown.
     void propertyChanged(QWidget *widget);
@@ -218,8 +233,26 @@ private:
     void fadeScrim(QDialog *dialog, double from) const;
     // Where dialogs have no title bar, a dialog shows its window title as Material's headline: room is made for it
     // above what is in the dialog, before it is shown, and QDialog asks for it to be drawn there.
+    // A bottom sheet has a drag handle at its top in the place of a headline, room made for it in the same way, and
+    // QDialog asks for both in the same call.
     void prepareHeadline(QDialog *dialog) const;
     void drawHeadline(QPainter *painter, const QDialog *dialog) const;
+    // The headline wraps to the width of the dialog: the top contents margin that the dialog has with its headline at
+    // `width` (-1 without one), which QDialog's height for a width takes, and the margin set for the width it has,
+    // which QDialog asks for when it is resized.
+    int headlineTop(const QDialog *dialog, int width) const;
+    void fitHeadline(QDialog *dialog) const;
+    // The icon of the centered form, over the headline: the dialog's own window icon, or a message box's icon.
+    static QIcon headlineIcon(const QDialog *dialog);
+    static void removeHeadline(QWidget *widget);
+    // A message box under a headline shows its icon over the headline rather than beside its text.
+    friend class QMessageBox;
+    static bool movesMessageIcon(const QMessageBox *box);
+    // A sheet is dragged toward its edge by a press on its background, and closes if it is let go far enough or flung;
+    // a modal sheet also closes on a press in a window that it blocks. True if the style took the event.
+    bool sheetMouseEvent(QObject *watched, QEvent *event);
+    // Puts a sheet `offset` from its place at `rest`, toward its edge, and fades its scrim with the distance.
+    void dragSheetTo(QDialog *dialog, const QRect &rest, int offset) const;
     // The rows of a list that is a navigation drawer keep their icons and text further in.
     static bool isDrawerList(const QWidget *widget);
     // A frame that is a card, or a line that is a divider: QFrame asks for it. False for another frame.
@@ -326,4 +359,6 @@ private:
     QPointer<QWidget> m_rippleWidget; // the button that was pressed last, and where
     QPointF m_rippleOrigin;
     bool m_rowPressed = false; // a row of a list, a tab or a row of a menu is held down
+    struct SheetDrag;
+    std::unique_ptr<SheetDrag> m_sheetDrag; // the sheet that is being dragged, while it is
 };

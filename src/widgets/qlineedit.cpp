@@ -83,6 +83,7 @@
 QLineEdit::QLineEdit(QWidget *parent) : QWidget(parent) {
     setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    setMouseTracking(true); // for the icon button under the pointer
 }
 
 /*!
@@ -521,7 +522,21 @@ QRect QLineEdit::textArea() const {
     return style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
 }
 
-int QLineEdit::sideShift() const { return style()->pixelMetric(QStyle::PM_LineEditIconMargin, nullptr, this) / 4; }
+int QLineEdit::sideShift() const {
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style()))
+        return material->fieldIconShift(this);
+    return style()->pixelMetric(QStyle::PM_LineEditIconMargin, nullptr, this) / 4;
+}
+
+int QLineEdit::sideInset() const {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    return material ? material->fieldIconInset(this) : 0;
+}
+
+// An avatar at the trailing end goes past the clear button, at the edge.
+bool QLineEdit::isAvatar(const QAction *action) const {
+    return qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isFieldAvatar(action);
+}
 
 // The prefix or the suffix that the Material style shows beside the text.
 QString QLineEdit::affix(bool suffix) const {
@@ -535,23 +550,29 @@ std::vector<QLineEdit::Side> QLineEdit::sides() const {
     const int icon = style()->pixelMetric(QStyle::PM_LineEditIconSize, nullptr, this);
     const int slot = icon + style()->pixelMetric(QStyle::PM_LineEditIconMargin, nullptr, this);
     const int shift = sideShift();
+    const int inset = sideInset();
+    const int top = area.top() + (area.height() - icon) / 2;
     int left = area.left() - shift;
-    int right = area.right() + 1 + shift - (m_clearButton ? clearButtonRect().width() : 0);
-    for (const auto &[action, position] : m_sideActions) {
-        if (!action || !action->isVisible())
-            continue;
-        Side side{action.data(), position, QRect(), QRect()};
-        const int top = area.top() + (area.height() - icon) / 2;
-        if (position == LeadingPosition) {
-            side.slot = QRect(left, area.top(), slot, area.height());
-            side.icon = QRect(left, top, icon, icon);
-            left += slot;
-        } else {
-            right -= slot;
-            side.slot = QRect(right, area.top(), slot, area.height());
-            side.icon = QRect(right + slot - icon, top, icon, icon);
+    int right = area.right() + 1 + shift;
+    // Avatars at the trailing end first, at the edge; then the clear button, and the other actions.
+    for (const bool avatars : {true, false}) {
+        if (!avatars && m_clearButton)
+            right -= clearButtonRect().width();
+        for (const auto &[action, position] : m_sideActions) {
+            if (!action || !action->isVisible() || (position == TrailingPosition && isAvatar(action)) != avatars)
+                continue;
+            Side side{action.data(), position, QRect(), QRect()};
+            if (position == LeadingPosition) {
+                side.slot = QRect(left, area.top(), slot, area.height());
+                side.icon = QRect(left + inset, top, icon, icon);
+                left += slot;
+            } else {
+                right -= slot;
+                side.slot = QRect(right, area.top(), slot, area.height());
+                side.icon = QRect(right + slot - inset - icon, top, icon, icon);
+            }
+            out.push_back(side);
         }
-        out.push_back(side);
     }
     return out;
 }
@@ -681,7 +702,11 @@ QRect QLineEdit::clearButtonRect() const {
     const int icon = style()->pixelMetric(QStyle::PM_LineEditIconSize, nullptr, this);
     const int margin = style()->pixelMetric(QStyle::PM_LineEditIconMargin, nullptr, this);
     const int width = std::min(icon + margin, std::max(0, text.width() / 2));
-    return QRect(text.right() + 1 + sideShift() - width, text.top(), width, text.height());
+    int avatars = 0; // past which it is
+    for (const auto &[action, position] : m_sideActions)
+        if (action && action->isVisible() && position == TrailingPosition && isAvatar(action))
+            avatars += icon + margin;
+    return QRect(text.right() + 1 + sideShift() - avatars - width, text.top(), width, text.height());
 }
 
 bool QLineEdit::clearButtonShown() const { return m_clearButton && !m_text.isEmpty() && !m_readOnly && isEnabled(); }
@@ -899,18 +924,22 @@ void QLineEdit::paintEvent(QPaintEvent *event) {
                 Qt::AlignRight | Qt::AlignVCenter | Qt::TextSingleLine, after);
     }
     for (const Side &side : sides()) {
-        const QIcon::Mode mode = side.action->isEnabled() && isEnabled() ? QIcon::Normal : QIcon::Disabled;
+        const bool usable = side.action->isEnabled() && isEnabled();
+        const QIcon::Mode mode = usable ? QIcon::Normal : QIcon::Disabled;
         if (material)
-            material->drawFieldIcon(&painter, side.icon, side.action->icon(), mode, this,
-                                    side.position == TrailingPosition);
+            material->drawFieldIcon(&painter, side.slot, side.icon, side.action, mode, this,
+                                    side.position == TrailingPosition, usable && side.action == m_sideHovered.data(),
+                                    usable && side.action == m_sidePressed.data());
         else
             side.action->icon().paint(&painter, side.icon, Qt::AlignCenter, mode);
     }
     if (clearButtonShown() && material) {
         const QRect area = clearButtonRect();
         const int icon = style()->pixelMetric(QStyle::PM_LineEditIconSize, nullptr, this);
-        material->drawClearButton(&painter,
-                                  QRect(area.right() + 1 - icon, area.top() + (area.height() - icon) / 2, icon, icon));
+        material->drawClearButton(
+            &painter, area,
+            QRect(area.right() + 1 - sideInset() - icon, area.top() + (area.height() - icon) / 2, icon, icon), this,
+            m_clearHovered, m_clearPressed);
     } else if (clearButtonShown()) {
         painter.setClipping(false);
         QStyleOption iconOption;
@@ -928,14 +957,21 @@ void QLineEdit::mousePressEvent(QMouseEvent *event) {
         event->ignore();
         return;
     }
+    auto *material = qobject_cast<QMaterialStyle *>(style());
     if (clearButtonShown() && clearButtonRect().contains(event->pos())) {
         m_clearPressed = true;
+        if (material)
+            material->pressFieldIcon(this, event->position());
+        update();
         event->accept();
         return;
     }
     for (const Side &side : sides()) {
         if (side.slot.contains(event->pos())) {
             m_sidePressed = side.action;
+            if (material && side.action->isEnabled())
+                material->pressFieldIcon(this, event->position());
+            update();
             event->accept();
             return;
         }
@@ -950,7 +986,8 @@ void QLineEdit::mousePressEvent(QMouseEvent *event) {
 */
 void QLineEdit::mouseMoveEvent(QMouseEvent *event) {
     if (!m_dragging) {
-        event->ignore();
+        updateHover(event->pos());
+        event->accept();
         return;
     }
     moveCursor(cursorPositionAt(event->pos()), true);
@@ -970,6 +1007,7 @@ void QLineEdit::mouseReleaseEvent(QMouseEvent *event) {
                 pressed->isEnabled())
                 pressed->trigger();
         }
+        update();
         event->accept();
         return;
     }
@@ -978,8 +1016,40 @@ void QLineEdit::mouseReleaseEvent(QMouseEvent *event) {
         m_clearPressed = false;
         if (event->button() == Qt::LeftButton && clearButtonShown() && clearButtonRect().contains(event->pos()))
             changeText(QString(), 0, true);
+        updateHover(event->pos());
+        update();
     }
     event->accept();
+}
+
+void QLineEdit::updateHover(const QPoint &at) {
+    const bool clear = clearButtonShown() && clearButtonRect().contains(at);
+    QAction *over = nullptr;
+    if (!clear && isEnabled()) {
+        for (const Side &side : sides()) {
+            if (side.slot.contains(at) && side.action->isEnabled())
+                over = side.action;
+        }
+    }
+    if (over == m_sideHovered.data() && clear == m_clearHovered)
+        return;
+    m_sideHovered = over;
+    m_clearHovered = clear;
+    update();
+}
+
+/*!
+    \reimp
+
+    The icon button that the pointer was over shows that it no longer is.
+*/
+void QLineEdit::leaveEvent(QEvent *event) {
+    if (m_sideHovered || m_clearHovered) {
+        m_sideHovered.clear();
+        m_clearHovered = false;
+        update();
+    }
+    QWidget::leaveEvent(event);
 }
 
 /*!

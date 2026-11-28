@@ -216,9 +216,30 @@ bool QFileDevice::openHandle(int fd, std::FILE *fh, OpenMode mode, FileHandleFla
     stays valid after close() until unmap() is called or the object is
     destroyed.
 
+    A resource (and an Android asset) is mapped too, read-only and without
+    \c MapPrivateOption: the address points at its data, which must not be
+    written.
+
     \sa unmap()
 */
 uchar *QFileDevice::map(qint64 offset, qint64 size, MemoryMapFlags flags) {
+    if (m_resource) {
+        const NtResource::Entry &entry = m_resource->entry;
+        if (flags.testFlag(MapPrivateOption)) {
+            setFileError(PermissionsError, QString::fromUtf8("Resources cannot be mapped privately"));
+            return nullptr;
+        }
+        if (offset < 0 || size <= 0 || offset > entry.size - size) {
+            setFileError(UnspecifiedError, QString::fromUtf8("the range is not in the file"));
+            return nullptr;
+        }
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast): QFileDevice::map() returns uchar *, as in Qt
+        uchar *address = const_cast<uchar *>(entry.data) + offset;
+        // The data stays alive with the mapping, after close() too; a compiled-in resource has no owner to keep.
+        m_resourceMaps[address] = entry.keepAlive ? entry.keepAlive : std::make_shared<int>(0);
+        m_error = NoError;
+        return address;
+    }
     if (m_fd < 0) {
         setFileError(PermissionsError, QString::fromUtf8("the file is not open"));
         return nullptr;
@@ -254,6 +275,8 @@ uchar *QFileDevice::map(qint64 offset, qint64 size, MemoryMapFlags flags) {
     \sa map()
 */
 bool QFileDevice::unmap(uchar *address) {
+    if (m_resourceMaps.erase(address) > 0)
+        return true;
     const auto it = m_maps.find(address);
     if (it == m_maps.end()) {
         setFileError(PermissionsError, QString::fromUtf8("the address was not mapped by this file"));

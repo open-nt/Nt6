@@ -9,6 +9,7 @@
 #include "qpa/qwindowsysteminterface_p.h"
 
 #include <cstdio>
+#include <type_traits>
 
 static int g_failures = 0;
 #define CHECK(cond)                                                                                                    \
@@ -20,6 +21,9 @@ static int g_failures = 0;
     } while (0)
 
 namespace {
+
+// QTouchEvent::TouchPoint, Qt 5's name, is QEventPoint.
+static_assert(std::is_same_v<QTouchEvent::TouchPoint, QEventPoint>);
 
 QEventPoint point(int id, QEventPoint::State state, const QPointF &local) {
     return QEventPoint(id, state, local, local);

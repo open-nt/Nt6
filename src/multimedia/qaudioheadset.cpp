@@ -226,8 +226,8 @@ void QAudioHeadset::setMicrophoneImpedance(int ohms) {
     if (ohms > 0) {
         const bool dynamic = ohms < kDynamicImpedanceLimit;
         next.bias = dynamic ? BiasOff : BiasHigh;
-        next.gain =
-            std::clamp(dynamic ? kDynamicGain : kElectretGain, minimumMicrophoneGain(), maximumMicrophoneGain());
+        next.gain = double(
+            std::clamp(dynamic ? kDynamicGain : kElectretGain, minimumMicrophoneGain(), maximumMicrophoneGain()));
     }
     d->apply(next, std::max(ohms, 0));
 }

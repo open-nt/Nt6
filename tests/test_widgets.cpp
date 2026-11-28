@@ -2118,6 +2118,11 @@ static void testButtons() {
     CHECK(!button.isDown() && !button.isFlat() &&
           button.sizePolicy() == QSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed));
     CHECK(button.sizeHint().width() >= 80 && button.sizeHint().height() >= button.fontMetrics().height() + 8);
+    QPixmap red(16, 16);
+    red.fill(Qt::red);
+    QWidget other;
+    const QPushButton withIcon(QIcon(red), "Icon", &other);
+    CHECK(withIcon.text() == QString("Icon") && !withIcon.icon().isNull() && withIcon.parentWidget() == &other);
     const QSize before = button.sizeHint();
     button.setText("A button with a long text");
     CHECK(button.sizeHint().width() > before.width());

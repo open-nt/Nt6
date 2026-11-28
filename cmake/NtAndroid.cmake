@@ -7,7 +7,8 @@
 #   qt_finalize_target(<name>)
 #   nt_android_add_apk(<target> [PACKAGE <id>] [LABEL <text>] [VERSION_CODE <n>] [VERSION_NAME <text>]
 #                      [KEYSTORE <file>] [ACTIVITY <class>] [PERMISSIONS <name>...]
-#                      [JAVA_SOURCES <file>...] [MANIFEST_APPLICATION <file>] [ICON <png>])
+#                      [JAVA_SOURCES <file>...] [MANIFEST_APPLICATION <file>] [ICON <png>]
+#                      [EXTRA_LIBS <so>...] [ASSETS <dir>])
 #
 # ACTIVITY names the activity to launch instead of org.nt.NtActivity; it must extend org.nt.NtActivity, so the
 # window, input and keyboard still work. JAVA_SOURCES are compiled with NtActivity (against android.jar only: no
@@ -16,18 +17,26 @@
 # <application>, after the activity: services, receivers, providers and meta-data.
 #
 # On Android qt_add_executable() makes a shared library, which android.app.NativeActivity loads and which defines
-# main(), and an <name>.apk next to it (the target <name>_apk, part of "all"). The package is signed with the debug
+# main(), and an <name>.apk next to it (the target <name>_apk, part of "all"), at the end of the directory unless the
+# project calls nt_android_add_apk() or qt_finalize_target() for it before. The package is signed with the debug
 # key of the Android SDK (~/.android/debug.keystore, created when missing), so that `adb install` takes it. Elsewhere
 # it is add_executable(). The Android SDK is found from ANDROID_SDK_ROOT, ANDROID_HOME or the directory above the
-# NDK. ICON is a PNG for the launcher, best 512 pixels square; without it Android shows its default icon.
+# NDK. ICON is a PNG for the launcher, best 512 pixels square; without it Android shows its default icon. Except in
+# a Debug build, the application's library is stripped of its debugging information in the APK (not in the build).
+#
+# EXTRA_LIBS are prebuilt shared libraries that the application links to, put into the APK's lib/<abi>/ beside it,
+# as Qt's QT_ANDROID_EXTRA_LIBS target property does (which is read too), each under its SONAME, the name the loader
+# looks for. ASSETS is a directory whose files become the
+# APK's assets, stored uncompressed, which the application reads as "assets:/<path>" with QFile; without it the
+# assets/ directory of the target's QT_ANDROID_PACKAGE_SOURCE_DIR is taken, as Qt does.
 
 include(${CMAKE_CURRENT_LIST_DIR}/NtAndroidApk.cmake OPTIONAL)
 
 set(NT_ANDROID_TARGET_SDK "" CACHE STRING "targetSdkVersion of the applications; the newest platform of the SDK when empty")
 
 function(nt_android_add_apk target)
-    cmake_parse_arguments(ARG "" "PACKAGE;LABEL;VERSION_CODE;VERSION_NAME;KEYSTORE;ACTIVITY;MANIFEST_APPLICATION;ICON"
-        "PERMISSIONS;JAVA_SOURCES" ${ARGN})
+    cmake_parse_arguments(ARG "" "PACKAGE;LABEL;VERSION_CODE;VERSION_NAME;KEYSTORE;ACTIVITY;MANIFEST_APPLICATION;ICON;ASSETS"
+        "PERMISSIONS;JAVA_SOURCES;EXTRA_LIBS" ${ARGN})
     if(NOT ANDROID)
         message(FATAL_ERROR "nt_android_add_apk() needs the Android toolchain")
     endif()
@@ -102,12 +111,36 @@ function(nt_android_add_apk target)
         get_filename_component(_manifest_application "${ARG_MANIFEST_APPLICATION}" ABSOLUTE
             BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
     endif()
+    get_target_property(_qt_extra_libs ${target} QT_ANDROID_EXTRA_LIBS)
+    set(_extra_libs)
+    foreach(_library IN LISTS ARG_EXTRA_LIBS _qt_extra_libs)
+        if(_library)
+            get_filename_component(_library "${_library}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+            list(APPEND _extra_libs "${_library}")
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES _extra_libs)
+    set(_assets "")
+    if(ARG_ASSETS)
+        get_filename_component(_assets "${ARG_ASSETS}" ABSOLUTE BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+    else()
+        get_target_property(_package_source ${target} QT_ANDROID_PACKAGE_SOURCE_DIR)
+        if(_package_source AND IS_DIRECTORY "${_package_source}/assets")
+            set(_assets "${_package_source}/assets")
+        endif()
+    endif()
+    set(_asset_files)
+    if(_assets)
+        file(GLOB_RECURSE _asset_files "${_assets}/*")
+    endif()
     set(_app_config "${CMAKE_CURRENT_BINARY_DIR}/${target}_apk.cmake")
     file(GENERATE OUTPUT "${_app_config}" CONTENT
 "set(NT_APP_ACTIVITY [==[${ARG_ACTIVITY}]==])
 set(NT_APP_PERMISSIONS [==[${_permissions}]==])
 set(NT_APP_JAVA_SOURCES [==[${_java_sources}]==])
 set(NT_APP_MANIFEST_APPLICATION [==[${_manifest_application}]==])
+set(NT_APP_EXTRA_LIBS [==[${_extra_libs}]==])
+set(NT_APP_ASSETS [==[${_assets}]==])
 ")
     set(_icon "")
     if(ARG_ICON)
@@ -132,8 +165,10 @@ set(NT_APP_MANIFEST_APPLICATION [==[${_manifest_application}]==])
             "-DNT_ACTIVITY_SOURCE=${CMAKE_CURRENT_FUNCTION_LIST_DIR}/android/NtActivity.java"
             "-DNT_APP_CONFIG=${_app_config}"
             "-DNT_ICON=${_icon}"
+            "-DNT_STRIP=$<$<NOT:$<CONFIG:Debug>>:${CMAKE_STRIP}>"
+            "-DNT_READELF=${CMAKE_READELF}"
             -P "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/NtAndroidApk.cmake"
-        DEPENDS ${target} ${_java_sources} ${_manifest_application} ${_icon}
+        DEPENDS ${target} ${_java_sources} ${_manifest_application} ${_icon} ${_extra_libs} ${_asset_files}
         COMMENT "Packaging ${target}.apk"
         VERBATIM)
 endfunction()
@@ -165,8 +200,14 @@ if(NOT COMMAND qt_add_executable)
         if(COMMAND nt_enable_autorcc)
             nt_enable_autorcc(${target})
         endif()
+        # As Qt does, the APK is made at the end of the directory, so that it sees the target properties set after
+        # this call (QT_ANDROID_EXTRA_LIBS, QT_ANDROID_PACKAGE_SOURCE_DIR), unless the project made it itself.
         if(ANDROID AND NOT ARG_MANUAL_FINALIZATION)
-            nt_android_add_apk(${target})
+            if(CMAKE_VERSION VERSION_LESS 3.19)
+                nt_android_add_apk(${target})
+            else()
+                cmake_language(DEFER CALL qt_finalize_target ${target})
+            endif()
         endif()
     endfunction()
 endif()

@@ -526,6 +526,8 @@ private:
 
 class QTouchEvent : public QInputEvent {
 public:
+    using TouchPoint = QEventPoint;
+
     explicit QTouchEvent(Type eventType, Qt::KeyboardModifiers modifiers = Qt::NoModifier,
                          const QList<QEventPoint> &touchPoints = {});
     ~QTouchEvent() override;

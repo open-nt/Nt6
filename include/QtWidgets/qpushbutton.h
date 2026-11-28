@@ -15,6 +15,7 @@ class QPushButton : public QAbstractButton {
 public:
     explicit QPushButton(QWidget *parent = nullptr);
     explicit QPushButton(const QString &text, QWidget *parent = nullptr);
+    QPushButton(const QIcon &icon, const QString &text, QWidget *parent = nullptr);
     ~QPushButton() override;
 
     bool isFlat() const { return m_flat; }

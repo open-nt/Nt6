@@ -802,6 +802,12 @@ QEventPoint::QEventPoint(int pointId, State state, const QPointF &scenePosition,
 */
 
 /*!
+    \typedef QTouchEvent::TouchPoint
+
+    Another name of QEventPoint, which Qt 6 keeps for code written for Qt 5.
+*/
+
+/*!
     Constructs a touch event of \a eventType with \a modifiers and \a touchPoints.
 */
 QTouchEvent::QTouchEvent(Type eventType, Qt::KeyboardModifiers modifiers, const QList<QEventPoint> &touchPoints)

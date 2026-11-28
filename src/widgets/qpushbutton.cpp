@@ -66,6 +66,13 @@ QPushButton::QPushButton(const QString &text, QWidget *parent) : QAbstractButton
 }
 
 /*!
+    Constructs a button that shows \a icon and \a text, with the given \a parent.
+*/
+QPushButton::QPushButton(const QIcon &icon, const QString &text, QWidget *parent) : QPushButton(text, parent) {
+    setIcon(icon);
+}
+
+/*!
     Destroys the button.
 */
 QPushButton::~QPushButton() = default;

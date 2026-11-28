@@ -1146,7 +1146,8 @@ static void testMisc() {
         QDebug debug(&text);
         debug << p << QDomNode();
     }
-    CHECK_EQ(text, "QDomNode(<p><named/></p>)QDomNode(null)");
+    // Spaced as Qt spaces items: the state saver gives back the space that nospace() held back.
+    CHECK_EQ(text, "QDomNode(<p><named/></p>) QDomNode(null) ");
 }
 
 // The links of every node agree with those of its neighbours, and no node is its own ancestor.

@@ -13,6 +13,14 @@
 #ifdef NT_HAVE_ZSTD
 #include <zstd.h>
 #endif
+#ifdef Q_OS_ANDROID
+#include <QtCore/qcoreapplication_platform.h>
+#include <QtCore/qjnienvironment.h>
+#include <QtCore/qjniobject.h>
+
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
+#endif
 
 #include <algorithm>
 #include <cstring>
@@ -254,7 +262,82 @@ template <typename Match> bool removeTree(const std::vector<std::string> &root, 
 
 } // namespace
 
+#ifdef Q_OS_ANDROID
+namespace {
+
+// The asset manager of the package, from Context.getAssets(); the Java object is kept, so the pointer stays valid.
+// Asked again until the application's context exists.
+AAssetManager *assetManager() {
+    static std::mutex mutex;
+    static AAssetManager *manager = nullptr;
+    const std::lock_guard<std::mutex> lock(mutex);
+    if (manager)
+        return manager;
+    const QJniObject context(QNativeInterface::QAndroidApplication::context());
+    if (!context.isValid())
+        return nullptr;
+    const QJniObject assets = context.callObjectMethod("getAssets", "()Landroid/content/res/AssetManager;");
+    if (!assets.isValid())
+        return nullptr;
+    QJniEnvironment env;
+    manager = AAssetManager_fromJava(env.jniEnv(), env->NewGlobalRef(assets.object()));
+    return manager;
+}
+
+// Looks up "assets:/a/b". A file is opened in buffer mode, which maps it when it is stored uncompressed (the way
+// nt_android_add_apk() stores assets) and inflates it into memory otherwise.
+NtResource::Entry findAsset(const QString &path, bool withChildren) {
+    NtResource::Entry entry;
+    AAssetManager *manager = assetManager();
+    if (!manager)
+        return entry;
+    QString name = path.mid(int(std::strlen("assets:")));
+    while (name.startsWith(QChar(u'/')))
+        name.remove(0, 1);
+    while (name.endsWith(QChar(u'/')))
+        name.chop(1);
+    const QByteArray utf8 = name.toUtf8();
+    if (!utf8.isEmpty()) {
+        if (AAsset *asset = AAssetManager_open(manager, utf8.constData(), AASSET_MODE_BUFFER)) {
+            std::shared_ptr<AAsset> kept(asset, &AAsset_close);
+            const void *data = AAsset_getBuffer(asset);
+            if (!data)
+                return entry;
+            entry.exists = true;
+            entry.data = static_cast<const uchar *>(data);
+            entry.size = static_cast<qint64>(AAsset_getLength64(asset));
+            entry.uncompressedSize = entry.size;
+            entry.keepAlive = std::move(kept);
+            return entry;
+        }
+    }
+    // A directory: the root, or one that holds files (AAssetDir does not list directories).
+    AAssetDir *dir = AAssetManager_openDir(manager, utf8.constData());
+    if (!dir)
+        return entry;
+    QStringList files;
+    while (const char *file = AAssetDir_getNextFileName(dir))
+        files.append(QString::fromUtf8(file));
+    AAssetDir_close(dir);
+    if (files.isEmpty() && !utf8.isEmpty())
+        return entry;
+    entry.exists = true;
+    entry.dir = true;
+    if (withChildren) {
+        files.sort();
+        entry.children = files;
+    }
+    return entry;
+}
+
+} // namespace
+#endif
+
 NtResource::Entry NtResource::find(const QString &path, const QLocale &locale, bool withChildren) {
+#ifdef Q_OS_ANDROID
+    if (isAssetPath(path))
+        return findAsset(path, withChildren);
+#endif
     Entry entry;
     const std::vector<std::string> parts = components(path);
     const std::string name = locale.name().toUtf8().toStdString();

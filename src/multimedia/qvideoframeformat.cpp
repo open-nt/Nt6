@@ -366,9 +366,10 @@ QString QVideoFrameFormat::pixelFormatToString(PixelFormat pixelFormat) {
                                         "Jpeg",
                                         "SamplerRect",
                                         "YUV420P10"};
-    if (pixelFormat < 0 || pixelFormat >= NPixelFormats)
+    const int index = int(pixelFormat);
+    if (index < 0 || index >= int(NPixelFormats))
         return QString();
-    return QString::fromLatin1(names[pixelFormat]);
+    return QString::fromLatin1(names[index]);
 }
 
 /*!

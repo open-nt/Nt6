@@ -4800,6 +4800,23 @@ void testDialogHeadlineForms() {
         }
     }
     box.hide();
+
+    // An About box: a title, a picture of its own set after it, rich text and no buttons (so OK is added as it is
+    // shown, which once left the text laid out over the headline). The text starts under the headline.
+    QMessageBox about;
+    about.setWindowTitle(QStringLiteral("About the sensor"));
+    QPixmap logo(256, 256);
+    logo.fill(Qt::darkGreen);
+    about.setIconPixmap(logo.scaled(72, 72));
+    about.setText(QStringLiteral("<b>Sensor</b> 1.0<br>Reports what the camera sees.<br><br>&copy; 2026"));
+    about.show();
+    QCoreApplication::processEvents();
+    for (const QLabel *label : about.findChildren<QLabel *>()) {
+        if (label->text().startsWith(QStringLiteral("<b>Sensor"))) {
+            CHECK(label->mapTo(&about, QPoint(0, 0)).y() >= 24 + 24 + 16 + line + 16);
+        }
+    }
+    about.hide();
     platform->dialogTitles = true;
 }
 

@@ -4,6 +4,9 @@
 // table of factories that libraries fill with registerSource(), so that a statically linked
 // application gets its sources without a plugin directory.
 #include "qgeopositioninfosource.h"
+#ifdef Q_OS_ANDROID
+#include "qgeopositioninfosource_android_p.h"
+#endif
 
 #include <QtCore/qmap.h>
 #include <QtCore/qmutex.h>
@@ -22,8 +25,17 @@ QMutex &registryMutex() {
     return mutex;
 }
 
+// The platform's own sources are there from the start, so that a statically linked application finds them.
+QMap<QString, Registered> platformSources() {
+    QMap<QString, Registered> map;
+#ifdef Q_OS_ANDROID
+    map.insert(QStringLiteral("android"), Registered{&QtPositioningPrivate::createAndroidSource, 0});
+#endif
+    return map;
+}
+
 QMap<QString, Registered> &registry() {
-    static QMap<QString, Registered> map;
+    static QMap<QString, Registered> map = platformSources();
     return map;
 }
 
@@ -50,8 +62,11 @@ QMap<QString, Registered> &registry() {
 
     \differences
     Sources are not found through plugins. A library registers a factory with registerSource(),
-    which is Nt-only; Nt itself registers none, so createDefaultSource() returns \c nullptr unless
-    a library such as Nt Twin has registered one. updateInterval is not a bindable property.
+    which is Nt-only. On Android Nt has the source \c android, which uses the GPS and network
+    providers of the \c LocationManager and needs the location permission (see
+    QLocationPermission) and an application packaged with \c org.nt.NtActivity; elsewhere Nt
+    registers none, so createDefaultSource() returns \c nullptr unless a library such as Nt Twin
+    has registered one. updateInterval is not a bindable property.
     \enddifferences
 
     \sa QNmeaPositionInfoSource, QGeoPositionInfo

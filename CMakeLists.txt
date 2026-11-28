@@ -1453,6 +1453,9 @@ target_include_directories(NtPositioning
         ${CMAKE_CURRENT_SOURCE_DIR}/src/positioning
 )
 target_link_libraries(NtPositioning PUBLIC NtCore)
+if(NT_ANDROID)
+    target_sources(NtPositioning PRIVATE src/positioning/qgeopositioninfosource_android.cpp)
+endif()
 nt_set_compile_options(NtPositioning)
 
 # Nt Protobuf: a subset of Qt Protobuf. The message classes are generated from .proto files by ntprotobufgen (with
@@ -1532,9 +1535,9 @@ target_include_directories(NtTwinNetwork
 target_link_libraries(NtTwinNetwork PUBLIC NtTwin NtComms)
 nt_set_compile_options(NtTwinNetwork)
 
-if(NOT NT_ANDROID)
 # Nt Multimedia: the audio and camera parts of Qt Multimedia. Linux uses ALSA, loaded at run time, so the
-# library builds without its headers, and Video4Linux2 for cameras; other platforms have no devices yet.
+# library builds without its headers, and Video4Linux2 for cameras; Android has cameras through the NDK's Camera2
+# API and no audio devices yet; other platforms have no devices yet.
 add_library(NtMultimedia
     ${NT_MULTIMEDIA_AUDIO_SOURCES}
     src/multimedia/qcamera.cpp
@@ -1559,10 +1562,16 @@ target_include_directories(NtMultimedia
         ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
 target_link_libraries(NtMultimedia PUBLIC NtCore NtGui)
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT NT_ANDROID)
     target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_alsa.cpp src/multimedia/qvideobackend_v4l2.cpp)
 else()
-    target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_null.cpp src/multimedia/qvideobackend_null.cpp)
+    target_sources(NtMultimedia PRIVATE src/multimedia/qaudiobackend_null.cpp)
+    if(NT_ANDROID)
+        target_sources(NtMultimedia PRIVATE src/multimedia/qvideobackend_android.cpp)
+        target_link_libraries(NtMultimedia PRIVATE camera2ndk mediandk android)
+    else()
+        target_sources(NtMultimedia PRIVATE src/multimedia/qvideobackend_null.cpp)
+    endif()
 endif()
 nt_set_compile_options(NtMultimedia)
 
@@ -1580,7 +1589,6 @@ target_include_directories(NtMultimediaWidgets
 )
 target_link_libraries(NtMultimediaWidgets PUBLIC NtMultimedia NtWidgets)
 nt_set_compile_options(NtMultimediaWidgets)
-endif() # NOT NT_ANDROID
 
 add_library(NtConcurrent
     src/concurrent/qtconcurrentthreadengine.cpp
@@ -1708,10 +1716,8 @@ nt_moc_library(NtPositioning include/QtPositioning)
 nt_moc_library(NtTwin include/QtTwin)
 nt_moc_library(NtComms include/QtComms)
 nt_moc_library(NtTwinNetwork include/QtTwinNetwork)
-if(NOT NT_ANDROID)
 nt_moc_library(NtMultimedia include/QtMultimedia)
 nt_moc_library(NtMultimediaWidgets include/QtMultimediaWidgets)
-endif()
 nt_moc_library(NtOpenGL include/QtOpenGL)
 nt_moc_library(NtOpenGLWidgets include/QtOpenGLWidgets)
 if(NT_HAVE_WAYLAND)

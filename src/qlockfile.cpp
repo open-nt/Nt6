@@ -127,8 +127,10 @@ struct QLockFile::Private {
         if (::link(tmp.constData(), encoded.constData()) != 0) {
             const int linkError = errno;
             result = errorFor(linkError);
-            if (linkError != EEXIST && linkError != EACCES && linkError != EROFS && linkError != ENOENT) {
-                // No hard links on this file system: create the lock file in place.
+            // EACCES although the temporary file could be made beside it is a policy, not the directory: Android's
+            // SELinux denies apps link(). Like a file system without hard links, the lock file is then made in place.
+            if (linkError != EEXIST && linkError != EROFS && linkError != ENOENT) {
+                // No hard links on this file system, or none allowed: create the lock file in place.
                 int lockFd = ::open(encoded.constData(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0666);
                 if (lockFd < 0) {
                     result = errorFor(errno);
@@ -255,7 +257,8 @@ struct QLockFile::Private {
     The file is created atomically: it is written under a temporary name in
     the same directory and then hard linked to the lock file name, so that
     other processes never see a partial file. If the file system does not
-    support hard links, the lock file is created directly.
+    support hard links, or they are not allowed (Android does not let
+    applications make them), the lock file is created directly.
 
     \differences
     Calling lock() or tryLock() on a lock that this object already holds

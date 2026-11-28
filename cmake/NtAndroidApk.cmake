@@ -3,7 +3,8 @@
 # Script mode: cmake -DNT_APK=... -DNT_LIBRARY=... -P NtAndroidApk.cmake
 # Makes the signed APK of an application: its native library, loaded by org.nt.NtActivity (or a plain
 # NativeActivity without a JDK), and any Java sources, permissions and <application> entries the application adds
-# (NT_APP_CONFIG, written by nt_android_add_apk()), with its launcher icon if it has one (NT_ICON). Run by the <target>_apk target of nt_android_add_apk().
+# (NT_APP_CONFIG, written by nt_android_add_apk()), with its launcher icon if it has one (NT_ICON), its prebuilt
+# libraries and its assets. Run by the <target>_apk target of nt_android_add_apk().
 #
 # Included normally (by NtAndroid.cmake) it does nothing.
 
@@ -22,6 +23,8 @@ set(NT_APP_ACTIVITY "")
 set(NT_APP_PERMISSIONS "")
 set(NT_APP_JAVA_SOURCES "")
 set(NT_APP_MANIFEST_APPLICATION "")
+set(NT_APP_EXTRA_LIBS "")
+set(NT_APP_ASSETS "")
 if(DEFINED NT_APP_CONFIG AND EXISTS "${NT_APP_CONFIG}")
     include("${NT_APP_CONFIG}")
 endif()
@@ -131,13 +134,40 @@ ${_nt_application_xml}    </application>
 </manifest>
 ")
 file(COPY "${NT_LIBRARY}" DESTINATION "${NT_WORK}/lib/${NT_ABI}")
+# Outside a Debug build the library goes in without its debugging information, which can be most of its size.
+if(NT_STRIP)
+    get_filename_component(_nt_library_copy "${NT_LIBRARY}" NAME)
+    _nt_run("${NT_STRIP}" --strip-unneeded "${NT_WORK}/lib/${NT_ABI}/${_nt_library_copy}")
+endif()
 
 set(_aapt2 "${NT_BUILD_TOOLS}/aapt2")
 set(_aapt "${NT_BUILD_TOOLS}/aapt")
+# Assets are stored uncompressed, so that QFile maps them rather than inflating them into memory.
+set(_nt_asset_options)
+if(NT_APP_ASSETS)
+    set(_nt_asset_options -A "${NT_APP_ASSETS}" --no-compress)
+endif()
 _nt_run("${_aapt2}" link -o "${NT_WORK}/base.apk" -I "${NT_ANDROID_JAR}" --manifest "${NT_WORK}/AndroidManifest.xml"
-    --min-sdk-version ${NT_MIN_SDK} --target-sdk-version ${NT_TARGET_SDK} ${_nt_resources})
+    --min-sdk-version ${NT_MIN_SDK} --target-sdk-version ${NT_TARGET_SDK} ${_nt_asset_options} ${_nt_resources})
 get_filename_component(_library_file "${NT_LIBRARY}" NAME)
-execute_process(COMMAND "${_aapt}" add base.apk "lib/${NT_ABI}/${_library_file}"
+set(_nt_library_entries "lib/${NT_ABI}/${_library_file}")
+foreach(_extra IN LISTS NT_APP_EXTRA_LIBS)
+    if(NOT EXISTS "${_extra}")
+        message(FATAL_ERROR "${NT_APK}: the extra library ${_extra} does not exist")
+    endif()
+    # The library goes in under its SONAME, which is what the application's library names as needed: a prebuilt
+    # libtensorflowlite_c.so, for one, calls itself libtensorflowlite_jni.so.
+    get_filename_component(_extra_file "${_extra}" NAME)
+    if(NT_READELF)
+        execute_process(COMMAND "${NT_READELF}" -d "${_extra}" OUTPUT_VARIABLE _nt_dynamic ERROR_QUIET)
+        if(_nt_dynamic MATCHES "\\(SONAME\\)[^[]*\\[([^]]+)\\]")
+            set(_extra_file "${CMAKE_MATCH_1}")
+        endif()
+    endif()
+    configure_file("${_extra}" "${NT_WORK}/lib/${NT_ABI}/${_extra_file}" COPYONLY)
+    list(APPEND _nt_library_entries "lib/${NT_ABI}/${_extra_file}")
+endforeach()
+execute_process(COMMAND "${_aapt}" add base.apk ${_nt_library_entries}
     WORKING_DIRECTORY "${NT_WORK}" RESULT_VARIABLE _result OUTPUT_VARIABLE _out ERROR_VARIABLE _out)
 if(NOT _result EQUAL 0)
     message(FATAL_ERROR "aapt add failed:\n${_out}")

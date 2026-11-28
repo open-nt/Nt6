@@ -465,7 +465,8 @@ static void testDebugTargets() {
         d << "c";
         CHECK(d.autoInsertSpaces());
     }
-    CHECK(out == "abc \"\"" || out == "ab\"c\" " || out == "abc ");
+    // As in Qt, going back to spacing writes the space that nospace() held back.
+    CHECK(out == "ab c ");
 }
 
 static void testFatalAndEnvironment(const char *self) {

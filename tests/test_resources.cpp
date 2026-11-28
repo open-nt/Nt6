@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include <cstdio>
+#include <cstring>
 #include <cstdlib>
 #include <memory>
 
@@ -85,6 +86,20 @@ static void testFile() {
     CHECK(missing.error() == QFileDevice::OpenError);
     QFile dir(":/icons");
     CHECK(!dir.open(QIODevice::ReadOnly));
+
+    // Mapping a resource points at its data, which stays valid after close(), read-only.
+    QFile mapped(":/renamed.txt");
+    CHECK(mapped.map(0, 5) == nullptr); // not open
+    CHECK(mapped.open(QIODevice::ReadOnly));
+    uchar *whole = mapped.map(0, 19);
+    uchar *tail = mapped.map(6, 6);
+    CHECK(whole && std::memcmp(whole, "first\n", 6) == 0);
+    CHECK(tail && std::memcmp(tail, "second", 6) == 0);
+    CHECK(mapped.map(10, 10) == nullptr);
+    CHECK(mapped.map(0, 4, QFileDevice::MapPrivateOption) == nullptr);
+    mapped.close();
+    CHECK(std::memcmp(tail, "second", 6) == 0);
+    CHECK(mapped.unmap(whole) && mapped.unmap(tail) && !mapped.unmap(tail));
 
     CHECK(!QFile::remove(":/hello.txt"));
     CHECK(!QFile::rename(":/hello.txt", g_tmp + "/renamed"));

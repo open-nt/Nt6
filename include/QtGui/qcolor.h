@@ -124,3 +124,6 @@ private:
     unsigned char m_a = 255;
     bool m_valid = false;
 };
+
+class QDebug;
+QDebug operator<<(QDebug debug, const QColor &color);

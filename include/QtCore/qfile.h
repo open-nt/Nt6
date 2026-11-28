@@ -196,6 +196,7 @@ private:
     bool m_closeHandle = true;                                // close() closes m_fd (or m_stdio)
     std::FILE *m_stdio = nullptr;                             // the stream given to QFile::open(FILE *)
     std::map<uchar *, std::pair<void *, std::size_t>> m_maps; // address returned by map() -> mmap() region
+    std::map<uchar *, std::shared_ptr<const void>> m_resourceMaps; // address in a mapped resource -> its data
 };
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QFileDevice::FileHandleFlags)

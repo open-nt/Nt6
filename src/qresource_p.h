@@ -65,11 +65,23 @@ struct Entry {
     std::shared_ptr<const void> keepAlive;
 };
 
-// Returns true if path names a resource, which is when it starts with ':'.
-inline bool isResourcePath(const QString &path) { return path.startsWith(QChar(u':')); }
+// Returns true if path names an asset of the Android package ("assets:/models/a.bin"), which is read
+// like a resource that is not compressed. Always false elsewhere.
+inline bool isAssetPath(const QString &path) {
+#ifdef Q_OS_ANDROID
+    return path.startsWith(QLatin1String("assets:"));
+#else
+    Q_UNUSED(path);
+    return false;
+#endif
+}
+
+// Returns true if path names a resource, which is when it starts with ':', or an Android asset.
+inline bool isResourcePath(const QString &path) { return path.startsWith(QChar(u':')) || isAssetPath(path); }
 
 // Looks up the resource path (":/a/b", ":a/b" or "/a/b"), choosing the file variant that best fits
-// locale. The children of a directory are listed only if withChildren is set.
+// locale, or the Android asset path ("assets:/a/b"). The children of a directory are listed only if
+// withChildren is set; those of an asset directory are its files only, as AAssetDir lists them.
 Entry find(const QString &path, const QLocale &locale = QLocale(), bool withChildren = false);
 
 // Returns true if this build can decompress data compressed with c.

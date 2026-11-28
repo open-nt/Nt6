@@ -7,7 +7,11 @@ package org.nt;
 
 import android.app.NativeActivity;
 import android.content.Context;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.KeyEvent;
 import android.view.View;
@@ -29,6 +33,11 @@ public class NtActivity extends NativeActivity {
 
     // The answer to requestNtPermissions(); registered by Nt Core the first time the application asks for a permission.
     private static native void nativePermissionResult(int requestCode, String[] permissions, int[] grantResults);
+
+    // A position from LocationManager for the Nt Positioning source with the given id; registered by Nt Positioning
+    // when a source starts. Optional values are NaN when the fix lacks them.
+    private static native void nativeLocation(long source, double latitude, double longitude, double altitude,
+            float accuracy, float verticalAccuracy, float bearing, float speed, long time, boolean satellite);
 
     private InputView inputView;
 
@@ -64,6 +73,94 @@ public class NtActivity extends NativeActivity {
             nativePermissionResult(requestCode, permissions, grantResults);
         } catch (UnsatisfiedLinkError e) {
             // A request the application made itself, before Nt Core asked for anything: not Nt's to answer.
+        }
+    }
+
+    // Starts location updates from the GPS and network providers for the Nt Positioning source with the given id, at
+    // most every intervalMs, on the main looper; called from the application thread through JNI. Returns the listener
+    // to give to stopNtLocation(), or null when no provider asked for is enabled or the permission is missing.
+    public Object startNtLocation(final long source, long intervalMs, boolean satellite, boolean network) {
+        LocationManager manager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (manager == null)
+            return null;
+        LocationListener listener = new LocationListener() {
+            @Override
+            public void onLocationChanged(Location l) {
+                deliverNtLocation(source, l);
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
+
+            @Override
+            public void onProviderEnabled(String provider) {
+            }
+
+            @Override
+            public void onProviderDisabled(String provider) {
+            }
+        };
+        boolean started = false;
+        try {
+            if (satellite && manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, intervalMs, 0.0f, listener,
+                        Looper.getMainLooper());
+                started = true;
+            }
+            if (network && manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)) {
+                manager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, intervalMs, 0.0f, listener,
+                        Looper.getMainLooper());
+                started = true;
+            }
+        } catch (SecurityException e) {
+            manager.removeUpdates(listener);
+            return null;
+        }
+        return started ? listener : null;
+    }
+
+    // Stops the updates of a listener that startNtLocation() returned.
+    public void stopNtLocation(Object listener) {
+        LocationManager manager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (manager != null && listener instanceof LocationListener)
+            manager.removeUpdates((LocationListener) listener);
+    }
+
+    // Hands the newest fix that a provider kept to the source, as if it had just come; false when there is none.
+    public boolean lastNtLocation(long source, boolean satelliteOnly) {
+        LocationManager manager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        if (manager == null)
+            return false;
+        Location best = null;
+        try {
+            for (String provider : manager.getProviders(true)) {
+                if (satelliteOnly && !LocationManager.GPS_PROVIDER.equals(provider))
+                    continue;
+                Location l = manager.getLastKnownLocation(provider);
+                if (l != null && (best == null || l.getTime() > best.getTime()))
+                    best = l;
+            }
+        } catch (SecurityException e) {
+            return false;
+        }
+        if (best == null)
+            return false;
+        deliverNtLocation(source, best);
+        return true;
+    }
+
+    private static void deliverNtLocation(long source, Location l) {
+        float verticalAccuracy = Float.NaN;
+        if (android.os.Build.VERSION.SDK_INT >= 26 && l.hasVerticalAccuracy())
+            verticalAccuracy = l.getVerticalAccuracyMeters();
+        try {
+            nativeLocation(source, l.getLatitude(), l.getLongitude(), l.hasAltitude() ? l.getAltitude() : Double.NaN,
+                    l.hasAccuracy() ? l.getAccuracy() : Float.NaN, verticalAccuracy,
+                    l.hasBearing() ? l.getBearing() : Float.NaN, l.hasSpeed() ? l.getSpeed() : Float.NaN, l.getTime(),
+                    LocationManager.GPS_PROVIDER.equals(l.getProvider()));
+        } catch (UnsatisfiedLinkError e) {
+            // Nt Positioning is not in the application.
         }
     }
 

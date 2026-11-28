@@ -22,9 +22,12 @@
 
     Nt Core, Network, Sql, D-Bus, Xml, Concurrent, Test, Qml, FM, Gpio, Sensors, SerialBus, Protobuf, Mqtt, Device,
     WebSockets, HttpServer, Positioning, Twin, Comms and Twin Network, and Nt GUI with Widgets, Svg, Svg Widgets,
-    Charts, OpenGL and OpenGL Widgets. Several of these have only been compiled for Android, not run on it; Android
-    has no D-Bus for Nt D-Bus to talk to. Left out are Serial Port, Gamepad, Gltf and Barcode (they depend on Linux
-    devices or have not been tried), Multimedia and the Wayland compositor.
+    Charts, OpenGL, OpenGL Widgets, Multimedia and Multimedia Widgets. Several of these have only been compiled for
+    Android, not run on it; Android has no D-Bus for Nt D-Bus to talk to. Left out are Serial Port, Gamepad, Gltf and
+    Barcode (they depend on Linux devices or have not been tried) and the Wayland compositor.
+
+    Nt Multimedia has the cameras (see \l{Cameras and position}) and no audio devices yet. Nt Positioning has the
+    position source of the system, \c android.
 
     \section1 Building Nt for Android
 
@@ -99,6 +102,47 @@
     application asks with QCoreApplication::requestPermission() (QLocationPermission, QCameraPermission and the
     other permission classes), which shows the system's prompt.
 
+    \section1 Prebuilt libraries and assets
+
+    \c EXTRA_LIBS names prebuilt shared libraries that the application links to, which go into the APK beside its
+    own library, as Qt's \c QT_ANDROID_EXTRA_LIBS target property does (it is read too). \c ASSETS names a
+    directory whose files become the APK's assets; without it the \c assets directory of the target's
+    \c QT_ANDROID_PACKAGE_SOURCE_DIR is taken, as in Qt:
+
+    \code
+    nt_android_add_apk(app
+        EXTRA_LIBS ${TFLITE_ROOT}/lib/arm64-v8a/libtensorflowlite_c.so
+        ASSETS ${CMAKE_CURRENT_BINARY_DIR}/assets)
+    \endcode
+
+    The application reads an asset with QFile as \c{assets:/<path>}; QFileInfo and QDir see it too (a directory
+    lists its files, not its subdirectories). Assets are stored uncompressed, so QFile::map() gives the address of
+    the asset inside the APK and a large file, such as a neural network model, costs no memory of its own.
+
+    When \c qt_add_executable() makes the APK by itself (without \c MANUAL_FINALIZATION), it does so at the end of
+    the directory, so it sees properties set after the call.
+
+    \section1 Cameras and position
+
+    QMediaDevices::videoInputs() lists the cameras of the NDK's Camera2 API (\c ACameraManager), the back
+    camera first. A QCamera in a QMediaCaptureSession with a QVideoSink delivers NV12 (or NV21 or YUV420P) frames,
+    which carry the rotation that shows them upright as the display was turned when the camera started
+    (QVideoFrame::rotation()), and are mirrored for a front camera; QVideoFrame::toImage() applies both. The
+    formats are the YUV sizes of the camera, with the highest frame rate each allows. The application needs the
+    camera permission first:
+
+    \code
+    QCameraPermission camera;
+    qApp->requestPermission(camera, this, [this](const QPermission &p) {
+        if (p.status() == Qt::PermissionStatus::Granted)
+            m_camera->start();
+    });
+    \endcode
+
+    QGeoPositionInfoSource::createDefaultSource() makes the \c android source, which takes fixes from the GPS and
+    network providers of the \c LocationManager, as preferredPositioningMethods() asks, after QLocationPermission
+    has been granted. It needs \c org.nt.NtActivity (a JDK when the APK is made).
+
     \section1 Launcher icon
 
     \c ICON names a PNG, best 512 pixels square, that becomes the application's launcher icon:
@@ -139,7 +183,7 @@
     \li The Java part is one class, \c org.nt.NtActivity, a NativeActivity with a view for the keyboard to type into. It is
         compiled with \c javac and \c d8 when the APK is made; without a JDK the application is a plain NativeActivity
         and has no on-screen keyboard, and QCoreApplication::requestPermission() answers
-        \c Qt::PermissionStatus::Denied, as it cannot ask. There are no assets: \c{assets:} paths do not exist, and resources are the compiled-in kind. An
+        \c Qt::PermissionStatus::Denied, as it cannot ask. An
         application's own Java is compiled with \c javac against \c android.jar alone: there is no Gradle, so
         AndroidX and other libraries cannot be used (see \l{Java sources, permissions and services}).
     \li Dialogs have no title bar. The Material style shows a dialog's window title inside it; the other styles do not show

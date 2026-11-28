@@ -187,6 +187,13 @@ QDebugStateSaver::QDebugStateSaver(QDebug &dbg)
     Restores the formatting state of the stream.
 */
 QDebugStateSaver::~QDebugStateSaver() {
+    // As in Qt: a stream that goes back to spacing after nospace() gets the space it held back, and one that stops
+    // spacing loses the space it had just written.
+    const bool spacing = m_debug.s->space;
+    if (spacing && !m_space && !m_debug.s->buf.empty() && m_debug.s->buf.back() == ' ')
+        m_debug.s->buf.pop_back();
+    if (!spacing && m_space)
+        m_debug.s->buf.push_back(' ');
     m_debug.s->space = m_space;
     m_debug.s->quote = m_quote;
     m_debug.s->verbosity = m_verbosity;

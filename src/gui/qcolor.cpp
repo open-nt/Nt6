@@ -1,6 +1,7 @@
 // MIT License - see LICENSE
 #include <QtGui/qcolor.h>
 
+#include <QtCore/qdebug.h>
 #include <QtCore/qvariant.h>
 
 #include <algorithm>
@@ -745,3 +746,14 @@ QColor QColor::darker(int factor) const {
     \c{item->setData(Qt::UserRole, value)}.
 */
 QColor::operator QVariant() const { return QVariant::fromValue(*this); }
+
+// Writes `color` to `debug` as Qt does: "QColor(ARGB 1, 1, 0.5, 0)", or "QColor(Invalid)". Without it a QColor would
+// be streamed through QVariant, which streams it through its meta type again, without end.
+QDebug operator<<(QDebug debug, const QColor &color) {
+    const QDebugStateSaver saver(debug);
+    debug.nospace();
+    if (!color.isValid())
+        return debug << "QColor(Invalid)";
+    return debug << "QColor(ARGB " << color.alphaF() << ", " << color.redF() << ", " << color.greenF() << ", "
+                 << color.blueF() << ")";
+}

@@ -61,6 +61,11 @@ static void testColor() {
     CHECK(!invalid.isValid());
     CHECK(invalid.name().isEmpty());
 
+    // Streamed as Qt does (it once recursed through QVariant until the stack ran out).
+    QString text;
+    QDebug(&text) << QColor(255, 0, 0) << invalid << QVariant(QColor(0, 0, 255));
+    CHECK(text == QString("QColor(ARGB 1, 1, 0, 0) QColor(Invalid) QVariant(QColor, QColor(ARGB 1, 0, 0, 1)) "));
+
     QColor c(255, 128, 0);
     CHECK(c.isValid() && c.red() == 255 && c.green() == 128 && c.blue() == 0 && c.alpha() == 255);
     CHECK(c.name() == QString("#ff8000"));

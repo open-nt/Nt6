@@ -146,7 +146,9 @@ void QCameraPrivate::deliver() {
     \c supportedFeatures(). Frames are delivered on the camera's thread as fast as its event loop
     takes them; when it falls behind, older frames are dropped. On Linux the camera is opened with
     Video4Linux2 and streams YUYV, UYVY, NV12, NV21, YUV420, YVU420, YUV422P, MJPEG, grey and 32-bit
-    RGB formats.
+    RGB formats. On Android it is opened with the NDK's Camera2 API, which streams NV12, NV21 or
+    YUV420P frames with continuous autofocus; only the newest frame is copied when the application
+    falls behind.
     \enddifferences
 
     \sa QMediaCaptureSession, QVideoSink, QImageCapture, QCameraDevice

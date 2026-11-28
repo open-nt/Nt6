@@ -715,8 +715,13 @@ void QMessageBox::closeEvent(QCloseEvent *event) {
 */
 void QMessageBox::showEvent(QShowEvent *event) {
     // A message box without buttons gets an OK button, as in Qt.
-    if (buttons().isEmpty())
+    if (buttons().isEmpty()) {
         addButton(Ok);
+        // The layout was set up for showing before the button came; it is laid out again inside the margins (which
+        // the Material style's headline has made taller by now), or the text would start under the headline.
+        if (layout())
+            layout()->activate();
+    }
     QDialog::showEvent(event);
 }
 

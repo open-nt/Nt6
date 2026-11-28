@@ -8794,7 +8794,7 @@ void testFullScreenSearchView() {
         return;
     // It covers the window: a header of 72 with the arrow back at the start and the field from 56, a divider under it.
     CHECK(view->geometry() == window.rect());
-    CHECK(field->geometry() == QRect(56, 8, 300, 56));
+    CHECK(field->geometry() == QRect(56, 8, 292, 56));
     CHECK(field->placeholderText() == QStringLiteral("Search fruit") && field->isClearButtonEnabled());
     // With no text it offers every row (see testSearchViewRecentAndClosing()); Escape closes them first.
     CHECK(completer.popup()->isVisible());

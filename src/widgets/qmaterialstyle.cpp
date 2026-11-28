@@ -333,11 +333,13 @@ constexpr int menuSectionIconSpace = 8;
 constexpr double searchViewCorner = 28; // the docked search view under a search bar (corner extra large)
 constexpr int searchViewRowHeight = 56;
 // The full-screen search view, which a search bar opens on a compact window: a header of 72 with an arrow back (24, in
-// a target of 48 that is 4 from the edge), the field from 56 to 4 from the far edge, and a divider under it.
+// a target of 48 that is 4 from the edge), the field from 56 to 12 from the far edge, and a divider under it.
 constexpr int searchHeaderHeight = 72;
 constexpr int searchBackTarget = 48;
 constexpr int searchBackInset = 4;
+constexpr int cardTextInset = 16; // the text of a card that is a button, from its start and end
 constexpr int searchHeaderFieldLeft = 56;
+constexpr int searchHeaderFieldRight = 12; // room after the header's field, so its trailing icons and avatar keep off the edge
 constexpr int searchHeaderFieldHeight = 56;
 const char *const searchViewName = "_nt_searchView";   // the view, a child of the window, over everything in it
 const char *const searchFieldName = "_nt_searchField"; // the line edit of its header
@@ -2182,7 +2184,7 @@ void QMaterialStyle::layOutEditorField(QAbstractScrollArea *editor) {
     \li \c materialCard of a QPushButton makes it a card that can be clicked, as a QFrame cannot be: drawn as the
         card of that kind is, with a layer of the color of its content under the pointer and while it is pressed, the
         ripple of a button, and a shadow that falls further on hover for an elevated card. Its text, if it has one,
-        is in the middle; more often its layout holds the contents, and it asks for the size of that layout. The
+        starts 16 in from its start and wraps; more often its layout holds the contents, and it asks for the size of that layout. The
         program builds unchanged with Qt, where it is a push button.
     \li \c materialTextField \c "search" makes a QLineEdit a search bar: a pill, 56 high, with a magnifier before the
         text. The placeholder text says what is searched, and with \l{QLineEdit::setClearButtonEnabled()}{a clear
@@ -2720,8 +2722,12 @@ QPixmap QMaterialStyle::standardPixmap(StandardPixmap standardPixmap, const QSty
                                        const QWidget *widget) const {
     if (standardPixmap != SP_ToolBarHorizontalExtensionButton && standardPixmap != SP_ToolBarVerticalExtensionButton)
         return QCommonStyle::standardPixmap(standardPixmap, option, widget);
-    QImage image(24, 24, QImage::Format_ARGB32_Premultiplied); // the size of a symbol
+    // The size of a symbol, in the pixels of the screen, so that it is as sharp and as large as the symbols beside it.
+    const qreal ratio = std::max<qreal>(1.0, widget ? widget->devicePixelRatioF() : 1.0);
+    const int pixels = static_cast<int>(std::ceil(24 * ratio));
+    QImage image(pixels, pixels, QImage::Format_ARGB32_Premultiplied);
     image.fill(Qt::transparent);
+    image.setDevicePixelRatio(static_cast<qreal>(pixels) / 24);
     QPainter painter(&image);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setPen(Qt::NoPen);
@@ -3354,7 +3360,7 @@ protected:
         QWidget::resizeEvent(event);
         const int header = headerHeight();
         m_field->setGeometry(searchHeaderFieldLeft, (header - searchHeaderFieldHeight) / 2,
-                             std::max(0, width() - searchHeaderFieldLeft - searchBackInset), searchHeaderFieldHeight);
+                             std::max(0, width() - searchHeaderFieldLeft - searchHeaderFieldRight), searchHeaderFieldHeight);
     }
 
     void mousePressEvent(QMouseEvent *event) override {
@@ -5086,6 +5092,13 @@ void QMaterialStyle::drawButtonLabel(const QStyleOption *option, QPainter *paint
         const QRect middle(button->rect.left() + (button->rect.width() - extent) / 2,
                            button->rect.top() + (button->rect.height() - extent) / 2, extent, extent);
         paintIcon(painter, middle, button->icon, iconMode, iconState, ink);
+        return;
+    }
+    // A card's text is its content, which starts 16 in from its start, as a card's layout would put it.
+    if (!buttonCardKind(widget).isEmpty() && button->icon.isNull()) {
+        const QRect content = button->rect.adjusted(cardTextInset, 0, -cardTextInset, 0);
+        painter->drawText(content, static_cast<int>(Qt::AlignLeft | Qt::AlignVCenter) | Qt::TextWordWrap,
+                          button->text);
         return;
     }
     if (button->icon.isNull()) {

@@ -802,6 +802,14 @@ QJniObject QJniObject::getStaticObjectField(const char *className, const char *f
 }
 
 /*!
+    \fn template <typename T> QJniObject QJniObject::getStaticObjectField(const char *className, const char *fieldName)
+    \overload
+
+    Returns the object in the static field \a fieldName of \a className, with the signature of \c T, which is
+    \c jstring, \c jobject or \c jclass.
+*/
+
+/*!
     \fn template <typename T> void QJniObject::setStaticField(const char *className, const char *fieldName, const T &value)
 
     Sets the static field \a fieldName of \a className to \a value.

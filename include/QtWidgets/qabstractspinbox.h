@@ -116,6 +116,8 @@ private:
     virtual void takeText(const QString &number, bool atMinimum, bool finished);
     // Whether the user may type `c`.
     virtual bool acceptsCharacter(QChar c) const;
+    // Takes `c`, typed by the user, in place of the line edit, and returns true; false leaves it to the line edit.
+    virtual bool typeCharacter(QChar c);
 
     void refreshText();
     void layoutEdit();

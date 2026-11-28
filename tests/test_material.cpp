@@ -4643,6 +4643,83 @@ void testMultilineFieldsAndCaret() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// The scroll bar of a multi-line field stays inside its container, and its counter counts the characters, alone or
+// against materialMaxLength.
+void testMultilineFieldScrollBarAndCounter() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *notes = new QPlainTextEdit(&window);
+    notes->setProperty("materialTextField", QStringLiteral("outlined"));
+    notes->setProperty("materialLabel", QStringLiteral("Notes"));
+    notes->setProperty("materialSupportingText", QStringLiteral("About the harvest"));
+    notes->setPlainText(QStringLiteral("1\n2\n3\n4\n5\n6\n7\n8\n9\n10"));
+    notes->setGeometry(0, 0, 300, 160);
+    auto *plain = new QPlainTextEdit(&window);
+    plain->setPlainText(notes->toPlainText());
+    plain->setGeometry(0, 200, 300, 100);
+    window.resize(320, 600);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // From the corner at the top of the container (8 under the room for the label) to that at its bottom, above the
+    // 20 of the supporting text.
+    QScrollBar *bar = notes->verticalScrollBar();
+    CHECK(bar->isVisible());
+    CHECK(bar->geometry().top() == 8 + 4);
+    CHECK(bar->geometry().bottom() + 1 == 160 - 20 - 4);
+    CHECK(bar->geometry().right() < notes->width() - 1); // inside the outline
+    // A plain editor's runs from its frame to its frame, as before.
+    QScrollBar *plainBar = plain->verticalScrollBar();
+    CHECK(plainBar->isVisible());
+    CHECK(plainBar->geometry().top() == plain->contentsRect().top());
+    CHECK(plainBar->geometry().bottom() == plain->contentsRect().bottom());
+    // Once it is no field, its bar is as a plain one's.
+    notes->setProperty("materialTextField", QVariant());
+    notes->setProperty("materialLabel", QVariant());
+    notes->setProperty("materialSupportingText", QVariant());
+    QCoreApplication::processEvents();
+    CHECK(bar->geometry().top() == notes->contentsRect().top());
+    CHECK(bar->geometry().bottom() == notes->contentsRect().bottom());
+
+    // A counter alone makes a field, with the line under it.
+    auto *story = new QPlainTextEdit(&window);
+    story->setProperty("materialTextField", QStringLiteral("outlined"));
+    story->setGeometry(0, 320, 300, 76);
+    story->show();
+    QCoreApplication::processEvents();
+    const int without = story->sizeHint().height();
+    story->setProperty("materialCounter", true);
+    QCoreApplication::processEvents();
+    CHECK(story->sizeHint().height() == without + 20);
+    story->setPlainText(QStringLiteral("hazelnut"));
+    story->setGeometry(0, 320, 300, story->sizeHint().height());
+    QCoreApplication::processEvents();
+    if (textIsDrawn()) {
+        // Ink at the end of the line under the field: "8", then the wider "8/120".
+        const auto counted = [&] {
+            const QImage picture = QOffscreenBackingStore::imageOf(window.windowHandle());
+            const QPoint origin = story->mapTo(&window, QPoint(0, 0));
+            int left = story->width();
+            for (int y = story->height() - 18; y < story->height(); ++y)
+                for (int x = story->width() / 2; x < story->width(); ++x)
+                    if (near(picture.pixelColor(origin.x() + x, origin.y() + y), style->color(Role::OnSurfaceVariant),
+                             60))
+                        left = std::min(left, x);
+            return story->width() - left;
+        };
+        const int alone = counted();
+        CHECK(alone > 0 && alone < 40);
+        story->setProperty("materialMaxLength", 120);
+        QCoreApplication::processEvents();
+        CHECK(counted() > alone + 10);
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 // With motion, a sheet slides in from its edge and a snackbar fades in; one that goes leaves a picture that fades out.
 void testSheetAndSnackbarMotion() {
     auto *style = new QMaterialStyle;
@@ -6316,6 +6393,20 @@ void testRailScrolls() {
     CHECK(bar->tabRect(9).bottom() + 1 == 400 && bar->tabRect(9).height() == 56);
     bar->setProperty("materialTabBar", QStringLiteral("navigationRail"));
     QCoreApplication::processEvents();
+
+    // With motion, the current one springs into sight; the wheel still moves at once.
+    style->setMotionEnabled(true);
+    CHECK(wheel(20) && bar->tabRect(0).top() == 44);
+    bar->setCurrentIndex(9);
+    CHECK(bar->tabRect(9).bottom() + 1 > 400); // it has not moved yet
+    wait(60);
+    const int moving = bar->tabRect(9).bottom() + 1;
+    wait(1500);
+    CHECK(bar->tabRect(9).bottom() + 1 == 400);
+    CHECK(moving < 720 && moving > 400); // on its way
+    style->setMotionEnabled(false);
+    bar->setCurrentIndex(0);
+    CHECK(bar->tabRect(0).top() == 44); // without motion, at once
 
     // Once they fit, the destinations are where they were, and the wheel steps through them, as in Qt.
     window.resize(600, 800);
@@ -8681,6 +8772,7 @@ int main(int argc, char *argv[]) {
     testDialogHeadlineForms();
     testGroupBoxAndTextEditors();
     testMultilineFieldsAndCaret();
+    testMultilineFieldScrollBarAndCounter();
     testSheetAndSnackbarMotion();
     testFieldIconsAffixesCounter();
     testFieldIconButtonsAndAvatars();

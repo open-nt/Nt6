@@ -66,7 +66,9 @@ protected:
     A date time edit shows a date and a time in the displayFormat(), divided into sections such as the day, the month
     and the hour. The arrow keys, the mouse wheel and the buttons step the section that the cursor is in; typing
     changes the text, which is taken when it is a valid date and time. A number that fills its section, such as two
-    digits of the hour, moves on to the next section and selects it:
+    digits of the hour, moves on to the next section and selects it, as does the separator that follows a section (a
+    colon typed after "3" of the hour writes "03" and selects the minute). In the AM/PM section, \c a and \c p choose
+    AM or PM and move on to the next section, if there is one:
 
     \code
     auto *start = new QDateTimeEdit(QDateTime::currentDateTime(), window);
@@ -1126,6 +1128,114 @@ void QDateTimeEdit::advanceSection() {
     const Span &next = m_sections[static_cast<std::size_t>(following)];
     m_currentSection = following;
     edit->setSelection(next.start, next.length);
+}
+
+// The sections of `text` as the user has typed it, which may have fewer digits than the display format writes: a
+// number takes the digits that its section can hold, a name the letters. False when the text does not follow the
+// format.
+bool QDateTimeEdit::textSpans(const QString &text, std::vector<Span> *spans) const {
+    spans->clear();
+    qsizetype pos = 0;
+    for (const Token &token : m_tokens) {
+        if (token.literal) {
+            if (text.mid(pos, token.pattern.size()) != token.pattern)
+                return false;
+            pos += token.pattern.size();
+            continue;
+        }
+        const qsizetype start = pos;
+        const qsizetype n = token.pattern.size();
+        const bool named =
+            token.section == AmPmSection || ((token.section == DaySection || token.section == MonthSection) && n > 2);
+        if (named) {
+            while (pos < text.size() && text.at(pos).isLetter())
+                ++pos;
+        } else {
+            const qsizetype width = token.section == MSecSection ? 3 : token.section == YearSection && n == 4 ? 4 : 2;
+            while (pos < text.size() && pos - start < width && text.at(pos).isDigit())
+                ++pos;
+        }
+        if (pos == start)
+            return false;
+        spans->push_back({token.section, static_cast<int>(start), static_cast<int>(pos - start)});
+    }
+    return pos == text.size();
+}
+
+// As in Qt, the separator that follows a section, typed in that section, moves on to the next one, which is selected,
+// and writes the section as the format does ("3:" puts "03"); and 'a' or 'p' typed in the AM/PM section chooses it
+// and moves on if a section follows.
+bool QDateTimeEdit::typeCharacter(QChar c) {
+    QLineEdit *edit = lineEdit();
+    const QString text = edit->text();
+    std::vector<Span> spans;
+    if (!textSpans(text, &spans))
+        return false;
+    const int position = edit->hasSelectedText() ? edit->selectionStart() : edit->cursorPosition();
+    int index = -1; // the section that the cursor is in, or at the end of
+    for (int i = 0; i < static_cast<int>(spans.size()); ++i) {
+        const Span &span = spans[static_cast<std::size_t>(i)];
+        if (position >= span.start && position <= span.start + span.length) {
+            index = i;
+            break;
+        }
+    }
+    if (index < 0)
+        return false;
+    const auto selectSection = [this, edit](int at) {
+        const Span &span = m_sections[static_cast<std::size_t>(at)];
+        m_currentSection = at;
+        edit->setSelection(span.start, span.length);
+    };
+    const int last = static_cast<int>(spans.size()) - 1;
+    if (spans[static_cast<std::size_t>(index)].section == AmPmSection && c.isLetter()) {
+        const QChar letter = c.toLower();
+        if (letter != QLatin1Char('a') && letter != QLatin1Char('p')) {
+            // Another letter is refused where AM or PM is written in full, and typed where it is being written.
+            const Span &span = spans[static_cast<std::size_t>(index)];
+            const QString written = text.mid(span.start, span.length).toLower();
+            return written == QLatin1String("am") || written == QLatin1String("pm");
+        }
+        QDateTime value;
+        if (!parse(text, &value))
+            value = m_value;
+        QTime time = value.time();
+        const bool pm = letter == QLatin1Char('p');
+        if ((time.hour() >= 12) != pm)
+            time = QTime(pm ? time.hour() + 12 : time.hour() - 12, time.minute(), time.second(), time.msec());
+        const QDateTime chosen(value.date(), time);
+        changeValue(chosen >= m_minimum && chosen <= m_maximum ? chosen : m_value, true);
+        selectSection(std::min(index + 1, last));
+        return true;
+    }
+    if (index == last)
+        return false;
+    // The literal between this section and the next one.
+    int seen = -1;
+    const Token *following = nullptr;
+    for (std::size_t i = 0; i < m_tokens.size(); ++i) {
+        if (m_tokens[i].literal)
+            continue;
+        if (++seen == index) {
+            if (i + 1 < m_tokens.size() && m_tokens[i + 1].literal)
+                following = &m_tokens[i + 1];
+            break;
+        }
+    }
+    if (!following || !following->pattern.startsWith(c))
+        return false;
+    QDateTime value;
+    if (!parse(text, &value))
+        return true; // the separator would not make it any better
+    if (value >= m_minimum && value <= m_maximum)
+        changeValue(value, false);
+    std::vector<Span> written;
+    const QString rewritten = format(value, &written);
+    m_sections = written;
+    if (rewritten != text)
+        edit->setText(rewritten);
+    selectSection(index + 1);
+    return true;
 }
 
 int QDateTimeEdit::sectionIndexAt(int position) const {

@@ -21,8 +21,10 @@ class SpinEdit : public QLineEdit {
 public:
     // `number` gives where the number begins and ends in the text, between the prefix and the suffix; false when the
     // text is not made of those.
-    SpinEdit(QAbstractSpinBox *box, std::function<bool(QChar)> accepts, std::function<bool(int *, int *)> number)
-        : QLineEdit(box), m_accepts(std::move(accepts)), m_number(std::move(number)) {}
+    // `typed` takes a character in place of the line edit, and returns false to leave it to it.
+    SpinEdit(QAbstractSpinBox *box, std::function<bool(QChar)> accepts, std::function<bool(int *, int *)> number,
+             std::function<bool(QChar)> typed)
+        : QLineEdit(box), m_accepts(std::move(accepts)), m_number(std::move(number)), m_typed(std::move(typed)) {}
 
 protected:
     void keyPressEvent(QKeyEvent *event) override {
@@ -57,7 +59,7 @@ protected:
         }
         const QString text = event->text();
         const bool plain = !(event->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier));
-        if (plain && !text.isEmpty() && text.at(0).isPrint() && !m_accepts(text.at(0))) {
+        if (plain && !text.isEmpty() && text.at(0).isPrint() && (!m_accepts(text.at(0)) || m_typed(text.at(0)))) {
             event->accept();
             return;
         }
@@ -77,6 +79,7 @@ protected:
 private:
     std::function<bool(QChar)> m_accepts;
     std::function<bool(int *, int *)> m_number;
+    std::function<bool(QChar)> m_typed;
 };
 
 } // namespace
@@ -140,7 +143,8 @@ private:
 QAbstractSpinBox::QAbstractSpinBox(QWidget *parent)
     : QWidget(parent), m_edit(new SpinEdit(
                            this, [this](QChar c) { return acceptsCharacter(c) || m_special.contains(c); },
-                           [this](int *begin, int *end) { return numberRange(begin, end); })) {
+                           [this](int *begin, int *end) { return numberRange(begin, end); },
+                           [this](QChar c) { return !isReadOnly() && typeCharacter(c); })) {
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     m_edit->setFrame(false);
     connectEdit();
@@ -376,6 +380,11 @@ void QAbstractSpinBox::takeText(const QString &number, bool atMinimum, bool fini
 bool QAbstractSpinBox::acceptsCharacter(QChar c) const {
     (void)c;
     return true;
+}
+
+bool QAbstractSpinBox::typeCharacter(QChar c) {
+    (void)c;
+    return false;
 }
 
 // Hands the text between the prefix and the suffix to the subclass.

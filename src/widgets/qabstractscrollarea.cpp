@@ -218,6 +218,13 @@ void QAbstractScrollArea::setViewportMargins(int left, int top, int right, int b
     Sets the space that the viewport leaves free to \a margins.
 */
 
+void QAbstractScrollArea::setScrollBarMargins(const QMargins &margins) {
+    if (margins == m_barMargins)
+        return;
+    m_barMargins = margins;
+    layoutChildren();
+}
+
 // Puts the viewport and the scroll bars in the area. Which scroll bars are shown follows from their ranges, and the
 // size of the viewport from which are, so this runs again when a subclass changes a range in response to a new size.
 void QAbstractScrollArea::layoutChildren() {
@@ -228,6 +235,7 @@ void QAbstractScrollArea::layoutChildren() {
     m_layouting = true;
     const int extent = style()->pixelMetric(QStyle::PM_ScrollBarExtent, nullptr, this);
     const QRect inner = contentsRect();
+    const QRect bars = inner.marginsRemoved(m_barMargins); // what the scroll bars and the corner widget keep to
     for (int pass = 0; pass < 4; ++pass) {
         m_layoutAgain = false;
         auto wanted = [](Qt::ScrollBarPolicy policy, const QScrollBar *bar) {
@@ -237,8 +245,8 @@ void QAbstractScrollArea::layoutChildren() {
         const int vWidth = showV ? extent : 0, hHeight = showH ? extent : 0;
         m_hbar->setVisible(showH);
         m_vbar->setVisible(showV);
-        QRect hRect(inner.left(), inner.bottom() + 1 - hHeight, inner.width() - vWidth, hHeight);
-        QRect vRect(inner.right() + 1 - vWidth, inner.top(), vWidth, inner.height() - hHeight);
+        QRect hRect(bars.left(), bars.bottom() + 1 - hHeight, bars.width() - vWidth, hHeight);
+        QRect vRect(bars.right() + 1 - vWidth, bars.top(), vWidth, bars.height() - hHeight);
         // The widgets beside the scroll bars take room from them, at the ends their alignment says.
         for (const BarWidget &b : m_barWidgets) {
             QWidget *w = b.widget.data();
@@ -268,7 +276,7 @@ void QAbstractScrollArea::layoutChildren() {
         m_vbar->setGeometry(vRect);
         if (QWidget *corner = m_corner.data()) {
             corner->setVisible(showH && showV);
-            corner->setGeometry(inner.right() + 1 - vWidth, inner.bottom() + 1 - hHeight, vWidth, hHeight);
+            corner->setGeometry(bars.right() + 1 - vWidth, bars.bottom() + 1 - hHeight, vWidth, hHeight);
         }
         m_viewport->setGeometry(QRect(inner.left() + m_margins.left(), inner.top() + m_margins.top(),
                                       std::max(0, inner.width() - vWidth - m_margins.left() - m_margins.right()),

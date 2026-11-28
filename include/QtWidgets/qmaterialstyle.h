@@ -172,6 +172,8 @@ private:
     void drawEditorLabel(QPainter *painter, const QAbstractScrollArea *editor) const;
     static bool growsWithContent(const QWidget *editor);
     void polishEditorField(QAbstractScrollArea *editor) const;
+    // The room around the viewport of a multi-line field, and its scroll bars kept inside its container.
+    static void layOutEditorField(QAbstractScrollArea *editor);
     // The prefix or the suffix of a text field, while it shows: when the label has floated, or there is none.
     QString fieldAffix(const QLineEdit *field, bool suffix) const;
     // The icon of an action at an end of a text field, in `area`, in the color of the field's icons, or the picture of
@@ -395,6 +397,10 @@ private:
     // The line under the current tab of a horizontal tab bar. QTabBar paints a tab at a time, so it asks for the line,
     // which slides from tab to tab, once they are all painted.
     friend class QTabBar;
+    // Where a navigation rail that scrolls to `target` is drawn on its way there, along the default spatial spring
+    // (the target itself without motion), and the position that the next such scroll sets off from.
+    double railScrollPosition(const QTabBar *bar, int target) const;
+    void placeRailScroll(const QTabBar *bar, int position) const;
     void drawTabIndicator(QPainter *painter, const QTabBar *bar, const QRect &tab, bool below) const;
     // A status bar that is a snackbar: QMainWindow floats it over the content, QStatusBar asks for it to be drawn and
     // lays its actions out.

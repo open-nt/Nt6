@@ -68,6 +68,9 @@ protected:
 
 private:
     friend class QtPrivate::ScrollAreaViewport;
+    // The Material style keeps the scroll bars of a multi-line text field inside its container.
+    friend class QMaterialStyle;
+    void setScrollBarMargins(const QMargins &margins);
     void layoutChildren();
     void connectBar(QScrollBar *bar);
     struct BarWidget {
@@ -85,6 +88,7 @@ private:
     Qt::ScrollBarPolicy m_hPolicy = Qt::ScrollBarAsNeeded;
     Qt::ScrollBarPolicy m_vPolicy = Qt::ScrollBarAsNeeded;
     QMargins m_margins;
+    QMargins m_barMargins; // between the contents rectangle and the scroll bars
     int m_hLast = 0;
     int m_vLast = 0;
     bool m_layouting = false;

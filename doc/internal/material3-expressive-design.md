@@ -97,8 +97,10 @@ or error, is a multi-line field: `PE_PanelLineEdit` draws its frame, viewport ma
 from the sides and one line in the middle of 56 (26 under a filled one's label), and the label rests on the first line
 (the viewport draws it too where it lies over it). With `materialTextField` it grows with its lines: its vertical size
 policy becomes `Maximum` and `viewportSizeHint()` is the height of its lines, up to its maximum height, then it
-scrolls. Not done: the scroll bar runs past the container into the room above and below it, and there is no
-counter in a multi-line field (icons, prefix and suffix and the counter are below).
+scrolls. Its scroll bars keep to the container, 4 clear of its corners: `QAbstractScrollArea` has private scroll bar
+margins that the style (a friend) sets, zero for every other area. `materialCounter` puts the count of characters at
+the end of the supporting line, alone, as an editor has no `maxLength()`, or as `length/max` with the Nt-only
+`materialMaxLength`, which does not limit the typing. Not done: icons, prefix and suffix (see below).
 
 Icon buttons are `materialIconButton` = `"standard"`, `"filled"`, `"tonal"` or `"outlined"` on a push or tool button:
 square in the five button sizes with icons of 20, 24, 24, 32 and 40, the buttons' corners and outlines, 48 to a finger.
@@ -174,7 +176,8 @@ layout places cannot be moved aside, and keeps to the pages beside a rail. Desti
 scroll, the 44 above the first one with them (those under a menu button or FAB stay still, see below): the wheel moves them
 a destination a notch, a drag of more than 4 moves them, the current one is scrolled into sight as it changes (the
 first with its 44 above it), and on a rail that scrolls a press chooses at the release, if it has not moved, so that
-a drag does not first go to where it started. A rail that fits keeps Qt's press and wheel. `SH_TabBar_PreferNoArrows`
+a drag does not first go to where it started. The scroll into sight follows the default spatial spring (the style's
+`railScrollPosition()`, at once without motion); the wheel and a drag move at once. A rail that fits keeps Qt's press and wheel. `SH_TabBar_PreferNoArrows`
 is true for a rail; Nt's `QTabBar` draws no scroll buttons for any style.
 
 Sheets are `QDialog`s with `materialSheet` = `"bottom"` (against the bottom, up to 640 wide, corners 28 at the top)
@@ -220,7 +223,9 @@ indicator of 2 as wide as the tab, and the current label in `OnSurface`. (The se
 a period selector of 52 by 72 with `TertiaryContainer` for the half that applies. All editing stays
 `QDateTimeEdit`'s: its line edit keeps the focus with no size, and the style draws its text by section. Two digits
 of the hour, or one that no second could follow, move on to the minute, selected, as `QDateTimeEdit` now does for
-every format, as Qt does. A format of numbers alone sets `ImhPreferNumbers`, with which Android shows its number keys
+every format, as Qt does; so does the separator that follows a section (`3:` writes `03`), and `a` or `p` in the
+AM/PM section chooses it and moves on (the private `QAbstractSpinBox::typeCharacter()` takes a key before the line
+edit). A format of numbers alone sets `ImhPreferNumbers`, with which Android shows its number keys
 (see `doc/android.h`). `materialTimeInput` = `"dial"` is the vertical time picker, inside the `QTimeEdit` (no popup;
 its size hint is the picker's, 280 by 408 with AM/PM, 256 wide without), so an application stays Qt's: the headline
 "Select time" (label medium) in 16, 20 under it the boxes of 96 by 80 in 57 (the one the dial shows

@@ -1010,6 +1010,27 @@ void testDateTimeEdit() {
     CHECK(line->text() == QString("2025-03-1 21:45") && line->cursorPosition() == 9);
     key(line, Qt::Key_Return);
     CHECK(edit.date() == QDate(2025, 3, 1));
+    // The separator that follows a section, typed in it, moves on to the next one and writes the section with its zero
+    edit.setSelectedSection(QDateTimeEdit::HourSection);
+    type(line, "1");
+    CHECK(line->text() == QString("2025-03-01 1:45"));
+    type(line, ":");
+    CHECK(line->text() == QString("2025-03-01 01:45") && edit.time() == QTime(1, 45) &&
+          edit.currentSection() == QDateTimeEdit::MinuteSection && line->selectedText() == QString("45"));
+    edit.setSelectedSection(QDateTimeEdit::MonthSection);
+    type(line, "1-");
+    CHECK(line->text() == QString("2025-01-01 01:45") && line->selectedText() == QString("01") &&
+          edit.currentSection() == QDateTimeEdit::DaySection);
+    type(line, "2 ");
+    CHECK(edit.date() == QDate(2025, 1, 2) && edit.currentSection() == QDateTimeEdit::HourSection &&
+          line->selectedText() == QString("01"));
+    type(line, "/"); // not the separator that follows: nothing
+    CHECK(line->text() == QString("2025-01-02 01:45"));
+    edit.setDisplayFormat("dd.MM.yyyy");
+    edit.setSelectedSection(QDateTimeEdit::DaySection);
+    type(line, "3.");
+    CHECK(line->text() == QString("03.01.2025") && edit.currentSection() == QDateTimeEdit::MonthSection);
+    edit.setDisplayFormat("yyyy-MM-dd HH:mm");
     edit.setDateTime(QDateTime(QDate(2025, 12, 24), QTime(8, 30)));
 
     // The range
@@ -1038,6 +1059,19 @@ void testDateTimeEdit() {
     edit.setCurrentSection(QDateTimeEdit::AmPmSection);
     edit.stepBy(1);
     CHECK(edit.time() == QTime(3, 5));
+    // In the AM/PM section, a and p choose; the last section stays selected
+    edit.setSelectedSection(QDateTimeEdit::AmPmSection);
+    type(line, "p");
+    CHECK(edit.time() == QTime(15, 5) && line->selectedText() == QString("PM"));
+    type(line, "A");
+    CHECK(edit.time() == QTime(3, 5) && line->selectedText() == QString("AM"));
+    type(line, "x"); // neither: nothing
+    CHECK(line->text() == QString("Friday 1 March 2024 at 3:05 AM"));
+    edit.setDisplayFormat("AP h:mm");
+    edit.setSelectedSection(QDateTimeEdit::AmPmSection);
+    type(line, "p"); // and move on to the section after it
+    CHECK(edit.time() == QTime(15, 5) && edit.currentSection() == QDateTimeEdit::HourSection &&
+          line->selectedText() == QString("3"));
 
     // The calendar popup
     edit.setDisplayFormat("yyyy-MM-dd");

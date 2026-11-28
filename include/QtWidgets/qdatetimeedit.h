@@ -142,12 +142,14 @@ private:
     QDateTime clamped(const QDateTime &value) const;
     int sectionIndexAt(int position) const;
     void advanceSection();
+    bool textSpans(const QString &text, std::vector<Span> *spans) const;
     void showPopup();
 
     QString valueText() const override;
     QStringList sizeTexts() const override;
     void takeText(const QString &number, bool atMinimum, bool finished) override;
     bool acceptsCharacter(QChar c) const override;
+    bool typeCharacter(QChar c) override;
 
     QDateTime m_value;
     QDateTime m_minimum;

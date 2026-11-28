@@ -545,7 +545,7 @@ std::vector<QRect> QTabBar::layoutTabs() const {
             top += tab.visible ? item + kRailSpace : 0;
         }
         const int end = std::max(first, top - kRailSpace);
-        const int scroll = std::clamp(m_railScroll, 0, std::max(0, end - room));
+        const int scroll = std::clamp(railShown(), 0, std::max(0, end - room));
         for (QRect &rect : column)
             rect.translate(0, -scroll);
         return column;
@@ -657,29 +657,51 @@ int QTabBar::railTop() const {
 
 int QTabBar::railScroll() const { return std::clamp(m_railScroll, 0, railRange()); }
 
-void QTabBar::scrollRailTo(int scroll) {
+int QTabBar::railShown() const {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (!m_railSprung || !material)
+        return railScroll();
+    const int target = railScroll();
+    return std::clamp(static_cast<int>(std::lround(material->railScrollPosition(this, target))), 0, railRange());
+}
+
+// Scrolls a rail to `scroll`: at once, or along the style's spring from where it is drawn.
+void QTabBar::scrollRailTo(int scroll, bool spring) {
     scroll = std::clamp(scroll, 0, railRange());
-    if (scroll == railScroll()) {
+    const int shown = railShown();
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (spring && material && material->isMotionEnabled() && scroll != shown) {
+        if (!m_railSprung)
+            material->placeRailScroll(this, shown);
         m_railScroll = scroll;
+        m_railSprung = true;
+        railShown(); // which sets the spring off
+        update();
         return;
     }
+    if (material && m_railSprung)
+        material->placeRailScroll(this, scroll);
+    m_railSprung = false;
     m_railScroll = scroll;
+    if (scroll == shown)
+        return;
     placeButtons();
     update();
 }
 
-// Scrolls a rail so that the destination at `index` is in full sight, with the room between destinations around it.
-void QTabBar::showInRail(int index) {
+// Scrolls a rail so that the destination at `index` is in full sight, with the room between destinations around it:
+// at once, or along the style's spring.
+void QTabBar::showInRail(int index, bool spring) {
     if (!valid(index) || railRange() == 0)
         return;
-    const int scroll = railScroll();
-    const QRect rect = layoutTabs()[static_cast<std::size_t>(index)].translated(0, scroll);
+    const int scroll = railScroll(); // where it is going, if it is on its way
+    const QRect rect = layoutTabs()[static_cast<std::size_t>(index)].translated(0, railShown());
     if (rect.isEmpty())
         return;
     if (rect.top() - std::max(kRailSpace, railHeader()) < scroll)
-        scrollRailTo(rect.top() - railTop()); // with the room above it that the first one has
+        scrollRailTo(rect.top() - railTop(), spring); // with the room above it that the first one has
     else if (rect.bottom() + 1 + kRailSpace > scroll + height())
-        scrollRailTo(rect.bottom() + 1 + kRailSpace - height());
+        scrollRailTo(rect.bottom() + 1 + kRailSpace - height(), spring);
 }
 
 QTransform QTabBar::tabTransform(const QRect &rect) const {
@@ -779,7 +801,7 @@ QSize QTabBar::sizeHint() const {
         const std::vector<QRect> rects = layoutTabs();
         int bottom = railTop();
         for (const QRect &rect : rects)
-            bottom = std::max(bottom, rect.y() + rect.height() + railScroll());
+            bottom = std::max(bottom, rect.y() + rect.height() + railShown());
         QStyleOptionTab option;
         option.initFrom(this);
         return QSize(style()->sizeFromContents(QStyle::CT_TabBarTab, &option, QSize(), this).width(), bottom);
@@ -823,7 +845,7 @@ void QTabBar::setCurrentIndex(int index) {
         m_history.push_back(m_current);
     }
     m_current = index;
-    showInRail(index);
+    showInRail(index, true);
     update();
     emit currentChanged(index);
 }
@@ -1080,6 +1102,10 @@ void QTabBar::paintEvent(QPaintEvent *event) {
     painter.setFont(font());
     if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
         material && (QMaterialStyle::isNavigationBar(this) || QMaterialStyle::isNavigationRail(this))) {
+        if (m_railSprung && railShown() != m_railPlaced) { // the buttons of the destinations go with them
+            m_railPlaced = railShown();
+            placeButtons();
+        }
         material->drawNavigationBar(&painter, this, railHeader());
         return;
     }
@@ -1222,7 +1248,7 @@ void QTabBar::mousePressEvent(QMouseEvent *event) {
         m_railPressing = true;
         m_railDragged = false;
         m_railPressed = index;
-        m_railPressScroll = railScroll();
+        m_railPressScroll = railShown();
         m_pressX = along(event->pos());
         event->accept();
         return;

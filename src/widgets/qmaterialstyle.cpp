@@ -1217,7 +1217,7 @@ struct TextField {
 };
 
 // A text editor with its usual frame that is a text field: it asks for one with materialTextField, or has a label,
-// supporting text or an error. Another keeps its plain outlined frame.
+// supporting text, an error or a counter. Another keeps its plain outlined frame.
 bool isEditorField(const QWidget *widget) {
     const auto *frame = qobject_cast<const QFrame *>(widget);
     if (!frame || !isTextEditor(widget) || frame->frameShape() != QFrame::StyledPanel)
@@ -1225,10 +1225,11 @@ bool isEditorField(const QWidget *widget) {
     const QString kind = widget->property("materialTextField").toString();
     return kind == QLatin1String("outlined") || kind == QLatin1String("filled") ||
            !widget->property("materialLabel").toString().isEmpty() ||
-           widget->property("materialSupportingText").isValid() || widget->property("materialError").isValid();
+           widget->property("materialSupportingText").isValid() || widget->property("materialError").isValid() ||
+           widget->property("materialCounter").toBool();
 }
 
-// The kind, label, supporting text and error that a field has from its properties; the counter is the line edit's.
+// The kind, label, supporting text and error that a field has from its properties; the counter is the widget's.
 void readTextField(TextField &field, const QWidget *widget) {
     field.filled = widget->property("materialTextField").toString() == QLatin1String("filled");
     field.label = widget->property("materialLabel").toString();
@@ -1244,8 +1245,16 @@ void readTextField(TextField &field, const QWidget *widget) {
 TextField textFieldOf(const QWidget *widget) {
     TextField field;
     if (isTextEditor(widget)) {
-        if (isEditorField(widget))
-            readTextField(field, widget);
+        if (!isEditorField(widget))
+            return field;
+        readTextField(field, widget);
+        // An editor has no maxLength(): the count stands alone, or is against the Nt-only materialMaxLength.
+        if (widget->property("materialCounter").toBool()) {
+            const qsizetype length = static_cast<const QPlainTextEdit *>(widget)->toPlainText().size();
+            const int most = widget->property("materialMaxLength").toInt();
+            field.counter = most > 0 ? QStringLiteral("%1/%2").arg(length).arg(most) : QString::number(length);
+            field.below = fieldSupportRoom;
+        }
         return field;
     }
     if (const auto *spin = qobject_cast<const QAbstractSpinBox *>(widget)) {
@@ -1490,6 +1499,7 @@ enum Channel {
     ToolBarHideChannel,    // how far a top app bar or a docked toolbar has scrolled away, from 0 to 1
     ElevationChannel,      // how far the shadow of an elevated chip or card falls, in pixels
     ScrollBarChannel,      // how far the handle of a scroll bar has faded in
+    RailScrollChannel,     // how far the destinations of a navigation rail are scrolled, in pixels
     YearsChannel,          // how far the years of a date picker have faded in over its days
     SliderValueChannel,    // how far the value indicator of a slider has grown, from 0 to 1
     NavigationChannel = 100,     // plus the index of a destination: how far its pill has opened
@@ -1503,14 +1513,6 @@ const char *const polishedMargins = "_nt_materialMargins";   // the viewport mar
 const char *const polishedPolicy = "_nt_materialPolicy";     // the vertical size policy that a growing field had
 const char *const fieldWatcher = "_nt_materialFieldWatcher";
 
-// Gives a text editor the room that its field needs around its viewport, or takes back what it was given.
-void layOutEditorField(QAbstractScrollArea *editor) {
-    const QMargins margins = editorFieldMargins(editor);
-    if (margins.isNull() && !editor->property(polishedMargins).toBool())
-        return;
-    editor->setViewportMargins(margins);
-    editor->setProperty(polishedMargins, margins.isNull() ? QVariant() : QVariant(true));
-}
 
 QColor withOpacity(QColor color, double opacity) {
     color.setAlphaF(opacity);
@@ -1959,6 +1961,24 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
 
 } // namespace
 
+// Gives a text editor the room that its field needs around its viewport, or takes back what it was given. Its scroll
+// bars keep to its container, clear of the corners, rather than running into the room above and below it.
+void QMaterialStyle::layOutEditorField(QAbstractScrollArea *editor) {
+    const QMargins margins = editorFieldMargins(editor);
+    if (margins.isNull() && !editor->property(polishedMargins).toBool())
+        return;
+    editor->setViewportMargins(margins);
+    editor->setProperty(polishedMargins, margins.isNull() ? QVariant() : QVariant(true));
+    QMargins bars;
+    if (!margins.isNull()) {
+        const TextField field = textFieldOf(editor);
+        const QRect inner = editor->contentsRect();
+        bars.setTop(std::max(0, field.above + textFieldCorner - inner.top()));
+        bars.setBottom(std::max(0, field.below + textFieldCorner - (editor->height() - 1 - inner.bottom())));
+    }
+    editor->setScrollBarMargins(bars);
+}
+
 /*!
     \class QMaterialStyle
     \inmodule NtWidgets
@@ -2026,7 +2046,7 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         and trailing icons, 24 and 12 from the edges, in the color of the field's icons (a trailing one in that of an
         error). \c materialPrefix and \c materialSuffix are shown before the text and at the end of the field once the
         label has floated, and \c materialCounter set to \c true counts the characters against maxLength() at the end
-        of the line under the field.
+        of the line under the field (\c{length/maxLength}).
     \li \c materialIconButton of a QPushButton or a QToolButton: \c "standard", \c "filled", \c "tonal" or
         \c "outlined", a button that is its icon alone, in the sizes of \c materialButtonSize (small without it) with
         icons of 20 to 40, round or, with \c materialButtonShape, square. A checkable one shows that it is checked. One
@@ -2159,7 +2179,10 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         With \c materialTextField \c "outlined" or \c "filled", \c materialLabel, \c materialSupportingText or
         \c materialError it is a multi-line text field, drawn as a QLineEdit's is, its label resting on the first
         line. With \c materialTextField it grows with its lines up to its maximum height: the style sets its vertical
-        size policy to QSizePolicy::Maximum, so give it a fixed height to keep one. The text cursor of these and of a
+        size policy to QSizePolicy::Maximum, so give it a fixed height to keep one. Its scroll bar stays inside the
+        container. \c materialCounter set to \c true counts its characters at the end of the line under it: the
+        count alone, as an editor has no maxLength(), or against \c materialMaxLength (an \c int, Nt only) as
+        \c{length/maxLength}, which does not stop the typing. The text cursor of these and of a
         QLineEdit is in the accent color (red with an error) and 2 wide.
         A QGroupBox is a section: its title in the accent color over an outlined card, or over a line if it is flat; the
         check box of a checkable one is a Material one. Neither needs a property.
@@ -2803,6 +2826,14 @@ void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selec
     painter->restore();
 }
 
+double QMaterialStyle::railScrollPosition(const QTabBar *bar, int target) const {
+    return animated(bar, RailScrollChannel, target, QtPrivate::defaultSpatialSpring, 0.5);
+}
+
+void QMaterialStyle::placeRailScroll(const QTabBar *bar, int position) const {
+    m_animator->place(bar, RailScrollChannel, position);
+}
+
 void QMaterialStyle::drawTabIndicator(QPainter *painter, const QTabBar *bar, const QRect &tab, bool below) const {
     if (const int pressed = bar && bar == m_rippleWidget.data() ? bar->tabAt(m_rippleOrigin.toPoint()) : -1;
         pressed >= 0) {
@@ -3035,6 +3066,7 @@ void QMaterialStyle::unpolish(QWidget *widget) {
         }
         if (widget->property(polishedMargins).toBool()) {
             editor->setViewportMargins(QMargins());
+            editor->setScrollBarMargins(QMargins());
             widget->setProperty(polishedMargins, QVariant());
         }
     }

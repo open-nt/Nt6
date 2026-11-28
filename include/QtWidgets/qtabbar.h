@@ -187,8 +187,9 @@ private:
     int railScroll() const; // how far it is scrolled, within railRange()
     int railHeader() const; // the bottom of the corner widget at the top of a rail, or 0
     int railTop() const;    // the top of its first destination
-    void scrollRailTo(int scroll);
-    void showInRail(int index);
+    int railShown() const;  // how far it is drawn scrolled, on its way to railScroll()
+    void scrollRailTo(int scroll, bool spring = false);
+    void showInRail(int index, bool spring = false);
 
     QRect closeRect(int index) const;
     bool valid(int index) const { return index >= 0 && index < count(); }
@@ -220,4 +221,6 @@ private:
     int m_railPressed = -1;    // the destination pressed on a rail that scrolls, chosen at the release
     bool m_railPressing = false;
     bool m_railDragged = false; // the press has moved the destinations
+    bool m_railSprung = false;  // the destinations spring to m_railScroll rather than being there
+    int m_railPlaced = 0;       // where they were drawn when the buttons were last placed
 };

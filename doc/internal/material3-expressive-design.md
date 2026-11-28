@@ -362,10 +362,17 @@ the outer corner. The value indicator is a pill of 44 by at least 48 (`InverseSu
 `InverseOnSurface`, 12 beside it), 4 over the handle, or 4 at its left on a vertical slider, and pushed back inside
 the slider near an end. It shows while the handle is pressed or the slider has the keyboard focus ring (that is, the
 arrow keys are moving it). A slider with tick marks shows it, as Material's discrete sliders do; `materialSliderValue`
-= `true` or `false` overrides that. It is drawn inside the slider, not in an overlay: a slider that shows it is
-thicker by 48 (or by the width of its widest value, vertically), and the track and handle are centred in the rest, so
-it is never clipped as long as the slider gets its minimum size. Not done: drawing it over the content above without
-the room, its scaling in and out with motion, inset icons, centered and range sliders.
+= `true` or `false` overrides that. It is drawn over the content above the slider, in an overlay that is a child of
+the slider's window (as menus are), raised above its siblings and transparent to the mouse; the slider keeps the
+overlay through a watcher that makes it on `sliderPressed`, focus in or a key press, outside any paint, and its paint
+places and fills it. So the slider is only as thick as its handle (plus the tick room). It grows from 0 at the point
+where it meets the handle and shrinks back into it on the fast effects spring (`SliderValueChannel`), at once without
+motion. `materialSliderValueRoom` = `true`, and a slider that is a window, draw it inside the slider in kept room, as
+before. Inset icons: `materialSliderIcon` (a QIcon) on the medium, large and extra large sizes, 24 (32 on extra large),
+8 from the outer end of the active track in `OnPrimary`, or 8 after the handle's gap in the inactive track in
+`OnSecondaryContainer` where the active part is shorter than the icon and its padding. `materialSlider` = `"centered"`:
+the active track runs from the middle of the track to the handle (square at the middle), stops at both ends; no inset
+icon. Not done: range sliders (Qt Widgets has no range slider), an icon on a centered slider.
 
 Menus have the shape of the standard menu of Material 3 Expressive: corners of 16 (`CornerLarge`), with the outline
 kept in the place of the shadow. A menu is a child of its window in Nt, so the window shows at the corners. The rows
@@ -524,9 +531,25 @@ there is no room below, the shapes flip). Rows are 56, at most `maxVisibleItems(
 body large in `OnSurface`, and the icon that the model has in `Qt::DecorationRole` is a 24 leading icon. The current
 row has the menu's hover layer (`OnSurface` 0.08) inside the container rather than the list's `SecondaryContainer`
 pill. Under any other line edit the completer's popup is drawn as a menu instead: `SurfaceContainer`, corner 16,
-outline `OutlineVariant`, rows 48. Keyboard and mouse stay QCompleter's (arrows, Return, a click, Escape). Not done:
-the full-screen search view, a header of the view's own (the bar is the header), emphasis of the matching text,
-motion when the view opens.
+outline `OutlineVariant`, rows 48. Keyboard and mouse stay QCompleter's (arrows, Return, a click, Escape). In both,
+the part of a row that matches the completion prefix (case-insensitive, by the completer's filter mode: start,
+contains or end) is `OnSurface` in body large emphasized (medium), the rest `OnSurfaceVariant`
+(`drawCompletionText()`, which QListWidget asks before it draws a single-line row). On a compact window (narrower than
+600) a search bar with a completer opens the full-screen view instead, when it gets the focus (not the focus that
+comes back with its window, which the style tells by the `WindowActivate` just before) or is tapped while focused;
+`materialSearchView` = `"fullScreen"` or `"docked"` chooses on any width. The view (`_nt_searchView`) is a child of
+the window over everything in it, `SurfaceContainerHigh`, square, with a header of its own (`FullScreenHeader`, 72):
+an arrow back (24, in a target of 48 4 from the edge, `OnSurface`, a press layer), a frameless line edit
+(`_nt_searchField`, from 56 to 4 from the far edge, 56 high, a clear button) and a 1 divider in `OutlineVariant` under
+it. The bar stays where it is under the view; its completer is moved to the header's line edit while the view is
+open (`setWidget()`), which keeps QCompleter's keys, and the text is mirrored to the bar, which emits `textEdited`,
+`returnPressed` and `editingFinished` for it. QCompleter asks `completerPopupGeometry()`, which puts the popup under the
+header at the window's width, as many rows of 56 as fit, square. The arrow back, Escape (once the popup is closed),
+Return, a chosen row or the focus going elsewhere closes the view at once and gives the completer back; all but the
+last leave nothing focused, and a window that grows to 600 or more closes it and gives the bar the focus (docked
+again). It grows from the bar's rectangle to the window's on the default spatial spring (a `Transition`), its corners
+from the bar's half height to 0; without motion it is there at once. Not done: closing motion (it goes at once), the
+recent searches of an empty full-screen view, a trailing avatar or action in the header.
 
 Things that go move too. A sheet that is closed (accept, reject, `done()`, `hide()`, Escape, Back, a tap beside it on
 Android) is hidden at once, as any dialog is, so the semantics stay Qt's: `isVisible()` is false at once, `accepted`,

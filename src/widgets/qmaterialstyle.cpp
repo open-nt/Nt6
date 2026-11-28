@@ -157,6 +157,7 @@ constexpr int valuePadding = 12; // with this much beside its label,
 constexpr int valueGap = 4;      // and this far from the handle
 constexpr int sliderLength = 16; // the room of the handle along the track
 constexpr int stopSize = 4;      // the dots at the ends of tracks, and of the steps of a slider
+constexpr int sliderIconPadding = 8; // between an inset icon of a slider and the ends of its part of the track
 constexpr int progressThickness = 4;
 constexpr double waveHeight = 3;       // of the wavy progress bar, above and below its line,
 constexpr double waveLength = 40;      // from one crest to the next,
@@ -308,6 +309,15 @@ constexpr int menuSectionIconSize = 20; // the icon of a section's label
 constexpr int menuSectionIconSpace = 8;
 constexpr double searchViewCorner = 28; // the docked search view under a search bar (corner extra large)
 constexpr int searchViewRowHeight = 56;
+// The full-screen search view, which a search bar opens on a compact window: a header of 72 with an arrow back (24, in
+// a target of 48 that is 4 from the edge), the field from 56 to 4 from the far edge, and a divider under it.
+constexpr int searchHeaderHeight = 72;
+constexpr int searchBackTarget = 48;
+constexpr int searchBackInset = 4;
+constexpr int searchHeaderFieldLeft = 56;
+constexpr int searchHeaderFieldHeight = 56;
+const char *const searchViewName = "_nt_searchView";   // the view, a child of the window, over everything in it
+const char *const searchFieldName = "_nt_searchField"; // the line edit of its header
 constexpr int comboArrowRoom = 48;
 constexpr int focusRingWidth = 3;
 constexpr int dialogCorner = 28; // extra large
@@ -1231,7 +1241,14 @@ bool isLabelUp(const QWidget *field) {
 
 // What the popup of a QCompleter is drawn as: under a search bar its docked search view, under another line edit a
 // menu. The popup is a list in the window of the line edit, which is the widget that it is open under.
-enum class CompleterPopup { None, Menu, SearchView };
+// In the full-screen search view the completer completes the line edit of the view's header.
+enum class CompleterPopup { None, Menu, SearchView, FullScreenView };
+
+// Whether `widget` is the line edit in the header of a full-screen search view.
+bool isFullScreenSearchField(const QWidget *widget) {
+    return qobject_cast<const QLineEdit *>(widget) && widget->objectName() == QLatin1String(searchFieldName) &&
+           widget->parentWidget() && widget->parentWidget()->objectName() == QLatin1String(searchViewName);
+}
 
 const QLineEdit *completerEdit(const QWidget *widget) {
     if (!qobject_cast<const QListWidget *>(widget))
@@ -1244,6 +1261,8 @@ CompleterPopup completerPopupOf(const QWidget *widget) {
     const QLineEdit *edit = completerEdit(widget);
     if (!edit)
         return CompleterPopup::None;
+    if (isFullScreenSearchField(edit))
+        return CompleterPopup::FullScreenView;
     return textFieldOf(edit).search ? CompleterPopup::SearchView : CompleterPopup::Menu;
 }
 
@@ -1301,6 +1320,11 @@ QPainterPath searchBarShape(const QRectF &box, const QWidget *edit) {
 // only at those away from its bar.
 QPainterPath completerShape(const QWidget *popup, CompleterPopup kind) {
     const QRectF r(popup->rect());
+    if (kind == CompleterPopup::FullScreenView) { // square, under the header of the view
+        QPainterPath path;
+        path.addRect(r);
+        return path;
+    }
     if (kind == CompleterPopup::Menu) {
         QPainterPath path;
         path.addRoundedRect(r, menuCorner, menuCorner);
@@ -1387,6 +1411,7 @@ enum Channel {
     ElevationChannel,      // how far the shadow of an elevated chip or card falls, in pixels
     ScrollBarChannel,      // how far the handle of a scroll bar has faded in
     YearsChannel,          // how far the years of a date picker have faded in over its days
+    SliderValueChannel,    // how far the value indicator of a slider has grown, from 0 to 1
     NavigationChannel = 100 // plus the index of a destination: how far its pill has opened
 };
 const char *const polishedFont = "_nt_materialFont";
@@ -1564,10 +1589,17 @@ int sliderValueWidth(const QFontMetrics &metrics, int value) {
     return std::max(valueWidth, metrics.horizontalAdvance(QString::number(value)) + 2 * valuePadding);
 }
 
+// Whether a slider draws its value indicator inside itself, in room that it keeps for it, rather than in an overlay
+// over what is above it: one that asks for that with materialSliderValueRoom, and one that is a window of its own,
+// which has nothing above it to draw over.
+bool keepsSliderValueRoom(const QWidget *widget) {
+    return widget && (widget->isWindow() || widget->property("materialSliderValueRoom").toBool());
+}
+
 // The room that a slider keeps for its value indicator: above a horizontal one, at the left of a vertical one.
 int sliderValueRoom(const QStyleOption *option, const QWidget *widget) {
     const SliderFacts facts = factsOfSlider(option, widget);
-    if (!showsSliderValue(widget, facts.ticks))
+    if (!showsSliderValue(widget, facts.ticks) || !keepsSliderValueRoom(widget))
         return 0;
     if (facts.horizontal)
         return valueHeight + valueGap;
@@ -1591,6 +1623,118 @@ QPainterPath trackPart(const QRectF &r, double first, double second, bool horizo
     // Made across and turned over the diagonal, which swaps x and y.
     return QTransform(0, 1, 1, 0, 0, 0).map(sidedPath(QRectF(r.top(), r.left(), r.height(), r.width()), first, second));
 }
+
+// Whether a slider is a centered one, whose active track runs from the middle of its range to the handle.
+bool isCenteredSlider(const QWidget *widget) {
+    return widget && widget->property("materialSlider").toString() == QLatin1String("centered");
+}
+
+// The size of the inset icon of a slider of the given size, or 0 for the sizes that have none.
+int sliderIconSize(const SliderSize &size) { return size.track >= 96 ? 32 : size.track >= 40 ? 24 : 0; }
+
+const char *const sliderValueWatcher = "_nt_materialSliderValue";
+
+// The value indicator of a slider, drawn over whatever is above the slider: a child of the slider's window, above its
+// other children, as a menu is, that the pointer goes through. The slider's paint tells it what to show.
+class SliderValueOverlay : public QWidget {
+public:
+    explicit SliderValueOverlay(QWidget *parent) : QWidget(parent) {
+        setObjectName(QStringLiteral("_nt_sliderValueIndicator"));
+        setAttribute(Qt::WA_TransparentForMouseEvents);
+        setAttribute(Qt::WA_NoSystemBackground);
+        setFocusPolicy(Qt::NoFocus);
+    }
+
+    // Shows `text` in a pill as big as the overlay, `scale` of its size about `anchor` (where it meets the handle).
+    void set(const QString &text, const QFont &font, const QColor &fill, const QColor &ink, double scale,
+             const QPointF &anchor) {
+        if (text == m_text && font == m_font && fill == m_fill && ink == m_ink && scale == m_scale &&
+            anchor == m_anchor)
+            return;
+        m_text = text;
+        m_font = font;
+        m_fill = fill;
+        m_ink = ink;
+        m_scale = scale;
+        m_anchor = anchor;
+        update();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        (void)event;
+        if (m_scale <= 0)
+            return;
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        painter.translate(m_anchor);
+        painter.scale(m_scale, m_scale);
+        painter.translate(-m_anchor);
+        const QRectF box(rect());
+        fillRounded(&painter, box, box.height() / 2, m_fill);
+        painter.setFont(m_font);
+        painter.setPen(m_ink);
+        painter.drawText(box, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, m_text);
+    }
+
+private:
+    QString m_text;
+    QFont m_font;
+    QColor m_fill;
+    QColor m_ink;
+    double m_scale = 0;
+    QPointF m_anchor;
+};
+
+// Keeps the overlay of a slider's value indicator. It makes it as the handle is pressed or the slider gets the focus,
+// outside any paint, so that it is there when the slider is next painted; the slider's paint then places it. It is a
+// child of the slider and deletes the overlay with it, or when unpolish() deletes it.
+class SliderValueWatcher : public QObject {
+public:
+    explicit SliderValueWatcher(QSlider *slider) : QObject(slider), m_slider(slider) {
+        setObjectName(QLatin1String(sliderValueWatcher));
+        QObject::connect(slider, &QAbstractSlider::sliderPressed, this, [this] { overlay(); });
+        slider->installEventFilter(this);
+    }
+    ~SliderValueWatcher() override { delete m_overlay.data(); }
+    SliderValueWatcher(const SliderValueWatcher &) = delete;
+    SliderValueWatcher &operator=(const SliderValueWatcher &) = delete;
+
+    // The overlay, in the slider's window, made if it has none there.
+    SliderValueOverlay *overlay() {
+        QWidget *window = m_slider->window();
+        if (window == m_slider || !showsSliderValue(m_slider, m_slider->tickPosition()) ||
+            keepsSliderValueRoom(m_slider))
+            return nullptr;
+        // The slider has moved to another window. This may be called while the old one is painted.
+        if (m_overlay && m_overlay->parentWidget() != window) {
+            m_overlay->hide();
+            m_overlay->deleteLater();
+            m_overlay = nullptr;
+        }
+        if (!m_overlay) {
+            m_overlay = new SliderValueOverlay(window);
+            m_overlay->hide();
+        }
+        return m_overlay;
+    }
+
+    // The overlay if there is one.
+    SliderValueOverlay *existing() const { return m_overlay; }
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (event->type() == QEvent::FocusIn || event->type() == QEvent::KeyPress)
+            overlay();
+        else if (event->type() == QEvent::Hide && m_overlay)
+            m_overlay->hide();
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    QSlider *m_slider;
+    QPointer<SliderValueOverlay> m_overlay;
+};
 
 // Lets the handle of a scroll bar fade out once the bar has been left alone for a while. It wakes the bar when it is
 // shown, when its value changes (by the wheel, the keys, a finger that flicks the content with QScroller, or the
@@ -1893,7 +2037,17 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         popup of the completer goes on from the bar, as wide as it, with a divider between them and corners of 28 at
         the far end, while the bar's corners towards it turn square. Its rows are 56 high, with the icon that the model
         has in Qt::DecorationRole before the text. Under another line edit the popup of a completer is drawn as a
-        menu, with rows 48 high and corners of 16.
+        menu, with rows 48 high and corners of 16. In either, the part of each suggestion that matches what was typed
+        (whatever its case) is in \c OnSurface and medium weight, and the rest in \c OnSurfaceVariant.
+    \li \c materialSearchView of a search bar with a QCompleter: on a compact window (narrower than 600) the bar opens
+        Material's full-screen search view when it gets the focus or is tapped, and on a wider one the docked view;
+        \c "fullScreen" or \c "docked" chooses either on any window. The full-screen view covers the window, growing
+        from the bar's rectangle, with a header of 72 of its own: an arrow back, a line edit with a clear button, and a
+        divider under them, and the suggestions under the header. What is typed there is the bar's text, and the bar
+        emits \l{QLineEdit::textEdited()}{textEdited()}, \l{QLineEdit::returnPressed()}{returnPressed()} and
+        \l{QLineEdit::editingFinished()}{editingFinished()} for it. The arrow back, Escape (after the suggestions have
+        closed), Return, a chosen suggestion or the focus moving elsewhere closes the view, leaving nothing focused,
+        except in the last case.
     \li \c materialAvatar \c true of a QAction that is added to a QLineEdit with
         \l{QLineEdit::addAction()}{addAction()} at its trailing end shows its icon as an avatar: a round picture of 30,
         in its own colors, at the far end, past the clear button. In a search bar the actions at the end have targets
@@ -1975,8 +2129,19 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     \li \c materialSliderValue of a QSlider: \c true shows the value indicator, a small container with the value
         in it, over the handle (at its left on a vertical slider) while the handle is pressed or the keys change it;
         \c false hides it. Without the property a slider with tick marks shows it, as Material's discrete sliders
-        do, and others do not. A slider that shows it is made thicker by its room (48 over a horizontal one, the width
-        of its widest value at the left of a vertical one), so that nothing has to be drawn outside it.
+        do, and others do not. It is drawn over what is above the slider (at the left of a vertical one), in an
+        overlay that is a child of the slider's window, so the slider keeps no room for it; give the slider that
+        room in its layout if nothing else is there. While motion is enabled it grows from the handle as it comes
+        and shrinks back into it as it goes.
+    \li \c materialSliderValueRoom of a QSlider: \c true draws the value indicator inside the slider instead of in
+        an overlay, which makes the slider thicker by its room (48 over a horizontal one, the width of its widest
+        value at the left of a vertical one). A slider that is a window of its own always does so.
+    \li \c materialSliderIcon of a QSlider of the medium, large or extra large size: a QIcon drawn inside the
+        active track, 8 from its outer end, 24 by 24 (32 on the extra large size), in \c OnPrimary if it has one
+        color. Where the active part is too short for it, it is in the inactive track beside the handle, in
+        \c OnSecondaryContainer. Smaller sliders, and centered ones, show no icon.
+    \li \c materialSlider \c "centered" of a QSlider: a centered slider, whose active track runs from the middle of
+        the track (the middle of its range) to the handle, with a stop at each end.
     \li \c materialDatePicker \c "modal" of a QCalendarWidget makes it Material's modal date picker: above the month
         it has a headline, "Select date" and the chosen date (as "Mon, Aug 17"), over a divider, 121 high in all. It
         is for a calendar in a dialog of its own; a calendar without it, such as the pop-up of a QDateEdit, is the
@@ -2097,10 +2262,10 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     exec() or setModal()), and a sheet stays where it was put if its parent's window moves or changes size. A sheet
     has no state that is partly open, and no key or accessibility action moves it. Badges are on icon buttons,
     toolbar buttons and the destinations of a navigation bar or rail only. A snackbar finds where a floating action
-    button is when it is placed, and again when one is shown or hidden, not when one is moved. A slider that shows its value
-    indicator keeps room for it all the time, instead of drawing it over what is above, and it appears and goes at
-    once; the indicator is not shown for a slider whose value is changed by the program. A slider's ends beside the
-    handle are round on the extra small size. There are no inset icons and no centered or range sliders. A busy progress bar moves while motion is enabled, which the other styles of Nt
+    button is when it is placed, and again when one is shown or hidden, not when one is moved. The value
+    indicator of a slider is not shown for a slider whose value is changed by the program, and it is clipped to the
+    slider's window. A slider's ends beside the handle are round on the extra small size. There are no range sliders,
+    as Qt Widgets has no range slider. A busy progress bar moves while motion is enabled, which the other styles of Nt
     do not do. The shapes of the loading indicator are Nt's own, not Material's, and it shows only that something is
     going on, not how far it is. A wavy bar lies across; a vertical one is straight. While its wave travels it is painted at every frame. A wavy circular indicator's wave turns as a whole, at a steady
     speed, and is painted at every frame while it does. A scroll bar whose handle has faded out still takes its room
@@ -2539,6 +2704,10 @@ void QMaterialStyle::polish(QWidget *widget) {
     if (auto *bar = qobject_cast<QScrollBar *>(widget);
         bar && !bar->findChild<QObject *>(QLatin1String(scrollRestWatcher), Qt::FindDirectChildrenOnly))
         new ScrollBarRest(bar);
+    // A slider draws its value indicator in an overlay.
+    if (auto *slider = qobject_cast<QSlider *>(widget);
+        slider && !slider->findChild<QObject *>(QLatin1String(sliderValueWatcher), Qt::FindDirectChildrenOnly))
+        new SliderValueWatcher(slider);
     // and fades in while a mouse moves over the content of its scroll area.
     if (auto *area = qobject_cast<QAbstractScrollArea *>(widget);
         area && !area->findChild<QObject *>(QLatin1String(scrollHoverWatcher), Qt::FindDirectChildrenOnly))
@@ -2693,6 +2862,8 @@ void QMaterialStyle::unpolish(QWidget *widget) {
         delete widget->findChild<QObject *>(QLatin1String(appBarWatcher), Qt::FindDirectChildrenOnly);
         delete widget->findChild<QObject *>(QLatin1String(scrollHoverWatcher), Qt::FindDirectChildrenOnly);
     }
+    if (qobject_cast<QSlider *>(widget))
+        delete widget->findChild<QObject *>(QLatin1String(sliderValueWatcher), Qt::FindDirectChildrenOnly);
     if (qobject_cast<QScrollBar *>(widget)) {
         delete widget->findChild<QObject *>(QLatin1String(scrollRestWatcher), Qt::FindDirectChildrenOnly);
         widget->setProperty(scrollAwake, QVariant());
@@ -2740,6 +2911,307 @@ void QMaterialStyle::unpolish(QApplication *application) {
     QCommonStyle::unpolish(application);
 }
 
+namespace {
+
+// Whether the search bar `edit` opens the full-screen search view when it gets the focus: by its materialSearchView
+// ("fullScreen" or "docked"), or else on a compact window, narrower than 600. Only a bar with a completer opens a view.
+bool opensFullScreenSearch(const QWidget *edit) {
+    const auto *line = qobject_cast<const QLineEdit *>(edit);
+    if (!line || !line->completer() || !textFieldOf(line).search)
+        return false;
+    const QString mode = line->property("materialSearchView").toString();
+    if (mode == QLatin1String("fullScreen"))
+        return true;
+    if (mode == QLatin1String("docked"))
+        return false;
+    return line->window()->width() < navigationMediumWidth;
+}
+
+// The full-screen search view of a search bar: over the whole window, SurfaceContainerHigh, with a header of its own
+// (an arrow back, a line edit and a divider under them) and the completer's popup under it. The search bar keeps its
+// place under the view, and its completer completes the header's line edit while the view is open; what is typed
+// there is the bar's text, and the bar emits textEdited(), returnPressed() and editingFinished() for it. The view grows
+// from the bar's rectangle to the window's.
+class SearchView : public QWidget {
+public:
+    // What the view does with the focus as it closes.
+    enum class Focus {
+        Clear, // nothing has the focus (the arrow back, Escape, a choice)
+        ToBar, // the bar gets it back (the window became too wide for the view)
+        Leave  // it went to another widget already
+    };
+
+    SearchView(const QMaterialStyle *style, QLineEdit *edit) : QWidget(edit->window()), m_style(style), m_edit(edit) {
+        setObjectName(QLatin1String(searchViewName));
+        setFocusPolicy(Qt::NoFocus);
+        m_field = new QLineEdit(this);
+        m_field->setObjectName(QLatin1String(searchFieldName));
+        m_field->setFrame(false);
+        QPalette palette = m_field->palette();
+        palette.setColor(QPalette::Base, Qt::transparent);
+        palette.setColor(QPalette::Text, style->color(QMaterialStyle::Role::OnSurface));
+        palette.setColor(QPalette::PlaceholderText, style->color(QMaterialStyle::Role::OnSurfaceVariant));
+        m_field->setPalette(palette);
+        m_field->setPlaceholderText(edit->placeholderText());
+        m_field->setMaxLength(edit->maxLength());
+        m_field->setText(edit->text());
+        m_field->setCursorPosition(edit->cursorPosition());
+        m_field->setClearButtonEnabled(true);
+        QObject::connect(m_field, &QLineEdit::textChanged, this, [this](const QString &text) {
+            if (m_edit && m_edit->text() != text)
+                m_edit->setText(text);
+        });
+        QObject::connect(m_field, &QLineEdit::textEdited, this, [this](const QString &text) {
+            if (m_edit)
+                emit m_edit->textEdited(text);
+        });
+        QObject::connect(m_field, &QLineEdit::returnPressed, this, [this] {
+            const QPointer<QLineEdit> bar = m_edit;
+            close(Focus::Clear);
+            if (bar) {
+                emit bar->returnPressed();
+                emit bar->editingFinished();
+            }
+        });
+        m_completer = edit->completer();
+        m_field->setCompleter(m_completer);
+        if (m_completer)
+            QObject::connect(m_completer.data(), &QCompleter::activated, this, [this] { close(Focus::Clear); });
+        parentWidget()->installEventFilter(this);
+    }
+
+    // The view of the window of `widget`, if one is open.
+    static SearchView *of(const QWidget *widget) {
+        const QWidget *window = widget->window();
+        for (QObject *child : window->children()) {
+            if (auto *view = dynamic_cast<SearchView *>(child); view && !view->m_closing)
+                return view;
+        }
+        return nullptr;
+    }
+
+    QLineEdit *field() const { return m_field; }
+
+    // Shows the view and gives its line edit the focus. With motion it grows from the bar's rectangle on the default
+    // spatial spring, as round as the bar at the start and square at the end.
+    void open(bool motion) {
+        const QRect from(m_edit->mapTo(parentWidget(), QPoint(0, 0)), m_edit->size());
+        m_barCorner = from.height() / 2.0;
+        if (motion) {
+            growTo(from, 0);
+            QPointer<SearchView> guard(this);
+            new QtPrivate::Transition(this, QStringLiteral("_nt_searchViewGrow"), QtPrivate::defaultSpatialSpring,
+                                      [guard, from](double progress) {
+                                          if (!guard)
+                                              return false;
+                                          guard->growTo(from, progress);
+                                          return true;
+                                      });
+        } else {
+            growTo(from, 1);
+        }
+        raise();
+        show();
+        m_field->setFocus();
+        QObject::connect(qApp, &QApplication::focusChanged, this, [this](QWidget *, QWidget *now) {
+            if (now && now != m_field && !isAncestorOf(now))
+                close(Focus::Leave);
+        });
+    }
+
+    // Closes the view at once: the completer goes back to the bar, and the view is deleted soon.
+    void close(Focus focus) {
+        if (m_closing)
+            return;
+        m_closing = true;
+        QtPrivate::Transition::stop(this, QStringLiteral("_nt_searchViewGrow"));
+        m_field->setCompleter(nullptr);
+        if (m_completer && m_edit && m_edit->completer() == m_completer.data())
+            m_completer->setWidget(m_edit);
+        m_field->clearFocus();
+        hide();
+        if (m_edit) {
+            if (focus == Focus::ToBar)
+                m_edit->setFocus();
+            else if (focus == Focus::Clear)
+                m_edit->clearFocus();
+            m_edit->update();
+        }
+        deleteLater();
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        (void)event;
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+        const double corner = m_barCorner * (1.0 - std::clamp(m_progress, 0.0, 1.0));
+        QPainterPath shape;
+        shape.addRoundedRect(QRectF(rect()), corner, corner);
+        painter.fillPath(shape, QBrush(m_style->color(QMaterialStyle::Role::SurfaceContainerHigh)));
+        // The arrow back, 24 in its target, and the layer of a press on the target.
+        const QRect target = backTarget();
+        const QColor ink = m_style->color(QMaterialStyle::Role::OnSurface);
+        if (m_backPressed) {
+            painter.setPen(Qt::NoPen);
+            painter.setBrush(withOpacity(ink, pressedOpacity));
+            painter.drawEllipse(QRectF(target).adjusted(4, 4, -4, -4));
+        }
+        const QPointF c = QRectF(target).center();
+        QPainterPath arrow;
+        arrow.moveTo(c + QPointF(7, 0));
+        arrow.lineTo(c + QPointF(-7, 0));
+        arrow.moveTo(c + QPointF(-1, -6));
+        arrow.lineTo(c + QPointF(-7, 0));
+        arrow.lineTo(c + QPointF(-1, 6));
+        painter.setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+        painter.setBrush(Qt::NoBrush);
+        painter.drawPath(arrow);
+        // The divider under the header, once the view is taller than it.
+        if (height() > searchHeaderHeight)
+            painter.fillRect(QRect(0, searchHeaderHeight, width(), 1),
+                             m_style->color(QMaterialStyle::Role::OutlineVariant));
+    }
+
+    void resizeEvent(QResizeEvent *event) override {
+        QWidget::resizeEvent(event);
+        const int header = headerHeight();
+        m_field->setGeometry(searchHeaderFieldLeft, (header - searchHeaderFieldHeight) / 2,
+                             std::max(0, width() - searchHeaderFieldLeft - searchBackInset), searchHeaderFieldHeight);
+    }
+
+    void mousePressEvent(QMouseEvent *event) override {
+        m_backPressed = event->button() == Qt::LeftButton && backTarget().contains(event->position().toPoint());
+        update();
+        event->accept();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override {
+        const bool back = m_backPressed && backTarget().contains(event->position().toPoint());
+        m_backPressed = false;
+        update();
+        event->accept();
+        if (back)
+            close(Focus::Clear);
+    }
+
+    // The view covers the window as it changes size; on a window that grew too wide for it, the docked view takes
+    // its place.
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched == parentWidget() && event->type() == QEvent::Resize && !m_closing) {
+            if (m_edit && !opensFullScreenSearch(m_edit))
+                close(Focus::ToBar);
+            else if (m_progress >= 1.0)
+                setGeometry(parentWidget()->rect());
+        }
+        return QWidget::eventFilter(watched, event);
+    }
+
+private:
+    // The header is 72, or the whole view while it is lower, as it is when it starts to grow from the bar.
+    int headerHeight() const { return std::min(searchHeaderHeight, height()); }
+
+    // The target of the arrow back, in the view.
+    QRect backTarget() const {
+        return QRect(searchBackInset, (headerHeight() - searchBackTarget) / 2, searchBackTarget, searchBackTarget);
+    }
+
+    // Puts the view `progress` of the way from the bar's rectangle `from` to the window's.
+    void growTo(const QRect &from, double progress) {
+        m_progress = progress;
+        const QRect to = parentWidget()->rect();
+        const auto mix = [progress](int a, int b) { return static_cast<int>(std::lround(a + (b - a) * progress)); };
+        setGeometry(QRect(QPoint(mix(from.left(), to.left()), mix(from.top(), to.top())),
+                          QPoint(mix(from.right(), to.right()), mix(from.bottom(), to.bottom()))));
+        update();
+    }
+
+    const QMaterialStyle *m_style;
+    QPointer<QLineEdit> m_edit;
+    QPointer<QCompleter> m_completer;
+    QLineEdit *m_field = nullptr;
+    double m_progress = 1;   // how far the view has grown from the bar
+    double m_barCorner = 28; // the corners of the bar that it grows from
+    bool m_backPressed = false;
+    bool m_closing = false;
+};
+
+} // namespace
+
+// Opens the full-screen search view of the search bar `edit`, which just got the focus.
+void QMaterialStyle::openFullScreenSearch(QLineEdit *edit) const {
+    if (SearchView::of(edit))
+        return;
+    auto *view = new SearchView(this, edit);
+    view->open(m_motion);
+}
+
+QRect QMaterialStyle::completerPopupGeometry(const QWidget *popup, const QWidget *widget, const QRect &proposed,
+                                             int content) {
+    if (!popup || !popup->parentWidget() || !isFullScreenSearchField(widget))
+        return proposed;
+    const QWidget *top = popup->parentWidget();
+    const int y = searchHeaderHeight + 1;
+    return QRect(0, y, top->width(), std::clamp(content, 0, std::max(0, top->height() - y)));
+}
+
+bool QMaterialStyle::drawCompletionText(QPainter *painter, const QRect &area, const QString &text, const QFont &font,
+                                        bool enabled, const QWidget *view) const {
+    if (completerPopupOf(view) == CompleterPopup::None)
+        return false;
+    const QCompleter *completer = completerEdit(view)->completer();
+    const QString typed = completer->completionPrefix();
+    if (typed.isEmpty())
+        return false;
+    qsizetype at = -1;
+    switch (static_cast<int>(completer->filterMode() & Qt::MatchTypeMask)) {
+    case Qt::MatchContains:
+        at = text.indexOf(typed, 0, Qt::CaseInsensitive);
+        break;
+    case Qt::MatchEndsWith:
+        at = text.endsWith(typed, Qt::CaseInsensitive) ? text.size() - typed.size() : -1;
+        break;
+    default:
+        at = text.startsWith(typed, Qt::CaseInsensitive) ? 0 : -1;
+        break;
+    }
+    if (at < 0)
+        return false;
+    QFont emphasized = font;
+    emphasized.setWeight(QFont::Medium);
+    const QColor disabled = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    const QColor rest = enabled ? color(Role::OnSurfaceVariant) : disabled;
+    const QColor match = enabled ? color(Role::OnSurface) : disabled;
+    struct Run {
+        QString text;
+        const QFont *font;
+        QColor color;
+    };
+    const Run runs[] = {{text.left(at), &font, rest},
+                        {text.mid(at, typed.size()), &emphasized, match},
+                        {text.mid(at + typed.size()), &font, rest}};
+    painter->save();
+    int x = area.left();
+    for (const Run &run : runs) {
+        if (run.text.isEmpty())
+            continue;
+        const int room = area.right() + 1 - x;
+        if (room <= 0)
+            break;
+        // What does not fit ends in an ellipsis.
+        const QFontMetrics metrics(*run.font);
+        const QString shown =
+            metrics.horizontalAdvance(run.text) > room ? metrics.elidedText(run.text, Qt::ElideRight, room) : run.text;
+        painter->setFont(*run.font);
+        painter->setPen(run.color);
+        painter->drawText(QRect(x, area.top(), room, area.height()),
+                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, shown);
+        x += metrics.horizontalAdvance(shown);
+    }
+    painter->restore();
+    return true;
+}
+
 /*!
     \reimp
 
@@ -2785,6 +3257,38 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
     if ((event->type() == QEvent::Show || event->type() == QEvent::Hide) &&
         qobject_cast<QAbstractScrollArea *>(watched))
         updateAppBars(static_cast<QWidget *>(watched), false);
+    // A search bar that gets the focus opens the full-screen search view, unless the focus only came back with its
+    // window: the window sends WindowActivate just before it gives its focus widget the focus again.
+    if (event->type() == QEvent::WindowActivate) {
+        auto *window = qobject_cast<QWidget *>(watched);
+        m_activatedWindow = window && window->focusWidget() ? window : nullptr;
+    } else if (event->type() == QEvent::FocusIn) {
+        auto *edit = qobject_cast<QLineEdit *>(watched);
+        const bool returned = edit && m_activatedWindow && m_activatedWindow.data() == edit->window();
+        m_activatedWindow = nullptr;
+        if (edit && !returned && edit->style() == this && opensFullScreenSearch(edit))
+            openFullScreenSearch(edit);
+    } else if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::KeyPress ||
+               event->type() == QEvent::TouchBegin) {
+        m_activatedWindow = nullptr;
+        // A tap on a bar that has the focus already (its window gave it the focus as it opened) opens the view too.
+        auto *edit = qobject_cast<QLineEdit *>(watched);
+        if (event->type() == QEvent::MouseButtonPress && edit && edit->hasFocus() && edit->style() == this &&
+            static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton && opensFullScreenSearch(edit))
+            openFullScreenSearch(edit);
+    }
+    // In the full-screen search view, Escape (or Back) closes the completer's popup first, and then the view.
+    if (event->type() == QEvent::KeyPress) {
+        const int key = static_cast<QKeyEvent *>(event)->key();
+        auto *field = qobject_cast<QLineEdit *>(watched);
+        if ((key == Qt::Key_Escape || key == Qt::Key_Back) && field && isFullScreenSearchField(field) &&
+            !(field->completer() && field->completer()->popup()->isVisible())) {
+            if (SearchView *view = SearchView::of(field)) {
+                view->close(SearchView::Focus::Clear);
+                return true;
+            }
+        }
+    }
     // A text editor's border shows that it has the focus.
     if (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut) {
         if (auto *widget = qobject_cast<QWidget *>(watched); widget && isTextEditor(widget))
@@ -4788,6 +5292,7 @@ bool QMaterialStyle::isDrawerList(const QWidget *widget) {
 int QMaterialStyle::completerRowHeight(const QWidget *list) {
     switch (completerPopupOf(list)) {
     case CompleterPopup::SearchView:
+    case CompleterPopup::FullScreenView:
         return searchViewRowHeight;
     case CompleterPopup::Menu:
         return menuItemHeight;
@@ -5220,6 +5725,8 @@ bool QMaterialStyle::drawMaterialFrame(QPainter *painter, const QFrame *frame) c
         if (kind == CompleterPopup::Menu) {
             fillRounded(painter, QRectF(frame->rect()), menuCorner, color(Role::SurfaceContainer));
             strokeRounded(painter, QRectF(frame->rect()), menuCorner, color(Role::OutlineVariant), 1);
+        } else if (kind == CompleterPopup::FullScreenView) {
+            painter->fillRect(frame->rect(), color(Role::SurfaceContainerHigh)); // the header has the divider
         } else {
             // The view goes on from its bar, with a divider between them.
             painter->fillPath(completerShape(frame, kind), QBrush(color(Role::SurfaceContainerHigh)));
@@ -5411,24 +5918,66 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
     }
     const double beforeEnd = handle - sliderHandleWidth / 2.0 - sliderGap;
     const double afterStart = handle + sliderHandleWidth / 2.0 + sliderGap;
+    // A centered slider's active part runs from the middle of the track, where the middle of its range is, to the
+    // handle; on each side the rest of the track is inactive.
+    const bool centered = isCenteredSlider(widget);
+    const double middle = (start + end) / 2;
     // The outer ends of the track have the corners of its size, the ends beside the handle small ones.
     painter->setPen(Qt::NoPen);
     if (beforeEnd > start) {
-        painter->setBrush(activeFirst ? active : inactive);
+        painter->setBrush(activeFirst && !centered ? active : inactive);
         painter->drawPath(trackPart(part(start, beforeEnd), size.corner, size.inner, horizontal));
+        if (centered && beforeEnd > middle) {
+            painter->setBrush(active);
+            painter->drawPath(trackPart(part(middle, beforeEnd), 0, size.inner, horizontal));
+        }
     }
     if (end > afterStart) {
-        painter->setBrush(activeFirst ? inactive : active);
+        painter->setBrush(activeFirst || centered ? inactive : active);
         painter->drawPath(trackPart(part(afterStart, end), size.inner, size.corner, horizontal));
+        if (centered && afterStart < middle) {
+            painter->setBrush(active);
+            painter->drawPath(trackPart(part(afterStart, middle), size.inner, 0, horizontal));
+        }
     }
-    // Stops: one at the far end of the inactive part, or one for every step when the slider shows tick marks.
+    const auto onActive = [&](double at) {
+        if (centered)
+            return at >= std::min(middle, handle) && at <= std::max(middle, handle);
+        return activeFirst ? at < handle : at > handle;
+    };
+    // The inset icon of a medium, large or extra large slider: inside the active part at its outer end, or, where that
+    // is too short for it, in the inactive part beside the handle.
+    if (const int iconSize = sliderIconSize(size); iconSize > 0 && widget && !centered) {
+        const QIcon icon = widget->property("materialSliderIcon").value<QIcon>();
+        const double need = iconSize + 2.0 * sliderIconPadding;
+        const double activeLength = activeFirst ? beforeEnd - start : end - afterStart;
+        const double inactiveLength = activeFirst ? end - afterStart : beforeEnd - start;
+        const bool inActive = activeLength >= need;
+        if (!icon.isNull() && (inActive || inactiveLength >= need)) {
+            double at = 0; // where the icon begins along the track
+            if (inActive)
+                at = activeFirst ? start + sliderIconPadding : end - sliderIconPadding - iconSize;
+            else
+                at = activeFirst ? afterStart + sliderIconPadding : beforeEnd - sliderIconPadding - iconSize;
+            const double across = (horizontal ? groove.center().y() : groove.center().x()) - iconSize / 2.0;
+            const QRectF place =
+                horizontal ? QRectF(at, across, iconSize, iconSize) : QRectF(across, at, iconSize, iconSize);
+            QColor ink = color(inActive ? Role::OnPrimary : Role::OnSecondaryContainer);
+            if (!enabled(option))
+                ink = inActive ? color(Role::Surface) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+            paintIcon(painter, place.toAlignedRect(), icon, enabled(option) ? QIcon::Normal : QIcon::Disabled,
+                      QIcon::Off, ink);
+        }
+    }
+    // Stops: one at the far end of the inactive part (at both ends of a centered slider), or one for every step when
+    // the slider shows tick marks.
     const auto dot = [&](double at) {
-        const bool onActive = activeFirst ? at < handle : at > handle;
         if (at > beforeEnd && at < afterStart)
             return;
-        const QPointF middle = horizontal ? QPointF(at, groove.center().y()) : QPointF(groove.center().x(), at);
-        fillRounded(painter, QRectF(middle.x() - stopSize / 2.0, middle.y() - stopSize / 2.0, stopSize, stopSize),
-                    stopSize / 2.0, color(onActive ? Role::OnPrimary : Role::OnSecondaryContainer));
+        const QPointF middlePoint = horizontal ? QPointF(at, groove.center().y()) : QPointF(groove.center().x(), at);
+        fillRounded(painter,
+                    QRectF(middlePoint.x() - stopSize / 2.0, middlePoint.y() - stopSize / 2.0, stopSize, stopSize),
+                    stopSize / 2.0, color(onActive(at) ? Role::OnPrimary : Role::OnSecondaryContainer));
     };
     const double inset = size.corner;
     const qint64 range = static_cast<qint64>(slider->maximum) - slider->minimum;
@@ -5440,6 +5989,9 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
         if (range / interval <= static_cast<qint64>((end - start) / (2 * stopSize)))
             for (qint64 v = 0; v <= range; v += interval)
                 dot(start + inset + (end - start - 2 * inset) * static_cast<double>(v) / static_cast<double>(range));
+    } else if (centered) {
+        dot(start + inset);
+        dot(end - inset);
     } else {
         dot(activeFirst ? end - inset : start + inset);
     }
@@ -5453,13 +6005,35 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
     fillRounded(painter, bar, width / 2, knob);
     if (keyboardFocus(option))
         strokeRounded(painter, bar.adjusted(-4, -2, 4, 2), 6, color(Role::Secondary), 2);
-    // The value indicator, over the handle (at the left of a vertical slider) while it is pressed or the keys change
-    // it, in the room that the slider keeps for it. Near an end it stays inside the slider.
-    if (!enabled(option) || !(pressed || keyboardFocus(option)) || !showsSliderValue(widget, slider->tickPosition))
+    drawSliderValue(option, painter, widget, bar);
+}
+
+// The value indicator, over the handle (at the left of a vertical slider) while it is pressed or the keys change it.
+// It grows from the handle as it comes and shrinks back into it as it goes. Near an end of the slider it stays over
+// the slider. It is drawn in an overlay over what is above the slider, or in the room that the slider keeps for it.
+void QMaterialStyle::drawSliderValue(const QStyleOption *option, QPainter *painter, const QWidget *widget,
+                                     const QRectF &bar) const {
+    const auto *slider = static_cast<const QStyleOptionSlider *>(option);
+    const bool horizontal = slider->orientation == Qt::Horizontal;
+    const bool shows = enabled(option) && ((option->state & State_Sunken) || keyboardFocus(option)) &&
+                       showsSliderValue(widget, slider->tickPosition);
+    const bool inside = !widget || keepsSliderValueRoom(widget);
+    auto *watcher = inside ? nullptr
+                           : static_cast<SliderValueWatcher *>(widget->findChild<QObject *>(
+                                 QLatin1String(sliderValueWatcher), Qt::FindDirectChildrenOnly));
+    if (!inside && !watcher)
+        return; // a slider that the style has not polished
+    const double grown = std::clamp(
+        animated(widget, SliderValueChannel, shows ? 1.0 : 0.0, QtPrivate::fastEffectsSpring, 0.01), 0.0, 1.0);
+    if (grown < 0.01) {
+        if (SliderValueOverlay *overlay = watcher ? watcher->existing() : nullptr; overlay && !overlay->isHidden())
+            overlay->hide();
         return;
+    }
     const QFont font = sliderValueFont(widget);
     const QString text = QString::number(slider->sliderPosition);
     const double boxWidth = sliderValueWidth(QFontMetrics(font), slider->sliderPosition);
+    const double handle = horizontal ? bar.center().x() : bar.center().y();
     const QRectF r(option->rect);
     QRectF box = horizontal
                      ? QRectF(handle - boxWidth / 2, bar.top() - valueGap - valueHeight, boxWidth, valueHeight)
@@ -5468,10 +6042,38 @@ void QMaterialStyle::drawSlider(const QStyleOption *option, QPainter *painter, c
         box.moveLeft(std::clamp(box.left(), r.left(), std::max(r.left(), r.right() - box.width())));
     else
         box.moveTop(std::clamp(box.top(), r.top(), std::max(r.top(), r.bottom() - box.height())));
-    fillRounded(painter, box, valueHeight / 2.0, color(Role::InverseSurface));
-    painter->setFont(font);
-    painter->setPen(color(Role::InverseOnSurface));
-    painter->drawText(box, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text);
+    // Where it meets the handle, which it grows from.
+    const QPointF anchor = horizontal ? QPointF(std::clamp(handle, box.left(), box.right()), box.bottom())
+                                      : QPointF(box.right(), std::clamp(handle, box.top(), box.bottom()));
+    const QColor fill = color(Role::InverseSurface);
+    const QColor ink = color(Role::InverseOnSurface);
+    if (inside) {
+        painter->save();
+        painter->translate(anchor);
+        painter->scale(grown, grown);
+        painter->translate(-anchor);
+        fillRounded(painter, box, valueHeight / 2.0, fill);
+        painter->setFont(font);
+        painter->setPen(ink);
+        painter->drawText(box, static_cast<int>(Qt::AlignCenter) | Qt::TextSingleLine, text);
+        painter->restore();
+        return;
+    }
+    SliderValueOverlay *overlay = watcher->overlay();
+    if (!overlay)
+        return;
+    // In the window, and inside it where the slider is near its top or its left.
+    const QWidget *window = overlay->parentWidget();
+    QRect place = box.translated(QPointF(widget->mapTo(window, QPoint(0, 0)))).toAlignedRect();
+    place.moveTopLeft(QPoint(std::max(0, place.left()), std::max(0, place.top())));
+    const QPointF offset = QPointF(widget->mapTo(window, QPoint(0, 0))) - QPointF(place.topLeft());
+    if (overlay->geometry() != place)
+        overlay->setGeometry(place);
+    overlay->set(text, font, fill, ink, grown, anchor + offset);
+    if (overlay->isHidden()) {
+        overlay->show();
+        overlay->raise();
+    }
 }
 
 // A thin rounded line: what is done, a gap, what is left, and a dot at the far end.

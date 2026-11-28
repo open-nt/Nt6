@@ -297,6 +297,7 @@ private:
     void drawScrollBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawSwitch(const QStyleOption *option, const QRect &rect, QPainter *painter, const QWidget *widget) const;
     void drawSlider(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
+    void drawSliderValue(const QStyleOption *option, QPainter *painter, const QWidget *widget, const QRectF &bar) const;
     void drawProgressBar(const QStyleOption *option, QPainter *painter, const QWidget *widget) const;
     void drawLoadingIndicator(const QStyleOption *option, QPainter *painter, const QWidget *widget,
                               bool contained) const;
@@ -325,6 +326,19 @@ private:
     // The height of the rows of a QCompleter's popup: 56 in the docked search view under a search bar, 48 in the menu
     // under another line edit, and 0 for a list that is no completer's popup. QListWidget asks for it.
     static int completerRowHeight(const QWidget *list);
+    // The text of a row of a completer's popup, with the part that matches what was typed (in any case) in OnSurface
+    // and body large emphasized (medium), the rest in OnSurfaceVariant. False if nothing in it matches, or `view` is
+    // no completer's popup: QListWidget then draws the text itself.
+    bool drawCompletionText(QPainter *painter, const QRect &area, const QString &text, const QFont &font, bool enabled,
+                            const QWidget *view) const;
+    // Where QCompleter puts its `popup` for `widget`: `proposed` (under or over the widget), or in the full-screen
+    // search view the whole width of the window under the view's header, `content` high at most.
+    friend class QCompleter;
+    static QRect completerPopupGeometry(const QWidget *popup, const QWidget *widget, const QRect &proposed,
+                                        int content);
+    // A search bar that gets the focus on a compact window (or with materialSearchView "fullScreen") opens the
+    // full-screen search view over its window.
+    void openFullScreenSearch(QLineEdit *edit) const;
     // The icon of a row, in `area`: one of one color is drawn in the color of the icons of a list, and those of a list
     // with materialListAvatars or materialListImages as pictures in their own colors, in a circle of 40 or a square of
     // 56, which listLeadingSize() gives (an invalid size for other lists).
@@ -398,6 +412,7 @@ private:
     QPointer<QWidget> m_rippleWidget; // the button that was pressed last, and where
     QPointF m_rippleOrigin;
     bool m_rowPressed = false; // a row of a list, a tab or a row of a menu is held down
+    QPointer<QWidget> m_activatedWindow; // a window that was activated and is about to give the focus back
     struct SheetDrag;
     std::unique_ptr<SheetDrag> m_sheetDrag; // the sheet that is being dragged, while it is
 };

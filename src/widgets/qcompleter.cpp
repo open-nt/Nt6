@@ -9,6 +9,7 @@
 #include <QtGui/qpixmap.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qlistwidget.h>
+#include <QtWidgets/qmaterialstyle.h>
 
 #include <algorithm>
 
@@ -366,7 +367,12 @@ void QCompleter::showPopup(const QRect &rect) {
     QPoint at = m_widget->mapTo(top, area.bottomLeft() + QPoint(0, 1));
     if (at.y() + height > top->height())
         at.setY(std::max(0, m_widget->mapTo(top, area.topLeft()).y() - height));
-    m_popup->setGeometry(QRect(at, QSize(area.width(), height)));
+    QRect geometry(at, QSize(area.width(), height));
+    // The Material style puts it in its full-screen search view, as many rows as fit.
+    if (qobject_cast<const QMaterialStyle *>(m_popup->style()))
+        geometry = QMaterialStyle::completerPopupGeometry(
+            m_popup, m_widget, geometry, completionCount() * m_popup->rowHeight() + 2 * m_popup->frameWidth());
+    m_popup->setGeometry(geometry);
     m_popup->setCurrentRow(m_row);
     m_popup->raise();
     m_popup->show();

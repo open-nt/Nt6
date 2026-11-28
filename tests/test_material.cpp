@@ -5305,11 +5305,18 @@ void testSliderSizesAndValue() {
         CHECK(near(pixel(*across, w / 4, y - size.track / 2 - 2), style->color(Role::Surface), 2));
     }
 
-    // The value indicator: room is kept for it over a slider with tick marks, or one that asks for it.
+    // The value indicator: drawn over what is above the slider, which keeps no room for it, unless it asks for that.
     for (Qt::ColorScheme scheme : {Qt::ColorScheme::Light, Qt::ColorScheme::Dark}) {
         style->setColorScheme(scheme);
         QWidget window;
-        auto *layout = new QVBoxLayout(&window);
+        auto *outer = new QHBoxLayout(&window);
+        outer->addSpacing(64); // what the indicator of the vertical slider is drawn over
+        auto *upright = new QSlider(Qt::Vertical);
+        upright->setRange(0, 10);
+        upright->setTickPosition(QSlider::TicksBothSides);
+        outer->addWidget(upright);
+        auto *layout = new QVBoxLayout;
+        outer->addLayout(layout, 1);
         auto *steps = new QSlider(Qt::Horizontal);
         steps->setRange(0, 10);
         steps->setValue(5);
@@ -5320,24 +5327,27 @@ void testSliderSizesAndValue() {
         auto *quiet = new QSlider(Qt::Horizontal);
         quiet->setTickPosition(QSlider::TicksBelow);
         quiet->setProperty("materialSliderValue", false);
-        auto *upright = new QSlider(Qt::Vertical);
-        upright->setRange(0, 10);
-        upright->setTickPosition(QSlider::TicksBothSides);
-        for (QWidget *w : std::initializer_list<QWidget *>{steps, plain, quiet, upright})
+        auto *roomy = new QSlider(Qt::Horizontal);
+        roomy->setTickPosition(QSlider::TicksBelow);
+        roomy->setProperty("materialSliderValueRoom", true);
+        for (QWidget *w : std::initializer_list<QWidget *>{steps, plain, quiet, roomy}) {
+            layout->addSpacing(56); // what the indicator is drawn over
             layout->addWidget(w);
+        }
         layout->addStretch(1);
-        window.resize(320, 520);
+        window.resize(320, 560);
         window.show();
         QCoreApplication::processEvents();
 
-        CHECK(steps->sizeHint().height() >= 44 + 48);
+        CHECK(steps->sizeHint().height() == quiet->sizeHint().height()); // only the room of the tick marks
         CHECK(plain->sizeHint().height() == 44);
         CHECK(quiet->sizeHint().height() < 44 + 48);
-        CHECK(upright->sizeHint().width() >= 44 + 52);
+        CHECK(upright->sizeHint().width() < 44 + 48);
+        CHECK(roomy->sizeHint().height() == quiet->sizeHint().height() + 48);
         plain->setProperty("materialSliderValue", true);
         QCoreApplication::processEvents();
-        CHECK(plain->sizeHint().height() == 44 + 48);
-        CHECK(plain->height() == 44 + 48);
+        CHECK(plain->sizeHint().height() == 44);
+        CHECK(plain->height() == 44);
 
         // Shown while the handle is pressed, above it and whole, and gone when it is let go.
         const QColor bubble = style->color(Role::InverseSurface);
@@ -5361,7 +5371,7 @@ void testSliderSizesAndValue() {
         QRect handle = handleOf(steps);
         int sx = handle.center().x();
         int sy = handle.top() - 4 - 44 / 2; // the middle of the bubble
-        CHECK(sy - 44 / 2 >= 0);
+        CHECK(steps->mapTo(&window, QPoint(sx, sy - 44 / 2)).y() >= 0);
         CHECK(!bubbleShows(steps, sx, sy + belowText));
         const QPoint at = handle.center();
         QMouseEvent press(QEvent::MouseButtonPress, QPointF(at), steps->mapToGlobal(at), Qt::LeftButton, Qt::LeftButton,
@@ -5415,10 +5425,149 @@ void testSliderSizesAndValue() {
         upright->setValue(5);
         upright->setSliderDown(true);
         handle = handleOf(upright);
-        CHECK(handle.left() - 4 - 48 >= 0);
+        CHECK(upright->mapTo(&window, QPoint(handle.left() - 4 - 48, 0)).x() >= 0);
         CHECK(bubbleShows(upright, handle.left() - 4 - 24, handle.center().y() + belowText));
         upright->setSliderDown(false);
         CHECK(!bubbleShows(upright, handle.left() - 4 - 24, handle.center().y() + belowText));
+    }
+}
+
+// Inset icons, centered sliders, and the value indicator growing from the handle and shrinking back with motion.
+void testSliderIconsCenteredAndGrowth() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    QPixmap square(24, 24);
+    square.fill(Qt::black);
+    const QIcon icon(square);
+    const QColor primary = style->color(Role::Primary);
+    const QColor inactive = style->color(Role::SecondaryContainer);
+
+    // An inset icon: at the start of the active track, or after the handle where the active part is too short.
+    {
+        QWidget window;
+        auto *layout = new QVBoxLayout(&window);
+        auto *medium = new QSlider(Qt::Horizontal);
+        auto *small = new QSlider(Qt::Horizontal);
+        auto *upright = new QSlider(Qt::Vertical);
+        for (QSlider *s : {medium, small, upright}) {
+            s->setRange(0, 100);
+            s->setValue(50);
+            s->setProperty("materialSliderIcon", icon);
+            layout->addWidget(s);
+        }
+        medium->setProperty("materialSliderSize", QStringLiteral("medium"));
+        small->setProperty("materialSliderSize", QStringLiteral("small"));
+        upright->setProperty("materialSliderSize", QStringLiteral("extraLarge"));
+        window.resize(320, 520);
+        window.show();
+        QCoreApplication::processEvents();
+
+        int y = medium->height() / 2;
+        CHECK(near(pixel(*medium, 8 + 12, y), style->color(Role::OnPrimary), 2));
+        CHECK(near(pixel(*medium, 8 + 2, y + 10), style->color(Role::OnPrimary), 2));
+        CHECK(near(pixel(*medium, 4, y), primary, 2));
+        CHECK(near(pixel(*medium, 8 + 24 + 3, y), primary, 2));
+        // Near the start the icon moves into the inactive track, beside the handle.
+        medium->setValue(2);
+        QStyleOptionSlider option;
+        option.initFrom(medium);
+        option.orientation = Qt::Horizontal;
+        option.minimum = 0;
+        option.maximum = 100;
+        option.sliderPosition = 2;
+        const int handle =
+            style->subControlRect(QStyle::CC_Slider, &option, QStyle::SC_SliderHandle, medium).center().x();
+        CHECK(near(pixel(*medium, 3, y), primary, 2));
+        const int after = handle + 2 + 6 + 8; // past the handle's half, the gap and the icon's padding
+        CHECK(near(pixel(*medium, after + 12, y), style->color(Role::OnSecondaryContainer), 2));
+        CHECK(near(pixel(*medium, after + 24 + 4, y), inactive, 2));
+        // A small slider has none.
+        y = small->height() / 2;
+        CHECK(near(pixel(*small, 8 + 12, y), primary, 2));
+        // A vertical one has it at the bottom, where its active part starts: 32 for the extra large size.
+        const int x = upright->width() / 2, h = upright->height();
+        CHECK(near(pixel(*upright, x, h - 1 - 8 - 16), style->color(Role::OnPrimary), 2));
+        CHECK(near(pixel(*upright, x - 10, h - 1 - 8 - 8), style->color(Role::OnPrimary), 2)); // 24 drawn in 32
+        CHECK(near(pixel(*upright, x, h - 1 - 8 - 32 - 4), primary, 2));
+    }
+
+    // A centered slider: the active track runs from the middle to the handle, on either side of it.
+    {
+        QWidget window;
+        auto *layout = new QVBoxLayout(&window);
+        auto *centered = new QSlider(Qt::Horizontal);
+        centered->setRange(-50, 50);
+        centered->setValue(25);
+        centered->setProperty("materialSlider", QStringLiteral("centered"));
+        auto *plain = new QSlider(Qt::Horizontal);
+        plain->setRange(-50, 50);
+        plain->setValue(25);
+        layout->addWidget(centered);
+        layout->addWidget(plain);
+        layout->addStretch(1);
+        window.resize(320, 200);
+        window.show();
+        QCoreApplication::processEvents();
+
+        const int w = centered->width(), y = centered->height() / 2;
+        CHECK(near(pixel(*centered, 5 * w / 8, y), primary, 2));
+        CHECK(near(pixel(*centered, w / 2 + 3, y), primary, 2));
+        CHECK(near(pixel(*centered, w / 2 - 3, y), inactive, 2));
+        CHECK(near(pixel(*centered, w / 4, y), inactive, 2));
+        CHECK(near(pixel(*centered, 7 * w / 8, y), inactive, 2));
+        CHECK(near(pixel(*plain, w / 4, y), primary, 2));
+        // A stop at each end, both on the inactive track.
+        CHECK(near(pixel(*centered, 8, y), style->color(Role::OnSecondaryContainer), 2));
+        CHECK(near(pixel(*centered, w - 1 - 8, y), style->color(Role::OnSecondaryContainer), 2));
+        CHECK(near(pixel(*plain, 8, y), primary, 2));
+        // Below the middle the active part is on the other side.
+        centered->setValue(-25);
+        CHECK(near(pixel(*centered, 3 * w / 8, y), primary, 2));
+        CHECK(near(pixel(*centered, w / 2 - 3, y), primary, 2));
+        CHECK(near(pixel(*centered, w / 2 + 3, y), inactive, 2));
+        CHECK(near(pixel(*centered, 3 * w / 4, y), inactive, 2));
+        // At the middle there is no active part.
+        centered->setValue(0);
+        CHECK(near(pixel(*centered, w / 2 - 14, y), inactive, 2));
+        CHECK(near(pixel(*centered, w / 2 + 14, y), inactive, 2));
+    }
+
+    // With motion the value indicator grows from nothing at the handle and shrinks back into it.
+    {
+        style->setMotionEnabled(true);
+        QWidget window;
+        auto *layout = new QVBoxLayout(&window);
+        layout->addSpacing(56);
+        auto *slider = new QSlider(Qt::Horizontal);
+        slider->setRange(0, 10);
+        slider->setValue(5);
+        slider->setTickPosition(QSlider::TicksBelow);
+        layout->addWidget(slider);
+        layout->addStretch(1);
+        window.resize(320, 200);
+        window.show();
+        wait(50);
+        const QColor bubble = style->color(Role::InverseSurface);
+        const QColor surface = style->color(Role::Surface);
+        const int x = slider->width() / 2;
+        const int top = -4 - 44 + 3; // inside the top of the indicator when it is whole
+        const int low = -4 - 3;      // inside its bottom, next to the handle
+        slider->setSliderDown(true);
+        CHECK(near(pixel(*slider, x, top), surface, 3)); // not grown yet
+        wait(400);
+        CHECK(near(pixel(*slider, x, top), bubble, 3));
+        CHECK(near(pixel(*slider, x, low), bubble, 3));
+        const QWidget *overlay = window.findChild<QWidget *>(QStringLiteral("_nt_sliderValueIndicator"));
+        CHECK(overlay && !overlay->isHidden());
+        slider->setSliderDown(false);
+        CHECK(near(pixel(*slider, x, low), bubble, 3)); // still there as it starts to shrink
+        wait(400);
+        CHECK(near(pixel(*slider, x, low), surface, 3));
+        CHECK(near(pixel(*slider, x, top), surface, 3));
+        CHECK(overlay && overlay->isHidden());
+        style->setMotionEnabled(false);
     }
 }
 
@@ -6777,6 +6926,7 @@ void testSearchView() {
         auto *search = new QLineEdit(&window);
         search->setProperty("materialTextField", QStringLiteral("search"));
         search->setGeometry(20, 20, 360, 56);
+        search->setProperty("materialSearchView", QStringLiteral("docked")); // on a compact window too
         auto *plain = new QLineEdit(&window);
         plain->setGeometry(20, 520, 200, 56);
         QStandardItemModel words;
@@ -6878,6 +7028,178 @@ void testSearchView() {
         key(Qt::Key_Return);
         CHECK(plain->text() == QStringLiteral("blue") && !menu->isVisible());
     }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
+// On a compact window a search bar with a completer opens the full-screen search view when it gets the focus: over the
+// whole window, with a header of its own (an arrow back, the field and a divider) and the suggestions under it, in
+// which what matches the typed text is emphasized. With motion it grows from the bar. A wider window keeps the docked
+// view, and materialSearchView chooses either.
+void testFullScreenSearchView() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    const auto viewOf = [](QWidget &window) { return window.findChild<QWidget *>(QStringLiteral("_nt_searchView")); };
+
+    QWidget window;
+    window.resize(360, 640);
+    auto *search = new QLineEdit(&window);
+    search->setProperty("materialTextField", QStringLiteral("search"));
+    search->setPlaceholderText(QStringLiteral("Search fruit"));
+    search->setGeometry(16, 16, 328, 56);
+    auto *other = new QLineEdit(&window);
+    other->setGeometry(16, 560, 200, 56);
+    QCompleter completer(QStringList{QStringLiteral("Apple pie"), QStringLiteral("apricot"), QStringLiteral("banana")});
+    completer.setCaseSensitivity(Qt::CaseInsensitive);
+    search->setCompleter(&completer);
+    int edited = 0, returned = 0, activated = 0;
+    QObject::connect(search, &QLineEdit::textEdited, [&edited](const QString &) { ++edited; });
+    QObject::connect(search, &QLineEdit::returnPressed, [&returned] { ++returned; });
+    QObject::connect(&completer, &QCompleter::activated, [&activated](const QString &) { ++activated; });
+    window.show();
+    QCoreApplication::processEvents();
+    QWindow *handle = window.windowHandle();
+    const auto key = [&](int code, const QString &text = QString()) {
+        QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, code, Qt::NoModifier, text);
+        QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyRelease, code, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    const auto click = [&](QPoint at) {
+        const QPointF point(at);
+        QWindowSystemInterface::handleMouseEvent(handle, point, point, Qt::LeftButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonPress, Qt::NoModifier);
+        QWindowSystemInterface::handleMouseEvent(handle, point, point, Qt::NoButton, Qt::LeftButton,
+                                                 QEvent::MouseButtonRelease, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    const auto closed = [&] {
+        QCoreApplication::processEvents(); // the view is deleted soon after it closes
+        return viewOf(window) == nullptr;
+    };
+    // The window gives the bar the focus as it is activated, which opens no view; a tap on the bar does.
+    CHECK(!viewOf(window));
+    click(QPoint(100, 44));
+    QWidget *view = viewOf(window);
+    CHECK(view && view->isVisible());
+    if (!view)
+        return;
+    auto *field = view->findChild<QLineEdit *>(QStringLiteral("_nt_searchField"));
+    CHECK(field && field->hasFocus());
+    if (!field)
+        return;
+    // It covers the window: a header of 72 with the arrow back at the start and the field from 56, a divider under it.
+    CHECK(view->geometry() == window.rect());
+    CHECK(field->geometry() == QRect(56, 8, 300, 56));
+    CHECK(field->placeholderText() == QStringLiteral("Search fruit") && field->isClearButtonEnabled());
+    QImage image = window.grab().toImage();
+    CHECK(is(image.pixelColor(1, 1), Role::SurfaceContainerHigh)); // square corners
+    CHECK(is(image.pixelColor(200, 400), Role::SurfaceContainerHigh));
+    CHECK(is(image.pixelColor(200, 72), Role::OutlineVariant));
+    CHECK(is(image.pixelColor(200, 73), Role::SurfaceContainerHigh));
+    int arrow = 0;
+    for (int y = 24; y < 48; ++y)
+        for (int x = 16; x < 40; ++x)
+            arrow += near(image.pixelColor(x, y), style->color(Role::OnSurface), 40) ? 1 : 0;
+    CHECK(arrow > 20);
+
+    // What is typed there is the bar's text; the suggestions are under the header, the whole width, rows of 56.
+    key(Qt::Key_A, QStringLiteral("a"));
+    key(Qt::Key_P, QStringLiteral("p"));
+    CHECK(search->text() == QStringLiteral("ap") && field->text() == QStringLiteral("ap") && edited == 2);
+    auto *popup = dynamic_cast<QListWidget *>(completer.popup());
+    CHECK(popup && popup->isVisible() && popup->count() == 2);
+    if (!popup || !popup->isVisible())
+        return;
+    CHECK(popup->geometry() == QRect(0, 73, 360, 2 * 56));
+    CHECK(popup->visualItemRect(popup->item(0)).height() == 56);
+    image = window.grab().toImage();
+    CHECK(is(image.pixelColor(300, 73 + 56 + 28), Role::SurfaceContainerHigh));
+    CHECK(is(image.pixelColor(2, 73 + 56 + 2), Role::SurfaceContainerHigh)); // square
+    if (textIsDrawn()) {
+        // The part of "apricot" that matches "ap" is OnSurface and medium, the rest OnSurfaceVariant.
+        QFont medium = popup->font();
+        medium.setWeight(QFont::Medium);
+        const int split = 16 + QFontMetrics(medium).horizontalAdvance(QStringLiteral("ap"));
+        const auto darkest = [&](int from, int to) {
+            QColor dark(Qt::white);
+            for (int y = 73 + 56 + 8; y < 73 + 112 - 8; ++y)
+                for (int x = from; x < to; ++x)
+                    if (image.pixelColor(x, y).lightness() < dark.lightness())
+                        dark = image.pixelColor(x, y);
+            return dark;
+        };
+        const QColor match = darkest(16, split - 1), rest = darkest(split + 1, split + 40);
+        CHECK(near(match, style->color(Role::OnSurface), 24));
+        CHECK(near(rest, style->color(Role::OnSurfaceVariant), 24));
+        CHECK(match.lightness() < rest.lightness());
+    }
+    // Return takes the current suggestion, and the view closes with nothing focused.
+    key(Qt::Key_Return);
+    CHECK(search->text() == QStringLiteral("Apple pie") && activated == 1);
+    CHECK(closed() && !popup->isVisible() && !search->hasFocus() && !window.focusWidget());
+    CHECK(completer.widget() == search);
+
+    // The arrow back closes it too, and leaves nothing focused.
+    click(QPoint(100, 44));
+    CHECK(viewOf(window) && viewOf(window)->findChild<QLineEdit *>()->text() == QStringLiteral("Apple pie"));
+    click(QPoint(28, 36));
+    CHECK(closed() && !window.focusWidget());
+
+    // Escape closes the suggestions first, and then the view; Return with no suggestion is the bar's.
+    search->clear();
+    search->setFocus();
+    CHECK(viewOf(window));
+    key(Qt::Key_B, QStringLiteral("b"));
+    CHECK(popup->isVisible());
+    key(Qt::Key_Escape);
+    CHECK(!popup->isVisible() && viewOf(window));
+    key(Qt::Key_Escape);
+    CHECK(closed() && search->text() == QStringLiteral("b"));
+    search->setFocus();
+    key(Qt::Key_Return);
+    CHECK(returned == 1 && closed());
+
+    // On a window that grows wide, the docked view takes its place and the bar keeps the focus.
+    search->clear();
+    other->setFocus();
+    search->setFocus();
+    CHECK(viewOf(window));
+    window.resize(800, 640);
+    QCoreApplication::processEvents();
+    CHECK(closed() && search->hasFocus());
+    key(Qt::Key_A, QStringLiteral("a"));
+    CHECK(popup->isVisible() && popup->geometry().topLeft() == QPoint(16, 72));
+    key(Qt::Key_Escape);
+    // materialSearchView chooses: "fullScreen" on the wide window, "docked" on the compact one.
+    search->setProperty("materialSearchView", QStringLiteral("fullScreen"));
+    other->setFocus();
+    search->setFocus();
+    CHECK(viewOf(window) && viewOf(window)->geometry() == QRect(0, 0, 800, 640));
+    other->setFocus(); // the focus that goes elsewhere closes it
+    CHECK(closed() && other->hasFocus());
+    window.resize(360, 640);
+    search->setProperty("materialSearchView", QStringLiteral("docked"));
+    search->setFocus();
+    CHECK(!viewOf(window));
+
+    // With motion the view grows from the bar's rectangle to the window's.
+    style->setMotionEnabled(true);
+    search->setProperty("materialSearchView", QVariant());
+    other->setFocus();
+    search->setFocus();
+    view = viewOf(window);
+    CHECK(view && view->geometry() == search->geometry());
+    wait(60);
+    if (view) {
+        const QRect growing = view->geometry();
+        CHECK(growing.height() > 56 && growing.height() < 640);
+    }
+    wait(800);
+    CHECK(view && view->geometry() == window.rect());
+    other->setFocus();
+    CHECK(closed());
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
@@ -7319,6 +7641,7 @@ int main(int argc, char *argv[]) {
     testSnackbarClose();
     testAppBarScrolled();
     testSliderSizesAndValue();
+    testSliderIconsCenteredAndGrowth();
     testExpandedRail();
     testNavigationItems();
     testRailScrolls();
@@ -7328,6 +7651,7 @@ int main(int argc, char *argv[]) {
     testDockedToolBarAndIconWidths();
     testAppBarSubtitlesAndScrolling();
     testSearchView();
+    testFullScreenSearchView();
     testExitMotion();
     std::printf("%s\n", g_failures ? "FAILED" : "PASSED");
     return g_failures ? 1 : 0;

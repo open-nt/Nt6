@@ -1237,7 +1237,12 @@ void QListWidget::paintEvent(QPaintEvent *event) {
                 material->drawListRowText(&painter, rect.adjusted(margin + iconWidth, 0, -margin - checkRoom, 0),
                                           it->text(), font, color, it->textAlignment(), selected, on, this);
                 painter.setClipping(false);
-            } else if (!it->text().isEmpty()) {
+            } else if (!it->text().isEmpty() &&
+                       !(material && !m_wordWrap &&
+                         material->drawCompletionText(&painter,
+                                                      rect.adjusted(margin + iconWidth, 0, -margin - checkRoom, 0),
+                                                      it->text(), font, on, this))) {
+                // The rows of a completer's popup emphasize what matches the typed text; the style drew those above.
                 const QRect textRect = rect.adjusted(margin + iconWidth, 0, -margin - checkRoom, 0);
                 painter.setFont(font);
                 painter.setPen(color);

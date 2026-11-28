@@ -306,7 +306,29 @@ QString QGuiApplication::desktopFileName() { return desktopFile(); }
 
 namespace {
 Qt::LayoutDirection g_layoutDirection = Qt::LeftToRight;
+Qt::ApplicationState g_applicationState = Qt::ApplicationActive;
 } // namespace
+
+/*!
+    \since 5.2
+
+    Returns the current state of the application. It is Qt::ApplicationActive on desktop platforms; on Android it
+    is Qt::ApplicationInactive while the activity is paused, for example when the user has gone to the home screen.
+
+    \sa applicationStateChanged()
+*/
+Qt::ApplicationState QGuiApplication::applicationState() { return g_applicationState; }
+
+void QtPrivate::GuiAccess::setApplicationState(Qt::ApplicationState state) {
+    if (state == g_applicationState)
+        return;
+    g_applicationState = state;
+    if (QGuiApplication *app = QGuiApplication::instance()) {
+        emit app->applicationStateChanged(state);
+        QEvent change(QEvent::ApplicationStateChange);
+        QCoreApplication::sendEvent(app, &change);
+    }
+}
 
 /*!
     \since 6.0

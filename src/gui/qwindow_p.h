@@ -40,6 +40,9 @@ struct GuiAccess {
     static void removeScreen(QPlatformScreen *screen);
     static void screenGeometryChanged(QPlatformScreen *screen);
     static void setPlatformColorScheme(Qt::ColorScheme scheme);
+    // The platform reports a new state of the application: QGuiApplication::applicationState() returns it, and
+    // applicationStateChanged() and an ApplicationStateChange event are sent if it changed.
+    static void setApplicationState(Qt::ApplicationState state);
     static void setFocusWindow(QWindow *window);
     static void setInput(Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers);
     // The last position of the mouse that the platform reported, or that was set.

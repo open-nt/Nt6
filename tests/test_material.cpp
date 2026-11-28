@@ -8738,7 +8738,10 @@ void testSearchViewSurvivesKeyboard() {
     auto *list = new QListWidget(&window);
     list->setGeometry(0, 100, 360, 500);
     list->addItems({QStringLiteral("Almond"), QStringLiteral("Brazil nut"), QStringLiteral("Walnut")});
-    QCompleter completer(QStringList{QStringLiteral("Almond"), QStringLiteral("Brazil nut"), QStringLiteral("Walnut")});
+    QCompleter completer(QStringList{QStringLiteral("Almond"), QStringLiteral("Brazil nut"), QStringLiteral("Walnut"),
+                                     QStringLiteral("Beechnut"), QStringLiteral("Candlenut"),
+                                     QStringLiteral("Chestnut"), QStringLiteral("Hazelnut"), QStringLiteral("Kola nut"),
+                                     QStringLiteral("Pine nut")});
     completer.setCaseSensitivity(Qt::CaseInsensitive);
     completer.setFilterMode(Qt::MatchContains);
     search->setCompleter(&completer);
@@ -8770,6 +8773,11 @@ void testSearchViewSurvivesKeyboard() {
     QCoreApplication::processEvents();
     CHECK(field && field->text() == QStringLiteral("n") && search->text() == QStringLiteral("n"));
     CHECK(list->currentRow() == -1 || list->currentItem()->checkState() == Qt::Unchecked);
+    // The keyboard goes: the suggestions take the room again.
+    window.resize(360, 640);
+    QCoreApplication::processEvents();
+    CHECK(completer.popup()->isVisible() && completer.popup()->geometry().bottom() >= 560);
+    CHECK(field && field->hasFocus() && field->text() == QStringLiteral("n"));
     // Back closes the view at once, suggestions and all.
     CHECK(completer.popup()->isVisible());
     QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, Qt::Key_Back, Qt::NoModifier);

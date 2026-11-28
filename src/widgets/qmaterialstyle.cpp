@@ -3382,10 +3382,14 @@ protected:
     // its place.
     bool eventFilter(QObject *watched, QEvent *event) override {
         if (watched == parentWidget() && event->type() == QEvent::Resize && !m_closing) {
-            if (m_edit && !opensFullScreenSearch(m_edit))
+            if (m_edit && !opensFullScreenSearch(m_edit)) {
                 close(Focus::ToBar);
-            else if (m_progress >= 1.0)
+            } else if (m_progress >= 1.0) {
                 setGeometry(parentWidget()->rect());
+                // The suggestions take the room that the window has now, as an on-screen keyboard comes and goes.
+                if (m_completer && m_completer->widget() == m_field && m_completer->popup()->isVisible())
+                    m_completer->complete();
+            }
         }
         return QWidget::eventFilter(watched, event);
     }

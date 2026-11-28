@@ -193,7 +193,19 @@ application's event filter, moves the dialog and sets `_nt_sheetOffset` (which t
 1000 px/s toward the edge (over the last 100 ms of the drag, not measured under 10 ms), it is `reject()`ed and its
 picture slides on from there; flung back, or short of a third, it springs back on the entry spring with its scrim.
 A press that reaches a window blocked by a modal sheet (`exec()`, `setModal()`) rejects the sheet and goes no further;
-nothing public is added for it. Not done: standard sheets, a half-open state, keyboard and accessibility moves.
+nothing public is added for it. `materialSheet` = `"standardBottom"` is the standard bottom sheet (Compose's
+`BottomSheetScaffold`): placed and handled as a bottom sheet, but shown with `show()`, not modal, without a scrim
+(`_nt_scrimOpacity` 0; `_nt_sheet` is `"bottom"` for the android platform), and it rests collapsed, `_nt_sheetOffset`
+leaving its peek showing: `materialSheetPeek` (Nt only, default 56). It is dragged up to expand and no lower than the
+peek; let go, it goes to the nearer of the two, or to the next one the way it was flung, on the entry spring; it never
+closes by dragging (Escape still rejects it). The style, as the application's event filter, puts it back at the bottom
+of its window, expanded or collapsed as it was, when the window moves or is resized. A modal bottom sheet with
+`materialSheetHalf` = true (Nt only) that is taller than half its window opens half open, the top at the middle of
+the window (Compose's partially expanded), and rests there or expanded the same way, or closes when let go nearer the
+bottom; its scrim is whole at both and fades only below half open. A click on the handle (its target of 48) of either
+goes to the other resting place. Not done: keyboard and accessibility moves (Escape closes, as before), standard sheets
+on the android platform, which still gives the top window every touch and closes it on a tap beside it, and the
+elevation of a standard sheet.
 
 `materialTextField` = `"search"` makes a `QLineEdit` the search bar: a `SurfaceContainerHigh` pill of 56 with a
 magnifier at 16 and the text at 56. The style draws the magnifier itself, not as a leading action. Its trailing
@@ -363,8 +375,21 @@ mouse and handles the moves in `event()`) and 0.10 while pressed; a year is chos
 pressed on, so the press shows. The days and the years cross-fade (`datePickerYearsShown()`, the default effects spring
 on the animator's `YearsChannel`): the calendar paints the years at that opacity and the days over them at the rest,
 and at once without motion.
-Not done: the range picker, a menu of months (the docked picker's), the confirm and cancel buttons (left to the
-dialog), and a localized headline.
+`materialDatePicker` `"docked"` makes the bar the docked picker's: the short month between its arrows at the start
+and the year between its arrows at the end (`showPreviousYear()`/`showNextYear()`, disabled where no day of that
+month is in the range). The year's label and arrows are made the first time a calendar is docked, so other calendars
+keep two arrows and one label. The month opens a menu of the twelve months in the place of the days, as the year opens
+the years: rows of 48, 8 under the bar, drawn by `drawCalendarMonth()` as menu rows (a check mark of 24 at 12 for the
+month shown, `OnSurfaceVariant`; the name in body large `OnSurface` at 48; a state layer across the row; the focus
+ring inset by 2), months without a day in the range at 0.38 and not chosen. The month shown opens in the second row;
+the same keys, wheel, press and release, Escape and cross-fade as the years (the two share the scroll, the cursor and
+`YearsChannel`; one replaces the other at once). Choosing a month shows it in the year shown and leaves the
+selection alone. While one menu is open the arrows go and the other label is disabled. The names come from the
+calendar's `locale()`: the month in the bar (`standaloneMonthName()`, short when docked), the days above the days
+(`dayName()`, `standaloneDayName()` narrow for single letters), the date of the headline
+(`datePickerHeadlineText()`: `ddd, MMM d`, or `ddd d MMM` where the locale's short date has the day before the month)
+and the input mode's pattern; a `LocaleChange` updates them. "Select date" and "Enter date" stay English.
+Not done: the range picker (Qt Widgets' calendar has no range), the confirm and cancel buttons (left to the dialog).
 
 Sliders have the five Expressive sizes, `materialSliderSize` = `"extraSmall"` (the default, the look they had) to
 `"extraLarge"`: tracks of 16, 24, 40, 56 and 96, outer corners 8, 8, 12, 16 and 28, handles of 44, 44, 52, 68 and 108
@@ -527,8 +552,10 @@ line of 16 from 12, the headline under it, the trailing text beside the headline
 supporting text is the `\t` text above. `materialList` = `"segmented"` (Expressive's segmented, gapped list) draws
 each row as a `SurfaceContainer` item inset 1 at top and bottom (2 between rows, without changing the layout), corners
 16 at the outer ends of the first and last rows and 4 elsewhere; a selected or held row is `SecondaryContainer` (or the
-pressed layer) with 16 all round. `drawListRow()` is told whether the row is the first or last. Not done: videos,
-trailing icons, motion of the segmented corners (they change at once), the drawer with check boxes.
+pressed layer) with 16 all round. `drawListRow()` is told whether the row is the first or last, and its number: the
+corners of each end of a row grow and shrink on the fast effects spring, a pair of springs per row kept for the
+viewport (`ListSegmentChannel` + 2 × row), and change at once with motion off. A navigation drawer's rows take the
+check box as other rows do, 16 in from the end of the pill. Not done: videos, trailing icons.
 
 **Docked toolbar and icon button widths.** `materialToolBar` = `"docked"` or `"dockedVibrant"` makes a `QToolBar` the
 docked toolbar: 64 high across its whole side (`DockedToolbarTokens`), square corners and no shadow, in
@@ -549,7 +576,22 @@ direction, the shape is centred in it with its own room at the sides and above a
 than half of the narrower side, and the pressed and checked corners morph as before. `materialScrollBehavior` =
 `"exitAlways"` on a horizontal docked toolbar takes it away down as the scroll area above it (ending at or above its
 top, at least half the room above) scrolls down and brings it back on scrolling up, as the app bar's `enterAlways`
-does; its buttons stay with its top edge. Not done: the docked toolbar has no FAB of its own or overflow menu.
+does; its buttons stay with its top edge. A FAB in a docked toolbar (a QToolButton of an action, or a QPushButton
+given to `addWidget()`, with `materialButton` = `"fab"`; `isFab()` takes tool buttons now, which are their icon alone,
+56 square) goes to the end with a gap of 4 at least before it: 56 in `PrimaryContainer`, 16 from the end, 4 from top
+and bottom, the bar still 64 and its other buttons in the middle; it lies flat (`fabLift()` is 0 there, no shadow and
+no room for one), as Compose's bottom app bar FAB does. `QToolBar` had no extension: now, as in Qt, when the actions
+do not fit (the layout's minimum length with all of them is more than the bar's) the last of them are hidden, one at
+a time, until those left and the extension button (`qt_toolbar_ext_button`) fit, and the button opens a `QMenu` of the
+rest, below it or above it when the window has no room below (beside a vertical bar), at its end; the chosen action
+is reported by its hidden button, once. The size hint is still that of all of them, and the minimum only the
+extension button (and the FAB). Widgets from `addWidget()` that do not fit are hidden without an entry (Qt shows them
+in an expanded bar). A docked toolbar's extension button is the last of its buttons, spaced as they are, and the FAB
+stays; a top app bar has no extension. The style draws the symbol (`standardPixmap()` of
+`SP_ToolBarHorizontalExtensionButton` is Material's "more vertical", `SP_ToolBarVerticalExtensionButton` "more
+horizontal"; QStyle draws two chevrons), which an item of a Material toolbar recolours; on a plain tool bar the
+button is a standard icon button (`materialIconButton` set by the bar). Not done: the bar has no overflow that keeps
+widgets.
 
 **Search view.** A search bar (`materialTextField` `"search"`) with a QCompleter opens Material's docked search view,
 so that a program written for Qt gets an ordinary completer there. The completer's popup is a QListWidget in the

@@ -201,6 +201,63 @@ void testToolBar() {
     CHECK(bar.actions().isEmpty());
 }
 
+// Actions that do not fit go to the menu of the extension button at the end of the tool bar.
+void testToolBarExtension() {
+    QWidget top;
+    QToolBar bar("Edit", &top);
+    QList<QAction *> actions;
+    for (int i = 0; i < 12; ++i)
+        actions << bar.addAction(QString("Action %1").arg(i));
+    auto *extension = bar.findChild<QToolButton *>("qt_toolbar_ext_button");
+    CHECK(extension && extension->autoRaise());
+    // Room for the extension button is all that it needs.
+    CHECK(bar.minimumSizeHint().width() < bar.sizeHint().width() / 3);
+    top.resize(800, 100);
+    bar.setGeometry(0, 0, bar.sizeHint().width(), bar.sizeHint().height());
+    top.show();
+    settle(&top);
+    CHECK(extension->isHidden());
+    const int full = bar.sizeHint().width();
+    bar.resize(full / 2, bar.height());
+    settle(&top);
+    CHECK(!extension->isHidden() && !extension->icon().isNull());
+    CHECK(bar.sizeHint().width() == full); // it still asks for room for all of them
+    CHECK(extension->geometry().right() < bar.width());
+    int shown = 0;
+    for (QAction *action : actions) {
+        QWidget *button = bar.widgetForAction(action);
+        if (!button->isHidden()) {
+            ++shown;
+            CHECK(button->geometry().right() < extension->x());
+        }
+    }
+    CHECK(shown > 0 && shown < 12 && bar.widgetForAction(actions.first())->isVisible() &&
+          bar.widgetForAction(actions.last())->isHidden());
+    // Its menu has the rest, in order; a choice triggers the action once.
+    QList<QAction *> triggered;
+    QObject::connect(&bar, &QToolBar::actionTriggered, [&](QAction *a) { triggered << a; });
+    click(extension, QPoint(3, 3));
+    QMenu *menu = top.findChild<QMenu *>();
+    CHECK(menu && menu->isVisible());
+    CHECK(menu && menu->actions() == actions.mid(shown));
+    if (menu) {
+        click(menu, menu->actionGeometry(actions.last()).center());
+        CHECK(!menu->isVisible() && triggered == QList<QAction *>({actions.last()}));
+    }
+    // Wide again, all of them are shown.
+    bar.resize(full + 20, bar.height());
+    settle(&top);
+    CHECK(extension->isHidden());
+    for (QAction *action : actions)
+        CHECK(!bar.widgetForAction(action)->isHidden());
+    // A vertical one extends down.
+    bar.setOrientation(Qt::Vertical);
+    bar.resize(bar.sizeHint().width(), 60);
+    settle(&top);
+    CHECK(!extension->isHidden() && extension->geometry().bottom() < 60);
+    CHECK(bar.widgetForAction(actions.last())->isHidden());
+}
+
 void testMainWindow() {
     QMainWindow window;
     window.setGeometry(50, 50, 600, 400);
@@ -847,6 +904,7 @@ int main(int argc, char **argv) {
     app.setQuitOnLastWindowClosed(false);
     testToolButtonAction();
     testToolBar();
+    testToolBarExtension();
     testMainWindow();
     testDockWidget();
     testSizeGrip();

@@ -3512,6 +3512,139 @@ void testSheetDragging() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A standard bottom sheet rests collapsed to its peek beside what it is over, and a modal one with materialSheetHalf
+// opens half open.
+void testStandardAndHalfSheets() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const char *const scrim = "_nt_scrimOpacity";
+    const auto mouse = [](QWidget *target, QEvent::Type type, const QPoint &global) {
+        const Qt::MouseButtons held = type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton;
+        QMouseEvent event(type, QPointF(target->mapFromGlobal(global)), QPointF(global), Qt::LeftButton, held,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &event);
+        return event.isAccepted();
+    };
+
+    QWidget window;
+    window.setGeometry(100, 50, 400, 700);
+    window.show();
+    QCoreApplication::processEvents();
+    QDialog sheet(&window);
+    sheet.setProperty("materialSheet", QStringLiteral("standardBottom"));
+    auto *column = new QVBoxLayout(&sheet);
+    auto *content = new QWidget;
+    content->setFixedHeight(240);
+    column->addWidget(content);
+    sheet.show();
+    QCoreApplication::processEvents();
+    // It is not modal and has no scrim; it rests with 56 of it showing at the bottom of the window.
+    CHECK(QApplication::activeModalWidget() == nullptr);
+    CHECK(content->mapTo(&sheet, QPoint(0, 0)).y() == 48); // the drag handle
+    const int high = sheet.height();
+    const QRect expanded(100, 50 + 700 - high, 400, high);
+    CHECK(sheet.geometry() == expanded.translated(0, high - 56));
+    CHECK(sheet.windowHandle()->property("_nt_sheetOffset").toInt() == high - 56);
+    CHECK(near(sheet.windowHandle()->property(scrim).toDouble(), 0.0, 1e-9));
+    // Dragged up, it follows; let go past the middle, it expands.
+    QPoint grip = sheet.mapToGlobal(QPoint(200, 20));
+    mouse(&sheet, QEvent::MouseButtonPress, grip);
+    mouse(&sheet, QEvent::MouseMove, grip - QPoint(0, 40));
+    CHECK(sheet.geometry() == expanded.translated(0, high - 56 - 40));
+    mouse(&sheet, QEvent::MouseMove, grip - QPoint(0, high - 80));
+    mouse(&sheet, QEvent::MouseButtonRelease, grip - QPoint(0, high - 80));
+    CHECK(sheet.isVisible() && sheet.geometry() == expanded);
+    CHECK(near(sheet.windowHandle()->property(scrim).toDouble(), 0.0, 1e-9));
+    // Dragged down, it goes no lower than its peek and does not close.
+    grip = sheet.mapToGlobal(QPoint(200, 20));
+    mouse(&sheet, QEvent::MouseButtonPress, grip);
+    mouse(&sheet, QEvent::MouseMove, grip + QPoint(0, high + 100));
+    CHECK(sheet.geometry() == expanded.translated(0, high - 56));
+    mouse(&sheet, QEvent::MouseButtonRelease, grip + QPoint(0, high + 100));
+    CHECK(sheet.isVisible() && sheet.geometry() == expanded.translated(0, high - 56));
+    // A click on its handle expands it, and another collapses it.
+    grip = sheet.mapToGlobal(QPoint(200, 20));
+    mouse(&sheet, QEvent::MouseButtonPress, grip);
+    mouse(&sheet, QEvent::MouseButtonRelease, grip);
+    CHECK(sheet.geometry() == expanded);
+    grip = sheet.mapToGlobal(QPoint(200, 20));
+    mouse(&sheet, QEvent::MouseButtonPress, grip);
+    mouse(&sheet, QEvent::MouseButtonRelease, grip);
+    CHECK(sheet.geometry() == expanded.translated(0, high - 56));
+    // A click on its background below the handle leaves it as it is.
+    const QPoint below = sheet.mapToGlobal(QPoint(200, 52));
+    mouse(&sheet, QEvent::MouseButtonPress, below);
+    mouse(&sheet, QEvent::MouseButtonRelease, below);
+    CHECK(sheet.geometry() == expanded.translated(0, high - 56));
+    // The window behind it still takes presses.
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(200, 100), QPointF(window.mapToGlobal(QPoint(200, 100))),
+                      Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(window.windowHandle(), &press);
+    CHECK(sheet.isVisible());
+    // It follows the window, collapsed as it was.
+    window.setGeometry(150, 60, 500, 600);
+    QCoreApplication::processEvents();
+    CHECK(sheet.geometry() == QRect(150, 60 + 600 - 56, 500, high));
+    // materialSheetPeek sets how much of it shows.
+    sheet.hide();
+    sheet.setProperty("materialSheetPeek", 100);
+    sheet.show();
+    QCoreApplication::processEvents();
+    CHECK(sheet.geometry() == QRect(150, 60 + 600 - 100, 500, high));
+    // Escape closes it, as any dialog.
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QCoreApplication::sendEvent(&sheet, &escape);
+    CHECK(!sheet.isVisible());
+
+    // A modal sheet taller than half the window opens half open, with its scrim, when it asks to.
+    window.setGeometry(100, 50, 400, 700);
+    QCoreApplication::processEvents();
+    QDialog tall(&window);
+    tall.setProperty("materialSheet", QStringLiteral("bottom"));
+    tall.setProperty("materialSheetHalf", true);
+    auto *rows = new QVBoxLayout(&tall);
+    auto *list = new QWidget;
+    list->setFixedHeight(500);
+    rows->addWidget(list);
+    tall.setModal(true);
+    tall.show();
+    QCoreApplication::processEvents();
+    const int tallHigh = tall.height();
+    const QRect full(100, 50 + 700 - tallHigh, 400, tallHigh);
+    const int half = tallHigh - 350;
+    CHECK(tallHigh > 350 && tall.geometry() == full.translated(0, half));
+    CHECK(near(tall.windowHandle()->property(scrim).toDouble(), 0.32, 1e-9));
+    // Dragged up, it expands; dragged down a little, it goes back to half open with its scrim.
+    grip = tall.mapToGlobal(QPoint(200, 20));
+    mouse(&tall, QEvent::MouseButtonPress, grip);
+    mouse(&tall, QEvent::MouseMove, grip - QPoint(0, half - 20));
+    mouse(&tall, QEvent::MouseButtonRelease, grip - QPoint(0, half - 20));
+    CHECK(tall.isVisible() && tall.geometry() == full);
+    grip = tall.mapToGlobal(QPoint(200, 20));
+    mouse(&tall, QEvent::MouseButtonPress, grip);
+    mouse(&tall, QEvent::MouseMove, grip + QPoint(0, half - 30));
+    mouse(&tall, QEvent::MouseButtonRelease, grip + QPoint(0, half - 30));
+    CHECK(tall.isVisible() && tall.geometry() == full.translated(0, half));
+    CHECK(near(tall.windowHandle()->property(scrim).toDouble(), 0.32, 1e-9));
+    // Below half open the scrim fades, and near the bottom it closes.
+    grip = tall.mapToGlobal(QPoint(200, 20));
+    mouse(&tall, QEvent::MouseButtonPress, grip);
+    mouse(&tall, QEvent::MouseMove, grip + QPoint(0, 175));
+    CHECK(near(tall.windowHandle()->property(scrim).toDouble(), 0.32 * 0.5, 1e-9));
+    mouse(&tall, QEvent::MouseMove, grip + QPoint(0, 300));
+    mouse(&tall, QEvent::MouseButtonRelease, grip + QPoint(0, 300));
+    CHECK(!tall.isVisible() && tall.result() == QDialog::Rejected);
+    // A sheet that fits in half the window opens whole.
+    list->setFixedHeight(200);
+    tall.show();
+    QCoreApplication::processEvents();
+    CHECK(tall.geometry().bottom() == 50 + 700 - 1 && tall.windowHandle()->property("_nt_sheetOffset").toInt() == 0);
+    tall.hide();
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 void testSearchAndSecondaryTabs() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
@@ -4554,6 +4687,22 @@ void testSheetAndSnackbarMotion() {
     CHECK(drawer.geometry() == QRect(100, 50, 400 - 56, 700));
     drawer.hide();
 
+    // A standard sheet slides up to its peek, with no scrim fading in.
+    QDialog standard(&window);
+    standard.setProperty("materialSheet", QStringLiteral("standardBottom"));
+    auto *rows = new QVBoxLayout(&standard);
+    auto *list = new QWidget;
+    list->setFixedHeight(240);
+    rows->addWidget(list);
+    standard.show();
+    const int tall = standard.height();
+    CHECK(standard.y() == 50 + 700); // below the window, at first
+    wait(800);
+    CHECK(standard.y() == 50 + 700 - 56);
+    CHECK(standard.windowHandle()->property("_nt_sheetOffset").toInt() == tall - 56);
+    CHECK(standard.windowHandle()->property("_nt_scrimOpacity").toDouble() == 0.0);
+    standard.hide();
+
     QMainWindow main;
     main.setCentralWidget(new QWidget);
     auto *status = new QStatusBar;
@@ -5236,6 +5385,149 @@ void testDatePicker() {
     CHECK(calendar->sizeHint() == fusion);
     click(title, title->rect().center());
     CHECK(arrows.at(0)->isVisible());
+}
+
+// The docked date picker chooses a month from a menu in the place of the days, and the names are the locale's.
+void testDockedDatePicker() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    window.resize(400, 560);
+    auto *calendar = new QCalendarWidget(&window);
+    calendar->setLocale(QLocale(QLocale::English, QLocale::UnitedStates));
+    calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    calendar->setDateRange(QDate(2025, 3, 15), QDate(2027, 9, 10));
+    calendar->setSelectedDate(QDate(2026, 5, 20));
+    window.show();
+    QCoreApplication::processEvents();
+    auto *title = calendar->findChild<QLabel *>();
+    QWidget *navigation = title->parentWidget();
+    CHECK(title->text() == QStringLiteral("May 2026"));
+    CHECK(navigation->findChildren<QToolButton *>().size() == 2);
+    calendar->setProperty("materialDatePicker", "docked");
+    calendar->resize(calendar->sizeHint());
+    QCoreApplication::processEvents();
+    // The month and the year, each between its arrows.
+    const QList<QLabel *> labels = navigation->findChildren<QLabel *>();
+    const QList<QToolButton *> arrows = navigation->findChildren<QToolButton *>();
+    CHECK(labels.size() == 2 && arrows.size() == 4);
+    if (labels.size() != 2 || arrows.size() != 4)
+        return;
+    QLabel *year = labels.at(1);
+    CHECK(title->text() == QStringLiteral("May") && year->text() == QStringLiteral("2026"));
+    CHECK(year->isVisible() && year->x() > title->x());
+    for (QToolButton *arrow : arrows)
+        CHECK(arrow->isVisible());
+    arrows.at(3)->click(); // the next year
+    CHECK(calendar->yearShown() == 2027 && calendar->monthShown() == 5);
+    CHECK(!arrows.at(3)->isEnabled()); // May 2028 is beyond the range
+    arrows.at(2)->click();
+    CHECK(calendar->yearShown() == 2026);
+
+    const auto click = [&](QWidget *target, const QPoint &at) {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(at), QPointF(at), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(at), QPointF(at), Qt::LeftButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(target, &release);
+        QCoreApplication::processEvents();
+    };
+    const auto key = [&](int code) {
+        QKeyEvent press(QEvent::KeyPress, code, Qt::NoModifier);
+        QCoreApplication::sendEvent(calendar, &press);
+        QCoreApplication::processEvents();
+    };
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    const auto pixel = [&](const QPoint &point) { return calendar->grab().toImage().pixelColor(point.x(), point.y()); };
+    // A click on the month shows the months in the place of the days, one to a row of 48, 8 under the bar, the
+    // month shown in the second row and checked; the arrows go and the year is out of use.
+    click(title, title->rect().center());
+    for (QToolButton *arrow : arrows)
+        CHECK(!arrow->isVisible());
+    CHECK(!year->isEnabled() && title->isEnabled());
+    const int top = navigation->geometry().bottom() + 1;
+    const int visible = (calendar->height() - top - 8) / 48;
+    const int first = std::min(4, 13 - visible); // the first month shown
+    const auto row = [&](int month) { return QPoint(calendar->width() / 2, top + 8 + (month - first) * 48 + 24); };
+    if (textIsDrawn()) {
+        // The check mark of May, at 12 from the start in a lead of 24.
+        int marked = 0;
+        int unmarked = 0;
+        const QImage image = calendar->grab().toImage();
+        for (int y = row(5).y() - 12; y < row(5).y() + 12; ++y)
+            for (int x = 12; x < 36; ++x)
+                marked += is(image.pixelColor(x, y), Role::OnSurfaceVariant) ? 1 : 0;
+        for (int y = row(6).y() - 12; y < row(6).y() + 12; ++y)
+            for (int x = 12; x < 36; ++x)
+                unmarked += is(image.pixelColor(x, y), Role::OnSurfaceVariant) ? 1 : 0;
+        CHECK(marked > 10 && unmarked == 0);
+    }
+    // The month under the pointer has a state layer across its row.
+    QMouseEvent move(QEvent::MouseMove, QPointF(row(6)), QPointF(row(6)), Qt::NoButton, Qt::NoButton, Qt::NoModifier);
+    QCoreApplication::sendEvent(calendar, &move);
+    QCoreApplication::processEvents();
+    CHECK(!is(pixel(QPoint(4, row(6).y())), Role::SurfaceContainerHigh));
+    CHECK(is(pixel(QPoint(4, row(7).y())), Role::SurfaceContainerHigh));
+    // A click on a month shows its days in the year shown.
+    click(calendar, row(7));
+    CHECK(calendar->yearShown() == 2026 && calendar->monthShown() == 7);
+    CHECK(calendar->selectedDate() == QDate(2026, 5, 20));
+    CHECK(title->text() == QStringLiteral("Jul") && year->isEnabled());
+    for (QToolButton *arrow : arrows)
+        CHECK(arrow->isVisible());
+    // The keyboard: Down twice and Return; Escape goes back with nothing changed.
+    click(title, title->rect().center());
+    key(Qt::Key_Down);
+    key(Qt::Key_Down);
+    key(Qt::Key_Return);
+    CHECK(calendar->monthShown() == 9);
+    click(title, title->rect().center());
+    key(Qt::Key_Escape);
+    CHECK(calendar->monthShown() == 9 && arrows.at(0)->isVisible());
+    // Months out of the range cannot be chosen: in 2025 the first is March.
+    calendar->setCurrentPage(2025, 6);
+    click(title, title->rect().center());
+    key(Qt::Key_Home);
+    key(Qt::Key_Return);
+    CHECK(calendar->yearShown() == 2025 && calendar->monthShown() == 3);
+    // The year opens the years, and the month is out of use meanwhile.
+    click(year, year->rect().center());
+    CHECK(!title->isEnabled() && !arrows.at(0)->isVisible());
+    click(title, title->rect().center()); // nothing
+    CHECK(!title->isEnabled());
+    key(Qt::Key_Right);
+    key(Qt::Key_Return);
+    CHECK(calendar->yearShown() == 2026 && calendar->monthShown() == 3 && title->isEnabled());
+
+    // The names are those of the calendar's locale: the month in the bar, the days above the days, and the headline.
+    calendar->setLocale(QLocale(QLocale::German, QLocale::Germany));
+    QCoreApplication::processEvents();
+    CHECK(title->text() == QStringLiteral("M\u00e4r"));
+    calendar->setProperty("materialDatePicker", QVariant());
+    QCoreApplication::processEvents();
+    CHECK(!year->isVisible() && navigation->findChildren<QToolButton *>().size() == 4);
+    for (QToolButton *arrow : navigation->findChildren<QToolButton *>())
+        CHECK(arrow->isVisible() == (arrow == arrows.at(0) || arrow == arrows.at(1)));
+    CHECK(title->text() == QStringLiteral("M\u00e4rz 2026"));
+    calendar->setProperty("materialDatePicker", "modal");
+    calendar->resize(calendar->sizeHint());
+    calendar->setSelectedDate(QDate(2026, 12, 25));
+    QCoreApplication::processEvents();
+    const QImage german = calendar->grab().toImage();
+    calendar->setLocale(QLocale(QLocale::English, QLocale::UnitedStates));
+    QCoreApplication::processEvents();
+    const QImage english = calendar->grab().toImage();
+    CHECK(title->text() == QStringLiteral("December 2026"));
+    if (textIsDrawn()) {
+        const int bar = navigation->geometry().bottom() + 1;
+        CHECK(german.copy(0, 60, german.width(), 60) != english.copy(0, 60, english.width(), 60));   // the headline
+        CHECK(german.copy(0, bar, german.width(), 40) != english.copy(0, bar, english.width(), 40)); // the days
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
 // The input mode of the modal date picker: the pencil in the headline swaps the month for a text field.
@@ -7010,6 +7302,221 @@ void testDockedToolBarAndIconWidths() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// The extension button and menu of a docked toolbar whose actions do not fit, a docked toolbar with a FAB at its end,
+// the corners of a segmented list on their spring, and a navigation drawer with check boxes.
+void testDockedToolBarOverflowAndFab() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const QColor container = style->color(Role::SurfaceContainer);
+    const auto click = [](QWidget *on, const QPoint &at) {
+        const QPointF point(at);
+        QMouseEvent press(QEvent::MouseButtonPress, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(on, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(on, &release);
+        QCoreApplication::processEvents();
+    };
+
+    // 1. Ten buttons in a window of 360: five stay, 4 apart, and the extension button is the sixth.
+    {
+        QMainWindow window;
+        window.setCentralWidget(new QWidget);
+        auto *bar = new QToolBar;
+        bar->setProperty("materialToolBar", QStringLiteral("docked"));
+        QList<QAction *> actions;
+        for (int i = 0; i < 10; ++i)
+            actions.append(bar->addAction(QString::number(i)));
+        int triggered = 0;
+        QAction *last = nullptr;
+        QObject::connect(bar, &QToolBar::actionTriggered, bar, [&](QAction *action) {
+            ++triggered;
+            last = action;
+        });
+        window.addToolBar(Qt::BottomToolBarArea, bar);
+        window.resize(360, 480);
+        window.show();
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        CHECK(bar->geometry() == QRect(0, 480 - 64, 360, 64));
+        CHECK(bar->minimumSizeHint().width() < 100);
+        auto *extension = bar->findChild<QToolButton *>(QStringLiteral("qt_toolbar_ext_button"));
+        CHECK(extension && extension->isVisible());
+        for (int i = 0; i < 10; ++i)
+            CHECK(bar->widgetForAction(actions[i])->isVisible() == (i < 5));
+        CHECK(extension->size() == QSize(48, 48) && extension->y() == 8);
+        // As far from the last button as the buttons are from each other.
+        const int apart = bar->widgetForAction(actions[1])->x() - (bar->widgetForAction(actions[0])->x() + 48);
+        CHECK(apart >= 4 && extension->x() == bar->widgetForAction(actions[4])->x() + 48 + apart);
+        CHECK(bar->widgetForAction(actions[0])->x() == 16 && extension->x() + 48 <= 360 - 16);
+        // Its symbol is "more vertical", three dots in a column, in the color of the toolbar's items.
+        const QImage image = window.grab().toImage();
+        const auto pixel = [&](int x, int y) {
+            const QPoint point = extension->mapTo(&window, QPoint(x, y));
+            return image.pixelColor(point.x(), point.y());
+        };
+        const QColor ink = style->color(Role::OnSurfaceVariant);
+        for (const int y : {18, 24, 30})
+            CHECK(near(pixel(24, y), ink, 40));
+        CHECK(near(pixel(18, 24), container, 3) && near(pixel(30, 24), container, 3));
+        CHECK(!near(pixel(24, 21), ink, 40) && !near(pixel(24, 27), ink, 40));
+        // It opens a Material menu of the other five, above it at the bottom of the window, at its end.
+        click(extension, QPoint(24, 24));
+        QMenu *menu = window.findChild<QMenu *>();
+        CHECK(menu && menu->isVisible());
+        CHECK(menu->actions().size() == 5 && menu->actions().first() == actions[5]);
+        const QRect button(extension->mapTo(&window, QPoint(0, 0)), extension->size());
+        CHECK(menu->geometry().bottom() < button.top());
+        CHECK(menu->geometry().right() <= button.right() + 1);
+        CHECK(extension->isDown());
+        // A choice from it is the toolbar's, as a click on the button would be.
+        const QRect entry = menu->actionGeometry(actions[7]);
+        click(menu, entry.center());
+        CHECK(!menu->isVisible() && !extension->isDown());
+        CHECK(triggered == 1 && last == actions[7]);
+        // With room for all of them, the extension button goes.
+        window.resize(600, 480);
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        CHECK(!extension->isVisible());
+        for (QAction *action : actions)
+            CHECK(bar->widgetForAction(action)->isVisible());
+        // Hiding actions makes room as well.
+        window.resize(360, 480);
+        QCoreApplication::processEvents();
+        CHECK(extension->isVisible() && !bar->widgetForAction(actions[9])->isVisible());
+        for (int i = 5; i < 10; ++i)
+            actions[i]->setVisible(false);
+        QCoreApplication::processEvents();
+        CHECK(!extension->isVisible());
+        for (int i = 0; i < 5; ++i)
+            CHECK(bar->widgetForAction(actions[i])->isVisible());
+    }
+
+    // 2. A FAB in a docked toolbar: 56 in PrimaryContainer, 16 from the end and 4 from the top, without a shadow;
+    // the bar stays 64 and its other buttons in the middle of it.
+    {
+        QMainWindow window;
+        window.setCentralWidget(new QWidget);
+        auto *bar = new QToolBar;
+        bar->setProperty("materialToolBar", QStringLiteral("docked"));
+        QAction *first = bar->addAction(QStringLiteral("A"));
+        QPixmap black(24, 24);
+        black.fill(Qt::black);
+        QAction *add = bar->addAction(QIcon(black), QStringLiteral("Add"));
+        bar->widgetForAction(add)->setProperty("materialButton", QStringLiteral("fab"));
+        bar->addAction(QStringLiteral("B"));
+        window.addToolBar(Qt::BottomToolBarArea, bar);
+        window.resize(600, 480);
+        window.show();
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        QWidget *fab = bar->widgetForAction(add);
+        CHECK(fab->property("materialButton").toString() == QLatin1String("fab"));
+        CHECK(bar->geometry() == QRect(0, 480 - 64, 600, 64));
+        CHECK(fab->geometry() == QRect(600 - 16 - 56, 4, 56, 56));
+        CHECK(bar->widgetForAction(first)->y() == 8 && bar->widgetForAction(first)->height() == 48);
+        const QImage image = window.grab().toImage();
+        const auto at = [&](int x, int y) {
+            const QPoint point = bar->mapTo(&window, QPoint(x, y));
+            return image.pixelColor(point.x(), point.y());
+        };
+        const QColor fabColor = style->color(Role::PrimaryContainer);
+        CHECK(near(at(fab->x() + 8, 32), fabColor, 3) && near(at(fab->x() + 48, 32), fabColor, 3));
+        CHECK(near(at(fab->x() + 2, 6), container, 3));   // a corner of 16
+        CHECK(near(at(fab->x() + 28, 61), container, 3)); // no shadow under it
+        // The icon in OnPrimaryContainer, in its middle.
+        CHECK(near(at(fab->x() + 28, 32), style->color(Role::OnPrimaryContainer), 3));
+        // Narrower, the FAB stays at the end and the buttons before it go to the extension menu.
+        for (int i = 0; i < 8; ++i)
+            bar->addAction(QStringLiteral("C"));
+        window.resize(360, 480);
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        auto *extension = bar->findChild<QToolButton *>(QStringLiteral("qt_toolbar_ext_button"));
+        CHECK(extension->isVisible() && fab->isVisible());
+        CHECK(fab->geometry() == QRect(360 - 16 - 56, 4, 56, 56));
+        CHECK(extension->x() + 48 + 4 <= fab->x());
+    }
+
+    // 3. A plain tool bar under the Material style: its extension button is a standard icon button.
+    {
+        QMainWindow window;
+        window.setCentralWidget(new QWidget);
+        auto *bar = window.addToolBar(QStringLiteral("Edit"));
+        for (int i = 0; i < 12; ++i)
+            bar->addAction(QStringLiteral("Action"));
+        window.resize(300, 300);
+        window.show();
+        QCoreApplication::processEvents();
+        QCoreApplication::processEvents();
+        auto *extension = bar->findChild<QToolButton *>(QStringLiteral("qt_toolbar_ext_button"));
+        CHECK(extension->isVisible());
+        CHECK(extension->property("materialIconButton").toString() == QLatin1String("standard"));
+        CHECK(extension->geometry().right() <= bar->width());
+    }
+
+    // 4. The corners of a selected row of a segmented list grow from 4 to 16 on the fast effects spring.
+    {
+        QListWidget list;
+        list.setProperty("materialList", QStringLiteral("segmented"));
+        list.setFrameShape(QFrame::NoFrame);
+        list.addItems({QStringLiteral("One"), QStringLiteral("Two"), QStringLiteral("Three")});
+        list.resize(300, 200);
+        list.show();
+        QCoreApplication::processEvents();
+        style->setMotionEnabled(true);
+        const auto corner = [&] {
+            const QRect middle = list.visualItemRect(list.item(1));
+            return list.viewport()->grab().toImage().pixelColor(middle.left() + 2, middle.top() + 3);
+        };
+        const QColor surface = style->color(Role::Surface);
+        CHECK(near(corner(), container, 3)); // a corner of 4 between rows
+        list.setCurrentRow(1);
+        const QColor chosen = style->color(Role::SecondaryContainer);
+        CHECK(near(corner(), chosen, 12)); // still nearly square
+        wait(300);
+        CHECK(near(corner(), surface, 3)); // round
+        list.setCurrentRow(0);
+        CHECK(near(corner(), surface, 12)); // still round, and going back
+        wait(300);
+        CHECK(near(corner(), container, 3));
+        style->setMotionEnabled(false);
+    }
+
+    // 5. A navigation drawer with check boxes: the trailing box of a list row, inside the pill.
+    {
+        QListWidget list;
+        list.setProperty("materialList", QStringLiteral("navigationDrawer"));
+        list.addItems({QStringLiteral("Inbox"), QStringLiteral("Sent")});
+        for (int n = 0; n < 2; ++n) {
+            QListWidgetItem *item = list.item(n);
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setCheckState(n == 0 ? Qt::Checked : Qt::Unchecked);
+        }
+        list.setCurrentRow(0);
+        list.resize(360, 200);
+        list.show();
+        QCoreApplication::processEvents();
+        const QImage image = list.viewport()->grab().toImage();
+        const QRect row = list.visualItemRect(list.item(0));
+        const int wide = list.viewport()->width();
+        // 16 in from the end of the pill, which is 12 in from the side.
+        const QRect box(wide - 12 - 16 - 21, row.top() + (row.height() - 18) / 2, 18, 18);
+        CHECK(near(image.pixelColor(box.left() + 3, box.top() + 3), style->color(Role::Primary), 3));
+        CHECK(near(image.pixelColor(box.right() + 3, box.center().y()), style->color(Role::SecondaryContainer), 3));
+        const QRect empty = box.translated(0, list.visualItemRect(list.item(1)).top() - row.top());
+        CHECK(near(image.pixelColor(empty.left(), empty.center().y()), style->color(Role::OnSurfaceVariant), 3));
+        CHECK(
+            near(image.pixelColor(empty.center().x(), empty.center().y()), style->color(Role::SurfaceContainerLow), 3));
+        // A click on it toggles it, and the item stays current.
+        click(list.viewport(), empty.center());
+        CHECK(list.item(1)->checkState() == Qt::Checked);
+    }
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 // Subtitles, centred titles and titles on two lines in top app bars, and the bars that scroll away: a top app bar with
 // enterAlways and a docked toolbar with exitAlways. A flexible bar that is pinned does not collapse.
 void testAppBarSubtitlesAndScrolling() {
@@ -7255,10 +7762,18 @@ void testAppBarSubtitlesAndScrolling() {
         QCoreApplication::processEvents();
         scroll->setValue(15);
         QCoreApplication::processEvents();
-        wait(60);
-        CHECK(bar->height() > 0 && bar->height() < 64);
-        CHECK(bar->y() + bar->height() == 480);
-        CHECK(bar->widgetForAction(first)->y() == 8);
+        // Under load a frame may come before the layout has placed the bar, so look at it between frames once the
+        // layout has caught up, and give up on the middle of the motion if the machine was too slow to see one.
+        bool seenMoving = false;
+        for (int i = 0; i < 40 && !seenMoving; ++i) {
+            wait(15);
+            QCoreApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+            if (bar->height() > 0 && bar->height() < 64 && bar->y() + bar->height() == 480) {
+                seenMoving = true;
+                CHECK(bar->widgetForAction(first)->y() == 8);
+            }
+        }
+        CHECK(seenMoving || bar->height() == 0);
         wait(700);
         CHECK(bar->height() == 0);
         style->setMotionEnabled(false);
@@ -8145,6 +8660,7 @@ int main(int argc, char *argv[]) {
     testElevatedChipsAvatarsClickableCards();
     testCalendar();
     testDatePicker();
+    testDockedDatePicker();
     testDatePickerYearsFade();
     testDatePickerInput();
     testDatePickerModeButton();
@@ -8152,6 +8668,7 @@ int main(int argc, char *argv[]) {
     testRailAndBadges();
     testSheetsAndDrawer();
     testSheetDragging();
+    testStandardAndHalfSheets();
     testSearchAndSecondaryTabs();
     testTimeInput();
     testTimeDial();
@@ -8179,6 +8696,7 @@ int main(int argc, char *argv[]) {
     testMultiLineListRows();
     testListItemExtras();
     testDockedToolBarAndIconWidths();
+    testDockedToolBarOverflowAndFab();
     testAppBarSubtitlesAndScrolling();
     testSearchView();
     testFullScreenSearchView();

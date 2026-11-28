@@ -1617,8 +1617,8 @@ int QStyle::combinedLayoutSpacing(QSizePolicy::ControlTypes controls1, QSizePoli
 /*!
     Returns the standard pixmap \a standardPixmap of the style, in the size that suits it; \a option and \a widget
     may be \c nullptr. The default draws the message box icons, the arrows, the close, minimize and maximize
-    buttons, the media symbols and plain folder, file and drive icons in the colors of the palette of \a option,
-    and returns a null pixmap for the others.
+    buttons, the media symbols, the extension buttons of tool bars and plain folder, file and drive icons in the
+    colors of the palette of \a option, and returns a null pixmap for the others.
 */
 QPixmap QStyle::standardPixmap(StandardPixmap standardPixmap, const QStyleOption *option, const QWidget *widget) const {
     const QPalette palette = option ? option->palette : QPalette();
@@ -1659,6 +1659,24 @@ QPixmap QStyle::standardPixmap(StandardPixmap standardPixmap, const QStyleOption
     case SP_LineEditClearButton:
     case SP_BrowserStop:
         return cross(small);
+    case SP_ToolBarHorizontalExtensionButton:
+    case SP_ToolBarVerticalExtensionButton: {
+        // Two chevrons that point along the tool bar, to the actions that did not fit.
+        const bool across = standardPixmap == SP_ToolBarHorizontalExtensionButton;
+        return drawnPixmap(small, [&](QPainter &p, const QRectF &r) {
+            p.setPen(QPen(ink, 1.4));
+            for (const qreal at : {0.3, 0.55}) {
+                const qreal s = r.width();
+                if (across) {
+                    p.drawLine(QPointF(s * at, s * 0.3), QPointF(s * (at + 0.2), s * 0.5));
+                    p.drawLine(QPointF(s * (at + 0.2), s * 0.5), QPointF(s * at, s * 0.7));
+                } else {
+                    p.drawLine(QPointF(s * 0.3, s * at), QPointF(s * 0.5, s * (at + 0.2)));
+                    p.drawLine(QPointF(s * 0.5, s * (at + 0.2)), QPointF(s * 0.7, s * at));
+                }
+            }
+        });
+    }
     case SP_TitleBarMinButton:
         return drawnPixmap(small, [&](QPainter &p, const QRectF &r) {
             p.fillRect(QRectF(r.width() * 0.25, r.height() * 0.65, r.width() * 0.5, 1.6), ink);

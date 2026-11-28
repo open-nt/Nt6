@@ -21,16 +21,12 @@ constexpr int kColumns = 7;
 constexpr int kNavigationMargin = 2;
 constexpr int kYearColumns = 3; // of Material's grid of years,
 constexpr int kYearRow = 52;    // a pill of 36 and 16 between two
-constexpr int kYearTop = 8;     // above the first row
+constexpr int kMonthRow = 48;   // the rows of the menu of months of the docked picker
+constexpr int kChoiceTop = 8;   // above the first row of either
 
 const QMaterialStyle *materialStyle(const QWidget *widget) {
     return qobject_cast<const QMaterialStyle *>(widget->style());
 }
-
-const char *const kMonths[] = {"January", "February", "March",     "April",   "May",      "June",
-                               "July",    "August",   "September", "October", "November", "December"};
-const char *const kDays[] = {"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
-const char *const kLongDays[] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
 
 // The font with the properties that the format sets.
 QFont formatted(QFont font, const QTextCharFormat &format) {
@@ -99,10 +95,12 @@ private:
     \image widgets/qcalendarwidget.png QCalendarWidget in the light color scheme
 
     \differences
-    The names of the months and the days are English and the first day of the week is Monday, as there is no
-    \c QLocale; \c setFirstDayOfWeek() changes it. The month and year menus of the navigation bar are missing (under
-    QMaterialStyle a click on the month and the year shows a grid of years, as Material's date picker does), and
-    \c dateEditEnabled() is stored but has no effect. Under QMaterialStyle, a calendar with the Nt-only property
+    The names of the months and the days are those of locale(), but the first day of the week is Monday whatever the
+    locale; \c setFirstDayOfWeek() changes it. The month and year menus of the navigation bar are missing (under
+    QMaterialStyle a click on the month and the year shows a grid of years, as Material's date picker does, and with
+    the Nt-only property \c materialDatePicker set to \c "docked" the month and the year each have their arrows and
+    open a menu of months or the years in the place of the days), and \c dateEditEnabled() is stored but has no
+    effect. Under QMaterialStyle, a calendar with the Nt-only property
     \c materialDatePicker set to \c "modal" has Material's headline, whose pencil button switches to a text field
     where the date is typed in the short format of the locale; a valid date in the range selects it at once, and Return
     in the field emits activated(). In that mode the size hint is only as high as the headline and the field. The
@@ -251,10 +249,11 @@ void QCalendarWidget::setDateRange(QDate min, QDate max) {
     const QDate clamped = std::clamp(m_selected, m_minimum, m_maximum);
     if (clamped != m_selected)
         select(clamped, false);
-    if (m_choosingYear) { // the grid has other years now
-        scrollYears(m_yearRow);
-        moveYearCursor(m_yearCursor);
+    if (choosing()) { // the grid has other years now, and the year other months
+        scrollChoices(m_choiceRow);
+        moveChoiceCursor(m_choiceCursor);
     }
+    updateTitle();
     update();
 }
 
@@ -373,7 +372,7 @@ void QCalendarWidget::select(QDate date, bool byUser) {
     m_selected = date;
     update();
     if (m_inputMode && !m_typing) { // the field shows the date that was selected some other way
-        m_dateField->setText(QLocale().toString(date, dateFieldFormat()));
+        m_dateField->setText(locale().toString(date, dateFieldFormat()));
         m_dateField->setProperty("materialError", QString());
     }
     emit selectionChanged();
@@ -570,9 +569,55 @@ void QCalendarWidget::updateCell(QDate date) {
 void QCalendarWidget::updateCells() { update(); }
 
 void QCalendarWidget::updateTitle() {
-    m_title->setText(QString::fromUtf8(kMonths[m_month - 1]) + QLatin1Char(' ') + QString::number(m_year));
-    m_previous->setEnabled(QDate(m_year, m_month, 1) > m_minimum);
-    m_next->setEnabled(QDate(m_year, m_month, 1).addMonths(1) <= m_maximum);
+    const QLocale names = locale();
+    const QDate first(m_year, m_month, 1);
+    if (m_yearTitle && isDocked()) {
+        m_title->setText(names.standaloneMonthName(m_month, QLocale::ShortFormat));
+        m_yearTitle->setText(QString::number(m_year));
+    } else {
+        m_title->setText(names.standaloneMonthName(m_month) + QLatin1Char(' ') + QString::number(m_year));
+    }
+    m_previous->setEnabled(first > m_minimum);
+    m_next->setEnabled(first.addMonths(1) <= m_maximum);
+    if (m_yearTitle) {
+        m_previousYear->setEnabled(first.addYears(-1).addMonths(1) > m_minimum);
+        m_nextYear->setEnabled(first.addYears(1) <= m_maximum);
+    }
+}
+
+bool QCalendarWidget::isDocked() const {
+    return materialStyle(this) && property("materialDatePicker").toString() == QLatin1String("docked");
+}
+
+// The bar of the docked picker: the month between its arrows at the start, the year between its arrows at the end,
+// each opening its own choice. The widgets of the year are made when the picker is first docked.
+void QCalendarWidget::layoutNavigation() {
+    const bool docked = isDocked();
+    if (docked && !m_yearTitle) {
+        auto *row = static_cast<QHBoxLayout *>(m_navigation->layout());
+        m_previousYear = new QToolButton(m_navigation);
+        m_previousYear->setArrowType(Qt::LeftArrow);
+        m_previousYear->setAutoRaise(true);
+        m_previousYear->setAccessibleName(QStringLiteral("Previous year"));
+        m_nextYear = new QToolButton(m_navigation);
+        m_nextYear->setArrowType(Qt::RightArrow);
+        m_nextYear->setAutoRaise(true);
+        m_nextYear->setAccessibleName(QStringLiteral("Next year"));
+        m_yearTitle = new QLabel(m_navigation);
+        m_yearTitle->setAlignment(Qt::AlignCenter);
+        m_yearTitle->installEventFilter(this);
+        row->addWidget(m_previousYear);
+        row->addWidget(m_yearTitle, 1);
+        row->addWidget(m_nextYear);
+        QObject::connect(m_previousYear, &QToolButton::clicked, this, &QCalendarWidget::showPreviousYear);
+        QObject::connect(m_nextYear, &QToolButton::clicked, this, &QCalendarWidget::showNextYear);
+    }
+    if (!docked)
+        setChoosingMonth(false);
+    if (m_yearTitle)
+        m_yearTitle->setVisible(docked);
+    updateTitle();
+    updateChooserControls();
 }
 
 // The date in the first cell: the first day of the week on or before the first of the month.
@@ -671,23 +716,31 @@ void QCalendarWidget::paintEvent(QPaintEvent *event) {
     painter.fillRect(gridRect(), palette().color(group, QPalette::Base));
     if (m_inputMode)
         return; // the text field is in the place of the month
-    // Under QMaterialStyle the years and the days cross-fade as one gives way to the other.
-    const double years = material ? material->datePickerYearsShown(this, m_choosingYear) : 0.0;
-    if (years > 0.0) {
+    // Under QMaterialStyle the years or the months and the days cross-fade as one gives way to the other.
+    const double choices = material ? material->datePickerYearsShown(this, choosing()) : 0.0;
+    if (choices > 0.0) {
         painter.save();
         painter.setClipRect(gridRect());
-        painter.setOpacity(years);
-        const int first = m_minimum.year() + m_yearRow * kYearColumns;
-        const int last = std::min(m_maximum.year(), first + (visibleYearRows() + 1) * kYearColumns - 1);
+        painter.setOpacity(choices);
+        const bool months = showsMonths();
+        const int columns = months ? 1 : kYearColumns;
+        const int first = (months ? 1 : m_minimum.year()) + m_choiceRow * columns;
+        const int last = std::min(months ? 12 : m_maximum.year(), first + (visibleChoiceRows() + 1) * columns - 1);
         const int today = QDate::currentDate().year();
-        for (int year = first; year <= last; ++year)
-            material->drawCalendarYear(&painter, yearRect(year), this, year, year == m_year, year == today,
-                                       year == m_yearCursor && hasFocus(), year == m_hoveredYear,
-                                       year == m_pressedYear);
+        for (int value = first; value <= last; ++value) {
+            const bool cursor = value == m_choiceCursor && hasFocus();
+            if (months)
+                material->drawCalendarMonth(&painter, choiceRect(value), this, locale().standaloneMonthName(value),
+                                            value == m_month, monthUsable(value), cursor, value == m_hoveredChoice,
+                                            value == m_pressedChoice);
+            else
+                material->drawCalendarYear(&painter, choiceRect(value), this, value, value == m_year, value == today,
+                                           cursor, value == m_hoveredChoice, value == m_pressedChoice);
+        }
         painter.restore();
-        if (years >= 1.0)
+        if (choices >= 1.0)
             return;
-        painter.setOpacity(1.0 - years);
+        painter.setOpacity(1.0 - choices);
     }
     // The names of the days.
     if (m_horizontal != NoHorizontalHeader) {
@@ -697,11 +750,13 @@ void QCalendarWidget::paintEvent(QPaintEvent *event) {
         const QBrush headerColor = m_headerFormat.foreground();
         painter.setPen(headerColor.style() != Qt::NoBrush ? headerColor.color()
                                                           : palette().color(group, QPalette::Text));
+        const QLocale names = locale();
         for (int column = 0; column < kColumns; ++column) {
-            const int day = (static_cast<int>(m_firstDay) - 1 + column) % 7;
-            QString name = QString::fromUtf8(m_horizontal == LongDayNames ? kLongDays[day] : kDays[day]);
-            if (m_horizontal == SingleLetterDayNames)
-                name = name.left(1);
+            const int day = (static_cast<int>(m_firstDay) - 1 + column) % 7 + 1;
+            const QString name =
+                m_horizontal == SingleLetterDayNames
+                    ? names.standaloneDayName(day, QLocale::NarrowFormat)
+                    : names.dayName(day, m_horizontal == LongDayNames ? QLocale::LongFormat : QLocale::ShortFormat);
             painter.drawText(cellRect(-1, column), Qt::AlignCenter, name);
         }
     }
@@ -738,8 +793,8 @@ void QCalendarWidget::resizeEvent(QResizeEvent *event) {
     if (event)
         QWidget::resizeEvent(event);
     m_navigation->setGeometry(0, headlineHeight(), width(), navigationHeight());
-    if (m_choosingYear)
-        scrollYears(m_yearRow);
+    if (choosing())
+        scrollChoices(m_choiceRow);
     layoutDateField();
     layoutModeButton();
 }
@@ -775,7 +830,7 @@ void QCalendarWidget::layoutDateField() {
 // The short date format of the locale, with days and months of two digits and years of four, as Material's hint
 // shows it ("MM/dd/yyyy"); a format with names of days or months becomes MM/dd/yyyy, which can be typed with digits.
 QString QCalendarWidget::dateFieldFormat() const {
-    const QString format = QLocale().dateFormat(QLocale::ShortFormat);
+    const QString format = locale().dateFormat(QLocale::ShortFormat);
     QString result;
     qsizetype i = 0;
     while (i < format.size()) {
@@ -803,11 +858,11 @@ QString QCalendarWidget::dateFieldFormat() const {
 QDate QCalendarWidget::dateFieldDate(QString *error) const {
     const QString format = dateFieldFormat();
     const QString text = m_dateField->text().trimmed();
-    QDate date = QLocale().toDate(text, format);
+    QDate date = locale().toDate(text, format);
     if (!date.isValid()) { // days and months may be typed with one digit
         QString relaxed = format;
         relaxed.replace(QStringLiteral("dd"), QStringLiteral("d")).replace(QStringLiteral("MM"), QStringLiteral("M"));
-        date = QLocale().toDate(text, relaxed);
+        date = locale().toDate(text, relaxed);
     }
     if (!date.isValid()) {
         *error = QStringLiteral("Date does not match the pattern %1").arg(format.toUpper());
@@ -815,7 +870,7 @@ QDate QCalendarWidget::dateFieldDate(QString *error) const {
     }
     if (date < m_minimum || date > m_maximum) {
         *error = QStringLiteral("Date out of range: %1 to %2")
-                     .arg(QLocale().toString(m_minimum, format), QLocale().toString(m_maximum, format));
+                     .arg(locale().toString(m_minimum, format), locale().toString(m_maximum, format));
         return QDate();
     }
     error->clear();
@@ -860,6 +915,7 @@ void QCalendarWidget::setInputMode(bool input) {
     const int before = sizeHint().height();
     if (input) {
         setChoosingYear(false);
+        setChoosingMonth(false);
         if (!m_dateField) {
             m_dateField = new QLineEdit(this);
             m_dateField->setProperty("materialLabel", QStringLiteral("Date"));
@@ -878,7 +934,7 @@ void QCalendarWidget::setInputMode(bool input) {
         m_dateField->setProperty("materialSupportingText", format.toUpper());
         m_dateField->setPlaceholderText(format.toUpper());
         m_dateField->setProperty("materialError", QString()); // its room is kept, so an error does not move it
-        m_dateField->setText(QLocale().toString(m_selected, format));
+        m_dateField->setText(locale().toString(m_selected, format));
         m_inputMode = true;
         m_navigation->setVisible(false);
         layoutDateField();
@@ -912,17 +968,51 @@ void QCalendarWidget::setInputMode(bool input) {
 void QCalendarWidget::setChoosingYear(bool choosing) {
     if (choosing == m_choosingYear)
         return;
+    if (choosing)
+        m_choosingMonth = false;
     m_choosingYear = choosing;
-    m_hoveredYear = m_pressedYear = 0;
-    m_previous->setVisible(!choosing);
-    m_next->setVisible(!choosing);
+    m_hoveredChoice = m_pressedChoice = 0;
     if (choosing) {
         // The year that is shown is in the second row, or as near to it as the rows go.
-        m_yearCursor = std::clamp(m_year, m_minimum.year(), m_maximum.year());
-        scrollYears((m_yearCursor - m_minimum.year()) / kYearColumns - 1);
+        m_fadingMonths = false;
+        m_choiceCursor = std::clamp(m_year, m_minimum.year(), m_maximum.year());
+        scrollChoices((m_choiceCursor - m_minimum.year()) / kYearColumns - 1);
     }
-    m_title->update();
+    updateChooserControls();
     update();
+}
+
+void QCalendarWidget::setChoosingMonth(bool choosing) {
+    if (choosing == m_choosingMonth || (choosing && !isDocked()))
+        return;
+    if (choosing)
+        m_choosingYear = false;
+    m_choosingMonth = choosing;
+    m_hoveredChoice = m_pressedChoice = 0;
+    if (choosing) {
+        // As the years: the month that is shown in the second row.
+        m_fadingMonths = true;
+        m_choiceCursor = std::clamp(m_month, firstUsableChoice(), lastUsableChoice());
+        scrollChoices(m_choiceCursor - 2);
+    }
+    updateChooserControls();
+    update();
+}
+
+void QCalendarWidget::updateChooserControls() {
+    const bool docked = m_yearTitle && isDocked();
+    m_previous->setVisible(!choosing());
+    m_next->setVisible(!choosing());
+    if (m_yearTitle) {
+        m_previousYear->setVisible(docked && !choosing());
+        m_nextYear->setVisible(docked && !choosing());
+        // While one of the docked picker's menus is open, the other is out of use.
+        m_yearTitle->setEnabled(!m_choosingMonth);
+    }
+    m_title->setEnabled(!docked || !m_choosingYear);
+    m_title->update();
+    if (m_yearTitle)
+        m_yearTitle->update();
 }
 
 // Shows the days of the year, in the month that was shown, or the nearest one in the range.
@@ -934,42 +1024,98 @@ void QCalendarWidget::chooseYear(int year) {
         setCurrentPage(page.year(), page.month());
 }
 
-int QCalendarWidget::yearRows() const { return (m_maximum.year() - m_minimum.year()) / kYearColumns + 1; }
+// Shows the days of the month in the year that is shown.
+void QCalendarWidget::chooseMonth(int month) {
+    if (!monthUsable(month))
+        return;
+    setChoosingMonth(false);
+    setCurrentPage(m_year, month);
+}
 
-int QCalendarWidget::visibleYearRows() const { return std::max(1, (gridRect().height() - kYearTop) / kYearRow); }
+void QCalendarWidget::choose(int value) {
+    if (m_choosingMonth)
+        chooseMonth(value);
+    else
+        chooseYear(value);
+}
 
-void QCalendarWidget::scrollYears(int row) {
-    m_yearRow = std::clamp(row, 0, std::max(0, yearRows() - visibleYearRows()));
+bool QCalendarWidget::monthUsable(int month) const {
+    const QDate first(m_year, month, 1);
+    return first.isValid() && first <= m_maximum && first.addMonths(1) > m_minimum;
+}
+
+bool QCalendarWidget::showsMonths() const { return m_choosingMonth || (!m_choosingYear && m_fadingMonths); }
+
+int QCalendarWidget::firstChoice() const { return showsMonths() ? 1 : m_minimum.year(); }
+
+int QCalendarWidget::lastChoice() const { return showsMonths() ? 12 : m_maximum.year(); }
+
+// The months of the range in the year shown, which follow each other, as the range does.
+int QCalendarWidget::firstUsableChoice() const {
+    if (!showsMonths())
+        return firstChoice();
+    for (int month = 1; month <= 12; ++month)
+        if (monthUsable(month))
+            return month;
+    return m_month;
+}
+
+int QCalendarWidget::lastUsableChoice() const {
+    if (!showsMonths())
+        return lastChoice();
+    for (int month = 12; month >= 1; --month)
+        if (monthUsable(month))
+            return month;
+    return m_month;
+}
+
+int QCalendarWidget::choiceColumns() const { return showsMonths() ? 1 : kYearColumns; }
+
+int QCalendarWidget::choiceRowHeight() const { return showsMonths() ? kMonthRow : kYearRow; }
+
+int QCalendarWidget::choiceRows() const { return (lastChoice() - firstChoice()) / choiceColumns() + 1; }
+
+int QCalendarWidget::visibleChoiceRows() const {
+    return std::max(1, (gridRect().height() - kChoiceTop) / choiceRowHeight());
+}
+
+void QCalendarWidget::scrollChoices(int row) {
+    m_choiceRow = std::clamp(row, 0, std::max(0, choiceRows() - visibleChoiceRows()));
     update();
 }
 
-void QCalendarWidget::moveYearCursor(int year) {
-    m_yearCursor = std::clamp(year, m_minimum.year(), m_maximum.year());
-    const int row = (m_yearCursor - m_minimum.year()) / kYearColumns;
-    if (row < m_yearRow)
-        scrollYears(row);
-    else if (row >= m_yearRow + visibleYearRows())
-        scrollYears(row - visibleYearRows() + 1);
+void QCalendarWidget::moveChoiceCursor(int value) {
+    m_choiceCursor = std::clamp(value, firstUsableChoice(), lastUsableChoice());
+    const int row = (m_choiceCursor - firstChoice()) / choiceColumns();
+    if (row < m_choiceRow)
+        scrollChoices(row);
+    else if (row >= m_choiceRow + visibleChoiceRows())
+        scrollChoices(row - visibleChoiceRows() + 1);
     update();
 }
 
-QRect QCalendarWidget::yearRect(int year) const {
+QRect QCalendarWidget::choiceRect(int value) const {
     const QRect grid = gridRect();
-    const int index = year - m_minimum.year();
-    const int column = index % kYearColumns;
-    const int x0 = grid.left() + grid.width() * column / kYearColumns;
-    const int x1 = grid.left() + grid.width() * (column + 1) / kYearColumns;
-    return QRect(x0, grid.top() + kYearTop + (index / kYearColumns - m_yearRow) * kYearRow, x1 - x0, kYearRow);
+    const int columns = choiceColumns();
+    const int index = value - firstChoice();
+    const int column = index % columns;
+    const int x0 = grid.left() + grid.width() * column / columns;
+    const int x1 = grid.left() + grid.width() * (column + 1) / columns;
+    return QRect(x0, grid.top() + kChoiceTop + (index / columns - m_choiceRow) * choiceRowHeight(), x1 - x0,
+                 choiceRowHeight());
 }
 
-int QCalendarWidget::yearAt(const QPoint &pos) const {
+int QCalendarWidget::choiceAt(const QPoint &pos) const {
     const QRect grid = gridRect();
-    if (!grid.contains(pos) || pos.y() < grid.top() + kYearTop || grid.width() <= 0)
+    if (!choosing() || !grid.contains(pos) || pos.y() < grid.top() + kChoiceTop || grid.width() <= 0)
         return 0;
-    const int column = std::min(kYearColumns - 1, (pos.x() - grid.left()) * kYearColumns / grid.width());
-    const int row = (pos.y() - grid.top() - kYearTop) / kYearRow + m_yearRow;
-    const int year = m_minimum.year() + row * kYearColumns + column;
-    return year <= m_maximum.year() ? year : 0;
+    const int columns = choiceColumns();
+    const int column = std::min(columns - 1, (pos.x() - grid.left()) * columns / grid.width());
+    const int row = (pos.y() - grid.top() - kChoiceTop) / choiceRowHeight() + m_choiceRow;
+    const int value = firstChoice() + row * columns + column;
+    if (value > lastChoice() || (m_choosingMonth && !monthUsable(value)))
+        return 0;
+    return value;
 }
 
 /*!
@@ -987,13 +1133,13 @@ void QCalendarWidget::mousePressEvent(QMouseEvent *event) {
         event->ignore();
         return;
     }
-    if (m_choosingYear) {
+    if (choosing()) {
         if (event->button() != Qt::LeftButton) {
             event->ignore();
             return;
         }
         setFocus();
-        m_pressedYear = yearAt(event->pos()); // chosen when the button comes up on it
+        m_pressedChoice = choiceAt(event->pos()); // chosen when the button comes up on it
         update();
         event->accept();
         return;
@@ -1018,7 +1164,7 @@ void QCalendarWidget::mousePressEvent(QMouseEvent *event) {
     \reimp
 */
 void QCalendarWidget::mouseDoubleClickEvent(QMouseEvent *event) {
-    if (m_choosingYear || modeButtonRect().contains(event->pos())) {
+    if (choosing() || modeButtonRect().contains(event->pos())) {
         event->accept();
         return;
     }
@@ -1042,39 +1188,41 @@ void QCalendarWidget::keyPressEvent(QKeyEvent *event) {
         event->ignore();
         return;
     }
-    if (m_choosingYear) {
+    if (choosing()) {
+        const int columns = choiceColumns();
         switch (event->key()) {
         case Qt::Key_Escape:
             setChoosingYear(false);
+            setChoosingMonth(false);
             break;
         case Qt::Key_Left:
-            moveYearCursor(m_yearCursor - 1);
+            moveChoiceCursor(m_choiceCursor - 1);
             break;
         case Qt::Key_Right:
-            moveYearCursor(m_yearCursor + 1);
+            moveChoiceCursor(m_choiceCursor + 1);
             break;
         case Qt::Key_Up:
-            moveYearCursor(m_yearCursor - kYearColumns);
+            moveChoiceCursor(m_choiceCursor - columns);
             break;
         case Qt::Key_Down:
-            moveYearCursor(m_yearCursor + kYearColumns);
+            moveChoiceCursor(m_choiceCursor + columns);
             break;
         case Qt::Key_PageUp:
-            moveYearCursor(m_yearCursor - visibleYearRows() * kYearColumns);
+            moveChoiceCursor(m_choiceCursor - visibleChoiceRows() * columns);
             break;
         case Qt::Key_PageDown:
-            moveYearCursor(m_yearCursor + visibleYearRows() * kYearColumns);
+            moveChoiceCursor(m_choiceCursor + visibleChoiceRows() * columns);
             break;
         case Qt::Key_Home:
-            moveYearCursor(m_minimum.year());
+            moveChoiceCursor(firstUsableChoice());
             break;
         case Qt::Key_End:
-            moveYearCursor(m_maximum.year());
+            moveChoiceCursor(lastUsableChoice());
             break;
         case Qt::Key_Return:
         case Qt::Key_Enter:
         case Qt::Key_Space:
-            chooseYear(m_yearCursor);
+            choose(m_choiceCursor);
             break;
         default:
             event->ignore();
@@ -1134,8 +1282,8 @@ void QCalendarWidget::wheelEvent(QWheelEvent *event) {
         event->ignore();
         return;
     }
-    if (m_choosingYear) {
-        scrollYears(m_yearRow - notches);
+    if (choosing()) {
+        scrollChoices(m_choiceRow - notches);
         event->accept();
         return;
     }
@@ -1152,10 +1300,13 @@ void QCalendarWidget::wheelEvent(QWheelEvent *event) {
 void QCalendarWidget::changeEvent(QEvent *event) {
     if (event->type() == QEvent::FontChange)
         updateGeometry();
+    if (event->type() == QEvent::LocaleChange)
+        updateTitle();
     if (event->type() == QEvent::StyleChange) {
-        // The headline and the years are Material's; a property of the style may have changed too.
+        // The headline, the years and the months are Material's; a property of the style may have changed too.
         if (!materialStyle(this))
             setChoosingYear(false);
+        layoutNavigation();
         if (!headlineHeight()) // the input mode is the modal picker's
             setInputMode(false);
         resizeEvent(nullptr);
@@ -1172,32 +1323,32 @@ void QCalendarWidget::changeEvent(QEvent *event) {
     when the button is released over the year that it was pressed on.
 */
 bool QCalendarWidget::event(QEvent *event) {
-    if (!m_choosingYear)
+    if (!choosing())
         return QWidget::event(event);
     switch (event->type()) {
     case QEvent::MouseMove: {
-        const int year = isEnabled() ? yearAt(static_cast<QMouseEvent *>(event)->pos()) : 0;
-        if (year != m_hoveredYear) {
-            m_hoveredYear = year;
+        const int value = isEnabled() ? choiceAt(static_cast<QMouseEvent *>(event)->pos()) : 0;
+        if (value != m_hoveredChoice) {
+            m_hoveredChoice = value;
             update();
         }
         break;
     }
     case QEvent::MouseButtonRelease: {
         const auto *mouse = static_cast<QMouseEvent *>(event);
-        if (mouse->button() != Qt::LeftButton || !m_pressedYear)
+        if (mouse->button() != Qt::LeftButton || !m_pressedChoice)
             break;
-        const int pressed = m_pressedYear;
-        m_pressedYear = 0;
+        const int pressed = m_pressedChoice;
+        m_pressedChoice = 0;
         update();
-        if (yearAt(mouse->pos()) == pressed)
-            chooseYear(pressed);
+        if (choiceAt(mouse->pos()) == pressed)
+            choose(pressed);
         event->accept();
         return true;
     }
     case QEvent::Leave:
-        if (m_hoveredYear) {
-            m_hoveredYear = 0;
+        if (m_hoveredChoice) {
+            m_hoveredChoice = 0;
             update();
         }
         break;
@@ -1215,16 +1366,23 @@ bool QCalendarWidget::event(QEvent *event) {
 */
 bool QCalendarWidget::eventFilter(QObject *watched, QEvent *event) {
     const QMaterialStyle *material = materialStyle(this);
-    if (watched == m_title && material) {
+    auto *label = qobject_cast<QLabel *>(watched);
+    if (material && label && (label == m_title || label == m_yearTitle)) {
+        // On the docked picker the month opens the months and the year the years; otherwise the label opens the years.
+        const bool months = label == m_title && isDocked();
         if (event->type() == QEvent::Paint) {
-            QPainter painter(m_title);
-            material->drawCalendarTitle(&painter, m_title->rect(), m_title, m_title->text(), m_choosingYear);
+            QPainter painter(label);
+            material->drawCalendarTitle(&painter, label->rect(), label, label->text(),
+                                        months ? m_choosingMonth : m_choosingYear);
             return true;
         }
         if (event->type() == QEvent::MouseButtonPress &&
-            static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton && isEnabled()) {
+            static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton && isEnabled() && label->isEnabled()) {
             setFocus();
-            setChoosingYear(!m_choosingYear);
+            if (months)
+                setChoosingMonth(!m_choosingMonth);
+            else
+                setChoosingYear(!m_choosingYear);
             return true;
         }
     }

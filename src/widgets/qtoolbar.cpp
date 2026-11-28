@@ -7,6 +7,7 @@
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qboxlayout.h>
 #include <QtWidgets/qmaterialstyle.h>
+#include <QtWidgets/qmenu.h>
 #include <QtWidgets/qtoolbutton.h>
 #include <QtWidgets/qwidgetaction.h>
 
@@ -60,17 +61,19 @@ private:
     \endcode
 
     Each action gets a QToolButton that follows its text, checked state, enabled state and visibility. A triggered
-    action is reported by actionTriggered(). toggleViewAction() is a checkable action that shows and hides the tool
-    bar, for a menu of the tool bars of a window.
+    action is reported by actionTriggered(). When there is not room for all of them, those at the end make way for
+    an extension button, which opens a menu of them. toggleViewAction() is a checkable action that shows and hides
+    the tool bar, for a menu of the tool bars of a window.
 
     A tool bar with actions, a separator, a checked and a disabled action, and a combo box.
 
     \image widgets/qtoolbar.png QToolBar in the light color scheme
 
     \differences
-    A tool bar cannot be dragged to another side of the window or float (\c isFloating() is always \c false), and it
-    has no extension button for the actions that do not fit. Buttons have no icons, so \c iconSize() is missing and
-    they show their text whatever the style. A movable tool bar shows a grip that does nothing.
+    A tool bar cannot be dragged to another side of the window or float (\c isFloating() is always \c false). When its
+    actions do not fit, the extension button at its end opens a menu of those that did not, where Qt shows them in an
+    expanded tool bar; a widget that does not fit (one given to addWidget()) is hidden and has no entry in the menu. A
+    movable tool bar shows a grip that does nothing.
     \enddifferences
 
     \sa QMainWindow, QToolButton, QAction
@@ -90,6 +93,7 @@ QToolBar::QToolBar(QWidget *parent) : QWidget(parent) { init(QString()); }
     Destroys the tool bar.
 */
 QToolBar::~QToolBar() {
+    delete m_extensionMenu.data(); // it went to the window when it was shown
     // The widgets of widget actions go back to their actions; the other items go with the children.
     for (const Item &item : m_items)
         if (item.fromAction)
@@ -103,6 +107,11 @@ void QToolBar::init(const QString &title) {
     m_layout = new QBoxLayout(QBoxLayout::LeftToRight, this);
     m_layout->setContentsMargins(2 + handleExtent(), 2, 2, 2);
     m_layout->setSpacing(2);
+    m_extension = new QToolButton(this);
+    m_extension->setObjectName(QStringLiteral("qt_toolbar_ext_button"));
+    m_extension->setAutoRaise(true);
+    m_extension->hide();
+    QObject::connect(m_extension, &QAbstractButton::clicked, this, [this] { showExtensionMenu(); });
     m_toggleView = new QAction(title, this);
     m_toggleView->setCheckable(true);
     m_toggleView->setChecked(true);
@@ -386,7 +395,8 @@ void QToolBar::setToolButtonStyle(Qt::ToolButtonStyle toolButtonStyle) {
     \reimp
 */
 QSize QToolBar::sizeHint() const {
-    QSize size = m_layout->sizeHint();
+    // As long as all of the actions need, also while some of them are in the extension menu.
+    QSize size = m_overflow.empty() ? m_layout->sizeHint() : m_fullHint;
     // A top app bar or a docked toolbar is as high as the scrolling of what is under it leaves it.
     if (const QMaterialStyle *material = scrollingStyle())
         size.setHeight(material->appBarExtent(this, size.height()));
@@ -398,6 +408,20 @@ QSize QToolBar::sizeHint() const {
 */
 QSize QToolBar::minimumSizeHint() const {
     QSize size = m_layout->minimumSize();
+    // One whose actions can go to the extension menu needs room for no more than the extension button (and the FAB at
+    // the end of a docked toolbar).
+    if (canExtend() && !m_items.empty()) {
+        const QMargins margins = m_layout->contentsMargins();
+        const bool horizontal = m_orientation == Qt::Horizontal;
+        int along = (horizontal ? margins.left() + margins.right() : margins.top() + margins.bottom()) +
+                    alongOf(m_extension->sizeHint());
+        if (m_dockedFab)
+            along += alongOf(m_dockedFab->sizeHint()) + 4;
+        if (horizontal)
+            size.setWidth(std::min(size.width(), along));
+        else
+            size.setHeight(std::min(size.height(), along));
+    }
     // One that scrolls away needs no more than what is left of it.
     if (scrollingStyle())
         size.setHeight(std::min(size.height(), sizeHint().height()));
@@ -421,6 +445,9 @@ bool QToolBar::event(QEvent *event) {
     const bool done = QWidget::event(event);
     if (event->type() != QEvent::Resize && event->type() != QEvent::LayoutRequest)
         return done;
+    // At another length, more or fewer of the actions may fit.
+    if (event->type() == QEvent::Resize && canExtend() && (!m_overflow.empty() || m_fullMinimum > alongOf(size())))
+        relayout();
     const QMaterialStyle *material = scrollingStyle();
     if (!material)
         return done;
@@ -492,14 +519,23 @@ void QToolBar::actionEvent(QActionEvent *event) {
         relayout();
         break;
     }
-    case QEvent::ActionChanged:
-        for (const Item &item : m_items)
-            if (item.action == action)
-                syncVisibility(item);
+    case QEvent::ActionChanged: {
         // The spacing of a docked toolbar is between the buttons that are shown, and it keeps its separators hidden.
-        if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isDockedToolBar(this))
+        bool refit = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isDockedToolBar(this);
+        const bool overflowed = std::find(m_overflow.begin(), m_overflow.end(), action) != m_overflow.end();
+        for (const Item &item : m_items) {
+            if (item.action != action)
+                continue;
+            // A button that comes or goes, or one in the extension menu, changes what fits.
+            if (overflowed || item.widget->isHidden() == action->isVisible())
+                refit = refit || canExtend();
+            if (!overflowed)
+                syncVisibility(item);
+        }
+        if (refit)
             relayout();
         break;
+    }
     case QEvent::ActionRemoved: {
         auto it = std::find_if(m_items.begin(), m_items.end(), [action](const Item &i) { return i.action == action; });
         if (it != m_items.end()) {
@@ -533,28 +569,50 @@ bool QToolBar::isFloatingForStyle() const {
     return qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isFloatingToolBar(this);
 }
 
-// Puts the widgets in the layout in the order of the actions.
-void QToolBar::relayout() {
+// True for a tool bar whose actions go to the extension menu when they do not fit: any but a top app bar.
+bool QToolBar::canExtend() const {
+    return !(qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isAppBar(this));
+}
+
+// The length of `size` along the tool bar.
+int QToolBar::alongOf(const QSize &size) const {
+    return m_orientation == Qt::Horizontal ? size.width() : size.height();
+}
+
+// Puts the widgets in the layout in the order of the actions, the first `kept` of those that can go to the extension
+// menu (all of them if it is negative) and the extension button if any did. Returns how many can go.
+int QToolBar::fillLayout(int kept, bool horizontal, bool floating, bool docked, bool appBar) {
     while (QLayoutItem *item = m_layout->takeAt(0))
         delete item;
+    // What did not fit before may now.
+    for (QAction *action : m_overflow)
+        if (QWidget *widget = widgetForAction(action);
+            widget && action->isVisible() && !(docked && action->isSeparator()))
+            widget->show();
+    m_overflow.clear();
+    m_dockedFab = nullptr;
     const QList<QAction *> order = actions();
-    const bool floating = isFloatingForStyle();
-    // A docked toolbar spreads its buttons out along it, from 4 to 32 apart (DockedToolbarTokens), and centres them
-    // where 32 leaves room at the ends.
-    const bool docked = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isDockedToolBar(this);
-    // A top app bar has its title where the first separator is, or before every action if there is none.
-    const bool appBar = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isAppBar(this);
-    // A medium or large one keeps its buttons in the top row, above its title.
+    // A medium or large app bar keeps its buttons in the top row, above its title.
     const Qt::Alignment align = appBar && QMaterialStyle::isFlexibleAppBar(this) ? Qt::AlignTop : Qt::Alignment();
     bool gap = false;
     if (appBar && std::none_of(order.begin(), order.end(), [](QAction *a) { return a->isSeparator(); })) {
         m_layout->addStretch();
         gap = true;
     }
-    const bool horizontal = m_orientation == Qt::Horizontal;
     const auto space = [&](int extent, QSizePolicy::Policy policy) {
         m_layout->addItem(horizontal ? new QSpacerItem(extent, 0, policy, QSizePolicy::Minimum)
                                      : new QSpacerItem(0, extent, QSizePolicy::Minimum, policy));
+    };
+    int entries = 0;
+    // Whether the next of those that can go to the extension menu stays; one that does not is hidden.
+    const auto fits = [&](QAction *action, QWidget *widget) {
+        const bool stays = kept < 0 || entries < kept;
+        ++entries;
+        if (!stays) {
+            m_overflow.push_back(action);
+            widget->hide();
+        }
+        return stays;
     };
     if (docked)
         m_layout->addStretch();
@@ -567,6 +625,13 @@ void QToolBar::relayout() {
             if (action->isSeparator())
                 widget->hide(); // the spacing is what separates the buttons
             if (action->isSeparator() || !action->isVisible())
+                continue;
+            // A FAB goes at the end, 16 in as the buttons are, and stays there.
+            if (!m_dockedFab && QMaterialStyle::isFloatingActionButton(widget)) {
+                m_dockedFab = widget;
+                continue;
+            }
+            if (!fits(action, widget))
                 continue;
             if (!first) {
                 space(4, QSizePolicy::Fixed);
@@ -584,10 +649,66 @@ void QToolBar::relayout() {
         }
         if (action->isSeparator() && widget->isHidden() && action->isVisible())
             widget->show(); // it was the title's place in an app bar
+        if (!fits(action, widget))
+            continue;
         m_layout->addWidget(widget, 0, align);
+    }
+    // The extension button is the last of the buttons of a docked toolbar, and at the end of another tool bar.
+    const bool overflow = !m_overflow.empty();
+    if (docked && overflow) {
+        if (!first) {
+            space(4, QSizePolicy::Fixed);
+            space(28, QSizePolicy::Maximum);
+        }
+        m_layout->addWidget(m_extension);
     }
     if (!floating && !appBar)
         m_layout->addStretch();
+    if (!docked && overflow)
+        m_layout->addWidget(m_extension);
+    if (m_dockedFab) {
+        space(4, QSizePolicy::Fixed);
+        m_layout->addWidget(m_dockedFab);
+    }
+    m_extension->setVisible(overflow);
+    return entries;
+}
+
+// Lays the tool bar out for its kind, with as many of its actions as fit.
+void QToolBar::relayout() {
+    // Buttons that are shown or hidden may lay the window out at once, which resizes the tool bar and asks for this
+    // again: that waits, and the tool bar is laid out again if its size changed meanwhile.
+    if (m_relayingOut)
+        return;
+    m_relayingOut = true;
+    for (int round = 0; round < 3; ++round) {
+        const QSize before = size();
+        layOutItems();
+        if (size() == before)
+            break;
+    }
+    m_relayingOut = false;
+}
+
+void QToolBar::layOutItems() {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    const bool floating = isFloatingForStyle();
+    // A docked toolbar spreads its buttons out along it, from 4 to 32 apart (DockedToolbarTokens), and centres them
+    // where 32 leaves room at the ends.
+    const bool docked = material && QMaterialStyle::isDockedToolBar(this);
+    // A top app bar has its title where the first separator is, or before every action if there is none.
+    const bool appBar = material && QMaterialStyle::isAppBar(this);
+    const bool horizontal = m_orientation == Qt::Horizontal;
+    // The extension button: under the Material style a standard icon button, or an item of a Material toolbar, with
+    // the symbol of the style.
+    m_extension->setIconSize(iconSize());
+    m_extension->setIcon(style()->standardIcon(horizontal ? QStyle::SP_ToolBarHorizontalExtensionButton
+                                                          : QStyle::SP_ToolBarVerticalExtensionButton,
+                                               nullptr, m_extension));
+    const QVariant iconButton = material && !floating && !docked ? QVariant(QStringLiteral("standard")) : QVariant();
+    if (m_extension->property("materialIconButton") != iconButton)
+        m_extension->setProperty("materialIconButton", iconButton);
+    const int entries = fillLayout(-1, horizontal, floating, docked, appBar);
     m_layout->setSpacing(floating || appBar || docked ? 0 : 2);
     // A floating toolbar is as long as its buttons need; another stretches along its side.
     // A top app bar and a docked toolbar go across all of their room.
@@ -600,7 +721,9 @@ void QToolBar::relayout() {
             item.widget->updateGeometry(); // its size depends on the toolbar that it is in
     if (appBar)
         m_layout->setContentsMargins(4, 8, 4, 8); // 64 high with buttons of 48
-    else if (docked)                              // 64 across with buttons of 48, and 16 at the ends
+    else if (docked && m_dockedFab)               // 64 across with a FAB of 56
+        m_layout->setContentsMargins(horizontal ? QMargins(16, 4, 16, 4) : QMargins(4, 16, 4, 16));
+    else if (docked) // 64 across with buttons of 48, and 16 at the ends
         m_layout->setContentsMargins(horizontal ? QMargins(16, 8, 16, 8) : QMargins(8, 16, 8, 16));
     else if (floating)
         // 64 across with buttons of 48, and room below for the shadow.
@@ -609,8 +732,60 @@ void QToolBar::relayout() {
         m_layout->setContentsMargins(2 + handleExtent(), 2, 2, 2);
     else
         m_layout->setContentsMargins(2, 2 + handleExtent(), 2, 2);
+    m_fullHint = m_layout->sizeHint();
+    m_fullMinimum = alongOf(m_layout->minimumSize());
+    // What does not fit goes to the extension menu, from the end: as many stay as leave room for its button.
+    if (canExtend() && m_fullMinimum > alongOf(size())) {
+        for (int kept = entries - 1; kept >= 0; --kept) {
+            fillLayout(kept, horizontal, floating, docked, appBar);
+            if (alongOf(m_layout->minimumSize()) <= alongOf(size()))
+                break;
+        }
+    }
     updateGeometry();
     update();
+}
+
+// Opens the menu of the actions that did not fit, from the extension button: below it, or above it at the bottom of
+// the window, and beside a vertical tool bar.
+void QToolBar::showExtensionMenu() {
+    if (!m_extensionMenu) {
+        // A choice from it is reported by the button of its action, which follows the action.
+        auto *created = new QMenu(this);
+        m_extensionMenu = created;
+        QObject::connect(created, &QMenu::aboutToHide, m_extension, [this] { m_extension->setDown(false); });
+    }
+    QMenu *menu = m_extensionMenu;
+    menu->clear();
+    for (QAction *action : m_overflow) {
+        if (action->isSeparator()) {
+            menu->addSeparator();
+            continue;
+        }
+        // The buttons of actions; a widget has no entry.
+        const auto it =
+            std::find_if(m_items.begin(), m_items.end(), [action](const Item &item) { return item.action == action; });
+        if (it != m_items.end() && it->owned)
+            menu->addAction(action);
+    }
+    if (menu->isEmpty())
+        return;
+    menu->ensurePolished(); // the style may give it another font, which its size is measured with
+    const QSize size = menu->sizeHint();
+    QWidget *window = this->window();
+    const QRect button(m_extension->mapTo(window, QPoint(0, 0)), m_extension->size());
+    QPoint at;
+    if (m_orientation == Qt::Horizontal) {
+        at.setX(button.right() + 1 - size.width());
+        at.setY(button.bottom() + 1 + size.height() <= window->height() ? button.bottom() + 1
+                                                                        : button.top() - size.height());
+    } else {
+        at.setX(button.right() + 1 + size.width() <= window->width() ? button.right() + 1
+                                                                     : button.left() - size.width());
+        at.setY(button.top());
+    }
+    m_extension->setDown(true);
+    menu->popup(window->mapToGlobal(at));
 }
 
 /*!

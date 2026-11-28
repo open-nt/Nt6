@@ -129,15 +129,31 @@ private:
     int navigationHeight() const;
     int headlineHeight() const;
     // The grid of years that Material's date picker shows in the place of the days, from the year of minimumDate()
-    // to that of maximumDate(), three to a row: its rows scroll, and one year is where the keyboard is.
+    // to that of maximumDate(), three to a row, and the list of months of its docked picker, one to a row: either is a
+    // list of choices whose rows scroll, and one choice is where the keyboard is.
+    bool isDocked() const; // materialDatePicker is "docked" under QMaterialStyle
+    bool choosing() const { return m_choosingYear || m_choosingMonth; }
+    bool showsMonths() const; // the months are chosen, or fade out after a choice
     void setChoosingYear(bool choosing);
+    void setChoosingMonth(bool choosing);
+    void updateChooserControls(); // the arrows and the labels of the bar, while a choice is shown or not
     void chooseYear(int year);
-    int yearRows() const;
-    int visibleYearRows() const;
-    void scrollYears(int row);
-    void moveYearCursor(int year);
-    QRect yearRect(int year) const;
-    int yearAt(const QPoint &pos) const; // 0 for none
+    void chooseMonth(int month);
+    void choose(int value);
+    int firstChoice() const;
+    int lastChoice() const;
+    int firstUsableChoice() const;
+    int lastUsableChoice() const;
+    int choiceColumns() const;
+    int choiceRowHeight() const;
+    int choiceRows() const;
+    int visibleChoiceRows() const;
+    void scrollChoices(int row);
+    void moveChoiceCursor(int value);
+    QRect choiceRect(int value) const;
+    int choiceAt(const QPoint &pos) const; // 0 for none
+    bool monthUsable(int month) const;     // whether a day of the month of the year shown is in the range
+    void layoutNavigation();               // the docked picker has a month and a year, each between arrows
     // The input mode of Material's modal date picker: a text field in the place of the month, where a date is typed
     // in the short format of the locale; the icon button at the end of the headline switches to it and back.
     void setInputMode(bool input);
@@ -155,6 +171,9 @@ private:
     QToolButton *m_previous = nullptr;
     QToolButton *m_next = nullptr;
     QLabel *m_title = nullptr;
+    QToolButton *m_previousYear = nullptr; // of the docked picker, made when it is first docked
+    QToolButton *m_nextYear = nullptr;
+    QLabel *m_yearTitle = nullptr;
     QDate m_selected;
     QDate m_minimum;
     QDate m_maximum;
@@ -172,10 +191,12 @@ private:
     bool m_dateEditEnabled = true;
     int m_dateEditAcceptDelay = 1500;
     bool m_choosingYear = false;
-    int m_yearRow = 0;    // the first row of years that is shown
-    int m_yearCursor = 0; // the year that the keyboard is on
-    int m_hoveredYear = 0;       // the year under the pointer, 0 for none
-    int m_pressedYear = 0;       // the year that the button went down on, chosen if it comes up there
+    bool m_choosingMonth = false;
+    bool m_fadingMonths = false; // what fades out after a choice: the months rather than the years
+    int m_choiceRow = 0;         // the first row of choices that is shown
+    int m_choiceCursor = 0;      // the choice that the keyboard is on
+    int m_hoveredChoice = 0;     // the choice under the pointer, 0 for none
+    int m_pressedChoice = 0;     // the choice that the button went down on, chosen if it comes up there
     bool m_navigationBar = true; // whether the program wants the navigation bar, which the input mode hides
     bool m_inputMode = false;
     bool m_typing = false;            // while the field selects what was typed, its text is left alone

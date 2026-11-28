@@ -8,6 +8,7 @@
 #include <vector>
 
 class QBoxLayout;
+class QMenu;
 class QToolButton;
 class QMaterialStyle;
 
@@ -132,6 +133,11 @@ private:
 
     void init(const QString &title);
     void relayout();
+    void layOutItems();
+    int fillLayout(int kept, bool horizontal, bool floating, bool docked, bool appBar);
+    bool canExtend() const;
+    int alongOf(const QSize &size) const;
+    void showExtensionMenu();
     bool isFloatingForStyle() const;
     const QMaterialStyle *scrollingStyle() const;
     QWidget *createItemWidget(QAction *action, bool *fromAction);
@@ -142,10 +148,17 @@ private:
     std::vector<Item> m_items;
     std::vector<std::pair<QPointer<QAction>, QPointer<QWidget>>> m_widgetActions;
     QAction *m_toggleView = nullptr;
+    QToolButton *m_extension = nullptr; // shows the actions that do not fit
+    QPointer<QMenu> m_extensionMenu;
+    std::vector<QAction *> m_overflow; // the actions whose widgets do not fit, in order
+    QSize m_fullHint;                  // the size hint with every action in it
+    int m_fullMinimum = 0;             // and its minimum length along the tool bar
+    QPointer<QWidget> m_dockedFab;     // the FAB at the end of a docked toolbar of the Material style
     Qt::ToolBarAreas m_allowedAreas = Qt::AllToolBarAreas;
     Qt::Orientation m_orientation = Qt::Horizontal;
     Qt::ToolButtonStyle m_style = Qt::ToolButtonIconOnly;
     QSize m_iconSize; // invalid: the tool bar icon size of the style
     bool m_movable = true;
     bool m_floatable = true;
+    bool m_relayingOut = false;
 };

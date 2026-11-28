@@ -320,7 +320,7 @@ void QStyledItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
     if (material)
         material->drawListRow(painter, opt.rect, selected, opt.state & QStyle::State_Enabled, opt.backgroundBrush,
                               opt.widget, index.row() == 0,
-                              index.model() && index.row() == index.model()->rowCount(index.parent()) - 1);
+                              index.model() && index.row() == index.model()->rowCount(index.parent()) - 1, index.row());
     else if (selected)
         painter->fillRect(opt.rect, opt.palette.color(group, QPalette::Highlight));
     else if (opt.backgroundBrush.style() != Qt::NoBrush)

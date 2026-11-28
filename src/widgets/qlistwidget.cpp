@@ -1173,7 +1173,7 @@ void QListWidget::paintEvent(QPaintEvent *event) {
         if (material)
             material->drawListRow(&painter, rect, selected, on,
                                   it->background().style() != Qt::NoBrush ? QBrush(it->background().color()) : QBrush(),
-                                  this, r == firstShown, r == lastShown);
+                                  this, r == firstShown, r == lastShown, r);
         else if (selected)
             painter.fillRect(rect, highlight);
         else if (it->background().style() != Qt::NoBrush)

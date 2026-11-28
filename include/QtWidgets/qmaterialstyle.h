@@ -20,12 +20,14 @@ class QAction;
 class QFont;
 class QCalendarWidget;
 class QAbstractButton;
+class QDate;
 class QDateTimeEdit;
 class QDialog;
 class QTime;
 class QFrame;
 class QLineEdit;
 class QListWidget;
+class QLocale;
 class QMainWindow;
 class QMessageBox;
 class QStatusBar;
@@ -106,6 +108,8 @@ public:
     QSize sizeFromContents(ContentsType type, const QStyleOption *option, const QSize &contentsSize,
                            const QWidget *widget = nullptr) const override;
     QPalette standardPalette() const override;
+    QPixmap standardPixmap(StandardPixmap standardPixmap, const QStyleOption *option = nullptr,
+                           const QWidget *widget = nullptr) const override;
     using QCommonStyle::polish;
     using QCommonStyle::unpolish;
     void polish(QWidget *widget) override;
@@ -237,13 +241,22 @@ private:
     void drawCalendarYear(QPainter *painter, const QRect &cell, const QCalendarWidget *calendar, int year,
                           bool selected, bool current, bool cursor, bool hovered, bool pressed) const;
     double datePickerYearsShown(const QCalendarWidget *calendar, bool choosing) const;
+    // A row of the menu of months of the docked date picker (materialDatePicker "docked"), which shows them in the
+    // place of the days as the years are: the month shown is `checked`, a month out of the range is not `usable`.
+    // The years and the months share the fade of datePickerYearsShown().
+    void drawCalendarMonth(QPainter *painter, const QRect &row, const QCalendarWidget *calendar, const QString &name,
+                           bool checked, bool usable, bool cursor, bool hovered, bool pressed) const;
+    // The date of the headline in the names and the order of the locale.
+    static QString datePickerHeadlineText(QDate date, const QLocale &locale);
     // A dialog that is a sheet against an edge of its parent's window: QDialog asks for it to be put there when it
     // is shown. False for another dialog.
     friend class QDialog;
     bool placeSheet(QDialog *dialog) const;
     // A sheet slides in from its edge, or from `from` (a fraction of its height or width away) when it was on its way
-    // out.
-    void slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft, double from) const;
+    // out, to `rest` from its expanded `place` (a sheet that rests collapsed or half open).
+    void slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft, double from, int rest = 0) const;
+    // The standard sheets of a window that moved or changed its size go to its bottom again.
+    void followWindow(QWidget *window) const;
     // A sheet that is hidden leaves a picture of itself that slides back to its edge: QDialog asks for it just before
     // it hides the dialog, which goes at once as any other dialog does.
     void slideSheetOut(QDialog *dialog) const;
@@ -331,9 +344,10 @@ private:
     // The background of a row of a list: its selection, and the press on it. The views that paint rows ask for it.
     friend class QListWidget;
     friend class QStyledItemDelegate;
-    // In a list whose materialList is "segmented" each row is a container of its own, `first` and `last` rounder.
+    // In a list whose materialList is "segmented" each row is a container of its own, `first` and `last` rounder;
+    // `index` is the number of the row, which keys the springs of its corners (-1 for none).
     void drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled, const QBrush &background,
-                     const QWidget *view, bool first, bool last) const;
+                     const QWidget *view, bool first, bool last, int index = -1) const;
     static bool isSegmentedList(const QWidget *view);
     // The height of the rows of a QCompleter's popup: 56 in the docked search view under a search bar, 48 in the menu
     // under another line edit, and 0 for a list that is no completer's popup. QListWidget asks for it.

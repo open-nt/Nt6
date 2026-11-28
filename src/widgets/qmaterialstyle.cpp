@@ -348,6 +348,7 @@ constexpr double sheetFlingSpeed = 1000;
 constexpr qint64 sheetFlingWindow = 100, sheetFlingShortest = 10;
 constexpr int bottomSheetWidest = 640;
 constexpr int bottomSheetTopRoom = 72; // that a bottom sheet leaves above it
+constexpr int bottomSheetPeek = 56;    // of a standard bottom sheet that is collapsed, unless materialSheetPeek says
 constexpr int drawerWidth = 360;
 constexpr int drawerRoom = 56; // that a drawer leaves beside it
 constexpr int drawerCorner = 16;
@@ -428,12 +429,59 @@ QStringList wrapListText(const QString &text, const QFontMetrics &metrics, int w
     return lines;
 }
 
-// What a dialog asks to be with its property: "bottom", "drawer", or empty for a dialog like any other.
+// What a dialog asks to be with its property: "bottom", "standardBottom", "drawer", or empty for a dialog like any
+// other.
 QString sheetKind(const QWidget *widget) {
     if (!qobject_cast<const QDialog *>(widget))
         return QString();
     const QString name = widget->property("materialSheet").toString();
-    return name == QLatin1String("bottom") || name == QLatin1String("drawer") ? name : QString();
+    return name == QLatin1String("bottom") || name == QLatin1String("standardBottom") || name == QLatin1String("drawer")
+               ? name
+               : QString();
+}
+
+bool isStandardSheet(const QWidget *widget) { return sheetKind(widget) == QLatin1String("standardBottom"); }
+
+// The room that a sheet lies in: the window of its parent, or the screen.
+QRect sheetArea(const QWidget *dialog) {
+    if (const QWidget *parent = dialog->parentWidget())
+        return parent->window()->geometry();
+    if (const QScreen *screen = QGuiApplication::primaryScreen())
+        return screen->availableGeometry();
+    return QRect();
+}
+
+// How far below its expanded place a bottom sheet rests when it is not expanded: a standard one shows only its peek,
+// and a modal one with materialSheetHalf that is taller than half the window shows half the window. 0 for a sheet
+// that has no such state.
+int sheetPartialOffset(const QWidget *dialog, int height) {
+    const QString kind = sheetKind(dialog);
+    if (kind == QLatin1String("standardBottom")) {
+        const QVariant peek = dialog->property("materialSheetPeek");
+        const int shown = peek.isValid() ? std::max(0, peek.toInt()) : bottomSheetPeek;
+        return std::max(0, height - shown);
+    }
+    if (kind == QLatin1String("bottom") && dialog->property("materialSheetHalf").toBool()) {
+        const int half = sheetArea(dialog).height() / 2;
+        return height > half ? height - half : 0;
+    }
+    return 0;
+}
+
+// Where a sheet lies when it is expanded.
+QRect sheetPlace(const QDialog *dialog) {
+    const QRect area = sheetArea(dialog);
+    if (sheetKind(dialog) == QLatin1String("drawer")) {
+        // Against the left edge, as high as the window.
+        const int width = std::max(1, std::min(drawerWidth, area.width() - drawerRoom));
+        return QRect(area.left(), area.top(), width, area.height());
+    }
+    // Against the bottom, as high as what is in it, in the middle of a window that is wider than a sheet gets.
+    const int width = std::max(1, std::min(bottomSheetWidest, area.width()));
+    const int wanted = dialog->heightForWidth(width);
+    const int height = std::clamp(wanted > 0 ? wanted : dialog->sizeHint().height(), 1,
+                                  std::max(1, area.height() - bottomSheetTopRoom));
+    return QRect(area.left() + (area.width() - width) / 2, area.top() + area.height() - height, width, height);
 }
 
 // Secondary tabs, for what is inside a page: quieter than the primary ones.
@@ -562,7 +610,9 @@ QPixmap messageSign(QMessageBox::Icon icon, int pixels) {
 // A bottom sheet has a drag handle, unless its materialSheetHandle is false.
 bool hasSheetHandle(const QWidget *dialog) {
     const QVariant shown = dialog->property("materialSheetHandle");
-    return sheetKind(dialog) == QLatin1String("bottom") && (!shown.isValid() || shown.toBool());
+    const QString kind = sheetKind(dialog);
+    return (kind == QLatin1String("bottom") || kind == QLatin1String("standardBottom")) &&
+           (!shown.isValid() || shown.toBool());
 }
 
 bool isTextEditor(const QWidget *widget) {
@@ -629,8 +679,9 @@ Segment segmentOf(const QWidget *widget) {
     return segment;
 }
 
+// A push button, or a tool button (as in a docked toolbar), that asks to be a floating action button.
 bool isFab(const QWidget *widget) {
-    return qobject_cast<const QPushButton *>(widget) &&
+    return (qobject_cast<const QPushButton *>(widget) || qobject_cast<const QToolButton *>(widget)) &&
            widget->property("materialButton").toString() == QLatin1String("fab");
 }
 
@@ -845,6 +896,11 @@ int expandedAppBarHeight(const QWidget *bar) {
 // The kinds of toolbar that are docked toolbars, across the bottom (or the top) of a window.
 bool isDockedKind(const QString &kind) {
     return kind == QLatin1String("docked") || kind == QLatin1String("dockedVibrant");
+}
+
+// The room under a FAB for its shadow: none on a docked toolbar, where it lies flat, as on a bottom app bar.
+int fabLift(const QWidget *widget) {
+    return widget && isDockedKind(toolBarKind(widget->parentWidget())) ? 0 : fabShadow;
 }
 
 // The scroll behaviour that a top app bar or a docked toolbar asks for with its property.
@@ -1436,7 +1492,8 @@ enum Channel {
     ScrollBarChannel,      // how far the handle of a scroll bar has faded in
     YearsChannel,          // how far the years of a date picker have faded in over its days
     SliderValueChannel,    // how far the value indicator of a slider has grown, from 0 to 1
-    NavigationChannel = 100 // plus the index of a destination: how far its pill has opened
+    NavigationChannel = 100,     // plus the index of a destination: how far its pill has opened
+    ListSegmentChannel = 1 << 20 // plus twice the row of a segmented list: its top corners, then its bottom ones
 };
 const char *const polishedFont = "_nt_materialFont";
 const char *const polishedPalette = "_nt_materialPalette";
@@ -1937,7 +1994,8 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     \li \c materialButton \c "fab" of a QPushButton makes it a floating action button: 56 square, or wider with a
         text (an extended FAB). Without an icon and a text it shows a plus. A menu that it is given with
         QPushButton::setMenu() opens as Material's FAB menu: a pill for each action above the button, which turns into
-        the button that closes it. A layout stretches a FAB like any button, so add it with an alignment.
+        the button that closes it. A layout stretches a FAB like any button, so add it with an alignment. A QToolButton
+        with the property is a FAB of its icon alone.
     \li \c materialProgress of a QProgressBar: \c "wavy" draws the part that is done as a wave, which travels while
         motion is enabled and is flat below a tenth and from 95 in 100; a busy bar's parts are waves too. \c "loading" shows a busy bar (a range of 0 to 0) as the loading
         indicator, a shape of 38 that turns and changes, and \c "containedLoading" puts it in a round container of 48.
@@ -1950,7 +2008,10 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         the primary container color. Put it in the bottom tool bar area of a QMainWindow with
         addToolBar(Qt::BottomToolBarArea, bar), or at the bottom of a layout. Its buttons, 48 and in the colors of a
         floating toolbar's, are spread out along it, 16 in from its ends and from 4 to 32 apart, and centred when 32
-        apart leaves room; its separators are not shown. A snackbar goes above it.
+        apart leaves room; its separators are not shown. A snackbar goes above it. A FAB in it, a QToolButton of an
+        action (widgetForAction()) or a QPushButton added with addWidget() whose \c materialButton is \c "fab", is at
+        its end, 16 in, flat on it with no shadow, and the bar is still 64 high. The buttons that do not fit go to the
+        menu of an extension button, which is the last of the buttons, before the FAB.
     \li \c materialButtonSize of a QPushButton or a QToolButton: \c "extraSmall", \c "small", \c "medium",
         \c "large" or \c "extraLarge", the five sizes of Material 3 Expressive, 32, 40, 56, 96 and 136 high, each
         with its own label, icon, room around them, corners and outline. Without it a button is small.
@@ -2129,7 +2190,8 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         of supporting text under it (\c{"PROJECT\nBrunch this weekend?\nAli Connors"}).
     \li \c materialList \c "segmented" of a QListView or QListWidget makes it a segmented list, as in Material 3
         Expressive: each row a container of its own, 2 from the next, with corners of 16 at the ends of the list and
-        of 4 between rows; a selected row is in the secondary container and round all over.
+        of 4 between rows; a selected row is in the secondary container and round all over, its corners growing on a
+        spring while motion is enabled.
     \li \c materialSheet of a QDialog: \c "bottom" makes it a modal bottom sheet, against the bottom of its parent's
         window, as high as what is in it and no wider than 640; \c "drawer" makes it a modal drawer, against the left
         edge, as high as the window and up to 360 wide. It slides in from its edge and has no title bar. Closed, it is
@@ -2142,6 +2204,15 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         third of the way, or flung, it is rejected as Back does, and otherwise it springs back.
     \li \c materialSheetHandle \c false on a bottom sheet hides its drag handle and the room for it; the sheet is still
         dragged.
+    \li \c materialSheet \c "standardBottom" of a QDialog makes it a standard bottom sheet, shown with show(): it is
+        not modal and dims nothing, so what is behind it can still be used. It lies against the bottom of its
+        parent's window, as a bottom sheet does, follows the window as it moves or changes its size, and rests
+        collapsed, only its top showing. Dragged up it expands, dragged down it collapses again; it does not close
+        when dragged, and a click on its handle expands or collapses it.
+    \li \c materialSheetPeek of a standard bottom sheet: how much of it shows when it is collapsed, 56 by default.
+    \li \c materialSheetHalf \c true of a modal bottom sheet that is taller than half its window opens it half open,
+        its top at the middle of the window. Dragged up it expands; let go, it comes to rest half open or expanded,
+        or closes if it is let go near the bottom. A click on its handle goes from one to the other.
     \li \c materialList \c "navigationDrawer" of a QListWidget, for the list of a drawer: the one that is current is
         marked with a pill, and the list has no frame. Open a destination from itemClicked() and accept() the drawer.
     \li \c materialMenu \c "grouped" of a QMenu: the separators that addSeparator() adds are gaps of 2 rather than
@@ -2185,6 +2256,10 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         docked date picker, which has no headline. The pencil at the end of the headline switches to the input mode:
         an outlined text field "Date" in the place of the month, where a date is typed in the short format of the
         locale, and a calendar icon in the place of the pencil to go back to the days.
+    \li \c materialDatePicker \c "docked" of a QCalendarWidget makes its navigation bar that of Material's docked
+        date picker: the month between its arrows at the start and the year between its arrows at the end. A click
+        on the month shows a menu of the months of the year in the place of the days, the month shown checked; a
+        click on the year shows the years.
     \li \c materialButtonGroup of a widget: \c "connected" makes the buttons that are its children a connected
         button group, which Material 3 Expressive has in the place of segmented buttons. A horizontal layout of the
         widget puts them 2 apart unless it is told a spacing; the ends of the row are round, the corners between the
@@ -2416,6 +2491,8 @@ struct QMaterialStyle::SheetDrag {
     int from = 0;
     int offset = 0;
     bool moving = false;
+    bool onHandle = false; // the press was on the drag handle, which a click toggles
+
     QElapsedTimer clock;
     std::vector<std::pair<qint64, int>> samples;
 };
@@ -2545,6 +2622,29 @@ QPalette QMaterialStyle::standardPalette() const {
 }
 
 /*!
+    \reimp
+
+    The extension button of a horizontal tool bar shows Material's "more vertical" symbol, three dots in a column, and
+    that of a vertical one "more horizontal"; both are drawn in one color, which the button gives its own.
+*/
+QPixmap QMaterialStyle::standardPixmap(StandardPixmap standardPixmap, const QStyleOption *option,
+                                       const QWidget *widget) const {
+    if (standardPixmap != SP_ToolBarHorizontalExtensionButton && standardPixmap != SP_ToolBarVerticalExtensionButton)
+        return QCommonStyle::standardPixmap(standardPixmap, option, widget);
+    QImage image(24, 24, QImage::Format_ARGB32_Premultiplied); // the size of a symbol
+    image.fill(Qt::transparent);
+    QPainter painter(&image);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(color(Role::OnSurfaceVariant));
+    const bool column = standardPixmap == SP_ToolBarHorizontalExtensionButton;
+    for (const double at : {6.0, 12.0, 18.0}) // the dots of the 24 grid of the symbol, of radius 2
+        painter.drawEllipse(column ? QPointF(12, at) : QPointF(at, 12), 2.0, 2.0);
+    painter.end();
+    return QPixmap::fromImage(image);
+}
+
+/*!
     \fn bool QMaterialStyle::isMotionEnabled() const
 
     Returns \c true if changes of state move along springs.
@@ -2618,7 +2718,8 @@ void QMaterialStyle::drawChoicePress(const QStyleOption *option, QPainter *paint
 }
 
 void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled,
-                                 const QBrush &background, const QWidget *view, bool first, bool last) const {
+                                 const QBrush &background, const QWidget *view, bool first, bool last,
+                                 int index) const {
     const auto *list = qobject_cast<const QAbstractItemView *>(view);
     const QWidget *viewport = list ? list->viewport() : nullptr;
     const bool pressedHere = viewport && viewport == m_rippleWidget.data() && row.contains(m_rippleOrigin.toPoint());
@@ -2655,8 +2756,16 @@ void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selec
         // rows, and round all over while it is chosen or held.
         const QRectF shape = QRectF(row).adjusted(0, 1, 0, -1);
         const bool round = selected || held;
-        const QPainterPath outline = endedPath(shape, round || first ? listSegmentOuter : listSegmentInner,
-                                               round || last ? listSegmentOuter : listSegmentInner);
+        double top = round || first ? listSegmentOuter : listSegmentInner;
+        double bottom = round || last ? listSegmentOuter : listSegmentInner;
+        // The corners of a row that is chosen or held grow on the fast effects spring, and go back on it: each row has
+        // a pair of springs, kept for the viewport, which they repaint.
+        if (m_motion && viewport && index >= 0) {
+            const int channel = ListSegmentChannel + 2 * index;
+            top = m_animator->value(viewport, channel, top, QtPrivate::fastEffectsSpring, 0.05);
+            bottom = m_animator->value(viewport, channel + 1, bottom, QtPrivate::fastEffectsSpring, 0.05);
+        }
+        const QPainterPath outline = endedPath(shape, top, bottom);
         painter->save();
         painter->setRenderHint(QPainter::Antialiasing);
         if (selected && enabled)
@@ -3328,13 +3437,21 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
             QWindow *window = dialog->windowHandle();
             window->setProperty("_nt_cornerRadius",
                                 sheetKind(dialog) == QLatin1String("drawer") ? drawerCorner : dialogCorner);
-            // The scrim behind it fades in, from where it was if a sheet came back as it went.
+            // The scrim behind it fades in, from where it was if a sheet came back as it went. A standard sheet has
+            // none: what is behind it can still be used.
             const QVariant was = window->property(scrimProperty);
-            if (m_motion)
+            if (isStandardSheet(dialog))
+                window->setProperty(scrimProperty, 0.0);
+            else if (m_motion)
                 fadeScrim(dialog, was.isValid() ? std::clamp(was.toDouble(), 0.0, scrimOpacity) : 0.0);
             else
                 window->setProperty(scrimProperty, scrimOpacity);
         }
+    }
+    // A standard sheet stays at the bottom of its window as the window moves or changes its size.
+    if (event->type() == QEvent::Resize || event->type() == QEvent::Move) {
+        if (auto *window = qobject_cast<QWidget *>(watched); window && window->isWindow())
+            followWindow(window);
     }
     if (event->type() == QEvent::Hide) {
         // A sheet that is hidden while it is dragged is no longer dragged.
@@ -3608,7 +3725,7 @@ void QMaterialStyle::drawButtonContainer(const QStyleOption *option, QPainter *p
     if (fab) {
         // A rounded square; open, the close button of its menu, which is a circle at the right.
         const bool open = isOpenFab(widget);
-        left = right = open ? (rect.height() - fabShadow) / 2 : fabCorner;
+        left = right = open ? (rect.height() - fabLift(widget)) / 2 : fabCorner;
     } else if (segment.grouped) {
         if (!checked || (option->state & State_Sunken)) {
             const double inner = (option->state & State_Sunken) ? groupPressed : groupCorner;
@@ -3642,7 +3759,7 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     const ButtonKind kind = buttonKind(option, widget);
     QRectF rect(option->rect);
     if (isOpenFab(widget))
-        rect.setLeft(rect.right() - (rect.height() - fabShadow));
+        rect.setLeft(rect.right() - (rect.height() - fabLift(widget)));
     const bool checked = option->state & State_On;
 
     QColor container(Qt::transparent);
@@ -3707,7 +3824,7 @@ void QMaterialStyle::drawButtonShape(const QStyleOption *option, QPainter *paint
     if (!enabled(option) && kind != ButtonKind::Text && kind != ButtonKind::IconStandard && kind != ButtonKind::Card &&
         !(bare && !checked))
         container = withOpacity(color(Role::OnSurface), disabledContainerOpacity);
-    const double lift = kind == ButtonKind::Fab ? fabShadow : kind == ButtonKind::Elevated ? 1.5 : 0.0;
+    const double lift = kind == ButtonKind::Fab ? fabLift(widget) : kind == ButtonKind::Elevated ? 1.5 : 0.0;
     const bool raised = lift > 0 && enabled(option) && (kind == ButtonKind::Fab || !(option->state & State_Sunken));
     if (raised)
         painter->fillPath(sidedPath(rect.adjusted(0.5, lift, -0.5, 0), left, right),
@@ -4495,7 +4612,7 @@ void QMaterialStyle::drawFabLabel(const QStyleOption *option, QPainter *painter,
     const auto *button = static_cast<const QStyleOptionButton *>(option);
     const QColor ink = buttonLabelColor(option, widget);
     const bool open = isOpenFab(widget);
-    QRect body = button->rect.adjusted(0, 0, 0, -fabShadow);
+    QRect body = button->rect.adjusted(0, 0, 0, -fabLift(widget));
     if (open)
         body.setLeft(body.right() + 1 - body.height());
     const bool plain = button->icon.isNull() && button->text.isEmpty();
@@ -5033,7 +5150,7 @@ void QMaterialStyle::drawDatePickerHeadline(QPainter *painter, const QRect &rect
     headline.setWeight(QFont::Normal);
     painter->setFont(headline);
     const QRect bottom(text.left(), text.bottom() + 1 - 12 - 40, std::max(0, button.left() - text.left()), 40);
-    const QString date = calendar->selectedDate().toString(QStringLiteral("ddd, MMM d"));
+    const QString date = datePickerHeadlineText(calendar->selectedDate(), calendar->locale());
     painter->drawText(bottom, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                       QFontMetrics(headline).elidedText(date, Qt::ElideRight, bottom.width()));
     painter->restore();
@@ -5134,6 +5251,48 @@ void QMaterialStyle::drawCalendarYear(QPainter *painter, const QRect &cell, cons
     painter->setPen(text);
     painter->drawText(cell, Qt::AlignCenter, QString::number(year));
     painter->restore();
+}
+
+void QMaterialStyle::drawCalendarMonth(QPainter *painter, const QRect &row, const QCalendarWidget *calendar,
+                                       const QString &name, bool checked, bool usable, bool cursor, bool hovered,
+                                       bool pressed) const {
+    usable = usable && calendar->isEnabled();
+    const QColor ink = usable ? color(Role::OnSurface) : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    // A row of a menu: the state layer across it, in the color of its text.
+    if (usable && (hovered || pressed))
+        painter->fillRect(row, withOpacity(ink, pressed ? pressedOpacity : hoverOpacity));
+    if (cursor && m_keyboard && calendar->hasFocus())
+        strokeRounded(painter, QRectF(row).adjusted(2, 2, -2, -2), 4, color(Role::Secondary), focusRingWidth);
+    // The month shown has a check mark at the start; every row makes room for it.
+    const QRect lead(row.left() + menuPadding, row.top() + (row.height() - menuIconSize) / 2, menuIconSize,
+                     menuIconSize);
+    if (checked) {
+        const QColor mark = usable ? color(Role::OnSurfaceVariant) : ink;
+        painter->setPen(QPen(QBrush(mark), 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        painter->drawLine(QPointF(lead.left() + 5, lead.top() + 12.5), QPointF(lead.left() + 10, lead.top() + 17.5));
+        painter->drawLine(QPointF(lead.left() + 10, lead.top() + 17.5), QPointF(lead.left() + 19, lead.top() + 7.5));
+    }
+    QFont font = calendar->font();
+    font.setPixelSize(16); // body large
+    painter->setFont(font);
+    painter->setPen(ink);
+    const int left = lead.right() + 1 + menuIconSpace;
+    const QRect text(left, row.top(), std::max(0, row.right() - menuPadding - left + 1), row.height());
+    painter->drawText(text, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
+                      QFontMetrics(font).elidedText(name, Qt::ElideRight, text.width()));
+    painter->restore();
+}
+
+QString QMaterialStyle::datePickerHeadlineText(QDate date, const QLocale &locale) {
+    // The short day, month and day of the month, in the order of the day and the month of the locale's short date:
+    // "Fri, Dec 25" where the month comes first, "Fri 25 Dec" where the day does.
+    const QString order = locale.dateFormat(QLocale::ShortFormat);
+    const qsizetype day = order.indexOf(QLatin1Char('d'));
+    const qsizetype month = order.indexOf(QLatin1Char('M'));
+    const bool dayFirst = day >= 0 && month >= 0 && day < month;
+    return locale.toString(date, dayFirst ? QStringLiteral("ddd d MMM") : QStringLiteral("ddd, MMM d"));
 }
 
 double QMaterialStyle::datePickerYearsShown(const QCalendarWidget *calendar, bool choosing) const {
@@ -5747,28 +5906,14 @@ bool QMaterialStyle::placeSheet(QDialog *dialog) const {
         return false;
     dialog->ensurePolished();
     dialog->setWindowFlag(Qt::FramelessWindowHint);
-    QRect area;
-    if (const QWidget *parent = dialog->parentWidget())
-        area = parent->window()->geometry();
-    else if (const QScreen *screen = QGuiApplication::primaryScreen())
-        area = screen->availableGeometry();
-    QRect place;
-    if (kind == QLatin1String("drawer")) {
-        // Against the left edge, as high as the window.
-        const int width = std::max(1, std::min(drawerWidth, area.width() - drawerRoom));
-        place = QRect(area.left(), area.top(), width, area.height());
-    } else {
-        // Against the bottom, as high as what is in it, in the middle of a window that is wider than a sheet gets.
-        const int width = std::max(1, std::min(bottomSheetWidest, area.width()));
-        const int wanted = dialog->heightForWidth(width);
-        const int height = std::clamp(wanted > 0 ? wanted : dialog->sizeHint().height(), 1,
-                                      std::max(1, area.height() - bottomSheetTopRoom));
-        place = QRect(area.left() + (area.width() - width) / 2, area.top() + area.height() - height, width, height);
-    }
+    const QRect place = sheetPlace(dialog);
+    const bool drawer = kind == QLatin1String("drawer");
+    // A standard sheet comes to rest collapsed, and a modal one with materialSheetHalf half open.
+    const int partial = drawer ? 0 : sheetPartialOffset(dialog, place.height());
     // The android platform places dialogs itself, and learns from this that the dialog is a sheet.
     dialog->winId();
     if (QWindow *window = dialog->windowHandle())
-        window->setProperty("_nt_sheet", kind);
+        window->setProperty("_nt_sheet", drawer ? kind : QStringLiteral("bottom"));
     dialog->setGeometry(place);
     // One that is shown again while it slides out comes back from where its picture is.
     double away = 1.0;
@@ -5780,20 +5925,41 @@ bool QMaterialStyle::placeSheet(QDialog *dialog) const {
         QtPrivate::Transition::stop(ghost, QStringLiteral("_nt_sheetSlide"));
         ghost->deleteLater(); // after the dialog is on the screen in its place
     }
-    if (m_motion)
-        slideSheetIn(dialog, place, kind == QLatin1String("drawer"), away);
-    else if (QWindow *window = dialog->windowHandle())
-        window->setProperty("_nt_sheetOffset", 0);
+    if (m_motion) {
+        slideSheetIn(dialog, place, drawer, away, partial);
+    } else {
+        if (QWindow *window = dialog->windowHandle())
+            window->setProperty("_nt_sheetOffset", partial);
+        dialog->move(place.topLeft() + QPoint(0, partial));
+    }
     return true;
 }
 
+void QMaterialStyle::followWindow(QWidget *window) const {
+    const QList<QDialog *> dialogs = window->findChildren<QDialog *>();
+    for (QDialog *dialog : dialogs) {
+        if (!dialog->isWindow() || !dialog->isVisible() || dialog->style() != this || !isStandardSheet(dialog) ||
+            dialog->parentWidget() == nullptr || dialog->parentWidget()->window() != window ||
+            (m_sheetDrag && m_sheetDrag->dialog.data() == dialog))
+            continue;
+        // Expanded or collapsed, as it was.
+        QWindow *handle = dialog->windowHandle();
+        const bool expanded = handle && handle->property("_nt_sheetOffset").toInt() == 0;
+        QtPrivate::Transition::stop(dialog, QStringLiteral("_nt_sheetSlide"));
+        const QRect place = sheetPlace(dialog);
+        dialog->setGeometry(place);
+        dragSheetTo(dialog, place, expanded ? 0 : sheetPartialOffset(dialog, place.height()));
+    }
+}
+
 // A sheet comes in from its edge of the window, along a spring that does not overshoot, so the edge never shows a gap.
-void QMaterialStyle::slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft, double from) const {
-    const int distance =
-        static_cast<int>(std::lround(std::clamp(from, 0.0, 1.0) * (fromLeft ? place.width() : place.height())));
+void QMaterialStyle::slideSheetIn(QDialog *dialog, const QRect &place, bool fromLeft, double from, int rest) const {
+    const int extent = fromLeft ? place.width() : place.height();
+    const int start = static_cast<int>(std::lround(std::clamp(from, 0.0, 1.0) * extent));
     // The android platform places a sheet itself; it learns how far from its place the sheet is from the window.
-    const auto moveTo = [place, fromLeft, distance](QDialog *sheet, double progress) {
-        const int away = static_cast<int>(std::lround((1.0 - std::clamp(progress, 0.0, 1.0)) * distance));
+    const auto moveTo = [place, fromLeft, start, rest](QDialog *sheet, double progress) {
+        const double p = std::clamp(progress, 0.0, 1.0);
+        const int away = static_cast<int>(std::lround(start + (rest - start) * p));
         if (QWindow *window = sheet->windowHandle())
             window->setProperty("_nt_sheetOffset", away);
         sheet->move(place.topLeft() + (fromLeft ? QPoint(-away, 0) : QPoint(0, away)));
@@ -5892,11 +6058,15 @@ void QMaterialStyle::fadeScrim(QDialog *dialog, double from) const {
 void QMaterialStyle::dragSheetTo(QDialog *dialog, const QRect &rest, int offset) const {
     const bool fromLeft = sheetKind(dialog) == QLatin1String("drawer");
     const int distance = std::max(1, fromLeft ? rest.width() : rest.height());
-    const int away = std::clamp(offset, 0, distance);
+    const int partial = fromLeft ? 0 : sheetPartialOffset(dialog, distance);
+    const bool standard = isStandardSheet(dialog);
+    // A standard sheet goes no lower than its peek; the scrim of a modal one fades below where it rests.
+    const int away = std::clamp(offset, 0, standard ? partial : distance);
+    const double below = static_cast<double>(std::max(0, away - partial)) / std::max(1, distance - partial);
     // The android platform places the sheet itself, by how far from its place the window says it is.
     if (QWindow *window = dialog->windowHandle()) {
         window->setProperty("_nt_sheetOffset", away);
-        window->setProperty(scrimProperty, scrimOpacity * (1.0 - static_cast<double>(away) / distance));
+        window->setProperty(scrimProperty, standard ? 0.0 : scrimOpacity * (1.0 - below));
     }
     dialog->move(rest.topLeft() + (fromLeft ? QPoint(-away, 0) : QPoint(0, away)));
     dialog->update(); // the android platform draws the scrim again as the dialog paints
@@ -5945,6 +6115,10 @@ bool QMaterialStyle::sheetMouseEvent(QObject *watched, QEvent *event) {
         m_sheetDrag->offset = from;
         m_sheetDrag->clock.start();
         m_sheetDrag->samples.emplace_back(0, from);
+        if (const QVariant room = dialog->property(handleRoom); room.isValid()) {
+            const int top = room.toInt();
+            m_sheetDrag->onHandle = mouse->position().y() >= top && mouse->position().y() < top + sheetHandleTarget;
+        }
         return true;
     }
     if (!m_sheetDrag || m_sheetDrag->dialog.data() != dialog)
@@ -5960,7 +6134,8 @@ bool QMaterialStyle::sheetMouseEvent(QObject *watched, QEvent *event) {
         if (!drag.moving && std::abs(delta) < QApplication::startDragDistance())
             return true;
         drag.moving = true;
-        drag.offset = std::clamp(drag.from + static_cast<int>(std::lround(delta)), 0, distance);
+        const int lowest = isStandardSheet(dialog) ? sheetPartialOffset(dialog, distance) : distance;
+        drag.offset = std::clamp(drag.from + static_cast<int>(std::lround(delta)), 0, lowest);
         dragSheetTo(dialog, drag.rest, drag.offset);
         const qint64 now = drag.clock.elapsed();
         drag.samples.emplace_back(now, drag.offset);
@@ -5980,6 +6155,44 @@ bool QMaterialStyle::sheetMouseEvent(QObject *watched, QEvent *event) {
                 speed = static_cast<double>(ended->offset - offset) * 1000.0 / static_cast<double>(now - when);
             break;
         }
+    }
+    // A sheet that rests half open or collapsed goes to the nearest place it rests at, or to the next one the way it was
+    // flung; a click on its handle goes to the other.
+    const int partial = fromLeft ? 0 : sheetPartialOffset(dialog, distance);
+    if (partial > 0) {
+        const bool standard = isStandardSheet(dialog);
+        std::vector<int> stops{0, partial};
+        if (!standard)
+            stops.push_back(distance); // closed
+        const int at = ended->offset;
+        int target = *std::min_element(stops.begin(), stops.end(),
+                                       [at](int a, int b) { return std::abs(a - at) < std::abs(b - at); });
+        if (!ended->moving) {
+            if (ended->onHandle)
+                target = target == 0 ? partial : 0;
+        } else if (speed > sheetFlingSpeed) {
+            const auto next = std::find_if(stops.begin(), stops.end(), [at](int stop) { return stop > at; });
+            target = next != stops.end() ? *next : stops.back();
+        } else if (speed < -sheetFlingSpeed) {
+            const auto next = std::find_if(stops.rbegin(), stops.rend(), [at](int stop) { return stop < at; });
+            target = next != stops.rend() ? *next : 0;
+        }
+        if (!standard && target == distance) {
+            dialog->reject();
+            if (!m_motion)
+                dragSheetTo(dialog, ended->rest, 0);
+            return true;
+        }
+        if (m_motion) {
+            const QVariant scrim =
+                dialog->windowHandle() ? dialog->windowHandle()->property(scrimProperty) : QVariant();
+            slideSheetIn(dialog, ended->rest, false, static_cast<double>(at) / distance, target);
+            if (!standard)
+                fadeScrim(dialog, scrim.isValid() ? std::clamp(scrim.toDouble(), 0.0, scrimOpacity) : scrimOpacity);
+        } else {
+            dragSheetTo(dialog, ended->rest, target);
+        }
+        return true;
     }
     // Past a third of the way, unless it was flung back, or flung toward the edge from anywhere, it closes.
     const bool close =
@@ -7510,7 +7723,7 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
             const bool text = button && !button->text.isEmpty();
             if (button && !button->icon.isNull())
                 width += fabIconSize + (text ? fabIconSpace : 0);
-            return QSize(std::max(fabSize, text ? width + 2 * fabPadding : fabSize), fabSize + fabShadow);
+            return QSize(std::max(fabSize, text ? width + 2 * fabPadding : fabSize), fabSize + fabLift(widget));
         }
         if (const ButtonSize *size = sizeOfButton(widget)) {
             // A size says how high the button is; its width is the label's, with the room around it, and no less than
@@ -7527,6 +7740,8 @@ QSize QMaterialStyle::sizeFromContents(ContentsType type, const QStyleOption *op
         return QSize(std::max(touchTarget, width + 2 * buttonPadding), std::max(buttonHeight, height + 8));
     }
     case CT_ToolButton:
+        if (isFab(widget)) // a tool button that is a FAB has its icon alone, as a FAB with no text
+            return QSize(fabSize, fabSize + fabLift(widget));
         if (isIconButton(widget))
             return iconButtonExtent(widget);
         if (isToolBarItem(widget))

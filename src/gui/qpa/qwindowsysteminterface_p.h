@@ -40,10 +40,12 @@ public:
                                  Qt::KeyboardModifiers modifiers = Qt::NoModifier);
     // The system took the touch sequence away (a gesture of the system, or the window going away).
     static void handleTouchCancel(QWindow *window);
-    static void handleKeyEvent(QWindow *window, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers,
+    // Returns whether the application took the key (a shortcut, or a widget or filter that accepted it), as Qt's
+    // does, so that a platform can do its own default otherwise (Android closes the window on Back).
+    static bool handleKeyEvent(QWindow *window, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers,
                                const QString &text = QString(), bool autorep = false);
     // The same with the codes of the platform's keyboard, which QKeyEvent::nativeScanCode() and the others return.
-    static void handleExtendedKeyEvent(QWindow *window, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers,
+    static bool handleExtendedKeyEvent(QWindow *window, QEvent::Type type, int key, Qt::KeyboardModifiers modifiers,
                                        quint32 nativeScanCode, quint32 nativeVirtualKey, quint32 nativeModifiers,
                                        const QString &text = QString(), bool autorep = false);
 };

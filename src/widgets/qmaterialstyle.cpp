@@ -3624,12 +3624,13 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
             static_cast<QMouseEvent *>(event)->button() == Qt::LeftButton && opensFullScreenSearch(edit))
             openFullScreenSearch(edit);
     }
-    // In the full-screen search view, Escape (or Back) closes the completer's popup first, and then the view.
+    // In the full-screen search view, Escape closes the completer's popup first, and then the view. Back closes the
+    // view at once: on a phone the suggestions are the body of the view, as in Compose's SearchBar.
     if (event->type() == QEvent::KeyPress) {
         const int key = static_cast<QKeyEvent *>(event)->key();
         auto *field = qobject_cast<QLineEdit *>(watched);
         if ((key == Qt::Key_Escape || key == Qt::Key_Back) && field && isFullScreenSearchField(field) &&
-            !(field->completer() && field->completer()->popup()->isVisible())) {
+            (key == Qt::Key_Back || !(field->completer() && field->completer()->popup()->isVisible()))) {
             if (SearchView *view = SearchView::of(field)) {
                 view->close(SearchView::Focus::Clear);
                 return true;

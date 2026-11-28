@@ -150,6 +150,7 @@ private:
     mutable std::unique_ptr<QPlatformClipboard> m_clipboard;
     std::unique_ptr<QSocketNotifier> m_notifier;
     bool m_surfaceLost = false;
+    bool m_backTaken = false; // whether the application took the press of Back, so that its release closes nothing
     int m_touchPan = 0; // how far the window was slid when the first finger came down; kept until the last is up
     bool m_dismissingTouch = false; // the fingers that dismissed a sheet are still down
     QPointer<QWindow> m_touchWindow; // the window that the first finger went to; the gesture stays with it

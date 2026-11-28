@@ -8735,6 +8735,14 @@ void testSearchViewSurvivesKeyboard() {
     QCoreApplication::processEvents();
     CHECK(field && field->text() == QStringLiteral("n") && search->text() == QStringLiteral("n"));
     CHECK(list->currentRow() == -1 || list->currentItem()->checkState() == Qt::Unchecked);
+    // Back closes the view at once, suggestions and all.
+    CHECK(completer.popup()->isVisible());
+    QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, Qt::Key_Back, Qt::NoModifier);
+    QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyRelease, Qt::Key_Back, Qt::NoModifier);
+    QCoreApplication::processEvents();
+    QCoreApplication::processEvents();
+    CHECK(!window.findChild<QWidget *>(QStringLiteral("_nt_searchView")));
+    CHECK(!completer.popup()->isVisible());
     QApplication::setStyle(QStringLiteral("fusion"));
 }
 

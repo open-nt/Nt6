@@ -21,6 +21,7 @@
 #include <android/keycodes.h>
 
 #include <algorithm>
+#include <utility>
 #include <atomic>
 #include <cmath>
 #include <cstdint>
@@ -820,8 +821,12 @@ void QAndroidIntegration::key(const Event &event) {
     if (key == Qt::Key_unknown)
         return;
     const bool press = event.action == AKEY_EVENT_ACTION_DOWN;
-    QWindowSystemInterface::handleKeyEvent(window, press ? QEvent::KeyPress : QEvent::KeyRelease, key, modifiers, text);
-    // Back closes the window on top, as it does in a Qt application whose window does not take the key.
-    if (key == Qt::Key_Back && !press)
+    const bool taken = QWindowSystemInterface::handleKeyEvent(window, press ? QEvent::KeyPress : QEvent::KeyRelease,
+                                                              key, modifiers, text);
+    // Back closes the window on top, as it does in a Qt application whose window does not take the key; a widget
+    // that took the press (a search view that closes, say) keeps the window.
+    if (key == Qt::Key_Back && press)
+        m_backTaken = taken;
+    if (key == Qt::Key_Back && !press && !std::exchange(m_backTaken, false))
         QWindowSystemInterface::handleCloseEvent(top->window());
 }

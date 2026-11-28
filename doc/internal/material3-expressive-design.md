@@ -672,7 +672,7 @@ an arrow back (24, in a target of 48 4 from the edge, `OnSurface`, a press layer
 it. The bar stays where it is under the view; its completer is moved to the header's line edit while the view is
 open (`setWidget()`), which keeps QCompleter's keys, and the text is mirrored to the bar, which emits `textEdited`,
 `returnPressed` and `editingFinished` for it. QCompleter asks `completerPopupGeometry()`, which puts the popup under the
-header at the window's width, as many rows of 56 as fit, square. The arrow back, Escape (once the popup is closed),
+header at the window's width, as many rows of 56 as fit, square. The arrow back, Back (popup and all), Escape (once the popup is closed),
 Return, a chosen row or the focus going elsewhere closes the view at once and gives the completer back; all but the
 last leave nothing focused, and a window that grows to 600 or more closes it and gives the bar the focus (docked
 again). It grows from the bar's rectangle to the window's on the default spatial spring (a `Transition`), its corners

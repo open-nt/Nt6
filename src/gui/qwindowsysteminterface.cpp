@@ -166,19 +166,21 @@ void QWindowSystemInterface::handleWheelEvent(QWindow *window, const QPointF &lo
     QCoreApplication::sendEvent(window, &event);
 }
 
-void QWindowSystemInterface::handleKeyEvent(QWindow *window, QEvent::Type type, int key,
+bool QWindowSystemInterface::handleKeyEvent(QWindow *window, QEvent::Type type, int key,
                                             Qt::KeyboardModifiers modifiers, const QString &text, bool autorep) {
-    handleExtendedKeyEvent(window, type, key, modifiers, 0, 0, 0, text, autorep);
+    return handleExtendedKeyEvent(window, type, key, modifiers, 0, 0, 0, text, autorep);
 }
 
-void QWindowSystemInterface::handleExtendedKeyEvent(QWindow *window, QEvent::Type type, int key,
+bool QWindowSystemInterface::handleExtendedKeyEvent(QWindow *window, QEvent::Type type, int key,
                                                     Qt::KeyboardModifiers modifiers, quint32 nativeScanCode,
                                                     quint32 nativeVirtualKey, quint32 nativeModifiers,
                                                     const QString &text, bool autorep) {
     QtPrivate::GuiAccess::setInput(QGuiApplication::mouseButtons(), modifiers);
     // A QShortcut takes the key press before the window sees it.
     if (type == QEvent::KeyPress && QtPrivate::tryShortcut(window, key, modifiers, autorep))
-        return;
+        return true;
     QKeyEvent event(type, key, modifiers, nativeScanCode, nativeVirtualKey, nativeModifiers, text, autorep);
-    QCoreApplication::sendEvent(window, &event);
+    // An event filter that keeps the key took it; otherwise the window says whether a widget accepted it.
+    const bool delivered = QCoreApplication::sendEvent(window, &event);
+    return delivered && event.isAccepted();
 }

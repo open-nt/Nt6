@@ -118,6 +118,8 @@ private:
     void applyShape();
     bool verticalBar() const { return m_position == West || m_position == East; }
     int barThickness() const;
+    bool isMaterialRail() const;  // the bar is a navigation rail of QMaterialStyle,
+    bool isOpenModalRail() const; // and the modal expanded rail, shown over the pages
     QRect frameRect() const;
     void layoutChildren();
     void pageGone(QObject *page);
@@ -131,4 +133,5 @@ private:
     TabShape m_shape = Rounded;
     QPointer<QWidget> m_leftCorner;
     QPointer<QWidget> m_rightCorner;
+    QPointer<QWidget> m_scrim; // over the pages behind a modal rail of QMaterialStyle
 };

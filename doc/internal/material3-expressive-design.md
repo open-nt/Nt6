@@ -112,8 +112,10 @@ The top app bar (small) is a `QToolBar` with `materialToolBar` = `"appBar"`: 64 
 and those after it trail (`OnSurfaceVariant`). `QMainWindow` now gives what a tool bar line leaves free to bars whose
 size policy expands, as Qt does, which the app bar's does. The bottom navigation bar is a horizontal `QTabBar` with
 `materialTabBar` = `"navigationBar"` (in a `QTabWidget` with the tabs at the south): 64 high, `SurfaceContainer`, equal
-widths, a 24 icon in a 56 by 32 pill over a label of 12; the pill opens along the fast spatial spring. Not done:
-horizontal items.
+widths, a 24 icon in a 56 by 32 pill over a label of 12; the pill opens along the fast spatial spring. In a window of
+medium width (600 on) the items are horizontal (the Expressive short bar): the icon, 4, then the label in a pill of 40
+with 16 inside its ends, each item as wide as the widest needs plus 8 and the row centred, not stretched (shared again
+when they do not fit). `materialNavigationItems` = `"horizontal"` or `"vertical"` forces one or the other.
 
 A snackbar is the status bar of a `QMainWindow` with `materialStatusBar` = `"snackbar"`: `InverseSurface`, corners 4,
 48 high (68 when the message takes two lines), 16 from the sides and from the bottom, above a navigation bar, at most
@@ -169,7 +171,7 @@ buttons, `materialBadges` (a list, as the tabs have no object of their own and t
 tab bar. Under the style `SH_DialogButtonLayout` is `AndroidLayout`, which `QDialogButtonBox` now asks for. A
 snackbar goes above a floating action button at the bottom, as Compose's `Scaffold` places it, since a button that a
 layout places cannot be moved aside, and keeps to the pages beside a rail. Destinations that do not fit the height
-scroll, the 44 above the first one with them (there is no menu button or FAB to hold still yet): the wheel moves them
+scroll, the 44 above the first one with them (those under a menu button or FAB stay still, see below): the wheel moves them
 a destination a notch, a drag of more than 4 moves them, the current one is scrolled into sight as it changes (the
 first with its 44 above it), and on a rail that scrolls a press chooses at the release, if it has not moved, so that
 a drag does not first go to where it started. A rail that fits keeps Qt's press and wheel. `SH_TabBar_PreferNoArrows`
@@ -415,9 +417,18 @@ count or text is a badge at the end of the row, 16 inside the pill. The pill ope
 the collapsed rail, and a press ripples from where it is. Setting the property at runtime switches between the two:
 the style's `propertyChanged()` sends the `QTabWidget` that holds the bar a style change so that it lays the bar out
 at its new width, and moves a snackbar that is shown. The width changes at once, not animated: `QTabWidget` lays its
-bar out at its size hint, and growing that over frames would relayout the pages at every one. Not done: the menu
-button and the floating action button at the top of the rail, the modal expanded rail (`SurfaceContainer`, over the
-content with a scrim), and a rail that hides its labels as it collapses.
+bar out at its size hint, and growing that over frames would relayout the pages at every one. The menu button and the
+FAB at the top of a rail are the application's widget in the `QTabWidget`'s corner, `Qt::TopLeftCorner` at the west
+(`TopRightCorner` at the east), Qt's place for a widget beside the tabs: the tab widget puts it 44 down, as wide as the
+rail and as high as its size hint, over the rail; the destinations start 40 under it, scroll out of sight under its
+bottom (clipped there, and `tabAt()` finds none above it) and hold it still. Other corners get no room beside a vertical
+bar, as before, but are no longer hidden (they came back as hidden when the tabs went back to the north). The modal
+expanded rail is `materialTabBar` = `"navigationRailModal"`, an expanded rail in `SurfaceContainer` with trailing
+corners of 16: the tab widget lays it over the pages, which keep the 96 of the collapsed rail, with a scrim (a child of
+the tab widget, black at 32 percent) over them and the corner widget raised over the rail. A press on the scrim, Escape
+on the rail, a destination chosen or the current one chosen again set the property back to `"navigationRail"`; the
+menu button opens it by setting the property, a standard call. Not done: the scrim covers the tab widget only, not
+an app bar above it; it does not fade, nor does the rail slide; and a rail that hides its labels as it collapses.
 
 The medium and large flexible top app bars are `materialToolBar` = `"appBarMedium"` and `"appBarLarge"`, app bars in
 every other way (`QMaterialStyle::isAppBar()`). Expanded they are 112 and 120 high (the Compose medium and large

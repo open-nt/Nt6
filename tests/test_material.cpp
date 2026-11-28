@@ -5650,6 +5650,157 @@ void testExpandedRail() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// The horizontal items of a navigation bar in a wide window, the menu button and FAB at the top of a rail (the corner
+// widget of its tab widget), and the modal expanded rail over the pages with a scrim.
+void testNavigationItems() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+    QPixmap square(24, 24);
+    square.fill(Qt::black);
+    const QIcon icon(square);
+
+    {
+        QMainWindow window;
+        auto *pages = new QTabWidget;
+        pages->setTabPosition(QTabWidget::South);
+        QTabBar *bar = pages->tabBar();
+        bar->setProperty("materialTabBar", QStringLiteral("navigationBar"));
+        for (const char *name : {"Home", "Search", "Settings"})
+            pages->addTab(new QWidget, icon, QString::fromLatin1(name));
+        window.setCentralWidget(pages);
+        window.resize(360, 400);
+        window.show();
+        QCoreApplication::processEvents();
+        // Narrow: the destinations share the width, an icon over its label.
+        CHECK(bar->tabRect(0) == QRect(0, 0, 120, 64));
+        // Wide: as wide as the widest needs, in the middle, the icon beside the label in a pill of 40.
+        window.resize(800, 400);
+        QCoreApplication::processEvents();
+        const QFontMetrics metrics(bar->font());
+        const int widest = metrics.horizontalAdvance(QStringLiteral("Settings"));
+        const int each = 16 + 24 + 4 + widest + 16 + 8;
+        CHECK(bar->width() == 800 && bar->height() == 64);
+        CHECK(bar->tabRect(0) == QRect((800 - 3 * each) / 2, 0, each, 64));
+        CHECK(bar->tabRect(1).left() == bar->tabRect(0).right() + 1 && bar->tabRect(2).width() == each);
+        QImage image = window.grab().toImage();
+        const QPoint origin = bar->mapTo(&window, QPoint(0, 0));
+        const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+        const QRect first = bar->tabRect(0);
+        const int home = metrics.horizontalAdvance(QStringLiteral("Home"));
+        const int pillLeft = first.center().x() - (16 + 24 + 4 + home + 16) / 2;
+        CHECK(is(at(first.left() + 1, 32), Role::SurfaceContainer));
+        CHECK(is(at(pillLeft + 4, 32), Role::SecondaryContainer));  // the pill, 40 high in the middle
+        CHECK(is(at(pillLeft + 20, 13), Role::SecondaryContainer)); // 12 from the top
+        CHECK(is(at(pillLeft + 20, 10), Role::SurfaceContainer));
+        CHECK(is(at(pillLeft + 28, 32), Role::OnSecondaryContainer)); // the icon 16 into it
+        CHECK(is(at(bar->tabRect(1).left() + 4, 32), Role::SurfaceContainer));
+        // A click on one goes to it.
+        const QPoint middle = bar->tabRect(2).center();
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(middle), QPointF(middle), Qt::LeftButton, Qt::LeftButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(bar, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, QPointF(middle), QPointF(middle), Qt::LeftButton, Qt::NoButton,
+                            Qt::NoModifier);
+        QCoreApplication::sendEvent(bar, &release);
+        CHECK(pages->currentIndex() == 2);
+        // The property chooses whatever the width.
+        bar->setProperty("materialNavigationItems", QStringLiteral("vertical"));
+        QCoreApplication::processEvents();
+        CHECK(bar->tabRect(0).width() >= 266);
+        window.resize(360, 400);
+        bar->setProperty("materialNavigationItems", QStringLiteral("horizontal"));
+        QCoreApplication::processEvents();
+        CHECK(bar->tabRect(0).width() == each || 3 * each > 360);
+    }
+
+    QMainWindow window;
+    auto *pages = new QTabWidget;
+    pages->setTabPosition(QTabWidget::West);
+    QTabBar *bar = pages->tabBar();
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRail"));
+    for (const char *name : {"Home", "Search", "Settings"})
+        pages->addTab(new QWidget, icon, QString::fromLatin1(name));
+    auto *header = new QWidget;
+    auto *column = new QVBoxLayout(header);
+    column->setContentsMargins(0, 0, 0, 0);
+    column->setSpacing(4);
+    auto *menu = new QToolButton;
+    menu->setProperty("materialIconButton", QStringLiteral("standard"));
+    menu->setIcon(icon);
+    column->addWidget(menu, 0, Qt::AlignHCenter);
+    pages->setCornerWidget(header, Qt::TopLeftCorner);
+    QObject::connect(menu, &QToolButton::clicked,
+                     [bar] { bar->setProperty("materialTabBar", QStringLiteral("navigationRailModal")); });
+    window.setCentralWidget(pages);
+    window.resize(600, 400);
+    window.show();
+    QCoreApplication::processEvents();
+
+    // The corner widget at the top of the rail, 44 down; the destinations 40 under it.
+    const int headerHeight = header->sizeHint().height();
+    CHECK(!header->isHidden() && header->geometry() == QRect(0, 44, 96, headerHeight));
+    CHECK(bar->tabRect(0) == QRect(0, 44 + headerHeight + 40, 96, 64));
+    CHECK(pages->currentWidget()->x() >= 96);
+    CHECK(bar->sizeHint().height() == bar->tabRect(2).bottom() + 1);
+    // Nothing of a destination is under it.
+    CHECK(bar->tabAt(QPoint(48, 50)) == -1);
+
+    // The menu button opens the modal expanded rail over the pages, which stay where they are, with a scrim.
+    const QRect page = pages->currentWidget()->geometry();
+    menu->click();
+    QCoreApplication::processEvents();
+    CHECK(bar->width() == 220);
+    CHECK(pages->currentWidget()->geometry() == page);
+    CHECK(header->width() == 220);
+    CHECK(bar->tabRect(0) == QRect(0, 44 + headerHeight + 40, 220, 56));
+    QImage image = window.grab().toImage();
+    const QPoint origin = pages->mapTo(&window, QPoint(0, 0));
+    const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+    CHECK(is(at(10, 300), Role::SurfaceContainer));
+    QColor dim = style->color(Role::Surface);
+    dim = QColor::fromRgbF(dim.redF() * 0.68, dim.greenF() * 0.68, dim.blueF() * 0.68);
+    CHECK(near(at(400, 300), dim, 6)); // the page, behind the scrim
+    CHECK(near(at(219, 1), dim, 6));   // its trailing corner rounded
+    // A press on the scrim collapses it.
+    const QPoint beside = pages->mapTo(&window, QPoint(400, 300));
+    QWidget *scrim = window.childAt(beside);
+    CHECK(scrim && scrim != pages->currentWidget());
+    if (scrim) {
+        QMouseEvent press(QEvent::MouseButtonPress, QPointF(scrim->mapFrom(&window, beside)), QPointF(beside),
+                          Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(scrim, &press);
+    }
+    QCoreApplication::processEvents();
+    CHECK(bar->property("materialTabBar").toString() == QLatin1String("navigationRail") && bar->width() == 96);
+    CHECK(header->width() == 96);
+    image = window.grab().toImage();
+    CHECK(is(at(400, 300), Role::Surface));
+    // Choosing a destination collapses it too, and so does Escape.
+    menu->click();
+    QCoreApplication::processEvents();
+    const QPoint row = bar->tabRect(1).center();
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(row), QPointF(row), Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QCoreApplication::sendEvent(bar, &press);
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(row), QPointF(row), Qt::LeftButton, Qt::NoButton,
+                        Qt::NoModifier);
+    QCoreApplication::sendEvent(bar, &release);
+    QCoreApplication::processEvents();
+    CHECK(pages->currentIndex() == 1 && bar->property("materialTabBar").toString() == QLatin1String("navigationRail") &&
+          bar->width() == 96);
+    menu->click();
+    QCoreApplication::processEvents();
+    CHECK(bar->property("materialTabBar").toString() == QLatin1String("navigationRailModal") && bar->width() == 220);
+    QKeyEvent escape(QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier);
+    QCoreApplication::sendEvent(bar, &escape);
+    QCoreApplication::processEvents();
+    CHECK(bar->property("materialTabBar").toString() == QLatin1String("navigationRail") && bar->width() == 96);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 // The medium and large flexible app bars: their title on a line under the buttons, collapsing toward the small bar as
 // far as the list under them is scrolled.
 void testFlexibleAppBars() {
@@ -7169,6 +7320,7 @@ int main(int argc, char *argv[]) {
     testAppBarScrolled();
     testSliderSizesAndValue();
     testExpandedRail();
+    testNavigationItems();
     testRailScrolls();
     testFlexibleAppBars();
     testMultiLineListRows();

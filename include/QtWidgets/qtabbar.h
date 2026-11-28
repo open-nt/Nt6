@@ -185,6 +185,8 @@ private:
     bool isRail() const;
     int railRange() const;  // how far the rail scrolls: 0 when its destinations fit
     int railScroll() const; // how far it is scrolled, within railRange()
+    int railHeader() const; // the bottom of the corner widget at the top of a rail, or 0
+    int railTop() const;    // the top of its first destination
     void scrollRailTo(int scroll);
     void showInRail(int index);
 

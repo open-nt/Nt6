@@ -258,6 +258,14 @@ constexpr int navigationPillWidth = 56; // behind the icon of the destination th
 constexpr int navigationPillHeight = 32;
 constexpr int navigationIcon = 24;
 constexpr int navigationLabelPixels = 12;
+// The horizontal items of a navigation bar (Expressive): the icon beside the label in a pill of 40, 16 inside its ends
+// and 4 between the two, from a window of medium width on; and the room left between one item and the next.
+constexpr int navigationRowHeight = 40;
+constexpr int navigationRowPadding = 16;
+constexpr int navigationRowIconSpace = 4;
+constexpr int navigationRowSpace = 8;
+constexpr int navigationMediumWidth = 600;
+constexpr double modalRailCorner = 16;    // the trailing corners of the modal expanded rail (corner large)
 constexpr int toolBarTarget = 48;         // a button of a floating toolbar, as a finger finds it,
 constexpr int toolBarInset = 4;           // and what it leaves around the shape that is drawn
 constexpr int toolBarShadow = 2;          // the room under a floating toolbar for its shadow
@@ -1823,7 +1831,10 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
     \li \c materialTabBar \c "navigationBar" makes a horizontal QTabBar a bottom navigation bar, 64 high: its tabs
         share the width, each an icon over its label, with a pill behind the one that is current. With a QTabWidget
         whose tabs are at the south it is the navigation of an application and its pages:
-        tabs->tabBar()->setProperty("materialTabBar", "navigationBar").
+        tabs->tabBar()->setProperty("materialTabBar", "navigationBar"). In a window 600 wide or more each destination
+        is the icon beside its label in a pill of 40, the destinations as wide as the widest needs and in the middle
+        of the bar (as long as they fit). \c materialNavigationItems \c "horizontal" or \c "vertical" on the QTabBar
+        chooses one or the other whatever the width of the window.
     \li \c materialTabBar \c "navigationRail" makes a vertical QTabBar a navigation rail, for a screen that is wide: 96
         across, its destinations one under another from the top. With a QTabWidget whose tabs are at the west it is the
         navigation of an application and its pages. \c "navigationRailExpanded" makes it the expanded rail: as wide as
@@ -1831,7 +1842,13 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         it, and a pill across the row behind the one that is current. A dot badge is on the icon and a count at the end
         of the row. Setting the property while the rail is shown expands or collapses it at once. Destinations that do
         not fit the height of the rail scroll, with the wheel or a drag, and the current one is scrolled into sight;
-        there are no scroll buttons.
+        there are no scroll buttons. The corner widget of the QTabWidget at the side of the rail (Qt::TopLeftCorner at
+        the west) goes at the top of the rail, 44 down and as wide as it, for a menu button and a floating action
+        button; the destinations start 40 under it and scroll out of sight under it. \c "navigationRailModal" is the
+        modal expanded rail: the expanded rail in the surface container color, with its trailing corners rounded,
+        over the pages, which keep the room of the collapsed rail, and a scrim of black at 32 percent over them. A
+        press on the scrim, Escape or the choice of a destination sets the property back to \c "navigationRail"; a
+        menu button opens it by setting \c "navigationRailModal".
     \li \c materialBadge of an icon button or a button of a toolbar puts a badge on its icon: \c true is a dot, and a
         number above 0, or a text, is shown in it (over 999 as 999+); 0, \c false or an empty text take it away. The
         destinations of a navigation bar or rail have theirs in \c materialBadges of the QTabBar, a QVariantList with
@@ -3488,14 +3505,53 @@ bool QMaterialStyle::isNavigationBar(const QWidget *widget) {
 bool QMaterialStyle::isNavigationRail(const QWidget *widget) {
     const auto *bar = qobject_cast<const QTabBar *>(widget);
     const QString kind = bar ? bar->property("materialTabBar").toString() : QString();
-    return bar && (kind == QLatin1String("navigationRail") || kind == QLatin1String("navigationRailExpanded")) &&
+    return bar &&
+           (kind == QLatin1String("navigationRail") || kind == QLatin1String("navigationRailExpanded") ||
+            kind == QLatin1String("navigationRailModal")) &&
            (bar->shape() == QTabBar::RoundedWest || bar->shape() == QTabBar::RoundedEast ||
             bar->shape() == QTabBar::TriangularWest || bar->shape() == QTabBar::TriangularEast);
 }
 
 bool QMaterialStyle::isExpandedRail(const QWidget *widget) {
+    if (!isNavigationRail(widget))
+        return false;
+    const QString kind = widget->property("materialTabBar").toString();
+    return kind == QLatin1String("navigationRailExpanded") || kind == QLatin1String("navigationRailModal");
+}
+
+bool QMaterialStyle::isModalRail(const QWidget *widget) {
     return isNavigationRail(widget) &&
-           widget->property("materialTabBar").toString() == QLatin1String("navigationRailExpanded");
+           widget->property("materialTabBar").toString() == QLatin1String("navigationRailModal");
+}
+
+int QMaterialStyle::collapsedRailWidth() { return railWidth; }
+
+bool QMaterialStyle::hasHorizontalNavigationItems(const QWidget *widget) {
+    if (!isNavigationBar(widget))
+        return false;
+    const QString items = widget->property("materialNavigationItems").toString();
+    if (items == QLatin1String("horizontal"))
+        return true;
+    if (items == QLatin1String("vertical"))
+        return false;
+    return widget->window()->width() >= navigationMediumWidth;
+}
+
+// As wide as the widest destination needs, so that they are all alike.
+int QMaterialStyle::horizontalNavigationItemWidth(const QTabBar *bar) {
+    const QFontMetrics metrics(bar->font());
+    int widest = 0;
+    for (int i = 0; i < bar->count(); ++i) {
+        if (!bar->isTabVisible(i))
+            continue;
+        const int label = metrics.horizontalAdvance(bar->tabText(i));
+        const bool icon = !bar->tabIcon(i).isNull();
+        int width = (icon ? navigationIcon : 0) + label;
+        if (icon && label > 0)
+            width += navigationRowIconSpace;
+        widest = std::max(widest, width);
+    }
+    return widest + 2 * navigationRowPadding + navigationRowSpace;
 }
 
 namespace {
@@ -3563,14 +3619,20 @@ void QMaterialStyle::drawButtonBadge(QPainter *painter, const QAbstractButton *b
 }
 
 // Each destination: an icon with a label under it, and a pill behind the icon of the one that is shown.
-void QMaterialStyle::drawNavigationBar(QPainter *painter, const QTabBar *bar) const {
+void QMaterialStyle::drawNavigationBar(QPainter *painter, const QTabBar *bar, int top) const {
     if (isExpandedRail(bar)) {
-        drawExpandedRail(painter, bar);
+        drawExpandedRail(painter, bar, top);
+        return;
+    }
+    if (hasHorizontalNavigationItems(bar)) {
+        drawHorizontalNavigationBar(painter, bar);
         return;
     }
     painter->fillRect(bar->rect(), color(isNavigationRail(bar) ? Role::Surface : Role::SurfaceContainer));
     const QVariantList badges = bar->property("materialBadges").toList(); // one for each destination, in order
     painter->save();
+    if (top > 0)
+        painter->setClipRect(QRect(0, top, bar->width(), std::max(0, bar->height() - top)));
     painter->setRenderHint(QPainter::Antialiasing);
     painter->setFont(bar->font());
     for (int i = 0; i < bar->count(); ++i) {
@@ -3630,11 +3692,25 @@ void QMaterialStyle::drawNavigationBar(QPainter *painter, const QTabBar *bar) co
 
 // Each destination a row: a pill across the rail behind the one that is shown, the icon in it and the label beside the
 // icon; a count is at the end of the row and a dot on the icon.
-void QMaterialStyle::drawExpandedRail(QPainter *painter, const QTabBar *bar) const {
-    painter->fillRect(bar->rect(), color(Role::Surface));
+void QMaterialStyle::drawExpandedRail(QPainter *painter, const QTabBar *bar, int top) const {
     const QVariantList badges = bar->property("materialBadges").toList();
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
+    if (isModalRail(bar)) {
+        // Over the scrim, with its trailing corners rounded.
+        const bool east = bar->shape() == QTabBar::RoundedEast || bar->shape() == QTabBar::TriangularEast;
+        QPainterPath shape;
+        shape.addRoundedRect(
+            QRectF(bar->rect()).adjusted(east ? 0 : -modalRailCorner, 0, east ? modalRailCorner : 0, 0),
+            modalRailCorner, modalRailCorner);
+        QPainterPath inside;
+        inside.addRect(QRectF(bar->rect()));
+        painter->fillPath(shape.intersected(inside), QBrush(color(Role::SurfaceContainer)));
+    } else {
+        painter->fillRect(bar->rect(), color(Role::Surface));
+    }
+    if (top > 0)
+        painter->setClipRect(QRect(0, top, bar->width(), std::max(0, bar->height() - top)));
     painter->setFont(bar->font());
     for (int i = 0; i < bar->count(); ++i) {
         const QRect tab = bar->tabRect(i);
@@ -3697,6 +3773,73 @@ void QMaterialStyle::drawExpandedRail(QPainter *painter, const QTabBar *bar) con
             painter->setPen(ink);
             painter->drawText(area, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                               painter->fontMetrics().elidedText(label, Qt::ElideRight, area.width()));
+        }
+    }
+    painter->restore();
+}
+
+// Each destination a pill of 40 in the middle of the bar, the icon and the label beside it, behind the one that is
+// shown; QTabBar centres the destinations.
+void QMaterialStyle::drawHorizontalNavigationBar(QPainter *painter, const QTabBar *bar) const {
+    painter->fillRect(bar->rect(), color(Role::SurfaceContainer));
+    const QVariantList badges = bar->property("materialBadges").toList();
+    painter->save();
+    painter->setRenderHint(QPainter::Antialiasing);
+    painter->setFont(bar->font());
+    const QFontMetrics metrics = painter->fontMetrics();
+    for (int i = 0; i < bar->count(); ++i) {
+        const QRect tab = bar->tabRect(i);
+        if (tab.isEmpty())
+            continue;
+        const bool selected = i == bar->currentIndex();
+        const bool usable = bar->isTabEnabled(i) && bar->isEnabled();
+        const QIcon icon = bar->tabIcon(i);
+        const int room = std::max(0, tab.width() - navigationRowSpace - 2 * navigationRowPadding);
+        const int iconWidth = icon.isNull() ? 0 : navigationIcon;
+        const int space = icon.isNull() ? 0 : navigationRowIconSpace;
+        const QString label =
+            metrics.elidedText(bar->tabText(i), Qt::ElideRight, std::max(0, room - iconWidth - space));
+        const int labelWidth = label.isEmpty() ? 0 : metrics.horizontalAdvance(label);
+        const int content = iconWidth + (label.isEmpty() ? 0 : space + labelWidth);
+        const QRectF pill(tab.center().x() + 0.5 - (content + 2 * navigationRowPadding) / 2.0,
+                          tab.top() + (tab.height() - navigationRowHeight) / 2.0, content + 2 * navigationRowPadding,
+                          navigationRowHeight);
+        // It opens from the middle as its destination is chosen.
+        double open = selected ? 1.0 : 0.0;
+        if (m_motion)
+            open = std::clamp(m_animator->value(bar, NavigationChannel + i, open, QtPrivate::fastSpatialSpring, 0.004),
+                              0.0, 1.1);
+        if (open > 0.02) {
+            const double width = std::min(pill.width(), pill.height() + (pill.width() - pill.height()) * open);
+            QColor fill = color(Role::SecondaryContainer);
+            fill.setAlphaF(std::min(1.0, 2 * open));
+            fillRounded(painter, QRectF(pill.center().x() - width / 2, pill.top(), width, pill.height()),
+                        pill.height() / 2, fill);
+        }
+        if (usable && bar == m_rippleWidget.data() && tab.contains(m_rippleOrigin.toPoint())) {
+            QPainterPath outline;
+            outline.addRoundedRect(pill, pill.height() / 2, pill.height() / 2);
+            drawRipple(painter, bar, outline, pill, m_rippleOrigin, m_rowPressed,
+                       color(selected ? Role::OnSecondaryContainer : Role::OnSurface));
+        }
+        if (selected && bar->hasFocus() && m_keyboard)
+            strokeRounded(painter, pill, pill.height() / 2, color(Role::Secondary), focusRingWidth);
+        const QColor faint = withOpacity(color(Role::OnSurface), disabledContentOpacity);
+        const QColor iconInk = !usable ? faint : color(selected ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
+        const QColor labelInk = !usable ? faint : color(selected ? Role::Secondary : Role::OnSurfaceVariant);
+        int left = static_cast<int>(pill.left()) + navigationRowPadding;
+        if (!icon.isNull()) {
+            const QRect lead(left, tab.top() + (tab.height() - navigationIcon) / 2, navigationIcon, navigationIcon);
+            paintIcon(painter, lead, icon, usable ? QIcon::Normal : QIcon::Disabled, selected ? QIcon::On : QIcon::Off,
+                      iconInk);
+            if (i < badges.size())
+                drawBadge(painter, badges.at(i), lead);
+            left = lead.right() + 1 + navigationRowIconSpace;
+        }
+        if (!label.isEmpty()) {
+            painter->setPen(labelInk);
+            painter->drawText(QRect(left, static_cast<int>(pill.top()), labelWidth + 1, navigationRowHeight),
+                              Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, label);
         }
     }
     painter->restore();

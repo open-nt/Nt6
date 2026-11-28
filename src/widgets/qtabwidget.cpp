@@ -3,6 +3,7 @@
 
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
 #include <QtWidgets/qtabbar.h>
@@ -36,8 +37,26 @@
     setTabPosition() puts the tabs below the pages or at their side, and setCornerWidget() puts a widget, such as a
     button that opens a new tab, at an end of the row of tabs.
 
+    Under QMaterialStyle, with the tab bar a navigation rail (\c materialTabBar \c "navigationRail") at the west, the
+    corner widget at Qt::TopLeftCorner (Qt::TopRightCorner for a rail at the east) goes at the top of the rail, 44
+    down and as wide as the rail, and the destinations start 40 under it: the place for a menu button and a floating
+    action button. With \c materialTabBar \c "navigationRailModal" the rail is the modal expanded rail: it lies over
+    the pages, which keep the room of the collapsed rail, with a scrim over them. A click on the scrim, Escape or the
+    choice of a destination sets \c materialTabBar back to \c "navigationRail", which collapses it; a menu button in
+    the corner widget opens it by setting the property:
+
+    \code
+    auto *menu = new QToolButton;
+    menu->setIcon(QIcon::fromTheme("open-menu"));
+    tabs->setCornerWidget(menu, Qt::TopLeftCorner);
+    QObject::connect(menu, &QToolButton::clicked, [tabs] {
+        tabs->tabBar()->setProperty("materialTabBar", "navigationRailModal");
+    });
+    \endcode
+
     \differences
-    Corner widgets are placed only while the tabs are above or below the pages. Triangular tabs are drawn rounded,
+    Corner widgets are placed only while the tabs are above or below the pages, or at the top of a navigation rail of
+    QMaterialStyle. Triangular tabs are drawn rounded,
     and there are no scroll buttons; tabs that do not fit are cut off or, with elideMode(), shortened. Ctrl+Tab
     does not switch tabs. A change of the size hint of a page does not update the layout the tab widget is in.
     \enddifferences
@@ -359,11 +378,73 @@ void QTabWidget::setCurrentWidget(QWidget *page) { setCurrentIndex(indexOf(page)
 namespace {
 // The size of a corner widget: its size hint, or its size if it has none.
 QSize cornerSize(const QWidget *corner) { return corner->sizeHint().isValid() ? corner->sizeHint() : corner->size(); }
+
+constexpr int kRailHeaderTop = 44; // a corner widget at the top of a navigation rail is this far down
+
+bool isModalKind(const QTabBar *bar) {
+    return bar->property("materialTabBar").toString() == QLatin1String("navigationRailModal");
+}
+
+// The scrim over the pages behind a modal expanded rail. A press on it, Escape on the rail, or a destination chosen
+// collapses the rail.
+class RailScrim : public QWidget {
+public:
+    RailScrim(QTabWidget *tabs, QTabBar *bar) : QWidget(tabs), m_bar(bar) {
+        bar->installEventFilter(this);
+        QObject::connect(bar, &QTabBar::currentChanged, this, [bar] { collapse(bar); });
+    }
+    static void collapse(QTabBar *bar) {
+        if (isModalKind(bar))
+            bar->setProperty("materialTabBar", "navigationRail");
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        (void)event;
+        QPainter painter(this);
+        painter.fillRect(rect(), QColor(0, 0, 0, 82)); // black at 32 percent
+    }
+    void mousePressEvent(QMouseEvent *event) override {
+        event->accept();
+        if (m_bar)
+            collapse(m_bar);
+    }
+    void mouseReleaseEvent(QMouseEvent *event) override { event->accept(); }
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        if (watched != m_bar || !isModalKind(m_bar) || m_bar->isHidden())
+            return false;
+        if (event->type() == QEvent::KeyPress && static_cast<QKeyEvent *>(event)->key() == Qt::Key_Escape) {
+            collapse(m_bar);
+            return true;
+        }
+        // The destination that is shown chosen again: one that is not changes the current tab, which collapses it.
+        if (event->type() == QEvent::MouseButtonRelease) {
+            const int index = m_bar->tabAt(static_cast<QMouseEvent *>(event)->pos());
+            if (index >= 0 && index == m_bar->currentIndex())
+                collapse(m_bar);
+        }
+        return false;
+    }
+
+private:
+    QPointer<QTabBar> m_bar;
+};
 } // namespace
+
+bool QTabWidget::isMaterialRail() const {
+    return qobject_cast<const QMaterialStyle *>(m_bar->style()) && QMaterialStyle::isNavigationRail(m_bar);
+}
+
+bool QTabWidget::isOpenModalRail() const {
+    return isMaterialRail() && QMaterialStyle::isModalRail(m_bar) && !m_bar->isHidden();
+}
 
 int QTabWidget::barThickness() const {
     if (m_bar->isHidden())
         return 0;
+    // The pages keep the room of the collapsed rail beside a modal rail, which lies over them.
+    if (verticalBar() && isOpenModalRail())
+        return QMaterialStyle::collapsedRailWidth();
     const QSize hint = m_bar->sizeHint();
     int thick = verticalBar() ? hint.width() : hint.height();
     if (!verticalBar()) {
@@ -395,12 +476,37 @@ void QTabWidget::layoutChildren() {
     const int thick = barThickness();
     const int w = width();
     const int h = height();
+    auto *scrim = static_cast<RailScrim *>(m_scrim.data());
     if (verticalBar()) {
-        m_bar->setGeometry(m_position == West ? 0 : w - thick, 0, thick, h);
+        const bool modal = isOpenModalRail();
+        const int across = modal ? m_bar->sizeHint().width() : thick;
+        m_bar->setGeometry(m_position == West ? 0 : w - across, 0, across, h);
+        // A rail of the Material style has the corner widget at its top; otherwise the corners have no room.
+        QWidget *top = nullptr;
+        if (isMaterialRail())
+            top = m_position == West ? m_leftCorner.data() : m_rightCorner.data();
         for (QWidget *corner : {m_leftCorner.data(), m_rightCorner.data()})
-            if (corner)
-                corner->hide();
+            if (corner && corner != top)
+                corner->setGeometry(QRect());
+        if (modal) {
+            if (!scrim) {
+                scrim = new RailScrim(this, m_bar);
+                m_scrim = scrim;
+            }
+            scrim->setGeometry(rect());
+            scrim->show();
+            scrim->raise();
+            m_bar->raise();
+        } else if (scrim) {
+            scrim->hide();
+        }
+        if (top && !top->isHidden()) {
+            top->setGeometry(m_bar->x(), kRailHeaderTop, across, cornerSize(top).height());
+            top->raise();
+        }
     } else {
+        if (scrim)
+            scrim->hide();
         int left = 0;
         int right = w;
         const int y = m_position == North ? 0 : h - thick;
@@ -717,6 +823,7 @@ void QTabWidget::setTabBar(QTabBar *tb) {
         return;
     QTabBar *old = m_bar;
     QObject::disconnect(old, nullptr, this, nullptr);
+    delete m_scrim.data(); // that of the old bar, if it was a modal rail
     while (tb->count() > 0)
         tb->removeTab(tb->count() - 1);
     for (int i = 0; i < old->count(); ++i) {

@@ -6,6 +6,7 @@
 #include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qstyle.h>
 #include <QtWidgets/qstyleoption.h>
+#include <QtWidgets/qtabwidget.h>
 #include <QtWidgets/qtooltip.h>
 
 #include <algorithm>
@@ -18,6 +19,7 @@ constexpr int kRailTop = 44; // above the first destination of a navigation rail
 constexpr int kRailItem = 64;
 constexpr int kRailRow = 56;  // a destination of the expanded rail
 constexpr int kRailSpace = 4; // and between one and the next
+constexpr int kRailHeaderSpace = 40; // between the menu button or FAB at the top of a rail and its destinations
 
 } // namespace
 
@@ -536,21 +538,36 @@ std::vector<QRect> QTabBar::layoutTabs() const {
         std::vector<QRect> column;
         column.reserve(m_tabs.size());
         const int item = QMaterialStyle::isExpandedRail(this) ? kRailRow : kRailItem;
-        int top = kRailTop;
+        const int first = railTop();
+        int top = first;
         for (const Tab &tab : m_tabs) {
             column.push_back(QRect(0, top, thick, tab.visible ? item : 0));
             top += tab.visible ? item + kRailSpace : 0;
         }
-        const int end = std::max(kRailTop, top - kRailSpace);
+        const int end = std::max(first, top - kRailSpace);
         const int scroll = std::clamp(m_railScroll, 0, std::max(0, end - room));
         for (QRect &rect : column)
             rect.translate(0, -scroll);
         return column;
     }
-    // The destinations of a navigation bar of the Material style share its width alike.
+    // The destinations of a navigation bar of the Material style share its width alike, or, with the icon beside the
+    // label, are as wide as the widest needs and in the middle, if they fit.
     if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationBar(this)) {
         const int shown =
             static_cast<int>(std::count_if(m_tabs.begin(), m_tabs.end(), [](const Tab &tab) { return tab.visible; }));
+        const int each = QMaterialStyle::hasHorizontalNavigationItems(this)
+                             ? QMaterialStyle::horizontalNavigationItemWidth(this)
+                             : 0;
+        if (each > 0 && shown > 0 && each * shown <= room) {
+            std::vector<QRect> centred;
+            centred.reserve(m_tabs.size());
+            int left = (room - each * shown) / 2;
+            for (const Tab &tab : m_tabs) {
+                centred.push_back(QRect(left, 0, tab.visible ? each : 0, thick));
+                left += tab.visible ? each : 0;
+            }
+            return centred;
+        }
         std::vector<QRect> shared;
         shared.reserve(m_tabs.size());
         int left = 0;
@@ -612,11 +629,30 @@ int QTabBar::railRange() const {
     if (!isRail())
         return 0;
     const int item = QMaterialStyle::isExpandedRail(this) ? kRailRow : kRailItem;
-    int end = kRailTop;
+    int end = railTop();
     for (const Tab &tab : m_tabs)
         end += tab.visible ? item + kRailSpace : 0;
-    end = std::max(kRailTop, end - kRailSpace);
+    end = std::max(railTop(), end - kRailSpace);
     return std::max(0, end - height());
+}
+
+// The bottom of the corner widget that the QTabWidget of a rail puts at its top, 44 down, or 0 if there is none.
+int QTabBar::railHeader() const {
+    const auto *pages = qobject_cast<const QTabWidget *>(parentWidget());
+    if (!pages || !isRail())
+        return 0;
+    const bool west = pages->tabPosition() == QTabWidget::West;
+    const QWidget *corner = pages->cornerWidget(west ? Qt::TopLeftCorner : Qt::TopRightCorner);
+    if (!corner || corner->isHidden())
+        return 0;
+    const int height = corner->sizeHint().isValid() ? corner->sizeHint().height() : corner->height();
+    return kRailTop + height;
+}
+
+// Where the first destination of a rail is: 44 down, or 40 under the corner widget at its top.
+int QTabBar::railTop() const {
+    const int header = railHeader();
+    return header > 0 ? header + kRailHeaderSpace : kRailTop;
 }
 
 int QTabBar::railScroll() const { return std::clamp(m_railScroll, 0, railRange()); }
@@ -640,8 +676,8 @@ void QTabBar::showInRail(int index) {
     const QRect rect = layoutTabs()[static_cast<std::size_t>(index)].translated(0, scroll);
     if (rect.isEmpty())
         return;
-    if (rect.top() - kRailSpace < scroll)
-        scrollRailTo(rect.top() - kRailTop); // with the room above it that the first one has
+    if (rect.top() - std::max(kRailSpace, railHeader()) < scroll)
+        scrollRailTo(rect.top() - railTop()); // with the room above it that the first one has
     else if (rect.bottom() + 1 + kRailSpace > scroll + height())
         scrollRailTo(rect.bottom() + 1 + kRailSpace - height());
 }
@@ -670,6 +706,8 @@ QTransform QTabBar::tabTransform(const QRect &rect) const {
     Returns the index of the tab at \a position, or -1 if there is none.
 */
 int QTabBar::tabAt(const QPoint &position) const {
+    if (position.y() < railHeader()) // a rail's destinations scroll out of sight under the widget at its top
+        return -1;
     const std::vector<QRect> rects = layoutTabs();
     for (int i = 0; i < count(); ++i)
         if (m_tabs[static_cast<std::size_t>(i)].visible && rects[static_cast<std::size_t>(i)].contains(position))
@@ -739,7 +777,7 @@ void QTabBar::setTabsClosable(bool closable) {
 QSize QTabBar::sizeHint() const {
     if (isRail()) {
         const std::vector<QRect> rects = layoutTabs();
-        int bottom = kRailTop;
+        int bottom = railTop();
         for (const QRect &rect : rects)
             bottom = std::max(bottom, rect.y() + rect.height() + railScroll());
         QStyleOptionTab option;
@@ -1042,7 +1080,7 @@ void QTabBar::paintEvent(QPaintEvent *event) {
     painter.setFont(font());
     if (const auto *material = qobject_cast<const QMaterialStyle *>(style());
         material && (QMaterialStyle::isNavigationBar(this) || QMaterialStyle::isNavigationRail(this))) {
-        material->drawNavigationBar(&painter, this);
+        material->drawNavigationBar(&painter, this, railHeader());
         return;
     }
     const std::vector<QRect> rects = layoutTabs();

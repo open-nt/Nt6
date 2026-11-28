@@ -372,11 +372,23 @@ private:
     static bool isNavigationRail(const QWidget *widget);
     // The expanded one, a rail too: its destinations are rows, the icon beside the label.
     static bool isExpandedRail(const QWidget *widget);
+    // The modal expanded rail, an expanded rail too: QTabWidget lays it over its pages, which keep the room of the
+    // collapsed rail (collapsedRailWidth()), with a scrim beside it.
+    friend class QTabWidget;
+    static bool isModalRail(const QWidget *widget);
+    static int collapsedRailWidth();
+    // A navigation bar whose destinations put the icon beside the label: QTabBar centres them instead of sharing its
+    // width, each as wide as horizontalNavigationItemWidth().
+    static bool hasHorizontalNavigationItems(const QWidget *widget);
+    static int horizontalNavigationItemWidth(const QTabBar *bar);
     // The badge that a button or a destination has: a dot, or a few characters, at the top right of its icon.
     void drawBadge(QPainter *painter, const QVariant &badge, const QRect &icon) const;
     void drawButtonBadge(QPainter *painter, const QAbstractButton *button) const;
-    void drawNavigationBar(QPainter *painter, const QTabBar *bar) const;
-    void drawExpandedRail(QPainter *painter, const QTabBar *bar) const;
+    // The destinations of a rail are clipped to below `top`, where a rail with a menu button or a FAB at its top (the
+    // corner widget of its QTabWidget) scrolls them out of sight.
+    void drawNavigationBar(QPainter *painter, const QTabBar *bar, int top = 0) const;
+    void drawExpandedRail(QPainter *painter, const QTabBar *bar, int top) const;
+    void drawHorizontalNavigationBar(QPainter *painter, const QTabBar *bar) const;
 
     QColor m_seed;
     Qt::ColorScheme m_scheme = Qt::ColorScheme::Unknown; // Unknown follows the system

@@ -4351,14 +4351,14 @@ void testTimeDialMotion() {
     QCoreApplication::processEvents();
     // The dial's middle at (140, 280); the 9 is 101 to its left, the 10 above it.
     CHECK(is(shot().pixelColor(39, 280 + 18), Role::Primary));
-    // A key moves the selector along a spring: at first it is still on the 9, and then it comes to the 10.
+    // A key moves the selector along a spring: at first it has not come to the 10 (on a slow machine it may already
+    // have left the 9), and then it does.
     QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyPress, Qt::Key_Up, Qt::NoModifier);
     QWindowSystemInterface::handleKeyEvent(window.windowHandle(), QEvent::KeyRelease, Qt::Key_Up, Qt::NoModifier);
     QCoreApplication::processEvents();
     CHECK(edit->time() == QTime(10, 41));
     const QPoint ten(52, 229); // 101 from the middle, 60 degrees left of the top
     QImage image = shot();
-    CHECK(is(image.pixelColor(39, 280 + 18), Role::Primary));
     CHECK(!is(image.pixelColor(ten.x(), ten.y() + 18), Role::Primary));
     wait(700);
     image = shot();

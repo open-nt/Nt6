@@ -254,6 +254,7 @@ private:
     // Puts the item widgets over their items.
     void placeItemWidgets();
     void navigate(int target, Qt::KeyboardModifiers modifiers);
+    bool toggleCheck(int row);
     void finishSelection();
     void search(const QString &text);
 

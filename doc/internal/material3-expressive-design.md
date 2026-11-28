@@ -440,8 +440,27 @@ lines and their trailing text are centred as a block; a three-line row puts its 
 icon and check box beside the headline. Margins stay 16 and the gap after the icon 12 (`ItemBetweenSpace` of the
 expressive tokens, as the one-line rows have it). The style draws the text (`drawListRowText()`) for both
 QStyledItemDelegate and QListWidget's own painting; the supporting text is left out of the width hint, so a long one
-is shortened rather than giving the list a horizontal scroll bar. Not done: overline, avatars, images and videos,
-trailing icons and checkboxes, segmented or gapped lists.
+is shortened rather than giving the list a horizontal scroll bar.
+
+An item with a check state (`Qt::CheckStateRole`) gets the trailing checkbox: the 18 box of `PE_IndicatorCheckBox`
+(`Primary` with an `OnPrimary` mark checked, an `OnSurfaceVariant` outline unchecked, the dash partly checked) in the
+middle of a slot of 24 at the end, 16 in, the text (and its trailing text) 12 before the slot; beside the headline
+in a three-line row. `listCheckRect()` places it, and `subElementRect(SE_ItemViewItemCheckIndicator)` returns it for
+a list's `QStyleOptionViewItem`, which QStyledItemDelegate's layout asks for. A click in the circle of 40 around the
+box (the checkbox's state layer) toggles a `Qt::ItemIsUserCheckable` item, in the delegate's `editorEvent()` as Qt
+does and in QListWidget's mouse release (before `itemClicked()`); Space toggles the current item of a QListWidget.
+QListWidget draws the box only under this style; elsewhere it keeps the state, as before. `materialListAvatars` =
+`true` makes the icons 40 avatars in their own colours, `materialListImages` = `true` 56 images with corners of 8
+(small), neither recoloured; both are cut in an image of their own (`paintPicture()`, which `paintAvatar()` now
+uses; the picture is cropped to a square from its middle), and a row is at least the picture + 16 high (an image row
+72). The delegate takes the size into `decorationSize`. `materialListOverline` = `true` reads a three-line row as
+overline, headline and one supporting line (the rest joined): the overline in label small, `OnSurfaceVariant`, on a
+line of 16 from 12, the headline under it, the trailing text beside the headline; the row is still 88. The trailing
+supporting text is the `\t` text above. `materialList` = `"segmented"` (Expressive's segmented, gapped list) draws
+each row as a `SurfaceContainer` item inset 1 at top and bottom (2 between rows, without changing the layout), corners
+16 at the outer ends of the first and last rows and 4 elsewhere; a selected or held row is `SecondaryContainer` (or the
+pressed layer) with 16 all round. `drawListRow()` is told whether the row is the first or last. Not done: videos,
+trailing icons, motion of the segmented corners (they change at once), the drawer with check boxes.
 
 **Docked toolbar and icon button widths.** `materialToolBar` = `"docked"` or `"dockedVibrant"` makes a `QToolBar` the
 docked toolbar: 64 high across its whole side (`DockedToolbarTokens`), square corners and no shadow, in

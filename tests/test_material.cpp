@@ -5912,6 +5912,274 @@ void testMultiLineListRows() {
     CHECK(widgetList->visualItemRect(widgetList->item(1)).height() < 56);
 }
 
+// The extras of Material list items: trailing check boxes, avatars, images, overlines, and segmented lists, in a
+// QListWidget and in a QListView with a model.
+void testListItemExtras() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    // The color of the pixel in `r` that is farthest from `background`: the ink of what is drawn there.
+    const auto ink = [](const QImage &image, const QRect &r, const QColor &background) {
+        QColor most = background;
+        int far = -1;
+        for (int y = r.top(); y <= r.bottom(); ++y)
+            for (int x = r.left(); x <= r.right(); ++x) {
+                const QColor c = image.pixelColor(x, y);
+                const int d = std::abs(c.red() - background.red()) + std::abs(c.green() - background.green()) +
+                              std::abs(c.blue() - background.blue());
+                if (d > far) {
+                    far = d;
+                    most = c;
+                }
+            }
+        return most;
+    };
+    const auto click = [](QWidget *on, const QPoint &at) {
+        const QPointF point(at);
+        QMouseEvent press(QEvent::MouseButtonPress, point, point, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(on, &press);
+        QMouseEvent release(QEvent::MouseButtonRelease, point, point, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(on, &release);
+        QCoreApplication::processEvents();
+    };
+
+    // A list widget and a list view with the same items, side by side in a window.
+    struct Pair {
+        QListWidget *items;
+        QListView *view;
+        QStandardItemModel *model;
+    };
+    QWidget window;
+    auto *layout = new QHBoxLayout(&window);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    const auto makePair = [&](const QStringList &texts, const QIcon &icon) {
+        Pair pair{new QListWidget, new QListView, new QStandardItemModel(&window)};
+        for (const QString &text : texts) {
+            pair.items->addItem(new QListWidgetItem(icon, text));
+            pair.model->appendRow(new QStandardItem(icon, text));
+        }
+        pair.items->setIconSize(QSize(24, 24));
+        pair.view->setIconSize(QSize(24, 24));
+        pair.view->setModel(pair.model);
+        pair.items->setFrameShape(QFrame::NoFrame);
+        pair.view->setFrameShape(QFrame::NoFrame);
+        return pair;
+    };
+    const auto rowOf = [](const Pair &pair, bool items, int n) {
+        return items ? pair.items->visualItemRect(pair.items->item(n)) : pair.view->visualRect(pair.model->index(n, 0));
+    };
+    const auto portOf = [](const Pair &pair, bool items) {
+        return items ? pair.items->viewport() : pair.view->viewport();
+    };
+    const auto show = [&](const Pair &pair) {
+        while (QLayoutItem *item = layout->takeAt(0))
+            delete item;
+        for (QWidget *child : window.findChildren<QAbstractItemView *>(QString(), Qt::FindDirectChildrenOnly))
+            child->hide();
+        layout->addWidget(pair.items);
+        layout->addWidget(pair.view);
+        pair.items->show();
+        pair.view->show();
+        window.resize(720, 400);
+        window.show();
+        QCoreApplication::processEvents();
+    };
+    const QColor surface = style->color(Role::Surface);
+
+    // 1. Check boxes: at the trailing end, an 18 box in the middle of a slot of 24, 16 from the end; checked in the
+    // accent color, unchecked an outline. A click on the box toggles it, one elsewhere in the row does not.
+    {
+        QPixmap black(24, 24);
+        black.fill(Qt::black);
+        Pair pair = makePair(
+            {QStringLiteral("Wi-Fi"), QStringLiteral("Bluetooth"), QStringLiteral("Headline\tNew\nSupporting\nThird")},
+            QIcon(black));
+        for (int n = 0; n < 3; ++n) {
+            QListWidgetItem *item = pair.items->item(n);
+            item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+            item->setCheckState(n == 0 ? Qt::Checked : Qt::Unchecked);
+            pair.model->item(n)->setCheckable(true);
+            pair.model->item(n)->setCheckState(n == 0 ? Qt::Checked : Qt::Unchecked);
+        }
+        show(pair);
+        for (const bool items : {true, false}) {
+            QWidget *port = portOf(pair, items);
+            const QImage image = window.grab().toImage();
+            const QPoint origin = port->mapTo(&window, QPoint(0, 0));
+            const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+            const QRect checked = rowOf(pair, items, 0);
+            CHECK(checked.height() == 56);
+            const QRect box(checked.right() + 1 - 16 - 21, checked.top() + (56 - 18) / 2, 18, 18);
+            CHECK(near(at(box.left() + 3, box.top() + 3), style->color(Role::Primary), 3));
+            CHECK(near(at(box.right() - 2, box.bottom() - 2), style->color(Role::Primary), 3));
+            CHECK(near(at(box.right() + 3, box.center().y()), surface, 3));
+            const QRect unchecked = rowOf(pair, items, 1);
+            const QRect empty = box.translated(0, unchecked.top() - checked.top());
+            CHECK(near(at(empty.left(), empty.center().y()), style->color(Role::OnSurfaceVariant), 3));
+            CHECK(near(at(empty.right(), empty.center().y()), style->color(Role::OnSurfaceVariant), 3));
+            CHECK(near(at(empty.center().x(), empty.center().y()), surface, 3));
+            // The icon stays at the start; the box of a row of three lines is beside the headline, 12 from the top.
+            CHECK(near(at(16 + 12, checked.center().y()), style->color(Role::OnSurfaceVariant), 3));
+            const QRect three = rowOf(pair, items, 2);
+            CHECK(three.height() == 88);
+            CHECK(near(at(box.left(), three.top() + 12 + 3 + 9), style->color(Role::OnSurfaceVariant), 3));
+            CHECK(near(at(box.left(), three.center().y() + 10), surface, 3));
+            if (textIsDrawn()) {
+                // The trailing text is before the slot of the box, 12 from it; nothing is drawn under the box.
+                const QRect trailing(three.right() + 1 - 16 - 24 - 12 - 24, three.top() + 12, 24, 24);
+                CHECK(near(ink(image, trailing.translated(origin), surface), style->color(Role::OnSurfaceVariant), 12));
+                CHECK(
+                    near(ink(image, QRect(three.right() + 1 - 16 - 24 - 12, three.top() + 2, 12, 84).translated(origin),
+                             surface),
+                         surface, 3));
+            }
+            // A click beside the box toggles it; one in the middle of the row does not.
+            click(port, QPoint(empty.center().x() - 8, empty.center().y() + 8));
+            const auto state = [&](int n) {
+                return items ? pair.items->item(n)->checkState() : pair.model->item(n)->checkState();
+            };
+            CHECK(state(1) == Qt::Checked);
+            click(port, QPoint(empty.center().x() - 120, empty.center().y()));
+            CHECK(state(1) == Qt::Checked);
+            click(port, empty.center());
+            CHECK(state(1) == Qt::Unchecked);
+            click(port, box.center());
+            CHECK(state(0) == Qt::Unchecked);
+        }
+        // Space toggles the current item of a list widget.
+        pair.items->setFocus();
+        pair.items->setCurrentRow(1);
+        QKeyEvent space(QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" "));
+        QCoreApplication::sendEvent(pair.items, &space);
+        CHECK(pair.items->item(1)->checkState() == Qt::Checked);
+        // An item that the user may not check keeps its state.
+        pair.items->item(1)->setFlags(Qt::ItemIsSelectable | Qt::ItemIsEnabled);
+        QCoreApplication::sendEvent(pair.items, &space);
+        CHECK(pair.items->item(1)->checkState() == Qt::Checked);
+    }
+
+    // 2. Avatars and images: pictures in their own colors, a circle of 40 and a square of 56 with round corners.
+    {
+        QPixmap red(64, 64);
+        red.fill(QColor(220, 20, 20));
+        const QColor redInk(220, 20, 20);
+        Pair avatars = makePair({QStringLiteral("Ali Connors"), QStringLiteral("Alex\nSupporting")}, QIcon(red));
+        avatars.items->setProperty("materialListAvatars", true);
+        avatars.view->setProperty("materialListAvatars", true);
+        show(avatars);
+        for (const bool items : {true, false}) {
+            const QImage image = window.grab().toImage();
+            const QPoint origin = portOf(avatars, items)->mapTo(&window, QPoint(0, 0));
+            const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+            const QRect one = rowOf(avatars, items, 0);
+            CHECK(one.height() == 56);
+            const QRect round(16, one.top() + 8, 40, 40);
+            CHECK(near(at(round.center().x(), round.center().y()), redInk, 3));
+            CHECK(near(at(round.left() + 1, round.center().y()), redInk, 30));
+            CHECK(near(at(round.left() + 2, round.top() + 2), surface, 3));     // outside the circle
+            CHECK(near(at(round.right() - 2, round.bottom() - 2), surface, 3)); // outside the circle
+            CHECK(near(at(round.right() + 4, round.center().y()), surface, 3));
+            CHECK(rowOf(avatars, items, 1).height() == 72);
+        }
+
+        Pair images = makePair({QStringLiteral("Image"), QStringLiteral("Image\nSupporting")}, QIcon(red));
+        images.items->setProperty("materialListImages", true);
+        images.view->setProperty("materialListImages", true);
+        show(images);
+        for (const bool items : {true, false}) {
+            const QImage image = window.grab().toImage();
+            const QPoint origin = portOf(images, items)->mapTo(&window, QPoint(0, 0));
+            const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+            // A row of one line is 72, for 8 above and below the image.
+            const QRect one = rowOf(images, items, 0);
+            CHECK(one.height() == 72);
+            CHECK(rowOf(images, items, 1).height() == 72);
+            const QRect square(16, one.top() + 8, 56, 56);
+            CHECK(near(at(square.center().x(), square.center().y()), redInk, 3));
+            CHECK(near(at(square.left() + 4, square.top() + 4), redInk, 3)); // a square, not a circle
+            CHECK(near(at(square.left(), square.top()), surface, 30));       // with round corners
+            CHECK(near(at(square.center().x(), square.top()), redInk, 3));
+            CHECK(near(at(square.center().x(), square.top() - 2), surface, 3));
+            CHECK(near(at(square.right() + 4, square.center().y()), surface, 3));
+        }
+    }
+
+    // 3. An overline: the first line of a row of three lines, in label small and the quiet color, over the headline.
+    {
+        Pair pair = makePair({QStringLiteral("OVERLINE\nHeadline\nSupporting text")}, QIcon());
+        pair.items->setProperty("materialListOverline", true);
+        pair.view->setProperty("materialListOverline", true);
+        show(pair);
+        for (const bool items : {true, false}) {
+            const QRect row = rowOf(pair, items, 0);
+            CHECK(row.height() == 88);
+            if (!textIsDrawn())
+                continue;
+            const QImage image = window.grab().toImage();
+            const QPoint origin = portOf(pair, items)->mapTo(&window, QPoint(0, 0));
+            // The overline 12 from the top, 16 high; the headline under it, 24; one line of supporting text, 20.
+            const auto band = [&](int top, int height) {
+                return ink(image, QRect(16, row.top() + top, 120, height).translated(origin), surface);
+            };
+            CHECK(near(band(12 + 2, 12), style->color(Role::OnSurfaceVariant), 12));
+            CHECK(near(band(28 + 2, 20), style->color(Role::OnSurface), 12));
+            CHECK(near(band(52 + 2, 16), style->color(Role::OnSurfaceVariant), 12));
+            CHECK(near(band(74, 12), surface, 3));
+        }
+        // Without the property the first line is the headline.
+        pair.items->setProperty("materialListOverline", QVariant());
+        pair.items->viewport()->update();
+        QCoreApplication::processEvents();
+        if (textIsDrawn()) {
+            const QImage image = window.grab().toImage();
+            const QPoint origin = pair.items->viewport()->mapTo(&window, QPoint(0, 0));
+            const QRect row = rowOf(pair, true, 0);
+            CHECK(near(ink(image, QRect(16, row.top() + 14, 120, 12).translated(origin), surface),
+                       style->color(Role::OnSurface), 12));
+        }
+    }
+
+    // 4. A segmented list: each row a container of its own, 2 apart, with corners of 16 at the ends of the list and
+    // of a selected row, and 4 between rows; a selected row in the secondary container.
+    {
+        Pair pair = makePair({QStringLiteral("One"), QStringLiteral("Two"), QStringLiteral("Three")}, QIcon());
+        pair.items->setProperty("materialList", QStringLiteral("segmented"));
+        pair.view->setProperty("materialList", QStringLiteral("segmented"));
+        pair.items->setCurrentRow(1);
+        pair.view->setCurrentIndex(pair.model->index(1, 0));
+        pair.view->selectionModel()->select(pair.model->index(1, 0), QItemSelectionModel::ClearAndSelect);
+        show(pair);
+        const QColor container = style->color(Role::SurfaceContainer);
+        const QColor chosen = style->color(Role::SecondaryContainer);
+        for (const bool items : {true, false}) {
+            const QImage image = window.grab().toImage();
+            const QPoint origin = portOf(pair, items)->mapTo(&window, QPoint(0, 0));
+            const auto at = [&](int x, int y) { return image.pixelColor(origin.x() + x, origin.y() + y); };
+            const QRect first = rowOf(pair, items, 0), middle = rowOf(pair, items, 1), last = rowOf(pair, items, 2);
+            const int x = first.center().x();
+            CHECK(near(at(x, first.center().y()), container, 3));
+            CHECK(near(at(x, middle.center().y()), chosen, 3));
+            CHECK(near(at(x, last.center().y()), container, 3));
+            // A gap of 2 between rows.
+            CHECK(near(at(x, first.bottom()), surface, 3));
+            CHECK(near(at(x, middle.top()), surface, 3));
+            CHECK(near(at(x, middle.bottom()), surface, 3));
+            // The outer corners round (16), the inner ones a little (4), and the selected row's all round.
+            CHECK(near(at(first.left() + 2, first.top() + 3), surface, 3));
+            CHECK(near(at(first.right() - 2, first.top() + 3), surface, 3));
+            CHECK(near(at(first.left() + 2, first.bottom() - 3), container, 3));
+            CHECK(near(at(last.left() + 2, last.top() + 3), container, 3));
+            CHECK(near(at(last.left() + 2, last.bottom() - 3), surface, 3));
+            CHECK(near(at(middle.left() + 2, middle.top() + 3), surface, 3));
+            CHECK(near(at(middle.left() + 2, middle.bottom() - 3), surface, 3));
+            CHECK(near(at(middle.left() + 16, middle.top() + 3), chosen, 3));
+        }
+    }
+}
+
 // A docked toolbar at the bottom of a main window, and icon buttons that are narrower or wider than they are high.
 void testDockedToolBarAndIconWidths() {
     auto *style = new QMaterialStyle;
@@ -6639,6 +6907,7 @@ int main(int argc, char *argv[]) {
     testRailScrolls();
     testFlexibleAppBars();
     testMultiLineListRows();
+    testListItemExtras();
     testDockedToolBarAndIconWidths();
     testSearchView();
     testExitMotion();

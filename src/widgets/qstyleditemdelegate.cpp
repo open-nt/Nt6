@@ -88,6 +88,7 @@ constexpr int kSpacing = 4; // between the check box, the decoration and the tex
 // The Material style gives rows that a finger can hit: those of a list 56 high, with room at the ends.
 constexpr int kMaterialListHeight = 56, kMaterialListMargin = 16, kMaterialListSpacing = 12;
 constexpr int kMaterialTreeHeight = 48;
+constexpr int kMaterialCheckSlot = 24; // the trailing check box of a Material row is in the middle of it
 
 bool isMaterial(const QStyleOptionViewItem &option) {
     return option.widget && qobject_cast<const QMaterialStyle *>(option.widget->style());
@@ -129,7 +130,13 @@ Parts layoutParts(const QStyleOptionViewItem &option) {
     Parts parts;
     const int spacing = spacingOf(option);
     QRect r = option.rect.adjusted(marginOf(option), 0, -marginOf(option), 0);
-    if (option.features & QStyleOptionViewItem::HasCheckIndicator) {
+    if ((option.features & QStyleOptionViewItem::HasCheckIndicator) && isMaterialRow(option)) {
+        // The Material style puts it at the trailing end, where the style says, in a slot of 24 that the text keeps
+        // the spacing from.
+        parts.check =
+            option.widget->style()->subElementRect(QStyle::SE_ItemViewItemCheckIndicator, &option, option.widget);
+        r.setRight(parts.check.left() - (kMaterialCheckSlot - parts.check.width()) / 2 - spacing - 1);
+    } else if (option.features & QStyleOptionViewItem::HasCheckIndicator) {
         const int size = indicatorSize(option);
         parts.check = QRect(r.left(), r.top() + (r.height() - size) / 2, size, size);
         r.setLeft(r.left() + size + spacing);
@@ -256,6 +263,10 @@ void QStyledItemDelegate::initStyleOption(QStyleOptionViewItem *option, const QM
         option->features |= QStyleOptionViewItem::HasCheckIndicator;
         option->checkState = static_cast<Qt::CheckState>(value.toInt());
     }
+    // The avatars and images of a Material list have sizes of their own.
+    if (const QSize picture = isMaterialRow(*option) ? QMaterialStyle::listLeadingSize(option->widget) : QSize();
+        picture.isValid())
+        option->decorationSize = picture;
     value = index.data(Qt::DecorationRole);
     if (holds<QIcon>(value)) {
         const QSize size = option->decorationSize.isValid() && !option->decorationSize.isEmpty()
@@ -305,10 +316,11 @@ void QStyledItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
     const bool selected = opt.state & QStyle::State_Selected;
     painter->save();
     painter->setClipRect(opt.rect);
-    if (isMaterialRow(opt))
-        static_cast<const QMaterialStyle *>(opt.widget->style())
-            ->drawListRow(painter, opt.rect, selected, opt.state & QStyle::State_Enabled, opt.backgroundBrush,
-                          opt.widget);
+    const auto *material = isMaterialRow(opt) ? static_cast<const QMaterialStyle *>(opt.widget->style()) : nullptr;
+    if (material)
+        material->drawListRow(painter, opt.rect, selected, opt.state & QStyle::State_Enabled, opt.backgroundBrush,
+                              opt.widget, index.row() == 0,
+                              index.model() && index.row() == index.model()->rowCount(index.parent()) - 1);
     else if (selected)
         painter->fillRect(opt.rect, opt.palette.color(group, QPalette::Highlight));
     else if (opt.backgroundBrush.style() != Qt::NoBrush)
@@ -316,14 +328,14 @@ void QStyledItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
 
     Parts parts = layoutParts(opt);
     // A Material row of more than one line, or with a trailing text: its text is drawn by the style.
-    const bool multiPart = isMaterialRow(opt) && (opt.features & QStyleOptionViewItem::HasDisplay) &&
-                           QMaterialStyle::isMultiPartRow(opt.text);
-    if (multiPart) {
-        // A row of three lines has its check box and icon at the top, beside the headline.
-        parts.check.moveTop(QMaterialStyle::listRowContentTop(opt.rect, parts.check.height(), opt.text));
+    const bool multiPart =
+        material && (opt.features & QStyleOptionViewItem::HasDisplay) && QMaterialStyle::isMultiPartRow(opt.text);
+    // A row of three lines has its icon at the top, beside the headline (and the style puts its check box there).
+    if (multiPart)
         parts.decoration.moveTop(QMaterialStyle::listRowContentTop(opt.rect, parts.decoration.height(), opt.text));
-    }
-    if (opt.features & QStyleOptionViewItem::HasCheckIndicator) {
+    if (material && (opt.features & QStyleOptionViewItem::HasCheckIndicator)) {
+        material->drawListCheck(painter, parts.check, opt.checkState, opt.state & QStyle::State_Enabled, opt.widget);
+    } else if (opt.features & QStyleOptionViewItem::HasCheckIndicator) {
         QStyleOptionButton box;
         box.rect = parts.check;
         box.palette = opt.palette;
@@ -334,20 +346,20 @@ void QStyledItemDelegate::paint(QPainter *painter, const QStyleOptionViewItem &o
         style->drawPrimitive(QStyle::PE_IndicatorCheckBox, &box, painter, opt.widget);
     }
     if (!parts.decoration.isEmpty() && !opt.decoration.isNull()) {
-        // The Material style gives an icon of one color the color of the icons of its lists.
-        const QVariant icon = isMaterialRow(opt) ? index.data(Qt::DecorationRole) : QVariant();
-        if (holds<QIcon>(icon))
-            static_cast<const QMaterialStyle *>(opt.widget->style())
-                ->drawRowIcon(painter, parts.decoration, icon.value<QIcon>(), QIcon::Normal, selected,
-                              opt.state & QStyle::State_Enabled);
+        // The Material style gives an icon of one color the color of the icons of its lists, and draws its avatars
+        // and images.
+        const QVariant icon = material ? index.data(Qt::DecorationRole) : QVariant();
+        if (holds<QIcon>(icon) || (material && QMaterialStyle::listLeadingSize(opt.widget).isValid()))
+            material->drawRowIcon(painter, parts.decoration,
+                                  holds<QIcon>(icon) ? icon.value<QIcon>() : QIcon(opt.decoration), QIcon::Normal,
+                                  selected, opt.state & QStyle::State_Enabled, opt.widget);
         else
             painter->drawPixmap(parts.decoration, opt.decoration);
     }
     if (multiPart) {
-        static_cast<const QMaterialStyle *>(opt.widget->style())
-            ->drawListRowText(painter, parts.text, opt.text, opt.font,
-                              opt.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text),
-                              opt.displayAlignment, selected, opt.state & QStyle::State_Enabled);
+        material->drawListRowText(painter, parts.text, opt.text, opt.font,
+                                  opt.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text),
+                                  opt.displayAlignment, selected, opt.state & QStyle::State_Enabled, opt.widget);
     } else if (opt.features & QStyleOptionViewItem::HasDisplay) {
         painter->setFont(opt.font);
         painter->setPen(opt.palette.color(group, selected ? QPalette::HighlightedText : QPalette::Text));
@@ -377,12 +389,12 @@ QSize QStyledItemDelegate::sizeHint(const QStyleOptionViewItem &option, const QM
     int height = opt.fontMetrics.height();
     if (opt.features & QStyleOptionViewItem::HasCheckIndicator) {
         const int size = indicatorSize(opt);
-        width += size + spacing;
+        width += isMaterialRow(opt) ? QMaterialStyle::listCheckRoom() : size + spacing;
         height = std::max(height, size);
     }
     const QSize decoration = decorationSizeOf(opt);
     const bool multiPart = isMaterialRow(opt) && QMaterialStyle::isMultiPartRow(opt.text);
-    const int text = multiPart ? QMaterialStyle::listRowTextSize(opt.text, opt.font).width()
+    const int text = multiPart ? QMaterialStyle::listRowTextSize(opt.text, opt.font, opt.widget).width()
                                : opt.fontMetrics.horizontalAdvance(opt.text);
     if (!decoration.isEmpty() && (opt.decorationPosition == QStyleOptionViewItem::Top ||
                                   opt.decorationPosition == QStyleOptionViewItem::Bottom)) {
@@ -395,10 +407,10 @@ QSize QStyledItemDelegate::sizeHint(const QStyleOptionViewItem &option, const QM
         height = std::max(height, decoration.height());
     }
     width += text;
-    if (multiPart)
-        return QSize(width, std::max(QMaterialStyle::listRowHeight(opt.text), height + 2 * kMargin));
     if (isMaterialRow(opt))
-        return QSize(width, std::max(kMaterialListHeight, height + 2 * kMargin));
+        return QSize(width,
+                     std::max(QMaterialStyle::listRowHeight(multiPart ? opt.text : QString(), decoration.height()),
+                              std::max(kMaterialListHeight, height + 2 * kMargin)));
     if (isMaterial(opt) && qobject_cast<const QTreeView *>(opt.widget))
         return QSize(width, std::max(kMaterialTreeHeight, height + 2 * kMargin));
     return QSize(width, height + 2 * kMargin);
@@ -602,7 +614,10 @@ bool QStyledItemDelegate::editorEvent(QEvent *event, QAbstractItemModel *model, 
         const auto *mouse = static_cast<QMouseEvent *>(event);
         QStyleOptionViewItem opt = option;
         initStyleOption(&opt, index);
-        if (mouse->button() != Qt::LeftButton || !layoutParts(opt).check.contains(mouse->pos()))
+        // A Material row takes a click in the circle around its check box.
+        const QRect check = layoutParts(opt).check;
+        const QRect target = isMaterialRow(opt) ? QMaterialStyle::listCheckTarget(check, opt.rect) : check;
+        if (mouse->button() != Qt::LeftButton || !target.contains(mouse->pos()))
             return false;
     } else if (event->type() == QEvent::KeyPress) {
         const int key = static_cast<QKeyEvent *>(event)->key();

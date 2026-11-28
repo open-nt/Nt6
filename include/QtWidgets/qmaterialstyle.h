@@ -311,23 +311,37 @@ private:
     // The background of a row of a list: its selection, and the press on it. The views that paint rows ask for it.
     friend class QListWidget;
     friend class QStyledItemDelegate;
+    // In a list whose materialList is "segmented" each row is a container of its own, `first` and `last` rounder.
     void drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled, const QBrush &background,
-                     const QWidget *view) const;
+                     const QWidget *view, bool first, bool last) const;
+    static bool isSegmentedList(const QWidget *view);
     // The height of the rows of a QCompleter's popup: 56 in the docked search view under a search bar, 48 in the menu
     // under another line edit, and 0 for a list that is no completer's popup. QListWidget asks for it.
     static int completerRowHeight(const QWidget *list);
-    // The icon of a row, in `area`: one of one color is drawn in the color of the icons of a list.
+    // The icon of a row, in `area`: one of one color is drawn in the color of the icons of a list, and those of a list
+    // with materialListAvatars or materialListImages as pictures in their own colors, in a circle of 40 or a square of
+    // 56, which listLeadingSize() gives (an invalid size for other lists).
     void drawRowIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode, bool selected,
-                     bool enabled) const;
+                     bool enabled, const QWidget *view) const;
+    static QSize listLeadingSize(const QWidget *view);
     // A row whose text has a line break is a headline over supporting text, and a tab in its headline puts what follows
-    // at the trailing end: its height (56, 72 or 88), where an icon of `height` goes in it, the size of its text, and
-    // the drawing of that text in `area`, the row without its margins and icon.
+    // at the trailing end: its height (56, 72 or 88, or more for an icon `leading` high), where an icon of `height`
+    // goes in it, the size of its text, and the drawing of that text in `area`, the row without its margins, icon and
+    // check box. With materialListOverline on `view`, the first line of a row of three lines is an overline.
     static bool isMultiPartRow(const QString &text);
-    static int listRowHeight(const QString &text);
+    static int listRowHeight(const QString &text, int leading = 0);
     static int listRowContentTop(const QRect &row, int height, const QString &text);
-    static QSize listRowTextSize(const QString &text, const QFont &font);
+    static QSize listRowTextSize(const QString &text, const QFont &font, const QWidget *view);
     void drawListRowText(QPainter *painter, const QRect &area, const QString &text, const QFont &font,
-                         const QColor &headlineInk, Qt::Alignment alignment, bool selected, bool enabled) const;
+                         const QColor &headlineInk, Qt::Alignment alignment, bool selected, bool enabled,
+                         const QWidget *view) const;
+    // The check box of a row is at its trailing end: the box in `row`, where a click toggles it, how much room it
+    // takes from the text, and its drawing.
+    static QRect listCheckRect(const QRect &row, const QString &text, const QWidget *view);
+    static QRect listCheckTarget(const QRect &box, const QRect &row);
+    static int listCheckRoom();
+    void drawListCheck(QPainter *painter, const QRect &box, Qt::CheckState state, bool enabled,
+                       const QWidget *view) const;
     // The line under the current tab of a horizontal tab bar. QTabBar paints a tab at a time, so it asks for the line,
     // which slides from tab to tab, once they are all painted.
     friend class QTabBar;

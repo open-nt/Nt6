@@ -946,14 +946,16 @@ void QListWidget::layoutItems() const {
     // Rows one under the other, rowHeight() high or as high as the size hint of their item.
     const int base = std::max(1, rowHeight());
     const bool material = qobject_cast<const QMaterialStyle *>(style()) != nullptr;
+    const QSize picture = material ? QMaterialStyle::listLeadingSize(this) : QSize();
     int top = m_spacing;
     for (std::size_t r = 0; r < m_items.size(); ++r) {
         if (m_items[r]->m_hidden)
             continue;
         int h = std::max(base, m_items[r]->m_sizeHint.height());
-        // A Material row of two or three lines is 72 or 88 high.
-        if (material && QMaterialStyle::isMultiPartRow(m_items[r]->m_text))
-            h = std::max(h, QMaterialStyle::listRowHeight(m_items[r]->m_text));
+        // A Material row of two or three lines is 72 or 88 high, and one with an image has room around it.
+        const bool leading = picture.isValid() && !m_items[r]->m_icon.isNull();
+        if (material && (leading || QMaterialStyle::isMultiPartRow(m_items[r]->m_text)))
+            h = std::max(h, QMaterialStyle::listRowHeight(m_items[r]->m_text, leading ? picture.height() : 0));
         m_rects[r] = QRect(m_spacing, top, std::max(1, width - 2 * m_spacing), h);
         top += h + m_spacing;
     }
@@ -1152,6 +1154,14 @@ void QListWidget::paintEvent(QPaintEvent *event) {
     const QColor highlight = pal.color(group, QPalette::Highlight);
     const bool iconMode = m_viewMode == QListView::IconMode;
     layoutItems();
+    // The first and last rows that show: the ends of a segmented list.
+    int firstShown = -1, lastShown = -1;
+    for (int r = 0; r < count(); ++r) {
+        if (!m_items[static_cast<std::size_t>(r)]->m_hidden) {
+            firstShown = firstShown < 0 ? r : firstShown;
+            lastShown = r;
+        }
+    }
     for (int r = 0; r < count(); ++r) {
         const QRect rect = m_rects[static_cast<std::size_t>(r)].translated(0, -offset);
         if (rect.isEmpty() || !rect.intersects(all))
@@ -1163,7 +1173,7 @@ void QListWidget::paintEvent(QPaintEvent *event) {
         if (material)
             material->drawListRow(&painter, rect, selected, on,
                                   it->background().style() != Qt::NoBrush ? QBrush(it->background().color()) : QBrush(),
-                                  this);
+                                  this, r == firstShown, r == lastShown);
         else if (selected)
             painter.fillRect(rect, highlight);
         else if (it->background().style() != Qt::NoBrush)
@@ -1201,8 +1211,15 @@ void QListWidget::paintEvent(QPaintEvent *event) {
             int iconWidth = 0;
             // A row of more than one line, or with a trailing text, is drawn by the style.
             const bool multiPart = material && QMaterialStyle::isMultiPartRow(it->text());
+            // The Material style draws the check box of an item that has a check state at the trailing end.
+            const QVariant check = material ? it->data(Qt::CheckStateRole) : QVariant();
+            const int checkRoom = check.isValid() ? QMaterialStyle::listCheckRoom() : 0;
+            if (check.isValid())
+                material->drawListCheck(&painter, QMaterialStyle::listCheckRect(rect, it->text(), this),
+                                        static_cast<Qt::CheckState>(check.toInt()), on, this);
             if (!it->icon().isNull()) {
-                const QSize size = iconSize().isValid() ? iconSize() : QSize(16, 16);
+                const QSize picture = material ? QMaterialStyle::listLeadingSize(this) : QSize();
+                const QSize size = picture.isValid() ? picture : iconSize().isValid() ? iconSize() : QSize(16, 16);
                 const QRect room(rect.left() + margin, rect.top(), size.width(), rect.height());
                 if (material)
                     material->drawRowIcon(
@@ -1210,18 +1227,18 @@ void QListWidget::paintEvent(QPaintEvent *event) {
                         QRect(QPoint(room.left(), QMaterialStyle::listRowContentTop(
                                                       rect, size.height(), multiPart ? it->text() : QString())),
                               size),
-                        it->icon(), iconState, selected, on);
+                        it->icon(), iconState, selected, on, this);
                 else
                     it->icon().paint(&painter, room, Qt::AlignCenter, iconState);
                 iconWidth = size.width() + gap;
             }
             if (multiPart) {
                 painter.setClipRect(rect);
-                material->drawListRowText(&painter, rect.adjusted(margin + iconWidth, 0, -margin, 0), it->text(), font,
-                                          color, it->textAlignment(), selected, on);
+                material->drawListRowText(&painter, rect.adjusted(margin + iconWidth, 0, -margin - checkRoom, 0),
+                                          it->text(), font, color, it->textAlignment(), selected, on, this);
                 painter.setClipping(false);
             } else if (!it->text().isEmpty()) {
-                const QRect textRect = rect.adjusted(margin + iconWidth, 0, -margin, 0);
+                const QRect textRect = rect.adjusted(margin + iconWidth, 0, -margin - checkRoom, 0);
                 painter.setFont(font);
                 painter.setPen(color);
                 painter.setClipRect(rect);
@@ -1310,6 +1327,13 @@ void QListWidget::mouseReleaseEvent(QMouseEvent *event) {
     const int r = rowAt(event->pos());
     const bool clicked = r >= 0 && r == m_pressed && enabled(r);
     m_pressed = -1;
+    // A click on the check box of a Material row toggles it, as Qt's delegate does, before the click is told.
+    if (clicked && m_viewMode == QListView::ListMode && qobject_cast<const QMaterialStyle *>(style())) {
+        const QRect rect = itemRect(r).translated(0, -verticalScrollBar()->value());
+        const QRect box = QMaterialStyle::listCheckRect(rect, item(r)->text(), this);
+        if (QMaterialStyle::listCheckTarget(box, rect).contains(event->pos()))
+            toggleCheck(r);
+    }
     if (clicked)
         emit itemClicked(item(r));
     event->accept();
@@ -1332,6 +1356,16 @@ void QListWidget::mouseDoubleClickEvent(QMouseEvent *event) {
             editItem(item(r));
     }
     event->accept();
+}
+
+// Toggles the check box of the item at `row`, if it has one that the user may check; true if it did.
+bool QListWidget::toggleCheck(int row) {
+    QListWidgetItem *it = item(row);
+    const QVariant state = it ? it->data(Qt::CheckStateRole) : QVariant();
+    if (!state.isValid() || !(it->flags() & Qt::ItemIsUserCheckable) || !enabled(row))
+        return false;
+    it->setCheckState(state.toInt() == Qt::Checked ? Qt::Unchecked : Qt::Checked);
+    return true;
 }
 
 // Moves the current item to `target`, and selects it as the mode and the modifiers say.
@@ -1446,6 +1480,12 @@ void QListWidget::keyPressEvent(QKeyEvent *event) {
         target = step(count(), -1);
         break;
     case Qt::Key_Space:
+        // Under the Material style, which draws the check box, Space toggles that of a checkable item.
+        if (m_current >= 0 && m_viewMode == QListView::ListMode && qobject_cast<const QMaterialStyle *>(style()) &&
+            toggleCheck(m_current)) {
+            event->accept();
+            return;
+        }
         if (m_current >= 0) {
             if (selectionMode() == MultiSelection ||
                 (selectionMode() == ExtendedSelection && (modifiers & Qt::ControlModifier)))
@@ -1890,7 +1930,9 @@ QList<QListWidgetItem *> QListWidget::items(const QMimeData *data) const {
     \fn void QListWidgetItem::setCheckState(Qt::CheckState state)
     \since 6.0
 
-    Sets the check state of the item to \a state. The list keeps it; it draws no check box.
+    Sets the check state of the item to \a state. Under QMaterialStyle the list draws a check box at the trailing
+    end of the row, which a click or Space toggles if the item has Qt::ItemIsUserCheckable; under other styles the
+    list keeps the state and draws no check box.
 */
 
 /*!

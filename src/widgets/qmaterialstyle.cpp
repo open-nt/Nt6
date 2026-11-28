@@ -257,6 +257,15 @@ constexpr double listPressSlop = 8;       // how far a press may stray and still
 // supporting text.
 constexpr int listOneLineHeight = 56, listTwoLineHeight = 72, listThreeLineHeight = 88;
 constexpr int listHeadlineLine = 24, listSupportingLine = 20, listThreeLineTop = 12, listTrailingSpace = 12;
+constexpr int listOverlineLine = 16; // the line box of an overline, label small
+// The pictures at the start of a row: an avatar is a circle of 40, an image a square of 56 with corners of 8 (small),
+// and either has 8 above and below it at least.
+constexpr int listAvatarSize = 40, listImageSize = 56, listImageCorner = 8, listLeadingPadding = 8;
+// The trailing check box: a box of 18 in a slot of 24 at the end of the row, 12 after the text, that takes a click
+// in the circle of 40 around it, as the layer of a check box shows.
+constexpr int listCheckSlot = 24, listCheckReach = 40;
+// The rows of a segmented list: corners of 16 at its ends and of a row that is chosen or held, and 4 between rows.
+constexpr double listSegmentOuter = 16, listSegmentInner = 4;
 constexpr int menuItemHeight = 48;
 constexpr double menuCorner = 16; // the container of the standard menu of Material 3 Expressive (corner large)
 constexpr int menuVerticalPadding = 4; // above the first row and below the last, inside the container
@@ -309,19 +318,31 @@ constexpr double disabledContainerOpacity = 0.10;
 
 // The parts of the text of a row of a list: the headline is the first line without what follows a tab in it, which is
 // the trailing supporting text, and the supporting text is the rest. A supporting text that has a line break of its
-// own makes three lines.
+// own makes three lines. With `overline`, the first line of a row of three lines is an overline over the headline,
+// which is the second, and the rest is one line of supporting text.
 struct ListRowParts {
-    QString headline, trailing, supporting;
+    QString overline, headline, trailing, supporting;
     int lines = 1;
+    bool hasOverline = false;
 };
 
-ListRowParts listRowParts(const QString &text) {
+ListRowParts listRowParts(const QString &text, bool overline = false) {
     ListRowParts parts;
-    const qsizetype brk = text.indexOf(QLatin1Char('\n'));
-    parts.headline = brk < 0 ? text : text.left(brk);
+    QString rest = text;
+    const bool over = overline && text.count(QLatin1Char('\n')) >= 2;
+    if (over) {
+        parts.hasOverline = true;
+        const qsizetype brk = text.indexOf(QLatin1Char('\n'));
+        parts.overline = text.left(brk);
+        rest = text.mid(brk + 1);
+    }
+    const qsizetype brk = rest.indexOf(QLatin1Char('\n'));
+    parts.headline = brk < 0 ? rest : rest.left(brk);
     if (brk >= 0) {
-        parts.supporting = text.mid(brk + 1);
-        parts.lines = parts.supporting.contains(QLatin1Char('\n')) ? 3 : 2;
+        parts.supporting = rest.mid(brk + 1);
+        parts.lines = over || parts.supporting.contains(QLatin1Char('\n')) ? 3 : 2;
+        if (over)
+            parts.supporting.replace(QLatin1Char('\n'), QLatin1Char(' '));
     }
     if (const qsizetype tab = parts.headline.indexOf(QLatin1Char('\t')); tab >= 0) {
         parts.trailing = parts.headline.mid(tab + 1);
@@ -329,6 +350,9 @@ ListRowParts listRowParts(const QString &text) {
     }
     return parts;
 }
+
+// A list that draws the first line of its rows of three lines as an overline.
+bool hasListOverline(const QWidget *view) { return view && view->property("materialListOverline").toBool(); }
 
 // The supporting text in body medium and the trailing text in label small, as they are to body large: 14 and 11 to 16.
 QFont listRowFont(const QFont &headline, int sixteenths, bool medium) {
@@ -1279,24 +1303,39 @@ QColor blend(const QColor &from, const QColor &to, double amount) {
                   channel(from.alpha(), to.alpha()));
 }
 
-// A picture in its own colors that fills the circle `round`. A painter clips to rectangles, so the picture is cut to
-// the circle in an image of its own first.
-void paintAvatar(QPainter *painter, const QRect &round, const QIcon &icon, QIcon::Mode mode, QIcon::State state) {
+// A picture in its own colors that fills `shape`, with corners of `corner` (a circle if it is half the width or more),
+// cut to a square from its middle. A painter clips to rectangles, so the picture is cut to the shape in an image of
+// its own first.
+void paintPicture(QPainter *painter, const QRect &shape, double corner, const QIcon &icon, QIcon::Mode mode,
+                  QIcon::State state) {
     const qreal ratio = painter->device() ? painter->device()->devicePixelRatioF() : 1.0;
-    const QImage picture = icon.pixmap(round.size(), ratio, mode, state).toImage();
-    const int across = std::max(1, static_cast<int>(std::lround(round.width() * ratio)));
-    QImage disc(across, across, QImage::Format_ARGB32_Premultiplied);
-    disc.fill(Qt::transparent);
+    const QImage picture = icon.pixmap(shape.size(), ratio, mode, state).toImage();
+    if (picture.isNull())
+        return;
+    const int across = std::max(1, static_cast<int>(std::lround(shape.width() * ratio)));
+    const int side = std::min(picture.width(), picture.height());
+    const QRectF middle((picture.width() - side) / 2.0, (picture.height() - side) / 2.0, side, side);
+    QImage cut(across, across, QImage::Format_ARGB32_Premultiplied);
+    cut.fill(Qt::transparent);
     {
-        QPainter cutter(&disc);
+        QPainter cutter(&cut);
         cutter.setRenderHint(QPainter::Antialiasing);
-        QPainterPath circle;
-        circle.addEllipse(QRectF(disc.rect()));
-        cutter.fillPath(circle, QBrush(QColor(Qt::white)));
+        const double scaled = std::min(corner * ratio, across / 2.0);
+        QPainterPath outline;
+        if (scaled >= across / 2.0)
+            outline.addEllipse(QRectF(cut.rect()));
+        else
+            outline.addRoundedRect(QRectF(cut.rect()), scaled, scaled);
+        cutter.fillPath(outline, QBrush(QColor(Qt::white)));
         cutter.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        cutter.drawImage(QRectF(disc.rect()), picture, QRectF(picture.rect()));
+        cutter.drawImage(QRectF(cut.rect()), picture, middle);
     }
-    painter->drawImage(QRectF(round), disc, QRectF(disc.rect()));
+    painter->drawImage(QRectF(shape), cut, QRectF(cut.rect()));
+}
+
+// A picture in its own colors that fills the circle `round`.
+void paintAvatar(QPainter *painter, const QRect &round, const QIcon &icon, QIcon::Mode mode, QIcon::State state) {
+    paintPicture(painter, round, round.width() / 2.0, icon, mode, state);
 }
 
 void fillRounded(QPainter *painter, const QRectF &rect, double radius, const QColor &color) {
@@ -1749,6 +1788,19 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         list->addItem(new QListWidgetItem(icon, "Brunch this weekend?\nAli Connors: I'll be in your neighborhood"));
         list->addItem(new QListWidgetItem(icon, "Summer BBQ\t15 min\nTo: Alex, Scott, Jennifer\nWish I could come"));
         \endcode
+    \li An item that has a check state (Qt::CheckStateRole, QListWidgetItem::setCheckState()) shows Material's
+        check box at the trailing end of its row, after any trailing supporting text; a click on it, or Space in a
+        QListWidget, toggles it if the item has Qt::ItemIsUserCheckable. The style gives its place as
+        \c SE_ItemViewItemCheckIndicator.
+    \li \c materialListAvatars \c true of a QListView or QListWidget draws the icons of its rows as avatars, pictures
+        in their own colors in circles of 40; \c materialListImages \c true draws them as images, squares of 56 with
+        round corners, which make a row at least 72 high.
+    \li \c materialListOverline \c true of a QListView or QListWidget draws the first line of the text of a row of
+        three lines as an overline, small and quiet, over the headline, which is then the second line, with one line
+        of supporting text under it (\c{"PROJECT\nBrunch this weekend?\nAli Connors"}).
+    \li \c materialList \c "segmented" of a QListView or QListWidget makes it a segmented list, as in Material 3
+        Expressive: each row a container of its own, 2 from the next, with corners of 16 at the ends of the list and
+        of 4 between rows; a selected row is in the secondary container and round all over.
     \li \c materialSheet of a QDialog: \c "bottom" makes it a modal bottom sheet, against the bottom of its parent's
         window, as high as what is in it and no wider than 640; \c "drawer" makes it a modal drawer, against the left
         edge, as high as the window and up to 360 wide. It slides in from its edge and has no title bar. Closed, it is
@@ -2223,7 +2275,7 @@ void QMaterialStyle::drawChoicePress(const QStyleOption *option, QPainter *paint
 }
 
 void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selected, bool enabled,
-                                 const QBrush &background, const QWidget *view) const {
+                                 const QBrush &background, const QWidget *view, bool first, bool last) const {
     const auto *list = qobject_cast<const QAbstractItemView *>(view);
     const QWidget *viewport = list ? list->viewport() : nullptr;
     const bool pressedHere = viewport && viewport == m_rippleWidget.data() && row.contains(m_rippleOrigin.toPoint());
@@ -2255,6 +2307,29 @@ void QMaterialStyle::drawListRow(QPainter *painter, const QRect &row, bool selec
         return;
     }
     const QColor ink = color(selected ? Role::OnSecondaryContainer : Role::OnSurface);
+    if (isSegmentedList(view)) {
+        // Each row a container of its own, 2 from the next: round at the ends of the list, a little round between
+        // rows, and round all over while it is chosen or held.
+        const QRectF shape = QRectF(row).adjusted(0, 1, 0, -1);
+        const bool round = selected || held;
+        const QPainterPath outline = endedPath(shape, round || first ? listSegmentOuter : listSegmentInner,
+                                               round || last ? listSegmentOuter : listSegmentInner);
+        painter->save();
+        painter->setRenderHint(QPainter::Antialiasing);
+        if (selected && enabled)
+            painter->fillPath(outline, QBrush(color(Role::SecondaryContainer)));
+        else
+            painter->fillPath(outline,
+                              background.style() != Qt::NoBrush ? background : QBrush(color(Role::SurfaceContainer)));
+        if (selected && !enabled)
+            painter->fillPath(outline, QBrush(withOpacity(color(Role::OnSurface), disabledContainerOpacity)));
+        if (held && !m_motion)
+            painter->fillPath(outline, QBrush(withOpacity(ink, pressedOpacity)));
+        if (pressedHere)
+            drawRipple(painter, viewport, outline, shape, m_rippleOrigin, held, ink);
+        painter->restore();
+        return;
+    }
     // A little apart, so that two rows that are selected show as two. A row that is chosen or held is rounder. In a
     // navigation drawer it is a pill, in from the sides.
     const bool drawer = isDrawerList(view);
@@ -4125,31 +4200,82 @@ double QMaterialStyle::datePickerYearsShown(const QCalendarWidget *calendar, boo
 }
 
 void QMaterialStyle::drawRowIcon(QPainter *painter, const QRect &area, const QIcon &icon, QIcon::Mode mode,
-                                 bool selected, bool enabled) const {
+                                 bool selected, bool enabled, const QWidget *view) const {
+    if (const QSize picture = listLeadingSize(view); picture.isValid()) {
+        // An avatar or an image, in its own colors.
+        const QIcon::Mode shown = enabled ? QIcon::Normal : QIcon::Disabled;
+        if (picture.width() == listAvatarSize)
+            paintAvatar(painter, area, icon, shown, QIcon::Off);
+        else
+            paintPicture(painter, area, listImageCorner, icon, shown, QIcon::Off);
+        return;
+    }
     const QColor ink = !enabled ? withOpacity(color(Role::OnSurface), disabledContentOpacity)
                                 : color(selected ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
     paintIcon(painter, area, icon, mode == QIcon::Selected ? QIcon::Normal : mode, QIcon::Off, ink);
+}
+
+QSize QMaterialStyle::listLeadingSize(const QWidget *view) {
+    if (!view)
+        return QSize();
+    if (view->property("materialListAvatars").toBool())
+        return QSize(listAvatarSize, listAvatarSize);
+    if (view->property("materialListImages").toBool())
+        return QSize(listImageSize, listImageSize);
+    return QSize();
+}
+
+bool QMaterialStyle::isSegmentedList(const QWidget *view) {
+    return view && isList(view) && view->property("materialList").toString() == QLatin1String("segmented");
 }
 
 bool QMaterialStyle::isMultiPartRow(const QString &text) {
     return text.contains(QLatin1Char('\n')) || text.contains(QLatin1Char('\t'));
 }
 
-int QMaterialStyle::listRowHeight(const QString &text) {
+int QMaterialStyle::listRowHeight(const QString &text, int leading) {
     const int lines = listRowParts(text).lines;
-    return lines == 3 ? listThreeLineHeight : lines == 2 ? listTwoLineHeight : listOneLineHeight;
+    const int height = lines == 3 ? listThreeLineHeight : lines == 2 ? listTwoLineHeight : listOneLineHeight;
+    return leading > 0 ? std::max(height, leading + 2 * listLeadingPadding) : height;
 }
 
 int QMaterialStyle::listRowContentTop(const QRect &row, int height, const QString &text) {
     return listRowParts(text).lines == 3 ? row.top() + listThreeLineTop : row.top() + (row.height() - height) / 2;
 }
 
-QSize QMaterialStyle::listRowTextSize(const QString &text, const QFont &font) {
-    const ListRowParts parts = listRowParts(text);
+QRect QMaterialStyle::listCheckRect(const QRect &row, const QString &text, const QWidget *view) {
+    const int margin = isDrawerList(view) ? drawerRowInset + 16 : 16;
+    const int inset = (listCheckSlot - checkBoxSize) / 2;
+    return QRect(row.right() + 1 - margin - listCheckSlot + inset, listRowContentTop(row, listCheckSlot, text) + inset,
+                 checkBoxSize, checkBoxSize);
+}
+
+QRect QMaterialStyle::listCheckTarget(const QRect &box, const QRect &row) {
+    const int grow = (listCheckReach - box.width()) / 2;
+    return box.adjusted(-grow, -grow, grow, grow).intersected(row);
+}
+
+int QMaterialStyle::listCheckRoom() { return listCheckSlot + listTrailingSpace; }
+
+void QMaterialStyle::drawListCheck(QPainter *painter, const QRect &box, Qt::CheckState state, bool enabled,
+                                   const QWidget *view) const {
+    QStyleOptionButton option;
+    option.rect = box;
+    option.state = enabled ? State_Enabled : State_None;
+    option.state |= state == Qt::Checked ? State_On : state == Qt::PartiallyChecked ? State_NoChange : State_Off;
+    painter->save();
+    proxy()->drawPrimitive(PE_IndicatorCheckBox, &option, painter, view);
+    painter->restore();
+}
+
+QSize QMaterialStyle::listRowTextSize(const QString &text, const QFont &font, const QWidget *view) {
+    const ListRowParts parts = listRowParts(text, hasListOverline(view));
     const QFontMetrics headline(font);
+    const QFontMetrics label(listRowFont(font, 11, true));
     int width = headline.horizontalAdvance(parts.headline);
     if (!parts.trailing.isEmpty())
-        width += listTrailingSpace + QFontMetrics(listRowFont(font, 11, true)).horizontalAdvance(parts.trailing);
+        width += listTrailingSpace + label.horizontalAdvance(parts.trailing);
+    width = std::max(width, label.horizontalAdvance(parts.overline));
     // The supporting text is shortened to the width of the row, and does not widen it.
     const QFontMetrics supporting(listRowFont(font, 14, false));
     const int lines = parts.lines;
@@ -4158,26 +4284,32 @@ QSize QMaterialStyle::listRowTextSize(const QString &text, const QFont &font) {
 }
 
 void QMaterialStyle::drawListRowText(QPainter *painter, const QRect &area, const QString &text, const QFont &font,
-                                     const QColor &headlineInk, Qt::Alignment alignment, bool selected,
-                                     bool enabled) const {
-    const ListRowParts parts = listRowParts(text);
+                                     const QColor &headlineInk, Qt::Alignment alignment, bool selected, bool enabled,
+                                     const QWidget *view) const {
+    const ListRowParts parts = listRowParts(text, hasListOverline(view));
     const QColor quiet = !enabled ? withOpacity(color(Role::OnSurface), disabledContentOpacity)
                                   : color(selected ? Role::OnSecondaryContainer : Role::OnSurfaceVariant);
     const QFont supportingFont = listRowFont(font, 14, false);
     const QFont trailingFont = listRowFont(font, 11, true);
     const QFontMetrics headlineMetrics(font);
     const QFontMetrics supportingMetrics(supportingFont);
+    const QFontMetrics labelMetrics(trailingFont);
+    const bool over = parts.hasOverline;
+    const int overlineHeight = over ? std::max(listOverlineLine, labelMetrics.height()) : 0;
     const int headlineHeight = std::max(listHeadlineLine, headlineMetrics.height());
     const int supportingHeight = std::max(listSupportingLine, supportingMetrics.height());
-    const int block = headlineHeight + (parts.lines - 1) * supportingHeight;
+    // Under an overline, one line of supporting text.
+    const int supportingLines = over ? 1 : parts.lines - 1;
+    const int block = overlineHeight + headlineHeight + supportingLines * supportingHeight;
     const int top = parts.lines == 3 ? area.top() + listThreeLineTop : area.top() + (area.height() - block) / 2;
+    const int headlineTop = top + overlineHeight;
     const int horizontal = static_cast<int>(alignment & Qt::AlignHorizontal_Mask);
     QRect room = area;
     painter->save();
     if (!parts.trailing.isEmpty()) {
         // At the trailing end, in the middle of the row, or beside the headline of a row of three lines.
-        const int width = QFontMetrics(trailingFont).horizontalAdvance(parts.trailing);
-        const QRect trailing = parts.lines == 3 ? QRect(area.right() + 1 - width, top, width, headlineHeight)
+        const int width = labelMetrics.horizontalAdvance(parts.trailing);
+        const QRect trailing = parts.lines == 3 ? QRect(area.right() + 1 - width, headlineTop, width, headlineHeight)
                                                 : QRect(area.right() + 1 - width, area.top(), width, area.height());
         painter->setFont(trailingFont);
         painter->setPen(quiet);
@@ -4185,22 +4317,31 @@ void QMaterialStyle::drawListRowText(QPainter *painter, const QRect &area, const
         room.setRight(trailing.left() - listTrailingSpace - 1);
     }
     const int width = std::max(0, room.width());
+    if (over) {
+        // The overline takes the whole width: the trailing text is beside the headline.
+        painter->setFont(trailingFont);
+        painter->setPen(quiet);
+        painter->drawText(QRect(area.left(), top, std::max(0, area.width()), overlineHeight),
+                          horizontal | Qt::AlignVCenter | Qt::TextSingleLine,
+                          labelMetrics.elidedText(parts.overline, Qt::ElideRight, std::max(0, area.width())));
+    }
     painter->setFont(font);
     painter->setPen(headlineInk);
-    painter->drawText(QRect(room.left(), top, width, headlineHeight),
+    painter->drawText(QRect(room.left(), headlineTop, width, headlineHeight),
                       horizontal | Qt::AlignVCenter | Qt::TextSingleLine,
                       headlineMetrics.elidedText(parts.headline, Qt::ElideRight, width));
     if (parts.lines > 1) {
-        // One line of a row of two lines; up to two of a row of three, the second shortened if there is more.
-        QStringList lines =
-            parts.lines == 3 ? wrapListText(parts.supporting, supportingMetrics, width) : QStringList{parts.supporting};
-        while (lines.size() > parts.lines - 1) {
+        // One line of a row of two lines, or under an overline; up to two of a row of three, the second shortened if
+        // there is more.
+        QStringList lines = supportingLines == 2 ? wrapListText(parts.supporting, supportingMetrics, width)
+                                                 : QStringList{parts.supporting};
+        while (lines.size() > supportingLines) {
             lines[lines.size() - 2] += QLatin1Char(' ') + lines.last();
             lines.removeLast();
         }
         painter->setFont(supportingFont);
         painter->setPen(quiet);
-        int y = top + headlineHeight;
+        int y = headlineTop + headlineHeight;
         for (const QString &line : lines) {
             painter->drawText(QRect(room.left(), y, width, supportingHeight),
                               horizontal | Qt::AlignVCenter | Qt::TextSingleLine,
@@ -5938,6 +6079,14 @@ QRect QMaterialStyle::subElementRect(SubElement element, const QStyleOption *opt
                      checkBoxSize);
     }
     switch (element) {
+    case SE_ItemViewItemCheckIndicator:
+        // At the trailing end of a row of a list.
+        if (const auto *item = qstyleoption_cast<const QStyleOptionViewItem *>(option);
+            item && isList(widget) &&
+            (item->decorationPosition == QStyleOptionViewItem::Left ||
+             item->decorationPosition == QStyleOptionViewItem::Right))
+            return listCheckRect(r, item->text, widget);
+        break;
     case SE_PushButtonContents:
         // The open FAB is a circle at the right of the whole button. A button with a size is made as wide as its label
         // needs with the room of that size, so its label has the whole of it.

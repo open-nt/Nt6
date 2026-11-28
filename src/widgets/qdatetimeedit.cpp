@@ -5,6 +5,8 @@
 #include "qwidget_p.h"
 
 #include <QtGui/qevent.h>
+#include <QtGui/qguiapplication.h>
+#include <QtGui/qinputmethod.h>
 #include <QtWidgets/qcalendarwidget.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qmaterialstyle.h>
@@ -908,6 +910,14 @@ void QDateTimeEdit::changeEvent(QEvent *event) {
 // input. It is made the first time that the style wants one, after the line edit, so that Tab comes to it from the
 // keys, and goes where the style puts it.
 void QDateTimeEdit::layoutTimeToggle() {
+    // The dial is set with the finger or the arrow keys: its line edit calls up no on-screen keyboard, which would
+    // cover the dial, and one that is shown goes as the dial takes the place of the input.
+    const bool dial = qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isTimeDial(this);
+    if (QLineEdit *edit = lineEdit(); edit && edit->testAttribute(Qt::WA_InputMethodEnabled) == dial) {
+        edit->setAttribute(Qt::WA_InputMethodEnabled, !dial);
+        if (edit->hasFocus())
+            QGuiApplication::inputMethod()->setVisible(!dial);
+    }
     const QRect rect = qobject_cast<const QMaterialStyle *>(style()) ? QMaterialStyle::timeToggleRect(this) : QRect();
     if (!rect.isValid()) {
         if (m_timeToggle)

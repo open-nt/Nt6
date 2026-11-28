@@ -4137,6 +4137,38 @@ void testTimeDial() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A time picker with its dial in a dialog takes a press that comes through the window where the dial is drawn.
+void testTimeDialInDialog() {
+    auto *style = new QMaterialStyle;
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    QDialog dialog;
+    auto *rows = new QVBoxLayout(&dialog);
+    rows->setContentsMargins(24, 24, 24, 16);
+    rows->setSpacing(16);
+    auto *edit = new QTimeEdit(QTime(15, 50));
+    edit->setDisplayFormat(QStringLiteral("h:mm AP"));
+    edit->setProperty("materialTimeInput", QStringLiteral("dial"));
+    rows->addWidget(edit, 0, Qt::AlignHCenter);
+    rows->addWidget(new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel));
+    dialog.resize(330, 640);
+    dialog.show();
+    QCoreApplication::processEvents();
+    // The dial's middle is 140 across and 280 down the picker, which the edit centres in itself.
+    const QSize picker = edit->sizeHint();
+    const QPoint origin((edit->width() - picker.width()) / 2, (edit->height() - picker.height()) / 2);
+    const QPoint middle = edit->mapTo(&dialog, origin + QPoint(140, 280));
+    const QPointF nine(middle - QPoint(101, 0));
+    QWindow *handle = dialog.windowHandle();
+    QWindowSystemInterface::handleMouseEvent(handle, nine, nine, Qt::LeftButton, Qt::LeftButton,
+                                             QEvent::MouseButtonPress, Qt::NoModifier);
+    QWindowSystemInterface::handleMouseEvent(handle, nine, nine, Qt::NoButton, Qt::LeftButton,
+                                             QEvent::MouseButtonRelease, Qt::NoModifier);
+    QCoreApplication::processEvents();
+    CHECK(edit->time().hour() == 21);
+    QApplication::setStyle(QStringLiteral("fusion"));
+}
+
 void testTimeToggle() {
     auto *style = new QMaterialStyle;
     style->setColorScheme(Qt::ColorScheme::Light);
@@ -4180,6 +4212,8 @@ void testTimeToggle() {
     CHECK(line != nullptr);
     if (!line)
         return;
+    // The dial calls up no on-screen keyboard; the input does (below).
+    CHECK(!line->inputMethodQuery(Qt::ImEnabled).toBool());
     // Tab from the keys comes to the button, with its focus ring; the dial then shows the hours.
     line->setFocus();
     QCoreApplication::processEvents();
@@ -4198,6 +4232,7 @@ void testTimeToggle() {
     QCoreApplication::processEvents();
     CHECK(toggle->geometry() == QRect(0, 128 + 20, 48, 48));
     CHECK(toggle->accessibleName() == QLatin1String("Switch to clock mode for the time input"));
+    CHECK(line->inputMethodQuery(Qt::ImEnabled).toBool());
     const QImage input = window.grab().toImage().copy(edit->geometry());
     CHECK(is(input.pixelColor(10, 36 + 10), Role::SurfaceContainerHighest));
     CHECK(is(input.pixelColor(10, 20), Role::Surface));                 // over the boxes, under the headline's text
@@ -9508,6 +9543,7 @@ int main(int argc, char *argv[]) {
     testTimeInput();
     testTimeDial();
     testTimeToggle();
+    testTimeDialInDialog();
     testTimeDialMotion();
     testSpinBoxAndScrollBar();
     testScrollBarRest();

@@ -84,6 +84,8 @@ QLineEdit::QLineEdit(QWidget *parent) : QWidget(parent) {
     setFocusPolicy(Qt::StrongFocus);
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
     setMouseTracking(true); // for the icon button under the pointer
+    // As in Qt; a widget that holds the line edit may turn it off to keep an on-screen keyboard away.
+    setAttribute(Qt::WA_InputMethodEnabled);
 }
 
 /*!
@@ -1639,7 +1641,7 @@ QVariant QLineEdit::inputMethodQuery(Qt::InputMethodQuery property) const {
         return QVariant(static_cast<int>(hints.toInt()));
     }
     case Qt::ImEnabled:
-        return QVariant(isEnabled() && !m_readOnly);
+        return QVariant(isEnabled() && !m_readOnly && testAttribute(Qt::WA_InputMethodEnabled));
     case Qt::ImCursorRectangle:
         return QVariant(cursorRect());
     case Qt::ImFont:

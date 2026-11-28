@@ -9,6 +9,7 @@
 
 #include <QtCore/qcoreapplication.h>
 #include <QtCore/qhash.h>
+#include <QtCore/qpointer.h>
 #include <QtCore/qscopeguard.h>
 #include <QtGui/qevent.h>
 #include <QtGui/qfont.h>
@@ -86,6 +87,7 @@ constexpr int scrollRestDelay = 1500; // milliseconds that a scroll bar is left 
 // The child of a scroll bar that wakes it and lets it rest, and the property of the bar in which it says which.
 const char *const scrollRestWatcher = "_nt_materialScrollRest";
 const char *const scrollAwake = "_nt_scrollAwake";
+const char *const scrollHoverWatcher = "_nt_materialScrollHover";
 constexpr int timeBoxWidth = 96;   // of the hour and of the minute in a time input
 constexpr int timeBoxHeight = 72;
 constexpr double timeBoxCorner = 8;
@@ -100,6 +102,7 @@ constexpr int datePickerInset = 24;          // of its texts from the left, and 
 constexpr int datePickerHeadlinePixels = 32; // headline large
 constexpr int datePickerModeButtonSize = 48; // the icon button at the end of the row of the date, an icon of 24
 constexpr int datePickerFieldTop = 16;       // the text field of the input mode, under the headline
+constexpr int datePickerFieldBottom = 8;     // and above the actions of the dialog, which have room of their own
 constexpr int calendarYearWidth = 72;        // the pill of a year in the grid of years
 constexpr int calendarYearHeight = 36;
 constexpr int calendarMenuArrow = 18; // the arrow after the month and the year, which opens the years
@@ -121,6 +124,9 @@ constexpr int fieldSupportRoom = 20; // and below one with a line of supporting 
 constexpr int fieldSmallPixels = 12; // the label that has floated up, and the supporting text
 constexpr int fieldInputPixels = 16;
 constexpr int textFieldPadding = 16;
+constexpr int editorDocumentMargin = 4;  // QPlainTextEdit's margin around its text
+constexpr int editorFilledLabelTop = 26; // over the first line of a filled multi-line field with a label
+constexpr int textCursorWidth = 2;
 constexpr int fieldIcon = 24;                                      // an icon at an end of a text field,
 constexpr int fieldIconMargin = 16;                                // with this much more room, 4 of it toward the edge
 constexpr int searchIcon = 24;                                     // the magnifier of a search bar,
@@ -864,8 +870,38 @@ struct TextField {
     QRect box(const QRect &widget) const { return widget.adjusted(0, above, 0, -below); }
 };
 
+// A text editor with its usual frame that is a text field: it asks for one with materialTextField, or has a label,
+// supporting text or an error. Another keeps its plain outlined frame.
+bool isEditorField(const QWidget *widget) {
+    const auto *frame = qobject_cast<const QFrame *>(widget);
+    if (!frame || !isTextEditor(widget) || frame->frameShape() != QFrame::StyledPanel)
+        return false;
+    const QString kind = widget->property("materialTextField").toString();
+    return kind == QLatin1String("outlined") || kind == QLatin1String("filled") ||
+           !widget->property("materialLabel").toString().isEmpty() ||
+           widget->property("materialSupportingText").isValid() || widget->property("materialError").isValid();
+}
+
+// The kind, label, supporting text and error that a field has from its properties; the counter is the line edit's.
+void readTextField(TextField &field, const QWidget *widget) {
+    field.filled = widget->property("materialTextField").toString() == QLatin1String("filled");
+    field.label = widget->property("materialLabel").toString();
+    const QVariant supporting = widget->property("materialSupportingText");
+    const QVariant error = widget->property("materialError");
+    field.error = !error.toString().isEmpty();
+    field.supporting = field.error ? error.toString() : supporting.toString();
+    field.above = !field.filled && !field.label.isEmpty() ? fieldLabelRoom : 0;
+    // The room is kept while either is there, even empty, so that an error that comes does not move what is below.
+    field.below = supporting.isValid() || error.isValid() ? fieldSupportRoom : 0;
+}
+
 TextField textFieldOf(const QWidget *widget) {
     TextField field;
+    if (isTextEditor(widget)) {
+        if (isEditorField(widget))
+            readTextField(field, widget);
+        return field;
+    }
     if (const auto *spin = qobject_cast<const QAbstractSpinBox *>(widget)) {
         if (spin->hasFrame()) { // a time input lays itself out before it would ask
             field.label = spin->property("materialLabel").toString();
@@ -879,24 +915,38 @@ TextField textFieldOf(const QWidget *widget) {
     field.search = edit->property("materialTextField").toString() == QLatin1String("search");
     if (field.search)
         return field;
-    field.filled = edit->property("materialTextField").toString() == QLatin1String("filled");
-    field.label = edit->property("materialLabel").toString();
-    const QVariant supporting = edit->property("materialSupportingText");
-    const QVariant error = edit->property("materialError");
-    field.error = !error.toString().isEmpty();
-    field.supporting = field.error ? error.toString() : supporting.toString();
-    if (edit->property("materialCounter").toBool())
+    readTextField(field, edit);
+    if (edit->property("materialCounter").toBool()) {
         field.counter = QStringLiteral("%1/%2").arg(edit->text().size()).arg(edit->maxLength());
-    field.above = !field.filled && !field.label.isEmpty() ? fieldLabelRoom : 0;
-    // The room is kept while either is there, even empty, so that an error that comes does not move what is below.
-    field.below = supporting.isValid() || error.isValid() || !field.counter.isEmpty() ? fieldSupportRoom : 0;
+        field.below = fieldSupportRoom;
+    }
     return field;
+}
+
+// What a text editor that is a field adds to the room around its viewport: its text is 16 from the sides of the
+// container as in a line edit, a single line is in the middle of a container of 56 (under the label of a filled one),
+// and there is the room above and below the container.
+QMargins editorFieldMargins(const QWidget *editor) {
+    if (!isEditorField(editor))
+        return {};
+    const TextField field = textFieldOf(editor);
+    const int line = QFontMetrics(editor->font()).height();
+    constexpr int inset = editorFrame + editorDocumentMargin;
+    const int top = field.filled && !field.label.isEmpty() ? editorFilledLabelTop
+                                                           : std::max(inset, (textFieldHeight - line + 1) / 2);
+    const int bottom = std::max(inset, textFieldHeight - top - line);
+    constexpr int side = textFieldPadding - inset;
+    return {side, field.above + top - inset, side, field.below + bottom - inset};
 }
 
 // Whether a text field has the focus; a spin box has it while its line edit has.
 bool hasFieldFocus(const QWidget *field) {
     if (field->hasFocus())
         return true;
+    if (isTextEditor(field)) { // or its viewport has
+        const QWidget *focus = QApplication::focusWidget();
+        return focus && field->isAncestorOf(focus);
+    }
     if (!qobject_cast<const QAbstractSpinBox *>(field))
         return false;
     const QObjectList &children = field->children();
@@ -911,6 +961,8 @@ bool hasFieldFocus(const QWidget *field) {
 bool isLabelUp(const QWidget *field) {
     if (const auto *spin = qobject_cast<const QAbstractSpinBox *>(field))
         return hasFieldFocus(spin) || !spin->text().isEmpty();
+    if (const auto *editor = qobject_cast<const QPlainTextEdit *>(field)) // a QTextEdit too
+        return hasFieldFocus(editor) || !editor->toPlainText().isEmpty();
     const auto *edit = qobject_cast<const QLineEdit *>(field);
     return !edit || edit->hasFocus() || !edit->text().isEmpty();
 }
@@ -1068,6 +1120,18 @@ const char *const polishedFont = "_nt_materialFont";
 const char *const polishedPalette = "_nt_materialPalette";
 const char *const polishedFrame = "_nt_materialFrame"; // the frame style that a widget had
 const char *const polishedIconSize = "_nt_materialIconSize"; // the icon size was given by the style
+const char *const polishedMargins = "_nt_materialMargins";   // the viewport margins of a multi-line field
+const char *const polishedPolicy = "_nt_materialPolicy";     // the vertical size policy that a growing field had
+const char *const fieldWatcher = "_nt_materialFieldWatcher";
+
+// Gives a text editor the room that its field needs around its viewport, or takes back what it was given.
+void layOutEditorField(QAbstractScrollArea *editor) {
+    const QMargins margins = editorFieldMargins(editor);
+    if (margins.isNull() && !editor->property(polishedMargins).toBool())
+        return;
+    editor->setViewportMargins(margins);
+    editor->setProperty(polishedMargins, margins.isNull() ? QVariant() : QVariant(true));
+}
 
 QColor withOpacity(QColor color, double opacity) {
     color.setAlphaF(opacity);
@@ -1236,6 +1300,12 @@ public:
         bar->installEventFilter(this);
     }
 
+    // Shows the handle, which rests again once the bar has been left alone for the delay.
+    void wake() {
+        m_timer.start();
+        setAwake(true);
+    }
+
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override {
         switch (event->type()) {
@@ -1253,10 +1323,6 @@ protected:
     }
 
 private:
-    void wake() {
-        m_timer.start();
-        setAwake(true);
-    }
     void setAwake(bool awake) {
         const QVariant was = m_bar->property(scrollAwake);
         if (!was.isValid() || was.toBool() != awake)
@@ -1266,6 +1332,85 @@ private:
 
     QScrollBar *m_bar;
     QTimer m_timer;
+};
+
+// Wakes the scroll bars of a scroll area while a mouse moves over the area, its viewport or its bars, as overlay scroll
+// bars do; they rest again once the pointer stops or leaves. A move without a button is a mouse that hovers: a finger
+// sent as the mouse always holds the left button, so a tap does not wake them. The viewport gets no such moves without
+// mouse tracking, which would change what item views emit, so from the time the pointer enters the area until it
+// leaves this also filters the moves that reach its window. It is a child of the area, so it goes with it, or when
+// unpolish() deletes it, and the filters go with it.
+class ScrollAreaHover : public QObject {
+public:
+    explicit ScrollAreaHover(QAbstractScrollArea *area) : QObject(area), m_area(area) {
+        setObjectName(QLatin1String(scrollHoverWatcher));
+        area->installEventFilter(this);
+        watchViewport();
+    }
+    ~ScrollAreaHover() override {
+        if (m_window)
+            m_window->removeEventFilter(this);
+        if (m_viewport)
+            m_viewport->removeEventFilter(this);
+    }
+    ScrollAreaHover(const ScrollAreaHover &) = delete;
+    ScrollAreaHover &operator=(const ScrollAreaHover &) = delete;
+
+protected:
+    bool eventFilter(QObject *watched, QEvent *event) override {
+        const QEvent::Type type = event->type();
+        if (watched == m_window.data()) {
+            if (type == QEvent::MouseMove) {
+                const auto *move = static_cast<QMouseEvent *>(event);
+                if (move->buttons() == Qt::NoButton && m_area->isVisible() &&
+                    m_area->rect().contains(m_area->mapFrom(m_area->window(), move->position().toPoint())))
+                    wakeBars();
+            }
+        } else if (type == QEvent::Enter) {
+            // The area is entered before its viewport, and stays entered while the pointer is on either.
+            watchViewport();
+            watchWindow(true);
+        } else if ((type == QEvent::Leave || type == QEvent::Hide) && watched == m_area) {
+            watchWindow(false);
+        }
+        return QObject::eventFilter(watched, event);
+    }
+
+private:
+    // The viewport may have been replaced with setViewport().
+    void watchViewport() {
+        QWidget *viewport = m_area->viewport();
+        if (viewport == m_viewport.data())
+            return;
+        if (m_viewport)
+            m_viewport->removeEventFilter(this);
+        m_viewport = viewport;
+        if (viewport)
+            viewport->installEventFilter(this);
+    }
+    void watchWindow(bool on) {
+        QWindow *window = on ? m_area->window()->windowHandle() : nullptr;
+        if (window == m_window.data())
+            return;
+        if (m_window)
+            m_window->removeEventFilter(this);
+        m_window = window;
+        if (window)
+            window->installEventFilter(this);
+    }
+    void wakeBars() {
+        for (QScrollBar *bar : {m_area->verticalScrollBar(), m_area->horizontalScrollBar()}) {
+            if (!bar || !bar->isVisible())
+                continue;
+            if (auto *rest = static_cast<ScrollBarRest *>(
+                    bar->findChild<QObject *>(QLatin1String(scrollRestWatcher), Qt::FindDirectChildrenOnly)))
+                rest->wake();
+        }
+    }
+
+    QAbstractScrollArea *m_area;
+    QPointer<QWidget> m_viewport;
+    QPointer<QWindow> m_window;
 };
 
 // Whether the scroll bar keeps its handle shown at rest: `materialScrollBar` = "always" on it or on its scroll area.
@@ -1373,7 +1518,9 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         navigation of an application and its pages. \c "navigationRailExpanded" makes it the expanded rail: as wide as
         its longest destination needs, from 220 to 360, each destination a row of 56 with the icon and the label beside
         it, and a pill across the row behind the one that is current. A dot badge is on the icon and a count at the end
-        of the row. Setting the property while the rail is shown expands or collapses it at once.
+        of the row. Setting the property while the rail is shown expands or collapses it at once. Destinations that do
+        not fit the height of the rail scroll, with the wheel or a drag, and the current one is scrolled into sight;
+        there are no scroll buttons.
     \li \c materialBadge of an icon button or a button of a toolbar puts a badge on its icon: \c true is a dot, and a
         number above 0, or a text, is shown in it (over 999 as 999+); 0, \c false or an empty text take it away. The
         destinations of a navigation bar or rail have theirs in \c materialBadges of the QTabBar, a QVariantList with
@@ -1425,6 +1572,11 @@ bool scrollBarAlwaysShown(const QWidget *bar) {
         hour and the minute (and the second, if the format shows it), and a choice of AM or PM if the format has one.
         A click chooses a box; digits typed, the arrow keys and the wheel change what is in it.
     \li A QTextEdit or QPlainTextEdit with its usual frame is an outlined field, its text 16 and clear of the border.
+        With \c materialTextField \c "outlined" or \c "filled", \c materialLabel, \c materialSupportingText or
+        \c materialError it is a multi-line text field, drawn as a QLineEdit's is, its label resting on the first
+        line. With \c materialTextField it grows with its lines up to its maximum height: the style sets its vertical
+        size policy to QSizePolicy::Maximum, so give it a fixed height to keep one. The text cursor of these and of a
+        QLineEdit is in the accent color (red with an error) and 2 wide.
         A QGroupBox is a section: its title in the accent color over an outlined card, or over a line if it is flat; the
         check box of a checkable one is a Material one. Neither needs a property.
     \li A spin box, among them a date or time edit, is an outlined field of 56 with a button that steps down and one
@@ -1836,8 +1988,9 @@ void QMaterialStyle::setMotionEnabled(bool enabled) {
 double QMaterialStyle::animated(const QWidget *widget, int channel, double target, const QtPrivate::SpringSpec &spring,
                                 double precision) const {
     // Only widgets that draw one such thing each: a view draws many indicators with the same widget.
-    if (!m_motion || !(qobject_cast<const QAbstractButton *>(widget) || qobject_cast<const QSlider *>(widget) ||
-                       qobject_cast<const QLineEdit *>(widget) || qobject_cast<const QTabBar *>(widget)))
+    if (!m_motion ||
+        !(qobject_cast<const QAbstractButton *>(widget) || qobject_cast<const QSlider *>(widget) ||
+          qobject_cast<const QLineEdit *>(widget) || qobject_cast<const QTabBar *>(widget) || isTextEditor(widget)))
         return target;
     return m_animator->value(widget, channel, target, spring, precision);
 }
@@ -1988,6 +2141,10 @@ void QMaterialStyle::polish(QWidget *widget) {
     if (auto *bar = qobject_cast<QScrollBar *>(widget);
         bar && !bar->findChild<QObject *>(QLatin1String(scrollRestWatcher), Qt::FindDirectChildrenOnly))
         new ScrollBarRest(bar);
+    // and fades in while a mouse moves over the content of its scroll area.
+    if (auto *area = qobject_cast<QAbstractScrollArea *>(widget);
+        area && !area->findChild<QObject *>(QLatin1String(scrollHoverWatcher), Qt::FindDirectChildrenOnly))
+        new ScrollAreaHover(area);
     if (qobject_cast<QDialog *>(widget) && !widget->testAttribute(Qt::WA_SetPalette)) {
         QPalette palette = widget->palette();
         palette.setColor(QPalette::Window,
@@ -2087,6 +2244,36 @@ void QMaterialStyle::polish(QWidget *widget) {
         widget->setFont(font);
         widget->setProperty(polishedFont, true);
     }
+    if (isTextEditor(widget))
+        polishEditorField(static_cast<QAbstractScrollArea *>(widget));
+}
+
+// A multi-line text field: a filled one's container shows through its viewport, its frame repaints as its text
+// comes and goes (the label floats), and one that grows with its text takes the height that its text asks for.
+void QMaterialStyle::polishEditorField(QAbstractScrollArea *editor) const {
+    if (!isEditorField(editor))
+        return;
+    if (textFieldOf(editor).filled &&
+        (!editor->testAttribute(Qt::WA_SetPalette) || editor->property(polishedPalette).toBool())) {
+        QPalette palette = editor->palette();
+        palette.setColor(QPalette::Base, color(Role::SurfaceContainerHighest));
+        palette.setColor(QPalette::Disabled, QPalette::Base, blend(color(Role::Surface), color(Role::OnSurface), 0.04));
+        editor->setPalette(palette);
+        editor->setProperty(polishedPalette, true);
+    }
+    if (!editor->findChild<QObject *>(QLatin1String(fieldWatcher), Qt::FindDirectChildrenOnly)) {
+        auto *watcher = new QObject(editor); // the connection goes when unpolish() deletes it
+        watcher->setObjectName(QLatin1String(fieldWatcher));
+        QObject::connect(static_cast<QPlainTextEdit *>(editor), &QPlainTextEdit::textChanged, watcher,
+                         [editor] { editor->update(); });
+    }
+    if (growsWithContent(editor) && !editor->property(polishedPolicy).isValid()) {
+        QSizePolicy policy = editor->sizePolicy();
+        editor->setProperty(polishedPolicy, static_cast<int>(policy.verticalPolicy()));
+        policy.setVerticalPolicy(QSizePolicy::Maximum);
+        editor->setSizePolicy(policy);
+    }
+    layOutEditorField(editor);
 }
 
 /*!
@@ -2103,8 +2290,10 @@ void QMaterialStyle::unpolish(QWidget *widget) {
         view->setIconSize(QSize());
         widget->setProperty(polishedIconSize, QVariant());
     }
-    if (qobject_cast<QAbstractScrollArea *>(widget))
+    if (qobject_cast<QAbstractScrollArea *>(widget)) {
         delete widget->findChild<QObject *>(QLatin1String(appBarWatcher), Qt::FindDirectChildrenOnly);
+        delete widget->findChild<QObject *>(QLatin1String(scrollHoverWatcher), Qt::FindDirectChildrenOnly);
+    }
     if (qobject_cast<QScrollBar *>(widget)) {
         delete widget->findChild<QObject *>(QLatin1String(scrollRestWatcher), Qt::FindDirectChildrenOnly);
         widget->setProperty(scrollAwake, QVariant());
@@ -2117,6 +2306,19 @@ void QMaterialStyle::unpolish(QWidget *widget) {
         widget->setFont(QFont());
         widget->setAttribute(Qt::WA_SetFont, false);
         widget->setProperty(polishedFont, QVariant());
+    }
+    if (auto *editor = qobject_cast<QAbstractScrollArea *>(widget); editor && isTextEditor(widget)) {
+        delete widget->findChild<QObject *>(QLatin1String(fieldWatcher), Qt::FindDirectChildrenOnly);
+        if (const QVariant policy = widget->property(polishedPolicy); policy.isValid()) {
+            QSizePolicy restored = widget->sizePolicy();
+            restored.setVerticalPolicy(static_cast<QSizePolicy::Policy>(policy.toInt()));
+            widget->setSizePolicy(restored);
+            widget->setProperty(polishedPolicy, QVariant());
+        }
+        if (widget->property(polishedMargins).toBool()) {
+            editor->setViewportMargins(QMargins());
+            widget->setProperty(polishedMargins, QVariant());
+        }
     }
     QCommonStyle::unpolish(widget);
 }
@@ -2185,6 +2387,11 @@ bool QMaterialStyle::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::FocusIn || event->type() == QEvent::FocusOut) {
         if (auto *widget = qobject_cast<QWidget *>(watched); widget && isTextEditor(widget))
             widget->update();
+    }
+    // The room around the text of a multi-line field follows the height of its lines.
+    if (event->type() == QEvent::FontChange) {
+        if (auto *widget = qobject_cast<QWidget *>(watched); widget && isTextEditor(widget) && widget->style() == this)
+            layOutEditorField(static_cast<QAbstractScrollArea *>(widget));
     }
     // A floating action button that comes or goes, as with the page that it is on, moves a snackbar that is shown.
     if (event->type() == QEvent::Show || event->type() == QEvent::Hide) {
@@ -3120,8 +3327,33 @@ void QMaterialStyle::drawClearButton(QPainter *painter, const QRect &area) const
     painter->restore();
 }
 
-bool QMaterialStyle::hidesPlaceholder(const QLineEdit *field) const {
+bool QMaterialStyle::hidesPlaceholder(const QWidget *field) const {
     return !textFieldOf(field).label.isEmpty() && !isLabelUp(field);
+}
+
+QColor QMaterialStyle::caretColor(const QWidget *field) const {
+    return color(textFieldOf(field).error ? Role::Error : Role::Primary);
+}
+
+// The viewport of a text editor lies over the frame where the label rests, so it draws the label too, in the same
+// place: what each draws joins where the label crosses the edge of the viewport on its way up.
+void QMaterialStyle::drawEditorLabel(QPainter *painter, const QAbstractScrollArea *editor) const {
+    if (!isEditorField(editor) || textFieldOf(editor).label.isEmpty())
+        return;
+    QStyleOption option;
+    option.initFrom(editor);
+    option.rect = editor->frameRect();
+    painter->save();
+    painter->translate(-QPointF(editor->viewport()->pos()));
+    drawTextFieldText(painter, &option, editor);
+    painter->restore();
+}
+
+bool QMaterialStyle::growsWithContent(const QWidget *editor) {
+    if (!isEditorField(editor))
+        return false;
+    const QString kind = editor->property("materialTextField").toString();
+    return kind == QLatin1String("outlined") || kind == QLatin1String("filled");
 }
 
 QString QMaterialStyle::fieldAffix(const QLineEdit *field, bool suffix) const {
@@ -3172,7 +3404,11 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
         QFont font = widget->font();
         font.setPixelSize(static_cast<int>(std::lround(fieldInputPixels - (fieldInputPixels - fieldSmallPixels) * up)));
         // Floating, it is on the outline of an outlined field, and in the upper part of a filled one.
-        const double rest = box.center().y();
+        // A multi-line field's label rests on its first line.
+        double rest = box.center().y();
+        if (const auto *editor = qobject_cast<const QAbstractScrollArea *>(widget); editor && isTextEditor(editor))
+            rest = editor->viewport()->geometry().top() + editorDocumentMargin +
+                   QFontMetrics(widget->font()).height() / 2.0;
         const double floated = field.filled ? box.top() + 16 : box.top();
         const double middle = rest + (floated - rest) * up;
         // It rests where the text begins, after the leading icons; on the outline it floats back to the edge.
@@ -3190,7 +3426,7 @@ void QMaterialStyle::drawTextFieldText(QPainter *painter, const QStyleOption *op
         painter->setPen(ink);
         // The label of a spin box stops before its buttons.
         int end = static_cast<int>(box.right()) + 1 - textFieldPadding;
-        if (!edit)
+        if (qobject_cast<const QAbstractSpinBox *>(widget))
             end = std::min(end, proxy()->subElementRect(SE_SpinBoxEditField, option, widget).right() + 1);
         const int width = std::max(0, end - left);
         painter->drawText(QRect(left, static_cast<int>(middle) - 10, width, 20),
@@ -3223,7 +3459,9 @@ void QMaterialStyle::propertyChanged(QWidget *widget) {
         qobject_cast<QMenu *>(widget)) {
         QEvent change(QEvent::StyleChange); // it lays itself out anew
         QCoreApplication::sendEvent(widget, &change);
-    } else if (widget->property(polishedFont).toBool() || widget->property(polishedPalette).toBool()) {
+    } else if (isTextEditor(widget) || widget->property(polishedFont).toBool() ||
+               widget->property(polishedPalette).toBool()) {
+        // A text editor may have become a text field, or another kind of one.
         // The font or the colors may be others now: a size of button has its own, and so has a navigation drawer.
         unpolish(widget);
         polish(widget);
@@ -3416,15 +3654,18 @@ void QMaterialStyle::drawChipLabel(const QStyleOption *option, QPainter *painter
 }
 
 void QMaterialStyle::drawEditorFrame(QPainter *painter, const QFrame *editor) const {
-    const QWidget *focus = QApplication::focusWidget();
-    const bool focused = focus && (focus == editor || editor->isAncestorOf(focus));
-    const QRectF box(editor->frameRect());
+    // The container, outline or line, label and supporting text of a line edit's field.
+    QStyleOptionFrame option;
+    option.initFrom(editor);
+    option.rect = editor->frameRect();
+    option.lineWidth = 1;
+    if (hasFieldFocus(editor))
+        option.state |= State_HasFocus;
+    else
+        option.state &= ~State_HasFocus;
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
-    fillRounded(painter, box, textFieldCorner, editor->palette().color(QPalette::Base));
-    const QColor line = !editor->isEnabled() ? withOpacity(color(Role::OnSurface), 0.12)
-                                             : color(focused ? Role::Primary : Role::Outline);
-    strokeRounded(painter, box, textFieldCorner, line, focused ? 3 : 1);
+    proxy()->drawPrimitive(PE_PanelLineEdit, &option, painter, editor);
     painter->restore();
 }
 
@@ -3498,6 +3739,10 @@ QRect QMaterialStyle::datePickerModeButton(const QRect &headline) {
                  datePickerModeButtonSize, datePickerModeButtonSize);
 }
 
+int QMaterialStyle::datePickerInputHeight(int fieldHeight) {
+    return datePickerHeader + 1 + datePickerFieldTop + fieldHeight + datePickerFieldBottom;
+}
+
 QRect QMaterialStyle::datePickerField(const QRect &room, int fieldHeight) {
     return QRect(room.left() + datePickerInset, room.top() + datePickerFieldTop,
                  std::max(0, room.width() - 2 * datePickerInset), fieldHeight);
@@ -3532,7 +3777,16 @@ void QMaterialStyle::drawDatePickerHeadline(QPainter *painter, const QRect &rect
     const QString date = calendar->selectedDate().toString(QStringLiteral("ddd, MMM d"));
     painter->drawText(bottom, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine,
                       QFontMetrics(headline).elidedText(date, Qt::ElideRight, bottom.width()));
-    // The icon of the button, 24 in its middle: a pencil for the input mode, a calendar for the days.
+    painter->restore();
+    painter->fillRect(QRect(rect.left(), rect.top() + datePickerHeader, rect.width(), 1), color(Role::OutlineVariant));
+}
+
+void QMaterialStyle::drawDatePickerModeIcon(QPainter *painter, const QRect &button, const QWidget *widget,
+                                            bool input) const {
+    const QColor ink = widget->isEnabled() ? color(Role::OnSurfaceVariant)
+                                           : withOpacity(color(Role::OnSurface), disabledContentOpacity);
+    painter->save();
+    // 24 in the middle of the button: a pencil for the input mode, a calendar for the days.
     painter->setRenderHint(QPainter::Antialiasing);
     painter->translate(QPointF(button.center()) + QPointF(0.5, 0.5));
     if (input) {
@@ -3561,7 +3815,6 @@ void QMaterialStyle::drawDatePickerHeadline(QPainter *painter, const QRect &rect
         painter->drawLine(QPointF(-6, -3), QPointF(-6, 3));
     }
     painter->restore();
-    painter->fillRect(QRect(rect.left(), rect.top() + datePickerHeader, rect.width(), 1), color(Role::OutlineVariant));
 }
 
 void QMaterialStyle::drawCalendarTitle(QPainter *painter, const QRect &rect, const QWidget *label, const QString &text,
@@ -4571,10 +4824,22 @@ void QMaterialStyle::drawSnackbarClose(QPainter *painter, const QAbstractButton 
     const QColor ink = color(Role::InverseOnSurface);
     painter->save();
     painter->setRenderHint(QPainter::Antialiasing);
-    const QRectF area(button->rect());
-    if (button->isDown())
-        fillRounded(painter, area.adjusted(4, 4, -4, -4), (area.height() - 8) / 2, withOpacity(ink, 0.1));
-    const QPointF centre = area.center();
+    // An icon button of 48: a state layer of 40 under the pointer, the press or the keyboard focus, and the focus ring
+    // about it.
+    const QRectF bounds(button->rect());
+    const double side = std::min(bounds.width(), bounds.height());
+    const QPointF centre = bounds.center();
+    const QRectF area(centre.x() - side / 2, centre.y() - side / 2, side, side);
+    const bool focused = button->hasFocus() && m_keyboard;
+    const double layer = !button->isEnabled()   ? 0
+                         : button->isDown()     ? pressedOpacity
+                         : focused              ? focusOpacity
+                         : button->underMouse() ? hoverOpacity
+                                                : 0;
+    if (layer > 0)
+        fillRounded(painter, area.adjusted(4, 4, -4, -4), (side - 8) / 2, withOpacity(ink, layer));
+    if (focused)
+        strokeRounded(painter, area, side / 2, color(Role::Secondary), focusRingWidth);
     painter->setPen(QPen(QBrush(ink), 2, Qt::SolidLine, Qt::RoundCap));
     const double arm = 6;
     painter->drawLine(centre + QPointF(-arm, -arm), centre + QPointF(arm, arm));
@@ -5310,6 +5575,9 @@ int QMaterialStyle::styleHint(StyleHint hint, const QStyleOption *option, const 
     // A finger moves a slider to where it touches it.
     if (hint == SH_Slider_AbsoluteSetButtons)
         return static_cast<int>(Qt::LeftButton) | static_cast<int>(Qt::MiddleButton);
+    // A navigation rail scrolls its destinations; it has no scroll buttons.
+    if (hint == SH_TabBar_PreferNoArrows && isNavigationRail(widget))
+        return 1;
     return QCommonStyle::styleHint(hint, option, widget, returnData);
 }
 
@@ -5344,6 +5612,8 @@ int QMaterialStyle::pixelMetric(PixelMetric metric, const QStyleOption *option, 
         return fieldIcon;
     case PM_LineEditIconMargin:
         return fieldIconMargin;
+    case PM_TextCursorWidth:
+        return textCursorWidth;
     case PM_DefaultFrameWidth:
         if (isTextEditor(widget))
             return editorFrame;

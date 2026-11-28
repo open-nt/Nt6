@@ -65,7 +65,8 @@ protected:
 
     A date time edit shows a date and a time in the displayFormat(), divided into sections such as the day, the month
     and the hour. The arrow keys, the mouse wheel and the buttons step the section that the cursor is in; typing
-    changes the text, which is taken when it is a valid date and time:
+    changes the text, which is taken when it is a valid date and time. A number that fills its section, such as two
+    digits of the hour, moves on to the next section and selects it:
 
     \code
     auto *start = new QDateTimeEdit(QDateTime::currentDateTime(), window);
@@ -159,6 +160,7 @@ void QDateTimeEdit::init(const QDateTime &value, const QString &format) {
     QObject::connect(lineEdit(), &QLineEdit::textChanged, this, repaint);
     QObject::connect(lineEdit(), &QLineEdit::cursorPositionChanged, this, repaint);
     QObject::connect(lineEdit(), &QLineEdit::selectionChanged, this, repaint);
+    QObject::connect(lineEdit(), &QLineEdit::textEdited, this, [this] { advanceSection(); });
 }
 
 /*!
@@ -999,6 +1001,88 @@ bool QDateTimeEdit::parse(const QString &text, QDateTime *result) const {
 }
 
 QDateTime QDateTimeEdit::clamped(const QDateTime &value) const { return std::clamp(value, m_minimum, m_maximum); }
+
+// As in Qt, a number typed into a section that fills it, with as many digits as the section has or with a first digit
+// that no second one could follow, moves on to the next section, which is selected so that it is typed over. The text
+// is written again in the display format, so that a single digit gets its zero.
+void QDateTimeEdit::advanceSection() {
+    QLineEdit *edit = lineEdit();
+    const QString text = edit->text();
+    const int cursor = edit->cursorPosition();
+    if (edit->hasSelectedText() || cursor <= 0 || cursor > text.size() || !text.at(cursor - 1).isDigit())
+        return;
+    const bool twelveHours = displayedSections().testFlag(AmPmSection);
+    qsizetype pos = 0;
+    int index = 0; // of the section that the walk is in
+    int filled = -1;
+    for (const Token &token : m_tokens) {
+        if (token.literal) {
+            if (text.mid(pos, token.pattern.size()) != token.pattern)
+                return;
+            pos += token.pattern.size();
+            continue;
+        }
+        const qsizetype start = pos;
+        const qsizetype n = token.pattern.size();
+        const bool named =
+            token.section == AmPmSection || ((token.section == DaySection || token.section == MonthSection) && n > 2);
+        if (named) {
+            while (pos < text.size() && text.at(pos).isLetter())
+                ++pos;
+        } else {
+            const qsizetype width = token.section == MSecSection ? 3 : token.section == YearSection && n == 4 ? 4 : 2;
+            int first = 0;
+            while (pos < text.size() && pos - start < width && text.at(pos).isDigit()) {
+                if (pos == start)
+                    first = text.at(pos).digitValue();
+                ++pos;
+            }
+            if (pos > start && pos == cursor) {
+                int largest = 0; // that the section can hold
+                switch (token.section) {
+                case DaySection:
+                    largest = 31;
+                    break;
+                case MonthSection:
+                    largest = 12;
+                    break;
+                case HourSection:
+                    largest = twelveHours ? 12 : 23;
+                    break;
+                case MinuteSection:
+                case SecondSection:
+                    largest = 59;
+                    break;
+                default:
+                    largest = 999;
+                    break;
+                }
+                if (pos - start == width || (pos - start == 1 && width == 2 && first * 10 > largest))
+                    filled = index;
+                break;
+            }
+        }
+        if (pos == start)
+            return;
+        ++index;
+    }
+    if (filled < 0)
+        return;
+    QDateTime value;
+    if (!parse(text, &value))
+        return;
+    std::vector<Span> spans;
+    const QString written = format(value, &spans);
+    const int following = filled + 1;
+    if (following >= static_cast<int>(spans.size()))
+        return;
+    m_sections = spans;
+    if (written != text)
+        edit->setText(written);
+    const Span &next = m_sections[static_cast<std::size_t>(following)];
+    m_currentSection = following;
+    edit->setSelection(next.start, next.length);
+}
 
 int QDateTimeEdit::sectionIndexAt(int position) const {
     int index = 0;

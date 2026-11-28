@@ -15,6 +15,7 @@ class Animator;
 struct SpringSpec;
 } // namespace QtPrivate
 
+class QAbstractScrollArea;
 class QFont;
 class QCalendarWidget;
 class QAbstractButton;
@@ -149,7 +150,16 @@ private:
     // A text field: its container, label and the line under it. QLineEdit draws its placeholder itself, and asks if
     // the resting label stands where it would.
     friend class QLineEdit;
-    bool hidesPlaceholder(const QLineEdit *field) const;
+    bool hidesPlaceholder(const QWidget *field) const;
+    // The text cursor of a field, in Primary, or in Error while the field shows an error. QPlainTextEdit and QTextEdit
+    // ask too, and also draw the label of a multi-line field where it lies over their viewport (its resting place),
+    // and ask if the field grows with its text: they then give the height of their lines as their size hint.
+    QColor caretColor(const QWidget *field) const;
+    friend class QPlainTextEdit;
+    friend class QTextEdit;
+    void drawEditorLabel(QPainter *painter, const QAbstractScrollArea *editor) const;
+    static bool growsWithContent(const QWidget *editor);
+    void polishEditorField(QAbstractScrollArea *editor) const;
     // The prefix or the suffix of a text field, while it shows: when the label has floated, or there is none.
     QString fieldAffix(const QLineEdit *field, bool suffix) const;
     // The icon of an action at an end of a text field, in the color of the field's icons.
@@ -176,13 +186,17 @@ private:
     // A calendar whose materialDatePicker is "modal" has the headline of Material's modal date picker above the month:
     // QCalendarWidget makes room for it, as high as this (0 for another calendar), and asks for it to be drawn. At
     // the end of the row of the date is the icon button that switches to the input mode, a pencil, or back to the
-    // days, a calendar, while `input` is true; QCalendarWidget asks where it is, and where the text field of the
-    // input mode goes in the room under the headline, for a field as high as `fieldHeight`.
+    // days, a calendar, while `input` is true: a standard icon button child of the calendar, put where
+    // datePickerModeButton() says, which draws its icon in its `button` rectangle over its state layer. QCalendarWidget
+    // also asks where the text field of the input mode goes in the room under the headline, for a field as high as
+    // `fieldHeight`, and how high the picker is in the input mode, which has only the headline and the field.
     static int datePickerHeadlineHeight(const QWidget *calendar);
     static QRect datePickerModeButton(const QRect &headline);
     static QRect datePickerField(const QRect &room, int fieldHeight);
+    static int datePickerInputHeight(int fieldHeight);
     void drawDatePickerHeadline(QPainter *painter, const QRect &rect, const QCalendarWidget *calendar,
                                 bool input) const;
+    void drawDatePickerModeIcon(QPainter *painter, const QRect &button, const QWidget *widget, bool input) const;
     // The month and the year of a calendar, with the arrow of the menu of years, which is `open` while the years are
     // shown in the place of the days; QCalendarWidget paints its label with it, and lays out the grid of years and asks
     // for each, in its cell.

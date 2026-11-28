@@ -90,8 +90,15 @@ Text fields: a framed `QLineEdit` is outlined, or filled with `materialTextField
 at 16 in the middle of an empty unfocused field and floats to 12 along the default effects spring: onto the outline,
 which makes way for it (an outlined field then has 8 above its container), or into the top of a filled one. The
 placeholder is hidden while the label rests (`QLineEdit` asks the private `hidesPlaceholder()`).
-`materialSupportingText` and `materialError` have 20 under the field. Not done: the caret in the accent colour and
-multi-line fields (icons, prefix and suffix and the counter are below).
+`materialSupportingText` and `materialError` have 20 under the field. The text cursor is `Primary` (`Error` with an
+error) and 2 wide (`PM_TextCursorWidth`, which `QLineEdit` and the text editors ask for; a `setCursorWidth()` wins).
+A `QTextEdit` or `QPlainTextEdit` with `materialTextField` = `"outlined"` or `"filled"`, or a label, supporting text
+or error, is a multi-line field: `PE_PanelLineEdit` draws its frame, viewport margins set by the style put its text 16
+from the sides and one line in the middle of 56 (26 under a filled one's label), and the label rests on the first line
+(the viewport draws it too where it lies over it). With `materialTextField` it grows with its lines: its vertical size
+policy becomes `Maximum` and `viewportSizeHint()` is the height of its lines, up to its maximum height, then it
+scrolls. Not done: the scroll bar runs past the container into the room above and below it, and there is no
+counter in a multi-line field (icons, prefix and suffix and the counter are below).
 
 Icon buttons are `materialIconButton` = `"standard"`, `"filled"`, `"tonal"` or `"outlined"` on a push or tool button:
 square in the five button sizes with icons of 20, 24, 24, 32 and 40, the buttons' corners and outlines, 48 to a finger.
@@ -161,7 +168,12 @@ Badges are `Error` with `OnError`: a dot of 6, or 16 high with a label of 11; `m
 buttons, `materialBadges` (a list, as the tabs have no object of their own and tab data is the application's) on the
 tab bar. Under the style `SH_DialogButtonLayout` is `AndroidLayout`, which `QDialogButtonBox` now asks for. A
 snackbar goes above a floating action button at the bottom, as Compose's `Scaffold` places it, since a button that a
-layout places cannot be moved aside, and keeps to the pages beside a rail. Not done: a rail that scrolls.
+layout places cannot be moved aside, and keeps to the pages beside a rail. Destinations that do not fit the height
+scroll, the 44 above the first one with them (there is no menu button or FAB to hold still yet): the wheel moves them
+a destination a notch, a drag of more than 4 moves them, the current one is scrolled into sight as it changes (the
+first with its 44 above it), and on a rail that scrolls a press chooses at the release, if it has not moved, so that
+a drag does not first go to where it started. A rail that fits keeps Qt's press and wheel. `SH_TabBar_PreferNoArrows`
+is true for a rail; Nt's `QTabBar` draws no scroll buttons for any style.
 
 Sheets are `QDialog`s with `materialSheet` = `"bottom"` (against the bottom, up to 640 wide, corners 28 at the top)
 or `"drawer"` (against the left edge, up to 360 wide and 56 short of the window, corners 16 at the right), both
@@ -182,8 +194,9 @@ search view is below).
 need a widget that Qt Widgets has not got, and an application using it would not build with Qt). Boxes of 96 by 72,
 corners 8, `SurfaceContainerHighest`, the current one `PrimaryContainer` with a 2 `Primary` outline, digits in 45; a
 period selector of 52 by 72 with `TertiaryContainer` for the half that applies. All editing stays
-`QDateTimeEdit`'s: its line edit keeps the focus with no size, and the style draws its text by section. Not done: the
-dial, moving on to the minute after two digits, translated captions. A format of numbers alone sets
+`QDateTimeEdit`'s: its line edit keeps the focus with no size, and the style draws its text by section. Two digits
+of the hour, or one that no second could follow, move on to the minute, selected, as `QDateTimeEdit` now does for
+every format, as Qt does. Not done: the dial, translated captions. A format of numbers alone sets
 `ImhPreferNumbers`, with which Android shows its number keys (see `doc/android.h`).
 
 Spin boxes and scroll bars are drawn without a property, as every Qt form and list has them. Material has no spin box:
@@ -198,7 +211,11 @@ the pointer leaving the button or the end of the range. A scroll bar is 10 wide 
 pointer or while dragged), no track and no arrows, and at least 48 long. Its handle hides at rest, as on a phone: a child
 of the bar (`ScrollBarRest`) wakes it when it is shown, when its value changes (the wheel, the keys, the program, or
 QScroller under a finger), when the pointer comes onto it or leaves it and when it is pressed or released, and lets it
-rest 1.5 s later; the style fades the handle in on the fast effects spring and out on the slow one. The bar keeps its
+rest 1.5 s later. A child of each scroll area (`ScrollAreaHover`) wakes its bars too while a mouse moves over the area
+or its viewport, as overlay scroll bars do, so they rest 1.5 s after the pointer stops or leaves: it filters the area and
+the viewport, and between their Enter and Leave the moves that reach the window, since the viewport has no mouse tracking
+(turning it on would make item views emit `entered()`). Only moves without a button count, so a finger sent as the mouse
+does not wake them with a tap; the style fades the handle in on the fast effects spring and out on the slow one. The bar keeps its
 width and its clicks, so nothing is laid out again. Without motion the handle stays, which keeps forms usable and tests
 still; `materialScrollBar` = `"always"` (Nt only) on the bar or its scroll area keeps it too.
 
@@ -241,8 +258,10 @@ line. Not done: the icon buttons' own ripple and hover, avatars.
 
 A snackbar can have its close affordance: `materialCloseButton` (Nt only) on the status bar makes `QStatusBar` give
 itself a button of 48 at its very end, after the actions, while there is a message. The snackbar draws its cross (24,
-`InverseOnSurface`, a light circle while pressed) over the button, which only takes the press, and the click clears
-the message. Not done: hover on the cross, a focus ring.
+`InverseOnSurface`) over the button, which takes the press and the keyboard focus (Tab only, so a click leaves the focus
+where it is), and the click clears the message. The cross has the state layer of an icon button, a circle of 40 in
+`InverseOnSurface` at 8% under the pointer and 10% while pressed or focused from the keyboard, and the focus ring
+(3, `Secondary`) about it; the button repaints the snackbar on Enter, Leave, FocusIn and FocusOut.
 
 The top app bar follows what is scrolled under it, as Compose's `TopAppBarDefaults` colors do: its container is
 `Surface` at rest and `SurfaceContainer` (`scrolledContainerColor`) while the content beneath it is scrolled, faded on
@@ -273,7 +292,11 @@ the months of the range, and leaves the selection alone, as Compose does. Nothin
 The modal picker has the input mode too. At the end of the row of the date, 12 from the right and centred on its
 line, is an icon button of 48 with an icon of 24, drawn with `QPainter` paths in `OnSurfaceVariant` (no Material
 Symbols, which only `NtMaterialSymbols` may use): a pencil, which switches to the input mode, and there a calendar,
-which switches back (`datePickerModeButton()`; the date is elided before it). The input mode hides the navigation bar
+which switches back (`datePickerModeButton()`; the date is elided before it). The button is a private
+`QToolButton` child with `materialIconButton` `"standard"`, made before the navigation bar so that Tab reaches it
+before the arrows; the style draws its state layer (0.08 hover, 0.10 pressed), focus ring and ripple, and
+`drawDatePickerModeIcon()` the icon over them, so at rest it looks as it did. Space, Return and Enter press it, and
+its accessible name says which mode it switches to. The input mode hides the navigation bar
 (`isNavigationBarVisible()` still says what the program asked for), paints nothing where the month was and shows a
 real `QLineEdit` child, made the first time, as an outlined field 24 in from the sides and 16 under the divider
 (`datePickerField()`), with `materialLabel` "Date", the pattern as supporting text and placeholder, an empty
@@ -289,8 +312,9 @@ date edit of the calendar does. Going back takes the text if it is a date of the
 selection alone; the calendar gets the focus back. A date selected by the program while the field is shown is written
 into it. The field asks for `ImhDate`, which the android platform turns into a keyboard of digits with the separators
 of a date (`ImhPreferNumbers` would give digits alone, without the slash). A calendar that loses the property or the
-style leaves the input mode. Not done: the icon button is not a widget, so it cannot be reached with Tab and has no
-state layer.
+style leaves the input mode. In the input mode the picker's size hint (and minimum) is only the headline, the field
+and 8 under it (`datePickerInputHeight()`), as Material's date input dialog; a shown `QDialog` with a layout that
+holds the picker shrinks by the height that went and grows back with the days.
 Not done: the range picker, a menu of months (the docked picker's), the confirm and cancel buttons (left to the
 dialog), state layers on the years, animating the switch, and a localized headline.
 

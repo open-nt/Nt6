@@ -181,6 +181,12 @@ private:
     QTransform tabTransform(const QRect &rect) const;
     QSize horizontalSize(int index, bool minimum) const;
     void autoHideChanged();
+    // A navigation rail of the Material style whose destinations do not fit scrolls them.
+    bool isRail() const;
+    int railRange() const;  // how far the rail scrolls: 0 when its destinations fit
+    int railScroll() const; // how far it is scrolled, within railRange()
+    void scrollRailTo(int scroll);
+    void showInRail(int index);
 
     QRect closeRect(int index) const;
     bool valid(int index) const { return index >= 0 && index < count(); }
@@ -207,4 +213,9 @@ private:
     Qt::TextElideMode m_elideMode = Qt::ElideNone;
     bool m_autoHide = false;
     bool m_changeCurrentOnDrag = false;
+    int m_railScroll = 0;      // how far the destinations of a rail are scrolled up
+    int m_railPressScroll = 0; // and how far they were when it was pressed
+    int m_railPressed = -1;    // the destination pressed on a rail that scrolls, chosen at the release
+    bool m_railPressing = false;
+    bool m_railDragged = false; // the press has moved the destinations
 };

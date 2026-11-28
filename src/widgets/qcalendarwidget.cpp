@@ -5,12 +5,14 @@
 #include <QtCore/qlocale.h>
 #include <QtGui/qpainter.h>
 #include <QtWidgets/qboxlayout.h>
+#include <QtWidgets/qdialog.h>
 #include <QtWidgets/qlabel.h>
 #include <QtWidgets/qlineedit.h>
 #include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qtoolbutton.h>
 
 #include <algorithm>
+#include <functional>
 
 namespace {
 
@@ -43,6 +45,36 @@ QFont formatted(QFont font, const QTextCharFormat &format) {
     return font;
 }
 
+// The icon button at the end of the headline of Material's modal date picker: a standard icon button, which the style
+// draws with its state layer, focus ring and ripple, and over it the icon that the calendar paints. Space, Return and
+// Enter press it.
+class DatePickerModeButton : public QToolButton {
+public:
+    DatePickerModeButton(QWidget *parent, std::function<void(QPainter *)> icon)
+        : QToolButton(parent), m_icon(std::move(icon)) {
+        setProperty("materialIconButton", QStringLiteral("standard"));
+        setAutoRaise(true);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override {
+        QToolButton::paintEvent(event);
+        QPainter painter(this);
+        m_icon(&painter);
+    }
+    void keyPressEvent(QKeyEvent *event) override {
+        if ((event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) && !event->isAutoRepeat()) {
+            click();
+            event->accept();
+            return;
+        }
+        QToolButton::keyPressEvent(event);
+    }
+
+private:
+    std::function<void(QPainter *)> m_icon;
+};
+
 } // namespace
 
 /*!
@@ -71,10 +103,10 @@ QFont formatted(QFont font, const QTextCharFormat &format) {
     \c QLocale; \c setFirstDayOfWeek() changes it. The month and year menus of the navigation bar are missing (under
     QMaterialStyle a click on the month and the year shows a grid of years, as Material's date picker does), and
     \c dateEditEnabled() is stored but has no effect. Under QMaterialStyle, a calendar with the Nt-only property
-    \c materialDatePicker set to \c "modal" has Material's headline, whose pencil switches to a text field where the
-    date is typed in the short format of the locale; a valid date in the range selects it at once, and Return in the
-    field emits activated(). The \c calendar() is stored but dates are always shown in the
-    Gregorian calendar.
+    \c materialDatePicker set to \c "modal" has Material's headline, whose pencil button switches to a text field
+    where the date is typed in the short format of the locale; a valid date in the range selects it at once, and Return
+    in the field emits activated(). In that mode the size hint is only as high as the headline and the field. The
+    \c calendar() is stored but dates are always shown in the Gregorian calendar.
     \enddifferences
 
     \sa QDateEdit, QDate
@@ -115,6 +147,14 @@ QFont formatted(QFont font, const QTextCharFormat &format) {
 */
 QCalendarWidget::QCalendarWidget(QWidget *parent) : QWidget(parent), m_minimum(1752, 9, 14), m_maximum(9999, 12, 31) {
     setFocusPolicy(Qt::StrongFocus);
+    // Before the navigation bar, so that Tab comes to it first, as it reads.
+    m_modeButton = new DatePickerModeButton(this, [this](QPainter *painter) {
+        if (const QMaterialStyle *material = materialStyle(this))
+            material->drawDatePickerModeIcon(painter, m_modeButton->rect(), m_modeButton, m_inputMode);
+    });
+    m_modeButton->setAccessibleName(QStringLiteral("Switch to text input mode"));
+    m_modeButton->hide();
+    QObject::connect(m_modeButton, &QToolButton::clicked, this, [this] { setInputMode(!m_inputMode); });
     m_navigation = new QWidget(this);
     m_navigation->setAutoFillBackground(true);
     auto *row = new QHBoxLayout(m_navigation);
@@ -300,6 +340,9 @@ QSize QCalendarWidget::sizeHint() const {
         cell = std::max(fm.horizontalAdvance(QStringLiteral("Wed")) + 4, 40);
         row = std::max(row, 40);
     }
+    if (m_inputMode) // the headline and the field, as Material's date input dialog has
+        return QSize((kColumns + headerColumns()) * cell,
+                     QMaterialStyle::datePickerInputHeight(m_dateField->sizeHint().height()));
     const int navigation = isNavigationBarVisible() ? navigationHeight() : 0;
     return QSize((kColumns + headerColumns()) * cell, headlineHeight() + navigation + (kRows + 1) * row);
 }
@@ -689,11 +732,30 @@ void QCalendarWidget::resizeEvent(QResizeEvent *event) {
     if (m_choosingYear)
         scrollYears(m_yearRow);
     layoutDateField();
+    layoutModeButton();
 }
 
 QRect QCalendarWidget::modeButtonRect() const {
     const int headline = headlineHeight();
     return headline ? QMaterialStyle::datePickerModeButton(QRect(0, 0, width(), headline)) : QRect();
+}
+
+void QCalendarWidget::layoutModeButton() {
+    const QRect rect = modeButtonRect();
+    if (rect.isValid())
+        m_modeButton->setGeometry(rect);
+    m_modeButton->setVisible(rect.isValid());
+}
+
+void QCalendarWidget::fitWindowToMode(int before) {
+    updateGeometry();
+    auto *dialog = qobject_cast<QDialog *>(window());
+    const int change = sizeHint().height() - before;
+    if (!dialog || !dialog->isVisible() || !dialog->layout() || change == 0)
+        return;
+    const int height = dialog->height() + change;
+    dialog->layout()->activate(); // its least height follows the picker's first, which may already grow it
+    dialog->resize(dialog->width(), std::max(dialog->minimumSizeHint().height(), height));
 }
 
 void QCalendarWidget::layoutDateField() {
@@ -786,6 +848,7 @@ void QCalendarWidget::dateFieldFinished() {
 void QCalendarWidget::setInputMode(bool input) {
     if (input == m_inputMode || (input && !headlineHeight()))
         return;
+    const int before = sizeHint().height();
     if (input) {
         setChoosingYear(false);
         if (!m_dateField) {
@@ -830,6 +893,10 @@ void QCalendarWidget::setInputMode(bool input) {
         if (focused)
             setFocus();
     }
+    m_modeButton->setAccessibleName(input ? QStringLiteral("Switch to calendar input mode")
+                                          : QStringLiteral("Switch to text input mode"));
+    m_modeButton->update();
+    fitWindowToMode(before);
     update();
 }
 

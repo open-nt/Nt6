@@ -41,7 +41,8 @@ constexpr int kRailSpace = 4; // and between one and the next
 
     setShape() puts the tabs at another side of what they switch: below it, or at its left or right, where the
     tabs run down and their text is turned. Tabs that do not fit are shortened if elideMode() allows it, and cut off
-    otherwise.
+    otherwise. The destinations of a navigation rail of QMaterialStyle that do not fit scroll instead: the wheel and a
+    drag move them, and the current one is scrolled into sight.
 
     A tab bar with the second tab current, and one with close buttons and a disabled tab.
 
@@ -529,8 +530,9 @@ std::vector<QRect> QTabBar::layoutTabs() const {
     const bool vert = vertical();
     const int room = vert ? height() : width();
     const int thick = vert ? width() : height();
-    // Those of a navigation rail are one under another, below the room that Material leaves at its top.
-    if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationRail(this)) {
+    // Those of a navigation rail are one under another, below the room that Material leaves at its top, and move up
+    // as far as the rail is scrolled.
+    if (isRail()) {
         std::vector<QRect> column;
         column.reserve(m_tabs.size());
         const int item = QMaterialStyle::isExpandedRail(this) ? kRailRow : kRailItem;
@@ -539,6 +541,10 @@ std::vector<QRect> QTabBar::layoutTabs() const {
             column.push_back(QRect(0, top, thick, tab.visible ? item : 0));
             top += tab.visible ? item + kRailSpace : 0;
         }
+        const int end = std::max(kRailTop, top - kRailSpace);
+        const int scroll = std::clamp(m_railScroll, 0, std::max(0, end - room));
+        for (QRect &rect : column)
+            rect.translate(0, -scroll);
         return column;
     }
     // The destinations of a navigation bar of the Material style share its width alike.
@@ -596,6 +602,48 @@ std::vector<QRect> QTabBar::layoutTabs() const {
         at += length;
     }
     return rects;
+}
+
+bool QTabBar::isRail() const {
+    return qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationRail(this);
+}
+
+int QTabBar::railRange() const {
+    if (!isRail())
+        return 0;
+    const int item = QMaterialStyle::isExpandedRail(this) ? kRailRow : kRailItem;
+    int end = kRailTop;
+    for (const Tab &tab : m_tabs)
+        end += tab.visible ? item + kRailSpace : 0;
+    end = std::max(kRailTop, end - kRailSpace);
+    return std::max(0, end - height());
+}
+
+int QTabBar::railScroll() const { return std::clamp(m_railScroll, 0, railRange()); }
+
+void QTabBar::scrollRailTo(int scroll) {
+    scroll = std::clamp(scroll, 0, railRange());
+    if (scroll == railScroll()) {
+        m_railScroll = scroll;
+        return;
+    }
+    m_railScroll = scroll;
+    placeButtons();
+    update();
+}
+
+// Scrolls a rail so that the destination at `index` is in full sight, with the room between destinations around it.
+void QTabBar::showInRail(int index) {
+    if (!valid(index) || railRange() == 0)
+        return;
+    const int scroll = railScroll();
+    const QRect rect = layoutTabs()[static_cast<std::size_t>(index)].translated(0, scroll);
+    if (rect.isEmpty())
+        return;
+    if (rect.top() - kRailSpace < scroll)
+        scrollRailTo(rect.top() - kRailTop); // with the room above it that the first one has
+    else if (rect.bottom() + 1 + kRailSpace > scroll + height())
+        scrollRailTo(rect.bottom() + 1 + kRailSpace - height());
 }
 
 QTransform QTabBar::tabTransform(const QRect &rect) const {
@@ -689,11 +737,11 @@ void QTabBar::setTabsClosable(bool closable) {
     \reimp
 */
 QSize QTabBar::sizeHint() const {
-    if (qobject_cast<const QMaterialStyle *>(style()) && QMaterialStyle::isNavigationRail(this)) {
+    if (isRail()) {
         const std::vector<QRect> rects = layoutTabs();
         int bottom = kRailTop;
         for (const QRect &rect : rects)
-            bottom = std::max(bottom, rect.y() + rect.height());
+            bottom = std::max(bottom, rect.y() + rect.height() + railScroll());
         QStyleOptionTab option;
         option.initFrom(this);
         return QSize(style()->sizeFromContents(QStyle::CT_TabBarTab, &option, QSize(), this).width(), bottom);
@@ -737,6 +785,7 @@ void QTabBar::setCurrentIndex(int index) {
         m_history.push_back(m_current);
     }
     m_current = index;
+    showInRail(index);
     update();
     emit currentChanged(index);
 }
@@ -849,6 +898,8 @@ void QTabBar::placeButtons() {
 */
 void QTabBar::resizeEvent(QResizeEvent *event) {
     QWidget::resizeEvent(event);
+    m_railScroll = railScroll();
+    showInRail(m_current);
     placeButtons();
 }
 
@@ -933,7 +984,8 @@ void QTabBar::setDocumentMode(bool set) {
     \fn bool QTabBar::usesScrollButtons() const
     \since 6.0
 
-    Returns whether buttons scroll tabs that do not fit. Nt keeps the value; tabs that do not fit are cut off.
+    Returns whether buttons scroll tabs that do not fit. Nt keeps the value; tabs that do not fit are cut off, and
+    the destinations of a navigation rail of QMaterialStyle scroll without buttons.
 */
 
 /*!
@@ -1126,6 +1178,17 @@ void QTabBar::mousePressEvent(QMouseEvent *event) {
     }
     const int index = tabAt(event->pos());
     emit tabBarClicked(index);
+    // A press on a rail that scrolls may be the start of a drag that scrolls it: the destination is chosen at the
+    // release, if the press has not moved.
+    if (!m_movable && railRange() > 0) {
+        m_railPressing = true;
+        m_railDragged = false;
+        m_railPressed = index;
+        m_railPressScroll = railScroll();
+        m_pressX = along(event->pos());
+        event->accept();
+        return;
+    }
     if (index < 0) {
         event->accept();
         return;
@@ -1153,6 +1216,19 @@ void QTabBar::mousePressEvent(QMouseEvent *event) {
     Dragging a tab of a movable tab bar past the middle of its neighbour swaps them.
 */
 void QTabBar::mouseMoveEvent(QMouseEvent *event) {
+    if (m_railPressing && (event->buttons() & Qt::LeftButton)) {
+        const int moved = along(event->pos()) - m_pressX;
+        if (m_railDragged || std::abs(moved) >= kDragDistance) {
+            m_railDragged = true;
+            if (m_hover != -1) {
+                m_hover = -1;
+                update();
+            }
+            scrollRailTo(m_railPressScroll - moved);
+        }
+        event->accept();
+        return;
+    }
     if (m_dragging >= 0 && (event->buttons() & Qt::LeftButton)) {
         int offset = along(event->pos()) - m_pressX;
         if (std::abs(offset) < kDragDistance && m_dragOffset == 0) {
@@ -1195,6 +1271,16 @@ void QTabBar::mouseMoveEvent(QMouseEvent *event) {
 void QTabBar::mouseReleaseEvent(QMouseEvent *event) {
     if (event->button() != Qt::LeftButton) {
         event->ignore();
+        return;
+    }
+    if (m_railPressing) {
+        m_railPressing = false;
+        const int index = m_railPressed;
+        m_railPressed = -1;
+        if (!m_railDragged && valid(index) && isTabEnabled(index) && tabAt(event->pos()) == index)
+            setCurrentIndex(index);
+        m_railDragged = false;
+        event->accept();
         return;
     }
     if (m_pressedClose >= 0) {
@@ -1264,9 +1350,21 @@ void QTabBar::keyPressEvent(QKeyEvent *event) {
 /*!
     \reimp
 
-    The wheel moves to the previous or next enabled tab.
+    The wheel moves to the previous or next enabled tab. On a navigation rail of QMaterialStyle whose destinations do
+    not fit, it scrolls them instead, a destination a notch.
 */
 void QTabBar::wheelEvent(QWheelEvent *event) {
+    if (railRange() > 0) {
+        const int item = (QMaterialStyle::isExpandedRail(this) ? kRailRow : kRailItem) + kRailSpace;
+        const int by = !event->pixelDelta().isNull() ? event->pixelDelta().y() : event->angleDelta().y() * item / 120;
+        const int before = railScroll();
+        scrollRailTo(before - by);
+        if (railScroll() == before)
+            event->ignore();
+        else
+            event->accept();
+        return;
+    }
     const int notches = event->angleDelta().y() / 120;
     if (notches == 0) {
         event->ignore();

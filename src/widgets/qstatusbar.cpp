@@ -18,16 +18,34 @@ constexpr int kBottomMargin = 2;
 constexpr int kSpacing = 4;
 constexpr int kCloseSize = 48; // the close button of a snackbar, against its end
 
-// The button that closes a snackbar. It draws nothing: the snackbar draws its cross, where it is.
+// The button that closes a snackbar. It draws nothing: the snackbar draws its cross, where it is, with the layer that
+// shows the pointer on it and the ring of the keyboard focus, so the snackbar is repainted when either changes. Tab
+// reaches it; a click does not take the focus from where it is.
 class SnackbarClose : public QAbstractButton {
 public:
     explicit SnackbarClose(QWidget *parent) : QAbstractButton(parent) {
         setObjectName(QStringLiteral("_nt_snackbarClose"));
-        setFocusPolicy(Qt::NoFocus);
+        setFocusPolicy(Qt::TabFocus);
+        setAttribute(Qt::WA_Hover);
     }
     QSize sizeHint() const override { return QSize(kCloseSize, kCloseSize); }
 
 protected:
+    bool event(QEvent *event) override {
+        const bool handled = QAbstractButton::event(event);
+        switch (event->type()) {
+        case QEvent::Enter:
+        case QEvent::Leave:
+        case QEvent::FocusIn:
+        case QEvent::FocusOut:
+            if (QWidget *bar = parentWidget())
+                bar->update();
+            break;
+        default:
+            break;
+        }
+        return handled;
+    }
     void paintEvent(QPaintEvent *event) override { (void)event; }
 };
 } // namespace

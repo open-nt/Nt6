@@ -75,7 +75,7 @@ public:
 
     bool overwriteMode() const { return m_overwrite; }
     void setOverwriteMode(bool overwrite) { m_overwrite = overwrite; }
-    int cursorWidth() const { return m_cursorWidth; }
+    int cursorWidth() const;
     void setCursorWidth(int width);
     Qt::TextInteractionFlags textInteractionFlags() const;
     void setTextInteractionFlags(Qt::TextInteractionFlags flags);
@@ -178,6 +178,7 @@ protected:
     void contextMenuEvent(QContextMenuEvent *event) override;
     void inputMethodEvent(QInputMethodEvent *event) override;
     void paintEvent(QPaintEvent *event) override;
+    QSize viewportSizeHint() const override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
     void scrollContentsBy(int dx, int dy) override;
@@ -264,7 +265,7 @@ private:
     bool m_syncing = false;
     bool trimBlocks(); // drops the first blocks beyond maximumBlockCount(); true if it did
     bool m_overwrite = false;
-    int m_cursorWidth = 1;
+    int m_cursorWidth = 0; // 0: the style's PM_TextCursorWidth
     Qt::TextInteractionFlags m_interaction = Qt::TextEditorInteraction;
     QTextOption::WrapMode m_wordWrap = QTextOption::WrapAtWordBoundaryOrAnywhere;
     int m_wrapColumnOrWidth = 0;

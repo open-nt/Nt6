@@ -139,6 +139,7 @@ private:
     void changeValue(const QDateTime &value, bool rewrite);
     QDateTime clamped(const QDateTime &value) const;
     int sectionIndexAt(int position) const;
+    void advanceSection();
     void showPopup();
 
     QString valueText() const override;

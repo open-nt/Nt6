@@ -2650,7 +2650,7 @@ void testCalendar() {
     window.show();
     QCoreApplication::processEvents();
     // Days of 40, under a bar with the arrows as icon buttons.
-    const QList<QToolButton *> arrows = calendar->findChildren<QToolButton *>();
+    const QList<QToolButton *> arrows = calendar->findChild<QLabel *>()->parentWidget()->findChildren<QToolButton *>();
     CHECK(arrows.size() == 2);
     if (arrows.size() != 2)
         return;
@@ -3173,8 +3173,21 @@ void testTimeInput() {
     CHECK(is(image.pixelColor(48, 1), Role::Primary));
     CHECK(is(image.pixelColor(130, 10), Role::SurfaceContainerHighest));
     key(Qt::Key_1, QStringLiteral("1"));
+    CHECK(line->selectedText().isEmpty()); // one digit of the hour: it waits for the second
     key(Qt::Key_7, QStringLiteral("7"));
     CHECK(edit->time() == QTime(17, 41));
+    // Two digits move on to the minute, which is then marked.
+    CHECK(line->selectedText() == QLatin1String("41"));
+    image = shot();
+    CHECK(is(image.pixelColor(130, 10), Role::PrimaryContainer));
+    CHECK(is(image.pixelColor(10, 10), Role::SurfaceContainerHighest));
+    click(40, 30);
+    key(Qt::Key_5, QStringLiteral("5")); // no hour 50: one digit is enough
+    CHECK(edit->time() == QTime(5, 41) && line->text() == QLatin1String("05:41"));
+    CHECK(line->selectedText() == QLatin1String("41"));
+    click(40, 30);
+    key(Qt::Key_1, QStringLiteral("1"));
+    key(Qt::Key_7, QStringLiteral("7"));
     click(160, 30);
     CHECK(line->selectedText() == QLatin1String("41"));
     CHECK(is(shot().pixelColor(130, 10), Role::PrimaryContainer));
@@ -3571,6 +3584,122 @@ void testGroupBoxAndTextEditors() {
     CHECK(rich->frameWidth() < 10);
 }
 
+// The text cursor in the accent color and two wide, and multi-line text fields: QPlainTextEdit and QTextEdit with the
+// container, outline, label and supporting text of a line edit, growing with their text.
+void testMultilineFieldsAndCaret() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    const auto is = [&](const QColor &color, Role role) { return near(color, style->color(role), 3); };
+
+    QWidget window;
+    auto *layout = new QVBoxLayout(&window);
+    auto *notes = new QPlainTextEdit;
+    notes->setProperty("materialTextField", QStringLiteral("outlined"));
+    notes->setProperty("materialLabel", QStringLiteral("Notes"));
+    notes->setProperty("materialSupportingText", QStringLiteral("About the harvest"));
+    auto *story = new QTextEdit;
+    story->setProperty("materialTextField", QStringLiteral("filled"));
+    story->setProperty("materialLabel", QStringLiteral("Story"));
+    auto *name = new QLineEdit;
+    auto *elsewhere = new QPushButton(QStringLiteral("Elsewhere"));
+    layout->addWidget(notes);
+    layout->addWidget(story);
+    layout->addWidget(name);
+    layout->addWidget(elsewhere);
+    layout->addStretch(1);
+    window.resize(360, 600);
+    window.show();
+    elsewhere->setFocus();
+    QCoreApplication::processEvents();
+
+    // Two wide, as the style says; a width that the program sets wins.
+    CHECK(style->pixelMetric(QStyle::PM_TextCursorWidth) == 2);
+    CHECK(notes->cursorWidth() == 2);
+    auto *other = new QPlainTextEdit;
+    other->setCursorWidth(3);
+    CHECK(other->cursorWidth() == 3);
+    delete other;
+
+    // One line in a container of 56, with the room for the label on the outline and for the line below.
+    const int line = notes->fontMetrics().height();
+    CHECK(notes->height() == 8 + 56 + 20);
+    CHECK(story->height() >= 56 && story->height() < 56 + line);
+    const QPoint text = notes->viewport()->mapTo(notes, QPoint(0, 0));
+    CHECK(text.x() + 4 == 16); // the text 16 from the side, as in a line edit
+
+    const auto at = [&](QWidget *widget, int x, int y) {
+        const QPoint point = widget->mapTo(&window, QPoint(x, y));
+        return window.grab().toImage().pixelColor(point.x(), point.y());
+    };
+    const int w = notes->width();
+    // At rest the outline is whole; with text, it makes way for the label, which has floated onto it.
+    CHECK(near(at(notes, 24, 8), style->color(Role::Outline), 40));
+    CHECK(is(at(notes, w / 2, 8 + 55), Role::Outline));
+    CHECK(is(at(notes, w - 8, notes->height() - 3), Role::Surface)); // the supporting text has no container
+    notes->setPlainText(QStringLiteral("Collected in the rain"));
+    QCoreApplication::processEvents();
+    CHECK(is(at(notes, 14, 8), Role::Surface));
+    CHECK(near(at(notes, w - 24, 8), style->color(Role::Outline), 40));
+
+    // It grows with its lines, up to its maximum height, and then scrolls.
+    notes->setPlainText(QStringLiteral("One\nTwo\nThree"));
+    QCoreApplication::processEvents();
+    CHECK(notes->height() == 8 + 56 + 20 + 2 * line);
+    notes->setMaximumHeight(140);
+    notes->setPlainText(QStringLiteral("1\n2\n3\n4\n5\n6\n7\n8"));
+    QCoreApplication::processEvents();
+    CHECK(notes->height() == 140);
+    CHECK(notes->verticalScrollBar()->maximum() > 0);
+    notes->setPlainText(QString());
+    QCoreApplication::processEvents();
+    CHECK(notes->height() == 8 + 56 + 20);
+
+    // A filled one: its container shows through the text, with a line at the bottom.
+    const int sw = story->width();
+    CHECK(is(at(story, sw - 40, 6), Role::SurfaceContainerHighest));
+    CHECK(is(at(story, sw / 2, story->height() / 2), Role::SurfaceContainerHighest));
+    CHECK(is(at(story, sw - 40, story->height() - 1), Role::OnSurfaceVariant));
+    CHECK(is(at(story, 0, 0), Role::Surface)); // rounded at the top
+
+    // The caret: Primary, and two wide.
+    notes->setFocus();
+    QCoreApplication::processEvents();
+    CHECK(is(at(notes, w / 2, 8 + 1), Role::Primary)); // the outline in the accent color, thicker
+    QRect caret = notes->cursorRect();
+    const auto caretAt = [&](int dx) { return at(notes->viewport(), caret.x() + dx, caret.center().y()); };
+    CHECK(is(caretAt(0), Role::Primary) && is(caretAt(1), Role::Primary));
+    CHECK(!is(caretAt(2), Role::Primary));
+    // and Error while the field shows an error, which turns the outline red too.
+    notes->setProperty("materialError", QStringLiteral("Too long"));
+    QCoreApplication::processEvents();
+    caret = notes->cursorRect();
+    CHECK(is(caretAt(0), Role::Error) && is(caretAt(1), Role::Error));
+    CHECK(is(at(notes, w / 2, 8), Role::Error));
+    CHECK(notes->height() == 8 + 56 + 20); // the room was there
+
+    // A line edit's caret too.
+    name->setFocus();
+    QCoreApplication::processEvents();
+    const QImage image = window.grab().toImage();
+    const QPoint origin = name->mapTo(&window, QPoint(0, 0));
+    int columns = 0;
+    for (int x = 8; x < name->width() - 8; ++x)
+        columns += is(image.pixelColor(origin.x() + x, origin.y() + name->height() / 2), Role::Primary) ? 1 : 0;
+    CHECK(columns == 2);
+
+    // A text editor that is no longer a field takes its plain frame back.
+    notes->setProperty("materialTextField", QVariant());
+    notes->setProperty("materialLabel", QVariant());
+    notes->setProperty("materialSupportingText", QVariant());
+    notes->setProperty("materialError", QVariant());
+    QCoreApplication::processEvents();
+    CHECK(notes->viewportMargins().isNull());
+    CHECK(notes->sizePolicy().verticalPolicy() == QSizePolicy::Expanding);
+    QApplication::setStyle(QStringLiteral("Fusion"));
+}
+
 // With motion, a sheet slides in from its edge and a snackbar fades in; one that goes leaves a picture that fades out.
 void testSheetAndSnackbarMotion() {
     auto *style = new QMaterialStyle;
@@ -3816,6 +3945,39 @@ void testSnackbarClose() {
             ink += is(image.pixelColor(x, y), Role::InverseOnSurface) ? 1 : 0;
     CHECK(ink > 10);
     CHECK(is(image.pixelColor(status->width() - 44, 6), Role::InverseSurface));
+    // The pointer on it, the press and the keyboard focus show the state layer of an icon button; the focus a ring.
+    QWindow *handle = window.windowHandle();
+    const QPoint inLayer = button->mapTo(&window, QPoint(24, 8)); // inside the layer, clear of the cross
+    const QPoint inRing = button->mapTo(&window, QPoint(24, 1));
+    const auto at = [&](QPoint point) { return window.grab().toImage().pixelColor(point); };
+    const auto move = [&](QPoint point) {
+        QWindowSystemInterface::handleMouseEvent(handle, QPointF(point), QPointF(point), Qt::NoButton, Qt::NoButton,
+                                                 QEvent::MouseMove, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    CHECK(is(at(inLayer), Role::InverseSurface));
+    move(inLayer);
+    CHECK(button->underMouse());
+    const QColor hovered = at(inLayer);
+    CHECK(!is(hovered, Role::InverseSurface) && !is(hovered, Role::InverseOnSurface));
+    button->setDown(true);
+    QCoreApplication::processEvents();
+    status->update();
+    QCoreApplication::processEvents();
+    CHECK(!near(at(inLayer), hovered, 2)); // the press is stronger
+    button->setDown(false);
+    move(QPoint(10, 10));
+    CHECK(!button->underMouse() && is(at(inLayer), Role::InverseSurface));
+    CHECK(button->focusPolicy() == Qt::TabFocus);
+    QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier);
+    QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyRelease, Qt::Key_Tab, Qt::NoModifier);
+    QCoreApplication::processEvents();
+    CHECK(button->hasFocus());
+    CHECK(is(at(inRing), Role::Secondary));
+    CHECK(!is(at(inLayer), Role::InverseSurface));
+    button->clearFocus();
+    QCoreApplication::processEvents();
+    CHECK(is(at(inRing), Role::InverseSurface) && is(at(inLayer), Role::InverseSurface));
     // An action goes before it.
     auto *undo = new QPushButton(QStringLiteral("Undo"));
     status->addPermanentWidget(undo);
@@ -3955,7 +4117,7 @@ void testDatePicker() {
     calendar->setSelectedDate(QDate(year - 1, 1, 20));
     window.show();
     QCoreApplication::processEvents();
-    const QList<QToolButton *> arrows = calendar->findChildren<QToolButton *>();
+    const QList<QToolButton *> arrows = calendar->findChild<QLabel *>()->parentWidget()->findChildren<QToolButton *>();
     auto *title = calendar->findChild<QLabel *>();
     CHECK(arrows.size() == 2 && title);
     if (arrows.size() != 2 || !title)
@@ -4317,6 +4479,122 @@ void testDatePickerInput() {
     CHECK(!field->isVisible());
 }
 
+// The icon button of the modal date picker is a real one: Tab reaches it, Space and Return press it, it shows the
+// pointer and the press with the layer of a standard icon button, and the picker is shorter in the input mode.
+void testDatePickerModeButton() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+
+    QDialog dialog;
+    auto *layout = new QVBoxLayout(&dialog);
+    auto *calendar = new QCalendarWidget;
+    calendar->setVerticalHeaderFormat(QCalendarWidget::NoVerticalHeader);
+    calendar->setProperty("materialDatePicker", "modal");
+    layout->addWidget(calendar);
+    auto *buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    layout->addWidget(buttons);
+    dialog.show();
+    dialog.activateWindow();
+    QCoreApplication::processEvents();
+    QToolButton *mode = nullptr;
+    for (QToolButton *each : calendar->findChildren<QToolButton *>())
+        if (each->property("materialIconButton").toString() == QLatin1String("standard"))
+            mode = each;
+    CHECK(mode && mode->isVisible());
+    if (!mode)
+        return;
+    // Where the headline's button is, 48 square, 12 from the right.
+    CHECK(mode->geometry() == QRect(7 * 40 - 12 - 48, 120 - 12 - 20 - 24, 48, 48));
+    QWindow *handle = dialog.windowHandle();
+    const auto key = [&](int code, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+        QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyPress, code, modifiers);
+        QWindowSystemInterface::handleKeyEvent(handle, QEvent::KeyRelease, code, modifiers);
+        QCoreApplication::processEvents();
+    };
+    const auto mouse = [&](QEvent::Type type, const QPoint &local, Qt::MouseButtons held) {
+        const QPointF at(mode->mapTo(&dialog, local));
+        QWindowSystemInterface::handleMouseEvent(handle, at, at, held, Qt::LeftButton, type, Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    // A point of the shape of the button, a circle of 40 in its middle, away from the icon.
+    const QPoint inShape(10, 24);
+    const auto layered = [&](double opacity) {
+        const QColor under = style->color(Role::SurfaceContainerHigh);
+        const QColor ink = style->color(Role::OnSurfaceVariant);
+        const auto mix = [&](int a, int b) { return static_cast<int>(std::lround(a + (b - a) * opacity)); };
+        return QColor(mix(under.red(), ink.red()), mix(under.green(), ink.green()), mix(under.blue(), ink.blue()));
+    };
+    // At rest it is the headline with the pencil on it, as before.
+    CHECK(near(pixel(*mode, inShape.x(), inShape.y()), style->color(Role::SurfaceContainerHigh), 3));
+
+    // Tab from the days comes to it first, with the focus ring; Space switches to the input mode.
+    calendar->setFocus();
+    key(Qt::Key_Tab);
+    CHECK(QApplication::focusWidget() == mode);
+    CHECK(near(pixel(*mode, 4 + 1, 24), style->color(Role::Secondary), 3));
+    const int calendarHeight = calendar->sizeHint().height();
+    const int dialogHeight = dialog.height();
+    key(Qt::Key_Space);
+    auto *field = calendar->findChild<QLineEdit *>();
+    CHECK(field && field->isVisible());
+    if (!field)
+        return;
+    CHECK(QApplication::focusWidget() == field);
+    // The picker is the headline and the field now, and the dialog shrinks with it.
+    const int inputHeight = calendar->sizeHint().height();
+    CHECK(inputHeight < calendarHeight);
+    CHECK(inputHeight == 121 + 16 + field->sizeHint().height() + 8);
+    CHECK(calendar->minimumSizeHint().height() == inputHeight);
+    QCoreApplication::processEvents();
+    CHECK(dialog.height() == dialogHeight - (calendarHeight - inputHeight));
+    CHECK(field->geometry().bottom() < calendar->height());
+    // Shift+Tab goes back to the button, and Return switches back; the dialog grows back.
+    key(Qt::Key_Tab, Qt::ShiftModifier);
+    CHECK(QApplication::focusWidget() == mode);
+    key(Qt::Key_Return);
+    CHECK(!field->isVisible());
+    CHECK(calendar->sizeHint().height() == calendarHeight);
+    QCoreApplication::processEvents();
+    CHECK(dialog.height() == dialogHeight);
+    CHECK(QApplication::focusWidget() == mode);
+    key(Qt::Key_Enter);
+    CHECK(field->isVisible());
+    key(Qt::Key_Tab, Qt::ShiftModifier);
+    key(Qt::Key_Space);
+    CHECK(!field->isVisible());
+
+    // The pointer over it shows the layer of 0.08, and a press that of 0.10; the click switches the mode.
+    calendar->setFocus();
+    QCoreApplication::processEvents();
+    CHECK(near(pixel(*mode, inShape.x(), inShape.y()), style->color(Role::SurfaceContainerHigh), 3));
+    mouse(QEvent::MouseMove, QPoint(24, 24), Qt::NoButton);
+    CHECK(mode->underMouse());
+    CHECK(near(pixel(*mode, inShape.x(), inShape.y()), layered(0.08), 3));
+    mouse(QEvent::MouseButtonPress, QPoint(24, 24), Qt::LeftButton);
+    CHECK(mode->isDown());
+    CHECK(near(pixel(*mode, inShape.x(), inShape.y()), layered(0.10), 3));
+    mouse(QEvent::MouseButtonRelease, QPoint(24, 24), Qt::NoButton);
+    CHECK(field->isVisible());
+    // A click on the button keeps no focus ring: it was not the keyboard.
+    QCoreApplication::processEvents();
+    CHECK(!near(pixel(*mode, 4 + 1, 24), style->color(Role::Secondary), 3));
+    mouse(QEvent::MouseButtonPress, QPoint(24, 24), Qt::LeftButton);
+    mouse(QEvent::MouseButtonRelease, QPoint(24, 24), Qt::NoButton);
+    CHECK(!field->isVisible());
+
+    // Without the headline there is no button.
+    calendar->setProperty("materialDatePicker", QVariant());
+    QCoreApplication::processEvents();
+    CHECK(!mode->isVisible());
+    calendar->setProperty("materialDatePicker", "modal");
+    QCoreApplication::processEvents();
+    CHECK(mode->isVisible());
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    QCoreApplication::processEvents();
+    CHECK(!mode->isVisible());
+}
 // The five sizes of the slider, and the value indicator over its handle.
 void testSliderSizesAndValue() {
     auto *style = new QMaterialStyle;
@@ -4498,6 +4776,108 @@ void testSliderSizesAndValue() {
         upright->setSliderDown(false);
         CHECK(!bubbleShows(upright, handle.left() - 4 - 24, handle.center().y() + belowText));
     }
+}
+
+// A navigation rail whose destinations do not fit its height scrolls them: the wheel and a drag move them, and the
+// current one is scrolled into sight. There are no scroll buttons.
+void testRailScrolls() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    style->setMotionEnabled(false);
+    QApplication::setStyle(style);
+    QPixmap square(24, 24);
+    square.fill(Qt::black);
+    const QIcon icon(square);
+
+    QWidget window;
+    auto *pages = new QTabWidget(&window);
+    pages->setTabPosition(QTabWidget::West);
+    QTabBar *bar = pages->tabBar();
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRail"));
+    for (int i = 0; i < 10; ++i)
+        pages->addTab(new QWidget, icon, QStringLiteral("Page %1").arg(i));
+    pages->setGeometry(0, 0, 600, 400);
+    window.resize(600, 400);
+    window.show();
+    QCoreApplication::processEvents();
+    CHECK(bar->height() == 400 && bar->tabRect(0) == QRect(0, 44, 96, 64));
+    CHECK(style->styleHint(QStyle::SH_TabBar_PreferNoArrows, nullptr, bar) == 1);
+    QTabBar plain;
+    CHECK(style->styleHint(QStyle::SH_TabBar_PreferNoArrows, nullptr, &plain) == 0);
+
+    // 44 + 10 destinations of 64 with 4 between them reach 720: the rail scrolls by 320, a destination a notch.
+    const auto wheel = [&](int notches) {
+        QWheelEvent event(QPointF(48, 200), QPointF(48, 200), QPoint(), QPoint(0, 120 * notches), Qt::NoButton,
+                          Qt::NoModifier);
+        QCoreApplication::sendEvent(bar, &event);
+        return event.isAccepted();
+    };
+    CHECK(wheel(-1));
+    CHECK(bar->tabRect(0).top() == 44 - 68 && bar->currentIndex() == 0); // it scrolls, and the current one stays
+    CHECK(bar->tabAt(QPoint(48, 44)) == 1);
+    CHECK(wheel(-10));
+    CHECK(bar->tabRect(9).bottom() + 1 == 400);
+    CHECK(!wheel(-1)); // at the end: it goes to what holds the rail
+    CHECK(wheel(10));
+    CHECK(bar->tabRect(0).top() == 44);
+    CHECK(!wheel(1));
+
+    // The destination that becomes current is scrolled into sight, the last one with the end, the first with the room
+    // above it.
+    bar->setCurrentIndex(9);
+    CHECK(bar->tabRect(9).bottom() + 1 == 400);
+    {
+        const QImage image = window.grab().toImage();
+        const QRect last = bar->tabRect(9);
+        const QPoint origin = bar->mapTo(&window, QPoint(0, 0));
+        CHECK(near(image.pixelColor(origin.x() + 24, origin.y() + last.top() + 22),
+                   style->color(Role::SecondaryContainer), 3)); // its pill is drawn where it now is
+    }
+    bar->setCurrentIndex(3);
+    CHECK(bar->tabRect(3).top() >= 0 && bar->tabRect(3).bottom() < 400);
+    bar->setCurrentIndex(0);
+    CHECK(bar->tabRect(0).top() == 44);
+    QKeyEvent end(QEvent::KeyPress, Qt::Key_End, Qt::NoModifier);
+    QCoreApplication::sendEvent(bar, &end);
+    CHECK(bar->currentIndex() == 9 && bar->tabRect(9).bottom() + 1 == 400);
+
+    // A drag, as of a finger, scrolls; a press that does not move chooses at the release.
+    const auto mouse = [&](QEvent::Type type, int y, Qt::MouseButtons buttons) {
+        const QPointF at(48, y);
+        QMouseEvent event(type, at, at, Qt::LeftButton, buttons, Qt::NoModifier);
+        QCoreApplication::sendEvent(bar, &event);
+    };
+    const int before = bar->tabRect(0).top();
+    mouse(QEvent::MouseButtonPress, 100, Qt::LeftButton);
+    mouse(QEvent::MouseMove, 150, Qt::LeftButton);
+    mouse(QEvent::MouseMove, 200, Qt::LeftButton);
+    mouse(QEvent::MouseButtonRelease, 200, Qt::NoButton);
+    CHECK(bar->tabRect(0).top() == before + 100 && bar->currentIndex() == 9);
+    const int target = bar->tabAt(QPoint(48, 200));
+    CHECK(target >= 0 && target != 9);
+    mouse(QEvent::MouseButtonPress, 200, Qt::LeftButton);
+    CHECK(bar->currentIndex() == 9);
+    mouse(QEvent::MouseButtonRelease, 200, Qt::NoButton);
+    CHECK(bar->currentIndex() == target && pages->currentIndex() == target);
+
+    // The expanded rail, with rows of 56, scrolls in the same way.
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRailExpanded"));
+    QCoreApplication::processEvents();
+    CHECK(wheel(-20));
+    CHECK(bar->tabRect(9).bottom() + 1 == 400 && bar->tabRect(9).height() == 56);
+    bar->setProperty("materialTabBar", QStringLiteral("navigationRail"));
+    QCoreApplication::processEvents();
+
+    // Once they fit, the destinations are where they were, and the wheel steps through them, as in Qt.
+    window.resize(600, 800);
+    pages->setGeometry(0, 0, 600, 800);
+    QCoreApplication::processEvents();
+    CHECK(bar->tabRect(0) == QRect(0, 44, 96, 64));
+    bar->setCurrentIndex(4);
+    CHECK(wheel(-1) && bar->currentIndex() == 5 && bar->tabRect(0).top() == 44);
+    mouse(QEvent::MouseButtonPress, 44 + 10, Qt::LeftButton); // and a press chooses at once
+    CHECK(bar->currentIndex() == 0);
+    mouse(QEvent::MouseButtonRelease, 44 + 10, Qt::NoButton);
 }
 
 void testExpandedRail() {
@@ -5418,6 +5798,74 @@ void testScrollBarRest() {
     QApplication::setStyle(QStringLiteral("Fusion"));
 }
 
+// A resting scroll bar comes back while a mouse moves over the content of its scroll area, not for a tap.
+void testScrollAreaHover() {
+    auto *style = new QMaterialStyle;
+    style->setColorScheme(Qt::ColorScheme::Light);
+    QApplication::setStyle(style);
+
+    QWidget window;
+    auto *area = new QScrollArea(&window);
+    auto *content = new QWidget;
+    content->resize(180, 1000);
+    area->setWidget(content);
+    area->setGeometry(10, 10, 200, 200);
+    window.resize(240, 240);
+    window.show();
+    QCoreApplication::processEvents();
+    QScrollBar *bar = area->verticalScrollBar();
+    QWindow *handle = window.windowHandle();
+    CHECK(bar->isVisible() && handle);
+    if (!handle)
+        return;
+    const auto shown = [&] {
+        const QImage image = bar->grab().toImage();
+        int count = 0;
+        for (int x = 1; x < image.width(); ++x)
+            count += near(image.pixelColor(x, 20), image.pixelColor(0, 20), 3) ? 0 : 1;
+        return count;
+    };
+    const auto send = [&](QPoint at, Qt::MouseButtons buttons, Qt::MouseButton button, QEvent::Type type) {
+        QWindowSystemInterface::handleMouseEvent(handle, QPointF(at), QPointF(at), buttons, button, type,
+                                                 Qt::NoModifier);
+        QCoreApplication::processEvents();
+    };
+    const auto hover = [&](QPoint at) { send(at, Qt::NoButton, Qt::NoButton, QEvent::MouseMove); };
+    const QPoint content1 = area->viewport()->mapTo(&window, QPoint(40, 60));
+    const QPoint content2 = area->viewport()->mapTo(&window, QPoint(60, 80));
+    const int rest = 1500;
+    wait(rest + 700);
+    CHECK(shown() == 0);
+    // The mouse that moves over the viewport wakes it.
+    hover(content1);
+    hover(content2);
+    wait(250);
+    CHECK(shown() >= 3);
+    // A mouse that stops over the content lets it rest.
+    wait(rest + 700);
+    CHECK(shown() == 0);
+    // It moves again, then leaves the area: the bar rests after the delay.
+    hover(content1);
+    wait(250);
+    CHECK(shown() >= 3);
+    hover(QPoint(4, 4));
+    wait(rest + 700);
+    CHECK(shown() == 0);
+    hover(QPoint(5, 5)); // outside the area the moves do nothing
+    wait(250);
+    CHECK(shown() == 0);
+    // A finger sent as the mouse holds the button: a tap does not wake it.
+    send(content1, Qt::LeftButton, Qt::LeftButton, QEvent::MouseButtonPress);
+    send(content1, Qt::NoButton, Qt::LeftButton, QEvent::MouseButtonRelease);
+    wait(250);
+    CHECK(shown() == 0);
+    // unpolish() takes the watcher away.
+    CHECK(area->findChild<QObject *>(QStringLiteral("_nt_materialScrollHover"), Qt::FindDirectChildrenOnly));
+    QApplication::setStyle(QStringLiteral("Fusion"));
+    CHECK(!area->findChild<QObject *>(QStringLiteral("_nt_materialScrollHover"), Qt::FindDirectChildrenOnly));
+    hover(content2); // and its filters
+}
+
 // The wavy circular progress indicator: its part that is done is a wave about the circle, and its track is plain.
 void testCircularWavyProgress() {
     auto *style = new QMaterialStyle;
@@ -5519,6 +5967,7 @@ int main(int argc, char *argv[]) {
     testCalendar();
     testDatePicker();
     testDatePickerInput();
+    testDatePickerModeButton();
     testDialogOrderAndFab();
     testRailAndBadges();
     testSheetsAndDrawer();
@@ -5526,16 +5975,19 @@ int main(int argc, char *argv[]) {
     testTimeInput();
     testSpinBoxAndScrollBar();
     testScrollBarRest();
+    testScrollAreaHover();
     testCircularWavyProgress();
     testSpinBoxLabel();
     testDialogHeadline();
     testGroupBoxAndTextEditors();
+    testMultilineFieldsAndCaret();
     testSheetAndSnackbarMotion();
     testFieldIconsAffixesCounter();
     testSnackbarClose();
     testAppBarScrolled();
     testSliderSizesAndValue();
     testExpandedRail();
+    testRailScrolls();
     testFlexibleAppBars();
     testMultiLineListRows();
     testDockedToolBarAndIconWidths();

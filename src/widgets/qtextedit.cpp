@@ -4,6 +4,7 @@
 #include <QtGui/qevent.h>
 #include <QtGui/qpainter.h>
 #include <QtGui/qtextdocument.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qscrollbar.h>
 
 #include <algorithm>
@@ -265,6 +266,10 @@ void QTextEdit::paintEvent(QPaintEvent *event) {
     const int dx = horizontalScrollBar()->value(), dy = verticalScrollBar()->value();
     painter.translate(-dx, -dy);
     m_document->drawContents(&painter, QRectF(dx, dy, all.width(), all.height()));
+    painter.translate(dx, dy);
+    // The label of a Material text field, where it lies over the text.
+    if (const auto *material = qobject_cast<const QMaterialStyle *>(style()))
+        material->drawEditorLabel(&painter, this);
 }
 
 /*!

@@ -996,6 +996,21 @@ void testDateTimeEdit() {
     CHECK(edit.date() == QDate(2025, 12, 24));
     key(line, Qt::Key_Return);
     CHECK(edit.text() == QString("2025-12-24 08:30"));
+    // A number that fills its section moves on to the next one and selects it, as in Qt
+    edit.setSelectedSection(QDateTimeEdit::HourSection);
+    type(line, "21");
+    CHECK(edit.time() == QTime(21, 30) && edit.currentSection() == QDateTimeEdit::MinuteSection &&
+          line->selectedText() == QString("30"));
+    type(line, "45"); // the last section: the cursor stays
+    CHECK(edit.time() == QTime(21, 45) && line->cursorPosition() == 16 && !line->hasSelectedText());
+    edit.setSelectedSection(QDateTimeEdit::MonthSection);
+    type(line, "3"); // no month 30 or above: one digit fills it, which gets its zero
+    CHECK(edit.text() == QString("2025-03-24 21:45") && line->selectedText() == QString("24"));
+    type(line, "1"); // a day may be 10 to 19: it waits for a second digit
+    CHECK(line->text() == QString("2025-03-1 21:45") && line->cursorPosition() == 9);
+    key(line, Qt::Key_Return);
+    CHECK(edit.date() == QDate(2025, 3, 1));
+    edit.setDateTime(QDateTime(QDate(2025, 12, 24), QTime(8, 30)));
 
     // The range
     edit.setDateTimeRange(QDateTime(QDate(2025, 1, 1), QTime(0, 0)), QDateTime(QDate(2025, 6, 30), QTime(12, 0)));

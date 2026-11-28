@@ -7,7 +7,9 @@
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qpagedpaintdevice.h>
 #include <QtGui/qpainter.h>
+#include <QtWidgets/qmaterialstyle.h>
 #include <QtWidgets/qmenu.h>
+#include <QtWidgets/qstyle.h>
 #include <QtWidgets/qscrollbar.h>
 
 #include <algorithm>
@@ -531,6 +533,7 @@ void QPlainTextEdit::layoutText() {
         return;
     }
     m_laying = true;
+    const std::size_t linesBefore = m_lines.size();
     const int lh = lineHeight();
     const int size = static_cast<int>(m_text.size());
     for (int pass = 0; pass < 4; ++pass) {
@@ -602,6 +605,10 @@ void QPlainTextEdit::layoutText() {
             break;
     }
     m_laying = false;
+    // A Material text field that grows with its text asks for another height.
+    if (m_lines.size() != linesBefore && qobject_cast<const QMaterialStyle *>(style()) &&
+        QMaterialStyle::growsWithContent(this))
+        updateGeometry();
 }
 
 // The line that shows `position`: the position at the end of a line that wraps is at the start of the next one.
@@ -1041,7 +1048,8 @@ void QPlainTextEdit::paintEvent(QPaintEvent *event) {
     }
     const int stop = std::max(1, static_cast<int>(m_tabStop));
     const QFontMetrics fm = fontMetrics();
-    if (m_text.isEmpty() && !m_placeholder.isEmpty()) {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (m_text.isEmpty() && !m_placeholder.isEmpty() && !(material && material->hidesPlaceholder(this))) {
         painter.setPen(pal.color(group, QPalette::PlaceholderText));
         painter.drawText(QRect(offsetX, offsetY, all.width() - 2 * margin(), lh),
                          Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, m_placeholder);
@@ -1096,9 +1104,26 @@ void QPlainTextEdit::paintEvent(QPaintEvent *event) {
     }
     if (hasFocus() && !m_readOnly && isEnabled()) {
         const QRect caret = cursorRect();
-        painter.fillRect(QRect(caret.x(), caret.y(), std::max(1, m_cursorWidth), caret.height()),
-                         pal.color(group, QPalette::Text));
+        // The Material style draws the cursor in its accent color.
+        painter.fillRect(QRect(caret.x(), caret.y(), cursorWidth(), caret.height()),
+                         material ? material->caretColor(this) : pal.color(group, QPalette::Text));
     }
+    // The label of a Material text field, where it lies over the text.
+    if (material)
+        material->drawEditorLabel(&painter, this);
+}
+
+/*!
+    \reimp
+
+    The height of the lines of text. The Material style asks for it to make a text field grow with what is typed.
+*/
+QSize QPlainTextEdit::viewportSizeHint() const {
+    const auto *material = qobject_cast<const QMaterialStyle *>(style());
+    if (!material || !QMaterialStyle::growsWithContent(this))
+        return QAbstractScrollArea::viewportSizeHint();
+    const int lines = std::max(1, static_cast<int>(m_lines.size()));
+    return QSize(256, lines * lineHeight() + 2 * margin());
 }
 
 /*!
@@ -1435,11 +1460,16 @@ QString QPlainTextEdit::selectedText() const {
 */
 
 /*!
-    \fn int QPlainTextEdit::cursorWidth() const
     \since 6.0
 
-    Returns the width of the cursor in pixels, 1 by default.
+    Returns the width of the cursor in pixels. Until setCursorWidth() is called it is the style's
+    QStyle::PM_TextCursorWidth, which is 1 in most styles and 2 in QMaterialStyle.
 */
+int QPlainTextEdit::cursorWidth() const {
+    if (m_cursorWidth > 0)
+        return m_cursorWidth;
+    return std::max(1, style()->pixelMetric(QStyle::PM_TextCursorWidth, nullptr, this));
+}
 
 /*!
     \since 6.0

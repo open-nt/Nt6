@@ -879,8 +879,10 @@ void QLineEdit::paintEvent(QPaintEvent *event) {
         painter.setClipRect(contents);
     }
     if (hasFocus() && !m_readOnly) {
-        painter.fillRect(origin + xOf(m_cursor), top, 1, fm.height(),
-                         palette().color(group, QPalette::Text));
+        // As wide as the style says, and in the Material style in its accent color.
+        painter.fillRect(origin + xOf(m_cursor), top,
+                         std::max(1, style()->pixelMetric(QStyle::PM_TextCursorWidth, nullptr, this)), fm.height(),
+                         material ? material->caretColor(this) : palette().color(group, QPalette::Text));
     }
     painter.setClipping(false);
     // A prefix just before the text, and a suffix at the end, in the color of the placeholder.

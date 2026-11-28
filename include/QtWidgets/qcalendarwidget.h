@@ -141,12 +141,15 @@ private:
     // in the short format of the locale; the icon button at the end of the headline switches to it and back.
     void setInputMode(bool input);
     QRect modeButtonRect() const;
+    void layoutModeButton();
+    void fitWindowToMode(int before); // a dialog that held the picker's height before grows or shrinks with it
     void layoutDateField();
     QString dateFieldFormat() const;
     QDate dateFieldDate(QString *error) const; // an invalid date and why, for text that is not a date of the range
     void dateFieldEdited();
     void dateFieldFinished();
 
+    QToolButton *m_modeButton = nullptr; // the icon button of the headline, shown with it
     QWidget *m_navigation = nullptr;
     QToolButton *m_previous = nullptr;
     QToolButton *m_next = nullptr;
